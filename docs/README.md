@@ -14,6 +14,7 @@ Action Worker 的共用治理文档统一维护在本目录。
 | [CHANGELOG_CONVENTIONS.md](CHANGELOG_CONVENTIONS.md) | PR、CHANGELOG 与 Release 的统一变更分类 |
 | [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) | 通用开发、验证、PR 与合并流程 |
 | [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) | 新业务仓接入 Action Worker 的标准方法 |
+| [REPOSITORY_GOVERNANCE.md](REPOSITORY_GOVERNANCE.md) | 统一仓库设置与 Ruleset 的治理边界 |
 
 ## 机器规则
 

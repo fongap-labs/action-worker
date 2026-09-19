@@ -169,6 +169,9 @@ jobs:
       - name: 校验工作统计
         run: bash tests/test-work-metrics.sh
 
+      - name: Validate repository settings
+        run: bash tests/test-repo-settings.sh
+
   validate-merge:
     name: validate-merge
     needs:
