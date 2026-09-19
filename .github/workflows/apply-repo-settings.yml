@@ -1,0 +1,33 @@
+name: Apply Repository Settings
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: Target repository in owner/name format
+        required: true
+        type: string
+      dry_run:
+        description: Print the managed settings without changing the repository
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    name: Apply repository settings
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out control plane
+        uses: actions/checkout@v4
+
+      - name: Apply managed settings
+        env:
+          GH_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
+          TARGET_REPOSITORY: ${{ inputs.repository }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: bash scripts/apply-repo-settings.sh "$TARGET_REPOSITORY" "$DRY_RUN"
