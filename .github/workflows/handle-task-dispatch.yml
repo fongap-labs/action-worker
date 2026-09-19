@@ -98,8 +98,8 @@ jobs:
               exit 1
           fi
 
-          if [ -z "${GH_EXECUTION_REPO_PAT:-}" ]; then
-              echo "::error::缺少 GH_EXECUTION_REPO_PAT。" >&2
+          if [ -z "${GH_EXECUTION_TOKEN:-}" ]; then
+              echo "::error::缺少 GH_EXECUTION_TOKEN。" >&2
               exit 1
           fi
 
@@ -117,7 +117,7 @@ jobs:
           TMP_SCRIPT="$TMPDIR_WORK/bootstrap.sh"
 
           cleanup() {
-              unset GH_EXECUTION_REPO_PAT 2>/dev/null || true
+              unset GH_EXECUTION_TOKEN 2>/dev/null || true
               rm -f "${RUNNER_TEMP}/action-worker-base-env.names" 2>/dev/null || true
               rm -f "${RUNNER_TEMP}/action-worker-repository-vars.json" 2>/dev/null || true
               rm -rf "$TMPDIR_WORK"
@@ -142,7 +142,7 @@ jobs:
                       --connect-timeout 15 \
                       --max-time 60 \
                       --retry 0 \
-                      -H "Authorization: Bearer ${GH_EXECUTION_REPO_PAT}" \
+                      -H "Authorization: Bearer ${GH_EXECUTION_TOKEN}" \
                       -o "$output" \
                       -w "%{http_code}" \
                       "$url"); then
