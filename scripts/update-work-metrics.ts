@@ -295,7 +295,7 @@ async function main(): Promise<void> {
   }
   const repository = process.env.GITHUB_REPOSITORY ?? "fongap/action-worker";
   const owner = process.env.GITHUB_REPOSITORY_OWNER ?? repository.split("/", 1)[0] ?? "";
-  const token = process.env.GH_METRICS_TOKEN ?? process.env.GITHUB_TOKEN ?? "";
+  const token = process.env.GITHUB_METRICS_TOKEN ?? process.env.GITHUB_TOKEN ?? "";
   const configured = process.env.METRICS_REPOSITORIES_JSON ?? "";
   const fixtureJson = process.env.WORK_METRICS_COUNTS ?? "";
   const incrementJson = process.env.WORK_METRICS_JSON ?? "";
