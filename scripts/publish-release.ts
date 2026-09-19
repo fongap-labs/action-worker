@@ -248,13 +248,13 @@ async function main(): Promise<void> {
   await requireCommand("bash", ["--version"]);
   await requireCommand("unzip", ["-v"]);
 
-  const controlToken = process.env.GH_CONTROL_TOKEN ?? "";
-  const releaseToken = process.env.GH_RELEASE_TOKEN ?? "";
+  const controlToken = process.env.GITHUB_CONTROL_TOKEN ?? "";
+  const releaseToken = process.env.GITHUB_RELEASE_TOKEN ?? "";
   if (!controlToken) {
-    throw new CliError("GH_CONTROL_TOKEN is required.", 77);
+    throw new CliError("GITHUB_CONTROL_TOKEN is required.", 77);
   }
   if (!releaseToken) {
-    throw new CliError("GH_RELEASE_TOKEN is required.", 77);
+    throw new CliError("GITHUB_RELEASE_TOKEN is required.", 77);
   }
 
   await validateRequest(requestPath);
