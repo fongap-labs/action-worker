@@ -111,7 +111,7 @@ jobs:
     steps:
       - name: 触发中央治理
         env:
-          ACTION_WORKER_PAT: ${{ secrets.ACTION_WORKER_PAT }}
+          ACTION_WORKER_TOKEN: ${{ secrets.ACTION_WORKER_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REQUEST_ID: pr-${{ github.repository_id }}-${{ github.event.pull_request.number }}-${{ github.run_id }}
@@ -123,14 +123,14 @@ jobs:
             '{event_type:"run-pr-governance",client_payload:{schema_version:"1",request_id:$request_id,repository:$repository,pr_number:$pr_number}}')"
 
           curl -fsS -X POST \
-            -H "Authorization: Bearer $ACTION_WORKER_PAT" \
+            -H "Authorization: Bearer $ACTION_WORKER_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             https://api.github.com/repos/fongap/action-worker/dispatches \
             -d "$payload"
 ```
 
-业务仓只需要 `ACTION_WORKER_PAT`，其权限只用于向 `fongap/action-worker` 发送 `repository_dispatch`。`AI_GATEWAY_URL`、`GATEWAY_ACCESS_KEY_AIR` 与跨仓回写凭据只保存在 Action Worker。
+业务仓只需要 `ACTION_WORKER_TOKEN`，其权限只用于向 `fongap/action-worker` 发送 `repository_dispatch`。`AI_GATEWAY_URL`、`GATEWAY_KEY_AIR` 与跨仓回写凭据只保存在 Action Worker。
 
 中央 `GH_CONTROL_TOKEN` 对受管业务仓至少需要 Contents Read、Pull Requests Read/Write、Commit Statuses Read/Write 和 **Actions Read**；Actions Read 用于读取真实 CI Evidence。
 
