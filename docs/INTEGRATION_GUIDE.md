@@ -156,6 +156,20 @@ event_type = run-release
 
 业务仓只需要 `ACTION_WORKER_PAT` 来调用 Action Worker，不配置目标仓写 Token。跨仓 Dispatch 目标由业务仓变量 `ACTION_WORKER_REPOSITORY` 提供；业务仓不得根据组织名或仓库名自行猜测中央治理位置。
 
+同一 GitHub Organization 下的受管仓优先复用组织级配置：
+
+```text
+Organization Secret
+ACTION_WORKER_PAT
+
+Organization Variable
+ACTION_WORKER_REPOSITORY = <owner>/<action-worker-repository>
+```
+
+仅向受 Action Worker 治理的仓库开放该 Secret / Variable。只有仓库需要覆盖组织默认值时，才在 Repository 级配置同名值。
+
+发布源仓若共享同一个分发目标，可同样使用组织级 `RELEASE_TARGET_REPOSITORY`；项目专属部署身份（例如 `DEPLOY_REPOSITORY`）继续使用 Repository 级 Variable。
+
 Action Worker 需要：
 
 ```text
