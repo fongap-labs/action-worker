@@ -29,7 +29,7 @@ jobs:
 
       - name: Apply managed settings
         env:
-          GH_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_ADMIN_TOKEN }}
           TARGET_REPOSITORY: ${{ inputs.repository }}
           IS_DRY_RUN: ${{ inputs.is_dry_run }}
         shell: bash
