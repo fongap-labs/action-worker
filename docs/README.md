@@ -14,6 +14,7 @@ Action Worker 的共用治理文档统一维护在本目录。
 | [CHANGELOG_CONVENTIONS.md](CHANGELOG_CONVENTIONS.md) | PR、CHANGELOG 与 Release 的统一变更分类 |
 | [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) | 通用开发、验证、PR 与合并流程 |
 | [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) | 新业务仓接入 Action Worker 的标准方法 |
+| [REPOSITORY_GOVERNANCE.md](REPOSITORY_GOVERNANCE.md) | 仓库默认设置与 Organization Ruleset 的职责边界 |
 
 ## 机器规则
 
@@ -45,4 +46,9 @@ tests/       合同与治理回归测试
 → docs/ARCHITECTURE_GOVERNANCE.md
 → 相关 contracts / policies
 → 合同测试
+
+统一仓库默认设置
+→ docs/REPOSITORY_GOVERNANCE.md
+→ policies/repository.json
+→ Apply Repository Settings
 ```
