@@ -58,7 +58,7 @@ require "OCR_LLM_TIMEOUT"
 require "REVIEW_TASK_TIMEOUT"
 require "REVIEW_CONCURRENCY"
 require "wait-review-turn.sh"
-require "run-ai-triage.sh"
+require "run-ai-triage.ts"
 require "apply-ai-triage.sh"
 require 'fallback is owned by AI Gateway'
 require 'ocr review'

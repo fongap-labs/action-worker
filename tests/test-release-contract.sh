@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 HANDLER=".github/workflows/handle-release-dispatch.yml"
 VALIDATOR="scripts/validate-release-request.sh"
-PUBLISHER="scripts/publish-release.sh"
+PUBLISHER="scripts/publish-release.ts"
 DISPATCH_CONTRACT="contracts/release-dispatch.json"
 MANIFEST_CONTRACT="contracts/release-manifest.json"
 
@@ -28,22 +28,24 @@ require_in "$HANDLER" "GH_CONTROL_TOKEN"
 require_in "$HANDLER" "GH_RELEASE_TOKEN"
 require_in "$HANDLER" "RELEASE_SOURCE_ALLOWLIST"
 require_in "$HANDLER" "RELEASE_TARGET_ALLOWLIST"
-require_in "$HANDLER" 'scripts/publish-release.sh "$RUNNER_TEMP/release-request.json"'
+require_in "$HANDLER" "actions/setup-node@v4"
+require_in "$HANDLER" "node-version: 24"
+require_in "$HANDLER" 'node scripts/publish-release.ts "$RUNNER_TEMP/release-request.json"'
 
-require_in "$PUBLISHER" 'gh run list'
-require_in "$PUBLISHER" '--workflow ci.yml'
-require_in "$PUBLISHER" 'actions/runs/$source_run_id'
-require_in "$PUBLISHER" 'actions/artifacts/$artifact_id/zip'
+require_in "$PUBLISHER" '"run",'
+require_in "$PUBLISHER" '"ci.yml",'
+require_in "$PUBLISHER" 'actions/runs/${sourceRunId}'
+require_in "$PUBLISHER" 'actions/artifacts/${artifactId}/zip'
 require_in "$PUBLISHER" 'release-manifest.json'
-require_in "$PUBLISHER" 'tag="$release_key-v$version"'
-require_in "$PUBLISHER" 'sha256sum "$asset_path"'
-require_in "$PUBLISHER" 'gh release upload'
-require_in "$PUBLISHER" 'gh release download'
-require_in "$PUBLISHER" 'rollback_release'
-require_in "$PUBLISHER" '.license.expression // "Apache-2.0"'
-require_in "$PUBLISHER" 'License: $license_expression'
-require_in "$PUBLISHER" '-F draft=true'
-require_in "$PUBLISHER" '-F draft=false'
+require_in "$PUBLISHER" 'return `${releaseKey}-v${version}`'
+require_in "$PUBLISHER" 'await sha256File(assetPath)'
+require_in "$PUBLISHER" '"release", "upload"'
+require_in "$PUBLISHER" '"release", "download"'
+require_in "$PUBLISHER" 'rollbackRelease'
+require_in "$PUBLISHER" '?? "Apache-2.0"'
+require_in "$PUBLISHER" 'License: ${licenseExpression}'
+require_in "$PUBLISHER" '"draft=true"'
+require_in "$PUBLISHER" '"draft=false"'
 
 if [ -e ".github/workflows/validate-release-policy.yml" ]; then
   echo "ERROR: legacy validate-release-policy.yml must be removed." >&2

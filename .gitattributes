@@ -3,5 +3,6 @@ tests/** linguist-detectable=false
 
 # Keep shell scripts and GitHub Actions definitions executable on Linux runners.
 *.sh text eol=lf
+*.ts text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf

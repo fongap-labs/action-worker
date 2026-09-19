@@ -35,6 +35,11 @@ jobs:
           ref: main
           fetch-depth: 0
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
       - name: 准备增量统计
         id: increment
         env:
@@ -82,7 +87,7 @@ jobs:
           GH_METRICS_TOKEN: ${{ secrets.GH_CONTROL_TOKEN || secrets.GH_METRICS_PAT || secrets.GH_EXECUTION_REPO_PAT || github.token }}
           METRICS_REPOSITORIES_JSON: ${{ vars.PR_REPOSITORY_ALLOWLIST }}
           WORK_METRICS_INCREMENT_JSON: ${{ steps.increment.outputs.json }}
-        run: bash scripts/update-work-metrics.sh README.md
+        run: node scripts/update-work-metrics.ts README.md
 
       - name: 检查是否变化
         id: changes

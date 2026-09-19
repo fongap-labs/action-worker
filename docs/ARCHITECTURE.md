@@ -140,7 +140,7 @@ CHANGELOG
 
 其中 `change_areas` 仅表示代码改到了 source / workflow / test / script 等技术区域，不属于变更分类。
 
-现有 `resolve-pr-plan.sh` 生成：
+现有 `resolve-pr-plan.ts` 生成：
 
 ```text
 checks
@@ -264,7 +264,7 @@ handle-release-dispatch.yml
   ↓
 validate-release-request.sh
   ↓
-publish-release.sh
+publish-release.ts
 ```
 
 机器合同：
@@ -369,9 +369,13 @@ rules/
 
 scripts/
   apply-ai-triage.sh
+  github-api.ts
   publish-pr-review.sh
-  publish-release.sh
-  run-ai-triage.sh
+  publish-release.ts
+  resolve-pr-plan.ts
+  run-ai-triage.ts
+  runtime-command.ts
+  update-work-metrics.ts
   set-pr-status.sh
   validate-change-record.sh
   validate-pr-payload.sh
@@ -379,10 +383,18 @@ scripts/
   validate-release-request.sh
 
 tests/
+  publish-release.test.ts
+  resolve-pr-plan.test.ts
+  run-ai-triage.test.ts
   test-change-record.sh
   test-pr-boundary.sh
   test-pr-repository.sh
   test-release-contract.sh
+  update-work-metrics.test.ts
+
+package.json
+package-lock.json
+tsconfig.json
 ```
 
 禁止新增项目配置层：

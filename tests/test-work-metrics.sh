@@ -18,7 +18,7 @@ EOF
 export GITHUB_REPOSITORY="fongap/action-worker"
 export WORK_METRICS_COUNTS_JSON='{"dispatch":1411,"pr_governance":12,"ai_review":9,"gate":12,"release_governance":3}'
 
-bash "$ROOT_DIR/scripts/update-work-metrics.sh" "$README"
+node "$ROOT_DIR/scripts/update-work-metrics.ts" "$README"
 
 grep -F 'Dispatch-1%2C411-2F80ED?style=flat-square&labelColor=5B5B5B' "$README" >/dev/null
 grep -F 'PR%20Governance-12-6366F1?style=flat-square&labelColor=5B5B5B' "$README" >/dev/null
@@ -37,7 +37,7 @@ if positions != sorted(positions):
 PY
 
 before="$(sha256sum "$README" | awk '{print $1}')"
-bash "$ROOT_DIR/scripts/update-work-metrics.sh" "$README"
+node "$ROOT_DIR/scripts/update-work-metrics.ts" "$README"
 after="$(sha256sum "$README" | awk '{print $1}')"
 
 [ "$before" = "$after" ] || {
@@ -48,7 +48,7 @@ after="$(sha256sum "$README" | awk '{print $1}')"
 unset WORK_METRICS_COUNTS_JSON
 export WORK_METRICS_INCREMENT_JSON='{"dispatch":1,"pr_governance":1,"ai_review":1,"release_governance":0}'
 
-bash "$ROOT_DIR/scripts/update-work-metrics.sh" "$README"
+node "$ROOT_DIR/scripts/update-work-metrics.ts" "$README"
 
 grep -F 'Dispatch-1%2C412-2F80ED?style=flat-square&labelColor=5B5B5B' "$README" >/dev/null
 grep -F 'PR%20Governance-13-6366F1?style=flat-square&labelColor=5B5B5B' "$README" >/dev/null
@@ -56,6 +56,9 @@ grep -F 'AI%20Review-10-8B5CF6?style=flat-square&labelColor=5B5B5B' "$README" >/
 grep -F 'Release%20Governance-3-14B8A6?style=flat-square&labelColor=5B5B5B' "$README" >/dev/null
 
 WORKFLOW="$ROOT_DIR/.github/workflows/update-work-metrics.yml"
+grep -F 'actions/setup-node@v4' "$WORKFLOW" >/dev/null
+grep -F 'node-version: 24' "$WORKFLOW" >/dev/null
+grep -F 'node scripts/update-work-metrics.ts README.md' "$WORKFLOW" >/dev/null
 grep -F 'GH_METRICS_TOKEN: ${{ secrets.GH_CONTROL_TOKEN || secrets.GH_METRICS_PAT || secrets.GH_EXECUTION_REPO_PAT || github.token }}' "$WORKFLOW" >/dev/null || {
   echo "Work metrics reads must prefer GH_CONTROL_TOKEN." >&2
   exit 1
