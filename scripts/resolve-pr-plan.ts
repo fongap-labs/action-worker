@@ -1,7 +1,8 @@
-import { access } from "node:fs/promises";
+import { access, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   CliError,
+  appendLines,
   handleError,
   isMain,
   parseJson,
@@ -381,7 +382,19 @@ async function main(): Promise<void> {
     modelOverride,
     agentOverride,
   });
-  console.log(JSON.stringify(plan, null, 2));
+  const output = JSON.stringify(plan);
+  if (process.env.GITHUB_OUTPUT) {
+    await writeFile("/tmp/pr-plan.base.json", `${output}\n`, "utf8");
+    await appendLines(process.env.GITHUB_OUTPUT, [
+      `ci_required=${plan.ci_required}`,
+      `naming_required=${plan.naming_required}`,
+      `review_required=${plan.review_required}`,
+      `triage_required=${plan.triage_required}`,
+      `triage_model=${plan.triage_model}`,
+      `triage_timeout=${plan.triage_timeout}`,
+    ]);
+  }
+  console.log(output);
 }
 
 if (isMain(import.meta.url)) {

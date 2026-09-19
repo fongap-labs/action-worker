@@ -159,7 +159,7 @@ source build artifact
 → workflow_run completed
 → repository_dispatch: run-release
 → handle-release-dispatch.yml
-→ validate-release-request.sh
+→ validate-release-request.ts
 → publish-release.ts
 ```
 
@@ -202,7 +202,7 @@ Release Tag 固定为：
 - 能参数化就不复制；
 - 能按语义判断就不按仓库名判断；
 - 修改治理逻辑必须补合同测试；
-- 修改 Workflow 必须通过 actionlint / ShellCheck / 本仓 CI；
+- 修改 Workflow 必须通过 actionlint、本仓 CI，以及在存在 Shell 边界时通过 ShellCheck；
 - 不把一次性兼容逻辑长期留在主线；
 - 不增加无必要的抽象层。
 
