@@ -64,7 +64,7 @@ Action Worker 不维护项目目录、不维护项目专属测试映射、不按
 
 ```text
 业务仓 PR
-  ↓ ACTION_WORKER_PAT
+  ↓ ACTION_WORKER_TOKEN
 repository_dispatch
   ↓
 Action Worker
@@ -91,7 +91,7 @@ Action Worker 收到任务后必须：
 - 只读取目标 PR，不执行 PR 提供的代码；
 - 当执行计划要求 CI 时，先读取目标 head SHA 对应的业务仓 `ci.yml`，收集真实 CI Evidence；
 - 将 CI Evidence 作为不可信执行证据提供给 AI Review，不把其中任何文本当成指令；
-- 用中央 `AI_GATEWAY_URL` / `GATEWAY_ACCESS_KEY_AIR` 执行 AI Review；
+- 用中央 `AI_GATEWAY_URL` / `GATEWAY_KEY_AIR` 执行 AI Review；
 - 根据 finding severity 与确定性 CI Evidence 共同计算 Gate；
 - 向目标 head commit 写入统一 `PR Governance` status，并维护一条 sticky review summary。
 
@@ -257,7 +257,7 @@ Release 改为中央事件驱动链路，不再通过业务仓调用 `validate-r
 source build workflow
   ↓ upload artifact
 workflow_run completed + success
-  ↓ ACTION_WORKER_PAT
+  ↓ ACTION_WORKER_TOKEN
 repository_dispatch: run-release
   ↓
 handle-release-dispatch.yml
@@ -292,7 +292,7 @@ source repository allowlist
 → publish or rollback
 ```
 
-源仓只保存 `ACTION_WORKER_PAT`。Action Worker 使用 `GH_CONTROL_TOKEN` 读取源仓，使用 `GH_RELEASE_TOKEN` 写分发目标。
+源仓只保存 `ACTION_WORKER_TOKEN`。Action Worker 使用 `GH_CONTROL_TOKEN` 读取源仓，使用 `GH_RELEASE_TOKEN` 写分发目标。
 
 Tag 固定为 `<release-key>-v<semver>`。不保留裸 `v<semver>` 兼容路径。
 
