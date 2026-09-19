@@ -36,13 +36,13 @@ PR
 业务仓 Secret：
 
 ```text
-ACTION_WORKER_PAT
+ACTION_WORKER_TOKEN
 ```
 
 不得下发：
 
 ```text
-GATEWAY_ACCESS_KEY_AIR
+GATEWAY_KEY_AIR
 GH_CONTROL_TOKEN
 ```
 
@@ -86,7 +86,7 @@ Action Worker Secret / Variable：
 ```text
 GH_CONTROL_TOKEN
 AI_GATEWAY_URL
-GATEWAY_ACCESS_KEY_AIR
+GATEWAY_KEY_AIR
 REVIEW_ENGINE_REPOSITORY
 ```
 
@@ -154,13 +154,13 @@ event_type = run-release
 
 许可证声明属于具体 App / Release，而不是目标分发仓。未提供 `license` 时按 `Apache-2.0` 发布；需要其他许可证时由源仓在 manifest 中显式覆盖。若使用 `license.file`，对应文件必须列入 `assets[]` 并参与 SHA256 校验。
 
-业务仓只需要 `ACTION_WORKER_PAT` 来调用 Action Worker，不配置目标仓写 Token。跨仓 Dispatch 目标由业务仓变量 `ACTION_WORKER_REPOSITORY` 提供；业务仓不得根据组织名或仓库名自行猜测中央治理位置。
+业务仓只需要 `ACTION_WORKER_TOKEN` 来调用 Action Worker，不配置目标仓写 Token。跨仓 Dispatch 目标由业务仓变量 `ACTION_WORKER_REPOSITORY` 提供；业务仓不得根据组织名或仓库名自行猜测中央治理位置。
 
 同一 GitHub Organization 下的受管仓优先复用组织级配置：
 
 ```text
 Organization Secret
-ACTION_WORKER_PAT
+ACTION_WORKER_TOKEN
 
 Organization Variable
 ACTION_WORKER_REPOSITORY = <owner>/<action-worker-repository>
