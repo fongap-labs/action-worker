@@ -3,11 +3,11 @@ set -Eeuo pipefail
 
 README_PATH="${1:-README.md}"
 API_URL="${GITHUB_API_URL:-https://api.github.com}"
-REPOSITORY="${GITHUB_REPOSITORY:-fongap/action-worker}"
+REPOSITORY="${GITHUB_REPOSITORY:-fongap-labs/action-worker}"
 OWNER="${GITHUB_REPOSITORY_OWNER:-${REPOSITORY%%/*}}"
 TOKEN="${GITHUB_METRICS_TOKEN:-${GITHUB_TOKEN:-}}"
 REPOSITORIES_JSON="${METRICS_REPOSITORIES_JSON:-}"
-COUNTS_JSON="${WORK_METRICS_COUNTS_JSON:-}"
+COUNTS_JSON="${WORK_METRICS_COUNTS:-}"
 INCREMENT_JSON="${WORK_METRICS_JSON:-}"
 
 command -v curl >/dev/null 2>&1 || { echo "curl is required." >&2; exit 69; }
@@ -254,7 +254,7 @@ load_fixture() {
     and (.gate | type == "number" and . >= 0)
     and (.release_governance | type == "number" and . >= 0)
   ' <<< "$COUNTS_JSON" >/dev/null || {
-    echo "WORK_METRICS_COUNTS_JSON is invalid." >&2
+    echo "WORK_METRICS_COUNTS is invalid." >&2
     exit 65
   }
 
