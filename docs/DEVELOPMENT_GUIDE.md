@@ -85,7 +85,7 @@ Workflow 变更至少检查：
 
 `update-work-metrics.yml` 的权限边界固定为：
 
-- 跨仓统计读取使用 `GH_CONTROL_TOKEN`；
+- 跨仓统计读取使用 `GITHUB_CONTROL_TOKEN`；
 - Action Worker 本仓创建统计 PR、运行 CI、合并与删除临时分支使用 `github.token`；
 - `main` 继续遵守 PR + `validate-merge`，不得通过直接 push 绕过规则。
 
@@ -144,8 +144,8 @@ Manifest 必须提供目标仓、`release_key`、SemVer 与每个资产的 SHA25
 中央发布凭据与运行配置：
 
 ```text
-GH_CONTROL_TOKEN
-GH_RELEASE_TOKEN
+GITHUB_CONTROL_TOKEN
+GITHUB_RELEASE_TOKEN
 RELEASE_SOURCE_ALLOWLIST
 RELEASE_TARGET_ALLOWLIST
 ```
