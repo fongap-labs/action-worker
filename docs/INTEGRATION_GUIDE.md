@@ -90,7 +90,7 @@ GATEWAY_ACCESS_KEY_AIR
 REVIEW_ENGINE_REPOSITORY
 ```
 
-`REVIEW_ENGINE_REPOSITORY` 可覆盖 AI Review Engine 的分发仓库；为空时自动使用当前组织的 `external-vault`。Review Policy 只保存 engine 名称、版本与资产名，不保存组织或仓库位置。
+`REVIEW_ENGINE_REPOSITORY` 定义 AI Review Engine 的分发仓库。Review Policy 只保存 engine 名称、版本与资产名，不保存组织或仓库位置。
 
 `GH_CONTROL_TOKEN` 对受管仓至少需要：
 
@@ -154,7 +154,7 @@ event_type = run-release
 
 许可证声明属于具体 App / Release，而不是目标分发仓。未提供 `license` 时按 `Apache-2.0` 发布；需要其他许可证时由源仓在 manifest 中显式覆盖。若使用 `license.file`，对应文件必须列入 `assets[]` 并参与 SHA256 校验。
 
-业务仓只需要 `ACTION_WORKER_PAT` 来调用 Action Worker，不配置目标仓写 Token。跨仓 Dispatch 目标由业务仓变量 `ACTION_WORKER_REPOSITORY` 提供；若实现支持同组织推导，可将 `${{ github.repository_owner }}/action-worker` 作为无硬编码兜底。
+业务仓只需要 `ACTION_WORKER_PAT` 来调用 Action Worker，不配置目标仓写 Token。跨仓 Dispatch 目标由业务仓变量 `ACTION_WORKER_REPOSITORY` 提供；业务仓不得根据组织名或仓库名自行猜测中央治理位置。
 
 Action Worker 需要：
 
