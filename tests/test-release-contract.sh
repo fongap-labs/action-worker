@@ -24,8 +24,8 @@ require_in() {
 }
 
 require_in "$HANDLER" "types: [run-release]"
-require_in "$HANDLER" "GH_CONTROL_TOKEN"
-require_in "$HANDLER" "GH_RELEASE_TOKEN"
+require_in "$HANDLER" "GITHUB_CONTROL_TOKEN"
+require_in "$HANDLER" "GITHUB_RELEASE_TOKEN"
 require_in "$HANDLER" "RELEASE_SOURCE_ALLOWLIST"
 require_in "$HANDLER" "RELEASE_TARGET_ALLOWLIST"
 require_in "$HANDLER" 'scripts/publish-release.sh "$RUNNER_TEMP/release-request.json"'
