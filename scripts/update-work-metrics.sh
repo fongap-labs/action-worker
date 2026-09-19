@@ -8,7 +8,7 @@ OWNER="${GITHUB_REPOSITORY_OWNER:-${REPOSITORY%%/*}}"
 TOKEN="${GH_METRICS_TOKEN:-${GITHUB_TOKEN:-}}"
 REPOSITORIES_JSON="${METRICS_REPOSITORIES_JSON:-}"
 COUNTS_JSON="${WORK_METRICS_COUNTS_JSON:-}"
-INCREMENT_JSON="${WORK_METRICS_INCREMENT_JSON:-}"
+INCREMENT_JSON="${WORK_METRICS_JSON:-}"
 
 command -v curl >/dev/null 2>&1 || { echo "curl is required." >&2; exit 69; }
 command -v jq >/dev/null 2>&1 || { echo "jq is required." >&2; exit 69; }
@@ -205,7 +205,7 @@ load_increment() {
     and valid_count("ai_review")
     and valid_count("release_governance")
   ' <<< "$INCREMENT_JSON" >/dev/null || {
-    echo "WORK_METRICS_INCREMENT_JSON is invalid." >&2
+    echo "WORK_METRICS_JSON is invalid." >&2
     exit 65
   }
 
