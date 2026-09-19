@@ -70,7 +70,7 @@ repository_dispatch
 Action Worker
   ↓
 Validate → Inspect → Plan → CI Evidence → Triage → Review → Gate
-  ↓ GH_CONTROL_TOKEN
+  ↓ GITHUB_CONTROL_TOKEN
 目标 PR status / review summary
 ```
 
@@ -86,7 +86,7 @@ pr_number
 Action Worker 收到任务后必须：
 
 - 先按 `PR_REPOSITORY_ALLOWLIST` 校验目标仓库；
-- 使用 `GH_CONTROL_TOKEN` 从 GitHub 重新获取 PR base/head SHA、标题、状态和 diff；
+- 使用 `GITHUB_CONTROL_TOKEN` 从 GitHub 重新获取 PR base/head SHA、标题、状态和 diff；
 - checkout `refs/pull/<n>/head` 后再次与 GitHub 当前 PR 事实对齐；如果调度到检出之间 PR 已更新，则以实际检出 commit 与最新 PR API 一致的 base/head/title 作为本次治理事实，避免把同步窗口误判为永久失败；
 - 只读取目标 PR，不执行 PR 提供的代码；
 - 当执行计划要求 CI 时，先读取目标 head SHA 对应的业务仓 `ci.yml`，收集真实 CI Evidence；
@@ -192,7 +192,7 @@ ci-evidence      = 项目测试 / 构建 / 许可证等本地证据
 validate-merge   = 最终合并门禁
 ```
 
-当 PR Plan 判定 `ci_required=true` 时，Action Worker 使用 `GH_CONTROL_TOKEN` 等待当前 head SHA 的 `ci-evidence` 完成并形成结构化 Evidence。迁移期间允许旧仓回退读取 `validate-merge`，但新接入必须提供 `ci-evidence`。AI Review 可以读取该 Evidence 评估覆盖是否充分；随后 `validate-ci-evidence.sh` 确定性要求 evidence job 成功。
+当 PR Plan 判定 `ci_required=true` 时，Action Worker 使用 `GITHUB_CONTROL_TOKEN` 等待当前 head SHA 的 `ci-evidence` 完成并形成结构化 Evidence。迁移期间允许旧仓回退读取 `validate-merge`，但新接入必须提供 `ci-evidence`。AI Review 可以读取该 Evidence 评估覆盖是否充分；随后 `validate-ci-evidence.sh` 确定性要求 evidence job 成功。
 
 Action Worker 完成 AI / Policy Gate 后向 commit 写入 `PR Governance` status。业务仓最终 `validate-merge` 使用中央 `.github/actions/validate-merge-policy`，只有 `ci-evidence=success` 且 `PR Governance=success` 才通过。这样现有 Ruleset 只要求 `validate-merge` 也能把中央治理变成硬门禁。
 
@@ -292,7 +292,7 @@ source repository allowlist
 → publish or rollback
 ```
 
-源仓只保存 `ACTION_WORKER_TOKEN`。Action Worker 使用 `GH_CONTROL_TOKEN` 读取源仓，使用 `GH_RELEASE_TOKEN` 写分发目标。
+源仓只保存 `ACTION_WORKER_TOKEN`。Action Worker 使用 `GITHUB_CONTROL_TOKEN` 读取源仓，使用 `GITHUB_RELEASE_TOKEN` 写分发目标。
 
 Tag 固定为 `<release-key>-v<semver>`。不保留裸 `v<semver>` 兼容路径。
 
