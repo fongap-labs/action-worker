@@ -79,7 +79,7 @@ jobs:
       - name: 统计工作成果
         id: metrics
         env:
-          GH_METRICS_TOKEN: ${{ secrets.GH_CONTROL_TOKEN || secrets.GH_METRICS_TOKEN || secrets.GH_EXECUTION_TOKEN || github.token }}
+          GITHUB_METRICS_TOKEN: ${{ secrets.GITHUB_CONTROL_TOKEN || secrets.GITHUB_METRICS_TOKEN || secrets.GITHUB_EXECUTION_TOKEN || github.token }}
           METRICS_REPOSITORIES_JSON: ${{ vars.PR_REPOSITORY_ALLOWLIST }}
           WORK_METRICS_JSON: ${{ steps.increment.outputs.json }}
         run: bash scripts/update-work-metrics.sh README.md
@@ -123,7 +123,7 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         id: pr
         env:
-          GH_TOKEN: ${{ secrets.GH_CONTROL_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_CONTROL_TOKEN || github.token }}
           BRANCH: ${{ steps.branch.outputs.name }}
           DISPATCH: ${{ steps.metrics.outputs.dispatch }}
           PR_GOVERNANCE: ${{ steps.metrics.outputs.pr_governance }}
@@ -209,7 +209,7 @@ jobs:
       - name: 合并更新
         if: steps.changes.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.GH_CONTROL_TOKEN || github.token }}
+          GH_TOKEN: ${{ secrets.GITHUB_CONTROL_TOKEN || github.token }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           BRANCH: ${{ steps.branch.outputs.name }}
         shell: bash
