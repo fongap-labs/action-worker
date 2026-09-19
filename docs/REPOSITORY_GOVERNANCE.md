@@ -27,7 +27,7 @@ Delete head branches    ON
 
 Web commit sign-off     OFF
 Squash title            PR title
-Squash message          PR body
+Squash message          Blank
 ```
 
 这组配置保持当前 Fongap Labs 仓库的简洁合并策略：只允许 squash，不自动合并，并在合并后自动删除 head branch。
