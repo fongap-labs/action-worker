@@ -56,8 +56,8 @@ grep -F 'AI%20Review-10-8B5CF6?style=flat-square&labelColor=5B5B5B' "$README" >/
 grep -F 'Release%20Governance-3-14B8A6?style=flat-square&labelColor=5B5B5B' "$README" >/dev/null
 
 WORKFLOW="$ROOT_DIR/.github/workflows/update-work-metrics.yml"
-grep -F 'GH_METRICS_TOKEN: ${{ secrets.GH_CONTROL_TOKEN || secrets.GH_METRICS_PAT || secrets.GH_EXECUTION_REPO_PAT || github.token }}' "$WORKFLOW" >/dev/null || {
-  echo "Work metrics reads must prefer GH_CONTROL_TOKEN." >&2
+grep -F 'GITHUB_METRICS_TOKEN: ${{ secrets.GITHUB_CONTROL_TOKEN || secrets.GH_METRICS_PAT || secrets.GITHUB_EXECUTION_REPOSITORY_PAT || github.token }}' "$WORKFLOW" >/dev/null || {
+  echo "Work metrics reads must prefer GITHUB_CONTROL_TOKEN." >&2
   exit 1
 }
 grep -F 'GH_TOKEN: ${{ github.token }}' "$WORKFLOW" >/dev/null || {
@@ -71,7 +71,7 @@ grep -F '"repos/$GITHUB_REPOSITORY/pulls"' "$WORKFLOW" >/dev/null || {
   echo "Work metrics PR creation must use the REST pulls endpoint." >&2
   exit 1
 }
-if grep -F 'GH_TOKEN: ${{ secrets.GH_CONTROL_TOKEN || secrets.GH_METRICS_PAT || secrets.GH_EXECUTION_REPO_PAT }}' "$WORKFLOW" >/dev/null; then
+if grep -F 'GH_TOKEN: ${{ secrets.GITHUB_CONTROL_TOKEN || secrets.GH_METRICS_PAT || secrets.GITHUB_EXECUTION_REPOSITORY_PAT }}' "$WORKFLOW" >/dev/null; then
   echo "Work metrics local PR creation must not depend on a cross-repository PAT." >&2
   exit 1
 fi
