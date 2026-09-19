@@ -79,7 +79,7 @@ jobs:
       - name: 统计工作成果
         id: metrics
         env:
-          GITHUB_METRICS_TOKEN: ${{ secrets.GITHUB_CONTROL_TOKEN || secrets.GITHUB_METRICS_TOKEN || secrets.GITHUB_EXECUTION_TOKEN || github.token }}
+          GITHUB_METRICS_TOKEN: ${{ secrets.GITHUB_CONTROL_TOKEN || github.token }}
           METRICS_REPOSITORIES_JSON: ${{ vars.PR_REPOSITORY_ALLOWLIST }}
           WORK_METRICS_JSON: ${{ steps.increment.outputs.json }}
         run: bash scripts/update-work-metrics.sh README.md
