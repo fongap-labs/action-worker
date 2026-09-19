@@ -1,6 +1,3 @@
-# Exclude repository tests from GitHub Linguist statistics.
-tests/** linguist-detectable=false
-
 # Keep shell scripts and GitHub Actions definitions executable on Linux runners.
 *.sh text eol=lf
 *.ts text eol=lf
