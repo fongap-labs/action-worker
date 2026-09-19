@@ -23,8 +23,31 @@ export type WorkCounts = {
 };
 
 type IncrementCounts = Omit<WorkCounts, "gate">;
+const JOB_READ_LIMIT = 4;
+
 function isCount(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+export async function mapWithLimit<T, R>(
+  items: readonly T[],
+  limit: number,
+  worker: (item: T) => Promise<R>,
+): Promise<R[]> {
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new CliError("Concurrency limit must be a positive integer.");
+  }
+  const results = new Array<R>(items.length);
+  let index = 0;
+  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (index < items.length) {
+      const current = index;
+      index += 1;
+      results[current] = await worker(items[current]!);
+    }
+  });
+  await Promise.all(runners);
+  return results;
 }
 
 function getApiArray(value: unknown, key?: string): unknown[] {
@@ -162,12 +185,13 @@ async function collectMetrics(
           ".github/workflows/handle-release-dispatch.yml",
         )).length;
 
-        for (const run of governanceRuns) {
-          const runId = getJsonNumber(run, "id");
-          if (!runId) {
-            continue;
-          }
-          const jobs = await reader.get(`repos/${repository}/actions/runs/${runId}/jobs?per_page=100`);
+        const runIds = governanceRuns
+          .map((run) => getJsonNumber(run, "id"))
+          .filter((runId) => runId > 0);
+        const jobPages = await mapWithLimit(runIds, JOB_READ_LIMIT, async (runId) => (
+          await reader.get(`repos/${repository}/actions/runs/${runId}/jobs?per_page=100`)
+        ));
+        for (const jobs of jobPages) {
           if (hasSuccessfulStep(jobs, "执行 AI 审查")) {
             counts.ai_review += 1;
           }

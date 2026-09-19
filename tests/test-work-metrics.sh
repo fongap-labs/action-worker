@@ -56,7 +56,7 @@ grep -F 'AI%20Review-10-8B5CF6?style=flat-square&labelColor=5B5B5B' "$README" >/
 grep -F 'Release%20Governance-3-14B8A6?style=flat-square&labelColor=5B5B5B' "$README" >/dev/null
 
 WORKFLOW="$ROOT_DIR/.github/workflows/update-work-metrics.yml"
-grep -F 'actions/setup-node@v4' "$WORKFLOW" >/dev/null
+grep -F 'actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0' "$WORKFLOW" >/dev/null
 grep -F 'node-version: 24' "$WORKFLOW" >/dev/null
 grep -F 'node scripts/update-work-metrics.ts README.md' "$WORKFLOW" >/dev/null
 grep -F 'GH_METRICS_TOKEN: ${{ secrets.GH_CONTROL_TOKEN || secrets.GH_METRICS_PAT || secrets.GH_EXECUTION_REPO_PAT || github.token }}' "$WORKFLOW" >/dev/null || {

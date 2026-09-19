@@ -28,7 +28,7 @@ require_in "$HANDLER" "GH_CONTROL_TOKEN"
 require_in "$HANDLER" "GH_RELEASE_TOKEN"
 require_in "$HANDLER" "RELEASE_SOURCE_ALLOWLIST"
 require_in "$HANDLER" "RELEASE_TARGET_ALLOWLIST"
-require_in "$HANDLER" "actions/setup-node@v4"
+require_in "$HANDLER" "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0"
 require_in "$HANDLER" "node-version: 24"
 require_in "$HANDLER" 'node scripts/publish-release.ts "$RUNNER_TEMP/release-request.json"'
 

@@ -20,7 +20,7 @@ require() {
 require "validate-naming-rules.sh"
 require "actionlint"
 require "shellcheck"
-require "actions/setup-node@v4"
+require "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0"
 require "node-version: 24"
 require "npm run typecheck"
 require "npm test"

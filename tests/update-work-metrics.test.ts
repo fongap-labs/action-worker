@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   applyIncrement,
+  mapWithLimit,
   parseFixture,
   renderMetrics,
 } from "../scripts/update-work-metrics.ts";
@@ -26,6 +27,21 @@ test("metrics rendering preserves badge order and is idempotent", () => {
   assert.deepEqual(positions, [...positions].sort((left, right) => left - right));
   assert.equal(renderMetrics(rendered, counts, "fongap/action-worker"), rendered);
   assert.equal(renderMetrics(source.replaceAll("\n", "\r\n"), counts, "fongap/action-worker").includes("\r"), false);
+});
+
+test("metrics jobs use bounded concurrency and preserve result order", async () => {
+  let active = 0;
+  let peak = 0;
+  const values = await mapWithLimit([1, 2, 3, 4, 5], 2, async (value) => {
+    active += 1;
+    peak = Math.max(peak, active);
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    active -= 1;
+    return value * 2;
+  });
+  assert.equal(peak, 2);
+  assert.deepEqual(values, [2, 4, 6, 8, 10]);
+  await assert.rejects(() => mapWithLimit([1], 0, async (value) => value));
 });
 
 test("increment mode reads the current badges and derives the gate count", () => {

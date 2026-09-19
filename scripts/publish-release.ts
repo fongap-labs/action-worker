@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import {
+  access,
   mkdir,
   mkdtemp,
   open,
@@ -30,6 +31,7 @@ import {
   isMain,
   readJson,
   runCommand,
+  runText,
 } from "./runtime-command.ts";
 
 type ReleaseRequest = {
@@ -74,15 +76,44 @@ async function writeCommand(
         windowsHide: true,
       });
       const stderr: Buffer[] = [];
-      child.stderr!.on("data", (chunk: Buffer) => stderr.push(chunk));
-      child.on("error", reject);
-      child.on("close", (code) => {
-        if (code === 0) {
+      let stderrSize = 0;
+      let isSettled = false;
+      const finish = (error?: unknown): void => {
+        if (isSettled) {
+          return;
+        }
+        isSettled = true;
+        clearTimeout(timer);
+        if (error !== undefined) {
+          reject(error);
+        } else {
           resolve();
+        }
+      };
+      const timer = setTimeout(() => {
+        child.kill();
+        finish(new CliError(`${command} timed out after 300000 ms.`, 124));
+      }, 300_000);
+      child.stderr!.on("data", (chunk: Buffer) => {
+        stderrSize += chunk.length;
+        if (stderrSize > 1024 * 1024) {
+          child.kill();
+          finish(new CliError(`${command} error output exceeded 1048576 bytes.`));
+          return;
+        }
+        stderr.push(chunk);
+      });
+      child.on("error", finish);
+      child.on("close", (code) => {
+        if (isSettled) {
+          return;
+        }
+        if (code === 0) {
+          finish();
           return;
         }
         const detail = Buffer.concat(stderr).toString("utf8").trim();
-        reject(new CliError(detail || `${command} exited with status ${code ?? 1}.`, code ?? 1));
+        finish(new CliError(detail || `${command} exited with status ${code ?? 1}.`, code ?? 1));
       });
     });
   } finally {
@@ -101,6 +132,7 @@ async function requireCommand(command: string, versionArgs: readonly string[]): 
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       throw new CliError(`${command} is required.`, 69);
     }
+    throw error;
   }
 }
 
@@ -141,6 +173,21 @@ function sameNames(actual: readonly string[], expected: readonly string[]): bool
 
 export function buildTag(releaseKey: string, version: string): string {
   return `${releaseKey}-v${version}`;
+}
+
+export function validateArchive(entries: string): string[] {
+  const names = entries.split(/\r?\n/).filter(Boolean);
+  if (names.length === 0) {
+    throw new CliError("::error::Release artifact is empty.", 66);
+  }
+  const unique = new Set(names);
+  if (
+    unique.size !== names.length
+    || names.some((name) => name === "." || name === ".." || name.includes("/") || name.includes("\\"))
+  ) {
+    throw new CliError("::error::Release artifact must contain unique root-level files.", 66);
+  }
+  return names;
 }
 
 function asRequest(value: unknown): ReleaseRequest {
@@ -301,7 +348,14 @@ async function main(): Promise<void> {
       archivePath,
       githubEnvironment(controlToken),
     );
-    await runCommand("unzip", ["-q", archivePath, "-d", artifactDir]);
+    validateArchive(await runText("unzip", ["-Z1", archivePath], {
+      maxBuffer: 1024 * 1024,
+      timeoutMs: 30_000,
+    }));
+    await runCommand("unzip", ["-q", archivePath, "-d", artifactDir], {
+      maxBuffer: 1024 * 1024,
+      timeoutMs: 300_000,
+    });
 
     const manifestPath = join(artifactDir, "release-manifest.json");
     await validateRequest(requestPath, manifestPath);
@@ -417,7 +471,7 @@ async function main(): Promise<void> {
       let checksum = "";
       try {
         checksum = (await readFile(checksumPath, "utf8")).trim().split(/\s+/, 1)[0]?.toLowerCase() ?? "";
-        await readFile(downloaded);
+        await access(downloaded);
       } catch {
         throw new CliError(`::error::Downloaded Release is missing asset or checksum: ${asset.name}.`, 66);
       }

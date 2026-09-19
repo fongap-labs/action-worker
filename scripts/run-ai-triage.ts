@@ -137,7 +137,11 @@ export function buildPrompt(
 
 async function readDiff(repoRoot: string, baseSha: string, headSha: string, args: readonly string[]): Promise<string> {
   try {
-    return await runText("git", ["diff", ...args, baseSha, headSha], { cwd: repoRoot });
+    return await runText("git", ["diff", ...args, baseSha, headSha], {
+      cwd: repoRoot,
+      maxBuffer: 1024 * 1024,
+      timeoutMs: 30_000,
+    });
   } catch {
     return "";
   }
@@ -251,12 +255,18 @@ async function main(): Promise<void> {
   }
 
   try {
-    await runCommand("git", ["cat-file", "-e", `${baseSha}^{commit}`], { cwd: repoRoot });
+    await runCommand("git", ["cat-file", "-e", `${baseSha}^{commit}`], {
+      cwd: repoRoot,
+      timeoutMs: 10_000,
+    });
   } catch {
     throw new CliError("ERROR: base SHA is not available.", 65);
   }
   try {
-    await runCommand("git", ["cat-file", "-e", `${headSha}^{commit}`], { cwd: repoRoot });
+    await runCommand("git", ["cat-file", "-e", `${headSha}^{commit}`], {
+      cwd: repoRoot,
+      timeoutMs: 10_000,
+    });
   } catch {
     throw new CliError("ERROR: head SHA is not available.", 65);
   }

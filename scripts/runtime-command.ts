@@ -17,6 +17,7 @@ type CommandOptions = {
   env?: NodeJS.ProcessEnv;
   input?: string;
   maxBuffer?: number;
+  timeoutMs?: number;
 };
 
 export async function runCommand(
@@ -34,26 +35,58 @@ export async function runCommand(
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
     let size = 0;
+    let isSettled = false;
     const limit = options.maxBuffer ?? 50 * 1024 * 1024;
+    const finish = (error?: unknown, output?: Buffer): void => {
+      if (isSettled) {
+        return;
+      }
+      isSettled = true;
+      if (timer) {
+        clearTimeout(timer);
+      }
+      if (error !== undefined) {
+        reject(error);
+      } else {
+        resolve(output ?? Buffer.alloc(0));
+      }
+    };
+    const timer = options.timeoutMs === undefined
+      ? undefined
+      : setTimeout(() => {
+        child.kill();
+        finish(new CliError(`${command} timed out after ${options.timeoutMs} ms.`, 124));
+      }, options.timeoutMs);
 
     child.stdout!.on("data", (chunk: Buffer) => {
       size += chunk.length;
       if (size > limit) {
         child.kill();
-        reject(new CliError(`${command} output exceeded ${limit} bytes.`));
+        finish(new CliError(`${command} output exceeded ${limit} bytes.`));
         return;
       }
       stdout.push(chunk);
     });
-    child.stderr!.on("data", (chunk: Buffer) => stderr.push(chunk));
-    child.on("error", (error) => reject(error));
+    child.stderr!.on("data", (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > limit) {
+        child.kill();
+        finish(new CliError(`${command} output exceeded ${limit} bytes.`));
+        return;
+      }
+      stderr.push(chunk);
+    });
+    child.on("error", (error) => finish(error));
     child.on("close", (code) => {
+      if (isSettled) {
+        return;
+      }
       if (code === 0) {
-        resolve(Buffer.concat(stdout));
+        finish(undefined, Buffer.concat(stdout));
         return;
       }
       const detail = Buffer.concat(stderr).toString("utf8").trim();
-      reject(new CliError(detail || `${command} exited with status ${code ?? 1}.`, code ?? 1));
+      finish(new CliError(detail || `${command} exited with status ${code ?? 1}.`, code ?? 1));
     });
 
     if (options.input !== undefined) {
