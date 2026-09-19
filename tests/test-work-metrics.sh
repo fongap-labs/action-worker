@@ -15,8 +15,8 @@ old
 <!-- work-metrics:end -->
 EOF
 
-export GITHUB_REPOSITORY="fongap/action-worker"
-export WORK_METRICS_COUNTS_JSON='{"dispatch":1411,"pr_governance":12,"ai_review":9,"gate":12,"release_governance":3}'
+export GITHUB_REPOSITORY="fongap-labs/action-worker"
+export WORK_METRICS_COUNTS='{"dispatch":1411,"pr_governance":12,"ai_review":9,"gate":12,"release_governance":3}'
 
 bash "$ROOT_DIR/scripts/update-work-metrics.sh" "$README"
 
@@ -24,7 +24,7 @@ grep -F 'Dispatch-1%2C411-2F80ED?style=flat-square&labelColor=5B5B5B' "$README" 
 grep -F 'PR%20Governance-12-6366F1?style=flat-square&labelColor=5B5B5B' "$README" >/dev/null
 grep -F 'AI%20Review-9-8B5CF6?style=flat-square&labelColor=5B5B5B' "$README" >/dev/null
 grep -F 'Release%20Governance-3-14B8A6?style=flat-square&labelColor=5B5B5B' "$README" >/dev/null
-grep -F 'github/actions/workflow/status/fongap/action-worker/validate-ci.yml?branch=main&style=flat-square&label=Status&labelColor=5B5B5B' "$README" >/dev/null
+grep -F 'github/actions/workflow/status/fongap-labs/action-worker/validate-ci.yml?branch=main&style=flat-square&label=Status&labelColor=5B5B5B' "$README" >/dev/null
 
 python3 - "$README" <<'PY'
 from pathlib import Path
@@ -45,8 +45,8 @@ after="$(sha256sum "$README" | awk '{print $1}')"
   exit 1
 }
 
-unset WORK_METRICS_COUNTS_JSON
-export WORK_METRICS_INCREMENT_JSON='{"dispatch":1,"pr_governance":1,"ai_review":1,"release_governance":0}'
+unset WORK_METRICS_COUNTS
+export WORK_METRICS_JSON='{"dispatch":1,"pr_governance":1,"ai_review":1,"release_governance":0}'
 
 bash "$ROOT_DIR/scripts/update-work-metrics.sh" "$README"
 
@@ -56,7 +56,7 @@ grep -F 'AI%20Review-10-8B5CF6?style=flat-square&labelColor=5B5B5B' "$README" >/
 grep -F 'Release%20Governance-3-14B8A6?style=flat-square&labelColor=5B5B5B' "$README" >/dev/null
 
 WORKFLOW="$ROOT_DIR/.github/workflows/update-work-metrics.yml"
-grep -F 'GITHUB_METRICS_TOKEN: ${{ secrets.GITHUB_CONTROL_TOKEN || secrets.GH_METRICS_PAT || secrets.GITHUB_EXECUTION_REPOSITORY_PAT || github.token }}' "$WORKFLOW" >/dev/null || {
+grep -F 'GITHUB_METRICS_TOKEN: ${{ secrets.GITHUB_CONTROL_TOKEN || github.token }}' "$WORKFLOW" >/dev/null || {
   echo "Work metrics reads must prefer GITHUB_CONTROL_TOKEN." >&2
   exit 1
 }
@@ -65,13 +65,13 @@ grep -F 'GH_TOKEN: ${{ github.token }}' "$WORKFLOW" >/dev/null || {
   exit 1
 }
 grep -F '准备增量统计' "$WORKFLOW" >/dev/null
-grep -F 'WORK_METRICS_INCREMENT_JSON' "$WORKFLOW" >/dev/null
+grep -F 'WORK_METRICS_JSON' "$WORKFLOW" >/dev/null
 grep -F 'SOURCE_RUN_ID' "$WORKFLOW" >/dev/null
 grep -F '"repos/$GITHUB_REPOSITORY/pulls"' "$WORKFLOW" >/dev/null || {
   echo "Work metrics PR creation must use the REST pulls endpoint." >&2
   exit 1
 }
-if grep -F 'GH_TOKEN: ${{ secrets.GITHUB_CONTROL_TOKEN || secrets.GH_METRICS_PAT || secrets.GITHUB_EXECUTION_REPOSITORY_PAT }}' "$WORKFLOW" >/dev/null; then
+if grep -F 'GH_TOKEN: ${{ secrets.GITHUB_CONTROL_TOKEN }}' "$WORKFLOW" >/dev/null; then
   echo "Work metrics local PR creation must not depend on a cross-repository PAT." >&2
   exit 1
 fi
