@@ -135,13 +135,18 @@ jq -e '
   and (.runtime | has("retry") | not)
   and .engine.name == "open-code-review"
   and (.engine.version | test("^[0-9]+\\.[0-9]+\\.[0-9]+$"))
-  and (.engine.repository | test("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"))
+  and (has("repository") | not)
   and (.engine.asset | type == "string" and length > 0)
   and .agents.workflow.effort == "low"
   and .agents.release.effort == "low"
   and .agents.code.effort == "medium"
 ' policies/review.json >/dev/null || {
   echo "ERROR: AI review runtime policy must remain single-model and queued without outer review retry." >&2
+  exit 1
+}
+
+grep -qF 'REVIEW_ENGINE_REPOSITORY' .github/workflows/handle-pr-dispatch.yml || {
+  echo "ERROR: review engine repository must be supplied by REVIEW_ENGINE_REPOSITORY." >&2
   exit 1
 }
 
