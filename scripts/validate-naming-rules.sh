@@ -77,6 +77,10 @@ if ! python3 "$SCRIPT_DIR/validate-source-naming.py" "$BASE" "$HEAD"; then
     failures=$((failures + 1))
 fi
 
+if ! python3 "$SCRIPT_DIR/validate-config-naming.py" "$BASE" "$HEAD"; then
+    failures=$((failures + 1))
+fi
+
 if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     {
         echo "## 命名规则"
