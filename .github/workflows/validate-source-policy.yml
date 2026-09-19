@@ -13,7 +13,7 @@ on:
         required: false
         type: string
         default: ci.yml
-      require_default_head:
+      should_match_default:
         description: 是否要求目标 Commit 为默认分支当前 HEAD
         required: false
         type: boolean
@@ -50,14 +50,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TARGET_SHA: ${{ inputs.target_sha }}
           CI_WORKFLOW: ${{ inputs.ci_workflow }}
-          REQUIRE_DEFAULT_HEAD: ${{ inputs.require_default_head }}
+          SHOULD_MATCH_DEFAULT: ${{ inputs.should_match_default }}
         shell: bash
         run: |
           set -Eeuo pipefail
 
           target="${TARGET_SHA:-$GITHUB_SHA}"
 
-          if [ "$REQUIRE_DEFAULT_HEAD" != "true" ] && ! [[ "$target" =~ ^[0-9a-f]{40}$ ]]; then
+          if [ "$SHOULD_MATCH_DEFAULT" != "true" ] && ! [[ "$target" =~ ^[0-9a-f]{40}$ ]]; then
             echo "::error::非默认 HEAD 部署必须使用不可变的 40 位 Commit SHA。" >&2
             exit 64
           fi
@@ -66,7 +66,7 @@ jobs:
           default_branch="$(gh api "repos/${GITHUB_REPOSITORY}" --jq '.default_branch')"
           default_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${default_branch}" --jq '.sha')"
 
-          if [ "$REQUIRE_DEFAULT_HEAD" = "true" ] && [ "$resolved_sha" != "$default_sha" ]; then
+          if [ "$SHOULD_MATCH_DEFAULT" = "true" ] && [ "$resolved_sha" != "$default_sha" ]; then
             echo "::error::目标必须是默认分支当前 HEAD：expected=$default_sha actual=$resolved_sha。" >&2
             exit 65
           fi
@@ -109,5 +109,5 @@ jobs:
             echo "- CI: $CI_WORKFLOW"
             echo "- CI Run: $ci_run_id"
             echo "- Default branch: $default_branch"
-            echo "- Require default HEAD: $REQUIRE_DEFAULT_HEAD"
+            echo "- Require default HEAD: $SHOULD_MATCH_DEFAULT"
           } >> "$GITHUB_STEP_SUMMARY"
