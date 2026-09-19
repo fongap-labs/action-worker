@@ -90,7 +90,7 @@ GATEWAY_ACCESS_KEY_AIR
 REVIEW_ENGINE_REPOSITORY
 ```
 
-`REVIEW_ENGINE_REPOSITORY` 定义 AI Review Engine 的分发仓库；Review Policy 只保存 engine 名称、版本与资产名，不保存组织或仓库位置。
+`REVIEW_ENGINE_REPOSITORY` 可覆盖 AI Review Engine 的分发仓库；为空时自动使用当前组织的 `external-vault`。Review Policy 只保存 engine 名称、版本与资产名，不保存组织或仓库位置。
 
 `GH_CONTROL_TOKEN` 对受管仓至少需要：
 
