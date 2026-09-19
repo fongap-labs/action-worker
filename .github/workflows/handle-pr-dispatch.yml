@@ -372,15 +372,19 @@ jobs:
         if: steps.plan.outputs.review_required == 'true'
         env:
           REVIEW_ENGINE_REPOSITORY: ${{ vars.REVIEW_ENGINE_REPOSITORY }}
-          REPOSITORY_OWNER: ${{ github.repository_owner }}
         shell: bash
         run: |
           set -Eeuo pipefail
 
           policy="$GITHUB_WORKSPACE/policies/review.json"
-          repository="${REVIEW_ENGINE_REPOSITORY:-$REPOSITORY_OWNER/external-vault}"
+          repository="$REVIEW_ENGINE_REPOSITORY"
           version="$(jq -r '.engine.version // empty' "$policy")"
           asset="$(jq -r '.engine.asset // empty' "$policy")"
+
+          [ -n "$repository" ] || {
+            echo "::error::REVIEW_ENGINE_REPOSITORY is not configured." >&2
+            exit 77
+          }
 
 
           [[ "$repository" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || exit 65
