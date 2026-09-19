@@ -230,7 +230,7 @@ grep -qF 'run-release' .github/workflows/handle-release-dispatch.yml || {
   exit 1
 }
 
-grep -qF 'GH_RELEASE_TOKEN' .github/workflows/handle-release-dispatch.yml || {
+grep -qF 'GITHUB_RELEASE_TOKEN' .github/workflows/handle-release-dispatch.yml || {
   echo "ERROR: release governance must use the central release credential." >&2
   exit 1
 }
