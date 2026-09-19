@@ -132,7 +132,7 @@ jobs:
 
 业务仓只需要 `ACTION_WORKER_TOKEN`，其权限只用于向 `fongap/action-worker` 发送 `repository_dispatch`。`AI_GATEWAY_URL`、`GATEWAY_KEY_AIR` 与跨仓回写凭据只保存在 Action Worker。
 
-中央 `GH_CONTROL_TOKEN` 对受管业务仓至少需要 Contents Read、Pull Requests Read/Write、Commit Statuses Read/Write 和 **Actions Read**；Actions Read 用于读取真实 CI Evidence。
+中央 `GITHUB_CONTROL_TOKEN` 对受管业务仓至少需要 Contents Read、Pull Requests Read/Write、Commit Statuses Read/Write 和 **Actions Read**；Actions Read 用于读取真实 CI Evidence。
 
 中央执行链路：
 
@@ -213,7 +213,7 @@ license { expression, file? }
 assets[] { name, sha256 }
 ```
 
-Action Worker 使用中央 `GH_CONTROL_TOKEN` 读取源仓事实与 Actions artifact，使用独立 `GH_RELEASE_TOKEN` 写目标分发仓；业务仓不持有目标仓写凭据。源仓和目标仓分别由 `RELEASE_SOURCE_ALLOWLIST`、`RELEASE_TARGET_ALLOWLIST` 控制。
+Action Worker 使用中央 `GITHUB_CONTROL_TOKEN` 读取源仓事实与 Actions artifact，使用独立 `GITHUB_RELEASE_TOKEN` 写目标分发仓；业务仓不持有目标仓写凭据。源仓和目标仓分别由 `RELEASE_SOURCE_ALLOWLIST`、`RELEASE_TARGET_ALLOWLIST` 控制。
 
 Release 默认采用 `Apache-2.0`。每个 App / Release 可以在 manifest 中显式声明其他许可证；如声明 `license.file`，对应许可证文件必须作为 Release asset 一并发布并校验。目标分发仓自己的根 LICENSE 不覆盖各 App 的 Release 许可证。
 
