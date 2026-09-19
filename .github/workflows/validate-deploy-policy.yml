@@ -13,7 +13,7 @@ on:
         required: false
         type: string
         default: ci.yml
-      require_default_head:
+      should_match_default:
         description: 是否要求部署目标为默认分支当前 HEAD
         required: false
         type: boolean
@@ -43,4 +43,4 @@ jobs:
     with:
       target_sha: ${{ inputs.target_sha }}
       ci_workflow: ${{ inputs.ci_workflow }}
-      require_default_head: ${{ inputs.require_default_head }}
+      should_match_default: ${{ inputs.should_match_default }}
