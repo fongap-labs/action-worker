@@ -45,7 +45,6 @@
   "engine": {
     "name": "open-code-review",
     "version": "1.12.6",
-    "repository": "fongap/external-vault",
     "asset": "open-code-review-linux-amd64"
   }
 }
