@@ -1,7 +1,8 @@
-import { stat } from "node:fs/promises";
+import { stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   CliError,
+  appendLines,
   handleError,
   isMain,
   parseJson,
@@ -185,8 +186,25 @@ function getContent(value: unknown): string {
   return typeof choice.message.content === "string" ? choice.message.content : "";
 }
 
-function outputUnavailable(model: string, reason: string): void {
-  console.log(JSON.stringify({ status: "unavailable", model, reason }));
+async function emitTriage(value: Record<string, unknown>): Promise<void> {
+  const output = JSON.stringify(value);
+  if (process.env.TRIAGE_OUTPUT_PATH) {
+    await writeFile(process.env.TRIAGE_OUTPUT_PATH, `${output}\n`, "utf8");
+  }
+  const decision = isRecord(value.decision) ? value.decision : {};
+  const lines = ["### AI Triage", "", `- status: ${String(value.status ?? "unknown")}`, `- model: ${String(value.model ?? "n/a")}`];
+  if (value.status === "complete") {
+    lines.push(`- review required: ${String(decision.review_required ?? "unknown")}`);
+    lines.push(`- route: ${String(decision.review_agent ?? "unknown")}`);
+    lines.push(`- depth: ${String(decision.depth ?? "unknown")}`);
+    lines.push(`- confidence: ${String(decision.confidence ?? "unknown")}`);
+  }
+  await appendLines(process.env.GITHUB_STEP_SUMMARY, lines);
+  console.log(output);
+}
+
+async function outputUnavailable(model: string, reason: string): Promise<void> {
+  await emitTriage({ status: "unavailable", model, reason });
 }
 
 async function main(): Promise<void> {
@@ -241,16 +259,16 @@ async function main(): Promise<void> {
   requireRange(policy.max_reason_chars, 20, 1000, "ERROR: triage max_reason_chars must be 20-1000.");
 
   if (!plan.review_required) {
-    console.log(JSON.stringify({ status: "skipped", model, reason: "review_not_required" }));
+    await emitTriage({ status: "skipped", model, reason: "review_not_required" });
     return;
   }
   if (!policy.enabled_agents.includes(plan.review_agent)) {
-    console.log(JSON.stringify({
+    await emitTriage({
       status: "skipped",
       model,
       reason: "deterministic_route",
       agent: plan.review_agent,
-    }));
+    });
     return;
   }
 
@@ -311,7 +329,7 @@ async function main(): Promise<void> {
     }, policy.timeout_seconds);
   } catch {
     console.error("::warning::AI Triage unavailable; deterministic plan will be used.");
-    outputUnavailable(model, "request_failed");
+    await outputUnavailable(model, "request_failed");
     return;
   }
 
@@ -324,7 +342,7 @@ async function main(): Promise<void> {
   const content = getContent(response);
   if (!content) {
     console.error("::warning::AI Triage returned no usable content; deterministic plan will be used.");
-    outputUnavailable(model, "empty_response");
+    await outputUnavailable(model, "empty_response");
     return;
   }
 
@@ -336,11 +354,11 @@ async function main(): Promise<void> {
   }
   if (!validateDecision(decision, policy.max_reason_chars)) {
     console.error("::warning::AI Triage returned invalid JSON; deterministic plan will be used.");
-    outputUnavailable(model, "invalid_response");
+    await outputUnavailable(model, "invalid_response");
     return;
   }
 
-  console.log(JSON.stringify({ status: "complete", model, decision }));
+  await emitTriage({ status: "complete", model, decision });
 }
 
 if (isMain(import.meta.url)) {

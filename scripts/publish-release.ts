@@ -200,11 +200,11 @@ function asManifest(value: unknown): ReleaseManifest {
 
 async function validateRequest(requestPath: string, manifestPath?: string): Promise<void> {
   const scriptDir = dirname(fileURLToPath(import.meta.url));
-  const args = [join(scriptDir, "validate-release-request.sh"), requestPath];
+  const args = [join(scriptDir, "validate-release-request.ts"), requestPath];
   if (manifestPath) {
     args.push(manifestPath);
   }
-  await runCommand("bash", args);
+  await runCommand(process.execPath, args);
 }
 
 async function rollbackRelease(
@@ -234,9 +234,12 @@ async function rollbackRelease(
 }
 
 async function main(): Promise<void> {
-  const requestPath = process.argv[2] ?? "";
+  const requestPath = process.argv[2] ?? (process.env.RUNNER_TEMP ? join(process.env.RUNNER_TEMP, "release-request.json") : "");
   if (!requestPath) {
     throw new CliError("release request file is required.", 64);
+  }
+  if (process.env.RELEASE_REQUEST_JSON) {
+    await writeFile(requestPath, `${process.env.RELEASE_REQUEST_JSON}\n`, "utf8");
   }
   try {
     await readFile(requestPath);
@@ -245,7 +248,6 @@ async function main(): Promise<void> {
   }
 
   await requireCommand("gh", ["--version"]);
-  await requireCommand("bash", ["--version"]);
   await requireCommand("unzip", ["-v"]);
 
   const controlToken = process.env.GH_CONTROL_TOKEN ?? "";

@@ -25,6 +25,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
       - name: 解析变更范围
         id: range
         shell: bash
@@ -52,7 +57,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: 校验命名规则
-        run: bash scripts/validate-naming-rules.sh "${{ steps.range.outputs.base }}" "${{ steps.range.outputs.head }}"
+        run: node scripts/validate-naming-rules.ts "${{ steps.range.outputs.base }}" "${{ steps.range.outputs.head }}"
 
   static:
     name: 静态检查
@@ -74,9 +79,6 @@ jobs:
       - name: Type-check TypeScript
         run: npm run typecheck
 
-      - name: 安装 ShellCheck
-        run: sudo apt-get update && sudo apt-get install -y shellcheck
-
       - name: 安装 actionlint
         id: actionlint
         shell: bash
@@ -84,11 +86,6 @@ jobs:
 
       - name: 检查 GitHub Actions
         run: "${{ steps.actionlint.outputs.executable }} -color"
-
-      - name: 检查 Shell 脚本
-        run: |
-          set -Eeuo pipefail
-          find scripts tests -type f -name '*.sh' -print0 | xargs -0 -r -n1 shellcheck --severity=warning
 
   contracts:
     name: 合同测试
@@ -105,92 +102,11 @@ jobs:
         with:
           node-version: 24
 
-      - name: 安装 jq
-        run: sudo apt-get update && sudo apt-get install -y jq
-
       - name: Run TypeScript unit tests
         run: npm test
 
-      - name: 校验架构治理
-        run: bash tests/test-governance-contract.sh
-
-      - name: 校验变更记录
-        run: bash tests/test-change-record.sh
-
-      - name: 校验 PR 仓库白名单
-        run: bash tests/test-pr-repository.sh
-
-      - name: 校验 dispatch
-        run: bash tests/test-dispatch-validation.sh
-
-      - name: 校验 Secret 边界
-        run: bash tests/test-secret-boundary.sh
-
-      - name: 校验变量传递
-        run: bash tests/test-variable-transport.sh
-
-      - name: 校验上下文识别
-        run: bash tests/test-context-detection.sh
-
-      - name: 校验执行计划
-        run: bash tests/test-plan-resolution.sh
-
-      - name: 校验 PR 策略
-        run: bash tests/test-pr-policy.sh
-
       - name: Validate source naming
         run: python3 tests/test-source-naming.py
-
-      - name: 校验 PR 边界
-        run: bash tests/test-pr-boundary.sh
-
-      - name: Validate review comparison
-        run: bash tests/test-review-comparison.sh
-
-      - name: Validate PR status ownership
-        run: bash tests/test-status-owner.sh
-
-      - name: 校验 CI 证据
-        run: bash tests/test-ci-evidence.sh
-
-      - name: 校验合并策略
-        run: bash tests/test-merge-policy.sh
-
-      - name: 校验审查结果
-        run: bash tests/test-review-result.sh
-
-      - name: Validate OCR installer bootstrap
-        run: bash tests/test-ocr-install.sh
-
-      - name: Validate OCR retry diagnostics
-        run: bash tests/test-ocr-retry.sh
-
-      - name: Validate OCR resume policy
-        run: bash tests/test-ocr-resume.sh
-
-      - name: Validate AI review queue
-        run: bash tests/test-review-queue.sh
-
-      - name: Validate AI triage routing
-        run: bash tests/test-ai-triage.sh
-
-      - name: 校验 Source Policy
-        run: bash tests/test-source-policy.sh
-
-      - name: 校验 Deploy
-        run: bash tests/test-deploy-contract.sh
-
-      - name: 校验 Release
-        run: bash tests/test-release-contract.sh
-
-      - name: 校验 CI
-        run: bash tests/test-ci-contract.sh
-
-      - name: 校验工作统计
-        run: bash tests/test-work-metrics.sh
-
-      - name: Validate repository settings
-        run: bash tests/test-repo-settings.sh
 
   validate-merge:
     name: validate-merge

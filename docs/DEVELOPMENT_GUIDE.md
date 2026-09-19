@@ -79,9 +79,9 @@ Workflow 变更至少检查：
 - trigger 是否可能被 fork / PR 输入滥用；
 - concurrency 是否符合预期；
 - reusable workflow 的 caller / callee 权限边界；
-- actionlint / ShellCheck / 合同测试。
+- actionlint / 合同测试，以及在存在 Shell 边界时执行 ShellCheck。
 
-TypeScript 控制逻辑使用 Node 24 直接运行，并通过 `npm run typecheck` 与 `npm test` 验证。Shell 只保留短小的 Runner glue 和外部工具启动逻辑。
+TypeScript 控制逻辑使用 Node 24 直接运行，并通过 `npm run typecheck` 与 `npm test` 验证。仓库不保留独立 `.sh` 控制入口；Shell 只允许作为 Workflow 中短小的 Runner glue，或用于下载并启动外部 `bootstrap.sh` 这类明确的执行边界。
 
 ### 工作统计自动回写
 

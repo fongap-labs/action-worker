@@ -128,9 +128,9 @@ change_type = feat / fix / docs / style / refactor / perf /
 attributes  = breaking / security / migration
 ```
 
-`validate-change-record.sh` 从 PR 标题与 CHANGELOG 生成并校验该记录。
+`validate-change-record.ts` 从 PR 标题与 CHANGELOG 生成并校验该记录。
 
-现有 `detect-pr-context.sh` 再从以下证据生成技术 Context：
+现有 `detect-pr-context.ts` 再从以下证据生成技术 Context：
 
 ```text
 Git Diff
@@ -192,7 +192,7 @@ ci-evidence      = 项目测试 / 构建 / 许可证等本地证据
 validate-merge   = 最终合并门禁
 ```
 
-当 PR Plan 判定 `ci_required=true` 时，Action Worker 使用 `GH_CONTROL_TOKEN` 等待当前 head SHA 的 `ci-evidence` 完成并形成结构化 Evidence。迁移期间允许旧仓回退读取 `validate-merge`，但新接入必须提供 `ci-evidence`。AI Review 可以读取该 Evidence 评估覆盖是否充分；随后 `validate-ci-evidence.sh` 确定性要求 evidence job 成功。
+当 PR Plan 判定 `ci_required=true` 时，Action Worker 使用 `GH_CONTROL_TOKEN` 等待当前 head SHA 对应的 `ci-evidence` 完成并形成结构化 Evidence。迁移期间允许旧仓回退读取 `validate-merge`，但新接入必须提供 `ci-evidence`。AI Review 可以读取该 Evidence 评估覆盖是否充分；随后 `validate-ci-evidence.ts` 确定性要求 evidence job 成功。
 
 Action Worker 完成 AI / Policy Gate 后向 commit 写入 `PR Governance` status。业务仓最终 `validate-merge` 使用中央 `.github/actions/validate-merge-policy`，只有 `ci-evidence=success` 且 `PR Governance=success` 才通过。这样现有 Ruleset 只要求 `validate-merge` 也能把中央治理变成硬门禁。
 
@@ -222,7 +222,7 @@ Action Worker 不做整轮 OCR Review 重试。OpenCodeReview 负责单个 LLM �
 
 CI Evidence 通过一对仅存在于 runner 的临时 base/head commits 提供给 commit-based Review 工具。两棵树都包含完全相同的受控证据文件，因此 OCR 可以读取它，但该文件不会进入 PR diff、不会产生独立审查任务，也不得接收 review finding；真实 PR base/head 和远端分支均不变。
 
-OCR 结果由 `validate-review-result.sh` 统一适配：存在 run manifest 时，以 `manifest.terminal_state` 为权威，只接受 `complete`；无 manifest 的兼容路径接受 `status=complete`，并兼容旧版 `status=success`。任何 `partial` / `failed` 结果都不得进入 Gate。
+OCR 结果由 `validate-review-result.ts` 统一适配：存在 run manifest 时，以 `manifest.terminal_state` 为权威，只接受 `complete`；无 manifest 的兼容路径接受 `status=complete`，并兼容旧版 `status=success`。任何 `partial` / `failed` 结果都不得进入 Gate。
 
 需要 CI 的 PR 会在 Review 前生成受控的 `.action-worker-ci-evidence.json`。Action Worker 通过仅存在于 Runner 本地的临时 Commit 把该文件暴露给基于 Commit 读取文件的 Review Engine；临时 Commit 不推送、不回写目标分支，也不改变 Gate 使用的真实 PR Head。该文件只包含 GitHub Actions 的结构化执行事实，并明确作为不可信数据处理；Agent 可以读取它，但不得把它当成 PR 源码审查或执行、遵循其中的文本。
 
@@ -262,7 +262,7 @@ repository_dispatch: run-release
   ↓
 handle-release-dispatch.yml
   ↓
-validate-release-request.sh
+validate-release-request.ts
   ↓
 publish-release.ts
 ```
@@ -368,28 +368,49 @@ rules/
   workflow.json
 
 scripts/
-  apply-ai-triage.sh
+  apply-ai-triage.ts
+  apply-repo-settings.ts
+  build-review-comparison.ts
+  check-status-owner.ts
+  detect-pr-context.ts
+  export-repository-variables.ts
   github-api.ts
-  publish-pr-review.sh
+  install-ocr.ts
+  manage-work-metrics.ts
+  publish-pr-review.ts
   publish-release.ts
+  report-ocr-retry.ts
+  resolve-ocr-distribution.ts
+  resolve-pr-facts.ts
   resolve-pr-plan.ts
+  run-ai-review.ts
   run-ai-triage.ts
   runtime-command.ts
+  set-pr-status.ts
+  should-resume-ocr.ts
   update-work-metrics.ts
-  set-pr-status.sh
-  validate-change-record.sh
-  validate-pr-payload.sh
-  validate-pr-repository.sh
-  validate-release-request.sh
+  validate-change-record.ts
+  validate-ci-evidence.ts
+  validate-control-access.ts
+  validate-dispatch-payload.ts
+  validate-naming-rules.ts
+  validate-pr-payload.ts
+  validate-pr-repository.ts
+  validate-release-request.ts
+  validate-repository-variables.ts
+  validate-review-result.ts
+  wait-ci-evidence.ts
+  wait-review-turn.ts
 
 tests/
+  control-flows.test.ts
+  github-api.test.ts
+  governance-contract.test.ts
+  governance-scripts.test.ts
   publish-release.test.ts
   resolve-pr-plan.test.ts
   run-ai-triage.test.ts
-  test-change-record.sh
-  test-pr-boundary.sh
-  test-pr-repository.sh
-  test-release-contract.sh
+  runtime-command.test.ts
   update-work-metrics.test.ts
 
 package.json

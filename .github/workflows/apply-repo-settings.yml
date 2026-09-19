@@ -27,10 +27,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
       - name: Apply managed settings
         env:
           GH_TOKEN: ${{ secrets.GH_ADMIN_TOKEN }}
           TARGET_REPOSITORY: ${{ inputs.repository }}
           IS_DRY_RUN: ${{ inputs.is_dry_run }}
-        shell: bash
-        run: bash scripts/apply-repo-settings.sh "$TARGET_REPOSITORY" "$IS_DRY_RUN"
+        run: node scripts/apply-repo-settings.ts "$TARGET_REPOSITORY" "$IS_DRY_RUN"

@@ -25,26 +25,16 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
       - name: 校验请求载荷
         id: payload
         env:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
-        run: |
-          set -Eeuo pipefail
-
-          bash scripts/validate-dispatch-payload.sh "$PAYLOAD"
-
-          schema_version=$(printf '%s' "$PAYLOAD" | jq -r '.schema_version')
-          request_id=$(printf '%s' "$PAYLOAD" | jq -r '.request_id')
-          project=$(printf '%s' "$PAYLOAD" | jq -r '.project')
-          bootstrap_ref=$(printf '%s' "$PAYLOAD" | jq -r '.bootstrap_ref')
-
-          {
-              printf 'schema_version=%s\n' "$schema_version"
-              printf 'request_id=%s\n' "$request_id"
-              printf 'project=%s\n' "$project"
-              printf 'bootstrap_ref=%s\n' "$bootstrap_ref"
-          } >> "$GITHUB_OUTPUT"
+        run: node scripts/validate-dispatch-payload.ts "$PAYLOAD"
 
   execute:
     name: 执行任务
@@ -69,10 +59,15 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
       - name: 导出仓库变量
         env:
           REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}
-        run: bash scripts/export-repository-variables.sh
+        run: node scripts/export-repository-variables.ts
 
       - name: 快照基础环境
         shell: bash
@@ -91,7 +86,7 @@ jobs:
           set -Eeuo pipefail
           IFS=$'\n\t'
 
-          bash scripts/validate-repository-variables.sh
+          node scripts/validate-repository-variables.ts
 
           if [ -z "${GH_EXECUTION_REPO:-}" ]; then
               echo "::error::缺少 GH_EXECUTION_REPO。" >&2

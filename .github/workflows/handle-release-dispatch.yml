@@ -28,30 +28,6 @@ jobs:
         with:
           node-version: 24
 
-      - name: Validate central credentials
-        env:
-          GH_CONTROL_TOKEN: ${{ secrets.GH_CONTROL_TOKEN }}
-          GH_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          [ -n "$GH_CONTROL_TOKEN" ] || {
-            echo "::error::GH_CONTROL_TOKEN is not configured." >&2
-            exit 77
-          }
-          [ -n "$GH_RELEASE_TOKEN" ] || {
-            echo "::error::GH_RELEASE_TOKEN is not configured." >&2
-            exit 77
-          }
-
-      - name: Materialize release request
-        env:
-          RELEASE_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          printf '%s\n' "$RELEASE_REQUEST_JSON" > "$RUNNER_TEMP/release-request.json"
-
       - name: Publish governed release
         id: release
         env:
@@ -59,5 +35,5 @@ jobs:
           GH_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
           RELEASE_SOURCE_ALLOWLIST: ${{ vars.RELEASE_SOURCE_ALLOWLIST }}
           RELEASE_TARGET_ALLOWLIST: ${{ vars.RELEASE_TARGET_ALLOWLIST }}
-        shell: bash
-        run: node scripts/publish-release.ts "$RUNNER_TEMP/release-request.json"
+          RELEASE_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
+        run: node scripts/publish-release.ts
