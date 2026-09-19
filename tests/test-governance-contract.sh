@@ -19,6 +19,9 @@ required_files=(
   "contracts/task-dispatch.json"
   "policies/execution.json"
   "policies/triage.json"
+  "package.json"
+  "package-lock.json"
+  "tsconfig.json"
   "scripts/validate-change-record.sh"
   "scripts/validate-pr-payload.sh"
   "scripts/validate-pr-repository.sh"
@@ -26,13 +29,17 @@ required_files=(
   "scripts/wait-ci-evidence.sh"
   "scripts/validate-ci-evidence.sh"
   "scripts/wait-review-turn.sh"
-  "scripts/run-ai-triage.sh"
+  "scripts/github-api.ts"
+  "scripts/resolve-pr-plan.ts"
+  "scripts/run-ai-triage.ts"
+  "scripts/runtime-command.ts"
   "scripts/apply-ai-triage.sh"
   "scripts/should-resume-ocr.sh"
   "scripts/install-ocr.sh"
   "scripts/set-pr-status.sh"
   "scripts/publish-pr-review.sh"
-  "scripts/publish-release.sh"
+  "scripts/publish-release.ts"
+  "scripts/update-work-metrics.ts"
   "scripts/validate-release-request.sh"
   ".github/actions/validate-merge-policy/action.yml"
   ".github/workflows/handle-pr-dispatch.yml"
@@ -46,6 +53,17 @@ for path in "${required_files[@]}"; do
   }
 done
 
+for legacy in \
+  scripts/publish-release.sh \
+  scripts/resolve-pr-plan.sh \
+  scripts/run-ai-triage.sh \
+  scripts/update-work-metrics.sh; do
+  if [ -e "$legacy" ]; then
+    echo "ERROR: migrated TypeScript control logic must not keep a legacy Shell entry: $legacy" >&2
+    exit 1
+  fi
+done
+
 for dir in projects adapters profiles; do
   if [ -e "$dir" ]; then
     echo "ERROR: forbidden project-specific directory: $dir/" >&2
@@ -57,6 +75,16 @@ if [ -e "policies/repositories.json" ]; then
   echo "ERROR: repository allowlist must come from PR_REPOSITORY_ALLOWLIST, not source policy." >&2
   exit 1
 fi
+
+jq -e '
+  .private == true
+  and .engines.node == ">=24"
+  and .scripts.typecheck == "tsc --noEmit"
+  and (.scripts.test | startswith("node --test"))
+' package.json >/dev/null || {
+  echo "ERROR: TypeScript runtime contract is invalid." >&2
+  exit 1
+}
 
 jq -e '
   .schema_version == 1

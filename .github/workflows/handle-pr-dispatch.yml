@@ -25,6 +25,11 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
       - name: 校验 PR 请求
         id: payload
         env:
@@ -221,7 +226,7 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          plan_json="$(bash scripts/resolve-pr-plan.sh             "$CONTEXT_JSON"             inherit             inherit             inherit             inherit             auto             auto             "$GITHUB_WORKSPACE/policies")"
+          plan_json="$(node scripts/resolve-pr-plan.ts             "$CONTEXT_JSON"             inherit             inherit             inherit             inherit             auto             auto             "$GITHUB_WORKSPACE/policies")"
 
           printf '%s\n' "$plan_json" > /tmp/pr-plan.base.json
 
@@ -307,7 +312,7 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          triage_json="$(bash scripts/run-ai-triage.sh \
+          triage_json="$(node scripts/run-ai-triage.ts \
             "$BASE_SHA" \
             "$HEAD_SHA" \
             "$GITHUB_WORKSPACE/target" \

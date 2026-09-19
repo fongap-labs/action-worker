@@ -23,6 +23,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
       - name: Validate central credentials
         env:
           GH_CONTROL_TOKEN: ${{ secrets.GH_CONTROL_TOKEN }}
@@ -55,4 +60,4 @@ jobs:
           RELEASE_SOURCE_ALLOWLIST: ${{ vars.RELEASE_SOURCE_ALLOWLIST }}
           RELEASE_TARGET_ALLOWLIST: ${{ vars.RELEASE_TARGET_ALLOWLIST }}
         shell: bash
-        run: bash scripts/publish-release.sh "$RUNNER_TEMP/release-request.json"
+        run: node scripts/publish-release.ts "$RUNNER_TEMP/release-request.json"

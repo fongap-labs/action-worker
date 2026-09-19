@@ -76,7 +76,7 @@ publish-release.yml
 
 detect-pr-context.sh
 publish-pr-review.sh
-resolve-pr-plan.sh
+resolve-pr-plan.ts
 set-pr-status.sh
 validate-naming-rules.sh
 

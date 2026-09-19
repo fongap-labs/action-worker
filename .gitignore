@@ -3,6 +3,7 @@
 *.bak
 *.tmp
 *~
+node_modules/
 
 # OS metadata
 .DS_Store

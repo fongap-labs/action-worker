@@ -160,7 +160,7 @@ source build artifact
 → repository_dispatch: run-release
 → handle-release-dispatch.yml
 → validate-release-request.sh
-→ publish-release.sh
+→ publish-release.ts
 ```
 
 Release Dispatch 与 Release Manifest 分别由：
