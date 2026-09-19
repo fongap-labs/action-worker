@@ -121,6 +121,9 @@ jobs:
       - name: Validate source naming
         run: python3 tests/test-source-naming.py
 
+      - name: Validate configuration naming
+        run: python3 tests/test-config-naming.py
+
       - name: 校验 PR 边界
         run: bash tests/test-pr-boundary.sh
 
