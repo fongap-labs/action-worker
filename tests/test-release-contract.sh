@@ -24,8 +24,8 @@ require_in() {
 }
 
 require_in "$HANDLER" "types: [run-release]"
-require_in "$HANDLER" "GH_CONTROL_TOKEN"
-require_in "$HANDLER" "GH_RELEASE_TOKEN"
+require_in "$HANDLER" "GITHUB_CONTROL_TOKEN"
+require_in "$HANDLER" "GITHUB_RELEASE_TOKEN"
 require_in "$HANDLER" "RELEASE_SOURCE_ALLOWLIST"
 require_in "$HANDLER" "RELEASE_TARGET_ALLOWLIST"
 require_in "$HANDLER" "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0"
