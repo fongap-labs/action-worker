@@ -139,7 +139,7 @@ Manifest 必须提供目标仓、`release_key`、SemVer 与每个资产的 SHA25
 <release-key>-v<semver>
 ```
 
-业务仓只持有用于发送 Release Dispatch 的 `ACTION_WORKER_PAT`；目标分发仓写凭据只保存在 Action Worker。
+业务仓只持有用于发送 Release Dispatch 的 `ACTION_WORKER_TOKEN`；目标分发仓写凭据只保存在 Action Worker。
 
 中央发布凭据与运行配置：
 
