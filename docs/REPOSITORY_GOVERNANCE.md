@@ -60,7 +60,7 @@ GH_ADMIN_TOKEN
 也可以使用已授权 GitHub CLI：
 
 ```bash
-GH_TOKEN=<token> bash scripts/apply-repo-settings.sh owner/repository false
+GH_TOKEN=<token> node scripts/apply-repo-settings.ts owner/repository false
 ```
 
 脚本执行幂等 PATCH，并对 GitHub 返回结果逐项校验。

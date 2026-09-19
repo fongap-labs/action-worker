@@ -64,7 +64,7 @@ profiles/
 
 ## 3. 文件
 
-Workflow、Shell 和测试文件使用 `kebab-case`，最多三段。
+Workflow、TypeScript 控制模块、测试文件与必要的 Shell 边界使用 `kebab-case`，最多三段。
 
 推荐：
 
@@ -74,14 +74,14 @@ handle-pr-dispatch.yml
 handle-task-dispatch.yml
 publish-release.yml
 
-detect-pr-context.sh
-publish-pr-review.sh
+detect-pr-context.ts
+publish-pr-review.ts
 resolve-pr-plan.ts
-set-pr-status.sh
-validate-naming-rules.sh
+set-pr-status.ts
+validate-naming-rules.ts
 
-test-pr-policy.sh
-test-ci-contract.sh
+pr-policy.test.ts
+ci-contract.test.ts
 ```
 
 治理文档统一放在 `docs/`，使用 `UPPER_SNAKE_CASE.md`：
@@ -152,7 +152,7 @@ canMergePR
 
 CI 自动阻断：
 
-- Workflow / Shell / Test 文件不是 kebab-case；
+- Workflow / TypeScript 控制模块 / Test 文件不是 kebab-case；
 - 文件名超过三段；
 - 长期名称包含 `new / final / latest / temp / tmp`；
 - 规范文档不符合约定；
