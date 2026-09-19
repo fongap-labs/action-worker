@@ -15,7 +15,7 @@ jq -e '
   .allow_update_branch == true and
   .web_commit_signoff_required == false and
   .squash_merge_commit_title == "PR_TITLE" and
-  .squash_merge_commit_message == "PR_BODY"
+  .squash_merge_commit_message == "BLANK"
 ' policies/repository.json >/dev/null
 
 grep -Fq 'secrets.GH_ADMIN_TOKEN' .github/workflows/apply-repo-settings.yml
