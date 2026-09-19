@@ -15,13 +15,13 @@ for command_name in gh jq unzip sha256sum; do
   }
 done
 
-[ -n "${GH_CONTROL_TOKEN:-}" ] || {
-  echo "GH_CONTROL_TOKEN is required." >&2
+[ -n "${GITHUB_CONTROL_TOKEN:-}" ] || {
+  echo "GITHUB_CONTROL_TOKEN is required." >&2
   exit 77
 }
 
-[ -n "${GH_RELEASE_TOKEN:-}" ] || {
-  echo "GH_RELEASE_TOKEN is required." >&2
+[ -n "${GITHUB_RELEASE_TOKEN:-}" ] || {
+  echo "GITHUB_RELEASE_TOKEN is required." >&2
   exit 77
 }
 
@@ -33,7 +33,7 @@ source_run_id="$(jq -r '.source_run_id' "$request_path")"
 artifact_name="$(jq -r '.artifact_name' "$request_path")"
 request_id="$(jq -r '.request_id' "$request_path")"
 
-export GH_TOKEN="$GH_CONTROL_TOKEN"
+export GH_TOKEN="$GITHUB_CONTROL_TOKEN"
 
 default_branch="$(gh api "repos/$source_repository" --jq '.default_branch')"
 default_sha="$(gh api "repos/$source_repository/commits/$default_branch" --jq '.sha')"
@@ -158,7 +158,7 @@ license_file="$(jq -r '.license.file // empty' "$manifest_path")"
 tag="$release_key-v$version"
 name="${release_name:-$tag}"
 
-export GH_TOKEN="$GH_RELEASE_TOKEN"
+export GH_TOKEN="$GITHUB_RELEASE_TOKEN"
 
 target_branch="$(gh api "repos/$target_repository" --jq '.default_branch')"
 target_sha="$(gh api "repos/$target_repository/commits/$target_branch" --jq '.sha')"
