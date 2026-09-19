@@ -66,7 +66,7 @@ validate-merge
 最终 `validate-merge` 不再复制治理逻辑，只调用：
 
 ```yaml
-uses: fongap/action-worker/.github/actions/validate-merge-policy@main
+uses: fongap-labs/action-worker/.github/actions/validate-merge-policy@main
 ```
 
 它要求 `ci-evidence=success`；在 Pull Request 上还必须等到当前 head 的 `PR Governance=success`。
@@ -87,7 +87,10 @@ Action Worker Secret / Variable：
 GH_CONTROL_TOKEN
 AI_GATEWAY_URL
 GATEWAY_ACCESS_KEY_AIR
+REVIEW_ENGINE_REPOSITORY
 ```
+
+`REVIEW_ENGINE_REPOSITORY` 定义 AI Review Engine 的分发仓库；Review Policy 只保存 engine 名称、版本与资产名，不保存组织或仓库位置。
 
 `GH_CONTROL_TOKEN` 对受管仓至少需要：
 
@@ -112,7 +115,7 @@ Manifest 示例：
 ```json
 {
   "schema_version": "1",
-  "target_repository": "fongap/external-vault",
+  "target_repository": "<distribution-repository>",
   "release_key": "agentdock",
   "version": "0.1.0",
   "release_name": "AgentDock 0.1.0",
@@ -151,7 +154,7 @@ event_type = run-release
 
 许可证声明属于具体 App / Release，而不是目标分发仓。未提供 `license` 时按 `Apache-2.0` 发布；需要其他许可证时由源仓在 manifest 中显式覆盖。若使用 `license.file`，对应文件必须列入 `assets[]` 并参与 SHA256 校验。
 
-业务仓只需要 `ACTION_WORKER_PAT` 来调用 Action Worker，不配置目标仓写 Token。
+业务仓只需要 `ACTION_WORKER_PAT` 来调用 Action Worker，不配置目标仓写 Token。跨仓 Dispatch 目标由业务仓变量 `ACTION_WORKER_REPOSITORY` 提供；若实现支持同组织推导，可将 `${{ github.repository_owner }}/action-worker` 作为无硬编码兜底。
 
 Action Worker 需要：
 
@@ -177,7 +180,7 @@ RELEASE_TARGET_ALLOWLIST
 有自动或人工部署的项目优先调用：
 
 ```yaml
-uses: fongap/action-worker/.github/workflows/validate-deploy-policy.yml@main
+uses: fongap-labs/action-worker/.github/workflows/validate-deploy-policy.yml@main
 ```
 
 默认：
