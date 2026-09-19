@@ -1,0 +1,46 @@
+name: 校验部署策略
+
+on:
+  workflow_call:
+    inputs:
+      target_sha:
+        description: 部署目标 Commit SHA；留空使用当前 SHA
+        required: false
+        type: string
+        default: ""
+      ci_workflow:
+        description: 必须已成功完成的 CI workflow 文件名
+        required: false
+        type: string
+        default: ci.yml
+      require_default_head:
+        description: 是否要求部署目标为默认分支当前 HEAD
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      target_sha:
+        description: 已验证部署目标 Commit SHA
+        value: ${{ jobs.source.outputs.target_sha }}
+      default_branch:
+        description: 默认分支
+        value: ${{ jobs.source.outputs.default_branch }}
+      ci_run_id:
+        description: 已验证成功的 CI Run ID
+        value: ${{ jobs.source.outputs.ci_run_id }}
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  source:
+    name: deploy-source-policy
+    permissions:
+      contents: read
+      actions: read
+    uses: ./.github/workflows/validate-source-policy.yml
+    with:
+      target_sha: ${{ inputs.target_sha }}
+      ci_workflow: ${{ inputs.ci_workflow }}
+      require_default_head: ${{ inputs.require_default_head }}

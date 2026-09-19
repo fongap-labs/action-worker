@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "review_types": [
+    "source",
+    "workflow",
+    "script",
+    "container",
+    "security",
+    "release"
+  ],
+  "agents": {
+    "security": {
+      "model": "Code-Ultra",
+      "effort": "high",
+      "rule": "security.json"
+    },
+    "architecture": {
+      "model": "Code-Ultra",
+      "effort": "high",
+      "rule": "architecture.json"
+    },
+    "workflow": {
+      "model": "Code-Pro",
+      "effort": "low",
+      "rule": "workflow.json"
+    },
+    "release": {
+      "model": "Code-Pro",
+      "effort": "low",
+      "rule": "release.json"
+    },
+    "code": {
+      "model": "Code-Pro",
+      "effort": "medium",
+      "rule": "code.json"
+    }
+  },
+  "runtime": {
+    "llm_timeout_seconds": 300,
+    "task_timeout_minutes": 2,
+    "concurrency": 1,
+    "queue_poll_seconds": 15,
+    "queue_wait_minutes": 120
+  },
+  "engine": {
+    "name": "open-code-review",
+    "version": "1.12.6",
+    "repository": "fongap/external-vault",
+    "asset": "open-code-review-linux-amd64"
+  }
+}

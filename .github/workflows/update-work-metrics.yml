@@ -1,0 +1,239 @@
+name: 更新工作统计
+
+on:
+  workflow_run:
+    workflows:
+      - 处理任务调度
+      - 处理 PR 调度
+    types: [completed]
+  repository_dispatch:
+    types: [refresh-work-metrics]
+  schedule:
+    - cron: "17 0 * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-work-metrics-${{ github.event_name == 'workflow_run' && 'incremental' || 'reconcile' }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: 统计并更新
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: 准备增量统计
+        id: increment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          SOURCE_WORKFLOW: ${{ github.event.workflow_run.name }}
+          SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if [ "$EVENT_NAME" != "workflow_run" ]; then
+            echo "json=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          case "$SOURCE_WORKFLOW" in
+            "处理任务调度")
+              increment='{"dispatch":1,"pr_governance":0,"ai_review":0,"release_governance":0}'
+              ;;
+            "处理 PR 调度")
+              jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/jobs?per_page=100")"
+              ai_review="$(
+                jq '
+                  [
+                    .jobs[].steps[]?
+                    | select(.name == "执行 AI 审查" and .conclusion == "success")
+                  ]
+                  | if length > 0 then 1 else 0 end
+                ' <<< "$jobs"
+              )"
+              increment="$(jq -cn --argjson ai "$ai_review"                 '{dispatch:0,pr_governance:1,ai_review:$ai,release_governance:0}')"
+              ;;
+            *)
+              echo "::error::不支持的 workflow_run 来源：$SOURCE_WORKFLOW" >&2
+              exit 65
+              ;;
+          esac
+
+          echo "json=$increment" >> "$GITHUB_OUTPUT"
+
+      - name: 统计工作成果
+        id: metrics
+        env:
+          GH_METRICS_TOKEN: ${{ secrets.GH_CONTROL_TOKEN || secrets.GH_METRICS_PAT || secrets.GH_EXECUTION_REPO_PAT || github.token }}
+          METRICS_REPOSITORIES_JSON: ${{ vars.PR_REPOSITORY_ALLOWLIST }}
+          WORK_METRICS_INCREMENT_JSON: ${{ steps.increment.outputs.json }}
+        run: bash scripts/update-work-metrics.sh README.md
+
+      - name: 检查是否变化
+        id: changes
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if git diff --quiet -- README.md; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 创建更新分支
+        if: steps.changes.outputs.changed == 'true'
+        id: branch
+        env:
+          BRANCH: metrics/${{ github.run_id }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$BRANCH"
+          git add README.md
+          git commit -m "chore: update work metrics"
+
+          git fetch origin main
+          git rebase origin/main
+          git push origin "$BRANCH"
+
+          echo "name=$BRANCH" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: 创建自动更新 PR
+        if: steps.changes.outputs.changed == 'true'
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GH_CONTROL_TOKEN || github.token }}
+          BRANCH: ${{ steps.branch.outputs.name }}
+          DISPATCH: ${{ steps.metrics.outputs.dispatch }}
+          PR_GOVERNANCE: ${{ steps.metrics.outputs.pr_governance }}
+          AI_REVIEW: ${{ steps.metrics.outputs.ai_review }}
+          GATE: ${{ steps.metrics.outputs.gate }}
+          RELEASE_GOVERNANCE: ${{ steps.metrics.outputs.release_governance }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          [ -n "$GH_TOKEN" ] || {
+            echo "::error::Missing repository-scoped GitHub token for metrics PR creation." >&2
+            exit 1
+          }
+
+          body="$(cat <<EOF
+          Daily verified work metrics.
+
+          - Dispatch: $DISPATCH
+          - PR Governance: $PR_GOVERNANCE
+          - AI Review: $AI_REVIEW
+          - Gate: $GATE
+          - Release Governance: $RELEASE_GOVERNANCE
+          EOF
+          )"
+
+          pr_json="$(gh api \
+            --method POST \
+            "repos/$GITHUB_REPOSITORY/pulls" \
+            -f base=main \
+            -f head="$BRANCH" \
+            -f title="chore: update work metrics" \
+            -f body="$body")"
+
+          echo "url=$(jq -r '.html_url' <<< "$pr_json")" >> "$GITHUB_OUTPUT"
+          echo "number=$(jq -r '.number' <<< "$pr_json")" >> "$GITHUB_OUTPUT"
+
+      - name: Cleanup failed metrics branch
+        if: ${{ failure() && steps.changes.outputs.changed == 'true' && steps.branch.outcome == 'success' && steps.pr.outcome == 'failure' }}
+        env:
+          BRANCH: ${{ steps.branch.outputs.name }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          git push origin --delete "$BRANCH" || true
+
+      - name: 主动执行 CI
+        if: steps.changes.outputs.changed == 'true'
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.branch.outputs.name }}
+          HEAD_SHA: ${{ steps.branch.outputs.sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          gh workflow run validate-ci.yml --ref "$BRANCH"
+
+          run_id=""
+          for _ in $(seq 1 30); do
+            run_id="$(gh run list \
+              --workflow validate-ci.yml \
+              --branch "$BRANCH" \
+              --event workflow_dispatch \
+              --limit 10 \
+              --json databaseId,headSha \
+              --jq ".[] | select(.headSha == \"$HEAD_SHA\") | .databaseId" \
+              | head -n1)"
+
+            [ -n "$run_id" ] && break
+            sleep 2
+          done
+
+          [ -n "$run_id" ] || {
+            echo "::error::未找到工作统计分支对应的 CI。"
+            exit 1
+          }
+
+          gh run watch "$run_id" --exit-status
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
+      - name: 合并更新
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_CONTROL_TOKEN || github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          BRANCH: ${{ steps.branch.outputs.name }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          merged="$(gh api \
+            --method PUT \
+            "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/merge" \
+            -f merge_method=squash \
+            --jq '.merged')"
+
+          [ "$merged" = "true" ] || {
+            echo "::error::Metrics pull request was not merged." >&2
+            exit 1
+          }
+
+          gh api \
+            --method DELETE \
+            "repos/$GITHUB_REPOSITORY/git/refs/heads/$BRANCH" \
+            >/dev/null
+
+      - name: 刷新主线 CI
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run validate-ci.yml --ref main

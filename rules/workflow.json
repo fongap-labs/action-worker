@@ -1,0 +1,9 @@
+{
+  "rules": [
+    {
+      "path": "**/*",
+      "merge_system_rule": true,
+      "rule": "Focus on GitHub Actions trust boundaries, event semantics, permissions, secret exposure, expression or shell injection, action pinning, concurrency, failure behavior, and merge-gate correctness."
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+name: Validate Merge Policy
+description: Require local CI evidence and centralized PR Governance before merge.
+
+inputs:
+  ci-result:
+    description: Result of the local ci-evidence job.
+    required: true
+  head-sha:
+    description: Commit SHA being validated.
+    required: true
+  require-pr-governance:
+    description: Whether PR Governance status is required.
+    required: false
+    default: "true"
+  governance-context:
+    description: Commit status context written by Action Worker.
+    required: false
+    default: PR Governance
+  poll-seconds:
+    description: Poll interval for PR Governance.
+    required: false
+    default: "10"
+  timeout-minutes:
+    description: Maximum wait for PR Governance.
+    required: false
+    default: "20"
+
+runs:
+  using: composite
+  steps:
+    - name: Validate local CI evidence
+      shell: bash
+      env:
+        CI_RESULT: ${{ inputs.ci-result }}
+      run: |
+        set -Eeuo pipefail
+        [ "$CI_RESULT" = "success" ] || {
+          echo "::error::Local CI evidence did not pass: $CI_RESULT" >&2
+          exit 1
+        }
+
+    - name: Wait for PR Governance
+      if: ${{ inputs.require-pr-governance == 'true' }}
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        HEAD_SHA: ${{ inputs.head-sha }}
+        GOVERNANCE_CONTEXT: ${{ inputs.governance-context }}
+        POLL_SECONDS: ${{ inputs.poll-seconds }}
+        TIMEOUT_MINUTES: ${{ inputs.timeout-minutes }}
+      run: |
+        set -Eeuo pipefail
+
+        [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+          echo "::error::head-sha must be a 40-character commit SHA." >&2
+          exit 64
+        }
+
+        if ! { [[ "$POLL_SECONDS" =~ ^[0-9]+$ ]] && [ "$POLL_SECONDS" -ge 5 ] && [ "$POLL_SECONDS" -le 120 ]; }; then
+          echo "::error::poll-seconds must be between 5 and 120." >&2
+          exit 64
+        fi
+
+        if ! { [[ "$TIMEOUT_MINUTES" =~ ^[0-9]+$ ]] && [ "$TIMEOUT_MINUTES" -ge 1 ] && [ "$TIMEOUT_MINUTES" -le 60 ]; }; then
+          echo "::error::timeout-minutes must be between 1 and 60." >&2
+          exit 64
+        fi
+
+        deadline=$(( $(date +%s) + TIMEOUT_MINUTES * 60 ))
+
+        while [ "$(date +%s)" -lt "$deadline" ]; do
+          statuses="$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/status")"
+          state="$(
+            jq -r --arg context "$GOVERNANCE_CONTEXT" '
+              [.statuses[]
+                | select(.context == $context)]
+              | sort_by(.created_at)
+              | reverse
+              | .[0].state // "missing"
+            ' <<< "$statuses"
+          )"
+
+          case "$state" in
+            success)
+              echo "PR Governance passed."
+              exit 0
+              ;;
+            failure|error)
+              echo "::error::PR Governance blocked merge: state=$state" >&2
+              exit 1
+              ;;
+            pending|missing)
+              echo "PR Governance pending: state=$state"
+              sleep "$POLL_SECONDS"
+              ;;
+            *)
+              echo "::error::Unexpected PR Governance state: $state" >&2
+              exit 65
+              ;;
+          esac
+        done
+
+        echo "::error::Timed out waiting for PR Governance." >&2
+        exit 1

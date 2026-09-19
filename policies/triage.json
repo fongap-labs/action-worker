@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "enabled_agents": [
+    "code",
+    "workflow",
+    "release"
+  ],
+  "model": "Code-Air",
+  "deep_model": "Code-Ultra",
+  "timeout_seconds": 60,
+  "max_diff_chars": 24000,
+  "min_skip_confidence": 0.92,
+  "min_deep_confidence": 0.7,
+  "max_reason_chars": 240
+}

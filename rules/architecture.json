@@ -1,0 +1,9 @@
+{
+  "rules": [
+    {
+      "path": "**/*",
+      "merge_system_rule": true,
+      "rule": "Review for breaking changes, migration safety, API and compatibility contracts, deployment impact, rollback behavior, dependency direction, and cross-component regressions. Check whether implementation matches declared CHANGELOG impact."
+    }
+  ]
+}

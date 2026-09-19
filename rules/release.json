@@ -1,0 +1,9 @@
+{
+  "rules": [
+    {
+      "path": "**/*",
+      "merge_system_rule": true,
+      "rule": "Focus on release correctness: versioning, compatibility, release notes, migration requirements, tagging, rollback, deployment impact, and whether the declared release impact matches the actual diff."
+    }
+  ]
+}

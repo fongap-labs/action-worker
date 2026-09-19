@@ -1,0 +1,9 @@
+{
+  "rules": [
+    {
+      "path": "**/*",
+      "merge_system_rule": true,
+      "rule": "Perform a security-focused review. Prioritize authentication, authorization, secret handling, injection, privilege escalation, unsafe defaults, data exposure, supply-chain risk, and fail-open behavior. Report only evidence-backed findings."
+    }
+  ]
+}

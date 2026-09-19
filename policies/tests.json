@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "trigger_change_areas": [
+    "source",
+    "test",
+    "script",
+    "container"
+  ],
+  "full_impacts": [
+    "breaking",
+    "migration",
+    "api",
+    "deployment",
+    "compatibility"
+  ],
+  "by_project_type": {
+    "node": [
+      "node-test"
+    ],
+    "rust": [
+      "rust-test"
+    ],
+    "python": [
+      "python-test"
+    ],
+    "go": [
+      "go-test"
+    ],
+    "container": [
+      "container-build"
+    ]
+  },
+  "impact_tests": {
+    "breaking": [
+      "integration-test",
+      "compatibility-test"
+    ],
+    "migration": [
+      "migration-test"
+    ],
+    "api": [
+      "api-test"
+    ],
+    "deployment": [
+      "deployment-test"
+    ],
+    "compatibility": [
+      "compatibility-test"
+    ]
+  }
+}

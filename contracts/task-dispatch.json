@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Task Dispatch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "request_id", "project", "bootstrap_ref"],
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "request_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "project": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "bootstrap_ref": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{40}$"
+    }
+  }
+}

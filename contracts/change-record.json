@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Change Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "type",
+    "attributes",
+    "summary",
+    "changelog_required",
+    "changelog_changed"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1"
+    },
+    "type": {
+      "enum": [
+        "feat",
+        "fix",
+        "docs",
+        "style",
+        "refactor",
+        "perf",
+        "test",
+        "build",
+        "ci",
+        "chore",
+        "revert"
+      ]
+    },
+    "scope": {
+      "type": ["string", "null"]
+    },
+    "attributes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": ["breaking", "security", "migration"]
+      }
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "changelog_required": {
+      "type": "boolean"
+    },
+    "changelog_changed": {
+      "type": "boolean"
+    }
+  }
+}

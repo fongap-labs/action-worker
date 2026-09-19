@@ -1,0 +1,9 @@
+{
+  "rules": [
+    {
+      "path": "**/*",
+      "merge_system_rule": true,
+      "rule": "Focus on correctness, regression risk, error handling, interface consistency, and missing tests. Distinguish concrete defects from optional improvements."
+    }
+  ]
+}

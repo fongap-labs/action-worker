@@ -1,0 +1,4 @@
+{
+  "schema_version": 1,
+  "path_terms": ["secret", "token", "auth", "permission", "credential"]
+}

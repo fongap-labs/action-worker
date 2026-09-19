@@ -1,0 +1,231 @@
+name: 处理任务调度
+
+on:
+  repository_dispatch:
+    types: [run-task]
+
+permissions: {}
+
+jobs:
+  validate:
+    name: 校验调度请求
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    permissions:
+      contents: read
+
+    outputs:
+      schema_version: ${{ steps.payload.outputs.schema_version }}
+      request_id: ${{ steps.payload.outputs.request_id }}
+      project: ${{ steps.payload.outputs.project }}
+      bootstrap_ref: ${{ steps.payload.outputs.bootstrap_ref }}
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 校验请求载荷
+        id: payload
+        env:
+          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        run: |
+          set -Eeuo pipefail
+
+          bash scripts/validate-dispatch-payload.sh "$PAYLOAD"
+
+          schema_version=$(printf '%s' "$PAYLOAD" | jq -r '.schema_version')
+          request_id=$(printf '%s' "$PAYLOAD" | jq -r '.request_id')
+          project=$(printf '%s' "$PAYLOAD" | jq -r '.project')
+          bootstrap_ref=$(printf '%s' "$PAYLOAD" | jq -r '.bootstrap_ref')
+
+          {
+              printf 'schema_version=%s\n' "$schema_version"
+              printf 'request_id=%s\n' "$request_id"
+              printf 'project=%s\n' "$project"
+              printf 'bootstrap_ref=%s\n' "$bootstrap_ref"
+          } >> "$GITHUB_OUTPUT"
+
+  execute:
+    name: 执行任务
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+
+    permissions: {}
+
+    env:
+      GH_EXECUTION_REPO: ${{ vars.GH_EXECUTION_REPO }}
+      SCHEMA_VERSION: ${{ needs.validate.outputs.schema_version }}
+      REQUEST_ID: ${{ needs.validate.outputs.request_id }}
+      PROJECT: ${{ needs.validate.outputs.project }}
+      BOOTSTRAP_REF: ${{ needs.validate.outputs.bootstrap_ref }}
+
+    concurrency:
+      group: action-worker-${{ needs.validate.outputs.project }}
+      cancel-in-progress: false
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 导出仓库变量
+        env:
+          REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}
+        run: bash scripts/export-repository-variables.sh
+
+      - name: 快照基础环境
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          compgen -e |
+            LC_ALL=C sort -u \
+            > "${RUNNER_TEMP}/action-worker-base-env.names"
+
+          chmod 600 "${RUNNER_TEMP}/action-worker-base-env.names"
+
+      - name: 执行下游任务
+        env: ${{ secrets }}
+        run: |
+          set -Eeuo pipefail
+          IFS=$'\n\t'
+
+          bash scripts/validate-repository-variables.sh
+
+          if [ -z "${GH_EXECUTION_REPO:-}" ]; then
+              echo "::error::缺少 GH_EXECUTION_REPO。" >&2
+              exit 1
+          fi
+
+          if [ -z "${GH_EXECUTION_REPO_PAT:-}" ]; then
+              echo "::error::缺少 GH_EXECUTION_REPO_PAT。" >&2
+              exit 1
+          fi
+
+          echo "::group::Task Info"
+          echo "Run ID        : ${GITHUB_RUN_ID}"
+          echo "Request ID    : ${REQUEST_ID}"
+          echo "Schema        : ${SCHEMA_VERSION}"
+          echo "Project       : ${PROJECT}"
+          echo "Bootstrap Ref : ${BOOTSTRAP_REF}"
+          echo "Runner OS     : ${RUNNER_OS}"
+          echo "Start Time    : $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo "::endgroup::"
+
+          TMPDIR_WORK="$(mktemp -d)"
+          TMP_SCRIPT="$TMPDIR_WORK/bootstrap.sh"
+
+          cleanup() {
+              unset GH_EXECUTION_REPO_PAT 2>/dev/null || true
+              rm -f "${RUNNER_TEMP}/action-worker-base-env.names" 2>/dev/null || true
+              rm -f "${RUNNER_TEMP}/action-worker-repository-vars.json" 2>/dev/null || true
+              rm -rf "$TMPDIR_WORK"
+          }
+
+          trap cleanup EXIT
+
+          RAW_BASE="https://raw.githubusercontent.com/${GH_EXECUTION_REPO}/${BOOTSTRAP_REF}"
+
+          download_file() {
+              local url="$1"
+              local output="$2"
+              local attempt=1
+              local max_attempts=3
+              local http_code=000
+              local curl_rc=0
+
+              while [ "$attempt" -le "$max_attempts" ]; do
+                  : > "$output"
+
+                  if http_code=$(curl -sS -L \
+                      --connect-timeout 15 \
+                      --max-time 60 \
+                      --retry 0 \
+                      -H "Authorization: Bearer ${GH_EXECUTION_REPO_PAT}" \
+                      -o "$output" \
+                      -w "%{http_code}" \
+                      "$url"); then
+                      curl_rc=0
+                  else
+                      curl_rc=$?
+                  fi
+
+                  case "$http_code" in
+                      2*)
+                          return 0
+                          ;;
+                      4*)
+                          break
+                          ;;
+                  esac
+
+                  if [ "$attempt" -lt "$max_attempts" ]; then
+                      if [ "$curl_rc" -ne 0 ]; then
+                          echo "::warning::下载失败（curl=${curl_rc}, HTTP=${http_code}），准备重试 ${attempt}/${max_attempts}。" >&2
+                      else
+                          echo "::warning::下载失败（HTTP ${http_code}），准备重试 ${attempt}/${max_attempts}。" >&2
+                      fi
+                      sleep $((attempt * 2))
+                  fi
+
+                  attempt=$((attempt + 1))
+              done
+
+              if [ "$curl_rc" -ne 0 ]; then
+                  echo "::error::下载 bootstrap.sh 失败：网络/curl 错误（curl=${curl_rc}, HTTP=${http_code}）。" >&2
+              else
+                  case "$http_code" in
+                      401|403)
+                          echo "::error::下载 bootstrap.sh 失败：GitHub 鉴权被拒绝（HTTP ${http_code}）。" >&2
+                          ;;
+                      404)
+                          echo "::error::下载 bootstrap.sh 失败：指定 BOOTSTRAP_REF 下未找到文件（HTTP 404）。" >&2
+                          ;;
+                      5*)
+                          echo "::error::下载 bootstrap.sh 失败：GitHub 上游异常（HTTP ${http_code}）。" >&2
+                          ;;
+                      *)
+                          echo "::error::下载 bootstrap.sh 失败（HTTP ${http_code}）。" >&2
+                          ;;
+                  esac
+              fi
+
+              return 1
+          }
+
+          echo "Downloading bootstrap.sh ..."
+          download_file "${RAW_BASE}/bootstrap.sh" "$TMP_SCRIPT" || exit 1
+
+          if [ ! -s "$TMP_SCRIPT" ]; then
+              echo "::error::bootstrap.sh 为空。" >&2
+              exit 1
+          fi
+
+          if ! bash -n "$TMP_SCRIPT"; then
+              echo "::error::bootstrap.sh Shell 语法错误。" >&2
+              exit 1
+          fi
+
+          chmod 700 "$TMP_SCRIPT"
+
+          echo "Executing bootstrap.sh ..."
+
+          bootstrap_rc=0
+          set +e
+          bash "$TMP_SCRIPT" "$PROJECT" "$BOOTSTRAP_REF" "$REQUEST_ID"
+          bootstrap_rc=$?
+          set -e
+
+          echo "::group::Task Result"
+          echo "Request ID    : ${REQUEST_ID}"
+          echo "Project       : ${PROJECT}"
+          echo "Bootstrap Ref : ${BOOTSTRAP_REF}"
+          echo "Exit Code     : ${bootstrap_rc}"
+          echo "End Time      : $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo "::endgroup::"
+
+          if [ "$bootstrap_rc" -ne 0 ]; then
+              echo "::error::bootstrap.sh 执行失败（exit=${bootstrap_rc}）。" >&2
+              exit "$bootstrap_rc"
+          fi
