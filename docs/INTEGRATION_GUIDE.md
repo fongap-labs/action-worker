@@ -200,13 +200,13 @@ uses: fongap-labs/action-worker/.github/workflows/validate-deploy-policy.yml@mai
 默认：
 
 ```yaml
-require_default_head: true
+should_match_default: true
 ```
 
 如果产品确实需要部署历史版本：
 
 ```yaml
-require_default_head: false
+should_match_default: false
 target_sha: <40-character-commit-sha>
 ```
 
