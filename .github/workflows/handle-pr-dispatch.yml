@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: 检出控制层
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
           persist-credentials: false
@@ -105,7 +105,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: 检出目标 PR
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ steps.payload.outputs.repository }}
           ref: refs/pull/${{ steps.payload.outputs.pr_number }}/head
@@ -401,7 +401,7 @@ jobs:
 
       - name: Restore OCR cache
         if: steps.plan.outputs.review_required == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.ocr_dist.outputs.cache_dir }}
           key: ocr-${{ runner.os }}-${{ runner.arch }}-${{ steps.ocr_dist.outputs.version }}-${{ steps.ocr_dist.outputs.asset }}

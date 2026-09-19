@@ -75,7 +75,7 @@ forbid 'validate-ocr-roundtrip'
 forbid 'from "\$BASE_SHA"'
 forbid 'to "\$HEAD_SHA"'
 require "install-ocr.sh"
-require "actions/cache@v4"
+require "actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0"
 forbid "@alibaba-group/open-code-review"
 forbid "npm install -g"
 require "report-ocr-retry.sh"
