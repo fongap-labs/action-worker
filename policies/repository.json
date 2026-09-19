@@ -12,5 +12,5 @@
   "allow_update_branch": true,
   "web_commit_signoff_required": false,
   "squash_merge_commit_title": "PR_TITLE",
-  "squash_merge_commit_message": "PR_BODY"
+  "squash_merge_commit_message": "BLANK"
 }
