@@ -3,7 +3,7 @@
 set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RESOLVER="$ROOT/scripts/resolve-pr-plan.sh"
+RESOLVER="$ROOT/scripts/resolve-pr-plan.ts"
 POLICIES="$ROOT/policies"
 
 docs='{
@@ -34,7 +34,7 @@ security='{
   "risk":"high"
 }'
 
-docs_plan="$(bash "$RESOLVER" "$docs" inherit inherit inherit inherit auto auto "$POLICIES")"
+docs_plan="$(node "$RESOLVER" "$docs" inherit inherit inherit inherit auto auto "$POLICIES")"
 jq -e '
   .checks == ["naming"]
   and .tests == []
@@ -51,7 +51,7 @@ jq -e '
   and .triage_timeout == 0
 ' <<< "$docs_plan" >/dev/null
 
-workflow_plan="$(bash "$RESOLVER" "$workflow" inherit inherit inherit inherit auto auto "$POLICIES")"
+workflow_plan="$(node "$RESOLVER" "$workflow" inherit inherit inherit inherit auto auto "$POLICIES")"
 jq -e '
   (.checks | index("naming")) != null
   and (.checks | index("actionlint")) != null
@@ -72,7 +72,7 @@ jq -e '
   and .review_rule == "workflow.json"
 ' <<< "$workflow_plan" >/dev/null
 
-breaking_plan="$(bash "$RESOLVER" "$breaking" inherit inherit inherit inherit auto auto "$POLICIES")"
+breaking_plan="$(node "$RESOLVER" "$breaking" inherit inherit inherit inherit auto auto "$POLICIES")"
 jq -e '
   (.checks | index("api-check")) != null
   and (.checks | index("compatibility-check")) != null
@@ -94,7 +94,7 @@ jq -e '
   and .review_rule == "architecture.json"
 ' <<< "$breaking_plan" >/dev/null
 
-security_plan="$(bash "$RESOLVER" "$security" inherit inherit inherit inherit auto auto "$POLICIES")"
+security_plan="$(node "$RESOLVER" "$security" inherit inherit inherit inherit auto auto "$POLICIES")"
 jq -e '
   (.checks | index("shellcheck")) != null
   and (.checks | index("secret-scan")) != null
@@ -111,7 +111,7 @@ jq -e '
   and .review_effort == "high"
 ' <<< "$security_plan" >/dev/null
 
-override="$(bash "$RESOLVER" "$breaking" off on critical low Code-Air code "$POLICIES")"
+override="$(node "$RESOLVER" "$breaking" off on critical low Code-Air code "$POLICIES")"
 jq -e '
   .naming_required == false
   and .review_required == true

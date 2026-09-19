@@ -1,7 +1,10 @@
-# Exclude repository tests from GitHub Linguist statistics.
-tests/** linguist-detectable=false
-
 # Keep shell scripts and GitHub Actions definitions executable on Linux runners.
 *.sh text eol=lf
+*.ts text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
+/.gitignore whitespace=trailing-space,space-before-tab,cr-at-eol
+/CLAUDE.md whitespace=trailing-space,space-before-tab,cr-at-eol
+/docs/ARCHITECTURE.md whitespace=trailing-space,space-before-tab,cr-at-eol
+/docs/DEVELOPMENT_GUIDE.md whitespace=trailing-space,space-before-tab,cr-at-eol
+/docs/NAMING_CONVENTIONS.md whitespace=trailing-space,space-before-tab,cr-at-eol

@@ -81,6 +81,8 @@ Workflow 变更至少检查：
 - reusable workflow 的 caller / callee 权限边界；
 - actionlint / ShellCheck / 合同测试。
 
+TypeScript 控制逻辑使用 Node 24 直接运行，并通过 `npm run typecheck` 与 `npm test` 验证。Shell 只保留短小的 Runner glue 和外部工具启动逻辑。
+
 ### 工作统计自动回写
 
 `update-work-metrics.yml` 的权限边界固定为：
