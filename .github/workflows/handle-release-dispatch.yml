@@ -30,17 +30,17 @@ jobs:
 
       - name: Validate central credentials
         env:
-          GH_CONTROL_TOKEN: ${{ secrets.GH_CONTROL_TOKEN }}
-          GH_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
+          GITHUB_CONTROL_TOKEN: ${{ secrets.GITHUB_CONTROL_TOKEN }}
+          GITHUB_RELEASE_TOKEN: ${{ secrets.GITHUB_RELEASE_TOKEN }}
         shell: bash
         run: |
           set -Eeuo pipefail
-          [ -n "$GH_CONTROL_TOKEN" ] || {
-            echo "::error::GH_CONTROL_TOKEN is not configured." >&2
+          [ -n "$GITHUB_CONTROL_TOKEN" ] || {
+            echo "::error::GITHUB_CONTROL_TOKEN is not configured." >&2
             exit 77
           }
-          [ -n "$GH_RELEASE_TOKEN" ] || {
-            echo "::error::GH_RELEASE_TOKEN is not configured." >&2
+          [ -n "$GITHUB_RELEASE_TOKEN" ] || {
+            echo "::error::GITHUB_RELEASE_TOKEN is not configured." >&2
             exit 77
           }
 
@@ -55,8 +55,8 @@ jobs:
       - name: Publish governed release
         id: release
         env:
-          GH_CONTROL_TOKEN: ${{ secrets.GH_CONTROL_TOKEN }}
-          GH_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
+          GITHUB_CONTROL_TOKEN: ${{ secrets.GITHUB_CONTROL_TOKEN }}
+          GITHUB_RELEASE_TOKEN: ${{ secrets.GITHUB_RELEASE_TOKEN }}
           RELEASE_SOURCE_ALLOWLIST: ${{ vars.RELEASE_SOURCE_ALLOWLIST }}
           RELEASE_TARGET_ALLOWLIST: ${{ vars.RELEASE_TARGET_ALLOWLIST }}
         shell: bash
