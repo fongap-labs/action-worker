@@ -299,7 +299,7 @@ jobs:
         if: steps.base_plan.outputs.triage_required == 'true'
         env:
           AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
-          TRIAGE_LLM_TOKEN: ${{ secrets.GATEWAY_ACCESS_KEY_AIR }}
+          TRIAGE_LLM_TOKEN: ${{ secrets.GATEWAY_KEY_AIR }}
           BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           CONTEXT_JSON: ${{ steps.context.outputs.json }}
@@ -410,7 +410,7 @@ jobs:
         if: steps.plan.outputs.review_required == 'true'
         env:
           AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
-          OCR_LLM_TOKEN: ${{ secrets.GATEWAY_ACCESS_KEY_AIR }}
+          OCR_LLM_TOKEN: ${{ secrets.GATEWAY_KEY_AIR }}
           REVIEW_MODEL: ${{ steps.plan.outputs.review_model }}
           OCR_LLM_TIMEOUT: ${{ steps.plan.outputs.review_llm_timeout }}
           OCR_NO_UPDATE: "1"
@@ -427,7 +427,7 @@ jobs:
             exit 1
           }
           [ -n "$OCR_LLM_TOKEN" ] || {
-            echo "::error::缺少 GATEWAY_ACCESS_KEY_AIR。" >&2
+            echo "::error::缺少 GATEWAY_KEY_AIR。" >&2
             exit 1
           }
           if ! { [[ "$OCR_LLM_TIMEOUT" =~ ^[0-9]+$ ]] && [ "$OCR_LLM_TIMEOUT" -ge 1 ]; }; then
@@ -457,7 +457,7 @@ jobs:
       - name: 执行 AI 审查
         if: steps.plan.outputs.review_required == 'true'
         env:
-          OCR_LLM_TOKEN: ${{ secrets.GATEWAY_ACCESS_KEY_AIR }}
+          OCR_LLM_TOKEN: ${{ secrets.GATEWAY_KEY_AIR }}
           BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           REVIEW_EFFORT: ${{ steps.plan.outputs.review_effort }}
