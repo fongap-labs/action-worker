@@ -10,9 +10,10 @@
 PR
 → Dispatch
 → Action Worker
-→ AI Review
 → CI Evidence
+→ AI Review
 → PR Governance
+→ validate-merge
 → Merge
 → Release Policy
 → Build / Package
@@ -232,9 +233,10 @@ target_sha: <40-character-commit-sha>
 
 - dispatch 成功；
 - Action Worker 读取真实 PR；
-- AI Review 按 policy 执行或合法跳过；
 - CI Evidence 对应当前 head SHA；
+- AI Review 按 policy 执行或合法跳过；
 - PR Governance 状态回写成功；
+- validate-merge 同时验证本地证据与 PR Governance；
 - sticky review summary 正常；
 - 测试 PR 最终关闭，不合并测试内容。
 
