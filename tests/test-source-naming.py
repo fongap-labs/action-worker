@@ -38,7 +38,7 @@ with tempfile.TemporaryDirectory() as tmp:
 
     (repo / "app.py").write_text("def load_data(is_enabled: bool):\n    can_run = False\n    return is_enabled and can_run\n", encoding="utf-8")
     (repo / "worker.rs").write_text("fn run_task(is_enabled: bool) {\n    let can_run = false;\n}\n", encoding="utf-8")
-    (repo / "panel.ts").write_text("function openPanel(isEnabled: boolean) {\n  const canRender = false;\n}\n", encoding="utf-8")
+    (repo / "panel.ts").write_text("function openVeryLongPanelName(isFeatureEnabled: boolean) {\n  const canRender = false;\n}\n", encoding="utf-8")
     valid = commit(repo, "valid")
     result = run(repo, base, valid)
     assert result.returncode == 0, result.stderr
