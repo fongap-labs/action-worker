@@ -45,7 +45,7 @@ jobs:
     permissions: {}
 
     env:
-      GH_EXECUTION_REPO: ${{ vars.GH_EXECUTION_REPO }}
+      EXECUTION_REPOSITORY: ${{ vars.EXECUTION_REPOSITORY }}
       SCHEMA_VERSION: ${{ needs.validate.outputs.schema_version }}
       REQUEST_ID: ${{ needs.validate.outputs.request_id }}
       PROJECT: ${{ needs.validate.outputs.project }}
@@ -88,13 +88,13 @@ jobs:
 
           node scripts/validate-repository-variables.ts
 
-          if [ -z "${GH_EXECUTION_REPO:-}" ]; then
-              echo "::error::缺少 GH_EXECUTION_REPO。" >&2
+          if [ -z "${EXECUTION_REPOSITORY:-}" ]; then
+              echo "::error::EXECUTION_REPOSITORY is required." >&2
               exit 1
           fi
 
-          if [ -z "${GH_EXECUTION_REPO_PAT:-}" ]; then
-              echo "::error::缺少 GH_EXECUTION_REPO_PAT。" >&2
+          if [ -z "${EXECUTION_TOKEN:-}" ]; then
+              echo "::error::EXECUTION_TOKEN is required." >&2
               exit 1
           fi
 
@@ -112,7 +112,7 @@ jobs:
           TMP_SCRIPT="$TMPDIR_WORK/bootstrap.sh"
 
           cleanup() {
-              unset GH_EXECUTION_REPO_PAT 2>/dev/null || true
+              unset EXECUTION_TOKEN 2>/dev/null || true
               rm -f "${RUNNER_TEMP}/action-worker-base-env.names" 2>/dev/null || true
               rm -f "${RUNNER_TEMP}/action-worker-repository-vars.json" 2>/dev/null || true
               rm -rf "$TMPDIR_WORK"
@@ -120,7 +120,7 @@ jobs:
 
           trap cleanup EXIT
 
-          RAW_BASE="https://raw.githubusercontent.com/${GH_EXECUTION_REPO}/${BOOTSTRAP_REF}"
+          RAW_BASE="https://raw.githubusercontent.com/${EXECUTION_REPOSITORY}/${BOOTSTRAP_REF}"
 
           download_file() {
               local url="$1"
@@ -137,7 +137,7 @@ jobs:
                       --connect-timeout 15 \
                       --max-time 60 \
                       --retry 0 \
-                      -H "Authorization: Bearer ${GH_EXECUTION_REPO_PAT}" \
+                      -H "Authorization: Bearer ${EXECUTION_TOKEN}" \
                       -o "$output" \
                       -w "%{http_code}" \
                       "$url"); then

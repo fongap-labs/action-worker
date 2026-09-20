@@ -1,0 +1,128 @@
+import { readFile } from "node:fs/promises";
+import { basename, extname } from "node:path";
+import { CliError, handleError, isMain, runText } from "./runtime-command.ts";
+
+const platformNames = new Set([
+  "GH_TOKEN",
+  "NODE_OPTIONS",
+  "GITHUB_ACTION",
+  "GITHUB_ACTIONS",
+  "GITHUB_ACTOR",
+  "GITHUB_ACTOR_ID",
+  "GITHUB_API_URL",
+  "GITHUB_BASE_REF",
+  "GITHUB_ENV",
+  "GITHUB_EVENT_NAME",
+  "GITHUB_EVENT_PATH",
+  "GITHUB_GRAPHQL_URL",
+  "GITHUB_HEAD_REF",
+  "GITHUB_JOB",
+  "GITHUB_OUTPUT",
+  "GITHUB_PATH",
+  "GITHUB_REF",
+  "GITHUB_REF_NAME",
+  "GITHUB_REF_PROTECTED",
+  "GITHUB_REF_TYPE",
+  "GITHUB_REPOSITORY",
+  "GITHUB_REPOSITORY_ID",
+  "GITHUB_REPOSITORY_OWNER",
+  "GITHUB_REPOSITORY_OWNER_ID",
+  "GITHUB_RETENTION_DAYS",
+  "GITHUB_RUN_ATTEMPT",
+  "GITHUB_RUN_ID",
+  "GITHUB_RUN_NUMBER",
+  "GITHUB_SERVER_URL",
+  "GITHUB_SHA",
+  "GITHUB_STEP_SUMMARY",
+  "GITHUB_TRIGGERING_ACTOR",
+  "GITHUB_WORKFLOW",
+  "GITHUB_WORKFLOW_REF",
+  "GITHUB_WORKFLOW_SHA",
+  "GITHUB_WORKSPACE",
+]);
+
+const tokenPattern = /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g;
+
+function isPlatformName(name: string): boolean {
+  return platformNames.has(name) || name.startsWith("RUNNER_") || name.startsWith("ACTIONS_");
+}
+
+function shouldScan(path: string): boolean {
+  if (path.startsWith(".github/workflows/") && [".yml", ".yaml"].includes(extname(path).toLowerCase())) {
+    return true;
+  }
+  const name = basename(path);
+  if ([".env", ".env.example", ".env.variables", ".secrets.required", ".dev.vars.example"].includes(name)) {
+    return true;
+  }
+  if (name === "wrangler.jsonc") {
+    return true;
+  }
+  return path.split("/").includes("config") && [".json", ".jsonc", ".toml", ".yml", ".yaml"].includes(extname(path).toLowerCase());
+}
+
+export function validateConfigText(path: string, text: string): string[] {
+  const errors: string[] = [];
+  const names = [...new Set(text.match(tokenPattern) ?? [])].sort();
+
+  for (const name of names) {
+    if (isPlatformName(name)) {
+      continue;
+    }
+    if (name.split("_").filter(Boolean).length > 3) {
+      errors.push(`${path}: configuration name '${name}' exceeds three segments`);
+    }
+    if (name.startsWith("GH_") && name !== "GH_TOKEN") {
+      errors.push(`${path}: custom GitHub configuration '${name}' must not use the GH_ abbreviation`);
+    }
+    if (name.startsWith("CF_")) {
+      errors.push(`${path}: custom Cloudflare configuration '${name}' must use CLOUDFLARE_`);
+    }
+    if (name.endsWith("_PAT") || name.includes("_PAT_")) {
+      errors.push(`${path}: credential '${name}' must use TOKEN or KEY instead of PAT`);
+    }
+    const usesBooleanPrefix = ["IS_", "HAS_", "CAN_", "SHOULD_"].some((prefix) => name.startsWith(prefix));
+    const looksBoolean = ["ALLOW_", "ENABLE_", "DISABLE_", "EXPOSE_", "INCLUDE_"].some((prefix) => name.startsWith(prefix))
+      || name.endsWith("_ENABLED");
+    if (looksBoolean && !usesBooleanPrefix) {
+      errors.push(`${path}: Boolean configuration '${name}' must start with IS_, HAS_, CAN_, or SHOULD_`);
+    }
+  }
+  return errors;
+}
+
+export async function validateConfigNames(base: string, head: string): Promise<number> {
+  const changed = await runText("git", ["diff", "--name-only", "--diff-filter=ACMR", base, head]);
+  const paths = changed ? changed.split(/\r?\n/).filter(Boolean).filter(shouldScan) : [];
+  const errors: string[] = [];
+
+  for (const path of paths) {
+    try {
+      const text = await readFile(path, "utf8");
+      errors.push(...validateConfigText(path, text));
+    } catch {
+      // Deleted or unavailable files are excluded by --diff-filter and do not block validation.
+    }
+  }
+  if (errors.length > 0) {
+    for (const error of [...new Set(errors)].sort()) {
+      console.error(`::error::${error}`);
+    }
+    return 1;
+  }
+
+  console.log(`Configuration naming conventions passed (${paths.length} changed config files).`);
+  return 0;
+}
+
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  if (args.length !== 2) {
+    throw new CliError("Usage: validate-config-naming.ts <base-sha> <head-sha>", 64);
+  }
+  process.exitCode = await validateConfigNames(args[0] ?? "", args[1] ?? "");
+}
+
+if (isMain(import.meta.url)) {
+  main().catch(handleError);
+}

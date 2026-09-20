@@ -43,7 +43,7 @@ repository = owner/name
 is_dry_run = true | false
 ```
 
-默认 dry-run。写操作使用独立 `GH_ADMIN_TOKEN`，不得与 `GH_CONTROL_TOKEN` 混用。脚本必须幂等应用设置并校验 GitHub 返回结果。
+默认 dry-run。写操作使用独立 `ADMIN_TOKEN`，不得与 `CONTROL_TOKEN` 混用。脚本必须幂等应用设置并校验 GitHub 返回结果。
 
 ## 3. Merge authority
 

@@ -79,7 +79,7 @@ bootstrap_ref
 
 PR 的 base SHA、head SHA、分支、状态和 diff 必须由 Action Worker 从 GitHub 重新获取，不信任调用方声明。
 
-业务仓的 `ACTION_WORKER_PAT` 只允许向 Action Worker 发送调度事件；AI Gateway 凭据和跨仓回写凭据不得下沉到业务仓。中央控制域使用 `GH_CONTROL_TOKEN` 读取目标 PR、回写 Review，并向目标 head commit 写入统一 `PR Governance` status。
+业务仓的 `ACTION_WORKER_TOKEN` 只允许向 Action Worker 发送调度事件；AI Gateway 凭据和跨仓回写凭据不得下沉到业务仓。中央控制域使用 `CONTROL_TOKEN` 读取目标 PR、回写 Review，并向目标 head commit 写入统一 `PR Governance` status。
 
 机器合同位于 `contracts/`。
 
@@ -93,7 +93,7 @@ PR 中央执行采用仓库白名单。
 
 ```text
 修改 PR_REPOSITORY_ALLOWLIST
-→ 配置薄触发器的 ACTION_WORKER_PAT
+→ 配置薄触发器的 ACTION_WORKER_TOKEN
 → 首次 Inspect
 → 正常运行
 ```
@@ -215,7 +215,7 @@ source allowlist
 → release or rollback
 ```
 
-业务仓不得获得目标分发仓写凭据。源读取使用 `GH_CONTROL_TOKEN`；目标发布使用权限收敛到发布目标的 `GH_RELEASE_TOKEN`。
+业务仓不得获得目标分发仓写凭据。源读取使用 `CONTROL_TOKEN`；目标发布使用权限收敛到发布目标的 `RELEASE_TOKEN`。
 
 Release Tag 统一为：
 
