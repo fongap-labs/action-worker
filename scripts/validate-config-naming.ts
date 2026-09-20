@@ -72,11 +72,11 @@ export function validateConfigText(path: string, text: string): string[] {
     if (name.endsWith("_PAT") || name.includes("_PAT_")) {
       errors.push(`${path}: credential '${name}' must use TOKEN or KEY instead of PAT`);
     }
-    const usesBooleanPrefix = ["IS_", "HAS_", "CAN_", "SHOULD_"].some((prefix) => name.startsWith(prefix));
-    const looksBoolean = ["ALLOW_", "ENABLE_", "DISABLE_", "EXPOSE_", "INCLUDE_"].some((prefix) => name.startsWith(prefix))
+    const usesBooleanPrefix = /(?:^|_)(?:IS|HAS|CAN|SHOULD)_/.test(name);
+    const looksBoolean = /(?:^|_)(?:ALLOW|ENABLE|DISABLE|EXPOSE|INCLUDE)_/.test(name)
       || name.endsWith("_ENABLED");
     if (looksBoolean && !usesBooleanPrefix) {
-      errors.push(`${path}: Boolean configuration '${name}' must start with IS_, HAS_, CAN_, or SHOULD_`);
+      errors.push(`${path}: Boolean configuration '${name}' must include an IS_, HAS_, CAN_, or SHOULD_ semantic segment`);
     }
   }
   return errors;
