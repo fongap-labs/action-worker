@@ -8,6 +8,7 @@ test("accepts context-independent configuration names and recognized abbreviatio
       "ACTION_WORKER_CONTROL_TOKEN",
       "AI_GATEWAY_ACCESS_KEY_AIR",
       "AI_GATEWAY_PUBLIC_URL",
+      "AI_GATEWAY_IS_DEPLOY_ENABLED",
       "CLOUDFLARE_ACCOUNT_ID",
       "GH_TOKEN",
       "GITHUB_REPOSITORY_OWNER_ID",
