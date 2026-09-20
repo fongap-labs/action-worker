@@ -209,7 +209,7 @@ async function collectMetrics(
 }
 
 export function parseFixture(value: string): WorkCounts {
-  const parsed = parseJson(value, "WORK_METRICS_COUNTS_JSON is invalid.");
+  const parsed = parseJson(value, "WORK_METRICS_COUNTS is invalid.");
   if (
     !isJsonRecord(parsed)
     || !isCount(parsed.dispatch)
@@ -218,21 +218,21 @@ export function parseFixture(value: string): WorkCounts {
     || !isCount(parsed.gate)
     || !isCount(parsed.release_governance)
   ) {
-    throw new CliError("WORK_METRICS_COUNTS_JSON is invalid.", 65);
+    throw new CliError("WORK_METRICS_COUNTS is invalid.", 65);
   }
   return parsed as WorkCounts;
 }
 
 function parseIncrement(value: string): IncrementCounts {
-  const parsed = parseJson(value, "WORK_METRICS_INCREMENT_JSON is invalid.");
+  const parsed = parseJson(value, "WORK_METRICS_JSON is invalid.");
   if (!isJsonRecord(parsed)) {
-    throw new CliError("WORK_METRICS_INCREMENT_JSON is invalid.", 65);
+    throw new CliError("WORK_METRICS_JSON is invalid.", 65);
   }
   const keys = ["dispatch", "pr_governance", "ai_review", "release_governance"] as const;
   for (const key of keys) {
     const count = parsed[key] ?? 0;
     if (!isCount(count)) {
-      throw new CliError("WORK_METRICS_INCREMENT_JSON is invalid.", 65);
+      throw new CliError("WORK_METRICS_JSON is invalid.", 65);
     }
   }
   return {
@@ -295,10 +295,10 @@ async function main(): Promise<void> {
   }
   const repository = process.env.GITHUB_REPOSITORY ?? "fongap/action-worker";
   const owner = process.env.GITHUB_REPOSITORY_OWNER ?? repository.split("/", 1)[0] ?? "";
-  const token = process.env.GH_METRICS_TOKEN ?? process.env.GITHUB_TOKEN ?? "";
+  const token = process.env.METRICS_TOKEN ?? process.env.GITHUB_TOKEN ?? "";
   const configured = process.env.METRICS_REPOSITORIES_JSON ?? "";
-  const fixtureJson = process.env.WORK_METRICS_COUNTS_JSON ?? "";
-  const incrementJson = process.env.WORK_METRICS_INCREMENT_JSON ?? "";
+  const fixtureJson = process.env.WORK_METRICS_COUNTS ?? "";
+  const incrementJson = process.env.WORK_METRICS_JSON ?? "";
   const content = await readFile(readmePath, "utf8");
   let counts: WorkCounts;
   let repositoryCount = 0;
