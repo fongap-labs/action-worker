@@ -52,13 +52,13 @@ function shouldScan(path: string): boolean {
     return true;
   }
   const name = basename(path);
-  if ([".env.variables", ".secrets.required", ".dev.vars.example"].includes(name)) {
+  if ([".env", ".env.example", ".env.variables", ".secrets.required", ".dev.vars.example"].includes(name)) {
     return true;
   }
   if (name === "wrangler.jsonc") {
     return true;
   }
-  return path.startsWith("config/") && [".json", ".jsonc", ".toml", ".yml", ".yaml"].includes(extname(path).toLowerCase());
+  return path.split("/").includes("config") && [".json", ".jsonc", ".toml", ".yml", ".yaml"].includes(extname(path).toLowerCase());
 }
 
 export function validateConfigText(path: string, text: string): string[] {
@@ -81,6 +81,12 @@ export function validateConfigText(path: string, text: string): string[] {
     if (name.endsWith("_PAT") || name.includes("_PAT_")) {
       errors.push(`${path}: credential '${name}' must use TOKEN or KEY instead of PAT`);
     }
+    const usesBooleanPrefix = ["IS_", "HAS_", "CAN_", "SHOULD_"].some((prefix) => name.startsWith(prefix));
+    const looksBoolean = ["ALLOW_", "ENABLE_", "DISABLE_", "EXPOSE_", "INCLUDE_"].some((prefix) => name.startsWith(prefix))
+      || name.endsWith("_ENABLED");
+    if (looksBoolean && !usesBooleanPrefix) {
+      errors.push(`${path}: Boolean configuration '${name}' must start with IS_, HAS_, CAN_, or SHOULD_`);
+    }
   }
   return errors;
 }
@@ -98,7 +104,6 @@ export async function validateConfigNames(base: string, head: string): Promise<n
       // Deleted or unavailable files are excluded by --diff-filter and do not block validation.
     }
   }
-
   if (errors.length > 0) {
     for (const error of [...new Set(errors)].sort()) {
       console.error(`::error::${error}`);

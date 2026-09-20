@@ -89,12 +89,12 @@ jobs:
           node scripts/validate-repository-variables.ts
 
           if [ -z "${EXECUTION_REPOSITORY:-}" ]; then
-              echo "::error::缺少 EXECUTION_REPOSITORY。" >&2
+              echo "::error::EXECUTION_REPOSITORY is required." >&2
               exit 1
           fi
 
           if [ -z "${EXECUTION_TOKEN:-}" ]; then
-              echo "::error::缺少 EXECUTION_TOKEN。" >&2
+              echo "::error::EXECUTION_TOKEN is required." >&2
               exit 1
           fi
 

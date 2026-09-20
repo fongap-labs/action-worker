@@ -15,16 +15,18 @@ test("accepts canonical configuration names and platform variables", () => {
   );
 });
 
-test("rejects long, abbreviated provider, and PAT configuration names", () => {
+test("rejects long, abbreviated provider, PAT, and non-canonical Boolean names", () => {
   const errors = validateConfigText(".github/workflows/ci.yml", [
     "TOO_LONG_CONFIG_NAME",
-    "GH_CONTROL_TOKEN",
+    "GH_OPERATOR_TOKEN",
     "CF_ACCOUNT_ID",
-    "ACTION_WORKER_PAT",
+    "WORKER_DISPATCH_PAT",
+    "DEPLOY_ENABLED",
   ].join("\n"));
 
   assert.ok(errors.some((error) => error.includes("exceeds three segments")));
   assert.ok(errors.some((error) => error.includes("must not use the GH_ abbreviation")));
   assert.ok(errors.some((error) => error.includes("must use CLOUDFLARE_")));
   assert.ok(errors.some((error) => error.includes("instead of PAT")));
+  assert.ok(errors.some((error) => error.includes("Boolean configuration")));
 });

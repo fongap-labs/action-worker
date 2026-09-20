@@ -52,7 +52,7 @@ jobs:
       - name: 统计工作成果
         id: metrics
         env:
-          METRICS_TOKEN: ${{ secrets.CONTROL_TOKEN || github.token }}
+          METRICS_TOKEN: ${{ secrets.CONTROL_TOKEN }}
           METRICS_REPOSITORIES_JSON: ${{ vars.PR_REPOSITORY_ALLOWLIST }}
           WORK_METRICS_JSON: ${{ steps.increment.outputs.json }}
         run: node scripts/update-work-metrics.ts README.md
