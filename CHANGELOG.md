@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- docs: define minimum-sufficient external naming and register AW/AIG system abbreviations.
+
 - fix: prioritize context-independent configuration semantics over arbitrary segment-count limits.
 
 - refactor [breaking, migration]: hard cut shared configuration names and reject non-canonical configuration identifiers.
