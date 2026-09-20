@@ -32,6 +32,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "contracts/change-record.json", "contracts/pr-task.json", "contracts/release-dispatch.json",
     "contracts/release-manifest.json", "contracts/task-dispatch.json", "policies/execution.json", "policies/triage.json",
     "package.json", "package-lock.json", "tsconfig.json", "scripts/validate-change-record.ts",
+    "scripts/validate-engineering-language.ts",
     "scripts/validate-pr-payload.ts", "scripts/validate-pr-repository.ts", "scripts/validate-control-access.ts",
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
     "scripts/github-api.ts", "scripts/resolve-pr-plan.ts", "scripts/run-ai-triage.ts", "scripts/runtime-command.ts",
@@ -83,7 +84,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   requireText(workflow, [
     "repository_dispatch:", "types: [run-pr-governance]", "PR_REPOSITORY_ALLOWLIST", "GH_CONTROL_TOKEN",
     "AI_GATEWAY_URL", "GATEWAY_ACCESS_KEY_AIR", "persist-credentials: false", "node-version: 24",
-    "validate-pr-payload.ts", "validate-control-access.ts", "set-pr-status.ts",
+    "validate-pr-payload.ts", "validate-control-access.ts", "set-pr-status.ts", "validate-engineering-language.ts",
     "publish-pr-review.ts", "wait-ci-evidence.ts", "validate-ci-evidence.ts", "wait-review-turn.ts",
     "run-ai-triage.ts", "apply-ai-triage.ts", "install-ocr.ts", "run-ai-review.ts",
     "Resolve governance ownership", "check-status-owner.ts",
