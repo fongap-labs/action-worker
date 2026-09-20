@@ -1,6 +1,6 @@
 # 架构治理
 
-Action Worker 是 Fongap 的 GitHub 自动化控制平面。本文档定义长期边界；实现可以演进，但不得突破这些边界。
+Action Worker 是 Fongap Labs 的 GitHub 自动化控制平面。本文档定义长期边界；实现可以演进，但不得突破这些边界。
 
 ## 1. 核心边界
 
@@ -153,7 +153,7 @@ Action Worker 决定：
 
 业务仓保留测试代码，因为测试属于产品规格的一部分；但业务仓不维护 Action Worker 的治理规则。
 
-业务仓 CI Runner 属于 Sandbox：负责执行项目原生测试、构建与验证，并通过统一 `.github/workflows/ci.yml → validate-merge` 暴露最终证据。Action Worker Control 只读取目标 head SHA 对应的 CI Evidence，并据此决定 Gate，不向 Sandbox 下发 AI Gateway 或跨仓控制凭据。
+业务仓 CI Runner 属于 Sandbox：负责执行项目原生测试、构建与验证，并通过统一 `.github/workflows/ci.yml → ci-evidence` 暴露本地证据。Action Worker Control 只读取目标 head SHA 对应的 `ci-evidence`，完成中央治理后写入 `PR Governance`；业务仓最终 `validate-merge` 汇合两者，不向 Sandbox 下发 AI Gateway 或跨仓控制凭据.
 
 Action Worker 不复制项目测试实现，也不维护仓库名称到测试命令的静态映射。
 
