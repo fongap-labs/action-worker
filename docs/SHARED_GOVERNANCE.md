@@ -27,6 +27,7 @@ Business repository
 - repository governance and merge defaults;
 - naming conventions;
 - changelog and PR change classification;
+- English-only engineering diff, PR titles, CHANGELOG entries and release summaries;
 - common development and validation rules;
 - PR governance and merge-gate contract;
 - release and deploy governance;
