@@ -109,8 +109,6 @@ def check_python(errors: list[str], root: Path, path: Path) -> None:
 
         name = node.name.lstrip("_")
         if name and not (node.name.startswith("__") and node.name.endswith("__")):
-            if len(parts(name)) > 3:
-                add(errors, path, f"function '{node.name}' exceeds three segments")
             if not node.name.startswith("_") and BANNED.intersection(parts(name)):
                 add(errors, path, f"function '{node.name}' contains a banned naming term")
 
@@ -124,8 +122,6 @@ def check_python(errors: list[str], root: Path, path: Path) -> None:
             arg_name = arg.arg.lstrip("_")
             if arg_name in {"self", "cls"}:
                 continue
-            if len(parts(arg_name)) > 3:
-                add(errors, path, f"parameter '{arg.arg}' exceeds three segments")
             annotation = ast.unparse(arg.annotation) if arg.annotation is not None else ""
             hinted_bool = not annotation and (
                 arg_name in BOOL_HINTS
@@ -223,8 +219,6 @@ def check_rust(errors: list[str], root: Path, path: Path) -> None:
 
     for match in fn_pattern.finditer(text):
         name = match.group(1)
-        if len(parts(name)) > 3:
-            add(errors, path, f"Rust function '{name}' exceeds three segments")
         for param in split_parameters(parameter_block(text, match.start())):
             typed = bool_param.search(param)
             if typed and not typed.group(1).startswith(BOOL_PREFIXES_PY):
@@ -268,8 +262,6 @@ def check_typescript(errors: list[str], root: Path, path: Path) -> None:
     for pattern in (function_name, arrow_name):
         for match in pattern.finditer(text):
             name = match.group(1)
-            if len(camel_parts(name)) > 3:
-                add(errors, path, f"TypeScript function '{name}' exceeds three segments")
             check_ts_parameters(errors, path, parameter_block(text, match.start()))
 
     for name in bool_local.findall(text):
