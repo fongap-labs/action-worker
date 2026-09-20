@@ -1,45 +1,83 @@
-# 命名规范
+# Naming Conventions
 
 > 一个概念，一个标准词；一个名称，最多三段。
 
-## 1. 核心规则
+本文件包含两层规则：第 1–6 节适用于 Fongap Labs 受管仓库；第 7 节仅适用于 Action Worker 自身。业务仓不得复制本文件，只补充真正的项目级命名约束。
+
+## 1. Shared core rules
 
 ```text
-对象：Object + Role + Qualifier
-动作：Verb + Object + Qualifier
+Object: Object + Role + Qualifier
+Action: Verb + Object + Qualifier
 ```
-
-规则：
 
 - 最多三段，不要求必须三段；
 - 两段能说清，不用三段；
-- 一个连字符或下划线分隔词算一段；
 - 不用拼词或自造缩写规避段数；
-- 标准缩写可作为一段，例如 `PR`、`API`、`URL`、`CI`、`ID`、`LLM`。
+- 标准缩写可作为一段，例如 `PR`、`API`、`URL`、`CI`、`ID`、`LLM`；
+- 一个概念只使用一个标准词。
 
-源码标识符校验：
+## 2. Source identifiers
 
-- 中央 PR Governance 对本次变更的 Python、Rust、TypeScript/TSX 源码执行统一命名检查；
-- 函数和参数遵循“最多三段”原则；
-- 布尔参数与变量使用 `is/has/can/should` 语义前缀（Python/Rust 使用下划线形式）；
-- 模块名继续禁止 `impl/helper/common/misc/shared/new/final/latest/temp/tmp` 等弱语义或生命周期词；
-- 测试代码与生成目录不纳入源码标识符检查。
+- Python、Rust、TypeScript/TSX 的新增或修改标识符遵循同一语义原则；
+- 函数和参数优先控制在三段内；
+- Boolean 使用 `is / has / can / should` 语义前缀；
+- 禁止用 `impl / helper / common / misc / shared / new / final / latest / temp / tmp` 作为模糊长期名称；
+- 测试、生成代码或第三方代码可由项目自己的检查器决定是否豁免。
 
-工程类 diff 的语言统一规则：
+## 3. Engineering language
 
-- 新增或修改的代码标识符、代码注释、Workflow 名称与步骤、日志、错误信息、测试描述、配置键和工程说明统一使用英文；
-- 同一工程 diff 不混用中英文工程术语；
-- 用户界面、本地化资源以及明确以中文维护的说明文档不受此限制。
+新增或修改的工程内容默认使用英文：
 
-## 2. 目录
+- identifiers;
+- code comments;
+- workflow names and steps;
+- logs and errors;
+- test descriptions;
+- configuration keys.
 
-普通资源目录统一使用：
+用户界面、本地化资源和明确以中文维护的说明文档除外。
+
+## 4. Files and documents
+
+- workflow / control script / test files use `kebab-case`;
+- governance documents use `UPPER_SNAKE_CASE.md`;
+- 文件名只表达文件自己的职责，不重复目录已经提供的上下文；
+- 长期名称避免生命周期词和模糊词。
+
+## 5. Canonical terms
+
+| Concept | Term |
+|---|---|
+| machine contract | `contract` |
+| primary change category | `change type` |
+| technical changed region | `change area` |
+| fast semantic routing | `triage` |
+| code review | `review` |
+| review result | `finding` |
+| deterministic rule | `policy` |
+| policy exception | `override` |
+| project evidence | `context` |
+| model supplier | `provider` |
+| routing endpoint | `gateway` |
+| work unit | `task` |
+| dispatch | `dispatch` |
+| state | `status` |
+| validation | `validate / validation` |
+| publication | `release` |
+| Git tag | `tag` |
+| continuous integration | `CI` |
+
+## 6. Preferred verbs
 
 ```text
-单一复数名词 = 一类资源
+get load fetch create update delete validate detect resolve evaluate
+build generate handle execute publish summarize
 ```
 
-允许的长期资源目录：
+## 7. Action Worker only
+
+Action Worker is a generic control plane, so its own long-lived resource directories are limited to:
 
 ```text
 docs/
@@ -50,9 +88,9 @@ scripts/
 tests/
 ```
 
-平台强制目录 `.github/workflows/` 属于例外。
+Platform-required `.github/workflows/` is an exception.
 
-禁止为了保存项目差异建立：
+Action Worker must not introduce repository-specific configuration structures such as:
 
 ```text
 projects/
@@ -60,113 +98,17 @@ adapters/
 profiles/
 ```
 
-目录负责提供上下文，文件名不重复目录已经表达的信息。
+This restriction does **not** apply to business repositories. A product repository may legitimately use `projects/`, `apps/`, `crates/`, `tools/`, `skills/`, `output/`, or other semantically correct project-specific directories.
 
-## 3. 文件
+Action Worker CI enforces its own filename and architecture restrictions. Business repositories may add stricter project-specific naming checks, but must not redefine the shared vocabulary.
 
-Workflow、TypeScript 控制模块、测试文件与必要的 Shell 边界使用 `kebab-case`，最多三段。
-
-推荐：
+## 8. Short version
 
 ```text
-validate-ci.yml
-handle-pr-dispatch.yml
-handle-task-dispatch.yml
-publish-release.yml
-
-detect-pr-context.ts
-publish-pr-review.ts
-resolve-pr-plan.ts
-set-pr-status.ts
-validate-naming-rules.ts
-
-pr-policy.test.ts
-ci-contract.test.ts
-```
-
-治理文档统一放在 `docs/`，使用 `UPPER_SNAKE_CASE.md`：
-
-```text
-ARCHITECTURE_GOVERNANCE.md
-CHANGELOG_CONVENTIONS.md
-NAMING_CONVENTIONS.md
-```
-
-## 4. 标准词
-
-| 概念 | 标准词 |
-|---|---|
-| 机器合同 | `contract` |
-| 变更主分类 | `change type` |
-| 技术变更区域 | `change area` |
-| 快速分诊 | `triage` |
-| 代码审查 | `review` |
-| 审查发现 | `finding` |
-| 策略 | `policy` |
-| 策略覆盖 | `override` |
-| 项目上下文 | `context` |
-| 模型供应方 | `provider` |
-| 路由入口 | `gateway` |
-| 工作单元 | `task` |
-| 调度 | `dispatch` |
-| 状态 | `status` |
-| 校验 | `validate` / `validation` |
-| 发布 | `release` |
-| 标签 | `tag` |
-| 持续集成 | `CI` |
-
-## 5. 动词
-
-优先使用准确动词：
-
-```text
-get
-load
-fetch
-create
-update
-delete
-validate
-detect
-resolve
-evaluate
-build
-generate
-handle
-execute
-publish
-summarize
-```
-
-## 6. 布尔值
-
-使用 `is / has / can / should` 前缀，例如：
-
-```text
-isReviewRequired
-hasBlockingFindings
-canMergePR
-```
-
-## 7. CI 约束
-
-CI 自动阻断：
-
-- Workflow / TypeScript 控制模块 / Test 文件不是 kebab-case；
-- 文件名超过三段；
-- 长期名称包含 `new / final / latest / temp / tmp`；
-- 规范文档不符合约定；
-- 出现架构治理禁止的顶层项目配置目录。
-
-模糊名称如 `utils / helpers / common / misc / shared` 只警告。
-
-## 8. 最短记忆版
-
-```text
-目录：复数资源集合
-对象：Object + Role + Qualifier
-动作：Verb + Object + Qualifier
-最多三段
-一个概念 = 一个标准词
-项目差异不进入 Action Worker 目录结构
+One concept = one standard term
+Prefer ≤ 3 semantic segments
+Boolean = is / has / can / should
+Shared naming lives here
+Project-specific naming stays in the project
+Action Worker directory restrictions apply only to Action Worker
 ```
