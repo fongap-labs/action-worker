@@ -1,22 +1,31 @@
 # Documentation
 
-Action Worker 的共用治理文档统一维护在本目录。
+Action Worker 同时保存两类文档：
 
-人类和 Agent 都从这里进入；Agent 的强制读取顺序见仓库根目录 [CLAUDE.md](../CLAUDE.md)。
+1. Fongap Labs 受管仓库共用治理；
+2. Action Worker 自身控制平面架构与实现。
 
-## 权威文档
+业务仓只保存项目级规则，不复制这里的共用规则。
 
-| 文档 | 作用 |
+## Shared governance
+
+| Document | Purpose |
 |---|---|
-| [ARCHITECTURE_GOVERNANCE.md](ARCHITECTURE_GOVERNANCE.md) | 长期架构边界与不可突破原则 |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | 当前实现与运行模型 |
-| [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) | 文件、Workflow、参数与变量命名规范 |
+| [SHARED_GOVERNANCE.md](SHARED_GOVERNANCE.md) | Fongap Labs 共用治理边界与权威关系 |
+| [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) | 全仓通用命名规则，以及 Action Worker 自身附加约束 |
 | [CHANGELOG_CONVENTIONS.md](CHANGELOG_CONVENTIONS.md) | PR、CHANGELOG 与 Release 的统一变更分类 |
-| [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) | 通用开发、验证、PR 与合并流程 |
-| [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) | 新业务仓接入 Action Worker 的标准方法 |
-| [REPOSITORY_GOVERNANCE.md](REPOSITORY_GOVERNANCE.md) | 统一仓库设置与 Ruleset 的治理边界 |
+| [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) | 通用开发、验证、PR 与合并规则 |
+| [REPOSITORY_GOVERNANCE.md](REPOSITORY_GOVERNANCE.md) | 仓库设置、合并策略与 GitHub 平台能力边界 |
+| [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) | 业务仓接入中央治理的标准合同 |
 
-## 机器规则
+## Action Worker specific
+
+| Document | Purpose |
+|---|---|
+| [ARCHITECTURE_GOVERNANCE.md](ARCHITECTURE_GOVERNANCE.md) | Action Worker 控制平面的长期架构边界 |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | 当前实现与运行模型 |
+
+## Machine authority
 
 文档解释“为什么”和“怎么做”，机器权威仍在：
 
@@ -29,21 +38,22 @@ tests/       合同与治理回归测试
 
 文档不得覆盖或绕过机器合同。
 
-## 最短入口
+## Shortest entry
 
 ```text
-开发 Action Worker
+Develop Action Worker
 → CLAUDE.md
-→ docs/DEVELOPMENT_GUIDE.md
-→ 相关 contracts / policies / rules
-
-接入业务仓
-→ CLAUDE.md
-→ docs/INTEGRATION_GUIDE.md
+→ docs/SHARED_GOVERNANCE.md
 → docs/ARCHITECTURE_GOVERNANCE.md
+→ related contracts / policies / rules
 
-修改治理规则
-→ docs/ARCHITECTURE_GOVERNANCE.md
-→ 相关 contracts / policies
-→ 合同测试
+Work in a managed repository
+→ repository CLAUDE.md
+→ docs/SHARED_GOVERNANCE.md
+→ project-specific architecture / boundary docs
+
+Change shared governance
+→ docs/SHARED_GOVERNANCE.md
+→ related contracts / policies / rules
+→ governance regression tests
 ```
