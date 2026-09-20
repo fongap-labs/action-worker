@@ -7,7 +7,7 @@
 任务调度 · AI 审查 · PR 治理 · 发布治理 · 部署治理
 
 <!-- work-metrics:start -->
-[![Dispatch](https://img.shields.io/badge/Dispatch-1%2C411-2F80ED?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap/action-worker/actions) [![AI Review](https://img.shields.io/badge/AI%20Review-3-8B5CF6?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap/action-worker/actions) [![PR Governance](https://img.shields.io/badge/PR%20Governance-4-6366F1?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap/action-worker/actions) [![Release Governance](https://img.shields.io/badge/Release%20Governance-0-14B8A6?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap/action-worker/releases) [![Status](https://img.shields.io/github/actions/workflow/status/fongap/action-worker/validate-ci.yml?branch=main&style=flat-square&label=Status&labelColor=5B5B5B)](https://github.com/fongap/action-worker/actions/workflows/validate-ci.yml)
+[![Dispatch](https://img.shields.io/badge/Dispatch-1%2C411-2F80ED?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/actions) [![AI Review](https://img.shields.io/badge/AI%20Review-3-8B5CF6?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/actions) [![PR Governance](https://img.shields.io/badge/PR%20Governance-4-6366F1?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/actions) [![Release Governance](https://img.shields.io/badge/Release%20Governance-0-14B8A6?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/releases) [![Status](https://img.shields.io/github/actions/workflow/status/fongap-labs/action-worker/validate-ci.yml?branch=main&style=flat-square&label=Status&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/actions/workflows/validate-ci.yml)
 <!-- work-metrics:end -->
 
 </div>
@@ -126,11 +126,11 @@ jobs:
             -H "Authorization: Bearer $ACTION_WORKER_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/fongap/action-worker/dispatches \
+            https://api.github.com/repos/${GITHUB_REPOSITORY_OWNER}/action-worker/dispatches \
             -d "$payload"
 ```
 
-业务仓只需要 `ACTION_WORKER_TOKEN`，其权限只用于向 `fongap/action-worker` 发送 `repository_dispatch`。`AI_GATEWAY_URL`、`GATEWAY_KEY_AIR` 与跨仓回写凭据只保存在 Action Worker。
+业务仓只需要 `ACTION_WORKER_TOKEN`，其权限只用于向同一组织的 `action-worker` 发送 `repository_dispatch`；目标仓由 `GITHUB_REPOSITORY_OWNER` 推导。`AI_GATEWAY_URL`、`GATEWAY_KEY_AIR` 与跨仓回写凭据只保存在 Action Worker。
 
 中央 `CONTROL_TOKEN` 对受管业务仓至少需要 Contents Read、Pull Requests Read/Write、Commit Statuses Read/Write 和 **Actions Read**；Actions Read 用于读取真实 CI Evidence。
 
