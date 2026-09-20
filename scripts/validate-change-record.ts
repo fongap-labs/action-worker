@@ -1,6 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isJsonRecord } from "./github-api.ts";
+import { assertEnglishText } from "./validate-engineering-language.ts";
 import {
   CliError,
   appendLines,
@@ -47,6 +48,7 @@ export async function validateChange(
   const scope = match[2] ?? "";
   const isBreaking = match[3] === "!";
   const summary = match[4] ?? "";
+  assertEnglishText("PR title summary", summary);
   const changeTypes = policyList(value, "change_types");
   const allowedAttrs = policyList(value, "change_attributes");
   const requiredTypes = policyList(value, "changelog_required_types");
@@ -76,6 +78,8 @@ export async function validateChange(
         throw new CliError(`::error::Invalid CHANGELOG entry: ${line}`, 65);
       }
       const entryType = entry[1] ?? "";
+      const entrySummary = entry[3] ?? "";
+      assertEnglishText("CHANGELOG entry summary", entrySummary);
       if (!changeTypes.includes(entryType)) {
         throw new CliError(`::error::CHANGELOG uses unsupported change type: ${entryType}.`, 65);
       }

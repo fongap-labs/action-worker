@@ -7,6 +7,7 @@ import { retryLines } from "../scripts/report-ocr-retry.ts";
 import { settingsPayload } from "../scripts/apply-repo-settings.ts";
 import { shouldResume } from "../scripts/should-resume-ocr.ts";
 import { validateDispatch } from "../scripts/validate-dispatch-payload.ts";
+import { assertEnglishText, engineeringLineViolation } from "../scripts/validate-engineering-language.ts";
 import { validateEvidence } from "../scripts/validate-ci-evidence.ts";
 import { validatePayload } from "../scripts/validate-pr-payload.ts";
 import { validateRepository } from "../scripts/validate-pr-repository.ts";
@@ -138,6 +139,18 @@ test("OCR retry diagnostics exclude provider request identifiers", () => {
   });
   assert.match(lines.join("\n"), /status=429 class=rate_limited phase=http/);
   assert.doesNotMatch(lines.join("\n"), /request_id=/);
+});
+
+test("engineering language rejects Chinese machine text but allows documentation and UI strings", () => {
+  assert.doesNotThrow(() => assertEnglishText("PR title summary", "centralize merge policy"));
+  assert.throws(() => assertEnglishText("PR title summary", "统一合并门禁"));
+  assert.equal(engineeringLineViolation("CHANGELOG.md", "- fix: 修复路由。"), "CHANGELOG entries must use English.");
+  assert.equal(engineeringLineViolation(".github/workflows/ci.yml", "name: 校验"), "Workflow engineering text must use English.");
+  assert.equal(engineeringLineViolation("src/router.ts", "// 修复路由"), "Engineering identifiers and comments must use English.");
+  assert.equal(engineeringLineViolation("src/router.ts", 'console.error("上游失败")'), "Logs, errors, and test descriptions must use English.");
+  assert.equal(engineeringLineViolation("src/router.ts", 'const label = "中文界面";'), null);
+  assert.equal(engineeringLineViolation("docs/README.md", "中文说明"), null);
+  assert.equal(engineeringLineViolation("src/i18n/zh-CN.json", '"title": "中文界面"'), null);
 });
 
 test("repository variables are sorted and validated", () => {

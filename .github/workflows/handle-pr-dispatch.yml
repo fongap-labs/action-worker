@@ -89,6 +89,12 @@ jobs:
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
         run: node scripts/validate-change-record.ts "$PR_TITLE" "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policies"
 
+      - name: Validate engineering language
+        env:
+          BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
+        run: node scripts/validate-engineering-language.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target"
+
       - name: 识别项目与变更
         id: context
         env:
