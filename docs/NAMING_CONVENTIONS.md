@@ -1,6 +1,6 @@
 # Naming Conventions
 
-> 名称首先必须表达完整语义；简短是次要目标。
+> 名称使用最少必要信息表达完整语义；既不能依赖隐藏上下文，也不要重复显而易见的信息。
 
 本文件包含两层规则：第 1–7 节适用于 Fongap Labs 受管仓库；第 8 节仅适用于 Action Worker 自身。业务仓不得复制本文件，只补充真正的项目级命名约束。
 
@@ -11,9 +11,10 @@
 1. **Context-independent identity**：名称脱离仓库、文件、workflow 和调用位置后，仍应尽可能识别所属系统、用途和类型。
 2. **Canonical vocabulary**：一个概念只使用一个标准词。
 3. **Unambiguous abbreviation**：所属系统可以使用明确、公认、无歧义的缩写。
-4. **Conciseness**：在完整语义成立后再缩短名称。
+4. **Minimum sufficient semantics**：只保留识别所必需的信息，不重复目录、平台或数据本身已经明确表达的语义。
+5. **Conciseness**：在完整语义成立后再缩短名称。
 
-不得为了满足固定段数而删除系统、用途或类型信息。
+不得为了满足固定段数而删除系统、用途或类型信息；也不得为了“更完整”机械叠加实现细节。
 
 例如，外部 Secret：
 
@@ -26,7 +27,7 @@ CONTROL_TOKEN
 更完整的形式：
 
 ```text
-ACTION_WORKER_CONTROL_TOKEN
+AW_DISPATCH_TOKEN
 ```
 
 如果某个系统缩写已在本规范或项目规范中登记为 canonical abbreviation，也可以使用缩写形式。
@@ -45,20 +46,29 @@ ACTION_WORKER_CONTROL_TOKEN
 - cross-repository payload fields;
 - externally documented configuration keys.
 
-推荐结构：
+可按需要组合：
 
 ```text
 System + Purpose + Type + Qualifier
 ```
 
-段数不是硬限制。
+这不是固定模板，也不是要求四部分全部出现。名称达到“脱离上下文仍可识别”后，应停止继续加词。
+
+数据表示形式（如 `JSON`、`YAML`）只有在以下情况才进入名称：
+
+- 同一概念同时存在多种表示形式；
+- 表示形式本身属于外部契约；
+- 不写表示形式会造成真实歧义。
+
+否则不要把实现格式写进名称。
 
 例：
 
 ```text
-ACTION_WORKER_CONTROL_TOKEN
-AI_GATEWAY_ACCESS_KEY_AIR
-AI_GATEWAY_PUBLIC_URL
+AW_DISPATCH_TOKEN
+AIG_ACCESS_KEY_AIR
+AIG_TIER1_NODES_01
+AIG_USAGE_D1_ID
 CLOUDFLARE_ACCOUNT_ID
 ```
 
@@ -128,6 +138,15 @@ Fongap Labs 自有系统缩写只有在以下条件同时满足时才能用于�
 禁止为缩短名称临时发明缩写。
 
 如果缩写没有稳定共识，使用完整系统名。
+
+当前 Fongap Labs canonical system abbreviations：
+
+| System | Abbreviation |
+|---|---|
+| Action Worker | `AW` |
+| AI Gateway | `AIG` |
+
+项目若新增系统缩写，应先修改本表，再在业务仓使用。
 
 ## 4. Source identifiers
 
@@ -267,7 +286,9 @@ Action Worker CI enforces its own filename and architecture restrictions. Busine
 
 ```text
 External name = identifiable without repository context
-Prefer System + Purpose + Type + Qualifier
+Use minimum sufficient semantics
+System + Purpose + Type + Qualifier is a guide, not a fixed template
+Do not encode JSON/YAML unless representation is part of the contract
 Semantic completeness > segment count
 Recognized abbreviations are allowed; ad-hoc abbreviations are not
 Local source names may rely on lexical context
