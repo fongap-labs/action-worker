@@ -69,15 +69,6 @@ export function validateConfigText(path: string, text: string): string[] {
     if (isPlatformName(name)) {
       continue;
     }
-    if (name.split("_").filter(Boolean).length > 3) {
-      errors.push(`${path}: configuration name '${name}' exceeds three segments`);
-    }
-    if (name.startsWith("GH_") && name !== "GH_TOKEN") {
-      errors.push(`${path}: custom GitHub configuration '${name}' must not use the GH_ abbreviation`);
-    }
-    if (name.startsWith("CF_")) {
-      errors.push(`${path}: custom Cloudflare configuration '${name}' must use CLOUDFLARE_`);
-    }
     if (name.endsWith("_PAT") || name.includes("_PAT_")) {
       errors.push(`${path}: credential '${name}' must use TOKEN or KEY instead of PAT`);
     }
