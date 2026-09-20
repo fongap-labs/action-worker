@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- refactor [breaking, migration]: hard cut shared configuration names and reject non-canonical configuration identifiers.
+
 - perf: bound each normal Code-Pro review task to two minutes so multi-file governance remains responsive while gateway fallback and fail-closed behavior stay unchanged.
 
 - perf: inject controlled CI evidence into matching ephemeral base/head commits so it remains readable without becoming an extra reviewed file.

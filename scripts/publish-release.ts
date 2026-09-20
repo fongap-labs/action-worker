@@ -250,13 +250,13 @@ async function main(): Promise<void> {
   await requireCommand("gh", ["--version"]);
   await requireCommand("unzip", ["-v"]);
 
-  const controlToken = process.env.GH_CONTROL_TOKEN ?? "";
-  const releaseToken = process.env.GH_RELEASE_TOKEN ?? "";
+  const controlToken = process.env.CONTROL_TOKEN ?? "";
+  const releaseToken = process.env.RELEASE_TOKEN ?? "";
   if (!controlToken) {
-    throw new CliError("GH_CONTROL_TOKEN is required.", 77);
+    throw new CliError("CONTROL_TOKEN is required.", 77);
   }
   if (!releaseToken) {
-    throw new CliError("GH_RELEASE_TOKEN is required.", 77);
+    throw new CliError("RELEASE_TOKEN is required.", 77);
   }
 
   await validateRequest(requestPath);

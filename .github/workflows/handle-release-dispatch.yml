@@ -31,8 +31,8 @@ jobs:
       - name: Publish governed release
         id: release
         env:
-          GH_CONTROL_TOKEN: ${{ secrets.GH_CONTROL_TOKEN }}
-          GH_RELEASE_TOKEN: ${{ secrets.GH_RELEASE_TOKEN }}
+          CONTROL_TOKEN: ${{ secrets.CONTROL_TOKEN }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           RELEASE_SOURCE_ALLOWLIST: ${{ vars.RELEASE_SOURCE_ALLOWLIST }}
           RELEASE_TARGET_ALLOWLIST: ${{ vars.RELEASE_TARGET_ALLOWLIST }}
           RELEASE_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}

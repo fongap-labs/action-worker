@@ -37,14 +37,14 @@ PR
 业务仓 Secret：
 
 ```text
-ACTION_WORKER_PAT
+ACTION_WORKER_TOKEN
 ```
 
 不得下发：
 
 ```text
-GATEWAY_ACCESS_KEY_AIR
-GH_CONTROL_TOKEN
+GATEWAY_KEY_AIR
+CONTROL_TOKEN
 ```
 
 ## 3. CI 接入
@@ -85,15 +85,15 @@ PR_REPOSITORY_ALLOWLIST
 Action Worker Secret / Variable：
 
 ```text
-GH_CONTROL_TOKEN
+CONTROL_TOKEN
 AI_GATEWAY_URL
-GATEWAY_ACCESS_KEY_AIR
+GATEWAY_KEY_AIR
 REVIEW_ENGINE_REPOSITORY
 ```
 
 `REVIEW_ENGINE_REPOSITORY` 定义 AI Review Engine 的分发仓库。Review Policy 只保存 engine 名称、版本与资产名，不保存组织或仓库位置。
 
-`GH_CONTROL_TOKEN` 对受管仓至少需要：
+`CONTROL_TOKEN` 对受管仓至少需要：
 
 - Contents: Read；
 - Pull Requests: Read/Write；
@@ -155,32 +155,29 @@ event_type = run-release
 
 许可证声明属于具体 App / Release，而不是目标分发仓。未提供 `license` 时按 `Apache-2.0` 发布；需要其他许可证时由源仓在 manifest 中显式覆盖。若使用 `license.file`，对应文件必须列入 `assets[]` 并参与 SHA256 校验。
 
-业务仓只需要 `ACTION_WORKER_PAT` 来调用 Action Worker，不配置目标仓写 Token。跨仓 Dispatch 目标由业务仓变量 `ACTION_WORKER_REPOSITORY` 提供；业务仓不得根据组织名或仓库名自行猜测中央治理位置。
+业务仓只需要 `ACTION_WORKER_TOKEN` 来调用 Action Worker，不配置目标仓写 Token。跨仓 Dispatch 目标统一由 `${{ github.repository_owner }}/action-worker` 推导，不再维护重复的目标仓变量。
 
 同一 GitHub Organization 下的受管仓优先复用组织级配置：
 
 ```text
 Organization Secret
-ACTION_WORKER_PAT
-
-Organization Variable
-ACTION_WORKER_REPOSITORY = <owner>/<action-worker-repository>
+ACTION_WORKER_TOKEN
 ```
 
-仅向受 Action Worker 治理的仓库开放该 Secret / Variable。只有仓库需要覆盖组织默认值时，才在 Repository 级配置同名值。
+仅向受 Action Worker 治理的仓库开放该 Secret。
 
 发布源仓若共享同一个分发目标，可同样使用组织级 `RELEASE_TARGET_REPOSITORY`；项目专属部署身份（例如 `DEPLOY_REPOSITORY`）继续使用 Repository 级 Variable。
 
 Action Worker 需要：
 
 ```text
-GH_CONTROL_TOKEN
-GH_RELEASE_TOKEN
+CONTROL_TOKEN
+RELEASE_TOKEN
 RELEASE_SOURCE_ALLOWLIST
 RELEASE_TARGET_ALLOWLIST
 ```
 
-`GH_CONTROL_TOKEN` 至少需要读取受管源仓 Contents 与 Actions；`GH_RELEASE_TOKEN` 只授予允许的分发目标 `contents: write`。
+`CONTROL_TOKEN` 至少需要读取受管源仓 Contents 与 Actions；`RELEASE_TOKEN` 只授予允许的分发目标 `contents: write`。
 
 中央发布 Tag 固定为：
 
