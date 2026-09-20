@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: prioritize context-independent configuration semantics over arbitrary segment-count limits.
+
 - refactor [breaking, migration]: hard cut shared configuration names and reject non-canonical configuration identifiers.
 
 - perf: bound each normal Code-Pro review task to two minutes so multi-file governance remains responsive while gateway fallback and fail-closed behavior stay unchanged.
