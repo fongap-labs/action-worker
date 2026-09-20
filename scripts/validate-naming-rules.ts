@@ -75,7 +75,7 @@ async function main(): Promise<void> {
   const result = await validateNames(args[0] ?? "", args[1] ?? "");
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [
     "## Naming rules", "", `- Changed paths: ${result.files}`, `- Errors: ${result.failures}`,
-    `- Warnings: ${result.warnings}`, "", "Rule: at most three segments; one canonical term per concept.",
+    `- Warnings: ${result.warnings}`, "", "Rule: external names must remain identifiable without repository context; semantic completeness takes priority over segment count.",
   ]);
   if (result.failures > 0) {
     process.exit(1);
