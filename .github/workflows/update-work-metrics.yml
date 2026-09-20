@@ -52,9 +52,9 @@ jobs:
       - name: 统计工作成果
         id: metrics
         env:
-          GH_METRICS_TOKEN: ${{ secrets.GH_CONTROL_TOKEN || secrets.GH_METRICS_PAT || secrets.GH_EXECUTION_REPO_PAT || github.token }}
+          METRICS_TOKEN: ${{ secrets.CONTROL_TOKEN || github.token }}
           METRICS_REPOSITORIES_JSON: ${{ vars.PR_REPOSITORY_ALLOWLIST }}
-          WORK_METRICS_INCREMENT_JSON: ${{ steps.increment.outputs.json }}
+          WORK_METRICS_JSON: ${{ steps.increment.outputs.json }}
         run: node scripts/update-work-metrics.ts README.md
 
       - name: 检查是否变化
