@@ -27,16 +27,26 @@ Action: Verb + Object + Qualifier
 
 ## 3. Engineering language
 
-新增或修改的工程内容默认使用英文：
+工程 diff 必须使用英文。这里的 diff 指新增或修改的工程内容，包括：
 
 - identifiers;
 - code comments;
 - workflow names and steps;
 - logs and errors;
 - test descriptions;
-- configuration keys.
+- configuration keys;
+- PR titles and engineering summaries;
+- CHANGELOG entries.
 
-用户界面、本地化资源和明确以中文维护的说明文档除外。
+禁止在同一工程 diff 中混用中文和英文工程文本，也禁止新增中文工程注释、日志、错误信息、测试描述或 CHANGELOG 条目。
+
+例外仅限：
+
+- user-facing UI copy;
+- localization resources;
+- explicitly Chinese-maintained documentation.
+
+例外不扩展到 CHANGELOG、PR 标题、代码注释、workflow、日志、错误信息或测试描述；这些始终使用英文。
 
 ## 4. Files and documents
 
@@ -110,5 +120,7 @@ Prefer ≤ 3 semantic segments
 Boolean = is / has / can / should
 Shared naming lives here
 Project-specific naming stays in the project
+Engineering diff = English
+CHANGELOG / PR title = English
 Action Worker directory restrictions apply only to Action Worker
 ```

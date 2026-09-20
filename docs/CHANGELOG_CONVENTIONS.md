@@ -2,6 +2,19 @@
 
 Action Worker 统一使用一套变更分类贯穿 PR、Agent、CHANGELOG 与 Release。
 
+## 0. Language
+
+PR 标题、CHANGELOG 条目和 Release Notes 的工程摘要必须使用英文。
+
+禁止：
+
+- 中文 CHANGELOG 条目；
+- 中英文混写的 CHANGELOG 条目；
+- 中文 PR summary；
+- 为不同仓库自行选择不同 CHANGELOG 语言。
+
+中文仅可出现在明确以中文维护的说明文档、UI 或本地化资源中；不得进入工程 CHANGELOG。
+
 ## 1. 唯一变更分类
 
 只允许以下 11 类：
@@ -73,7 +86,7 @@ feat(auth)!: replace legacy authentication contract
 - Type 必须来自上述 11 类；
 - scope 可选，只描述影响范围；
 - `!` 表示 breaking；
-- summary 必须描述结果，不写 `update files`、`misc changes` 等无意义描述；
+- summary 必须使用英文并描述结果，不写 `update files`、`misc changes` 等无意义描述；
 - 一个 PR 只允许一个主 Type。
 
 ## 4. CHANGELOG 文件
@@ -169,7 +182,7 @@ chore
 3. 判断是否存在 breaking / security / migration 属性；
 4. 设置或修正 PR 标题；
 5. 按本规范决定是否更新 `CHANGELOG.md`；
-6. CHANGELOG 内容只描述实际结果，不罗列文件修改。
+6. CHANGELOG 内容使用英文，只描述实际结果，不罗列文件修改。
 
 Review Agent / Critic 必须重新检查：
 
@@ -177,7 +190,7 @@ Review Agent / Critic 必须重新检查：
 - breaking 是否被漏标；
 - security / migration 是否被漏标；
 - 必须记录的 PR 是否遗漏 CHANGELOG；
-- CHANGELOG 是否描述真实行为而非实现过程。
+- CHANGELOG 是否使用英文并描述真实行为而非实现过程。
 
 只有证据不足、业务语义无法从代码/测试/文档确定，或涉及不可逆高风险决策时，才升级给人确认。
 
@@ -222,4 +235,4 @@ chore
 
 ## 10. 最短规则
 
-> 一个 PR 一个 Type；Type 统一使用 Conventional Commits；breaking / security / migration 只是属性；CHANGELOG 不再维护第二套分类。
+> 一个 PR 一个 Type；PR 标题与 CHANGELOG 使用英文；Type 统一使用 Conventional Commits；breaking / security / migration 只是属性；CHANGELOG 不再维护第二套分类。
