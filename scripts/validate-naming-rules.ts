@@ -1,5 +1,6 @@
 import { basename, dirname, extname, join, parse } from "node:path";
 import { fileURLToPath } from "node:url";
+import { validateConfigNames } from "./validate-config-naming.ts";
 import {
   CliError,
   appendLines,
@@ -62,6 +63,7 @@ export async function validateNames(base: string, head: string): Promise<{ failu
   } catch {
     failures += 1;
   }
+  failures += await validateConfigNames(base, head);
   return { failures, warnings, files: files.length };
 }
 
