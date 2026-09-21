@@ -31,9 +31,9 @@ jobs:
       - name: Publish governed release
         id: release
         env:
-          CONTROL_TOKEN: ${{ secrets.CONTROL_TOKEN }}
-          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-          RELEASE_SOURCE_ALLOWLIST: ${{ vars.RELEASE_SOURCE_ALLOWLIST }}
-          RELEASE_TARGET_ALLOWLIST: ${{ vars.RELEASE_TARGET_ALLOWLIST }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_RELEASE_TOKEN: ${{ secrets.AW_RELEASE_TOKEN }}
+          AW_RELEASE_SOURCE_ALLOWLIST: ${{ vars.AW_RELEASE_SOURCE_ALLOWLIST }}
+          AW_RELEASE_TARGET_ALLOWLIST: ${{ vars.AW_RELEASE_TARGET_ALLOWLIST }}
           RELEASE_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
         run: node scripts/publish-release.ts
