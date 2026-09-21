@@ -34,16 +34,30 @@ Squash message          Blank
 
 ## 2. Application
 
-Action Worker 提供手动 `Apply Repository Settings` workflow。
+`policies/repository.json` 是受管仓库 Repository Settings 的唯一共享权威。
 
-输入：
+Action Worker 提供两种应用方式：
+
+```text
+push to main
+  repository policy / apply workflow changed
+  → apply to every repository in AW_PR_REPOSITORY_ALLOWLIST
+
+manual workflow_dispatch
+  → apply one repository
+  → dry-run by default
+```
+
+手工输入：
 
 ```text
 repository = owner/name
 is_dry_run = true | false
 ```
 
-默认 dry-run。写操作使用独立 `AW_ADMIN_TOKEN`，不得与 `AW_CONTROL_TOKEN` 混用。脚本必须幂等应用设置并校验 GitHub 返回结果。
+自动同步和手工写操作均使用独立 `AW_ADMIN_TOKEN`，不得与 `AW_CONTROL_TOKEN` 混用。脚本必须幂等应用设置并校验 GitHub 返回结果。
+
+受管仓库不得长期保留与中央 Repository Policy 不一致的设置；如需项目级例外，必须先形成明确的治理理由并修改共享规则或记录例外边界。
 
 ## 3. Merge authority
 
