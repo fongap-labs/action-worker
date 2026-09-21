@@ -82,8 +82,8 @@ test("runtime and machine policies preserve trust boundaries", async () => {
 test("PR workflow uses TypeScript controls and preserves ordering", async () => {
   const workflow = await text(".github/workflows/handle-pr-dispatch.yml");
   requireText(workflow, [
-    "repository_dispatch:", "types: [run-pr-governance]", "PR_REPOSITORY_ALLOWLIST", "CONTROL_TOKEN",
-    "AI_GATEWAY_URL", "GATEWAY_KEY_AIR", "persist-credentials: false", "node-version: 24",
+    "repository_dispatch:", "types: [run-pr-governance]", "AW_PR_REPOSITORY_ALLOWLIST", "AW_CONTROL_TOKEN",
+    "AI_GATEWAY_URL", "AIG_ACCESS_KEY_AIR", "persist-credentials: false", "node-version: 24",
     "validate-pr-payload.ts", "validate-control-access.ts", "set-pr-status.ts", "validate-engineering-language.ts",
     "publish-pr-review.ts", "wait-ci-evidence.ts", "validate-ci-evidence.ts", "wait-review-turn.ts",
     "run-ai-triage.ts", "apply-ai-triage.ts", "install-ocr.ts", "run-ai-review.ts",
@@ -113,7 +113,7 @@ test("task dispatch keeps generic secrets and typed validation", async () => {
 
 test("release, source, deploy, merge, and repository settings contracts remain intact", async () => {
   const release = await text(".github/workflows/handle-release-dispatch.yml");
-  requireText(release, ["types: [run-release]", "CONTROL_TOKEN", "RELEASE_TOKEN", "RELEASE_SOURCE_ALLOWLIST", "RELEASE_TARGET_ALLOWLIST", "node-version: 24", "RELEASE_REQUEST_JSON", "node scripts/publish-release.ts"]);
+  requireText(release, ["types: [run-release]", "AW_CONTROL_TOKEN", "AW_RELEASE_TOKEN", "AW_RELEASE_SOURCE_ALLOWLIST", "AW_RELEASE_TARGET_ALLOWLIST", "node-version: 24", "RELEASE_REQUEST_JSON", "node scripts/publish-release.ts"]);
   const publisher = await text("scripts/publish-release.ts");
   requireText(publisher, ["release-manifest.json", "return `${releaseKey}-v${version}`", "await sha256File(assetPath)", "rollbackRelease", '"draft=true"', '"draft=false"']);
   assert.equal(await exists(".github/workflows/validate-release-policy.yml"), false);
@@ -131,7 +131,7 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   assert.equal(repository.allow_squash_merge, true);
   assert.equal(repository.delete_branch_on_merge, true);
   const settings = await text(".github/workflows/apply-repo-settings.yml");
-  requireText(settings, ["secrets.ADMIN_TOKEN", "inputs.is_dry_run", "node scripts/apply-repo-settings.ts"]);
+  requireText(settings, ["secrets.AW_ADMIN_TOKEN", "inputs.is_dry_run", "node scripts/apply-repo-settings.ts"]);
 });
 
 test("self CI runs TypeScript checks without Shell test orchestration", async () => {
@@ -146,6 +146,6 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
     assert.ok(workflow.includes(`node scripts/manage-work-metrics.ts ${stage}`));
   }
   assert.doesNotMatch(workflow, /shell:\s+bash|run:\s*\|/);
-  assert.match(workflow, /METRICS_TOKEN:.*CONTROL_TOKEN/);
+  assert.match(workflow, /METRICS_TOKEN:.*AW_CONTROL_TOKEN/);
   assert.match(workflow, /GH_TOKEN: \$\{\{ github\.token \}\}/);
 });
