@@ -1,4 +1,4 @@
-name: 验证 CI
+name: Validate CI
 
 on:
   push:
@@ -16,11 +16,11 @@ concurrency:
 
 jobs:
   naming:
-    name: 命名规则
+    name: Naming rules
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: 检出代码
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -30,7 +30,7 @@ jobs:
         with:
           node-version: 24
 
-      - name: 解析变更范围
+      - name: Resolve change range
         id: range
         shell: bash
         run: |
@@ -56,15 +56,15 @@ jobs:
             echo "head=$head"
           } >> "$GITHUB_OUTPUT"
 
-      - name: 校验命名规则
+      - name: Validate naming rules
         run: node scripts/validate-naming-rules.ts "${{ steps.range.outputs.base }}" "${{ steps.range.outputs.head }}"
 
   static:
-    name: 静态检查
+    name: Static analysis
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - name: 检出代码
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node
@@ -79,20 +79,20 @@ jobs:
       - name: Type-check TypeScript
         run: npm run typecheck
 
-      - name: 安装 actionlint
+      - name: Install actionlint
         id: actionlint
         shell: bash
         run: bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
 
-      - name: 检查 GitHub Actions
+      - name: Lint GitHub Actions
         run: "${{ steps.actionlint.outputs.executable }} -color"
 
   contracts:
-    name: 合同测试
+    name: Contract tests
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
-      - name: 检出代码
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -118,7 +118,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
-      - name: 汇总合并门禁
+      - name: Aggregate merge gate
         env:
           NAMING_RESULT: ${{ needs.naming.result }}
           STATIC_RESULT: ${{ needs.static.result }}
@@ -128,8 +128,8 @@ jobs:
           set -Eeuo pipefail
 
           if [ "$NAMING_RESULT" != "success" ] || [ "$STATIC_RESULT" != "success" ] || [ "$CONTRACT_RESULT" != "success" ]; then
-            echo "::error::CI 失败：naming=$NAMING_RESULT static=$STATIC_RESULT contracts=$CONTRACT_RESULT" >&2
+            echo "::error::CI failed: naming=$NAMING_RESULT static=$STATIC_RESULT contracts=$CONTRACT_RESULT" >&2
             exit 1
           fi
 
-          echo "CI 合并门禁通过。"
+          echo "CI merge gate passed."

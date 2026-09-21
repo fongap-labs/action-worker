@@ -1,4 +1,4 @@
-name: 处理 PR 调度
+name: Handle PR Dispatch
 
 on:
   repository_dispatch:
@@ -14,12 +14,12 @@ concurrency:
 
 jobs:
   govern:
-    name: PR 治理
+    name: PR Governance
     runs-on: ubuntu-24.04
     timeout-minutes: 180
 
     steps:
-      - name: 检出控制层
+      - name: Checkout control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
@@ -30,21 +30,21 @@ jobs:
         with:
           node-version: 24
 
-      - name: 校验 PR 请求
+      - name: Validate PR request
         id: payload
         env:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
           AW_PR_REPOSITORY_ALLOWLIST: ${{ vars.AW_PR_REPOSITORY_ALLOWLIST }}
         run: node scripts/validate-pr-payload.ts "$PAYLOAD"
 
-      - name: 校验控制凭据
+      - name: Validate control credential
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
         run: node scripts/validate-control-access.ts "$REPOSITORY" "$PR_NUMBER"
 
-      - name: 获取 PR 事实
+      - name: Fetch PR facts
         id: facts
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
@@ -52,7 +52,7 @@ jobs:
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
         run: node scripts/resolve-pr-facts.ts fetch
 
-      - name: 检出目标 PR
+      - name: Checkout target PR
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ steps.payload.outputs.repository }}
@@ -62,7 +62,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: 解析已检出 PR 事实
+      - name: Resolve checked-out PR facts
         id: resolved
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
@@ -73,15 +73,15 @@ jobs:
           INITIAL_TITLE: ${{ steps.facts.outputs.title }}
         run: node scripts/resolve-pr-facts.ts resolve
 
-      - name: 标记治理进行中
+      - name: Mark governance in progress
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" pending "Action Worker 正在执行 PR 治理" "$RUN_URL"
+        run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" pending "Action Worker PR governance in progress" "$RUN_URL"
 
-      - name: 校验变更记录
+      - name: Validate change record
         id: change
         env:
           PR_TITLE: ${{ steps.resolved.outputs.title }}
@@ -95,7 +95,7 @@ jobs:
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
         run: node scripts/validate-engineering-language.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target"
 
-      - name: 识别项目与变更
+      - name: Detect project and change
         id: context
         env:
           BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
@@ -109,7 +109,7 @@ jobs:
           CONTEXT_JSON: ${{ steps.context.outputs.json }}
         run: node scripts/resolve-pr-plan.ts "$CONTEXT_JSON" inherit inherit inherit inherit auto auto "$GITHUB_WORKSPACE/policies"
 
-      - name: 校验命名规则
+      - name: Validate naming rules
         if: steps.base_plan.outputs.naming_required == 'true'
         env:
           BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
@@ -117,7 +117,7 @@ jobs:
         working-directory: target
         run: node "$GITHUB_WORKSPACE/scripts/validate-naming-rules.ts" "$BASE_SHA" "$HEAD_SHA"
 
-      - name: 收集 CI 证据
+      - name: Collect CI evidence
         if: steps.base_plan.outputs.ci_required == 'true'
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
@@ -180,7 +180,7 @@ jobs:
           path: ${{ steps.ocr_dist.outputs.cache_dir }}
           key: ocr-${{ runner.os }}-${{ runner.arch }}-${{ steps.ocr_dist.outputs.version }}-${{ steps.ocr_dist.outputs.asset }}
 
-      - name: 配置 OpenCodeReview
+      - name: Configure OpenCodeReview
         if: steps.plan.outputs.review_required == 'true'
         env:
           OCR_REPOSITORY: ${{ steps.ocr_dist.outputs.repository }}
@@ -189,7 +189,7 @@ jobs:
           OCR_CACHE_DIR: ${{ steps.ocr_dist.outputs.cache_dir }}
         run: node scripts/install-ocr.ts "$OCR_REPOSITORY" "$OCR_VERSION" "$OCR_ASSET" "$OCR_CACHE_DIR"
 
-      - name: 执行 AI 审查
+      - name: Run AI review
         if: steps.plan.outputs.review_required == 'true'
         env:
           AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
@@ -212,7 +212,7 @@ jobs:
             "$GITHUB_WORKSPACE/rules/$REVIEW_RULE" \
             "$BLOCK_SEVERITY"
 
-      - name: 校验 CI 证据
+      - name: Validate CI evidence
         if: steps.plan.outputs.ci_required == 'true'
         shell: bash
         run: |
@@ -229,7 +229,7 @@ jobs:
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/check-status-owner.ts "$REPOSITORY" "$HEAD_SHA" "$RUN_URL"
 
-      - name: 回写 PR 审查
+      - name: Publish PR review
         if: ${{ always() && steps.ownership.outputs.current == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
@@ -239,7 +239,7 @@ jobs:
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/publish-pr-review.ts "$REPOSITORY" "$PR_NUMBER" "$GOVERNANCE_STATUS" "$RUN_URL" /tmp/pr-plan.json /tmp/ocr-result.json
 
-      - name: 更新最终门禁
+      - name: Update final gate
         if: ${{ always() && steps.ownership.outputs.current == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
@@ -248,5 +248,5 @@ jobs:
           GOVERNANCE_STATUS: ${{ job.status }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
-          DESCRIPTION: ${{ job.status == 'success' && 'Action Worker PR 治理通过' || 'Action Worker PR 治理未通过' }}
+          DESCRIPTION: ${{ job.status == 'success' && 'Action Worker PR governance passed' || 'Action Worker PR governance failed' }}
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"

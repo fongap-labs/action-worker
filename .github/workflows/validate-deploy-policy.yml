@@ -1,32 +1,32 @@
-name: 校验部署策略
+name: Validate Deploy Policy
 
 on:
   workflow_call:
     inputs:
       target_sha:
-        description: 部署目标 Commit SHA；留空使用当前 SHA
+        description: Deploy target commit SHA; empty defaults to current SHA
         required: false
         type: string
         default: ""
       ci_workflow:
-        description: 必须已成功完成的 CI workflow 文件名
+        description: CI workflow file name that must have completed successfully
         required: false
         type: string
         default: ci.yml
       require_default_head:
-        description: 是否要求部署目标为默认分支当前 HEAD
+        description: Whether the deploy target must be the default branch HEAD
         required: false
         type: boolean
         default: true
     outputs:
       target_sha:
-        description: 已验证部署目标 Commit SHA
+        description: Validated deploy target commit SHA
         value: ${{ jobs.source.outputs.target_sha }}
       default_branch:
-        description: 默认分支
+        description: Default branch
         value: ${{ jobs.source.outputs.default_branch }}
       ci_run_id:
-        description: 已验证成功的 CI Run ID
+        description: Validated successful CI Run ID
         value: ${{ jobs.source.outputs.ci_run_id }}
 
 permissions:
