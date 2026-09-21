@@ -172,12 +172,11 @@ Action Worker 需要：
 
 ```text
 AW_CONTROL_TOKEN
-AW_RELEASE_TOKEN
 AW_RELEASE_SOURCE_ALLOWLIST
 AW_RELEASE_TARGET_ALLOWLIST
 ```
 
-`AW_CONTROL_TOKEN` 至少需要读取受管源仓 Contents 与 Actions；`AW_RELEASE_TOKEN` 只授予允许的分发目标 `contents: write`。
+`AW_CONTROL_TOKEN` 至少需要读取受管源仓 Contents 与 Actions，以及对允许的分发目标 `contents: write`。
 
 中央发布 Tag 固定为：
 

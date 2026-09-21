@@ -46,7 +46,6 @@ const workflowExternalPattern = /\$\{\{\s*(?:vars|secrets)\.([A-Z][A-Z0-9_]*)/g;
 const selfIdentifyingPrefixes = [
   "AW_",
   "AIG_",
-  "ACTION_WORKER_",
   "AI_GATEWAY_",
   "CLOUDFLARE_",
   "GITHUB_",

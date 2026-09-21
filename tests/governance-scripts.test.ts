@@ -18,11 +18,11 @@ import { variableEntries } from "../scripts/export-repository-variables.ts";
 const sha = "0123456789abcdef0123456789abcdef01234567";
 
 test("dispatch contracts reject unknown or malformed input", () => {
-  validateDispatch({ schema_version: "1", request_id: "req-001", project: "ActionWorker", bootstrap_ref: sha });
-  assert.throws(() => validateDispatch({ schema_version: "2", request_id: "req", project: "ActionWorker", bootstrap_ref: sha }));
-  assert.throws(() => validateDispatch({ schema_version: "1", request_id: "req", project: "bad/name", bootstrap_ref: sha }));
-  assert.throws(() => validateDispatch({ schema_version: "1", request_id: "req", project: "ActionWorker", bootstrap_ref: "main" }));
-  assert.throws(() => validateDispatch({ schema_version: "1", request_id: "req", project: "ActionWorker", bootstrap_ref: sha, command: "unsafe" }));
+  validateDispatch({ schema_version: "1", request_id: "req-001", project: "ActionWorker", bootstrap_ref: sha, repository: "fongap-labs/internal-vault" });
+  assert.throws(() => validateDispatch({ schema_version: "2", request_id: "req", project: "ActionWorker", bootstrap_ref: sha, repository: "fongap-labs/internal-vault" }));
+  assert.throws(() => validateDispatch({ schema_version: "1", request_id: "req", project: "bad/name", bootstrap_ref: sha, repository: "fongap-labs/internal-vault" }));
+  assert.throws(() => validateDispatch({ schema_version: "1", request_id: "req", project: "ActionWorker", bootstrap_ref: "main", repository: "fongap-labs/internal-vault" }));
+  assert.throws(() => validateDispatch({ schema_version: "1", request_id: "req", project: "ActionWorker", bootstrap_ref: sha, repository: "fongap-labs/internal-vault", command: "unsafe" }));
 });
 
 test("PR task and repository allowlist remain fail closed", () => {

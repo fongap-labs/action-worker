@@ -7,7 +7,7 @@ import {
   parseJson,
 } from "./runtime-command.ts";
 
-const requiredKeys = ["schema_version", "request_id", "project", "bootstrap_ref"] as const;
+const requiredKeys = ["schema_version", "request_id", "project", "bootstrap_ref", "repository"] as const;
 
 export function validateDispatch(value: unknown): void {
   if (!isJsonRecord(value)) {
@@ -56,6 +56,7 @@ async function main(): Promise<void> {
     `request_id=${String(payload.request_id)}`,
     `project=${String(payload.project)}`,
     `bootstrap_ref=${String(payload.bootstrap_ref)}`,
+    `repository=${String(payload.repository)}`,
   ]);
 }
 

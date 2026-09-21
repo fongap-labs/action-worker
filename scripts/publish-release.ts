@@ -251,12 +251,8 @@ async function main(): Promise<void> {
   await requireCommand("unzip", ["-v"]);
 
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
-  const releaseToken = process.env.AW_RELEASE_TOKEN ?? "";
   if (!controlToken) {
     throw new CliError("AW_CONTROL_TOKEN is required.", 77);
-  }
-  if (!releaseToken) {
-    throw new CliError("AW_RELEASE_TOKEN is required.", 77);
   }
 
   await validateRequest(requestPath);
@@ -393,14 +389,14 @@ async function main(): Promise<void> {
     const licenseExpression = manifest.license?.expression ?? "Apache-2.0";
     const licenseFile = manifest.license?.file ?? "";
 
-    const targetRepoJson = await getGithubJson(`repos/${targetRepository}`, releaseToken);
+    const targetRepoJson = await getGithubJson(`repos/${targetRepository}`, controlToken);
     const targetBranch = getJsonString(targetRepoJson, "default_branch");
-    const targetCommit = await getGithubJson(`repos/${targetRepository}/commits/${targetBranch}`, releaseToken);
+    const targetCommit = await getGithubJson(`repos/${targetRepository}/commits/${targetBranch}`, controlToken);
     const targetSha = getJsonString(targetCommit, "sha");
-    if (await githubExists(`repos/${targetRepository}/git/ref/tags/${tag}`, releaseToken)) {
+    if (await githubExists(`repos/${targetRepository}/git/ref/tags/${tag}`, controlToken)) {
       throw new CliError(`::error::Tag already exists in ${targetRepository}: ${tag}.`, 65);
     }
-    if (await githubExists(`repos/${targetRepository}/releases/tags/${tag}`, releaseToken)) {
+    if (await githubExists(`repos/${targetRepository}/releases/tags/${tag}`, controlToken)) {
       throw new CliError(`::error::Release already exists in ${targetRepository}: ${tag}.`, 65);
     }
 
@@ -423,7 +419,7 @@ async function main(): Promise<void> {
       `ref=refs/tags/${tag}`,
       "-f",
       `sha=${targetSha}`,
-    ], releaseToken);
+    ], controlToken);
     isTagCreated = true;
 
     const releaseJson = JSON.parse(await runGithubCli([
@@ -443,21 +439,21 @@ async function main(): Promise<void> {
       `prerelease=${isPrerelease}`,
       "-F",
       "draft=true",
-    ], releaseToken)) as unknown;
+    ], controlToken)) as unknown;
     releaseId = String(getJsonNumber(releaseJson, "id"));
     const releaseUrl = getJsonString(releaseJson, "html_url");
     isReleaseCreated = true;
 
     const uploadFiles = (await listRootFiles(artifactDir, ["release-manifest.json"]))
       .map((file) => join(artifactDir, file));
-    await runGithubCli(["release", "upload", tag, ...uploadFiles, "--repo", targetRepository], releaseToken);
+    await runGithubCli(["release", "upload", tag, ...uploadFiles, "--repo", targetRepository], controlToken);
 
     const expectedReleaseNames = manifest.assets
       .flatMap((asset) => [asset.name, `${asset.name}.sha256`])
       .sort();
     const publishedJson = await getGithubJson(
       `repos/${targetRepository}/releases/${releaseId}/assets?per_page=100`,
-      releaseToken,
+      controlToken,
     );
     const actualReleaseNames = getJsonArray(publishedJson).map((asset) => getJsonString(asset, "name")).sort();
     if (!sameNames(actualReleaseNames, expectedReleaseNames)) {
@@ -466,7 +462,7 @@ async function main(): Promise<void> {
 
     const verifyDir = join(workDir, "verify");
     await mkdir(verifyDir);
-    await runGithubCli(["release", "download", tag, "--repo", targetRepository, "--dir", verifyDir], releaseToken);
+    await runGithubCli(["release", "download", tag, "--repo", targetRepository, "--dir", verifyDir], controlToken);
     for (const asset of manifest.assets) {
       const downloaded = join(verifyDir, asset.name);
       const checksumPath = join(verifyDir, `${asset.name}.sha256`);
@@ -490,7 +486,7 @@ async function main(): Promise<void> {
       `repos/${targetRepository}/releases/${releaseId}`,
       "-F",
       "draft=false",
-    ], releaseToken);
+    ], controlToken);
 
     isReleaseCreated = false;
     isTagCreated = false;
@@ -519,7 +515,7 @@ async function main(): Promise<void> {
       releaseId,
       isReleaseCreated,
       isTagCreated,
-      releaseToken,
+      controlToken,
     );
     throw error;
   } finally {
