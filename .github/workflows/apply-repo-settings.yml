@@ -46,6 +46,28 @@ jobs:
           IS_DRY_RUN: ${{ inputs.is_dry_run }}
         run: node scripts/apply-repo-settings.ts "$TARGET_REPOSITORY" "$IS_DRY_RUN"
 
+  apply-control-plane:
+    if: github.event_name == 'push'
+    name: Apply control-plane settings
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Apply managed settings
+        env:
+          GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          TARGET_REPOSITORY: ${{ github.repository }}
+        run: node scripts/apply-repo-settings.ts "$TARGET_REPOSITORY" false
+
   apply-managed:
     if: github.event_name == 'push'
     name: Apply managed settings · ${{ matrix.repository }}
