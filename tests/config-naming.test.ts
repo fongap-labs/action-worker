@@ -23,8 +23,8 @@ test("does not reject semantically complete external names for segment count", (
 
 test("rejects repository-context-only external names", () => {
   const errors = validateConfigText(".github/workflows/ci.yml", [
-    "${{ secrets.CONTROL_TOKEN }}",
-    "${{ vars.RELEASE_TARGET_ALLOWLIST }}",
+    "${{ secrets.GENERIC_TOKEN }}",
+    "${{ vars.TARGET_ALLOWLIST }}",
   ].join("\n"));
 
   assert.equal(errors.filter((error) => error.includes("owning system")).length, 2);
