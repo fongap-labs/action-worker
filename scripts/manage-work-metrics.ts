@@ -34,9 +34,9 @@ async function prepareIncrement(): Promise<void> {
   }
   const workflow = process.env.SOURCE_WORKFLOW ?? "";
   let increment: Record<string, number>;
-  if (workflow === "处理任务调度") {
+  if (workflow === "Handle Task Dispatch") {
     increment = { dispatch: 1, pr_governance: 0, ai_review: 0, release_governance: 0 };
-  } else if (workflow === "处理 PR 调度") {
+  } else if (workflow === "Handle PR Dispatch") {
     const token = requireEnv("GH_TOKEN");
     const repository = requireEnv("GITHUB_REPOSITORY");
     const runId = requireEnv("SOURCE_RUN_ID");
@@ -45,7 +45,7 @@ async function prepareIncrement(): Promise<void> {
     const hasReview = getJsonArray(response, "jobs").some((job) => {
       const steps = isJsonRecord(job) && Array.isArray(job.steps) ? job.steps : [];
       return steps.some((step) => isJsonRecord(step)
-        && getJsonString(step, "name") === "执行 AI 审查"
+        && getJsonString(step, "name") === "Run AI review"
         && getJsonString(step, "conclusion") === "success");
     });
     increment = { dispatch: 0, pr_governance: 1, ai_review: hasReview ? 1 : 0, release_governance: 0 };

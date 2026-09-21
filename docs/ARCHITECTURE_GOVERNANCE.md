@@ -215,7 +215,7 @@ source allowlist
 → release or rollback
 ```
 
-业务仓不得获得目标分发仓写凭据。源读取使用 `AW_CONTROL_TOKEN`；目标发布使用权限收敛到发布目标的 `AW_RELEASE_TOKEN`。
+业务仓不持有目标分发仓写凭据。源读取与目标发布均使用 `AW_CONTROL_TOKEN`。
 
 Release Tag 统一为：
 

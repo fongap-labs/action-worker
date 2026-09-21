@@ -112,7 +112,7 @@ async function discoverRepos(
       try {
         response = getApiArray(await reader.get(`user/repos?affiliation=owner&per_page=100&page=${page}`));
       } catch {
-        console.error("::warning::当前统计凭据无法枚举私有仓库，仅统计可访问仓库。");
+        console.error("::warning::Current metrics credential cannot enumerate private repositories; only accessible repositories will be counted.");
         break;
       }
       for (const item of response) {
@@ -192,10 +192,10 @@ async function collectMetrics(
           await reader.get(`repos/${repository}/actions/runs/${runId}/jobs?per_page=100`)
         ));
         for (const jobs of jobPages) {
-          if (hasSuccessfulStep(jobs, "执行 AI 审查")) {
+          if (hasSuccessfulStep(jobs, "Run AI review")) {
             counts.ai_review += 1;
           }
-          if (hasSuccessfulStep(jobs, "更新最终门禁")) {
+          if (hasSuccessfulStep(jobs, "Update final gate")) {
             counts.gate += 1;
           }
         }
@@ -323,7 +323,7 @@ async function main(): Promise<void> {
     `release_governance=${counts.release_governance}`,
   ]);
   const summary = [
-    "## 工作统计",
+    "## Work Metrics",
     "",
     `- Dispatch: ${counts.dispatch}`,
     `- PR Governance: ${counts.pr_governance}`,

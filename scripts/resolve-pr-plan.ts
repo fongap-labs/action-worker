@@ -110,7 +110,7 @@ export function validateContext(value: unknown): PrContext {
     || !Array.isArray(value.declared_impacts)
     || !["low", "medium", "high"].includes(String(value.risk))
   ) {
-    throw new CliError("::error::PR context 格式无效。", 65);
+    throw new CliError("::error::Invalid PR context format.", 65);
   }
   return value as PrContext;
 }
@@ -179,7 +179,7 @@ export function resolvePlan(
   const allowedAgents = ["none", "code", "workflow", "security", "architecture", "release"];
   if (options.agentOverride !== "auto") {
     if (!allowedAgents.includes(options.agentOverride)) {
-      throw new CliError("::error::review_agent 仅支持 auto/none/code/workflow/security/architecture/release。", 64);
+      throw new CliError("::error::review_agent only supports auto/none/code/workflow/security/architecture/release.", 64);
     }
     reviewAgent = options.agentOverride as ReviewAgent;
   }
@@ -194,7 +194,7 @@ export function resolvePlan(
     isReviewRequired = false;
     reviewAgent = "none";
   } else if (options.reviewMode !== "inherit") {
-    throw new CliError("::error::review_mode 仅支持 inherit/on/off。", 64);
+    throw new CliError("::error::review_mode only supports inherit/on/off.", 64);
   }
 
   let blockSeverity: string;
@@ -242,19 +242,19 @@ export function resolvePlan(
   } else if (options.namingMode === "off") {
     isNamingRequired = false;
   } else if (options.namingMode !== "inherit") {
-    throw new CliError("::error::naming_mode 仅支持 inherit/on/off。", 64);
+    throw new CliError("::error::naming_mode only supports inherit/on/off.", 64);
   }
 
   if (options.blockOverride !== "inherit") {
     if (!["none", "critical", "high", "medium", "low"].includes(options.blockOverride)) {
-      throw new CliError("::error::block_severity 无效。", 64);
+      throw new CliError("::error::Invalid block_severity.", 64);
     }
     blockSeverity = options.blockOverride;
   }
 
   if (options.effortOverride !== "inherit") {
     if (!["low", "medium", "high"].includes(options.effortOverride)) {
-      throw new CliError("::error::review_effort 仅支持 inherit/low/medium/high。", 64);
+      throw new CliError("::error::review_effort only supports inherit/low/medium/high.", 64);
     }
     reviewEffort = options.effortOverride;
   }
@@ -275,11 +275,11 @@ export function resolvePlan(
     triageTimeout = 0;
     blockSeverity = "none";
   } else {
-    requireRange(reviewLlmTimeout, 1, 600, "::error::review_llm_timeout 必须为 1-600 秒。");
-    requireRange(reviewTaskTimeout, 1, 30, "::error::review_task_timeout 必须为 1-30 分钟。");
-    requireRange(reviewConcurrency, 1, 8, "::error::review_concurrency 必须为 1-8。");
+    requireRange(reviewLlmTimeout, 1, 600, "::error::review_llm_timeout must be 1-600 seconds.");
+    requireRange(reviewTaskTimeout, 1, 30, "::error::review_task_timeout must be 1-30 minutes.");
+    requireRange(reviewConcurrency, 1, 8, "::error::review_concurrency must be 1-8.");
     if (!reviewModel) {
-      throw new CliError("::error::review_model 配置无效。", 65);
+      throw new CliError("::error::Invalid review_model configuration.", 65);
     }
   }
 
@@ -332,7 +332,7 @@ async function loadPolicies(policyDir: string): Promise<PlanPolicies> {
     try {
       await access(path);
     } catch {
-      throw new CliError(`::error::缺少 PR policy：${path}。`, 65);
+      throw new CliError(`::error::Missing PR policy: ${path}.`, 65);
     }
   }
 
@@ -358,7 +358,7 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length !== 8) {
     throw new CliError(
-      "用法：resolve-pr-plan.ts <context-json> <naming-mode> <review-mode> <block-severity> <review-effort> <review-model> <review-agent> <policy-dir>",
+      "Usage: resolve-pr-plan.ts <context-json> <naming-mode> <review-mode> <block-severity> <review-effort> <review-model> <review-agent> <policy-dir>",
       64,
     );
   }
@@ -372,7 +372,7 @@ async function main(): Promise<void> {
     agentOverride,
     policyDir,
   ] = args as [string, string, string, string, string, string, string, string];
-  const context = validateContext(parseJson(contextJson, "::error::PR context 格式无效。"));
+  const context = validateContext(parseJson(contextJson, "::error::Invalid PR context format."));
   const policies = await loadPolicies(policyDir);
   const plan = resolvePlan(context, policies, {
     namingMode,

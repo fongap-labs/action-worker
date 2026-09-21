@@ -52,6 +52,6 @@
 
 - fix: surface OpenCodeReview manifest failure classifications and reasons in governance logs.
 
-- feat: 每日重算并自动更新任务调度、PR 治理与发布治理成果统计。
+- feat: recompute and auto-update task dispatch, PR governance, and release governance work metrics daily.
 
-- fix: 统一以 `main` 作为最新控制基线，并移除残留的 `v1` 引用。
+- fix: unify on `main` as the latest control baseline and remove residual `v1` references.

@@ -93,7 +93,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   assert.doesNotMatch(workflow, /@alibaba-group\/open-code-review|npm install -g|review_models|review-diff-fallback/);
   assert.doesNotMatch(workflow, /pr-governance-.*github\.sha/);
   assert.doesNotMatch(workflow, /bash\s+target\//);
-  const order = ["- name: 收集 CI 证据", "- name: Wait for AI queue", "- name: Run AI Triage", "- name: Resolve final plan", "- name: 执行 AI 审查", "- name: 校验 CI 证据", "- name: 更新最终门禁"];
+  const order = ["- name: Collect CI evidence", "- name: Wait for AI queue", "- name: Run AI Triage", "- name: Resolve final plan", "- name: Run AI review", "- name: Validate CI evidence", "- name: Update final gate"];
   const positions = order.map((value) => workflow.indexOf(value));
   assert.ok(positions.every((value) => value >= 0));
   assert.deepEqual(positions, [...positions].sort((left, right) => left - right));
@@ -113,14 +113,14 @@ test("task dispatch keeps generic secrets and typed validation", async () => {
 
 test("release, source, deploy, merge, and repository settings contracts remain intact", async () => {
   const release = await text(".github/workflows/handle-release-dispatch.yml");
-  requireText(release, ["types: [run-release]", "AW_CONTROL_TOKEN", "AW_RELEASE_TOKEN", "AW_RELEASE_SOURCE_ALLOWLIST", "AW_RELEASE_TARGET_ALLOWLIST", "node-version: 24", "RELEASE_REQUEST_JSON", "node scripts/publish-release.ts"]);
+  requireText(release, ["types: [run-release]", "AW_CONTROL_TOKEN", "AW_RELEASE_SOURCE_ALLOWLIST", "AW_RELEASE_TARGET_ALLOWLIST", "node-version: 24", "RELEASE_REQUEST_JSON", "node scripts/publish-release.ts"]);
   const publisher = await text("scripts/publish-release.ts");
   requireText(publisher, ["release-manifest.json", "return `${releaseKey}-v${version}`", "await sha256File(assetPath)", "rollbackRelease", '"draft=true"', '"draft=false"']);
   assert.equal(await exists(".github/workflows/validate-release-policy.yml"), false);
   assert.equal(await exists(".github/workflows/publish-release.yml"), false);
 
   const source = await text(".github/workflows/validate-source-policy.yml");
-  requireText(source, ["workflow_call:", "contents: read", "actions: read", "target_sha:", "ci_workflow:", "require_default_head:", "40 位 Commit SHA", "default_branch", "gh run list", "databaseId"]);
+  requireText(source, ["workflow_call:", "contents: read", "actions: read", "target_sha:", "ci_workflow:", "require_default_head:", "40-character commit SHA", "default_branch", "gh run list", "databaseId"]);
   const deploy = await text(".github/workflows/validate-deploy-policy.yml");
   requireText(deploy, ["workflow_call:", "uses: ./.github/workflows/validate-source-policy.yml", "target_sha: ${{ inputs.target_sha }}", "ci_workflow: ${{ inputs.ci_workflow }}"]);
   const merge = await text(".github/actions/validate-merge-policy/action.yml");

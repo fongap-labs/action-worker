@@ -213,7 +213,7 @@ license { expression, file? }
 assets[] { name, sha256 }
 ```
 
-Action Worker 使用中央 `AW_CONTROL_TOKEN` 读取源仓事实与 Actions artifact，使用独立 `AW_RELEASE_TOKEN` 写目标分发仓；业务仓不持有目标仓写凭据。源仓和目标仓分别由 `AW_RELEASE_SOURCE_ALLOWLIST`、`AW_RELEASE_TARGET_ALLOWLIST` 控制。
+Action Worker 使用中央 `AW_CONTROL_TOKEN` 读取源仓事实与 Actions artifact，并使用同一凭据写目标分发仓；业务仓不持有目标仓写凭据。源仓和目标仓分别由 `AW_RELEASE_SOURCE_ALLOWLIST`、`AW_RELEASE_TARGET_ALLOWLIST` 控制。
 
 Release 默认采用 `Apache-2.0`。每个 App / Release 可以在 manifest 中显式声明其他许可证；如声明 `license.file`，对应许可证文件必须作为 Release asset 一并发布并校验。目标分发仓自己的根 LICENSE 不覆盖各 App 的 Release 许可证。
 

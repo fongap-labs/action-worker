@@ -292,7 +292,7 @@ source repository allowlist
 → publish or rollback
 ```
 
-源仓只保存 `AW_DISPATCH_TOKEN`。Action Worker 使用 `AW_CONTROL_TOKEN` 读取源仓，使用 `AW_RELEASE_TOKEN` 写分发目标。
+源仓只保存 `AW_DISPATCH_TOKEN`。Action Worker 使用 `AW_CONTROL_TOKEN` 读取源仓并写分发目标。
 
 Tag 固定为 `<release-key>-v<semver>`。不保留裸 `v<semver>` 兼容路径。
 
