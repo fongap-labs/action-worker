@@ -37,14 +37,14 @@ PR
 业务仓 Secret：
 
 ```text
-ACTION_WORKER_TOKEN
+AW_DISPATCH_TOKEN
 ```
 
 不得下发：
 
 ```text
-GATEWAY_KEY_AIR
-CONTROL_TOKEN
+AIG_ACCESS_KEY_AIR
+AW_CONTROL_TOKEN
 ```
 
 ## 3. CI 接入
@@ -77,7 +77,7 @@ uses: fongap-labs/action-worker/.github/actions/validate-merge-policy@main
 Action Worker Repository Variable：
 
 ```text
-PR_REPOSITORY_ALLOWLIST
+AW_PR_REPOSITORY_ALLOWLIST
 ```
 
 加入目标仓库。
@@ -85,15 +85,15 @@ PR_REPOSITORY_ALLOWLIST
 Action Worker Secret / Variable：
 
 ```text
-CONTROL_TOKEN
+AW_CONTROL_TOKEN
 AI_GATEWAY_URL
-GATEWAY_KEY_AIR
-REVIEW_ENGINE_REPOSITORY
+AIG_ACCESS_KEY_AIR
+AW_REVIEW_ENGINE_REPOSITORY
 ```
 
-`REVIEW_ENGINE_REPOSITORY` 定义 AI Review Engine 的分发仓库。Review Policy 只保存 engine 名称、版本与资产名，不保存组织或仓库位置。
+`AW_REVIEW_ENGINE_REPOSITORY` 定义 AI Review Engine 的分发仓库。Review Policy 只保存 engine 名称、版本与资产名，不保存组织或仓库位置。
 
-`CONTROL_TOKEN` 对受管仓至少需要：
+`AW_CONTROL_TOKEN` 对受管仓至少需要：
 
 - Contents: Read；
 - Pull Requests: Read/Write；
@@ -155,13 +155,13 @@ event_type = run-release
 
 许可证声明属于具体 App / Release，而不是目标分发仓。未提供 `license` 时按 `Apache-2.0` 发布；需要其他许可证时由源仓在 manifest 中显式覆盖。若使用 `license.file`，对应文件必须列入 `assets[]` 并参与 SHA256 校验。
 
-业务仓只需要 `ACTION_WORKER_TOKEN` 来调用 Action Worker，不配置目标仓写 Token。跨仓 Dispatch 目标统一由 `${{ github.repository_owner }}/action-worker` 推导，不再维护重复的目标仓变量。
+业务仓只需要 `AW_DISPATCH_TOKEN` 来调用 Action Worker，不配置目标仓写 Token。跨仓 Dispatch 目标统一由 `${{ github.repository_owner }}/action-worker` 推导，不再维护重复的目标仓变量。
 
 同一 GitHub Organization 下的受管仓优先复用组织级配置：
 
 ```text
 Organization Secret
-ACTION_WORKER_TOKEN
+AW_DISPATCH_TOKEN
 ```
 
 仅向受 Action Worker 治理的仓库开放该 Secret。
@@ -171,13 +171,13 @@ ACTION_WORKER_TOKEN
 Action Worker 需要：
 
 ```text
-CONTROL_TOKEN
-RELEASE_TOKEN
-RELEASE_SOURCE_ALLOWLIST
-RELEASE_TARGET_ALLOWLIST
+AW_CONTROL_TOKEN
+AW_RELEASE_TOKEN
+AW_RELEASE_SOURCE_ALLOWLIST
+AW_RELEASE_TARGET_ALLOWLIST
 ```
 
-`CONTROL_TOKEN` 至少需要读取受管源仓 Contents 与 Actions；`RELEASE_TOKEN` 只授予允许的分发目标 `contents: write`。
+`AW_CONTROL_TOKEN` 至少需要读取受管源仓 Contents 与 Actions；`AW_RELEASE_TOKEN` 只授予允许的分发目标 `contents: write`。
 
 中央发布 Tag 固定为：
 

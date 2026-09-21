@@ -42,9 +42,33 @@ const platformNames = new Set([
 ]);
 
 const tokenPattern = /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g;
+const workflowExternalPattern = /\$\{\{\s*(?:vars|secrets)\.([A-Z][A-Z0-9_]*)/g;
+const selfIdentifyingPrefixes = [
+  "AW_",
+  "AIG_",
+  "ACTION_WORKER_",
+  "AI_GATEWAY_",
+  "CLOUDFLARE_",
+  "GITHUB_",
+  "AWS_",
+  "GCP_",
+  "ALGOLIA_",
+  "TAILSCALE_",
+];
 
 function isPlatformName(name: string): boolean {
   return platformNames.has(name) || name.startsWith("RUNNER_") || name.startsWith("ACTIONS_");
+}
+
+function isSelfIdentifying(name: string): boolean {
+  return selfIdentifyingPrefixes.some((prefix) => name.startsWith(prefix));
+}
+
+function externalNames(path: string, text: string): string[] {
+  if (path.startsWith(".github/workflows/") && [".yml", ".yaml"].includes(extname(path).toLowerCase())) {
+    return [...new Set([...text.matchAll(workflowExternalPattern)].map((match) => match[1]!).filter(Boolean))].sort();
+  }
+  return [...new Set(text.match(tokenPattern) ?? [])].sort();
 }
 
 function shouldScan(path: string): boolean {
@@ -63,11 +87,14 @@ function shouldScan(path: string): boolean {
 
 export function validateConfigText(path: string, text: string): string[] {
   const errors: string[] = [];
-  const names = [...new Set(text.match(tokenPattern) ?? [])].sort();
+  const names = externalNames(path, text);
 
   for (const name of names) {
     if (isPlatformName(name)) {
       continue;
+    }
+    if (!isSelfIdentifying(name)) {
+      errors.push(`${path}: external configuration '${name}' must identify its owning system without repository context`);
     }
     if (name.endsWith("_PAT") || name.includes("_PAT_")) {
       errors.push(`${path}: credential '${name}' must use TOKEN or KEY instead of PAT`);
