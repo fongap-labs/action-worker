@@ -1,32 +1,32 @@
-name: 校验源代码策略
+name: Validate Source Policy
 
 on:
   workflow_call:
     inputs:
       target_sha:
-        description: 目标 Commit SHA；留空使用当前 SHA
+        description: Target commit SHA; empty defaults to current SHA
         required: false
         type: string
         default: ""
       ci_workflow:
-        description: 必须已成功完成的 CI workflow 文件名
+        description: CI workflow file name that must have completed successfully
         required: false
         type: string
         default: ci.yml
       require_default_head:
-        description: 是否要求目标 Commit 为默认分支当前 HEAD
+        description: Whether the target commit must be the default branch HEAD
         required: false
         type: boolean
         default: true
     outputs:
       target_sha:
-        description: 已验证目标 Commit SHA
+        description: Validated target commit SHA
         value: ${{ jobs.policy.outputs.target_sha }}
       default_branch:
-        description: 默认分支
+        description: Default branch
         value: ${{ jobs.policy.outputs.default_branch }}
       ci_run_id:
-        description: 已验证成功的 CI Run ID
+        description: Validated successful CI Run ID
         value: ${{ jobs.policy.outputs.ci_run_id }}
 
 permissions:
@@ -35,7 +35,7 @@ permissions:
 
 jobs:
   policy:
-    name: 源代码准入门禁
+    name: Source admission gate
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -44,7 +44,7 @@ jobs:
       ci_run_id: ${{ steps.validate.outputs.ci_run_id }}
 
     steps:
-      - name: 校验目标 Commit 与 CI
+      - name: Validate target commit and CI
         id: validate
         env:
           GH_TOKEN: ${{ github.token }}
@@ -58,7 +58,7 @@ jobs:
           target="${TARGET_SHA:-$GITHUB_SHA}"
 
           if [ "$REQUIRE_DEFAULT_HEAD" != "true" ] && ! [[ "$target" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::非默认 HEAD 部署必须使用不可变的 40 位 Commit SHA。" >&2
+            echo "::error::Non-default-HEAD deployment requires an immutable 40-character commit SHA." >&2
             exit 64
           fi
 
@@ -67,7 +67,7 @@ jobs:
           default_sha="$(gh api "repos/${GITHUB_REPOSITORY}/commits/${default_branch}" --jq '.sha')"
 
           if [ "$REQUIRE_DEFAULT_HEAD" = "true" ] && [ "$resolved_sha" != "$default_sha" ]; then
-            echo "::error::目标必须是默认分支当前 HEAD：expected=$default_sha actual=$resolved_sha。" >&2
+            echo "::error::Target must be the default branch HEAD: expected=$default_sha actual=$resolved_sha." >&2
             exit 65
           fi
 
@@ -92,7 +92,7 @@ jobs:
           )"
 
           [ -n "$ci_run_id" ] || {
-            echo "::error::未找到目标 Commit 的成功 CI：workflow=$CI_WORKFLOW sha=$resolved_sha。" >&2
+            echo "::error::No successful CI found for target commit: workflow=$CI_WORKFLOW sha=$resolved_sha." >&2
             exit 1
           }
 

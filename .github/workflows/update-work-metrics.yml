@@ -1,10 +1,10 @@
-name: 更新工作统计
+name: Update Work Metrics
 
 on:
   workflow_run:
     workflows:
-      - 处理任务调度
-      - 处理 PR 调度
+      - Handle Task Dispatch
+      - Handle PR Dispatch
     types: [completed]
   repository_dispatch:
     types: [refresh-work-metrics]
@@ -23,13 +23,13 @@ concurrency:
 
 jobs:
   update:
-    name: 统计并更新
+    name: Aggregate and update
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
 
     steps:
-      - name: 检出代码
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
@@ -40,7 +40,7 @@ jobs:
         with:
           node-version: 24
 
-      - name: 准备增量统计
+      - name: Prepare incremental metrics
         id: increment
         env:
           GH_TOKEN: ${{ github.token }}
@@ -49,7 +49,7 @@ jobs:
           SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
         run: node scripts/manage-work-metrics.ts increment
 
-      - name: 统计工作成果
+      - name: Aggregate work metrics
         id: metrics
         env:
           METRICS_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
@@ -57,18 +57,18 @@ jobs:
           WORK_METRICS_JSON: ${{ steps.increment.outputs.json }}
         run: node scripts/update-work-metrics.ts README.md
 
-      - name: 检查是否变化
+      - name: Check for changes
         id: changes
         run: node scripts/manage-work-metrics.ts changes
 
-      - name: 创建更新分支
+      - name: Create update branch
         if: steps.changes.outputs.changed == 'true'
         id: branch
         env:
           BRANCH: metrics/${{ github.run_id }}
         run: node scripts/manage-work-metrics.ts branch
 
-      - name: 创建自动更新 PR
+      - name: Create auto-update PR
         if: steps.changes.outputs.changed == 'true'
         id: pr
         env:
@@ -87,7 +87,7 @@ jobs:
           BRANCH: ${{ steps.branch.outputs.name }}
         run: node scripts/manage-work-metrics.ts cleanup
 
-      - name: 主动执行 CI
+      - name: Trigger CI
         if: steps.changes.outputs.changed == 'true'
         id: ci
         env:
@@ -96,7 +96,7 @@ jobs:
           HEAD_SHA: ${{ steps.branch.outputs.sha }}
         run: node scripts/manage-work-metrics.ts ci
 
-      - name: 合并更新
+      - name: Merge update
         if: steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -104,7 +104,7 @@ jobs:
           BRANCH: ${{ steps.branch.outputs.name }}
         run: node scripts/manage-work-metrics.ts merge
 
-      - name: 刷新主线 CI
+      - name: Refresh main CI
         if: steps.changes.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}

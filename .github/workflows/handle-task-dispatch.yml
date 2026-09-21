@@ -1,4 +1,4 @@
-name: 处理任务调度
+name: Handle Task Dispatch
 
 on:
   repository_dispatch:
@@ -8,7 +8,7 @@ permissions: {}
 
 jobs:
   validate:
-    name: 校验调度请求
+    name: Validate dispatch request
     runs-on: ubuntu-24.04
     timeout-minutes: 5
 
@@ -20,9 +20,10 @@ jobs:
       request_id: ${{ steps.payload.outputs.request_id }}
       project: ${{ steps.payload.outputs.project }}
       bootstrap_ref: ${{ steps.payload.outputs.bootstrap_ref }}
+      repository: ${{ steps.payload.outputs.repository }}
 
     steps:
-      - name: 检出代码
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node
@@ -30,14 +31,14 @@ jobs:
         with:
           node-version: 24
 
-      - name: 校验请求载荷
+      - name: Validate request payload
         id: payload
         env:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
         run: node scripts/validate-dispatch-payload.ts "$PAYLOAD"
 
   execute:
-    name: 执行任务
+    name: Execute task
     needs: validate
     runs-on: ubuntu-24.04
     timeout-minutes: 65
@@ -45,7 +46,7 @@ jobs:
     permissions: {}
 
     env:
-      AW_EXECUTION_REPOSITORY: ${{ vars.AW_EXECUTION_REPOSITORY }}
+      AW_EXECUTION_REPOSITORY: ${{ needs.validate.outputs.repository }}
       SCHEMA_VERSION: ${{ needs.validate.outputs.schema_version }}
       REQUEST_ID: ${{ needs.validate.outputs.request_id }}
       PROJECT: ${{ needs.validate.outputs.project }}
@@ -56,7 +57,7 @@ jobs:
       cancel-in-progress: false
 
     steps:
-      - name: 检出代码
+      - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Setup Node
@@ -64,12 +65,12 @@ jobs:
         with:
           node-version: 24
 
-      - name: 导出仓库变量
+      - name: Export repository variables
         env:
           REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}
         run: node scripts/export-repository-variables.ts
 
-      - name: 快照基础环境
+      - name: Snapshot base environment
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -80,7 +81,7 @@ jobs:
 
           chmod 600 "${RUNNER_TEMP}/action-worker-base-env.names"
 
-      - name: 执行下游任务
+      - name: Execute downstream task
         env: ${{ secrets }}
         run: |
           set -Eeuo pipefail
@@ -93,8 +94,8 @@ jobs:
               exit 1
           fi
 
-          if [ -z "${AW_EXECUTION_TOKEN:-}" ]; then
-              echo "::error::AW_EXECUTION_TOKEN is required." >&2
+          if [ -z "${AW_CONTROL_TOKEN:-}" ]; then
+              echo "::error::AW_CONTROL_TOKEN is required." >&2
               exit 1
           fi
 
@@ -112,7 +113,7 @@ jobs:
           TMP_SCRIPT="$TMPDIR_WORK/bootstrap.sh"
 
           cleanup() {
-              unset AW_EXECUTION_TOKEN 2>/dev/null || true
+              unset AW_CONTROL_TOKEN 2>/dev/null || true
               rm -f "${RUNNER_TEMP}/action-worker-base-env.names" 2>/dev/null || true
               rm -f "${RUNNER_TEMP}/action-worker-repository-vars.json" 2>/dev/null || true
               rm -rf "$TMPDIR_WORK"
@@ -137,7 +138,7 @@ jobs:
                       --connect-timeout 15 \
                       --max-time 60 \
                       --retry 0 \
-                      -H "Authorization: Bearer ${AW_EXECUTION_TOKEN}" \
+                      -H "Authorization: Bearer ${AW_CONTROL_TOKEN}" \
                       -o "$output" \
                       -w "%{http_code}" \
                       "$url"); then
@@ -156,11 +157,11 @@ jobs:
                   esac
 
                   if [ "$attempt" -lt "$max_attempts" ]; then
-                      if [ "$curl_rc" -ne 0 ]; then
-                          echo "::warning::下载失败（curl=${curl_rc}, HTTP=${http_code}），准备重试 ${attempt}/${max_attempts}。" >&2
-                      else
-                          echo "::warning::下载失败（HTTP ${http_code}），准备重试 ${attempt}/${max_attempts}。" >&2
-                      fi
+                    if [ "$curl_rc" -ne 0 ]; then
+                        echo "::warning::Download failed (curl=${curl_rc}, HTTP=${http_code}), retrying ${attempt}/${max_attempts}." >&2
+                    else
+                        echo "::warning::Download failed (HTTP ${http_code}), retrying ${attempt}/${max_attempts}." >&2
+                    fi
                       sleep $((attempt * 2))
                   fi
 
@@ -168,20 +169,20 @@ jobs:
               done
 
               if [ "$curl_rc" -ne 0 ]; then
-                  echo "::error::下载 bootstrap.sh 失败：网络/curl 错误（curl=${curl_rc}, HTTP=${http_code}）。" >&2
+                  echo "::error::Failed to download bootstrap.sh: network/curl error (curl=${curl_rc}, HTTP=${http_code})." >&2
               else
                   case "$http_code" in
                       401|403)
-                          echo "::error::下载 bootstrap.sh 失败：GitHub 鉴权被拒绝（HTTP ${http_code}）。" >&2
+                          echo "::error::Failed to download bootstrap.sh: GitHub authentication rejected (HTTP ${http_code})." >&2
                           ;;
                       404)
-                          echo "::error::下载 bootstrap.sh 失败：指定 BOOTSTRAP_REF 下未找到文件（HTTP 404）。" >&2
+                          echo "::error::Failed to download bootstrap.sh: file not found at BOOTSTRAP_REF (HTTP 404)." >&2
                           ;;
                       5*)
-                          echo "::error::下载 bootstrap.sh 失败：GitHub 上游异常（HTTP ${http_code}）。" >&2
+                          echo "::error::Failed to download bootstrap.sh: GitHub upstream error (HTTP ${http_code})." >&2
                           ;;
                       *)
-                          echo "::error::下载 bootstrap.sh 失败（HTTP ${http_code}）。" >&2
+                          echo "::error::Failed to download bootstrap.sh (HTTP ${http_code})." >&2
                           ;;
                   esac
               fi
@@ -193,12 +194,12 @@ jobs:
           download_file "${RAW_BASE}/bootstrap.sh" "$TMP_SCRIPT" || exit 1
 
           if [ ! -s "$TMP_SCRIPT" ]; then
-              echo "::error::bootstrap.sh 为空。" >&2
+              echo "::error::bootstrap.sh is empty." >&2
               exit 1
           fi
 
           if ! bash -n "$TMP_SCRIPT"; then
-              echo "::error::bootstrap.sh Shell 语法错误。" >&2
+              echo "::error::bootstrap.sh has a shell syntax error." >&2
               exit 1
           fi
 
@@ -221,6 +222,6 @@ jobs:
           echo "::endgroup::"
 
           if [ "$bootstrap_rc" -ne 0 ]; then
-              echo "::error::bootstrap.sh 执行失败（exit=${bootstrap_rc}）。" >&2
+              echo "::error::bootstrap.sh execution failed (exit=${bootstrap_rc})." >&2
               exit "$bootstrap_rc"
           fi
