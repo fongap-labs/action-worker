@@ -87,7 +87,7 @@ TypeScript 控制逻辑使用 Node 24 直接运行，并通过 `npm run typechec
 
 `update-work-metrics.yml` 的权限边界固定为：
 
-- 跨仓统计读取使用 `CONTROL_TOKEN`；
+- 跨仓统计读取使用 `AW_CONTROL_TOKEN`；
 - Action Worker 本仓创建统计 PR、运行 CI、合并与删除临时分支使用 `github.token`；
 - `main` 继续遵守 PR + `validate-merge`，不得通过直接 push 绕过规则。
 
@@ -141,15 +141,15 @@ Manifest 必须提供目标仓、`release_key`、SemVer 与每个资产的 SHA25
 <release-key>-v<semver>
 ```
 
-业务仓只持有用于发送 Release Dispatch 的 `ACTION_WORKER_TOKEN`；目标分发仓写凭据只保存在 Action Worker。
+业务仓只持有用于发送 Release Dispatch 的 `AW_DISPATCH_TOKEN`；目标分发仓写凭据只保存在 Action Worker。
 
 中央发布凭据与运行配置：
 
 ```text
-CONTROL_TOKEN
-RELEASE_TOKEN
-RELEASE_SOURCE_ALLOWLIST
-RELEASE_TARGET_ALLOWLIST
+AW_CONTROL_TOKEN
+AW_RELEASE_TOKEN
+AW_RELEASE_SOURCE_ALLOWLIST
+AW_RELEASE_TARGET_ALLOWLIST
 ```
 
 发布失败必须回滚本次 Tag 与 Release。

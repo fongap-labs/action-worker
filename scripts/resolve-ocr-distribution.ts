@@ -10,9 +10,9 @@ import {
 
 async function main(): Promise<void> {
   const policyPath = process.argv[2] ?? "";
-  const repository = process.env.REVIEW_ENGINE_REPOSITORY ?? "";
+  const repository = process.env.AW_REVIEW_ENGINE_REPOSITORY ?? "";
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
-    throw new CliError("::error::REVIEW_ENGINE_REPOSITORY is missing or invalid.", repository ? 65 : 77);
+    throw new CliError("::error::AW_REVIEW_ENGINE_REPOSITORY is missing or invalid.", repository ? 65 : 77);
   }
   const policy = await readJson(policyPath);
   const engine = isJsonRecord(policy) && isJsonRecord(policy.engine) ? policy.engine : {};

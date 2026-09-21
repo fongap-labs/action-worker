@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- refactor [breaking]: namespace Action Worker external configuration with AW/AIG system identity and enforce context-independent external names.
+
 - docs: define minimum-sufficient external naming and register AW/AIG system abbreviations.
 
 - fix: prioritize context-independent configuration semantics over arbitrary segment-count limits.
