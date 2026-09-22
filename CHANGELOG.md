@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: resolve the OpenCodeReview distribution repository from the canonical Action Worker repository variable.
+
 - fix: enforce canonical governance configuration names, execution-source allowlisting, and governance-token metrics mutations.
 
 - refactor [breaking]: namespace Action Worker external configuration with AW/AIG system identity and enforce context-independent external names.
