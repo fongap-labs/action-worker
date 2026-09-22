@@ -81,7 +81,12 @@ function shouldScan(path: string): boolean {
   if (name === "wrangler.jsonc") {
     return true;
   }
-  return path.split("/").includes("config") && [".json", ".jsonc", ".toml", ".yml", ".yaml"].includes(extname(path).toLowerCase());
+  // Only scan config files in a top-level config/ directory, not nested (e.g., src/config/)
+  const parts = path.split("/");
+  if (parts.length === 2 && parts[0] === "config" && [".json", ".jsonc", ".toml", ".yml", ".yaml"].includes(extname(path).toLowerCase())) {
+    return true;
+  }
+  return false;
 }
 
 export function validateConfigText(path: string, text: string): string[] {

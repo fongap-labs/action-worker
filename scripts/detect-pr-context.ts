@@ -1,5 +1,6 @@
 import { access, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { isJsonRecord } from "./github-api.ts";
 import {
   CliError,
@@ -59,6 +60,8 @@ export async function detectContext(base: string, head: string, root: string, po
     } else if (/(^|\/)(?:Dockerfile|docker-compose\.ya?ml|compose\.ya?ml)$/.test(path)) {
       areas.add("container");
     } else if (path === release.changelog_file) {
+      areas.add("release");
+    } else if (path.startsWith("scripts/release") || path === "wrangler.jsonc" || path.endsWith(".release.yml")) {
       areas.add("release");
     } else if (path.endsWith(".md") || path.startsWith("docs/")) {
       areas.add("documentation");
@@ -132,7 +135,7 @@ async function main(): Promise<void> {
       : detected;
     const json = JSON.stringify(output);
     if (process.env.GITHUB_OUTPUT) {
-      await writeFile("/tmp/pr-context.json", `${json}\n`, "utf8");
+      await writeFile(join(tmpdir(), "pr-context.json"), `${json}\n`, "utf8");
       await appendLines(process.env.GITHUB_OUTPUT, [`json=${json}`]);
     }
     console.log(json);

@@ -1,3 +1,8 @@
+import { access, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { access, writeFile } from "node:fs/promises";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   getJsonArray,
   getJsonNumber,
@@ -10,6 +15,7 @@ import {
   appendLines,
   handleError,
   isMain,
+  readJson,
   runCommand,
   runText,
 } from "./runtime-command.ts";
@@ -26,6 +32,9 @@ function requireEnv(name: string): string {
   return value;
 }
 
+const metricsPolicyPath = join(dirname(fileURLToPath(import.meta.url)), "..", "policies", "work-metrics.json");
+const metricsPolicy = JSON.parse(await readFile(metricsPolicyPath, "utf8"));
+
 async function prepareIncrement(): Promise<void> {
   const eventName = process.env.EVENT_NAME ?? "";
   if (eventName !== "workflow_run") {
@@ -33,10 +42,12 @@ async function prepareIncrement(): Promise<void> {
     return;
   }
   const workflow = process.env.SOURCE_WORKFLOW ?? "";
-  let increment: Record<string, number>;
-  if (workflow === "Handle Task Dispatch") {
-    increment = { dispatch: 1, pr_governance: 0, ai_review: 0, release_governance: 0 };
-  } else if (workflow === "Handle PR Dispatch") {
+  const policy = metricsPolicy.workflow_metrics[workflow];
+  if (!policy) {
+    throw new CliError(`::error::Unsupported workflow_run source: ${workflow}`, 65);
+  }
+  let increment = { ...policy };
+  if (workflow === "Handle PR Dispatch") {
     const token = requireEnv("GH_TOKEN");
     const repository = requireEnv("GITHUB_REPOSITORY");
     const runId = requireEnv("SOURCE_RUN_ID");
@@ -48,9 +59,7 @@ async function prepareIncrement(): Promise<void> {
         && getJsonString(step, "name") === "Run AI review"
         && getJsonString(step, "conclusion") === "success");
     });
-    increment = { dispatch: 0, pr_governance: 1, ai_review: hasReview ? 1 : 0, release_governance: 0 };
-  } else {
-    throw new CliError(`::error::Unsupported workflow_run source: ${workflow}`, 65);
+    increment.ai_review = hasReview ? 1 : 0;
   }
   await appendLines(process.env.GITHUB_OUTPUT, [`json=${JSON.stringify(increment)}`]);
 }

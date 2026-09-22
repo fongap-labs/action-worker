@@ -8,7 +8,7 @@ import {
 } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-const requestPattern = /^[A-Za-z0-9._:-]{1,128}$/;
+const requestPattern = /^[A-Za-z0-9._-]{1,128}$/;
 const assetPattern = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const versionPattern = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
@@ -34,13 +34,14 @@ export function validateRelease(
   const sourceList = repositoryList(sourceValue, "AW_RELEASE_SOURCE_ALLOWLIST");
   const targetList = repositoryList(targetValue, "AW_RELEASE_TARGET_ALLOWLIST");
   if (!isJsonRecord(request)
-    || !isExactKeys(request, ["artifact_name", "repository", "request_id", "schema_version", "source_run_id", "source_sha"])
+    || !isExactKeys(request, ["artifact_name", "artifact_id", "repository", "request_id", "schema_version", "source_run_id", "source_sha"])
     || request.schema_version !== "1"
     || typeof request.request_id !== "string" || !requestPattern.test(request.request_id)
     || typeof request.repository !== "string" || !repositoryPattern.test(request.repository)
     || typeof request.source_sha !== "string" || !/^[0-9a-f]{40}$/.test(request.source_sha)
     || typeof request.source_run_id !== "number" || !Number.isInteger(request.source_run_id) || request.source_run_id < 1
     || typeof request.artifact_name !== "string" || request.artifact_name.length > 128 || !/^[A-Za-z0-9._-]+$/.test(request.artifact_name)
+    || typeof request.artifact_id !== "number" || !Number.isInteger(request.artifact_id) || request.artifact_id < 1
   ) {
     throw new CliError("release dispatch payload is invalid.", 64);
   }

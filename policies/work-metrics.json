@@ -1,0 +1,16 @@
+{
+  "workflow_metrics": {
+    "Handle Task Dispatch": {
+      "dispatch": 1,
+      "pr_governance": 0,
+      "ai_review": 0,
+      "release_governance": 0
+    },
+    "Handle PR Dispatch": {
+      "dispatch": 0,
+      "pr_governance": 1,
+      "ai_review": 1,
+      "release_governance": 0
+    }
+  }
+}

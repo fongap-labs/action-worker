@@ -1,4 +1,8 @@
 {
-  "schema_version": 1,
-  "always": true
+  "native_names": [
+    "README.md", "LICENSE", "LICENSE.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "CODEOWNERS",
+    "Dockerfile", "Makefile", "Cargo.toml", "Cargo.lock", "package.json", "package-lock.json", "pnpm-lock.yaml",
+    "yarn.lock", "tsconfig.json", "pyproject.toml", "requirements.txt",
+    "COPYING", "NOTICE", "AUTHORS", "VERSION", ".gitignore", ".editorconfig"
+  ]
 }

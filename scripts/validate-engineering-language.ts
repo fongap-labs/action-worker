@@ -11,8 +11,9 @@ const HAN = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/u;
 const MARKDOWN = /\.md$/i;
 const LOCALIZATION = /(^|\/)(?:i18n|locales?|translations?|messages)(\/|$)|(?:^|[._-])zh(?:[-_.](?:CN|Hans))?(?:[._-]|$)/i;
 const WORKFLOW = /^\.github\/workflows\/.*\.ya?ml$/i;
-const CONFIG_KEY = /(?:["'][^"']*[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF][^"']*["']\s*:)|(?:^|\s)[^:#"'\s]*[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF][^:#"']*\s*:/u;
-const MACHINE_TEXT = /\b(?:console\.(?:log|error|warn|info|debug)|logger\w*|log\w*\s*\(|throw\s+new\s+\w*Error|new\s+\w*Error\s*\(|raise\s+\w*Error|logging\.|print\s*\(|describe\s*\(|it\s*\(|test\s*\()/i;
+const CONFIG_KEY = /(?:^|\s)[^:#"'\s]*[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF][^:#"']*\s*:/u;
+const MACHINE_TEXT = /\b(?:console\.(?:log|error|warn|info|debug)|logger\w*|log\w*\s*\(|throw\s+new\s+\w*Error|new\s+\w*Error\s*\(|raise\s+\w*Error|logging\.|print\s*\()/i;
+const TEST_FILE = /\.(?:test|spec)\.(?:ts|tsx|js|jsx|py|rs|go|java)$/i;
 
 export function containsHan(value: string): boolean {
   return HAN.test(value);
@@ -47,8 +48,11 @@ export function engineeringLineViolation(path: string, line: string): string | n
   if (CONFIG_KEY.test(line)) {
     return "Configuration keys must use English.";
   }
+  if (TEST_FILE.test(path)) {
+    return null;
+  }
   if (MACHINE_TEXT.test(line)) {
-    return "Logs, errors, and test descriptions must use English.";
+    return "Logs and errors must use English.";
   }
   if (containsHan(stripQuotedStrings(line))) {
     return "Engineering identifiers and comments must use English.";

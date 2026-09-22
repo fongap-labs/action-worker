@@ -54,7 +54,11 @@ async function main(): Promise<void> {
         const dateOrder = leftDate.localeCompare(rightDate);
         return dateOrder || (isJsonRecord(left) ? getJsonNumber(left, "id") : 0) - (isJsonRecord(right) ? getJsonNumber(right, "id") : 0);
       });
-    const owner = isJsonRecord(active[0]) ? String(getJsonNumber(active[0], "id")) : "";
+    if (active.length === 0) {
+      console.log(`AI Review queue is empty: run=${runId} acquired`);
+      return;
+    }
+    const owner = String(getJsonNumber(active[0], "id"));
     if (!owner || owner === runId) {
       console.log(`AI Review queue turn acquired: run=${runId}`);
       return;

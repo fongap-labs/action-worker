@@ -17,6 +17,7 @@ type CommandOptions = {
   env?: NodeJS.ProcessEnv;
   input?: string;
   maxBuffer?: number;
+  maxStderrBuffer?: number;
   timeoutMs?: number;
 };
 
@@ -34,9 +35,11 @@ export async function runCommand(
     });
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
-    let size = 0;
+    let stdoutSize = 0;
+    let stderrSize = 0;
     let isSettled = false;
-    const limit = options.maxBuffer ?? 50 * 1024 * 1024;
+    const stdoutLimit = options.maxBuffer ?? 50 * 1024 * 1024;
+    const stderrLimit = options.maxStderrBuffer ?? 10 * 1024 * 1024;
     const finish = (error?: unknown, output?: Buffer): void => {
       if (isSettled) {
         return;
@@ -59,19 +62,19 @@ export async function runCommand(
       }, options.timeoutMs);
 
     child.stdout!.on("data", (chunk: Buffer) => {
-      size += chunk.length;
-      if (size > limit) {
+      stdoutSize += chunk.length;
+      if (stdoutSize > stdoutLimit) {
         child.kill();
-        finish(new CliError(`${command} output exceeded ${limit} bytes.`));
+        finish(new CliError(`${command} stdout exceeded ${stdoutLimit} bytes.`));
         return;
       }
       stdout.push(chunk);
     });
     child.stderr!.on("data", (chunk: Buffer) => {
-      size += chunk.length;
-      if (size > limit) {
+      stderrSize += chunk.length;
+      if (stderrSize > stderrLimit) {
         child.kill();
-        finish(new CliError(`${command} output exceeded ${limit} bytes.`));
+        finish(new CliError(`${command} stderr exceeded ${stderrLimit} bytes.`));
         return;
       }
       stderr.push(chunk);

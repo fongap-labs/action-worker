@@ -1,5 +1,6 @@
 import { basename, dirname, extname, join, parse } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readFile } from "node:fs/promises";
 import { validateConfigNames } from "./validate-config-naming.ts";
 import {
   CliError,
@@ -10,11 +11,8 @@ import {
   runText,
 } from "./runtime-command.ts";
 
-const nativeNames = new Set([
-  "README.md", "LICENSE", "LICENSE.md", "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "CODEOWNERS",
-  "Dockerfile", "Makefile", "Cargo.toml", "Cargo.lock", "package.json", "package-lock.json", "pnpm-lock.yaml",
-  "yarn.lock", "tsconfig.json", "pyproject.toml", "requirements.txt",
-]);
+const namingPolicyPath = join(dirname(fileURLToPath(import.meta.url)), "..", "policies", "naming.json");
+const nativeNames = new Set(JSON.parse(await readFile(namingPolicyPath, "utf8")).native_names);
 
 function isKebab(stem: string): boolean {
   return /^[a-z0-9]+(?:-[a-z0-9]+){0,2}$/.test(stem);

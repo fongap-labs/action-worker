@@ -33,7 +33,7 @@ async function main(): Promise<void> {
   const response = await getGithubJson(`repos/${repository}/commits/${sha}/status`, token);
   const statuses = getJsonArray(response, "statuses")
     .filter((item) => isJsonRecord(item) && getJsonString(item, "context") === context)
-    .sort((left, right) => getJsonString(right, "created_at").localeCompare(getJsonString(left, "created_at")));
+    .sort((left, right) => getJsonString(right, "created_at") > getJsonString(left, "created_at") ? -1 : 1);
   const latest = statuses[0];
   const target = isJsonRecord(latest) ? getJsonString(latest, "target_url") : "";
   if (target === runUrl) {

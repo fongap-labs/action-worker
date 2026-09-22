@@ -1,5 +1,6 @@
 import { access, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import {
   CliError,
   appendLines,
@@ -384,7 +385,7 @@ async function main(): Promise<void> {
   });
   const output = JSON.stringify(plan);
   if (process.env.GITHUB_OUTPUT) {
-    await writeFile("/tmp/pr-plan.base.json", `${output}\n`, "utf8");
+    await writeFile(join(tmpdir(), "pr-plan.base.json"), `${output}\n`, "utf8");
     await appendLines(process.env.GITHUB_OUTPUT, [
       `ci_required=${plan.ci_required}`,
       `naming_required=${plan.naming_required}`,

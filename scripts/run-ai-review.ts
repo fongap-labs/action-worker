@@ -1,5 +1,6 @@
 import { chmod, copyFile, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { buildComparison } from "./build-review-comparison.ts";
 import { isJsonRecord } from "./github-api.ts";
 import { retryLines } from "./report-ocr-retry.ts";
@@ -26,8 +27,8 @@ type ReviewOptions = {
 };
 
 const evidenceName = ".action-worker-ci-evidence.json";
-const resultPath = "/tmp/ocr-result.json";
-const rulePath = "/tmp/ocr-rule.json";
+const resultPath = join(tmpdir(), "ocr-result.json");
+const rulePath = join(tmpdir(), "ocr-rule.json");
 
 async function optionalJson(path: string): Promise<unknown | undefined> {
   try {
@@ -79,7 +80,7 @@ async function buildRule(options: ReviewOptions): Promise<{ base: string; head: 
   }
   let reviewBase = options.base;
   let reviewHead = options.head;
-  const evidencePath = "/tmp/ci-evidence.json";
+  const evidencePath = join(tmpdir(), "ci-evidence.json");
   const evidence = await optionalJson(evidencePath);
   if (evidence !== undefined) {
     const targetEvidence = join(options.root, evidenceName);

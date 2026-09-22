@@ -39,6 +39,7 @@ type ReleaseRequest = {
   source_sha: string;
   source_run_id: number;
   artifact_name: string;
+  artifact_id: number;
   request_id: string;
 };
 
@@ -125,10 +126,6 @@ async function requireCommand(command: string, versionArgs: readonly string[]): 
   try {
     await runCommand(command, versionArgs, { maxBuffer: 1024 * 1024 });
   } catch (error) {
-    const code = isJsonRecord(error) ? error.code : undefined;
-    if (code === "ENOENT") {
-      throw new CliError(`${command} is required.`, 69);
-    }
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
       throw new CliError(`${command} is required.`, 69);
     }
@@ -261,6 +258,7 @@ async function main(): Promise<void> {
   const sourceSha = request.source_sha;
   const sourceRunId = request.source_run_id;
   const artifactName = request.artifact_name;
+  const artifactId = request.artifact_id;
   const requestId = request.request_id;
 
   const sourceRepoJson = await getGithubJson(`repos/${sourceRepository}`, controlToken);
@@ -319,15 +317,15 @@ async function main(): Promise<void> {
     controlToken,
   );
   const artifacts = getJsonArray(artifactJson, "artifacts").filter(
-    (artifact) => isJsonRecord(artifact) && artifact.name === artifactName && artifact.expired === false,
+    (artifact) => isJsonRecord(artifact) && artifact.name === artifactName && artifact.id === artifactId && artifact.expired === false,
   );
   if (artifacts.length !== 1) {
     throw new CliError(
-      `::error::Expected exactly one non-expired artifact named ${artifactName}; found ${artifacts.length}.`,
+      `::error::Expected exactly one non-expired artifact named ${artifactName} with id ${artifactId}; found ${artifacts.length}.`,
       66,
     );
   }
-  const artifactId = getJsonNumber(artifacts[0], "id");
+  const matchedArtifactId = getJsonNumber(artifacts[0], "id");
 
   const workDir = await mkdtemp(join(tmpdir(), "action-worker-release-"));
   const archivePath = join(workDir, "artifact.zip");
@@ -342,7 +340,7 @@ async function main(): Promise<void> {
   try {
     await writeCommand(
       "gh",
-      ["api", `repos/${sourceRepository}/actions/artifacts/${artifactId}/zip`],
+      ["api", `repos/${sourceRepository}/actions/artifacts/${matchedArtifactId}/zip`],
       archivePath,
       githubEnvironment(controlToken),
     );
@@ -468,13 +466,16 @@ async function main(): Promise<void> {
       const checksumPath = join(verifyDir, `${asset.name}.sha256`);
       let checksum = "";
       try {
-        checksum = (await readFile(checksumPath, "utf8")).trim().split(/\s+/, 1)[0]?.toLowerCase() ?? "";
+        const checksumContent = (await readFile(checksumPath, "utf8")).trim();
+        // .sha256 file format: "hash  filename\n" or just "hash"
+        checksum = checksumContent.split(/\s+/)[0]?.toLowerCase() ?? "";
         await access(downloaded);
       } catch {
         throw new CliError(`::error::Downloaded Release is missing asset or checksum: ${asset.name}.`, 66);
       }
       const actualHash = await sha256File(downloaded);
-      if (actualHash !== asset.sha256 || checksum !== asset.sha256) {
+      const expectedHash = asset.sha256.toLowerCase();
+      if (actualHash !== expectedHash || checksum !== expectedHash) {
         throw new CliError(`::error::Published Release checksum verification failed: ${asset.name}.`, 66);
       }
     }

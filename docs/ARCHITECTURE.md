@@ -216,7 +216,7 @@ Agent 是审查角色，不等于模型。
 
 Action Worker 只选择逻辑模型，不维护模型或 Provider fallback 链。Triage 固定使用 `Code-Air`；普通完整审查使用 `Code-Pro`；安全、架构或被 Triage 判定为 deep 的审查使用 `Code-Ultra`。逻辑模型族、Provider、Key、协议与节点之间的 failover 全部由 AI Gateway 的统一请求预算负责。
 
-Triage 与 AI Review 在 Action Worker 中按当前 attempt 的 `run_started_at`、再按 run ID 共用跨控制版本的全局 FIFO 队列；Validate、Inspect、Plan 与 CI Evidence 仍可并行，但同一时刻只允许一个治理 run 调用 AI Gateway。GitHub rerun 保留旧 run ID，因此不能只按 ID 排序，否则旧 run 的新 attempt 会插队并与当前 owner 并发。队列不按 Action Worker `head_sha` 分池，因此 main 更新不会绕过仍在运行的旧版本 Review；相同 PR 的新调度继续由稳定 concurrency group 自动取消旧调度。
+Triage 与 AI Review 在 Action Worker 中按当前 attempt 的 `run_started_at`、再按 run ID 共用跨控制版本的全局 FIFO 队列（升序：更早的 `run_started_at` 与更小的 run ID 优先）；Validate、Inspect、Plan 与 CI Evidence 仍可并行，但同一时刻只允许一个治理 run 调用 AI Gateway。GitHub rerun 保留旧 run ID，因此不能只按 ID 排序，否则旧 run 的新 attempt 会插队并与当前 owner 并发。队列不按 Action Worker `head_sha` 分池，因此 main 更新不会绕过仍在运行的旧版本 Review；相同 PR 的新调度继续由稳定 concurrency group 自动取消旧调度。
 
 Action Worker 不做整轮 OCR Review 重试。OpenCodeReview 负责单个 LLM 请求的重试，AI Gateway 负责模型与 Provider fallback。若 OCR 已生成兼容 session，且最终失败仅来自 5xx、timeout、network 或 overload，Action Worker 最多允许一次带短退避的 `--resume`，复用已完成 checkpoint；认证、4xx 配置错误或恢复预算耗尽后仍直接 fail-closed。OpenCodeReview 可执行文件从 `policies/review.json` 声明的分发 Release 获取，先校验 SHA256，再使用 GitHub Actions runner cache；workflow 不再通过 npm 动态安装审查引擎。
 

@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { isJsonRecord } from "./github-api.ts";
 import { assertEnglishText } from "./validate-engineering-language.ts";
 import {
@@ -87,7 +88,11 @@ export async function validateChange(
       if (attributes.some((item) => !allowedAttrs.includes(item))) {
         throw new CliError(`::error::CHANGELOG contains unsupported attributes: ${entry[2] ?? ""}.`, 65);
       }
-      if (entryType === changeType) {
+      // Match on changeType AND (scope or summary) to ensure the entry corresponds to this PR
+      const entryScope = entry[2]?.split(",").map((item) => item.trim()).filter(Boolean) ?? [];
+      const scopeMatch = scope ? entryScope.includes(scope) : true;
+      const summaryMatch = entrySummary.toLowerCase().includes(summary.toLowerCase()) || summary.toLowerCase().includes(entrySummary.toLowerCase());
+      if (entryType === changeType && (scopeMatch || summaryMatch)) {
         hasMatching = true;
         if (isBreaking && !attributes.includes("breaking")) {
           throw new CliError("::error::A breaking PR CHANGELOG entry must include the breaking attribute.", 65);
@@ -118,7 +123,7 @@ async function main(): Promise<void> {
   const record = await validateChange(title, base, head, root, policyDir);
   const output = JSON.stringify(record);
   if (process.env.GITHUB_OUTPUT) {
-    await writeFile("/tmp/change-record.json", `${output}\n`, "utf8");
+    await writeFile(join(tmpdir(), "change-record.json"), `${output}\n`, "utf8");
     await appendLines(process.env.GITHUB_OUTPUT, [`json=${output}`]);
   }
   console.log(output);

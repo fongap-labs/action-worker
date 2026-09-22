@@ -23,21 +23,3 @@ export function validateRepository(repository: string, allowValue: unknown): voi
     throw new CliError(`::error::PR repository is not allowed: ${repository}.`, 77);
   }
 }
-
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  if (args.length !== 1) {
-    throw new CliError("Usage: validate-pr-repository.ts <repository>", 64);
-  }
-  const allowlist = process.env.AW_PR_REPOSITORY_ALLOWLIST;
-  if (!allowlist) {
-    throw new CliError("::error::Missing Repository Variable: AW_PR_REPOSITORY_ALLOWLIST.", 65);
-  }
-  const repository = args[0] ?? "";
-  validateRepository(repository, parseJson(allowlist, "::error::AW_PR_REPOSITORY_ALLOWLIST must be valid JSON."));
-  console.log(`PR repository allowed: ${repository}`);
-}
-
-if (isMain(import.meta.url)) {
-  main().catch(handleError);
-}

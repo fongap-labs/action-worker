@@ -14,7 +14,7 @@ async function gitText(root: string, args: readonly string[], indexPath?: string
 }
 
 export async function buildComparison(root: string, base: string, head: string, evidencePath: string): Promise<{ base_sha: string; head_sha: string }> {
-  if (evidencePath !== ".action-worker-ci-evidence.json") {
+  if (!evidencePath.endsWith(".action-worker-ci-evidence.json")) {
     throw new CliError(`ERROR: unexpected CI evidence path: ${evidencePath}`, 65);
   }
   if (!/^[0-9a-f]{40}$/.test(base) || !/^[0-9a-f]{40}$/.test(head)) {

@@ -148,13 +148,14 @@ jobs:
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           CONTEXT_JSON: ${{ steps.context.outputs.json }}
           TRIAGE_OUTPUT_PATH: /tmp/ai-triage.json
+          BASE_PLAN_PATH: /tmp/pr-plan.base.json
         run: |
           node scripts/run-ai-triage.ts \
             "$BASE_SHA" \
             "$HEAD_SHA" \
             "$GITHUB_WORKSPACE/target" \
             "$CONTEXT_JSON" \
-            "$(cat /tmp/pr-plan.base.json)" \
+            "$BASE_PLAN_PATH" \
             "$GITHUB_WORKSPACE/policies/triage.json"
 
       - name: Resolve final plan

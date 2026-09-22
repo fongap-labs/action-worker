@@ -45,8 +45,10 @@ async function verifyAsset(binary: string, checksum: string): Promise<boolean> {
 async function downloadFile(url: string, path: string): Promise<void> {
   let lastError: unknown;
   for (let attempt = 0; attempt < 4; attempt += 1) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120_000);
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: controller.signal });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
@@ -57,6 +59,8 @@ async function downloadFile(url: string, path: string): Promise<void> {
       if (attempt < 3) {
         await new Promise((resolve) => setTimeout(resolve, 2000));
       }
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
   throw lastError;

@@ -143,7 +143,9 @@ async function readDiff(repoRoot: string, baseSha: string, headSha: string, args
       maxBuffer: 1024 * 1024,
       timeoutMs: 30_000,
     });
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`::warning::git diff failed: ${message}; AI Triage will have no diff context.`);
     return "";
   }
 }
@@ -211,11 +213,11 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length !== 6) {
     throw new CliError(
-      "Usage: run-ai-triage.ts <base-sha> <head-sha> <repo-root> <context-json> <plan-json> <policy-file>",
+      "Usage: run-ai-triage.ts <base-sha> <head-sha> <repo-root> <context-json> <base-plan-file> <policy-file>",
       64,
     );
   }
-  const [baseSha, headSha, repoRoot, contextJson, planJson, policyFile] = args as [
+  const [baseSha, headSha, repoRoot, contextJson, basePlanFile, policyFile] = args as [
     string,
     string,
     string,
@@ -223,6 +225,13 @@ async function main(): Promise<void> {
     string,
     string,
   ];
+
+  let planJson: string;
+  try {
+    planJson = await readFile(basePlanFile, "utf8");
+  } catch {
+    throw new CliError(`ERROR: failed to read base plan file: ${basePlanFile}`, 65);
+  }
 
   try {
     const gitStat = await stat(join(repoRoot, ".git"));

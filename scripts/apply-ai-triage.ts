@@ -1,4 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import {
   CliError,
   appendLines,
@@ -84,6 +86,7 @@ export function applyTriage(
     const confidence = asNumber(decision.confidence);
     const safeAreas = context.change_areas.length > 0
       && context.change_areas.every((area) => area === "source" || area === "test");
+    // Note: "documentation" is NOT a safe area; it must not lower the safety floor
     const hasImpacts = context.declared_impacts.length > 0;
     const canSkip = baseAgent === "code"
       && safeAreas
@@ -171,7 +174,7 @@ async function main(): Promise<void> {
     );
     const json = JSON.stringify(output);
     if (process.env.GITHUB_OUTPUT) {
-      await writeFile("/tmp/pr-plan.json", `${json}\n`, "utf8");
+      await writeFile(join(tmpdir(), "pr-plan.json"), `${json}\n`, "utf8");
       await appendLines(process.env.GITHUB_OUTPUT, [
         `ci_required=${String(output.ci_required)}`,
         `naming_required=${String(output.naming_required)}`,
