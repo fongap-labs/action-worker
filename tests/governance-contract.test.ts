@@ -104,7 +104,7 @@ test("task dispatch keeps generic secrets and typed validation", async () => {
   requireText(workflow, [
     "env: ${{ secrets }}", "REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}", "node scripts/export-repository-variables.ts",
     "node scripts/validate-repository-variables.ts", "node scripts/validate-dispatch-payload.ts", "compgen -e",
-    "action-worker-base-env.names", "action-worker-repository-vars.json", "node-version: 24",
+    "action-worker-base-env.names", "action-worker-repository-vars.json", "AW_EXECUTION_REPOSITORY_ALLOWLIST", "node-version: 24",
   ]);
   assert.doesNotMatch(workflow, /toJSON\s*\(\s*secrets\s*\)/);
   assert.doesNotMatch(workflow, /\$\{\{\s*secrets\.[A-Za-z_][A-Za-z0-9_]*\s*\}\}/);
@@ -114,6 +114,12 @@ test("task dispatch keeps generic secrets and typed validation", async () => {
 test("release, source, deploy, merge, and repository settings contracts remain intact", async () => {
   const release = await text(".github/workflows/handle-release-dispatch.yml");
   requireText(release, ["types: [run-release]", "AW_CONTROL_TOKEN", "AW_RELEASE_SOURCE_ALLOWLIST", "AW_RELEASE_TARGET_ALLOWLIST", "node-version: 24", "RELEASE_REQUEST_JSON", "node scripts/publish-release.ts"]);
+  const releaseValidator = await text("scripts/validate-release-request.ts");
+  requireText(releaseValidator, ["AW_RELEASE_SOURCE_ALLOWLIST", "AW_RELEASE_TARGET_ALLOWLIST"]);
+  assert.doesNotMatch(releaseValidator, /process\.env\.RELEASE_(?:SOURCE|TARGET)_ALLOWLIST/);
+  const prValidator = await text("scripts/validate-pr-payload.ts");
+  requireText(prValidator, ["AW_PR_REPOSITORY_ALLOWLIST"]);
+  assert.doesNotMatch(prValidator, /process\.env\.PR_REPOSITORY_ALLOWLIST/);
   const publisher = await text("scripts/publish-release.ts");
   requireText(publisher, ["release-manifest.json", "return `${releaseKey}-v${version}`", "await sha256File(assetPath)", "rollbackRelease", '"draft=true"', '"draft=false"']);
   assert.equal(await exists(".github/workflows/validate-release-policy.yml"), false);
@@ -148,4 +154,5 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
   assert.doesNotMatch(workflow, /shell:\s+bash|run:\s*\|/);
   assert.match(workflow, /METRICS_TOKEN:.*AW_CONTROL_TOKEN/);
   assert.match(workflow, /GH_TOKEN: \$\{\{ github\.token \}\}/);
+  assert.ok((workflow.match(/GH_TOKEN: \$\{\{ secrets\.AW_CONTROL_TOKEN \}\}/g) ?? []).length >= 4);
 });

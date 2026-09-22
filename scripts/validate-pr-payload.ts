@@ -42,10 +42,10 @@ async function main(): Promise<void> {
   const value = parseJson(args[0] ?? "", "::error::PR dispatch payload does not match contracts/pr-task.json.", 64);
   validatePayload(value);
   const payload = value as Record<string, unknown>;
-  if (process.env.PR_REPOSITORY_ALLOWLIST) {
+  if (process.env.AW_PR_REPOSITORY_ALLOWLIST) {
     validateRepository(
       String(payload.repository),
-      parseJson(process.env.PR_REPOSITORY_ALLOWLIST, "::error::PR_REPOSITORY_ALLOWLIST must be valid JSON."),
+      parseJson(process.env.AW_PR_REPOSITORY_ALLOWLIST, "::error::AW_PR_REPOSITORY_ALLOWLIST must be valid JSON."),
     );
   }
   await appendLines(process.env.GITHUB_OUTPUT, [

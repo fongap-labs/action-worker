@@ -35,6 +35,7 @@ jobs:
         id: payload
         env:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+          AW_EXECUTION_REPOSITORY_ALLOWLIST: ${{ vars.AW_EXECUTION_REPOSITORY_ALLOWLIST }}
         run: node scripts/validate-dispatch-payload.ts "$PAYLOAD"
 
   execute:

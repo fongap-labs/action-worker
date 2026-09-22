@@ -31,8 +31,8 @@ export function validateRelease(
   sourceValue: unknown,
   targetValue: unknown,
 ): void {
-  const sourceList = repositoryList(sourceValue, "RELEASE_SOURCE_ALLOWLIST");
-  const targetList = repositoryList(targetValue, "RELEASE_TARGET_ALLOWLIST");
+  const sourceList = repositoryList(sourceValue, "AW_RELEASE_SOURCE_ALLOWLIST");
+  const targetList = repositoryList(targetValue, "AW_RELEASE_TARGET_ALLOWLIST");
   if (!isJsonRecord(request)
     || !isExactKeys(request, ["artifact_name", "repository", "request_id", "schema_version", "source_run_id", "source_sha"])
     || request.schema_version !== "1"
@@ -124,8 +124,8 @@ async function main(): Promise<void> {
   validateRelease(
     request,
     manifest,
-    parseJson(process.env.RELEASE_SOURCE_ALLOWLIST ?? "[]", "RELEASE_SOURCE_ALLOWLIST must be valid JSON."),
-    parseJson(process.env.RELEASE_TARGET_ALLOWLIST ?? "[]", "RELEASE_TARGET_ALLOWLIST must be valid JSON."),
+    parseJson(process.env.AW_RELEASE_SOURCE_ALLOWLIST ?? "[]", "AW_RELEASE_SOURCE_ALLOWLIST must be valid JSON."),
+    parseJson(process.env.AW_RELEASE_TARGET_ALLOWLIST ?? "[]", "AW_RELEASE_TARGET_ALLOWLIST must be valid JSON."),
   );
 }
 
