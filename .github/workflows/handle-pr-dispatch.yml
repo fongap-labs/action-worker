@@ -170,7 +170,7 @@ jobs:
         id: ocr_dist
         if: steps.plan.outputs.review_required == 'true'
         env:
-          AW_REVIEW_ENGINE_REPOSITORY: ${{ github.repository }}
+          AW_REVIEW_ENGINE_REPOSITORY: ${{ vars.AW_REVIEW_ENGINE_REPOSITORY }}
         run: node scripts/resolve-ocr-distribution.ts "$GITHUB_WORKSPACE/policies/review.json"
 
       - name: Restore OCR cache
