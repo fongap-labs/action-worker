@@ -8,6 +8,24 @@ import {
 } from "./runtime-command.ts";
 
 const requiredKeys = ["schema_version", "request_id", "project", "bootstrap_ref", "repository"] as const;
+const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+
+export function validateExecutionRepository(repository: string, allowValue: unknown): void {
+  if (!repositoryPattern.test(repository)) {
+    throw new CliError(`::error::Invalid execution repository: ${repository}.`, 64);
+  }
+  if (
+    !Array.isArray(allowValue)
+    || allowValue.length === 0
+    || !allowValue.every((item) => typeof item === "string" && repositoryPattern.test(item))
+    || new Set(allowValue).size !== allowValue.length
+  ) {
+    throw new CliError("::error::AW_EXECUTION_REPOSITORY_ALLOWLIST must be a non-empty, unique repository JSON array.", 65);
+  }
+  if (!allowValue.includes(repository)) {
+    throw new CliError(`::error::Execution repository is not allowed: ${repository}.`, 77);
+  }
+}
 
 export function validateDispatch(value: unknown): void {
   if (!isJsonRecord(value)) {
@@ -37,6 +55,9 @@ export function validateDispatch(value: unknown): void {
   if (!/^[0-9a-fA-F]{40}$/.test(String(value.bootstrap_ref))) {
     throw new CliError("::error::bootstrap_ref must be a full 40-character commit SHA.", 64);
   }
+  if (!repositoryPattern.test(String(value.repository))) {
+    throw new CliError("::error::repository must use owner/name format.", 64);
+  }
   const unknown = Object.keys(value).filter((key) => !requiredKeys.includes(key as typeof requiredKeys[number]));
   if (unknown.length > 0) {
     throw new CliError(`::error::Unsupported fields: ${unknown.join(", ")}.`, 64);
@@ -51,6 +72,14 @@ async function main(): Promise<void> {
   const value = parseJson(args[0] ?? "", "::error::client_payload is not valid JSON.", 64);
   validateDispatch(value);
   const payload = value as Record<string, unknown>;
+  const allowlist = process.env.AW_EXECUTION_REPOSITORY_ALLOWLIST;
+  if (!allowlist) {
+    throw new CliError("::error::Missing Repository Variable: AW_EXECUTION_REPOSITORY_ALLOWLIST.", 65);
+  }
+  validateExecutionRepository(
+    String(payload.repository),
+    parseJson(allowlist, "::error::AW_EXECUTION_REPOSITORY_ALLOWLIST must be valid JSON.", 65),
+  );
   await appendLines(process.env.GITHUB_OUTPUT, [
     `schema_version=${String(payload.schema_version)}`,
     `request_id=${String(payload.request_id)}`,
