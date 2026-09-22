@@ -72,7 +72,7 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         id: pr
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           BRANCH: ${{ steps.branch.outputs.name }}
           DISPATCH: ${{ steps.metrics.outputs.dispatch }}
           PR_GOVERNANCE: ${{ steps.metrics.outputs.pr_governance }}
@@ -91,7 +91,7 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         id: ci
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           BRANCH: ${{ steps.branch.outputs.name }}
           HEAD_SHA: ${{ steps.branch.outputs.sha }}
         run: node scripts/manage-work-metrics.ts ci
@@ -99,7 +99,7 @@ jobs:
       - name: Merge update
         if: steps.changes.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           BRANCH: ${{ steps.branch.outputs.name }}
         run: node scripts/manage-work-metrics.ts merge
@@ -107,5 +107,5 @@ jobs:
       - name: Refresh main CI
         if: steps.changes.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
         run: gh workflow run validate-ci.yml --ref main
