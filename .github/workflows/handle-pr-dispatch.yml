@@ -143,7 +143,7 @@ jobs:
         if: steps.base_plan.outputs.triage_required == 'true' && vars.AW_IS_AI_REVIEW_ENABLED == 'true'
         env:
           AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
-          TRIAGE_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AIR }}
+          TRIAGE_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
           BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           CONTEXT_JSON: ${{ steps.context.outputs.json }}
@@ -191,7 +191,7 @@ jobs:
         if: steps.plan.outputs.review_required == 'true' && vars.AW_IS_AI_REVIEW_ENABLED == 'true'
         env:
           AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
-          OCR_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AIR }}
+          OCR_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
           REVIEW_MODEL: ${{ steps.plan.outputs.review_model }}
           BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
