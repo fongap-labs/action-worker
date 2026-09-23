@@ -57,7 +57,8 @@ export function buildReview(status: string, runUrl: string, planValue: unknown, 
       lines.push("AI Review found no issues.");
     }
   } else if (status === "success") {
-    lines.push("- AI Review: policy skipped");
+    const isReviewRequired = isJsonRecord(planValue) && planValue.review_required === true;
+    lines.push(isReviewRequired ? "- AI Review: skipped (disabled)" : "- AI Review: policy skipped");
   } else {
     lines.push("", "Governance failed before a complete AI Review result was produced; inspect the Action Worker run.");
   }
