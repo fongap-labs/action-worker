@@ -132,7 +132,7 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   assert.doesNotMatch(releaseValidator, /AW_(?:PR|EXECUTION|RELEASE_SOURCE|RELEASE_TARGET)_REPOSITORY_ALLOWLIST/);
   const prValidator = await text("scripts/validate-pr-payload.ts");
   requireText(prValidator, ["AW_REPOSITORY_POLICY"]);
-  assert.doesNotMatch(prValidator, /AW_PR_REPOSITORY_ALLOWLIST/);
+  assert.doesNotMatch(prValidator, /AW_[A-Z_]*ALLOWLIST/);
   const publisher = await text("scripts/publish-release.ts");
   requireText(publisher, ["release-manifest.json", "return `${releaseKey}-v${version}`", "await sha256File(assetPath)", "rollbackRelease", '"draft=true"', '"draft=false"']);
   assert.equal(await exists(".github/workflows/validate-release-policy.yml"), false);
