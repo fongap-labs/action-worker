@@ -78,7 +78,7 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         id: pr
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ steps.branch.outputs.name }}
           DISPATCH: ${{ steps.metrics.outputs.dispatch }}
           PR_GOVERNANCE: ${{ steps.metrics.outputs.pr_governance }}
@@ -87,17 +87,11 @@ jobs:
           RELEASE_GOVERNANCE: ${{ steps.metrics.outputs.release_governance }}
         run: node scripts/manage-work-metrics.ts pull
 
-      - name: Cleanup failed metrics branch
-        if: ${{ failure() && steps.changes.outputs.changed == 'true' && steps.branch.outcome == 'success' && steps.pr.outcome == 'failure' }}
-        env:
-          BRANCH: ${{ steps.branch.outputs.name }}
-        run: node scripts/manage-work-metrics.ts cleanup
-
       - name: Trigger CI
         if: steps.changes.outputs.changed == 'true'
         id: ci
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ steps.branch.outputs.name }}
           HEAD_SHA: ${{ steps.branch.outputs.sha }}
         run: node scripts/manage-work-metrics.ts ci
@@ -105,13 +99,21 @@ jobs:
       - name: Merge update
         if: steps.changes.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           BRANCH: ${{ steps.branch.outputs.name }}
         run: node scripts/manage-work-metrics.ts merge
 
+      - name: Cleanup failed metrics update
+        if: ${{ failure() && steps.changes.outputs.changed == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          BRANCH: metrics/${{ github.run_id }}
+        run: node scripts/manage-work-metrics.ts cleanup
+
       - name: Refresh main CI
         if: steps.changes.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: gh workflow run validate-ci.yml --ref main
