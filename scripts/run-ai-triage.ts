@@ -230,9 +230,18 @@ async function main(): Promise<void> {
   try {
     planJson = await readFile(basePlanFile, "utf8");
   } catch {
-    await emitTriage({ status: "skipped", model: "unknown", reason: "base_plan_missing" });
-    return;
-  }
+    // Check if basePlanFile is JSON content (starts with {) rather than a file path
+    let planJson: string;
+    if (basePlanFile.trim().startsWith("{")) {
+      planJson = basePlanFile;
+    } else {
+      try {
+        planJson = await readFile(basePlanFile, "utf8");
+      } catch {
+        await emitTriage({ status: "skipped", model: "unknown", reason: "base_plan_missing" });
+        return;
+      }
+    }
 
   try {
     const gitStat = await stat(join(repoRoot, ".git"));
