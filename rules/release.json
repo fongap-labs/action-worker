@@ -1,4 +1,8 @@
 {
+  "include": [
+    "**/*.jsonc",
+    "CHANGELOG.md"
+  ],
   "rules": [
     {
       "path": "**/*",
