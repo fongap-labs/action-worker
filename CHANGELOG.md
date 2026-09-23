@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- style: use a muted low-saturation palette for work-metric badges and lighten shared labels.
+
 - style: rename the Dispatch badge to Task Dispatch and unify work-metric badge colors.
 
 - fix: give architecture and security AI reviews a five-minute task budget so high-effort Audit-Ultra reviews can complete within the configured 300-second LLM timeout.
