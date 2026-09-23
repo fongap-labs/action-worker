@@ -230,7 +230,8 @@ async function main(): Promise<void> {
   try {
     planJson = await readFile(basePlanFile, "utf8");
   } catch {
-    throw new CliError(`ERROR: failed to read base plan file: ${basePlanFile}`, 65);
+    await emitTriage({ status: "skipped", model: "unknown", reason: "base_plan_missing" });
+    return;
   }
 
   try {
