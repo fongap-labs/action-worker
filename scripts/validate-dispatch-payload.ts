@@ -1,4 +1,5 @@
 import { isJsonRecord } from "./github-api.ts";
+import { validateRepositoryCapability } from "./repository-policy.ts";
 import {
   CliError,
   appendLines,
@@ -9,23 +10,6 @@ import {
 
 const requiredKeys = ["schema_version", "request_id", "project", "bootstrap_ref", "repository"] as const;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-
-export function validateExecutionRepository(repository: string, allowValue: unknown): void {
-  if (!repositoryPattern.test(repository)) {
-    throw new CliError(`::error::Invalid execution repository: ${repository}.`, 64);
-  }
-  if (
-    !Array.isArray(allowValue)
-    || allowValue.length === 0
-    || !allowValue.every((item) => typeof item === "string" && repositoryPattern.test(item))
-    || new Set(allowValue).size !== allowValue.length
-  ) {
-    throw new CliError("::error::AW_EXECUTION_REPOSITORY_ALLOWLIST must be a non-empty, unique repository JSON array.", 65);
-  }
-  if (!allowValue.includes(repository)) {
-    throw new CliError(`::error::Execution repository is not allowed: ${repository}.`, 77);
-  }
-}
 
 export function validateDispatch(value: unknown): void {
   if (!isJsonRecord(value)) {
@@ -72,13 +56,14 @@ async function main(): Promise<void> {
   const value = parseJson(args[0] ?? "", "::error::client_payload is not valid JSON.", 64);
   validateDispatch(value);
   const payload = value as Record<string, unknown>;
-  const allowlist = process.env.AW_EXECUTION_REPOSITORY_ALLOWLIST;
-  if (!allowlist) {
-    throw new CliError("::error::Missing Repository Variable: AW_EXECUTION_REPOSITORY_ALLOWLIST.", 65);
+  const repositoryPolicy = process.env.AW_REPOSITORY_POLICY;
+  if (!repositoryPolicy) {
+    throw new CliError("::error::Missing Repository Variable: AW_REPOSITORY_POLICY.", 65);
   }
-  validateExecutionRepository(
+  validateRepositoryCapability(
     String(payload.repository),
-    parseJson(allowlist, "::error::AW_EXECUTION_REPOSITORY_ALLOWLIST must be valid JSON.", 65),
+    parseJson(repositoryPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65),
+    "task",
   );
   await appendLines(process.env.GITHUB_OUTPUT, [
     `schema_version=${String(payload.schema_version)}`,
