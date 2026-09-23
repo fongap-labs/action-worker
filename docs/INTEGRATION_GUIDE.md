@@ -43,7 +43,7 @@ AW_DISPATCH_TOKEN
 不得下发：
 
 ```text
-AIG_ACCESS_KEY_AIR
+AIG_ACCESS_KEY_AGENT
 AW_CONTROL_TOKEN
 ```
 
@@ -87,7 +87,7 @@ Action Worker Secret / Variable：
 ```text
 AW_CONTROL_TOKEN
 AI_GATEWAY_URL
-AIG_ACCESS_KEY_AIR
+AIG_ACCESS_KEY_AGENT
 ```
 
 AI Review Engine 的分发仓库、版本和资产统一由 `policies/review.json` 管理，不再维护重复的 Repository Variable。
