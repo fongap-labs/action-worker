@@ -2,13 +2,13 @@ name: Handle Central CI Dispatch
 
 on:
   repository_dispatch:
-    types: [run-central-ci]
+    types: [run-central-ci, run-central-ci-ref]
 
 permissions:
   contents: read
 
 concurrency:
-  group: central-ci-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}
+  group: central-ci-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number || github.event.client_payload.head_sha }}
   cancel-in-progress: true
 
 jobs:
@@ -17,10 +17,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
-      repository: ${{ steps.payload.outputs.repository }}
-      pr_number: ${{ steps.payload.outputs.pr_number }}
-      base_sha: ${{ steps.facts.outputs.base_sha }}
-      head_sha: ${{ steps.facts.outputs.head_sha }}
+      repository: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
+      pr_number: ${{ steps.payload.outputs.pr_number || steps.ref_facts.outputs.pr_number }}
+      base_sha: ${{ steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}
+      head_sha: ${{ steps.facts.outputs.head_sha || steps.ref_facts.outputs.head_sha }}
+      control_ref: ${{ steps.ref_facts.outputs.control_ref || 'main' }}
 
     steps:
       - name: Checkout control plane
@@ -36,14 +37,57 @@ jobs:
 
       - name: Validate PR request
         id: payload
+        if: github.event.action == 'run-central-ci'
         env:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/validate-pr-payload.ts "$PAYLOAD"
 
+      - name: Resolve branch CI request
+        id: ref_facts
+        if: github.event.action == 'run-central-ci-ref'
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ github.event.client_payload.repository }}
+          REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+          SCHEMA_VERSION: ${{ github.event.client_payload.schema_version }}
+          REQUEST_ID: ${{ github.event.client_payload.request_id }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          [ "$SCHEMA_VERSION" = "1" ] || {
+            echo "::error::Unsupported schema_version: $SCHEMA_VERSION" >&2
+            exit 64
+          }
+          [ -n "$REQUEST_ID" ] || {
+            echo "::error::request_id is required." >&2
+            exit 64
+          }
+          [[ "$REQUESTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::head_sha must be a full commit SHA." >&2
+            exit 64
+          }
+
+          default_branch="$(gh api "repos/$REPOSITORY" --jq '.default_branch')"
+          default_sha="$(gh api "repos/$REPOSITORY/commits/$default_branch" --jq '.sha')"
+          [ "$REQUESTED_HEAD_SHA" = "$default_sha" ] || {
+            echo "::error::Central CI request is stale; default branch has moved." >&2
+            exit 75
+          }
+
+          base_sha="$(gh api "repos/$REPOSITORY/commits/$REQUESTED_HEAD_SHA" --jq '.parents[0].sha // .sha')"
+          {
+            echo "repository=$REPOSITORY"
+            echo "pr_number=0"
+            echo "base_sha=$base_sha"
+            echo "head_sha=$REQUESTED_HEAD_SHA"
+            echo "control_ref=$REQUESTED_HEAD_SHA"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Validate central CI target
         env:
-          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          REPOSITORY: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -56,6 +100,7 @@ jobs:
           esac
 
       - name: Validate control credential
+        if: github.event.action == 'run-central-ci'
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
@@ -64,6 +109,7 @@ jobs:
 
       - name: Resolve PR facts
         id: facts
+        if: github.event.action == 'run-central-ci'
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
@@ -71,6 +117,7 @@ jobs:
         run: node scripts/resolve-pr-facts.ts fetch
 
       - name: Validate requested revision
+        if: github.event.action == 'run-central-ci'
         env:
           REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
           RESOLVED_HEAD_SHA: ${{ steps.facts.outputs.head_sha }}
@@ -109,7 +156,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ needs.prepare.outputs.repository }}
-          ref: main
+          ref: ${{ needs.prepare.outputs.control_ref }}
           token: ${{ secrets.AW_CONTROL_TOKEN }}
           path: ci-control
           fetch-depth: 1
@@ -161,7 +208,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ needs.prepare.outputs.repository }}
-          ref: main
+          ref: ${{ needs.prepare.outputs.control_ref }}
           token: ${{ secrets.AW_CONTROL_TOKEN }}
           path: ci-control
           fetch-depth: 1
