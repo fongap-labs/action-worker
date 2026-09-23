@@ -105,11 +105,25 @@ jobs:
           CHANGE_RECORD_JSON: ${{ steps.change.outputs.json }}
         run: node scripts/detect-pr-context.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policies"
 
+      - name: Resolve gateway bootstrap review model
+        id: bootstrap_review
+        env:
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [ "$REPOSITORY" = "${GITHUB_REPOSITORY_OWNER}/ai-gateway" ]; then
+            echo "model=Code-Pro" >> "$GITHUB_OUTPUT"
+          else
+            echo "model=auto" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Resolve base plan
         id: base_plan
         env:
           CONTEXT_JSON: ${{ steps.context.outputs.json }}
-        run: node scripts/resolve-pr-plan.ts "$CONTEXT_JSON" inherit inherit inherit inherit auto auto "$GITHUB_WORKSPACE/policies"
+          MODEL_OVERRIDE: ${{ steps.bootstrap_review.outputs.model }}
+        run: node scripts/resolve-pr-plan.ts "$CONTEXT_JSON" inherit inherit inherit inherit "$MODEL_OVERRIDE" auto "$GITHUB_WORKSPACE/policies"
 
       - name: Validate naming rules
         if: steps.base_plan.outputs.naming_required == 'true'
