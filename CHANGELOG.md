@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: treat MODE configuration names as non-Boolean during naming validation.
+
 - fix: add bounded exponential-backoff session recovery for transient AI review failures while preserving FIFO single concurrency.
 
 - fix: move review distribution and release repository allowlists into versioned governance policy.
