@@ -182,5 +182,7 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
   assert.ok((workflow.match(/GH_TOKEN: \$\{\{ github\.token \}\}/g) ?? []).length >= 6);
   assert.doesNotMatch(workflow, /GH_TOKEN: \$\{\{ secrets\.AW_CONTROL_TOKEN \}\}/);
   assert.match(workflow, /Cleanup failed metrics update/);
+  assert.match(workflow, /Sweep stale metrics branches/);
+  assert.match(workflow, /node scripts\/manage-work-metrics\.ts sweep/);
   assert.match(workflow, /node scripts\/repository-policy\.ts list pr/);
 });
