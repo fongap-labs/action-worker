@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: move review distribution and release repository allowlists into versioned governance policy.
+
 - fix: resolve the OpenCodeReview distribution repository from the canonical Action Worker repository variable.
 
 - fix: enforce canonical governance configuration names, execution-source allowlisting, and governance-token metrics mutations.

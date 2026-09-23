@@ -88,10 +88,9 @@ Action Worker Secret / Variable：
 AW_CONTROL_TOKEN
 AI_GATEWAY_URL
 AIG_ACCESS_KEY_AIR
-AW_REVIEW_ENGINE_REPOSITORY
 ```
 
-`AW_REVIEW_ENGINE_REPOSITORY` 定义 AI Review Engine 的分发仓库。Review Policy 只保存 engine 名称、版本与资产名，不保存组织或仓库位置。
+AI Review Engine 的分发仓库、版本和资产统一由 `policies/review.json` 管理，不再维护重复的 Repository Variable。
 
 `AW_CONTROL_TOKEN` 对受管仓至少需要：
 
@@ -168,13 +167,7 @@ AW_DISPATCH_TOKEN
 
 发布源仓若共享同一个分发目标，可同样使用组织级 `RELEASE_TARGET_REPOSITORY`；项目专属部署身份（例如 `DEPLOY_REPOSITORY`）继续使用 Repository 级 Variable。
 
-Action Worker 需要：
-
-```text
-AW_CONTROL_TOKEN
-AW_RELEASE_SOURCE_ALLOWLIST
-AW_RELEASE_TARGET_ALLOWLIST
-```
+Action Worker 需要 `AW_CONTROL_TOKEN`。允许的 Release 源仓与目标仓统一由 `policies/release.json` 管理，不再维护重复的 Repository Variable。
 
 `AW_CONTROL_TOKEN` 至少需要读取受管源仓 Contents 与 Actions，以及对允许的分发目标 `contents: write`。
 
