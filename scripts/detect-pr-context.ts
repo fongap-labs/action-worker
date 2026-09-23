@@ -35,6 +35,25 @@ function stringList(value: unknown, key: string): string[] {
   return value[key];
 }
 
+export function changeAreaForPath(path: string, workflowPrefixes: readonly string[], changelogFile: string): string {
+  if (workflowPrefixes.some((prefix) => path.startsWith(prefix))) {
+    return "workflow";
+  }
+  if (path.startsWith("scripts/") || path.endsWith(".sh")) {
+    return "script";
+  }
+  if (/^(?:tests?|.*(?:_test|\.test)\.)/.test(path)) {
+    return "test";
+  }
+  if (/(^|\/)(?:Dockerfile|docker-compose\.ya?ml|compose\.ya?ml)$/.test(path)) {
+    return "container";
+  }
+  if (path === changelogFile || path.endsWith(".md") || path.startsWith("docs/")) {
+    return "documentation";
+  }
+  return "source";
+}
+
 export async function detectContext(base: string, head: string, root: string, policyDir: string): Promise<ContextResult> {
   const workflow = await readJson(join(policyDir, "workflow.json"));
   const security = await readJson(join(policyDir, "security.json"));
@@ -50,21 +69,7 @@ export async function detectContext(base: string, head: string, root: string, po
   const impacts = new Set<string>();
 
   for (const path of changedFiles) {
-    if (prefixes.some((prefix) => path.startsWith(prefix))) {
-      areas.add("workflow");
-    } else if (path.startsWith("scripts/") || path.endsWith(".sh")) {
-      areas.add("script");
-    } else if (/^(?:tests?|.*(?:_test|\.test)\.)/.test(path)) {
-      areas.add("test");
-    } else if (/(^|\/)(?:Dockerfile|docker-compose\.ya?ml|compose\.ya?ml)$/.test(path)) {
-      areas.add("container");
-    } else if (path === release.changelog_file) {
-      areas.add("release");
-    } else if (path.endsWith(".md") || path.startsWith("docs/")) {
-      areas.add("documentation");
-    } else {
-      areas.add("source");
-    }
+    areas.add(changeAreaForPath(path, prefixes, release.changelog_file));
     const lowerPath = path.toLowerCase();
     if (terms.some((term) => lowerPath.includes(term))) {
       areas.add("security");
