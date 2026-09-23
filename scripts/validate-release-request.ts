@@ -3,7 +3,6 @@ import {
   CliError,
   handleError,
   isMain,
-  parseJson,
   readJson,
 } from "./runtime-command.ts";
 
@@ -121,11 +120,16 @@ async function main(): Promise<void> {
       throw error;
     }
   }
+  const policyPath = process.env.RELEASE_POLICY ?? "policies/release.json";
+  const policy = await readJson(policyPath);
+  if (!isJsonRecord(policy)) {
+    throw new CliError("release policy must be a JSON object.", 65);
+  }
   validateRelease(
     request,
     manifest,
-    parseJson(process.env.AW_RELEASE_SOURCE_ALLOWLIST ?? "[]", "AW_RELEASE_SOURCE_ALLOWLIST must be valid JSON."),
-    parseJson(process.env.AW_RELEASE_TARGET_ALLOWLIST ?? "[]", "AW_RELEASE_TARGET_ALLOWLIST must be valid JSON."),
+    policy.source_repositories,
+    policy.target_repositories,
   );
 }
 
