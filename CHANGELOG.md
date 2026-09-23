@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- style: rebalance work-metric badges with distinct muted blue, warm gray, navy, and teal accents.
+
 - style: use a muted low-saturation palette for work-metric badges and lighten shared labels.
 
 - style: rename the Dispatch badge to Task Dispatch and unify work-metric badge colors.
