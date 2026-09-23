@@ -15,18 +15,10 @@ const config = JSON.stringify({
   },
 });
 
-test("AI Gateway bootstrap uses one tier below an Ultra architecture route", () => {
+test("AI Gateway bootstrap uses the centrally configured default review model", () => {
   assert.equal(
     resolveBootstrapModel("fongap-labs/ai-gateway", "fongap-labs", config),
-    "Audit-Max",
-  );
-});
-
-test("AI Gateway bootstrap preserves a non-Ultra architecture route", () => {
-  const maxConfig = config.replace("Audit-Ultra", "Research-Reasoning-Max");
-  assert.equal(
-    resolveBootstrapModel("fongap-labs/ai-gateway", "fongap-labs", maxConfig),
-    "Research-Reasoning-Max",
+    "Audit-Pro",
   );
 });
 
@@ -37,7 +29,7 @@ test("other repositories preserve automatic model routing", () => {
   );
 });
 
-test("AI Gateway bootstrap fails closed when the architecture route is unavailable", () => {
+test("AI Gateway bootstrap fails closed when the default review model is unavailable", () => {
   assert.throws(
     () => resolveBootstrapModel(
       "fongap-labs/ai-gateway",
@@ -45,10 +37,10 @@ test("AI Gateway bootstrap fails closed when the architecture route is unavailab
       JSON.stringify({
         schema_version: 1,
         agents: {
-          review: { enabled: true, model: "Audit-Pro", routes: {} },
+          review: { enabled: true, model: "", routes: { architecture: { model: "Audit-Ultra" } } },
         },
       }),
     ),
-    /review\.routes\.architecture/i,
+    /review.*invalid model/i,
   );
 });
