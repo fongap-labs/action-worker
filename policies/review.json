@@ -40,7 +40,9 @@
     "task_timeout_minutes": 2,
     "concurrency": 1,
     "queue_poll_seconds": 15,
-    "queue_wait_minutes": 120
+    "queue_wait_minutes": 120,
+    "resume_attempts": 3,
+    "resume_backoff_seconds": 15
   },
   "engine": {
     "name": "open-code-review",
