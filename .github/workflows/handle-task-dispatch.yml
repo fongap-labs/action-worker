@@ -226,3 +226,72 @@ jobs:
               echo "::error::bootstrap.sh execution failed (exit=${bootstrap_rc})." >&2
               exit "$bootstrap_rc"
           fi
+
+      - name: Validate staged publication
+        id: publication
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+        run: node scripts/validate-task-publication.ts
+
+      - name: Publish staged artifact
+        if: steps.publication.outputs.staged == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          TARGET_REPOSITORY: ${{ steps.publication.outputs.target_repository }}
+          DEST_DIR: ${{ steps.publication.outputs.dest_dir }}
+          DELETE_STALE: ${{ steps.publication.outputs.delete_stale }}
+          COMMIT_MESSAGE: ${{ steps.publication.outputs.commit_message }}
+          PAYLOAD_DIR: ${{ steps.publication.outputs.payload_dir }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          IFS=\n\t'
+
+          PUBLISH_ROOT="${RUNNER_TEMP}/action-worker-publication"
+          WORK_DIR="$(mktemp -d)"
+          cleanup_publication() {
+              rm -rf "$WORK_DIR" "$PUBLISH_ROOT"
+          }
+          trap cleanup_publication EXIT
+
+          gh auth setup-git
+
+          attempt=1
+          while [ "$attempt" -le 3 ]; do
+              rm -rf "$WORK_DIR/target"
+              gh repo clone "$TARGET_REPOSITORY" "$WORK_DIR/target" -- --depth 1
+
+              branch="$(git -C "$WORK_DIR/target" branch --show-current)"
+              target_dir="$WORK_DIR/target/$DEST_DIR"
+
+              if [ "$DELETE_STALE" = "true" ]; then
+                  rm -rf "$target_dir"
+              fi
+              mkdir -p "$target_dir"
+              cp -a "$PAYLOAD_DIR"/. "$target_dir"/
+
+              git -C "$WORK_DIR/target" config user.name "Fongap Labs Action Worker"
+              git -C "$WORK_DIR/target" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+              git -C "$WORK_DIR/target" add -- "$DEST_DIR"
+
+              if git -C "$WORK_DIR/target" diff --cached --quiet; then
+                  echo "No publication changes."
+                  exit 0
+              fi
+
+              git -C "$WORK_DIR/target" commit -m "$COMMIT_MESSAGE"
+
+              if git -C "$WORK_DIR/target" push origin "HEAD:$branch"; then
+                  echo "Published task artifact to $TARGET_REPOSITORY/$DEST_DIR"
+                  exit 0
+              fi
+
+              if [ "$attempt" -ge 3 ]; then
+                  echo "::error::Task publication failed after 3 attempts." >&2
+                  exit 1
+              fi
+
+              echo "::warning::Target branch changed during publication; retrying." >&2
+              sleep "$attempt"
+              attempt=$((attempt + 1))
+          done
