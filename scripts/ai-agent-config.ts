@@ -100,9 +100,11 @@ export function aiAgentModel(config: AiAgentConfig, agentName: string, routeName
   return model;
 }
 
-export function enabledAiModels(config: AiAgentConfig): string[] {
+export function enabledAiModels(config: AiAgentConfig, agentNames?: readonly string[]): string[] {
   const models = new Set<string>();
-  for (const agent of Object.values(config.agents)) {
+  const selected = agentNames ? new Set(agentNames) : null;
+  for (const [agentName, agent] of Object.entries(config.agents)) {
+    if (selected && !selected.has(agentName)) continue;
     if (!agent.enabled) continue;
     if (agent.model) models.add(agent.model);
     for (const route of Object.values(agent.routes)) {
