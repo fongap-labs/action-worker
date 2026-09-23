@@ -4,7 +4,9 @@ import {
   handleError,
   isMain,
   readJson,
+  parseJson,
 } from "./runtime-command.ts";
+import { validateRepositoryCapability } from "./repository-policy.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const requestPattern = /^[A-Za-z0-9._:-]{1,128}$/;
@@ -17,21 +19,11 @@ function isExactKeys(value: Record<string, unknown>, required: readonly string[]
     && keys.every((key) => required.includes(key) || optional.includes(key));
 }
 
-function repositoryList(value: unknown, name: string): string[] {
-  if (!Array.isArray(value) || !value.every((item) => typeof item === "string" && repositoryPattern.test(item))) {
-    throw new CliError(`${name} must be a JSON array of repositories.`, 65);
-  }
-  return value;
-}
-
 export function validateRelease(
   request: unknown,
   manifest: unknown | undefined,
-  sourceValue: unknown,
-  targetValue: unknown,
+  repositoryPolicy: unknown,
 ): void {
-  const sourceList = repositoryList(sourceValue, "source_repositories");
-  const targetList = repositoryList(targetValue, "target_repositories");
   if (!isJsonRecord(request)
     || !isExactKeys(request, ["artifact_name", "repository", "request_id", "schema_version", "source_run_id", "source_sha"])
     || request.schema_version !== "1"
@@ -43,9 +35,7 @@ export function validateRelease(
   ) {
     throw new CliError("release dispatch payload is invalid.", 64);
   }
-  if (!sourceList.includes(request.repository)) {
-    throw new CliError(`source repository is not allowed for release dispatch: ${request.repository}`, 77);
-  }
+  validateRepositoryCapability(request.repository, repositoryPolicy, "release-source");
   if (manifest === undefined) {
     return;
   }
@@ -89,9 +79,7 @@ export function validateRelease(
       throw new CliError("release manifest is invalid.", 64);
     }
   }
-  if (!targetList.includes(manifest.target_repository)) {
-    throw new CliError(`target repository is not allowed for release publication: ${manifest.target_repository}`, 77);
-  }
+  validateRepositoryCapability(manifest.target_repository, repositoryPolicy, "release-target");
 }
 
 async function main(): Promise<void> {
@@ -120,16 +108,14 @@ async function main(): Promise<void> {
       throw error;
     }
   }
-  const policyPath = process.env.RELEASE_POLICY ?? "policies/release.json";
-  const policy = await readJson(policyPath);
-  if (!isJsonRecord(policy)) {
-    throw new CliError("release policy must be a JSON object.", 65);
+  const repositoryPolicy = process.env.AW_REPOSITORY_POLICY;
+  if (!repositoryPolicy) {
+    throw new CliError("::error::Missing Repository Variable: AW_REPOSITORY_POLICY.", 65);
   }
   validateRelease(
     request,
     manifest,
-    policy.source_repositories,
-    policy.target_repositories,
+    parseJson(repositoryPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65),
   );
 }
 
