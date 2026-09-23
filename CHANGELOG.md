@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- style: rename the Dispatch badge to Task Dispatch and unify work-metric badge colors.
+
 - fix: give architecture and security AI reviews a five-minute task budget so high-effort Audit-Ultra reviews can complete within the configured 300-second LLM timeout.
 
 - fix: define Dispatch as successful Handle Task Dispatch runs and lock work-metric badge semantics in tests and documentation.

@@ -92,7 +92,7 @@ async function createPull(): Promise<void> {
   const branch = requireEnv("BRANCH");
   const body = [
     "Verified work metrics.", "",
-    `- Dispatch: ${process.env.DISPATCH ?? "0"}`,
+    `- Task Dispatch: ${process.env.DISPATCH ?? "0"}`,
     `- PR Governance: ${process.env.PR_GOVERNANCE ?? "0"}`,
     `- AI Review: ${process.env.AI_REVIEW ?? "0"}`,
     `- Gate: ${process.env.GATE ?? "0"}`,
