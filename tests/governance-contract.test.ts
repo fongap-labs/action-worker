@@ -92,7 +92,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   const workflow = await text(".github/workflows/handle-pr-dispatch.yml");
   requireText(workflow, [
     "repository_dispatch:", "types: [run-pr-governance]", "AW_PR_REPOSITORY_ALLOWLIST", "AW_CONTROL_TOKEN",
-    "AI_GATEWAY_URL", "AIG_ACCESS_KEY_AIR", "persist-credentials: false", "node-version: 24",
+    "AI_GATEWAY_URL", "AIG_ACCESS_KEY_AIR", "AW_IS_AI_REVIEW_ENABLED", "persist-credentials: false", "node-version: 24",
     "validate-pr-payload.ts", "validate-control-access.ts", "set-pr-status.ts", "validate-engineering-language.ts",
     "publish-pr-review.ts", "wait-ci-evidence.ts", "validate-ci-evidence.ts", "wait-review-turn.ts",
     "run-ai-triage.ts", "apply-ai-triage.ts", "install-ocr.ts", "run-ai-review.ts",
@@ -103,6 +103,8 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   assert.doesNotMatch(workflow, /pr-governance-.*github\.sha/);
   assert.doesNotMatch(workflow, /bash\s+target\//);
   assert.doesNotMatch(workflow, /AW_REVIEW_ENGINE_REPOSITORY/);
+  assert.ok((workflow.match(/vars\.AW_IS_AI_REVIEW_ENABLED == 'true'/g) ?? []).length >= 6,
+    "AI-only PR governance steps must be gated by the central opt-in flag");
   const order = ["- name: Collect CI evidence", "- name: Wait for AI queue", "- name: Run AI Triage", "- name: Resolve final plan", "- name: Run AI review", "- name: Validate CI evidence", "- name: Update final gate"];
   const positions = order.map((value) => workflow.indexOf(value));
   assert.ok(positions.every((value) => value >= 0));
