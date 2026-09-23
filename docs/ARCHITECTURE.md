@@ -17,7 +17,7 @@ PR Policy
   Detect → Resolve → CI Evidence → Triage → Review → Gate
 
 Task Dispatch
-  Validate → Execute
+  Validate → Execute → Stage → Publication Gate → Publish
 
 Source
   Commit → CI → Gate
@@ -246,6 +246,8 @@ bootstrap_ref
 Task 和 PR 的共同原则是：
 
 > 调用方提交目标，Action Worker 验证事实并决定执行方式。
+
+Task 可以在 `RUNNER_TEMP/action-worker-publication` 暂存一个跨仓发布请求，但业务任务不持有目标仓写凭据。Action Worker 在任务成功后单独校验 `AW_REPOSITORY_POLICY`：源仓必须具有 `release-source`，目标仓必须具有 `release-target`；只有通过后才向中央发布步骤注入 `AW_CONTROL_TOKEN` 并写目标仓。
 
 ## 9. Source 与 Release
 
