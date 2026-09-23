@@ -1,0 +1,175 @@
+name: Handle Central CI Dispatch
+
+on:
+  repository_dispatch:
+    types: [run-central-ci]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: central-ci-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    name: Prepare Central CI
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      repository: ${{ steps.payload.outputs.repository }}
+      pr_number: ${{ steps.payload.outputs.pr_number }}
+      base_sha: ${{ steps.facts.outputs.base_sha }}
+      head_sha: ${{ steps.facts.outputs.head_sha }}
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Validate PR request
+        id: payload
+        env:
+          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+        run: node scripts/validate-pr-payload.ts "$PAYLOAD"
+
+      - name: Validate central CI target
+        env:
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          case "$REPOSITORY" in
+            fongap-labs/delta-suite|fongap-labs/app-source|fongap-labs/internal-vault) ;;
+            *)
+              echo "::error::Repository is not configured for central CI: $REPOSITORY" >&2
+              exit 65
+              ;;
+          esac
+
+      - name: Validate control credential
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+        run: node scripts/validate-control-access.ts "$REPOSITORY" "$PR_NUMBER"
+
+      - name: Resolve PR facts
+        id: facts
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+        run: node scripts/resolve-pr-facts.ts fetch
+
+  linux:
+    name: Central CI / Linux
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Checkout target PR
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.prepare.outputs.repository }}
+          ref: ${{ needs.prepare.outputs.head_sha }}
+          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run target Linux CI
+        env:
+          CENTRAL_CI_BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
+          CENTRAL_CI_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -f target/.github/scripts/central-ci.sh
+          bash target/.github/scripts/central-ci.sh
+
+  windows:
+    name: Central CI / Windows
+    needs: prepare
+    if: needs.prepare.outputs.repository == 'fongap-labs/app-source'
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout target PR
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.prepare.outputs.repository }}
+          ref: ${{ needs.prepare.outputs.head_sha }}
+          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run target Windows CI
+        env:
+          CENTRAL_CI_BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
+          CENTRAL_CI_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "target/.github/scripts/central-ci.ps1")) {
+            throw "Missing target/.github/scripts/central-ci.ps1"
+          }
+          & "target/.github/scripts/central-ci.ps1"
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+  finalize:
+    name: Publish Central CI
+    needs:
+      - prepare
+      - linux
+      - windows
+    if: always() && needs.prepare.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - name: Publish target status
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+          LINUX_RESULT: ${{ needs.linux.result }}
+          WINDOWS_RESULT: ${{ needs.windows.result }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          state=failure
+          description="Central CI failed"
+          if [[ "$LINUX_RESULT" == "success" ]] && [[ "$WINDOWS_RESULT" == "success" || "$WINDOWS_RESULT" == "skipped" ]]; then
+            state=success
+            description="Central CI passed"
+          fi
+
+          gh api --method POST "repos/$REPOSITORY/statuses/$HEAD_SHA" \
+            -f "state=$state" \
+            -f "context=CI Evidence" \
+            -f "description=$description" \
+            -f "target_url=$RUN_URL" >/dev/null
+
+          if [[ "$state" != "success" ]]; then
+            exit 1
+          fi
