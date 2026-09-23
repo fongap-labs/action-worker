@@ -26,13 +26,52 @@
     "revert"
   ],
   "impact_patterns": {
-    "breaking": ["breaking", "破坏性", "不兼容"],
-    "security": ["security", "安全", "漏洞", "认证", "鉴权"],
-    "migration": ["migration", "迁移", "升级步骤"],
-    "api": ["api", "接口"],
-    "deployment": ["deploy", "deployment", "部署"],
-    "performance": ["performance", "性能"],
-    "compatibility": ["compatible", "compatibility", "兼容"],
-    "release": ["release", "发布"]
-  }
+    "breaking": [
+      "breaking",
+      "破坏性",
+      "不兼容"
+    ],
+    "security": [
+      "security",
+      "安全",
+      "漏洞",
+      "认证",
+      "鉴权"
+    ],
+    "migration": [
+      "migration",
+      "迁移",
+      "升级步骤"
+    ],
+    "api": [
+      "api",
+      "接口"
+    ],
+    "deployment": [
+      "deploy",
+      "deployment",
+      "部署"
+    ],
+    "performance": [
+      "performance",
+      "性能"
+    ],
+    "compatibility": [
+      "compatible",
+      "compatibility",
+      "兼容"
+    ],
+    "release": [
+      "release",
+      "发布"
+    ]
+  },
+  "source_repositories": [
+    "fongap-labs/delta",
+    "fongap-labs/app-source",
+    "fongap-labs/external-vault"
+  ],
+  "target_repositories": [
+    "fongap-labs/external-vault"
+  ]
 }
