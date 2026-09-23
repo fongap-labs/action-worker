@@ -1,6 +1,4 @@
 import { access, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { access, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -56,8 +54,8 @@ async function prepareIncrement(): Promise<void> {
     const hasReview = getJsonArray(response, "jobs").some((job) => {
       const steps = isJsonRecord(job) && Array.isArray(job.steps) ? job.steps : [];
       return steps.some((step) => isJsonRecord(step)
-        && getJsonString(step, "name") === "Run AI review"
-        && getJsonString(step, "conclusion") === "success");
+        && step.name === "Run AI review"
+        && step.conclusion === "success");
     });
     increment.ai_review = hasReview ? 1 : 0;
   }
@@ -149,6 +147,14 @@ async function mergePull(): Promise<void> {
   const repository = requireEnv("GITHUB_REPOSITORY");
   const prNumber = requireEnv("PR_NUMBER");
   const branch = requireEnv("BRANCH");
+  const body = [
+    "Daily verified work metrics.", "",
+    `- Dispatch: ${process.env.DISPATCH ?? "0"}`,
+    `- PR Governance: ${process.env.PR_GOVERNANCE ?? "0"}`,
+    `- AI Review: ${process.env.AI_REVIEW ?? "0"}`,
+    `- Gate: ${process.env.GATE ?? "0"}`,
+    `- Release Governance: ${process.env.RELEASE_GOVERNANCE ?? "0"}`,
+  ].join("\n");
   const text = await runGithubCli([
     "api", "--method", "PUT", `repos/${repository}/pulls/${prNumber}/merge`, "-f", "merge_method=squash",
   ], token);
@@ -163,7 +169,7 @@ async function main(): Promise<void> {
   switch (process.argv[2]) {
     case "increment": await prepareIncrement(); break;
     case "changes": await detectChanges(); break;
-    case "branch": await createBranch(); break;
+    case "branch": await createBranch(); break
     case "pull": await createPull(); break;
     case "cleanup": await cleanupBranch(); break;
     case "ci": await runMetricsCi(); break;
