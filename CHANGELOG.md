@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- docs: make English the default repository documentation language and add Simplified Chinese companion indexes.
+
 - fix: distinguish engineering lifecycle labels from qualified domain concepts in shared naming validation.
 
 - fix: isolate read-only task execution credentials from central control and publication credentials before downstream bootstrap execution.
