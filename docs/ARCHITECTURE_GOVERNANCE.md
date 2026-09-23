@@ -85,20 +85,27 @@ PR 的 base SHA、head SHA、分支、状态和 diff 必须由 Action Worker 从
 
 ## 4. 仓库权限策略
 
-PR 中央执行采用仓库白名单。
+仓库权限由单一 Repository Variable `AW_REPOSITORY_POLICY` 控制。Action Worker 不在源码中保存具体仓库名称，也不为 PR、Task、Release 分别维护重复名单。
 
-白名单从 Repository Variable `AW_PR_REPOSITORY_ALLOWLIST` 读取，值为 repository 名称组成的 JSON 数组。Action Worker 不在源码中保存具体仓库名称。
+每个仓库只登记一次，并按需要授予：
+
+```text
+pr
+task
+release-source
+release-target
+```
 
 新增仓库的正常接入动作应尽量只有：
 
 ```text
-修改 AW_PR_REPOSITORY_ALLOWLIST
+修改 AW_REPOSITORY_POLICY
 → 配置薄触发器的 AW_DISPATCH_TOKEN
 → 首次 Inspect
 → 正常运行
 ```
 
-新增或移除普通仓库只应修改 Repository Variable；如果还需要修改核心脚本或增加项目专属 policy，视为架构回退。
+新增、移除或调整普通仓库权限只应修改 Repository Variable；如果还需要修改核心脚本或增加项目专属 policy，视为架构回退。
 
 ## 5. 信任边界
 
