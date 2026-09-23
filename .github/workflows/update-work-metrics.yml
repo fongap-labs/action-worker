@@ -1,6 +1,10 @@
 name: Update Work Metrics
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/update-work-metrics.yml"
   workflow_run:
     workflows:
       - Handle Task Dispatch
@@ -42,7 +46,7 @@ jobs:
   update:
     name: Aggregate and update
     needs: sweep
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name != 'push' && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
 

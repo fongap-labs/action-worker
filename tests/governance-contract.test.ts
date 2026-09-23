@@ -185,5 +185,8 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
   assert.match(workflow, /Sweep stale metrics branches/);
   assert.match(workflow, /node scripts\/manage-work-metrics\.ts sweep/);
   assert.match(workflow, /needs: sweep/);
+  assert.match(workflow, /push:/);
+  assert.match(workflow, /update-work-metrics\.yml/);
+  assert.match(workflow, /github\.event_name != 'push'/);
   assert.match(workflow, /node scripts\/repository-policy\.ts list pr/);
 });
