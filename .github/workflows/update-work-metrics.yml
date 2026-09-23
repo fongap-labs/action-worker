@@ -107,7 +107,7 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         id: pr
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           BRANCH: ${{ steps.branch.outputs.name }}
           DISPATCH: ${{ steps.metrics.outputs.dispatch }}
           PR_GOVERNANCE: ${{ steps.metrics.outputs.pr_governance }}
