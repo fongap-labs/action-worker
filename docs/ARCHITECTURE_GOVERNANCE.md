@@ -83,7 +83,7 @@ PR 的 base SHA、head SHA、分支、状态和 diff 必须由 Action Worker 从
 
 机器合同位于 `contracts/`。
 
-## 4. 项目白名单
+## 4. 仓库权限策略
 
 PR 中央执行采用仓库白名单。
 
