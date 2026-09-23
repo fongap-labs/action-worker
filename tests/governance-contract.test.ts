@@ -72,11 +72,16 @@ test("runtime and machine policies preserve trust boundaries", async () => {
   assert.equal(release.schema_version, 2);
   assert.deepEqual(release.change_attributes, ["breaking", "security", "migration"]);
   assert.deepEqual(release.changelog_required_types, ["feat", "fix", "perf", "revert"]);
+  assert.deepEqual(release.source_repositories, ["fongap-labs/delta", "fongap-labs/app-source", "fongap-labs/external-vault"]);
+  assert.deepEqual(release.target_repositories, ["fongap-labs/external-vault"]);
 
   const review = await json("policies/review.json");
   const runtime = review.runtime as Record<string, unknown>;
   assert.equal(runtime.concurrency, 1);
   assert.equal("retry" in runtime, false);
+  const engine = review.engine as Record<string, unknown>;
+  assert.equal(engine.repository, "fongap-labs/external-vault");
+  assert.equal(engine.version, "1.12.9");
 });
 
 test("PR workflow uses TypeScript controls and preserves ordering", async () => {
@@ -87,13 +92,13 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     "validate-pr-payload.ts", "validate-control-access.ts", "set-pr-status.ts", "validate-engineering-language.ts",
     "publish-pr-review.ts", "wait-ci-evidence.ts", "validate-ci-evidence.ts", "wait-review-turn.ts",
     "run-ai-triage.ts", "apply-ai-triage.ts", "install-ocr.ts", "run-ai-review.ts",
-    "Resolve governance ownership", "check-status-owner.ts", "vars.AW_REVIEW_ENGINE_REPOSITORY",
+    "Resolve governance ownership", "check-status-owner.ts",
   ]);
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
   assert.doesNotMatch(workflow, /@alibaba-group\/open-code-review|npm install -g|review_models|review-diff-fallback/);
   assert.doesNotMatch(workflow, /pr-governance-.*github\.sha/);
   assert.doesNotMatch(workflow, /bash\s+target\//);
-  assert.doesNotMatch(workflow, /AW_REVIEW_ENGINE_REPOSITORY:\s*\$\{\{\s*github\.repository\s*\}\}/);
+  assert.doesNotMatch(workflow, /AW_REVIEW_ENGINE_REPOSITORY/);
   const order = ["- name: Collect CI evidence", "- name: Wait for AI queue", "- name: Run AI Triage", "- name: Resolve final plan", "- name: Run AI review", "- name: Validate CI evidence", "- name: Update final gate"];
   const positions = order.map((value) => workflow.indexOf(value));
   assert.ok(positions.every((value) => value >= 0));
@@ -114,10 +119,11 @@ test("task dispatch keeps generic secrets and typed validation", async () => {
 
 test("release, source, deploy, merge, and repository settings contracts remain intact", async () => {
   const release = await text(".github/workflows/handle-release-dispatch.yml");
-  requireText(release, ["types: [run-release]", "AW_CONTROL_TOKEN", "AW_RELEASE_SOURCE_ALLOWLIST", "AW_RELEASE_TARGET_ALLOWLIST", "node-version: 24", "RELEASE_REQUEST_JSON", "node scripts/publish-release.ts"]);
+  requireText(release, ["types: [run-release]", "AW_CONTROL_TOKEN", "node-version: 24", "RELEASE_REQUEST_JSON", "node scripts/publish-release.ts"]);
+  assert.doesNotMatch(release, /AW_RELEASE_(?:SOURCE|TARGET)_ALLOWLIST/);
   const releaseValidator = await text("scripts/validate-release-request.ts");
-  requireText(releaseValidator, ["AW_RELEASE_SOURCE_ALLOWLIST", "AW_RELEASE_TARGET_ALLOWLIST"]);
-  assert.doesNotMatch(releaseValidator, /process\.env\.RELEASE_(?:SOURCE|TARGET)_ALLOWLIST/);
+  requireText(releaseValidator, ["source_repositories", "target_repositories", "policies/release.json"]);
+  assert.doesNotMatch(releaseValidator, /AW_RELEASE_(?:SOURCE|TARGET)_ALLOWLIST/);
   const prValidator = await text("scripts/validate-pr-payload.ts");
   requireText(prValidator, ["AW_PR_REPOSITORY_ALLOWLIST"]);
   assert.doesNotMatch(prValidator, /process\.env\.PR_REPOSITORY_ALLOWLIST/);
