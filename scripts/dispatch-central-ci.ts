@@ -80,6 +80,7 @@ async function main(): Promise<void> {
       request_id: requestId,
       repository,
       pr_number: Number(prNumber),
+      head_sha: headSha,
     },
   });
 
