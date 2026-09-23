@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: define Dispatch as successful Handle Task Dispatch runs and lock work-metric badge semantics in tests and documentation.
+
 - fix: update all work-metrics badges from completed governance events, synchronize localized READMEs, and wait for PR CI without workflow-dispatch permissions.
 
 - docs: make English the default repository documentation language and add Simplified Chinese companion indexes.
