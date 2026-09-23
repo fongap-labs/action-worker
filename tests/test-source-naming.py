@@ -43,9 +43,17 @@ with tempfile.TemporaryDirectory() as tmp:
     result = run(repo, base, valid)
     assert result.returncode == 0, result.stderr
 
+    (repo / "temp_access.rs").write_text(
+        "fn verify_temp_access(is_enabled: bool) {\n    let can_run = true;\n}\n",
+        encoding="utf-8",
+    )
+    valid_domain = commit(repo, "valid domain lifecycle token")
+    result = run(repo, valid, valid_domain)
+    assert result.returncode == 0, result.stderr
+
     (repo / "bad_name.py").write_text("def build_final_helper(enabled: bool):\n    ready = True\n    return enabled and ready\n", encoding="utf-8")
     invalid_py = commit(repo, "invalid python")
-    result = run(repo, valid, invalid_py)
+    result = run(repo, valid_domain, invalid_py)
     assert result.returncode != 0
     assert "banned naming term" in result.stderr
     assert "boolean parameter 'enabled'" in result.stderr

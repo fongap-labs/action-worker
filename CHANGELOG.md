@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: distinguish engineering lifecycle labels from qualified domain concepts in shared naming validation.
+
 - fix: isolate read-only task execution credentials from central control and publication credentials before downstream bootstrap execution.
 
 - fix: use `AW_CONTROL_TOKEN` only for work-metrics PR creation while keeping local Actions and cleanup on the workflow-scoped token.
