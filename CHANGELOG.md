@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: bootstrap stale metrics-branch cleanup when the metrics workflow itself changes on main.
+
 - fix: run stale work-metrics branch cleanup independently of source workflow success.
 
 - fix: sweep stale closed work-metrics branches before each metrics update.
