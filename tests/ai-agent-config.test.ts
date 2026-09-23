@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   aiAgentModel,
+  aiAgentRuntimeEntries,
   enabledAiModels,
   isAiAgentEnabled,
   parseAiAgentConfig,
@@ -75,4 +76,30 @@ test("AI agent config remains strict when an enabled agent has no model", () => 
       "Bad Agent": { enabled: false },
     },
   })));
+});
+
+
+test("AI agent runtime entries expose enabled defaults and routes only", () => {
+  const config = parseAiAgentConfig(JSON.stringify({
+    schema_version: 1,
+    agents: {
+      triage: { enabled: true, model: "Code-Air" },
+      review: { enabled: false, model: "Code-Pro" },
+      writing: {
+        enabled: true,
+        model: "Pro",
+        routes: {
+          "market-brief": { model: "SenseNova" },
+          "pharma-brief": { model: "Pro" },
+        },
+      },
+    },
+  }));
+
+  assert.deepEqual(aiAgentRuntimeEntries(config), [
+    ["AW_AI_AGENT_TRIAGE_MODEL", "Code-Air"],
+    ["AW_AI_AGENT_WRITING_MODEL", "Pro"],
+    ["AW_AI_AGENT_WRITING_MARKET_BRIEF_MODEL", "SenseNova"],
+    ["AW_AI_AGENT_WRITING_PHARMA_BRIEF_MODEL", "Pro"],
+  ]);
 });
