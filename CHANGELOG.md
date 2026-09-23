@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: give architecture and security AI reviews a five-minute task budget so high-effort Audit-Ultra reviews can complete within the configured 300-second LLM timeout.
+
 - fix: define Dispatch as successful Handle Task Dispatch runs and lock work-metric badge semantics in tests and documentation.
 
 - fix: update all work-metrics badges from completed governance events, synchronize localized READMEs, and wait for PR CI without workflow-dispatch permissions.
