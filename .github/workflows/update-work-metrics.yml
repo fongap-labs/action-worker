@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/update-work-metrics.yml"
+      - "scripts/manage-work-metrics.ts"
   workflow_run:
     workflows:
       - Handle Task Dispatch
