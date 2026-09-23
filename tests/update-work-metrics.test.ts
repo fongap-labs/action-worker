@@ -20,9 +20,9 @@ test("metrics rendering preserves badge order and is idempotent", () => {
     '{"dispatch":7,"pr_governance":12,"ai_review":9,"gate":12,"release_governance":3}',
   );
   const rendered = renderMetrics(source, counts, "fongap/action-worker");
-  assert.match(rendered, /Task%20Dispatch-7-4F6B82/);
-  assert.match(rendered, /PR%20Governance-12-455D73/);
-  assert.match(rendered, /AI%20Review-9-5C6670/);
+  assert.match(rendered, /Task%20Dispatch-7-4E7391/);
+  assert.match(rendered, /PR%20Governance-12-465F7C/);
+  assert.match(rendered, /AI%20Review-9-806B57/);
   const order = ["Task%20Dispatch-", "AI%20Review-", "PR%20Governance-", "Release%20Governance-", "Status"];
   const positions = order.map((token) => rendered.indexOf(token));
   assert.deepEqual(positions, [...positions].sort((left, right) => left - right));
