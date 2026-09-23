@@ -395,7 +395,7 @@ scripts/
   validate-dispatch-payload.ts
   validate-naming-rules.ts
   validate-pr-payload.ts
-  validate-pr-repository.ts
+  repository-policy.ts
   validate-release-request.ts
   validate-repository-variables.ts
   validate-review-result.ts
