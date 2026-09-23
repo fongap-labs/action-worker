@@ -22,6 +22,12 @@ export function resolveBootstrapModel(
       65,
     );
   }
+  const segments = model.split("-");
+  const tier = segments.at(-1);
+  if (tier === "Ultra" && segments.length > 1) {
+    segments[segments.length - 1] = "Max";
+    return segments.join("-");
+  }
   return model;
 }
 
