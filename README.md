@@ -188,6 +188,8 @@ Action Worker 会重新从 GitHub 获取 PR 的 base/head SHA、标题、状态�
 
 ### 2. 任务调度
 
+`AW_EXECUTION_TOKEN` 是 Task 执行读取受管私有仓固定 Commit 的只读凭据（建议仅 `Contents: Read`）。bootstrap 下载完成后，Action Worker 会清除 `AW_EXECUTION_TOKEN`、`AW_CONTROL_TOKEN`、`AW_ADMIN_TOKEN`、`AIG_ACCESS_KEY_AGENT` 与 `AW_DISPATCH_TOKEN`，业务 bootstrap 不继承中央控制凭据。
+
 Task Dispatch 仅接受固定事件：
 
 ```text
