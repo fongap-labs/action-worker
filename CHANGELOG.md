@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: use `AW_CONTROL_TOKEN` only for work-metrics PR creation while keeping local Actions and cleanup on the workflow-scoped token.
+
 - fix: trigger the stale metrics-branch sweep when its implementation script changes on main.
 
 - fix: force GET for stale-metrics pull-request discovery so GitHub CLI does not reinterpret query fields as a PR creation request.
