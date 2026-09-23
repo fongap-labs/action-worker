@@ -34,8 +34,13 @@ export function buildReview(status: string, runUrl: string, planValue: unknown, 
       lines.push(`- Model: \`${model}\``);
     }
     lines.push(`- Blocking threshold: \`${getJsonString(planValue, "block_severity") || "none"}\``);
+    lines.push(`- Review availability: \`${getJsonString(planValue, "review_availability") || "required"}\``);
   }
-  if (isJsonRecord(resultValue) && (resultValue.comments === undefined || Array.isArray(resultValue.comments))) {
+  if (isJsonRecord(resultValue) && getJsonString(resultValue, "status") === "unavailable") {
+    lines.push(`- AI Review: \`unavailable\` (${getJsonString(resultValue, "unavailable_reason") || "unknown"})`);
+    lines.push("");
+    lines.push("AI Review did not complete; deterministic CI and policy checks were used under the configured best-effort availability policy.");
+  } else if (isJsonRecord(resultValue) && (resultValue.comments === undefined || Array.isArray(resultValue.comments))) {
     const comments = Array.isArray(resultValue.comments) ? resultValue.comments.filter(isJsonRecord) : [];
     const countSeverity = (severity: string): number => comments.filter((item) => getJsonString(item, "severity").toLowerCase() === severity).length;
     lines.push(`- Findings: ${comments.length} (critical ${countSeverity("critical")} · high ${countSeverity("high")} · medium ${countSeverity("medium")} · low ${countSeverity("low")})`);
