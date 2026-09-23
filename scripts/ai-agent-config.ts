@@ -113,3 +113,37 @@ export function enabledAiModels(config: AiAgentConfig, agentNames?: readonly str
   }
   return [...models].sort();
 }
+
+
+function runtimeToken(value: string): string {
+  return value.toUpperCase().replaceAll("-", "_");
+}
+
+export function aiAgentRuntimeEntries(config: AiAgentConfig): Array<[string, string]> {
+  const entries: Array<[string, string]> = [];
+  const names = new Set<string>();
+
+  const add = (name: string, model: string): void => {
+    if (names.has(name)) {
+      throw new CliError(`::error::AI agent runtime variable collision: ${name}`, 65);
+    }
+    names.add(name);
+    entries.push([name, model]);
+  };
+
+  for (const [agentName, agent] of Object.entries(config.agents).sort(([a], [b]) => a.localeCompare(b))) {
+    if (!agent.enabled) continue;
+    const agentToken = runtimeToken(agentName);
+    if (agent.model) {
+      add(`AW_AI_AGENT_${agentToken}_MODEL`, agent.model);
+    }
+    for (const [routeName, route] of Object.entries(agent.routes).sort(([a], [b]) => a.localeCompare(b))) {
+      add(
+        `AW_AI_AGENT_${agentToken}_${runtimeToken(routeName)}_MODEL`,
+        route.model,
+      );
+    }
+  }
+
+  return entries;
+}

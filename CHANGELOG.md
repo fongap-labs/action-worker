@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: derive task-runtime AI Agent model variables from `AW_AI_AGENT_CONFIG` so downstream writing and future agents share one model authority without project-level model settings.
+
 - refactor: centralize optional AI Agent enablement and logical-model routing in `AW_AI_AGENT_CONFIG`, keeping Review, Triage, Writing, and future agents under one runtime configuration authority.
 
 - fix: run release AI review on Code-Max while preserving the same strict blocking policy.

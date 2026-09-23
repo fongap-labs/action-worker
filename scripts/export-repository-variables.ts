@@ -8,6 +8,7 @@ import {
   parseJson,
 } from "./runtime-command.ts";
 import { isJsonRecord } from "./github-api.ts";
+import { aiAgentRuntimeEntries, parseAiAgentConfig } from "./ai-agent-config.ts";
 
 function valueText(value: unknown): string {
   if (value === null || value === undefined) {
@@ -49,11 +50,22 @@ async function main(): Promise<void> {
   const value = parseJson(process.env.REPOSITORY_VARS_JSON || "{}", "::error::Repository Variables payload must be valid JSON.");
   const entries = variableEntries(value);
   const sorted = Object.fromEntries(entries);
+  const aiAgentConfig = parseAiAgentConfig(sorted.AW_AI_AGENT_CONFIG ?? "");
+  const agentEntries = aiAgentRuntimeEntries(aiAgentConfig);
+  const repositoryNames = new Set(entries.map(([name]) => name));
+  for (const [name] of agentEntries) {
+    if (repositoryNames.has(name)) {
+      throw new CliError(
+        `::error::Repository Variable "${name}" conflicts with an AI Agent runtime variable derived from AW_AI_AGENT_CONFIG.`,
+        65,
+      );
+    }
+  }
   const snapshot = `${runnerTemp}/action-worker-repository-vars.json`;
   await writeFile(snapshot, JSON.stringify(sorted), "utf8");
   await chmod(snapshot, 0o600);
   let count = 0;
-  for (const [name, text] of entries) {
+  for (const [name, text] of [...entries, ...agentEntries]) {
     if (isReserved(name)) {
       continue;
     }
@@ -64,7 +76,9 @@ async function main(): Promise<void> {
     await appendLines(githubEnv, [`${name}<<${delimiter}`, text, delimiter]);
     count += 1;
   }
-  console.log(`Repository Variables exported: ${count}`);
+  console.log(
+    `Repository Variables exported: ${entries.length}; AI Agent runtime variables exported: ${agentEntries.length}`,
+  );
 }
 
 if (isMain(import.meta.url)) {
