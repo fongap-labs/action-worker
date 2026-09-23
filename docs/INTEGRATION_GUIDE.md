@@ -86,7 +86,8 @@ AW_REPOSITORY_POLICY
 {
   "fongap-labs/ai-gateway": ["pr", "task"],
   "fongap-labs/delta": ["pr", "task", "release-source"],
-  "fongap-labs/external-vault": ["pr", "task", "release-source", "release-target"]
+  "fongap-labs/internal-vault": ["pr", "task", "release-source"],
+  "fongap-labs/external-vault": ["pr", "task", "release-target"]
 }
 ```
 
@@ -106,6 +107,18 @@ AI Review Engine 的分发仓库、版本和资产统一由 `policies/review.jso
 - Pull Requests: Read/Write；
 - Commit Statuses: Read/Write；
 - Actions: Read。
+
+### Task 产物跨仓发布
+
+需要把 Task 产物写到其他仓库时，业务任务只负责生成并暂存产物，不配置目标仓写 Token。Action Worker 在任务成功后验证 `AW_REPOSITORY_POLICY`，再使用中央 `AW_CONTROL_TOKEN` 发布：
+
+```text
+source repository (release-source)
+→ run-task
+→ stage artifact
+→ Action Worker publication gate
+→ target repository (release-target)
+```
 
 ## 5. Release 接入
 

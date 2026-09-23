@@ -37,7 +37,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
     "scripts/github-api.ts", "scripts/resolve-pr-plan.ts", "scripts/run-ai-triage.ts", "scripts/runtime-command.ts",
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
-    "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/update-work-metrics.ts",
+    "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/update-work-metrics.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
     ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
   ];
@@ -110,16 +110,22 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   assert.deepEqual(positions, [...positions].sort((left, right) => left - right));
 });
 
-test("task dispatch keeps generic secrets and typed validation", async () => {
+test("task dispatch keeps the publication credential in the central control step", async () => {
   const workflow = await text(".github/workflows/handle-task-dispatch.yml");
   requireText(workflow, [
     "env: ${{ secrets }}", "REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}", "node scripts/export-repository-variables.ts",
     "node scripts/validate-repository-variables.ts", "node scripts/validate-dispatch-payload.ts", "compgen -e",
     "action-worker-base-env.names", "action-worker-repository-vars.json", "AW_REPOSITORY_POLICY", "node-version: 24",
+    "node scripts/validate-task-publication.ts", "Publish staged artifact", "secrets.AW_CONTROL_TOKEN",
   ]);
   assert.doesNotMatch(workflow, /toJSON\s*\(\s*secrets\s*\)/);
-  assert.doesNotMatch(workflow, /\$\{\{\s*secrets\.[A-Za-z_][A-Za-z0-9_]*\s*\}\}/);
+  const directSecrets = [...workflow.matchAll(/\$\{\{\s*secrets\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g)]
+    .map((match) => match[1]);
+  assert.deepEqual([...new Set(directSecrets)], ["AW_CONTROL_TOKEN"]);
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
+
+  const publication = await text("scripts/validate-task-publication.ts");
+  requireText(publication, ["release-source", "release-target", "action-worker-publication", "target_repository", "dest_dir"]);
 });
 
 test("release, source, deploy, merge, and repository settings contracts remain intact", async () => {
