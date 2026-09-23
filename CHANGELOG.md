@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: update all work-metrics badges from completed governance events, synchronize localized READMEs, and wait for PR CI without workflow-dispatch permissions.
+
 - docs: make English the default repository documentation language and add Simplified Chinese companion indexes.
 
 - fix: distinguish engineering lifecycle labels from qualified domain concepts in shared naming validation.
