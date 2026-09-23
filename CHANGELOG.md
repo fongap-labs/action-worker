@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- style: align work-metric value colors with the GitHub brand palette.
+
 - style: use default Shields label backgrounds and GitHub label colors for work-metric values.
 
 - style: apply a visually reviewed muted palette to work-metric badges.
