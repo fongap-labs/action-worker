@@ -192,5 +192,7 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
   assert.match(workflow, /push:/);
   assert.match(workflow, /update-work-metrics\.yml/);
   assert.match(workflow, /github\.event_name != 'push'/);
+  const metricsScript = await text("scripts/manage-work-metrics.ts");
+  assert.match(metricsScript, /"api", "--method", "GET", `repos\/\$\{repository\}\/pulls`/);
   assert.match(workflow, /node scripts\/repository-policy\.ts list pr/);
 });
