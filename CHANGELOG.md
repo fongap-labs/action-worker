@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: align the default AI review task budget with the configured 300-second LLM timeout.
+
 - fix: classify CHANGELOG updates as documentation so release review is selected only by actual release semantics or declared release impact.
 
 - style: align work-metric value colors with the GitHub brand palette.
