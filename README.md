@@ -4,7 +4,7 @@
 
 **GitHub 自动化编排与治理中枢**
 
-任务调度 · AI 审查 · PR 治理 · 发布治理 · 部署治理
+任务调度 · AI Agent · PR 治理 · 发布治理 · 部署治理
 
 <!-- work-metrics:start -->
 [![Dispatch](https://img.shields.io/badge/Dispatch-1%2C411-2F80ED?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/actions) [![AI Review](https://img.shields.io/badge/AI%20Review-3-8B5CF6?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/actions) [![PR Governance](https://img.shields.io/badge/PR%20Governance-4-6366F1?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/actions) [![Release Governance](https://img.shields.io/badge/Release%20Governance-0-14B8A6?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/releases) [![Status](https://img.shields.io/github/actions/workflow/status/fongap-labs/action-worker/validate-ci.yml?branch=main&style=flat-square&label=Status&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/actions/workflows/validate-ci.yml)
@@ -18,7 +18,7 @@
 
 Action Worker 是面向多仓库的 GitHub 自动化编排与治理中枢。
 
-统一任务调度、AI 审查、PR 治理、CI Evidence、发布治理与部署准入；业务仓只保留产品代码、测试、构建和部署实现。
+统一任务调度、AI Agent、PR 治理、CI Evidence、发布治理与部署准入；业务仓只保留产品代码、测试、构建和部署实现。
 
 调用方只指定目标，Action Worker 负责校验事实、生成计划、执行审查，并依据可验证结果放行或阻断。
 
@@ -45,7 +45,7 @@ Gate
 
 ## 核心设计
 
-### 确定性治理 × Agent 审查
+### 确定性治理 × AI Agent
 
 固定边界与动态判断分离。
 
@@ -130,7 +130,31 @@ jobs:
             -d "$payload"
 ```
 
-业务仓只需要 `AW_DISPATCH_TOKEN`，其权限只用于向同一组织的 `action-worker` 发送 `repository_dispatch`；目标仓由 `GITHUB_REPOSITORY_OWNER` 推导。`AI_GATEWAY_URL`、`AIG_ACCESS_KEY_AGENT` 与跨仓回写凭据只保存在 Action Worker。AI 审计为中央可选能力：仅当 `AW_IS_AI_REVIEW_ENABLED=true` 时运行 Triage / OCR / AI Review；未配置或设为其他值时跳过 AI 步骤，确定性 CI、命名和治理门禁仍正常执行。
+业务仓只需要 `AW_DISPATCH_TOKEN`，其权限只用于向同一组织的 `action-worker` 发送 `repository_dispatch`；目标仓由 `GITHUB_REPOSITORY_OWNER` 推导。`AI_GATEWAY_URL`、`AIG_ACCESS_KEY_AGENT` 与跨仓回写凭据只保存在 Action Worker。
+
+所有 AI Agent 的运行配置统一使用 Repository Variable `AW_AI_AGENT_CONFIG`。例如：
+
+```json
+{
+  "schema_version": 1,
+  "agents": {
+    "triage": { "enabled": true, "model": "Code-Air" },
+    "review": {
+      "enabled": false,
+      "model": "Code-Pro",
+      "routes": {
+        "release": { "model": "Code-Max" },
+        "security": { "model": "Code-Ultra" },
+        "architecture": { "model": "Code-Ultra" },
+        "deep": { "model": "Code-Ultra" }
+      }
+    },
+    "writing": { "enabled": true, "model": "Pro" }
+  }
+}
+```
+
+未配置时可选 AI Agent 默认关闭。当前建议保持 `review.enabled=false`，先让确定性治理独立稳定运行；Writing、Review 或未来其他 Agent 可以分别调整，不再维护 Review 专用开关。
 
 Action Worker 使用单一 Repository Variable `AW_REPOSITORY_POLICY` 管理仓库能力。每个仓库只登记一次，可授予 `pr`、`task`、`release-source`、`release-target`：
 
@@ -155,12 +179,12 @@ repository_dispatch
   ↓
 Action Worker
   ↓
-Validate → Inspect → Plan → CI Evidence → Triage → Review → Gate
+Validate → Inspect → Plan → CI Evidence → Optional AI Agents → Gate
   ↓
 PR Governance commit status + sticky review summary
 ```
 
-Action Worker 会重新从 GitHub 获取 PR 的 base/head SHA、标题、状态和 diff；调用方不能声明这些事实。需要 CI 的变更先收集当前 head SHA 的 CI Evidence，再交给 AI Review，最后由确定性 Gate 要求 `validate-merge=success`。项目测试仍在业务仓 Sandbox 执行，中央 Control 不执行 PR 提供的代码。
+Action Worker 会重新从 GitHub 获取 PR 的 base/head SHA、标题、状态和 diff；调用方不能声明这些事实。需要 CI 的变更先收集当前 head SHA 的 CI Evidence；启用的 AI Agent 可以读取这些证据辅助判断，最终仍由确定性 Gate 要求 `validate-merge=success`。项目测试仍在业务仓 Sandbox 执行，中央 Control 不执行 PR 提供的代码。
 
 ### 2. 任务调度
 
@@ -295,7 +319,7 @@ Control
 ├─ diff
 ├─ Plan
 ├─ CI Evidence
-├─ AI Review
+├─ optional AI Agents
 ├─ Gate
 └─ central secrets allowed
 
