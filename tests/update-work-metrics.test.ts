@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   applyIncrement,
   mapWithLimit,
+  isSuccessfulRun,
   parseFixture,
   renderMetrics,
 } from "../scripts/update-work-metrics.ts";
@@ -16,10 +17,10 @@ old
 
 test("metrics rendering preserves badge order and is idempotent", () => {
   const counts = parseFixture(
-    '{"dispatch":1411,"pr_governance":12,"ai_review":9,"gate":12,"release_governance":3}',
+    '{"dispatch":7,"pr_governance":12,"ai_review":9,"gate":12,"release_governance":3}',
   );
   const rendered = renderMetrics(source, counts, "fongap/action-worker");
-  assert.match(rendered, /Dispatch-1%2C411-2F80ED/);
+  assert.match(rendered, /Dispatch-7-2F80ED/);
   assert.match(rendered, /PR%20Governance-12-6366F1/);
   assert.match(rendered, /AI%20Review-9-8B5CF6/);
   const order = ["Dispatch-", "AI%20Review-", "PR%20Governance-", "Release%20Governance-", "Status"];
@@ -27,6 +28,30 @@ test("metrics rendering preserves badge order and is idempotent", () => {
   assert.deepEqual(positions, [...positions].sort((left, right) => left - right));
   assert.equal(renderMetrics(rendered, counts, "fongap/action-worker"), rendered);
   assert.equal(renderMetrics(source.replaceAll("\n", "\r\n"), counts, "fongap/action-worker").includes("\r"), false);
+});
+
+test("Dispatch counts only successful Handle Task Dispatch repository runs", () => {
+  const path = ".github/workflows/handle-task-dispatch.yml";
+  assert.equal(isSuccessfulRun({
+    path,
+    event: "repository_dispatch",
+    conclusion: "success",
+  }, path), true);
+  assert.equal(isSuccessfulRun({
+    path,
+    event: "repository_dispatch",
+    conclusion: "failure",
+  }, path), false);
+  assert.equal(isSuccessfulRun({
+    path,
+    event: "push",
+    conclusion: "success",
+  }, path), false);
+  assert.equal(isSuccessfulRun({
+    path: ".github/workflows/handle-pr-dispatch.yml",
+    event: "repository_dispatch",
+    conclusion: "success",
+  }, path), false);
 });
 
 test("metrics jobs use bounded concurrency and preserve result order", async () => {
@@ -46,7 +71,7 @@ test("metrics jobs use bounded concurrency and preserve result order", async () 
 
 test("increment mode reads the current badges and derives the gate count", () => {
   const current = renderMetrics(source, {
-    dispatch: 1411,
+    dispatch: 7,
     pr_governance: 12,
     ai_review: 9,
     gate: 12,
@@ -58,7 +83,7 @@ test("increment mode reads the current badges and derives the gate count", () =>
     ai_review: 1,
     release_governance: 0,
   }), {
-    dispatch: 1412,
+    dispatch: 8,
     pr_governance: 13,
     ai_review: 10,
     gate: 13,
