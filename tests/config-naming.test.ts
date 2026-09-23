@@ -8,6 +8,7 @@ test("accepts context-independent external names", () => {
       "${{ secrets.AW_CONTROL_TOKEN }}",
       "${{ secrets.AIG_ACCESS_KEY_AGENT }}",
       "${{ vars.AI_GATEWAY_URL }}",
+      "${{ vars.APP_SOURCE_RELEASE_TARGET_REPOSITORY }}",
       "${{ vars.CLOUDFLARE_ACCOUNT_ID }}",
     ].join("\n")),
     [],

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: accept the `APP_SOURCE_` external configuration prefix as a context-independent system identity.
+
 - fix: keep work-metrics repository actions on the workflow-scoped GitHub token and clean failed metric PRs and branches.
 
 - fix: recognize scoped business owners in external configuration naming while continuing to reject generic context-dependent names.
