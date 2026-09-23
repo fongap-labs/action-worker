@@ -26,6 +26,22 @@ function requireEnv(name: string): string {
   return value;
 }
 
+export function metricIncrementForWorkflow(
+  workflow: string,
+  hasReview = false,
+): Record<string, number> {
+  if (workflow === "Handle Task Dispatch") {
+    return { dispatch: 1, pr_governance: 0, ai_review: 0, release_governance: 0 };
+  }
+  if (workflow === "Handle PR Dispatch") {
+    return { dispatch: 0, pr_governance: 1, ai_review: hasReview ? 1 : 0, release_governance: 0 };
+  }
+  if (workflow === "Handle Release Dispatch") {
+    return { dispatch: 0, pr_governance: 0, ai_review: 0, release_governance: 1 };
+  }
+  throw new CliError(`::error::Unsupported workflow_run source: ${workflow}`, 65);
+}
+
 async function prepareIncrement(): Promise<void> {
   const eventName = process.env.EVENT_NAME ?? "";
   if (eventName !== "workflow_run") {
@@ -33,30 +49,26 @@ async function prepareIncrement(): Promise<void> {
     return;
   }
   const workflow = process.env.SOURCE_WORKFLOW ?? "";
-  let increment: Record<string, number>;
-  if (workflow === "Handle Task Dispatch") {
-    increment = { dispatch: 1, pr_governance: 0, ai_review: 0, release_governance: 0 };
-  } else if (workflow === "Handle PR Dispatch") {
+  let hasReview = false;
+  if (workflow === "Handle PR Dispatch") {
     const token = requireEnv("GH_TOKEN");
     const repository = requireEnv("GITHUB_REPOSITORY");
     const runId = requireEnv("SOURCE_RUN_ID");
     const text = await runGithubCli(["api", `repos/${repository}/actions/runs/${runId}/jobs?per_page=100`], token);
     const response = JSON.parse(text) as unknown;
-    const hasReview = getJsonArray(response, "jobs").some((job) => {
+    hasReview = getJsonArray(response, "jobs").some((job) => {
       const steps = isJsonRecord(job) && Array.isArray(job.steps) ? job.steps : [];
       return steps.some((step) => isJsonRecord(step)
         && getJsonString(step, "name") === "Run AI review"
         && getJsonString(step, "conclusion") === "success");
     });
-    increment = { dispatch: 0, pr_governance: 1, ai_review: hasReview ? 1 : 0, release_governance: 0 };
-  } else {
-    throw new CliError(`::error::Unsupported workflow_run source: ${workflow}`, 65);
   }
+  const increment = metricIncrementForWorkflow(workflow, hasReview);
   await appendLines(process.env.GITHUB_OUTPUT, [`json=${JSON.stringify(increment)}`]);
 }
 
 async function detectChanges(): Promise<void> {
-  const status = await runText("git", ["status", "--porcelain", "--", "README.md"]);
+  const status = await runText("git", ["status", "--porcelain", "--", "README.md", "README.zh-CN.md"]);
   await appendLines(process.env.GITHUB_OUTPUT, [`changed=${status ? "true" : "false"}`]);
 }
 
@@ -65,7 +77,7 @@ async function createBranch(): Promise<void> {
   await runCommand("git", ["config", "user.name", "github-actions[bot]"]);
   await runCommand("git", ["config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"]);
   await runCommand("git", ["checkout", "-b", branch]);
-  await runCommand("git", ["add", "README.md"]);
+  await runCommand("git", ["add", "README.md", "README.zh-CN.md"]);
   await runCommand("git", ["commit", "-m", "chore: update work metrics"]);
   await runCommand("git", ["fetch", "origin", "main"]);
   await runCommand("git", ["rebase", "origin/main"]);
@@ -79,7 +91,7 @@ async function createPull(): Promise<void> {
   const repository = requireEnv("GITHUB_REPOSITORY");
   const branch = requireEnv("BRANCH");
   const body = [
-    "Daily verified work metrics.", "",
+    "Verified work metrics.", "",
     `- Dispatch: ${process.env.DISPATCH ?? "0"}`,
     `- PR Governance: ${process.env.PR_GOVERNANCE ?? "0"}`,
     `- AI Review: ${process.env.AI_REVIEW ?? "0"}`,
@@ -128,12 +140,11 @@ async function runMetricsCi(): Promise<void> {
   const token = requireEnv("GH_TOKEN");
   const branch = requireEnv("BRANCH");
   const headSha = requireEnv("HEAD_SHA");
-  await runGithubCli(["workflow", "run", "validate-ci.yml", "--ref", branch], token);
   let runId = 0;
-  for (let attempt = 0; attempt < 30; attempt += 1) {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
     const text = await runGithubCli([
       "run", "list", "--workflow", "validate-ci.yml", "--branch", branch,
-      "--event", "workflow_dispatch", "--limit", "10", "--json", "databaseId,headSha",
+      "--event", "pull_request", "--limit", "10", "--json", "databaseId,headSha",
     ], token);
     const runs = JSON.parse(text) as unknown;
     const matched = Array.isArray(runs) ? runs.find((run) => isJsonRecord(run) && getJsonString(run, "headSha") === headSha) : undefined;
@@ -144,7 +155,7 @@ async function runMetricsCi(): Promise<void> {
     await sleep(2000);
   }
   if (!runId) {
-    throw new CliError("::error::No CI run was found for the metrics branch.");
+    throw new CliError("::error::No pull-request CI run was found for the metrics branch.");
   }
   await runGithubCli(["run", "watch", String(runId), "--exit-status"], token);
   await appendLines(process.env.GITHUB_OUTPUT, [`run_id=${runId}`]);

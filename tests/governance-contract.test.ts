@@ -184,7 +184,7 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
   assert.match(workflow, /METRICS_TOKEN:.*AW_CONTROL_TOKEN/);
   assert.ok((workflow.match(/GH_TOKEN: \$\{\{ github\.token \}\}/g) ?? []).length >= 5);
   assert.equal((workflow.match(/GH_TOKEN: \$\{\{ secrets\.AW_CONTROL_TOKEN \}\}/g) ?? []).length, 1);
-  const pullStep = workflow.slice(workflow.indexOf("      - name: Create auto-update PR"), workflow.indexOf("      - name: Trigger CI"));
+  const pullStep = workflow.slice(workflow.indexOf("      - name: Create auto-update PR"), workflow.indexOf("      - name: Wait for CI"));
   assert.match(pullStep, /GH_TOKEN: \$\{\{ secrets\.AW_CONTROL_TOKEN \}\}/);
   assert.match(workflow, /Cleanup failed metrics update/);
   assert.match(workflow, /Sweep stale metrics branches/);
@@ -197,7 +197,11 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
   assert.match(workflow, /push:/);
   assert.match(workflow, /update-work-metrics\.yml/);
   assert.match(workflow, /scripts\/manage-work-metrics\.ts/);
-  assert.match(workflow, /github\.event_name != 'push'/);
+  assert.match(workflow, /scripts\/update-work-metrics\.ts/);
+  assert.match(workflow, /Handle Release Dispatch/);
+  assert.match(workflow, /github\.event_name != 'workflow_run'/);
+  assert.doesNotMatch(workflow, /github\.event_name != 'push'/);
+  assert.doesNotMatch(workflow, /gh workflow run validate-ci\.yml/);
   const metricsScript = await text("scripts/manage-work-metrics.ts");
   assert.match(metricsScript, /"api", "--method", "GET", `repos\/\$\{repository\}\/pulls`/);
   assert.match(workflow, /node scripts\/repository-policy\.ts list pr/);
