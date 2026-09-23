@@ -99,8 +99,11 @@ export function validateConfigText(path: string, text: string): string[] {
       errors.push(`${path}: credential '${name}' must use TOKEN or KEY instead of PAT`);
     }
     const usesBooleanPrefix = /(?:^|_)(?:IS|HAS|CAN|SHOULD)_/.test(name);
-    const looksBoolean = /(?:^|_)(?:ALLOW|ENABLE|DISABLE|EXPOSE|INCLUDE)_/.test(name)
-      || name.endsWith("_ENABLED");
+    const isModeValue = name.endsWith("_MODE");
+    const looksBoolean = !isModeValue && (
+      /(?:^|_)(?:ALLOW|ENABLE|DISABLE|EXPOSE|INCLUDE)_/.test(name)
+      || name.endsWith("_ENABLED")
+    );
     if (looksBoolean && !usesBooleanPrefix) {
       errors.push(`${path}: Boolean configuration '${name}' must include an IS_, HAS_, CAN_, or SHOULD_ semantic segment`);
     }

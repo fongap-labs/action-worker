@@ -21,6 +21,13 @@ test("does not reject semantically complete external names for segment count", (
   );
 });
 
+test("does not classify mode-valued configuration as Boolean", () => {
+  assert.deepEqual(
+    validateConfigText(".github/workflows/deploy.yml", "${{ vars.AIG_USAGE_INCLUDE_MODE }}"),
+    [],
+  );
+});
+
 test("rejects repository-context-only external names", () => {
   const errors = validateConfigText(".github/workflows/ci.yml", [
     "${{ secrets.GENERIC_TOKEN }}",
