@@ -39,6 +39,8 @@ type ReviewPolicy = {
     llm_timeout_seconds?: number;
     task_timeout_minutes?: number;
     concurrency?: number;
+    resume_attempts?: number;
+    resume_backoff_seconds?: number;
   };
 };
 
@@ -90,6 +92,8 @@ export type PrPlan = {
   review_llm_timeout: number;
   review_task_timeout: number;
   review_concurrency: number;
+  review_resume_attempts: number;
+  review_resume_backoff_seconds: number;
   triage_required: boolean;
   triage_model: string;
   triage_timeout: number;
@@ -216,6 +220,8 @@ export function resolvePlan(
   let reviewLlmTimeout = 0;
   let reviewTaskTimeout = 0;
   let reviewConcurrency = 0;
+  let reviewResumeAttempts = 0;
+  let reviewResumeBackoffSeconds = 0;
   let isTriageRequired = false;
   let triageModel = "";
   let triageTimeout = 0;
@@ -228,6 +234,8 @@ export function resolvePlan(
     reviewLlmTimeout = policies.review.runtime.llm_timeout_seconds ?? 300;
     reviewTaskTimeout = policies.review.runtime.task_timeout_minutes ?? 2;
     reviewConcurrency = policies.review.runtime.concurrency ?? 1;
+    reviewResumeAttempts = policies.review.runtime.resume_attempts ?? 1;
+    reviewResumeBackoffSeconds = policies.review.runtime.resume_backoff_seconds ?? 15;
 
     if (policies.triage.enabled_agents.includes(reviewAgent)) {
       isTriageRequired = true;
@@ -270,6 +278,8 @@ export function resolvePlan(
     reviewLlmTimeout = 0;
     reviewTaskTimeout = 0;
     reviewConcurrency = 0;
+    reviewResumeAttempts = 0;
+    reviewResumeBackoffSeconds = 0;
     isTriageRequired = false;
     triageModel = "";
     triageTimeout = 0;
@@ -278,6 +288,8 @@ export function resolvePlan(
     requireRange(reviewLlmTimeout, 1, 600, "::error::review_llm_timeout must be 1-600 seconds.");
     requireRange(reviewTaskTimeout, 1, 30, "::error::review_task_timeout must be 1-30 minutes.");
     requireRange(reviewConcurrency, 1, 8, "::error::review_concurrency must be 1-8.");
+    requireRange(reviewResumeAttempts, 0, 5, "::error::review_resume_attempts must be 0-5.");
+    requireRange(reviewResumeBackoffSeconds, 1, 120, "::error::review_resume_backoff_seconds must be 1-120 seconds.");
     if (!reviewModel) {
       throw new CliError("::error::Invalid review_model configuration.", 65);
     }
@@ -303,6 +315,8 @@ export function resolvePlan(
     review_llm_timeout: reviewLlmTimeout,
     review_task_timeout: reviewTaskTimeout,
     review_concurrency: reviewConcurrency,
+    review_resume_attempts: reviewResumeAttempts,
+    review_resume_backoff_seconds: reviewResumeBackoffSeconds,
     triage_required: isTriageRequired,
     triage_model: triageModel,
     triage_timeout: triageTimeout,
