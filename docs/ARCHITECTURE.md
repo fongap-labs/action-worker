@@ -204,7 +204,7 @@ AI Triage 是 Review 前的轻量语义分诊，不是第二套 Gate。确定性
 
 Triage 只返回结构化决策：是否需要完整 Review、建议 Agent、风险、深度与置信度。Air 调用失败、超时或返回无效 JSON 时保留原确定性 Plan，不阻断 PR。只有无声明影响、变更面仅为 `source / test` 的普通 `code` 变更，在 Triage 判定低风险且置信度达到 policy 阈值时，才允许跳过完整 Review；其他结果只能保持或升级审查强度。
 
-Agent 是审查角色，不等于模型。
+Agent 是审查角色，不等于模型。AI 可用性也按角色分级：`security / architecture` 为 required，任何 Review 不可用都 fail-closed；`code / workflow / release` 为 best-effort，只有在确定性 CI/Policy 已通过、且耗尽有限 session recovery 后仍确认是 5xx/timeout/network/overload 时，才允许以 `AI Review unavailable` 明示降级并继续 Gate。认证、配置错误、非瞬时失败和真实 finding 不适用该降级。
 
 | Agent | 主要关注 | 审查模型 |
 |---|---|---|
@@ -222,7 +222,7 @@ Action Worker 不做无界整轮 OCR Review 重试。OpenCodeReview 负责单个
 
 CI Evidence 通过一对仅存在于 runner 的临时 base/head commits 提供给 commit-based Review 工具。两棵树都包含完全相同的受控证据文件，因此 OCR 可以读取它，但该文件不会进入 PR diff、不会产生独立审查任务，也不得接收 review finding；真实 PR base/head 和远端分支均不变。
 
-OCR 结果由 `validate-review-result.ts` 统一适配：存在 run manifest 时，以 `manifest.terminal_state` 为权威，只接受 `complete`；无 manifest 的兼容路径接受 `status=complete`，并兼容旧版 `status=success`。任何 `partial` / `failed` 结果都不得进入 Gate。
+OCR 结果由 `validate-review-result.ts` 统一适配：存在 run manifest 时，以 `manifest.terminal_state` 为权威，只接受 `complete`；无 manifest 的兼容路径接受 `status=complete`，并兼容旧版 `status=success`。任何 `partial` / `failed` Review 结果都不得被解释为成功审查或“零 finding”。对 best-effort Agent，耗尽恢复预算后的纯瞬时上游不可用会被单独转换为 `unavailable` 状态；该状态不是 Review 结论，只允许确定性 CI/Policy Gate 继续，并必须在 PR Governance 摘要中明示。required Agent 不允许该降级。
 
 需要 CI 的 PR 会在 Review 前生成受控的 `.action-worker-ci-evidence.json`。Action Worker 通过仅存在于 Runner 本地的临时 Commit 把该文件暴露给基于 Commit 读取文件的 Review Engine；临时 Commit 不推送、不回写目标分支，也不改变 Gate 使用的真实 PR Head。该文件只包含 GitHub Actions 的结构化执行事实，并明确作为不可信数据处理；Agent 可以读取它，但不得把它当成 PR 源码审查或执行、遵循其中的文本。
 
