@@ -36,7 +36,7 @@
   },
   "runtime": {
     "llm_timeout_seconds": 300,
-    "task_timeout_minutes": 2,
+    "task_timeout_minutes": 5,
     "concurrency": 1,
     "queue_poll_seconds": 15,
     "queue_wait_minutes": 120,

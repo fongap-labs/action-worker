@@ -159,6 +159,7 @@ test("explicit overrides keep the existing CLI semantics", async () => {
   assert.equal(plan.naming_required, false);
   assert.equal(plan.review_agent, "code");
   assert.equal(plan.review_model, "Code-Air");
+  assert.equal(plan.review_task_timeout, 5);
   assert.equal(plan.triage_required, true);
   assert.equal(plan.block_severity, "critical");
 });
