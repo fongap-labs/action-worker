@@ -63,6 +63,8 @@ test("workflow changes route through normal triage", async () => {
   assert.equal(plan.review_model, "Code-Pro");
   assert.equal(plan.review_effort, "low");
   assert.equal(plan.review_rule, "workflow.json");
+  assert.equal(plan.review_resume_attempts, 3);
+  assert.equal(plan.review_resume_backoff_seconds, 15);
   assert.equal(plan.triage_required, true);
   assert.equal(plan.triage_model, "Code-Air");
   assert.equal(plan.block_severity, "critical");
