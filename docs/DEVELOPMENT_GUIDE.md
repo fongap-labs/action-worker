@@ -147,8 +147,7 @@ Manifest 必须提供目标仓、`release_key`、SemVer 与每个资产的 SHA25
 
 ```text
 AW_CONTROL_TOKEN
-AW_RELEASE_SOURCE_ALLOWLIST
-AW_RELEASE_TARGET_ALLOWLIST
+AW_REPOSITORY_POLICY
 ```
 
 发布失败必须回滚本次 Tag 与 Release。
