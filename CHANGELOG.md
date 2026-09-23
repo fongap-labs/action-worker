@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: add bounded exponential-backoff session recovery for transient AI review failures while preserving FIFO single concurrency.
+
 - fix: move review distribution and release repository allowlists into versioned governance policy.
 
 - fix: resolve the OpenCodeReview distribution repository from the canonical Action Worker repository variable.
