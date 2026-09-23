@@ -22,7 +22,8 @@
     "workflow": {
       "model": "Code-Pro",
       "effort": "low",
-      "rule": "workflow.json"
+      "rule": "workflow.json",
+      "task_timeout_minutes": 5
     },
     "release": {
       "model": "Code-Pro",

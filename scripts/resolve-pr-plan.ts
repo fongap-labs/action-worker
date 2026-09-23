@@ -34,7 +34,7 @@ type TestsPolicy = {
 };
 
 type ReviewPolicy = {
-  agents: Record<string, { model?: string; effort?: string; rule?: string } | undefined>;
+  agents: Record<string, { model?: string; effort?: string; rule?: string; task_timeout_minutes?: number } | undefined>;
   runtime: {
     llm_timeout_seconds?: number;
     task_timeout_minutes?: number;
@@ -232,7 +232,7 @@ export function resolvePlan(
     reviewEffort = agent?.effort ?? "medium";
     reviewRule = agent?.rule ?? "";
     reviewLlmTimeout = policies.review.runtime.llm_timeout_seconds ?? 300;
-    reviewTaskTimeout = policies.review.runtime.task_timeout_minutes ?? 2;
+    reviewTaskTimeout = agent?.task_timeout_minutes ?? policies.review.runtime.task_timeout_minutes ?? 2;
     reviewConcurrency = policies.review.runtime.concurrency ?? 1;
     reviewResumeAttempts = policies.review.runtime.resume_attempts ?? 1;
     reviewResumeBackoffSeconds = policies.review.runtime.resume_backoff_seconds ?? 15;

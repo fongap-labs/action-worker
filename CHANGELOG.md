@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: give workflow AI reviews a five-minute task budget without increasing other review-agent timeouts.
+
 - fix: treat MODE configuration names as non-Boolean during naming validation.
 
 - fix: add bounded exponential-backoff session recovery for transient AI review failures while preserving FIFO single concurrency.
