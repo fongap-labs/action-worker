@@ -124,12 +124,19 @@ AIG_ACCESS_KEY_AGENT
         "deep": { "model": "Code-Ultra" }
       }
     },
-    "writing": { "enabled": true, "model": "Pro" }
+    "writing": {
+      "enabled": true,
+      "model": "Pro",
+      "routes": {
+        "market-brief": { "model": "SenseNova" },
+        "pharma-brief": { "model": "Pro" }
+      }
+    }
   }
 }
 ```
 
-Task Dispatch 会把 Repository Variables 提供给下游可信任务，因此 Writing Agent 与其他 Task Agent 也使用同一个 `AW_AI_AGENT_CONFIG`。Review Engine 的分发仓库、版本和资产仍由 `policies/review.json` 管理；policy 不再保存模型名称。
+Task Dispatch 会把 Repository Variables 提供给下游可信任务，并从 `AW_AI_AGENT_CONFIG` 派生只读运行时模型变量。例如 `writing.market-brief` 会成为 `AW_AI_AGENT_WRITING_MARKET_BRIEF_MODEL`。业务任务只能引用这些派生值，不再声明项目级模型变量。Review Engine 的分发仓库、版本和资产仍由 `policies/review.json` 管理；policy 不再保存模型名称。
 
 `AW_CONTROL_TOKEN` 对受管仓至少需要：
 
