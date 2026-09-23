@@ -132,6 +132,18 @@ jobs:
 
 业务仓只需要 `AW_DISPATCH_TOKEN`，其权限只用于向同一组织的 `action-worker` 发送 `repository_dispatch`；目标仓由 `GITHUB_REPOSITORY_OWNER` 推导。`AI_GATEWAY_URL`、`AIG_ACCESS_KEY_AGENT` 与跨仓回写凭据只保存在 Action Worker。AI 审计为中央可选能力：仅当 `AW_IS_AI_REVIEW_ENABLED=true` 时运行 Triage / OCR / AI Review；未配置或设为其他值时跳过 AI 步骤，确定性 CI、命名和治理门禁仍正常执行。
 
+Action Worker 使用单一 Repository Variable `AW_REPOSITORY_POLICY` 管理仓库能力。每个仓库只登记一次，可授予 `pr`、`task`、`release-source`、`release-target`：
+
+```json
+{
+  "fongap-labs/ai-gateway": ["pr", "task"],
+  "fongap-labs/delta": ["pr", "task", "release-source"],
+  "fongap-labs/external-vault": ["pr", "task", "release-source", "release-target"]
+}
+```
+
+新增、删除或调整仓库权限只修改该 Variable，不修改 Action Worker 源码。
+
 中央 `AW_CONTROL_TOKEN` 对受管业务仓至少需要 Contents Read、Pull Requests Read/Write、Commit Statuses Read/Write 和 **Actions Read**；Actions Read 用于读取真实 CI Evidence。
 
 中央执行链路：
@@ -213,7 +225,7 @@ license { expression, file? }
 assets[] { name, sha256 }
 ```
 
-Action Worker 使用中央 `AW_CONTROL_TOKEN` 读取源仓事实与 Actions artifact，并使用同一凭据写目标分发仓；业务仓不持有目标仓写凭据。源仓和目标仓分别由 `AW_RELEASE_SOURCE_ALLOWLIST`、`AW_RELEASE_TARGET_ALLOWLIST` 控制。
+Action Worker 使用中央 `AW_CONTROL_TOKEN` 读取源仓事实与 Actions artifact，并使用同一凭据写目标分发仓；业务仓不持有目标仓写凭据。Release 来源和目标权限由 `AW_REPOSITORY_POLICY` 中的 `release-source` / `release-target` capability 控制。
 
 Release 默认采用 `Apache-2.0`。每个 App / Release 可以在 manifest 中显式声明其他许可证；如声明 `license.file`，对应许可证文件必须作为 Release asset 一并发布并校验。目标分发仓自己的根 LICENSE 不覆盖各 App 的 Release 许可证。
 
