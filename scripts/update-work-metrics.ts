@@ -257,7 +257,7 @@ function readBadge(content: string, label: string): number {
 }
 
 export function applyIncrement(content: string, increment: IncrementCounts): WorkCounts {
-  const dispatch = readBadge(content, "Dispatch") + increment.dispatch;
+  const dispatch = readBadge(content, "Task%20Dispatch") + increment.dispatch;
   const governance = readBadge(content, "PR%20Governance") + increment.pr_governance;
   const aiReview = readBadge(content, "AI%20Review") + increment.ai_review;
   const release = readBadge(content, "Release%20Governance") + increment.release_governance;
@@ -277,7 +277,7 @@ function badgeValue(value: number): string {
 export function renderMetrics(content: string, counts: WorkCounts, repository: string): string {
   const normalized = content.replace(/\r\n?/g, "\n");
   const block = `<!-- work-metrics:start -->
-[![Dispatch](https://img.shields.io/badge/Dispatch-${badgeValue(counts.dispatch)}-2F80ED?style=flat-square&labelColor=5B5B5B)](https://github.com/${repository}/actions) [![AI Review](https://img.shields.io/badge/AI%20Review-${badgeValue(counts.ai_review)}-8B5CF6?style=flat-square&labelColor=5B5B5B)](https://github.com/${repository}/actions) [![PR Governance](https://img.shields.io/badge/PR%20Governance-${badgeValue(counts.pr_governance)}-6366F1?style=flat-square&labelColor=5B5B5B)](https://github.com/${repository}/actions) [![Release Governance](https://img.shields.io/badge/Release%20Governance-${badgeValue(counts.release_governance)}-14B8A6?style=flat-square&labelColor=5B5B5B)](https://github.com/${repository}/releases) [![Status](https://img.shields.io/github/actions/workflow/status/${repository}/validate-ci.yml?branch=main&style=flat-square&label=Status&labelColor=5B5B5B)](https://github.com/${repository}/actions/workflows/validate-ci.yml)
+[![Task Dispatch](https://img.shields.io/badge/Task%20Dispatch-${badgeValue(counts.dispatch)}-1D4ED8?style=flat-square&labelColor=374151)](https://github.com/${repository}/actions) [![AI Review](https://img.shields.io/badge/AI%20Review-${badgeValue(counts.ai_review)}-6D28D9?style=flat-square&labelColor=374151)](https://github.com/${repository}/actions) [![PR Governance](https://img.shields.io/badge/PR%20Governance-${badgeValue(counts.pr_governance)}-4338CA?style=flat-square&labelColor=374151)](https://github.com/${repository}/actions) [![Release Governance](https://img.shields.io/badge/Release%20Governance-${badgeValue(counts.release_governance)}-0F766E?style=flat-square&labelColor=374151)](https://github.com/${repository}/releases) [![Status](https://img.shields.io/github/actions/workflow/status/${repository}/validate-ci.yml?branch=main&style=flat-square&label=Status&labelColor=374151)](https://github.com/${repository}/actions/workflows/validate-ci.yml)
 <!-- work-metrics:end -->`;
   const pattern = /<!-- work-metrics:start -->.*?<!-- work-metrics:end -->/s;
   if (!pattern.test(normalized)) {
@@ -334,7 +334,7 @@ async function main(): Promise<void> {
   const summary = [
     "## Work Metrics",
     "",
-    `- Dispatch: ${counts.dispatch}`,
+    `- Task Dispatch: ${counts.dispatch}`,
     `- PR Governance: ${counts.pr_governance}`,
     `- AI Review: ${counts.ai_review}`,
     `- Gate: ${counts.gate}`,
@@ -343,7 +343,7 @@ async function main(): Promise<void> {
   ];
   await appendLines(process.env.GITHUB_STEP_SUMMARY, summary);
   console.log(
-    `Dispatch=${counts.dispatch} PR Governance=${counts.pr_governance} AI Review=${counts.ai_review} Gate=${counts.gate} Release Governance=${counts.release_governance}`,
+    `Task Dispatch=${counts.dispatch} PR Governance=${counts.pr_governance} AI Review=${counts.ai_review} Gate=${counts.gate} Release Governance=${counts.release_governance}`,
   );
 }
 
