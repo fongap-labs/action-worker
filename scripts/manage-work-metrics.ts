@@ -101,9 +101,24 @@ async function createPull(): Promise<void> {
   ]);
 }
 
-async function cleanupBranch(): Promise<void> {
+async function cleanupMetricsUpdate(): Promise<void> {
+  const token = requireEnv("GH_TOKEN");
+  const repository = requireEnv("GITHUB_REPOSITORY");
+  const branch = requireEnv("BRANCH");
+  const prNumber = process.env.PR_NUMBER ?? "";
+
+  if (prNumber) {
+    try {
+      await runGithubCli([
+        "api", "--method", "PATCH", `repos/${repository}/pulls/${prNumber}`, "-f", "state=closed",
+      ], token);
+    } catch (error) {
+      console.error(`::warning::Failed to close metrics pull request: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
   try {
-    await runCommand("git", ["push", "origin", "--delete", requireEnv("BRANCH")]);
+    await runGithubCli(["api", "--method", "DELETE", `repos/${repository}/git/refs/heads/${branch}`], token);
   } catch (error) {
     console.error(`::warning::Failed to clean metrics branch: ${error instanceof Error ? error.message : String(error)}`);
   }
@@ -156,7 +171,7 @@ async function main(): Promise<void> {
     case "changes": await detectChanges(); break;
     case "branch": await createBranch(); break;
     case "pull": await createPull(); break;
-    case "cleanup": await cleanupBranch(); break;
+    case "cleanup": await cleanupMetricsUpdate(); break;
     case "ci": await runMetricsCi(); break;
     case "merge": await mergePull(); break;
     default: throw new CliError("Usage: manage-work-metrics.ts <increment|changes|branch|pull|cleanup|ci|merge>", 64);
