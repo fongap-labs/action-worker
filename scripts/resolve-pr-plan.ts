@@ -11,6 +11,7 @@ import {
 
 type Risk = "low" | "medium" | "high";
 type ReviewAgent = "none" | "code" | "workflow" | "security" | "architecture" | "release";
+type ReviewAvailability = "none" | "required" | "best_effort";
 
 export type PrContext = {
   project_types: string[];
@@ -34,7 +35,7 @@ type TestsPolicy = {
 };
 
 type ReviewPolicy = {
-  agents: Record<string, { model?: string; effort?: string; rule?: string } | undefined>;
+  agents: Record<string, { model?: string; effort?: string; rule?: string; availability?: string } | undefined>;
   runtime: {
     llm_timeout_seconds?: number;
     task_timeout_minutes?: number;
@@ -92,6 +93,7 @@ export type PrPlan = {
   review_llm_timeout: number;
   review_task_timeout: number;
   review_concurrency: number;
+  review_availability: ReviewAvailability;
   review_resume_attempts: number;
   review_resume_backoff_seconds: number;
   triage_required: boolean;
@@ -220,6 +222,7 @@ export function resolvePlan(
   let reviewLlmTimeout = 0;
   let reviewTaskTimeout = 0;
   let reviewConcurrency = 0;
+  let reviewAvailability: ReviewAvailability = "none";
   let reviewResumeAttempts = 0;
   let reviewResumeBackoffSeconds = 0;
   let isTriageRequired = false;
@@ -234,6 +237,11 @@ export function resolvePlan(
     reviewLlmTimeout = policies.review.runtime.llm_timeout_seconds ?? 300;
     reviewTaskTimeout = policies.review.runtime.task_timeout_minutes ?? 2;
     reviewConcurrency = policies.review.runtime.concurrency ?? 1;
+    const configuredAvailability = agent?.availability ?? "required";
+    if (!["required", "best_effort"].includes(configuredAvailability)) {
+      throw new CliError("::error::Invalid review availability policy.", 65);
+    }
+    reviewAvailability = configuredAvailability as ReviewAvailability;
     reviewResumeAttempts = policies.review.runtime.resume_attempts ?? 1;
     reviewResumeBackoffSeconds = policies.review.runtime.resume_backoff_seconds ?? 15;
 
@@ -278,6 +286,7 @@ export function resolvePlan(
     reviewLlmTimeout = 0;
     reviewTaskTimeout = 0;
     reviewConcurrency = 0;
+    reviewAvailability = "none";
     reviewResumeAttempts = 0;
     reviewResumeBackoffSeconds = 0;
     isTriageRequired = false;
@@ -315,6 +324,7 @@ export function resolvePlan(
     review_llm_timeout: reviewLlmTimeout,
     review_task_timeout: reviewTaskTimeout,
     review_concurrency: reviewConcurrency,
+    review_availability: reviewAvailability,
     review_resume_attempts: reviewResumeAttempts,
     review_resume_backoff_seconds: reviewResumeBackoffSeconds,
     triage_required: isTriageRequired,
