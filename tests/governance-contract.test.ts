@@ -125,7 +125,7 @@ test("task dispatch keeps the publication credential in the central control step
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
 
   const publication = await text("scripts/validate-task-publication.ts");
-  requireText(publication, ["release-source", "release-target", "action-worker-publication", "publication_ready"]);
+  requireText(publication, ["release-source", "release-target", "action-worker-publication", "target_repository", "dest_dir"]);
 });
 
 test("release, source, deploy, merge, and repository settings contracts remain intact", async () => {
