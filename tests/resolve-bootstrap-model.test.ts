@@ -41,6 +41,6 @@ test("AI Gateway bootstrap fails closed when the default review model is unavail
         },
       }),
     ),
-    /agents\.review\.model/i,
+    /review.*invalid model/i,
   );
 });
