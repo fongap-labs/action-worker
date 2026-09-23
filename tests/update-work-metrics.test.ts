@@ -20,17 +20,17 @@ test("metrics rendering preserves badge order and is idempotent", () => {
     '{"dispatch":7,"pr_governance":12,"ai_review":9,"gate":12,"release_governance":3}',
   );
   const rendered = renderMetrics(source, counts, "fongap/action-worker");
-  assert.match(rendered, /Dispatch-7-2F80ED/);
-  assert.match(rendered, /PR%20Governance-12-6366F1/);
-  assert.match(rendered, /AI%20Review-9-8B5CF6/);
-  const order = ["Dispatch-", "AI%20Review-", "PR%20Governance-", "Release%20Governance-", "Status"];
+  assert.match(rendered, /Task%20Dispatch-7-1D4ED8/);
+  assert.match(rendered, /PR%20Governance-12-4338CA/);
+  assert.match(rendered, /AI%20Review-9-6D28D9/);
+  const order = ["Task%20Dispatch-", "AI%20Review-", "PR%20Governance-", "Release%20Governance-", "Status"];
   const positions = order.map((token) => rendered.indexOf(token));
   assert.deepEqual(positions, [...positions].sort((left, right) => left - right));
   assert.equal(renderMetrics(rendered, counts, "fongap/action-worker"), rendered);
   assert.equal(renderMetrics(source.replaceAll("\n", "\r\n"), counts, "fongap/action-worker").includes("\r"), false);
 });
 
-test("Dispatch counts only successful Handle Task Dispatch repository runs", () => {
+test("Task Dispatch counts only successful Handle Task Dispatch repository runs", () => {
   const path = ".github/workflows/handle-task-dispatch.yml";
   assert.equal(isSuccessfulRun({
     path,

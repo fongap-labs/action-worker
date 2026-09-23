@@ -9,10 +9,10 @@
 任务调度 · AI Agent · PR 治理 · 发布治理 · 部署治理
 
 <!-- work-metrics:start -->
-[![Dispatch](https://img.shields.io/badge/Dispatch-0-2F80ED?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/actions) [![AI Review](https://img.shields.io/badge/AI%20Review-6-8B5CF6?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/actions) [![PR Governance](https://img.shields.io/badge/PR%20Governance-24-6366F1?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/actions) [![Release Governance](https://img.shields.io/badge/Release%20Governance-1-14B8A6?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/releases) [![Status](https://img.shields.io/github/actions/workflow/status/fongap-labs/action-worker/validate-ci.yml?branch=main&style=flat-square&label=Status&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/actions/workflows/validate-ci.yml)
+[![Task Dispatch](https://img.shields.io/badge/Task%20Dispatch-0-1D4ED8?style=flat-square&labelColor=374151)](https://github.com/fongap-labs/action-worker/actions) [![AI Review](https://img.shields.io/badge/AI%20Review-6-6D28D9?style=flat-square&labelColor=374151)](https://github.com/fongap-labs/action-worker/actions) [![PR Governance](https://img.shields.io/badge/PR%20Governance-24-4338CA?style=flat-square&labelColor=374151)](https://github.com/fongap-labs/action-worker/actions) [![Release Governance](https://img.shields.io/badge/Release%20Governance-1-0F766E?style=flat-square&labelColor=374151)](https://github.com/fongap-labs/action-worker/releases) [![Status](https://img.shields.io/github/actions/workflow/status/fongap-labs/action-worker/validate-ci.yml?branch=main&style=flat-square&label=Status&labelColor=374151)](https://github.com/fongap-labs/action-worker/actions/workflows/validate-ci.yml)
 <!-- work-metrics:end -->
 
-<sub>统计口径：Dispatch = Handle Task Dispatch 成功次数 · AI Review = AI Review 成功执行次数 · PR Governance = Handle PR Dispatch 成功次数 · Release Governance = Handle Release Dispatch 成功次数</sub>
+<sub>统计口径：Task Dispatch = Handle Task Dispatch 成功次数 · AI Review = AI Review 成功执行次数 · PR Governance = Handle PR Dispatch 成功次数 · Release Governance = Handle Release Dispatch 成功次数</sub>
 
 </div>
 
