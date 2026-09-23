@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: execute stale metrics-branch cleanup in the standalone sweep job rather than the gated aggregation job.
+
 - fix: bootstrap stale metrics-branch cleanup when the metrics workflow itself changes on main.
 
 - fix: run stale work-metrics branch cleanup independently of source workflow success.
