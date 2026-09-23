@@ -15,6 +15,7 @@ import { repositoriesForCapability, validateRepositoryCapability } from "../scri
 import { validateRelease } from "../scripts/validate-release-request.ts";
 import { validateReview } from "../scripts/validate-review-result.ts";
 import { variableEntries } from "../scripts/export-repository-variables.ts";
+import { hasLifecycleFilenameViolation } from "../scripts/validate-naming-rules.ts";
 
 const sha = "0123456789abcdef0123456789abcdef01234567";
 
@@ -175,6 +176,12 @@ test("engineering language rejects Chinese machine text but allows documentation
   assert.equal(engineeringLineViolation("src/router.ts", 'const label = "中文界面";'), null);
   assert.equal(engineeringLineViolation("docs/README.md", "中文说明"), null);
   assert.equal(engineeringLineViolation("src/i18n/zh-CN.json", '"title": "中文界面"'), null);
+});
+
+test("lifecycle filename rule distinguishes control labels from domain concepts", () => {
+  assert.equal(hasLifecycleFilenameViolation("scripts/release-final.ts"), true);
+  assert.equal(hasLifecycleFilenameViolation(".github/workflows/deploy-temp.yml"), true);
+  assert.equal(hasLifecycleFilenameViolation("projects/SecurePigeon/crates/pigeon-store/src/temp_access.rs"), false);
 });
 
 test("repository variables are sorted and validated", () => {
