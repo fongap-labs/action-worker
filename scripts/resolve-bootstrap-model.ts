@@ -15,18 +15,12 @@ export function resolveBootstrapModel(
 
   const config = parseAiAgentConfig(rawConfig);
   const review = config.agents.review;
-  const model = review?.enabled ? review.routes.architecture?.model?.trim() ?? "" : "";
+  const model = review?.enabled ? review.model?.trim() ?? "" : "";
   if (!model) {
     throw new CliError(
-      "::error::AI Gateway bootstrap requires review.routes.architecture in AW_AI_AGENT_CONFIG.",
+      "::error::AI Gateway bootstrap requires agents.review.model in AW_AI_AGENT_CONFIG.",
       65,
     );
-  }
-  const segments = model.split("-");
-  const tier = segments.at(-1);
-  if (tier === "Ultra" && segments.length > 1) {
-    segments[segments.length - 1] = "Max";
-    return segments.join("-");
   }
   return model;
 }
