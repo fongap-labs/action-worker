@@ -101,6 +101,7 @@ export function applyTriage(
         review_llm_timeout: 0,
         review_task_timeout: 0,
         review_concurrency: 0,
+        review_availability: "none",
         review_resume_attempts: 0,
         review_resume_backoff_seconds: 0,
         review_effort: "low",
@@ -120,7 +121,8 @@ export function applyTriage(
         const model = asString(selected.model);
         const effort = asString(selected.effort);
         const rule = asString(selected.rule);
-        if (!model || !effort || !rule) {
+        const availability = asString(selected.availability) || "required";
+        if (!model || !effort || !rule || !["required", "best_effort"].includes(availability)) {
           throw new CliError("ERROR: triage selected an unconfigured review agent.", 65);
         }
         Object.assign(plan, {
@@ -128,6 +130,7 @@ export function applyTriage(
           review_model: model,
           review_effort: effort,
           review_rule: rule,
+          review_availability: availability,
         });
         action = "upgrade";
       }
@@ -184,6 +187,7 @@ async function main(): Promise<void> {
         `review_llm_timeout=${String(output.review_llm_timeout)}`,
         `review_task_timeout=${String(output.review_task_timeout)}`,
         `review_concurrency=${String(output.review_concurrency)}`,
+        `review_availability=${asString(output.review_availability)}`,
         `review_resume_attempts=${String(output.review_resume_attempts)}`,
         `review_resume_backoff_seconds=${String(output.review_resume_backoff_seconds)}`,
         `block_severity=${asString(output.block_severity)}`,
