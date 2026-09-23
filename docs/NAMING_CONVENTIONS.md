@@ -68,6 +68,8 @@ System + Purpose + Type + Qualifier
 AW_DISPATCH_TOKEN
 AW_REPOSITORY_POLICY
 AW_AI_AGENT_CONFIG
+AW_AI_AGENT_WRITING_MODEL
+AW_AI_AGENT_WRITING_PHARMA_BRIEF_MODEL
 AIG_ACCESS_KEY_AGENT
 AIG_TIER1_NODES_01
 AIG_USAGE_D1_ID
@@ -75,6 +77,8 @@ CLOUDFLARE_ACCOUNT_ID
 ```
 
 Qualifier 仅在确有多个同类配置时增加，例如 `AIR`、`PRO`、`MAX`。
+
+Runtime-derived names are allowed when they are generated from one canonical configuration source rather than configured independently. For AI Agent model routing, `AW_AI_AGENT_CONFIG` is the only configurable authority; names such as `AW_AI_AGENT_WRITING_MODEL` and `AW_AI_AGENT_WRITING_PHARMA_BRIEF_MODEL` are generated runtime environment variables and must not be defined as Repository Variables.
 
 ### 2.2 Local source identifiers
 
