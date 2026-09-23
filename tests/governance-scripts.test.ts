@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { applyTriage } from "../scripts/apply-ai-triage.ts";
+import { parseAiAgentConfig } from "../scripts/ai-agent-config.ts";
 import { buildReview } from "../scripts/publish-pr-review.ts";
 import { retryLines } from "../scripts/report-ocr-retry.ts";
 import { settingsPayload } from "../scripts/apply-repo-settings.ts";
@@ -43,6 +44,22 @@ test("PR task and repository policy remain fail closed", () => {
 test("AI triage can only skip safe low-risk code changes", async () => {
   const triagePolicy = JSON.parse(await readFile("policies/triage.json", "utf8")) as unknown;
   const reviewPolicy = JSON.parse(await readFile("policies/review.json", "utf8")) as unknown;
+  const aiAgents = parseAiAgentConfig(JSON.stringify({
+    schema_version: 1,
+    agents: {
+      triage: { enabled: true, model: "Code-Air" },
+      review: {
+        enabled: true,
+        model: "Code-Pro",
+        routes: {
+          security: { model: "Code-Ultra" },
+          architecture: { model: "Code-Ultra" },
+          deep: { model: "Code-Ultra" },
+        },
+      },
+      writing: { enabled: true, model: "Pro" },
+    },
+  }));
   const base = {
     context: { change_areas: ["source"], declared_impacts: [] as string[], risk: "medium" },
     review_required: true,
@@ -58,7 +75,7 @@ test("AI triage can only skip safe low-risk code changes", async () => {
   const skipped = applyTriage(base, {
     status: "complete",
     decision: { review_required: false, review_agent: "code", risk: "low", depth: "normal", confidence: 0.97 },
-  }, triagePolicy, reviewPolicy);
+  }, triagePolicy, reviewPolicy, aiAgents);
   assert.equal(skipped.review_required, false);
   assert.deepEqual(skipped.triage, {
     status: "complete",
@@ -74,14 +91,14 @@ test("AI triage can only skip safe low-risk code changes", async () => {
   const protectedResult = applyTriage(protectedPlan, {
     status: "complete",
     decision: { review_required: false, review_agent: "code", risk: "low", depth: "normal", confidence: 0.99 },
-  }, triagePolicy, reviewPolicy);
+  }, triagePolicy, reviewPolicy, aiAgents);
   assert.equal(protectedResult.review_required, true);
   assert.equal((protectedResult.triage as Record<string, unknown>).action, "keep");
 
   const upgraded = applyTriage(base, {
     status: "complete",
     decision: { review_required: true, review_agent: "security", risk: "high", depth: "deep", confidence: 0.88 },
-  }, triagePolicy, reviewPolicy);
+  }, triagePolicy, reviewPolicy, aiAgents);
   assert.equal(upgraded.review_agent, "security");
   assert.equal(upgraded.review_model, "Code-Ultra");
   assert.equal(upgraded.block_severity, "high");

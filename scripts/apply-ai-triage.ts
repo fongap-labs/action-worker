@@ -7,6 +7,11 @@ import {
   parseJson,
 } from "./runtime-command.ts";
 import { isJsonRecord } from "./github-api.ts";
+import {
+  aiAgentModel,
+  parseAiAgentConfig,
+  type AiAgentConfig,
+} from "./ai-agent-config.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -43,6 +48,7 @@ export function applyTriage(
   triageValue: unknown,
   triagePolicy: unknown,
   reviewPolicy: unknown,
+  aiAgents: AiAgentConfig,
 ): JsonRecord {
   const plan = structuredClone(asRecord(planValue, "ERROR: invalid base plan."));
   const context = asRecord(plan.context, "ERROR: invalid base plan.");
@@ -59,11 +65,9 @@ export function applyTriage(
   const review = asRecord(reviewPolicy, "ERROR: invalid review policy.");
   const skipConfidence = asNumber(triage.min_skip_confidence);
   const deepConfidence = asNumber(triage.min_deep_confidence);
-  const deepModel = asString(triage.deep_model);
   if (
     !Number.isFinite(skipConfidence) || skipConfidence < 0 || skipConfidence > 1
     || !Number.isFinite(deepConfidence) || deepConfidence < 0 || deepConfidence > 1
-    || !deepModel
   ) {
     throw new CliError("ERROR: invalid triage confidence policy.", 65);
   }
@@ -117,10 +121,10 @@ export function applyTriage(
       if (selectedAgent !== baseAgent) {
         const agents = asRecord(review.agents, "ERROR: invalid review policy.");
         const selected = asRecord(agents[selectedAgent], "ERROR: triage selected an unconfigured review agent.");
-        const model = asString(selected.model);
+        const model = aiAgentModel(aiAgents, "review", selectedAgent);
         const effort = asString(selected.effort);
         const rule = asString(selected.rule);
-        if (!model || !effort || !rule) {
+        if (!effort || !rule) {
           throw new CliError("ERROR: triage selected an unconfigured review agent.", 65);
         }
         Object.assign(plan, {
@@ -137,7 +141,7 @@ export function applyTriage(
         }
       }
       if ((decisionDepth === "deep" || decisionRisk === "high") && confidence >= deepConfidence) {
-        plan.review_model = deepModel;
+        plan.review_model = aiAgentModel(aiAgents, "review", "deep");
         plan.review_effort = "high";
         if (action === "keep") {
           action = "deepen";
@@ -170,6 +174,7 @@ async function main(): Promise<void> {
       parseJson(resultText, "ERROR: invalid triage result."),
       parseJson(await readFile(triagePath, "utf8"), "ERROR: invalid triage policy."),
       parseJson(await readFile(reviewPath, "utf8"), "ERROR: invalid review policy."),
+      parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? ""),
     );
     const json = JSON.stringify(output);
     if (process.env.GITHUB_OUTPUT) {

@@ -35,7 +35,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
     "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts",
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
-    "scripts/github-api.ts", "scripts/resolve-pr-plan.ts", "scripts/run-ai-triage.ts", "scripts/runtime-command.ts",
+    "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/resolve-pr-plan.ts", "scripts/run-ai-triage.ts", "scripts/runtime-command.ts",
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
     "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/update-work-metrics.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
@@ -86,7 +86,10 @@ test("runtime and machine policies preserve trust boundaries", async () => {
   const agents = review.agents as Record<string, Record<string, unknown>>;
   assert.equal(agents.workflow?.task_timeout_minutes, 5);
   assert.equal(agents.release?.task_timeout_minutes, 5);
-  assert.equal(agents.release?.model, "Code-Max");
+  assert.equal(Object.values(agents).some((agent) => "model" in agent), false);
+  const triage = await json("policies/triage.json");
+  assert.equal("model" in triage, false);
+  assert.equal("deep_model" in triage, false);
   const engine = review.engine as Record<string, unknown>;
   assert.equal(engine.repository, "fongap-labs/external-vault");
   assert.equal(engine.version, "1.12.9");
@@ -96,7 +99,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   const workflow = await text(".github/workflows/handle-pr-dispatch.yml");
   requireText(workflow, [
     "repository_dispatch:", "types: [run-pr-governance]", "AW_REPOSITORY_POLICY", "AW_CONTROL_TOKEN",
-    "AI_GATEWAY_URL", "AIG_ACCESS_KEY_AGENT", "AW_IS_AI_REVIEW_ENABLED", "persist-credentials: false", "node-version: 24",
+    "AI_GATEWAY_URL", "AIG_ACCESS_KEY_AGENT", "AW_AI_AGENT_CONFIG", "persist-credentials: false", "node-version: 24",
     "validate-pr-payload.ts", "validate-control-access.ts", "set-pr-status.ts", "validate-engineering-language.ts",
     "publish-pr-review.ts", "wait-ci-evidence.ts", "validate-ci-evidence.ts", "wait-review-turn.ts",
     "validate-ai-gateway-access.ts", "run-ai-triage.ts", "apply-ai-triage.ts", "install-ocr.ts", "run-ai-review.ts",
@@ -107,8 +110,8 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   assert.doesNotMatch(workflow, /pr-governance-.*github\.sha/);
   assert.doesNotMatch(workflow, /bash\s+target\//);
   assert.doesNotMatch(workflow, /AW_REVIEW_ENGINE_REPOSITORY/);
-  assert.ok((workflow.match(/vars\.AW_IS_AI_REVIEW_ENABLED == 'true'/g) ?? []).length >= 6,
-    "AI-only PR governance steps must be gated by the central opt-in flag");
+  assert.match(workflow, /AW_AI_AGENT_CONFIG:\s*\$\{\{ vars\.AW_AI_AGENT_CONFIG \}\}/);
+  assert.doesNotMatch(workflow, /AW_IS_AI_REVIEW_ENABLED/);
   const order = ["- name: Collect CI evidence", "- name: Wait for AI queue", "- name: Run AI Triage", "- name: Resolve final plan", "- name: Run AI review", "- name: Validate CI evidence", "- name: Update final gate"];
   const positions = order.map((value) => workflow.indexOf(value));
   assert.ok(positions.every((value) => value >= 0));
