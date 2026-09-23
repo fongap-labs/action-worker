@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: temporarily review AI Gateway changes with the established Code-Pro family to break the gateway self-review bootstrap cycle without disabling AI Review.
+
 - fix: align the default AI review task budget with the configured 300-second LLM timeout.
 
 - fix: classify CHANGELOG updates as documentation so release review is selected only by actual release semantics or declared release impact.
