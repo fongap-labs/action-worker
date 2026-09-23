@@ -30,8 +30,8 @@ export function validateRelease(
   sourceValue: unknown,
   targetValue: unknown,
 ): void {
-  const sourceList = repositoryList(sourceValue, "AW_RELEASE_SOURCE_ALLOWLIST");
-  const targetList = repositoryList(targetValue, "AW_RELEASE_TARGET_ALLOWLIST");
+  const sourceList = repositoryList(sourceValue, "source_repositories");
+  const targetList = repositoryList(targetValue, "target_repositories");
   if (!isJsonRecord(request)
     || !isExactKeys(request, ["artifact_name", "repository", "request_id", "schema_version", "source_run_id", "source_sha"])
     || request.schema_version !== "1"
