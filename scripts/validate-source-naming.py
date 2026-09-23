@@ -9,7 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-BANNED = {"impl", "helper", "helpers", "common", "misc", "shared", "new", "final", "latest", "temp", "tmp"}
+VAGUE_BANNED = {"impl", "helper", "helpers", "common", "misc", "shared"}
+LIFECYCLE_BANNED = {"new", "final", "latest", "temp", "tmp"}
 BOOL_HINTS = ("enabled", "disabled", "required", "available", "active", "visible", "writable", "replace")
 BOOL_PREFIXES_PY = ("is_", "has_", "can_", "should_")
 BOOL_PREFIXES_TS = ("is", "has", "can", "should")
@@ -90,7 +91,9 @@ def check_file_name(errors: list[str], path: Path) -> None:
         tokens = parts(stem)
         if len(tokens) > 3:
             add(errors, path, "module filename must have at most three segments")
-        bad = BANNED.intersection(tokens)
+        bad = VAGUE_BANNED.intersection(tokens)
+        if stem in LIFECYCLE_BANNED:
+            bad.add(stem)
         if bad:
             add(errors, path, f"module filename contains banned term(s): {', '.join(sorted(bad))}")
 
@@ -109,7 +112,10 @@ def check_python(errors: list[str], root: Path, path: Path) -> None:
 
         name = node.name.lstrip("_")
         if name and not (node.name.startswith("__") and node.name.endswith("__")):
-            if not node.name.startswith("_") and BANNED.intersection(parts(name)):
+            bad = VAGUE_BANNED.intersection(parts(name))
+            if name in LIFECYCLE_BANNED:
+                bad.add(name)
+            if not node.name.startswith("_") and bad:
                 add(errors, path, f"function '{node.name}' contains a banned naming term")
 
         args = [*node.args.posonlyargs, *node.args.args, *node.args.kwonlyargs]

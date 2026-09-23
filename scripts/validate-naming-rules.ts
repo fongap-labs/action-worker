@@ -24,6 +24,17 @@ function isDocument(name: string): boolean {
   return /^[A-Z0-9]+(?:_[A-Z0-9]+)*\.md$/.test(name);
 }
 
+export function hasLifecycleFilenameViolation(path: string): boolean {
+  const name = basename(path);
+  const stem = parse(name).name;
+  const extension = extname(name).slice(1);
+  const isControlSurface = path.startsWith(".github/")
+    || path.startsWith("scripts/")
+    || path.startsWith("tools/")
+    || ["sh", "ps1", "yml", "yaml"].includes(extension);
+  return isControlSurface && /(^|[-_.])(new|final|latest|temp|tmp)([-_.]|$)/.test(stem);
+}
+
 export async function validateNames(base: string, head: string): Promise<{ failures: number; warnings: number; files: number }> {
   const changed = await runText("git", ["diff", "--name-only", "--diff-filter=ACMR", base, head]);
   const files = changed ? changed.split(/\r?\n/).filter(Boolean) : [];
@@ -48,8 +59,8 @@ export async function validateNames(base: string, head: string): Promise<{ failu
       console.log(`::error file=${path}::Workflow and Shell files must use kebab-case with at most three segments.`);
       failures += 1;
     }
-    if (/(^|[-_.])(new|final|latest|temp|tmp)([-_.]|$)/.test(stem)) {
-      console.log(`::error file=${path}::Long-lived filenames cannot use lifecycle terms such as new/final/latest/temp/tmp.`);
+    if (hasLifecycleFilenameViolation(path)) {
+      console.log(`::error file=${path}::Engineering control filenames cannot use lifecycle labels such as new/final/latest/temp/tmp.`);
       failures += 1;
     }
     if (/^(?:utils?|helpers?|common|misc|shared)$/.test(stem)) {

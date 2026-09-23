@@ -180,7 +180,7 @@ Fongap Labs 自有系统缩写只有在以下条件同时满足时才能用于�
 - Python、Rust、TypeScript/TSX 的新增或修改标识符遵循同一语义原则；
 - 局部函数和参数优先简洁，通常控制在约三段语义内，但语义完整优先；
 - Boolean 使用 `is / has / can / should` 语义前缀；
-- 禁止用 `impl / helper / common / misc / shared / new / final / latest / temp / tmp` 作为模糊长期名称；
+- 禁止用 `impl / helper / common / misc / shared` 作为模糊职责词；`new / final / latest / temp / tmp` 作为工程生命周期标签时禁止进入长期控制面名称，但允许出现在语义明确的领域概念中（例如 `temp_access`）；
 - 测试、生成代码或第三方代码可由项目自己的检查器决定是否豁免。
 
 “三段”只是一项局部可读性偏好，不得用于强制截断外部配置名称。
