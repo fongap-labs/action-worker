@@ -40,6 +40,12 @@ jobs:
         with:
           node-version: 24
 
+      - name: Sweep stale metrics branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: metrics/${{ github.run_id }}
+        run: node scripts/manage-work-metrics.ts sweep
+
       - name: Prepare incremental metrics
         id: increment
         env:

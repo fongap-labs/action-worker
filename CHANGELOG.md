@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: sweep stale closed work-metrics branches before each metrics update.
+
 - fix: accept the `APP_SOURCE_` external configuration prefix as a context-independent system identity.
 
 - fix: keep work-metrics repository actions on the workflow-scoped GitHub token and clean failed metric PRs and branches.

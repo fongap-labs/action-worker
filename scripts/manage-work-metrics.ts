@@ -165,6 +165,42 @@ async function mergePull(): Promise<void> {
   await runGithubCli(["api", "--method", "DELETE", `repos/${repository}/git/refs/heads/${branch}`], token);
 }
 
+async function sweepMetricsBranches(): Promise<void> {
+  const token = requireEnv("GH_TOKEN");
+  const repository = requireEnv("GITHUB_REPOSITORY");
+  const currentBranch = process.env.BRANCH ?? "";
+
+  const refsRaw = await runGithubCli([
+    "api", `repos/${repository}/git/matching-refs/heads/metrics/`,
+    "--paginate",
+  ], token);
+  const refs = JSON.parse(refsRaw) as Array<{ ref?: string }>;
+
+  const openPullsRaw = await runGithubCli([
+    "api", `repos/${repository}/pulls`,
+    "-f", "state=open",
+    "-f", "per_page=100",
+    "--paginate",
+  ], token);
+  const openPulls = JSON.parse(openPullsRaw) as Array<{ head?: { ref?: string } }>;
+  const openBranches = new Set(
+    openPulls.map((pull) => pull.head?.ref ?? "").filter(Boolean),
+  );
+
+  let deleted = 0;
+  for (const entry of refs) {
+    const fullRef = entry.ref ?? "";
+    const branch = fullRef.replace(/^refs\/heads\//, "");
+    if (!branch.startsWith("metrics/") || branch === currentBranch || openBranches.has(branch)) continue;
+    await runGithubCli([
+      "api", "--method", "DELETE", `repos/${repository}/git/refs/heads/${branch}`,
+    ], token);
+    deleted += 1;
+  }
+
+  console.log(`Stale metrics branches deleted: ${deleted}`);
+}
+
 async function main(): Promise<void> {
   switch (process.argv[2]) {
     case "increment": await prepareIncrement(); break;
@@ -172,9 +208,10 @@ async function main(): Promise<void> {
     case "branch": await createBranch(); break;
     case "pull": await createPull(); break;
     case "cleanup": await cleanupMetricsUpdate(); break;
+    case "sweep": await sweepMetricsBranches(); break;
     case "ci": await runMetricsCi(); break;
     case "merge": await mergePull(); break;
-    default: throw new CliError("Usage: manage-work-metrics.ts <increment|changes|branch|pull|cleanup|ci|merge>", 64);
+    default: throw new CliError("Usage: manage-work-metrics.ts <increment|changes|branch|pull|cleanup|sweep|ci|merge>", 64);
   }
 }
 
