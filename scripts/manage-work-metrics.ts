@@ -177,7 +177,7 @@ async function sweepMetricsBranches(): Promise<void> {
   const refs = JSON.parse(refsRaw) as Array<{ ref?: string }>;
 
   const openPullsRaw = await runGithubCli([
-    "api", `repos/${repository}/pulls`,
+    "api", "--method", "GET", `repos/${repository}/pulls`,
     "-f", "state=open",
     "-f", "per_page=100",
     "--paginate",
