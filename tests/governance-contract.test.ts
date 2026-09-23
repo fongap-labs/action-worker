@@ -81,6 +81,12 @@ test("runtime and machine policies preserve trust boundaries", async () => {
   assert.equal(runtime.resume_attempts, 3);
   assert.equal(runtime.resume_backoff_seconds, 15);
   assert.equal("retry" in runtime, false);
+  const agents = review.agents as Record<string, Record<string, unknown>>;
+  assert.equal(agents.security?.availability, "required");
+  assert.equal(agents.architecture?.availability, "required");
+  assert.equal(agents.workflow?.availability, "best_effort");
+  assert.equal(agents.release?.availability, "best_effort");
+  assert.equal(agents.code?.availability, "best_effort");
   const engine = review.engine as Record<string, unknown>;
   assert.equal(engine.repository, "fongap-labs/external-vault");
   assert.equal(engine.version, "1.12.9");
@@ -93,7 +99,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     "AI_GATEWAY_URL", "AIG_ACCESS_KEY_AIR", "persist-credentials: false", "node-version: 24",
     "validate-pr-payload.ts", "validate-control-access.ts", "set-pr-status.ts", "validate-engineering-language.ts",
     "publish-pr-review.ts", "wait-ci-evidence.ts", "validate-ci-evidence.ts", "wait-review-turn.ts",
-    "run-ai-triage.ts", "apply-ai-triage.ts", "install-ocr.ts", "run-ai-review.ts",
+    "run-ai-triage.ts", "apply-ai-triage.ts", "install-ocr.ts", "run-ai-review.ts", "REVIEW_AVAILABILITY",
     "Resolve governance ownership", "check-status-owner.ts",
   ]);
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
