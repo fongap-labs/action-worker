@@ -34,7 +34,7 @@ jobs:
         id: payload
         env:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
-          AW_PR_REPOSITORY_ALLOWLIST: ${{ vars.AW_PR_REPOSITORY_ALLOWLIST }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/validate-pr-payload.ts "$PAYLOAD"
 
       - name: Validate control credential
