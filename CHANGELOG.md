@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: classify CHANGELOG updates as documentation so release review is selected only by actual release semantics or declared release impact.
+
 - style: align work-metric value colors with the GitHub brand palette.
 
 - style: use default Shields label backgrounds and GitHub label colors for work-metric values.
