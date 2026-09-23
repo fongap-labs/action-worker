@@ -10,15 +10,17 @@ import { validateRepositoryCapability } from "./repository-policy.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const requestPattern = /^[A-Za-z0-9._:-]+$/;
+const shaPattern = /^[0-9a-f]{40}$/;
 
 export function validatePayload(value: unknown): void {
   if (!isJsonRecord(value)) {
     throw new CliError("::error::PR dispatch payload does not match contracts/pr-task.json.", 64);
   }
   const keys = Object.keys(value).sort();
-  const expected = ["pr_number", "repository", "request_id", "schema_version"];
-  const isValid = keys.length === expected.length
-    && keys.every((key, index) => key === expected[index])
+  const required = ["pr_number", "repository", "request_id", "schema_version"];
+  const allowed = [...required, "head_sha"].sort();
+  const isValid = required.every((key) => keys.includes(key))
+    && keys.every((key) => allowed.includes(key))
     && value.schema_version === "1"
     && typeof value.request_id === "string"
     && value.request_id.length >= 1
@@ -28,7 +30,9 @@ export function validatePayload(value: unknown): void {
     && repositoryPattern.test(value.repository)
     && typeof value.pr_number === "number"
     && Number.isInteger(value.pr_number)
-    && value.pr_number >= 1;
+    && value.pr_number >= 1
+    && (value.head_sha === undefined
+      || (typeof value.head_sha === "string" && shaPattern.test(value.head_sha)));
   if (!isValid) {
     throw new CliError("::error::PR dispatch payload does not match contracts/pr-task.json.", 64);
   }
