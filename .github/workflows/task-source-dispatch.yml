@@ -1,0 +1,220 @@
+name: Handle Task Source Dispatch
+
+on:
+  repository_dispatch:
+    types: [run-task-source]
+  schedule:
+    - cron: "30 0 * * *"
+    - cron: "30 12 * * *"
+    - cron: "30 12 * * 0"
+
+permissions: {}
+
+concurrency:
+  group: task-source-${{ github.event.client_payload.repository || 'internal-vault' }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Resolve and dispatch tasks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Resolve source request
+        id: source
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+          PAYLOAD_REPOSITORY: ${{ github.event.client_payload.repository }}
+          PAYLOAD_MODE: ${{ github.event.client_payload.mode }}
+          PAYLOAD_PROJECT: ${{ github.event.client_payload.project }}
+          PAYLOAD_BEFORE_SHA: ${{ github.event.client_payload.before_sha }}
+          PAYLOAD_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          repository="fongap-labs/internal-vault"
+          main_sha="$(gh api "repos/$repository/commits/main" --jq '.sha')"
+          [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
+
+          mode=""
+          project=""
+          before_sha=""
+          head_sha="$main_sha"
+
+          case "$EVENT_NAME" in
+            repository_dispatch)
+              [ "$PAYLOAD_REPOSITORY" = "$repository" ] || {
+                echo "::error::Unsupported task source repository: $PAYLOAD_REPOSITORY" >&2
+                exit 65
+              }
+
+              case "$PAYLOAD_MODE" in
+                manual)
+                  mode="manual"
+                  project="$PAYLOAD_PROJECT"
+                  ;;
+                push)
+                  mode="push"
+                  before_sha="$PAYLOAD_BEFORE_SHA"
+                  [[ "$PAYLOAD_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+                    echo "::error::Invalid head_sha." >&2
+                    exit 64
+                  }
+                  [ "$PAYLOAD_HEAD_SHA" = "$main_sha" ] || {
+                    echo "::error::Task source request is stale; main has moved." >&2
+                    exit 75
+                  }
+                  ;;
+                *)
+                  echo "::error::Unsupported task source mode: $PAYLOAD_MODE" >&2
+                  exit 64
+                  ;;
+              esac
+              ;;
+            schedule)
+              mode="schedule"
+              ;;
+            *)
+              echo "::error::Unsupported event: $EVENT_NAME" >&2
+              exit 64
+              ;;
+          esac
+
+          {
+            echo "repository=$repository"
+            echo "head_sha=$head_sha"
+            echo "before_sha=$before_sha"
+            echo "mode=$mode"
+            echo "project=$project"
+            echo "schedule=$EVENT_SCHEDULE"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout source repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ steps.source.outputs.repository }}
+          ref: ${{ steps.source.outputs.head_sha }}
+          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select projects
+        id: projects
+        env:
+          MODE: ${{ steps.source.outputs.mode }}
+          PROJECT: ${{ steps.source.outputs.project }}
+          BEFORE_SHA: ${{ steps.source.outputs.before_sha }}
+          HEAD_SHA: ${{ steps.source.outputs.head_sha }}
+          EVENT_SCHEDULE: ${{ steps.source.outputs.schedule }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cd target
+
+          projects=""
+
+          case "$MODE" in
+            manual)
+              [[ "$PROJECT" =~ ^[A-Za-z0-9_.-]+$ ]] || {
+                echo "::error::Invalid project name: $PROJECT" >&2
+                exit 64
+              }
+              [ -f "projects/$PROJECT/task.json" ] || {
+                echo "::error::Unknown project or missing task.json: projects/$PROJECT/task.json" >&2
+                exit 66
+              }
+              projects="$PROJECT"
+              ;;
+            push)
+              if [[ "$BEFORE_SHA" =~ ^0{40}$ ]]; then
+                changed="$(git ls-tree -r --name-only "$HEAD_SHA")"
+              else
+                [[ "$BEFORE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+                  echo "::error::Invalid before_sha." >&2
+                  exit 64
+                }
+                changed="$(git diff --name-only "$BEFORE_SHA" "$HEAD_SHA")"
+              fi
+
+              projects="$(
+                printf '%s\n' "$changed" |
+                  awk -F/ '$1 == "projects" && $2 !~ /^_/ && $2 != "" {print $2}' |
+                  sort -u |
+                  while IFS= read -r name; do
+                    [ -f "projects/$name/task.json" ] && printf '%s\n' "$name"
+                  done
+              )"
+              ;;
+            schedule)
+              {
+                if [ "$EVENT_SCHEDULE" = "30 0 * * *" ] || [ "$EVENT_SCHEDULE" = "30 12 * * *" ]; then
+                  printf '%s\n' "MarketBrief"
+                fi
+                if [ "$EVENT_SCHEDULE" = "30 12 * * 0" ]; then
+                  printf '%s\n' "PharmaBrief"
+                fi
+              } | sort -u > "$RUNNER_TEMP/scheduled-projects.txt"
+
+              while IFS= read -r name; do
+                [ -n "$name" ] || continue
+                [ -f "projects/$name/task.json" ] || {
+                  echo "::error::Scheduled project is missing task.json: projects/$name/task.json" >&2
+                  exit 66
+                }
+              done < "$RUNNER_TEMP/scheduled-projects.txt"
+
+              projects="$(cat "$RUNNER_TEMP/scheduled-projects.txt")"
+              ;;
+          esac
+
+          if [ -z "$projects" ]; then
+            echo 'projects=[]' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          json="$(printf '%s\n' "$projects" | jq -R -s -c 'split("\n") | map(select(. != "")) | unique')"
+          echo "projects=$json" >> "$GITHUB_OUTPUT"
+
+      - name: Dispatch selected tasks
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.source.outputs.repository }}
+          HEAD_SHA: ${{ steps.source.outputs.head_sha }}
+          PROJECTS: ${{ steps.projects.outputs.projects }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          count="$(jq 'length' <<< "$PROJECTS")"
+          if [ "$count" -eq 0 ]; then
+            echo "No task projects selected."
+            exit 0
+          fi
+
+          index=0
+          while IFS= read -r project; do
+            index=$((index + 1))
+            request_id="task-source-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${index}"
+
+            payload="$(
+              jq -cn                 --arg request_id "$request_id"                 --arg project "$project"                 --arg bootstrap_ref "$HEAD_SHA"                 --arg repository "$REPOSITORY"                 '{
+                  event_type: "run-task",
+                  client_payload: {
+                    schema_version: "1",
+                    request_id: $request_id,
+                    project: $project,
+                    bootstrap_ref: $bootstrap_ref,
+                    repository: $repository
+                  }
+                }'
+            )"
+
+            gh api               --method POST               "repos/${GITHUB_REPOSITORY}/dispatches"               --input - <<< "$payload"
+
+            echo "Dispatched $project at $HEAD_SHA"
+          done < <(jq -r '.[]' <<< "$PROJECTS")
