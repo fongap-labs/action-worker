@@ -1,4 +1,4 @@
-import { aiAgentModel, parseAiAgentConfig } from "./ai-agent-config.ts";
+import { parseAiAgentConfig } from "./ai-agent-config.ts";
 import { CliError, appendLines, handleError, isMain } from "./runtime-command.ts";
 
 export function resolveBootstrapModel(
@@ -12,8 +12,17 @@ export function resolveBootstrapModel(
   if (repository !== `${owner}/ai-gateway`) {
     return "auto";
   }
+
   const config = parseAiAgentConfig(rawConfig);
-  return aiAgentModel(config, "review", "architecture");
+  const review = config.agents.review;
+  const model = review?.enabled ? review.routes.architecture?.model?.trim() ?? "" : "";
+  if (!model) {
+    throw new CliError(
+      "::error::AI Gateway bootstrap requires review.routes.architecture in AW_AI_AGENT_CONFIG.",
+      65,
+    );
+  }
+  return model;
 }
 
 async function main(): Promise<void> {
