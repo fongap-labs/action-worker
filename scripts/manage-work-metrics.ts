@@ -211,7 +211,7 @@ async function main(): Promise<void> {
     case "sweep": await sweepMetricsBranches(); break;
     case "ci": await runMetricsCi(); break;
     case "merge": await mergePull(); break;
-    default: throw new CliError("Usage: manage-work-metrics.ts <increment|changes|branch|pull|cleanup|ci|merge>", 64);
+    default: throw new CliError("Usage: manage-work-metrics.ts <increment|changes|branch|pull|cleanup|sweep|ci|merge>", 64);
   }
 }
 
