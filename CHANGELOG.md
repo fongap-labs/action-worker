@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- style: use default Shields label backgrounds and GitHub label colors for work-metric values.
+
 - style: apply a visually reviewed muted palette to work-metric badges.
 
 - style: use a muted low-saturation palette for work-metric badges and lighten shared labels.
