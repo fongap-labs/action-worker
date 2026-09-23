@@ -34,6 +34,12 @@
     "gate_jobs": [
       "ci-evidence",
       "validate-merge"
-    ]
+    ],
+    "central_repositories": [
+      "fongap-labs/delta-suite",
+      "fongap-labs/app-source",
+      "fongap-labs/internal-vault"
+    ],
+    "status_context": "CI Evidence"
   }
 }
