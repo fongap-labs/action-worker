@@ -9,10 +9,10 @@ Task Dispatch · AI Agents · PR Governance · Release Governance · Deployment 
 [**English**](README.md) · [简体中文](README.zh-CN.md)
 
 <!-- work-metrics:start -->
-[![Dispatch](https://img.shields.io/badge/Dispatch-0-2F80ED?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/actions) [![AI Review](https://img.shields.io/badge/AI%20Review-6-8B5CF6?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/actions) [![PR Governance](https://img.shields.io/badge/PR%20Governance-24-6366F1?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/actions) [![Release Governance](https://img.shields.io/badge/Release%20Governance-1-14B8A6?style=flat-square&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/releases) [![Status](https://img.shields.io/github/actions/workflow/status/fongap-labs/action-worker/validate-ci.yml?branch=main&style=flat-square&label=Status&labelColor=5B5B5B)](https://github.com/fongap-labs/action-worker/actions/workflows/validate-ci.yml)
+[![Task Dispatch](https://img.shields.io/badge/Task%20Dispatch-0-1D4ED8?style=flat-square&labelColor=374151)](https://github.com/fongap-labs/action-worker/actions) [![AI Review](https://img.shields.io/badge/AI%20Review-6-6D28D9?style=flat-square&labelColor=374151)](https://github.com/fongap-labs/action-worker/actions) [![PR Governance](https://img.shields.io/badge/PR%20Governance-24-4338CA?style=flat-square&labelColor=374151)](https://github.com/fongap-labs/action-worker/actions) [![Release Governance](https://img.shields.io/badge/Release%20Governance-1-0F766E?style=flat-square&labelColor=374151)](https://github.com/fongap-labs/action-worker/releases) [![Status](https://img.shields.io/github/actions/workflow/status/fongap-labs/action-worker/validate-ci.yml?branch=main&style=flat-square&label=Status&labelColor=374151)](https://github.com/fongap-labs/action-worker/actions/workflows/validate-ci.yml)
 <!-- work-metrics:end -->
 
-<sub>Metrics: Dispatch = successful Handle Task Dispatch runs · AI Review = successful AI Review executions · PR Governance = successful Handle PR Dispatch runs · Release Governance = successful Handle Release Dispatch runs</sub>
+<sub>Metrics: Task Dispatch = successful Handle Task Dispatch runs · AI Review = successful AI Review executions · PR Governance = successful Handle PR Dispatch runs · Release Governance = successful Handle Release Dispatch runs</sub>
 
 </div>
 
