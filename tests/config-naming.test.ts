@@ -46,3 +46,27 @@ test("rejects PAT terminology and non-canonical Boolean names", () => {
   assert.ok(errors.some((error) => error.includes("instead of PAT")));
   assert.ok(errors.some((error) => error.includes("Boolean configuration")));
 });
+
+
+test("accepts business-owner prefixes derived from scoped paths", () => {
+  assert.deepEqual(
+    validateConfigText("projects/MarketBrief/.env.variables", [
+      "MARKETBRIEF_LLM_URL=value",
+      "MARKETBRIEF_OUTPUT_DIR=dist/marketbrief",
+    ].join("\n")),
+    [],
+  );
+
+  assert.deepEqual(
+    validateConfigText("services/server-edge/.env.example", "SERVER_EDGE_PROXY_URL=value"),
+    [],
+  );
+});
+
+test("still rejects generic names inside a scoped business config", () => {
+  const errors = validateConfigText(
+    "projects/MarketBrief/.env.variables",
+    "ARTIFACT_REPOSITORY=fongap/external-vault",
+  );
+  assert.ok(errors.some((error) => error.includes("owning system")));
+});

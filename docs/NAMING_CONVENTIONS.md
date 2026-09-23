@@ -80,6 +80,26 @@ Qualifier 仅在确有多个同类配置时增加，例如 `AIR`、`PRO`、`MAX`
 
 Runtime-derived names are allowed when they are generated from one canonical configuration source rather than configured independently. For AI Agent model routing, `AW_AI_AGENT_CONFIG` is the only configurable authority; names such as `AW_AI_AGENT_WRITING_MODEL` and `AW_AI_AGENT_WRITING_PHARMA_BRIEF_MODEL` are generated runtime environment variables and must not be defined as Repository Variables.
 
+Business repositories may identify a scoped owner through the directory that owns the configuration. For external configuration under a recognized business scope such as:
+
+```text
+projects/<owner>/
+apps/<owner>/
+services/<owner>/
+tools/<owner>/
+crates/<owner>/
+skills/<owner>/
+```
+
+the normalized owner name is a valid external prefix. Examples:
+
+```text
+projects/MarketBrief/.env.variables → MARKETBRIEF_*
+services/server-edge/.env.example → SERVER_EDGE_*
+```
+
+This does not permit generic names such as `ARTIFACT_REPOSITORY` or `OUTPUT_DIR`; the external name must still carry the scoped owner identity.
+
 ### 2.2 Local source identifiers
 
 函数参数、局部变量、私有字段和短生命周期内部标识符可以依赖代码词法上下文，不要求重复所属系统前缀。

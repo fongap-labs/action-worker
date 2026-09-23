@@ -59,8 +59,26 @@ function isPlatformName(name: string): boolean {
   return platformNames.has(name) || name.startsWith("RUNNER_") || name.startsWith("ACTIONS_");
 }
 
-function isSelfIdentifying(name: string): boolean {
-  return selfIdentifyingPrefixes.some((prefix) => name.startsWith(prefix));
+const ownerScopes = new Set(["projects", "apps", "services", "tools", "crates", "skills"]);
+
+function scopedOwnerPrefix(path: string): string | null {
+  const segments = path.split("/").filter(Boolean);
+  for (let index = 0; index < segments.length - 1; index += 1) {
+    const segment = segments[index] ?? "";
+    if (!ownerScopes.has(segment)) continue;
+    const owner = segments[index + 1] ?? "";
+    const token = owner.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase();
+    return token ? `${token}_` : null;
+  }
+  return null;
+}
+
+function isSelfIdentifying(name: string, path: string): boolean {
+  if (selfIdentifyingPrefixes.some((prefix) => name.startsWith(prefix))) {
+    return true;
+  }
+  const ownerPrefix = scopedOwnerPrefix(path);
+  return Boolean(ownerPrefix && name.startsWith(ownerPrefix));
 }
 
 function externalNames(path: string, text: string): string[] {
@@ -92,7 +110,7 @@ export function validateConfigText(path: string, text: string): string[] {
     if (isPlatformName(name)) {
       continue;
     }
-    if (!isSelfIdentifying(name)) {
+    if (!isSelfIdentifying(name, path)) {
       errors.push(`${path}: external configuration '${name}' must identify its owning system without repository context`);
     }
     if (name.endsWith("_PAT") || name.includes("_PAT_")) {
