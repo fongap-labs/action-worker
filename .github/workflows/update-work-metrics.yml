@@ -10,6 +10,7 @@ on:
     workflows:
       - Handle Task Dispatch
       - Handle PR Dispatch
+      - Handle Release Dispatch
     types: [completed]
   repository_dispatch:
     types: [refresh-work-metrics]
@@ -18,7 +19,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  actions: write
+  actions: read
   contents: write
   pull-requests: write
 
@@ -90,7 +91,7 @@ jobs:
           METRICS_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           METRICS_REPOSITORIES_JSON: ${{ steps.repositories.outputs.repositories }}
           WORK_METRICS_JSON: ${{ steps.increment.outputs.json }}
-        run: node scripts/update-work-metrics.ts README.md
+        run: node scripts/update-work-metrics.ts README.md README.zh-CN.md
 
       - name: Check for changes
         id: changes
@@ -116,7 +117,7 @@ jobs:
           RELEASE_GOVERNANCE: ${{ steps.metrics.outputs.release_governance }}
         run: node scripts/manage-work-metrics.ts pull
 
-      - name: Trigger CI
+      - name: Wait for CI
         if: steps.changes.outputs.changed == 'true'
         id: ci
         env:
@@ -141,8 +142,3 @@ jobs:
           BRANCH: metrics/${{ github.run_id }}
         run: node scripts/manage-work-metrics.ts cleanup
 
-      - name: Refresh main CI
-        if: steps.changes.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run validate-ci.yml --ref main
