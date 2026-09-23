@@ -45,6 +45,7 @@ test("AI triage can only skip safe low-risk code changes", async () => {
     review_llm_timeout: 300,
     review_task_timeout: 2,
     review_concurrency: 1,
+    review_availability: "best_effort",
     block_severity: "critical",
     review_effort: "medium",
   };
@@ -77,6 +78,7 @@ test("AI triage can only skip safe low-risk code changes", async () => {
   }, triagePolicy, reviewPolicy);
   assert.equal(upgraded.review_agent, "security");
   assert.equal(upgraded.review_model, "Code-Ultra");
+  assert.equal(upgraded.review_availability, "required");
   assert.equal(upgraded.block_severity, "high");
 });
 
@@ -191,4 +193,14 @@ test("PR review summary includes gate, routing, and findings", () => {
   assert.match(body, /Gate: \*\*FAIL\*\*/);
   assert.match(body, /security/);
   assert.match(body, /src\/a\.ts:12/);
+});
+
+test("PR review summary distinguishes best-effort AI unavailability from zero findings", () => {
+  const body = buildReview("success", "https://example.test/run", {
+    context: { risk: "medium" }, triage: { status: "complete", action: "keep" }, review_agent: "workflow",
+    review_model: "Code-Pro", review_availability: "best_effort", block_severity: "critical",
+  }, { status: "unavailable", unavailable_reason: "transient_upstream_failure" });
+  assert.match(body, /Gate: \*\*PASS\*\*/);
+  assert.match(body, /AI Review: \`unavailable\`/);
+  assert.doesNotMatch(body, /AI Review found no issues/);
 });
