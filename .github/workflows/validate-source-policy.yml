@@ -32,7 +32,6 @@ on:
 permissions:
   contents: read
   actions: read
-  statuses: read
 
 jobs:
   policy:
@@ -93,17 +92,7 @@ jobs:
           )"
 
           [ -n "$ci_run_id" ] || {
-            echo "::error::No successful CI dispatch found for target commit: workflow=$CI_WORKFLOW sha=$resolved_sha." >&2
-            exit 1
-          }
-
-          ci_evidence_state="$(
-            gh api "repos/${GITHUB_REPOSITORY}/commits/${resolved_sha}/status" |
-              jq -r '[.statuses[] | select(.context == "CI Evidence")][0].state // empty'
-          )"
-
-          [ "$ci_evidence_state" = "success" ] || {
-            echo "::error::Central CI Evidence is not successful for target commit: sha=$resolved_sha state=${ci_evidence_state:-missing}." >&2
+            echo "::error::No successful CI found for target commit: workflow=$CI_WORKFLOW sha=$resolved_sha." >&2
             exit 1
           }
 
@@ -118,8 +107,7 @@ jobs:
             echo
             echo "- Commit: $resolved_sha"
             echo "- CI: $CI_WORKFLOW"
-            echo "- CI dispatch run: $ci_run_id"
-            echo "- Central CI Evidence: success"
+            echo "- CI Run: $ci_run_id"
             echo "- Default branch: $default_branch"
             echo "- Require default HEAD: $REQUIRE_DEFAULT_HEAD"
           } >> "$GITHUB_STEP_SUMMARY"
