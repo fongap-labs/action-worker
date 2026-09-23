@@ -41,6 +41,6 @@ test("AI Gateway bootstrap fails closed when the architecture route is unavailab
         },
       }),
     ),
-    /review\\.routes\\.architecture/i,
+    /review\.routes\.architecture/i,
   );
 });
