@@ -45,6 +45,7 @@ AW_DISPATCH_TOKEN
 ```text
 AIG_ACCESS_KEY_AGENT
 AW_CONTROL_TOKEN
+AW_EXECUTION_TOKEN
 ```
 
 ## 3. CI 接入
@@ -137,6 +138,8 @@ AIG_ACCESS_KEY_AGENT
 ```
 
 Task Dispatch 会把 Repository Variables 提供给下游可信任务，并从 `AW_AI_AGENT_CONFIG` 派生只读运行时模型变量。例如 `writing.market-brief` 会成为 `AW_AI_AGENT_WRITING_MARKET_BRIEF_MODEL`。业务任务只能引用这些派生值，不再声明项目级模型变量。Review Engine 的分发仓库、版本和资产仍由 `policies/review.json` 管理；policy 不再保存模型名称。
+
+`AW_EXECUTION_TOKEN` 仅用于 Task 执行前读取受管私有仓固定 Commit，建议只授予 `Contents: Read`。它不会传给业务 bootstrap；跨仓发布仍由后续中央步骤使用 `AW_CONTROL_TOKEN`。
 
 `AW_CONTROL_TOKEN` 对受管仓至少需要：
 
