@@ -77,10 +77,18 @@ uses: fongap-labs/action-worker/.github/actions/validate-merge-policy@main
 Action Worker Repository Variable：
 
 ```text
-AW_PR_REPOSITORY_ALLOWLIST
+AW_REPOSITORY_POLICY
 ```
 
-加入目标仓库。
+每个仓库只登记一次，并按需要授予 `pr`、`task`、`release-source`、`release-target` capability。例如：
+
+```json
+{
+  "fongap-labs/ai-gateway": ["pr", "task"],
+  "fongap-labs/delta": ["pr", "task", "release-source"],
+  "fongap-labs/external-vault": ["pr", "task", "release-source", "release-target"]
+}
+```
 
 Action Worker Secret / Variable：
 
@@ -167,7 +175,7 @@ AW_DISPATCH_TOKEN
 
 发布源仓若共享同一个分发目标，可同样使用组织级 `RELEASE_TARGET_REPOSITORY`；项目专属部署身份（例如 `DEPLOY_REPOSITORY`）继续使用 Repository 级 Variable。
 
-Action Worker 需要 `AW_CONTROL_TOKEN`。允许的 Release 源仓与目标仓统一由 `policies/release.json` 管理，不再维护重复的 Repository Variable。
+Action Worker 需要 `AW_CONTROL_TOKEN`。允许的 Release 源仓与目标仓由 `AW_REPOSITORY_POLICY` 的 `release-source` / `release-target` capability 控制。
 
 `AW_CONTROL_TOKEN` 至少需要读取受管源仓 Contents 与 Actions，以及对允许的分发目标 `contents: write`。
 
