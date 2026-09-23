@@ -184,6 +184,10 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
   assert.match(workflow, /Cleanup failed metrics update/);
   assert.match(workflow, /Sweep stale metrics branches/);
   assert.match(workflow, /node scripts\/manage-work-metrics\.ts sweep/);
+  const sweepJob = workflow.slice(workflow.indexOf("  sweep:"), workflow.indexOf("  update:"));
+  const updateJob = workflow.slice(workflow.indexOf("  update:"));
+  assert.match(sweepJob, /node scripts\/manage-work-metrics\.ts sweep/);
+  assert.doesNotMatch(updateJob, /node scripts\/manage-work-metrics\.ts sweep/);
   assert.match(workflow, /needs: sweep/);
   assert.match(workflow, /push:/);
   assert.match(workflow, /update-work-metrics\.yml/);
