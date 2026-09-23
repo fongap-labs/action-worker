@@ -12,22 +12,22 @@
     "security": {
       "effort": "high",
       "rule": "security.json",
-      "task_timeout_minutes": 5
+      "task_timeout_minutes": 10
     },
     "architecture": {
       "effort": "high",
       "rule": "architecture.json",
-      "task_timeout_minutes": 5
+      "task_timeout_minutes": 10
     },
     "workflow": {
       "effort": "low",
       "rule": "workflow.json",
-      "task_timeout_minutes": 5
+      "task_timeout_minutes": 10
     },
     "release": {
       "effort": "low",
       "rule": "release.json",
-      "task_timeout_minutes": 5
+      "task_timeout_minutes": 10
     },
     "code": {
       "effort": "medium",
@@ -36,7 +36,7 @@
   },
   "runtime": {
     "llm_timeout_seconds": 300,
-    "task_timeout_minutes": 5,
+    "task_timeout_minutes": 10,
     "concurrency": 1,
     "queue_poll_seconds": 15,
     "queue_wait_minutes": 120,
