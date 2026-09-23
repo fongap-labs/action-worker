@@ -72,6 +72,7 @@ test("the CLI keeps skip results independent from Git history", () => {
       ...process.env,
       AI_GATEWAY_URL: "https://gateway.invalid",
       TRIAGE_LLM_TOKEN: "test-token",
+      TRIAGE_MODEL: "Code-Air",
     },
   });
   assert.equal(result.status, 0, result.stderr);
