@@ -1,4 +1,4 @@
-import { stat, writeFile } from "node:fs/promises";
+import { stat, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   CliError,
