@@ -70,6 +70,19 @@ jobs:
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
         run: node scripts/resolve-pr-facts.ts fetch
 
+      - name: Validate requested revision
+        env:
+          REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+          RESOLVED_HEAD_SHA: ${{ steps.facts.outputs.head_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$REQUESTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          if [ "$REQUESTED_HEAD_SHA" != "$RESOLVED_HEAD_SHA" ]; then
+            echo "::error::Central CI request is stale; PR head changed after dispatch." >&2
+            exit 75
+          fi
+
   linux:
     name: Central CI / Linux
     needs: prepare
@@ -92,16 +105,39 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Run target Linux CI
-        working-directory: target
+      - name: Checkout trusted CI control
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.prepare.outputs.repository }}
+          ref: main
+          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          path: ci-control
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Run trusted Linux CI
         env:
           CENTRAL_CI_BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
           CENTRAL_CI_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
         shell: bash
         run: |
           set -Eeuo pipefail
-          test -f .github/scripts/central-ci.sh
-          bash .github/scripts/central-ci.sh
+          script="$GITHUB_WORKSPACE/ci-control/.github/scripts/central-ci.sh"
+          test -f "$script"
+
+          log="$RUNNER_TEMP/central-ci-linux.log"
+          set +e
+          bash "$script" "$GITHUB_WORKSPACE/target" >"$log" 2>&1
+          code=$?
+          set -e
+
+          if [ "$code" -ne 0 ]; then
+            echo "::error::Central Linux CI failed for $TARGET_REPOSITORY. Detailed output is suppressed because the target repository is private."
+            exit "$code"
+          fi
+
+          echo "Central Linux CI passed for $TARGET_REPOSITORY."
 
   windows:
     name: Central CI / Windows
@@ -121,19 +157,42 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Run target Windows CI
+      - name: Checkout trusted CI control
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.prepare.outputs.repository }}
+          ref: main
+          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          path: ci-control
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Run trusted Windows CI
         env:
           CENTRAL_CI_BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
           CENTRAL_CI_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
         shell: pwsh
         run: |
-          if (-not (Test-Path "target/.github/scripts/central-ci.ps1")) {
-            throw "Missing target/.github/scripts/central-ci.ps1"
+          $ErrorActionPreference = "Stop"
+          $script = "$env:GITHUB_WORKSPACE\ci-control\.github\scripts\central-ci.ps1"
+          if (-not (Test-Path $script)) {
+            throw "Missing trusted central CI script."
           }
-          & "target/.github/scripts/central-ci.ps1"
-          if ($LASTEXITCODE -ne 0) {
-            exit $LASTEXITCODE
+
+          $log = Join-Path $env:RUNNER_TEMP "central-ci-windows.log"
+          try {
+            & $script -TargetRoot "$env:GITHUB_WORKSPACE\target" *> $log
+            if ($LASTEXITCODE -ne 0) {
+              throw "Central Windows CI returned exit code $LASTEXITCODE."
+            }
           }
+          catch {
+            Write-Error "Central Windows CI failed for $env:TARGET_REPOSITORY. Detailed output is suppressed because the target repository is private."
+            exit 1
+          }
+
+          Write-Host "Central Windows CI passed for $env:TARGET_REPOSITORY."
 
   finalize:
     name: Publish Central CI
@@ -165,11 +224,9 @@ jobs:
             description="Central CI passed"
           fi
 
-          gh api --method POST "repos/$REPOSITORY/statuses/$HEAD_SHA" \
-            -f "state=$state" \
-            -f "context=CI Evidence" \
-            -f "description=$description" \
-            -f "target_url=$RUN_URL" >/dev/null
+          for context in "CI Evidence" "ci-evidence" "validate-merge"; do
+            gh api --method POST "repos/$REPOSITORY/statuses/$HEAD_SHA"               -f "state=$state"               -f "context=$context"               -f "description=$description"               -f "target_url=$RUN_URL" >/dev/null
+          done
 
           if [[ "$state" != "success" ]]; then
             exit 1
