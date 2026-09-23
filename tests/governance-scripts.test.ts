@@ -4,6 +4,7 @@ import { test } from "node:test";
 import { applyTriage } from "../scripts/apply-ai-triage.ts";
 import { parseAiAgentConfig } from "../scripts/ai-agent-config.ts";
 import { buildReview } from "../scripts/publish-pr-review.ts";
+import { changeAreaForPath } from "../scripts/detect-pr-context.ts";
 import { retryLines } from "../scripts/report-ocr-retry.ts";
 import { settingsPayload } from "../scripts/apply-repo-settings.ts";
 import { shouldResume } from "../scripts/should-resume-ocr.ts";
@@ -164,6 +165,15 @@ test("OCR retry diagnostics exclude provider request identifiers", () => {
   });
   assert.match(lines.join("\n"), /status=429 class=rate_limited phase=http/);
   assert.doesNotMatch(lines.join("\n"), /request_id=/);
+});
+
+test("change-area detection keeps changelog metadata out of release routing", () => {
+  const workflowPrefixes = [".github/workflows/"];
+  assert.equal(changeAreaForPath("CHANGELOG.md", workflowPrefixes, "CHANGELOG.md"), "documentation");
+  assert.equal(changeAreaForPath("docs/release.md", workflowPrefixes, "CHANGELOG.md"), "documentation");
+  assert.equal(changeAreaForPath(".github/workflows/release.yml", workflowPrefixes, "CHANGELOG.md"), "workflow");
+  assert.equal(changeAreaForPath("scripts/publish-release.ts", workflowPrefixes, "CHANGELOG.md"), "script");
+  assert.equal(changeAreaForPath("src/request/model-fallback.ts", workflowPrefixes, "CHANGELOG.md"), "source");
 });
 
 test("engineering language rejects Chinese machine text but allows documentation and UI strings", () => {

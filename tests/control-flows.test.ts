@@ -69,7 +69,8 @@ test("context detection classifies workflow and declared impacts", async (contex
   assert.ok(result.project_types.includes("node"));
   assert.ok(result.project_types.includes("github-automation"));
   assert.ok(result.change_areas.includes("workflow"));
-  assert.ok(result.change_areas.includes("release"));
+  assert.ok(result.change_areas.includes("documentation"));
+  assert.equal(result.change_areas.includes("release"), false);
   for (const impact of ["breaking", "api", "migration", "deployment", "compatibility"]) {
     assert.ok(result.declared_impacts.includes(impact));
   }
