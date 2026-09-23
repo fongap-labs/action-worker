@@ -1,42 +1,44 @@
 # Documentation
 
-Action Worker 同时保存两类文档：
+[**English**](README.md) · [简体中文](README.zh-CN.md)
 
-1. Fongap Labs 受管仓库共用治理；
-2. Action Worker 自身控制平面架构与实现。
+Action Worker keeps two categories of documentation:
 
-业务仓只保存项目级规则，不复制这里的共用规则。
+1. shared governance for Fongap Labs managed repositories;
+2. Action Worker control-plane architecture and implementation.
+
+Managed repositories keep only project-specific rules and do not duplicate shared governance from this repository.
 
 ## Shared governance
 
 | Document | Purpose |
 |---|---|
-| [SHARED_GOVERNANCE.md](SHARED_GOVERNANCE.md) | Fongap Labs 共用治理边界与权威关系 |
-| [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) | 全仓通用命名规则，以及 Action Worker 自身附加约束 |
-| [CHANGELOG_CONVENTIONS.md](CHANGELOG_CONVENTIONS.md) | PR、CHANGELOG 与 Release 的统一变更分类 |
-| [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) | 通用开发、验证、PR 与合并规则 |
-| [REPOSITORY_GOVERNANCE.md](REPOSITORY_GOVERNANCE.md) | 仓库设置、合并策略与 GitHub 平台能力边界 |
-| [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) | 业务仓接入中央治理的标准合同 |
+| [SHARED_GOVERNANCE.md](SHARED_GOVERNANCE.md) | Shared governance boundaries and authority relationships across Fongap Labs |
+| [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) | Shared naming rules plus Action Worker-specific constraints |
+| [CHANGELOG_CONVENTIONS.md](CHANGELOG_CONVENTIONS.md) | Unified change classification for PRs, CHANGELOG entries, and releases |
+| [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) | Common development, validation, PR, and merge rules |
+| [REPOSITORY_GOVERNANCE.md](REPOSITORY_GOVERNANCE.md) | Repository settings, merge strategy, and GitHub platform boundaries |
+| [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) | Standard contract for onboarding managed repositories to central governance |
 
 ## Action Worker specific
 
 | Document | Purpose |
 |---|---|
-| [ARCHITECTURE_GOVERNANCE.md](ARCHITECTURE_GOVERNANCE.md) | Action Worker 控制平面的长期架构边界 |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | 当前实现与运行模型 |
+| [ARCHITECTURE_GOVERNANCE.md](ARCHITECTURE_GOVERNANCE.md) | Long-term control-plane architecture boundaries |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Current implementation and runtime model |
 
 ## Machine authority
 
-文档解释“为什么”和“怎么做”，机器权威仍在：
+Documentation explains why and how. Machine authority remains in:
 
 ```text
-contracts/   输入输出合同
-policies/    确定性治理策略
-rules/       AI Review 规则
-tests/       合同与治理回归测试
+contracts/   input/output contracts
+policies/    deterministic governance policy
+rules/       AI Review rules
+tests/       contract and governance regression tests
 ```
 
-文档不得覆盖或绕过机器合同。
+Documentation must not override or bypass machine contracts.
 
 ## Shortest entry
 
@@ -57,3 +59,5 @@ Change shared governance
 → related contracts / policies / rules
 → governance regression tests
 ```
+
+Chinese overview: [README.zh-CN.md](README.zh-CN.md)
