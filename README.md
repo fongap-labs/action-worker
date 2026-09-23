@@ -76,7 +76,7 @@ Agent 可以判断，不能改写权限边界或 Gate。
 
 | 能力 | 作用 |
 |---|---|
-| **Task Dispatch** | 通过固定事件、payload 与 Commit SHA 调度可信任务 |
+| **Task Dispatch** | 通过固定事件、payload 与 Commit SHA 调度可信任务；跨仓产物由中央 Publication Gate 发布 |
 | **PR Policy** | 识别 diff、变更区域与风险，生成执行计划 |
 | **AI Triage** | 使用 `Code-Air` 做一次短、结构化的语义分诊；只允许跳过极低风险审查或向更强审查升级 |
 | **AI Review** | 按风险选择 `code / workflow / security / architecture / release` 审查角色 |
