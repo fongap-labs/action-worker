@@ -307,6 +307,23 @@ deep
 
 Writing 与 Review 平级，不是 Review 的附属能力。Task Dispatch 会把 Action Worker Repository Variables 作为运行配置提供给下游可信任务，因此 Writing Agent 也应读取同一个 `AW_AI_AGENT_CONFIG`，而不是维护第二套写作模型变量。
 
+为避免每个 downstream bootstrap 重复解析 JSON，Action Worker 会在 Task Dispatch 运行时从 `AW_AI_AGENT_CONFIG` 派生只读环境变量。它们不是 GitHub Repository Variables，也不是第二套配置权威：
+
+```text
+AW_AI_AGENT_<AGENT>_MODEL
+AW_AI_AGENT_<AGENT>_<ROUTE>_MODEL
+```
+
+例如：
+
+```text
+AW_AI_AGENT_WRITING_MODEL
+AW_AI_AGENT_WRITING_MARKET_BRIEF_MODEL
+AW_AI_AGENT_WRITING_PHARMA_BRIEF_MODEL
+```
+
+只有启用的 Agent 才会生成运行时变量；禁用 Agent 不生成模型值，因此引用方会 fail closed。若 Repository Variables 中手工定义与这些派生名称冲突的变量，Task Dispatch 必须拒绝执行，确保模型权威仍只有 `AW_AI_AGENT_CONFIG`。
+
 后续 Planner、Critic、Research、Summary 等 Agent 也遵循同一原则：
 
 ```text
@@ -314,6 +331,7 @@ Writing 与 Review 平级，不是 Review 的附属能力。Task Dispatch 会把
 → 每个 Agent 独立 enabled
 → 每个 Agent 独立逻辑模型
 → 必要时使用 Agent 内部 routes
+→ Task Runtime 只消费派生模型值
 ```
 
 ### 7.5 AI Gateway 与 Review Engine
