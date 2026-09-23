@@ -15,10 +15,18 @@ const config = JSON.stringify({
   },
 });
 
-test("AI Gateway bootstrap uses the centrally authorized architecture route", () => {
+test("AI Gateway bootstrap uses one tier below an Ultra architecture route", () => {
   assert.equal(
     resolveBootstrapModel("fongap-labs/ai-gateway", "fongap-labs", config),
-    "Audit-Ultra",
+    "Audit-Max",
+  );
+});
+
+test("AI Gateway bootstrap preserves a non-Ultra architecture route", () => {
+  const maxConfig = config.replace("Audit-Ultra", "Research-Reasoning-Max");
+  assert.equal(
+    resolveBootstrapModel("fongap-labs/ai-gateway", "fongap-labs", maxConfig),
+    "Research-Reasoning-Max",
   );
 });
 
