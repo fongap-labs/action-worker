@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: trigger the stale metrics-branch sweep when its implementation script changes on main.
+
 - fix: force GET for stale-metrics pull-request discovery so GitHub CLI does not reinterpret query fields as a PR creation request.
 
 - fix: execute stale metrics-branch cleanup in the standalone sweep job rather than the gated aggregation job.
