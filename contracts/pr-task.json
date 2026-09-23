@@ -3,7 +3,12 @@
   "title": "PR Task",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "request_id", "repository", "pr_number"],
+  "required": [
+    "schema_version",
+    "request_id",
+    "repository",
+    "pr_number"
+  ],
   "properties": {
     "schema_version": {
       "const": "1"
@@ -21,6 +26,10 @@
     "pr_number": {
       "type": "integer",
       "minimum": 1
+    },
+    "head_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
     }
   }
 }
