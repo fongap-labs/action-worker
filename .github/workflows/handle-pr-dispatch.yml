@@ -200,6 +200,7 @@ jobs:
           BLOCK_SEVERITY: ${{ steps.plan.outputs.block_severity }}
           REVIEW_TASK_TIMEOUT: ${{ steps.plan.outputs.review_task_timeout }}
           REVIEW_CONCURRENCY: ${{ steps.plan.outputs.review_concurrency }}
+          REVIEW_AVAILABILITY: ${{ steps.plan.outputs.review_availability }}
           REVIEW_RESUME_ATTEMPTS: ${{ steps.plan.outputs.review_resume_attempts }}
           REVIEW_RESUME_BACKOFF_SECONDS: ${{ steps.plan.outputs.review_resume_backoff_seconds }}
           OCR_LLM_TIMEOUT: ${{ steps.plan.outputs.review_llm_timeout }}
