@@ -130,7 +130,7 @@ jobs:
             -d "$payload"
 ```
 
-业务仓只需要 `AW_DISPATCH_TOKEN`，其权限只用于向同一组织的 `action-worker` 发送 `repository_dispatch`；目标仓由 `GITHUB_REPOSITORY_OWNER` 推导。`AI_GATEWAY_URL`、`AIG_ACCESS_KEY_AIR` 与跨仓回写凭据只保存在 Action Worker。
+业务仓只需要 `AW_DISPATCH_TOKEN`，其权限只用于向同一组织的 `action-worker` 发送 `repository_dispatch`；目标仓由 `GITHUB_REPOSITORY_OWNER` 推导。`AI_GATEWAY_URL`、`AIG_ACCESS_KEY_AIR` 与跨仓回写凭据只保存在 Action Worker。AI 审计为中央可选能力：仅当 `AW_IS_AI_REVIEW_ENABLED=true` 时运行 Triage / OCR / AI Review；未配置或设为其他值时跳过 AI 步骤，确定性 CI、命名和治理门禁仍正常执行。
 
 中央 `AW_CONTROL_TOKEN` 对受管业务仓至少需要 Contents Read、Pull Requests Read/Write、Commit Statuses Read/Write 和 **Actions Read**；Actions Read 用于读取真实 CI Evidence。
 
