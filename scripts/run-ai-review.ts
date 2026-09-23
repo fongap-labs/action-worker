@@ -23,6 +23,7 @@ type ReviewOptions = {
   effort: string;
   taskTimeout: number;
   concurrency: number;
+  availability: "required" | "best_effort";
   resumeAttempts: number;
   resumeBackoffSeconds: number;
 };
@@ -136,6 +137,7 @@ export async function executeReview(options: ReviewOptions): Promise<void> {
   }
   if (!Number.isInteger(options.taskTimeout) || options.taskTimeout < 1
     || !Number.isInteger(options.concurrency) || options.concurrency < 1 || options.concurrency > 8
+    || !["required", "best_effort"].includes(options.availability)
     || !Number.isInteger(options.resumeAttempts) || options.resumeAttempts < 0 || options.resumeAttempts > 5
     || !Number.isInteger(options.resumeBackoffSeconds) || options.resumeBackoffSeconds < 1 || options.resumeBackoffSeconds > 120) {
     throw new CliError("::error::Invalid review runtime limits.", 65);
@@ -170,6 +172,25 @@ export async function executeReview(options: ReviewOptions): Promise<void> {
     }
   }
   if (reviewError !== undefined) {
+    if (options.availability === "best_effort" && shouldResume(result)) {
+      const unavailable = isJsonRecord(result) ? {
+        ...result,
+        status: "unavailable",
+        unavailable_reason: "transient_upstream_failure",
+      } : {
+        status: "unavailable",
+        unavailable_reason: "transient_upstream_failure",
+      };
+      await writeFile(resultPath, `${JSON.stringify(unavailable, null, 2)}\n`, "utf8");
+      await appendLines(process.env.GITHUB_STEP_SUMMARY, [
+        "### AI Review", "",
+        "- availability: best-effort",
+        "- result: unavailable after transient upstream recovery budget",
+        "- deterministic CI and policy checks remain authoritative for this gate",
+      ]);
+      console.log("::warning::AI Review unavailable after transient upstream recovery budget; continuing under best-effort availability policy.");
+      return;
+    }
     const detail = reviewError instanceof Error ? reviewError.message : String(reviewError);
     throw new CliError(`${detail}\n::error::AI Review failed after OCR request retries and ${options.resumeAttempts} compatible session resume attempt(s); provider/model fallback is owned by AI Gateway.`);
   }
@@ -199,6 +220,7 @@ async function main(): Promise<void> {
     effort: process.env.REVIEW_EFFORT ?? "",
     taskTimeout: Number(process.env.REVIEW_TASK_TIMEOUT ?? ""),
     concurrency: Number(process.env.REVIEW_CONCURRENCY ?? ""),
+    availability: process.env.REVIEW_AVAILABILITY === "best_effort" ? "best_effort" : "required",
     resumeAttempts: Number(process.env.REVIEW_RESUME_ATTEMPTS ?? ""),
     resumeBackoffSeconds: Number(process.env.REVIEW_RESUME_BACKOFF_SECONDS ?? ""),
   });
