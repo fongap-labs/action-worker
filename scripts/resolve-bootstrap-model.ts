@@ -14,11 +14,11 @@ export function resolveBootstrapModel(
   }
 
   const config = parseAiAgentConfig(rawConfig);
-  const review = config.agents.review;
-  const model = review?.enabled ? review.model?.trim() ?? "" : "";
+  const writing = config.agents.writing;
+  const model = writing?.enabled ? writing.model?.trim() ?? "" : "";
   if (!model) {
     throw new CliError(
-      "::error::AI Gateway bootstrap requires agents.review.model in AW_AI_AGENT_CONFIG.",
+      "::error::AI Gateway bootstrap requires agents.writing.model in AW_AI_AGENT_CONFIG.",
       65,
     );
   }

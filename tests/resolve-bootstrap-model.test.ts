@@ -12,13 +12,18 @@ const config = JSON.stringify({
         architecture: { model: "Audit-Ultra" },
       },
     },
+    writing: {
+      enabled: true,
+      model: "Editor-Air",
+      routes: {},
+    },
   },
 });
 
-test("AI Gateway bootstrap uses the centrally configured default review model", () => {
+test("AI Gateway bootstrap uses the centrally configured independent model", () => {
   assert.equal(
     resolveBootstrapModel("fongap-labs/ai-gateway", "fongap-labs", config),
-    "Audit-Pro",
+    "Editor-Air",
   );
 });
 
@@ -29,7 +34,7 @@ test("other repositories preserve automatic model routing", () => {
   );
 });
 
-test("AI Gateway bootstrap fails closed when the default review model is unavailable", () => {
+test("AI Gateway bootstrap fails closed when the independent model is unavailable", () => {
   assert.throws(
     () => resolveBootstrapModel(
       "fongap-labs/ai-gateway",
@@ -37,10 +42,11 @@ test("AI Gateway bootstrap fails closed when the default review model is unavail
       JSON.stringify({
         schema_version: 1,
         agents: {
-          review: { enabled: true, model: "", routes: { architecture: { model: "Audit-Ultra" } } },
+          review: { enabled: true, model: "Audit-Pro", routes: { architecture: { model: "Audit-Ultra" } } },
+          writing: { enabled: false, model: "Editor-Air", routes: {} },
         },
       }),
     ),
-    /review.*invalid model/i,
+    /agents\.writing\.model/i,
   );
 });
