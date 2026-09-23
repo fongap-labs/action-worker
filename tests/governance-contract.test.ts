@@ -78,6 +78,8 @@ test("runtime and machine policies preserve trust boundaries", async () => {
   const review = await json("policies/review.json");
   const runtime = review.runtime as Record<string, unknown>;
   assert.equal(runtime.concurrency, 1);
+  assert.equal(runtime.resume_attempts, 3);
+  assert.equal(runtime.resume_backoff_seconds, 15);
   assert.equal("retry" in runtime, false);
   const engine = review.engine as Record<string, unknown>;
   assert.equal(engine.repository, "fongap-labs/external-vault");

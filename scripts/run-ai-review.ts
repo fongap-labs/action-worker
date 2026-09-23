@@ -23,6 +23,8 @@ type ReviewOptions = {
   effort: string;
   taskTimeout: number;
   concurrency: number;
+  resumeAttempts: number;
+  resumeBackoffSeconds: number;
 };
 
 const evidenceName = ".action-worker-ci-evidence.json";
@@ -133,7 +135,9 @@ export async function executeReview(options: ReviewOptions): Promise<void> {
     throw new CliError("::error::Invalid review commit SHA.", 65);
   }
   if (!Number.isInteger(options.taskTimeout) || options.taskTimeout < 1
-    || !Number.isInteger(options.concurrency) || options.concurrency < 1 || options.concurrency > 8) {
+    || !Number.isInteger(options.concurrency) || options.concurrency < 1 || options.concurrency > 8
+    || !Number.isInteger(options.resumeAttempts) || options.resumeAttempts < 0 || options.resumeAttempts > 5
+    || !Number.isInteger(options.resumeBackoffSeconds) || options.resumeBackoffSeconds < 1 || options.resumeBackoffSeconds > 120) {
     throw new CliError("::error::Invalid review runtime limits.", 65);
   }
   await configureReview();
@@ -149,10 +153,11 @@ export async function executeReview(options: ReviewOptions): Promise<void> {
   for (const line of retryLines(result)) {
     console.error(line);
   }
-  if (reviewError !== undefined && shouldResume(result)) {
+  for (let attempt = 1; reviewError !== undefined && attempt <= options.resumeAttempts && shouldResume(result); attempt += 1) {
     const sessionId = isJsonRecord(result) && typeof result.session_id === "string" ? result.session_id : "";
-    console.log(`::notice::Transient OCR failure detected; resume 1/1 after 15s: ${sessionId}`);
-    await new Promise((resolve) => setTimeout(resolve, 15_000));
+    const backoffSeconds = Math.min(options.resumeBackoffSeconds * (2 ** (attempt - 1)), 120);
+    console.log(`::notice::Transient OCR failure detected; resume ${attempt}/${options.resumeAttempts} after ${backoffSeconds}s: ${sessionId}`);
+    await new Promise((resolve) => setTimeout(resolve, backoffSeconds * 1000));
     try {
       await runReview(options, comparison.base, comparison.head, sessionId);
       reviewError = undefined;
@@ -166,7 +171,7 @@ export async function executeReview(options: ReviewOptions): Promise<void> {
   }
   if (reviewError !== undefined) {
     const detail = reviewError instanceof Error ? reviewError.message : String(reviewError);
-    throw new CliError(`${detail}\n::error::AI Review failed after OCR request retries and one compatible session resume; provider/model fallback is owned by AI Gateway.`);
+    throw new CliError(`${detail}\n::error::AI Review failed after OCR request retries and ${options.resumeAttempts} compatible session resume attempt(s); provider/model fallback is owned by AI Gateway.`);
   }
   validateReview(result);
   const comments = isJsonRecord(result) && Array.isArray(result.comments) ? result.comments : [];
@@ -194,6 +199,8 @@ async function main(): Promise<void> {
     effort: process.env.REVIEW_EFFORT ?? "",
     taskTimeout: Number(process.env.REVIEW_TASK_TIMEOUT ?? ""),
     concurrency: Number(process.env.REVIEW_CONCURRENCY ?? ""),
+    resumeAttempts: Number(process.env.REVIEW_RESUME_ATTEMPTS ?? ""),
+    resumeBackoffSeconds: Number(process.env.REVIEW_RESUME_BACKOFF_SECONDS ?? ""),
   });
 }
 
