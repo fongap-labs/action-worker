@@ -6,7 +6,7 @@ test("accepts context-independent external names", () => {
   assert.deepEqual(
     validateConfigText(".github/workflows/ci.yml", [
       "${{ secrets.AW_CONTROL_TOKEN }}",
-      "${{ secrets.AIG_ACCESS_KEY_AIR }}",
+      "${{ secrets.AIG_ACCESS_KEY_AGENT }}",
       "${{ vars.AI_GATEWAY_URL }}",
       "${{ vars.CLOUDFLARE_ACCOUNT_ID }}",
     ].join("\n")),

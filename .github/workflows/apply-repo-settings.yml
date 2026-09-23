@@ -68,15 +68,40 @@ jobs:
           TARGET_REPOSITORY: ${{ github.repository }}
         run: node scripts/apply-repo-settings.ts "$TARGET_REPOSITORY" false
 
+  resolve-managed:
+    if: github.event_name == 'push'
+    name: Resolve managed repositories
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      repositories: ${{ steps.policy.outputs.repositories }}
+    steps:
+      - name: Check out control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Resolve repository policy
+        id: policy
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+        run: node scripts/repository-policy.ts list pr
+
   apply-managed:
     if: github.event_name == 'push'
+    needs: resolve-managed
     name: Apply managed settings · ${{ matrix.repository }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
-        repository: ${{ fromJSON(vars.AW_PR_REPOSITORY_ALLOWLIST) }}
+        repository: ${{ fromJSON(needs.resolve-managed.outputs.repositories) }}
     steps:
       - name: Check out control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

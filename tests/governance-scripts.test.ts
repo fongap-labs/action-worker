@@ -10,7 +10,7 @@ import { validateDispatch } from "../scripts/validate-dispatch-payload.ts";
 import { assertEnglishText, engineeringLineViolation } from "../scripts/validate-engineering-language.ts";
 import { validateEvidence } from "../scripts/validate-ci-evidence.ts";
 import { validatePayload } from "../scripts/validate-pr-payload.ts";
-import { validateRepository } from "../scripts/validate-pr-repository.ts";
+import { repositoriesForCapability, validateRepositoryCapability } from "../scripts/repository-policy.ts";
 import { validateRelease } from "../scripts/validate-release-request.ts";
 import { validateReview } from "../scripts/validate-review-result.ts";
 import { variableEntries } from "../scripts/export-repository-variables.ts";
@@ -25,12 +25,19 @@ test("dispatch contracts reject unknown or malformed input", () => {
   assert.throws(() => validateDispatch({ schema_version: "1", request_id: "req", project: "ActionWorker", bootstrap_ref: sha, repository: "fongap-labs/internal-vault", command: "unsafe" }));
 });
 
-test("PR task and repository allowlist remain fail closed", () => {
+test("PR task and repository policy remain fail closed", () => {
   validatePayload({ schema_version: "1", request_id: "pr:1", repository: "fongap/example", pr_number: 1 });
   assert.throws(() => validatePayload({ schema_version: "1", request_id: "pr:1", repository: "fongap/example", pr_number: 0 }));
-  validateRepository("fongap/example", ["fongap/example", "other/repository"]);
-  assert.throws(() => validateRepository("fongap/blocked", ["fongap/example"]));
-  assert.throws(() => validateRepository("fongap/example", ["fongap/example", "fongap/example"]));
+  const policy = {
+    "fongap/example": ["pr", "task"],
+    "other/repository": ["pr"],
+  };
+  validateRepositoryCapability("fongap/example", policy, "pr");
+  validateRepositoryCapability("fongap/example", policy, "task");
+  assert.throws(() => validateRepositoryCapability("fongap/blocked", policy, "pr"));
+  assert.throws(() => validateRepositoryCapability("other/repository", policy, "task"));
+  assert.throws(() => validateRepositoryCapability("fongap/example", { "fongap/example": ["pr", "pr"] }, "pr"));
+  assert.deepEqual(repositoriesForCapability(policy, "task"), ["fongap/example"]);
 });
 
 test("AI triage can only skip safe low-risk code changes", async () => {
@@ -177,10 +184,14 @@ test("release contracts validate source, target, assets, and license", () => {
       { name: "LICENSE.txt", sha256: "b".repeat(64) },
     ],
   };
-  validateRelease(request, manifest, ["fongap/source"], ["fongap/target"]);
-  assert.throws(() => validateRelease(request, { ...manifest, release_key: "Example Tool" }, ["fongap/source"], ["fongap/target"]));
-  assert.throws(() => validateRelease(request, { ...manifest, assets: manifest.assets.slice(0, 1) }, ["fongap/source"], ["fongap/target"]));
-  assert.throws(() => validateRelease(request, undefined, ["fongap/other"], ["fongap/target"]));
+  const policy = {
+    "fongap/source": ["release-source"],
+    "fongap/target": ["release-target"],
+  };
+  validateRelease(request, manifest, policy);
+  assert.throws(() => validateRelease(request, { ...manifest, release_key: "Example Tool" }, policy));
+  assert.throws(() => validateRelease(request, { ...manifest, assets: manifest.assets.slice(0, 1) }, policy));
+  assert.throws(() => validateRelease(request, undefined, { "fongap/other": ["release-source"], "fongap/target": ["release-target"] }));
 });
 
 test("PR review summary includes gate, routing, and findings", () => {

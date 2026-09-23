@@ -49,11 +49,17 @@ jobs:
           SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
         run: node scripts/manage-work-metrics.ts increment
 
+      - name: Resolve managed repositories
+        id: repositories
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+        run: node scripts/repository-policy.ts list pr
+
       - name: Aggregate work metrics
         id: metrics
         env:
           METRICS_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          METRICS_REPOSITORIES_JSON: ${{ vars.AW_PR_REPOSITORY_ALLOWLIST }}
+          METRICS_REPOSITORIES_JSON: ${{ steps.repositories.outputs.repositories }}
           WORK_METRICS_JSON: ${{ steps.increment.outputs.json }}
         run: node scripts/update-work-metrics.ts README.md
 
