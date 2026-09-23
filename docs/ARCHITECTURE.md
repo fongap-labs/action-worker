@@ -54,7 +54,7 @@ Action Worker
 
 Action Worker 不维护项目目录、不维护项目专属测试映射、不按仓库名称分支执行逻辑。
 
-具体仓库名称不进入源码；PR 白名单从 Repository Variable `AW_PR_REPOSITORY_ALLOWLIST` 读取。
+具体仓库名称不进入源码。仓库权限统一从 Repository Variable `AW_REPOSITORY_POLICY` 读取；同一仓库可声明 `pr`、`task`、`release-source`、`release-target` capability。
 
 ## 3. PR
 
@@ -85,7 +85,7 @@ pr_number
 
 Action Worker 收到任务后必须：
 
-- 先按 `AW_PR_REPOSITORY_ALLOWLIST` 校验目标仓库；
+- 先按 `AW_REPOSITORY_POLICY` 的 `pr` capability 校验目标仓库；
 - 使用 `AW_CONTROL_TOKEN` 从 GitHub 重新获取 PR base/head SHA、标题、状态和 diff；
 - checkout `refs/pull/<n>/head` 后再次与 GitHub 当前 PR 事实对齐；如果调度到检出之间 PR 已更新，则以实际检出 commit 与最新 PR API 一致的 base/head/title 作为本次治理事实，避免把同步窗口误判为永久失败；
 - 只读取目标 PR，不执行 PR 提供的代码；
