@@ -11,11 +11,13 @@
   "agents": {
     "security": {
       "effort": "high",
-      "rule": "security.json"
+      "rule": "security.json",
+      "task_timeout_minutes": 5
     },
     "architecture": {
       "effort": "high",
-      "rule": "architecture.json"
+      "rule": "architecture.json",
+      "task_timeout_minutes": 5
     },
     "workflow": {
       "effort": "low",

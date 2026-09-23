@@ -101,7 +101,7 @@ test("breaking and security routes preserve deterministic depth", async () => {
   }), policies, defaults);
   assert.equal(breaking.review_agent, "architecture");
   assert.equal(breaking.review_model, "Code-Ultra");
-  assert.equal(breaking.review_task_timeout, 2);
+  assert.equal(breaking.review_task_timeout, 5);
   assert.equal(breaking.triage_required, false);
   assert.deepEqual(breaking.tests, ["api-test", "compatibility-test", "integration-test", "node-test"]);
 
@@ -113,6 +113,7 @@ test("breaking and security routes preserve deterministic depth", async () => {
   }), policies, defaults);
   assert.equal(security.review_agent, "security");
   assert.equal(security.review_model, "Code-Ultra");
+  assert.equal(security.review_task_timeout, 5);
   assert.equal(security.triage_required, false);
   assert.deepEqual(security.checks, ["naming", "secret-scan", "shellcheck"]);
 });
