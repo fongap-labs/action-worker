@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: run AI Gateway bootstrap review one capability tier below an Ultra architecture route so the current gateway can be repaired without disabling AI Review or hard-coding a model family.
+
 - fix: preserve AI review bootstrap compatibility by resolving AI Gateway self-review from the centrally authorized architecture route instead of a hard-coded model alias.
 
 - fix: allow AI review rate-limit retry windows to use a ten-minute task budget without weakening governance gates.
