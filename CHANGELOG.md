@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: keep work-metrics repository actions on the workflow-scoped GitHub token and clean failed metric PRs and branches.
+
 - fix: recognize scoped business owners in external configuration naming while continuing to reject generic context-dependent names.
 
 - feat: derive task-runtime AI Agent model variables from `AW_AI_AGENT_CONFIG` so downstream writing and future agents share one model authority without project-level model settings.
