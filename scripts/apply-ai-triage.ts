@@ -101,6 +101,8 @@ export function applyTriage(
         review_llm_timeout: 0,
         review_task_timeout: 0,
         review_concurrency: 0,
+        review_resume_attempts: 0,
+        review_resume_backoff_seconds: 0,
         review_effort: "low",
         block_severity: "none",
       });
@@ -182,6 +184,8 @@ async function main(): Promise<void> {
         `review_llm_timeout=${String(output.review_llm_timeout)}`,
         `review_task_timeout=${String(output.review_task_timeout)}`,
         `review_concurrency=${String(output.review_concurrency)}`,
+        `review_resume_attempts=${String(output.review_resume_attempts)}`,
+        `review_resume_backoff_seconds=${String(output.review_resume_backoff_seconds)}`,
         `block_severity=${asString(output.block_severity)}`,
         `review_effort=${asString(output.review_effort)}`,
       ]);
