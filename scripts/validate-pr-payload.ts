@@ -6,7 +6,7 @@ import {
   isMain,
   parseJson,
 } from "./runtime-command.ts";
-import { validateRepository } from "./validate-pr-repository.ts";
+import { validateRepositoryCapability } from "./repository-policy.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const requestPattern = /^[A-Za-z0-9._:-]+$/;
@@ -42,12 +42,15 @@ async function main(): Promise<void> {
   const value = parseJson(args[0] ?? "", "::error::PR dispatch payload does not match contracts/pr-task.json.", 64);
   validatePayload(value);
   const payload = value as Record<string, unknown>;
-  if (process.env.AW_PR_REPOSITORY_ALLOWLIST) {
-    validateRepository(
-      String(payload.repository),
-      parseJson(process.env.AW_PR_REPOSITORY_ALLOWLIST, "::error::AW_PR_REPOSITORY_ALLOWLIST must be valid JSON."),
-    );
+  const repositoryPolicy = process.env.AW_REPOSITORY_POLICY;
+  if (!repositoryPolicy) {
+    throw new CliError("::error::Missing Repository Variable: AW_REPOSITORY_POLICY.", 65);
   }
+  validateRepositoryCapability(
+    String(payload.repository),
+    parseJson(repositoryPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65),
+    "pr",
+  );
   await appendLines(process.env.GITHUB_OUTPUT, [
     `repository=${String(payload.repository)}`,
     `pr_number=${String(payload.pr_number)}`,
