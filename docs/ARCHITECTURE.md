@@ -91,7 +91,7 @@ Action Worker 收到任务后必须：
 - 只读取目标 PR，不执行 PR 提供的代码；
 - 当执行计划要求 CI 时，先读取目标 head SHA 对应的业务仓 `ci.yml`，收集真实 CI Evidence；
 - 将 CI Evidence 作为不可信执行证据提供给 AI Review，不把其中任何文本当成指令；
-- 用中央 `AI_GATEWAY_URL` / `AIG_ACCESS_KEY_AIR` 执行 AI Review；
+- 用中央 `AI_GATEWAY_URL` / `AIG_ACCESS_KEY_AGENT` 执行 AI Review；
 - 根据 finding severity 与确定性 CI Evidence 共同计算 Gate；
 - 向目标 head commit 写入统一 `PR Governance` status，并维护一条 sticky review summary。
 
