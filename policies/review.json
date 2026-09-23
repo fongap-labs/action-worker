@@ -12,27 +12,32 @@
     "security": {
       "model": "Code-Ultra",
       "effort": "high",
-      "rule": "security.json"
+      "rule": "security.json",
+      "availability": "required"
     },
     "architecture": {
       "model": "Code-Ultra",
       "effort": "high",
-      "rule": "architecture.json"
+      "rule": "architecture.json",
+      "availability": "required"
     },
     "workflow": {
       "model": "Code-Pro",
       "effort": "low",
-      "rule": "workflow.json"
+      "rule": "workflow.json",
+      "availability": "best_effort"
     },
     "release": {
       "model": "Code-Pro",
       "effort": "low",
-      "rule": "release.json"
+      "rule": "release.json",
+      "availability": "best_effort"
     },
     "code": {
       "model": "Code-Pro",
       "effort": "medium",
-      "rule": "code.json"
+      "rule": "code.json",
+      "availability": "best_effort"
     }
   },
   "runtime": {
