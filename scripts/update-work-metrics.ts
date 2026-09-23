@@ -287,11 +287,15 @@ export function renderMetrics(content: string, counts: WorkCounts, repository: s
 }
 
 async function main(): Promise<void> {
-  const readmePath = process.argv[2] ?? "README.md";
-  try {
-    await access(readmePath);
-  } catch {
-    throw new CliError(`README not found: ${readmePath}`, 66);
+  const readmePaths = process.argv.slice(2);
+  const targets = readmePaths.length > 0 ? readmePaths : ["README.md"];
+  const primaryReadmePath = targets[0]!;
+  for (const readmePath of targets) {
+    try {
+      await access(readmePath);
+    } catch {
+      throw new CliError(`README not found: ${readmePath}`, 66);
+    }
   }
   const repository = process.env.GITHUB_REPOSITORY ?? "fongap/action-worker";
   const owner = process.env.GITHUB_REPOSITORY_OWNER ?? repository.split("/", 1)[0] ?? "";
@@ -299,7 +303,7 @@ async function main(): Promise<void> {
   const configured = process.env.METRICS_REPOSITORIES_JSON ?? "";
   const fixtureJson = process.env.WORK_METRICS_COUNTS ?? "";
   const incrementJson = process.env.WORK_METRICS_JSON ?? "";
-  const content = await readFile(readmePath, "utf8");
+  const content = await readFile(primaryReadmePath, "utf8");
   let counts: WorkCounts;
   let repositoryCount = 0;
 
@@ -314,7 +318,12 @@ async function main(): Promise<void> {
     repositoryCount = result.repositories;
   }
 
-  await writeFile(readmePath, renderMetrics(content, counts, repository), "utf8");
+  for (const readmePath of targets) {
+    const targetContent = readmePath === primaryReadmePath
+      ? content
+      : await readFile(readmePath, "utf8");
+    await writeFile(readmePath, renderMetrics(targetContent, counts, repository), "utf8");
+  }
   await appendLines(process.env.GITHUB_OUTPUT, [
     `dispatch=${counts.dispatch}`,
     `pr_governance=${counts.pr_governance}`,
