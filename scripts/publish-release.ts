@@ -311,7 +311,22 @@ async function main(): Promise<void> {
     .sort((left, right) => getJsonNumber(right, "databaseId") - getJsonNumber(left, "databaseId"));
   const ciRunId = getJsonNumber(ciRuns[0], "databaseId");
   if (!ciRunId) {
-    throw new CliError(`::error::No successful ci.yml run found for source commit: ${sourceSha}.`, 65);
+    throw new CliError(`::error::No successful ci.yml dispatch run found for source commit: ${sourceSha}.`, 65);
+  }
+
+  const statusJson = await getGithubJson(
+    `repos/${sourceRepository}/commits/${sourceSha}/status`,
+    controlToken,
+  );
+  const ciEvidence = getJsonArray(statusJson, "statuses").find(
+    (status) => isJsonRecord(status) && getJsonString(status, "context") === "CI Evidence",
+  );
+  const ciEvidenceState = isJsonRecord(ciEvidence) ? getJsonString(ciEvidence, "state") : "";
+  if (ciEvidenceState !== "success") {
+    throw new CliError(
+      `::error::Central CI Evidence is not successful for source commit: sha=${sourceSha} state=${ciEvidenceState || "missing"}.`,
+      65,
+    );
   }
 
   const artifactJson = await getGithubJson(
@@ -403,7 +418,8 @@ async function main(): Promise<void> {
     const provenance = [
       `Source: https://github.com/${sourceRepository}/commit/${sourceSha}`,
       `Source run: https://github.com/${sourceRepository}/actions/runs/${sourceRunId}`,
-      `CI run: https://github.com/${sourceRepository}/actions/runs/${ciRunId}`,
+      `CI dispatch run: https://github.com/${sourceRepository}/actions/runs/${ciRunId}`,
+      `Central CI Evidence: success`,
       `Request: ${requestId}`,
       `License: ${licenseExpression}`,
       ...(licenseFile ? [`License file: ${licenseFile}`] : []),
@@ -501,7 +517,8 @@ async function main(): Promise<void> {
       "",
       `- Source: ${sourceRepository}@${sourceSha}`,
       `- Source run: ${sourceRunId}`,
-      `- CI run: ${ciRunId}`,
+      `- CI dispatch run: ${ciRunId}`,
+      `- Central CI Evidence: success`,
       `- Target: ${targetRepository}@${targetSha}`,
       `- Tag: ${tag}`,
       `- License: ${licenseExpression}`,
