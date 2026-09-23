@@ -127,7 +127,7 @@ jobs:
         run: node scripts/wait-ci-evidence.ts "$REPOSITORY" "$HEAD_SHA" "$GITHUB_WORKSPACE/policies/execution.json"
 
       - name: Wait for AI queue
-        if: steps.base_plan.outputs.review_required == 'true'
+        if: steps.base_plan.outputs.review_required == 'true' && vars.AW_IS_AI_REVIEW_ENABLED == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -140,7 +140,7 @@ jobs:
             "$GITHUB_WORKSPACE/policies/review.json"
 
       - name: Run AI Triage
-        if: steps.base_plan.outputs.triage_required == 'true'
+        if: steps.base_plan.outputs.triage_required == 'true' && vars.AW_IS_AI_REVIEW_ENABLED == 'true'
         env:
           AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
           TRIAGE_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AIR }}
@@ -168,18 +168,18 @@ jobs:
 
       - name: Resolve OCR distribution
         id: ocr_dist
-        if: steps.plan.outputs.review_required == 'true'
+        if: steps.plan.outputs.review_required == 'true' && vars.AW_IS_AI_REVIEW_ENABLED == 'true'
         run: node scripts/resolve-ocr-distribution.ts "$GITHUB_WORKSPACE/policies/review.json"
 
       - name: Restore OCR cache
-        if: steps.plan.outputs.review_required == 'true'
+        if: steps.plan.outputs.review_required == 'true' && vars.AW_IS_AI_REVIEW_ENABLED == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.ocr_dist.outputs.cache_dir }}
           key: ocr-${{ runner.os }}-${{ runner.arch }}-${{ steps.ocr_dist.outputs.version }}-${{ steps.ocr_dist.outputs.asset }}
 
       - name: Configure OpenCodeReview
-        if: steps.plan.outputs.review_required == 'true'
+        if: steps.plan.outputs.review_required == 'true' && vars.AW_IS_AI_REVIEW_ENABLED == 'true'
         env:
           OCR_REPOSITORY: ${{ steps.ocr_dist.outputs.repository }}
           OCR_VERSION: ${{ steps.ocr_dist.outputs.version }}
@@ -188,7 +188,7 @@ jobs:
         run: node scripts/install-ocr.ts "$OCR_REPOSITORY" "$OCR_VERSION" "$OCR_ASSET" "$OCR_CACHE_DIR"
 
       - name: Run AI review
-        if: steps.plan.outputs.review_required == 'true'
+        if: steps.plan.outputs.review_required == 'true' && vars.AW_IS_AI_REVIEW_ENABLED == 'true'
         env:
           AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
           OCR_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AIR }}

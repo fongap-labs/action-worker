@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: make AI Triage and Review opt-in through AW_IS_AI_REVIEW_ENABLED while preserving deterministic governance gates.
+
 - fix: give workflow AI reviews a five-minute task budget without increasing other review-agent timeouts.
 
 - fix: treat MODE configuration names as non-Boolean during naming validation.
