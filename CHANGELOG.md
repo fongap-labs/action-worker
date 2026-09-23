@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- fix: preserve AI review bootstrap compatibility by resolving AI Gateway self-review from the centrally authorized architecture route instead of a hard-coded model alias.
+
+- fix: allow AI review rate-limit retry windows to use a ten-minute task budget without weakening governance gates.
+
 - fix: temporarily review AI Gateway changes with the authorized Audit-Max model to break the gateway self-review bootstrap cycle without disabling AI Review.
 
 - fix: align the default AI review task budget with the configured 300-second LLM timeout.

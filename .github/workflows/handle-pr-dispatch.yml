@@ -109,14 +109,7 @@ jobs:
         id: bootstrap_review
         env:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          if [ "$REPOSITORY" = "${GITHUB_REPOSITORY_OWNER}/ai-gateway" ]; then
-            echo "model=Audit-Max" >> "$GITHUB_OUTPUT"
-          else
-            echo "model=auto" >> "$GITHUB_OUTPUT"
-          fi
+        run: node scripts/resolve-bootstrap-model.ts "$REPOSITORY" "$GITHUB_REPOSITORY_OWNER"
 
       - name: Resolve base plan
         id: base_plan

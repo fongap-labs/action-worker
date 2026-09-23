@@ -83,7 +83,7 @@ test("workflow changes route through normal triage", async () => {
   assert.equal(plan.review_model, "Code-Pro");
   assert.equal(plan.review_effort, "low");
   assert.equal(plan.review_rule, "workflow.json");
-  assert.equal(plan.review_task_timeout, 5);
+  assert.equal(plan.review_task_timeout, 10);
   assert.equal(plan.review_resume_attempts, 3);
   assert.equal(plan.review_resume_backoff_seconds, 15);
   assert.equal(plan.triage_required, true);
@@ -101,7 +101,7 @@ test("breaking and security routes preserve deterministic depth", async () => {
   }), policies, defaults);
   assert.equal(breaking.review_agent, "architecture");
   assert.equal(breaking.review_model, "Code-Ultra");
-  assert.equal(breaking.review_task_timeout, 5);
+  assert.equal(breaking.review_task_timeout, 10);
   assert.equal(breaking.triage_required, false);
   assert.deepEqual(breaking.tests, ["api-test", "compatibility-test", "integration-test", "node-test"]);
 
@@ -113,7 +113,7 @@ test("breaking and security routes preserve deterministic depth", async () => {
   }), policies, defaults);
   assert.equal(security.review_agent, "security");
   assert.equal(security.review_model, "Code-Ultra");
-  assert.equal(security.review_task_timeout, 5);
+  assert.equal(security.review_task_timeout, 10);
   assert.equal(security.triage_required, false);
   assert.deepEqual(security.checks, ["naming", "secret-scan", "shellcheck"]);
 });
@@ -159,7 +159,7 @@ test("explicit overrides keep the existing CLI semantics", async () => {
   assert.equal(plan.naming_required, false);
   assert.equal(plan.review_agent, "code");
   assert.equal(plan.review_model, "Code-Air");
-  assert.equal(plan.review_task_timeout, 5);
+  assert.equal(plan.review_task_timeout, 10);
   assert.equal(plan.triage_required, true);
   assert.equal(plan.block_severity, "critical");
 });
