@@ -117,6 +117,13 @@ jobs:
         working-directory: target
         run: node "$GITHUB_WORKSPACE/scripts/validate-naming-rules.ts" "$BASE_SHA" "$HEAD_SHA"
 
+      - name: Validate AI Gateway access
+        if: steps.base_plan.outputs.review_required == 'true' && vars.AW_IS_AI_REVIEW_ENABLED == 'true'
+        env:
+          AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
+          AI_GATEWAY_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
+        run: node scripts/validate-ai-gateway-access.ts "$GITHUB_WORKSPACE/policies/triage.json" "$GITHUB_WORKSPACE/policies/review.json"
+
       - name: Collect CI evidence
         if: steps.base_plan.outputs.ci_required == 'true'
         env:
