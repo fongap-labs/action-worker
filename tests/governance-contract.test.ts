@@ -85,6 +85,7 @@ test("runtime and machine policies preserve trust boundaries", async () => {
   assert.equal("retry" in runtime, false);
   const agents = review.agents as Record<string, Record<string, unknown>>;
   assert.equal(agents.workflow?.task_timeout_minutes, 5);
+  assert.equal(agents.release?.task_timeout_minutes, 5);
   const engine = review.engine as Record<string, unknown>;
   assert.equal(engine.repository, "fongap-labs/external-vault");
   assert.equal(engine.version, "1.12.9");

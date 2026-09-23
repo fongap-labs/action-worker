@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: give release AI reviews a five-minute task budget so transient gateway failover can complete without weakening review gates.
+
 - fix: include JSONC deployment configuration and CHANGELOG files in release AI review scope.
 
 - fix: make AI Triage and Review opt-in through AW_IS_AI_REVIEW_ENABLED while preserving deterministic governance gates.

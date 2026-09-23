@@ -28,7 +28,8 @@
     "release": {
       "model": "Code-Pro",
       "effort": "low",
-      "rule": "release.json"
+      "rule": "release.json",
+      "task_timeout_minutes": 5
     },
     "code": {
       "model": "Code-Pro",
