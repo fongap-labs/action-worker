@@ -128,7 +128,7 @@ async function discoverRepos(
   return repositories;
 }
 
-function isSuccessfulRun(value: unknown, path: string): boolean {
+export function isSuccessfulRun(value: unknown, path: string): boolean {
   return isJsonRecord(value)
     && value.path === path
     && value.event === "repository_dispatch"
