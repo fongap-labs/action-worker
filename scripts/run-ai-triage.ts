@@ -242,6 +242,17 @@ async function main(): Promise<void> {
         return;
       }
     }
+    // Parse the planJson to check if review is required
+    try {
+      const plan = validatePlan(parseJson(planJson, "ERROR: invalid base plan."));
+      if (!plan.review_required) {
+        await emitTriage({ status: "skipped", model: "Code-Air", reason: "review_not_required" });
+        return;
+      }
+    } catch {
+      await emitTriage({ status: "skipped", model: "unknown", reason: "base_plan_missing" });
+      return;
+    }
 
   try {
     const gitStat = await stat(join(repoRoot, ".git"));
