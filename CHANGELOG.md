@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: run stale work-metrics branch cleanup independently of source workflow success.
+
 - fix: sweep stale closed work-metrics branches before each metrics update.
 
 - fix: accept the `APP_SOURCE_` external configuration prefix as a context-independent system identity.
