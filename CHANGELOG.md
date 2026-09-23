@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: run release AI review on Code-Max while preserving the same strict blocking policy.
+
 - feat: preflight AI Gateway model access so governance fails early when the Agent key cannot call required review models.
 
 - fix: give release AI reviews a five-minute task budget so transient gateway failover can complete without weakening review gates.
