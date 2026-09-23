@@ -34,13 +34,5 @@
     "performance": ["performance", "性能"],
     "compatibility": ["compatible", "compatibility", "兼容"],
     "release": ["release", "发布"]
-  },
-  "source_repositories": [
-    "fongap-labs/delta",
-    "fongap-labs/app-source",
-    "fongap-labs/external-vault"
-  ],
-  "target_repositories": [
-    "fongap-labs/external-vault"
-  ]
+  }
 }

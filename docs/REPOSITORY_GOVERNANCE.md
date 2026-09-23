@@ -42,7 +42,7 @@ Action Worker 提供两种应用方式：
 push to main
   repository policy / apply workflow changed
   → apply to Action Worker itself
-  → apply to every business repository in AW_PR_REPOSITORY_ALLOWLIST
+  → apply to every repository with the pr capability in AW_REPOSITORY_POLICY
 
 manual workflow_dispatch
   → apply one repository
