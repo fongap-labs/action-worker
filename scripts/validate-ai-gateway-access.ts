@@ -2,8 +2,12 @@ import {
   CliError,
   handleError,
   isMain,
-  readJson,
 } from "./runtime-command.ts";
+import {
+  enabledAiModels,
+  parseAiAgentConfig,
+  type AiAgentConfig,
+} from "./ai-agent-config.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -21,24 +25,12 @@ export function resolveModelsEndpoint(baseUrl: string): string {
   return `${gateway}/v1/models`;
 }
 
-export function requiredAiModels(triagePolicy: unknown, reviewPolicy: unknown): string[] {
-  if (!isRecord(triagePolicy) || !isRecord(reviewPolicy) || !isRecord(reviewPolicy.agents)) {
-    throw new CliError("ERROR: invalid AI governance policy.", 65);
+export function requiredPrAiModels(config: AiAgentConfig): string[] {
+  const models = enabledAiModels(config, ["triage", "review"]);
+  if (models.length === 0) {
+    throw new CliError("ERROR: enabled PR AI agents define no models.", 65);
   }
-
-  const models = new Set<string>();
-  for (const value of [triagePolicy.model, triagePolicy.deep_model]) {
-    if (typeof value === "string" && value.trim()) models.add(value.trim());
-  }
-  for (const agent of Object.values(reviewPolicy.agents)) {
-    if (!isRecord(agent)) continue;
-    if (typeof agent.model === "string" && agent.model.trim()) models.add(agent.model.trim());
-  }
-
-  if (models.size === 0) {
-    throw new CliError("ERROR: AI governance policy defines no models.", 65);
-  }
-  return [...models].sort();
+  return models;
 }
 
 export function visibleModelIds(value: unknown): string[] {
@@ -52,9 +44,8 @@ export function visibleModelIds(value: unknown): string[] {
 }
 
 async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  if (args.length !== 2) {
-    throw new CliError("Usage: validate-ai-gateway-access.ts <triage-policy> <review-policy>", 64);
+  if (process.argv.length !== 2) {
+    throw new CliError("Usage: validate-ai-gateway-access.ts", 64);
   }
 
   const gatewayUrl = process.env.AI_GATEWAY_URL ?? "";
@@ -63,7 +54,8 @@ async function main(): Promise<void> {
     throw new CliError("ERROR: AI_GATEWAY_URL and AI_GATEWAY_TOKEN are required.", 65);
   }
 
-  const required = requiredAiModels(await readJson(args[0] ?? ""), await readJson(args[1] ?? ""));
+  const config = parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? "");
+  const required = requiredPrAiModels(config);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   let response: Response;
@@ -95,7 +87,7 @@ async function main(): Promise<void> {
   const missing = required.filter((model) => !visibleSet.has(model));
   if (missing.length > 0) {
     throw new CliError(
-      `ERROR: AIG_ACCESS_KEY_AGENT cannot call required AI governance model(s): ${missing.join(", ")}. Visible models: ${visible.join(", ") || "none"}.`,
+      `ERROR: AIG_ACCESS_KEY_AGENT cannot call required PR AI model(s): ${missing.join(", ")}. Visible models: ${visible.join(", ") || "none"}.`,
       65,
     );
   }

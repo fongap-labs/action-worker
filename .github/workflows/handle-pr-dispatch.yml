@@ -17,6 +17,8 @@ jobs:
     name: PR Governance
     runs-on: ubuntu-24.04
     timeout-minutes: 180
+    env:
+      AW_AI_AGENT_CONFIG: ${{ vars.AW_AI_AGENT_CONFIG }}
 
     steps:
       - name: Checkout control plane
@@ -118,11 +120,11 @@ jobs:
         run: node "$GITHUB_WORKSPACE/scripts/validate-naming-rules.ts" "$BASE_SHA" "$HEAD_SHA"
 
       - name: Validate AI Gateway access
-        if: steps.base_plan.outputs.review_required == 'true' && vars.AW_IS_AI_REVIEW_ENABLED == 'true'
+        if: steps.base_plan.outputs.review_required == 'true'
         env:
           AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
           AI_GATEWAY_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
-        run: node scripts/validate-ai-gateway-access.ts "$GITHUB_WORKSPACE/policies/triage.json" "$GITHUB_WORKSPACE/policies/review.json"
+        run: node scripts/validate-ai-gateway-access.ts
 
       - name: Collect CI evidence
         if: steps.base_plan.outputs.ci_required == 'true'
@@ -134,7 +136,7 @@ jobs:
         run: node scripts/wait-ci-evidence.ts "$REPOSITORY" "$HEAD_SHA" "$GITHUB_WORKSPACE/policies/execution.json"
 
       - name: Wait for AI queue
-        if: steps.base_plan.outputs.review_required == 'true' && vars.AW_IS_AI_REVIEW_ENABLED == 'true'
+        if: steps.base_plan.outputs.review_required == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -147,10 +149,11 @@ jobs:
             "$GITHUB_WORKSPACE/policies/review.json"
 
       - name: Run AI Triage
-        if: steps.base_plan.outputs.triage_required == 'true' && vars.AW_IS_AI_REVIEW_ENABLED == 'true'
+        if: steps.base_plan.outputs.triage_required == 'true'
         env:
           AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
           TRIAGE_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
+          TRIAGE_MODEL: ${{ steps.base_plan.outputs.triage_model }}
           BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           CONTEXT_JSON: ${{ steps.context.outputs.json }}
@@ -175,18 +178,18 @@ jobs:
 
       - name: Resolve OCR distribution
         id: ocr_dist
-        if: steps.plan.outputs.review_required == 'true' && vars.AW_IS_AI_REVIEW_ENABLED == 'true'
+        if: steps.plan.outputs.review_required == 'true'
         run: node scripts/resolve-ocr-distribution.ts "$GITHUB_WORKSPACE/policies/review.json"
 
       - name: Restore OCR cache
-        if: steps.plan.outputs.review_required == 'true' && vars.AW_IS_AI_REVIEW_ENABLED == 'true'
+        if: steps.plan.outputs.review_required == 'true'
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.ocr_dist.outputs.cache_dir }}
           key: ocr-${{ runner.os }}-${{ runner.arch }}-${{ steps.ocr_dist.outputs.version }}-${{ steps.ocr_dist.outputs.asset }}
 
       - name: Configure OpenCodeReview
-        if: steps.plan.outputs.review_required == 'true' && vars.AW_IS_AI_REVIEW_ENABLED == 'true'
+        if: steps.plan.outputs.review_required == 'true'
         env:
           OCR_REPOSITORY: ${{ steps.ocr_dist.outputs.repository }}
           OCR_VERSION: ${{ steps.ocr_dist.outputs.version }}
@@ -195,7 +198,7 @@ jobs:
         run: node scripts/install-ocr.ts "$OCR_REPOSITORY" "$OCR_VERSION" "$OCR_ASSET" "$OCR_CACHE_DIR"
 
       - name: Run AI review
-        if: steps.plan.outputs.review_required == 'true' && vars.AW_IS_AI_REVIEW_ENABLED == 'true'
+        if: steps.plan.outputs.review_required == 'true'
         env:
           AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
           OCR_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}

@@ -10,29 +10,24 @@
   ],
   "agents": {
     "security": {
-      "model": "Code-Ultra",
       "effort": "high",
       "rule": "security.json"
     },
     "architecture": {
-      "model": "Code-Ultra",
       "effort": "high",
       "rule": "architecture.json"
     },
     "workflow": {
-      "model": "Code-Pro",
       "effort": "low",
       "rule": "workflow.json",
       "task_timeout_minutes": 5
     },
     "release": {
-      "model": "Code-Max",
       "effort": "low",
       "rule": "release.json",
       "task_timeout_minutes": 5
     },
     "code": {
-      "model": "Code-Pro",
       "effort": "medium",
       "rule": "code.json"
     }

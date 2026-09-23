@@ -91,15 +91,45 @@ AW_REPOSITORY_POLICY
 }
 ```
 
-Action Worker Secret / Variable：
+Action Worker Repository Variable：
+
+```text
+AW_AI_AGENT_CONFIG
+AI_GATEWAY_URL
+```
+
+Action Worker Secret：
 
 ```text
 AW_CONTROL_TOKEN
-AI_GATEWAY_URL
 AIG_ACCESS_KEY_AGENT
 ```
 
-AI Review Engine 的分发仓库、版本和资产统一由 `policies/review.json` 管理，不再维护重复的 Repository Variable。
+`AW_AI_AGENT_CONFIG` 是所有 AI Agent 的统一运行配置，管理 Agent 的 `enabled` 与逻辑模型。当前至少覆盖 Triage、Review 与 Writing；未来新增其他 Agent 时继续扩展该配置，不再增加 Review 专用模型变量或开关变量。
+
+示例：
+
+```json
+{
+  "schema_version": 1,
+  "agents": {
+    "triage": { "enabled": true, "model": "Code-Air" },
+    "review": {
+      "enabled": false,
+      "model": "Code-Pro",
+      "routes": {
+        "release": { "model": "Code-Max" },
+        "security": { "model": "Code-Ultra" },
+        "architecture": { "model": "Code-Ultra" },
+        "deep": { "model": "Code-Ultra" }
+      }
+    },
+    "writing": { "enabled": true, "model": "Pro" }
+  }
+}
+```
+
+Task Dispatch 会把 Repository Variables 提供给下游可信任务，因此 Writing Agent 与其他 Task Agent 也使用同一个 `AW_AI_AGENT_CONFIG`。Review Engine 的分发仓库、版本和资产仍由 `policies/review.json` 管理；policy 不再保存模型名称。
 
 `AW_CONTROL_TOKEN` 对受管仓至少需要：
 
@@ -233,7 +263,7 @@ target_sha: <40-character-commit-sha>
 - 增加仓库名条件分支；
 - 新建 `projects/`、`profiles/`、`adapters/`；
 - 为项目复制一份中央 Policy；
-- 为项目新增独立 AI Review 规则。
+- 为项目新增独立 AI Agent 模型变量、Review 开关或项目专属 AI 配置。
 
 如果接入必须这样做，应先判断是不是中央能力缺口，而不是直接加项目特例。
 
@@ -244,7 +274,7 @@ target_sha: <40-character-commit-sha>
 - dispatch 成功；
 - Action Worker 读取真实 PR；
 - CI Evidence 对应当前 head SHA；
-- AI Review 按 policy 执行或合法跳过；
+- AI Agent 按 `AW_AI_AGENT_CONFIG` 启用、禁用或路由；关闭 Review 时确定性 Gate 仍可独立通过；
 - PR Governance 状态回写成功；
 - validate-merge 同时验证本地证据与 PR Governance；
 - sticky review summary 正常；

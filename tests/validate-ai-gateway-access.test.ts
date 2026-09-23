@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  requiredAiModels,
+  requiredPrAiModels,
   resolveModelsEndpoint,
   visibleModelIds,
 } from "../scripts/validate-ai-gateway-access.ts";
+import { parseAiAgentConfig } from "../scripts/ai-agent-config.ts";
 
 test("AI Gateway models endpoint follows configured base URL", () => {
   assert.equal(resolveModelsEndpoint("https://api.example.test"), "https://api.example.test/v1/models");
@@ -12,18 +13,23 @@ test("AI Gateway models endpoint follows configured base URL", () => {
   assert.equal(resolveModelsEndpoint("https://api.example.test/v1/chat/completions"), "https://api.example.test/v1/models");
 });
 
-test("AI Gateway preflight derives all directly used governance models", () => {
-  const triage = { model: "Code-Air", deep_model: "Code-Ultra" };
-  const review = {
+test("AI Gateway preflight derives only enabled PR agent models", () => {
+  const config = parseAiAgentConfig(JSON.stringify({
+    schema_version: 1,
     agents: {
-      code: { model: "Code-Pro" },
-      workflow: { model: "Code-Pro" },
-      release: { model: "Code-Pro" },
-      security: { model: "Code-Ultra" },
-      architecture: { model: "Code-Ultra" },
+      triage: { enabled: true, model: "Code-Air" },
+      review: {
+        enabled: true,
+        model: "Code-Pro",
+        routes: {
+          release: { model: "Code-Max" },
+          deep: { model: "Code-Ultra" },
+        },
+      },
+      writing: { enabled: true, model: "Pro" },
     },
-  };
-  assert.deepEqual(requiredAiModels(triage, review), ["Code-Air", "Code-Pro", "Code-Ultra"]);
+  }));
+  assert.deepEqual(requiredPrAiModels(config), ["Code-Air", "Code-Max", "Code-Pro", "Code-Ultra"]);
 });
 
 test("AI Gateway preflight parses visible callable model ids", () => {

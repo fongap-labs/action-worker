@@ -8,7 +8,7 @@ Action Worker 是 Fongap Labs 的 GitHub 自动化控制平面。本文档定义
 Action Worker
 = 通用治理规则
 + PR / Task / Release / Deploy 编排
-+ AI Triage / 审查
++ 通用 AI Agent Runtime
 + Gate
 + 安全执行边界
 
@@ -54,6 +54,10 @@ Gate
 - Gate：只依据可验证结果决定通过或阻断。
 
 计划可以动态变化，安全边界和 Gate 合同必须稳定。
+
+AI Agent 的启停与逻辑模型由单一 Action Worker Repository Variable `AW_AI_AGENT_CONFIG` 管理。Review、Triage、Writing 是平级 Agent 能力，不得为某一种 Agent 再建立独立模型变量体系。policy / rule 只保存规则、阈值与安全边界，不保存模型选择。
+
+某个 Agent 被禁用时，该 Agent 不执行，也不得成为 Gate 的隐式依赖。特别是 `review.enabled=false` 时，PR 仍应依靠 Change Record、命名、CI Evidence 与其他确定性规则正常完成治理。
 
 ## 3. 调用方只提交目标
 
@@ -118,7 +122,7 @@ PR 代码属于不可信输入。
 - 读取 GitHub 元数据
 - 读取 diff
 - 生成 Plan
-- 执行 AI Triage / Review
+- 执行已启用的 AI Agent
 - 使用 AI Gateway
 - 写 PR Review / Summary
 - 写目标 commit 的 PR Governance status
@@ -154,7 +158,7 @@ Action Worker 决定：
 什么时候跑
 跑到什么强度
 哪些结果必须通过
-是否需要 AI Review
+是否需要 AI Agent
 是否允许合并
 ```
 
@@ -183,7 +187,7 @@ Release 记录
 
 错误或未通过 Gate 的结果不得自动成为新基线。
 
-## 8. 双 Agent 原则
+## 8. 多 Agent 原则
 
 高风险或不确定变更采用双 Agent：
 

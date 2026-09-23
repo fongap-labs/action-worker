@@ -8,6 +8,12 @@ import {
   parseJson,
   readJson,
 } from "./runtime-command.ts";
+import {
+  aiAgentModel,
+  isAiAgentEnabled,
+  parseAiAgentConfig,
+  type AiAgentConfig,
+} from "./ai-agent-config.ts";
 
 type Risk = "low" | "medium" | "high";
 type ReviewAgent = "none" | "code" | "workflow" | "security" | "architecture" | "release";
@@ -34,7 +40,7 @@ type TestsPolicy = {
 };
 
 type ReviewPolicy = {
-  agents: Record<string, { model?: string; effort?: string; rule?: string; task_timeout_minutes?: number } | undefined>;
+  agents: Record<string, { effort?: string; rule?: string; task_timeout_minutes?: number } | undefined>;
   runtime: {
     llm_timeout_seconds?: number;
     task_timeout_minutes?: number;
@@ -46,7 +52,6 @@ type ReviewPolicy = {
 
 type TriagePolicy = {
   enabled_agents: string[];
-  model?: string;
   timeout_seconds?: number;
 };
 
@@ -77,6 +82,7 @@ export type PlanPolicies = {
   review: ReviewPolicy;
   triage: TriagePolicy;
   execution: ExecutionPolicy;
+  aiAgents: AiAgentConfig;
 };
 
 export type PrPlan = {
@@ -189,7 +195,10 @@ export function resolvePlan(
   }
 
   let isReviewRequired = reviewAgent !== "none";
-  if (options.reviewMode === "on") {
+  if (!isAiAgentEnabled(policies.aiAgents, "review")) {
+    isReviewRequired = false;
+    reviewAgent = "none";
+  } else if (options.reviewMode === "on") {
     isReviewRequired = true;
     if (reviewAgent === "none") {
       reviewAgent = "code";
@@ -228,7 +237,7 @@ export function resolvePlan(
 
   if (reviewAgent !== "none") {
     const agent = policies.review.agents[reviewAgent];
-    reviewModel = agent?.model ?? "";
+    reviewModel = aiAgentModel(policies.aiAgents, "review", reviewAgent);
     reviewEffort = agent?.effort ?? "medium";
     reviewRule = agent?.rule ?? "";
     reviewLlmTimeout = policies.review.runtime.llm_timeout_seconds ?? 300;
@@ -237,9 +246,10 @@ export function resolvePlan(
     reviewResumeAttempts = policies.review.runtime.resume_attempts ?? 1;
     reviewResumeBackoffSeconds = policies.review.runtime.resume_backoff_seconds ?? 15;
 
-    if (policies.triage.enabled_agents.includes(reviewAgent)) {
+    if (isAiAgentEnabled(policies.aiAgents, "triage")
+        && policies.triage.enabled_agents.includes(reviewAgent)) {
       isTriageRequired = true;
-      triageModel = policies.triage.model ?? "";
+      triageModel = aiAgentModel(policies.aiAgents, "triage");
       triageTimeout = policies.triage.timeout_seconds ?? 60;
     }
   }
@@ -365,6 +375,7 @@ async function loadPolicies(policyDir: string): Promise<PlanPolicies> {
     review: expectRecord<ReviewPolicy>(review, "review"),
     triage: expectRecord<TriagePolicy>(triage, "triage"),
     execution: expectRecord<ExecutionPolicy>(execution, "execution"),
+    aiAgents: parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? ""),
   };
 }
 

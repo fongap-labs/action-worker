@@ -8,8 +8,27 @@ import {
   type PlanOptions,
   type PlanPolicies,
 } from "../scripts/resolve-pr-plan.ts";
+import { parseAiAgentConfig } from "../scripts/ai-agent-config.ts";
 
-async function loadPolicies(): Promise<PlanPolicies> {
+const activeAiAgents = parseAiAgentConfig(JSON.stringify({
+  schema_version: 1,
+  agents: {
+    triage: { enabled: true, model: "Code-Air" },
+    review: {
+      enabled: true,
+      model: "Code-Pro",
+      routes: {
+        release: { model: "Code-Max" },
+        security: { model: "Code-Ultra" },
+        architecture: { model: "Code-Ultra" },
+        deep: { model: "Code-Ultra" },
+      },
+    },
+    writing: { enabled: true, model: "Pro" },
+  },
+}));
+
+async function loadPolicies(aiAgents = activeAiAgents): Promise<PlanPolicies> {
   const load = async (name: string): Promise<unknown> => JSON.parse(
     await readFile(join(process.cwd(), "policies", `${name}.json`), "utf8"),
   ) as unknown;
@@ -20,6 +39,7 @@ async function loadPolicies(): Promise<PlanPolicies> {
     review: await load("review") as PlanPolicies["review"],
     triage: await load("triage") as PlanPolicies["triage"],
     execution: await load("execution") as PlanPolicies["execution"],
+    aiAgents,
   };
 }
 
@@ -95,6 +115,29 @@ test("breaking and security routes preserve deterministic depth", async () => {
   assert.equal(security.review_model, "Code-Ultra");
   assert.equal(security.triage_required, false);
   assert.deepEqual(security.checks, ["naming", "secret-scan", "shellcheck"]);
+});
+
+test("disabled review agent skips AI while preserving deterministic CI", async () => {
+  const context = validateContext({
+    project_types: ["github-automation"],
+    change_areas: ["workflow"],
+    declared_impacts: [],
+    risk: "medium",
+  });
+  const disabled = parseAiAgentConfig(JSON.stringify({
+    schema_version: 1,
+    agents: {
+      triage: { enabled: true, model: "Code-Air" },
+      review: { enabled: false, model: "Code-Pro" },
+      writing: { enabled: true, model: "Pro" },
+    },
+  }));
+  const plan = resolvePlan(context, await loadPolicies(disabled), defaults);
+  assert.equal(plan.ci_required, true);
+  assert.equal(plan.review_required, false);
+  assert.equal(plan.review_agent, "none");
+  assert.equal(plan.review_model, "");
+  assert.equal(plan.triage_required, false);
 });
 
 test("explicit overrides keep the existing CLI semantics", async () => {

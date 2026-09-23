@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- refactor: centralize optional AI Agent enablement and logical-model routing in `AW_AI_AGENT_CONFIG`, keeping Review, Triage, Writing, and future agents under one runtime configuration authority.
+
 - fix: run release AI review on Code-Max while preserving the same strict blocking policy.
 
 - feat: preflight AI Gateway model access so governance fails early when the Agent key cannot call required review models.

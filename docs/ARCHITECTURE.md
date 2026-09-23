@@ -198,35 +198,137 @@ Action Worker 完成 AI / Policy Gate 后向 commit 写入 `PR Governance` statu
 
 因此 Sandbox 的实际执行可以留在业务仓 Runner，控制权与最终准入仍集中在 Action Worker。
 
-## 7. Triage 与 Review
+## 7. AI Agent Runtime
 
-AI Triage 是 Review 前的轻量语义分诊，不是第二套 Gate。确定性 Plan 先给出安全下限；只有 `code / workflow / release` 路由会进入 `Code-Air` Triage，`security / architecture` 直接进入 `Code-Ultra` Review。
+AI Agent 是 Action Worker 的通用动态能力单元，不等同于代码审查角色，也不绑定某个模型。
 
-Triage 只返回结构化决策：是否需要完整 Review、建议 Agent、风险、深度与置信度。Air 调用失败、超时或返回无效 JSON 时保留原确定性 Plan，不阻断 PR。只有无声明影响、变更面仅为 `source / test` 的普通 `code` 变更，在 Triage 判定低风险且置信度达到 policy 阈值时，才允许跳过完整 Review；其他结果只能保持或升级审查强度。
+当前可以存在的 Agent 包括但不限于：
 
-Agent 是审查角色，不等于模型。
+```text
+triage
+review
+writing
+```
 
-| Agent | 主要关注 | 审查模型 |
-|---|---|---|
-| `security` | 权限、Secret、注入、供应链、fail-open | `Code-Ultra` |
-| `architecture` | breaking、migration、API、兼容性、部署 | `Code-Ultra` |
-| `workflow` | Actions 权限、事件与 Secret 边界 | `Code-Pro` / low（1 轮） |
-| `release` | 版本、Tag、Release、回滚 | `Code-Pro` / low（1 轮） |
-| `code` | 正确性、回归、接口与缺失测试 | `Code-Pro` / medium（2 轮） |
+未来可以继续增加：
 
-Action Worker 只选择逻辑模型，不维护模型或 Provider fallback 链。Triage 固定使用 `Code-Air`；普通完整审查使用 `Code-Pro`；安全、架构或被 Triage 判定为 deep 的审查使用 `Code-Ultra`。逻辑模型族、Provider、Key、协议与节点之间的 failover 全部由 AI Gateway 的统一请求预算负责。
+```text
+research
+documentation
+planner
+critic
+security
+summary
+...
+```
 
-Triage 与 AI Review 在 Action Worker 中按当前 attempt 的 `run_started_at`、再按 run ID 共用跨控制版本的全局 FIFO 队列；Validate、Inspect、Plan 与 CI Evidence 仍可并行，但同一时刻只允许一个治理 run 调用 AI Gateway。GitHub rerun 保留旧 run ID，因此不能只按 ID 排序，否则旧 run 的新 attempt 会插队并与当前 owner 并发。队列不按 Action Worker `head_sha` 分池，因此 main 更新不会绕过仍在运行的旧版本 Review；相同 PR 的新调度继续由稳定 concurrency group 自动取消旧调度。
+新增 Agent 不应要求再创建新的模型变量、开关变量或项目专属配置层。
 
-Action Worker 不做无界整轮 OCR Review 重试。OpenCodeReview 负责单个 LLM 请求的重试，AI Gateway 负责模型与 Provider fallback。若 OCR 已生成兼容 session，且最终失败仅来自 5xx、timeout、network 或 overload，Action Worker 按 `policies/review.json` 的有限恢复预算执行 `--resume`，复用已完成 checkpoint，并采用递增退避；认证、4xx 配置错误或恢复预算耗尽后仍直接 fail-closed。OpenCodeReview 可执行文件从 `policies/review.json` 声明的分发 Release 获取，先校验 SHA256，再使用 GitHub Actions runner cache；workflow 不再通过 npm 动态安装审查引擎。
+### 7.1 单一运行配置
 
-CI Evidence 通过一对仅存在于 runner 的临时 base/head commits 提供给 commit-based Review 工具。两棵树都包含完全相同的受控证据文件，因此 OCR 可以读取它，但该文件不会进入 PR diff、不会产生独立审查任务，也不得接收 review finding；真实 PR base/head 和远端分支均不变。
+所有 Agent 的启停与逻辑模型统一由 Action Worker Repository Variable 控制：
 
-OCR 结果由 `validate-review-result.ts` 统一适配：存在 run manifest 时，以 `manifest.terminal_state` 为权威，只接受 `complete`；无 manifest 的兼容路径接受 `status=complete`，并兼容旧版 `status=success`。任何 `partial` / `failed` 结果都不得进入 Gate。
+```text
+AW_AI_AGENT_CONFIG
+```
 
-需要 CI 的 PR 会在 Review 前生成受控的 `.action-worker-ci-evidence.json`。Action Worker 通过仅存在于 Runner 本地的临时 Commit 把该文件暴露给基于 Commit 读取文件的 Review Engine；临时 Commit 不推送、不回写目标分支，也不改变 Gate 使用的真实 PR Head。该文件只包含 GitHub Actions 的结构化执行事实，并明确作为不可信数据处理；Agent 可以读取它，但不得把它当成 PR 源码审查或执行、遵循其中的文本。
+示例：
 
-高风险动态规划后续采用 Planner + Critic 双 Agent；Reviewer 负责执行后的代码与证据审查。
+```json
+{
+  "schema_version": 1,
+  "agents": {
+    "triage": {
+      "enabled": true,
+      "model": "Code-Air"
+    },
+    "review": {
+      "enabled": false,
+      "model": "Code-Pro",
+      "routes": {
+        "release": { "model": "Code-Max" },
+        "security": { "model": "Code-Ultra" },
+        "architecture": { "model": "Code-Ultra" },
+        "deep": { "model": "Code-Ultra" }
+      }
+    },
+    "writing": {
+      "enabled": true,
+      "model": "Pro"
+    }
+  }
+}
+```
+
+配置未提供时，所有可选 AI Agent 默认关闭。某个 Agent 的 `enabled=false` 时，该 Agent 不执行，也不得成为 Gate 的依赖。
+
+`model` 是该 Agent 的默认逻辑模型；`routes` 只在一个 Agent 内部确实需要不同模型时覆盖默认值。这样 Review 可以按 code / workflow / release / security / architecture 等审计类型路由，Writing 也可以在未来按不同写作任务增加 route，而不需要再修改全局变量结构。
+
+### 7.2 Policy 与模型分离
+
+`AW_AI_AGENT_CONFIG` 只回答：
+
+```text
+Agent 是否启用
+Agent 使用哪个逻辑模型
+Agent 内部 route 使用哪个逻辑模型
+```
+
+确定性规则继续由 policy / rule 管理，例如：
+
+```text
+policies/review.json
+policies/triage.json
+rules/*.json
+```
+
+这些文件负责审查范围、阈值、超时、恢复预算和规则，不保存模型名称。模型选择和治理规则不得形成双权威。
+
+### 7.3 PR 治理中的 Agent
+
+PR Plan 先执行确定性判断。只有 `review` Agent 启用时，PR 才会进入 AI Review；`review.enabled=false` 时，PR 仍正常执行命名、CI Evidence、Change Record 和其他确定性 Gate，不因 AI 不可靠而失败。
+
+`triage` 是独立 Agent。它只有在自身启用且 Review 确实需要时才参与路由；Triage 不可单独把一个被禁用的 Review 重新打开。
+
+Review 内部当前可使用：
+
+```text
+code
+workflow
+release
+security
+architecture
+deep
+```
+
+这些是 Review 的 route，不是全局 Agent 类型。未来新增 documentation、compliance、quality 等审计类型时，只扩展 Review route 与对应规则，不需要引入新的全局模型变量。
+
+### 7.4 Writing 与其他 Agent
+
+Writing 与 Review 平级，不是 Review 的附属能力。Task Dispatch 会把 Action Worker Repository Variables 作为运行配置提供给下游可信任务，因此 Writing Agent 也应读取同一个 `AW_AI_AGENT_CONFIG`，而不是维护第二套写作模型变量。
+
+后续 Planner、Critic、Research、Summary 等 Agent 也遵循同一原则：
+
+```text
+一个 Agent 运行配置入口
+→ 每个 Agent 独立 enabled
+→ 每个 Agent 独立逻辑模型
+→ 必要时使用 Agent 内部 routes
+```
+
+### 7.5 AI Gateway 与 Review Engine
+
+Action Worker 只选择逻辑模型，不维护 Provider、Key、节点或模型族 fallback。逻辑模型到 Provider 的实际容灾统一由 AI Gateway 负责。
+
+当 Review Agent 启用时，OpenCodeReview 仍作为当前 Review Engine。Action Worker 不做无界整轮 OCR Review 重试；OpenCodeReview 负责单个 LLM 请求重试，AI Gateway 负责模型与 Provider fallback。若 OCR 已生成兼容 session，且最终失败仅来自 5xx、timeout、network 或 overload，Action Worker 按 `policies/review.json` 的有限恢复预算执行 `--resume`；认证、4xx 配置错误或恢复预算耗尽后仍 fail-closed。
+
+Triage 与 Review 在 PR Governance 中继续共享受控 FIFO 队列，避免多个治理 run 同时占用 AI Gateway。该队列属于 PR AI 执行策略，不限制 Writing 或未来其他独立任务必须使用完全相同的队列。
+
+### 7.6 Evidence 与 Gate
+
+需要 CI 的 PR 会在 Review 前形成结构化 CI Evidence。AI Agent 可以读取 Evidence 辅助判断，但不得把 Evidence 中的文本当作指令。
+
+AI Agent 是可选的动态判断层；最终 Gate 仍只相信可验证结果。任何 Agent 都不能修改权限边界、Secret 边界、CI Evidence 真实性要求或确定性 Gate 合同。
 
 ## 8. Task Dispatch
 

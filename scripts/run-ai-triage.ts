@@ -21,7 +21,6 @@ type TriageDecision = {
 };
 
 type TriagePolicy = {
-  model: string;
   timeout_seconds: number;
   max_diff_chars: number;
   max_reason_chars: number;
@@ -253,7 +252,10 @@ async function main(): Promise<void> {
   const plan = validatePlan(parseJson(planJson, "ERROR: invalid base plan."));
   const context = validateContext(parseJson(contextJson, "ERROR: invalid PR context."));
   const policy = validatePolicy(await readJson(policyFile));
-  const model = String(policy.model);
+  const model = (process.env.TRIAGE_MODEL ?? "").trim();
+  if (!model) {
+    throw new CliError("ERROR: TRIAGE_MODEL is required.", 65);
+  }
   requireRange(policy.timeout_seconds, 1, 300, "ERROR: triage timeout_seconds must be 1-300.");
   requireRange(policy.max_diff_chars, 1000, 100000, "ERROR: triage max_diff_chars must be 1000-100000.");
   requireRange(policy.max_reason_chars, 20, 1000, "ERROR: triage max_reason_chars must be 20-1000.");
