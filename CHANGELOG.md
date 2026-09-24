@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: give normal code AI reviews a five-minute task budget so the outer review process can cover the configured 300-second LLM timeout.
+
 - fix: keep the context-selected AI review active for a trusted bootstrap model override and validate that explicit model against the Agent key before review execution.
 
 - fix: use the centrally configured independent writing model for temporary AI Gateway bootstrap review while preserving architecture rules, high effort, CI evidence, and critical blocking.
