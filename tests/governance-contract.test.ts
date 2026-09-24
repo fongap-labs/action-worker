@@ -30,7 +30,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "AGENTS.md", "CLAUDE.md", "docs/README.md", "docs/ARCHITECTURE.md", "docs/ARCHITECTURE_GOVERNANCE.md",
     "docs/NAMING_CONVENTIONS.md", "docs/CHANGELOG_CONVENTIONS.md", "docs/DEVELOPMENT_GUIDE.md",
     "contracts/change-record.json", "contracts/pr-task.json", "contracts/release-dispatch.json",
-    "contracts/release-manifest.json", "contracts/task-dispatch.json", "policies/execution.json", "policies/triage.json",
+    "contracts/release-manifest.json", "contracts/release-provenance.json", "contracts/task-dispatch.json", "policies/execution.json", "policies/triage.json",
     "package.json", "package-lock.json", "tsconfig.json", "scripts/validate-change-record.ts",
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
     "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts",
@@ -160,7 +160,7 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   requireText(prValidator, ["AW_REPOSITORY_POLICY"]);
   assert.doesNotMatch(prValidator, /AW_[A-Z_]*ALLOWLIST/);
   const publisher = await text("scripts/publish-release.ts");
-  requireText(publisher, ["release-manifest.json", "return `${releaseKey}-v${version}`", "await sha256File(assetPath)", "rollbackRelease", '"draft=true"', '"draft=false"']);
+  requireText(publisher, ["release-manifest.json", "release-provenance.json", "artifact_repository", "artifact_run_id", "return `${releaseKey}-v${version}`", "await sha256File(assetPath)", "rollbackRelease", '"draft=true"', '"draft=false"']);
   assert.equal(await exists(".github/workflows/validate-release-policy.yml"), false);
   assert.equal(await exists(".github/workflows/publish-release.yml"), false);
 
