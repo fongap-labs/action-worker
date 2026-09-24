@@ -72,6 +72,8 @@ PR Governance ───────────┘
 
 业务仓最终只暴露一个稳定 Required Check：`validate-merge`。它必须同时要求本地 CI Evidence 和 Action Worker 写入的 `PR Governance` 成功。
 
+业务仓在 PR 关闭时必须发送 `cancel-pr-work`。Action Worker 通过与该 PR 完全相同的 `pr-governance-<repository>-<pr>` 和 `central-ci-<repository>-<pr>` concurrency group 抢占并终止已失效的重任务，不影响同仓库其他 PR。
+
 `validate-merge` 只能由业务仓 GitHub Actions bridge 调用 Action Worker reusable workflow 后创建为 GitHub Check Run；Central CI 只发布 `CI Evidence` / `ci-evidence` commit status，不得再发布同名 `validate-merge` status，避免 Required Check 身份冲突。
 
 ## 4. GitHub native enforcement
