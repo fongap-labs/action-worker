@@ -39,7 +39,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
     "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
-    ".github/workflows/deployment-readiness.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
+    ".github/workflows/ai-gateway-scheduled-ci.yml", ".github/workflows/deployment-readiness.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
     ".github/workflows/model-discovery.yml", ".github/workflows/release-build.yml",
     ".github/workflows/sync-tool-release.yml", ".github/workflows/validate-central-merge.yml",
   ];
@@ -204,6 +204,18 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   assert.equal(repository.delete_branch_on_merge, true);
   const settings = await text(".github/workflows/apply-repo-settings.yml");
   requireText(settings, ["secrets.AW_ADMIN_TOKEN", "inputs.is_dry_run", "node scripts/apply-repo-settings.ts", "node scripts/repository-policy.ts list pr"]);
+});
+
+test("AI Gateway scheduled CI is central and cannot publish deploy-triggering status", async () => {
+  const workflow = await text(".github/workflows/ai-gateway-scheduled-ci.yml");
+  requireText(workflow, [
+    "schedule:",
+    "repository: fongap-labs/ai-gateway",
+    "target/.github/scripts/central-ci.sh",
+    'CENTRAL_CI_PR_NUMBER: "0"',
+  ]);
+  assert.equal(workflow.includes("set-pr-status.ts"), false);
+  assert.equal(workflow.includes("CI Evidence"), false);
 });
 
 test("deployment readiness is non-destructive and central", async () => {
