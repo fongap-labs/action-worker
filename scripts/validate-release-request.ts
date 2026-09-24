@@ -19,23 +19,55 @@ function isExactKeys(value: Record<string, unknown>, required: readonly string[]
     && keys.every((key) => required.includes(key) || optional.includes(key));
 }
 
+export function validateReleaseProvenance(
+  request: unknown,
+  provenance: unknown,
+): void {
+  if (!isJsonRecord(request)
+    || !isJsonRecord(provenance)
+    || !isExactKeys(provenance, [
+      "artifact_repository",
+      "artifact_run_id",
+      "schema_version",
+      "source_repository",
+      "source_sha",
+    ])
+    || provenance.schema_version !== "1"
+    || provenance.source_repository !== request.source_repository
+    || provenance.source_sha !== request.source_sha
+    || provenance.artifact_repository !== request.artifact_repository
+    || provenance.artifact_run_id !== request.artifact_run_id
+  ) {
+    throw new CliError("release provenance does not match the dispatch request.", 66);
+  }
+}
+
 export function validateRelease(
   request: unknown,
   manifest: unknown | undefined,
   repositoryPolicy: unknown,
 ): void {
   if (!isJsonRecord(request)
-    || !isExactKeys(request, ["artifact_name", "repository", "request_id", "schema_version", "source_run_id", "source_sha"])
-    || request.schema_version !== "1"
+    || !isExactKeys(request, [
+      "artifact_name",
+      "artifact_repository",
+      "artifact_run_id",
+      "request_id",
+      "schema_version",
+      "source_repository",
+      "source_sha",
+    ])
+    || request.schema_version !== "2"
     || typeof request.request_id !== "string" || !requestPattern.test(request.request_id)
-    || typeof request.repository !== "string" || !repositoryPattern.test(request.repository)
+    || typeof request.source_repository !== "string" || !repositoryPattern.test(request.source_repository)
     || typeof request.source_sha !== "string" || !/^[0-9a-f]{40}$/.test(request.source_sha)
-    || typeof request.source_run_id !== "number" || !Number.isInteger(request.source_run_id) || request.source_run_id < 1
+    || typeof request.artifact_repository !== "string" || !repositoryPattern.test(request.artifact_repository)
+    || typeof request.artifact_run_id !== "number" || !Number.isInteger(request.artifact_run_id) || request.artifact_run_id < 1
     || typeof request.artifact_name !== "string" || request.artifact_name.length > 128 || !/^[A-Za-z0-9._-]+$/.test(request.artifact_name)
   ) {
     throw new CliError("release dispatch payload is invalid.", 64);
   }
-  validateRepositoryCapability(request.repository, repositoryPolicy, "release-source");
+  validateRepositoryCapability(request.source_repository, repositoryPolicy, "release-source");
   if (manifest === undefined) {
     return;
   }

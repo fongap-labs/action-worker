@@ -414,7 +414,7 @@ source repository allowlist
 → publish or rollback
 ```
 
-源仓只保存 `AW_DISPATCH_TOKEN`。Action Worker 使用 `AW_CONTROL_TOKEN` 读取源仓并写分发目标。
+源仓只保存最薄事件入口所需凭据。Artifact 可以来自源仓，也可以来自 Action Worker 中央构建；两种模式都必须用 provenance 将 artifact run 绑定到 source commit。Action Worker 使用 `AW_CONTROL_TOKEN` 读取源仓和 artifact，并写分发目标。
 
 Tag 固定为 `<release-key>-v<semver>`。不保留裸 `v<semver>` 兼容路径。
 

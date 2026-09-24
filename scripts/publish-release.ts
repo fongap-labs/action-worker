@@ -33,11 +33,13 @@ import {
   runCommand,
   runText,
 } from "./runtime-command.ts";
+import { validateReleaseProvenance } from "./validate-release-request.ts";
 
 type ReleaseRequest = {
-  repository: string;
+  source_repository: string;
   source_sha: string;
-  source_run_id: number;
+  artifact_repository: string;
+  artifact_run_id: number;
   artifact_name: string;
   request_id: string;
 };
@@ -207,6 +209,25 @@ async function validateRequest(requestPath: string, manifestPath?: string): Prom
   await runCommand(process.execPath, args);
 }
 
+async function waitForCompletedRun(
+  repository: string,
+  runId: number,
+  token: string,
+): Promise<unknown> {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const runJson = await getGithubJson(`repos/${repository}/actions/runs/${runId}`, token);
+    const status = getJsonString(runJson, "status");
+    if (status === "completed") {
+      return runJson;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2_000));
+  }
+  throw new CliError(
+    `::error::Artifact run did not complete before release validation: repository=${repository} run=${runId}.`,
+    75,
+  );
+}
+
 async function rollbackRelease(
   repository: string,
   tag: string,
@@ -257,11 +278,20 @@ async function main(): Promise<void> {
 
   await validateRequest(requestPath);
   const request = asRequest(await readJson(requestPath));
-  const sourceRepository = request.repository;
+  const sourceRepository = request.source_repository;
   const sourceSha = request.source_sha;
-  const sourceRunId = request.source_run_id;
+  const artifactRepository = request.artifact_repository;
+  const artifactRunId = request.artifact_run_id;
   const artifactName = request.artifact_name;
   const requestId = request.request_id;
+
+  const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
+  if (artifactRepository !== sourceRepository && artifactRepository !== controlRepository) {
+    throw new CliError(
+      `::error::Artifact repository must be the source repository or the Action Worker control repository: ${artifactRepository}.`,
+      77,
+    );
+  }
 
   const sourceRepoJson = await getGithubJson(`repos/${sourceRepository}`, controlToken);
   const defaultBranch = getJsonString(sourceRepoJson, "default_branch");
@@ -274,17 +304,15 @@ async function main(): Promise<void> {
     );
   }
 
-  const runJson = await getGithubJson(`repos/${sourceRepository}/actions/runs/${sourceRunId}`, controlToken);
+  const runJson = await waitForCompletedRun(artifactRepository, artifactRunId, controlToken);
   const runRepository = isJsonRecord(runJson) ? getJsonString(runJson.repository, "full_name") : "";
-  const runSha = getJsonString(runJson, "head_sha");
-  const runStatus = getJsonString(runJson, "status");
   const runConclusion = getJsonString(runJson, "conclusion");
-  if (runRepository !== sourceRepository || runSha !== sourceSha) {
-    throw new CliError("::error::Source run does not match the requested repository and commit.", 65);
+  if (runRepository !== artifactRepository) {
+    throw new CliError("::error::Artifact run does not belong to the requested repository.", 65);
   }
-  if (runStatus !== "completed" || runConclusion !== "success") {
+  if (runConclusion !== "success") {
     throw new CliError(
-      `::error::Source run must be completed successfully: run=${sourceRunId} status=${runStatus} conclusion=${runConclusion}.`,
+      `::error::Artifact run must complete successfully: repository=${artifactRepository} run=${artifactRunId} conclusion=${runConclusion || "missing"}.`,
       65,
     );
   }
@@ -330,7 +358,7 @@ async function main(): Promise<void> {
   }
 
   const artifactJson = await getGithubJson(
-    `repos/${sourceRepository}/actions/runs/${sourceRunId}/artifacts?per_page=100`,
+    `repos/${artifactRepository}/actions/runs/${artifactRunId}/artifacts?per_page=100`,
     controlToken,
   );
   const artifacts = getJsonArray(artifactJson, "artifacts").filter(
@@ -357,7 +385,7 @@ async function main(): Promise<void> {
   try {
     await writeCommand(
       "gh",
-      ["api", `repos/${sourceRepository}/actions/artifacts/${artifactId}/zip`],
+      ["api", `repos/${artifactRepository}/actions/artifacts/${artifactId}/zip`],
       archivePath,
       githubEnvironment(controlToken),
     );
@@ -371,14 +399,16 @@ async function main(): Promise<void> {
     });
 
     const manifestPath = join(artifactDir, "release-manifest.json");
+    const provenancePath = join(artifactDir, "release-provenance.json");
     await validateRequest(requestPath, manifestPath);
+    validateReleaseProvenance(request, await readJson(provenancePath));
     const nestedFiles = await listNested(artifactDir);
     if (nestedFiles.length > 0) {
       throw new CliError("::error::Release artifact must contain only root-level files.", 66);
     }
 
     const manifest = asManifest(await readJson(manifestPath));
-    const actualFiles = await listRootFiles(artifactDir, ["release-manifest.json"]);
+    const actualFiles = await listRootFiles(artifactDir, ["release-manifest.json", "release-provenance.json"]);
     const expectedFiles = manifest.assets.map((asset) => asset.name).sort();
     if (!sameNames(actualFiles, expectedFiles)) {
       throw new CliError(
@@ -417,7 +447,7 @@ async function main(): Promise<void> {
 
     const provenance = [
       `Source: https://github.com/${sourceRepository}/commit/${sourceSha}`,
-      `Source run: https://github.com/${sourceRepository}/actions/runs/${sourceRunId}`,
+      `Artifact run: https://github.com/${artifactRepository}/actions/runs/${artifactRunId}`,
       `CI dispatch run: https://github.com/${sourceRepository}/actions/runs/${ciRunId}`,
       `Central CI Evidence: success`,
       `Request: ${requestId}`,
@@ -460,7 +490,7 @@ async function main(): Promise<void> {
     const releaseUrl = getJsonString(releaseJson, "html_url");
     isReleaseCreated = true;
 
-    const uploadFiles = (await listRootFiles(artifactDir, ["release-manifest.json"]))
+    const uploadFiles = (await listRootFiles(artifactDir, ["release-manifest.json", "release-provenance.json"]))
       .map((file) => join(artifactDir, file));
     await runGithubCli(["release", "upload", tag, ...uploadFiles, "--repo", targetRepository], controlToken);
 
@@ -516,7 +546,7 @@ async function main(): Promise<void> {
       "## Release Governance",
       "",
       `- Source: ${sourceRepository}@${sourceSha}`,
-      `- Source run: ${sourceRunId}`,
+      `- Artifact: ${artifactRepository}@run-${artifactRunId}`,
       `- CI dispatch run: ${ciRunId}`,
       `- Central CI Evidence: success`,
       `- Target: ${targetRepository}@${targetSha}`,
