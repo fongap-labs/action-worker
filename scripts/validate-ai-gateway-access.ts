@@ -25,12 +25,14 @@ export function resolveModelsEndpoint(baseUrl: string): string {
   return `${gateway}/v1/models`;
 }
 
-export function requiredPrAiModels(config: AiAgentConfig): string[] {
-  const models = enabledAiModels(config, ["triage", "review"]);
-  if (models.length === 0) {
-    throw new CliError("ERROR: enabled PR AI agents define no models.", 65);
+export function requiredPrAiModels(config: AiAgentConfig, explicitModel = ""): string[] {
+  const models = new Set(enabledAiModels(config, ["triage", "review"]));
+  const model = explicitModel.trim();
+  if (model && model !== "auto") models.add(model);
+  if (models.size === 0) {
+    throw new CliError("ERROR: enabled PR AI agents and explicit bootstrap define no models.", 65);
   }
-  return models;
+  return [...models].sort();
 }
 
 export function visibleModelIds(value: unknown): string[] {
@@ -55,7 +57,10 @@ async function main(): Promise<void> {
   }
 
   const config = parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? "");
-  const required = requiredPrAiModels(config);
+  const required = requiredPrAiModels(
+    config,
+    process.env.AI_GATEWAY_REQUIRED_MODEL ?? "",
+  );
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   let response: Response;
