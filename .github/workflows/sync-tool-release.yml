@@ -1,0 +1,83 @@
+name: Sync Tool Release
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-tool-release
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync verified tool release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Prepare verified tool artifact
+        id: sync
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+        run: node scripts/sync-tool-release.ts policies/review.json "$RUNNER_TEMP/tool-release"
+
+      - name: Upload release artifact
+        if: ${{ steps.sync.outputs.publish == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.sync.outputs.artifact_name }}
+          path: ${{ runner.temp }}/tool-release/*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Dispatch release governance
+        if: ${{ steps.sync.outputs.publish == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_REPOSITORY: ${{ steps.sync.outputs.source_repository }}
+          SOURCE_SHA: ${{ steps.sync.outputs.source_sha }}
+          ARTIFACT_NAME: ${{ steps.sync.outputs.artifact_name }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          payload="$(
+            jq -cn \
+              --arg request_id "tool-sync-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+              --arg source_repository "$SOURCE_REPOSITORY" \
+              --arg source_sha "$SOURCE_SHA" \
+              --arg artifact_repository "$GITHUB_REPOSITORY" \
+              --argjson artifact_run_id "$GITHUB_RUN_ID" \
+              --arg artifact_name "$ARTIFACT_NAME" \
+              '{
+                event_type: "run-release",
+                client_payload: {
+                  schema_version: "2",
+                  request_id: $request_id,
+                  source_repository: $source_repository,
+                  source_sha: $source_sha,
+                  artifact_repository: $artifact_repository,
+                  artifact_run_id: $artifact_run_id,
+                  artifact_name: $artifact_name
+                }
+              }'
+          )"
+
+          gh api \
+            --method POST \
+            "repos/$GITHUB_REPOSITORY/dispatches" \
+            --input - <<< "$payload"
