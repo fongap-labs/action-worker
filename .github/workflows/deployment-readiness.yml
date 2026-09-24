@@ -1,0 +1,270 @@
+name: Deployment Readiness
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/deployment-readiness.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deployment-readiness
+  cancel-in-progress: true
+
+jobs:
+  ai-gateway:
+    name: AI Gateway deployment readiness
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      AIG_USAGE_D1_ID: ${{ vars.AIG_USAGE_D1_ID }}
+      AIG_AFFINITY_KV_ID: ${{ vars.AIG_AFFINITY_KV_ID }}
+      AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
+      AIG_MODELS_CONFIG: ${{ vars.AIG_MODELS_CONFIG }}
+      AIG_POLICIES_CONFIG: ${{ vars.AIG_POLICIES_CONFIG }}
+      AIG_RATE_LIMIT_COOLDOWN_MS: ${{ vars.AIG_RATE_LIMIT_COOLDOWN_MS }}
+      AIG_FIRST_EVENT_TIMEOUT_MS: ${{ vars.AIG_FIRST_EVENT_TIMEOUT_MS }}
+      AIG_STREAM_IDLE_TIMEOUT_MS: ${{ vars.AIG_STREAM_IDLE_TIMEOUT_MS }}
+      AIG_AUTH_FAILURE_COOLDOWN_MS: ${{ vars.AIG_AUTH_FAILURE_COOLDOWN_MS }}
+      AIG_REQUEST_BODY_MAX_BYTES: ${{ vars.AIG_REQUEST_BODY_MAX_BYTES }}
+      AIG_FAILOVER_BUDGET_MS: ${{ vars.AIG_FAILOVER_BUDGET_MS }}
+      AIG_UPSTREAM_HEADER_TIMEOUT_MS: ${{ vars.AIG_UPSTREAM_HEADER_TIMEOUT_MS }}
+      AIG_HEDGE_DELAY_MS: ${{ vars.AIG_HEDGE_DELAY_MS }}
+      AIG_REQUEST_HEDGE_MAX: ${{ vars.AIG_REQUEST_HEDGE_MAX }}
+      AIG_ACCESS_KEY_RPM: ${{ vars.AIG_ACCESS_KEY_RPM }}
+      AIG_CORS_ORIGIN: ${{ vars.AIG_CORS_ORIGIN }}
+      AIG_USAGE_INCLUDE_MODE: ${{ vars.AIG_USAGE_INCLUDE_MODE }}
+      AIG_USAGE_EXCLUDE_PROVIDERS: ${{ vars.AIG_USAGE_EXCLUDE_PROVIDERS }}
+      AIG_SHOULD_EXPOSE_UPSTREAM: ${{ vars.AIG_SHOULD_EXPOSE_UPSTREAM }}
+      AIG_LOG_LEVEL: ${{ vars.AIG_LOG_LEVEL }}
+      AIG_HAS_STREAM_GUARD: ${{ vars.AIG_HAS_STREAM_GUARD }}
+      AIG_CAN_USE_HTTP: ${{ vars.AIG_CAN_USE_HTTP }}
+      AIG_ANTHROPIC_COUNT_MODE: ${{ vars.AIG_ANTHROPIC_COUNT_MODE }}
+      AIG_PROTOCOL_FALLBACKS: ${{ vars.AIG_PROTOCOL_FALLBACKS }}
+      AIG_DASHBOARD_MODELS: ${{ vars.AIG_DASHBOARD_MODELS }}
+      AIG_TIER1_NODES_01: ${{ vars.AIG_TIER1_NODES_01 }}
+      AIG_TIER1_NODES_02: ${{ vars.AIG_TIER1_NODES_02 }}
+      AIG_TIER1_NODES_03: ${{ vars.AIG_TIER1_NODES_03 }}
+      AIG_TIER1_NODES_04: ${{ vars.AIG_TIER1_NODES_04 }}
+      AIG_TIER1_NODES_05: ${{ vars.AIG_TIER1_NODES_05 }}
+      AIG_TIER1_NODES_06: ${{ vars.AIG_TIER1_NODES_06 }}
+      AIG_TIER1_NODES_07: ${{ vars.AIG_TIER1_NODES_07 }}
+      AIG_TIER1_NODES_08: ${{ vars.AIG_TIER1_NODES_08 }}
+      AIG_TIER1_NODES_09: ${{ vars.AIG_TIER1_NODES_09 }}
+      AIG_TIER1_NODES_10: ${{ vars.AIG_TIER1_NODES_10 }}
+      AIG_TIER2_NODES_01: ${{ vars.AIG_TIER2_NODES_01 }}
+      AIG_TIER2_NODES_02: ${{ vars.AIG_TIER2_NODES_02 }}
+      AIG_TIER2_NODES_03: ${{ vars.AIG_TIER2_NODES_03 }}
+      AIG_TIER2_NODES_04: ${{ vars.AIG_TIER2_NODES_04 }}
+      AIG_TIER2_NODES_05: ${{ vars.AIG_TIER2_NODES_05 }}
+      AIG_TIER2_NODES_06: ${{ vars.AIG_TIER2_NODES_06 }}
+      AIG_TIER2_NODES_07: ${{ vars.AIG_TIER2_NODES_07 }}
+      AIG_TIER2_NODES_08: ${{ vars.AIG_TIER2_NODES_08 }}
+      AIG_TIER2_NODES_09: ${{ vars.AIG_TIER2_NODES_09 }}
+      AIG_TIER2_NODES_10: ${{ vars.AIG_TIER2_NODES_10 }}
+      AIG_TIER3_NODES_01: ${{ vars.AIG_TIER3_NODES_01 }}
+      AIG_TIER3_NODES_02: ${{ vars.AIG_TIER3_NODES_02 }}
+      AIG_TIER3_NODES_03: ${{ vars.AIG_TIER3_NODES_03 }}
+      AIG_TIER3_NODES_04: ${{ vars.AIG_TIER3_NODES_04 }}
+      AIG_TIER3_NODES_05: ${{ vars.AIG_TIER3_NODES_05 }}
+      AIG_TIER3_NODES_06: ${{ vars.AIG_TIER3_NODES_06 }}
+      AIG_TIER3_NODES_07: ${{ vars.AIG_TIER3_NODES_07 }}
+      AIG_TIER3_NODES_08: ${{ vars.AIG_TIER3_NODES_08 }}
+      AIG_TIER3_NODES_09: ${{ vars.AIG_TIER3_NODES_09 }}
+      AIG_TIER3_NODES_10: ${{ vars.AIG_TIER3_NODES_10 }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      AIG_ACCESS_KEY_AIR: ${{ secrets.AIG_ACCESS_KEY_AIR }}
+      AIG_ACCESS_MODELS_AIR: ${{ vars.AIG_ACCESS_MODELS_AIR }}
+      AIG_ACCESS_KEY_PRO: ${{ secrets.AIG_ACCESS_KEY_PRO }}
+      AIG_ACCESS_MODELS_PRO: ${{ vars.AIG_ACCESS_MODELS_PRO }}
+      AIG_ACCESS_KEY_MAX: ${{ secrets.AIG_ACCESS_KEY_MAX }}
+      AIG_ACCESS_MODELS_MAX: ${{ vars.AIG_ACCESS_MODELS_MAX }}
+      AIG_ACCESS_KEY_ULTRA: ${{ secrets.AIG_ACCESS_KEY_ULTRA }}
+      AIG_ACCESS_MODELS_ULTRA: ${{ vars.AIG_ACCESS_MODELS_ULTRA }}
+      AIG_ACCESS_KEY_AGENT: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
+      AIG_ACCESS_MODELS_AGENT: ${{ vars.AIG_ACCESS_MODELS_AGENT }}
+      AIG_TIER1_CREDENTIALS_01: ${{ secrets.AIG_TIER1_CREDENTIALS_01 }}
+      AIG_TIER1_CREDENTIALS_02: ${{ secrets.AIG_TIER1_CREDENTIALS_02 }}
+      AIG_TIER1_CREDENTIALS_03: ${{ secrets.AIG_TIER1_CREDENTIALS_03 }}
+      AIG_TIER1_CREDENTIALS_04: ${{ secrets.AIG_TIER1_CREDENTIALS_04 }}
+      AIG_TIER1_CREDENTIALS_05: ${{ secrets.AIG_TIER1_CREDENTIALS_05 }}
+      AIG_TIER1_CREDENTIALS_06: ${{ secrets.AIG_TIER1_CREDENTIALS_06 }}
+      AIG_TIER1_CREDENTIALS_07: ${{ secrets.AIG_TIER1_CREDENTIALS_07 }}
+      AIG_TIER1_CREDENTIALS_08: ${{ secrets.AIG_TIER1_CREDENTIALS_08 }}
+      AIG_TIER1_CREDENTIALS_09: ${{ secrets.AIG_TIER1_CREDENTIALS_09 }}
+      AIG_TIER1_CREDENTIALS_10: ${{ secrets.AIG_TIER1_CREDENTIALS_10 }}
+      AIG_TIER2_CREDENTIALS_01: ${{ secrets.AIG_TIER2_CREDENTIALS_01 }}
+      AIG_TIER2_CREDENTIALS_02: ${{ secrets.AIG_TIER2_CREDENTIALS_02 }}
+      AIG_TIER2_CREDENTIALS_03: ${{ secrets.AIG_TIER2_CREDENTIALS_03 }}
+      AIG_TIER2_CREDENTIALS_04: ${{ secrets.AIG_TIER2_CREDENTIALS_04 }}
+      AIG_TIER2_CREDENTIALS_05: ${{ secrets.AIG_TIER2_CREDENTIALS_05 }}
+      AIG_TIER2_CREDENTIALS_06: ${{ secrets.AIG_TIER2_CREDENTIALS_06 }}
+      AIG_TIER2_CREDENTIALS_07: ${{ secrets.AIG_TIER2_CREDENTIALS_07 }}
+      AIG_TIER2_CREDENTIALS_08: ${{ secrets.AIG_TIER2_CREDENTIALS_08 }}
+      AIG_TIER2_CREDENTIALS_09: ${{ secrets.AIG_TIER2_CREDENTIALS_09 }}
+      AIG_TIER2_CREDENTIALS_10: ${{ secrets.AIG_TIER2_CREDENTIALS_10 }}
+      AIG_TIER3_CREDENTIALS_01: ${{ secrets.AIG_TIER3_CREDENTIALS_01 }}
+      AIG_TIER3_CREDENTIALS_02: ${{ secrets.AIG_TIER3_CREDENTIALS_02 }}
+      AIG_TIER3_CREDENTIALS_03: ${{ secrets.AIG_TIER3_CREDENTIALS_03 }}
+      AIG_TIER3_CREDENTIALS_04: ${{ secrets.AIG_TIER3_CREDENTIALS_04 }}
+      AIG_TIER3_CREDENTIALS_05: ${{ secrets.AIG_TIER3_CREDENTIALS_05 }}
+      AIG_TIER3_CREDENTIALS_06: ${{ secrets.AIG_TIER3_CREDENTIALS_06 }}
+      AIG_TIER3_CREDENTIALS_07: ${{ secrets.AIG_TIER3_CREDENTIALS_07 }}
+      AIG_TIER3_CREDENTIALS_08: ${{ secrets.AIG_TIER3_CREDENTIALS_08 }}
+      AIG_TIER3_CREDENTIALS_09: ${{ secrets.AIG_TIER3_CREDENTIALS_09 }}
+      AIG_TIER3_CREDENTIALS_10: ${{ secrets.AIG_TIER3_CREDENTIALS_10 }}
+    steps:
+      - name: Checkout AI Gateway
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fongap-labs/ai-gateway
+          ref: main
+          path: target
+          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: target/package-lock.json
+
+      - name: Resolve source identity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sha="$(git -C target rev-parse HEAD)"
+          {
+            echo "DEPLOYED_SHA=$sha"
+            echo "GITHUB_SHA=$sha"
+          } >> "$GITHUB_ENV"
+
+      - name: Install dependencies
+        working-directory: target
+        run: npm ci
+
+      - name: Validate deployment configuration
+        working-directory: target
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node scripts/github-deployment-config.mjs preflight
+          node scripts/github-deployment-config.mjs prepare --from-env \
+            --wrangler "$RUNNER_TEMP/wrangler.readiness.json" \
+            --secrets "$RUNNER_TEMP/gateway-secrets.readiness.json" \
+            --summary "$RUNNER_TEMP/deployment-readiness.txt"
+          npm run validate:deploy
+          npm run check:deploy
+
+      - name: Summarize readiness
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## AI Gateway deployment readiness"
+            echo
+            if [ "${{ job.status }}" = "success" ]; then
+              echo "- Result: ready for central deploy"
+            else
+              echo "- Result: central configuration is incomplete or invalid"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  server-edge:
+    name: Server Edge deployment readiness
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      SERVER_EDGE_ENVIRONMENT: server-edge-cloud-edge
+      SERVER_EDGE_TRANSPORT: ${{ vars.SERVER_EDGE_TRANSPORT }}
+      SERVER_EDGE_TARGET_HOST: ${{ vars.SERVER_EDGE_TARGET_HOST }}
+      SERVER_EDGE_TARGET_USER: ${{ vars.SERVER_EDGE_TARGET_USER }}
+      SERVER_EDGE_TARGET_PORT: ${{ vars.SERVER_EDGE_TARGET_PORT }}
+      SERVER_EDGE_TARGET_ROOT: ${{ vars.SERVER_EDGE_TARGET_ROOT }}
+      SERVER_EDGE_PROFILE: ${{ vars.SERVER_EDGE_PROFILE }}
+      SERVER_EDGE_SSH_KNOWN_HOSTS: ${{ vars.SERVER_EDGE_SSH_KNOWN_HOSTS }}
+      SERVER_EDGE_CONFIG_BUNDLE: ${{ vars.SERVER_EDGE_CONFIG_BUNDLE }}
+      SERVER_EDGE_SSH_PRIVATE_KEY: ${{ secrets.SERVER_EDGE_SSH_PRIVATE_KEY }}
+      SERVER_EDGE_SECRET_BUNDLE: ${{ secrets.SERVER_EDGE_SECRET_BUNDLE }}
+      SERVER_EDGE_TAILSCALE_AUTH_KEY: ${{ secrets.SERVER_EDGE_TAILSCALE_AUTH_KEY }}
+    steps:
+      - name: Checkout Internal Vault
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fongap-labs/internal-vault
+          ref: main
+          path: target
+          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          persist-credentials: false
+
+      - name: Resolve source identity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "SERVER_EDGE_REF=$(git -C target rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Validate central deployment inputs
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          missing=()
+          require() {
+            local name="$1"
+            [ -n "${!name:-}" ] || missing+=("$name")
+          }
+
+          require SERVER_EDGE_TARGET_HOST
+          require SERVER_EDGE_TARGET_USER
+          require SERVER_EDGE_CONFIG_BUNDLE
+          require SERVER_EDGE_SECRET_BUNDLE
+
+          transport="${SERVER_EDGE_TRANSPORT:-ssh}"
+          case "$transport" in
+            ssh)
+              require SERVER_EDGE_SSH_PRIVATE_KEY
+              require SERVER_EDGE_SSH_KNOWN_HOSTS
+              ;;
+            tailscale)
+              require SERVER_EDGE_TAILSCALE_AUTH_KEY
+              ;;
+            *)
+              echo "::error::SERVER_EDGE_TRANSPORT must be ssh or tailscale." >&2
+              exit 2
+              ;;
+          esac
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            printf '::error::Missing Action Worker deployment configuration: %s\n' "$(IFS=,; echo "${missing[*]}")" >&2
+            exit 77
+          fi
+
+      - name: Validate Server Edge release
+        working-directory: target
+        run: bash services/server-edge/install/validate.sh --static
+
+      - name: Materialize deployment bundles
+        working-directory: target
+        env:
+          EDGE_CONFIG_BUNDLE: ${{ env.SERVER_EDGE_CONFIG_BUNDLE }}
+          EDGE_SECRET_BUNDLE: ${{ env.SERVER_EDGE_SECRET_BUNDLE }}
+        run: python3 environments/server-edge/materialize.py --output "$RUNNER_TEMP/server-edge-readiness"
+
+      - name: Summarize readiness
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Server Edge deployment readiness"
+            echo
+            if [ "${{ job.status }}" = "success" ]; then
+              echo "- Result: ready for central deploy"
+            else
+              echo "- Result: central configuration is incomplete or invalid"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

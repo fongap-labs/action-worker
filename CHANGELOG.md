@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: add non-destructive central deployment readiness checks for AI Gateway and Server Edge.
+
 - fix: skip centralized model discovery safely until its provider configuration is available in Action Worker.
 
 - feat: centralize AI Gateway model discovery and snapshot retention in Action Worker.

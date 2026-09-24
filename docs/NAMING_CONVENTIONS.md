@@ -173,6 +173,7 @@ Fongap Labs 自有系统缩写只有在以下条件同时满足时才能用于�
 | AI Gateway | `AIG` |
 | App Source | `APP_SOURCE` |
 | Delta | `DELTA` |
+| Server Edge | `SERVER_EDGE` |
 
 项目若新增系统缩写，应先修改本表，再在业务仓使用。
 
