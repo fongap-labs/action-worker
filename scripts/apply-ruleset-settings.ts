@@ -182,11 +182,24 @@ async function main(): Promise<void> {
   const actualChecks = Array.isArray(required.parameters.required_status_checks)
     ? required.parameters.required_status_checks
     : [];
-  const expectedChecks = policy.required_status_checks.map((context) => ({ context }));
-  if (!isDeepStrictEqual(actualChecks, expectedChecks)) {
+  const actualContexts = actualChecks
+    .filter((item): item is Record<string, unknown> => isJsonRecord(item))
+    .map((item) => item.context);
+  if (!isDeepStrictEqual(actualContexts, policy.required_status_checks)) {
     throw new CliError(
-      `required status check mismatch: expected=${JSON.stringify(expectedChecks)} actual=${JSON.stringify(actualChecks)}`,
+      `required status check mismatch: expected=${JSON.stringify(policy.required_status_checks)} actual=${JSON.stringify(actualChecks)}`,
     );
+  }
+  if (
+    actualChecks.some(
+      (item) =>
+        isJsonRecord(item) &&
+        item.context === "validate-merge" &&
+        item.integration_id !== undefined &&
+        item.integration_id !== null,
+    )
+  ) {
+    throw new CliError("validate-merge must not be bound to one GitHub integration");
   }
 
   console.log(`repository ruleset applied: ${repository} / ${policy.name}`);
