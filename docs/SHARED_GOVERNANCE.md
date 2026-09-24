@@ -103,4 +103,4 @@ tests/       governance regression tests
 
 治理目标与 GitHub 套餐能力分开描述。
 
-Action Worker Gate 对受管仓统一成立；GitHub 原生 Ruleset、branch protection 或 Administration API 只在当前仓库可用的套餐和权限范围内启用。平台能力不足不能成为绕过中央 Gate 的理由，也不应在文档中假设所有仓库拥有完全相同的 GitHub 原生保护能力。
+Action Worker Gate 对受管仓统一成立；GitHub 原生 Ruleset、branch protection 或 Administration API 只在当前仓库可用的套餐和权限范围内启用。GitHub Free 组织的私有仓不具备 Ruleset / Protected Branch 强制保护，因此中央 Gate 在这些仓库中是流程约束而非 GitHub 平台硬门禁。平台能力不足不能成为绕过中央 Gate 的理由，也不得在文档中假设私有仓已经获得与公开仓相同的强制保护。

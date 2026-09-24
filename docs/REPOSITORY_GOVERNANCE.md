@@ -89,7 +89,7 @@ GitHub native protection
 └─ restrict bypass
 ```
 
-原生 Ruleset / branch-protection 能力取决于仓库可用的 GitHub 套餐和连接权限。当前私有仓如果 GitHub API 返回套餐限制，不得在文档中假设其拥有与公共仓完全相同的原生 Ruleset。
+原生 Ruleset / branch-protection 能力取决于仓库可用的 GitHub 套餐和连接权限。GitHub Free 组织只对公开仓提供 Ruleset 与 Protected Branch；私有仓必须把这一点视为平台限制，不能在文档、审计或自动化中宣称其拥有与公开仓相同的 `main` 强制保护。私有仓仍必须走中央 PR Governance / CI Evidence / validate-merge 流程，但在升级 GitHub 计划前，这属于流程约束而不是 GitHub 平台硬门禁。
 
 中央 `validate-merge` 合同仍应在所有受管仓保持一致；平台原生保护只在能力可用时作为额外强制层。
 
