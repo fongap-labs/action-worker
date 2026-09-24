@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- refactor: trigger merge gates from the final PR Governance commit status and remove reverse cross-repository dispatch credentials.
+
 - fix: trigger repository merge gates through repository_dispatch and centralize GitHub Actions check creation in one reusable workflow.
 
 - refactor: reuse `AW_CONTROL_TOKEN` for private task bootstrap reads and remove the redundant `AW_EXECUTION_TOKEN` credential contract.
