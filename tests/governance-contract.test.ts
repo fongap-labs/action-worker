@@ -115,6 +115,8 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     "publish-pr-review.ts", "wait-ci-evidence.ts", "validate-ci-evidence.ts", "wait-review-turn.ts",
     "validate-ai-gateway-access.ts", "run-ai-triage.ts", "apply-ai-triage.ts", "install-ocr.ts", "run-ai-review.ts",
     "Resolve governance ownership", "check-status-owner.ts",
+    "Publish explicit no-CI evidence", "steps.base_plan.outputs.ci_required != 'true'",
+    "CI not required by governance plan", "for context in \"CI Evidence\" \"ci-evidence\"",
   ]);
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
   assert.doesNotMatch(workflow, /@alibaba-group\/open-code-review|npm install -g|review_models|review-diff-fallback/);
@@ -123,7 +125,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   assert.doesNotMatch(workflow, /AW_REVIEW_ENGINE_REPOSITORY/);
   assert.match(workflow, /AW_AI_AGENT_CONFIG:\s*\$\{\{ vars\.AW_AI_AGENT_CONFIG \}\}/);
   assert.doesNotMatch(workflow, /AW_IS_AI_REVIEW_ENABLED/);
-  const order = ["- name: Collect CI evidence", "- name: Wait for AI queue", "- name: Run AI Triage", "- name: Resolve final plan", "- name: Run AI review", "- name: Validate CI evidence", "- name: Update final gate"];
+  const order = ["- name: Collect CI evidence", "- name: Publish explicit no-CI evidence", "- name: Wait for AI queue", "- name: Run AI Triage", "- name: Resolve final plan", "- name: Run AI review", "- name: Validate CI evidence", "- name: Update final gate"];
   const positions = order.map((value) => workflow.indexOf(value));
   assert.ok(positions.every((value) => value >= 0));
   assert.deepEqual(positions, [...positions].sort((left, right) => left - right));
