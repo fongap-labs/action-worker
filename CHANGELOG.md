@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: reserve validate-merge for the trusted GitHub Actions check and stop Central CI from publishing a conflicting commit status.
+
 - fix: inject the validated AI Gateway source SHA through AIG_BUILD_SHA instead of the control-plane GitHub SHA.
 
 - feat: centralize repository Main and Legacy Ruleset creation and drift repair in Action Worker.
