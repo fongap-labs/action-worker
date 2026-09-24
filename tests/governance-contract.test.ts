@@ -157,12 +157,21 @@ test("release, source, deploy, merge, and repository settings contracts remain i
     "package-release-build.ts",
     "release-build.json",
     "AW_CONTROL_TOKEN",
+    "actions/setup-python",
+    "actions/setup-node",
+    "actions/attest-build-provenance",
+    "anchore/sbom-action",
     "run-release",
   ]);
   const releasePackager = await text("scripts/package-release-build.ts");
   requireText(releasePackager, ["release-manifest.json", "release-provenance.json", "artifact_run_id", "source_sha"]);
   const releaseBuildPolicy = await json("policies/release-build.json") as Record<string, unknown>;
   assert.equal(releaseBuildPolicy.schema_version, 1);
+  const releaseBuildRepositories = (releaseBuildPolicy.repositories ?? {}) as Record<string, unknown>;
+  assert.deepEqual(Object.keys(releaseBuildRepositories).sort(), [
+    "fongap-labs/app-source",
+    "fongap-labs/delta",
+  ]);
 
   const release = await text(".github/workflows/handle-release-dispatch.yml");
   requireText(release, ["types: [run-release]", "source_repository", "source_sha", "artifact_run_id", "AW_CONTROL_TOKEN", "node-version: 24", "RELEASE_REQUEST_JSON", "node scripts/publish-release.ts"]);
