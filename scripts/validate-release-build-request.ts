@@ -54,7 +54,7 @@ function decodeContent(value: unknown): string {
   return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
 }
 
-function parseCargoWorkspaceVersion(content: string): string {
+export function parseCargoWorkspaceVersion(content: string): string {
   const section = content.match(/\[workspace\.package\]([\s\S]*?)(?=\r?\n\[|$)/);
   const version = section?.[1]?.match(/^\s*version\s*=\s*"([^"]+)"\s*$/m)?.[1] ?? "";
   if (!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)) {
