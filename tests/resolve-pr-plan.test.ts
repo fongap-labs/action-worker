@@ -118,6 +118,19 @@ test("breaking and security routes preserve deterministic depth", async () => {
   assert.deepEqual(security.checks, ["naming", "secret-scan", "shellcheck"]);
 });
 
+test("code reviews preserve the full LLM task budget", async () => {
+  const context = validateContext({
+    project_types: ["node"],
+    change_areas: ["source"],
+    declared_impacts: [],
+    risk: "medium",
+  });
+  const plan = resolvePlan(context, await loadPolicies(), defaults);
+  assert.equal(plan.review_agent, "code");
+  assert.equal(plan.review_model, "Code-Pro");
+  assert.equal(plan.review_task_timeout, 5);
+});
+
 test("disabled review agent skips AI while preserving deterministic CI", async () => {
   const context = validateContext({
     project_types: ["github-automation"],
