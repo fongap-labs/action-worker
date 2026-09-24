@@ -75,7 +75,7 @@ test("runtime and machine policies preserve trust boundaries", async () => {
     "fongap-labs/internal-vault",
     "fongap-labs/external-vault",
   ]);
-  assert.equal((execution.ci as Record<string, unknown>).timeout_minutes, 180);
+  assert.equal((execution.ci as Record<string, unknown>).timeout_minutes, 120);
 
   const release = await json("policies/release.json");
   assert.equal(release.schema_version, 2);
