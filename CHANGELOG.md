@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: satisfy the GitHub Checks API contract when creating the centralized validate-merge check run.
+
 - refactor: trigger merge gates from the final PR Governance commit status and remove reverse cross-repository dispatch credentials.
 
 - fix: trigger repository merge gates through repository_dispatch and centralize GitHub Actions check creation in one reusable workflow.
