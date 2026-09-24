@@ -418,6 +418,30 @@ source repository allowlist
 
 Tag 固定为 `<release-key>-v<semver>`。不保留裸 `v<semver>` 兼容路径。
 
+## 10. Tool Distribution
+
+Third-party tool metadata remains authoritative in the distribution repository:
+
+```text
+external-vault/tools/catalog.json
+→ tools/<tool>/tool.json
+```
+
+Action Worker owns scheduled synchronization and verification:
+
+```text
+tool catalog + metadata
+→ upstream stable Release
+→ upstream checksum / digest / license verification
+→ release-manifest.json
+→ release-provenance.json
+→ Action Worker artifact
+→ Release Governance
+→ distribution repository Release
+```
+
+Business repositories do not run upstream download, checksum verification, packaging, or tool Release dispatch workflows. Tool metadata stays text-only in the distribution repository; executable payloads stay in GitHub Releases.
+
 ## 10. Deploy
 
 部署统一通过：
@@ -444,7 +468,7 @@ main CI
 
 Server Edge 使用相同 Policy；显式 pinned deploy 必须是 40 位 SHA。
 
-## 11. 目录
+## 12. 目录
 
 ```text
 .github/workflows/
@@ -548,7 +572,7 @@ adapters/
 profiles/
 ```
 
-## 12. CI
+## 13. CI
 
 Action Worker 自身只有一个总 CI：`validate-ci.yml`。
 
@@ -562,7 +586,7 @@ validate-merge
 
 contracts 同时验证架构治理边界，防止仓库随着功能扩展重新长出项目专属配置。
 
-## 13. 版本
+## 14. 版本
 
 ```text
 main = 当前最新基线
