@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "name": "Protect Main Branch",
+  "target": "branch",
+  "enforcement": "active",
+  "repositories": [
+    "fongap-labs/ai-gateway",
+    "fongap-labs/delta",
+    "fongap-labs/delta-suite",
+    "fongap-labs/app-source",
+    "fongap-labs/internal-vault",
+    "fongap-labs/external-vault"
+  ],
+  "bypass_actors": [],
+  "conditions": {
+    "ref_name": {
+      "exclude": [],
+      "include": [
+        "refs/heads/main"
+      ]
+    }
+  },
+  "rules": [
+    {
+      "type": "deletion"
+    },
+    {
+      "type": "non_fast_forward"
+    },
+    {
+      "type": "required_linear_history"
+    },
+    {
+      "type": "pull_request",
+      "parameters": {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews_on_push": false,
+        "required_reviewers": [],
+        "require_code_owner_review": false,
+        "dismissal_restriction": {
+          "enabled": false,
+          "allowed_actors": []
+        },
+        "require_last_push_approval": false,
+        "required_review_thread_resolution": true,
+        "require_extra_approval_for_unattributed_changes": false,
+        "allowed_merge_methods": [
+          "squash"
+        ]
+      }
+    },
+    {
+      "type": "required_status_checks",
+      "parameters": {
+        "strict_required_status_checks_policy": true,
+        "do_not_enforce_on_create": false,
+        "required_status_checks": [
+          {
+            "context": "CI Evidence"
+          },
+          {
+            "context": "PR Governance"
+          }
+        ]
+      }
+    }
+  ]
+}
