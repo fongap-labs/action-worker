@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- refactor: enable automatic AI Gateway deployment through the central deploy executor and register manual Server Edge deployment policy.
+
 - feat: centralize Server Edge deployment execution and production credentials in Action Worker.
 
 - feat: add a source-gated central AI Gateway deployment executor with centralized production credentials, health verification, and rollback.
