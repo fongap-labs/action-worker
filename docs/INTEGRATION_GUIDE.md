@@ -169,77 +169,75 @@ source repository (release-source)
 
 ## 5. Release 接入
 
-有正式程序发布的业务仓采用两段式入口。
+Release Governance 区分源码身份与 artifact 执行身份：
 
-第一段是源仓自己的 Build workflow，负责构建并上传一个 Release artifact。artifact 根目录必须包含：
+```text
+source_repository + source_sha
+→ build / package
+→ artifact_repository + artifact_run_id + artifact_name
+→ release-provenance.json
+→ release-manifest.json
+→ Release Governance
+→ target_repository
+```
+
+artifact 可以由源仓 Runner 产生，也可以由 Action Worker 中央构建产生；两种模式使用同一合同。中央化后的业务仓只保留项目级 build/package 实现，不保存发布凭据。
+
+Release artifact 根目录必须包含：
 
 ```text
 release-manifest.json
+release-provenance.json
 <release assets>
 ```
 
-Manifest 示例：
+`release-provenance.json` 必须精确绑定本次请求：
 
 ```json
 {
   "schema_version": "1",
-  "target_repository": "<distribution-repository>",
-  "release_key": "agentdock",
-  "version": "0.1.0",
-  "release_name": "AgentDock 0.1.0",
-  "release_notes": "Release notes.",
-  "prerelease": false,
-  "license": {
-    "expression": "Apache-2.0"
-  },
-  "assets": [
-    {
-      "name": "agentdock-windows-x64.exe",
-      "sha256": "<64-lowercase-hex>"
-    }
-  ]
+  "source_repository": "owner/source-repository",
+  "source_sha": "40-character-commit-sha",
+  "artifact_repository": "owner/artifact-run-repository",
+  "artifact_run_id": 123456
 }
 ```
 
-第二段使用独立的薄 `workflow_run` dispatcher。只有源 Build Run 已完成且成功时才发送：
-
-```text
-event_type = run-release
-```
-
-最小 payload：
+Release Dispatch 使用 hard-cut v2：
 
 ```json
 {
-  "schema_version": "1",
+  "schema_version": "2",
   "request_id": "release-123456",
-  "repository": "owner/source-repository",
+  "source_repository": "owner/source-repository",
   "source_sha": "40-character-commit-sha",
-  "source_run_id": 123456,
+  "artifact_repository": "owner/artifact-run-repository",
+  "artifact_run_id": 123456,
   "artifact_name": "release-package"
 }
 ```
 
-许可证声明属于具体 App / Release，而不是目标分发仓。未提供 `license` 时按 `Apache-2.0` 发布；需要其他许可证时由源仓在 manifest 中显式覆盖。若使用 `license.file`，对应文件必须列入 `assets[]` 并参与 SHA256 校验。
-
-业务仓只需要 `AW_DISPATCH_TOKEN` 来调用 Action Worker，不配置目标仓写 Token。跨仓 Dispatch 目标统一由 `${{ github.repository_owner }}/action-worker` 推导，不再维护重复的目标仓变量。
-
-同一 GitHub Organization 下的受管仓优先复用组织级配置：
+Action Worker 必须验证：
 
 ```text
-Organization Secret
-AW_DISPATCH_TOKEN
+source repository capability
+→ source default HEAD
+→ source CI Evidence
+→ artifact run identity and success
+→ release-provenance.json exact match
+→ release-manifest.json
+→ declared file set and SHA256
+→ target repository capability
+→ publish
+→ re-download verification
+→ finalize or rollback
 ```
 
-仅向受 Action Worker 治理的仓库开放该 Secret。
+Manifest 继续声明目标仓、版本、许可证和 release assets。许可证属于具体 App / Release；未提供 `license` 时按 `Apache-2.0` 发布，需要其他许可证时由 manifest 显式覆盖。
 
-发布源仓若共享同一个分发目标，可同样使用组织级 `RELEASE_TARGET_REPOSITORY`；项目专属部署身份（例如 `DEPLOY_REPOSITORY`）继续使用 Repository 级 Variable。
+允许的 Release 源仓与目标仓仍由 `AW_REPOSITORY_POLICY` 的 `release-source` / `release-target` capability 控制。中央构建 artifact 必须来自 Action Worker 自身；迁移期源仓本地 build artifact 只能来自该 source repository 本身。
 
-Action Worker 需要 `AW_CONTROL_TOKEN`。允许的 Release 源仓与目标仓由 `AW_REPOSITORY_POLICY` 的 `release-source` / `release-target` capability 控制。
-
-`AW_CONTROL_TOKEN` 至少需要读取受管源仓 Contents 与 Actions，以及对允许的分发目标 `contents: write`。
-
-中央发布 Tag 固定为：
+中央 Tag 固定为：
 
 ```text
 <release-key>-v<semver>

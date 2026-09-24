@@ -1,27 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/fongap/action-worker/contracts/release-dispatch.json",
-  "title": "Release Dispatch",
+  "$id": "https://github.com/fongap/action-worker/contracts/release-provenance.json",
+  "title": "Release Provenance",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "schema_version",
-    "request_id",
     "source_repository",
     "source_sha",
     "artifact_repository",
-    "artifact_run_id",
-    "artifact_name"
+    "artifact_run_id"
   ],
   "properties": {
     "schema_version": {
-      "const": "2"
-    },
-    "request_id": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 128,
-      "pattern": "^[A-Za-z0-9._:-]+$"
+      "const": "1"
     },
     "source_repository": {
       "type": "string",
@@ -38,12 +30,6 @@
     "artifact_run_id": {
       "type": "integer",
       "minimum": 1
-    },
-    "artifact_name": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 128,
-      "pattern": "^[A-Za-z0-9._-]+$"
     }
   }
 }
