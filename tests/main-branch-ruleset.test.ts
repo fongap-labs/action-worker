@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { managedRepositories, rulesetPayload } from "../scripts/apply-main-branch-ruleset.ts";
@@ -30,4 +31,16 @@ test("main branch ruleset rejects duplicate or invalid repository identities", (
   assert.throws(() => managedRepositories({
     repositories: ["not a repository"],
   }));
+});
+
+
+test("central required checks are owned by Action Worker statuses", async () => {
+  const policy = JSON.parse(await readFile("policies/main-branch-ruleset.json", "utf8")) as {
+    rules: Array<{ type: string; parameters?: { required_status_checks?: Array<Record<string, unknown>> } }>;
+  };
+  const statusRule = policy.rules.find((rule) => rule.type === "required_status_checks");
+  assert.deepEqual(statusRule?.parameters?.required_status_checks, [
+    { context: "CI Evidence" },
+    { context: "PR Governance" },
+  ]);
 });
