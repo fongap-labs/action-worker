@@ -180,18 +180,18 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
-      EDGE_ENVIRONMENT: server-edge-cloud-edge
-      EDGE_TRANSPORT: ${{ vars.EDGE_TRANSPORT }}
-      EDGE_TARGET_HOST: ${{ vars.EDGE_TARGET_HOST }}
-      EDGE_TARGET_USER: ${{ vars.EDGE_TARGET_USER }}
-      EDGE_TARGET_PORT: ${{ vars.EDGE_TARGET_PORT }}
-      EDGE_TARGET_ROOT: ${{ vars.EDGE_TARGET_ROOT }}
-      EDGE_PROFILE: ${{ vars.EDGE_PROFILE }}
-      SSH_KNOWN_HOSTS: ${{ vars.SSH_KNOWN_HOSTS }}
-      EDGE_CONFIG_BUNDLE: ${{ vars.EDGE_CONFIG_BUNDLE }}
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      EDGE_SECRET_BUNDLE: ${{ secrets.EDGE_SECRET_BUNDLE }}
-      TAILSCALE_AUTH_KEY: ${{ secrets.TAILSCALE_AUTH_KEY }}
+      SERVER_EDGE_ENVIRONMENT: server-edge-cloud-edge
+      SERVER_EDGE_TRANSPORT: ${{ vars.SERVER_EDGE_TRANSPORT }}
+      SERVER_EDGE_TARGET_HOST: ${{ vars.SERVER_EDGE_TARGET_HOST }}
+      SERVER_EDGE_TARGET_USER: ${{ vars.SERVER_EDGE_TARGET_USER }}
+      SERVER_EDGE_TARGET_PORT: ${{ vars.SERVER_EDGE_TARGET_PORT }}
+      SERVER_EDGE_TARGET_ROOT: ${{ vars.SERVER_EDGE_TARGET_ROOT }}
+      SERVER_EDGE_PROFILE: ${{ vars.SERVER_EDGE_PROFILE }}
+      SERVER_EDGE_SSH_KNOWN_HOSTS: ${{ vars.SERVER_EDGE_SSH_KNOWN_HOSTS }}
+      SERVER_EDGE_CONFIG_BUNDLE: ${{ vars.SERVER_EDGE_CONFIG_BUNDLE }}
+      SERVER_EDGE_SSH_PRIVATE_KEY: ${{ secrets.SERVER_EDGE_SSH_PRIVATE_KEY }}
+      SERVER_EDGE_SECRET_BUNDLE: ${{ secrets.SERVER_EDGE_SECRET_BUNDLE }}
+      SERVER_EDGE_TAILSCALE_AUTH_KEY: ${{ secrets.SERVER_EDGE_TAILSCALE_AUTH_KEY }}
     steps:
       - name: Checkout Internal Vault
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -206,7 +206,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          echo "EDGE_REF=$(git -C target rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "SERVER_EDGE_REF=$(git -C target rev-parse HEAD)" >> "$GITHUB_ENV"
 
       - name: Validate central deployment inputs
         shell: bash
@@ -219,22 +219,22 @@ jobs:
             [ -n "${!name:-}" ] || missing+=("$name")
           }
 
-          require EDGE_TARGET_HOST
-          require EDGE_TARGET_USER
-          require EDGE_CONFIG_BUNDLE
-          require EDGE_SECRET_BUNDLE
+          require SERVER_EDGE_TARGET_HOST
+          require SERVER_EDGE_TARGET_USER
+          require SERVER_EDGE_CONFIG_BUNDLE
+          require SERVER_EDGE_SECRET_BUNDLE
 
-          transport="${EDGE_TRANSPORT:-ssh}"
+          transport="${SERVER_EDGE_TRANSPORT:-ssh}"
           case "$transport" in
             ssh)
-              require SSH_PRIVATE_KEY
-              require SSH_KNOWN_HOSTS
+              require SERVER_EDGE_SSH_PRIVATE_KEY
+              require SERVER_EDGE_SSH_KNOWN_HOSTS
               ;;
             tailscale)
-              require TAILSCALE_AUTH_KEY
+              require SERVER_EDGE_TAILSCALE_AUTH_KEY
               ;;
             *)
-              echo "::error::EDGE_TRANSPORT must be ssh or tailscale." >&2
+              echo "::error::SERVER_EDGE_TRANSPORT must be ssh or tailscale." >&2
               exit 2
               ;;
           esac
