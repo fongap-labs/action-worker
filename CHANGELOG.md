@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: preserve GitHub Actions required-check identity with a lightweight repository merge gate and expose central CI failure details only for public targets.
+
 - fix: allow centralized CI evidence waits up to two hours while keeping PR governance within its three-hour execution budget.
 
 - feat: extend centralized CI execution to every managed business repository while retaining project-owned trusted test entrypoints.
