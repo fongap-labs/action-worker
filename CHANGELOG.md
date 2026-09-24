@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- refactor: centralize managed main-branch Ruleset status requirements and allow Action Worker to satisfy `validate-merge` without a repository-local runner.
+
 - fix: use the repository administration credential for cross-repository merge-gate workflow dispatch while keeping PR control credentials read-only for Actions.
 
 - fix: preserve GitHub Actions required-check identity with a lightweight repository merge gate and expose central CI failure details only for public targets.
