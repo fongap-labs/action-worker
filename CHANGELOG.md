@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: centralize AI Gateway model discovery and snapshot retention in Action Worker.
+
 - feat: extend centralized Release Build to Delta with project-scoped environment setup, provenance attestation, and CycloneDX SBOM packaging.
 
 - feat: centralize App Source release build runners, artifact packaging, and provenance in Action Worker.
