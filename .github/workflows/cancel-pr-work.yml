@@ -1,0 +1,28 @@
+name: Cancel Closed PR Work
+
+on:
+  repository_dispatch:
+    types: [cancel-pr-work]
+
+permissions: {}
+
+jobs:
+  governance:
+    name: Cancel PR Governance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    concurrency:
+      group: pr-governance-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}
+      cancel-in-progress: true
+    steps:
+      - run: echo "Cancelled stale PR Governance work for ${{ github.event.client_payload.repository }}#${{ github.event.client_payload.pr_number }}."
+
+  central-ci:
+    name: Cancel Central CI
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    concurrency:
+      group: central-ci-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}
+      cancel-in-progress: true
+    steps:
+      - run: echo "Cancelled stale Central CI work for ${{ github.event.client_payload.repository }}#${{ github.event.client_payload.pr_number }}."
