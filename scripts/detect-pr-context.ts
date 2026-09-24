@@ -35,6 +35,15 @@ function stringList(value: unknown, key: string): string[] {
   return value[key];
 }
 
+export async function listChangedFiles(base: string, head: string, root: string): Promise<string[]> {
+  const changedText = await runText(
+    "git",
+    ["diff", "--name-only", "--diff-filter=ACDMR", base, head],
+    { cwd: root },
+  );
+  return changedText ? changedText.split(/\r?\n/).filter(Boolean) : [];
+}
+
 export function changeAreaForPath(path: string, workflowPrefixes: readonly string[], changelogFile: string): string {
   if (workflowPrefixes.some((prefix) => path.startsWith(prefix))) {
     return "workflow";
@@ -63,8 +72,7 @@ export async function detectContext(base: string, head: string, root: string, po
   }
   const prefixes = stringList(workflow, "path_prefixes");
   const terms = stringList(security, "path_terms").map((term) => term.toLowerCase());
-  const changedText = await runText("git", ["diff", "--name-only", "--diff-filter=ACMR", base, head], { cwd: root });
-  const changedFiles = changedText ? changedText.split(/\r?\n/).filter(Boolean) : [];
+  const changedFiles = await listChangedFiles(base, head, root);
   const areas = new Set<string>();
   const impacts = new Set<string>();
 
