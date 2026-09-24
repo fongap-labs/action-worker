@@ -7,14 +7,15 @@
   "required": [
     "schema_version",
     "request_id",
-    "repository",
+    "source_repository",
     "source_sha",
-    "source_run_id",
+    "artifact_repository",
+    "artifact_run_id",
     "artifact_name"
   ],
   "properties": {
     "schema_version": {
-      "const": "1"
+      "const": "2"
     },
     "request_id": {
       "type": "string",
@@ -22,7 +23,7 @@
       "maxLength": 128,
       "pattern": "^[A-Za-z0-9._:-]+$"
     },
-    "repository": {
+    "source_repository": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
     },
@@ -30,7 +31,11 @@
       "type": "string",
       "pattern": "^[0-9a-f]{40}$"
     },
-    "source_run_id": {
+    "artifact_repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "artifact_run_id": {
       "type": "integer",
       "minimum": 1
     },
