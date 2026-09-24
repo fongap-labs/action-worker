@@ -192,7 +192,7 @@ ci-evidence      = 项目测试 / 构建 / 许可证等本地证据
 validate-merge   = 最终合并门禁
 ```
 
-当 PR Plan 判定 `ci_required=true` 时，Action Worker 使用 `AW_CONTROL_TOKEN` 等待当前 head SHA 对应的 `ci-evidence` 完成并形成结构化 Evidence。迁移期间允许旧仓回退读取 `validate-merge`，但新接入必须提供 `ci-evidence`。AI Review 可以读取该 Evidence 评估覆盖是否充分；随后 `validate-ci-evidence.ts` 确定性要求 evidence job 成功。
+当 PR Plan 判定 `ci_required=true` 时，Action Worker 使用 `AW_CONTROL_TOKEN` 等待当前 head SHA 对应的 `ci-evidence` 完成并形成结构化 Evidence。当 `ci_required=false` 时，Action Worker 仍显式写入成功的 `CI Evidence`，说明该 PR 按治理计划无需执行 CI；Evidence 不允许以“缺失”表示“不需要”。迁移期间允许旧仓回退读取 `validate-merge`，但新接入必须提供 `ci-evidence`。AI Review 可以读取该 Evidence 评估覆盖是否充分；随后 `validate-ci-evidence.ts` 确定性要求 evidence job 成功。
 
 Action Worker 完成 AI / Policy Gate 后向 commit 写入 `PR Governance` status。业务仓最终 `validate-merge` 使用中央 `.github/actions/validate-merge-policy`，只有 `ci-evidence=success` 且 `PR Governance=success` 才通过。这样现有 Ruleset 只要求 `validate-merge` 也能把中央治理变成硬门禁。
 
