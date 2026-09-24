@@ -17,6 +17,8 @@ on:
       - main
     paths:
       - policies/repository.json
+      - policies/ruleset.json
+      - scripts/apply-ruleset-settings.ts
       - .github/workflows/apply-repo-settings.yml
 
 permissions:
@@ -44,7 +46,9 @@ jobs:
           GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           TARGET_REPOSITORY: ${{ inputs.repository }}
           IS_DRY_RUN: ${{ inputs.is_dry_run }}
-        run: node scripts/apply-repo-settings.ts "$TARGET_REPOSITORY" "$IS_DRY_RUN"
+        run: |
+          node scripts/apply-repo-settings.ts "$TARGET_REPOSITORY" "$IS_DRY_RUN"
+          node scripts/apply-ruleset-settings.ts "$TARGET_REPOSITORY" "$IS_DRY_RUN"
 
   apply-control-plane:
     if: github.event_name == 'push'
@@ -66,7 +70,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           TARGET_REPOSITORY: ${{ github.repository }}
-        run: node scripts/apply-repo-settings.ts "$TARGET_REPOSITORY" false
+        run: |
+          node scripts/apply-repo-settings.ts "$TARGET_REPOSITORY" false
+          node scripts/apply-ruleset-settings.ts "$TARGET_REPOSITORY" false
 
   resolve-managed:
     if: github.event_name == 'push'
