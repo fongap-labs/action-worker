@@ -225,7 +225,7 @@ test("closed PR cancellation validates the target before owning live concurrency
     "types: [cancel-pr-work]",
     "Validate Cancellation Target",
     "secrets.AW_CONTROL_TOKEN",
-    'gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.state'',
+    `gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.state'`,
     'Cancellation target is not closed',
     "fongap-labs/ai-gateway|fongap-labs/delta|fongap-labs/delta-suite|fongap-labs/app-source|fongap-labs/internal-vault|fongap-labs/external-vault",
     "needs: validate",
