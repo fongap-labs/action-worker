@@ -131,6 +131,7 @@ jobs:
         env:
           AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
           AI_GATEWAY_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
+          AI_GATEWAY_REQUIRED_MODEL: ${{ steps.bootstrap_review.outputs.model }}
         run: node scripts/validate-ai-gateway-access.ts
 
       - name: Dispatch centralized CI
