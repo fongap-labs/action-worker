@@ -73,6 +73,8 @@ uses: fongap-labs/action-worker/.github/actions/validate-merge-policy@main
 
 它要求 `ci-evidence=success`；在 Pull Request 上还必须等到当前 head 的 `PR Governance=success`。
 
+Ruleset 中的 required status 只要求 `validate-merge` context，不绑定特定 GitHub App integration。该 context 由 Action Worker 在中央 CI 完成后写入；受管仓的 `pull_request_target` 入口只允许写 `PR Governance`，不得写 `validate-merge`。Ruleset 本身由 Action Worker 的 `policies/ruleset.json` 和 `apply-ruleset-settings.ts` 统一维护。
+
 ## 4. 中央配置
 
 Action Worker Repository Variable：
