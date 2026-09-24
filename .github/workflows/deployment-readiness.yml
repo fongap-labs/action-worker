@@ -250,6 +250,9 @@ jobs:
 
       - name: Materialize deployment bundles
         working-directory: target
+        env:
+          EDGE_CONFIG_BUNDLE: ${{ env.SERVER_EDGE_CONFIG_BUNDLE }}
+          EDGE_SECRET_BUNDLE: ${{ env.SERVER_EDGE_SECRET_BUNDLE }}
         run: python3 environments/server-edge/materialize.py --output "$RUNNER_TEMP/server-edge-readiness"
 
       - name: Summarize readiness
