@@ -170,7 +170,7 @@ jobs:
         run: |
           {
             echo "DEPLOYED_SHA=$SOURCE_SHA"
-            echo "GITHUB_SHA=$SOURCE_SHA"
+            echo "AIG_BUILD_SHA=$SOURCE_SHA"
           } >> "$GITHUB_ENV"
 
       - name: Install dependencies
