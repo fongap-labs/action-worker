@@ -194,8 +194,14 @@ export function resolvePlan(
     reviewAgent = options.agentOverride as ReviewAgent;
   }
 
+  const hasTrustedModelOverride = options.modelOverride !== "auto";
   let isReviewRequired = reviewAgent !== "none";
-  if (!isAiAgentEnabled(policies.aiAgents, "review")) {
+  if (options.reviewMode === "off") {
+    isReviewRequired = false;
+    reviewAgent = "none";
+  } else if (options.reviewMode !== "inherit" && options.reviewMode !== "on") {
+    throw new CliError("::error::review_mode only supports inherit/on/off.", 64);
+  } else if (!isAiAgentEnabled(policies.aiAgents, "review") && !hasTrustedModelOverride) {
     isReviewRequired = false;
     reviewAgent = "none";
   } else if (options.reviewMode === "on") {
@@ -203,11 +209,6 @@ export function resolvePlan(
     if (reviewAgent === "none") {
       reviewAgent = "code";
     }
-  } else if (options.reviewMode === "off") {
-    isReviewRequired = false;
-    reviewAgent = "none";
-  } else if (options.reviewMode !== "inherit") {
-    throw new CliError("::error::review_mode only supports inherit/on/off.", 64);
   }
 
   let blockSeverity: string;
@@ -237,7 +238,9 @@ export function resolvePlan(
 
   if (reviewAgent !== "none") {
     const agent = policies.review.agents[reviewAgent];
-    reviewModel = aiAgentModel(policies.aiAgents, "review", reviewAgent);
+    reviewModel = hasTrustedModelOverride
+      ? options.modelOverride
+      : aiAgentModel(policies.aiAgents, "review", reviewAgent);
     reviewEffort = agent?.effort ?? "medium";
     reviewRule = agent?.rule ?? "";
     reviewLlmTimeout = policies.review.runtime.llm_timeout_seconds ?? 300;
@@ -246,7 +249,8 @@ export function resolvePlan(
     reviewResumeAttempts = policies.review.runtime.resume_attempts ?? 1;
     reviewResumeBackoffSeconds = policies.review.runtime.resume_backoff_seconds ?? 15;
 
-    if (isAiAgentEnabled(policies.aiAgents, "triage")
+    if (isAiAgentEnabled(policies.aiAgents, "review")
+        && isAiAgentEnabled(policies.aiAgents, "triage")
         && policies.triage.enabled_agents.includes(reviewAgent)) {
       isTriageRequired = true;
       triageModel = aiAgentModel(policies.aiAgents, "triage");

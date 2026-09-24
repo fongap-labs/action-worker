@@ -32,6 +32,19 @@ test("AI Gateway preflight derives only enabled PR agent models", () => {
   assert.deepEqual(requiredPrAiModels(config), ["Code-Air", "Code-Max", "Code-Pro", "Code-Ultra"]);
 });
 
+
+test("AI Gateway preflight includes an explicit bootstrap model when normal review is disabled", () => {
+  const config = parseAiAgentConfig(JSON.stringify({
+    schema_version: 1,
+    agents: {
+      review: { enabled: false, model: "Audit-Pro" },
+      writing: { enabled: true, model: "Editor-Air" },
+    },
+  }));
+  assert.deepEqual(requiredPrAiModels(config, "Editor-Air"), ["Editor-Air"]);
+  assert.throws(() => requiredPrAiModels(config), /define no models/i);
+});
+
 test("AI Gateway preflight parses visible callable model ids", () => {
   assert.deepEqual(
     visibleModelIds({ data: [{ id: "Code-Pro" }, { id: "Code-Air" }, { id: "Code-Pro" }] }),
