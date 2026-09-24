@@ -37,10 +37,10 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
     "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-pr-plan.ts", "scripts/run-ai-triage.ts", "scripts/runtime-command.ts",
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
-    "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/update-work-metrics.ts", "scripts/validate-task-publication.ts",
+    "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
     ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
-    ".github/workflows/validate-central-merge.yml",
+    ".github/workflows/sync-tool-release.yml", ".github/workflows/validate-central-merge.yml",
   ];
   for (const path of required) {
     assert.equal(await exists(path), true, `missing governance file: ${path}`);
@@ -180,6 +180,27 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   assert.equal(repository.delete_branch_on_merge, true);
   const settings = await text(".github/workflows/apply-repo-settings.yml");
   requireText(settings, ["secrets.AW_ADMIN_TOKEN", "inputs.is_dry_run", "node scripts/apply-repo-settings.ts", "node scripts/repository-policy.ts list pr"]);
+});
+
+test("tool distribution sync runs only in the central control plane", async () => {
+  const workflow = await text(".github/workflows/sync-tool-release.yml");
+  requireText(workflow, [
+    "schedule:",
+    "sync-tool-release.ts",
+    "AW_CONTROL_TOKEN",
+    "run-release",
+    "schema_version: \"2\"",
+    "artifact_repository",
+    "artifact_run_id",
+  ]);
+  const script = await text("scripts/sync-tool-release.ts");
+  requireText(script, [
+    "tools/catalog.json",
+    "release-provenance.json",
+    "CI Evidence",
+    "checksumForAsset",
+    "selectStableRelease",
+  ]);
 });
 
 test("self CI runs TypeScript checks without Shell test orchestration", async () => {
