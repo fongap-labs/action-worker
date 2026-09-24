@@ -7,22 +7,76 @@ on:
 permissions: {}
 
 jobs:
+  validate:
+    name: Validate Cancellation Target
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    outputs:
+      repository: ${{ steps.target.outputs.repository }}
+      pr_number: ${{ steps.target.outputs.pr_number }}
+
+    steps:
+      - name: Validate closed pull request
+        id: target
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          SCHEMA_VERSION: ${{ github.event.client_payload.schema_version }}
+          REQUEST_ID: ${{ github.event.client_payload.request_id }}
+          REPOSITORY: ${{ github.event.client_payload.repository }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          [ "$SCHEMA_VERSION" = "1" ] || {
+            echo "::error::Unsupported schema_version: $SCHEMA_VERSION" >&2
+            exit 64
+          }
+          [ -n "$REQUEST_ID" ] || {
+            echo "::error::request_id is required." >&2
+            exit 64
+          }
+          case "$REPOSITORY" in
+            fongap-labs/ai-gateway|fongap-labs/delta|fongap-labs/delta-suite|fongap-labs/app-source|fongap-labs/internal-vault|fongap-labs/external-vault) ;;
+            *)
+              echo "::error::Repository is not configured for centralized PR cancellation: $REPOSITORY" >&2
+              exit 65
+              ;;
+          esac
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || {
+            echo "::error::pr_number must be a positive integer." >&2
+            exit 64
+          }
+
+          state="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.state')"
+          [ "$state" = "closed" ] || {
+            echo "::error::Cancellation target is not closed: $REPOSITORY#$PR_NUMBER" >&2
+            exit 65
+          }
+
+          {
+            echo "repository=$REPOSITORY"
+            echo "pr_number=$PR_NUMBER"
+          } >> "$GITHUB_OUTPUT"
+
   governance:
     name: Cancel PR Governance
+    needs: validate
     runs-on: ubuntu-24.04
     timeout-minutes: 1
     concurrency:
-      group: pr-governance-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}
+      group: pr-governance-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}
       cancel-in-progress: true
     steps:
-      - run: echo "Cancelled stale PR Governance work for ${{ github.event.client_payload.repository }}#${{ github.event.client_payload.pr_number }}."
+      - run: echo "Cancelled stale PR Governance work for ${{ needs.validate.outputs.repository }}#${{ needs.validate.outputs.pr_number }}."
 
   central-ci:
     name: Cancel Central CI
+    needs: validate
     runs-on: ubuntu-24.04
     timeout-minutes: 1
     concurrency:
-      group: central-ci-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}
+      group: central-ci-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}
       cancel-in-progress: true
     steps:
-      - run: echo "Cancelled stale Central CI work for ${{ github.event.client_payload.repository }}#${{ github.event.client_payload.pr_number }}."
+      - run: echo "Cancelled stale Central CI work for ${{ needs.validate.outputs.repository }}#${{ needs.validate.outputs.pr_number }}."
