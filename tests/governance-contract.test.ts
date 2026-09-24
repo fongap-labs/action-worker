@@ -41,6 +41,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/update-work-metrics.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
     ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
+    ".github/workflows/validate-central-merge.yml",
   ];
   for (const path of required) {
     assert.equal(await exists(path), true, `missing governance file: ${path}`);
@@ -173,6 +174,9 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   requireText(source, ["workflow_call:", "contents: read", "actions: read", "target_sha:", "ci_workflow:", "require_default_head:", "40-character commit SHA", "default_branch", "gh run list", "databaseId"]);
   const deploy = await text(".github/workflows/validate-deploy-policy.yml");
   requireText(deploy, ["workflow_call:", "uses: ./.github/workflows/validate-source-policy.yml", "target_sha: ${{ inputs.target_sha }}", "ci_workflow: ${{ inputs.ci_workflow }}"]);
+  const centralMerge = await text(".github/workflows/validate-central-merge.yml");
+  requireText(centralMerge, ["workflow_call:", "checks: write", "validate-merge", "CI Evidence", "PR Governance", "check-runs"]);
+
   const merge = await text(".github/actions/validate-merge-policy/action.yml");
   requireText(merge, ["ci-result:", "head-sha:", "require-pr-governance:", "PR Governance", "Local CI evidence did not pass", "PR Governance blocked merge"]);
 
