@@ -2,7 +2,7 @@
 
 [English](README.md) · **简体中文**
 
-Action Worker 同时保存两类文档：
+Action Worker 同时保存三类内容：
 
 1. Fongap Labs 受管仓库共用治理；
 2. Action Worker 自身控制平面架构与实现；
@@ -41,11 +41,9 @@ contracts/   输入输出合同
 policies/    确定性治理策略
 rules/       AI Review 规则
 tests/       合同与治理回归测试
-
-skills/      可复用执行流程，不属于确定性策略权威
 ```
 
-文档不得覆盖或绕过机器合同。
+Agent Skills 是可复用执行流程，不属于确定性策略权威；文档与 Skill 都不得覆盖或绕过机器合同。
 
 ## Shortest entry
 
