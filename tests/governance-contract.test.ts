@@ -273,7 +273,7 @@ test("Server Edge deploy execution is central and reuses project deployment logi
     "tailscale/github-action",
     "bash environments/server-edge/deploy.sh",
   ]);
-  assert.equal(workflow.includes("EDGE_TARGET_HOST: ${{ vars."), false);
+  assert.doesNotMatch(workflow, /^\s+EDGE_TARGET_HOST:\s*\$\{\{\s*vars\./m);
   assert.equal(workflow.includes("schedule:"), false);
 });
 
