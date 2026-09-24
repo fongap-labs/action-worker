@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: cancel stale PR Governance and Central CI work when a managed pull request is closed.
+
 - fix: reserve validate-merge for the trusted GitHub Actions check and stop Central CI from publishing a conflicting commit status.
 
 - fix: inject the validated AI Gateway source SHA through AIG_BUILD_SHA instead of the control-plane GitHub SHA.

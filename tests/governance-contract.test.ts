@@ -42,6 +42,7 @@ test("governance files and TypeScript control entries exist", async () => {
     ".github/workflows/aig-deploy.yml", ".github/workflows/aig-scheduled-ci.yml", ".github/workflows/deployment-readiness.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
     ".github/workflows/model-discovery.yml", ".github/workflows/release-build.yml", ".github/workflows/server-edge-deploy.yml",
     ".github/workflows/sync-tool-release.yml", ".github/workflows/validate-central-merge.yml",
+    ".github/workflows/cancel-pr-work.yml",
   ];
   for (const path of required) {
     assert.equal(await exists(path), true, `missing governance file: ${path}`);
@@ -216,6 +217,16 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   assert.equal(repository.delete_branch_on_merge, true);
   const settings = await text(".github/workflows/apply-repo-settings.yml");
   requireText(settings, ["secrets.AW_ADMIN_TOKEN", "inputs.is_dry_run", "policies/rulesets.json", "scripts/apply-repo-settings.ts", "node scripts/apply-repo-settings.ts", "node scripts/repository-policy.ts list pr"]);
+});
+
+test("closed PR cancellation owns the same concurrency groups as live governance and CI", async () => {
+  const workflow = await text(".github/workflows/cancel-pr-work.yml");
+  requireText(workflow, [
+    "types: [cancel-pr-work]",
+    "pr-governance-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}",
+    "central-ci-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}",
+    "cancel-in-progress: true",
+  ]);
 });
 
 test("AI Gateway scheduled CI is central and cannot publish deploy-triggering status", async () => {
