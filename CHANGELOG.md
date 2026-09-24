@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: key Release Governance concurrency by the v2 source and artifact identities.
+
 - fix: include deleted files in PR context so workflow removals still trigger CI and governance.
 
 - test: run centralized tool-sync smoke validation when its control files change on main.
