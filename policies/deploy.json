@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "repositories": {
+    "fongap-labs/ai-gateway": {
+      "automatic": false,
+      "event_type": "run-ai-gateway-deploy",
+      "ignore_docs_only": true
+    }
+  }
+}

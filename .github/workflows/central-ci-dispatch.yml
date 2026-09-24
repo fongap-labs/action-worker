@@ -279,6 +279,8 @@ jobs:
     if: always() && needs.prepare.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: write
 
     steps:
       - name: Publish target status
@@ -307,3 +309,27 @@ jobs:
           if [[ "$state" != "success" ]]; then
             exit 1
           fi
+
+      - name: Checkout deploy control
+        if: ${{ needs.prepare.outputs.pr_number == '0' && needs.linux.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node for deploy control
+        if: ${{ needs.prepare.outputs.pr_number == '0' && needs.linux.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Dispatch automatic deploy
+        if: ${{ needs.prepare.outputs.pr_number == '0' && needs.linux.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+        run: |
+          node scripts/dispatch-central-deploy.ts \
+            "${{ needs.prepare.outputs.repository }}" \
+            "${{ needs.prepare.outputs.head_sha }}" \
+            "${{ needs.prepare.outputs.pr_number }}" \
+            policies/deploy.json

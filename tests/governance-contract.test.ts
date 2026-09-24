@@ -30,10 +30,10 @@ test("governance files and TypeScript control entries exist", async () => {
     "AGENTS.md", "CLAUDE.md", "docs/README.md", "docs/ARCHITECTURE.md", "docs/ARCHITECTURE_GOVERNANCE.md",
     "docs/NAMING_CONVENTIONS.md", "docs/CHANGELOG_CONVENTIONS.md", "docs/DEVELOPMENT_GUIDE.md",
     "contracts/change-record.json", "contracts/deploy-dispatch.json", "contracts/pr-task.json", "contracts/release-dispatch.json",
-    "contracts/release-manifest.json", "contracts/release-provenance.json", "contracts/task-dispatch.json", "policies/execution.json", "policies/triage.json",
+    "contracts/release-manifest.json", "contracts/release-provenance.json", "contracts/task-dispatch.json", "policies/deploy.json", "policies/execution.json", "policies/triage.json",
     "package.json", "package-lock.json", "tsconfig.json", "scripts/validate-change-record.ts",
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
-    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-deploy-source.ts",
+    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-deploy-source.ts", "scripts/dispatch-central-deploy.ts",
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
     "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-pr-plan.ts", "scripts/run-ai-triage.ts", "scripts/runtime-command.ts",
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
@@ -216,6 +216,23 @@ test("AI Gateway scheduled CI is central and cannot publish deploy-triggering st
   ]);
   assert.equal(workflow.includes("set-pr-status.ts"), false);
   assert.equal(workflow.includes("CI Evidence"), false);
+});
+
+test("central CI deploy dispatch is policy-driven and disabled during cutover", async () => {
+  const policy = await json("policies/deploy.json") as Record<string, unknown>;
+  assert.equal(policy.schema_version, 1);
+  const repositories = policy.repositories as Record<string, Record<string, unknown>>;
+  assert.equal(repositories["fongap-labs/ai-gateway"]?.automatic, false);
+  assert.equal(repositories["fongap-labs/ai-gateway"]?.event_type, "run-ai-gateway-deploy");
+
+  const workflow = await text(".github/workflows/central-ci-dispatch.yml");
+  requireText(workflow, [
+    "Dispatch automatic deploy",
+    "dispatch-central-deploy.ts",
+    "policies/deploy.json",
+    "needs.prepare.outputs.pr_number == '0'",
+    "contents: write",
+  ]);
 });
 
 test("AI Gateway deploy execution is central and source-gated", async () => {
