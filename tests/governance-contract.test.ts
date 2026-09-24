@@ -41,6 +41,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/update-work-metrics.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
     ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
+    ".github/workflows/validate-central-merge.yml",
   ];
   for (const path of required) {
     assert.equal(await exists(path), true, `missing governance file: ${path}`);
@@ -140,14 +141,14 @@ test("task dispatch keeps the publication credential in the central control step
     "node scripts/validate-repository-variables.ts", "node scripts/validate-dispatch-payload.ts", "compgen -e",
     "action-worker-base-env.names", "action-worker-repository-vars.json", "AW_REPOSITORY_POLICY", "node-version: 24",
     "node scripts/validate-task-publication.ts", "Publish staged artifact", "secrets.AW_CONTROL_TOKEN",
-    "AW_CONTROL_TOKEN is required.", "Authorization: Bearer ${AW_CONTROL_TOKEN}",
-    "unset AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN",
+    "AW_EXECUTION_TOKEN is required.", "Authorization: Bearer ${AW_EXECUTION_TOKEN}",
+    "unset AW_EXECUTION_TOKEN AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN",
   ]);
   assert.doesNotMatch(workflow, /toJSON\s*\(\s*secrets\s*\)/);
   const directSecrets = [...workflow.matchAll(/\$\{\{\s*secrets\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g)]
     .map((match) => match[1]);
   assert.deepEqual([...new Set(directSecrets)], ["AW_CONTROL_TOKEN"]);
-  assert.doesNotMatch(workflow, /AW_EXECUTION_TOKEN/);
+  assert.doesNotMatch(workflow, /Authorization: Bearer \${AW_CONTROL_TOKEN}/);
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
 
   const publication = await text("scripts/validate-task-publication.ts");
@@ -173,6 +174,9 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   requireText(source, ["workflow_call:", "contents: read", "actions: read", "target_sha:", "ci_workflow:", "require_default_head:", "40-character commit SHA", "default_branch", "gh run list", "databaseId"]);
   const deploy = await text(".github/workflows/validate-deploy-policy.yml");
   requireText(deploy, ["workflow_call:", "uses: ./.github/workflows/validate-source-policy.yml", "target_sha: ${{ inputs.target_sha }}", "ci_workflow: ${{ inputs.ci_workflow }}"]);
+  const centralMerge = await text(".github/workflows/validate-central-merge.yml");
+  requireText(centralMerge, ["workflow_call:", "checks: write", "validate-merge", "CI Evidence", "PR Governance", "check-runs"]);
+
   const merge = await text(".github/actions/validate-merge-policy/action.yml");
   requireText(merge, ["ci-result:", "head-sha:", "require-pr-governance:", "PR Governance", "Local CI evidence did not pass", "PR Governance blocked merge"]);
 
