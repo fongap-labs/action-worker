@@ -39,7 +39,8 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
     "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
-    ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml", ".github/workflows/release-build.yml",
+    ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
+    ".github/workflows/model-discovery.yml", ".github/workflows/release-build.yml",
     ".github/workflows/sync-tool-release.yml", ".github/workflows/validate-central-merge.yml",
   ];
   for (const path of required) {
@@ -203,6 +204,17 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   assert.equal(repository.delete_branch_on_merge, true);
   const settings = await text(".github/workflows/apply-repo-settings.yml");
   requireText(settings, ["secrets.AW_ADMIN_TOKEN", "inputs.is_dry_run", "node scripts/apply-repo-settings.ts", "node scripts/repository-policy.ts list pr"]);
+});
+
+test("AI Gateway model discovery runs from the central control plane", async () => {
+  const workflow = await text(".github/workflows/model-discovery.yml");
+  requireText(workflow, [
+    "schedule:",
+    "repository: fongap-labs/ai-gateway",
+    "secrets.AW_CONTROL_TOKEN",
+    "provider-discovery.mjs live",
+    "model-discovery",
+  ]);
 });
 
 test("tool distribution sync runs only in the central control plane", async () => {
