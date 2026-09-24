@@ -486,107 +486,57 @@ The AI Gateway executor requires the current default-branch HEAD and a successfu
 
 ## 13. 目录
 
+Action Worker 按职责分层，目录清单只描述长期边界，不再枚举每个实现文件：
+
 ```text
 .github/workflows/
+  validate-ci.yml
+  central-ci-dispatch.yml
   handle-pr-dispatch.yml
-  handle-task-dispatch.yml
   handle-release-dispatch.yml
+  handle-task-dispatch.yml
+  release-build.yml
+  sync-tool-release.yml
+  model-discovery.yml
+  aig-scheduled-ci.yml
+  aig-deploy.yml
+  server-edge-deploy.yml
+  deployment-readiness.yml
   validate-source-policy.yml
   validate-deploy-policy.yml
-  validate-ci.yml
-
-docs/
-  README.md
-  ARCHITECTURE.md
-  ARCHITECTURE_GOVERNANCE.md
-  NAMING_CONVENTIONS.md
-  CHANGELOG_CONVENTIONS.md
-  DEVELOPMENT_GUIDE.md
-  INTEGRATION_GUIDE.md
+  validate-central-merge.yml
+  apply-repo-settings.yml
+  update-work-metrics.yml
+  task-source-dispatch.yml
 
 contracts/
-  change-record.json
-  pr-task.json
-  release-dispatch.json
-  release-manifest.json
-  task-dispatch.json
+  PR / Task / Release / Release Build / Deploy / Provenance contracts
 
 policies/
-  checks.json
-  execution.json
-  naming.json
-  release.json
-  review.json
-  triage.json
-  security.json
-  tests.json
-  workflow.json
+  repository / execution / naming / review / release / deploy / CI policies
 
 rules/
-  architecture.json
-  code.json
-  release.json
-  security.json
-  workflow.json
+  architecture / code / release / security / workflow review rules
 
 scripts/
-  apply-ai-triage.ts
-  apply-repo-settings.ts
-  build-review-comparison.ts
-  check-status-owner.ts
-  detect-pr-context.ts
-  export-repository-variables.ts
-  github-api.ts
-  install-ocr.ts
-  manage-work-metrics.ts
-  publish-pr-review.ts
-  publish-release.ts
-  report-ocr-retry.ts
-  resolve-ocr-distribution.ts
-  resolve-pr-facts.ts
-  resolve-pr-plan.ts
-  run-ai-review.ts
-  run-ai-triage.ts
-  runtime-command.ts
-  set-pr-status.ts
-  should-resume-ocr.ts
-  update-work-metrics.ts
-  validate-change-record.ts
-  validate-ci-evidence.ts
-  validate-control-access.ts
-  validate-dispatch-payload.ts
-  validate-naming-rules.ts
-  validate-pr-payload.ts
-  repository-policy.ts
-  validate-release-request.ts
-  validate-repository-variables.ts
-  validate-review-result.ts
-  wait-ci-evidence.ts
-  wait-review-turn.ts
+  deterministic validation, dispatch, publication, synchronization, and governance controls
 
 tests/
-  control-flows.test.ts
-  github-api.test.ts
-  governance-contract.test.ts
-  governance-scripts.test.ts
-  publish-release.test.ts
-  resolve-pr-plan.test.ts
-  run-ai-triage.test.ts
-  runtime-command.test.ts
-  update-work-metrics.test.ts
+  contract, control-flow, runtime, release, deploy, CI, and regression tests
 
-package.json
-package-lock.json
-tsconfig.json
+docs/
+  architecture, governance, naming, changelog, development, and integration guides
 ```
 
-禁止新增项目配置层：
+禁止重新引入项目配置层：
 
 ```text
 projects/
 adapters/
 profiles/
 ```
+
+项目专属 build / test / deploy 实现留在业务仓；Action Worker 只保存中央治理、执行框架和明确的受管执行器。
 
 ## 14. CI
 
