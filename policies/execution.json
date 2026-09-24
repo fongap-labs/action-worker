@@ -11,7 +11,7 @@
   "ci": {
     "workflow": "ci.yml",
     "poll_seconds": 15,
-    "timeout_minutes": 20,
+    "timeout_minutes": 180,
     "required_change_areas": [
       "source",
       "workflow",
@@ -36,9 +36,12 @@
       "validate-merge"
     ],
     "central_repositories": [
+      "fongap-labs/ai-gateway",
+      "fongap-labs/delta",
       "fongap-labs/delta-suite",
       "fongap-labs/app-source",
-      "fongap-labs/internal-vault"
+      "fongap-labs/internal-vault",
+      "fongap-labs/external-vault"
     ],
     "status_context": "CI Evidence"
   }
