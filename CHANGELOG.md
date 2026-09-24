@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: publish explicit successful CI Evidence when the governance plan does not require CI so final merge gates never infer intent from missing evidence.
+
 - refactor: enable automatic AI Gateway deployment through the central deploy executor and register manual Server Edge deployment policy.
 
 - feat: centralize Server Edge deployment execution and production credentials in Action Worker.
