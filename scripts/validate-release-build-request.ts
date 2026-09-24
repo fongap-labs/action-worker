@@ -87,9 +87,9 @@ function isRelativePath(value: unknown): value is string {
     ));
 }
 
-function isAssetName(value: unknown, allowEmpty = false): value is string {
+function isAssetName(value: unknown, isEmptyAllowed = false): value is string {
   return typeof value === "string"
-    && ((allowEmpty && value === "") || /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value));
+    && ((isEmptyAllowed && value === "") || /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value));
 }
 
 export function parseReleaseBuildPolicy(value: unknown): ReleaseBuildPolicy {
