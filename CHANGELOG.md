@@ -4,6 +4,8 @@
 
 - refactor: centralize managed main-branch Ruleset status requirements and allow Action Worker to satisfy `validate-merge` without a repository-local runner.
 
+- refactor: reuse `AW_CONTROL_TOKEN` for private task bootstrap reads and remove the redundant `AW_EXECUTION_TOKEN` credential contract.
+
 - fix: use the repository administration credential for cross-repository merge-gate workflow dispatch while keeping PR control credentials read-only for Actions.
 
 - fix: preserve GitHub Actions required-check identity with a lightweight repository merge gate and expose central CI failure details only for public targets.
