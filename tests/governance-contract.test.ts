@@ -34,6 +34,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "package.json", "package-lock.json", "tsconfig.json", "scripts/validate-change-record.ts",
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
     "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts",
+    "scripts/dispatch-merge-gate.ts",
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
     "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-pr-plan.ts", "scripts/run-ai-triage.ts", "scripts/runtime-command.ts",
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
@@ -76,6 +77,11 @@ test("runtime and machine policies preserve trust boundaries", async () => {
     "fongap-labs/external-vault",
   ]);
   assert.equal((execution.ci as Record<string, unknown>).timeout_minutes, 120);
+  assert.deepEqual((execution.ci as Record<string, unknown>).merge_gate_repositories, [
+    "fongap-labs/ai-gateway",
+    "fongap-labs/delta",
+    "fongap-labs/external-vault",
+  ]);
 
   const release = await json("policies/release.json");
   assert.equal(release.schema_version, 2);
@@ -112,7 +118,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     "validate-pr-payload.ts", "validate-control-access.ts", "set-pr-status.ts", "validate-engineering-language.ts",
     "publish-pr-review.ts", "wait-ci-evidence.ts", "validate-ci-evidence.ts", "wait-review-turn.ts",
     "validate-ai-gateway-access.ts", "run-ai-triage.ts", "apply-ai-triage.ts", "install-ocr.ts", "run-ai-review.ts",
-    "Resolve governance ownership", "check-status-owner.ts",
+    "Resolve governance ownership", "check-status-owner.ts", "Dispatch repository merge gate", "dispatch-merge-gate.ts",
   ]);
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
   assert.doesNotMatch(workflow, /@alibaba-group\/open-code-review|npm install -g|review_models|review-diff-fallback/);
