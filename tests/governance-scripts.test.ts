@@ -187,6 +187,16 @@ test("external configuration recognizes registered system prefixes", () => {
   );
 });
 
+test("Server Edge external configuration uses its registered owner prefix", () => {
+  assert.deepEqual(
+    validateConfigText(".github/workflows/deployment-readiness.yml", "${{ vars.SERVER_EDGE_TARGET_HOST }}"),
+    [],
+  );
+  assert.ok(
+    validateConfigText(".github/workflows/deployment-readiness.yml", "${{ vars.EDGE_TARGET_HOST }}").length > 0,
+  );
+});
+
 test("engineering language rejects Chinese machine text but allows documentation and UI strings", () => {
   assert.doesNotThrow(() => assertEnglishText("PR title summary", "centralize merge policy"));
   assert.throws(() => assertEnglishText("PR title summary", "统一合并门禁"));
