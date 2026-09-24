@@ -245,13 +245,30 @@ Manifest 继续声明目标仓、版本、许可证和 release assets。许可�
 
 业务仓不得复制 Tag / Release / checksum / rollback 逻辑。
 
-## 6. Tool Distribution
+## 6. Release Build
+
+Business repositories keep only a manual thin dispatch and project-owned build script. The dispatch sends the immutable default-branch SHA and optional requested version to Action Worker.
+
+Action Worker owns:
+
+```text
+source admission
+→ heavy Windows/Linux runner execution
+→ artifact aggregation
+→ release-manifest.json
+→ release-provenance.json
+→ Release Governance dispatch
+```
+
+The release target comes from `policies/release-build.json`, not a business-repository variable.
+
+## 7. Tool Distribution
 
 Third-party tools are not synchronized by business-repository runners. The distribution repository owns only the catalog and per-tool metadata; Action Worker periodically resolves the registered tool, verifies the upstream stable Release, checksum, optional GitHub digest, and license, then emits a governed Release artifact.
 
 No business repository needs a tool-sync credential or upstream packaging workflow.
 
-## 7. Deploy 接入
+## 8. Deploy 接入
 
 有自动或人工部署的项目优先调用：
 
@@ -276,7 +293,7 @@ target_sha: <40-character-commit-sha>
 
 部署实现及其生产 Secret 继续留在业务仓。
 
-## 8. 不需要做的事
+## 9. 不需要做的事
 
 普通新仓接入不应要求：
 
@@ -288,7 +305,7 @@ target_sha: <40-character-commit-sha>
 
 如果接入必须这样做，应先判断是不是中央能力缺口，而不是直接加项目特例。
 
-## 9. 接入验收
+## 10. 接入验收
 
 至少完成一次真实 PR smoke：
 

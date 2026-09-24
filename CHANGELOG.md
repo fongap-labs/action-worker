@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: centralize App Source release build runners, artifact packaging, and provenance in Action Worker.
+
 - fix: key Release Governance concurrency by the v2 source and artifact identities.
 
 - fix: include deleted files in PR context so workflow removals still trigger CI and governance.
