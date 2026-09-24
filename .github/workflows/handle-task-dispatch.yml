@@ -95,8 +95,8 @@ jobs:
               exit 1
           fi
 
-          if [ -z "${AW_EXECUTION_TOKEN:-}" ]; then
-              echo "::error::AW_EXECUTION_TOKEN is required." >&2
+          if [ -z "${AW_CONTROL_TOKEN:-}" ]; then
+              echo "::error::AW_CONTROL_TOKEN is required." >&2
               exit 1
           fi
 
@@ -114,7 +114,7 @@ jobs:
           TMP_SCRIPT="$TMPDIR_WORK/bootstrap.sh"
 
           cleanup() {
-              unset AW_EXECUTION_TOKEN AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN 2>/dev/null || true
+              unset AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN 2>/dev/null || true
               rm -f "${RUNNER_TEMP}/action-worker-base-env.names" 2>/dev/null || true
               rm -f "${RUNNER_TEMP}/action-worker-repository-vars.json" 2>/dev/null || true
               rm -rf "$TMPDIR_WORK"
@@ -139,7 +139,7 @@ jobs:
                       --connect-timeout 15 \
                       --max-time 60 \
                       --retry 0 \
-                      -H "Authorization: Bearer ${AW_EXECUTION_TOKEN}" \
+                      -H "Authorization: Bearer ${AW_CONTROL_TOKEN}" \
                       -o "$output" \
                       -w "%{http_code}" \
                       "$url"); then
@@ -204,8 +204,8 @@ jobs:
               exit 1
           fi
 
-          unset AW_EXECUTION_TOKEN AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN
-          for central_name in AW_EXECUTION_TOKEN AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN; do
+          unset AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN
+          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN; do
               if [ -n "${!central_name+x}" ]; then
                   echo "::error::Central credential survived task isolation: ${central_name}." >&2
                   exit 1
