@@ -2,8 +2,13 @@
   "schema_version": 1,
   "repositories": {
     "fongap-labs/ai-gateway": {
-      "automatic": false,
+      "automatic": true,
       "event_type": "run-ai-gateway-deploy",
+      "ignore_docs_only": true
+    },
+    "fongap-labs/internal-vault": {
+      "automatic": false,
+      "event_type": "run-server-edge-deploy",
       "ignore_docs_only": true
     }
   }

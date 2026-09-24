@@ -218,12 +218,14 @@ test("AI Gateway scheduled CI is central and cannot publish deploy-triggering st
   assert.equal(workflow.includes("CI Evidence"), false);
 });
 
-test("central CI deploy dispatch is policy-driven and disabled during cutover", async () => {
+test("central CI deploy dispatch is policy-driven after cutover", async () => {
   const policy = await json("policies/deploy.json") as Record<string, unknown>;
   assert.equal(policy.schema_version, 1);
   const repositories = policy.repositories as Record<string, Record<string, unknown>>;
-  assert.equal(repositories["fongap-labs/ai-gateway"]?.automatic, false);
+  assert.equal(repositories["fongap-labs/ai-gateway"]?.automatic, true);
   assert.equal(repositories["fongap-labs/ai-gateway"]?.event_type, "run-ai-gateway-deploy");
+  assert.equal(repositories["fongap-labs/internal-vault"]?.automatic, false);
+  assert.equal(repositories["fongap-labs/internal-vault"]?.event_type, "run-server-edge-deploy");
 
   const workflow = await text(".github/workflows/central-ci-dispatch.yml");
   requireText(workflow, [
