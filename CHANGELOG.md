@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- docs: remove obsolete AW_EXECUTION_TOKEN guidance and document GitHub Free private-repository protection limits.
+
 - docs: replace the stale exhaustive architecture tree with the current responsibility-based control-plane layout.
 
 - feat: inject Tier 2 OAuth provider configuration and token-encryption key only through the central AI Gateway deploy and readiness workflows.
