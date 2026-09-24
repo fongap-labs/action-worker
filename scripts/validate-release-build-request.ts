@@ -14,12 +14,18 @@ import {
 } from "./runtime-command.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 
+type VersionSource = {
+  type: "cargo-workspace" | "cargo-package";
+  path: string;
+};
+
 type BuildEntry = {
   id: string;
   runner: string;
   target: string;
   script: string;
   assets: string[];
+  attest_asset: string;
 };
 
 type ReleaseBuildEntry = {
@@ -29,10 +35,10 @@ type ReleaseBuildEntry = {
   release_name: string;
   release_notes: string;
   license_expression: string;
-  version_source: {
-    type: "cargo-workspace";
-    path: string;
-  };
+  node_version_file: string;
+  python_version_file: string;
+  sbom_asset: string;
+  version_source: VersionSource;
   builds: BuildEntry[];
 };
 
@@ -54,13 +60,36 @@ function decodeContent(value: unknown): string {
   return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
 }
 
-export function parseCargoWorkspaceVersion(content: string): string {
-  const section = content.match(/\[workspace\.package\]([\s\S]*?)(?=\r?\n\[|$)/);
+function parseStableCargoVersion(content: string, sectionName: "workspace.package" | "package"): string {
+  const escaped = sectionName.replace(".", "\\.");
+  const section = content.match(new RegExp(`\\[${escaped}\\]([\\s\\S]*?)(?=\\r?\\n\\[|$)`));
   const version = section?.[1]?.match(/^\s*version\s*=\s*"([^"]+)"\s*$/m)?.[1] ?? "";
   if (!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)) {
     throw new CliError("Release version source does not contain stable SemVer.", 65);
   }
   return version;
+}
+
+export function parseCargoWorkspaceVersion(content: string): string {
+  return parseStableCargoVersion(content, "workspace.package");
+}
+
+export function parseCargoPackageVersion(content: string): string {
+  return parseStableCargoVersion(content, "package");
+}
+
+function isRelativePath(value: unknown): value is string {
+  return typeof value === "string"
+    && (value === "" || (
+      /^[A-Za-z0-9._/-]+$/.test(value)
+      && !value.startsWith("/")
+      && !value.split("/").includes("..")
+    ));
+}
+
+function isAssetName(value: unknown, allowEmpty = false): value is string {
+  return typeof value === "string"
+    && ((allowEmpty && value === "") || /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value));
 }
 
 export function parseReleaseBuildPolicy(value: unknown): ReleaseBuildPolicy {
@@ -71,6 +100,7 @@ export function parseReleaseBuildPolicy(value: unknown): ReleaseBuildPolicy {
   ) {
     throw new CliError("Release build policy is invalid.", 65);
   }
+
   for (const [repository, raw] of Object.entries(value.repositories)) {
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)
       || !isJsonRecord(raw)
@@ -78,43 +108,56 @@ export function parseReleaseBuildPolicy(value: unknown): ReleaseBuildPolicy {
         "artifact_name",
         "builds",
         "license_expression",
+        "node_version_file",
+        "python_version_file",
         "release_key",
         "release_name",
         "release_notes",
+        "sbom_asset",
         "target_repository",
         "version_source",
       ])
-      || typeof raw.artifact_name !== "string" || !/^[A-Za-z0-9._-]+$/.test(raw.artifact_name)
+      || !isAssetName(raw.artifact_name)
       || typeof raw.target_repository !== "string" || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(raw.target_repository)
       || typeof raw.release_key !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(raw.release_key)
       || typeof raw.release_name !== "string" || raw.release_name.length < 1
       || typeof raw.release_notes !== "string"
       || typeof raw.license_expression !== "string" || raw.license_expression.length < 1
+      || !isRelativePath(raw.node_version_file)
+      || !isRelativePath(raw.python_version_file)
+      || !isAssetName(raw.sbom_asset, true)
       || !isJsonRecord(raw.version_source)
-      || raw.version_source.type !== "cargo-workspace"
-      || typeof raw.version_source.path !== "string" || raw.version_source.path.includes("..")
+      || !exactKeys(raw.version_source, ["path", "type"])
+      || !["cargo-workspace", "cargo-package"].includes(String(raw.version_source.type))
+      || !isRelativePath(raw.version_source.path)
+      || raw.version_source.path === ""
       || !Array.isArray(raw.builds) || raw.builds.length < 1
     ) {
       throw new CliError(`Release build policy entry is invalid: ${repository}.`, 65);
     }
+
     const ids = new Set<string>();
     const assets = new Set<string>();
     for (const build of raw.builds) {
       if (!isJsonRecord(build)
-        || !exactKeys(build, ["assets", "id", "runner", "script", "target"])
+        || !exactKeys(build, ["assets", "attest_asset", "id", "runner", "script", "target"])
         || typeof build.id !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(build.id)
         || typeof build.runner !== "string" || !/^windows-[A-Za-z0-9.-]+$/.test(build.runner)
         || typeof build.target !== "string" || !/^[A-Za-z0-9_.-]+$/.test(build.target)
         || typeof build.script !== "string" || !/^\.github\/scripts\/[A-Za-z0-9._-]+\.ps1$/.test(build.script)
         || !Array.isArray(build.assets) || build.assets.length < 1
-        || !build.assets.every((asset) => typeof asset === "string" && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(asset))
+        || !build.assets.every((asset) => isAssetName(asset))
+        || !isAssetName(build.attest_asset, true)
+        || (build.attest_asset !== "" && !build.assets.includes(build.attest_asset))
       ) {
         throw new CliError(`Release build matrix entry is invalid: ${repository}.`, 65);
       }
+
       if (ids.has(build.id)) {
         throw new CliError(`Duplicate release build id: ${build.id}.`, 65);
       }
       ids.add(build.id);
+
       for (const asset of build.assets) {
         if (assets.has(asset)) {
           throw new CliError(`Duplicate release asset name: ${asset}.`, 65);
@@ -122,7 +165,12 @@ export function parseReleaseBuildPolicy(value: unknown): ReleaseBuildPolicy {
         assets.add(asset);
       }
     }
+
+    if (raw.sbom_asset !== "" && assets.has(raw.sbom_asset)) {
+      throw new CliError(`SBOM asset duplicates a build asset: ${raw.sbom_asset}.`, 65);
+    }
   }
+
   return value as ReleaseBuildPolicy;
 }
 
@@ -199,7 +247,11 @@ async function main(): Promise<void> {
   const contentResponse = await reader.get(
     `repos/${request.source_repository}/contents/${entry.version_source.path}?ref=${request.source_sha}`,
   );
-  const version = parseCargoWorkspaceVersion(decodeContent(contentResponse));
+  const versionContent = decodeContent(contentResponse);
+  const version = entry.version_source.type === "cargo-workspace"
+    ? parseCargoWorkspaceVersion(versionContent)
+    : parseCargoPackageVersion(versionContent);
+
   const requestedVersion = request.requested_version.replace(/^v/, "");
   if (requestedVersion && requestedVersion !== version) {
     throw new CliError(
@@ -208,15 +260,26 @@ async function main(): Promise<void> {
     );
   }
 
-  const matrix = entry.builds.map(({ id, runner, target, script }) => ({ id, runner, target, script }));
+  const matrix = entry.builds.map(({ id, runner, target, script, attest_asset }) => ({
+    id,
+    runner,
+    target,
+    script,
+    attest_asset,
+  }));
+
   await appendLines(process.env.GITHUB_OUTPUT, [
     `source_repository=${request.source_repository}`,
     `source_sha=${request.source_sha}`,
     `version=${version}`,
     `artifact_name=${entry.artifact_name}`,
     `target_repository=${entry.target_repository}`,
+    `node_version_file=${entry.node_version_file}`,
+    `python_version_file=${entry.python_version_file}`,
+    `sbom_asset=${entry.sbom_asset}`,
     `matrix=${JSON.stringify({ include: matrix })}`,
   ]);
+
   console.log(
     JSON.stringify({
       source_repository: request.source_repository,
@@ -224,6 +287,9 @@ async function main(): Promise<void> {
       version,
       artifact_name: entry.artifact_name,
       target_repository: entry.target_repository,
+      node_version_file: entry.node_version_file,
+      python_version_file: entry.python_version_file,
+      sbom_asset: entry.sbom_asset,
       builds: matrix.map((item) => item.id),
     }),
   );
