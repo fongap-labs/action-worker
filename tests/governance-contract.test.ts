@@ -30,10 +30,10 @@ test("governance files and TypeScript control entries exist", async () => {
     "AGENTS.md", "CLAUDE.md", "docs/README.md", "docs/ARCHITECTURE.md", "docs/ARCHITECTURE_GOVERNANCE.md",
     "docs/NAMING_CONVENTIONS.md", "docs/CHANGELOG_CONVENTIONS.md", "docs/DEVELOPMENT_GUIDE.md",
     "contracts/change-record.json", "contracts/pr-task.json", "contracts/release-dispatch.json",
-    "contracts/release-manifest.json", "contracts/task-dispatch.json", "policies/execution.json", "policies/triage.json",
+    "contracts/release-manifest.json", "contracts/task-dispatch.json", "policies/execution.json", "policies/triage.json", "policies/ruleset.json",
     "package.json", "package-lock.json", "tsconfig.json", "scripts/validate-change-record.ts",
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
-    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts",
+    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/apply-ruleset-settings.ts",
     "scripts/dispatch-merge-gate.ts",
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
     "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-pr-plan.ts", "scripts/run-ai-triage.ts", "scripts/runtime-command.ts",
@@ -181,7 +181,10 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   assert.equal(repository.allow_squash_merge, true);
   assert.equal(repository.delete_branch_on_merge, true);
   const settings = await text(".github/workflows/apply-repo-settings.yml");
-  requireText(settings, ["secrets.AW_ADMIN_TOKEN", "inputs.is_dry_run", "node scripts/apply-repo-settings.ts", "node scripts/repository-policy.ts list pr"]);
+  requireText(settings, ["secrets.AW_ADMIN_TOKEN", "inputs.is_dry_run", "node scripts/apply-repo-settings.ts", "node scripts/apply-ruleset-settings.ts", "node scripts/repository-policy.ts list pr", "policies/ruleset.json"]);
+  const ruleset = await json("policies/ruleset.json");
+  assert.equal(ruleset.name, "Protect Main Branch");
+  assert.deepEqual(ruleset.required_status_checks, ["validate-merge"]);
 });
 
 test("self CI runs TypeScript checks without Shell test orchestration", async () => {
