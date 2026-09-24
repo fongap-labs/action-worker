@@ -2,7 +2,7 @@
 
 [**English**](README.md) · [简体中文](README.zh-CN.md)
 
-Action Worker keeps two categories of documentation:
+Action Worker keeps three categories of documentation:
 
 1. shared governance for Fongap Labs managed repositories;
 2. Action Worker control-plane architecture and implementation;
@@ -41,11 +41,9 @@ contracts/   input/output contracts
 policies/    deterministic governance policy
 rules/       AI Review rules
 tests/       contract and governance regression tests
-
-skills/      reusable execution procedure; not a deterministic policy authority
 ```
 
-Documentation must not override or bypass machine contracts.
+Agent Skills are reusable execution procedures, not deterministic policy authority. Documentation and skills must not override or bypass machine contracts.
 
 ## Shortest entry
 
