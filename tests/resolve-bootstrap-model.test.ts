@@ -34,6 +34,23 @@ test("other repositories preserve automatic model routing", () => {
   );
 });
 
+test("AI Gateway bootstrap stays disabled when review is disabled", () => {
+  assert.equal(
+    resolveBootstrapModel(
+      "fongap-labs/ai-gateway",
+      "fongap-labs",
+      JSON.stringify({
+        schema_version: 1,
+        agents: {
+          review: { enabled: false, model: "Audit-Pro", routes: { architecture: { model: "Audit-Ultra" } } },
+          writing: { enabled: true, model: "Editor-Air", routes: {} },
+        },
+      }),
+    ),
+    "auto",
+  );
+});
+
 test("AI Gateway bootstrap fails closed when the independent model is unavailable", () => {
   assert.throws(
     () => resolveBootstrapModel(

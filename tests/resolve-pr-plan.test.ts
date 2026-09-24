@@ -155,7 +155,7 @@ test("disabled review agent skips AI while preserving deterministic CI", async (
 });
 
 
-test("trusted bootstrap model retains context-selected review when normal review is disabled", async () => {
+test("model override cannot reopen review when review authority is disabled", async () => {
   const context = validateContext({
     project_types: ["github-automation", "node"],
     change_areas: ["documentation", "source", "test"],
@@ -177,13 +177,13 @@ test("trusted bootstrap model retains context-selected review when normal review
     ...defaults,
     modelOverride: "Editor-Air",
   });
-  assert.equal(plan.review_required, true);
-  assert.equal(plan.review_agent, "architecture");
-  assert.equal(plan.review_model, "Editor-Air");
-  assert.equal(plan.review_rule, "architecture.json");
-  assert.equal(plan.review_effort, "high");
-  assert.equal(plan.review_task_timeout, 10);
-  assert.equal(plan.block_severity, "critical");
+  assert.equal(plan.ci_required, true);
+  assert.equal(plan.review_required, false);
+  assert.equal(plan.review_agent, "none");
+  assert.equal(plan.review_model, "");
+  assert.equal(plan.review_rule, "");
+  assert.equal(plan.review_task_timeout, 0);
+  assert.equal(plan.block_severity, "none");
   assert.equal(plan.triage_required, false);
 });
 

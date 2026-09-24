@@ -14,6 +14,10 @@ export function resolveBootstrapModel(
   }
 
   const config = parseAiAgentConfig(rawConfig);
+  if (config.agents.review?.enabled !== true) {
+    return "auto";
+  }
+
   const writing = config.agents.writing;
   const model = writing?.enabled ? writing.model?.trim() ?? "" : "";
   if (!model) {

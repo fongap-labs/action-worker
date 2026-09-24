@@ -201,7 +201,7 @@ export function resolvePlan(
     reviewAgent = "none";
   } else if (options.reviewMode !== "inherit" && options.reviewMode !== "on") {
     throw new CliError("::error::review_mode only supports inherit/on/off.", 64);
-  } else if (!isAiAgentEnabled(policies.aiAgents, "review") && !hasTrustedModelOverride) {
+  } else if (!isAiAgentEnabled(policies.aiAgents, "review")) {
     isReviewRequired = false;
     reviewAgent = "none";
   } else if (options.reviewMode === "on") {
