@@ -141,6 +141,39 @@ test("disabled review agent skips AI while preserving deterministic CI", async (
   assert.equal(plan.triage_required, false);
 });
 
+
+test("trusted bootstrap model retains context-selected review when normal review is disabled", async () => {
+  const context = validateContext({
+    project_types: ["github-automation", "node"],
+    change_areas: ["documentation", "source", "test"],
+    declared_impacts: ["compatibility"],
+    risk: "medium",
+  });
+  const disabled = parseAiAgentConfig(JSON.stringify({
+    schema_version: 1,
+    agents: {
+      review: {
+        enabled: false,
+        model: "Audit-Pro",
+        routes: { architecture: { model: "Audit-Ultra" } },
+      },
+      writing: { enabled: true, model: "Editor-Air" },
+    },
+  }));
+  const plan = resolvePlan(context, await loadPolicies(disabled), {
+    ...defaults,
+    modelOverride: "Editor-Air",
+  });
+  assert.equal(plan.review_required, true);
+  assert.equal(plan.review_agent, "architecture");
+  assert.equal(plan.review_model, "Editor-Air");
+  assert.equal(plan.review_rule, "architecture.json");
+  assert.equal(plan.review_effort, "high");
+  assert.equal(plan.review_task_timeout, 10);
+  assert.equal(plan.block_severity, "critical");
+  assert.equal(plan.triage_required, false);
+});
+
 test("explicit overrides keep the existing CLI semantics", async () => {
   const context = validateContext({
     project_types: ["node"],
