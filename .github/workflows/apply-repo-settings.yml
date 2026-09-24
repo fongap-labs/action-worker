@@ -17,6 +17,8 @@ on:
       - main
     paths:
       - policies/repository.json
+      - policies/rulesets.json
+      - scripts/apply-repo-settings.ts
       - .github/workflows/apply-repo-settings.yml
 
 permissions:
