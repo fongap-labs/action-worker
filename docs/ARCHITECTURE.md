@@ -418,7 +418,27 @@ source repository allowlist
 
 Tag 固定为 `<release-key>-v<semver>`。不保留裸 `v<semver>` 兼容路径。
 
-## 10. Tool Distribution
+## 10. Release Build
+
+Heavy release builds execute in Action Worker, not in business-repository runners.
+
+```text
+source repository manual intent
+→ repository_dispatch: run-release-build
+→ Action Worker source/default-HEAD/CI admission
+→ central build matrix
+→ central artifact package
+→ release-provenance.json
+→ repository_dispatch: run-release
+→ Release Governance
+→ external-vault Release
+```
+
+Project-specific build commands remain in the source repository as narrow scripts. Runner selection, artifact aggregation, target repository, release manifest generation, provenance, publication, verification, and rollback are centrally governed.
+
+Release targets are versioned in `policies/release-build.json`; business repositories must not keep duplicate release-target variables.
+
+## 11. Tool Distribution
 
 Third-party tool metadata remains authoritative in the distribution repository:
 
@@ -468,7 +488,7 @@ main CI
 
 Server Edge 使用相同 Policy；显式 pinned deploy 必须是 40 位 SHA。
 
-## 12. 目录
+## 13. 目录
 
 ```text
 .github/workflows/
@@ -572,7 +592,7 @@ adapters/
 profiles/
 ```
 
-## 13. CI
+## 14. CI
 
 Action Worker 自身只有一个总 CI：`validate-ci.yml`。
 
@@ -586,7 +606,7 @@ validate-merge
 
 contracts 同时验证架构治理边界，防止仓库随着功能扩展重新长出项目专属配置。
 
-## 14. 版本
+## 15. 版本
 
 ```text
 main = 当前最新基线

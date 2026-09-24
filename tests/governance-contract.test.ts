@@ -39,7 +39,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
     "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
-    ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
+    ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml", ".github/workflows/release-build.yml",
     ".github/workflows/sync-tool-release.yml", ".github/workflows/validate-central-merge.yml",
   ];
   for (const path of required) {
@@ -150,6 +150,20 @@ test("task dispatch keeps the publication credential in the central control step
 });
 
 test("release, source, deploy, merge, and repository settings contracts remain intact", async () => {
+  const releaseBuild = await text(".github/workflows/release-build.yml");
+  requireText(releaseBuild, [
+    "types: [run-release-build]",
+    "validate-release-build-request.ts",
+    "package-release-build.ts",
+    "release-build.json",
+    "AW_CONTROL_TOKEN",
+    "run-release",
+  ]);
+  const releasePackager = await text("scripts/package-release-build.ts");
+  requireText(releasePackager, ["release-manifest.json", "release-provenance.json", "artifact_run_id", "source_sha"]);
+  const releaseBuildPolicy = await json("policies/release-build.json") as Record<string, unknown>;
+  assert.equal(releaseBuildPolicy.schema_version, 1);
+
   const release = await text(".github/workflows/handle-release-dispatch.yml");
   requireText(release, ["types: [run-release]", "source_repository", "source_sha", "artifact_run_id", "AW_CONTROL_TOKEN", "node-version: 24", "RELEASE_REQUEST_JSON", "node scripts/publish-release.ts"]);
   assert.doesNotMatch(release, /AW_RELEASE_(?:SOURCE|TARGET)_ALLOWLIST/);
