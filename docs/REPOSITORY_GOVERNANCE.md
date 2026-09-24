@@ -72,6 +72,8 @@ PR Governance ───────────┘
 
 业务仓最终只暴露一个稳定 Required Check：`validate-merge`。它必须同时要求本地 CI Evidence 和 Action Worker 写入的 `PR Governance` 成功。
 
+`validate-merge` 只能由业务仓 GitHub Actions bridge 调用 Action Worker reusable workflow 后创建为 GitHub Check Run；Central CI 只发布 `CI Evidence` / `ci-evidence` commit status，不得再发布同名 `validate-merge` status，避免 Required Check 身份冲突。
+
 ## 4. GitHub native enforcement
 
 Repository Policy 与 GitHub 原生保护是两个层次：
