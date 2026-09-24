@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- test: run centralized tool-sync smoke validation when its control files change on main.
+
 - feat: centralize verified third-party tool synchronization and Release artifact preparation in Action Worker.
 
 - refactor [breaking]: split Release Governance source identity from artifact-run identity and require signed-by-contract release provenance.
