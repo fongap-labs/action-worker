@@ -13,7 +13,6 @@ import {
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
-const workflowFile = "validate-central-merge.yml";
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -62,24 +61,15 @@ async function main(): Promise<void> {
   }
 
   const resolvedSha = typeof pr.head.sha === "string" ? pr.head.sha : "";
-  const headRef = typeof pr.head.ref === "string" ? pr.head.ref : "";
-  const headRepository = isJsonRecord(pr.head.repo) && typeof pr.head.repo.full_name === "string"
-    ? pr.head.repo.full_name
-    : "";
-
   if (resolvedSha !== headSha) {
     throw new CliError("::error::Merge-gate request is stale; PR head changed.", 75);
   }
-  if (headRepository !== repository) {
-    throw new CliError("::error::Merge-gate workflow requires a same-repository PR branch.", 65);
-  }
-  if (!headRef || headRef.length > 255) {
-    throw new CliError("::error::Invalid merge-gate PR branch.", 64);
-  }
 
   const payload = JSON.stringify({
-    ref: headRef,
-    inputs: {
+    event_type: "validate-central-merge",
+    client_payload: {
+      schema_version: "1",
+      pr_number: Number(prNumber),
       head_sha: headSha,
     },
   });
@@ -90,7 +80,7 @@ async function main(): Promise<void> {
       "api",
       "--method",
       "POST",
-      `repos/${repository}/actions/workflows/${workflowFile}/dispatches`,
+      `repos/${repository}/dispatches`,
       "--input",
       "-",
     ],
@@ -100,7 +90,7 @@ async function main(): Promise<void> {
     },
   );
 
-  console.log(`Repository merge gate dispatched: ${repository}#${prNumber} (${headRef})`);
+  console.log(`Repository merge gate dispatched: ${repository}#${prNumber}`);
 }
 
 if (isMain(import.meta.url)) {
