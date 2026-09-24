@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: validate closed-PR cancellation targets before entering governance and Central CI concurrency groups.
+
 - fix: cancel stale PR Governance and Central CI work when a managed pull request is closed.
 
 - fix: reserve validate-merge for the trusted GitHub Actions check and stop Central CI from publishing a conflicting commit status.
