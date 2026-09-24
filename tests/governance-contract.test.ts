@@ -219,21 +219,23 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   requireText(settings, ["secrets.AW_ADMIN_TOKEN", "inputs.is_dry_run", "policies/rulesets.json", "scripts/apply-repo-settings.ts", "node scripts/apply-repo-settings.ts", "node scripts/repository-policy.ts list pr"]);
 });
 
-test("closed PR cancellation validates the target before owning live concurrency groups", async () => {
+test("closed PR cancellation validates policy and state before owning live concurrency groups", async () => {
   const workflow = await text(".github/workflows/cancel-pr-work.yml");
   requireText(workflow, [
     "types: [cancel-pr-work]",
     "Validate Cancellation Target",
+    "AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}",
+    'node scripts/validate-pr-payload.ts "$PAYLOAD"',
     "secrets.AW_CONTROL_TOKEN",
     `gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.state'`,
-    'Cancellation target is not closed',
-    "fongap-labs/ai-gateway|fongap-labs/delta|fongap-labs/delta-suite|fongap-labs/app-source|fongap-labs/internal-vault|fongap-labs/external-vault",
+    "Cancellation target is not closed",
     "needs: validate",
     "pr-governance-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}",
     "central-ci-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}",
     "cancel-in-progress: true",
   ]);
   assert.doesNotMatch(workflow, /group: (?:pr-governance|central-ci)-\$\{\{ github\.event\.client_payload/);
+  assert.doesNotMatch(workflow, /fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)\|/);
 });
 
 test("AI Gateway scheduled CI is central and cannot publish deploy-triggering status", async () => {
