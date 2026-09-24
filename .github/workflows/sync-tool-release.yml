@@ -1,6 +1,12 @@
 name: Sync Tool Release
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/sync-tool-release.yml"
+      - "scripts/sync-tool-release.ts"
+      - "policies/review.json"
   schedule:
     - cron: "17 */6 * * *"
   workflow_dispatch:
