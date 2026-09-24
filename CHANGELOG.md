@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- docs: replace the stale exhaustive architecture tree with the current responsibility-based control-plane layout.
+
 - feat: inject Tier 2 OAuth provider configuration and token-encryption key only through the central AI Gateway deploy and readiness workflows.
 
 - fix: publish explicit successful CI Evidence when the governance plan does not require CI so final merge gates never infer intent from missing evidence.
