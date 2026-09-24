@@ -43,6 +43,11 @@
       "fongap-labs/internal-vault",
       "fongap-labs/external-vault"
     ],
-    "status_context": "CI Evidence"
+    "status_context": "CI Evidence",
+    "merge_gate_repositories": [
+      "fongap-labs/ai-gateway",
+      "fongap-labs/delta",
+      "fongap-labs/external-vault"
+    ]
   }
 }

@@ -22,6 +22,7 @@ jobs:
       base_sha: ${{ steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}
       head_sha: ${{ steps.facts.outputs.head_sha || steps.ref_facts.outputs.head_sha }}
       control_ref: ${{ steps.ref_facts.outputs.control_ref || 'main' }}
+      is_private: ${{ steps.visibility.outputs.is_private }}
 
     steps:
       - name: Checkout control plane
@@ -99,6 +100,16 @@ jobs:
               ;;
           esac
 
+      - name: Resolve target visibility
+        id: visibility
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "is_private=$(gh api "repos/$REPOSITORY" --jq '.private')" >> "$GITHUB_OUTPUT"
+
       - name: Validate control credential
         if: github.event.action == 'run-central-ci'
         env:
@@ -173,6 +184,7 @@ jobs:
           CENTRAL_CI_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           CENTRAL_CI_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          TARGET_PRIVATE: ${{ needs.prepare.outputs.is_private }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -186,7 +198,11 @@ jobs:
           set -e
 
           if [ "$code" -ne 0 ]; then
-            echo "::error::Central Linux CI failed for $TARGET_REPOSITORY. Detailed output is suppressed because the target repository is private."
+            if [ "$TARGET_PRIVATE" = "false" ]; then
+              cat "$log"
+            else
+              echo "::error::Central Linux CI failed for $TARGET_REPOSITORY. Detailed output is suppressed because the target repository is private."
+            fi
             exit "$code"
           fi
 
@@ -226,6 +242,7 @@ jobs:
           CENTRAL_CI_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           CENTRAL_CI_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          TARGET_PRIVATE: ${{ needs.prepare.outputs.is_private }}
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
@@ -242,7 +259,12 @@ jobs:
             }
           }
           catch {
-            Write-Error "Central Windows CI failed for $env:TARGET_REPOSITORY. Detailed output is suppressed because the target repository is private."
+            if ($env:TARGET_PRIVATE -eq "false" -and (Test-Path $log)) {
+              Get-Content $log
+            }
+            else {
+              Write-Error "Central Windows CI failed for $env:TARGET_REPOSITORY. Detailed output is suppressed because the target repository is private."
+            }
             exit 1
           }
 
