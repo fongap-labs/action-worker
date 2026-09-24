@@ -57,6 +57,13 @@ test("governance files and TypeScript control entries exist", async () => {
   assert.deepEqual(shellFiles, []);
 });
 
+test("integration guidance matches the current credential and private-repository model", async () => {
+  const guide = await text("docs/INTEGRATION_GUIDE.md");
+  assert.doesNotMatch(guide, /`AW_EXECUTION_TOKEN` 仅用于/);
+  assert.match(guide, /AW_EXECUTION_TOKEN.*已删除/);
+  assert.match(guide, /GitHub Free.*私有仓库.*不支持 Ruleset 或 Protected Branch/);
+});
+
 test("runtime and machine policies preserve trust boundaries", async () => {
   const pkg = await json("package.json");
   assert.equal(pkg.private, true);
