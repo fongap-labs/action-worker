@@ -6,7 +6,7 @@ import { parseAiAgentConfig } from "../scripts/ai-agent-config.ts";
 import { buildReview } from "../scripts/publish-pr-review.ts";
 import { changeAreaForPath } from "../scripts/detect-pr-context.ts";
 import { retryLines } from "../scripts/report-ocr-retry.ts";
-import { settingsPayload } from "../scripts/apply-repo-settings.ts";
+import { rulesetPayloads, settingsPayload } from "../scripts/apply-repo-settings.ts";
 import { shouldResume } from "../scripts/should-resume-ocr.ts";
 import { validateDispatch } from "../scripts/validate-dispatch-payload.ts";
 import { validateConfigText } from "../scripts/validate-config-naming.ts";
@@ -224,6 +224,29 @@ test("repository variables are sorted and validated", () => {
 
 test("repository settings omit schema metadata", () => {
   assert.deepEqual(settingsPayload({ schema_version: 1, has_issues: true }), { has_issues: true });
+});
+
+test("repository ruleset policy is exact and rejects duplicate managed names", () => {
+  const rulesets = rulesetPayloads({
+    schema_version: 1,
+    rulesets: [{
+      name: "Protect Main Branch",
+      target: "branch",
+      enforcement: "active",
+      bypass_actors: [],
+      conditions: { ref_name: { include: ["refs/heads/main"], exclude: [] } },
+      rules: [{ type: "deletion" }],
+    }],
+  });
+  assert.equal(rulesets.length, 1);
+  assert.equal(rulesets[0]?.name, "Protect Main Branch");
+  assert.throws(() => rulesetPayloads({
+    schema_version: 1,
+    rulesets: [
+      rulesets[0],
+      rulesets[0],
+    ],
+  }));
 });
 
 test("release contracts bind source, artifact provenance, target, assets, and license", () => {
