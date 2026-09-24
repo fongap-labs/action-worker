@@ -67,6 +67,15 @@ test("runtime and machine policies preserve trust boundaries", async () => {
   assert.deepEqual(execution.control, { execute_pr_code: false, allow_secrets: true });
   assert.deepEqual(execution.sandbox, { execute_pr_code: true, allow_secrets: false });
   assert.deepEqual((execution.ci as Record<string, unknown>).gate_jobs, ["ci-evidence", "validate-merge"]);
+  assert.deepEqual((execution.ci as Record<string, unknown>).central_repositories, [
+    "fongap-labs/ai-gateway",
+    "fongap-labs/delta",
+    "fongap-labs/delta-suite",
+    "fongap-labs/app-source",
+    "fongap-labs/internal-vault",
+    "fongap-labs/external-vault",
+  ]);
+  assert.equal((execution.ci as Record<string, unknown>).timeout_minutes, 180);
 
   const release = await json("policies/release.json");
   assert.equal(release.schema_version, 2);
