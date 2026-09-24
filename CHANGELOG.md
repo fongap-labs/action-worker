@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: manage business-repository main rulesets centrally and require Action Worker CI Evidence plus PR Governance statuses.
+
 - fix: allow centralized CI evidence waits up to two hours while keeping PR governance within its three-hour execution budget.
 
 - feat: extend centralized CI execution to every managed business repository while retaining project-owned trusted test entrypoints.
