@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: centralize verified third-party tool synchronization and Release artifact preparation in Action Worker.
+
 - refactor [breaking]: split Release Governance source identity from artifact-run identity and require signed-by-contract release provenance.
 
 - fix: register Delta as a canonical external configuration owner so repository-independent names use the stable DELTA prefix.

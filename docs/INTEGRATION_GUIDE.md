@@ -245,7 +245,13 @@ Manifest 继续声明目标仓、版本、许可证和 release assets。许可�
 
 业务仓不得复制 Tag / Release / checksum / rollback 逻辑。
 
-## 6. Deploy 接入
+## 6. Tool Distribution
+
+Third-party tools are not synchronized by business-repository runners. The distribution repository owns only the catalog and per-tool metadata; Action Worker periodically resolves the registered tool, verifies the upstream stable Release, checksum, optional GitHub digest, and license, then emits a governed Release artifact.
+
+No business repository needs a tool-sync credential or upstream packaging workflow.
+
+## 7. Deploy 接入
 
 有自动或人工部署的项目优先调用：
 
@@ -270,7 +276,7 @@ target_sha: <40-character-commit-sha>
 
 部署实现及其生产 Secret 继续留在业务仓。
 
-## 7. 不需要做的事
+## 8. 不需要做的事
 
 普通新仓接入不应要求：
 
@@ -282,7 +288,7 @@ target_sha: <40-character-commit-sha>
 
 如果接入必须这样做，应先判断是不是中央能力缺口，而不是直接加项目特例。
 
-## 8. 接入验收
+## 9. 接入验收
 
 至少完成一次真实 PR smoke：
 
