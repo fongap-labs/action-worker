@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: register Delta as a canonical external configuration owner so repository-independent names use the stable DELTA prefix.
+
 - fix: satisfy the GitHub Checks API contract when creating the centralized validate-merge check run.
 
 - refactor: trigger merge gates from the final PR Governance commit status and remove reverse cross-repository dispatch credentials.

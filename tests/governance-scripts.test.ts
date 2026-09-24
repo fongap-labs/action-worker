@@ -9,6 +9,7 @@ import { retryLines } from "../scripts/report-ocr-retry.ts";
 import { settingsPayload } from "../scripts/apply-repo-settings.ts";
 import { shouldResume } from "../scripts/should-resume-ocr.ts";
 import { validateDispatch } from "../scripts/validate-dispatch-payload.ts";
+import { validateConfigText } from "../scripts/validate-config-naming.ts";
 import { assertEnglishText, engineeringLineViolation } from "../scripts/validate-engineering-language.ts";
 import { validateEvidence } from "../scripts/validate-ci-evidence.ts";
 import { validatePayload } from "../scripts/validate-pr-payload.ts";
@@ -174,6 +175,16 @@ test("change-area detection keeps changelog metadata out of release routing", ()
   assert.equal(changeAreaForPath(".github/workflows/release.yml", workflowPrefixes, "CHANGELOG.md"), "workflow");
   assert.equal(changeAreaForPath("scripts/publish-release.ts", workflowPrefixes, "CHANGELOG.md"), "script");
   assert.equal(changeAreaForPath("src/request/model-fallback.ts", workflowPrefixes, "CHANGELOG.md"), "source");
+});
+
+test("external configuration recognizes registered system prefixes", () => {
+  assert.deepEqual(
+    validateConfigText(".github/workflows/release.yml", "${{ vars.DELTA_RELEASE_TARGET_REPOSITORY }}"),
+    [],
+  );
+  assert.ok(
+    validateConfigText(".github/workflows/release.yml", "${{ vars.RELEASE_TARGET_REPOSITORY }}").length > 0,
+  );
 });
 
 test("engineering language rejects Chinese machine text but allows documentation and UI strings", () => {
