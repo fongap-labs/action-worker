@@ -1,0 +1,124 @@
+name: Validate Central Merge
+
+on:
+  workflow_call:
+    inputs:
+      head_sha:
+        description: PR head commit validated by Action Worker
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  statuses: read
+  checks: write
+
+jobs:
+  validate:
+    name: Validate central evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+
+    steps:
+      - name: Validate request
+        env:
+          HEAD_SHA: ${{ inputs.head_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::Invalid head SHA." >&2
+            exit 64
+          }
+
+      - name: Create merge check
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          response="$(
+            gh api \
+              --method POST \
+              "repos/$REPOSITORY/check-runs" \
+              -f name='validate-merge' \
+              -f head_sha="$HEAD_SHA" \
+              -f status='in_progress' \
+              -f 'output[title]=Central merge gate'
+          )"
+          check_id="$(jq -r '.id // empty' <<<"$response")"
+          [[ "$check_id" =~ ^[0-9]+$ ]] || {
+            echo "::error::Unable to create validate-merge check run." >&2
+            exit 65
+          }
+          echo "check_id=$check_id" >> "$GITHUB_OUTPUT"
+
+      - name: Validate Action Worker evidence
+        id: evidence
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          REPOSITORY: ${{ github.repository }}
+          CONTROL_RUN_PREFIX: https://github.com/fongap-labs/action-worker/actions/runs/
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          status_json="$(gh api "repos/$REPOSITORY/commits/$HEAD_SHA/status")"
+
+          validate_context() {
+            local context="$1"
+            local state
+            local target_url
+
+            state="$(jq -r --arg context "$context" '.statuses | map(select(.context == $context)) | .[0].state // ""' <<<"$status_json")"
+            target_url="$(jq -r --arg context "$context" '.statuses | map(select(.context == $context)) | .[0].target_url // ""' <<<"$status_json")"
+
+            [ "$state" = "success" ] || {
+              echo "::error::$context is not successful: ${state:-missing}" >&2
+              exit 1
+            }
+
+            [[ "$target_url" == "$CONTROL_RUN_PREFIX"* ]] || {
+              echo "::error::$context was not produced by the Action Worker control plane." >&2
+              exit 1
+            }
+          }
+
+          validate_context "CI Evidence"
+          validate_context "PR Governance"
+
+      - name: Complete merge check
+        if: ${{ always() && steps.check.outputs.check_id != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          CHECK_ID: ${{ steps.check.outputs.check_id }}
+          EVIDENCE_OUTCOME: ${{ steps.evidence.outcome }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          conclusion=failure
+          title="Central merge gate failed"
+          summary="Action Worker evidence did not pass."
+
+          if [ "$EVIDENCE_OUTCOME" = "success" ]; then
+            conclusion=success
+            title="Central merge gate passed"
+            summary="CI Evidence and PR Governance both passed for the requested PR head."
+          fi
+
+          gh api \
+            --method PATCH \
+            "repos/$REPOSITORY/check-runs/$CHECK_ID" \
+            -f status='completed' \
+            -f conclusion="$conclusion" \
+            -f "output[title]=$title" \
+            -f "output[summary]=$summary" >/dev/null
+
+          [ "$conclusion" = "success" ]
