@@ -302,6 +302,8 @@ AIG_IS_DEPLOY_ENABLED=false
 
 Manual business-repository deploy entrypoints may only dispatch the immutable source SHA to Action Worker; they must not retain Cloudflare credentials or execute the production deployment locally.
 
+Server Edge uses the same source gate. `internal-vault` retains `environments/server-edge/deploy.sh` as project-owned deployment logic, while Action Worker owns SSH/Tailscale credentials, runner connectivity, immutable source admission, and deployment execution.
+
 ## 9. 不需要做的事
 
 普通新仓接入不应要求：

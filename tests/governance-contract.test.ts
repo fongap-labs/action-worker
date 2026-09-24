@@ -40,7 +40,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
     ".github/workflows/aig-deploy.yml", ".github/workflows/aig-scheduled-ci.yml", ".github/workflows/deployment-readiness.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
-    ".github/workflows/model-discovery.yml", ".github/workflows/release-build.yml",
+    ".github/workflows/model-discovery.yml", ".github/workflows/release-build.yml", ".github/workflows/server-edge-deploy.yml",
     ".github/workflows/sync-tool-release.yml", ".github/workflows/validate-central-merge.yml",
   ];
   for (const path of required) {
@@ -260,6 +260,21 @@ test("AI Gateway deploy execution is central and source-gated", async () => {
     "source_repository",
     "source_sha",
   ]);
+});
+
+test("Server Edge deploy execution is central and reuses project deployment logic", async () => {
+  const workflow = await text(".github/workflows/server-edge-deploy.yml");
+  requireText(workflow, [
+    "types: [run-server-edge-deploy]",
+    "validate-deploy-source.ts fongap-labs/internal-vault true",
+    "SERVER_EDGE_TRANSPORT",
+    "SERVER_EDGE_TARGET_HOST",
+    "SERVER_EDGE_SECRET_BUNDLE",
+    "tailscale/github-action",
+    "bash environments/server-edge/deploy.sh",
+  ]);
+  assert.doesNotMatch(workflow, /^\s+EDGE_TARGET_HOST:\s*\$\{\{\s*vars\./m);
+  assert.equal(workflow.includes("schedule:"), false);
 });
 
 test("deployment readiness is non-destructive and central", async () => {
