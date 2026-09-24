@@ -31,6 +31,36 @@ export function managedRepositories(value: unknown): string[] {
   return repositories;
 }
 
+function normalizeRules(value: unknown): unknown {
+  if (!Array.isArray(value)) {
+    return value;
+  }
+  return value.map((rule) => {
+    if (!isJsonRecord(rule) || rule.type !== "required_status_checks" || !isJsonRecord(rule.parameters)) {
+      return rule;
+    }
+    const checks = Array.isArray(rule.parameters.required_status_checks)
+      ? rule.parameters.required_status_checks.map((check) => {
+          if (!isJsonRecord(check)) {
+            return check;
+          }
+          const normalized: JsonRecord = { context: check.context };
+          if (typeof check.integration_id === "number") {
+            normalized.integration_id = check.integration_id;
+          }
+          return normalized;
+        })
+      : rule.parameters.required_status_checks;
+    return {
+      ...rule,
+      parameters: {
+        ...rule.parameters,
+        required_status_checks: checks,
+      },
+    };
+  });
+}
+
 async function ghJson(args: string[], token: string, input?: unknown): Promise<unknown> {
   const output = await runText("gh", ["api", ...args], {
     input: input === undefined ? undefined : JSON.stringify(input),
@@ -112,12 +142,17 @@ async function main(): Promise<void> {
     throw new CliError("ruleset verification response is invalid");
   }
 
-  for (const key of ["name", "target", "enforcement", "conditions", "rules"] as const) {
+  for (const key of ["name", "target", "enforcement", "conditions"] as const) {
     if (!isDeepStrictEqual(actual[key], payload[key])) {
       throw new CliError(
         `ruleset mismatch: ${key} expected=${JSON.stringify(payload[key])} actual=${JSON.stringify(actual[key])}`,
       );
     }
+  }
+  if (!isDeepStrictEqual(normalizeRules(actual.rules), normalizeRules(payload.rules))) {
+    throw new CliError(
+      `ruleset mismatch: rules expected=${JSON.stringify(payload.rules)} actual=${JSON.stringify(actual.rules)}`,
+    );
   }
 
   console.log(`main branch ruleset applied: ${repository}`);
