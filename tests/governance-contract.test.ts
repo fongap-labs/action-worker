@@ -140,14 +140,14 @@ test("task dispatch keeps the publication credential in the central control step
     "node scripts/validate-repository-variables.ts", "node scripts/validate-dispatch-payload.ts", "compgen -e",
     "action-worker-base-env.names", "action-worker-repository-vars.json", "AW_REPOSITORY_POLICY", "node-version: 24",
     "node scripts/validate-task-publication.ts", "Publish staged artifact", "secrets.AW_CONTROL_TOKEN",
-    "AW_EXECUTION_TOKEN is required.", "Authorization: Bearer ${AW_EXECUTION_TOKEN}",
-    "unset AW_EXECUTION_TOKEN AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN",
+    "AW_CONTROL_TOKEN is required.", "Authorization: Bearer ${AW_CONTROL_TOKEN}",
+    "unset AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN",
   ]);
   assert.doesNotMatch(workflow, /toJSON\s*\(\s*secrets\s*\)/);
   const directSecrets = [...workflow.matchAll(/\$\{\{\s*secrets\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g)]
     .map((match) => match[1]);
   assert.deepEqual([...new Set(directSecrets)], ["AW_CONTROL_TOKEN"]);
-  assert.doesNotMatch(workflow, /Authorization: Bearer \${AW_CONTROL_TOKEN}/);
+  assert.doesNotMatch(workflow, /AW_EXECUTION_TOKEN/);
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
 
   const publication = await text("scripts/validate-task-publication.ts");
