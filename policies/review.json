@@ -31,7 +31,8 @@
     },
     "code": {
       "effort": "medium",
-      "rule": "code.json"
+      "rule": "code.json",
+      "task_timeout_minutes": 5
     }
   },
   "runtime": {
