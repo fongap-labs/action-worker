@@ -123,4 +123,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           TARGET_REPOSITORY: ${{ matrix.repository }}
-        run: node scripts/apply-repo-settings.ts "$TARGET_REPOSITORY" false
+        run: |
+          node scripts/apply-repo-settings.ts "$TARGET_REPOSITORY" false
+          node scripts/apply-ruleset-settings.ts "$TARGET_REPOSITORY" false
