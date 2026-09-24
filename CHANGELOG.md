@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: trigger repository merge gates through repository_dispatch and centralize GitHub Actions check creation in one reusable workflow.
+
 - refactor: reuse `AW_CONTROL_TOKEN` for private task bootstrap reads and remove the redundant `AW_EXECUTION_TOKEN` credential contract.
 
 - fix: use the repository administration credential for cross-repository merge-gate workflow dispatch while keeping PR control credentials read-only for Actions.

@@ -63,15 +63,15 @@ ci-evidence
 validate-merge
 ```
 
-项目自己的 test / build matrix 保留在业务仓，由 `ci-evidence` 聚合所有本地必要检查。
+项目自己的 test / build 命令仍由业务仓定义，但重执行可集中到 Action Worker。业务仓只保留薄 Dispatch 入口。
 
-最终 `validate-merge` 不再复制治理逻辑，只调用：
+受 GitHub Ruleset 保护、且要求 `validate-merge` 来自 GitHub Actions 的仓库，再保留一个极轻 `repository_dispatch` 入口，调用：
 
 ```yaml
-uses: fongap-labs/action-worker/.github/actions/validate-merge-policy@main
+uses: fongap-labs/action-worker/.github/workflows/validate-central-merge.yml@main
 ```
 
-它要求 `ci-evidence=success`；在 Pull Request 上还必须等到当前 head 的 `PR Governance=success`。
+Action Worker 完成 `CI Evidence` 与 `PR Governance` 后反向触发该入口。目标仓自己的 `GITHUB_TOKEN` 为当前 PR HEAD 创建 `validate-merge` Check Run；业务仓不复制校验逻辑，也不运行产品测试。
 
 ## 4. 中央配置
 
@@ -149,10 +149,12 @@ Task Dispatch 会把 Repository Variables 提供给下游可信任务，并从 `
 - Commit Statuses: Read/Write；
 - Actions: Read。
 
-`AW_ADMIN_TOKEN` 只用于仓库管理和需要 Actions 写权限的中央控制操作，例如触发受管仓的轻量 `validate-merge` workflow。至少需要：
+`AW_ADMIN_TOKEN` 只用于仓库管理和中央反向调度。受管仓的轻量 `validate-merge` 入口使用 `repository_dispatch`，因此该凭据至少需要：
 
 - Administration: Read/Write；
-- Actions: Read/Write。
+- Contents: Read/Write。
+
+它不需要为了此链路授予目标仓 `Actions: Write`。实际 `validate-merge` Check Run 由目标仓自己的 GitHub Actions `GITHUB_TOKEN` 创建。
 
 ### Task 产物跨仓发布
 
