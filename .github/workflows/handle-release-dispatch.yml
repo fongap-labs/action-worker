@@ -8,7 +8,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.source_run_id }}
+  group: release-${{ github.event.client_payload.source_repository }}-${{ github.event.client_payload.source_sha }}-${{ github.event.client_payload.artifact_run_id }}
   cancel-in-progress: false
 
 jobs:

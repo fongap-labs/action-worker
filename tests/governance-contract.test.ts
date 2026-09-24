@@ -151,7 +151,7 @@ test("task dispatch keeps the publication credential in the central control step
 
 test("release, source, deploy, merge, and repository settings contracts remain intact", async () => {
   const release = await text(".github/workflows/handle-release-dispatch.yml");
-  requireText(release, ["types: [run-release]", "AW_CONTROL_TOKEN", "node-version: 24", "RELEASE_REQUEST_JSON", "node scripts/publish-release.ts"]);
+  requireText(release, ["types: [run-release]", "source_repository", "source_sha", "artifact_run_id", "AW_CONTROL_TOKEN", "node-version: 24", "RELEASE_REQUEST_JSON", "node scripts/publish-release.ts"]);
   assert.doesNotMatch(release, /AW_RELEASE_(?:SOURCE|TARGET)_ALLOWLIST/);
   const releaseValidator = await text("scripts/validate-release-request.ts");
   requireText(releaseValidator, ["AW_REPOSITORY_POLICY", "release-source", "release-target"]);
