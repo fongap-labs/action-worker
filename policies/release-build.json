@@ -15,7 +15,7 @@
       "builds": [
         {
           "id": "x64",
-          "runner": "windows-2025",
+          "runner": "windows-latest",
           "target": "x86_64-pc-windows-msvc",
           "script": ".github/scripts/release-build.ps1",
           "assets": [
@@ -25,7 +25,7 @@
         },
         {
           "id": "x86",
-          "runner": "windows-2025",
+          "runner": "windows-latest",
           "target": "i686-pc-windows-msvc",
           "script": ".github/scripts/release-build.ps1",
           "assets": [
