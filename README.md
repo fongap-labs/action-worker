@@ -80,6 +80,7 @@ Agents may judge risk. They may not redefine permission boundaries or gates.
 | **PR Policy** | Identify diff scope, change areas, and risk to build an execution plan |
 | **AI Triage** | Run a short structured semantic triage with `Code-Air`; it may only skip extremely low-risk review or escalate review strength |
 | **AI Review** | Select `code / workflow / security / architecture / release` review roles according to risk |
+| **Agent Skills** | Provide one shared execution discipline plus task skills for bug fixing, CI diagnosis, impact analysis, PR review, and release verification |
 | **CI Evidence** | Read execution evidence from the target repository's current head SHA through `ci.yml → validate-merge` |
 | **Source Policy** | Enforce target commit, default HEAD, and successful CI admission |
 | **Gate** | Combine AI Review, CI Evidence, and deterministic policy to allow or block |
@@ -341,6 +342,7 @@ Managed repository CI runners execute project code as the sandbox. Action Worker
 
 - [Documentation index](docs/README.md) — shared navigation for humans and agents
 - [Agent guide](CLAUDE.md) — required agent entry point and execution boundaries
+- [Agent Skills](skills/README.md) — source of truth for reusable agent execution skills
 - [Architecture](docs/ARCHITECTURE.md) — current implementation and convergence direction
 - [Architecture governance](docs/ARCHITECTURE_GOVERNANCE.md) — long-term boundaries and governance principles
 - [Naming conventions](docs/NAMING_CONVENTIONS.md) — shared naming rules
@@ -361,6 +363,7 @@ docs/                governance documentation for humans and agents
 contracts/           machine contracts
 policies/            deterministic governance policy
 rules/               AI review rules
+skills/              reusable agent execution skills
 scripts/             shared execution scripts
 tests/               governance and contract tests
 ```
