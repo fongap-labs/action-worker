@@ -13,7 +13,7 @@ import { assertEnglishText, engineeringLineViolation } from "../scripts/validate
 import { validateEvidence } from "../scripts/validate-ci-evidence.ts";
 import { validatePayload } from "../scripts/validate-pr-payload.ts";
 import { repositoriesForCapability, validateRepositoryCapability } from "../scripts/repository-policy.ts";
-import { validateRelease } from "../scripts/validate-release-request.ts";
+import { validateRelease, validateReleaseProvenance } from "../scripts/validate-release-request.ts";
 import { validateReview } from "../scripts/validate-review-result.ts";
 import { variableEntries } from "../scripts/export-repository-variables.ts";
 import { hasLifecycleFilenameViolation } from "../scripts/validate-naming-rules.ts";
@@ -205,10 +205,22 @@ test("repository settings omit schema metadata", () => {
   assert.deepEqual(settingsPayload({ schema_version: 1, has_issues: true }), { has_issues: true });
 });
 
-test("release contracts validate source, target, assets, and license", () => {
+test("release contracts bind source, artifact provenance, target, assets, and license", () => {
   const request = {
-    schema_version: "1", request_id: "release-1", repository: "fongap/source", source_sha: sha,
-    source_run_id: 123, artifact_name: "release-package",
+    schema_version: "2",
+    request_id: "release-1",
+    source_repository: "fongap/source",
+    source_sha: sha,
+    artifact_repository: "fongap/control",
+    artifact_run_id: 123,
+    artifact_name: "release-package",
+  };
+  const provenance = {
+    schema_version: "1",
+    source_repository: "fongap/source",
+    source_sha: sha,
+    artifact_repository: "fongap/control",
+    artifact_run_id: 123,
   };
   const manifest = {
     schema_version: "1", target_repository: "fongap/target", release_key: "example-tool", version: "1.2.3",
@@ -223,6 +235,8 @@ test("release contracts validate source, target, assets, and license", () => {
     "fongap/target": ["release-target"],
   };
   validateRelease(request, manifest, policy);
+  validateReleaseProvenance(request, provenance);
+  assert.throws(() => validateReleaseProvenance(request, { ...provenance, artifact_run_id: 124 }));
   assert.throws(() => validateRelease(request, { ...manifest, release_key: "Example Tool" }, policy));
   assert.throws(() => validateRelease(request, { ...manifest, assets: manifest.assets.slice(0, 1) }, policy));
   assert.throws(() => validateRelease(request, undefined, { "fongap/other": ["release-source"], "fongap/target": ["release-target"] }));
