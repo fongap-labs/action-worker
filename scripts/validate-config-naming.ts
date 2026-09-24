@@ -49,6 +49,7 @@ const selfIdentifyingPrefixes = [
   "AI_GATEWAY_",
   "APP_SOURCE_",
   "DELTA_",
+  "SERVER_EDGE_",
   "CLOUDFLARE_",
   "GITHUB_",
   "AWS_",
