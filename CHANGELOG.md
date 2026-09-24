@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: allow centralized CI evidence waits up to two hours while keeping PR governance within its three-hour execution budget.
+
 - feat: extend centralized CI execution to every managed business repository while retaining project-owned trusted test entrypoints.
 
 - fix: honor disabled AI review authority for every repository, including AI Gateway bootstrap, so model overrides cannot silently re-enable review.
