@@ -434,7 +434,9 @@ source repository manual intent
 → external-vault Release
 ```
 
-Project-specific build commands remain in the source repository as narrow scripts. Runner selection, artifact aggregation, target repository, release manifest generation, provenance, publication, verification, and rollback are centrally governed.
+Project-specific build commands remain in the source repository as narrow scripts. Runner selection, Node/Python/Rust setup, build attestation, package-level SBOM generation, artifact aggregation, target repository, release manifest generation, provenance, publication, verification, and rollback are centrally governed.
+
+The current central build matrix covers App Source / SecurePigeon and Delta Windows Portable.
 
 Release targets are versioned in `policies/release-build.json`; business repositories must not keep duplicate release-target variables.
 

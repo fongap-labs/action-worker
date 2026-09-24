@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: extend centralized Release Build to Delta with project-scoped environment setup, provenance attestation, and CycloneDX SBOM packaging.
+
 - feat: centralize App Source release build runners, artifact packaging, and provenance in Action Worker.
 
 - fix: key Release Governance concurrency by the v2 source and artifact identities.

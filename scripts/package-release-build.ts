@@ -37,7 +37,10 @@ async function main(): Promise<void> {
     throw new CliError(`Repository has no release build policy: ${sourceRepository}.`, 65);
   }
 
-  const expected = entry.builds.flatMap((build) => build.assets).sort();
+  const expected = [
+    ...entry.builds.flatMap((build) => build.assets),
+    ...(entry.sbom_asset ? [entry.sbom_asset] : []),
+  ].sort();
   const actual = (await readdir(artifactDir, { withFileTypes: true }))
     .filter((item) => item.isFile())
     .map((item) => item.name)

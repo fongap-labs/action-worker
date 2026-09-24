@@ -253,12 +253,17 @@ Action Worker owns:
 
 ```text
 source admission
-→ heavy Windows/Linux runner execution
+→ Node / Python / Rust runner setup
+→ heavy Windows build execution
+→ optional build attestation
+→ optional package-level SBOM
 → artifact aggregation
 → release-manifest.json
 → release-provenance.json
 → Release Governance dispatch
 ```
+
+The source repository owns only a narrow `.github/scripts/release-build.ps1` adapter that converts its project build into the exact asset names declared by the central release-build policy.
 
 The release target comes from `policies/release-build.json`, not a business-repository variable.
 
