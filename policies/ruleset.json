@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "name": "Protect Main Branch",
+  "repositories": [
+    "fongap-labs/ai-gateway",
+    "fongap-labs/delta",
+    "fongap-labs/external-vault"
+  ],
+  "required_status_checks": [
+    "validate-merge"
+  ],
+  "strict_required_status_checks_policy": true,
+  "do_not_enforce_on_create": false
+}
