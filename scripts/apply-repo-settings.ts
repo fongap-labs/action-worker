@@ -78,7 +78,7 @@ function rulesetSnapshot(value: unknown): RulesetPayload {
 }
 
 async function ghJson(
-  method: "GET" | "POST" | "PUT",
+  method: "GET" | "POST" | "PUT" | "PATCH",
   endpoint: string,
   token: string,
   input?: unknown,
@@ -190,7 +190,7 @@ async function main(): Promise<void> {
     throw new CliError("GH_TOKEN is required", 2);
   }
 
-  const response = await ghJson("PUT", `repos/${repository}`, token, payload);
+  const response = await ghJson("PATCH", `repos/${repository}`, token, payload);
   if (!isJsonRecord(response)) {
     throw new CliError("repository settings response is invalid");
   }
