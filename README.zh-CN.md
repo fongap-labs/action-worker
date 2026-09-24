@@ -84,6 +84,7 @@ Agent 可以判断，不能改写权限边界或 Gate。
 | **PR Policy** | 识别 diff、变更区域与风险，生成执行计划 |
 | **AI Triage** | 使用 `Code-Air` 做一次短、结构化的语义分诊；只允许跳过极低风险审查或向更强审查升级 |
 | **AI Review** | 按风险选择 `code / workflow / security / architecture / release` 审查角色 |
+| **Agent Skills** | 统一 Agent 执行纪律，并提供 Bug 修复、CI 诊断、影响分析、PR 审查与发布验证 Skill |
 | **CI Evidence** | 读取业务仓当前 head SHA 的 `ci.yml → validate-merge` 执行证据 |
 | **Source Policy** | 统一目标 Commit、默认 HEAD 与成功 CI 准入 |
 | **Gate** | 综合 AI Review、CI Evidence 与确定性策略放行或阻断 |
@@ -345,6 +346,7 @@ Sandbox
 
 - [文档总入口](docs/README.md) — 人类与 Agent 共用文档导航
 - [Agent 指引](CLAUDE.md) — Agent 必读入口与执行边界
+- [Agent Skills](skills/README.md) — 可复用 Agent 执行 Skill 的权威入口
 - [架构](docs/ARCHITECTURE.md) — 当前实现与收敛方向
 - [架构治理](docs/ARCHITECTURE_GOVERNANCE.md) — 长期边界与治理原则
 - [命名规范](docs/NAMING_CONVENTIONS.md) — 通用命名规则
@@ -363,6 +365,7 @@ docs/                人类与 Agent 共用治理文档
 contracts/           机器合同
 policies/            确定性策略
 rules/               AI 审查规则
+skills/              可复用 Agent 执行 Skill
 scripts/             通用执行脚本
 tests/               治理与合同测试
 ```

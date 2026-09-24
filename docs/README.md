@@ -2,10 +2,11 @@
 
 [**English**](README.md) · [简体中文](README.zh-CN.md)
 
-Action Worker keeps two categories of documentation:
+Action Worker keeps three categories of documentation:
 
 1. shared governance for Fongap Labs managed repositories;
-2. Action Worker control-plane architecture and implementation.
+2. Action Worker control-plane architecture and implementation;
+3. reusable Agent Skills for engineering execution.
 
 Managed repositories keep only project-specific rules and do not duplicate shared governance from this repository.
 
@@ -19,6 +20,10 @@ Managed repositories keep only project-specific rules and do not duplicate share
 | [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) | Common development, validation, PR, and merge rules |
 | [REPOSITORY_GOVERNANCE.md](REPOSITORY_GOVERNANCE.md) | Repository settings, merge strategy, and GitHub platform boundaries |
 | [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) | Standard contract for onboarding managed repositories to central governance |
+
+## Agent Skills
+
+The source of truth for reusable agent execution behavior is [`skills/`](../skills/README.md). Skills define execution procedure and must not override machine contracts, policies, or rules.
 
 ## Action Worker specific
 
@@ -38,13 +43,15 @@ rules/       AI Review rules
 tests/       contract and governance regression tests
 ```
 
-Documentation must not override or bypass machine contracts.
+Agent Skills are reusable execution procedures, not deterministic policy authority. Documentation and skills must not override or bypass machine contracts.
 
 ## Shortest entry
 
 ```text
 Develop Action Worker
 → CLAUDE.md
+→ skills/agent-execution/SKILL.md
+→ task-related skill
 → docs/SHARED_GOVERNANCE.md
 → docs/ARCHITECTURE_GOVERNANCE.md
 → related contracts / policies / rules

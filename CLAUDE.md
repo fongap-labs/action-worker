@@ -5,13 +5,15 @@
 ## Required reading
 
 1. `CLAUDE.md`
-2. `docs/README.md`
-3. `docs/SHARED_GOVERNANCE.md`
-4. `docs/ARCHITECTURE_GOVERNANCE.md`
-5. `docs/NAMING_CONVENTIONS.md`
-6. task-related `contracts/`, `policies/`, `rules/`
-7. development tasks: `docs/DEVELOPMENT_GUIDE.md`
-8. repository integration: `docs/INTEGRATION_GUIDE.md`
+2. `skills/agent-execution/SKILL.md`
+3. task-related `skills/*/SKILL.md`
+4. `docs/README.md`
+5. `docs/SHARED_GOVERNANCE.md`
+6. `docs/ARCHITECTURE_GOVERNANCE.md`
+7. `docs/NAMING_CONVENTIONS.md`
+8. task-related `contracts/`, `policies/`, `rules/`
+9. development tasks: `docs/DEVELOPMENT_GUIDE.md`
+10. repository integration: `docs/INTEGRATION_GUIDE.md`
 
 ## Authority order
 
@@ -25,6 +27,8 @@ docs/ARCHITECTURE_GOVERNANCE.md
 docs/ARCHITECTURE.md
         ↓
 task-specific guides
+        ↓
+skills (execution procedure)
         ↓
 README
 ```
@@ -45,7 +49,8 @@ Action Worker owns generic:
 - CI Evidence evaluation;
 - merge Gate;
 - Source / Release / Deploy policy;
-- cross-repository status and publication governance.
+- cross-repository status and publication governance;
+- organization-wide Agent Skills for execution, debugging, impact analysis, review, and release verification.
 
 Business repositories own product code, product tests, native build/package/deploy implementation and thin dispatch/integration entry points.
 
