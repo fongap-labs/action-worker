@@ -102,6 +102,7 @@ AI_GATEWAY_URL
 Action Worker Secret：
 
 ```text
+AW_ADMIN_TOKEN
 AW_CONTROL_TOKEN
 AIG_ACCESS_KEY_AGENT
 ```
@@ -147,6 +148,11 @@ Task Dispatch 会把 Repository Variables 提供给下游可信任务，并从 `
 - Pull Requests: Read/Write；
 - Commit Statuses: Read/Write；
 - Actions: Read。
+
+`AW_ADMIN_TOKEN` 只用于仓库管理和需要 Actions 写权限的中央控制操作，例如触发受管仓的轻量 `validate-merge` workflow。至少需要：
+
+- Administration: Read/Write；
+- Actions: Read/Write。
 
 ### Task 产物跨仓发布
 

@@ -113,7 +113,7 @@ test("runtime and machine policies preserve trust boundaries", async () => {
 test("PR workflow uses TypeScript controls and preserves ordering", async () => {
   const workflow = await text(".github/workflows/handle-pr-dispatch.yml");
   requireText(workflow, [
-    "repository_dispatch:", "types: [run-pr-governance]", "AW_REPOSITORY_POLICY", "AW_CONTROL_TOKEN",
+    "repository_dispatch:", "types: [run-pr-governance]", "AW_REPOSITORY_POLICY", "AW_CONTROL_TOKEN", "AW_ADMIN_TOKEN",
     "AI_GATEWAY_URL", "AIG_ACCESS_KEY_AGENT", "AW_AI_AGENT_CONFIG", "persist-credentials: false", "node-version: 24",
     "validate-pr-payload.ts", "validate-control-access.ts", "set-pr-status.ts", "validate-engineering-language.ts",
     "publish-pr-review.ts", "wait-ci-evidence.ts", "validate-ci-evidence.ts", "wait-review-turn.ts",
