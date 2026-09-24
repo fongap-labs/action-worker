@@ -464,31 +464,25 @@ tool catalog + metadata
 
 Business repositories do not run upstream download, checksum verification, packaging, or tool Release dispatch workflows. Tool metadata stays text-only in the distribution repository; executable payloads stay in GitHub Releases.
 
-## 10. Deploy
+## 12. Deploy
 
-部署统一通过：
-
-```text
-validate-deploy-policy.yml
-  ↓
-validate-source-policy.yml
-  ↓
-业务仓 deploy implementation
-```
-
-Action Worker 只治理“哪个 Commit 可以部署”；Cloudflare、Server Edge、SSH、Tailscale、数据库迁移、健康检查与回滚实现继续留在业务仓。
-
-`ai-gateway` 已通过真实链路验证：
+Production deployment follows the same immutable-source boundary as Release Governance, but deploy execution does not publish a GitHub Release.
 
 ```text
-main CI
-→ Deploy Policy
-→ Source Policy
-→ Cloudflare Deploy
-→ health check
+business repository main
+→ Central CI
+→ trusted CI Evidence
+→ immutable deploy request
+→ Action Worker source gate
+→ project deployment validation
+→ production deploy
+→ health verification
+→ rollback on failure
 ```
 
-Server Edge 使用相同 Policy；显式 pinned deploy 必须是 40 位 SHA。
+Action Worker owns production credentials and runner-heavy deployment orchestration. The source repository owns only product code and project-specific deployment tooling. A deploy request cannot supply mutable refs, arbitrary repositories, CI conclusions, or deployment credentials.
+
+The AI Gateway executor requires the current default-branch HEAD and a successful `CI Evidence` status whose target run belongs to Action Worker. `AIG_IS_DEPLOY_ENABLED=false` remains the emergency kill switch.
 
 ## 13. 目录
 
