@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: include deleted files in PR context so workflow removals still trigger CI and governance.
+
 - test: run centralized tool-sync smoke validation when its control files change on main.
 
 - feat: centralize verified third-party tool synchronization and Release artifact preparation in Action Worker.
