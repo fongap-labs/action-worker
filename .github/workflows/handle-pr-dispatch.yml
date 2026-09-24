@@ -286,17 +286,3 @@ jobs:
           STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
           DESCRIPTION: ${{ job.status == 'success' && 'Action Worker PR governance passed' || 'Action Worker PR governance failed' }}
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
-
-      - name: Dispatch repository merge gate
-        if: ${{ always() && steps.ownership.outputs.current == 'true' }}
-        env:
-          GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
-          REPOSITORY: ${{ steps.payload.outputs.repository }}
-          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
-          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
-        run: |
-          node scripts/dispatch-merge-gate.ts \
-            "$REPOSITORY" \
-            "$PR_NUMBER" \
-            "$HEAD_SHA" \
-            "$GITHUB_WORKSPACE/policies/execution.json"
