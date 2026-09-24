@@ -46,8 +46,7 @@ jobs:
               "repos/$REPOSITORY/check-runs" \
               -f name='validate-merge' \
               -f head_sha="$HEAD_SHA" \
-              -f status='in_progress' \
-              -f 'output[title]=Central merge gate'
+              -f status='in_progress'
           )"
           check_id="$(jq -r '.id // empty' <<<"$response")"
           [[ "$check_id" =~ ^[0-9]+$ ]] || {
