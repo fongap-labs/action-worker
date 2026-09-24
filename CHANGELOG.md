@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: skip centralized model discovery safely until its provider configuration is available in Action Worker.
+
 - feat: centralize AI Gateway model discovery and snapshot retention in Action Worker.
 
 - feat: extend centralized Release Build to Delta with project-scoped environment setup, provenance attestation, and CycloneDX SBOM packaging.
