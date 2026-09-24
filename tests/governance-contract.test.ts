@@ -30,10 +30,10 @@ test("governance files and TypeScript control entries exist", async () => {
     "AGENTS.md", "CLAUDE.md", "docs/README.md", "docs/ARCHITECTURE.md", "docs/ARCHITECTURE_GOVERNANCE.md",
     "docs/NAMING_CONVENTIONS.md", "docs/CHANGELOG_CONVENTIONS.md", "docs/DEVELOPMENT_GUIDE.md",
     "contracts/change-record.json", "contracts/pr-task.json", "contracts/release-dispatch.json",
-    "contracts/release-manifest.json", "contracts/task-dispatch.json", "policies/execution.json", "policies/triage.json",
+    "contracts/release-manifest.json", "contracts/task-dispatch.json", "policies/execution.json", "policies/triage.json", "policies/ruleset.json",
     "package.json", "package-lock.json", "tsconfig.json", "scripts/validate-change-record.ts",
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
-    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts",
+    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/apply-ruleset-settings.ts",
     "scripts/dispatch-merge-gate.ts",
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
     "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-pr-plan.ts", "scripts/run-ai-triage.ts", "scripts/runtime-command.ts",
@@ -140,14 +140,14 @@ test("task dispatch keeps the publication credential in the central control step
     "node scripts/validate-repository-variables.ts", "node scripts/validate-dispatch-payload.ts", "compgen -e",
     "action-worker-base-env.names", "action-worker-repository-vars.json", "AW_REPOSITORY_POLICY", "node-version: 24",
     "node scripts/validate-task-publication.ts", "Publish staged artifact", "secrets.AW_CONTROL_TOKEN",
-    "AW_CONTROL_TOKEN is required.", "Authorization: Bearer ${AW_CONTROL_TOKEN}",
-    "unset AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN",
+    "AW_EXECUTION_TOKEN is required.", "Authorization: Bearer ${AW_EXECUTION_TOKEN}",
+    "unset AW_EXECUTION_TOKEN AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN",
   ]);
   assert.doesNotMatch(workflow, /toJSON\s*\(\s*secrets\s*\)/);
   const directSecrets = [...workflow.matchAll(/\$\{\{\s*secrets\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g)]
     .map((match) => match[1]);
   assert.deepEqual([...new Set(directSecrets)], ["AW_CONTROL_TOKEN"]);
-  assert.doesNotMatch(workflow, /AW_EXECUTION_TOKEN/);
+  assert.doesNotMatch(workflow, /Authorization: Bearer \${AW_CONTROL_TOKEN}/);
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
 
   const publication = await text("scripts/validate-task-publication.ts");
@@ -181,7 +181,10 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   assert.equal(repository.allow_squash_merge, true);
   assert.equal(repository.delete_branch_on_merge, true);
   const settings = await text(".github/workflows/apply-repo-settings.yml");
-  requireText(settings, ["secrets.AW_ADMIN_TOKEN", "inputs.is_dry_run", "node scripts/apply-repo-settings.ts", "node scripts/repository-policy.ts list pr"]);
+  requireText(settings, ["secrets.AW_ADMIN_TOKEN", "inputs.is_dry_run", "node scripts/apply-repo-settings.ts", "node scripts/apply-ruleset-settings.ts", "node scripts/repository-policy.ts list pr", "policies/ruleset.json"]);
+  const ruleset = await json("policies/ruleset.json");
+  assert.equal(ruleset.name, "Protect Main Branch");
+  assert.deepEqual(ruleset.required_status_checks, ["validate-merge"]);
 });
 
 test("self CI runs TypeScript checks without Shell test orchestration", async () => {
