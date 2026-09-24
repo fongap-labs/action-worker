@@ -247,6 +247,8 @@ test("central CI deploy dispatch is policy-driven after cutover", async () => {
     "needs.prepare.outputs.pr_number == '0'",
     "contents: write",
   ]);
+  assert.match(workflow, /for context in "CI Evidence" "ci-evidence"; do/);
+  assert.doesNotMatch(workflow, /for context in "CI Evidence" "ci-evidence" "validate-merge"/);
 });
 
 test("AI Gateway deploy execution is central and source-gated", async () => {
