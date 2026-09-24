@@ -39,7 +39,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
     "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
-    ".github/workflows/ai-gateway-scheduled-ci.yml", ".github/workflows/deployment-readiness.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
+    ".github/workflows/aig-scheduled-ci.yml", ".github/workflows/deployment-readiness.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
     ".github/workflows/model-discovery.yml", ".github/workflows/release-build.yml",
     ".github/workflows/sync-tool-release.yml", ".github/workflows/validate-central-merge.yml",
   ];
@@ -207,7 +207,7 @@ test("release, source, deploy, merge, and repository settings contracts remain i
 });
 
 test("AI Gateway scheduled CI is central and cannot publish deploy-triggering status", async () => {
-  const workflow = await text(".github/workflows/ai-gateway-scheduled-ci.yml");
+  const workflow = await text(".github/workflows/aig-scheduled-ci.yml");
   requireText(workflow, [
     "schedule:",
     "repository: fongap-labs/ai-gateway",
