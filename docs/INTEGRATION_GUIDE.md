@@ -275,28 +275,32 @@ No business repository needs a tool-sync credential or upstream packaging workfl
 
 ## 8. Deploy 接入
 
-有自动或人工部署的项目优先调用：
+Production deploy execution is owned by Action Worker. Business repositories keep only project-specific deployment code and an optional thin dispatch bridge; production credentials and runner-heavy orchestration stay in the central control plane.
 
-```yaml
-uses: fongap-labs/action-worker/.github/workflows/validate-deploy-policy.yml@main
+AI Gateway uses:
+
+```text
+main push
+→ thin CI dispatch
+→ Action Worker Central CI
+→ trusted CI Evidence
+→ central deploy source gate
+→ validate:deploy + bundle check
+→ D1 migration
+→ Worker deploy
+→ health verification
+→ rollback on post-deploy failure
 ```
 
-默认：
+The central deploy source gate requires an immutable source SHA, the expected source repository, and successful `CI Evidence` produced by Action Worker. Automatic production deploys must require the current default-branch HEAD.
 
-```yaml
-require_default_head: true
+The deploy kill switch remains:
+
+```text
+AIG_IS_DEPLOY_ENABLED=false
 ```
 
-如果产品确实需要部署历史版本：
-
-```yaml
-require_default_head: false
-target_sha: <40-character-commit-sha>
-```
-
-历史部署仍必须通过指定 CI，不允许使用分支名、Tag 或其他可移动 ref 绕过 Source Gate。
-
-部署实现及其生产 Secret 继续留在业务仓。
+Manual business-repository deploy entrypoints may only dispatch the immutable source SHA to Action Worker; they must not retain Cloudflare credentials or execute the production deployment locally.
 
 ## 9. 不需要做的事
 

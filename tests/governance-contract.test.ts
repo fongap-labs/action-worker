@@ -29,17 +29,17 @@ test("governance files and TypeScript control entries exist", async () => {
   const required = [
     "AGENTS.md", "CLAUDE.md", "docs/README.md", "docs/ARCHITECTURE.md", "docs/ARCHITECTURE_GOVERNANCE.md",
     "docs/NAMING_CONVENTIONS.md", "docs/CHANGELOG_CONVENTIONS.md", "docs/DEVELOPMENT_GUIDE.md",
-    "contracts/change-record.json", "contracts/pr-task.json", "contracts/release-dispatch.json",
+    "contracts/change-record.json", "contracts/deploy-dispatch.json", "contracts/pr-task.json", "contracts/release-dispatch.json",
     "contracts/release-manifest.json", "contracts/release-provenance.json", "contracts/task-dispatch.json", "policies/execution.json", "policies/triage.json",
     "package.json", "package-lock.json", "tsconfig.json", "scripts/validate-change-record.ts",
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
-    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts",
+    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-deploy-source.ts",
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
     "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-pr-plan.ts", "scripts/run-ai-triage.ts", "scripts/runtime-command.ts",
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
     "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
-    ".github/workflows/aig-scheduled-ci.yml", ".github/workflows/deployment-readiness.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
+    ".github/workflows/aig-deploy.yml", ".github/workflows/aig-scheduled-ci.yml", ".github/workflows/deployment-readiness.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
     ".github/workflows/model-discovery.yml", ".github/workflows/release-build.yml",
     ".github/workflows/sync-tool-release.yml", ".github/workflows/validate-central-merge.yml",
   ];
@@ -216,6 +216,33 @@ test("AI Gateway scheduled CI is central and cannot publish deploy-triggering st
   ]);
   assert.equal(workflow.includes("set-pr-status.ts"), false);
   assert.equal(workflow.includes("CI Evidence"), false);
+});
+
+test("AI Gateway deploy execution is central and source-gated", async () => {
+  const workflow = await text(".github/workflows/aig-deploy.yml");
+  requireText(workflow, [
+    "types: [run-ai-gateway-deploy]",
+    "validate-deploy-source.ts fongap-labs/ai-gateway true",
+    "vars.AIG_IS_DEPLOY_ENABLED != 'false'",
+    "repository: ${{ needs.prepare.outputs.source_repository }}",
+    "npm run validate:deploy",
+    "npm run check:deploy",
+    "wrangler@4.114.0 d1 migrations apply",
+    "wrangler@4.114.0 deploy",
+    "Rollback to previous Worker version",
+    "health-check --from-env --expected-build",
+  ]);
+  assert.equal(workflow.includes("workflow_run:"), false);
+  assert.equal(workflow.includes("schedule:"), false);
+
+  const validator = await text("scripts/validate-deploy-source.ts");
+  requireText(validator, [
+    "CI Evidence",
+    "fongap-labs/action-worker/actions/runs/",
+    "requireDefaultHeadRaw",
+    "source_repository",
+    "source_sha",
+  ]);
 });
 
 test("deployment readiness is non-destructive and central", async () => {

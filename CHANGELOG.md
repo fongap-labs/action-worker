@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: add a source-gated central AI Gateway deployment executor with centralized production credentials, health verification, and rollback.
+
 - feat: move AI Gateway nightly CI into Action Worker without publishing deploy-triggering commit statuses.
 
 - feat: add non-destructive central deployment readiness checks for AI Gateway and Server Edge.
