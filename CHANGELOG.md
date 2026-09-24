@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- refactor [breaking]: split Release Governance source identity from artifact-run identity and require signed-by-contract release provenance.
+
 - fix: register Delta as a canonical external configuration owner so repository-independent names use the stable DELTA prefix.
 
 - fix: satisfy the GitHub Checks API contract when creating the centralized validate-merge check run.
