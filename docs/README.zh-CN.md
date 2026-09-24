@@ -5,7 +5,8 @@
 Action Worker 同时保存两类文档：
 
 1. Fongap Labs 受管仓库共用治理；
-2. Action Worker 自身控制平面架构与实现。
+2. Action Worker 自身控制平面架构与实现；
+3. 工程执行使用的通用 Agent Skills。
 
 业务仓只保存项目级规则，不复制这里的共用规则。
 
@@ -19,6 +20,10 @@ Action Worker 同时保存两类文档：
 | [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) | 通用开发、验证、PR 与合并规则 |
 | [REPOSITORY_GOVERNANCE.md](REPOSITORY_GOVERNANCE.md) | 仓库设置、合并策略与 GitHub 平台能力边界 |
 | [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) | 业务仓接入中央治理的标准合同 |
+
+## Agent Skills
+
+可复用 Agent 执行行为的权威入口位于 [`skills/`](../skills/README.md)。Skill 定义执行流程，但不得覆盖机器合同、Policy 或 Rule。
 
 ## Action Worker specific
 
@@ -36,6 +41,8 @@ contracts/   输入输出合同
 policies/    确定性治理策略
 rules/       AI Review 规则
 tests/       合同与治理回归测试
+
+skills/      可复用执行流程，不属于确定性策略权威
 ```
 
 文档不得覆盖或绕过机器合同。
@@ -45,6 +52,8 @@ tests/       合同与治理回归测试
 ```text
 Develop Action Worker
 → CLAUDE.md
+→ skills/agent-execution/SKILL.md
+→ task-related skill
 → docs/SHARED_GOVERNANCE.md
 → docs/ARCHITECTURE_GOVERNANCE.md
 → related contracts / policies / rules
