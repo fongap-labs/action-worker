@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: extend centralized CI execution to every managed business repository while retaining project-owned trusted test entrypoints.
+
 - fix: honor disabled AI review authority for every repository, including AI Gateway bootstrap, so model overrides cannot silently re-enable review.
 
 - fix: give normal code AI reviews a five-minute task budget so the outer review process can cover the configured 300-second LLM timeout.
