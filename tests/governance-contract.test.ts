@@ -30,7 +30,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "AGENTS.md", "CLAUDE.md", "docs/README.md", "docs/ARCHITECTURE.md", "docs/ARCHITECTURE_GOVERNANCE.md",
     "docs/NAMING_CONVENTIONS.md", "docs/CHANGELOG_CONVENTIONS.md", "docs/DEVELOPMENT_GUIDE.md",
     "contracts/change-record.json", "contracts/deploy-dispatch.json", "contracts/pr-task.json", "contracts/release-dispatch.json",
-    "contracts/release-manifest.json", "contracts/release-provenance.json", "contracts/task-dispatch.json", "policies/deploy.json", "policies/execution.json", "policies/triage.json",
+    "contracts/release-manifest.json", "contracts/release-provenance.json", "contracts/task-dispatch.json", "policies/deploy.json", "policies/execution.json", "policies/rulesets.json", "policies/triage.json",
     "package.json", "package-lock.json", "tsconfig.json", "scripts/validate-change-record.ts",
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
     "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-deploy-source.ts", "scripts/dispatch-central-deploy.ts",
@@ -208,11 +208,14 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   requireText(merge, ["ci-result:", "head-sha:", "require-pr-governance:", "PR Governance", "Local CI evidence did not pass", "PR Governance blocked merge"]);
 
   const repository = await json("policies/repository.json");
+  const rulesetPolicy = await json("policies/rulesets.json");
+  const managedRulesets = rulesetPolicy.rulesets as Array<Record<string, unknown>>;
+  assert.deepEqual(managedRulesets.map((rule) => rule.name), ["Protect Main Branch", "Protect Legacy Branches"]);
   assert.equal(repository.allow_merge_commit, false);
   assert.equal(repository.allow_squash_merge, true);
   assert.equal(repository.delete_branch_on_merge, true);
   const settings = await text(".github/workflows/apply-repo-settings.yml");
-  requireText(settings, ["secrets.AW_ADMIN_TOKEN", "inputs.is_dry_run", "node scripts/apply-repo-settings.ts", "node scripts/repository-policy.ts list pr"]);
+  requireText(settings, ["secrets.AW_ADMIN_TOKEN", "inputs.is_dry_run", "policies/rulesets.json", "scripts/apply-repo-settings.ts", "node scripts/apply-repo-settings.ts", "node scripts/repository-policy.ts list pr"]);
 });
 
 test("AI Gateway scheduled CI is central and cannot publish deploy-triggering status", async () => {
