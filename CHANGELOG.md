@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: inject the validated AI Gateway source SHA through AIG_BUILD_SHA instead of the control-plane GitHub SHA.
+
 - feat: centralize repository Main and Legacy Ruleset creation and drift repair in Action Worker.
 
 - docs: remove obsolete AW_EXECUTION_TOKEN guidance and document GitHub Free private-repository protection limits.
