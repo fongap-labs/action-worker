@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: use the repository administration credential for cross-repository merge-gate workflow dispatch while keeping PR control credentials read-only for Actions.
+
 - fix: preserve GitHub Actions required-check identity with a lightweight repository merge gate and expose central CI failure details only for public targets.
 
 - fix: allow centralized CI evidence waits up to two hours while keeping PR governance within its three-hour execution budget.
