@@ -73,6 +73,8 @@ uses: fongap-labs/action-worker/.github/workflows/validate-central-merge.yml@mai
 
 Action Worker 完成 `CI Evidence` 后写入最终 `PR Governance` Commit Status。业务仓在 `PR Governance=success` 时由 GitHub 原生 `status` 事件自动触发，并用本仓 `GITHUB_TOKEN` 为该 SHA 创建 `validate-merge` Check Run。业务仓不复制校验逻辑、不运行产品测试，也不需要中央凭据反向触发。
 
+GitHub Free 组织的私有仓库不支持 Ruleset 或 Protected Branch 强制门禁。因此私有仓仍执行相同中央治理链，但 GitHub 平台本身不能强制阻止管理员直接推送或绕过 PR 合并。当前私有仓应保持“不直接推 main、只走 PR/中央治理”的操作纪律；若需要平台级强制门禁，应升级到支持私有仓保护的 GitHub 计划。
+
 ## 4. 中央配置
 
 Action Worker Repository Variable：
@@ -140,7 +142,7 @@ AIG_ACCESS_KEY_AGENT
 
 Task Dispatch 会把 Repository Variables 提供给下游可信任务，并从 `AW_AI_AGENT_CONFIG` 派生只读运行时模型变量。例如 `writing.market-brief` 会成为 `AW_AI_AGENT_WRITING_MARKET_BRIEF_MODEL`。业务任务只能引用这些派生值，不再声明项目级模型变量。Review Engine 的分发仓库、版本和资产仍由 `policies/review.json` 管理；policy 不再保存模型名称。
 
-`AW_EXECUTION_TOKEN` 仅用于 Task 执行前读取受管私有仓固定 Commit，建议只授予 `Contents: Read`。它不会传给业务 bootstrap；跨仓发布仍由后续中央步骤使用 `AW_CONTROL_TOKEN`。
+`AW_EXECUTION_TOKEN` 已删除，不再配置。Task 执行前读取受管私有仓固定 Commit 由中央 `AW_CONTROL_TOKEN` 完成；该凭据只存在于 Action Worker 控制面，不传给业务 bootstrap。
 
 `AW_CONTROL_TOKEN` 对受管仓至少需要：
 
