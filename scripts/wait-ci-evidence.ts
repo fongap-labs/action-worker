@@ -220,8 +220,8 @@ async function main(): Promise<void> {
   if (!Number.isInteger(pollSeconds) || pollSeconds < 5 || pollSeconds > 120) {
     throw new CliError("::error::CI poll_seconds must be 5-120 seconds.", 65);
   }
-  if (!Number.isInteger(timeoutMinutes) || timeoutMinutes < 1 || timeoutMinutes > 60) {
-    throw new CliError("::error::CI timeout_minutes must be 1-60 minutes.", 65);
+  if (!Number.isInteger(timeoutMinutes) || timeoutMinutes < 1 || timeoutMinutes > 120) {
+    throw new CliError("::error::CI timeout_minutes must be 1-120 minutes.", 65);
   }
 
   const centralRepositories = Array.isArray(ci.central_repositories)
