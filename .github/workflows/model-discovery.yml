@@ -117,7 +117,47 @@ jobs:
         working-directory: target
         run: npm ci
 
+      - name: Check centralized discovery configuration
+        id: readiness
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          node_count=0
+          credential_count=0
+
+          while IFS='=' read -r name value; do
+            case "$name" in
+              AIG_TIER*_NODES_*)
+                [ -n "$value" ] && node_count=$((node_count + 1))
+                ;;
+              AIG_TIER*_CREDENTIALS_*)
+                [ -n "$value" ] && credential_count=$((credential_count + 1))
+                ;;
+            esac
+          done < <(env)
+
+          ready=false
+          if [ "$node_count" -gt 0 ] && [ "$credential_count" -gt 0 ]; then
+            ready=true
+          fi
+
+          {
+            echo "ready=$ready"
+            echo "node_count=$node_count"
+            echo "credential_count=$credential_count"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "## Model Discovery readiness"
+            echo
+            echo "- Configured node shards: $node_count"
+            echo "- Configured credential shards: $credential_count"
+            echo "- Central execution ready: $ready"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Restore previous successful snapshot
+        if: steps.readiness.outputs.ready == 'true'
         run: |
           mkdir -p "$RUNNER_TEMP/model-discovery-previous"
           PREV_RUN="$(gh run list --workflow model-discovery.yml --status success --limit 10 --json databaseId --jq '.[0].databaseId // empty' 2>/dev/null || true)"
@@ -134,6 +174,7 @@ jobs:
           fi
 
       - name: Discover models
+        if: steps.readiness.outputs.ready == 'true'
         working-directory: target
         run: |
           node scripts/provider-discovery.mjs live \
@@ -144,7 +185,7 @@ jobs:
           cat "$RUNNER_TEMP/model-discovery/output/modelchangelog.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload discovery snapshot
-        if: always()
+        if: always() && steps.readiness.outputs.ready == 'true'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: model-discovery
