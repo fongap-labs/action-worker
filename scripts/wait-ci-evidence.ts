@@ -1,10 +1,10 @@
 import {
   getGithubJson,
-  getJsonArray,
   getJsonNumber,
   getJsonString,
   isJsonRecord,
 } from "./github-api.ts";
+import { trustedCiStatus } from "./ci-evidence.ts";
 import { writeFile } from "node:fs/promises";
 import {
   CliError,
@@ -57,6 +57,7 @@ export async function waitForCentralStatus(
   headSha: string,
   ci: Record<string, unknown>,
   token: string,
+  controlRepository: string,
   pollSeconds: number,
   timeoutMinutes: number,
 ): Promise<void> {
@@ -65,11 +66,10 @@ export async function waitForCentralStatus(
 
   while (Date.now() < deadline) {
     const response = await getGithubJson(`repos/${repository}/commits/${headSha}/status`, token);
-    const statuses = getJsonArray(response, "statuses").filter(isJsonRecord);
-    const status = statuses.find((item) => getJsonString(item, "context") === context);
+    const status = trustedCiStatus(response, context, controlRepository);
 
     if (!status) {
-      console.error(`Central CI pending: waiting for ${repository}@${headSha} context=${context}`);
+      console.error(`Central CI pending: waiting for trusted ${repository}@${headSha} context=${context}`);
       await sleep(pollSeconds * 1000);
       continue;
     }
@@ -127,10 +127,19 @@ async function main(): Promise<void> {
   }
 
   const token = process.env.GH_TOKEN ?? "";
-  if (!token) {
-    throw new CliError("::error::Central CI evidence token is unavailable.", 65);
+  const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
+  if (!token || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(controlRepository)) {
+    throw new CliError("::error::Central CI evidence authority is unavailable.", 65);
   }
-  await waitForCentralStatus(repository, headSha, ci, token, pollSeconds, timeoutMinutes);
+  await waitForCentralStatus(
+    repository,
+    headSha,
+    ci,
+    token,
+    controlRepository,
+    pollSeconds,
+    timeoutMinutes,
+  );
 }
 
 if (isMain(import.meta.url)) {
