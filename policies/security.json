@@ -43,11 +43,11 @@
     },
     {
       "name": "pull-request-target",
-      "pattern": "(?m)^\\s*pull_request_target\\s*:"
+      "pattern": "^\\s*pull_request_target\\s*:"
     },
     {
       "name": "write-all",
-      "pattern": "(?m)^\\s*permissions\\s*:\\s*write-all\\s*$"
+      "pattern": "^\\s*permissions\\s*:\\s*write-all\\s*$"
     }
   ],
   "require_pinned_actions": true
