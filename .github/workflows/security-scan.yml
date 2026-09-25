@@ -1,0 +1,103 @@
+name: Handle Security Scan Dispatch
+
+on:
+  repository_dispatch:
+    types: [run-security-scan]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-scan-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.source_sha }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    name: Prepare security scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    outputs:
+      repository: ${{ steps.resolve.outputs.repository }}
+      source_sha: ${{ steps.resolve.outputs.source_sha }}
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+      ref: ${{ steps.resolve.outputs.ref }}
+      matrix: ${{ steps.resolve.outputs.matrix }}
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Resolve trusted security scan
+        id: resolve
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          SECURITY_SCAN_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
+        run: node scripts/resolve-security-scan.ts policies/runner.json
+
+  analyze:
+    name: CodeQL / ${{ matrix.language }}
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    runs-on: ${{ fromJSON(matrix.runner_labels_json) }}
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout target source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.prepare.outputs.repository }}
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          path: target
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build_mode }}
+          source-root: target
+
+      - name: Analyze CodeQL
+        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4
+        with:
+          upload: never
+          upload-database: false
+          output: ${{ runner.temp }}/codeql-results
+          checkout_path: ${{ github.workspace }}/target
+          ref: ${{ needs.prepare.outputs.ref }}
+          sha: ${{ needs.prepare.outputs.source_sha }}
+          category: central/language:${{ matrix.language }}
+
+      - name: Checkout security publisher
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: control
+          persist-credentials: false
+
+      - name: Setup Node for publisher
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Publish SARIF to target repository
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+        run: |
+          node control/scripts/publish-security-scan.ts \
+            "${{ needs.prepare.outputs.repository }}" \
+            "${{ needs.prepare.outputs.source_sha }}" \
+            "${{ needs.prepare.outputs.ref }}" \
+            "$RUNNER_TEMP/codeql-results"
