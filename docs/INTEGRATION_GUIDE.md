@@ -178,6 +178,8 @@ immutable source
 
 中央仓不得维护按 repository/product 分组的 Release Build 矩阵。
 
+手动发布也从 Action Worker 的统一 Release Build workflow 发起：用户只选择受管 `source_repository` 和可选稳定版本号；Action Worker 自行读取该仓当前默认分支 HEAD，再执行同一 source/CI/provenance 校验。业务仓不需要为了“发一个 release 通知”启动自己的 Runner。
+
 ## 13. Deploy
 
 ```text
