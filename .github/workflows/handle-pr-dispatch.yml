@@ -107,6 +107,7 @@ jobs:
 
       - name: Resolve gateway bootstrap review model
         id: bootstrap_review
+        continue-on-error: true
         env:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
         run: node scripts/resolve-bootstrap-model.ts "$REPOSITORY" "$GITHUB_REPOSITORY_OWNER"
@@ -115,8 +116,8 @@ jobs:
         id: base_plan
         env:
           CONTEXT_JSON: ${{ steps.context.outputs.json }}
-          MODEL_OVERRIDE: ${{ steps.bootstrap_review.outputs.model }}
-        run: node scripts/resolve-pr-plan.ts "$CONTEXT_JSON" inherit inherit inherit inherit "$MODEL_OVERRIDE" auto "$GITHUB_WORKSPACE/policies"
+          MODEL_OVERRIDE: ${{ steps.bootstrap_review.outputs.model || 'auto' }}
+        run: node scripts/resolve-pr-plan.ts "$CONTEXT_JSON" inherit inherit inherit "$MODEL_OVERRIDE" auto "$GITHUB_WORKSPACE/policies"
 
       - name: Validate naming rules
         if: steps.base_plan.outputs.naming_required == 'true'
@@ -126,8 +127,15 @@ jobs:
         working-directory: target
         run: node "$GITHUB_WORKSPACE/scripts/validate-naming-rules.ts" "$BASE_SHA" "$HEAD_SHA"
 
+      - name: Validate security gate
+        env:
+          BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
+        run: node scripts/validate-security.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policies/security.json"
+
       - name: Validate AI Gateway access
         if: steps.base_plan.outputs.review_required == 'true'
+        continue-on-error: true
         env:
           AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
           AI_GATEWAY_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
@@ -184,6 +192,7 @@ jobs:
 
       - name: Wait for AI queue
         if: steps.base_plan.outputs.review_required == 'true'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -197,6 +206,7 @@ jobs:
 
       - name: Run AI Triage
         if: steps.base_plan.outputs.triage_required == 'true'
+        continue-on-error: true
         env:
           AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
           TRIAGE_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
@@ -216,6 +226,7 @@ jobs:
 
       - name: Resolve final plan
         id: plan
+        continue-on-error: true
         run: |
           node scripts/apply-ai-triage.ts \
             /tmp/pr-plan.base.json \
@@ -226,10 +237,12 @@ jobs:
       - name: Resolve OCR distribution
         id: ocr_dist
         if: steps.plan.outputs.review_required == 'true'
+        continue-on-error: true
         run: node scripts/resolve-ocr-distribution.ts "$GITHUB_WORKSPACE/policies/review.json"
 
       - name: Restore OCR cache
         if: steps.plan.outputs.review_required == 'true'
+        continue-on-error: true
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.ocr_dist.outputs.cache_dir }}
@@ -237,6 +250,7 @@ jobs:
 
       - name: Configure OpenCodeReview
         if: steps.plan.outputs.review_required == 'true'
+        continue-on-error: true
         env:
           OCR_REPOSITORY: ${{ steps.ocr_dist.outputs.repository }}
           OCR_VERSION: ${{ steps.ocr_dist.outputs.version }}
@@ -246,6 +260,7 @@ jobs:
 
       - name: Run AI review
         if: steps.plan.outputs.review_required == 'true'
+        continue-on-error: true
         env:
           AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
           OCR_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
@@ -254,7 +269,6 @@ jobs:
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           REVIEW_EFFORT: ${{ steps.plan.outputs.review_effort }}
           REVIEW_RULE: ${{ steps.plan.outputs.review_rule }}
-          BLOCK_SEVERITY: ${{ steps.plan.outputs.block_severity }}
           REVIEW_TASK_TIMEOUT: ${{ steps.plan.outputs.review_task_timeout }}
           REVIEW_CONCURRENCY: ${{ steps.plan.outputs.review_concurrency }}
           REVIEW_RESUME_ATTEMPTS: ${{ steps.plan.outputs.review_resume_attempts }}
@@ -266,11 +280,10 @@ jobs:
             target \
             "$BASE_SHA" \
             "$HEAD_SHA" \
-            "$GITHUB_WORKSPACE/rules/$REVIEW_RULE" \
-            "$BLOCK_SEVERITY"
+            "$GITHUB_WORKSPACE/rules/$REVIEW_RULE"
 
       - name: Validate CI evidence
-        if: steps.plan.outputs.ci_required == 'true'
+        if: steps.base_plan.outputs.ci_required == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail

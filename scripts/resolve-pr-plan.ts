@@ -69,7 +69,6 @@ type NamingPolicy = {
 export type PlanOptions = {
   namingMode: string;
   reviewMode: string;
-  blockOverride: string;
   effortOverride: string;
   modelOverride: string;
   agentOverride: string;
@@ -103,7 +102,6 @@ export type PrPlan = {
   triage_required: boolean;
   triage_model: string;
   triage_timeout: number;
-  block_severity: string;
   review_effort: string;
   route_severity: string;
 };
@@ -211,16 +209,10 @@ export function resolvePlan(
     }
   }
 
-  let blockSeverity: string;
   let routeSeverity: string;
-  if (context.risk === "high") {
-    blockSeverity = "high";
-    routeSeverity = "low";
-  } else if (context.risk === "medium") {
-    blockSeverity = "critical";
+  if (context.risk === "high" || context.risk === "medium") {
     routeSeverity = "low";
   } else {
-    blockSeverity = "none";
     routeSeverity = "medium";
   }
 
@@ -267,13 +259,6 @@ export function resolvePlan(
     throw new CliError("::error::naming_mode only supports inherit/on/off.", 64);
   }
 
-  if (options.blockOverride !== "inherit") {
-    if (!["none", "critical", "high", "medium", "low"].includes(options.blockOverride)) {
-      throw new CliError("::error::Invalid block_severity.", 64);
-    }
-    blockSeverity = options.blockOverride;
-  }
-
   if (options.effortOverride !== "inherit") {
     if (!["low", "medium", "high"].includes(options.effortOverride)) {
       throw new CliError("::error::review_effort only supports inherit/low/medium/high.", 64);
@@ -297,7 +282,6 @@ export function resolvePlan(
     isTriageRequired = false;
     triageModel = "";
     triageTimeout = 0;
-    blockSeverity = "none";
   } else {
     requireRange(reviewLlmTimeout, 1, 600, "::error::review_llm_timeout must be 1-600 seconds.");
     requireRange(reviewTaskTimeout, 1, 30, "::error::review_task_timeout must be 1-30 minutes.");
@@ -334,7 +318,6 @@ export function resolvePlan(
     triage_required: isTriageRequired,
     triage_model: triageModel,
     triage_timeout: triageTimeout,
-    block_severity: blockSeverity,
     review_effort: reviewEffort,
     route_severity: routeSeverity,
   };
@@ -379,15 +362,23 @@ async function loadPolicies(policyDir: string): Promise<PlanPolicies> {
     review: expectRecord<ReviewPolicy>(review, "review"),
     triage: expectRecord<TriagePolicy>(triage, "triage"),
     execution: expectRecord<ExecutionPolicy>(execution, "execution"),
-    aiAgents: parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? ""),
+    aiAgents: (() => {
+      try {
+        return parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? "");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`::warning::AI Agent configuration is invalid; advisory review is disabled for this run: ${message}`);
+        return parseAiAgentConfig("");
+      }
+    })(),
   };
 }
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  if (args.length !== 8) {
+  if (args.length !== 7) {
     throw new CliError(
-      "Usage: resolve-pr-plan.ts <context-json> <naming-mode> <review-mode> <block-severity> <review-effort> <review-model> <review-agent> <policy-dir>",
+      "Usage: resolve-pr-plan.ts <context-json> <naming-mode> <review-mode> <review-effort> <review-model> <review-agent> <policy-dir>",
       64,
     );
   }
@@ -395,18 +386,16 @@ async function main(): Promise<void> {
     contextJson,
     namingMode,
     reviewMode,
-    blockOverride,
     effortOverride,
     modelOverride,
     agentOverride,
     policyDir,
-  ] = args as [string, string, string, string, string, string, string, string];
+  ] = args as [string, string, string, string, string, string, string];
   const context = validateContext(parseJson(contextJson, "::error::Invalid PR context format."));
   const policies = await loadPolicies(policyDir);
   const plan = resolvePlan(context, policies, {
     namingMode,
     reviewMode,
-    blockOverride,
     effortOverride,
     modelOverride,
     agentOverride,

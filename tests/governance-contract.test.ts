@@ -33,7 +33,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "contracts/release-manifest.json", "contracts/release-provenance.json", "contracts/task-dispatch.json", "policies/deploy.json", "policies/execution.json", "policies/rulesets.json", "policies/triage.json",
     "package.json", "package-lock.json", "tsconfig.json", "scripts/validate-change-record.ts",
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
-    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-deploy-source.ts", "scripts/dispatch-central-deploy.ts",
+    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-security.ts", "scripts/validate-deploy-source.ts", "scripts/dispatch-central-deploy.ts",
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
     "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-pr-plan.ts", "scripts/run-ai-triage.ts", "scripts/runtime-command.ts",
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
@@ -87,6 +87,12 @@ test("runtime and machine policies preserve trust boundaries", async () => {
   ]);
   assert.equal((execution.ci as Record<string, unknown>).timeout_minutes, 120);
 
+  const security = await json("policies/security.json");
+  assert.equal(security.schema_version, 2);
+  assert.equal(security.require_pinned_actions, true);
+  assert.ok(Array.isArray(security.secret_patterns));
+  assert.ok(Array.isArray(security.workflow_forbidden_patterns));
+
   const release = await json("policies/release.json");
   assert.equal(release.schema_version, 2);
   assert.deepEqual(release.change_attributes, ["breaking", "security", "migration"]);
@@ -121,7 +127,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     "AI_GATEWAY_URL", "AIG_ACCESS_KEY_AGENT", "AW_AI_AGENT_CONFIG", "persist-credentials: false", "node-version: 24",
     "validate-pr-payload.ts", "validate-control-access.ts", "set-pr-status.ts", "validate-engineering-language.ts",
     "publish-pr-review.ts", "wait-ci-evidence.ts", "validate-ci-evidence.ts", "wait-review-turn.ts",
-    "validate-ai-gateway-access.ts", "run-ai-triage.ts", "apply-ai-triage.ts", "install-ocr.ts", "run-ai-review.ts",
+    "validate-ai-gateway-access.ts", "validate-security.ts", "run-ai-triage.ts", "apply-ai-triage.ts", "install-ocr.ts", "run-ai-review.ts",
     "Resolve governance ownership", "check-status-owner.ts",
     "Publish explicit no-CI evidence", "steps.base_plan.outputs.ci_required != 'true'",
     "CI not required by governance plan", "for context in \"CI Evidence\" \"ci-evidence\"",
@@ -133,10 +139,17 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   assert.doesNotMatch(workflow, /AW_REVIEW_ENGINE_REPOSITORY/);
   assert.match(workflow, /AW_AI_AGENT_CONFIG:\s*\$\{\{ vars\.AW_AI_AGENT_CONFIG \}\}/);
   assert.doesNotMatch(workflow, /AW_IS_AI_REVIEW_ENABLED/);
-  const order = ["- name: Collect CI evidence", "- name: Publish explicit no-CI evidence", "- name: Wait for AI queue", "- name: Run AI Triage", "- name: Resolve final plan", "- name: Run AI review", "- name: Validate CI evidence", "- name: Update final gate"];
+  const order = ["- name: Validate security gate", "- name: Collect CI evidence", "- name: Publish explicit no-CI evidence", "- name: Wait for AI queue", "- name: Run AI Triage", "- name: Resolve final plan", "- name: Run AI review", "- name: Validate CI evidence", "- name: Update final gate"];
   const positions = order.map((value) => workflow.indexOf(value));
   assert.ok(positions.every((value) => value >= 0));
   assert.deepEqual(positions, [...positions].sort((left, right) => left - right));
+  const aiReviewStep = workflow.slice(workflow.indexOf("      - name: Run AI review"), workflow.indexOf("      - name: Validate CI evidence"));
+  assert.match(aiReviewStep, /continue-on-error: true/);
+  assert.doesNotMatch(aiReviewStep, /BLOCK_SEVERITY|block_severity/);
+  assert.match(workflow, /Validate CI evidence\n\s+if: steps\.base_plan\.outputs\.ci_required == 'true'/);
+  const reviewRunner = await text("scripts/run-ai-review.ts");
+  assert.match(reviewRunner, /AI Review \(advisory\)/);
+  assert.doesNotMatch(reviewRunner, /merge is blocked|blocking findings|blockSeverity/);
 });
 
 test("task dispatch keeps the publication credential in the central control step", async () => {
@@ -261,6 +274,10 @@ test("central CI deploy dispatch is policy-driven after cutover", async () => {
 
   const workflow = await text(".github/workflows/central-ci-dispatch.yml");
   requireText(workflow, [
+    "Central CI / Security",
+    "validate-security.ts",
+    "SECURITY_RESULT",
+    "needs.security.result == 'success'",
     "Dispatch automatic deploy",
     "dispatch-central-deploy.ts",
     "policies/deploy.json",
@@ -364,9 +381,9 @@ test("tool distribution sync runs only in the central control plane", async () =
   ]);
 });
 
-test("self CI runs TypeScript checks without Shell test orchestration", async () => {
+test("self CI requires deterministic security checks", async () => {
   const workflow = await text(".github/workflows/validate-ci.yml");
-  requireText(workflow, ["validate-naming-rules.ts", "actionlint", "node-version: 24", "npm run typecheck", "npm test", "validate-merge"]);
+  requireText(workflow, ["Security checks", "validate-security.ts", "SECURITY_RESULT", "validate-naming-rules.ts", "actionlint", "node-version: 24", "npm run typecheck", "npm test", "validate-merge"]);
   assert.doesNotMatch(workflow, /shellcheck|tests\/test-[A-Za-z0-9-]+\.sh/);
 });
 

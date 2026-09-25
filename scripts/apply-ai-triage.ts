@@ -108,7 +108,6 @@ export function applyTriage(
         review_resume_attempts: 0,
         review_resume_backoff_seconds: 0,
         review_effort: "low",
-        block_severity: "none",
       });
       action = "skip";
     } else {
@@ -134,11 +133,6 @@ export function applyTriage(
           review_rule: rule,
         });
         action = "upgrade";
-      }
-      if (["security", "architecture"].includes(decisionAgent) || decisionRisk === "high") {
-        if (plan.block_severity === "none" || plan.block_severity === "critical") {
-          plan.block_severity = "high";
-        }
       }
       if ((decisionDepth === "deep" || decisionRisk === "high") && confidence >= deepConfidence) {
         plan.review_model = aiAgentModel(aiAgents, "review", "deep");
@@ -191,7 +185,6 @@ async function main(): Promise<void> {
         `review_concurrency=${String(output.review_concurrency)}`,
         `review_resume_attempts=${String(output.review_resume_attempts)}`,
         `review_resume_backoff_seconds=${String(output.review_resume_backoff_seconds)}`,
-        `block_severity=${asString(output.block_severity)}`,
         `review_effort=${asString(output.review_effort)}`,
       ]);
       const triage = isJsonRecord(output.triage) ? output.triage : {};
