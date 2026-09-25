@@ -77,11 +77,12 @@ async function openPullRequests(reader: GithubGet, repository: string): Promise<
 function needsDispatch(statuses: Map<string, string>): "dispatch" | "in-flight" | "processed" {
   const governance = statuses.get("PR Governance");
   const evidence = statuses.get("CI Evidence");
+  const mergeGate = statuses.get("validate-merge");
 
-  if (governance === "pending" || evidence === "pending") {
+  if (governance === "pending" || evidence === "pending" || mergeGate === "pending") {
     return "in-flight";
   }
-  if (governance && evidence) {
+  if (governance && evidence && mergeGate) {
     return "processed";
   }
   return "dispatch";

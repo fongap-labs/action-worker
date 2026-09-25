@@ -72,13 +72,11 @@ PR deterministic policy ─┼→ validate-merge → merge
                          └→ AI Review after gate (advisory only)
 ```
 
-`validate-merge` 是唯一 Merge Authority。AI Review 不属于它的输入，也不得改变它的结果。
+`validate-merge` 是唯一 Merge Authority。它由 Action Worker 在确定性 Security、CI Evidence 与 PR Policy 全部通过后直接发布到当前 PR head；AI Review 不属于它的输入，也不得改变它的结果。
 
-业务仓最终只暴露一个稳定 Required Check：`validate-merge`。它必须同时要求 Action Worker 生成、且与当前 source SHA 绑定的 `CI Evidence` 和 `PR Governance` 成功。业务仓如需创建该 Check，只保留极轻 bridge，不运行项目测试。
+业务仓不再负责创建 `validate-merge` Check。公开仓的 Ruleset 直接要求中央 `validate-merge` status；私有 Free 仓虽然没有同等平台硬门禁，Main Write Guard 仍要求同一中央状态，因此两类仓库使用同一治理事实。
 
-业务仓在 PR 关闭时必须发送 `cancel-pr-work`。Action Worker 通过与该 PR 完全相同的 `pr-governance-<repository>-<pr>` 和 `central-ci-<repository>-<pr>` concurrency group 抢占并终止已失效的重任务，不影响同仓库其他 PR。
-
-`validate-merge` 只能由业务仓 GitHub Actions bridge 调用 Action Worker reusable workflow 后创建为 GitHub Check Run；Central CI 只发布 `CI Evidence` / `ci-evidence` commit status，不得再发布同名 `validate-merge` status，避免 Required Check 身份冲突。
+业务仓在 PR 关闭时的本地 `cancel-pr-work` 只属于迁移期实时加速；中央 Intake / reconciliation 必须保证业务仓 Actions 不可用时，失效任务仍能被中央控制面识别和收敛。
 
 ## 4. GitHub native enforcement
 
@@ -99,7 +97,7 @@ GitHub native protection
 
 公开受管仓的 Repository Ruleset 由 Action Worker 中央管理，权威文件为 `policies/rulesets.json`。当前统一管理 `Protect Main Branch` 与 `Protect Legacy Branches`；不得在业务仓手工维护另一套规则定义。仓库设置与 Ruleset 均由 `apply-repo-settings.yml` 使用 `AW_ADMIN_TOKEN` 应用。
 
-原生 Ruleset / branch-protection 能力取决于仓库可用的 GitHub 套餐和连接权限。GitHub Free 组织只对公开仓提供 Ruleset 与 Protected Branch；私有仓必须把这一点视为平台限制，不能在文档、审计或自动化中宣称其拥有与公开仓相同的 `main` 强制保护。私有仓仍必须走中央 PR Governance / CI Evidence / validate-merge 流程，但在升级 GitHub 计划前，这属于流程约束而不是 GitHub 平台硬门禁。
+原生 Ruleset / branch-protection 能力取决于仓库可用的 GitHub 套餐和连接权限。GitHub Free 组织只对公开仓提供 Ruleset 与 Protected Branch；私有仓必须把这一点视为平台限制，不能在文档、审计或自动化中宣称其拥有与公开仓相同的 `main` 强制保护。私有仓仍必须走中央 PR Governance / CI Evidence / validate-merge 流程；GitHub 平台可以暂时缺少写入前强制，但 Main Write Guard 会在写入后隔离任何缺少中央 Merge Authority 的 main SHA。
 
 中央 `validate-merge` 合同仍应在所有受管仓保持一致；平台原生保护只在能力可用时作为额外强制层。
 
