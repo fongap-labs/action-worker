@@ -18,10 +18,10 @@ const shaPattern = /^[0-9a-f]{40}$/;
 const refPattern = /^refs\/(?:heads\/[A-Za-z0-9._/-]+|pull\/[1-9][0-9]*\/(?:head|merge))$/;
 
 async function sarifFiles(root: string): Promise<string[]> {
-  const entries = await readdir(root, { recursive: true, withFileTypes: true });
+  const entries = await readdir(root, { recursive: true });
   return entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".sarif"))
-    .map((entry) => join(entry.parentPath, entry.name))
+    .filter((entry) => entry.endsWith(".sarif"))
+    .map((entry) => join(root, entry))
     .sort();
 }
 
