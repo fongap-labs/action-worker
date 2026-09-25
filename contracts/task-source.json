@@ -4,16 +4,24 @@
   "title": "Task Source Manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "schedules"],
+  "required": [
+    "schema_version",
+    "schedules"
+  ],
   "properties": {
-    "schema_version": { "const": "1" },
+    "schema_version": {
+      "const": "1"
+    },
     "schedules": {
       "type": "array",
       "maxItems": 32,
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["cron", "projects"],
+        "required": [
+          "cron",
+          "projects"
+        ],
         "properties": {
           "cron": {
             "type": "string",
@@ -35,6 +43,9 @@
           }
         }
       }
+    },
+    "push": {
+      "type": "boolean"
     }
   }
 }
