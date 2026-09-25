@@ -276,6 +276,14 @@ Canonical terms：
 | publication | `release` |
 | Git tag | `tag` |
 | continuous integration | `CI` |
+| execution request | `execution request` |
+| project execution declaration | `execution manifest` |
+| generic execution unit | `executor` |
+| requested permission | `capability request` |
+| granted permission | `capability grant` |
+| abstract compute requirement | `runner profile` |
+| runner selection component | `runner resolver` |
+| compute provider class | `runner backend` |
 
 Preferred verbs：
 
@@ -286,7 +294,7 @@ build generate handle execute publish summarize
 
 ## 8. Action Worker only
 
-Action Worker is a generic control plane, so its own long-lived resource directories are limited to:
+Action Worker is a generic governance and execution plane. Stable authority remains in:
 
 ```text
 docs/
@@ -299,17 +307,23 @@ tests/
 
 Platform-required `.github/workflows/` is an exception.
 
+When the execution framework grows, repository-agnostic implementation layers such as `executors/`, `runners/`, or `adapters/` are allowed if they represent reusable capabilities and are driven by common contracts.
+
 Action Worker must not introduce repository-specific configuration structures such as:
 
 ```text
-projects/
-adapters/
-profiles/
+projects/<repository-or-product>/
+profiles/<repository-or-product>/
+<repository-name>/
 ```
+
+A generic adapter is allowed; an adapter whose purpose is effectively “special-case repository X” is not.
 
 This restriction does **not** apply to business repositories. A product repository may legitimately use `projects/`, `apps/`, `crates/`, `tools/`, `skills/`, `output/`, or other semantically correct project-specific directories.
 
 Action Worker CI enforces its own filename and architecture restrictions. Business repositories may add stricter project-specific naming checks, but must not redefine the shared vocabulary.
+
+For the unified execution plane, business repositories use `runner_profile` as the external contract field. They must not expose concrete infrastructure names such as GitHub runner image names, `self-hosted` labels, runner groups, hostnames, or cloud instance names as project-level configuration. `runner profile` describes requirements; `runner resolver` selects the actual `runner backend`.
 
 ## 9. Short version
 

@@ -1,46 +1,33 @@
 # 开发指引
 
-本文档定义 Action Worker 和受管业务仓共用的开发流程。具体规则以机器合同和治理文档为准。
+本文档定义 Action Worker 和受管业务仓共用的开发流程。机器边界以 contracts / policies / rules 和治理文档为准。
 
 ## 1. 开始前
 
-先确认：
+先判断：
 
-1. 变更属于中央治理还是项目实现；
-2. 是否已有可复用 Workflow、Script、Policy 或 Contract；
-3. 是否会改变安全边界、Gate 或 Release 语义；
+1. 这是项目实现还是通用治理 / 执行能力；
+2. 是否已有可复用 Contract、Policy、Executor 或 Skill；
+3. 是否改变 Trust、Secret、Runner、Gate、Release 或 Deploy 边界；
 4. 是否需要同步合同测试和文档。
 
 原则：
 
-> 能通用的治理能力进入 Action Worker；项目专属实现留在业务仓。
+> 项目实现留在业务仓；治理、授权和重执行统一进入 Action Worker。
 
-## 2. 中央与业务仓边界
+公开仓库与私有仓库遵守同一规则。
 
-Action Worker 适合承载：
+## 2. Action Worker owns
 
-- PR Governance；
-- AI Review；
-- CI Evidence；
-- Gate；
-- Source Policy；
-- Release Policy；
-- GitHub Release Publish；
-- Deploy Policy；
-- 通用状态回写；
-- 通用输入输出合同。
+Action Worker 承载：PR Governance、CI / test / build execution、AI Review、CI Evidence、Task / scheduled execution、Runner Resolution、Gate、Source Policy、Release build / governance / publish、Deploy governance / execution、Artifact / provenance、通用状态回写和通用输入输出合同。
 
-业务仓保留：
+## 3. Business repository owns
 
-- 产品代码；
-- 项目测试；
-- build / package / deploy 脚本；
-- 平台专属工具链；
-- 最薄的调度入口。
+业务仓保留：产品代码、项目测试、build / package / deploy 脚本、项目架构与协议、Execution Manifest、平台专属工具链声明、最薄 dispatch，以及 GitHub 平台确有需要时的极轻 Check bridge。
 
-禁止为单个项目在 Action Worker 增加仓库名分支或项目配置目录。
+业务仓不得保留第二套中央治理，也不得为了方便自己运行长期重型 CI / build / review / release / deploy。
 
-## 3. 开发流程
+## 4. 开发流程
 
 ```text
 Inspect
@@ -48,117 +35,64 @@ Inspect
 → Implement
 → Test
 → PR
-→ CI
-→ AI Review
+→ Central CI
+→ optional AI Review
 → Governance
 → Merge
 ```
 
-先改合同、Policy 或测试，再改实现，优先保证边界可验证。
+涉及边界变更时优先修改合同、Policy 或回归测试，再修改实现。
 
-## 4. CI 合同
+## 5. CI
 
-受管业务仓统一提供：
-
-```text
-.github/workflows/ci.yml
-        ↓
-validate-merge
-```
-
-`validate-merge` 只负责聚合项目自己的必要检查，不复制中央治理规则。
-
-Action Worker 需要 CI Evidence 时，只相信目标 head SHA 对应的成功 `validate-merge`。
-
-## 5. Workflow 修改
-
-Workflow 变更至少检查：
-
-- permissions 是否最小；
-- Secret 是否进入不可信执行域；
-- trigger 是否可能被 fork / PR 输入滥用；
-- concurrency 是否符合预期；
-- reusable workflow 的 caller / callee 权限边界；
-- actionlint / 合同测试，以及在存在 Shell 边界时执行 ShellCheck。
-
-TypeScript 控制逻辑使用 Node 24 直接运行，并通过 `npm run typecheck` 与 `npm test` 验证。仓库不保留独立 `.sh` 控制入口；Shell 只允许作为 Workflow 中短小的 Runner glue，或用于下载并启动外部 `bootstrap.sh` 这类明确的执行边界。
-
-### 工作统计自动回写
-
-`update-work-metrics.yml` 的权限边界固定为：
-
-- 跨仓统计读取使用 `AW_CONTROL_TOKEN`；
-- Action Worker 本仓创建统计 PR、运行 CI、合并与删除临时分支使用 `github.token`；
-- `main` 继续遵守 PR + `validate-merge`，不得通过直接 push 绕过规则。
-
-仓库或组织的 GitHub Actions 策略必须允许 workflow 请求 `contents: write` 与 `pull-requests: write`，并在 **Settings → Actions → General → Workflow permissions** 启用 **Allow GitHub Actions to create and approve pull requests**。若该开关关闭，统计分支可以创建，但创建 PR 会被 GitHub 以 403 拒绝。
-
-## 6. AI 与 Gate
-
-AI 负责判断风险和发现问题，不决定权限边界。
-
-Gate 必须由可验证结果组成，例如：
-
-- 确定性 policy；
-- CI Evidence；
-- 合法 OCR Review Result；
-- Release Policy；
-- GitHub 当前事实。
-
-Agent 不得通过重跑、换模型或降低阈值规避不利结果。
-
-## 7. Source / Release / Deploy
-
-Deploy 的 Commit 与 CI 准入继续复用：
+项目测试代码属于业务仓，执行默认属于 Action Worker Sandbox。
 
 ```text
-validate-source-policy.yml@main
-validate-deploy-policy.yml@main
+repository event
+→ thin dispatch
+→ Action Worker
+→ checkout immutable source
+→ project test / build
+→ CI Evidence
 ```
 
-Release 采用中央 Dispatch，不再由业务仓直接创建 Tag / Release：
+如果 GitHub 平台要求目标仓创建 Required Check，可保留极轻 `validate-merge` bridge。该 bridge 不运行产品测试，只汇合中央 `CI Evidence` 与 `PR Governance`。
+
+## 6. Runner
+
+项目代码不得绑定具体 Runner 基础设施。项目只声明 `runner_profile`。实际 GitHub-hosted / self-hosted 后端由 Action Worker Runner Policy 解析。
+
+新增 self-hosted Runner 不应要求修改业务仓。详细规则见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。
+
+## 7. Workflow 修改
+
+Workflow 变更至少检查：permissions 是否最小、Secret 是否进入不可信执行域、trigger 是否可被 fork / PR 输入滥用、concurrency 是否正确、source SHA 是否不可变、Runner 是否通过中央策略选择、artifact / evidence 是否绑定 source SHA，以及 actionlint / 合同测试 / ShellCheck。
+
+控制逻辑优先 TypeScript。Shell 只作为短小 Runner glue 或明确的外部 bootstrap 边界。
+
+## 8. AI 与 Gate
+
+AI 负责动态判断，不决定权限边界。Gate 只相信 deterministic policy、CI Evidence、合法 Review Result、Release / Deploy Policy、GitHub 当前事实和 execution provenance。
+
+Agent 不得通过重跑、换模型、换 Runner 或降低阈值规避不利结果。
+
+## 9. Release / Deploy
+
+业务仓拥有项目脚本；Action Worker 拥有中央执行、凭据和治理。
 
 ```text
-source build
-→ upload release artifact
-→ source workflow completed successfully
-→ thin workflow_run dispatcher
-→ run-release
-→ handle-release-dispatch.yml
-→ publish governed Release
+Release: immutable source → central build/package → artifact + provenance → Release Governance → publish / verify / rollback
+Deploy:  immutable source → central source gate → project deploy script → Runner Resolver → controlled deploy → health verify / rollback
 ```
 
-发布 artifact 根目录必须包含：
+## 10. 完成标准
 
-```text
-release-manifest.json
-<asset files declared by the manifest>
-```
+任务结束前确认：
 
-Manifest 必须提供目标仓、`release_key`、SemVer 与每个资产的 SHA256。Action Worker 会独立验证源仓默认 HEAD、`ci.yml`、源构建 Run、artifact 内容与哈希，并在目标仓发布：
-
-```text
-<release-key>-v<semver>
-```
-
-业务仓只持有用于发送 Release Dispatch 的 `AW_DISPATCH_TOKEN`；目标分发仓写凭据只保存在 Action Worker。
-
-中央发布凭据与运行配置：
-
-```text
-AW_CONTROL_TOKEN
-AW_REPOSITORY_POLICY
-```
-
-发布失败必须回滚本次 Tag 与 Release。
-
-## 8. 完成标准
-
-开发任务结束前确认：
-
-- 没有重复治理实现；
-- 没有新增项目特例；
+- 没有新增仓库名 / 项目名分支；
+- 没有新增业务仓重执行；
+- 没有把 Runner 基础设施写进项目合同；
+- 没有第二套 Secret / Gate / Release 权威；
 - 合同测试覆盖新边界；
-- CI 通过；
-- README / docs 与代码一致；
-- 旧入口已清理或明确兼容期限。
+- 文档区分当前实现与目标边界；
+- 旧入口已删除或明确进入迁移清单。
