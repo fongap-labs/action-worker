@@ -2,7 +2,7 @@
 
 Action Worker 是 Fongap 的 GitHub 自动化控制平面。
 
-长期边界以 [ARCHITECTURE_GOVERNANCE.md](ARCHITECTURE_GOVERNANCE.md) 为准；本文档描述当前实现与下一层收敛方向。
+长期边界以 [ARCHITECTURE_GOVERNANCE.md](ARCHITECTURE_GOVERNANCE.md) 为准；统一执行合同见 [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md)，Runner 与 self-hosted 边界见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。本文档描述当前实现与下一层收敛方向。
 
 ## 1. 核心模型
 
@@ -413,9 +413,9 @@ contracts/release-manifest.json
 
 ```text
 source repository allowlist
-→ source default HEAD
-→ successful source build run
-→ successful ci.yml
+→ immutable source SHA
+→ trusted central CI Evidence
+→ successful artifact run
 → exact Actions artifact
 → release-manifest.json
 → declared file set
@@ -427,7 +427,7 @@ source repository allowlist
 → publish or rollback
 ```
 
-源仓只保存最薄事件入口所需凭据。Artifact 可以来自源仓，也可以来自 Action Worker 中央构建；两种模式都必须用 provenance 将 artifact run 绑定到 source commit。Action Worker 使用 `AW_CONTROL_TOKEN` 读取源仓和 artifact，并写分发目标。
+源仓只保存最薄事件入口所需凭据。目标模式要求 Artifact 由 Action Worker 中央执行产生，并用 provenance 将 artifact run 绑定到 source commit。迁移期仍接受的源仓本地 Artifact 只用于旧链路收口，不得成为新接入模式。Action Worker 使用中央凭据读取源仓和 artifact，并写分发目标。
 
 Tag 固定为 `<release-key>-v<semver>`。不保留裸 `v<semver>` 兼容路径。
 
