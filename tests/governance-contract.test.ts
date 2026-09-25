@@ -307,6 +307,7 @@ test("security scanning is source-owned, centrally executed, and private-safe", 
     "upload: never",
     "publish-security-scan.ts",
     "AW_CONTROL_TOKEN",
+    "AW_ADMIN_TOKEN",
   ]);
   assert.doesNotMatch(workflow, /actions\/(?:upload|download)-artifact/);
   assert.doesNotMatch(workflow, /fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)/);
@@ -335,7 +336,13 @@ test("security scanning is source-owned, centrally executed, and private-safe", 
     "commit_sha",
     "processing_status",
     "tool_name: \"CodeQL\"",
+    "AW_ADMIN_TOKEN",
   ]);
+  assert.doesNotMatch(publisher, /AW_CONTROL_TOKEN/);
+  assert.match(
+    workflow,
+    /- name: Publish SARIF to target repository[\s\S]*?AW_ADMIN_TOKEN: \$\{\{ secrets\.AW_ADMIN_TOKEN \}\}/,
+  );
 
   const intake = await text(".github/workflows/security-scan-intake.yml");
   requireText(intake, [

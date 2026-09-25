@@ -94,7 +94,7 @@ jobs:
 
       - name: Publish SARIF to target repository
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_ADMIN_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
         run: |
           node control/scripts/publish-security-scan.ts \
             "${{ needs.prepare.outputs.repository }}" \
