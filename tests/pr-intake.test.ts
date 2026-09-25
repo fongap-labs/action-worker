@@ -136,3 +136,33 @@ test("central PR intake ignores business-repository pending statuses", async () 
   assert.equal(result.in_flight, 0);
   assert.equal(result.dispatched, 1);
 });
+
+test("central PR intake excludes the control repository without hardcoded names", async () => {
+  const controlRepository = "fongap-labs/control";
+  const businessRepository = "fongap-labs/business";
+  const dispatched: string[] = [];
+
+  const result = await scanOpenPullRequests(
+    {
+      [controlRepository]: ["pr"],
+      [businessRepository]: ["pr"],
+    },
+    {
+      async get(path: string): Promise<unknown> {
+        assert.doesNotMatch(path, /fongap-labs\/control/);
+        if (path.includes("/pulls?")) {
+          return [{ number: 3, head: { sha: shaA } }];
+        }
+        return { statuses: [] };
+      },
+    },
+    async (repository) => {
+      dispatched.push(repository);
+    },
+    controlRepository,
+  );
+
+  assert.deepEqual(dispatched, [businessRepository]);
+  assert.equal(result.repositories, 1);
+  assert.equal(result.open_pull_requests, 1);
+});
