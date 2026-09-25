@@ -13,6 +13,10 @@ import {
   readJson,
 } from "./runtime-command.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
+import {
+  parseRunnerPolicy,
+  resolveRunnerProfile,
+} from "./runner-policy.ts";
 
 type VersionSource = {
   type: "cargo-workspace" | "cargo-package";
@@ -21,14 +25,15 @@ type VersionSource = {
 
 type BuildEntry = {
   id: string;
-  runner: string;
+  runner_profile: string;
   target: string;
   script: string;
   assets: string[];
   attest_asset: string;
 };
 
-type ReleaseBuildEntry = {
+export type ReleaseBuildManifest = {
+  schema_version: 1;
   artifact_name: string;
   target_repository: string;
   release_key: string;
@@ -42,18 +47,13 @@ type ReleaseBuildEntry = {
   builds: BuildEntry[];
 };
 
-type ReleaseBuildPolicy = {
-  schema_version: 1;
-  repositories: Record<string, ReleaseBuildEntry>;
-};
-
 function exactKeys(value: Record<string, unknown>, required: readonly string[]): boolean {
   const actual = Object.keys(value).sort();
   const expected = [...required].sort();
   return actual.length === expected.length && actual.every((item, index) => item === expected[index]);
 }
 
-function decodeContent(value: unknown): string {
+export function decodeGithubContent(value: unknown): string {
   if (!isJsonRecord(value) || value.encoding !== "base64" || typeof value.content !== "string") {
     throw new CliError("GitHub contents response is invalid.", 65);
   }
@@ -92,86 +92,89 @@ function isAssetName(value: unknown, isEmptyAllowed = false): value is string {
     && ((isEmptyAllowed && value === "") || /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value));
 }
 
-export function parseReleaseBuildPolicy(value: unknown): ReleaseBuildPolicy {
+export function parseReleaseBuildManifest(value: unknown): ReleaseBuildManifest {
   if (!isJsonRecord(value)
+    || !exactKeys(value, [
+      "artifact_name",
+      "builds",
+      "license_expression",
+      "node_version_file",
+      "python_version_file",
+      "release_key",
+      "release_name",
+      "release_notes",
+      "sbom_asset",
+      "schema_version",
+      "target_repository",
+      "version_source",
+    ])
     || value.schema_version !== 1
-    || !isJsonRecord(value.repositories)
-    || Object.keys(value.repositories).length === 0
+    || !isAssetName(value.artifact_name)
+    || typeof value.target_repository !== "string"
+    || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value.target_repository)
+    || typeof value.release_key !== "string"
+    || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.release_key)
+    || typeof value.release_name !== "string"
+    || value.release_name.length < 1
+    || typeof value.release_notes !== "string"
+    || typeof value.license_expression !== "string"
+    || value.license_expression.length < 1
+    || !isRelativePath(value.node_version_file)
+    || !isRelativePath(value.python_version_file)
+    || !isAssetName(value.sbom_asset, true)
+    || !isJsonRecord(value.version_source)
+    || !exactKeys(value.version_source, ["path", "type"])
+    || !["cargo-workspace", "cargo-package"].includes(String(value.version_source.type))
+    || !isRelativePath(value.version_source.path)
+    || value.version_source.path === ""
+    || !Array.isArray(value.builds)
+    || value.builds.length < 1
+    || value.builds.length > 32
   ) {
-    throw new CliError("Release build policy is invalid.", 65);
+    throw new CliError("Release build manifest is invalid.", 65);
   }
 
-  for (const [repository, raw] of Object.entries(value.repositories)) {
-    if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)
-      || !isJsonRecord(raw)
-      || !exactKeys(raw, [
-        "artifact_name",
-        "builds",
-        "license_expression",
-        "node_version_file",
-        "python_version_file",
-        "release_key",
-        "release_name",
-        "release_notes",
-        "sbom_asset",
-        "target_repository",
-        "version_source",
-      ])
-      || !isAssetName(raw.artifact_name)
-      || typeof raw.target_repository !== "string" || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(raw.target_repository)
-      || typeof raw.release_key !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(raw.release_key)
-      || typeof raw.release_name !== "string" || raw.release_name.length < 1
-      || typeof raw.release_notes !== "string"
-      || typeof raw.license_expression !== "string" || raw.license_expression.length < 1
-      || !isRelativePath(raw.node_version_file)
-      || !isRelativePath(raw.python_version_file)
-      || !isAssetName(raw.sbom_asset, true)
-      || !isJsonRecord(raw.version_source)
-      || !exactKeys(raw.version_source, ["path", "type"])
-      || !["cargo-workspace", "cargo-package"].includes(String(raw.version_source.type))
-      || !isRelativePath(raw.version_source.path)
-      || raw.version_source.path === ""
-      || !Array.isArray(raw.builds) || raw.builds.length < 1
+  const ids = new Set<string>();
+  const assets = new Set<string>();
+  for (const build of value.builds) {
+    if (!isJsonRecord(build)
+      || !exactKeys(build, ["assets", "attest_asset", "id", "runner_profile", "script", "target"])
+      || typeof build.id !== "string"
+      || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(build.id)
+      || typeof build.runner_profile !== "string"
+      || !/^[a-z][a-z0-9-]{0,63}$/.test(build.runner_profile)
+      || typeof build.target !== "string"
+      || !/^[A-Za-z0-9_.-]+$/.test(build.target)
+      || typeof build.script !== "string"
+      || !/^\.github\/scripts\/[A-Za-z0-9._-]+\.ps1$/.test(build.script)
+      || !Array.isArray(build.assets)
+      || build.assets.length < 1
+      || !build.assets.every((asset) => isAssetName(asset))
+      || new Set(build.assets).size !== build.assets.length
+      || !isAssetName(build.attest_asset, true)
+      || (build.attest_asset !== "" && !build.assets.includes(build.attest_asset))
     ) {
-      throw new CliError(`Release build policy entry is invalid: ${repository}.`, 65);
+      throw new CliError("Release build matrix entry is invalid.", 65);
     }
 
-    const ids = new Set<string>();
-    const assets = new Set<string>();
-    for (const build of raw.builds) {
-      if (!isJsonRecord(build)
-        || !exactKeys(build, ["assets", "attest_asset", "id", "runner", "script", "target"])
-        || typeof build.id !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(build.id)
-        || typeof build.runner !== "string" || !/^windows-[A-Za-z0-9.-]+$/.test(build.runner)
-        || typeof build.target !== "string" || !/^[A-Za-z0-9_.-]+$/.test(build.target)
-        || typeof build.script !== "string" || !/^\.github\/scripts\/[A-Za-z0-9._-]+\.ps1$/.test(build.script)
-        || !Array.isArray(build.assets) || build.assets.length < 1
-        || !build.assets.every((asset) => isAssetName(asset))
-        || !isAssetName(build.attest_asset, true)
-        || (build.attest_asset !== "" && !build.assets.includes(build.attest_asset))
-      ) {
-        throw new CliError(`Release build matrix entry is invalid: ${repository}.`, 65);
-      }
-
-      if (ids.has(build.id)) {
-        throw new CliError(`Duplicate release build id: ${build.id}.`, 65);
-      }
-      ids.add(build.id);
-
-      for (const asset of build.assets) {
-        if (assets.has(asset)) {
-          throw new CliError(`Duplicate release asset name: ${asset}.`, 65);
-        }
-        assets.add(asset);
-      }
+    if (ids.has(build.id)) {
+      throw new CliError(`Duplicate release build id: ${build.id}.`, 65);
     }
+    ids.add(build.id);
 
-    if (raw.sbom_asset !== "" && assets.has(raw.sbom_asset)) {
-      throw new CliError(`SBOM asset duplicates a build asset: ${raw.sbom_asset}.`, 65);
+    for (const asset of build.assets) {
+      if (assets.has(asset)) {
+        throw new CliError(`Duplicate release asset name: ${asset}.`, 65);
+      }
+      assets.add(asset);
     }
   }
 
-  return value as ReleaseBuildPolicy;
+  if (value.sbom_asset !== "" && assets.has(value.sbom_asset)) {
+    throw new CliError(`SBOM asset duplicates a build asset: ${value.sbom_asset}.`, 65);
+  }
+
+  return value as unknown as ReleaseBuildManifest;
 }
 
 export function parseReleaseBuildRequest(value: unknown): {
@@ -183,10 +186,14 @@ export function parseReleaseBuildRequest(value: unknown): {
   if (!isJsonRecord(value)
     || !exactKeys(value, ["request_id", "requested_version", "schema_version", "source_repository", "source_sha"])
     || value.schema_version !== "1"
-    || typeof value.request_id !== "string" || !/^[A-Za-z0-9._:-]{1,128}$/.test(value.request_id)
-    || typeof value.source_repository !== "string" || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value.source_repository)
-    || typeof value.source_sha !== "string" || !/^[0-9a-f]{40}$/.test(value.source_sha)
-    || typeof value.requested_version !== "string" || value.requested_version.length > 64
+    || typeof value.request_id !== "string"
+    || !/^[A-Za-z0-9._:-]{1,128}$/.test(value.request_id)
+    || typeof value.source_repository !== "string"
+    || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value.source_repository)
+    || typeof value.source_sha !== "string"
+    || !/^[0-9a-f]{40}$/.test(value.source_sha)
+    || typeof value.requested_version !== "string"
+    || value.requested_version.length > 64
   ) {
     throw new CliError("Release build dispatch payload is invalid.", 64);
   }
@@ -202,7 +209,6 @@ async function main(): Promise<void> {
   const request = parseReleaseBuildRequest(
     parseJson(process.env.RELEASE_BUILD_REQUEST_JSON ?? "", "Release build request must be valid JSON.", 64),
   );
-  const policy = parseReleaseBuildPolicy(await readJson(process.argv[2] ?? "policies/release-build.json"));
   const repositoryPolicy = parseJson(
     process.env.AW_REPOSITORY_POLICY ?? "",
     "::error::AW_REPOSITORY_POLICY must be valid JSON.",
@@ -214,11 +220,6 @@ async function main(): Promise<void> {
   }
 
   validateRepositoryCapability(request.source_repository, repositoryPolicy, "release-source");
-  const entry = policy.repositories[request.source_repository];
-  if (!entry) {
-    throw new CliError(`Repository has no central release build policy: ${request.source_repository}.`, 77);
-  }
-  validateRepositoryCapability(entry.target_repository, repositoryPolicy, "release-target");
 
   const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
   const repository = await reader.get(`repos/${request.source_repository}`);
@@ -244,11 +245,19 @@ async function main(): Promise<void> {
     throw new CliError("Release build source has no trusted successful CI Evidence.", 65);
   }
 
-  const contentResponse = await reader.get(
-    `repos/${request.source_repository}/contents/${entry.version_source.path}?ref=${request.source_sha}`,
+  const manifestResponse = await reader.get(
+    `repos/${request.source_repository}/contents/.github/release-build.json?ref=${request.source_sha}`,
   );
-  const versionContent = decodeContent(contentResponse);
-  const version = entry.version_source.type === "cargo-workspace"
+  const manifest = parseReleaseBuildManifest(
+    parseJson(decodeGithubContent(manifestResponse), "Release build manifest must be valid JSON.", 65),
+  );
+  validateRepositoryCapability(manifest.target_repository, repositoryPolicy, "release-target");
+
+  const versionResponse = await reader.get(
+    `repos/${request.source_repository}/contents/${manifest.version_source.path}?ref=${request.source_sha}`,
+  );
+  const versionContent = decodeGithubContent(versionResponse);
+  const version = manifest.version_source.type === "cargo-workspace"
     ? parseCargoWorkspaceVersion(versionContent)
     : parseCargoPackageVersion(versionContent);
 
@@ -260,23 +269,36 @@ async function main(): Promise<void> {
     );
   }
 
-  const matrix = entry.builds.map(({ id, runner, target, script, attest_asset }) => ({
-    id,
-    runner,
-    target,
-    script,
-    attest_asset,
-  }));
+  const runnerPolicy = parseRunnerPolicy(
+    await readJson(process.argv[2] ?? "policies/runner.json"),
+  );
+  const matrix = manifest.builds.map((build) => {
+    const resolved = resolveRunnerProfile(runnerPolicy, build.runner_profile);
+    if (resolved.profile.trust_domain !== "sandbox") {
+      throw new CliError(
+        `Release build runner profile must use the sandbox trust domain: ${build.runner_profile}.`,
+        77,
+      );
+    }
+    return {
+      id: build.id,
+      runner_profile: resolved.name,
+      runner_labels_json: JSON.stringify(resolved.profile.labels),
+      target: build.target,
+      script: build.script,
+      attest_asset: build.attest_asset,
+    };
+  });
 
   await appendLines(process.env.GITHUB_OUTPUT, [
     `source_repository=${request.source_repository}`,
     `source_sha=${request.source_sha}`,
     `version=${version}`,
-    `artifact_name=${entry.artifact_name}`,
-    `target_repository=${entry.target_repository}`,
-    `node_version_file=${entry.node_version_file}`,
-    `python_version_file=${entry.python_version_file}`,
-    `sbom_asset=${entry.sbom_asset}`,
+    `artifact_name=${manifest.artifact_name}`,
+    `target_repository=${manifest.target_repository}`,
+    `node_version_file=${manifest.node_version_file}`,
+    `python_version_file=${manifest.python_version_file}`,
+    `sbom_asset=${manifest.sbom_asset}`,
     `matrix=${JSON.stringify({ include: matrix })}`,
   ]);
 
@@ -285,11 +307,11 @@ async function main(): Promise<void> {
       source_repository: request.source_repository,
       source_sha: request.source_sha,
       version,
-      artifact_name: entry.artifact_name,
-      target_repository: entry.target_repository,
-      node_version_file: entry.node_version_file,
-      python_version_file: entry.python_version_file,
-      sbom_asset: entry.sbom_asset,
+      artifact_name: manifest.artifact_name,
+      target_repository: manifest.target_repository,
+      node_version_file: manifest.node_version_file,
+      python_version_file: manifest.python_version_file,
+      sbom_asset: manifest.sbom_asset,
       builds: matrix.map((item) => item.id),
     }),
   );

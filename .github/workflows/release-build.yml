@@ -45,7 +45,7 @@ jobs:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           RELEASE_BUILD_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
-        run: node scripts/validate-release-build-request.ts policies/release-build.json
+        run: node scripts/validate-release-build-request.ts policies/runner.json
 
   build-windows:
     name: Build release / ${{ matrix.id }}
@@ -53,7 +53,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ fromJSON(matrix.runner_labels_json) }}
     timeout-minutes: 90
 
     permissions:
@@ -146,8 +146,7 @@ jobs:
           path: ${{ runner.temp }}/release-package
           merge-multiple: true
 
-      - name: Checkout source for SBOM
-        if: ${{ needs.prepare.outputs.sbom_asset != '' }}
+      - name: Checkout release source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ needs.prepare.outputs.source_repository }}
@@ -170,7 +169,7 @@ jobs:
       - name: Build manifest and provenance
         run: |
           node scripts/package-release-build.ts \
-            policies/release-build.json \
+            "$GITHUB_WORKSPACE/source/.github/release-build.json" \
             "${{ needs.prepare.outputs.source_repository }}" \
             "${{ needs.prepare.outputs.source_sha }}" \
             "${{ needs.prepare.outputs.version }}" \

@@ -133,9 +133,11 @@ immutable source
 → finalize / rollback
 ```
 
-业务仓只保留项目 build / package 脚本，不保留目标仓发布凭据。
+业务仓保留项目 build / package 脚本，并在 `.github/release-build.json` 声明版本来源、构建目标、资产与抽象 `runner_profile`。Action Worker 从不可变 source SHA 读取并验证该 manifest，再通过中央 Runner Policy 选择实际 Runner。
 
-迁移期旧源仓 build artifact 只能继续缩小，不得作为新项目模板。
+项目 manifest 不得声明中央 Secret、Token 或具体 GitHub/self-hosted Runner label。目标仓发布凭据始终留在 Action Worker。
+
+中央仓不得维护按 repository/product 分组的 Release Build 矩阵。
 
 ## 10. Deploy
 
