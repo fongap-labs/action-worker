@@ -35,7 +35,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
     "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/intake-main-ci.ts", "scripts/intake-open-prs.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-security.ts", "scripts/validate-deploy-source.ts", "scripts/dispatch-central-deploy.ts", "scripts/main-write-guard.ts", "scripts/audit-main-writes.ts",
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
-    "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/execution-contract.ts", "scripts/execution-policy.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-execution-plan.ts", "scripts/resolve-pr-plan.ts", "scripts/run-ai-triage.ts", "scripts/run-execution-job.ts", "scripts/runner-policy.ts", "scripts/runtime-command.ts",
+    "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/execution-contract.ts", "scripts/execution-policy.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-ci-capabilities.ts", "scripts/resolve-execution-plan.ts", "scripts/resolve-pr-plan.ts", "scripts/run-ai-triage.ts", "scripts/run-execution-job.ts", "scripts/runner-policy.ts", "scripts/runtime-command.ts",
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
     "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
@@ -280,8 +280,10 @@ test("central CI deploy dispatch is policy-driven after cutover", async () => {
     "contents: write",
     "AW_REPOSITORY_POLICY",
     'repository-policy.ts validate "$REPOSITORY" pr',
+    'resolve-ci-capabilities.ts "$REPOSITORY" "$CONTROL_REF"',
+    "needs.prepare.outputs.has_windows == 'true'",
   ]);
-  assert.doesNotMatch(workflow, /case "\$REPOSITORY"|fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)\|/);
+  assert.doesNotMatch(workflow, /case "\$REPOSITORY"|needs\.prepare\.outputs\.repository == 'fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)'|fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)\|/);
   assert.match(workflow, /for context in "CI Evidence" "ci-evidence"; do/);
   assert.doesNotMatch(workflow, /for context in "CI Evidence" "ci-evidence" "validate-merge"/);
 });
