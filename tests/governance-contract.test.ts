@@ -77,14 +77,7 @@ test("runtime and machine policies preserve trust boundaries", async () => {
   assert.deepEqual(execution.control, { execute_pr_code: false, allow_secrets: true });
   assert.deepEqual(execution.sandbox, { execute_pr_code: true, allow_secrets: false });
   assert.deepEqual((execution.ci as Record<string, unknown>).gate_jobs, ["ci-evidence", "validate-merge"]);
-  assert.deepEqual((execution.ci as Record<string, unknown>).central_repositories, [
-    "fongap-labs/ai-gateway",
-    "fongap-labs/delta",
-    "fongap-labs/delta-suite",
-    "fongap-labs/app-source",
-    "fongap-labs/internal-vault",
-    "fongap-labs/external-vault",
-  ]);
+  assert.equal("central_repositories" in (execution.ci as Record<string, unknown>), false);
   assert.equal((execution.ci as Record<string, unknown>).timeout_minutes, 120);
 
   const security = await json("policies/security.json");
@@ -285,7 +278,10 @@ test("central CI deploy dispatch is policy-driven after cutover", async () => {
     "policies/deploy.json",
     "needs.prepare.outputs.pr_number == '0'",
     "contents: write",
+    "AW_REPOSITORY_POLICY",
+    'repository-policy.ts validate "$REPOSITORY" pr',
   ]);
+  assert.doesNotMatch(workflow, /case "\$REPOSITORY"|fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)\|/);
   assert.match(workflow, /for context in "CI Evidence" "ci-evidence"; do/);
   assert.doesNotMatch(workflow, /for context in "CI Evidence" "ci-evidence" "validate-merge"/);
 });
