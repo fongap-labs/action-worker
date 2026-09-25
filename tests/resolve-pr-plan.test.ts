@@ -59,7 +59,7 @@ test("documentation changes keep review and CI disabled", async () => {
     risk: "low",
   });
   const plan = resolvePlan(context, await loadPolicies(), defaults);
-  assert.deepEqual(plan.checks, ["naming"]);
+  assert.deepEqual(plan.checks, ["naming", "secret-scan"]);
   assert.deepEqual(plan.tests, []);
   assert.equal(plan.ci_required, false);
   assert.equal(plan.review_required, false);
@@ -76,7 +76,7 @@ test("workflow changes route through normal triage", async () => {
     risk: "medium",
   });
   const plan = resolvePlan(context, await loadPolicies(), defaults);
-  assert.deepEqual(plan.checks, ["actionlint", "naming"]);
+  assert.deepEqual(plan.checks, ["actionlint", "naming", "secret-scan"]);
   assert.equal(plan.ci_required, true);
   assert.equal(plan.review_agent, "workflow");
   assert.equal(plan.review_model, "Code-Pro");
