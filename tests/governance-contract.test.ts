@@ -30,14 +30,14 @@ test("governance files and TypeScript control entries exist", async () => {
     "AGENTS.md", "CLAUDE.md", "docs/README.md", "docs/ARCHITECTURE.md", "docs/ARCHITECTURE_GOVERNANCE.md",
     "docs/NAMING_CONVENTIONS.md", "docs/CHANGELOG_CONVENTIONS.md", "docs/DEVELOPMENT_GUIDE.md",
     "contracts/change-record.json", "contracts/deploy-dispatch.json", "contracts/execution-manifest.json", "contracts/execution-request.json", "contracts/main-write-dispatch.json", "contracts/pr-task.json", "contracts/release-build.json", "contracts/release-dispatch.json",
-    "contracts/release-manifest.json", "contracts/release-provenance.json", "contracts/task-dispatch.json", "policies/capabilities.json", "policies/deploy.json", "policies/execution.json", "policies/runner.json", "policies/rulesets.json", "policies/triage.json",
+    "contracts/release-manifest.json", "contracts/release-provenance.json", "contracts/task-dispatch.json", "contracts/task-source.json", "policies/capabilities.json", "policies/deploy.json", "policies/execution.json", "policies/runner.json", "policies/rulesets.json", "policies/triage.json",
     "package.json", "package-lock.json", "tsconfig.json", "scripts/validate-change-record.ts",
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
     "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/intake-main-ci.ts", "scripts/intake-open-prs.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-security.ts", "scripts/validate-deploy-source.ts", "scripts/dispatch-central-deploy.ts", "scripts/main-write-guard.ts", "scripts/audit-main-writes.ts",
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
     "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/execution-contract.ts", "scripts/execution-policy.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-ci-capabilities.ts", "scripts/resolve-execution-plan.ts", "scripts/resolve-pr-plan.ts", "scripts/run-ai-triage.ts", "scripts/run-execution-job.ts", "scripts/runner-policy.ts", "scripts/runtime-command.ts",
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
-    "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/validate-task-publication.ts",
+    "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/dispatch-scheduled-tasks.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
     ".github/workflows/aig-deploy.yml", ".github/workflows/aig-scheduled-ci.yml", ".github/workflows/deployment-readiness.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
     ".github/workflows/ci-intake.yml", ".github/workflows/main-write-audit.yml", ".github/workflows/main-write-guard.yml", ".github/workflows/model-discovery.yml", ".github/workflows/pr-intake.yml", ".github/workflows/release-build.yml", ".github/workflows/server-edge-deploy.yml",
@@ -180,6 +180,30 @@ test("task dispatch keeps the publication credential in the central control step
 
   const publication = await text("scripts/validate-task-publication.ts");
   requireText(publication, ["release-source", "release-target", "action-worker-publication", "target_repository", "dest_dir"]);
+});
+
+test("task source scheduling is source-owned and repository-agnostic", async () => {
+  const workflow = await text(".github/workflows/task-source-dispatch.yml");
+  requireText(workflow, [
+    "AW_REPOSITORY_POLICY",
+    'repository-policy.ts validate "$repository" task',
+    "dispatch-scheduled-tasks.ts",
+    "AW_CONTROL_REPOSITORY",
+    "github.event_name == 'repository_dispatch'",
+    "github.event_name == 'schedule'",
+  ]);
+  assert.doesNotMatch(workflow, /fongap-labs\/internal-vault|MarketBrief|PharmaBrief|commits\/main/);
+
+  const scheduler = await text("scripts/dispatch-scheduled-tasks.ts");
+  requireText(scheduler, [
+    ".github/task-source.json",
+    'repositoriesForCapability(policyValue, "task")',
+    "projectsForSchedule",
+    "projects/",
+    "task.json",
+    "run-task",
+  ]);
+  assert.doesNotMatch(scheduler, /fongap-labs\/internal-vault|MarketBrief|PharmaBrief/);
 });
 
 test("release, source, deploy, merge, and repository settings contracts remain intact", async () => {
