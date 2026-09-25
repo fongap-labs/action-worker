@@ -23,6 +23,9 @@ test("central PR intake scans every managed repository independent of visibility
         target_url: "https://github.com/fongap-labs/action-worker/actions/runs/12",
       }],
     }],
+    ["repos/fongap-labs/action-worker/actions/runs/12", {
+      status: "in_progress",
+    }],
     [`repos/fongap-labs/private-one/commits/${shaC}/status`, {
       statuses: [
         {
@@ -165,4 +168,53 @@ test("central PR intake excludes the control repository without hardcoded names"
   assert.deepEqual(dispatched, [businessRepository]);
   assert.equal(result.repositories, 1);
   assert.equal(result.open_pull_requests, 1);
+});
+
+test("central PR intake retries stale pending control-plane runs", async () => {
+  const repository = "fongap-labs/example";
+  const dispatched: number[] = [];
+
+  const result = await scanOpenPullRequests(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path.includes("/pulls?")) {
+          return [{ number: 17, head: { sha: shaA } }];
+        }
+        if (path.endsWith("/status")) {
+          return {
+            statuses: [
+              {
+                context: "PR Governance",
+                state: "pending",
+                target_url: "https://github.com/fongap-labs/action-worker/actions/runs/44",
+              },
+              {
+                context: "CI Evidence",
+                state: "pending",
+                target_url: "https://github.com/fongap-labs/action-worker/actions/runs/44",
+              },
+              {
+                context: "validate-merge",
+                state: "pending",
+                target_url: "https://github.com/fongap-labs/action-worker/actions/runs/44",
+              },
+            ],
+          };
+        }
+        if (path === "repos/fongap-labs/action-worker/actions/runs/44") {
+          return { status: "completed", conclusion: "cancelled" };
+        }
+        throw new Error(`unexpected API path: ${path}`);
+      },
+    },
+    async (_repository, pr) => {
+      dispatched.push(pr);
+    },
+    "fongap-labs/action-worker",
+  );
+
+  assert.deepEqual(dispatched, [17]);
+  assert.equal(result.in_flight, 0);
+  assert.equal(result.dispatched, 1);
 });
