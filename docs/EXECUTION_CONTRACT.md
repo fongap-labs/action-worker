@@ -105,17 +105,28 @@ operation
 
 ## 6. Execution Manifest
 
-Execution Manifest 描述项目自己的执行需求，例如：
+Execution Manifest 固定放在业务仓 `.github/execution-manifest.json`，描述项目自己的执行需求，例如：
 
 ```text
 operation
 runner_profile
-commands
+command
 matrix
 artifacts
 timeout
 capability_requests
 ```
+
+`command` 使用参数数组，不使用拼接后的 shell 字符串。通用 Executor 只替换以下受控运行时 token：
+
+```text
+{target_root}
+{control_root}
+{temp_root}
+{matrix.<key>}
+```
+
+其中 `control_root` 指可信执行声明/脚本检出目录，`target_root` 指待验证 source SHA 的源码目录。PR 场景必须从可信 base/default branch 读取 Manifest 与项目脚本，不能直接执行 PR head 自带的新 Manifest。
 
 Manifest 可以描述：
 
@@ -182,9 +193,20 @@ if product == ...
 
 公开仓库和私有仓库使用同一 Execution Contract。
 
-私有仓可以保留最薄 dispatch workflow 触发 Action Worker，但不得因此继续运行完整 CI、build、review、release 或 deploy。
+长期目标是中央 Execution Ingress 直接接收 GitHub App、Webhook 或其他可信事件源，并在 Action Worker 创建 Execution Request。业务仓 GitHub Actions 的可用性、额度或 Runner 状态不得成为中央治理和执行的前置条件。
 
-如果未来由 GitHub App、Webhook 或其他可信事件源直接创建 Execution Request，可以进一步删除业务仓的 dispatch Runner；这属于入口优化，不改变统一执行边界。
+业务仓现有最薄 dispatch workflow 仅属于迁移路径。它可以暂时触发 Action Worker，但不得继续运行完整 CI、build、review、release 或 deploy，也不得成为长期安全前提。
+
+目标链路：
+
+```text
+GitHub repository event
+→ trusted central ingress
+→ Action Worker Execution Request
+→ central governance / execution
+```
+
+因此，私有仓 Actions 分钟耗尽时，不应阻断长期架构中的 PR Governance、CI、Release 或 Deploy。
 
 ## 10. Main provenance requirement
 
