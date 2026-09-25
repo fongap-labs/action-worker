@@ -40,7 +40,8 @@ Self CI
 Action Worker
 = 通用规则
 + 调用验证
-+ 执行编排
++ 统一执行编排
++ Runner Resolution
 + AI Review
 + Gate
 + Source / Release / Deploy 控制
@@ -48,8 +49,9 @@ Action Worker
 业务仓
 = 产品代码
 + 测试代码
-+ 构建与运行必需文件
-+ 最薄事件触发器（不包含治理策略）
++ 项目级 build / package / deploy 脚本
++ Execution Manifest
++ 最薄事件触发器（不包含治理策略和重执行）
 ```
 
 Action Worker 不维护项目目录、不维护项目专属测试映射、不按仓库名称分支执行逻辑。
@@ -89,7 +91,7 @@ Action Worker 收到任务后必须：
 - 使用 `AW_CONTROL_TOKEN` 从 GitHub 重新获取 PR base/head SHA、标题、状态和 diff；
 - checkout `refs/pull/<n>/head` 后再次与 GitHub 当前 PR 事实对齐；如果调度到检出之间 PR 已更新，则以实际检出 commit 与最新 PR API 一致的 base/head/title 作为本次治理事实，避免把同步窗口误判为永久失败；
 - 只读取目标 PR，不执行 PR 提供的代码；
-- 当执行计划要求 CI 时，先读取目标 head SHA 对应的业务仓 `ci.yml`，收集真实 CI Evidence；
+- 当执行计划要求 CI 时，由 Action Worker checkout 目标不可变 head SHA，并在 Sandbox 执行项目 Manifest / 测试脚本，生成真实 CI Evidence；
 - 将 CI Evidence 作为不可信执行证据提供给 AI Review，不把其中任何文本当成指令；
 - 用中央 `AI_GATEWAY_URL` / `AIG_ACCESS_KEY_AGENT` 执行 AI Review；
 - 根据 finding severity 与确定性 CI Evidence 共同计算 Gate；
@@ -175,28 +177,37 @@ if repository == ai-gateway
 
 `policies/checks.json` 与 `policies/tests.json` 描述通用验证类别。
 
-项目测试代码继续与产品代码一起维护。
+项目测试代码继续与产品代码一起维护，但重执行统一收敛到 Action Worker Sandbox。
 
 Action Worker 负责决定：
 
 ```text
 本次是否需要 CI 证据
 需要覆盖哪些通用测试类别
-业务仓 CI 最终是否满足 Gate
+使用哪个 runner_profile
+如何生成与 source SHA 绑定的 CI Evidence
+最终是否满足 Gate
 ```
 
-Action Worker 不复制项目测试实现，也不保存“某仓库必须执行某命令”的项目映射。业务仓继续维护项目原生测试、构建和平台矩阵，并通过统一的 `.github/workflows/ci.yml` 暴露两级稳定终态：
+Action Worker 不复制项目测试实现，也不保存“某仓库必须执行某命令”的项目映射。项目命令与平台需求由受版本控制的 Execution Manifest / 项目脚本描述。
+
+目标模式：
 
 ```text
-ci-evidence      = 项目测试 / 构建 / 许可证等本地证据
-validate-merge   = 最终合并门禁
+repository event
+→ Action Worker
+→ checkout immutable source
+→ Sandbox test / build / verify
+→ CI Evidence
+→ PR Governance
+→ validate-merge bridge when required
 ```
 
-当 PR Plan 判定 `ci_required=true` 时，Action Worker 使用 `AW_CONTROL_TOKEN` 等待当前 head SHA 对应的 `ci-evidence` 完成并形成结构化 Evidence。当 `ci_required=false` 时，Action Worker 仍显式写入成功的 `CI Evidence`，说明该 PR 按治理计划无需执行 CI；Evidence 不允许以“缺失”表示“不需要”。迁移期间允许旧仓回退读取 `validate-merge`，但新接入必须提供 `ci-evidence`。AI Review 可以读取该 Evidence 评估覆盖是否充分；随后 `validate-ci-evidence.ts` 确定性要求 evidence job 成功。
+当 `ci_required=false` 时，Action Worker 仍显式产生“无需执行 CI”的成功 Evidence；Evidence 不允许以缺失表示“不需要”。
 
-Action Worker 完成 AI / Policy Gate 后向 commit 写入 `PR Governance` status。业务仓最终 `validate-merge` 使用中央 `.github/actions/validate-merge-policy`，只有 `ci-evidence=success` 且 `PR Governance=success` 才通过。这样现有 Ruleset 只要求 `validate-merge` 也能把中央治理变成硬门禁。
+业务仓如因 GitHub Ruleset 必须创建 `validate-merge` Check，只保留极轻 bridge，用于汇合中央 `CI Evidence` 与 `PR Governance`，不得再运行项目测试。
 
-因此 Sandbox 的实际执行可以留在业务仓 Runner，控制权与最终准入仍集中在 Action Worker。
+迁移期旧业务仓 CI Runner 属于待清理路径，只允许缩小，不允许作为新增仓库模板。
 
 ## 7. AI Agent Runtime
 
@@ -371,16 +382,16 @@ Task 使用 `AW_CONTROL_TOKEN` 获取受管私有仓固定 Commit；bootstrap �
 
 ## 9. Source 与 Release
 
-`validate-source-policy.yml` 继续服务 Deploy 等需要在调用仓内验证 Commit / CI 的场景。
+`validate-source-policy.yml` 继续作为当前迁移期 Source Gate 之一；长期 Source / CI 准入统一由中央 Execution Contract 生成可验证 Evidence。
 
-Release 改为中央事件驱动链路，不再通过业务仓调用 `validate-release-policy.yml` / `publish-release.yml`：
+Release 的目标链路为中央事件驱动：
 
 ```text
-source build workflow
-  ↓ upload artifact
-workflow_run completed + success
-  ↓ AW_DISPATCH_TOKEN
-repository_dispatch: run-release
+immutable source
+  ↓
+Action Worker central build / package
+  ↓
+release artifact + provenance
   ↓
 handle-release-dispatch.yml
   ↓
@@ -388,6 +399,8 @@ validate-release-request.ts
   ↓
 publish-release.ts
 ```
+
+业务仓本地 source build workflow 只属于迁移兼容路径，不得用于新接入。
 
 机器合同：
 
@@ -436,9 +449,9 @@ source repository manual intent
 
 Project-specific build commands remain in the source repository as narrow scripts. Runner selection, Node/Python/Rust setup, build attestation, package-level SBOM generation, artifact aggregation, target repository, release manifest generation, provenance, publication, verification, and rollback are centrally governed.
 
-The current central build matrix covers App Source / SecurePigeon and Delta Windows Portable.
+The current central build matrix still contains project-specific entries for existing products. This is migration debt, not the target architecture. These entries must move toward project-owned Execution Manifests plus generic Action Worker executors.
 
-Release targets are versioned in `policies/release-build.json`; business repositories must not keep duplicate release-target variables.
+Release targets and publication authority remain centrally governed; project build recipes must not be duplicated into a permanent repository-name mapping.
 
 ## 11. Tool Distribution
 
@@ -486,7 +499,7 @@ The AI Gateway executor requires the current default-branch HEAD and a successfu
 
 ## 13. 目录
 
-Action Worker 按职责分层，目录清单只描述长期边界，不再枚举每个实现文件：
+Action Worker 按职责分层。下面先列当前迁移期入口；其中带产品或具体部署目标语义的 workflow 属于待通用化对象，不构成长期命名模板：
 
 ```text
 .github/workflows/
@@ -536,7 +549,7 @@ adapters/
 profiles/
 ```
 
-项目专属 build / test / deploy 实现留在业务仓；Action Worker 只保存中央治理、执行框架和明确的受管执行器。
+项目专属 build / test / deploy 实现留在业务仓；Action Worker 只保存中央治理、通用执行框架和 Runner Resolution。业务仓脚本由 Action Worker checkout 后执行，不等于业务仓自己承担 Runner 重执行。
 
 ## 14. CI
 
