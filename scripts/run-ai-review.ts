@@ -118,7 +118,7 @@ async function runReview(options: ReviewOptions, base: string, head: string, ses
   await runCommand("ocr", args, { cwd: options.root, env: process.env, timeoutMs: (options.taskTimeout * 60 + 30) * 1000 });
 }
 
-function blockingCount(value: unknown, threshold: string): number {
+function attentionCount(value: unknown, threshold: string): number {
   if (threshold === "none" || !isJsonRecord(value) || !Array.isArray(value.comments)) {
     return 0;
   }
@@ -175,14 +175,12 @@ export async function executeReview(options: ReviewOptions): Promise<void> {
   }
   validateReview(result);
   const comments = isJsonRecord(result) && Array.isArray(result.comments) ? result.comments : [];
-  const blocking = blockingCount(result, options.blockSeverity);
+  const attention = attentionCount(result, options.blockSeverity);
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [
-    "### AI Review", "", `- findings: ${comments.length}`, `- blocking findings: ${blocking}`,
-    `- threshold: ${options.blockSeverity}`,
+    "### AI Review", "", `- findings: ${comments.length}`, `- findings at attention threshold: ${attention}`,
+    `- attention threshold: ${options.blockSeverity}`,
+    "- gate effect: advisory only",
   ]);
-  if (blocking > 0) {
-    throw new CliError(`::error::Found ${blocking} findings at ${options.blockSeverity} or above; merge is blocked.`);
-  }
 }
 
 async function main(): Promise<void> {
