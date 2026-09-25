@@ -107,7 +107,7 @@ AIG_ACCESS_KEY_AGENT
 
 业务仓原则上只保留用于薄 dispatch 的最小凭据。中央管理、跨仓写、AI Gateway 和生产凭据不得下沉。
 
-`AW_EXECUTION_TOKEN` 不再作为独立长期凭据；中央执行使用最小权限的现有 Authority 与 GitHub 原生短期凭据组合。
+`AW_EXECUTION_TOKEN` 已删除，不再配置。中央执行使用最小权限的现有 Authority 与 GitHub 原生短期凭据组合。
 
 ## 8. Release
 
