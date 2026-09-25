@@ -1,10 +1,14 @@
 import {
   GithubReader,
-  getJsonArray,
-  getJsonString,
   githubEnvironment,
   isJsonRecord,
 } from "./github-api.ts";
+import {
+  decodeGithubContent,
+  parseDependencyRepairManifest,
+  resolveDependencyRepairFacts,
+  selectDependencyRepair,
+} from "./dependency-repair.ts";
 import { trustedControlRunId } from "./ci-evidence.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import {
@@ -25,6 +29,8 @@ export type IntakeResult = {
   repositories: number;
   open_pull_requests: number;
   dispatched: number;
+  repair_dispatched: number;
+  repair_blocked: number;
   in_flight: number;
   already_processed: number;
 };
@@ -43,9 +49,10 @@ function statusMap(value: unknown, controlRepository: string): Map<string, Statu
   const statuses = new Map<string, StatusFact>();
   for (const item of value.statuses) {
     if (!isJsonRecord(item)) continue;
-    const context = getJsonString(item, "context");
-    const state = getJsonString(item, "state");
-    const runId = trustedControlRunId(getJsonString(item, "target_url"), controlRepository);
+    const context = typeof item.context === "string" ? item.context : "";
+    const state = typeof item.state === "string" ? item.state : "";
+    const targetUrl = typeof item.target_url === "string" ? item.target_url : "";
+    const runId = trustedControlRunId(targetUrl, controlRepository);
     if (!runId) continue;
     if (context && state && !statuses.has(context)) {
       statuses.set(context, { state, run_id: runId });
@@ -63,7 +70,7 @@ function pullFacts(value: unknown): { number: number; headSha: string } {
   ) {
     throw new CliError("GitHub pull request response is invalid.", 65);
   }
-  const headSha = getJsonString(value.head, "sha");
+  const headSha = typeof value.head.sha === "string" ? value.head.sha : "";
   if (!shaPattern.test(headSha)) {
     throw new CliError("GitHub pull request head SHA is invalid.", 65);
   }
@@ -73,11 +80,14 @@ function pullFacts(value: unknown): { number: number; headSha: string } {
 async function openPullRequests(reader: GithubGet, repository: string): Promise<Array<{ number: number; headSha: string }>> {
   const pulls: Array<{ number: number; headSha: string }> = [];
   for (let page = 1; page <= 20; page += 1) {
-    const values = getJsonArray(await reader.get(
+    const response = await reader.get(
       `repos/${repository}/pulls?state=open&per_page=100&page=${page}`,
-    ));
-    pulls.push(...values.map(pullFacts));
-    if (values.length < 100) break;
+    );
+    if (!Array.isArray(response)) {
+      throw new CliError("GitHub API returned an invalid response.", 65);
+    }
+    pulls.push(...response.map(pullFacts));
+    if (response.length < 100) break;
   }
   return pulls;
 }
@@ -99,7 +109,7 @@ async function needsDispatch(
   )];
   for (const runId of pendingRunIds) {
     const run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
-    const runStatus = getJsonString(run, "status");
+    const runStatus = isJsonRecord(run) && typeof run.status === "string" ? run.status : "";
     if (["queued", "in_progress", "pending", "waiting", "requested"].includes(runStatus)) {
       return "in-flight";
     }
@@ -114,11 +124,68 @@ async function needsDispatch(
   return "dispatch";
 }
 
+function isMissingManifest(error: unknown): boolean {
+  return error instanceof Error && /HTTP 404\b/.test(error.message);
+}
+
+export async function needsDependencyRepair(
+  reader: GithubGet,
+  repository: string,
+  prNumber: number,
+  headSha: string,
+): Promise<boolean> {
+  const request = {
+    schema_version: "1" as const,
+    request_id: `intake-repair:${repository.replace(/[^A-Za-z0-9_.-]/g, "-")}:${prNumber}:${headSha.slice(0, 12)}`,
+    repository,
+    pr_number: prNumber,
+    head_sha: headSha,
+  };
+  const facts = await resolveDependencyRepairFacts(reader, request);
+  let manifestResponse: unknown;
+  try {
+    manifestResponse = await reader.get(
+      `repos/${repository}/contents/.github/dependency-repair.json?ref=${facts.base_sha}`,
+    );
+  } catch (error) {
+    if (isMissingManifest(error)) return false;
+    throw error;
+  }
+  const manifest = parseDependencyRepairManifest(
+    parseJson(
+      decodeGithubContent(manifestResponse),
+      "Dependency repair manifest must be valid JSON.",
+      65,
+    ),
+  );
+  return selectDependencyRepair(manifest, facts) !== null;
+}
+
+async function repairState(
+  statuses: Map<string, StatusFact>,
+  reader: GithubGet,
+  controlRepository: string,
+): Promise<"dispatch" | "in-flight" | "ready" | "blocked"> {
+  const repair = statuses.get("Dependency Repair");
+  if (!repair) return "dispatch";
+  if (repair.state === "success") return "ready";
+  if (repair.state === "failure" || repair.state === "error") return "blocked";
+  if (repair.state !== "pending") return "dispatch";
+
+  const run = await reader.get(`repos/${controlRepository}/actions/runs/${repair.run_id}`);
+  const runStatus = isJsonRecord(run) && typeof run.status === "string" ? run.status : "";
+  if (["queued", "in_progress", "pending", "waiting", "requested"].includes(runStatus)) {
+    return "in-flight";
+  }
+  return "dispatch";
+}
+
 export async function scanOpenPullRequests(
   policyValue: unknown,
   reader: GithubGet,
   dispatch: Dispatch,
   controlRepository: string,
+  dispatchRepair?: Dispatch,
 ): Promise<IntakeResult> {
   const repositories = repositoriesForCapability(policyValue, "pr")
     .filter((repository) => repository !== controlRepository);
@@ -126,6 +193,8 @@ export async function scanOpenPullRequests(
     repositories: repositories.length,
     open_pull_requests: 0,
     dispatched: 0,
+    repair_dispatched: 0,
+    repair_blocked: 0,
     in_flight: 0,
     already_processed: 0,
   };
@@ -138,15 +207,33 @@ export async function scanOpenPullRequests(
         await reader.get(`repos/${repository}/commits/${pull.headSha}/status`),
         controlRepository,
       );
-      const action = await needsDispatch(statuses, reader, controlRepository);
-      if (action === "in-flight") {
+      const governanceAction = await needsDispatch(statuses, reader, controlRepository);
+      if (governanceAction === "in-flight") {
         result.in_flight += 1;
         continue;
       }
-      if (action === "processed") {
+      if (governanceAction === "processed") {
         result.already_processed += 1;
         continue;
       }
+
+      if (dispatchRepair && await needsDependencyRepair(reader, repository, pull.number, pull.headSha)) {
+        const state = await repairState(statuses, reader, controlRepository);
+        if (state === "in-flight") {
+          result.in_flight += 1;
+          continue;
+        }
+        if (state === "blocked") {
+          result.repair_blocked += 1;
+          continue;
+        }
+        if (state === "dispatch") {
+          await dispatchRepair(repository, pull.number, pull.headSha);
+          result.repair_dispatched += 1;
+          continue;
+        }
+      }
+
       await dispatch(repository, pull.number, pull.headSha);
       result.dispatched += 1;
     }
@@ -155,16 +242,17 @@ export async function scanOpenPullRequests(
   return result;
 }
 
-async function dispatchPullRequest(
+async function dispatchEvent(
   controlRepository: string,
   token: string,
+  eventType: string,
   repository: string,
   prNumber: number,
   headSha: string,
 ): Promise<void> {
   const safeRepository = repository.replace(/[^A-Za-z0-9_.-]/g, "-");
   const body = {
-    event_type: "run-pr-governance",
+    event_type: eventType,
     client_payload: {
       schema_version: "1",
       request_id: `intake:${safeRepository}:${prNumber}:${headSha.slice(0, 12)}`,
@@ -205,9 +293,12 @@ async function main(): Promise<void> {
     parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
     reader,
     async (repository, prNumber, headSha) => {
-      await dispatchPullRequest(controlRepository, dispatchToken, repository, prNumber, headSha);
+      await dispatchEvent(controlRepository, dispatchToken, "run-pr-governance", repository, prNumber, headSha);
     },
     controlRepository,
+    async (repository, prNumber, headSha) => {
+      await dispatchEvent(controlRepository, dispatchToken, "run-dependency-repair", repository, prNumber, headSha);
+    },
   );
 
   console.log(JSON.stringify(result));
