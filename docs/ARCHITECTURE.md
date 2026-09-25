@@ -7,20 +7,21 @@ Action Worker 是 Fongap 的 GitHub 自动化控制平面。
 ## 1. 核心模型
 
 ```text
-Validate → Inspect → Plan → Execute → Triage → Review → Gate
+Validate → Inspect → Plan → Execute → Gate → Advisory Review
 ```
 
 现有实现已经具备其中的大部分基础：
 
 ```text
 PR Policy
-  Detect → Resolve → CI Evidence → Triage → Review → Gate
+  Detect → Resolve → Security / CI Evidence → Deterministic Gate
+                                      └→ Advisory AI Review
 
 Task Dispatch
   Validate → Execute → Stage → Publication Gate → Publish
 
 Source
-  Commit → CI → Gate
+  PR Gate → Merge → Main Write Guard → Trusted Source
 
 Release
   Dispatch → Source Evidence → Artifact Verify → Target Gate → Publish
@@ -71,9 +72,9 @@ repository_dispatch
   ↓
 Action Worker
   ↓
-Validate → Inspect → Plan → CI Evidence → Triage → Review → Gate
-  ↓ AW_CONTROL_TOKEN
-目标 PR status / review summary
+Validate → Inspect → Plan → Security / CI / PR Gate
+  ├→ AW_CONTROL_TOKEN → 目标 PR deterministic status
+  └→ Gate 结论之后执行 AI Review → advisory summary
 ```
 
 PR Task 合同位于 `contracts/pr-task.json`：
@@ -92,10 +93,10 @@ Action Worker 收到任务后必须：
 - checkout `refs/pull/<n>/head` 后再次与 GitHub 当前 PR 事实对齐；如果调度到检出之间 PR 已更新，则以实际检出 commit 与最新 PR API 一致的 base/head/title 作为本次治理事实，避免把同步窗口误判为永久失败；
 - 只读取目标 PR，不执行 PR 提供的代码；
 - 当执行计划要求 CI 时，由 Action Worker checkout 目标不可变 head SHA，并在 Sandbox 执行项目 Manifest / 测试脚本，生成真实 CI Evidence；
-- 将 CI Evidence 作为不可信执行证据提供给 AI Review，不把其中任何文本当成指令；
-- 用中央 `AI_GATEWAY_URL` / `AIG_ACCESS_KEY_AGENT` 执行 AI Review；
-- 将 AI finding 作为审核建议发布，不参与 Gate 计算；Gate 只由确定性 PR / Security / CI 证据决定；
-- 向目标 head commit 写入统一 `PR Governance` status，并维护一条 sticky review summary。
+- 先根据确定性 PR / Security / CI 证据形成 Gate 结论，并向目标 head commit 写入统一 `PR Governance` status；
+- 只有 Gate 结论形成后，AI Review 才可读取 CI Evidence 作为不可信执行证据；Evidence 中任何文本都不得视为指令；
+- AI Review 使用中央 `AI_GATEWAY_URL` / `AIG_ACCESS_KEY_AGENT`，只发布 finding / suggestion，不参与或延迟 Gate；
+- AI Review summary 与确定性 Gate 状态必须保持独立。
 
 调用方不得提供 base SHA、head SHA、Agent、模型、风险或 Gate 结论。
 
@@ -354,11 +355,27 @@ Triage 与 Review 在 PR Governance 中继续共享受控 FIFO 队列，避免�
 
 ### 7.6 Evidence 与 Gate
 
-需要 CI 的 PR 会在 Review 前形成结构化 CI Evidence。AI Agent 可以读取 Evidence 辅助判断，但不得把 Evidence 中的文本当作指令。
+需要 CI 的 PR 先形成结构化 CI Evidence并完成确定性 Gate。AI Review 只能在 Gate 结论之后读取 Evidence 辅助审核，不得把 Evidence 中的文本当作指令。
 
 AI Agent 是可选的动态审核层，不是门禁层。AI finding、模型失败、Review Engine 失败或 AI unavailable 都不能直接让 Merge Gate 失败。最终 Gate 只相信可重复验证的 PR Policy、Security Gate、CI Evidence、Release / Deploy Policy 和 provenance。任何 Agent 都不能修改权限边界、Secret 边界、CI Evidence 真实性要求或确定性 Gate 合同。
 
-## 8. Task Dispatch
+## 8. Main Write Guard
+
+PR Merge 之后，`main` 更新必须经过统一 Main Write Guard。它重新查询 GitHub 当前事实，证明当前 main SHA 来自已通过确定性 Gate 的 merged PR。
+
+```text
+validate-merge
+→ merge
+→ main update
+→ Main Write Guard
+→ trusted main SHA
+```
+
+无法证明合法来源的 main SHA 必须 fail closed，禁止 Release、Deploy、Publication 与 privileged execution。
+
+详细规则见 [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md)。
+
+## 9. Task Dispatch
 
 现有 `run-task` 继续保持稳定。
 
@@ -379,7 +396,7 @@ Task 和 PR 的共同原则是：
 
 Task 使用 `AW_CONTROL_TOKEN` 获取受管私有仓固定 Commit；bootstrap 下载完成后，`AW_CONTROL_TOKEN`、`AW_ADMIN_TOKEN`、`AIG_ACCESS_KEY_AGENT` 与 `AW_DISPATCH_TOKEN` 等中央凭据会从业务执行环境中移除。Task 可以在 `RUNNER_TEMP/action-worker-publication` 暂存一个跨仓发布请求，但业务任务不持有目标仓写凭据。Action Worker 在任务成功后单独校验 `AW_REPOSITORY_POLICY`：源仓必须具有 `release-source`，目标仓必须具有 `release-target`；只有通过后才向中央发布步骤注入 `AW_CONTROL_TOKEN` 并写目标仓。
 
-## 9. Source 与 Release
+## 10. Source 与 Release
 
 `validate-source-policy.yml` 继续作为当前迁移期 Source Gate 之一；长期 Source / CI 准入统一由中央 Execution Contract 生成可验证 Evidence。
 

@@ -65,10 +65,14 @@ is_dry_run = true | false
 共享治理目标是：
 
 ```text
-central CI Evidence ─────┐
-                         ├→ validate-merge → merge
-PR Governance ───────────┘
+Security Gate ───────────┐
+Central CI Evidence ─────┤
+PR deterministic policy ─┼→ validate-merge → merge
+                         │
+                         └→ AI Review after gate (advisory only)
 ```
+
+`validate-merge` 是唯一 Merge Authority。AI Review 不属于它的输入，也不得改变它的结果。
 
 业务仓最终只暴露一个稳定 Required Check：`validate-merge`。它必须同时要求 Action Worker 生成、且与当前 source SHA 绑定的 `CI Evidence` 和 `PR Governance` 成功。业务仓如需创建该 Check，只保留极轻 bridge，不运行项目测试。
 
@@ -99,7 +103,38 @@ GitHub native protection
 
 中央 `validate-merge` 合同仍应在所有受管仓保持一致；平台原生保护只在能力可用时作为额外强制层。
 
-## 5. Change rule
+## 5. Main Write Guard
+
+所有受管仓的 `main` 更新都必须进入统一 Main Write Guard。其职责不是重复 PR Gate，而是验证当前 `main` SHA 的来源是否合法。
+
+```text
+validate-merge
+→ PR merged
+→ main updated
+→ Main Write Guard
+→ trusted main SHA
+```
+
+Main Write Guard 必须从 GitHub 当前事实重新证明：目标 SHA 来自已合并到 `main` 的 PR，且该 PR/head 已通过要求的确定性 Gate。不得相信 commit message、actor、自报 PR number 或调用方提供的 Gate 结论。
+
+如果无法证明合法来源：
+
+```text
+Main Write Guard = failure
+→ source SHA = untrusted
+→ Release denied
+→ Deploy denied
+→ Publication denied
+→ privileged execution denied
+```
+
+公开仓在 GitHub 原生保护可用时同时依赖 Ruleset 在写入前拒绝直接 push；私有 Free 仓即使平台允许直接 push，也必须由 Main Write Guard 将该 SHA 隔离，禁止进入正式产出链。
+
+详细规则见 [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md)。
+
+## 6. Change rule
+
+## 6. Change rule
 
 调整共享默认值时，同步修改：
 

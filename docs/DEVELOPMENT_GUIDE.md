@@ -37,10 +37,13 @@ Inspect
 → PR
 → Security Gate
 → Central CI
-→ Governance
-→ Merge
+→ Governance / validate-merge
+├→ Merge
+└→ AI Review (post-gate, advisory)
 
-optional AI Review → findings / suggestions
+Merge
+→ Main Write Guard
+→ trusted main SHA
 ```
 
 涉及边界变更时优先修改合同、Policy 或回归测试，再修改实现。
@@ -76,13 +79,19 @@ Security Gate 必须独立于 AI Review，至少阻止新增高置信度凭据�
 
 ## 8. AI 与 Gate
 
-AI 负责审核、建议和问题发现，不决定权限边界，也不决定 Merge Gate。AI finding 无论严重级别都属于 advisory evidence；AI Review 超时、模型不可用或 Review Engine 失败不会把一个通过确定性门禁的 PR 改成失败。
+AI 负责审核、建议和问题发现，不决定权限边界，也不决定 Merge Gate。AI Review 必须位于确定性 PR Gate 结论之后运行；AI finding 无论严重级别都属于 advisory evidence。AI Review 超时、模型不可用或 Review Engine 失败既不能改变 Gate，也不能延迟 Gate 结论。
 
 Gate 只相信 deterministic policy、Security Gate、CI Evidence、PR Policy、Release / Deploy Policy、GitHub 当前事实和 execution provenance。
 
 Agent 不得通过重跑、换模型、换 Runner 或任何 Review 参数改变确定性 Gate。
 
-## 9. Release / Deploy
+## 9. Main Write Guard
+
+任何进入正式 Release / Deploy 的 source SHA 必须先通过 Main Write Guard。分支名为 `main` 不是可信来源证明。
+
+直接 push、未知写入或无法与已通过 Gate 的 merged PR 建立关系的 SHA 必须 fail closed。
+
+## 10. Release / Deploy
 
 业务仓拥有项目脚本；Action Worker 拥有中央执行、凭据和治理。
 
@@ -91,7 +100,7 @@ Release: immutable source → central build/package → artifact + provenance �
 Deploy:  immutable source → central source gate → project deploy script → Runner Resolver → controlled deploy → health verify / rollback
 ```
 
-## 10. 完成标准
+## 11. 完成标准
 
 任务结束前确认：
 
