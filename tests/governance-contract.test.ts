@@ -35,7 +35,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
     "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/intake-main-ci.ts", "scripts/intake-open-prs.ts", "scripts/intake-security-scans.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-security.ts", "scripts/validate-deploy-source.ts", "scripts/dispatch-central-deploy.ts", "scripts/main-write-guard.ts", "scripts/audit-main-writes.ts",
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
-    "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/collect-dependency-repair.ts", "scripts/dependency-repair.ts", "scripts/dispatch-security-scan.ts", "scripts/execution-contract.ts", "scripts/execution-policy.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-ci-capabilities.ts", "scripts/resolve-dependency-repair.ts", "scripts/resolve-execution-plan.ts", "scripts/resolve-pr-plan.ts", "scripts/resolve-security-scan.ts", "scripts/run-ai-triage.ts", "scripts/run-execution-job.ts", "scripts/security-scan.ts", "scripts/runner-policy.ts", "scripts/runtime-command.ts",
+    "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/collect-dependency-repair.ts", "scripts/dependency-repair.ts", "scripts/dispatch-security-scan.ts", "scripts/execution-contract.ts", "scripts/execution-policy.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-ci-capabilities.ts", "scripts/resolve-dependency-repair.ts", "scripts/resolve-release-build-ingress.ts", "scripts/resolve-execution-plan.ts", "scripts/resolve-pr-plan.ts", "scripts/resolve-security-scan.ts", "scripts/run-ai-triage.ts", "scripts/run-execution-job.ts", "scripts/security-scan.ts", "scripts/runner-policy.ts", "scripts/runtime-command.ts",
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
     "scripts/publish-dependency-repair.ts", "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/publish-security-scan.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/dispatch-scheduled-tasks.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
@@ -210,6 +210,11 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   const releaseBuild = await text(".github/workflows/release-build.yml");
   requireText(releaseBuild, [
     "types: [run-release-build]",
+    "workflow_dispatch:",
+    "source_repository:",
+    "requested_version:",
+    "resolve-release-build-ingress.ts",
+    "steps.ingress.outputs.request_json",
     "validate-release-build-request.ts",
     "package-release-build.ts",
     "$GITHUB_WORKSPACE/source/.github/release-build.json",
