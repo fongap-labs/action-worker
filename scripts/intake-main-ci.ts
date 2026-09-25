@@ -74,8 +74,10 @@ export async function scanMainCi(
   policyValue: unknown,
   reader: GithubGet,
   dispatch: Dispatch,
+  excludedRepository = "",
 ): Promise<CiIntakeResult> {
-  const repositories = repositoriesForCapability(policyValue, "pr");
+  const repositories = repositoriesForCapability(policyValue, "pr")
+    .filter((repository) => repository !== excludedRepository);
   const result: CiIntakeResult = {
     repositories: repositories.length,
     dispatched: 0,
@@ -152,6 +154,7 @@ async function main(): Promise<void> {
     async (repository, headSha) => {
       await dispatchCentralCi(controlRepository, ingressToken, repository, headSha);
     },
+    controlRepository,
   );
 
   console.log(JSON.stringify(result));

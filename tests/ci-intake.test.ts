@@ -70,3 +70,30 @@ test("central CI intake treats compatibility evidence as processed", async () =>
   assert.equal(dispatches, 0);
   assert.equal(result.already_processed, 1);
 });
+
+test("central CI intake excludes the control repository without hardcoded names", async () => {
+  const controlRepository = "fongap-labs/control";
+  const businessRepository = "fongap-labs/business";
+  const dispatched: string[] = [];
+  const result = await scanMainCi(
+    {
+      [controlRepository]: ["pr"],
+      [businessRepository]: ["pr"],
+    },
+    {
+      async get(path: string): Promise<unknown> {
+        assert.doesNotMatch(path, /fongap-labs\/control/);
+        if (path === `repos/${businessRepository}`) return { default_branch: "main" };
+        if (path === `repos/${businessRepository}/commits/main`) return { sha: shaA };
+        return { statuses: [] };
+      },
+    },
+    async (repository) => {
+      dispatched.push(repository);
+    },
+    controlRepository,
+  );
+
+  assert.deepEqual(dispatched, [businessRepository]);
+  assert.equal(result.repositories, 1);
+});
