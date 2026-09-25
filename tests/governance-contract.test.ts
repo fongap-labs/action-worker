@@ -29,18 +29,18 @@ test("governance files and TypeScript control entries exist", async () => {
   const required = [
     "AGENTS.md", "CLAUDE.md", "docs/README.md", "docs/ARCHITECTURE.md", "docs/ARCHITECTURE_GOVERNANCE.md",
     "docs/NAMING_CONVENTIONS.md", "docs/CHANGELOG_CONVENTIONS.md", "docs/DEVELOPMENT_GUIDE.md",
-    "contracts/change-record.json", "contracts/deploy-dispatch.json", "contracts/pr-task.json", "contracts/release-dispatch.json",
+    "contracts/change-record.json", "contracts/deploy-dispatch.json", "contracts/main-write-dispatch.json", "contracts/pr-task.json", "contracts/release-dispatch.json",
     "contracts/release-manifest.json", "contracts/release-provenance.json", "contracts/task-dispatch.json", "policies/deploy.json", "policies/execution.json", "policies/rulesets.json", "policies/triage.json",
     "package.json", "package-lock.json", "tsconfig.json", "scripts/validate-change-record.ts",
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
-    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-security.ts", "scripts/validate-deploy-source.ts", "scripts/dispatch-central-deploy.ts",
+    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-security.ts", "scripts/validate-deploy-source.ts", "scripts/dispatch-central-deploy.ts", "scripts/main-write-guard.ts",
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
     "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-pr-plan.ts", "scripts/run-ai-triage.ts", "scripts/runtime-command.ts",
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
     "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
     ".github/workflows/aig-deploy.yml", ".github/workflows/aig-scheduled-ci.yml", ".github/workflows/deployment-readiness.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
-    ".github/workflows/model-discovery.yml", ".github/workflows/release-build.yml", ".github/workflows/server-edge-deploy.yml",
+    ".github/workflows/main-write-guard.yml", ".github/workflows/model-discovery.yml", ".github/workflows/release-build.yml", ".github/workflows/server-edge-deploy.yml",
     ".github/workflows/sync-tool-release.yml", ".github/workflows/validate-central-merge.yml",
     ".github/workflows/cancel-pr-work.yml",
   ];
@@ -139,14 +139,16 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   assert.doesNotMatch(workflow, /AW_REVIEW_ENGINE_REPOSITORY/);
   assert.match(workflow, /AW_AI_AGENT_CONFIG:\s*\$\{\{ vars\.AW_AI_AGENT_CONFIG \}\}/);
   assert.doesNotMatch(workflow, /AW_IS_AI_REVIEW_ENABLED/);
-  const order = ["- name: Validate security gate", "- name: Collect CI evidence", "- name: Publish explicit no-CI evidence", "- name: Wait for AI queue", "- name: Run AI Triage", "- name: Resolve final plan", "- name: Run AI review", "- name: Validate CI evidence", "- name: Update final gate"];
+  const order = ["- name: Validate security gate", "- name: Collect CI evidence", "- name: Publish explicit no-CI evidence", "- name: Validate CI evidence", "- name: Mark deterministic gate passed", "- name: Update final gate", "- name: Wait for AI queue", "- name: Run AI Triage", "- name: Resolve final plan", "- name: Run AI review", "- name: Publish PR review"];
   const positions = order.map((value) => workflow.indexOf(value));
   assert.ok(positions.every((value) => value >= 0));
   assert.deepEqual(positions, [...positions].sort((left, right) => left - right));
-  const aiReviewStep = workflow.slice(workflow.indexOf("      - name: Run AI review"), workflow.indexOf("      - name: Validate CI evidence"));
+  const aiReviewStep = workflow.slice(workflow.indexOf("      - name: Run AI review"), workflow.indexOf("      - name: Publish PR review"));
   assert.match(aiReviewStep, /continue-on-error: true/);
   assert.doesNotMatch(aiReviewStep, /BLOCK_SEVERITY|block_severity/);
   assert.match(workflow, /Validate CI evidence\n\s+if: steps\.base_plan\.outputs\.ci_required == 'true'/);
+  assert.match(workflow, /STATE: \$\{\{ steps\.gate\.outputs\.passed == 'true'/);
+  assert.doesNotMatch(workflow.slice(0, workflow.indexOf("- name: Update final gate")), /Wait for AI queue|Run AI Triage|Run AI review/);
   const reviewRunner = await text("scripts/run-ai-review.ts");
   assert.match(reviewRunner, /AI Review \(advisory\)/);
   assert.doesNotMatch(reviewRunner, /merge is blocked|blocking findings|blockSeverity/);
@@ -207,7 +209,7 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   requireText(prValidator, ["AW_REPOSITORY_POLICY"]);
   assert.doesNotMatch(prValidator, /AW_[A-Z_]*ALLOWLIST/);
   const publisher = await text("scripts/publish-release.ts");
-  requireText(publisher, ["release-manifest.json", "release-provenance.json", "artifact_repository", "artifact_run_id", "return `${releaseKey}-v${version}`", "await sha256File(assetPath)", "rollbackRelease", '"draft=true"', '"draft=false"']);
+  requireText(publisher, ["release-manifest.json", "release-provenance.json", "artifact_repository", "artifact_run_id", "return `${releaseKey}-v${version}`", "await sha256File(assetPath)", "rollbackRelease", '"draft=true"', '"draft=false"', "assertTrustedMainWrite", "Main Write Guard"]);
   assert.equal(await exists(".github/workflows/validate-release-policy.yml"), false);
   assert.equal(await exists(".github/workflows/publish-release.yml"), false);
 
@@ -310,6 +312,8 @@ test("AI Gateway deploy execution is central and source-gated", async () => {
   const validator = await text("scripts/validate-deploy-source.ts");
   requireText(validator, [
     "CI Evidence",
+    "assertTrustedMainWrite",
+    "Main Write Guard",
     "fongap-labs/action-worker/actions/runs/",
     "requireDefaultHeadRaw",
     "source_repository",
@@ -417,4 +421,29 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
   const metricsScript = await text("scripts/manage-work-metrics.ts");
   assert.match(metricsScript, /"api", "--method", "GET", `repos\/\$\{repository\}\/pulls`/);
   assert.match(workflow, /node scripts\/repository-policy\.ts list pr/);
+});
+
+
+test("main write guard is the post-merge provenance authority", async () => {
+  const workflow = await text(".github/workflows/main-write-guard.yml");
+  requireText(workflow, [
+    "push:",
+    "branches: [main]",
+    "types: [run-main-write-guard]",
+    "Main Write Guard",
+    "MAIN_WRITE_REQUIRE_CENTRAL_STATUSES",
+    "node scripts/main-write-guard.ts",
+    "secrets.AW_CONTROL_TOKEN",
+  ]);
+  const guard = await text("scripts/main-write-guard.ts");
+  requireText(guard, [
+    "merge_commit_sha",
+    "validate-merge",
+    "github-actions",
+    "PR Governance",
+    "CI Evidence",
+    "Main Write Guard",
+    "assertTrustedMainWrite",
+  ]);
+  assert.doesNotMatch(guard, /commit message|actor.*trusted|bypass/i);
 });

@@ -1,0 +1,48 @@
+name: Main Write Guard
+
+on:
+  push:
+    branches: [main]
+  repository_dispatch:
+    types: [run-main-write-guard]
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
+  statuses: write
+
+concurrency:
+  group: main-write-guard-${{ github.event_name == 'push' && github.repository || github.event.client_payload.repository }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: Main Write Guard
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Validate main write provenance
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          MAIN_WRITE_TOKEN: ${{ github.event_name == 'push' && github.token || secrets.AW_CONTROL_TOKEN }}
+          MAIN_WRITE_REQUIRE_POLICY: ${{ github.event_name == 'push' && 'false' || 'true' }}
+          MAIN_WRITE_REQUIRE_CENTRAL_STATUSES: ${{ github.event_name == 'push' && 'false' || 'true' }}
+          MAIN_WRITE_REPOSITORY: ${{ github.event_name == 'push' && github.repository || github.event.client_payload.repository }}
+          MAIN_WRITE_BEFORE_SHA: ${{ github.event_name == 'push' && github.event.before || github.event.client_payload.before_sha }}
+          MAIN_WRITE_HEAD_SHA: ${{ github.event_name == 'push' && github.sha || github.event.client_payload.head_sha }}
+          MAIN_WRITE_EVENT: push
+          MAIN_WRITE_REQUEST_ID: ${{ github.event_name == 'push' && format('push:{0}', github.run_id) || github.event.client_payload.request_id }}
+          MAIN_WRITE_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/main-write-guard.ts

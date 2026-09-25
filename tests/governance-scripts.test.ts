@@ -18,6 +18,13 @@ import { validateRelease, validateReleaseProvenance } from "../scripts/validate-
 import { validateReview } from "../scripts/validate-review-result.ts";
 import { variableEntries } from "../scripts/export-repository-variables.ts";
 import { hasLifecycleFilenameViolation } from "../scripts/validate-naming-rules.ts";
+import {
+  assertTrustedMainWrite,
+  hasTrustedMainWriteGuard,
+  parseMainWriteRequest,
+  validateMainWriteProvenance,
+} from "../scripts/main-write-guard.ts";
+import type { GithubReader } from "../scripts/github-api.ts";
 
 const sha = "0123456789abcdef0123456789abcdef01234567";
 
@@ -294,4 +301,95 @@ test("PR review summary keeps AI findings advisory", () => {
   assert.doesNotMatch(body, /Blocking threshold/);
   assert.match(body, /security/);
   assert.match(body, /src\/a\.ts:12/);
+});
+
+
+test("main write contract is exact and rejects caller trust claims", () => {
+  const request = {
+    schema_version: "1",
+    request_id: "main:1",
+    repository: "fongap/example",
+    before_sha: "1".repeat(40),
+    head_sha: "2".repeat(40),
+    event: "push",
+  };
+  assert.deepEqual(parseMainWriteRequest(request), request);
+  assert.throws(() => parseMainWriteRequest({ ...request, trusted: true }));
+  assert.throws(() => parseMainWriteRequest({ ...request, head_sha: request.before_sha }));
+});
+
+test("main write guard requires a merged PR and successful validate-merge", async () => {
+  const mainSha = "2".repeat(40);
+  const prHeadSha = "3".repeat(40);
+  const paths = new Map<string, unknown>([
+    ["repos/fongap/example", { default_branch: "main" }],
+    [`repos/fongap/example/commits/${mainSha}`, { sha: mainSha }],
+    [`repos/fongap/example/commits/${mainSha}/pulls?per_page=100`, [{
+      number: 7,
+      merged_at: "2026-09-25T00:00:00Z",
+      merge_commit_sha: mainSha,
+      base: { ref: "main" },
+    }]],
+    ["repos/fongap/example/pulls/7", {
+      number: 7,
+      merged_at: "2026-09-25T00:00:00Z",
+      merge_commit_sha: mainSha,
+      base: { ref: "main" },
+      head: { sha: prHeadSha },
+    }],
+    [`repos/fongap/example/commits/${prHeadSha}/check-runs?filter=latest&per_page=100`, {
+      check_runs: [{
+        name: "validate-merge",
+        status: "completed",
+        conclusion: "success",
+        app: { slug: "github-actions" },
+      }],
+    }],
+    [`repos/fongap/example/commits/${prHeadSha}/status`, {
+      statuses: [
+        { context: "PR Governance", state: "success", target_url: "https://github.com/fongap-labs/action-worker/actions/runs/1" },
+        { context: "CI Evidence", state: "success", target_url: "https://github.com/fongap-labs/action-worker/actions/runs/2" },
+      ],
+    }],
+    [`repos/fongap/example/commits/${mainSha}/status`, {
+      statuses: [
+        { context: "Main Write Guard", state: "success", target_url: "https://github.com/fongap-labs/action-worker/actions/runs/3" },
+      ],
+    }],
+  ]);
+  const reader = {
+    get: async (path: string) => {
+      if (!paths.has(path)) {
+        throw new Error(`unexpected path: ${path}`);
+      }
+      return paths.get(path);
+    },
+  } as unknown as GithubReader;
+
+  const provenance = await validateMainWriteProvenance(reader, "fongap/example", mainSha, true);
+  assert.equal(provenance.pr_number, 7);
+  assert.equal(provenance.pr_head_sha, prHeadSha);
+  assert.equal((await assertTrustedMainWrite(reader, "fongap/example", mainSha, true)).main_sha, mainSha);
+  assert.equal(hasTrustedMainWriteGuard(paths.get(`repos/fongap/example/commits/${mainSha}/status`)), true);
+});
+
+test("main write provenance rejects direct pushes and fake status-only trust", async () => {
+  const mainSha = "4".repeat(40);
+  const paths = new Map<string, unknown>([
+    ["repos/fongap/example", { default_branch: "main" }],
+    [`repos/fongap/example/commits/${mainSha}`, { sha: mainSha }],
+    [`repos/fongap/example/commits/${mainSha}/pulls?per_page=100`, []],
+    [`repos/fongap/example/commits/${mainSha}/status`, {
+      statuses: [
+        { context: "Main Write Guard", state: "success", target_url: "https://github.com/fongap-labs/action-worker/actions/runs/9" },
+      ],
+    }],
+  ]);
+  const reader = {
+    get: async (path: string) => paths.get(path),
+  } as unknown as GithubReader;
+
+  assert.equal(hasTrustedMainWriteGuard(paths.get(`repos/fongap/example/commits/${mainSha}/status`)), true);
+  await assert.rejects(() => validateMainWriteProvenance(reader, "fongap/example", mainSha, false));
+  await assert.rejects(() => assertTrustedMainWrite(reader, "fongap/example", mainSha, false));
 });
