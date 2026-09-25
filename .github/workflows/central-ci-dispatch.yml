@@ -88,17 +88,9 @@ jobs:
 
       - name: Validate central CI target
         env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           REPOSITORY: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          case "$REPOSITORY" in
-            fongap-labs/ai-gateway|fongap-labs/delta|fongap-labs/delta-suite|fongap-labs/app-source|fongap-labs/internal-vault|fongap-labs/external-vault) ;;
-            *)
-              echo "::error::Repository is not configured for central CI: $REPOSITORY" >&2
-              exit 65
-              ;;
-          esac
+        run: node scripts/repository-policy.ts validate "$REPOSITORY" pr
 
       - name: Resolve target visibility
         id: visibility
