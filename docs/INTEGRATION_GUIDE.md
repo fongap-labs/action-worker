@@ -111,9 +111,9 @@ AIG_ACCESS_KEY_AGENT
 
 ## 8. Main Write Guard
 
-业务仓必须为 `main` 更新提供统一薄事件入口，或由其他受信事件源通知 Action Worker。
+业务仓不承担 Main Write Guard 的权威执行。公开 `action-worker` 定期审计 `AW_REPOSITORY_POLICY` 中所有受管仓当前 `main`，重新查询 GitHub 并证明 source SHA 来自合法 PR Merge。
 
-Main Write Guard 只接收最小事实，并由 Action Worker 重新查询 GitHub 证明该 `main` SHA 来自合法 PR Merge。
+业务仓可选保留极薄 main-push dispatcher 以缩短发现延迟，但缺少 dispatcher、Actions 额度不足或 dispatcher 被删除都不能产生可信 main SHA，也不能削弱 Release / Deploy 的 fail-closed 校验。
 
 未经 Main Write Guard 证明的 SHA 不能用于 Release、Deploy、Publication 或 privileged execution。
 

@@ -108,9 +108,13 @@ direct main write may physically occur
 
 ## 6. Workflow boundary
 
-业务仓可以保留极薄 `main` push bridge，将事实通知 Action Worker。
+Main Write Guard 的安全性不得依赖业务仓 Actions 是否可运行。
 
-长期最小事件：
+权威基线由公开 `action-worker` 的中央 Main Write Audit 周期性重新读取所有受管仓当前 `main`，并独立验证 provenance。这样即使业务仓没有 Actions 额度、dispatcher 被删除或直接 push 同时修改 workflow，也不能为非法 SHA 产生信任。
+
+业务仓可以保留极薄 `main` push bridge 作为实时加速，但它不是安全前提，也不得自行产生 trusted 结论。
+
+可选实时事件的长期最小字段：
 
 ```text
 repository
@@ -129,6 +133,8 @@ request_id
 - 任意 bypass 标记。
 
 Action Worker 必须重新查询 GitHub 事实并形成 `Main Write Guard` 结论。
+
+中央 Main Write Audit 从 `AW_REPOSITORY_POLICY` 的受管仓列表动态发现仓库，不允许在 workflow 或脚本中硬编码项目名。Audit 必须对每个当前 main SHA 重新证明 provenance，而不能因为已有同名 success status 就跳过验证。
 
 ## 7. Downstream requirement
 

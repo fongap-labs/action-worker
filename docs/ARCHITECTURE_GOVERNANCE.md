@@ -239,6 +239,8 @@ AI Review 的职责是审核、建议和发现问题。它必须位于确定性 
 
 所有正式 Release、Deploy、Publication 和 privileged execution 都必须要求目标 source SHA 已获得 Main Write Guard success。仅仅位于 `main` 不构成可信来源。
 
+Main Write Guard 的权威执行必须独立于业务仓 Actions：Action Worker 周期性审计 Repository Policy 中所有受管仓当前 main。业务仓 push dispatcher 只能作为可选实时加速，不属于安全前提。
+
 详细规则见 [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md)。
 
 ## 13. Repository policy
