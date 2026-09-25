@@ -3,6 +3,16 @@ name: Handle Task Source Dispatch
 on:
   repository_dispatch:
     types: [run-task-source]
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: Managed task source repository
+        required: true
+        type: string
+      project:
+        description: Project directory name under projects/
+        required: true
+        type: string
   schedule:
     - cron: "30 0 * * *"
     - cron: "30 12 * * *"
@@ -11,13 +21,13 @@ on:
 permissions: {}
 
 concurrency:
-  group: task-source-${{ github.event.client_payload.repository || github.event_name }}-${{ github.run_id }}
-  cancel-in-progress: false
+  group: task-source-${{ github.event.client_payload.repository || inputs.repository || github.event_name }}-${{ github.event.client_payload.head_sha || github.run_id }}
+  cancel-in-progress: true
 
 jobs:
   dispatch:
     name: Resolve and dispatch tasks
-    if: github.event_name == 'repository_dispatch'
+    if: github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
@@ -37,9 +47,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          PAYLOAD_REPOSITORY: ${{ github.event.client_payload.repository }}
-          PAYLOAD_MODE: ${{ github.event.client_payload.mode }}
-          PAYLOAD_PROJECT: ${{ github.event.client_payload.project }}
+          PAYLOAD_REPOSITORY: ${{ github.event.client_payload.repository || inputs.repository }}
+          PAYLOAD_MODE: ${{ github.event.client_payload.mode || 'manual' }}
+          PAYLOAD_PROJECT: ${{ github.event.client_payload.project || inputs.project }}
           PAYLOAD_BEFORE_SHA: ${{ github.event.client_payload.before_sha }}
           PAYLOAD_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
         shell: bash
@@ -92,6 +102,22 @@ jobs:
             echo "mode=$mode"
             echo "project=$project"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Mark task source in progress
+        if: steps.source.outputs.mode == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.source.outputs.repository }}
+          HEAD_SHA: ${{ steps.source.outputs.head_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          payload="$(jq -cn \
+            --arg state "pending" \
+            --arg context "Task Source" \
+            --arg target_url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{state: $state, context: $context, target_url: $target_url}')"
+          gh api --method POST "repos/$REPOSITORY/statuses/$HEAD_SHA" --input - <<< "$payload"
 
       - name: Checkout source repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -205,6 +231,27 @@ jobs:
 
             echo "Dispatched $project at $HEAD_SHA"
           done < <(jq -r '.[]' <<< "$PROJECTS")
+
+      - name: Finalize task source status
+        if: always() && steps.source.outcome == 'success' && steps.source.outputs.mode == 'push'
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.source.outputs.repository }}
+          HEAD_SHA: ${{ steps.source.outputs.head_sha }}
+          JOB_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          state="success"
+          if [ "$JOB_STATUS" != "success" ]; then
+            state="failure"
+          fi
+          payload="$(jq -cn \
+            --arg state "$state" \
+            --arg context "Task Source" \
+            --arg target_url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            '{state: $state, context: $context, target_url: $target_url}')"
+          gh api --method POST "repos/$REPOSITORY/statuses/$HEAD_SHA" --input - <<< "$payload"
 
   scheduled:
     name: Dispatch scheduled tasks

@@ -15,6 +15,7 @@ import {
 
 export type TaskSourceManifest = {
   schema_version: "1";
+  push: boolean;
   schedules: Array<{
     cron: string;
     projects: string[];
@@ -51,8 +52,16 @@ export function parseTaskSourceManifest(value: unknown): TaskSourceManifest {
   if (!isJsonRecord(value)) {
     throw new CliError("Task source manifest must be an object.", 65);
   }
-  exactKeys(value, ["schema_version", "schedules"], "Task source manifest");
-  if (value.schema_version !== "1" || !Array.isArray(value.schedules) || value.schedules.length > 32) {
+  const allowed = new Set(["schema_version", "push", "schedules"]);
+  const keys = Object.keys(value);
+  if (keys.some((key) => !allowed.has(key))
+    || !("schema_version" in value)
+    || !("schedules" in value)
+    || value.schema_version !== "1"
+    || (value.push !== undefined && typeof value.push !== "boolean")
+    || !Array.isArray(value.schedules)
+    || value.schedules.length > 32
+  ) {
     throw new CliError("Task source manifest is invalid.", 65);
   }
 
@@ -76,7 +85,7 @@ export function parseTaskSourceManifest(value: unknown): TaskSourceManifest {
     };
   });
 
-  return { schema_version: "1", schedules };
+  return { schema_version: "1", push: value.push === true, schedules };
 }
 
 export function projectsForSchedule(manifest: TaskSourceManifest, cron: string): string[] {

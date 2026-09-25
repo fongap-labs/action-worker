@@ -33,7 +33,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "contracts/release-manifest.json", "contracts/release-provenance.json", "contracts/security-scan.json", "contracts/task-dispatch.json", "contracts/task-source.json", "policies/capabilities.json", "policies/deploy.json", "policies/execution.json", "policies/runner.json", "policies/rulesets.json", "policies/triage.json",
     "package.json", "package-lock.json", "tsconfig.json", "scripts/validate-change-record.ts",
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
-    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/intake-main-ci.ts", "scripts/intake-open-prs.ts", "scripts/intake-security-scans.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-security.ts", "scripts/validate-deploy-source.ts", "scripts/dispatch-central-deploy.ts", "scripts/main-write-guard.ts", "scripts/audit-main-writes.ts",
+    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/intake-main-ci.ts", "scripts/intake-open-prs.ts", "scripts/intake-security-scans.ts", "scripts/intake-task-sources.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-security.ts", "scripts/validate-deploy-source.ts", "scripts/dispatch-central-deploy.ts", "scripts/main-write-guard.ts", "scripts/audit-main-writes.ts",
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
     "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/collect-dependency-repair.ts", "scripts/dependency-repair.ts", "scripts/dispatch-security-scan.ts", "scripts/execution-contract.ts", "scripts/execution-policy.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-ci-capabilities.ts", "scripts/resolve-dependency-repair.ts", "scripts/resolve-release-build-ingress.ts", "scripts/resolve-execution-plan.ts", "scripts/resolve-pr-plan.ts", "scripts/resolve-security-scan.ts", "scripts/run-ai-triage.ts", "scripts/run-execution-job.ts", "scripts/security-scan.ts", "scripts/runner-policy.ts", "scripts/runtime-command.ts",
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
@@ -41,7 +41,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
     ".github/workflows/aig-deploy.yml", ".github/workflows/aig-scheduled-ci.yml", ".github/workflows/deployment-readiness.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
     ".github/workflows/ci-intake.yml", ".github/workflows/dependency-repair.yml", ".github/workflows/main-write-audit.yml", ".github/workflows/main-write-guard.yml", ".github/workflows/model-discovery.yml", ".github/workflows/pr-intake.yml", ".github/workflows/release-build.yml", ".github/workflows/security-scan.yml", ".github/workflows/security-scan-intake.yml", ".github/workflows/server-edge-deploy.yml",
-    ".github/workflows/sync-tool-release.yml", ".github/workflows/validate-central-merge.yml",
+    ".github/workflows/sync-tool-release.yml", ".github/workflows/task-intake.yml", ".github/workflows/task-source-dispatch.yml", ".github/workflows/validate-central-merge.yml",
     ".github/workflows/cancel-pr-work.yml",
   ];
   for (const path of required) {
@@ -182,14 +182,18 @@ test("task dispatch keeps the publication credential in the central control step
   requireText(publication, ["release-source", "release-target", "action-worker-publication", "target_repository", "dest_dir"]);
 });
 
-test("task source scheduling is source-owned and repository-agnostic", async () => {
+test("task source ingress is source-owned and repository-agnostic", async () => {
   const workflow = await text(".github/workflows/task-source-dispatch.yml");
   requireText(workflow, [
+    "workflow_dispatch:",
+    "repository:",
+    "project:",
     "AW_REPOSITORY_POLICY",
     'repository-policy.ts validate "$repository" task',
     "dispatch-scheduled-tasks.ts",
     "AW_CONTROL_REPOSITORY",
-    "github.event_name == 'repository_dispatch'",
+    "Task Source",
+    "github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'",
     "github.event_name == 'schedule'",
   ]);
   assert.doesNotMatch(workflow, /fongap-labs\/internal-vault|MarketBrief|PharmaBrief|commits\/main/);
@@ -204,6 +208,25 @@ test("task source scheduling is source-owned and repository-agnostic", async () 
     "run-task",
   ]);
   assert.doesNotMatch(scheduler, /fongap-labs\/internal-vault|MarketBrief|PharmaBrief/);
+
+  const intake = await text("scripts/intake-task-sources.ts");
+  requireText(intake, [
+    'repositoriesForCapability(policyValue, "task")',
+    ".github/task-source.json",
+    "manifest.push",
+    "Task Source",
+    "run-task-source",
+  ]);
+  assert.doesNotMatch(intake, /fongap-labs\/internal-vault|MarketBrief|PharmaBrief/);
+
+  const intakeWorkflow = await text(".github/workflows/task-intake.yml");
+  requireText(intakeWorkflow, [
+    'cron: "*/10 * * * *"',
+    "workflow_dispatch:",
+    "AW_REPOSITORY_POLICY",
+    "AW_CONTROL_TOKEN",
+    "intake-task-sources.ts",
+  ]);
 });
 
 test("release, source, deploy, merge, and repository settings contracts remain intact", async () => {
