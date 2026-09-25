@@ -174,7 +174,15 @@ async function main(): Promise<void> {
       parseJson(resultText, "ERROR: invalid triage result."),
       parseJson(await readFile(triagePath, "utf8"), "ERROR: invalid triage policy."),
       parseJson(await readFile(reviewPath, "utf8"), "ERROR: invalid review policy."),
-      parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? ""),
+      (() => {
+        try {
+          return parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? "");
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          console.error(`::warning::AI Review configuration is unavailable; advisory triage is ignored. ${detail}`);
+          return { schema_version: 1, agents: {} };
+        }
+      })(),
     );
     const json = JSON.stringify(output);
     if (process.env.GITHUB_OUTPUT) {
