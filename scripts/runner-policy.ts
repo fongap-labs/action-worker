@@ -126,19 +126,31 @@ export function resolveRunnerProfile(
     throw new CliError(`Runner profile is not configured: ${requestedProfile}.`, 65);
   }
 
-  const queue = [requestedProfile, ...start.fallback_profiles];
-  for (const name of queue) {
+  const queue = [requestedProfile];
+  const visited = new Set<string>();
+  while (queue.length > 0) {
+    const name = queue.shift()!;
+    if (visited.has(name)) continue;
+    visited.add(name);
     const profile = policy.profiles[name];
     if (profile?.enabled) {
       return { name, profile };
     }
+    queue.push(...(profile?.fallback_profiles ?? []));
   }
   throw new CliError(`Runner profile has no enabled backend: ${requestedProfile}.`, 75);
 }
 
 async function main(): Promise<void> {
-  const [policyPath = "policies/runner.json", requestedProfile = ""] = process.argv.slice(2);
-  if (!requestedProfile) {
+  const args = process.argv.slice(2);
+  let policyPath = "policies/runner.json";
+  let requestedProfile = "";
+  if (args.length === 1) {
+    requestedProfile = args[0] ?? "";
+  } else if (args.length === 2) {
+    policyPath = args[0] ?? "";
+    requestedProfile = args[1] ?? "";
+  } else {
     throw new CliError("Usage: runner-policy.ts [policy-path] <runner-profile>", 64);
   }
   const policy = parseRunnerPolicy(await readJson(policyPath));
