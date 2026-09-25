@@ -1,6 +1,5 @@
 import {
   GithubReader,
-  getJsonArray,
   getJsonString,
   githubEnvironment,
   isJsonRecord,
