@@ -1,292 +1,270 @@
 # 架构治理
 
-Action Worker 是 Fongap Labs 的 GitHub 自动化控制平面。本文档定义长期边界；实现可以演进，但不得突破这些边界。
+Action Worker 是 Fongap Labs 的 GitHub 自动化治理与执行平面。本文档定义长期边界；实现可以分阶段迁移，但不得继续扩大与本边界相反的实现。
+
+统一执行合同见 [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md)，Runner 与 self-hosted 边界见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。
 
 ## 1. 核心边界
 
 ```text
 Action Worker
-= 通用治理规则
-+ PR / Task / Release / Deploy 编排
-+ 通用 AI Agent Runtime
-+ Gate
-+ 安全执行边界
+= shared governance
++ execution authority
++ generic executors
++ runner resolution
++ AI Agent runtime
++ gate
++ provenance
 
-业务仓
-= 产品代码
-+ 测试代码
-+ 构建与运行必需文件
-+ 最薄事件触发器（不包含治理策略）
+Business repository
+= source
++ tests
++ project scripts
++ project architecture
++ execution manifest
++ thin event bridge
+
+Runner
+= disposable compute backend
 ```
 
-业务仓不承载 Action Worker 的项目专属策略、Agent 路由、模型选择、Gate 规则或 Release 治理。业务仓允许保留调用中央治理所必需的薄 workflow，但其中只能描述事件、最小权限和 Action Worker 入口。PR 治理由业务仓通过 `repository_dispatch` 发起，实际治理 Workflow 必须运行在 Action Worker。
+公开仓库与私有仓库使用同一执行架构。
 
-Action Worker 源码不得出现按仓库名称分支的执行逻辑，也不得创建 `projects/`、`adapters/`、`profiles/` 等项目配置层。
+除最薄 dispatch 和 GitHub 平台必须由目标仓自身创建的极轻 Check / status bridge 外，CI、test、build、AI Review、release、deploy、task 与 scheduled job 等重执行统一进入 Action Worker。
 
-具体仓库白名单属于运行配置，不进入源码。Action Worker 只规定必须执行白名单校验，不保存名单本身。
+业务仓拥有项目实现，但不拥有中央治理、中央 Secret、Runner 策略和最终执行权限。
 
-## 2. 通用执行模型
+## 2. 小内核，大框架
 
-所有入口最终遵循同一条链路：
+Action Worker Kernel 只保留稳定 Authority：
 
 ```text
 Validate
-   ↓
-Inspect
-   ↓
-Plan
-   ↓
-Execute
-   ↓
-Triage
-   ↓
-Review
-   ↓
-Gate
+→ Inspect
+→ Plan
+→ Authorize
+→ Grant
+→ Resolve Runner
+→ Execute
+→ Evidence / Provenance
+→ Gate
 ```
 
-- Validate：验证调用来源、事件和输入合同。
-- Inspect：从 GitHub 与目标代码获取事实。
-- Plan：根据变更、代码和既有证据生成执行计划。
-- Execute：在对应信任域执行检查和测试。
-- Triage：以低成本结构化判断决定是否需要完整审查以及是否需要升级深度；不得降低确定性安全下限。
-- Review：由 AI Agent 审查代码、风险与执行结果。
-- Gate：只依据可验证结果决定通过或阻断。
+大框架由通用 Executor 提供：
 
-计划可以动态变化，安全边界和 Gate 合同必须稳定。
+```text
+CI
+Build
+Review
+Task
+Release
+Deploy
+Scheduled Job
+Artifact
+```
 
-AI Agent 的启停与逻辑模型由单一 Action Worker Repository Variable `AW_AI_AGENT_CONFIG` 管理。Review、Triage、Writing 是平级 Agent 能力，不得为某一种 Agent 再建立独立模型变量体系。policy / rule 只保存规则、阈值与安全边界，不保存模型选择。
+新增普通仓库、项目或 Runner 后端，不应要求修改 Kernel。
 
-某个 Agent 被禁用时，该 Agent 不执行，也不得成为 Gate 的隐式依赖。特别是 `review.enabled=false` 时，PR 仍应依靠 Change Record、命名、CI Evidence 与其他确定性规则正常完成治理。
+## 3. Repository-agnostic
 
-## 3. 调用方只提交目标
+Action Worker 通用控制逻辑禁止出现：
 
-调用方不得决定测试命令、Agent、模型、风险等级或 Gate。
+```text
+if repository == ...
+if project == ...
+if product == ...
+```
 
-PR Task 最小输入：
+也禁止使用等价的中央项目映射表保存项目专属 build / test / deploy recipe。
+
+项目脚本和项目参数属于业务仓。Action Worker 通过标准 Execution Manifest 读取项目执行需求，再由通用 Executor 执行。
+
+仓库白名单与 capability 属于运行配置，不进入源码。
+
+## 4. Execution Request
+
+调用方只提交任务身份和目标，不提交中央执行结论。
+
+长期最小语义：
 
 ```text
 schema_version
 request_id
 repository
-pr_number
+source_sha
+operation
 ```
 
-Task Dispatch 最小输入：
+调用方不得提交：
+
+- 中央 Secret；
+- Token；
+- Gate 结论；
+- 风险结论；
+- 实际 Runner 名称；
+- self-hosted label；
+- 中央权限结论；
+- 任意可绕过 Manifest 的动态命令。
+
+项目测试、构建和部署命令可以存在于受版本控制的 Execution Manifest 或项目脚本中。
+
+## 5. Execution Manifest
+
+业务仓可以描述：
 
 ```text
-schema_version
-request_id
-project
-bootstrap_ref
+operation
+runner_profile
+commands
+matrix
+artifacts
+timeout
+capability_requests
 ```
 
-PR 的 base SHA、head SHA、分支、状态和 diff 必须由 Action Worker 从 GitHub 重新获取，不信任调用方声明。
+Manifest 是 Capability Request，不是 Capability Grant。
 
-业务仓的 `AW_DISPATCH_TOKEN` 只允许向 Action Worker 发送调度事件；AI Gateway 凭据和跨仓回写凭据不得下沉到业务仓。中央控制域使用 `AW_CONTROL_TOKEN` 读取目标 PR、回写 Review，并向目标 head commit 写入统一 `PR Governance` status。
-
-机器合同位于 `contracts/`。
-
-## 4. 仓库权限策略
-
-仓库权限由单一 Repository Variable `AW_REPOSITORY_POLICY` 控制。Action Worker 不在源码中保存具体仓库名称，也不为 PR、Task、Release 分别维护重复名单。
-
-每个仓库只登记一次，并按需要授予：
+业务仓可以申请：
 
 ```text
-pr
-task
-release-source
-release-target
+source.read
+artifact.write
+release.publish
+deployment.production
 ```
 
-新增仓库的正常接入动作应尽量只有：
+是否允许、对应什么 Secret、使用什么信任域和 Runner，由 Action Worker 决定。
+
+## 6. Trust domains
+
+### Control
+
+允许：读取 GitHub 元数据、Validate / Inspect / Plan、AI Agent、Repository Policy、状态回写和受控 API 操作。
+
+禁止直接执行不可信 PR 代码。
+
+### Sandbox
+
+允许 checkout 不可变 source SHA、执行项目 test / build / verify、生成 artifact 和 evidence。
+
+禁止生产 Secret、中央管理 Token、非必要跨仓写权限和直接写生产环境。
+
+### Privileged
+
+仅用于明确需要生产凭据、私有网络或高权限资源的受控执行。Privileged 任务 fail closed，不得因为目标 Runner 不可用而自动降级到较低信任等级。
+
+## 7. CI 与 PR Governance
+
+项目测试属于产品规格，因此测试代码继续留在业务仓；执行位置统一收敛到 Action Worker：
 
 ```text
-修改 AW_REPOSITORY_POLICY
-→ 配置薄触发器的 AW_DISPATCH_TOKEN
-→ 首次 Inspect
-→ 正常运行
+PR / push
+→ thin dispatch
+→ Action Worker
+→ checkout immutable source
+→ Sandbox CI / test / build
+→ CI Evidence
+→ optional AI Review
+→ PR Governance
+→ validate-merge bridge when GitHub requires it
 ```
 
-新增、移除或调整普通仓库权限只应修改 Repository Variable；如果还需要修改核心脚本或增加项目专属 policy，视为架构回退。
+业务仓不得为了“本地 CI”继续维护第二套重型 Runner 流程。
 
-## 5. 信任边界
+如果 GitHub Ruleset 要求 Check Run 必须由目标仓 GitHub Actions 创建，可以保留极轻 bridge；它只读取中央结果并创建最终 Check，不运行产品测试、不持有中央 Secret。
 
-PR 代码属于不可信输入。
+## 8. Release
 
-控制域：
-
-```text
-允许：
-- 读取 GitHub 元数据
-- 读取 diff
-- 生成 Plan
-- 执行已启用的 AI Agent
-- 使用 AI Gateway
-- 写 PR Review / Summary
-- 写目标 commit 的 PR Governance status
-
-禁止：
-- 执行 PR 提供的代码
-```
-
-沙箱域：
+项目 build / package / deploy 脚本留在项目仓；重执行在 Action Worker。
 
 ```text
-允许：
-- checkout PR head
-- build / test / verify
-- 执行项目测试代码
-
-禁止：
-- 生产 Secret
-- AI Gateway Token
-- 部署凭据
-- 写生产环境
-```
-
-具体约束由 `policies/execution.json` 固化。
-
-任何“为了方便”让不可信 PR 代码与中央 Secret 共处的实现都不允许合并。
-
-## 6. 测试与 CI
-
-Action Worker 决定：
-
-```text
-什么时候跑
-跑到什么强度
-哪些结果必须通过
-是否需要 AI Agent
-是否允许合并
-```
-
-业务仓保留测试代码，因为测试属于产品规格的一部分；但业务仓不维护 Action Worker 的治理规则。
-
-业务仓 CI Runner 属于 Sandbox：负责执行项目原生测试、构建与验证，并通过统一 `.github/workflows/ci.yml → ci-evidence` 暴露本地证据。Action Worker Control 只读取目标 head SHA 对应的 `ci-evidence`，完成中央治理后写入 `PR Governance`；业务仓最终 `validate-merge` 汇合两者，不向 Sandbox 下发 AI Gateway 或跨仓控制凭据.
-
-Action Worker 不复制项目测试实现，也不维护仓库名称到测试命令的静态映射。
-
-## 7. 动态理解与历史基线
-
-动态理解用于回答“这次应该验证什么”，但不能替代安全合同。
-
-可积累的历史事实包括：
-
-```text
-成功执行过的命令
-已验证的能力
-已通过的合同
-测试结果
-变更记录
-Release 记录
-```
-
-历史基线属于运行状态，不进入 `projects/` 或项目专属源码配置。
-
-错误或未通过 Gate 的结果不得自动成为新基线。
-
-## 8. 多 Agent 原则
-
-高风险或不确定变更采用双 Agent：
-
-```text
-Planner
-→ 生成验证与审查计划
-
-Critic
-→ 检查计划是否漏测、漏验或低估风险
-```
-
-Reviewer 在执行结果产生后负责代码与结果审查。
-
-Agent 可以提出计划，不能绕过固定的权限边界和 Gate。
-
-## 9. CHANGELOG、Release 与 Deploy
-
-Deploy 的 Commit 与 CI 共用准入仍由 `validate-source-policy.yml` 负责，`validate-deploy-policy.yml` 在其上增加部署语义。
-
-Release 不再从业务仓直接调用中央 Publish workflow。业务仓先在自身信任域完成 build / package / signing / SBOM / installer validation，并生成包含 `release-manifest.json` 的 Actions artifact。源构建 Run 完成成功后，薄 `workflow_run` dispatcher 只发送 Release Task 身份。
-
-Action Worker 的 `handle-release-dispatch.yml` 使用中央凭据重新验证：
-
-```text
-source allowlist
-→ source default HEAD
-→ successful source run
-→ successful ci.yml
-→ artifact identity
-→ release manifest
-→ asset SHA256
-→ target allowlist
-→ tag/release collision
+immutable source
+→ central build
+→ package / sign / SBOM / verify
+→ release-manifest
+→ release-provenance
+→ Release Governance
 → publish
 → re-download verification
-→ release or rollback
+→ finalize or rollback
 ```
 
-业务仓不持有目标分发仓写凭据。源读取与目标发布均使用 `AW_CONTROL_TOKEN`。
+业务仓不持有目标分发仓写凭据。迁移期旧业务仓 artifact 路径只允许继续缩小，不得扩展为新的长期架构。
 
-Release Tag 统一为：
+## 9. Deploy
+
+生产部署使用同一 Execution Contract：
 
 ```text
-<release-key>-v<semver>
+immutable source
+→ central source gate
+→ project deploy validation
+→ Runner Resolver
+→ privileged execution when required
+→ health verification
+→ rollback
 ```
 
-不再支持裸 `v<semver>` 发布兼容路径。
+业务仓拥有部署脚本，不拥有生产 Secret 和 Runner 映射。需要私有网络、SSH、Tailscale 或其他生产访问时，可以解析到 self-hosted trusted Runner；业务仓仍只声明通用 runner profile / capability request。
 
-所有项目继续统一采用：
+## 10. Runner
+
+业务仓不得直接指定 `ubuntu-24.04` 等实际镜像、`self-hosted`、Runner label、Runner group、hostname 或云实例名称。
+
+业务仓只声明 `runner_profile`。Action Worker 的 Runner Resolver 决定实际后端：GitHub-hosted、self-hosted 或未来后端。
+
+Self-hosted 是正式预留后端，不是项目特例。
+
+## 11. AI Agent
+
+AI Agent 是通用动态能力，不拥有权限边界。
+
+`AW_AI_AGENT_CONFIG` 是 Agent 启停和逻辑模型的单一运行配置。Policy / Rule 保存确定性规则，不保存第二套模型选择。
+
+Agent 可以参与 Plan、Triage、Review、Writing 等任务，但不能改变 Secret 边界、绕过 Capability Grant / CI Evidence、修改 Runner 信任等级或降低 Gate。
+
+## 12. Repository policy
+
+仓库权限由单一 `AW_REPOSITORY_POLICY` 管理。
+
+普通仓库接入应尽量只需要：
 
 ```text
-feat / fix / docs / style / refactor / perf /
-test / build / ci / chore / revert
+register repository capability
+→ configure thin dispatch
+→ provide Execution Manifest / project scripts
+→ run
 ```
 
-`breaking / security / migration` 只作为变更属性。CHANGELOG 与 Release Notes 不定义第二套 Added / Changed / Fixed 分类。
+如果新增普通仓库仍需要修改 Action Worker 核心脚本或增加项目专属 Policy，视为架构回退。
 
-## 10. 仓库结构
+## 13. 目录边界
 
 允许的长期结构：
 
 ```text
-.github/workflows/   GitHub 入口
-docs/                人类与 Agent 共用治理文档
-contracts/           输入/输出机器合同
-policies/            通用确定性策略与安全边界
-rules/               AI 审查规则
-scripts/             通用执行脚本
-tests/               Action Worker 自身合同测试
+.github/workflows/   platform entrypoints
+docs/                governance documentation
+contracts/           machine contracts
+policies/            deterministic policy
+rules/               AI review rules
+scripts/             generic execution/control logic
+tests/               governance regression tests
 ```
 
-禁止新增：
+禁止以仓库名或项目名建立中央配置目录。`runner_profile` 是合同概念，不代表允许创建项目专属 `profiles/` 配置层。
 
-```text
-projects/
-adapters/
-profiles/
-```
+## 14. 迁移规则
 
-禁止以仓库名建立目录或规则文件。
+当前代码尚未全部达到目标边界，因此允许迁移期旧实现存在，但必须遵守：
 
-## 11. 稳定性原则
+1. 新增能力不得继续扩大业务仓重执行；
+2. 新增仓库默认走中央执行；
+3. 旧业务仓 workflow 只允许缩小，不允许增加新的重步骤；
+4. Action Worker 中项目专属 build/deploy 映射逐步迁移为 Manifest + 通用 Executor；
+5. Runner 选择逐步统一进入 Runner Resolver；
+6. 文档必须区分“当前实现”和“长期边界”。
 
-```text
-main = 当前最新基线
-```
+## 15. 最短原则
 
-普通业务代码变化不应要求修改 Action Worker。
-
-只有以下情况通常允许修改中央治理：
-
-- 全局质量标准变化；
-- 全局安全边界变化；
-- 输入/输出合同升级；
-- GitHub 平台能力变化；
-- Action Worker 自身缺陷修复。
-
-目录重命名、普通功能修改、新 API、新模块或普通新仓库接入，不应成为修改中央规则的理由。
-
-## 12. 最短原则
-
-> 白名单决定谁能来；GitHub 决定事实是什么；Action Worker 决定 PR、Source、Release 与 Deploy 怎么治理；沙箱负责运行不可信代码；Gate 只相信可验证结果。
+> 业务仓描述要做什么；Action Worker 决定能不能做、怎么安全地做并统一执行；Runner 只提供计算；Gate 只相信与不可变 source 绑定的可验证结果。

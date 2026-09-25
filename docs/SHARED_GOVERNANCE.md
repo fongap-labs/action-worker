@@ -8,17 +8,24 @@
 Action Worker
 = shared governance
 + machine contracts / policies / rules
-+ PR / Release / Deploy governance
++ unified execution plane
++ PR / CI / Review / Build / Release / Deploy / Task governance
++ runner resolution and execution provenance
 
 Business repository
 = product source
 + product tests
 + project architecture
-+ project-specific contracts and boundaries
++ project-specific scripts and boundaries
++ execution manifest
 + thin integration workflows
 ```
 
-业务仓不得复制 Action Worker 已经定义的通用命名、变更分类、PR Gate、Release Governance、Repository Policy 或 Agent 工程规则。
+业务仓不得复制 Action Worker 已经定义的通用命名、变更分类、PR Gate、Execution Governance、Release Governance、Repository Policy 或 Agent 工程规则。
+
+公开仓库与私有仓库使用同一执行架构。除最薄 dispatch 和 GitHub 平台必须由目标仓创建的桥接检查外，CI、test、build、AI Review、release、deploy 和 scheduled task 等重执行统一进入 Action Worker。仓库可见性只能影响访问与平台保护能力，不得形成第二套执行路径。
+
+统一执行边界以 [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md) 为准；Runner 抽象与 self-hosted 边界以 [RUNNER_POLICY.md](RUNNER_POLICY.md) 为准。
 
 ## 2. Shared rules
 
@@ -30,6 +37,9 @@ Business repository
 - English-only engineering diff, PR titles, CHANGELOG entries and release summaries;
 - common development and validation rules;
 - PR governance and merge-gate contract;
+- unified execution contract for public and private repositories;
+- central CI / build / review / release / deploy / task execution;
+- runner profiles, runner resolution and self-hosted boundaries;
 - release and deploy governance;
 - cross-repository trust and secret boundaries;
 - common Agent entry and precedence rules.
