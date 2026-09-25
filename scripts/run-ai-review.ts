@@ -19,7 +19,6 @@ type ReviewOptions = {
   base: string;
   head: string;
   rulePath: string;
-  blockSeverity: string;
   effort: string;
   taskTimeout: number;
   concurrency: number;
@@ -118,18 +117,6 @@ async function runReview(options: ReviewOptions, base: string, head: string, ses
   await runCommand("ocr", args, { cwd: options.root, env: process.env, timeoutMs: (options.taskTimeout * 60 + 30) * 1000 });
 }
 
-function blockingCount(value: unknown, threshold: string): number {
-  if (threshold === "none" || !isJsonRecord(value) || !Array.isArray(value.comments)) {
-    return 0;
-  }
-  const ranks: Record<string, number> = { critical: 4, high: 3, medium: 2, low: 1 };
-  const minimum = ranks[threshold.toLowerCase()] ?? 0;
-  return value.comments.filter((comment) => {
-    const severity = isJsonRecord(comment) && typeof comment.severity === "string" ? comment.severity.toLowerCase() : "";
-    return (ranks[severity] ?? 0) >= minimum;
-  }).length;
-}
-
 export async function executeReview(options: ReviewOptions): Promise<void> {
   if (!/^[0-9a-f]{40}$/.test(options.base) || !/^[0-9a-f]{40}$/.test(options.head)) {
     throw new CliError("::error::Invalid review commit SHA.", 65);
@@ -175,27 +162,23 @@ export async function executeReview(options: ReviewOptions): Promise<void> {
   }
   validateReview(result);
   const comments = isJsonRecord(result) && Array.isArray(result.comments) ? result.comments : [];
-  const blocking = blockingCount(result, options.blockSeverity);
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [
-    "### AI Review", "", `- findings: ${comments.length}`, `- blocking findings: ${blocking}`,
-    `- threshold: ${options.blockSeverity}`,
+    "### AI Review (advisory)", "",
+    `- findings: ${comments.length}`,
+    "- merge gate: unaffected",
   ]);
-  if (blocking > 0) {
-    throw new CliError(`::error::Found ${blocking} findings at ${options.blockSeverity} or above; merge is blocked.`);
-  }
 }
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  if (args.length !== 5) {
-    throw new CliError("Usage: run-ai-review.ts <repository-path> <base-sha> <head-sha> <rule-path> <block-severity>", 64);
+  if (args.length !== 4) {
+    throw new CliError("Usage: run-ai-review.ts <repository-path> <base-sha> <head-sha> <rule-path>", 64);
   }
   await executeReview({
     root: args[0] ?? "",
     base: args[1] ?? "",
     head: args[2] ?? "",
     rulePath: args[3] ?? "",
-    blockSeverity: args[4] ?? "",
     effort: process.env.REVIEW_EFFORT ?? "",
     taskTimeout: Number(process.env.REVIEW_TASK_TIMEOUT ?? ""),
     concurrency: Number(process.env.REVIEW_CONCURRENCY ?? ""),

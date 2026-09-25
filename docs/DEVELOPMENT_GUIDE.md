@@ -35,10 +35,12 @@ Inspect
 → Implement
 → Test
 → PR
+→ Security Gate
 → Central CI
-→ optional AI Review
 → Governance
 → Merge
+
+optional AI Review → findings / suggestions
 ```
 
 涉及边界变更时优先修改合同、Policy 或回归测试，再修改实现。
@@ -66,15 +68,19 @@ repository event
 
 ## 7. Workflow 修改
 
-Workflow 变更至少检查：permissions 是否最小、Secret 是否进入不可信执行域、trigger 是否可被 fork / PR 输入滥用、concurrency 是否正确、source SHA 是否不可变、Runner 是否通过中央策略选择、artifact / evidence 是否绑定 source SHA，以及 actionlint / 合同测试 / ShellCheck。
+Workflow 变更至少检查：permissions 是否最小、Secret 是否进入不可信执行域、trigger 是否可被 fork / PR 输入滥用、concurrency 是否正确、source SHA 是否不可变、Runner 是否通过中央策略选择、artifact / evidence 是否绑定 source SHA，以及 deterministic Security Gate、actionlint、合同测试和必要的 ShellCheck。
+
+Security Gate 必须独立于 AI Review，至少阻止新增高置信度凭据、敏感密钥文件、`toJSON(secrets)`、`pull_request_target`、`permissions: write-all` 和未固定 Commit SHA 的外部 Action。
 
 控制逻辑优先 TypeScript。Shell 只作为短小 Runner glue 或明确的外部 bootstrap 边界。
 
 ## 8. AI 与 Gate
 
-AI 负责动态判断，不决定权限边界。Gate 只相信 deterministic policy、CI Evidence、合法 Review Result、Release / Deploy Policy、GitHub 当前事实和 execution provenance。
+AI 负责审核、建议和问题发现，不决定权限边界，也不决定 Merge Gate。AI finding 无论严重级别都属于 advisory evidence；AI Review 超时、模型不可用或 Review Engine 失败不会把一个通过确定性门禁的 PR 改成失败。
 
-Agent 不得通过重跑、换模型、换 Runner 或降低阈值规避不利结果。
+Gate 只相信 deterministic policy、Security Gate、CI Evidence、PR Policy、Release / Deploy Policy、GitHub 当前事实和 execution provenance。
+
+Agent 不得通过重跑、换模型、换 Runner 或任何 Review 参数改变确定性 Gate。
 
 ## 9. Release / Deploy
 

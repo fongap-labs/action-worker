@@ -46,7 +46,6 @@ async function loadPolicies(aiAgents = activeAiAgents): Promise<PlanPolicies> {
 const defaults: PlanOptions = {
   namingMode: "inherit",
   reviewMode: "inherit",
-  blockOverride: "inherit",
   effortOverride: "inherit",
   modelOverride: "auto",
   agentOverride: "auto",
@@ -60,7 +59,7 @@ test("documentation changes keep review and CI disabled", async () => {
     risk: "low",
   });
   const plan = resolvePlan(context, await loadPolicies(), defaults);
-  assert.deepEqual(plan.checks, ["naming"]);
+  assert.deepEqual(plan.checks, ["naming", "secret-scan"]);
   assert.deepEqual(plan.tests, []);
   assert.equal(plan.ci_required, false);
   assert.equal(plan.review_required, false);
@@ -77,7 +76,7 @@ test("workflow changes route through normal triage", async () => {
     risk: "medium",
   });
   const plan = resolvePlan(context, await loadPolicies(), defaults);
-  assert.deepEqual(plan.checks, ["actionlint", "naming"]);
+  assert.deepEqual(plan.checks, ["actionlint", "naming", "secret-scan"]);
   assert.equal(plan.ci_required, true);
   assert.equal(plan.review_agent, "workflow");
   assert.equal(plan.review_model, "Code-Pro");
@@ -88,7 +87,6 @@ test("workflow changes route through normal triage", async () => {
   assert.equal(plan.review_resume_backoff_seconds, 15);
   assert.equal(plan.triage_required, true);
   assert.equal(plan.triage_model, "Code-Air");
-  assert.equal(plan.block_severity, "critical");
 });
 
 test("breaking and security routes preserve deterministic depth", async () => {
@@ -183,11 +181,10 @@ test("model override cannot reopen review when review authority is disabled", as
   assert.equal(plan.review_model, "");
   assert.equal(plan.review_rule, "");
   assert.equal(plan.review_task_timeout, 0);
-  assert.equal(plan.block_severity, "none");
   assert.equal(plan.triage_required, false);
 });
 
-test("explicit overrides keep the existing CLI semantics", async () => {
+test("explicit overrides keep advisory review routing semantics", async () => {
   const context = validateContext({
     project_types: ["node"],
     change_areas: ["source", "release"],
@@ -197,7 +194,6 @@ test("explicit overrides keep the existing CLI semantics", async () => {
   const plan = resolvePlan(context, await loadPolicies(), {
     namingMode: "off",
     reviewMode: "on",
-    blockOverride: "critical",
     effortOverride: "low",
     modelOverride: "Code-Air",
     agentOverride: "code",
@@ -207,5 +203,4 @@ test("explicit overrides keep the existing CLI semantics", async () => {
   assert.equal(plan.review_model, "Code-Air");
   assert.equal(plan.review_task_timeout, 5);
   assert.equal(plan.triage_required, true);
-  assert.equal(plan.block_severity, "critical");
 });

@@ -1,4 +1,61 @@
 {
-  "schema_version": 1,
-  "path_terms": ["secret", "token", "auth", "permission", "credential"]
+  "schema_version": 2,
+  "path_allow_patterns": [
+    "(^|/)\\.env\\.(?:example|sample|template|variables)$"
+  ],
+  "forbidden_path_patterns": [
+    "(^|/)\\.env$",
+    "(^|/)\\.env\\.(?:local|production|prod|staging|stage|development|dev)$",
+    "(^|/)(?:id_rsa|id_ed25519)$",
+    "\\.(?:pem|p12|pfx|key)$",
+    "(^|/)(?:credentials?|secrets?)\\.json$"
+  ],
+  "secret_patterns": [
+    {
+      "name": "private-key",
+      "pattern": "-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----"
+    },
+    {
+      "name": "github-token",
+      "pattern": "(?:github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{20,})"
+    },
+    {
+      "name": "aws-access-key",
+      "pattern": "(?:AKIA|ASIA)[0-9A-Z]{16}"
+    },
+    {
+      "name": "google-api-key",
+      "pattern": "AIza[0-9A-Za-z_-]{35}"
+    },
+    {
+      "name": "slack-token",
+      "pattern": "xox[baprs]-[A-Za-z0-9-]{20,}"
+    },
+    {
+      "name": "stripe-live-key",
+      "pattern": "(?:sk|rk)_live_[A-Za-z0-9]{16,}"
+    }
+  ],
+  "workflow_forbidden_patterns": [
+    {
+      "name": "serialize-secrets",
+      "pattern": "toJSON\\s*\\(\\s*secrets\\s*\\)"
+    },
+    {
+      "name": "pull-request-target",
+      "pattern": "^\\s*pull_request_target\\s*:"
+    },
+    {
+      "name": "write-all",
+      "pattern": "^\\s*permissions\\s*:\\s*write-all\\s*$"
+    }
+  ],
+  "require_pinned_actions": true,
+  "path_terms": [
+    "secret",
+    "token",
+    "auth",
+    "permission",
+    "credential"
+  ]
 }

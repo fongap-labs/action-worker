@@ -22,7 +22,7 @@ async function optionalJson(path: string): Promise<unknown> {
 }
 
 export function buildReview(status: string, runUrl: string, planValue: unknown, resultValue: unknown): string {
-  const lines = [marker, "## PR Governance", "", `- Gate: **${status === "success" ? "PASS" : "FAIL"}**`];
+  const lines = [marker, "## PR Governance", "", `- Gate: **${status === "success" ? "PASS" : "FAIL"}**`, "- AI Review role: advisory only; findings do not determine the gate."];
   if (isJsonRecord(planValue)) {
     const context = isJsonRecord(planValue.context) ? planValue.context : {};
     const triage = isJsonRecord(planValue.triage) ? planValue.triage : {};
@@ -33,7 +33,6 @@ export function buildReview(status: string, runUrl: string, planValue: unknown, 
     if (model) {
       lines.push(`- Model: \`${model}\``);
     }
-    lines.push(`- Blocking threshold: \`${getJsonString(planValue, "block_severity") || "none"}\``);
   }
   if (isJsonRecord(resultValue) && (resultValue.comments === undefined || Array.isArray(resultValue.comments))) {
     const comments = Array.isArray(resultValue.comments) ? resultValue.comments.filter(isJsonRecord) : [];
@@ -56,11 +55,13 @@ export function buildReview(status: string, runUrl: string, planValue: unknown, 
     } else {
       lines.push("AI Review found no issues.");
     }
-  } else if (status === "success") {
-    const isReviewRequired = isJsonRecord(planValue) && planValue.review_required === true;
-    lines.push(isReviewRequired ? "- AI Review: skipped (disabled)" : "- AI Review: policy skipped");
   } else {
-    lines.push("", "Governance failed before a complete AI Review result was produced; inspect the Action Worker run.");
+    const isReviewRequired = isJsonRecord(planValue) && planValue.review_required === true;
+    if (isReviewRequired) {
+      lines.push("- AI Review: unavailable or incomplete; advisory result did not affect the merge gate.");
+    } else {
+      lines.push("- AI Review: policy skipped.");
+    }
   }
   lines.push("", `[Action Worker run](${runUrl})`);
   return `${lines.join("\n")}\n`;
