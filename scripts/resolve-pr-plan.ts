@@ -362,7 +362,15 @@ async function loadPolicies(policyDir: string): Promise<PlanPolicies> {
     review: expectRecord<ReviewPolicy>(review, "review"),
     triage: expectRecord<TriagePolicy>(triage, "triage"),
     execution: expectRecord<ExecutionPolicy>(execution, "execution"),
-    aiAgents: parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? ""),
+    aiAgents: (() => {
+      try {
+        return parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? "");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`::warning::AI Agent configuration is invalid; advisory review is disabled for this run: ${message}`);
+        return parseAiAgentConfig("");
+      }
+    })(),
   };
 }
 
