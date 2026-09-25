@@ -82,7 +82,7 @@ async function main(): Promise<void> {
   }
 
   for (const id of uploads) {
-    let completed = false;
+    let isCompleted = false;
     for (let attempt = 0; attempt < 20; attempt += 1) {
       const status = await getGithubJson(
         `repos/${repository}/code-scanning/sarifs/${id}`,
@@ -90,7 +90,7 @@ async function main(): Promise<void> {
       );
       const processing = stringField(status, "processing_status");
       if (processing === "complete") {
-        completed = true;
+        isCompleted = true;
         break;
       }
       if (processing === "failed") {
@@ -98,7 +98,7 @@ async function main(): Promise<void> {
       }
       await sleep(Math.min(1000 * (attempt + 1), 5000));
     }
-    if (!completed) {
+    if (!isCompleted) {
       throw new CliError(`Timed out waiting for SARIF processing: ${id}.`, 124);
     }
   }
