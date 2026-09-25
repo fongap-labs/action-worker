@@ -156,9 +156,17 @@ AIG_ACCESS_KEY_AGENT
 
 ## 11. Task
 
-任务项目仍保留在业务仓。业务仓可以用最薄 dispatcher 上报手动或默认分支变更事件，但 Action Worker 必须通过 `AW_REPOSITORY_POLICY` 的 `task` capability 重新授权仓库，并重新解析真实默认分支 HEAD。
+任务项目仍保留在业务仓，但 Task 入口由 Action Worker 统一拥有。
 
-需要定时执行的业务仓在 `.github/task-source.json` 声明“调度槽 → project”映射。Action Worker 的公共调度器扫描所有具有 `task` capability 的仓库，只对存在该 manifest 的仓库派发不可变 `bootstrap_ref`。中央仓不得维护业务仓名或 project 名清单。
+业务仓在 `.github/task-source.json` 声明：
+- `push: true`：默认分支变化需要中央 Task Intake 自动发现；
+- `schedules`：调度槽到 project 的映射。
+
+Central Task Intake 定期扫描所有具有 `task` capability 的仓库，只读取真实默认分支 HEAD。对启用 `push` 的仓库，若当前 HEAD 尚无成功的 `Task Source` 状态，则以第一父提交作为 `before_sha` 派发 changed-project 解析；执行中写入 pending，成功写入 success，失败写入 failure 供下一轮重试。
+
+手动任务直接从 Action Worker 的 `Handle Task Source Dispatch` workflow_dispatch 发起，只提交受管 repository 和 project。业务仓不再需要为了手动或 push 事件启动本地通知 Runner。
+
+中央仓不得维护业务仓名或 project 名清单。
 
 ## 12. Release
 
