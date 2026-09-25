@@ -140,6 +140,8 @@ AIG_ACCESS_KEY_AGENT
 
 业务仓迁移期可以保留用于薄 dispatch 的最小凭据；中央 PR / CI Intake 生效后，这些凭据不再是治理与执行的长期硬依赖。中央管理、跨仓写、AI Gateway 和生产凭据不得下沉。
 
+`AW_CONTROL_TOKEN` 用于中央读取、控制和状态治理；`AW_ADMIN_TOKEN` 仅用于可信控制步骤中的仓库级高权限写操作，例如 Repository Settings / Rulesets，以及需要 Code Scanning write 权限的 SARIF 发布。高权限 Token 不得注入 Sandbox 项目命令。
+
 `AW_EXECUTION_TOKEN` 已删除，不再配置。中央执行使用最小权限的现有 Authority 与 GitHub 原生短期凭据组合。
 
 ## 10. Main Write Guard
