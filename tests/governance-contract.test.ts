@@ -339,6 +339,10 @@ test("security scanning is source-owned, centrally executed, and private-safe", 
 
   const intake = await text(".github/workflows/security-scan-intake.yml");
   requireText(intake, [
+    "push:",
+    "branches: [main]",
+    ".github/workflows/security-scan.yml",
+    "scripts/security-scan.ts",
     'cron: "17 3 * * 1"',
     "intake-security-scans.ts",
     "AW_REPOSITORY_POLICY",

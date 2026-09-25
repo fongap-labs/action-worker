@@ -1,6 +1,17 @@
 name: Security Scan Intake
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/security-scan-intake.yml
+      - .github/workflows/security-scan.yml
+      - contracts/security-scan.json
+      - scripts/dispatch-security-scan.ts
+      - scripts/intake-security-scans.ts
+      - scripts/publish-security-scan.ts
+      - scripts/resolve-security-scan.ts
+      - scripts/security-scan.ts
   schedule:
     - cron: "17 3 * * 1"
   workflow_dispatch:
