@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fongap-labs/action-worker/contracts/release-build.json",
+  "title": "Release Build Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_name",
+    "target_repository",
+    "release_key",
+    "release_name",
+    "release_notes",
+    "license_expression",
+    "node_version_file",
+    "python_version_file",
+    "sbom_asset",
+    "version_source",
+    "builds"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "artifact_name": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "target_repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
+    "release_key": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+    "release_name": { "type": "string", "minLength": 1 },
+    "release_notes": { "type": "string" },
+    "license_expression": { "type": "string", "minLength": 1 },
+    "node_version_file": { "type": "string", "maxLength": 512 },
+    "python_version_file": { "type": "string", "maxLength": 512 },
+    "sbom_asset": { "type": "string", "maxLength": 128 },
+    "version_source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "path"],
+      "properties": {
+        "type": { "enum": ["cargo-workspace", "cargo-package"] },
+        "path": { "type": "string", "minLength": 1, "maxLength": 512 }
+      }
+    },
+    "builds": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "runner_profile", "target", "script", "assets", "attest_asset"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
+          "runner_profile": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+          "target": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+$" },
+          "script": { "type": "string", "pattern": "^\\.github/scripts/[A-Za-z0-9._-]+\\.ps1$" },
+          "assets": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" }
+          },
+          "attest_asset": { "type": "string", "maxLength": 128 }
+        }
+      }
+    }
+  }
+}
