@@ -1,28 +1,34 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  deployEventType,
   isDocsOnly,
   parseDeployPolicy,
 } from "../scripts/dispatch-central-deploy.ts";
 
-test("deploy policy is exact and starts disabled for cutover", () => {
+test("deploy executor registry is adapter-owned and repository-agnostic", () => {
   const policy = {
-    schema_version: 1,
-    repositories: {
-      "fongap-labs/ai-gateway": {
-        automatic: false,
-        event_type: "run-ai-gateway-deploy",
-        ignore_docs_only: true,
-      },
+    schema_version: 2 as const,
+    adapters: {
+      "cloudflare-worker": { event_type: "run-cloudflare-worker" },
+      "source-script": { event_type: "run-source-script" },
     },
   };
-  assert.deepEqual(parseDeployPolicy(policy), policy);
+  const parsed = parseDeployPolicy(policy);
+  assert.deepEqual(parsed, policy);
+  assert.equal(deployEventType(parsed, "cloudflare-worker"), "run-cloudflare-worker");
+  assert.equal(deployEventType(parsed, "source-script"), "run-source-script");
+  assert.equal("repositories" in parsed, false);
   assert.throws(() => parseDeployPolicy({
     ...policy,
-    repositories: {
-      "fongap-labs/ai-gateway": {
-        ...policy.repositories["fongap-labs/ai-gateway"],
-        extra: true,
+    repositories: {},
+  }));
+  assert.throws(() => parseDeployPolicy({
+    schema_version: 2,
+    adapters: {
+      "source-script": {
+        event_type: "run-source-script",
+        repository: "fongap-labs/example",
       },
     },
   }));
