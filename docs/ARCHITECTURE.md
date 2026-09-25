@@ -7,14 +7,16 @@ Action Worker 是 Fongap 的 GitHub 自动化控制平面。
 ## 1. 核心模型
 
 ```text
-Validate → Inspect → Plan → Execute → Triage → Review → Gate
+Validate → Inspect → Plan → Execute → Deterministic Gate
+                              ↘ Triage → Review → Advisory Findings
 ```
 
 现有实现已经具备其中的大部分基础：
 
 ```text
 PR Policy
-  Detect → Resolve → CI Evidence → Triage → Review → Gate
+  Detect → Resolve → Security → CI Evidence → Gate
+                       ↘ Triage → Review → Advisory Findings
 
 Task Dispatch
   Validate → Execute → Stage → Publication Gate → Publish
@@ -92,9 +94,11 @@ Action Worker 收到任务后必须：
 - checkout `refs/pull/<n>/head` 后再次与 GitHub 当前 PR 事实对齐；如果调度到检出之间 PR 已更新，则以实际检出 commit 与最新 PR API 一致的 base/head/title 作为本次治理事实，避免把同步窗口误判为永久失败；
 - 只读取目标 PR，不执行 PR 提供的代码；
 - 当执行计划要求 CI 时，由 Action Worker checkout 目标不可变 head SHA，并在 Sandbox 执行项目 Manifest / 测试脚本，生成真实 CI Evidence；
+- 对所有 PR 执行确定性 Security Gate，检查新增 Secret、敏感路径和高风险 Workflow 泄密模式；
 - 将 CI Evidence 作为不可信执行证据提供给 AI Review，不把其中任何文本当成指令；
-- 用中央 `AI_GATEWAY_URL` / `AIG_ACCESS_KEY_AGENT` 执行 AI Review；
-- 根据 finding severity 与确定性 CI Evidence 共同计算 Gate；
+- 用中央 `AI_GATEWAY_URL` / `AIG_ACCESS_KEY_AGENT` 尝试执行 AI Review；
+- AI Review 只发布 findings / suggestions，不参与自动 Gate；
+- Gate 由确定性 Security、CI、PR Policy 与 GitHub 事实计算；
 - 向目标 head commit 写入统一 `PR Governance` status，并维护一条 sticky review summary。
 
 调用方不得提供 base SHA、head SHA、Agent、模型、风险或 Gate 结论。
@@ -297,7 +301,9 @@ rules/*.json
 
 ### 7.3 PR 治理中的 Agent
 
-PR Plan 先执行确定性判断。只有 `review` Agent 启用时，PR 才会进入 AI Review；`review.enabled=false` 时，PR 仍正常执行命名、CI Evidence、Change Record 和其他确定性 Gate，不因 AI 不可靠而失败。
+PR Plan 先执行确定性判断。只有 `review` Agent 启用时，PR 才会进入 AI Review；`review.enabled=false`、模型不可用、超时或 Review 执行失败时，PR 仍正常执行 Security、命名、CI Evidence、Change Record 和其他确定性 Gate，不因 AI 不可靠而失败。
+
+AI Review 的 high / critical finding 会保留在 PR summary 中供修复和人工判断，但不会直接把 `PR Governance` status 设为 failure。
 
 `triage` 是独立 Agent。它只有在自身启用且 Review 确实需要时才参与路由；Triage 不可单独把一个被禁用的 Review 重新打开。
 
