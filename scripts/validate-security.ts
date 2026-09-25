@@ -78,7 +78,7 @@ function scanPinnedActions(path: string, content: string): SecurityViolation[] {
   const violations: SecurityViolation[] = [];
   const lines = content.split(/\r?\n/);
   for (let index = 0; index < lines.length; index += 1) {
-    const match = lines[index]?.match(/^\s*uses:\s*([^\s#]+)(?:\s+#.*)?$/);
+    const match = lines[index]?.match(/^\s*(?:-\s*)?uses:\s*([^\s#]+)(?:\s+#.*)?$/);
     const value = match?.[1] ?? "";
     if (!value || value.startsWith("./") || value.startsWith("docker://")) {
       continue;
