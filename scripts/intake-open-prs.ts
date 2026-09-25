@@ -5,6 +5,7 @@ import {
   githubEnvironment,
   isJsonRecord,
 } from "./github-api.ts";
+import { trustedControlRunId } from "./ci-evidence.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import {
   CliError,
@@ -30,20 +31,24 @@ export type IntakeResult = {
 
 const shaPattern = /^[0-9a-f]{40}$/;
 
-function statusMap(value: unknown, controlRepository: string): Map<string, string> {
+type StatusFact = {
+  state: string;
+  run_id: number;
+};
+
+function statusMap(value: unknown, controlRepository: string): Map<string, StatusFact> {
   if (!isJsonRecord(value) || !Array.isArray(value.statuses)) {
     throw new CliError("GitHub commit status response is invalid.", 65);
   }
-  const authorityPrefix = `https://github.com/${controlRepository}/actions/runs/`;
-  const statuses = new Map<string, string>();
+  const statuses = new Map<string, StatusFact>();
   for (const item of value.statuses) {
     if (!isJsonRecord(item)) continue;
     const context = getJsonString(item, "context");
     const state = getJsonString(item, "state");
-    const targetUrl = getJsonString(item, "target_url");
-    if (!targetUrl.startsWith(authorityPrefix)) continue;
+    const runId = trustedControlRunId(getJsonString(item, "target_url"), controlRepository);
+    if (!runId) continue;
     if (context && state && !statuses.has(context)) {
-      statuses.set(context, state);
+      statuses.set(context, { state, run_id: runId });
     }
   }
   return statuses;
@@ -77,14 +82,32 @@ async function openPullRequests(reader: GithubGet, repository: string): Promise<
   return pulls;
 }
 
-function needsDispatch(statuses: Map<string, string>): "dispatch" | "in-flight" | "processed" {
+async function needsDispatch(
+  statuses: Map<string, StatusFact>,
+  reader: GithubGet,
+  controlRepository: string,
+): Promise<"dispatch" | "in-flight" | "processed"> {
   const governance = statuses.get("PR Governance");
   const evidence = statuses.get("CI Evidence");
   const mergeGate = statuses.get("validate-merge");
+  const facts = [governance, evidence, mergeGate].filter(
+    (item): item is StatusFact => item !== undefined,
+  );
 
-  if (governance === "pending" || evidence === "pending" || mergeGate === "pending") {
-    return "in-flight";
+  const pendingRunIds = [...new Set(
+    facts.filter((item) => item.state === "pending").map((item) => item.run_id),
+  )];
+  for (const runId of pendingRunIds) {
+    const run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
+    const runStatus = getJsonString(run, "status");
+    if (["queued", "in_progress", "pending", "waiting", "requested"].includes(runStatus)) {
+      return "in-flight";
+    }
   }
+  if (pendingRunIds.length > 0) {
+    return "dispatch";
+  }
+
   if (governance && evidence && mergeGate) {
     return "processed";
   }
@@ -115,7 +138,7 @@ export async function scanOpenPullRequests(
         await reader.get(`repos/${repository}/commits/${pull.headSha}/status`),
         controlRepository,
       );
-      const action = needsDispatch(statuses);
+      const action = await needsDispatch(statuses, reader, controlRepository);
       if (action === "in-flight") {
         result.in_flight += 1;
         continue;
