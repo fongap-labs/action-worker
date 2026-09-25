@@ -63,6 +63,14 @@ export async function scanDefaultBranchSecurity(
   for (const repository of repositories) {
     const repositoryValue = await reader.get(`repos/${repository}`);
     const defaultBranch = stringField(repositoryValue, "default_branch");
+    const repositoryRecord = record(repositoryValue);
+    if (repositoryRecord.private === true) {
+      result.skipped += 1;
+      continue;
+    }
+    if (repositoryRecord.private !== false) {
+      throw new CliError(`Repository visibility is unavailable: ${repository}.`, 65);
+    }
     const commit = await reader.get(`repos/${repository}/commits/${defaultBranch}`);
     const sourceSha = stringField(commit, "sha");
     const path = `repos/${repository}/contents/.github/security-scan.json?ref=${sourceSha}`;
