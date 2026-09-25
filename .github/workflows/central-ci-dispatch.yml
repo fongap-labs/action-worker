@@ -23,6 +23,7 @@ jobs:
       head_sha: ${{ steps.facts.outputs.head_sha || steps.ref_facts.outputs.head_sha }}
       control_ref: ${{ steps.ref_facts.outputs.control_ref || 'main' }}
       is_private: ${{ steps.visibility.outputs.is_private }}
+      has_windows: ${{ steps.capabilities.outputs.has_windows }}
 
     steps:
       - name: Checkout control plane
@@ -91,6 +92,14 @@ jobs:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           REPOSITORY: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
         run: node scripts/repository-policy.ts validate "$REPOSITORY" pr
+
+      - name: Resolve CI capabilities
+        id: capabilities
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
+          CONTROL_REF: ${{ steps.ref_facts.outputs.control_ref || 'main' }}
+        run: node scripts/resolve-ci-capabilities.ts "$REPOSITORY" "$CONTROL_REF"
 
       - name: Resolve target visibility
         id: visibility
@@ -234,7 +243,7 @@ jobs:
   windows:
     name: Central CI / Windows
     needs: prepare
-    if: needs.prepare.outputs.repository == 'fongap-labs/app-source' || needs.prepare.outputs.repository == 'fongap-labs/delta'
+    if: needs.prepare.outputs.has_windows == 'true'
     runs-on: windows-latest
     timeout-minutes: 90
 
