@@ -153,7 +153,15 @@ immutable source
 
 如果必须这样做，应先判断是否存在通用能力缺口。
 
-## 11. 迁移期
+## 11. GitHub 平台边界
+
+统一执行架构不代表不同 GitHub 套餐拥有相同的平台强制能力。
+
+GitHub Free 组织的私有仓库不支持 Ruleset 或 Protected Branch 强制保护，因此这些仓库中的中央 Gate 在当前套餐下属于流程约束，而不是 GitHub 平台硬门禁。公开仓库仍可在平台能力允许时使用受管 Ruleset。
+
+平台能力差异不得改变 Execution Contract，也不得成为把重执行重新放回业务仓的理由。
+
+## 12. 迁移期
 
 当前部分仓库仍保留旧 CI / Release / Deploy 路径。它们属于迁移债务。
 
