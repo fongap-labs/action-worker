@@ -6,7 +6,7 @@
 
 ```text
 Repository event
-→ thin dispatch
+→ central intake / migration thin dispatch
 → Action Worker
 → validate immutable source
 → resolve Execution Manifest
@@ -67,7 +67,7 @@ capability_requests
 
 ```text
 PR
-→ thin dispatch
+→ Central PR Intake / optional migration thin dispatch
 → Security / Central CI / deterministic PR policy
 → CI Evidence
 → PR Governance / validate-merge
@@ -76,6 +76,8 @@ PR
 ```
 
 项目测试代码留在业务仓，但由 Action Worker checkout 不可变 source SHA 后在 Sandbox 执行。
+
+默认分支 CI 同样由公共 Action Worker 的 Central CI Intake 定期核对受管仓当前 HEAD；缺少 `CI Evidence` 时由中央主动派发 `run-central-ci-ref`。因此业务仓 `ci.yml` 只属于迁移期低延迟入口，不再是 main CI 的长期前置条件。
 
 受 GitHub Ruleset 保护且要求 Check Run 来自目标仓 GitHub Actions 的仓库，可保留极轻 `validate-merge` bridge。它只汇合 `CI Evidence` 与 `PR Governance`。
 
@@ -105,7 +107,7 @@ AW_CONTROL_TOKEN
 AIG_ACCESS_KEY_AGENT
 ```
 
-业务仓原则上只保留用于薄 dispatch 的最小凭据。中央管理、跨仓写、AI Gateway 和生产凭据不得下沉。
+业务仓迁移期可以保留用于薄 dispatch 的最小凭据；中央 PR / CI Intake 生效后，这些凭据不再是治理与执行的长期硬依赖。中央管理、跨仓写、AI Gateway 和生产凭据不得下沉。
 
 `AW_EXECUTION_TOKEN` 已删除，不再配置。中央执行使用最小权限的现有 Authority 与 GitHub 原生短期凭据组合。
 
