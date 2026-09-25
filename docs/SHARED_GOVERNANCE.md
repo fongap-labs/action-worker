@@ -82,6 +82,10 @@ AI Review 不是共用门禁。它只负责审核、建议与问题发现；是�
 
 Security Gate 属于共用硬边界，必须由 Action Worker 的确定性检查执行，并覆盖公开仓与私有仓。
 
+`validate-merge` 是唯一 Merge Authority。AI Review 必须在确定性 Gate 结论之后运行，只产生 advisory finding。
+
+Main Write Guard 是所有受管仓共享的 main provenance 硬边界。任何无法证明来自合法 PR Merge 的 `main` SHA 都视为 untrusted，不得 Release、Deploy、Publication 或进入 privileged execution。详细规则见 [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md)。
+
 ## 5. Agent entry
 
 每个受管业务仓保留两个极薄入口：
