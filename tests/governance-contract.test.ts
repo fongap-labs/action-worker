@@ -76,9 +76,12 @@ test("runtime and machine policies preserve trust boundaries", async () => {
   const execution = await json("policies/execution.json");
   assert.deepEqual(execution.control, { execute_pr_code: false, allow_secrets: true });
   assert.deepEqual(execution.sandbox, { execute_pr_code: true, allow_secrets: false });
-  assert.deepEqual((execution.ci as Record<string, unknown>).gate_jobs, ["ci-evidence", "validate-merge"]);
-  assert.equal("central_repositories" in (execution.ci as Record<string, unknown>), false);
-  assert.equal((execution.ci as Record<string, unknown>).timeout_minutes, 120);
+  const ciPolicy = execution.ci as Record<string, unknown>;
+  assert.equal("workflow" in ciPolicy, false);
+  assert.equal("gate_jobs" in ciPolicy, false);
+  assert.equal("central_repositories" in ciPolicy, false);
+  assert.equal(ciPolicy.status_context, "CI Evidence");
+  assert.equal(ciPolicy.timeout_minutes, 120);
 
   const security = await json("policies/security.json");
   assert.equal(security.schema_version, 2);
