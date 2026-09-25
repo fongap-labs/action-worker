@@ -541,13 +541,15 @@ docs/
   architecture, governance, naming, changelog, development, and integration guides
 ```
 
-禁止重新引入项目配置层：
+禁止重新引入项目专属配置层，例如：
 
 ```text
-projects/
-adapters/
-profiles/
+projects/<repository-or-product>/
+profiles/<repository-or-product>/
+<repository-name>/
 ```
+
+通用、仓库无关的 `executors/`、`runners/`、`adapters/` 等框架层可以在确有实现需要时引入，但必须由通用 Contract / Policy 驱动，不得演变成项目映射表。
 
 项目专属 build / test / deploy 实现留在业务仓；Action Worker 只保存中央治理、通用执行框架和 Runner Resolution。业务仓脚本由 Action Worker checkout 后执行，不等于业务仓自己承担 Runner 重执行。
 
