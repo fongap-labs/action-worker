@@ -139,6 +139,7 @@ jobs:
         if: steps.base_plan.outputs.ci_required == 'true'
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           REQUEST_ID: ${{ github.event.client_payload.request_id }}
