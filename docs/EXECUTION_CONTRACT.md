@@ -59,13 +59,14 @@ Gate / Publish / Deploy / Status
 - 最薄 dispatch workflow；
 - GitHub 平台要求必须由目标仓自身创建的极轻 Check / status bridge。
 
-业务仓可以声明执行需求，但不得声明中央凭据或授予自己权限。
+业务仓可以声明执行需求，但不得声明中央凭据或授予自己权限。AI Review 只能提供 finding / suggestion，不属于 Capability Grant、CI Gate 或 Merge Gate。
 
 ## 4. Action Worker owns
 
 Action Worker 统一负责：
 
 - 来源与 Commit 身份验证；
+- deterministic Security Gate，包括新增 Secret、敏感文件与危险 Workflow 模式检查；
 - Repository capability 校验；
 - Execution Request / Manifest 校验；
 - CI / test / build / AI Review / release / deploy / task orchestration；
