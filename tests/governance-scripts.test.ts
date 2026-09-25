@@ -72,7 +72,6 @@ test("AI triage can only skip safe low-risk code changes", async () => {
     review_llm_timeout: 300,
     review_task_timeout: 2,
     review_concurrency: 1,
-    block_severity: "critical",
     review_effort: "medium",
   };
   const skipped = applyTriage(base, {
@@ -104,7 +103,6 @@ test("AI triage can only skip safe low-risk code changes", async () => {
   }, triagePolicy, reviewPolicy, aiAgents);
   assert.equal(upgraded.review_agent, "security");
   assert.equal(upgraded.review_model, "Code-Ultra");
-  assert.equal(upgraded.block_severity, "high");
 });
 
 test("CI and review results require complete successful evidence", () => {
@@ -286,12 +284,14 @@ test("release contracts bind source, artifact provenance, target, assets, and li
   assert.throws(() => validateRelease(request, undefined, { "fongap/other": ["release-source"], "fongap/target": ["release-target"] }));
 });
 
-test("PR review summary includes gate, routing, and findings", () => {
+test("PR review summary keeps AI findings advisory", () => {
   const body = buildReview("failure", "https://example.test/run", {
     context: { risk: "high" }, triage: { status: "complete", action: "upgrade" }, review_agent: "security",
-    review_model: "Code-Ultra", block_severity: "high",
+    review_model: "Code-Ultra",
   }, { comments: [{ severity: "high", path: "src/a.ts", start_line: 12, category: "security", content: "Finding" }] });
   assert.match(body, /Gate: \*\*FAIL\*\*/);
+  assert.match(body, /AI Review role: advisory only/);
+  assert.doesNotMatch(body, /Blocking threshold/);
   assert.match(body, /security/);
   assert.match(body, /src\/a\.ts:12/);
 });
