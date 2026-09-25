@@ -246,7 +246,7 @@ async function main(): Promise<void> {
   }
 
   const manifestResponse = await reader.get(
-    `repos/${request.source_repository}/contents/.github/release-build.json?ref=${request.source_sha}`,
+    `repos/${request.source_repository}/contents/.github/release.manifest.json?ref=${request.source_sha}`,
   );
   const manifest = parseReleaseBuildManifest(
     parseJson(decodeGithubContent(manifestResponse), "Release build manifest must be valid JSON.", 65),
