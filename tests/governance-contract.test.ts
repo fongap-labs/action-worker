@@ -29,7 +29,7 @@ test("governance files and TypeScript control entries exist", async () => {
   const required = [
     "AGENTS.md", "CLAUDE.md", "docs/README.md", "docs/ARCHITECTURE.md", "docs/ARCHITECTURE_GOVERNANCE.md",
     "docs/NAMING_CONVENTIONS.md", "docs/CHANGELOG_CONVENTIONS.md", "docs/DEVELOPMENT_GUIDE.md",
-    "contracts/change-record.json", "contracts/deploy-dispatch.json", "contracts/execution-manifest.json", "contracts/execution-request.json", "contracts/main-write-dispatch.json", "contracts/pr-task.json", "contracts/release-dispatch.json",
+    "contracts/change-record.json", "contracts/deploy-dispatch.json", "contracts/execution-manifest.json", "contracts/execution-request.json", "contracts/main-write-dispatch.json", "contracts/pr-task.json", "contracts/release-build.json", "contracts/release-dispatch.json",
     "contracts/release-manifest.json", "contracts/release-provenance.json", "contracts/task-dispatch.json", "policies/capabilities.json", "policies/deploy.json", "policies/execution.json", "policies/runner.json", "policies/rulesets.json", "policies/triage.json",
     "package.json", "package-lock.json", "tsconfig.json", "scripts/validate-change-record.ts",
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
@@ -174,7 +174,9 @@ test("release, source, deploy, merge, and repository settings contracts remain i
     "types: [run-release-build]",
     "validate-release-build-request.ts",
     "package-release-build.ts",
-    "release-build.json",
+    "$GITHUB_WORKSPACE/source/.github/release-build.json",
+    "policies/runner.json",
+    "fromJSON(matrix.runner_labels_json)",
     "AW_CONTROL_TOKEN",
     "actions/setup-python",
     "actions/setup-node",
@@ -184,13 +186,18 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   ]);
   const releasePackager = await text("scripts/package-release-build.ts");
   requireText(releasePackager, ["release-manifest.json", "release-provenance.json", "artifact_run_id", "source_sha"]);
-  const releaseBuildPolicy = await json("policies/release-build.json") as Record<string, unknown>;
-  assert.equal(releaseBuildPolicy.schema_version, 1);
-  const releaseBuildRepositories = (releaseBuildPolicy.repositories ?? {}) as Record<string, unknown>;
-  assert.deepEqual(Object.keys(releaseBuildRepositories).sort(), [
-    "fongap-labs/app-source",
-    "fongap-labs/delta",
+  assert.equal(await exists("policies/release-build.json"), false);
+  const releaseBuildValidator = await text("scripts/validate-release-build-request.ts");
+  requireText(releaseBuildValidator, [
+    ".github/release-build.json",
+    "parseReleaseBuildManifest",
+    "parseRunnerPolicy",
+    "resolveRunnerProfile",
+    "release-source",
+    "release-target",
+    "CI Evidence",
   ]);
+  assert.doesNotMatch(releaseBuildValidator, /repositories\[request\.source_repository\]|fongap-labs\/(?:delta|app-source)/);
 
   const release = await text(".github/workflows/handle-release-dispatch.yml");
   requireText(release, ["types: [run-release]", "source_repository", "source_sha", "artifact_run_id", "AW_CONTROL_TOKEN", "node-version: 24", "RELEASE_REQUEST_JSON", "node scripts/publish-release.ts"]);
