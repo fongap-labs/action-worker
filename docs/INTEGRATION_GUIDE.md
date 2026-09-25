@@ -68,11 +68,11 @@ capability_requests
 ```text
 PR
 → thin dispatch
-→ Action Worker Central CI
+→ Security / Central CI / deterministic PR policy
 → CI Evidence
-→ optional AI Review
-→ PR Governance
-→ validate-merge bridge when required
+→ PR Governance / validate-merge
+├→ merge authority
+└→ AI Review after gate (advisory only)
 ```
 
 项目测试代码留在业务仓，但由 Action Worker checkout 不可变 source SHA 后在 Sandbox 执行。
@@ -109,7 +109,17 @@ AIG_ACCESS_KEY_AGENT
 
 `AW_EXECUTION_TOKEN` 已删除，不再配置。中央执行使用最小权限的现有 Authority 与 GitHub 原生短期凭据组合。
 
-## 8. Release
+## 8. Main Write Guard
+
+业务仓必须为 `main` 更新提供统一薄事件入口，或由其他受信事件源通知 Action Worker。
+
+Main Write Guard 只接收最小事实，并由 Action Worker 重新查询 GitHub 证明该 `main` SHA 来自合法 PR Merge。
+
+未经 Main Write Guard 证明的 SHA 不能用于 Release、Deploy、Publication 或 privileged execution。
+
+详细规则见 [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md)。
+
+## 9. Release
 
 ```text
 immutable source
@@ -125,7 +135,7 @@ immutable source
 
 迁移期旧源仓 build artifact 只能继续缩小，不得作为新项目模板。
 
-## 9. Deploy
+## 10. Deploy
 
 ```text
 immutable source
@@ -139,7 +149,7 @@ immutable source
 
 需要生产网络、SSH、Tailscale 或其他受信网络时，由 Runner Policy 解析到合适的 trusted / self-hosted 后端；业务仓不绑定具体机器。
 
-## 10. 普通新仓不应做什么
+## 11. 普通新仓不应做什么
 
 普通新仓接入不应要求：
 
@@ -153,7 +163,7 @@ immutable source
 
 如果必须这样做，应先判断是否存在通用能力缺口。
 
-## 11. GitHub 平台边界
+## 12. GitHub 平台边界
 
 统一执行架构不代表不同 GitHub 套餐拥有相同的平台强制能力。
 
@@ -161,7 +171,7 @@ GitHub Free 组织的私有仓库不支持 Ruleset 或 Protected Branch 强制�
 
 平台能力差异不得改变 Execution Contract，也不得成为把重执行重新放回业务仓的理由。
 
-## 12. 迁移期
+## 13. 迁移期
 
 当前部分仓库仍保留旧 CI / Release / Deploy 路径。它们属于迁移债务。
 

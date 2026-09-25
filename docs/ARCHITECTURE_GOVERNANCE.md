@@ -165,11 +165,16 @@ PR / push
 → deterministic Security Gate
 → Sandbox CI / test / build
 → CI Evidence
-→ PR Governance
-→ validate-merge bridge when GitHub requires it
+→ deterministic PR Governance
+→ validate-merge
 
-                  ↘ optional AI Review
+                  └→ AI Review after gate
                      findings / suggestions only
+
+merge
+→ main update
+→ Main Write Guard
+→ trusted main SHA
 ```
 
 业务仓不得为了“本地 CI”继续维护第二套重型 Runner 流程。
@@ -224,11 +229,19 @@ AI Agent 是通用动态能力，不拥有权限边界，也不拥有 Merge Gate
 
 `AW_AI_AGENT_CONFIG` 是 Agent 启停和逻辑模型的单一运行配置。Policy / Rule 保存确定性规则，不保存第二套模型选择。
 
-AI Review 的职责是审核、建议和发现问题。它可以报告 critical / high / medium / low finding，但 finding 本身不能直接让 CI、PR Governance 或 merge gate 失败；模型不可用、超时或 Review Engine 失败同样不得改变确定性 Gate 结论。
+AI Review 的职责是审核、建议和发现问题。它必须位于确定性 PR Gate 结论之后执行，可以报告 critical / high / medium / low finding，但 finding 本身不能让 CI、PR Governance、validate-merge 或 Main Write Guard 失败；模型不可用、超时或 Review Engine 失败同样不得改变或延迟确定性 Gate 结论。
 
 真正的门槛由可重复验证的 CI、PR Policy、Security Gate、Release / Deploy Policy 和 provenance 决定。Agent 可以参与 Plan、Triage、Review、Writing 等任务，但不能改变 Secret 边界、绕过 Capability Grant / CI Evidence、修改 Runner 信任等级或降低 Gate。
 
-## 12. Repository policy
+## 12. Main Write Guard
+
+`validate-merge` 负责 main 之前的 Merge Authority；Main Write Guard 负责 main 更新之后的 provenance authority。
+
+所有正式 Release、Deploy、Publication 和 privileged execution 都必须要求目标 source SHA 已获得 Main Write Guard success。仅仅位于 `main` 不构成可信来源。
+
+详细规则见 [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md)。
+
+## 13. Repository policy
 
 仓库权限由单一 `AW_REPOSITORY_POLICY` 管理。
 
@@ -243,7 +256,7 @@ register repository capability
 
 如果新增普通仓库仍需要修改 Action Worker 核心脚本或增加项目专属 Policy，视为架构回退。
 
-## 13. 目录边界
+## 14. 目录边界
 
 允许的长期结构：
 
@@ -259,7 +272,7 @@ tests/               governance regression tests
 
 禁止以仓库名或项目名建立中央配置目录。`runner_profile` 是合同概念，不代表允许创建项目专属 `profiles/` 配置层。
 
-## 14. 迁移规则
+## 15. 迁移规则
 
 当前代码尚未全部达到目标边界，因此允许迁移期旧实现存在，但必须遵守：
 
@@ -270,6 +283,6 @@ tests/               governance regression tests
 5. Runner 选择逐步统一进入 Runner Resolver；
 6. 文档必须区分“当前实现”和“长期边界”。
 
-## 15. 最短原则
+## 16. 最短原则
 
 > 业务仓描述要做什么；Action Worker 决定能不能做、怎么安全地做并统一执行；Runner 只提供计算；Gate 只相信与不可变 source 绑定的可验证结果。
