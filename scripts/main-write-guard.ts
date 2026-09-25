@@ -102,7 +102,7 @@ export async function validateMainWriteProvenance(
   reader: GithubReader,
   repository: string,
   mainSha: string,
-  requireCentralStatuses: boolean,
+  isCentralStatusRequired: boolean,
 ): Promise<MainWriteProvenance> {
   if (!repositoryPattern.test(repository) || !shaPattern.test(mainSha)) {
     throw new CliError("::error::Main write provenance input is invalid.", 64);
@@ -163,7 +163,7 @@ export async function validateMainWriteProvenance(
     throw new CliError("::error::Merged PR head has no successful validate-merge check.", 65);
   }
 
-  if (requireCentralStatuses) {
+  if (isCentralStatusRequired) {
     await requireCentralPrEvidence(reader, repository, prHeadSha);
   }
 
@@ -179,9 +179,9 @@ export async function assertTrustedMainWrite(
   reader: GithubReader,
   repository: string,
   mainSha: string,
-  requireCentralStatuses = true,
+  isCentralStatusRequired = true,
 ): Promise<MainWriteProvenance> {
-  const provenance = await validateMainWriteProvenance(reader, repository, mainSha, requireCentralStatuses);
+  const provenance = await validateMainWriteProvenance(reader, repository, mainSha, isCentralStatusRequired);
   for (let attempt = 0; attempt < 12; attempt += 1) {
     const status = await reader.get(`repos/${repository}/commits/${mainSha}/status`);
     if (hasTrustedMainWriteGuard(status)) {
