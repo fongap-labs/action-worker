@@ -11,22 +11,32 @@ on:
 permissions: {}
 
 concurrency:
-  group: task-source-${{ github.event.client_payload.repository || 'internal-vault' }}-${{ github.run_id }}
+  group: task-source-${{ github.event.client_payload.repository || github.event_name }}-${{ github.run_id }}
   cancel-in-progress: false
 
 jobs:
   dispatch:
     name: Resolve and dispatch tasks
+    if: github.event_name == 'repository_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
       - name: Resolve source request
         id: source
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          EVENT_NAME: ${{ github.event_name }}
-          EVENT_SCHEDULE: ${{ github.event.schedule }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           PAYLOAD_REPOSITORY: ${{ github.event.client_payload.repository }}
           PAYLOAD_MODE: ${{ github.event.client_payload.mode }}
           PAYLOAD_PROJECT: ${{ github.event.client_payload.project }}
@@ -36,8 +46,15 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          repository="fongap-labs/internal-vault"
-          main_sha="$(gh api "repos/$repository/commits/main" --jq '.sha')"
+          repository="$PAYLOAD_REPOSITORY"
+          node scripts/repository-policy.ts validate "$repository" task
+
+          default_branch="$(gh api "repos/$repository" --jq '.default_branch')"
+          [ -n "$default_branch" ] || {
+            echo "::error::Task source repository has no default branch." >&2
+            exit 65
+          }
+          main_sha="$(gh api "repos/$repository/commits/$default_branch" --jq '.sha')"
           [[ "$main_sha" =~ ^[0-9a-f]{40}$ ]]
 
           mode=""
@@ -45,41 +62,25 @@ jobs:
           before_sha=""
           head_sha="$main_sha"
 
-          case "$EVENT_NAME" in
-            repository_dispatch)
-              [ "$PAYLOAD_REPOSITORY" = "$repository" ] || {
-                echo "::error::Unsupported task source repository: $PAYLOAD_REPOSITORY" >&2
-                exit 65
-              }
-
-              case "$PAYLOAD_MODE" in
-                manual)
-                  mode="manual"
-                  project="$PAYLOAD_PROJECT"
-                  ;;
-                push)
-                  mode="push"
-                  before_sha="$PAYLOAD_BEFORE_SHA"
-                  [[ "$PAYLOAD_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || {
-                    echo "::error::Invalid head_sha." >&2
-                    exit 64
-                  }
-                  [ "$PAYLOAD_HEAD_SHA" = "$main_sha" ] || {
-                    echo "::error::Task source request is stale; main has moved." >&2
-                    exit 75
-                  }
-                  ;;
-                *)
-                  echo "::error::Unsupported task source mode: $PAYLOAD_MODE" >&2
-                  exit 64
-                  ;;
-              esac
+          case "$PAYLOAD_MODE" in
+            manual)
+              mode="manual"
+              project="$PAYLOAD_PROJECT"
               ;;
-            schedule)
-              mode="schedule"
+            push)
+              mode="push"
+              before_sha="$PAYLOAD_BEFORE_SHA"
+              [[ "$PAYLOAD_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+                echo "::error::Invalid head_sha." >&2
+                exit 64
+              }
+              [ "$PAYLOAD_HEAD_SHA" = "$main_sha" ] || {
+                echo "::error::Task source request is stale; default branch has moved." >&2
+                exit 75
+              }
               ;;
             *)
-              echo "::error::Unsupported event: $EVENT_NAME" >&2
+              echo "::error::Unsupported task source mode: $PAYLOAD_MODE" >&2
               exit 64
               ;;
           esac
@@ -90,7 +91,6 @@ jobs:
             echo "before_sha=$before_sha"
             echo "mode=$mode"
             echo "project=$project"
-            echo "schedule=$EVENT_SCHEDULE"
           } >> "$GITHUB_OUTPUT"
 
       - name: Checkout source repository
@@ -110,7 +110,6 @@ jobs:
           PROJECT: ${{ steps.source.outputs.project }}
           BEFORE_SHA: ${{ steps.source.outputs.before_sha }}
           HEAD_SHA: ${{ steps.source.outputs.head_sha }}
-          EVENT_SCHEDULE: ${{ steps.source.outputs.schedule }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -150,26 +149,6 @@ jobs:
                   done
               )"
               ;;
-            schedule)
-              {
-                if [ "$EVENT_SCHEDULE" = "30 0 * * *" ] || [ "$EVENT_SCHEDULE" = "30 12 * * *" ]; then
-                  printf '%s\n' "MarketBrief"
-                fi
-                if [ "$EVENT_SCHEDULE" = "30 12 * * 0" ]; then
-                  printf '%s\n' "PharmaBrief"
-                fi
-              } | sort -u > "$RUNNER_TEMP/scheduled-projects.txt"
-
-              while IFS= read -r name; do
-                [ -n "$name" ] || continue
-                [ -f "projects/$name/task.json" ] || {
-                  echo "::error::Scheduled project is missing task.json: projects/$name/task.json" >&2
-                  exit 66
-                }
-              done < "$RUNNER_TEMP/scheduled-projects.txt"
-
-              projects="$(cat "$RUNNER_TEMP/scheduled-projects.txt")"
-              ;;
           esac
 
           if [ -z "$projects" ]; then
@@ -202,7 +181,12 @@ jobs:
             request_id="task-source-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${index}"
 
             payload="$(
-              jq -cn                 --arg request_id "$request_id"                 --arg project "$project"                 --arg bootstrap_ref "$HEAD_SHA"                 --arg repository "$REPOSITORY"                 '{
+              jq -cn \
+                --arg request_id "$request_id" \
+                --arg project "$project" \
+                --arg bootstrap_ref "$HEAD_SHA" \
+                --arg repository "$REPOSITORY" \
+                '{
                   event_type: "run-task",
                   client_payload: {
                     schema_version: "1",
@@ -214,7 +198,38 @@ jobs:
                 }'
             )"
 
-            gh api               --method POST               "repos/${GITHUB_REPOSITORY}/dispatches"               --input - <<< "$payload"
+            gh api \
+              --method POST \
+              "repos/${GITHUB_REPOSITORY}/dispatches" \
+              --input - <<< "$payload"
 
             echo "Dispatched $project at $HEAD_SHA"
           done < <(jq -r '.[]' <<< "$PROJECTS")
+
+  scheduled:
+    name: Dispatch scheduled tasks
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Resolve and dispatch scheduled tasks
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_CONTROL_REPOSITORY: ${{ github.repository }}
+          TASK_SOURCE_SCHEDULE: ${{ github.event.schedule }}
+        run: node scripts/dispatch-scheduled-tasks.ts

@@ -121,7 +121,13 @@ AIG_ACCESS_KEY_AGENT
 
 详细规则见 [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md)。
 
-## 9. Release
+## 9. Task
+
+任务项目仍保留在业务仓。业务仓可以用最薄 dispatcher 上报手动或默认分支变更事件，但 Action Worker 必须通过 `AW_REPOSITORY_POLICY` 的 `task` capability 重新授权仓库，并重新解析真实默认分支 HEAD。
+
+需要定时执行的业务仓在 `.github/task-source.json` 声明“调度槽 → project”映射。Action Worker 的公共调度器扫描所有具有 `task` capability 的仓库，只对存在该 manifest 的仓库派发不可变 `bootstrap_ref`。中央仓不得维护业务仓名或 project 名清单。
+
+## 10. Release
 
 ```text
 immutable source
@@ -139,7 +145,7 @@ immutable source
 
 中央仓不得维护按 repository/product 分组的 Release Build 矩阵。
 
-## 10. Deploy
+## 11. Deploy
 
 ```text
 immutable source
@@ -153,7 +159,7 @@ immutable source
 
 需要生产网络、SSH、Tailscale 或其他受信网络时，由 Runner Policy 解析到合适的 trusted / self-hosted 后端；业务仓不绑定具体机器。
 
-## 11. 普通新仓不应做什么
+## 12. 普通新仓不应做什么
 
 普通新仓接入不应要求：
 
@@ -167,7 +173,7 @@ immutable source
 
 如果必须这样做，应先判断是否存在通用能力缺口。
 
-## 12. GitHub 平台边界
+## 13. GitHub 平台边界
 
 统一执行架构不代表不同 GitHub 套餐拥有相同的平台强制能力。
 
@@ -175,7 +181,7 @@ GitHub Free 组织的私有仓库不支持 Ruleset 或 Protected Branch 强制�
 
 平台能力差异不得改变 Execution Contract，也不得成为把重执行重新放回业务仓的理由。
 
-## 13. 迁移期
+## 14. 迁移期
 
 当前部分仓库仍保留旧 CI / Release / Deploy 路径。它们属于迁移债务。
 
