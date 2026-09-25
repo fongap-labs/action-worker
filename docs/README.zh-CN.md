@@ -56,6 +56,8 @@ Develop Action Worker
 → task-related skill
 → docs/SHARED_GOVERNANCE.md
 → docs/ARCHITECTURE_GOVERNANCE.md
+→ docs/EXECUTION_CONTRACT.md
+→ docs/RUNNER_POLICY.md
 → related contracts / policies / rules
 
 Work in a managed repository
