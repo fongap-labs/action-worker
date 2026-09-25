@@ -1,0 +1,158 @@
+name: Handle Dependency Repair Dispatch
+
+on:
+  repository_dispatch:
+    types: [run-dependency-repair]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-repair-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    name: Prepare dependency repair
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    outputs:
+      enabled: ${{ steps.resolve.outputs.enabled }}
+      repository: ${{ steps.resolve.outputs.repository }}
+      pr_number: ${{ steps.resolve.outputs.pr_number }}
+      head_sha: ${{ steps.resolve.outputs.head_sha }}
+      head_ref: ${{ steps.resolve.outputs.head_ref }}
+      base_sha: ${{ steps.resolve.outputs.base_sha }}
+      repair_id: ${{ steps.resolve.outputs.repair_id }}
+      adapter: ${{ steps.resolve.outputs.adapter }}
+      tool_version: ${{ steps.resolve.outputs.tool_version }}
+      working_directory: ${{ steps.resolve.outputs.working_directory }}
+      output_paths_json: ${{ steps.resolve.outputs.output_paths_json }}
+      runner_labels_json: ${{ steps.resolve.outputs.runner_labels_json }}
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Resolve dependency repair
+        id: resolve
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          DEPENDENCY_REPAIR_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
+        run: node scripts/resolve-dependency-repair.ts policies/runner.json
+
+  compute:
+    name: Dependency repair / ${{ needs.prepare.outputs.repair_id }}
+    needs: prepare
+    if: needs.prepare.outputs.enabled == 'true'
+    runs-on: ${{ fromJSON(needs.prepare.outputs.runner_labels_json) }}
+    timeout-minutes: 30
+
+    outputs:
+      changed: ${{ steps.collect.outputs.changed }}
+
+    steps:
+      - name: Checkout target source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.prepare.outputs.repository }}
+          ref: ${{ needs.prepare.outputs.head_sha }}
+          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          path: target
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: control
+          persist-credentials: false
+
+      - name: Set up uv adapter
+        if: needs.prepare.outputs.adapter == 'uv-lock'
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: ${{ needs.prepare.outputs.tool_version }}
+
+      - name: Run uv lock adapter
+        if: needs.prepare.outputs.adapter == 'uv-lock'
+        working-directory: target/${{ needs.prepare.outputs.working_directory }}
+        run: uv lock
+
+      - name: Confine generated outputs
+        id: collect
+        env:
+          OUTPUT_PATHS_JSON: ${{ needs.prepare.outputs.output_paths_json }}
+        run: |
+          node control/scripts/collect-dependency-repair.ts \
+            "$GITHUB_WORKSPACE/target" \
+            "$RUNNER_TEMP/dependency-repair" \
+            "$OUTPUT_PATHS_JSON"
+
+      - name: Upload generated outputs
+        if: steps.collect.outputs.changed == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dependency-repair-output
+          path: ${{ runner.temp }}/dependency-repair
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish dependency repair
+    needs: [prepare, compute]
+    if: needs.compute.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Download generated outputs
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dependency-repair-output
+          path: ${{ runner.temp }}/dependency-repair
+
+      - name: Checkout target branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.prepare.outputs.repository }}
+          ref: ${{ needs.prepare.outputs.head_sha }}
+          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          path: target
+          fetch-depth: 1
+
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: control
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Revalidate and publish generated outputs
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          OUTPUT_PATHS_JSON: ${{ needs.prepare.outputs.output_paths_json }}
+        run: |
+          node control/scripts/publish-dependency-repair.ts \
+            "${{ needs.prepare.outputs.repository }}" \
+            "${{ needs.prepare.outputs.pr_number }}" \
+            "${{ needs.prepare.outputs.head_sha }}" \
+            "${{ needs.prepare.outputs.head_ref }}" \
+            "${{ needs.prepare.outputs.base_sha }}" \
+            "${{ needs.prepare.outputs.repair_id }}" \
+            "$OUTPUT_PATHS_JSON" \
+            "$RUNNER_TEMP/dependency-repair" \
+            "$GITHUB_WORKSPACE/target"

@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fongap-labs/action-worker/contracts/dependency-repair.json",
+  "title": "Dependency Repair Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "repairs"],
+  "properties": {
+    "schema_version": { "const": "1" },
+    "repairs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id", "adapter", "runner_profile", "trusted_actor",
+          "trigger_paths", "output_paths", "tool_version",
+          "head_prefix", "working_directory"
+        ],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+          "adapter": { "enum": ["uv-lock"] },
+          "runner_profile": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+          "trusted_actor": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "trigger_paths": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 32,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "maxLength": 512 }
+          },
+          "output_paths": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 32,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1, "maxLength": 512 }
+          },
+          "tool_version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+          "head_prefix": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "working_directory": { "type": "string", "minLength": 1, "maxLength": 512 }
+        }
+      }
+    }
+  }
+}

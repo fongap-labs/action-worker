@@ -91,7 +91,28 @@ PR 不能用自己的 head 修改安全扫描配置。中央 CodeQL 生成的 SA
 
 周期扫描由公共 Action Worker 的 Security Scan Intake 统一调度，不要求业务仓保留 scheduled CodeQL workflow。
 
-## 7. Runner
+## 7. Dependency repair
+
+依赖锁文件、生成清单等“由受信依赖机器人触发、需要回写 PR 分支”的修复使用 source-owned `.github/dependency-repair.json`。
+
+边界固定为：
+
+```text
+trusted PR facts + base manifest
+→ sandbox compute without persistent write credentials
+→ output-path confinement
+→ artifact handoff
+→ control-plane revalidation
+→ allowlisted branch write
+```
+
+业务仓只声明 adapter、抽象 `runner_profile`、可信 actor、触发路径、允许输出和工具版本。Action Worker 不按仓库名选择修复实现。
+
+发布步骤不得运行目标仓项目命令；它只允许把经过白名单校验的生成物回写到仍然指向同一 HEAD 的同仓 PR 分支。
+
+在某个旧本地修复 workflow 被删除前，必须先用真实机器人 PR 验证中央路径成功，避免依赖修复断档。
+
+## 8. Runner
 
 业务仓只声明 `runner_profile`，不直接指定 GitHub-hosted 镜像、`self-hosted`、Runner group、labels 或主机名。
 
@@ -99,7 +120,7 @@ Action Worker Runner Resolver 统一选择 GitHub-hosted / self-hosted 或未来
 
 详细规则见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。
 
-## 8. 中央配置
+## 9. 中央配置
 
 Action Worker Repository Variable：
 
@@ -121,7 +142,7 @@ AIG_ACCESS_KEY_AGENT
 
 `AW_EXECUTION_TOKEN` 已删除，不再配置。中央执行使用最小权限的现有 Authority 与 GitHub 原生短期凭据组合。
 
-## 9. Main Write Guard
+## 10. Main Write Guard
 
 业务仓不承担 Main Write Guard 的权威执行。公开 `action-worker` 定期审计 `AW_REPOSITORY_POLICY` 中所有受管仓当前 `main`，重新查询 GitHub 并证明 source SHA 来自合法 PR Merge。
 
@@ -131,13 +152,13 @@ AIG_ACCESS_KEY_AGENT
 
 详细规则见 [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md)。
 
-## 10. Task
+## 11. Task
 
 任务项目仍保留在业务仓。业务仓可以用最薄 dispatcher 上报手动或默认分支变更事件，但 Action Worker 必须通过 `AW_REPOSITORY_POLICY` 的 `task` capability 重新授权仓库，并重新解析真实默认分支 HEAD。
 
 需要定时执行的业务仓在 `.github/task-source.json` 声明“调度槽 → project”映射。Action Worker 的公共调度器扫描所有具有 `task` capability 的仓库，只对存在该 manifest 的仓库派发不可变 `bootstrap_ref`。中央仓不得维护业务仓名或 project 名清单。
 
-## 11. Release
+## 12. Release
 
 ```text
 immutable source
@@ -155,7 +176,7 @@ immutable source
 
 中央仓不得维护按 repository/product 分组的 Release Build 矩阵。
 
-## 12. Deploy
+## 13. Deploy
 
 ```text
 immutable source
@@ -169,7 +190,7 @@ immutable source
 
 需要生产网络、SSH、Tailscale 或其他受信网络时，由 Runner Policy 解析到合适的 trusted / self-hosted 后端；业务仓不绑定具体机器。
 
-## 13. 普通新仓不应做什么
+## 14. 普通新仓不应做什么
 
 普通新仓接入不应要求：
 
@@ -183,7 +204,7 @@ immutable source
 
 如果必须这样做，应先判断是否存在通用能力缺口。
 
-## 14. GitHub 平台边界
+## 15. GitHub 平台边界
 
 统一执行架构不代表不同 GitHub 套餐拥有相同的平台强制能力。
 
@@ -191,7 +212,7 @@ GitHub Free 组织的私有仓库不支持 Ruleset 或 Protected Branch 强制�
 
 平台能力差异不得改变 Execution Contract，也不得成为把重执行重新放回业务仓的理由。
 
-## 15. 迁移期
+## 16. 迁移期
 
 当前部分仓库仍保留旧 CI / Release / Deploy 路径。它们属于迁移债务。
 

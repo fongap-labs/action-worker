@@ -29,18 +29,18 @@ test("governance files and TypeScript control entries exist", async () => {
   const required = [
     "AGENTS.md", "CLAUDE.md", "docs/README.md", "docs/ARCHITECTURE.md", "docs/ARCHITECTURE_GOVERNANCE.md",
     "docs/NAMING_CONVENTIONS.md", "docs/CHANGELOG_CONVENTIONS.md", "docs/DEVELOPMENT_GUIDE.md",
-    "contracts/change-record.json", "contracts/deploy-dispatch.json", "contracts/execution-manifest.json", "contracts/execution-request.json", "contracts/main-write-dispatch.json", "contracts/pr-task.json", "contracts/release-build.json", "contracts/release-dispatch.json",
+    "contracts/change-record.json", "contracts/dependency-repair.json", "contracts/deploy-dispatch.json", "contracts/execution-manifest.json", "contracts/execution-request.json", "contracts/main-write-dispatch.json", "contracts/pr-task.json", "contracts/release-build.json", "contracts/release-dispatch.json",
     "contracts/release-manifest.json", "contracts/release-provenance.json", "contracts/security-scan.json", "contracts/task-dispatch.json", "contracts/task-source.json", "policies/capabilities.json", "policies/deploy.json", "policies/execution.json", "policies/runner.json", "policies/rulesets.json", "policies/triage.json",
     "package.json", "package-lock.json", "tsconfig.json", "scripts/validate-change-record.ts",
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
     "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/intake-main-ci.ts", "scripts/intake-open-prs.ts", "scripts/intake-security-scans.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-security.ts", "scripts/validate-deploy-source.ts", "scripts/dispatch-central-deploy.ts", "scripts/main-write-guard.ts", "scripts/audit-main-writes.ts",
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
-    "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/dispatch-security-scan.ts", "scripts/execution-contract.ts", "scripts/execution-policy.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-ci-capabilities.ts", "scripts/resolve-execution-plan.ts", "scripts/resolve-pr-plan.ts", "scripts/resolve-security-scan.ts", "scripts/run-ai-triage.ts", "scripts/run-execution-job.ts", "scripts/security-scan.ts", "scripts/runner-policy.ts", "scripts/runtime-command.ts",
+    "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/collect-dependency-repair.ts", "scripts/dependency-repair.ts", "scripts/dispatch-security-scan.ts", "scripts/execution-contract.ts", "scripts/execution-policy.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-ci-capabilities.ts", "scripts/resolve-dependency-repair.ts", "scripts/resolve-execution-plan.ts", "scripts/resolve-pr-plan.ts", "scripts/resolve-security-scan.ts", "scripts/run-ai-triage.ts", "scripts/run-execution-job.ts", "scripts/security-scan.ts", "scripts/runner-policy.ts", "scripts/runtime-command.ts",
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
-    "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/publish-security-scan.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/dispatch-scheduled-tasks.ts", "scripts/validate-task-publication.ts",
+    "scripts/publish-dependency-repair.ts", "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/publish-security-scan.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/dispatch-scheduled-tasks.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
     ".github/workflows/aig-deploy.yml", ".github/workflows/aig-scheduled-ci.yml", ".github/workflows/deployment-readiness.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
-    ".github/workflows/ci-intake.yml", ".github/workflows/main-write-audit.yml", ".github/workflows/main-write-guard.yml", ".github/workflows/model-discovery.yml", ".github/workflows/pr-intake.yml", ".github/workflows/release-build.yml", ".github/workflows/security-scan.yml", ".github/workflows/security-scan-intake.yml", ".github/workflows/server-edge-deploy.yml",
+    ".github/workflows/ci-intake.yml", ".github/workflows/dependency-repair.yml", ".github/workflows/main-write-audit.yml", ".github/workflows/main-write-guard.yml", ".github/workflows/model-discovery.yml", ".github/workflows/pr-intake.yml", ".github/workflows/release-build.yml", ".github/workflows/security-scan.yml", ".github/workflows/security-scan-intake.yml", ".github/workflows/server-edge-deploy.yml",
     ".github/workflows/sync-tool-release.yml", ".github/workflows/validate-central-merge.yml",
     ".github/workflows/cancel-pr-work.yml",
   ];
@@ -577,4 +577,38 @@ test("central main write audit is independent of business repository Actions", a
   ]);
   assert.doesNotMatch(workflow, /fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)/);
   assert.doesNotMatch(script, /fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)/);
+});
+
+
+test("dependency repair keeps compute and publication authority separated", async () => {
+  const workflow = await text(".github/workflows/dependency-repair.yml");
+  requireText(workflow, [
+    "types: [run-dependency-repair]",
+    "resolve-dependency-repair.ts",
+    "collect-dependency-repair.ts",
+    "publish-dependency-repair.ts",
+    "persist-credentials: false",
+    "needs.compute.outputs.changed == 'true'",
+    "AW_REPOSITORY_POLICY",
+    "AW_CONTROL_TOKEN",
+  ]);
+  assert.doesNotMatch(workflow, /fongap-labs\/delta|pyproject\.toml|uv\.lock/);
+
+  const resolver = await text("scripts/resolve-dependency-repair.ts");
+  requireText(resolver, [
+    ".github/dependency-repair.json",
+    "validateRepositoryCapability",
+    "resolveRunnerProfile",
+    "sandbox",
+  ]);
+  assert.doesNotMatch(resolver, /fongap-labs\/delta/);
+
+  const publisher = await text("scripts/publish-dependency-repair.ts");
+  requireText(publisher, [
+    "resolveDependencyRepairFacts",
+    "selectDependencyRepair",
+    "git",
+    "push",
+  ]);
+  assert.doesNotMatch(publisher, /fongap-labs\/delta/);
 });
