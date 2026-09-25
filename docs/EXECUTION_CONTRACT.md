@@ -77,6 +77,7 @@ Action Worker 统一负责：
 - Gate；
 - 状态回写；
 - 发布与部署权限；
+- Main Write Guard 与 trusted main provenance；
 - 失败、超时、取消和重试策略。
 
 Action Worker 不保存项目产品逻辑，也不得通过仓库名称、项目名称或产品名称选择执行实现。
@@ -185,7 +186,22 @@ if product == ...
 
 如果未来由 GitHub App、Webhook 或其他可信事件源直接创建 Execution Request，可以进一步删除业务仓的 dispatch Runner；这属于入口优化，不改变统一执行边界。
 
-## 10. Migration rule
+## 10. Main provenance requirement
+
+任何面向正式环境或正式分发的 operation 都必须验证 source SHA 的 Main Write Guard。
+
+至少包括：
+
+- `release`；
+- `deploy`；
+- publication；
+- production / privileged execution。
+
+`source_sha` 位于 `main` 不能替代 provenance。只有与该 SHA 精确绑定的 `Main Write Guard = success` 才能授予对应 capability。
+
+AI Review 不属于此验证链。AI Review 必须在确定性 PR Gate 结论之后运行，并且不能改变 Main Write Guard。
+
+## 11. Migration rule
 
 当前实现允许存在迁移期旧入口，但必须满足：
 
