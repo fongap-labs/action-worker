@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- feat: add deterministic security gates for secret leakage, sensitive files, and risky workflow patterns across PR and CI execution.
+
+- fix: make AI Review advisory so findings, model outages, and review failures cannot directly block deterministic PR or CI gates.
+
 - refactor: resolve closed-PR cancellation repository authority through AW_REPOSITORY_POLICY instead of a duplicated workflow allowlist.
 
 - fix: validate closed-PR cancellation targets before entering governance and Central CI concurrency groups.
