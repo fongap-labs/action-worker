@@ -50,5 +50,12 @@
       "pattern": "^\\s*permissions\\s*:\\s*write-all\\s*$"
     }
   ],
-  "require_pinned_actions": true
+  "require_pinned_actions": true,
+  "path_terms": [
+    "secret",
+    "token",
+    "auth",
+    "permission",
+    "credential"
+  ]
 }
