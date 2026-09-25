@@ -43,7 +43,7 @@ test("PR security scans trust base SHA config, never PR head config", async () =
   });
   const facts = await resolveSecurityScanFacts({
     async get(path: string): Promise<unknown> {
-      if (path === "repos/fongap/example") return { default_branch: "main" };
+      if (path === "repos/fongap/example") return { default_branch: "main", private: false };
       if (path === "repos/fongap/example/pulls/7") {
         return {
           head: { sha: sourceSha },
@@ -67,7 +67,7 @@ test("default branch security scans require the current default head", async () 
   });
   const facts = await resolveSecurityScanFacts({
     async get(path: string): Promise<unknown> {
-      if (path === "repos/fongap/example") return { default_branch: "trunk" };
+      if (path === "repos/fongap/example") return { default_branch: "trunk", private: false };
       if (path === "repos/fongap/example/commits/trunk") return { sha: sourceSha };
       throw new Error(`unexpected path: ${path}`);
     },
@@ -78,10 +78,28 @@ test("default branch security scans require the current default head", async () 
   await assert.rejects(
     resolveSecurityScanFacts({
       async get(path: string): Promise<unknown> {
-        if (path === "repos/fongap/example") return { default_branch: "trunk" };
+        if (path === "repos/fongap/example") return { default_branch: "trunk", private: false };
         return { sha: baseSha };
       },
     }, request),
     /default branch has moved/,
   );
+});
+
+test("security scan facts carry repository visibility", async () => {
+  const request = parseSecurityScanRequest({
+    schema_version: "1",
+    request_id: "scan-private",
+    repository: "fongap/private",
+    source_sha: sourceSha,
+    pr_number: 0,
+  });
+  const facts = await resolveSecurityScanFacts({
+    async get(path: string): Promise<unknown> {
+      if (path === "repos/fongap/private") return { default_branch: "main", private: true };
+      if (path === "repos/fongap/private/commits/main") return { sha: sourceSha };
+      throw new Error(`unexpected path: ${path}`);
+    },
+  }, request);
+  assert.equal(facts.is_private, true);
 });
