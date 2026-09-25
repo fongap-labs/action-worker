@@ -33,14 +33,14 @@ test("governance files and TypeScript control entries exist", async () => {
     "contracts/release-manifest.json", "contracts/release-provenance.json", "contracts/task-dispatch.json", "policies/deploy.json", "policies/execution.json", "policies/rulesets.json", "policies/triage.json",
     "package.json", "package-lock.json", "tsconfig.json", "scripts/validate-change-record.ts",
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
-    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-security.ts", "scripts/validate-deploy-source.ts", "scripts/dispatch-central-deploy.ts", "scripts/main-write-guard.ts",
+    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-security.ts", "scripts/validate-deploy-source.ts", "scripts/dispatch-central-deploy.ts", "scripts/main-write-guard.ts", "scripts/audit-main-writes.ts",
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
     "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-pr-plan.ts", "scripts/run-ai-triage.ts", "scripts/runtime-command.ts",
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
     "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
     ".github/workflows/aig-deploy.yml", ".github/workflows/aig-scheduled-ci.yml", ".github/workflows/deployment-readiness.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
-    ".github/workflows/main-write-guard.yml", ".github/workflows/model-discovery.yml", ".github/workflows/release-build.yml", ".github/workflows/server-edge-deploy.yml",
+    ".github/workflows/main-write-audit.yml", ".github/workflows/main-write-guard.yml", ".github/workflows/model-discovery.yml", ".github/workflows/release-build.yml", ".github/workflows/server-edge-deploy.yml",
     ".github/workflows/sync-tool-release.yml", ".github/workflows/validate-central-merge.yml",
     ".github/workflows/cancel-pr-work.yml",
   ];
@@ -446,4 +446,25 @@ test("main write guard is the post-merge provenance authority", async () => {
     "assertTrustedMainWrite",
   ]);
   assert.doesNotMatch(guard, /commit message|actor.*trusted|bypass/i);
+});
+
+
+test("central main write audit is independent of business repository Actions", async () => {
+  const workflow = await text(".github/workflows/main-write-audit.yml");
+  requireText(workflow, [
+    'cron: "*/5 * * * *"',
+    "workflow_dispatch:",
+    "AW_CONTROL_TOKEN",
+    "AW_REPOSITORY_POLICY",
+    "node scripts/audit-main-writes.ts",
+  ]);
+  const script = await text("scripts/audit-main-writes.ts");
+  requireText(script, [
+    'repositoriesForCapability(policy, "pr")',
+    "validateMainWriteProvenance",
+    "Main Write Guard",
+    "commits/main",
+  ]);
+  assert.doesNotMatch(workflow, /fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)/);
+  assert.doesNotMatch(script, /fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)/);
 });
