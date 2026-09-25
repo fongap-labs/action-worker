@@ -1,102 +1,98 @@
 # 接入指引
 
-本文档定义业务仓接入 Action Worker 的最小标准。
+本文档定义受管仓库接入 Action Worker 统一执行平面的最低要求。公开仓库和私有仓库使用同一合同。
 
-## 1. 接入目标
+## 1. 接入后的目标
 
-普通业务仓接入后，应形成统一链路：
+```text
+Repository event
+→ thin dispatch
+→ Action Worker
+→ validate immutable source
+→ resolve Execution Manifest
+→ authorize capabilities
+→ resolve Runner
+→ execute
+→ evidence / provenance
+→ gate / release / deploy / status
+```
+
+业务仓不复制中央治理，也不承担长期重执行。
+
+## 2. 业务仓保留什么
+
+业务仓保留：产品源码、项目测试、项目 build / package / deploy 脚本、项目架构、Execution Manifest 和最薄 dispatch。
+
+如果 GitHub 平台要求目标仓自身创建 Required Check，可以额外保留极轻 Check bridge；它不得运行产品测试或持有中央 Secret。
+
+## 3. Execution Request
+
+普通 dispatch 只提交任务身份和目标。长期最小字段：
+
+```text
+schema_version
+request_id
+repository
+source_sha
+operation
+```
+
+PR 场景可以提交 PR number，由 Action Worker 重新获取真实 base/head SHA 和 diff。
+
+调用方不得提交 Secret、Token、实际 Runner、Gate 结论或中央权限结论。
+
+## 4. Execution Manifest
+
+项目自己的执行需求由版本控制的 Manifest / 项目脚本描述。
+
+可以声明：
+
+```text
+operation
+runner_profile
+commands
+matrix
+artifacts
+timeout
+capability_requests
+```
+
+不得声明：中央 Secret、具体 self-hosted Runner、Runner labels、跨仓写 Token 或绕过 Gate 的开关。
+
+详细合同见 [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md)。
+
+## 5. CI / PR
+
+目标模式：
 
 ```text
 PR
-→ Dispatch
-→ Action Worker
+→ thin dispatch
+→ Action Worker Central CI
 → CI Evidence
-→ AI Review
+→ optional AI Review
 → PR Governance
-→ validate-merge
-→ Merge
-→ Release Policy
-→ Build / Package
-→ Release Governance
-→ Deploy Policy
-→ Deploy
+→ validate-merge bridge when required
 ```
 
-业务仓不复制中央治理规则。
+项目测试代码留在业务仓，但由 Action Worker checkout 不可变 source SHA 后在 Sandbox 执行。
 
-## 2. PR 接入
+受 GitHub Ruleset 保护且要求 Check Run 来自目标仓 GitHub Actions 的仓库，可保留极轻 `validate-merge` bridge。它只汇合 `CI Evidence` 与 `PR Governance`。
 
-业务仓保留：
+## 6. Runner
 
-```text
-.github/workflows/dispatch-pr-governance.yml
-```
+业务仓只声明 `runner_profile`，不直接指定 GitHub-hosted 镜像、`self-hosted`、Runner group、labels 或主机名。
 
-只负责把最小 PR Task 发送给 Action Worker。
+Action Worker Runner Resolver 统一选择 GitHub-hosted / self-hosted 或未来后端。
 
-业务仓 Secret：
+详细规则见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。
 
-```text
-AW_DISPATCH_TOKEN
-```
-
-不得下发：
-
-```text
-AIG_ACCESS_KEY_AGENT
-AW_CONTROL_TOKEN
-AW_EXECUTION_TOKEN
-```
-
-## 3. CI 接入
-
-业务仓必须有：
-
-```text
-.github/workflows/ci.yml
-```
-
-并提供两个稳定 Job：
-
-```text
-ci-evidence
-validate-merge
-```
-
-项目自己的 test / build 命令仍由业务仓定义，但重执行可集中到 Action Worker。业务仓只保留薄 Dispatch 入口。
-
-受 GitHub Ruleset 保护、且要求 `validate-merge` 来自 GitHub Actions 的仓库，再保留一个极轻 `status` 事件入口，调用：
-
-```yaml
-uses: fongap-labs/action-worker/.github/workflows/validate-central-merge.yml@main
-```
-
-Action Worker 完成 `CI Evidence` 后写入最终 `PR Governance` Commit Status。业务仓在 `PR Governance=success` 时由 GitHub 原生 `status` 事件自动触发，并用本仓 `GITHUB_TOKEN` 为该 SHA 创建 `validate-merge` Check Run。业务仓不复制校验逻辑、不运行产品测试，也不需要中央凭据反向触发。
-
-GitHub Free 组织的私有仓库不支持 Ruleset 或 Protected Branch 强制门禁。因此私有仓仍执行相同中央治理链，但 GitHub 平台本身不能强制阻止管理员直接推送或绕过 PR 合并。当前私有仓应保持“不直接推 main、只走 PR/中央治理”的操作纪律；若需要平台级强制门禁，应升级到支持私有仓保护的 GitHub 计划。
-
-## 4. 中央配置
+## 7. 中央配置
 
 Action Worker Repository Variable：
 
 ```text
 AW_REPOSITORY_POLICY
-```
-
-每个仓库只登记一次，并按需要授予 `pr`、`task`、`release-source`、`release-target` capability。例如：
-
-```json
-{
-  "fongap-labs/ai-gateway": ["pr", "task"],
-  "fongap-labs/delta": ["pr", "task", "release-source"],
-  "fongap-labs/internal-vault": ["pr", "task", "release-source"],
-  "fongap-labs/external-vault": ["pr", "task", "release-target"]
-}
-```
-
-Action Worker Repository Variable：
-
-```text
 AW_AI_AGENT_CONFIG
 AI_GATEWAY_URL
 ```
@@ -109,226 +105,64 @@ AW_CONTROL_TOKEN
 AIG_ACCESS_KEY_AGENT
 ```
 
-`AW_AI_AGENT_CONFIG` 是所有 AI Agent 的统一运行配置，管理 Agent 的 `enabled` 与逻辑模型。当前至少覆盖 Triage、Review 与 Writing；未来新增其他 Agent 时继续扩展该配置，不再增加 Review 专用模型变量或开关变量。
+业务仓原则上只保留用于薄 dispatch 的最小凭据。中央管理、跨仓写、AI Gateway 和生产凭据不得下沉。
 
-示例：
+`AW_EXECUTION_TOKEN` 已删除，不再配置。中央执行使用最小权限的现有 Authority 与 GitHub 原生短期凭据组合。
 
-```json
-{
-  "schema_version": 1,
-  "agents": {
-    "triage": { "enabled": true, "model": "Code-Air" },
-    "review": {
-      "enabled": false,
-      "model": "Code-Pro",
-      "routes": {
-        "release": { "model": "Code-Max" },
-        "security": { "model": "Code-Ultra" },
-        "architecture": { "model": "Code-Ultra" },
-        "deep": { "model": "Code-Ultra" }
-      }
-    },
-    "writing": {
-      "enabled": true,
-      "model": "Pro",
-      "routes": {
-        "market-brief": { "model": "SenseNova" },
-        "pharma-brief": { "model": "Pro" }
-      }
-    }
-  }
-}
-```
-
-Task Dispatch 会把 Repository Variables 提供给下游可信任务，并从 `AW_AI_AGENT_CONFIG` 派生只读运行时模型变量。例如 `writing.market-brief` 会成为 `AW_AI_AGENT_WRITING_MARKET_BRIEF_MODEL`。业务任务只能引用这些派生值，不再声明项目级模型变量。Review Engine 的分发仓库、版本和资产仍由 `policies/review.json` 管理；policy 不再保存模型名称。
-
-`AW_EXECUTION_TOKEN` 已删除，不再配置。Task 执行前读取受管私有仓固定 Commit 由中央 `AW_CONTROL_TOKEN` 完成；该凭据只存在于 Action Worker 控制面，不传给业务 bootstrap。
-
-`AW_CONTROL_TOKEN` 对受管仓至少需要：
-
-- Contents: Read；
-- Pull Requests: Read/Write；
-- Commit Statuses: Read/Write；
-- Actions: Read。
-
-`AW_ADMIN_TOKEN` 只用于仓库设置等管理操作；PR CI 与合并 Gate 不依赖它。需要由 Action Worker 应用受管仓设置时授予：
-
-- Administration: Read/Write。
-
-`validate-merge` Check Run 由目标仓自己的 GitHub Actions `GITHUB_TOKEN` 创建，不需要中央 Token 对目标仓执行 Actions 或 Contents 写操作。
-
-### Task 产物跨仓发布
-
-需要把 Task 产物写到其他仓库时，业务任务只负责生成并暂存产物，不配置目标仓写 Token。Action Worker 在任务成功后验证 `AW_REPOSITORY_POLICY`，再使用中央 `AW_CONTROL_TOKEN` 发布：
+## 8. Release
 
 ```text
-source repository (release-source)
-→ run-task
-→ stage artifact
-→ Action Worker publication gate
-→ target repository (release-target)
-```
-
-## 5. Release 接入
-
-Release Governance 区分源码身份与 artifact 执行身份：
-
-```text
-source_repository + source_sha
-→ build / package
-→ artifact_repository + artifact_run_id + artifact_name
-→ release-provenance.json
-→ release-manifest.json
+immutable source
+→ Action Worker central build/package
+→ release-manifest + provenance
 → Release Governance
-→ target_repository
-```
-
-artifact 可以由源仓 Runner 产生，也可以由 Action Worker 中央构建产生；两种模式使用同一合同。中央化后的业务仓只保留项目级 build/package 实现，不保存发布凭据。
-
-Release artifact 根目录必须包含：
-
-```text
-release-manifest.json
-release-provenance.json
-<release assets>
-```
-
-`release-provenance.json` 必须精确绑定本次请求：
-
-```json
-{
-  "schema_version": "1",
-  "source_repository": "owner/source-repository",
-  "source_sha": "40-character-commit-sha",
-  "artifact_repository": "owner/artifact-run-repository",
-  "artifact_run_id": 123456
-}
-```
-
-Release Dispatch 使用 hard-cut v2：
-
-```json
-{
-  "schema_version": "2",
-  "request_id": "release-123456",
-  "source_repository": "owner/source-repository",
-  "source_sha": "40-character-commit-sha",
-  "artifact_repository": "owner/artifact-run-repository",
-  "artifact_run_id": 123456,
-  "artifact_name": "release-package"
-}
-```
-
-Action Worker 必须验证：
-
-```text
-source repository capability
-→ source default HEAD
-→ source CI Evidence
-→ artifact run identity and success
-→ release-provenance.json exact match
-→ release-manifest.json
-→ declared file set and SHA256
-→ target repository capability
-→ publish
+→ target publish
 → re-download verification
-→ finalize or rollback
+→ finalize / rollback
 ```
 
-Manifest 继续声明目标仓、版本、许可证和 release assets。许可证属于具体 App / Release；未提供 `license` 时按 `Apache-2.0` 发布，需要其他许可证时由 manifest 显式覆盖。
+业务仓只保留项目 build / package 脚本，不保留目标仓发布凭据。
 
-允许的 Release 源仓与目标仓仍由 `AW_REPOSITORY_POLICY` 的 `release-source` / `release-target` capability 控制。中央构建 artifact 必须来自 Action Worker 自身；迁移期源仓本地 build artifact 只能来自该 source repository 本身。
+迁移期旧源仓 build artifact 只能继续缩小，不得作为新项目模板。
 
-中央 Tag 固定为：
-
-```text
-<release-key>-v<semver>
-```
-
-业务仓不得复制 Tag / Release / checksum / rollback 逻辑。
-
-## 6. Release Build
-
-Business repositories keep only a manual thin dispatch and project-owned build script. The dispatch sends the immutable default-branch SHA and optional requested version to Action Worker.
-
-Action Worker owns:
+## 9. Deploy
 
 ```text
-source admission
-→ Node / Python / Rust runner setup
-→ heavy Windows build execution
-→ optional build attestation
-→ optional package-level SBOM
-→ artifact aggregation
-→ release-manifest.json
-→ release-provenance.json
-→ Release Governance dispatch
-```
-
-The source repository owns only a narrow `.github/scripts/release-build.ps1` adapter that converts its project build into the exact asset names declared by the central release-build policy.
-
-The release target comes from `policies/release-build.json`, not a business-repository variable.
-
-## 7. Tool Distribution
-
-Third-party tools are not synchronized by business-repository runners. The distribution repository owns only the catalog and per-tool metadata; Action Worker periodically resolves the registered tool, verifies the upstream stable Release, checksum, optional GitHub digest, and license, then emits a governed Release artifact.
-
-No business repository needs a tool-sync credential or upstream packaging workflow.
-
-## 8. Deploy 接入
-
-Production deploy execution is owned by Action Worker. Business repositories keep only project-specific deployment code and an optional thin dispatch bridge; production credentials and runner-heavy orchestration stay in the central control plane.
-
-AI Gateway uses:
-
-```text
-main push
-→ thin CI dispatch
-→ Action Worker Central CI
-→ trusted CI Evidence
-→ central deploy source gate
-→ validate:deploy + bundle check
-→ D1 migration
-→ Worker deploy
+immutable source
+→ Action Worker source gate
+→ project deploy validation
+→ Runner Resolver
+→ controlled deploy
 → health verification
-→ rollback on post-deploy failure
+→ rollback
 ```
 
-The central deploy source gate requires an immutable source SHA, the expected source repository, and successful `CI Evidence` produced by Action Worker. Automatic production deploys must require the current default-branch HEAD.
+需要生产网络、SSH、Tailscale 或其他受信网络时，由 Runner Policy 解析到合适的 trusted / self-hosted 后端；业务仓不绑定具体机器。
 
-The deploy kill switch remains:
-
-```text
-AIG_IS_DEPLOY_ENABLED=false
-```
-
-Manual business-repository deploy entrypoints may only dispatch the immutable source SHA to Action Worker; they must not retain Cloudflare credentials or execute the production deployment locally.
-
-Server Edge uses the same source gate. `internal-vault` retains `environments/server-edge/deploy.sh` as project-owned deployment logic, while Action Worker owns SSH/Tailscale credentials, runner connectivity, immutable source admission, and deployment execution.
-
-## 9. 不需要做的事
+## 10. 普通新仓不应做什么
 
 普通新仓接入不应要求：
 
 - 修改 Action Worker 核心脚本；
-- 增加仓库名条件分支；
-- 新建 `projects/`、`profiles/`、`adapters/`；
-- 为项目复制一份中央 Policy；
-- 为项目新增独立 AI Agent 模型变量、Review 开关或项目专属 AI 配置。
+- 增加仓库名 / 项目名条件分支；
+- 在 Action Worker 建项目专属配置目录；
+- 自己运行完整 CI / build / review / release / deploy；
+- 自己选择 self-hosted Runner；
+- 保存中央 Secret；
+- 复制中央 Policy。
 
-如果接入必须这样做，应先判断是不是中央能力缺口，而不是直接加项目特例。
+如果必须这样做，应先判断是否存在通用能力缺口。
 
-## 10. 接入验收
+## 11. GitHub 平台边界
 
-至少完成一次真实 PR smoke：
+统一执行架构不代表不同 GitHub 套餐拥有相同的平台强制能力。
 
-- dispatch 成功；
-- Action Worker 读取真实 PR；
-- CI Evidence 对应当前 head SHA；
-- AI Agent 按 `AW_AI_AGENT_CONFIG` 启用、禁用或路由；关闭 Review 时确定性 Gate 仍可独立通过；
-- PR Governance 状态回写成功；
-- validate-merge 同时验证本地证据与 PR Governance；
-- sticky review summary 正常；
-- 测试 PR 最终关闭，不合并测试内容。
+GitHub Free 组织的私有仓库不支持 Ruleset 或 Protected Branch 强制保护，因此这些仓库中的中央 Gate 在当前套餐下属于流程约束，而不是 GitHub 平台硬门禁。公开仓库仍可在平台能力允许时使用受管 Ruleset。
 
-有 Release 的项目再完成一次非破坏性发布合同验证。
+平台能力差异不得改变 Execution Contract，也不得成为把重执行重新放回业务仓的理由。
+
+## 12. 迁移期
+
+当前部分仓库仍保留旧 CI / Release / Deploy 路径。它们属于迁移债务。
+
+迁移期间：旧路径只允许缩小；新增仓库和新增能力直接采用统一 Execution Contract。
