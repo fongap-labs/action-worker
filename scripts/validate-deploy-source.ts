@@ -11,6 +11,7 @@ import {
   isMain,
   parseJson,
 } from "./runtime-command.ts";
+import { assertTrustedMainWrite } from "./main-write-guard.ts";
 
 export type DeployRequest = {
   schema_version: "1";
@@ -100,6 +101,8 @@ async function main(): Promise<void> {
     throw new CliError("::error::Deploy source has no successful Action Worker CI Evidence.", 65);
   }
 
+  const mainWrite = await assertTrustedMainWrite(reader, request.source_repository, resolvedSha, true);
+
   await appendLines(process.env.GITHUB_OUTPUT, [
     `source_repository=${request.source_repository}`,
     `source_sha=${resolvedSha}`,
@@ -114,6 +117,7 @@ async function main(): Promise<void> {
     `- Default branch: ${defaultBranch}`,
     `- Require default HEAD: ${requireDefaultHeadRaw}`,
     "- CI Evidence: trusted Action Worker success",
+    `- Main Write Guard: success via PR #${mainWrite.pr_number}`,
   ]);
 }
 
