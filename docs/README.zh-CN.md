@@ -15,6 +15,8 @@ Action Worker 同时保存三类内容：
 | Document | Purpose |
 |---|---|
 | [SHARED_GOVERNANCE.md](SHARED_GOVERNANCE.md) | Fongap Labs 共用治理边界与权威关系 |
+| [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md) | 公开仓与私有仓统一的中央执行边界 |
+| [RUNNER_POLICY.md](RUNNER_POLICY.md) | Runner Profile、后端解析、信任域与 self-hosted 边界 |
 | [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) | 全仓通用命名规则，以及 Action Worker 自身附加约束 |
 | [CHANGELOG_CONVENTIONS.md](CHANGELOG_CONVENTIONS.md) | PR、CHANGELOG 与 Release 的统一变更分类 |
 | [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) | 通用开发、验证、PR 与合并规则 |
