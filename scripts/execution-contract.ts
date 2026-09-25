@@ -180,7 +180,13 @@ function parseJob(value: unknown): ExecutionJob {
     throw new CliError("Execution job identity, runner profile, or timeout is invalid.", 65);
   }
 
-  const command = uniqueStrings(value.command, `job.${value.id}.command`);
+  if (!Array.isArray(value.command)
+    || value.command.length < 1
+    || !value.command.every((item) => typeof item === "string" && item.length > 0)
+  ) {
+    throw new CliError(`Execution command is invalid: ${value.id}.`, 65);
+  }
+  const command = value.command as string[];
   if (command.length > 64 || command.some((item) => item.length > 4096)) {
     throw new CliError(`Execution command is too large: ${value.id}.`, 65);
   }
