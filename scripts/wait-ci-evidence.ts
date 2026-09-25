@@ -52,7 +52,7 @@ async function publishEvidence(evidence: Evidence): Promise<void> {
   console.log(output);
 }
 
-async function waitForCentralStatus(
+export async function waitForCentralStatus(
   repository: string,
   headSha: string,
   ci: Record<string, unknown>,
@@ -101,104 +101,6 @@ async function waitForCentralStatus(
   );
 }
 
-async function waitForRepositoryWorkflow(
-  repository: string,
-  headSha: string,
-  ci: Record<string, unknown>,
-  token: string,
-  pollSeconds: number,
-  timeoutMinutes: number,
-): Promise<void> {
-  const workflow = getJsonString(ci, "workflow");
-  const gateJobs = Array.isArray(ci.gate_jobs) ? ci.gate_jobs : [];
-  if (!workflow) {
-    throw new CliError("::error::CI evidence policy is missing workflow.", 65);
-  }
-  if (
-    gateJobs.length === 0
-    || !gateJobs.every((item) => typeof item === "string" && item)
-    || new Set(gateJobs).size !== gateJobs.length
-  ) {
-    throw new CliError("::error::CI evidence policy gate_jobs is invalid.", 65);
-  }
-
-  const deadline = Date.now() + timeoutMinutes * 60_000;
-  while (Date.now() < deadline) {
-    const response = await getGithubJson(
-      `repos/${repository}/actions/workflows/${workflow}/runs?event=pull_request&head_sha=${headSha}&per_page=20`,
-      token,
-    );
-    const runs = getJsonArray(response, "workflow_runs")
-      .filter((item) => isJsonRecord(item) && getJsonString(item, "head_sha") === headSha)
-      .sort((left, right) =>
-        isJsonRecord(right) && isJsonRecord(left)
-          ? getJsonString(right, "created_at").localeCompare(getJsonString(left, "created_at"))
-          : 0
-      );
-    const runId = isJsonRecord(runs[0]) ? getJsonNumber(runs[0], "id") : 0;
-    if (!runId) {
-      console.error(`CI evidence pending: waiting for ${repository}@${headSha}`);
-      await sleep(pollSeconds * 1000);
-      continue;
-    }
-
-    const run = await getGithubJson(`repos/${repository}/actions/runs/${runId}`, token);
-    const jobsResponse = await getGithubJson(`repos/${repository}/actions/runs/${runId}/jobs?per_page=100`, token);
-    const jobs = getJsonArray(jobsResponse, "jobs").filter(isJsonRecord);
-    let selected: { gate: string; job: Record<string, unknown> } | undefined;
-    for (const gate of gateJobs as string[]) {
-      const job = jobs.find((item) => {
-        const name = getJsonString(item, "name");
-        return name === gate || name.endsWith(` / ${gate}`);
-      });
-      if (job) {
-        selected = { gate, job };
-        break;
-      }
-    }
-
-    const runStatus = isJsonRecord(run) ? getJsonString(run, "status") || "unknown" : "unknown";
-    if (!selected) {
-      if (runStatus === "completed") {
-        throw new CliError("::error::CI workflow completed without a supported evidence job.", 65);
-      }
-      console.error(`CI evidence pending: run=${runId} no supported evidence job yet`);
-      await sleep(pollSeconds * 1000);
-      continue;
-    }
-
-    const gateStatus = getJsonString(selected.job, "status") || "unknown";
-    if (gateStatus !== "completed") {
-      console.error(`CI evidence pending: run=${runId} gate=${selected.gate} status=${gateStatus}`);
-      await sleep(pollSeconds * 1000);
-      continue;
-    }
-
-    const jobResults = jobs.map((job) => ({
-      name: getJsonString(job, "name").slice(0, 160),
-      status: getJsonString(job, "status") || "unknown",
-      conclusion: getJsonString(job, "conclusion") || "unknown",
-    }));
-
-    await publishEvidence({
-      repository,
-      head_sha: headSha,
-      workflow,
-      gate_job: selected.gate,
-      run_id: runId,
-      status: runStatus,
-      conclusion: isJsonRecord(run) ? getJsonString(run, "conclusion") || "unknown" : "unknown",
-      gate_conclusion: getJsonString(selected.job, "conclusion") || "unknown",
-      jobs: jobResults,
-    });
-    return;
-  }
-
-  throw new CliError(
-    `::error::Timed out waiting for repository CI: repository=${repository} head=${headSha} timeout=${timeoutMinutes}m`,
-  );
-}
-
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length !== 3) {
@@ -224,17 +126,11 @@ async function main(): Promise<void> {
     throw new CliError("::error::CI timeout_minutes must be 1-120 minutes.", 65);
   }
 
-  const centralRepositories = Array.isArray(ci.central_repositories)
-    ? ci.central_repositories.filter((item): item is string => typeof item === "string")
-    : [];
   const token = process.env.GH_TOKEN ?? "";
-
-  if (centralRepositories.includes(repository)) {
-    await waitForCentralStatus(repository, headSha, ci, token, pollSeconds, timeoutMinutes);
-    return;
+  if (!token) {
+    throw new CliError("::error::Central CI evidence token is unavailable.", 65);
   }
-
-  await waitForRepositoryWorkflow(repository, headSha, ci, token, pollSeconds, timeoutMinutes);
+  await waitForCentralStatus(repository, headSha, ci, token, pollSeconds, timeoutMinutes);
 }
 
 if (isMain(import.meta.url)) {

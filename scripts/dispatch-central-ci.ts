@@ -1,15 +1,17 @@
 import {
   githubEnvironment,
+  isJsonRecord,
   runGithubCli,
 } from "./github-api.ts";
 import {
   CliError,
   handleError,
   isMain,
+  parseJson,
   readJson,
   runText,
 } from "./runtime-command.ts";
-import { isJsonRecord } from "./github-api.ts";
+import { validateRepositoryCapability } from "./repository-policy.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -37,16 +39,15 @@ async function main(): Promise<void> {
     throw new CliError("::error::Invalid central CI head SHA.", 64);
   }
 
+  const repositoryPolicy = parseJson(
+    process.env.AW_REPOSITORY_POLICY ?? "",
+    "::error::AW_REPOSITORY_POLICY must be valid JSON.",
+    65,
+  );
+  validateRepositoryCapability(repository, repositoryPolicy, "pr");
+
   const policy = await readJson(policyPath);
   const ci = isJsonRecord(policy) && isJsonRecord(policy.ci) ? policy.ci : {};
-  const repositories = Array.isArray(ci.central_repositories)
-    ? ci.central_repositories.filter((item): item is string => typeof item === "string")
-    : [];
-  if (!repositories.includes(repository)) {
-    console.log(`Central CI dispatch skipped: ${repository}`);
-    return;
-  }
-
   const context = typeof ci.status_context === "string" && ci.status_context
     ? ci.status_context
     : "CI Evidence";
