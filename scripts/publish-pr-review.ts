@@ -33,7 +33,8 @@ export function buildReview(status: string, runUrl: string, planValue: unknown, 
     if (model) {
       lines.push(`- Model: \`${model}\``);
     }
-    lines.push(`- Blocking threshold: \`${getJsonString(planValue, "block_severity") || "none"}\``);
+    lines.push(`- AI Review: **ADVISORY**`);
+    lines.push(`- Attention threshold: \`${getJsonString(planValue, "block_severity") || "none"}\``);
   }
   if (isJsonRecord(resultValue) && (resultValue.comments === undefined || Array.isArray(resultValue.comments))) {
     const comments = Array.isArray(resultValue.comments) ? resultValue.comments.filter(isJsonRecord) : [];
