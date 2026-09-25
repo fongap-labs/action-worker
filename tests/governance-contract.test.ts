@@ -30,10 +30,10 @@ test("governance files and TypeScript control entries exist", async () => {
     "AGENTS.md", "CLAUDE.md", "docs/README.md", "docs/ARCHITECTURE.md", "docs/ARCHITECTURE_GOVERNANCE.md",
     "docs/NAMING_CONVENTIONS.md", "docs/CHANGELOG_CONVENTIONS.md", "docs/DEVELOPMENT_GUIDE.md",
     "contracts/change-record.json", "contracts/deploy-dispatch.json", "contracts/pr-task.json", "contracts/release-dispatch.json",
-    "contracts/release-manifest.json", "contracts/release-provenance.json", "contracts/task-dispatch.json", "policies/deploy.json", "policies/execution.json", "policies/rulesets.json", "policies/triage.json",
+    "contracts/release-manifest.json", "contracts/release-provenance.json", "contracts/task-dispatch.json", "policies/deploy.json", "policies/execution.json", "policies/rulesets.json", "policies/security.json", "policies/triage.json",
     "package.json", "package-lock.json", "tsconfig.json", "scripts/validate-change-record.ts",
     "scripts/validate-engineering-language.ts", "scripts/validate-config-naming.ts",
-    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-deploy-source.ts", "scripts/dispatch-central-deploy.ts",
+    "scripts/validate-pr-payload.ts", "scripts/repository-policy.ts", "scripts/validate-control-access.ts", "scripts/validate-ai-gateway-access.ts", "scripts/validate-security.ts", "scripts/validate-deploy-source.ts", "scripts/dispatch-central-deploy.ts",
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
     "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/resolve-bootstrap-model.ts", "scripts/resolve-pr-plan.ts", "scripts/run-ai-triage.ts", "scripts/runtime-command.ts",
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
@@ -120,7 +120,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     "repository_dispatch:", "types: [run-pr-governance]", "AW_REPOSITORY_POLICY", "AW_CONTROL_TOKEN",
     "AI_GATEWAY_URL", "AIG_ACCESS_KEY_AGENT", "AW_AI_AGENT_CONFIG", "persist-credentials: false", "node-version: 24",
     "validate-pr-payload.ts", "validate-control-access.ts", "set-pr-status.ts", "validate-engineering-language.ts",
-    "publish-pr-review.ts", "wait-ci-evidence.ts", "validate-ci-evidence.ts", "wait-review-turn.ts",
+    "validate-security.ts", "publish-pr-review.ts", "wait-ci-evidence.ts", "validate-ci-evidence.ts", "wait-review-turn.ts",
     "validate-ai-gateway-access.ts", "run-ai-triage.ts", "apply-ai-triage.ts", "install-ocr.ts", "run-ai-review.ts",
     "Resolve governance ownership", "check-status-owner.ts",
     "Publish explicit no-CI evidence", "steps.base_plan.outputs.ci_required != 'true'",
@@ -133,10 +133,21 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   assert.doesNotMatch(workflow, /AW_REVIEW_ENGINE_REPOSITORY/);
   assert.match(workflow, /AW_AI_AGENT_CONFIG:\s*\$\{\{ vars\.AW_AI_AGENT_CONFIG \}\}/);
   assert.doesNotMatch(workflow, /AW_IS_AI_REVIEW_ENABLED/);
-  const order = ["- name: Collect CI evidence", "- name: Publish explicit no-CI evidence", "- name: Wait for AI queue", "- name: Run AI Triage", "- name: Resolve final plan", "- name: Run AI review", "- name: Validate CI evidence", "- name: Update final gate"];
+  const order = ["- name: Validate security", "- name: Collect CI evidence", "- name: Publish explicit no-CI evidence", "- name: Wait for AI queue", "- name: Run AI Triage", "- name: Resolve final plan", "- name: Run AI review", "- name: Validate CI evidence", "- name: Update final gate"];
   const positions = order.map((value) => workflow.indexOf(value));
   assert.ok(positions.every((value) => value >= 0));
   assert.deepEqual(positions, [...positions].sort((left, right) => left - right));
+  const advisorySteps = ["Resolve gateway bootstrap review model", "Validate AI Gateway access", "Wait for AI queue", "Run AI Triage", "Resolve final plan", "Resolve OCR distribution", "Restore OCR cache", "Configure OpenCodeReview", "Run AI review", "Publish PR review"];
+  for (const name of advisorySteps) {
+    const start = workflow.indexOf(`      - name: ${name}`);
+    assert.ok(start >= 0, `missing advisory step: ${name}`);
+    const end = workflow.indexOf("\n      - name:", start + 1);
+    const block = workflow.slice(start, end < 0 ? undefined : end);
+    assert.match(block, /continue-on-error: true/, `${name} must not gate PR governance`);
+  }
+  const reviewScript = await text("scripts/run-ai-review.ts");
+  assert.doesNotMatch(reviewScript, /merge is blocked/);
+  assert.match(reviewScript, /gate effect: advisory only/);
 });
 
 test("task dispatch keeps the publication credential in the central control step", async () => {
@@ -261,10 +272,13 @@ test("central CI deploy dispatch is policy-driven after cutover", async () => {
 
   const workflow = await text(".github/workflows/central-ci-dispatch.yml");
   requireText(workflow, [
+    "Central CI / Security",
+    "validate-security.ts",
     "Dispatch automatic deploy",
     "dispatch-central-deploy.ts",
     "policies/deploy.json",
     "needs.prepare.outputs.pr_number == '0'",
+    "needs.security.result == 'success'",
     "contents: write",
   ]);
   assert.match(workflow, /for context in "CI Evidence" "ci-evidence"; do/);
@@ -366,7 +380,7 @@ test("tool distribution sync runs only in the central control plane", async () =
 
 test("self CI runs TypeScript checks without Shell test orchestration", async () => {
   const workflow = await text(".github/workflows/validate-ci.yml");
-  requireText(workflow, ["validate-naming-rules.ts", "actionlint", "node-version: 24", "npm run typecheck", "npm test", "validate-merge"]);
+  requireText(workflow, ["validate-naming-rules.ts", "validate-security.ts", "name: Security", "SECURITY_RESULT", "actionlint", "node-version: 24", "npm run typecheck", "npm test", "validate-merge"]);
   assert.doesNotMatch(workflow, /shellcheck|tests\/test-[A-Za-z0-9-]+\.sh/);
 });
 
