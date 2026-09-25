@@ -138,7 +138,7 @@ export async function collectSecurityViolations(
   const allowPaths = policy.path_allow_patterns.map((pattern) => compile(pattern));
   const forbiddenPaths = policy.forbidden_path_patterns.map((pattern) => compile(pattern));
   const secretPatterns = policy.secret_patterns.map(({ name, pattern }) => ({ name, regex: compile(pattern) }));
-  const workflowPatterns = policy.workflow_forbidden_patterns.map(({ name, pattern }) => ({ name, regex: compile(pattern) }));
+  const workflowPatterns = policy.workflow_forbidden_patterns.map(({ name, pattern }) => ({ name, regex: compile(pattern, "m") }));
 
   const names = await runText("git", ["diff", "--name-only", "--diff-filter=ACMR", base, head, "--"], { cwd: root });
   const changed = names.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
