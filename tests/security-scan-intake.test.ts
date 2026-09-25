@@ -20,13 +20,15 @@ test("security scan intake dispatches only repositories with enabled trusted man
       "fongap-labs/enabled": ["pr"],
       "fongap-labs/disabled": ["pr"],
       "fongap-labs/no-manifest": ["pr"],
+      "fongap-labs/private": ["pr"],
     },
     {
       async get(path: string): Promise<unknown> {
         paths.push(path);
-        if (path.endsWith("/enabled")) return { default_branch: "main" };
-        if (path.endsWith("/disabled")) return { default_branch: "main" };
-        if (path.endsWith("/no-manifest")) return { default_branch: "main" };
+        if (path.endsWith("/enabled")) return { default_branch: "main", private: false };
+        if (path.endsWith("/disabled")) return { default_branch: "main", private: false };
+        if (path.endsWith("/no-manifest")) return { default_branch: "main", private: false };
+        if (path.endsWith("/private")) return { default_branch: "main", private: true };
         if (path.endsWith("/commits/main")) return { sha };
         if (path.includes("/enabled/contents/")) {
           return encoded({
@@ -61,9 +63,9 @@ test("security scan intake dispatches only repositories with enabled trusted man
   );
 
   assert.deepEqual(dispatched, ["fongap-labs/enabled"]);
-  assert.equal(result.repositories, 3);
+  assert.equal(result.repositories, 4);
   assert.equal(result.manifests, 2);
   assert.equal(result.dispatched, 1);
-  assert.equal(result.skipped, 2);
+  assert.equal(result.skipped, 3);
   assert.equal(paths.some((path) => path.includes("fongap-labs/control")), false);
 });
