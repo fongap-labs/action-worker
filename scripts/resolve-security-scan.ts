@@ -38,6 +38,13 @@ async function main(): Promise<void> {
 
   const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
   const facts = await resolveSecurityScanFacts(reader, request);
+  if (facts.is_private) {
+    throw new CliError(
+      "Private repository CodeQL is not enabled on the public control plane because scan logs may expose source metadata.",
+      77,
+    );
+  }
+
   const manifestValue = await reader.get(
     `repos/${facts.repository}/contents/.github/security-scan.json?ref=${facts.config_ref}`,
   );
