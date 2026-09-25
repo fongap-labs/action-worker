@@ -96,6 +96,30 @@ async function requireCentralPrEvidence(
   if (!successfulStatus(status, "CI Evidence")) {
     throw new CliError("::error::Merged PR head has no successful Action Worker CI Evidence status.", 65);
   }
+  if (!successfulStatus(status, "validate-merge")) {
+    throw new CliError("::error::Merged PR head has no successful Action Worker validate-merge status.", 65);
+  }
+}
+
+async function requireLocalMergeCheck(
+  reader: GithubReader,
+  repository: string,
+  prHeadSha: string,
+): Promise<void> {
+  const checks = getJsonArray(
+    await reader.get(`repos/${repository}/commits/${prHeadSha}/check-runs?filter=latest&per_page=100`),
+    "check_runs",
+  );
+  const mergeGatePassed = checks.some((item) => (
+    isJsonRecord(item)
+    && getJsonString(item, "name") === "validate-merge"
+    && getJsonString(item, "status") === "completed"
+    && getJsonString(item, "conclusion") === "success"
+    && appSlug(item) === "github-actions"
+  ));
+  if (!mergeGatePassed) {
+    throw new CliError("::error::PR head has no successful local validate-merge check.", 65);
+  }
 }
 
 export async function validateMainWriteProvenance(
@@ -148,23 +172,10 @@ export async function validateMainWriteProvenance(
     throw new CliError("::error::Merged pull request facts do not match the main write.", 65);
   }
 
-  const checks = getJsonArray(
-    await reader.get(`repos/${repository}/commits/${prHeadSha}/check-runs?filter=latest&per_page=100`),
-    "check_runs",
-  );
-  const mergeGatePassed = checks.some((item) => (
-    isJsonRecord(item)
-    && getJsonString(item, "name") === "validate-merge"
-    && getJsonString(item, "status") === "completed"
-    && getJsonString(item, "conclusion") === "success"
-    && appSlug(item) === "github-actions"
-  ));
-  if (!mergeGatePassed) {
-    throw new CliError("::error::Merged PR head has no successful validate-merge check.", 65);
-  }
-
   if (isCentralStatusRequired) {
     await requireCentralPrEvidence(reader, repository, prHeadSha);
+  } else {
+    await requireLocalMergeCheck(reader, repository, prHeadSha);
   }
 
   return {
@@ -272,7 +283,7 @@ async function main(): Promise<void> {
       `- Main SHA: ${provenance.main_sha}`,
       `- Pull request: #${provenance.pr_number}`,
       `- PR head SHA: ${provenance.pr_head_sha}`,
-      "- validate-merge: success",
+      `- merge authority: ${process.env.MAIN_WRITE_REQUIRE_CENTRAL_STATUSES !== "false" ? "Action Worker validate-merge status" : "local validate-merge check"}`,
       "- Main Write Guard: success",
     ]);
   } catch (error) {

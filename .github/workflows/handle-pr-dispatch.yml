@@ -83,6 +83,15 @@ jobs:
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" pending "Action Worker PR governance in progress" "$RUN_URL"
 
+      - name: Mark central merge gate in progress
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PR_STATUS_CONTEXT: validate-merge
+        run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" pending "Action Worker merge gate in progress" "$RUN_URL"
+
       - name: Validate change record
         id: change
         env:
@@ -204,6 +213,18 @@ jobs:
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           STATE: ${{ steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
           DESCRIPTION: ${{ steps.gate.outputs.passed == 'true' && 'Action Worker PR governance passed' || 'Action Worker PR governance failed' }}
+        run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
+
+      - name: Update central merge gate
+        if: ${{ always() && steps.ownership.outputs.current == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          STATE: ${{ steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
+          DESCRIPTION: ${{ steps.gate.outputs.passed == 'true' && 'Action Worker merge gate passed' || 'Action Worker merge gate failed' }}
+          PR_STATUS_CONTEXT: validate-merge
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
 
       - name: Validate AI Gateway access

@@ -25,7 +25,7 @@ After main update
   = main provenance
 ```
 
-`validate-merge` 决定 PR 是否具备合并资格。
+`validate-merge` 决定 PR 是否具备合并资格。对受管业务仓，它是 Action Worker 直接发布的中央 commit status，不依赖业务仓 GitHub Actions。Action Worker 自身的 self-CI 可以继续使用本仓同名 Check。
 
 `Main Write Guard` 验证 `main` 当前 SHA 是否确实由一个已通过治理、已合并到 `main` 的 PR 产生。
 
@@ -86,7 +86,7 @@ Privileged task denied
 
 ```text
 require pull request
-+ require validate-merge
++ require central validate-merge status
 + no bypass actor
 + restrict direct main update
 ```
@@ -157,7 +157,7 @@ PR 的顺序为：
 ```text
 Security / CI / PR deterministic gates
         ↓
-validate-merge / PR Governance PASS
+Action Worker validate-merge / PR Governance PASS
         ├──→ merge authority
         └──→ AI Review (advisory, asynchronous)
 ```
