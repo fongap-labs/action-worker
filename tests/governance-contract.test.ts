@@ -435,9 +435,15 @@ test("central CI deploy dispatch is source-owned and adapter-routed", async () =
   assert.ok(adapters["cloudflare-worker"]);
   assert.ok(adapters["source-script"]);
 
+  const manifestResolver = await text("scripts/deploy-manifest.ts");
+  requireText(manifestResolver, [
+    ".github/deploy.json",
+    "validateRepositoryCapability",
+    "resolveRunnerProfile",
+  ]);
+
   const dispatcher = await text("scripts/dispatch-central-deploy.ts");
   requireText(dispatcher, [
-    ".github/deploy.json",
     "resolveDeployManifest",
     "AW_REPOSITORY_POLICY",
     "policies/runner.json",
