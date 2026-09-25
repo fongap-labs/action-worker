@@ -162,11 +162,12 @@ PR / push
 → thin dispatch
 → Action Worker
 → checkout immutable source
+→ deterministic Security Gate
 → Sandbox CI / test / build
 → CI Evidence
-→ optional AI Review
-→ PR Governance
+→ deterministic PR Governance
 → validate-merge bridge when GitHub requires it
+   ↘ optional AI Review → advisory findings
 ```
 
 业务仓不得为了“本地 CI”继续维护第二套重型 Runner 流程。
@@ -222,6 +223,10 @@ AI Agent 是通用动态能力，不拥有权限边界。
 `AW_AI_AGENT_CONFIG` 是 Agent 启停和逻辑模型的单一运行配置。Policy / Rule 保存确定性规则，不保存第二套模型选择。
 
 Agent 可以参与 Plan、Triage、Review、Writing 等任务，但不能改变 Secret 边界、绕过 Capability Grant / CI Evidence、修改 Runner 信任等级或降低 Gate。
+
+AI Review 是审核、建议和问题发现层，不是 Gate。AI Review 的 finding severity、模型结论、执行失败、超时或不可用都不得直接把 PR 判定为失败。真正的合并门槛来自确定性的 PR / CI / Security Gate。
+
+Security Gate 属于确定性门槛，至少覆盖新增 Secret 材料、敏感文件路径和高风险 GitHub Workflow 泄密模式；它必须独立于 AI Review 始终可执行。
 
 ## 12. Repository policy
 
