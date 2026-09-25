@@ -29,7 +29,7 @@ const manifest = {
 
 test("release build manifest keeps project metadata in the source repository", () => {
   const parsed = parseReleaseBuildManifest(manifest);
-  assert.equal(parsed.runner_profile, undefined);
+  assert.equal("runner_profile" in parsed, false);
   assert.equal(parsed.builds[0]?.runner_profile, "windows-build");
   assert.equal("runner" in (parsed.builds[0] ?? {}), false);
 });
