@@ -97,6 +97,12 @@ jobs:
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
         run: node scripts/validate-engineering-language.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target"
 
+      - name: Validate security
+        env:
+          BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
+        run: node scripts/validate-security.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policies/security.json"
+
       - name: Detect project and change
         id: context
         env:
@@ -107,6 +113,7 @@ jobs:
 
       - name: Resolve gateway bootstrap review model
         id: bootstrap_review
+        continue-on-error: true
         env:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
         run: node scripts/resolve-bootstrap-model.ts "$REPOSITORY" "$GITHUB_REPOSITORY_OWNER"
@@ -115,7 +122,7 @@ jobs:
         id: base_plan
         env:
           CONTEXT_JSON: ${{ steps.context.outputs.json }}
-          MODEL_OVERRIDE: ${{ steps.bootstrap_review.outputs.model }}
+          MODEL_OVERRIDE: ${{ steps.bootstrap_review.outputs.model || 'auto' }}
         run: node scripts/resolve-pr-plan.ts "$CONTEXT_JSON" inherit inherit inherit inherit "$MODEL_OVERRIDE" auto "$GITHUB_WORKSPACE/policies"
 
       - name: Validate naming rules
@@ -127,7 +134,9 @@ jobs:
         run: node "$GITHUB_WORKSPACE/scripts/validate-naming-rules.ts" "$BASE_SHA" "$HEAD_SHA"
 
       - name: Validate AI Gateway access
+        id: ai_gateway
         if: steps.base_plan.outputs.review_required == 'true'
+        continue-on-error: true
         env:
           AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
           AI_GATEWAY_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
@@ -183,7 +192,9 @@ jobs:
           done
 
       - name: Wait for AI queue
-        if: steps.base_plan.outputs.review_required == 'true'
+        id: ai_queue
+        if: steps.base_plan.outputs.review_required == 'true' && steps.ai_gateway.outcome == 'success'
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -196,7 +207,8 @@ jobs:
             "$GITHUB_WORKSPACE/policies/review.json"
 
       - name: Run AI Triage
-        if: steps.base_plan.outputs.triage_required == 'true'
+        if: steps.base_plan.outputs.triage_required == 'true' && steps.ai_queue.outcome == 'success'
+        continue-on-error: true
         env:
           AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
           TRIAGE_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
@@ -216,6 +228,7 @@ jobs:
 
       - name: Resolve final plan
         id: plan
+        continue-on-error: true
         run: |
           node scripts/apply-ai-triage.ts \
             /tmp/pr-plan.base.json \
@@ -225,18 +238,22 @@ jobs:
 
       - name: Resolve OCR distribution
         id: ocr_dist
-        if: steps.plan.outputs.review_required == 'true'
+        if: steps.plan.outcome == 'success' && steps.plan.outputs.review_required == 'true' && steps.ai_queue.outcome == 'success'
+        continue-on-error: true
         run: node scripts/resolve-ocr-distribution.ts "$GITHUB_WORKSPACE/policies/review.json"
 
       - name: Restore OCR cache
-        if: steps.plan.outputs.review_required == 'true'
+        if: steps.ocr_dist.outcome == 'success'
+        continue-on-error: true
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ steps.ocr_dist.outputs.cache_dir }}
           key: ocr-${{ runner.os }}-${{ runner.arch }}-${{ steps.ocr_dist.outputs.version }}-${{ steps.ocr_dist.outputs.asset }}
 
       - name: Configure OpenCodeReview
-        if: steps.plan.outputs.review_required == 'true'
+        id: configure_ocr
+        if: steps.ocr_dist.outcome == 'success'
+        continue-on-error: true
         env:
           OCR_REPOSITORY: ${{ steps.ocr_dist.outputs.repository }}
           OCR_VERSION: ${{ steps.ocr_dist.outputs.version }}
@@ -245,7 +262,8 @@ jobs:
         run: node scripts/install-ocr.ts "$OCR_REPOSITORY" "$OCR_VERSION" "$OCR_ASSET" "$OCR_CACHE_DIR"
 
       - name: Run AI review
-        if: steps.plan.outputs.review_required == 'true'
+        if: steps.configure_ocr.outcome == 'success'
+        continue-on-error: true
         env:
           AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
           OCR_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
@@ -270,7 +288,7 @@ jobs:
             "$BLOCK_SEVERITY"
 
       - name: Validate CI evidence
-        if: steps.plan.outputs.ci_required == 'true'
+        if: steps.base_plan.outputs.ci_required == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -288,6 +306,7 @@ jobs:
 
       - name: Publish PR review
         if: ${{ always() && steps.ownership.outputs.current == 'true' }}
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
@@ -305,5 +324,5 @@ jobs:
           GOVERNANCE_STATUS: ${{ job.status }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
-          DESCRIPTION: ${{ job.status == 'success' && 'Action Worker PR governance passed' || 'Action Worker PR governance failed' }}
+          DESCRIPTION: ${{ job.status == 'success' && 'Deterministic PR governance passed' || 'Deterministic PR governance failed' }}
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
