@@ -1,0 +1,47 @@
+name: Central Task Intake
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/task-intake.yml
+      - scripts/intake-task-sources.ts
+      - scripts/dispatch-scheduled-tasks.ts
+      - scripts/repository-policy.ts
+      - contracts/task-source.json
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: central-task-intake
+  cancel-in-progress: false
+
+jobs:
+  intake:
+    name: Reconcile task sources
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Reconcile task sources
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_CONTROL_REPOSITORY: ${{ github.repository }}
+        run: node scripts/intake-task-sources.ts
