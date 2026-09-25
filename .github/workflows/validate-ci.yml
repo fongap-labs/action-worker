@@ -59,6 +59,50 @@ jobs:
       - name: Validate naming rules
         run: node scripts/validate-naming-rules.ts "${{ steps.range.outputs.base }}" "${{ steps.range.outputs.head }}"
 
+  security:
+    name: Security checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Resolve security range
+        id: range
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            base="${{ github.event.pull_request.base.sha }}"
+            head="${{ github.event.pull_request.head.sha }}"
+          elif [[ "${{ github.event_name }}" == "push" ]]; then
+            base="${{ github.event.before }}"
+            head="${{ github.sha }}"
+            if [[ "$base" == "0000000000000000000000000000000000000000" ]]; then
+              base="$(git rev-list --max-parents=0 "$head" | tail -1)"
+            fi
+          else
+            head="${{ github.sha }}"
+            base="$(git rev-parse "$head^" 2>/dev/null || git rev-list --max-parents=0 "$head" | tail -1)"
+          fi
+
+          {
+            echo "base=$base"
+            echo "head=$head"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Validate security gate
+        run: node scripts/validate-security.ts "${{ steps.range.outputs.base }}" "${{ steps.range.outputs.head }}" "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/policies/security.json"
+
   static:
     name: Static analysis
     runs-on: ubuntu-24.04
@@ -112,6 +156,7 @@ jobs:
     name: validate-merge
     needs:
       - naming
+      - security
       - static
       - contracts
     if: always()
@@ -121,14 +166,15 @@ jobs:
       - name: Aggregate merge gate
         env:
           NAMING_RESULT: ${{ needs.naming.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
           STATIC_RESULT: ${{ needs.static.result }}
           CONTRACT_RESULT: ${{ needs.contracts.result }}
         shell: bash
         run: |
           set -Eeuo pipefail
 
-          if [ "$NAMING_RESULT" != "success" ] || [ "$STATIC_RESULT" != "success" ] || [ "$CONTRACT_RESULT" != "success" ]; then
-            echo "::error::CI failed: naming=$NAMING_RESULT static=$STATIC_RESULT contracts=$CONTRACT_RESULT" >&2
+          if [ "$NAMING_RESULT" != "success" ] || [ "$SECURITY_RESULT" != "success" ] || [ "$STATIC_RESULT" != "success" ] || [ "$CONTRACT_RESULT" != "success" ]; then
+            echo "::error::CI failed: naming=$NAMING_RESULT security=$SECURITY_RESULT static=$STATIC_RESULT contracts=$CONTRACT_RESULT" >&2
             exit 1
           fi
 
