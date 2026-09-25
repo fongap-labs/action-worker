@@ -387,9 +387,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: |
           node scripts/dispatch-central-deploy.ts \
             "${{ needs.prepare.outputs.repository }}" \
             "${{ needs.prepare.outputs.head_sha }}" \
             "${{ needs.prepare.outputs.pr_number }}" \
-            policies/deploy.json
+            policies/deploy.json \
+            policies/runner.json
