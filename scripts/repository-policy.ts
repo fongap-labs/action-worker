@@ -12,6 +12,7 @@ export const repositoryCapabilities = [
   "task",
   "release-source",
   "release-target",
+  "deploy",
 ] as const;
 
 export type RepositoryCapability = typeof repositoryCapabilities[number];

@@ -192,15 +192,25 @@ immutable source
 
 ```text
 immutable source
+→ deploy capability
+→ source-owned .github/deploy.json
 → Action Worker source gate
-→ project deploy validation
 → Runner Resolver
+→ adapter
 → controlled deploy
 → health verification
 → rollback
 ```
 
-需要生产网络、SSH、Tailscale 或其他受信网络时，由 Runner Policy 解析到合适的 trusted / self-hosted 后端；业务仓不绑定具体机器。
+业务仓通过 `.github/deploy.json` 声明部署意图：`adapter`、是否自动部署、docs-only 策略、抽象 `runner_profile`、环境标识，以及 adapter 需要时的 source-owned entrypoint。
+
+Deploy 与普通 PR 权限分开。只有在 `AW_REPOSITORY_POLICY` 显式拥有 `deploy` capability 的仓库，Action Worker 才允许解析 Deploy Manifest。
+
+Manifest 不得声明 Secret 名称、具体 Runner label、host、Token 或中央权限。生产 Secret 和网络权限由中央 adapter / Capability Grant 决定。
+
+`production-deploy` 是抽象 privileged Runner Profile，实际 Runner 映射只由中央 Runner Policy 决定。当前可以映射 GitHub-hosted；未来切到 self-hosted 时业务仓 Manifest 不变。
+
+需要生产网络、SSH、Tailscale 或其他受信网络时，Privileged 任务必须 fail closed，不得自动降级到 sandbox/control Runner。
 
 ## 14. 普通新仓不应做什么
 
