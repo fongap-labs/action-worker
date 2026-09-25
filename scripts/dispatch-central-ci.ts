@@ -1,8 +1,10 @@
 import {
+  getGithubJson,
   githubEnvironment,
   isJsonRecord,
   runGithubCli,
 } from "./github-api.ts";
+import { hasTrustedSuccessfulCiEvidence } from "./ci-evidence.ts";
 import {
   CliError,
   handleError,
@@ -55,6 +57,15 @@ async function main(): Promise<void> {
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   if (!token || !repositoryPattern.test(controlRepository)) {
     throw new CliError("::error::Central CI control credentials are unavailable.", 65);
+  }
+
+  const currentStatus = await getGithubJson(
+    `repos/${repository}/commits/${headSha}/status`,
+    token,
+  );
+  if (hasTrustedSuccessfulCiEvidence(currentStatus, context, controlRepository)) {
+    console.log(`Central CI already satisfied: ${repository}@${headSha}`);
+    return;
   }
 
   const statusArgs = [
