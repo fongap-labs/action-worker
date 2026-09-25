@@ -44,6 +44,11 @@ async function main(): Promise<void> {
   };
   const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", controlToken);
   const facts = await resolveSecurityScanFacts(reader, request);
+  if (facts.is_private) {
+    console.log(`Security scan skipped: private source requires a private-safe executor: ${repository}.`);
+    return;
+  }
+
   const manifestPath = `repos/${repository}/contents/.github/security-scan.json?ref=${facts.config_ref}`;
   if (!await githubExists(manifestPath, controlToken)) {
     console.log(`Security scan skipped: no trusted manifest for ${repository}@${facts.config_ref}.`);
