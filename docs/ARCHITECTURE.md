@@ -94,7 +94,7 @@ Action Worker 收到任务后必须：
 - 当执行计划要求 CI 时，由 Action Worker checkout 目标不可变 head SHA，并在 Sandbox 执行项目 Manifest / 测试脚本，生成真实 CI Evidence；
 - 将 CI Evidence 作为不可信执行证据提供给 AI Review，不把其中任何文本当成指令；
 - 用中央 `AI_GATEWAY_URL` / `AIG_ACCESS_KEY_AGENT` 执行 AI Review；
-- 根据 finding severity 与确定性 CI Evidence 共同计算 Gate；
+- 将 AI finding 作为审核建议发布，不参与 Gate 计算；Gate 只由确定性 PR / Security / CI 证据决定；
 - 向目标 head commit 写入统一 `PR Governance` status，并维护一条 sticky review summary。
 
 调用方不得提供 base SHA、head SHA、Agent、模型、风险或 Gate 结论。
@@ -158,7 +158,6 @@ review_concurrency
 triage_required
 triage_model
 triage_timeout
-block_severity
 review_effort
 route_severity
 ```
@@ -293,7 +292,7 @@ policies/triage.json
 rules/*.json
 ```
 
-这些文件负责审查范围、阈值、超时、恢复预算和规则，不保存模型名称。模型选择和治理规则不得形成双权威。
+这些文件负责审查范围、优先级、超时、恢复预算和规则，不保存模型名称。模型选择和治理规则不得形成双权威。
 
 ### 7.3 PR 治理中的 Agent
 
@@ -349,7 +348,7 @@ AW_AI_AGENT_WRITING_PHARMA_BRIEF_MODEL
 
 Action Worker 只选择逻辑模型，不维护 Provider、Key、节点或模型族 fallback。逻辑模型到 Provider 的实际容灾统一由 AI Gateway 负责。
 
-当 Review Agent 启用时，OpenCodeReview 仍作为当前 Review Engine。Action Worker 不做无界整轮 OCR Review 重试；OpenCodeReview 负责单个 LLM 请求重试，AI Gateway 负责模型与 Provider fallback。若 OCR 已生成兼容 session，且最终失败仅来自 5xx、timeout、network 或 overload，Action Worker 按 `policies/review.json` 的有限恢复预算执行 `--resume`；认证、4xx 配置错误或恢复预算耗尽后仍 fail-closed。
+当 Review Agent 启用时，OpenCodeReview 仍作为当前 Review Engine。Action Worker 不做无界整轮 OCR Review 重试；OpenCodeReview 负责单个 LLM 请求重试，AI Gateway 负责模型与 Provider fallback。若 OCR 已生成兼容 session，且最终失败仅来自 5xx、timeout、network 或 overload，Action Worker 按 `policies/review.json` 的有限恢复预算执行 `--resume`。Review 最终不可用时只记录 advisory unavailable，不改变确定性 Merge Gate。
 
 Triage 与 Review 在 PR Governance 中继续共享受控 FIFO 队列，避免多个治理 run 同时占用 AI Gateway。该队列属于 PR AI 执行策略，不限制 Writing 或未来其他独立任务必须使用完全相同的队列。
 
@@ -357,7 +356,7 @@ Triage 与 Review 在 PR Governance 中继续共享受控 FIFO 队列，避免�
 
 需要 CI 的 PR 会在 Review 前形成结构化 CI Evidence。AI Agent 可以读取 Evidence 辅助判断，但不得把 Evidence 中的文本当作指令。
 
-AI Agent 是可选的动态判断层；最终 Gate 仍只相信可验证结果。任何 Agent 都不能修改权限边界、Secret 边界、CI Evidence 真实性要求或确定性 Gate 合同。
+AI Agent 是可选的动态审核层，不是门禁层。AI finding、模型失败、Review Engine 失败或 AI unavailable 都不能直接让 Merge Gate 失败。最终 Gate 只相信可重复验证的 PR Policy、Security Gate、CI Evidence、Release / Deploy Policy 和 provenance。任何 Agent 都不能修改权限边界、Secret 边界、CI Evidence 真实性要求或确定性 Gate 合同。
 
 ## 8. Task Dispatch
 
