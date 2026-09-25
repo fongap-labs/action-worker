@@ -1,4 +1,48 @@
 {
-  "schema_version": 1,
-  "path_terms": ["secret", "token", "auth", "permission", "credential"]
+  "schema_version": 2,
+  "sensitive_paths": {
+    "deny": [
+      "(^|/)\\.env($|\\.)",
+      "(^|/)(id_rsa|id_dsa|id_ecdsa|id_ed25519)$",
+      "\\.(pem|key|p12|pfx|jks)$",
+      "(^|/)(credentials|secrets?)\\.json$"
+    ],
+    "allow": [
+      "(^|/)\\.env\\.example$",
+      "(^|/)\\.env\\.variables$",
+      "(^|/)\\.secrets\\.required$"
+    ]
+  },
+  "secret_patterns": [
+    {
+      "id": "private-key",
+      "pattern": "-----BEGIN (?:RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----"
+    },
+    {
+      "id": "github-token",
+      "pattern": "\\bgh[pousr]_[A-Za-z0-9]{20,}\\b"
+    },
+    {
+      "id": "github-fine-grained-token",
+      "pattern": "\\bgithub_pat_[A-Za-z0-9_]{50,}\\b"
+    },
+    {
+      "id": "aws-access-key",
+      "pattern": "\\b(?:AKIA|ASIA)[A-Z0-9]{16}\\b"
+    },
+    {
+      "id": "npm-token",
+      "pattern": "\\bnpm_[A-Za-z0-9]{36}\\b"
+    },
+    {
+      "id": "slack-token",
+      "pattern": "\\bxox[baprs]-[A-Za-z0-9-]{20,}\\b"
+    }
+  ],
+  "workflow_guards": {
+    "forbid_pull_request_target": true,
+    "forbid_write_all": true,
+    "forbid_to_json_secrets": true,
+    "forbid_direct_secret_in_run": true
+  }
 }
