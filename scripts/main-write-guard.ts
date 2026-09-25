@@ -182,11 +182,22 @@ export async function assertTrustedMainWrite(
   requireCentralStatuses = true,
 ): Promise<MainWriteProvenance> {
   const provenance = await validateMainWriteProvenance(reader, repository, mainSha, requireCentralStatuses);
-  const status = await reader.get(`repos/${repository}/commits/${mainSha}/status`);
-  if (!hasTrustedMainWriteGuard(status)) {
-    throw new CliError("::error::Source SHA has no successful Main Write Guard status.", 65);
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const status = await reader.get(`repos/${repository}/commits/${mainSha}/status`);
+    if (hasTrustedMainWriteGuard(status)) {
+      return provenance;
+    }
+    const guardStates = getJsonArray(status, "statuses")
+      .filter((item) => isJsonRecord(item) && getJsonString(item, "context") === "Main Write Guard")
+      .map((item) => getJsonString(item, "state"));
+    if (guardStates.includes("failure") || guardStates.includes("error")) {
+      throw new CliError("::error::Source SHA failed Main Write Guard.", 65);
+    }
+    if (attempt + 1 < 12) {
+      await new Promise((resolve) => setTimeout(resolve, 5_000));
+    }
   }
-  return provenance;
+  throw new CliError("::error::Source SHA has no successful Main Write Guard status.", 65);
 }
 
 function requestFromEnvironment(): MainWriteRequest {
