@@ -294,7 +294,7 @@ build generate handle execute publish summarize
 
 ## 8. Action Worker only
 
-Action Worker is a generic control plane, so its own long-lived resource directories are limited to:
+Action Worker is a generic governance and execution plane. Stable authority remains in:
 
 ```text
 docs/
@@ -307,13 +307,17 @@ tests/
 
 Platform-required `.github/workflows/` is an exception.
 
+When the execution framework grows, repository-agnostic implementation layers such as `executors/`, `runners/`, or `adapters/` are allowed if they represent reusable capabilities and are driven by common contracts.
+
 Action Worker must not introduce repository-specific configuration structures such as:
 
 ```text
-projects/
-adapters/
-profiles/
+projects/<repository-or-product>/
+profiles/<repository-or-product>/
+<repository-name>/
 ```
+
+A generic adapter is allowed; an adapter whose purpose is effectively “special-case repository X” is not.
 
 This restriction does **not** apply to business repositories. A product repository may legitimately use `projects/`, `apps/`, `crates/`, `tools/`, `skills/`, `output/`, or other semantically correct project-specific directories.
 
