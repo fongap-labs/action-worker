@@ -44,5 +44,12 @@
     "forbid_write_all": true,
     "forbid_to_json_secrets": true,
     "forbid_direct_secret_in_run": true
-  }
+  },
+  "path_terms": [
+    "secret",
+    "token",
+    "auth",
+    "permission",
+    "credential"
+  ]
 }
