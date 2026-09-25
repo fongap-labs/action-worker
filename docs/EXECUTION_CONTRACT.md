@@ -42,10 +42,15 @@ Execute in Action Worker
   ↓
 Evidence / Artifact / Provenance
   ↓
-Gate / Publish / Deploy / Status
+Deterministic Security / CI / PR Gate
+  ↓
+Publish / Deploy / Status
+
+AI Review
+  ↘ advisory findings only
 ```
 
-业务仓不得通过自己的重型 workflow 绕过这条链。
+业务仓不得通过自己的重型 workflow 绕过这条链。AI Review 不属于 Capability Grant 或合并 Gate。
 
 ## 3. Business repository owns
 
@@ -73,7 +78,8 @@ Action Worker 统一负责：
 - 中央 Secret 与 Token 注入；
 - 信任域隔离；
 - artifact 与 provenance；
-- Gate；
+- deterministic Security / CI / PR Gate；
+- advisory AI Review orchestration；
 - 状态回写；
 - 发布与部署权限；
 - 失败、超时、取消和重试策略。
