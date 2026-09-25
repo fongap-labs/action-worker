@@ -78,6 +78,10 @@ README / examples
 
 项目规则可以收紧共用规则，但不得绕过共用安全边界、PR Gate 或跨仓凭据边界。
 
+AI Review 不是共用门禁。它只负责审核、建议与问题发现；是否启用、是否成功、发现多少问题，都不能替代或改变确定性的 CI / PR / Security Gate。
+
+Security Gate 属于共用硬边界，必须由 Action Worker 的确定性检查执行，并覆盖公开仓与私有仓。
+
 ## 5. Agent entry
 
 每个受管业务仓保留两个极薄入口：
