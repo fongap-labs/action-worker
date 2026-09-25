@@ -29,6 +29,7 @@ export type SecurityScanFacts = {
   config_ref: string;
   ref: string;
   default_branch: string;
+  is_private: boolean;
 };
 
 type GithubGet = {
@@ -136,8 +137,9 @@ export async function resolveSecurityScanFacts(
     throw new CliError("GitHub repository response is invalid.", 65);
   }
   const defaultBranch = getJsonString(repositoryValue, "default_branch");
-  if (!defaultBranch) {
-    throw new CliError("Repository default branch is unavailable.", 65);
+  const isPrivate = repositoryValue.private;
+  if (!defaultBranch || typeof isPrivate !== "boolean") {
+    throw new CliError("Repository default branch or visibility is unavailable.", 65);
   }
 
   if (request.pr_number > 0) {
@@ -157,6 +159,7 @@ export async function resolveSecurityScanFacts(
       config_ref: baseSha,
       ref: `refs/pull/${request.pr_number}/head`,
       default_branch: defaultBranch,
+      is_private: isPrivate,
     };
   }
 
@@ -175,6 +178,7 @@ export async function resolveSecurityScanFacts(
     config_ref: request.source_sha,
     ref: `refs/heads/${defaultBranch}`,
     default_branch: defaultBranch,
+    is_private: isPrivate,
   };
 }
 
