@@ -145,6 +145,9 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   const ciDispatcher = await text("scripts/dispatch-central-ci.ts");
   requireText(ciDispatcher, ["AW_REPOSITORY_POLICY", "validateRepositoryCapability", '"pr"']);
   assert.doesNotMatch(ciDispatcher, /central_repositories|Central CI dispatch skipped/);
+  const ciEvidenceWaiter = await text("scripts/wait-ci-evidence.ts");
+  requireText(ciEvidenceWaiter, ["waitForCentralStatus", "CI Evidence"]);
+  assert.doesNotMatch(ciEvidenceWaiter, /central_repositories|actions\/workflows\/\$\{workflow\}/);
   const prWorkflow = await text(".github/workflows/handle-pr-dispatch.yml");
   assert.match(
     prWorkflow,
