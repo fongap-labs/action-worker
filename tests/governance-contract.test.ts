@@ -427,14 +427,31 @@ test("AI Gateway scheduled CI is central and cannot publish deploy-triggering st
   assert.equal(workflow.includes("CI Evidence"), false);
 });
 
-test("central CI deploy dispatch is policy-driven after cutover", async () => {
+test("central CI deploy dispatch is source-owned and adapter-routed", async () => {
   const policy = await json("policies/deploy.json") as Record<string, unknown>;
-  assert.equal(policy.schema_version, 1);
-  const repositories = policy.repositories as Record<string, Record<string, unknown>>;
-  assert.equal(repositories["fongap-labs/ai-gateway"]?.automatic, true);
-  assert.equal(repositories["fongap-labs/ai-gateway"]?.event_type, "run-ai-gateway-deploy");
-  assert.equal(repositories["fongap-labs/internal-vault"]?.automatic, false);
-  assert.equal(repositories["fongap-labs/internal-vault"]?.event_type, "run-server-edge-deploy");
+  assert.equal(policy.schema_version, 2);
+  assert.equal("repositories" in policy, false);
+  const adapters = policy.adapters as Record<string, Record<string, unknown>>;
+  assert.ok(adapters["cloudflare-worker"]);
+  assert.ok(adapters["source-script"]);
+
+  const manifestResolver = await text("scripts/deploy-manifest.ts");
+  requireText(manifestResolver, [
+    ".github/deploy.json",
+    "validateRepositoryCapability",
+    "resolveRunnerProfile",
+  ]);
+
+  const dispatcher = await text("scripts/dispatch-central-deploy.ts");
+  requireText(dispatcher, [
+    "resolveDeployManifest",
+    "AW_REPOSITORY_POLICY",
+    "policies/runner.json",
+    "manifest.automatic",
+    "manifest.ignore_docs_only",
+    "manifest.adapter",
+  ]);
+  assert.doesNotMatch(dispatcher, /policy\.repositories|fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)/);
 
   const workflow = await text(".github/workflows/central-ci-dispatch.yml");
   requireText(workflow, [
@@ -445,6 +462,7 @@ test("central CI deploy dispatch is policy-driven after cutover", async () => {
     "Dispatch automatic deploy",
     "dispatch-central-deploy.ts",
     "policies/deploy.json",
+    "policies/runner.json",
     "needs.prepare.outputs.pr_number == '0'",
     "contents: write",
     "AW_REPOSITORY_POLICY",

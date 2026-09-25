@@ -1,15 +1,11 @@
 {
-  "schema_version": 1,
-  "repositories": {
-    "fongap-labs/ai-gateway": {
-      "automatic": true,
-      "event_type": "run-ai-gateway-deploy",
-      "ignore_docs_only": true
+  "schema_version": 2,
+  "adapters": {
+    "cloudflare-worker": {
+      "event_type": "run-ai-gateway-deploy"
     },
-    "fongap-labs/internal-vault": {
-      "automatic": false,
-      "event_type": "run-server-edge-deploy",
-      "ignore_docs_only": true
+    "source-script": {
+      "event_type": "run-server-edge-deploy"
     }
   }
 }
