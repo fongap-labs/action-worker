@@ -72,9 +72,13 @@ Workflow 变更至少检查：permissions 是否最小、Secret 是否进入不�
 
 ## 8. AI 与 Gate
 
-AI 负责动态判断，不决定权限边界。Gate 只相信 deterministic policy、CI Evidence、合法 Review Result、Release / Deploy Policy、GitHub 当前事实和 execution provenance。
+AI 负责审核、建议和问题发现，不决定权限边界，也不是合并门槛。
 
-Agent 不得通过重跑、换模型、换 Runner 或降低阈值规避不利结果。
+Gate 只相信 deterministic policy、Security Gate、CI Evidence、Release / Deploy Policy、GitHub 当前事实和 execution provenance。AI Review Result 可以作为人工判断和后续修复的 Evidence，但不得作为自动阻断条件。
+
+AI Review 失败、超时、模型不可用或发现 high / critical 问题时，应保留可见结果或 unavailable 状态，但不得直接把确定性 Gate 改成失败。
+
+Security Gate 必须独立于 AI，至少检查新增 Secret 材料、敏感文件和高风险 Workflow 泄密模式。
 
 ## 9. Release / Deploy
 
