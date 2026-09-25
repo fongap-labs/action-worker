@@ -97,7 +97,8 @@ export async function scanOpenPullRequests(
   dispatch: Dispatch,
   controlRepository: string,
 ): Promise<IntakeResult> {
-  const repositories = repositoriesForCapability(policyValue, "pr");
+  const repositories = repositoriesForCapability(policyValue, "pr")
+    .filter((repository) => repository !== controlRepository);
   const result: IntakeResult = {
     repositories: repositories.length,
     open_pull_requests: 0,
