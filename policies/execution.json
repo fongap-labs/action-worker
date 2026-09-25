@@ -9,7 +9,6 @@
     "allow_secrets": false
   },
   "ci": {
-    "workflow": "ci.yml",
     "poll_seconds": 15,
     "timeout_minutes": 120,
     "required_change_areas": [
@@ -30,10 +29,6 @@
       "performance",
       "compatibility",
       "release"
-    ],
-    "gate_jobs": [
-      "ci-evidence",
-      "validate-merge"
     ],
     "status_context": "CI Evidence"
   }
