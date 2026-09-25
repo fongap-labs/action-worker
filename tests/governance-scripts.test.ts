@@ -292,6 +292,7 @@ test("PR review summary includes gate, routing, and findings", () => {
     review_model: "Code-Ultra", block_severity: "high",
   }, { comments: [{ severity: "high", path: "src/a.ts", start_line: 12, category: "security", content: "Finding" }] });
   assert.match(body, /Gate: \*\*FAIL\*\*/);
+  assert.match(body, /AI Review: \*\*ADVISORY\*\*/);
   assert.match(body, /security/);
   assert.match(body, /src\/a\.ts:12/);
 });
