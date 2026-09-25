@@ -141,6 +141,44 @@ jobs:
             exit 75
           fi
 
+  security:
+    name: Central CI / Security
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout target
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.prepare.outputs.repository }}
+          ref: ${{ needs.prepare.outputs.head_sha }}
+          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout security control
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: security-control
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Validate security
+        run: |
+          node "$GITHUB_WORKSPACE/security-control/scripts/validate-security.ts" \
+            "${{ needs.prepare.outputs.base_sha }}" \
+            "${{ needs.prepare.outputs.head_sha }}" \
+            "$GITHUB_WORKSPACE/target" \
+            "$GITHUB_WORKSPACE/security-control/policies/security.json"
+
   linux:
     name: Central CI / Linux
     needs: prepare
@@ -274,6 +312,7 @@ jobs:
     name: Publish Central CI
     needs:
       - prepare
+      - security
       - linux
       - windows
     if: always() && needs.prepare.result == 'success'
@@ -288,6 +327,7 @@ jobs:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+          SECURITY_RESULT: ${{ needs.security.result }}
           LINUX_RESULT: ${{ needs.linux.result }}
           WINDOWS_RESULT: ${{ needs.windows.result }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -297,7 +337,7 @@ jobs:
 
           state=failure
           description="Central CI failed"
-          if [[ "$LINUX_RESULT" == "success" ]] && [[ "$WINDOWS_RESULT" == "success" || "$WINDOWS_RESULT" == "skipped" ]]; then
+          if [[ "$SECURITY_RESULT" == "success" ]] && [[ "$LINUX_RESULT" == "success" ]] && [[ "$WINDOWS_RESULT" == "success" || "$WINDOWS_RESULT" == "skipped" ]]; then
             state=success
             description="Central CI passed"
           fi
@@ -311,19 +351,19 @@ jobs:
           fi
 
       - name: Checkout deploy control
-        if: ${{ needs.prepare.outputs.pr_number == '0' && needs.linux.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
+        if: ${{ needs.prepare.outputs.pr_number == '0' && needs.security.result == 'success' && needs.linux.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup Node for deploy control
-        if: ${{ needs.prepare.outputs.pr_number == '0' && needs.linux.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
+        if: ${{ needs.prepare.outputs.pr_number == '0' && needs.security.result == 'success' && needs.linux.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
 
       - name: Dispatch automatic deploy
-        if: ${{ needs.prepare.outputs.pr_number == '0' && needs.linux.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
+        if: ${{ needs.prepare.outputs.pr_number == '0' && needs.security.result == 'success' && needs.linux.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
         env:
           GH_TOKEN: ${{ github.token }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
