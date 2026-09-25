@@ -60,7 +60,7 @@ test("documentation changes keep review and CI disabled", async () => {
     risk: "low",
   });
   const plan = resolvePlan(context, await loadPolicies(), defaults);
-  assert.deepEqual(plan.checks, ["naming"]);
+  assert.deepEqual(plan.checks, ["naming", "secret-scan"]);
   assert.deepEqual(plan.tests, []);
   assert.equal(plan.ci_required, false);
   assert.equal(plan.review_required, false);
