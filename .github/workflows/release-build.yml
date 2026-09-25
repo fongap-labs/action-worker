@@ -3,12 +3,22 @@ name: Handle Release Build Dispatch
 on:
   repository_dispatch:
     types: [run-release-build]
+  workflow_dispatch:
+    inputs:
+      source_repository:
+        description: Managed source repository in owner/name form
+        required: true
+        type: string
+      requested_version:
+        description: Optional stable SemVer; blank uses the source version
+        required: false
+        type: string
 
 permissions:
   contents: write
 
 concurrency:
-  group: release-build-${{ github.event.client_payload.source_repository }}-${{ github.event.client_payload.source_sha }}
+  group: release-build-${{ github.event.client_payload.source_repository || inputs.source_repository }}-${{ github.event.client_payload.source_sha || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -39,12 +49,22 @@ jobs:
         with:
           node-version: 24
 
+      - name: Resolve release build ingress
+        id: ingress
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          RELEASE_DISPATCH_JSON: ${{ toJSON(github.event.client_payload) }}
+          RELEASE_SOURCE_REPOSITORY: ${{ inputs.source_repository }}
+          RELEASE_REQUESTED_VERSION: ${{ inputs.requested_version }}
+        run: node scripts/resolve-release-build-ingress.ts
+
       - name: Validate release build request
         id: request
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          RELEASE_BUILD_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
+          RELEASE_BUILD_REQUEST_JSON: ${{ steps.ingress.outputs.request_json }}
         run: node scripts/validate-release-build-request.ts policies/runner.json
 
   build-windows:
