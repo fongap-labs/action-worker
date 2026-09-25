@@ -30,15 +30,18 @@ export type IntakeResult = {
 
 const shaPattern = /^[0-9a-f]{40}$/;
 
-function statusMap(value: unknown): Map<string, string> {
+function statusMap(value: unknown, controlRepository: string): Map<string, string> {
   if (!isJsonRecord(value) || !Array.isArray(value.statuses)) {
     throw new CliError("GitHub commit status response is invalid.", 65);
   }
+  const authorityPrefix = `https://github.com/${controlRepository}/actions/runs/`;
   const statuses = new Map<string, string>();
   for (const item of value.statuses) {
     if (!isJsonRecord(item)) continue;
     const context = getJsonString(item, "context");
     const state = getJsonString(item, "state");
+    const targetUrl = getJsonString(item, "target_url");
+    if (!targetUrl.startsWith(authorityPrefix)) continue;
     if (context && state && !statuses.has(context)) {
       statuses.set(context, state);
     }
@@ -92,6 +95,7 @@ export async function scanOpenPullRequests(
   policyValue: unknown,
   reader: GithubGet,
   dispatch: Dispatch,
+  controlRepository: string,
 ): Promise<IntakeResult> {
   const repositories = repositoriesForCapability(policyValue, "pr");
   const result: IntakeResult = {
@@ -106,9 +110,10 @@ export async function scanOpenPullRequests(
     const pulls = await openPullRequests(reader, repository);
     result.open_pull_requests += pulls.length;
     for (const pull of pulls) {
-      const statuses = statusMap(await reader.get(
-        `repos/${repository}/commits/${pull.headSha}/status`,
-      ));
+      const statuses = statusMap(
+        await reader.get(`repos/${repository}/commits/${pull.headSha}/status`),
+        controlRepository,
+      );
       const action = needsDispatch(statuses);
       if (action === "in-flight") {
         result.in_flight += 1;
@@ -178,6 +183,7 @@ async function main(): Promise<void> {
     async (repository, prNumber, headSha) => {
       await dispatchPullRequest(controlRepository, dispatchToken, repository, prNumber, headSha);
     },
+    controlRepository,
   );
 
   console.log(JSON.stringify(result));
