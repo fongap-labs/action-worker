@@ -15,7 +15,11 @@ import {
   parseJson,
 } from "./runtime-command.ts";
 
-function normalizeVersion(value: string): string {
+type GithubGet = {
+  get(path: string): Promise<unknown>;
+};
+
+export function normalizeVersion(value: string): string {
   const version = value.replace(/^v/, "");
   if (version && !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)) {
     throw new CliError("Requested release version must be stable SemVer.", 64);
@@ -23,21 +27,16 @@ function normalizeVersion(value: string): string {
   return version;
 }
 
-async function manualRequest(): Promise<ReturnType<typeof parseReleaseBuildRequest>> {
-  const repository = process.env.RELEASE_SOURCE_REPOSITORY ?? "";
-  const requestedVersion = normalizeVersion(process.env.RELEASE_REQUESTED_VERSION ?? "");
-  const token = process.env.AW_CONTROL_TOKEN ?? "";
-  const policy = parseJson(
-    process.env.AW_REPOSITORY_POLICY ?? "",
-    "AW_REPOSITORY_POLICY must be valid JSON.",
-    65,
-  );
-  if (!token) {
-    throw new CliError("AW_CONTROL_TOKEN is required.", 77);
-  }
+export async function resolveManualReleaseBuild(
+  repository: string,
+  requestedVersionRaw: string,
+  policy: unknown,
+  reader: GithubGet,
+  runId: string,
+  runAttempt: string,
+): Promise<ReturnType<typeof parseReleaseBuildRequest>> {
+  const requestedVersion = normalizeVersion(requestedVersionRaw);
   validateRepositoryCapability(repository, policy, "release-source");
-
-  const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
   const repo = await reader.get(`repos/${repository}`);
   if (!isJsonRecord(repo)) {
     throw new CliError("GitHub repository response is invalid.", 65);
@@ -48,9 +47,6 @@ async function manualRequest(): Promise<ReturnType<typeof parseReleaseBuildReque
   }
   const commit = await reader.get(`repos/${repository}/commits/${defaultBranch}`);
   const sourceSha = getJsonString(commit, "sha");
-  const runId = process.env.GITHUB_RUN_ID ?? "";
-  const runAttempt = process.env.GITHUB_RUN_ATTEMPT ?? "1";
-
   return parseReleaseBuildRequest({
     schema_version: "1",
     request_id: `manual:${repository.replace("/", "-")}:${runId}:${runAttempt}`,
@@ -73,7 +69,23 @@ async function main(): Promise<void> {
       ),
     );
   } else if (eventName === "workflow_dispatch") {
-    request = await manualRequest();
+    const token = process.env.AW_CONTROL_TOKEN ?? "";
+    const policy = parseJson(
+      process.env.AW_REPOSITORY_POLICY ?? "",
+      "AW_REPOSITORY_POLICY must be valid JSON.",
+      65,
+    );
+    if (!token) {
+      throw new CliError("AW_CONTROL_TOKEN is required.", 77);
+    }
+    request = await resolveManualReleaseBuild(
+      process.env.RELEASE_SOURCE_REPOSITORY ?? "",
+      process.env.RELEASE_REQUESTED_VERSION ?? "",
+      policy,
+      new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token),
+      process.env.GITHUB_RUN_ID ?? "",
+      process.env.GITHUB_RUN_ATTEMPT ?? "1",
+    );
   } else {
     throw new CliError(`Unsupported release ingress event: ${eventName}.`, 64);
   }
