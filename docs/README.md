@@ -17,6 +17,7 @@ Managed repositories keep only project-specific rules and do not duplicate share
 | [SHARED_GOVERNANCE.md](SHARED_GOVERNANCE.md) | Shared governance boundaries and authority relationships across Fongap Labs |
 | [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md) | Unified execution boundary for public and private managed repositories |
 | [RUNNER_POLICY.md](RUNNER_POLICY.md) | Runner profiles, backend resolution, trust domains, and self-hosted boundaries |
+| [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md) | Main-branch provenance, direct-write quarantine, and downstream trust requirements |
 | [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) | Shared naming rules plus Action Worker-specific constraints |
 | [CHANGELOG_CONVENTIONS.md](CHANGELOG_CONVENTIONS.md) | Unified change classification for PRs, CHANGELOG entries, and releases |
 | [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) | Common development, validation, PR, and merge rules |
@@ -58,6 +59,7 @@ Develop Action Worker
 → docs/ARCHITECTURE_GOVERNANCE.md
 → docs/EXECUTION_CONTRACT.md
 → docs/RUNNER_POLICY.md
+→ docs/MAIN_WRITE_GUARD.md
 → related contracts / policies / rules
 
 Work in a managed repository
