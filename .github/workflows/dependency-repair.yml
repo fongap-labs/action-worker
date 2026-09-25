@@ -42,6 +42,15 @@ jobs:
         with:
           node-version: 24
 
+      - name: Mark dependency repair in progress
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ github.event.client_payload.repository }}
+          HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PR_STATUS_CONTEXT: Dependency Repair
+        run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" pending "Action Worker dependency repair in progress" "$RUN_URL"
+
       - name: Resolve dependency repair
         id: resolve
         env:
@@ -156,3 +165,108 @@ jobs:
             "$OUTPUT_PATHS_JSON" \
             "$RUNNER_TEMP/dependency-repair" \
             "$GITHUB_WORKSPACE/target"
+
+  finalize:
+    name: Finalize dependency repair
+    needs:
+      - prepare
+      - compute
+      - publish
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Publish repair status and continue intake
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_INGRESS_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ needs.prepare.outputs.repository || github.event.client_payload.repository }}
+          PR_NUMBER: ${{ needs.prepare.outputs.pr_number || github.event.client_payload.pr_number }}
+          HEAD_SHA: ${{ needs.prepare.outputs.head_sha || github.event.client_payload.head_sha }}
+          REPAIR_ENABLED: ${{ needs.prepare.outputs.enabled }}
+          PREPARE_RESULT: ${{ needs.prepare.result }}
+          COMPUTE_RESULT: ${{ needs.compute.result }}
+          REPAIR_CHANGED: ${{ needs.compute.outputs.changed }}
+          PUBLISH_RESULT: ${{ needs.publish.result }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          PR_STATUS_CONTEXT: Dependency Repair
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          state=failure
+          description="Action Worker dependency repair failed"
+          if [ "$PREPARE_RESULT" = "success" ]; then
+            if [ "$REPAIR_ENABLED" != "true" ]; then
+              state=success
+              description="Dependency repair not required"
+            elif [ "$COMPUTE_RESULT" = "success" ] && { [ "$REPAIR_CHANGED" != "true" ] || [ "$PUBLISH_RESULT" = "success" ]; }; then
+              state=success
+              description="Dependency repair completed"
+            fi
+          fi
+
+          GH_TOKEN="$AW_CONTROL_TOKEN" node scripts/set-pr-status.ts \
+            "$REPOSITORY" \
+            "$HEAD_SHA" \
+            "$state" \
+            "$description" \
+            "$RUN_URL"
+
+          [ "$state" = "success" ] || exit 1
+
+          current_head="$(
+            GH_TOKEN="$AW_CONTROL_TOKEN" gh api \
+              "repos/$REPOSITORY/pulls/$PR_NUMBER" \
+              --jq '.head.sha'
+          )"
+          [[ "$current_head" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::Current PR head SHA is invalid." >&2
+            exit 65
+          }
+
+          event_type="run-pr-governance"
+          request_prefix="repair-complete"
+          if [ "$current_head" != "$HEAD_SHA" ]; then
+            event_type="run-dependency-repair"
+            request_prefix="repair-followup"
+          fi
+
+          safe_repository="${REPOSITORY//\//-}"
+          request_id="$request_prefix:$safe_repository:$PR_NUMBER:${current_head:0:12}"
+          payload="$(
+            jq -cn \
+              --arg event_type "$event_type" \
+              --arg request_id "$request_id" \
+              --arg repository "$REPOSITORY" \
+              --argjson pr_number "$PR_NUMBER" \
+              --arg head_sha "$current_head" \
+              '{
+                event_type: $event_type,
+                client_payload: {
+                  schema_version: "1",
+                  request_id: $request_id,
+                  repository: $repository,
+                  pr_number: $pr_number,
+                  head_sha: $head_sha
+                }
+              }'
+          )"
+
+          GH_TOKEN="$AW_INGRESS_TOKEN" gh api \
+            --method POST \
+            "repos/$GITHUB_REPOSITORY/dispatches" \
+            --input - <<< "$payload"

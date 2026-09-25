@@ -74,6 +74,8 @@ test("central PR intake scans every managed repository independent of visibility
     repositories: 2,
     open_pull_requests: 3,
     dispatched: 1,
+    repair_dispatched: 0,
+    repair_blocked: 0,
     in_flight: 1,
     already_processed: 1,
   });
@@ -217,4 +219,75 @@ test("central PR intake retries stale pending control-plane runs", async () => {
   assert.deepEqual(dispatched, [17]);
   assert.equal(result.in_flight, 0);
   assert.equal(result.dispatched, 1);
+});
+
+
+test("central PR intake routes matching source-owned dependency repair before governance", async () => {
+  const repository = "fongap-labs/example";
+  const baseSha = shaB;
+  const repairManifest = {
+    schema_version: "1",
+    repairs: [{
+      id: "uv-lock",
+      adapter: "uv-lock",
+      runner_profile: "linux-standard",
+      trusted_actor: "dependabot[bot]",
+      trigger_paths: ["pyproject.toml"],
+      output_paths: ["uv.lock"],
+      tool_version: "0.12.3",
+      head_prefix: "dependabot/",
+      working_directory: ".",
+    }],
+  };
+  const governance: number[] = [];
+  const repairs: number[] = [];
+
+  const result = await scanOpenPullRequests(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path.includes("/pulls?")) {
+          return [{ number: 21, head: { sha: shaA } }];
+        }
+        if (path.endsWith(`/commits/${shaA}/status`)) {
+          return { statuses: [] };
+        }
+        if (path.endsWith("/pulls/21")) {
+          return {
+            state: "open",
+            user: { login: "dependabot[bot]" },
+            head: {
+              sha: shaA,
+              ref: "dependabot/pip/example-1.2.3",
+              repo: { full_name: repository },
+            },
+            base: { sha: baseSha },
+          };
+        }
+        if (path.includes("/pulls/21/files")) {
+          return [{ filename: "pyproject.toml" }];
+        }
+        if (path === `repos/${repository}/contents/.github/dependency-repair.json?ref=${baseSha}`) {
+          return {
+            encoding: "base64",
+            content: Buffer.from(JSON.stringify(repairManifest), "utf8").toString("base64"),
+          };
+        }
+        throw new Error(`unexpected API path: ${path}`);
+      },
+    },
+    async (_repository, pr) => {
+      governance.push(pr);
+    },
+    "fongap-labs/action-worker",
+    async (_repository, pr) => {
+      repairs.push(pr);
+    },
+  );
+
+  assert.deepEqual(governance, []);
+  assert.deepEqual(repairs, [21]);
+  assert.equal(result.dispatched, 0);
+  assert.equal(result.repair_dispatched, 1);
+  assert.equal(result.repair_blocked, 0);
 });
