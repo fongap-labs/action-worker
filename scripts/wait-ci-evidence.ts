@@ -2,6 +2,7 @@ import {
   getGithubJson,
   getJsonNumber,
   getJsonString,
+  isJsonRecord,
 } from "./github-api.ts";
 import { trustedCiStatus } from "./ci-evidence.ts";
 import { writeFile } from "node:fs/promises";
