@@ -67,25 +67,38 @@ export function validateRepositoryCapability(
 }
 
 async function main(): Promise<void> {
-  const [command, capability] = process.argv.slice(2);
-  if (command !== "list" || !capabilitySet.has(capability ?? "")) {
-    throw new CliError("Usage: repository-policy.ts list <pr|task|release-source|release-target>", 64);
-  }
+  const [command, first = "", second = ""] = process.argv.slice(2);
   const rawPolicy = process.env.AW_REPOSITORY_POLICY;
   if (!rawPolicy) {
     throw new CliError("::error::Missing Repository Variable: AW_REPOSITORY_POLICY.", 65);
   }
-  const repositories = repositoriesForCapability(
-    parseJson(rawPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65),
-    capability as RepositoryCapability,
-  );
-  if (repositories.length === 0) {
-    throw new CliError(`::error::AW_REPOSITORY_POLICY has no repositories with capability: ${capability}.`, 65);
+  const policy = parseJson(rawPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65);
+
+  if (command === "list" && capabilitySet.has(first)) {
+    const repositories = repositoriesForCapability(
+      policy,
+      first as RepositoryCapability,
+    );
+    if (repositories.length === 0) {
+      throw new CliError(`::error::AW_REPOSITORY_POLICY has no repositories with capability: ${first}.`, 65);
+    }
+    await appendLines(process.env.GITHUB_OUTPUT, [
+      `repositories=${JSON.stringify(repositories)}`,
+    ]);
+    console.log(`Repository policy resolved: ${first} -> ${repositories.length} repositories.`);
+    return;
   }
-  await appendLines(process.env.GITHUB_OUTPUT, [
-    `repositories=${JSON.stringify(repositories)}`,
-  ]);
-  console.log(`Repository policy resolved: ${capability} -> ${repositories.length} repositories.`);
+
+  if (command === "validate" && capabilitySet.has(second)) {
+    validateRepositoryCapability(first, policy, second as RepositoryCapability);
+    console.log(`Repository policy validated: ${first} -> ${second}.`);
+    return;
+  }
+
+  throw new CliError(
+    "Usage: repository-policy.ts <list CAPABILITY | validate REPOSITORY CAPABILITY>",
+    64,
+  );
 }
 
 if (isMain(import.meta.url)) {
