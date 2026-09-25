@@ -37,6 +37,8 @@ Business repository
 - English-only engineering diff, PR titles, CHANGELOG entries and release summaries;
 - common development and validation rules;
 - PR governance and merge-gate contract;
+- deterministic security gate and secret-leak prevention;
+- AI Review as advisory review rather than merge authority;
 - unified execution contract for public and private repositories;
 - central CI / build / review / release / deploy / task execution;
 - runner profiles, runner resolution and self-hosted boundaries;
