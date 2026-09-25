@@ -22,7 +22,11 @@ Business repository
 + project scripts
 + project architecture
 + execution manifest
-+ thin event bridge
++ migration-only thin event bridge
+
+Execution Ingress
+= trusted repository event intake
++ Execution Request creation
 
 Runner
 = disposable compute backend
@@ -30,7 +34,9 @@ Runner
 
 公开仓库与私有仓库使用同一执行架构。
 
-除最薄 dispatch 和 GitHub 平台必须由目标仓自身创建的极轻 Check / status bridge 外，CI、test、build、AI Review、release、deploy、task 与 scheduled job 等重执行统一进入 Action Worker。
+长期入口也必须中央化：GitHub App、Webhook 或其他可信 Execution Ingress 直接把仓库事件转换为 Action Worker Execution Request。业务仓薄 dispatch 只是迁移兼容层，业务仓 Actions 是否有额度不得成为中央执行的依赖。
+
+除迁移期最薄 dispatch 和 GitHub 平台必须由目标仓自身创建的极轻 Check / status bridge 外，CI、test、build、AI Review、release、deploy、task 与 scheduled job 等重执行统一进入 Action Worker。
 
 业务仓拥有项目实现，但不拥有中央治理、中央 Secret、Runner 策略和最终执行权限。
 

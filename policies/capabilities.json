@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "capabilities": {
+    "source.read": {
+      "trust_domains": ["sandbox", "control", "privileged"]
+    },
+    "artifact.write": {
+      "trust_domains": ["sandbox", "control", "privileged"]
+    },
+    "repository.write": {
+      "trust_domains": ["control", "privileged"]
+    },
+    "release.publish": {
+      "trust_domains": ["privileged"]
+    },
+    "deployment.production": {
+      "trust_domains": ["privileged"]
+    },
+    "network.private": {
+      "trust_domains": ["privileged"]
+    }
+  },
+  "operations": {
+    "ci": ["source.read", "artifact.write"],
+    "review": ["source.read"],
+    "build": ["source.read", "artifact.write"],
+    "release": ["source.read", "artifact.write", "release.publish"],
+    "deploy": ["source.read", "deployment.production", "network.private"],
+    "task": ["source.read", "artifact.write"],
+    "scheduled": ["source.read", "artifact.write"]
+  }
+}
