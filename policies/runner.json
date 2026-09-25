@@ -34,6 +34,15 @@
       "trust_domain": "privileged",
       "labels": [],
       "fallback_profiles": []
+    },
+    "production-deploy": {
+      "enabled": true,
+      "backend": "github-hosted",
+      "trust_domain": "privileged",
+      "labels": [
+        "ubuntu-24.04"
+      ],
+      "fallback_profiles": []
     }
   }
 }
