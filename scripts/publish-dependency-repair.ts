@@ -36,14 +36,19 @@ function confined(root: string, path: string): string {
 }
 
 async function filesUnder(root: string): Promise<string[]> {
-  const entries = await readdir(root, { recursive: true, withFileTypes: true });
-  return entries
-    .filter((entry) => entry.isFile())
-    .map((entry) => {
-      const parent = entry.parentPath ?? root;
-      return relative(root, join(parent, entry.name)).replaceAll("\\", "/");
-    })
-    .sort();
+  const entries = await readdir(root, { recursive: true });
+  const files: string[] = [];
+  for (const entry of entries) {
+    const path = String(entry).replaceAll("\\", "/");
+    if (!safeRelativePath(path)) {
+      throw new CliError("Dependency repair artifact contains an invalid path.", 77);
+    }
+    const details = await stat(confined(root, path));
+    if (details.isFile()) {
+      files.push(path);
+    }
+  }
+  return files.sort();
 }
 
 async function main(): Promise<void> {
