@@ -142,6 +142,9 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   assert.match(workflow, /Validate CI evidence\n\s+if: steps\.base_plan\.outputs\.ci_required == 'true'/);
   assert.match(workflow, /STATE: \$\{\{ steps\.gate\.outputs\.passed == 'true'/);
   assert.doesNotMatch(workflow.slice(0, workflow.indexOf("- name: Update final gate")), /Wait for AI queue|Run AI Triage|Run AI review/);
+  const ciDispatcher = await text("scripts/dispatch-central-ci.ts");
+  requireText(ciDispatcher, ["AW_REPOSITORY_POLICY", "validateRepositoryCapability", '"pr"']);
+  assert.doesNotMatch(ciDispatcher, /central_repositories|Central CI dispatch skipped/);
   const reviewRunner = await text("scripts/run-ai-review.ts");
   assert.match(reviewRunner, /AI Review \(advisory\)/);
   assert.doesNotMatch(reviewRunner, /merge is blocked|blocking findings|blockSeverity/);
@@ -201,6 +204,10 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   const prValidator = await text("scripts/validate-pr-payload.ts");
   requireText(prValidator, ["AW_REPOSITORY_POLICY"]);
   assert.doesNotMatch(prValidator, /AW_[A-Z_]*ALLOWLIST/);
+
+  const ciDispatcher = await text("scripts/dispatch-central-ci.ts");
+  requireText(ciDispatcher, ["AW_REPOSITORY_POLICY", "validateRepositoryCapability", '"pr"']);
+  assert.doesNotMatch(ciDispatcher, /central_repositories|Central CI dispatch skipped/);
   const publisher = await text("scripts/publish-release.ts");
   requireText(publisher, ["release-manifest.json", "release-provenance.json", "artifact_repository", "artifact_run_id", "return `${releaseKey}-v${version}`", "await sha256File(assetPath)", "rollbackRelease", '"draft=true"', '"draft=false"', "assertTrustedMainWrite", "Main Write Guard"]);
   assert.equal(await exists(".github/workflows/validate-release-policy.yml"), false);
