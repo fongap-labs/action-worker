@@ -17,13 +17,29 @@ test("central PR intake scans every managed repository independent of visibility
     ]],
     [`repos/fongap-labs/public-one/commits/${shaA}/status`, { statuses: [] }],
     [`repos/fongap-labs/private-one/commits/${shaB}/status`, {
-      statuses: [{ context: "PR Governance", state: "pending" }],
+      statuses: [{
+        context: "PR Governance",
+        state: "pending",
+        target_url: "https://github.com/fongap-labs/action-worker/actions/runs/12",
+      }],
     }],
     [`repos/fongap-labs/private-one/commits/${shaC}/status`, {
       statuses: [
-        { context: "PR Governance", state: "failure" },
-        { context: "CI Evidence", state: "failure" },
-        { context: "validate-merge", state: "failure" },
+        {
+          context: "PR Governance",
+          state: "failure",
+          target_url: "https://github.com/fongap-labs/action-worker/actions/runs/13",
+        },
+        {
+          context: "CI Evidence",
+          state: "failure",
+          target_url: "https://github.com/fongap-labs/action-worker/actions/runs/13",
+        },
+        {
+          context: "validate-merge",
+          state: "failure",
+          target_url: "https://github.com/fongap-labs/action-worker/actions/runs/13",
+        },
       ],
     }],
   ]);
@@ -43,6 +59,7 @@ test("central PR intake scans every managed repository independent of visibility
     async (repository, pr, sha) => {
       dispatched.push({ repository, pr, sha });
     },
+    "fongap-labs/action-worker",
   );
 
   assert.deepEqual(dispatched, [{
@@ -71,13 +88,51 @@ test("central PR intake re-dispatches incomplete non-pending state", async () =>
         if (path.includes("/pulls?")) {
           return [{ number: 5, head: { sha } }];
         }
-        return { statuses: [{ context: "CI Evidence", state: "success" }] };
+        return {
+          statuses: [{
+            context: "CI Evidence",
+            state: "success",
+            target_url: "https://github.com/fongap-labs/action-worker/actions/runs/5",
+          }],
+        };
       },
     },
     async (_repository, pr) => {
       dispatched.push(pr);
     },
+    "fongap-labs/action-worker",
   );
 
   assert.deepEqual(dispatched, [5]);
+});
+
+test("central PR intake ignores business-repository pending statuses", async () => {
+  const repository = "fongap-labs/example";
+  const dispatched: number[] = [];
+
+  const result = await scanOpenPullRequests(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path.includes("/pulls?")) {
+          return [{ number: 9, head: { sha: shaA } }];
+        }
+        return {
+          statuses: [{
+            context: "PR Governance",
+            state: "pending",
+            target_url: "https://github.com/fongap-labs/example/actions/runs/99",
+          }],
+        };
+      },
+    },
+    async (_repository, pr) => {
+      dispatched.push(pr);
+    },
+    "fongap-labs/action-worker",
+  );
+
+  assert.deepEqual(dispatched, [9]);
+  assert.equal(result.in_flight, 0);
+  assert.equal(result.dispatched, 1);
 });
