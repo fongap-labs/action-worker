@@ -23,6 +23,7 @@ test("central PR intake scans every managed repository independent of visibility
       statuses: [
         { context: "PR Governance", state: "failure" },
         { context: "CI Evidence", state: "failure" },
+        { context: "validate-merge", state: "failure" },
       ],
     }],
   ]);

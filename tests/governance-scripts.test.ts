@@ -318,7 +318,7 @@ test("main write contract is exact and rejects caller trust claims", () => {
   assert.throws(() => parseMainWriteRequest({ ...request, head_sha: request.before_sha }));
 });
 
-test("main write guard requires a merged PR and successful validate-merge", async () => {
+test("main write guard accepts central merge authority and preserves local self-check mode", async () => {
   const mainSha = "2".repeat(40);
   const prHeadSha = "3".repeat(40);
   const paths = new Map<string, unknown>([
@@ -349,6 +349,7 @@ test("main write guard requires a merged PR and successful validate-merge", asyn
       statuses: [
         { context: "PR Governance", state: "success", target_url: "https://github.com/fongap-labs/action-worker/actions/runs/1" },
         { context: "CI Evidence", state: "success", target_url: "https://github.com/fongap-labs/action-worker/actions/runs/2" },
+        { context: "validate-merge", state: "success", target_url: "https://github.com/fongap-labs/action-worker/actions/runs/1" },
       ],
     }],
     [`repos/fongap/example/commits/${mainSha}/status`, {
@@ -369,6 +370,7 @@ test("main write guard requires a merged PR and successful validate-merge", asyn
   const provenance = await validateMainWriteProvenance(reader, "fongap/example", mainSha, true);
   assert.equal(provenance.pr_number, 7);
   assert.equal(provenance.pr_head_sha, prHeadSha);
+  assert.equal((await validateMainWriteProvenance(reader, "fongap/example", mainSha, false)).pr_number, 7);
   assert.equal((await assertTrustedMainWrite(reader, "fongap/example", mainSha, true)).main_sha, mainSha);
   assert.equal(hasTrustedMainWriteGuard(paths.get(`repos/fongap/example/commits/${mainSha}/status`)), true);
 });
