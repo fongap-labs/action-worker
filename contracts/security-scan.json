@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/fongap-labs/action-worker/contracts/security-scan.json",
+  "title": "Security Scan Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "engine",
+    "runner_profile",
+    "build_mode",
+    "languages",
+    "pull_requests",
+    "default_branch"
+  ],
+  "properties": {
+    "schema_version": { "const": "1" },
+    "engine": { "const": "codeql" },
+    "runner_profile": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "build_mode": {
+      "enum": ["none", "autobuild"]
+    },
+    "languages": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 9,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "c-cpp",
+          "csharp",
+          "go",
+          "java-kotlin",
+          "javascript-typescript",
+          "python",
+          "ruby",
+          "rust",
+          "swift"
+        ]
+      }
+    },
+    "pull_requests": { "type": "boolean" },
+    "default_branch": { "type": "boolean" }
+  }
+}
