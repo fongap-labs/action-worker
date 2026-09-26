@@ -42,19 +42,19 @@ async function optionalJson(path: string): Promise<unknown | undefined> {
 }
 
 async function configureReview(): Promise<void> {
-  const gatewayUrl = process.env.AI_GATEWAY_URL ?? "";
+  const endpointUrl = process.env.AI_ENDPOINT_URL ?? "";
   const token = process.env.OCR_LLM_TOKEN ?? "";
   const model = process.env.REVIEW_MODEL ?? "";
   const llmTimeout = Number(process.env.OCR_LLM_TIMEOUT ?? "");
-  if (!gatewayUrl || !token) {
-    throw new CliError("::error::AI_GATEWAY_URL and OCR_LLM_TOKEN are required.");
+  if (!endpointUrl || !token) {
+    throw new CliError("::error::AI_ENDPOINT_URL and OCR_LLM_TOKEN are required.");
   }
   if (!model || !Number.isInteger(llmTimeout) || llmTimeout < 1) {
     throw new CliError("::error::Invalid review model or OCR timeout.", 65);
   }
   const commands: Array<[string, string]> = [
     ["llm.auth_token", ""],
-    ["llm.url", gatewayUrl],
+    ["llm.url", endpointUrl],
     ["llm.use_anthropic", "false"],
     ["llm.protocol", "openai"],
     ["llm.auth_token_cmd", 'printf "%s" "$OCR_LLM_TOKEN"'],
@@ -158,7 +158,7 @@ export async function executeReview(options: ReviewOptions): Promise<void> {
   }
   if (reviewError !== undefined) {
     const detail = reviewError instanceof Error ? reviewError.message : String(reviewError);
-    throw new CliError(`${detail}\n::error::AI Review failed after OCR request retries and ${options.resumeAttempts} compatible session resume attempt(s); provider/model fallback is owned by AI Gateway.`);
+    throw new CliError(`${detail}\n::error::AI Review failed after OCR request retries and ${options.resumeAttempts} compatible session resume attempt(s); provider/model fallback is owned by the configured AI endpoint backend.`);
   }
   validateReview(result);
   const comments = isJsonRecord(result) && Array.isArray(result.comments) ? result.comments : [];
