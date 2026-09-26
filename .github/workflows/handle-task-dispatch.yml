@@ -47,7 +47,7 @@ jobs:
     permissions: {}
 
     env:
-      AW_EXECUTION_REPOSITORY: ${{ needs.validate.outputs.repository }}
+      AW_SOURCE_DIR: ${{ github.workspace }}/task-source
       SCHEMA_VERSION: ${{ needs.validate.outputs.schema_version }}
       REQUEST_ID: ${{ needs.validate.outputs.request_id }}
       PROJECT: ${{ needs.validate.outputs.project }}
@@ -65,6 +65,16 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
+
+      - name: Checkout task source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.validate.outputs.repository }}
+          ref: ${{ needs.validate.outputs.bootstrap_ref }}
+          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          path: task-source
+          fetch-depth: 1
+          persist-credentials: false
 
       - name: Export repository variables
         env:
@@ -90,13 +100,25 @@ jobs:
 
           node scripts/validate-repository-variables.ts
 
-          if [ -z "${AW_EXECUTION_REPOSITORY:-}" ]; then
-              echo "::error::AW_EXECUTION_REPOSITORY is required." >&2
+          if [ ! -d "${AW_SOURCE_DIR:-}" ]; then
+              echo "::error::AW_SOURCE_DIR is required." >&2
               exit 1
           fi
 
-          if [ -z "${AW_CONTROL_TOKEN:-}" ]; then
-              echo "::error::AW_CONTROL_TOKEN is required." >&2
+          resolved_source_sha="$(git -C "$AW_SOURCE_DIR" rev-parse HEAD)"
+          if [ "$resolved_source_sha" != "$BOOTSTRAP_REF" ]; then
+              echo "::error::Task source SHA mismatch." >&2
+              exit 1
+          fi
+
+          TMP_SCRIPT="$AW_SOURCE_DIR/bootstrap.sh"
+          if [ ! -s "$TMP_SCRIPT" ]; then
+              echo "::error::bootstrap.sh is missing from the verified task source." >&2
+              exit 1
+          fi
+
+          if ! bash -n "$TMP_SCRIPT"; then
+              echo "::error::bootstrap.sh has a shell syntax error." >&2
               exit 1
           fi
 
@@ -110,99 +132,13 @@ jobs:
           echo "Start Time    : $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
           echo "::endgroup::"
 
-          TMPDIR_WORK="$(mktemp -d)"
-          TMP_SCRIPT="$TMPDIR_WORK/bootstrap.sh"
-
           cleanup() {
               unset AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN 2>/dev/null || true
               rm -f "${RUNNER_TEMP}/action-worker-base-env.names" 2>/dev/null || true
               rm -f "${RUNNER_TEMP}/action-worker-repository-vars.json" 2>/dev/null || true
-              rm -rf "$TMPDIR_WORK"
           }
 
           trap cleanup EXIT
-
-          RAW_BASE="https://raw.githubusercontent.com/${AW_EXECUTION_REPOSITORY}/${BOOTSTRAP_REF}"
-
-          download_file() {
-              local url="$1"
-              local output="$2"
-              local attempt=1
-              local max_attempts=3
-              local http_code=000
-              local curl_rc=0
-
-              while [ "$attempt" -le "$max_attempts" ]; do
-                  : > "$output"
-
-                  if http_code=$(curl -sS -L \
-                      --connect-timeout 15 \
-                      --max-time 60 \
-                      --retry 0 \
-                      -H "Authorization: Bearer ${AW_CONTROL_TOKEN}" \
-                      -o "$output" \
-                      -w "%{http_code}" \
-                      "$url"); then
-                      curl_rc=0
-                  else
-                      curl_rc=$?
-                  fi
-
-                  case "$http_code" in
-                      2*)
-                          return 0
-                          ;;
-                      4*)
-                          break
-                          ;;
-                  esac
-
-                  if [ "$attempt" -lt "$max_attempts" ]; then
-                    if [ "$curl_rc" -ne 0 ]; then
-                        echo "::warning::Download failed (curl=${curl_rc}, HTTP=${http_code}), retrying ${attempt}/${max_attempts}." >&2
-                    else
-                        echo "::warning::Download failed (HTTP ${http_code}), retrying ${attempt}/${max_attempts}." >&2
-                    fi
-                      sleep $((attempt * 2))
-                  fi
-
-                  attempt=$((attempt + 1))
-              done
-
-              if [ "$curl_rc" -ne 0 ]; then
-                  echo "::error::Failed to download bootstrap.sh: network/curl error (curl=${curl_rc}, HTTP=${http_code})." >&2
-              else
-                  case "$http_code" in
-                      401|403)
-                          echo "::error::Failed to download bootstrap.sh: GitHub authentication rejected (HTTP ${http_code})." >&2
-                          ;;
-                      404)
-                          echo "::error::Failed to download bootstrap.sh: file not found at BOOTSTRAP_REF (HTTP 404)." >&2
-                          ;;
-                      5*)
-                          echo "::error::Failed to download bootstrap.sh: GitHub upstream error (HTTP ${http_code})." >&2
-                          ;;
-                      *)
-                          echo "::error::Failed to download bootstrap.sh (HTTP ${http_code})." >&2
-                          ;;
-                  esac
-              fi
-
-              return 1
-          }
-
-          echo "Downloading bootstrap.sh ..."
-          download_file "${RAW_BASE}/bootstrap.sh" "$TMP_SCRIPT" || exit 1
-
-          if [ ! -s "$TMP_SCRIPT" ]; then
-              echo "::error::bootstrap.sh is empty." >&2
-              exit 1
-          fi
-
-          if ! bash -n "$TMP_SCRIPT"; then
-              echo "::error::bootstrap.sh has a shell syntax error." >&2
-              exit 1
-          fi
 
           unset AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN
           for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN; do
