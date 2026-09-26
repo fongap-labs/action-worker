@@ -1,25 +1,26 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  assertExpectedRepository,
   hasTrustedCiEvidence,
   parseDeployRequest,
 } from "../scripts/validate-deploy-source.ts";
 
 const sha = "0123456789abcdef0123456789abcdef01234567";
 
-test("deploy dispatch is exact and repository-bound", () => {
+test("deploy dispatch is exact and repository binding is executor-owned", () => {
   const request = {
     schema_version: "1",
     request_id: "deploy-123",
-    source_repository: "fongap-labs/ai-gateway",
+    source_repository: "fongap-labs/example",
     source_sha: sha,
   };
-  assert.deepEqual(parseDeployRequest(request, "fongap-labs/ai-gateway"), request);
-  assert.throws(() => parseDeployRequest(
-    { ...request, source_repository: "fongap-labs/internal-vault" },
-    "fongap-labs/ai-gateway",
-  ));
-  assert.throws(() => parseDeployRequest({ ...request, extra: true }, "fongap-labs/ai-gateway"));
+  const parsed = parseDeployRequest(request);
+  assert.deepEqual(parsed, request);
+  assert.doesNotThrow(() => assertExpectedRepository(parsed, ""));
+  assert.doesNotThrow(() => assertExpectedRepository(parsed, "fongap-labs/example"));
+  assert.throws(() => assertExpectedRepository(parsed, "fongap-labs/other"));
+  assert.throws(() => parseDeployRequest({ ...request, extra: true }));
 });
 
 test("deploy evidence must be successful Action Worker CI Evidence", () => {
