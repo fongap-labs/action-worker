@@ -167,7 +167,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     "validate-ai-endpoint-access.ts", "validate-security.ts", "run-ai-triage.ts", "apply-ai-triage.ts", "install-ocr.ts", "run-ai-review.ts",
     "Resolve governance ownership", "check-status-owner.ts",
     "Publish explicit no-CI evidence", "steps.base_plan.outputs.ci_required != 'true'",
-    "CI not required by governance plan", "for context in \"CI Evidence\" \"ci-evidence\"",
+    "CI not required by governance plan", "context=CI Evidence",
   ]);
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
   assert.doesNotMatch(workflow, /@alibaba-group\/open-code-review|npm install -g|review_models|review-diff-fallback/);
