@@ -211,6 +211,8 @@ Source-owned CI control 也必须通过 PR 治理更新，禁止为了修 CI 而
 
 中央 Main CI 同样必须按不可变 `repository + head SHA` 幂等。相同 main SHA 的重复 `run-central-ci-ref` 请求不得互相取消；后发请求在已有该 SHA 的成功 `CI Evidence` 时必须直接复用证据并跳过重 CI。PR CI 仍允许新 head 取消旧 head，因为那属于 source identity 已变化的 stale work。
 
+中央 CI 的 canonical commit status context 只有 `CI Evidence`。不得同时发布 `ci-evidence`、`ci_evidence` 或其他兼容别名；所有读取、等待、Release/Deploy gate 与审计必须引用同一标准名称。
+
 公开仓的 GitHub Ruleset 直接要求 Action Worker 发布的中央 `validate-merge` status；业务仓不再启动本地 Runner 创建同名 Check。私有 Free 仓由 Main Write Guard 对同一中央状态做事后 provenance 强制。
 
 ## 8. Release

@@ -373,9 +373,11 @@ jobs:
             description="Central CI passed"
           fi
 
-          for context in "CI Evidence" "ci-evidence"; do
-            gh api --method POST "repos/$REPOSITORY/statuses/$HEAD_SHA"               -f "state=$state"               -f "context=$context"               -f "description=$description"               -f "target_url=$RUN_URL" >/dev/null
-          done
+          gh api --method POST "repos/$REPOSITORY/statuses/$HEAD_SHA" \
+            -f "state=$state" \
+            -f "context=CI Evidence" \
+            -f "description=$description" \
+            -f "target_url=$RUN_URL" >/dev/null
 
           if [[ "$state" != "success" ]]; then
             exit 1
