@@ -1,8 +1,0 @@
-{
-  "schema_version": "1",
-  "superseded_branches": [
-    "feat/central-security-scan",
-    "refactor/central-dependency-repair",
-    "refactor/task-intake"
-  ]
-}
