@@ -39,7 +39,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
     "scripts/publish-dependency-repair.ts", "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/publish-security-scan.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/dispatch-scheduled-tasks.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
-    ".github/workflows/aig-deploy.yml", ".github/workflows/deployment-readiness.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
+    ".github/workflows/aig-deploy.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
     ".github/workflows/ci-intake.yml", ".github/workflows/dependency-repair.yml", ".github/workflows/main-write-audit.yml", ".github/workflows/main-write-guard.yml", ".github/workflows/model-discovery.yml", ".github/workflows/pr-intake.yml", ".github/workflows/release-build.yml", ".github/workflows/security-scan.yml", ".github/workflows/security-scan-intake.yml", ".github/workflows/server-edge-deploy.yml",
     ".github/workflows/sync-tool-release.yml", ".github/workflows/task-intake.yml", ".github/workflows/task-source-dispatch.yml", ".github/workflows/validate-central-merge.yml",
     ".github/workflows/cancel-pr-work.yml",
@@ -507,23 +507,6 @@ test("Server Edge deploy execution is central and reuses project deployment logi
   ]);
   assert.doesNotMatch(workflow, /^\s+EDGE_TARGET_HOST:\s*\$\{\{\s*vars\./m);
   assert.equal(workflow.includes("schedule:"), false);
-});
-
-test("deployment readiness is non-destructive and central", async () => {
-  const workflow = await text(".github/workflows/deployment-readiness.yml");
-  requireText(workflow, [
-    "AI Gateway deployment readiness",
-    "Server Edge deployment readiness",
-    "repository: fongap-labs/ai-gateway",
-    "AIG_OAUTH_PROVIDERS: ${{ vars.AIG_OAUTH_PROVIDERS }}",
-    "AIG_TOKEN_ENCRYPTION_KEY: ${{ secrets.AIG_TOKEN_ENCRYPTION_KEY }}",
-    "repository: fongap-labs/internal-vault",
-    "github-deployment-config.mjs prepare --from-env",
-    "services/server-edge/install/validate.sh --static",
-    "environments/server-edge/materialize.py",
-  ]);
-  assert.equal(workflow.includes("wrangler@4.114.0 deploy"), false);
-  assert.equal(workflow.includes("environments/server-edge/deploy.sh"), false);
 });
 
 test("AI Gateway model discovery runs from the central control plane", async () => {
