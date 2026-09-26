@@ -189,7 +189,7 @@ jobs:
       - name: Build manifest and provenance
         run: |
           node scripts/package-release-build.ts \
-            "$GITHUB_WORKSPACE/source/.github/release-build.json" \
+            "$GITHUB_WORKSPACE/source/.github/release.manifest.json" \
             "${{ needs.prepare.outputs.source_repository }}" \
             "${{ needs.prepare.outputs.source_sha }}" \
             "${{ needs.prepare.outputs.version }}" \
