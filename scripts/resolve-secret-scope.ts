@@ -10,8 +10,7 @@ const envNamePattern = /^[A-Z][A-Z0-9_]*$/;
 function isReserved(name: string): boolean {
   return /^(?:AW_|GITHUB_|RUNNER_|ACTIONS_)/.test(name)
     || name === "NODE_OPTIONS"
-    || name === "GH_TOKEN"
-    || name === "AIG_ACCESS_KEY_AGENT";
+    || name === "GH_TOKEN";
 }
 
 async function readNames(path: string): Promise<Set<string>> {
@@ -41,6 +40,7 @@ export async function resolveSecretScope(
   baselinePath: string,
   requiredPath: string,
   allowedPath: string,
+  deniedNames: readonly string[] = [],
   environment: NodeJS.ProcessEnv = process.env,
 ): Promise<{ allowed: string[]; required: string[]; unset: string[] }> {
   const baselineText = await readFile(baselinePath, "utf8");
@@ -50,6 +50,21 @@ export async function resolveSecretScope(
   const required = await readNames(requiredPath);
   const optional = await readNames(allowedPath);
   const allowed = new Set([...required, ...optional]);
+  const denied = new Set<string>();
+  for (const raw of deniedNames) {
+    const name = raw.trim();
+    if (!name) continue;
+    if (!envNamePattern.test(name)) {
+      throw new CliError(`Denied secret scope name is invalid: ${name}.`, 65);
+    }
+    denied.add(name);
+  }
+
+  for (const name of allowed) {
+    if (denied.has(name)) {
+      throw new CliError(`Secret scope name is denied for this capability: ${name}.`, 65);
+    }
+  }
 
   for (const name of required) {
     if (!environment[name]) {
@@ -61,7 +76,7 @@ export async function resolveSecretScope(
     .filter((name) => !baseline.has(name))
     .sort();
   const unset = injected
-    .filter((name) => isReserved(name) || !allowed.has(name));
+    .filter((name) => isReserved(name) || denied.has(name) || !allowed.has(name));
 
   return {
     allowed: [...allowed].sort(),
@@ -71,15 +86,16 @@ export async function resolveSecretScope(
 }
 
 async function main(): Promise<void> {
-  const [baselinePath = "", requiredPath = "", allowedPath = ""] = process.argv.slice(2);
+  const [baselinePath = "", requiredPath = "", allowedPath = "", deniedRaw = ""] = process.argv.slice(2);
   if (!baselinePath) {
     throw new CliError(
-      "Usage: resolve-secret-scope.ts <baseline> [required-file] [allowed-file]",
+      "Usage: resolve-secret-scope.ts <baseline> [required-file] [allowed-file] [denied-names]",
       64,
     );
   }
+  const deniedNames = deniedRaw.split(",").map((item) => item.trim()).filter(Boolean);
   console.log(JSON.stringify(
-    await resolveSecretScope(baselinePath, requiredPath, allowedPath),
+    await resolveSecretScope(baselinePath, requiredPath, allowedPath, deniedNames),
   ));
 }
 
