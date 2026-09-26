@@ -206,7 +206,7 @@ immutable source
 
 Deploy 与普通 PR 权限分开。只有在 `AW_REPOSITORY_POLICY` 显式拥有 `deploy` capability 的仓库，Action Worker 才允许解析 Deploy Manifest。
 
-Manifest 不得声明 Secret 名称、具体 Runner label、host、Token 或中央权限。生产 Secret 和网络权限由中央 adapter / Capability Grant 决定。
+Manifest 不得声明具体 Runner label、host、Token 或中央权限。source-owned entrypoint 通过 `.github/deploy.secrets.required` / `.github/deploy.secrets.allowed` 声明最小 Secret scope；Action Worker 只在通过 `deploy` capability、可信 Main Write Guard 和 privileged Runner 校验后按该 scope 注入，并始终剥离控制面凭据。
 
 `production-deploy` 是抽象 privileged Runner Profile，实际 Runner 映射只由中央 Runner Policy 决定。当前可以映射 GitHub-hosted；未来切到 self-hosted 时业务仓 Manifest 不变。
 
