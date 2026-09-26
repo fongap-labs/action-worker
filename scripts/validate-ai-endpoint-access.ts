@@ -37,7 +37,7 @@ export function requiredPrAiModels(config: AiAgentConfig, explicitModel = ""): s
 
 export function visibleModelIds(value: unknown): string[] {
   if (!isRecord(value) || !Array.isArray(value.data)) {
-    throw new CliError("ERROR: AI Gateway /v1/models returned an invalid payload.", 65);
+    throw new CliError("ERROR: AI endpoint /v1/models returned an invalid payload.", 65);
   }
   const ids = value.data
     .map((entry) => isRecord(entry) && typeof entry.id === "string" ? entry.id.trim() : "")
@@ -47,19 +47,19 @@ export function visibleModelIds(value: unknown): string[] {
 
 async function main(): Promise<void> {
   if (process.argv.length !== 2) {
-    throw new CliError("Usage: validate-ai-gateway-access.ts", 64);
+    throw new CliError("Usage: validate-ai-endpoint-access.ts", 64);
   }
 
-  const gatewayUrl = process.env.AI_GATEWAY_URL ?? "";
-  const token = process.env.AI_GATEWAY_TOKEN ?? "";
+  const gatewayUrl = process.env.AI_ENDPOINT_URL ?? "";
+  const token = process.env.AI_ENDPOINT_TOKEN ?? "";
   if (!gatewayUrl || !token) {
-    throw new CliError("ERROR: AI_GATEWAY_URL and AI_GATEWAY_TOKEN are required.", 65);
+    throw new CliError("ERROR: AI_ENDPOINT_URL and AI_ENDPOINT_TOKEN are required.", 65);
   }
 
   const config = parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? "");
   const required = requiredPrAiModels(
     config,
-    process.env.AI_GATEWAY_REQUIRED_MODEL ?? "",
+    process.env.AI_ENDPOINT_REQUIRED_MODEL ?? "",
   );
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
@@ -71,20 +71,20 @@ async function main(): Promise<void> {
       signal: controller.signal,
     });
   } catch {
-    throw new CliError("ERROR: AI Gateway model access check failed before a response was received.", 65);
+    throw new CliError("ERROR: AI endpoint model access check failed before a response was received.", 65);
   } finally {
     clearTimeout(timeout);
   }
 
   if (!response.ok) {
-    throw new CliError(`ERROR: AI Gateway model access check returned HTTP ${response.status}.`, 65);
+    throw new CliError(`ERROR: AI endpoint model access check returned HTTP ${response.status}.`, 65);
   }
 
   let payload: unknown;
   try {
     payload = JSON.parse(await response.text()) as unknown;
   } catch {
-    throw new CliError("ERROR: AI Gateway /v1/models returned non-JSON content.", 65);
+    throw new CliError("ERROR: AI endpoint /v1/models returned non-JSON content.", 65);
   }
 
   const visible = visibleModelIds(payload);
@@ -92,12 +92,12 @@ async function main(): Promise<void> {
   const missing = required.filter((model) => !visibleSet.has(model));
   if (missing.length > 0) {
     throw new CliError(
-      `ERROR: AIG_ACCESS_KEY_AGENT cannot call required PR AI model(s): ${missing.join(", ")}. Visible models: ${visible.join(", ") || "none"}.`,
+      `ERROR: Configured AI endpoint credential cannot call required PR AI model(s): ${missing.join(", ")}. Visible models: ${visible.join(", ") || "none"}.`,
       65,
     );
   }
 
-  console.log(`AI Gateway access verified. Required models: ${required.join(", ")}. Visible models: ${visible.join(", ")}.`);
+  console.log(`AI endpoint access verified. Required models: ${required.join(", ")}. Visible models: ${visible.join(", ")}.`);
 }
 
 if (isMain(import.meta.url)) {

@@ -42,7 +42,10 @@ Business repository
 - runner profiles, runner resolution and self-hosted boundaries;
 - release and deploy governance;
 - cross-repository trust and secret boundaries;
-- common Agent entry and precedence rules.
+- common Agent entry and precedence rules;
+- cross-repository language and runtime convergence rules.
+
+语言治理遵循同一长期原则：小内核、大框架优先于任何单一语言目标。语言选择服从模块边界；在性能、安全、功能、兼容性和维护性不下降时优先减少无必要的语言与运行时，但禁止为了“统一技术栈”而重写已经稳定且边界清晰的实现。跨语言重复 Authority、重复状态和重复协议必须优先消除。
 
 ## 3. Project-local rules
 
