@@ -68,6 +68,13 @@ test("main write audit reconciles on control-plane changes and schedule", async 
     "audit-main-writes.ts",
     "MAIN_WRITE_AUDIT_RUN_URL",
   ]);
+
+  const audit = await text("scripts/audit-main-writes.ts");
+  requireText(audit, [
+    "MAIN_WRITE_AUDIT_REPOSITORY",
+    "managedRepositories.includes(requestedRepository)",
+    "requestedRepository ? [requestedRepository] : managedRepositories",
+  ]);
 });
 
 test("integration guidance matches the current credential and private-repository model", async () => {
@@ -463,6 +470,10 @@ test("central CI deploy dispatch is source-owned and adapter-routed", async () =
     "validate-security.ts",
     "SECURITY_RESULT",
     "needs.security.result == 'success'",
+    "Attest deploy source main write",
+    "MAIN_WRITE_AUDIT_REPOSITORY: ${{ needs.prepare.outputs.repository }}",
+    "MAIN_WRITE_AUDIT_RUN_URL",
+    "audit-main-writes.ts",
     "Dispatch automatic deploy",
     "dispatch-central-deploy.ts",
     "policies/deploy.json",
