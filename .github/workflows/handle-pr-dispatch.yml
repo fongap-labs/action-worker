@@ -174,15 +174,13 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          for context in "CI Evidence" "ci-evidence"; do
-            gh api \
-              --method POST \
-              "repos/$REPOSITORY/statuses/$HEAD_SHA" \
-              -f state='success' \
-              -f "context=$context" \
-              -f description='CI not required by governance plan' \
-              -f "target_url=$RUN_URL" >/dev/null
-          done
+          gh api \
+            --method POST \
+            "repos/$REPOSITORY/statuses/$HEAD_SHA" \
+            -f state='success' \
+            -f "context=CI Evidence" \
+            -f description='CI not required by governance plan' \
+            -f "target_url=$RUN_URL" >/dev/null
 
       - name: Validate CI evidence
         if: steps.base_plan.outputs.ci_required == 'true'

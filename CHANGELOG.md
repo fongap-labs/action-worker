@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- refactor [breaking]: hard cut the duplicate `ci-evidence` commit-status alias and keep `CI Evidence` as the single canonical Central CI status context.
+
 - fix: serialize duplicate main-SHA Central CI dispatches and reuse successful CI Evidence instead of cancelling and rerunning the same immutable source.
 
 - fix: reserve short-lived PR intake statuses before dispatch so repeated reconciliation cannot launch duplicate Governance or Dependency Repair runs for the same head.

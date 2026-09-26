@@ -18,6 +18,14 @@ test("main CI reuses successful evidence before heavy jobs", () => {
   );
   assert.match(
     workflow,
+    /context=CI Evidence/,
+  );
+  assert.doesNotMatch(
+    workflow,
+    /ci-evidence/,
+  );
+  assert.match(
+    workflow,
     /should_run: \$\{\{ steps\.ref_facts\.outputs\.should_run \|\| 'true' \}\}/,
   );
   assert.match(
