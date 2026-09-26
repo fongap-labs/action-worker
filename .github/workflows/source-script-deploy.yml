@@ -144,8 +144,7 @@ jobs:
           esac
 
           if [ "${#missing[@]}" -gt 0 ]; then
-            printf '::error::Missing source-script deployment configuration: %s
-' "$(IFS=,; echo "${missing[*]}")" >&2
+            printf '::error::Missing source-script deployment configuration: %s\n' "$(IFS=,; echo "${missing[*]}")" >&2
             exit 77
           fi
 
