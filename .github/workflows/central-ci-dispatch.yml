@@ -9,7 +9,7 @@ permissions:
 
 concurrency:
   group: central-ci-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number || github.event.client_payload.head_sha }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event.action == 'run-central-ci' }}
 
 jobs:
   prepare:
@@ -25,6 +25,7 @@ jobs:
       candidate_control: ${{ steps.ci_control.outputs.candidate_control || 'false' }}
       is_private: ${{ steps.visibility.outputs.is_private }}
       has_windows: ${{ steps.capabilities.outputs.has_windows }}
+      should_run: ${{ steps.ref_facts.outputs.should_run || 'true' }}
 
     steps:
       - name: Checkout control plane
@@ -80,12 +81,21 @@ jobs:
           }
 
           base_sha="$(gh api "repos/$REPOSITORY/commits/$REQUESTED_HEAD_SHA" --jq '.parents[0].sha // .sha')"
+          evidence_state="$(
+            gh api "repos/$REPOSITORY/commits/$REQUESTED_HEAD_SHA/status" \
+              --jq '[.statuses[] | select(.context == "CI Evidence")][0].state // ""'
+          )"
+          should_run=true
+          if [ "$evidence_state" = "success" ]; then
+            should_run=false
+          fi
           {
             echo "repository=$REPOSITORY"
             echo "pr_number=0"
             echo "base_sha=$base_sha"
             echo "head_sha=$REQUESTED_HEAD_SHA"
             echo "control_ref=$REQUESTED_HEAD_SHA"
+            echo "should_run=$should_run"
           } >> "$GITHUB_OUTPUT"
 
       - name: Validate central CI target
@@ -156,6 +166,7 @@ jobs:
   linux:
     name: Central CI / Linux
     needs: prepare
+    if: needs.prepare.outputs.should_run != 'false'
     runs-on: ubuntu-24.04
     timeout-minutes: 180
 
@@ -237,6 +248,7 @@ jobs:
   security:
     name: Central CI / Security
     needs: prepare
+    if: needs.prepare.outputs.should_run != 'false'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
@@ -268,7 +280,7 @@ jobs:
   windows:
     name: Central CI / Windows
     needs: prepare
-    if: needs.prepare.outputs.has_windows == 'true'
+    if: needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.has_windows == 'true'
     runs-on: windows-latest
     timeout-minutes: 90
 
@@ -334,7 +346,7 @@ jobs:
       - linux
       - security
       - windows
-    if: always() && needs.prepare.result == 'success'
+    if: always() && needs.prepare.result == 'success' && needs.prepare.outputs.should_run != 'false'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
