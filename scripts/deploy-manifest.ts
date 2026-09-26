@@ -16,7 +16,7 @@ import {
   resolveRunnerProfile,
 } from "./runner-policy.ts";
 
-export type DeployAdapter = "cloudflare-worker" | "source-script";
+export type DeployAdapter = "source-script";
 
 export type DeployManifest = {
   schema_version: "1";
@@ -69,7 +69,7 @@ export function parseDeployManifest(value: unknown): DeployManifest {
     "schema_version",
   ]);
   if (value.schema_version !== "1"
-    || !["cloudflare-worker", "source-script"].includes(String(value.adapter))
+    || value.adapter !== "source-script"
     || typeof value.automatic !== "boolean"
     || typeof value.ignore_docs_only !== "boolean"
     || typeof value.runner_profile !== "string" || !namePattern.test(value.runner_profile)
@@ -79,11 +79,8 @@ export function parseDeployManifest(value: unknown): DeployManifest {
     throw new CliError("Deploy manifest is invalid.", 65);
   }
 
-  if (value.adapter === "source-script" && !safeRelativePath(value.entrypoint)) {
+  if (!safeRelativePath(value.entrypoint)) {
     throw new CliError("Source-script deploy manifest requires a safe relative entrypoint.", 65);
-  }
-  if (value.adapter === "cloudflare-worker" && value.entrypoint !== "") {
-    throw new CliError("Cloudflare Worker deploy manifest must not define an entrypoint.", 65);
   }
 
   return value as DeployManifest;

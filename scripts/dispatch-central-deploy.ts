@@ -25,11 +25,12 @@ type DeployAdapterPolicy = {
 
 type DeployPolicy = {
   schema_version: 2;
-  adapters: Record<string, DeployAdapterPolicy>;
+  adapters: {
+    "source-script": DeployAdapterPolicy;
+  };
 };
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-const adapterPattern = /^[a-z][a-z0-9-]{0,63}$/;
 const eventPattern = /^[A-Za-z0-9._:-]{1,100}$/;
 const shaPattern = /^[0-9a-f]{40}$/;
 
@@ -48,15 +49,16 @@ export function parseDeployPolicy(value: unknown): DeployPolicy {
     throw new CliError("Deploy adapter policy is invalid.", 65);
   }
 
-  for (const [adapter, raw] of Object.entries(value.adapters)) {
-    if (!adapterPattern.test(adapter)
-      || !isJsonRecord(raw)
-      || !exactKeys(raw, ["event_type"])
-      || typeof raw.event_type !== "string"
-      || !eventPattern.test(raw.event_type)
-    ) {
-      throw new CliError(`Deploy adapter policy entry is invalid: ${adapter}.`, 65);
-    }
+  if (!exactKeys(value.adapters, ["source-script"])) {
+    throw new CliError("Deploy adapter policy must contain only source-script.", 65);
+  }
+  const raw = value.adapters["source-script"];
+  if (!isJsonRecord(raw)
+    || !exactKeys(raw, ["event_type"])
+    || typeof raw.event_type !== "string"
+    || !eventPattern.test(raw.event_type)
+  ) {
+    throw new CliError("Deploy source-script executor policy is invalid.", 65);
   }
 
   return value as DeployPolicy;

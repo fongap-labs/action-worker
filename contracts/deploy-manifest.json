@@ -15,9 +15,7 @@
   ],
   "properties": {
     "schema_version": { "const": "1" },
-    "adapter": {
-      "enum": ["cloudflare-worker", "source-script"]
-    },
+    "adapter": { "const": "source-script" },
     "automatic": { "type": "boolean" },
     "ignore_docs_only": { "type": "boolean" },
     "runner_profile": {
@@ -30,32 +28,9 @@
     },
     "entrypoint": {
       "type": "string",
-      "maxLength": 512
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9._/-]+$"
     }
-  },
-  "allOf": [
-    {
-      "if": {
-        "properties": { "adapter": { "const": "source-script" } },
-        "required": ["adapter"]
-      },
-      "then": {
-        "properties": {
-          "entrypoint": {
-            "minLength": 1,
-            "pattern": "^[A-Za-z0-9._/-]+$"
-          }
-        }
-      }
-    },
-    {
-      "if": {
-        "properties": { "adapter": { "const": "cloudflare-worker" } },
-        "required": ["adapter"]
-      },
-      "then": {
-        "properties": { "entrypoint": { "const": "" } }
-      }
-    }
-  ]
+  }
 }
