@@ -39,8 +39,8 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
     "scripts/publish-dependency-repair.ts", "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/publish-security-scan.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/dispatch-scheduled-tasks.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
-    ".github/workflows/aig-deploy.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
-    ".github/workflows/ci-intake.yml", ".github/workflows/dependency-repair.yml", ".github/workflows/main-write-audit.yml", ".github/workflows/main-write-guard.yml", ".github/workflows/model-discovery.yml", ".github/workflows/pr-intake.yml", ".github/workflows/release-build.yml", ".github/workflows/security-scan.yml", ".github/workflows/security-scan-intake.yml", ".github/workflows/source-script-deploy.yml",
+    ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
+    ".github/workflows/ci-intake.yml", ".github/workflows/dependency-repair.yml", ".github/workflows/main-write-audit.yml", ".github/workflows/main-write-guard.yml", ".github/workflows/pr-intake.yml", ".github/workflows/release-build.yml", ".github/workflows/security-scan.yml", ".github/workflows/security-scan-intake.yml", ".github/workflows/source-script-deploy.yml",
     ".github/workflows/sync-tool-release.yml", ".github/workflows/task-intake.yml", ".github/workflows/task-source-dispatch.yml", ".github/workflows/validate-central-merge.yml",
     ".github/workflows/cancel-pr-work.yml",
   ];
@@ -479,38 +479,6 @@ test("central CI deploy dispatch is source-owned and adapter-routed", async () =
   assert.doesNotMatch(workflow, /for context in "CI Evidence" "ci-evidence" "validate-merge"/);
 });
 
-test("AI Gateway deploy execution is central and source-gated", async () => {
-  const workflow = await text(".github/workflows/aig-deploy.yml");
-  requireText(workflow, [
-    "types: [run-ai-gateway-deploy]",
-    "DEPLOY_EXPECTED_REPOSITORY: fongap-labs/ai-gateway",
-    "validate-deploy-source.ts cloudflare-worker true policies/runner.json",
-    "vars.AIG_IS_DEPLOY_ENABLED != 'false'",
-    "AIG_OAUTH_PROVIDERS: ${{ vars.AIG_OAUTH_PROVIDERS }}",
-    "AIG_TOKEN_ENCRYPTION_KEY: ${{ secrets.AIG_TOKEN_ENCRYPTION_KEY }}",
-    "repository: ${{ needs.prepare.outputs.source_repository }}",
-    "npm run validate:deploy",
-    "npm run check:deploy",
-    "wrangler@4.114.0 d1 migrations apply",
-    "wrangler@4.114.0 deploy",
-    "Rollback to previous Worker version",
-    "health-check --from-env --expected-build",
-  ]);
-  assert.equal(workflow.includes("workflow_run:"), false);
-  assert.equal(workflow.includes("schedule:"), false);
-
-  const validator = await text("scripts/validate-deploy-source.ts");
-  requireText(validator, [
-    "CI Evidence",
-    "assertTrustedMainWrite",
-    "Main Write Guard",
-    "fongap-labs/action-worker/actions/runs/",
-    "requireDefaultHeadRaw",
-    "source_repository",
-    "source_sha",
-  ]);
-});
-
 test("source-script deploy execution is manifest-driven and repository-agnostic", async () => {
   const workflow = await text(".github/workflows/source-script-deploy.yml");
   requireText(workflow, [
@@ -535,17 +503,22 @@ test("source-script deploy execution is manifest-driven and repository-agnostic"
   assert.doesNotMatch(workflow, /SERVER_EDGE_|fongap-labs\/internal-vault|tailscale\/github-action/);
   assert.doesNotMatch(workflow, /toJSON\s*\(\s*secrets\s*\)/);
   assert.equal(workflow.includes("schedule:"), false);
-});
 
-test("AI Gateway model discovery runs from the central control plane", async () => {
-  const workflow = await text(".github/workflows/model-discovery.yml");
-  requireText(workflow, [
-    "schedule:",
-    "repository: fongap-labs/ai-gateway",
-    "secrets.AW_CONTROL_TOKEN",
-    "provider-discovery.mjs live",
-    "model-discovery",
-  ]);
+  const policy = await json("policies/deploy.json") as {
+    schema_version: number;
+    adapters: Record<string, { event_type: string }>;
+  };
+  assert.deepEqual(policy, {
+    schema_version: 2,
+    adapters: {
+      "source-script": { event_type: "run-source-script-deploy" },
+    },
+  });
+  const manifestContract = await text("contracts/deploy-manifest.json");
+  assert.doesNotMatch(manifestContract, /cloudflare-worker/);
+  assert.equal(await exists(".github/workflows/aig-deploy.yml"), false);
+  assert.equal(await exists(".github/workflows/model-discovery.yml"), false);
+  assert.equal(await exists("tests/aig-deploy.test.ts"), false);
 });
 
 test("tool distribution sync runs only in the central control plane", async () => {
