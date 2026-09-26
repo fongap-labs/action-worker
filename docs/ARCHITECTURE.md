@@ -345,13 +345,13 @@ AW_AI_AGENT_WRITING_PHARMA_BRIEF_MODEL
 → Task Runtime 只消费派生模型值
 ```
 
-### 7.5 AI Gateway 与 Review Engine
+### 7.5 AI Endpoint 与 Review Engine
 
-Action Worker 只选择逻辑模型，不维护 Provider、Key、节点或模型族 fallback。逻辑模型到 Provider 的实际容灾统一由 AI Gateway 负责。
+Action Worker 只选择逻辑模型并调用中央配置的兼容 AI endpoint，不维护 Provider、Key 池、节点或模型族 fallback。当前 endpoint 可以由 AI Gateway 提供，但该产品不是 Action Worker 的架构依赖。
 
-当 Review Agent 启用时，OpenCodeReview 仍作为当前 Review Engine。Action Worker 不做无界整轮 OCR Review 重试；OpenCodeReview 负责单个 LLM 请求重试，AI Gateway 负责模型与 Provider fallback。若 OCR 已生成兼容 session，且最终失败仅来自 5xx、timeout、network 或 overload，Action Worker 按 `policies/review.json` 的有限恢复预算执行 `--resume`。Review 最终不可用时只记录 advisory unavailable，不改变确定性 Merge Gate。
+当 Review Agent 启用时，OpenCodeReview 仍作为当前 Review Engine。Action Worker 不做无界整轮 OCR Review 重试；OpenCodeReview 负责单个 LLM 请求重试，endpoint 后端负责 Provider / model fallback。若 OCR 已生成兼容 session，且最终失败仅来自 5xx、timeout、network 或 overload，Action Worker 按 `policies/review.json` 的有限恢复预算执行 `--resume`。Review 最终不可用时只记录 advisory unavailable，不改变确定性 Merge Gate。
 
-Triage 与 Review 在 PR Governance 中继续共享受控 FIFO 队列，避免多个治理 run 同时占用 AI Gateway。该队列属于 PR AI 执行策略，不限制 Writing 或未来其他独立任务必须使用完全相同的队列。
+Triage 与 Review 在 PR Governance 中继续共享受控 FIFO 队列，避免多个治理 run 同时占用中央 AI endpoint。该队列属于 PR AI 执行策略，不限制 Writing 或未来其他独立任务必须使用完全相同的队列。
 
 ### 7.6 Evidence 与 Gate
 
@@ -510,7 +510,7 @@ business repository main
 
 Action Worker owns production credentials and runner-heavy deployment orchestration. The source repository owns only product code and project-specific deployment tooling. A deploy request cannot supply mutable refs, arbitrary repositories, CI conclusions, or deployment credentials.
 
-The AI Gateway executor requires the current default-branch HEAD and a successful `CI Evidence` status whose target run belongs to Action Worker. `AIG_IS_DEPLOY_ENABLED=false` remains the emergency kill switch.
+The generic source-script deploy executor requires the current default-branch HEAD, trusted Action Worker `CI Evidence`, Main Write Guard success, a privileged runner profile, and the source-owned deploy manifest. Product-specific emergency switches such as `AIG_IS_DEPLOY_ENABLED=false` remain inside the source-owned deploy entrypoint.
 
 ## 13. 目录
 
@@ -541,7 +541,7 @@ Action Worker 按职责分层。当前 workflow 入口如下；业务能力通�
   validate-central-merge.yml
   validate-ci.yml
   validate-deploy-policy.yml
-  validate-source-policy.yml```
+  validate-source-policy.yml
 
 contracts/
   PR / Task / Release / Release Build / Deploy / Provenance contracts
