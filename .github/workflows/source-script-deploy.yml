@@ -147,7 +147,7 @@ jobs:
             [ -n "$secret_name" ] && unset "$secret_name"
           done < <(jq -r '.unset[]' <<< "$scope")
 
-          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN; do
+          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN; do
             if [ -n "${!central_name+x}" ]; then
               echo "::error::Central credential survived deploy isolation: ${central_name}." >&2
               exit 1

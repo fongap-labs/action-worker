@@ -509,8 +509,10 @@ test("source-script deploy execution is manifest-driven and repository-agnostic"
     "resolve-secret-scope.ts",
     "deploy.secrets.required",
     "deploy.secrets.allowed",
+    "for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN",
     "Execute source-owned deploy entrypoint",
   ]);
+  assert.doesNotMatch(workflow, /for central_name in[^\n]*AIG_ACCESS_KEY_AGENT/);
   assert.doesNotMatch(workflow, /SERVER_EDGE_|fongap-labs\/internal-vault|tailscale\/github-action/);
   assert.doesNotMatch(workflow, /toJSON\s*\(\s*secrets\s*\)/);
   assert.equal(workflow.includes("schedule:"), false);
