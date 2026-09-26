@@ -6,18 +6,16 @@ import {
   parseDeployPolicy,
 } from "../scripts/dispatch-central-deploy.ts";
 
-test("deploy executor registry is adapter-owned and repository-agnostic", () => {
+test("deploy executor registry is repository-agnostic and source-script only", () => {
   const policy = {
     schema_version: 2 as const,
     adapters: {
-      "cloudflare-worker": { event_type: "run-cloudflare-worker" },
-      "source-script": { event_type: "run-source-script" },
+      "source-script": { event_type: "run-source-script-deploy" },
     },
   };
   const parsed = parseDeployPolicy(policy);
   assert.deepEqual(parsed, policy);
-  assert.equal(deployEventType(parsed, "cloudflare-worker"), "run-cloudflare-worker");
-  assert.equal(deployEventType(parsed, "source-script"), "run-source-script");
+  assert.equal(deployEventType(parsed, "source-script"), "run-source-script-deploy");
   assert.equal("repositories" in parsed, false);
   assert.throws(() => parseDeployPolicy({
     ...policy,
@@ -27,7 +25,7 @@ test("deploy executor registry is adapter-owned and repository-agnostic", () => 
     schema_version: 2,
     adapters: {
       "source-script": {
-        event_type: "run-source-script",
+        event_type: "run-source-script-deploy",
         repository: "fongap-labs/example",
       },
     },
