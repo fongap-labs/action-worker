@@ -133,14 +133,24 @@ jobs:
           echo "::endgroup::"
 
           cleanup() {
-              unset AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN 2>/dev/null || true
               rm -f "${RUNNER_TEMP}/action-worker-base-env.names" 2>/dev/null || true
               rm -f "${RUNNER_TEMP}/action-worker-repository-vars.json" 2>/dev/null || true
           }
 
           trap cleanup EXIT
 
-          unset AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN
+          project_dir="$AW_SOURCE_DIR/projects/$PROJECT"
+          secret_scope="$(
+              node scripts/resolve-secret-scope.ts \
+                "${RUNNER_TEMP}/action-worker-base-env.names" \
+                "$project_dir/.secrets.required" \
+                "$project_dir/.secrets.allowed"
+          )"
+
+          while IFS= read -r secret_name; do
+              [ -n "$secret_name" ] && unset "$secret_name"
+          done < <(jq -r '.unset[]' <<< "$secret_scope")
+
           for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN; do
               if [ -n "${!central_name+x}" ]; then
                   echo "::error::Central credential survived task isolation: ${central_name}." >&2
