@@ -76,7 +76,7 @@ function fieldValues(
   min: number,
   max: number,
   label: string,
-  allowSundaySeven = false,
+  isSundaySevenAllowed = false,
 ): Set<number> {
   if (!field || !cronPattern.test(field)) {
     throw new CliError(`Task source cron ${label} is invalid.`, 65);
@@ -104,19 +104,19 @@ function fieldValues(
         throw new CliError(`Task source cron ${label} range is invalid.`, 65);
       }
       if (range.length === 2) {
-        start = parseInteger(range[0]!, min, allowSundaySeven ? max + 1 : max, label);
-        end = parseInteger(range[1]!, min, allowSundaySeven ? max + 1 : max, label);
+        start = parseInteger(range[0]!, min, isSundaySevenAllowed ? max + 1 : max, label);
+        end = parseInteger(range[1]!, min, isSundaySevenAllowed ? max + 1 : max, label);
         if (start > end) {
           throw new CliError(`Task source cron ${label} range is reversed.`, 65);
         }
       } else {
-        start = parseInteger(base, min, allowSundaySeven ? max + 1 : max, label);
+        start = parseInteger(base, min, isSundaySevenAllowed ? max + 1 : max, label);
         end = segments.length === 2 ? max : start;
       }
     }
 
     for (let value = start; value <= end; value += step) {
-      values.add(allowSundaySeven && value === 7 ? 0 : value);
+      values.add(isSundaySevenAllowed && value === 7 ? 0 : value);
     }
   }
   return values;
