@@ -8,7 +8,7 @@ import {
   validateDecision,
 } from "../scripts/run-ai-triage.ts";
 
-test("AI Gateway endpoints are normalized without changing explicit completion paths", () => {
+test("AI endpoints are normalized without changing explicit completion paths", () => {
   assert.equal(resolveEndpoint("https://gateway.example"), "https://gateway.example/v1/chat/completions");
   assert.equal(resolveEndpoint("https://gateway.example/v1"), "https://gateway.example/v1/chat/completions");
   assert.equal(
@@ -70,7 +70,7 @@ test("the CLI keeps skip results independent from Git history", () => {
     encoding: "utf8",
     env: {
       ...process.env,
-      AI_GATEWAY_URL: "https://gateway.invalid",
+      AI_ENDPOINT_URL: "https://gateway.invalid",
       TRIAGE_LLM_TOKEN: "test-token",
       TRIAGE_MODEL: "Code-Air",
     },
