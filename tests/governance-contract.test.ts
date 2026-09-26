@@ -484,7 +484,12 @@ test("central CI deploy dispatch is source-owned and adapter-routed", async () =
     'repository-policy.ts validate "$REPOSITORY" pr',
     'resolve-ci-capabilities.ts "$REPOSITORY" "$CONTROL_REF"',
     "needs.prepare.outputs.has_windows == 'true'",
+    "CENTRAL_CI_FAILURE_FILE",
+    "BASH_ENV",
+    "Trusted CI failed at line",
+    "Detailed output is suppressed because the target repository is private.",
   ]);
+  assert.doesNotMatch(workflow, /BASH_COMMAND|tail -n|cat "\$failure_meta"/);
   assert.doesNotMatch(workflow, /case "\$REPOSITORY"|needs\.prepare\.outputs\.repository == 'fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)'|fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)\|/);
   assert.match(workflow, /for context in "CI Evidence" "ci-evidence"; do/);
   assert.doesNotMatch(workflow, /for context in "CI Evidence" "ci-evidence" "validate-merge"/);
