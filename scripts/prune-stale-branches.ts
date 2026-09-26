@@ -25,6 +25,46 @@ type Decision = {
   reason: string;
 };
 
+type BranchPruneManifest = {
+  schema_version: "1";
+  superseded_branches: string[];
+};
+
+const branchPattern = /^[A-Za-z0-9._/-]+$/;
+
+export function parseBranchPruneManifest(
+  raw: string,
+  defaultBranch: string,
+): BranchPruneManifest {
+  let value: unknown;
+  try {
+    value = JSON.parse(raw) as unknown;
+  } catch {
+    throw new CliError("Branch prune manifest must be valid JSON.", 65);
+  }
+  if (!isJsonRecord(value)
+    || value.schema_version !== "1"
+    || !Array.isArray(value.superseded_branches)
+    || Object.keys(value).sort().join(",") !== "schema_version,superseded_branches"
+  ) {
+    throw new CliError("Branch prune manifest is invalid.", 65);
+  }
+  const branches = value.superseded_branches;
+  if (
+    branches.length === 0
+    || !branches.every((item) => typeof item === "string"
+      && branchPattern.test(item)
+      && !isProtectedBranch(item, defaultBranch))
+    || new Set(branches).size !== branches.length
+  ) {
+    throw new CliError("Branch prune manifest contains invalid superseded branches.", 65);
+  }
+  return {
+    schema_version: "1",
+    superseded_branches: branches as string[],
+  };
+}
+
 export function isProtectedBranch(branch: string, defaultBranch: string): boolean {
   return branch === defaultBranch || branch.startsWith("legacy/");
 }
@@ -61,6 +101,32 @@ async function mergedTreeIsDefault(
     return merged === defaultTree;
   } catch {
     return false;
+  }
+}
+
+async function sourceOwnedSupersededBranches(
+  mirrorPath: string,
+  defaultBranch: string,
+): Promise<Set<string>> {
+  try {
+    const raw = await runText(
+      "git",
+      [
+        "-C",
+        mirrorPath,
+        "show",
+        `refs/heads/${defaultBranch}:.github/branch-prune.json`,
+      ],
+      { timeoutMs: 10_000, maxBuffer: 1024 * 1024 },
+    );
+    return new Set(
+      parseBranchPruneManifest(raw, defaultBranch).superseded_branches,
+    );
+  } catch (error) {
+    if (error instanceof CliError && /does not exist|exists on disk|Path .* does not exist/i.test(error.message)) {
+      return new Set();
+    }
+    throw error;
   }
 }
 
@@ -123,14 +189,17 @@ async function main(): Promise<void> {
 
       const mirrorPath = join(root, repository.replace("/", "__"));
       await cloneMirror(repository, token, mirrorPath);
+      const explicitlySuperseded = await sourceOwnedSupersededBranches(
+        mirrorPath,
+        defaultBranch,
+      );
 
       for (const branch of candidates) {
-        const isSubsumed = await mergedTreeIsDefault(
-          mirrorPath,
-          defaultBranch,
-          branch,
-        );
-        if (!isSubsumed) {
+        const isExplicitlySuperseded = explicitlySuperseded.has(branch);
+        const isSubsumed = isExplicitlySuperseded
+          ? false
+          : await mergedTreeIsDefault(mirrorPath, defaultBranch, branch);
+        if (!isExplicitlySuperseded && !isSubsumed) {
           decisions.push({
             repository,
             branch,
@@ -150,7 +219,11 @@ async function main(): Promise<void> {
           repository,
           branch,
           result: dryRun ? "kept" : "deleted",
-          reason: dryRun ? "safe to delete (dry run)" : "fully subsumed by default branch",
+          reason: dryRun
+            ? "safe to delete (dry run)"
+            : isExplicitlySuperseded
+              ? "source-owned manifest marks branch superseded"
+              : "fully subsumed by default branch",
         });
       }
     }
