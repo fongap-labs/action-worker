@@ -522,11 +522,18 @@ test("source-script deploy execution is manifest-driven and repository-agnostic"
     "AW_REPOSITORY_POLICY",
     "runner_labels_json",
     "fromJSON(needs.prepare.outputs.runner_labels_json)",
-    "needs.prepare.outputs.entrypoint",
+    "DEPLOY_SOURCE_REPOSITORY",
+    "DEPLOY_SOURCE_SHA",
+    "DEPLOY_ENVIRONMENT",
+    "DEPLOY_ENTRYPOINT",
+    "REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}",
+    "resolve-secret-scope.ts",
+    "deploy.secrets.required",
+    "deploy.secrets.allowed",
     "Execute source-owned deploy entrypoint",
-    "tailscale/github-action",
   ]);
-  assert.doesNotMatch(workflow, /fongap-labs\/internal-vault|environments\/server-edge\/deploy\.sh/);
+  assert.doesNotMatch(workflow, /SERVER_EDGE_|fongap-labs\/internal-vault|tailscale\/github-action/);
+  assert.doesNotMatch(workflow, /toJSON\s*\(\s*secrets\s*\)/);
   assert.equal(workflow.includes("schedule:"), false);
 });
 
