@@ -21,6 +21,7 @@ type AuditResult = {
 };
 
 const shaPattern = /^[0-9a-f]{40}$/;
+const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 async function publishGuardStatus(
   repository: string,
@@ -46,6 +47,7 @@ async function publishGuardStatus(
 export async function auditRepositoryMain(
   reader: GithubReader,
   repository: string,
+  isCentralStatusRequired = true,
 ): Promise<{ main_sha: string; pr_number: number }> {
   const repositoryValue = await reader.get(`repos/${repository}`);
   const defaultBranch = getJsonString(repositoryValue, "default_branch");
@@ -57,7 +59,12 @@ export async function auditRepositoryMain(
   if (!shaPattern.test(mainSha)) {
     throw new CliError(`::error::Managed repository main SHA is invalid: ${repository}.`, 65);
   }
-  const provenance = await validateMainWriteProvenance(reader, repository, mainSha, true);
+  const provenance = await validateMainWriteProvenance(
+    reader,
+    repository,
+    mainSha,
+    isCentralStatusRequired,
+  );
   return { main_sha: mainSha, pr_number: provenance.pr_number };
 }
 
@@ -65,11 +72,15 @@ async function main(): Promise<void> {
   const token = process.env.AW_CONTROL_TOKEN ?? "";
   const rawPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
   const runUrl = process.env.MAIN_WRITE_AUDIT_RUN_URL ?? "";
+  const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   if (!token) {
     throw new CliError("::error::AW_CONTROL_TOKEN is required.", 77);
   }
   if (!rawPolicy) {
     throw new CliError("::error::AW_REPOSITORY_POLICY is required.", 65);
+  }
+  if (!repositoryPattern.test(controlRepository)) {
+    throw new CliError("::error::GITHUB_REPOSITORY is required for Main Write Audit.", 65);
   }
 
   const policy = parseJson(rawPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65);
@@ -95,7 +106,12 @@ async function main(): Promise<void> {
         throw new CliError(`::error::Managed repository main SHA is invalid: ${repository}.`, 65);
       }
 
-      const provenance = await validateMainWriteProvenance(reader, repository, mainSha, true);
+      const provenance = await validateMainWriteProvenance(
+        reader,
+        repository,
+        mainSha,
+        repository !== controlRepository,
+      );
       await publishGuardStatus(
         repository,
         mainSha,
