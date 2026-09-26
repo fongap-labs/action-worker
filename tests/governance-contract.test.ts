@@ -625,6 +625,8 @@ test("central main write audit is independent of business repository Actions", a
     "validateMainWriteProvenance",
     "Main Write Guard",
     "commits/main",
+    "repository !== controlRepository",
+    "GITHUB_REPOSITORY",
   ]);
   assert.doesNotMatch(workflow, /fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)/);
   assert.doesNotMatch(script, /fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)/);
