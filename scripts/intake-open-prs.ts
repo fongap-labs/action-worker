@@ -96,6 +96,7 @@ async function needsDispatch(
   statuses: Map<string, StatusFact>,
   reader: GithubGet,
   controlRepository: string,
+  controlHeadSha: string,
 ): Promise<"dispatch" | "in-flight" | "processed"> {
   const governance = statuses.get("PR Governance");
   const evidence = statuses.get("CI Evidence");
@@ -119,6 +120,24 @@ async function needsDispatch(
   }
 
   if (governance && evidence && mergeGate) {
+    if ([governance, evidence, mergeGate].every((item) => item.state === "success")) {
+      return "processed";
+    }
+
+    const failedRunIds = [...new Set(
+      [governance, evidence, mergeGate]
+        .filter((item) => item.state === "failure" || item.state === "error")
+        .map((item) => item.run_id),
+    )];
+    if (shaPattern.test(controlHeadSha) && failedRunIds.length > 0) {
+      for (const runId of failedRunIds) {
+        const run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
+        const runHeadSha = isJsonRecord(run) && typeof run.head_sha === "string" ? run.head_sha : "";
+        if (shaPattern.test(runHeadSha) && runHeadSha !== controlHeadSha) {
+          return "dispatch";
+        }
+      }
+    }
     return "processed";
   }
   return "dispatch";
@@ -186,6 +205,7 @@ export async function scanOpenPullRequests(
   dispatch: Dispatch,
   controlRepository: string,
   dispatchRepair?: Dispatch,
+  controlHeadSha = "",
 ): Promise<IntakeResult> {
   const repositories = repositoriesForCapability(policyValue, "pr")
     .filter((repository) => repository !== controlRepository);
@@ -207,7 +227,12 @@ export async function scanOpenPullRequests(
         await reader.get(`repos/${repository}/commits/${pull.headSha}/status`),
         controlRepository,
       );
-      const governanceAction = await needsDispatch(statuses, reader, controlRepository);
+      const governanceAction = await needsDispatch(
+        statuses,
+        reader,
+        controlRepository,
+        controlHeadSha,
+      );
       if (governanceAction === "in-flight") {
         result.in_flight += 1;
         continue;
@@ -299,6 +324,7 @@ async function main(): Promise<void> {
     async (repository, prNumber, headSha) => {
       await dispatchEvent(controlRepository, dispatchToken, "run-dependency-repair", repository, prNumber, headSha);
     },
+    process.env.GITHUB_SHA ?? "",
   );
 
   console.log(JSON.stringify(result));

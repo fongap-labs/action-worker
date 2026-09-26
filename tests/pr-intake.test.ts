@@ -222,6 +222,99 @@ test("central PR intake retries stale pending control-plane runs", async () => {
 });
 
 
+
+test("central PR intake retries failed governance from an older control revision", async () => {
+  const repository = "fongap-labs/example";
+  const controlRepository = "fongap-labs/action-worker";
+  const oldControlSha = shaB;
+  const currentControlSha = shaC;
+  const dispatched: number[] = [];
+
+  const result = await scanOpenPullRequests(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path.includes("/pulls?")) {
+          return [{ number: 31, head: { sha: shaA } }];
+        }
+        if (path.endsWith(`/commits/${shaA}/status`)) {
+          return {
+            statuses: ["PR Governance", "CI Evidence", "validate-merge"].map((context) => ({
+              context,
+              state: "failure",
+              target_url: `https://github.com/${controlRepository}/actions/runs/51`,
+            })),
+          };
+        }
+        if (path === `repos/${controlRepository}/actions/runs/51`) {
+          return {
+            status: "completed",
+            conclusion: "failure",
+            head_sha: oldControlSha,
+          };
+        }
+        throw new Error(`unexpected API path: ${path}`);
+      },
+    },
+    async (_repository, pr) => {
+      dispatched.push(pr);
+    },
+    controlRepository,
+    undefined,
+    currentControlSha,
+  );
+
+  assert.deepEqual(dispatched, [31]);
+  assert.equal(result.dispatched, 1);
+  assert.equal(result.already_processed, 0);
+});
+
+
+test("central PR intake does not loop failed governance from the current control revision", async () => {
+  const repository = "fongap-labs/example";
+  const controlRepository = "fongap-labs/action-worker";
+  const currentControlSha = shaC;
+  const dispatched: number[] = [];
+
+  const result = await scanOpenPullRequests(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path.includes("/pulls?")) {
+          return [{ number: 32, head: { sha: shaA } }];
+        }
+        if (path.endsWith(`/commits/${shaA}/status`)) {
+          return {
+            statuses: ["PR Governance", "CI Evidence", "validate-merge"].map((context) => ({
+              context,
+              state: "failure",
+              target_url: `https://github.com/${controlRepository}/actions/runs/52`,
+            })),
+          };
+        }
+        if (path === `repos/${controlRepository}/actions/runs/52`) {
+          return {
+            status: "completed",
+            conclusion: "failure",
+            head_sha: currentControlSha,
+          };
+        }
+        throw new Error(`unexpected API path: ${path}`);
+      },
+    },
+    async (_repository, pr) => {
+      dispatched.push(pr);
+    },
+    controlRepository,
+    undefined,
+    currentControlSha,
+  );
+
+  assert.deepEqual(dispatched, []);
+  assert.equal(result.dispatched, 0);
+  assert.equal(result.already_processed, 1);
+});
+
 test("central PR intake routes matching source-owned dependency repair before governance", async () => {
   const repository = "fongap-labs/example";
   const baseSha = shaB;
