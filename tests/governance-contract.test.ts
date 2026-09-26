@@ -58,6 +58,18 @@ test("governance files and TypeScript control entries exist", async () => {
   assert.deepEqual(shellFiles, []);
 });
 
+test("main write audit reconciles on control-plane changes and schedule", async () => {
+  const workflow = await text(".github/workflows/main-write-audit.yml");
+  requireText(workflow, [
+    "push:",
+    "branches: [main]",
+    'cron: "*/5 * * * *"',
+    "workflow_dispatch:",
+    "audit-main-writes.ts",
+    "MAIN_WRITE_AUDIT_RUN_URL",
+  ]);
+});
+
 test("integration guidance matches the current credential and private-repository model", async () => {
   const guide = await text("docs/INTEGRATION_GUIDE.md");
   assert.doesNotMatch(guide, /`AW_EXECUTION_TOKEN` 仅用于/);
