@@ -67,7 +67,11 @@ jobs:
           [[ "$SOURCE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
           [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
           request="$(
-            jq -cn               --arg request_id "manual-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"               --arg source_repository "$SOURCE_REPOSITORY"               --arg source_sha "$SOURCE_SHA"               '{
+            jq -cn \
+              --arg request_id "manual-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
+              --arg source_repository "$SOURCE_REPOSITORY" \
+              --arg source_sha "$SOURCE_SHA" \
+              '{
                 schema_version: "1",
                 request_id: $request_id,
                 source_repository: $source_repository,
@@ -88,21 +92,20 @@ jobs:
     name: Execute source-script deploy
     needs: prepare
     runs-on: ${{ fromJSON(needs.prepare.outputs.runner_labels_json) }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
-      SERVER_EDGE_TRANSPORT: ${{ vars.SERVER_EDGE_TRANSPORT }}
-      SERVER_EDGE_TARGET_HOST: ${{ vars.SERVER_EDGE_TARGET_HOST }}
-      SERVER_EDGE_TARGET_USER: ${{ vars.SERVER_EDGE_TARGET_USER }}
-      SERVER_EDGE_TARGET_PORT: ${{ vars.SERVER_EDGE_TARGET_PORT }}
-      SERVER_EDGE_TARGET_ROOT: ${{ vars.SERVER_EDGE_TARGET_ROOT }}
-      SERVER_EDGE_PROFILE: ${{ vars.SERVER_EDGE_PROFILE }}
-      SERVER_EDGE_SSH_KNOWN_HOSTS: ${{ vars.SERVER_EDGE_SSH_KNOWN_HOSTS }}
-      SERVER_EDGE_CONFIG_BUNDLE: ${{ vars.SERVER_EDGE_CONFIG_BUNDLE }}
-      SERVER_EDGE_SSH_PRIVATE_KEY: ${{ secrets.SERVER_EDGE_SSH_PRIVATE_KEY }}
-      SERVER_EDGE_SECRET_BUNDLE: ${{ secrets.SERVER_EDGE_SECRET_BUNDLE }}
-      SERVER_EDGE_TAILSCALE_AUTH_KEY: ${{ secrets.SERVER_EDGE_TAILSCALE_AUTH_KEY }}
+      DEPLOY_SOURCE_REPOSITORY: ${{ needs.prepare.outputs.source_repository }}
+      DEPLOY_SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+      DEPLOY_ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+      DEPLOY_ENTRYPOINT: ${{ needs.prepare.outputs.entrypoint }}
 
     steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: control
+          persist-credentials: false
+
       - name: Checkout deploy source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -112,69 +115,53 @@ jobs:
           path: target
           persist-credentials: false
 
-      - name: Validate source-script adapter inputs
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+
+      - name: Export repository variables
+        env:
+          REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}
+        run: node control/scripts/export-repository-variables.ts
+
+      - name: Snapshot base environment
         shell: bash
         run: |
           set -Eeuo pipefail
-
-          missing=()
-          require() {
-            local name="$1"
-            [ -n "${!name:-}" ] || missing+=("$name")
-          }
-
-          require SERVER_EDGE_TARGET_HOST
-          require SERVER_EDGE_TARGET_USER
-          require SERVER_EDGE_CONFIG_BUNDLE
-          require SERVER_EDGE_SECRET_BUNDLE
-
-          transport="${SERVER_EDGE_TRANSPORT:-ssh}"
-          case "$transport" in
-            ssh)
-              require SERVER_EDGE_SSH_PRIVATE_KEY
-              require SERVER_EDGE_SSH_KNOWN_HOSTS
-              ;;
-            tailscale)
-              require SERVER_EDGE_TAILSCALE_AUTH_KEY
-              ;;
-            *)
-              echo "::error::SERVER_EDGE_TRANSPORT must be ssh or tailscale." >&2
-              exit 2
-              ;;
-          esac
-
-          if [ "${#missing[@]}" -gt 0 ]; then
-            printf '::error::Missing source-script deployment configuration: %s\n' "$(IFS=,; echo "${missing[*]}")" >&2
-            exit 77
-          fi
-
-      - name: Connect deployment runner to Tailnet
-        if: env.SERVER_EDGE_TRANSPORT == 'tailscale'
-        uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8
-        with:
-          authkey: ${{ secrets.SERVER_EDGE_TAILSCALE_AUTH_KEY }}
-          hostname: source-script-deploy-${{ github.run_id }}
-          args: --accept-dns=false
+          compgen -e |
+            LC_ALL=C sort -u             > "${RUNNER_TEMP}/action-worker-base-env.names"
+          chmod 600 "${RUNNER_TEMP}/action-worker-base-env.names"
 
       - name: Execute source-owned deploy entrypoint
-        working-directory: target
-        env:
-          DEPLOY_ENTRYPOINT: ${{ needs.prepare.outputs.entrypoint }}
-          EDGE_ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
-          EDGE_REF: ${{ needs.prepare.outputs.source_sha }}
-          EDGE_TRANSPORT: ${{ env.SERVER_EDGE_TRANSPORT }}
-          EDGE_TARGET_HOST: ${{ env.SERVER_EDGE_TARGET_HOST }}
-          EDGE_TARGET_USER: ${{ env.SERVER_EDGE_TARGET_USER }}
-          EDGE_TARGET_PORT: ${{ env.SERVER_EDGE_TARGET_PORT }}
-          EDGE_TARGET_ROOT: ${{ env.SERVER_EDGE_TARGET_ROOT }}
-          EDGE_PROFILE: ${{ env.SERVER_EDGE_PROFILE }}
-          SSH_KNOWN_HOSTS: ${{ env.SERVER_EDGE_SSH_KNOWN_HOSTS }}
-          EDGE_CONFIG_BUNDLE: ${{ env.SERVER_EDGE_CONFIG_BUNDLE }}
-          SSH_PRIVATE_KEY: ${{ env.SERVER_EDGE_SSH_PRIVATE_KEY }}
-          EDGE_SECRET_BUNDLE: ${{ env.SERVER_EDGE_SECRET_BUNDLE }}
+        env: ${{ secrets }}
         shell: bash
         run: |
           set -Eeuo pipefail
+
+          scope="$(
+            node control/scripts/resolve-secret-scope.ts               "${RUNNER_TEMP}/action-worker-base-env.names"               "target/.github/deploy.secrets.required"               "target/.github/deploy.secrets.allowed"
+          )"
+
+          while IFS= read -r secret_name; do
+            [ -n "$secret_name" ] && unset "$secret_name"
+          done < <(jq -r '.unset[]' <<< "$scope")
+
+          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN; do
+            if [ -n "${!central_name+x}" ]; then
+              echo "::error::Central credential survived deploy isolation: ${central_name}." >&2
+              exit 1
+            fi
+          done
+
+          [[ "$DEPLOY_ENTRYPOINT" =~ ^[A-Za-z0-9._/-]+$ ]]
+          [[ "$DEPLOY_ENTRYPOINT" != /* && "$DEPLOY_ENTRYPOINT" != *".."* ]]
+          [ -f "target/$DEPLOY_ENTRYPOINT" ] || {
+            echo "::error::Deploy entrypoint is missing: $DEPLOY_ENTRYPOINT" >&2
+            exit 66
+          }
+
+          cd target
           bash "$DEPLOY_ENTRYPOINT"
 
       - name: Deployment summary
@@ -184,8 +171,8 @@ jobs:
           {
             echo "## Source Script central deployment"
             echo
-            echo "- Source: ${{ needs.prepare.outputs.source_repository }}@${{ needs.prepare.outputs.source_sha }}"
-            echo "- Environment: ${{ needs.prepare.outputs.environment }}"
-            echo "- Entrypoint: ${{ needs.prepare.outputs.entrypoint }}"
+            echo "- Source: $DEPLOY_SOURCE_REPOSITORY@$DEPLOY_SOURCE_SHA"
+            echo "- Environment: $DEPLOY_ENVIRONMENT"
+            echo "- Entrypoint: $DEPLOY_ENTRYPOINT"
             echo "- Result: ${{ job.status }}"
           } >> "$GITHUB_STEP_SUMMARY"
