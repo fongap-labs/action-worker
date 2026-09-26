@@ -39,7 +39,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
     "scripts/publish-dependency-repair.ts", "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/publish-security-scan.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/dispatch-scheduled-tasks.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
-    ".github/workflows/aig-deploy.yml", ".github/workflows/aig-scheduled-ci.yml", ".github/workflows/deployment-readiness.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
+    ".github/workflows/aig-deploy.yml", ".github/workflows/deployment-readiness.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
     ".github/workflows/ci-intake.yml", ".github/workflows/dependency-repair.yml", ".github/workflows/main-write-audit.yml", ".github/workflows/main-write-guard.yml", ".github/workflows/model-discovery.yml", ".github/workflows/pr-intake.yml", ".github/workflows/release-build.yml", ".github/workflows/security-scan.yml", ".github/workflows/security-scan-intake.yml", ".github/workflows/server-edge-deploy.yml",
     ".github/workflows/sync-tool-release.yml", ".github/workflows/task-intake.yml", ".github/workflows/task-source-dispatch.yml", ".github/workflows/validate-central-merge.yml",
     ".github/workflows/cancel-pr-work.yml",
@@ -413,18 +413,6 @@ test("security scanning is source-owned, centrally executed, and private-safe", 
     "dispatch-security-scan.ts",
     "AW_CONTROL_REPOSITORY",
   ]);
-});
-
-test("AI Gateway scheduled CI is central and cannot publish deploy-triggering status", async () => {
-  const workflow = await text(".github/workflows/aig-scheduled-ci.yml");
-  requireText(workflow, [
-    "schedule:",
-    "repository: fongap-labs/ai-gateway",
-    "target/.github/scripts/central-ci.sh",
-    'CENTRAL_CI_PR_NUMBER: "0"',
-  ]);
-  assert.equal(workflow.includes("set-pr-status.ts"), false);
-  assert.equal(workflow.includes("CI Evidence"), false);
 });
 
 test("central CI deploy dispatch is source-owned and adapter-routed", async () => {
