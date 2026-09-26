@@ -3,14 +3,8 @@ name: Central Task Intake
 on:
   push:
     branches: [main]
-    paths:
-      - .github/workflows/task-intake.yml
-      - scripts/intake-task-sources.ts
-      - scripts/dispatch-scheduled-tasks.ts
-      - scripts/repository-policy.ts
-      - contracts/task-source.json
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
