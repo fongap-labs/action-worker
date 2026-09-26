@@ -50,6 +50,116 @@ test("central CI intake dispatches only default heads without evidence", async (
   });
 });
 
+test("central CI intake reserves status before dispatch", async () => {
+  const repository = "fongap-labs/example";
+  const controlRepository = "fongap-labs/action-worker";
+  const events: string[] = [];
+
+  const result = await scanMainCi(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path === `repos/${repository}`) return { default_branch: "main" };
+        if (path === `repos/${repository}/commits/main`) return { sha: shaA };
+        if (path === `repos/${repository}/commits/${shaA}/status`) return { statuses: [] };
+        throw new Error(`unexpected API path: ${path}`);
+      },
+    },
+    async (target, sha) => {
+      events.push(`dispatch:${target}:${sha}`);
+    },
+    controlRepository,
+    async (target, sha) => {
+      events.push(`reserve:${target}:${sha}`);
+    },
+  );
+
+  assert.deepEqual(events, [
+    `reserve:${repository}:${shaA}`,
+    `dispatch:${repository}:${shaA}`,
+  ]);
+  assert.equal(result.dispatched, 1);
+});
+
+
+test("central CI intake honors a recent reservation after the intake run completes", async () => {
+  const repository = "fongap-labs/example";
+  const controlRepository = "fongap-labs/action-worker";
+  let dispatches = 0;
+  const updatedAt = new Date().toISOString();
+
+  const result = await scanMainCi(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path === `repos/${repository}`) return { default_branch: "main" };
+        if (path === `repos/${repository}/commits/main`) return { sha: shaA };
+        if (path === `repos/${repository}/commits/${shaA}/status`) {
+          return {
+            statuses: [{
+              context: "CI Evidence",
+              state: "pending",
+              updated_at: updatedAt,
+              target_url: "https://github.com/fongap-labs/action-worker/actions/runs/45",
+            }],
+          };
+        }
+        if (path === "repos/fongap-labs/action-worker/actions/runs/45") {
+          return { status: "completed", conclusion: "success" };
+        }
+        throw new Error(`unexpected API path: ${path}`);
+      },
+    },
+    async () => {
+      dispatches += 1;
+    },
+    controlRepository,
+  );
+
+  assert.equal(dispatches, 0);
+  assert.equal(result.in_flight, 1);
+});
+
+
+test("central CI intake retries an expired pending reservation", async () => {
+  const repository = "fongap-labs/example";
+  const controlRepository = "fongap-labs/action-worker";
+  let dispatches = 0;
+  const updatedAt = new Date(Date.now() - 180_000).toISOString();
+
+  const result = await scanMainCi(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path === `repos/${repository}`) return { default_branch: "main" };
+        if (path === `repos/${repository}/commits/main`) return { sha: shaA };
+        if (path === `repos/${repository}/commits/${shaA}/status`) {
+          return {
+            statuses: [{
+              context: "CI Evidence",
+              state: "pending",
+              updated_at: updatedAt,
+              target_url: "https://github.com/fongap-labs/action-worker/actions/runs/46",
+            }],
+          };
+        }
+        if (path === "repos/fongap-labs/action-worker/actions/runs/46") {
+          return { status: "completed", conclusion: "failure" };
+        }
+        throw new Error(`unexpected API path: ${path}`);
+      },
+    },
+    async () => {
+      dispatches += 1;
+    },
+    controlRepository,
+  );
+
+  assert.equal(dispatches, 1);
+  assert.equal(result.dispatched, 1);
+});
+
+
 test("central CI intake treats compatibility evidence as processed", async () => {
   const repository = "fongap-labs/example";
   let dispatches = 0;

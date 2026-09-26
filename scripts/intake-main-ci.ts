@@ -4,6 +4,7 @@ import {
   githubEnvironment,
   isJsonRecord,
 } from "./github-api.ts";
+import { trustedControlRunId } from "./ci-evidence.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import {
   CliError,
@@ -18,6 +19,7 @@ type GithubGet = {
 };
 
 type Dispatch = (repository: string, headSha: string) => Promise<void>;
+type Reserve = (repository: string, headSha: string) => Promise<void>;
 
 export type CiIntakeResult = {
   repositories: number;
@@ -27,27 +29,62 @@ export type CiIntakeResult = {
 };
 
 const shaPattern = /^[0-9a-f]{40}$/;
+export const PENDING_STATUS_LEASE_MS = 120_000;
 
-function latestStatus(value: unknown, context: string): string {
+type StatusFact = {
+  state: string;
+  target_url: string;
+  updated_at: string;
+};
+
+function latestStatus(value: unknown, context: string): StatusFact | null {
   if (!isJsonRecord(value) || !Array.isArray(value.statuses)) {
     throw new CliError("GitHub commit status response is invalid.", 65);
   }
   for (const item of value.statuses) {
     if (!isJsonRecord(item)) continue;
     if (getJsonString(item, "context") === context) {
-      return getJsonString(item, "state");
+      return {
+        state: getJsonString(item, "state"),
+        target_url: getJsonString(item, "target_url"),
+        updated_at: getJsonString(item, "updated_at"),
+      };
     }
   }
-  return "";
+  return null;
 }
 
-function ciState(value: unknown): "dispatch" | "in-flight" | "processed" {
-  const canonical = latestStatus(value, "CI Evidence");
-  const compatibility = latestStatus(value, "ci-evidence");
-  const state = canonical || compatibility;
-  if (state === "pending") return "in-flight";
-  if (state) return "processed";
-  return "dispatch";
+function pendingLeaseActive(fact: StatusFact, nowMs = Date.now()): boolean {
+  const updatedAtMs = Date.parse(fact.updated_at);
+  return Number.isFinite(updatedAtMs)
+    && nowMs >= updatedAtMs
+    && nowMs - updatedAtMs < PENDING_STATUS_LEASE_MS;
+}
+
+async function ciState(
+  value: unknown,
+  reader: GithubGet,
+  controlRepository: string,
+): Promise<"dispatch" | "in-flight" | "processed"> {
+  const fact = latestStatus(value, "CI Evidence")
+    ?? latestStatus(value, "ci-evidence");
+  if (!fact) return "dispatch";
+  if (fact.state !== "pending") return "processed";
+
+  if (!controlRepository) {
+    return "in-flight";
+  }
+
+  const runId = trustedControlRunId(fact.target_url, controlRepository);
+  if (runId) {
+    const run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
+    const runStatus = isJsonRecord(run) && typeof run.status === "string" ? run.status : "";
+    if (["queued", "in_progress", "pending", "waiting", "requested"].includes(runStatus)) {
+      return "in-flight";
+    }
+  }
+
+  return pendingLeaseActive(fact) ? "in-flight" : "dispatch";
 }
 
 async function defaultHead(reader: GithubGet, repository: string): Promise<string> {
@@ -75,6 +112,7 @@ export async function scanMainCi(
   reader: GithubGet,
   dispatch: Dispatch,
   excludedRepository = "",
+  reserve?: Reserve,
 ): Promise<CiIntakeResult> {
   const repositories = repositoriesForCapability(policyValue, "pr")
     .filter((repository) => repository !== excludedRepository);
@@ -88,7 +126,7 @@ export async function scanMainCi(
   for (const repository of repositories) {
     const headSha = await defaultHead(reader, repository);
     const status = await reader.get(`repos/${repository}/commits/${headSha}/status`);
-    const state = ciState(status);
+    const state = await ciState(status, reader, excludedRepository);
     if (state === "in-flight") {
       result.in_flight += 1;
       continue;
@@ -97,11 +135,50 @@ export async function scanMainCi(
       result.already_processed += 1;
       continue;
     }
+    if (reserve) {
+      await reserve(repository, headSha);
+    }
     await dispatch(repository, headSha);
     result.dispatched += 1;
   }
 
   return result;
+}
+
+async function reserveCiStatus(
+  controlRepository: string,
+  token: string,
+  repository: string,
+  headSha: string,
+): Promise<void> {
+  const runId = process.env.GITHUB_RUN_ID ?? "";
+  const serverUrl = (process.env.GITHUB_SERVER_URL ?? "https://github.com").replace(/\/+$/, "");
+  if (!runId) {
+    throw new CliError("GITHUB_RUN_ID is required to reserve central CI status.", 64);
+  }
+  const targetUrl = `${serverUrl}/${controlRepository}/actions/runs/${runId}`;
+  await runCommand(
+    "gh",
+    [
+      "api",
+      "--method",
+      "POST",
+      `repos/${repository}/statuses/${headSha}`,
+      "-f",
+      "state=pending",
+      "-f",
+      "context=CI Evidence",
+      "-f",
+      "description=Central CI queued by central intake",
+      "-f",
+      `target_url=${targetUrl}`,
+    ],
+    {
+      env: githubEnvironment(token),
+      timeoutMs: 30_000,
+      maxBuffer: 1024 * 1024,
+    },
+  );
 }
 
 async function dispatchCentralCi(
@@ -155,6 +232,9 @@ async function main(): Promise<void> {
       await dispatchCentralCi(controlRepository, ingressToken, repository, headSha);
     },
     controlRepository,
+    async (repository, headSha) => {
+      await reserveCiStatus(controlRepository, controlToken, repository, headSha);
+    },
   );
 
   console.log(JSON.stringify(result));
