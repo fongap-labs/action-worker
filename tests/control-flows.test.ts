@@ -66,8 +66,7 @@ test("context detection classifies workflow and declared impacts", async (contex
   await git(root, ["commit", "-qm", "head"]);
   const head = await git(root, ["rev-parse", "HEAD"]);
   const result = await detectContext(base, head, root, policyDir);
-  assert.ok(result.project_types.includes("node"));
-  assert.ok(result.project_types.includes("github-automation"));
+  assert.deepEqual(result.project_types, ["github-automation"]);
   assert.ok(result.change_areas.includes("workflow"));
   assert.ok(result.change_areas.includes("documentation"));
   assert.equal(result.change_areas.includes("release"), false);
