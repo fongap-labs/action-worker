@@ -246,7 +246,7 @@ test("task source ingress is source-owned and repository-agnostic", async () => 
 
   const intakeWorkflow = await text(".github/workflows/task-intake.yml");
   requireText(intakeWorkflow, [
-    'cron: "*/10 * * * *"',
+    'cron: "*/5 * * * *"',
     "workflow_dispatch:",
     "AW_REPOSITORY_POLICY",
     "AW_CONTROL_TOKEN",
