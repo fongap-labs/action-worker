@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: detect PR project types from changed monorepo paths before falling back to repository-root manifests.
+
 - fix: surface detailed source-naming diagnostics when the Python naming validator rejects a change.
 
 - fix: reserve short-lived `CI Evidence` before main-CI intake dispatch so adjacent reconciliation runs cannot launch duplicate Central CI for the same immutable head.
