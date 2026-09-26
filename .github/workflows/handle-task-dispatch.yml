@@ -44,7 +44,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 65
 
-    permissions: {}
+    permissions:
+      actions: read
 
     env:
       AW_SOURCE_DIR: ${{ github.workspace }}/task-source
@@ -54,7 +55,7 @@ jobs:
       BOOTSTRAP_REF: ${{ needs.validate.outputs.bootstrap_ref }}
 
     concurrency:
-      group: action-worker-${{ needs.validate.outputs.project }}
+      group: action-worker-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.project }}
       cancel-in-progress: false
 
     steps:
@@ -91,6 +92,46 @@ jobs:
             > "${RUNNER_TEMP}/action-worker-base-env.names"
 
           chmod 600 "${RUNNER_TEMP}/action-worker-base-env.names"
+
+      - name: Restore previous task state
+        id: task_state
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_REPOSITORY: ${{ needs.validate.outputs.repository }}
+          PROJECT: ${{ needs.validate.outputs.project }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          safe_repository="${SOURCE_REPOSITORY//\//-}"
+          safe_repository="${safe_repository//[^A-Za-z0-9_.-]/-}"
+          safe_project="${PROJECT//[^A-Za-z0-9_.-]/-}"
+          artifact_name="task-state-${safe_repository}-${safe_project}"
+          state_root="${RUNNER_TEMP}/action-worker-task-state"
+
+          mkdir -p "$state_root/previous" "$state_root/current"
+          {
+            echo "AW_TASK_STATE_DIR=$state_root"
+            echo "AW_TASK_STATE_ARTIFACT=$artifact_name"
+          } >> "$GITHUB_ENV"
+          echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
+
+          while IFS= read -r run_id; do
+            [ -n "$run_id" ] || continue
+            if gh run download "$run_id" -n "$artifact_name" -D "$state_root/previous" >/dev/null 2>&1; then
+              echo "Restored task state from run $run_id."
+              exit 0
+            fi
+          done < <(
+            gh run list \
+              --workflow handle-task-dispatch.yml \
+              --status success \
+              --limit 50 \
+              --json databaseId \
+              --jq '.[].databaseId'
+          )
+
+          echo "No previous task state found."
 
       - name: Execute downstream task
         env: ${{ secrets }}
@@ -180,6 +221,15 @@ jobs:
               echo "::error::bootstrap.sh execution failed (exit=${bootstrap_rc})." >&2
               exit "$bootstrap_rc"
           fi
+
+      - name: Upload task state
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.task_state.outputs.artifact_name }}
+          path: ${{ runner.temp }}/action-worker-task-state/current/
+          if-no-files-found: ignore
+          retention-days: 30
 
       - name: Validate staged publication
         id: publication
