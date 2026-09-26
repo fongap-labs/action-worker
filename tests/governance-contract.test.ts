@@ -204,8 +204,9 @@ test("task dispatch keeps the publication credential in the central control step
     "Checkout task source", "repository: ${{ needs.validate.outputs.repository }}",
     "ref: ${{ needs.validate.outputs.bootstrap_ref }}", "path: task-source", "persist-credentials: false",
     "AW_SOURCE_DIR: ${{ github.workspace }}/task-source", 'git -C "$AW_SOURCE_DIR" rev-parse HEAD',
+    "node scripts/resolve-secret-scope.ts", ".secrets.required", ".secrets.allowed",
+    "Restore previous task state", "AW_TASK_STATE_DIR", "Upload task state",
     "node scripts/validate-task-publication.ts", "Publish staged artifact", "secrets.AW_CONTROL_TOKEN",
-    "unset AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN",
   ]);
   assert.doesNotMatch(workflow, /toJSON\s*\(\s*secrets\s*\)/);
   const directSecrets = [...workflow.matchAll(/\$\{\{\s*secrets\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g)]
