@@ -44,6 +44,33 @@ export async function listChangedFiles(base: string, head: string, root: string)
   return changedText ? changedText.split(/\r?\n/).filter(Boolean) : [];
 }
 
+export function projectTypeForPath(path: string): string | null {
+  const name = path.split("/").at(-1) ?? path;
+  const lower = path.toLowerCase();
+
+  if (lower.startsWith(".github/workflows/")) return "github-automation";
+  if (name === "Cargo.toml" || lower.endsWith(".rs")) return "rust";
+  if (
+    name === "pyproject.toml"
+    || name === "requirements.txt"
+    || lower.endsWith(".py")
+  ) return "python";
+  if (
+    name === "package.json"
+    || lower.endsWith(".ts")
+    || lower.endsWith(".tsx")
+    || lower.endsWith(".js")
+    || lower.endsWith(".mjs")
+    || lower.endsWith(".cjs")
+  ) return "node";
+  if (name === "go.mod" || lower.endsWith(".go")) return "go";
+  if (
+    name === "Dockerfile"
+    || /(^|\/)(?:docker-compose|compose)\.ya?ml$/.test(path)
+  ) return "container";
+  return null;
+}
+
 export function changeAreaForPath(path: string, workflowPrefixes: readonly string[], changelogFile: string): string {
   if (workflowPrefixes.some((prefix) => path.startsWith(prefix))) {
     return "workflow";
@@ -84,19 +111,31 @@ export async function detectContext(base: string, head: string, root: string, po
     }
   }
 
-  const projectChecks: Array<[string, string]> = [
-    ["package.json", "node"],
-    ["Cargo.toml", "rust"],
-    ["pyproject.toml", "python"],
-    ["requirements.txt", "python"],
-    ["go.mod", "go"],
-    ["Dockerfile", "container"],
-    [".github/workflows", "github-automation"],
-  ];
   const projects = new Set<string>();
-  for (const [path, project] of projectChecks) {
-    if (await pathExists(join(root, path))) {
+  for (const path of changedFiles) {
+    const project = projectTypeForPath(path);
+    if (project) {
       projects.add(project);
+    }
+  }
+
+  // Documentation/configuration-only changes have no source-path signal.
+  // Fall back to repository-root manifests so downstream planning still has
+  // a useful project context without overriding monorepo changes.
+  if (projects.size === 0) {
+    const projectChecks: Array<[string, string]> = [
+      ["package.json", "node"],
+      ["Cargo.toml", "rust"],
+      ["pyproject.toml", "python"],
+      ["requirements.txt", "python"],
+      ["go.mod", "go"],
+      ["Dockerfile", "container"],
+      [".github/workflows", "github-automation"],
+    ];
+    for (const [path, project] of projectChecks) {
+      if (await pathExists(join(root, path))) {
+        projects.add(project);
+      }
     }
   }
 
