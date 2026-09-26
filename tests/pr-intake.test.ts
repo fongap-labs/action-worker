@@ -223,6 +223,82 @@ test("central PR intake retries stale pending control-plane runs", async () => {
 
 
 
+test("central PR intake honors a recent queued reservation after the intake run completes", async () => {
+  const repository = "fongap-labs/example";
+  const dispatched: number[] = [];
+  const updatedAt = new Date().toISOString();
+
+  const result = await scanOpenPullRequests(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path.includes("/pulls?")) {
+          return [{ number: 18, head: { sha: shaA } }];
+        }
+        if (path.endsWith("/status")) {
+          return {
+            statuses: [{
+              context: "PR Governance",
+              state: "pending",
+              updated_at: updatedAt,
+              target_url: "https://github.com/fongap-labs/action-worker/actions/runs/45",
+            }],
+          };
+        }
+        if (path === "repos/fongap-labs/action-worker/actions/runs/45") {
+          return { status: "completed", conclusion: "success" };
+        }
+        throw new Error(`unexpected API path: ${path}`);
+      },
+    },
+    async (_repository, pr) => {
+      dispatched.push(pr);
+    },
+    "fongap-labs/action-worker",
+  );
+
+  assert.deepEqual(dispatched, []);
+  assert.equal(result.in_flight, 1);
+  assert.equal(result.dispatched, 0);
+});
+
+
+test("central PR intake reserves governance before dispatch", async () => {
+  const repository = "fongap-labs/example";
+  const events: string[] = [];
+
+  const result = await scanOpenPullRequests(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path.includes("/pulls?")) {
+          return [{ number: 19, head: { sha: shaA } }];
+        }
+        if (path.endsWith("/status")) {
+          return { statuses: [] };
+        }
+        throw new Error(`unexpected API path: ${path}`);
+      },
+    },
+    async (_repository, pr) => {
+      events.push(`dispatch:${pr}`);
+    },
+    "fongap-labs/action-worker",
+    undefined,
+    "",
+    async (_repository, sha, context) => {
+      events.push(`reserve:${context}:${sha}`);
+    },
+  );
+
+  assert.deepEqual(events, [
+    `reserve:PR Governance:${shaA}`,
+    "dispatch:19",
+  ]);
+  assert.equal(result.dispatched, 1);
+});
+
+
 test("central PR intake retries failed governance from an older control revision", async () => {
   const repository = "fongap-labs/example";
   const controlRepository = "fongap-labs/action-worker";
@@ -334,6 +410,7 @@ test("central PR intake routes matching source-owned dependency repair before go
   };
   const governance: number[] = [];
   const repairs: number[] = [];
+  const reservations: string[] = [];
 
   const result = await scanOpenPullRequests(
     { [repository]: ["pr"] },
@@ -376,10 +453,15 @@ test("central PR intake routes matching source-owned dependency repair before go
     async (_repository, pr) => {
       repairs.push(pr);
     },
+    "",
+    async (_repository, sha, context) => {
+      reservations.push(`${context}:${sha}`);
+    },
   );
 
   assert.deepEqual(governance, []);
   assert.deepEqual(repairs, [21]);
+  assert.deepEqual(reservations, [`Dependency Repair:${shaA}`]);
   assert.equal(result.dispatched, 0);
   assert.equal(result.repair_dispatched, 1);
   assert.equal(result.repair_blocked, 0);
