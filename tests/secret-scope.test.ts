@@ -18,6 +18,7 @@ test("secret scope exposes only source-declared secrets", async () => {
     baseline,
     required,
     allowed,
+    [],
     {
       PATH: "/bin",
       PROJECT: "example",
@@ -32,13 +33,54 @@ test("secret scope exposes only source-declared secrets", async () => {
   assert.deepEqual(scope.unset, ["AW_CONTROL_TOKEN", "OTHER_SECRET"]);
 });
 
-test("secret scope rejects control-plane secret requests", async () => {
+test("base control-plane secrets can never be requested", async () => {
   const root = await mkdtemp(join(tmpdir(), "secret-scope-"));
   const baseline = join(root, "baseline");
   const required = join(root, "required");
   await writeFile(baseline, "PATH\n");
   await writeFile(required, "AW_CONTROL_TOKEN\n");
   await assert.rejects(
-    resolveSecretScope(baseline, required, "", { PATH: "/bin", AW_CONTROL_TOKEN: "x" }),
+    resolveSecretScope(baseline, required, "", [], { PATH: "/bin", AW_CONTROL_TOKEN: "x" }),
+    /invalid or reserved/,
   );
+});
+
+test("capability-specific denied secrets remain unavailable to tasks", async () => {
+  const root = await mkdtemp(join(tmpdir(), "secret-scope-"));
+  const baseline = join(root, "baseline");
+  const allowed = join(root, "allowed");
+  await writeFile(baseline, "PATH\n");
+  await writeFile(allowed, "AIG_ACCESS_KEY_AGENT\n");
+  await assert.rejects(
+    resolveSecretScope(
+      baseline,
+      "",
+      allowed,
+      ["AIG_ACCESS_KEY_AGENT"],
+      { PATH: "/bin", AIG_ACCESS_KEY_AGENT: "agent-key" },
+    ),
+    /denied for this capability/,
+  );
+});
+
+test("privileged deploy may expose an explicitly declared application secret", async () => {
+  const root = await mkdtemp(join(tmpdir(), "secret-scope-"));
+  const baseline = join(root, "baseline");
+  const allowed = join(root, "allowed");
+  await writeFile(baseline, "PATH\n");
+  await writeFile(allowed, "AIG_ACCESS_KEY_AGENT\n");
+  const scope = await resolveSecretScope(
+    baseline,
+    "",
+    allowed,
+    [],
+    {
+      PATH: "/bin",
+      AIG_ACCESS_KEY_AGENT: "agent-key",
+      AW_CONTROL_TOKEN: "control",
+      OTHER_SECRET: "hidden",
+    },
+  );
+  assert.deepEqual(scope.allowed, ["AIG_ACCESS_KEY_AGENT"]);
+  assert.deepEqual(scope.unset, ["AW_CONTROL_TOKEN", "OTHER_SECRET"]);
 });
