@@ -58,6 +58,21 @@ test("governance files and TypeScript control entries exist", async () => {
   assert.deepEqual(shellFiles, []);
 });
 
+test("workflows use the canonical setup-node action runtime", async () => {
+  const canonical = "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0";
+  const retired = "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0";
+  const workflows = (await readdir(".github/workflows"))
+    .filter((name) => name.endsWith(".yml") || name.endsWith(".yaml"));
+
+  for (const name of workflows) {
+    const workflow = await text(`.github/workflows/${name}`);
+    assert.equal(workflow.includes(retired), false, `retired setup-node pin in ${name}`);
+    if (workflow.includes("actions/setup-node@")) {
+      assert.equal(workflow.includes(canonical), true, `non-canonical setup-node pin in ${name}`);
+    }
+  }
+});
+
 test("main write audit reconciles on control-plane changes and schedule", async () => {
   const workflow = await text(".github/workflows/main-write-audit.yml");
   requireText(workflow, [
