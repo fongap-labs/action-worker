@@ -193,8 +193,15 @@ jobs:
           test -f "$script"
 
           log="$RUNNER_TEMP/central-ci-linux.log"
+          failure_meta="$RUNNER_TEMP/central-ci-linux.failure"
+          trace_env="$RUNNER_TEMP/central-ci-bash-env"
+          cat >"$trace_env" <<'EOF'
+          trap 'code=$?; if [ -n "${CENTRAL_CI_FAILURE_FILE:-}" ]; then printf "%s:%s\n" "$LINENO" "$code" > "$CENTRAL_CI_FAILURE_FILE"; fi' ERR
+          EOF
+
           set +e
-          bash "$script" "$GITHUB_WORKSPACE/target" >"$log" 2>&1
+          CENTRAL_CI_FAILURE_FILE="$failure_meta" BASH_ENV="$trace_env" \
+            bash "$script" "$GITHUB_WORKSPACE/target" >"$log" 2>&1
           code=$?
           set -e
 
@@ -202,7 +209,14 @@ jobs:
             if [ "$TARGET_PRIVATE" = "false" ]; then
               cat "$log"
             else
-              echo "::error::Central Linux CI failed for $TARGET_REPOSITORY. Detailed output is suppressed because the target repository is private."
+              diagnostic=""
+              if [ -f "$failure_meta" ]; then
+                IFS=: read -r failure_line failure_code <"$failure_meta" || true
+                if [[ "$failure_line" =~ ^[0-9]+$ ]] && [[ "$failure_code" =~ ^[0-9]+$ ]]; then
+                  diagnostic=" Trusted CI failed at line $failure_line with exit code $failure_code."
+                fi
+              fi
+              echo "::error::Central Linux CI failed for $TARGET_REPOSITORY.$diagnostic Detailed output is suppressed because the target repository is private."
             fi
             exit "$code"
           fi

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: expose only trusted CI script line and exit code for private-repository failures while keeping detailed logs suppressed.
+
 - refactor: resolve closed-PR cancellation repository authority through AW_REPOSITORY_POLICY instead of a duplicated workflow allowlist.
 
 - fix: validate closed-PR cancellation targets before entering governance and Central CI concurrency groups.
