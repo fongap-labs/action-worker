@@ -207,6 +207,8 @@ Source-owned CI control 也必须通过 PR 治理更新，禁止为了修 CI 而
 
 候选 CI control 的执行环境仍属于 Sandbox：不得获得生产 Secret、中央管理 Token 或 privileged Runner 权限。候选 control 通过 Security Gate、Central CI 与 `validate-merge` 后才能进入默认分支。
 
+中央 PR Intake 必须对同一 `repository + PR + head SHA` 幂等。发出 Governance 或 Dependency Repair dispatch 前，Intake 必须先发布短租约的 pending reservation；后续扫描在 reservation 租约有效或对应中央 run 仍在运行时不得重复派发。同一 head 的重复 dispatch 不得依赖“互相取消”实现幂等，因为它会制造假失败并浪费 CI 额度。
+
 公开仓的 GitHub Ruleset 直接要求 Action Worker 发布的中央 `validate-merge` status；业务仓不再启动本地 Runner 创建同名 Check。私有 Free 仓由 Main Write Guard 对同一中央状态做事后 provenance 强制。
 
 ## 8. Release

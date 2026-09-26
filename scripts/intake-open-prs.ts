@@ -24,6 +24,12 @@ type GithubGet = {
 };
 
 type Dispatch = (repository: string, prNumber: number, headSha: string) => Promise<void>;
+type Reserve = (
+  repository: string,
+  headSha: string,
+  context: "PR Governance" | "Dependency Repair",
+  description: string,
+) => Promise<void>;
 
 export type IntakeResult = {
   repositories: number;
@@ -40,7 +46,17 @@ const shaPattern = /^[0-9a-f]{40}$/;
 type StatusFact = {
   state: string;
   run_id: number;
+  updated_at: string;
 };
+
+export const PENDING_STATUS_LEASE_MS = 120_000;
+
+function pendingLeaseActive(fact: StatusFact, nowMs = Date.now()): boolean {
+  const updatedAtMs = Date.parse(fact.updated_at);
+  return Number.isFinite(updatedAtMs)
+    && nowMs >= updatedAtMs
+    && nowMs - updatedAtMs < PENDING_STATUS_LEASE_MS;
+}
 
 function statusMap(value: unknown, controlRepository: string): Map<string, StatusFact> {
   if (!isJsonRecord(value) || !Array.isArray(value.statuses)) {
@@ -52,10 +68,11 @@ function statusMap(value: unknown, controlRepository: string): Map<string, Statu
     const context = typeof item.context === "string" ? item.context : "";
     const state = typeof item.state === "string" ? item.state : "";
     const targetUrl = typeof item.target_url === "string" ? item.target_url : "";
+    const updatedAt = typeof item.updated_at === "string" ? item.updated_at : "";
     const runId = trustedControlRunId(targetUrl, controlRepository);
     if (!runId) continue;
     if (context && state && !statuses.has(context)) {
-      statuses.set(context, { state, run_id: runId });
+      statuses.set(context, { state, run_id: runId, updated_at: updatedAt });
     }
   }
   return statuses;
@@ -114,6 +131,9 @@ async function needsDispatch(
     if (["queued", "in_progress", "pending", "waiting", "requested"].includes(runStatus)) {
       return "in-flight";
     }
+  }
+  if (facts.some((item) => item.state === "pending" && pendingLeaseActive(item))) {
+    return "in-flight";
   }
   if (pendingRunIds.length > 0) {
     return "dispatch";
@@ -196,6 +216,9 @@ async function repairState(
   if (["queued", "in_progress", "pending", "waiting", "requested"].includes(runStatus)) {
     return "in-flight";
   }
+  if (pendingLeaseActive(repair)) {
+    return "in-flight";
+  }
   return "dispatch";
 }
 
@@ -206,6 +229,7 @@ export async function scanOpenPullRequests(
   controlRepository: string,
   dispatchRepair?: Dispatch,
   controlHeadSha = "",
+  reserve?: Reserve,
 ): Promise<IntakeResult> {
   const repositories = repositoriesForCapability(policyValue, "pr")
     .filter((repository) => repository !== controlRepository);
@@ -253,18 +277,72 @@ export async function scanOpenPullRequests(
           continue;
         }
         if (state === "dispatch") {
+          if (reserve) {
+            await reserve(
+              repository,
+              pull.headSha,
+              "Dependency Repair",
+              "Dependency repair queued by central intake",
+            );
+          }
           await dispatchRepair(repository, pull.number, pull.headSha);
           result.repair_dispatched += 1;
           continue;
         }
       }
 
+      if (reserve) {
+        await reserve(
+          repository,
+          pull.headSha,
+          "PR Governance",
+          "Action Worker PR governance queued by central intake",
+        );
+      }
       await dispatch(repository, pull.number, pull.headSha);
       result.dispatched += 1;
     }
   }
 
   return result;
+}
+
+async function reserveStatus(
+  controlRepository: string,
+  token: string,
+  repository: string,
+  headSha: string,
+  context: "PR Governance" | "Dependency Repair",
+  description: string,
+): Promise<void> {
+  const runId = process.env.GITHUB_RUN_ID ?? "";
+  const serverUrl = (process.env.GITHUB_SERVER_URL ?? "https://github.com").replace(/\/+$/, "");
+  if (!runId) {
+    throw new CliError("GITHUB_RUN_ID is required to reserve central intake status.", 64);
+  }
+  const targetUrl = `${serverUrl}/${controlRepository}/actions/runs/${runId}`;
+  await runCommand(
+    "gh",
+    [
+      "api",
+      "--method",
+      "POST",
+      `repos/${repository}/statuses/${headSha}`,
+      "-f",
+      "state=pending",
+      "-f",
+      `context=${context}`,
+      "-f",
+      `description=${description}`,
+      "-f",
+      `target_url=${targetUrl}`,
+    ],
+    {
+      env: githubEnvironment(token),
+      timeoutMs: 30_000,
+      maxBuffer: 1024 * 1024,
+    },
+  );
 }
 
 async function dispatchEvent(
@@ -325,6 +403,16 @@ async function main(): Promise<void> {
       await dispatchEvent(controlRepository, dispatchToken, "run-dependency-repair", repository, prNumber, headSha);
     },
     process.env.GITHUB_SHA ?? "",
+    async (repository, headSha, context, description) => {
+      await reserveStatus(
+        controlRepository,
+        controlToken,
+        repository,
+        headSha,
+        context,
+        description,
+      );
+    },
   );
 
   console.log(JSON.stringify(result));
