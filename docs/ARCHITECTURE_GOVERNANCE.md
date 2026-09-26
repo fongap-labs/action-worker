@@ -203,6 +203,10 @@ merge
 
 业务仓不得为了“本地 CI”继续维护第二套重型 Runner 流程。
 
+Source-owned CI control 也必须通过 PR 治理更新，禁止为了修 CI 而直接写 main。普通 PR 一律执行默认分支上的受信任 CI control；只有同仓且 GitHub `author_association` 为 `OWNER`、`MEMBER` 或 `COLLABORATOR` 的维护者 PR，在修改 `.github/execution-manifest.json`、`.github/scripts/central-ci.sh` 或 `.github/scripts/central-ci.ps1` 时，才允许以该 PR 的不可变 head SHA 作为候选 CI control 自验证。Fork 或非受信任作者修改 CI control 必须 fail closed。
+
+候选 CI control 的执行环境仍属于 Sandbox：不得获得生产 Secret、中央管理 Token 或 privileged Runner 权限。候选 control 通过 Security Gate、Central CI 与 `validate-merge` 后才能进入默认分支。
+
 公开仓的 GitHub Ruleset 直接要求 Action Worker 发布的中央 `validate-merge` status；业务仓不再启动本地 Runner 创建同名 Check。私有 Free 仓由 Main Write Guard 对同一中央状态做事后 provenance 强制。
 
 ## 8. Release
