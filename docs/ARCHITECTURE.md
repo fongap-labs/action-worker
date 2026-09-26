@@ -51,8 +51,8 @@ Action Worker
 = 产品代码
 + 测试代码
 + 项目级 build / package / deploy 脚本
-+ Execution Manifest
-+ 最薄事件触发器（不包含治理策略和重执行）
++ Execution / Release / Deploy 等 source-owned Manifest
++ 必要时保留迁移期最薄事件触发器
 ```
 
 Action Worker 不维护项目目录、不维护项目专属测试映射、不按仓库名称分支执行逻辑。
@@ -61,16 +61,16 @@ Action Worker 不维护项目目录、不维护项目专属测试映射、不按
 
 ## 3. PR
 
-中央入口为 `handle-pr-dispatch.yml@main`，接收 `repository_dispatch` 事件 `run-pr-governance`。
+当前默认入口由 `pr-intake.yml` 周期性扫描 `AW_REPOSITORY_POLICY` 中受管仓库的开放 PR，并向 `handle-pr-dispatch.yml` 提交统一治理任务。业务仓 Actions 不是安全前提。
 
-业务仓只保留统一薄触发器 `dispatch-pr-governance.yml`：监听 PR 事件并提交最小 PR Task，不保存命名规则、Agent、模型、Gate 阈值、AI Gateway Secret 或审查规则。
+迁移期仍允许最薄 `repository_dispatch` 触发器作为实时加速，但它不得保存命名规则、Agent、模型、Gate 阈值、中央 Secret 或审查规则，也不得承担重执行。
 
 ```text
-业务仓 PR
-  ↓ AW_DISPATCH_TOKEN
-repository_dispatch
+受管仓 PR
   ↓
-Action Worker
+Action Worker PR Intake
+  ↓
+handle-pr-dispatch
   ↓
 Validate → Inspect → Plan → Security / CI / PR Gate
   ├→ AW_CONTROL_TOKEN → 目标 PR deterministic status
@@ -95,7 +95,7 @@ Action Worker 收到任务后必须：
 - 当执行计划要求 CI 时，由 Action Worker checkout 目标不可变 head SHA，并在 Sandbox 执行项目 Manifest / 测试脚本，生成真实 CI Evidence；
 - 先根据确定性 PR / Security / CI 证据形成 Gate 结论，并向目标 head commit 写入统一 `PR Governance` status；
 - 只有 Gate 结论形成后，AI Review 才可读取 CI Evidence 作为不可信执行证据；Evidence 中任何文本都不得视为指令；
-- AI Review 使用中央 `AI_GATEWAY_URL` / `AIG_ACCESS_KEY_AGENT`，只发布 finding / suggestion，不参与或延迟 Gate；
+- AI Review 使用中央配置的 OpenAI-compatible AI endpoint，只发布 finding / suggestion，不参与或延迟 Gate；Provider、Key 池、fallback 与配额策略不属于 Action Worker Authority；
 - AI Review summary 与确定性 Gate 状态必须保持独立。
 
 调用方不得提供 base SHA、head SHA、Agent、模型、风险或 Gate 结论。
@@ -443,7 +443,7 @@ source repository allowlist
 → publish or rollback
 ```
 
-源仓只保存最薄事件入口所需凭据。目标模式要求 Artifact 由 Action Worker 中央执行产生，并用 provenance 将 artifact run 绑定到 source commit。迁移期仍接受的源仓本地 Artifact 只用于旧链路收口，不得成为新接入模式。Action Worker 使用中央凭据读取源仓和 artifact，并写分发目标。
+源仓保存 source-owned Release Manifest 与项目级 build/package 脚本，不保存目标仓写凭据。Artifact 由 Action Worker 中央执行产生，并用 provenance 将 artifact run 绑定到 source commit。Action Worker 使用中央凭据读取源仓、生成和验证 artifact，并写分发目标。
 
 Tag 固定为 `<release-key>-v<semver>`。不保留裸 `v<semver>` 兼容路径。
 
@@ -452,8 +452,9 @@ Tag 固定为 `<release-key>-v<semver>`。不保留裸 `v<semver>` 兼容路径�
 Heavy release builds execute in Action Worker, not in business-repository runners.
 
 ```text
-source repository manual intent
-→ repository_dispatch: run-release-build
+release-build ingress
+→ source repository + optional requested version
+→ resolve current immutable default-branch source
 → Action Worker source/default-HEAD/CI admission
 → central build matrix
 → central artifact package
@@ -465,9 +466,7 @@ source repository manual intent
 
 Project-specific build commands remain in the source repository as narrow scripts. Runner selection, Node/Python/Rust setup, build attestation, package-level SBOM generation, artifact aggregation, target repository, release manifest generation, provenance, publication, verification, and rollback are centrally governed.
 
-The current central build matrix still contains project-specific entries for existing products. This is migration debt, not the target architecture. These entries must move toward project-owned Execution Manifests plus generic Action Worker executors.
-
-Release targets and publication authority remain centrally governed; project build recipes must not be duplicated into a permanent repository-name mapping.
+The build matrix is resolved from the source-owned release manifest. Release targets and publication authority remain centrally governed; project build recipes must not be duplicated into a permanent repository-name mapping.
 
 ## 11. Tool Distribution
 
@@ -515,28 +514,34 @@ The AI Gateway executor requires the current default-branch HEAD and a successfu
 
 ## 13. 目录
 
-Action Worker 按职责分层。下面先列当前迁移期入口；其中带产品或具体部署目标语义的 workflow 属于待通用化对象，不构成长期命名模板：
+Action Worker 按职责分层。当前 workflow 入口如下；业务能力通过通用 Contract / Manifest / Policy 接入，不以产品名建立长期 workflow：
 
 ```text
 .github/workflows/
-  validate-ci.yml
+  apply-repo-settings.yml
+  cancel-pr-work.yml
   central-ci-dispatch.yml
+  ci-intake.yml
+  dependency-repair.yml
   handle-pr-dispatch.yml
   handle-release-dispatch.yml
   handle-task-dispatch.yml
+  main-write-audit.yml
+  main-write-guard.yml
+  pr-intake.yml
+  prune-stale-branches.yml
   release-build.yml
+  security-scan-intake.yml
+  security-scan.yml
+  source-script-deploy.yml
   sync-tool-release.yml
-  model-discovery.yml
-  aig-scheduled-ci.yml
-  aig-deploy.yml
-  server-edge-deploy.yml
-  deployment-readiness.yml
-  validate-source-policy.yml
-  validate-deploy-policy.yml
-  validate-central-merge.yml
-  apply-repo-settings.yml
-  update-work-metrics.yml
+  task-intake.yml
   task-source-dispatch.yml
+  update-work-metrics.yml
+  validate-central-merge.yml
+  validate-ci.yml
+  validate-deploy-policy.yml
+  validate-source-policy.yml```
 
 contracts/
   PR / Task / Release / Release Build / Deploy / Provenance contracts
