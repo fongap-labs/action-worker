@@ -24,6 +24,10 @@ function isDocument(name: string): boolean {
   return /^[A-Z0-9]+(?:_[A-Z0-9]+)*\.md$/.test(name);
 }
 
+export function commandFailureMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function hasLifecycleFilenameViolation(path: string): boolean {
   const name = basename(path);
   const stem = parse(name).name;
@@ -71,7 +75,8 @@ export async function validateNames(base: string, head: string): Promise<{ failu
   const scriptDir = dirname(fileURLToPath(import.meta.url));
   try {
     await runCommand("python3", [join(scriptDir, "validate-source-naming.py"), base, head]);
-  } catch {
+  } catch (error) {
+    console.error(commandFailureMessage(error));
     failures += 1;
   }
   failures += await validateConfigNames(base, head);
