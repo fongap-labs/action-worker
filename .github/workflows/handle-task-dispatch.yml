@@ -185,7 +185,8 @@ jobs:
               node scripts/resolve-secret-scope.ts \
                 "${RUNNER_TEMP}/action-worker-base-env.names" \
                 "$project_dir/.secrets.required" \
-                "$project_dir/.secrets.allowed"
+                "$project_dir/.secrets.allowed" \
+                "AIG_ACCESS_KEY_AGENT"
           )"
 
           while IFS= read -r secret_name; do
