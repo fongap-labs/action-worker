@@ -1,9 +1,6 @@
 {
   "schema_version": 2,
   "adapters": {
-    "cloudflare-worker": {
-      "event_type": "run-ai-gateway-deploy"
-    },
     "source-script": {
       "event_type": "run-source-script-deploy"
     }
