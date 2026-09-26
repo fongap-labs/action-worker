@@ -436,8 +436,8 @@ test("central CI deploy dispatch is source-owned and adapter-routed", async () =
   assert.equal(policy.schema_version, 2);
   assert.equal("repositories" in policy, false);
   const adapters = policy.adapters as Record<string, Record<string, unknown>>;
-  assert.ok(adapters["cloudflare-worker"]);
-  assert.ok(adapters["source-script"]);
+  assert.deepEqual(Object.keys(adapters), ["source-script"]);
+  assert.deepEqual(adapters["source-script"], { event_type: "run-source-script-deploy" });
 
   const manifestResolver = await text("scripts/deploy-manifest.ts");
   requireText(manifestResolver, [
