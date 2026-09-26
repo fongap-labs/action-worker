@@ -81,11 +81,11 @@ async function cloneMirror(
 }
 
 async function main(): Promise<void> {
-  const token = process.env.AW_ADMIN_TOKEN ?? "";
+  const token = process.env.AW_CONTROL_TOKEN ?? "";
   const rawPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
   const dryRun = process.env.BRANCH_PRUNE_DRY_RUN === "true";
   if (!token || !rawPolicy) {
-    throw new CliError("AW_ADMIN_TOKEN and AW_REPOSITORY_POLICY are required.", 77);
+    throw new CliError("AW_CONTROL_TOKEN and AW_REPOSITORY_POLICY are required.", 77);
   }
 
   const policy = parseJson(
