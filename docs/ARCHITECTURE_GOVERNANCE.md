@@ -209,6 +209,8 @@ Source-owned CI control 也必须通过 PR 治理更新，禁止为了修 CI 而
 
 中央 PR Intake 必须对同一 `repository + PR + head SHA` 幂等。发出 Governance 或 Dependency Repair dispatch 前，Intake 必须先发布短租约的 pending reservation；后续扫描在 reservation 租约有效或对应中央 run 仍在运行时不得重复派发。同一 head 的重复 dispatch 不得依赖“互相取消”实现幂等，因为它会制造假失败并浪费 CI 额度。
 
+中央 Main CI 同样必须按不可变 `repository + head SHA` 幂等。相同 main SHA 的重复 `run-central-ci-ref` 请求不得互相取消；后发请求在已有该 SHA 的成功 `CI Evidence` 时必须直接复用证据并跳过重 CI。PR CI 仍允许新 head 取消旧 head，因为那属于 source identity 已变化的 stale work。
+
 公开仓的 GitHub Ruleset 直接要求 Action Worker 发布的中央 `validate-merge` status；业务仓不再启动本地 Runner 创建同名 Check。私有 Free 仓由 Main Write Guard 对同一中央状态做事后 provenance 强制。
 
 ## 8. Release

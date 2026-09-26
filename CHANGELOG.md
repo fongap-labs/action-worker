@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: serialize duplicate main-SHA Central CI dispatches and reuse successful CI Evidence instead of cancelling and rerunning the same immutable source.
+
 - fix: reserve short-lived PR intake statuses before dispatch so repeated reconciliation cannot launch duplicate Governance or Dependency Repair runs for the same head.
 
 - fix: retry failed PR governance after the Action Worker control revision advances while avoiding retry loops on the same revision.
