@@ -3,12 +3,8 @@ name: Central PR Intake
 on:
   push:
     branches: [main]
-    paths:
-      - .github/workflows/pr-intake.yml
-      - scripts/intake-open-prs.ts
-      - scripts/repository-policy.ts
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 permissions:
