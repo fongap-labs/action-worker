@@ -157,19 +157,19 @@ All AI agent runtime configuration is centralized in the Repository Variable `AW
 
 Optional AI agents are disabled when not configured. The current recommended baseline keeps `review.enabled=false` until deterministic governance is independently stable. Writing, Review, and future agents can be enabled independently without maintaining review-specific switches.
 
-Repository capabilities are managed by one Repository Variable, `AW_REPOSITORY_POLICY`. Each repository is registered once and can receive `pr`, `task`, `release-source`, and `release-target` capabilities:
+Repository capabilities are managed by one Repository Variable, `AW_REPOSITORY_POLICY`. Each repository is registered once and receives only the capabilities it needs: `pr`, `task`, `release-source`, `release-target`, and/or `deploy`.
 
 ```json
 {
-  "fongap-labs/ai-gateway": ["pr", "task"],
+  "fongap-labs/ai-gateway": ["pr", "task", "deploy"],
   "fongap-labs/delta": ["pr", "task", "release-source"],
-  "fongap-labs/external-vault": ["pr", "task", "release-source", "release-target"]
+  "fongap-labs/external-vault": ["pr", "task", "release-target"]
 }
 ```
 
 Adding, removing, or changing repository permissions only changes this variable; it does not require Action Worker source changes.
 
-The central `AW_CONTROL_TOKEN` needs at least Contents Read, Pull Requests Read/Write, Commit Statuses Read/Write, and **Actions Read** for managed repositories. Actions Read is required to obtain real CI Evidence.
+The central `AW_CONTROL_TOKEN` needs Contents Read/Write, Pull Requests Read/Write, Commit Statuses Read/Write, and **Actions Read** where the corresponding central capability is enabled. Contents Write is used only by trusted Control steps such as validated dependency-repair publication, release publication, and stale-branch ref pruning. `AW_ADMIN_TOKEN` remains reserved for repository administration such as Settings, Rulesets, and SARIF publication.
 
 Central PR flow:
 
@@ -189,7 +189,9 @@ Action Worker re-fetches the PR base/head SHA, title, state, and diff from GitHu
 
 ### 2. Task dispatch
 
-`AW_EXECUTION_TOKEN` is the read-only credential used by task execution to fetch a pinned commit from managed private repositories; `Contents: Read` is recommended. After bootstrap download, Action Worker clears `AW_EXECUTION_TOKEN`, `AW_CONTROL_TOKEN`, `AW_ADMIN_TOKEN`, `AIG_ACCESS_KEY_AGENT`, and `AW_DISPATCH_TOKEN`. Downstream bootstrap code does not inherit central-control credentials.
+Action Worker materializes the exact immutable task source SHA before executing source-owned code. The checkout uses central Control authority with persisted Git credentials disabled. Before `bootstrap.sh` runs, Control credentials are removed and the source task receives only the local `AW_SOURCE_DIR` snapshot plus explicitly source-declared project secrets.
+
+`AW_EXECUTION_TOKEN` is deleted and must not be configured. Source bootstrap code does not clone its repository and does not inherit `AW_CONTROL_TOKEN`, `AW_ADMIN_TOKEN`, `AW_DISPATCH_TOKEN`, or the Agent gateway access key.
 
 Task Dispatch accepts one fixed event:
 
@@ -208,53 +210,31 @@ The payload contains only:
 }
 ```
 
-`bootstrap_ref` must be a full immutable commit SHA. The payload does not carry execution logic.
+`bootstrap_ref` must be a full immutable commit SHA. Source repositories own `.github/task-source.json`, project task contracts, entrypoints, and minimal secret scopes; scheduling and heavy execution remain in Action Worker.
 
 ### 3. Release governance
 
-Managed repositories no longer call a central reusable workflow directly. They build a validated release artifact and, only after the source build run has **completed successfully**, send a minimal Release Task:
+Release build and publication are centrally orchestrated. A source repository keeps its project build/package scripts and source-owned `.github/release.manifest.json`; Action Worker resolves an immutable source SHA, validates CI and provenance, selects an abstract Runner Profile, executes the declared build/package path, and produces governed release artifacts.
 
 ```text
-Build / Package
+immutable source
   ↓
-release artifact
-  ├─ release-manifest.json
-  └─ release assets
-  ↓ workflow_run: completed + success
-repository_dispatch: run-release
+source-owned .github/release.manifest.json
   ↓
-Action Worker
+Action Worker Build / Package
   ↓
-Validate Source → Verify CI → Verify Artifact → Validate Target → Publish → Re-download Verify
+release artifact + provenance
+  ↓
+Release Governance
+  ↓
+target publish
+  ↓
+re-download verification
+  ↓
+finalize / rollback
 ```
 
-The Release Dispatch contract contains only:
-
-```text
-schema_version
-request_id
-repository
-source_sha
-source_run_id
-artifact_name
-```
-
-`release-manifest.json` defines:
-
-```text
-target_repository
-release_key
-version
-release_name
-release_notes
-prerelease
-license { expression, file? }
-assets[] { name, sha256 }
-```
-
-Action Worker uses the central `AW_CONTROL_TOKEN` to read source-repository facts and Actions artifacts, and the same credential to write to the distribution target. Managed repositories do not hold target-repository write credentials. Release source and target access are controlled by `release-source` and `release-target` capabilities in `AW_REPOSITORY_POLICY`.
-
-The default release license is `Apache-2.0`. Each app or release may explicitly declare another license in the manifest. If `license.file` is set, that file must also be published and verified as a release asset. The distribution repository's root LICENSE does not override per-app release licensing.
+Source and target authority remain separate. `release-source` authorizes build inputs; `release-target` authorizes publication targets. Business repositories do not hold distribution-target write credentials.
 
 Tags use:
 
@@ -262,21 +242,35 @@ Tags use:
 <release-key>-v<semver>
 ```
 
-For example, `agentdock-v0.1.0`. Central publishing verifies the manifest and SHA256 values, creates a temporary Draft Release, uploads assets and centrally generated `.sha256` files, then re-downloads and verifies them. Any failure rolls back the release and tag created by that attempt.
+The central publisher validates the manifest and SHA256 values, publishes the declared assets and checksum files, re-downloads them for verification, and rolls back the release/tag created by that attempt on failure.
 
 ### 4. Deployment governance
 
-Deployment admission reuses:
+Deployment is source-owned but centrally executed:
 
 ```text
-validate-deploy-policy.yml@main
+immutable default-branch source
   ↓
-validate-source-policy.yml
+deploy capability
   ↓
-Managed repository Deploy
+source-owned .github/deploy.json
+  ↓
+Central CI
+  ↓
+synchronous Main Write Audit
+  ↓
+Runner Resolver
+  ↓
+generic source-script executor
+  ↓
+source-owned entrypoint
+  ↓
+health verification / rollback
 ```
 
-By default, only the current default-branch HEAD may be deployed. Historical deployment accepts only an immutable 40-character commit SHA and still requires successful CI. Cloudflare, server edge, SSH, Tailscale, database migration, health-check, and rollback implementation remain in the managed repository.
+The manifest declares only deployment intent, abstract `runner_profile`, environment, and a safe source-owned entrypoint. Application secrets are explicitly scoped by `.github/deploy.secrets.required` / `.github/deploy.secrets.allowed`; Action Worker strips Control credentials before the source entrypoint runs.
+
+Cloudflare, Server Edge, SSH, Tailscale, database migration, health-check, and rollback logic stay with the source repository. Heavy orchestration, provenance validation, privileged Runner resolution, secret isolation, and dispatch remain in Action Worker. Automatic deploy is fail-closed and runs only after successful Central CI and a trusted Main Write Guard for the exact source SHA.
 
 ## Change conventions
 
