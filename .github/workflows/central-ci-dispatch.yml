@@ -21,7 +21,8 @@ jobs:
       pr_number: ${{ steps.payload.outputs.pr_number || steps.ref_facts.outputs.pr_number }}
       base_sha: ${{ steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}
       head_sha: ${{ steps.facts.outputs.head_sha || steps.ref_facts.outputs.head_sha }}
-      control_ref: ${{ steps.ref_facts.outputs.control_ref || 'main' }}
+      control_ref: ${{ steps.ci_control.outputs.control_ref || steps.ref_facts.outputs.control_ref || 'main' }}
+      candidate_control: ${{ steps.ci_control.outputs.candidate_control || 'false' }}
       is_private: ${{ steps.visibility.outputs.is_private }}
       has_windows: ${{ steps.capabilities.outputs.has_windows }}
 
@@ -93,14 +94,6 @@ jobs:
           REPOSITORY: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
         run: node scripts/repository-policy.ts validate "$REPOSITORY" pr
 
-      - name: Resolve CI capabilities
-        id: capabilities
-        env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          REPOSITORY: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
-          CONTROL_REF: ${{ steps.ref_facts.outputs.control_ref || 'main' }}
-        run: node scripts/resolve-ci-capabilities.ts "$REPOSITORY" "$CONTROL_REF"
-
       - name: Resolve target visibility
         id: visibility
         env:
@@ -118,6 +111,24 @@ jobs:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
         run: node scripts/validate-control-access.ts "$REPOSITORY" "$PR_NUMBER"
+
+      - name: Resolve PR CI control
+        id: ci_control
+        if: github.event.action == 'run-central-ci'
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          EXPECTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+        run: node scripts/resolve-ci-control-ref.ts "$REPOSITORY" "$PR_NUMBER" "$EXPECTED_HEAD_SHA"
+
+      - name: Resolve CI capabilities
+        id: capabilities
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
+          CONTROL_REF: ${{ steps.ci_control.outputs.control_ref || steps.ref_facts.outputs.control_ref || 'main' }}
+        run: node scripts/resolve-ci-capabilities.ts "$REPOSITORY" "$CONTROL_REF"
 
       - name: Resolve PR facts
         id: facts
