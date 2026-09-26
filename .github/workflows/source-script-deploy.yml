@@ -91,6 +91,7 @@ jobs:
   deploy:
     name: Execute source-script deploy
     needs: prepare
+    environment: ${{ needs.prepare.outputs.environment }}
     runs-on: ${{ fromJSON(needs.prepare.outputs.runner_labels_json) }}
     timeout-minutes: 45
     env:

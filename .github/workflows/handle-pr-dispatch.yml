@@ -229,14 +229,14 @@ jobs:
           PR_STATUS_CONTEXT: validate-merge
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
 
-      - name: Validate AI Gateway access
+      - name: Validate AI endpoint access
         if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.base_plan.outputs.review_required == 'true' }}
         continue-on-error: true
         env:
-          AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
-          AI_GATEWAY_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
-          AI_GATEWAY_REQUIRED_MODEL: ${{ steps.base_plan.outputs.review_model }}
-        run: node scripts/validate-ai-gateway-access.ts
+          AI_ENDPOINT_URL: ${{ vars.AI_GATEWAY_URL }}
+          AI_ENDPOINT_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
+          AI_ENDPOINT_REQUIRED_MODEL: ${{ steps.base_plan.outputs.review_model }}
+        run: node scripts/validate-ai-endpoint-access.ts
 
       - name: Wait for AI queue
         if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.base_plan.outputs.review_required == 'true' }}
