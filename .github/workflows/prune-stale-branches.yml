@@ -43,7 +43,7 @@ jobs:
 
       - name: Prune fully subsumed branches
         env:
-          AW_ADMIN_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           BRANCH_PRUNE_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.is_dry_run || false }}
         run: node scripts/prune-stale-branches.ts
