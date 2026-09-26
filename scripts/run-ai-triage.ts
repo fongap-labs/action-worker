@@ -81,14 +81,14 @@ function requireRange(value: number, minimum: number, maximum: number, message: 
 }
 
 export function resolveEndpoint(baseUrl: string): string {
-  const gateway = baseUrl.replace(/\/+$/, "");
-  if (gateway.endsWith("/v1/chat/completions") || gateway.endsWith("/chat/completions")) {
-    return gateway;
+  const endpoint = baseUrl.replace(/\/+$/, "");
+  if (endpoint.endsWith("/v1/chat/completions") || endpoint.endsWith("/chat/completions")) {
+    return endpoint;
   }
-  if (gateway.endsWith("/v1")) {
-    return `${gateway}/chat/completions`;
+  if (endpoint.endsWith("/v1")) {
+    return `${endpoint}/chat/completions`;
   }
-  return `${gateway}/v1/chat/completions`;
+  return `${endpoint}/v1/chat/completions`;
 }
 
 export function validateDecision(value: unknown, maxReasonChars: number): value is TriageDecision {
@@ -166,7 +166,7 @@ async function requestTriage(
       signal: controller.signal,
     });
     if (!response.ok) {
-      throw new Error(`AI Gateway returned HTTP ${response.status}.`);
+      throw new Error(`AI endpoint returned HTTP ${response.status}.`);
     }
     return await response.text();
   } finally {
@@ -240,10 +240,10 @@ async function main(): Promise<void> {
     throw new CliError(`ERROR: triage policy not found: ${policyFile}`, 65);
   }
 
-  const gatewayUrl = process.env.AI_GATEWAY_URL ?? "";
+  const endpointUrl = process.env.AI_ENDPOINT_URL ?? "";
   const triageToken = process.env.TRIAGE_LLM_TOKEN ?? "";
-  if (!gatewayUrl) {
-    throw new CliError("ERROR: AI_GATEWAY_URL is required.");
+  if (!endpointUrl) {
+    throw new CliError("ERROR: AI_ENDPOINT_URL is required.");
   }
   if (!triageToken) {
     throw new CliError("ERROR: TRIAGE_LLM_TOKEN is required.");
@@ -319,7 +319,7 @@ async function main(): Promise<void> {
 
   let responseText: string;
   try {
-    responseText = await requestTriage(resolveEndpoint(gatewayUrl), triageToken, {
+    responseText = await requestTriage(resolveEndpoint(endpointUrl), triageToken, {
       model,
       stream: false,
       temperature: 0,
