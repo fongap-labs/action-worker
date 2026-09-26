@@ -58,7 +58,7 @@ test("deploy manifest owns intent but not concrete runner labels or secrets", ()
   }));
 });
 
-test("deploy manifest enforces adapter-specific entrypoint rules", () => {
+test("deploy manifest requires the source-script adapter and safe entrypoint", () => {
   assert.throws(() => parseDeployManifest({
     schema_version: "1",
     adapter: "source-script",
@@ -75,7 +75,7 @@ test("deploy manifest enforces adapter-specific entrypoint rules", () => {
     ignore_docs_only: true,
     runner_profile: "production-deploy",
     environment: "production",
-    entrypoint: "scripts/deploy.sh",
+    entrypoint: "",
   }));
 });
 
