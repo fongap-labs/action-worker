@@ -262,7 +262,7 @@ test("release, source, deploy, merge, and repository settings contracts remain i
     "steps.ingress.outputs.request_json",
     "validate-release-build-request.ts",
     "package-release-build.ts",
-    "$GITHUB_WORKSPACE/source/.github/release-build.json",
+    "$GITHUB_WORKSPACE/source/.github/release.manifest.json",
     "policies/runner.json",
     "fromJSON(matrix.runner_labels_json)",
     "AW_CONTROL_TOKEN",
@@ -277,7 +277,7 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   assert.equal(await exists("policies/release-build.json"), false);
   const releaseBuildValidator = await text("scripts/validate-release-build-request.ts");
   requireText(releaseBuildValidator, [
-    ".github/release-build.json",
+    ".github/release.manifest.json",
     "parseReleaseBuildManifest",
     "parseRunnerPolicy",
     "resolveRunnerProfile",
