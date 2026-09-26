@@ -35,8 +35,10 @@ jobs:
         id: source
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          DEPLOY_EXPECTED_REPOSITORY: fongap-labs/ai-gateway
           DEPLOY_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
-        run: node scripts/validate-deploy-source.ts fongap-labs/ai-gateway true
+        run: node scripts/validate-deploy-source.ts cloudflare-worker true policies/runner.json
 
   deploy:
     name: Deploy AI Gateway

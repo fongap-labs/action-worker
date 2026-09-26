@@ -40,7 +40,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/publish-dependency-repair.ts", "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/publish-security-scan.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/dispatch-scheduled-tasks.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
     ".github/workflows/aig-deploy.yml", ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
-    ".github/workflows/ci-intake.yml", ".github/workflows/dependency-repair.yml", ".github/workflows/main-write-audit.yml", ".github/workflows/main-write-guard.yml", ".github/workflows/model-discovery.yml", ".github/workflows/pr-intake.yml", ".github/workflows/release-build.yml", ".github/workflows/security-scan.yml", ".github/workflows/security-scan-intake.yml", ".github/workflows/server-edge-deploy.yml",
+    ".github/workflows/ci-intake.yml", ".github/workflows/dependency-repair.yml", ".github/workflows/main-write-audit.yml", ".github/workflows/main-write-guard.yml", ".github/workflows/model-discovery.yml", ".github/workflows/pr-intake.yml", ".github/workflows/release-build.yml", ".github/workflows/security-scan.yml", ".github/workflows/security-scan-intake.yml", ".github/workflows/source-script-deploy.yml",
     ".github/workflows/sync-tool-release.yml", ".github/workflows/task-intake.yml", ".github/workflows/task-source-dispatch.yml", ".github/workflows/validate-central-merge.yml",
     ".github/workflows/cancel-pr-work.yml",
   ];
@@ -467,7 +467,8 @@ test("AI Gateway deploy execution is central and source-gated", async () => {
   const workflow = await text(".github/workflows/aig-deploy.yml");
   requireText(workflow, [
     "types: [run-ai-gateway-deploy]",
-    "validate-deploy-source.ts fongap-labs/ai-gateway true",
+    "DEPLOY_EXPECTED_REPOSITORY: fongap-labs/ai-gateway",
+    "validate-deploy-source.ts cloudflare-worker true policies/runner.json",
     "vars.AIG_IS_DEPLOY_ENABLED != 'false'",
     "AIG_OAUTH_PROVIDERS: ${{ vars.AIG_OAUTH_PROVIDERS }}",
     "AIG_TOKEN_ENCRYPTION_KEY: ${{ secrets.AIG_TOKEN_ENCRYPTION_KEY }}",
@@ -494,18 +495,22 @@ test("AI Gateway deploy execution is central and source-gated", async () => {
   ]);
 });
 
-test("Server Edge deploy execution is central and reuses project deployment logic", async () => {
-  const workflow = await text(".github/workflows/server-edge-deploy.yml");
+test("source-script deploy execution is manifest-driven and repository-agnostic", async () => {
+  const workflow = await text(".github/workflows/source-script-deploy.yml");
   requireText(workflow, [
-    "types: [run-server-edge-deploy]",
-    "validate-deploy-source.ts fongap-labs/internal-vault true",
-    "SERVER_EDGE_TRANSPORT",
-    "SERVER_EDGE_TARGET_HOST",
-    "SERVER_EDGE_SECRET_BUNDLE",
+    "types: [run-source-script-deploy]",
+    "workflow_dispatch:",
+    "source_repository:",
+    "source_sha:",
+    "validate-deploy-source.ts source-script true policies/runner.json",
+    "AW_REPOSITORY_POLICY",
+    "runner_labels_json",
+    "fromJSON(needs.prepare.outputs.runner_labels_json)",
+    "needs.prepare.outputs.entrypoint",
+    "Execute source-owned deploy entrypoint",
     "tailscale/github-action",
-    "bash environments/server-edge/deploy.sh",
   ]);
-  assert.doesNotMatch(workflow, /^\s+EDGE_TARGET_HOST:\s*\$\{\{\s*vars\./m);
+  assert.doesNotMatch(workflow, /fongap-labs\/internal-vault|environments\/server-edge\/deploy\.sh/);
   assert.equal(workflow.includes("schedule:"), false);
 });
 

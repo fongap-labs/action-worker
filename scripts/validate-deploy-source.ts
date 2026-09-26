@@ -10,8 +10,13 @@ import {
   handleError,
   isMain,
   parseJson,
+  readJson,
 } from "./runtime-command.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
+import {
+  type DeployAdapter,
+  resolveDeployManifest,
+} from "./deploy-manifest.ts";
 
 export type DeployRequest = {
   schema_version: "1";
@@ -31,18 +36,26 @@ function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boo
   return actual.length === expected.length && actual.every((item, index) => item === expected[index]);
 }
 
-export function parseDeployRequest(value: unknown, expectedRepository: string): DeployRequest {
+export function parseDeployRequest(value: unknown): DeployRequest {
   if (!isJsonRecord(value)
     || !exactKeys(value, ["request_id", "schema_version", "source_repository", "source_sha"])
     || value.schema_version !== "1"
     || typeof value.request_id !== "string" || !requestPattern.test(value.request_id)
     || typeof value.source_repository !== "string" || !repositoryPattern.test(value.source_repository)
-    || value.source_repository !== expectedRepository
     || typeof value.source_sha !== "string" || !shaPattern.test(value.source_sha)
   ) {
     throw new CliError("::error::Deploy request is invalid.", 64);
   }
   return value as DeployRequest;
+}
+
+export function assertExpectedRepository(request: DeployRequest, expectedRepository: string): void {
+  if (!expectedRepository) {
+    return;
+  }
+  if (!repositoryPattern.test(expectedRepository) || request.source_repository !== expectedRepository) {
+    throw new CliError("::error::Deploy request repository does not match the executor contract.", 64);
+  }
 }
 
 export function hasTrustedCiEvidence(value: unknown): boolean {
@@ -56,15 +69,28 @@ export function hasTrustedCiEvidence(value: unknown): boolean {
 }
 
 async function main(): Promise<void> {
-  const [expectedRepository = "", requireDefaultHeadRaw = "true"] = process.argv.slice(2);
-  if (!repositoryPattern.test(expectedRepository) || !["true", "false"].includes(requireDefaultHeadRaw)) {
-    throw new CliError("Usage: validate-deploy-source.ts <expected-repository> <require-default-head>", 64);
+  const [
+    expectedAdapterRaw = "",
+    requireDefaultHeadRaw = "true",
+    runnerPolicyPath = "policies/runner.json",
+  ] = process.argv.slice(2);
+
+  if (!["cloudflare-worker", "source-script"].includes(expectedAdapterRaw)
+    || !["true", "false"].includes(requireDefaultHeadRaw)
+  ) {
+    throw new CliError(
+      "Usage: validate-deploy-source.ts <expected-adapter> <require-default-head> [runner-policy]",
+      64,
+    );
   }
+  const expectedAdapter = expectedAdapterRaw as DeployAdapter;
 
   const token = process.env.AW_CONTROL_TOKEN ?? "";
   const rawRequest = process.env.DEPLOY_REQUEST_JSON ?? "";
-  if (!token) {
-    throw new CliError("::error::AW_CONTROL_TOKEN is unavailable.", 77);
+  const rawRepositoryPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
+  const expectedRepository = process.env.DEPLOY_EXPECTED_REPOSITORY ?? "";
+  if (!token || !rawRepositoryPolicy) {
+    throw new CliError("::error::AW_CONTROL_TOKEN and AW_REPOSITORY_POLICY are required.", 77);
   }
   if (!rawRequest) {
     throw new CliError("::error::DEPLOY_REQUEST_JSON is unavailable.", 64);
@@ -72,8 +98,8 @@ async function main(): Promise<void> {
 
   const request = parseDeployRequest(
     parseJson(rawRequest, "::error::DEPLOY_REQUEST_JSON must be valid JSON.", 64),
-    expectedRepository,
   );
+  assertExpectedRepository(request, expectedRepository);
 
   const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
   const repository = await reader.get(`repos/${request.source_repository}`);
@@ -96,6 +122,20 @@ async function main(): Promise<void> {
     );
   }
 
+  const manifest = await resolveDeployManifest(
+    request.source_repository,
+    resolvedSha,
+    parseJson(rawRepositoryPolicy, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
+    await readJson(runnerPolicyPath),
+    reader,
+  );
+  if (manifest.adapter !== expectedAdapter) {
+    throw new CliError(
+      `::error::Deploy adapter mismatch: expected=${expectedAdapter} actual=${manifest.adapter}.`,
+      65,
+    );
+  }
+
   const status = await reader.get(`repos/${request.source_repository}/commits/${resolvedSha}/status`);
   if (!hasTrustedCiEvidence(status)) {
     throw new CliError("::error::Deploy source has no successful Action Worker CI Evidence.", 65);
@@ -107,6 +147,11 @@ async function main(): Promise<void> {
     `source_repository=${request.source_repository}`,
     `source_sha=${resolvedSha}`,
     `default_branch=${defaultBranch}`,
+    `adapter=${manifest.adapter}`,
+    `runner_profile=${manifest.runner_profile}`,
+    `runner_labels_json=${manifest.runner_labels_json}`,
+    `environment=${manifest.environment}`,
+    `entrypoint=${manifest.entrypoint}`,
   ]);
 
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [
@@ -115,6 +160,8 @@ async function main(): Promise<void> {
     `- Repository: ${request.source_repository}`,
     `- Commit: ${resolvedSha}`,
     `- Default branch: ${defaultBranch}`,
+    `- Adapter: ${manifest.adapter}`,
+    `- Runner profile: ${manifest.runner_profile}`,
     `- Require default HEAD: ${requireDefaultHeadRaw}`,
     "- CI Evidence: trusted Action Worker success",
     `- Main Write Guard: success via PR #${mainWrite.pr_number}`,

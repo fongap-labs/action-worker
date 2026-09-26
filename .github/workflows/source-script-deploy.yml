@@ -1,24 +1,37 @@
-name: Server Edge Deploy
+name: Source Script Deploy
 
 on:
   repository_dispatch:
-    types: [run-server-edge-deploy]
+    types: [run-source-script-deploy]
+  workflow_dispatch:
+    inputs:
+      source_repository:
+        description: Managed source repository
+        required: true
+        type: string
+      source_sha:
+        description: Exact 40-character source commit SHA
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: server-edge-deploy
+  group: source-script-deploy-${{ github.event.client_payload.source_repository || inputs.source_repository || 'manual' }}
   cancel-in-progress: false
 
 jobs:
   prepare:
-    name: Validate Server Edge deploy request
+    name: Validate source-script deploy request
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
       source_repository: ${{ steps.source.outputs.source_repository }}
       source_sha: ${{ steps.source.outputs.source_sha }}
+      runner_labels_json: ${{ steps.source.outputs.runner_labels_json }}
+      environment: ${{ steps.source.outputs.environment }}
+      entrypoint: ${{ steps.source.outputs.entrypoint }}
 
     steps:
       - name: Checkout control plane
@@ -31,20 +44,52 @@ jobs:
         with:
           node-version: 24
 
+      - name: Resolve repository dispatch request
+        id: dispatch_request
+        if: github.event_name == 'repository_dispatch'
+        env:
+          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          request="$(jq -c . <<< "$PAYLOAD")"
+          echo "request_json=$request" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve manual deploy request
+        id: manual_request
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SOURCE_REPOSITORY: ${{ inputs.source_repository }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$SOURCE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          request="$(
+            jq -cn               --arg request_id "manual-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"               --arg source_repository "$SOURCE_REPOSITORY"               --arg source_sha "$SOURCE_SHA"               '{
+                schema_version: "1",
+                request_id: $request_id,
+                source_repository: $source_repository,
+                source_sha: $source_sha
+              }'
+          )"
+          echo "request_json=$request" >> "$GITHUB_OUTPUT"
+
       - name: Validate deploy source
         id: source
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          DEPLOY_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
-        run: node scripts/validate-deploy-source.ts fongap-labs/internal-vault true
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          DEPLOY_REQUEST_JSON: ${{ steps.dispatch_request.outputs.request_json || steps.manual_request.outputs.request_json }}
+        run: node scripts/validate-deploy-source.ts source-script true policies/runner.json
 
   deploy:
-    name: Deploy Server Edge
+    name: Execute source-script deploy
     needs: prepare
-    runs-on: ubuntu-24.04
+    runs-on: ${{ fromJSON(needs.prepare.outputs.runner_labels_json) }}
     timeout-minutes: 30
     env:
-      SERVER_EDGE_ENVIRONMENT: server-edge-cloud-edge
       SERVER_EDGE_TRANSPORT: ${{ vars.SERVER_EDGE_TRANSPORT }}
       SERVER_EDGE_TARGET_HOST: ${{ vars.SERVER_EDGE_TARGET_HOST }}
       SERVER_EDGE_TARGET_USER: ${{ vars.SERVER_EDGE_TARGET_USER }}
@@ -58,7 +103,7 @@ jobs:
       SERVER_EDGE_TAILSCALE_AUTH_KEY: ${{ secrets.SERVER_EDGE_TAILSCALE_AUTH_KEY }}
 
     steps:
-      - name: Checkout Internal Vault
+      - name: Checkout deploy source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ needs.prepare.outputs.source_repository }}
@@ -67,7 +112,7 @@ jobs:
           path: target
           persist-credentials: false
 
-      - name: Validate central deployment inputs
+      - name: Validate source-script adapter inputs
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -99,7 +144,7 @@ jobs:
           esac
 
           if [ "${#missing[@]}" -gt 0 ]; then
-            printf '::error::Missing Action Worker deployment configuration: %s\n' "$(IFS=,; echo "${missing[*]}")" >&2
+            printf '::error::Missing source-script deployment configuration: %s\n' "$(IFS=,; echo "${missing[*]}")" >&2
             exit 77
           fi
 
@@ -108,13 +153,14 @@ jobs:
         uses: tailscale/github-action@306e68a486fd2350f2bfc3b19fcd143891a4a2d8
         with:
           authkey: ${{ secrets.SERVER_EDGE_TAILSCALE_AUTH_KEY }}
-          hostname: server-edge-deploy-${{ github.run_id }}
+          hostname: source-script-deploy-${{ github.run_id }}
           args: --accept-dns=false
 
-      - name: Deploy Server Edge
+      - name: Execute source-owned deploy entrypoint
         working-directory: target
         env:
-          EDGE_ENVIRONMENT: ${{ env.SERVER_EDGE_ENVIRONMENT }}
+          DEPLOY_ENTRYPOINT: ${{ needs.prepare.outputs.entrypoint }}
+          EDGE_ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
           EDGE_REF: ${{ needs.prepare.outputs.source_sha }}
           EDGE_TRANSPORT: ${{ env.SERVER_EDGE_TRANSPORT }}
           EDGE_TARGET_HOST: ${{ env.SERVER_EDGE_TARGET_HOST }}
@@ -126,17 +172,20 @@ jobs:
           EDGE_CONFIG_BUNDLE: ${{ env.SERVER_EDGE_CONFIG_BUNDLE }}
           SSH_PRIVATE_KEY: ${{ env.SERVER_EDGE_SSH_PRIVATE_KEY }}
           EDGE_SECRET_BUNDLE: ${{ env.SERVER_EDGE_SECRET_BUNDLE }}
-        run: bash environments/server-edge/deploy.sh
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          bash "$DEPLOY_ENTRYPOINT"
 
       - name: Deployment summary
         if: always()
         shell: bash
         run: |
           {
-            echo "## Server Edge central deployment"
+            echo "## Source Script central deployment"
             echo
             echo "- Source: ${{ needs.prepare.outputs.source_repository }}@${{ needs.prepare.outputs.source_sha }}"
-            echo "- Environment: ${{ env.SERVER_EDGE_ENVIRONMENT }}"
-            echo "- Transport: ${{ env.SERVER_EDGE_TRANSPORT }}"
+            echo "- Environment: ${{ needs.prepare.outputs.environment }}"
+            echo "- Entrypoint: ${{ needs.prepare.outputs.entrypoint }}"
             echo "- Result: ${{ job.status }}"
           } >> "$GITHUB_STEP_SUMMARY"
