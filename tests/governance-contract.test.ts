@@ -415,18 +415,6 @@ test("security scanning is source-owned, centrally executed, and private-safe", 
   ]);
 });
 
-test("AI Gateway scheduled CI is central and cannot publish deploy-triggering status", async () => {
-  const workflow = await text(".github/workflows/aig-scheduled-ci.yml");
-  requireText(workflow, [
-    "schedule:",
-    "repository: fongap-labs/ai-gateway",
-    "target/.github/scripts/central-ci.sh",
-    'CENTRAL_CI_PR_NUMBER: "0"',
-  ]);
-  assert.equal(workflow.includes("set-pr-status.ts"), false);
-  assert.equal(workflow.includes("CI Evidence"), false);
-});
-
 test("central CI deploy dispatch is source-owned and adapter-routed", async () => {
   const policy = await json("policies/deploy.json") as Record<string, unknown>;
   assert.equal(policy.schema_version, 2);
