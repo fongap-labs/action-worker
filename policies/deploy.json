@@ -5,7 +5,7 @@
       "event_type": "run-ai-gateway-deploy"
     },
     "source-script": {
-      "event_type": "run-server-edge-deploy"
+      "event_type": "run-source-script-deploy"
     }
   }
 }
