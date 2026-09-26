@@ -256,7 +256,7 @@ jobs:
         if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.base_plan.outputs.triage_required == 'true' }}
         continue-on-error: true
         env:
-          AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
+          AI_ENDPOINT_URL: ${{ vars.AI_GATEWAY_URL }}
           TRIAGE_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
           TRIAGE_MODEL: ${{ steps.base_plan.outputs.triage_model }}
           BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
@@ -311,7 +311,7 @@ jobs:
         if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.plan.outputs.review_required == 'true' }}
         continue-on-error: true
         env:
-          AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
+          AI_ENDPOINT_URL: ${{ vars.AI_GATEWAY_URL }}
           OCR_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
           REVIEW_MODEL: ${{ steps.plan.outputs.review_model }}
           BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
