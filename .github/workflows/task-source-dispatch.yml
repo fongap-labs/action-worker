@@ -14,15 +14,13 @@ on:
         required: true
         type: string
   schedule:
-    - cron: "30 0 * * *"
-    - cron: "30 12 * * *"
-    - cron: "30 12 * * 0"
+    - cron: "*/5 * * * *"
 
 permissions: {}
 
 concurrency:
-  group: task-source-${{ github.event.client_payload.repository || inputs.repository || github.event_name }}-${{ github.event.client_payload.head_sha || github.run_id }}
-  cancel-in-progress: true
+  group: task-source-${{ github.event_name }}-${{ github.event.client_payload.repository || inputs.repository || 'global' }}
+  cancel-in-progress: false
 
 jobs:
   dispatch:
@@ -278,5 +276,5 @@ jobs:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_INGRESS_TOKEN: ${{ github.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
-          TASK_SOURCE_SCHEDULE: ${{ github.event.schedule }}
+          TASK_SOURCE_LOOKBACK_MINUTES: "20"
         run: node scripts/dispatch-scheduled-tasks.ts
