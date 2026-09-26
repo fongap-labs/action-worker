@@ -84,10 +84,22 @@ async function main(): Promise<void> {
   }
 
   const policy = parseJson(rawPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65);
-  const repositories = repositoriesForCapability(policy, "pr");
-  if (repositories.length === 0) {
+  const managedRepositories = repositoriesForCapability(policy, "pr");
+  if (managedRepositories.length === 0) {
     throw new CliError("::error::No managed PR repositories are configured.", 65);
   }
+
+  const requestedRepository = (process.env.MAIN_WRITE_AUDIT_REPOSITORY ?? "").trim();
+  if (requestedRepository && !repositoryPattern.test(requestedRepository)) {
+    throw new CliError("::error::MAIN_WRITE_AUDIT_REPOSITORY is invalid.", 64);
+  }
+  if (requestedRepository && !managedRepositories.includes(requestedRepository)) {
+    throw new CliError(
+      `::error::MAIN_WRITE_AUDIT_REPOSITORY is not a managed PR repository: ${requestedRepository}.`,
+      77,
+    );
+  }
+  const repositories = requestedRepository ? [requestedRepository] : managedRepositories;
 
   const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
   const results: AuditResult[] = [];
