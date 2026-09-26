@@ -161,19 +161,19 @@ jobs:
 
 未配置时可选 AI Agent 默认关闭。当前建议保持 `review.enabled=false`，先让确定性治理独立稳定运行；Writing、Review 或未来其他 Agent 可以分别调整，不再维护 Review 专用开关。
 
-Action Worker 使用单一 Repository Variable `AW_REPOSITORY_POLICY` 管理仓库能力。每个仓库只登记一次，可授予 `pr`、`task`、`release-source`、`release-target`：
+Action Worker 使用单一 Repository Variable `AW_REPOSITORY_POLICY` 管理仓库能力。每个仓库只登记一次，只授予实际需要的 `pr`、`task`、`release-source`、`release-target` 和/或 `deploy`：
 
 ```json
 {
-  "fongap-labs/ai-gateway": ["pr", "task"],
+  "fongap-labs/ai-gateway": ["pr", "task", "deploy"],
   "fongap-labs/delta": ["pr", "task", "release-source"],
-  "fongap-labs/external-vault": ["pr", "task", "release-source", "release-target"]
+  "fongap-labs/external-vault": ["pr", "task", "release-target"]
 }
 ```
 
 新增、删除或调整仓库权限只修改该 Variable，不修改 Action Worker 源码。
 
-中央 `AW_CONTROL_TOKEN` 对受管业务仓至少需要 Contents Read、Pull Requests Read/Write、Commit Statuses Read/Write 和 **Actions Read**；Actions Read 用于读取真实 CI Evidence。
+中央 `AW_CONTROL_TOKEN` 在启用相应能力的受管仓上需要 Contents Read/Write、Pull Requests Read/Write、Commit Statuses Read/Write 和 **Actions Read**。Contents Write 只允许可信 Control 步骤使用，例如经过校验的依赖修复回写、Release 发布和 stale branch ref 清理。`AW_ADMIN_TOKEN` 继续只承担 Repository Settings、Rulesets、SARIF 发布等管理权限。
 
 中央执行链路：
 
@@ -193,7 +193,9 @@ Action Worker 会重新从 GitHub 获取 PR 的 base/head SHA、标题、状态�
 
 ### 2. 任务调度
 
-`AW_EXECUTION_TOKEN` 是 Task 执行读取受管私有仓固定 Commit 的只读凭据（建议仅 `Contents: Read`）。bootstrap 下载完成后，Action Worker 会清除 `AW_EXECUTION_TOKEN`、`AW_CONTROL_TOKEN`、`AW_ADMIN_TOKEN`、`AIG_ACCESS_KEY_AGENT` 与 `AW_DISPATCH_TOKEN`，业务 bootstrap 不继承中央控制凭据。
+Action Worker 会先物化精确且不可变的 Task source SHA，再执行 source-owned 代码。中央 checkout 使用 Control authority，且不持久化 Git 凭据。`bootstrap.sh` 执行前会清除中央 Control 凭据，source task 只获得本地 `AW_SOURCE_DIR` 快照以及源仓显式声明的最小项目 Secret scope。
+
+`AW_EXECUTION_TOKEN` 已删除，不再配置。业务 bootstrap 不再自行 clone 仓库，也不会继承 `AW_CONTROL_TOKEN`、`AW_ADMIN_TOKEN`、`AW_DISPATCH_TOKEN` 或 Agent gateway access key。
 
 Task Dispatch 仅接受固定事件：
 
@@ -212,53 +214,31 @@ payload 仅包含：
 }
 ```
 
-`bootstrap_ref` 必须是完整 Commit SHA；payload 不承载执行逻辑。
+`bootstrap_ref` 必须是完整不可变 Commit SHA。源仓拥有 `.github/task-source.json`、project task contract、entrypoint 和最小 Secret scope；调度与重执行继续统一在 Action Worker。
 
 ### 3. 发布治理
 
-Release 不再由业务仓直接调用中央 reusable workflow。业务仓只负责构建经过自身验证的发布 artifact，并在源构建 Run **完成且成功后**发送最小 Release Task：
+Release Build 与发布统一由中央编排。源仓只保留项目 build/package 脚本和 source-owned `.github/release.manifest.json`；Action Worker 解析不可变 source SHA、校验 CI 与 provenance、选择抽象 Runner Profile，并执行声明的构建/打包路径，生成受治理的 Release artifact。
 
 ```text
-Build / Package
+immutable source
   ↓
-release artifact
-  ├─ release-manifest.json
-  └─ release assets
-  ↓ workflow_run: completed + success
-repository_dispatch: run-release
+source-owned .github/release.manifest.json
   ↓
-Action Worker
+Action Worker Build / Package
   ↓
-Validate Source → Verify CI → Verify Artifact → Validate Target → Publish → Re-download Verify
+release artifact + provenance
+  ↓
+Release Governance
+  ↓
+target publish
+  ↓
+re-download verification
+  ↓
+finalize / rollback
 ```
 
-Release Dispatch 合同只包含：
-
-```text
-schema_version
-request_id
-repository
-source_sha
-source_run_id
-artifact_name
-```
-
-`release-manifest.json` 定义：
-
-```text
-target_repository
-release_key
-version
-release_name
-release_notes
-prerelease
-license { expression, file? }
-assets[] { name, sha256 }
-```
-
-Action Worker 使用中央 `AW_CONTROL_TOKEN` 读取源仓事实与 Actions artifact，并使用同一凭据写目标分发仓；业务仓不持有目标仓写凭据。Release 来源和目标权限由 `AW_REPOSITORY_POLICY` 中的 `release-source` / `release-target` capability 控制。
-
-Release 默认采用 `Apache-2.0`。每个 App / Release 可以在 manifest 中显式声明其他许可证；如声明 `license.file`，对应许可证文件必须作为 Release asset 一并发布并校验。目标分发仓自己的根 LICENSE 不覆盖各 App 的 Release 许可证。
+Source 与 Target authority 分离：`release-source` 授权构建来源，`release-target` 授权发布目标。业务仓不持有分发目标仓写凭据。
 
 Tag 统一使用：
 
@@ -266,21 +246,35 @@ Tag 统一使用：
 <release-key>-v<semver>
 ```
 
-例如 `agentdock-v0.1.0`。中央发布会先验证 manifest 与 SHA256，创建临时 Draft Release，上传资产及中央生成的 `.sha256` 文件，重新下载复验；任何失败都会回滚本次 Release 与 Tag。
+中央 Publisher 校验 manifest 与 SHA256，发布声明的资产及 checksum 文件，再重新下载验证；任何失败都会回滚本次创建的 Release / Tag。
 
 ### 4. 部署治理
 
-部署准入统一复用：
+Deploy 由源仓拥有合同、由中央执行：
 
 ```text
-validate-deploy-policy.yml@main
+immutable default-branch source
   ↓
-validate-source-policy.yml
+deploy capability
   ↓
-业务仓 Deploy
+source-owned .github/deploy.json
+  ↓
+Central CI
+  ↓
+synchronous Main Write Audit
+  ↓
+Runner Resolver
+  ↓
+generic source-script executor
+  ↓
+source-owned entrypoint
+  ↓
+health verification / rollback
 ```
 
-默认只允许部署当前默认分支 HEAD。确需部署历史版本时，只接受不可变 40 位 Commit SHA，并仍要求成功 CI。Cloudflare、Server Edge、SSH、Tailscale、数据库迁移、健康检查和回滚实现继续留在业务仓。
+Manifest 只声明部署意图、抽象 `runner_profile`、环境和安全的 source-owned entrypoint。应用 Secret 通过 `.github/deploy.secrets.required` / `.github/deploy.secrets.allowed` 显式最小化声明；执行 source entrypoint 前，Action Worker 会剥离 Control 凭据。
+
+Cloudflare、Server Edge、SSH、Tailscale、数据库迁移、健康检查和回滚实现留在源仓；重编排、provenance 校验、privileged Runner 解析、Secret 隔离与 dispatch 统一留在 Action Worker。自动 Deploy fail closed，只有精确 source SHA 同时通过 Central CI 和可信 Main Write Guard 后才允许执行。
 
 ## 变更规范
 
