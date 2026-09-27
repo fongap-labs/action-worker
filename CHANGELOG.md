@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: add a code-minimality agent skill and AI review rules that prefer reuse, deletion, and minimal change sets without weakening safety or gates.
+
 - fix: detect PR project types from changed monorepo paths before falling back to repository-root manifests.
 
 - fix: surface detailed source-naming diagnostics when the Python naming validator rejects a change.
