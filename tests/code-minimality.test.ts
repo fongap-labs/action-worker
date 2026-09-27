@@ -35,7 +35,13 @@ async function minimalityRuleTexts(path: string): Promise<string[]> {
     .map((entry) => entry.rule as string);
 }
 
+async function allRuleEntries(path: string): Promise<RuleEntry[]> {
+  const value = await json(path);
+  return Array.isArray(value.rules) ? (value.rules as RuleEntry[]) : [];
+}
+
 const minimalityReviewRuleFiles = ["rules/code.json", "rules/architecture.json"];
+const allReviewRuleFiles = ["rules/code.json", "rules/architecture.json", "rules/security.json", "rules/release.json", "rules/workflow.json"];
 
 test("code-minimality skill carries the reuse ladder, minimal change set, deletion, and root-cause rules", async () => {
   const skill = await text("skills/code-minimality/SKILL.md");
@@ -100,11 +106,31 @@ test("code-minimality is registered in the skills table and the agent execution 
   requireText(guide, ["skills/agent-execution/SKILL.md", "skills/*/SKILL.md"]);
 });
 
+test("each review rule file carries a single merged **/* entry so OpenCodeReview applies it", async () => {
+  // OpenCodeReview v1.12.9 applies only the first matching rule per path pattern;
+  // a second entry with the same pattern is silently dropped. Each review rule file
+  // must therefore keep exactly one "**/*" entry with the guidance merged into it.
+  for (const path of allReviewRuleFiles) {
+    const entries = await allRuleEntries(path);
+    assert.ok(entries.length > 0, `${path} must define at least one rule`);
+    const starEntries = entries.filter((entry) => entry.path === "**/*");
+    assert.equal(starEntries.length, 1, `${path} must have exactly one "**/*" rule entry`);
+    assert.equal(starEntries[0]?.merge_system_rule, true, `${path} "**/*" entry must merge into the system rule`);
+  }
+});
+
 test("code and architecture reviews detect duplicate implementation, over-abstraction, and unnecessary dependencies", async () => {
   for (const path of minimalityReviewRuleFiles) {
-    const rules = await minimalityRuleTexts(path);
-    assert.equal(rules.length, 1, `${path} must carry exactly one code-minimality rule`);
-    const rule = rules[0] ?? "";
+    const entries = await allRuleEntries(path);
+    assert.equal(entries.length, 1, `${path} must carry exactly one rule entry`);
+    const rule = typeof entries[0]?.rule === "string" ? (entries[0].rule as string) : "";
+    // minimality guidance is merged into the same single entry as the review focus
+    if (path === "rules/code.json") {
+      assert.ok(rule.includes("Focus on correctness"), `${path} must keep the code review focus in the merged entry`);
+    } else {
+      assert.ok(rule.includes("Review for breaking changes"), `${path} must keep the architecture review focus in the merged entry`);
+    }
+    assert.ok(rule.includes("code-minimality"), `${path} must merge code-minimality into the single rule entry`);
     assert.match(rule, /reimplement/, `${path} must flag duplicate implementation`);
     assert.match(rule, /reused/, `${path} must require reuse of existing capability`);
     for (const layer of ["wrapper", "adapter", "factory", "registry", "manager", "service"]) {

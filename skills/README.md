@@ -46,7 +46,7 @@ A skill must not weaken deterministic gates or override project-specific mandato
 
 - Scope: advisory discipline for any task or review that adds or changes code. It is not a separate execution engine and adds no runtime, dependency, or extra model call.
 - Agent execution: applied through this standard skill chain; agents receive it as text rules like every other skill.
-- AI Review: the same rules ride the existing single AI Review call as additional entries in `rules/code.json` (code, refactor, and implementation reviews) and `rules/architecture.json` (architecture reviews). Review output stays in the existing format.
+- AI Review: the minimality guidance is merged into the single existing rule entry in `rules/code.json` (code, refactor, and implementation reviews) and `rules/architecture.json` (architecture reviews), so it rides the existing single AI Review call. OpenCodeReview applies only the first matching rule per path pattern, so each review rule file keeps exactly one `**/*` entry. Review output stays in the existing format.
 - Safety boundary: it never justifies removing or weakening security, input validation, error handling, permission checks, access control, data-loss prevention, auditability, accessibility, release safety, or deterministic gates, and it never bypasses CI, auto-approves a PR, or lowers test requirements.
 - Deterministic gates: unchanged. AI Review stays advisory; CI / PR / deterministic policy remains the merge authority.
 

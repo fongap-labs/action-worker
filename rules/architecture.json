@@ -3,12 +3,7 @@
     {
       "path": "**/*",
       "merge_system_rule": true,
-      "rule": "Review for breaking changes, migration safety, API and compatibility contracts, deployment impact, rollback behavior, dependency direction, and cross-component regressions. Check whether implementation matches declared CHANGELOG impact."
-    },
-    {
-      "path": "**/*",
-      "merge_system_rule": true,
-      "rule": "Apply code-minimality review to structure. Flag abstraction layers (wrapper, adapter, factory, registry, manager, service, configuration) added without a demonstrated need; reimplemented or duplicated authority that an existing module, helper, or installed dependency already provides and could be reused instead; speculative generality or YAGNI-style extension beyond the declared change; change scope that could shrink; code that could be deleted instead of extended; and bug fixes that stack workarounds or fallbacks instead of repairing the root cause. Prefer the standard library and platform-native capability before any new dependency. Tag these findings with an internal category: delete, reuse, stdlib, native, yagni, shrink, or root-cause. Keep the existing review output format. Code minimality is advisory only: it must not weaken security, input validation, error handling, permission or access control, auditability, accessibility, release safety, or deterministic gates, and fewer lines never justify cutting them."
+      "rule": "Review for breaking changes, migration safety, API and compatibility contracts, deployment impact, rollback behavior, dependency direction, and cross-component regressions. Check whether implementation matches declared CHANGELOG impact.\n\nApply code-minimality review to structure. Flag abstraction layers (wrapper, adapter, factory, registry, manager, service, configuration) added without a demonstrated need; reimplemented or duplicated authority that an existing module, helper, or installed dependency already provides and could be reused instead; speculative generality or YAGNI-style extension beyond the declared change; change scope that could shrink; code that could be deleted instead of extended; and bug fixes that stack workarounds or fallbacks instead of repairing the root cause. Prefer the standard library and platform-native capability before any new dependency. Tag these findings with an internal category: delete, reuse, stdlib, native, yagni, shrink, or root-cause. Keep the existing review output format. Code minimality is advisory only: it must not weaken security, input validation, error handling, permission or access control, auditability, accessibility, release safety, or deterministic gates, and fewer lines never justify cutting them."
     }
   ]
 }
