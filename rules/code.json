@@ -3,12 +3,7 @@
     {
       "path": "**/*",
       "merge_system_rule": true,
-      "rule": "Focus on correctness, regression risk, error handling, interface consistency, and missing tests. Distinguish concrete defects from optional improvements."
-    },
-    {
-      "path": "**/*",
-      "merge_system_rule": true,
-      "rule": "Apply code-minimality review. Flag when the diff reimplements an existing helper, module, or installed dependency that could be reused; introduces an unnecessary abstraction such as a wrapper, adapter, factory, registry, manager, or service layer; adds a third-party dependency where the standard library or a platform-native capability already suffices; could shrink its change scope; could delete code instead of extending it; or adds YAGNI-style speculative capability. For bug fixes, flag symptom patches (workaround, special case, extra fallback) that leave the root cause unrepaired. Tag these findings with an internal category: delete, reuse, stdlib, native, yagni, shrink, or root-cause. Keep the existing review output format. Code minimality is advisory only: never recommend removing or weakening input validation, error handling, permission or security checks, auditability, accessibility, or deterministic gate behavior, and never accept fewer lines as a reason to cut them."
+      "rule": "Focus on correctness, regression risk, error handling, interface consistency, and missing tests. Distinguish concrete defects from optional improvements.\n\nApply code-minimality review. Flag when the diff reimplements an existing helper, module, or installed dependency that could be reused; introduces an unnecessary abstraction such as a wrapper, adapter, factory, registry, manager, or service layer; adds a third-party dependency where the standard library or a platform-native capability already suffices; could shrink its change scope; could delete code instead of extending it; or adds YAGNI-style speculative capability. For bug fixes, flag symptom patches (workaround, special case, extra fallback) that leave the root cause unrepaired. Tag these findings with an internal category: delete, reuse, stdlib, native, yagni, shrink, or root-cause. Keep the existing review output format. Code minimality is advisory only: never recommend removing or weakening input validation, error handling, permission or security checks, auditability, accessibility, or deterministic gate behavior, and never accept fewer lines as a reason to cut them."
     }
   ]
 }

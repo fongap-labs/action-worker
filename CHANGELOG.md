@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: merge code-minimality review guidance into the single OpenCodeReview rule entry per file so it reaches the AI review model instead of being dropped as a duplicate path-pattern entry.
+
 - feat: add a code-minimality agent skill and AI review rules that prefer reuse, deletion, and minimal change sets without weakening safety or gates.
 
 - fix: detect PR project types from changed monorepo paths before falling back to repository-root manifests.
