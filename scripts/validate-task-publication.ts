@@ -75,7 +75,7 @@ async function validatePayload(root: string, current = root): Promise<number> {
 
 async function main(): Promise<void> {
   const runnerTemp = process.env.RUNNER_TEMP ?? "";
-  const sourceRepository = process.env.AW_EXECUTION_REPOSITORY ?? "";
+  const sourceRepository = process.env.SOURCE_REPOSITORY ?? "";
   if (!runnerTemp || !sourceRepository) {
     throw new CliError("::error::Task publication runtime context is missing.", 65);
   }
