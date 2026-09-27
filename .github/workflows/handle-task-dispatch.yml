@@ -236,6 +236,7 @@ jobs:
         id: publication
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          SOURCE_REPOSITORY: ${{ needs.validate.outputs.repository }}
         run: node scripts/validate-task-publication.ts
 
       - name: Publish staged artifact
