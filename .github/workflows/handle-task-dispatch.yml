@@ -21,6 +21,8 @@ jobs:
       project: ${{ steps.payload.outputs.project }}
       bootstrap_ref: ${{ steps.payload.outputs.bootstrap_ref }}
       repository: ${{ steps.payload.outputs.repository }}
+      agent_domain: ${{ steps.payload.outputs.agent_domain }}
+      operation: ${{ steps.payload.outputs.operation }}
 
     steps:
       - name: Checkout
@@ -53,6 +55,8 @@ jobs:
       REQUEST_ID: ${{ needs.validate.outputs.request_id }}
       PROJECT: ${{ needs.validate.outputs.project }}
       BOOTSTRAP_REF: ${{ needs.validate.outputs.bootstrap_ref }}
+      AGENT_DOMAIN: ${{ needs.validate.outputs.agent_domain }}
+      OPERATION: ${{ needs.validate.outputs.operation }}
 
     concurrency:
       group: action-worker-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.project }}
@@ -81,6 +85,22 @@ jobs:
         env:
           REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}
         run: node scripts/export-repository-variables.ts
+
+      - name: Resolve agent skills
+        id: skills
+        run: node scripts/resolve-agent-skills.ts "$AGENT_DOMAIN" "$OPERATION"
+
+      - name: Build agent prompt
+        id: prompt
+        env:
+          AGENT_SKILLS_JSON: ${{ steps.skills.outputs.skills }}
+          AGENT_PROMPT_OUTPUT_PATH: ${{ runner.temp }}/action-worker-agent-prompt.md
+        run: |
+          node scripts/build-agent-prompt.ts
+          {
+            echo "AGENT_SYSTEM_PROMPT_PATH=${{ steps.prompt.outputs.prompt_path }}"
+            echo "AGENT_SKILLS=${{ steps.skills.outputs.skills }}"
+          } >> "$GITHUB_ENV"
 
       - name: Snapshot base environment
         shell: bash
@@ -169,6 +189,10 @@ jobs:
           echo "Schema        : ${SCHEMA_VERSION}"
           echo "Project       : ${PROJECT}"
           echo "Bootstrap Ref : ${BOOTSTRAP_REF}"
+          echo "Agent Domain  : ${AGENT_DOMAIN}"
+          echo "Operation     : ${OPERATION}"
+          echo "Skills        : ${AGENT_SKILLS}"
+          echo "Prompt Path   : ${AGENT_SYSTEM_PROMPT_PATH}"
           echo "Runner OS     : ${RUNNER_OS}"
           echo "Start Time    : $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
           echo "::endgroup::"

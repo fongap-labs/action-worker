@@ -9,9 +9,11 @@ import {
 } from "./runtime-command.ts";
 
 const requiredKeys = ["schema_version", "request_id", "project", "bootstrap_ref", "repository"] as const;
+const optionalKeys = ["agent_domain", "operation"] as const;
+const optionalKeyPattern = /^[a-z][a-z0-9-]*$/;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
-export function validateDispatch(value: unknown): void {
+export function validateDispatch(value: unknown): { agent_domain: string; operation: string } {
   if (!isJsonRecord(value)) {
     throw new CliError("::error::client_payload must be a JSON object.", 64);
   }
@@ -42,10 +44,24 @@ export function validateDispatch(value: unknown): void {
   if (!repositoryPattern.test(String(value.repository))) {
     throw new CliError("::error::repository must use owner/name format.", 64);
   }
-  const unknown = Object.keys(value).filter((key) => !requiredKeys.includes(key as typeof requiredKeys[number]));
+  const unknown = Object.keys(value).filter(
+    (key) => !requiredKeys.includes(key as typeof requiredKeys[number])
+      && !optionalKeys.includes(key as typeof optionalKeys[number]),
+  );
   if (unknown.length > 0) {
     throw new CliError(`::error::Unsupported fields: ${unknown.join(", ")}.`, 64);
   }
+
+  const agentDomain = typeof value.agent_domain === "string" ? value.agent_domain : "coding";
+  if (!optionalKeyPattern.test(agentDomain)) {
+    throw new CliError("::error::agent_domain must be lower-kebab-case.", 64);
+  }
+  const operation = typeof value.operation === "string" ? value.operation : "task";
+  const validOperations = new Set(["ci", "review", "build", "release", "deploy", "task", "scheduled"]);
+  if (!validOperations.has(operation)) {
+    throw new CliError(`::error::Unknown operation: ${operation}.`, 64);
+  }
+  return { agent_domain: agentDomain, operation };
 }
 
 async function main(): Promise<void> {
@@ -54,7 +70,7 @@ async function main(): Promise<void> {
     throw new CliError("::error::Pass the repository_dispatch client_payload JSON.", 64);
   }
   const value = parseJson(args[0] ?? "", "::error::client_payload is not valid JSON.", 64);
-  validateDispatch(value);
+  const { agent_domain: agentDomain, operation } = validateDispatch(value);
   const payload = value as Record<string, unknown>;
   const repositoryPolicy = process.env.AW_REPOSITORY_POLICY;
   if (!repositoryPolicy) {
@@ -71,6 +87,8 @@ async function main(): Promise<void> {
     `project=${String(payload.project)}`,
     `bootstrap_ref=${String(payload.bootstrap_ref)}`,
     `repository=${String(payload.repository)}`,
+    `agent_domain=${agentDomain}`,
+    `operation=${operation}`,
   ]);
 }
 

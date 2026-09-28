@@ -1,6 +1,8 @@
 ---
 name: release-verify
 description: Verify release source identity, CI evidence, manifest, assets, checksums, licensing, publication, and rollback behavior.
+domain: coding
+operations: [release]
 ---
 
 # Release Verify

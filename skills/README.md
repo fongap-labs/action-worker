@@ -1,42 +1,106 @@
 # Agent Skills
 
-This directory is the source of truth for reusable Fongap Labs agent execution skills.
+This directory holds the rule books that AI agents read before doing any work. Think of it as an onboarding manual: the agent reads the relevant skills first, then starts the task.
 
-## Boundary
+## What is a skill?
 
-- `skills/` owns organization-wide agent behavior, debugging, review, impact analysis, and verification workflows.
-- `docs/` explains governance architecture and human-facing policy.
-- `rules/`, `policies/`, and `contracts/` remain the machine authority for deterministic governance.
-- Product repositories keep only product-specific instructions.
-- `external-vault` may distribute reusable assets, but it is not the authority for organization-wide agent behavior.
+Each subdirectory contains a `SKILL.md` file — a set of rules telling the AI agent how to approach a task: investigate before coding, verify after changes, don't loop on the same failed approach. It is like giving a new hire a checklist before they touch production.
 
 ## Skills
 
 | Skill | Purpose |
 |---|---|
-| [agent-execution](agent-execution/SKILL.md) | Baseline reasoning, scope, verification, anti-loop, and completion behavior |
-| [code-minimality](code-minimality/SKILL.md) | Reuse-first ladder, minimal change sets, deletion over extension, and root-cause fixes without weakening safety or gates |
-| [bug-fix](bug-fix/SKILL.md) | Root-cause-driven bug repair with regression protection |
-| [ci-diagnose](ci-diagnose/SKILL.md) | Classify and diagnose CI failures before modifying code |
-| [change-impact](change-impact/SKILL.md) | Determine blast radius across modules, workflows, and repositories |
-| [pr-review](pr-review/SKILL.md) | Review diffs for correctness, scope, regression, security, and governance |
-| [release-verify](release-verify/SKILL.md) | Verify release source, artifacts, checksums, metadata, and publication |
+| [agent-execution](agent-execution/SKILL.md) | Baseline rules for every task: investigate first, verify after changes, avoid loops |
+| [code-minimality](code-minimality/SKILL.md) | When changing code: reuse over rewrite, delete over add, fix root cause not symptoms |
+| [bug-fix](bug-fix/SKILL.md) | For bug fixes: find root cause first, then add regression protection |
+| [ci-diagnose](ci-diagnose/SKILL.md) | When CI is red: diagnose before touching code |
+| [change-impact](change-impact/SKILL.md) | Before changing shared code: figure out the blast radius |
+| [pr-review](pr-review/SKILL.md) | Checklist for reviewing pull requests |
+| [release-verify](release-verify/SKILL.md) | Before/after release: verify source, artifacts, checksums, rollback |
+| [writing](writing/SKILL.md) | For content tasks: no fabrication, verify facts, surgical edits |
 
-## Usage
+## How to use
 
-Always apply `agent-execution`. Apply `code-minimality` to every task that adds or changes code. Load the narrow task skill only when relevant.
+You do not need to configure anything. When a task is dispatched, the system automatically picks the right skills, assembles them into a prompt, and hands it to the agent.
 
-```text
-agent-execution
-      ↓
-code-minimality (code-changing tasks)
-      ↓
-task-specific skill
-      ↓
-project-specific instructions
-      ↓
-contracts / policies / rules
+Examples:
+
 ```
+# Scenario 1: normal coding task (most common)
+# Do not fill anything. The system defaults to the "coding" domain.
+# Auto-loads: agent-execution + code-minimality + bug-fix
+
+# Scenario 2: writing task (docs, copy, briefs)
+# Add one field to the dispatch payload:
+agent_domain: "writing"
+# Auto-loads: agent-execution + writing
+# Does NOT load code-minimality (no code changes needed)
+
+# Scenario 3: CI diagnosis task
+# Specify the operation:
+agent_domain: "coding"
+operation: "ci"
+# Auto-loads: agent-execution + code-minimality + ci-diagnose
+```
+
+## How the system picks skills
+
+Four steps, fully automatic:
+
+```
+Step 1: Task arrives
+         The task carries two labels: domain (coding or writing) and operation (task, ci, review, ...)
+         If not specified, defaults to coding + task
+
+Step 2: Scan skills/ directory
+         The system reads the frontmatter (the lines between --- at the top of each SKILL.md)
+         Based on the declaration, it decides whether to include that skill
+
+Step 3: Assemble prompt
+         The selected SKILL.md files + CLAUDE.md are concatenated into one system prompt
+         The prompt is written to a file and exposed via the AGENT_SYSTEM_PROMPT_PATH env var
+
+Step 4: Agent runs
+         bootstrap.sh or the downstream agent reads the prompt and follows the rules
+```
+
+## How to add a new skill
+
+Create a folder, drop in a `SKILL.md`, done. No registration, no code change, no config file.
+
+```
+skills/
+  my-new-skill/          ← create folder
+    SKILL.md              ← write rules
+```
+
+Write a few lines of declaration (frontmatter) at the top of `SKILL.md` to tell the system when to load it:
+
+```yaml
+---
+name: my-new-skill                    # skill name
+description: One-line purpose          # required
+always: true                          # load for every task (optional)
+# OR use the domain-based approach:
+domain: coding                        # which domain (coding, writing, ...)
+baseline: true                        # load for every operation in this domain (optional)
+operations: [task, ci]                # load only for specific operations (optional)
+---
+
+# My New Skill
+
+Write the rules here...
+```
+
+Pick one loading mode:
+
+| Declaration | Meaning | Example |
+|---|---|---|
+| `always: true` | Loaded for every domain and operation | `agent-execution` |
+| `domain: xxx, baseline: true` | Loaded for every operation in that domain | `code-minimality` (coding baseline) |
+| `domain: xxx, operations: [...]` | Loaded only for matching operations | `bug-fix` (only coding+task) |
+
+## Constraint
 
 A skill must not weaken deterministic gates or override project-specific mandatory policy.
 

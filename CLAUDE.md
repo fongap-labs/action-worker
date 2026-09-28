@@ -15,6 +15,26 @@
 9. development tasks: `docs/DEVELOPMENT_GUIDE.md`
 10. repository integration: `docs/INTEGRATION_GUIDE.md`
 
+## Skill chain
+
+Action Worker automatically selects skills and assembles the prompt for every task dispatch. No configuration needed.
+
+```
+Task arrives (carries agent_domain + operation labels, defaults coding + task)
+      ↓
+resolve-agent-skills.ts scans skills/, reads each SKILL.md frontmatter
+      ↓
+build-agent-prompt.ts loads CLAUDE.md + selected SKILL.md files into one prompt
+      ↓
+Prompt exposed via AGENT_SYSTEM_PROMPT_PATH env var
+      ↓
+bootstrap.sh or downstream agent reads the prompt and follows the rules
+```
+
+Each `SKILL.md` declares its scope in frontmatter (the `---` block at the top): `always`, `domain`, `baseline`, or `operations`. Adding a skill requires only creating `skills/<name>/SKILL.md` with frontmatter; no registration, no code change.
+
+The dispatch payload may include optional `agent_domain` (default `coding`) and `operation` (default `task`). See [skills/README.md](skills/README.md) for details.
+
 ## Authority order
 
 ```text
