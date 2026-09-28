@@ -272,55 +272,100 @@ jobs:
           DELETE_STALE: ${{ steps.publication.outputs.delete_stale }}
           COMMIT_MESSAGE: ${{ steps.publication.outputs.commit_message }}
           PAYLOAD_DIR: ${{ steps.publication.outputs.payload_dir }}
+          SOURCE_REPOSITORY: ${{ needs.validate.outputs.repository }}
+          PROJECT: ${{ needs.validate.outputs.project }}
         shell: bash
         run: |
           set -Eeuo pipefail
 
           PUBLISH_ROOT="${RUNNER_TEMP}/action-worker-publication"
           WORK_DIR="$(mktemp -d)"
+          branch="task-publication/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          pr_number=""
+          # shellcheck disable=SC2317  # invoked from the EXIT trap
           cleanup_publication() {
+              rc=$?
+              if [ "$rc" -ne 0 ] && [ -n "$pr_number" ]; then
+                  gh pr close "$pr_number" --repo "$TARGET_REPOSITORY" --delete-branch >/dev/null 2>&1 || true
+              fi
               rm -rf "$WORK_DIR" "$PUBLISH_ROOT"
           }
           trap cleanup_publication EXIT
 
           gh auth setup-git
 
-          attempt=1
-          while [ "$attempt" -le 3 ]; do
-              rm -rf "$WORK_DIR/target"
-              gh repo clone "$TARGET_REPOSITORY" "$WORK_DIR/target" -- --depth 1
+          rm -rf "$WORK_DIR/target"
+          gh repo clone "$TARGET_REPOSITORY" "$WORK_DIR/target" -- --depth 1
+          git -C "$WORK_DIR/target" switch -c "$branch"
 
-              branch="$(git -C "$WORK_DIR/target" branch --show-current)"
-              target_dir="$WORK_DIR/target/$DEST_DIR"
+          target_dir="$WORK_DIR/target/$DEST_DIR"
+          if [ "$DELETE_STALE" = "true" ]; then
+              rm -rf "$target_dir"
+          fi
+          mkdir -p "$target_dir"
+          cp -a "$PAYLOAD_DIR"/. "$target_dir"/
 
-              if [ "$DELETE_STALE" = "true" ]; then
-                  rm -rf "$target_dir"
-              fi
-              mkdir -p "$target_dir"
-              cp -a "$PAYLOAD_DIR"/. "$target_dir"/
+          git -C "$WORK_DIR/target" config user.name "Fongap Labs Action Worker"
+          git -C "$WORK_DIR/target" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$WORK_DIR/target" add -- "$DEST_DIR"
 
-              git -C "$WORK_DIR/target" config user.name "Fongap Labs Action Worker"
-              git -C "$WORK_DIR/target" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-              git -C "$WORK_DIR/target" add -- "$DEST_DIR"
+          if git -C "$WORK_DIR/target" diff --cached --quiet; then
+              echo "No publication changes."
+              exit 0
+          fi
 
-              if git -C "$WORK_DIR/target" diff --cached --quiet; then
-                  echo "No publication changes."
+          git -C "$WORK_DIR/target" commit -m "$COMMIT_MESSAGE"
+          git -C "$WORK_DIR/target" push --force origin "HEAD:refs/heads/$branch"
+
+          pr_number="$(gh pr list --repo "$TARGET_REPOSITORY" --head "$branch" --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$pr_number" ]; then
+              pr_title="chore: ${COMMIT_MESSAGE}"
+              pr_body="Automated task publication from ${SOURCE_REPOSITORY} project ${PROJECT}. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              pr_number="$(gh pr create --repo "$TARGET_REPOSITORY" --base main --head "$branch" --title "$pr_title" --body "$pr_body")"
+          fi
+          echo "Publication pull request: ${pr_number}"
+
+          gh workflow run pr-intake.yml --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1 || true
+
+          deadline=$((SECONDS + 1800))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+              state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json state --jq .state)"
+              if [ "$state" = "MERGED" ]; then
+                  echo "Published task artifact to $TARGET_REPOSITORY/$DEST_DIR via pull request #${pr_number}."
                   exit 0
               fi
-
-              git -C "$WORK_DIR/target" commit -m "$COMMIT_MESSAGE"
-
-              if git -C "$WORK_DIR/target" push origin "HEAD:$branch"; then
-                  echo "Published task artifact to $TARGET_REPOSITORY/$DEST_DIR"
-                  exit 0
-              fi
-
-              if [ "$attempt" -ge 3 ]; then
-                  echo "::error::Task publication failed after 3 attempts." >&2
+              if [ "$state" = "CLOSED" ]; then
+                  echo "::error::Publication pull request #${pr_number} was closed without merging." >&2
                   exit 1
               fi
 
-              echo "::warning::Target branch changed during publication; retrying." >&2
-              sleep "$attempt"
-              attempt=$((attempt + 1))
+              merge_state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json mergeStateStatus --jq .mergeStateStatus)"
+              if [ "$merge_state" = "DIRTY" ]; then
+                  echo "::error::Publication pull request #${pr_number} conflicts with $TARGET_REPOSITORY/main; a concurrent change touched $DEST_DIR." >&2
+                  exit 1
+              fi
+              if [ "$merge_state" = "BEHIND" ]; then
+                  gh pr update-branch "$pr_number" --repo "$TARGET_REPOSITORY" >/dev/null 2>&1 || true
+                  sleep 10
+                  continue
+              fi
+
+              check_state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json statusCheckRollup --jq '[.statusCheckRollup[] | select((.name // .context) == "validate-merge")] | if length == 0 then "missing" elif any(.conclusion? == "FAILURE" or .state? == "FAILURE") then "failure" elif any(.conclusion? == "SUCCESS" or .state? == "SUCCESS") then "success" else "pending" end')"
+              case "$check_state" in
+                  success)
+                      head_oid="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json headRefOid --jq .headRefOid)"
+                      gh pr merge "$pr_number" --repo "$TARGET_REPOSITORY" --squash --match-head-commit "$head_oid" && continue
+                      sleep 10
+                      ;;
+                  failure)
+                      echo "::error::Publication pull request #${pr_number} failed the validate-merge check." >&2
+                      exit 1
+                      ;;
+                  *)
+                      sleep 20
+                      ;;
+              esac
           done
+
+          echo "::error::Publication pull request #${pr_number} did not merge within 30 minutes." >&2
+          exit 1
