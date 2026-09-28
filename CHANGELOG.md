@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: land task publication through a governed pull request instead of a direct push to the protected target branch.
+
 - fix: accept central CI Evidence as the release source gate when source repositories no longer host local ci.yml runs.
 
 - fix: merge code-minimality review guidance into the single OpenCodeReview rule entry per file so it reaches the AI review model instead of being dropped as a duplicate path-pattern entry.
