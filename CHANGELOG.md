@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: publish staged task artifacts through a governed pull request because central branch protection forbids direct main writes.
+
 - fix: accept central CI Evidence as the release source gate when source repositories no longer host local ci.yml runs.
 
 - fix: merge code-minimality review guidance into the single OpenCodeReview rule entry per file so it reaches the AI review model instead of being dropped as a duplicate path-pattern entry.

@@ -272,6 +272,8 @@ jobs:
           DELETE_STALE: ${{ steps.publication.outputs.delete_stale }}
           COMMIT_MESSAGE: ${{ steps.publication.outputs.commit_message }}
           PAYLOAD_DIR: ${{ steps.publication.outputs.payload_dir }}
+          SOURCE_REPOSITORY: ${{ needs.validate.outputs.repository }}
+          SOURCE_REF: ${{ needs.validate.outputs.bootstrap_ref }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -285,12 +287,22 @@ jobs:
 
           gh auth setup-git
 
+          base_branch="$(gh api "repos/${TARGET_REPOSITORY}" --jq '.default_branch')"
+          branch="task-publication/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+
+          existing_pr="$(gh pr list --repo "$TARGET_REPOSITORY" --head "$branch" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$existing_pr" ]; then
+              echo "Publication pull request already open: ${TARGET_REPOSITORY}#${existing_pr}"
+              exit 0
+          fi
+
           attempt=1
           while [ "$attempt" -le 3 ]; do
               rm -rf "$WORK_DIR/target"
               gh repo clone "$TARGET_REPOSITORY" "$WORK_DIR/target" -- --depth 1
 
-              branch="$(git -C "$WORK_DIR/target" branch --show-current)"
+              git -C "$WORK_DIR/target" switch -c "$branch"
+
               target_dir="$WORK_DIR/target/$DEST_DIR"
 
               if [ "$DELETE_STALE" = "true" ]; then
@@ -310,17 +322,34 @@ jobs:
 
               git -C "$WORK_DIR/target" commit -m "$COMMIT_MESSAGE"
 
-              if git -C "$WORK_DIR/target" push origin "HEAD:$branch"; then
-                  echo "Published task artifact to $TARGET_REPOSITORY/$DEST_DIR"
-                  exit 0
+              if git -C "$WORK_DIR/target" push --force origin "HEAD:$branch"; then
+                  break
               fi
 
               if [ "$attempt" -ge 3 ]; then
-                  echo "::error::Task publication failed after 3 attempts." >&2
+                  echo "::error::Task publication failed to push after 3 attempts." >&2
                   exit 1
               fi
 
-              echo "::warning::Target branch changed during publication; retrying." >&2
+              echo "::warning::Publication push failed; retrying." >&2
               sleep "$attempt"
               attempt=$((attempt + 1))
           done
+
+          body="Generated task artifact published through central governance.
+          Source: ${SOURCE_REPOSITORY}@${SOURCE_REF}
+          Task run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+          Destination directory: ${DEST_DIR}"
+
+          if ! pr_url="$(gh pr create \
+              --repo "$TARGET_REPOSITORY" \
+              --head "$branch" \
+              --base "$base_branch" \
+              --title "$COMMIT_MESSAGE" \
+              --body "$body")"; then
+              echo "::error::Task publication failed to open a pull request." >&2
+              exit 1
+          fi
+          pr_number="${pr_url##*/}"
+
+          echo "Opened publication pull request ${TARGET_REPOSITORY}#${pr_number} for ${DEST_DIR}"
