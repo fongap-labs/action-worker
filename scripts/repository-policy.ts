@@ -1,12 +1,12 @@
-import { isJsonRecord } from './github-api.ts';
-import { appendLines, CliError, handleError, isMain, parseJson } from './runtime-command.ts';
+import { isJsonRecord } from "./github-api.ts";
+import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 export const repositoryCapabilities = [
-  'pr',
-  'task',
-  'release-source',
-  'release-target',
-  'deploy',
+  "pr",
+  "task",
+  "release-source",
+  "release-target",
+  "deploy",
 ] as const;
 
 export type RepositoryCapability = (typeof repositoryCapabilities)[number];
@@ -17,7 +17,7 @@ const capabilitySet = new Set<string>(repositoryCapabilities);
 export function parseRepositoryPolicy(value: unknown): Record<string, RepositoryCapability[]> {
   if (!isJsonRecord(value) || Object.keys(value).length === 0) {
     throw new CliError(
-      '::error::AW_REPOSITORY_POLICY must be a non-empty repository policy JSON object.',
+      "::error::AW_REPOSITORY_POLICY must be a non-empty repository policy JSON object.",
       65
     );
   }
@@ -29,7 +29,7 @@ export function parseRepositoryPolicy(value: unknown): Record<string, Repository
     if (
       !Array.isArray(rawCapabilities) ||
       rawCapabilities.length === 0 ||
-      !rawCapabilities.every((item) => typeof item === 'string' && capabilitySet.has(item)) ||
+      !rawCapabilities.every((item) => typeof item === "string" && capabilitySet.has(item)) ||
       new Set(rawCapabilities).size !== rawCapabilities.length
     ) {
       throw new CliError(
@@ -68,14 +68,14 @@ export function validateRepositoryCapability(
 }
 
 async function main(): Promise<void> {
-  const [command, first = '', second = ''] = process.argv.slice(2);
+  const [command, first = "", second = ""] = process.argv.slice(2);
   const rawPolicy = process.env.AW_REPOSITORY_POLICY;
   if (!rawPolicy) {
-    throw new CliError('::error::Missing Repository Variable: AW_REPOSITORY_POLICY.', 65);
+    throw new CliError("::error::Missing Repository Variable: AW_REPOSITORY_POLICY.", 65);
   }
-  const policy = parseJson(rawPolicy, '::error::AW_REPOSITORY_POLICY must be valid JSON.', 65);
+  const policy = parseJson(rawPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65);
 
-  if (command === 'list' && capabilitySet.has(first)) {
+  if (command === "list" && capabilitySet.has(first)) {
     const repositories = repositoriesForCapability(policy, first as RepositoryCapability);
     if (repositories.length === 0) {
       throw new CliError(
@@ -88,14 +88,14 @@ async function main(): Promise<void> {
     return;
   }
 
-  if (command === 'validate' && capabilitySet.has(second)) {
+  if (command === "validate" && capabilitySet.has(second)) {
     validateRepositoryCapability(first, policy, second as RepositoryCapability);
     console.log(`Repository policy validated: ${first} -> ${second}.`);
     return;
   }
 
   throw new CliError(
-    'Usage: repository-policy.ts <list CAPABILITY | validate REPOSITORY CAPABILITY>',
+    "Usage: repository-policy.ts <list CAPABILITY | validate REPOSITORY CAPABILITY>",
     64
   );
 }

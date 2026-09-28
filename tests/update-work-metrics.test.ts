@@ -1,12 +1,12 @@
-import assert from 'node:assert/strict';
-import { test } from 'node:test';
+import assert from "node:assert/strict";
+import { test } from "node:test";
 import {
   applyIncrement,
   isSuccessfulRun,
   mapWithLimit,
   parseFixture,
   renderMetrics,
-} from '../scripts/update-work-metrics.ts';
+} from "../scripts/update-work-metrics.ts";
 
 const source = `# Action Worker
 
@@ -15,41 +15,41 @@ old
 <!-- work-metrics:end -->
 `;
 
-test('metrics rendering preserves badge order and is idempotent', () => {
+test("metrics rendering preserves badge order and is idempotent", () => {
   const counts = parseFixture(
     '{"dispatch":7,"pr_governance":12,"ai_review":9,"gate":12,"release_governance":3}'
   );
-  const rendered = renderMetrics(source, counts, 'fongap/action-worker');
+  const rendered = renderMetrics(source, counts, "fongap/action-worker");
   assert.match(rendered, /Task%20Dispatch-7-1A61FE/);
   assert.match(rendered, /PR%20Governance-12-212183/);
   assert.match(rendered, /AI%20Review-9-0527FC/);
   const order = [
-    'Task%20Dispatch-',
-    'AI%20Review-',
-    'PR%20Governance-',
-    'Release%20Governance-',
-    'Status',
+    "Task%20Dispatch-",
+    "AI%20Review-",
+    "PR%20Governance-",
+    "Release%20Governance-",
+    "Status",
   ];
   const positions = order.map((token) => rendered.indexOf(token));
   assert.deepEqual(
     positions,
     [...positions].sort((left, right) => left - right)
   );
-  assert.equal(renderMetrics(rendered, counts, 'fongap/action-worker'), rendered);
+  assert.equal(renderMetrics(rendered, counts, "fongap/action-worker"), rendered);
   assert.equal(
-    renderMetrics(source.replaceAll('\n', '\r\n'), counts, 'fongap/action-worker').includes('\r'),
+    renderMetrics(source.replaceAll("\n", "\r\n"), counts, "fongap/action-worker").includes("\r"),
     false
   );
 });
 
-test('Task Dispatch counts only successful Handle Task Dispatch repository runs', () => {
-  const path = '.github/workflows/handle-task-dispatch.yml';
+test("Task Dispatch counts only successful Handle Task Dispatch repository runs", () => {
+  const path = ".github/workflows/handle-task-dispatch.yml";
   assert.equal(
     isSuccessfulRun(
       {
         path,
-        event: 'repository_dispatch',
-        conclusion: 'success',
+        event: "repository_dispatch",
+        conclusion: "success",
       },
       path
     ),
@@ -59,8 +59,8 @@ test('Task Dispatch counts only successful Handle Task Dispatch repository runs'
     isSuccessfulRun(
       {
         path,
-        event: 'repository_dispatch',
-        conclusion: 'failure',
+        event: "repository_dispatch",
+        conclusion: "failure",
       },
       path
     ),
@@ -70,8 +70,8 @@ test('Task Dispatch counts only successful Handle Task Dispatch repository runs'
     isSuccessfulRun(
       {
         path,
-        event: 'push',
-        conclusion: 'success',
+        event: "push",
+        conclusion: "success",
       },
       path
     ),
@@ -80,9 +80,9 @@ test('Task Dispatch counts only successful Handle Task Dispatch repository runs'
   assert.equal(
     isSuccessfulRun(
       {
-        path: '.github/workflows/handle-pr-dispatch.yml',
-        event: 'repository_dispatch',
-        conclusion: 'success',
+        path: ".github/workflows/handle-pr-dispatch.yml",
+        event: "repository_dispatch",
+        conclusion: "success",
       },
       path
     ),
@@ -90,7 +90,7 @@ test('Task Dispatch counts only successful Handle Task Dispatch repository runs'
   );
 });
 
-test('metrics jobs use bounded concurrency and preserve result order', async () => {
+test("metrics jobs use bounded concurrency and preserve result order", async () => {
   let active = 0;
   let peak = 0;
   const values = await mapWithLimit([1, 2, 3, 4, 5], 2, async (value) => {
@@ -105,7 +105,7 @@ test('metrics jobs use bounded concurrency and preserve result order', async () 
   await assert.rejects(() => mapWithLimit([1], 0, async (value) => value));
 });
 
-test('increment mode reads the current badges and derives the gate count', () => {
+test("increment mode reads the current badges and derives the gate count", () => {
   const current = renderMetrics(
     source,
     {
@@ -115,7 +115,7 @@ test('increment mode reads the current badges and derives the gate count', () =>
       gate: 12,
       release_governance: 3,
     },
-    'fongap/action-worker'
+    "fongap/action-worker"
   );
   assert.deepEqual(
     applyIncrement(current, {
@@ -134,7 +134,7 @@ test('increment mode reads the current badges and derives the gate count', () =>
   );
 });
 
-test('fixture counts reject fractional or negative values', () => {
+test("fixture counts reject fractional or negative values", () => {
   assert.throws(() =>
     parseFixture('{"dispatch":1.5,"pr_governance":0,"ai_review":0,"gate":0,"release_governance":0}')
   );

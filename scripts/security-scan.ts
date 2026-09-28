@@ -1,18 +1,18 @@
-import { getJsonString, isJsonRecord } from './github-api.ts';
-import { CliError } from './runtime-command.ts';
+import { getJsonString, isJsonRecord } from "./github-api.ts";
+import { CliError } from "./runtime-command.ts";
 
 export type SecurityScanManifest = {
-  schema_version: '1';
-  engine: 'codeql';
+  schema_version: "1";
+  engine: "codeql";
   runner_profile: string;
-  build_mode: 'none' | 'autobuild';
+  build_mode: "none" | "autobuild";
   languages: string[];
   pull_requests: boolean;
   default_branch: boolean;
 };
 
 export type SecurityScanRequest = {
-  schema_version: '1';
+  schema_version: "1";
   request_id: string;
   repository: string;
   source_sha: string;
@@ -38,17 +38,17 @@ const requestPattern = /^[A-Za-z0-9._:-]{1,128}$/;
 const shaPattern = /^[0-9a-f]{40}$/;
 const runnerPattern = /^[a-z][a-z0-9-]{0,63}$/;
 const languages = new Set([
-  'c-cpp',
-  'csharp',
-  'go',
-  'java-kotlin',
-  'javascript-typescript',
-  'python',
-  'ruby',
-  'rust',
-  'swift',
+  "c-cpp",
+  "csharp",
+  "go",
+  "java-kotlin",
+  "javascript-typescript",
+  "python",
+  "ruby",
+  "rust",
+  "swift",
 ]);
-const buildModes = new Set(['none', 'autobuild']);
+const buildModes = new Set(["none", "autobuild"]);
 
 function exactKeys(
   value: Record<string, unknown>,
@@ -63,70 +63,70 @@ function exactKeys(
 }
 
 export function decodeGithubContent(value: unknown): string {
-  if (!isJsonRecord(value) || value.encoding !== 'base64' || typeof value.content !== 'string') {
-    throw new CliError('GitHub contents response is invalid.', 65);
+  if (!isJsonRecord(value) || value.encoding !== "base64" || typeof value.content !== "string") {
+    throw new CliError("GitHub contents response is invalid.", 65);
   }
-  return Buffer.from(value.content.replace(/\s+/g, ''), 'base64').toString('utf8');
+  return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
 }
 
 export function parseSecurityScanManifest(value: unknown): SecurityScanManifest {
   if (!isJsonRecord(value)) {
-    throw new CliError('Security scan manifest must be an object.', 65);
+    throw new CliError("Security scan manifest must be an object.", 65);
   }
   exactKeys(
     value,
     [
-      'build_mode',
-      'default_branch',
-      'engine',
-      'languages',
-      'pull_requests',
-      'runner_profile',
-      'schema_version',
+      "build_mode",
+      "default_branch",
+      "engine",
+      "languages",
+      "pull_requests",
+      "runner_profile",
+      "schema_version",
     ],
-    'Security scan manifest'
+    "Security scan manifest"
   );
   if (
-    value.schema_version !== '1' ||
-    value.engine !== 'codeql' ||
-    typeof value.runner_profile !== 'string' ||
+    value.schema_version !== "1" ||
+    value.engine !== "codeql" ||
+    typeof value.runner_profile !== "string" ||
     !runnerPattern.test(value.runner_profile) ||
-    typeof value.build_mode !== 'string' ||
+    typeof value.build_mode !== "string" ||
     !buildModes.has(value.build_mode) ||
     !Array.isArray(value.languages) ||
     value.languages.length < 1 ||
     value.languages.length > 9 ||
-    !value.languages.every((item) => typeof item === 'string' && languages.has(item)) ||
+    !value.languages.every((item) => typeof item === "string" && languages.has(item)) ||
     new Set(value.languages).size !== value.languages.length ||
-    typeof value.pull_requests !== 'boolean' ||
-    typeof value.default_branch !== 'boolean'
+    typeof value.pull_requests !== "boolean" ||
+    typeof value.default_branch !== "boolean"
   ) {
-    throw new CliError('Security scan manifest is invalid.', 65);
+    throw new CliError("Security scan manifest is invalid.", 65);
   }
   return value as unknown as SecurityScanManifest;
 }
 
 export function parseSecurityScanRequest(value: unknown): SecurityScanRequest {
   if (!isJsonRecord(value)) {
-    throw new CliError('Security scan request must be an object.', 64);
+    throw new CliError("Security scan request must be an object.", 64);
   }
   exactKeys(
     value,
-    ['pr_number', 'repository', 'request_id', 'schema_version', 'source_sha'],
-    'Security scan request'
+    ["pr_number", "repository", "request_id", "schema_version", "source_sha"],
+    "Security scan request"
   );
   if (
-    value.schema_version !== '1' ||
-    typeof value.request_id !== 'string' ||
+    value.schema_version !== "1" ||
+    typeof value.request_id !== "string" ||
     !requestPattern.test(value.request_id) ||
-    typeof value.repository !== 'string' ||
+    typeof value.repository !== "string" ||
     !repositoryPattern.test(value.repository) ||
-    typeof value.source_sha !== 'string' ||
+    typeof value.source_sha !== "string" ||
     !shaPattern.test(value.source_sha) ||
     !Number.isInteger(value.pr_number) ||
     Number(value.pr_number) < 0
   ) {
-    throw new CliError('Security scan request is invalid.', 64);
+    throw new CliError("Security scan request is invalid.", 64);
   }
   return value as unknown as SecurityScanRequest;
 }
@@ -137,23 +137,23 @@ export async function resolveSecurityScanFacts(
 ): Promise<SecurityScanFacts> {
   const repositoryValue = await reader.get(`repos/${request.repository}`);
   if (!isJsonRecord(repositoryValue)) {
-    throw new CliError('GitHub repository response is invalid.', 65);
+    throw new CliError("GitHub repository response is invalid.", 65);
   }
-  const defaultBranch = getJsonString(repositoryValue, 'default_branch');
+  const defaultBranch = getJsonString(repositoryValue, "default_branch");
   const isPrivate = repositoryValue.private;
-  if (!defaultBranch || typeof isPrivate !== 'boolean') {
-    throw new CliError('Repository default branch or visibility is unavailable.', 65);
+  if (!defaultBranch || typeof isPrivate !== "boolean") {
+    throw new CliError("Repository default branch or visibility is unavailable.", 65);
   }
 
   if (request.pr_number > 0) {
     const pull = await reader.get(`repos/${request.repository}/pulls/${request.pr_number}`);
     if (!isJsonRecord(pull) || !isJsonRecord(pull.head) || !isJsonRecord(pull.base)) {
-      throw new CliError('GitHub pull request response is invalid.', 65);
+      throw new CliError("GitHub pull request response is invalid.", 65);
     }
-    const headSha = getJsonString(pull.head, 'sha');
-    const baseSha = getJsonString(pull.base, 'sha');
+    const headSha = getJsonString(pull.head, "sha");
+    const baseSha = getJsonString(pull.base, "sha");
     if (headSha !== request.source_sha || !shaPattern.test(baseSha)) {
-      throw new CliError('Security scan request is stale or has an invalid PR base SHA.', 75);
+      throw new CliError("Security scan request is stale or has an invalid PR base SHA.", 75);
     }
     return {
       repository: request.repository,
@@ -168,11 +168,11 @@ export async function resolveSecurityScanFacts(
 
   const commit = await reader.get(`repos/${request.repository}/commits/${defaultBranch}`);
   if (!isJsonRecord(commit)) {
-    throw new CliError('GitHub default branch commit response is invalid.', 65);
+    throw new CliError("GitHub default branch commit response is invalid.", 65);
   }
-  const defaultSha = getJsonString(commit, 'sha');
+  const defaultSha = getJsonString(commit, "sha");
   if (defaultSha !== request.source_sha) {
-    throw new CliError('Security scan request is stale; default branch has moved.', 75);
+    throw new CliError("Security scan request is stale; default branch has moved.", 75);
   }
   return {
     repository: request.repository,

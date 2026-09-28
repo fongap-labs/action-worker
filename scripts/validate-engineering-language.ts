@@ -1,19 +1,16 @@
 import { extname } from "node:path";
-import {
-  CliError,
-  appendLines,
-  handleError,
-  isMain,
-  runText,
-} from "./runtime-command.ts";
+import { appendLines, CliError, handleError, isMain, runText } from "./runtime-command.ts";
 
 const HAN = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/u;
 const MARKDOWN = /\.md$/i;
 const CONTENT_FILE = /\.(?:txt|csv|tsv)$/i;
-const LOCALIZATION = /(^|\/)(?:i18n|locales?|translations?|messages)(\/|$)|(?:^|[._-])zh(?:[-_.](?:CN|Hans))?(?:[._-]|$)/i;
+const LOCALIZATION =
+  /(^|\/)(?:i18n|locales?|translations?|messages)(\/|$)|(?:^|[._-])zh(?:[-_.](?:CN|Hans))?(?:[._-]|$)/i;
 const WORKFLOW = /^\.github\/workflows\/.*\.ya?ml$/i;
-const CONFIG_KEY = /(?:["'][^"']*[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF][^"']*["']\s*:)|(?:^|\s)[^:#"'\s]*[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF][^:#"']*\s*:/u;
-const MACHINE_TEXT = /\b(?:console\.(?:log|error|warn|info|debug)|logger\w*|log\w*\s*\(|throw\s+new\s+\w*Error|new\s+\w*Error\s*\(|raise\s+\w*Error|logging\.|print\s*\(|describe\s*\(|it\s*\(|test\s*\()/i;
+const CONFIG_KEY =
+  /(?:["'][^"']*[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF][^"']*["']\s*:)|(?:^|\s)[^:#"'\s]*[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF][^:#"']*\s*:/u;
+const MACHINE_TEXT =
+  /\b(?:console\.(?:log|error|warn|info|debug)|logger\w*|log\w*\s*\(|throw\s+new\s+\w*Error|new\s+\w*Error\s*\(|raise\s+\w*Error|logging\.|print\s*\(|describe\s*\(|it\s*\(|test\s*\()/i;
 
 export function containsHan(value: string): boolean {
   return HAN.test(value);
@@ -60,9 +57,11 @@ export function engineeringLineViolation(path: string, line: string): string | n
 export async function validateEngineeringDiff(
   base: string,
   head: string,
-  root: string,
+  root: string
 ): Promise<{ files: number; additions: number; failures: number }> {
-  const diff = await runText("git", ["diff", "--unified=0", "--diff-filter=ACMR", base, head], { cwd: root });
+  const diff = await runText("git", ["diff", "--unified=0", "--diff-filter=ACMR", base, head], {
+    cwd: root,
+  });
   let path = "";
   let files = 0;
   let additions = 0;
@@ -94,7 +93,10 @@ export async function validateEngineeringDiff(
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length !== 3) {
-    throw new CliError("Usage: validate-engineering-language.ts <base-sha> <head-sha> <repo-root>", 64);
+    throw new CliError(
+      "Usage: validate-engineering-language.ts <base-sha> <head-sha> <repo-root>",
+      64
+    );
   }
   const result = await validateEngineeringDiff(args[0] ?? "", args[1] ?? "", args[2] ?? "");
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [

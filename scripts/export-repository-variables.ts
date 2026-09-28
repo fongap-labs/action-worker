@@ -1,26 +1,26 @@
-import { randomBytes } from 'node:crypto';
-import { chmod, writeFile } from 'node:fs/promises';
-import { aiAgentRuntimeEntries, parseAiAgentConfig } from './ai-agent-config.ts';
-import { isJsonRecord } from './github-api.ts';
-import { appendLines, CliError, handleError, isMain, parseJson } from './runtime-command.ts';
+import { randomBytes } from "node:crypto";
+import { chmod, writeFile } from "node:fs/promises";
+import { aiAgentRuntimeEntries, parseAiAgentConfig } from "./ai-agent-config.ts";
+import { isJsonRecord } from "./github-api.ts";
+import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 function valueText(value: unknown): string {
   if (value === null || value === undefined) {
-    return '';
+    return "";
   }
-  if (typeof value === 'string') {
+  if (typeof value === "string") {
     return value;
   }
-  return typeof value === 'object' ? JSON.stringify(value) : String(value);
+  return typeof value === "object" ? JSON.stringify(value) : String(value);
 }
 
 function isReserved(name: string): boolean {
-  return /^(?:GITHUB_|RUNNER_|ACTIONS_)/.test(name) || name === 'NODE_OPTIONS';
+  return /^(?:GITHUB_|RUNNER_|ACTIONS_)/.test(name) || name === "NODE_OPTIONS";
 }
 
 export function variableEntries(value: unknown): Array<[string, string]> {
   if (!isJsonRecord(value)) {
-    throw new CliError('::error::Repository Variables payload must be a JSON object.');
+    throw new CliError("::error::Repository Variables payload must be a JSON object.");
   }
   const entries: Array<[string, string]> = [];
   for (const name of Object.keys(value).sort()) {
@@ -33,21 +33,21 @@ export function variableEntries(value: unknown): Array<[string, string]> {
 }
 
 async function main(): Promise<void> {
-  const runnerTemp = process.env.RUNNER_TEMP ?? '';
-  const githubEnv = process.env.GITHUB_ENV ?? '';
+  const runnerTemp = process.env.RUNNER_TEMP ?? "";
+  const githubEnv = process.env.GITHUB_ENV ?? "";
   if (!runnerTemp) {
-    throw new CliError('::error::RUNNER_TEMP is not set.');
+    throw new CliError("::error::RUNNER_TEMP is not set.");
   }
   if (!githubEnv) {
-    throw new CliError('::error::GITHUB_ENV is not set.');
+    throw new CliError("::error::GITHUB_ENV is not set.");
   }
   const value = parseJson(
-    process.env.REPOSITORY_VARS_JSON || '{}',
-    '::error::Repository Variables payload must be valid JSON.'
+    process.env.REPOSITORY_VARS_JSON || "{}",
+    "::error::Repository Variables payload must be valid JSON."
   );
   const entries = variableEntries(value);
   const sorted = Object.fromEntries(entries);
-  const aiAgentConfig = parseAiAgentConfig(sorted.AW_AI_AGENT_CONFIG ?? '');
+  const aiAgentConfig = parseAiAgentConfig(sorted.AW_AI_AGENT_CONFIG ?? "");
   const agentEntries = aiAgentRuntimeEntries(aiAgentConfig);
   const repositoryNames = new Set(entries.map(([name]) => name));
   for (const [name] of agentEntries) {
@@ -59,16 +59,16 @@ async function main(): Promise<void> {
     }
   }
   const snapshot = `${runnerTemp}/action-worker-repository-vars.json`;
-  await writeFile(snapshot, JSON.stringify(sorted), 'utf8');
+  await writeFile(snapshot, JSON.stringify(sorted), "utf8");
   await chmod(snapshot, 0o600);
   let _count = 0;
   for (const [name, text] of [...entries, ...agentEntries]) {
     if (isReserved(name)) {
       continue;
     }
-    let delimiter = `__ACTION_WORKER_VAR_${randomBytes(12).toString('hex')}__`;
+    let delimiter = `__ACTION_WORKER_VAR_${randomBytes(12).toString("hex")}__`;
     while (text.split(/\r?\n/).includes(delimiter)) {
-      delimiter = `__ACTION_WORKER_VAR_${randomBytes(12).toString('hex')}__`;
+      delimiter = `__ACTION_WORKER_VAR_${randomBytes(12).toString("hex")}__`;
     }
     await appendLines(githubEnv, [`${name}<<${delimiter}`, text, delimiter]);
     _count += 1;

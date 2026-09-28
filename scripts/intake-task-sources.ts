@@ -1,13 +1,13 @@
-import { parseTaskSourceManifest } from './dispatch-scheduled-tasks.ts';
+import { parseTaskSourceManifest } from "./dispatch-scheduled-tasks.ts";
 import {
   GithubReader,
   getJsonString,
   githubEnvironment,
   githubExists,
   isJsonRecord,
-} from './github-api.ts';
-import { repositoriesForCapability } from './repository-policy.ts';
-import { CliError, handleError, isMain, parseJson, runCommand } from './runtime-command.ts';
+} from "./github-api.ts";
+import { repositoriesForCapability } from "./repository-policy.ts";
+import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 
 type GithubSource = {
   get(path: string): Promise<unknown>;
@@ -25,33 +25,33 @@ export type TaskIntakeResult = {
 };
 
 const shaPattern = /^[0-9a-f]{40}$/;
-const zeroSha = '0'.repeat(40);
+const zeroSha = "0".repeat(40);
 
 function decodeGithubContent(value: unknown): string {
-  if (!isJsonRecord(value) || value.encoding !== 'base64' || typeof value.content !== 'string') {
-    throw new CliError('GitHub task source manifest response is invalid.', 65);
+  if (!isJsonRecord(value) || value.encoding !== "base64" || typeof value.content !== "string") {
+    throw new CliError("GitHub task source manifest response is invalid.", 65);
   }
-  return Buffer.from(value.content.replace(/\s+/g, ''), 'base64').toString('utf8');
+  return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
 }
 
 function latestTaskStatus(value: unknown): string {
   if (!isJsonRecord(value) || !Array.isArray(value.statuses)) {
-    throw new CliError('GitHub commit status response is invalid.', 65);
+    throw new CliError("GitHub commit status response is invalid.", 65);
   }
   for (const item of value.statuses) {
     if (!isJsonRecord(item)) continue;
-    if (getJsonString(item, 'context') === 'Task Source') {
-      return getJsonString(item, 'state');
+    if (getJsonString(item, "context") === "Task Source") {
+      return getJsonString(item, "state");
     }
   }
-  return '';
+  return "";
 }
 
-function taskState(value: unknown): 'dispatch' | 'in-flight' | 'processed' {
+function taskState(value: unknown): "dispatch" | "in-flight" | "processed" {
   const state = latestTaskStatus(value);
-  if (state === 'pending') return 'in-flight';
-  if (state === 'success') return 'processed';
-  return 'dispatch';
+  if (state === "pending") return "in-flight";
+  if (state === "success") return "processed";
+  return "dispatch";
 }
 
 async function defaultHead(
@@ -62,7 +62,7 @@ async function defaultHead(
   if (!isJsonRecord(repo)) {
     throw new CliError(`GitHub repository response is invalid: ${repository}.`, 65);
   }
-  const branch = getJsonString(repo, 'default_branch');
+  const branch = getJsonString(repo, "default_branch");
   if (!branch) {
     throw new CliError(`Repository default branch is unavailable: ${repository}.`, 65);
   }
@@ -71,7 +71,7 @@ async function defaultHead(
   if (!isJsonRecord(commit)) {
     throw new CliError(`GitHub commit response is invalid: ${repository}.`, 65);
   }
-  const headSha = getJsonString(commit, 'sha');
+  const headSha = getJsonString(commit, "sha");
   if (!shaPattern.test(headSha)) {
     throw new CliError(`Repository default head SHA is invalid: ${repository}.`, 65);
   }
@@ -82,7 +82,7 @@ async function defaultHead(
     if (!isJsonRecord(parent)) {
       throw new CliError(`Repository default head parent is invalid: ${repository}.`, 65);
     }
-    beforeSha = getJsonString(parent, 'sha');
+    beforeSha = getJsonString(parent, "sha");
     if (!shaPattern.test(beforeSha)) {
       throw new CliError(`Repository default head parent SHA is invalid: ${repository}.`, 65);
     }
@@ -95,9 +95,9 @@ export async function scanTaskSources(
   policyValue: unknown,
   source: GithubSource,
   dispatch: Dispatch,
-  excludedRepository = ''
+  excludedRepository = ""
 ): Promise<TaskIntakeResult> {
-  const repositories = repositoriesForCapability(policyValue, 'task').filter(
+  const repositories = repositoriesForCapability(policyValue, "task").filter(
     (repository) => repository !== excludedRepository
   );
   const result: TaskIntakeResult = {
@@ -129,11 +129,11 @@ export async function scanTaskSources(
 
     const status = await source.get(`repos/${repository}/commits/${facts.head_sha}/status`);
     const state = taskState(status);
-    if (state === 'in-flight') {
+    if (state === "in-flight") {
       result.in_flight += 1;
       continue;
     }
-    if (state === 'processed') {
+    if (state === "processed") {
       result.already_processed += 1;
       continue;
     }
@@ -152,22 +152,22 @@ async function dispatchTaskSource(
   beforeSha: string,
   headSha: string
 ): Promise<void> {
-  const safeRepository = repository.replace(/[^A-Za-z0-9_.-]/g, '-');
+  const safeRepository = repository.replace(/[^A-Za-z0-9_.-]/g, "-");
   const body = {
-    event_type: 'run-task-source',
+    event_type: "run-task-source",
     client_payload: {
-      schema_version: '1',
+      schema_version: "1",
       request_id: `task-intake:${safeRepository}:${headSha.slice(0, 12)}`,
       repository,
-      mode: 'push',
-      project: '',
+      mode: "push",
+      project: "",
       before_sha: beforeSha,
       head_sha: headSha,
     },
   };
   await runCommand(
-    'gh',
-    ['api', '--method', 'POST', `repos/${controlRepository}/dispatches`, '--input', '-'],
+    "gh",
+    ["api", "--method", "POST", `repos/${controlRepository}/dispatches`, "--input", "-"],
     {
       env: githubEnvironment(token),
       input: JSON.stringify(body),
@@ -178,21 +178,21 @@ async function dispatchTaskSource(
 }
 
 async function main(): Promise<void> {
-  const policyRaw = process.env.AW_REPOSITORY_POLICY ?? '';
-  const controlToken = process.env.AW_CONTROL_TOKEN ?? '';
-  const ingressToken = process.env.AW_INGRESS_TOKEN ?? '';
-  const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? '';
-  const apiUrl = process.env.GITHUB_API_URL ?? 'https://api.github.com';
+  const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
+  const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
+  const ingressToken = process.env.AW_INGRESS_TOKEN ?? "";
+  const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
+  const apiUrl = process.env.GITHUB_API_URL ?? "https://api.github.com";
   if (!policyRaw || !controlToken || !ingressToken || !controlRepository) {
     throw new CliError(
-      'AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.',
+      "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
       64
     );
   }
 
   const reader = new GithubReader(apiUrl, controlToken);
   const result = await scanTaskSources(
-    parseJson(policyRaw, 'AW_REPOSITORY_POLICY must be valid JSON.', 65),
+    parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
     {
       get: async (path) => await reader.get(path),
       exists: async (path) => await githubExists(path, controlToken),

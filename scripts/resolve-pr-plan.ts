@@ -1,11 +1,11 @@
-import { access, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { access, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import {
   type AiAgentConfig,
   aiAgentModel,
   isAiAgentEnabled,
   parseAiAgentConfig,
-} from './ai-agent-config.ts';
+} from "./ai-agent-config.ts";
 import {
   appendLines,
   CliError,
@@ -13,10 +13,10 @@ import {
   isMain,
   parseJson,
   readJson,
-} from './runtime-command.ts';
+} from "./runtime-command.ts";
 
-type Risk = 'low' | 'medium' | 'high';
-type ReviewAgent = 'none' | 'code' | 'workflow' | 'security' | 'architecture' | 'release';
+type Risk = "low" | "medium" | "high";
+type ReviewAgent = "none" | "code" | "workflow" | "security" | "architecture" | "release";
 
 export type PrContext = {
   project_types: string[];
@@ -110,7 +110,7 @@ export type PrPlan = {
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 export function validateContext(value: unknown): PrContext {
@@ -119,15 +119,15 @@ export function validateContext(value: unknown): PrContext {
     !Array.isArray(value.project_types) ||
     !Array.isArray(value.change_areas) ||
     !Array.isArray(value.declared_impacts) ||
-    !['low', 'medium', 'high'].includes(String(value.risk))
+    !["low", "medium", "high"].includes(String(value.risk))
   ) {
-    throw new CliError('::error::Invalid PR context format.', 65);
+    throw new CliError("::error::Invalid PR context format.", 65);
   }
   return value as PrContext;
 }
 
 function uniqueSorted(values: readonly string[]): string[] {
-  return [...new Set(values)].sort((left, right) => left.localeCompare(right, 'en'));
+  return [...new Set(values)].sort((left, right) => left.localeCompare(right, "en"));
 }
 
 function hasItem(values: readonly string[], expected: string): boolean {
@@ -141,26 +141,26 @@ function requireRange(value: number, minimum: number, maximum: number, message: 
 }
 
 function selectAgent(context: PrContext): ReviewAgent {
-  if (hasItem(context.change_areas, 'security') || hasItem(context.declared_impacts, 'security')) {
-    return 'security';
+  if (hasItem(context.change_areas, "security") || hasItem(context.declared_impacts, "security")) {
+    return "security";
   }
   if (
-    ['breaking', 'migration', 'api', 'deployment', 'compatibility'].some((impact) =>
+    ["breaking", "migration", "api", "deployment", "compatibility"].some((impact) =>
       hasItem(context.declared_impacts, impact)
     )
   ) {
-    return 'architecture';
+    return "architecture";
   }
-  if (hasItem(context.change_areas, 'workflow')) {
-    return 'workflow';
+  if (hasItem(context.change_areas, "workflow")) {
+    return "workflow";
   }
-  if (hasItem(context.change_areas, 'release') || hasItem(context.declared_impacts, 'release')) {
-    return 'release';
+  if (hasItem(context.change_areas, "release") || hasItem(context.declared_impacts, "release")) {
+    return "release";
   }
-  if (['source', 'script', 'container'].some((area) => hasItem(context.change_areas, area))) {
-    return 'code';
+  if (["source", "script", "container"].some((area) => hasItem(context.change_areas, area))) {
+    return "code";
   }
-  return 'none';
+  return "none";
 }
 
 export function resolvePlan(
@@ -192,60 +192,60 @@ export function resolvePlan(
     );
 
   let reviewAgent = selectAgent(context);
-  const allowedAgents = ['none', 'code', 'workflow', 'security', 'architecture', 'release'];
-  if (options.agentOverride !== 'auto') {
+  const allowedAgents = ["none", "code", "workflow", "security", "architecture", "release"];
+  if (options.agentOverride !== "auto") {
     if (!allowedAgents.includes(options.agentOverride)) {
       throw new CliError(
-        '::error::review_agent only supports auto/none/code/workflow/security/architecture/release.',
+        "::error::review_agent only supports auto/none/code/workflow/security/architecture/release.",
         64
       );
     }
     reviewAgent = options.agentOverride as ReviewAgent;
   }
 
-  const hasTrustedModelOverride = options.modelOverride !== 'auto';
-  let isReviewRequired = reviewAgent !== 'none';
-  if (options.reviewMode === 'off') {
+  const hasTrustedModelOverride = options.modelOverride !== "auto";
+  let isReviewRequired = reviewAgent !== "none";
+  if (options.reviewMode === "off") {
     isReviewRequired = false;
-    reviewAgent = 'none';
-  } else if (options.reviewMode !== 'inherit' && options.reviewMode !== 'on') {
-    throw new CliError('::error::review_mode only supports inherit/on/off.', 64);
-  } else if (!isAiAgentEnabled(policies.aiAgents, 'review')) {
+    reviewAgent = "none";
+  } else if (options.reviewMode !== "inherit" && options.reviewMode !== "on") {
+    throw new CliError("::error::review_mode only supports inherit/on/off.", 64);
+  } else if (!isAiAgentEnabled(policies.aiAgents, "review")) {
     isReviewRequired = false;
-    reviewAgent = 'none';
-  } else if (options.reviewMode === 'on') {
+    reviewAgent = "none";
+  } else if (options.reviewMode === "on") {
     isReviewRequired = true;
-    if (reviewAgent === 'none') {
-      reviewAgent = 'code';
+    if (reviewAgent === "none") {
+      reviewAgent = "code";
     }
   }
 
   let routeSeverity: string;
-  if (context.risk === 'high' || context.risk === 'medium') {
-    routeSeverity = 'low';
+  if (context.risk === "high" || context.risk === "medium") {
+    routeSeverity = "low";
   } else {
-    routeSeverity = 'medium';
+    routeSeverity = "medium";
   }
 
-  let reviewModel = '';
-  let reviewEffort = 'low';
-  let reviewRule = '';
+  let reviewModel = "";
+  let reviewEffort = "low";
+  let reviewRule = "";
   let reviewLlmTimeout = 0;
   let reviewTaskTimeout = 0;
   let reviewConcurrency = 0;
   let reviewResumeAttempts = 0;
   let reviewResumeBackoffSeconds = 0;
   let isTriageRequired = false;
-  let triageModel = '';
+  let triageModel = "";
   let triageTimeout = 0;
 
-  if (reviewAgent !== 'none') {
+  if (reviewAgent !== "none") {
     const agent = policies.review.agents[reviewAgent];
     reviewModel = hasTrustedModelOverride
       ? options.modelOverride
-      : aiAgentModel(policies.aiAgents, 'review', reviewAgent);
-    reviewEffort = agent?.effort ?? 'medium';
-    reviewRule = agent?.rule ?? '';
+      : aiAgentModel(policies.aiAgents, "review", reviewAgent);
+    reviewEffort = agent?.effort ?? "medium";
+    reviewRule = agent?.rule ?? "";
     reviewLlmTimeout = policies.review.runtime.llm_timeout_seconds ?? 300;
     reviewTaskTimeout =
       agent?.task_timeout_minutes ?? policies.review.runtime.task_timeout_minutes ?? 2;
@@ -254,69 +254,69 @@ export function resolvePlan(
     reviewResumeBackoffSeconds = policies.review.runtime.resume_backoff_seconds ?? 15;
 
     if (
-      isAiAgentEnabled(policies.aiAgents, 'review') &&
-      isAiAgentEnabled(policies.aiAgents, 'triage') &&
+      isAiAgentEnabled(policies.aiAgents, "review") &&
+      isAiAgentEnabled(policies.aiAgents, "triage") &&
       policies.triage.enabled_agents.includes(reviewAgent)
     ) {
       isTriageRequired = true;
-      triageModel = aiAgentModel(policies.aiAgents, 'triage');
+      triageModel = aiAgentModel(policies.aiAgents, "triage");
       triageTimeout = policies.triage.timeout_seconds ?? 60;
     }
   }
 
   let isNamingRequired = policies.naming.always;
-  if (options.namingMode === 'on') {
+  if (options.namingMode === "on") {
     isNamingRequired = true;
-  } else if (options.namingMode === 'off') {
+  } else if (options.namingMode === "off") {
     isNamingRequired = false;
-  } else if (options.namingMode !== 'inherit') {
-    throw new CliError('::error::naming_mode only supports inherit/on/off.', 64);
+  } else if (options.namingMode !== "inherit") {
+    throw new CliError("::error::naming_mode only supports inherit/on/off.", 64);
   }
 
-  if (options.effortOverride !== 'inherit') {
-    if (!['low', 'medium', 'high'].includes(options.effortOverride)) {
-      throw new CliError('::error::review_effort only supports inherit/low/medium/high.', 64);
+  if (options.effortOverride !== "inherit") {
+    if (!["low", "medium", "high"].includes(options.effortOverride)) {
+      throw new CliError("::error::review_effort only supports inherit/low/medium/high.", 64);
     }
     reviewEffort = options.effortOverride;
   }
 
-  if (options.modelOverride !== 'auto') {
+  if (options.modelOverride !== "auto") {
     reviewModel = options.modelOverride;
   }
 
   if (!isReviewRequired) {
-    reviewAgent = 'none';
-    reviewModel = '';
-    reviewRule = '';
+    reviewAgent = "none";
+    reviewModel = "";
+    reviewRule = "";
     reviewLlmTimeout = 0;
     reviewTaskTimeout = 0;
     reviewConcurrency = 0;
     reviewResumeAttempts = 0;
     reviewResumeBackoffSeconds = 0;
     isTriageRequired = false;
-    triageModel = '';
+    triageModel = "";
     triageTimeout = 0;
   } else {
-    requireRange(reviewLlmTimeout, 1, 600, '::error::review_llm_timeout must be 1-600 seconds.');
-    requireRange(reviewTaskTimeout, 1, 30, '::error::review_task_timeout must be 1-30 minutes.');
-    requireRange(reviewConcurrency, 1, 8, '::error::review_concurrency must be 1-8.');
-    requireRange(reviewResumeAttempts, 0, 5, '::error::review_resume_attempts must be 0-5.');
+    requireRange(reviewLlmTimeout, 1, 600, "::error::review_llm_timeout must be 1-600 seconds.");
+    requireRange(reviewTaskTimeout, 1, 30, "::error::review_task_timeout must be 1-30 minutes.");
+    requireRange(reviewConcurrency, 1, 8, "::error::review_concurrency must be 1-8.");
+    requireRange(reviewResumeAttempts, 0, 5, "::error::review_resume_attempts must be 0-5.");
     requireRange(
       reviewResumeBackoffSeconds,
       1,
       120,
-      '::error::review_resume_backoff_seconds must be 1-120 seconds.'
+      "::error::review_resume_backoff_seconds must be 1-120 seconds."
     );
     if (!reviewModel) {
-      throw new CliError('::error::Invalid review_model configuration.', 65);
+      throw new CliError("::error::Invalid review_model configuration.", 65);
     }
   }
 
   if (isTriageRequired) {
     if (!triageModel) {
-      throw new CliError('::error::triage_model is invalid.', 65);
+      throw new CliError("::error::triage_model is invalid.", 65);
     }
-    requireRange(triageTimeout, 1, 300, '::error::triage_timeout must be 1-300 seconds.');
+    requireRange(triageTimeout, 1, 300, "::error::triage_timeout must be 1-300 seconds.");
   }
 
   return {
@@ -351,12 +351,12 @@ function expectRecord<T>(value: unknown, label: string): T {
 
 async function loadPolicies(policyDir: string): Promise<PlanPolicies> {
   const paths = {
-    naming: join(policyDir, 'naming.json'),
-    checks: join(policyDir, 'checks.json'),
-    tests: join(policyDir, 'tests.json'),
-    review: join(policyDir, 'review.json'),
-    triage: join(policyDir, 'triage.json'),
-    execution: join(policyDir, 'execution.json'),
+    naming: join(policyDir, "naming.json"),
+    checks: join(policyDir, "checks.json"),
+    tests: join(policyDir, "tests.json"),
+    review: join(policyDir, "review.json"),
+    triage: join(policyDir, "triage.json"),
+    execution: join(policyDir, "execution.json"),
   };
   for (const path of Object.values(paths)) {
     try {
@@ -375,21 +375,21 @@ async function loadPolicies(policyDir: string): Promise<PlanPolicies> {
     readJson(paths.execution),
   ]);
   return {
-    naming: expectRecord<NamingPolicy>(naming, 'naming'),
-    checks: expectRecord<ChecksPolicy>(checks, 'checks'),
-    tests: expectRecord<TestsPolicy>(tests, 'tests'),
-    review: expectRecord<ReviewPolicy>(review, 'review'),
-    triage: expectRecord<TriagePolicy>(triage, 'triage'),
-    execution: expectRecord<ExecutionPolicy>(execution, 'execution'),
+    naming: expectRecord<NamingPolicy>(naming, "naming"),
+    checks: expectRecord<ChecksPolicy>(checks, "checks"),
+    tests: expectRecord<TestsPolicy>(tests, "tests"),
+    review: expectRecord<ReviewPolicy>(review, "review"),
+    triage: expectRecord<TriagePolicy>(triage, "triage"),
+    execution: expectRecord<ExecutionPolicy>(execution, "execution"),
     aiAgents: (() => {
       try {
-        return parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? '');
+        return parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? "");
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.error(
           `::warning::AI Agent configuration is invalid; advisory review is disabled for this run: ${message}`
         );
-        return parseAiAgentConfig('');
+        return parseAiAgentConfig("");
       }
     })(),
   };
@@ -399,7 +399,7 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length !== 7) {
     throw new CliError(
-      'Usage: resolve-pr-plan.ts <context-json> <naming-mode> <review-mode> <review-effort> <review-model> <review-agent> <policy-dir>',
+      "Usage: resolve-pr-plan.ts <context-json> <naming-mode> <review-mode> <review-effort> <review-model> <review-agent> <policy-dir>",
       64
     );
   }
@@ -412,7 +412,7 @@ async function main(): Promise<void> {
     agentOverride,
     policyDir,
   ] = args as [string, string, string, string, string, string, string];
-  const context = validateContext(parseJson(contextJson, '::error::Invalid PR context format.'));
+  const context = validateContext(parseJson(contextJson, "::error::Invalid PR context format."));
   const policies = await loadPolicies(policyDir);
   const plan = resolvePlan(context, policies, {
     namingMode,
@@ -423,7 +423,7 @@ async function main(): Promise<void> {
   });
   const output = JSON.stringify(plan);
   if (process.env.GITHUB_OUTPUT) {
-    await writeFile('/tmp/pr-plan.base.json', `${output}\n`, 'utf8');
+    await writeFile("/tmp/pr-plan.base.json", `${output}\n`, "utf8");
     await appendLines(process.env.GITHUB_OUTPUT, [
       `ci_required=${plan.ci_required}`,
       `naming_required=${plan.naming_required}`,

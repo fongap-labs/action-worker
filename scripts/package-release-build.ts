@@ -1,22 +1,22 @@
-import { createHash } from 'node:crypto';
-import { createReadStream } from 'node:fs';
-import { readdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { CliError, handleError, isMain, readJson } from './runtime-command.ts';
-import { parseReleaseBuildManifest } from './validate-release-build-request.ts';
+import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
+import { readdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { CliError, handleError, isMain, readJson } from "./runtime-command.ts";
+import { parseReleaseBuildManifest } from "./validate-release-build-request.ts";
 
 async function sha256File(path: string): Promise<string> {
   return await new Promise((resolve, reject) => {
-    const hash = createHash('sha256');
+    const hash = createHash("sha256");
     const input = createReadStream(path);
-    input.on('error', reject);
-    input.on('data', (chunk) => hash.update(chunk));
-    input.on('end', () => resolve(hash.digest('hex')));
+    input.on("error", reject);
+    input.on("data", (chunk) => hash.update(chunk));
+    input.on("end", () => resolve(hash.digest("hex")));
   });
 }
 
 async function main(): Promise<void> {
-  const [manifestPath = '', sourceRepository = '', sourceSha = '', version = '', artifactDir = ''] =
+  const [manifestPath = "", sourceRepository = "", sourceSha = "", version = "", artifactDir = ""] =
     process.argv.slice(2);
   if (
     !manifestPath ||
@@ -26,7 +26,7 @@ async function main(): Promise<void> {
     !artifactDir
   ) {
     throw new CliError(
-      'Usage: package-release-build.ts <manifest> <source-repository> <source-sha> <version> <artifact-dir>',
+      "Usage: package-release-build.ts <manifest> <source-repository> <source-sha> <version> <artifact-dir>",
       64
     );
   }
@@ -42,7 +42,7 @@ async function main(): Promise<void> {
     .sort();
   if (actual.length !== expected.length || actual.some((item, index) => item !== expected[index])) {
     throw new CliError(
-      `Release build assets do not match manifest: expected=${expected.join(',')} actual=${actual.join(',')}.`,
+      `Release build assets do not match manifest: expected=${expected.join(",")} actual=${actual.join(",")}.`,
       66
     );
   }
@@ -52,18 +52,18 @@ async function main(): Promise<void> {
     assets.push({ name, sha256: await sha256File(join(artifactDir, name)) });
   }
 
-  const artifactRepository = process.env.GITHUB_REPOSITORY ?? '';
-  const artifactRunId = Number(process.env.GITHUB_RUN_ID ?? '');
+  const artifactRepository = process.env.GITHUB_REPOSITORY ?? "";
+  const artifactRunId = Number(process.env.GITHUB_RUN_ID ?? "");
   if (
     !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(artifactRepository) ||
     !Number.isInteger(artifactRunId) ||
     artifactRunId < 1
   ) {
-    throw new CliError('Release artifact runtime identity is invalid.', 77);
+    throw new CliError("Release artifact runtime identity is invalid.", 77);
   }
 
   const releaseManifest = {
-    schema_version: '1',
+    schema_version: "1",
     target_repository: manifest.target_repository,
     release_key: manifest.release_key,
     version,
@@ -74,7 +74,7 @@ async function main(): Promise<void> {
     assets,
   };
   const provenance = {
-    schema_version: '1',
+    schema_version: "1",
     source_repository: sourceRepository,
     source_sha: sourceSha,
     artifact_repository: artifactRepository,
@@ -82,14 +82,14 @@ async function main(): Promise<void> {
   };
 
   await writeFile(
-    join(artifactDir, 'release-manifest.json'),
+    join(artifactDir, "release-manifest.json"),
     `${JSON.stringify(releaseManifest, null, 2)}\n`,
-    'utf8'
+    "utf8"
   );
   await writeFile(
-    join(artifactDir, 'release-provenance.json'),
+    join(artifactDir, "release-provenance.json"),
     `${JSON.stringify(provenance, null, 2)}\n`,
-    'utf8'
+    "utf8"
   );
 }
 

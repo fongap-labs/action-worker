@@ -3,10 +3,10 @@ import {
   type ExecutionOperation,
   jobsForOperation,
   parseExecutionManifest,
-} from './execution-contract.ts';
-import { parseExecutionCapabilityPolicy, validateExecutionGrant } from './execution-policy.ts';
-import { parseRunnerPolicy, resolveRunnerProfile } from './runner-policy.ts';
-import { appendLines, CliError, handleError, isMain, readJson } from './runtime-command.ts';
+} from "./execution-contract.ts";
+import { parseExecutionCapabilityPolicy, validateExecutionGrant } from "./execution-policy.ts";
+import { parseRunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
+import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 
 export type PlannedExecutionJob = {
   job_id: string;
@@ -33,7 +33,7 @@ function cartesianMatrix(matrix: Record<string, string[]> | undefined): Record<s
     const values = matrix[key] ?? [];
     rows = rows.flatMap((row) => values.map((value) => ({ ...row, [key]: value })));
     if (rows.length > 128) {
-      throw new CliError('Execution matrix expands beyond 128 jobs.', 65);
+      throw new CliError("Execution matrix expands beyond 128 jobs.", 65);
     }
   }
   return rows;
@@ -44,7 +44,7 @@ function renderMatrixText(value: string, matrix: Record<string, string>): string
     if (!(key in matrix)) {
       throw new CliError(`Execution matrix token is unresolved: ${key}.`, 65);
     }
-    return matrix[key] ?? '';
+    return matrix[key] ?? "";
   });
 }
 
@@ -63,7 +63,7 @@ function instanceId(jobId: string, matrix: Record<string, string>): string {
   const suffix = Object.entries(matrix)
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([key, value]) => `${key}=${value}`)
-    .join(',');
+    .join(",");
   return suffix ? `${jobId}[${suffix}]` : jobId;
 }
 
@@ -80,7 +80,7 @@ export function resolveExecutionPlan(
 
   if (jobs.some((job) => (job.depends_on?.length ?? 0) > 0)) {
     throw new CliError(
-      'Dynamic execution currently requires dependency-free jobs; cross-runner DAG execution is not enabled.',
+      "Dynamic execution currently requires dependency-free jobs; cross-runner DAG execution is not enabled.",
       65
     );
   }
@@ -94,7 +94,7 @@ export function resolveExecutionPlan(
       const renderedCommand = job.command.map((value) => renderMatrixText(value, matrix));
       const renderedWorkingDirectory = job.working_directory
         ? renderMatrixText(job.working_directory, matrix)
-        : '';
+        : "";
       const renderedArtifacts = renderArtifacts(job.artifacts, matrix);
       plan.push({
         job_id: job.id,
@@ -121,25 +121,25 @@ export function resolveExecutionPlan(
 
 async function main(): Promise<void> {
   const [
-    manifestPath = '',
-    operationRaw = '',
-    runnerPolicyPath = 'policies/runner.json',
-    capabilityPolicyPath = 'policies/capabilities.json',
+    manifestPath = "",
+    operationRaw = "",
+    runnerPolicyPath = "policies/runner.json",
+    capabilityPolicyPath = "policies/capabilities.json",
   ] = process.argv.slice(2);
   if (!manifestPath || !operationRaw) {
     throw new CliError(
-      'Usage: resolve-execution-plan.ts <manifest> <operation> [runner-policy] [capability-policy]',
+      "Usage: resolve-execution-plan.ts <manifest> <operation> [runner-policy] [capability-policy]",
       64
     );
   }
   const allowedOperations = new Set([
-    'ci',
-    'review',
-    'build',
-    'release',
-    'deploy',
-    'task',
-    'scheduled',
+    "ci",
+    "review",
+    "build",
+    "release",
+    "deploy",
+    "task",
+    "scheduled",
   ]);
   if (!allowedOperations.has(operationRaw)) {
     throw new CliError(`Unknown execution operation: ${operationRaw}.`, 64);

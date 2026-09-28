@@ -1,11 +1,10 @@
-import { writeFile } from 'node:fs/promises';
 import {
   getJsonArray,
   getJsonNumber,
   getJsonString,
   isJsonRecord,
   runGithubCli,
-} from './github-api.ts';
+} from "./github-api.ts";
 import {
   appendLines,
   CliError,
@@ -13,14 +12,14 @@ import {
   isMain,
   runCommand,
   runText,
-} from './runtime-command.ts';
+} from "./runtime-command.ts";
 
 function sleep(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 function requireEnv(name: string): string {
-  const value = process.env[name] ?? '';
+  const value = process.env[name] ?? "";
   if (!value) {
     throw new CliError(`::error::${name} is required.`);
   }
@@ -31,42 +30,42 @@ export function metricIncrementForWorkflow(
   workflow: string,
   hasReview = false
 ): Record<string, number> {
-  if (workflow === 'Handle Task Dispatch') {
+  if (workflow === "Handle Task Dispatch") {
     return { dispatch: 1, pr_governance: 0, ai_review: 0, release_governance: 0 };
   }
-  if (workflow === 'Handle PR Dispatch') {
+  if (workflow === "Handle PR Dispatch") {
     return { dispatch: 0, pr_governance: 1, ai_review: hasReview ? 1 : 0, release_governance: 0 };
   }
-  if (workflow === 'Handle Release Dispatch') {
+  if (workflow === "Handle Release Dispatch") {
     return { dispatch: 0, pr_governance: 0, ai_review: 0, release_governance: 1 };
   }
   throw new CliError(`::error::Unsupported workflow_run source: ${workflow}`, 65);
 }
 
 async function prepareIncrement(): Promise<void> {
-  const eventName = process.env.EVENT_NAME ?? '';
-  if (eventName !== 'workflow_run') {
-    await appendLines(process.env.GITHUB_OUTPUT, ['json=']);
+  const eventName = process.env.EVENT_NAME ?? "";
+  if (eventName !== "workflow_run") {
+    await appendLines(process.env.GITHUB_OUTPUT, ["json="]);
     return;
   }
-  const workflow = process.env.SOURCE_WORKFLOW ?? '';
+  const workflow = process.env.SOURCE_WORKFLOW ?? "";
   let hasReview = false;
-  if (workflow === 'Handle PR Dispatch') {
-    const token = requireEnv('GH_TOKEN');
-    const repository = requireEnv('GITHUB_REPOSITORY');
-    const runId = requireEnv('SOURCE_RUN_ID');
+  if (workflow === "Handle PR Dispatch") {
+    const token = requireEnv("GH_TOKEN");
+    const repository = requireEnv("GITHUB_REPOSITORY");
+    const runId = requireEnv("SOURCE_RUN_ID");
     const text = await runGithubCli(
-      ['api', `repos/${repository}/actions/runs/${runId}/jobs?per_page=100`],
+      ["api", `repos/${repository}/actions/runs/${runId}/jobs?per_page=100`],
       token
     );
     const response = JSON.parse(text) as unknown;
-    hasReview = getJsonArray(response, 'jobs').some((job) => {
+    hasReview = getJsonArray(response, "jobs").some((job) => {
       const steps = isJsonRecord(job) && Array.isArray(job.steps) ? job.steps : [];
       return steps.some(
         (step) =>
           isJsonRecord(step) &&
-          getJsonString(step, 'name') === 'Run AI review' &&
-          getJsonString(step, 'conclusion') === 'success'
+          getJsonString(step, "name") === "Run AI review" &&
+          getJsonString(step, "conclusion") === "success"
       );
     });
   }
@@ -75,84 +74,84 @@ async function prepareIncrement(): Promise<void> {
 }
 
 async function detectChanges(): Promise<void> {
-  const status = await runText('git', [
-    'status',
-    '--porcelain',
-    '--',
-    'README.md',
-    'README.zh-CN.md',
+  const status = await runText("git", [
+    "status",
+    "--porcelain",
+    "--",
+    "README.md",
+    "README.zh-CN.md",
   ]);
-  await appendLines(process.env.GITHUB_OUTPUT, [`changed=${status ? 'true' : 'false'}`]);
+  await appendLines(process.env.GITHUB_OUTPUT, [`changed=${status ? "true" : "false"}`]);
 }
 
 async function createBranch(): Promise<void> {
-  const branch = requireEnv('BRANCH');
-  await runCommand('git', ['config', 'user.name', 'github-actions[bot]']);
-  await runCommand('git', [
-    'config',
-    'user.email',
-    '41898282+github-actions[bot]@users.noreply.github.com',
+  const branch = requireEnv("BRANCH");
+  await runCommand("git", ["config", "user.name", "github-actions[bot]"]);
+  await runCommand("git", [
+    "config",
+    "user.email",
+    "41898282+github-actions[bot]@users.noreply.github.com",
   ]);
-  await runCommand('git', ['checkout', '-b', branch]);
-  await runCommand('git', ['add', 'README.md', 'README.zh-CN.md']);
-  await runCommand('git', ['commit', '-m', 'chore: update work metrics']);
-  await runCommand('git', ['fetch', 'origin', 'main']);
-  await runCommand('git', ['rebase', 'origin/main']);
-  await runCommand('git', ['push', 'origin', branch]);
-  const sha = await runText('git', ['rev-parse', 'HEAD']);
+  await runCommand("git", ["checkout", "-b", branch]);
+  await runCommand("git", ["add", "README.md", "README.zh-CN.md"]);
+  await runCommand("git", ["commit", "-m", "chore: update work metrics"]);
+  await runCommand("git", ["fetch", "origin", "main"]);
+  await runCommand("git", ["rebase", "origin/main"]);
+  await runCommand("git", ["push", "origin", branch]);
+  const sha = await runText("git", ["rev-parse", "HEAD"]);
   await appendLines(process.env.GITHUB_OUTPUT, [`name=${branch}`, `sha=${sha}`]);
 }
 
 async function createPull(): Promise<void> {
-  const token = requireEnv('GH_TOKEN');
-  const repository = requireEnv('GITHUB_REPOSITORY');
-  const branch = requireEnv('BRANCH');
+  const token = requireEnv("GH_TOKEN");
+  const repository = requireEnv("GITHUB_REPOSITORY");
+  const branch = requireEnv("BRANCH");
   const body = [
-    'Verified work metrics.',
-    '',
-    `- Task Dispatch: ${process.env.DISPATCH ?? '0'}`,
-    `- PR Governance: ${process.env.PR_GOVERNANCE ?? '0'}`,
-    `- AI Review: ${process.env.AI_REVIEW ?? '0'}`,
-    `- Gate: ${process.env.GATE ?? '0'}`,
-    `- Release Governance: ${process.env.RELEASE_GOVERNANCE ?? '0'}`,
-  ].join('\n');
+    "Verified work metrics.",
+    "",
+    `- Task Dispatch: ${process.env.DISPATCH ?? "0"}`,
+    `- PR Governance: ${process.env.PR_GOVERNANCE ?? "0"}`,
+    `- AI Review: ${process.env.AI_REVIEW ?? "0"}`,
+    `- Gate: ${process.env.GATE ?? "0"}`,
+    `- Release Governance: ${process.env.RELEASE_GOVERNANCE ?? "0"}`,
+  ].join("\n");
   const text = await runGithubCli(
     [
-      'api',
-      '--method',
-      'POST',
+      "api",
+      "--method",
+      "POST",
       `repos/${repository}/pulls`,
-      '-f',
-      'base=main',
-      '-f',
+      "-f",
+      "base=main",
+      "-f",
       `head=${branch}`,
-      '-f',
-      'title=chore: update work metrics',
-      '-f',
+      "-f",
+      "title=chore: update work metrics",
+      "-f",
       `body=${body}`,
     ],
     token
   );
   const pull = JSON.parse(text) as unknown;
-  if (!isJsonRecord(pull) || !getJsonString(pull, 'html_url') || !getJsonNumber(pull, 'number')) {
-    throw new CliError('::error::GitHub returned an invalid metrics pull request.');
+  if (!isJsonRecord(pull) || !getJsonString(pull, "html_url") || !getJsonNumber(pull, "number")) {
+    throw new CliError("::error::GitHub returned an invalid metrics pull request.");
   }
   await appendLines(process.env.GITHUB_OUTPUT, [
-    `url=${getJsonString(pull, 'html_url')}`,
-    `number=${getJsonNumber(pull, 'number')}`,
+    `url=${getJsonString(pull, "html_url")}`,
+    `number=${getJsonNumber(pull, "number")}`,
   ]);
 }
 
 async function cleanupMetricsUpdate(): Promise<void> {
-  const token = requireEnv('GH_TOKEN');
-  const repository = requireEnv('GITHUB_REPOSITORY');
-  const branch = requireEnv('BRANCH');
-  const prNumber = process.env.PR_NUMBER ?? '';
+  const token = requireEnv("GH_TOKEN");
+  const repository = requireEnv("GITHUB_REPOSITORY");
+  const branch = requireEnv("BRANCH");
+  const prNumber = process.env.PR_NUMBER ?? "";
 
   if (prNumber) {
     try {
       await runGithubCli(
-        ['api', '--method', 'PATCH', `repos/${repository}/pulls/${prNumber}`, '-f', 'state=closed'],
+        ["api", "--method", "PATCH", `repos/${repository}/pulls/${prNumber}`, "-f", "state=closed"],
         token
       );
     } catch (error) {
@@ -164,7 +163,7 @@ async function cleanupMetricsUpdate(): Promise<void> {
 
   try {
     await runGithubCli(
-      ['api', '--method', 'DELETE', `repos/${repository}/git/refs/heads/${branch}`],
+      ["api", "--method", "DELETE", `repos/${repository}/git/refs/heads/${branch}`],
       token
     );
   } catch (error) {
@@ -175,199 +174,107 @@ async function cleanupMetricsUpdate(): Promise<void> {
 }
 
 async function runMetricsCi(): Promise<void> {
-  const token = requireEnv('GH_TOKEN');
-  const branch = requireEnv('BRANCH');
-  const headSha = requireEnv('HEAD_SHA');
+  const token = requireEnv("GH_TOKEN");
+  const branch = requireEnv("BRANCH");
+  const headSha = requireEnv("HEAD_SHA");
   let runId = 0;
   for (let attempt = 0; attempt < 60; attempt += 1) {
     const text = await runGithubCli(
       [
-        'run',
-        'list',
-        '--workflow',
-        'validate-ci.yml',
-        '--branch',
+        "run",
+        "list",
+        "--workflow",
+        "validate-ci.yml",
+        "--branch",
         branch,
-        '--event',
-        'pull_request',
-        '--limit',
-        '10',
-        '--json',
-        'databaseId,headSha',
+        "--event",
+        "pull_request",
+        "--limit",
+        "10",
+        "--json",
+        "databaseId,headSha",
       ],
       token
     );
     const runs = JSON.parse(text) as unknown;
     const matched = Array.isArray(runs)
-      ? runs.find((run) => isJsonRecord(run) && getJsonString(run, 'headSha') === headSha)
+      ? runs.find((run) => isJsonRecord(run) && getJsonString(run, "headSha") === headSha)
       : undefined;
-    runId = isJsonRecord(matched) ? getJsonNumber(matched, 'databaseId') : 0;
+    runId = isJsonRecord(matched) ? getJsonNumber(matched, "databaseId") : 0;
     if (runId) {
       break;
     }
     await sleep(2000);
   }
   if (!runId) {
-    throw new CliError('::error::No pull-request CI run was found for the metrics branch.');
+    throw new CliError("::error::No pull-request CI run was found for the metrics branch.");
   }
-  await runGithubCli(['run', 'watch', String(runId), '--exit-status'], token);
+  await runGithubCli(["run", "watch", String(runId), "--exit-status"], token);
   await appendLines(process.env.GITHUB_OUTPUT, [`run_id=${runId}`]);
 }
 
 async function mergePull(): Promise<void> {
-  const token = requireEnv('GH_TOKEN');
-  const repository = requireEnv('GITHUB_REPOSITORY');
-  const prNumber = requireEnv('PR_NUMBER');
-  const branch = requireEnv('BRANCH');
+  const token = requireEnv("GH_TOKEN");
+  const repository = requireEnv("GITHUB_REPOSITORY");
+  const prNumber = requireEnv("PR_NUMBER");
+  const branch = requireEnv("BRANCH");
   const text = await runGithubCli(
     [
-      'api',
-      '--method',
-      'PUT',
+      "api",
+      "--method",
+      "PUT",
       `repos/${repository}/pulls/${prNumber}/merge`,
-      '-f',
-      'merge_method=squash',
+      "-f",
+      "merge_method=squash",
     ],
     token
   );
   const result = JSON.parse(text) as unknown;
   if (!isJsonRecord(result) || result.merged !== true) {
-    throw new CliError('::error::Metrics pull request was not merged.');
+    throw new CliError("::error::Metrics pull request was not merged.");
   }
   await runGithubCli(
-    ['api', '--method', 'DELETE', `repos/${repository}/git/refs/heads/${branch}`],
+    ["api", "--method", "DELETE", `repos/${repository}/git/refs/heads/${branch}`],
     token
   );
 }
 
-async function publishMetricsJson(): Promise<void> {
-  const _token = requireEnv('GH_TOKEN');
-  const _repository = requireEnv('GITHUB_REPOSITORY');
-  const dispatch = process.env.DISPATCH ?? '0';
-  const prGovernance = process.env.PR_GOVERNANCE ?? '0';
-  const aiReview = process.env.AI_REVIEW ?? '0';
-  const gate = process.env.GATE ?? '0';
-  const releaseGovernance = process.env.RELEASE_GOVERNANCE ?? '0';
-
-  const counts = {
-    dispatch: Number(dispatch),
-    pr_governance: Number(prGovernance),
-    ai_review: Number(aiReview),
-    gate: Number(gate),
-    release_governance: Number(releaseGovernance),
-  };
-
-  const jsonFiles = {
-    'task-dispatch.json': JSON.stringify(
-      {
-        schemaVersion: 1,
-        label: 'Task Dispatch',
-        message: String(counts.dispatch),
-        color: '1A61FE',
-      },
-      null,
-      2
-    ),
-    'pr-governance.json': JSON.stringify(
-      {
-        schemaVersion: 1,
-        label: 'PR Governance',
-        message: String(counts.pr_governance),
-        color: '212183',
-      },
-      null,
-      2
-    ),
-    'ai-review.json': JSON.stringify(
-      {
-        schemaVersion: 1,
-        label: 'AI Review',
-        message: String(counts.ai_review),
-        color: '0527FC',
-      },
-      null,
-      2
-    ),
-    'release-governance.json': JSON.stringify(
-      {
-        schemaVersion: 1,
-        label: 'Release Governance',
-        message: String(counts.release_governance),
-        color: '08872B',
-      },
-      null,
-      2
-    ),
-  };
-
-  const tempDir = '/tmp/metrics-data';
-  await runCommand('rm', ['-rf', tempDir]);
-  await runCommand('mkdir', ['-p', tempDir]);
-
-  for (const [filename, content] of Object.entries(jsonFiles)) {
-    await writeFile(`${tempDir}/${filename}`, content, 'utf8');
-  }
-
-  await runCommand('git', ['config', 'user.name', 'github-actions[bot]']);
-  await runCommand('git', [
-    'config',
-    'user.email',
-    '41898282+github-actions[bot]@users.noreply.github.com',
-  ]);
-
-  await runCommand('git', ['fetch', 'origin', 'metrics-data:metrics-data'], { cwd: tempDir });
-  await runCommand('git', ['checkout', 'metrics-data'], { cwd: tempDir });
-
-  for (const filename of Object.keys(jsonFiles)) {
-    await runCommand('git', ['add', filename], { cwd: tempDir });
-  }
-
-  const status = await runText('git', ['status', '--porcelain'], { cwd: tempDir });
-  if (status.trim()) {
-    await runCommand('git', ['commit', '-m', 'chore: update work metrics JSON'], { cwd: tempDir });
-    await runCommand('git', ['push', 'origin', 'metrics-data'], { cwd: tempDir });
-    console.log('Published metrics JSON to metrics-data branch');
-  } else {
-    console.log('No changes to metrics JSON');
-  }
-}
-
 async function sweepMetricsBranches(): Promise<void> {
-  const token = requireEnv('GH_TOKEN');
-  const repository = requireEnv('GITHUB_REPOSITORY');
-  const currentBranch = process.env.BRANCH ?? '';
+  const token = requireEnv("GH_TOKEN");
+  const repository = requireEnv("GITHUB_REPOSITORY");
+  const currentBranch = process.env.BRANCH ?? "";
 
   const refsRaw = await runGithubCli(
-    ['api', `repos/${repository}/git/matching-refs/heads/metrics/`, '--paginate'],
+    ["api", `repos/${repository}/git/matching-refs/heads/metrics/`, "--paginate"],
     token
   );
   const refs = JSON.parse(refsRaw) as Array<{ ref?: string }>;
 
   const openPullsRaw = await runGithubCli(
     [
-      'api',
-      '--method',
-      'GET',
+      "api",
+      "--method",
+      "GET",
       `repos/${repository}/pulls`,
-      '-f',
-      'state=open',
-      '-f',
-      'per_page=100',
-      '--paginate',
+      "-f",
+      "state=open",
+      "-f",
+      "per_page=100",
+      "--paginate",
     ],
     token
   );
   const openPulls = JSON.parse(openPullsRaw) as Array<{ head?: { ref?: string } }>;
-  const openBranches = new Set(openPulls.map((pull) => pull.head?.ref ?? '').filter(Boolean));
+  const openBranches = new Set(openPulls.map((pull) => pull.head?.ref ?? "").filter(Boolean));
 
   let deleted = 0;
   for (const entry of refs) {
-    const fullRef = entry.ref ?? '';
-    const branch = fullRef.replace(/^refs\/heads\//, '');
-    if (!branch.startsWith('metrics/') || branch === currentBranch || openBranches.has(branch))
+    const fullRef = entry.ref ?? "";
+    const branch = fullRef.replace(/^refs\/heads\//, "");
+    if (!branch.startsWith("metrics/") || branch === currentBranch || openBranches.has(branch))
       continue;
     await runGithubCli(
-      ['api', '--method', 'DELETE', `repos/${repository}/git/refs/heads/${branch}`],
+      ["api", "--method", "DELETE", `repos/${repository}/git/refs/heads/${branch}`],
       token
     );
     deleted += 1;
@@ -378,36 +285,33 @@ async function sweepMetricsBranches(): Promise<void> {
 
 async function main(): Promise<void> {
   switch (process.argv[2]) {
-    case 'increment':
+    case "increment":
       await prepareIncrement();
       break;
-    case 'changes':
+    case "changes":
       await detectChanges();
       break;
-    case 'branch':
+    case "branch":
       await createBranch();
       break;
-    case 'pull':
+    case "pull":
       await createPull();
       break;
-    case 'cleanup':
+    case "cleanup":
       await cleanupMetricsUpdate();
       break;
-    case 'sweep':
+    case "sweep":
       await sweepMetricsBranches();
       break;
-    case 'ci':
+    case "ci":
       await runMetricsCi();
       break;
-    case 'merge':
+    case "merge":
       await mergePull();
-      break;
-    case 'publish-json':
-      await publishMetricsJson();
       break;
     default:
       throw new CliError(
-        'Usage: manage-work-metrics.ts <increment|changes|branch|pull|cleanup|sweep|ci|merge|publish-json>',
+        "Usage: manage-work-metrics.ts <increment|changes|branch|pull|cleanup|sweep|ci|merge>",
         64
       );
   }

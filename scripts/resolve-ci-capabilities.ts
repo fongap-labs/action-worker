@@ -1,5 +1,5 @@
-import { githubExists } from './github-api.ts';
-import { appendLines, CliError, handleError, isMain } from './runtime-command.ts';
+import { githubExists } from "./github-api.ts";
+import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const refPattern = /^(?:[0-9a-f]{40}|[A-Za-z0-9._/-]+)$/;
@@ -12,11 +12,11 @@ export async function resolveCiCapabilities(
   if (!repositoryPattern.test(repository)) {
     throw new CliError(`Invalid repository: ${repository}.`, 64);
   }
-  if (!controlRef || !refPattern.test(controlRef) || controlRef.includes('..')) {
-    throw new CliError('Invalid trusted control ref.', 64);
+  if (!controlRef || !refPattern.test(controlRef) || controlRef.includes("..")) {
+    throw new CliError("Invalid trusted control ref.", 64);
   }
   if (!token) {
-    throw new CliError('AW_CONTROL_TOKEN is required.', 64);
+    throw new CliError("AW_CONTROL_TOKEN is required.", 64);
   }
 
   const ref = encodeURIComponent(controlRef);
@@ -28,8 +28,8 @@ export async function resolveCiCapabilities(
 }
 
 async function main(): Promise<void> {
-  const [repository = '', controlRef = ''] = process.argv.slice(2);
-  const token = process.env.AW_CONTROL_TOKEN ?? '';
+  const [repository = "", controlRef = ""] = process.argv.slice(2);
+  const token = process.env.AW_CONTROL_TOKEN ?? "";
   const capabilities = await resolveCiCapabilities(repository, controlRef, token);
   await appendLines(process.env.GITHUB_OUTPUT, [`has_windows=${capabilities.has_windows}`]);
   console.log(JSON.stringify(capabilities));

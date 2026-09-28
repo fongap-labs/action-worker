@@ -1,16 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import {
-  access,
-  mkdir,
-  mkdtemp,
-  open,
-  readFile,
-  readdir,
-  rm,
-  writeFile,
-} from "node:fs/promises";
 import { createReadStream } from "node:fs";
+import { access, mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,9 +16,10 @@ import {
   isJsonRecord,
   runGithubCli,
 } from "./github-api.ts";
+import { assertTrustedMainWrite } from "./main-write-guard.ts";
 import {
-  CliError,
   appendLines,
+  CliError,
   handleError,
   isMain,
   readJson,
@@ -35,7 +27,6 @@ import {
   runText,
 } from "./runtime-command.ts";
 import { validateReleaseProvenance } from "./validate-release-request.ts";
-import { assertTrustedMainWrite } from "./main-write-guard.ts";
 
 type ReleaseRequest = {
   source_repository: string;
@@ -69,7 +60,7 @@ async function writeCommand(
   command: string,
   args: readonly string[],
   path: string,
-  env: NodeJS.ProcessEnv,
+  env: NodeJS.ProcessEnv
 ): Promise<void> {
   const output = await open(path, "w");
   try {
@@ -155,7 +146,7 @@ async function listNested(root: string, current = root): Promise<string[]> {
   for (const entry of await readdir(current, { withFileTypes: true })) {
     const path = join(current, entry.name);
     if (entry.isDirectory()) {
-      found.push(...await listNested(root, path));
+      found.push(...(await listNested(root, path)));
     } else if (entry.isFile() && current !== root) {
       found.push(path);
     }
@@ -172,7 +163,9 @@ async function listRootFiles(root: string, excluded: string[] = []): Promise<str
 }
 
 function sameNames(actual: readonly string[], expected: readonly string[]): boolean {
-  return actual.length === expected.length && actual.every((value, index) => value === expected[index]);
+  return (
+    actual.length === expected.length && actual.every((value, index) => value === expected[index])
+  );
 }
 
 export function buildTag(releaseKey: string, version: string): string {
@@ -186,8 +179,8 @@ export function validateArchive(entries: string): string[] {
   }
   const unique = new Set(names);
   if (
-    unique.size !== names.length
-    || names.some((name) => name === "." || name === ".." || name.includes("/") || name.includes("\\"))
+    unique.size !== names.length ||
+    names.some((name) => name === "." || name === ".." || name.includes("/") || name.includes("\\"))
   ) {
     throw new CliError("::error::Release artifact must contain unique root-level files.", 66);
   }
@@ -214,7 +207,7 @@ async function validateRequest(requestPath: string, manifestPath?: string): Prom
 async function waitForCompletedRun(
   repository: string,
   runId: number,
-  token: string,
+  token: string
 ): Promise<unknown> {
   for (let attempt = 0; attempt < 30; attempt += 1) {
     const runJson = await getGithubJson(`repos/${repository}/actions/runs/${runId}`, token);
@@ -226,7 +219,7 @@ async function waitForCompletedRun(
   }
   throw new CliError(
     `::error::Artifact run did not complete before release validation: repository=${repository} run=${runId}.`,
-    75,
+    75
   );
 }
 
@@ -236,12 +229,15 @@ async function rollbackRelease(
   releaseId: string,
   isReleaseCreated: boolean,
   isTagCreated: boolean,
-  token: string,
+  token: string
 ): Promise<void> {
   if (isReleaseCreated && releaseId) {
     console.log(`::warning::Release publication failed; rolling back Release: ${tag}.`);
     try {
-      await runGithubCli(["api", "--method", "DELETE", `repos/${repository}/releases/${releaseId}`], token);
+      await runGithubCli(
+        ["api", "--method", "DELETE", `repos/${repository}/releases/${releaseId}`],
+        token
+      );
     } catch {
       // Rollback is best effort and the original publication error remains authoritative.
     }
@@ -249,7 +245,10 @@ async function rollbackRelease(
   if (isTagCreated) {
     console.log(`::warning::Rolling back Tag: ${tag}.`);
     try {
-      await runGithubCli(["api", "--method", "DELETE", `repos/${repository}/git/refs/tags/${tag}`], token);
+      await runGithubCli(
+        ["api", "--method", "DELETE", `repos/${repository}/git/refs/tags/${tag}`],
+        token
+      );
     } catch {
       // Rollback is best effort and the original publication error remains authoritative.
     }
@@ -257,7 +256,9 @@ async function rollbackRelease(
 }
 
 async function main(): Promise<void> {
-  const requestPath = process.argv[2] ?? (process.env.RUNNER_TEMP ? join(process.env.RUNNER_TEMP, "release-request.json") : "");
+  const requestPath =
+    process.argv[2] ??
+    (process.env.RUNNER_TEMP ? join(process.env.RUNNER_TEMP, "release-request.json") : "");
   if (!requestPath) {
     throw new CliError("release request file is required.", 64);
   }
@@ -291,22 +292,28 @@ async function main(): Promise<void> {
   if (artifactRepository !== sourceRepository && artifactRepository !== controlRepository) {
     throw new CliError(
       `::error::Artifact repository must be the source repository or the Action Worker control repository: ${artifactRepository}.`,
-      77,
+      77
     );
   }
 
   const sourceRepoJson = await getGithubJson(`repos/${sourceRepository}`, controlToken);
   const defaultBranch = getJsonString(sourceRepoJson, "default_branch");
-  const defaultCommit = await getGithubJson(`repos/${sourceRepository}/commits/${defaultBranch}`, controlToken);
+  const defaultCommit = await getGithubJson(
+    `repos/${sourceRepository}/commits/${defaultBranch}`,
+    controlToken
+  );
   const defaultSha = getJsonString(defaultCommit, "sha");
   if (sourceSha !== defaultSha) {
     throw new CliError(
       `::error::Release source must be the current default-branch HEAD: expected=${defaultSha} actual=${sourceSha}.`,
-      65,
+      65
     );
   }
 
-  const sourceReader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", controlToken);
+  const sourceReader = new GithubReader(
+    process.env.GITHUB_API_URL ?? "https://api.github.com",
+    controlToken
+  );
   const mainWrite = await assertTrustedMainWrite(sourceReader, sourceRepository, sourceSha, true);
 
   const runJson = await waitForCompletedRun(artifactRepository, artifactRunId, controlToken);
@@ -318,58 +325,67 @@ async function main(): Promise<void> {
   if (runConclusion !== "success") {
     throw new CliError(
       `::error::Artifact run must complete successfully: repository=${artifactRepository} run=${artifactRunId} conclusion=${runConclusion || "missing"}.`,
-      65,
+      65
     );
   }
 
-  const ciJson = JSON.parse(await runGithubCli([
-    "run",
-    "list",
-    "--repo",
-    sourceRepository,
-    "--workflow",
-    "ci.yml",
-    "--commit",
-    sourceSha,
-    "--limit",
-    "20",
-    "--json",
-    "status,conclusion,headSha,databaseId",
-  ], controlToken)) as unknown;
+  const ciJson = JSON.parse(
+    await runGithubCli(
+      [
+        "run",
+        "list",
+        "--repo",
+        sourceRepository,
+        "--workflow",
+        "ci.yml",
+        "--commit",
+        sourceSha,
+        "--limit",
+        "20",
+        "--json",
+        "status,conclusion,headSha,databaseId",
+      ],
+      controlToken
+    )
+  ) as unknown;
   const ciRuns = getJsonArray(ciJson)
-    .filter((run) => isJsonRecord(run)
-      && run.headSha === sourceSha
-      && run.status === "completed"
-      && run.conclusion === "success")
+    .filter(
+      (run) =>
+        isJsonRecord(run) &&
+        run.headSha === sourceSha &&
+        run.status === "completed" &&
+        run.conclusion === "success"
+    )
     .sort((left, right) => getJsonNumber(right, "databaseId") - getJsonNumber(left, "databaseId"));
   const ciRunId = getJsonNumber(ciRuns[0], "databaseId") ?? 0;
 
   const statusJson = await getGithubJson(
     `repos/${sourceRepository}/commits/${sourceSha}/status`,
-    controlToken,
+    controlToken
   );
   const ciEvidence = getJsonArray(statusJson, "statuses").find(
-    (status) => isJsonRecord(status) && getJsonString(status, "context") === "CI Evidence",
+    (status) => isJsonRecord(status) && getJsonString(status, "context") === "CI Evidence"
   );
   const ciEvidenceState = isJsonRecord(ciEvidence) ? getJsonString(ciEvidence, "state") : "";
   if (ciEvidenceState !== "success") {
     throw new CliError(
       `::error::Central CI Evidence is not successful for source commit: sha=${sourceSha} state=${ciEvidenceState || "missing"}.`,
-      65,
+      65
     );
   }
 
   const artifactJson = await getGithubJson(
     `repos/${artifactRepository}/actions/runs/${artifactRunId}/artifacts?per_page=100`,
-    controlToken,
+    controlToken
   );
   const artifacts = getJsonArray(artifactJson, "artifacts").filter(
-    (artifact) => isJsonRecord(artifact) && artifact.name === artifactName && artifact.expired === false,
+    (artifact) =>
+      isJsonRecord(artifact) && artifact.name === artifactName && artifact.expired === false
   );
   if (artifacts.length !== 1) {
     throw new CliError(
       `::error::Expected exactly one non-expired artifact named ${artifactName}; found ${artifacts.length}.`,
-      66,
+      66
     );
   }
   const artifactId = getJsonNumber(artifacts[0], "id");
@@ -389,12 +405,14 @@ async function main(): Promise<void> {
       "gh",
       ["api", `repos/${artifactRepository}/actions/artifacts/${artifactId}/zip`],
       archivePath,
-      githubEnvironment(controlToken),
+      githubEnvironment(controlToken)
     );
-    validateArchive(await runText("unzip", ["-Z1", archivePath], {
-      maxBuffer: 1024 * 1024,
-      timeoutMs: 30_000,
-    }));
+    validateArchive(
+      await runText("unzip", ["-Z1", archivePath], {
+        maxBuffer: 1024 * 1024,
+        timeoutMs: 30_000,
+      })
+    );
     await runCommand("unzip", ["-q", archivePath, "-d", artifactDir], {
       maxBuffer: 1024 * 1024,
       timeoutMs: 300_000,
@@ -410,12 +428,15 @@ async function main(): Promise<void> {
     }
 
     const manifest = asManifest(await readJson(manifestPath));
-    const actualFiles = await listRootFiles(artifactDir, ["release-manifest.json", "release-provenance.json"]);
+    const actualFiles = await listRootFiles(artifactDir, [
+      "release-manifest.json",
+      "release-provenance.json",
+    ]);
     const expectedFiles = manifest.assets.map((asset) => asset.name).sort();
     if (!sameNames(actualFiles, expectedFiles)) {
       throw new CliError(
         `::error::Artifact files do not match release-manifest.json.\nexpected: ${expectedFiles.join(" ")}\nactual:   ${actualFiles.join(" ")}`,
-        66,
+        66
       );
     }
 
@@ -425,7 +446,11 @@ async function main(): Promise<void> {
       if (actualHash !== asset.sha256) {
         throw new CliError(`::error::Artifact SHA256 verification failed: ${asset.name}.`, 66);
       }
-      await writeFile(join(artifactDir, `${asset.name}.sha256`), `${asset.sha256}  ${asset.name}\n`, "utf8");
+      await writeFile(
+        join(artifactDir, `${asset.name}.sha256`),
+        `${asset.sha256}  ${asset.name}\n`,
+        "utf8"
+      );
     }
 
     targetRepository = manifest.target_repository;
@@ -438,7 +463,10 @@ async function main(): Promise<void> {
 
     const targetRepoJson = await getGithubJson(`repos/${targetRepository}`, controlToken);
     const targetBranch = getJsonString(targetRepoJson, "default_branch");
-    const targetCommit = await getGithubJson(`repos/${targetRepository}/commits/${targetBranch}`, controlToken);
+    const targetCommit = await getGithubJson(
+      `repos/${targetRepository}/commits/${targetBranch}`,
+      controlToken
+    );
     const targetSha = getJsonString(targetCommit, "sha");
     if (await githubExists(`repos/${targetRepository}/git/ref/tags/${tag}`, controlToken)) {
       throw new CliError(`::error::Tag already exists in ${targetRepository}: ${tag}.`, 65);
@@ -450,7 +478,9 @@ async function main(): Promise<void> {
     const provenance = [
       `Source: https://github.com/${sourceRepository}/commit/${sourceSha}`,
       `Artifact run: https://github.com/${artifactRepository}/actions/runs/${artifactRunId}`,
-      ...(ciRunId ? [`CI dispatch run: https://github.com/${sourceRepository}/actions/runs/${ciRunId}`] : []),
+      ...(ciRunId
+        ? [`CI dispatch run: https://github.com/${sourceRepository}/actions/runs/${ciRunId}`]
+        : []),
       `Central CI Evidence: success`,
 
       `Main Write Guard: success via PR #${mainWrite.pr_number}`,
@@ -460,83 +490,113 @@ async function main(): Promise<void> {
     ].join("\n");
     const body = releaseNotes ? `${releaseNotes}\n\n${provenance}` : provenance;
 
-    await runGithubCli([
-      "api",
-      "--method",
-      "POST",
-      `repos/${targetRepository}/git/refs`,
-      "-f",
-      `ref=refs/tags/${tag}`,
-      "-f",
-      `sha=${targetSha}`,
-    ], controlToken);
+    await runGithubCli(
+      [
+        "api",
+        "--method",
+        "POST",
+        `repos/${targetRepository}/git/refs`,
+        "-f",
+        `ref=refs/tags/${tag}`,
+        "-f",
+        `sha=${targetSha}`,
+      ],
+      controlToken
+    );
     isTagCreated = true;
 
-    const releaseJson = JSON.parse(await runGithubCli([
-      "api",
-      "--method",
-      "POST",
-      `repos/${targetRepository}/releases`,
-      "-f",
-      `tag_name=${tag}`,
-      "-f",
-      `target_commitish=${targetSha}`,
-      "-f",
-      `name=${name}`,
-      "-f",
-      `body=${body}`,
-      "-F",
-      `prerelease=${isPrerelease}`,
-      "-F",
-      "draft=true",
-    ], controlToken)) as unknown;
+    const releaseJson = JSON.parse(
+      await runGithubCli(
+        [
+          "api",
+          "--method",
+          "POST",
+          `repos/${targetRepository}/releases`,
+          "-f",
+          `tag_name=${tag}`,
+          "-f",
+          `target_commitish=${targetSha}`,
+          "-f",
+          `name=${name}`,
+          "-f",
+          `body=${body}`,
+          "-F",
+          `prerelease=${isPrerelease}`,
+          "-F",
+          "draft=true",
+        ],
+        controlToken
+      )
+    ) as unknown;
     releaseId = String(getJsonNumber(releaseJson, "id"));
     const releaseUrl = getJsonString(releaseJson, "html_url");
     isReleaseCreated = true;
 
-    const uploadFiles = (await listRootFiles(artifactDir, ["release-manifest.json", "release-provenance.json"]))
-      .map((file) => join(artifactDir, file));
-    await runGithubCli(["release", "upload", tag, ...uploadFiles, "--repo", targetRepository], controlToken);
+    const uploadFiles = (
+      await listRootFiles(artifactDir, ["release-manifest.json", "release-provenance.json"])
+    ).map((file) => join(artifactDir, file));
+    await runGithubCli(
+      ["release", "upload", tag, ...uploadFiles, "--repo", targetRepository],
+      controlToken
+    );
 
     const expectedReleaseNames = manifest.assets
       .flatMap((asset) => [asset.name, `${asset.name}.sha256`])
       .sort();
     const publishedJson = await getGithubJson(
       `repos/${targetRepository}/releases/${releaseId}/assets?per_page=100`,
-      controlToken,
+      controlToken
     );
-    const actualReleaseNames = getJsonArray(publishedJson).map((asset) => getJsonString(asset, "name")).sort();
+    const actualReleaseNames = getJsonArray(publishedJson)
+      .map((asset) => getJsonString(asset, "name"))
+      .sort();
     if (!sameNames(actualReleaseNames, expectedReleaseNames)) {
-      throw new CliError("::error::Published Release assets do not match the validated manifest.", 66);
+      throw new CliError(
+        "::error::Published Release assets do not match the validated manifest.",
+        66
+      );
     }
 
     const verifyDir = join(workDir, "verify");
     await mkdir(verifyDir);
-    await runGithubCli(["release", "download", tag, "--repo", targetRepository, "--dir", verifyDir], controlToken);
+    await runGithubCli(
+      ["release", "download", tag, "--repo", targetRepository, "--dir", verifyDir],
+      controlToken
+    );
     for (const asset of manifest.assets) {
       const downloaded = join(verifyDir, asset.name);
       const checksumPath = join(verifyDir, `${asset.name}.sha256`);
       let checksum = "";
       try {
-        checksum = (await readFile(checksumPath, "utf8")).trim().split(/\s+/, 1)[0]?.toLowerCase() ?? "";
+        checksum =
+          (await readFile(checksumPath, "utf8")).trim().split(/\s+/, 1)[0]?.toLowerCase() ?? "";
         await access(downloaded);
       } catch {
-        throw new CliError(`::error::Downloaded Release is missing asset or checksum: ${asset.name}.`, 66);
+        throw new CliError(
+          `::error::Downloaded Release is missing asset or checksum: ${asset.name}.`,
+          66
+        );
       }
       const actualHash = await sha256File(downloaded);
       if (actualHash !== asset.sha256 || checksum !== asset.sha256) {
-        throw new CliError(`::error::Published Release checksum verification failed: ${asset.name}.`, 66);
+        throw new CliError(
+          `::error::Published Release checksum verification failed: ${asset.name}.`,
+          66
+        );
       }
     }
 
-    await runGithubCli([
-      "api",
-      "--method",
-      "PATCH",
-      `repos/${targetRepository}/releases/${releaseId}`,
-      "-F",
-      "draft=false",
-    ], controlToken);
+    await runGithubCli(
+      [
+        "api",
+        "--method",
+        "PATCH",
+        `repos/${targetRepository}/releases/${releaseId}`,
+        "-F",
+        "draft=false",
+      ],
+      controlToken
+    );
 
     isReleaseCreated = false;
     isTagCreated = false;
@@ -568,7 +628,7 @@ async function main(): Promise<void> {
       releaseId,
       isReleaseCreated,
       isTagCreated,
-      controlToken,
+      controlToken
     );
     throw error;
   } finally {

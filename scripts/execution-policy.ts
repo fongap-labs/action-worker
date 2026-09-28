@@ -2,10 +2,10 @@ import {
   type ExecutionJob,
   type ExecutionOperation,
   executionOperations,
-} from './execution-contract.ts';
-import { isJsonRecord } from './github-api.ts';
-import { type RunnerTrustDomain, runnerTrustDomains } from './runner-policy.ts';
-import { CliError } from './runtime-command.ts';
+} from "./execution-contract.ts";
+import { isJsonRecord } from "./github-api.ts";
+import { type RunnerTrustDomain, runnerTrustDomains } from "./runner-policy.ts";
+import { CliError } from "./runtime-command.ts";
 
 type CapabilityRule = {
   trust_domains: RunnerTrustDomain[];
@@ -36,7 +36,7 @@ function exactKeys(
 function stringArray(value: unknown, label: string, pattern?: RegExp): string[] {
   if (
     !Array.isArray(value) ||
-    !value.every((item) => typeof item === 'string' && (!pattern || pattern.test(item))) ||
+    !value.every((item) => typeof item === "string" && (!pattern || pattern.test(item))) ||
     new Set(value).size !== value.length
   ) {
     throw new CliError(`${label} must be a unique string array.`, 65);
@@ -51,16 +51,16 @@ export function parseExecutionCapabilityPolicy(value: unknown): ExecutionCapabil
     !isJsonRecord(value.capabilities) ||
     !isJsonRecord(value.operations)
   ) {
-    throw new CliError('Execution capability policy is invalid.', 65);
+    throw new CliError("Execution capability policy is invalid.", 65);
   }
-  exactKeys(value, ['schema_version', 'capabilities', 'operations'], 'Execution capability policy');
+  exactKeys(value, ["schema_version", "capabilities", "operations"], "Execution capability policy");
 
   const capabilities: Record<string, CapabilityRule> = {};
   for (const [name, raw] of Object.entries(value.capabilities)) {
     if (!capabilityPattern.test(name) || !isJsonRecord(raw)) {
       throw new CliError(`Execution capability is invalid: ${name}.`, 65);
     }
-    exactKeys(raw, ['trust_domains'], `Execution capability ${name}`);
+    exactKeys(raw, ["trust_domains"], `Execution capability ${name}`);
     const trustDomains = stringArray(
       raw.trust_domains,
       `Execution capability trust domains: ${name}`
@@ -71,7 +71,7 @@ export function parseExecutionCapabilityPolicy(value: unknown): ExecutionCapabil
     capabilities[name] = { trust_domains: trustDomains as RunnerTrustDomain[] };
   }
   if (Object.keys(capabilities).length === 0) {
-    throw new CliError('Execution capability policy must define capabilities.', 65);
+    throw new CliError("Execution capability policy must define capabilities.", 65);
   }
 
   const operationKeys = Object.keys(value.operations);
@@ -79,7 +79,7 @@ export function parseExecutionCapabilityPolicy(value: unknown): ExecutionCapabil
     operationKeys.length !== executionOperations.length ||
     operationKeys.some((item) => !operationSet.has(item))
   ) {
-    throw new CliError('Execution capability policy must define every operation exactly once.', 65);
+    throw new CliError("Execution capability policy must define every operation exactly once.", 65);
   }
 
   const operations = {} as Record<ExecutionOperation, string[]>;

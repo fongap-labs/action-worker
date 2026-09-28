@@ -4,10 +4,10 @@ import {
   parseDependencyRepairRequest,
   resolveDependencyRepairFacts,
   selectDependencyRepair,
-} from './dependency-repair.ts';
-import { GithubReader } from './github-api.ts';
-import { validateRepositoryCapability } from './repository-policy.ts';
-import { parseRunnerPolicy, resolveRunnerProfile } from './runner-policy.ts';
+} from "./dependency-repair.ts";
+import { GithubReader } from "./github-api.ts";
+import { validateRepositoryCapability } from "./repository-policy.ts";
+import { parseRunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
 import {
   appendLines,
   CliError,
@@ -15,29 +15,29 @@ import {
   isMain,
   parseJson,
   readJson,
-} from './runtime-command.ts';
+} from "./runtime-command.ts";
 
 async function main(): Promise<void> {
   const request = parseDependencyRepairRequest(
     parseJson(
-      process.env.DEPENDENCY_REPAIR_REQUEST_JSON ?? '',
-      'DEPENDENCY_REPAIR_REQUEST_JSON must be valid JSON.',
+      process.env.DEPENDENCY_REPAIR_REQUEST_JSON ?? "",
+      "DEPENDENCY_REPAIR_REQUEST_JSON must be valid JSON.",
       64
     )
   );
   const repositoryPolicy = parseJson(
-    process.env.AW_REPOSITORY_POLICY ?? '',
-    'AW_REPOSITORY_POLICY must be valid JSON.',
+    process.env.AW_REPOSITORY_POLICY ?? "",
+    "AW_REPOSITORY_POLICY must be valid JSON.",
     65
   );
-  const token = process.env.AW_CONTROL_TOKEN ?? '';
+  const token = process.env.AW_CONTROL_TOKEN ?? "";
   if (!token) {
-    throw new CliError('AW_CONTROL_TOKEN is required.', 77);
+    throw new CliError("AW_CONTROL_TOKEN is required.", 77);
   }
 
-  validateRepositoryCapability(request.repository, repositoryPolicy, 'pr');
+  validateRepositoryCapability(request.repository, repositoryPolicy, "pr");
 
-  const reader = new GithubReader(process.env.GITHUB_API_URL ?? 'https://api.github.com', token);
+  const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
   const facts = await resolveDependencyRepairFacts(reader, request);
   const manifestResponse = await reader.get(
     `repos/${request.repository}/contents/.github/dependency-repair.json?ref=${facts.base_sha}`
@@ -45,14 +45,14 @@ async function main(): Promise<void> {
   const manifest = parseDependencyRepairManifest(
     parseJson(
       decodeGithubContent(manifestResponse),
-      'Dependency repair manifest must be valid JSON.',
+      "Dependency repair manifest must be valid JSON.",
       65
     )
   );
   const repair = selectDependencyRepair(manifest, facts);
   if (!repair) {
     await appendLines(process.env.GITHUB_OUTPUT, [
-      'enabled=false',
+      "enabled=false",
       `repository=${facts.repository}`,
       `pr_number=${facts.pr_number}`,
       `head_sha=${facts.head_sha}`,
@@ -63,9 +63,9 @@ async function main(): Promise<void> {
     return;
   }
 
-  const runnerPolicy = parseRunnerPolicy(await readJson(process.argv[2] ?? 'policies/runner.json'));
+  const runnerPolicy = parseRunnerPolicy(await readJson(process.argv[2] ?? "policies/runner.json"));
   const resolved = resolveRunnerProfile(runnerPolicy, repair.runner_profile);
-  if (resolved.profile.trust_domain !== 'sandbox') {
+  if (resolved.profile.trust_domain !== "sandbox") {
     throw new CliError(
       `Dependency repair compute must run in the sandbox trust domain: ${repair.runner_profile}.`,
       77
@@ -73,7 +73,7 @@ async function main(): Promise<void> {
   }
 
   await appendLines(process.env.GITHUB_OUTPUT, [
-    'enabled=true',
+    "enabled=true",
     `repository=${facts.repository}`,
     `pr_number=${facts.pr_number}`,
     `head_sha=${facts.head_sha}`,

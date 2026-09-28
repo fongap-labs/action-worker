@@ -1,8 +1,8 @@
-import { isJsonRecord } from './github-api.ts';
-import { CliError, handleError, isMain, readJson } from './runtime-command.ts';
+import { isJsonRecord } from "./github-api.ts";
+import { CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 
-export const runnerBackends = ['github-hosted', 'self-hosted'] as const;
-export const runnerTrustDomains = ['sandbox', 'control', 'privileged'] as const;
+export const runnerBackends = ["github-hosted", "self-hosted"] as const;
+export const runnerTrustDomains = ["sandbox", "control", "privileged"] as const;
 
 export type RunnerBackend = (typeof runnerBackends)[number];
 export type RunnerTrustDomain = (typeof runnerTrustDomains)[number];
@@ -36,7 +36,7 @@ function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boo
 function parseStringArray(value: unknown, label: string): string[] {
   if (
     !Array.isArray(value) ||
-    !value.every((item) => typeof item === 'string' && labelPattern.test(item)) ||
+    !value.every((item) => typeof item === "string" && labelPattern.test(item)) ||
     new Set(value).size !== value.length
   ) {
     throw new CliError(`${label} must be a unique runner label array.`, 65);
@@ -81,7 +81,7 @@ export function parseRunnerPolicy(value: unknown): RunnerPolicy {
     !isJsonRecord(value.profiles) ||
     Object.keys(value.profiles).length === 0
   ) {
-    throw new CliError('Runner Policy is invalid.', 65);
+    throw new CliError("Runner Policy is invalid.", 65);
   }
 
   const profiles: Record<string, RunnerProfile> = {};
@@ -89,11 +89,11 @@ export function parseRunnerPolicy(value: unknown): RunnerPolicy {
     if (
       !profilePattern.test(name) ||
       !isJsonRecord(raw) ||
-      !exactKeys(raw, ['enabled', 'backend', 'trust_domain', 'labels', 'fallback_profiles']) ||
-      typeof raw.enabled !== 'boolean' ||
-      typeof raw.backend !== 'string' ||
+      !exactKeys(raw, ["enabled", "backend", "trust_domain", "labels", "fallback_profiles"]) ||
+      typeof raw.enabled !== "boolean" ||
+      typeof raw.backend !== "string" ||
       !backendSet.has(raw.backend) ||
-      typeof raw.trust_domain !== 'string' ||
+      typeof raw.trust_domain !== "string" ||
       !trustSet.has(raw.trust_domain)
     ) {
       throw new CliError(`Runner profile is invalid: ${name}.`, 65);
@@ -151,15 +151,15 @@ export function resolveRunnerProfile(
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  let policyPath = 'policies/runner.json';
-  let requestedProfile = '';
+  let policyPath = "policies/runner.json";
+  let requestedProfile = "";
   if (args.length === 1) {
-    requestedProfile = args[0] ?? '';
+    requestedProfile = args[0] ?? "";
   } else if (args.length === 2) {
-    policyPath = args[0] ?? '';
-    requestedProfile = args[1] ?? '';
+    policyPath = args[0] ?? "";
+    requestedProfile = args[1] ?? "";
   } else {
-    throw new CliError('Usage: runner-policy.ts [policy-path] <runner-profile>', 64);
+    throw new CliError("Usage: runner-policy.ts [policy-path] <runner-profile>", 64);
   }
   const policy = parseRunnerPolicy(await readJson(policyPath));
   const resolved = resolveRunnerProfile(policy, requestedProfile);

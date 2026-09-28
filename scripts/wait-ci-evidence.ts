@@ -1,14 +1,14 @@
-import { writeFile } from 'node:fs/promises';
-import { trustedCiStatus } from './ci-evidence.ts';
-import { getGithubJson, getJsonNumber, getJsonString, isJsonRecord } from './github-api.ts';
-import { appendLines, CliError, handleError, isMain, readJson } from './runtime-command.ts';
+import { writeFile } from "node:fs/promises";
+import { trustedCiStatus } from "./ci-evidence.ts";
+import { getGithubJson, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
+import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 
 function sleep(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 function policyNumber(value: Record<string, unknown>, key: string, fallback: number): number {
-  return typeof value[key] === 'number' ? value[key] : fallback;
+  return typeof value[key] === "number" ? value[key] : fallback;
 }
 
 type Evidence = {
@@ -26,18 +26,18 @@ type Evidence = {
 async function publishEvidence(evidence: Evidence): Promise<void> {
   const output = JSON.stringify(evidence);
   if (process.env.CI_EVIDENCE_PATH) {
-    await writeFile(process.env.CI_EVIDENCE_PATH, `${output}\n`, 'utf8');
+    await writeFile(process.env.CI_EVIDENCE_PATH, `${output}\n`, "utf8");
   }
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [
-    '### CI Evidence',
-    '',
+    "### CI Evidence",
+    "",
     `- workflow: ${evidence.workflow}`,
     `- run/status id: ${evidence.run_id}`,
     `- conclusion: ${evidence.conclusion}`,
     `- gate: ${evidence.gate_job}`,
     `- gate conclusion: ${evidence.gate_conclusion}`,
-    '',
-    'Jobs:',
+    "",
+    "Jobs:",
     ...evidence.jobs.map((job) => `- ${job.name}: ${job.conclusion}`),
   ]);
   console.log(output);
@@ -52,7 +52,7 @@ export async function waitForCentralStatus(
   pollSeconds: number,
   timeoutMinutes: number
 ): Promise<void> {
-  const context = getJsonString(ci, 'status_context') || 'CI Evidence';
+  const context = getJsonString(ci, "status_context") || "CI Evidence";
   const deadline = Date.now() + timeoutMinutes * 60_000;
 
   while (Date.now() < deadline) {
@@ -67,24 +67,24 @@ export async function waitForCentralStatus(
       continue;
     }
 
-    const state = getJsonString(status, 'state') || 'unknown';
-    if (state === 'pending') {
+    const state = getJsonString(status, "state") || "unknown";
+    if (state === "pending") {
       console.error(`Central CI pending: ${repository}@${headSha} context=${context}`);
       await sleep(pollSeconds * 1000);
       continue;
     }
 
-    const conclusion = state === 'success' ? 'success' : 'failure';
+    const conclusion = state === "success" ? "success" : "failure";
     await publishEvidence({
       repository,
       head_sha: headSha,
-      workflow: 'central-ci',
+      workflow: "central-ci",
       gate_job: context,
-      run_id: getJsonNumber(status, 'id'),
-      status: 'completed',
+      run_id: getJsonNumber(status, "id"),
+      status: "completed",
       conclusion,
       gate_conclusion: conclusion,
-      jobs: [{ name: context, status: 'completed', conclusion }],
+      jobs: [{ name: context, status: "completed", conclusion }],
     });
     return;
   }
@@ -97,32 +97,32 @@ export async function waitForCentralStatus(
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length !== 3) {
-    throw new CliError('Usage: wait-ci-evidence.ts <repository> <head-sha> <policy-file>', 64);
+    throw new CliError("Usage: wait-ci-evidence.ts <repository> <head-sha> <policy-file>", 64);
   }
 
-  const [repository = '', headSha = '', policyPath = ''] = args;
+  const [repository = "", headSha = "", policyPath = ""] = args;
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
-    throw new CliError('::error::Invalid CI repository.', 65);
+    throw new CliError("::error::Invalid CI repository.", 65);
   }
   if (!/^[0-9a-f]{40}$/.test(headSha)) {
-    throw new CliError('::error::Invalid CI head SHA.', 65);
+    throw new CliError("::error::Invalid CI head SHA.", 65);
   }
 
   const policy = await readJson(policyPath);
   const ci = isJsonRecord(policy) && isJsonRecord(policy.ci) ? policy.ci : {};
-  const pollSeconds = policyNumber(ci, 'poll_seconds', 15);
-  const timeoutMinutes = policyNumber(ci, 'timeout_minutes', 20);
+  const pollSeconds = policyNumber(ci, "poll_seconds", 15);
+  const timeoutMinutes = policyNumber(ci, "timeout_minutes", 20);
   if (!Number.isInteger(pollSeconds) || pollSeconds < 5 || pollSeconds > 120) {
-    throw new CliError('::error::CI poll_seconds must be 5-120 seconds.', 65);
+    throw new CliError("::error::CI poll_seconds must be 5-120 seconds.", 65);
   }
   if (!Number.isInteger(timeoutMinutes) || timeoutMinutes < 1 || timeoutMinutes > 120) {
-    throw new CliError('::error::CI timeout_minutes must be 1-120 minutes.', 65);
+    throw new CliError("::error::CI timeout_minutes must be 1-120 minutes.", 65);
   }
 
-  const token = process.env.GH_TOKEN ?? '';
-  const controlRepository = process.env.GITHUB_REPOSITORY ?? '';
+  const token = process.env.GH_TOKEN ?? "";
+  const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   if (!token || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(controlRepository)) {
-    throw new CliError('::error::Central CI evidence authority is unavailable.', 65);
+    throw new CliError("::error::Central CI evidence authority is unavailable.", 65);
   }
   await waitForCentralStatus(
     repository,

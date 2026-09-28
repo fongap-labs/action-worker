@@ -1,10 +1,10 @@
-import { createHash } from 'node:crypto';
-import { getGithubJson, githubEnvironment, githubExists, isJsonRecord } from './github-api.ts';
-import { repositoriesForCapability } from './repository-policy.ts';
-import { CliError, handleError, isMain, parseJson, runCommand } from './runtime-command.ts';
+import { createHash } from "node:crypto";
+import { getGithubJson, githubEnvironment, githubExists, isJsonRecord } from "./github-api.ts";
+import { repositoriesForCapability } from "./repository-policy.ts";
+import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 
 export type TaskSourceManifest = {
-  schema_version: '1';
+  schema_version: "1";
   push: boolean;
   schedules: Array<{
     cron: string;
@@ -28,7 +28,7 @@ const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
 const projectPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const cronPattern = /^[0-9*/,?\- ]{1,128}$/;
-const scheduleContextPrefix = 'Task Schedule/';
+const scheduleContextPrefix = "Task Schedule/";
 
 function exactKeys(
   value: Record<string, unknown>,
@@ -43,14 +43,14 @@ function exactKeys(
 }
 
 function decodeGithubContent(value: unknown): string {
-  if (!isJsonRecord(value) || value.encoding !== 'base64' || typeof value.content !== 'string') {
-    throw new CliError('GitHub task source manifest response is invalid.', 65);
+  if (!isJsonRecord(value) || value.encoding !== "base64" || typeof value.content !== "string") {
+    throw new CliError("GitHub task source manifest response is invalid.", 65);
   }
-  return Buffer.from(value.content.replace(/\s+/g, ''), 'base64').toString('utf8');
+  return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
 }
 
 function isWildcard(value: string): boolean {
-  return value === '*' || value === '?';
+  return value === "*" || value === "?";
 }
 
 function parseInteger(value: string, min: number, max: number, label: string): number {
@@ -76,11 +76,11 @@ function fieldValues(
   }
 
   const values = new Set<number>();
-  for (const rawPart of field.split(',')) {
+  for (const rawPart of field.split(",")) {
     if (!rawPart) {
       throw new CliError(`Task source cron ${label} is invalid.`, 65);
     }
-    const segments = rawPart.split('/');
+    const segments = rawPart.split("/");
     if (segments.length > 2) {
       throw new CliError(`Task source cron ${label} step is invalid.`, 65);
     }
@@ -91,7 +91,7 @@ function fieldValues(
     let start = min;
     let end = max;
     if (!isWildcard(base)) {
-      const range = base.split('-');
+      const range = base.split("-");
       if (range.length > 2) {
         throw new CliError(`Task source cron ${label} range is invalid.`, 65);
       }
@@ -123,25 +123,25 @@ function parseCron(cron: string): {
   weekday: Set<number>;
 } {
   if (!cronPattern.test(cron)) {
-    throw new CliError('Task source cron is invalid.', 65);
+    throw new CliError("Task source cron is invalid.", 65);
   }
   const fields = cron.trim().split(/\s+/);
   if (fields.length !== 5) {
-    throw new CliError('Task source cron must contain five fields.', 65);
+    throw new CliError("Task source cron must contain five fields.", 65);
   }
   return {
     fields,
-    minute: fieldValues(fields[0]!, 0, 59, 'minute'),
-    hour: fieldValues(fields[1]!, 0, 23, 'hour'),
-    day: fieldValues(fields[2]!, 1, 31, 'day-of-month'),
-    month: fieldValues(fields[3]!, 1, 12, 'month'),
-    weekday: fieldValues(fields[4]!, 0, 6, 'day-of-week', true),
+    minute: fieldValues(fields[0]!, 0, 59, "minute"),
+    hour: fieldValues(fields[1]!, 0, 23, "hour"),
+    day: fieldValues(fields[2]!, 1, 31, "day-of-month"),
+    month: fieldValues(fields[3]!, 1, 12, "month"),
+    weekday: fieldValues(fields[4]!, 0, 6, "day-of-week", true),
   };
 }
 
 export function cronMatches(date: Date, cron: string): boolean {
   if (Number.isNaN(date.getTime())) {
-    throw new CliError('Task source schedule time is invalid.', 64);
+    throw new CliError("Task source schedule time is invalid.", 64);
   }
   const parsed = parseCron(cron);
   if (
@@ -179,11 +179,11 @@ export function projectsDueAt(
   lookbackMinutes = 20
 ): DueProject[] {
   if (!Number.isInteger(lookbackMinutes) || lookbackMinutes < 1 || lookbackMinutes > 60) {
-    throw new CliError('Task source lookback must be between 1 and 60 minutes.', 64);
+    throw new CliError("Task source lookback must be between 1 and 60 minutes.", 64);
   }
   const current = minuteFloor(now);
   if (Number.isNaN(current.getTime())) {
-    throw new CliError('Task source schedule time is invalid.', 64);
+    throw new CliError("Task source schedule time is invalid.", 64);
   }
 
   const due = new Map<string, string>();
@@ -213,37 +213,37 @@ export function projectsDueAt(
 
 export function parseTaskSourceManifest(value: unknown): TaskSourceManifest {
   if (!isJsonRecord(value)) {
-    throw new CliError('Task source manifest must be an object.', 65);
+    throw new CliError("Task source manifest must be an object.", 65);
   }
-  const allowed = new Set(['schema_version', 'push', 'schedules']);
+  const allowed = new Set(["schema_version", "push", "schedules"]);
   const keys = Object.keys(value);
   if (
     keys.some((key) => !allowed.has(key)) ||
-    !('schema_version' in value) ||
-    !('schedules' in value) ||
-    value.schema_version !== '1' ||
-    (value.push !== undefined && typeof value.push !== 'boolean') ||
+    !("schema_version" in value) ||
+    !("schedules" in value) ||
+    value.schema_version !== "1" ||
+    (value.push !== undefined && typeof value.push !== "boolean") ||
     !Array.isArray(value.schedules) ||
     value.schedules.length > 32
   ) {
-    throw new CliError('Task source manifest is invalid.', 65);
+    throw new CliError("Task source manifest is invalid.", 65);
   }
 
   const schedules = value.schedules.map((raw) => {
     if (!isJsonRecord(raw)) {
-      throw new CliError('Task source schedule must be an object.', 65);
+      throw new CliError("Task source schedule must be an object.", 65);
     }
-    exactKeys(raw, ['cron', 'projects'], 'Task source schedule');
+    exactKeys(raw, ["cron", "projects"], "Task source schedule");
     if (
-      typeof raw.cron !== 'string' ||
+      typeof raw.cron !== "string" ||
       !cronPattern.test(raw.cron) ||
       !Array.isArray(raw.projects) ||
       raw.projects.length < 1 ||
       raw.projects.length > 64 ||
-      !raw.projects.every((item) => typeof item === 'string' && projectPattern.test(item)) ||
+      !raw.projects.every((item) => typeof item === "string" && projectPattern.test(item)) ||
       new Set(raw.projects).size !== raw.projects.length
     ) {
-      throw new CliError('Task source schedule is invalid.', 65);
+      throw new CliError("Task source schedule is invalid.", 65);
     }
     parseCron(raw.cron);
     return {
@@ -252,7 +252,7 @@ export function parseTaskSourceManifest(value: unknown): TaskSourceManifest {
     };
   });
 
-  return { schema_version: '1', push: value.push === true, schedules };
+  return { schema_version: "1", push: value.push === true, schedules };
 }
 
 export function projectsForSchedule(manifest: TaskSourceManifest, cron: string): string[] {
@@ -270,14 +270,14 @@ async function defaultHead(repository: string, token: string): Promise<string> {
     throw new CliError(`GitHub repository response is invalid: ${repository}.`, 65);
   }
   const defaultBranch =
-    typeof repositoryValue.default_branch === 'string' ? repositoryValue.default_branch : '';
+    typeof repositoryValue.default_branch === "string" ? repositoryValue.default_branch : "";
   if (!defaultBranch) {
     throw new CliError(`Repository default branch is unavailable: ${repository}.`, 65);
   }
   const commitValue = await getGithubJson(`repos/${repository}/commits/${defaultBranch}`, token);
   if (
     !isJsonRecord(commitValue) ||
-    typeof commitValue.sha !== 'string' ||
+    typeof commitValue.sha !== "string" ||
     !shaPattern.test(commitValue.sha)
   ) {
     throw new CliError(`Repository default head SHA is invalid: ${repository}.`, 65);
@@ -293,14 +293,14 @@ export async function resolveScheduledTasks(
   token: string
 ): Promise<ScheduledTask[]> {
   if (!repositoryPattern.test(controlRepository)) {
-    throw new CliError('Control repository is invalid.', 64);
+    throw new CliError("Control repository is invalid.", 64);
   }
   if (!token) {
-    throw new CliError('AW_CONTROL_TOKEN is required.', 77);
+    throw new CliError("AW_CONTROL_TOKEN is required.", 77);
   }
 
   const tasks: ScheduledTask[] = [];
-  const repositories = repositoriesForCapability(policyValue, 'task').filter(
+  const repositories = repositoriesForCapability(policyValue, "task").filter(
     (repository) => repository !== controlRepository
   );
 
@@ -364,14 +364,14 @@ async function wasDispatched(task: ScheduledTask, token: string): Promise<boolea
     (item) =>
       isJsonRecord(item) &&
       item.context === context &&
-      item.state === 'success' &&
+      item.state === "success" &&
       item.description === description
   );
 }
 
 async function markDispatched(task: ScheduledTask, token: string): Promise<void> {
   const payload = JSON.stringify({
-    state: 'success',
+    state: "success",
     context: scheduleContext(task.project),
     description: scheduleDescription(task.slot),
     target_url:
@@ -380,14 +380,14 @@ async function markDispatched(task: ScheduledTask, token: string): Promise<void>
         : undefined,
   });
   await runCommand(
-    'gh',
+    "gh",
     [
-      'api',
-      '--method',
-      'POST',
+      "api",
+      "--method",
+      "POST",
       `repos/${task.repository}/statuses/${task.head_sha}`,
-      '--input',
-      '-',
+      "--input",
+      "-",
     ],
     {
       env: githubEnvironment(token),
@@ -403,14 +403,14 @@ async function dispatchTask(
   token: string,
   task: ScheduledTask
 ): Promise<void> {
-  const identity = createHash('sha256')
+  const identity = createHash("sha256")
     .update(`${task.repository}\n${task.project}\n${task.slot}\n${task.head_sha}`)
-    .digest('hex')
+    .digest("hex")
     .slice(0, 32);
   const body = {
-    event_type: 'run-task',
+    event_type: "run-task",
     client_payload: {
-      schema_version: '1',
+      schema_version: "1",
       request_id: `task-schedule:${identity}`,
       project: task.project,
       bootstrap_ref: task.head_sha,
@@ -418,8 +418,8 @@ async function dispatchTask(
     },
   };
   await runCommand(
-    'gh',
-    ['api', '--method', 'POST', `repos/${controlRepository}/dispatches`, '--input', '-'],
+    "gh",
+    ["api", "--method", "POST", `repos/${controlRepository}/dispatches`, "--input", "-"],
     {
       env: githubEnvironment(token),
       input: JSON.stringify(body),
@@ -430,18 +430,18 @@ async function dispatchTask(
 }
 
 async function main(): Promise<void> {
-  const policyRaw = process.env.AW_REPOSITORY_POLICY ?? '';
-  const controlToken = process.env.AW_CONTROL_TOKEN ?? '';
-  const ingressToken = process.env.AW_INGRESS_TOKEN ?? '';
-  const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? '';
-  const nowRaw = process.env.TASK_SOURCE_NOW ?? '';
-  const lookbackRaw = process.env.TASK_SOURCE_LOOKBACK_MINUTES ?? '20';
+  const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
+  const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
+  const ingressToken = process.env.AW_INGRESS_TOKEN ?? "";
+  const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
+  const nowRaw = process.env.TASK_SOURCE_NOW ?? "";
+  const lookbackRaw = process.env.TASK_SOURCE_LOOKBACK_MINUTES ?? "20";
   const now = nowRaw ? new Date(nowRaw) : new Date();
   const lookbackMinutes = Number(lookbackRaw);
 
   if (!policyRaw || !controlToken || !ingressToken || !controlRepository) {
     throw new CliError(
-      'AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.',
+      "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
       64
     );
   }
@@ -451,11 +451,11 @@ async function main(): Promise<void> {
     lookbackMinutes < 1 ||
     lookbackMinutes > 60
   ) {
-    throw new CliError('Task scheduler time or lookback is invalid.', 64);
+    throw new CliError("Task scheduler time or lookback is invalid.", 64);
   }
 
   const tasks = await resolveScheduledTasks(
-    parseJson(policyRaw, 'AW_REPOSITORY_POLICY must be valid JSON.', 65),
+    parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
     now,
     lookbackMinutes,
     controlRepository,

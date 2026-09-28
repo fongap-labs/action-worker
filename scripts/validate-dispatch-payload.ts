@@ -1,51 +1,51 @@
-import { isJsonRecord } from './github-api.ts';
-import { validateRepositoryCapability } from './repository-policy.ts';
-import { appendLines, CliError, handleError, isMain, parseJson } from './runtime-command.ts';
+import { isJsonRecord } from "./github-api.ts";
+import { validateRepositoryCapability } from "./repository-policy.ts";
+import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 const requiredKeys = [
-  'schema_version',
-  'request_id',
-  'project',
-  'bootstrap_ref',
-  'repository',
+  "schema_version",
+  "request_id",
+  "project",
+  "bootstrap_ref",
+  "repository",
 ] as const;
-const optionalKeys = ['agent_domain', 'operation'] as const;
+const optionalKeys = ["agent_domain", "operation"] as const;
 const optionalKeyPattern = /^[a-z][a-z0-9-]*$/;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 export function validateDispatch(value: unknown): { agent_domain: string; operation: string } {
   if (!isJsonRecord(value)) {
-    throw new CliError('::error::client_payload must be a JSON object.', 64);
+    throw new CliError("::error::client_payload must be a JSON object.", 64);
   }
   const missing = requiredKeys.filter((key) => !(key in value));
   if (missing.length > 0) {
-    throw new CliError(`::error::Missing required fields: ${missing.join(', ')}.`, 64);
+    throw new CliError(`::error::Missing required fields: ${missing.join(", ")}.`, 64);
   }
-  const invalid = requiredKeys.filter((key) => typeof value[key] !== 'string');
+  const invalid = requiredKeys.filter((key) => typeof value[key] !== "string");
   if (invalid.length > 0) {
-    throw new CliError(`::error::Fields must be strings: ${invalid.join(', ')}.`, 64);
+    throw new CliError(`::error::Fields must be strings: ${invalid.join(", ")}.`, 64);
   }
-  const empty = requiredKeys.filter((key) => value[key] === '');
+  const empty = requiredKeys.filter((key) => value[key] === "");
   if (empty.length > 0) {
-    throw new CliError(`::error::Fields cannot be empty: ${empty.join(', ')}.`, 64);
+    throw new CliError(`::error::Fields cannot be empty: ${empty.join(", ")}.`, 64);
   }
-  if (value.schema_version !== '1') {
+  if (value.schema_version !== "1") {
     throw new CliError(
       `::error::Unsupported schema_version=${String(value.schema_version)}; only version 1 is supported.`,
       65
     );
   }
   if (!/^[A-Za-z0-9_.-]{1,128}$/.test(String(value.request_id))) {
-    throw new CliError('::error::request_id has an invalid format.', 64);
+    throw new CliError("::error::request_id has an invalid format.", 64);
   }
   if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(String(value.project))) {
-    throw new CliError('::error::project has an invalid format.', 64);
+    throw new CliError("::error::project has an invalid format.", 64);
   }
   if (!/^[0-9a-fA-F]{40}$/.test(String(value.bootstrap_ref))) {
-    throw new CliError('::error::bootstrap_ref must be a full 40-character commit SHA.', 64);
+    throw new CliError("::error::bootstrap_ref must be a full 40-character commit SHA.", 64);
   }
   if (!repositoryPattern.test(String(value.repository))) {
-    throw new CliError('::error::repository must use owner/name format.', 64);
+    throw new CliError("::error::repository must use owner/name format.", 64);
   }
   const unknown = Object.keys(value).filter(
     (key) =>
@@ -53,22 +53,22 @@ export function validateDispatch(value: unknown): { agent_domain: string; operat
       !optionalKeys.includes(key as (typeof optionalKeys)[number])
   );
   if (unknown.length > 0) {
-    throw new CliError(`::error::Unsupported fields: ${unknown.join(', ')}.`, 64);
+    throw new CliError(`::error::Unsupported fields: ${unknown.join(", ")}.`, 64);
   }
 
-  const agentDomain = typeof value.agent_domain === 'string' ? value.agent_domain : 'coding';
+  const agentDomain = typeof value.agent_domain === "string" ? value.agent_domain : "coding";
   if (!optionalKeyPattern.test(agentDomain)) {
-    throw new CliError('::error::agent_domain must be lower-kebab-case.', 64);
+    throw new CliError("::error::agent_domain must be lower-kebab-case.", 64);
   }
-  const operation = typeof value.operation === 'string' ? value.operation : 'task';
+  const operation = typeof value.operation === "string" ? value.operation : "task";
   const validOperations = new Set([
-    'ci',
-    'review',
-    'build',
-    'release',
-    'deploy',
-    'task',
-    'scheduled',
+    "ci",
+    "review",
+    "build",
+    "release",
+    "deploy",
+    "task",
+    "scheduled",
   ]);
   if (!validOperations.has(operation)) {
     throw new CliError(`::error::Unknown operation: ${operation}.`, 64);
@@ -79,19 +79,19 @@ export function validateDispatch(value: unknown): { agent_domain: string; operat
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length !== 1) {
-    throw new CliError('::error::Pass the repository_dispatch client_payload JSON.', 64);
+    throw new CliError("::error::Pass the repository_dispatch client_payload JSON.", 64);
   }
-  const value = parseJson(args[0] ?? '', '::error::client_payload is not valid JSON.', 64);
+  const value = parseJson(args[0] ?? "", "::error::client_payload is not valid JSON.", 64);
   const { agent_domain: agentDomain, operation } = validateDispatch(value);
   const payload = value as Record<string, unknown>;
   const repositoryPolicy = process.env.AW_REPOSITORY_POLICY;
   if (!repositoryPolicy) {
-    throw new CliError('::error::Missing Repository Variable: AW_REPOSITORY_POLICY.', 65);
+    throw new CliError("::error::Missing Repository Variable: AW_REPOSITORY_POLICY.", 65);
   }
   validateRepositoryCapability(
     String(payload.repository),
-    parseJson(repositoryPolicy, '::error::AW_REPOSITORY_POLICY must be valid JSON.', 65),
-    'task'
+    parseJson(repositoryPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65),
+    "task"
   );
   await appendLines(process.env.GITHUB_OUTPUT, [
     `schema_version=${String(payload.schema_version)}`,

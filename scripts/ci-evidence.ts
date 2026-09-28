@@ -1,4 +1,4 @@
-import { getJsonArray, getJsonString, isJsonRecord, type JsonRecord } from './github-api.ts';
+import { getJsonArray, getJsonString, isJsonRecord, type JsonRecord } from "./github-api.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
@@ -13,9 +13,9 @@ export function trustedControlRunId(targetUrl: string, controlRepository: string
 }
 
 export function latestCiStatus(response: unknown, context: string): JsonRecord | undefined {
-  return getJsonArray(response, 'statuses')
+  return getJsonArray(response, "statuses")
     .filter(isJsonRecord)
-    .find((item) => getJsonString(item, 'context') === context);
+    .find((item) => getJsonString(item, "context") === context);
 }
 
 export function trustedCiStatus(
@@ -25,7 +25,7 @@ export function trustedCiStatus(
 ): JsonRecord | undefined {
   const status = latestCiStatus(response, context);
   if (!status) return undefined;
-  const targetUrl = getJsonString(status, 'target_url');
+  const targetUrl = getJsonString(status, "target_url");
   return trustedControlRunId(targetUrl, controlRepository) ? status : undefined;
 }
 
@@ -35,6 +35,6 @@ export function hasTrustedSuccessfulCiEvidence(
   controlRepository: string
 ): boolean {
   return (
-    getJsonString(trustedCiStatus(response, context, controlRepository), 'state') === 'success'
+    getJsonString(trustedCiStatus(response, context, controlRepository), "state") === "success"
   );
 }

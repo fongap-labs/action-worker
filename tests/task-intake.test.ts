@@ -1,19 +1,19 @@
-import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { scanTaskSources } from '../scripts/intake-task-sources.ts';
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { scanTaskSources } from "../scripts/intake-task-sources.ts";
 
-const headSha = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
-const beforeSha = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+const headSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+const beforeSha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 
-function encoded(value: unknown): { encoding: 'base64'; content: string } {
+function encoded(value: unknown): { encoding: "base64"; content: string } {
   return {
-    encoding: 'base64',
-    content: Buffer.from(JSON.stringify(value), 'utf8').toString('base64'),
+    encoding: "base64",
+    content: Buffer.from(JSON.stringify(value), "utf8").toString("base64"),
   };
 }
 
-function sourceWithStatus(state = '') {
-  const repository = 'fongap-labs/tasks';
+function sourceWithStatus(state = "") {
+  const repository = "fongap-labs/tasks";
   const manifestPath = `repos/${repository}/contents/.github/task-source.json?ref=${headSha}`;
   return {
     repository,
@@ -23,17 +23,17 @@ function sourceWithStatus(state = '') {
       },
       async get(path: string): Promise<unknown> {
         if (path === `repos/${repository}`) {
-          return { default_branch: 'main' };
+          return { default_branch: "main" };
         }
         if (path === `repos/${repository}/commits/main`) {
           return { sha: headSha, parents: [{ sha: beforeSha }] };
         }
         if (path === manifestPath) {
-          return encoded({ schema_version: '1', push: true, schedules: [] });
+          return encoded({ schema_version: "1", push: true, schedules: [] });
         }
         if (path === `repos/${repository}/commits/${headSha}/status`) {
           return {
-            statuses: state ? [{ context: 'Task Source', state }] : [],
+            statuses: state ? [{ context: "Task Source", state }] : [],
           };
         }
         throw new Error(`unexpected path: ${path}`);
@@ -42,11 +42,11 @@ function sourceWithStatus(state = '') {
   };
 }
 
-test('task intake dispatches an unprocessed push-enabled default head', async () => {
+test("task intake dispatches an unprocessed push-enabled default head", async () => {
   const { repository, source } = sourceWithStatus();
   const dispatched: Array<{ repository: string; before: string; head: string }> = [];
   const result = await scanTaskSources(
-    { [repository]: ['task'] },
+    { [repository]: ["task"] },
     source,
     async (repo, before, head) => {
       dispatched.push({ repository: repo, before, head });
@@ -63,14 +63,14 @@ test('task intake dispatches an unprocessed push-enabled default head', async ()
   });
 });
 
-test('task intake skips pending and processed heads', async () => {
+test("task intake skips pending and processed heads", async () => {
   for (const [state, field] of [
-    ['pending', 'in_flight'],
-    ['success', 'already_processed'],
+    ["pending", "in_flight"],
+    ["success", "already_processed"],
   ] as const) {
     const { repository, source } = sourceWithStatus(state);
     let dispatches = 0;
-    const result = await scanTaskSources({ [repository]: ['task'] }, source, async () => {
+    const result = await scanTaskSources({ [repository]: ["task"] }, source, async () => {
       dispatches += 1;
     });
     assert.equal(dispatches, 0);
@@ -78,25 +78,25 @@ test('task intake skips pending and processed heads', async () => {
   }
 });
 
-test('task intake ignores manifests without push intent', async () => {
-  const repository = 'fongap-labs/tasks';
+test("task intake ignores manifests without push intent", async () => {
+  const repository = "fongap-labs/tasks";
   const manifestPath = `repos/${repository}/contents/.github/task-source.json?ref=${headSha}`;
   let statusReads = 0;
   const result = await scanTaskSources(
-    { [repository]: ['task'] },
+    { [repository]: ["task"] },
     {
       async exists(path: string): Promise<boolean> {
         return path === manifestPath;
       },
       async get(path: string): Promise<unknown> {
-        if (path === `repos/${repository}`) return { default_branch: 'main' };
+        if (path === `repos/${repository}`) return { default_branch: "main" };
         if (path === `repos/${repository}/commits/main`) {
           return { sha: headSha, parents: [{ sha: beforeSha }] };
         }
         if (path === manifestPath) {
-          return encoded({ schema_version: '1', schedules: [] });
+          return encoded({ schema_version: "1", schedules: [] });
         }
-        if (path.endsWith('/status')) {
+        if (path.endsWith("/status")) {
           statusReads += 1;
           return { statuses: [] };
         }
@@ -104,7 +104,7 @@ test('task intake ignores manifests without push intent', async () => {
       },
     },
     async () => {
-      throw new Error('dispatch should not run');
+      throw new Error("dispatch should not run");
     }
   );
   assert.equal(statusReads, 0);
