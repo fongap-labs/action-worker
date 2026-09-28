@@ -163,7 +163,7 @@ Repository capabilities are managed by one Repository Variable, `AW_REPOSITORY_P
 {
   "fongap-labs/ai-gateway": ["pr", "task", "deploy"],
   "fongap-labs/delta": ["pr", "task", "release-source"],
-  "fongap-labs/external-vault": ["pr", "task", "release-target"]
+  "fongap-labs/external-vault": ["pr", "task", "release-source", "release-target"]
 }
 ```
 
