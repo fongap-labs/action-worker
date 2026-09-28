@@ -1,10 +1,6 @@
 {
   "schema_version": 1,
-  "enabled_agents": [
-    "code",
-    "workflow",
-    "release"
-  ],
+  "enabled_agents": ["code", "workflow", "release"],
   "timeout_seconds": 60,
   "max_diff_chars": 24000,
   "min_skip_confidence": 0.92,

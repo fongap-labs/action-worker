@@ -2,12 +2,7 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  CliError,
-  handleError,
-  isMain,
-  readJson,
-} from "./runtime-command.ts";
+import { CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 import { parseReleaseBuildManifest } from "./validate-release-build-request.ts";
 
 async function sha256File(path: string): Promise<string> {
@@ -21,16 +16,18 @@ async function sha256File(path: string): Promise<string> {
 }
 
 async function main(): Promise<void> {
-  const [manifestPath = "", sourceRepository = "", sourceSha = "", version = "", artifactDir = ""] = process.argv.slice(2);
-  if (!manifestPath
-    || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(sourceRepository)
-    || !/^[0-9a-f]{40}$/.test(sourceSha)
-    || !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)
-    || !artifactDir
+  const [manifestPath = "", sourceRepository = "", sourceSha = "", version = "", artifactDir = ""] =
+    process.argv.slice(2);
+  if (
+    !manifestPath ||
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(sourceRepository) ||
+    !/^[0-9a-f]{40}$/.test(sourceSha) ||
+    !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version) ||
+    !artifactDir
   ) {
     throw new CliError(
       "Usage: package-release-build.ts <manifest> <source-repository> <source-sha> <version> <artifact-dir>",
-      64,
+      64
     );
   }
 
@@ -46,7 +43,7 @@ async function main(): Promise<void> {
   if (actual.length !== expected.length || actual.some((item, index) => item !== expected[index])) {
     throw new CliError(
       `Release build assets do not match manifest: expected=${expected.join(",")} actual=${actual.join(",")}.`,
-      66,
+      66
     );
   }
 
@@ -57,9 +54,10 @@ async function main(): Promise<void> {
 
   const artifactRepository = process.env.GITHUB_REPOSITORY ?? "";
   const artifactRunId = Number(process.env.GITHUB_RUN_ID ?? "");
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(artifactRepository)
-    || !Number.isInteger(artifactRunId)
-    || artifactRunId < 1
+  if (
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(artifactRepository) ||
+    !Number.isInteger(artifactRunId) ||
+    artifactRunId < 1
   ) {
     throw new CliError("Release artifact runtime identity is invalid.", 77);
   }
@@ -86,12 +84,12 @@ async function main(): Promise<void> {
   await writeFile(
     join(artifactDir, "release-manifest.json"),
     `${JSON.stringify(releaseManifest, null, 2)}\n`,
-    "utf8",
+    "utf8"
   );
   await writeFile(
     join(artifactDir, "release-provenance.json"),
     `${JSON.stringify(provenance, null, 2)}\n`,
-    "utf8",
+    "utf8"
   );
 }
 

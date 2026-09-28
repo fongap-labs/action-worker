@@ -9,14 +9,8 @@ import {
   isJsonRecord,
   runGithubCli,
 } from "./github-api.ts";
-import {
-  CliError,
-  handleError,
-  isMain,
-  parseJson,
-  runText,
-} from "./runtime-command.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
+import { CliError, handleError, isMain, parseJson, runText } from "./runtime-command.ts";
 
 type Decision = {
   repository: string;
@@ -32,30 +26,31 @@ type BranchPruneManifest = {
 
 const branchPattern = /^[A-Za-z0-9._/-]+$/;
 
-export function parseBranchPruneManifest(
-  raw: string,
-  defaultBranch: string,
-): BranchPruneManifest {
+export function parseBranchPruneManifest(raw: string, defaultBranch: string): BranchPruneManifest {
   let value: unknown;
   try {
     value = JSON.parse(raw) as unknown;
   } catch {
     throw new CliError("Branch prune manifest must be valid JSON.", 65);
   }
-  if (!isJsonRecord(value)
-    || value.schema_version !== "1"
-    || !Array.isArray(value.superseded_branches)
-    || Object.keys(value).sort().join(",") !== "schema_version,superseded_branches"
+  if (
+    !isJsonRecord(value) ||
+    value.schema_version !== "1" ||
+    !Array.isArray(value.superseded_branches) ||
+    Object.keys(value).sort().join(",") !== "schema_version,superseded_branches"
   ) {
     throw new CliError("Branch prune manifest is invalid.", 65);
   }
   const branches = value.superseded_branches;
   if (
-    branches.length === 0
-    || !branches.every((item) => typeof item === "string"
-      && branchPattern.test(item)
-      && !isProtectedBranch(item, defaultBranch))
-    || new Set(branches).size !== branches.length
+    branches.length === 0 ||
+    !branches.every(
+      (item) =>
+        typeof item === "string" &&
+        branchPattern.test(item) &&
+        !isProtectedBranch(item, defaultBranch)
+    ) ||
+    new Set(branches).size !== branches.length
   ) {
     throw new CliError("Branch prune manifest contains invalid superseded branches.", 65);
   }
@@ -82,7 +77,7 @@ function openPullHeads(value: unknown): Set<string> {
 async function mergedTreeIsDefault(
   mirrorPath: string,
   defaultBranch: string,
-  branch: string,
+  branch: string
 ): Promise<boolean> {
   const defaultRef = `refs/heads/${defaultBranch}`;
   const branchRef = `refs/heads/${branch}`;
@@ -91,13 +86,16 @@ async function mergedTreeIsDefault(
   ).trim();
 
   try {
-    const merged = (
-      await runText(
-        "git",
-        ["-C", mirrorPath, "merge-tree", "--write-tree", defaultRef, branchRef],
-        { timeoutMs: 30_000, maxBuffer: 4 * 1024 * 1024 },
+    const merged =
+      (
+        await runText(
+          "git",
+          ["-C", mirrorPath, "merge-tree", "--write-tree", defaultRef, branchRef],
+          { timeoutMs: 30_000, maxBuffer: 4 * 1024 * 1024 }
+        )
       )
-    ).trim().split(/\s+/)[0] ?? "";
+        .trim()
+        .split(/\s+/)[0] ?? "";
     return merged === defaultTree;
   } catch {
     return false;
@@ -106,44 +104,32 @@ async function mergedTreeIsDefault(
 
 async function sourceOwnedSupersededBranches(
   mirrorPath: string,
-  defaultBranch: string,
+  defaultBranch: string
 ): Promise<Set<string>> {
   try {
     const raw = await runText(
       "git",
-      [
-        "-C",
-        mirrorPath,
-        "show",
-        `refs/heads/${defaultBranch}:.github/branch-prune.json`,
-      ],
-      { timeoutMs: 10_000, maxBuffer: 1024 * 1024 },
+      ["-C", mirrorPath, "show", `refs/heads/${defaultBranch}:.github/branch-prune.json`],
+      { timeoutMs: 10_000, maxBuffer: 1024 * 1024 }
     );
-    return new Set(
-      parseBranchPruneManifest(raw, defaultBranch).superseded_branches,
-    );
+    return new Set(parseBranchPruneManifest(raw, defaultBranch).superseded_branches);
   } catch (error) {
-    if (error instanceof CliError && /does not exist|exists on disk|Path .* does not exist/i.test(error.message)) {
+    if (
+      error instanceof CliError &&
+      /does not exist|exists on disk|Path .* does not exist/i.test(error.message)
+    ) {
       return new Set();
     }
     throw error;
   }
 }
 
-async function cloneMirror(
-  repository: string,
-  token: string,
-  destination: string,
-): Promise<void> {
-  await runText(
-    "gh",
-    ["repo", "clone", repository, destination, "--", "--mirror"],
-    {
-      env: githubEnvironment(token),
-      timeoutMs: 120_000,
-      maxBuffer: 16 * 1024 * 1024,
-    },
-  );
+async function cloneMirror(repository: string, token: string, destination: string): Promise<void> {
+  await runText("gh", ["repo", "clone", repository, destination, "--", "--mirror"], {
+    env: githubEnvironment(token),
+    timeoutMs: 120_000,
+    maxBuffer: 16 * 1024 * 1024,
+  });
 }
 
 async function main(): Promise<void> {
@@ -154,11 +140,7 @@ async function main(): Promise<void> {
     throw new CliError("AW_CONTROL_TOKEN and AW_REPOSITORY_POLICY are required.", 77);
   }
 
-  const policy = parseJson(
-    rawPolicy,
-    "AW_REPOSITORY_POLICY must be valid JSON.",
-    65,
-  );
+  const policy = parseJson(rawPolicy, "AW_REPOSITORY_POLICY must be valid JSON.", 65);
   const repositories = repositoriesForCapability(policy, "pr");
   const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
   const root = await mkdtemp(join(tmpdir(), "branch-prune-"));
@@ -172,11 +154,9 @@ async function main(): Promise<void> {
         throw new CliError(`Default branch is unavailable: ${repository}.`, 65);
       }
 
-      const branches = getJsonArray(
-        await reader.get(`repos/${repository}/branches?per_page=100`),
-      );
+      const branches = getJsonArray(await reader.get(`repos/${repository}/branches?per_page=100`));
       const openHeads = openPullHeads(
-        await reader.get(`repos/${repository}/pulls?state=open&per_page=100`),
+        await reader.get(`repos/${repository}/pulls?state=open&per_page=100`)
       );
       const candidates = branches
         .filter(isJsonRecord)
@@ -189,10 +169,7 @@ async function main(): Promise<void> {
 
       const mirrorPath = join(root, repository.replace("/", "__"));
       await cloneMirror(repository, token, mirrorPath);
-      const explicitlySuperseded = await sourceOwnedSupersededBranches(
-        mirrorPath,
-        defaultBranch,
-      );
+      const explicitlySuperseded = await sourceOwnedSupersededBranches(mirrorPath, defaultBranch);
 
       for (const branch of candidates) {
         const isExplicitlySuperseded = explicitlySuperseded.has(branch);
@@ -212,7 +189,7 @@ async function main(): Promise<void> {
         if (!dryRun) {
           await runGithubCli(
             ["api", "--method", "DELETE", `repos/${repository}/git/refs/heads/${branch}`],
-            token,
+            token
           );
         }
         decisions.push({

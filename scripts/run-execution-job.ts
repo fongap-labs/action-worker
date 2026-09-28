@@ -1,11 +1,5 @@
 import { resolve, sep } from "node:path";
-import {
-  CliError,
-  handleError,
-  isMain,
-  parseJson,
-  runCommand,
-} from "./runtime-command.ts";
+import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 
 type RuntimeJob = {
   job_id: string;
@@ -54,9 +48,10 @@ function exactRuntimeJob(value: unknown): RuntimeJob {
       throw new CliError(`Execution job field must be a string: ${key}.`, 65);
     }
   }
-  if (!Number.isInteger(value.timeout_minutes)
-    || Number(value.timeout_minutes) < 1
-    || Number(value.timeout_minutes) > 360
+  if (
+    !Number.isInteger(value.timeout_minutes) ||
+    Number(value.timeout_minutes) < 1 ||
+    Number(value.timeout_minutes) > 360
   ) {
     throw new CliError("Execution job timeout is invalid.", 65);
   }
@@ -74,7 +69,7 @@ function confinedPath(root: string, relativePath: string): string {
 
 export function substituteExecutionTokens(
   value: string,
-  paths: { target_root: string; control_root: string; temp_root: string },
+  paths: { target_root: string; control_root: string; temp_root: string }
 ): string {
   const replacements: Record<string, string> = {
     "{target_root}": paths.target_root,
@@ -94,13 +89,14 @@ export function substituteExecutionTokens(
 export async function executePlannedJob(
   value: unknown,
   paths: { target_root: string; control_root: string; temp_root: string },
-  env: NodeJS.ProcessEnv = process.env,
+  env: NodeJS.ProcessEnv = process.env
 ): Promise<void> {
   const job = exactRuntimeJob(value);
   const commandValue = parseJson(job.command_json, "Execution command JSON is invalid.", 65);
-  if (!Array.isArray(commandValue)
-    || commandValue.length < 1
-    || !commandValue.every((item) => typeof item === "string" && item.length > 0)
+  if (
+    !Array.isArray(commandValue) ||
+    commandValue.length < 1 ||
+    !commandValue.every((item) => typeof item === "string" && item.length > 0)
   ) {
     throw new CliError("Execution command JSON must be a non-empty string array.", 65);
   }
@@ -119,7 +115,7 @@ export async function executePlannedJob(
     if (env.EXECUTION_TARGET_PRIVATE === "true") {
       throw new CliError(
         `Execution job failed for private repository: ${job.instance_id}. Detailed command output is suppressed.`,
-        error instanceof CliError ? error.exitCode : 1,
+        error instanceof CliError ? error.exitCode : 1
       );
     }
     throw error;
@@ -134,17 +130,14 @@ async function main(): Promise<void> {
   if (!raw || !targetRoot || !controlRoot || !tempRoot) {
     throw new CliError(
       "EXECUTION_JOB_JSON, EXECUTION_TARGET_ROOT, EXECUTION_CONTROL_ROOT, and EXECUTION_TEMP_ROOT are required.",
-      64,
+      64
     );
   }
-  await executePlannedJob(
-    parseJson(raw, "Execution job payload is not valid JSON.", 64),
-    {
-      target_root: targetRoot,
-      control_root: controlRoot,
-      temp_root: tempRoot,
-    },
-  );
+  await executePlannedJob(parseJson(raw, "Execution job payload is not valid JSON.", 64), {
+    target_root: targetRoot,
+    control_root: controlRoot,
+    temp_root: tempRoot,
+  });
 }
 
 if (isMain(import.meta.url)) {

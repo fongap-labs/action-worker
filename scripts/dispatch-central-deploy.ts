@@ -1,3 +1,4 @@
+import { type DeployAdapter, resolveDeployManifest } from "./deploy-manifest.ts";
 import {
   GithubReader,
   getJsonArray,
@@ -6,18 +7,14 @@ import {
   isJsonRecord,
 } from "./github-api.ts";
 import {
-  CliError,
   appendLines,
+  CliError,
   handleError,
   isMain,
   parseJson,
   readJson,
   runText,
 } from "./runtime-command.ts";
-import {
-  type DeployAdapter,
-  resolveDeployManifest,
-} from "./deploy-manifest.ts";
 
 type DeployAdapterPolicy = {
   event_type: string;
@@ -37,14 +34,17 @@ const shaPattern = /^[0-9a-f]{40}$/;
 function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
   const actual = Object.keys(value).sort();
   const expected = [...keys].sort();
-  return actual.length === expected.length && actual.every((item, index) => item === expected[index]);
+  return (
+    actual.length === expected.length && actual.every((item, index) => item === expected[index])
+  );
 }
 
 export function parseDeployPolicy(value: unknown): DeployPolicy {
-  if (!isJsonRecord(value)
-    || !exactKeys(value, ["adapters", "schema_version"])
-    || value.schema_version !== 2
-    || !isJsonRecord(value.adapters)
+  if (
+    !isJsonRecord(value) ||
+    !exactKeys(value, ["adapters", "schema_version"]) ||
+    value.schema_version !== 2 ||
+    !isJsonRecord(value.adapters)
   ) {
     throw new CliError("Deploy adapter policy is invalid.", 65);
   }
@@ -53,10 +53,11 @@ export function parseDeployPolicy(value: unknown): DeployPolicy {
     throw new CliError("Deploy adapter policy must contain only source-script.", 65);
   }
   const raw = value.adapters["source-script"];
-  if (!isJsonRecord(raw)
-    || !exactKeys(raw, ["event_type"])
-    || typeof raw.event_type !== "string"
-    || !eventPattern.test(raw.event_type)
+  if (
+    !isJsonRecord(raw) ||
+    !exactKeys(raw, ["event_type"]) ||
+    typeof raw.event_type !== "string" ||
+    !eventPattern.test(raw.event_type)
   ) {
     throw new CliError("Deploy source-script executor policy is invalid.", 65);
   }
@@ -73,10 +74,9 @@ export function deployEventType(policy: DeployPolicy, adapter: DeployAdapter): s
 }
 
 export function isDocsOnly(paths: readonly string[]): boolean {
-  return paths.length > 0 && paths.every((path) => (
-    path.endsWith(".md")
-    || path.startsWith("docs/")
-  ));
+  return (
+    paths.length > 0 && paths.every((path) => path.endsWith(".md") || path.startsWith("docs/"))
+  );
 }
 
 async function main(): Promise<void> {
@@ -88,13 +88,14 @@ async function main(): Promise<void> {
     runnerPolicyPath = "policies/runner.json",
   ] = process.argv.slice(2);
 
-  if (!repositoryPattern.test(repository)
-    || !shaPattern.test(headSha)
-    || !/^\d+$/.test(prNumberRaw)
+  if (
+    !repositoryPattern.test(repository) ||
+    !shaPattern.test(headSha) ||
+    !/^\d+$/.test(prNumberRaw)
   ) {
     throw new CliError(
       "Usage: dispatch-central-deploy.ts <repository> <head-sha> <pr-number> [adapter-policy] [runner-policy]",
-      64,
+      64
     );
   }
 
@@ -107,15 +108,22 @@ async function main(): Promise<void> {
   const dispatchToken = process.env.GH_TOKEN ?? "";
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   const rawRepositoryPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
-  if (!controlToken
-    || !dispatchToken
-    || !rawRepositoryPolicy
-    || !repositoryPattern.test(controlRepository)
+  if (
+    !controlToken ||
+    !dispatchToken ||
+    !rawRepositoryPolicy ||
+    !repositoryPattern.test(controlRepository)
   ) {
-    throw new CliError("Central deploy runtime credentials or repository policy are unavailable.", 77);
+    throw new CliError(
+      "Central deploy runtime credentials or repository policy are unavailable.",
+      77
+    );
   }
 
-  const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", controlToken);
+  const reader = new GithubReader(
+    process.env.GITHUB_API_URL ?? "https://api.github.com",
+    controlToken
+  );
   const repositoryJson = await reader.get(`repos/${repository}`);
   const defaultBranch = getJsonString(repositoryJson, "default_branch");
   const defaultCommit = await reader.get(`repos/${repository}/commits/${defaultBranch}`);
@@ -123,7 +131,7 @@ async function main(): Promise<void> {
   if (defaultSha !== headSha) {
     throw new CliError(
       `Automatic deploy source is stale: expected=${defaultSha} actual=${headSha}.`,
-      75,
+      75
     );
   }
 
@@ -132,7 +140,7 @@ async function main(): Promise<void> {
     headSha,
     parseJson(rawRepositoryPolicy, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
     await readJson(runnerPolicyPath),
-    reader,
+    reader
   );
   if (!manifest.automatic) {
     console.log(`Automatic deploy is disabled by source manifest: ${repository}`);
@@ -178,18 +186,11 @@ async function main(): Promise<void> {
 
   await runText(
     "gh",
-    [
-      "api",
-      "--method",
-      "POST",
-      `repos/${controlRepository}/dispatches`,
-      "--input",
-      "-",
-    ],
+    ["api", "--method", "POST", `repos/${controlRepository}/dispatches`, "--input", "-"],
     {
       env: githubEnvironment(dispatchToken),
       input: payload,
-    },
+    }
   );
 
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [
@@ -202,7 +203,9 @@ async function main(): Promise<void> {
     `- Event: ${eventType}`,
     "- Result: dispatched",
   ]);
-  console.log(`Central deploy dispatched: ${repository}@${headSha} -> ${manifest.adapter} -> ${eventType}`);
+  console.log(
+    `Central deploy dispatched: ${repository}@${headSha} -> ${manifest.adapter} -> ${eventType}`
+  );
 }
 
 if (isMain(import.meta.url)) {

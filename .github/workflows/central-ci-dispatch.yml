@@ -275,7 +275,10 @@ jobs:
           persist-credentials: false
 
       - name: Validate security gate
-        run: node scripts/validate-security.ts "${{ needs.prepare.outputs.base_sha }}" "${{ needs.prepare.outputs.head_sha }}" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policies/security.json"
+        env:
+          BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+        run: node scripts/validate-security.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policies/security.json"
 
   windows:
     name: Central CI / Windows
@@ -403,11 +406,14 @@ jobs:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_INGRESS_TOKEN: ${{ github.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
+          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          TARGET_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+          TARGET_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
         run: |
           node security-control/scripts/dispatch-security-scan.ts \
-            "${{ needs.prepare.outputs.repository }}" \
-            "${{ needs.prepare.outputs.head_sha }}" \
-            "${{ needs.prepare.outputs.pr_number }}"
+            "$TARGET_REPOSITORY" \
+            "$TARGET_HEAD_SHA" \
+            "$TARGET_PR_NUMBER"
 
       - name: Checkout deploy control
         if: ${{ needs.prepare.outputs.pr_number == '0' && needs.linux.result == 'success' && needs.security.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}

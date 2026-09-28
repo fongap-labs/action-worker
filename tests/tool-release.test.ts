@@ -31,7 +31,7 @@ test("stable tool release selection ignores drafts and prereleases", () => {
       { tag_name: "v1.3.0-rc.1", draft: false, prerelease: true },
       { tag_name: "v1.2.3", draft: false, prerelease: false },
     ]).tag_name,
-    "v1.2.3",
+    "v1.2.3"
   );
 });
 
@@ -39,7 +39,7 @@ test("upstream checksum parsing binds the requested asset", () => {
   const hash = "a".repeat(64);
   assert.equal(
     checksumForAsset(`${hash}  opencodereview-linux-amd64\n`, "opencodereview-linux-amd64"),
-    hash,
+    hash
   );
   assert.throws(() => checksumForAsset(`${hash}  other-asset\n`, "opencodereview-linux-amd64"));
 });

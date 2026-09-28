@@ -1,15 +1,5 @@
-import {
-  getGithubJson,
-  getJsonArray,
-  getJsonString,
-  isJsonRecord,
-} from "./github-api.ts";
-import {
-  CliError,
-  appendLines,
-  handleError,
-  isMain,
-} from "./runtime-command.ts";
+import { getGithubJson, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
+import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -21,11 +11,7 @@ const CONTROL_PATHS = new Set([
   ".github/scripts/central-ci.ps1",
 ]);
 
-const TRUSTED_ASSOCIATIONS = new Set([
-  "OWNER",
-  "MEMBER",
-  "COLLABORATOR",
-]);
+const TRUSTED_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
 type ControlDecision = {
   candidate_control: boolean;
@@ -37,7 +23,7 @@ export function resolveCiControlDecision(
   repository: string,
   expectedHeadSha: string,
   pull: unknown,
-  changedFiles: readonly string[],
+  changedFiles: readonly string[]
 ): ControlDecision {
   if (!repositoryPattern.test(repository)) {
     throw new CliError(`Invalid repository: ${repository}.`, 64);
@@ -73,10 +59,7 @@ export function resolveCiControlDecision(
   }
 
   if (headRepo !== repository || !TRUSTED_ASSOCIATIONS.has(association)) {
-    throw new CliError(
-      "CI control changes require a trusted same-repository maintainer PR.",
-      65,
-    );
+    throw new CliError("CI control changes require a trusted same-repository maintainer PR.", 65);
   }
 
   return {
@@ -89,13 +72,13 @@ export function resolveCiControlDecision(
 async function changedFiles(
   repository: string,
   prNumber: string,
-  token: string,
+  token: string
 ): Promise<string[]> {
   const files: string[] = [];
   for (let page = 1; page <= 100; page += 1) {
     const response = await getGithubJson(
       `repos/${repository}/pulls/${prNumber}/files?per_page=100&page=${page}`,
-      token,
+      token
     );
     const rows = getJsonArray(response);
     for (const row of rows) {
@@ -121,7 +104,7 @@ async function main(): Promise<void> {
   if (!repository || !prNumber || !token) {
     throw new CliError(
       "Usage: resolve-ci-control-ref.ts <repository> <pr-number> <expected-head-sha>",
-      64,
+      64
     );
   }
 
@@ -130,7 +113,7 @@ async function main(): Promise<void> {
     repository,
     expectedHeadSha,
     pull,
-    await changedFiles(repository, prNumber, token),
+    await changedFiles(repository, prNumber, token)
   );
 
   await appendLines(process.env.GITHUB_OUTPUT, [

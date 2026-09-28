@@ -33,9 +33,7 @@ function sourceWithStatus(state = "") {
         }
         if (path === `repos/${repository}/commits/${headSha}/status`) {
           return {
-            statuses: state
-              ? [{ context: "Task Source", state }]
-              : [],
+            statuses: state ? [{ context: "Task Source", state }] : [],
           };
         }
         throw new Error(`unexpected path: ${path}`);
@@ -52,7 +50,7 @@ test("task intake dispatches an unprocessed push-enabled default head", async ()
     source,
     async (repo, before, head) => {
       dispatched.push({ repository: repo, before, head });
-    },
+    }
   );
 
   assert.deepEqual(dispatched, [{ repository, before: beforeSha, head: headSha }]);
@@ -66,14 +64,15 @@ test("task intake dispatches an unprocessed push-enabled default head", async ()
 });
 
 test("task intake skips pending and processed heads", async () => {
-  for (const [state, field] of [["pending", "in_flight"], ["success", "already_processed"]] as const) {
+  for (const [state, field] of [
+    ["pending", "in_flight"],
+    ["success", "already_processed"],
+  ] as const) {
     const { repository, source } = sourceWithStatus(state);
     let dispatches = 0;
-    const result = await scanTaskSources(
-      { [repository]: ["task"] },
-      source,
-      async () => { dispatches += 1; },
-    );
+    const result = await scanTaskSources({ [repository]: ["task"] }, source, async () => {
+      dispatches += 1;
+    });
     assert.equal(dispatches, 0);
     assert.equal(result[field], 1);
   }
@@ -106,7 +105,7 @@ test("task intake ignores manifests without push intent", async () => {
     },
     async () => {
       throw new Error("dispatch should not run");
-    },
+    }
   );
   assert.equal(statusReads, 0);
   assert.equal(result.push_enabled, 0);

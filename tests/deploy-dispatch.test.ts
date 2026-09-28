@@ -17,19 +17,23 @@ test("deploy executor registry is repository-agnostic and source-script only", (
   assert.deepEqual(parsed, policy);
   assert.equal(deployEventType(parsed, "source-script"), "run-source-script-deploy");
   assert.equal("repositories" in parsed, false);
-  assert.throws(() => parseDeployPolicy({
-    ...policy,
-    repositories: {},
-  }));
-  assert.throws(() => parseDeployPolicy({
-    schema_version: 2,
-    adapters: {
-      "source-script": {
-        event_type: "run-source-script-deploy",
-        repository: "fongap-labs/example",
+  assert.throws(() =>
+    parseDeployPolicy({
+      ...policy,
+      repositories: {},
+    })
+  );
+  assert.throws(() =>
+    parseDeployPolicy({
+      schema_version: 2,
+      adapters: {
+        "source-script": {
+          event_type: "run-source-script-deploy",
+          repository: "fongap-labs/example",
+        },
       },
-    },
-  }));
+    })
+  );
 });
 
 test("documentation-only deploy classification is deterministic", () => {

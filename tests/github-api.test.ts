@@ -53,9 +53,7 @@ test("GitHub readers retry transient HTTP errors", async () => {
   let calls = 0;
   globalThis.fetch = async () => {
     calls += 1;
-    return calls === 1
-      ? new Response("unavailable", { status: 503 })
-      : Response.json({ ok: true });
+    return calls === 1 ? new Response("unavailable", { status: 503 }) : Response.json({ ok: true });
   };
   try {
     const reader = new GithubReader("https://api.github.test", "", {

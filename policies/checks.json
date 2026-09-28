@@ -1,44 +1,19 @@
 {
   "schema_version": 1,
-  "always": [
-    "naming",
-    "secret-scan"
-  ],
+  "always": ["naming", "secret-scan"],
   "by_change_area": {
-    "workflow": [
-      "actionlint"
-    ],
-    "script": [
-      "shellcheck"
-    ],
-    "security": [
-      "secret-scan"
-    ],
-    "container": [
-      "container-check"
-    ],
-    "release": [
-      "release-check"
-    ]
+    "workflow": ["actionlint"],
+    "script": ["shellcheck"],
+    "security": ["secret-scan"],
+    "container": ["container-check"],
+    "release": ["release-check"]
   },
   "by_impact": {
-    "security": [
-      "secret-scan"
-    ],
-    "breaking": [
-      "compatibility-check"
-    ],
-    "migration": [
-      "migration-check"
-    ],
-    "api": [
-      "api-check"
-    ],
-    "deployment": [
-      "deployment-check"
-    ],
-    "compatibility": [
-      "compatibility-check"
-    ]
+    "security": ["secret-scan"],
+    "breaking": ["compatibility-check"],
+    "migration": ["migration-check"],
+    "api": ["api-check"],
+    "deployment": ["deployment-check"],
+    "compatibility": ["compatibility-check"]
   }
 }

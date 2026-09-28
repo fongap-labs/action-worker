@@ -25,20 +25,31 @@ test("deploy dispatch is exact and repository binding is executor-owned", () => 
 
 test("deploy evidence must be successful Action Worker CI Evidence", () => {
   const trusted = {
-    statuses: [{
-      context: "CI Evidence",
-      state: "success",
-      target_url: "https://github.com/fongap-labs/action-worker/actions/runs/123",
-    }],
+    statuses: [
+      {
+        context: "CI Evidence",
+        state: "success",
+        target_url: "https://github.com/fongap-labs/action-worker/actions/runs/123",
+      },
+    ],
   };
   assert.equal(hasTrustedCiEvidence(trusted), true);
-  assert.equal(hasTrustedCiEvidence({
-    statuses: [{ ...trusted.statuses[0], state: "failure" }],
-  }), false);
-  assert.equal(hasTrustedCiEvidence({
-    statuses: [{ ...trusted.statuses[0], target_url: "https://example.invalid/run/123" }],
-  }), false);
-  assert.equal(hasTrustedCiEvidence({
-    statuses: [{ ...trusted.statuses[0], context: "ci-evidence" }],
-  }), false);
+  assert.equal(
+    hasTrustedCiEvidence({
+      statuses: [{ ...trusted.statuses[0], state: "failure" }],
+    }),
+    false
+  );
+  assert.equal(
+    hasTrustedCiEvidence({
+      statuses: [{ ...trusted.statuses[0], target_url: "https://example.invalid/run/123" }],
+    }),
+    false
+  );
+  assert.equal(
+    hasTrustedCiEvidence({
+      statuses: [{ ...trusted.statuses[0], context: "ci-evidence" }],
+    }),
+    false
+  );
 });

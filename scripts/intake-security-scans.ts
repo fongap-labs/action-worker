@@ -1,20 +1,7 @@
-import {
-  GithubReader,
-  githubEnvironment,
-  githubExists,
-} from "./github-api.ts";
+import { GithubReader, githubEnvironment, githubExists } from "./github-api.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
-import {
-  decodeGithubContent,
-  parseSecurityScanManifest,
-} from "./security-scan.ts";
-import {
-  CliError,
-  handleError,
-  isMain,
-  parseJson,
-  runCommand,
-} from "./runtime-command.ts";
+import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
+import { decodeGithubContent, parseSecurityScanManifest } from "./security-scan.ts";
 
 type GithubGet = {
   get(path: string): Promise<unknown>;
@@ -49,10 +36,11 @@ export async function scanDefaultBranchSecurity(
   reader: GithubGet,
   manifestExists: (path: string) => Promise<boolean>,
   dispatch: Dispatch,
-  controlRepository: string,
+  controlRepository: string
 ): Promise<SecurityScanIntakeResult> {
-  const repositories = repositoriesForCapability(policyValue, "pr")
-    .filter((repository) => repository !== controlRepository);
+  const repositories = repositoriesForCapability(policyValue, "pr").filter(
+    (repository) => repository !== controlRepository
+  );
   const result: SecurityScanIntakeResult = {
     repositories: repositories.length,
     manifests: 0,
@@ -74,7 +62,7 @@ export async function scanDefaultBranchSecurity(
     const commit = await reader.get(`repos/${repository}/commits/${defaultBranch}`);
     const sourceSha = stringField(commit, "sha");
     const path = `repos/${repository}/contents/.github/security-scan.json?ref=${sourceSha}`;
-    if (!await manifestExists(path)) {
+    if (!(await manifestExists(path))) {
       result.skipped += 1;
       continue;
     }
@@ -83,8 +71,8 @@ export async function scanDefaultBranchSecurity(
       parseJson(
         decodeGithubContent(await reader.get(path)),
         "Security scan manifest must be valid JSON.",
-        65,
-      ),
+        65
+      )
     );
     if (!manifest.default_branch) {
       result.skipped += 1;
@@ -101,7 +89,7 @@ async function main(): Promise<void> {
   const policy = parseJson(
     process.env.AW_REPOSITORY_POLICY ?? "",
     "AW_REPOSITORY_POLICY must be valid JSON.",
-    65,
+    65
   );
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const ingressToken = process.env.AW_INGRESS_TOKEN ?? "";
@@ -109,11 +97,14 @@ async function main(): Promise<void> {
   if (!controlToken || !ingressToken || !controlRepository) {
     throw new CliError(
       "AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
-      64,
+      64
     );
   }
 
-  const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", controlToken);
+  const reader = new GithubReader(
+    process.env.GITHUB_API_URL ?? "https://api.github.com",
+    controlToken
+  );
   const result = await scanDefaultBranchSecurity(
     policy,
     reader,
@@ -137,10 +128,10 @@ async function main(): Promise<void> {
           input: JSON.stringify(body),
           timeoutMs: 30_000,
           maxBuffer: 1024 * 1024,
-        },
+        }
       );
     },
-    controlRepository,
+    controlRepository
   );
   console.log(JSON.stringify(result));
 }

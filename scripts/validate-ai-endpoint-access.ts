@@ -1,13 +1,5 @@
-import {
-  CliError,
-  handleError,
-  isMain,
-} from "./runtime-command.ts";
-import {
-  enabledAiModels,
-  parseAiAgentConfig,
-  type AiAgentConfig,
-} from "./ai-agent-config.ts";
+import { type AiAgentConfig, enabledAiModels, parseAiAgentConfig } from "./ai-agent-config.ts";
+import { CliError, handleError, isMain } from "./runtime-command.ts";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -16,10 +8,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export function resolveModelsEndpoint(baseUrl: string): string {
   const gateway = baseUrl.replace(/\/+$/, "");
   if (gateway.endsWith("/v1/chat/completions")) {
-    return gateway.slice(0, -"/chat/completions".length) + "/models";
+    return `${gateway.slice(0, -"/chat/completions".length)}/models`;
   }
   if (gateway.endsWith("/chat/completions")) {
-    return gateway.slice(0, -"/chat/completions".length) + "/models";
+    return `${gateway.slice(0, -"/chat/completions".length)}/models`;
   }
   if (gateway.endsWith("/v1")) return `${gateway}/models`;
   return `${gateway}/v1/models`;
@@ -40,7 +32,7 @@ export function visibleModelIds(value: unknown): string[] {
     throw new CliError("ERROR: AI endpoint /v1/models returned an invalid payload.", 65);
   }
   const ids = value.data
-    .map((entry) => isRecord(entry) && typeof entry.id === "string" ? entry.id.trim() : "")
+    .map((entry) => (isRecord(entry) && typeof entry.id === "string" ? entry.id.trim() : ""))
     .filter(Boolean);
   return [...new Set(ids)].sort();
 }
@@ -57,10 +49,7 @@ async function main(): Promise<void> {
   }
 
   const config = parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? "");
-  const required = requiredPrAiModels(
-    config,
-    process.env.AI_ENDPOINT_REQUIRED_MODEL ?? "",
-  );
+  const required = requiredPrAiModels(config, process.env.AI_ENDPOINT_REQUIRED_MODEL ?? "");
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   let response: Response;
@@ -71,13 +60,19 @@ async function main(): Promise<void> {
       signal: controller.signal,
     });
   } catch {
-    throw new CliError("ERROR: AI endpoint model access check failed before a response was received.", 65);
+    throw new CliError(
+      "ERROR: AI endpoint model access check failed before a response was received.",
+      65
+    );
   } finally {
     clearTimeout(timeout);
   }
 
   if (!response.ok) {
-    throw new CliError(`ERROR: AI endpoint model access check returned HTTP ${response.status}.`, 65);
+    throw new CliError(
+      `ERROR: AI endpoint model access check returned HTTP ${response.status}.`,
+      65
+    );
   }
 
   let payload: unknown;
@@ -93,11 +88,13 @@ async function main(): Promise<void> {
   if (missing.length > 0) {
     throw new CliError(
       `ERROR: Configured AI endpoint credential cannot call required PR AI model(s): ${missing.join(", ")}. Visible models: ${visible.join(", ") || "none"}.`,
-      65,
+      65
     );
   }
 
-  console.log(`AI endpoint access verified. Required models: ${required.join(", ")}. Visible models: ${visible.join(", ")}.`);
+  console.log(
+    `AI endpoint access verified. Required models: ${required.join(", ")}. Visible models: ${visible.join(", ")}.`
+  );
 }
 
 if (isMain(import.meta.url)) {

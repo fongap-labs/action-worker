@@ -2,7 +2,14 @@ import { lstat, readdir } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { isJsonRecord } from "./github-api.ts";
 import { parseRepositoryPolicy, validateRepositoryCapability } from "./repository-policy.ts";
-import { CliError, appendLines, handleError, isMain, parseJson, readJson } from "./runtime-command.ts";
+import {
+  appendLines,
+  CliError,
+  handleError,
+  isMain,
+  parseJson,
+  readJson,
+} from "./runtime-command.ts";
 
 type Publication = {
   schema_version: "1";
@@ -17,20 +24,26 @@ function validateManifest(value: unknown): Publication {
     throw new CliError("::error::Task publication manifest must be a JSON object.", 64);
   }
   const keys = Object.keys(value).sort();
-  const expected = ["commit_message", "delete_stale", "dest_dir", "schema_version", "target_repository"];
+  const expected = [
+    "commit_message",
+    "delete_stale",
+    "dest_dir",
+    "schema_version",
+    "target_repository",
+  ];
   if (keys.length !== expected.length || !keys.every((key, index) => key === expected[index])) {
     throw new CliError("::error::Task publication manifest fields are invalid.", 64);
   }
   if (
-    value.schema_version !== "1"
-    || typeof value.target_repository !== "string"
-    || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value.target_repository)
-    || typeof value.dest_dir !== "string"
-    || typeof value.delete_stale !== "boolean"
-    || typeof value.commit_message !== "string"
-    || value.commit_message.length < 1
-    || value.commit_message.length > 160
-    || /[\r\n]/.test(value.commit_message)
+    value.schema_version !== "1" ||
+    typeof value.target_repository !== "string" ||
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value.target_repository) ||
+    typeof value.dest_dir !== "string" ||
+    typeof value.delete_stale !== "boolean" ||
+    typeof value.commit_message !== "string" ||
+    value.commit_message.length < 1 ||
+    value.commit_message.length > 160 ||
+    /[\r\n]/.test(value.commit_message)
   ) {
     throw new CliError("::error::Task publication manifest values are invalid.", 64);
   }
@@ -95,7 +108,7 @@ async function main(): Promise<void> {
     throw new CliError("::error::AW_REPOSITORY_POLICY is required for task publication.", 65);
   }
   const policy = parseRepositoryPolicy(
-    parseJson(rawPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65),
+    parseJson(rawPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65)
   );
   const manifest = validateManifest(await readJson(manifestPath));
   validateRepositoryCapability(sourceRepository, policy, "release-source");
@@ -120,7 +133,9 @@ async function main(): Promise<void> {
     `commit_message=${manifest.commit_message}`,
     `payload_dir=${payloadDir}`,
   ]);
-  console.log(`Task publication validated: ${sourceRepository} -> ${manifest.target_repository}/${manifest.dest_dir}`);
+  console.log(
+    `Task publication validated: ${sourceRepository} -> ${manifest.target_repository}/${manifest.dest_dir}`
+  );
 }
 
 if (isMain(import.meta.url)) {

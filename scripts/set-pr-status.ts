@@ -1,14 +1,13 @@
-import {
-  CliError,
-  handleError,
-  isMain,
-} from "./runtime-command.ts";
 import { runGithubCli } from "./github-api.ts";
+import { CliError, handleError, isMain } from "./runtime-command.ts";
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length < 4 || args.length > 5) {
-    throw new CliError("Usage: set-pr-status.ts <repository> <sha> <state> <description> [target-url]", 64);
+    throw new CliError(
+      "Usage: set-pr-status.ts <repository> <sha> <state> <description> [target-url]",
+      64
+    );
   }
   const [repository = "", sha = "", state = "", description = "", targetUrl = ""] = args;
   const context = process.env.PR_STATUS_CONTEXT ?? "PR Governance";
@@ -26,10 +25,16 @@ async function main(): Promise<void> {
     throw new CliError("::error::GH_TOKEN is required.");
   }
   const command = [
-    "api", "--method", "POST", `repos/${repository}/statuses/${sha}`,
-    "-f", `state=${state}`,
-    "-f", `context=${context}`,
-    "-f", `description=${description}`,
+    "api",
+    "--method",
+    "POST",
+    `repos/${repository}/statuses/${sha}`,
+    "-f",
+    `state=${state}`,
+    "-f",
+    `context=${context}`,
+    "-f",
+    `description=${description}`,
   ];
   if (targetUrl) {
     command.push("-f", `target_url=${targetUrl}`);

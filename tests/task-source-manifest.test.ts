@@ -32,36 +32,40 @@ test("source-owned cron is evaluated by the generic scheduler", () => {
   assert.equal(cronMatches(new Date("2026-09-27T12:30:00Z"), "30 12 * * 0"), true);
   assert.equal(cronMatches(new Date("2026-09-28T12:30:00Z"), "30 12 * * 0"), false);
 
-  assert.deepEqual(
-    projectsDueAt(parsed, new Date("2026-09-28T12:37:00Z"), 20),
-    [{ project: "MarketBrief", slot: "2026-09-28T12:30Z" }],
-  );
-  assert.deepEqual(
-    projectsDueAt(parsed, new Date("2026-09-27T12:37:00Z"), 20),
-    [
-      { project: "MarketBrief", slot: "2026-09-27T12:30Z" },
-      { project: "PharmaBrief", slot: "2026-09-27T12:30Z" },
-    ],
-  );
+  assert.deepEqual(projectsDueAt(parsed, new Date("2026-09-28T12:37:00Z"), 20), [
+    { project: "MarketBrief", slot: "2026-09-28T12:30Z" },
+  ]);
+  assert.deepEqual(projectsDueAt(parsed, new Date("2026-09-27T12:37:00Z"), 20), [
+    { project: "MarketBrief", slot: "2026-09-27T12:30Z" },
+    { project: "PharmaBrief", slot: "2026-09-27T12:30Z" },
+  ]);
 });
 
 test("task source manifest rejects unsafe project and schedule data", () => {
-  assert.throws(() => parseTaskSourceManifest({
-    ...manifest,
-    schedules: [{ cron: "30 0 * * *", projects: ["../escape"] }],
-  }));
-  assert.throws(() => parseTaskSourceManifest({
-    ...manifest,
-    schedules: [{ cron: "30 0 * * *\nrun: bad", projects: ["Example"] }],
-  }));
-  assert.throws(() => parseTaskSourceManifest({
-    ...manifest,
-    schedules: [{ cron: "60 0 * * *", projects: ["Example"] }],
-  }));
-  assert.throws(() => parseTaskSourceManifest({
-    ...manifest,
-    extra: true,
-  }));
+  assert.throws(() =>
+    parseTaskSourceManifest({
+      ...manifest,
+      schedules: [{ cron: "30 0 * * *", projects: ["../escape"] }],
+    })
+  );
+  assert.throws(() =>
+    parseTaskSourceManifest({
+      ...manifest,
+      schedules: [{ cron: "30 0 * * *\nrun: bad", projects: ["Example"] }],
+    })
+  );
+  assert.throws(() =>
+    parseTaskSourceManifest({
+      ...manifest,
+      schedules: [{ cron: "60 0 * * *", projects: ["Example"] }],
+    })
+  );
+  assert.throws(() =>
+    parseTaskSourceManifest({
+      ...manifest,
+      extra: true,
+    })
+  );
 });
 
 test("task source manifest defaults push intake to disabled", () => {

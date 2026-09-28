@@ -16,7 +16,7 @@ test("release assets use SHA256 digests", async () => {
     await writeFile(path, "action-worker\n", "utf8");
     assert.equal(
       await sha256File(path),
-      "85cac77fc7fc9304c5de9f4e80b1c0f69f590e4f7f66f376ec8435b01d9fa6d2",
+      "85cac77fc7fc9304c5de9f4e80b1c0f69f590e4f7f66f376ec8435b01d9fa6d2"
     );
   } finally {
     await rm(directory, { recursive: true, force: true });
@@ -24,10 +24,10 @@ test("release assets use SHA256 digests", async () => {
 });
 
 test("release archives allow only unique root-level files", () => {
-  assert.deepEqual(
-    validateArchive("release-manifest.json\nasset.tar.gz\n"),
-    ["release-manifest.json", "asset.tar.gz"],
-  );
+  assert.deepEqual(validateArchive("release-manifest.json\nasset.tar.gz\n"), [
+    "release-manifest.json",
+    "asset.tar.gz",
+  ]);
   assert.throws(() => validateArchive("release-manifest.json\nnested/asset.tar.gz\n"));
   assert.throws(() => validateArchive("release-manifest.json\nrelease-manifest.json\n"));
   assert.throws(() => validateArchive(""));

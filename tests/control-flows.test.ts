@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { buildComparison } from "../scripts/build-review-comparison.ts";
 import { detectContext } from "../scripts/detect-pr-context.ts";
-import { validateChange } from "../scripts/validate-change-record.ts";
 import { runText } from "../scripts/runtime-command.ts";
+import { validateChange } from "../scripts/validate-change-record.ts";
 
 const policyDir = resolve("policies");
 
@@ -42,11 +42,21 @@ test("change record enforces title and CHANGELOG contracts", async (context) => 
 
   await git(root, ["reset", "--hard", "-q", base]);
   await writeFile(join(root, "README.md"), "# Fixture\n\nFeature.\n", "utf8");
-  await writeFile(join(root, "CHANGELOG.md"), "# Changelog\n\n## [Unreleased]\n- feat: Add example capability.\n", "utf8");
+  await writeFile(
+    join(root, "CHANGELOG.md"),
+    "# Changelog\n\n## [Unreleased]\n- feat: Add example capability.\n",
+    "utf8"
+  );
   await git(root, ["add", "."]);
   await git(root, ["commit", "-qm", "feature"]);
   const featureHead = await git(root, ["rev-parse", "HEAD"]);
-  const feature = await validateChange("feat(core): add example capability", base, featureHead, root, policyDir);
+  const feature = await validateChange(
+    "feat(core): add example capability",
+    base,
+    featureHead,
+    root,
+    policyDir
+  );
   assert.equal(feature.scope, "core");
   assert.equal(feature.changelog_changed, true);
 });
@@ -61,7 +71,11 @@ test("context detection classifies workflow and declared impacts", async (contex
   const base = await git(root, ["rev-parse", "HEAD"]);
   await mkdir(join(root, ".github", "workflows"), { recursive: true });
   await writeFile(join(root, ".github", "workflows", "release.yml"), "name: Release\n", "utf8");
-  await writeFile(join(root, "CHANGELOG.md"), "# Changelog\n\n- Breaking API migration affecting deployment compatibility.\n", "utf8");
+  await writeFile(
+    join(root, "CHANGELOG.md"),
+    "# Changelog\n\n- Breaking API migration affecting deployment compatibility.\n",
+    "utf8"
+  );
   await git(root, ["add", "."]);
   await git(root, ["commit", "-qm", "head"]);
   const head = await git(root, ["rev-parse", "HEAD"]);
@@ -87,9 +101,22 @@ test("review comparison injects evidence without changing the reviewed diff", as
   await git(root, ["add", "source.txt"]);
   await git(root, ["commit", "-qm", "head"]);
   const head = await git(root, ["rev-parse", "HEAD"]);
-  await writeFile(join(root, ".action-worker-ci-evidence.json"), '{"conclusion":"success"}\n', "utf8");
+  await writeFile(
+    join(root, ".action-worker-ci-evidence.json"),
+    '{"conclusion":"success"}\n',
+    "utf8"
+  );
   const comparison = await buildComparison(root, base, head, ".action-worker-ci-evidence.json");
-  assert.equal(await git(root, ["show", `${comparison.base_sha}:.action-worker-ci-evidence.json`]), '{"conclusion":"success"}');
-  assert.equal(await git(root, ["show", `${comparison.head_sha}:.action-worker-ci-evidence.json`]), '{"conclusion":"success"}');
-  assert.equal(await git(root, ["diff", "--name-only", comparison.base_sha, comparison.head_sha]), "source.txt");
+  assert.equal(
+    await git(root, ["show", `${comparison.base_sha}:.action-worker-ci-evidence.json`]),
+    '{"conclusion":"success"}'
+  );
+  assert.equal(
+    await git(root, ["show", `${comparison.head_sha}:.action-worker-ci-evidence.json`]),
+    '{"conclusion":"success"}'
+  );
+  assert.equal(
+    await git(root, ["diff", "--name-only", comparison.base_sha, comparison.head_sha]),
+    "source.txt"
+  );
 });

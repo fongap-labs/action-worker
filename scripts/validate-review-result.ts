@@ -1,22 +1,24 @@
 import { isJsonRecord } from "./github-api.ts";
-import {
-  CliError,
-  handleError,
-  isMain,
-  readJson,
-} from "./runtime-command.ts";
+import { CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 
 export function validateReview(value: unknown): void {
   if (!isJsonRecord(value) || (value.comments !== undefined && !Array.isArray(value.comments))) {
-    throw new CliError("ERROR: OpenCodeReview result is not a complete review: status=invalid terminal_state=invalid", 65);
+    throw new CliError(
+      "ERROR: OpenCodeReview result is not a complete review: status=invalid terminal_state=invalid",
+      65
+    );
   }
   const manifest = isJsonRecord(value.manifest) ? value.manifest : undefined;
   const terminal = manifest?.terminal_state;
-  const isComplete = terminal !== undefined
-    ? terminal === "complete"
-    : value.status === "complete" || value.status === "success";
+  const isComplete =
+    terminal !== undefined
+      ? terminal === "complete"
+      : value.status === "complete" || value.status === "success";
   if (!isComplete) {
-    throw new CliError(`ERROR: OpenCodeReview result is not a complete review: status=${String(value.status ?? "missing")} terminal_state=${String(terminal ?? "missing")}`, 65);
+    throw new CliError(
+      `ERROR: OpenCodeReview result is not a complete review: status=${String(value.status ?? "missing")} terminal_state=${String(terminal ?? "missing")}`,
+      65
+    );
   }
 }
 

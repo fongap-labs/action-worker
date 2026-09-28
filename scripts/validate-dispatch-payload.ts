@@ -1,14 +1,14 @@
 import { isJsonRecord } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
-import {
-  CliError,
-  appendLines,
-  handleError,
-  isMain,
-  parseJson,
-} from "./runtime-command.ts";
+import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
-const requiredKeys = ["schema_version", "request_id", "project", "bootstrap_ref", "repository"] as const;
+const requiredKeys = [
+  "schema_version",
+  "request_id",
+  "project",
+  "bootstrap_ref",
+  "repository",
+] as const;
 const optionalKeys = ["agent_domain", "operation"] as const;
 const optionalKeyPattern = /^[a-z][a-z0-9-]*$/;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -30,7 +30,10 @@ export function validateDispatch(value: unknown): { agent_domain: string; operat
     throw new CliError(`::error::Fields cannot be empty: ${empty.join(", ")}.`, 64);
   }
   if (value.schema_version !== "1") {
-    throw new CliError(`::error::Unsupported schema_version=${String(value.schema_version)}; only version 1 is supported.`, 65);
+    throw new CliError(
+      `::error::Unsupported schema_version=${String(value.schema_version)}; only version 1 is supported.`,
+      65
+    );
   }
   if (!/^[A-Za-z0-9_.-]{1,128}$/.test(String(value.request_id))) {
     throw new CliError("::error::request_id has an invalid format.", 64);
@@ -45,8 +48,9 @@ export function validateDispatch(value: unknown): { agent_domain: string; operat
     throw new CliError("::error::repository must use owner/name format.", 64);
   }
   const unknown = Object.keys(value).filter(
-    (key) => !requiredKeys.includes(key as typeof requiredKeys[number])
-      && !optionalKeys.includes(key as typeof optionalKeys[number]),
+    (key) =>
+      !requiredKeys.includes(key as (typeof requiredKeys)[number]) &&
+      !optionalKeys.includes(key as (typeof optionalKeys)[number])
   );
   if (unknown.length > 0) {
     throw new CliError(`::error::Unsupported fields: ${unknown.join(", ")}.`, 64);
@@ -57,7 +61,15 @@ export function validateDispatch(value: unknown): { agent_domain: string; operat
     throw new CliError("::error::agent_domain must be lower-kebab-case.", 64);
   }
   const operation = typeof value.operation === "string" ? value.operation : "task";
-  const validOperations = new Set(["ci", "review", "build", "release", "deploy", "task", "scheduled"]);
+  const validOperations = new Set([
+    "ci",
+    "review",
+    "build",
+    "release",
+    "deploy",
+    "task",
+    "scheduled",
+  ]);
   if (!validOperations.has(operation)) {
     throw new CliError(`::error::Unknown operation: ${operation}.`, 64);
   }
@@ -79,7 +91,7 @@ async function main(): Promise<void> {
   validateRepositoryCapability(
     String(payload.repository),
     parseJson(repositoryPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65),
-    "task",
+    "task"
   );
   await appendLines(process.env.GITHUB_OUTPUT, [
     `schema_version=${String(payload.schema_version)}`,
