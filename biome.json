@@ -42,7 +42,7 @@
     }
   },
   "files": {
-    "includes": ["**/*.ts", "**/*.json", "**/*.yml", "**/*.yaml"],
+    "includes": ["**/*.ts", "**/*.json", "**/*.yml", "**/*.yaml", "tests/kit/**/*.mjs"],
     "ignoreUnknown": true
   }
 }

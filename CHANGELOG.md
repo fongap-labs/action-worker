@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: centralize product test suites as Action Worker test packs with a shared test kit, a pack runner, a pre-migration case inventory, and `.github/test-pack.json` as a protected CI control path.
+
 - fix: raise the security gate diff buffer so large generated publication artifacts can be scanned instead of exceeding the 16 MiB cap.
 
 - fix: exempt plain data content files from the engineering language gate so generated publication artifacts can pass governance.

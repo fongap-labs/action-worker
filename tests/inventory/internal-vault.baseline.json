@@ -1,0 +1,837 @@
+{
+  "schema_version": 1,
+  "runtime": "python",
+  "suites": {
+    "bootstrap/test_bootstrap.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "TestBootstrapValidation::test_missing_project_arg": 1,
+        "TestBootstrapValidation::test_invalid_project_name": 1,
+        "TestBootstrapValidation::test_project_too_long": 1,
+        "TestBootstrapValidation::test_invalid_sha": 1,
+        "TestBootstrapValidation::test_missing_source_dir": 1,
+        "TestBootstrapStructure::test_no_github_token_fallback": 1,
+        "TestBootstrapStructure::test_no_private_repo_alias": 1,
+        "TestBootstrapStructure::test_no_pip_upgrade": 1,
+        "TestBootstrapStructure::test_no_eval_for_resolve_env": 1,
+        "TestBootstrapStructure::test_cleanup_uses_exit_only": 1,
+        "TestBootstrapStructure::test_tools_preflight_includes_required": 1,
+        "TestBootstrapStructure::test_source_snapshot_requires_no_execution_credential": 1,
+        "TestBootstrapStructure::test_conflict_check_exists": 1,
+        "TestBootstrapStructure::test_env_variables_direct_read": 1,
+        "TestBootstrapStructure::test_dependency_install_does_not_disable_transitive_deps": 1,
+        "TestBootstrapStructure::test_dependency_integrity_is_checked": 1,
+        "TestBootstrapStructure::test_conflict_check_uses_sed_not_grep": 1,
+        "TestBootstrapStructure::test_no_legacy_project_secrets_protocol_in_runtime": 1,
+        "TestBootstrapStructure::test_cleanup_unsets_injected_secrets": 1,
+        "TestBootstrapStructure::test_no_execution_token_contract_remains": 1,
+        "TestBootstrapStructure::test_secret_cleanup_before_dispatch": 1,
+        "TestBootstrapStructure::test_baseline_env_snapshot_required": 1,
+        "TestBootstrapStructure::test_no_github_token_in_project_env": 1,
+        "TestBootstrapStructure::test_secret_values_not_in_logs": 1,
+        "TestConflictCheck::test_env_comments_only": 1,
+        "TestConflictCheck::test_env_empty": 1,
+        "TestConflictCheck::test_secrets_empty": 1,
+        "TestConflictCheck::test_no_conflict": 1,
+        "TestConflictCheck::test_conflict_fails": 1,
+        "TestConflictCheck::test_conflict_outputs_variable_name": 1,
+        "TestConflictCheck::test_env_only_blank_lines": 1,
+        "TestConflictCheck::test_env_comments_and_blank_lines_mixed": 1,
+        "TestConflictCheck::test_secrets_comments_only": 1,
+        "TestConflictCheck::test_multiple_conflicts": 1,
+        "TestConflictCheck::test_both_files_empty": 1
+      },
+      "passed": [
+        "TestBootstrapStructure::test_no_github_token_fallback",
+        "TestBootstrapStructure::test_no_private_repo_alias",
+        "TestBootstrapStructure::test_no_pip_upgrade",
+        "TestBootstrapStructure::test_no_eval_for_resolve_env",
+        "TestBootstrapStructure::test_cleanup_uses_exit_only",
+        "TestBootstrapStructure::test_tools_preflight_includes_required",
+        "TestBootstrapStructure::test_source_snapshot_requires_no_execution_credential",
+        "TestBootstrapStructure::test_conflict_check_exists",
+        "TestBootstrapStructure::test_env_variables_direct_read",
+        "TestBootstrapStructure::test_dependency_install_does_not_disable_transitive_deps",
+        "TestBootstrapStructure::test_dependency_integrity_is_checked",
+        "TestBootstrapStructure::test_conflict_check_uses_sed_not_grep",
+        "TestBootstrapStructure::test_no_legacy_project_secrets_protocol_in_runtime",
+        "TestBootstrapStructure::test_cleanup_unsets_injected_secrets",
+        "TestBootstrapStructure::test_no_execution_token_contract_remains",
+        "TestBootstrapStructure::test_secret_cleanup_before_dispatch",
+        "TestBootstrapStructure::test_baseline_env_snapshot_required",
+        "TestBootstrapStructure::test_no_github_token_in_project_env",
+        "TestBootstrapStructure::test_secret_values_not_in_logs",
+        "TestConflictCheck::test_env_comments_only",
+        "TestConflictCheck::test_env_empty",
+        "TestConflictCheck::test_secrets_empty",
+        "TestConflictCheck::test_no_conflict",
+        "TestConflictCheck::test_conflict_fails",
+        "TestConflictCheck::test_conflict_outputs_variable_name",
+        "TestConflictCheck::test_env_only_blank_lines",
+        "TestConflictCheck::test_env_comments_and_blank_lines_mixed",
+        "TestConflictCheck::test_secrets_comments_only",
+        "TestConflictCheck::test_multiple_conflicts",
+        "TestConflictCheck::test_both_files_empty"
+      ]
+    },
+    "test_article_evidence.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_article_identity_ignores_tracking_and_fragment": 1,
+        "test_dedupe_articles_is_cross_source_by_canonical_url": 1,
+        "test_history_article_keys_reads_event_evidence": 1,
+        "test_article_runtime_keeps_specific_article_urls_for_internal_evidence": 1,
+        "test_failed_extraction_does_not_consume_rss_evidence": 1,
+        "test_candidate_gateway_failure_falls_back_to_concrete_rss_articles": 1,
+        "test_pipeline_supplements_empty_candidate_output_from_concrete_rss_articles": 1,
+        "test_pipeline_supplements_partial_candidate_without_reusing_article": 1,
+        "test_production_pipeline_hides_article_urls_from_public_footnotes": 1,
+        "test_pipeline_includes_article_runtime": 1,
+        "test_weekly_pipeline_defaults_to_latest_completed_sunday": 1,
+        "test_pipeline_does_not_let_model_skip_veto_a_full_run": 1,
+        "test_pipeline_recovery_only_runs_after_candidate_gate_passes": 1,
+        "test_pipeline_recovers_transient_gateway_failure_after_candidate_gate": 1,
+        "test_llm_continuous_failure_uses_structured_fallback": 1,
+        "test_structured_fallback_events_have_required_fields": 1,
+        "test_pipeline_gateway_failure_triggers_fallback_recovery": 1,
+        "test_pipeline_gateway_failure_falls_back_to_rss_evidence": 1,
+        "test_pipeline_json_correction_call_for_malformed_response": 1,
+        "test_pipeline_preserves_llm_failures_in_manifest": 1
+      },
+      "passed": [
+        "test_article_identity_ignores_tracking_and_fragment",
+        "test_dedupe_articles_is_cross_source_by_canonical_url",
+        "test_history_article_keys_reads_event_evidence",
+        "test_article_runtime_keeps_specific_article_urls_for_internal_evidence",
+        "test_failed_extraction_does_not_consume_rss_evidence",
+        "test_candidate_gateway_failure_falls_back_to_concrete_rss_articles",
+        "test_pipeline_supplements_empty_candidate_output_from_concrete_rss_articles",
+        "test_pipeline_supplements_partial_candidate_without_reusing_article",
+        "test_production_pipeline_hides_article_urls_from_public_footnotes",
+        "test_pipeline_includes_article_runtime",
+        "test_weekly_pipeline_defaults_to_latest_completed_sunday",
+        "test_pipeline_does_not_let_model_skip_veto_a_full_run",
+        "test_pipeline_recovery_only_runs_after_candidate_gate_passes",
+        "test_pipeline_recovers_transient_gateway_failure_after_candidate_gate",
+        "test_llm_continuous_failure_uses_structured_fallback",
+        "test_structured_fallback_events_have_required_fields",
+        "test_pipeline_gateway_failure_triggers_fallback_recovery",
+        "test_pipeline_gateway_failure_falls_back_to_rss_evidence",
+        "test_pipeline_json_correction_call_for_malformed_response",
+        "test_pipeline_preserves_llm_failures_in_manifest"
+      ]
+    },
+    "test_card_visual.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_card_visual_semantics_are_explicit_and_product_agnostic": 1,
+        "test_notebook_card_uses_full_canvas_as_paper_without_outer_shell": 1,
+        "test_visual_tone_changes_presentation_without_changing_layout_or_style": 1,
+        "test_unsupported_visual_semantics_fail_closed": 1
+      },
+      "passed": [
+        "test_card_visual_semantics_are_explicit_and_product_agnostic",
+        "test_notebook_card_uses_full_canvas_as_paper_without_outer_shell",
+        "test_visual_tone_changes_presentation_without_changing_layout_or_style",
+        "test_unsupported_visual_semantics_fail_closed"
+      ]
+    },
+    "test_dispatcher_layer_topology.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_bronze_can_feed_bronze_or_silver": 1,
+        "test_bronze_cannot_feed_business_without_explicit_stage": 1
+      },
+      "passed": [
+        "test_bronze_can_feed_bronze_or_silver",
+        "test_bronze_cannot_feed_business_without_explicit_stage"
+      ]
+    },
+    "test_hardening_contracts.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_bootstrap_never_writes_rendered_task_json": 1,
+        "test_render_task_resolves_env_without_touching_source": 1,
+        "test_declared_nonstandard_secret_is_redacted": 1,
+        "test_task_contract_rejects_wrong_types_and_unknown_fields": 1,
+        "test_marketbrief_task_uses_canonical_visual_pipeline": 1,
+        "test_pharmabrief_task_uses_stable_pipeline_with_visual_layer": 1,
+        "test_cross_repository_publication_is_centralized": 1
+      },
+      "passed": [
+        "test_bootstrap_never_writes_rendered_task_json",
+        "test_render_task_resolves_env_without_touching_source",
+        "test_declared_nonstandard_secret_is_redacted",
+        "test_task_contract_rejects_wrong_types_and_unknown_fields",
+        "test_marketbrief_task_uses_canonical_visual_pipeline",
+        "test_pharmabrief_task_uses_stable_pipeline_with_visual_layer",
+        "test_cross_repository_publication_is_centralized"
+      ]
+    },
+    "test_market_brief.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_parse_sources_named_and_plain": 1,
+        "test_text_parser_drops_script_and_duplicates": 1,
+        "test_extract_json_accepts_fence": 1,
+        "test_resolve_edition_uses_beijing_dayparts": 1,
+        "test_visual_theme_follows_market_tone": 1,
+        "test_editorial_header_clamps_overview_and_has_fallbacks": 1,
+        "test_builder_archives_by_date_and_edition": 1,
+        "test_builder_constructs_chat_endpoint_from_gateway_base_url": 1,
+        "test_marketbrief_task_passes_real_validator": 1,
+        "test_llm_uses_streaming_and_reassembles_json": 1,
+        "test_llm_retries_empty_stream_then_succeeds": 1,
+        "test_llm_retries_invalid_final_json_then_succeeds": 1,
+        "test_llm_transient_failure_stops_after_five_total_attempts": 1,
+        "test_llm_gateway_terminal_504_is_not_retried": 1,
+        "test_llm_plain_504_stops_after_five_total_attempts": 1,
+        "test_run_skips_one_failed_source_analysis": 1,
+        "test_run_requires_three_successful_analyses": 1
+      },
+      "passed": [
+        "test_parse_sources_named_and_plain",
+        "test_text_parser_drops_script_and_duplicates",
+        "test_extract_json_accepts_fence",
+        "test_resolve_edition_uses_beijing_dayparts",
+        "test_visual_theme_follows_market_tone",
+        "test_editorial_header_clamps_overview_and_has_fallbacks",
+        "test_builder_archives_by_date_and_edition",
+        "test_builder_constructs_chat_endpoint_from_gateway_base_url",
+        "test_marketbrief_task_passes_real_validator",
+        "test_llm_uses_streaming_and_reassembles_json",
+        "test_llm_retries_empty_stream_then_succeeds",
+        "test_llm_retries_invalid_final_json_then_succeeds",
+        "test_llm_transient_failure_stops_after_five_total_attempts",
+        "test_llm_gateway_terminal_504_is_not_retried",
+        "test_llm_plain_504_stops_after_five_total_attempts",
+        "test_run_skips_one_failed_source_analysis",
+        "test_run_requires_three_successful_analyses"
+      ]
+    },
+    "test_market_brief_public_copy.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_public_copy_removes_named_research_attribution": 1,
+        "test_card_uses_public_facing_journal_copy_without_internal_id": 1,
+        "test_editorial_contract_is_fixed_to_six_cards": 1
+      },
+      "passed": [
+        "test_public_copy_removes_named_research_attribution",
+        "test_card_uses_public_facing_journal_copy_without_internal_id",
+        "test_editorial_contract_is_fixed_to_six_cards"
+      ]
+    },
+    "test_market_brief_publish.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_publish_guard_treats_skip_as_successful_noop": 1,
+        "test_publish_guard_rejects_missing_manifest": 1,
+        "test_publish_guard_rejects_unknown_status": 1,
+        "test_publish_guard_marks_publish_manifest_ready": 1
+      },
+      "passed": [
+        "test_publish_guard_treats_skip_as_successful_noop",
+        "test_publish_guard_rejects_missing_manifest",
+        "test_publish_guard_rejects_unknown_status",
+        "test_publish_guard_marks_publish_manifest_ready"
+      ]
+    },
+    "test_market_brief_publish_meta.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_market_publish_meta_contract_clips_intro_to_120_and_has_five_tags": 1,
+        "test_market_publish_meta_writes_publish_md_and_manifest": 1,
+        "test_market_publish_meta_uses_latest_generated_edition": 1,
+        "test_market_publish_meta_removes_stale_publish_for_skip": 1,
+        "test_marketbrief_task_generates_publish_copy_before_publish_guard": 1
+      },
+      "passed": [
+        "test_market_publish_meta_contract_clips_intro_to_120_and_has_five_tags",
+        "test_market_publish_meta_writes_publish_md_and_manifest",
+        "test_market_publish_meta_uses_latest_generated_edition",
+        "test_market_publish_meta_removes_stale_publish_for_skip",
+        "test_marketbrief_task_generates_publish_copy_before_publish_guard"
+      ]
+    },
+    "test_market_brief_resilient.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_structured_strategy_source_is_parsed_without_llm": 1,
+        "test_builder_bypasses_llm_for_structured_api_source": 1,
+        "test_stock_recommendation_rows_are_not_used_as_local_research_evidence": 1,
+        "test_compact_analyses_limits_topics_and_fields": 1,
+        "test_final_requests_only_compact_public_contract": 1,
+        "test_final_uses_local_source_analysis_when_final_synthesis_fails": 1,
+        "test_stale_dated_topics_are_removed_before_local_fallback": 1,
+        "test_fallback_title_is_complete_and_within_limit": 1,
+        "test_local_fallback_skips_only_when_evidence_is_genuinely_insufficient": 1,
+        "test_article_is_derived_locally_from_cards": 1,
+        "test_skip_result_is_complete_but_not_a_publishable_edition": 1
+      },
+      "passed": [
+        "test_structured_strategy_source_is_parsed_without_llm",
+        "test_builder_bypasses_llm_for_structured_api_source",
+        "test_stock_recommendation_rows_are_not_used_as_local_research_evidence",
+        "test_compact_analyses_limits_topics_and_fields",
+        "test_final_requests_only_compact_public_contract",
+        "test_final_uses_local_source_analysis_when_final_synthesis_fails",
+        "test_stale_dated_topics_are_removed_before_local_fallback",
+        "test_fallback_title_is_complete_and_within_limit",
+        "test_local_fallback_skips_only_when_evidence_is_genuinely_insufficient",
+        "test_article_is_derived_locally_from_cards",
+        "test_skip_result_is_complete_but_not_a_publishable_edition"
+      ]
+    },
+    "test_market_brief_runtime.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_semantic_topic_removes_report_wrapper_without_raw_truncation": 1,
+        "test_fallback_title_is_complete_for_real_report_style_topics": 1,
+        "test_generic_meeting_label_is_not_used_as_fallback_headline": 1,
+        "test_us_price_index_is_global_not_a_share": 1,
+        "test_local_fallback_repairs_title_overview_cover_and_article": 1,
+        "test_local_fallback_routes_official_macro_and_a_share_separately": 1,
+        "test_skip_run_writes_reasoned_manifest_and_stays_green": 1,
+        "test_runtime_repairs_missing_skip_reason": 1,
+        "test_runtime_converts_expected_evidence_failure_to_skip": 1,
+        "test_runtime_does_not_hide_render_or_config_errors": 1
+      },
+      "passed": [
+        "test_semantic_topic_removes_report_wrapper_without_raw_truncation",
+        "test_fallback_title_is_complete_for_real_report_style_topics",
+        "test_generic_meeting_label_is_not_used_as_fallback_headline",
+        "test_us_price_index_is_global_not_a_share",
+        "test_local_fallback_repairs_title_overview_cover_and_article",
+        "test_local_fallback_routes_official_macro_and_a_share_separately",
+        "test_skip_run_writes_reasoned_manifest_and_stays_green",
+        "test_runtime_repairs_missing_skip_reason",
+        "test_runtime_converts_expected_evidence_failure_to_skip",
+        "test_runtime_does_not_hide_render_or_config_errors"
+      ]
+    },
+    "test_market_brief_source_api.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_eastmoney_report_prefers_public_json_api": 1,
+        "test_eastmoney_report_type_mapping": 1,
+        "test_cninfo_prefers_announcement_api": 1,
+        "test_structured_failure_falls_back_to_html": 1
+      },
+      "passed": [
+        "test_eastmoney_report_prefers_public_json_api",
+        "test_eastmoney_report_type_mapping",
+        "test_cninfo_prefers_announcement_api",
+        "test_structured_failure_falls_back_to_html"
+      ]
+    },
+    "test_market_brief_sources.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_eastmoney_hot_uses_site_profile_and_focuses_content": 1,
+        "test_xueqiu_block_page_falls_back_to_public_hot_page": 1,
+        "test_fetcher_caches_same_url_within_run": 1,
+        "test_blocked_generic_page_is_marked_failed": 1,
+        "test_builder_skips_duplicate_content_before_llm": 1
+      },
+      "passed": [
+        "test_eastmoney_hot_uses_site_profile_and_focuses_content",
+        "test_xueqiu_block_page_falls_back_to_public_hot_page",
+        "test_fetcher_caches_same_url_within_run",
+        "test_blocked_generic_page_is_marked_failed",
+        "test_builder_skips_duplicate_content_before_llm"
+      ]
+    },
+    "test_market_brief_stream.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_stream_parser_reassembles_split_sse_json": 1,
+        "test_stream_parser_accepts_events_without_blank_separator": 1,
+        "test_stream_parser_decodes_utf8_bytes_explicitly": 1,
+        "test_stream_parser_keeps_incomplete_event_across_blank_line": 1,
+        "test_editorial_llm_falls_back_to_buffered_after_empty_stream": 1
+      },
+      "passed": [
+        "test_stream_parser_reassembles_split_sse_json",
+        "test_stream_parser_accepts_events_without_blank_separator",
+        "test_stream_parser_decodes_utf8_bytes_explicitly",
+        "test_stream_parser_keeps_incomplete_event_across_blank_line",
+        "test_editorial_llm_falls_back_to_buffered_after_empty_stream"
+      ]
+    },
+    "test_market_brief_title_limit.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_hook_title_is_capped_at_configured_limit": 1
+      },
+      "passed": ["test_hook_title_is_capped_at_configured_limit"]
+    },
+    "test_market_brief_visual.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_fixed_header_hierarchy_and_semantic_visual_identity": 1,
+        "test_footer_keeps_compact_date_and_edition_metadata": 1,
+        "test_mobile_portrait_paper_contract": 1
+      },
+      "passed": [
+        "test_fixed_header_hierarchy_and_semantic_visual_identity",
+        "test_footer_keeps_compact_date_and_edition_metadata",
+        "test_mobile_portrait_paper_contract"
+      ]
+    },
+    "test_market_china_contract.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_generic_tushare_brick_matches_dispatcher_contract": 1,
+        "test_market_china_fetches_are_explicit_bronze_nodes": 1,
+        "test_upload_and_finalizer_stay_inside_bronze_topology": 1,
+        "test_stock_universe_supports_historical_backfill": 1,
+        "test_required_market_series_have_identity_and_shrink_guards": 1,
+        "test_late_publishing_sources_have_independent_readiness": 1,
+        "test_events_are_rechecked_instead_of_completed_forever": 1,
+        "test_range_sync_declares_result_date_identity": 1,
+        "test_global_budget_and_deep_recheck_are_bounded": 1,
+        "test_sdk_is_fail_closed_and_reconciliation_aware": 1,
+        "test_remote_checkpoint_is_uploaded_after_data": 1
+      },
+      "passed": [
+        "test_generic_tushare_brick_matches_dispatcher_contract",
+        "test_market_china_fetches_are_explicit_bronze_nodes",
+        "test_upload_and_finalizer_stay_inside_bronze_topology",
+        "test_stock_universe_supports_historical_backfill",
+        "test_required_market_series_have_identity_and_shrink_guards",
+        "test_late_publishing_sources_have_independent_readiness",
+        "test_events_are_rechecked_instead_of_completed_forever",
+        "test_range_sync_declares_result_date_identity",
+        "test_global_budget_and_deep_recheck_are_bounded",
+        "test_sdk_is_fail_closed_and_reconciliation_aware",
+        "test_remote_checkpoint_is_uploaded_after_data"
+      ]
+    },
+    "test_market_china_preflight.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_market_china_passes_real_task_validator": 1,
+        "test_market_china_passes_real_bronze_topology_guard": 1,
+        "test_every_market_china_data_step_keeps_explicit_bronze_semantics": 1
+      },
+      "passed": [
+        "test_market_china_passes_real_task_validator",
+        "test_market_china_passes_real_bronze_topology_guard",
+        "test_every_market_china_data_step_keeps_explicit_bronze_semantics"
+      ]
+    },
+    "test_market_source_config.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_parse_source_catalog_preserves_kind_name_and_url": 1,
+        "test_parse_source_catalog_rejects_invalid_kind": 1,
+        "test_parse_source_catalog_rejects_invalid_shape": 1,
+        "test_builder_prefers_unified_source_catalog": 1,
+        "test_project_catalog_is_official_first_and_capped_at_twelve": 1
+      },
+      "passed": [
+        "test_parse_source_catalog_preserves_kind_name_and_url",
+        "test_parse_source_catalog_rejects_invalid_kind",
+        "test_parse_source_catalog_rejects_invalid_shape",
+        "test_builder_prefers_unified_source_catalog",
+        "test_project_catalog_is_official_first_and_capped_at_twelve"
+      ]
+    },
+    "test_pharma_brief.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_parse_source_catalog_supports_priorities_and_extended_kinds": 1,
+        "test_parse_source_catalog_keeps_legacy_three_field_format": 1,
+        "test_parse_source_catalog_accepts_multiline_and_comments": 1,
+        "test_parse_source_catalog_rejects_unknown_kind": 1,
+        "test_score_formula_is_deterministic": 1,
+        "test_signal_rules_cover_opportunity_caution_disruption_and_mixed": 1,
+        "test_event_selection_keeps_normal_events_bounded": 1,
+        "test_black_swan_is_critical_and_forced_beyond_normal_limit": 1,
+        "test_p3_single_source_caps_confidence_and_conflict_caps_to_six": 1,
+        "test_change_detection_marks_escalation_from_previous_week": 1,
+        "test_candidate_merge_clusters_same_event_and_preserves_evidence": 1,
+        "test_builder_does_not_cap_configured_sources": 1,
+        "test_candidate_batches_bound_request_size": 1,
+        "test_failed_batch_splits_until_single_source": 1,
+        "test_single_high_priority_failure_uses_conservative_fallback": 1,
+        "test_single_p4_failure_does_not_promote_unverified_lead": 1,
+        "test_deep_analysis_prefers_high_priority_evidence_and_keeps_black_swan": 1,
+        "test_editorial_header_enforces_title_and_overview_limits": 1,
+        "test_week_signal_detects_mixed_top_events": 1,
+        "test_pharmabrief_task_passes_real_validator": 1
+      },
+      "passed": [
+        "test_parse_source_catalog_supports_priorities_and_extended_kinds",
+        "test_parse_source_catalog_keeps_legacy_three_field_format",
+        "test_parse_source_catalog_accepts_multiline_and_comments",
+        "test_parse_source_catalog_rejects_unknown_kind",
+        "test_score_formula_is_deterministic",
+        "test_signal_rules_cover_opportunity_caution_disruption_and_mixed",
+        "test_event_selection_keeps_normal_events_bounded",
+        "test_black_swan_is_critical_and_forced_beyond_normal_limit",
+        "test_p3_single_source_caps_confidence_and_conflict_caps_to_six",
+        "test_change_detection_marks_escalation_from_previous_week",
+        "test_candidate_merge_clusters_same_event_and_preserves_evidence",
+        "test_builder_does_not_cap_configured_sources",
+        "test_candidate_batches_bound_request_size",
+        "test_failed_batch_splits_until_single_source",
+        "test_single_high_priority_failure_uses_conservative_fallback",
+        "test_single_p4_failure_does_not_promote_unverified_lead",
+        "test_deep_analysis_prefers_high_priority_evidence_and_keeps_black_swan",
+        "test_editorial_header_enforces_title_and_overview_limits",
+        "test_week_signal_detects_mixed_top_events",
+        "test_pharmabrief_task_passes_real_validator"
+      ]
+    },
+    "test_pharma_brief_publish.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_publish_guard_treats_skip_as_successful_noop": 1,
+        "test_publish_guard_can_fail_on_skip": 1,
+        "test_publish_guard_fails_without_manifest": 1,
+        "test_publish_guard_fails_for_unknown_status": 1,
+        "test_publish_guard_marks_publish_manifest_ready": 1
+      },
+      "passed": [
+        "test_publish_guard_treats_skip_as_successful_noop",
+        "test_publish_guard_can_fail_on_skip",
+        "test_publish_guard_fails_without_manifest",
+        "test_publish_guard_fails_for_unknown_status",
+        "test_publish_guard_marks_publish_manifest_ready"
+      ]
+    },
+    "test_pharma_brief_publish_meta.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_publish_meta_contract": 1,
+        "test_publish_meta_clips_long_intro_to_120": 1,
+        "test_topic_tags_are_content_driven_and_unique": 1,
+        "test_execute_writes_publish_md_and_manifest_metadata": 1,
+        "test_execute_skips_metadata_for_skip_manifest": 1,
+        "test_execute_uses_generated_manifest_when_run_crosses_midnight": 1,
+        "test_explicit_missing_date_does_not_silently_use_another_edition": 1
+      },
+      "passed": [
+        "test_publish_meta_contract",
+        "test_publish_meta_clips_long_intro_to_120",
+        "test_topic_tags_are_content_driven_and_unique",
+        "test_execute_writes_publish_md_and_manifest_metadata",
+        "test_execute_skips_metadata_for_skip_manifest",
+        "test_execute_uses_generated_manifest_when_run_crosses_midnight",
+        "test_explicit_missing_date_does_not_silently_use_another_edition"
+      ]
+    },
+    "test_pharma_brief_resilient.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_local_sections_always_derive_three_topics_when_three_events_exist": 1,
+        "test_local_executive_view_uses_existing_event_implications": 1,
+        "test_synthesis_requests_compact_json_and_derives_sections_locally": 1,
+        "test_candidate_supplement_uses_only_high_trust_fetched_sources": 1,
+        "test_skip_run_returns_success_and_writes_skip_manifest": 1,
+        "test_run_retries_once_when_first_synthesis_underproduces_events": 1
+      },
+      "passed": [
+        "test_local_sections_always_derive_three_topics_when_three_events_exist",
+        "test_local_executive_view_uses_existing_event_implications",
+        "test_synthesis_requests_compact_json_and_derives_sections_locally",
+        "test_candidate_supplement_uses_only_high_trust_fetched_sources",
+        "test_skip_run_returns_success_and_writes_skip_manifest",
+        "test_run_retries_once_when_first_synthesis_underproduces_events"
+      ]
+    },
+    "test_pharma_brief_runtime.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_runtime_adds_one_json_only_recovery_call": 1,
+        "test_runtime_gives_final_synthesis_a_bounded_5xx_recovery_window": 1,
+        "test_runtime_does_not_slow_candidate_extraction_on_5xx": 1,
+        "test_runtime_repairs_missing_skip_reason": 1
+      },
+      "passed": [
+        "test_runtime_adds_one_json_only_recovery_call",
+        "test_runtime_gives_final_synthesis_a_bounded_5xx_recovery_window",
+        "test_runtime_does_not_slow_candidate_extraction_on_5xx",
+        "test_runtime_repairs_missing_skip_reason"
+      ]
+    },
+    "test_pharma_brief_semantic_decision.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_single_professional_cannot_escalate_above_watch": 1,
+        "test_two_independent_professional_sources_may_alert_but_not_critical": 1,
+        "test_lead_only_evidence_is_always_watch_even_with_high_business_scores": 1,
+        "test_authoritative_black_swan_can_be_critical": 1
+      },
+      "passed": [
+        "test_single_professional_cannot_escalate_above_watch",
+        "test_two_independent_professional_sources_may_alert_but_not_critical",
+        "test_lead_only_evidence_is_always_watch_even_with_high_business_scores",
+        "test_authoritative_black_swan_can_be_critical"
+      ]
+    },
+    "test_pharma_brief_visual.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_extract_metric_prefers_truthful_visible_number": 1,
+        "test_week_label_uses_iso_week_without_redundant_date_range": 1,
+        "test_topic_card_uses_notebook_note_structure_without_internal_metadata": 1,
+        "test_cover_uses_shared_card_visual_and_weekly_metadata": 1,
+        "test_content_page_keeps_pharma_section_on_shared_style": 1,
+        "test_visual_layout_remains_five_cards_and_three_topics_per_content_page": 1,
+        "test_pharmabrief_task_with_visual_layer_passes_validator": 1
+      },
+      "passed": [
+        "test_extract_metric_prefers_truthful_visible_number",
+        "test_week_label_uses_iso_week_without_redundant_date_range",
+        "test_topic_card_uses_notebook_note_structure_without_internal_metadata",
+        "test_cover_uses_shared_card_visual_and_weekly_metadata",
+        "test_content_page_keeps_pharma_section_on_shared_style",
+        "test_visual_layout_remains_five_cards_and_three_topics_per_content_page",
+        "test_pharmabrief_task_with_visual_layer_passes_validator"
+      ]
+    },
+    "test_pharma_brief_weekly.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_weekly_layout_is_five_cards_with_three_topics_each": 1,
+        "test_reader_card_removes_internal_metadata": 1,
+        "test_page_signal_only_appears_on_cover": 1,
+        "test_reader_text_uses_known_chinese_names": 1,
+        "test_english_residue_detector_allows_domain_abbreviations": 1,
+        "test_quality_gate_detects_english_and_investment_direction_language": 1,
+        "test_merge_reader_fields_preserves_internal_metadata": 1,
+        "test_safe_clip_never_leaves_raw_broken_english_word": 1,
+        "test_avoids_audience_directed_or_ambiguous_labels": 1
+      },
+      "passed": [
+        "test_weekly_layout_is_five_cards_with_three_topics_each",
+        "test_reader_card_removes_internal_metadata",
+        "test_page_signal_only_appears_on_cover",
+        "test_reader_text_uses_known_chinese_names",
+        "test_english_residue_detector_allows_domain_abbreviations",
+        "test_quality_gate_detects_english_and_investment_direction_language",
+        "test_merge_reader_fields_preserves_internal_metadata",
+        "test_safe_clip_never_leaves_raw_broken_english_word",
+        "test_avoids_audience_directed_or_ambiguous_labels"
+      ]
+    },
+    "test_r2_upload_behavior.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_checkpoint_is_never_uploaded_after_data_failure": 1,
+        "test_checkpoint_upload_occurs_only_after_successful_data_group": 1
+      },
+      "passed": [
+        "test_checkpoint_is_never_uploaded_after_data_failure",
+        "test_checkpoint_upload_occurs_only_after_successful_data_group"
+      ]
+    },
+    "test_server_edge_environments.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_materialize_config_and_secrets": 1,
+        "test_rejects_secret_path_traversal": 1,
+        "test_rejects_nested_config_path": 1
+      },
+      "passed": ["test_rejects_secret_path_traversal", "test_rejects_nested_config_path"]
+    },
+    "test_server_edge_monorepo.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_server_edge_source_is_owned_by_internal_vault": 1,
+        "test_deploy_uses_local_monorepo_source": 1,
+        "test_bootstrap_does_not_fetch_repository": 1,
+        "test_deploy_is_source_owned_and_centrally_executed": 1,
+        "test_primary_server_edge_identity_is_cloud_edge": 1,
+        "test_deploy_preflights_release_before_remote_install": 1,
+        "test_overlay_healthcheck_uses_infra_owned_setting": 1
+      },
+      "passed": [
+        "test_server_edge_source_is_owned_by_internal_vault",
+        "test_deploy_uses_local_monorepo_source",
+        "test_bootstrap_does_not_fetch_repository",
+        "test_deploy_is_source_owned_and_centrally_executed",
+        "test_primary_server_edge_identity_is_cloud_edge",
+        "test_deploy_preflights_release_before_remote_install",
+        "test_overlay_healthcheck_uses_infra_owned_setting"
+      ]
+    },
+    "test_source_layer.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_source_catalog_maps_semantic_role_to_legacy_priority": 1,
+        "test_evidence_policy_caps_single_professional_source": 1,
+        "test_rss_fetcher_filters_to_fresh_items_and_returns_article_urls": 1,
+        "test_pharmabrief_catalog_has_no_company_news_sources": 1,
+        "test_pharmabrief_policy_and_catalog_roles_are_complete": 1
+      },
+      "passed": [
+        "test_source_catalog_maps_semantic_role_to_legacy_priority",
+        "test_evidence_policy_caps_single_professional_source",
+        "test_rss_fetcher_filters_to_fresh_items_and_returns_article_urls",
+        "test_pharmabrief_catalog_has_no_company_news_sources",
+        "test_pharmabrief_policy_and_catalog_roles_are_complete"
+      ]
+    },
+    "test_tushare_sync_behavior.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_pagination_advances_by_actual_rows_and_probes_until_empty": 1,
+        "test_repeated_page_is_integrity_failure_not_fake_completion": 1,
+        "test_wrong_partition_date_is_rejected": 1,
+        "test_range_response_cannot_escape_requested_window": 1,
+        "test_large_row_count_shrink_is_rejected": 1,
+        "test_r2_access_denied_is_not_treated_as_missing": 1,
+        "test_only_r2_no_such_key_can_become_empty_state": 1,
+        "test_planner_keeps_recent_recheck_missing_backfill_and_deep_probe": 1,
+        "test_partial_marker_fails_only_after_upload_phase": 1
+      },
+      "passed": [
+        "test_pagination_advances_by_actual_rows_and_probes_until_empty",
+        "test_repeated_page_is_integrity_failure_not_fake_completion",
+        "test_wrong_partition_date_is_rejected",
+        "test_range_response_cannot_escape_requested_window",
+        "test_large_row_count_shrink_is_rejected",
+        "test_r2_access_denied_is_not_treated_as_missing",
+        "test_only_r2_no_such_key_can_become_empty_state",
+        "test_planner_keeps_recent_recheck_missing_backfill_and_deep_probe",
+        "test_partial_marker_fails_only_after_upload_phase"
+      ]
+    },
+    "unit/test_engine.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "TestRunStep::test_successful_step": 1,
+        "TestRunStep::test_step_failure_exits_nonzero": 1,
+        "TestRunStep::test_secret_redaction_in_summary": 1,
+        "TestRunStep::test_dependency_skipped_after_failure": 1,
+        "TestTopology::test_dag_cycle_detected": 1,
+        "TestTopology::test_unknown_target": 1
+      },
+      "passed": [
+        "TestRunStep::test_successful_step",
+        "TestRunStep::test_step_failure_exits_nonzero",
+        "TestRunStep::test_secret_redaction_in_summary",
+        "TestRunStep::test_dependency_skipped_after_failure",
+        "TestTopology::test_dag_cycle_detected",
+        "TestTopology::test_unknown_target"
+      ]
+    },
+    "unit/test_preflight.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "TestResolveEnv::test_valid_env": 1,
+        "TestResolveEnv::test_invalid_key_skipped": 1,
+        "TestResolveEnv::test_bare_key_from_env": 1,
+        "TestResolveEnv::test_bare_key_missing_fails": 1,
+        "TestResolveEnv::test_fixed_overrides_external": 1,
+        "TestResolveEnv::test_duplicate_key_fails": 1,
+        "TestResolveEnv::test_fixed_required_conflict_fails": 1,
+        "TestResolveEnv::test_required_duplicate_fails": 1,
+        "TestResolveEnv::test_comments_and_empty_lines": 1,
+        "TestResolveEnv::test_json_output": 1,
+        "TestResolveEnv::test_track_file": 1,
+        "TestInjectSecrets::test_required_secret_exists": 1,
+        "TestInjectSecrets::test_required_secret_missing_fails": 1,
+        "TestInjectSecrets::test_extra_secrets_in_env_ignored": 1,
+        "TestInjectSecrets::test_duplicate_secret_name_fails": 1,
+        "TestInjectSecrets::test_invalid_secret_name_fails": 1,
+        "TestInjectSecrets::test_secret_value_not_output": 1,
+        "TestInjectSecrets::test_secret_value_masked": 1,
+        "TestInjectSecrets::test_no_secrets_required_passes": 1,
+        "TestInjectSecrets::test_multiple_secrets_partial_missing": 1,
+        "TestInjectSecrets::test_track_file_records_names_only": 1,
+        "TestInjectSecrets::test_comments_and_empty_lines": 1,
+        "TestInjectSecrets::test_only_required_secrets_in_output": 1,
+        "TestInjectSecrets::test_secret_value_not_in_stdout": 1,
+        "TestCrossFileConflict::test_variable_secret_conflict_detected": 1,
+        "TestValidateTask::test_valid_task": 1,
+        "TestValidateTask::test_valid_task_from_foreign_working_directory": 1,
+        "TestValidateTask::test_dag_cycle": 1,
+        "TestValidateTask::test_bad_target": 1,
+        "TestValidateTask::test_forbidden_field": 1,
+        "TestLintEnv::test_passes": 1,
+        "TestLintEnv::test_missing_var": 1,
+        "TestRedact::test_github_pat": 1,
+        "TestRedact::test_registered_value": 1,
+        "TestRedact::test_bearer": 1,
+        "TestRedact::test_private_key": 1
+      },
+      "passed": [
+        "TestResolveEnv::test_valid_env",
+        "TestResolveEnv::test_invalid_key_skipped",
+        "TestResolveEnv::test_bare_key_from_env",
+        "TestResolveEnv::test_bare_key_missing_fails",
+        "TestResolveEnv::test_fixed_overrides_external",
+        "TestResolveEnv::test_duplicate_key_fails",
+        "TestResolveEnv::test_fixed_required_conflict_fails",
+        "TestResolveEnv::test_required_duplicate_fails",
+        "TestResolveEnv::test_comments_and_empty_lines",
+        "TestResolveEnv::test_json_output",
+        "TestResolveEnv::test_track_file",
+        "TestInjectSecrets::test_required_secret_exists",
+        "TestInjectSecrets::test_required_secret_missing_fails",
+        "TestInjectSecrets::test_extra_secrets_in_env_ignored",
+        "TestInjectSecrets::test_duplicate_secret_name_fails",
+        "TestInjectSecrets::test_invalid_secret_name_fails",
+        "TestInjectSecrets::test_secret_value_not_output",
+        "TestInjectSecrets::test_secret_value_masked",
+        "TestInjectSecrets::test_no_secrets_required_passes",
+        "TestInjectSecrets::test_multiple_secrets_partial_missing",
+        "TestInjectSecrets::test_track_file_records_names_only",
+        "TestInjectSecrets::test_comments_and_empty_lines",
+        "TestInjectSecrets::test_only_required_secrets_in_output",
+        "TestInjectSecrets::test_secret_value_not_in_stdout",
+        "TestCrossFileConflict::test_variable_secret_conflict_detected",
+        "TestValidateTask::test_valid_task",
+        "TestValidateTask::test_valid_task_from_foreign_working_directory",
+        "TestValidateTask::test_dag_cycle",
+        "TestValidateTask::test_bad_target",
+        "TestValidateTask::test_forbidden_field",
+        "TestLintEnv::test_passes",
+        "TestLintEnv::test_missing_var",
+        "TestRedact::test_github_pat",
+        "TestRedact::test_registered_value",
+        "TestRedact::test_bearer",
+        "TestRedact::test_private_key"
+      ]
+    }
+  }
+}

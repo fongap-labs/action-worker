@@ -16,6 +16,7 @@ Managed repositories keep only project-specific rules and do not duplicate share
 |---|---|
 | [SHARED_GOVERNANCE.md](SHARED_GOVERNANCE.md) | Shared governance boundaries and authority relationships across Fongap Labs |
 | [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md) | Unified execution boundary for public and private managed repositories |
+| [TEST_PACKS.md](TEST_PACKS.md) | Centrally owned test packs, shared test kit, inventory ratchet |
 | [RUNNER_POLICY.md](RUNNER_POLICY.md) | Runner profiles, backend resolution, trust domains, and self-hosted boundaries |
 | [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md) | Main-branch provenance, direct-write quarantine, and downstream trust requirements |
 | [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) | Shared naming rules plus Action Worker-specific constraints |
