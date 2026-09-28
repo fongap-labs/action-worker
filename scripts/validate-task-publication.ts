@@ -100,6 +100,7 @@ async function main(): Promise<void> {
   const manifest = validateManifest(await readJson(manifestPath));
   validateRepositoryCapability(sourceRepository, policy, "release-source");
   validateRepositoryCapability(manifest.target_repository, policy, "release-target");
+  validateRepositoryCapability(manifest.target_repository, policy, "pr");
 
   const payloadDir = join(root, "payload");
   const payloadStats = await lstat(payloadDir).catch(() => null);
