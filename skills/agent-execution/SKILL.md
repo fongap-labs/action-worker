@@ -1,6 +1,7 @@
 ---
 name: agent-execution
 description: Baseline execution discipline for coding and repository agents. Use for every engineering task.
+always: true
 ---
 
 # Agent Execution

@@ -37,12 +37,14 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/wait-ci-evidence.ts", "scripts/validate-ci-evidence.ts", "scripts/wait-review-turn.ts",
     "scripts/github-api.ts", "scripts/ai-agent-config.ts", "scripts/collect-dependency-repair.ts", "scripts/dependency-repair.ts", "scripts/dispatch-security-scan.ts", "scripts/execution-contract.ts", "scripts/execution-policy.ts", "scripts/resolve-ci-capabilities.ts", "scripts/resolve-ci-control-ref.ts", "scripts/resolve-dependency-repair.ts", "scripts/resolve-release-build-ingress.ts", "scripts/resolve-execution-plan.ts", "scripts/resolve-pr-plan.ts", "scripts/resolve-security-scan.ts", "scripts/run-ai-triage.ts", "scripts/run-execution-job.ts", "scripts/security-scan.ts", "scripts/runner-policy.ts", "scripts/runtime-command.ts",
     "scripts/apply-ai-triage.ts", "scripts/should-resume-ocr.ts", "scripts/install-ocr.ts", "scripts/set-pr-status.ts",
+    "scripts/resolve-agent-skills.ts", "scripts/build-agent-prompt.ts",
     "scripts/publish-dependency-repair.ts", "scripts/publish-pr-review.ts", "scripts/publish-release.ts", "scripts/publish-security-scan.ts", "scripts/sync-tool-release.ts", "scripts/update-work-metrics.ts", "scripts/dispatch-scheduled-tasks.ts", "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts", ".github/actions/validate-merge-policy/action.yml",
     ".github/workflows/handle-pr-dispatch.yml", ".github/workflows/handle-release-dispatch.yml",
     ".github/workflows/ci-intake.yml", ".github/workflows/dependency-repair.yml", ".github/workflows/main-write-audit.yml", ".github/workflows/main-write-guard.yml", ".github/workflows/pr-intake.yml", ".github/workflows/release-build.yml", ".github/workflows/security-scan.yml", ".github/workflows/security-scan-intake.yml", ".github/workflows/source-script-deploy.yml",
     ".github/workflows/sync-tool-release.yml", ".github/workflows/task-intake.yml", ".github/workflows/task-source-dispatch.yml", ".github/workflows/validate-central-merge.yml",
     ".github/workflows/cancel-pr-work.yml",
+    "skills/writing/SKILL.md",
   ];
   for (const path of required) {
     assert.equal(await exists(path), true, `missing governance file: ${path}`);
@@ -97,6 +99,34 @@ test("integration guidance matches the current credential and private-repository
   assert.doesNotMatch(guide, /`AW_EXECUTION_TOKEN` 仅用于/);
   assert.match(guide, /AW_EXECUTION_TOKEN.*已删除/);
   assert.match(guide, /GitHub Free.*私有仓库.*不支持 Ruleset 或 Protected Branch/);
+});
+
+test("documentation readability convention is enforced in shared governance", async () => {
+  const gov = await text("docs/SHARED_GOVERNANCE.md");
+  requireText(gov, [
+    "Documentation readability",
+    "机器读的文档（严谨）",
+    "人读的文档（小白友好）",
+    "先说\"这是什么\"再说\"怎么做\"",
+    "术语必须解释",
+    "用例子，不用抽象描述",
+    "精确无歧义",
+    "英文",
+  ]);
+  const dev = await text("docs/DEVELOPMENT_GUIDE.md");
+  requireText(dev, ["没有项目背景的人也能看懂"]);
+});
+
+test("skills README is beginner-friendly", async () => {
+  const readme = await text("skills/README.md");
+  requireText(readme, [
+    "What is a skill",
+    "How to use",
+    "How to add a new skill",
+    "agent_domain",
+    "frontmatter",
+  ]);
+  assert.ok(readme.includes("You do not need to configure anything"));
 });
 
 test("runtime and machine policies preserve trust boundaries", async () => {

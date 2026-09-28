@@ -125,3 +125,34 @@ tests/       governance regression tests
 治理目标与 GitHub 套餐能力分开描述。
 
 Action Worker Gate 对受管仓统一成立；GitHub 原生 Ruleset、branch protection 或 Administration API 只在当前仓库可用的套餐和权限范围内启用。GitHub Free 组织的私有仓不具备 Ruleset / Protected Branch 强制保护，因此中央 Gate 在这些仓库中是流程约束而非 GitHub 平台硬门禁。平台能力不足不能成为绕过中央 Gate 的理由，也不得在文档中假设私有仓已经获得与公开仓相同的强制保护。
+
+## 8. Documentation readability
+
+Fongap Labs 名下所有仓库的文档分两类，各有明确的读者和写法要求：
+
+### 机器读的文档（严谨）
+
+读者是 AI Agent 和机器校验。包括 `SKILL.md`、`contracts/`、`policies/`、`rules/`。
+
+要求：
+
+1. **英文**。
+2. **精确无歧义**：每条规则只有一种解读，禁止"酌情"、"视情况"等模糊表述。
+3. **结构化**：用编号、代码块、明确的条件分支（`if...then`），不依赖上下文推断。
+4. **可验证**：机器能校验的规则必须对应合同测试。
+
+### 人读的文档（小白友好）
+
+读者是没有项目背景的人。包括 `README.md`、guide、治理文档的人面部分。
+
+要求：
+
+1. **英文**。
+2. **先说"这是什么"再说"怎么做"**：每篇文档开头用一到两句话说清用途，不要直接跳进实现细节。
+3. **术语必须解释**：第一次出现 frontmatter、dispatch、bootstrap、gate、manifest 等术语时，用括号或短句解释。
+4. **用例子，不用抽象描述**：能用具体例子说明的，不要只写规则文字。例子放在代码块里。
+5. **不假设读者懂 GitHub Actions**：解释 workflow、runner、dispatch 等概念时，用日常语言类比。
+6. **结构要分层**：先给小白看的快速说明，再给维护者看的技术细节。用标题分隔。
+7. **一段话只说一件事**：超过五行还没说完的，拆成列表或子标题。
+
+这条规则适用于 Action Worker 和所有受管业务仓。业务仓的 `CLAUDE.md`、`README.md` 和项目文档都应遵守。
