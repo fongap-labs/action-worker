@@ -1,6 +1,8 @@
 ---
 name: pr-review
 description: Review a pull request for correctness, scope, regression risk, security, architecture, workflow, and release impact.
+domain: coding
+operations: [review]
 ---
 
 # PR Review

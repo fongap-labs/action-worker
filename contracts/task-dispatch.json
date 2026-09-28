@@ -33,6 +33,16 @@
     "repository": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "agent_domain": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "minLength": 1,
+      "maxLength": 32
+    },
+    "operation": {
+      "type": "string",
+      "enum": ["ci", "review", "build", "release", "deploy", "task", "scheduled"]
     }
   }
 }

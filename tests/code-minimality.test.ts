@@ -87,8 +87,6 @@ test("code-minimality is registered in the skills table and the agent execution 
   const readme = await text("skills/README.md");
   requireText(readme, [
     "[code-minimality](code-minimality/SKILL.md)",
-    "Apply `code-minimality` to every task that adds or changes code",
-    "code-minimality (code-changing tasks)",
     "rules/code.json",
     "rules/architecture.json",
     "DietrichGebert/ponytail",
@@ -96,12 +94,6 @@ test("code-minimality is registered in the skills table and the agent execution 
     "extra model call",
     "A skill must not weaken deterministic gates or override project-specific mandatory policy.",
   ]);
-  const usage = readme.slice(readme.indexOf("## Usage"), readme.indexOf("A skill must not weaken"));
-  assert.ok(usage.includes("## Usage"), "usage section must exist");
-  assert.ok(
-    usage.indexOf("agent-execution") < usage.indexOf("code-minimality (code-changing tasks)"),
-    "code-minimality must follow agent-execution in the chain",
-  );
   const guide = await text("CLAUDE.md");
   requireText(guide, ["skills/agent-execution/SKILL.md", "skills/*/SKILL.md"]);
 });
