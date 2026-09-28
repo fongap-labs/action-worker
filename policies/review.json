@@ -1,13 +1,6 @@
 {
   "schema_version": 1,
-  "review_types": [
-    "source",
-    "workflow",
-    "script",
-    "container",
-    "security",
-    "release"
-  ],
+  "review_types": ["source", "workflow", "script", "container", "security", "release"],
   "agents": {
     "security": {
       "effort": "high",

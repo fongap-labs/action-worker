@@ -4,13 +4,7 @@
   "title": "Execution Request",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schema_version",
-    "request_id",
-    "repository",
-    "source_sha",
-    "operation"
-  ],
+  "required": ["schema_version", "request_id", "repository", "source_sha", "operation"],
   "properties": {
     "schema_version": {
       "const": "1"
@@ -30,15 +24,7 @@
       "pattern": "^[0-9a-f]{40}$"
     },
     "operation": {
-      "enum": [
-        "ci",
-        "review",
-        "build",
-        "release",
-        "deploy",
-        "task",
-        "scheduled"
-      ]
+      "enum": ["ci", "review", "build", "release", "deploy", "task", "scheduled"]
     }
   }
 }

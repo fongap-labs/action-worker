@@ -1,28 +1,16 @@
-import {
-  GithubReader,
-  getJsonString,
-  isJsonRecord,
-} from "./github-api.ts";
-import { validateRepositoryCapability } from "./repository-policy.ts";
-import {
-  parseReleaseBuildRequest,
-} from "./validate-release-build-request.ts";
-import {
-  CliError,
-  appendLines,
-  handleError,
-  isMain,
-  parseJson,
-} from "./runtime-command.ts";
+import { GithubReader, getJsonString, isJsonRecord } from './github-api.ts';
+import { validateRepositoryCapability } from './repository-policy.ts';
+import { appendLines, CliError, handleError, isMain, parseJson } from './runtime-command.ts';
+import { parseReleaseBuildRequest } from './validate-release-build-request.ts';
 
 type GithubGet = {
   get(path: string): Promise<unknown>;
 };
 
 export function normalizeVersion(value: string): string {
-  const version = value.replace(/^v/, "");
+  const version = value.replace(/^v/, '');
   if (version && !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)) {
-    throw new CliError("Requested release version must be stable SemVer.", 64);
+    throw new CliError('Requested release version must be stable SemVer.', 64);
   }
   return version;
 }
@@ -33,23 +21,23 @@ export async function resolveManualReleaseBuild(
   policy: unknown,
   reader: GithubGet,
   runId: string,
-  runAttempt: string,
+  runAttempt: string
 ): Promise<ReturnType<typeof parseReleaseBuildRequest>> {
   const requestedVersion = normalizeVersion(requestedVersionRaw);
-  validateRepositoryCapability(repository, policy, "release-source");
+  validateRepositoryCapability(repository, policy, 'release-source');
   const repo = await reader.get(`repos/${repository}`);
   if (!isJsonRecord(repo)) {
-    throw new CliError("GitHub repository response is invalid.", 65);
+    throw new CliError('GitHub repository response is invalid.', 65);
   }
-  const defaultBranch = getJsonString(repo, "default_branch");
+  const defaultBranch = getJsonString(repo, 'default_branch');
   if (!defaultBranch) {
-    throw new CliError("Repository default branch is unavailable.", 65);
+    throw new CliError('Repository default branch is unavailable.', 65);
   }
   const commit = await reader.get(`repos/${repository}/commits/${defaultBranch}`);
-  const sourceSha = getJsonString(commit, "sha");
+  const sourceSha = getJsonString(commit, 'sha');
   return parseReleaseBuildRequest({
-    schema_version: "1",
-    request_id: `manual:${repository.replace("/", "-")}:${runId}:${runAttempt}`,
+    schema_version: '1',
+    request_id: `manual:${repository.replace('/', '-')}:${runId}:${runAttempt}`,
     source_repository: repository,
     source_sha: sourceSha,
     requested_version: requestedVersion,
@@ -57,34 +45,34 @@ export async function resolveManualReleaseBuild(
 }
 
 async function main(): Promise<void> {
-  const eventName = process.env.GITHUB_EVENT_NAME ?? "";
+  const eventName = process.env.GITHUB_EVENT_NAME ?? '';
   let request: ReturnType<typeof parseReleaseBuildRequest>;
 
-  if (eventName === "repository_dispatch") {
+  if (eventName === 'repository_dispatch') {
     request = parseReleaseBuildRequest(
       parseJson(
-        process.env.RELEASE_DISPATCH_JSON ?? "",
-        "Release build dispatch payload must be valid JSON.",
-        64,
-      ),
+        process.env.RELEASE_DISPATCH_JSON ?? '',
+        'Release build dispatch payload must be valid JSON.',
+        64
+      )
     );
-  } else if (eventName === "workflow_dispatch") {
-    const token = process.env.AW_CONTROL_TOKEN ?? "";
+  } else if (eventName === 'workflow_dispatch') {
+    const token = process.env.AW_CONTROL_TOKEN ?? '';
     const policy = parseJson(
-      process.env.AW_REPOSITORY_POLICY ?? "",
-      "AW_REPOSITORY_POLICY must be valid JSON.",
-      65,
+      process.env.AW_REPOSITORY_POLICY ?? '',
+      'AW_REPOSITORY_POLICY must be valid JSON.',
+      65
     );
     if (!token) {
-      throw new CliError("AW_CONTROL_TOKEN is required.", 77);
+      throw new CliError('AW_CONTROL_TOKEN is required.', 77);
     }
     request = await resolveManualReleaseBuild(
-      process.env.RELEASE_SOURCE_REPOSITORY ?? "",
-      process.env.RELEASE_REQUESTED_VERSION ?? "",
+      process.env.RELEASE_SOURCE_REPOSITORY ?? '',
+      process.env.RELEASE_REQUESTED_VERSION ?? '',
       policy,
-      new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token),
-      process.env.GITHUB_RUN_ID ?? "",
-      process.env.GITHUB_RUN_ATTEMPT ?? "1",
+      new GithubReader(process.env.GITHUB_API_URL ?? 'https://api.github.com', token),
+      process.env.GITHUB_RUN_ID ?? '',
+      process.env.GITHUB_RUN_ATTEMPT ?? '1'
     );
   } else {
     throw new CliError(`Unsupported release ingress event: ${eventName}.`, 64);

@@ -1,11 +1,7 @@
-import {
-  getJsonArray,
-  getJsonString,
-  isJsonRecord,
-} from "./github-api.ts";
-import { CliError } from "./runtime-command.ts";
+import { getJsonArray, getJsonString, isJsonRecord } from './github-api.ts';
+import { CliError } from './runtime-command.ts';
 
-export type DependencyRepairAdapter = "uv-lock";
+export type DependencyRepairAdapter = 'uv-lock';
 
 export type DependencyRepairRule = {
   id: string;
@@ -20,12 +16,12 @@ export type DependencyRepairRule = {
 };
 
 export type DependencyRepairManifest = {
-  schema_version: "1";
+  schema_version: '1';
   repairs: DependencyRepairRule[];
 };
 
 export type DependencyRepairRequest = {
-  schema_version: "1";
+  schema_version: '1';
   request_id: string;
   repository: string;
   pr_number: number;
@@ -54,7 +50,11 @@ const runnerPattern = /^[a-z][a-z0-9-]{0,63}$/;
 const versionPattern = /^[0-9]+\.[0-9]+\.[0-9]+$/;
 const branchPrefixPattern = /^[A-Za-z0-9._/-]{1,128}$/;
 
-function exactKeys(value: Record<string, unknown>, expected: readonly string[], label: string): void {
+function exactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+  label: string
+): void {
   const actual = Object.keys(value).sort();
   const wanted = [...expected].sort();
   if (actual.length !== wanted.length || actual.some((item, index) => item !== wanted[index])) {
@@ -63,21 +63,24 @@ function exactKeys(value: Record<string, unknown>, expected: readonly string[], 
 }
 
 function safeRelativePath(value: unknown): value is string {
-  return typeof value === "string"
-    && value.length > 0
-    && value.length <= 512
-    && !value.startsWith("/")
-    && !/^[A-Za-z]:[\\/]/.test(value)
-    && !value.split(/[\\/]+/).includes("..")
-    && /^[A-Za-z0-9._/-]+$/.test(value);
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= 512 &&
+    !value.startsWith('/') &&
+    !/^[A-Za-z]:[\\/]/.test(value) &&
+    !value.split(/[\\/]+/).includes('..') &&
+    /^[A-Za-z0-9._/-]+$/.test(value)
+  );
 }
 
 function stringList(value: unknown, label: string): string[] {
-  if (!Array.isArray(value)
-    || value.length < 1
-    || value.length > 32
-    || !value.every(safeRelativePath)
-    || new Set(value).size !== value.length
+  if (
+    !Array.isArray(value) ||
+    value.length < 1 ||
+    value.length > 32 ||
+    !value.every(safeRelativePath) ||
+    new Set(value).size !== value.length
   ) {
     throw new CliError(`${label} must be a unique relative-path array.`, 65);
   }
@@ -85,54 +88,62 @@ function stringList(value: unknown, label: string): string[] {
 }
 
 export function decodeGithubContent(value: unknown): string {
-  if (!isJsonRecord(value) || value.encoding !== "base64" || typeof value.content !== "string") {
-    throw new CliError("GitHub contents response is invalid.", 65);
+  if (!isJsonRecord(value) || value.encoding !== 'base64' || typeof value.content !== 'string') {
+    throw new CliError('GitHub contents response is invalid.', 65);
   }
-  return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
+  return Buffer.from(value.content.replace(/\s+/g, ''), 'base64').toString('utf8');
 }
 
 export function parseDependencyRepairManifest(value: unknown): DependencyRepairManifest {
   if (!isJsonRecord(value)) {
-    throw new CliError("Dependency repair manifest must be an object.", 65);
+    throw new CliError('Dependency repair manifest must be an object.', 65);
   }
-  exactKeys(value, ["repairs", "schema_version"], "Dependency repair manifest");
-  if (value.schema_version !== "1"
-    || !Array.isArray(value.repairs)
-    || value.repairs.length < 1
-    || value.repairs.length > 16
+  exactKeys(value, ['repairs', 'schema_version'], 'Dependency repair manifest');
+  if (
+    value.schema_version !== '1' ||
+    !Array.isArray(value.repairs) ||
+    value.repairs.length < 1 ||
+    value.repairs.length > 16
   ) {
-    throw new CliError("Dependency repair manifest is invalid.", 65);
+    throw new CliError('Dependency repair manifest is invalid.', 65);
   }
 
   const ids = new Set<string>();
   const repairs = value.repairs.map((raw): DependencyRepairRule => {
     if (!isJsonRecord(raw)) {
-      throw new CliError("Dependency repair rule must be an object.", 65);
+      throw new CliError('Dependency repair rule must be an object.', 65);
     }
     exactKeys(
       raw,
       [
-        "adapter",
-        "head_prefix",
-        "id",
-        "output_paths",
-        "runner_profile",
-        "tool_version",
-        "trigger_paths",
-        "trusted_actor",
-        "working_directory",
+        'adapter',
+        'head_prefix',
+        'id',
+        'output_paths',
+        'runner_profile',
+        'tool_version',
+        'trigger_paths',
+        'trusted_actor',
+        'working_directory',
       ],
-      "Dependency repair rule",
+      'Dependency repair rule'
     );
-    if (typeof raw.id !== "string" || !idPattern.test(raw.id)
-      || raw.adapter !== "uv-lock"
-      || typeof raw.runner_profile !== "string" || !runnerPattern.test(raw.runner_profile)
-      || typeof raw.trusted_actor !== "string" || raw.trusted_actor.length < 1 || raw.trusted_actor.length > 128
-      || typeof raw.tool_version !== "string" || !versionPattern.test(raw.tool_version)
-      || typeof raw.head_prefix !== "string" || !branchPrefixPattern.test(raw.head_prefix)
-      || !safeRelativePath(raw.working_directory)
+    if (
+      typeof raw.id !== 'string' ||
+      !idPattern.test(raw.id) ||
+      raw.adapter !== 'uv-lock' ||
+      typeof raw.runner_profile !== 'string' ||
+      !runnerPattern.test(raw.runner_profile) ||
+      typeof raw.trusted_actor !== 'string' ||
+      raw.trusted_actor.length < 1 ||
+      raw.trusted_actor.length > 128 ||
+      typeof raw.tool_version !== 'string' ||
+      !versionPattern.test(raw.tool_version) ||
+      typeof raw.head_prefix !== 'string' ||
+      !branchPrefixPattern.test(raw.head_prefix) ||
+      !safeRelativePath(raw.working_directory)
     ) {
-      throw new CliError("Dependency repair rule is invalid.", 65);
+      throw new CliError('Dependency repair rule is invalid.', 65);
     }
     if (ids.has(raw.id)) {
       throw new CliError(`Duplicate dependency repair id: ${raw.id}.`, 65);
@@ -157,52 +168,62 @@ export function parseDependencyRepairManifest(value: unknown): DependencyRepairM
     };
   });
 
-  return { schema_version: "1", repairs };
+  return { schema_version: '1', repairs };
 }
 
 export function parseDependencyRepairRequest(value: unknown): DependencyRepairRequest {
   if (!isJsonRecord(value)) {
-    throw new CliError("Dependency repair request must be an object.", 64);
+    throw new CliError('Dependency repair request must be an object.', 64);
   }
   exactKeys(
     value,
-    ["head_sha", "pr_number", "repository", "request_id", "schema_version"],
-    "Dependency repair request",
+    ['head_sha', 'pr_number', 'repository', 'request_id', 'schema_version'],
+    'Dependency repair request'
   );
-  if (value.schema_version !== "1"
-    || typeof value.request_id !== "string" || !requestPattern.test(value.request_id)
-    || typeof value.repository !== "string" || !repositoryPattern.test(value.repository)
-    || !Number.isInteger(value.pr_number) || Number(value.pr_number) < 1
-    || typeof value.head_sha !== "string" || !shaPattern.test(value.head_sha)
+  if (
+    value.schema_version !== '1' ||
+    typeof value.request_id !== 'string' ||
+    !requestPattern.test(value.request_id) ||
+    typeof value.repository !== 'string' ||
+    !repositoryPattern.test(value.repository) ||
+    !Number.isInteger(value.pr_number) ||
+    Number(value.pr_number) < 1 ||
+    typeof value.head_sha !== 'string' ||
+    !shaPattern.test(value.head_sha)
   ) {
-    throw new CliError("Dependency repair request is invalid.", 64);
+    throw new CliError('Dependency repair request is invalid.', 64);
   }
   return value as DependencyRepairRequest;
 }
 
-function pullFacts(value: unknown, request: DependencyRepairRequest): Omit<DependencyRepairFacts, "changed_paths"> {
-  if (!isJsonRecord(value)
-    || getJsonString(value, "state") !== "open"
-    || !isJsonRecord(value.head)
-    || !isJsonRecord(value.base)
-    || !isJsonRecord(value.user)
+function pullFacts(
+  value: unknown,
+  request: DependencyRepairRequest
+): Omit<DependencyRepairFacts, 'changed_paths'> {
+  if (
+    !isJsonRecord(value) ||
+    getJsonString(value, 'state') !== 'open' ||
+    !isJsonRecord(value.head) ||
+    !isJsonRecord(value.base) ||
+    !isJsonRecord(value.user)
   ) {
-    throw new CliError("Dependency repair requires an open pull request.", 75);
+    throw new CliError('Dependency repair requires an open pull request.', 75);
   }
 
-  const headSha = getJsonString(value.head, "sha");
-  const headRef = getJsonString(value.head, "ref");
-  const baseSha = getJsonString(value.base, "sha");
-  const actor = getJsonString(value.user, "login");
-  const headRepo = isJsonRecord(value.head.repo) ? getJsonString(value.head.repo, "full_name") : "";
+  const headSha = getJsonString(value.head, 'sha');
+  const headRef = getJsonString(value.head, 'ref');
+  const baseSha = getJsonString(value.base, 'sha');
+  const actor = getJsonString(value.user, 'login');
+  const headRepo = isJsonRecord(value.head.repo) ? getJsonString(value.head.repo, 'full_name') : '';
 
-  if (headSha !== request.head_sha
-    || !shaPattern.test(baseSha)
-    || !headRef
-    || !actor
-    || headRepo !== request.repository
+  if (
+    headSha !== request.head_sha ||
+    !shaPattern.test(baseSha) ||
+    !headRef ||
+    !actor ||
+    headRepo !== request.repository
   ) {
-    throw new CliError("Dependency repair request is stale or targets a forked PR.", 75);
+    throw new CliError('Dependency repair request is stale or targets a forked PR.', 75);
   }
 
   return {
@@ -215,16 +236,20 @@ function pullFacts(value: unknown, request: DependencyRepairRequest): Omit<Depen
   };
 }
 
-async function changedPaths(reader: GithubGet, repository: string, prNumber: number): Promise<string[]> {
+async function changedPaths(
+  reader: GithubGet,
+  repository: string,
+  prNumber: number
+): Promise<string[]> {
   const paths: string[] = [];
   for (let page = 1; page <= 20; page += 1) {
     const files = getJsonArray(
-      await reader.get(`repos/${repository}/pulls/${prNumber}/files?per_page=100&page=${page}`),
+      await reader.get(`repos/${repository}/pulls/${prNumber}/files?per_page=100&page=${page}`)
     );
     for (const file of files) {
-      const filename = getJsonString(file, "filename");
+      const filename = getJsonString(file, 'filename');
       if (!safeRelativePath(filename)) {
-        throw new CliError("Dependency repair PR contains an invalid file path.", 65);
+        throw new CliError('Dependency repair PR contains an invalid file path.', 65);
       }
       paths.push(filename);
     }
@@ -235,7 +260,7 @@ async function changedPaths(reader: GithubGet, repository: string, prNumber: num
 
 export async function resolveDependencyRepairFacts(
   reader: GithubGet,
-  request: DependencyRepairRequest,
+  request: DependencyRepairRequest
 ): Promise<DependencyRepairFacts> {
   const pull = await reader.get(`repos/${request.repository}/pulls/${request.pr_number}`);
   const facts = pullFacts(pull, request);
@@ -247,15 +272,16 @@ export async function resolveDependencyRepairFacts(
 
 export function selectDependencyRepair(
   manifest: DependencyRepairManifest,
-  facts: DependencyRepairFacts,
+  facts: DependencyRepairFacts
 ): DependencyRepairRule | null {
-  const matches = manifest.repairs.filter((repair) =>
-    repair.trusted_actor === facts.actor
-    && facts.head_ref.startsWith(repair.head_prefix)
-    && repair.trigger_paths.some((path) => facts.changed_paths.includes(path))
+  const matches = manifest.repairs.filter(
+    (repair) =>
+      repair.trusted_actor === facts.actor &&
+      facts.head_ref.startsWith(repair.head_prefix) &&
+      repair.trigger_paths.some((path) => facts.changed_paths.includes(path))
   );
   if (matches.length > 1) {
-    throw new CliError("Multiple dependency repair rules match the same pull request.", 65);
+    throw new CliError('Multiple dependency repair rules match the same pull request.', 65);
   }
   return matches[0] ?? null;
 }

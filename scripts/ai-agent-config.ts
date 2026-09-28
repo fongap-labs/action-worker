@@ -1,4 +1,4 @@
-import { CliError, parseJson } from "./runtime-command.ts";
+import { CliError, parseJson } from './runtime-command.ts';
 
 export type AiAgentRouteConfig = {
   model: string;
@@ -16,7 +16,7 @@ export type AiAgentConfig = {
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function validateName(value: string, label: string): string {
@@ -31,34 +31,47 @@ export function parseAiAgentConfig(raw: string): AiAgentConfig {
   if (!raw.trim()) {
     return { schema_version: 1, agents: {} };
   }
-  const value = parseJson(raw, "::error::AW_AI_AGENT_CONFIG must be valid JSON.");
+  const value = parseJson(raw, '::error::AW_AI_AGENT_CONFIG must be valid JSON.');
   if (!isRecord(value) || value.schema_version !== 1 || !isRecord(value.agents)) {
-    throw new CliError("::error::AW_AI_AGENT_CONFIG must contain schema_version=1 and agents.", 65);
+    throw new CliError('::error::AW_AI_AGENT_CONFIG must contain schema_version=1 and agents.', 65);
   }
 
   const agents: Record<string, AiAgentConfigEntry> = {};
   for (const [rawAgentName, rawAgentValue] of Object.entries(value.agents)) {
-    const agentName = validateName(rawAgentName, "AI agent name");
-    if (!isRecord(rawAgentValue) || typeof rawAgentValue.enabled !== "boolean") {
-      throw new CliError(`::error::AW_AI_AGENT_CONFIG agent "${agentName}" must define enabled as a boolean.`, 65);
+    const agentName = validateName(rawAgentName, 'AI agent name');
+    if (!isRecord(rawAgentValue) || typeof rawAgentValue.enabled !== 'boolean') {
+      throw new CliError(
+        `::error::AW_AI_AGENT_CONFIG agent "${agentName}" must define enabled as a boolean.`,
+        65
+      );
     }
 
-    const model = typeof rawAgentValue.model === "string" ? rawAgentValue.model.trim() : "";
+    const model = typeof rawAgentValue.model === 'string' ? rawAgentValue.model.trim() : '';
     if (rawAgentValue.model !== undefined && !model) {
-      throw new CliError(`::error::AW_AI_AGENT_CONFIG agent "${agentName}" has an invalid model.`, 65);
+      throw new CliError(
+        `::error::AW_AI_AGENT_CONFIG agent "${agentName}" has an invalid model.`,
+        65
+      );
     }
 
     const routes: Record<string, AiAgentRouteConfig> = {};
     if (rawAgentValue.routes !== undefined) {
       if (!isRecord(rawAgentValue.routes)) {
-        throw new CliError(`::error::AW_AI_AGENT_CONFIG agent "${agentName}" routes must be an object.`, 65);
+        throw new CliError(
+          `::error::AW_AI_AGENT_CONFIG agent "${agentName}" routes must be an object.`,
+          65
+        );
       }
       for (const [rawRouteName, rawRouteValue] of Object.entries(rawAgentValue.routes)) {
         const routeName = validateName(rawRouteName, `AI agent route for ${agentName}`);
-        if (!isRecord(rawRouteValue) || typeof rawRouteValue.model !== "string" || !rawRouteValue.model.trim()) {
+        if (
+          !isRecord(rawRouteValue) ||
+          typeof rawRouteValue.model !== 'string' ||
+          !rawRouteValue.model.trim()
+        ) {
           throw new CliError(
             `::error::AW_AI_AGENT_CONFIG route "${agentName}.${routeName}" must define a non-empty model.`,
-            65,
+            65
           );
         }
         routes[routeName] = { model: rawRouteValue.model.trim() };
@@ -68,7 +81,7 @@ export function parseAiAgentConfig(raw: string): AiAgentConfig {
     if (rawAgentValue.enabled && !model && Object.keys(routes).length === 0) {
       throw new CliError(
         `::error::AW_AI_AGENT_CONFIG enabled agent "${agentName}" must define model or routes.`,
-        65,
+        65
       );
     }
 
@@ -91,10 +104,10 @@ export function aiAgentModel(config: AiAgentConfig, agentName: string, routeName
   if (!agent?.enabled) {
     throw new CliError(`::error::AI agent "${agentName}" is disabled.`, 65);
   }
-  const routed = routeName ? agent.routes[routeName]?.model ?? "" : "";
-  const model = routed || agent.model || "";
+  const routed = routeName ? (agent.routes[routeName]?.model ?? '') : '';
+  const model = routed || agent.model || '';
   if (!model) {
-    const suffix = routeName ? ` route "${routeName}"` : "";
+    const suffix = routeName ? ` route "${routeName}"` : '';
     throw new CliError(`::error::AI agent "${agentName}"${suffix} has no configured model.`, 65);
   }
   return model;
@@ -114,9 +127,8 @@ export function enabledAiModels(config: AiAgentConfig, agentNames?: readonly str
   return [...models].sort();
 }
 
-
 function runtimeToken(value: string): string {
-  return value.toUpperCase().replaceAll("-", "_");
+  return value.toUpperCase().replaceAll('-', '_');
 }
 
 export function aiAgentRuntimeEntries(config: AiAgentConfig): Array<[string, string]> {
@@ -131,17 +143,18 @@ export function aiAgentRuntimeEntries(config: AiAgentConfig): Array<[string, str
     entries.push([name, model]);
   };
 
-  for (const [agentName, agent] of Object.entries(config.agents).sort(([a], [b]) => a.localeCompare(b))) {
+  for (const [agentName, agent] of Object.entries(config.agents).sort(([a], [b]) =>
+    a.localeCompare(b)
+  )) {
     if (!agent.enabled) continue;
     const agentToken = runtimeToken(agentName);
     if (agent.model) {
       add(`AW_AI_AGENT_${agentToken}_MODEL`, agent.model);
     }
-    for (const [routeName, route] of Object.entries(agent.routes).sort(([a], [b]) => a.localeCompare(b))) {
-      add(
-        `AW_AI_AGENT_${agentToken}_${runtimeToken(routeName)}_MODEL`,
-        route.model,
-      );
+    for (const [routeName, route] of Object.entries(agent.routes).sort(([a], [b]) =>
+      a.localeCompare(b)
+    )) {
+      add(`AW_AI_AGENT_${agentToken}_${runtimeToken(routeName)}_MODEL`, route.model);
     }
   }
 

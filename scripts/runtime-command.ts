@@ -1,13 +1,13 @@
-import { spawn } from "node:child_process";
-import { appendFile, readFile } from "node:fs/promises";
-import { pathToFileURL } from "node:url";
+import { spawn } from 'node:child_process';
+import { appendFile, readFile } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
 
 export class CliError extends Error {
   readonly exitCode: number;
 
   constructor(message: string, exitCode = 1) {
     super(message);
-    this.name = "CliError";
+    this.name = 'CliError';
     this.exitCode = exitCode;
   }
 }
@@ -23,13 +23,13 @@ type CommandOptions = {
 export async function runCommand(
   command: string,
   args: readonly string[],
-  options: CommandOptions = {},
+  options: CommandOptions = {}
 ): Promise<Buffer> {
   return await new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
       env: options.env ?? process.env,
-      stdio: [options.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
+      stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
       windowsHide: true,
     });
     const stdout: Buffer[] = [];
@@ -51,14 +51,15 @@ export async function runCommand(
         resolve(output ?? Buffer.alloc(0));
       }
     };
-    const timer = options.timeoutMs === undefined
-      ? undefined
-      : setTimeout(() => {
-        child.kill();
-        finish(new CliError(`${command} timed out after ${options.timeoutMs} ms.`, 124));
-      }, options.timeoutMs);
+    const timer =
+      options.timeoutMs === undefined
+        ? undefined
+        : setTimeout(() => {
+            child.kill();
+            finish(new CliError(`${command} timed out after ${options.timeoutMs} ms.`, 124));
+          }, options.timeoutMs);
 
-    child.stdout!.on("data", (chunk: Buffer) => {
+    child.stdout!.on('data', (chunk: Buffer) => {
       size += chunk.length;
       if (size > limit) {
         child.kill();
@@ -67,7 +68,7 @@ export async function runCommand(
       }
       stdout.push(chunk);
     });
-    child.stderr!.on("data", (chunk: Buffer) => {
+    child.stderr!.on('data', (chunk: Buffer) => {
       size += chunk.length;
       if (size > limit) {
         child.kill();
@@ -76,8 +77,8 @@ export async function runCommand(
       }
       stderr.push(chunk);
     });
-    child.on("error", (error) => finish(error));
-    child.on("close", (code) => {
+    child.on('error', (error) => finish(error));
+    child.on('close', (code) => {
       if (isSettled) {
         return;
       }
@@ -85,7 +86,7 @@ export async function runCommand(
         finish(undefined, Buffer.concat(stdout));
         return;
       }
-      const detail = Buffer.concat(stderr).toString("utf8").trim();
+      const detail = Buffer.concat(stderr).toString('utf8').trim();
       finish(new CliError(detail || `${command} exited with status ${code ?? 1}.`, code ?? 1));
     });
 
@@ -98,13 +99,13 @@ export async function runCommand(
 export async function runText(
   command: string,
   args: readonly string[],
-  options: CommandOptions = {},
+  options: CommandOptions = {}
 ): Promise<string> {
-  return (await runCommand(command, args, options)).toString("utf8").trimEnd();
+  return (await runCommand(command, args, options)).toString('utf8').trimEnd();
 }
 
 export async function readJson(path: string): Promise<unknown> {
-  return JSON.parse(await readFile(path, "utf8")) as unknown;
+  return JSON.parse(await readFile(path, 'utf8')) as unknown;
 }
 
 export function parseJson(value: string, message: string, exitCode = 65): unknown {
@@ -115,11 +116,14 @@ export function parseJson(value: string, message: string, exitCode = 65): unknow
   }
 }
 
-export async function appendLines(path: string | undefined, lines: readonly string[]): Promise<void> {
+export async function appendLines(
+  path: string | undefined,
+  lines: readonly string[]
+): Promise<void> {
   if (!path) {
     return;
   }
-  await appendFile(path, `${lines.join("\n")}\n`, "utf8");
+  await appendFile(path, `${lines.join('\n')}\n`, 'utf8');
 }
 
 export function isMain(metaUrl: string): boolean {

@@ -5,27 +5,21 @@
       "enabled": true,
       "backend": "github-hosted",
       "trust_domain": "control",
-      "labels": [
-        "ubuntu-24.04"
-      ],
+      "labels": ["ubuntu-24.04"],
       "fallback_profiles": []
     },
     "linux-standard": {
       "enabled": true,
       "backend": "github-hosted",
       "trust_domain": "sandbox",
-      "labels": [
-        "ubuntu-24.04"
-      ],
+      "labels": ["ubuntu-24.04"],
       "fallback_profiles": []
     },
     "windows-build": {
       "enabled": true,
       "backend": "github-hosted",
       "trust_domain": "sandbox",
-      "labels": [
-        "windows-latest"
-      ],
+      "labels": ["windows-latest"],
       "fallback_profiles": []
     },
     "trusted-deploy": {
@@ -39,9 +33,7 @@
       "enabled": true,
       "backend": "github-hosted",
       "trust_domain": "privileged",
-      "labels": [
-        "ubuntu-24.04"
-      ],
+      "labels": ["ubuntu-24.04"],
       "fallback_profiles": []
     }
   }

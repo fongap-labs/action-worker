@@ -58,7 +58,10 @@ jobs:
       group: pr-governance-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}
       cancel-in-progress: true
     steps:
-      - run: echo "Cancelled stale PR Governance work for ${{ needs.validate.outputs.repository }}#${{ needs.validate.outputs.pr_number }}."
+      - env:
+          REPOSITORY: ${{ needs.validate.outputs.repository }}
+          PR_NUMBER: ${{ needs.validate.outputs.pr_number }}
+        run: echo "Cancelled stale PR Governance work for $REPOSITORY#$PR_NUMBER."
 
   central-ci:
     name: Cancel Central CI
@@ -69,4 +72,7 @@ jobs:
       group: central-ci-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}
       cancel-in-progress: true
     steps:
-      - run: echo "Cancelled stale Central CI work for ${{ needs.validate.outputs.repository }}#${{ needs.validate.outputs.pr_number }}."
+      - env:
+          REPOSITORY: ${{ needs.validate.outputs.repository }}
+          PR_NUMBER: ${{ needs.validate.outputs.pr_number }}
+        run: echo "Cancelled stale Central CI work for $REPOSITORY#$PR_NUMBER."

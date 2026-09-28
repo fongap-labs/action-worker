@@ -1,14 +1,14 @@
-import { access, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-import { isJsonRecord } from "./github-api.ts";
+import { access, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { isJsonRecord } from './github-api.ts';
 import {
-  CliError,
   appendLines,
+  CliError,
   handleError,
   isMain,
   readJson,
   runText,
-} from "./runtime-command.ts";
+} from './runtime-command.ts';
 
 type ContextResult = {
   changed_files: string[];
@@ -16,7 +16,7 @@ type ContextResult = {
   change_areas: string[];
   changelog_changed: boolean;
   declared_impacts: string[];
-  risk: "low" | "medium" | "high";
+  risk: 'low' | 'medium' | 'high';
 };
 
 async function pathExists(path: string): Promise<boolean> {
@@ -29,76 +29,93 @@ async function pathExists(path: string): Promise<boolean> {
 }
 
 function stringList(value: unknown, key: string): string[] {
-  if (!isJsonRecord(value) || !Array.isArray(value[key]) || !value[key].every((item) => typeof item === "string")) {
+  if (
+    !isJsonRecord(value) ||
+    !Array.isArray(value[key]) ||
+    !value[key].every((item) => typeof item === 'string')
+  ) {
     throw new CliError(`ERROR: invalid context policy field: ${key}.`, 65);
   }
   return value[key];
 }
 
-export async function listChangedFiles(base: string, head: string, root: string): Promise<string[]> {
+export async function listChangedFiles(
+  base: string,
+  head: string,
+  root: string
+): Promise<string[]> {
   const changedText = await runText(
-    "git",
-    ["diff", "--name-only", "--diff-filter=ACDMR", base, head],
-    { cwd: root },
+    'git',
+    ['diff', '--name-only', '--diff-filter=ACDMR', base, head],
+    { cwd: root }
   );
   return changedText ? changedText.split(/\r?\n/).filter(Boolean) : [];
 }
 
 export function projectTypeForPath(path: string): string | null {
-  const name = path.split("/").at(-1) ?? path;
+  const name = path.split('/').at(-1) ?? path;
   const lower = path.toLowerCase();
 
-  if (lower.startsWith(".github/workflows/")) return "github-automation";
-  if (name === "Cargo.toml" || lower.endsWith(".rs")) return "rust";
+  if (lower.startsWith('.github/workflows/')) return 'github-automation';
+  if (name === 'Cargo.toml' || lower.endsWith('.rs')) return 'rust';
+  if (name === 'pyproject.toml' || name === 'requirements.txt' || lower.endsWith('.py'))
+    return 'python';
   if (
-    name === "pyproject.toml"
-    || name === "requirements.txt"
-    || lower.endsWith(".py")
-  ) return "python";
-  if (
-    name === "package.json"
-    || lower.endsWith(".ts")
-    || lower.endsWith(".tsx")
-    || lower.endsWith(".js")
-    || lower.endsWith(".mjs")
-    || lower.endsWith(".cjs")
-  ) return "node";
-  if (name === "go.mod" || lower.endsWith(".go")) return "go";
-  if (
-    name === "Dockerfile"
-    || /(^|\/)(?:docker-compose|compose)\.ya?ml$/.test(path)
-  ) return "container";
+    name === 'package.json' ||
+    lower.endsWith('.ts') ||
+    lower.endsWith('.tsx') ||
+    lower.endsWith('.js') ||
+    lower.endsWith('.mjs') ||
+    lower.endsWith('.cjs')
+  )
+    return 'node';
+  if (name === 'go.mod' || lower.endsWith('.go')) return 'go';
+  if (name === 'Dockerfile' || /(^|\/)(?:docker-compose|compose)\.ya?ml$/.test(path))
+    return 'container';
   return null;
 }
 
-export function changeAreaForPath(path: string, workflowPrefixes: readonly string[], changelogFile: string): string {
+export function changeAreaForPath(
+  path: string,
+  workflowPrefixes: readonly string[],
+  changelogFile: string
+): string {
   if (workflowPrefixes.some((prefix) => path.startsWith(prefix))) {
-    return "workflow";
+    return 'workflow';
   }
-  if (path.startsWith("scripts/") || path.endsWith(".sh")) {
-    return "script";
+  if (path.startsWith('scripts/') || path.endsWith('.sh')) {
+    return 'script';
   }
   if (/^(?:tests?|.*(?:_test|\.test)\.)/.test(path)) {
-    return "test";
+    return 'test';
   }
   if (/(^|\/)(?:Dockerfile|docker-compose\.ya?ml|compose\.ya?ml)$/.test(path)) {
-    return "container";
+    return 'container';
   }
-  if (path === changelogFile || path.endsWith(".md") || path.startsWith("docs/")) {
-    return "documentation";
+  if (path === changelogFile || path.endsWith('.md') || path.startsWith('docs/')) {
+    return 'documentation';
   }
-  return "source";
+  return 'source';
 }
 
-export async function detectContext(base: string, head: string, root: string, policyDir: string): Promise<ContextResult> {
-  const workflow = await readJson(join(policyDir, "workflow.json"));
-  const security = await readJson(join(policyDir, "security.json"));
-  const release = await readJson(join(policyDir, "release.json"));
-  if (!isJsonRecord(release) || typeof release.changelog_file !== "string" || !isJsonRecord(release.impact_patterns)) {
-    throw new CliError("ERROR: invalid release context policy.", 65);
+export async function detectContext(
+  base: string,
+  head: string,
+  root: string,
+  policyDir: string
+): Promise<ContextResult> {
+  const workflow = await readJson(join(policyDir, 'workflow.json'));
+  const security = await readJson(join(policyDir, 'security.json'));
+  const release = await readJson(join(policyDir, 'release.json'));
+  if (
+    !isJsonRecord(release) ||
+    typeof release.changelog_file !== 'string' ||
+    !isJsonRecord(release.impact_patterns)
+  ) {
+    throw new CliError('ERROR: invalid release context policy.', 65);
   }
-  const prefixes = stringList(workflow, "path_prefixes");
-  const terms = stringList(security, "path_terms").map((term) => term.toLowerCase());
+  const prefixes = stringList(workflow, 'path_prefixes');
+  const terms = stringList(security, 'path_terms').map((term) => term.toLowerCase());
   const changedFiles = await listChangedFiles(base, head, root);
   const areas = new Set<string>();
   const impacts = new Set<string>();
@@ -107,7 +124,7 @@ export async function detectContext(base: string, head: string, root: string, po
     areas.add(changeAreaForPath(path, prefixes, release.changelog_file));
     const lowerPath = path.toLowerCase();
     if (terms.some((term) => lowerPath.includes(term))) {
-      areas.add("security");
+      areas.add('security');
     }
   }
 
@@ -124,13 +141,13 @@ export async function detectContext(base: string, head: string, root: string, po
   // a useful project context without overriding monorepo changes.
   if (projects.size === 0) {
     const projectChecks: Array<[string, string]> = [
-      ["package.json", "node"],
-      ["Cargo.toml", "rust"],
-      ["pyproject.toml", "python"],
-      ["requirements.txt", "python"],
-      ["go.mod", "go"],
-      ["Dockerfile", "container"],
-      [".github/workflows", "github-automation"],
+      ['package.json', 'node'],
+      ['Cargo.toml', 'rust'],
+      ['pyproject.toml', 'python'],
+      ['requirements.txt', 'python'],
+      ['go.mod', 'go'],
+      ['Dockerfile', 'container'],
+      ['.github/workflows', 'github-automation'],
     ];
     for (const [path, project] of projectChecks) {
       if (await pathExists(join(root, path))) {
@@ -140,42 +157,66 @@ export async function detectContext(base: string, head: string, root: string, po
   }
 
   const hasChangelog = changedFiles.includes(release.changelog_file);
-  let additions = "";
+  let additions = '';
   if (hasChangelog) {
-    const diff = await runText("git", ["diff", "--unified=0", base, head, "--", release.changelog_file], { cwd: root });
-    additions = diff.split(/\r?\n/)
-      .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
+    const diff = await runText(
+      'git',
+      ['diff', '--unified=0', base, head, '--', release.changelog_file],
+      { cwd: root }
+    );
+    additions = diff
+      .split(/\r?\n/)
+      .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
       .map((line) => line.slice(1))
-      .join("\n")
+      .join('\n')
       .toLowerCase();
   }
-  for (const category of ["breaking", "security", "migration", "api", "deployment", "performance", "compatibility", "release"]) {
+  for (const category of [
+    'breaking',
+    'security',
+    'migration',
+    'api',
+    'deployment',
+    'performance',
+    'compatibility',
+    'release',
+  ]) {
     const patterns = release.impact_patterns[category];
-    if (Array.isArray(patterns) && patterns.some((pattern) => typeof pattern === "string" && additions.includes(pattern.toLowerCase()))) {
+    if (
+      Array.isArray(patterns) &&
+      patterns.some(
+        (pattern) => typeof pattern === 'string' && additions.includes(pattern.toLowerCase())
+      )
+    ) {
       impacts.add(category);
     }
   }
 
-  const highSignals = ["security"].some((value) => areas.has(value))
-    || ["security", "breaking", "migration", "deployment"].some((value) => impacts.has(value));
-  const mediumSignals = ["source", "workflow", "script", "container", "release"].some((value) => areas.has(value))
-    || ["api", "performance", "compatibility", "release"].some((value) => impacts.has(value));
+  const highSignals =
+    ['security'].some((value) => areas.has(value)) ||
+    ['security', 'breaking', 'migration', 'deployment'].some((value) => impacts.has(value));
+  const mediumSignals =
+    ['source', 'workflow', 'script', 'container', 'release'].some((value) => areas.has(value)) ||
+    ['api', 'performance', 'compatibility', 'release'].some((value) => impacts.has(value));
   return {
     changed_files: changedFiles,
     project_types: [...projects].sort(),
     change_areas: [...areas].sort(),
     changelog_changed: hasChangelog,
     declared_impacts: [...impacts].sort(),
-    risk: highSignals ? "high" : mediumSignals ? "medium" : "low",
+    risk: highSignals ? 'high' : mediumSignals ? 'medium' : 'low',
   };
 }
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length !== 4) {
-    throw new CliError("Usage: detect-pr-context.ts <base-sha> <head-sha> <repo-root> <policy-dir>", 64);
+    throw new CliError(
+      'Usage: detect-pr-context.ts <base-sha> <head-sha> <repo-root> <policy-dir>',
+      64
+    );
   }
-  const [base = "", head = "", root = "", policyDir = ""] = args;
+  const [base = '', head = '', root = '', policyDir = ''] = args;
   try {
     const detected = await detectContext(base, head, root, policyDir);
     const changeText = process.env.CHANGE_RECORD_JSON;
@@ -184,12 +225,12 @@ async function main(): Promise<void> {
       : detected;
     const json = JSON.stringify(output);
     if (process.env.GITHUB_OUTPUT) {
-      await writeFile("/tmp/pr-context.json", `${json}\n`, "utf8");
+      await writeFile('/tmp/pr-context.json', `${json}\n`, 'utf8');
       await appendLines(process.env.GITHUB_OUTPUT, [`json=${json}`]);
     }
     console.log(json);
   } catch (error) {
-    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
       throw new CliError(`::error::Missing context input: ${error.message}`, 65);
     }
     throw error;

@@ -22,7 +22,6 @@ on:
 permissions:
   actions: read
   contents: write
-  pull-requests: write
 
 concurrency:
   group: update-work-metrics-${{ github.event_name == 'workflow_run' && 'incremental' || 'reconcile' }}
@@ -53,7 +52,7 @@ jobs:
         run: node scripts/manage-work-metrics.ts sweep
 
   update:
-    name: Aggregate and update
+    name: Aggregate and publish metrics JSON
     needs: sweep
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-24.04
@@ -94,52 +93,12 @@ jobs:
           WORK_METRICS_JSON: ${{ steps.increment.outputs.json }}
         run: node scripts/update-work-metrics.ts README.md README.zh-CN.md
 
-      - name: Check for changes
-        id: changes
-        run: node scripts/manage-work-metrics.ts changes
-
-      - name: Create update branch
-        if: steps.changes.outputs.changed == 'true'
-        id: branch
+      - name: Publish metrics JSON to metrics-data branch
         env:
-          BRANCH: metrics/${{ github.run_id }}
-        run: node scripts/manage-work-metrics.ts branch
-
-      - name: Create auto-update PR
-        if: steps.changes.outputs.changed == 'true'
-        id: pr
-        env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          BRANCH: ${{ steps.branch.outputs.name }}
+          GH_TOKEN: ${{ github.token }}
           DISPATCH: ${{ steps.metrics.outputs.dispatch }}
           PR_GOVERNANCE: ${{ steps.metrics.outputs.pr_governance }}
           AI_REVIEW: ${{ steps.metrics.outputs.ai_review }}
           GATE: ${{ steps.metrics.outputs.gate }}
           RELEASE_GOVERNANCE: ${{ steps.metrics.outputs.release_governance }}
-        run: node scripts/manage-work-metrics.ts pull
-
-      - name: Wait for CI
-        if: steps.changes.outputs.changed == 'true'
-        id: ci
-        env:
-          GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ steps.branch.outputs.name }}
-          HEAD_SHA: ${{ steps.branch.outputs.sha }}
-        run: node scripts/manage-work-metrics.ts ci
-
-      - name: Merge update
-        if: steps.changes.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ steps.pr.outputs.number }}
-          BRANCH: ${{ steps.branch.outputs.name }}
-        run: node scripts/manage-work-metrics.ts merge
-
-      - name: Cleanup failed metrics update
-        if: ${{ failure() && steps.changes.outputs.changed == 'true' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PR_NUMBER: ${{ steps.pr.outputs.number }}
-          BRANCH: metrics/${{ github.run_id }}
-        run: node scripts/manage-work-metrics.ts cleanup
-
+        run: node scripts/manage-work-metrics.ts publish-json
