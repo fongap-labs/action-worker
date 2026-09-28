@@ -1,12 +1,6 @@
 import { isJsonRecord } from "./github-api.ts";
-import {
-  CliError,
-  appendLines,
-  handleError,
-  isMain,
-  parseJson,
-} from "./runtime-command.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
+import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const requestPattern = /^[A-Za-z0-9._:-]+$/;
@@ -19,20 +13,21 @@ export function validatePayload(value: unknown): void {
   const keys = Object.keys(value).sort();
   const required = ["pr_number", "repository", "request_id", "schema_version"];
   const allowed = [...required, "head_sha"].sort();
-  const isValid = required.every((key) => keys.includes(key))
-    && keys.every((key) => allowed.includes(key))
-    && value.schema_version === "1"
-    && typeof value.request_id === "string"
-    && value.request_id.length >= 1
-    && value.request_id.length <= 128
-    && requestPattern.test(value.request_id)
-    && typeof value.repository === "string"
-    && repositoryPattern.test(value.repository)
-    && typeof value.pr_number === "number"
-    && Number.isInteger(value.pr_number)
-    && value.pr_number >= 1
-    && (value.head_sha === undefined
-      || (typeof value.head_sha === "string" && shaPattern.test(value.head_sha)));
+  const isValid =
+    required.every((key) => keys.includes(key)) &&
+    keys.every((key) => allowed.includes(key)) &&
+    value.schema_version === "1" &&
+    typeof value.request_id === "string" &&
+    value.request_id.length >= 1 &&
+    value.request_id.length <= 128 &&
+    requestPattern.test(value.request_id) &&
+    typeof value.repository === "string" &&
+    repositoryPattern.test(value.repository) &&
+    typeof value.pr_number === "number" &&
+    Number.isInteger(value.pr_number) &&
+    value.pr_number >= 1 &&
+    (value.head_sha === undefined ||
+      (typeof value.head_sha === "string" && shaPattern.test(value.head_sha)));
   if (!isValid) {
     throw new CliError("::error::PR dispatch payload does not match contracts/pr-task.json.", 64);
   }
@@ -43,7 +38,11 @@ async function main(): Promise<void> {
   if (args.length !== 1) {
     throw new CliError("Usage: validate-pr-payload.ts <payload-json>", 64);
   }
-  const value = parseJson(args[0] ?? "", "::error::PR dispatch payload does not match contracts/pr-task.json.", 64);
+  const value = parseJson(
+    args[0] ?? "",
+    "::error::PR dispatch payload does not match contracts/pr-task.json.",
+    64
+  );
   validatePayload(value);
   const payload = value as Record<string, unknown>;
   const repositoryPolicy = process.env.AW_REPOSITORY_POLICY;
@@ -53,7 +52,7 @@ async function main(): Promise<void> {
   validateRepositoryCapability(
     String(payload.repository),
     parseJson(repositoryPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65),
-    "pr",
+    "pr"
   );
   await appendLines(process.env.GITHUB_OUTPUT, [
     `repository=${String(payload.repository)}`,

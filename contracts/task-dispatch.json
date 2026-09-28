@@ -3,13 +3,7 @@
   "title": "Task Dispatch",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schema_version",
-    "request_id",
-    "project",
-    "bootstrap_ref",
-    "repository"
-  ],
+  "required": ["schema_version", "request_id", "project", "bootstrap_ref", "repository"],
   "properties": {
     "schema_version": {
       "const": "1"

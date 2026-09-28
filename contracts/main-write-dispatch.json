@@ -3,14 +3,7 @@
   "title": "Main Write Dispatch",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schema_version",
-    "request_id",
-    "repository",
-    "before_sha",
-    "head_sha",
-    "event"
-  ],
+  "required": ["schema_version", "request_id", "repository", "before_sha", "head_sha", "event"],
   "properties": {
     "schema_version": {
       "const": "1"

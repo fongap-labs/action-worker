@@ -1,15 +1,5 @@
-import {
-  getGithubJson,
-  getJsonString,
-  isJsonRecord,
-} from "./github-api.ts";
-import {
-  CliError,
-  appendLines,
-  handleError,
-  isMain,
-  runText,
-} from "./runtime-command.ts";
+import { getGithubJson, getJsonString, isJsonRecord } from "./github-api.ts";
+import { appendLines, CliError, handleError, isMain, runText } from "./runtime-command.ts";
 
 type PullFacts = {
   baseSha: string;
@@ -17,7 +7,11 @@ type PullFacts = {
   title: string;
 };
 
-export async function fetchPullFacts(repository: string, prNumber: string, token: string): Promise<PullFacts> {
+export async function fetchPullFacts(
+  repository: string,
+  prNumber: string,
+  token: string
+): Promise<PullFacts> {
   const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, token);
   if (!isJsonRecord(pull) || pull.state !== "open") {
     throw new CliError("::error::Target PR is not open.", 65);
@@ -73,9 +67,14 @@ async function main(): Promise<void> {
   if (actual !== initial.headSha) {
     resolved = await fetchPullFacts(repository, prNumber, token);
     if (actual !== resolved.headSha) {
-      throw new CliError(`::error::PR head is not synchronized: initial=${initial.headSha} checkout=${actual} current=${resolved.headSha}`, 65);
+      throw new CliError(
+        `::error::PR head is not synchronized: initial=${initial.headSha} checkout=${actual} current=${resolved.headSha}`,
+        65
+      );
     }
-    console.log(`::notice::PR head changed after dispatch; governance now uses consistent facts: ${initial.headSha} → ${resolved.headSha}`);
+    console.log(
+      `::notice::PR head changed after dispatch; governance now uses consistent facts: ${initial.headSha} → ${resolved.headSha}`
+    );
   }
   if (!/^[0-9a-f]{40}$/.test(resolved.baseSha) || !/^[0-9a-f]{40}$/.test(resolved.headSha)) {
     throw new CliError("::error::Resolved PR base or head SHA is invalid.", 65);

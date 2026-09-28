@@ -1,15 +1,5 @@
-import {
-  getGithubJson,
-  getJsonArray,
-  getJsonString,
-  isJsonRecord,
-} from "./github-api.ts";
-import {
-  CliError,
-  appendLines,
-  handleError,
-  isMain,
-} from "./runtime-command.ts";
+import { getGithubJson, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
+import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -33,7 +23,9 @@ async function main(): Promise<void> {
   const response = await getGithubJson(`repos/${repository}/commits/${sha}/status`, token);
   const statuses = getJsonArray(response, "statuses")
     .filter((item) => isJsonRecord(item) && getJsonString(item, "context") === context)
-    .sort((left, right) => getJsonString(right, "created_at").localeCompare(getJsonString(left, "created_at")));
+    .sort((left, right) =>
+      getJsonString(right, "created_at").localeCompare(getJsonString(left, "created_at"))
+    );
   const latest = statuses[0];
   const target = isJsonRecord(latest) ? getJsonString(latest, "target_url") : "";
   if (target === runUrl) {
@@ -43,10 +35,15 @@ async function main(): Promise<void> {
   }
   if (process.env.GITHUB_OUTPUT) {
     await appendLines(process.env.GITHUB_OUTPUT, ["current=false"]);
-    console.error(`Current run no longer owns ${context} for ${repository}@${sha}; latest target is ${target || "<none>"}.`);
+    console.error(
+      `Current run no longer owns ${context} for ${repository}@${sha}; latest target is ${target || "<none>"}.`
+    );
     return;
   }
-  throw new CliError(`Current run no longer owns ${context} for ${repository}@${sha}; latest target is ${target || "<none>"}.`, 3);
+  throw new CliError(
+    `Current run no longer owns ${context} for ${repository}@${sha}; latest target is ${target || "<none>"}.`,
+    3
+  );
 }
 
 if (isMain(import.meta.url)) {

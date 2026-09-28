@@ -14,20 +14,14 @@ test("secret scope exposes only source-declared secrets", async () => {
   await writeFile(required, "APP_REQUIRED\n");
   await writeFile(allowed, "APP_OPTIONAL\n");
 
-  const scope = await resolveSecretScope(
-    baseline,
-    required,
-    allowed,
-    [],
-    {
-      PATH: "/bin",
-      PROJECT: "example",
-      APP_REQUIRED: "required",
-      APP_OPTIONAL: "optional",
-      OTHER_SECRET: "hidden",
-      AW_CONTROL_TOKEN: "hidden",
-    },
-  );
+  const scope = await resolveSecretScope(baseline, required, allowed, [], {
+    PATH: "/bin",
+    PROJECT: "example",
+    APP_REQUIRED: "required",
+    APP_OPTIONAL: "optional",
+    OTHER_SECRET: "hidden",
+    AW_CONTROL_TOKEN: "hidden",
+  });
   assert.deepEqual(scope.allowed, ["APP_OPTIONAL", "APP_REQUIRED"]);
   assert.deepEqual(scope.required, ["APP_REQUIRED"]);
   assert.deepEqual(scope.unset, ["AW_CONTROL_TOKEN", "OTHER_SECRET"]);
@@ -41,7 +35,7 @@ test("base control-plane secrets can never be requested", async () => {
   await writeFile(required, "AW_CONTROL_TOKEN\n");
   await assert.rejects(
     resolveSecretScope(baseline, required, "", [], { PATH: "/bin", AW_CONTROL_TOKEN: "x" }),
-    /invalid or reserved/,
+    /invalid or reserved/
   );
 });
 
@@ -52,14 +46,11 @@ test("capability-specific denied secrets remain unavailable to tasks", async () 
   await writeFile(baseline, "PATH\n");
   await writeFile(allowed, "AIG_ACCESS_KEY_AGENT\n");
   await assert.rejects(
-    resolveSecretScope(
-      baseline,
-      "",
-      allowed,
-      ["AIG_ACCESS_KEY_AGENT"],
-      { PATH: "/bin", AIG_ACCESS_KEY_AGENT: "agent-key" },
-    ),
-    /denied for this capability/,
+    resolveSecretScope(baseline, "", allowed, ["AIG_ACCESS_KEY_AGENT"], {
+      PATH: "/bin",
+      AIG_ACCESS_KEY_AGENT: "agent-key",
+    }),
+    /denied for this capability/
   );
 });
 
@@ -69,18 +60,12 @@ test("privileged deploy may expose an explicitly declared application secret", a
   const allowed = join(root, "allowed");
   await writeFile(baseline, "PATH\n");
   await writeFile(allowed, "AIG_ACCESS_KEY_AGENT\n");
-  const scope = await resolveSecretScope(
-    baseline,
-    "",
-    allowed,
-    [],
-    {
-      PATH: "/bin",
-      AIG_ACCESS_KEY_AGENT: "agent-key",
-      AW_CONTROL_TOKEN: "control",
-      OTHER_SECRET: "hidden",
-    },
-  );
+  const scope = await resolveSecretScope(baseline, "", allowed, [], {
+    PATH: "/bin",
+    AIG_ACCESS_KEY_AGENT: "agent-key",
+    AW_CONTROL_TOKEN: "control",
+    OTHER_SECRET: "hidden",
+  });
   assert.deepEqual(scope.allowed, ["AIG_ACCESS_KEY_AGENT"]);
   assert.deepEqual(scope.unset, ["AW_CONTROL_TOKEN", "OTHER_SECRET"]);
 });

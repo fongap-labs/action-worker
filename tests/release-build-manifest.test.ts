@@ -17,14 +17,16 @@ const manifest = {
     type: "cargo-package",
     path: "Cargo.toml",
   },
-  builds: [{
-    id: "windows",
-    runner_profile: "windows-build",
-    target: "x86_64-pc-windows-msvc",
-    script: ".github/scripts/release-build.ps1",
-    assets: ["example.zip"],
-    attest_asset: "example.zip",
-  }],
+  builds: [
+    {
+      id: "windows",
+      runner_profile: "windows-build",
+      target: "x86_64-pc-windows-msvc",
+      script: ".github/scripts/release-build.ps1",
+      assets: ["example.zip"],
+      attest_asset: "example.zip",
+    },
+  ],
 };
 
 test("release build manifest keeps project metadata in the source repository", () => {
@@ -35,38 +37,48 @@ test("release build manifest keeps project metadata in the source repository", (
 });
 
 test("release build manifest rejects concrete runner labels and duplicate assets", () => {
-  assert.throws(() => parseReleaseBuildManifest({
-    ...manifest,
-    builds: [{
-      ...manifest.builds[0],
-      runner_profile: undefined,
-      runner: "windows-latest",
-    }],
-  }));
+  assert.throws(() =>
+    parseReleaseBuildManifest({
+      ...manifest,
+      builds: [
+        {
+          ...manifest.builds[0],
+          runner_profile: undefined,
+          runner: "windows-latest",
+        },
+      ],
+    })
+  );
 
-  assert.throws(() => parseReleaseBuildManifest({
-    ...manifest,
-    builds: [
-      manifest.builds[0],
-      {
-        ...manifest.builds[0],
-        id: "windows-two",
-      },
-    ],
-  }));
+  assert.throws(() =>
+    parseReleaseBuildManifest({
+      ...manifest,
+      builds: [
+        manifest.builds[0],
+        {
+          ...manifest.builds[0],
+          id: "windows-two",
+        },
+      ],
+    })
+  );
 });
 
 test("release build manifest rejects unsafe paths and target ambiguity", () => {
-  assert.throws(() => parseReleaseBuildManifest({
-    ...manifest,
-    version_source: {
-      type: "cargo-package",
-      path: "../Cargo.toml",
-    },
-  }));
+  assert.throws(() =>
+    parseReleaseBuildManifest({
+      ...manifest,
+      version_source: {
+        type: "cargo-package",
+        path: "../Cargo.toml",
+      },
+    })
+  );
 
-  assert.throws(() => parseReleaseBuildManifest({
-    ...manifest,
-    sbom_asset: "example.zip",
-  }));
+  assert.throws(() =>
+    parseReleaseBuildManifest({
+      ...manifest,
+      sbom_asset: "example.zip",
+    })
+  );
 });

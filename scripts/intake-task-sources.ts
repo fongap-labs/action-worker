@@ -1,3 +1,4 @@
+import { parseTaskSourceManifest } from "./dispatch-scheduled-tasks.ts";
 import {
   GithubReader,
   getJsonString,
@@ -6,14 +7,7 @@ import {
   isJsonRecord,
 } from "./github-api.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
-import { parseTaskSourceManifest } from "./dispatch-scheduled-tasks.ts";
-import {
-  CliError,
-  handleError,
-  isMain,
-  parseJson,
-  runCommand,
-} from "./runtime-command.ts";
+import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 
 type GithubSource = {
   get(path: string): Promise<unknown>;
@@ -62,7 +56,7 @@ function taskState(value: unknown): "dispatch" | "in-flight" | "processed" {
 
 async function defaultHead(
   source: GithubSource,
-  repository: string,
+  repository: string
 ): Promise<{ head_sha: string; before_sha: string }> {
   const repo = await source.get(`repos/${repository}`);
   if (!isJsonRecord(repo)) {
@@ -101,10 +95,11 @@ export async function scanTaskSources(
   policyValue: unknown,
   source: GithubSource,
   dispatch: Dispatch,
-  excludedRepository = "",
+  excludedRepository = ""
 ): Promise<TaskIntakeResult> {
-  const repositories = repositoriesForCapability(policyValue, "task")
-    .filter((repository) => repository !== excludedRepository);
+  const repositories = repositoriesForCapability(policyValue, "task").filter(
+    (repository) => repository !== excludedRepository
+  );
   const result: TaskIntakeResult = {
     repositories: repositories.length,
     push_enabled: 0,
@@ -115,9 +110,8 @@ export async function scanTaskSources(
 
   for (const repository of repositories) {
     const facts = await defaultHead(source, repository);
-    const manifestPath =
-      `repos/${repository}/contents/.github/task-source.json?ref=${facts.head_sha}`;
-    if (!await source.exists(manifestPath)) {
+    const manifestPath = `repos/${repository}/contents/.github/task-source.json?ref=${facts.head_sha}`;
+    if (!(await source.exists(manifestPath))) {
       continue;
     }
 
@@ -125,17 +119,15 @@ export async function scanTaskSources(
       parseJson(
         decodeGithubContent(await source.get(manifestPath)),
         `Task source manifest must be valid JSON: ${repository}.`,
-        65,
-      ),
+        65
+      )
     );
     if (!manifest.push) {
       continue;
     }
     result.push_enabled += 1;
 
-    const status = await source.get(
-      `repos/${repository}/commits/${facts.head_sha}/status`,
-    );
+    const status = await source.get(`repos/${repository}/commits/${facts.head_sha}/status`);
     const state = taskState(status);
     if (state === "in-flight") {
       result.in_flight += 1;
@@ -158,7 +150,7 @@ async function dispatchTaskSource(
   token: string,
   repository: string,
   beforeSha: string,
-  headSha: string,
+  headSha: string
 ): Promise<void> {
   const safeRepository = repository.replace(/[^A-Za-z0-9_.-]/g, "-");
   const body = {
@@ -181,7 +173,7 @@ async function dispatchTaskSource(
       input: JSON.stringify(body),
       timeoutMs: 30_000,
       maxBuffer: 1024 * 1024,
-    },
+    }
   );
 }
 
@@ -194,7 +186,7 @@ async function main(): Promise<void> {
   if (!policyRaw || !controlToken || !ingressToken || !controlRepository) {
     throw new CliError(
       "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
-      64,
+      64
     );
   }
 
@@ -206,15 +198,9 @@ async function main(): Promise<void> {
       exists: async (path) => await githubExists(path, controlToken),
     },
     async (repository, beforeSha, headSha) => {
-      await dispatchTaskSource(
-        controlRepository,
-        ingressToken,
-        repository,
-        beforeSha,
-        headSha,
-      );
+      await dispatchTaskSource(controlRepository, ingressToken, repository, beforeSha, headSha);
     },
-    controlRepository,
+    controlRepository
   );
   console.log(JSON.stringify(result));
 }

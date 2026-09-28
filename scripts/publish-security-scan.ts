@@ -1,17 +1,8 @@
-import { gzipSync } from "node:zlib";
-import { readFile, readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  getGithubJson,
-  githubEnvironment,
-  isJsonRecord,
-} from "./github-api.ts";
-import {
-  CliError,
-  handleError,
-  isMain,
-  runText,
-} from "./runtime-command.ts";
+import { gzipSync } from "node:zlib";
+import { getGithubJson, githubEnvironment, isJsonRecord } from "./github-api.ts";
+import { CliError, handleError, isMain, runText } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -39,15 +30,16 @@ async function sleep(ms: number): Promise<void> {
 async function main(): Promise<void> {
   const [repository = "", sourceSha = "", ref = "", sarifRoot = ""] = process.argv.slice(2);
   const token = process.env.AW_ADMIN_TOKEN ?? "";
-  if (!repositoryPattern.test(repository)
-    || !shaPattern.test(sourceSha)
-    || !refPattern.test(ref)
-    || !sarifRoot
-    || !token
+  if (
+    !repositoryPattern.test(repository) ||
+    !shaPattern.test(sourceSha) ||
+    !refPattern.test(ref) ||
+    !sarifRoot ||
+    !token
   ) {
     throw new CliError(
       "Usage: publish-security-scan.ts <repository> <source-sha> <ref> <sarif-root> with AW_ADMIN_TOKEN.",
-      64,
+      64
     );
   }
 
@@ -74,7 +66,7 @@ async function main(): Promise<void> {
         input: JSON.stringify(payload),
         timeoutMs: 60_000,
         maxBuffer: 4 * 1024 * 1024,
-      },
+      }
     );
     const response = JSON.parse(responseText) as unknown;
     const id = stringField(response, "id");
@@ -84,10 +76,7 @@ async function main(): Promise<void> {
   for (const id of uploads) {
     let isCompleted = false;
     for (let attempt = 0; attempt < 20; attempt += 1) {
-      const status = await getGithubJson(
-        `repos/${repository}/code-scanning/sarifs/${id}`,
-        token,
-      );
+      const status = await getGithubJson(`repos/${repository}/code-scanning/sarifs/${id}`, token);
       const processing = stringField(status, "processing_status");
       if (processing === "complete") {
         isCompleted = true;

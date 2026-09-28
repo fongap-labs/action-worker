@@ -1,11 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { isJsonRecord } from "./github-api.ts";
-import {
-  CliError,
-  handleError,
-  isMain,
-  parseJson,
-} from "./runtime-command.ts";
+import { CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 export const executionOperations = [
   "ci",
@@ -17,7 +12,7 @@ export const executionOperations = [
   "scheduled",
 ] as const;
 
-export type ExecutionOperation = typeof executionOperations[number];
+export type ExecutionOperation = (typeof executionOperations)[number];
 
 export type ExecutionRequest = {
   schema_version: "1";
@@ -59,20 +54,27 @@ const artifactNamePattern = /^[A-Za-z0-9._-]{1,128}$/;
 const matrixKeyPattern = /^[a-z][a-z0-9_]*$/;
 const operationSet = new Set<string>(executionOperations);
 
-function exactKeys(value: Record<string, unknown>, allowed: readonly string[], required: readonly string[]): void {
+function exactKeys(
+  value: Record<string, unknown>,
+  allowed: readonly string[],
+  required: readonly string[]
+): void {
   const keys = Object.keys(value);
   const unknown = keys.filter((key) => !allowed.includes(key));
   const missing = required.filter((key) => !(key in value));
   if (unknown.length > 0 || missing.length > 0) {
     throw new CliError(
       `Execution contract keys are invalid: missing=${missing.join(",") || "none"} unknown=${unknown.join(",") || "none"}.`,
-      65,
+      65
     );
   }
 }
 
 function uniqueStrings(value: unknown, label: string, pattern?: RegExp): string[] {
-  if (!Array.isArray(value) || !value.every((item) => typeof item === "string" && item.length > 0)) {
+  if (
+    !Array.isArray(value) ||
+    !value.every((item) => typeof item === "string" && item.length > 0)
+  ) {
     throw new CliError(`${label} must be a string array.`, 65);
   }
   const items = value as string[];
@@ -102,13 +104,18 @@ export function parseExecutionRequest(value: unknown): ExecutionRequest {
   exactKeys(
     value,
     ["schema_version", "request_id", "repository", "source_sha", "operation"],
-    ["schema_version", "request_id", "repository", "source_sha", "operation"],
+    ["schema_version", "request_id", "repository", "source_sha", "operation"]
   );
-  if (value.schema_version !== "1"
-    || typeof value.request_id !== "string" || !requestPattern.test(value.request_id)
-    || typeof value.repository !== "string" || !repositoryPattern.test(value.repository)
-    || typeof value.source_sha !== "string" || !shaPattern.test(value.source_sha)
-    || typeof value.operation !== "string" || !operationSet.has(value.operation)
+  if (
+    value.schema_version !== "1" ||
+    typeof value.request_id !== "string" ||
+    !requestPattern.test(value.request_id) ||
+    typeof value.repository !== "string" ||
+    !repositoryPattern.test(value.repository) ||
+    typeof value.source_sha !== "string" ||
+    !shaPattern.test(value.source_sha) ||
+    typeof value.operation !== "string" ||
+    !operationSet.has(value.operation)
   ) {
     throw new CliError("Execution Request does not match contracts/execution-request.json.", 65);
   }
@@ -120,9 +127,13 @@ function parseArtifact(value: unknown): ExecutionArtifact {
     throw new CliError("Execution artifact must be an object.", 65);
   }
   exactKeys(value, ["name", "path", "required"], ["name", "path"]);
-  if (typeof value.name !== "string" || !artifactNamePattern.test(value.name)
-    || typeof value.path !== "string" || value.path.length > 512 || !isSafeRelativePath(value.path)
-    || (value.required !== undefined && typeof value.required !== "boolean")
+  if (
+    typeof value.name !== "string" ||
+    !artifactNamePattern.test(value.name) ||
+    typeof value.path !== "string" ||
+    value.path.length > 512 ||
+    !isSafeRelativePath(value.path) ||
+    (value.required !== undefined && typeof value.required !== "boolean")
   ) {
     throw new CliError("Execution artifact is invalid.", 65);
   }
@@ -168,21 +179,25 @@ function parseJob(value: unknown): ExecutionJob {
       "matrix",
       "artifacts",
     ],
-    ["id", "runner_profile", "command", "timeout_minutes", "capability_requests"],
+    ["id", "runner_profile", "command", "timeout_minutes", "capability_requests"]
   );
 
-  if (typeof value.id !== "string" || !idPattern.test(value.id)
-    || typeof value.runner_profile !== "string" || !idPattern.test(value.runner_profile)
-    || !Number.isInteger(value.timeout_minutes)
-    || Number(value.timeout_minutes) < 1
-    || Number(value.timeout_minutes) > 360
+  if (
+    typeof value.id !== "string" ||
+    !idPattern.test(value.id) ||
+    typeof value.runner_profile !== "string" ||
+    !idPattern.test(value.runner_profile) ||
+    !Number.isInteger(value.timeout_minutes) ||
+    Number(value.timeout_minutes) < 1 ||
+    Number(value.timeout_minutes) > 360
   ) {
     throw new CliError("Execution job identity, runner profile, or timeout is invalid.", 65);
   }
 
-  if (!Array.isArray(value.command)
-    || value.command.length < 1
-    || !value.command.every((item) => typeof item === "string" && item.length > 0)
+  if (
+    !Array.isArray(value.command) ||
+    value.command.length < 1 ||
+    !value.command.every((item) => typeof item === "string" && item.length > 0)
   ) {
     throw new CliError(`Execution command is invalid: ${value.id}.`, 65);
   }
@@ -192,15 +207,19 @@ function parseJob(value: unknown): ExecutionJob {
   }
 
   const workingDirectory = value.working_directory;
-  if (workingDirectory !== undefined
-    && (typeof workingDirectory !== "string" || workingDirectory.length > 512 || !isSafeRelativePath(workingDirectory))
+  if (
+    workingDirectory !== undefined &&
+    (typeof workingDirectory !== "string" ||
+      workingDirectory.length > 512 ||
+      !isSafeRelativePath(workingDirectory))
   ) {
     throw new CliError(`Execution working directory is unsafe: ${value.id}.`, 65);
   }
 
-  const dependsOn = value.depends_on === undefined
-    ? []
-    : uniqueStrings(value.depends_on, `job.${value.id}.depends_on`, idPattern);
+  const dependsOn =
+    value.depends_on === undefined
+      ? []
+      : uniqueStrings(value.depends_on, `job.${value.id}.depends_on`, idPattern);
   if (dependsOn.length > 32 || dependsOn.includes(value.id)) {
     throw new CliError(`Execution dependencies are invalid: ${value.id}.`, 65);
   }
@@ -208,24 +227,25 @@ function parseJob(value: unknown): ExecutionJob {
   const capabilities = uniqueStrings(
     value.capability_requests,
     `job.${value.id}.capability_requests`,
-    capabilityPattern,
+    capabilityPattern
   );
   if (capabilities.length > 32) {
     throw new CliError(`Execution capability request is too large: ${value.id}.`, 65);
   }
 
-  const artifacts = value.artifacts === undefined
-    ? []
-    : (() => {
-      if (!Array.isArray(value.artifacts) || value.artifacts.length > 32) {
-        throw new CliError(`Execution artifacts are invalid: ${value.id}.`, 65);
-      }
-      const parsed = value.artifacts.map(parseArtifact);
-      if (new Set(parsed.map((item) => item.name)).size !== parsed.length) {
-        throw new CliError(`Execution artifact names must be unique: ${value.id}.`, 65);
-      }
-      return parsed;
-    })();
+  const artifacts =
+    value.artifacts === undefined
+      ? []
+      : (() => {
+          if (!Array.isArray(value.artifacts) || value.artifacts.length > 32) {
+            throw new CliError(`Execution artifacts are invalid: ${value.id}.`, 65);
+          }
+          const parsed = value.artifacts.map(parseArtifact);
+          if (new Set(parsed.map((item) => item.name)).size !== parsed.length) {
+            throw new CliError(`Execution artifact names must be unique: ${value.id}.`, 65);
+          }
+          return parsed;
+        })();
 
   return {
     id: value.id,
@@ -304,7 +324,7 @@ export function parseExecutionManifest(value: unknown): ExecutionManifest {
 
 export function jobsForOperation(
   manifest: ExecutionManifest,
-  operation: ExecutionOperation,
+  operation: ExecutionOperation
 ): ExecutionJob[] {
   const entry = manifest.operations[operation];
   if (!entry) {
@@ -316,7 +336,9 @@ export function jobsForOperation(
 async function main(): Promise<void> {
   const [command, input = "", operation = ""] = process.argv.slice(2);
   if (command === "request") {
-    const request = parseExecutionRequest(parseJson(input, "Execution Request is not valid JSON.", 64));
+    const request = parseExecutionRequest(
+      parseJson(input, "Execution Request is not valid JSON.", 64)
+    );
     console.log(JSON.stringify(request));
     return;
   }

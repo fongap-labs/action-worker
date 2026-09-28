@@ -5,12 +5,7 @@ import {
   getJsonString,
   isJsonRecord,
 } from "./github-api.ts";
-import {
-  CliError,
-  handleError,
-  isMain,
-  readJson,
-} from "./runtime-command.ts";
+import { CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 
 function sleep(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -19,7 +14,10 @@ function sleep(delayMs: number): Promise<void> {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length !== 4) {
-    throw new CliError("Usage: wait-review-turn.ts <repository> <workflow-file> <run-id> <policy-file>", 64);
+    throw new CliError(
+      "Usage: wait-review-turn.ts <repository> <workflow-file> <run-id> <policy-file>",
+      64
+    );
   }
   const [repository = "", workflow = "", runId = "", policyPath = ""] = args;
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
@@ -45,14 +43,28 @@ async function main(): Promise<void> {
   const deadline = Date.now() + waitMinutes * 60_000;
   let lastOwner = "";
   while (Date.now() < deadline) {
-    const response = await getGithubJson(`repos/${repository}/actions/workflows/${workflow}/runs?per_page=100`, token);
+    const response = await getGithubJson(
+      `repos/${repository}/actions/workflows/${workflow}/runs?per_page=100`,
+      token
+    );
     const active = getJsonArray(response, "workflow_runs")
-      .filter((item) => isJsonRecord(item) && ["queued", "in_progress"].includes(getJsonString(item, "status")))
+      .filter(
+        (item) =>
+          isJsonRecord(item) && ["queued", "in_progress"].includes(getJsonString(item, "status"))
+      )
       .sort((left, right) => {
-        const leftDate = isJsonRecord(left) ? getJsonString(left, "run_started_at") || getJsonString(left, "created_at") : "";
-        const rightDate = isJsonRecord(right) ? getJsonString(right, "run_started_at") || getJsonString(right, "created_at") : "";
+        const leftDate = isJsonRecord(left)
+          ? getJsonString(left, "run_started_at") || getJsonString(left, "created_at")
+          : "";
+        const rightDate = isJsonRecord(right)
+          ? getJsonString(right, "run_started_at") || getJsonString(right, "created_at")
+          : "";
         const dateOrder = leftDate.localeCompare(rightDate);
-        return dateOrder || (isJsonRecord(left) ? getJsonNumber(left, "id") : 0) - (isJsonRecord(right) ? getJsonNumber(right, "id") : 0);
+        return (
+          dateOrder ||
+          (isJsonRecord(left) ? getJsonNumber(left, "id") : 0) -
+            (isJsonRecord(right) ? getJsonNumber(right, "id") : 0)
+        );
       });
     const owner = isJsonRecord(active[0]) ? String(getJsonNumber(active[0], "id")) : "";
     if (!owner || owner === runId) {

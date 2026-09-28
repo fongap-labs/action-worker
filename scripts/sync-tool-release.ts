@@ -9,13 +9,7 @@ import {
   githubExists,
   isJsonRecord,
 } from "./github-api.ts";
-import {
-  CliError,
-  appendLines,
-  handleError,
-  isMain,
-  readJson,
-} from "./runtime-command.ts";
+import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 
 type ToolMetadata = {
   schema_version: "1";
@@ -33,7 +27,9 @@ type ToolMetadata = {
 function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
   const actual = Object.keys(value).sort();
   const expected = [...keys].sort();
-  return actual.length === expected.length && actual.every((item, index) => item === expected[index]);
+  return (
+    actual.length === expected.length && actual.every((item, index) => item === expected[index])
+  );
 }
 
 export function parseToolMetadata(value: unknown): ToolMetadata {
@@ -49,19 +45,28 @@ export function parseToolMetadata(value: unknown): ToolMetadata {
     "source_repository",
     "upstream_asset",
   ] as const;
-  if (!isJsonRecord(value)
-    || !exactKeys(value, keys)
-    || value.schema_version !== "1"
-    || value.release_channel !== "stable"
-    || typeof value.release_key !== "string" || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.release_key)
-    || typeof value.source_repository !== "string" || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value.source_repository)
-    || typeof value.platform !== "string" || !/^[a-z0-9][a-z0-9-]*$/.test(value.platform)
-    || typeof value.arch !== "string" || !/^[a-z0-9][a-z0-9-]*$/.test(value.arch)
-    || typeof value.upstream_asset !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value.upstream_asset)
-    || typeof value.checksum_asset !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value.checksum_asset)
-    || typeof value.license_path !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(value.license_path)
-    || value.license_path.includes("..")
-    || typeof value.license_expression !== "string" || !/^[A-Za-z0-9][A-Za-z0-9.+() -]*$/.test(value.license_expression)
+  if (
+    !isJsonRecord(value) ||
+    !exactKeys(value, keys) ||
+    value.schema_version !== "1" ||
+    value.release_channel !== "stable" ||
+    typeof value.release_key !== "string" ||
+    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.release_key) ||
+    typeof value.source_repository !== "string" ||
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value.source_repository) ||
+    typeof value.platform !== "string" ||
+    !/^[a-z0-9][a-z0-9-]*$/.test(value.platform) ||
+    typeof value.arch !== "string" ||
+    !/^[a-z0-9][a-z0-9-]*$/.test(value.arch) ||
+    typeof value.upstream_asset !== "string" ||
+    !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value.upstream_asset) ||
+    typeof value.checksum_asset !== "string" ||
+    !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value.checksum_asset) ||
+    typeof value.license_path !== "string" ||
+    !/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(value.license_path) ||
+    value.license_path.includes("..") ||
+    typeof value.license_expression !== "string" ||
+    !/^[A-Za-z0-9][A-Za-z0-9.+() -]*$/.test(value.license_expression)
   ) {
     throw new CliError("tool distribution metadata is invalid.", 65);
   }
@@ -92,10 +97,7 @@ export function checksumForAsset(text: string, asset: string): string {
 }
 
 function decodeGithubContent(value: unknown): string {
-  if (!isJsonRecord(value)
-    || value.encoding !== "base64"
-    || typeof value.content !== "string"
-  ) {
+  if (!isJsonRecord(value) || value.encoding !== "base64" || typeof value.content !== "string") {
     throw new CliError("GitHub contents response is invalid.", 65);
   }
   return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
@@ -105,10 +107,10 @@ async function repositoryJson(
   reader: GithubReader,
   repository: string,
   path: string,
-  ref: string,
+  ref: string
 ): Promise<unknown> {
   const response = await reader.get(
-    `repos/${repository}/contents/${path}?ref=${encodeURIComponent(ref)}`,
+    `repos/${repository}/contents/${path}?ref=${encodeURIComponent(ref)}`
   );
   try {
     return JSON.parse(decodeGithubContent(response)) as unknown;
@@ -162,9 +164,11 @@ async function main(): Promise<void> {
   const apiUrl = process.env.GITHUB_API_URL ?? "https://api.github.com";
   const artifactRepository = process.env.GITHUB_REPOSITORY ?? "";
   const artifactRunId = Number(process.env.GITHUB_RUN_ID ?? "");
-  if (!controlToken
-    || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(artifactRepository)
-    || !Number.isInteger(artifactRunId) || artifactRunId < 1
+  if (
+    !controlToken ||
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(artifactRepository) ||
+    !Number.isInteger(artifactRunId) ||
+    artifactRunId < 1
   ) {
     throw new CliError("Tool sync runtime identity is invalid.", 77);
   }
@@ -173,8 +177,9 @@ async function main(): Promise<void> {
   const engine = isJsonRecord(policy) && isJsonRecord(policy.engine) ? policy.engine : {};
   const distributionRepository = getJsonString(engine, "repository");
   const toolKey = getJsonString(engine, "name");
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(distributionRepository)
-    || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(toolKey)
+  if (
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(distributionRepository) ||
+    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(toolKey)
   ) {
     throw new CliError("Review engine catalog location is invalid.", 65);
   }
@@ -190,7 +195,7 @@ async function main(): Promise<void> {
 
   const status = await reader.get(`repos/${distributionRepository}/commits/${sourceSha}/status`);
   const ciEvidence = getJsonArray(status, "statuses").find(
-    (item) => isJsonRecord(item) && getJsonString(item, "context") === "CI Evidence",
+    (item) => isJsonRecord(item) && getJsonString(item, "context") === "CI Evidence"
   );
   if (!isJsonRecord(ciEvidence) || getJsonString(ciEvidence, "state") !== "success") {
     await appendLines(process.env.GITHUB_OUTPUT, [
@@ -207,7 +212,12 @@ async function main(): Promise<void> {
     return;
   }
 
-  const catalog = await repositoryJson(reader, distributionRepository, "tools/catalog.json", sourceSha);
+  const catalog = await repositoryJson(
+    reader,
+    distributionRepository,
+    "tools/catalog.json",
+    sourceSha
+  );
   const tools = getJsonArray(catalog, "tools");
   const entry = tools.find((item) => isJsonRecord(item) && getJsonString(item, "key") === toolKey);
   if (!isJsonRecord(entry)) {
@@ -220,7 +230,7 @@ async function main(): Promise<void> {
   }
 
   const metadata = parseToolMetadata(
-    await repositoryJson(reader, distributionRepository, metadataPath, sourceSha),
+    await repositoryJson(reader, distributionRepository, metadataPath, sourceSha)
   );
   if (metadata.source_repository !== catalogSource) {
     throw new CliError("Tool catalog and metadata source repositories disagree.", 65);
@@ -233,10 +243,9 @@ async function main(): Promise<void> {
   const targetTag = `${metadata.release_key}-v${version}`;
   const artifactName = `${metadata.release_key}-release`;
 
-  if (await githubExists(
-    `repos/${distributionRepository}/releases/tags/${targetTag}`,
-    controlToken,
-  )) {
+  if (
+    await githubExists(`repos/${distributionRepository}/releases/tags/${targetTag}`, controlToken)
+  ) {
     await appendLines(process.env.GITHUB_OUTPUT, [
       "publish=false",
       `source_repository=${distributionRepository}`,
@@ -255,10 +264,10 @@ async function main(): Promise<void> {
 
   const assets = getJsonArray(release, "assets");
   const upstreamAsset = assets.find(
-    (item) => isJsonRecord(item) && getJsonString(item, "name") === metadata.upstream_asset,
+    (item) => isJsonRecord(item) && getJsonString(item, "name") === metadata.upstream_asset
   );
   const checksumAsset = assets.find(
-    (item) => isJsonRecord(item) && getJsonString(item, "name") === metadata.checksum_asset,
+    (item) => isJsonRecord(item) && getJsonString(item, "name") === metadata.checksum_asset
   );
   if (!isJsonRecord(upstreamAsset) || !isJsonRecord(checksumAsset)) {
     throw new CliError(`${upstreamTag} is missing required distribution assets.`, 66);
@@ -283,12 +292,12 @@ async function main(): Promise<void> {
   await downloadFile(checksumUrl, checksumPath);
   await downloadFile(
     `https://raw.githubusercontent.com/${metadata.source_repository}/${upstreamTag}/${metadata.license_path}`,
-    licensePath,
+    licensePath
   );
 
   const expectedChecksum = checksumForAsset(
     await readFile(checksumPath, "utf8"),
-    metadata.upstream_asset,
+    metadata.upstream_asset
   );
   const actualChecksum = await sha256File(assetPath);
   if (actualChecksum !== expectedChecksum) {
@@ -328,12 +337,12 @@ async function main(): Promise<void> {
   await writeFile(
     join(artifactDir, "release-manifest.json"),
     `${JSON.stringify(manifest, null, 2)}\n`,
-    "utf8",
+    "utf8"
   );
   await writeFile(
     join(artifactDir, "release-provenance.json"),
     `${JSON.stringify(provenance, null, 2)}\n`,
-    "utf8",
+    "utf8"
   );
 
   await appendLines(process.env.GITHUB_OUTPUT, [

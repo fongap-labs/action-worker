@@ -23,7 +23,7 @@ type CommandOptions = {
 export async function runCommand(
   command: string,
   args: readonly string[],
-  options: CommandOptions = {},
+  options: CommandOptions = {}
 ): Promise<Buffer> {
   return await new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -51,12 +51,13 @@ export async function runCommand(
         resolve(output ?? Buffer.alloc(0));
       }
     };
-    const timer = options.timeoutMs === undefined
-      ? undefined
-      : setTimeout(() => {
-        child.kill();
-        finish(new CliError(`${command} timed out after ${options.timeoutMs} ms.`, 124));
-      }, options.timeoutMs);
+    const timer =
+      options.timeoutMs === undefined
+        ? undefined
+        : setTimeout(() => {
+            child.kill();
+            finish(new CliError(`${command} timed out after ${options.timeoutMs} ms.`, 124));
+          }, options.timeoutMs);
 
     child.stdout!.on("data", (chunk: Buffer) => {
       size += chunk.length;
@@ -98,7 +99,7 @@ export async function runCommand(
 export async function runText(
   command: string,
   args: readonly string[],
-  options: CommandOptions = {},
+  options: CommandOptions = {}
 ): Promise<string> {
   return (await runCommand(command, args, options)).toString("utf8").trimEnd();
 }
@@ -115,7 +116,10 @@ export function parseJson(value: string, message: string, exitCode = 65): unknow
   }
 }
 
-export async function appendLines(path: string | undefined, lines: readonly string[]): Promise<void> {
+export async function appendLines(
+  path: string | undefined,
+  lines: readonly string[]
+): Promise<void> {
   if (!path) {
     return;
   }

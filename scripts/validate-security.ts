@@ -1,13 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  CliError,
-  handleError,
-  isMain,
-  readJson,
-  runText,
-} from "./runtime-command.ts";
 import { isJsonRecord } from "./github-api.ts";
+import { CliError, handleError, isMain, readJson, runText } from "./runtime-command.ts";
 
 type NamedPattern = {
   name: string;
@@ -49,7 +43,11 @@ function namedPatterns(value: unknown, label: string): NamedPattern[] {
 }
 
 function parsePolicy(value: unknown): SecurityPolicy {
-  if (!isJsonRecord(value) || value.schema_version !== 2 || typeof value.require_pinned_actions !== "boolean") {
+  if (
+    !isJsonRecord(value) ||
+    value.schema_version !== 2 ||
+    typeof value.require_pinned_actions !== "boolean"
+  ) {
     throw new CliError("::error::Invalid security policy.", 65);
   }
   return {
@@ -57,7 +55,10 @@ function parsePolicy(value: unknown): SecurityPolicy {
     path_allow_patterns: stringArray(value.path_allow_patterns, "path_allow_patterns"),
     forbidden_path_patterns: stringArray(value.forbidden_path_patterns, "forbidden_path_patterns"),
     secret_patterns: namedPatterns(value.secret_patterns, "secret_patterns"),
-    workflow_forbidden_patterns: namedPatterns(value.workflow_forbidden_patterns, "workflow_forbidden_patterns"),
+    workflow_forbidden_patterns: namedPatterns(
+      value.workflow_forbidden_patterns,
+      "workflow_forbidden_patterns"
+    ),
     require_pinned_actions: value.require_pinned_actions,
   };
 }
@@ -92,7 +93,10 @@ function scanPinnedActions(path: string, content: string): SecurityViolation[] {
   return violations;
 }
 
-function scanAddedLines(diff: string, patterns: Array<{ name: string; regex: RegExp }>): SecurityViolation[] {
+function scanAddedLines(
+  diff: string,
+  patterns: Array<{ name: string; regex: RegExp }>
+): SecurityViolation[] {
   const violations: SecurityViolation[] = [];
   let path = "";
   let lineNumber = 0;
@@ -128,7 +132,7 @@ export async function collectSecurityViolations(
   root: string,
   base: string,
   head: string,
-  policyPath: string,
+  policyPath: string
 ): Promise<SecurityViolation[]> {
   if (!/^[0-9a-f]{40}$/i.test(base) || !/^[0-9a-f]{40}$/i.test(head)) {
     throw new CliError("::error::Security scan requires full base and head commit SHAs.", 64);
@@ -137,11 +141,24 @@ export async function collectSecurityViolations(
   const policy = parsePolicy(await readJson(policyPath));
   const allowPaths = policy.path_allow_patterns.map((pattern) => compile(pattern));
   const forbiddenPaths = policy.forbidden_path_patterns.map((pattern) => compile(pattern));
-  const secretPatterns = policy.secret_patterns.map(({ name, pattern }) => ({ name, regex: compile(pattern) }));
-  const workflowPatterns = policy.workflow_forbidden_patterns.map(({ name, pattern }) => ({ name, regex: compile(pattern, "m") }));
+  const secretPatterns = policy.secret_patterns.map(({ name, pattern }) => ({
+    name,
+    regex: compile(pattern),
+  }));
+  const workflowPatterns = policy.workflow_forbidden_patterns.map(({ name, pattern }) => ({
+    name,
+    regex: compile(pattern, "m"),
+  }));
 
-  const names = await runText("git", ["diff", "--name-only", "--diff-filter=ACMR", base, head, "--"], { cwd: root });
-  const changed = names.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
+  const names = await runText(
+    "git",
+    ["diff", "--name-only", "--diff-filter=ACMR", base, head, "--"],
+    { cwd: root }
+  );
+  const changed = names
+    .split(/\r?\n/)
+    .map((item) => item.trim())
+    .filter(Boolean);
   const violations: SecurityViolation[] = [];
 
   for (const path of changed) {
@@ -167,7 +184,7 @@ export async function collectSecurityViolations(
   const diff = await runText(
     "git",
     ["diff", "--unified=0", "--no-color", "--no-ext-diff", base, head, "--"],
-    { cwd: root, maxBuffer: 64 * 1024 * 1024 },
+    { cwd: root, maxBuffer: 64 * 1024 * 1024 }
   );
   violations.push(...scanAddedLines(diff, secretPatterns));
 
@@ -175,23 +192,30 @@ export async function collectSecurityViolations(
   for (const violation of violations) {
     unique.set(`${violation.rule}\0${violation.path}\0${violation.line ?? 0}`, violation);
   }
-  return [...unique.values()].sort((left, right) =>
-    left.path.localeCompare(right.path, "en")
-    || (left.line ?? 0) - (right.line ?? 0)
-    || left.rule.localeCompare(right.rule, "en"));
+  return [...unique.values()].sort(
+    (left, right) =>
+      left.path.localeCompare(right.path, "en") ||
+      (left.line ?? 0) - (right.line ?? 0) ||
+      left.rule.localeCompare(right.rule, "en")
+  );
 }
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length !== 4) {
-    throw new CliError("Usage: validate-security.ts <base-sha> <head-sha> <repository-path> <policy-path>", 64);
+    throw new CliError(
+      "Usage: validate-security.ts <base-sha> <head-sha> <repository-path> <policy-path>",
+      64
+    );
   }
   const [base = "", head = "", root = "", policyPath = ""] = args;
   const violations = await collectSecurityViolations(root, base, head, policyPath);
   if (violations.length > 0) {
     for (const violation of violations) {
       const location = violation.line ? `${violation.path}:${violation.line}` : violation.path;
-      console.error(`::error file=${violation.path}${violation.line ? `,line=${violation.line}` : ""}::Security gate violation [${violation.rule}] at ${location}. Sensitive content is intentionally not echoed.`);
+      console.error(
+        `::error file=${violation.path}${violation.line ? `,line=${violation.line}` : ""}::Security gate violation [${violation.rule}] at ${location}. Sensitive content is intentionally not echoed.`
+      );
     }
     throw new CliError(`::error::Security gate failed with ${violations.length} violation(s).`, 1);
   }

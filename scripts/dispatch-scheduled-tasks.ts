@@ -1,18 +1,7 @@
 import { createHash } from "node:crypto";
-import {
-  getGithubJson,
-  githubEnvironment,
-  githubExists,
-  isJsonRecord,
-} from "./github-api.ts";
+import { getGithubJson, githubEnvironment, githubExists, isJsonRecord } from "./github-api.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
-import {
-  CliError,
-  handleError,
-  isMain,
-  parseJson,
-  runCommand,
-} from "./runtime-command.ts";
+import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 
 export type TaskSourceManifest = {
   schema_version: "1";
@@ -41,7 +30,11 @@ const projectPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const cronPattern = /^[0-9*/,?\- ]{1,128}$/;
 const scheduleContextPrefix = "Task Schedule/";
 
-function exactKeys(value: Record<string, unknown>, expected: readonly string[], label: string): void {
+function exactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+  label: string
+): void {
   const actual = Object.keys(value).sort();
   const wanted = [...expected].sort();
   if (actual.length !== wanted.length || actual.some((item, index) => item !== wanted[index])) {
@@ -76,7 +69,7 @@ function fieldValues(
   min: number,
   max: number,
   label: string,
-  isSundaySevenAllowed = false,
+  isSundaySevenAllowed = false
 ): Set<number> {
   if (!field || !cronPattern.test(field)) {
     throw new CliError(`Task source cron ${label} is invalid.`, 65);
@@ -92,9 +85,8 @@ function fieldValues(
       throw new CliError(`Task source cron ${label} step is invalid.`, 65);
     }
     const base = segments[0]!;
-    const step = segments.length === 2
-      ? parseInteger(segments[1]!, 1, max - min + 1, `${label} step`)
-      : 1;
+    const step =
+      segments.length === 2 ? parseInteger(segments[1]!, 1, max - min + 1, `${label} step`) : 1;
 
     let start = min;
     let end = max;
@@ -152,9 +144,10 @@ export function cronMatches(date: Date, cron: string): boolean {
     throw new CliError("Task source schedule time is invalid.", 64);
   }
   const parsed = parseCron(cron);
-  if (!parsed.minute.has(date.getUTCMinutes())
-    || !parsed.hour.has(date.getUTCHours())
-    || !parsed.month.has(date.getUTCMonth() + 1)
+  if (
+    !parsed.minute.has(date.getUTCMinutes()) ||
+    !parsed.hour.has(date.getUTCHours()) ||
+    !parsed.month.has(date.getUTCMonth() + 1)
   ) {
     return false;
   }
@@ -183,7 +176,7 @@ function slotKey(value: Date): string {
 export function projectsDueAt(
   manifest: TaskSourceManifest,
   now: Date,
-  lookbackMinutes = 20,
+  lookbackMinutes = 20
 ): DueProject[] {
   if (!Number.isInteger(lookbackMinutes) || lookbackMinutes < 1 || lookbackMinutes > 60) {
     throw new CliError("Task source lookback must be between 1 and 60 minutes.", 64);
@@ -224,13 +217,14 @@ export function parseTaskSourceManifest(value: unknown): TaskSourceManifest {
   }
   const allowed = new Set(["schema_version", "push", "schedules"]);
   const keys = Object.keys(value);
-  if (keys.some((key) => !allowed.has(key))
-    || !("schema_version" in value)
-    || !("schedules" in value)
-    || value.schema_version !== "1"
-    || (value.push !== undefined && typeof value.push !== "boolean")
-    || !Array.isArray(value.schedules)
-    || value.schedules.length > 32
+  if (
+    keys.some((key) => !allowed.has(key)) ||
+    !("schema_version" in value) ||
+    !("schedules" in value) ||
+    value.schema_version !== "1" ||
+    (value.push !== undefined && typeof value.push !== "boolean") ||
+    !Array.isArray(value.schedules) ||
+    value.schedules.length > 32
   ) {
     throw new CliError("Task source manifest is invalid.", 65);
   }
@@ -240,12 +234,14 @@ export function parseTaskSourceManifest(value: unknown): TaskSourceManifest {
       throw new CliError("Task source schedule must be an object.", 65);
     }
     exactKeys(raw, ["cron", "projects"], "Task source schedule");
-    if (typeof raw.cron !== "string" || !cronPattern.test(raw.cron)
-      || !Array.isArray(raw.projects)
-      || raw.projects.length < 1
-      || raw.projects.length > 64
-      || !raw.projects.every((item) => typeof item === "string" && projectPattern.test(item))
-      || new Set(raw.projects).size !== raw.projects.length
+    if (
+      typeof raw.cron !== "string" ||
+      !cronPattern.test(raw.cron) ||
+      !Array.isArray(raw.projects) ||
+      raw.projects.length < 1 ||
+      raw.projects.length > 64 ||
+      !raw.projects.every((item) => typeof item === "string" && projectPattern.test(item)) ||
+      new Set(raw.projects).size !== raw.projects.length
     ) {
       throw new CliError("Task source schedule is invalid.", 65);
     }
@@ -261,11 +257,11 @@ export function parseTaskSourceManifest(value: unknown): TaskSourceManifest {
 
 export function projectsForSchedule(manifest: TaskSourceManifest, cron: string): string[] {
   parseCron(cron);
-  return [...new Set(
-    manifest.schedules
-      .filter((entry) => entry.cron === cron)
-      .flatMap((entry) => entry.projects),
-  )].sort();
+  return [
+    ...new Set(
+      manifest.schedules.filter((entry) => entry.cron === cron).flatMap((entry) => entry.projects)
+    ),
+  ].sort();
 }
 
 async function defaultHead(repository: string, token: string): Promise<string> {
@@ -273,14 +269,17 @@ async function defaultHead(repository: string, token: string): Promise<string> {
   if (!isJsonRecord(repositoryValue)) {
     throw new CliError(`GitHub repository response is invalid: ${repository}.`, 65);
   }
-  const defaultBranch = typeof repositoryValue.default_branch === "string"
-    ? repositoryValue.default_branch
-    : "";
+  const defaultBranch =
+    typeof repositoryValue.default_branch === "string" ? repositoryValue.default_branch : "";
   if (!defaultBranch) {
     throw new CliError(`Repository default branch is unavailable: ${repository}.`, 65);
   }
   const commitValue = await getGithubJson(`repos/${repository}/commits/${defaultBranch}`, token);
-  if (!isJsonRecord(commitValue) || typeof commitValue.sha !== "string" || !shaPattern.test(commitValue.sha)) {
+  if (
+    !isJsonRecord(commitValue) ||
+    typeof commitValue.sha !== "string" ||
+    !shaPattern.test(commitValue.sha)
+  ) {
     throw new CliError(`Repository default head SHA is invalid: ${repository}.`, 65);
   }
   return commitValue.sha;
@@ -291,7 +290,7 @@ export async function resolveScheduledTasks(
   now: Date,
   lookbackMinutes: number,
   controlRepository: string,
-  token: string,
+  token: string
 ): Promise<ScheduledTask[]> {
   if (!repositoryPattern.test(controlRepository)) {
     throw new CliError("Control repository is invalid.", 64);
@@ -301,28 +300,29 @@ export async function resolveScheduledTasks(
   }
 
   const tasks: ScheduledTask[] = [];
-  const repositories = repositoriesForCapability(policyValue, "task")
-    .filter((repository) => repository !== controlRepository);
+  const repositories = repositoriesForCapability(policyValue, "task").filter(
+    (repository) => repository !== controlRepository
+  );
 
   for (const repository of repositories) {
     const headSha = await defaultHead(repository, token);
     const manifestPath = `repos/${repository}/contents/.github/task-source.json?ref=${headSha}`;
-    if (!await githubExists(manifestPath, token)) {
+    if (!(await githubExists(manifestPath, token))) {
       continue;
     }
     const manifest = parseTaskSourceManifest(
       parseJson(
         decodeGithubContent(await getGithubJson(manifestPath, token)),
         `Task source manifest must be valid JSON: ${repository}.`,
-        65,
-      ),
+        65
+      )
     );
     for (const due of projectsDueAt(manifest, now, lookbackMinutes)) {
       const taskPath = `repos/${repository}/contents/projects/${encodeURIComponent(due.project)}/task.json?ref=${headSha}`;
-      if (!await githubExists(taskPath, token)) {
+      if (!(await githubExists(taskPath, token))) {
         throw new CliError(
           `Scheduled project is missing task.json: ${repository}/projects/${due.project}/task.json.`,
-          66,
+          66
         );
       }
       tasks.push({
@@ -334,10 +334,11 @@ export async function resolveScheduledTasks(
     }
   }
 
-  return tasks.sort((left, right) =>
-    left.repository.localeCompare(right.repository)
-    || left.project.localeCompare(right.project)
-    || left.slot.localeCompare(right.slot)
+  return tasks.sort(
+    (left, right) =>
+      left.repository.localeCompare(right.repository) ||
+      left.project.localeCompare(right.project) ||
+      left.slot.localeCompare(right.slot)
   );
 }
 
@@ -352,19 +353,20 @@ function scheduleDescription(slot: string): string {
 async function wasDispatched(task: ScheduledTask, token: string): Promise<boolean> {
   const value = await getGithubJson(
     `repos/${task.repository}/commits/${task.head_sha}/status`,
-    token,
+    token
   );
   if (!isJsonRecord(value) || !Array.isArray(value.statuses)) {
     throw new CliError(`GitHub task schedule status is invalid: ${task.repository}.`, 65);
   }
   const context = scheduleContext(task.project);
   const description = scheduleDescription(task.slot);
-  return value.statuses.some((item) => (
-    isJsonRecord(item)
-    && item.context === context
-    && item.state === "success"
-    && item.description === description
-  ));
+  return value.statuses.some(
+    (item) =>
+      isJsonRecord(item) &&
+      item.context === context &&
+      item.state === "success" &&
+      item.description === description
+  );
 }
 
 async function markDispatched(task: ScheduledTask, token: string): Promise<void> {
@@ -372,26 +374,34 @@ async function markDispatched(task: ScheduledTask, token: string): Promise<void>
     state: "success",
     context: scheduleContext(task.project),
     description: scheduleDescription(task.slot),
-    target_url: process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
-      ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
-      : undefined,
+    target_url:
+      process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
+        ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+        : undefined,
   });
   await runCommand(
     "gh",
-    ["api", "--method", "POST", `repos/${task.repository}/statuses/${task.head_sha}`, "--input", "-"],
+    [
+      "api",
+      "--method",
+      "POST",
+      `repos/${task.repository}/statuses/${task.head_sha}`,
+      "--input",
+      "-",
+    ],
     {
       env: githubEnvironment(token),
       input: payload,
       timeoutMs: 30_000,
       maxBuffer: 1024 * 1024,
-    },
+    }
   );
 }
 
 async function dispatchTask(
   controlRepository: string,
   token: string,
-  task: ScheduledTask,
+  task: ScheduledTask
 ): Promise<void> {
   const identity = createHash("sha256")
     .update(`${task.repository}\n${task.project}\n${task.slot}\n${task.head_sha}`)
@@ -415,7 +425,7 @@ async function dispatchTask(
       input: JSON.stringify(body),
       timeoutMs: 30_000,
       maxBuffer: 1024 * 1024,
-    },
+    }
   );
 }
 
@@ -432,13 +442,14 @@ async function main(): Promise<void> {
   if (!policyRaw || !controlToken || !ingressToken || !controlRepository) {
     throw new CliError(
       "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
-      64,
+      64
     );
   }
-  if (Number.isNaN(now.getTime())
-    || !Number.isInteger(lookbackMinutes)
-    || lookbackMinutes < 1
-    || lookbackMinutes > 60
+  if (
+    Number.isNaN(now.getTime()) ||
+    !Number.isInteger(lookbackMinutes) ||
+    lookbackMinutes < 1 ||
+    lookbackMinutes > 60
   ) {
     throw new CliError("Task scheduler time or lookback is invalid.", 64);
   }
@@ -448,7 +459,7 @@ async function main(): Promise<void> {
     now,
     lookbackMinutes,
     controlRepository,
-    controlToken,
+    controlToken
   );
 
   let dispatched = 0;
@@ -462,14 +473,16 @@ async function main(): Promise<void> {
     await markDispatched(task, controlToken);
     dispatched += 1;
   }
-  console.log(JSON.stringify({
-    now: minuteFloor(now).toISOString(),
-    lookback_minutes: lookbackMinutes,
-    due: tasks.length,
-    dispatched,
-    deduplicated,
-    tasks,
-  }));
+  console.log(
+    JSON.stringify({
+      now: minuteFloor(now).toISOString(),
+      lookback_minutes: lookbackMinutes,
+      due: tasks.length,
+      dispatched,
+      deduplicated,
+      tasks,
+    })
+  );
 }
 
 if (isMain(import.meta.url)) {

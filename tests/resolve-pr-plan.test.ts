@@ -2,43 +2,44 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { test } from "node:test";
+import { parseAiAgentConfig } from "../scripts/ai-agent-config.ts";
 import {
-  resolvePlan,
-  validateContext,
   type PlanOptions,
   type PlanPolicies,
+  resolvePlan,
+  validateContext,
 } from "../scripts/resolve-pr-plan.ts";
-import { parseAiAgentConfig } from "../scripts/ai-agent-config.ts";
 
-const activeAiAgents = parseAiAgentConfig(JSON.stringify({
-  schema_version: 1,
-  agents: {
-    triage: { enabled: true, model: "Code-Air" },
-    review: {
-      enabled: true,
-      model: "Code-Pro",
-      routes: {
-        release: { model: "Code-Max" },
-        security: { model: "Code-Ultra" },
-        architecture: { model: "Code-Ultra" },
-        deep: { model: "Code-Ultra" },
+const activeAiAgents = parseAiAgentConfig(
+  JSON.stringify({
+    schema_version: 1,
+    agents: {
+      triage: { enabled: true, model: "Code-Air" },
+      review: {
+        enabled: true,
+        model: "Code-Pro",
+        routes: {
+          release: { model: "Code-Max" },
+          security: { model: "Code-Ultra" },
+          architecture: { model: "Code-Ultra" },
+          deep: { model: "Code-Ultra" },
+        },
       },
+      writing: { enabled: true, model: "Pro" },
     },
-    writing: { enabled: true, model: "Pro" },
-  },
-}));
+  })
+);
 
 async function loadPolicies(aiAgents = activeAiAgents): Promise<PlanPolicies> {
-  const load = async (name: string): Promise<unknown> => JSON.parse(
-    await readFile(join(process.cwd(), "policies", `${name}.json`), "utf8"),
-  ) as unknown;
+  const load = async (name: string): Promise<unknown> =>
+    JSON.parse(await readFile(join(process.cwd(), "policies", `${name}.json`), "utf8")) as unknown;
   return {
-    naming: await load("naming") as PlanPolicies["naming"],
-    checks: await load("checks") as PlanPolicies["checks"],
-    tests: await load("tests") as PlanPolicies["tests"],
-    review: await load("review") as PlanPolicies["review"],
-    triage: await load("triage") as PlanPolicies["triage"],
-    execution: await load("execution") as PlanPolicies["execution"],
+    naming: (await load("naming")) as PlanPolicies["naming"],
+    checks: (await load("checks")) as PlanPolicies["checks"],
+    tests: (await load("tests")) as PlanPolicies["tests"],
+    review: (await load("review")) as PlanPolicies["review"],
+    triage: (await load("triage")) as PlanPolicies["triage"],
+    execution: (await load("execution")) as PlanPolicies["execution"],
     aiAgents,
   };
 }
@@ -91,24 +92,37 @@ test("workflow changes route through normal triage", async () => {
 
 test("breaking and security routes preserve deterministic depth", async () => {
   const policies = await loadPolicies();
-  const breaking = resolvePlan(validateContext({
-    project_types: ["node"],
-    change_areas: ["source", "release"],
-    declared_impacts: ["breaking", "api", "compatibility"],
-    risk: "high",
-  }), policies, defaults);
+  const breaking = resolvePlan(
+    validateContext({
+      project_types: ["node"],
+      change_areas: ["source", "release"],
+      declared_impacts: ["breaking", "api", "compatibility"],
+      risk: "high",
+    }),
+    policies,
+    defaults
+  );
   assert.equal(breaking.review_agent, "architecture");
   assert.equal(breaking.review_model, "Code-Ultra");
   assert.equal(breaking.review_task_timeout, 10);
   assert.equal(breaking.triage_required, false);
-  assert.deepEqual(breaking.tests, ["api-test", "compatibility-test", "integration-test", "node-test"]);
+  assert.deepEqual(breaking.tests, [
+    "api-test",
+    "compatibility-test",
+    "integration-test",
+    "node-test",
+  ]);
 
-  const security = resolvePlan(validateContext({
-    project_types: ["node"],
-    change_areas: ["script", "security"],
-    declared_impacts: ["security"],
-    risk: "high",
-  }), policies, defaults);
+  const security = resolvePlan(
+    validateContext({
+      project_types: ["node"],
+      change_areas: ["script", "security"],
+      declared_impacts: ["security"],
+      risk: "high",
+    }),
+    policies,
+    defaults
+  );
   assert.equal(security.review_agent, "security");
   assert.equal(security.review_model, "Code-Ultra");
   assert.equal(security.review_task_timeout, 10);
@@ -136,14 +150,16 @@ test("disabled review agent skips AI while preserving deterministic CI", async (
     declared_impacts: [],
     risk: "medium",
   });
-  const disabled = parseAiAgentConfig(JSON.stringify({
-    schema_version: 1,
-    agents: {
-      triage: { enabled: true, model: "Code-Air" },
-      review: { enabled: false, model: "Code-Pro" },
-      writing: { enabled: true, model: "Pro" },
-    },
-  }));
+  const disabled = parseAiAgentConfig(
+    JSON.stringify({
+      schema_version: 1,
+      agents: {
+        triage: { enabled: true, model: "Code-Air" },
+        review: { enabled: false, model: "Code-Pro" },
+        writing: { enabled: true, model: "Pro" },
+      },
+    })
+  );
   const plan = resolvePlan(context, await loadPolicies(disabled), defaults);
   assert.equal(plan.ci_required, true);
   assert.equal(plan.review_required, false);
@@ -152,7 +168,6 @@ test("disabled review agent skips AI while preserving deterministic CI", async (
   assert.equal(plan.triage_required, false);
 });
 
-
 test("model override cannot reopen review when review authority is disabled", async () => {
   const context = validateContext({
     project_types: ["github-automation", "node"],
@@ -160,17 +175,19 @@ test("model override cannot reopen review when review authority is disabled", as
     declared_impacts: ["compatibility"],
     risk: "medium",
   });
-  const disabled = parseAiAgentConfig(JSON.stringify({
-    schema_version: 1,
-    agents: {
-      review: {
-        enabled: false,
-        model: "Audit-Pro",
-        routes: { architecture: { model: "Audit-Ultra" } },
+  const disabled = parseAiAgentConfig(
+    JSON.stringify({
+      schema_version: 1,
+      agents: {
+        review: {
+          enabled: false,
+          model: "Audit-Pro",
+          routes: { architecture: { model: "Audit-Ultra" } },
+        },
+        writing: { enabled: true, model: "Editor-Air" },
       },
-      writing: { enabled: true, model: "Editor-Air" },
-    },
-  }));
+    })
+  );
   const plan = resolvePlan(context, await loadPolicies(disabled), {
     ...defaults,
     modelOverride: "Editor-Air",

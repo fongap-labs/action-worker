@@ -4,10 +4,7 @@
   "title": "Execution Manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schema_version",
-    "operations"
-  ],
+  "required": ["schema_version", "operations"],
   "properties": {
     "schema_version": {
       "const": "1"
@@ -31,9 +28,7 @@
     "operation": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "jobs"
-      ],
+      "required": ["jobs"],
       "properties": {
         "jobs": {
           "type": "array",
@@ -48,13 +43,7 @@
     "job": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "id",
-        "runner_profile",
-        "command",
-        "timeout_minutes",
-        "capability_requests"
-      ],
+      "required": ["id", "runner_profile", "command", "timeout_minutes", "capability_requests"],
       "properties": {
         "id": {
           "type": "string",
@@ -140,10 +129,7 @@
     "artifact": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "name",
-        "path"
-      ],
+      "required": ["name", "path"],
       "properties": {
         "name": {
           "type": "string",

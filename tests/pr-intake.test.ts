@@ -8,43 +8,58 @@ const shaC = "cccccccccccccccccccccccccccccccccccccccc";
 
 test("central PR intake scans every managed repository independent of visibility", async () => {
   const responses = new Map<string, unknown>([
-    ["repos/fongap-labs/public-one/pulls?state=open&per_page=100&page=1", [
-      { number: 11, head: { sha: shaA } },
-    ]],
-    ["repos/fongap-labs/private-one/pulls?state=open&per_page=100&page=1", [
-      { number: 12, head: { sha: shaB } },
-      { number: 13, head: { sha: shaC } },
-    ]],
-    [`repos/fongap-labs/public-one/commits/${shaA}/status`, { statuses: [] }],
-    [`repos/fongap-labs/private-one/commits/${shaB}/status`, {
-      statuses: [{
-        context: "PR Governance",
-        state: "pending",
-        target_url: "https://github.com/fongap-labs/action-worker/actions/runs/12",
-      }],
-    }],
-    ["repos/fongap-labs/action-worker/actions/runs/12", {
-      status: "in_progress",
-    }],
-    [`repos/fongap-labs/private-one/commits/${shaC}/status`, {
-      statuses: [
-        {
-          context: "PR Governance",
-          state: "failure",
-          target_url: "https://github.com/fongap-labs/action-worker/actions/runs/13",
-        },
-        {
-          context: "CI Evidence",
-          state: "failure",
-          target_url: "https://github.com/fongap-labs/action-worker/actions/runs/13",
-        },
-        {
-          context: "validate-merge",
-          state: "failure",
-          target_url: "https://github.com/fongap-labs/action-worker/actions/runs/13",
-        },
+    [
+      "repos/fongap-labs/public-one/pulls?state=open&per_page=100&page=1",
+      [{ number: 11, head: { sha: shaA } }],
+    ],
+    [
+      "repos/fongap-labs/private-one/pulls?state=open&per_page=100&page=1",
+      [
+        { number: 12, head: { sha: shaB } },
+        { number: 13, head: { sha: shaC } },
       ],
-    }],
+    ],
+    [`repos/fongap-labs/public-one/commits/${shaA}/status`, { statuses: [] }],
+    [
+      `repos/fongap-labs/private-one/commits/${shaB}/status`,
+      {
+        statuses: [
+          {
+            context: "PR Governance",
+            state: "pending",
+            target_url: "https://github.com/fongap-labs/action-worker/actions/runs/12",
+          },
+        ],
+      },
+    ],
+    [
+      "repos/fongap-labs/action-worker/actions/runs/12",
+      {
+        status: "in_progress",
+      },
+    ],
+    [
+      `repos/fongap-labs/private-one/commits/${shaC}/status`,
+      {
+        statuses: [
+          {
+            context: "PR Governance",
+            state: "failure",
+            target_url: "https://github.com/fongap-labs/action-worker/actions/runs/13",
+          },
+          {
+            context: "CI Evidence",
+            state: "failure",
+            target_url: "https://github.com/fongap-labs/action-worker/actions/runs/13",
+          },
+          {
+            context: "validate-merge",
+            state: "failure",
+            target_url: "https://github.com/fongap-labs/action-worker/actions/runs/13",
+          },
+        ],
+      },
+    ],
   ]);
 
   const dispatched: Array<{ repository: string; pr: number; sha: string }> = [];
@@ -62,14 +77,16 @@ test("central PR intake scans every managed repository independent of visibility
     async (repository, pr, sha) => {
       dispatched.push({ repository, pr, sha });
     },
-    "fongap-labs/action-worker",
+    "fongap-labs/action-worker"
   );
 
-  assert.deepEqual(dispatched, [{
-    repository: "fongap-labs/public-one",
-    pr: 11,
-    sha: shaA,
-  }]);
+  assert.deepEqual(dispatched, [
+    {
+      repository: "fongap-labs/public-one",
+      pr: 11,
+      sha: shaA,
+    },
+  ]);
   assert.deepEqual(result, {
     repositories: 2,
     open_pull_requests: 3,
@@ -94,18 +111,20 @@ test("central PR intake re-dispatches incomplete non-pending state", async () =>
           return [{ number: 5, head: { sha } }];
         }
         return {
-          statuses: [{
-            context: "CI Evidence",
-            state: "success",
-            target_url: "https://github.com/fongap-labs/action-worker/actions/runs/5",
-          }],
+          statuses: [
+            {
+              context: "CI Evidence",
+              state: "success",
+              target_url: "https://github.com/fongap-labs/action-worker/actions/runs/5",
+            },
+          ],
         };
       },
     },
     async (_repository, pr) => {
       dispatched.push(pr);
     },
-    "fongap-labs/action-worker",
+    "fongap-labs/action-worker"
   );
 
   assert.deepEqual(dispatched, [5]);
@@ -123,18 +142,20 @@ test("central PR intake ignores business-repository pending statuses", async () 
           return [{ number: 9, head: { sha: shaA } }];
         }
         return {
-          statuses: [{
-            context: "PR Governance",
-            state: "pending",
-            target_url: "https://github.com/fongap-labs/example/actions/runs/99",
-          }],
+          statuses: [
+            {
+              context: "PR Governance",
+              state: "pending",
+              target_url: "https://github.com/fongap-labs/example/actions/runs/99",
+            },
+          ],
         };
       },
     },
     async (_repository, pr) => {
       dispatched.push(pr);
     },
-    "fongap-labs/action-worker",
+    "fongap-labs/action-worker"
   );
 
   assert.deepEqual(dispatched, [9]);
@@ -164,7 +185,7 @@ test("central PR intake excludes the control repository without hardcoded names"
     async (repository) => {
       dispatched.push(repository);
     },
-    controlRepository,
+    controlRepository
   );
 
   assert.deepEqual(dispatched, [businessRepository]);
@@ -213,15 +234,13 @@ test("central PR intake retries stale pending control-plane runs", async () => {
     async (_repository, pr) => {
       dispatched.push(pr);
     },
-    "fongap-labs/action-worker",
+    "fongap-labs/action-worker"
   );
 
   assert.deepEqual(dispatched, [17]);
   assert.equal(result.in_flight, 0);
   assert.equal(result.dispatched, 1);
 });
-
-
 
 test("central PR intake honors a recent queued reservation after the intake run completes", async () => {
   const repository = "fongap-labs/example";
@@ -237,12 +256,14 @@ test("central PR intake honors a recent queued reservation after the intake run 
         }
         if (path.endsWith("/status")) {
           return {
-            statuses: [{
-              context: "PR Governance",
-              state: "pending",
-              updated_at: updatedAt,
-              target_url: "https://github.com/fongap-labs/action-worker/actions/runs/45",
-            }],
+            statuses: [
+              {
+                context: "PR Governance",
+                state: "pending",
+                updated_at: updatedAt,
+                target_url: "https://github.com/fongap-labs/action-worker/actions/runs/45",
+              },
+            ],
           };
         }
         if (path === "repos/fongap-labs/action-worker/actions/runs/45") {
@@ -254,14 +275,13 @@ test("central PR intake honors a recent queued reservation after the intake run 
     async (_repository, pr) => {
       dispatched.push(pr);
     },
-    "fongap-labs/action-worker",
+    "fongap-labs/action-worker"
   );
 
   assert.deepEqual(dispatched, []);
   assert.equal(result.in_flight, 1);
   assert.equal(result.dispatched, 0);
 });
-
 
 test("central PR intake reserves governance before dispatch", async () => {
   const repository = "fongap-labs/example";
@@ -288,16 +308,12 @@ test("central PR intake reserves governance before dispatch", async () => {
     "",
     async (_repository, sha, context) => {
       events.push(`reserve:${context}:${sha}`);
-    },
+    }
   );
 
-  assert.deepEqual(events, [
-    `reserve:PR Governance:${shaA}`,
-    "dispatch:19",
-  ]);
+  assert.deepEqual(events, [`reserve:PR Governance:${shaA}`, "dispatch:19"]);
   assert.equal(result.dispatched, 1);
 });
-
 
 test("central PR intake retries failed governance from an older control revision", async () => {
   const repository = "fongap-labs/example";
@@ -337,14 +353,13 @@ test("central PR intake retries failed governance from an older control revision
     },
     controlRepository,
     undefined,
-    currentControlSha,
+    currentControlSha
   );
 
   assert.deepEqual(dispatched, [31]);
   assert.equal(result.dispatched, 1);
   assert.equal(result.already_processed, 0);
 });
-
 
 test("central PR intake does not loop failed governance from the current control revision", async () => {
   const repository = "fongap-labs/example";
@@ -383,7 +398,7 @@ test("central PR intake does not loop failed governance from the current control
     },
     controlRepository,
     undefined,
-    currentControlSha,
+    currentControlSha
   );
 
   assert.deepEqual(dispatched, []);
@@ -396,17 +411,19 @@ test("central PR intake routes matching source-owned dependency repair before go
   const baseSha = shaB;
   const repairManifest = {
     schema_version: "1",
-    repairs: [{
-      id: "uv-lock",
-      adapter: "uv-lock",
-      runner_profile: "linux-standard",
-      trusted_actor: "dependabot[bot]",
-      trigger_paths: ["pyproject.toml"],
-      output_paths: ["uv.lock"],
-      tool_version: "0.12.3",
-      head_prefix: "dependabot/",
-      working_directory: ".",
-    }],
+    repairs: [
+      {
+        id: "uv-lock",
+        adapter: "uv-lock",
+        runner_profile: "linux-standard",
+        trusted_actor: "dependabot[bot]",
+        trigger_paths: ["pyproject.toml"],
+        output_paths: ["uv.lock"],
+        tool_version: "0.12.3",
+        head_prefix: "dependabot/",
+        working_directory: ".",
+      },
+    ],
   };
   const governance: number[] = [];
   const repairs: number[] = [];
@@ -456,7 +473,7 @@ test("central PR intake routes matching source-owned dependency repair before go
     "",
     async (_repository, sha, context) => {
       reservations.push(`${context}:${sha}`);
-    },
+    }
   );
 
   assert.deepEqual(governance, []);

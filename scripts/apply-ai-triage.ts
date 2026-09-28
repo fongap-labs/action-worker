@@ -1,17 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
-import {
-  CliError,
-  appendLines,
-  handleError,
-  isMain,
-  parseJson,
-} from "./runtime-command.ts";
+import { type AiAgentConfig, aiAgentModel, parseAiAgentConfig } from "./ai-agent-config.ts";
 import { isJsonRecord } from "./github-api.ts";
-import {
-  aiAgentModel,
-  parseAiAgentConfig,
-  type AiAgentConfig,
-} from "./ai-agent-config.ts";
+import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -34,13 +24,17 @@ function isDecision(value: unknown): value is JsonRecord {
   if (!isJsonRecord(value)) {
     return false;
   }
-  return typeof value.review_required === "boolean"
-    && ["code", "workflow", "release", "security", "architecture"].includes(asString(value.review_agent))
-    && ["low", "medium", "high"].includes(asString(value.risk))
-    && ["normal", "deep"].includes(asString(value.depth))
-    && Number.isFinite(asNumber(value.confidence))
-    && asNumber(value.confidence) >= 0
-    && asNumber(value.confidence) <= 1;
+  return (
+    typeof value.review_required === "boolean" &&
+    ["code", "workflow", "release", "security", "architecture"].includes(
+      asString(value.review_agent)
+    ) &&
+    ["low", "medium", "high"].includes(asString(value.risk)) &&
+    ["normal", "deep"].includes(asString(value.depth)) &&
+    Number.isFinite(asNumber(value.confidence)) &&
+    asNumber(value.confidence) >= 0 &&
+    asNumber(value.confidence) <= 1
+  );
 }
 
 export function applyTriage(
@@ -48,15 +42,15 @@ export function applyTriage(
   triageValue: unknown,
   triagePolicy: unknown,
   reviewPolicy: unknown,
-  aiAgents: AiAgentConfig,
+  aiAgents: AiAgentConfig
 ): JsonRecord {
   const plan = structuredClone(asRecord(planValue, "ERROR: invalid base plan."));
   const context = asRecord(plan.context, "ERROR: invalid base plan.");
   if (
-    typeof plan.review_required !== "boolean"
-    || typeof plan.review_agent !== "string"
-    || !Array.isArray(context.change_areas)
-    || !Array.isArray(context.declared_impacts)
+    typeof plan.review_required !== "boolean" ||
+    typeof plan.review_agent !== "string" ||
+    !Array.isArray(context.change_areas) ||
+    !Array.isArray(context.declared_impacts)
   ) {
     throw new CliError("ERROR: invalid base plan.", 65);
   }
@@ -66,8 +60,12 @@ export function applyTriage(
   const skipConfidence = asNumber(triage.min_skip_confidence);
   const deepConfidence = asNumber(triage.min_deep_confidence);
   if (
-    !Number.isFinite(skipConfidence) || skipConfidence < 0 || skipConfidence > 1
-    || !Number.isFinite(deepConfidence) || deepConfidence < 0 || deepConfidence > 1
+    !Number.isFinite(skipConfidence) ||
+    skipConfidence < 0 ||
+    skipConfidence > 1 ||
+    !Number.isFinite(deepConfidence) ||
+    deepConfidence < 0 ||
+    deepConfidence > 1
   ) {
     throw new CliError("ERROR: invalid triage confidence policy.", 65);
   }
@@ -86,15 +84,17 @@ export function applyTriage(
     const decisionRisk = asString(decision.risk);
     const decisionDepth = asString(decision.depth);
     const confidence = asNumber(decision.confidence);
-    const safeAreas = context.change_areas.length > 0
-      && context.change_areas.every((area) => area === "source" || area === "test");
+    const safeAreas =
+      context.change_areas.length > 0 &&
+      context.change_areas.every((area) => area === "source" || area === "test");
     const hasImpacts = context.declared_impacts.length > 0;
-    const canSkip = baseAgent === "code"
-      && safeAreas
-      && !hasImpacts
-      && decision.review_required === false
-      && decisionRisk === "low"
-      && confidence >= skipConfidence;
+    const canSkip =
+      baseAgent === "code" &&
+      safeAreas &&
+      !hasImpacts &&
+      decision.review_required === false &&
+      decisionRisk === "low" &&
+      confidence >= skipConfidence;
 
     if (canSkip) {
       Object.assign(plan, {
@@ -114,12 +114,18 @@ export function applyTriage(
       let selectedAgent = baseAgent;
       if (decisionAgent === "security" || decisionAgent === "architecture") {
         selectedAgent = decisionAgent;
-      } else if ((decisionAgent === "workflow" || decisionAgent === "release") && baseAgent === "code") {
+      } else if (
+        (decisionAgent === "workflow" || decisionAgent === "release") &&
+        baseAgent === "code"
+      ) {
         selectedAgent = decisionAgent;
       }
       if (selectedAgent !== baseAgent) {
         const agents = asRecord(review.agents, "ERROR: invalid review policy.");
-        const selected = asRecord(agents[selectedAgent], "ERROR: triage selected an unconfigured review agent.");
+        const selected = asRecord(
+          agents[selectedAgent],
+          "ERROR: triage selected an unconfigured review agent."
+        );
         const model = aiAgentModel(aiAgents, "review", selectedAgent);
         const effort = asString(selected.effort);
         const rule = asString(selected.rule);
@@ -151,7 +157,10 @@ export function applyTriage(
 async function main(): Promise<void> {
   const paths = process.argv.slice(2);
   if (paths.length !== 4) {
-    throw new CliError("Usage: apply-ai-triage.ts <base-plan-file> <triage-result-file> <triage-policy-file> <review-policy-file>", 64);
+    throw new CliError(
+      "Usage: apply-ai-triage.ts <base-plan-file> <triage-result-file> <triage-policy-file> <review-policy-file>",
+      64
+    );
   }
   const [planPath = "", resultPath = "", triagePath = "", reviewPath = ""] = paths;
   let resultText = '{"status":"skipped","reason":"not_run"}';
@@ -168,7 +177,7 @@ async function main(): Promise<void> {
       parseJson(resultText, "ERROR: invalid triage result."),
       parseJson(await readFile(triagePath, "utf8"), "ERROR: invalid triage policy."),
       parseJson(await readFile(reviewPath, "utf8"), "ERROR: invalid review policy."),
-      parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? ""),
+      parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? "")
     );
     const json = JSON.stringify(output);
     if (process.env.GITHUB_OUTPUT) {
@@ -189,8 +198,11 @@ async function main(): Promise<void> {
       ]);
       const triage = isJsonRecord(output.triage) ? output.triage : {};
       await appendLines(process.env.GITHUB_STEP_SUMMARY, [
-        "### Review Route", "", `- triage: ${asString(triage.status)}`,
-        `- action: ${asString(triage.action)}`, `- agent: ${asString(output.review_agent)}`,
+        "### Review Route",
+        "",
+        `- triage: ${asString(triage.status)}`,
+        `- action: ${asString(triage.action)}`,
+        `- agent: ${asString(output.review_agent)}`,
         `- model: ${asString(output.review_model) || "none"}`,
       ]);
     }

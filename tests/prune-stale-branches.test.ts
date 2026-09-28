@@ -16,25 +16,29 @@ test("branch prune manifest is exact and cannot target protected branches", () =
         schema_version: "1",
         superseded_branches: ["refactor/old-path"],
       }),
-      "main",
+      "main"
     ),
     {
       schema_version: "1",
       superseded_branches: ["refactor/old-path"],
-    },
+    }
   );
-  assert.throws(() => parseBranchPruneManifest(
-    JSON.stringify({
-      schema_version: "1",
-      superseded_branches: ["main"],
-    }),
-    "main",
-  ));
-  assert.throws(() => parseBranchPruneManifest(
-    JSON.stringify({
-      schema_version: "1",
-      superseded_branches: ["legacy/v1.0.0"],
-    }),
-    "main",
-  ));
+  assert.throws(() =>
+    parseBranchPruneManifest(
+      JSON.stringify({
+        schema_version: "1",
+        superseded_branches: ["main"],
+      }),
+      "main"
+    )
+  );
+  assert.throws(() =>
+    parseBranchPruneManifest(
+      JSON.stringify({
+        schema_version: "1",
+        superseded_branches: ["legacy/v1.0.0"],
+      }),
+      "main"
+    )
+  );
 });

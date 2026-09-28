@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  parseDeployManifest,
-  resolveDeployManifest,
-} from "../scripts/deploy-manifest.ts";
+import { parseDeployManifest, resolveDeployManifest } from "../scripts/deploy-manifest.ts";
 
 const sha = "0123456789abcdef0123456789abcdef01234567";
 
@@ -52,31 +49,37 @@ test("deploy manifest owns intent but not concrete runner labels or secrets", ()
   assert.equal("runner" in manifest, false);
   assert.equal("secrets" in manifest, false);
 
-  assert.throws(() => parseDeployManifest({
-    ...manifest,
-    runner: "ubuntu-24.04",
-  }));
+  assert.throws(() =>
+    parseDeployManifest({
+      ...manifest,
+      runner: "ubuntu-24.04",
+    })
+  );
 });
 
 test("deploy manifest requires the source-script adapter and safe entrypoint", () => {
-  assert.throws(() => parseDeployManifest({
-    schema_version: "1",
-    adapter: "source-script",
-    automatic: false,
-    ignore_docs_only: true,
-    runner_profile: "production-deploy",
-    environment: "production",
-    entrypoint: "../deploy.sh",
-  }));
-  assert.throws(() => parseDeployManifest({
-    schema_version: "1",
-    adapter: "cloudflare-worker",
-    automatic: true,
-    ignore_docs_only: true,
-    runner_profile: "production-deploy",
-    environment: "production",
-    entrypoint: "",
-  }));
+  assert.throws(() =>
+    parseDeployManifest({
+      schema_version: "1",
+      adapter: "source-script",
+      automatic: false,
+      ignore_docs_only: true,
+      runner_profile: "production-deploy",
+      environment: "production",
+      entrypoint: "../deploy.sh",
+    })
+  );
+  assert.throws(() =>
+    parseDeployManifest({
+      schema_version: "1",
+      adapter: "cloudflare-worker",
+      automatic: true,
+      ignore_docs_only: true,
+      runner_profile: "production-deploy",
+      environment: "production",
+      entrypoint: "",
+    })
+  );
 });
 
 test("deploy manifest resolution requires explicit deploy capability and privileged runner", async () => {
@@ -102,7 +105,7 @@ test("deploy manifest resolution requires explicit deploy capability and privile
     sha,
     repositoryPolicy,
     runnerPolicy,
-    reader,
+    reader
   );
   assert.equal(resolved.trust_domain, "privileged");
   assert.equal(resolved.runner_backend, "github-hosted");
@@ -113,9 +116,9 @@ test("deploy manifest resolution requires explicit deploy capability and privile
       sha,
       { "fongap-labs/example": ["pr"] },
       runnerPolicy,
-      reader,
+      reader
     ),
-    /not allowed for deploy/,
+    /not allowed for deploy/
   );
 
   await assert.rejects(
@@ -135,8 +138,8 @@ test("deploy manifest resolution requires explicit deploy capability and privile
           },
         },
       },
-      reader,
+      reader
     ),
-    /privileged trust domain/,
+    /privileged trust domain/
   );
 });

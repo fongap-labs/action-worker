@@ -1,12 +1,7 @@
-import { readdir, readFile, access } from "node:fs/promises";
-import { join } from "node:path";
 import type { Dirent } from "node:fs";
-import {
-  CliError,
-  appendLines,
-  handleError,
-  isMain,
-} from "./runtime-command.ts";
+import { access, readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 export type SkillFrontmatter = {
   path: string;
@@ -52,10 +47,7 @@ export function parseFrontmatter(content: string, path: string): SkillFrontmatte
     throw new CliError(`::error::Skill frontmatter missing name: ${path}.`, 65);
   }
   if (!always && !domain) {
-    throw new CliError(
-      `::error::Skill frontmatter must define always or domain: ${path}.`,
-      65,
-    );
+    throw new CliError(`::error::Skill frontmatter must define always or domain: ${path}.`, 65);
   }
 
   return { path, name, always, domain, baseline, operations };
@@ -94,7 +86,7 @@ export async function discoverSkills(root: string): Promise<SkillFrontmatter[]> 
 export function selectSkills(
   skills: readonly SkillFrontmatter[],
   agentDomain: string,
-  operation: string,
+  operation: string
 ): string[] {
   const selected = skills.filter((skill) => {
     if (skill.always) return true;
@@ -117,29 +109,27 @@ export function selectSkills(
 export async function resolveAndVerifySkills(
   root: string,
   agentDomain: string,
-  operation: string,
+  operation: string
 ): Promise<string[]> {
   const skills = await discoverSkills(root);
 
-  const domains = new Set(
-    skills.filter((s) => !s.always).map((s) => s.domain),
-  );
+  const domains = new Set(skills.filter((s) => !s.always).map((s) => s.domain));
   if (!domains.has(agentDomain)) {
     throw new CliError(
       `::error::Unknown agent domain: "${agentDomain}". Available: ${[...domains].sort().join(", ")}.`,
-      65,
+      65
     );
   }
 
   const operations = new Set(
     skills
       .filter((s) => s.domain === agentDomain && s.operations.length > 0)
-      .flatMap((s) => s.operations),
+      .flatMap((s) => s.operations)
   );
   if (operations.size > 0 && !operations.has(operation)) {
     throw new CliError(
       `::error::Unknown operation "${operation}" for domain "${agentDomain}". Available: ${[...operations].sort().join(", ")}.`,
-      65,
+      65
     );
   }
 
@@ -149,10 +139,7 @@ export async function resolveAndVerifySkills(
 async function main(): Promise<void> {
   const [agentDomain = "", operation = ""] = process.argv.slice(2);
   if (!agentDomain || !operation) {
-    throw new CliError(
-      "Usage: resolve-agent-skills.ts <agent-domain> <operation>",
-      64,
-    );
+    throw new CliError("Usage: resolve-agent-skills.ts <agent-domain> <operation>", 64);
   }
   const root = process.env.GITHUB_WORKSPACE ?? process.cwd();
   const skills = await resolveAndVerifySkills(root, agentDomain, operation);
@@ -161,7 +148,9 @@ async function main(): Promise<void> {
     `skills=${skillsJson}`,
     `skill_count=${skills.length}`,
   ]);
-  console.log(`Resolved ${skills.length} skill(s) for domain="${agentDomain}" operation="${operation}":`);
+  console.log(
+    `Resolved ${skills.length} skill(s) for domain="${agentDomain}" operation="${operation}":`
+  );
   for (const skill of skills) {
     console.log(`  ${skill}`);
   }

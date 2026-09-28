@@ -1,11 +1,6 @@
 import { join } from "node:path";
-import { readJson } from "./runtime-command.ts";
 import { isJsonRecord } from "./github-api.ts";
-import {
-  CliError,
-  handleError,
-  isMain,
-} from "./runtime-command.ts";
+import { CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 
 function valueText(value: unknown): string {
   if (value === null || value === undefined) {

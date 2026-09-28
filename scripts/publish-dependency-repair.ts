@@ -1,29 +1,25 @@
 import { copyFile, mkdir, readdir, stat } from "node:fs/promises";
-import { dirname, join, relative, resolve, sep } from "node:path";
-import { GithubReader } from "./github-api.ts";
+import { dirname, resolve, sep } from "node:path";
 import {
+  type DependencyRepairRequest,
   decodeGithubContent,
   parseDependencyRepairManifest,
   resolveDependencyRepairFacts,
   selectDependencyRepair,
-  type DependencyRepairRequest,
 } from "./dependency-repair.ts";
-import {
-  CliError,
-  handleError,
-  isMain,
-  parseJson,
-  runText,
-} from "./runtime-command.ts";
+import { GithubReader } from "./github-api.ts";
+import { CliError, handleError, isMain, parseJson, runText } from "./runtime-command.ts";
 
 function safeRelativePath(value: unknown): value is string {
-  return typeof value === "string"
-    && value.length > 0
-    && value.length <= 512
-    && !value.startsWith("/")
-    && !/^[A-Za-z]:[\\/]/.test(value)
-    && !value.split(/[\\/]+/).includes("..")
-    && /^[A-Za-z0-9._/-]+$/.test(value);
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= 512 &&
+    !value.startsWith("/") &&
+    !/^[A-Za-z]:[\\/]/.test(value) &&
+    !value.split(/[\\/]+/).includes("..") &&
+    /^[A-Za-z0-9._/-]+$/.test(value)
+  );
 }
 
 function confined(root: string, path: string): string {
@@ -68,19 +64,21 @@ async function main(): Promise<void> {
   const outputPaths = parseJson(
     rawOutputPaths,
     "Dependency repair output paths must be valid JSON.",
-    64,
+    64
   );
-  if (!token
-    || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)
-    || !Number.isInteger(prNumber) || prNumber < 1
-    || !/^[0-9a-f]{40}$/.test(headSha)
-    || !/^[A-Za-z0-9._/-]+$/.test(headRef)
-    || !/^[0-9a-f]{40}$/.test(baseSha)
-    || !/^[a-z][a-z0-9-]{0,63}$/.test(repairId)
-    || !Array.isArray(outputPaths)
-    || !outputPaths.every(safeRelativePath)
-    || !stagingRoot
-    || !targetRoot
+  if (
+    !token ||
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) ||
+    !Number.isInteger(prNumber) ||
+    prNumber < 1 ||
+    !/^[0-9a-f]{40}$/.test(headSha) ||
+    !/^[A-Za-z0-9._/-]+$/.test(headRef) ||
+    !/^[0-9a-f]{40}$/.test(baseSha) ||
+    !/^[a-z][a-z0-9-]{0,63}$/.test(repairId) ||
+    !Array.isArray(outputPaths) ||
+    !outputPaths.every(safeRelativePath) ||
+    !stagingRoot ||
+    !targetRoot
   ) {
     throw new CliError("Dependency repair publish arguments are invalid.", 64);
   }
@@ -99,27 +97,27 @@ async function main(): Promise<void> {
   }
 
   const manifestResponse = await reader.get(
-    `repos/${repository}/contents/.github/dependency-repair.json?ref=${baseSha}`,
+    `repos/${repository}/contents/.github/dependency-repair.json?ref=${baseSha}`
   );
   const manifest = parseDependencyRepairManifest(
     parseJson(
       decodeGithubContent(manifestResponse),
       "Dependency repair manifest must be valid JSON.",
-      65,
-    ),
+      65
+    )
   );
   const repair = selectDependencyRepair(manifest, facts);
-  if (!repair
-    || repair.id !== repairId
-    || JSON.stringify([...repair.output_paths].sort()) !== JSON.stringify([...(outputPaths as string[])].sort())
+  if (
+    !repair ||
+    repair.id !== repairId ||
+    JSON.stringify([...repair.output_paths].sort()) !==
+      JSON.stringify([...(outputPaths as string[])].sort())
   ) {
     throw new CliError("Dependency repair grant changed before publication.", 77);
   }
 
   const staged = await filesUnder(stagingRoot);
-  if (staged.length < 1
-    || staged.some((path) => !(outputPaths as string[]).includes(path))
-  ) {
+  if (staged.length < 1 || staged.some((path) => !(outputPaths as string[]).includes(path))) {
     throw new CliError("Dependency repair artifact contains unauthorized paths.", 77);
   }
 
@@ -140,12 +138,15 @@ async function main(): Promise<void> {
   }
 
   await runText("git", ["add", "--", ...staged], { cwd: targetRoot });
-  const stagedDiff = (await runText("git", ["diff", "--cached", "--name-only", "--no-renames"], { cwd: targetRoot }))
+  const stagedDiff = (
+    await runText("git", ["diff", "--cached", "--name-only", "--no-renames"], { cwd: targetRoot })
+  )
     .split(/\r?\n/)
     .filter(Boolean)
     .sort();
-  if (stagedDiff.length < 1
-    || stagedDiff.some((path) => !(outputPaths as string[]).includes(path))
+  if (
+    stagedDiff.length < 1 ||
+    stagedDiff.some((path) => !(outputPaths as string[]).includes(path))
   ) {
     throw new CliError("Dependency repair staged unauthorized paths.", 77);
   }
@@ -154,27 +155,28 @@ async function main(): Promise<void> {
   await runText(
     "git",
     ["config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"],
-    { cwd: targetRoot },
+    { cwd: targetRoot }
   );
   await runText(
     "git",
     ["commit", "-m", `chore(deps): refresh generated dependency files [${repairId}]`],
-    { cwd: targetRoot },
+    { cwd: targetRoot }
   );
-  await runText(
-    "git",
-    ["push", "origin", `HEAD:refs/heads/${headRef}`],
-    { cwd: targetRoot, timeoutMs: 60_000 },
-  );
+  await runText("git", ["push", "origin", `HEAD:refs/heads/${headRef}`], {
+    cwd: targetRoot,
+    timeoutMs: 60_000,
+  });
 
-  console.log(JSON.stringify({
-    repository,
-    pr_number: prNumber,
-    previous_head_sha: headSha,
-    head_ref: headRef,
-    repair_id: repairId,
-    outputs: stagedDiff,
-  }));
+  console.log(
+    JSON.stringify({
+      repository,
+      pr_number: prNumber,
+      previous_head_sha: headSha,
+      head_ref: headRef,
+      repair_id: repairId,
+      outputs: stagedDiff,
+    })
+  );
 }
 
 if (isMain(import.meta.url)) {

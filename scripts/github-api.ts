@@ -1,8 +1,4 @@
-import {
-  CliError,
-  runCommand,
-  runText,
-} from "./runtime-command.ts";
+import { CliError, runCommand, runText } from "./runtime-command.ts";
 
 export type JsonRecord = Record<string, unknown>;
 
@@ -136,21 +132,23 @@ export class GithubReader {
         if (!response.ok) {
           throw new GithubHttpError(
             response.status,
-            parseRetryAfter(response.headers.get("retry-after")),
+            parseRetryAfter(response.headers.get("retry-after"))
           );
         }
-        return await response.json() as unknown;
+        return (await response.json()) as unknown;
       } catch (error) {
         lastError = error;
-        const canRetry = !(error instanceof GithubHttpError)
-          || isRetryableStatus(error.status)
-          || (error.status === 403 && error.retryAfterMs !== undefined);
+        const canRetry =
+          !(error instanceof GithubHttpError) ||
+          isRetryableStatus(error.status) ||
+          (error.status === 403 && error.retryAfterMs !== undefined);
         if (!canRetry || attempt + 1 >= this.attemptLimit) {
           throw error;
         }
-        const retryDelay = error instanceof GithubHttpError && error.retryAfterMs !== undefined
-          ? error.retryAfterMs
-          : this.retryDelayMs * (2 ** attempt);
+        const retryDelay =
+          error instanceof GithubHttpError && error.retryAfterMs !== undefined
+            ? error.retryAfterMs
+            : this.retryDelayMs * 2 ** attempt;
         await sleep(Math.min(retryDelay, 30_000));
       } finally {
         clearTimeout(timer);

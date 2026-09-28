@@ -1,12 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import { isJsonRecord } from "./github-api.ts";
-import {
-  CliError,
-  handleError,
-  isMain,
-  readJson,
-  runText,
-} from "./runtime-command.ts";
+import { CliError, handleError, isMain, readJson, runText } from "./runtime-command.ts";
 
 type RulesetPayload = {
   name: string;
@@ -26,22 +20,23 @@ export function settingsPayload(value: unknown): Record<string, unknown> {
 }
 
 export function rulesetPayloads(value: unknown): RulesetPayload[] {
-  if (!isJsonRecord(value)
-    || value.schema_version !== 1
-    || !Array.isArray(value.rulesets)
-  ) {
+  if (!isJsonRecord(value) || value.schema_version !== 1 || !Array.isArray(value.rulesets)) {
     throw new CliError("ruleset policy must use schema_version 1 with a rulesets array", 2);
   }
 
   const names = new Set<string>();
   return value.rulesets.map((item) => {
-    if (!isJsonRecord(item)
-      || typeof item.name !== "string" || item.name.length === 0
-      || typeof item.target !== "string" || item.target.length === 0
-      || typeof item.enforcement !== "string" || item.enforcement.length === 0
-      || !Array.isArray(item.bypass_actors)
-      || !isJsonRecord(item.conditions)
-      || !Array.isArray(item.rules)
+    if (
+      !isJsonRecord(item) ||
+      typeof item.name !== "string" ||
+      item.name.length === 0 ||
+      typeof item.target !== "string" ||
+      item.target.length === 0 ||
+      typeof item.enforcement !== "string" ||
+      item.enforcement.length === 0 ||
+      !Array.isArray(item.bypass_actors) ||
+      !isJsonRecord(item.conditions) ||
+      !Array.isArray(item.rules)
     ) {
       throw new CliError("ruleset policy contains an invalid ruleset", 2);
     }
@@ -66,14 +61,16 @@ function rulesetSnapshot(value: unknown): RulesetPayload {
   }
   return rulesetPayloads({
     schema_version: 1,
-    rulesets: [{
-      name: value.name,
-      target: value.target,
-      enforcement: value.enforcement,
-      bypass_actors: value.bypass_actors ?? [],
-      conditions: value.conditions,
-      rules: value.rules,
-    }],
+    rulesets: [
+      {
+        name: value.name,
+        target: value.target,
+        enforcement: value.enforcement,
+        bypass_actors: value.bypass_actors ?? [],
+        conditions: value.conditions,
+        rules: value.rules,
+      },
+    ],
   })[0]!;
 }
 
@@ -81,7 +78,7 @@ async function ghJson(
   method: "GET" | "POST" | "PUT" | "PATCH",
   endpoint: string,
   token: string,
-  input?: unknown,
+  input?: unknown
 ): Promise<unknown> {
   const args = [
     "api",
@@ -100,24 +97,26 @@ async function ghJson(
     input: input === undefined ? undefined : JSON.stringify(input),
     env: { ...process.env, GH_TOKEN: token },
   });
-  return output ? JSON.parse(output) as unknown : {};
+  return output ? (JSON.parse(output) as unknown) : {};
 }
 
 async function applyRulesets(
   repository: string,
   token: string,
   isPrivate: boolean,
-  rulesets: readonly RulesetPayload[],
+  rulesets: readonly RulesetPayload[]
 ): Promise<void> {
   if (isPrivate) {
-    console.log(`repository rulesets skipped for private repository under the current GitHub Free organization: ${repository}`);
+    console.log(
+      `repository rulesets skipped for private repository under the current GitHub Free organization: ${repository}`
+    );
     return;
   }
 
   const existingValue = await ghJson(
     "GET",
     `repos/${repository}/rulesets?includes_parents=false&per_page=100`,
-    token,
+    token
   );
   if (!Array.isArray(existingValue)) {
     throw new CliError("repository ruleset list response is invalid");
@@ -125,10 +124,11 @@ async function applyRulesets(
 
   const existingByName = new Map<string, number>();
   for (const item of existingValue) {
-    if (!isJsonRecord(item)
-      || typeof item.name !== "string"
-      || typeof item.id !== "number"
-      || !Number.isInteger(item.id)
+    if (
+      !isJsonRecord(item) ||
+      typeof item.name !== "string" ||
+      typeof item.id !== "number" ||
+      !Number.isInteger(item.id)
     ) {
       continue;
     }
@@ -144,7 +144,7 @@ async function applyRulesets(
     }
 
     const current = rulesetSnapshot(
-      await ghJson("GET", `repos/${repository}/rulesets/${id}?includes_parents=false`, token),
+      await ghJson("GET", `repos/${repository}/rulesets/${id}?includes_parents=false`, token)
     );
     if (isDeepStrictEqual(current, desired)) {
       console.log(`repository ruleset already current: ${repository} / ${desired.name}`);
@@ -175,7 +175,10 @@ async function main(): Promise<void> {
     rulesets = rulesetPayloads(await readJson(rulesetPolicyPath));
   } catch (error) {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") {
-      throw new CliError(`repository policy not found: ${String((error as NodeJS.ErrnoException).path ?? "")}`, 2);
+      throw new CliError(
+        `repository policy not found: ${String((error as NodeJS.ErrnoException).path ?? "")}`,
+        2
+      );
     }
     throw error;
   }
@@ -196,7 +199,9 @@ async function main(): Promise<void> {
   }
   for (const [key, expected] of Object.entries(payload)) {
     if (!isDeepStrictEqual(response[key], expected)) {
-      throw new CliError(`repository setting mismatch: ${key} expected=${JSON.stringify(expected)} actual=${JSON.stringify(response[key])}`);
+      throw new CliError(
+        `repository setting mismatch: ${key} expected=${JSON.stringify(expected)} actual=${JSON.stringify(response[key])}`
+      );
     }
   }
 

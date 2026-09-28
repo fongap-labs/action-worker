@@ -1,8 +1,8 @@
 import { copyFile, mkdir, stat } from "node:fs/promises";
-import { dirname, join, resolve, sep } from "node:path";
+import { dirname, resolve, sep } from "node:path";
 import {
-  CliError,
   appendLines,
+  CliError,
   handleError,
   isMain,
   parseJson,
@@ -10,20 +10,23 @@ import {
 } from "./runtime-command.ts";
 
 function safeRelativePath(value: unknown): value is string {
-  return typeof value === "string"
-    && value.length > 0
-    && value.length <= 512
-    && !value.startsWith("/")
-    && !/^[A-Za-z]:[\\/]/.test(value)
-    && !value.split(/[\\/]+/).includes("..")
-    && /^[A-Za-z0-9._/-]+$/.test(value);
+  return (
+    typeof value === "string" &&
+    value.length > 0 &&
+    value.length <= 512 &&
+    !value.startsWith("/") &&
+    !/^[A-Za-z]:[\\/]/.test(value) &&
+    !value.split(/[\\/]+/).includes("..") &&
+    /^[A-Za-z0-9._/-]+$/.test(value)
+  );
 }
 
 function allowedPaths(value: unknown): string[] {
-  if (!Array.isArray(value)
-    || value.length < 1
-    || !value.every(safeRelativePath)
-    || new Set(value).size !== value.length
+  if (
+    !Array.isArray(value) ||
+    value.length < 1 ||
+    !value.every(safeRelativePath) ||
+    new Set(value).size !== value.length
   ) {
     throw new CliError("Dependency repair output path list is invalid.", 65);
   }
@@ -43,7 +46,9 @@ async function workingChanges(root: string): Promise<string[]> {
   const tracked = (await runText("git", ["diff", "--name-only", "--no-renames"], { cwd: root }))
     .split(/\r?\n/)
     .filter(Boolean);
-  const untracked = (await runText("git", ["ls-files", "--others", "--exclude-standard"], { cwd: root }))
+  const untracked = (
+    await runText("git", ["ls-files", "--others", "--exclude-standard"], { cwd: root })
+  )
     .split(/\r?\n/)
     .filter(Boolean);
   return [...new Set([...tracked, ...untracked])].sort();
@@ -54,11 +59,11 @@ async function main(): Promise<void> {
   if (!targetRoot || !stagingRoot || !rawPaths) {
     throw new CliError(
       "Usage: collect-dependency-repair.ts <target-root> <staging-root> <output-paths-json>",
-      64,
+      64
     );
   }
   const outputs = allowedPaths(
-    parseJson(rawPaths, "Dependency repair output paths must be valid JSON.", 64),
+    parseJson(rawPaths, "Dependency repair output paths must be valid JSON.", 64)
   );
   const allowed = new Set(outputs);
   const changed = await workingChanges(targetRoot);
@@ -66,7 +71,7 @@ async function main(): Promise<void> {
   if (unexpected.length > 0) {
     throw new CliError(
       `Dependency repair changed paths outside the grant: ${unexpected.join(", ")}.`,
-      77,
+      77
     );
   }
   if (changed.length === 0) {
@@ -79,7 +84,10 @@ async function main(): Promise<void> {
     const source = confined(targetRoot, relative);
     const details = await stat(source);
     if (!details.isFile() || details.size > 50 * 1024 * 1024) {
-      throw new CliError(`Dependency repair output is not an allowed regular file: ${relative}.`, 66);
+      throw new CliError(
+        `Dependency repair output is not an allowed regular file: ${relative}.`,
+        66
+      );
     }
     const destination = confined(stagingRoot, relative);
     await mkdir(dirname(destination), { recursive: true });

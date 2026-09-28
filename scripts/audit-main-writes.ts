@@ -1,17 +1,7 @@
-import {
-  GithubReader,
-  getJsonString,
-  runGithubCli,
-} from "./github-api.ts";
-import {
-  CliError,
-  appendLines,
-  handleError,
-  isMain,
-  parseJson,
-} from "./runtime-command.ts";
-import { repositoriesForCapability } from "./repository-policy.ts";
+import { GithubReader, getJsonString, runGithubCli } from "./github-api.ts";
 import { validateMainWriteProvenance } from "./main-write-guard.ts";
+import { repositoriesForCapability } from "./repository-policy.ts";
+import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 type AuditResult = {
   repository: string;
@@ -29,14 +19,19 @@ async function publishGuardStatus(
   token: string,
   state: "success" | "failure",
   description: string,
-  runUrl: string,
+  runUrl: string
 ): Promise<void> {
   const args = [
-    "api", "--method", "POST",
+    "api",
+    "--method",
+    "POST",
     `repos/${repository}/statuses/${sha}`,
-    "-f", `state=${state}`,
-    "-f", "context=Main Write Guard",
-    "-f", `description=${description}`,
+    "-f",
+    `state=${state}`,
+    "-f",
+    "context=Main Write Guard",
+    "-f",
+    `description=${description}`,
   ];
   if (runUrl) {
     args.push("-f", `target_url=${runUrl}`);
@@ -47,12 +42,15 @@ async function publishGuardStatus(
 export async function auditRepositoryMain(
   reader: GithubReader,
   repository: string,
-  isCentralStatusRequired = true,
+  isCentralStatusRequired = true
 ): Promise<{ main_sha: string; pr_number: number }> {
   const repositoryValue = await reader.get(`repos/${repository}`);
   const defaultBranch = getJsonString(repositoryValue, "default_branch");
   if (defaultBranch !== "main") {
-    throw new CliError(`::error::Managed repository default branch must be main: ${repository}.`, 65);
+    throw new CliError(
+      `::error::Managed repository default branch must be main: ${repository}.`,
+      65
+    );
   }
   const mainCommit = await reader.get(`repos/${repository}/commits/main`);
   const mainSha = getJsonString(mainCommit, "sha");
@@ -63,7 +61,7 @@ export async function auditRepositoryMain(
     reader,
     repository,
     mainSha,
-    isCentralStatusRequired,
+    isCentralStatusRequired
   );
   return { main_sha: mainSha, pr_number: provenance.pr_number };
 }
@@ -96,7 +94,7 @@ async function main(): Promise<void> {
   if (requestedRepository && !managedRepositories.includes(requestedRepository)) {
     throw new CliError(
       `::error::MAIN_WRITE_AUDIT_REPOSITORY is not a managed PR repository: ${requestedRepository}.`,
-      77,
+      77
     );
   }
   const repositories = requestedRepository ? [requestedRepository] : managedRepositories;
@@ -110,7 +108,10 @@ async function main(): Promise<void> {
       const repositoryValue = await reader.get(`repos/${repository}`);
       const defaultBranch = getJsonString(repositoryValue, "default_branch");
       if (defaultBranch !== "main") {
-        throw new CliError(`::error::Managed repository default branch must be main: ${repository}.`, 65);
+        throw new CliError(
+          `::error::Managed repository default branch must be main: ${repository}.`,
+          65
+        );
       }
       const mainCommit = await reader.get(`repos/${repository}/commits/main`);
       mainSha = getJsonString(mainCommit, "sha");
@@ -122,7 +123,7 @@ async function main(): Promise<void> {
         reader,
         repository,
         mainSha,
-        repository !== controlRepository,
+        repository !== controlRepository
       );
       await publishGuardStatus(
         repository,
@@ -130,7 +131,7 @@ async function main(): Promise<void> {
         token,
         "success",
         `Trusted main write via PR #${provenance.pr_number}`,
-        runUrl,
+        runUrl
       );
       results.push({
         repository,
@@ -139,10 +140,18 @@ async function main(): Promise<void> {
         detail: `PR #${provenance.pr_number}`,
       });
     } catch (error) {
-      const detail = error instanceof Error ? error.message.replace(/^::error::/, "") : String(error);
+      const detail =
+        error instanceof Error ? error.message.replace(/^::error::/, "") : String(error);
       if (shaPattern.test(mainSha)) {
         try {
-          await publishGuardStatus(repository, mainSha, token, "failure", "Untrusted main write", runUrl);
+          await publishGuardStatus(
+            repository,
+            mainSha,
+            token,
+            "failure",
+            "Untrusted main write",
+            runUrl
+          );
         } catch {
           // Keep the provenance failure authoritative.
         }
@@ -161,15 +170,17 @@ async function main(): Promise<void> {
     "",
     "| Repository | Main SHA | Result | Detail |",
     "|---|---|---|---|",
-    ...results.map((item) =>
-      `| ${item.repository} | ${item.main_sha} | ${item.state} | ${item.detail.replace(/\|/g, "\\|")} |`),
+    ...results.map(
+      (item) =>
+        `| ${item.repository} | ${item.main_sha} | ${item.state} | ${item.detail.replace(/\|/g, "\\|")} |`
+    ),
   ]);
 
   const failures = results.filter((item) => item.state === "failure");
   if (failures.length > 0) {
     throw new CliError(
       `::error::Main Write Audit failed for ${failures.length} repository/repositories: ${failures.map((item) => item.repository).join(", ")}.`,
-      1,
+      1
     );
   }
 

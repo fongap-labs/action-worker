@@ -70,7 +70,10 @@ function scopedOwnerPrefix(path: string): string | null {
     const segment = segments[index] ?? "";
     if (!ownerScopes.has(segment)) continue;
     const owner = segments[index + 1] ?? "";
-    const token = owner.replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "").toUpperCase();
+    const token = owner
+      .replace(/[^A-Za-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .toUpperCase();
     return token ? `${token}_` : null;
   }
   return null;
@@ -85,24 +88,41 @@ function isSelfIdentifying(name: string, path: string): boolean {
 }
 
 function externalNames(path: string, text: string): string[] {
-  if (path.startsWith(".github/workflows/") && [".yml", ".yaml"].includes(extname(path).toLowerCase())) {
-    return [...new Set([...text.matchAll(workflowExternalPattern)].map((match) => match[1]!).filter(Boolean))].sort();
+  if (
+    path.startsWith(".github/workflows/") &&
+    [".yml", ".yaml"].includes(extname(path).toLowerCase())
+  ) {
+    return [
+      ...new Set(
+        [...text.matchAll(workflowExternalPattern)].map((match) => match[1]!).filter(Boolean)
+      ),
+    ].sort();
   }
   return [...new Set(text.match(tokenPattern) ?? [])].sort();
 }
 
 function shouldScan(path: string): boolean {
-  if (path.startsWith(".github/workflows/") && [".yml", ".yaml"].includes(extname(path).toLowerCase())) {
+  if (
+    path.startsWith(".github/workflows/") &&
+    [".yml", ".yaml"].includes(extname(path).toLowerCase())
+  ) {
     return true;
   }
   const name = basename(path);
-  if ([".env", ".env.example", ".env.variables", ".secrets.required", ".dev.vars.example"].includes(name)) {
+  if (
+    [".env", ".env.example", ".env.variables", ".secrets.required", ".dev.vars.example"].includes(
+      name
+    )
+  ) {
     return true;
   }
   if (name === "wrangler.jsonc") {
     return true;
   }
-  return path.split("/").includes("config") && [".json", ".jsonc", ".toml", ".yml", ".yaml"].includes(extname(path).toLowerCase());
+  return (
+    path.split("/").includes("config") &&
+    [".json", ".jsonc", ".toml", ".yml", ".yaml"].includes(extname(path).toLowerCase())
+  );
 }
 
 export function validateConfigText(path: string, text: string): string[] {
@@ -114,19 +134,22 @@ export function validateConfigText(path: string, text: string): string[] {
       continue;
     }
     if (!isSelfIdentifying(name, path)) {
-      errors.push(`${path}: external configuration '${name}' must identify its owning system without repository context`);
+      errors.push(
+        `${path}: external configuration '${name}' must identify its owning system without repository context`
+      );
     }
     if (name.endsWith("_PAT") || name.includes("_PAT_")) {
       errors.push(`${path}: credential '${name}' must use TOKEN or KEY instead of PAT`);
     }
     const usesBooleanPrefix = /(?:^|_)(?:IS|HAS|CAN|SHOULD)_/.test(name);
     const isModeValue = name.endsWith("_MODE");
-    const looksBoolean = !isModeValue && (
-      /(?:^|_)(?:ALLOW|ENABLE|DISABLE|EXPOSE|INCLUDE)_/.test(name)
-      || name.endsWith("_ENABLED")
-    );
+    const looksBoolean =
+      !isModeValue &&
+      (/(?:^|_)(?:ALLOW|ENABLE|DISABLE|EXPOSE|INCLUDE)_/.test(name) || name.endsWith("_ENABLED"));
     if (looksBoolean && !usesBooleanPrefix) {
-      errors.push(`${path}: Boolean configuration '${name}' must include an IS_, HAS_, CAN_, or SHOULD_ semantic segment`);
+      errors.push(
+        `${path}: Boolean configuration '${name}' must include an IS_, HAS_, CAN_, or SHOULD_ semantic segment`
+      );
     }
   }
   return errors;
