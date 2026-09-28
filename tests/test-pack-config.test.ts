@@ -40,7 +40,7 @@ test("a pinned pack is checked out only when it is trusted history", async () =>
   const root = await mkdtemp(join(tmpdir(), "test-pack-"));
   const git = (...args: string[]) =>
     execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
-  git("init", "-q");
+  git("init", "-q", "-b", "main");
   git("config", "user.name", "Test");
   git("config", "user.email", "test@example.com");
   await writeFile(join(root, "a.txt"), "one");
