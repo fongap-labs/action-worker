@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: add the `app-source` test pack for the license-service database tests and document the state of every managed repository in `docs/TEST_PACKS.md`.
+
 - feat: centralize product test suites as Action Worker test packs with a shared test kit, a pack runner, a pre-migration case inventory, and `.github/test-pack.json` as a protected CI control path.
 
 - fix: raise the security gate diff buffer so large generated publication artifacts can be scanned instead of exceeding the 16 MiB cap.
