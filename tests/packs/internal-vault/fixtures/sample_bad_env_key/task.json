@@ -1,0 +1,9 @@
+{
+  "steps": [
+    {
+      "id": "x",
+      "target": "bricks.__test__.dummy_ok",
+      "args": {}
+    }
+  ]
+}

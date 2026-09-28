@@ -8,7 +8,7 @@
   },
   "scripts": {
     "check": "npm run typecheck && npm run lint && npm test",
-    "test": "node --test \"tests/*.test.ts\"",
+    "test": "node --test \"tests/*.test.ts\" \"tests/kit/*.test.mjs\"",
     "typecheck": "tsc --noEmit",
     "lint": "biome check ."
   },
@@ -16,5 +16,8 @@
     "@biomejs/biome": "2.2.0",
     "@types/node": "24.13.6",
     "typescript": "5.9.3"
+  },
+  "imports": {
+    "#kit/*": "./tests/kit/*"
   }
 }

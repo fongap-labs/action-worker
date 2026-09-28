@@ -1,0 +1,1321 @@
+{
+  "schema_version": 1,
+  "runtime": "node",
+  "suites": {
+    "access-keys": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "no configured group fails closed": 1,
+        "CSV allowlist is group-scoped and fail-closed": 1,
+        "missing or empty group model list grants zero models": 1,
+        "wildcard means all known models, not arbitrary strings": 1,
+        "wrong credential is rejected": 1,
+        "all five groups resolve independently": 1,
+        "authorization result never leaks the raw secret": 1,
+        "unknown allowlist entry emits a catalog warning but creates no model": 1,
+        "x-api-key is accepted for grouped keys": 1,
+        "known model catalog is node mappings plus AIG_MODELS_CONFIG": 1,
+        "/v1/models filter uses the same known catalog as authorization": 1,
+        "empty known catalog stays empty even for wildcard access key": 1
+      }
+    },
+    "adaptive-429": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:adaptive-429": 1
+      }
+    },
+    "architecture-contract": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "Contract 01: Native First — native runs before fallback": 1,
+        "Contract 02: Native Empty + Explicit Fallback -> 200 via OpenAI": 1,
+        "Contract 03: Default ON — Anthropic request with only OpenAI nodes -> 200 via fallback": 1,
+        "Contract 03b: AIG_PROTOCOL_FALLBACKS=disable -> 404": 1,
+        "Contract 05: Hedge twin never crosses protocol/surface": 1,
+        "Contract 06: Stream commit -> no transparent failover": 1,
+        "Contract 07: Shared failover budget (attempts + fallback)": 1,
+        "Contract 08: Logical attempt != physical hedge dispatch count": 1,
+        "Contract 09: removed node limits are rejected instead of influencing admission": 1,
+        "Contract 10: Closed Catalog - wildcard node rejects unknown model": 1,
+        "Contract 11: Visible == Callable (key-scoped)": 1,
+        "Contract 12: Model Missing Isolation (per node-model pair)": 1,
+        "Contract 13: Runtime projection does not feedback to hot path": 1,
+        "Contract 14: D1 failure/missing binding does not block routing": 1,
+        "Contract 15: Tier 2/3 selector returns unified candidate shape": 1,
+        "Contract 16: one tier allocation model preserves Tier precedence": 1
+      }
+    },
+    "attempt-budget-contract": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:attempt-budget-contract": 1
+      }
+    },
+    "calendar-heatmap-contract": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:calendar-heatmap-contract": 1
+      }
+    },
+    "calendar-heatmap": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "rolling-52-weeks: 52 columns, 7 days each, current week is the last column": 1,
+        "rolling-52-weeks: future cells keep their layout slot but value is null": 1,
+        "rolling-52-weeks: weekday index is Monday-first even when JavaScript Date.getDay is Sunday-first": 1,
+        "rolling-52-weeks: month labels anchor to where each month 1st lives": 1,
+        "rolling-52-weeks: business data is matched by YYYY-MM-DD key, not position": 1,
+        "rolling-52-weeks: in-range past cells with no data are 0 (real number, not null)": 1,
+        "calendar-year 2026: rangeStart=2026-01-01, rangeEnd=2026-12-31": 1,
+        "calendar-year 2026: 2026-01-01 is a Thursday (weekdayIndex=3)": 1,
+        "calendar-year 2026: layout padding before Jan 1 is out of range": 1,
+        "calendar-year 2026: layout padding after Dec 31 is out of range": 1,
+        "calendar-year 2026: months 1..12 each have a label, anchored to the week of their 1st day": 1,
+        "calendar-year current year: future days in-range but value null": 1,
+        "calendar-year historical year: no future days": 1,
+        "calendar-year: 2026 has EXACTLY 53 columns and 365 in-range days": 1,
+        "calendar-year: a leap year starting on Sunday spans EXACTLY 54 columns (2012)": 1,
+        "calendar-year: 2040 is also an EXACT 54-column year (leap + Sunday Jan 1)": 1,
+        "calendar-year: non-leap years have EXACTLY 53 columns (2019)": 1,
+        "calendar-year: leap year 2028 includes 2028-02-29 and has EXACTLY 53 columns / 366 days": 1,
+        "rolling-52-weeks: 8月31日 (Mon) and 9月1日 (Tue) share the last column; 9月 anchors there": 1,
+        "calendar-year: month starting on Monday anchors to its own week column (2027-02-01)": 1,
+        "calendar-year: month starting on Sunday anchors to the PREVIOUS week column (2026-02-01)": 1,
+        "rolling-52-weeks: labels span the 12月 → 1月 year boundary": 1,
+        "UTC+8 midnight boundary: 15:59:59Z vs 16:00:00Z split the business day": 1,
+        "UTC+8 month/week boundary: 2026-08-31T16:00:00Z rolls date AND month with correct weekday math": 1,
+        "rolling-52-weeks: Date input also works (not just number ms)": 1,
+        "rolling-52-weeks: rejects unknown mode": 1,
+        "rolling-52-weeks: rejects missing mode": 1,
+        "rolling-52-weeks: rejects non-finite today": 1
+      }
+    },
+    "calendar-heatmap-view": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "renderer rolling-52-weeks: 364 cells, 12 month labels, levels 0/1..4 populated": 1,
+        "renderer rolling-52-weeks: future cells stay level 0, tooltip is the bare ISO date": 1,
+        "renderer rolling-52-weeks: tooltip carries date + tokens + requests": 1,
+        "renderer calendar-year 2026: 53 columns, 12 month labels, no inRange past cells are quantified as 0": 1,
+        "renderer calendar-year 2026: month labels are in 1..12 order and use the right week column": 1,
+        "renderer rolling-52-weeks: month labels never crowd closer than 3 columns": 1,
+        "renderer rolling-52-weeks: the right-edge 9月 label is NOT dropped and binds to week 51": 1,
+        "renderer: cells carry data-week/data-weekday and explicit grid placement from the HeatmapDay": 1,
+        "renderer calendar-year 2026: 1月 at column 1 and 12月 present — no edge drops": 1,
+        "renderer: HTML escaping of tooltip payloads with special chars": 1
+      }
+    },
+    "ci-migration-immutability-contract": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:ci-migration-immutability-contract": 1
+      }
+    },
+    "claude-contract": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "claude non-stream text is a message with content block": 1,
+        "claude streaming passes the native event lifecycle through and hides upstream model": 1,
+        "claude streaming forwards anthropic-version and anthropic-beta headers natively": 1,
+        "claude a complete native lifecycle never opens a half stream": 1,
+        "claude thinking blocks pass through natively": 1,
+        "claude tool_use passes through as a native tool_use content block": 1,
+        "claude tool_use streaming assembles input_json_delta chunks": 1,
+        "claude tool_use + tool_result history is forwarded verbatim (native body)": 1,
+        "claude system and tools pass through natively": 1,
+        "claude upstream 400 rotates to another provider-key slot": 1,
+        "claude missing/invalid gateway key is a 401 authentication_error": 1,
+        "claude upstream 429 after cooldown is an Anthropic rate_limit_error": 1,
+        "claude upstream 5xx rotates; final failure is an Anthropic api_error": 1,
+        "claude count_tokens is approximated locally without upstream calls": 1,
+        "claude stream interruption accounts a node failure and delivers partial bytes": 1,
+        "claude: message_start-only first event then EOF must fail over to a healthy node": 1,
+        "claude: text delta first event then EOF must NOT fail over to another node": 1,
+        "claude: a stream ending without message_stop is a node failure, not success": 1,
+        "claude non-stream client + streaming upstream assembles the message object": 1,
+        "claude stream client + JSON upstream synthesizes the SSE lifecycle": 1,
+        "claude fallback Case A: metadata is safely dropped on OpenAI fallback": 1,
+        "claude fallback Case B: cache_control is safely dropped on OpenAI fallback": 1,
+        "claude fallback Case C: metadata + cache_control + tools completes an agent workflow": 1,
+        "claude fallback Case D: unconvertible semantic feature is skipped, not a client 400": 1
+      }
+    },
+    "claude-fallback-compatibility": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:claude-fallback-compatibility": 1
+      }
+    },
+    "closed-catalog": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "wildcard + empty catalog rejects arbitrary model": 1,
+        "AIG_MODELS_CONFIG can bound an intentional wildcard node": 1,
+        "wildcard never expands beyond the known catalog": 1,
+        "known catalog is the union of explicit node mappings and AIG_MODELS_CONFIG": 1,
+        "mapped node serves only its declared logical models": 1,
+        "wildcard requires an explicit known catalog even when called directly": 1,
+        "allow-all visible models are exactly the known catalog": 1,
+        "per-key allowlist is intersected with the known catalog": 1,
+        "allowlisted-but-nonexistent model is still a 404": 1,
+        "empty catalog exposes and authorizes zero models": 1
+      }
+    },
+    "codex-contract": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "responses non-stream passes the native object through (model hidden)": 1,
+        "responses stream relays the native event lifecycle (model hidden)": 1,
+        "responses reasoning items pass through natively": 1,
+        "responses function call: arguments deltas stream natively": 1,
+        "responses multiple parallel tool calls keep native call ids": 1,
+        "responses non-stream upstream 429 rotates to a healthy node": 1,
+        "responses all nodes cooling returns Responses-shaped 429 with Retry-After": 1,
+        "responses upstream 5xx rotates to a healthy node": 1,
+        "responses first-event failover: empty upstream rotates before any event": 1,
+        "responses mid-stream failure never fails over after first event": 1,
+        "responses created-only then EOF rotates to a healthy node": 1,
+        "responses unknown model returns 404-shaped gateway error": 1,
+        "responses missing auth returns 401 without touching upstream": 1,
+        "terminal errors carry x-should-retry:false but 429 stays retryable": 1,
+        "responses tools and host-managed features pass through natively": 1,
+        "responses instructions / reasoning effort / metadata pass through verbatim": 1,
+        "responses input function_call + function_call_output history is forwarded verbatim": 1,
+        "responses stream request + JSON upstream synthesizes the SSE lifecycle": 1,
+        "responses non-stream request + streaming upstream assembles the response object": 1
+      }
+    },
+    "composed-capacity-contract": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:composed-capacity-contract": 1
+      }
+    },
+    "config-cli": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:config-cli": 1
+      }
+    },
+    "config-matrix": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "node-mapped models are public without AIG_MODELS_CONFIG": 1,
+        "visibility internal hides a mapped model but does not make it unrequestable": 1,
+        "AIG_MODELS_CONFIG alone never widens public/requestable models": 1,
+        "same-tier credential may live in a different shard suffix": 1,
+        "cross-tier credential binding is rejected": 1,
+        "explicit tier_attempts remains a hard cap": 1,
+        "unset lower tier receives remaining budget after explicit higher-tier cap": 1,
+        "surplus goes to the first adjustable dispatchable tier": 1,
+        "explicit zero disables a tier": 1,
+        "tier_attempts total above max_attempts is rejected": 1,
+        "budget_split is not a current policy field": 1
+      }
+    },
+    "conversion-boundary": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "Chat rejects unsupported reasoning instead of dropping semantics": 1,
+        "Chat rejects unsupported unknown_option instead of dropping semantics": 1,
+        "Messages rejects unsupported reasoning instead of dropping semantics": 1,
+        "Messages rejects unsupported unknown_option instead of dropping semantics": 1,
+        "Chat rejects unsupported metadata instead of dropping semantics": 1,
+        "Messages accepts metadata (safe drop) instead of blocking fallback": 1,
+        "Chat rejects non-equivalent sampling, strict tools, and invalid JSON arguments": 1,
+        "Messages preserves text after tool_use and emits parallel tool results at top level": 1,
+        "Chat tool index starts at zero after text and usage does not duplicate finish": 1,
+        "Chat rejects truncated and malformed streams": 1,
+        "Chat upstream error cannot be followed by success": 1,
+        "Chat client cancellation reaches a pending upstream read": 1,
+        "Messages rejects truncated and malformed streams": 1,
+        "Messages upstream error cannot be followed by success": 1,
+        "Messages client cancellation reaches a pending upstream read": 1
+      }
+    },
+    "conversion-result": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:conversion-result": 1
+      }
+    },
+    "conversion": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "conversion: text roundtrip": 1,
+        "conversion: tool_use roundtrip (assistant + tool_result)": 1,
+        "conversion: response conversion (text + tool_use, finish=tool_calls)": 1,
+        "conversion: usage conversion": 1,
+        "conversion: unsupported image block throws ConversionError": 1,
+        "conversion: unsupported tool_choice throws ConversionError": 1,
+        "conversion: OpenAI Chat -> Anthropic request — text roundtrip": 1,
+        "conversion: OpenAI Chat -> Anthropic request — system (string) + developer (string)": 1,
+        "conversion: OpenAI Chat -> Anthropic request — temperature/top_p/stop/stream passthrough": 1,
+        "conversion: OpenAI Chat -> Anthropic request — stop string becomes single-element array": 1,
+        "conversion: OpenAI Chat -> Anthropic request — max_tokens explicit pass-through": 1,
+        "conversion: OpenAI Chat -> Anthropic request — assistant tool_calls -> tool_use": 1,
+        "conversion: OpenAI Chat -> Anthropic request — role=tool -> tool_result": 1,
+        "conversion: OpenAI Chat -> Anthropic request — multiple consecutive tool messages merge": 1,
+        "conversion: OpenAI Chat -> Anthropic request — tools[].function.parameters -> input_schema": 1,
+        "conversion: OpenAI Chat -> Anthropic request — tool_choice auto/required/none/function": 1,
+        "conversion: OpenAI Chat -> Anthropic request — unsupported tool_choice type rejected": 1,
+        "conversion: OpenAI Chat -> Anthropic request — image_url is converted to image block": 1,
+        "conversion: OpenAI Chat -> Anthropic request — input_audio is rejected (not silently dropped)": 1,
+        "conversion: OpenAI Chat -> Anthropic request — unknown role is rejected": 1,
+        "conversion: OpenAI Chat -> Anthropic request — DEFAULT_MAX_TOKENS is the single source of truth": 1,
+        "conversion: Anthropic response -> OpenAI Chat — text only (end_turn)": 1,
+        "conversion: Anthropic response -> OpenAI Chat — tool_use (finish=tool_use)": 1,
+        "conversion: Anthropic response -> OpenAI Chat — stop_reason mapping": 1,
+        "conversion: Anthropic response -> OpenAI Chat — usage total_tokens computed when missing": 1,
+        "conversion: Anthropic response -> OpenAI Chat — missing usage defaults to 0": 1,
+        "conversion: Anthropic response -> OpenAI Chat — unsupported content type is rejected": 1,
+        "conversion: Anthropic response -> OpenAI Chat — thinking-only response converts to reasoning_content": 1,
+        "conversion: stream Anthropic -> OpenAI Chat — text + end_turn, real-time": 1,
+        "conversion: stream Anthropic -> OpenAI Chat — tool_use + tool_calls finish": 1,
+        "conversion: stream Anthropic -> OpenAI Chat — message_start only is NOT a commit": 1,
+        "conversion: stream Anthropic -> OpenAI Chat — max_tokens maps to length": 1,
+        "conversion: stream Anthropic -> OpenAI Chat — usage chunk emitted at end when tokens known": 1,
+        "conversion: stream text roundtrip": 1,
+        "conversion: stream tool_calls roundtrip (split across chunks)": 1,
+        "conversion: stream OpenAI -> Anthropic — reasoning_content becomes thinking blocks": 1,
+        "conversion: non-stream OpenAI -> Anthropic — reasoning_content becomes thinking block": 1,
+        "config: loadProtocolFallbacks returns the parsed object": 1,
+        "config: getFallbackChain returns parsed surface objects": 1,
+        "config: invalid JSON returns {} with diagnostic": 1,
+        "config: default ON — unset env applies built-in default chain": 1,
+        "config: default ON — empty string is treated as unset": 1,
+        "config: \"disable\" literal turns the default off": 1,
+        "config: explicit empty JSON overrides default (intentional turn-off)": 1,
+        "config: \"disable\" + explicit JSON both yield the same opt-out (sanity)": 1,
+        "config: bad key format -> diagnostic, key rejected": 1,
+        "config: bad value -> diagnostic, value not accepted": 1,
+        "config: unsupported conversion source -> blocking error": 1,
+        "config: unsupported conversion target -> blocking error": 1,
+        "handler: Anthropic native success returns native-format response": 1,
+        "handler: Anthropic exhausted -> OpenAI conversion success": 1,
+        "handler: native available -> OpenAI fallback is never called": 1,
+        "handler: conversion disabled (no fallback) -> Anthropic exhausted is 5xx": 1,
+        "handler: OpenAI 429 then 200 -> fallback retries and succeeds": 1,
+        "handler: client abort -> 499": 1,
+        "handler: first-event timeout -> rotates to next node": 1,
+        "handler: conversion shares max_attempts budget with native": 1,
+        "handler: conversion shares failover_budget_ms": 1,
+        "handler: hedge never crosses protocol": 1,
+        "handler: conversion error does not pollute node health": 1,
+        "regression: no native candidate + configured fallback -> 200 via OpenAI": 1,
+        "regression: no native candidate + no fallback configured -> 404": 1,
+        "regression: fallback configured but target node lacks the model -> 404": 1,
+        "handler: OpenAI Chat client + only Anthropic upstream -> success (non-stream)": 1,
+        "handler: OpenAI Chat client + only Anthropic upstream -> success (stream)": 1,
+        "handler: OpenAI Chat client + Anthropic 529 -> OpenAI error envelope (cross-protocol error shape)": 1,
+        "handler: OpenAI Chat client + Anthropic 529 -> rotation 429 retry": 1,
+        "handler: OpenAI Chat client + Anthropic upstream with tool_use": 1,
+        "handler: OpenAI Chat native success unchanged when native node available": 1,
+        "handler: conversion error skips the fallback target -> gateway exhausted (not 400)": 1,
+        "handler: OpenAI Responses client + only Anthropic upstream (no fallback) -> 404": 1,
+        "handler: OpenAI Responses client + only Anthropic upstream (no fallback, stream) -> 404": 1,
+        "handler: OpenAI Responses client + Anthropic 529 (no fallback) -> 404": 1,
+        "handler: OpenAI Responses client + only OpenAI Responses upstream -> success (native path)": 1,
+        "handler: OpenAI Responses client + Anthropic upstream with tool_use (no fallback) -> 404": 1
+      }
+    },
+    "cooldown-jitter": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:cooldown-jitter": 1
+      }
+    },
+    "daily-token-overlay": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "recent seven full UTC+8 days override stale daily snapshots": 1,
+        "today is also rebuilt from hourly when a stale daily row exists": 1,
+        "hourly remains the fallback when materialized daily history is absent": 1
+      }
+    },
+    "dashboard-consumption-semantics": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:dashboard-consumption-semantics": 1
+      }
+    },
+    "dashboard-model-filter": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:dashboard-model-filter": 1
+      }
+    },
+    "deploy-kill-switch": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:deploy-kill-switch": 1
+      }
+    },
+    "deployment-identity": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "runtime build identity uses the gateway-scoped source SHA only": 1,
+        "online verification rejects the wrong Worker build before accepting health": 1,
+        "deployment validation remains project-owned while orchestration is central": 1
+      }
+    },
+    "deployment-workflow-contract": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:deployment-workflow-contract": 1
+      }
+    },
+    "docs-contract": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "README.md protocol contract": 1,
+        "README.zh-CN.md protocol contract": 1,
+        "docs/architecture/protocol-model.md protocol contract": 1,
+        "docs/architecture/routing-model.md protocol contract": 1,
+        "docs/operations/configuration.md protocol contract": 1,
+        ".dev.vars.example protocol contract": 1,
+        "config/worker-vars.example.json protocol contract": 1,
+        ".dev.vars.example bidirectional Chat/Messages fallback": 1,
+        "config/worker-vars.example.json bidirectional Chat/Messages fallback": 1,
+        "worker vars node examples match the current account-level schema": 1,
+        ".dev.vars.example node examples match the current account-level schema": 1,
+        "README.md grouped access model": 1,
+        "README.zh-CN.md grouped access model": 1,
+        "SECURITY.md grouped access model": 1,
+        "docs/operations/configuration.md grouped access model": 1,
+        "docs/operations/deployment.md grouped access model": 1,
+        ".dev.vars.example grouped access model": 1,
+        "config/access-keys.example.json grouped access model": 1,
+        "README.md independent shard suffixes": 1,
+        "README.zh-CN.md independent shard suffixes": 1,
+        "SECURITY.md independent shard suffixes": 1,
+        "docs/architecture/routing-model.md independent shard suffixes": 1,
+        "docs/operations/configuration.md independent shard suffixes": 1,
+        "docs/operations/deployment.md independent shard suffixes": 1,
+        ".dev.vars.example independent shard suffixes": 1,
+        "routing docs use one current attempt-allocation and scoring contract": 1,
+        "reliability docs match current Tier 1 score inputs": 1,
+        "configuration docs match provider-owned wire and dashboard accounting contracts": 1,
+        "public model status docs match five-state and TTFT dashboard surface": 1,
+        "troubleshooting docs contain no retired operational instructions": 1,
+        "tooling docs contain no retired version automation": 1,
+        "module boundary audit pins baseline, resolved ownership, and anti-over-abstraction guardrails": 1,
+        "calendar docs match usage semantics and current test layout": 1,
+        "README.md has no retired contract surface": 1,
+        "README.zh-CN.md has no retired contract surface": 1,
+        "SECURITY.md has no retired contract surface": 1,
+        "scripts/README.md has no retired contract surface": 1,
+        "docs/architecture/overview.md has no retired contract surface": 1,
+        "docs/architecture/protocol-model.md has no retired contract surface": 1,
+        "docs/architecture/subscription-model.md has no retired contract surface": 1,
+        "docs/architecture/routing-model.md has no retired contract surface": 1,
+        "docs/architecture/reliability-model.md has no retired contract surface": 1,
+        "docs/architecture/repository-layout.md has no retired contract surface": 1,
+        "docs/architecture/module-boundary-audit.md has no retired contract surface": 1,
+        "docs/architecture/calendar-heatmap.md has no retired contract surface": 1,
+        "docs/operations/configuration.md has no retired contract surface": 1,
+        "docs/operations/deployment.md has no retired contract surface": 1,
+        "docs/operations/public-model-status.md has no retired contract surface": 1,
+        "docs/operations/troubleshooting.md has no retired contract surface": 1,
+        "source-owned deploy script consumes all 22 runtime variables through the canonical config builder": 1,
+        ".dev.vars.example references every current tunable and keeps defaults single-sourced": 1,
+        "Tier 1 docs remain Affinity → P2C": 1
+      }
+    },
+    "fallback-conversion-observability": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:fallback-conversion-observability": 1
+      }
+    },
+    "family-rate-limit-retry": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:family-rate-limit-retry": 1
+      }
+    },
+    "gateway-configuration": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "collectShards accepts 01..10 and reports out-of-range/malformed names": 1,
+        "account-level node config is ready and gets provider wire profile": 1,
+        "provider, base_url and models are required account fields": 1,
+        "provider wire profiles are single-sourced": 1,
+        "protocol and surfaces are not node fields": 1,
+        "models accepts object only; explicit empty object is intentional wildcard": 1,
+        "unknown, credential and retired capacity fields are rejected": 1,
+        "priority is numeric-only; absent priority uses current default 100": 1,
+        "registry carries declared capabilities and conservative defaults": 1,
+        "wildcard and explicit model mappings remain distinct": 1,
+        "AIG_MODELS_CONFIG rejects malformed or unknown capability fields": 1,
+        "AIG_MODELS_CONFIG accepts current modalities/ocr/ui fields": 1,
+        "AIG_MODELS_CONFIG rejects obvious capability contradictions without provider inference": 1,
+        "max_attempts and tier_attempts accept only bounded integer numbers": 1,
+        "budget_split and other retired policy fields are rejected as unknown": 1,
+        "hedge and max_in_flight current fields validate without coercion": 1,
+        "invalid policy/model references are fatal end-to-end": 1
+      }
+    },
+    "github-deployment-config": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:github-deployment-config": 1
+      }
+    },
+    "google-subscription-wire": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "basic chat builds contents + model + no system": 1,
+        "system + developer messages collect into systemInstruction": 1,
+        "assistant tool_calls map to functionCall parts and register id->name": 1,
+        "tool response with non-JSON content is wrapped as {output}": 1,
+        "tools + tool_choice map to functionDeclarations and toolConfig": 1,
+        "generation config maps OpenAI fields to Gemini names": 1,
+        "stream flag selects streaming endpoint semantics": 1,
+        "image data-url part becomes inlineData": 1,
+        "refusal: no messages -> null": 1,
+        "refusal: unsupported user part type -> null": 1,
+        "refusal: tool message without preceding tool_call id -> null": 1,
+        "refusal: malformed tool_call arguments -> null": 1,
+        "refusal: non-function tool type -> null": 1,
+        "object: text response maps to chat completion + usage": 1,
+        "object: function call maps to tool_calls": 1,
+        "object: MAX_TOKENS -> length, SAFETY -> content_filter": 1,
+        "object: no candidates / no meaningful output -> null": 1,
+        "stream: text deltas + finish + usage + [DONE]": 1,
+        "stream: function call delta carries id/name/arguments": 1,
+        "stream: clean upstream end finalizes even without finishReason": 1,
+        "stream: no-text response ends with finish stop and [DONE] (guard-safe empty)": 1,
+        "constants expose the built-in endpoint and CLI user agent": 1
+      }
+    },
+    "integration": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "missing gateway key returns 401 without upstream traffic": 1,
+        "wrong gateway key returns 401": 1,
+        "removed limits field is a hard schema error and never reaches upstream": 1,
+        "protocol/surfaces in Node JSON are hard schema errors and never reach upstream": 1,
+        "OpenAI Chat native success rewrites model identity and hides topology by default": 1,
+        "same-tier failover rotates from a transient failure to a healthy peer": 1,
+        "live in-flight load is soft: the sole healthy Tier 1 node accepts a second request": 1,
+        "legacy QUOTA_RATE_LIMITER binding is not provider admission policy": 1,
+        "Tier 1 -> Tier 2 -> Tier 3 fallback preserves strict tier order": 1,
+        "busy Tier 2 remains last-resort capacity when it is the only healthy fallback": 1,
+        "429 cools one key and rotates to another same-tier key before lower tiers": 1,
+        "all eligible keys cooling returns 429 with a real Retry-After": 1,
+        "model_missing 404 cools only that mapping; sibling model on same node remains healthy": 1,
+        "client-class 400 rotates to another provider-key slot": 1,
+        "HTTP 200 with non-JSON garbage rotates and penalizes the bad node": 1,
+        "HTTP 200 JSON error envelope also rotates to healthy capacity": 1,
+        "stream lifecycle/role-only output is not a commit; empty node can still fail over": 1,
+        "after meaningful stream output commits, transparent replay is forbidden": 1,
+        "Tier 1 streaming slot stays claimed until stream completion and releases once": 1,
+        "Anthropic Messages native non-stream request stays native": 1,
+        "Anthropic streaming preserves native lifecycle and model identity": 1,
+        "Anthropic client may fall back to OpenAI Chat through the bounded conversion path": 1,
+        "OpenAI Responses uses the native OpenAI provider profile": 1,
+        "Responses route never falls back to a chat-only node": 1,
+        "hedge races a slow Tier 1 primary with a same-surface twin": 1,
+        "failover wall-clock budget stops before dispatching a fresh node": 1,
+        "upstream header allowlist drops client cookies/forwarding headers": 1,
+        "D1 write failure is observational and never breaks a successful AI response": 1,
+        "/health is 200 for ready strict config and exposes no credentials": 1,
+        "/v1/models derives public models from actual strict node mappings": 1,
+        "/health.build reports deployment commit and /version stays removed": 1
+      }
+    },
+    "key-rpm": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "cap=0 disables the limiter entirely": 1,
+        "within the window, first N requests are admitted and N+1 is denied": 1,
+        "once the oldest stamp falls out of the window, the slot frees up": 1,
+        "denied request retry-after reflects the oldest stamp": 1,
+        "each key has an independent counter": 1,
+        "snapshot reports the current usage": 1,
+        "snapshot returns cap 0 for unknown key": 1,
+        "bounded key map: 10000 unique keys do not exceed the cap": 1
+      }
+    },
+    "migrations-check": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "parse: 4-digit prefix is accepted (matches shipped files)": 1,
+        "parse: 3-digit prefix is accepted": 1,
+        "parse: slug may contain digits and underscores": 1,
+        "reject: missing NNN prefix": 1,
+        "reject: invalid slug characters": 1,
+        "reject: non-sql files": 1,
+        "shipped files in migrations/ all parse cleanly": 1
+      }
+    },
+    "model-catalog-policy": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "the operator-facing AIG_MODELS_CONFIG schema stays flat": 1,
+        "catalog facts and runtime policy resolve into disjoint concepts": 1,
+        "each side keeps its declared values and independent defaults": 1,
+        "unknown models get the same conservative catalog/policy defaults": 1,
+        "policy tier inference stays unchanged (Air fast / tiered long-reasoning)": 1,
+        "new model families stay data-driven through the known-model catalog": 1,
+        "scenario: a brand-new model routes and reports via configuration alone": 1
+      }
+    },
+    "model-discovery-live": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:model-discovery-live": 1
+      }
+    },
+    "model-family-failure-domain": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:model-family-failure-domain": 1
+      }
+    },
+    "model-family-fallback": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:model-family-fallback": 1
+      }
+    },
+    "model-stats-canonicalization": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:model-stats-canonicalization": 1
+      }
+    },
+    "model-status": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "cold-start: no Tier 1 sample but D1 has recent traffic -> available": 1,
+        "new model: no runtime sample and no D1 evidence -> no_record": 1,
+        "all candidates down and no D1 evidence -> down": 1,
+        "all candidates cooling with recent D1 success -> fluctuating": 1,
+        "healthy Tier 1 path with sample -> available (with or without D1)": 1,
+        "one available + one cooling + no D1 -> available (still has a path)": 1,
+        "one available + one cooling + D1 -> available": 1,
+        "node-mapped model IS public (no AIG_MODELS_CONFIG required)": 1,
+        "wildcard node serves any model another node declared": 1,
+        "output is sorted by logical model name": 1,
+        "output never carries node ids, providers, or tiers": 1,
+        "empty node list -> empty public status (no node mappings = no public models)": 1,
+        "null env (e.g. test isolation) falls back to node mappings": 1,
+        "Tier 1 half-open state -> no_record without evidence, available with recent": 1,
+        "queryRecentModelEvidence: no binding -> empty Set": 1,
+        "queryRecentModelEvidence: persists -> returns model Set": 1,
+        "queryRecentModelEvidence: D1 read failure -> empty Set, never throws": 1,
+        "queryRecentModelEvidence: only rows in the window count": 1,
+        "queryRecentModelEvidence: requests=0 is NOT evidence": 1,
+        "MODEL_STATUS_RECENT_WINDOW_MS is 24h; HISTORICAL is 7d": 1,
+        "isolate rebuild does not flip a previously-available model back to unobserved": 1,
+        "model served by tier 3 (legacy state) is read correctly": 1,
+        "output only ever returns the five documented status values": 1,
+        "historical evidence without recent -> no_recent": 1,
+        "all candidates down + no recent + historical -> still down": 1,
+        "canonical historical evidence matches official-cased model": 1,
+        "dashboard path issues queryRecentModelEvidence at most once per 45s cache window": 1,
+        "config-driven model order: display_order controls sort order": 1,
+        "config-driven grouping: group field controls which block a model appears in": 1,
+        "display_order missing uses default 100": 1,
+        "group missing defaults to general": 1,
+        "node-mapped model without AIG_MODELS_CONFIG gets default order=100 and group=general": 1,
+        "ui_visible=false hides model from public status": 1,
+        "ui_visible defaults to true when not specified": 1,
+        "Omni and OCR excluded from public status with ui_visible=false": 1,
+        "group values: general, code, omni, ocr from config": 1,
+        "deriveGroup fallback: Code- prefix -> code, Omni -> omni, OCR -> ocr": 1,
+        "ui_visible=false with visibility=public still hidden from public status": 1,
+        "canonical evidence: logical Code-Max matches lowercase code-max evidence": 1,
+        "canonical evidence: every evidence case variant yields the same result": 1,
+        "canonical evidence drives the fluctuating state too": 1,
+        "canonicalization does not alter the official model ID surface": 1
+      }
+    },
+    "model-status-window-contract": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:model-status-window-contract": 1
+      }
+    },
+    "module-boundary-contract": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:module-boundary-contract": 1
+      }
+    },
+    "node-config-shards": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "valid plan shards current nodes and tier-scoped secrets": 1,
+        "credential fields and tier field are rejected": 1,
+        "node ids must be unique inside and across tiers": 1,
+        "provider base_url and models are explicit required fields": 1,
+        "protocol and surfaces are provider-owned, not node fields": 1,
+        "base_url must be valid https without credentials": 1,
+        "priority accepts only non-negative integer numbers": 1,
+        "models accepts object only; explicit empty object is wildcard": 1,
+        "retired limits and unknown fields are rejected": 1,
+        "node without credential and orphan credential both fail planning": 1,
+        "secret object is strict": 1,
+        "oversized entry fails before producing invalid shards": 1,
+        "stale managed shard lists are computed": 1,
+        "managed patterns cover current shards only": 1,
+        "planner never emits shard index above 10": 1
+      }
+    },
+    "oauth-subscription": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "Tier 2 auth:\"oauth\" node is accepted without a static credential": 1,
+        "Tier 1 auth:\"oauth\" node is rejected": 1,
+        "Tier 3 auth:\"oauth\" node is rejected": 1,
+        "unknown auth mode is rejected": 1,
+        "auth:\"oauth\" node with a static credential is rejected (dual credential source)": 1,
+        "unset AIG_OAUTH_PROVIDERS falls back to built-in defaults": 1,
+        "invalid AIG_OAUTH_PROVIDERS JSON falls back to built-in defaults": 1,
+        "provider entry missing client_id is dropped; defaults remain": 1,
+        "non-https authorize_url is rejected; defaults remain": 1,
+        "token encryption roundtrip works with a configured key": 1,
+        "encryption fails closed without a key": 1,
+        "decryption with a different key fails": 1,
+        "subscription token persists and reloads through D1": 1,
+        "token store refuses to persist without D1 binding": 1,
+        "token ciphertext in D1 is not the plaintext token": 1,
+        "/oauth/start without a gateway key returns 401": 1,
+        "/oauth/start with a valid key returns a PKCE redirect": 1,
+        "/oauth/start accepts ?key= query param for browser onboarding": 1,
+        "/oauth/start with an unknown node returns 404": 1,
+        "/oauth/start with a non-oauth node returns 400": 1,
+        "/oauth/start without an encryption key returns 503 (fail-closed)": 1,
+        "full callback flow stores the token and consumes the state": 1,
+        "callback with a provider mismatch is rejected": 1,
+        "callback with an unknown state is rejected": 1,
+        "callback with an expired flow state is rejected": 1,
+        "Tier 2 oauth node dispatches with the resolved Bearer token": 1,
+        "Tier 2 oauth node without a token rotates without contacting the upstream": 1,
+        "Tier 2 anthropic oauth node sends Bearer, not x-api-key": 1,
+        "expired token with no refresh token fails closed and rotates": 1,
+        "refresh flow rotates the access token through the provider endpoint": 1,
+        "built-in defaults: anthropic/openai/google available without AIG_OAUTH_PROVIDERS": 1,
+        "AIG_OAUTH_PROVIDERS overrides default per-provider (wholesale)": 1,
+        "google manual paste: /oauth/start uses manual_redirect_url": 1,
+        "google manual paste: POST /oauth/paste exchanges with client_secret": 1,
+        "google manual paste: GET /oauth/paste shows form": 1,
+        "anthropic override with client_secret includes it in the refresh grant": 1,
+        "google streaming dispatch converts Code Assist SSE to OpenAI chat chunks": 1,
+        "google non-streaming dispatch converts Code Assist object to chat completion": 1,
+        "google subscription 429 with gRPC retryDelay extends the cooldown": 1,
+        "singleflight: 100 concurrent resolves issue exactly one refresh": 1,
+        "CAS: a stale refresh writer loses and never clobbers the rotated token": 1,
+        "account_id from token exchange is persisted and sent as chatgpt-account-id for openai nodes": 1,
+        "non-openai oauth nodes never send chatgpt-account-id": 1,
+        "oauth node with an unknown provider fails closed (no subscription adapter)": 1,
+        "codex oauth dispatch sends Originator and normalizes empty instructions on responses": 1,
+        "codex oauth responses with client instructions are preserved": 1,
+        "plain API-key responses nodes are not codex-normalized": 1,
+        "claude oauth dispatch without client beta gets required oauth beta flags": 1,
+        "claude oauth dispatch merges client betas without duplicates": 1,
+        "plain API-key anthropic nodes get no forced oauth betas": 1,
+        "codex subscription 429 with window-reset header extends the cooldown to the quota window": 1,
+        "codex subscription 429 without reset markers keeps the default rate-limit cooldown": 1,
+        "plain API-key nodes never consume subscription quota hints": 1,
+        "codex onboarding discovers upstream models and surfaces the count": 1,
+        "onboarding succeeds even when model discovery fails": 1
+      }
+    },
+    "policy-default-reliability": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:policy-default-reliability": 1
+      }
+    },
+    "policy-max-in-flight": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:policy-max-in-flight": 1
+      }
+    },
+    "product-policy-contract": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:product-policy-contract": 1
+      }
+    },
+    "protocol-matrix": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "Chat uses OpenAI-compatible providers and never Anthropic when conversion is disabled": 1,
+        "Chat failover stays inside the same native surface": 1,
+        "Responses uses only the OpenAI provider profile": 1,
+        "Responses remains Native Only and never converts to Messages": 1,
+        "Messages uses only Anthropic provider when conversion is disabled": 1,
+        "Chat falls back to Messages only through configured conversion": 1,
+        "Messages falls back to Chat only through configured conversion": 1,
+        "disable turns off the built-in Chat/Messages fallback": 1,
+        "hedge twin stays inside the same provider wire profile": 1,
+        "protocol or surfaces in Node JSON are rejected before dispatch": 1,
+        "requested model identity is preserved in native client response": 1
+      }
+    },
+    "provider-adapter-registry": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "registered providers keep their exact native wire contracts": 1,
+        "provider names resolve case-insensitively and whitespace-tolerantly": 1,
+        "unknown providers resolve to the generic OpenAI-compatible adapter": 1,
+        "scenario: a plain OpenAI-compatible provider is configuration-only": 1,
+        "node config wire derivation matches the registry for every provider class": 1,
+        "google shapes Code Assist subscription requests and declares a proprietary wire": 1,
+        "google subscription adapter refuses unsupported surfaces and bodies (fail-closed)": 1,
+        "openai and anthropic adapters keep their subscription semantics": 1,
+        "subscription adapters keep their quota-reset hint semantics": 1,
+        "streamUsageEnabled keeps the operator override ladder": 1,
+        "adapter-declared OAuth defaults feed loadOAuthProviders": 1,
+        "built-in subscription endpoints let Tier 2 oauth nodes omit base_url": 1,
+        "AIG_OAUTH_PROVIDERS still replaces defaults wholesale and adds custom providers": 1
+      }
+    },
+    "provider-discovery-ssrf-guard": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "localhost is dangerous": 1,
+        "loopback IPs are dangerous": 1,
+        "link-local IPv4 (metadata) is dangerous": 1,
+        "private RFC1918 IPs are dangerous": 1,
+        "link-local IPv6 is dangerous": 1,
+        "cloud metadata hostnames are dangerous": 1,
+        "wildcard bind addresses are dangerous": 1,
+        "public safe hosts pass": 1,
+        "safe HTTPS URL passes": 1,
+        "HTTP is rejected": 1,
+        "userinfo is rejected": 1,
+        "SSRF targets are rejected": 1,
+        "allowPrivate opt-in permits private IPs": 1,
+        "invalid URL format rejected": 1,
+        "DNS resolution to a public address passes": 1,
+        "DNS resolution to loopback is rejected": 1,
+        "DNS resolution to metadata address is rejected": 1,
+        "DNS failure is fail-closed": 1,
+        "allowPrivate bypasses DNS private-address rejection": 1,
+        "redirect revalidation blocks dangerous targets": 1,
+        "model count limit enforced": 1,
+        "response under limit passes": 1,
+        "response over limit throws": 1,
+        "DISCOVERY_LIMITS has expected defaults": 1
+      }
+    },
+    "provider-discovery": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "OpenAI-only provider serializes correctly": 1,
+        "Anthropic-only provider serializes correctly": 1,
+        "Dual-protocol provider serializes correctly": 1,
+        "OpenAI Chat supported / Responses unknown is preserved": 1,
+        "null must not be coerced to false (unknown != unsupported)": 1,
+        "Surface not listed is NOT auto-interpreted as unsupported": 1,
+        "Explicit unsupported state is preserved (false, not null)": 1,
+        "Evidence configured/official/verified/unknown all normalize": 1,
+        "Unknown evidence coerces to \"unknown\" (no guess)": 1,
+        "surfaces entry with supported=false must be empty": 1,
+        "A successful /models observation does NOT imply Responses support": 1,
+        "Discovery module never imports src/runtime, src/scheduler, src/transport, src/request, src/reliability, src/stream": 1,
+        "OpenAI and Anthropic can keep distinct base URLs": 1,
+        "base_url null is preserved as unknown": 1,
+        "Base URL must not be guessed from provider name": 1,
+        "Base URL with trailing slash normalizes to canonical form": 1,
+        "Base URL order/format changes do not produce false diff": 1,
+        "Credential-bearing URLs are refused": 1,
+        "Credential-like token in base URL is dropped, not persisted": 1,
+        "http:// base URL is refused (Discovery is conservative)": 1,
+        "protocol_support_changed is reported when support flips": 1,
+        "surface_support_changed is reported when a surface appears/disappears": 1,
+        "base_url_changed is reported when URL differs": 1,
+        "unknown -> supported is a lower-severity change than supported -> unsupported": 1,
+        "supported -> unknown is more severe than unknown -> supported": 1,
+        "Provider /models ordering or JSON key order does not produce CHANGED": 1,
+        "Surfaces array reorder does not produce CHANGED": 1,
+        "hasProtocolDowngrade true iff supported flipped to false/null": 1,
+        "summarizeBySeverity buckets counts correctly": 1,
+        "Runtime Node with unsupported capability yields a warning": 1,
+        "Runtime Node Base URL differs yields a warning (does not claim invalid)": 1,
+        "Discovery warnings do not mutate Runtime Node": 1,
+        "Discovery does not synthesize or create Runtime Nodes": 1,
+        "count_tokens mismatch is NOT a Runtime Node conflict (Runtime schema does not declare it)": 1,
+        "Secrets do not appear in changes.md output": 1,
+        "Secrets do not appear in Action Summary output": 1,
+        "Secrets do not appear in JSON artifact output": 1,
+        "Authorization header is not used as evidence source": 1,
+        "isSurfaceFor and isProtocol reject unknown values": 1,
+        "validateCatalog refuses malformed shape": 1,
+        "aggregateCatalogCapabilities counts supported only (no inferred), supports both protocols": 1,
+        "sample catalog loads + validates": 1,
+        "sample runtime view loads and normalizes": 1,
+        "CLI check-snapshot exits 0 for sample catalog": 1,
+        "CLI summary prints protocol/surface counts for sample catalog": 1,
+        "CLI runtime-check exits 2 when P1 surface mismatch is present": 1
+      }
+    },
+    "provider-quota-413": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "Groq ITPM-shaped 413 rotates as a node rate limit": 1,
+        "quota-shaped 413 honors Retry-After": 1,
+        "ordinary payload-size 413 remains a client stop": 1,
+        "real request continues after Tier 1 quota-413": 1
+      }
+    },
+    "quota-lease": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "unknown quota never denies admission (reactive path preserved)": 1,
+        "quota signal extraction reads both protocol conventions": 1,
+        "reported remaining=10 admits exactly 10 concurrent, not 20": 1,
+        "release before settle restores the reservation (abort / pre-execution)": 1,
+        "settle consumes the request reservation and reports actual usage": 1,
+        "duplicate settle and duplicate release are idempotent (no leaks)": 1,
+        "near_limit demotes the node score before a 429 ever arrives": 1,
+        "exhausted_until gates eligibility and surfaces the window wait, then auto-clears": 1,
+        "legacy ratio writer keeps its pinned semantics": 1,
+        "subscription window hints mark the entitlement exhausted until reset": 1
+      }
+    },
+    "readme-status": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:readme-status": 1
+      }
+    },
+    "release-identity-contract": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:release-identity-contract": 1
+      }
+    },
+    "reliability-convergence": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:reliability-convergence": 1
+      }
+    },
+    "reliability-core-contract": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:reliability-core-contract": 1
+      }
+    },
+    "reliability-fault-injection": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "recordTtft followed by stream-interrupted keeps the TTFT measurement": 1,
+        "markProbeFailure after a successful TTFT keeps the original": 1,
+        "recordNeutralEnd on a hedge loser does not increment totalFailures": 1,
+        "hedge-loser back-to-back never opens the circuit": 1,
+        "open circuit, real request fails, consecutiveFailures monotonic": 1,
+        "readTier1Affinity on a throwing KV returns null (no crash, no false seed)": 1,
+        "writeTier1Affinity on a throwing KV is silently swallowed (does not throw)": 1,
+        "readTier1Affinity when KV get returns malformed data returns null": 1,
+        "persistTokenUsage rejects with the underlying D1 error (caller decides to swallow)": 1,
+        "a successful persistTokenUsage that is followed by a D1 reject in the next attempt does not double-count in memory": 1
+      }
+    },
+    "reliability-performance": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:reliability-performance": 1
+      }
+    },
+    "reliability-regression": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "safeReadErrorBody respects absolute deadline": 1,
+        "OpenAI stream completes on finish_reason without HTTP EOF": 1,
+        "Anthropic stream completes on message_stop without HTTP EOF": 1,
+        "Responses stream completes on response.completed": 1,
+        "Anthropic to OpenAI conversion renders thinking as reasoning_content": 1,
+        "meaningful-output guards accept valid refusal/reasoning/tool output": 1,
+        "meaningful-output guards reject empty protocol objects": 1,
+        "400 rotates locally while hard client statuses still stop": 1,
+        "409 stops while 408 rotates": 1,
+        "real upstream SSE is not wrapped again by client lifecycle tracking": 1,
+        "model-status evidence uses successful requests, not usage reports": 1,
+        "key RPM snapshot keeps configured cap": 1,
+        "local diagnostic/model routes are exempt from key RPM": 1,
+        "top-level errors remain route-aware": 1,
+        "Tier 1 explicit maxInFlight is enforced": 1,
+        "per-model token attribution uses the logical request model": 1,
+        "delivered responses backfill missing TTFT before D1 persistence": 1,
+        "Tier 1 auth cooldown follows the shared classification value": 1,
+        "Tier 1 request scoring has no access-key group priority path": 1
+      }
+    },
+    "repository-layout": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:repository-layout": 1
+      }
+    },
+    "request-execution-ownership": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:request-execution-ownership": 1
+      }
+    },
+    "request-reliability": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:request-reliability": 1
+      }
+    },
+    "responses-error-diagnostics": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:responses-error-diagnostics": 1
+      }
+    },
+    "runtime-state-contract": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "both backends satisfy the same RuntimeStateStore contract": 1,
+        "tier-1 projection is honest: no fabricated health, endpoint circuit, or model latency": 1,
+        "tier-1 projections reflect real state transitions end to end": 1,
+        "tier-1 quota projections surface near_limit, exhausted, and reset": 1,
+        "tier-2/3 projections reflect node-state semantics without fabricating accounts": 1
+      }
+    },
+    "scheduler-convergence": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "strict tier precedence gives each dispatchable tier a baseline then surplus to Tier 1": 1,
+        "explicit tier cap is never inflated by surplus allocation": 1,
+        "explicit zero disables a tier without redistributing against precedence": 1,
+        "built-in policy surface remains intentionally small": 1
+      }
+    },
+    "scheduler-racelost": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "Case 1: full node skipped -> picks next available node in same tier": 1,
+        "Case 1b: raceLost with excludeIds -> skips lost node, picks another": 1,
+        "Case 1c: Tier 1 raceLost with excludeIds -> skips lost node": 1,
+        "Case 1d: pickForTier passes raceLostIds through (Tier 2)": 1,
+        "Case 2: all nodes race-lost -> returns null (not infinite loop)": 1,
+        "Case 2b: single node race-lost -> returns null": 1,
+        "Case 3: no eligible candidates in tier -> null (tier loop moves on)": 1,
+        "Case 3b: tier with wrong protocol -> null": 1,
+        "Case 4: Tier 1 -> Tier 2 -> Tier 3 order is preserved in pickForTier": 1,
+        "Case 4b: Tier 1 exhausted, Tier 2 available -> Tier 2 picks": 1,
+        "Case 5: raceLost exclusion allows retry without budget charge": 1
+      }
+    },
+    "scheduler-stability": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "eligibility excludes non-Tier-1 nodes": 1,
+        "model disable is scoped to the logical model": 1,
+        "live in-flight work is soft: a busy sole node remains selectable": 1,
+        "live pressure changes ranking/hedge admission without becoming eligibility": 1,
+        "active cooldown and exhausted explicit quota are hard eligibility gates": 1,
+        "P2C single candidate selects directly": 1,
+        "P2C never samples an ineligible tier or attempted node": 1,
+        "P2C prefers clearly lower passive TTFT when both are sampled": 1,
+        "unknown account keeps exploration bonus without storing synthetic TTFT": 1,
+        "TTFT EWMA initializes directly then uses alpha 0.25": 1,
+        "one extreme TTFT is clamped; consecutive extremes expose persistent degradation": 1,
+        "deadline gate yields before an attempt that cannot fit": 1,
+        "seeded P2C disperses traffic across a healthy pool": 1,
+        "OpenAI Chat commits only on meaningful content/reasoning/tool output": 1,
+        "Responses lifecycle events do not commit; output deltas do": 1,
+        "Anthropic lifecycle events do not commit; text/thinking/tool input does": 1,
+        "affinity is a soft score bias": 1,
+        "affinity safely degrades without KV and validates session ids": 1,
+        "affinity escape evaluation is periodic, not per-request": 1,
+        "clearly degraded affinity can escape to the P2C winner": 1,
+        "auth failure cools the whole credential without permanent disable": 1,
+        "model_missing cools only the provider-facing mapping": 1,
+        "transient failures use hysteresis before entering cooldown": 1,
+        "account-scoped 429 gates one real recovery request, then success restores the key": 1,
+        "model-scoped 429 leaves sibling models eligible": 1,
+        "adaptive provider/key 429 ladder starts 15s then 30s": 1,
+        "half-open allows one real recovery request at a time": 1,
+        "two successful half-open observations return the model to normal": 1,
+        "snapshot reports current state without retired capacity fields": 1
+      }
+    },
+    "secret-scan-typescript-fixture": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:secret-scan-typescript-fixture": 1
+      }
+    },
+    "stream-completion": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "text → [DONE] is completed with the marker seen": 1,
+        "large terminal event is detected before the diagnostic tail is truncated": 1,
+        "text → raw EOF is interrupted with missing_completion_marker": 1,
+        "an interruption chunk is delivered before a truncated stream closes": 1,
+        "an existing Responses failure is not followed by a duplicate error event": 1,
+        "an injected Responses error continues the observed sequence number": 1,
+        "a replay guard can expose a hidden upstream reader failure": 1,
+        "text → reader throw is interrupted with reader_error": 1,
+        "text → stalled stream is interrupted with idle_timeout": 1,
+        "Tier 1 inFlight remains claimed until stream idle timeout and releases exactly once": 1,
+        "client cancel is neutral and reports no reason": 1,
+        "no completionMarker option: clean close counts as completed": 1,
+        "callbacks fire exactly once even when the client keeps pulling": 1,
+        "usage event + [DONE] completes and fires onUsage exactly once with the raw object": 1,
+        "completed stream without any usage fires onUsage(null) exactly once": 1,
+        "clean-EOF truncation without usage does NOT fire onUsage": 1,
+        "truncation AFTER a usage event does NOT record usage (stream is a failure)": 1,
+        "client cancel fires onUsage zero times": 1,
+        "usage JSON split across chunk boundaries is still captured (carry-over buffer)": 1,
+        "an early empty usage:{} does not clobber a later real report": 1,
+        "two real usage events keep the LAST one": 1,
+        "usage-free numeric strings and malformed data lines never crash the scan": 1,
+        "data lines arriving AFTER the completion marker are not scanned": 1,
+        "first-event guard preserves the oversized-line failure code": 1,
+        "first-event guard preserves the total pre-event byte-limit code": 1,
+        "a large chunk containing many small SSE events is not mistaken for one large line": 1,
+        "post-commit oversized rewrite line terminates instead of fabricating a newline": 1
+      }
+    },
+    "stress": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "S1 burst: default Tier 1 has no guessed per-account concurrency ceiling": 1,
+        "S2 pool burst: P2C spreads live work without a default hard ceiling": 1,
+        "S2b explicit max_in_flight=4 remains an opt-in admission ceiling": 1,
+        "S3 tier fallback drains eligible Tier 1 candidates before Tier 2 serves": 1,
+        "S4 429 storm: a cooling key short-circuits without upstream hammering": 1,
+        "S5 recovery: sustained failure admits one real half-open request at a time": 1,
+        "S6 client cancellation after stream commit releases the Tier 1 slot neutrally": 1,
+        "S7 failover wall-clock budget prevents dispatch after the budget is spent": 1,
+        "S8 mixed transient failures under load do not leak scheduler state": 1
+      }
+    },
+    "tier1-affinity-bounding": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "stress: local cache size stays bounded under 10000 unique sessions": 1,
+        "stress: escapeCounters size stays bounded under 10000 unique sessions": 1,
+        "stress: both maps bounded simultaneously under 10000 unique sessions": 1,
+        "affinity: write then read returns the stored account": 1,
+        "affinity: no KV binding -> readTier1Affinity returns null without crash": 1,
+        "stress: cache full does not block reads (no throw, returns null for miss)": 1,
+        "escape: shouldEvaluateAffinity returns false for first N-1 requests, true on Nth": 1,
+        "privacy: raw session ID does not appear as escape counter key (hashed)": 1,
+        "stress: expired cache entries are cleaned up": 1
+      }
+    },
+    "tier1-heat-protection": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "cold accounts preserve affinity preference": 1,
+        "live in-flight heat weakens affinity without becoming a hard gate": 1,
+        "soft load never hard-blocks the only primary candidate": 1,
+        "optional hedge is suppressed at 0.75 live pressure": 1,
+        "optional hedge uses an idle peer": 1,
+        "one or two independent 429 keys do not demote cohort": 1,
+        "three/four independent 429 keys apply bounded soft heat": 1,
+        "provider-model heat changes ranking but not eligibility": 1,
+        "successes decay provider-model heat": 1,
+        "provider-model heat expires": 1
+      }
+    },
+    "tier1-upstream-model-cooldown": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:tier1-upstream-model-cooldown": 1
+      }
+    },
+    "token-usage-store": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "normalizeHour produces a UTC-aligned YYYY-MM-DDTHH:00:00Z key": 1,
+        "reported usage yields a report payload with its token totals": 1,
+        "missing usage yields a missing payload and never fabricates tokens": 1,
+        "first insert creates the hour bucket and records both accounting views": 1,
+        "same-hour upsert accumulates delivered and upstream success views atomically": 1,
+        "different hours create separate buckets": 1,
+        "missing usage bumps both success and upstream coverage counters, never tokens": 1,
+        "tokenStatsD1 returns null when the binding is missing or not a D1": 1,
+        "no binding -> queryTokenSummary returns null (dashboard degrades)": 1,
+        "cumulative, 24h and 7d windows sum the right buckets": 1,
+        "upstream cumulative summary exposes lifetime input/output/cache composition from totals": 1,
+        "historical cache totals stay in input until reliable cache observation begins": 1,
+        "upstream summary recognizes OpenAI-compatible cached-token details without inflating input": 1,
+        "explicit zero cache report is preserved as observed zero instead of unknown": 1,
+        "coverage is reports/(reports+missing), null at 0/0": 1,
+        "today follows the UTC+8 day boundary (Beijing 00:00 = 16:00Z)": 1,
+        "daily series groups hourly buckets by UTC+8 day": 1,
+        "daily series fails open on missing binding or read errors": 1,
+        "persistTokenUsage with no binding resolves without touching D1": 1,
+        "a D1 write rejection rejects the returned promise (caller swallows it)": 1,
+        "a synchronous D1 prepare failure is converted to a classified promise rejection": 1,
+        "a D1 read failure makes queryTokenSummary return error object, never throw": 1,
+        "queryTokenModelUsage fails open on missing binding": 1,
+        "queryTokenModelUsage aggregates per model and orders by total desc": 1,
+        "queryTokenModelUsage excludes rows outside the requested window": 1,
+        "persistTokenUsage without model skips the per-model table write": 1,
+        "per-model write failure is classified once and does not roll back global write": 1,
+        "global write failure is the single classified rejection when both writes fail": 1,
+        "cleanupModelStats deletes only per-model rows older than seven days": 1,
+        "cleanupModelStats skips cleanly without a D1 binding": 1
+      }
+    },
+    "token-usage": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "non-object usage normalizes to null (counted missing)": 1,
+        "numeric strings and invalid numbers are rejected, never coerced": 1,
+        "openai and anthropic/responses alias shapes both normalize": 1,
+        "a reported total_tokens wins verbatim over input+output": 1,
+        "OpenAI-compatible cached-token details are recognized without double-counting input": 1,
+        "cache aliases are alternatives, not additive token sources": 1,
+        "Anthropic cache fields remain additive while explicit zero is distinguishable from unreported cache": 1,
+        "withUsageStreamOptions adds include_usage while preserving existing stream_options": 1,
+        "recordTokenUsage: empty usage counts missing, real usage reports — never both": 1,
+        "hostile dimension values are sanitized at storage time": 1,
+        "raw hostile dimensions never reach /metrics text": 1,
+        "summarizeTokenStats aggregates per dimension sorted by total desc": 1,
+        "usage coverage is reports/(reports+missing), null at 0/0": 1,
+        "usage coverage is also aggregated per dimension row": 1,
+        "missing records land in their dimension bucket for accurate per-node coverage": 1,
+        "no D1 binding degrades to 统计暂不可用 with em dashes, never a fake 0": 1,
+        "a failing D1 query also degrades instead of 500 / fake zero": 1,
+        "the D1-backed card renders the four KPIs from real aggregates": 1,
+        "token composition uses cumulative input, output, and reported cache-read totals without an extra heading": 1,
+        "token composition renders unknown cache as dash instead of zero when no provider reported cache detail": 1,
+        "模型使用 renders ranked rows with proportional bars": 1,
+        "模型使用 shows official logical IDs, not lowercase statistics keys": 1,
+        "模型使用 keeps Top 3 and folds the remainder into one 其他 row": 1,
+        "Token 活动 · 近 52 周 renders a full 364-cell heatmap with month labels": 1,
+        "the heatmap colors derive from daily totals, not per-hour noise": 1,
+        "the usage card leaks no internal dimensions": 1,
+        "Chinese unit (万/亿) compaction renders on KPI values, never K/M/B": 1,
+        "rolling 24h/7d windows sum recent totals and prune expired buckets": 1,
+        "anthropic passthrough: interrupted does NOT report usage": 1,
+        "anthropic passthrough: client abort reports nothing": 1,
+        "responses passthrough: completed stream reports usage exactly once (verbatim native shape)": 1,
+        "responses passthrough: client abort reports nothing": 1,
+        "passthrough without onUsage stays fully functional (observability optional)": 1,
+        "dashboard D1 cache coalesces concurrent requests within TTL": 1,
+        "dashboard D1 cache refreshes after TTL expires": 1,
+        "dashboard cache does not leak across different D1 bindings": 1,
+        "public homepage does not leak raw D1 errors in degraded state": 1,
+        "model usage panel does not leak raw D1 errors in degraded state": 1,
+        "模型状态 section has model rows with status, P50, P95, sample count": 1,
+        "使用情况 section does NOT contain success rate, reliability, TTFT P50, TTFT P95": 1,
+        "public dashboard does not leak provider, node id, tier, credential, key": 1,
+        "model status section is structurally separate from usage section": 1
+      }
+    },
+    "ttft-query-contract": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:ttft-query-contract": 1
+      }
+    },
+    "upstream-attempt-usage": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "successful delivery updates delivered and upstream views in the same write set": 1,
+        "failed physical attempt updates only upstream columns and never estimates missing tokens": 1,
+        "reported usage extraction accepts only native usage locations": 1,
+        "one physical attempt is settled exactly once even when multiple paths try to finalize it": 1,
+        "successful settlement preserves a provider report observed before the terminal callback": 1,
+        "Anthropic to OpenAI stream keeps raw provider usage including cache fields": 1,
+        "interrupted stream exposes reported usage to physical-attempt accounting but not delivered onUsage": 1,
+        "clean EOF without completion marker is a failed physical attempt, not a delivered success": 1
+      }
+    },
+    "upstream-processing-classification": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "file:upstream-processing-classification": 1
+      }
+    }
+  }
+}

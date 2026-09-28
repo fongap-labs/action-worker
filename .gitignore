@@ -15,3 +15,7 @@ Desktop.ini
 .idea/
 *.sublime-project
 *.sublime-workspace
+
+# Python bytecode from central test packs
+__pycache__/
+*.pyc

@@ -1,0 +1,16 @@
+{
+  "steps": [
+    {
+      "id": "a",
+      "target": "bricks.__test__.dummy_ok",
+      "args": {},
+      "depends_on": ["b"]
+    },
+    {
+      "id": "b",
+      "target": "bricks.__test__.dummy_ok",
+      "args": {},
+      "depends_on": ["a"]
+    }
+  ]
+}
