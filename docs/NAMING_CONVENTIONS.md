@@ -339,4 +339,5 @@ One concept = one standard term
 Boolean = is / has / can / should
 Engineering diff = English
 CHANGELOG / PR title = English
+Plain data content files (.txt / .csv / .tsv) are language-exempt
 ```
