@@ -1,19 +1,19 @@
 import { access, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
-  CliError,
+  type AiAgentConfig,
+  aiAgentModel,
+  isAiAgentEnabled,
+  parseAiAgentConfig,
+} from "./ai-agent-config.ts";
+import {
   appendLines,
+  CliError,
   handleError,
   isMain,
   parseJson,
   readJson,
 } from "./runtime-command.ts";
-import {
-  aiAgentModel,
-  isAiAgentEnabled,
-  parseAiAgentConfig,
-  type AiAgentConfig,
-} from "./ai-agent-config.ts";
 
 type Risk = "low" | "medium" | "high";
 type ReviewAgent = "none" | "code" | "workflow" | "security" | "architecture" | "release";
@@ -40,7 +40,10 @@ type TestsPolicy = {
 };
 
 type ReviewPolicy = {
-  agents: Record<string, { effort?: string; rule?: string; task_timeout_minutes?: number } | undefined>;
+  agents: Record<
+    string,
+    { effort?: string; rule?: string; task_timeout_minutes?: number } | undefined
+  >;
   runtime: {
     llm_timeout_seconds?: number;
     task_timeout_minutes?: number;
@@ -112,11 +115,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 export function validateContext(value: unknown): PrContext {
   if (
-    !isRecord(value)
-    || !Array.isArray(value.project_types)
-    || !Array.isArray(value.change_areas)
-    || !Array.isArray(value.declared_impacts)
-    || !["low", "medium", "high"].includes(String(value.risk))
+    !isRecord(value) ||
+    !Array.isArray(value.project_types) ||
+    !Array.isArray(value.change_areas) ||
+    !Array.isArray(value.declared_impacts) ||
+    !["low", "medium", "high"].includes(String(value.risk))
   ) {
     throw new CliError("::error::Invalid PR context format.", 65);
   }
@@ -141,9 +144,11 @@ function selectAgent(context: PrContext): ReviewAgent {
   if (hasItem(context.change_areas, "security") || hasItem(context.declared_impacts, "security")) {
     return "security";
   }
-  if (["breaking", "migration", "api", "deployment", "compatibility"].some(
-    (impact) => hasItem(context.declared_impacts, impact),
-  )) {
+  if (
+    ["breaking", "migration", "api", "deployment", "compatibility"].some((impact) =>
+      hasItem(context.declared_impacts, impact)
+    )
+  ) {
     return "architecture";
   }
   if (hasItem(context.change_areas, "workflow")) {
@@ -161,33 +166,39 @@ function selectAgent(context: PrContext): ReviewAgent {
 export function resolvePlan(
   context: PrContext,
   policies: PlanPolicies,
-  options: PlanOptions,
+  options: PlanOptions
 ): PrPlan {
   const checks = uniqueSorted([
     ...policies.checks.always,
     ...context.change_areas.flatMap((area) => policies.checks.by_change_area[area] ?? []),
     ...context.declared_impacts.flatMap((impact) => policies.checks.by_impact[impact] ?? []),
   ]);
-  const shouldRunTests = context.change_areas.some((area) => policies.tests.trigger_change_areas.includes(area))
-    || context.declared_impacts.some((impact) => policies.tests.full_impacts.includes(impact));
+  const shouldRunTests =
+    context.change_areas.some((area) => policies.tests.trigger_change_areas.includes(area)) ||
+    context.declared_impacts.some((impact) => policies.tests.full_impacts.includes(impact));
   const projectTests = shouldRunTests
     ? context.project_types.flatMap((project) => policies.tests.by_project_type[project] ?? [])
     : [];
   const impactTests = context.declared_impacts.flatMap(
-    (impact) => policies.tests.impact_tests[impact] ?? [],
+    (impact) => policies.tests.impact_tests[impact] ?? []
   );
   const tests = uniqueSorted([...projectTests, ...impactTests]);
-  const isCiRequired = context.change_areas.some(
-    (area) => policies.execution.ci.required_change_areas.includes(area),
-  ) || context.declared_impacts.some(
-    (impact) => policies.execution.ci.required_impacts.includes(impact),
-  );
+  const isCiRequired =
+    context.change_areas.some((area) =>
+      policies.execution.ci.required_change_areas.includes(area)
+    ) ||
+    context.declared_impacts.some((impact) =>
+      policies.execution.ci.required_impacts.includes(impact)
+    );
 
   let reviewAgent = selectAgent(context);
   const allowedAgents = ["none", "code", "workflow", "security", "architecture", "release"];
   if (options.agentOverride !== "auto") {
     if (!allowedAgents.includes(options.agentOverride)) {
-      throw new CliError("::error::review_agent only supports auto/none/code/workflow/security/architecture/release.", 64);
+      throw new CliError(
+        "::error::review_agent only supports auto/none/code/workflow/security/architecture/release.",
+        64
+      );
     }
     reviewAgent = options.agentOverride as ReviewAgent;
   }
@@ -236,14 +247,17 @@ export function resolvePlan(
     reviewEffort = agent?.effort ?? "medium";
     reviewRule = agent?.rule ?? "";
     reviewLlmTimeout = policies.review.runtime.llm_timeout_seconds ?? 300;
-    reviewTaskTimeout = agent?.task_timeout_minutes ?? policies.review.runtime.task_timeout_minutes ?? 2;
+    reviewTaskTimeout =
+      agent?.task_timeout_minutes ?? policies.review.runtime.task_timeout_minutes ?? 2;
     reviewConcurrency = policies.review.runtime.concurrency ?? 1;
     reviewResumeAttempts = policies.review.runtime.resume_attempts ?? 1;
     reviewResumeBackoffSeconds = policies.review.runtime.resume_backoff_seconds ?? 15;
 
-    if (isAiAgentEnabled(policies.aiAgents, "review")
-        && isAiAgentEnabled(policies.aiAgents, "triage")
-        && policies.triage.enabled_agents.includes(reviewAgent)) {
+    if (
+      isAiAgentEnabled(policies.aiAgents, "review") &&
+      isAiAgentEnabled(policies.aiAgents, "triage") &&
+      policies.triage.enabled_agents.includes(reviewAgent)
+    ) {
       isTriageRequired = true;
       triageModel = aiAgentModel(policies.aiAgents, "triage");
       triageTimeout = policies.triage.timeout_seconds ?? 60;
@@ -287,7 +301,12 @@ export function resolvePlan(
     requireRange(reviewTaskTimeout, 1, 30, "::error::review_task_timeout must be 1-30 minutes.");
     requireRange(reviewConcurrency, 1, 8, "::error::review_concurrency must be 1-8.");
     requireRange(reviewResumeAttempts, 0, 5, "::error::review_resume_attempts must be 0-5.");
-    requireRange(reviewResumeBackoffSeconds, 1, 120, "::error::review_resume_backoff_seconds must be 1-120 seconds.");
+    requireRange(
+      reviewResumeBackoffSeconds,
+      1,
+      120,
+      "::error::review_resume_backoff_seconds must be 1-120 seconds."
+    );
     if (!reviewModel) {
       throw new CliError("::error::Invalid review_model configuration.", 65);
     }
@@ -367,7 +386,9 @@ async function loadPolicies(policyDir: string): Promise<PlanPolicies> {
         return parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? "");
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        console.error(`::warning::AI Agent configuration is invalid; advisory review is disabled for this run: ${message}`);
+        console.error(
+          `::warning::AI Agent configuration is invalid; advisory review is disabled for this run: ${message}`
+        );
         return parseAiAgentConfig("");
       }
     })(),
@@ -379,7 +400,7 @@ async function main(): Promise<void> {
   if (args.length !== 7) {
     throw new CliError(
       "Usage: resolve-pr-plan.ts <context-json> <naming-mode> <review-mode> <review-effort> <review-model> <review-agent> <policy-dir>",
-      64,
+      64
     );
   }
   const [

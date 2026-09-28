@@ -45,4 +45,5 @@ jobs:
           MAIN_WRITE_EVENT: push
           MAIN_WRITE_REQUEST_ID: ${{ github.event_name == 'push' && format('push:{0}', github.run_id) || github.event.client_payload.request_id }}
           MAIN_WRITE_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          CONTROL_RUN_PREFIX: ${{ github.server_url }}/fongap-labs/action-worker/actions/runs/
         run: node scripts/main-write-guard.ts

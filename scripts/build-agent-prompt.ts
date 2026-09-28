@@ -1,12 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import {
-  CliError,
-  appendLines,
-  handleError,
-  isMain,
-  parseJson,
-} from "./runtime-command.ts";
+import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 async function readIfExists(path: string): Promise<string | undefined> {
   try {
@@ -21,7 +15,7 @@ async function readIfExists(path: string): Promise<string | undefined> {
 
 export async function composeAgentPrompt(
   controlRoot: string,
-  skillPaths: readonly string[],
+  skillPaths: readonly string[]
 ): Promise<string> {
   const parts: string[] = [];
 
@@ -49,7 +43,7 @@ async function main(): Promise<void> {
   if (!controlRoot || !skillsRaw || !outputPath) {
     throw new CliError(
       "::error::GITHUB_WORKSPACE, AGENT_SKILLS_JSON, and AGENT_PROMPT_OUTPUT_PATH are required.",
-      64,
+      64
     );
   }
 
@@ -67,7 +61,9 @@ async function main(): Promise<void> {
     `skill_count=${skills.length}`,
   ]);
 
-  console.log(`Agent system prompt written to ${outputPath} (${Buffer.byteLength(prompt, "utf8")} bytes, ${skills.length} skills).`);
+  console.log(
+    `Agent system prompt written to ${outputPath} (${Buffer.byteLength(prompt, "utf8")} bytes, ${skills.length} skills).`
+  );
 }
 
 if (isMain(import.meta.url)) {

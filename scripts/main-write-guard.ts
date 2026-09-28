@@ -6,14 +6,8 @@ import {
   isJsonRecord,
   runGithubCli,
 } from "./github-api.ts";
-import {
-  CliError,
-  appendLines,
-  handleError,
-  isMain,
-  parseJson,
-} from "./runtime-command.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
+import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 export type MainWriteRequest = {
   schema_version: "1";
@@ -34,25 +28,48 @@ export type MainWriteProvenance = {
 const requestPattern = /^[A-Za-z0-9._:-]{1,128}$/;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
-const controlRunPrefix = "https://github.com/fongap-labs/action-worker/actions/runs/";
+
+function getControlRunPrefix(): string {
+  const fromEnv = process.env.CONTROL_RUN_PREFIX;
+  if (fromEnv) {
+    return fromEnv;
+  }
+  const serverUrl = process.env.GITHUB_SERVER_URL ?? "https://github.com";
+  return `${serverUrl}/fongap-labs/action-worker/actions/runs/`;
+}
+
+const controlRunPrefix = getControlRunPrefix();
 
 function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
   const actual = Object.keys(value).sort();
   const expected = [...keys].sort();
-  return actual.length === expected.length && actual.every((item, index) => item === expected[index]);
+  return (
+    actual.length === expected.length && actual.every((item, index) => item === expected[index])
+  );
 }
 
 export function parseMainWriteRequest(value: unknown): MainWriteRequest {
   if (
-    !isJsonRecord(value)
-    || !exactKeys(value, ["before_sha", "event", "head_sha", "repository", "request_id", "schema_version"])
-    || value.schema_version !== "1"
-    || typeof value.request_id !== "string" || !requestPattern.test(value.request_id)
-    || typeof value.repository !== "string" || !repositoryPattern.test(value.repository)
-    || typeof value.before_sha !== "string" || !shaPattern.test(value.before_sha)
-    || typeof value.head_sha !== "string" || !shaPattern.test(value.head_sha)
-    || value.event !== "push"
-    || value.before_sha === value.head_sha
+    !isJsonRecord(value) ||
+    !exactKeys(value, [
+      "before_sha",
+      "event",
+      "head_sha",
+      "repository",
+      "request_id",
+      "schema_version",
+    ]) ||
+    value.schema_version !== "1" ||
+    typeof value.request_id !== "string" ||
+    !requestPattern.test(value.request_id) ||
+    typeof value.repository !== "string" ||
+    !repositoryPattern.test(value.repository) ||
+    typeof value.before_sha !== "string" ||
+    !shaPattern.test(value.before_sha) ||
+    typeof value.head_sha !== "string" ||
+    !shaPattern.test(value.head_sha) ||
+    value.event !== "push" ||
+    value.before_sha === value.head_sha
   ) {
     throw new CliError("::error::Main write request is invalid.", 64);
   }
@@ -72,12 +89,13 @@ function appSlug(value: unknown): string {
 }
 
 function successfulStatus(value: unknown, context: string): boolean {
-  return getJsonArray(value, "statuses").some((item) => (
-    isJsonRecord(item)
-    && getJsonString(item, "context") === context
-    && getJsonString(item, "state") === "success"
-    && getJsonString(item, "target_url").startsWith(controlRunPrefix)
-  ));
+  return getJsonArray(value, "statuses").some(
+    (item) =>
+      isJsonRecord(item) &&
+      getJsonString(item, "context") === context &&
+      getJsonString(item, "state") === "success" &&
+      getJsonString(item, "target_url").startsWith(controlRunPrefix)
+  );
 }
 
 export function hasTrustedMainWriteGuard(value: unknown): boolean {
@@ -87,36 +105,48 @@ export function hasTrustedMainWriteGuard(value: unknown): boolean {
 async function requireCentralPrEvidence(
   reader: GithubReader,
   repository: string,
-  prHeadSha: string,
+  prHeadSha: string
 ): Promise<void> {
   const status = await reader.get(`repos/${repository}/commits/${prHeadSha}/status`);
   if (!successfulStatus(status, "PR Governance")) {
-    throw new CliError("::error::Merged PR head has no successful Action Worker PR Governance status.", 65);
+    throw new CliError(
+      "::error::Merged PR head has no successful Action Worker PR Governance status.",
+      65
+    );
   }
   if (!successfulStatus(status, "CI Evidence")) {
-    throw new CliError("::error::Merged PR head has no successful Action Worker CI Evidence status.", 65);
+    throw new CliError(
+      "::error::Merged PR head has no successful Action Worker CI Evidence status.",
+      65
+    );
   }
   if (!successfulStatus(status, "validate-merge")) {
-    throw new CliError("::error::Merged PR head has no successful Action Worker validate-merge status.", 65);
+    throw new CliError(
+      "::error::Merged PR head has no successful Action Worker validate-merge status.",
+      65
+    );
   }
 }
 
 async function requireLocalMergeCheck(
   reader: GithubReader,
   repository: string,
-  prHeadSha: string,
+  prHeadSha: string
 ): Promise<void> {
   const checks = getJsonArray(
-    await reader.get(`repos/${repository}/commits/${prHeadSha}/check-runs?filter=latest&per_page=100`),
-    "check_runs",
+    await reader.get(
+      `repos/${repository}/commits/${prHeadSha}/check-runs?filter=latest&per_page=100`
+    ),
+    "check_runs"
   );
-  const mergeGatePassed = checks.some((item) => (
-    isJsonRecord(item)
-    && getJsonString(item, "name") === "validate-merge"
-    && getJsonString(item, "status") === "completed"
-    && getJsonString(item, "conclusion") === "success"
-    && appSlug(item) === "github-actions"
-  ));
+  const mergeGatePassed = checks.some(
+    (item) =>
+      isJsonRecord(item) &&
+      getJsonString(item, "name") === "validate-merge" &&
+      getJsonString(item, "status") === "completed" &&
+      getJsonString(item, "conclusion") === "success" &&
+      appSlug(item) === "github-actions"
+  );
   if (!mergeGatePassed) {
     throw new CliError("::error::PR head has no successful local validate-merge check.", 65);
   }
@@ -126,7 +156,7 @@ export async function validateMainWriteProvenance(
   reader: GithubReader,
   repository: string,
   mainSha: string,
-  isCentralStatusRequired: boolean,
+  isCentralStatusRequired: boolean
 ): Promise<MainWriteProvenance> {
   if (!repositoryPattern.test(repository) || !shaPattern.test(mainSha)) {
     throw new CliError("::error::Main write provenance input is invalid.", 64);
@@ -135,7 +165,10 @@ export async function validateMainWriteProvenance(
   const repositoryValue = await reader.get(`repos/${repository}`);
   const defaultBranch = getJsonString(repositoryValue, "default_branch");
   if (defaultBranch !== "main") {
-    throw new CliError(`::error::Managed repository default branch must be main: ${repository}.`, 65);
+    throw new CliError(
+      `::error::Managed repository default branch must be main: ${repository}.`,
+      65
+    );
   }
 
   const commit = await reader.get(`repos/${repository}/commits/${mainSha}`);
@@ -143,20 +176,21 @@ export async function validateMainWriteProvenance(
     throw new CliError("::error::Main write commit could not be resolved exactly.", 65);
   }
 
-  const associated = getJsonArray(await reader.get(
-    `repos/${repository}/commits/${mainSha}/pulls?per_page=100`,
-  ));
-  const candidates = associated.filter((item) => (
-    isJsonRecord(item)
-    && getJsonString(item, "merged_at") !== ""
-    && getJsonString(item, "merge_commit_sha") === mainSha
-    && baseRef(item) === "main"
-    && getJsonNumber(item, "number") > 0
-  ));
+  const associated = getJsonArray(
+    await reader.get(`repos/${repository}/commits/${mainSha}/pulls?per_page=100`)
+  );
+  const candidates = associated.filter(
+    (item) =>
+      isJsonRecord(item) &&
+      getJsonString(item, "merged_at") !== "" &&
+      getJsonString(item, "merge_commit_sha") === mainSha &&
+      baseRef(item) === "main" &&
+      getJsonNumber(item, "number") > 0
+  );
   if (candidates.length !== 1) {
     throw new CliError(
       `::error::Main SHA is not uniquely attributable to a merged pull request: ${repository}@${mainSha}.`,
-      65,
+      65
     );
   }
 
@@ -164,10 +198,10 @@ export async function validateMainWriteProvenance(
   const pr = await reader.get(`repos/${repository}/pulls/${prNumber}`);
   const prHeadSha = headSha(pr);
   if (
-    getJsonString(pr, "merged_at") === ""
-    || getJsonString(pr, "merge_commit_sha") !== mainSha
-    || baseRef(pr) !== "main"
-    || !shaPattern.test(prHeadSha)
+    getJsonString(pr, "merged_at") === "" ||
+    getJsonString(pr, "merge_commit_sha") !== mainSha ||
+    baseRef(pr) !== "main" ||
+    !shaPattern.test(prHeadSha)
   ) {
     throw new CliError("::error::Merged pull request facts do not match the main write.", 65);
   }
@@ -190,9 +224,14 @@ export async function assertTrustedMainWrite(
   reader: GithubReader,
   repository: string,
   mainSha: string,
-  isCentralStatusRequired = true,
+  isCentralStatusRequired = true
 ): Promise<MainWriteProvenance> {
-  const provenance = await validateMainWriteProvenance(reader, repository, mainSha, isCentralStatusRequired);
+  const provenance = await validateMainWriteProvenance(
+    reader,
+    repository,
+    mainSha,
+    isCentralStatusRequired
+  );
   for (let attempt = 0; attempt < 12; attempt += 1) {
     const status = await reader.get(`repos/${repository}/commits/${mainSha}/status`);
     if (hasTrustedMainWriteGuard(status)) {
@@ -226,15 +265,20 @@ async function publishStatus(
   request: MainWriteRequest,
   token: string,
   state: "success" | "failure",
-  description: string,
+  description: string
 ): Promise<void> {
   const runUrl = process.env.MAIN_WRITE_RUN_URL ?? "";
   const args = [
-    "api", "--method", "POST",
+    "api",
+    "--method",
+    "POST",
     `repos/${request.repository}/statuses/${request.head_sha}`,
-    "-f", `state=${state}`,
-    "-f", "context=Main Write Guard",
-    "-f", `description=${description}`,
+    "-f",
+    `state=${state}`,
+    "-f",
+    "context=Main Write Guard",
+    "-f",
+    `description=${description}`,
   ];
   if (runUrl) {
     args.push("-f", `target_url=${runUrl}`);
@@ -257,7 +301,7 @@ async function main(): Promise<void> {
     validateRepositoryCapability(
       request.repository,
       parseJson(rawPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65),
-      "pr",
+      "pr"
     );
   }
 
@@ -267,9 +311,14 @@ async function main(): Promise<void> {
       reader,
       request.repository,
       request.head_sha,
-      process.env.MAIN_WRITE_REQUIRE_CENTRAL_STATUSES !== "false",
+      process.env.MAIN_WRITE_REQUIRE_CENTRAL_STATUSES !== "false"
     );
-    await publishStatus(request, token, "success", `Trusted main write via PR #${provenance.pr_number}`);
+    await publishStatus(
+      request,
+      token,
+      "success",
+      `Trusted main write via PR #${provenance.pr_number}`
+    );
     await appendLines(process.env.GITHUB_OUTPUT, [
       `repository=${provenance.repository}`,
       `main_sha=${provenance.main_sha}`,

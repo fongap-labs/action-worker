@@ -1,25 +1,12 @@
 import {
   type ExecutionArtifact,
-  type ExecutionJob,
   type ExecutionOperation,
   jobsForOperation,
   parseExecutionManifest,
 } from "./execution-contract.ts";
-import {
-  parseExecutionCapabilityPolicy,
-  validateExecutionGrant,
-} from "./execution-policy.ts";
-import {
-  parseRunnerPolicy,
-  resolveRunnerProfile,
-} from "./runner-policy.ts";
-import {
-  CliError,
-  appendLines,
-  handleError,
-  isMain,
-  readJson,
-} from "./runtime-command.ts";
+import { parseExecutionCapabilityPolicy, validateExecutionGrant } from "./execution-policy.ts";
+import { parseRunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
+import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 
 export type PlannedExecutionJob = {
   job_id: string;
@@ -63,7 +50,7 @@ function renderMatrixText(value: string, matrix: Record<string, string>): string
 
 function renderArtifacts(
   artifacts: readonly ExecutionArtifact[] | undefined,
-  matrix: Record<string, string>,
+  matrix: Record<string, string>
 ): ExecutionArtifact[] {
   return (artifacts ?? []).map((artifact) => ({
     ...artifact,
@@ -84,7 +71,7 @@ export function resolveExecutionPlan(
   manifestValue: unknown,
   operation: ExecutionOperation,
   runnerPolicyValue: unknown,
-  capabilityPolicyValue: unknown,
+  capabilityPolicyValue: unknown
 ): PlannedExecutionJob[] {
   const manifest = parseExecutionManifest(manifestValue);
   const runnerPolicy = parseRunnerPolicy(runnerPolicyValue);
@@ -94,7 +81,7 @@ export function resolveExecutionPlan(
   if (jobs.some((job) => (job.depends_on?.length ?? 0) > 0)) {
     throw new CliError(
       "Dynamic execution currently requires dependency-free jobs; cross-runner DAG execution is not enabled.",
-      65,
+      65
     );
   }
 
@@ -142,11 +129,17 @@ async function main(): Promise<void> {
   if (!manifestPath || !operationRaw) {
     throw new CliError(
       "Usage: resolve-execution-plan.ts <manifest> <operation> [runner-policy] [capability-policy]",
-      64,
+      64
     );
   }
   const allowedOperations = new Set([
-    "ci", "review", "build", "release", "deploy", "task", "scheduled",
+    "ci",
+    "review",
+    "build",
+    "release",
+    "deploy",
+    "task",
+    "scheduled",
   ]);
   if (!allowedOperations.has(operationRaw)) {
     throw new CliError(`Unknown execution operation: ${operationRaw}.`, 64);
@@ -156,7 +149,7 @@ async function main(): Promise<void> {
     await readJson(manifestPath),
     operationRaw as ExecutionOperation,
     await readJson(runnerPolicyPath),
-    await readJson(capabilityPolicyPath),
+    await readJson(capabilityPolicyPath)
   );
   const matrix = { include: plan };
   await appendLines(process.env.GITHUB_OUTPUT, [

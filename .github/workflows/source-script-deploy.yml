@@ -86,6 +86,7 @@ jobs:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           DEPLOY_REQUEST_JSON: ${{ steps.dispatch_request.outputs.request_json || steps.manual_request.outputs.request_json }}
+          CONTROL_RUN_PREFIX: ${{ github.server_url }}/fongap-labs/action-worker/actions/runs/
         run: node scripts/validate-deploy-source.ts source-script true policies/runner.json
 
   deploy:

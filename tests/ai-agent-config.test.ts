@@ -16,22 +16,24 @@ test("empty AI agent config disables all optional agents", () => {
 });
 
 test("AI agent config supports independent capabilities and routed models", () => {
-  const config = parseAiAgentConfig(JSON.stringify({
-    schema_version: 1,
-    agents: {
-      triage: { enabled: true, model: "Code-Air" },
-      review: {
-        enabled: false,
-        model: "Code-Pro",
-        routes: {
-          release: { model: "Code-Max" },
-          security: { model: "Code-Ultra" },
-          deep: { model: "Code-Ultra" },
+  const config = parseAiAgentConfig(
+    JSON.stringify({
+      schema_version: 1,
+      agents: {
+        triage: { enabled: true, model: "Code-Air" },
+        review: {
+          enabled: false,
+          model: "Code-Pro",
+          routes: {
+            release: { model: "Code-Max" },
+            security: { model: "Code-Ultra" },
+            deep: { model: "Code-Ultra" },
+          },
         },
+        writing: { enabled: true, model: "Pro" },
       },
-      writing: { enabled: true, model: "Pro" },
-    },
-  }));
+    })
+  );
 
   assert.equal(isAiAgentEnabled(config, "triage"), true);
   assert.equal(isAiAgentEnabled(config, "review"), false);
@@ -44,19 +46,21 @@ test("AI agent config supports independent capabilities and routed models", () =
 });
 
 test("enabled routed review falls back to its default model", () => {
-  const config = parseAiAgentConfig(JSON.stringify({
-    schema_version: 1,
-    agents: {
-      review: {
-        enabled: true,
-        model: "Code-Pro",
-        routes: {
-          release: { model: "Code-Max" },
-          deep: { model: "Code-Ultra" },
+  const config = parseAiAgentConfig(
+    JSON.stringify({
+      schema_version: 1,
+      agents: {
+        review: {
+          enabled: true,
+          model: "Code-Pro",
+          routes: {
+            release: { model: "Code-Max" },
+            deep: { model: "Code-Ultra" },
+          },
         },
       },
-    },
-  }));
+    })
+  );
 
   assert.equal(aiAgentModel(config, "review", "code"), "Code-Pro");
   assert.equal(aiAgentModel(config, "review", "release"), "Code-Max");
@@ -64,37 +68,46 @@ test("enabled routed review falls back to its default model", () => {
 });
 
 test("AI agent config remains strict when an enabled agent has no model", () => {
-  assert.throws(() => parseAiAgentConfig(JSON.stringify({
-    schema_version: 1,
-    agents: {
-      review: { enabled: true },
-    },
-  })));
-  assert.throws(() => parseAiAgentConfig(JSON.stringify({
-    schema_version: 1,
-    agents: {
-      "Bad Agent": { enabled: false },
-    },
-  })));
+  assert.throws(() =>
+    parseAiAgentConfig(
+      JSON.stringify({
+        schema_version: 1,
+        agents: {
+          review: { enabled: true },
+        },
+      })
+    )
+  );
+  assert.throws(() =>
+    parseAiAgentConfig(
+      JSON.stringify({
+        schema_version: 1,
+        agents: {
+          "Bad Agent": { enabled: false },
+        },
+      })
+    )
+  );
 });
 
-
 test("AI agent runtime entries expose enabled defaults and routes only", () => {
-  const config = parseAiAgentConfig(JSON.stringify({
-    schema_version: 1,
-    agents: {
-      triage: { enabled: true, model: "Code-Air" },
-      review: { enabled: false, model: "Code-Pro" },
-      writing: {
-        enabled: true,
-        model: "Pro",
-        routes: {
-          "market-brief": { model: "SenseNova" },
-          "pharma-brief": { model: "Pro" },
+  const config = parseAiAgentConfig(
+    JSON.stringify({
+      schema_version: 1,
+      agents: {
+        triage: { enabled: true, model: "Code-Air" },
+        review: { enabled: false, model: "Code-Pro" },
+        writing: {
+          enabled: true,
+          model: "Pro",
+          routes: {
+            "market-brief": { model: "SenseNova" },
+            "pharma-brief": { model: "Pro" },
+          },
         },
       },
-    },
-  }));
+    })
+  );
 
   assert.deepEqual(aiAgentRuntimeEntries(config), [
     ["AW_AI_AGENT_TRIAGE_MODEL", "Code-Air"],

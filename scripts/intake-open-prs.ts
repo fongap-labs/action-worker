@@ -1,23 +1,13 @@
-import {
-  GithubReader,
-  githubEnvironment,
-  isJsonRecord,
-} from "./github-api.ts";
+import { trustedControlRunId } from "./ci-evidence.ts";
 import {
   decodeGithubContent,
   parseDependencyRepairManifest,
   resolveDependencyRepairFacts,
   selectDependencyRepair,
 } from "./dependency-repair.ts";
-import { trustedControlRunId } from "./ci-evidence.ts";
+import { GithubReader, githubEnvironment, isJsonRecord } from "./github-api.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
-import {
-  CliError,
-  handleError,
-  isMain,
-  parseJson,
-  runCommand,
-} from "./runtime-command.ts";
+import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 
 type GithubGet = {
   get(path: string): Promise<unknown>;
@@ -28,7 +18,7 @@ type Reserve = (
   repository: string,
   headSha: string,
   context: "PR Governance" | "Dependency Repair",
-  description: string,
+  description: string
 ) => Promise<void>;
 
 export type IntakeResult = {
@@ -53,9 +43,11 @@ export const PENDING_STATUS_LEASE_MS = 120_000;
 
 function pendingLeaseActive(fact: StatusFact, nowMs = Date.now()): boolean {
   const updatedAtMs = Date.parse(fact.updated_at);
-  return Number.isFinite(updatedAtMs)
-    && nowMs >= updatedAtMs
-    && nowMs - updatedAtMs < PENDING_STATUS_LEASE_MS;
+  return (
+    Number.isFinite(updatedAtMs) &&
+    nowMs >= updatedAtMs &&
+    nowMs - updatedAtMs < PENDING_STATUS_LEASE_MS
+  );
 }
 
 function statusMap(value: unknown, controlRepository: string): Map<string, StatusFact> {
@@ -79,11 +71,12 @@ function statusMap(value: unknown, controlRepository: string): Map<string, Statu
 }
 
 function pullFacts(value: unknown): { number: number; headSha: string } {
-  if (!isJsonRecord(value)
-    || typeof value.number !== "number"
-    || !Number.isInteger(value.number)
-    || value.number < 1
-    || !isJsonRecord(value.head)
+  if (
+    !isJsonRecord(value) ||
+    typeof value.number !== "number" ||
+    !Number.isInteger(value.number) ||
+    value.number < 1 ||
+    !isJsonRecord(value.head)
   ) {
     throw new CliError("GitHub pull request response is invalid.", 65);
   }
@@ -94,11 +87,14 @@ function pullFacts(value: unknown): { number: number; headSha: string } {
   return { number: value.number, headSha };
 }
 
-async function openPullRequests(reader: GithubGet, repository: string): Promise<Array<{ number: number; headSha: string }>> {
+async function openPullRequests(
+  reader: GithubGet,
+  repository: string
+): Promise<Array<{ number: number; headSha: string }>> {
   const pulls: Array<{ number: number; headSha: string }> = [];
   for (let page = 1; page <= 20; page += 1) {
     const response = await reader.get(
-      `repos/${repository}/pulls?state=open&per_page=100&page=${page}`,
+      `repos/${repository}/pulls?state=open&per_page=100&page=${page}`
     );
     if (!Array.isArray(response)) {
       throw new CliError("GitHub API returned an invalid response.", 65);
@@ -113,18 +109,18 @@ async function needsDispatch(
   statuses: Map<string, StatusFact>,
   reader: GithubGet,
   controlRepository: string,
-  controlHeadSha: string,
+  controlHeadSha: string
 ): Promise<"dispatch" | "in-flight" | "processed"> {
   const governance = statuses.get("PR Governance");
   const evidence = statuses.get("CI Evidence");
   const mergeGate = statuses.get("validate-merge");
   const facts = [governance, evidence, mergeGate].filter(
-    (item): item is StatusFact => item !== undefined,
+    (item): item is StatusFact => item !== undefined
   );
 
-  const pendingRunIds = [...new Set(
-    facts.filter((item) => item.state === "pending").map((item) => item.run_id),
-  )];
+  const pendingRunIds = [
+    ...new Set(facts.filter((item) => item.state === "pending").map((item) => item.run_id)),
+  ];
   for (const runId of pendingRunIds) {
     const run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
     const runStatus = isJsonRecord(run) && typeof run.status === "string" ? run.status : "";
@@ -144,15 +140,18 @@ async function needsDispatch(
       return "processed";
     }
 
-    const failedRunIds = [...new Set(
-      [governance, evidence, mergeGate]
-        .filter((item) => item.state === "failure" || item.state === "error")
-        .map((item) => item.run_id),
-    )];
+    const failedRunIds = [
+      ...new Set(
+        [governance, evidence, mergeGate]
+          .filter((item) => item.state === "failure" || item.state === "error")
+          .map((item) => item.run_id)
+      ),
+    ];
     if (shaPattern.test(controlHeadSha) && failedRunIds.length > 0) {
       for (const runId of failedRunIds) {
         const run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
-        const runHeadSha = isJsonRecord(run) && typeof run.head_sha === "string" ? run.head_sha : "";
+        const runHeadSha =
+          isJsonRecord(run) && typeof run.head_sha === "string" ? run.head_sha : "";
         if (shaPattern.test(runHeadSha) && runHeadSha !== controlHeadSha) {
           return "dispatch";
         }
@@ -171,7 +170,7 @@ export async function needsDependencyRepair(
   reader: GithubGet,
   repository: string,
   prNumber: number,
-  headSha: string,
+  headSha: string
 ): Promise<boolean> {
   const request = {
     schema_version: "1" as const,
@@ -184,7 +183,7 @@ export async function needsDependencyRepair(
   let manifestResponse: unknown;
   try {
     manifestResponse = await reader.get(
-      `repos/${repository}/contents/.github/dependency-repair.json?ref=${facts.base_sha}`,
+      `repos/${repository}/contents/.github/dependency-repair.json?ref=${facts.base_sha}`
     );
   } catch (error) {
     if (isMissingManifest(error)) return false;
@@ -194,8 +193,8 @@ export async function needsDependencyRepair(
     parseJson(
       decodeGithubContent(manifestResponse),
       "Dependency repair manifest must be valid JSON.",
-      65,
-    ),
+      65
+    )
   );
   return selectDependencyRepair(manifest, facts) !== null;
 }
@@ -203,7 +202,7 @@ export async function needsDependencyRepair(
 async function repairState(
   statuses: Map<string, StatusFact>,
   reader: GithubGet,
-  controlRepository: string,
+  controlRepository: string
 ): Promise<"dispatch" | "in-flight" | "ready" | "blocked"> {
   const repair = statuses.get("Dependency Repair");
   if (!repair) return "dispatch";
@@ -229,10 +228,11 @@ export async function scanOpenPullRequests(
   controlRepository: string,
   dispatchRepair?: Dispatch,
   controlHeadSha = "",
-  reserve?: Reserve,
+  reserve?: Reserve
 ): Promise<IntakeResult> {
-  const repositories = repositoriesForCapability(policyValue, "pr")
-    .filter((repository) => repository !== controlRepository);
+  const repositories = repositoriesForCapability(policyValue, "pr").filter(
+    (repository) => repository !== controlRepository
+  );
   const result: IntakeResult = {
     repositories: repositories.length,
     open_pull_requests: 0,
@@ -249,13 +249,13 @@ export async function scanOpenPullRequests(
     for (const pull of pulls) {
       const statuses = statusMap(
         await reader.get(`repos/${repository}/commits/${pull.headSha}/status`),
-        controlRepository,
+        controlRepository
       );
       const governanceAction = await needsDispatch(
         statuses,
         reader,
         controlRepository,
-        controlHeadSha,
+        controlHeadSha
       );
       if (governanceAction === "in-flight") {
         result.in_flight += 1;
@@ -266,7 +266,10 @@ export async function scanOpenPullRequests(
         continue;
       }
 
-      if (dispatchRepair && await needsDependencyRepair(reader, repository, pull.number, pull.headSha)) {
+      if (
+        dispatchRepair &&
+        (await needsDependencyRepair(reader, repository, pull.number, pull.headSha))
+      ) {
         const state = await repairState(statuses, reader, controlRepository);
         if (state === "in-flight") {
           result.in_flight += 1;
@@ -282,7 +285,7 @@ export async function scanOpenPullRequests(
               repository,
               pull.headSha,
               "Dependency Repair",
-              "Dependency repair queued by central intake",
+              "Dependency repair queued by central intake"
             );
           }
           await dispatchRepair(repository, pull.number, pull.headSha);
@@ -296,7 +299,7 @@ export async function scanOpenPullRequests(
           repository,
           pull.headSha,
           "PR Governance",
-          "Action Worker PR governance queued by central intake",
+          "Action Worker PR governance queued by central intake"
         );
       }
       await dispatch(repository, pull.number, pull.headSha);
@@ -313,7 +316,7 @@ async function reserveStatus(
   repository: string,
   headSha: string,
   context: "PR Governance" | "Dependency Repair",
-  description: string,
+  description: string
 ): Promise<void> {
   const runId = process.env.GITHUB_RUN_ID ?? "";
   const serverUrl = (process.env.GITHUB_SERVER_URL ?? "https://github.com").replace(/\/+$/, "");
@@ -341,7 +344,7 @@ async function reserveStatus(
       env: githubEnvironment(token),
       timeoutMs: 30_000,
       maxBuffer: 1024 * 1024,
-    },
+    }
   );
 }
 
@@ -351,7 +354,7 @@ async function dispatchEvent(
   eventType: string,
   repository: string,
   prNumber: number,
-  headSha: string,
+  headSha: string
 ): Promise<void> {
   const safeRepository = repository.replace(/[^A-Za-z0-9_.-]/g, "-");
   const body = {
@@ -373,7 +376,7 @@ async function dispatchEvent(
       input: JSON.stringify(body),
       timeoutMs: 30_000,
       maxBuffer: 1024 * 1024,
-    },
+    }
   );
 }
 
@@ -387,7 +390,7 @@ async function main(): Promise<void> {
   if (!policyRaw || !controlToken || !dispatchToken || !controlRepository) {
     throw new CliError(
       "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
-      64,
+      64
     );
   }
 
@@ -396,11 +399,25 @@ async function main(): Promise<void> {
     parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
     reader,
     async (repository, prNumber, headSha) => {
-      await dispatchEvent(controlRepository, dispatchToken, "run-pr-governance", repository, prNumber, headSha);
+      await dispatchEvent(
+        controlRepository,
+        dispatchToken,
+        "run-pr-governance",
+        repository,
+        prNumber,
+        headSha
+      );
     },
     controlRepository,
     async (repository, prNumber, headSha) => {
-      await dispatchEvent(controlRepository, dispatchToken, "run-dependency-repair", repository, prNumber, headSha);
+      await dispatchEvent(
+        controlRepository,
+        dispatchToken,
+        "run-dependency-repair",
+        repository,
+        prNumber,
+        headSha
+      );
     },
     process.env.GITHUB_SHA ?? "",
     async (repository, headSha, context, description) => {
@@ -410,9 +427,9 @@ async function main(): Promise<void> {
         repository,
         headSha,
         context,
-        description,
+        description
       );
-    },
+    }
   );
 
   console.log(JSON.stringify(result));

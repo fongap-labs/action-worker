@@ -22,7 +22,7 @@ test("manual release ingress resolves the current default-branch head", async ()
       },
     },
     "123",
-    "1",
+    "1"
   );
 
   assert.deepEqual(request, {
@@ -32,10 +32,7 @@ test("manual release ingress resolves the current default-branch head", async ()
     source_sha: sha,
     requested_version: "1.2.3",
   });
-  assert.deepEqual(paths, [
-    "repos/fongap-labs/example",
-    "repos/fongap-labs/example/commits/main",
-  ]);
+  assert.deepEqual(paths, ["repos/fongap-labs/example", "repos/fongap-labs/example/commits/main"]);
 });
 
 test("manual release ingress rejects unmanaged repositories and unstable versions", async () => {
@@ -52,9 +49,9 @@ test("manual release ingress rejects unmanaged repositories and unstable version
       { "fongap-labs/example": ["release-source"] },
       reader,
       "123",
-      "1",
+      "1"
     ),
-    /not allowed for release-source/,
+    /not allowed for release-source/
   );
 
   assert.throws(() => normalizeVersion("v1.2.3-rc.1"), /stable SemVer/);

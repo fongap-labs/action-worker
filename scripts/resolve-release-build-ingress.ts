@@ -1,19 +1,7 @@
-import {
-  GithubReader,
-  getJsonString,
-  isJsonRecord,
-} from "./github-api.ts";
+import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
-import {
-  parseReleaseBuildRequest,
-} from "./validate-release-build-request.ts";
-import {
-  CliError,
-  appendLines,
-  handleError,
-  isMain,
-  parseJson,
-} from "./runtime-command.ts";
+import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
+import { parseReleaseBuildRequest } from "./validate-release-build-request.ts";
 
 type GithubGet = {
   get(path: string): Promise<unknown>;
@@ -33,7 +21,7 @@ export async function resolveManualReleaseBuild(
   policy: unknown,
   reader: GithubGet,
   runId: string,
-  runAttempt: string,
+  runAttempt: string
 ): Promise<ReturnType<typeof parseReleaseBuildRequest>> {
   const requestedVersion = normalizeVersion(requestedVersionRaw);
   validateRepositoryCapability(repository, policy, "release-source");
@@ -65,15 +53,15 @@ async function main(): Promise<void> {
       parseJson(
         process.env.RELEASE_DISPATCH_JSON ?? "",
         "Release build dispatch payload must be valid JSON.",
-        64,
-      ),
+        64
+      )
     );
   } else if (eventName === "workflow_dispatch") {
     const token = process.env.AW_CONTROL_TOKEN ?? "";
     const policy = parseJson(
       process.env.AW_REPOSITORY_POLICY ?? "",
       "AW_REPOSITORY_POLICY must be valid JSON.",
-      65,
+      65
     );
     if (!token) {
       throw new CliError("AW_CONTROL_TOKEN is required.", 77);
@@ -84,7 +72,7 @@ async function main(): Promise<void> {
       policy,
       new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token),
       process.env.GITHUB_RUN_ID ?? "",
-      process.env.GITHUB_RUN_ATTEMPT ?? "1",
+      process.env.GITHUB_RUN_ATTEMPT ?? "1"
     );
   } else {
     throw new CliError(`Unsupported release ingress event: ${eventName}.`, 64);

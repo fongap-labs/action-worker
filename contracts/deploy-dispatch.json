@@ -3,12 +3,7 @@
   "title": "Deploy Dispatch",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schema_version",
-    "request_id",
-    "source_repository",
-    "source_sha"
-  ],
+  "required": ["schema_version", "request_id", "source_repository", "source_sha"],
   "properties": {
     "schema_version": {
       "const": "1"

@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
-import { access, mkdir, mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { composeAgentPrompt } from "../scripts/build-agent-prompt.ts";
 import {
   discoverSkills,
   parseFrontmatter,
-  selectSkills,
   resolveAndVerifySkills,
+  selectSkills,
 } from "../scripts/resolve-agent-skills.ts";
-import { composeAgentPrompt } from "../scripts/build-agent-prompt.ts";
 import { CliError } from "../scripts/runtime-command.ts";
 
 async function exists(path: string): Promise<boolean> {
@@ -21,7 +21,12 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-async function writeSkill(root: string, rel: string, frontmatter: string, body = "# Skill"): Promise<void> {
+async function writeSkill(
+  root: string,
+  rel: string,
+  frontmatter: string,
+  body = "# Skill"
+): Promise<void> {
   const parts = rel.split("/");
   const dir = join(root, ...parts.slice(0, -1));
   await mkdir(dir, { recursive: true });
@@ -31,7 +36,7 @@ async function writeSkill(root: string, rel: string, frontmatter: string, body =
 test("frontmatter parser extracts name, domain, baseline, and operations", () => {
   const skill = parseFrontmatter(
     "---\nname: bug-fix\ndescription: Root cause\ndomain: coding\nbaseline: false\noperations: [task, ci]\n---\n\n# Bug Fix",
-    "skills/bug-fix/SKILL.md",
+    "skills/bug-fix/SKILL.md"
   );
   assert.equal(skill.name, "bug-fix");
   assert.equal(skill.domain, "coding");
@@ -42,7 +47,7 @@ test("frontmatter parser extracts name, domain, baseline, and operations", () =>
 test("frontmatter parser extracts always flag", () => {
   const skill = parseFrontmatter(
     "---\nname: agent-execution\ndescription: Baseline\nalways: true\n---",
-    "skills/agent-execution/SKILL.md",
+    "skills/agent-execution/SKILL.md"
   );
   assert.equal(skill.always, true);
   assert.equal(skill.domain, "");
@@ -53,72 +58,131 @@ test("frontmatter parser rejects missing frontmatter", () => {
 });
 
 test("frontmatter parser rejects skill without name", () => {
-  assert.throws(
-    () => parseFrontmatter("---\ndescription: only desc\n---", "x"),
-    CliError,
-  );
+  assert.throws(() => parseFrontmatter("---\ndescription: only desc\n---", "x"), CliError);
 });
 
 test("frontmatter parser rejects skill without always or domain", () => {
   assert.throws(
     () => parseFrontmatter("---\nname: orphan\ndescription: no domain\n---", "x"),
-    CliError,
+    CliError
   );
 });
 
 test("selectSkills includes always skills for every domain", () => {
   const skills = [
-    { path: "skills/agent-execution/SKILL.md", name: "agent-execution", always: true, domain: "", baseline: false, operations: [] },
-    { path: "skills/code-minimality/SKILL.md", name: "code-minimality", always: false, domain: "coding", baseline: true, operations: [] },
-    { path: "skills/writing/SKILL.md", name: "writing", always: false, domain: "writing", baseline: true, operations: [] },
+    {
+      path: "skills/agent-execution/SKILL.md",
+      name: "agent-execution",
+      always: true,
+      domain: "",
+      baseline: false,
+      operations: [],
+    },
+    {
+      path: "skills/code-minimality/SKILL.md",
+      name: "code-minimality",
+      always: false,
+      domain: "coding",
+      baseline: true,
+      operations: [],
+    },
+    {
+      path: "skills/writing/SKILL.md",
+      name: "writing",
+      always: false,
+      domain: "writing",
+      baseline: true,
+      operations: [],
+    },
   ];
   const coding = selectSkills(skills, "coding", "task");
-  assert.deepEqual(coding, [
-    "skills/agent-execution/SKILL.md",
-    "skills/code-minimality/SKILL.md",
-  ]);
+  assert.deepEqual(coding, ["skills/agent-execution/SKILL.md", "skills/code-minimality/SKILL.md"]);
   const writing = selectSkills(skills, "writing", "task");
-  assert.deepEqual(writing, [
-    "skills/agent-execution/SKILL.md",
-    "skills/writing/SKILL.md",
-  ]);
+  assert.deepEqual(writing, ["skills/agent-execution/SKILL.md", "skills/writing/SKILL.md"]);
 });
 
 test("selectSkills includes domain baseline skills", () => {
   const skills = [
-    { path: "skills/agent-execution/SKILL.md", name: "agent-execution", always: true, domain: "", baseline: false, operations: [] },
-    { path: "skills/code-minimality/SKILL.md", name: "code-minimality", always: false, domain: "coding", baseline: true, operations: [] },
+    {
+      path: "skills/agent-execution/SKILL.md",
+      name: "agent-execution",
+      always: true,
+      domain: "",
+      baseline: false,
+      operations: [],
+    },
+    {
+      path: "skills/code-minimality/SKILL.md",
+      name: "code-minimality",
+      always: false,
+      domain: "coding",
+      baseline: true,
+      operations: [],
+    },
   ];
   const result = selectSkills(skills, "coding", "ci");
-  assert.deepEqual(result, [
-    "skills/agent-execution/SKILL.md",
-    "skills/code-minimality/SKILL.md",
-  ]);
+  assert.deepEqual(result, ["skills/agent-execution/SKILL.md", "skills/code-minimality/SKILL.md"]);
 });
 
 test("selectSkills includes operation-specific skills only for matching operation", () => {
   const skills = [
-    { path: "skills/agent-execution/SKILL.md", name: "agent-execution", always: true, domain: "", baseline: false, operations: [] },
-    { path: "skills/bug-fix/SKILL.md", name: "bug-fix", always: false, domain: "coding", baseline: false, operations: ["task"] },
-    { path: "skills/ci-diagnose/SKILL.md", name: "ci-diagnose", always: false, domain: "coding", baseline: false, operations: ["ci"] },
+    {
+      path: "skills/agent-execution/SKILL.md",
+      name: "agent-execution",
+      always: true,
+      domain: "",
+      baseline: false,
+      operations: [],
+    },
+    {
+      path: "skills/bug-fix/SKILL.md",
+      name: "bug-fix",
+      always: false,
+      domain: "coding",
+      baseline: false,
+      operations: ["task"],
+    },
+    {
+      path: "skills/ci-diagnose/SKILL.md",
+      name: "ci-diagnose",
+      always: false,
+      domain: "coding",
+      baseline: false,
+      operations: ["ci"],
+    },
   ];
   const task = selectSkills(skills, "coding", "task");
-  assert.deepEqual(task, [
-    "skills/agent-execution/SKILL.md",
-    "skills/bug-fix/SKILL.md",
-  ]);
+  assert.deepEqual(task, ["skills/agent-execution/SKILL.md", "skills/bug-fix/SKILL.md"]);
   const ci = selectSkills(skills, "coding", "ci");
-  assert.deepEqual(ci, [
-    "skills/agent-execution/SKILL.md",
-    "skills/ci-diagnose/SKILL.md",
-  ]);
+  assert.deepEqual(ci, ["skills/agent-execution/SKILL.md", "skills/ci-diagnose/SKILL.md"]);
 });
 
 test("selectSkills deduplicates while preserving order", () => {
   const skills = [
-    { path: "skills/agent-execution/SKILL.md", name: "agent-execution", always: true, domain: "", baseline: false, operations: [] },
-    { path: "skills/shared/SKILL.md", name: "shared", always: false, domain: "coding", baseline: true, operations: [] },
-    { path: "skills/shared2/SKILL.md", name: "shared2", always: false, domain: "coding", baseline: false, operations: ["task"] },
+    {
+      path: "skills/agent-execution/SKILL.md",
+      name: "agent-execution",
+      always: true,
+      domain: "",
+      baseline: false,
+      operations: [],
+    },
+    {
+      path: "skills/shared/SKILL.md",
+      name: "shared",
+      always: false,
+      domain: "coding",
+      baseline: true,
+      operations: [],
+    },
+    {
+      path: "skills/shared2/SKILL.md",
+      name: "shared2",
+      always: false,
+      domain: "coding",
+      baseline: false,
+      operations: ["task"],
+    },
   ];
   const result = selectSkills(skills, "coding", "task");
   assert.deepEqual(result, [
@@ -159,7 +223,7 @@ test("resolveAndVerifySkills resolves committed writing/task", async () => {
 test("resolveAndVerifySkills rejects unknown domain", async () => {
   await assert.rejects(
     () => resolveAndVerifySkills(process.cwd(), "nonexistent", "task"),
-    CliError,
+    CliError
   );
 });
 
@@ -181,8 +245,16 @@ test("composeAgentPrompt concatenates CLAUDE.md and skill files", async () => {
   const tmpRoot = await mkdtemp(join(tmpdir(), "prompt-test-"));
   try {
     await writeFile(join(tmpRoot, "CLAUDE.md"), "# Governance Entry\n\nFollow these rules.");
-    await writeSkill(tmpRoot, "skills/agent-execution/SKILL.md", "name: agent-execution\nalways: true");
-    await writeSkill(tmpRoot, "skills/bug-fix/SKILL.md", "name: bug-fix\ndomain: coding\noperations: [task]");
+    await writeSkill(
+      tmpRoot,
+      "skills/agent-execution/SKILL.md",
+      "name: agent-execution\nalways: true"
+    );
+    await writeSkill(
+      tmpRoot,
+      "skills/bug-fix/SKILL.md",
+      "name: bug-fix\ndomain: coding\noperations: [task]"
+    );
 
     const prompt = await composeAgentPrompt(tmpRoot, [
       "skills/agent-execution/SKILL.md",
@@ -212,18 +284,17 @@ test("composeAgentPrompt works without CLAUDE.md", async () => {
 test("composeAgentPrompt throws on missing skill file", async () => {
   const tmpRoot = await mkdtemp(join(tmpdir(), "prompt-missing-"));
   try {
-    await assert.rejects(() =>
-      composeAgentPrompt(tmpRoot, ["skills/nonexistent/SKILL.md"]),
-    );
+    await assert.rejects(() => composeAgentPrompt(tmpRoot, ["skills/nonexistent/SKILL.md"]));
   } finally {
     await rm(tmpRoot, { recursive: true, force: true });
   }
 });
 
 test("task-dispatch contract allows optional agent_domain and operation", async () => {
-  const contract = JSON.parse(
-    await readFile("contracts/task-dispatch.json", "utf8"),
-  ) as Record<string, unknown>;
+  const contract = JSON.parse(await readFile("contracts/task-dispatch.json", "utf8")) as Record<
+    string,
+    unknown
+  >;
   const properties = contract.properties as Record<string, unknown>;
   assert.ok("agent_domain" in properties);
   assert.ok("operation" in properties);

@@ -33,21 +33,27 @@ jobs:
       - name: Resolve change range
         id: range
         shell: bash
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |
           set -Eeuo pipefail
 
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            base="${{ github.event.pull_request.base.sha }}"
-            head="${{ github.event.pull_request.head.sha }}"
-          elif [[ "${{ github.event_name }}" == "push" ]]; then
-            base="${{ github.event.before }}"
-            head="${{ github.sha }}"
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            base="$PR_BASE_SHA"
+            head="$PR_HEAD_SHA"
+          elif [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            base="$PUSH_BEFORE_SHA"
+            head="$GITHUB_SHA"
 
             if [[ "$base" == "0000000000000000000000000000000000000000" ]]; then
               base="$(git rev-list --max-parents=0 "$head" | tail -1)"
             fi
           else
-            head="${{ github.sha }}"
+            head="$GITHUB_SHA"
             base="$(git rev-parse "$head^" 2>/dev/null || git rev-list --max-parents=0 "$head" | tail -1)"
           fi
 
@@ -57,7 +63,10 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Validate naming rules
-        run: node scripts/validate-naming-rules.ts "${{ steps.range.outputs.base }}" "${{ steps.range.outputs.head }}"
+        env:
+          BASE_SHA: ${{ steps.range.outputs.base }}
+          HEAD_SHA: ${{ steps.range.outputs.head }}
+        run: node scripts/validate-naming-rules.ts "$BASE_SHA" "$HEAD_SHA"
 
   security:
     name: Security checks
@@ -78,20 +87,26 @@ jobs:
       - name: Resolve security range
         id: range
         shell: bash
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          GITHUB_SHA: ${{ github.sha }}
         run: |
           set -Eeuo pipefail
 
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            base="${{ github.event.pull_request.base.sha }}"
-            head="${{ github.event.pull_request.head.sha }}"
-          elif [[ "${{ github.event_name }}" == "push" ]]; then
-            base="${{ github.event.before }}"
-            head="${{ github.sha }}"
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            base="$PR_BASE_SHA"
+            head="$PR_HEAD_SHA"
+          elif [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+            base="$PUSH_BEFORE_SHA"
+            head="$GITHUB_SHA"
             if [[ "$base" == "0000000000000000000000000000000000000000" ]]; then
               base="$(git rev-list --max-parents=0 "$head" | tail -1)"
             fi
           else
-            head="${{ github.sha }}"
+            head="$GITHUB_SHA"
             base="$(git rev-parse "$head^" 2>/dev/null || git rev-list --max-parents=0 "$head" | tail -1)"
           fi
 
@@ -101,7 +116,10 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Validate security gate
-        run: node scripts/validate-security.ts "${{ steps.range.outputs.base }}" "${{ steps.range.outputs.head }}" "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/policies/security.json"
+        env:
+          BASE_SHA: ${{ steps.range.outputs.base }}
+          HEAD_SHA: ${{ steps.range.outputs.head }}
+        run: node scripts/validate-security.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/policies/security.json"
 
   static:
     name: Static analysis
@@ -123,13 +141,18 @@ jobs:
       - name: Type-check TypeScript
         run: npm run typecheck
 
+      - name: Lint with Biome
+        run: npm run lint
+
       - name: Install actionlint
         id: actionlint
         shell: bash
         run: bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
 
       - name: Lint GitHub Actions
-        run: "${{ steps.actionlint.outputs.executable }} -color"
+        env:
+          ACTIONLINT_EXECUTABLE: ${{ steps.actionlint.outputs.executable }}
+        run: "$ACTIONLINT_EXECUTABLE -color"
 
   contracts:
     name: Contract tests

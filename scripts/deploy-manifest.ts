@@ -1,20 +1,14 @@
+import { GithubReader, isJsonRecord } from "./github-api.ts";
+import { validateRepositoryCapability } from "./repository-policy.ts";
+import { parseRunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
 import {
-  GithubReader,
-  isJsonRecord,
-} from "./github-api.ts";
-import {
-  CliError,
   appendLines,
+  CliError,
   handleError,
   isMain,
   parseJson,
   readJson,
 } from "./runtime-command.ts";
-import { validateRepositoryCapability } from "./repository-policy.ts";
-import {
-  parseRunnerPolicy,
-  resolveRunnerProfile,
-} from "./runner-policy.ts";
 
 export type DeployAdapter = "source-script";
 
@@ -42,10 +36,12 @@ function exactKeys(value: Record<string, unknown>, expected: readonly string[]):
 }
 
 function safeRelativePath(value: string): boolean {
-  return Boolean(value)
-    && pathPattern.test(value)
-    && !value.startsWith("/")
-    && !value.split("/").includes("..");
+  return (
+    Boolean(value) &&
+    pathPattern.test(value) &&
+    !value.startsWith("/") &&
+    !value.split("/").includes("..")
+  );
 }
 
 export function decodeDeployManifestContent(value: unknown): string {
@@ -68,13 +64,16 @@ export function parseDeployManifest(value: unknown): DeployManifest {
     "runner_profile",
     "schema_version",
   ]);
-  if (value.schema_version !== "1"
-    || value.adapter !== "source-script"
-    || typeof value.automatic !== "boolean"
-    || typeof value.ignore_docs_only !== "boolean"
-    || typeof value.runner_profile !== "string" || !namePattern.test(value.runner_profile)
-    || typeof value.environment !== "string" || !namePattern.test(value.environment)
-    || typeof value.entrypoint !== "string"
+  if (
+    value.schema_version !== "1" ||
+    value.adapter !== "source-script" ||
+    typeof value.automatic !== "boolean" ||
+    typeof value.ignore_docs_only !== "boolean" ||
+    typeof value.runner_profile !== "string" ||
+    !namePattern.test(value.runner_profile) ||
+    typeof value.environment !== "string" ||
+    !namePattern.test(value.environment) ||
+    typeof value.entrypoint !== "string"
   ) {
     throw new CliError("Deploy manifest is invalid.", 65);
   }
@@ -99,7 +98,7 @@ export async function resolveDeployManifest(
   sourceSha: string,
   repositoryPolicyValue: unknown,
   runnerPolicyValue: unknown,
-  reader: { get(path: string): Promise<unknown> },
+  reader: { get(path: string): Promise<unknown> }
 ): Promise<ResolvedDeployManifest> {
   if (!repositoryPattern.test(repository) || !shaPattern.test(sourceSha)) {
     throw new CliError("Deploy manifest source identity is invalid.", 64);
@@ -107,28 +106,26 @@ export async function resolveDeployManifest(
   validateRepositoryCapability(repository, repositoryPolicyValue, "deploy");
 
   const manifestResponse = await reader.get(
-    `repos/${repository}/contents/.github/deploy.json?ref=${sourceSha}`,
+    `repos/${repository}/contents/.github/deploy.json?ref=${sourceSha}`
   );
   const manifest = parseDeployManifest(
     parseJson(
       decodeDeployManifestContent(manifestResponse),
       `Deploy manifest must be valid JSON: ${repository}.`,
-      65,
-    ),
+      65
+    )
   );
   const runnerPolicy = parseRunnerPolicy(runnerPolicyValue);
   const resolvedRunner = resolveRunnerProfile(runnerPolicy, manifest.runner_profile);
   if (resolvedRunner.profile.trust_domain !== "privileged") {
     throw new CliError(
       `Deploy runner profile must use the privileged trust domain: ${manifest.runner_profile}.`,
-      77,
+      77
     );
   }
 
   if (manifest.entrypoint) {
-    await reader.get(
-      `repos/${repository}/contents/${manifest.entrypoint}?ref=${sourceSha}`,
-    );
+    await reader.get(`repos/${repository}/contents/${manifest.entrypoint}?ref=${sourceSha}`);
   }
 
   return {
@@ -142,7 +139,8 @@ export async function resolveDeployManifest(
 }
 
 async function main(): Promise<void> {
-  const [repository = "", sourceSha = "", runnerPolicyPath = "policies/runner.json"] = process.argv.slice(2);
+  const [repository = "", sourceSha = "", runnerPolicyPath = "policies/runner.json"] =
+    process.argv.slice(2);
   const token = process.env.AW_CONTROL_TOKEN ?? "";
   const rawRepositoryPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
   if (!token || !rawRepositoryPolicy) {
@@ -154,7 +152,7 @@ async function main(): Promise<void> {
     sourceSha,
     parseJson(rawRepositoryPolicy, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
     await readJson(runnerPolicyPath),
-    new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token),
+    new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token)
   );
 
   await appendLines(process.env.GITHUB_OUTPUT, [

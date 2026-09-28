@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
 import { test } from "node:test";
+import { promisify } from "node:util";
 import {
   changeAreaForPath,
   detectContext,
@@ -36,13 +36,12 @@ test("deleted workflow files remain part of PR context", async () => {
     assert.deepEqual(changed, [".github/workflows/legacy.yml"]);
     assert.equal(
       changeAreaForPath(changed[0]!, [".github/workflows/"], "CHANGELOG.md"),
-      "workflow",
+      "workflow"
     );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
-
 
 test("project type detection follows changed monorepo paths before root manifests", async () => {
   const root = await mkdtemp(join(tmpdir(), "action-worker-project-context-"));
@@ -56,17 +55,17 @@ test("project type detection follows changed monorepo paths before root manifest
     await writeFile(
       join(policyDir, "workflow.json"),
       JSON.stringify({ path_prefixes: [".github/workflows/"] }),
-      "utf8",
+      "utf8"
     );
     await writeFile(
       join(policyDir, "security.json"),
       JSON.stringify({ path_terms: ["secret"] }),
-      "utf8",
+      "utf8"
     );
     await writeFile(
       join(policyDir, "release.json"),
       JSON.stringify({ changelog_file: "CHANGELOG.md", impact_patterns: {} }),
-      "utf8",
+      "utf8"
     );
 
     await mkdir(join(root, "crates", "delta-core", "src"), { recursive: true });
@@ -83,12 +82,7 @@ test("project type detection follows changed monorepo paths before root manifest
     await exec("git", ["commit", "-qm", "rust change"], { cwd: root });
     const { stdout: rustHead } = await exec("git", ["rev-parse", "HEAD"], { cwd: root });
 
-    const rustContext = await detectContext(
-      base.trim(),
-      rustHead.trim(),
-      root,
-      policyDir,
-    );
+    const rustContext = await detectContext(base.trim(), rustHead.trim(), root, policyDir);
     assert.deepEqual(rustContext.project_types, ["rust"]);
 
     await writeFile(join(root, "README.md"), "# Test\n\nDocs only.\n", "utf8");
@@ -96,12 +90,7 @@ test("project type detection follows changed monorepo paths before root manifest
     await exec("git", ["commit", "-qm", "docs change"], { cwd: root });
     const { stdout: docsHead } = await exec("git", ["rev-parse", "HEAD"], { cwd: root });
 
-    const docsContext = await detectContext(
-      rustHead.trim(),
-      docsHead.trim(),
-      root,
-      policyDir,
-    );
+    const docsContext = await detectContext(rustHead.trim(), docsHead.trim(), root, policyDir);
     assert.deepEqual(docsContext.project_types, ["python"]);
   } finally {
     await rm(root, { recursive: true, force: true });

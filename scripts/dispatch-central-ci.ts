@@ -1,19 +1,7 @@
-import {
-  getGithubJson,
-  githubEnvironment,
-  isJsonRecord,
-  runGithubCli,
-} from "./github-api.ts";
 import { hasTrustedSuccessfulCiEvidence } from "./ci-evidence.ts";
-import {
-  CliError,
-  handleError,
-  isMain,
-  parseJson,
-  readJson,
-  runText,
-} from "./runtime-command.ts";
+import { getGithubJson, githubEnvironment, isJsonRecord, runGithubCli } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
+import { CliError, handleError, isMain, parseJson, readJson, runText } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -23,11 +11,18 @@ async function main(): Promise<void> {
   if (args.length !== 6) {
     throw new CliError(
       "Usage: dispatch-central-ci.ts <repository> <pr-number> <request-id> <head-sha> <run-url> <policy-file>",
-      64,
+      64
     );
   }
 
-  const [repository = "", prNumber = "", requestId = "", headSha = "", runUrl = "", policyPath = ""] = args;
+  const [
+    repository = "",
+    prNumber = "",
+    requestId = "",
+    headSha = "",
+    runUrl = "",
+    policyPath = "",
+  ] = args;
   if (!repositoryPattern.test(repository)) {
     throw new CliError("::error::Invalid central CI repository.", 64);
   }
@@ -44,25 +39,21 @@ async function main(): Promise<void> {
   const repositoryPolicy = parseJson(
     process.env.AW_REPOSITORY_POLICY ?? "",
     "::error::AW_REPOSITORY_POLICY must be valid JSON.",
-    65,
+    65
   );
   validateRepositoryCapability(repository, repositoryPolicy, "pr");
 
   const policy = await readJson(policyPath);
   const ci = isJsonRecord(policy) && isJsonRecord(policy.ci) ? policy.ci : {};
-  const context = typeof ci.status_context === "string" && ci.status_context
-    ? ci.status_context
-    : "CI Evidence";
+  const context =
+    typeof ci.status_context === "string" && ci.status_context ? ci.status_context : "CI Evidence";
   const token = process.env.GH_TOKEN ?? "";
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   if (!token || !repositoryPattern.test(controlRepository)) {
     throw new CliError("::error::Central CI control credentials are unavailable.", 65);
   }
 
-  const currentStatus = await getGithubJson(
-    `repos/${repository}/commits/${headSha}/status`,
-    token,
-  );
+  const currentStatus = await getGithubJson(`repos/${repository}/commits/${headSha}/status`, token);
   if (hasTrustedSuccessfulCiEvidence(currentStatus, context, controlRepository)) {
     console.log(`Central CI already satisfied: ${repository}@${headSha}`);
     return;
@@ -102,7 +93,7 @@ async function main(): Promise<void> {
     {
       env: githubEnvironment(token),
       input: payload,
-    },
+    }
   );
   console.log(`Central CI dispatched: ${repository}#${prNumber}`);
 }

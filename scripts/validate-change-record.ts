@@ -1,15 +1,15 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isJsonRecord } from "./github-api.ts";
-import { assertEnglishText } from "./validate-engineering-language.ts";
 import {
-  CliError,
   appendLines,
+  CliError,
   handleError,
   isMain,
   readJson,
   runText,
 } from "./runtime-command.ts";
+import { assertEnglishText } from "./validate-engineering-language.ts";
 
 type ChangeRecord = {
   schema_version: "1";
@@ -34,7 +34,7 @@ export async function validateChange(
   base: string,
   head: string,
   root: string,
-  policyDir: string,
+  policyDir: string
 ): Promise<ChangeRecord> {
   const value = await readJson(join(policyDir, "release.json"));
   if (!isJsonRecord(value) || typeof value.changelog_file !== "string") {
@@ -56,7 +56,11 @@ export async function validateChange(
     throw new CliError(`::error::Unsupported change type: ${changeType}.`, 64);
   }
   const changelogFile = value.changelog_file;
-  const changedText = await runText("git", ["diff", "--name-only", "--diff-filter=ACMR", base, head], { cwd: root });
+  const changedText = await runText(
+    "git",
+    ["diff", "--name-only", "--diff-filter=ACMR", base, head],
+    { cwd: root }
+  );
   const changelogChanged = changedText.split(/\r?\n/).includes(changelogFile);
   const changelogRequired = isBreaking || requiredTypes.includes(changeType);
   if (changelogRequired && !changelogChanged) {
@@ -67,8 +71,11 @@ export async function validateChange(
     if (!content.split(/\r?\n/).includes("## [Unreleased]")) {
       throw new CliError(`::error::${changelogFile} must contain ## [Unreleased].`, 65);
     }
-    const diff = await runText("git", ["diff", "--unified=0", base, head, "--", changelogFile], { cwd: root });
-    const additions = diff.split(/\r?\n/)
+    const diff = await runText("git", ["diff", "--unified=0", base, head, "--", changelogFile], {
+      cwd: root,
+    });
+    const additions = diff
+      .split(/\r?\n/)
       .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
       .map((line) => line.slice(1));
     let hasMatching = false;
@@ -83,19 +90,31 @@ export async function validateChange(
       if (!changeTypes.includes(entryType)) {
         throw new CliError(`::error::CHANGELOG uses unsupported change type: ${entryType}.`, 65);
       }
-      const attributes = (entry[2] ?? "").split(",").map((item) => item.trim()).filter(Boolean);
+      const attributes = (entry[2] ?? "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
       if (attributes.some((item) => !allowedAttrs.includes(item))) {
-        throw new CliError(`::error::CHANGELOG contains unsupported attributes: ${entry[2] ?? ""}.`, 65);
+        throw new CliError(
+          `::error::CHANGELOG contains unsupported attributes: ${entry[2] ?? ""}.`,
+          65
+        );
       }
       if (entryType === changeType) {
         hasMatching = true;
         if (isBreaking && !attributes.includes("breaking")) {
-          throw new CliError("::error::A breaking PR CHANGELOG entry must include the breaking attribute.", 65);
+          throw new CliError(
+            "::error::A breaking PR CHANGELOG entry must include the breaking attribute.",
+            65
+          );
         }
       }
     }
     if (changelogRequired && !hasMatching) {
-      throw new CliError(`::error::CHANGELOG must add an entry matching PR type '${changeType}'.`, 65);
+      throw new CliError(
+        `::error::CHANGELOG must add an entry matching PR type '${changeType}'.`,
+        65
+      );
     }
   }
   return {
@@ -112,7 +131,10 @@ export async function validateChange(
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length !== 5) {
-    throw new CliError("Usage: validate-change-record.ts <pr-title> <base-sha> <head-sha> <repo-root> <policy-dir>", 64);
+    throw new CliError(
+      "Usage: validate-change-record.ts <pr-title> <base-sha> <head-sha> <repo-root> <policy-dir>",
+      64
+    );
   }
   const [title = "", base = "", head = "", root = "", policyDir = ""] = args;
   const record = await validateChange(title, base, head, root, policyDir);

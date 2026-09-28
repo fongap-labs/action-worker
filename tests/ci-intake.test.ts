@@ -13,14 +13,20 @@ test("central CI intake dispatches only default heads without evidence", async (
     [`repos/fongap-labs/one/commits/${shaA}/status`, { statuses: [] }],
     ["repos/fongap-labs/two", { default_branch: "main" }],
     ["repos/fongap-labs/two/commits/main", { sha: shaB }],
-    [`repos/fongap-labs/two/commits/${shaB}/status`, {
-      statuses: [{ context: "CI Evidence", state: "pending" }],
-    }],
+    [
+      `repos/fongap-labs/two/commits/${shaB}/status`,
+      {
+        statuses: [{ context: "CI Evidence", state: "pending" }],
+      },
+    ],
     ["repos/fongap-labs/three", { default_branch: "trunk" }],
     ["repos/fongap-labs/three/commits/trunk", { sha: shaC }],
-    [`repos/fongap-labs/three/commits/${shaC}/status`, {
-      statuses: [{ context: "CI Evidence", state: "success" }],
-    }],
+    [
+      `repos/fongap-labs/three/commits/${shaC}/status`,
+      {
+        statuses: [{ context: "CI Evidence", state: "success" }],
+      },
+    ],
   ]);
 
   const dispatched: Array<{ repository: string; sha: string }> = [];
@@ -38,7 +44,7 @@ test("central CI intake dispatches only default heads without evidence", async (
     },
     async (repository, sha) => {
       dispatched.push({ repository, sha });
-    },
+    }
   );
 
   assert.deepEqual(dispatched, [{ repository: "fongap-labs/one", sha: shaA }]);
@@ -71,16 +77,12 @@ test("central CI intake reserves status before dispatch", async () => {
     controlRepository,
     async (target, sha) => {
       events.push(`reserve:${target}:${sha}`);
-    },
+    }
   );
 
-  assert.deepEqual(events, [
-    `reserve:${repository}:${shaA}`,
-    `dispatch:${repository}:${shaA}`,
-  ]);
+  assert.deepEqual(events, [`reserve:${repository}:${shaA}`, `dispatch:${repository}:${shaA}`]);
   assert.equal(result.dispatched, 1);
 });
-
 
 test("central CI intake honors a recent reservation after the intake run completes", async () => {
   const repository = "fongap-labs/example";
@@ -96,12 +98,14 @@ test("central CI intake honors a recent reservation after the intake run complet
         if (path === `repos/${repository}/commits/main`) return { sha: shaA };
         if (path === `repos/${repository}/commits/${shaA}/status`) {
           return {
-            statuses: [{
-              context: "CI Evidence",
-              state: "pending",
-              updated_at: updatedAt,
-              target_url: "https://github.com/fongap-labs/action-worker/actions/runs/45",
-            }],
+            statuses: [
+              {
+                context: "CI Evidence",
+                state: "pending",
+                updated_at: updatedAt,
+                target_url: "https://github.com/fongap-labs/action-worker/actions/runs/45",
+              },
+            ],
           };
         }
         if (path === "repos/fongap-labs/action-worker/actions/runs/45") {
@@ -113,13 +117,12 @@ test("central CI intake honors a recent reservation after the intake run complet
     async () => {
       dispatches += 1;
     },
-    controlRepository,
+    controlRepository
   );
 
   assert.equal(dispatches, 0);
   assert.equal(result.in_flight, 1);
 });
-
 
 test("central CI intake retries an expired pending reservation", async () => {
   const repository = "fongap-labs/example";
@@ -135,12 +138,14 @@ test("central CI intake retries an expired pending reservation", async () => {
         if (path === `repos/${repository}/commits/main`) return { sha: shaA };
         if (path === `repos/${repository}/commits/${shaA}/status`) {
           return {
-            statuses: [{
-              context: "CI Evidence",
-              state: "pending",
-              updated_at: updatedAt,
-              target_url: "https://github.com/fongap-labs/action-worker/actions/runs/46",
-            }],
+            statuses: [
+              {
+                context: "CI Evidence",
+                state: "pending",
+                updated_at: updatedAt,
+                target_url: "https://github.com/fongap-labs/action-worker/actions/runs/46",
+              },
+            ],
           };
         }
         if (path === "repos/fongap-labs/action-worker/actions/runs/46") {
@@ -152,13 +157,12 @@ test("central CI intake retries an expired pending reservation", async () => {
     async () => {
       dispatches += 1;
     },
-    controlRepository,
+    controlRepository
   );
 
   assert.equal(dispatches, 1);
   assert.equal(result.dispatched, 1);
 });
-
 
 test("central CI intake treats compatibility evidence as processed", async () => {
   const repository = "fongap-labs/example";
@@ -174,7 +178,7 @@ test("central CI intake treats compatibility evidence as processed", async () =>
     },
     async () => {
       dispatches += 1;
-    },
+    }
   );
 
   assert.equal(dispatches, 0);
@@ -201,7 +205,7 @@ test("central CI intake excludes the control repository without hardcoded names"
     async (repository) => {
       dispatched.push(repository);
     },
-    controlRepository,
+    controlRepository
   );
 
   assert.deepEqual(dispatched, [businessRepository]);

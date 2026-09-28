@@ -6,13 +6,7 @@ import {
   getJsonString,
   isJsonRecord,
 } from "./github-api.ts";
-import {
-  CliError,
-  appendLines,
-  handleError,
-  isMain,
-  parseJson,
-} from "./runtime-command.ts";
+import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 export type WorkCounts = {
   dispatch: number;
@@ -32,7 +26,7 @@ function isCount(value: unknown): value is number {
 export async function mapWithLimit<T, R>(
   items: readonly T[],
   limit: number,
-  worker: (item: T) => Promise<R>,
+  worker: (item: T) => Promise<R>
 ): Promise<R[]> {
   if (!Number.isInteger(limit) || limit < 1) {
     throw new CliError("Concurrency limit must be a positive integer.");
@@ -66,15 +60,17 @@ function addRepository(repositories: string[], repository: string): void {
 function parseRepositories(value: string): string[] {
   const parsed = parseJson(
     value,
-    "METRICS_REPOSITORIES_JSON must be a JSON array of owner/repository values.",
+    "METRICS_REPOSITORIES_JSON must be a JSON array of owner/repository values."
   );
   if (
-    !Array.isArray(parsed)
-    || !parsed.every((item) => typeof item === "string" && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(item))
+    !Array.isArray(parsed) ||
+    !parsed.every(
+      (item) => typeof item === "string" && /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(item)
+    )
   ) {
     throw new CliError(
       "METRICS_REPOSITORIES_JSON must be a JSON array of owner/repository values.",
-      65,
+      65
     );
   }
   return parsed;
@@ -85,7 +81,7 @@ async function discoverRepos(
   repository: string,
   owner: string,
   configured: string,
-  hasToken: boolean,
+  hasToken: boolean
 ): Promise<string[]> {
   const repositories: string[] = [];
   addRepository(repositories, repository);
@@ -97,7 +93,9 @@ async function discoverRepos(
   }
 
   for (let page = 1; ; page += 1) {
-    const response = getApiArray(await reader.get(`users/${owner}/repos?type=owner&per_page=100&page=${page}`));
+    const response = getApiArray(
+      await reader.get(`users/${owner}/repos?type=owner&per_page=100&page=${page}`)
+    );
     for (const item of response) {
       addRepository(repositories, getJsonString(item, "full_name"));
     }
@@ -110,9 +108,13 @@ async function discoverRepos(
     for (let page = 1; ; page += 1) {
       let response: unknown[];
       try {
-        response = getApiArray(await reader.get(`user/repos?affiliation=owner&per_page=100&page=${page}`));
+        response = getApiArray(
+          await reader.get(`user/repos?affiliation=owner&per_page=100&page=${page}`)
+        );
       } catch {
-        console.error("::warning::Current metrics credential cannot enumerate private repositories; only accessible repositories will be counted.");
+        console.error(
+          "::warning::Current metrics credential cannot enumerate private repositories; only accessible repositories will be counted."
+        );
         break;
       }
       for (const item of response) {
@@ -129,10 +131,12 @@ async function discoverRepos(
 }
 
 export function isSuccessfulRun(value: unknown, path: string): boolean {
-  return isJsonRecord(value)
-    && value.path === path
-    && value.event === "repository_dispatch"
-    && value.conclusion === "success";
+  return (
+    isJsonRecord(value) &&
+    value.path === path &&
+    value.event === "repository_dispatch" &&
+    value.conclusion === "success"
+  );
 }
 
 function hasSuccessfulStep(value: unknown, name: string): boolean {
@@ -141,7 +145,9 @@ function hasSuccessfulStep(value: unknown, name: string): boolean {
     if (!isJsonRecord(job) || !Array.isArray(job.steps)) {
       return false;
     }
-    return job.steps.some((step) => isJsonRecord(step) && step.name === name && step.conclusion === "success");
+    return job.steps.some(
+      (step) => isJsonRecord(step) && step.name === name && step.conclusion === "success"
+    );
   });
 }
 
@@ -150,7 +156,7 @@ async function collectMetrics(
   repository: string,
   owner: string,
   configured: string,
-  hasToken: boolean,
+  hasToken: boolean
 ): Promise<{ counts: WorkCounts; repositories: number }> {
   const repositories = await discoverRepos(reader, repository, owner, configured, hasToken);
   const counts: WorkCounts = {
@@ -171,26 +177,26 @@ async function collectMetrics(
       }
       const runs = getApiArray(response, "workflow_runs");
       if (current === repository) {
-        counts.dispatch += runs.filter((run) => isSuccessfulRun(
-          run,
-          ".github/workflows/handle-task-dispatch.yml",
-        )).length;
-        const governanceRuns = runs.filter((run) => isSuccessfulRun(
-          run,
-          ".github/workflows/handle-pr-dispatch.yml",
-        ));
+        counts.dispatch += runs.filter((run) =>
+          isSuccessfulRun(run, ".github/workflows/handle-task-dispatch.yml")
+        ).length;
+        const governanceRuns = runs.filter((run) =>
+          isSuccessfulRun(run, ".github/workflows/handle-pr-dispatch.yml")
+        );
         counts.pr_governance += governanceRuns.length;
-        counts.release_governance += runs.filter((run) => isSuccessfulRun(
-          run,
-          ".github/workflows/handle-release-dispatch.yml",
-        )).length;
+        counts.release_governance += runs.filter((run) =>
+          isSuccessfulRun(run, ".github/workflows/handle-release-dispatch.yml")
+        ).length;
 
         const runIds = governanceRuns
           .map((run) => getJsonNumber(run, "id"))
           .filter((runId) => runId > 0);
-        const jobPages = await mapWithLimit(runIds, JOB_READ_LIMIT, async (runId) => (
-          await reader.get(`repos/${repository}/actions/runs/${runId}/jobs?per_page=100`)
-        ));
+        const jobPages = await mapWithLimit(
+          runIds,
+          JOB_READ_LIMIT,
+          async (runId) =>
+            await reader.get(`repos/${repository}/actions/runs/${runId}/jobs?per_page=100`)
+        );
         for (const jobs of jobPages) {
           if (hasSuccessfulStep(jobs, "Run AI review")) {
             counts.ai_review += 1;
@@ -211,12 +217,12 @@ async function collectMetrics(
 export function parseFixture(value: string): WorkCounts {
   const parsed = parseJson(value, "WORK_METRICS_COUNTS is invalid.");
   if (
-    !isJsonRecord(parsed)
-    || !isCount(parsed.dispatch)
-    || !isCount(parsed.pr_governance)
-    || !isCount(parsed.ai_review)
-    || !isCount(parsed.gate)
-    || !isCount(parsed.release_governance)
+    !isJsonRecord(parsed) ||
+    !isCount(parsed.dispatch) ||
+    !isCount(parsed.pr_governance) ||
+    !isCount(parsed.ai_review) ||
+    !isCount(parsed.gate) ||
+    !isCount(parsed.release_governance)
   ) {
     throw new CliError("WORK_METRICS_COUNTS is invalid.", 65);
   }
@@ -319,9 +325,8 @@ async function main(): Promise<void> {
   }
 
   for (const readmePath of targets) {
-    const targetContent = readmePath === primaryReadmePath
-      ? content
-      : await readFile(readmePath, "utf8");
+    const targetContent =
+      readmePath === primaryReadmePath ? content : await readFile(readmePath, "utf8");
     await writeFile(readmePath, renderMetrics(targetContent, counts, repository), "utf8");
   }
   await appendLines(process.env.GITHUB_OUTPUT, [
@@ -343,7 +348,7 @@ async function main(): Promise<void> {
   ];
   await appendLines(process.env.GITHUB_STEP_SUMMARY, summary);
   console.log(
-    `Task Dispatch=${counts.dispatch} PR Governance=${counts.pr_governance} AI Review=${counts.ai_review} Gate=${counts.gate} Release Governance=${counts.release_governance}`,
+    `Task Dispatch=${counts.dispatch} PR Governance=${counts.pr_governance} AI Review=${counts.ai_review} Gate=${counts.gate} Release Governance=${counts.release_governance}`
   );
 }
 

@@ -4,13 +4,7 @@
   "title": "Release Manifest",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schema_version",
-    "target_repository",
-    "release_key",
-    "version",
-    "assets"
-  ],
+  "required": ["schema_version", "target_repository", "release_key", "version", "assets"],
   "properties": {
     "schema_version": {
       "const": "1"
@@ -48,10 +42,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "name",
-          "sha256"
-        ],
+        "required": ["name", "sha256"],
         "properties": {
           "name": {
             "type": "string",

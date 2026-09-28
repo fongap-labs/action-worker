@@ -1,42 +1,40 @@
 import { isJsonRecord } from "./github-api.ts";
-import {
-  CliError,
-  handleError,
-  isMain,
-  readJson,
-  parseJson,
-} from "./runtime-command.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
+import { CliError, handleError, isMain, parseJson, readJson } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const requestPattern = /^[A-Za-z0-9._:-]{1,128}$/;
 const assetPattern = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const versionPattern = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
-function isExactKeys(value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []): boolean {
+function isExactKeys(
+  value: Record<string, unknown>,
+  required: readonly string[],
+  optional: readonly string[] = []
+): boolean {
   const keys = Object.keys(value);
-  return required.every((key) => keys.includes(key))
-    && keys.every((key) => required.includes(key) || optional.includes(key));
+  return (
+    required.every((key) => keys.includes(key)) &&
+    keys.every((key) => required.includes(key) || optional.includes(key))
+  );
 }
 
-export function validateReleaseProvenance(
-  request: unknown,
-  provenance: unknown,
-): void {
-  if (!isJsonRecord(request)
-    || !isJsonRecord(provenance)
-    || !isExactKeys(provenance, [
+export function validateReleaseProvenance(request: unknown, provenance: unknown): void {
+  if (
+    !isJsonRecord(request) ||
+    !isJsonRecord(provenance) ||
+    !isExactKeys(provenance, [
       "artifact_repository",
       "artifact_run_id",
       "schema_version",
       "source_repository",
       "source_sha",
-    ])
-    || provenance.schema_version !== "1"
-    || provenance.source_repository !== request.source_repository
-    || provenance.source_sha !== request.source_sha
-    || provenance.artifact_repository !== request.artifact_repository
-    || provenance.artifact_run_id !== request.artifact_run_id
+    ]) ||
+    provenance.schema_version !== "1" ||
+    provenance.source_repository !== request.source_repository ||
+    provenance.source_sha !== request.source_sha ||
+    provenance.artifact_repository !== request.artifact_repository ||
+    provenance.artifact_run_id !== request.artifact_run_id
   ) {
     throw new CliError("release provenance does not match the dispatch request.", 66);
   }
@@ -45,10 +43,11 @@ export function validateReleaseProvenance(
 export function validateRelease(
   request: unknown,
   manifest: unknown | undefined,
-  repositoryPolicy: unknown,
+  repositoryPolicy: unknown
 ): void {
-  if (!isJsonRecord(request)
-    || !isExactKeys(request, [
+  if (
+    !isJsonRecord(request) ||
+    !isExactKeys(request, [
       "artifact_name",
       "artifact_repository",
       "artifact_run_id",
@@ -56,14 +55,22 @@ export function validateRelease(
       "schema_version",
       "source_repository",
       "source_sha",
-    ])
-    || request.schema_version !== "2"
-    || typeof request.request_id !== "string" || !requestPattern.test(request.request_id)
-    || typeof request.source_repository !== "string" || !repositoryPattern.test(request.source_repository)
-    || typeof request.source_sha !== "string" || !/^[0-9a-f]{40}$/.test(request.source_sha)
-    || typeof request.artifact_repository !== "string" || !repositoryPattern.test(request.artifact_repository)
-    || typeof request.artifact_run_id !== "number" || !Number.isInteger(request.artifact_run_id) || request.artifact_run_id < 1
-    || typeof request.artifact_name !== "string" || request.artifact_name.length > 128 || !/^[A-Za-z0-9._-]+$/.test(request.artifact_name)
+    ]) ||
+    request.schema_version !== "2" ||
+    typeof request.request_id !== "string" ||
+    !requestPattern.test(request.request_id) ||
+    typeof request.source_repository !== "string" ||
+    !repositoryPattern.test(request.source_repository) ||
+    typeof request.source_sha !== "string" ||
+    !/^[0-9a-f]{40}$/.test(request.source_sha) ||
+    typeof request.artifact_repository !== "string" ||
+    !repositoryPattern.test(request.artifact_repository) ||
+    typeof request.artifact_run_id !== "number" ||
+    !Number.isInteger(request.artifact_run_id) ||
+    request.artifact_run_id < 1 ||
+    typeof request.artifact_name !== "string" ||
+    request.artifact_name.length > 128 ||
+    !/^[A-Za-z0-9._-]+$/.test(request.artifact_name)
   ) {
     throw new CliError("release dispatch payload is invalid.", 64);
   }
@@ -73,25 +80,38 @@ export function validateRelease(
   }
   const requiredKeys = ["schema_version", "target_repository", "release_key", "version", "assets"];
   const optionalKeys = ["release_name", "release_notes", "prerelease", "license"];
-  if (!isJsonRecord(manifest)
-    || !isExactKeys(manifest, requiredKeys, optionalKeys)
-    || manifest.schema_version !== "1"
-    || typeof manifest.target_repository !== "string" || !repositoryPattern.test(manifest.target_repository)
-    || typeof manifest.release_key !== "string" || manifest.release_key.length > 64 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(manifest.release_key)
-    || typeof manifest.version !== "string" || !versionPattern.test(manifest.version)
-    || (manifest.release_name !== undefined && (typeof manifest.release_name !== "string" || manifest.release_name.length > 160))
-    || (manifest.release_notes !== undefined && (typeof manifest.release_notes !== "string" || manifest.release_notes.length > 20_000))
-    || (manifest.prerelease !== undefined && typeof manifest.prerelease !== "boolean")
-    || !Array.isArray(manifest.assets) || manifest.assets.length < 1 || manifest.assets.length > 50
+  if (
+    !isJsonRecord(manifest) ||
+    !isExactKeys(manifest, requiredKeys, optionalKeys) ||
+    manifest.schema_version !== "1" ||
+    typeof manifest.target_repository !== "string" ||
+    !repositoryPattern.test(manifest.target_repository) ||
+    typeof manifest.release_key !== "string" ||
+    manifest.release_key.length > 64 ||
+    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(manifest.release_key) ||
+    typeof manifest.version !== "string" ||
+    !versionPattern.test(manifest.version) ||
+    (manifest.release_name !== undefined &&
+      (typeof manifest.release_name !== "string" || manifest.release_name.length > 160)) ||
+    (manifest.release_notes !== undefined &&
+      (typeof manifest.release_notes !== "string" || manifest.release_notes.length > 20_000)) ||
+    (manifest.prerelease !== undefined && typeof manifest.prerelease !== "boolean") ||
+    !Array.isArray(manifest.assets) ||
+    manifest.assets.length < 1 ||
+    manifest.assets.length > 50
   ) {
     throw new CliError("release manifest is invalid.", 64);
   }
   const assetNames: string[] = [];
   for (const item of manifest.assets) {
-    if (!isJsonRecord(item)
-      || !isExactKeys(item, ["name", "sha256"])
-      || typeof item.name !== "string" || item.name.length > 160 || !assetPattern.test(item.name)
-      || typeof item.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(item.sha256)
+    if (
+      !isJsonRecord(item) ||
+      !isExactKeys(item, ["name", "sha256"]) ||
+      typeof item.name !== "string" ||
+      item.name.length > 160 ||
+      !assetPattern.test(item.name) ||
+      typeof item.sha256 !== "string" ||
+      !/^[0-9a-f]{64}$/.test(item.sha256)
     ) {
       throw new CliError("release manifest is invalid.", 64);
     }
@@ -102,11 +122,17 @@ export function validateRelease(
   }
   if (manifest.license !== undefined) {
     const license = manifest.license;
-    if (!isJsonRecord(license)
-      || !isExactKeys(license, ["expression"], ["file"])
-      || typeof license.expression !== "string" || license.expression.length > 128 || !/^[A-Za-z0-9][A-Za-z0-9.+() -]*$/.test(license.expression)
-      || (license.file !== undefined && (typeof license.file !== "string" || license.file.length > 160 || !assetPattern.test(license.file)))
-      || (typeof license.file === "string" && !assetNames.includes(license.file))
+    if (
+      !isJsonRecord(license) ||
+      !isExactKeys(license, ["expression"], ["file"]) ||
+      typeof license.expression !== "string" ||
+      license.expression.length > 128 ||
+      !/^[A-Za-z0-9][A-Za-z0-9.+() -]*$/.test(license.expression) ||
+      (license.file !== undefined &&
+        (typeof license.file !== "string" ||
+          license.file.length > 160 ||
+          !assetPattern.test(license.file))) ||
+      (typeof license.file === "string" && !assetNames.includes(license.file))
     ) {
       throw new CliError("release manifest is invalid.", 64);
     }
@@ -147,7 +173,7 @@ async function main(): Promise<void> {
   validateRelease(
     request,
     manifest,
-    parseJson(repositoryPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65),
+    parseJson(repositoryPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65)
   );
 }
 

@@ -1,7 +1,4 @@
-import {
-  getJsonString,
-  isJsonRecord,
-} from "./github-api.ts";
+import { getJsonString, isJsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
 export type SecurityScanManifest = {
@@ -53,7 +50,11 @@ const languages = new Set([
 ]);
 const buildModes = new Set(["none", "autobuild"]);
 
-function exactKeys(value: Record<string, unknown>, expected: readonly string[], label: string): void {
+function exactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+  label: string
+): void {
   const actual = Object.keys(value).sort();
   const wanted = [...expected].sort();
   if (actual.length !== wanted.length || actual.some((item, index) => item !== wanted[index])) {
@@ -83,21 +84,22 @@ export function parseSecurityScanManifest(value: unknown): SecurityScanManifest 
       "runner_profile",
       "schema_version",
     ],
-    "Security scan manifest",
+    "Security scan manifest"
   );
-  if (value.schema_version !== "1"
-    || value.engine !== "codeql"
-    || typeof value.runner_profile !== "string"
-    || !runnerPattern.test(value.runner_profile)
-    || typeof value.build_mode !== "string"
-    || !buildModes.has(value.build_mode)
-    || !Array.isArray(value.languages)
-    || value.languages.length < 1
-    || value.languages.length > 9
-    || !value.languages.every((item) => typeof item === "string" && languages.has(item))
-    || new Set(value.languages).size !== value.languages.length
-    || typeof value.pull_requests !== "boolean"
-    || typeof value.default_branch !== "boolean"
+  if (
+    value.schema_version !== "1" ||
+    value.engine !== "codeql" ||
+    typeof value.runner_profile !== "string" ||
+    !runnerPattern.test(value.runner_profile) ||
+    typeof value.build_mode !== "string" ||
+    !buildModes.has(value.build_mode) ||
+    !Array.isArray(value.languages) ||
+    value.languages.length < 1 ||
+    value.languages.length > 9 ||
+    !value.languages.every((item) => typeof item === "string" && languages.has(item)) ||
+    new Set(value.languages).size !== value.languages.length ||
+    typeof value.pull_requests !== "boolean" ||
+    typeof value.default_branch !== "boolean"
   ) {
     throw new CliError("Security scan manifest is invalid.", 65);
   }
@@ -111,17 +113,18 @@ export function parseSecurityScanRequest(value: unknown): SecurityScanRequest {
   exactKeys(
     value,
     ["pr_number", "repository", "request_id", "schema_version", "source_sha"],
-    "Security scan request",
+    "Security scan request"
   );
-  if (value.schema_version !== "1"
-    || typeof value.request_id !== "string"
-    || !requestPattern.test(value.request_id)
-    || typeof value.repository !== "string"
-    || !repositoryPattern.test(value.repository)
-    || typeof value.source_sha !== "string"
-    || !shaPattern.test(value.source_sha)
-    || !Number.isInteger(value.pr_number)
-    || Number(value.pr_number) < 0
+  if (
+    value.schema_version !== "1" ||
+    typeof value.request_id !== "string" ||
+    !requestPattern.test(value.request_id) ||
+    typeof value.repository !== "string" ||
+    !repositoryPattern.test(value.repository) ||
+    typeof value.source_sha !== "string" ||
+    !shaPattern.test(value.source_sha) ||
+    !Number.isInteger(value.pr_number) ||
+    Number(value.pr_number) < 0
   ) {
     throw new CliError("Security scan request is invalid.", 64);
   }
@@ -130,7 +133,7 @@ export function parseSecurityScanRequest(value: unknown): SecurityScanRequest {
 
 export async function resolveSecurityScanFacts(
   reader: GithubGet,
-  request: SecurityScanRequest,
+  request: SecurityScanRequest
 ): Promise<SecurityScanFacts> {
   const repositoryValue = await reader.get(`repos/${request.repository}`);
   if (!isJsonRecord(repositoryValue)) {

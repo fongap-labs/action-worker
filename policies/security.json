@@ -1,8 +1,6 @@
 {
   "schema_version": 2,
-  "path_allow_patterns": [
-    "(^|/)\\.env\\.(?:example|sample|template|variables)$"
-  ],
+  "path_allow_patterns": ["(^|/)\\.env\\.(?:example|sample|template|variables)$"],
   "forbidden_path_patterns": [
     "(^|/)\\.env$",
     "(^|/)\\.env\\.(?:local|production|prod|staging|stage|development|dev)$",
@@ -51,11 +49,5 @@
     }
   ],
   "require_pinned_actions": true,
-  "path_terms": [
-    "secret",
-    "token",
-    "auth",
-    "permission",
-    "credential"
-  ]
+  "path_terms": ["secret", "token", "auth", "permission", "credential"]
 }

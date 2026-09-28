@@ -14,17 +14,8 @@
     "chore",
     "revert"
   ],
-  "change_attributes": [
-    "breaking",
-    "security",
-    "migration"
-  ],
-  "changelog_required_types": [
-    "feat",
-    "fix",
-    "perf",
-    "revert"
-  ],
+  "change_attributes": ["breaking", "security", "migration"],
+  "changelog_required_types": ["feat", "fix", "perf", "revert"],
   "impact_patterns": {
     "breaking": ["breaking", "破坏性", "不兼容"],
     "security": ["security", "安全", "漏洞", "认证", "鉴权"],

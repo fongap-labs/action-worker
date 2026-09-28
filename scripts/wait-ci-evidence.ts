@@ -1,18 +1,7 @@
-import {
-  getGithubJson,
-  getJsonNumber,
-  getJsonString,
-  isJsonRecord,
-} from "./github-api.ts";
-import { trustedCiStatus } from "./ci-evidence.ts";
 import { writeFile } from "node:fs/promises";
-import {
-  CliError,
-  appendLines,
-  handleError,
-  isMain,
-  readJson,
-} from "./runtime-command.ts";
+import { trustedCiStatus } from "./ci-evidence.ts";
+import { getGithubJson, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
+import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 
 function sleep(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -40,13 +29,15 @@ async function publishEvidence(evidence: Evidence): Promise<void> {
     await writeFile(process.env.CI_EVIDENCE_PATH, `${output}\n`, "utf8");
   }
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [
-    "### CI Evidence", "",
+    "### CI Evidence",
+    "",
     `- workflow: ${evidence.workflow}`,
     `- run/status id: ${evidence.run_id}`,
     `- conclusion: ${evidence.conclusion}`,
     `- gate: ${evidence.gate_job}`,
     `- gate conclusion: ${evidence.gate_conclusion}`,
-    "", "Jobs:",
+    "",
+    "Jobs:",
     ...evidence.jobs.map((job) => `- ${job.name}: ${job.conclusion}`),
   ]);
   console.log(output);
@@ -59,7 +50,7 @@ export async function waitForCentralStatus(
   token: string,
   controlRepository: string,
   pollSeconds: number,
-  timeoutMinutes: number,
+  timeoutMinutes: number
 ): Promise<void> {
   const context = getJsonString(ci, "status_context") || "CI Evidence";
   const deadline = Date.now() + timeoutMinutes * 60_000;
@@ -69,7 +60,9 @@ export async function waitForCentralStatus(
     const status = trustedCiStatus(response, context, controlRepository);
 
     if (!status) {
-      console.error(`Central CI pending: waiting for trusted ${repository}@${headSha} context=${context}`);
+      console.error(
+        `Central CI pending: waiting for trusted ${repository}@${headSha} context=${context}`
+      );
       await sleep(pollSeconds * 1000);
       continue;
     }
@@ -97,7 +90,7 @@ export async function waitForCentralStatus(
   }
 
   throw new CliError(
-    `::error::Timed out waiting for central CI: repository=${repository} head=${headSha} timeout=${timeoutMinutes}m`,
+    `::error::Timed out waiting for central CI: repository=${repository} head=${headSha} timeout=${timeoutMinutes}m`
   );
 }
 
@@ -138,7 +131,7 @@ async function main(): Promise<void> {
     token,
     controlRepository,
     pollSeconds,
-    timeoutMinutes,
+    timeoutMinutes
   );
 }
 

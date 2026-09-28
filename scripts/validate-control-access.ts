@@ -1,14 +1,5 @@
-import {
-  getGithubJson,
-  getJsonString,
-  isJsonRecord,
-} from "./github-api.ts";
-import {
-  CliError,
-  handleError,
-  isMain,
-  runCommand,
-} from "./runtime-command.ts";
+import { getGithubJson, getJsonString, isJsonRecord } from "./github-api.ts";
+import { CliError, handleError, isMain, runCommand } from "./runtime-command.ts";
 
 async function checkAccess(path: string, token: string, message: string): Promise<void> {
   try {
@@ -38,14 +29,24 @@ async function main(): Promise<void> {
   try {
     pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, token);
   } catch {
-    throw new CliError("::error::AW_CONTROL_TOKEN cannot read the target PR; Pull Requests Read is required.");
+    throw new CliError(
+      "::error::AW_CONTROL_TOKEN cannot read the target PR; Pull Requests Read is required."
+    );
   }
   const head = isJsonRecord(pull) && isJsonRecord(pull.head) ? getJsonString(pull.head, "sha") : "";
   if (!/^[0-9a-f]{40}$/.test(head)) {
     throw new CliError("::error::Unable to resolve target PR head SHA.", 65);
   }
-  await checkAccess(`repos/${repository}/actions/runs?per_page=1`, token, "::error::AW_CONTROL_TOKEN cannot read target Actions; Actions Read is required.");
-  await checkAccess(`repos/${repository}/commits/${head}/status`, token, "::error::AW_CONTROL_TOKEN cannot read target commit status; Commit Statuses Read/Write is required.");
+  await checkAccess(
+    `repos/${repository}/actions/runs?per_page=1`,
+    token,
+    "::error::AW_CONTROL_TOKEN cannot read target Actions; Actions Read is required."
+  );
+  await checkAccess(
+    `repos/${repository}/commits/${head}/status`,
+    token,
+    "::error::AW_CONTROL_TOKEN cannot read target commit status; Commit Statuses Read/Write is required."
+  );
   console.log(`repository=${repository}`);
   console.log(`pr_number=${prNumber}`);
   console.log(`head_sha=${head}`);

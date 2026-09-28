@@ -1,18 +1,7 @@
-import {
-  GithubReader,
-  getJsonString,
-  githubEnvironment,
-  isJsonRecord,
-} from "./github-api.ts";
 import { trustedControlRunId } from "./ci-evidence.ts";
+import { GithubReader, getJsonString, githubEnvironment, isJsonRecord } from "./github-api.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
-import {
-  CliError,
-  handleError,
-  isMain,
-  parseJson,
-  runCommand,
-} from "./runtime-command.ts";
+import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 
 type GithubGet = {
   get(path: string): Promise<unknown>;
@@ -56,18 +45,19 @@ function latestStatus(value: unknown, context: string): StatusFact | null {
 
 function pendingLeaseActive(fact: StatusFact, nowMs = Date.now()): boolean {
   const updatedAtMs = Date.parse(fact.updated_at);
-  return Number.isFinite(updatedAtMs)
-    && nowMs >= updatedAtMs
-    && nowMs - updatedAtMs < PENDING_STATUS_LEASE_MS;
+  return (
+    Number.isFinite(updatedAtMs) &&
+    nowMs >= updatedAtMs &&
+    nowMs - updatedAtMs < PENDING_STATUS_LEASE_MS
+  );
 }
 
 async function ciState(
   value: unknown,
   reader: GithubGet,
-  controlRepository: string,
+  controlRepository: string
 ): Promise<"dispatch" | "in-flight" | "processed"> {
-  const fact = latestStatus(value, "CI Evidence")
-    ?? latestStatus(value, "ci-evidence");
+  const fact = latestStatus(value, "CI Evidence") ?? latestStatus(value, "ci-evidence");
   if (!fact) return "dispatch";
   if (fact.state !== "pending") return "processed";
 
@@ -112,10 +102,11 @@ export async function scanMainCi(
   reader: GithubGet,
   dispatch: Dispatch,
   excludedRepository = "",
-  reserve?: Reserve,
+  reserve?: Reserve
 ): Promise<CiIntakeResult> {
-  const repositories = repositoriesForCapability(policyValue, "pr")
-    .filter((repository) => repository !== excludedRepository);
+  const repositories = repositoriesForCapability(policyValue, "pr").filter(
+    (repository) => repository !== excludedRepository
+  );
   const result: CiIntakeResult = {
     repositories: repositories.length,
     dispatched: 0,
@@ -149,7 +140,7 @@ async function reserveCiStatus(
   controlRepository: string,
   token: string,
   repository: string,
-  headSha: string,
+  headSha: string
 ): Promise<void> {
   const runId = process.env.GITHUB_RUN_ID ?? "";
   const serverUrl = (process.env.GITHUB_SERVER_URL ?? "https://github.com").replace(/\/+$/, "");
@@ -177,7 +168,7 @@ async function reserveCiStatus(
       env: githubEnvironment(token),
       timeoutMs: 30_000,
       maxBuffer: 1024 * 1024,
-    },
+    }
   );
 }
 
@@ -185,7 +176,7 @@ async function dispatchCentralCi(
   controlRepository: string,
   token: string,
   repository: string,
-  headSha: string,
+  headSha: string
 ): Promise<void> {
   const safeRepository = repository.replace(/[^A-Za-z0-9_.-]/g, "-");
   const body = {
@@ -206,7 +197,7 @@ async function dispatchCentralCi(
       input: JSON.stringify(body),
       timeoutMs: 30_000,
       maxBuffer: 1024 * 1024,
-    },
+    }
   );
 }
 
@@ -220,7 +211,7 @@ async function main(): Promise<void> {
   if (!policyRaw || !controlToken || !ingressToken || !controlRepository) {
     throw new CliError(
       "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
-      64,
+      64
     );
   }
 
@@ -234,7 +225,7 @@ async function main(): Promise<void> {
     controlRepository,
     async (repository, headSha) => {
       await reserveCiStatus(controlRepository, controlToken, repository, headSha);
-    },
+    }
   );
 
   console.log(JSON.stringify(result));

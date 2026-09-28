@@ -59,7 +59,7 @@ test("security scan intake dispatches only repositories with enabled trusted man
     async (repository) => {
       dispatched.push(repository);
     },
-    "fongap-labs/control",
+    "fongap-labs/control"
   );
 
   assert.deepEqual(dispatched, ["fongap-labs/enabled"]);
@@ -67,5 +67,8 @@ test("security scan intake dispatches only repositories with enabled trusted man
   assert.equal(result.manifests, 2);
   assert.equal(result.dispatched, 1);
   assert.equal(result.skipped, 3);
-  assert.equal(paths.some((path) => path.includes("fongap-labs/control")), false);
+  assert.equal(
+    paths.some((path) => path.includes("fongap-labs/control")),
+    false
+  );
 });

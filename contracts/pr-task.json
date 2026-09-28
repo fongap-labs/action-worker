@@ -3,12 +3,7 @@
   "title": "PR Task",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schema_version",
-    "request_id",
-    "repository",
-    "pr_number"
-  ],
+  "required": ["schema_version", "request_id", "repository", "pr_number"],
   "properties": {
     "schema_version": {
       "const": "1"

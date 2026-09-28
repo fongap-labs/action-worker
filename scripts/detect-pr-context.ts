@@ -2,8 +2,8 @@ import { access, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isJsonRecord } from "./github-api.ts";
 import {
-  CliError,
   appendLines,
+  CliError,
   handleError,
   isMain,
   readJson,
@@ -29,17 +29,25 @@ async function pathExists(path: string): Promise<boolean> {
 }
 
 function stringList(value: unknown, key: string): string[] {
-  if (!isJsonRecord(value) || !Array.isArray(value[key]) || !value[key].every((item) => typeof item === "string")) {
+  if (
+    !isJsonRecord(value) ||
+    !Array.isArray(value[key]) ||
+    !value[key].every((item) => typeof item === "string")
+  ) {
     throw new CliError(`ERROR: invalid context policy field: ${key}.`, 65);
   }
   return value[key];
 }
 
-export async function listChangedFiles(base: string, head: string, root: string): Promise<string[]> {
+export async function listChangedFiles(
+  base: string,
+  head: string,
+  root: string
+): Promise<string[]> {
   const changedText = await runText(
     "git",
     ["diff", "--name-only", "--diff-filter=ACDMR", base, head],
-    { cwd: root },
+    { cwd: root }
   );
   return changedText ? changedText.split(/\r?\n/).filter(Boolean) : [];
 }
@@ -50,28 +58,28 @@ export function projectTypeForPath(path: string): string | null {
 
   if (lower.startsWith(".github/workflows/")) return "github-automation";
   if (name === "Cargo.toml" || lower.endsWith(".rs")) return "rust";
+  if (name === "pyproject.toml" || name === "requirements.txt" || lower.endsWith(".py"))
+    return "python";
   if (
-    name === "pyproject.toml"
-    || name === "requirements.txt"
-    || lower.endsWith(".py")
-  ) return "python";
-  if (
-    name === "package.json"
-    || lower.endsWith(".ts")
-    || lower.endsWith(".tsx")
-    || lower.endsWith(".js")
-    || lower.endsWith(".mjs")
-    || lower.endsWith(".cjs")
-  ) return "node";
+    name === "package.json" ||
+    lower.endsWith(".ts") ||
+    lower.endsWith(".tsx") ||
+    lower.endsWith(".js") ||
+    lower.endsWith(".mjs") ||
+    lower.endsWith(".cjs")
+  )
+    return "node";
   if (name === "go.mod" || lower.endsWith(".go")) return "go";
-  if (
-    name === "Dockerfile"
-    || /(^|\/)(?:docker-compose|compose)\.ya?ml$/.test(path)
-  ) return "container";
+  if (name === "Dockerfile" || /(^|\/)(?:docker-compose|compose)\.ya?ml$/.test(path))
+    return "container";
   return null;
 }
 
-export function changeAreaForPath(path: string, workflowPrefixes: readonly string[], changelogFile: string): string {
+export function changeAreaForPath(
+  path: string,
+  workflowPrefixes: readonly string[],
+  changelogFile: string
+): string {
   if (workflowPrefixes.some((prefix) => path.startsWith(prefix))) {
     return "workflow";
   }
@@ -90,11 +98,20 @@ export function changeAreaForPath(path: string, workflowPrefixes: readonly strin
   return "source";
 }
 
-export async function detectContext(base: string, head: string, root: string, policyDir: string): Promise<ContextResult> {
+export async function detectContext(
+  base: string,
+  head: string,
+  root: string,
+  policyDir: string
+): Promise<ContextResult> {
   const workflow = await readJson(join(policyDir, "workflow.json"));
   const security = await readJson(join(policyDir, "security.json"));
   const release = await readJson(join(policyDir, "release.json"));
-  if (!isJsonRecord(release) || typeof release.changelog_file !== "string" || !isJsonRecord(release.impact_patterns)) {
+  if (
+    !isJsonRecord(release) ||
+    typeof release.changelog_file !== "string" ||
+    !isJsonRecord(release.impact_patterns)
+  ) {
     throw new CliError("ERROR: invalid release context policy.", 65);
   }
   const prefixes = stringList(workflow, "path_prefixes");
@@ -142,24 +159,45 @@ export async function detectContext(base: string, head: string, root: string, po
   const hasChangelog = changedFiles.includes(release.changelog_file);
   let additions = "";
   if (hasChangelog) {
-    const diff = await runText("git", ["diff", "--unified=0", base, head, "--", release.changelog_file], { cwd: root });
-    additions = diff.split(/\r?\n/)
+    const diff = await runText(
+      "git",
+      ["diff", "--unified=0", base, head, "--", release.changelog_file],
+      { cwd: root }
+    );
+    additions = diff
+      .split(/\r?\n/)
       .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
       .map((line) => line.slice(1))
       .join("\n")
       .toLowerCase();
   }
-  for (const category of ["breaking", "security", "migration", "api", "deployment", "performance", "compatibility", "release"]) {
+  for (const category of [
+    "breaking",
+    "security",
+    "migration",
+    "api",
+    "deployment",
+    "performance",
+    "compatibility",
+    "release",
+  ]) {
     const patterns = release.impact_patterns[category];
-    if (Array.isArray(patterns) && patterns.some((pattern) => typeof pattern === "string" && additions.includes(pattern.toLowerCase()))) {
+    if (
+      Array.isArray(patterns) &&
+      patterns.some(
+        (pattern) => typeof pattern === "string" && additions.includes(pattern.toLowerCase())
+      )
+    ) {
       impacts.add(category);
     }
   }
 
-  const highSignals = ["security"].some((value) => areas.has(value))
-    || ["security", "breaking", "migration", "deployment"].some((value) => impacts.has(value));
-  const mediumSignals = ["source", "workflow", "script", "container", "release"].some((value) => areas.has(value))
-    || ["api", "performance", "compatibility", "release"].some((value) => impacts.has(value));
+  const highSignals =
+    ["security"].some((value) => areas.has(value)) ||
+    ["security", "breaking", "migration", "deployment"].some((value) => impacts.has(value));
+  const mediumSignals =
+    ["source", "workflow", "script", "container", "release"].some((value) => areas.has(value)) ||
+    ["api", "performance", "compatibility", "release"].some((value) => impacts.has(value));
   return {
     changed_files: changedFiles,
     project_types: [...projects].sort(),
@@ -173,7 +211,10 @@ export async function detectContext(base: string, head: string, root: string, po
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length !== 4) {
-    throw new CliError("Usage: detect-pr-context.ts <base-sha> <head-sha> <repo-root> <policy-dir>", 64);
+    throw new CliError(
+      "Usage: detect-pr-context.ts <base-sha> <head-sha> <repo-root> <policy-dir>",
+      64
+    );
   }
   const [base = "", head = "", root = "", policyDir = ""] = args;
   try {
