@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "pack": "delta",
+  "runtime": "python",
+  "command": ["uv", "run", "--locked", "--extra", "dev", "pytest"]
+}

@@ -6,7 +6,7 @@
 
 ```text
 Business repository
-= source + tests + project scripts + execution intent
+= source + project scripts + execution intent（测试由 Action Worker 的 Test Pack 持有，见 TEST_PACKS.md）
 
 Action Worker
 = governance + authorization + planning + execution + evidence + provenance

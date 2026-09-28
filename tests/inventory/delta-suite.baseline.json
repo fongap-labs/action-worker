@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "runtime": "python",
+  "suites": {
+    "test_browser_guarded_proxy.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_proxy_target_parsing_preserves_logical_host": 1,
+        "test_http_proxy_connects_to_resolver_address_not_hostname": 1,
+        "test_connect_tunnel_uses_vetted_address": 1,
+        "test_policy_refusal_returns_403_without_connecting": 1
+      },
+      "passed": [
+        "test_proxy_target_parsing_preserves_logical_host",
+        "test_http_proxy_connects_to_resolver_address_not_hostname",
+        "test_connect_tunnel_uses_vetted_address",
+        "test_policy_refusal_returns_403_without_connecting"
+      ]
+    },
+    "test_browser_worker_bridge.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_browser_inventory_uses_one_persistent_process_group": 1,
+        "test_browser_file_paths_are_confined_to_job_grants": 1,
+        "test_browser_session_change_resets_context": 1,
+        "test_browser_execute_returns_sdk_result": 1,
+        "test_browser_execute_fails_closed_on_non_browser_capability": 1,
+        "test_browser_main_delegates_persistent_framing_to_sdk": 1,
+        "test_browser_worker_does_not_reimplement_protocol_framing": 1,
+        "test_browser_provider_forces_chromium_through_guarded_proxy": 1
+      },
+      "passed": [
+        "test_browser_inventory_uses_one_persistent_process_group",
+        "test_browser_file_paths_are_confined_to_job_grants",
+        "test_browser_session_change_resets_context",
+        "test_browser_execute_returns_sdk_result",
+        "test_browser_execute_fails_closed_on_non_browser_capability",
+        "test_browser_main_delegates_persistent_framing_to_sdk",
+        "test_browser_worker_does_not_reimplement_protocol_framing",
+        "test_browser_provider_forces_chromium_through_guarded_proxy"
+      ]
+    },
+    "test_suite_contract.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "TestNoDirectFoundationDependency::test_no_foundation_python_internal_imports": 1,
+        "TestNoDirectFoundationDependency::test_no_delta_core_import": 1,
+        "TestNoDirectFoundationDependency::test_no_core_runtime_native_path": 1,
+        "TestNoDirectFoundationDependency::test_no_python_core_import": 1,
+        "TestNoDirectFoundationDependency::test_no_foundation_internal_imports": 1,
+        "TestPublicExtensionApiOnly::test_no_direct_foundation_internal_imports": 1,
+        "TestSuiteToolOwnership::test_connector_aggregation_excludes_foundation_baseline_builders": 1,
+        "TestSuiteToolOwnership::test_suite_secret_lookup_uses_local_structural_contract": 1,
+        "TestNoSecondAuthority::test_no_second_runtime": 1,
+        "TestNoSecondAuthority::test_no_authority_construction": 1,
+        "TestInstallEntryPoint::test_install_script_is_canonical_activation_path": 1,
+        "TestNoPrivateFunctionLeakage::test_no_private_import": 1,
+        "TestFoundationCompatibilityPin::test_foundation_contract_is_immutable_and_version_aligned": 1,
+        "TestRepositoryBoundary::test_no_forbidden_roots": 1,
+        "TestRepositoryBoundary::test_allowed_roots_only": 1,
+        "TestCustomConnectorEndpointSafety::test_custom_endpoint_validators_require_address_checks": 1,
+        "TestCustomConnectorEndpointSafety::test_custom_endpoint_runtime_requests_require_address_checks": 1
+      },
+      "passed": [
+        "TestNoDirectFoundationDependency::test_no_foundation_python_internal_imports",
+        "TestNoDirectFoundationDependency::test_no_delta_core_import",
+        "TestNoDirectFoundationDependency::test_no_core_runtime_native_path",
+        "TestNoDirectFoundationDependency::test_no_python_core_import",
+        "TestNoDirectFoundationDependency::test_no_foundation_internal_imports",
+        "TestPublicExtensionApiOnly::test_no_direct_foundation_internal_imports",
+        "TestSuiteToolOwnership::test_connector_aggregation_excludes_foundation_baseline_builders",
+        "TestSuiteToolOwnership::test_suite_secret_lookup_uses_local_structural_contract",
+        "TestNoSecondAuthority::test_no_second_runtime",
+        "TestNoSecondAuthority::test_no_authority_construction",
+        "TestInstallEntryPoint::test_install_script_is_canonical_activation_path",
+        "TestNoPrivateFunctionLeakage::test_no_private_import",
+        "TestFoundationCompatibilityPin::test_foundation_contract_is_immutable_and_version_aligned",
+        "TestRepositoryBoundary::test_no_forbidden_roots",
+        "TestRepositoryBoundary::test_allowed_roots_only",
+        "TestCustomConnectorEndpointSafety::test_custom_endpoint_validators_require_address_checks",
+        "TestCustomConnectorEndpointSafety::test_custom_endpoint_runtime_requests_require_address_checks"
+      ]
+    },
+    "test_worker_bridge.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_connector_worker_uses_sdk_capability_contract": 1,
+        "test_connector_worker_fails_closed_on_capability_mismatch": 1,
+        "test_connector_worker_returns_typed_tool_error": 1,
+        "test_grant_secret_store_is_memory_only": 1,
+        "test_grant_secret_store_rejects_retired_colon_syntax": 1,
+        "test_worker_manifest_contains_connector_workers": 1,
+        "test_install_worker_manifest": 1,
+        "test_tool_resolution_does_not_read_file_backed_secret_store": 1,
+        "test_connector_catalog_matches_worker_inventory": 1
+      },
+      "passed": [
+        "test_connector_worker_uses_sdk_capability_contract",
+        "test_connector_worker_fails_closed_on_capability_mismatch",
+        "test_connector_worker_returns_typed_tool_error",
+        "test_grant_secret_store_is_memory_only",
+        "test_grant_secret_store_rejects_retired_colon_syntax",
+        "test_worker_manifest_contains_connector_workers",
+        "test_install_worker_manifest",
+        "test_tool_resolution_does_not_read_file_backed_secret_store",
+        "test_connector_catalog_matches_worker_inventory"
+      ]
+    }
+  }
+}
