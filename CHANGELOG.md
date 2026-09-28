@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: raise the security gate diff buffer so large generated publication artifacts can be scanned instead of exceeding the 16 MiB cap.
+
 - fix: exempt plain data content files from the engineering language gate so generated publication artifacts can pass governance.
 
 - fix: land task publication through a governed pull request instead of a direct push to the protected target branch.
