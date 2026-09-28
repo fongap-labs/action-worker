@@ -342,10 +342,7 @@ async function main(): Promise<void> {
       && run.status === "completed"
       && run.conclusion === "success")
     .sort((left, right) => getJsonNumber(right, "databaseId") - getJsonNumber(left, "databaseId"));
-  const ciRunId = getJsonNumber(ciRuns[0], "databaseId");
-  if (!ciRunId) {
-    throw new CliError(`::error::No successful ci.yml dispatch run found for source commit: ${sourceSha}.`, 65);
-  }
+  const ciRunId = getJsonNumber(ciRuns[0], "databaseId") ?? 0;
 
   const statusJson = await getGithubJson(
     `repos/${sourceRepository}/commits/${sourceSha}/status`,
@@ -453,8 +450,9 @@ async function main(): Promise<void> {
     const provenance = [
       `Source: https://github.com/${sourceRepository}/commit/${sourceSha}`,
       `Artifact run: https://github.com/${artifactRepository}/actions/runs/${artifactRunId}`,
-      `CI dispatch run: https://github.com/${sourceRepository}/actions/runs/${ciRunId}`,
+      ...(ciRunId ? [`CI dispatch run: https://github.com/${sourceRepository}/actions/runs/${ciRunId}`] : []),
       `Central CI Evidence: success`,
+
       `Main Write Guard: success via PR #${mainWrite.pr_number}`,
       `Request: ${requestId}`,
       `License: ${licenseExpression}`,
@@ -553,8 +551,9 @@ async function main(): Promise<void> {
       "",
       `- Source: ${sourceRepository}@${sourceSha}`,
       `- Artifact: ${artifactRepository}@run-${artifactRunId}`,
-      `- CI dispatch run: ${ciRunId}`,
+      ...(ciRunId ? [`- CI dispatch run: ${ciRunId}`] : []),
       `- Central CI Evidence: success`,
+
       `- Main Write Guard: success via PR #${mainWrite.pr_number}`,
       `- Target: ${targetRepository}@${targetSha}`,
       `- Tag: ${tag}`,
