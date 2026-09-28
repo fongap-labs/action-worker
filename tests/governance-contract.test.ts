@@ -272,6 +272,23 @@ test("task dispatch keeps the publication credential in the central control step
   requireText(publication, ["release-source", "release-target", "action-worker-publication", "target_repository", "dest_dir"]);
 });
 
+test("task publication lands through a governed pull request", async () => {
+  const workflow = await text(".github/workflows/handle-task-dispatch.yml");
+  requireText(workflow, [
+    'branch="task-publication/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
+    "gh pr create",
+    "--base main",
+    "chore: ${COMMIT_MESSAGE}",
+    "gh pr merge",
+    "gh pr update-branch",
+    "validate-merge",
+    "mergeStateStatus",
+  ]);
+  assert.doesNotMatch(workflow, /push origin "HEAD:\$branch"/);
+  const publication = await text("scripts/validate-task-publication.ts");
+  assert.match(publication, /validateRepositoryCapability\(manifest\.target_repository, policy, "pr"\)/);
+});
+
 test("task source ingress is source-owned and repository-agnostic", async () => {
   const workflow = await text(".github/workflows/task-source-dispatch.yml");
   requireText(workflow, [
