@@ -17,48 +17,36 @@ export type SkillFrontmatter = {
   operations: string[];
 };
 
+function parseOperationList(value: string): string[] {
+  const arrayMatch = value.match(/^\[(.*)\]$/);
+  if (!arrayMatch) return [];
+  return arrayMatch[1]!
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+}
+
 export function parseFrontmatter(content: string, path: string): SkillFrontmatter {
   const normalized = content.replace(/\r\n/g, "\n");
   const match = normalized.match(/^---\n([\s\S]*?)\n---/);
   if (!match) {
     throw new CliError(`::error::Skill missing frontmatter: ${path}.`, 65);
   }
-  const raw = match[1]!;
-  const lines = raw.split("\n");
 
-  let name = "";
-  let always = false;
-  let domain = "";
-  let baseline = false;
-  let operations: string[] = [];
-
-  for (const line of lines) {
+  const fields = new Map<string, string>();
+  for (const line of match[1]!.split("\n")) {
     const trimmed = line.trim();
     if (!trimmed) continue;
-
     const colonIndex = trimmed.indexOf(":");
     if (colonIndex === -1) continue;
-    const key = trimmed.slice(0, colonIndex).trim();
-    const value = trimmed.slice(colonIndex + 1).trim();
-
-    if (key === "name") {
-      name = value;
-    } else if (key === "always") {
-      always = value === "true";
-    } else if (key === "domain") {
-      domain = value;
-    } else if (key === "baseline") {
-      baseline = value === "true";
-    } else if (key === "operations") {
-      const arrayMatch = value.match(/^\[(.*)\]$/);
-      if (arrayMatch) {
-        operations = arrayMatch[1]!
-          .split(",")
-          .map((item) => item.trim())
-          .filter((item) => item.length > 0);
-      }
-    }
+    fields.set(trimmed.slice(0, colonIndex).trim(), trimmed.slice(colonIndex + 1).trim());
   }
+
+  const name = fields.get("name") ?? "";
+  const domain = fields.get("domain") ?? "";
+  const always = fields.get("always") === "true";
+  const baseline = fields.get("baseline") === "true";
+  const operations = parseOperationList(fields.get("operations") ?? "");
 
   if (!name) {
     throw new CliError(`::error::Skill frontmatter missing name: ${path}.`, 65);

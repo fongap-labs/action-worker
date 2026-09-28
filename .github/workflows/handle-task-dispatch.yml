@@ -98,8 +98,8 @@ jobs:
         run: |
           node scripts/build-agent-prompt.ts
           {
-            echo "AGENT_SYSTEM_PROMPT_PATH=${{ steps.prompt.outputs.prompt_path }}"
-            echo "AGENT_SKILLS=${{ steps.skills.outputs.skills }}"
+            echo "AGENT_SYSTEM_PROMPT_PATH=${AGENT_PROMPT_OUTPUT_PATH}"
+            echo "AGENT_SKILLS=${AGENT_SKILLS_JSON}"
           } >> "$GITHUB_ENV"
 
       - name: Snapshot base environment
