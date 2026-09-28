@@ -212,6 +212,8 @@ test("engineering language rejects Chinese machine text but allows documentation
   assert.equal(engineeringLineViolation("src/router.ts", 'const label = "中文界面";'), null);
   assert.equal(engineeringLineViolation("docs/README.md", "中文说明"), null);
   assert.equal(engineeringLineViolation("src/i18n/zh-CN.json", '"title": "中文界面"'), null);
+  assert.equal(engineeringLineViolation("output/adfilter/adfilter.txt", "||ads.中文.example.com^"), null);
+  assert.equal(engineeringLineViolation("data/export.csv", "中文,1"), null);
 });
 
 test("lifecycle filename rule distinguishes control labels from domain concepts", () => {
