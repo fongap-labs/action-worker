@@ -1,6 +1,8 @@
 ---
 name: bug-fix
 description: Root-cause-driven bug repair that prevents speculative fix loops and requires regression protection.
+domain: coding
+operations: [task]
 ---
 
 # Bug Fix

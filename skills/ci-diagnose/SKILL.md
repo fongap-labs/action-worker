@@ -1,6 +1,8 @@
 ---
 name: ci-diagnose
 description: Diagnose CI failures from evidence before modifying source, workflow, permissions, or infrastructure.
+domain: coding
+operations: [ci]
 ---
 
 # CI Diagnose

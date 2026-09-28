@@ -1,6 +1,8 @@
 ---
 name: change-impact
 description: Determine the blast radius of shared code, interfaces, workflows, policies, releases, and cross-repository changes.
+domain: coding
+operations: [review, build, deploy]
 ---
 
 # Change Impact

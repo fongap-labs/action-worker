@@ -110,4 +110,5 @@ Deploy:  immutable source → central source gate → project deploy script → 
 - 没有第二套 Secret / Gate / Release 权威；
 - 合同测试覆盖新边界；
 - 文档区分当前实现与目标边界；
-- 旧入口已删除或明确进入迁移清单。
+- 旧入口已删除或明确进入迁移清单；
+- 新增或修改的文档让没有项目背景的人也能看懂（详见 [SHARED_GOVERNANCE.md](SHARED_GOVERNANCE.md) 第 8 节）。

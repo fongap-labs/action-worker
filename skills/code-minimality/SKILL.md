@@ -1,6 +1,8 @@
 ---
 name: code-minimality
 description: Prefer reuse, minimal change sets, deletion, and root-cause fixes while writing or changing code. Apply to every code-changing task.
+domain: coding
+baseline: true
 ---
 
 # Code Minimality
