@@ -68,6 +68,7 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 - 桌面端 Playwright e2e 与 vitest 组件测试（依赖 `apps/desktop` 工具链）。
 - 需要 root/Docker 的基础设施脚本测试（如 `internal-vault/services/server-edge/tests/*.sh`）。
 - `delta-suite/tests/foundation_runtime_e2e`（被编译进固定的 Foundation 核心 crate）。
+- `app-source/projects/SecurePigeon/crates/*/tests`（Rust crate 集成测试与模糊测试）。
 
 ## 7. 新增测试
 
@@ -75,3 +76,15 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 2. 不要在套件里重复实现 `test()`、`dateAtIso()`、fetch mock，使用 `tests/kit/` 中的积木；缺少积木时先补积木。
 3. 需要时间/全局状态隔离的套件保持独立文件（例如依赖真实计时的用例）。
 4. 门禁层套件登记在 `pack.json` 的 `tiers.gate`；其余套件由磁盘发现，无需登记。
+
+## 8. 各仓库现状
+
+| 仓库 | Pack | 仍留在业务仓的测试 |
+|---|---|---|
+| ai-gateway | `ai-gateway`（24 个模块） | 无 |
+| delta | `delta`（6 个模块） | Rust 内联与 crate 测试、`apps/desktop` 的 e2e 与 vitest、`packages/delta_worker_sdk` 等 3 个小型包内测试 |
+| delta-suite | `delta-suite`（4 个模块） | `tests/foundation_runtime_e2e` |
+| internal-vault | `internal-vault`（8 个模块） | `services/server-edge/tests/*.sh`（需要 root 与 Docker） |
+| app-source | `app-source`（1 个模块，license-service 的数据库测试） | `crates/*/tests`（Rust）；`legacy/test_*.py` 是 CI 从不执行的遗留脚本，不属于 Pack |
+| external-vault | 无 | 无测试套件；CI 只运行清单与密钥扫描检查脚本 |
+| AssHub | 无 | 空仓库 |
