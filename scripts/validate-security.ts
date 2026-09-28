@@ -167,7 +167,7 @@ export async function collectSecurityViolations(
   const diff = await runText(
     "git",
     ["diff", "--unified=0", "--no-color", "--no-ext-diff", base, head, "--"],
-    { cwd: root, maxBuffer: 16 * 1024 * 1024 },
+    { cwd: root, maxBuffer: 64 * 1024 * 1024 },
   );
   violations.push(...scanAddedLines(diff, secretPatterns));
 
