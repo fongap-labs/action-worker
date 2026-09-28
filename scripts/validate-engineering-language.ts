@@ -9,6 +9,7 @@ import {
 
 const HAN = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/u;
 const MARKDOWN = /\.md$/i;
+const CONTENT_FILE = /\.(?:txt|csv|tsv)$/i;
 const LOCALIZATION = /(^|\/)(?:i18n|locales?|translations?|messages)(\/|$)|(?:^|[._-])zh(?:[-_.](?:CN|Hans))?(?:[._-]|$)/i;
 const WORKFLOW = /^\.github\/workflows\/.*\.ya?ml$/i;
 const CONFIG_KEY = /(?:["'][^"']*[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF][^"']*["']\s*:)|(?:^|\s)[^:#"'\s]*[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF][^:#"']*\s*:/u;
@@ -38,7 +39,7 @@ export function engineeringLineViolation(path: string, line: string): string | n
   if (path === "CHANGELOG.md") {
     return "CHANGELOG entries must use English.";
   }
-  if (MARKDOWN.test(path) || LOCALIZATION.test(path)) {
+  if (MARKDOWN.test(path) || LOCALIZATION.test(path) || CONTENT_FILE.test(path)) {
     return null;
   }
   if (WORKFLOW.test(path)) {
@@ -103,7 +104,7 @@ async function main(): Promise<void> {
     `- Added lines: ${result.additions}`,
     `- Violations: ${result.failures}`,
     "",
-    "Rule: engineering diffs, PR titles, and CHANGELOG entries use English; documentation and localization content are exempt.",
+    "Rule: engineering diffs, PR titles, and CHANGELOG entries use English; documentation, localization, and plain data content are exempt.",
   ]);
   if (result.failures > 0) {
     process.exit(1);
