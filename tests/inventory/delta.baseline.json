@@ -1,0 +1,605 @@
+{
+  "schema_version": 1,
+  "runtime": "python",
+  "suites": {
+    "contract/test_foundation_suite_contract.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "TestFoundationABI::test_abi_version_known": 1,
+        "TestFoundationABI::test_rust_runtime_reports_same_abi": 1,
+        "TestCapabilityManifestSchema::test_schema_exists": 1,
+        "TestCapabilityManifestSchema::test_schema_valid_json": 1,
+        "TestCapabilityManifestSchema::test_file_reader_manifest_complies": 1,
+        "TestCapabilityManifestSchema::test_manifest_has_required_fields": 1,
+        "TestGrantSchema::test_schema_exists": 1,
+        "TestGrantSchema::test_schema_valid_json": 1,
+        "TestCapabilityJobSchema::test_job_serialization_roundtrip": 1,
+        "TestCapabilityJobSchema::test_job_includes_grants": 1,
+        "TestCapabilityJobSchema::test_job_includes_boundary": 1,
+        "TestCapabilityResultSchema::test_result_completed": 1,
+        "TestCapabilityResultSchema::test_result_failed_with_diagnostics": 1,
+        "TestEndToEndIntegration::test_file_reader_execution": 1,
+        "TestCompatibilityMatrix::test_minimum_foundation_version": 1,
+        "TestCompatibilityMatrix::test_abi_backwards_compatibility": 1
+      },
+      "passed": [
+        "TestFoundationABI::test_abi_version_known",
+        "TestFoundationABI::test_rust_runtime_reports_same_abi",
+        "TestCapabilityManifestSchema::test_schema_exists",
+        "TestCapabilityManifestSchema::test_schema_valid_json",
+        "TestCapabilityManifestSchema::test_file_reader_manifest_complies",
+        "TestCapabilityManifestSchema::test_manifest_has_required_fields",
+        "TestGrantSchema::test_schema_exists",
+        "TestGrantSchema::test_schema_valid_json",
+        "TestCapabilityJobSchema::test_job_serialization_roundtrip",
+        "TestCapabilityJobSchema::test_job_includes_grants",
+        "TestCapabilityJobSchema::test_job_includes_boundary",
+        "TestCapabilityResultSchema::test_result_completed",
+        "TestCapabilityResultSchema::test_result_failed_with_diagnostics",
+        "TestEndToEndIntegration::test_file_reader_execution",
+        "TestCompatibilityMatrix::test_minimum_foundation_version",
+        "TestCompatibilityMatrix::test_abi_backwards_compatibility"
+      ]
+    },
+    "test_architecture_boundary_guard.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_each_content_rule_is_enforced[services/api.py-from fastapi import FastAPI\\n-python-web-backend]": 1,
+        "test_each_content_rule_is_enforced[pyproject.toml-[project]\\ndependencies = [\"uvicorn==1\"]\\n-python-web-dependency]": 1,
+        "test_each_content_rule_is_enforced[packaging/build.ps1-pyinstaller delta-server\\n-server-packaging]": 1,
+        "test_each_content_rule_is_enforced[apps/desktop/src/transport.ts-const url = \"ws://127.0.0.1:8765/ws/session\";\\n-desktop-legacy-transport]": 1,
+        "test_each_content_rule_is_enforced[core/engine.py-class TurnEngine:\\n    pass\\n-python-turn-authority]": 1,
+        "test_each_content_rule_is_enforced[core/runner.py-from providers.router import ProviderRouter\\n-python-provider-authority]": 1,
+        "test_each_content_rule_is_enforced[core/runner.py-import aisuite\\n-aisuite-application-runtime]": 1,
+        "test_each_content_rule_is_enforced[integrations/connectors/gateway.py-from packages.credential_store import CredentialStore\\nstore = CredentialStore()\\n-connector-concrete-secret-store]": 1,
+        "test_each_content_rule_is_enforced[apps/desktop/src/view.tsx-export const PersonaView = () => null;\\n-persona-platform]": 1,
+        "test_each_content_rule_is_enforced[apps/desktop/src-tauri/src/runtime_ipc.rs-let _ = ModelAuthority::open(path);\\n-tauri-direct-authority-construction]": 1,
+        "test_each_content_rule_is_enforced[apps/desktop/src-tauri/src/runtime_ipc.rs-control_plane::list_sessions(path, None);\\n-tauri-direct-control-plane]": 1,
+        "test_each_content_rule_is_enforced[apps/desktop/src-tauri/src/runtime_ipc.rs-let host = RuntimeHost::new(id, config);\\n-tauri-runtime-authority]": 1,
+        "test_each_structural_rule_is_enforced[apps/desktop/src-tauri/src/proxy.rs]": 1,
+        "test_each_structural_rule_is_enforced[services/server]": 1,
+        "test_each_structural_rule_is_enforced[packaging/server]": 1,
+        "test_each_structural_rule_is_enforced[packaging/sidecar/delta-server]": 1,
+        "test_each_structural_rule_is_enforced[providers]": 1,
+        "test_clean_native_architecture_passes": 1,
+        "test_exemptions_are_narrow_and_documented": 1
+      },
+      "passed": [
+        "test_each_content_rule_is_enforced[services/api.py-from fastapi import FastAPI\\n-python-web-backend]",
+        "test_each_content_rule_is_enforced[pyproject.toml-[project]\\ndependencies = [\"uvicorn==1\"]\\n-python-web-dependency]",
+        "test_each_content_rule_is_enforced[packaging/build.ps1-pyinstaller delta-server\\n-server-packaging]",
+        "test_each_content_rule_is_enforced[apps/desktop/src/transport.ts-const url = \"ws://127.0.0.1:8765/ws/session\";\\n-desktop-legacy-transport]",
+        "test_each_content_rule_is_enforced[core/engine.py-class TurnEngine:\\n    pass\\n-python-turn-authority]",
+        "test_each_content_rule_is_enforced[core/runner.py-from providers.router import ProviderRouter\\n-python-provider-authority]",
+        "test_each_content_rule_is_enforced[core/runner.py-import aisuite\\n-aisuite-application-runtime]",
+        "test_each_content_rule_is_enforced[integrations/connectors/gateway.py-from packages.credential_store import CredentialStore\\nstore = CredentialStore()\\n-connector-concrete-secret-store]",
+        "test_each_content_rule_is_enforced[apps/desktop/src/view.tsx-export const PersonaView = () => null;\\n-persona-platform]",
+        "test_each_content_rule_is_enforced[apps/desktop/src-tauri/src/runtime_ipc.rs-let _ = ModelAuthority::open(path);\\n-tauri-direct-authority-construction]",
+        "test_each_content_rule_is_enforced[apps/desktop/src-tauri/src/runtime_ipc.rs-control_plane::list_sessions(path, None);\\n-tauri-direct-control-plane]",
+        "test_each_content_rule_is_enforced[apps/desktop/src-tauri/src/runtime_ipc.rs-let host = RuntimeHost::new(id, config);\\n-tauri-runtime-authority]",
+        "test_each_structural_rule_is_enforced[apps/desktop/src-tauri/src/proxy.rs]",
+        "test_each_structural_rule_is_enforced[services/server]",
+        "test_each_structural_rule_is_enforced[packaging/server]",
+        "test_each_structural_rule_is_enforced[packaging/sidecar/delta-server]",
+        "test_each_structural_rule_is_enforced[providers]",
+        "test_clean_native_architecture_passes",
+        "test_exemptions_are_narrow_and_documented"
+      ]
+    },
+    "test_browser_provider_contract.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_foundation_has_no_builtin_interactive_browser_provider": 1,
+        "test_extension_provider_registers_without_owning_policy": 1,
+        "test_provider_registration_is_single_owner_by_default": 1
+      },
+      "passed": [
+        "test_foundation_has_no_builtin_interactive_browser_provider",
+        "test_extension_provider_registers_without_owning_policy",
+        "test_provider_registration_is_single_owner_by_default"
+      ]
+    },
+    "test_connector_api_boundary.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_connector_api_owns_only_generic_account_shape": 1,
+        "test_connector_consumers_narrow_capability_payloads_locally": 1
+      },
+      "passed": [
+        "test_connector_api_owns_only_generic_account_shape",
+        "test_connector_consumers_narrow_capability_payloads_locally"
+      ]
+    },
+    "test_connector_catalog_contract.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_foundation_catalog_is_provider_driven": 1,
+        "test_extension_can_register_descriptor_and_copy": 1,
+        "test_duplicate_registration_requires_explicit_replace": 1,
+        "test_catalog_copy_replace_is_explicit": 1
+      },
+      "passed": [
+        "test_foundation_catalog_is_provider_driven",
+        "test_extension_can_register_descriptor_and_copy",
+        "test_duplicate_registration_requires_explicit_replace",
+        "test_catalog_copy_replace_is_explicit"
+      ]
+    },
+    "test_connector_secret_source.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_gateway_requires_injected_secret_source_when_loading_settings": 1,
+        "test_gateway_allows_explicit_settings_without_secret_source": 1,
+        "test_legacy_secret_backed_tool_enablement_authority_is_removed": 1
+      },
+      "passed": [
+        "test_gateway_requires_injected_secret_source_when_loading_settings",
+        "test_gateway_allows_explicit_settings_without_secret_source",
+        "test_legacy_secret_backed_tool_enablement_authority_is_removed"
+      ]
+    },
+    "test_credential_store.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_round_trip_persistence": 1,
+        "test_env_var_substitution": 1,
+        "test_dotenv_substitution": 1,
+        "test_unresolvable_ref_stays_literal": 1,
+        "test_status_leaks_no_values": 1,
+        "test_vault_file_user_restricted": 1,
+        "test_delete_returns_existence": 1,
+        "test_degraded_acl_marker_when_verification_fails": 1,
+        "test_corrupt_file_preserved_not_overwritten": 1,
+        "test_healthy_store_reports_acl_protected": 1
+      },
+      "passed": [
+        "test_round_trip_persistence",
+        "test_env_var_substitution",
+        "test_dotenv_substitution",
+        "test_unresolvable_ref_stays_literal",
+        "test_status_leaks_no_values",
+        "test_vault_file_user_restricted",
+        "test_delete_returns_existence",
+        "test_degraded_acl_marker_when_verification_fails",
+        "test_corrupt_file_preserved_not_overwritten",
+        "test_healthy_store_reports_acl_protected"
+      ]
+    },
+    "test_email_tools.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_resolve_servers_gmail_preset": 1,
+        "test_resolve_servers_advanced_fields_override_preset": 1,
+        "test_resolve_servers_unknown_domain_needs_hosts": 1,
+        "test_criteria_default_is_all": 1,
+        "test_criteria_quoting_dates_and_unseen": 1,
+        "test_criteria_bad_date_is_rejected": 1,
+        "test_criteria_non_ascii_gets_utf8_charset": 1,
+        "test_decode_mime_header_rfc2047": 1,
+        "test_extract_text_body_prefers_plain": 1,
+        "test_extract_text_body_html_fallback_and_truncation": 1,
+        "test_tools_error_when_not_connected": 1,
+        "test_list_folders_skips_noselect": 1,
+        "test_search_returns_newest_first_envelopes": 1,
+        "test_read_returns_body_and_attachment_list": 1,
+        "test_download_attachment_saves_into_scratch_only": 1,
+        "test_send_sets_identity_and_requires_no_imap": 1,
+        "test_send_reply_threads_and_reuses_subject": 1,
+        "test_send_attachment_must_live_inside_roots": 1,
+        "test_approval_gating": 1,
+        "test_email_tool_catalog_registration": 1,
+        "test_build_connector_tools_includes_email": 1
+      },
+      "passed": [
+        "test_resolve_servers_gmail_preset",
+        "test_resolve_servers_advanced_fields_override_preset",
+        "test_resolve_servers_unknown_domain_needs_hosts",
+        "test_criteria_default_is_all",
+        "test_criteria_quoting_dates_and_unseen",
+        "test_criteria_bad_date_is_rejected",
+        "test_criteria_non_ascii_gets_utf8_charset",
+        "test_decode_mime_header_rfc2047",
+        "test_extract_text_body_prefers_plain",
+        "test_extract_text_body_html_fallback_and_truncation",
+        "test_tools_error_when_not_connected",
+        "test_list_folders_skips_noselect",
+        "test_search_returns_newest_first_envelopes",
+        "test_read_returns_body_and_attachment_list",
+        "test_download_attachment_saves_into_scratch_only",
+        "test_send_sets_identity_and_requires_no_imap",
+        "test_send_reply_threads_and_reuses_subject",
+        "test_send_attachment_must_live_inside_roots",
+        "test_approval_gating",
+        "test_email_tool_catalog_registration",
+        "test_build_connector_tools_includes_email"
+      ]
+    },
+    "test_extension_api.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_public_extension_api_imports": 1
+      },
+      "passed": ["test_public_extension_api_imports"]
+    },
+    "test_managed_capability_contract.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_managed_foundation_exports_are_vendor_agnostic": 1,
+        "test_retired_github_managed_modules_are_absent": 1,
+        "test_managed_null_defaults_are_offline_safe": 1
+      },
+      "passed": [
+        "test_managed_foundation_exports_are_vendor_agnostic",
+        "test_retired_github_managed_modules_are_absent",
+        "test_managed_null_defaults_are_offline_safe"
+      ]
+    },
+    "test_messaging_operation_contract.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_vendor_address_implementation_is_not_in_foundation": 1,
+        "test_provider_operation_can_supply_address_parsing": 1
+      },
+      "passed": [
+        "test_vendor_address_implementation_is_not_in_foundation",
+        "test_provider_operation_can_supply_address_parsing"
+      ]
+    },
+    "test_pdf_support.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_inspect_counts_pages_and_bytes": 1,
+        "test_inspect_rejects_non_pdf": 1,
+        "test_rasterize_produces_valid_pngs": 1,
+        "test_adapt_scanned_pdf_yields_visible_note": 1,
+        "test_adapt_images_mode_needs_vision": 1,
+        "test_adapt_leaves_other_parts_alone": 1,
+        "test_set_fallback_mode_rejects_junk": 1
+      },
+      "passed": [
+        "test_inspect_counts_pages_and_bytes",
+        "test_inspect_rejects_non_pdf",
+        "test_rasterize_produces_valid_pngs",
+        "test_adapt_scanned_pdf_yields_visible_note",
+        "test_adapt_images_mode_needs_vision",
+        "test_adapt_leaves_other_parts_alone",
+        "test_set_fallback_mode_rejects_junk"
+      ]
+    },
+    "test_read_lines_cite.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_read_file_lines_returns_numbered_window": 1,
+        "test_read_file_lines_missing_file_returns_error": 1,
+        "test_read_file_lines_path_escape_returns_error": 1,
+        "test_read_file_lines_resolves_against_second_root": 1,
+        "test_read_file_lines_unicode_path": 1
+      },
+      "passed": [
+        "test_read_file_lines_returns_numbered_window",
+        "test_read_file_lines_missing_file_returns_error",
+        "test_read_file_lines_path_escape_returns_error",
+        "test_read_file_lines_resolves_against_second_root",
+        "test_read_file_lines_unicode_path"
+      ]
+    },
+    "test_release_gates.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_repo_has_no_deprecated_paths": 1,
+        "test_gate_catches_every_retired_shape": 1,
+        "test_gate_ignores_current_paths_and_history": 1,
+        "test_version_sources_are_consistent": 1,
+        "test_case1_stable_version_equivalent": 1,
+        "test_case2_dev_version_cross_ecosystem_equivalent": 1,
+        "test_case3_real_version_mismatch_fails": 1,
+        "test_case4_different_prerelease_numbers_fails": 1,
+        "test_case5_release_mode_accepts_stable_baseline": 1,
+        "test_release_mode_output_includes_version_and_tag": 1,
+        "test_portable_zip_structure_if_present": 1
+      },
+      "passed": [
+        "test_repo_has_no_deprecated_paths",
+        "test_gate_catches_every_retired_shape",
+        "test_gate_ignores_current_paths_and_history",
+        "test_version_sources_are_consistent",
+        "test_case1_stable_version_equivalent",
+        "test_case2_dev_version_cross_ecosystem_equivalent",
+        "test_case3_real_version_mismatch_fails",
+        "test_case4_different_prerelease_numbers_fails",
+        "test_case5_release_mode_accepts_stable_baseline",
+        "test_release_mode_output_includes_version_and_tag"
+      ]
+    },
+    "test_sanitize.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_secret_keys_redacted_at_any_depth": 1,
+        "test_sensitive_headers_redacted_by_name_wherever_they_sit": 1,
+        "test_url_query_credentials_stripped_in_strings": 1,
+        "test_body_keys_redacted_wholesale_but_recursion_continues_elsewhere": 1
+      },
+      "passed": [
+        "test_secret_keys_redacted_at_any_depth",
+        "test_sensitive_headers_redacted_by_name_wherever_they_sit",
+        "test_url_query_credentials_stripped_in_strings",
+        "test_body_keys_redacted_wholesale_but_recursion_continues_elsewhere"
+      ]
+    },
+    "test_scanned_pdf_fallback.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_scanned_pdf_pages_get_image_and_scanned_flag": 1,
+        "test_scanned_pdf_summary_marks_scanned_pages": 1,
+        "test_scanned_pdf_block_keeps_page_locator": 1,
+        "test_mixed_pdf_only_scanned_pages_get_image": 1,
+        "test_mixed_pdf_reading_scanned_page_keeps_page_locator": 1,
+        "test_text_pdf_no_scanned_flag_or_image": 1
+      },
+      "passed": [
+        "test_scanned_pdf_pages_get_image_and_scanned_flag",
+        "test_scanned_pdf_summary_marks_scanned_pages",
+        "test_scanned_pdf_block_keeps_page_locator",
+        "test_mixed_pdf_only_scanned_pages_get_image",
+        "test_mixed_pdf_reading_scanned_page_keeps_page_locator",
+        "test_text_pdf_no_scanned_flag_or_image"
+      ]
+    },
+    "test_send_file.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_send_file_success_within_workspace": 1,
+        "test_send_file_rejects_paths_outside_roots": 1,
+        "test_send_file_roots_extend_the_reachable_set": 1,
+        "test_send_file_requires_provider_file_capability": 1,
+        "test_send_file_screenshot_is_html_only_and_renames_to_png": 1
+      },
+      "passed": [
+        "test_send_file_success_within_workspace",
+        "test_send_file_rejects_paths_outside_roots",
+        "test_send_file_roots_extend_the_reachable_set",
+        "test_send_file_requires_provider_file_capability",
+        "test_send_file_screenshot_is_html_only_and_renames_to_png"
+      ]
+    },
+    "test_send_target_resolution.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_registry_kinds_are_exhaustive_and_drive_approval": 1,
+        "test_standalone_foundation_exposes_only_baseline_tools": 1,
+        "test_browser_automation_requires_explicit_effect_metadata": 1,
+        "test_messaging_provider_owns_human_friendly_target_resolution": 1,
+        "test_explicit_target_dispatches_without_vendor_logic": 1
+      },
+      "passed": [
+        "test_registry_kinds_are_exhaustive_and_drive_approval",
+        "test_standalone_foundation_exposes_only_baseline_tools",
+        "test_browser_automation_requires_explicit_effect_metadata",
+        "test_messaging_provider_owns_human_friendly_target_resolution",
+        "test_explicit_target_dispatches_without_vendor_logic"
+      ]
+    },
+    "test_shell.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_marker_parsers_accept_prefixed_windows_output": 1,
+        "test_cwd_persists_across_calls": 1,
+        "test_env_persists_across_calls": 1,
+        "test_exit_code_captured": 1,
+        "test_timeout_kills_command": 1,
+        "test_large_output_truncated_keeps_tail": 1,
+        "test_shell_tool_integration": 1,
+        "test_run_shell_accepts_description_and_clamped_timeout": 1,
+        "test_background_task_runs_and_exits": 1,
+        "test_background_task_kill": 1,
+        "test_background_unknown_task_errors": 1,
+        "test_background_spawn_reports_pid_and_detach": 1,
+        "test_process_events_reported_to_sink": 1,
+        "test_process_sink_errors_never_break_execution": 1,
+        "test_managed_task_killed_on_shutdown": 1,
+        "test_detached_task_survives_shutdown": 1
+      },
+      "passed": [
+        "test_marker_parsers_accept_prefixed_windows_output",
+        "test_cwd_persists_across_calls",
+        "test_env_persists_across_calls",
+        "test_exit_code_captured",
+        "test_timeout_kills_command",
+        "test_large_output_truncated_keeps_tail",
+        "test_shell_tool_integration",
+        "test_run_shell_accepts_description_and_clamped_timeout",
+        "test_background_task_runs_and_exits",
+        "test_background_task_kill",
+        "test_background_unknown_task_errors",
+        "test_background_spawn_reports_pid_and_detach",
+        "test_process_events_reported_to_sink",
+        "test_process_sink_errors_never_break_execution",
+        "test_managed_task_killed_on_shutdown",
+        "test_detached_task_survives_shutdown"
+      ]
+    },
+    "test_state_dir.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_state_dir_prefers_explicit_override": 1,
+        "test_state_dir_uses_home_on_non_windows": 1
+      },
+      "passed": [
+        "test_state_dir_prefers_explicit_override",
+        "test_state_dir_uses_home_on_non_windows"
+      ]
+    },
+    "test_todo_tool.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_schema_param_is_todos_not_items": 1,
+        "test_todos_key_writes_the_list": 1,
+        "test_legacy_items_key_still_executes": 1
+      },
+      "passed": [
+        "test_schema_param_is_todos_not_items",
+        "test_todos_key_writes_the_list",
+        "test_legacy_items_key_still_executes"
+      ]
+    },
+    "test_tool_catalog_contract.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_unknown_tool_keeps_conservative_default": 1,
+        "test_runtime_metadata_registers_read_and_write_effects": 1,
+        "test_curated_extension_metadata_wins_over_runtime_fallback": 1,
+        "test_read_tool_cannot_declare_standing_rule_target": 1
+      },
+      "passed": [
+        "test_unknown_tool_keeps_conservative_default",
+        "test_runtime_metadata_registers_read_and_write_effects",
+        "test_curated_extension_metadata_wins_over_runtime_fallback",
+        "test_read_tool_cannot_declare_standing_rule_target"
+      ]
+    },
+    "test_tool_factory_contract.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_extension_factory_registration_and_dedup": 1,
+        "test_duplicate_factory_requires_explicit_replace": 1,
+        "test_foundation_baseline_wins_extension_name_collision": 1,
+        "test_enabled_connector_filter_applies_after_provider_build": 1
+      },
+      "passed": [
+        "test_extension_factory_registration_and_dedup",
+        "test_duplicate_factory_requires_explicit_replace",
+        "test_foundation_baseline_wins_extension_name_collision",
+        "test_enabled_connector_filter_applies_after_provider_build"
+      ]
+    },
+    "test_url_address_guard.py": {
+      "status": "collected",
+      "failed": [],
+      "cases": {
+        "test_blocked_literals[http://127.0.0.1:11434/api/tags-loopback]": 1,
+        "test_blocked_literals[http://localhost:8000/-loopback]": 1,
+        "test_blocked_literals[http://[::1]:8080/-loopback]": 1,
+        "test_blocked_literals[http://169.254.169.254/latest/meta-data/-link-local]": 1,
+        "test_blocked_literals[http://10.0.0.5/admin-private]": 1,
+        "test_blocked_literals[http://192.168.1.1/-private]": 1,
+        "test_blocked_literals[http://172.16.4.4/-private]": 1,
+        "test_blocked_literals[http://0.0.0.0/-refusing to fetch]": 1,
+        "test_blocked_literals[http://100.64.0.1/-CGNAT]": 1,
+        "test_blocked_literals[http://100.127.255.254/-CGNAT]": 1,
+        "test_cgnat_neighbours_still_allowed": 1,
+        "test_ipv4_mapped_ipv6_loopback_is_blocked": 1,
+        "test_public_literal_is_allowed": 1,
+        "test_non_http_schemes_and_hostless_urls_are_refused[file:///etc/passwd]": 1,
+        "test_non_http_schemes_and_hostless_urls_are_refused[ftp://example.com/x]": 1,
+        "test_non_http_schemes_and_hostless_urls_are_refused[gopher://example.com/]": 1,
+        "test_non_http_schemes_and_hostless_urls_are_refused[http://]": 1,
+        "test_hostname_resolving_to_loopback_is_blocked": 1,
+        "test_hostname_resolving_to_metadata_ip_is_blocked": 1,
+        "test_any_private_answer_blocks_a_split_horizon_name": 1,
+        "test_public_hostname_is_allowed": 1,
+        "test_unresolvable_host_is_refused_not_fetched": 1,
+        "test_redirect_into_loopback_is_blocked_before_the_second_request": 1,
+        "test_allowed_redirect_chain_is_followed": 1,
+        "test_redirect_loop_is_bounded": 1,
+        "test_checked_connection_address_returns_the_vetted_public_ip": 1,
+        "test_checked_connection_address_never_resolves_the_name_twice": 1,
+        "test_checked_connection_address_rejects_private_targets": 1,
+        "test_checked_connection_address_preserves_public_ip_literals": 1,
+        "test_connection_is_pinned_to_the_vetted_address": 1,
+        "test_rebinding_after_the_check_cannot_reach_loopback": 1,
+        "test_pinned_host_header_preserves_an_explicit_port": 1,
+        "test_ipv6_answers_are_pinned_with_brackets": 1,
+        "test_checked_post_is_pinned_and_preserves_connector_credentials": 1,
+        "test_checked_request_blocks_private_target_before_sending": 1,
+        "test_checked_connector_request_rejects_redirect_without_replaying_credentials": 1,
+        "test_literal_address_urls_are_fetched_unchanged": 1,
+        "test_logical_url_is_reported_not_the_pinned_address": 1,
+        "test_web_fetch_returns_the_refusal_as_a_tool_error": 1,
+        "test_web_fetch_still_rejects_non_http_schemes": 1,
+        "test_browser_contract_rejects_blocked_url_before_provider_execution": 1,
+        "test_a_public_link_that_lands_somewhere_internal_is_refused[http://169.254.169.254/latest/meta-data/]": 1,
+        "test_a_public_link_that_lands_somewhere_internal_is_refused[http://192.168.1.1/admin]": 1,
+        "test_a_public_link_that_lands_somewhere_internal_is_refused[http://127.0.0.1:8765/v1/health]": 1,
+        "test_a_public_link_that_lands_somewhere_internal_is_refused[http://10.0.0.5/internal]": 1,
+        "test_a_redirect_to_another_public_page_is_fine": 1,
+        "test_no_redirect_costs_no_second_check": 1,
+        "test_a_missing_final_url_is_not_treated_as_a_violation": 1,
+        "test_the_refusal_names_where_it_landed": 1
+      },
+      "passed": [
+        "test_blocked_literals[http://127.0.0.1:11434/api/tags-loopback]",
+        "test_blocked_literals[http://localhost:8000/-loopback]",
+        "test_blocked_literals[http://[::1]:8080/-loopback]",
+        "test_blocked_literals[http://169.254.169.254/latest/meta-data/-link-local]",
+        "test_blocked_literals[http://10.0.0.5/admin-private]",
+        "test_blocked_literals[http://192.168.1.1/-private]",
+        "test_blocked_literals[http://172.16.4.4/-private]",
+        "test_blocked_literals[http://0.0.0.0/-refusing to fetch]",
+        "test_blocked_literals[http://100.64.0.1/-CGNAT]",
+        "test_blocked_literals[http://100.127.255.254/-CGNAT]",
+        "test_cgnat_neighbours_still_allowed",
+        "test_ipv4_mapped_ipv6_loopback_is_blocked",
+        "test_public_literal_is_allowed",
+        "test_non_http_schemes_and_hostless_urls_are_refused[file:///etc/passwd]",
+        "test_non_http_schemes_and_hostless_urls_are_refused[ftp://example.com/x]",
+        "test_non_http_schemes_and_hostless_urls_are_refused[gopher://example.com/]",
+        "test_non_http_schemes_and_hostless_urls_are_refused[http://]",
+        "test_hostname_resolving_to_loopback_is_blocked",
+        "test_hostname_resolving_to_metadata_ip_is_blocked",
+        "test_any_private_answer_blocks_a_split_horizon_name",
+        "test_public_hostname_is_allowed",
+        "test_unresolvable_host_is_refused_not_fetched",
+        "test_redirect_into_loopback_is_blocked_before_the_second_request",
+        "test_allowed_redirect_chain_is_followed",
+        "test_redirect_loop_is_bounded",
+        "test_checked_connection_address_returns_the_vetted_public_ip",
+        "test_checked_connection_address_never_resolves_the_name_twice",
+        "test_checked_connection_address_rejects_private_targets",
+        "test_checked_connection_address_preserves_public_ip_literals",
+        "test_connection_is_pinned_to_the_vetted_address",
+        "test_rebinding_after_the_check_cannot_reach_loopback",
+        "test_pinned_host_header_preserves_an_explicit_port",
+        "test_ipv6_answers_are_pinned_with_brackets",
+        "test_checked_post_is_pinned_and_preserves_connector_credentials",
+        "test_checked_request_blocks_private_target_before_sending",
+        "test_checked_connector_request_rejects_redirect_without_replaying_credentials",
+        "test_literal_address_urls_are_fetched_unchanged",
+        "test_logical_url_is_reported_not_the_pinned_address",
+        "test_web_fetch_returns_the_refusal_as_a_tool_error",
+        "test_web_fetch_still_rejects_non_http_schemes",
+        "test_browser_contract_rejects_blocked_url_before_provider_execution",
+        "test_a_public_link_that_lands_somewhere_internal_is_refused[http://169.254.169.254/latest/meta-data/]",
+        "test_a_public_link_that_lands_somewhere_internal_is_refused[http://192.168.1.1/admin]",
+        "test_a_public_link_that_lands_somewhere_internal_is_refused[http://127.0.0.1:8765/v1/health]",
+        "test_a_public_link_that_lands_somewhere_internal_is_refused[http://10.0.0.5/internal]",
+        "test_a_redirect_to_another_public_page_is_fine",
+        "test_no_redirect_costs_no_second_check",
+        "test_a_missing_final_url_is_not_treated_as_a_violation",
+        "test_the_refusal_names_where_it_landed"
+      ]
+    }
+  }
+}

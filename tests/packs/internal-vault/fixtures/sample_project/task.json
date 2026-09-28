@@ -1,0 +1,15 @@
+{
+  "steps": [
+    {
+      "id": "s1",
+      "target": "bricks.__test__.dummy_ok",
+      "args": {}
+    },
+    {
+      "id": "s2",
+      "target": "bricks.__test__.dummy_ok",
+      "args": {},
+      "depends_on": ["s1"]
+    }
+  ]
+}

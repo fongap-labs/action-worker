@@ -9,6 +9,7 @@ const CONTROL_PATHS = new Set([
   ".github/execution-manifest.json",
   ".github/scripts/central-ci.sh",
   ".github/scripts/central-ci.ps1",
+  ".github/test-pack.json",
 ]);
 
 const TRUSTED_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);

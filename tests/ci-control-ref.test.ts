@@ -44,6 +44,7 @@ test("trusted same-repository CI control changes self-validate at the immutable 
     ".github/execution-manifest.json",
     ".github/scripts/central-ci.sh",
     ".github/scripts/central-ci.ps1",
+    ".github/test-pack.json",
   ]) {
     assert.deepEqual(
       resolveCiControlDecision(

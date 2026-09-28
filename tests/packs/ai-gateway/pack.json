@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "pack": "ai-gateway",
+  "runtime": "node",
+  "suffix": "-test.mjs",
+  "tiers": {
+    "gate": [
+      "scheduler-stability-test.mjs",
+      "integration-test.mjs",
+      "stress-test.mjs",
+      "codex-contract-test.mjs",
+      "claude-contract-test.mjs"
+    ]
+  }
+}
