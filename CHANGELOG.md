@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: keep reviewing and commenting on a pull request that was merged while its advisory AI Review waited or ran, instead of dropping the review; a pull request closed without merging is still skipped.
+
 - fix: run advisory AI Review as its own workflow that starts only after the deterministic gate passes, so a pull request no longer waits in the AI queue behind unrelated runs that are still waiting for central CI, and the governance run ends when the gate does.
 
 - feat: let a managed repository split its Linux CI into parallel shards by declaring `matrix.shard` on the `linux` job of its trusted Execution Manifest, so CI wall time becomes the slowest shard instead of the sum of all phases; repositories without shards keep their exact single-job invocation.
