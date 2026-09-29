@@ -49,5 +49,11 @@
     }
   ],
   "require_pinned_actions": true,
-  "path_terms": ["secret", "token", "auth", "permission", "credential"]
+  "path_terms": ["secret", "token", "auth", "permission", "credential"],
+  "approved_workflows": [
+    {
+      "path": ".github/workflows/dispatch-pr-governance.yml",
+      "sha256": "3128db3d54dcbafe4634d0140a3181e34ff0f0f5141be1af8c0111979d4d8fde"
+    }
+  ]
 }

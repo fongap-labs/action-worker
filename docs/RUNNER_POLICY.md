@@ -175,3 +175,30 @@ Deploy 再硬编码第三套
 验收标准：
 
 > 替换 GitHub-hosted Runner、增加 self-hosted Runner 或迁移计算基础设施时，业务仓无需修改执行逻辑。
+
+## 11. PR dispatcher runner extension
+
+业务仓可以使用已批准的最薄 PR 触发器 `templates/pr-dispatcher/dispatch-pr-governance.yml`，让 PR 事件在一分钟量级内到达中央治理。它运行在控制域，只发送提示，不检出也不执行任何 PR 代码。
+
+Runner 选择遵守第 1 节：业务仓的工作流文件里没有任何 runner 名称或标签，`runs-on` 读取由中央管理的仓库变量：
+
+```text
+runs-on: ${{ fromJSON(vars.AW_DISPATCH_RUNS_ON || '"ubuntu-24.04"') }}
+```
+
+- 变量未设置时使用 GitHub-hosted Linux。
+- 中央 Policy 提供两个控制域 profile：`control-standard`（GitHub-hosted）与 `control-self-hosted`（默认 `enabled: false`，fallback 到 `control-standard`）。
+- 变量值只由 `node scripts/resolve-dispatcher-runs-on.ts <profile>` 生成；该脚本拒绝 sandbox 与 privileged profile。
+
+为某个仓库启用 self-hosted（消耗的是自己的算力，不占 GitHub-hosted 分钟）：
+
+```bash
+gh variable set AW_DISPATCH_RUNS_ON --repo fongap-labs/<repo>   --body "$(node scripts/resolve-dispatcher-runs-on.ts control-self-hosted)"
+```
+
+边界：
+
+- 只用于私有仓库。不要为公开仓库注册 self-hosted runner：fork PR 的工作流可能把代码调度到它上面。
+- runner 离线时 GitHub 不会自动回退，作业会一直排队；治理仍由中央 intake 兜底，受影响的只是速度，不是安全性。
+- 该文件受安全闸门的 `approved_workflows` 保护：路径加内容哈希必须与批准模板逐字节一致，任何改动都会让它重新受 `pull-request-target` 规则约束。
+- Dependabot 无法读取 Actions secret，触发器对它们直接跳过，由中央 intake 处理。
