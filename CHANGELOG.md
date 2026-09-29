@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- test: assert the English Hugo checksum error message in the internal-vault test pack, matching the English-only messages of internal-vault#43.
+
 - test: sync the ai-gateway test pack and shared mock D1 helper with the test changes of ai-gateway#65 (one added case, none removed) and replace its inventory baseline.
 
 - test: sync the internal-vault test pack with the test changes of internal-vault#43 (15 added cases, none removed) and replace its inventory baseline.
