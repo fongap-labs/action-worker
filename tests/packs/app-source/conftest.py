@@ -13,9 +13,10 @@ from kit_target import target_root
 sys.path.insert(0, str(target_root() / "projects" / "SecurePigeon" / "server-edge" / "app-hub" / "license-service"))
 
 _DATA_DIR = tempfile.mkdtemp(prefix="license-service-test-")
-os.environ["LICENSE_DATA_DIR"] = _DATA_DIR
-os.environ["ADMIN_TOKEN"] = "test-admin-token"
-os.environ["PRIVATE_KEY_PATH"] = os.path.join(_DATA_DIR, "test-signing-key.pem")
-os.environ["TRUSTED_PROXY_HOPS"] = "1"
-os.environ["RATE_LIMIT_IP_PER_MIN"] = "3"
-os.environ.pop("CODE_PEPPER", None)
+os.environ["SECUREPIGEON_DATA_DIR"] = _DATA_DIR
+os.environ["SECUREPIGEON_ADMIN_TOKEN"] = "test-admin-token"
+os.environ["SECUREPIGEON_PRIVATE_KEY_PATH"] = os.path.join(_DATA_DIR, "test-signing-key.pem")
+os.environ["SECUREPIGEON_TRUSTED_PROXY_HOPS"] = "1"
+os.environ["SECUREPIGEON_RATE_LIMIT_IP_PER_MIN"] = "3"
+os.environ.pop("SECUREPIGEON_CODE_PEPPER", None)
+os.environ.pop("PRIVATE_KEY_PATH", None)
