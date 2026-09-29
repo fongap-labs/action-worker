@@ -457,6 +457,25 @@ test("AI review runs as its own advisory workflow after the gate", async () => {
   assert.match(publishStep, /publish-pr-review\.ts "\$REPOSITORY" "\$PR_NUMBER" success /);
 });
 
+test("a pull request merged while its AI review waited is still reviewed", async () => {
+  const review = await text(".github/workflows/handle-pr-review.yml");
+  assert.match(
+    review,
+    /- name: Fetch PR facts[\s\S]*?ALLOW_MERGED_PR: "true"[\s\S]*?resolve-pr-facts\.ts fetch/
+  );
+  // Only the review opts in: governance still refuses a pull request that is not open.
+  assert.doesNotMatch(await text(".github/workflows/handle-pr-dispatch.yml"), /ALLOW_MERGED_PR/);
+  const cancel = await text(".github/workflows/cancel-pr-work.yml");
+  requireText(cancel, [
+    "merged: ${{ steps.closed.outputs.merged }}",
+    "if: needs.validate.outputs.merged != 'true'",
+  ]);
+  assert.match(
+    cancel,
+    /Cancel PR Review\n\s+needs: validate\n\s+if: needs\.validate\.outputs\.merged/
+  );
+});
+
 test("task dispatch keeps the publication credential in the central control step", async () => {
   const workflow = await text(".github/workflows/handle-task-dispatch.yml");
   requireText(workflow, [
