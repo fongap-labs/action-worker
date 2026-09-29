@@ -61,6 +61,7 @@ jobs:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          ALLOW_MERGED_PR: "true"
         run: node scripts/resolve-pr-facts.ts fetch
 
       - name: Confirm the gate passed for the requested head

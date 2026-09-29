@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { evaluateReviewTarget } from "../scripts/check-review-target.ts";
 import { buildReviewDispatch } from "../scripts/dispatch-pr-review.ts";
 import { buildReview } from "../scripts/publish-pr-review.ts";
+import { pullAllowsFacts } from "../scripts/resolve-pr-facts.ts";
 import { validatePayload } from "../scripts/validate-pr-payload.ts";
 
 const controlRepository = "fongap/control";
@@ -25,11 +26,38 @@ test("AI review target is current only for the open head whose gate passed", () 
   });
 });
 
-test("AI review target is rejected when the pull request moved or closed", () => {
+test("AI review still runs for a pull request that was merged while it waited", () => {
+  const passed = statuses({ context: "PR Governance", state: "success", target_url: runUrl });
+  const merged = pull({ state: "closed", merged: true });
+  assert.equal(evaluateReviewTarget(merged, passed, headSha, controlRepository).current, true);
+  // The head and the gate are still checked, so a merged pull request gets no free pass.
+  const moved = pull({ state: "closed", merged: true, head: { sha: "b".repeat(40) } });
+  assert.equal(evaluateReviewTarget(moved, passed, headSha, controlRepository).current, false);
+  assert.equal(evaluateReviewTarget(merged, statuses(), headSha, controlRepository).current, false);
+});
+
+test("pull request facts accept a merged pull request only when the caller opts in", () => {
+  const open = { state: "open" };
+  const merged = { state: "closed", merged: true };
+  const abandoned = { state: "closed", merged: false };
+  assert.equal(pullAllowsFacts(open, false), true);
+  assert.equal(pullAllowsFacts(merged, false), false);
+  assert.equal(pullAllowsFacts(merged, true), true);
+  assert.equal(pullAllowsFacts(abandoned, true), false);
+  assert.equal(pullAllowsFacts({ state: "closed" }, true), false);
+  assert.equal(pullAllowsFacts(undefined, true), false);
+});
+
+test("AI review target is rejected when the pull request moved or was abandoned", () => {
   const passed = statuses({ context: "PR Governance", state: "success", target_url: runUrl });
   assert.match(
-    evaluateReviewTarget(pull({ state: "closed" }), passed, headSha, controlRepository).reason,
-    /no longer open/
+    evaluateReviewTarget(
+      pull({ state: "closed", merged: false }),
+      passed,
+      headSha,
+      controlRepository
+    ).reason,
+    /closed without merging/
   );
   assert.match(
     evaluateReviewTarget(

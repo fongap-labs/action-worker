@@ -7,13 +7,23 @@ type PullFacts = {
   title: string;
 };
 
+// Governance only works on open pull requests. The advisory AI review may also run for a pull
+// request that was merged while it waited, so its caller opts in.
+export function pullAllowsFacts(pull: unknown, isMergedAllowed: boolean): boolean {
+  if (!isJsonRecord(pull)) {
+    return false;
+  }
+  return pull.state === "open" || (isMergedAllowed && pull.merged === true);
+}
+
 export async function fetchPullFacts(
   repository: string,
   prNumber: string,
-  token: string
+  token: string,
+  isMergedAllowed = false
 ): Promise<PullFacts> {
   const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, token);
-  if (!isJsonRecord(pull) || pull.state !== "open") {
+  if (!isJsonRecord(pull) || !pullAllowsFacts(pull, isMergedAllowed)) {
     throw new CliError("::error::Target PR is not open.", 65);
   }
   const base = isJsonRecord(pull.base) ? pull.base : {};
@@ -51,7 +61,9 @@ async function main(): Promise<void> {
     throw new CliError("::error::Repository, PR number, and GH_TOKEN are required.", 64);
   }
   if (stage === "fetch") {
-    await writeFacts(await fetchPullFacts(repository, prNumber, token));
+    await writeFacts(
+      await fetchPullFacts(repository, prNumber, token, process.env.ALLOW_MERGED_PR === "true")
+    );
     return;
   }
   if (stage !== "resolve") {
