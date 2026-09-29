@@ -32,3 +32,26 @@ test("main CI reuses successful evidence before heavy jobs", () => {
     /Publish Central CI[\s\S]*?needs\.prepare\.outputs\.should_run != 'false'/
   );
 });
+
+test("Linux CI fans out over the shards resolved from the trusted manifest", () => {
+  assert.match(workflow, /linux_shards: \$\{\{ steps\.capabilities\.outputs\.linux_shards \}\}/);
+  assert.match(
+    workflow,
+    /Central CI \/ Linux \(\$\{\{ matrix\.shard \}\}\)[\s\S]*?fail-fast: true[\s\S]*?shard: \$\{\{ fromJSON\(needs\.prepare\.outputs\.linux_shards \|\| '\["all"\]'\) \}\}/
+  );
+  assert.match(workflow, /CENTRAL_CI_SHARD: \$\{\{ matrix\.shard \}\}/);
+});
+
+test("an unsharded project keeps the exact single-argument script invocation", () => {
+  assert.match(workflow, /script_args=\("\$GITHUB_WORKSPACE\/target"\)/);
+  assert.match(
+    workflow,
+    /if \[ "\$CENTRAL_CI_SHARD" != "all" \]; then\n\s+script_args\+=\("\$CENTRAL_CI_SHARD"\)/
+  );
+  assert.match(workflow, /bash "\$script" "\$\{script_args\[@\]\}" >"\$log" 2>&1/);
+});
+
+test("finalization waits for every Linux shard", () => {
+  assert.match(workflow, /LINUX_RESULT: \$\{\{ needs\.linux\.result \}\}/);
+  assert.match(workflow, /\[\[ "\$LINUX_RESULT" == "success" \]\]/);
+});
