@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: run advisory AI Review as its own workflow that starts only after the deterministic gate passes, so a pull request no longer waits in the AI queue behind unrelated runs that are still waiting for central CI, and the governance run ends when the gate does.
+
 - feat: add an approved thin PR dispatcher template whose runner is resolved centrally, with a self-hosted control profile, and let the security gate exempt a workflow only while it is byte-identical to an audited hash.
 
 - test: follow the internal-vault#43 brick rename to global_market_fetch and assert the fake token body instead of a contiguous credential literal in the internal-vault test pack.

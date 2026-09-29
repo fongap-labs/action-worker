@@ -74,8 +74,14 @@ handle-pr-dispatch
   ↓
 Validate → Inspect → Plan → Security / CI / PR Gate
   ├→ AW_CONTROL_TOKEN → 目标 PR deterministic status
-  └→ Gate 结论之后执行 AI Review → advisory summary
+  └→ Gate 通过后 repository_dispatch run-pr-review
+        ↓
+     handle-pr-review：AI Review → advisory summary
 ```
+
+AI Review 是独立的 `handle-pr-review.yml`，只在 Gate 通过之后由 `handle-pr-dispatch` 触发。这样做有两个原因：Gate 那一次运行在 Gate 结论形成后就结束，不再被 AI 排队或评审拖住；AI 评审队列里只有真正处在评审阶段的运行，不会排在一个还在等 CI 的运行后面。
+
+评审 workflow 不信任触发方的说法：它重新读取 PR 当前 head，并确认该 head 上有 Action Worker 发布的 `PR Governance` success；PR 已经更新、关闭或 Gate 不成立时直接跳过。它没有任何写 Gate 状态的步骤。
 
 PR Task 合同位于 `contracts/pr-task.json`：
 
@@ -524,6 +530,7 @@ Action Worker 按职责分层。当前 workflow 入口如下；业务能力通�
   ci-intake.yml
   dependency-repair.yml
   handle-pr-dispatch.yml
+  handle-pr-review.yml
   handle-release-dispatch.yml
   handle-task-dispatch.yml
   main-write-audit.yml
