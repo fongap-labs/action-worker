@@ -15,7 +15,7 @@ import { createOpenAIChatStreamFromAnthropic } from '#target/src/conversion/anth
 import worker from '#target/src/index.ts';
 import { TTFT_BUCKET_BOUNDARIES_MS, persistTokenUsage, queryAllModelsTtftPercentiles, queryModelUsageCoverage, ttftBucketIndex } from '#target/src/observability/token-usage-store.ts';
 import { classifyUpstreamStatus } from '#target/src/reliability/classify.ts';
-import { __resetAllStateForTests, acquireSlot, getCooldownRemainingMs, getNodeState, markProbeFailure, recordFailure, recordNeutralEnd, recordSuccess, recordTtft } from '#target/src/reliability/node-state.ts';
+import { __resetAllStateForTests, acquireSlot, getNodeState, markProbeFailure, recordFailure, recordNeutralEnd, recordSuccess, recordTtft } from '#target/src/reliability/node-state.ts';
 import { __resetTier1StateForTests } from '#target/src/reliability/tier1-state.ts';
 import { __resetTier1AffinityForTests, readTier1Affinity, writeTier1Affinity } from '#target/src/scheduler/tier1-affinity.ts';
 import { collectAnthropicMessageObject } from '#target/src/stream/anthropic-native.ts';
@@ -79,22 +79,33 @@ try {
   // 1) KIND is the only place that defines the failure-kind vocabulary.
   const classifySource = readFileSync(join(root, 'src', 'reliability', 'classify.ts'), 'utf8');
   const kindBlockMatch = classifySource.match(/export const KIND = \{([\s\S]*?)\} as const;/);
-  const kindValues = kindBlockMatch
-    ? [...kindBlockMatch[1].matchAll(/^\s*([A-Z][A-Z0-9_]*):\s*'([^']+)'/gm)].map((m) => m[2])
-    : [];
+  const kindValues = kindBlockMatch ? [...kindBlockMatch[1].matchAll(/^\s*([A-Z][A-Z0-9_]*):\s*'([^']+)'/gm)].map((m) => m[2]) : [];
   const expectedKinds = [
-    'rate_limit', 'auth', 'client', 'model_missing', 'endpoint_not_found',
-    'server', 'network', 'headers_timeout', 'first_event_timeout',
-    'client_abort', 'rate_limit_global', 'invalid_base_url',
-    'stream_interrupted', 'upstream_200_non_json_body',
+    'rate_limit',
+    'auth',
+    'client',
+    'model_missing',
+    'endpoint_not_found',
+    'server',
+    'network',
+    'headers_timeout',
+    'first_event_timeout',
+    'client_abort',
+    'rate_limit_global',
+    'invalid_base_url',
+    'stream_interrupted',
+    'upstream_200_non_json_body',
     'upstream_200_no_meaningful_output',
-    'cancelled_after_peer_commit', 'unknown',
+    'cancelled_after_peer_commit',
+    'unknown',
   ];
   const missingFromKind = expectedKinds.filter((k) => !kindValues.includes(k));
   const extraInKind = kindValues.filter((k) => !expectedKinds.includes(k));
-  check('C19 KIND in src/reliability/classify.ts is the closed failure-kind vocabulary (no missing, no extra)',
+  check(
+    'C19 KIND in src/reliability/classify.ts is the closed failure-kind vocabulary (no missing, no extra)',
     missingFromKind.length === 0 && extraInKind.length === 0,
-    `missing=${JSON.stringify(missingFromKind)} extra=${JSON.stringify(extraInKind)} actual=${JSON.stringify(kindValues)}`);
+    `missing=${JSON.stringify(missingFromKind)} extra=${JSON.stringify(extraInKind)} actual=${JSON.stringify(kindValues)}`,
+  );
 
   // 2) No `kind: '...'` raw string literal in src/ that is not in KIND.
   // We scan every .ts file under src/ for `kind: '<...>'` patterns. The
@@ -103,22 +114,23 @@ try {
   const kindLiteralRe = /\bkind\s*:\s*['"]([a-z_]+)['"]/g;
   const violationFiles = [];
   const allKindLiterals = new Set();
-  function walk(dir) {
+  function _walk(dir) {
     const { readdirSync, statSync } = require('node:fs');
     for (const name of readdirSync(dir)) {
       const full = join(dir, name);
       if (statSync(full).isDirectory()) {
         if (name === 'node_modules' || name === 'dist' || name === '.wrangler-dry-run') continue;
-        walk(full);
+        _walk(full);
       } else if (full.endsWith('.ts')) {
         const text = readFileSync(full, 'utf8');
-        let m;
-        while ((m = kindLiteralRe.exec(text)) !== null) {
+        let m = kindLiteralRe.exec(text);
+        while (m) {
           allKindLiterals.add(m[1]);
           if (!full.endsWith('reliability/classify.ts') && !full.endsWith('reliability\\classify.ts')) {
             // Allow classify.ts (where the constants live).
             violationFiles.push({ file: full, literal: m[1] });
           }
+          m = kindLiteralRe.exec(text);
         }
       }
     }
@@ -133,38 +145,46 @@ try {
         walkSync(full);
       } else if (full.endsWith('.ts')) {
         const text = readFileSync(full, 'utf8');
-        let m;
-        while ((m = kindLiteralRe.exec(text)) !== null) {
+        let m = kindLiteralRe.exec(text);
+        while (m) {
           allKindLiterals.add(m[1]);
           if (!full.replace(/\\/g, '/').endsWith('src/reliability/classify.ts')) {
             violationFiles.push({ file: full, literal: m[1] });
           }
+          m = kindLiteralRe.exec(text);
         }
       }
     }
   }
   walkSync(join(root, 'src'));
   const unknownLiterals = [...allKindLiterals].filter((k) => !kindValues.includes(k));
-  check('C20 no raw failure-kind string literals in src/ outside classify.ts (closed vocabulary)',
+  check(
+    'C20 no raw failure-kind string literals in src/ outside classify.ts (closed vocabulary)',
     violationFiles.length === 0 && unknownLiterals.length === 0,
-    `violations=${JSON.stringify(violationFiles.slice(0, 5))} unknownLiterals=${JSON.stringify(unknownLiterals)} allLiterals=${JSON.stringify([...allKindLiterals])}`);
+    `violations=${JSON.stringify(violationFiles.slice(0, 5))} unknownLiterals=${JSON.stringify(unknownLiterals)} allLiterals=${JSON.stringify([...allKindLiterals])}`,
+  );
 
   // 3) AttemptOutcome.kind is typed as FailureKind (not string).
   const requestTypesSource = readFileSync(join(root, 'src', 'types', 'request.ts'), 'utf8');
   const outcomeBlock = requestTypesSource.match(/export type AttemptOutcome = \{([\s\S]*?)\};/);
-  const kindFieldLine = outcomeBlock ? outcomeBlock[1].match(/kind\?:\s*([^,]+),/) : null;
+  const kindFieldLine = outcomeBlock ? outcomeBlock[1].match(/kind\?:\s*([^;,]+)/) : null;
   const kindType = kindFieldLine ? kindFieldLine[1].trim() : null;
-  check('C21 AttemptOutcome.kind is typed as FailureKind (not string) — compiler catches drift',
+  check(
+    'C21 AttemptOutcome.kind is typed as FailureKind (not string) — compiler catches drift',
     kindType === 'FailureKind',
-    `kindType=${JSON.stringify(kindType)} (expected "FailureKind")`);
+    `kindType=${JSON.stringify(kindType)} (expected "FailureKind")`,
+  );
 
   // 4) FailureKind is imported in src/types/request.ts (proves the type
   // comes from src/reliability/classify.ts, the single source of truth).
-  const importsFailureKind = /import\s+type\s+\{[^}]*\bFailureKind\b[^}]*\}\s+from\s+['"][^'"]*reliability\/classify/.test(requestTypesSource)
-    || /import\s+type\s+\{[^}]*\bFailureKind\b[^}]*\}\s+from\s+['"][^'"]*reliability\\classify/.test(requestTypesSource);
-  check('C22 src/types/request.ts imports FailureKind from src/reliability/classify.ts',
+  const importsFailureKind =
+    /import\s+type\s+\{[^}]*\bFailureKind\b[^}]*\}\s+from\s+['"][^'"]*reliability\/classify/.test(requestTypesSource) ||
+    /import\s+type\s+\{[^}]*\bFailureKind\b[^}]*\}\s+from\s+['"][^'"]*reliability\\classify/.test(requestTypesSource);
+  check(
+    'C22 src/types/request.ts imports FailureKind from src/reliability/classify.ts',
     importsFailureKind,
-    `importsFailureKind=${importsFailureKind}`);
+    `importsFailureKind=${importsFailureKind}`,
+  );
 
   if (failures > 0) {
     console.error(`reliability-core-contract: ${failures} contract(s) FAILED`);
@@ -189,41 +209,61 @@ try {
   let failed = 0;
 
   async function test(name, fn) {
-    try { await fn(); passed++; console.log(`ok - ${name}`); }
-    catch (e) { failed++; console.error(`FAIL: ${name}`); console.error(e?.stack || e); }
+    try {
+      await fn();
+      passed++;
+      console.log(`ok - ${name}`);
+    } catch (e) {
+      failed++;
+      console.error(`FAIL: ${name}`);
+      console.error(e?.stack || e);
+    }
   }
 
   function fakeSseResponse(chunks) {
-    return new Response(new ReadableStream({
-      start(controller) {
-        for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
-        controller.close();
-      },
-    }), { headers: { 'content-type': 'text/event-stream' } });
+    return new Response(
+      new ReadableStream({
+        start(controller) {
+          for (const chunk of chunks) controller.enqueue(encoder.encode(chunk));
+          controller.close();
+        },
+      }),
+      { headers: { 'content-type': 'text/event-stream' } },
+    );
   }
 
   function fakeHangingSseResponse(chunks) {
     let i = 0;
-    return new Response(new ReadableStream({
-      pull(controller) {
-        if (i < chunks.length) { controller.enqueue(encoder.encode(chunks[i++])); return; }
-        return new Promise(() => {});
-      },
-    }), { headers: { 'content-type': 'text/event-stream' } });
+    return new Response(
+      new ReadableStream({
+        pull(controller) {
+          if (i < chunks.length) {
+            controller.enqueue(encoder.encode(chunks[i++]));
+            return;
+          }
+          return new Promise(() => {});
+        },
+      }),
+      { headers: { 'content-type': 'text/event-stream' } },
+    );
   }
 
   await test('safeReadErrorBody respects absolute deadline', async () => {
     const { safeReadErrorBody } = await import('#target/src/protocol/http.ts');
-    const hanging = new Response(new ReadableStream({ pull() { return new Promise(() => {}); } }));
+    const hanging = new Response(
+      new ReadableStream({
+        pull() {
+          return new Promise(() => {});
+        },
+      }),
+    );
     const start = Date.now();
     assert.equal(await safeReadErrorBody(hanging, 4096, Date.now() + 100), '');
     assert.ok(Date.now() - start < 500);
   });
 
   await test('OpenAI stream completes on finish_reason without HTTP EOF', async () => {
-    const response = fakeHangingSseResponse([
-      'data: {"id":"c1","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}\n\n',
-    ]);
+    const response = fakeHangingSseResponse(['data: {"id":"c1","choices":[{"index":0,"delta":{"content":"hi"},"finish_reason":"stop"}]}\n\n']);
     const start = Date.now();
     const result = await collectOpenAIStreamObject(response, null, Date.now() + 30_000);
     assert.equal(result.id, 'c1');
@@ -275,7 +315,11 @@ try {
     const reader = createOpenAIChatStreamFromAnthropic(source, { messageId: 'm2', model: 'claude' }).getReader();
     const decoder = new TextDecoder();
     let out = '';
-    for (;;) { const { done, value } = await reader.read(); if (done) break; out += decoder.decode(value); }
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      out += decoder.decode(value);
+    }
     assert.ok(out.includes('visible'));
     assert.ok(out.includes('"reasoning_content":"hidden"'), 'thinking delta is converted to reasoning_content, not dropped');
     assert.ok(out.includes('[DONE]'));
@@ -313,7 +357,11 @@ try {
 
   await test('real upstream SSE is not wrapped again by client lifecycle tracking', async () => {
     const { trackClientResponse } = await import('#target/src/observability/gateway-stats.ts');
-    const body = new ReadableStream({ start(c) { c.close(); } });
+    const body = new ReadableStream({
+      start(c) {
+        c.close();
+      },
+    });
     const response = new Response(body, { headers: { 'content-type': 'text/event-stream' } });
     assert.equal(trackClientResponse(response).body, response.body);
   });
@@ -337,7 +385,7 @@ try {
 
   await test('local diagnostic/model routes are exempt from key RPM', () => {
     const src = readFileSync(join(root, 'src', 'request', 'preflight.ts'), 'utf8');
-    const block = src.slice(src.indexOf("if (route !== 'health'"), src.indexOf("const diag ="));
+    const block = src.slice(src.indexOf("if (route !== 'health'"), src.indexOf('const diag ='));
     assert.ok(block.includes("route !== 'health'"));
     assert.ok(block.includes("route !== 'metrics'"));
     assert.ok(block.includes("route !== 'models'"));
@@ -354,11 +402,17 @@ try {
   });
 
   await test('Tier 1 explicit maxInFlight is enforced', async () => {
-    const { isTier1Eligible, __resetTier1StateForTests, claimTier1Slot, releaseTier1Slot, makeTier1ReleaseToken } = await import('#target/src/reliability/tier1-state.ts');
+    const { isTier1Eligible, __resetTier1StateForTests, claimTier1Slot, releaseTier1Slot, makeTier1ReleaseToken } = await import(
+      '#target/src/reliability/tier1-state.ts'
+    );
     __resetTier1StateForTests();
     const node = {
-      id: 'cap-test', tier: 'tier-1', provider: 'test', protocol: 'openai',
-      surfaces: ['chat'], models: { m: 'up-m' },
+      id: 'cap-test',
+      tier: 'tier-1',
+      provider: 'test',
+      protocol: 'openai',
+      surfaces: ['chat'],
+      models: { m: 'up-m' },
     };
     const req = { protocol: 'openai', surface: 'chat', model: 'm' };
     for (let i = 0; i < 4; i++) assert.equal(claimTier1Slot(node, Date.now(), 'm', 4), true);
@@ -396,12 +450,7 @@ try {
   });
 
   await test('Tier 1 auth cooldown follows the shared classification value', async () => {
-    const {
-      classifyTier1Failure,
-      applyTier1Outcome,
-      getTier1Account,
-      __resetTier1StateForTests,
-    } = await import('#target/src/reliability/tier1-state.ts');
+    const { classifyTier1Failure, applyTier1Outcome, getTier1Account, __resetTier1StateForTests } = await import('#target/src/reliability/tier1-state.ts');
     __resetTier1StateForTests();
     const now = 1_000;
     const outcome = classifyTier1Failure({ kind: 'auth', cooldownMs: 12_345 });
@@ -452,21 +501,30 @@ try {
     __resetTier1AffinityForTests();
   }
   function chatCompletion(model, content = 'ok') {
-    return new Response(JSON.stringify({
-      id: 'chatcmpl-test', object: 'chat.completion', model,
-      choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
-      usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-    }), { status: 200, headers: { 'content-type': 'application/json' } });
+    return new Response(
+      JSON.stringify({
+        id: 'chatcmpl-test',
+        object: 'chat.completion',
+        model,
+        choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
+        usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
   }
   function request(model, key) {
     return new Request('https://gateway.example.com/v1/chat/completions', {
-      method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${key}` },
       body: JSON.stringify({ model, messages: [{ role: 'user', content: 'test' }] }),
     });
   }
   function node(id, model, upstreamModel = `up-${model.toLowerCase()}`) {
     return {
-      id, provider: id.split('-')[0], base_url: `https://${id}.example.com/v1`, priority: 10,
+      id,
+      provider: id.split('-')[0],
+      base_url: `https://${id}.example.com/v1`,
+      priority: 10,
       models: { [model]: upstreamModel },
     };
   }
@@ -480,18 +538,26 @@ try {
       const body = JSON.parse(init.body);
       calls.push({ host: url.hostname, model: body.model });
       if (url.hostname.startsWith('air-')) {
-        return new Response(JSON.stringify({ error: { message: 'temporary unavailable' } }), { status: 503, headers: { 'content-type': 'application/json' } });
+        return new Response(JSON.stringify({ error: { message: 'temporary unavailable' } }), {
+          status: 503,
+          headers: { 'content-type': 'application/json' },
+        });
       }
       return chatCompletion(body.model, 'should-not-be-called');
     };
     const env = {
-      AIG_ACCESS_KEY_AIR: key, AIG_ACCESS_MODELS_AIR: 'Air,SenseNova', AIG_PROTOCOL_FALLBACKS: 'disable',
+      AIG_ACCESS_KEY_AIR: key,
+      AIG_ACCESS_MODELS_AIR: 'Air,SenseNova',
+      AIG_PROTOCOL_FALLBACKS: 'disable',
       AIG_TIER1_NODES_01: JSON.stringify([node('air-01', 'Air', 'up-air'), node('pro-01', 'Pro', 'up-pro'), node('max-01', 'Max', 'up-max')]),
       AIG_TIER1_CREDENTIALS_01: JSON.stringify({ 'air-01': 'a', 'pro-01': 'p', 'max-01': 'm' }),
     };
     const response = await worker.fetch(request('Air', key), env, {});
     assert.notEqual(response.status, 200);
-    assert.deepEqual(calls.map((c) => c.model), ['up-air']);
+    assert.deepEqual(
+      calls.map((c) => c.model),
+      ['up-air'],
+    );
   }
 
   {
@@ -501,11 +567,17 @@ try {
     globalThis.fetch = async (_input, init) => {
       const body = JSON.parse(init.body);
       calls.push(body.model);
-      if (body.model === 'up-max') return new Response(JSON.stringify({ error: { message: 'model not found' } }), { status: 404, headers: { 'content-type': 'application/json' } });
+      if (body.model === 'up-max')
+        return new Response(JSON.stringify({ error: { message: 'model not found' } }), {
+          status: 404,
+          headers: { 'content-type': 'application/json' },
+        });
       return chatCompletion(body.model, 'fallback-ok');
     };
     const env = {
-      AIG_ACCESS_KEY_MAX: key, AIG_ACCESS_MODELS_MAX: 'Max,Pro,Ultra', AIG_PROTOCOL_FALLBACKS: 'disable',
+      AIG_ACCESS_KEY_MAX: key,
+      AIG_ACCESS_MODELS_MAX: 'Max,Pro,Ultra',
+      AIG_PROTOCOL_FALLBACKS: 'disable',
       AIG_TIER1_NODES_01: JSON.stringify([node('max-01', 'Max', 'up-max'), node('pro-01', 'Pro', 'up-pro')]),
       AIG_TIER1_CREDENTIALS_01: JSON.stringify({ 'max-01': 'm', 'pro-01': 'p' }),
     };
@@ -700,7 +772,9 @@ try {
     __resetTier1AffinityForTests();
     const env = {
       TIER1_AFFINITY_KV: {
-        async get() { throw new Error('kv-explode'); },
+        async get() {
+          throw new Error('kv-explode');
+        },
       },
     };
     const out = await readTier1Affinity(env, 'session-throws');
@@ -711,7 +785,9 @@ try {
     __resetTier1AffinityForTests();
     const env = {
       TIER1_AFFINITY_KV: {
-        async put() { throw new Error('kv-write-explode'); },
+        async put() {
+          throw new Error('kv-write-explode');
+        },
       },
     };
     // A successful call must not throw; the gateway path is the
@@ -730,7 +806,9 @@ try {
     __resetTier1AffinityForTests();
     const env = {
       TIER1_AFFINITY_KV: {
-        async get() { return { some: 'garbage' }; }, // no `accountId` field
+        async get() {
+          return { some: 'garbage' };
+        }, // no `accountId` field
       },
     };
     const out = await readTier1Affinity(env, 'session-malformed');
@@ -747,8 +825,13 @@ try {
       TOKEN_STATS_DB: {
         prepare() {
           return {
-            bind() { return this; },
-            async run() { writeCount += 1; throw new Error('d1-explode'); },
+            bind() {
+              return this;
+            },
+            async run() {
+              writeCount += 1;
+              throw new Error('d1-explode');
+            },
           };
         },
       },
@@ -775,7 +858,9 @@ try {
     // waitUntil. A failure in the D1 layer must never feed back into
     // the in-memory count.
     let memoryCalls = 0;
-    const fakeInMemoryAgg = () => { memoryCalls += 1; };
+    const fakeInMemoryAgg = () => {
+      memoryCalls += 1;
+    };
     fakeInMemoryAgg(); // success path
     fakeInMemoryAgg(); // would-be retry (should not exist)
     assert.equal(memoryCalls, 2, 'in-memory aggregator runs once per attempt; persistence is a side-channel');
@@ -911,8 +996,10 @@ try {
 
   await test('boundaries are strictly increasing', () => {
     for (let i = 1; i < TTFT_BUCKET_BOUNDARIES_MS.length; i++) {
-      assert.ok(TTFT_BUCKET_BOUNDARIES_MS[i] > TTFT_BUCKET_BOUNDARIES_MS[i - 1],
-        `boundary ${i} (${TTFT_BUCKET_BOUNDARIES_MS[i]}) must be > ${i - 1} (${TTFT_BUCKET_BOUNDARIES_MS[i - 1]})`);
+      assert.ok(
+        TTFT_BUCKET_BOUNDARIES_MS[i] > TTFT_BUCKET_BOUNDARIES_MS[i - 1],
+        `boundary ${i} (${TTFT_BUCKET_BOUNDARIES_MS[i]}) must be > ${i - 1} (${TTFT_BUCKET_BOUNDARIES_MS[i - 1]})`,
+      );
     }
   });
 
@@ -960,10 +1047,10 @@ try {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
-    await persistTokenUsage(env, usage, 1000, 'model-a', 50);    // bucket 0
-    await persistTokenUsage(env, usage, 2000, 'model-a', 200);   // bucket 1
-    await persistTokenUsage(env, usage, 3000, 'model-a', 1500);  // bucket 3
-    await persistTokenUsage(env, usage, 4000, 'model-a', 6000);  // bucket 5
+    await persistTokenUsage(env, usage, 1000, 'model-a', 50); // bucket 0
+    await persistTokenUsage(env, usage, 2000, 'model-a', 200); // bucket 1
+    await persistTokenUsage(env, usage, 3000, 'model-a', 1500); // bucket 3
+    await persistTokenUsage(env, usage, 4000, 'model-a', 6000); // bucket 5
     const key = `${new Date(1000).toISOString().slice(0, 13)}:00:00Z|model-a`;
     const row = d1._modelRows.get(key);
     assert.ok(row, 'model row exists');

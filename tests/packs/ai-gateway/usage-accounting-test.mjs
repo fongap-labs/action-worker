@@ -15,7 +15,7 @@ import { ensureModelTtftContainers, fmtModelTtft } from '#target/src/dashboard/m
 import { __resetDashboardCacheForTests, dashboardResponse } from '#target/src/dashboard/pages.ts';
 import { metricsResponse } from '#target/src/observability/diagnostic-endpoints.ts';
 import { reportedUsageFromPayload } from '#target/src/observability/reported-usage.ts';
-import { TTFT_BUCKET_BOUNDARIES_MS, cleanupModelStats, isoDayUtc8, loadUpstreamSummary, normalizeHour, normalizeModelKey, persistTokenUsage, persistUpstreamAttemptUsage, queryAllModelsTtftPercentiles, queryModelUsageCoverage, queryRecentModelEvidence, queryTokenDailySeries, queryTokenModelUsage, queryTokenSummary, tokenStatsD1, tokenUsagePayload, utc8DayStartUtcMs } from '#target/src/observability/token-usage-store.ts';
+import { TTFT_BUCKET_BOUNDARIES_MS, cleanupModelStats, loadUpstreamSummary, normalizeHour, normalizeModelKey, persistTokenUsage, persistUpstreamAttemptUsage, queryAllModelsTtftPercentiles, queryModelUsageCoverage, queryRecentModelEvidence, queryTokenDailySeries, queryTokenModelUsage, queryTokenSummary, tokenStatsD1, tokenUsagePayload } from '#target/src/observability/token-usage-store.ts';
 import { __resetTokenStatsForTests, normalizeTokenUsage, normalizeUsageReport, recordTokenUsage, summarizeTokenStats, tokenMetricSeries } from '#target/src/observability/token-usage.ts';
 import { withUsageStreamOptions } from '#target/src/protocol/openai.ts';
 import { observeUpstreamAttemptUsage, recordTokens, recordUndeliveredUpstreamAttempt } from '#target/src/request/attempt/observability.ts';
@@ -52,21 +52,29 @@ try {
       console.log(`ok - ${name}`);
     } catch (e) {
       console.error(`FAIL: ${name}`);
-      console.error(e && e.stack || e);
+      console.error(e?.stack || e);
       process.exitCode = 1;
     }
   }
 
   const ENV = { AIG_ACCESS_KEY_AIR: 'test-access-key', AIG_ACCESS_MODELS_AIR: '*' };
-  const authedRequest = () => new Request('https://gateway.example.com/', {
-    headers: { authorization: 'Bearer test-access-key', accept: 'text/html' },
-  });
-  const anonRequest = () => new Request('https://gateway.example.com/', {
-    headers: { accept: 'text/html' },
-  });
-  const record = (usage, dims = {}) => recordTokenUsage({
-    model: 'm', tier: 'tier-1', provider: 'p', nodeId: 'n', ...dims, usage,
-  });
+  const authedRequest = () =>
+    new Request('https://gateway.example.com/', {
+      headers: { authorization: 'Bearer test-access-key', accept: 'text/html' },
+    });
+  const anonRequest = () =>
+    new Request('https://gateway.example.com/', {
+      headers: { accept: 'text/html' },
+    });
+  const record = (usage, dims = {}) =>
+    recordTokenUsage({
+      model: 'm',
+      tier: 'tier-1',
+      provider: 'p',
+      nodeId: 'n',
+      ...dims,
+      usage,
+    });
   const pageText = async (request, env = ENV) => (await dashboardResponse(request, env)).text();
   const deepClone = (o) => JSON.parse(JSON.stringify(o));
 
@@ -86,14 +94,42 @@ try {
   });
 
   await test('openai and anthropic/responses alias shapes both normalize', async () => {
-    assert.deepEqual(normalizeTokenUsage({ prompt_tokens: 2, completion_tokens: 3 }), { input: 2, output: 3, cacheCreation: 0, cacheRead: 0, effectiveInput: 2, total: 5 });
-    assert.deepEqual(normalizeTokenUsage({ input_tokens: 4, output_tokens: 6 }), { input: 4, output: 6, cacheCreation: 0, cacheRead: 0, effectiveInput: 4, total: 10 });
+    assert.deepEqual(normalizeTokenUsage({ prompt_tokens: 2, completion_tokens: 3 }), {
+      input: 2,
+      output: 3,
+      cacheCreation: 0,
+      cacheRead: 0,
+      effectiveInput: 2,
+      total: 5,
+    });
+    assert.deepEqual(normalizeTokenUsage({ input_tokens: 4, output_tokens: 6 }), {
+      input: 4,
+      output: 6,
+      cacheCreation: 0,
+      cacheRead: 0,
+      effectiveInput: 4,
+      total: 10,
+    });
     assert.deepEqual(normalizeTokenUsage({ prompt_tokens: 2 }), { input: 2, output: 0, cacheCreation: 0, cacheRead: 0, effectiveInput: 2, total: 2 });
-    assert.deepEqual(normalizeTokenUsage({ prompt_tokens: 1.9, completion_tokens: 2.1 }), { input: 1, output: 2, cacheCreation: 0, cacheRead: 0, effectiveInput: 1, total: 3 });
+    assert.deepEqual(normalizeTokenUsage({ prompt_tokens: 1.9, completion_tokens: 2.1 }), {
+      input: 1,
+      output: 2,
+      cacheCreation: 0,
+      cacheRead: 0,
+      effectiveInput: 1,
+      total: 3,
+    });
   });
 
   await test('a reported total_tokens wins verbatim over input+output', async () => {
-    assert.deepEqual(normalizeTokenUsage({ prompt_tokens: 2, completion_tokens: 3, total_tokens: 10 }), { input: 2, output: 3, cacheCreation: 0, cacheRead: 0, effectiveInput: 2, total: 10 });
+    assert.deepEqual(normalizeTokenUsage({ prompt_tokens: 2, completion_tokens: 3, total_tokens: 10 }), {
+      input: 2,
+      output: 3,
+      cacheCreation: 0,
+      cacheRead: 0,
+      effectiveInput: 2,
+      total: 10,
+    });
   });
 
   await test('OpenAI-compatible cached-token details are recognized without double-counting input', async () => {
@@ -113,10 +149,14 @@ try {
       }),
       { input: 120, output: 5, cacheCreation: 0, cacheRead: 90, effectiveInput: 120, total: 125 },
     );
-    assert.deepEqual(
-      normalizeTokenUsage({ prompt_tokens: 50, completion_tokens: 2, prompt_cache_hit_tokens: 40 }),
-      { input: 50, output: 2, cacheCreation: 0, cacheRead: 40, effectiveInput: 50, total: 52 },
-    );
+    assert.deepEqual(normalizeTokenUsage({ prompt_tokens: 50, completion_tokens: 2, prompt_cache_hit_tokens: 40 }), {
+      input: 50,
+      output: 2,
+      cacheCreation: 0,
+      cacheRead: 40,
+      effectiveInput: 50,
+      total: 52,
+    });
   });
 
   await test('cache aliases are alternatives, not additive token sources', async () => {
@@ -137,10 +177,14 @@ try {
   });
 
   await test('Anthropic cache fields remain additive while explicit zero is distinguishable from unreported cache', async () => {
-    assert.deepEqual(
-      normalizeTokenUsage({ input_tokens: 30, cache_creation_input_tokens: 10, cache_read_input_tokens: 20, output_tokens: 10 }),
-      { input: 30, output: 10, cacheCreation: 10, cacheRead: 20, effectiveInput: 60, total: 70 },
-    );
+    assert.deepEqual(normalizeTokenUsage({ input_tokens: 30, cache_creation_input_tokens: 10, cache_read_input_tokens: 20, output_tokens: 10 }), {
+      input: 30,
+      output: 10,
+      cacheCreation: 10,
+      cacheRead: 20,
+      effectiveInput: 60,
+      total: 70,
+    });
     const explicitZero = normalizeUsageReport({ prompt_tokens: 40, completion_tokens: 1, prompt_tokens_details: { cached_tokens: 0 } });
     assert.equal(explicitZero?.hasCacheRead, true);
     assert.equal(explicitZero?.observedCacheInput, 40);
@@ -152,29 +196,47 @@ try {
   });
 
   await test('withUsageStreamOptions adds include_usage while preserving existing stream_options', async () => {
-    assert.deepEqual(withUsageStreamOptions({ model: 'm', stream: true, stream_options: { other: 'kept' } }), { model: 'm', stream: true, stream_options: { other: 'kept', include_usage: true } });
-    assert.deepEqual(withUsageStreamOptions({ stream: true, stream_options: { include_usage: false } }), { stream: true, stream_options: { include_usage: false } });
+    assert.deepEqual(withUsageStreamOptions({ model: 'm', stream: true, stream_options: { other: 'kept' } }), {
+      model: 'm',
+      stream: true,
+      stream_options: { other: 'kept', include_usage: true },
+    });
+    assert.deepEqual(withUsageStreamOptions({ stream: true, stream_options: { include_usage: false } }), {
+      stream: true,
+      stream_options: { include_usage: false },
+    });
     assert.deepEqual(withUsageStreamOptions({ model: 'm', stream: true }), { model: 'm', stream: true, stream_options: { include_usage: true } });
     assert.deepEqual(withUsageStreamOptions({ stream: true, stream_options: 'bogus' }), { stream: true, stream_options: { include_usage: true } });
   });
 
   await test('recordTokenUsage: empty usage counts missing, real usage reports — never both', async () => {
     record({ prompt_tokens: 5, completion_tokens: 7 });
-    record(null); record(undefined); record({});
+    record(null);
+    record(undefined);
+    record({});
     const t = summarizeTokenStats().totals;
-    assert.equal(t.reports, 1); assert.equal(t.missing, 3); assert.equal(t.input, 5); assert.equal(t.output, 7); assert.equal(t.total, 12);
+    assert.equal(t.reports, 1);
+    assert.equal(t.missing, 3);
+    assert.equal(t.input, 5);
+    assert.equal(t.output, 7);
+    assert.equal(t.total, 12);
   });
 
   await test('hostile dimension values are sanitized at storage time', async () => {
     record({ prompt_tokens: 1, completion_tokens: 1 }, { model: 'a"b\\c\nd', provider: 'üri provider', nodeId: '', tier: 'tier-9' });
     const [row] = tokenMetricSeries();
-    assert.equal(row.model, 'a_b_c_d'); assert.equal(row.provider, '_ri_provider'); assert.equal(row.nodeId, 'unknown'); assert.equal(row.tier, 'tier-9');
+    assert.equal(row.model, 'a_b_c_d');
+    assert.equal(row.provider, '_ri_provider');
+    assert.equal(row.nodeId, 'unknown');
+    assert.equal(row.tier, 'tier-9');
   });
 
   await test('raw hostile dimensions never reach /metrics text', async () => {
     record({ prompt_tokens: 1, completion_tokens: 1 }, { model: 'a"b\\c\nd', provider: 'üri provider', nodeId: '' });
-    const text = await (metricsResponse(new Request('https://gateway.example.com/metrics'), ENV)).text();
-    assert.ok(text.includes('a_b_c_d')); assert.ok(!text.includes('a"b')); assert.ok(!text.includes('üri provider'));
+    const text = await metricsResponse(new Request('https://gateway.example.com/metrics'), ENV).text();
+    assert.ok(text.includes('a_b_c_d'));
+    assert.ok(!text.includes('a"b'));
+    assert.ok(!text.includes('üri provider'));
   });
 
   await test('summarizeTokenStats aggregates per dimension sorted by total desc', async () => {
@@ -182,39 +244,68 @@ try {
     record({ prompt_tokens: 900, completion_tokens: 600 }, { model: 'big', provider: 'prov-b', nodeId: 'n2' });
     record({ prompt_tokens: 10, completion_tokens: 5 }, { model: 'tiny', provider: 'prov-a', nodeId: 'n1' });
     const s = summarizeTokenStats();
-    assert.deepEqual(s.byModel.map((r) => r.name), ['big', 'small', 'tiny']);
-    assert.deepEqual(s.byProvider.map((r) => r.name), ['prov-b', 'prov-a']);
-    assert.deepEqual(s.byNode.map((r) => r.name), ['n2', 'n1']);
-    assert.equal(s.byModel[0].total, 1500); assert.equal(s.byProvider[1].total, 165);
+    assert.deepEqual(
+      s.byModel.map((r) => r.name),
+      ['big', 'small', 'tiny'],
+    );
+    assert.deepEqual(
+      s.byProvider.map((r) => r.name),
+      ['prov-b', 'prov-a'],
+    );
+    assert.deepEqual(
+      s.byNode.map((r) => r.name),
+      ['n2', 'n1'],
+    );
+    assert.equal(s.byModel[0].total, 1500);
+    assert.equal(s.byProvider[1].total, 165);
   });
 
   await test('usage coverage is reports/(reports+missing), null at 0/0', async () => {
     assert.equal(summarizeTokenStats().usageCoverage, null);
-    record({ prompt_tokens: 1, completion_tokens: 1 }); record({ prompt_tokens: 1, completion_tokens: 1 }); record({ prompt_tokens: 1, completion_tokens: 1 }); record(null);
+    record({ prompt_tokens: 1, completion_tokens: 1 });
+    record({ prompt_tokens: 1, completion_tokens: 1 });
+    record({ prompt_tokens: 1, completion_tokens: 1 });
+    record(null);
     const s = summarizeTokenStats();
-    assert.equal(s.usageCoverage, 0.75); assert.equal(s.totals.reports, 3); assert.equal(s.totals.missing, 1);
+    assert.equal(s.usageCoverage, 0.75);
+    assert.equal(s.totals.reports, 3);
+    assert.equal(s.totals.missing, 1);
   });
 
   await test('usage coverage is also aggregated per dimension row', async () => {
-    record({ prompt_tokens: 3, completion_tokens: 0 }, { model: 'cov' }); record(null, { model: 'cov' }); record({ prompt_tokens: 1, completion_tokens: 1 }, { model: 'other' });
+    record({ prompt_tokens: 3, completion_tokens: 0 }, { model: 'cov' });
+    record(null, { model: 'cov' });
+    record({ prompt_tokens: 1, completion_tokens: 1 }, { model: 'other' });
     const row = summarizeTokenStats().byModel.find((r) => r.name === 'cov');
-    assert.equal(row.reports, 1); assert.equal(row.missing, 1);
+    assert.equal(row.reports, 1);
+    assert.equal(row.missing, 1);
   });
 
   await test('missing records land in their dimension bucket for accurate per-node coverage', async () => {
-    record({ prompt_tokens: 5, completion_tokens: 5 }, { nodeId: 'a', model: 'm' }); record(null, { nodeId: 'a', model: 'm' }); record(null, { nodeId: 'b', model: 'm' });
+    record({ prompt_tokens: 5, completion_tokens: 5 }, { nodeId: 'a', model: 'm' });
+    record(null, { nodeId: 'a', model: 'm' });
+    record(null, { nodeId: 'b', model: 'm' });
     const s = summarizeTokenStats();
-    assert.equal(s.totals.missing, 2); assert.equal(s.totals.reports, 1);
-    const a = s.byNode.find((r) => r.name === 'a'); const b = s.byNode.find((r) => r.name === 'b');
-    assert.equal(a.reports, 1); assert.equal(a.missing, 1); assert.equal(b.reports, 0); assert.equal(b.missing, 1);
-    const series = tokenMetricSeries(); const bSeries = series.find((r) => r.nodeId === 'b');
-    assert.equal(bSeries.missing, 1); assert.equal(bSeries.input, 0);
+    assert.equal(s.totals.missing, 2);
+    assert.equal(s.totals.reports, 1);
+    const a = s.byNode.find((r) => r.name === 'a');
+    const b = s.byNode.find((r) => r.name === 'b');
+    assert.equal(a.reports, 1);
+    assert.equal(a.missing, 1);
+    assert.equal(b.reports, 0);
+    assert.equal(b.missing, 1);
+    const series = tokenMetricSeries();
+    const bSeries = series.find((r) => r.nodeId === 'b');
+    assert.equal(bSeries.missing, 1);
+    assert.equal(bSeries.input, 0);
   });
 
   const cellCount = (html) => (html.match(/class="cell"/g) || []).length;
   const monthLabels = (html) => [...html.matchAll(/<span style="grid-column:\d+">(\d{1,2})月<\/span>/g)].map((m) => m[1]);
   function seededEnv(writes) {
-    const d1 = createMockD1(); const env = deepClone(ENV); env.TOKEN_STATS_DB = d1;
+    const d1 = createMockD1();
+    const env = deepClone(ENV);
+    env.TOKEN_STATS_DB = d1;
     const h0 = Math.floor(Date.now() / 3_600_000) * 3_600_000;
     for (const [usage, offsetHours = 0] of writes) persistTokenUsage(env, usage, h0 - offsetHours * 3_600_000);
     return env;
@@ -222,18 +313,50 @@ try {
 
   await test('no D1 binding degrades to 统计暂不可用 with em dashes, never a fake 0', async () => {
     const html = await pageText(authedRequest(), ENV);
-    assert.ok(html.includes('使用情况')); assert.ok(!html.includes('class="utc8"')); assert.ok(html.includes('今日')); assert.ok(html.includes('累计')); assert.ok(html.includes('24 小时')); assert.ok(!html.includes('近 24 小时')); assert.ok(html.includes('7 天')); assert.ok(!html.includes('24 小时构成'));
-    assert.ok(!html.includes('累计请求')); assert.ok(!html.includes('今日 Token')); assert.ok(!html.includes('累计 Token')); assert.ok(html.includes('>—<')); assert.equal((html.match(/>—</g) || []).length, 5); assert.ok(html.includes('model-usage-empty')); assert.ok(!html.includes('>0<')); assert.ok(!html.includes('class="cell"')); assert.ok(!html.includes('NaN')); assert.ok(!html.includes('undefined')); assert.ok(!html.includes('API 地址')); assert.ok(!html.includes('api-url')); assert.ok(html.includes('快速开始')); assert.ok(html.includes('data-tab="openai"')); assert.ok(html.includes('data-tab="anthropic"'));
+    assert.ok(html.includes('使用情况'));
+    assert.ok(!html.includes('class="utc8"'));
+    assert.ok(html.includes('今日'));
+    assert.ok(html.includes('累计'));
+    assert.ok(html.includes('24 小时'));
+    assert.ok(!html.includes('近 24 小时'));
+    assert.ok(html.includes('7 天'));
+    assert.ok(!html.includes('24 小时构成'));
+    assert.ok(!html.includes('累计请求'));
+    assert.ok(!html.includes('今日 Token'));
+    assert.ok(!html.includes('累计 Token'));
+    assert.ok(html.includes('>—<'));
+    assert.equal((html.match(/>—</g) || []).length, 5);
+    assert.ok(html.includes('model-usage-empty'));
+    assert.ok(!html.includes('>0<'));
+    assert.ok(!html.includes('class="cell"'));
+    assert.ok(!html.includes('NaN'));
+    assert.ok(!html.includes('undefined'));
+    assert.ok(!html.includes('API 地址'));
+    assert.ok(!html.includes('api-url'));
+    assert.ok(html.includes('快速开始'));
+    assert.ok(html.includes('data-tab="openai"'));
+    assert.ok(html.includes('data-tab="anthropic"'));
   });
 
   await test('a failing D1 query also degrades instead of 500 / fake zero', async () => {
-    const env = deepClone(ENV); env.TOKEN_STATS_DB = createMockD1({ failReads: true });
-    const res = await dashboardResponse(authedRequest(), env); assert.equal(res.status, 200); const html = await res.text(); assert.ok(html.includes('统计暂不可用')); assert.ok(!html.includes('>0<')); assert.ok(!html.includes('class="cell"'));
+    const env = deepClone(ENV);
+    env.TOKEN_STATS_DB = createMockD1({ failReads: true });
+    const res = await dashboardResponse(authedRequest(), env);
+    assert.equal(res.status, 200);
+    const html = await res.text();
+    assert.ok(html.includes('统计暂不可用'));
+    assert.ok(!html.includes('>0<'));
+    assert.ok(!html.includes('class="cell"'));
   });
 
   await test('the D1-backed card renders the four KPIs from real aggregates', async () => {
     const env = seededEnv([[{ prompt_tokens: 10, completion_tokens: 20 }], [{ prompt_tokens: 3, completion_tokens: 2 }], [null]]);
-    const html = await pageText(anonRequest(), env); assert.ok(html.includes('使用情况')); assert.ok(html.includes('>35<')); assert.ok(!html.includes('class="utc8"')); assert.ok(!html.includes('累计请求')); assert.ok(!html.includes('Usage 覆盖率'));
+    const html = await pageText(anonRequest(), env);
+    assert.ok(html.includes('使用情况'));
+    assert.ok(html.includes('>35<'));
+    assert.ok(!html.includes('class="utc8"'));
+    assert.ok(!html.includes('累计请求'));
+    assert.ok(!html.includes('Usage 覆盖率'));
   });
 
   await test('token composition uses cumulative input, output, and reported cache-read totals without an extra heading', async () => {
@@ -279,63 +402,182 @@ try {
   });
 
   await test('模型使用 renders ranked rows with proportional bars', async () => {
-    const d1 = createMockD1(); const env = deepClone(ENV); env.TOKEN_STATS_DB = d1; const HOUR = 3_600_000; const h0 = Math.floor(Date.now() / HOUR) * HOUR;
-    await persistTokenUsage(env, { prompt_tokens: 100, completion_tokens: 0 }, h0, 'code-max'); await persistTokenUsage(env, { prompt_tokens: 40, completion_tokens: 10 }, h0, 'ultra');
+    const d1 = createMockD1();
+    const env = deepClone(ENV);
+    env.TOKEN_STATS_DB = d1;
+    const HOUR = 3_600_000;
+    const h0 = Math.floor(Date.now() / HOUR) * HOUR;
+    await persistTokenUsage(env, { prompt_tokens: 100, completion_tokens: 0 }, h0, 'code-max');
+    await persistTokenUsage(env, { prompt_tokens: 40, completion_tokens: 10 }, h0, 'ultra');
     const html = await pageText(anonRequest(), env);
-    assert.ok(html.includes('模型使用 · 近 7 天')); assert.ok(html.includes('model-ranking')); assert.ok(html.includes('model-rank-row')); assert.ok(html.includes('code-max')); assert.ok(html.includes('ultra')); assert.ok(html.includes('model-rank-bar')); assert.ok(html.includes('data-tooltip='));
-    assert.ok(!html.includes('class="donut"')); assert.ok(html.includes('code-max\n100 Token')); assert.ok(html.includes('ultra\n50 Token')); assert.match(html, /<div class="model-rank-value">100<\/div>/); assert.match(html, /<div class="model-rank-value">50<\/div>/);
+    assert.ok(html.includes('模型使用 · 近 7 天'));
+    assert.ok(html.includes('model-ranking'));
+    assert.ok(html.includes('model-rank-row'));
+    assert.ok(html.includes('code-max'));
+    assert.ok(html.includes('ultra'));
+    assert.ok(html.includes('model-rank-bar'));
+    assert.ok(html.includes('data-tooltip='));
+    assert.ok(!html.includes('class="donut"'));
+    assert.ok(html.includes('code-max\n100 Token'));
+    assert.ok(html.includes('ultra\n50 Token'));
+    assert.match(html, /<div class="model-rank-value">100<\/div>/);
+    assert.match(html, /<div class="model-rank-value">50<\/div>/);
   });
 
   await test('模型使用 shows official logical IDs, not lowercase statistics keys', async () => {
-    __resetDashboardCacheForTests(); const d1 = createMockD1(); const env = deepClone(ENV); env.TOKEN_STATS_DB = d1;
-    env.AIG_TIER1_NODES_01 = JSON.stringify([{ id: 'node-a', provider: 'mock', base_url: 'https://a.example.com/v1', models: { 'Code-Max': 'up-max', 'Code-Ultra': 'up-ultra' } }]);
+    __resetDashboardCacheForTests();
+    const d1 = createMockD1();
+    const env = deepClone(ENV);
+    env.TOKEN_STATS_DB = d1;
+    env.AIG_TIER1_NODES_01 = JSON.stringify([
+      { id: 'node-a', provider: 'mock', base_url: 'https://a.example.com/v1', models: { 'Code-Max': 'up-max', 'Code-Ultra': 'up-ultra' } },
+    ]);
     env.AIG_TIER1_CREDENTIALS_01 = JSON.stringify({ 'node-a': 'test-key' });
-    const HOUR = 3_600_000; const h0 = Math.floor(Date.now() / HOUR) * HOUR;
-    await persistTokenUsage(env, { prompt_tokens: 900, completion_tokens: 0 }, h0, 'code-max'); await persistTokenUsage(env, { prompt_tokens: 300, completion_tokens: 0 }, h0, 'CODE-ULTRA');
-    const html = await pageText(anonRequest(), env); assert.ok(html.includes('>Code-Max<')); assert.ok(html.includes('>Code-Ultra<')); assert.ok(!html.includes('>code-max<')); assert.ok(!html.includes('>code-ultra<')); assert.ok(html.includes('Code-Max\n900 Token'));
+    const HOUR = 3_600_000;
+    const h0 = Math.floor(Date.now() / HOUR) * HOUR;
+    await persistTokenUsage(env, { prompt_tokens: 900, completion_tokens: 0 }, h0, 'code-max');
+    await persistTokenUsage(env, { prompt_tokens: 300, completion_tokens: 0 }, h0, 'CODE-ULTRA');
+    const html = await pageText(anonRequest(), env);
+    assert.ok(html.includes('>Code-Max<'));
+    assert.ok(html.includes('>Code-Ultra<'));
+    assert.ok(!html.includes('>code-max<'));
+    assert.ok(!html.includes('>code-ultra<'));
+    assert.ok(html.includes('Code-Max\n900 Token'));
   });
 
   await test('模型使用 keeps Top 3 and folds the remainder into one 其他 row', async () => {
-    const d1 = createMockD1(); const env = deepClone(ENV); env.TOKEN_STATS_DB = d1; const HOUR = 3_600_000; const h0 = Math.floor(Date.now() / HOUR) * HOUR;
-    const models = [['m1', 600], ['m2', 500], ['m3', 400], ['m4', 300], ['m5', 30], ['m6', 20]];
+    const d1 = createMockD1();
+    const env = deepClone(ENV);
+    env.TOKEN_STATS_DB = d1;
+    const HOUR = 3_600_000;
+    const h0 = Math.floor(Date.now() / HOUR) * HOUR;
+    const models = [
+      ['m1', 600],
+      ['m2', 500],
+      ['m3', 400],
+      ['m4', 300],
+      ['m5', 30],
+      ['m6', 20],
+    ];
     for (const [model, tokens] of models) await persistTokenUsage(env, { prompt_tokens: tokens, completion_tokens: 0 }, h0, model);
-    const html = await pageText(anonRequest(), env); for (const model of ['m1', 'm2', 'm3']) assert.ok(html.includes(`>${model}<`)); for (const model of ['m4', 'm5', 'm6']) assert.ok(!html.includes(`>${model}<`)); assert.ok(html.includes('>其他<')); assert.match(html, /<div class="model-rank-value">350<\/div>/);
+    const html = await pageText(anonRequest(), env);
+    for (const model of ['m1', 'm2', 'm3']) assert.ok(html.includes(`>${model}<`));
+    for (const model of ['m4', 'm5', 'm6']) assert.ok(!html.includes(`>${model}<`));
+    assert.ok(html.includes('>其他<'));
+    assert.match(html, /<div class="model-rank-value">350<\/div>/);
   });
 
   await test('Token 活动 · 近 52 周 renders a full 364-cell heatmap with month labels', async () => {
-    const env = seededEnv([[{ prompt_tokens: 7, completion_tokens: 7 }]]); const html = await pageText(anonRequest(), env);
-    assert.ok(html.includes('Token 活动 · 近 52 周')); assert.ok(html.includes('次请求')); assert.ok(!html.includes('次上游调用')); assert.equal(cellCount(html), 364); const labels = monthLabels(html); assert.ok(labels.length >= 11 && labels.length <= 13); for (const label of labels) assert.match(label, /^\d{1,2}$/); assert.ok(html.includes('data-level="4"')); assert.ok(html.includes('data-level="0"')); assert.ok(html.includes('data-tooltip="')); assert.ok(html.includes('· 1 次请求')); assert.match(html, /class="heatmap-wrap" tabindex="0" role="img"/); assert.match(html, /aria-label="近 52 周 Token 活动热力图/);
+    const env = seededEnv([[{ prompt_tokens: 7, completion_tokens: 7 }]]);
+    const html = await pageText(anonRequest(), env);
+    assert.ok(html.includes('Token 活动 · 近 52 周'));
+    assert.ok(html.includes('次请求'));
+    assert.ok(!html.includes('次上游调用'));
+    assert.equal(cellCount(html), 364);
+    const labels = monthLabels(html);
+    assert.ok(labels.length >= 11 && labels.length <= 13);
+    for (const label of labels) assert.match(label, /^\d{1,2}$/);
+    assert.ok(html.includes('data-level="4"'));
+    assert.ok(html.includes('data-level="0"'));
+    assert.ok(html.includes('data-tooltip="'));
+    assert.ok(html.includes('· 1 次请求'));
+    assert.match(html, /class="heatmap-wrap" tabindex="0" role="img"/);
+    assert.ok(html.includes('aria-label="近 52 周 Token 活动热力图'));
   });
 
   await test('the heatmap colors derive from daily totals, not per-hour noise', async () => {
-    const env = seededEnv([[{ prompt_tokens: 4000, completion_tokens: 0 }], [{ prompt_tokens: 1000, completion_tokens: 0 }, 24]]); const html = await pageText(authedRequest(), env); assert.ok(html.includes('data-level="4"')); assert.ok(html.includes('data-level="1"')); assert.ok(html.includes('4000') && html.includes('Token')); assert.ok(!html.includes('4,000 Token'));
+    const env = seededEnv([[{ prompt_tokens: 4000, completion_tokens: 0 }], [{ prompt_tokens: 1000, completion_tokens: 0 }, 24]]);
+    const html = await pageText(authedRequest(), env);
+    assert.ok(html.includes('data-level="4"'));
+    assert.ok(html.includes('data-level="1"'));
+    assert.ok(html.includes('4000') && html.includes('Token'));
+    assert.ok(!html.includes('4,000 Token'));
   });
 
   await test('the usage card leaks no internal dimensions', async () => {
-    record({ prompt_tokens: 10, completion_tokens: 20 }, { model: 'secret-model', provider: 'secret-provider', nodeId: 'secret-node', tier: 'secret-tier' }); const env = seededEnv([[{ prompt_tokens: 1, completion_tokens: 1 }]]); const html = await pageText(anonRequest(), env); assert.ok(!html.includes('secret-node')); assert.ok(!html.includes('secret-provider')); assert.ok(!html.includes('secret-tier')); assert.ok(!html.includes('secret-model'));
+    record(
+      { prompt_tokens: 10, completion_tokens: 20 },
+      { model: 'secret-model', provider: 'secret-provider', nodeId: 'secret-node', tier: 'secret-tier' },
+    );
+    const env = seededEnv([[{ prompt_tokens: 1, completion_tokens: 1 }]]);
+    const html = await pageText(anonRequest(), env);
+    assert.ok(!html.includes('secret-node'));
+    assert.ok(!html.includes('secret-provider'));
+    assert.ok(!html.includes('secret-tier'));
+    assert.ok(!html.includes('secret-model'));
   });
 
   await test('Chinese unit (万/亿) compaction renders on KPI values, never K/M/B', async () => {
     const card = async (usage) => pageText(authedRequest(), seededEnv([[usage]]));
-    assert.ok((await card({ prompt_tokens: 0, completion_tokens: 0 })).includes('>0<')); assert.ok((await card({ prompt_tokens: 999, completion_tokens: 0 })).includes('>999<')); assert.ok((await card({ prompt_tokens: 9820, completion_tokens: 0 })).includes('>9820<')); assert.ok((await card({ prompt_tokens: 10000, completion_tokens: 0 })).includes('>1万<')); assert.ok((await card({ prompt_tokens: 128000, completion_tokens: 0 })).includes('>12.8万<')); assert.ok((await card({ prompt_tokens: 1280000, completion_tokens: 0 })).includes('>128万<')); assert.ok((await card({ prompt_tokens: 48600000, completion_tokens: 0 })).includes('>4860万<')); assert.ok((await card({ prompt_tokens: 128000000, completion_tokens: 0 })).includes('>1.28亿<')); assert.ok((await card({ prompt_tokens: 2500000000, completion_tokens: 0 })).includes('>25亿<')); const one = await card({ prompt_tokens: 1, completion_tokens: 0 }); assert.ok(!one.includes('NaN')); const cardHtml = await card({ prompt_tokens: 1234567, completion_tokens: 0 }); assert.ok(!cardHtml.includes('K<') && !cardHtml.includes('M<') && !cardHtml.includes('B<'));
+    assert.ok((await card({ prompt_tokens: 0, completion_tokens: 0 })).includes('>0<'));
+    assert.ok((await card({ prompt_tokens: 999, completion_tokens: 0 })).includes('>999<'));
+    assert.ok((await card({ prompt_tokens: 9820, completion_tokens: 0 })).includes('>9820<'));
+    assert.ok((await card({ prompt_tokens: 10000, completion_tokens: 0 })).includes('>1万<'));
+    assert.ok((await card({ prompt_tokens: 128000, completion_tokens: 0 })).includes('>12.8万<'));
+    assert.ok((await card({ prompt_tokens: 1280000, completion_tokens: 0 })).includes('>128万<'));
+    assert.ok((await card({ prompt_tokens: 48600000, completion_tokens: 0 })).includes('>4860万<'));
+    assert.ok((await card({ prompt_tokens: 128000000, completion_tokens: 0 })).includes('>1.28亿<'));
+    assert.ok((await card({ prompt_tokens: 2500000000, completion_tokens: 0 })).includes('>25亿<'));
+    const one = await card({ prompt_tokens: 1, completion_tokens: 0 });
+    assert.ok(!one.includes('NaN'));
+    const cardHtml = await card({ prompt_tokens: 1234567, completion_tokens: 0 });
+    assert.ok(!cardHtml.includes('K<') && !cardHtml.includes('M<') && !cardHtml.includes('B<'));
   });
 
   await test('rolling 24h/7d windows sum recent totals and prune expired buckets', async () => {
-    const h0 = Math.floor(Date.now() / 3600_000) * 3600_000; const HOUR = 3600_000, DAY = 86400_000;
-    record({ prompt_tokens: 50, completion_tokens: 50 }, { now: h0 }); record({ prompt_tokens: 50, completion_tokens: 50 }, { now: h0 + HOUR }); record({ prompt_tokens: 50, completion_tokens: 50 }, { now: h0 + 2 * HOUR }); let s = summarizeTokenStats(); assert.equal(s.windows.h24.total, 300); assert.equal(s.windows.d7.total, 300); assert.equal(s.windows.h24.reports, 3); record({ prompt_tokens: 10, completion_tokens: 0 }, { now: h0 + 27 * HOUR }); s = summarizeTokenStats(); assert.equal(s.windows.h24.total, 10); assert.equal(s.windows.h24.reports, 1); assert.equal(s.windows.d7.total, 310); record({ prompt_tokens: 5, completion_tokens: 0 }, { now: h0 + 27 * HOUR + 8 * DAY }); s = summarizeTokenStats(); assert.equal(s.windows.d7.total, 5); assert.equal(s.windows.h24.total, 5); assert.equal(s.totals.total, 315);
+    const h0 = Math.floor(Date.now() / 3600_000) * 3600_000;
+    const HOUR = 3600_000,
+      DAY = 86400_000;
+    record({ prompt_tokens: 50, completion_tokens: 50 }, { now: h0 });
+    record({ prompt_tokens: 50, completion_tokens: 50 }, { now: h0 + HOUR });
+    record({ prompt_tokens: 50, completion_tokens: 50 }, { now: h0 + 2 * HOUR });
+    let s = summarizeTokenStats();
+    assert.equal(s.windows.h24.total, 300);
+    assert.equal(s.windows.d7.total, 300);
+    assert.equal(s.windows.h24.reports, 3);
+    record({ prompt_tokens: 10, completion_tokens: 0 }, { now: h0 + 27 * HOUR });
+    s = summarizeTokenStats();
+    assert.equal(s.windows.h24.total, 10);
+    assert.equal(s.windows.h24.reports, 1);
+    assert.equal(s.windows.d7.total, 310);
+    record({ prompt_tokens: 5, completion_tokens: 0 }, { now: h0 + 27 * HOUR + 8 * DAY });
+    s = summarizeTokenStats();
+    assert.equal(s.windows.d7.total, 5);
+    assert.equal(s.windows.h24.total, 5);
+    assert.equal(s.totals.total, 315);
   });
 
   const encoder = new TextEncoder();
-  function sseUpstream(lines) { return new Response(new ReadableStream({ pull(c) { for (const line of lines.splice(0)) c.enqueue(encoder.encode(line)); c.close(); } }), { status: 200, headers: { 'content-type': 'text/event-stream' } }); }
-  const chatChunk = (content) => `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`;
-  const chatUsage = (usage) => `data: ${JSON.stringify({ choices: [], usage })}\n\n`;
-  async function drain(response) { const reader = response.body.getReader(); for (;;) { const { done } = await reader.read(); if (done) return; } }
+  function sseUpstream(lines) {
+    return new Response(
+      new ReadableStream({
+        pull(c) {
+          for (const line of lines.splice(0)) c.enqueue(encoder.encode(line));
+          c.close();
+        },
+      }),
+      { status: 200, headers: { 'content-type': 'text/event-stream' } },
+    );
+  }
+  const _chatChunk = (content) => `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`;
+  const _chatUsage = (usage) => `data: ${JSON.stringify({ choices: [], usage })}\n\n`;
+  async function drain(response) {
+    const reader = response.body.getReader();
+    for (;;) {
+      const { done } = await reader.read();
+      if (done) return;
+    }
+  }
   const noopTrack = { idleTimeoutMs: 0, onSuccess: () => {}, onFailure: () => {}, onNeutral: () => {} };
-  const anthropicTextDelta = (text) => `event: content_block_delta\ndata: ${JSON.stringify({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } })}\n\n`;
-  const anthropicUsage = (input, output) => `event: message_delta\ndata: ${JSON.stringify({ type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { input_tokens: input, output_tokens: output } })}\n\n`;
+  const anthropicTextDelta = (text) =>
+    `event: content_block_delta\ndata: ${JSON.stringify({ type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } })}\n\n`;
+  const anthropicUsage = (input, output) =>
+    `event: message_delta\ndata: ${JSON.stringify({ type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { input_tokens: input, output_tokens: output } })}\n\n`;
   const anthropicStop = 'event: message_stop\ndata: {"type":"message_stop"}\n\n';
-  const responsesTextDelta = (text) => `event: response.output_text.delta\ndata: ${JSON.stringify({ type: 'response.output_text.delta', sequence_number: 1, item_id: 'msg_1', output_index: 0, content_index: 0, delta: text })}\n\n`;
-  const responsesCompleted = (usage) => `event: response.completed\ndata: ${JSON.stringify({ type: 'response.completed', sequence_number: 2, response: { id: 'resp_1', object: 'response', status: 'completed', model: 'up-model', output: [], usage } })}\n\n`;
+  const responsesTextDelta = (text) =>
+    `event: response.output_text.delta\ndata: ${JSON.stringify({ type: 'response.output_text.delta', sequence_number: 1, item_id: 'msg_1', output_index: 0, content_index: 0, delta: text })}\n\n`;
+  const responsesCompleted = (usage) =>
+    `event: response.completed\ndata: ${JSON.stringify({ type: 'response.completed', sequence_number: 2, response: { id: 'resp_1', object: 'response', status: 'completed', model: 'up-model', output: [], usage } })}\n\n`;
 
   await test('anthropic passthrough: interrupted does NOT report usage', async () => {
     const calls = [];
@@ -345,45 +587,207 @@ try {
     assert.equal(calls.length, 0, 'interrupted stream must not report usage');
   });
   await test('anthropic passthrough: client abort reports nothing', async () => {
-    const calls = []; const ac = new AbortController(); const upstream = new Response(new ReadableStream({ pull(c) { c.enqueue(encoder.encode(anthropicTextDelta('flowing'))); } }), { status: 200, headers: { 'content-type': 'text/event-stream' } }); const res = trackStreamResponse(upstream, { ...noopTrack, completionMarker: /event:\s*message_stop\b/, onUsage: (u) => calls.push(u) }); const reader = res.body.getReader(); await reader.read(); ac.abort(); await reader.cancel().catch(() => {}); assert.equal(calls.length, 0);
+    const calls = [];
+    const ac = new AbortController();
+    const upstream = new Response(
+      new ReadableStream({
+        pull(c) {
+          c.enqueue(encoder.encode(anthropicTextDelta('flowing')));
+        },
+      }),
+      { status: 200, headers: { 'content-type': 'text/event-stream' } },
+    );
+    const res = trackStreamResponse(upstream, { ...noopTrack, completionMarker: /event:\s*message_stop\b/, onUsage: (u) => calls.push(u) });
+    const reader = res.body.getReader();
+    await reader.read();
+    ac.abort();
+    await reader.cancel().catch(() => {});
+    assert.equal(calls.length, 0);
   });
   await test('responses passthrough: completed stream reports usage exactly once (verbatim native shape)', async () => {
-    const calls = []; const upstream = sseUpstream([responsesTextDelta('hello'), responsesCompleted({ input_tokens: 6, output_tokens: 8, total_tokens: 14 })]); const res = trackStreamResponse(upstream, { ...noopTrack, completionMarker: /event:\s*response\.(?:completed|incomplete)\b/, onUsage: (u) => calls.push(u) }); await drain(res); assert.equal(calls.length, 1); assert.deepEqual(calls[0], { input_tokens: 6, output_tokens: 8, total_tokens: 14 });
+    const calls = [];
+    const upstream = sseUpstream([responsesTextDelta('hello'), responsesCompleted({ input_tokens: 6, output_tokens: 8, total_tokens: 14 })]);
+    const res = trackStreamResponse(upstream, {
+      ...noopTrack,
+      completionMarker: /event:\s*response\.(?:completed|incomplete)\b/,
+      onUsage: (u) => calls.push(u),
+    });
+    await drain(res);
+    assert.equal(calls.length, 1);
+    assert.deepEqual(calls[0], { input_tokens: 6, output_tokens: 8, total_tokens: 14 });
   });
   await test('responses passthrough: client abort reports nothing', async () => {
-    const calls = []; const ac = new AbortController(); const upstream = new Response(new ReadableStream({ pull(c) { c.enqueue(encoder.encode(responsesTextDelta('flowing'))); } }), { status: 200, headers: { 'content-type': 'text/event-stream' } }); const res = trackStreamResponse(upstream, { ...noopTrack, completionMarker: /event:\s*response\.(?:completed|incomplete)\b/, onUsage: (u) => calls.push(u) }); const reader = res.body.getReader(); await reader.read(); ac.abort(); await reader.cancel().catch(() => {}); assert.equal(calls.length, 0);
+    const calls = [];
+    const ac = new AbortController();
+    const upstream = new Response(
+      new ReadableStream({
+        pull(c) {
+          c.enqueue(encoder.encode(responsesTextDelta('flowing')));
+        },
+      }),
+      { status: 200, headers: { 'content-type': 'text/event-stream' } },
+    );
+    const res = trackStreamResponse(upstream, {
+      ...noopTrack,
+      completionMarker: /event:\s*response\.(?:completed|incomplete)\b/,
+      onUsage: (u) => calls.push(u),
+    });
+    const reader = res.body.getReader();
+    await reader.read();
+    ac.abort();
+    await reader.cancel().catch(() => {});
+    assert.equal(calls.length, 0);
   });
   await test('passthrough without onUsage stays fully functional (observability optional)', async () => {
-    const upstream = sseUpstream([anthropicTextDelta('hello'), anthropicUsage(1, 1), anthropicStop]); const res = trackStreamResponse(upstream, { ...noopTrack, completionMarker: /event:\s*message_stop\b/ }); const text = await res.text(); assert.ok(text.includes('message_stop'));
+    const upstream = sseUpstream([anthropicTextDelta('hello'), anthropicUsage(1, 1), anthropicStop]);
+    const res = trackStreamResponse(upstream, { ...noopTrack, completionMarker: /event:\s*message_stop\b/ });
+    const text = await res.text();
+    assert.ok(text.includes('message_stop'));
   });
 
   await test('dashboard D1 cache coalesces concurrent requests within TTL', async () => {
-    const d1 = createMockD1(); const env = deepClone(ENV); env.TOKEN_STATS_DB = d1; const HOUR = 3_600_000; const h0 = Math.floor(Date.now() / HOUR) * HOUR; await persistTokenUsage(env, { prompt_tokens: 100, completion_tokens: 0 }, h0, 'code-max'); const [html1, html2] = await Promise.all([pageText(anonRequest(), env), pageText(anonRequest(), env)]); assert.equal(html1, html2); assert.equal(d1._reads.length, 8); await pageText(anonRequest(), env); assert.equal(d1._reads.length, 8);
+    const d1 = createMockD1();
+    const env = deepClone(ENV);
+    env.TOKEN_STATS_DB = d1;
+    const HOUR = 3_600_000;
+    const h0 = Math.floor(Date.now() / HOUR) * HOUR;
+    await persistTokenUsage(env, { prompt_tokens: 100, completion_tokens: 0 }, h0, 'code-max');
+    const [html1, html2] = await Promise.all([pageText(anonRequest(), env), pageText(anonRequest(), env)]);
+    // Each render mints its own CSP nonce, so strip it before comparing.
+    assert.equal(html1.replace(/nonce="[^"]*"/g, 'nonce=""'), html2.replace(/nonce="[^"]*"/g, 'nonce=""'));
+    assert.equal(d1._reads.length, 8);
+    await pageText(anonRequest(), env);
+    assert.equal(d1._reads.length, 8);
   });
   await test('dashboard D1 cache refreshes after TTL expires', async () => {
-    const d1 = createMockD1(); const env = deepClone(ENV); env.TOKEN_STATS_DB = d1; const HOUR = 3_600_000; const h0 = Math.floor(Date.now() / HOUR) * HOUR; await persistTokenUsage(env, { prompt_tokens: 100, completion_tokens: 0 }, h0, 'code-max'); const realNow = Date.now; let fakeNow = h0 + 1_000; Date.now = () => fakeNow;
-    try { const html1 = await pageText(anonRequest(), env); assert.ok(html1.includes('code-max')); assert.equal(d1._reads.length, 8); await persistTokenUsage(env, { prompt_tokens: 200, completion_tokens: 0 }, h0, 'ultra'); fakeNow += 44_000; const cached = await pageText(anonRequest(), env); assert.ok(!cached.includes('>200<')); assert.equal(d1._reads.length, 8); fakeNow += 2_000; const refreshed = await pageText(anonRequest(), env); assert.ok(refreshed.includes('>200<')); assert.ok(refreshed.includes('code-max')); assert.equal(d1._reads.length, 16); } finally { Date.now = realNow; }
+    const d1 = createMockD1();
+    const env = deepClone(ENV);
+    env.TOKEN_STATS_DB = d1;
+    const HOUR = 3_600_000;
+    const h0 = Math.floor(Date.now() / HOUR) * HOUR;
+    await persistTokenUsage(env, { prompt_tokens: 100, completion_tokens: 0 }, h0, 'code-max');
+    const realNow = Date.now;
+    let fakeNow = h0 + 1_000;
+    Date.now = () => fakeNow;
+    try {
+      const html1 = await pageText(anonRequest(), env);
+      assert.ok(html1.includes('code-max'));
+      assert.equal(d1._reads.length, 8);
+      await persistTokenUsage(env, { prompt_tokens: 200, completion_tokens: 0 }, h0, 'ultra');
+      fakeNow += 44_000;
+      const cached = await pageText(anonRequest(), env);
+      assert.ok(!cached.includes('>200<'));
+      assert.equal(d1._reads.length, 8);
+      fakeNow += 2_000;
+      const refreshed = await pageText(anonRequest(), env);
+      assert.ok(refreshed.includes('>200<'));
+      assert.ok(refreshed.includes('code-max'));
+      assert.equal(d1._reads.length, 16);
+    } finally {
+      Date.now = realNow;
+    }
   });
   await test('dashboard cache does not leak across different D1 bindings', async () => {
-    const d1a = createMockD1(); const d1b = createMockD1(); const envA = deepClone(ENV); const envB = deepClone(ENV); envA.TOKEN_STATS_DB = d1a; envB.TOKEN_STATS_DB = d1b; const HOUR = 3_600_000; const h0 = Math.floor(Date.now() / HOUR) * HOUR; await persistTokenUsage(envA, { prompt_tokens: 100, completion_tokens: 0 }, h0, 'model-a'); await persistTokenUsage(envB, { prompt_tokens: 200, completion_tokens: 0 }, h0, 'model-b'); const htmlA = await pageText(anonRequest(), envA); assert.ok(htmlA.includes('model-a')); assert.ok(!htmlA.includes('model-b')); const htmlB = await pageText(anonRequest(), envB); assert.ok(htmlB.includes('model-b')); assert.ok(!htmlB.includes('model-a')); assert.equal(d1a._reads.length, 8); assert.equal(d1b._reads.length, 8);
+    const d1a = createMockD1();
+    const d1b = createMockD1();
+    const envA = deepClone(ENV);
+    const envB = deepClone(ENV);
+    envA.TOKEN_STATS_DB = d1a;
+    envB.TOKEN_STATS_DB = d1b;
+    const HOUR = 3_600_000;
+    const h0 = Math.floor(Date.now() / HOUR) * HOUR;
+    await persistTokenUsage(envA, { prompt_tokens: 100, completion_tokens: 0 }, h0, 'model-a');
+    await persistTokenUsage(envB, { prompt_tokens: 200, completion_tokens: 0 }, h0, 'model-b');
+    const htmlA = await pageText(anonRequest(), envA);
+    assert.ok(htmlA.includes('model-a'));
+    assert.ok(!htmlA.includes('model-b'));
+    const htmlB = await pageText(anonRequest(), envB);
+    assert.ok(htmlB.includes('model-b'));
+    assert.ok(!htmlB.includes('model-a'));
+    assert.equal(d1a._reads.length, 8);
+    assert.equal(d1b._reads.length, 8);
   });
   await test('public homepage does not leak raw D1 errors in degraded state', async () => {
-    __resetDashboardCacheForTests(); const d1 = createMockD1({ failReads: true }); const env = deepClone(ENV); env.TOKEN_STATS_DB = d1; const html = await pageText(anonRequest(), env); assert.ok(html.includes('统计暂不可用')); for (const leak of ['token_usage_hourly','token_usage_model_hourly','TOKEN_STATS_DB','mock D1 read failure','SELECT','FROM','WHERE','GROUP BY','ORDER BY']) assert.ok(!html.includes(leak));
+    __resetDashboardCacheForTests();
+    const d1 = createMockD1({ failReads: true });
+    const env = deepClone(ENV);
+    env.TOKEN_STATS_DB = d1;
+    const html = await pageText(anonRequest(), env);
+    assert.ok(html.includes('统计暂不可用'));
+    for (const leak of [
+      'token_usage_hourly',
+      'token_usage_model_hourly',
+      'TOKEN_STATS_DB',
+      'mock D1 read failure',
+      'SELECT',
+      'FROM',
+      'WHERE',
+      'GROUP BY',
+      'ORDER BY',
+    ])
+      assert.ok(!html.includes(leak));
   });
   await test('model usage panel does not leak raw D1 errors in degraded state', async () => {
-    __resetDashboardCacheForTests(); const d1 = createMockD1({ failReads: true }); const env = deepClone(ENV); env.TOKEN_STATS_DB = d1; const html = await pageText(anonRequest(), env); assert.ok(html.includes('模型使用')); assert.ok(html.includes('model-usage-empty')); for (const leak of ['token_usage_model_hourly','mock D1 read failure','SELECT','FROM']) assert.ok(!html.includes(leak));
+    __resetDashboardCacheForTests();
+    const d1 = createMockD1({ failReads: true });
+    const env = deepClone(ENV);
+    env.TOKEN_STATS_DB = d1;
+    const html = await pageText(anonRequest(), env);
+    assert.ok(html.includes('模型使用'));
+    assert.ok(html.includes('model-usage-empty'));
+    for (const leak of ['token_usage_model_hourly', 'mock D1 read failure', 'SELECT', 'FROM']) assert.ok(!html.includes(leak));
   });
   await test('模型状态 section has model rows with status, P50, P95, sample count', async () => {
-    __resetDashboardCacheForTests(); const d1 = createMockD1(); const env = deepClone(ENV); env.TOKEN_STATS_DB = d1; env.AIG_TIER1_NODES_01 = JSON.stringify([{ id: 'node-a', provider: 'mock', base_url: 'https://a.example.com/v1', models: { 'max': 'up-max' } }]); env.AIG_TIER1_CREDENTIALS_01 = JSON.stringify({ 'node-a': 'test-key' }); const html = await pageText(anonRequest(), env); assert.ok(html.includes('P50')); assert.ok(html.includes('P95')); assert.ok(html.includes('samples')); assert.ok(html.includes('mr-status')); assert.ok(html.includes('status-grid'));
+    __resetDashboardCacheForTests();
+    const d1 = createMockD1();
+    const env = deepClone(ENV);
+    env.TOKEN_STATS_DB = d1;
+    env.AIG_TIER1_NODES_01 = JSON.stringify([{ id: 'node-a', provider: 'mock', base_url: 'https://a.example.com/v1', models: { max: 'up-max' } }]);
+    env.AIG_TIER1_CREDENTIALS_01 = JSON.stringify({ 'node-a': 'test-key' });
+    const html = await pageText(anonRequest(), env);
+    assert.ok(html.includes('P50'));
+    assert.ok(html.includes('P95'));
+    assert.ok(html.includes('samples'));
+    assert.ok(html.includes('mr-status'));
+    assert.ok(html.includes('status-grid'));
   });
   await test('使用情况 section does NOT contain success rate, reliability, TTFT P50, TTFT P95', async () => {
-    __resetDashboardCacheForTests(); const d1 = createMockD1(); const env = deepClone(ENV); env.TOKEN_STATS_DB = d1; const html = await pageText(anonRequest(), env); for (const leak of ['perf-section','成功率','reliability','Reliability','Model Reliability','Provider Reliability','可靠性']) assert.ok(!html.includes(leak)); assert.ok(html.includes('使用情况')); assert.ok(html.includes('Token 活动'));
+    __resetDashboardCacheForTests();
+    const d1 = createMockD1();
+    const env = deepClone(ENV);
+    env.TOKEN_STATS_DB = d1;
+    const html = await pageText(anonRequest(), env);
+    for (const leak of ['perf-section', '成功率', 'reliability', 'Reliability', 'Model Reliability', 'Provider Reliability', '可靠性'])
+      assert.ok(!html.includes(leak));
+    assert.ok(html.includes('使用情况'));
+    assert.ok(html.includes('Token 活动'));
   });
   await test('public dashboard does not leak provider, node id, tier, credential, key', async () => {
-    __resetDashboardCacheForTests(); const d1 = createMockD1(); const env = deepClone(ENV); env.TOKEN_STATS_DB = d1; const html = await pageText(anonRequest(), env); for (const leak of ['provider','node','tier','credential','api_key','cooldown','circuit']) assert.ok(!html.includes(leak));
+    __resetDashboardCacheForTests();
+    const d1 = createMockD1();
+    const env = deepClone(ENV);
+    env.TOKEN_STATS_DB = d1;
+    const html = await pageText(anonRequest(), env);
+    for (const leak of ['provider', 'node', 'tier', 'credential', 'api_key', 'cooldown', 'circuit']) assert.ok(!html.includes(leak));
   });
   await test('model status section is structurally separate from usage section', async () => {
-    __resetDashboardCacheForTests(); const d1 = createMockD1(); const env = deepClone(ENV); env.TOKEN_STATS_DB = d1; env.AIG_TIER1_NODES_01 = JSON.stringify([{ id: 'node-a', provider: 'mock', base_url: 'https://a.example.com/v1', models: { 'unconfigured-model': 'up-x' } }]); env.AIG_TIER1_CREDENTIALS_01 = JSON.stringify({ 'node-a': 'test-key' }); const html = await pageText(anonRequest(), env); const modelStatusIdx = html.indexOf('模型状态'); const usageIdx = html.indexOf('使用情况'); assert.ok(modelStatusIdx >= 0); assert.ok(usageIdx >= 0); assert.ok(modelStatusIdx < usageIdx); assert.ok(!html.includes('perf-section')); assert.ok(!html.includes('可靠性 · 性能')); assert.ok(html.includes('status-grid'));
+    __resetDashboardCacheForTests();
+    const d1 = createMockD1();
+    const env = deepClone(ENV);
+    env.TOKEN_STATS_DB = d1;
+    env.AIG_TIER1_NODES_01 = JSON.stringify([
+      { id: 'node-a', provider: 'mock', base_url: 'https://a.example.com/v1', models: { 'unconfigured-model': 'up-x' } },
+    ]);
+    env.AIG_TIER1_CREDENTIALS_01 = JSON.stringify({ 'node-a': 'test-key' });
+    const html = await pageText(anonRequest(), env);
+    const modelStatusIdx = html.indexOf('模型状态');
+    const usageIdx = html.indexOf('使用情况');
+    assert.ok(modelStatusIdx >= 0);
+    assert.ok(usageIdx >= 0);
+    assert.ok(modelStatusIdx < usageIdx);
+    assert.ok(!html.includes('perf-section'));
+    assert.ok(!html.includes('可靠性 · 性能'));
+    assert.ok(html.includes('status-grid'));
   });
 
   if (!process.exitCode) console.log(`\ntoken-usage tests passed (${passed}).`);
@@ -421,7 +825,7 @@ try {
       console.log(`ok - ${name}`);
     } catch (e) {
       console.error(`FAIL: ${name}`);
-      console.error(e && e.stack || e);
+      console.error(e?.stack || e);
       process.exitCode = 1;
     }
   }
@@ -434,28 +838,61 @@ try {
 
   await test('normalizeHour produces a UTC-aligned YYYY-MM-DDTHH:00:00Z key', async () => {
     assert.equal(normalizeHour(new Date('2026-08-28T08:59:59Z')), '2026-08-28T08:00:00Z');
-    assert.equal(normalizeHour(H0), new Date(H0).toISOString().slice(0, 13) + ':00:00Z');
+    assert.equal(normalizeHour(H0), `${new Date(H0).toISOString().slice(0, 13)}:00:00Z`);
     assert.equal(normalizeHour(new Date('2026-01-01T23:30:00Z')), '2026-01-01T23:00:00Z');
   });
 
   // ---- tokenUsagePayload (reported-vs-missing gate) ----------------------------
 
   await test('reported usage yields a report payload with its token totals', async () => {
-    assert.deepEqual(
-      tokenUsagePayload({ prompt_tokens: 2, completion_tokens: 3 }),
-      { input: 2, output: 3, cacheCreation: 0, cacheRead: 0, effectiveInput: 2, observedCacheRead: 0, observedCacheInput: 0, cacheReadReports: 0, total: 5, requests: 1, reports: 1, missing: 0 },
-    );
-    assert.deepEqual(
-      tokenUsagePayload({ input_tokens: 4, output_tokens: 6 }),
-      { input: 4, output: 6, cacheCreation: 0, cacheRead: 0, effectiveInput: 4, observedCacheRead: 0, observedCacheInput: 0, cacheReadReports: 0, total: 10, requests: 1, reports: 1, missing: 0 },
-    );
+    assert.deepEqual(tokenUsagePayload({ prompt_tokens: 2, completion_tokens: 3 }), {
+      input: 2,
+      output: 3,
+      cacheCreation: 0,
+      cacheRead: 0,
+      effectiveInput: 2,
+      observedCacheRead: 0,
+      observedCacheInput: 0,
+      cacheReadReports: 0,
+      total: 5,
+      requests: 1,
+      reports: 1,
+      missing: 0,
+    });
+    assert.deepEqual(tokenUsagePayload({ input_tokens: 4, output_tokens: 6 }), {
+      input: 4,
+      output: 6,
+      cacheCreation: 0,
+      cacheRead: 0,
+      effectiveInput: 4,
+      observedCacheRead: 0,
+      observedCacheInput: 0,
+      cacheReadReports: 0,
+      total: 10,
+      requests: 1,
+      reports: 1,
+      missing: 0,
+    });
   });
 
   await test('missing usage yields a missing payload and never fabricates tokens', async () => {
     for (const usage of [null, undefined, {}, [], 'x', 42]) {
       assert.deepEqual(
         tokenUsagePayload(usage),
-        { input: 0, output: 0, cacheCreation: 0, cacheRead: 0, effectiveInput: 0, observedCacheRead: 0, observedCacheInput: 0, cacheReadReports: 0, total: 0, requests: 1, reports: 0, missing: 1 },
+        {
+          input: 0,
+          output: 0,
+          cacheCreation: 0,
+          cacheRead: 0,
+          effectiveInput: 0,
+          observedCacheRead: 0,
+          observedCacheInput: 0,
+          cacheReadReports: 0,
+          total: 0,
+          requests: 1,
+          reports: 0,
+          missing: 1,
+        },
         String(usage),
       );
     }
@@ -466,15 +903,28 @@ try {
   await test('first insert creates the hour bucket and records both accounting views', async () => {
     const d1 = createMockD1();
     await persistTokenUsage({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 2, completion_tokens: 8 }, H0);
-    assert.deepEqual(
-      d1._rows.get(normalizeHour(H0)),
-      {
-        input: 2, output: 8, cacheCreation: 0, cacheRead: 0, total: 10, requests: 1, reports: 1, missing: 0,
-        upstreamInput: 2, upstreamOutput: 8, upstreamCacheCreation: 0, upstreamCacheRead: 0,
-        upstreamEffectiveInput: 2, upstreamObservedRead: 0, upstreamObservedInput: 0, upstreamReadReports: 0,
-        upstreamTotal: 10, upstreamAttempts: 1, upstreamReports: 1, upstreamMissing: 0,
-      },
-    );
+    assert.deepEqual(d1._rows.get(normalizeHour(H0)), {
+      input: 2,
+      output: 8,
+      cacheCreation: 0,
+      cacheRead: 0,
+      total: 10,
+      requests: 1,
+      reports: 1,
+      missing: 0,
+      upstreamInput: 2,
+      upstreamOutput: 8,
+      upstreamCacheCreation: 0,
+      upstreamCacheRead: 0,
+      upstreamEffectiveInput: 2,
+      upstreamObservedRead: 0,
+      upstreamObservedInput: 0,
+      upstreamReadReports: 0,
+      upstreamTotal: 10,
+      upstreamAttempts: 1,
+      upstreamReports: 1,
+      upstreamMissing: 0,
+    });
     assert.equal(d1._writes.length, 2, 'global + totals writes');
     assert.match(d1._writes[0].sql, /ON CONFLICT\(hour\) DO UPDATE SET/);
     assert.match(d1._writes[1].sql, /token_usage_totals/i, 'second write is totals');
@@ -484,15 +934,28 @@ try {
     const d1 = createMockD1();
     await persistTokenUsage({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 2, completion_tokens: 3 }, H0);
     await persistTokenUsage({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 4, completion_tokens: 6 }, H0);
-    assert.deepEqual(
-      d1._rows.get(normalizeHour(H0)),
-      {
-        input: 6, output: 9, cacheCreation: 0, cacheRead: 0, total: 15, requests: 2, reports: 2, missing: 0,
-        upstreamInput: 6, upstreamOutput: 9, upstreamCacheCreation: 0, upstreamCacheRead: 0,
-        upstreamEffectiveInput: 6, upstreamObservedRead: 0, upstreamObservedInput: 0, upstreamReadReports: 0,
-        upstreamTotal: 15, upstreamAttempts: 2, upstreamReports: 2, upstreamMissing: 0,
-      },
-    );
+    assert.deepEqual(d1._rows.get(normalizeHour(H0)), {
+      input: 6,
+      output: 9,
+      cacheCreation: 0,
+      cacheRead: 0,
+      total: 15,
+      requests: 2,
+      reports: 2,
+      missing: 0,
+      upstreamInput: 6,
+      upstreamOutput: 9,
+      upstreamCacheCreation: 0,
+      upstreamCacheRead: 0,
+      upstreamEffectiveInput: 6,
+      upstreamObservedRead: 0,
+      upstreamObservedInput: 0,
+      upstreamReadReports: 0,
+      upstreamTotal: 15,
+      upstreamAttempts: 2,
+      upstreamReports: 2,
+      upstreamMissing: 0,
+    });
   });
 
   await test('different hours create separate buckets', async () => {
@@ -510,10 +973,26 @@ try {
     await persistTokenUsage({ TOKEN_STATS_DB: d1 }, {}, H0);
     const row = d1._rows.get(normalizeHour(H0));
     assert.deepEqual(row, {
-      input: 0, output: 0, cacheCreation: 0, cacheRead: 0, total: 0, requests: 2, reports: 0, missing: 2,
-      upstreamInput: 0, upstreamOutput: 0, upstreamCacheCreation: 0, upstreamCacheRead: 0,
-      upstreamEffectiveInput: 0, upstreamObservedRead: 0, upstreamObservedInput: 0, upstreamReadReports: 0,
-      upstreamTotal: 0, upstreamAttempts: 2, upstreamReports: 0, upstreamMissing: 2,
+      input: 0,
+      output: 0,
+      cacheCreation: 0,
+      cacheRead: 0,
+      total: 0,
+      requests: 2,
+      reports: 0,
+      missing: 2,
+      upstreamInput: 0,
+      upstreamOutput: 0,
+      upstreamCacheCreation: 0,
+      upstreamCacheRead: 0,
+      upstreamEffectiveInput: 0,
+      upstreamObservedRead: 0,
+      upstreamObservedInput: 0,
+      upstreamReadReports: 0,
+      upstreamTotal: 0,
+      upstreamAttempts: 2,
+      upstreamReports: 0,
+      upstreamMissing: 2,
     });
   });
 
@@ -600,11 +1079,15 @@ try {
   await test('upstream summary recognizes OpenAI-compatible cached-token details without inflating input', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    await persistTokenUsage(env, {
-      prompt_tokens: 100,
-      completion_tokens: 10,
-      prompt_tokens_details: { cached_tokens: 80 },
-    }, H0);
+    await persistTokenUsage(
+      env,
+      {
+        prompt_tokens: 100,
+        completion_tokens: 10,
+        prompt_tokens_details: { cached_tokens: 80 },
+      },
+      H0,
+    );
     await persistTokenUsage(env, { prompt_tokens: 50, completion_tokens: 5 }, H0);
     const s = await loadUpstreamSummary(env, H0 + HOUR / 2);
     assert.equal(s.available, true);
@@ -618,11 +1101,15 @@ try {
   await test('explicit zero cache report is preserved as observed zero instead of unknown', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    await persistTokenUsage(env, {
-      input_tokens: 40,
-      output_tokens: 2,
-      input_tokens_details: { cached_tokens: 0 },
-    }, H0);
+    await persistTokenUsage(
+      env,
+      {
+        input_tokens: 40,
+        output_tokens: 2,
+        input_tokens_details: { cached_tokens: 0 },
+      },
+      H0,
+    );
     const s = await loadUpstreamSummary(env, H0 + HOUR / 2);
     assert.equal(s.available, true);
     assert.equal(s.cumulative.cacheRead, 0);
@@ -662,7 +1149,7 @@ try {
   // ---- queryTokenDailySeries: daily rollup for the activity heatmap -----------
 
   // Helper: convert UTC ms to UTC+8 date string (YYYY-MM-DD)
-  function toUtc8Day(ms) {
+  function _toUtc8Day(ms) {
     return new Date(ms + 8 * 3600_000).toISOString().slice(0, 10);
   }
 
@@ -701,7 +1188,13 @@ try {
 
   await test('persistTokenUsage with no binding resolves without touching D1', async () => {
     let called = false;
-    const env = { TOKEN_STATS_DB: { prepare: () => { called = true; } } };
+    const _env = {
+      TOKEN_STATS_DB: {
+        prepare: () => {
+          called = true;
+        },
+      },
+    };
     // A non-D1-looking prepare is rejected by tokenStatsD1, so persistence skips.
     const res = await persistTokenUsage({}, { prompt_tokens: 1 });
     assert.equal(res, undefined);
@@ -710,14 +1203,15 @@ try {
 
   await test('a D1 write rejection rejects the returned promise (caller swallows it)', async () => {
     const d1 = createMockD1({ failWrites: true });
-    await assert.rejects(
-      persistTokenUsage({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 1 }, H0),
-      /mock D1 write failure/,
-    );
+    await assert.rejects(persistTokenUsage({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 1 }, H0), /mock D1 write failure/);
   });
 
   await test('a synchronous D1 prepare failure is converted to a classified promise rejection', async () => {
-    const d1 = { prepare() { throw new Error('mock synchronous prepare failure'); } };
+    const d1 = {
+      prepare() {
+        throw new Error('mock synchronous prepare failure');
+      },
+    };
     let failure;
     try {
       await persistTokenUsage({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 1 }, H0, 'test-model');
@@ -813,10 +1307,7 @@ try {
     const d1 = createMockD1({ failWrites: true });
     const env = { TOKEN_STATS_DB: d1 };
     // Global write fails -> promise rejects (caller catches and logs)
-    await assert.rejects(
-      persistTokenUsage(env, { prompt_tokens: 1 }, H0, 'test-model'),
-      /mock D1 write failure/,
-    );
+    await assert.rejects(persistTokenUsage(env, { prompt_tokens: 1 }, H0, 'test-model'), /mock D1 write failure/);
     // Since global write failed, no rows should be written
     assert.equal(d1._rows.size, 0, 'no global rows when write fails');
     assert.equal(d1._modelRows.size, 0, 'no model rows when global write fails');
@@ -894,14 +1385,17 @@ try {
   function sseResponse(parts) {
     const enc = new TextEncoder();
     let i = 0;
-    return new Response(new ReadableStream({
-      pull(controller) {
-        if (i >= parts.length) return controller.close();
-        const part = parts[i++];
-        if (part instanceof Error) return controller.error(part);
-        controller.enqueue(enc.encode(part));
-      },
-    }), { status: 200, headers: { 'content-type': 'text/event-stream' } });
+    return new Response(
+      new ReadableStream({
+        pull(controller) {
+          if (i >= parts.length) return controller.close();
+          const part = parts[i++];
+          if (part instanceof Error) return controller.error(part);
+          controller.enqueue(enc.encode(part));
+        },
+      }),
+      { status: 200, headers: { 'content-type': 'text/event-stream' } },
+    );
   }
 
   async function drain(response) {
@@ -946,7 +1440,11 @@ try {
     const waits = [];
     const c = {
       env: { TOKEN_STATS_DB: d1 },
-      ctx: { waitUntil(p) { waits.push(Promise.resolve(p)); } },
+      ctx: {
+        waitUntil(p) {
+          waits.push(Promise.resolve(p));
+        },
+      },
       logger: { info() {}, debug() {}, error() {} },
       requestedModel: 'Code-Max',
       reqDescriptor: { model: 'Code-Max' },
@@ -968,7 +1466,11 @@ try {
     const waits = [];
     const c = {
       env: { TOKEN_STATS_DB: d1 },
-      ctx: { waitUntil(p) { waits.push(Promise.resolve(p)); } },
+      ctx: {
+        waitUntil(p) {
+          waits.push(Promise.resolve(p));
+        },
+      },
       logger: { info() {}, debug() {}, error() {} },
       requestedModel: 'Code-Max',
       reqDescriptor: { model: 'Code-Max' },
@@ -988,7 +1490,11 @@ try {
     const waits = [];
     const c = {
       env: { TOKEN_STATS_DB: d1 },
-      ctx: { waitUntil(p) { waits.push(Promise.resolve(p)); } },
+      ctx: {
+        waitUntil(p) {
+          waits.push(Promise.resolve(p));
+        },
+      },
       logger: { info() {}, debug() {}, error() {} },
       requestedModel: 'Code-Max',
       reqDescriptor: { model: 'Code-Max' },
@@ -1020,19 +1526,22 @@ try {
   test('interrupted stream exposes reported usage to physical-attempt accounting but not delivered onUsage', async () => {
     const attempts = [];
     const delivered = [];
-    const tracked = trackStreamResponse(sseResponse([
-      'data: {"choices":[{"delta":{"content":"x"}}]}\n\n',
-      'data: {"usage":{"prompt_tokens":4,"completion_tokens":2,"total_tokens":6}}\n\n',
-      new Error('truncated'),
-    ]), {
-      idleTimeoutMs: 1000,
-      completionMarker: /data:\s*\[DONE\]/,
-      onSuccess() {},
-      onFailure() {},
-      onNeutral() {},
-      onUsage: (u) => delivered.push(u),
-      onAttemptUsage: (u, outcome) => attempts.push({ u, outcome }),
-    });
+    const tracked = trackStreamResponse(
+      sseResponse([
+        'data: {"choices":[{"delta":{"content":"x"}}]}\n\n',
+        'data: {"usage":{"prompt_tokens":4,"completion_tokens":2,"total_tokens":6}}\n\n',
+        new Error('truncated'),
+      ]),
+      {
+        idleTimeoutMs: 1000,
+        completionMarker: /data:\s*\[DONE\]/,
+        onSuccess() {},
+        onFailure() {},
+        onNeutral() {},
+        onUsage: (u) => delivered.push(u),
+        onAttemptUsage: (u, outcome) => attempts.push({ u, outcome }),
+      },
+    );
     await drain(tracked);
     assert.equal(delivered.length, 0, 'interrupted stream must not become delivered-success evidence');
     assert.equal(attempts.length, 1);
@@ -1044,18 +1553,25 @@ try {
     const attempts = [];
     const delivered = [];
     let failures = 0;
-    const tracked = trackStreamResponse(sseResponse([
-      'data: {"choices":[{"delta":{"content":"partial"}}]}\n\n',
-      'data: {"usage":{"prompt_tokens":8,"completion_tokens":3,"total_tokens":11}}\n\n',
-    ]), {
-      idleTimeoutMs: 1000,
-      completionMarker: /data:\s*\[DONE\]/,
-      onSuccess() { throw new Error('truncated stream must not be successful'); },
-      onFailure() { failures++; },
-      onNeutral() {},
-      onUsage: (u) => delivered.push(u),
-      onAttemptUsage: (u, outcome) => attempts.push({ u, outcome }),
-    });
+    const tracked = trackStreamResponse(
+      sseResponse([
+        'data: {"choices":[{"delta":{"content":"partial"}}]}\n\n',
+        'data: {"usage":{"prompt_tokens":8,"completion_tokens":3,"total_tokens":11}}\n\n',
+      ]),
+      {
+        idleTimeoutMs: 1000,
+        completionMarker: /data:\s*\[DONE\]/,
+        onSuccess() {
+          throw new Error('truncated stream must not be successful');
+        },
+        onFailure() {
+          failures++;
+        },
+        onNeutral() {},
+        onUsage: (u) => delivered.push(u),
+        onAttemptUsage: (u, outcome) => attempts.push({ u, outcome }),
+      },
+    );
     await drain(tracked);
     assert.equal(failures, 1);
     assert.equal(delivered.length, 0);
@@ -1110,12 +1626,12 @@ try {
       console.log(`ok - ${name}`);
     } catch (error) {
       console.error(`FAIL: ${name}`);
-      console.error(error && error.stack || error);
+      console.error(error?.stack || error);
       process.exitCode = 1;
     }
   }
 
-  const HOUR = 3_600_000;
+  const _HOUR = 3_600_000;
 
   await test('recent seven full UTC+8 days override stale daily snapshots', async () => {
     const d1 = createMockD1();
@@ -1128,12 +1644,22 @@ try {
     // Simulate the 09-10 daily snapshot having been materialized at 11:00,
     // before the rest of that day's traffic arrived.
     d1._dailyRows.set('2026-09-10', {
-      input: 30, output: 0, total: 30, requests: 1, reports: 1, missing: 0,
+      input: 30,
+      output: 0,
+      total: 30,
+      requests: 1,
+      reports: 1,
+      missing: 0,
     });
     // Older stable history must not be overwritten by a potentially partial
     // seventh-previous calendar day from rolling hourly retention.
     d1._dailyRows.set('2026-09-04', {
-      input: 500, output: 0, total: 500, requests: 5, reports: 5, missing: 0,
+      input: 500,
+      output: 0,
+      total: 500,
+      requests: 5,
+      reports: 5,
+      missing: 0,
     });
 
     // 09-10 UTC+8: 01:00, 12:00, 22:00 => full-day total 120.
@@ -1159,7 +1685,12 @@ try {
     const now = Date.UTC(2026, 8, 11, 1, 30, 0); // 09:30 UTC+8
 
     d1._dailyRows.set('2026-09-11', {
-      input: 1, output: 0, total: 1, requests: 1, reports: 1, missing: 0,
+      input: 1,
+      output: 0,
+      total: 1,
+      requests: 1,
+      reports: 1,
+      missing: 0,
     });
     await persistTokenUsage(env, { prompt_tokens: 20, completion_tokens: 0 }, Date.UTC(2026, 8, 11, 0, 0, 0));
 
@@ -1219,7 +1750,6 @@ try {
 
 
 
-
   const HOUR = 3_600_000;
   const WEEK_MS = 7 * 24 * 3600_000;
   const now = () => 1_700_000_000_000;
@@ -1230,7 +1760,10 @@ try {
   let failures = 0;
   function check(name, ok, detail) {
     if (ok) console.log(`  ok  ${name}`);
-    else { failures++; console.error(`FAIL  ${name}${detail ? ` — ${detail}` : ''}`); }
+    else {
+      failures++;
+      console.error(`FAIL  ${name}${detail ? ` — ${detail}` : ''}`);
+    }
   }
 
   // ---- C01: container for every public model ------------------------------------
@@ -1240,23 +1773,31 @@ try {
     await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'air', 400);
     const res = await queryAllModelsTtftPercentiles(env, WEEK_MS, now());
     const publicModels = [
-      { id: 'air' }, { id: 'code-max' }, { id: 'ultra' }, { id: 'pro' },
-      { id: 'agent' }, { id: 'max' }, { id: 'flash' }, { id: 'vision' },
+      { id: 'air' },
+      { id: 'code-max' },
+      { id: 'ultra' },
+      { id: 'pro' },
+      { id: 'agent' },
+      { id: 'max' },
+      { id: 'flash' },
+      { id: 'vision' },
     ];
     const ttft = ensureModelTtftContainers(res.ttft, publicModels);
     const allPresent = publicModels.every((m) => {
       const e = ttft.get(normalizeModelKey(m.id));
       return e && e.available === true && typeof e.sampleCount === 'number';
     });
-    check('C01 all 8 public models have a TTFT container (missing rows -> insufficient)',
-      allPresent,
-      `keys=${JSON.stringify([...ttft.keys()])}`);
+    check('C01 all 8 public models have a TTFT container (missing rows -> insufficient)', allPresent, `keys=${JSON.stringify([...ttft.keys()])}`);
 
     const emptyEntry = fmtModelTtft(ttft.get('vision'));
-    check('C01b no-data container renders insufficient/noSamples (-- not --s)',
-      emptyEntry.p50Insufficient === true && emptyEntry.p95Insufficient === true
-        && emptyEntry.noSamples === true
-        && emptyEntry.p50 === '--' && emptyEntry.p95 === '--');
+    check(
+      'C01b no-data container renders insufficient/noSamples (-- not --s)',
+      emptyEntry.p50Insufficient === true &&
+        emptyEntry.p95Insufficient === true &&
+        emptyEntry.noSamples === true &&
+        emptyEntry.p50 === '--' &&
+        emptyEntry.p95 === '--',
+    );
   }
 
   // ---- C02: fixed query count ----------------------------------------------------
@@ -1278,8 +1819,7 @@ try {
     }
     const beforeB = d1b._reads.length;
     await queryAllModelsTtftPercentiles(envB, WEEK_MS, now());
-    check('C02b query count does not scale with model count (4 models -> 1)',
-      d1b._reads.length - beforeB === 1);
+    check('C02b query count does not scale with model count (4 models -> 1)', d1b._reads.length - beforeB === 1);
   }
 
   // ---- C03: canonical model key --------------------------------------------------
@@ -1289,10 +1829,11 @@ try {
     await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'Code-Max', 400);
     await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'CODE-MAX', 600);
     const res = await queryAllModelsTtftPercentiles(env, WEEK_MS, now());
-    check('C03 case variants aggregate into one canonical key',
-      res.ttft.size === 1 && res.ttft.has('code-max')
-        && res.ttft.get('code-max').sampleCount === 2,
-      `keys=${JSON.stringify([...res.ttft.keys()])}`);
+    check(
+      'C03 case variants aggregate into one canonical key',
+      res.ttft.size === 1 && res.ttft.has('code-max') && res.ttft.get('code-max').sampleCount === 2,
+      `keys=${JSON.stringify([...res.ttft.keys()])}`,
+    );
   }
 
   // ---- C04: insufficient samples (separate P50/P95 thresholds) ------------------
@@ -1305,11 +1846,11 @@ try {
     }
     const res = await queryAllModelsTtftPercentiles(env, WEEK_MS, now());
     const e = res.ttft.get('rare-model');
-    check('C04 below P50 threshold (4): p50/p95 null, both insufficient',
-      e && e.p50 === null && e.p95 === null
-        && e.p50Insufficient === true && e.p95Insufficient === true
-        && e.sampleCount === P50_MIN - 1,
-      `entry=${JSON.stringify(e)}`);
+    check(
+      'C04 below P50 threshold (4): p50/p95 null, both insufficient',
+      e && e.p50 === null && e.p95 === null && e.p50Insufficient === true && e.p95Insufficient === true && e.sampleCount === P50_MIN - 1,
+      `entry=${JSON.stringify(e)}`,
+    );
 
     // At P50 threshold (5), below P95 threshold (20): p50 present, p95 null.
     const d1b = createMockD1();
@@ -1319,11 +1860,11 @@ try {
     }
     const resB = await queryAllModelsTtftPercentiles(envB, WEEK_MS, now());
     const eB = resB.ttft.get('healthy-model');
-    check('C04b at P50 threshold (5), below P95 (20): p50 present, p95 null',
-      eB && eB.p50 !== null && eB.p95 === null
-        && eB.p50Insufficient === false && eB.p95Insufficient === true
-        && eB.sampleCount === P50_MIN,
-      `entry=${JSON.stringify(eB)}`);
+    check(
+      'C04b at P50 threshold (5), below P95 (20): p50 present, p95 null',
+      eB && eB.p50 !== null && eB.p95 === null && eB.p50Insufficient === false && eB.p95Insufficient === true && eB.sampleCount === P50_MIN,
+      `entry=${JSON.stringify(eB)}`,
+    );
 
     // At both thresholds (20): p50 present, p95 present.
     const d1c = createMockD1();
@@ -1333,11 +1874,11 @@ try {
     }
     const resC = await queryAllModelsTtftPercentiles(envC, WEEK_MS, now());
     const eC = resC.ttft.get('full-model');
-    check('C04c at P95 threshold (20): both percentiles present, neither insufficient',
-      eC && eC.p50 !== null && eC.p95 !== null
-        && eC.p50Insufficient === false && eC.p95Insufficient === false
-        && eC.sampleCount === P95_MIN,
-      `entry=${JSON.stringify(eC)}`);
+    check(
+      'C04c at P95 threshold (20): both percentiles present, neither insufficient',
+      eC && eC.p50 !== null && eC.p95 !== null && eC.p50Insufficient === false && eC.p95Insufficient === false && eC.sampleCount === P95_MIN,
+      `entry=${JSON.stringify(eC)}`,
+    );
   }
 
   // ---- C05: bucket upper bound precision ------------------------------------------
@@ -1352,9 +1893,11 @@ try {
     }
     const res = await queryAllModelsTtftPercentiles(env, WEEK_MS, now());
     const e = res.ttft.get('bucketed');
-    check('C05 p50/p95 are bucket upper bounds',
+    check(
+      'C05 p50/p95 are bucket upper bounds',
       e && e.p50 === TTFT_BUCKET_BOUNDARIES_MS[1] && e.p95 === TTFT_BUCKET_BOUNDARIES_MS[1],
-      `p50=${e && e.p50} p95=${e && e.p95} boundaries=${JSON.stringify(TTFT_BUCKET_BOUNDARIES_MS)}`);
+      `p50=${e?.p50} p95=${e?.p95} boundaries=${JSON.stringify(TTFT_BUCKET_BOUNDARIES_MS)}`,
+    );
 
     // Mixed buckets: 12 samples in bucket 0 (<100ms), 8 in bucket 4 (2000..5000ms).
     // p50 (ceil(20*0.5)=10th sample) lands in bucket 0 -> upper bound 100ms;
@@ -1369,9 +1912,11 @@ try {
     }
     const resB = await queryAllModelsTtftPercentiles(envB, WEEK_MS, now());
     const eB = resB.ttft.get('mixed');
-    check('C05b percentile lands in the bucket containing the threshold sample',
+    check(
+      'C05b percentile lands in the bucket containing the threshold sample',
       eB && eB.p50 === TTFT_BUCKET_BOUNDARIES_MS[0] && eB.p95 === TTFT_BUCKET_BOUNDARIES_MS[4],
-      `p50=${eB && eB.p50} p95=${eB && eB.p95}`);
+      `p50=${eB?.p50} p95=${eB?.p95}`,
+    );
   }
 
   // ---- C06: last-bucket (≥10s) displays as ≥10s, not --s ------------------------
@@ -1384,20 +1929,15 @@ try {
     }
     const res = await queryAllModelsTtftPercentiles(env, WEEK_MS, now());
     const e = res.ttft.get('slow-model');
-    check('C06 last-bucket percentile is Infinity',
-      e && e.p50 === Infinity && e.p95 === Infinity,
-      `p50=${e && e.p50} p95=${e && e.p95}`);
+    check('C06 last-bucket percentile is Infinity', e && e.p50 === Infinity && e.p95 === Infinity, `p50=${e?.p50} p95=${e?.p95}`);
     const fmt = fmtModelTtft(e);
-    check('C06 last-bucket renders as ≥10s (not --s)',
-      fmt.p50 === '≥10s' && fmt.p95 === '≥10s',
-      `p50=${fmt.p50} p95=${fmt.p95}`);
+    check('C06 last-bucket renders as ≥10s (not --s)', fmt.p50 === '≥10s' && fmt.p95 === '≥10s', `p50=${fmt.p50} p95=${fmt.p95}`);
   }
 
   // ---- Fail-open -------------------------------------------------------------------
   {
     const res = await queryAllModelsTtftPercentiles({}, WEEK_MS, now());
-    check('fail-open: missing binding -> available:false, no throw',
-      res.available === false && typeof res.error === 'string');
+    check('fail-open: missing binding -> available:false, no throw', res.available === false && typeof res.error === 'string');
   }
 
   if (failures > 0) {
@@ -1445,7 +1985,6 @@ try {
 
 
 
-
   const HOUR = 3_600_000;
   const WEEK_MS = 7 * 24 * 3600_000;
   const now = () => 1_700_000_000_000;
@@ -1454,7 +1993,10 @@ try {
   let failures = 0;
   function check(name, ok, detail) {
     if (ok) console.log(`  ok  ${name}`);
-    else { failures++; console.error(`FAIL  ${name}${detail ? ` — ${detail}` : ''}`); }
+    else {
+      failures++;
+      console.error(`FAIL  ${name}${detail ? ` — ${detail}` : ''}`);
+    }
   }
 
   // ---- C01: Token Usage merges historical case variants -------------------------
@@ -1468,12 +2010,16 @@ try {
     d1.seedModelRow(h0 - 3 * HOUR, ' Code-Max ', { total: 10, requests: 1 });
     const env = { TOKEN_STATS_DB: d1 };
     const res = await queryTokenModelUsage(env, 7, now());
-    check('C01 variants produce exactly ONE canonical stats dimension',
+    check(
+      'C01 variants produce exactly ONE canonical stats dimension',
       res.available === true && res.rows.length === 1 && res.rows[0].model === 'code-max',
-      `rows=${JSON.stringify(res.rows)}`);
-    check('C01 totals and requests are the true sums across variants',
+      `rows=${JSON.stringify(res.rows)}`,
+    );
+    check(
+      'C01 totals and requests are the true sums across variants',
       res.rows.length === 1 && res.rows[0].total === 185 && res.rows[0].requests === 5,
-      `rows=${JSON.stringify(res.rows)}`);
+      `rows=${JSON.stringify(res.rows)}`,
+    );
   }
 
   // ---- C02: TTFT histograms merge before percentiles (no Map overwrite) ---------
@@ -1491,15 +2037,18 @@ try {
     const env = { TOKEN_STATS_DB: d1 };
     const res = await queryAllModelsTtftPercentiles(env, WEEK_MS, now());
     const entry = res.ttft.get('code-max');
-    check('C02 variants merge into one TTFT entry with the true sample count',
+    check(
+      'C02 variants merge into one TTFT entry with the true sample count',
       res.available === true && res.ttft.size === 1 && entry && entry.sampleCount === 20,
-      `keys=${JSON.stringify([...res.ttft.keys()])} entry=${JSON.stringify(entry)}`);
+      `keys=${JSON.stringify([...res.ttft.keys()])} entry=${JSON.stringify(entry)}`,
+    );
     // p50: ceil(20*0.5)=10th sample -> cumulative b0=3, b1=6, b2=11 -> bucket 2 (1000ms).
     // p95: ceil(20*0.95)=19th sample -> cumulative b3=11, b4=20 -> bucket 4 (5000ms).
-    check('C02 percentiles are computed from the MERGED histogram (not the last variant)',
-      entry && entry.p50Insufficient === false && entry.p95Insufficient === false
-        && entry.p50 === 1000 && entry.p95 === 5000,
-      `p50=${entry && entry.p50} p95=${entry && entry.p95}`);
+    check(
+      'C02 percentiles are computed from the MERGED histogram (not the last variant)',
+      entry && entry.p50Insufficient === false && entry.p95Insufficient === false && entry.p50 === 1000 && entry.p95 === 5000,
+      `p50=${entry?.p50} p95=${entry?.p95}`,
+    );
   }
 
   // ---- C03: Recent Evidence returns only the canonical key ----------------------
@@ -1510,9 +2059,11 @@ try {
     d1.seedModelRow(h0 - 2 * HOUR, 'other-model', { requests: 1 });
     const env = { TOKEN_STATS_DB: d1 };
     const evidence = await queryRecentModelEvidence(env, undefined, now());
-    check('C03 evidence contains only canonical keys',
+    check(
+      'C03 evidence contains only canonical keys',
       evidence.size === 2 && evidence.has('code-max') && evidence.has('other-model'),
-      `evidence=${JSON.stringify([...evidence])}`);
+      `evidence=${JSON.stringify([...evidence])}`,
+    );
   }
 
   // ---- C04: Usage Coverage merges requests / reports / missing ------------------
@@ -1524,12 +2075,16 @@ try {
     const env = { TOKEN_STATS_DB: d1 };
     const res = await queryModelUsageCoverage(env, 7, now());
     const row = res.rows.find((r) => r.model === 'code-max');
-    check('C04 coverage variants merge into one row with summed counts',
+    check(
+      'C04 coverage variants merge into one row with summed counts',
       res.rows.length === 1 && row && row.requests === 5 && row.reports === 3 && row.missing === 2,
-      `rows=${JSON.stringify(res.rows)}`);
-    check('C04 coverage ratio is computed from the merged numbers',
+      `rows=${JSON.stringify(res.rows)}`,
+    );
+    check(
+      'C04 coverage ratio is computed from the merged numbers',
       row && row.usageCoverage !== null && Math.abs(row.usageCoverage - 0.6) < 1e-9,
-      `usageCoverage=${row && row.usageCoverage}`);
+      `usageCoverage=${row?.usageCoverage}`,
+    );
   }
 
   // ---- C05: writer canonical output keeps working (double insurance) ------------
@@ -1538,15 +2093,16 @@ try {
     const env = { TOKEN_STATS_DB: d1 };
     await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'Code-Max', 400);
     await persistTokenUsage(env, { prompt_tokens: 1, completion_tokens: 1 }, h0, 'CODE-MAX', 400);
-    const [usage, evidence] = await Promise.all([
-      queryTokenModelUsage(env, 7, now()),
-      queryRecentModelEvidence(env, undefined, now()),
-    ]);
-    check('C05 writer-canonicalized rows read back as one canonical dimension',
-      usage.rows.length === 1 && usage.rows[0].model === 'code-max'
-        && usage.rows[0].total === 17 && usage.rows[0].requests === 2
-        && evidence.has('code-max'),
-      `rows=${JSON.stringify(usage.rows)} evidence=${JSON.stringify([...evidence])}`);
+    const [usage, evidence] = await Promise.all([queryTokenModelUsage(env, 7, now()), queryRecentModelEvidence(env, undefined, now())]);
+    check(
+      'C05 writer-canonicalized rows read back as one canonical dimension',
+      usage.rows.length === 1 &&
+        usage.rows[0].model === 'code-max' &&
+        usage.rows[0].total === 17 &&
+        usage.rows[0].requests === 2 &&
+        evidence.has('code-max'),
+      `rows=${JSON.stringify(usage.rows)} evidence=${JSON.stringify([...evidence])}`,
+    );
   }
 
   if (failures > 0) {
