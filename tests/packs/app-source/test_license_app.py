@@ -229,19 +229,27 @@ def test_pepper_upgrades_legacy_rows_on_first_redeem(client, monkeypatch, signin
 
 
 def test_settings_ignore_bad_values(monkeypatch, capsys):
-    monkeypatch.setenv("SETTINGS_TEST_VALUE", "abc")
+    monkeypatch.setenv("SECUREPIGEON_SETTINGS_TEST_VALUE", "abc")
     assert settings._int("SETTINGS_TEST_VALUE", 7) == 7
-    monkeypatch.setenv("SETTINGS_TEST_VALUE", "-3")
+    monkeypatch.setenv("SECUREPIGEON_SETTINGS_TEST_VALUE", "-3")
     assert settings._int("SETTINGS_TEST_VALUE", 7, minimum=1) == 7
-    monkeypatch.setenv("SETTINGS_TEST_VALUE", " 12 ")
+    monkeypatch.setenv("SECUREPIGEON_SETTINGS_TEST_VALUE", " 12 ")
     assert settings._int("SETTINGS_TEST_VALUE", 7) == 12
-    monkeypatch.delenv("SETTINGS_TEST_VALUE")
+    monkeypatch.delenv("SECUREPIGEON_SETTINGS_TEST_VALUE")
     assert settings._int("SETTINGS_TEST_VALUE", 7) == 7
     assert "ignoring" in capsys.readouterr().err
 
 
+def test_legacy_private_key_variable_is_still_honoured(monkeypatch):
+    monkeypatch.delenv("SECUREPIGEON_PRIVATE_KEY_PATH", raising=False)
+    monkeypatch.setenv("PRIVATE_KEY_PATH", "/legacy/key.pem")
+    assert settings._env("PRIVATE_KEY_PATH", legacy="PRIVATE_KEY_PATH") == "/legacy/key.pem"
+    monkeypatch.setenv("SECUREPIGEON_PRIVATE_KEY_PATH", "/new/key.pem")
+    assert settings._env("PRIVATE_KEY_PATH", legacy="PRIVATE_KEY_PATH") == "/new/key.pem"
+
+
 def test_admin_token_is_generated_once_and_kept(monkeypatch, tmp_path):
-    monkeypatch.delenv("ADMIN_TOKEN", raising=False)
+    monkeypatch.delenv("SECUREPIGEON_ADMIN_TOKEN", raising=False)
     monkeypatch.setattr(settings, "DATA_DIR", tmp_path)
     first = settings.admin_token()
     assert len(first) >= 32
@@ -249,5 +257,5 @@ def test_admin_token_is_generated_once_and_kept(monkeypatch, tmp_path):
     assert (tmp_path / "admin-token").read_text().strip() == first
     if os.name == "posix":
         assert (tmp_path / "admin-token").stat().st_mode & 0o077 == 0
-    monkeypatch.setenv("ADMIN_TOKEN", "from-env")
+    monkeypatch.setenv("SECUREPIGEON_ADMIN_TOKEN", "from-env")
     assert settings.admin_token() == "from-env"
