@@ -25,6 +25,7 @@ jobs:
       candidate_control: ${{ steps.ci_control.outputs.candidate_control || 'false' }}
       is_private: ${{ steps.visibility.outputs.is_private }}
       has_windows: ${{ steps.capabilities.outputs.has_windows }}
+      linux_shards: ${{ steps.capabilities.outputs.linux_shards }}
       should_run: ${{ steps.ref_facts.outputs.should_run || 'true' }}
 
     steps:
@@ -164,11 +165,15 @@ jobs:
           fi
 
   linux:
-    name: Central CI / Linux
+    name: Central CI / Linux (${{ matrix.shard }})
     needs: prepare
     if: needs.prepare.outputs.should_run != 'false'
     runs-on: ubuntu-24.04
     timeout-minutes: 180
+    strategy:
+      fail-fast: true
+      matrix:
+        shard: ${{ fromJSON(needs.prepare.outputs.linux_shards || '["all"]') }}
 
     steps:
       - name: Setup Python
@@ -218,6 +223,7 @@ jobs:
           CENTRAL_CI_BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
           CENTRAL_CI_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           CENTRAL_CI_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+          CENTRAL_CI_SHARD: ${{ matrix.shard }}
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
           TARGET_PRIVATE: ${{ needs.prepare.outputs.is_private }}
         shell: bash
@@ -225,6 +231,12 @@ jobs:
           set -Eeuo pipefail
           script="$GITHUB_WORKSPACE/ci-control/.github/scripts/central-ci.sh"
           test -f "$script"
+
+          # Only a manifest-declared shard is passed on; an unsharded project keeps its exact invocation.
+          script_args=("$GITHUB_WORKSPACE/target")
+          if [ "$CENTRAL_CI_SHARD" != "all" ]; then
+            script_args+=("$CENTRAL_CI_SHARD")
+          fi
 
           log="$RUNNER_TEMP/central-ci-linux.log"
           failure_meta="$RUNNER_TEMP/central-ci-linux.failure"
@@ -235,7 +247,7 @@ jobs:
 
           set +e
           CENTRAL_CI_FAILURE_FILE="$failure_meta" BASH_ENV="$trace_env" \
-            bash "$script" "$GITHUB_WORKSPACE/target" >"$log" 2>&1
+            bash "$script" "${script_args[@]}" >"$log" 2>&1
           code=$?
           set -e
 
@@ -255,7 +267,12 @@ jobs:
             exit "$code"
           fi
 
-          echo "Central Linux CI passed for $TARGET_REPOSITORY."
+          # Public repositories keep the project script's phase markers so per-phase time stays visible.
+          if [ "$TARGET_PRIVATE" = "false" ]; then
+            grep '^central-ci:' "$log" || true
+          fi
+
+          echo "Central Linux CI passed for $TARGET_REPOSITORY (shard: $CENTRAL_CI_SHARD)."
 
   security:
     name: Central CI / Security
