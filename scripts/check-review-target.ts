@@ -1,5 +1,6 @@
 import { trustedCiStatus } from "./ci-evidence.ts";
 import { getGithubJson, getJsonString, isJsonRecord } from "./github-api.ts";
+import { pullAllowsFacts } from "./resolve-pr-facts.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -9,15 +10,17 @@ const governanceContext = "PR Governance";
 export type ReviewTarget = { current: boolean; reason: string };
 
 // AI Review may only run for the exact head that already passed the deterministic gate. The
-// caller's claim is never trusted: the pull request head and the gate status are read again.
+// caller's claim is never trusted: the pull request head and the gate status are read again. A
+// pull request that was merged while the review waited is still reviewed and commented on; one
+// that was closed without merging is not.
 export function evaluateReviewTarget(
   pull: unknown,
   status: unknown,
   requestedHeadSha: string,
   controlRepository: string
 ): ReviewTarget {
-  if (!isJsonRecord(pull) || pull.state !== "open") {
-    return { current: false, reason: "the pull request is no longer open" };
+  if (!isJsonRecord(pull) || !pullAllowsFacts(pull, true)) {
+    return { current: false, reason: "the pull request was closed without merging" };
   }
   const head = isJsonRecord(pull.head) ? pull.head : {};
   if (getJsonString(head, "sha") !== requestedHeadSha) {

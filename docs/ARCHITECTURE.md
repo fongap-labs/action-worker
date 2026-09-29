@@ -81,7 +81,9 @@ Validate → Inspect → Plan → Security / CI / PR Gate
 
 AI Review 是独立的 `handle-pr-review.yml`，只在 Gate 通过之后由 `handle-pr-dispatch` 触发。这样做有两个原因：Gate 那一次运行在 Gate 结论形成后就结束，不再被 AI 排队或评审拖住；AI 评审队列里只有真正处在评审阶段的运行，不会排在一个还在等 CI 的运行后面。
 
-评审 workflow 不信任触发方的说法：它重新读取 PR 当前 head，并确认该 head 上有 Action Worker 发布的 `PR Governance` success；PR 已经更新、关闭或 Gate 不成立时直接跳过。它没有任何写 Gate 状态的步骤。
+评审 workflow 不信任触发方的说法：它重新读取 PR 当前 head，并确认该 head 上有 Action Worker 发布的 `PR Governance` success；PR 的 head 已经更新、PR 被关闭而没有合并、或 Gate 不成立时直接跳过。它没有任何写 Gate 状态的步骤。
+
+评审通常比 CI 慢，PR 往往在评审结束前就已经合并。已合并的 PR 不算失效：评审照常完成，并在 PR 上补发评论。只有放弃的 PR（关闭而未合并）才会跳过评审。
 
 PR Task 合同位于 `contracts/pr-task.json`：
 
