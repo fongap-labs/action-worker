@@ -129,9 +129,13 @@ try {
     });
     // Find the cell whose date is 2026-08-15.
     let found = null;
-    for (const week of heatmap.weeks) for (const cell of week) {
-      if (cell.date === '2026-08-15') { found = cell; break; }
-    }
+    for (const week of heatmap.weeks)
+      for (const cell of week) {
+        if (cell.date === '2026-08-15') {
+          found = cell;
+          break;
+        }
+      }
     assert.ok(found, 'cell exists for 2026-08-15');
     assert.equal(found.value, 100, 'value comes from the data Map, not from a position');
   });
@@ -141,9 +145,13 @@ try {
     const heatmap = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today, data: null });
     // Pick a date well in the past — its value should be 0, not null.
     let past = null;
-    for (const week of heatmap.weeks) for (const cell of week) {
-      if (cell.date === '2026-08-01') { past = cell; break; }
-    }
+    for (const week of heatmap.weeks)
+      for (const cell of week) {
+        if (cell.date === '2026-08-01') {
+          past = cell;
+          break;
+        }
+      }
     assert.ok(past, 'cell for 2026-08-01 exists');
     assert.equal(past.inRange, true);
     assert.equal(past.isFuture, false);
@@ -163,9 +171,13 @@ try {
     const today = dateAtIso('2026-09-04');
     const heatmap = buildCalendarHeatmap({ mode: 'calendar-year', today, year: 2026 });
     let first = null;
-    for (const week of heatmap.weeks) for (const cell of week) {
-      if (cell.date === '2026-01-01') { first = cell; break; }
-    }
+    for (const week of heatmap.weeks)
+      for (const cell of week) {
+        if (cell.date === '2026-01-01') {
+          first = cell;
+          break;
+        }
+      }
     assert.ok(first, '2026-01-01 cell exists');
     assert.equal(first.weekdayIndex, 3, '2026-01-01 is Thursday (Mon=0..Sun=6 -> 3)');
   });
@@ -177,9 +189,13 @@ try {
     // placeholders for the first column but inRange must be false.
     for (const iso of ['2025-12-29', '2025-12-30', '2025-12-31']) {
       let cell = null;
-      for (const week of heatmap.weeks) for (const c of week) {
-        if (c.date === iso) { cell = c; break; }
-      }
+      for (const week of heatmap.weeks)
+        for (const c of week) {
+          if (c.date === iso) {
+            cell = c;
+            break;
+          }
+        }
       assert.ok(cell, `${iso} cell exists (layout placeholder)`);
       assert.equal(cell.inRange, false, `${iso} is layout padding, not in 2026 range`);
       assert.equal(cell.value, null, `${iso} value is null`);
@@ -191,11 +207,12 @@ try {
     const heatmap = buildCalendarHeatmap({ mode: 'calendar-year', today, year: 2026 });
     // 2027-01-01..2027-01-03 may or may not be in the grid depending on
     // 2026-12-31's weekday. If present, they must be inRange=false.
-    for (const week of heatmap.weeks) for (const cell of week) {
-      if (cell.date >= '2027-01-01') {
-        assert.equal(cell.inRange, false, `${cell.date} is 2027, not in 2026 range`);
+    for (const week of heatmap.weeks)
+      for (const cell of week) {
+        if (cell.date >= '2027-01-01') {
+          assert.equal(cell.inRange, false, `${cell.date} is 2027, not in 2026 range`);
+        }
       }
-    }
   });
 
   await test('calendar-year 2026: months 1..12 each have a label, anchored to the week of their 1st day', () => {
@@ -216,9 +233,13 @@ try {
     const today = dateAtIso('2026-09-04');
     const heatmap = buildCalendarHeatmap({ mode: 'calendar-year', today, year: 2026 });
     let future = null;
-    for (const week of heatmap.weeks) for (const c of week) {
-      if (c.date === '2026-12-31') { future = c; break; }
-    }
+    for (const week of heatmap.weeks)
+      for (const c of week) {
+        if (c.date === '2026-12-31') {
+          future = c;
+          break;
+        }
+      }
     assert.ok(future, '2026-12-31 cell exists');
     assert.equal(future.inRange, true);
     assert.equal(future.isFuture, true, '2026-12-31 is in-range future when today=2026-09-04');
@@ -229,11 +250,12 @@ try {
     // 2025 is fully in the past relative to today=2026-09-04.
     const today = dateAtIso('2026-09-04');
     const heatmap = buildCalendarHeatmap({ mode: 'calendar-year', today, year: 2025 });
-    for (const week of heatmap.weeks) for (const cell of week) {
-      if (cell.inRange) {
-        assert.equal(cell.isFuture, false, `${cell.date} in 2025 must NOT be future when today=2026-09-04`);
+    for (const week of heatmap.weeks)
+      for (const cell of week) {
+        if (cell.inRange) {
+          assert.equal(cell.isFuture, false, `${cell.date} in 2025 must NOT be future when today=2026-09-04`);
+        }
       }
-    }
   });
 
   await test('calendar-year: 2026 has EXACTLY 53 columns and 365 in-range days', () => {
@@ -276,9 +298,13 @@ try {
     const heatmap = buildCalendarHeatmap({ mode: 'calendar-year', today, year: 2028 });
     assert.equal(heatmap.weeks.length, 53, `got ${heatmap.weeks.length} weeks`);
     let leap = null;
-    for (const week of heatmap.weeks) for (const c of week) {
-      if (c.date === '2028-02-29') { leap = c; break; }
-    }
+    for (const week of heatmap.weeks)
+      for (const c of week) {
+        if (c.date === '2028-02-29') {
+          leap = c;
+          break;
+        }
+      }
     assert.ok(leap, '2028-02-29 cell exists');
     assert.equal(leap.inRange, true, '2028-02-29 is in 2028 range');
     const inRange = heatmap.weeks.flat().filter((c) => c.inRange).length;
@@ -303,8 +329,7 @@ try {
     const heatmap = buildCalendarHeatmap({ mode: 'calendar-year', today, year: 2027 });
     const feb = heatmap.monthLabels.find((l) => l.month === 1);
     assert.ok(feb, 'February label exists');
-    assert.equal(heatmap.weeks[feb.weekIndex][0].date, '2027-02-01',
-      '2027-02-01 is a Monday -> the February label column starts on it');
+    assert.equal(heatmap.weeks[feb.weekIndex][0].date, '2027-02-01', '2027-02-01 is a Monday -> the February label column starts on it');
   });
 
   await test('calendar-year: month starting on Sunday anchors to the PREVIOUS week column (2026-02-01)', () => {
@@ -314,8 +339,11 @@ try {
     assert.ok(feb, 'February label exists');
     const col = heatmap.weeks[feb.weekIndex].map((c) => c.date);
     assert.ok(col.includes('2026-02-01'), 'label column contains 2026-02-01');
-    assert.equal(heatmap.weeks[feb.weekIndex][0].date, '2026-01-26',
-      '2026-02-01 is a Sunday -> column Monday is 2026-01-26 (label is NOT pushed to the next column)');
+    assert.equal(
+      heatmap.weeks[feb.weekIndex][0].date,
+      '2026-01-26',
+      '2026-02-01 is a Sunday -> column Monday is 2026-01-26 (label is NOT pushed to the next column)',
+    );
   });
 
   await test('rolling-52-weeks: labels span the 12月 → 1月 year boundary', () => {
@@ -558,7 +586,10 @@ try {
     const { labels } = renderHeatmap(heatmap);
     assert.equal(labels.length, 12, 'all 12 month labels render — edges included');
     assert.match(labels[0], /grid-column:1">1月</, '1月 anchors to the padding column containing 2026-01-01');
-    assert.ok(labels.some((l) => l.includes('>12月<')), '12月 never dropped near the right edge');
+    assert.ok(
+      labels.some((l) => l.includes('>12月<')),
+      '12月 never dropped near the right edge',
+    );
   });
 
   await test('renderer: HTML escaping of tooltip payloads with special chars', () => {
@@ -633,7 +664,10 @@ try {
   let failures = 0;
   function check(name, ok, detail) {
     if (ok) console.log(`  ok  ${name}`);
-    else { failures++; console.error(`FAIL  ${name}${detail ? ` — ${detail}` : ''}`); }
+    else {
+      failures++;
+      console.error(`FAIL  ${name}${detail ? ` — ${detail}` : ''}`);
+    }
   }
 
   const flat = (h) => h.weeks.flat();
@@ -643,8 +677,11 @@ try {
   {
     const todays = ['2026-01-01', '2026-09-04', '2026-12-31', '2025-02-28', '2028-02-29', '2020-02-29'];
     const counts = todays.map((iso) => buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: dateAtIso(iso) }).weeks.length);
-    check('C01 rolling-52-weeks is always exactly 52 columns', counts.every((n) => n === 52),
-      `todays=${todays.join(',')} counts=${counts.join(',')}`);
+    check(
+      'C01 rolling-52-weeks is always exactly 52 columns',
+      counts.every((n) => n === 52),
+      `todays=${todays.join(',')} counts=${counts.join(',')}`,
+    );
   }
 
   // ---- C02: Monday-first ---------------------------------------------------------
@@ -653,8 +690,7 @@ try {
     const last = h.weeks[51];
     const okDates = last[0].date === '2026-08-31' && last[6].date === '2026-09-06';
     const okIdx = last.every((c, d) => c.weekdayIndex === d);
-    check('C02 Monday-first: column starts Monday (2026-08-31), weekdayIndex 0..6', okDates && okIdx,
-      `first=${last[0].date} last=${last[6].date}`);
+    check('C02 Monday-first: column starts Monday (2026-08-31), weekdayIndex 0..6', okDates && okIdx, `first=${last[0].date} last=${last[6].date}`);
   }
 
   // ---- C03: business key = YYYY-MM-DD --------------------------------------------
@@ -663,8 +699,11 @@ try {
     const h = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: dateAtIso('2026-09-04'), data });
     const cell = findCell(h, '2026-08-15');
     const allIso = flat(h).every((c) => /^\d{4}-\d{2}-\d{2}$/.test(c.date) && Number.isFinite(Date.parse(`${c.date}T00:00:00Z`)));
-    check('C03 business key is YYYY-MM-DD and data is matched by key, not position',
-      allIso && cell && cell.value === 123, `cell=${JSON.stringify(cell)}`);
+    check(
+      'C03 business key is YYYY-MM-DD and data is matched by key, not position',
+      allIso && cell && cell.value === 123,
+      `cell=${JSON.stringify(cell)}`,
+    );
   }
 
   // ---- C04: future != zero --------------------------------------------------------
@@ -672,10 +711,11 @@ try {
     const h = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: dateAtIso('2026-09-04') });
     const future = findCell(h, '2026-09-05');
     const pastNoData = findCell(h, '2026-08-01');
-    check('C04 future -> null; in-range past with no data -> real 0',
-      future && future.isFuture && future.value === null
-        && pastNoData && !pastNoData.isFuture && pastNoData.value === 0,
-      `future=${JSON.stringify(future)} past=${JSON.stringify(pastNoData)}`);
+    check(
+      'C04 future -> null; in-range past with no data -> real 0',
+      future?.isFuture && future.value === null && pastNoData && !pastNoData.isFuture && pastNoData.value === 0,
+      `future=${JSON.stringify(future)} past=${JSON.stringify(pastNoData)}`,
+    );
   }
 
   // ---- C05: month label = monthStart weekIndex ------------------------------------
@@ -683,8 +723,7 @@ try {
     const h = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: dateAtIso('2026-09-04') });
     const sep = h.monthLabels.find((l) => l.year === 2026 && l.month === 8);
     const ok = sep && h.weeks[sep.weekIndex].some((c) => c.date === '2026-09-01');
-    check('C05 month label anchors at the weekIndex containing the month 1st day', Boolean(ok),
-      `sep=${JSON.stringify(sep)}`);
+    check('C05 month label anchors at the weekIndex containing the month 1st day', Boolean(ok), `sep=${JSON.stringify(sep)}`);
   }
 
   // ---- C06: right-edge month is never dropped --------------------------------------
@@ -692,8 +731,11 @@ try {
     const h = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: dateAtIso('2026-09-04') });
     const { labels } = renderHeatmap(h);
     const sep = labels.find((l) => l.includes('>9月<'));
-    check('C06 right-edge month label present and bound to the last week column',
-      Boolean(sep) && /grid-column:52/.test(sep || ''), `labels=${labels.length}`);
+    check(
+      'C06 right-edge month label present and bound to the last week column',
+      Boolean(sep) && /grid-column:52/.test(sep || ''),
+      `labels=${labels.length}`,
+    );
   }
 
   // ---- C07 + C08: calendar-year range and exact column counts ----------------------
@@ -702,14 +744,26 @@ try {
     const rangeOk = h.rangeStart === '2026-01-01' && h.rangeEnd === '2026-12-31';
     // Non-leap years: exactly 53 columns. Leap years starting on Sunday
     // (2012, 2040): exactly 54. Every other leap year: 53.
-    const cases = [[2012, 54], [2015, 53], [2016, 53], [2019, 53], [2026, 53], [2027, 53], [2028, 53], [2040, 54]];
+    const cases = [
+      [2012, 54],
+      [2015, 53],
+      [2016, 53],
+      [2019, 53],
+      [2026, 53],
+      [2027, 53],
+      [2028, 53],
+      [2040, 54],
+    ];
     const counts = cases.map(([y, expected]) => {
       const hy = buildCalendarHeatmap({ mode: 'calendar-year', today: dateAtIso(`${y}-06-15`), year: y });
       return hy.weeks.length === expected;
     });
     check('C07 calendar-year range is Jan 1 .. Dec 31', rangeOk, `range=${h.rangeStart}..${h.rangeEnd}`);
-    check('C08 calendar-year column count is dynamic AND exact (53; 54 for leap+Sunday Jan 1)',
-      counts.every(Boolean), `cases=${JSON.stringify(cases)}`);
+    check(
+      'C08 calendar-year column count is dynamic AND exact (53; 54 for leap+Sunday Jan 1)',
+      counts.every(Boolean),
+      `cases=${JSON.stringify(cases)}`,
+    );
   }
 
   // ---- C09 + C10 + C11: padding / current-year future / historical year ------------
@@ -718,15 +772,18 @@ try {
     const padStart = [findCell(h2026, '2025-12-29'), findCell(h2026, '2025-12-30'), findCell(h2026, '2025-12-31')];
     const padEnd = flat(h2026).filter((c) => c.date >= '2027-01-01');
     const future = findCell(h2026, '2026-12-31');
-    const c09 = padStart.every((c) => c && c.inRange === false && c.value === null)
-      && padEnd.every((c) => c.inRange === false && c.value === null);
+    const c09 = padStart.every((c) => c && c.inRange === false && c.value === null) && padEnd.every((c) => c.inRange === false && c.value === null);
     const c10 = future && future.inRange === true && future.isFuture === true && future.value === null;
     const h2025 = buildCalendarHeatmap({ mode: 'calendar-year', today: dateAtIso('2026-09-04'), year: 2025 });
-    const c11 = flat(h2025).filter((c) => c.inRange).every((c) => c.isFuture === false);
-    check('C09 year padding (Dec 2025 / Jan 2027) is inRange=false, value=null', c09,
-      `padStart=${JSON.stringify(padStart.map((c) => c && [c.date, c.inRange, c.value]))}`);
-    check('C10 current-year future dates are inRange=true / isFuture=true / value=null', Boolean(c10),
-      `2026-12-31=${JSON.stringify(future)}`);
+    const c11 = flat(h2025)
+      .filter((c) => c.inRange)
+      .every((c) => c.isFuture === false);
+    check(
+      'C09 year padding (Dec 2025 / Jan 2027) is inRange=false, value=null',
+      c09,
+      `padStart=${JSON.stringify(padStart.map((c) => c && [c.date, c.inRange, c.value]))}`,
+    );
+    check('C10 current-year future dates are inRange=true / isFuture=true / value=null', Boolean(c10), `2026-12-31=${JSON.stringify(future)}`);
     check('C11 historical year (2025) contains no future days', c11);
   }
 
@@ -735,20 +792,28 @@ try {
     const h = buildCalendarHeatmap({ mode: 'calendar-year', today: dateAtIso('2028-02-29'), year: 2028 });
     const leap = findCell(h, '2028-02-29');
     const inRange = flat(h).filter((c) => c.inRange).length;
-    check('C12 leap day 2028-02-29 exists in range; 366 in-range days; 53 columns',
+    check(
+      'C12 leap day 2028-02-29 exists in range; 366 in-range days; 53 columns',
       Boolean(leap) && leap.inRange === true && inRange === 366 && h.weeks.length === 53,
-      `weeks=${h.weeks.length} inRange=${inRange}`);
+      `weeks=${h.weeks.length} inRange=${inRange}`,
+    );
   }
 
   // ---- C13: UTC+8 midnight boundary ---------------------------------------------------
   {
     const before = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: Date.parse('2026-09-03T15:59:59Z') });
     const after = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: Date.parse('2026-09-03T16:00:00Z') });
-    const ok = before.weeks[51][3].date === '2026-09-03' && before.weeks[51][3].weekdayIndex === 3
-      && after.weeks[51][4].date === '2026-09-04' && after.weeks[51][4].weekdayIndex === 4
-      && after.monthLabels[after.monthLabels.length - 1].month === 8;
-    check('C13 15:59:59Z vs 16:00:00Z: business date ±1, weekday and month do not shift', ok,
-      `before=${before.weeks[51][3].date} after=${after.weeks[51][4].date}`);
+    const ok =
+      before.weeks[51][3].date === '2026-09-03' &&
+      before.weeks[51][3].weekdayIndex === 3 &&
+      after.weeks[51][4].date === '2026-09-04' &&
+      after.weeks[51][4].weekdayIndex === 4 &&
+      after.monthLabels[after.monthLabels.length - 1].month === 8;
+    check(
+      'C13 15:59:59Z vs 16:00:00Z: business date ±1, weekday and month do not shift',
+      ok,
+      `before=${before.weeks[51][3].date} after=${after.weeks[51][4].date}`,
+    );
   }
 
   // ---- C14: renderer and builder share the same week column ----------------------------
@@ -764,18 +829,26 @@ try {
       const col = Number(html.match(/grid-column:(\d+)/)?.[1]);
       const row = Number(html.match(/grid-row:(\d+)/)?.[1]);
       const b = byDate.get(date);
-      if (!b || b.weekIndex !== week || b.weekdayIndex !== weekday
-        || col !== week + 1 || row !== weekday + 1) { cellsOk = false; break; }
+      if (!b || b.weekIndex !== week || b.weekdayIndex !== weekday || col !== week + 1 || row !== weekday + 1) {
+        cellsOk = false;
+        break;
+      }
     }
     let labelsOk = true;
     for (const html of labels) {
       const col = Number(html.match(/grid-column:(\d+)/)?.[1]);
       const month = Number(html.match(/>(\d{1,2})月</)?.[1]);
       const label = h.monthLabels.find((l) => l.month === month - 1);
-      if (!label || label.weekIndex + 1 !== col) { labelsOk = false; break; }
+      if (!label || label.weekIndex + 1 !== col) {
+        labelsOk = false;
+        break;
+      }
     }
-    check('C14 renderer positions (cells + labels) match the builder week columns exactly',
-      cellsOk && labelsOk, `cellsOk=${cellsOk} labelsOk=${labelsOk}`);
+    check(
+      'C14 renderer positions (cells + labels) match the builder week columns exactly',
+      cellsOk && labelsOk,
+      `cellsOk=${cellsOk} labelsOk=${labelsOk}`,
+    );
   }
 
   // ---- C15: months CSS shares the heatmap week tracks -----------------------------------
@@ -784,20 +857,20 @@ try {
     const monthsRule = css.match(/\.months\{[^}]*\}/)?.[0] || '';
     const heatmapRule = css.match(/\.heatmap\{[^}]*\}/)?.[0] || '';
     const cellRule = css.match(/\.cell\{[^}]*\}/)?.[0] || '';
-    const monthsGrid = monthsRule.includes('display:grid')
-      && monthsRule.includes('grid-template-columns:repeat(var(--week-count,52),1fr)');
+    const monthsGrid = monthsRule.includes('display:grid') && monthsRule.includes('grid-template-columns:repeat(var(--week-count,52),1fr)');
     const notFlex = !monthsRule.includes('display:flex') && !monthsRule.includes('space-between');
     const heatmapSameTracks = heatmapRule.includes('grid-template-columns:repeat(var(--week-count,52),1fr)');
     // The heatmap fills the content width: 1fr tracks stretch, cells must not
     // pin a fixed width.
     const cellsStretch = heatmapRule.includes('1fr') && !cellRule.includes('width:10px');
     const usageView = readFileSync(join(root, 'src/dashboard/usage-view.ts'), 'utf8');
-    const weekCountWired = /class="heatmap" style="\$\{weekTracks\}"/.test(usageView)
-      && /class="months" style="\$\{weekTracks\}"/.test(usageView);
+    const weekCountWired = /class="heatmap" style="\$\{weekTracks\}"/.test(usageView) && /class="months" style="\$\{weekTracks\}"/.test(usageView);
     const titleUpdated = usageView.includes('Token 活动 · 近 52 周');
-    check('C15 .months uses the same --week-count CSS grid tracks as .heatmap (no flex/space-between); heatmap fills the width',
+    check(
+      'C15 .months uses the same --week-count CSS grid tracks as .heatmap (no flex/space-between); heatmap fills the width',
       monthsGrid && notFlex && heatmapSameTracks && cellsStretch && weekCountWired && titleUpdated,
-      `monthsGrid=${monthsGrid} notFlex=${notFlex} heatmapSameTracks=${heatmapSameTracks} cellsStretch=${cellsStretch} wired=${weekCountWired} title=${titleUpdated}`);
+      `monthsGrid=${monthsGrid} notFlex=${notFlex} heatmapSameTracks=${heatmapSameTracks} cellsStretch=${cellsStretch} wired=${weekCountWired} title=${titleUpdated}`,
+    );
   }
 
   if (failures > 0) {
@@ -840,8 +913,11 @@ try {
 
   {
     const out = filterDashboardModelStatus(envelope, undefined);
-    assert.deepEqual(out.models.map((m) => m.id), ['Air', 'Max', 'Code-Pro', 'Code-Ultra'],
-      'unset variable keeps the full public catalog');
+    assert.deepEqual(
+      out.models.map((m) => m.id),
+      ['Air', 'Max', 'Code-Pro', 'Code-Ultra'],
+      'unset variable keeps the full public catalog',
+    );
   }
 
   {
@@ -856,8 +932,11 @@ try {
 
   {
     const out = filterDashboardModelStatus(envelope, '  code-pro, MAX,missing,code-pro, Code-Ultra  ');
-    assert.deepEqual(out.models.map((m) => m.id), ['Code-Pro', 'Max', 'Code-Ultra'],
-      'matching is case-insensitive, unknown names are ignored, duplicates are removed and configured order wins');
+    assert.deepEqual(
+      out.models.map((m) => m.id),
+      ['Code-Pro', 'Max', 'Code-Ultra'],
+      'matching is case-insensitive, unknown names are ignored, duplicates are removed and configured order wins',
+    );
     assert.equal(out.observed_at, envelope.observed_at, 'status observation timestamp is preserved');
   }
 
@@ -868,35 +947,46 @@ try {
 
   {
     const out = filterDashboardModelStatus(envelope, ' , , ');
-    assert.deepEqual(out.models.map((m) => m.id), ['Air', 'Max', 'Code-Pro', 'Code-Ultra'],
-      'whitespace/empty CSV is treated as unset');
+    assert.deepEqual(
+      out.models.map((m) => m.id),
+      ['Air', 'Max', 'Code-Pro', 'Code-Ultra'],
+      'whitespace/empty CSV is treated as unset',
+    );
   }
 
   {
-    const nodes = [{
-      id: 'status-filter-node',
-      provider: 'mock',
-      tier: 'tier-1',
-      protocol: 'openai',
-      surfaces: ['chat_completions'],
-      base_url: 'https://status-filter.example.com/v1',
-      credential: 'unused-in-status-test',
-      priority: 10,
-      models: {
-        'Code-Ultra': 'up-ultra',
-        'Code-Max': 'up-max',
-        'Code-Pro': 'up-pro',
+    const nodes = [
+      {
+        id: 'status-filter-node',
+        provider: 'mock',
+        tier: 'tier-1',
+        protocol: 'openai',
+        surfaces: ['chat_completions'],
+        base_url: 'https://status-filter.example.com/v1',
+        credential: 'unused-in-status-test',
+        priority: 10,
+        models: {
+          'Code-Ultra': 'up-ultra',
+          'Code-Max': 'up-max',
+          'Code-Pro': 'up-pro',
+        },
       },
-    }];
+    ];
     const out = publicModelStatus(nodes, { AIG_DASHBOARD_MODELS: 'code-pro,Code-Ultra' }, new Set(), 1_700_000_000_000);
-    assert.deepEqual(out.models.map((m) => m.id), ['Code-Pro', 'Code-Ultra'],
-      'dashboard wrapper applies the text variable after public status is computed');
+    assert.deepEqual(
+      out.models.map((m) => m.id),
+      ['Code-Pro', 'Code-Ultra'],
+      'dashboard wrapper applies the text variable after public status is computed',
+    );
   }
 
   {
     const vars = collectVarsFromEnv({ AIG_DASHBOARD_MODELS: 'Code-Ultra,Code-Max,Code-Pro' });
-    assert.equal(vars.vars.AIG_DASHBOARD_MODELS, 'Code-Ultra,Code-Max,Code-Pro',
-      'GitHub deployment bridge admits AIG_DASHBOARD_MODELS as a plain Worker text variable');
+    assert.equal(
+      vars.vars.AIG_DASHBOARD_MODELS,
+      'Code-Ultra,Code-Max,Code-Pro',
+      'GitHub deployment bridge admits AIG_DASHBOARD_MODELS as a plain Worker text variable',
+    );
   }
 
   {
@@ -914,22 +1004,18 @@ try {
       { model: 'glm-5.2', total: 51, requests: 6 },
       { model: 'legacy-provider-model', total: 7, requests: 1 },
     ];
-    const out = selectDashboardModelUsageRows(
-      rows,
-      'General-Pro,Code-Ultra,Code-Max,Code-Pro',
-      officialNames,
+    const out = selectDashboardModelUsageRows(rows, 'General-Pro,Code-Ultra,Code-Max,Code-Pro', officialNames);
+    assert.deepEqual(
+      out.map((r) => r.model),
+      ['Code-Pro', 'Code-Max', 'Code-Ultra', '其他'],
+      'usage ranks eligible AIG_DASHBOARD_MODELS by Token total and exposes only the top three',
     );
-    assert.deepEqual(out.map((r) => r.model), ['Code-Pro', 'Code-Max', 'Code-Ultra', '其他'],
-      'usage ranks eligible AIG_DASHBOARD_MODELS by Token total and exposes only the top three');
-    assert.deepEqual(out[3], { model: '其他', total: 110, requests: 14 },
-      'rank 4+ and every model outside AIG_DASHBOARD_MODELS are merged into 其他');
+    assert.deepEqual(out[3], { model: '其他', total: 110, requests: 14 }, 'rank 4+ and every model outside AIG_DASHBOARD_MODELS are merged into 其他');
   }
 
   {
     const now = Date.parse('2026-09-10T12:00:00+08:00');
-    const daily = new Map([
-      ['2026-09-10', { total: 106_000_000, requests: 876, reports: 800, missing: 76 }],
-    ]);
+    const daily = new Map([['2026-09-10', { total: 106_000_000, requests: 876, reports: 800, missing: 76 }]]);
     const { cells } = buildHeatmap(daily, now);
     const cell = cells.find((html) => html.includes('data-date="2026-09-10"'));
     assert.ok(cell, 'heatmap contains the target date');
@@ -951,46 +1037,56 @@ try {
       daily: new Map(),
       modelUsage: { available: true, rows: [{ model: 'code-pro', total: 1, requests: 1 }] },
     };
-    const html = await usageSection(
-      { AIG_DASHBOARD_MODELS: 'Code-Pro' },
-      now,
-      stats,
-      new Map([['code-pro', 'Code-Pro']]),
-    );
+    const html = await usageSection({ AIG_DASHBOARD_MODELS: 'Code-Pro' }, now, stats, new Map([['code-pro', 'Code-Pro']]));
     assert.match(html, /<div class="panel-title">模型使用 · 近 7 天<\/div>/, 'model usage heading carries its time window');
     assert.ok(!html.includes('模型使用 · 上游消耗'), 'old heading is removed');
-    assert.match(THEME_CSS, /\.usage-detail-grid\{[^}]*grid-template-columns:/,
-      'desktop usage analysis uses the new two-panel grid');
-    assert.match(THEME_CSS, /@media\(max-width:1120px\)[\s\S]*?\.usage-detail-grid\{grid-template-columns:1fr\}/,
-      'responsive layout stacks usage analysis panels before cards can overflow');
-    assert.ok(!/section\{[^}]*border-top/.test(THEME_CSS),
-      'card-based dashboard sections use whitespace instead of section divider lines');
-    assert.match(THEME_CSS, /\.status-grid\{[^}]*repeat\(2,minmax\(0,1fr\)\)/,
-      'status cards use shrinkable grid tracks and cannot force the page wider');
-    assert.ok(THEME_CSS.includes('--brand:#0f5d53') && THEME_CSS.includes('--heat-4:#0f5d53'),
-      'dashboard restores the original low-saturation teal palette');
-    assert.ok(!THEME_CSS.includes('.composition-layout{'),
-      'composition no longer reserves an empty title column');
-    assert.match(THEME_CSS, /\.composition-data\{[^}]*display:grid;gap:18px/,
-      'track and all four cumulative metrics keep a deliberate gap below the composition track');
-    assert.ok(!html.includes('累计 Token 构成'),
-      'cumulative composition does not add a redundant visible heading');
-    assert.match(THEME_CSS, /\.composition-metrics\.four-up\{grid-template-columns:repeat\(4,minmax\(0,1fr\)\)\}/,
-      'token composition uses four aligned metrics without a secondary chart');
-    assert.ok(!THEME_CSS.includes('.cache-ring{'),
-      'token composition no longer reserves visual weight for a cache ring');
-    assert.match(THEME_CSS, /\.heatmap\{[^}]*grid-template-rows:repeat\(7,11px\)/,
-      'desktop heatmap rows use the fine-tuned 11px height to align with model usage');
-    assert.match(THEME_CSS, /\.model-ranking\{[^}]*gap:2px\}/,
-      'model usage rows use a tighter vertical gap');
-    assert.match(THEME_CSS, /\.model-rank-row\{[^}]*padding:6px 8px/,
-      'model usage rows use compact vertical padding');
-    assert.match(THEME_CSS, /\.model-panel \.panel-head\{margin-bottom:14px\}/,
-      'model usage heading leaves less unused vertical space');
-    assert.match(THEME_CSS, /@media\(max-width:760px\)[\s\S]*?\.heatmap\{grid-template-rows:repeat\(7,10px\)\}/,
-      'mobile heatmap keeps the compact 10px row height');
-    assert.match(THEME_CSS, /@media\(min-width:761px\) and \(max-height:900px\)[\s\S]*?\.stat\{min-height:88px/,
-      'short desktop viewports compact the first fold so all four Token KPIs remain visible');
+    assert.match(THEME_CSS, /\.usage-detail-grid\{[^}]*grid-template-columns:/, 'desktop usage analysis uses the new two-panel grid');
+    assert.match(
+      THEME_CSS,
+      /@media\(max-width:1120px\)[\s\S]*?\.usage-detail-grid\{grid-template-columns:1fr\}/,
+      'responsive layout stacks usage analysis panels before cards can overflow',
+    );
+    assert.ok(!/section\{[^}]*border-top/.test(THEME_CSS), 'card-based dashboard sections use whitespace instead of section divider lines');
+    assert.match(
+      THEME_CSS,
+      /\.status-grid\{[^}]*repeat\(2,minmax\(0,1fr\)\)/,
+      'status cards use shrinkable grid tracks and cannot force the page wider',
+    );
+    assert.ok(
+      THEME_CSS.includes('--brand:#0f5d53') && THEME_CSS.includes('--heat-4:#0f5d53'),
+      'dashboard restores the original low-saturation teal palette',
+    );
+    assert.ok(!THEME_CSS.includes('.composition-layout{'), 'composition no longer reserves an empty title column');
+    assert.match(
+      THEME_CSS,
+      /\.composition-data\{[^}]*display:grid;gap:18px/,
+      'track and all four cumulative metrics keep a deliberate gap below the composition track',
+    );
+    assert.ok(!html.includes('累计 Token 构成'), 'cumulative composition does not add a redundant visible heading');
+    assert.match(
+      THEME_CSS,
+      /\.composition-metrics\.four-up\{grid-template-columns:repeat\(4,minmax\(0,1fr\)\)\}/,
+      'token composition uses four aligned metrics without a secondary chart',
+    );
+    assert.ok(!THEME_CSS.includes('.cache-ring{'), 'token composition no longer reserves visual weight for a cache ring');
+    assert.match(
+      THEME_CSS,
+      /\.heatmap\{[^}]*grid-template-rows:repeat\(7,11px\)/,
+      'desktop heatmap rows use the fine-tuned 11px height to align with model usage',
+    );
+    assert.match(THEME_CSS, /\.model-ranking\{[^}]*gap:2px\}/, 'model usage rows use a tighter vertical gap');
+    assert.match(THEME_CSS, /\.model-rank-row\{[^}]*padding:6px 8px/, 'model usage rows use compact vertical padding');
+    assert.match(THEME_CSS, /\.model-panel \.panel-head\{margin-bottom:14px\}/, 'model usage heading leaves less unused vertical space');
+    assert.match(
+      THEME_CSS,
+      /@media\(max-width:760px\)[\s\S]*?\.heatmap\{grid-template-rows:repeat\(7,10px\)\}/,
+      'mobile heatmap keeps the compact 10px row height',
+    );
+    assert.match(
+      THEME_CSS,
+      /@media\(min-width:761px\) and \(max-height:900px\)[\s\S]*?\.stat\{min-height:88px/,
+      'short desktop viewports compact the first fold so all four Token KPIs remain visible',
+    );
   }
 
   {
@@ -1036,23 +1132,31 @@ try {
             return {
               async all() {
                 if (sql.includes('token_usage_daily')) {
-                  return { results: [{
-                    day: '2026-09-01',
-                    upstream_total_tokens: 1_000,
-                    requests: 7,
-                    upstream_attempts: 99,
-                    upstream_usage_reports: 5,
-                    upstream_usage_missing: 2,
-                  }] };
+                  return {
+                    results: [
+                      {
+                        day: '2026-09-01',
+                        upstream_total_tokens: 1_000,
+                        requests: 7,
+                        upstream_attempts: 99,
+                        upstream_usage_reports: 5,
+                        upstream_usage_missing: 2,
+                      },
+                    ],
+                  };
                 }
-                return { results: [{
-                  hour: '2026-09-10T04:00:00.000Z',
-                  upstream_total_tokens: 2_000,
-                  requests: 8,
-                  upstream_attempts: 88,
-                  upstream_usage_reports: 6,
-                  upstream_usage_missing: 2,
-                }] };
+                return {
+                  results: [
+                    {
+                      hour: '2026-09-10T04:00:00.000Z',
+                      upstream_total_tokens: 2_000,
+                      requests: 8,
+                      upstream_attempts: 88,
+                      upstream_usage_reports: 6,
+                      upstream_usage_missing: 2,
+                    },
+                  ],
+                };
               },
             };
           },
@@ -1070,22 +1174,18 @@ try {
 
   {
     const source = fs.readFileSync(join(root, 'src', 'dashboard', 'pages.ts'), 'utf8');
-    assert.ok(source.includes("viewBox='0 0 48 48'"),
-      'favicon uses a compact square canvas for the AI Gateway mark');
+    assert.ok(source.includes("viewBox='0 0 48 48'"), 'favicon uses a compact square canvas for the AI Gateway mark');
     assert.ok(!source.includes('<text'), 'favicon must not depend on a font glyph');
-    assert.ok(source.includes("stroke='%230f5d53'") && source.includes("d='M7 37L24 5L41 37Q33 40 24 31Q15 40 7 37Z'"),
-      'favicon uses the original teal palette and one uninterrupted triangle-convergence mark');
-    assert.ok(!source.includes('M17.5 20H30.5'),
-      'logo does not rely on an A crossbar');
+    assert.ok(
+      source.includes("stroke='%230f5d53'") && source.includes("d='M7 37L24 5L41 37Q33 40 24 31Q15 40 7 37Z'"),
+      'favicon uses the original teal palette and one uninterrupted triangle-convergence mark',
+    );
+    assert.ok(!source.includes('M17.5 20H30.5'), 'logo does not rely on an A crossbar');
     assert.ok(!source.includes("preserveAspectRatio='none'"), 'favicon must not stretch the logo');
-    assert.ok(source.includes('One endpoint. Built for upstream change.'),
-      'brand slogan stays in the compact header instead of a hero block');
-    assert.ok(!source.includes('一个入口，应对所有变化'),
-      'the old marketing hero copy is removed from the public dashboard');
-    assert.ok(source.includes('href="https://labs.fongap.com"') && source.includes('>Fongap Labs</a>'),
-      'footer brand link points to labs.fongap.com');
+    assert.ok(source.includes('One endpoint. Built for upstream change.'), 'brand slogan stays in the compact header instead of a hero block');
+    assert.ok(!source.includes('一个入口，应对所有变化'), 'the old marketing hero copy is removed from the public dashboard');
+    assert.ok(source.includes('href="https://labs.fongap.com"') && source.includes('>Fongap Labs</a>'), 'footer brand link points to labs.fongap.com');
   }
-
 
   {
     const html = quickStartSection({
@@ -1093,24 +1193,23 @@ try {
       accessGroups: ['MAX'],
     });
     assert.ok(html.includes('Key 组：MAX'), 'quick start renders only configured access groups');
-    assert.ok(!html.includes('AIR / PRO / MAX / ULTRA / AGENT'),
-      'quick start must not hard-code the full access-group catalog');
-    assert.ok(html.includes('OPENAI_BASE_URL') && html.includes('https://runtime.example/v1'),
-      'OpenAI quick start uses the runtime public URL');
-    assert.ok(html.includes('OPENAI_API_KEY') && html.includes('&lt;YOUR_GATEWAY_KEY&gt;'),
-      'OpenAI quick start uses the standard client API-key variable directly');
-    assert.ok(html.includes('ANTHROPIC_BASE_URL') && html.includes('https://runtime.example'),
-      'Anthropic quick start uses the same runtime public origin');
-    assert.ok(!html.includes('GATEWAY_API_KEY'),
-      'quick start does not introduce a gateway-only shell indirection');
+    assert.ok(!html.includes('AIR / PRO / MAX / ULTRA / AGENT'), 'quick start must not hard-code the full access-group catalog');
+    assert.ok(html.includes('OPENAI_BASE_URL') && html.includes('https://runtime.example/v1'), 'OpenAI quick start uses the runtime public URL');
+    assert.ok(
+      html.includes('OPENAI_API_KEY') && html.includes('&lt;YOUR_GATEWAY_KEY&gt;'),
+      'OpenAI quick start uses the standard client API-key variable directly',
+    );
+    assert.ok(
+      html.includes('ANTHROPIC_BASE_URL') && html.includes('https://runtime.example'),
+      'Anthropic quick start uses the same runtime public origin',
+    );
+    assert.ok(!html.includes('GATEWAY_API_KEY'), 'quick start does not introduce a gateway-only shell indirection');
   }
 
   {
     const pages = fs.readFileSync(join(root, 'src', 'dashboard', 'pages.ts'), 'utf8');
-    assert.ok(pages.includes('AIG_PUBLIC_URL'),
-      'dashboard quick start derives its public endpoint from backend runtime metadata');
-    assert.ok(pages.includes('loadAccessKeysConfig(env).keys.map'),
-      'dashboard quick start derives access groups from configured gateway keys');
+    assert.ok(pages.includes('AIG_PUBLIC_URL'), 'dashboard quick start derives its public endpoint from backend runtime metadata');
+    assert.ok(/loadAccessKeysConfig\(\w+\)\.keys\.map/.test(pages), 'dashboard quick start derives access groups from configured gateway keys');
   }
 
   console.log('dashboard consumption semantics tests passed.');
@@ -1186,11 +1285,7 @@ try {
   assert.equal((degradedSvg.match(/class="value">—<\/text>/g) || []).length, 4);
   assert.match(degradedSvg, /class="metric-value">—<\/text>/);
 
-  const publicRoute = await preflight(
-    new Request('https://gateway.example/readme-status.svg', { headers: { accept: 'image/svg+xml' } }),
-    {},
-    {},
-  );
+  const publicRoute = await preflight(new Request('https://gateway.example/readme-status.svg', { headers: { accept: 'image/svg+xml' } }), {}, {});
   assert.equal(publicRoute.ok, false);
   assert.equal(publicRoute.response.status, 200);
   assert.match(publicRoute.response.headers.get('content-type') || '', /^image\/svg\+xml/);

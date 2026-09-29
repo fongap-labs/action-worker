@@ -45,10 +45,11 @@ try {
 
 
 
-
   const ENV = {};
   let now = 1_000_000;
-  const tick = (ms) => { now += ms; };
+  const tick = (ms) => {
+    now += ms;
+  };
 
   let passed = 0;
   async function test(name, fn) {
@@ -57,7 +58,7 @@ try {
       passed++;
     } catch (e) {
       console.error(`FAIL: ${name}`);
-      console.error(e && e.stack || e);
+      console.error(e?.stack || e);
       process.exitCode = 1;
     }
   }
@@ -76,18 +77,22 @@ try {
   await test('consecutive failures open circuit; interleaved success keeps it closed', async () => {
     // 503 success 503 success 503 -> CLOSED
     for (let i = 0; i < 2; i++) {
-      acquireSlot('c1', now); tick(1);
+      acquireSlot('c1', now);
+      tick(1);
       recordFailure('c1', { counted: true, cooldownMs: 100 }, now);
-      acquireSlot('c1', now); tick(1);
+      acquireSlot('c1', now);
+      tick(1);
       recordSuccess('c1', 5, now);
     }
-    acquireSlot('c1', now); tick(1);
+    acquireSlot('c1', now);
+    tick(1);
     recordFailure('c1', { counted: true, cooldownMs: 100 }, now);
     assert.equal(getNodeState('c1').circuitState, 'closed');
 
     // N consecutive failures -> OPEN
     for (let i = 0; i < CIRCUIT_FAILURE_THRESHOLD; i++) {
-      acquireSlot('c1', now); tick(1);
+      acquireSlot('c1', now);
+      tick(1);
       recordFailure('c1', { counted: true, cooldownMs: 100 }, now);
     }
     assert.equal(getNodeState('c1').circuitState, 'open');
@@ -96,7 +101,8 @@ try {
   await test('half-open allows exactly one probe; probe failure reopens', async () => {
     const id = 'c2';
     for (let i = 0; i < CIRCUIT_FAILURE_THRESHOLD; i++) {
-      acquireSlot(id, now); tick(1);
+      acquireSlot(id, now);
+      tick(1);
       recordFailure(id, { counted: true, cooldownMs: 50 }, now);
     }
     assert.equal(peekAvailability(id, now), 'no');
@@ -123,7 +129,8 @@ try {
     assert.equal(c.cooldownMs, 30_000);
     assert.equal(c.counted, false);
     for (let i = 0; i < 10; i++) {
-      acquireSlot(id, now); tick(1);
+      acquireSlot(id, now);
+      tick(1);
       recordFailure(id, { counted: c.counted, cooldownMs: c.cooldownMs }, now);
     }
     assert.equal(getNodeState(id).circuitState, 'closed');
@@ -160,7 +167,8 @@ try {
       assert.equal(c.counted, false);
     }
     const id = 'ce1';
-    acquireSlot(id, now); tick(1);
+    acquireSlot(id, now);
+    tick(1);
     const before = getNodeState(id).healthScore;
     applyHealthPenalty(id, 'client');
     assert.equal(getNodeState(id).healthScore, before); // client kind has no penalty
@@ -176,11 +184,13 @@ try {
 
   await test('success resets consecutive failures and closes half-open', async () => {
     const id = 's1';
-    acquireSlot(id, now); tick(1);
+    acquireSlot(id, now);
+    tick(1);
     recordSuccess(id, 20, now);
     assert.equal(getNodeState(id).consecutiveFailures, 0);
     assert.equal(getNodeState(id).avgLatencyMs, 20);
-    acquireSlot(id, now); tick(1);
+    acquireSlot(id, now);
+    tick(1);
     recordSuccess(id, 40, now);
     assert.ok(Math.abs(getNodeState(id).avgLatencyMs - 26) < 1); // EWMA alpha .3
   });
@@ -192,7 +202,8 @@ try {
 
   function openCircuitForProbe(id) {
     for (let i = 0; i < CIRCUIT_FAILURE_THRESHOLD; i++) {
-      acquireSlot(id, now); tick(1);
+      acquireSlot(id, now);
+      tick(1);
       recordFailure(id, { counted: true, cooldownMs: 50 }, now);
     }
     tick(CIRCUIT_OPEN_MS + 1);
@@ -359,16 +370,18 @@ try {
 
   await test('dispatchable count keeps busy nodes as soft capacity', async () => {
     const makeNode = (id) => ({
-      id, models: { m: 'upstream' }, priority: 10,
-      protocol: 'openai', surfaces: ['chat_completions'],
+      id,
+      models: { m: 'upstream' },
+      priority: 10,
+      protocol: 'openai',
+      surfaces: ['chat_completions'],
     });
     const req = { model: 'm', protocol: 'openai', surface: 'chat_completions' };
     const nodes = [makeNode('live-count-a'), makeNode('live-count-b')];
     assert.equal(countDispatchableNodes(nodes, req, new Set(), now), 2);
     assert.equal(countDispatchableNodes(nodes, req, new Set(['live-count-a']), now), 1);
     acquireSlot('live-count-b', now);
-    assert.equal(countDispatchableNodes(nodes, req, new Set(), now), 2,
-      'configured concurrency is ranking-only; a busy node remains dispatchable');
+    assert.equal(countDispatchableNodes(nodes, req, new Set(), now), 2, 'configured concurrency is ranking-only; a busy node remains dispatchable');
     recordNeutralEnd('live-count-b');
   });
 
@@ -424,11 +437,22 @@ try {
     // AttemptOutcome.kind / terminalStatus dispatch. New kinds require
     // editing KIND in src/reliability/classify.ts AND this test.
     const expected = [
-      KIND.RATE_LIMIT, KIND.RATE_LIMIT_GLOBAL, KIND.AUTH, KIND.CLIENT,
-      KIND.MODEL_MISSING, KIND.ENDPOINT_NOT_FOUND, KIND.SERVER, KIND.NETWORK,
-      KIND.HEADERS_TIMEOUT, KIND.FIRST_EVENT_TIMEOUT, KIND.CLIENT_ABORT,
-      KIND.INVALID_BASE_URL, KIND.STREAM_INTERRUPTED, KIND.NON_JSON_BODY,
-      KIND.CANCELLED_AFTER_PEER_COMMIT, KIND.UNKNOWN,
+      KIND.RATE_LIMIT,
+      KIND.RATE_LIMIT_GLOBAL,
+      KIND.AUTH,
+      KIND.CLIENT,
+      KIND.MODEL_MISSING,
+      KIND.ENDPOINT_NOT_FOUND,
+      KIND.SERVER,
+      KIND.NETWORK,
+      KIND.HEADERS_TIMEOUT,
+      KIND.FIRST_EVENT_TIMEOUT,
+      KIND.CLIENT_ABORT,
+      KIND.INVALID_BASE_URL,
+      KIND.STREAM_INTERRUPTED,
+      KIND.NON_JSON_BODY,
+      KIND.CANCELLED_AFTER_PEER_COMMIT,
+      KIND.UNKNOWN,
     ];
     // Sanity: no duplicates.
     assert.equal(new Set(expected).size, expected.length, 'KIND values must be unique');
@@ -506,14 +530,19 @@ try {
   // equal-share helper must not accidentally return to the live path during a
   // refactor. Hedge twins must continue inheriting the primary absolute deadline.
   const dispatchSource = readFileSync(join(root, 'src/request/attempt/dispatch.ts'), 'utf8');
-  assert.match(dispatchSource, /attemptBudgetWindowMs\(remainingBudgetMs,\s*remainingDispatchableAttempts\)/,
-    'dispatch must allocate reserve-aware attempt windows');
-  assert.doesNotMatch(dispatchSource, /attemptBudgetSliceMs\(remainingBudgetMs,\s*remainingDispatchableAttempts\)/,
-    'dispatch must not regress to equal-share request slicing');
+  assert.match(
+    dispatchSource,
+    /attemptBudgetWindowMs\(remainingBudgetMs,\s*remainingDispatchableAttempts\)/,
+    'dispatch must allocate reserve-aware attempt windows',
+  );
+  assert.doesNotMatch(
+    dispatchSource,
+    /attemptBudgetSliceMs\(remainingBudgetMs,\s*remainingDispatchableAttempts\)/,
+    'dispatch must not regress to equal-share request slicing',
+  );
 
   const hedgeSource = readFileSync(join(root, 'src/request/attempt/hedge.ts'), 'utf8');
-  assert.match(hedgeSource, /attemptDeadlineMs:\s*primaryArgs\.attemptDeadlineMs/,
-    'hedge twin must share the primary logical-attempt deadline');
+  assert.match(hedgeSource, /attemptDeadlineMs:\s*primaryArgs\.attemptDeadlineMs/, 'hedge twin must share the primary logical-attempt deadline');
 
   console.log('attempt budget contract tests passed.');
   console.log('ok - file:attempt-budget-contract');
@@ -589,8 +618,7 @@ try {
     'a saturated Tier 1 account must not be selectable when the explicit cap is propagated',
   );
   const uncappedPick = pickTier1Candidate([hedgeNode], hedgeReq, new Set(), { maxInFlight: null });
-  assert.equal(uncappedPick?.node?.id, hedgeNode.id,
-    'dropping maxInFlight would admit the saturated account and recreate the hedge bypass');
+  assert.equal(uncappedPick?.node?.id, hedgeNode.id, 'dropping maxInFlight would admit the saturated account and recreate the hedge bypass');
   assert.equal(releaseTier1Slot(hedgeNode.id, uncappedPick?.releaseToken), true);
   assert.equal(releaseTier1Slot(hedgeNode.id, occupiedToken), true);
 
@@ -599,11 +627,7 @@ try {
   const fallbackCallStart = fallbackSource.indexOf('const fbTierCaps = computeTierCaps(');
   assert.ok(fallbackCallStart >= 0, 'protocol fallback tier-cap computation must exist');
   const fallbackCall = fallbackSource.slice(fallbackCallStart, fallbackCallStart + 700);
-  assert.match(
-    fallbackCall,
-    /policy\.maxInFlight\s*\?\?\s*null/,
-    'protocol fallback must propagate policy.maxInFlight into computeTierCaps',
-  );
+  assert.match(fallbackCall, /policy\.maxInFlight\s*\?\?\s*null/, 'protocol fallback must propagate policy.maxInFlight into computeTierCaps');
 
   __resetTier1StateForTests();
   const fallbackNode = node('fallback-cap', 'anthropic', 'messages');
@@ -615,10 +639,8 @@ try {
   const knownModels = new Set(['general-air']);
   const capped = computeTierCaps(tiers, fallbackReq, new Set(), policy, knownModels, 1);
   const uncapped = computeTierCaps(tiers, fallbackReq, new Set(), policy, knownModels, null);
-  assert.equal(capped[1], 0,
-    'fallback planning must assign zero Tier 1 attempts when every account is at the explicit cap');
-  assert.ok(uncapped[1] > 0,
-    'without the cap, the same fallback pool appears dispatchable, proving the composition bug is observable');
+  assert.equal(capped[1], 0, 'fallback planning must assign zero Tier 1 attempts when every account is at the explicit cap');
+  assert.ok(uncapped[1] > 0, 'without the cap, the same fallback pool appears dispatchable, proving the composition bug is observable');
   assert.equal(releaseTier1Slot(fallbackNode.id, fallbackToken), true);
 
   console.log('composed capacity contract tests passed.');
@@ -682,9 +704,7 @@ try {
       const tierNodes = nodes.filter((node) => node.__tier === tier);
       if (!tierNodes.length) continue;
       env[`AIG_TIER${tier}_NODES_01`] = JSON.stringify(tierNodes.map(({ __tier, ...node }) => node));
-      env[`AIG_TIER${tier}_CREDENTIALS_01`] = JSON.stringify(
-        Object.fromEntries(tierNodes.map((node) => [node.id, `secret-${node.id}`])),
-      );
+      env[`AIG_TIER${tier}_CREDENTIALS_01`] = JSON.stringify(Object.fromEntries(tierNodes.map((node) => [node.id, `secret-${node.id}`])));
     }
     return env;
   }
@@ -700,7 +720,9 @@ try {
   function completedResponsesObject(model, text = 'ok') {
     return {
       id: `resp_${model.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
-      object: 'response', status: 'completed', model,
+      object: 'response',
+      status: 'completed',
+      model,
       output: [{ id: 'msg_1', type: 'message', role: 'assistant', status: 'completed', content: [{ type: 'output_text', text }] }],
       usage: { input_tokens: 2, output_tokens: 2, total_tokens: 4 },
     };
@@ -711,15 +733,31 @@ try {
   }
 
   function hangingSseHeaders() {
-    return new Response(new ReadableStream({ pull() { return new Promise(() => {}); } }), {
-      status: 200, headers: { 'content-type': 'text/event-stream' },
-    });
+    return new Response(
+      new ReadableStream({
+        pull() {
+          return new Promise(() => {});
+        },
+      }),
+      {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      },
+    );
   }
 
   function hangingErrorBody(status = 503) {
-    return new Response(new ReadableStream({ pull() { return new Promise(() => {}); } }), {
-      status, headers: { 'content-type': 'application/json' },
-    });
+    return new Response(
+      new ReadableStream({
+        pull() {
+          return new Promise(() => {});
+        },
+      }),
+      {
+        status,
+        headers: { 'content-type': 'application/json' },
+      },
+    );
   }
 
   function installFetch(routes) {
@@ -738,9 +776,13 @@ try {
     try {
       return await Promise.race([
         promise,
-        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${label} exceeded ${ms}ms`)), ms); }),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`${label} exceeded ${ms}ms`)), ms);
+        }),
       ]);
-    } finally { clearTimeout(timer); }
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   reset();
@@ -761,7 +803,10 @@ try {
   const familyText = await withDeadline(familyResponse.text(), 1000, 'family synthesized stream drain');
   assert.match(familyText, /sibling recovered/);
   assert.ok(Date.now() - familyStarted < 1800);
-  assert.deepEqual(calls.map((c) => c.host), ['family-max.example.com', 'family-pro.example.com']);
+  assert.deepEqual(
+    calls.map((c) => c.host),
+    ['family-max.example.com', 'family-pro.example.com'],
+  );
 
   reset();
   const badTier2 = configNode('tier2-stall', 2, { Solo: 'solo-upstream' }, 1);
@@ -780,7 +825,10 @@ try {
   assert.equal(errorResponse.status, 200, 'a stalled 503 diagnostic body must time out inside the attempt and rotate');
   assert.match(await errorResponse.text(), /fallback node succeeded/);
   assert.ok(Date.now() - errorStarted < 1800);
-  assert.deepEqual(calls.map((c) => c.host), ['tier2-stall.example.com', 'tier2-good.example.com']);
+  assert.deepEqual(
+    calls.map((c) => c.host),
+    ['tier2-stall.example.com', 'tier2-good.example.com'],
+  );
 
   reset();
   const synthNode = configNode('synth-json', 1, { SoloStream: 'solo-stream-upstream' });
@@ -804,10 +852,14 @@ try {
   const cancelActiveBefore = gatewayStats.activeRequests;
   const cancelSuccessBefore = gatewayStats.successes;
   const cancelCountBefore = gatewayStats.cancellations;
-  const cancelResponse = await worker.fetch(responsesRequest('SoloStream', true), envFor([synthNode], {
-    AIG_MODELS_CONFIG: JSON.stringify({ SoloStream: { policy: 'default' } }),
-    AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempts: 1, hedge: { enabled: false } } }),
-  }), {});
+  const cancelResponse = await worker.fetch(
+    responsesRequest('SoloStream', true),
+    envFor([synthNode], {
+      AIG_MODELS_CONFIG: JSON.stringify({ SoloStream: { policy: 'default' } }),
+      AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempts: 1, hedge: { enabled: false } } }),
+    }),
+    {},
+  );
   assert.equal(gatewayStats.activeRequests, cancelActiveBefore + 1);
   const cancelReader = cancelResponse.body.getReader();
   await cancelReader.cancel('test cancellation');
@@ -850,11 +902,7 @@ try {
   for (const [code, expectedKind] of cases) {
     const error = upstreamProcessingError(code, `test:${code}`);
     assert.equal(upstreamProcessingErrorCode(error), code);
-    assert.equal(
-      classifyPostHeadersFailure(error).kind,
-      expectedKind,
-      `${code} must map to ${expectedKind}`,
-    );
+    assert.equal(classifyPostHeadersFailure(error).kind, expectedKind, `${code} must map to ${expectedKind}`);
   }
 
   assert.equal(
@@ -865,12 +913,15 @@ try {
 
   // Integration guard: the OpenAI stream assembler must emit a typed malformed
   // error instead of a generic Error whose message callers would need to parse.
-  const malformed = new Response(new ReadableStream({
-    start(controller) {
-      controller.enqueue(new TextEncoder().encode('data: {not-json}\n\n'));
-      controller.close();
-    },
-  }), { status: 200, headers: { 'content-type': 'text/event-stream' } });
+  const malformed = new Response(
+    new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: {not-json}\n\n'));
+        controller.close();
+      },
+    }),
+    { status: 200, headers: { 'content-type': 'text/event-stream' } },
+  );
 
   await assert.rejects(
     () => collectOpenAIStreamObject(malformed, null, Date.now() + 1000),
@@ -910,8 +961,15 @@ try {
 
   let passed = 0;
   function test(name, fn) {
-    try { fn(); passed++; console.log(`ok - ${name}`); }
-    catch (e) { console.error(`FAIL - ${name}`); console.error(e?.stack || e); process.exitCode = 1; }
+    try {
+      fn();
+      passed++;
+      console.log(`ok - ${name}`);
+    } catch (e) {
+      console.error(`FAIL - ${name}`);
+      console.error(e?.stack || e);
+      process.exitCode = 1;
+    }
   }
 
   test('both backends satisfy the same RuntimeStateStore contract', () => {
@@ -935,13 +993,30 @@ try {
     const account = tier1RuntimeStateStore.account('a1');
     assert.equal(account.quota.state, 'unknown', 'no provider report -> unknown quota');
     assert.equal(account.disabled, false);
-    assert.equal(tier1RuntimeStateStore.model('a1', 'never-observed'), null,
-      'unobserved model pairs surface null, not fabricated entries');
+    assert.equal(tier1RuntimeStateStore.model('a1', 'never-observed'), null, 'unobserved model pairs surface null, not fabricated entries');
   });
 
   test('tier-1 projections reflect real state transitions end to end', () => {
     __resetTier1StateForTests();
-    assert.equal(claimTier1Slot({ id: 'a2', tier: 'tier-1', provider: 'mock', protocol: 'openai', surfaces: ['chat_completions'], baseUrl: 'https://a2.example.com/v1', credential: 'k', priority: 10, models: { 'Code-Max': 'up' } }, 1000, 'Code-Max', null), true);
+    assert.equal(
+      claimTier1Slot(
+        {
+          id: 'a2',
+          tier: 'tier-1',
+          provider: 'mock',
+          protocol: 'openai',
+          surfaces: ['chat_completions'],
+          baseUrl: 'https://a2.example.com/v1',
+          credential: 'k',
+          priority: 10,
+          models: { 'Code-Max': 'up' },
+        },
+        1000,
+        'Code-Max',
+        null,
+      ),
+      true,
+    );
     const token = makeTier1ReleaseToken('a2');
     assert.equal(tier1RuntimeStateStore.account('a2').inFlight, 1);
     recordTier1Ttft('a2', 'Code-Max', 120, 1001);
@@ -1084,28 +1159,30 @@ try {
     return loadPoliciesConfig(env);
   }
 
-  assert.equal(policies().default.maxInFlight, null,
-    'built-in default policy must not impose a guessed concurrency ceiling');
-  assert.equal(policies().fast.maxInFlight, null,
-    'built-in fast policy must not impose a guessed concurrency ceiling');
-  assert.equal(policies()['long-reasoning'].maxInFlight, null,
-    'built-in long-reasoning policy must not impose a guessed concurrency ceiling');
+  assert.equal(policies().default.maxInFlight, null, 'built-in default policy must not impose a guessed concurrency ceiling');
+  assert.equal(policies().fast.maxInFlight, null, 'built-in fast policy must not impose a guessed concurrency ceiling');
+  assert.equal(policies()['long-reasoning'].maxInFlight, null, 'built-in long-reasoning policy must not impose a guessed concurrency ceiling');
 
-  assert.equal(policies({ custom: { max_attempts: 5 } }).custom.maxInFlight, null,
-    'custom policy without max_in_flight must stay unlimited');
-  assert.equal(policies({ default: { max_in_flight: 0 } }).default.maxInFlight, null,
-    'max_in_flight=0 explicitly disables the ceiling');
-  assert.equal(policies({ default: { max_in_flight: null } }).default.maxInFlight, null,
-    'max_in_flight=null explicitly disables the ceiling');
-  assert.equal(policies({ default: { max_in_flight: 4 } }).default.maxInFlight, 4,
-    'positive max_in_flight remains an explicit operator admission ceiling');
+  assert.equal(policies({ custom: { max_attempts: 5 } }).custom.maxInFlight, null, 'custom policy without max_in_flight must stay unlimited');
+  assert.equal(policies({ default: { max_in_flight: 0 } }).default.maxInFlight, null, 'max_in_flight=0 explicitly disables the ceiling');
+  assert.equal(policies({ default: { max_in_flight: null } }).default.maxInFlight, null, 'max_in_flight=null explicitly disables the ceiling');
+  assert.equal(
+    policies({ default: { max_in_flight: 4 } }).default.maxInFlight,
+    4,
+    'positive max_in_flight remains an explicit operator admission ceiling',
+  );
 
   const badEnv = { AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_in_flight: -1 } }) };
   const badDiags = getPoliciesConfigDiagnostics(badEnv);
-  assert.ok(badDiags.some((d) => d.includes('max_in_flight must be a non-negative integer')),
-    `invalid max_in_flight must be diagnosed, got ${JSON.stringify(badDiags)}`);
-  assert.equal(loadPoliciesConfig(badEnv).default.maxInFlight, null,
-    'invalid max_in_flight must never silently re-enable an arbitrary fallback ceiling');
+  assert.ok(
+    badDiags.some((d) => d.includes('max_in_flight must be a non-negative integer')),
+    `invalid max_in_flight must be diagnosed, got ${JSON.stringify(badDiags)}`,
+  );
+  assert.equal(
+    loadPoliciesConfig(badEnv).default.maxInFlight,
+    null,
+    'invalid max_in_flight must never silently re-enable an arbitrary fallback ceiling',
+  );
 
   console.log('policy max_in_flight tests passed.');
   console.log('ok - file:policy-max-in-flight');
