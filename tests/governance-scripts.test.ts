@@ -16,6 +16,7 @@ import {
 import { buildReview } from "../scripts/publish-pr-review.ts";
 import { retryLines } from "../scripts/report-ocr-retry.ts";
 import {
+  hasRepositoryCapability,
   repositoriesForCapability,
   validateRepositoryCapability,
 } from "../scripts/repository-policy.ts";
@@ -108,6 +109,9 @@ test("PR task and repository policy remain fail closed", () => {
     validateRepositoryCapability("fongap/example", { "fongap/example": ["pr", "pr"] }, "pr")
   );
   assert.deepEqual(repositoriesForCapability(policy, "task"), ["fongap/example"]);
+  assert.equal(hasRepositoryCapability("fongap/example", policy, "task"), true);
+  assert.equal(hasRepositoryCapability("fongap/example", policy, "deploy"), false);
+  assert.equal(hasRepositoryCapability("fongap/unknown", policy, "pr"), false);
 });
 
 test("AI triage can only skip safe low-risk code changes", async () => {
