@@ -154,14 +154,20 @@ jobs:
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           OUTPUT_PATHS_JSON: ${{ needs.prepare.outputs.output_paths_json }}
+          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          TARGET_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+          TARGET_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+          TARGET_HEAD_REF: ${{ needs.prepare.outputs.head_ref }}
+          TARGET_BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
+          REPAIR_ID: ${{ needs.prepare.outputs.repair_id }}
         run: |
           node control/scripts/publish-dependency-repair.ts \
-            "${{ needs.prepare.outputs.repository }}" \
-            "${{ needs.prepare.outputs.pr_number }}" \
-            "${{ needs.prepare.outputs.head_sha }}" \
-            "${{ needs.prepare.outputs.head_ref }}" \
-            "${{ needs.prepare.outputs.base_sha }}" \
-            "${{ needs.prepare.outputs.repair_id }}" \
+            "$TARGET_REPOSITORY" \
+            "$TARGET_PR_NUMBER" \
+            "$TARGET_HEAD_SHA" \
+            "$TARGET_HEAD_REF" \
+            "$TARGET_BASE_SHA" \
+            "$REPAIR_ID" \
             "$OUTPUT_PATHS_JSON" \
             "$RUNNER_TEMP/dependency-repair" \
             "$GITHUB_WORKSPACE/target"

@@ -46,6 +46,10 @@
     {
       "name": "write-all",
       "pattern": "^\\s*permissions\\s*:\\s*write-all\\s*$"
+    },
+    {
+      "name": "expression-as-shell-argument",
+      "pattern": "^\\s*\"?\\$\\{\\{\\s*(?:needs|steps|inputs|github\\.event)\\."
     }
   ],
   "require_pinned_actions": true,

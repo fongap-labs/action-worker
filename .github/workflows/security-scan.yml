@@ -95,9 +95,12 @@ jobs:
       - name: Publish SARIF to target repository
         env:
           AW_ADMIN_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          SOURCE_REF: ${{ needs.prepare.outputs.ref }}
         run: |
           node control/scripts/publish-security-scan.ts \
-            "${{ needs.prepare.outputs.repository }}" \
-            "${{ needs.prepare.outputs.source_sha }}" \
-            "${{ needs.prepare.outputs.ref }}" \
+            "$TARGET_REPOSITORY" \
+            "$SOURCE_SHA" \
+            "$SOURCE_REF" \
             "$RUNNER_TEMP/codeql-results"

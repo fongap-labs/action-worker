@@ -147,7 +147,17 @@ jobs:
       - name: Install actionlint
         id: actionlint
         shell: bash
-        run: bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+        env:
+          # Pinned release and checksum (bump both together; Dependabot cannot update them).
+          ACTIONLINT_VERSION: "1.7.12"
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          set -Eeuo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$archive" "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  $RUNNER_TEMP/${archive}" | sha256sum --check --strict
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
+          echo "executable=$RUNNER_TEMP/actionlint" >> "$GITHUB_OUTPUT"
 
       - name: Lint GitHub Actions
         env:
