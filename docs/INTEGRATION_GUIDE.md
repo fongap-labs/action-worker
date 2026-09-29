@@ -150,6 +150,8 @@ AIG_ACCESS_KEY_AGENT
 
 业务仓可选保留极薄 main-push dispatcher 以缩短发现延迟，但缺少 dispatcher、Actions 额度不足或 dispatcher 被删除都不能产生可信 main SHA，也不能削弱 Release / Deploy 的 fail-closed 校验。
 
+PR 侧的最薄触发器使用 `templates/pr-dispatcher/dispatch-pr-governance.yml`（仅 `opened`、`synchronize`，跳过 Dependabot），并需要仓库已有 `AW_DISPATCH_TOKEN`。它可以在 self-hosted runner 上运行，见 [RUNNER_POLICY.md](RUNNER_POLICY.md) 第 11 节。
+
 未经 Main Write Guard 证明的 SHA 不能用于 Release、Deploy、Publication 或 privileged execution。
 
 详细规则见 [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md)。
