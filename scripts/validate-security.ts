@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isJsonRecord } from "./github-api.ts";
@@ -14,7 +15,15 @@ type SecurityPolicy = {
   forbidden_path_patterns: string[];
   secret_patterns: NamedPattern[];
   workflow_forbidden_patterns: NamedPattern[];
+  approved_workflows: ApprovedWorkflow[];
   require_pinned_actions: boolean;
+};
+
+// A workflow file is exempt from workflow_forbidden_patterns only while its content, with line
+// endings normalized to LF, hashes to the audited value. Any edit puts it back under the rules.
+type ApprovedWorkflow = {
+  path: string;
+  sha256: string;
 };
 
 export type SecurityViolation = {
@@ -42,6 +51,31 @@ function namedPatterns(value: unknown, label: string): NamedPattern[] {
   });
 }
 
+function approvedWorkflows(value: unknown): ApprovedWorkflow[] {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw new CliError("::error::Invalid security policy field: approved_workflows.", 65);
+  }
+  return value.map((item) => {
+    if (
+      !isJsonRecord(item) ||
+      typeof item.path !== "string" ||
+      !/^\.github\/workflows\/[A-Za-z0-9._-]+\.ya?ml$/.test(item.path) ||
+      typeof item.sha256 !== "string" ||
+      !/^[0-9a-f]{64}$/.test(item.sha256)
+    ) {
+      throw new CliError("::error::Invalid security policy entry: approved_workflows.", 65);
+    }
+    return { path: item.path, sha256: item.sha256 };
+  });
+}
+
+export function workflowContentHash(content: string): string {
+  return createHash("sha256").update(content.replace(/\r\n/g, "\n"), "utf8").digest("hex");
+}
+
 function parsePolicy(value: unknown): SecurityPolicy {
   if (
     !isJsonRecord(value) ||
@@ -59,6 +93,7 @@ function parsePolicy(value: unknown): SecurityPolicy {
       value.workflow_forbidden_patterns,
       "workflow_forbidden_patterns"
     ),
+    approved_workflows: approvedWorkflows(value.approved_workflows),
     require_pinned_actions: value.require_pinned_actions,
   };
 }
@@ -169,7 +204,11 @@ export async function collectSecurityViolations(
 
     if (isWorkflowPath(path)) {
       const content = await readFile(join(root, path), "utf8");
-      for (const { name, regex } of workflowPatterns) {
+      const contentHash = workflowContentHash(content);
+      const isApproved = policy.approved_workflows.some(
+        (approved) => approved.path === path && approved.sha256 === contentHash
+      );
+      for (const { name, regex } of isApproved ? [] : workflowPatterns) {
         regex.lastIndex = 0;
         if (regex.test(content)) {
           violations.push({ rule: name, path });
