@@ -1,0 +1,259 @@
+name: Handle PR Review
+
+# Advisory AI Review. Handle PR Dispatch starts this workflow only after the deterministic gate
+# passed, so its queue holds only real reviews and never waits behind a run that is still
+# waiting for CI. Nothing here can change the gate.
+on:
+  repository_dispatch:
+    types: [run-pr-review]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: pr-review-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    name: Prepare PR Review
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      repository: ${{ steps.payload.outputs.repository }}
+      pr_number: ${{ steps.payload.outputs.pr_number }}
+      base_sha: ${{ steps.facts.outputs.base_sha }}
+      head_sha: ${{ steps.facts.outputs.head_sha }}
+      title: ${{ steps.facts.outputs.title }}
+      current: ${{ steps.target.outputs.current }}
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Validate PR request
+        id: payload
+        env:
+          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+        run: node scripts/validate-pr-payload.ts "$PAYLOAD"
+
+      - name: Validate control credential
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+        run: node scripts/validate-control-access.ts "$REPOSITORY" "$PR_NUMBER"
+
+      - name: Fetch PR facts
+        id: facts
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+        run: node scripts/resolve-pr-facts.ts fetch
+
+      - name: Confirm the gate passed for the requested head
+        id: target
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+        run: node scripts/check-review-target.ts "$REPOSITORY" "$PR_NUMBER" "$REQUESTED_HEAD_SHA"
+
+  review:
+    name: PR AI Review
+    needs: prepare
+    if: needs.prepare.outputs.current == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      AW_AI_AGENT_CONFIG: ${{ vars.AW_AI_AGENT_CONFIG }}
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Checkout target PR
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.prepare.outputs.repository }}
+          ref: ${{ needs.prepare.outputs.head_sha }}
+          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate change record
+        id: change
+        env:
+          PR_TITLE: ${{ needs.prepare.outputs.title }}
+          BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+        run: node scripts/validate-change-record.ts "$PR_TITLE" "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policies"
+
+      - name: Detect project and change
+        id: context
+        env:
+          BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+          CHANGE_RECORD_JSON: ${{ steps.change.outputs.json }}
+        run: node scripts/detect-pr-context.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policies"
+
+      - name: Resolve base plan
+        id: base_plan
+        env:
+          CONTEXT_JSON: ${{ steps.context.outputs.json }}
+        run: node scripts/resolve-pr-plan.ts "$CONTEXT_JSON" inherit inherit inherit auto auto "$GITHUB_WORKSPACE/policies"
+
+      - name: Collect CI evidence
+        if: steps.base_plan.outputs.ci_required == 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+          CI_EVIDENCE_PATH: /tmp/ci-evidence.json
+        run: node scripts/wait-ci-evidence.ts "$REPOSITORY" "$HEAD_SHA" "$GITHUB_WORKSPACE/policies/execution.json"
+
+      - name: Validate AI endpoint access
+        if: ${{ steps.base_plan.outputs.review_required == 'true' }}
+        continue-on-error: true
+        env:
+          AI_ENDPOINT_URL: ${{ vars.AI_GATEWAY_URL }}
+          AI_ENDPOINT_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
+          AI_ENDPOINT_REQUIRED_MODEL: ${{ steps.base_plan.outputs.review_model }}
+        run: node scripts/validate-ai-endpoint-access.ts
+
+      - name: Wait for AI queue
+        if: ${{ steps.base_plan.outputs.review_required == 'true' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node scripts/wait-review-turn.ts \
+            "$GITHUB_REPOSITORY" \
+            "handle-pr-review.yml" \
+            "$GITHUB_RUN_ID" \
+            "$GITHUB_WORKSPACE/policies/review.json"
+
+      - name: Run AI Triage
+        if: ${{ steps.base_plan.outputs.triage_required == 'true' }}
+        continue-on-error: true
+        env:
+          AI_ENDPOINT_URL: ${{ vars.AI_GATEWAY_URL }}
+          TRIAGE_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
+          TRIAGE_MODEL: ${{ steps.base_plan.outputs.triage_model }}
+          BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+          CONTEXT_JSON: ${{ steps.context.outputs.json }}
+          TRIAGE_OUTPUT_PATH: /tmp/ai-triage.json
+        run: |
+          node scripts/run-ai-triage.ts \
+            "$BASE_SHA" \
+            "$HEAD_SHA" \
+            "$GITHUB_WORKSPACE/target" \
+            "$CONTEXT_JSON" \
+            "$(cat /tmp/pr-plan.base.json)" \
+            "$GITHUB_WORKSPACE/policies/triage.json"
+
+      - name: Resolve final plan
+        id: plan
+        if: ${{ steps.base_plan.outputs.review_required == 'true' }}
+        continue-on-error: true
+        run: |
+          node scripts/apply-ai-triage.ts \
+            /tmp/pr-plan.base.json \
+            /tmp/ai-triage.json \
+            "$GITHUB_WORKSPACE/policies/triage.json" \
+            "$GITHUB_WORKSPACE/policies/review.json"
+
+      - name: Resolve OCR distribution
+        id: ocr_dist
+        if: ${{ steps.plan.outputs.review_required == 'true' }}
+        continue-on-error: true
+        run: node scripts/resolve-ocr-distribution.ts "$GITHUB_WORKSPACE/policies/review.json"
+
+      - name: Restore OCR cache
+        if: ${{ steps.plan.outputs.review_required == 'true' }}
+        continue-on-error: true
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.ocr_dist.outputs.cache_dir }}
+          key: ocr-${{ runner.os }}-${{ runner.arch }}-${{ steps.ocr_dist.outputs.version }}-${{ steps.ocr_dist.outputs.asset }}
+
+      - name: Configure OpenCodeReview
+        if: ${{ steps.plan.outputs.review_required == 'true' }}
+        continue-on-error: true
+        env:
+          OCR_REPOSITORY: ${{ steps.ocr_dist.outputs.repository }}
+          OCR_VERSION: ${{ steps.ocr_dist.outputs.version }}
+          OCR_ASSET: ${{ steps.ocr_dist.outputs.asset }}
+          OCR_CACHE_DIR: ${{ steps.ocr_dist.outputs.cache_dir }}
+        run: node scripts/install-ocr.ts "$OCR_REPOSITORY" "$OCR_VERSION" "$OCR_ASSET" "$OCR_CACHE_DIR"
+
+      - name: Run AI review
+        if: ${{ steps.plan.outputs.review_required == 'true' }}
+        continue-on-error: true
+        env:
+          AI_ENDPOINT_URL: ${{ vars.AI_GATEWAY_URL }}
+          OCR_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
+          REVIEW_MODEL: ${{ steps.plan.outputs.review_model }}
+          BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+          REVIEW_EFFORT: ${{ steps.plan.outputs.review_effort }}
+          REVIEW_RULE: ${{ steps.plan.outputs.review_rule }}
+          REVIEW_TASK_TIMEOUT: ${{ steps.plan.outputs.review_task_timeout }}
+          REVIEW_CONCURRENCY: ${{ steps.plan.outputs.review_concurrency }}
+          REVIEW_RESUME_ATTEMPTS: ${{ steps.plan.outputs.review_resume_attempts }}
+          REVIEW_RESUME_BACKOFF_SECONDS: ${{ steps.plan.outputs.review_resume_backoff_seconds }}
+          OCR_LLM_TIMEOUT: ${{ steps.plan.outputs.review_llm_timeout }}
+          OCR_NO_UPDATE: "1"
+        run: |
+          node scripts/run-ai-review.ts \
+            target \
+            "$BASE_SHA" \
+            "$HEAD_SHA" \
+            "$GITHUB_WORKSPACE/rules/$REVIEW_RULE"
+
+      - name: Recheck review target
+        id: recheck
+        if: ${{ always() && !cancelled() }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+          HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+        run: node scripts/check-review-target.ts "$REPOSITORY" "$PR_NUMBER" "$HEAD_SHA"
+
+      - name: Publish PR review
+        if: ${{ always() && !cancelled() && steps.recheck.outputs.current == 'true' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/publish-pr-review.ts "$REPOSITORY" "$PR_NUMBER" success "$RUN_URL" /tmp/pr-plan.json /tmp/ocr-result.json

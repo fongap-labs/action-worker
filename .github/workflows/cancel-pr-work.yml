@@ -63,6 +63,20 @@ jobs:
           PR_NUMBER: ${{ needs.validate.outputs.pr_number }}
         run: echo "Cancelled stale PR Governance work for $REPOSITORY#$PR_NUMBER."
 
+  review:
+    name: Cancel PR Review
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 1
+    concurrency:
+      group: pr-review-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}
+      cancel-in-progress: true
+    steps:
+      - env:
+          REPOSITORY: ${{ needs.validate.outputs.repository }}
+          PR_NUMBER: ${{ needs.validate.outputs.pr_number }}
+        run: echo "Cancelled stale PR Review work for $REPOSITORY#$PR_NUMBER."
+
   central-ci:
     name: Cancel Central CI
     needs: validate

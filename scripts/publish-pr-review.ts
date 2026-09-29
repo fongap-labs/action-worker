@@ -16,7 +16,8 @@ export function buildReview(
   status: string,
   runUrl: string,
   planValue: unknown,
-  resultValue: unknown
+  resultValue: unknown,
+  isReviewQueued = false
 ): string {
   const lines = [
     marker,
@@ -77,6 +78,10 @@ export function buildReview(
     } else {
       lines.push("AI Review found no issues.");
     }
+  } else if (isReviewQueued) {
+    lines.push(
+      "- AI Review: queued; this comment is updated when it finishes and it does not affect the merge gate."
+    );
   } else {
     const isReviewRequired = isJsonRecord(planValue) && planValue.review_required === true;
     if (isReviewRequired) {
@@ -93,9 +98,9 @@ export function buildReview(
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  if (args.length !== 6) {
+  if (args.length < 6 || args.length > 7) {
     throw new CliError(
-      "Usage: publish-pr-review.ts <repository> <pr-number> <status> <run-url> <plan-file> <result-file>",
+      "Usage: publish-pr-review.ts <repository> <pr-number> <status> <run-url> <plan-file> <result-file> [queued]",
       64
     );
   }
@@ -106,7 +111,11 @@ async function main(): Promise<void> {
     runUrl = "",
     planPath = "",
     resultPath = "",
+    reviewState = "",
   ] = args;
+  if (reviewState !== "" && reviewState !== "queued") {
+    throw new CliError(`::error::Invalid AI Review state: ${reviewState}.`, 64);
+  }
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
     throw new CliError(`::error::Invalid repository: ${repository}.`, 64);
   }
@@ -122,7 +131,8 @@ async function main(): Promise<void> {
     status,
     runUrl,
     await optionalJson(planPath),
-    await optionalJson(resultPath)
+    await optionalJson(resultPath),
+    reviewState === "queued"
   );
   const commentsText = await runGithubCli(
     [
