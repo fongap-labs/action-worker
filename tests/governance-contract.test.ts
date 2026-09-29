@@ -79,6 +79,8 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/wait-ci-evidence.ts",
     "scripts/validate-ci-evidence.ts",
     "scripts/wait-review-turn.ts",
+    "scripts/check-review-target.ts",
+    "scripts/dispatch-pr-review.ts",
     "scripts/github-api.ts",
     "scripts/ai-agent-config.ts",
     "scripts/collect-dependency-repair.ts",
@@ -115,6 +117,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/validate-release-request.ts",
     ".github/actions/validate-merge-policy/action.yml",
     ".github/workflows/handle-pr-dispatch.yml",
+    ".github/workflows/handle-pr-review.yml",
     ".github/workflows/handle-release-dispatch.yml",
     ".github/workflows/ci-intake.yml",
     ".github/workflows/dependency-repair.yml",
@@ -306,8 +309,6 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     "types: [run-pr-governance]",
     "AW_REPOSITORY_POLICY",
     "AW_CONTROL_TOKEN",
-    "AI_GATEWAY_URL",
-    "AIG_ACCESS_KEY_AGENT",
     "AW_AI_AGENT_CONFIG",
     "persist-credentials: false",
     "node-version: 24",
@@ -318,13 +319,8 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     "publish-pr-review.ts",
     "wait-ci-evidence.ts",
     "validate-ci-evidence.ts",
-    "wait-review-turn.ts",
-    "validate-ai-endpoint-access.ts",
     "validate-security.ts",
-    "run-ai-triage.ts",
-    "apply-ai-triage.ts",
-    "install-ocr.ts",
-    "run-ai-review.ts",
+    "dispatch-pr-review.ts",
     "Resolve governance ownership",
     "check-status-owner.ts",
     "Publish explicit no-CI evidence",
@@ -349,11 +345,8 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     "- name: Validate CI evidence",
     "- name: Mark deterministic gate passed",
     "- name: Update final gate",
-    "- name: Wait for AI queue",
-    "- name: Run AI Triage",
-    "- name: Resolve final plan",
-    "- name: Run AI review",
     "- name: Publish PR review",
+    "- name: Dispatch AI review",
   ];
   const positions = order.map((value) => workflow.indexOf(value));
   assert.ok(positions.every((value) => value >= 0));
@@ -361,21 +354,21 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     positions,
     [...positions].sort((left, right) => left - right)
   );
-  const aiReviewStep = workflow.slice(
-    workflow.indexOf("      - name: Run AI review"),
-    workflow.indexOf("      - name: Publish PR review")
+  // AI Review is never part of this run: it cannot queue, delay or change the gate.
+  assert.doesNotMatch(
+    workflow,
+    /Wait for AI queue|Run AI Triage|Run AI review|wait-review-turn|run-ai-triage|run-ai-review|apply-ai-triage|install-ocr|validate-ai-endpoint-access|AIG_ACCESS_KEY_AGENT|AI_GATEWAY_URL/
   );
-  assert.match(aiReviewStep, /continue-on-error: true/);
-  assert.doesNotMatch(aiReviewStep, /BLOCK_SEVERITY|block_severity/);
+  const dispatchStep = workflow.slice(workflow.indexOf("      - name: Dispatch AI review"));
+  assert.match(dispatchStep, /continue-on-error: true/);
+  assert.match(dispatchStep, /steps\.gate\.outputs\.passed == 'true'/);
+  assert.match(dispatchStep, /steps\.ownership\.outputs\.current == 'true'/);
+  assert.match(dispatchStep, /steps\.base_plan\.outputs\.review_required == 'true'/);
   assert.match(
     workflow,
     /Validate CI evidence\n\s+if: steps\.base_plan\.outputs\.ci_required == 'true'/
   );
   assert.match(workflow, /STATE: \$\{\{ steps\.gate\.outputs\.passed == 'true'/);
-  assert.doesNotMatch(
-    workflow.slice(0, workflow.indexOf("- name: Update final gate")),
-    /Wait for AI queue|Run AI Triage|Run AI review/
-  );
   const ciDispatcher = await text("scripts/dispatch-central-ci.ts");
   requireText(ciDispatcher, ["AW_REPOSITORY_POLICY", "validateRepositoryCapability", '"pr"']);
   assert.doesNotMatch(ciDispatcher, /central_repositories|Central CI dispatch skipped/);
@@ -390,6 +383,78 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   const reviewRunner = await text("scripts/run-ai-review.ts");
   assert.match(reviewRunner, /AI Review \(advisory\)/);
   assert.doesNotMatch(reviewRunner, /merge is blocked|blocking findings|blockSeverity/);
+});
+
+test("AI review runs as its own advisory workflow after the gate", async () => {
+  const workflow = await text(".github/workflows/handle-pr-review.yml");
+  requireText(workflow, [
+    "repository_dispatch:",
+    "types: [run-pr-review]",
+    "group: pr-review-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}",
+    "cancel-in-progress: true",
+    "AW_REPOSITORY_POLICY",
+    "AW_CONTROL_TOKEN",
+    "AI_GATEWAY_URL",
+    "AIG_ACCESS_KEY_AGENT",
+    "persist-credentials: false",
+    "node-version: 24",
+    "validate-pr-payload.ts",
+    "validate-control-access.ts",
+    "check-review-target.ts",
+    "wait-ci-evidence.ts",
+    "validate-ai-endpoint-access.ts",
+    "wait-review-turn.ts",
+    '"handle-pr-review.yml"',
+    "run-ai-triage.ts",
+    "apply-ai-triage.ts",
+    "install-ocr.ts",
+    "run-ai-review.ts",
+    "publish-pr-review.ts",
+  ]);
+  assert.match(workflow, /AW_AI_AGENT_CONFIG:\s*\$\{\{ vars\.AW_AI_AGENT_CONFIG \}\}/);
+  assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
+  assert.doesNotMatch(
+    workflow,
+    /@alibaba-group\/open-code-review|npm install -g|review-diff-fallback/
+  );
+  // The review workflow can never write a gate status, so it cannot change a merge decision.
+  assert.doesNotMatch(
+    workflow,
+    /set-pr-status|validate-merge|PR_STATUS_CONTEXT|Update final gate|Mark deterministic gate/
+  );
+  assert.equal((workflow.match(/node scripts\/run-ai-review\.ts/g) ?? []).length, 1);
+  assert.match(workflow, /if: needs\.prepare\.outputs\.current == 'true'/);
+  const order = [
+    "- name: Confirm the gate passed for the requested head",
+    "- name: Checkout target PR",
+    "- name: Resolve base plan",
+    "- name: Wait for AI queue",
+    "- name: Run AI Triage",
+    "- name: Resolve final plan",
+    "- name: Run AI review",
+    "- name: Recheck review target",
+    "- name: Publish PR review",
+  ];
+  const positions = order.map((value) => workflow.indexOf(value));
+  assert.ok(positions.every((value) => value >= 0));
+  assert.deepEqual(
+    positions,
+    [...positions].sort((left, right) => left - right)
+  );
+  const aiSteps = workflow.slice(
+    workflow.indexOf("      - name: Validate AI endpoint access"),
+    workflow.indexOf("      - name: Recheck review target")
+  );
+  const stepCount = (aiSteps.match(/^ {6}- name: /gm) ?? []).length;
+  assert.ok(stepCount >= 8);
+  assert.equal((aiSteps.match(/continue-on-error: true/g) ?? []).length, stepCount);
+  assert.doesNotMatch(aiSteps, /BLOCK_SEVERITY|block_severity/);
+  const publishStep = workflow.slice(workflow.indexOf("      - name: Publish PR review"));
+  assert.match(
+    publishStep,
+    /always\(\) && !cancelled\(\) && steps\.recheck\.outputs\.current == 'true'/
+  );
+  assert.match(publishStep, /publish-pr-review\.ts "\$REPOSITORY" "\$PR_NUMBER" success /);
 });
 
 test("task dispatch keeps the publication credential in the central control step", async () => {
@@ -670,12 +735,13 @@ test("closed PR cancellation validates policy and state before owning live concu
     "Cancellation target is not closed",
     "needs: validate",
     "pr-governance-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}",
+    "pr-review-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}",
     "central-ci-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}",
     "cancel-in-progress: true",
   ]);
   assert.doesNotMatch(
     workflow,
-    /group: (?:pr-governance|central-ci)-\$\{\{ github\.event\.client_payload/
+    /group: (?:pr-governance|pr-review|central-ci)-\$\{\{ github\.event\.client_payload/
   );
   assert.doesNotMatch(
     workflow,
