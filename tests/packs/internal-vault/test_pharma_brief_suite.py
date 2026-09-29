@@ -1108,12 +1108,13 @@ def _builder__pharma_brief_weekly() -> PharmaBriefWeekly:
     })
 
 def _final_with_sections() -> dict:
-    topic = lambda n: {
-        "title": f"话题{n}",
-        "summary": f"这是话题{n}的核心影响说明。",
-        "watch": f"关注话题{n}后续变化",
-        "source_refs": ["FDA"],
-    }
+    def topic(n: int) -> dict:
+        return {
+            "title": f"话题{n}",
+            "summary": f"这是话题{n}的核心影响说明。",
+            "watch": f"关注话题{n}后续变化",
+            "source_refs": ["FDA"],
+        }
     return {
         "hook_title": "批准提速，竞争加剧",
         "overview": "本周监管、研发和资本市场出现多项值得持续观察的变化。",
