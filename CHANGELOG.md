@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- fix [security]: install actionlint in Validate CI from a pinned release with a verified SHA-256 instead of executing a script fetched from the `main` branch.
+
+- fix [security]: pass `needs.*.outputs` to shell steps in the CI dispatch, dependency-repair, release-build and security-scan workflows through `env` instead of pasting them into the script text, and add the `expression-as-shell-argument` rule to the security gate so the pattern cannot return.
+
+- test: add static hygiene checks for the delta-suite test pack (HTTP-helper keywords that do not exist, credentials in URL query strings, tokens on the git command line).
+
+- test: add HTTP-level tests for the app-source license service (admin token, real client IP for rate limits, input clamping, log hygiene, signing with the redeem code's edition and features, optional code pepper).
+
 - fix: keep reviewing and commenting on a pull request that was merged while its advisory AI Review waited or ran, instead of dropping the review; a pull request closed without merging is still skipped.
 
 - fix: run advisory AI Review as its own workflow that starts only after the deterministic gate passes, so a pull request no longer waits in the AI queue behind unrelated runs that are still waiting for central CI, and the governance run ends when the gate does.

@@ -138,3 +138,53 @@ test("security gate exempts only the byte-identical approved pull_request_target
     true
   );
 });
+
+test("security gate rejects workflow expressions pasted into shell arguments but allows env indirection", async (context) => {
+  const inlined = await commitWorkflow(
+    ".github/workflows/inline.yml",
+    [
+      "name: Inline",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  publish:",
+      "    runs-on: ubuntu-24.04",
+      "    steps:",
+      "      - run: |",
+      "          node publish.ts \\",
+      '            "${{ needs.prepare.outputs.head_ref }}"',
+      "",
+    ].join("\n")
+  );
+  context.after(() => rm(inlined.root, { recursive: true, force: true }));
+  const inlinedViolations = await collectSecurityViolations(
+    inlined.root,
+    inlined.base,
+    inlined.head,
+    policyPath
+  );
+  assert.equal(
+    inlinedViolations.some((item) => item.rule === "expression-as-shell-argument"),
+    true
+  );
+
+  const indirect = await commitWorkflow(
+    ".github/workflows/indirect.yml",
+    [
+      "name: Indirect",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  publish:",
+      "    runs-on: ubuntu-24.04",
+      "    steps:",
+      "      - env:",
+      "          HEAD_REF: ${{ needs.prepare.outputs.head_ref }}",
+      '        run: node publish.ts "$HEAD_REF"',
+      "",
+    ].join("\n")
+  );
+  context.after(() => rm(indirect.root, { recursive: true, force: true }));
+  assert.deepEqual(
+    await collectSecurityViolations(indirect.root, indirect.base, indirect.head, policyPath),
+    []
+  );
+});
