@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- test: follow the internal-vault#43 brick rename to global_market_fetch and assert the fake token body instead of a contiguous credential literal in the internal-vault test pack.
+
 - test: assert the English Hugo checksum error message in the internal-vault test pack, matching the English-only messages of internal-vault#43.
 
 - test: sync the ai-gateway test pack and shared mock D1 helper with the test changes of ai-gateway#65 (one added case, none removed) and replace its inventory baseline.
