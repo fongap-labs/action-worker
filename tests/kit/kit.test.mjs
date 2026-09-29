@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { flatten, parseTap, verify } from "./inventory.mjs";
 
+/** @param {Record<string, import("./inventory.mjs").Suite>} suites */
 const inventory = (suites) => ({ schema_version: 1, runtime: "node", suites });
+/**
+ * @param {Record<string, number>} cases
+ * @param {string} [status]
+ */
 const suite = (cases, status = "pass") => ({ status, failed: [], cases });
 
 test("parseTap reads legacy console lines and node:test subtests but not the file entry", () => {
@@ -42,7 +47,12 @@ test("flatten sums a case across suites so files can be merged safely", () => {
 });
 
 test("verify compares python passing state by case name so cases can move between files", () => {
+  /** @param {Record<string, import("./inventory.mjs").Suite>} suites */
   const python = (suites) => ({ schema_version: 1, runtime: "python", suites });
+  /**
+   * @param {Record<string, number>} cases
+   * @param {string[]} passed
+   */
   const file = (cases, passed) => ({ status: "collected", failed: [], cases, passed });
   const baseline = python({ "a.py": file({ t1: 1, t2: 1 }, ["t1", "t2"]) });
   assert.deepEqual(
