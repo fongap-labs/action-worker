@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
     "allowImportingTsExtensions": true,
+    "allowJs": true,
+    "checkJs": true,
     "erasableSyntaxOnly": true,
     "forceConsistentCasingInFileNames": true,
     "module": "NodeNext",
@@ -12,5 +14,5 @@
     "types": ["node"],
     "verbatimModuleSyntax": true
   },
-  "include": ["scripts/**/*.ts", "tests/**/*.ts"]
+  "include": ["scripts/**/*.ts", "tests/**/*.ts", "tests/run-pack.mjs", "tests/kit/*.mjs"]
 }

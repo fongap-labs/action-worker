@@ -17,8 +17,34 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const legacyCase = /^# (ok|not ok) - (.+)$/;
 const subtestCase = /^\s*(ok|not ok) \d+ - (.+?)(?: # .*)?$/;
 
+/** @typedef {Record<string, number>} CaseCounts How many times each case name was observed. */
+
+/**
+ * @typedef {object} Suite
+ * @property {string} status
+ * @property {string[]} failed
+ * @property {CaseCounts} cases
+ * @property {string[]} [passed] Passing case names; only python suites record them.
+ */
+
+/** @typedef {Suite & { passed: string[] }} PythonSuite */
+
+/**
+ * @typedef {object} Inventory
+ * @property {number} [schema_version]
+ * @property {string} [runtime]
+ * @property {Record<string, Suite>} suites
+ */
+
+/**
+ * @param {string} output
+ * @param {string} file
+ * @returns {{ cases: CaseCounts, failed: string[] }}
+ */
 export function parseTap(output, file) {
+  /** @type {CaseCounts} */
   const cases = {};
+  /** @type {string[]} */
   const failed = [];
   const own = basename(file);
   for (const line of output.split(/\r?\n/)) {
@@ -26,7 +52,7 @@ export function parseTap(output, file) {
     const subtest = legacy ? null : subtestCase.exec(line);
     const match = legacy ?? subtest;
     if (!match) continue;
-    const name = match[2].trim();
+    const name = /** @type {string} */ (match[2]).trim();
     if (subtest && (name.endsWith(own) || name === file)) continue;
     if (match[1] === "not ok") failed.push(name);
     else cases[name] = (cases[name] ?? 0) + 1;
@@ -34,10 +60,15 @@ export function parseTap(output, file) {
   return { cases, failed };
 }
 
+/**
+ * @param {{ dir: string, cwd: string, suffix: string, preload?: string, env: NodeJS.ProcessEnv }} options
+ * @returns {Record<string, Suite>}
+ */
 export function collectNode({ dir, cwd, suffix, preload, env }) {
   const files = readdirSync(dir)
     .filter((name) => name.endsWith(suffix))
     .sort();
+  /** @type {Record<string, Suite>} */
   const suites = {};
   for (const name of files) {
     const args = ["--test", "--test-reporter=tap"];
@@ -61,6 +92,10 @@ export function collectNode({ dir, cwd, suffix, preload, env }) {
   return suites;
 }
 
+/**
+ * @param {{ dir: string, cwd: string, env: NodeJS.ProcessEnv, executed: boolean, config?: string }} options
+ * @returns {Record<string, PythonSuite>}
+ */
 export function collectPython({ dir, cwd, env, executed, config }) {
   const root = resolve(dir);
   const base = [
@@ -74,35 +109,48 @@ export function collectPython({ dir, cwd, env, executed, config }) {
     "no:cacheprovider",
   ];
   if (config) base.push("-c", resolve(config));
+  /** @type {import("node:child_process").SpawnSyncOptionsWithStringEncoding} */
   const options = {
     cwd,
     env: { ...process.env, ...env },
     encoding: "utf8",
     maxBuffer: 256 * 1024 * 1024,
   };
+  /** @param {string} path */
   const listed = (path) => path.replaceAll("\\", "/");
+  /** @param {string} path */
   const reported = (path) => relative(root, resolve(cwd, path)).replaceAll("\\", "/");
+  /** @type {Record<string, PythonSuite>} */
   const suites = {};
   const listing = spawnSync("python", [...base, "--collect-only"], options);
   for (const line of listing.stdout.split(/\r?\n/)) {
     const match = /^(\S+?\.py)::(.+)$/.exec(line.trim());
     if (!match) continue;
-    const id = listed(match[1]);
+    const id = listed(/** @type {string} */ (match[1]));
     const suite = suites[id] ?? { status: "collected", failed: [], cases: {}, passed: [] };
     suites[id] = suite;
-    suite.cases[match[2]] = (suite.cases[match[2]] ?? 0) + 1;
+    const caseName = /** @type {string} */ (match[2]);
+    suite.cases[caseName] = (suite.cases[caseName] ?? 0) + 1;
   }
   if (executed) {
     const run = spawnSync("python", [...base, "-rA"], options);
     for (const line of run.stdout.split(/\r?\n/)) {
       const match = /^PASSED (\S+?\.py)::(.+)$/.exec(line.trim());
-      if (match) suites[reported(match[1])]?.passed.push(match[2]);
+      if (match)
+        suites[reported(/** @type {string} */ (match[1]))]?.passed.push(
+          /** @type {string} */ (match[2])
+        );
     }
   }
   return suites;
 }
 
+/**
+ * @param {Inventory} inventory
+ * @returns {CaseCounts}
+ */
 export function flatten(inventory) {
+  /** @type {CaseCounts} */
   const total = {};
   for (const suite of Object.values(inventory.suites)) {
     for (const [name, count] of Object.entries(suite.cases))
@@ -111,13 +159,21 @@ export function flatten(inventory) {
   return total;
 }
 
+/**
+ * @param {Inventory} baseline
+ * @param {Inventory} current
+ * @returns {string[]}
+ */
 export function verify(baseline, current) {
+  /** @type {string[]} */
   const problems = [];
   for (const [id, suite] of Object.entries(current.suites)) {
     if (suite.status === "fail") problems.push(`suite failing: ${id}`);
   }
   // Passing state is compared by case name (a case may move between files when suites are merged).
+  /** @param {Inventory} inv */
   const countPassed = (inv) => {
+    /** @type {CaseCounts} */
     const total = {};
     for (const suite of Object.values(inv.suites))
       for (const name of suite.passed ?? []) total[name] = (total[name] ?? 0) + 1;
@@ -138,22 +194,38 @@ export function verify(baseline, current) {
   return problems;
 }
 
+/**
+ * @param {string[]} args
+ * @param {string} name
+ * @returns {string | undefined}
+ */
 function option(args, name) {
   const at = args.indexOf(`--${name}`);
   return at === -1 ? undefined : args[at + 1];
+}
+
+/**
+ * The value of an option the command needs. A missing one stays undefined and fails where it is
+ * first used, exactly as an unchecked option always did.
+ * @param {string[]} args
+ * @param {string} name
+ * @returns {string}
+ */
+function requiredOption(args, name) {
+  return /** @type {string} */ (option(args, name));
 }
 
 function main() {
   const [command, ...args] = process.argv.slice(2);
   if (command === "collect-python") {
     const suites = collectPython({
-      dir: option(args, "dir"),
+      dir: requiredOption(args, "dir"),
       cwd: resolve(option(args, "cwd") ?? "."),
       env: option(args, "target")
         ? {
-            CENTRAL_TEST_TARGET_ROOT: resolve(option(args, "target")),
+            CENTRAL_TEST_TARGET_ROOT: resolve(requiredOption(args, "target")),
             PYTHONPATH: [
-              resolve(option(args, "target")),
+              resolve(requiredOption(args, "target")),
               resolve(dirname(fileURLToPath(import.meta.url)), "python"),
               process.env.PYTHONPATH,
             ]
@@ -170,7 +242,7 @@ function main() {
     );
     const passed = Object.values(suites).reduce((n, s) => n + s.passed.length, 0);
     writeFileSync(
-      option(args, "out"),
+      requiredOption(args, "out"),
       `${JSON.stringify({ schema_version: 1, runtime: "python", suites }, null, 2)}
 `
     );
@@ -180,14 +252,14 @@ function main() {
     return;
   }
   if (command === "collect") {
-    const dir = resolve(option(args, "dir"));
+    const dir = resolve(requiredOption(args, "dir"));
     const suites = collectNode({
       dir,
       cwd: resolve(option(args, "cwd") ?? "."),
       suffix: option(args, "suffix") ?? "-test.mjs",
       preload: option(args, "preload"),
       env: option(args, "target")
-        ? { CENTRAL_TEST_TARGET_ROOT: resolve(option(args, "target")) }
+        ? { CENTRAL_TEST_TARGET_ROOT: resolve(requiredOption(args, "target")) }
         : {},
     });
     const cases = Object.values(suites).reduce(
@@ -195,14 +267,15 @@ function main() {
       0
     );
     writeFileSync(
-      option(args, "out"),
+      requiredOption(args, "out"),
       `${JSON.stringify({ schema_version: 1, runtime: "node", suites }, null, 2)}\n`
     );
     console.log(`inventory: ${Object.keys(suites).length} suites, ${cases} cases`);
     return;
   }
   if (command === "verify") {
-    const read = (name) => JSON.parse(readFileSync(option(args, name), "utf8"));
+    /** @param {string} name */
+    const read = (name) => JSON.parse(readFileSync(requiredOption(args, name), "utf8"));
     const problems = verify(read("baseline"), read("current"));
     for (const problem of problems) console.error(problem);
     console.log(
