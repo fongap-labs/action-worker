@@ -15,6 +15,7 @@ function requireTargetRoot() {
 
 export const targetRoot = requireTargetRoot();
 
+/** @param {string[]} segments */
 export function targetPath(...segments) {
   return join(targetRoot, ...segments);
 }

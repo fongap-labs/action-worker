@@ -11,6 +11,7 @@
 // keeps tests focused on store contracts while `failWrites` / `failReads`
 // exercise fail-open behaviour.
 
+/** @param {{ failWrites?: boolean, failReads?: boolean }} [options] */
 export function createMockD1({ failWrites = false, failReads = false } = {}) {
   const emptyUsage = () => ({
     input: 0,
@@ -51,20 +52,33 @@ export function createMockD1({ failWrites = false, failReads = false } = {}) {
   const totalsRow = { ...emptyUsage(), updated_at: "" };
   const dailyRows = new Map();
   const weeklyRows = new Map();
+  // A bound SQL parameter can be a string or a number, so the parameter lists are `any[]`.
+  /** @type {Array<{ sql: string, params: any[] }>} */
   const writes = [];
+  /** @type {Array<{ method: "first" | "all", sql: string, params: any[] }>} */
   const reads = [];
 
   const MODEL_KEY_SEP = "|";
+  /**
+   * @param {string} hour
+   * @param {string} model
+   */
   const modelKey = (hour, model) => `${hour}${MODEL_KEY_SEP}${model}`;
+  /** @param {string} key */
   const parseModelKey = (key) => {
     const idx = key.indexOf(MODEL_KEY_SEP);
     if (idx < 0) return null;
     return { hour: key.slice(0, idx), model: key.slice(idx + 1) };
   };
+  /** @param {unknown} m */
   const norm = (m) =>
     String(m || "")
       .trim()
       .toLowerCase();
+  /**
+   * @param {ReturnType<typeof emptyUsage>} cur
+   * @param {number[]} values
+   */
   const addDelivered = (cur, values) => {
     const [input, output, cacheCreation, cacheRead, total, requests, reports, missing] = values;
     cur.input += input || 0;
@@ -76,6 +90,10 @@ export function createMockD1({ failWrites = false, failReads = false } = {}) {
     cur.reports += reports || 0;
     cur.missing += missing || 0;
   };
+  /**
+   * @param {ReturnType<typeof emptyUsage>} cur
+   * @param {number[]} values
+   */
   const addUpstream = (cur, values) => {
     const [
       input,
@@ -104,6 +122,7 @@ export function createMockD1({ failWrites = false, failReads = false } = {}) {
     cur.upstreamObservedInput += observedCacheInput || 0;
     cur.upstreamReadReports += cacheReadReports || 0;
   };
+  /** @param {ReturnType<typeof emptyUsage>} r */
   const toSqlRow = (r) => ({
     input_tokens: r.input,
     output_tokens: r.output,
@@ -127,6 +146,7 @@ export function createMockD1({ failWrites = false, failReads = false } = {}) {
     upstream_usage_missing: r.upstreamMissing,
   });
 
+  /** @param {string} sql */
   function prepare(sql) {
     const groupByModelExpr =
       /GROUP\s+BY\s+LOWER\s*\(\s*TRIM\s*\(\s*model\s*\)\s*\)/i.test(sql) ||
@@ -136,7 +156,9 @@ export function createMockD1({ failWrites = false, failReads = false } = {}) {
         sql
       );
     const stmt = {
+      /** @type {any[]} */
       _params: [],
+      /** @param {any[]} params */
       bind(...params) {
         this._params = params;
         return this;
@@ -645,9 +667,15 @@ export function createMockD1({ failWrites = false, failReads = false } = {}) {
 
   return {
     prepare,
+    /** @param {Array<{ run: () => Promise<unknown> }>} statements */
     async batch(statements) {
       return Promise.all(statements.map((s) => s.run()));
     },
+    /**
+     * @param {string | number} hour
+     * @param {string} model
+     * @param {Record<string, number>} [fields]
+     */
     seedModelRow(hour, model, fields = {}) {
       const hourKey =
         typeof hour === "number"
