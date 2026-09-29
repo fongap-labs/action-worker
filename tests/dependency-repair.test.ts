@@ -6,6 +6,7 @@ import {
   resolveDependencyRepairFacts,
   selectDependencyRepair,
 } from "../scripts/dependency-repair.ts";
+import { needsDependencyRepair } from "../scripts/intake-open-prs.ts";
 
 const sha = "a".repeat(40);
 const baseSha = "b".repeat(40);
@@ -147,4 +148,53 @@ test("dependency repair refuses forked, stale, or untrusted PRs", async () => {
     changed_paths: ["pyproject.toml"],
   };
   assert.equal(selectDependencyRepair(parseDependencyRepairManifest(manifest), facts), null);
+});
+
+test("intake treats a PR with an unsafe file name as not repairable instead of failing", async () => {
+  const reader = (filename: string) => ({
+    async get(path: string): Promise<unknown> {
+      if (path.endsWith("/pulls/7")) {
+        return {
+          state: "open",
+          user: { login: "someone" },
+          head: { sha, ref: "chore/remove-files", repo: { full_name: "fongap-labs/example" } },
+          base: { sha: baseSha },
+        };
+      }
+      if (path.includes("/pulls/7/files")) {
+        return [{ filename }];
+      }
+      if (path.includes("/contents/.github/dependency-repair.json")) {
+        throw new Error("HTTP 404");
+      }
+      throw new Error(`unexpected path: ${path}`);
+    },
+  });
+
+  assert.equal(
+    await needsDependencyRepair(
+      reader("projects/app/legacy/取件箱.spec"),
+      "fongap-labs/example",
+      7,
+      sha
+    ),
+    false
+  );
+  assert.equal(
+    await needsDependencyRepair(reader("src/main.rs"), "fongap-labs/example", 7, sha),
+    false
+  );
+  await assert.rejects(
+    needsDependencyRepair(
+      {
+        async get(): Promise<unknown> {
+          throw new Error("boom");
+        },
+      },
+      "fongap-labs/example",
+      7,
+      sha
+    ),
+    /boom/
+  );
 });

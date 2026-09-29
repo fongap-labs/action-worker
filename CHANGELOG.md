@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: keep central PR intake running when an open pull request touches a file name outside the safe alphabet, such as a non-ASCII name, by treating it as not eligible for dependency repair instead of aborting reconciliation of every repository.
+
 - feat: add the `app-source` test pack for the license-service database tests and document the state of every managed repository in `docs/TEST_PACKS.md`.
 
 - feat: centralize product test suites as Action Worker test packs with a shared test kit, a pack runner, a pre-migration case inventory, and `.github/test-pack.json` as a protected CI control path.
