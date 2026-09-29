@@ -53,6 +53,15 @@ export function repositoriesForCapability(
     .sort();
 }
 
+/** True when the policy grants the capability; unlike validateRepositoryCapability it never throws for a missing grant. */
+export function hasRepositoryCapability(
+  repository: string,
+  value: unknown,
+  capability: RepositoryCapability
+): boolean {
+  return parseRepositoryPolicy(value)[repository]?.includes(capability) ?? false;
+}
+
 export function validateRepositoryCapability(
   repository: string,
   value: unknown,

@@ -6,6 +6,7 @@ import {
   githubEnvironment,
   isJsonRecord,
 } from "./github-api.ts";
+import { hasRepositoryCapability } from "./repository-policy.ts";
 import {
   appendLines,
   CliError,
@@ -120,6 +121,17 @@ async function main(): Promise<void> {
     );
   }
 
+  const repositoryPolicy = parseJson(
+    rawRepositoryPolicy,
+    "AW_REPOSITORY_POLICY must be valid JSON.",
+    65
+  );
+  if (!hasRepositoryCapability(repository, repositoryPolicy, "deploy")) {
+    // Most managed repositories have no deploy target; a green main push must not end in a red run.
+    console.log(`Automatic deploy skipped: ${repository} does not have the deploy capability.`);
+    return;
+  }
+
   const reader = new GithubReader(
     process.env.GITHUB_API_URL ?? "https://api.github.com",
     controlToken
@@ -138,7 +150,7 @@ async function main(): Promise<void> {
   const manifest = await resolveDeployManifest(
     repository,
     headSha,
-    parseJson(rawRepositoryPolicy, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
+    repositoryPolicy,
     await readJson(runnerPolicyPath),
     reader
   );
