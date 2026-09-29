@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import worker from '#target/src/index.ts';
 import { __resetAdaptive429StateForTests } from '#target/src/reliability/adaptive-429.ts';
 import { __resetAllStateForTests, getNodeState } from '#target/src/reliability/node-state.ts';
-import { __resetTier1StateForTests, getTier1Account, getTier1Model, recordTier1Ttft, tier1AccountInFlight } from '#target/src/reliability/tier1-state.ts';
+import { __resetTier1StateForTests, getTier1Account, getTier1Model, getTier1ModelPerf, recordTier1Ttft, tier1AccountInFlight } from '#target/src/reliability/tier1-state.ts';
 import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affinity.ts';
 
 const ACCESS_KEY = 'test-access-key';
@@ -453,7 +453,8 @@ await test('429 cools one key and rotates to another same-tier key before lower 
     upstreamCalls.map((c) => c.host),
     ['rl-a.example.com', 'rl-b.example.com'],
   );
-  assert.ok(getTier1Account('rl-a').accountCooldownUntil > Date.now());
+  // The 429 is blamed on the model that received it: the key stays open for other models.
+  assert.ok((getTier1ModelPerf('rl-a', 'general-air')?.cooldownUntil ?? 0) > Date.now());
 });
 
 await test('all eligible keys cooling returns 429 with a real Retry-After', async () => {
