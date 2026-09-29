@@ -7,7 +7,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 
 REPO_ROOT = target_root()
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
