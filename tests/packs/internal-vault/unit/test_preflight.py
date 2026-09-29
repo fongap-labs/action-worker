@@ -7,7 +7,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import pytest
 
 REPO_ROOT = target_root()
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
@@ -253,7 +252,9 @@ class TestInjectSecrets:
         secrets_required = tmp_path / ".secrets.required"
         secrets_required.write_text("AW_TEST_TOKEN\n", encoding="utf-8")
         env = _clean_env("AW_TEST_TOKEN")
+        # NOT A REAL SECRET: fake token value, never printed by inject_secrets.
         env["AW_TEST_TOKEN"] = "ghp_secret_value_1234567890"
+
         proc = subprocess.run(
             [sys.executable, str(PREFLIGHT / "inject_secrets.py"),
              "--secrets-required", str(secrets_required)],
@@ -270,7 +271,9 @@ class TestInjectSecrets:
         secrets_required = tmp_path / ".secrets.required"
         secrets_required.write_text("AW_TEST_TOKEN\n", encoding="utf-8")
         env = _clean_env("AW_TEST_TOKEN")
+        # NOT A REAL SECRET: format-valid fake GitHub PAT, masked by add-mask.
         env["AW_TEST_TOKEN"] = "gh" "p_test12345678901234567890123456789012ab"
+
         proc = subprocess.run(
             [sys.executable, str(PREFLIGHT / "inject_secrets.py"),
              "--secrets-required", str(secrets_required)],
@@ -515,3 +518,64 @@ class TestRedact:
         out = r.redact(text)
         assert "ABCDEFG" not in out
         assert "REDACTED" in out
+
+    def test_openai_style_key(self):
+        from preflight.redact import Redactor
+        r = Redactor()
+        secret = "sk-proj-aB3dE5fG7hI9jK1lM3nO5pQ7"
+        out = r.redact(f"header value {secret} end")
+        assert secret not in out
+        assert "REDACTED" in out
+
+    def test_google_api_key(self):
+        from preflight.redact import Redactor
+        r = Redactor()
+        secret = "AI" "zaSy0123456789012345678901234567890123"
+        out = r.redact(f"url?key={secret}")
+        assert secret not in out
+        assert "REDACTED" in out
+
+    def test_jwt(self):
+        from preflight.redact import Redactor
+        r = Redactor()
+        secret = (
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
+            "eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6Ikp3dCJ9."
+            "SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+        )
+        out = r.redact(f"token {secret} end")
+        assert secret not in out
+        assert "REDACTED" in out
+
+    def test_discord_webhook(self):
+        from preflight.redact import Redactor
+        r = Redactor()
+        secret = "https://discord.com/api/webhooks/123456789012345678/AbCdEfGhIjKlMnOpQrStUvWxYz0123456789"
+        out = r.redact(f"notify {secret} done")
+        assert secret not in out
+        assert "REDACTED" in out
+
+    def test_slack_webhook(self):
+        from preflight.redact import Redactor
+        r = Redactor()
+        # Assembled at runtime: one literal would trip GitHub push protection,
+        # which scans fixtures exactly like production code.
+        secret = "https://hooks.slack.com/" + "services/T00000000/B00000000/abcdefghijklmnopqrstuvwx"
+        out = r.redact(f"notify {secret} done")
+        assert secret not in out
+        assert "REDACTED" in out
+
+    def test_high_entropy_token(self):
+        from preflight.redact import Redactor
+        r = Redactor()
+        secret = "aB3dE5fG7hI9jK1lM3nO5pQ7rS9tU1vW3xY5zA7bC9"
+        out = r.redact(f"opaque {secret} value")
+        assert secret not in out
+        assert "REDACTED" in out
+
+    def test_commit_sha_is_not_redacted(self):
+        from preflight.redact import Redactor
+        r = Redactor()
+        sha = "3f2a1b4c5d6e7f8091a2b3c4d5e6f708192a3b4c"
+        out = r.redact(f"bootstrap_ref={sha}")
+        assert sha in out

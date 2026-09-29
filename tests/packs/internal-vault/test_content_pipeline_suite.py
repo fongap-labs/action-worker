@@ -33,6 +33,7 @@ from engine.dispatcher import _validate_raw_data_topology
 from kit_target import target_root
 import json
 import os
+import re
 import subprocess
 import sys
 from preflight.task_contract import TaskContractError, validate_task_shape
@@ -682,6 +683,7 @@ def test_declared_nonstandard_secret_is_redacted(tmp_path):
         json.dumps({"steps": [{"id": "leak", "target": "bricks.__test__.dummy_secret_leak", "args": {}}]}),
         encoding="utf-8",
     )
+    # NOT A REAL SECRET: deterministic fake credential for a declared Secret name.
     fake_secret = "vendor-credential-7f3a1b9c2d4e"
     env = {
         **os.environ,
@@ -764,3 +766,76 @@ def test_cross_repository_publication_is_centralized():
     bootstrap = (ROOT / "bootstrap.sh").read_text(encoding="utf-8")
     assert "action-worker-publication" in bootstrap
     assert "publication_ready" in bootstrap
+
+def test_central_ci_scans_history_with_pinned_gitleaks():
+    ci = (ROOT / ".github" / "scripts" / "central-ci.sh").read_text(encoding="utf-8")
+    assert 'GITLEAKS_VERSION="8.30.1"' in ci
+    assert "sha256sum -c -" in ci
+    assert '"$GITLEAKS_DIR/gitleaks" git .' in ci
+    assert "--config .gitleaks.toml" in ci
+
+    config = (ROOT / ".gitleaks.toml").read_text(encoding="utf-8")
+    allowlists = config.split("[[allowlists]]")[1:]
+    assert allowlists, "gitleaks allowlist contract must exist"
+    for allowlist in allowlists:
+        assert "description =" in allowlist
+
+def test_hugo_download_requires_pinned_sha256(tmp_path):
+    task = json.loads((ROOT / "projects" / "FongapBlog" / "task.json").read_text(encoding="utf-8"))
+    assert re.fullmatch(r"[0-9a-f]{64}", task["global_args"]["hugo_sha256"])
+
+    source = (ROOT / "bricks" / "hugo_artifact_build.py").read_text(encoding="utf-8")
+    assert "_sha256_of" in source
+    assert "Hugo 下载校验失败" in source
+
+    from bricks.hugo_artifact_build import execute as HugoBuild
+
+    brick = HugoBuild({
+        "project_dir": str(ROOT),
+        "hugo_version": "0.164.0",
+        "install_dir": str(tmp_path / "bin"),
+    })
+    with pytest.raises(ValueError, match="hugo_sha256"):
+        brick._ensure_hugo()
+
+def test_server_edge_transport_never_pipes_remote_scripts_or_keys_on_argv():
+    text = (ROOT / "environments" / "server-edge" / "deploy.sh").read_text(encoding="utf-8")
+    assert "https://tailscale.com/install.sh | sh" not in text
+    assert '--auth-key="file:' in text
+    assert '--auth-key="${TAILSCALE_AUTH_KEY}"' not in text
+    assert "SERVER_EDGE_TAILSCALE_INSTALL_SHA256" in text
+
+def test_bootstrap_pipeline_audit_passes_values_as_arguments():
+    text = (ROOT / "bootstrap.sh").read_text(encoding="utf-8")
+    assert '"status": "success" if ${TASK_EXIT}' not in text
+    assert 'python3 - "${TASK_EXIT}" "${_pipeline_elapsed}" "${GHOST_SUMMARY_FILE}"' in text
+    assert "<<'PYEOF'" in text
+
+def test_project_repository_identifiers_use_one_owner():
+    for env_file in (ROOT / "projects").rglob(".env.variables"):
+        text = env_file.read_text(encoding="utf-8")
+        assert "fongap/external-vault" not in text, str(env_file)
+
+    adfilter = (ROOT / "projects" / "AdFilter" / ".env.variables").read_text(encoding="utf-8")
+    assert "ADFILTER_ARTIFACT_REPOSITORY" not in adfilter
+
+def test_market_fetch_engine_keys_stay_out_of_urls_and_logs():
+    source = (ROOT / "bricks" / "global_market_daily_fetch.py").read_text(encoding="utf-8")
+    assert "apikey={self.av_key}" not in source
+    assert "api_key={self.fred_key}" not in source
+    assert "_scrub_url_secrets(error)" in source
+
+def test_redaction_formats_are_registered_in_governance():
+    doc = (ROOT / "docs" / "governance" / "secret-redaction.md").read_text(encoding="utf-8")
+    assert "preflight/redact.py" in doc
+    for marker in ("sk-", "AIza", "JWT", "Discord", "Slack", "高熵"):
+        assert marker in doc
+
+def test_fake_credentials_are_labelled_in_fixtures():
+    leak_brick = (ROOT / "bricks" / "__test__" / "dummy_secret_leak.py").read_text(encoding="utf-8")
+    assert "NOT A REAL SECRET" in leak_brick
+    assert "gh" "p_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn" in leak_brick
+
+    fixtures_doc = (Path(__file__).resolve().parent / "fixtures" / "README.md").read_text(encoding="utf-8")
+    for marker in ("NOT A REAL SECRET", "deterministic", "format-valid"):
+        assert marker in fixtures_doc
