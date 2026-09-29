@@ -161,7 +161,15 @@
         "test_task_contract_rejects_wrong_types_and_unknown_fields": 1,
         "test_marketbrief_task_uses_canonical_visual_pipeline": 1,
         "test_pharmabrief_task_uses_stable_pipeline_with_visual_layer": 1,
-        "test_cross_repository_publication_is_centralized": 1
+        "test_cross_repository_publication_is_centralized": 1,
+        "test_central_ci_scans_history_with_pinned_gitleaks": 1,
+        "test_hugo_download_requires_pinned_sha256": 1,
+        "test_server_edge_transport_never_pipes_remote_scripts_or_keys_on_argv": 1,
+        "test_bootstrap_pipeline_audit_passes_values_as_arguments": 1,
+        "test_project_repository_identifiers_use_one_owner": 1,
+        "test_market_fetch_engine_keys_stay_out_of_urls_and_logs": 1,
+        "test_redaction_formats_are_registered_in_governance": 1,
+        "test_fake_credentials_are_labelled_in_fixtures": 1
       },
       "passed": [
         "test_bootstrap_never_writes_rendered_task_json",
@@ -170,7 +178,15 @@
         "test_task_contract_rejects_wrong_types_and_unknown_fields",
         "test_marketbrief_task_uses_canonical_visual_pipeline",
         "test_pharmabrief_task_uses_stable_pipeline_with_visual_layer",
-        "test_cross_repository_publication_is_centralized"
+        "test_cross_repository_publication_is_centralized",
+        "test_central_ci_scans_history_with_pinned_gitleaks",
+        "test_hugo_download_requires_pinned_sha256",
+        "test_server_edge_transport_never_pipes_remote_scripts_or_keys_on_argv",
+        "test_bootstrap_pipeline_audit_passes_values_as_arguments",
+        "test_project_repository_identifiers_use_one_owner",
+        "test_market_fetch_engine_keys_stay_out_of_urls_and_logs",
+        "test_redaction_formats_are_registered_in_governance",
+        "test_fake_credentials_are_labelled_in_fixtures"
       ]
     },
     "test_market_brief.py": {
@@ -792,7 +808,14 @@
         "TestRedact::test_github_pat": 1,
         "TestRedact::test_registered_value": 1,
         "TestRedact::test_bearer": 1,
-        "TestRedact::test_private_key": 1
+        "TestRedact::test_private_key": 1,
+        "TestRedact::test_openai_style_key": 1,
+        "TestRedact::test_google_api_key": 1,
+        "TestRedact::test_jwt": 1,
+        "TestRedact::test_discord_webhook": 1,
+        "TestRedact::test_slack_webhook": 1,
+        "TestRedact::test_high_entropy_token": 1,
+        "TestRedact::test_commit_sha_is_not_redacted": 1
       },
       "passed": [
         "TestResolveEnv::test_valid_env",
@@ -830,7 +853,14 @@
         "TestRedact::test_github_pat",
         "TestRedact::test_registered_value",
         "TestRedact::test_bearer",
-        "TestRedact::test_private_key"
+        "TestRedact::test_private_key",
+        "TestRedact::test_openai_style_key",
+        "TestRedact::test_google_api_key",
+        "TestRedact::test_jwt",
+        "TestRedact::test_discord_webhook",
+        "TestRedact::test_slack_webhook",
+        "TestRedact::test_high_entropy_token",
+        "TestRedact::test_commit_sha_is_not_redacted"
       ]
     }
   }

@@ -4,7 +4,6 @@ from kit_target import target_root
 import os
 import shutil
 import subprocess
-import sys
 import textwrap
 from pathlib import Path
 
