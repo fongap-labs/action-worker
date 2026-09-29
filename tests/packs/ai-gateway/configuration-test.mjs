@@ -41,8 +41,15 @@ try {
 
   let passed = 0;
   function test(name, fn) {
-    try { fn(); passed++; console.log(`ok - ${name}`); }
-    catch (e) { console.error(`FAIL: ${name}`); console.error(e?.stack || e); process.exitCode = 1; }
+    try {
+      fn();
+      passed++;
+      console.log(`ok - ${name}`);
+    } catch (e) {
+      console.error(`FAIL: ${name}`);
+      console.error(e?.stack || e);
+      process.exitCode = 1;
+    }
   }
 
   const node = (id, extra = {}) => ({
@@ -69,9 +76,16 @@ try {
     const diags = [];
     const secrets = collectShards(
       { AIG_TIER1_CREDENTIALS_01: '{}', AIG_TIER1_CREDENTIALS_09: '{}', AIG_TIER1_CREDENTIALS_12: '{}' },
-      SECRET_SHARD_PATTERN, 'AIG_TIER1_CREDENTIALS_', 'AIG_TIER1_CREDENTIALS_01', 2, diags,
+      SECRET_SHARD_PATTERN,
+      'AIG_TIER1_CREDENTIALS_',
+      'AIG_TIER1_CREDENTIALS_01',
+      2,
+      diags,
     );
-    assert.deepEqual(secrets.map((s) => s.index), [1, 9]);
+    assert.deepEqual(
+      secrets.map((s) => s.index),
+      [1, 9],
+    );
     assert.ok(diags.some((d) => /12.*out of range/.test(d)));
     const tiers = collectShards({ AIG_TIER2_NODES_03: '[]' }, TIER_SHARD_PATTERN, 'AIG_TIER2_NODES_', 'AIG_TIER2_NODES_01', 2, []);
     assert.equal(tiers[0].tierNumber, 2);
@@ -93,7 +107,10 @@ try {
       delete n[field];
       const cfg = loadGatewayConfig(makeEnv({ tier1: [n], secrets: { [n.id]: 'x' } }));
       assert.equal(cfg.nodes.length, 0, `${field} omission must fail`);
-      assert.ok(cfg.diagnostics.some((d) => d.includes(field)), `missing ${field} diagnostic required`);
+      assert.ok(
+        cfg.diagnostics.some((d) => d.includes(field)),
+        `missing ${field} diagnostic required`,
+      );
     }
   });
 
@@ -112,10 +129,7 @@ try {
   });
 
   test('protocol and surfaces are not node fields', () => {
-    for (const extra of [
-      { protocol: 'openai' },
-      { surfaces: ['chat_completions'] },
-    ]) {
+    for (const extra of [{ protocol: 'openai' }, { surfaces: ['chat_completions'] }]) {
       const cfg = loadGatewayConfig(makeEnv({ tier1: [node('wire-field', extra)], secrets: { 'wire-field': 'x' } }));
       assert.equal(cfg.nodes.length, 0);
       assert.ok(cfg.diagnostics.some((d) => d.includes('unknown field')));
@@ -133,11 +147,7 @@ try {
   });
 
   test('unknown, credential and retired capacity fields are rejected', () => {
-    for (const extra of [
-      { prioirty: 5 },
-      { limits: { concurrency: 2 } },
-      { api_key: 'secret' },
-    ]) {
+    for (const extra of [{ prioirty: 5 }, { limits: { concurrency: 2 } }, { api_key: 'secret' }]) {
       const cfg = loadGatewayConfig(makeEnv({ tier1: [node('bad-field', extra)], secrets: { 'bad-field': 'x' } }));
       assert.equal(cfg.nodes.length, 0);
     }
@@ -156,7 +166,8 @@ try {
   // Registry / wildcard behavior.
   test('registry carries declared capabilities and conservative defaults', () => {
     const env = makeEnv({
-      tier1: [node('r', { models: {} })], secrets: { r: 'x' },
+      tier1: [node('r', { models: {} })],
+      secrets: { r: 'x' },
       extraEnv: { AIG_MODELS_CONFIG: JSON.stringify({ 'code-pro': { policy: 'fast', capabilities: { vision: true }, reasoning_efforts: ['high'] } }) },
     });
     const reg = loadModelRegistry(env);
@@ -172,8 +183,7 @@ try {
   test('wildcard and explicit model mappings remain distinct', () => {
     assert.equal(isWildcardNode(node('w', { models: {} })), true);
     assert.equal(servesModel(node('w', { models: {} }), 'known', new Set(['known'])), true);
-    assert.equal(servesModel(node('w', { models: {} }), 'unknown', new Set(['known'])), false,
-      'wildcard must be bounded by known catalog');
+    assert.equal(servesModel(node('w', { models: {} }), 'unknown', new Set(['known'])), false, 'wildcard must be bounded by known catalog');
     assert.equal(servesModel(node('m', { models: { only: 'x' } }), 'only', new Set(['only'])), true);
     assert.equal(servesModel(node('m', { models: { only: 'x' } }), 'other', new Set(['only', 'other'])), false);
   });
@@ -188,10 +198,14 @@ try {
   });
 
   test('AIG_MODELS_CONFIG accepts current modalities/ocr/ui fields', () => {
-    const env = makeEnv({ extraEnv: { AIG_MODELS_CONFIG: JSON.stringify({
-      Omni: { modalities: { input: ['text', 'image', 'audio'], output: ['text', 'audio'] } },
-      OCR: { capabilities: { ocr: true }, ui_visible: false },
-    }) } });
+    const env = makeEnv({
+      extraEnv: {
+        AIG_MODELS_CONFIG: JSON.stringify({
+          Omni: { modalities: { input: ['text', 'image', 'audio'], output: ['text', 'audio'] } },
+          OCR: { capabilities: { ocr: true }, ui_visible: false },
+        }),
+      },
+    });
     assert.deepEqual(getModelsConfigDiagnostics(env), []);
     const reg = loadModelRegistry(env);
     assert.deepEqual(reg.Omni.catalog.modalities, { input: ['text', 'image', 'audio'], output: ['text', 'audio'] });
@@ -214,13 +228,16 @@ try {
     });
     assert.ok(vision.some((d) => d.includes('modalities.input to include "image"')));
 
-    assert.deepEqual(modelDiags({
-      m: {
-        capabilities: { reasoning: true, vision: true, ocr: true },
-        reasoning_efforts: ['high'],
-        modalities: { input: ['text', 'image'], output: ['text'] },
-      },
-    }), []);
+    assert.deepEqual(
+      modelDiags({
+        m: {
+          capabilities: { reasoning: true, vision: true, ocr: true },
+          reasoning_efforts: ['high'],
+          modalities: { input: ['text', 'image'], output: ['text'] },
+        },
+      }),
+      [],
+    );
   });
 
   // Strict policy schema.
@@ -237,17 +254,27 @@ try {
   test('budget_split and other retired policy fields are rejected as unknown', () => {
     for (const value of ['even', 'weighted', null]) {
       const diags = policyDiags({ p: { max_attempts: 5, budget_split: value } });
-      assert.ok(diags.some((d) => d.includes('unknown field "budget_split"')),
-        `budget_split=${JSON.stringify(value)} must not be accepted`);
+      assert.ok(
+        diags.some((d) => d.includes('unknown field "budget_split"')),
+        `budget_split=${JSON.stringify(value)} must not be accepted`,
+      );
     }
   });
 
   test('hedge and max_in_flight current fields validate without coercion', () => {
-    const policies = loadPoliciesConfig(makeEnv({ extraEnv: { AIG_POLICIES_CONFIG: JSON.stringify({ p: {
-      max_attempts: 5,
-      hedge: { enabled: true, delay_ms: 4000, tiers: ['tier1'] },
-      max_in_flight: 4,
-    } }) } }));
+    const policies = loadPoliciesConfig(
+      makeEnv({
+        extraEnv: {
+          AIG_POLICIES_CONFIG: JSON.stringify({
+            p: {
+              max_attempts: 5,
+              hedge: { enabled: true, delay_ms: 4000, tiers: ['tier1'] },
+              max_in_flight: 4,
+            },
+          }),
+        },
+      }),
+    );
     assert.equal(policies.p.hedge.enabled, true);
     assert.equal(policies.p.hedge.delayMs, 4000);
     assert.deepEqual(policies.p.hedge.tiers, ['tier1']);
@@ -256,15 +283,21 @@ try {
   });
 
   test('invalid policy/model references are fatal end-to-end', () => {
-    const badAttempts = loadGatewayConfig(makeEnv({
-      tier1: [node('f1')], secrets: { f1: 'x' },
-      extraEnv: { AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempts: 0 } }) },
-    }));
+    const badAttempts = loadGatewayConfig(
+      makeEnv({
+        tier1: [node('f1')],
+        secrets: { f1: 'x' },
+        extraEnv: { AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempts: 0 } }) },
+      }),
+    );
     assert.equal(badAttempts.ready, false);
-    const missingPolicy = loadGatewayConfig(makeEnv({
-      tier1: [node('f2')], secrets: { f2: 'x' },
-      extraEnv: { AIG_MODELS_CONFIG: JSON.stringify({ 'general-air': { policy: 'missing' } }) },
-    }));
+    const missingPolicy = loadGatewayConfig(
+      makeEnv({
+        tier1: [node('f2')],
+        secrets: { f2: 'x' },
+        extraEnv: { AIG_MODELS_CONFIG: JSON.stringify({ 'general-air': { policy: 'missing' } }) },
+      }),
+    );
     assert.equal(missingPolicy.ready, false);
     assert.ok(missingPolicy.diagnostics.some((d) => d.includes('missing')));
   });
@@ -311,16 +344,29 @@ try {
   const access = { AIG_ACCESS_KEY_AIR: 'k', AIG_ACCESS_MODELS_AIR: '*' };
   const env = (models) => ({ ...access, ...(models ? { AIG_MODELS_CONFIG: JSON.stringify(models) } : {}) });
   const runtimeNode = (id, models) => ({
-    id, provider: 'mock', tier: 'tier-1', protocol: 'openai', surfaces: ['chat_completions'],
-    base_url: `https://${id}.example.com/v1`, models,
+    id,
+    provider: 'mock',
+    tier: 'tier-1',
+    protocol: 'openai',
+    surfaces: ['chat_completions'],
+    base_url: `https://${id}.example.com/v1`,
+    models,
   });
   const configNode = (id) => ({
-    id, provider: 'mock',
-    base_url: `https://${id}.example.com/v1`, models: { 'Code-Max': 'up-model' },
+    id,
+    provider: 'mock',
+    base_url: `https://${id}.example.com/v1`,
+    models: { 'Code-Max': 'up-model' },
   });
   const budgetNode = (id, tier) => ({
-    id, tier, provider: 'mock', protocol: 'openai', surfaces: ['chat_completions'],
-    baseUrl: `https://${id}.example.com/v1`, credential: 'k', priority: 10,
+    id,
+    tier,
+    provider: 'mock',
+    protocol: 'openai',
+    surfaces: ['chat_completions'],
+    baseUrl: `https://${id}.example.com/v1`,
+    credential: 'k',
+    priority: 10,
     models: { 'Code-Max': 'up-model' },
   });
   const now = () => 1_700_000_000_000;
@@ -345,13 +391,19 @@ try {
     const { html } = renderModels(result);
     assert.ok(html.includes('pub'));
     assert.ok(!html.includes('hidden'));
-    assert.equal(nodes.some((n) => supportsRequest(n, { model: 'hidden', protocol: 'openai', surface: 'chat_completions' })), true);
+    assert.equal(
+      nodes.some((n) => supportsRequest(n, { model: 'hidden', protocol: 'openai', surface: 'chat_completions' })),
+      true,
+    );
   });
 
   test('AIG_MODELS_CONFIG alone never widens public/requestable models', () => {
     const result = getPublicModelStatus([], env({ orphan: { policy: 'fast' } }), new Set(), now());
     assert.ok(!ids(result).includes('orphan'));
-    assert.equal([].some((n) => supportsRequest(n, { model: 'orphan', protocol: 'openai', surface: 'chat_completions' })), false);
+    assert.equal(
+      [].some((n) => supportsRequest(n, { model: 'orphan', protocol: 'openai', surface: 'chat_completions' })),
+      false,
+    );
   });
 
   test('same-tier credential may live in a different shard suffix', () => {
@@ -392,7 +444,8 @@ try {
   test('surplus goes to the first adjustable dispatchable tier', () => {
     const tiers = {
       1: [budgetNode('t1a', 'tier-1'), budgetNode('t1b', 'tier-1')],
-      2: [budgetNode('t2', 'tier-2')], 3: [budgetNode('t3', 'tier-3')],
+      2: [budgetNode('t2', 'tier-2')],
+      3: [budgetNode('t3', 'tier-3')],
     };
     const policy = { maxAttempts: 5, tierAttempts: null, hedge: null, firstEventTimeoutMs: null, maxInFlight: null };
     assert.deepEqual(computeTierCaps(tiers, req, new Set(), policy, new Set()), { 1: 3, 2: 1, 3: 1 });
@@ -408,7 +461,9 @@ try {
   });
 
   test('tier_attempts total above max_attempts is rejected', () => {
-    const diags = getPoliciesConfigDiagnostics({ AIG_POLICIES_CONFIG: JSON.stringify({ over: { max_attempts: 6, tier_attempts: { tier2: 4, tier3: 4 } } }) });
+    const diags = getPoliciesConfigDiagnostics({
+      AIG_POLICIES_CONFIG: JSON.stringify({ over: { max_attempts: 6, tier_attempts: { tier2: 4, tier3: 4 } } }),
+    });
     assert.ok(diags.some((d) => d.includes('tier_attempts total exceeds max_attempts')));
   });
 
@@ -437,14 +492,25 @@ try {
 
 
 
+
   const here = path.dirname(fileURLToPath(import.meta.url));
 
   const cli = path.join(root, 'scripts', 'config-cli.mjs');
   const cfg = (p) => path.join(root, 'config', p);
-  function writeJSON(file, obj) { fs.writeFileSync(file, JSON.stringify(obj, null, 2)); return file; }
-  function tmp(name) { return fs.mkdtempSync(path.join(os.tmpdir(), `cfg-cli-${name}-`)); }
-  function run(args) { const result = spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8' }); return { status: result.status, stdout: result.stdout, stderr: result.stderr }; }
-  function check(cond, msg) { if (!cond) throw new Error(`assertion failed: ${msg}`); }
+  function writeJSON(file, obj) {
+    fs.writeFileSync(file, JSON.stringify(obj, null, 2));
+    return file;
+  }
+  function tmp(name) {
+    return fs.mkdtempSync(path.join(os.tmpdir(), `cfg-cli-${name}-`));
+  }
+  function run(args) {
+    const result = spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8' });
+    return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+  }
+  function check(cond, msg) {
+    if (!cond) throw new Error(`assertion failed: ${msg}`);
+  }
   function explicitNode(id, base = `https://${id}.example.com/v1`, model = 'u') {
     return { id, provider: 'mock', base_url: base, models: { m: model } };
   }
@@ -464,7 +530,10 @@ try {
   }
   {
     const dir = tmp('dup');
-    const tier1 = writeJSON(path.join(dir, 'tier1.json'), [explicitNode('dup', 'https://a.example.com/v1'), explicitNode('dup', 'https://b.example.com/v1')]);
+    const tier1 = writeJSON(path.join(dir, 'tier1.json'), [
+      explicitNode('dup', 'https://a.example.com/v1'),
+      explicitNode('dup', 'https://b.example.com/v1'),
+    ]);
     const secrets = writeJSON(path.join(dir, 'secrets.json'), { dup: 'k' });
     const r = run(['check', '--tier1', tier1, '--secrets', secrets]);
     check(r.status !== 0, 'duplicate node id must fail');
@@ -472,7 +541,8 @@ try {
   }
   {
     const dir = tmp('strict');
-    const broken = explicitNode('broken'); delete broken.provider;
+    const broken = explicitNode('broken');
+    delete broken.provider;
     const tier1 = writeJSON(path.join(dir, 'tier1.json'), [broken]);
     const secrets = writeJSON(path.join(dir, 'secrets.json'), { broken: 'k' });
     const r = run(['check', '--tier1', tier1, '--secrets', secrets]);
@@ -498,7 +568,8 @@ try {
   }
   {
     const dir = tmp('bad');
-    const tier1 = path.join(dir, 'tier1.json'); fs.writeFileSync(tier1, '{not json');
+    const tier1 = path.join(dir, 'tier1.json');
+    fs.writeFileSync(tier1, '{not json');
     const secrets = writeJSON(path.join(dir, 'secrets.json'), {});
     const r = run(['check', '--tier1', tier1, '--secrets', secrets]);
     check(r.status !== 0, 'malformed JSON must fail');
@@ -521,8 +592,11 @@ try {
     const newSec = writeJSON(path.join(dir, 'new-secrets.json'), { a: 'k1', c: 'k3' });
     const r = run(['diff', '--old-tier1', oldTier, '--new-tier1', newTier, '--old-secrets', oldSec, '--new-secrets', newSec]);
     check(r.status === 0, 'diff exits 0');
-    check(r.stdout.includes('+ c'), 'added node detected'); check(r.stdout.includes('- b'), 'removed node detected'); check(r.stdout.includes('~ a'), 'changed node detected');
-    check(/Secrets:/.test(r.stdout), 'secrets section present'); check(!/k1|k2|k3/.test(r.stdout), 'never prints secret values');
+    check(r.stdout.includes('+ c'), 'added node detected');
+    check(r.stdout.includes('- b'), 'removed node detected');
+    check(r.stdout.includes('~ a'), 'changed node detected');
+    check(/Secrets:/.test(r.stdout), 'secrets section present');
+    check(!/k1|k2|k3/.test(r.stdout), 'never prints secret values');
   }
   console.log('config-cli tests passed.');
   console.log('ok - file:config-cli');
@@ -551,8 +625,15 @@ try {
 
   let passed = 0;
   function test(name, fn) {
-    try { fn(); passed += 1; console.log(`ok - ${name}`); }
-    catch (error) { console.error(`FAIL: ${name}`); console.error(error?.stack || error); process.exitCode = 1; }
+    try {
+      fn();
+      passed += 1;
+      console.log(`ok - ${name}`);
+    } catch (error) {
+      console.error(`FAIL: ${name}`);
+      console.error(error?.stack || error);
+      process.exitCode = 1;
+    }
   }
 
   test('valid plan shards current nodes and tier-scoped secrets', () => {
@@ -625,12 +706,16 @@ try {
   });
 
   test('oversized entry fails before producing invalid shards', () => {
-    assert.throws(() => buildPlan({ tiers: { 1: [node('big', { provider: 'x'.repeat(5000) })] }, secretsMap: { big: 'x' } }), /exceeds the .*-byte shard limit/);
+    assert.throws(
+      () => buildPlan({ tiers: { 1: [node('big', { provider: 'x'.repeat(5000) })] }, secretsMap: { big: 'x' } }),
+      /exceeds the .*-byte shard limit/,
+    );
   });
 
   test('stale managed shard lists are computed', () => {
     const plan = buildPlan({
-      tiers: { 1: [node('a')] }, secretsMap: { a: 'x' },
+      tiers: { 1: [node('a')] },
+      secretsMap: { a: 'x' },
       existingVarNames: ['AIG_TIER1_NODES_01', 'AIG_TIER1_NODES_02', 'AIG_TIER3_NODES_01'],
       existingSecretNames: ['AIG_TIER1_CREDENTIALS_01', 'AIG_TIER1_CREDENTIALS_02', 'UNMANAGED_GATEWAY_KEY'],
     });
@@ -713,14 +798,17 @@ try {
     /TIER\[123\]_CREDENTIALS|TIER[123]_CREDENTIALS/,
   );
   assert.throws(
-    () => validateGatewayRuntime(normalizeRuntimeConfig({
-      vars: {
-        ...fixture().vars,
-        AIG_MODELS_CONFIG: { 'code-pro': { policy: 'missing' } },
-        AIG_POLICIES_CONFIG: {},
-      },
-      secrets: fixture().secrets,
-    })),
+    () =>
+      validateGatewayRuntime(
+        normalizeRuntimeConfig({
+          vars: {
+            ...fixture().vars,
+            AIG_MODELS_CONFIG: { 'code-pro': { policy: 'missing' } },
+            AIG_POLICIES_CONFIG: {},
+          },
+          secrets: fixture().secrets,
+        }),
+      ),
     /references unknown policy/,
   );
 
@@ -851,7 +939,8 @@ try {
       affinityKvConfigured: 'kv-id',
       removedSecretShards: 1,
     });
-    for (const fragment of ['Deployment completed', 'Nodes: 1/1 usable', 'Models: 1', 'Status: ready', 'OK']) assert.ok(summary.includes(fragment), fragment);
+    for (const fragment of ['Deployment completed', 'Nodes: 1/1 usable', 'Models: 1', 'Status: ready', 'OK'])
+      assert.ok(summary.includes(fragment), fragment);
     for (const secret of ['upstream-key', 'gateway-key', 'Bearer', 'authorization']) assert.ok(!summary.includes(secret), `summary leaks ${secret}`);
   }
 

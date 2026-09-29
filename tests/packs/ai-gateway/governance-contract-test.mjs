@@ -31,10 +31,16 @@ try {
 
   const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
   let passed = 0;
-  const ok = (label) => { passed++; console.log(`ok - ${label}`); };
+  const ok = (label) => {
+    passed++;
+    console.log(`ok - ${label}`);
+  };
 
   const DOCS = [
-    'README.md', 'README.zh-CN.md', 'SECURITY.md', 'scripts/README.md',
+    'README.md',
+    'README.zh-CN.md',
+    'SECURITY.md',
+    'scripts/README.md',
     'docs/architecture/overview.md',
     'docs/architecture/protocol-model.md',
     'docs/architecture/subscription-model.md',
@@ -50,11 +56,13 @@ try {
   ];
 
   const PROTOCOL_FACT_FILES = [
-    'README.md', 'README.zh-CN.md',
+    'README.md',
+    'README.zh-CN.md',
     'docs/architecture/protocol-model.md',
     'docs/architecture/routing-model.md',
     'docs/operations/configuration.md',
-    '.dev.vars.example', 'config/worker-vars.example.json',
+    '.dev.vars.example',
+    'config/worker-vars.example.json',
   ];
   for (const file of PROTOCOL_FACT_FILES) {
     const text = read(file);
@@ -93,9 +101,13 @@ try {
   ok('.dev.vars.example node examples match the current account-level schema');
 
   const ACCESS_FACT_FILES = [
-    'README.md', 'README.zh-CN.md', 'SECURITY.md',
-    'docs/operations/configuration.md', 'docs/operations/deployment.md',
-    '.dev.vars.example', 'config/access-keys.example.json',
+    'README.md',
+    'README.zh-CN.md',
+    'SECURITY.md',
+    'docs/operations/configuration.md',
+    'docs/operations/deployment.md',
+    '.dev.vars.example',
+    'config/access-keys.example.json',
   ];
   const GROUP_KEY = /AIG_ACCESS_KEY_(?:AIR|PRO|MAX|ULTRA|AGENT|<GROUP>|\{AIR,PRO,MAX,ULTRA,AGENT\})/;
   const GROUP_MODELS = /AIG_ACCESS_MODELS_(?:AIR|PRO|MAX|ULTRA|AGENT|<GROUP>|\{AIR,PRO,MAX,ULTRA,AGENT\})/;
@@ -107,16 +119,35 @@ try {
   }
 
   const SHARD_FACT_FILES = [
-    'README.md', 'README.zh-CN.md', 'SECURITY.md',
+    'README.md',
+    'README.zh-CN.md',
+    'SECURITY.md',
     'docs/architecture/routing-model.md',
-    'docs/operations/configuration.md', 'docs/operations/deployment.md', '.dev.vars.example',
+    'docs/operations/configuration.md',
+    'docs/operations/deployment.md',
+    '.dev.vars.example',
   ];
   for (const file of SHARD_FACT_FILES) {
     const text = read(file);
-    assert.match(text, /independent|independently|not by matching|无需.*对应|不按.*后缀|Tier\s*\+\s*node id/i,
-      `${file}: must state independent Config/Secret shard binding`);
-    assert.doesNotMatch(text, /(?:must|should|required to|需要|必须)[^\n]{0,80}(?:paired\s*1:1|matching\s+(?:config\s+)?shard|matching\s+suffix|一一对应|1:1\s*配对)/i,
-      `${file}: must not instruct operators to pair Config/Secret suffixes`);
+    assert.match(
+      text,
+      new RegExp(['independent', 'independently', 'not by matching', '无需.*对应', '不按.*后缀', 'Tier\\s*\\+\\s*node id'].join('|'), 'i'),
+      `${file}: must state independent Config/Secret shard binding`,
+    );
+    assert.doesNotMatch(
+      text,
+      new RegExp(
+        [
+          '(?:must|should|required to|',
+          '需要|必须',
+          ')[^\\n]{0,80}(?:paired\\s*1:1|matching\\s+(?:config\\s+)?shard|matching\\s*suffix|',
+          '一一对应|1:1\\s*配对',
+          ')',
+        ].join(''),
+        'i',
+      ),
+      `${file}: must not instruct operators to pair Config/Secret suffixes`,
+    );
     ok(`${file} independent shard suffixes`);
   }
 
@@ -137,11 +168,13 @@ try {
   ok('reliability docs match current Tier 1 score inputs');
 
   const config = read('docs/operations/configuration.md');
-  assert.match(config, /Required fields:[\s\S]{0,160}id[\s\S]{0,80}provider[\s\S]{0,80}base_url[\s\S]{0,80}models/i,
-    'configuration docs must show the small account-level node schema');
+  assert.match(
+    config,
+    /Required fields:[\s\S]{0,160}id[\s\S]{0,80}provider[\s\S]{0,80}base_url[\s\S]{0,80}models/i,
+    'configuration docs must show the small account-level node schema',
+  );
   assert.match(config, /Provider wire profiles/i);
-  assert.match(config, /`protocol`, `surfaces`, `limits`[^\n]*rejected/i,
-    'protocol/surfaces/limits must not return to per-node config');
+  assert.match(config, /`protocol`, `surfaces`, `limits`[^\n]*rejected/i, 'protocol/surfaces/limits must not return to per-node config');
   assert.match(config, /provider:\s*"anthropic"[\s\S]{0,100}messages/i);
   assert.match(config, /provider:\s*"openai"[\s\S]{0,120}responses/i);
   assert.match(config, /`budget_split`, weighted allocation, and alternate tier-budget modes are not part of the current policy schema/i);
@@ -151,28 +184,40 @@ try {
 
   const publicStatus = read('docs/operations/public-model-status.md');
   for (const state of ['available', 'fluctuating', 'no_recent', 'no_record', 'down']) {
-    assert.match(publicStatus, new RegExp('`' + state + '`'), `public status docs must include ${state}`);
+    assert.match(publicStatus, new RegExp(`\`${state}\``), `public status docs must include ${state}`);
   }
   assert.match(publicStatus, /P50[^\n]*at least 5/i);
   assert.match(publicStatus, /P95[^\n]*at least 20/i);
   assert.match(publicStatus, /successful_ttft_count/i);
-  assert.doesNotMatch(publicStatus, /must not expose:[\s\S]{0,200}- TTFT values/i,
-    'model-level TTFT aggregates are now an intentional public dashboard surface');
+  assert.doesNotMatch(
+    publicStatus,
+    /must not expose:[\s\S]{0,200}- TTFT values/i,
+    'model-level TTFT aggregates are now an intentional public dashboard surface',
+  );
   ok('public model status docs match five-state and TTFT dashboard surface');
 
   const troubleshooting = read('docs/operations/troubleshooting.md');
   assert.doesNotMatch(troubleshooting, /\/version\b/);
-  assert.match(troubleshooting, /There is no node `limits\.rpm`, `rpm_mode`/i,
-    'retired node RPM fields may only appear as an explicit negative statement');
-  assert.doesNotMatch(troubleshooting, /(?:check|inspect|configure|set)[^\n]{0,100}(?:limits\.rpm|rpm_mode)/i,
-    'troubleshooting must not instruct operators to use retired node RPM fields');
+  assert.match(
+    troubleshooting,
+    /There is no node `limits\.rpm`, `rpm_mode`/i,
+    'retired node RPM fields may only appear as an explicit negative statement',
+  );
+  assert.doesNotMatch(
+    troubleshooting,
+    /(?:check|inspect|configure|set)[^\n]{0,100}(?:limits\.rpm|rpm_mode)/i,
+    'troubleshooting must not instruct operators to use retired node RPM fields',
+  );
   assert.match(troubleshooting, /provider:\s*"openai"/i);
   assert.match(troubleshooting, /Access-key groups[^\n]*do not assign Tier 1 scheduler priority/i);
   ok('troubleshooting docs contain no retired operational instructions');
 
   const toolingReadme = read('scripts/README.md');
-  assert.doesNotMatch(toolingReadme, /version:sync|Version synchronization|version-check\.mjs/i,
-    'tooling docs must not restore retired project-version automation');
+  assert.doesNotMatch(
+    toolingReadme,
+    /version:sync|Version synchronization|version-check\.mjs/i,
+    'tooling docs must not restore retired project-version automation',
+  );
   ok('tooling docs contain no retired version automation');
 
   const moduleAudit = read('docs/architecture/module-boundary-audit.md');
@@ -187,8 +232,11 @@ try {
   const calendar = read('docs/architecture/calendar-heatmap.md');
   assert.match(calendar, /`total` is physical upstream Token consumption/i);
   assert.match(calendar, /`requests` is \*\*successfully delivered requests\*\*/i);
-  assert.doesNotMatch(calendar, /`scripts\/calendar-heatmap|`scripts\/token-usage-test/,
-    'calendar docs must point to tests/, not retired scripts/ test locations');
+  assert.doesNotMatch(
+    calendar,
+    /`scripts\/calendar-heatmap|`scripts\/token-usage-test/,
+    'calendar docs must point to tests/, not retired scripts/ test locations',
+  );
   ok('calendar docs match usage semantics and current test layout');
 
   for (const file of DOCS) {
@@ -211,8 +259,7 @@ try {
   ok(`source-owned deploy script consumes all ${RUNTIME_VAR_NAMES.length} runtime variables through the canonical config builder`);
 
   const devVars = read('.dev.vars.example');
-  assert.match(devVars, /Defaults live in src\/config\/runtime-vars\.ts/i,
-    '.dev.vars.example must point operators to runtime-vars.ts for defaults');
+  assert.match(devVars, /Defaults live in src\/config\/runtime-vars\.ts/i, '.dev.vars.example must point operators to runtime-vars.ts for defaults');
   for (const tunable of RUNTIME_TUNABLES) {
     assert.ok(devVars.includes(tunable.name), `.dev.vars.example must mention ${tunable.name}`);
   }
@@ -285,14 +332,49 @@ try {
 
   const rules = {
     config: new Set(['scheduler', 'reliability', 'request', 'transport', 'conversion', 'stream', 'dashboard', 'runtime', 'observability', 'ratelimit']),
-    providers: new Set(['request', 'scheduler', 'reliability', 'transport', 'conversion', 'stream', 'dashboard', 'runtime', 'observability', 'ratelimit', 'config', 'oauth']),
+    providers: new Set([
+      'request',
+      'scheduler',
+      'reliability',
+      'transport',
+      'conversion',
+      'stream',
+      'dashboard',
+      'runtime',
+      'observability',
+      'ratelimit',
+      'config',
+      'oauth',
+    ]),
     scheduler: new Set(['request', 'transport', 'protocol', 'conversion', 'stream', 'dashboard', 'runtime', 'observability', 'ratelimit']),
-    reliability: new Set(['scheduler', 'request', 'transport', 'protocol', 'conversion', 'stream', 'dashboard', 'runtime', 'observability', 'ratelimit']),
+    reliability: new Set([
+      'scheduler',
+      'request',
+      'transport',
+      'protocol',
+      'conversion',
+      'stream',
+      'dashboard',
+      'runtime',
+      'observability',
+      'ratelimit',
+    ]),
     transport: new Set(['scheduler', 'reliability', 'request', 'conversion', 'dashboard', 'runtime', 'observability', 'ratelimit']),
     conversion: new Set(['scheduler', 'reliability', 'request', 'transport', 'dashboard', 'runtime', 'observability', 'ratelimit', 'config']),
     runtime: new Set(['request', 'scheduler', 'transport', 'protocol', 'conversion', 'stream', 'dashboard', 'ratelimit']),
     dashboard: new Set(['request', 'scheduler', 'reliability', 'transport', 'conversion', 'stream', 'ratelimit']),
-    ratelimit: new Set(['request', 'scheduler', 'reliability', 'transport', 'protocol', 'conversion', 'stream', 'dashboard', 'runtime', 'observability']),
+    ratelimit: new Set([
+      'request',
+      'scheduler',
+      'reliability',
+      'transport',
+      'protocol',
+      'conversion',
+      'stream',
+      'dashboard',
+      'runtime',
+      'observability',
+    ]),
   };
 
   const violations = [];
@@ -312,7 +394,18 @@ try {
   assert.deepEqual(violations, [], `module dependency direction violated:\n${violations.join('\n')}`);
 
   const storeRoot = path.join(srcRoot, 'observability', 'token-usage-store');
-  const storeForbidden = new Set(['request', 'scheduler', 'reliability', 'transport', 'conversion', 'stream', 'dashboard', 'runtime', 'ratelimit', 'protocol']);
+  const storeForbidden = new Set([
+    'request',
+    'scheduler',
+    'reliability',
+    'transport',
+    'conversion',
+    'stream',
+    'dashboard',
+    'runtime',
+    'ratelimit',
+    'protocol',
+  ]);
   const storeViolations = [];
   for (const file of walk(storeRoot)) {
     const source = fs.readFileSync(file, 'utf8');
@@ -326,99 +419,109 @@ try {
   assert.deepEqual(storeViolations, [], `persistent observability must stay routing-independent:\n${storeViolations.join('\n')}`);
 
   const preflight = fs.readFileSync(path.join(srcRoot, 'request', 'preflight.ts'), 'utf8');
-  assert.ok(preflight.includes("../dashboard/pages.ts") && preflight.includes("../dashboard/readme-status.ts"),
-    'request preflight remains the owner of local dashboard route dispatch');
+  assert.ok(
+    preflight.includes('../dashboard/pages.ts') && preflight.includes('../dashboard/readme-status.ts'),
+    'request preflight remains the owner of local dashboard route dispatch',
+  );
 
   const tier1State = fs.readFileSync(path.join(srcRoot, 'reliability', 'tier1-state.ts'), 'utf8');
   const tier1Heat = fs.readFileSync(path.join(srcRoot, 'reliability', 'tier1-heat.ts'), 'utf8');
   const tier1Scoring = fs.readFileSync(path.join(srcRoot, 'scheduler', 'tier1-scoring.ts'), 'utf8');
-  assert.doesNotMatch(tier1State, /calculateTier1Score|TIER1_SCORE_BASE|tier1ProviderModelHeatFactor|recordTier1ProviderModelRateLimit/,
-    'Tier 1 state must not regain scheduler scoring or provider-model heat policy');
-  assert.match(tier1Scoring, /export function calculateTier1Score/,
-    'Tier 1 score construction stays scheduler-owned');
-  assert.match(tier1Scoring, /tier1ProviderModelHeatFactor/,
-    'scheduler scoring consumes heat through the heat owner');
-  assert.match(tier1Heat, /export function tier1ProviderModelHeatFactor/,
-    'provider-model heat stays in reliability/tier1-heat.ts');
-  assert.match(tier1Heat, /export function recordTier1ProviderModelRateLimit/,
-    'provider-model 429 observations stay in reliability/tier1-heat.ts');
+  assert.doesNotMatch(
+    tier1State,
+    /calculateTier1Score|TIER1_SCORE_BASE|tier1ProviderModelHeatFactor|recordTier1ProviderModelRateLimit/,
+    'Tier 1 state must not regain scheduler scoring or provider-model heat policy',
+  );
+  assert.match(tier1Scoring, /export function calculateTier1Score/, 'Tier 1 score construction stays scheduler-owned');
+  assert.match(tier1Scoring, /tier1ProviderModelHeatFactor/, 'scheduler scoring consumes heat through the heat owner');
+  assert.match(tier1Heat, /export function tier1ProviderModelHeatFactor/, 'provider-model heat stays in reliability/tier1-heat.ts');
+  assert.match(tier1Heat, /export function recordTier1ProviderModelRateLimit/, 'provider-model 429 observations stay in reliability/tier1-heat.ts');
 
   const nodeState = fs.readFileSync(path.join(srcRoot, 'reliability', 'node-state.ts'), 'utf8');
   const cooldownJitter = fs.readFileSync(path.join(srcRoot, 'reliability', 'cooldown-jitter.ts'), 'utf8');
-  assert.match(cooldownJitter, /export function jitterCooldownMs/,
-    'automatic cooldown jitter arithmetic has one reliability owner');
-  assert.match(nodeState, /from '\.\/cooldown-jitter\.ts'/,
-    'generic node reliability consumes the shared cooldown jitter primitive');
-  assert.match(tier1State, /from '\.\/cooldown-jitter\.ts'/,
-    'Tier 1 reliability consumes the shared cooldown jitter primitive');
-  assert.doesNotMatch(nodeState, /const JITTER_FACTOR|function maybeJitter/,
-    'generic node state must not regain private cooldown jitter arithmetic');
-  assert.doesNotMatch(tier1State, /const JITTER_FACTOR|function jitter\(/,
-    'Tier 1 state must not regain private cooldown jitter arithmetic');
+  assert.match(cooldownJitter, /export function jitterCooldownMs/, 'automatic cooldown jitter arithmetic has one reliability owner');
+  assert.match(nodeState, /from '\.\/cooldown-jitter\.ts'/, 'generic node reliability consumes the shared cooldown jitter primitive');
+  assert.match(tier1State, /from '\.\/cooldown-jitter\.ts'/, 'Tier 1 reliability consumes the shared cooldown jitter primitive');
+  assert.doesNotMatch(nodeState, /const JITTER_FACTOR|function maybeJitter/, 'generic node state must not regain private cooldown jitter arithmetic');
+  assert.doesNotMatch(tier1State, /const JITTER_FACTOR|function jitter\(/, 'Tier 1 state must not regain private cooldown jitter arithmetic');
 
   const successDispatcher = fs.readFileSync(path.join(srcRoot, 'request', 'attempt', 'success.ts'), 'utf8');
   const successStream = fs.readFileSync(path.join(srcRoot, 'request', 'attempt', 'success-stream.ts'), 'utf8');
   const successObject = fs.readFileSync(path.join(srcRoot, 'request', 'attempt', 'success-object.ts'), 'utf8');
   assert.match(successDispatcher, /handleStreamingSuccess/);
   assert.match(successDispatcher, /handleObjectSuccess/);
-  assert.match(successDispatcher, /clientWantsStream && s\.upstreamWasStreaming/,
-    'success dispatcher preserves the original streaming predicate');
-  assert.doesNotMatch(successDispatcher, /ensureFirstSseEvent|collectResponsesObject|collectAnthropicMessageObject|trackStreamResponse/,
-    'success.ts must remain a thin dispatcher');
-  assert.match(successStream, /ensureFirstSseEvent/,
-    'first-event commit guard stays in success-stream.ts');
-  assert.match(successStream, /trackStreamResponse/,
-    'stream lifecycle wiring stays in success-stream.ts');
-  assert.doesNotMatch(successStream, /collectResponsesObject|collectAnthropicMessageObject|collectOpenAIStreamObject/,
-    'complete-object assembly must not leak back into success-stream.ts');
-  assert.match(successObject, /collectResponsesObject/,
-    'Responses object assembly stays in success-object.ts');
-  assert.match(successObject, /collectAnthropicMessageObject/,
-    'Anthropic object assembly stays in success-object.ts');
-  assert.match(successObject, /collectOpenAIStreamObject/,
-    'OpenAI object assembly stays in success-object.ts');
-  assert.doesNotMatch(successObject, /ensureFirstSseEvent/,
-    'first-event guard must not leak into success-object.ts');
+  assert.match(successDispatcher, /clientWantsStream && s\.upstreamWasStreaming/, 'success dispatcher preserves the original streaming predicate');
+  assert.doesNotMatch(
+    successDispatcher,
+    /ensureFirstSseEvent|collectResponsesObject|collectAnthropicMessageObject|trackStreamResponse/,
+    'success.ts must remain a thin dispatcher',
+  );
+  assert.match(successStream, /ensureFirstSseEvent/, 'first-event commit guard stays in success-stream.ts');
+  assert.match(successStream, /trackStreamResponse/, 'stream lifecycle wiring stays in success-stream.ts');
+  assert.doesNotMatch(
+    successStream,
+    /collectResponsesObject|collectAnthropicMessageObject|collectOpenAIStreamObject/,
+    'complete-object assembly must not leak back into success-stream.ts',
+  );
+  assert.match(successObject, /collectResponsesObject/, 'Responses object assembly stays in success-object.ts');
+  assert.match(successObject, /collectAnthropicMessageObject/, 'Anthropic object assembly stays in success-object.ts');
+  assert.match(successObject, /collectOpenAIStreamObject/, 'OpenAI object assembly stays in success-object.ts');
+  assert.doesNotMatch(successObject, /ensureFirstSseEvent/, 'first-event guard must not leak into success-object.ts');
 
   const classifySource = fs.readFileSync(path.join(srcRoot, 'reliability', 'classify.ts'), 'utf8');
   const processingContract = fs.readFileSync(path.join(srcRoot, 'types', 'upstream-processing.ts'), 'utf8');
-  assert.ok(relativeSpecifiers(classifySource).includes('../types/upstream-processing.ts'),
-    'reliability classification consumes the neutral upstream-processing contract');
-  assert.doesNotMatch(classifySource, /transport\/processing-error/,
-    'reliability must not regain a transport dependency for upstream-processing failures');
+  assert.ok(
+    relativeSpecifiers(classifySource).includes('../types/upstream-processing.ts'),
+    'reliability classification consumes the neutral upstream-processing contract',
+  );
+  assert.doesNotMatch(
+    classifySource,
+    /transport\/processing-error/,
+    'reliability must not regain a transport dependency for upstream-processing failures',
+  );
   assert.match(processingContract, /export const UPSTREAM_PROCESSING_ERROR/);
   assert.match(processingContract, /export class UpstreamProcessingError/);
-  assert.equal(fs.existsSync(path.join(srcRoot, 'transport', 'processing-error.ts')), false,
-    'retired transport-owned processing-error module must stay removed');
+  assert.equal(
+    fs.existsSync(path.join(srcRoot, 'transport', 'processing-error.ts')),
+    false,
+    'retired transport-owned processing-error module must stay removed',
+  );
 
   // Provider knowledge has one registry owner. The retired provider switch
   // (provider-profile.ts) and the retired quirks module (provider-quirks.ts)
   // must not return; provider-specific wire, OAuth defaults, subscription
   // semantics and quirks are declared by adapters in src/providers/.
-  assert.equal(fs.existsSync(path.join(srcRoot, 'config', 'provider-profile.ts')), false,
-    'retired provider wire-profile switch must stay removed; the provider registry owns provider -> wire');
-  assert.equal(fs.existsSync(path.join(srcRoot, 'config', 'provider-quirks.ts')), false,
-    'retired provider quirks module must stay removed; adapters declare their own quirks');
+  assert.equal(
+    fs.existsSync(path.join(srcRoot, 'config', 'provider-profile.ts')),
+    false,
+    'retired provider wire-profile switch must stay removed; the provider registry owns provider -> wire',
+  );
+  assert.equal(
+    fs.existsSync(path.join(srcRoot, 'config', 'provider-quirks.ts')),
+    false,
+    'retired provider quirks module must stay removed; adapters declare their own quirks',
+  );
   const providerRegistry = fs.readFileSync(path.join(srcRoot, 'providers', 'registry.ts'), 'utf8');
-  assert.match(providerRegistry, /export function getProviderAdapter/,
-    'provider adapter resolution has one registry owner');
-  assert.match(providerRegistry, /genericOpenAIProviderAdapter/,
-    'unknown providers resolve to the generic OpenAI-compatible adapter');
+  assert.match(providerRegistry, /export function getProviderAdapter/, 'provider adapter resolution has one registry owner');
+  assert.match(providerRegistry, /genericOpenAIProviderAdapter/, 'unknown providers resolve to the generic OpenAI-compatible adapter');
   const routingStrategy = fs.readFileSync(path.join(srcRoot, 'scheduler', 'routing-strategy.ts'), 'utf8');
-  assert.match(routingStrategy, /export function routingStrategyFor/,
-    'tier -> routing strategy resolution has one registry owner');
+  assert.match(routingStrategy, /export function routingStrategyFor/, 'tier -> routing strategy resolution has one registry owner');
   const tierLoopSource = fs.readFileSync(path.join(srcRoot, 'request', 'tier-loop.ts'), 'utf8');
-  assert.match(tierLoopSource, /routingStrategyFor\(/,
-    'the tier loop resolves selection through the routing-strategy contract');
-  assert.doesNotMatch(tierLoopSource, /pickTier1Candidate|pickCandidate/,
-    'the tier loop must not regain direct picker branching by tier');
+  assert.match(tierLoopSource, /routingStrategyFor\(/, 'the tier loop resolves selection through the routing-strategy contract');
+  assert.doesNotMatch(tierLoopSource, /pickTier1Candidate|pickCandidate/, 'the tier loop must not regain direct picker branching by tier');
   const subscriptionIndex = fs.readFileSync(path.join(srcRoot, 'subscription', 'index.ts'), 'utf8');
-  assert.doesNotMatch(subscriptionIndex, /getSubscriptionAdapter|const ADAPTERS/,
-    'subscription index must not regain a second provider adapter registry');
+  assert.doesNotMatch(
+    subscriptionIndex,
+    /getSubscriptionAdapter|const ADAPTERS/,
+    'subscription index must not regain a second provider adapter registry',
+  );
   for (const core of ['scheduler', 'reliability', 'transport']) {
     for (const file of walk(path.join(srcRoot, core))) {
-      assert.doesNotMatch(fs.readFileSync(file, 'utf8'), /providers\/registry\.ts/,
-        `${core} must not depend on the provider registry (provider knowledge stays behind config/dispatch boundaries): ${path.relative(root, file)}`);
+      assert.doesNotMatch(
+        fs.readFileSync(file, 'utf8'),
+        /providers\/registry\.ts/,
+        `${core} must not depend on the provider registry (provider knowledge stays behind config/dispatch boundaries): ${path.relative(root, file)}`,
+      );
     }
   }
 
@@ -465,7 +568,7 @@ try {
       console.log(`ok - ${name}`);
     } catch (e) {
       console.error(`FAIL: ${name}`);
-      console.error(e && e.stack || e);
+      console.error(e?.stack || e);
       process.exitCode = 1;
     }
   }
@@ -486,12 +589,14 @@ try {
       return handler(new Request(url, { method: 'POST', headers: init?.headers, body: init?.body }), url, init);
     };
   }
-  function resetMock() { upstreamCalls.length = 0; routeHandlers = {}; }
+  function resetMock() {
+    upstreamCalls.length = 0;
+    routeHandlers = {};
+  }
 
   function makeEnv({ tier1, tier2, tier3, secrets, extraEnv } = {}) {
-    const tierSecrets = (nodes = []) => Object.fromEntries(
-      nodes.map((node) => [node.id, secrets?.[node.id]]).filter(([, credential]) => credential !== undefined),
-    );
+    const tierSecrets = (nodes = []) =>
+      Object.fromEntries(nodes.map((node) => [node.id, secrets?.[node.id]]).filter(([, credential]) => credential !== undefined));
     const tier1Secrets = tierSecrets(tier1);
     const tier2Secrets = tierSecrets(tier2);
     const tier3Secrets = tierSecrets(tier3);
@@ -510,22 +615,32 @@ try {
   }
 
   const openaiChatNode = (id, extra = {}) => ({
-    id, provider: 'mock',
-    base_url: `https://${id}.example.com/v1`, models: { 'Code-Max': 'up-model' }, ...extra,
+    id,
+    provider: 'mock',
+    base_url: `https://${id}.example.com/v1`,
+    models: { 'Code-Max': 'up-model' },
+    ...extra,
   });
   const anthropicNode = (id, extra = {}) => ({
-    id, provider: 'anthropic',
-    base_url: `https://${id}.example.com`, models: { 'Code-Max': 'up-model' }, ...extra,
+    id,
+    provider: 'anthropic',
+    base_url: `https://${id}.example.com`,
+    models: { 'Code-Max': 'up-model' },
+    ...extra,
   });
 
-  const chatRequest = (body) => new Request('https://gateway.example.com/v1/chat/completions', {
-    method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${ACCESS_KEY}` },
-    body: JSON.stringify({ model: 'Code-Max', messages: [{ role: 'user', content: 'hi' }], ...body }),
-  });
-  const messagesRequest = (body) => new Request('https://gateway.example.com/v1/messages', {
-    method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': ACCESS_KEY },
-    body: JSON.stringify({ model: 'Code-Max', max_tokens: 64, messages: [{ role: 'user', content: 'hi' }], ...body }),
-  });
+  const chatRequest = (body) =>
+    new Request('https://gateway.example.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${ACCESS_KEY}` },
+      body: JSON.stringify({ model: 'Code-Max', messages: [{ role: 'user', content: 'hi' }], ...body }),
+    });
+  const messagesRequest = (body) =>
+    new Request('https://gateway.example.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': ACCESS_KEY },
+      body: JSON.stringify({ model: 'Code-Max', max_tokens: 64, messages: [{ role: 'user', content: 'hi' }], ...body }),
+    });
   const jsonUpstream = (data, status = 200, headers = {}) =>
     new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json', ...headers } });
   const okCompletion = () => ({
@@ -533,8 +648,12 @@ try {
     usage: { prompt_tokens: 1, completion_tokens: 1 },
   });
   const okMessage = () => ({
-    type: 'message', role: 'assistant', model: 'up-model',
-    content: [{ type: 'text', text: 'hello' }], stop_reason: 'end_turn', stop_sequence: null,
+    type: 'message',
+    role: 'assistant',
+    model: 'up-model',
+    content: [{ type: 'text', text: 'hello' }],
+    stop_reason: 'end_turn',
+    stop_sequence: null,
     usage: { input_tokens: 1, output_tokens: 1 },
   });
   installMockFetch();
@@ -544,25 +663,33 @@ try {
     routeHandlers['an.example.com'] = () => jsonUpstream(okMessage());
     routeHandlers['o1.example.com'] = () => jsonUpstream(okCompletion());
     const env = makeEnv({
-      tier1: [anthropicNode('an'), openaiChatNode('o1')], secrets: { an: 'k', o1: 'k' },
+      tier1: [anthropicNode('an'), openaiChatNode('o1')],
+      secrets: { an: 'k', o1: 'k' },
       extraEnv: { AIG_PROTOCOL_FALLBACKS: JSON.stringify({ 'anthropic:messages': ['openai:chat_completions'] }) },
     });
     const res = await worker.fetch(messagesRequest({}), env, {});
     assert.equal(res.status, 200);
-    assert.deepEqual(upstreamCalls.map((c) => c.host), ['an.example.com']);
+    assert.deepEqual(
+      upstreamCalls.map((c) => c.host),
+      ['an.example.com'],
+    );
   });
 
   await test('Contract 02: Native Empty + Explicit Fallback -> 200 via OpenAI', async () => {
     resetMock();
     routeHandlers['o1.example.com'] = () => jsonUpstream(okCompletion());
     const env = makeEnv({
-      tier1: [openaiChatNode('o1')], secrets: { o1: 'k' },
+      tier1: [openaiChatNode('o1')],
+      secrets: { o1: 'k' },
       extraEnv: { AIG_PROTOCOL_FALLBACKS: JSON.stringify({ 'anthropic:messages': ['openai:chat_completions'] }) },
     });
     const res = await worker.fetch(messagesRequest({}), env, {});
     assert.equal(res.status, 200);
     assert.equal((await res.json()).type, 'message');
-    assert.deepEqual(upstreamCalls.map((c) => c.host), ['o1.example.com']);
+    assert.deepEqual(
+      upstreamCalls.map((c) => c.host),
+      ['o1.example.com'],
+    );
   });
 
   await test('Contract 03: Default ON — Anthropic request with only OpenAI nodes -> 200 via fallback', async () => {
@@ -571,7 +698,10 @@ try {
     const env = makeEnv({ tier1: [openaiChatNode('o1')], secrets: { o1: 'k' } });
     const res = await worker.fetch(messagesRequest({}), env, {});
     assert.equal(res.status, 200);
-    assert.deepEqual(upstreamCalls.map((c) => c.host), ['o1.example.com']);
+    assert.deepEqual(
+      upstreamCalls.map((c) => c.host),
+      ['o1.example.com'],
+    );
   });
 
   await test('Contract 03b: AIG_PROTOCOL_FALLBACKS=disable -> 404', async () => {
@@ -588,7 +718,9 @@ try {
     const slowStream = () => {
       const encoder = new TextEncoder();
       let i = 0;
-      const lines = ['event: message_start\ndata: {"type":"message_start","message":{"id":"m1","type":"message","role":"assistant","model":"up-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":1,"output_tokens":0}}}\n\n'];
+      const lines = [
+        'event: message_start\ndata: {"type":"message_start","message":{"id":"m1","type":"message","role":"assistant","model":"up-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":1,"output_tokens":0}}}\n\n',
+      ];
       return new ReadableStream({
         async pull(controller) {
           if (i >= lines.length) return;
@@ -629,7 +761,10 @@ try {
       ];
       return new ReadableStream({
         pull(controller) {
-          if (i >= lines.length) { controller.error(new Error('upstream died')); return; }
+          if (i >= lines.length) {
+            controller.error(new Error('upstream died'));
+            return;
+          }
           controller.enqueue(encoder.encode(lines[i++]));
         },
       });
@@ -637,7 +772,8 @@ try {
     routeHandlers['an1.example.com'] = () => new Response(streamThenFail(), { status: 200, headers: { 'content-type': 'text/event-stream' } });
     routeHandlers['o1.example.com'] = () => jsonUpstream(okCompletion());
     const env = makeEnv({
-      tier1: [anthropicNode('an1'), openaiChatNode('o1')], secrets: { an1: 'k', o1: 'k' },
+      tier1: [anthropicNode('an1'), openaiChatNode('o1')],
+      secrets: { an1: 'k', o1: 'k' },
       extraEnv: { AIG_PROTOCOL_FALLBACKS: JSON.stringify({ 'anthropic:messages': ['openai:chat_completions'] }) },
     });
     await worker.fetch(messagesRequest({ stream: true }), env, {});
@@ -667,10 +803,14 @@ try {
 
   await test('Contract 08: Logical attempt != physical hedge dispatch count', async () => {
     resetMock();
-    routeHandlers['an-slow.example.com'] = (_req, _url, init) => new Promise((_, reject) => {
-      if (init?.signal?.aborted) { reject(new Error('aborted')); return; }
-      init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
-    });
+    routeHandlers['an-slow.example.com'] = (_req, _url, init) =>
+      new Promise((_, reject) => {
+        if (init?.signal?.aborted) {
+          reject(new Error('aborted'));
+          return;
+        }
+        init?.signal?.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+      });
     routeHandlers['an-twin.example.com'] = async (_req, _url, init) => {
       await new Promise((r) => setTimeout(r, 150));
       if (init?.signal?.aborted) throw new Error('aborted');
@@ -680,7 +820,9 @@ try {
       tier1: [anthropicNode('an-slow'), anthropicNode('an-twin')],
       secrets: { 'an-slow': 'k', 'an-twin': 'k' },
       extraEnv: {
-        AIG_HEDGE_DELAY_MS: '120', AIG_FAILOVER_BUDGET_MS: '30000', AIG_UPSTREAM_HEADER_TIMEOUT_MS: '2000',
+        AIG_HEDGE_DELAY_MS: '120',
+        AIG_FAILOVER_BUDGET_MS: '30000',
+        AIG_UPSTREAM_HEADER_TIMEOUT_MS: '2000',
         AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempts: 5, hedge: { enabled: true, tiers: ['tier1'] } } }),
         AIG_MODELS_CONFIG: JSON.stringify({ 'Code-Max': { policy: 'default' } }),
       },
@@ -700,7 +842,11 @@ try {
       tier1: [anthropicNode('an1', { limits: { concurrency: 1, rpm: 60, rpm_mode: 'hard' } })],
       secrets: { an1: 'k' },
     });
-    const health = await worker.fetch(new Request('https://gateway.example.com/health', { headers: { authorization: `Bearer ${ACCESS_KEY}` } }), env, {});
+    const health = await worker.fetch(
+      new Request('https://gateway.example.com/health', { headers: { authorization: `Bearer ${ACCESS_KEY}` } }),
+      env,
+      {},
+    );
     assert.equal(health.status, 503);
     const healthBody = await health.json();
     assert.equal(healthBody.status, 'invalid');
@@ -713,12 +859,15 @@ try {
   await test('Contract 10: Closed Catalog - wildcard node rejects unknown model', async () => {
     resetMock();
     const wildcardNode = {
-      id: 'wc1', provider: 'mock',
-      base_url: 'https://wc1.example.com/v1', models: {},
+      id: 'wc1',
+      provider: 'mock',
+      base_url: 'https://wc1.example.com/v1',
+      models: {},
     };
     routeHandlers['wc1.example.com'] = () => jsonUpstream(okCompletion());
     const env = makeEnv({
-      tier1: [wildcardNode], secrets: { wc1: 'k' },
+      tier1: [wildcardNode],
+      secrets: { wc1: 'k' },
       extraEnv: { AIG_MODELS_CONFIG: JSON.stringify({ 'Code-Max': { policy: 'default' } }) },
     });
     assert.equal((await worker.fetch(chatRequest({}), env, {})).status, 200);
@@ -764,8 +913,28 @@ try {
     const { __resetAllStateForTests: reset } = await import('#target/src/reliability/node-state.ts');
     reset();
     const nodes = [
-      { id: 't2a', tier: 'tier-2', provider: 'mock', protocol: 'openai', surfaces: ['chat_completions'], baseUrl: 'https://t2a.example.com/v1', credential: 'k', models: { 'Code-Max': 'up' }, priority: 10 },
-      { id: 't2b', tier: 'tier-2', provider: 'mock', protocol: 'openai', surfaces: ['chat_completions'], baseUrl: 'https://t2b.example.com/v1', credential: 'k', models: { 'Code-Max': 'up' }, priority: 10 },
+      {
+        id: 't2a',
+        tier: 'tier-2',
+        provider: 'mock',
+        protocol: 'openai',
+        surfaces: ['chat_completions'],
+        baseUrl: 'https://t2a.example.com/v1',
+        credential: 'k',
+        models: { 'Code-Max': 'up' },
+        priority: 10,
+      },
+      {
+        id: 't2b',
+        tier: 'tier-2',
+        provider: 'mock',
+        protocol: 'openai',
+        surfaces: ['chat_completions'],
+        baseUrl: 'https://t2b.example.com/v1',
+        credential: 'k',
+        models: { 'Code-Max': 'up' },
+        priority: 10,
+      },
     ];
     const req = { model: 'Code-Max', protocol: 'openai', surface: 'chat_completions' };
     const r1 = pickCandidate(nodes, req, new Set());
@@ -784,8 +953,14 @@ try {
     const { __resetAllStateForTests: reset } = await import('#target/src/reliability/node-state.ts');
     reset();
     const runtimeNode = (id, tier) => ({
-      id, tier, provider: 'mock', protocol: 'openai', surfaces: ['chat_completions'],
-      baseUrl: `https://${id}.example.com/v1`, credential: 'k', priority: 10,
+      id,
+      tier,
+      provider: 'mock',
+      protocol: 'openai',
+      surfaces: ['chat_completions'],
+      baseUrl: `https://${id}.example.com/v1`,
+      credential: 'k',
+      priority: 10,
       models: { 'Code-Max': 'up' },
     });
     const tiers = {
@@ -795,24 +970,49 @@ try {
     };
     const req = { model: 'Code-Max', protocol: 'openai', surface: 'chat_completions' };
 
-    const caps = computeTierCaps(tiers, req, new Set(), {
-      maxAttempts: 6, tierAttempts: null, hedge: null,
-      firstEventTimeoutMs: null, maxInFlight: null,
-    }, new Set(['Code-Max']));
-    assert.deepEqual(caps, { 1: 0, 2: 5, 3: 1 },
-      'node count must not pull surplus away from the first dispatchable tier');
+    const caps = computeTierCaps(
+      tiers,
+      req,
+      new Set(),
+      {
+        maxAttempts: 6,
+        tierAttempts: null,
+        hedge: null,
+        firstEventTimeoutMs: null,
+        maxInFlight: null,
+      },
+      new Set(['Code-Max']),
+    );
+    assert.deepEqual(caps, { 1: 0, 2: 5, 3: 1 }, 'node count must not pull surplus away from the first dispatchable tier');
 
-    const explicit = computeTierCaps(tiers, req, new Set(), {
-      maxAttempts: 6, tierAttempts: { tier2: 3 }, hedge: null,
-      firstEventTimeoutMs: null, maxInFlight: null,
-    }, new Set(['Code-Max']));
-    assert.deepEqual(explicit, { 1: 0, 2: 3, 3: 3 },
-      'explicit tier cap stays fixed and the remaining tier receives the remainder');
+    const explicit = computeTierCaps(
+      tiers,
+      req,
+      new Set(),
+      {
+        maxAttempts: 6,
+        tierAttempts: { tier2: 3 },
+        hedge: null,
+        firstEventTimeoutMs: null,
+        maxInFlight: null,
+      },
+      new Set(['Code-Max']),
+    );
+    assert.deepEqual(explicit, { 1: 0, 2: 3, 3: 3 }, 'explicit tier cap stays fixed and the remaining tier receives the remainder');
 
-    const disabled = computeTierCaps(tiers, req, new Set(), {
-      maxAttempts: 6, tierAttempts: { tier2: 0 }, hedge: null,
-      firstEventTimeoutMs: null, maxInFlight: null,
-    }, new Set(['Code-Max']));
+    const disabled = computeTierCaps(
+      tiers,
+      req,
+      new Set(),
+      {
+        maxAttempts: 6,
+        tierAttempts: { tier2: 0 },
+        hedge: null,
+        firstEventTimeoutMs: null,
+        maxInFlight: null,
+      },
+      new Set(['Code-Max']),
+    );
     assert.deepEqual(disabled, { 1: 0, 2: 0, 3: 6 }, 'explicit zero disables Tier 2');
     reset();
   });
@@ -846,22 +1046,23 @@ try {
   assert.match(product, /Tier 1 — free-token capacity/i);
   assert.match(product, /Tier 2 — membership\/subscription entitlement capacity/i);
   assert.match(product, /Tier 3 — paid API capacity/i);
-  assert.match(product, /maintains one current contract/i,
-    'repository must keep one current contract');
-  assert.match(product, /do not add aliases, dual-read\/dual-write paths, deprecation windows, compatibility switches, or shims/i,
-    'retired contract shims must stay forbidden');
-  assert.match(product, /Project release numbering is human-owned only/i,
-    'release numbering must stay human-owned');
-  assert.match(product, /human creates the Git tag or GitHub Release manually/i,
-    'named releases must remain explicit human actions');
-  assert.match(product, /Automation must never create or advance release numbering/i,
-    'automation must not own release numbering');
-  assert.match(product, /Prefer deletion over preserving obsolete transitional design/i,
-    'obsolete transitional design must be deleted');
+  assert.match(product, /maintains one current contract/i, 'repository must keep one current contract');
+  assert.match(
+    product,
+    /do not add aliases, dual-read\/dual-write paths, deprecation windows, compatibility switches, or shims/i,
+    'retired contract shims must stay forbidden',
+  );
+  assert.match(product, /Project release numbering is human-owned only/i, 'release numbering must stay human-owned');
+  assert.match(product, /human creates the Git tag or GitHub Release manually/i, 'named releases must remain explicit human actions');
+  assert.match(product, /Automation must never create or advance release numbering/i, 'automation must not own release numbering');
+  assert.match(product, /Prefer deletion over preserving obsolete transitional design/i, 'obsolete transitional design must be deleted');
 
   assert.match(development, /Clean replacement rule/i);
   assert.match(development, /remove the superseded path in the same change/i);
-  assert.match(development, /Tier 1 is free-token capacity.*Tier 2 is reserved for membership\/subscription entitlements.*Tier 3 is reserved for paid API capacity/is);
+  assert.match(
+    development,
+    /Tier 1 is free-token capacity.*Tier 2 is reserved for membership\/subscription entitlements.*Tier 3 is reserved for paid API capacity/is,
+  );
   assert.match(development, /Project release numbering is not an engineering automation concern/i);
 
   assert.match(overview, /Tier 1.*Free or effectively free token capacity/is);
@@ -914,20 +1115,28 @@ try {
   const product = read('docs/governance/product-policy.md');
 
   assert.equal(router.includes("'/version'"), false, 'runtime must not expose /version');
-  assert.equal(diagnostics.includes("#target/config/version"), false, 'runtime must not import a source version module');
+  assert.equal(diagnostics.includes('#target/config/version'), false, 'runtime must not import a source version module');
   assert.match(diagnostics, /build:\s*resolveBuildSha\(env\)/, '/health must expose commit build identity');
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: verifies the literal ${origin} text appears in the deployment script source
   assert.equal(deploy.includes('`${origin}/version`'), false, 'deployment verifier must not use /version');
+  // biome-ignore lint/suspicious/noTemplateCurlyInString: verifies the literal ${origin} text appears in the deployment script source
   assert.ok(deploy.includes('`${origin}/health`'), 'deployment verifier must use /health');
   assert.match(deploy, /healthBody\?\.build !== expectedBuild/, 'deployment verification must compare commit SHA');
-  for (const [name, source] of [['POSIX installer', installSh], ['PowerShell installer', installPs1]]) {
+  for (const [name, source] of [
+    ['POSIX installer', installSh],
+    ['PowerShell installer', installPs1],
+  ]) {
     assert.equal(source.includes('/version'), false, `${name} must not probe retired /version`);
     assert.equal(source.includes('scripts/version-check.mjs'), false, `${name} must not call the deleted version-check script`);
     assert.ok(source.includes('/health'), `${name} must verify /health`);
     assert.ok(source.includes('/v1/models'), `${name} must verify /v1/models`);
     assert.ok(source.includes('engines.node'), `${name} must read the Node requirement from package.json`);
   }
-  assert.doesNotMatch(toolingReadme, /version:sync|Version synchronization|version-check\.mjs/i,
-    'tooling docs must not restore retired project-version automation');
+  assert.doesNotMatch(
+    toolingReadme,
+    /version:sync|Version synchronization|version-check\.mjs/i,
+    'tooling docs must not restore retired project-version automation',
+  );
   assert.match(product, /Project release numbering is human-owned only/i);
   assert.match(product, /human creates the Git tag or GitHub Release manually/i);
 
