@@ -14,6 +14,20 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 
+/**
+ * @typedef {object} PackManifest
+ * @property {string} [runtime] "node" or "python".
+ * @property {string} [suffix] File-name suffix of a node pack's suites.
+ * @property {string[]} [command] Command that starts a python pack.
+ * @property {{ gate?: string[] }} [tiers] Suites that belong to the gate tier.
+ */
+
+/**
+ * @param {string} packName
+ * @param {PackManifest} manifest
+ * @param {string[]} files
+ * @returns {{ unit: string[], gate: string[] }}
+ */
 export function planPack(packName, manifest, files) {
   const gate = new Set(manifest.tiers?.gate ?? []);
   for (const name of gate) {
@@ -44,16 +58,20 @@ function main() {
     console.error(`unknown pack: ${packName}`);
     process.exit(64);
   }
+  /** @type {PackManifest} */
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const target = resolve(targetArg);
+  /** @type {NodeJS.ProcessEnv} */
   const env = { ...process.env, CENTRAL_TEST_TARGET_ROOT: target };
 
   if (manifest.runtime === "node") {
     const files = readdirSync(packDir)
-      .filter((name) => name.endsWith(manifest.suffix))
+      .filter((name) => name.endsWith(/** @type {string} */ (manifest.suffix)))
       .sort();
     const plan = planPack(packName, manifest, files);
-    const selected = (tier === "all" ? [...plan.unit, ...plan.gate] : plan[tier]).filter(
+    const selected = (
+      tier === "all" ? [...plan.unit, ...plan.gate] : plan[/** @type {"unit" | "gate"} */ (tier)]
+    ).filter(
       (name) => !filter || name.includes(filter)
     );
     const register = pathToFileURL(join(here, "kit", "register-target.mjs")).href;
@@ -78,7 +96,7 @@ function main() {
       .join(delimiter);
     const command = manifest.command ?? ["python", "-m", "pytest"];
     const run = spawnSync(
-      command[0],
+      /** @type {string} */ (command[0]),
       [
         ...command.slice(1),
         packDir,
