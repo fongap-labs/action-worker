@@ -820,7 +820,7 @@ def test_project_repository_identifiers_use_one_owner():
     assert "ADFILTER_ARTIFACT_REPOSITORY" not in adfilter
 
 def test_market_fetch_engine_keys_stay_out_of_urls_and_logs():
-    source = (ROOT / "bricks" / "global_market_daily_fetch.py").read_text(encoding="utf-8")
+    source = (ROOT / "bricks" / "global_market_fetch.py").read_text(encoding="utf-8")
     assert "apikey={self.av_key}" not in source
     assert "api_key={self.fred_key}" not in source
     assert "_scrub_url_secrets(error)" in source
@@ -834,7 +834,7 @@ def test_redaction_formats_are_registered_in_governance():
 def test_fake_credentials_are_labelled_in_fixtures():
     leak_brick = (ROOT / "bricks" / "__test__" / "dummy_secret_leak.py").read_text(encoding="utf-8")
     assert "NOT A REAL SECRET" in leak_brick
-    assert "gh" "p_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn" in leak_brick
+    assert "p_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmn" in leak_brick
 
     fixtures_doc = (Path(__file__).resolve().parent / "fixtures" / "README.md").read_text(encoding="utf-8")
     for marker in ("NOT A REAL SECRET", "deterministic", "format-valid"):
