@@ -53,14 +53,18 @@ try {
     const result = convertAnthropicToOpenAIResult({
       model: 'Code-Max',
       max_tokens: 128,
-      tools: [{
-        name: 'Read',
-        input_schema: { type: 'object', properties: { path: { type: 'string' } } },
-      }],
-      messages: [{
-        role: 'assistant',
-        content: [{ type: 'tool_use', id: 'toolu_1', name: 'Read', input: { path: 'README.md' } }],
-      }],
+      tools: [
+        {
+          name: 'Read',
+          input_schema: { type: 'object', properties: { path: { type: 'string' } } },
+        },
+      ],
+      messages: [
+        {
+          role: 'assistant',
+          content: [{ type: 'tool_use', id: 'toolu_1', name: 'Read', input: { path: 'README.md' } }],
+        },
+      ],
     });
     assert.equal(result.fidelity, 'portable');
     assert.ok(result.diagnostics.some((d) => d.feature === 'function_tools' && d.action === 'mapped'));
@@ -78,11 +82,13 @@ try {
       thinking: { type: 'enabled', budget_tokens: 128 },
       context_management: { edits: [] },
       output_config: { effort: 'high' },
-      tools: [{
-        name: privateToolName,
-        input_schema: { type: 'object' },
-        strict: true,
-      }],
+      tools: [
+        {
+          name: privateToolName,
+          input_schema: { type: 'object' },
+          strict: true,
+        },
+      ],
       tool_choice: { type: 'auto', disable_parallel_tool_use: true },
       messages: [
         { role: 'user', content: privatePrompt },
@@ -96,9 +102,15 @@ try {
     assert.equal(result.fidelity, 'degraded');
     const features = new Set(result.diagnostics.map((d) => d.feature));
     for (const feature of [
-      'thinking_control', 'context_management', 'effort_control', 'tool_hints',
-      'parallel_tool_control', 'mid_conversation_system', 'thinking_history',
-    ]) assert.ok(features.has(feature), `missing diagnostic feature ${feature}`);
+      'thinking_control',
+      'context_management',
+      'effort_control',
+      'tool_hints',
+      'parallel_tool_control',
+      'mid_conversation_system',
+      'thinking_history',
+    ])
+      assert.ok(features.has(feature), `missing diagnostic feature ${feature}`);
     const diagnosticJson = JSON.stringify(result.diagnostics);
     assert.equal(diagnosticJson.includes(privatePrompt), false);
     assert.equal(diagnosticJson.includes(privateToolName), false);
@@ -109,15 +121,21 @@ try {
   // until both request-side support and a response-side unwrap adapter are known.
   assert.equal(selectStructuredOutputStrategy({}), 'prompt');
   assert.equal(selectStructuredOutputStrategy({ syntheticToolOutput: true }), 'prompt');
-  assert.equal(selectStructuredOutputStrategy({
-    syntheticToolOutput: true,
-    syntheticToolResultAdapter: true,
-  }), 'tool');
-  assert.equal(selectStructuredOutputStrategy({
-    nativeJsonSchema: true,
-    syntheticToolOutput: true,
-    syntheticToolResultAdapter: true,
-  }), 'native');
+  assert.equal(
+    selectStructuredOutputStrategy({
+      syntheticToolOutput: true,
+      syntheticToolResultAdapter: true,
+    }),
+    'tool',
+  );
+  assert.equal(
+    selectStructuredOutputStrategy({
+      nativeJsonSchema: true,
+      syntheticToolOutput: true,
+      syntheticToolResultAdapter: true,
+    }),
+    'native',
+  );
 
   // Anthropic structured output keeps the v1.3.1 prompt path for an unknown
   // OpenAI-compatible target.
@@ -130,8 +148,10 @@ try {
     });
     assert.equal(result.fidelity, 'degraded');
     assert.equal(result.structuredOutput.strategy, 'prompt');
-    assert.equal(result.diagnostics.some((d) =>
-      d.feature === 'structured_output' && d.action === 'emulated' && d.strategy === 'prompt'), true);
+    assert.equal(
+      result.diagnostics.some((d) => d.feature === 'structured_output' && d.action === 'emulated' && d.strategy === 'prompt'),
+      true,
+    );
     assert.equal(result.body.messages[0].role, 'system');
     assert.match(result.body.messages[0].content, /return only valid JSON/i);
     assert.ok(result.body.messages[0].content.includes(JSON.stringify(schema)));
@@ -141,53 +161,67 @@ try {
   // A caller with positive native capability evidence can request native OpenAI
   // JSON Schema without also retaining the prompt emulation.
   {
-    const result = convertAnthropicToOpenAIResult({
-      model: 'Code-Max',
-      max_tokens: 256,
-      output_config: { format: { type: 'json_schema', schema } },
-      messages: [{ role: 'user', content: 'answer' }],
-    }, { structuredOutput: { nativeJsonSchema: true } });
+    const result = convertAnthropicToOpenAIResult(
+      {
+        model: 'Code-Max',
+        max_tokens: 256,
+        output_config: { format: { type: 'json_schema', schema } },
+        messages: [{ role: 'user', content: 'answer' }],
+      },
+      { structuredOutput: { nativeJsonSchema: true } },
+    );
     assert.equal(result.fidelity, 'portable');
     assert.equal(result.structuredOutput.strategy, 'native');
     assert.equal(result.body.response_format.type, 'json_schema');
     assert.deepEqual(result.body.response_format.json_schema.schema, schema);
-    assert.equal(result.body.messages.some((m) =>
-      typeof m.content === 'string' && /return only valid JSON/i.test(m.content)), false);
+    assert.equal(
+      result.body.messages.some((m) => typeof m.content === 'string' && /return only valid JSON/i.test(m.content)),
+      false,
+    );
   }
 
   // Synthetic-tool strategy is modeled but requires the response adapter proof.
   // It is also never forced over an existing client tool contract.
   {
-    const toolResult = convertAnthropicToOpenAIResult({
-      model: 'Code-Max',
-      max_tokens: 256,
-      output_config: { format: { type: 'json_schema', schema } },
-      messages: [{ role: 'user', content: 'answer' }],
-    }, {
-      structuredOutput: {
-        syntheticToolOutput: true,
-        syntheticToolResultAdapter: true,
+    const toolResult = convertAnthropicToOpenAIResult(
+      {
+        model: 'Code-Max',
+        max_tokens: 256,
+        output_config: { format: { type: 'json_schema', schema } },
+        messages: [{ role: 'user', content: 'answer' }],
       },
-    });
+      {
+        structuredOutput: {
+          syntheticToolOutput: true,
+          syntheticToolResultAdapter: true,
+        },
+      },
+    );
     assert.equal(toolResult.structuredOutput.strategy, 'tool');
     assert.equal(toolResult.fidelity, 'degraded');
     assert.equal(toolResult.body.tools[0].function.name, SYNTHETIC_STRUCTURED_OUTPUT_TOOL);
     assert.equal(toolResult.body.tool_choice.function.name, SYNTHETIC_STRUCTURED_OUTPUT_TOOL);
 
-    const conflict = convertAnthropicToOpenAIResult({
-      model: 'Code-Max',
-      max_tokens: 256,
-      output_config: { format: { type: 'json_schema', schema } },
-      tools: [{ name: 'Read', input_schema: { type: 'object' } }],
-      messages: [{ role: 'user', content: 'answer' }],
-    }, {
-      structuredOutput: {
-        syntheticToolOutput: true,
-        syntheticToolResultAdapter: true,
+    const conflict = convertAnthropicToOpenAIResult(
+      {
+        model: 'Code-Max',
+        max_tokens: 256,
+        output_config: { format: { type: 'json_schema', schema } },
+        tools: [{ name: 'Read', input_schema: { type: 'object' } }],
+        messages: [{ role: 'user', content: 'answer' }],
       },
-    });
+      {
+        structuredOutput: {
+          syntheticToolOutput: true,
+          syntheticToolResultAdapter: true,
+        },
+      },
+    );
     assert.equal(conflict.structuredOutput.strategy, 'prompt');
-    assert.equal(conflict.body.tools.some((t) => t.function?.name === SYNTHETIC_STRUCTURED_OUTPUT_TOOL), false);
+    assert.equal(
+      conflict.body.tools.some((t) => t.function?.name === SYNTHETIC_STRUCTURED_OUTPUT_TOOL),
+      false,
+    );
   }
 
   // OpenAI -> Anthropic keeps the existing 1024 default observable as semantic
@@ -224,15 +258,18 @@ try {
 
   // Positive capability evidence enables native Anthropic output_config.format.
   {
-    const result = convertOpenAIChatToAnthropicResult({
-      model: 'gpt-compatible',
-      max_tokens: 256,
-      response_format: {
-        type: 'json_schema',
-        json_schema: { name: 'answer', schema, strict: true },
+    const result = convertOpenAIChatToAnthropicResult(
+      {
+        model: 'gpt-compatible',
+        max_tokens: 256,
+        response_format: {
+          type: 'json_schema',
+          json_schema: { name: 'answer', schema, strict: true },
+        },
+        messages: [{ role: 'user', content: 'answer' }],
       },
-      messages: [{ role: 'user', content: 'answer' }],
-    }, { structuredOutput: { nativeJsonSchema: true } });
+      { structuredOutput: { nativeJsonSchema: true } },
+    );
     assert.equal(result.fidelity, 'portable');
     assert.equal(result.structuredOutput.strategy, 'native');
     assert.deepEqual(result.body.output_config, { format: { type: 'json_schema', schema } });
@@ -241,31 +278,34 @@ try {
 
   // strict:false must not be silently strengthened by a native Anthropic schema.
   {
-    const result = convertOpenAIChatToAnthropicResult({
-      model: 'gpt-compatible',
-      max_tokens: 256,
-      response_format: {
-        type: 'json_schema',
-        json_schema: { name: 'answer', schema, strict: false },
+    const result = convertOpenAIChatToAnthropicResult(
+      {
+        model: 'gpt-compatible',
+        max_tokens: 256,
+        response_format: {
+          type: 'json_schema',
+          json_schema: { name: 'answer', schema, strict: false },
+        },
+        messages: [{ role: 'user', content: 'answer' }],
       },
-      messages: [{ role: 'user', content: 'answer' }],
-    }, { structuredOutput: { nativeJsonSchema: true } });
+      { structuredOutput: { nativeJsonSchema: true } },
+    );
     assert.equal(result.structuredOutput.strategy, 'prompt');
     assert.equal(result.fidelity, 'degraded');
   }
 
   assert.throws(
-    () => convertOpenAIChatToAnthropicResult({
-      model: 'gpt-compatible',
-      max_tokens: 256,
-      response_format: {
-        type: 'json_schema',
-        json_schema: { name: 'answer', schema: 'invalid' },
-      },
-      messages: [{ role: 'user', content: 'answer' }],
-    }),
-    (error) => error instanceof ConversionError
-      && /response_format\.json_schema\.schema must be an object/.test(error.message),
+    () =>
+      convertOpenAIChatToAnthropicResult({
+        model: 'gpt-compatible',
+        max_tokens: 256,
+        response_format: {
+          type: 'json_schema',
+          json_schema: { name: 'answer', schema: 'invalid' },
+        },
+        messages: [{ role: 'user', content: 'answer' }],
+      }),
+    (error) => error instanceof ConversionError && /response_format\.json_schema\.schema must be an object/.test(error.message),
   );
 
   // Schema data is allowed in the converted outbound request but never in the
@@ -312,7 +352,10 @@ try {
     ['Chat', chat, { model: 'm', messages: [message] }],
     ['Messages', anthropic, { model: 'm', max_tokens: 20, messages: [message] }],
   ]) {
-    for (const [field, value] of [['reasoning', { effort: 'high' }], ['unknown_option', true]]) {
+    for (const [field, value] of [
+      ['reasoning', { effort: 'high' }],
+      ['unknown_option', true],
+    ]) {
       test(`${name} rejects unsupported ${field} instead of dropping semantics`, () => {
         assert.throws(() => convert({ ...base, [field]: value }), /conversion_not_supported/);
       });
@@ -334,42 +377,93 @@ try {
   });
   test('Chat rejects non-equivalent sampling, strict tools, and invalid JSON arguments', () => {
     assert.throws(() => chat({ model: 'm', messages: [message], temperature: 1.5 }), /conversion_not_supported/);
-    assert.throws(() => chat({ model: 'm', messages: [message], tools: [{ type: 'function', function: { name: 'f', strict: true } }] }), /conversion_not_supported/);
+    assert.throws(
+      () => chat({ model: 'm', messages: [message], tools: [{ type: 'function', function: { name: 'f', strict: true } }] }),
+      /conversion_not_supported/,
+    );
     for (const argumentsValue of ['{broken', '[]', 'null', '1']) {
-      assert.throws(() => chat({ model: 'm', messages: [{ role: 'assistant', tool_calls: [{ id: 'c', type: 'function', function: { name: 'f', arguments: argumentsValue } }] }] }), /conversion_not_supported/);
+      assert.throws(
+        () =>
+          chat({
+            model: 'm',
+            messages: [{ role: 'assistant', tool_calls: [{ id: 'c', type: 'function', function: { name: 'f', arguments: argumentsValue } }] }],
+          }),
+        /conversion_not_supported/,
+      );
     }
   });
   test('Messages preserves text after tool_use and emits parallel tool results at top level', () => {
-    const out = anthropic({ model: 'm', messages: [
-      { role: 'assistant', content: [{ type: 'text', text: 'before' }, { type: 'tool_use', id: 'c', name: 'f', input: {} }, { type: 'text', text: 'after' }] },
-      { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'c', content: 'one' }, { type: 'tool_result', tool_use_id: 'd', content: 'two' }] },
-    ] });
+    const out = anthropic({
+      model: 'm',
+      messages: [
+        {
+          role: 'assistant',
+          content: [
+            { type: 'text', text: 'before' },
+            { type: 'tool_use', id: 'c', name: 'f', input: {} },
+            { type: 'text', text: 'after' },
+          ],
+        },
+        {
+          role: 'user',
+          content: [
+            { type: 'tool_result', tool_use_id: 'c', content: 'one' },
+            { type: 'tool_result', tool_use_id: 'd', content: 'two' },
+          ],
+        },
+      ],
+    });
     assert.equal(out.messages[0].content, 'beforeafter');
-    assert.deepEqual(out.messages.slice(1).map(x => [x.role, x.tool_call_id, x.content]), [['tool', 'c', 'one'], ['tool', 'd', 'two']]);
+    assert.deepEqual(
+      out.messages.slice(1).map((x) => [x.role, x.tool_call_id, x.content]),
+      [
+        ['tool', 'c', 'one'],
+        ['tool', 'd', 'two'],
+      ],
+    );
   });
 
-  const encode = event => `data: ${typeof event === 'string' ? event : JSON.stringify(event)}\n\n`;
-  const source = events => new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode(events.map(encode).join(''))); c.close(); } });
-  const read = stream => new Response(stream).text();
-  const eventsFrom = text => text.split('\n').filter(x => x.startsWith('data: {')).map(x => JSON.parse(x.slice(6)));
+  const encode = (event) => `data: ${typeof event === 'string' ? event : JSON.stringify(event)}\n\n`;
+  const source = (events) =>
+    new ReadableStream({
+      start(c) {
+        c.enqueue(new TextEncoder().encode(events.map(encode).join('')));
+        c.close();
+      },
+    });
+  const read = (stream) => new Response(stream).text();
+  const eventsFrom = (text) =>
+    text
+      .split('\n')
+      .filter((x) => x.startsWith('data: {'))
+      .map((x) => JSON.parse(x.slice(6)));
   const textBlock = (index, text) => [
     { type: 'content_block_start', index, content_block: { type: 'text', text: '' } },
     { type: 'content_block_delta', index, delta: { type: 'text_delta', text } },
     { type: 'content_block_stop', index },
   ];
-  const toolBlock = index => [
+  const toolBlock = (index) => [
     { type: 'content_block_start', index, content_block: { type: 'tool_use', id: 'call', name: 'f', input: {} } },
     { type: 'content_block_delta', index, delta: { type: 'input_json_delta', partial_json: '{"x":1}' } },
     { type: 'content_block_stop', index },
   ];
-  const stop = reason => [{ type: 'message_delta', delta: { stop_reason: reason }, usage: { input_tokens: 2, output_tokens: 3 } }, { type: 'message_stop' }];
+  const stop = (reason) => [
+    { type: 'message_delta', delta: { stop_reason: reason }, usage: { input_tokens: 2, output_tokens: 3 } },
+    { type: 'message_stop' },
+  ];
 
   test('Chat tool index starts at zero after text and usage does not duplicate finish', async () => {
     const text = await read(chatStream(source([...textBlock(0, 'a'), ...toolBlock(1), ...stop('tool_use'), ...stop('tool_use')])));
     const events = eventsFrom(text);
-    assert.deepEqual(events.flatMap(e => e.choices ?? []).flatMap(c => c.delta?.tool_calls ?? []).map(t => t.index), [0, 0]);
-    assert.equal(events.filter(e => e.choices?.[0]?.finish_reason).length, 1);
-    assert.deepEqual(events.find(e => e.usage).choices, []);
+    assert.deepEqual(
+      events
+        .flatMap((e) => e.choices ?? [])
+        .flatMap((c) => c.delta?.tool_calls ?? [])
+        .map((t) => t.index),
+      [0, 0],
+    );
+    assert.equal(events.filter((e) => e.choices?.[0]?.finish_reason).length, 1);
+    assert.deepEqual(events.find((e) => e.usage).choices, []);
     assert.equal(text.match(/\[DONE\]/g).length, 1);
   });
 
@@ -382,11 +476,21 @@ try {
       await assert.rejects(read(convert(source([...initial, 'not-json', terminal]))), /Malformed/);
     });
     test(`${name} upstream error cannot be followed by success`, async () => {
-      await assert.rejects(read(convert(source([...initial, { type: 'error', error: { message: 'private upstream detail' } }, terminal]))), /Upstream stream error/);
+      await assert.rejects(
+        read(convert(source([...initial, { type: 'error', error: { message: 'private upstream detail' } }, terminal]))),
+        /Upstream stream error/,
+      );
     });
     test(`${name} client cancellation reaches a pending upstream read`, async () => {
       let cancelled = false;
-      const upstream = new ReadableStream({ start(c) { c.enqueue(new TextEncoder().encode(initial.map(encode).join(''))); }, cancel() { cancelled = true; } });
+      const upstream = new ReadableStream({
+        start(c) {
+          c.enqueue(new TextEncoder().encode(initial.map(encode).join('')));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      });
       const reader = convert(upstream).getReader();
       await reader.read();
       await reader.cancel('client cancelled');
@@ -421,8 +525,16 @@ try {
   function test(name, fn) {
     return Promise.resolve()
       .then(() => fn())
-      .then(() => { passed++; console.log(`ok - ${name}`); })
-      .catch((e) => { failed++; console.error(`FAIL: ${name}`); console.error(e?.stack || e); process.exitCode = 1; });
+      .then(() => {
+        passed++;
+        console.log(`ok - ${name}`);
+      })
+      .catch((e) => {
+        failed++;
+        console.error(`FAIL: ${name}`);
+        console.error(e?.stack || e);
+        process.exitCode = 1;
+      });
   }
 
   function envelope(body) {
@@ -458,7 +570,8 @@ try {
 
   await test('system + developer messages collect into systemInstruction', () => {
     const r = envelope({
-      model: 'm', messages: [
+      model: 'm',
+      messages: [
         { role: 'system', content: 'be brief' },
         { role: 'user', content: 'hello' },
         { role: 'developer', content: [{ type: 'text', text: 'extra' }] },
@@ -469,9 +582,14 @@ try {
 
   await test('assistant tool_calls map to functionCall parts and register id->name', () => {
     const r = envelope({
-      model: 'm', messages: [
+      model: 'm',
+      messages: [
         { role: 'user', content: 'weather?' },
-        { role: 'assistant', content: '', tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'get_weather', arguments: '{"city":"sf"}' } }] },
+        {
+          role: 'assistant',
+          content: '',
+          tool_calls: [{ id: 'call_1', type: 'function', function: { name: 'get_weather', arguments: '{"city":"sf"}' } }],
+        },
         { role: 'tool', tool_call_id: 'call_1', content: '{"temp": 60}' },
       ],
     });
@@ -485,7 +603,8 @@ try {
 
   await test('tool response with non-JSON content is wrapped as {output}', () => {
     const r = envelope({
-      model: 'm', messages: [
+      model: 'm',
+      messages: [
         { role: 'user', content: 'x' },
         { role: 'assistant', tool_calls: [{ id: 'c1', type: 'function', function: { name: 'fn', arguments: '{}' } }] },
         { role: 'tool', tool_call_id: 'c1', content: 'plain text result' },
@@ -507,12 +626,21 @@ try {
 
   await test('generation config maps OpenAI fields to Gemini names', () => {
     const r = envelope({
-      model: 'm', messages: [{ role: 'user', content: 'hi' }],
-      max_tokens: 128, temperature: 0.7, top_p: 0.9, stop: ['x', 'y'], seed: 42,
+      model: 'm',
+      messages: [{ role: 'user', content: 'hi' }],
+      max_tokens: 128,
+      temperature: 0.7,
+      top_p: 0.9,
+      stop: ['x', 'y'],
+      seed: 42,
       response_format: { type: 'json_object' },
     });
     assert.deepEqual(r.envelope.request.generationConfig, {
-      maxOutputTokens: 128, temperature: 0.7, topP: 0.9, stopSequences: ['x', 'y'], seed: 42,
+      maxOutputTokens: 128,
+      temperature: 0.7,
+      topP: 0.9,
+      stopSequences: ['x', 'y'],
+      seed: 42,
       responseMimeType: 'application/json',
     });
   });
@@ -524,7 +652,16 @@ try {
 
   await test('image data-url part becomes inlineData', () => {
     const r = envelope({
-      model: 'm', messages: [{ role: 'user', content: [{ type: 'text', text: 'what is this' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,iVBORw0K' } }] }],
+      model: 'm',
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'what is this' },
+            { type: 'image_url', image_url: { url: 'data:image/png;base64,iVBORw0K' } },
+          ],
+        },
+      ],
     });
     assert.deepEqual(r.envelope.request.contents[0].parts[1], { inlineData: { mimeType: 'image/png', data: 'iVBORw0K' } });
   });
@@ -542,18 +679,27 @@ try {
   });
 
   await test('refusal: malformed tool_call arguments -> null', () => {
-    assert.equal(envelope({
-      model: 'm', messages: [
-        { role: 'user', content: 'x' },
-        { role: 'assistant', tool_calls: [{ id: 'c1', type: 'function', function: { name: 'fn', arguments: '{bad json' } }] },
-      ],
-    }), null);
+    assert.equal(
+      envelope({
+        model: 'm',
+        messages: [
+          { role: 'user', content: 'x' },
+          { role: 'assistant', tool_calls: [{ id: 'c1', type: 'function', function: { name: 'fn', arguments: '{bad json' } }] },
+        ],
+      }),
+      null,
+    );
   });
 
   await test('refusal: non-function tool type -> null', () => {
-    assert.equal(envelope({
-      model: 'm', messages: [{ role: 'user', content: 'x' }], tools: [{ type: 'web_search', web_search: {} }],
-    }), null);
+    assert.equal(
+      envelope({
+        model: 'm',
+        messages: [{ role: 'user', content: 'x' }],
+        tools: [{ type: 'web_search', web_search: {} }],
+      }),
+      null,
+    );
   });
 
   // ---- Non-streaming object conversion ---------------------------------------
@@ -584,8 +730,16 @@ try {
   });
 
   await test('object: MAX_TOKENS -> length, SAFETY -> content_filter', () => {
-    assert.equal(codeAssistObjectToOpenAIChat({ candidates: [{ content: { parts: [{ text: 'cut' }], role: 'model' }, finishReason: 'MAX_TOKENS' }] }).choices[0].finish_reason, 'length');
-    assert.equal(codeAssistObjectToOpenAIChat({ candidates: [{ content: { parts: [{ text: 'blocked' }], role: 'model' }, finishReason: 'SAFETY' }] }).choices[0].finish_reason, 'content_filter');
+    assert.equal(
+      codeAssistObjectToOpenAIChat({ candidates: [{ content: { parts: [{ text: 'cut' }], role: 'model' }, finishReason: 'MAX_TOKENS' }] }).choices[0]
+        .finish_reason,
+      'length',
+    );
+    assert.equal(
+      codeAssistObjectToOpenAIChat({ candidates: [{ content: { parts: [{ text: 'blocked' }], role: 'model' }, finishReason: 'SAFETY' }] }).choices[0]
+        .finish_reason,
+      'content_filter',
+    );
   });
 
   await test('object: no candidates / no meaningful output -> null', () => {
@@ -597,26 +751,51 @@ try {
   // ---- Streaming conversion ---------------------------------------------------
 
   await test('stream: text deltas + finish + usage + [DONE]', async () => {
-    const input = new Response(sse(
-      { candidates: [{ content: { parts: [{ text: 'Hel' }], role: 'model' }, index: 0 }] },
-      { candidates: [{ content: { parts: [{ text: 'lo' }], role: 'model' }, finishReason: 'STOP' }], usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 2, totalTokenCount: 3 } },
-    )).body;
+    const input = new Response(
+      sse(
+        { candidates: [{ content: { parts: [{ text: 'Hel' }], role: 'model' }, index: 0 }] },
+        {
+          candidates: [{ content: { parts: [{ text: 'lo' }], role: 'model' }, finishReason: 'STOP' }],
+          usageMetadata: { promptTokenCount: 1, candidatesTokenCount: 2, totalTokenCount: 3 },
+        },
+      ),
+    ).body;
     const out = await readStream(createOpenAIChatStreamFromCodeAssist(input, { messageId: 'm', model: 'gemini-2.5-pro' }));
-    const chunks = out.split('\n\n').filter(Boolean).map((c) => c.replace(/^data: /, ''));
+    const chunks = out
+      .split('\n\n')
+      .filter(Boolean)
+      .map((c) => c.replace(/^data: /, ''));
     assert.ok(chunks[0].includes('"delta":{"role":"assistant"}'), 'role header first');
-    assert.ok(chunks.some((c) => c.includes('"delta":{"content":"Hel"}')), 'first text delta');
-    assert.ok(chunks.some((c) => c.includes('"delta":{"content":"lo"}')), 'second text delta');
-    assert.ok(chunks.some((c) => c.includes('"finish_reason":"stop"')), 'finish chunk');
-    assert.ok(chunks.some((c) => c.includes('"usage"') && c.includes('"total_tokens":3')), 'usage chunk');
+    assert.ok(
+      chunks.some((c) => c.includes('"delta":{"content":"Hel"}')),
+      'first text delta',
+    );
+    assert.ok(
+      chunks.some((c) => c.includes('"delta":{"content":"lo"}')),
+      'second text delta',
+    );
+    assert.ok(
+      chunks.some((c) => c.includes('"finish_reason":"stop"')),
+      'finish chunk',
+    );
+    assert.ok(
+      chunks.some((c) => c.includes('"usage"') && c.includes('"total_tokens":3')),
+      'usage chunk',
+    );
     assert.equal(chunks[chunks.length - 1], '[DONE]', '[DONE] terminal');
   });
 
   await test('stream: function call delta carries id/name/arguments', async () => {
-    const input = new Response(sse(
-      { candidates: [{ content: { parts: [{ functionCall: { name: 'get_weather', args: { city: 'sf' } } }], role: 'model' }, finishReason: 'STOP' }] },
-    )).body;
+    const input = new Response(
+      sse({
+        candidates: [{ content: { parts: [{ functionCall: { name: 'get_weather', args: { city: 'sf' } } }], role: 'model' }, finishReason: 'STOP' }],
+      }),
+    ).body;
     const out = await readStream(createOpenAIChatStreamFromCodeAssist(input, { messageId: 'm', model: 'm' }));
-    const toolChunk = out.split('\n\n').map((c) => c.replace(/^data: /, '')).find((c) => c.includes('tool_calls'));
+    const toolChunk = out
+      .split('\n\n')
+      .map((c) => c.replace(/^data: /, ''))
+      .find((c) => c.includes('tool_calls'));
     assert.ok(toolChunk, 'tool_call delta present');
     const parsed = JSON.parse(toolChunk);
     assert.equal(parsed.choices[0].delta.tool_calls[0].function.name, 'get_weather');

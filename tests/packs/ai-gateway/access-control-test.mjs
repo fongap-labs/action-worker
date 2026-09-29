@@ -41,14 +41,15 @@ try {
       'general-air': { policy: 'fast' },
     }),
   };
-  const req = (key, header = 'authorization') => new Request('https://gateway.example.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      [header]: header === 'authorization' ? `Bearer ${key}` : key,
-    },
-    body: '{}',
-  });
+  const req = (key, header = 'authorization') =>
+    new Request('https://gateway.example.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        [header]: header === 'authorization' ? `Bearer ${key}` : key,
+      },
+      body: '{}',
+    });
 
   await test('no configured group fails closed', async () => {
     const result = await authorize(req('unused'), { ...ENV_MODELS });
@@ -108,13 +109,24 @@ try {
   await test('all five groups resolve independently', async () => {
     const env = {
       ...ENV_MODELS,
-      AIG_ACCESS_KEY_AIR: 'air', AIG_ACCESS_MODELS_AIR: 'general-air',
-      AIG_ACCESS_KEY_PRO: 'pro', AIG_ACCESS_MODELS_PRO: 'code-pro',
-      AIG_ACCESS_KEY_MAX: 'max', AIG_ACCESS_MODELS_MAX: 'general-air,code-pro',
-      AIG_ACCESS_KEY_ULTRA: 'ultra', AIG_ACCESS_MODELS_ULTRA: '*',
-      AIG_ACCESS_KEY_AGENT: 'agent', AIG_ACCESS_MODELS_AGENT: 'code-pro',
+      AIG_ACCESS_KEY_AIR: 'air',
+      AIG_ACCESS_MODELS_AIR: 'general-air',
+      AIG_ACCESS_KEY_PRO: 'pro',
+      AIG_ACCESS_MODELS_PRO: 'code-pro',
+      AIG_ACCESS_KEY_MAX: 'max',
+      AIG_ACCESS_MODELS_MAX: 'general-air,code-pro',
+      AIG_ACCESS_KEY_ULTRA: 'ultra',
+      AIG_ACCESS_MODELS_ULTRA: '*',
+      AIG_ACCESS_KEY_AGENT: 'agent',
+      AIG_ACCESS_MODELS_AGENT: 'code-pro',
     };
-    for (const [secret, group] of [['air', 'AIR'], ['pro', 'PRO'], ['max', 'MAX'], ['ultra', 'ULTRA'], ['agent', 'AGENT']]) {
+    for (const [secret, group] of [
+      ['air', 'AIR'],
+      ['pro', 'PRO'],
+      ['max', 'MAX'],
+      ['ultra', 'ULTRA'],
+      ['agent', 'AGENT'],
+    ]) {
       const result = await authorize(req(secret), env);
       assert.equal(result.authorized, true);
       assert.equal(result.group, group);
@@ -164,14 +176,8 @@ try {
   await test('/v1/models filter uses the same known catalog as authorization', async () => {
     const nodes = [{ models: { Air: 'a', 'Code-Max': 'c', Omni: 'o', OCR: 'r' } }];
     const known = collectKnownModels(nodes, {});
-    assert.deepEqual(
-      filterVisibleModels(known, { authorized: true, allowAll: true }),
-      ['Air', 'Code-Max', 'OCR', 'Omni'],
-    );
-    assert.deepEqual(
-      filterVisibleModels(known, { authorized: true, allowAll: false, allowlist: new Set(['Air', 'Omni']) }),
-      ['Air', 'Omni'],
-    );
+    assert.deepEqual(filterVisibleModels(known, { authorized: true, allowAll: true }), ['Air', 'Code-Max', 'OCR', 'Omni']);
+    assert.deepEqual(filterVisibleModels(known, { authorized: true, allowAll: false, allowlist: new Set(['Air', 'Omni']) }), ['Air', 'Omni']);
   });
 
   await test('empty known catalog stays empty even for wildcard access key', async () => {

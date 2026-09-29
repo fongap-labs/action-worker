@@ -18,15 +18,15 @@ import worker from '#target/src/index.ts';
 import { ADAPTIVE_429_COOLDOWN_STEPS_MS, __resetAdaptive429StateForTests, clearAdaptive429State, nextAdaptive429CooldownMs, snapshotAdaptive429State } from '#target/src/reliability/adaptive-429.ts';
 import { KIND, classifyUpstreamStatus } from '#target/src/reliability/classify.ts';
 import { COOLDOWN_JITTER_FACTOR, jitterCooldownMs } from '#target/src/reliability/cooldown-jitter.ts';
-import { __resetAllStateForTests, acquireSlot, getNodeState, peekAvailability, recordFailure, recordNeutralEnd, recordSuccess } from '#target/src/reliability/node-state.ts';
+import { __resetAllStateForTests, acquireSlot } from '#target/src/reliability/node-state.ts';
 import { extractQuotaSignal } from '#target/src/reliability/quota-signal.ts';
 import { TIER1_PROVIDER_MODEL_429_WINDOW_MS, __resetTier1HeatForTests, recordTier1ProviderModelRateLimit, recordTier1ProviderModelSuccess, tier1AffinityHeatFactor, tier1CanAcceptHedge, tier1ConcurrencyPressure, tier1ProviderModelHeatFactor, tier1ProviderModelRateLimitCount, tier1SelectionHeatFactor } from '#target/src/reliability/tier1-heat.ts';
-import { TIER1_FAILURE_STATES, __resetTier1StateForTests, applyTier1Outcome, claimTier1Slot, classifyTier1Failure, getTier1ModelPerf, isTier1Eligible, makeTier1ReleaseToken, recordTier1QuotaReport, recordTier1QuotaSignal, releaseTier1Slot, settleTier1Quota, tier1BlockingWaitMs, tier1QuotaState } from '#target/src/reliability/tier1-state.ts';
+import { __resetTier1StateForTests, applyTier1Outcome, claimTier1Slot, classifyTier1Failure, getTier1ModelPerf, isTier1Eligible, makeTier1ReleaseToken, recordTier1QuotaReport, recordTier1QuotaSignal, releaseTier1Slot, settleTier1Quota, tier1BlockingWaitMs, tier1QuotaState } from '#target/src/reliability/tier1-state.ts';
 import { recordOutcome } from '#target/src/request/attempt/outcome.ts';
 import { buildModelFallbackPlan, buildModelFallbackRounds, hasModelFamilyFallback, modelFallbackCandidates } from '#target/src/request/model-fallback.ts';
 import { computeTierCaps, pickForTier } from '#target/src/request/tier-loop.ts';
 import { pickCandidate } from '#target/src/scheduler/scheduler.ts';
-import { __resetTier1AffinityForTests, readTier1Affinity, resolveTier1SessionId, shouldEvaluateAffinity, snapshotTier1Affinity, writeTier1Affinity } from '#target/src/scheduler/tier1-affinity.ts';
+import { __resetTier1AffinityForTests, readTier1Affinity, shouldEvaluateAffinity, snapshotTier1Affinity, writeTier1Affinity } from '#target/src/scheduler/tier1-affinity.ts';
 import { pickTier1Candidate } from '#target/src/scheduler/tier1-scheduler.ts';
 import { calculateTier1Score } from '#target/src/scheduler/tier1-scoring.ts';
 import assert from 'node:assert/strict';
@@ -135,8 +135,15 @@ try {
   let passed = 0;
   let failed = 0;
   async function test(name, fn) {
-    try { await fn(); passed++; console.log(`ok - ${name}`); }
-    catch (error) { failed++; console.error(`FAIL - ${name}`); console.error(error?.stack || error); }
+    try {
+      await fn();
+      passed++;
+      console.log(`ok - ${name}`);
+    } catch (error) {
+      failed++;
+      console.error(`FAIL - ${name}`);
+      console.error(error?.stack || error);
+    }
   }
 
   const env = { AIG_RATE_LIMIT_COOLDOWN_MS: '60000' };
@@ -158,7 +165,13 @@ try {
   });
 
   await test('ordinary payload-size 413 remains a client stop', () => {
-    const result = classifyUpstreamStatus(413, new Headers(), env, Date.now(), '{"error":{"message":"Request body exceeds the maximum payload size of 4 MB"}}');
+    const result = classifyUpstreamStatus(
+      413,
+      new Headers(),
+      env,
+      Date.now(),
+      '{"error":{"message":"Request body exceeds the maximum payload size of 4 MB"}}',
+    );
     assert.equal(result.kind, KIND.CLIENT);
     assert.equal(result.action, 'stop');
   });
@@ -175,13 +188,16 @@ try {
       calls.push(url.hostname);
       if (url.hostname === 'groq-quota.example.com') {
         return new Response(JSON.stringify({ error: { message: 'input tokens per minute (ITPM): Limit 7000, Requested 7398' } }), {
-          status: 413, headers: { 'content-type': 'application/json' },
+          status: 413,
+          headers: { 'content-type': 'application/json' },
         });
       }
       if (url.hostname === 'fallback.example.com') {
         const requestBody = init?.body ? JSON.parse(init.body) : {};
         return Response.json({
-          id: 'chatcmpl-quota-fallback', object: 'chat.completion', model: requestBody.model,
+          id: 'chatcmpl-quota-fallback',
+          object: 'chat.completion',
+          model: requestBody.model,
           choices: [{ index: 0, message: { role: 'assistant', content: 'fallback ok' }, finish_reason: 'stop' }],
           usage: { prompt_tokens: 7398, completion_tokens: 2, total_tokens: 7400 },
         });
@@ -197,28 +213,44 @@ try {
         AIG_HEDGE_DELAY_MS: '0',
         AIG_REQUEST_HEDGE_MAX: '0',
         AIG_RATE_LIMIT_COOLDOWN_MS: '60000',
-        AIG_TIER1_NODES_01: JSON.stringify([{
-          id: 'groq-quota', provider: 'groq',
-          base_url: 'https://groq-quota.example.com/v1', priority: 10, models: { 'Quota-Test': 'qwen/qwen3.8-27b' },
-        }]),
+        AIG_TIER1_NODES_01: JSON.stringify([
+          {
+            id: 'groq-quota',
+            provider: 'groq',
+            base_url: 'https://groq-quota.example.com/v1',
+            priority: 10,
+            models: { 'Quota-Test': 'qwen/qwen3.8-27b' },
+          },
+        ]),
         AIG_TIER1_CREDENTIALS_01: JSON.stringify({ 'groq-quota': 'groq-key' }),
-        AIG_TIER2_NODES_01: JSON.stringify([{
-          id: 'fallback-node', provider: 'fallback-provider',
-          base_url: 'https://fallback.example.com/v1', priority: 10, models: { 'Quota-Test': 'fallback-model' },
-        }]),
+        AIG_TIER2_NODES_01: JSON.stringify([
+          {
+            id: 'fallback-node',
+            provider: 'fallback-provider',
+            base_url: 'https://fallback.example.com/v1',
+            priority: 10,
+            models: { 'Quota-Test': 'fallback-model' },
+          },
+        ]),
         AIG_TIER2_CREDENTIALS_01: JSON.stringify({ 'fallback-node': 'fallback-key' }),
         AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempts: 2 } }),
       };
-      const response = await worker.fetch(new Request('https://gateway.example.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${accessKey}` },
-        body: JSON.stringify({ model: 'Quota-Test', messages: [{ role: 'user', content: 'large context' }] }),
-      }), integrationEnv, {});
+      const response = await worker.fetch(
+        new Request('https://gateway.example.com/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${accessKey}` },
+          body: JSON.stringify({ model: 'Quota-Test', messages: [{ role: 'user', content: 'large context' }] }),
+        }),
+        integrationEnv,
+        {},
+      );
       const body = await response.json();
       assert.equal(response.status, 200);
       assert.equal(body?.choices?.[0]?.message?.content, 'fallback ok');
       assert.deepEqual(calls, ['groq-quota.example.com', 'fallback.example.com']);
-    } finally { globalThis.fetch = originalFetch; }
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   console.log(`\nprovider-quota-413-test: ${passed} passed, ${failed} failed.`);
@@ -258,21 +290,38 @@ try {
 
   let passed = 0;
   function test(name, fn) {
-    try { fn(); passed++; console.log(`ok - ${name}`); }
-    catch (e) { console.error(`FAIL - ${name}`); console.error(e?.stack || e); process.exitCode = 1; }
+    try {
+      fn();
+      passed++;
+      console.log(`ok - ${name}`);
+    } catch (e) {
+      console.error(`FAIL - ${name}`);
+      console.error(e?.stack || e);
+      process.exitCode = 1;
+    }
   }
 
   const node = (id) => ({
-    id, tier: 'tier-1', provider: 'mock', protocol: 'openai', surfaces: ['chat_completions'],
-    baseUrl: `https://${id}.example.com/v1`, credential: 'k', priority: 10, models: { 'Code-Max': 'up' },
+    id,
+    tier: 'tier-1',
+    provider: 'mock',
+    protocol: 'openai',
+    surfaces: ['chat_completions'],
+    baseUrl: `https://${id}.example.com/v1`,
+    credential: 'k',
+    priority: 10,
+    models: { 'Code-Max': 'up' },
   });
   const req = { protocol: 'openai', surface: 'chat_completions', model: 'Code-Max' };
 
   test('unknown quota never denies admission (reactive path preserved)', () => {
     __resetTier1StateForTests();
     for (let i = 0; i < 100; i++) {
-      assert.equal(claimTier1Slot(node('u1'), 1000 + i, 'Code-Max', null), true,
-        'without a provider report, every claim is admitted exactly as before');
+      assert.equal(
+        claimTier1Slot(node('u1'), 1000 + i, 'Code-Max', null),
+        true,
+        'without a provider report, every claim is admitted exactly as before',
+      );
       const token = makeTier1ReleaseToken('u1');
       releaseTier1Slot('u1', token);
     }
@@ -280,28 +329,35 @@ try {
   });
 
   test('quota signal extraction reads both protocol conventions', () => {
-    const openai = extractQuotaSignal('openai', new Headers({
-      'x-ratelimit-remaining-requests': '9',
-      'x-ratelimit-remaining-tokens': '5000',
-      'x-ratelimit-limit-requests': '10',
-      'x-ratelimit-reset-requests': '60s',
-    }), 1000);
+    const openai = extractQuotaSignal(
+      'openai',
+      new Headers({
+        'x-ratelimit-remaining-requests': '9',
+        'x-ratelimit-remaining-tokens': '5000',
+        'x-ratelimit-limit-requests': '10',
+        'x-ratelimit-reset-requests': '60s',
+      }),
+      1000,
+    );
     assert.deepEqual(
       { remainingRequests: openai?.remainingRequests, limitRequests: openai?.limitRequests, remainingTokens: openai?.remainingTokens },
       { remainingRequests: 9, limitRequests: 10, remainingTokens: 5000 },
     );
     assert.ok(openai?.resetAtMs === 61_000, 'reset marker resolves to a wall-clock instant');
 
-    const anthropic = extractQuotaSignal('anthropic', new Headers({
-      'anthropic-ratelimit-requests-remaining': '3',
-      'anthropic-ratelimit-requests-limit': '100',
-      'anthropic-ratelimit-requests-reset': '30',
-    }), 2000);
+    const anthropic = extractQuotaSignal(
+      'anthropic',
+      new Headers({
+        'anthropic-ratelimit-requests-remaining': '3',
+        'anthropic-ratelimit-requests-limit': '100',
+        'anthropic-ratelimit-requests-reset': '30',
+      }),
+      2000,
+    );
     assert.equal(anthropic?.remainingRequests, 3);
     assert.equal(anthropic?.resetAtMs, 32_000);
 
-    assert.equal(extractQuotaSignal('openai', new Headers({}), 0), null,
-      'no markers -> no signal -> unknown quota');
+    assert.equal(extractQuotaSignal('openai', new Headers({}), 0), null, 'no markers -> no signal -> unknown quota');
   });
 
   test('reported remaining=10 admits exactly 10 concurrent, not 20', () => {
@@ -316,8 +372,7 @@ try {
       }
     }
     assert.equal(admitted, 10, 'the 11th..20th concurrent claims are denied against a reported tail of 10');
-    assert.equal(isTier1Eligible(node('race'), req, 1001), false,
-      'the exhausted reservation also fails eligibility');
+    assert.equal(isTier1Eligible(node('race'), req, 1001), false, 'the exhausted reservation also fails eligibility');
     for (const token of tokens) releaseTier1Slot('race', token);
   });
 
@@ -327,8 +382,7 @@ try {
     assert.equal(claimTier1Slot(node('abort'), 1001, 'Code-Max', null), true);
     const token = makeTier1ReleaseToken('abort');
     releaseTier1Slot('abort', token);
-    assert.equal(claimTier1Slot(node('abort'), 1002, 'Code-Max', null), true,
-      'an aborted claim gives the reservation back');
+    assert.equal(claimTier1Slot(node('abort'), 1002, 'Code-Max', null), true, 'an aborted claim gives the reservation back');
     releaseTier1Slot('abort', makeTier1ReleaseToken('abort'));
   });
 
@@ -346,15 +400,13 @@ try {
     settleTier1Quota('settle', tokenB, 1_000);
     releaseTier1Slot('settle', tokenB);
     // Both reservations were settled (consumed), so admission now waits.
-    assert.equal(claimTier1Slot(node('settle'), 1003, 'Code-Max', null), false,
-      'settled leases do not give reservations back');
+    assert.equal(claimTier1Slot(node('settle'), 1003, 'Code-Max', null), false, 'settled leases do not give reservations back');
     // A fresher provider report reconciles the window: 2 reported, 0 outstanding.
     recordTier1QuotaReport('settle', { remainingRequests: 2, limitRequests: 10 }, 1004);
     // Claim + release WITHOUT settle restores, so the tail is reusable.
     assert.equal(claimTier1Slot(node('settle'), 1005, 'Code-Max', null), true);
     releaseTier1Slot('settle', makeTier1ReleaseToken('settle'));
-    assert.equal(claimTier1Slot(node('settle'), 1006, 'Code-Max', null), true,
-      'an aborted claim gives its reservation back');
+    assert.equal(claimTier1Slot(node('settle'), 1006, 'Code-Max', null), true, 'an aborted claim gives its reservation back');
     releaseTier1Slot('settle', makeTier1ReleaseToken('settle'));
   });
 
@@ -380,8 +432,10 @@ try {
     const b = node('tail');
     recordTier1QuotaReport('tail', { remainingRequests: 1, limitRequests: 100 }, 1000);
     assert.equal(tier1QuotaState('tail', 1001), 'near_limit');
-    assert.ok(calculateTier1Score(b, 'Code-Max', [a, b], 1, 1001) > calculateTier1Score(a, 'Code-Max', [a, b], 1, 1001),
-      'the near-limit node scores worse than an equally unknown healthy node');
+    assert.ok(
+      calculateTier1Score(b, 'Code-Max', [a, b], 1, 1001) > calculateTier1Score(a, 'Code-Max', [a, b], 1, 1001),
+      'the near-limit node scores worse than an equally unknown healthy node',
+    );
   });
 
   test('exhausted_until gates eligibility and surfaces the window wait, then auto-clears', () => {
@@ -391,8 +445,7 @@ try {
     assert.equal(tier1QuotaState('window', 2000), 'exhausted_until');
     assert.equal(isTier1Eligible(node('window'), req, 2000), false);
     assert.equal(claimTier1Slot(node('window'), 2001, 'Code-Max', null), false);
-    assert.equal(tier1BlockingWaitMs(node('window'), 'Code-Max', 2000), resetAt - 2000,
-      'blocking wait reflects the quota window for Retry-After');
+    assert.equal(tier1BlockingWaitMs(node('window'), 'Code-Max', 2000), resetAt - 2000, 'blocking wait reflects the quota window for Retry-After');
     assert.equal(tier1QuotaState('window', resetAt + 1), 'normal', 'window expiry auto-restores');
     assert.equal(isTier1Eligible(node('window'), req, resetAt + 1), true);
   });
@@ -456,7 +509,7 @@ try {
       console.log(`ok - ${name}`);
     } catch (e) {
       console.error(`FAIL: ${name}`);
-      console.error(e && e.stack || e);
+      console.error(e?.stack || e);
       process.exitCode = 1;
     }
   }
@@ -468,7 +521,7 @@ try {
       console.log(`ok - ${name}`);
     } catch (e) {
       console.error(`FAIL: ${name}`);
-      console.error(e && e.stack || e);
+      console.error(e?.stack || e);
       process.exitCode = 1;
     }
   }
@@ -477,8 +530,12 @@ try {
   function mockKv() {
     const store = new Map();
     return {
-      async get(key) { return store.get(key) ?? null; },
-      async put(key, value, opts) { store.set(key, value); },
+      async get(key) {
+        return store.get(key) ?? null;
+      },
+      async put(key, value, opts) {
+        store.set(key, value);
+      },
     };
   }
 
@@ -491,8 +548,7 @@ try {
       await readTier1Affinity(env, sid);
     }
     const snap = snapshotTier1Affinity(env);
-    assert.ok(snap.cache_size <= snap.cache_max_entries,
-      `cache_size ${snap.cache_size} must not exceed max ${snap.cache_max_entries}`);
+    assert.ok(snap.cache_size <= snap.cache_max_entries, `cache_size ${snap.cache_size} must not exceed max ${snap.cache_max_entries}`);
   });
 
   // --- 2. escapeCounters bounded under 10000+ unique session IDs ---
@@ -503,8 +559,10 @@ try {
       shouldEvaluateAffinity(sid);
     }
     const snap = snapshotTier1Affinity({});
-    assert.ok(snap.escape_counters_size <= snap.escape_max_entries,
-      `escape_counters_size ${snap.escape_counters_size} must not exceed max ${snap.escape_max_entries}`);
+    assert.ok(
+      snap.escape_counters_size <= snap.escape_max_entries,
+      `escape_counters_size ${snap.escape_counters_size} must not exceed max ${snap.escape_max_entries}`,
+    );
   });
 
   // --- 3. Both bounded simultaneously ---
@@ -574,8 +632,7 @@ try {
     // (we can verify indirectly: snapshot doesn't leak raw IDs)
     const snap = snapshotTier1Affinity({});
     const serialized = JSON.stringify(snap);
-    assert.ok(!serialized.includes('sensitive-session-id-12345'),
-      'raw session ID must not appear in affinity snapshot');
+    assert.ok(!serialized.includes('sensitive-session-id-12345'), 'raw session ID must not appear in affinity snapshot');
   });
 
   // --- 9. Expiry works ---
@@ -594,8 +651,7 @@ try {
       await readTier1Affinity(env, `session-fill-${i}-`.padEnd(8, 'x'));
     }
     const snap2 = snapshotTier1Affinity(env);
-    assert.ok(snap2.cache_size <= snap2.cache_max_entries,
-      `cache bounded after fill: ${snap2.cache_size}/${snap2.cache_max_entries}`);
+    assert.ok(snap2.cache_size <= snap2.cache_max_entries, `cache bounded after fill: ${snap2.cache_size}/${snap2.cache_max_entries}`);
   });
 
   console.log(`\ntier1-affinity bounding tests: ${passed} passed.`);
@@ -624,21 +680,115 @@ try {
 
   const now = 1_800_000_000_000;
   const req = { model: 'Code-Max', protocol: 'openai', surface: 'chat_completions' };
-  const node = (id, overrides = {}) => ({ id, tier:'tier-1', provider:'nvidia', protocol:'openai', surfaces:['chat_completions'], baseUrl:'https://example.invalid/v1', credential:`secret-${id}`, priority:1, models:{'Code-Max':'upstream-code-max'}, ...overrides });
-  function releasePick(pick){ if(pick?.node&&pick?.releaseToken) releaseTier1Slot(pick.node.id,pick.releaseToken); }
-  function reset(){ __resetTier1StateForTests(); __resetTier1HeatForTests(); }
-  async function test(name,fn){try{await fn();console.log(`ok - ${name}`)}catch(e){console.error(`not ok - ${name}`);console.error(e?.stack||e);process.exitCode=1}}
+  const node = (id, overrides = {}) => ({
+    id,
+    tier: 'tier-1',
+    provider: 'nvidia',
+    protocol: 'openai',
+    surfaces: ['chat_completions'],
+    baseUrl: 'https://example.invalid/v1',
+    credential: `secret-${id}`,
+    priority: 1,
+    models: { 'Code-Max': 'upstream-code-max' },
+    ...overrides,
+  });
+  function releasePick(pick) {
+    if (pick?.node && pick?.releaseToken) releaseTier1Slot(pick.node.id, pick.releaseToken);
+  }
+  function reset() {
+    __resetTier1StateForTests();
+    __resetTier1HeatForTests();
+  }
+  async function test(name, fn) {
+    try {
+      await fn();
+      console.log(`ok - ${name}`);
+    } catch (e) {
+      console.error(`not ok - ${name}`);
+      console.error(e?.stack || e);
+      process.exitCode = 1;
+    }
+  }
 
-  await test('cold accounts preserve affinity preference',()=>{reset();const a=node('a'),b=node('b');const p=pickTier1Candidate([a,b],req,new Set(),{affinityAccountId:'a',now,rng:()=>0});assert.equal(p?.node?.id,'a');releasePick(p)});
-  await test('live in-flight heat weakens affinity without becoming a hard gate',()=>{reset();const a=node('a');for(let i=0;i<3;i++)assert.equal(claimTier1Slot(a,now,req.model),true);assert.equal(tier1ConcurrencyPressure(a),0.75);assert.equal(tier1AffinityHeatFactor(a,0.85),0.9625);assert.ok(tier1SelectionHeatFactor(a,0.85)>1);const p=pickTier1Candidate([a],req,new Set(),{affinityAccountId:'a',now,rng:()=>0,evaluateAffinity:true});assert.equal(p?.node?.id,'a');releasePick(p)});
-  await test('soft load never hard-blocks the only primary candidate',()=>{reset();const a=node('a');for(let i=0;i<4;i++)assert.equal(claimTier1Slot(a,now,req.model),true);const p=pickTier1Candidate([a],req,new Set(),{now});assert.equal(p?.node?.id,'a');releasePick(p)});
-  await test('optional hedge is suppressed at 0.75 live pressure',()=>{reset();const busy=node('busy');for(let i=0;i<3;i++)assert.equal(claimTier1Slot(busy,now,req.model),true);assert.equal(tier1CanAcceptHedge(busy),false)});
-  await test('optional hedge uses an idle peer',()=>{reset();const primary=node('primary'),idle=node('idle');assert.equal(tier1CanAcceptHedge(idle),true);const p=pickTier1Candidate([primary,idle],req,new Set(),{excludeId:'primary',now,rng:()=>0});assert.equal(p?.node?.id,'idle');releasePick(p)});
-  await test('one or two independent 429 keys do not demote cohort',()=>{reset();recordTier1ProviderModelRateLimit('nvidia','upstream-code-max','n1',now);recordTier1ProviderModelRateLimit('nvidia','upstream-code-max','n2',now+1);assert.equal(tier1ProviderModelRateLimitCount('nvidia','upstream-code-max',now+1),2);assert.equal(tier1ProviderModelHeatFactor('nvidia','upstream-code-max',now+1),1)});
-  await test('three/four independent 429 keys apply bounded soft heat',()=>{reset();for(const [i,id] of ['n1','n2','n3'].entries())recordTier1ProviderModelRateLimit('nvidia','upstream-code-max',id,now+i);assert.equal(tier1ProviderModelHeatFactor('nvidia','upstream-code-max',now+3),1.15);recordTier1ProviderModelRateLimit('nvidia','upstream-code-max','n4',now+4);assert.equal(tier1ProviderModelHeatFactor('nvidia','upstream-code-max',now+4),1.35)});
-  await test('provider-model heat changes ranking but not eligibility',()=>{reset();for(const id of ['n1','n2','n3'])recordTier1ProviderModelRateLimit('nvidia','upstream-code-max',id,now);const hot=node('n4'),cool=node('s1',{provider:'sensenova'});const p=pickTier1Candidate([hot,cool],req,new Set(),{now,rng:()=>0});assert.equal(p?.node?.id,'s1');releasePick(p);const only=pickTier1Candidate([hot],req,new Set(),{now});assert.equal(only?.node?.id,'n4');releasePick(only)});
-  await test('successes decay provider-model heat',()=>{reset();for(const id of ['n1','n2','n3','n4'])recordTier1ProviderModelRateLimit('nvidia','upstream-code-max',id,now);recordTier1ProviderModelSuccess('nvidia','upstream-code-max','n5',now+1);assert.equal(tier1ProviderModelRateLimitCount('nvidia','upstream-code-max',now+1),3)});
-  await test('provider-model heat expires',()=>{reset();for(const id of ['n1','n2','n3'])recordTier1ProviderModelRateLimit('nvidia','upstream-code-max',id,now);assert.equal(tier1ProviderModelHeatFactor('nvidia','upstream-code-max',now+TIER1_PROVIDER_MODEL_429_WINDOW_MS+1),1)});
+  await test('cold accounts preserve affinity preference', () => {
+    reset();
+    const a = node('a'),
+      b = node('b');
+    const p = pickTier1Candidate([a, b], req, new Set(), { affinityAccountId: 'a', now, rng: () => 0 });
+    assert.equal(p?.node?.id, 'a');
+    releasePick(p);
+  });
+  await test('live in-flight heat weakens affinity without becoming a hard gate', () => {
+    reset();
+    const a = node('a');
+    for (let i = 0; i < 3; i++) assert.equal(claimTier1Slot(a, now, req.model), true);
+    assert.equal(tier1ConcurrencyPressure(a), 0.75);
+    assert.equal(tier1AffinityHeatFactor(a, 0.85), 0.9625);
+    assert.ok(tier1SelectionHeatFactor(a, 0.85) > 1);
+    const p = pickTier1Candidate([a], req, new Set(), { affinityAccountId: 'a', now, rng: () => 0, evaluateAffinity: true });
+    assert.equal(p?.node?.id, 'a');
+    releasePick(p);
+  });
+  await test('soft load never hard-blocks the only primary candidate', () => {
+    reset();
+    const a = node('a');
+    for (let i = 0; i < 4; i++) assert.equal(claimTier1Slot(a, now, req.model), true);
+    const p = pickTier1Candidate([a], req, new Set(), { now });
+    assert.equal(p?.node?.id, 'a');
+    releasePick(p);
+  });
+  await test('optional hedge is suppressed at 0.75 live pressure', () => {
+    reset();
+    const busy = node('busy');
+    for (let i = 0; i < 3; i++) assert.equal(claimTier1Slot(busy, now, req.model), true);
+    assert.equal(tier1CanAcceptHedge(busy), false);
+  });
+  await test('optional hedge uses an idle peer', () => {
+    reset();
+    const primary = node('primary'),
+      idle = node('idle');
+    assert.equal(tier1CanAcceptHedge(idle), true);
+    const p = pickTier1Candidate([primary, idle], req, new Set(), { excludeId: 'primary', now, rng: () => 0 });
+    assert.equal(p?.node?.id, 'idle');
+    releasePick(p);
+  });
+  await test('one or two independent 429 keys do not demote cohort', () => {
+    reset();
+    recordTier1ProviderModelRateLimit('nvidia', 'upstream-code-max', 'n1', now);
+    recordTier1ProviderModelRateLimit('nvidia', 'upstream-code-max', 'n2', now + 1);
+    assert.equal(tier1ProviderModelRateLimitCount('nvidia', 'upstream-code-max', now + 1), 2);
+    assert.equal(tier1ProviderModelHeatFactor('nvidia', 'upstream-code-max', now + 1), 1);
+  });
+  await test('three/four independent 429 keys apply bounded soft heat', () => {
+    reset();
+    for (const [i, id] of ['n1', 'n2', 'n3'].entries()) recordTier1ProviderModelRateLimit('nvidia', 'upstream-code-max', id, now + i);
+    assert.equal(tier1ProviderModelHeatFactor('nvidia', 'upstream-code-max', now + 3), 1.15);
+    recordTier1ProviderModelRateLimit('nvidia', 'upstream-code-max', 'n4', now + 4);
+    assert.equal(tier1ProviderModelHeatFactor('nvidia', 'upstream-code-max', now + 4), 1.35);
+  });
+  await test('provider-model heat changes ranking but not eligibility', () => {
+    reset();
+    for (const id of ['n1', 'n2', 'n3']) recordTier1ProviderModelRateLimit('nvidia', 'upstream-code-max', id, now);
+    const hot = node('n4'),
+      cool = node('s1', { provider: 'sensenova' });
+    const p = pickTier1Candidate([hot, cool], req, new Set(), { now, rng: () => 0 });
+    assert.equal(p?.node?.id, 's1');
+    releasePick(p);
+    const only = pickTier1Candidate([hot], req, new Set(), { now });
+    assert.equal(only?.node?.id, 'n4');
+    releasePick(only);
+  });
+  await test('successes decay provider-model heat', () => {
+    reset();
+    for (const id of ['n1', 'n2', 'n3', 'n4']) recordTier1ProviderModelRateLimit('nvidia', 'upstream-code-max', id, now);
+    recordTier1ProviderModelSuccess('nvidia', 'upstream-code-max', 'n5', now + 1);
+    assert.equal(tier1ProviderModelRateLimitCount('nvidia', 'upstream-code-max', now + 1), 3);
+  });
+  await test('provider-model heat expires', () => {
+    reset();
+    for (const id of ['n1', 'n2', 'n3']) recordTier1ProviderModelRateLimit('nvidia', 'upstream-code-max', id, now);
+    assert.equal(tier1ProviderModelHeatFactor('nvidia', 'upstream-code-max', now + TIER1_PROVIDER_MODEL_429_WINDOW_MS + 1), 1);
+  });
   console.log('ok - file:tier1-heat-protection');
 } catch (error) {
   console.error('not ok - tier1-heat-protection-test.mjs failed');
@@ -701,17 +851,14 @@ try {
   assert.equal(isTier1Eligible(node, req('Code-Max'), now), false);
   assert.equal(tier1BlockingWaitMs(node, 'Code-Max', now), 5_000);
   assert.equal(isTier1Eligible(node, req('Code-Pro'), now), true);
-  assert.equal(getTier1ModelPerf(node.id, 'Code-Max'), null,
-    'model_missing must not pollute logical-model performance/circuit state');
+  assert.equal(getTier1ModelPerf(node.id, 'Code-Max'), null, 'model_missing must not pollute logical-model performance/circuit state');
 
   const remappedNode = {
     ...node,
     models: { ...node.models, 'Code-Max': 'another/provider-model' },
   };
-  assert.equal(isTier1Eligible(remappedNode, req('Code-Max'), now), true,
-    'new upstream mapping must not inherit the old upstream model cooldown');
-  assert.equal(isTier1Eligible(node, req('Code-Max'), now + 5_001), true,
-    'the original upstream model becomes eligible after the short cooldown');
+  assert.equal(isTier1Eligible(remappedNode, req('Code-Max'), now), true, 'new upstream mapping must not inherit the old upstream model cooldown');
+  assert.equal(isTier1Eligible(node, req('Code-Max'), now + 5_001), true, 'the original upstream model becomes eligible after the short cooldown');
 
   // Request-path regression: recordOutcome must resolve Code-Max through the
   // selected node before it records model_missing state.
@@ -748,8 +895,7 @@ try {
   assert.ok(tier1BlockingWaitMs(node, 'Code-Max', afterRecord) <= 5_000);
   assert.equal(isTier1Eligible(remappedNode, req('Code-Max'), afterRecord), true);
   assert.equal(isTier1Eligible(node, req('Code-Pro'), afterRecord), true);
-  assert.equal(getTier1ModelPerf(node.id, 'Code-Max'), null,
-    'recordOutcome must keep logical Code-Max state untouched for model_missing');
+  assert.equal(getTier1ModelPerf(node.id, 'Code-Max'), null, 'recordOutcome must keep logical Code-Max state untouched for model_missing');
 
   console.log('tier1-upstream-model-cooldown: all tests passed');
   console.log('ok - file:tier1-upstream-model-cooldown');
@@ -772,13 +918,27 @@ try {
   let passed = 0;
   let failed = 0;
   async function test(name, fn) {
-    try { __resetTier1StateForTests(); await fn(); passed++; console.log(`ok - ${name}`); }
-    catch (error) { failed++; console.error(`FAIL: ${name}`); console.error(error?.stack || error); }
+    try {
+      __resetTier1StateForTests();
+      await fn();
+      passed++;
+      console.log(`ok - ${name}`);
+    } catch (error) {
+      failed++;
+      console.error(`FAIL: ${name}`);
+      console.error(error?.stack || error);
+    }
   }
   function node(id, tier) {
     return {
-      id, tier, provider: 'mock', protocol: 'openai', surfaces: ['chat_completions'],
-      baseUrl: `https://${id}.example.com/v1`, credential: 'secret', priority: 1,
+      id,
+      tier,
+      provider: 'mock',
+      protocol: 'openai',
+      surfaces: ['chat_completions'],
+      baseUrl: `https://${id}.example.com/v1`,
+      credential: 'secret',
+      priority: 1,
       models: { m1: 'upstream-m1' },
     };
   }
@@ -850,7 +1010,8 @@ try {
 
 
 
-  let passed = 0, failed = 0;
+  let passed = 0,
+    failed = 0;
   async function test(name, fn) {
     try {
       __resetTier1StateForTests();
@@ -960,16 +1121,18 @@ try {
   });
 
   await test('Case 3b: tier with wrong protocol -> null', () => {
-    const nodes = [{
-      id: 'anthropic-only',
-      tier: 'tier-2',
-      provider: 'mock',
-      protocol: 'anthropic',
-      surfaces: ['messages'],
-      baseUrl: 'https://example.com',
-      credential: 'secret',
-      models: { m1: 'up-x' },
-    }];
+    const nodes = [
+      {
+        id: 'anthropic-only',
+        tier: 'tier-2',
+        provider: 'mock',
+        protocol: 'anthropic',
+        surfaces: ['messages'],
+        baseUrl: 'https://example.com',
+        credential: 'secret',
+        models: { m1: 'up-x' },
+      },
+    ];
     const pick = pickCandidate(nodes, REQ, new Set(), 1000, null, null, null);
     assert.equal(pick, null, 'protocol mismatch -> null');
   });
@@ -1037,10 +1200,20 @@ try {
   }
 
   const all = catalog(
-    'Code-Ultra', 'Code-Max', 'Code-Pro',
-    'Ultra', 'Max', 'Pro', 'Air',
-    'Audit-Ultra', 'Audit-Max', 'Audit-Pro',
-    'Editor-Air', 'Editor-Pro', 'Editor-Max', 'Editor-Ultra',
+    'Code-Ultra',
+    'Code-Max',
+    'Code-Pro',
+    'Ultra',
+    'Max',
+    'Pro',
+    'Air',
+    'Audit-Ultra',
+    'Audit-Max',
+    'Audit-Pro',
+    'Editor-Air',
+    'Editor-Pro',
+    'Editor-Max',
+    'Editor-Ultra',
   );
 
   assert.deepEqual(
@@ -1165,10 +1338,7 @@ try {
   // candidate set beyond the number of logical attempts the policy allows.
   assert.deepEqual(
     buildModelFallbackPlan('Code-Max', all, 1),
-    [
-      [{ model: 'Code-Max', attemptCap: 1 }],
-      [{ model: 'Code-Max', attemptCap: 1 }],
-    ],
+    [[{ model: 'Code-Max', attemptCap: 1 }], [{ model: 'Code-Max', attemptCap: 1 }]],
     'budget 1 exposes only the requested model',
   );
 
@@ -1292,11 +1462,7 @@ try {
     'candidate list must never cross Code/non-Code families',
   );
 
-  assert.deepEqual(
-    modelFallbackCandidates('Max', all),
-    ['Max', 'Pro', 'Ultra'],
-    'general family candidate list must never include Air',
-  );
+  assert.deepEqual(modelFallbackCandidates('Max', all), ['Max', 'Pro', 'Ultra'], 'general family candidate list must never include Air');
 
   assert.deepEqual(
     buildModelFallbackRounds('Max', catalog('Max', 'Ultra')),
@@ -1343,12 +1509,8 @@ try {
     'unknown model families keep their original policy-owned attempt budget',
   );
 
-
   assert.deepEqual(
-    buildModelFallbackRounds(
-      'Research-Reasoning-Ultra',
-      catalog('Research-Reasoning-Ultra', 'Research-Reasoning-Max', 'Research-Reasoning-Pro'),
-    ),
+    buildModelFallbackRounds('Research-Reasoning-Ultra', catalog('Research-Reasoning-Ultra', 'Research-Reasoning-Max', 'Research-Reasoning-Pro')),
     [
       ['Research-Reasoning-Ultra', 'Research-Reasoning-Max', 'Research-Reasoning-Pro'],
       ['Research-Reasoning-Ultra', 'Research-Reasoning-Max', 'Research-Reasoning-Pro'],
@@ -1356,11 +1518,7 @@ try {
     'arbitrary multi-segment family prefixes must inherit tier fallback without code changes',
   );
 
-  assert.equal(
-    hasModelFamilyFallback('Research-Reasoning-Max'),
-    true,
-    'new prefixed families are recognized from the final capability tier alone',
-  );
+  assert.equal(hasModelFamilyFallback('Research-Reasoning-Max'), true, 'new prefixed families are recognized from the final capability tier alone');
 
   console.log('model-family fallback tests passed.');
   console.log('ok - file:model-family-fallback');

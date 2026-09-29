@@ -62,7 +62,7 @@ try {
       console.log(`ok - ${name}`);
     } catch (e) {
       console.error(`FAIL: ${name}`);
-      console.error(e && e.stack || e);
+      console.error(e?.stack || e);
       process.exitCode = 1;
     }
   }
@@ -76,17 +76,26 @@ try {
       console.log(`ok - ${name}`);
     } catch (e) {
       console.error(`FAIL: ${name}`);
-      console.error(e && e.stack || e);
+      console.error(e?.stack || e);
       process.exitCode = 1;
     }
   }
 
   const ENV = { AIG_ACCESS_KEY_AIR: 'k', AIG_MODELS_CONFIG: JSON.stringify({ air: { policy: 'fast' } }) };
-  const node = (id, models) => ({ id, provider: 'mock', tier: 'tier-1', protocol: 'openai', surfaces: ['chat_completions'], base_url: `https://${id}.example.com/v1`, models, limits: { concurrency: 1 } });
+  const node = (id, models) => ({
+    id,
+    provider: 'mock',
+    tier: 'tier-1',
+    protocol: 'openai',
+    surfaces: ['chat_completions'],
+    base_url: `https://${id}.example.com/v1`,
+    models,
+    limits: { concurrency: 1 },
+  });
   const now = () => 1_700_000_000_000;
 
   function findModelStatus(result, id) {
-    const list = Array.isArray(result) ? result : (result?.models || []);
+    const list = Array.isArray(result) ? result : result?.models || [];
     const entry = list.find((m) => m.id === id);
     if (!entry) throw new Error(`no model ${id} in result`);
     return entry.status;
@@ -188,8 +197,8 @@ try {
     // serves 'air' (because another node maps it), even though its own models
     // map is empty.
     const nodes = [
-      node('a', {}),                                // wildcard
-      node('b', { 'public-air': 'up-air' }),         // explicit
+      node('a', {}), // wildcard
+      node('b', { 'public-air': 'up-air' }), // explicit
     ];
     const list = getPublicModelStatus(nodes, ENV, new Set(['public-air']), now());
     // Node mappings are the primary source; 'public-air' is in node b's map.
@@ -203,7 +212,10 @@ try {
     // Source is node mappings (primary). Build a single node with three models.
     const nodes = [node('a', { zeta: 'up-zeta', alpha: 'up-alpha', mid: 'up-mid' })];
     const list = getPublicModelStatus(nodes, ENV, new Set(), now());
-    assert.deepEqual(list.models.map((m) => m.id), ['alpha', 'mid', 'zeta']);
+    assert.deepEqual(
+      list.models.map((m) => m.id),
+      ['alpha', 'mid', 'zeta'],
+    );
     assert.equal(list.observed_at, new Date(now()).toISOString(), 'envelope carries observed_at');
   });
 
@@ -291,8 +303,8 @@ try {
   await testAsync('queryRecentModelEvidence: only rows in the window count', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    const h0 = Math.floor((now() - 30 * 60_000) / HOUR) * HOUR;          // 30 min ago: in window
-    const hOld = Math.floor((now() - 30 * HOUR) / HOUR) * HOUR;            // 30h ago: out of window
+    const h0 = Math.floor((now() - 30 * 60_000) / HOUR) * HOUR; // 30 min ago: in window
+    const hOld = Math.floor((now() - 30 * HOUR) / HOUR) * HOUR; // 30h ago: out of window
     const { persistTokenUsage } = await import('#target/src/observability/token-usage-store.ts');
     await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'air');
     await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, hOld, 'oldmodel');
@@ -312,8 +324,7 @@ try {
     const { persistTokenUsage } = await import('#target/src/observability/token-usage-store.ts');
     await persistTokenUsage(env, null, h0, 'broken-only');
     const out = await queryRecentModelEvidence(env, MODEL_STATUS_RECENT_WINDOW_MS, now());
-    assert.ok(out.has('broken-only'),
-      'a row with requests > 0 (even if missing-usage) still counts as recent activity');
+    assert.ok(out.has('broken-only'), 'a row with requests > 0 (even if missing-usage) still counts as recent activity');
   });
 
   // --- 16. Window constants: 24h recent + 7d historical ------------------------
@@ -337,18 +348,24 @@ try {
     __resetTier1StateForTests();
     __resetAllStateForTests();
     const bList = getPublicModelStatus(nodes, ENV, evidence, now());
-    assert.equal(findModelStatus(bList, 'air'), 'available',
-      'cold-start with persistent D1 evidence must remain available');
+    assert.equal(findModelStatus(bList, 'air'), 'available', 'cold-start with persistent D1 evidence must remain available');
   });
 
   // --- 18. Three-tier aggregation: a model served only by tier 3 still works --
 
   test('model served by tier 3 (legacy state) is read correctly', () => {
     // Pure-tier-3 node: no Tier 1 state at all.
-    const nodes = [{
-      id: 't3', provider: 'mock', protocol: 'openai', surfaces: ['chat_completions'],
-      base_url: 'https://t3.example.com/v1', tier: 'tier-3', models: { air: 'up-air' },
-    }];
+    const nodes = [
+      {
+        id: 't3',
+        provider: 'mock',
+        protocol: 'openai',
+        surfaces: ['chat_completions'],
+        base_url: 'https://t3.example.com/v1',
+        tier: 'tier-3',
+        models: { air: 'up-air' },
+      },
+    ];
     // No Tier 1 state -> runtime is 'unobserved' for this node
     const list = getPublicModelStatus(nodes, ENV, new Set(['air']), now());
     // D1 has evidence -> available (case D)
@@ -418,11 +435,10 @@ try {
     // coalesced by the existing dashboard cache, not re-issued.
     const readsBefore = d1._reads.length;
     const req = () => new Request('https://gateway.example.com/', { headers: { accept: 'text/html' } });
-    const [h1, h2] = await Promise.all([
-      (await dashboardResponse(req(), env)).text(),
-      (await dashboardResponse(req(), env)).text(),
-    ]);
-    assert.equal(h1, h2, 'cached');
+    const [h1, h2] = await Promise.all([(await dashboardResponse(req(), env)).text(), (await dashboardResponse(req(), env)).text()]);
+    // Each render mints its own CSP nonce, so strip it before comparing.
+    const stripNonce = (html) => html.replace(/nonce="[^"]*"/g, 'nonce=""');
+    assert.equal(stripNonce(h1), stripNonce(h2), 'cached');
     // Two concurrent pages should add at most ONE new read of the model table
     // (the cache coalesces). The recent-evidence and historical-evidence queries
     // are both GROUP BY model and distinct from the model-usage GROUP BY model
@@ -435,45 +451,69 @@ try {
   // --- 21. Config-driven model order and grouping ------------------------------
 
   test('config-driven model order: display_order controls sort order', () => {
-    const env = { AIG_ACCESS_KEY_AIR: 'k', AIG_MODELS_CONFIG: JSON.stringify({
-      alpha: { policy: 'default', display_order: 30, group: 'general' },
-      beta: { policy: 'default', display_order: 10, group: 'general' },
-      gamma: { policy: 'default', display_order: 20, group: 'general' },
-    }) };
+    const env = {
+      AIG_ACCESS_KEY_AIR: 'k',
+      AIG_MODELS_CONFIG: JSON.stringify({
+        alpha: { policy: 'default', display_order: 30, group: 'general' },
+        beta: { policy: 'default', display_order: 10, group: 'general' },
+        gamma: { policy: 'default', display_order: 20, group: 'general' },
+      }),
+    };
     const nodes = [node('n1', { alpha: 'up', beta: 'up', gamma: 'up' })];
     const list = getPublicModelStatus(nodes, env, new Set(['alpha', 'beta', 'gamma']), now());
-    assert.deepEqual(list.models.map((m) => m.id), ['beta', 'gamma', 'alpha']);
+    assert.deepEqual(
+      list.models.map((m) => m.id),
+      ['beta', 'gamma', 'alpha'],
+    );
   });
 
   test('config-driven grouping: group field controls which block a model appears in', () => {
-    const env = { AIG_ACCESS_KEY_AIR: 'k', AIG_MODELS_CONFIG: JSON.stringify({
-      air: { policy: 'default', display_order: 10, group: 'general' },
-      pro: { policy: 'default', display_order: 20, group: 'general' },
-      codeair: { policy: 'default', display_order: 10, group: 'coding' },
-      codepro: { policy: 'default', display_order: 20, group: 'coding' },
-    }) };
+    const env = {
+      AIG_ACCESS_KEY_AIR: 'k',
+      AIG_MODELS_CONFIG: JSON.stringify({
+        air: { policy: 'default', display_order: 10, group: 'general' },
+        pro: { policy: 'default', display_order: 20, group: 'general' },
+        codeair: { policy: 'default', display_order: 10, group: 'coding' },
+        codepro: { policy: 'default', display_order: 20, group: 'coding' },
+      }),
+    };
     const nodes = [node('n1', { air: 'up', pro: 'up', codeair: 'up', codepro: 'up' })];
     const list = getPublicModelStatus(nodes, env, new Set(['air', 'pro', 'codeair', 'codepro']), now());
     const generalModels = list.models.filter((m) => m.group === 'general');
     const codingModels = list.models.filter((m) => m.group === 'coding');
-    assert.deepEqual(generalModels.map((m) => m.id), ['air', 'pro']);
-    assert.deepEqual(codingModels.map((m) => m.id), ['codeair', 'codepro']);
+    assert.deepEqual(
+      generalModels.map((m) => m.id),
+      ['air', 'pro'],
+    );
+    assert.deepEqual(
+      codingModels.map((m) => m.id),
+      ['codeair', 'codepro'],
+    );
   });
 
   test('display_order missing uses default 100', () => {
-    const env = { AIG_ACCESS_KEY_AIR: 'k', AIG_MODELS_CONFIG: JSON.stringify({
-      zebra: { policy: 'default' },
-      alpha: { policy: 'default', display_order: 10 },
-    }) };
+    const env = {
+      AIG_ACCESS_KEY_AIR: 'k',
+      AIG_MODELS_CONFIG: JSON.stringify({
+        zebra: { policy: 'default' },
+        alpha: { policy: 'default', display_order: 10 },
+      }),
+    };
     const nodes = [node('n1', { zebra: 'up', alpha: 'up' })];
     const list = getPublicModelStatus(nodes, env, new Set(['zebra', 'alpha']), now());
-    assert.deepEqual(list.models.map((m) => m.id), ['alpha', 'zebra']);
+    assert.deepEqual(
+      list.models.map((m) => m.id),
+      ['alpha', 'zebra'],
+    );
   });
 
   test('group missing defaults to general', () => {
-    const env = { AIG_ACCESS_KEY_AIR: 'k', AIG_MODELS_CONFIG: JSON.stringify({
-      solo: { policy: 'default', display_order: 5 },
-    }) };
+    const env = {
+      AIG_ACCESS_KEY_AIR: 'k',
+      AIG_MODELS_CONFIG: JSON.stringify({
+        solo: { policy: 'default', display_order: 5 },
+      }),
+    };
     const nodes = [node('n1', { solo: 'up' })];
     const list = getPublicModelStatus(nodes, env, new Set(['solo']), now());
     assert.equal(list.models[0].group, 'general');
@@ -489,19 +529,28 @@ try {
   // --- 22. v1.2.7 Model Governance: ui_visible and 10-model catalog ---------
 
   test('ui_visible=false hides model from public status', () => {
-    const env = { AIG_ACCESS_KEY_AIR: 'k', AIG_MODELS_CONFIG: JSON.stringify({
-      Air: { policy: 'default', group: 'general', ui_visible: true },
-      Omni: { policy: 'default', group: 'omni', ui_visible: false },
-    }) };
+    const env = {
+      AIG_ACCESS_KEY_AIR: 'k',
+      AIG_MODELS_CONFIG: JSON.stringify({
+        Air: { policy: 'default', group: 'general', ui_visible: true },
+        Omni: { policy: 'default', group: 'omni', ui_visible: false },
+      }),
+    };
     const nodes = [node('n1', { Air: 'up', Omni: 'up' })];
     const list = getPublicModelStatus(nodes, env, new Set(['Air', 'Omni']), now());
-    assert.deepEqual(list.models.map((m) => m.id), ['Air']);
+    assert.deepEqual(
+      list.models.map((m) => m.id),
+      ['Air'],
+    );
   });
 
   test('ui_visible defaults to true when not specified', () => {
-    const env = { AIG_ACCESS_KEY_AIR: 'k', AIG_MODELS_CONFIG: JSON.stringify({
-      Air: { policy: 'default', group: 'general' },
-    }) };
+    const env = {
+      AIG_ACCESS_KEY_AIR: 'k',
+      AIG_MODELS_CONFIG: JSON.stringify({
+        Air: { policy: 'default', group: 'general' },
+      }),
+    };
     const nodes = [node('n1', { Air: 'up' })];
     const list = getPublicModelStatus(nodes, env, new Set(['Air']), now());
     assert.equal(list.models.length, 1);
@@ -509,28 +558,41 @@ try {
   });
 
   test('Omni and OCR excluded from public status with ui_visible=false', () => {
-    const env = { AIG_ACCESS_KEY_AIR: 'k', AIG_MODELS_CONFIG: JSON.stringify({
-      Air: { policy: 'default', group: 'general', ui_visible: true, display_order: 10 },
-      Pro: { policy: 'default', group: 'general', ui_visible: true, display_order: 20 },
-      Max: { policy: 'default', group: 'general', ui_visible: true, display_order: 30 },
-      Ultra: { policy: 'default', group: 'general', ui_visible: true, display_order: 40 },
-      'Code-Air': { policy: 'default', group: 'code', ui_visible: true, display_order: 10 },
-      'Code-Pro': { policy: 'default', group: 'code', ui_visible: true, display_order: 20 },
-      'Code-Max': { policy: 'default', group: 'code', ui_visible: true, display_order: 30 },
-      'Code-Ultra': { policy: 'default', group: 'code', ui_visible: true, display_order: 40 },
-      Omni: { policy: 'default', group: 'omni', ui_visible: false, display_order: 10 },
-      OCR: { policy: 'default', group: 'ocr', ui_visible: false, display_order: 10 },
-    }) };
-    const nodes = [node('n1', {
-      Air: 'up', Pro: 'up', Max: 'up', Ultra: 'up',
-      'Code-Air': 'up', 'Code-Pro': 'up', 'Code-Max': 'up', 'Code-Ultra': 'up',
-      Omni: 'up', OCR: 'up',
-    })];
-    const list = getPublicModelStatus(nodes, env, new Set([
-      'Air', 'Pro', 'Max', 'Ultra',
-      'Code-Air', 'Code-Pro', 'Code-Max', 'Code-Ultra',
-      'Omni', 'OCR',
-    ]), now());
+    const env = {
+      AIG_ACCESS_KEY_AIR: 'k',
+      AIG_MODELS_CONFIG: JSON.stringify({
+        Air: { policy: 'default', group: 'general', ui_visible: true, display_order: 10 },
+        Pro: { policy: 'default', group: 'general', ui_visible: true, display_order: 20 },
+        Max: { policy: 'default', group: 'general', ui_visible: true, display_order: 30 },
+        Ultra: { policy: 'default', group: 'general', ui_visible: true, display_order: 40 },
+        'Code-Air': { policy: 'default', group: 'code', ui_visible: true, display_order: 10 },
+        'Code-Pro': { policy: 'default', group: 'code', ui_visible: true, display_order: 20 },
+        'Code-Max': { policy: 'default', group: 'code', ui_visible: true, display_order: 30 },
+        'Code-Ultra': { policy: 'default', group: 'code', ui_visible: true, display_order: 40 },
+        Omni: { policy: 'default', group: 'omni', ui_visible: false, display_order: 10 },
+        OCR: { policy: 'default', group: 'ocr', ui_visible: false, display_order: 10 },
+      }),
+    };
+    const nodes = [
+      node('n1', {
+        Air: 'up',
+        Pro: 'up',
+        Max: 'up',
+        Ultra: 'up',
+        'Code-Air': 'up',
+        'Code-Pro': 'up',
+        'Code-Max': 'up',
+        'Code-Ultra': 'up',
+        Omni: 'up',
+        OCR: 'up',
+      }),
+    ];
+    const list = getPublicModelStatus(
+      nodes,
+      env,
+      new Set(['Air', 'Pro', 'Max', 'Ultra', 'Code-Air', 'Code-Pro', 'Code-Max', 'Code-Ultra', 'Omni', 'OCR']),
+      now(),
+    );
     const ids = list.models.map((m) => m.id);
     assert.deepEqual(ids, ['Air', 'Pro', 'Max', 'Ultra', 'Code-Air', 'Code-Pro', 'Code-Max', 'Code-Ultra']);
     assert.ok(!ids.includes('Omni'), 'Omni must not appear in public status');
@@ -538,12 +600,15 @@ try {
   });
 
   test('group values: general, code, omni, ocr from config', () => {
-    const env = { AIG_ACCESS_KEY_AIR: 'k', AIG_MODELS_CONFIG: JSON.stringify({
-      Air: { policy: 'default', group: 'general', ui_visible: true },
-      'Code-Air': { policy: 'default', group: 'code', ui_visible: true },
-      Omni: { policy: 'default', group: 'omni', ui_visible: false },
-      OCR: { policy: 'default', group: 'ocr', ui_visible: false },
-    }) };
+    const env = {
+      AIG_ACCESS_KEY_AIR: 'k',
+      AIG_MODELS_CONFIG: JSON.stringify({
+        Air: { policy: 'default', group: 'general', ui_visible: true },
+        'Code-Air': { policy: 'default', group: 'code', ui_visible: true },
+        Omni: { policy: 'default', group: 'omni', ui_visible: false },
+        OCR: { policy: 'default', group: 'ocr', ui_visible: false },
+      }),
+    };
     const nodes = [node('n1', { Air: 'up', 'Code-Air': 'up', Omni: 'up', OCR: 'up' })];
     const list = getPublicModelStatus(nodes, env, new Set(['Air', 'Code-Air', 'Omni', 'OCR']), now());
     // Only Air and Code-Air are ui_visible=true
@@ -568,9 +633,12 @@ try {
   });
 
   test('ui_visible=false with visibility=public still hidden from public status', () => {
-    const env = { AIG_ACCESS_KEY_AIR: 'k', AIG_MODELS_CONFIG: JSON.stringify({
-      Omni: { policy: 'default', visibility: 'public', ui_visible: false, group: 'omni' },
-    }) };
+    const env = {
+      AIG_ACCESS_KEY_AIR: 'k',
+      AIG_MODELS_CONFIG: JSON.stringify({
+        Omni: { policy: 'default', visibility: 'public', ui_visible: false, group: 'omni' },
+      }),
+    };
     const nodes = [node('n1', { Omni: 'up' })];
     const list = getPublicModelStatus(nodes, env, new Set(['Omni']), now());
     assert.equal(list.models.length, 0);
@@ -587,8 +655,7 @@ try {
   test('canonical evidence: logical Code-Max matches lowercase code-max evidence', () => {
     const nodes = [node('a', { 'Code-Max': 'up-cm' })];
     const list = getPublicModelStatus(nodes, ENV, new Set(['code-max']), now());
-    assert.equal(findModelStatus(list, 'Code-Max'), 'available',
-      'lowercase stats evidence must count as recent for the official ID');
+    assert.equal(findModelStatus(list, 'Code-Max'), 'available', 'lowercase stats evidence must count as recent for the official ID');
   });
 
   test('canonical evidence: every evidence case variant yields the same result', () => {
@@ -613,8 +680,11 @@ try {
   test('canonicalization does not alter the official model ID surface', () => {
     const nodes = [node('a', { 'Code-Max': 'up-cm' })];
     const list = getPublicModelStatus(nodes, ENV, new Set(['code-max']), now());
-    assert.deepEqual(list.models.map((m) => m.id), ['Code-Max'],
-      'public output keeps the official logical ID; only evidence matching is canonical');
+    assert.deepEqual(
+      list.models.map((m) => m.id),
+      ['Code-Max'],
+      'public output keeps the official logical ID; only evidence matching is canonical',
+    );
   });
 
   console.log(`\nmodel-status tests: ${passed} passed.`);
@@ -660,28 +730,33 @@ try {
 
 
 
-
-
   const HOUR = 3_600_000;
   const now = () => 1_700_000_000_000;
 
   let failures = 0;
   function check(name, ok, detail) {
     if (ok) console.log(`  ok  ${name}`);
-    else { failures++; console.error(`FAIL  ${name}${detail ? ` — ${detail}` : ''}`); }
+    else {
+      failures++;
+      console.error(`FAIL  ${name}${detail ? ` — ${detail}` : ''}`);
+    }
   }
 
   // ---- C01: one definition, consistent re-exports ------------------------------
   const storeConstant = (await import('#target/src/observability/token-usage-store.ts')).MODEL_STATUS_RECENT_WINDOW_MS;
   const runtimeConstant = (await import('#target/src/runtime/model-status.ts')).MODEL_STATUS_RECENT_WINDOW_MS;
-  check('C01 store and runtime expose the SAME 24h binding',
+  check(
+    'C01 store and runtime expose the SAME 24h binding',
     storeConstant === runtimeConstant && runtimeConstant === 24 * HOUR,
-    `store=${storeConstant} runtime=${runtimeConstant}`);
+    `store=${storeConstant} runtime=${runtimeConstant}`,
+  );
   const storeHist = (await import('#target/src/observability/token-usage-store.ts')).MODEL_STATUS_HISTORICAL_WINDOW_MS;
   const runtimeHist = (await import('#target/src/runtime/model-status.ts')).MODEL_STATUS_HISTORICAL_WINDOW_MS;
-  check('C01 store and runtime expose the SAME 7d historical binding',
+  check(
+    'C01 store and runtime expose the SAME 7d historical binding',
     storeHist === runtimeHist && runtimeHist === 7 * 24 * HOUR,
-    `store=${storeHist} runtime=${runtimeHist}`);
+    `store=${storeHist} runtime=${runtimeHist}`,
+  );
 
   // ---- C02 + C03: default window is the constant; boundary behavior -------------
   {
@@ -689,9 +764,11 @@ try {
     const { createMockD1 } = await import('#kit/mock-d1-database.mjs');
 
     const src = readFileSync(join(root, 'src/observability/token-usage-store/queries.ts'), 'utf8');
-    check('C02 queryRecentModelEvidence default window is the constant',
-      /queryRecentModelEvidence\(env: GatewayEnv, windowMs: number = MODEL_STATUS_RECENT_WINDOW_MS/.test(src)
-        && /export const MODEL_STATUS_RECENT_WINDOW_MS = 24 \* HOUR_MS;/.test(src));
+    check(
+      'C02 queryRecentModelEvidence default window is the constant',
+      /queryRecentModelEvidence\(\s*env: GatewayEnv,\s*windowMs: number = MODEL_STATUS_RECENT_WINDOW_MS/.test(src) &&
+        /export const MODEL_STATUS_RECENT_WINDOW_MS = 24 \* HOUR_MS;/.test(src),
+    );
 
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
@@ -700,28 +777,30 @@ try {
     await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h23, 'in-23h');
     await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h25, 'out-25h');
     const evidence = await queryRecentModelEvidence(env, undefined, now());
-    check('C03 23h-old success is evidence, 25h-old is not',
+    check(
+      'C03 23h-old success is evidence, 25h-old is not',
       evidence.has('in-23h') && !evidence.has('out-25h'),
-      `evidence=${JSON.stringify([...evidence])}`);
+      `evidence=${JSON.stringify([...evidence])}`,
+    );
   }
 
   // ---- C04 + C05: dashboard call site and magic-number ban ----------------------
   {
     const usageView = readFileSync(join(root, 'src/dashboard/usage-view.ts'), 'utf8');
-    check('C04 dashboard recent-evidence call passes MODEL_STATUS_RECENT_WINDOW_MS',
-      /queryRecentModelEvidence\(env, MODEL_STATUS_RECENT_WINDOW_MS, now\)/.test(usageView));
-    check('C04b dashboard TTFT call passes MODEL_STATUS_RECENT_WINDOW_MS (24h)',
-      /queryAllModelsTtftPercentiles\(env, MODEL_STATUS_RECENT_WINDOW_MS, now\)/.test(usageView));
-    check('C04c dashboard historical-evidence call passes MODEL_STATUS_HISTORICAL_WINDOW_MS (7d)',
-      /queryRecentModelEvidence\(env, MODEL_STATUS_HISTORICAL_WINDOW_MS, now\)/.test(usageView));
+    check(
+      'C04 dashboard recent-evidence call passes MODEL_STATUS_RECENT_WINDOW_MS',
+      /queryRecentModelEvidence\(env, MODEL_STATUS_RECENT_WINDOW_MS, now\)/.test(usageView),
+    );
+    check(
+      'C04b dashboard TTFT call passes MODEL_STATUS_RECENT_WINDOW_MS (24h)',
+      /queryAllModelsTtftPercentiles\(env, MODEL_STATUS_RECENT_WINDOW_MS, now\)/.test(usageView),
+    );
+    check(
+      'C04c dashboard historical-evidence call passes MODEL_STATUS_HISTORICAL_WINDOW_MS (7d)',
+      /queryRecentModelEvidence\(env, MODEL_STATUS_HISTORICAL_WINDOW_MS, now\)/.test(usageView),
+    );
 
-    const banned = [
-      /7 \* 24 \* 60 \* 60 \* 1000/,
-      /604_?800_000/,
-      /168 \* 60 \* 60 \* 1000/,
-      /168 \* HOUR/,
-      /7 \* 24 \* HOUR/,
-    ];
+    const banned = [/7 \* 24 \* 60 \* 60 \* 1000/, /604_?800_000/, /168 \* 60 \* 60 \* 1000/, /168 \* HOUR/, /7 \* 24 \* HOUR/];
     const chainFiles = [
       'src/dashboard/usage-view.ts',
       'src/dashboard/pages.ts',
@@ -739,11 +818,13 @@ try {
     check('C05 no second RECENT-evidence window literal in the chain', hit === '', hit);
     // The runtime module must re-export both constants, not redefine them.
     const runtimeSrc = readFileSync(join(root, 'src/runtime/model-status.ts'), 'utf8');
-    check('C05b runtime model-status re-exports both window constants (no redefine)',
-      /export \{[^}]*MODEL_STATUS_RECENT_WINDOW_MS[^}]*\} from '\.\.\/observability\/token-usage-store\.ts'/.test(runtimeSrc)
-        && /export \{[^}]*MODEL_STATUS_HISTORICAL_WINDOW_MS[^}]*\} from '\.\.\/observability\/token-usage-store\.ts'/.test(runtimeSrc)
-        && !/MODEL_STATUS_RECENT_WINDOW_MS = 24 \* 3600_000/.test(runtimeSrc)
-        && !/MODEL_STATUS_HISTORICAL_WINDOW_MS = /.test(runtimeSrc));
+    check(
+      'C05b runtime model-status re-exports both window constants (no redefine)',
+      /export \{[^}]*MODEL_STATUS_RECENT_WINDOW_MS[^}]*\} from '\.\.\/observability\/token-usage-store\.ts'/.test(runtimeSrc) &&
+        /export \{[^}]*MODEL_STATUS_HISTORICAL_WINDOW_MS[^}]*\} from '\.\.\/observability\/token-usage-store\.ts'/.test(runtimeSrc) &&
+        !/MODEL_STATUS_RECENT_WINDOW_MS = 24 \* 3600_000/.test(runtimeSrc) &&
+        !/MODEL_STATUS_HISTORICAL_WINDOW_MS = /.test(runtimeSrc),
+    );
   }
 
   if (failures > 0) {
@@ -780,11 +861,17 @@ try {
 
 
 
-
   let passed = 0;
   function test(name, fn) {
-    try { fn(); passed++; console.log(`ok - ${name}`); }
-    catch (e) { console.error(`FAIL - ${name}`); console.error(e?.stack || e); process.exitCode = 1; }
+    try {
+      fn();
+      passed++;
+      console.log(`ok - ${name}`);
+    } catch (e) {
+      console.error(`FAIL - ${name}`);
+      console.error(e?.stack || e);
+      process.exitCode = 1;
+    }
   }
 
   const ACCESS_KEY = 'model-catalog-policy-test-key';
@@ -801,8 +888,7 @@ try {
   const ENV_WITH_ENTRY = { AIG_MODELS_CONFIG: JSON.stringify({ 'code-pro': FLAT_ENTRY }) };
 
   test('the operator-facing AIG_MODELS_CONFIG schema stays flat', () => {
-    assert.deepEqual(getModelsConfigDiagnostics(ENV_WITH_ENTRY), [],
-      'a pre-separation flat entry must parse without any diagnostic');
+    assert.deepEqual(getModelsConfigDiagnostics(ENV_WITH_ENTRY), [], 'a pre-separation flat entry must parse without any diagnostic');
     const models = loadModelsConfig(ENV_WITH_ENTRY);
     assert.ok(models['code-pro'], 'entry loads');
   });
@@ -825,9 +911,11 @@ try {
   test('each side keeps its declared values and independent defaults', () => {
     const reg = loadModelRegistry(ENV_WITH_ENTRY);
     const entry = reg['code-pro'];
-    assert.deepEqual(entry.catalog.capabilities,
+    assert.deepEqual(
+      entry.catalog.capabilities,
       { tools: false, reasoning: false, vision: true, stream: true, ocr: false },
-      'catalog defaults merge with declared capabilities');
+      'catalog defaults merge with declared capabilities',
+    );
     assert.deepEqual(entry.catalog.reasoning_efforts, ['high']);
     assert.deepEqual(entry.catalog.modalities, { input: ['text', 'image'], output: ['text'] });
     assert.deepEqual(entry.policy, { policy: 'fast', visibility: 'internal', display_order: 7, group: 'lab', ui_visible: false });
@@ -858,8 +946,11 @@ try {
   test('new model families stay data-driven through the known-model catalog', () => {
     const known = new Set(['Draft-Ultra', 'Draft-Max', 'Draft-Pro']);
     const rounds = buildModelFallbackRounds('Draft-Ultra', known);
-    assert.deepEqual(rounds[0], ['Draft-Ultra', 'Draft-Max', 'Draft-Pro'],
-      'an arbitrary future family needs no source change, only catalog/config entries');
+    assert.deepEqual(
+      rounds[0],
+      ['Draft-Ultra', 'Draft-Max', 'Draft-Pro'],
+      'an arbitrary future family needs no source change, only catalog/config entries',
+    );
   });
 
   // ---- Scenario: adding a model is configuration-only, end to end ----
@@ -882,17 +973,23 @@ try {
 
   test('scenario: a brand-new model routes and reports via configuration alone', async () => {
     const upstreamCalls = [];
-    const finish = () => { globalThis.fetch = undefined; };
+    const finish = () => {
+      globalThis.fetch = undefined;
+    };
     globalThis.fetch = async (input) => {
       const url = new URL(typeof input === 'string' ? input : input.url);
       upstreamCalls.push(url.hostname);
       assert.equal(url.pathname, '/v1/chat/completions');
-      return new Response(JSON.stringify({
-        id: 'chatcmpl-x', object: 'chat.completion',
-        model: 'gpt-brand-new',
-        choices: [{ index: 0, message: { role: 'assistant', content: 'fresh model served' }, finish_reason: 'stop' }],
-        usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 },
-      }), { status: 200, headers: { 'content-type': 'application/json' } });
+      return new Response(
+        JSON.stringify({
+          id: 'chatcmpl-x',
+          object: 'chat.completion',
+          model: 'gpt-brand-new',
+          choices: [{ index: 0, message: { role: 'assistant', content: 'fresh model served' }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 },
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
     };
 
     try {
@@ -902,25 +999,35 @@ try {
         }),
       });
 
-      const chat = await worker.fetch(new Request('https://gateway.example.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${ACCESS_KEY}` },
-        body: JSON.stringify({ model: 'Brand-New', messages: [{ role: 'user', content: 'hi' }] }),
-      }), env, {});
+      const chat = await worker.fetch(
+        new Request('https://gateway.example.com/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${ACCESS_KEY}` },
+          body: JSON.stringify({ model: 'Brand-New', messages: [{ role: 'user', content: 'hi' }] }),
+        }),
+        env,
+        {},
+      );
       assert.equal(chat.status, 200, 'the new model must be callable with zero source changes');
       assert.match(await chat.text(), /fresh model served/);
       assert.deepEqual(upstreamCalls, ['brand-new-node.example.com']);
 
-      const list = await worker.fetch(new Request('https://gateway.example.com/v1/models', {
-        headers: { authorization: `Bearer ${ACCESS_KEY}` },
-      }), env, {});
+      const list = await worker.fetch(
+        new Request('https://gateway.example.com/v1/models', {
+          headers: { authorization: `Bearer ${ACCESS_KEY}` },
+        }),
+        env,
+        {},
+      );
       assert.equal(list.status, 200);
       const payload = await list.json();
       const entry = payload.data.find((m) => m.id === 'Brand-New');
       assert.ok(entry, 'the new model appears in /v1/models driven by its catalog facts');
       assert.equal(entry.supports_tools, true);
       assert.deepEqual(entry.reasoning_efforts, ['medium']);
-    } finally { finish(); }
+    } finally {
+      finish();
+    }
   });
 
   console.log(`[model-catalog-policy-test] ${passed} checks passed`);
@@ -1045,10 +1152,15 @@ try {
   const previous = {
     schema_version: 1,
     generated_at: '2026-09-11T00:00:00.000Z',
-    nodes: [{
-      node_id: 'provider-a-01', provider: 'provider-a', status: 'ok',
-      models: ['model-a', 'model-old'], capabilities: {},
-    }],
+    nodes: [
+      {
+        node_id: 'provider-a-01',
+        provider: 'provider-a',
+        status: 'ok',
+        models: ['model-a', 'model-old'],
+        capabilities: {},
+      },
+    ],
   };
   const current = {
     schema_version: 1,
@@ -1069,10 +1181,16 @@ try {
   const failedCurrent = {
     schema_version: 1,
     generated_at: '2026-09-12T01:00:00.000Z',
-    nodes: [{
-      node_id: 'provider-a-01', provider: 'provider-a', status: 'scan_failed',
-      models: [], capabilities: {}, error: 'HTTP 503',
-    }],
+    nodes: [
+      {
+        node_id: 'provider-a-01',
+        provider: 'provider-a',
+        status: 'scan_failed',
+        models: [],
+        capabilities: {},
+        error: 'HTTP 503',
+      },
+    ],
   };
   const failedDiff = diffModelSnapshots(previous, failedCurrent);
   assert.deepEqual(failedDiff.changes[0].removed, []);
