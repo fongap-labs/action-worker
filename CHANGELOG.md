@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: add an approved thin PR dispatcher template whose runner is resolved centrally, with a self-hosted control profile, and let the security gate exempt a workflow only while it is byte-identical to an audited hash.
+
 - test: follow the internal-vault#43 brick rename to global_market_fetch and assert the fake token body instead of a contiguous credential literal in the internal-vault test pack.
 
 - test: assert the English Hugo checksum error message in the internal-vault test pack, matching the English-only messages of internal-vault#43.

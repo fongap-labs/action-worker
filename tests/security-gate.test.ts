@@ -77,3 +77,64 @@ test("security gate rejects sensitive files and unpinned workflow actions", asyn
     true
   );
 });
+
+const templatePath = resolve("templates/pr-dispatcher/dispatch-pr-governance.yml");
+const approvedPath = ".github/workflows/dispatch-pr-governance.yml";
+
+async function commitWorkflow(
+  path: string,
+  content: string
+): Promise<{ root: string; base: string; head: string }> {
+  const root = await initRepo();
+  const base = await git(root, ["rev-parse", "HEAD"]);
+  await mkdir(join(root, ".github", "workflows"), { recursive: true });
+  await writeFile(join(root, path), content, "utf8");
+  await git(root, ["add", "."]);
+  await git(root, ["commit", "-qm", "workflow"]);
+  return { root, base, head: await git(root, ["rev-parse", "HEAD"]) };
+}
+
+test("security gate exempts only the byte-identical approved pull_request_target dispatcher", async (context) => {
+  const { readFile } = await import("node:fs/promises");
+  const template = await readFile(templatePath, "utf8");
+
+  const approved = await commitWorkflow(approvedPath, template);
+  context.after(() => rm(approved.root, { recursive: true, force: true }));
+  assert.deepEqual(
+    await collectSecurityViolations(approved.root, approved.base, approved.head, policyPath),
+    []
+  );
+
+  const crlf = await commitWorkflow(approvedPath, template.replace(/\n/g, "\r\n"));
+  context.after(() => rm(crlf.root, { recursive: true, force: true }));
+  assert.deepEqual(
+    await collectSecurityViolations(crlf.root, crlf.base, crlf.head, policyPath),
+    []
+  );
+
+  const edited = await commitWorkflow(approvedPath, `${template}# edited\n`);
+  context.after(() => rm(edited.root, { recursive: true, force: true }));
+  const editedViolations = await collectSecurityViolations(
+    edited.root,
+    edited.base,
+    edited.head,
+    policyPath
+  );
+  assert.equal(
+    editedViolations.some((item) => item.rule === "pull-request-target"),
+    true
+  );
+
+  const elsewhere = await commitWorkflow(".github/workflows/other.yml", template);
+  context.after(() => rm(elsewhere.root, { recursive: true, force: true }));
+  const elsewhereViolations = await collectSecurityViolations(
+    elsewhere.root,
+    elsewhere.base,
+    elsewhere.head,
+    policyPath
+  );
+  assert.equal(
+    elsewhereViolations.some((item) => item.rule === "pull-request-target"),
+    true
+  );
+});
