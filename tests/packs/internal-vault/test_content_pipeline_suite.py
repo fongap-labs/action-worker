@@ -786,7 +786,7 @@ def test_hugo_download_requires_pinned_sha256(tmp_path):
 
     source = (ROOT / "bricks" / "hugo_artifact_build.py").read_text(encoding="utf-8")
     assert "_sha256_of" in source
-    assert "Hugo 下载校验失败" in source
+    assert "Hugo download checksum mismatch" in source
 
     from bricks.hugo_artifact_build import execute as HugoBuild
 
