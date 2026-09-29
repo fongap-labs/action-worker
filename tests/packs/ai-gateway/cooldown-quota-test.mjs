@@ -49,15 +49,15 @@ try {
   reset();
   assert.deepEqual(
     [...ADAPTIVE_429_COOLDOWN_STEPS_MS],
-    [15_000, 30_000, 60_000, 120_000, 300_000, 900_000, 1_800_000, 3_600_000],
-    'adaptive 429 ladder must stay bounded at one hour',
+    [15_000, 30_000, 60_000, 120_000, 300_000, 600_000, 1_200_000, 1_800_000],
+    'adaptive 429 ladder must stay bounded at thirty minutes',
   );
 
   assert.equal(nextAdaptive429CooldownMs('nvidia', 'key-01', 0, base), 15_000);
   assert.equal(snapshotAdaptive429State('nvidia', 'key-01', base).stage, 1);
 
   // Extra 429s from requests already in flight during the same cooldown must not
-  // escalate the stage. A burst of parallel 429s must never jump to one hour.
+  // escalate the stage. A burst of parallel 429s must never jump to the top step.
   assert.equal(nextAdaptive429CooldownMs('nvidia', 'key-01', 0, base + 1_000), 14_000);
   assert.equal(snapshotAdaptive429State('nvidia', 'key-01', base + 1_000).stage, 1);
 
@@ -67,7 +67,7 @@ try {
   assert.equal(snapshotAdaptive429State('nvidia', 'key-01', base + 15_001).stage, 2);
 
   let now = base + 15_001;
-  for (const expected of [60_000, 120_000, 300_000, 900_000, 1_800_000, 3_600_000, 3_600_000]) {
+  for (const expected of [60_000, 120_000, 300_000, 600_000, 1_200_000, 1_800_000, 1_800_000]) {
     const current = snapshotAdaptive429State('nvidia', 'key-01', now).cooldown_remaining_ms;
     now += current + 1;
     assert.equal(nextAdaptive429CooldownMs('nvidia', 'key-01', 0, now), expected);
@@ -148,12 +148,13 @@ try {
 
   const env = { AIG_RATE_LIMIT_COOLDOWN_MS: '60000' };
 
-  await test('Groq ITPM-shaped 413 rotates as a node rate limit', () => {
+  await test('Groq ITPM-shaped 413 rotates as a request-local refusal, not a node rate limit', () => {
     const body = JSON.stringify({ error: { message: 'Request too large on input tokens per minute (ITPM): Limit 7000, Requested 7398.' } });
     const result = classifyUpstreamStatus(413, new Headers(), env, Date.now(), body);
-    assert.equal(result.kind, KIND.RATE_LIMIT);
+    assert.equal(result.kind, KIND.CLIENT);
     assert.equal(result.action, 'rotate');
-    assert.equal(result.cooldownMs, 60000);
+    assert.equal(result.cooldownMs, 0);
+    assert.equal(result.requestTooLarge, true);
   });
 
   await test('quota-shaped 413 honors Retry-After', () => {
