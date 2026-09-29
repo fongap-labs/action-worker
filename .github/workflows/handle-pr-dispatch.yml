@@ -227,109 +227,6 @@ jobs:
           PR_STATUS_CONTEXT: validate-merge
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
 
-      - name: Validate AI endpoint access
-        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.base_plan.outputs.review_required == 'true' }}
-        continue-on-error: true
-        env:
-          AI_ENDPOINT_URL: ${{ vars.AI_GATEWAY_URL }}
-          AI_ENDPOINT_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
-          AI_ENDPOINT_REQUIRED_MODEL: ${{ steps.base_plan.outputs.review_model }}
-        run: node scripts/validate-ai-endpoint-access.ts
-
-      - name: Wait for AI queue
-        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.base_plan.outputs.review_required == 'true' }}
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          node scripts/wait-review-turn.ts \
-            "$GITHUB_REPOSITORY" \
-            "handle-pr-dispatch.yml" \
-            "$GITHUB_RUN_ID" \
-            "$GITHUB_WORKSPACE/policies/review.json"
-
-      - name: Run AI Triage
-        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.base_plan.outputs.triage_required == 'true' }}
-        continue-on-error: true
-        env:
-          AI_ENDPOINT_URL: ${{ vars.AI_GATEWAY_URL }}
-          TRIAGE_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
-          TRIAGE_MODEL: ${{ steps.base_plan.outputs.triage_model }}
-          BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
-          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
-          CONTEXT_JSON: ${{ steps.context.outputs.json }}
-          TRIAGE_OUTPUT_PATH: /tmp/ai-triage.json
-        run: |
-          node scripts/run-ai-triage.ts \
-            "$BASE_SHA" \
-            "$HEAD_SHA" \
-            "$GITHUB_WORKSPACE/target" \
-            "$CONTEXT_JSON" \
-            "$(cat /tmp/pr-plan.base.json)" \
-            "$GITHUB_WORKSPACE/policies/triage.json"
-
-      - name: Resolve final plan
-        id: plan
-        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.base_plan.outputs.review_required == 'true' }}
-        continue-on-error: true
-        run: |
-          node scripts/apply-ai-triage.ts \
-            /tmp/pr-plan.base.json \
-            /tmp/ai-triage.json \
-            "$GITHUB_WORKSPACE/policies/triage.json" \
-            "$GITHUB_WORKSPACE/policies/review.json"
-
-      - name: Resolve OCR distribution
-        id: ocr_dist
-        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.plan.outputs.review_required == 'true' }}
-        continue-on-error: true
-        run: node scripts/resolve-ocr-distribution.ts "$GITHUB_WORKSPACE/policies/review.json"
-
-      - name: Restore OCR cache
-        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.plan.outputs.review_required == 'true' }}
-        continue-on-error: true
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ${{ steps.ocr_dist.outputs.cache_dir }}
-          key: ocr-${{ runner.os }}-${{ runner.arch }}-${{ steps.ocr_dist.outputs.version }}-${{ steps.ocr_dist.outputs.asset }}
-
-      - name: Configure OpenCodeReview
-        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.plan.outputs.review_required == 'true' }}
-        continue-on-error: true
-        env:
-          OCR_REPOSITORY: ${{ steps.ocr_dist.outputs.repository }}
-          OCR_VERSION: ${{ steps.ocr_dist.outputs.version }}
-          OCR_ASSET: ${{ steps.ocr_dist.outputs.asset }}
-          OCR_CACHE_DIR: ${{ steps.ocr_dist.outputs.cache_dir }}
-        run: node scripts/install-ocr.ts "$OCR_REPOSITORY" "$OCR_VERSION" "$OCR_ASSET" "$OCR_CACHE_DIR"
-
-      - name: Run AI review
-        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.plan.outputs.review_required == 'true' }}
-        continue-on-error: true
-        env:
-          AI_ENDPOINT_URL: ${{ vars.AI_GATEWAY_URL }}
-          OCR_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
-          REVIEW_MODEL: ${{ steps.plan.outputs.review_model }}
-          BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
-          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
-          REVIEW_EFFORT: ${{ steps.plan.outputs.review_effort }}
-          REVIEW_RULE: ${{ steps.plan.outputs.review_rule }}
-          REVIEW_TASK_TIMEOUT: ${{ steps.plan.outputs.review_task_timeout }}
-          REVIEW_CONCURRENCY: ${{ steps.plan.outputs.review_concurrency }}
-          REVIEW_RESUME_ATTEMPTS: ${{ steps.plan.outputs.review_resume_attempts }}
-          REVIEW_RESUME_BACKOFF_SECONDS: ${{ steps.plan.outputs.review_resume_backoff_seconds }}
-          OCR_LLM_TIMEOUT: ${{ steps.plan.outputs.review_llm_timeout }}
-          OCR_NO_UPDATE: "1"
-        run: |
-          node scripts/run-ai-review.ts \
-            target \
-            "$BASE_SHA" \
-            "$HEAD_SHA" \
-            "$GITHUB_WORKSPACE/rules/$REVIEW_RULE"
-
-
       - name: Publish PR review
         if: ${{ always() && steps.ownership.outputs.current == 'true' }}
         continue-on-error: true
@@ -338,5 +235,18 @@ jobs:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           GOVERNANCE_STATUS: ${{ steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
+          AI_REVIEW_STATE: ${{ steps.gate.outputs.passed == 'true' && steps.base_plan.outputs.review_required == 'true' && 'queued' || '' }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node scripts/publish-pr-review.ts "$REPOSITORY" "$PR_NUMBER" "$GOVERNANCE_STATUS" "$RUN_URL" /tmp/pr-plan.json /tmp/ocr-result.json
+        run: node scripts/publish-pr-review.ts "$REPOSITORY" "$PR_NUMBER" "$GOVERNANCE_STATUS" "$RUN_URL" /tmp/pr-plan.json /tmp/ocr-result.json "$AI_REVIEW_STATE"
+
+      # AI Review runs as its own workflow after the gate so its queue never waits behind CI.
+      - name: Dispatch AI review
+        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.base_plan.outputs.review_required == 'true' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
+          REQUEST_ID: review-${{ github.run_id }}-${{ github.run_attempt }}
+        run: node scripts/dispatch-pr-review.ts "$REPOSITORY" "$PR_NUMBER" "$REQUEST_ID" "$HEAD_SHA"

@@ -214,7 +214,7 @@ test("code-minimality leaves deterministic gates and the single AI review call i
   assert.match(reviewRunner, /merge gate: unaffected/);
   assert.doesNotMatch(reviewRunner, /ponytail/i);
 
-  const workflow = await text(".github/workflows/handle-pr-dispatch.yml");
+  const workflow = await text(".github/workflows/handle-pr-review.yml");
   assert.equal((workflow.match(/node scripts\/run-ai-review\.ts/g) ?? []).length, 1);
   assert.doesNotMatch(workflow, /ponytail/i);
 
