@@ -179,7 +179,21 @@ export async function needsDependencyRepair(
     pr_number: prNumber,
     head_sha: headSha,
   };
-  const facts = await resolveDependencyRepairFacts(reader, request);
+  let facts: Awaited<ReturnType<typeof resolveDependencyRepairFacts>>;
+  try {
+    facts = await resolveDependencyRepairFacts(reader, request);
+  } catch (error) {
+    // A PR that touches a path outside the safe alphabet (for example a non-ASCII file name)
+    // can never be repaired automatically. It must not abort reconciliation of every other PR.
+    if (
+      error instanceof CliError &&
+      error.exitCode === 65 &&
+      /invalid file path/.test(error.message)
+    ) {
+      return false;
+    }
+    throw error;
+  }
   let manifestResponse: unknown;
   try {
     manifestResponse = await reader.get(
