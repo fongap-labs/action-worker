@@ -81,6 +81,31 @@ PR
 
 受 GitHub Ruleset 保护且要求 Check Run 来自目标仓 GitHub Actions 的仓库，可保留极轻 `validate-merge` bridge。它只汇合 `CI Evidence` 与 `PR Governance`。
 
+### 5.1 Linux CI 分片
+
+默认情况下，Linux CI 只有一个作业，从头到尾执行业务仓的 `central-ci.sh`。项目较大时，这一个作业会成为整条流水线里最慢的一段。业务仓可以在 `.github/execution-manifest.json` 里把它拆成几个并行的“分片”，总耗时就从各段之和变成最慢的一段。
+
+做法是给 `ci` 操作里 id 为 `linux` 的作业声明 `matrix.shard`，并把分片名作为脚本的第二个参数：
+
+```json
+{
+  "id": "linux",
+  "runner_profile": "linux-standard",
+  "command": ["bash", "{control_root}/.github/scripts/central-ci.sh", "{target_root}", "{matrix.shard}"],
+  "matrix": { "shard": ["checks", "python", "rust"] },
+  "timeout_minutes": 180,
+  "capability_requests": ["source.read"]
+}
+```
+
+规则：
+
+- 分片名只能是小写字母、数字和连字符，最长 32 个字符，最多 8 个；`all` 是保留字。
+- `linux` 作业的 `matrix` 只允许 `shard` 这一个键。出现其他键、非法分片名或超过上限时，CI 直接失败，不会悄悄少跑。
+- 没有声明 `matrix.shard`（包括没有 manifest）的仓库不受影响：仍是一个作业，脚本收到的参数和以前完全相同。
+- 声明后，Central CI 为每个分片启动一个 Linux 作业，并以该分片名作为第二个参数调用脚本。每个分片必须只做自己那一部分；所有分片都成功，`CI Evidence` 才为 success。
+- Action Worker 只读取可信 ref（默认分支，或维护者修改 CI control 时的候选 head）上的 manifest。分片的划分方式属于业务仓，Action Worker 不保存任何项目的分片表。
+
 ## 6. Security Scan
 
 业务仓通过 `.github/security-scan.json` 声明安全扫描意图，包括 CodeQL 语言、抽象 `runner_profile`、build mode，以及是否扫描 PR / default branch。Action Worker 从可信 base/default SHA 读取 manifest，统一解析 Runner 并执行扫描。
