@@ -135,6 +135,16 @@ jobs:
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
         run: node scripts/validate-security.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policies/security.json"
 
+      # Change code from an author without write access runs centrally only after a maintainer
+      # approves the current head commit.
+      - name: Enforce PR trust
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
+        run: node scripts/pr-trust.ts "$REPOSITORY" "$PR_NUMBER" "$HEAD_SHA"
+
       - name: Dispatch centralized CI
         if: steps.base_plan.outputs.ci_required == 'true'
         env:

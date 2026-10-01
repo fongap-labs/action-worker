@@ -1,20 +1,21 @@
 # CODEOWNERS for Action Worker
-# Requires approval from at least two reviewers for all changes
+# Code owners are requested for review automatically; whether their approval is required
+# is decided by the repository ruleset in policies/rulesets.json.
 
-# Global owners - require review from both maintainers
-* @fongap-labs/action-worker-maintainers @fongap
+# Global owners
+* @fongap @fongxen
 
 # Workflow files require extra scrutiny
-/.github/workflows/ @fongap-labs/action-worker-maintainers @fongap
+/.github/workflows/ @fongap @fongxen
 
 # Scripts and policies require domain expertise
-/scripts/ @fongap-labs/action-worker-maintainers @fongap
-/policies/ @fongap-labs/action-worker-maintainers @fongap
-/contracts/ @fongap-labs/action-worker-maintainers @fongap
+/scripts/ @fongap @fongxen
+/policies/ @fongap @fongxen
+/contracts/ @fongap @fongxen
 
 # Governance documentation
-/docs/ @fongap-labs/action-worker-maintainers @fongap
-/CLAUDE.md @fongap-labs/action-worker-maintainers @fongap
+/docs/ @fongap @fongxen
+/CLAUDE.md @fongap @fongxen
 
 # Agent skills
-/skills/ @fongap-labs/action-worker-maintainers @fongap
+/skills/ @fongap @fongxen

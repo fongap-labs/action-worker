@@ -23,6 +23,7 @@ jobs:
       repository: ${{ steps.payload.outputs.repository }}
       agent_domain: ${{ steps.payload.outputs.agent_domain }}
       operation: ${{ steps.payload.outputs.operation }}
+      is_private: ${{ steps.visibility.outputs.is_private }}
 
     steps:
       - name: Checkout
@@ -39,6 +40,18 @@ jobs:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/validate-dispatch-payload.ts "$PAYLOAD"
+
+      - name: Resolve task source visibility
+        id: visibility
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          is_private="$(gh api "repos/$REPOSITORY" --jq '.private')"
+          [[ "$is_private" == "true" || "$is_private" == "false" ]]
+          echo "is_private=$is_private" >> "$GITHUB_OUTPUT"
 
   execute:
     name: Execute task
@@ -57,6 +70,7 @@ jobs:
       BOOTSTRAP_REF: ${{ needs.validate.outputs.bootstrap_ref }}
       AGENT_DOMAIN: ${{ needs.validate.outputs.agent_domain }}
       OPERATION: ${{ needs.validate.outputs.operation }}
+      TASK_SOURCE_PRIVATE: ${{ needs.validate.outputs.is_private }}
 
     concurrency:
       group: action-worker-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.project }}
@@ -154,6 +168,7 @@ jobs:
           echo "No previous task state found."
 
       - name: Execute downstream task
+        id: task
         env: ${{ secrets }}
         run: |
           set -Eeuo pipefail
@@ -197,13 +212,6 @@ jobs:
           echo "Start Time    : $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
           echo "::endgroup::"
 
-          cleanup() {
-              rm -f "${RUNNER_TEMP}/action-worker-base-env.names" 2>/dev/null || true
-              rm -f "${RUNNER_TEMP}/action-worker-repository-vars.json" 2>/dev/null || true
-          }
-
-          trap cleanup EXIT
-
           project_dir="$AW_SOURCE_DIR/projects/$PROJECT"
           secret_scope="$(
               node scripts/resolve-secret-scope.ts \
@@ -228,23 +236,36 @@ jobs:
 
           echo "Executing bootstrap.sh ..."
 
-          bootstrap_rc=0
-          set +e
-          bash "$TMP_SCRIPT" "$PROJECT" "$BOOTSTRAP_REF" "$REQUEST_ID"
-          bootstrap_rc=$?
-          set -e
+          # exec replaces this shell, so the task does not run beside a process that was started
+          # with every secret in its environment.
+          if [ "$TASK_SOURCE_PRIVATE" = "false" ]; then
+              exec bash "$TMP_SCRIPT" "$PROJECT" "$BOOTSTRAP_REF" "$REQUEST_ID"
+          fi
+          # Run logs of this public repository are world-readable; keep private task output off them.
+          exec bash "$TMP_SCRIPT" "$PROJECT" "$BOOTSTRAP_REF" "$REQUEST_ID"               >"${RUNNER_TEMP}/action-worker-task.log" 2>&1
+
+      - name: Report task result
+        if: always() && steps.task.outcome != 'skipped'
+        env:
+          TASK_OUTCOME: ${{ steps.task.outcome }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -f             "${RUNNER_TEMP}/action-worker-base-env.names"             "${RUNNER_TEMP}/action-worker-repository-vars.json"             "${RUNNER_TEMP}/action-worker-task.log"
 
           echo "::group::Task Result"
           echo "Request ID    : ${REQUEST_ID}"
           echo "Project       : ${PROJECT}"
           echo "Bootstrap Ref : ${BOOTSTRAP_REF}"
-          echo "Exit Code     : ${bootstrap_rc}"
+          echo "Outcome       : ${TASK_OUTCOME}"
           echo "End Time      : $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
           echo "::endgroup::"
 
-          if [ "$bootstrap_rc" -ne 0 ]; then
-              echo "::error::bootstrap.sh execution failed (exit=${bootstrap_rc})." >&2
-              exit "$bootstrap_rc"
+          if [ "$TASK_SOURCE_PRIVATE" != "false" ]; then
+            echo "Task output is suppressed because the task source repository is private."
+          fi
+          if [ "$TASK_OUTCOME" != "success" ]; then
+            echo "::error::bootstrap.sh execution failed." >&2
           fi
 
       - name: Upload task state
