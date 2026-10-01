@@ -1,0 +1,227 @@
+name: Central CI Sandbox
+
+# Runs a target repository's trusted CI script against the change under test. Change code executes
+# in these jobs, so they reference no central credential: public targets are checked out with the
+# run's read-only token, and the caller passes checkout_token only for private targets.
+
+on:
+  workflow_call:
+    inputs:
+      platform:
+        description: Sandbox platform, linux or windows
+        required: true
+        type: string
+      shard:
+        description: Manifest-declared Linux shard; all runs every phase
+        required: false
+        type: string
+        default: all
+      repository:
+        required: true
+        type: string
+      pr_number:
+        required: true
+        type: string
+      base_sha:
+        required: true
+        type: string
+      head_sha:
+        required: true
+        type: string
+      control_ref:
+        required: true
+        type: string
+      is_private:
+        required: true
+        type: string
+    secrets:
+      checkout_token:
+        description: Read token for private targets only
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    name: Linux
+    if: inputs.platform == 'linux'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Checkout target PR
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.head_sha }}
+          token: ${{ secrets.checkout_token || github.token }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout trusted CI control
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.control_ref }}
+          token: ${{ secrets.checkout_token || github.token }}
+          path: ci-control
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout central test pack
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          path: aw
+
+      - name: Pin central test pack
+        shell: bash
+        run: node aw/scripts/prepare-test-pack.ts "${{ github.workspace }}/aw" "${{ github.workspace }}/ci-control/.github/test-pack.json"
+
+      - name: Run trusted Linux CI
+        env:
+          CENTRAL_CI_AW_ROOT: ${{ github.workspace }}/aw
+          CENTRAL_CI_BASE_SHA: ${{ inputs.base_sha }}
+          CENTRAL_CI_HEAD_SHA: ${{ inputs.head_sha }}
+          CENTRAL_CI_PR_NUMBER: ${{ inputs.pr_number }}
+          CENTRAL_CI_SHARD: ${{ inputs.shard }}
+          TARGET_REPOSITORY: ${{ inputs.repository }}
+          TARGET_PRIVATE: ${{ inputs.is_private }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          script="$GITHUB_WORKSPACE/ci-control/.github/scripts/central-ci.sh"
+          test -f "$script"
+
+          # Only a manifest-declared shard is passed on; an unsharded project keeps its exact invocation.
+          script_args=("$GITHUB_WORKSPACE/target")
+          if [ "$CENTRAL_CI_SHARD" != "all" ]; then
+            script_args+=("$CENTRAL_CI_SHARD")
+          fi
+
+          log="$RUNNER_TEMP/central-ci-linux.log"
+          failure_meta="$RUNNER_TEMP/central-ci-linux.failure"
+          trace_env="$RUNNER_TEMP/central-ci-bash-env"
+          cat >"$trace_env" <<'EOF'
+          trap 'code=$?; if [ -n "${CENTRAL_CI_FAILURE_FILE:-}" ]; then printf "%s:%s\n" "$LINENO" "$code" > "$CENTRAL_CI_FAILURE_FILE"; fi' ERR
+          EOF
+
+          set +e
+          CENTRAL_CI_FAILURE_FILE="$failure_meta" BASH_ENV="$trace_env" \
+            bash "$script" "${script_args[@]}" >"$log" 2>&1
+          code=$?
+          set -e
+
+          if [ "$code" -ne 0 ]; then
+            if [ "$TARGET_PRIVATE" = "false" ]; then
+              cat "$log"
+            else
+              diagnostic=""
+              if [ -f "$failure_meta" ]; then
+                IFS=: read -r failure_line failure_code <"$failure_meta" || true
+                if [[ "$failure_line" =~ ^[0-9]+$ ]] && [[ "$failure_code" =~ ^[0-9]+$ ]]; then
+                  diagnostic=" Trusted CI failed at line $failure_line with exit code $failure_code."
+                fi
+              fi
+              echo "::error::Central Linux CI failed for $TARGET_REPOSITORY.$diagnostic Detailed output is suppressed because the target repository is private."
+            fi
+            exit "$code"
+          fi
+
+          # Public repositories keep the project script's phase markers so per-phase time stays visible.
+          if [ "$TARGET_PRIVATE" = "false" ]; then
+            grep '^central-ci:' "$log" || true
+          fi
+
+          echo "Central Linux CI passed for $TARGET_REPOSITORY (shard: $CENTRAL_CI_SHARD)."
+
+  windows:
+    name: Windows
+    if: inputs.platform == 'windows'
+    runs-on: windows-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout target PR
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.head_sha }}
+          token: ${{ secrets.checkout_token || github.token }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout trusted CI control
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.control_ref }}
+          token: ${{ secrets.checkout_token || github.token }}
+          path: ci-control
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Checkout central test pack
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          path: aw
+
+      - name: Pin central test pack
+        shell: pwsh
+        run: node aw/scripts/prepare-test-pack.ts "${{ github.workspace }}/aw" "${{ github.workspace }}/ci-control/.github/test-pack.json"
+
+      - name: Run trusted Windows CI
+        env:
+          CENTRAL_CI_AW_ROOT: ${{ github.workspace }}/aw
+          CENTRAL_CI_BASE_SHA: ${{ inputs.base_sha }}
+          CENTRAL_CI_HEAD_SHA: ${{ inputs.head_sha }}
+          CENTRAL_CI_PR_NUMBER: ${{ inputs.pr_number }}
+          TARGET_REPOSITORY: ${{ inputs.repository }}
+          TARGET_PRIVATE: ${{ inputs.is_private }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $script = "$env:GITHUB_WORKSPACE\ci-control\.github\scripts\central-ci.ps1"
+          if (-not (Test-Path $script)) {
+            throw "Missing trusted central CI script."
+          }
+
+          $log = Join-Path $env:RUNNER_TEMP "central-ci-windows.log"
+          try {
+            & $script -TargetRoot "$env:GITHUB_WORKSPACE\target" *> $log
+            if ($LASTEXITCODE -ne 0) {
+              throw "Central Windows CI returned exit code $LASTEXITCODE."
+            }
+          }
+          catch {
+            if ($env:TARGET_PRIVATE -eq "false" -and (Test-Path $log)) {
+              Get-Content $log
+            }
+            else {
+              Write-Error "Central Windows CI failed for $env:TARGET_REPOSITORY. Detailed output is suppressed because the target repository is private."
+            }
+            exit 1
+          }
+
+          Write-Host "Central Windows CI passed for $env:TARGET_REPOSITORY."

@@ -1,4 +1,5 @@
 import { getGithubJson, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
+import { TRUSTED_ASSOCIATIONS } from "./pr-trust.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -11,8 +12,6 @@ const CONTROL_PATHS = new Set([
   ".github/scripts/central-ci.ps1",
   ".github/test-pack.json",
 ]);
-
-const TRUSTED_ASSOCIATIONS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
 type ControlDecision = {
   candidate_control: boolean;
