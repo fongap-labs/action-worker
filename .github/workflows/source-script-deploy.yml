@@ -164,7 +164,9 @@ jobs:
           }
 
           cd target
-          bash "$DEPLOY_ENTRYPOINT"
+          # exec replaces this shell, so the entrypoint does not run beside a process that was
+          # started with every secret in its environment.
+          exec bash "$DEPLOY_ENTRYPOINT"
 
       - name: Deployment summary
         if: always()

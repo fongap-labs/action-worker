@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- fix [security]: run central CI for a pull request whose author has no write access only after a maintainer approves its current head commit, and re-check this inside the central CI workflow before any change code runs.
+
+- fix [security]: move the Linux and Windows central CI jobs into the `central-ci-sandbox.yml` reusable workflow, which references no central secret and receives a checkout token only for private targets.
+
+- fix [security]: start deploy and task entrypoints with `exec` after out-of-scope secrets are unset, and keep the output of tasks from private repositories out of run logs.
+
+- fix: list the actual maintainers in CODEOWNERS instead of a team that does not exist.
+
 - fix: skip the automatic deploy step for repositories that do not have the `deploy` capability instead of failing with exit 77, so a green main push of delta, delta-suite, app-source or external-vault no longer ends in a red Central CI run.
 
 - fix [security]: install actionlint in Validate CI from a pinned release with a verified SHA-256 instead of executing a script fetched from the `main` branch.
