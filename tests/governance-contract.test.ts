@@ -872,7 +872,9 @@ test("central CI deploy dispatch is source-owned and adapter-routed", async () =
     /policy\.repositories|fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)/
   );
 
-  const workflow = await text(".github/workflows/central-ci-dispatch.yml");
+  const workflow =
+    (await text(".github/workflows/central-ci-dispatch.yml")) +
+    (await text(".github/workflows/central-ci-sandbox.yml"));
   requireText(workflow, [
     "Central CI / Security",
     "validate-security.ts",
@@ -1111,4 +1113,29 @@ test("dependency repair keeps compute and publication authority separated", asyn
   const publisher = await text("scripts/publish-dependency-repair.ts");
   requireText(publisher, ["resolveDependencyRepairFacts", "selectDependencyRepair", "git", "push"]);
   assert.doesNotMatch(publisher, /fongap-labs\/delta/);
+});
+
+test("PR governance enforces trust before it dispatches central CI", async () => {
+  const workflow = await text(".github/workflows/handle-pr-dispatch.yml");
+  assert.match(
+    workflow,
+    /- name: Enforce PR trust[\s\S]*?node scripts\/pr-trust\.ts "\$REPOSITORY" "\$PR_NUMBER" "\$HEAD_SHA"\n\n\s+- name: Dispatch centralized CI/
+  );
+});
+
+test("deploy and task entrypoints replace the shell that received every secret", async () => {
+  const deploy = await text(".github/workflows/source-script-deploy.yml");
+  assert.match(deploy, /\n\s+exec bash "\$DEPLOY_ENTRYPOINT"\n/);
+  assert.doesNotMatch(deploy, /\n\s+bash "\$DEPLOY_ENTRYPOINT"\n/);
+
+  const task = await text(".github/workflows/handle-task-dispatch.yml");
+  assert.match(task, /exec bash "\$TMP_SCRIPT" "\$PROJECT" "\$BOOTSTRAP_REF" "\$REQUEST_ID"\n/);
+  assert.doesNotMatch(task, /\n\s+bash "\$TMP_SCRIPT"/);
+  // Private task output stays out of this public repository's run logs.
+  requireText(task, [
+    "is_private: ${{ steps.visibility.outputs.is_private }}",
+    "TASK_SOURCE_PRIVATE: ${{ needs.validate.outputs.is_private }}",
+    '>"${RUNNER_TEMP}/action-worker-task.log" 2>&1',
+    "Task output is suppressed because the task source repository is private.",
+  ]);
 });

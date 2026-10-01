@@ -100,6 +100,7 @@ Action Worker 收到任务后必须：
 - 使用 `AW_CONTROL_TOKEN` 从 GitHub 重新获取 PR base/head SHA、标题、状态和 diff；
 - checkout `refs/pull/<n>/head` 后再次与 GitHub 当前 PR 事实对齐；如果调度到检出之间 PR 已更新，则以实际检出 commit 与最新 PR API 一致的 base/head/title 作为本次治理事实，避免把同步窗口误判为永久失败；
 - 只读取目标 PR，不执行 PR 提供的代码；
+- 在派发中央 CI 之前校验 PR 作者（`scripts/pr-trust.ts`）：作者对目标仓有写权限（`author_association` 为 OWNER / MEMBER / COLLABORATOR）时直接继续；其他作者（例如 fork 贡献者）的 PR 必须先由一名有写权限的维护者对**当前 head commit** 提交 Approve review，然后在 Action Worker 中重新运行该次 `Handle PR Dispatch`。批准绑定到被审 commit，作者再推送后需要重新批准。`central-ci-dispatch.yml` 在执行前再次做同样的校验；
 - 当执行计划要求 CI 时，由 Action Worker checkout 目标不可变 head SHA，并在 Sandbox 执行项目 Manifest / 测试脚本，生成真实 CI Evidence；
 - 先根据确定性 PR / Security / CI 证据形成 Gate 结论，并向目标 head commit 写入统一 `PR Governance` status；
 - 只有 Gate 结论形成后，AI Review 才可读取 CI Evidence 作为不可信执行证据；Evidence 中任何文本都不得视为指令；
@@ -120,6 +121,8 @@ Action Worker 收到任务后必须：
 ### Sandbox
 
 可以执行 PR 代码、build 和 test，但不得获得中央 Secret 或部署凭据。
+
+中央 CI 的 Sandbox 作业位于 `central-ci-sandbox.yml`（reusable workflow）。Sandbox 作业不直接引用任何中央 Secret：公开目标仓用本次运行的只读 `github.token` 检出；只有私有目标仓才由调用方传入 `checkout_token`，该值在 GitHub 服务端求值，公开目标仓收到的是空值。
 
 因此：
 
@@ -402,7 +405,7 @@ Task 和 PR 的共同原则是：
 
 > 调用方提交目标，Action Worker 验证事实并决定执行方式。
 
-Task 使用 `AW_CONTROL_TOKEN` 获取受管私有仓固定 Commit；bootstrap 下载完成后，`AW_CONTROL_TOKEN`、`AW_ADMIN_TOKEN`、`AIG_ACCESS_KEY_AGENT` 与 `AW_DISPATCH_TOKEN` 等中央凭据会从业务执行环境中移除。Task 可以在 `RUNNER_TEMP/action-worker-publication` 暂存一个跨仓发布请求，但业务任务不持有目标仓写凭据。Action Worker 在任务成功后单独校验 `AW_REPOSITORY_POLICY`：源仓必须具有 `release-source`，目标仓必须具有 `release-target` 与 `pr`；只有通过后才向中央发布步骤注入 `AW_CONTROL_TOKEN`，并以 pull request 方式合入目标仓 `main`（目标仓 `main` 无 bypass，要求 PR 且 `validate-merge` 检查通过）。
+Task 使用 `AW_CONTROL_TOKEN` 获取受管私有仓固定 Commit；bootstrap 下载完成后，`AW_CONTROL_TOKEN`、`AW_ADMIN_TOKEN`、`AIG_ACCESS_KEY_AGENT` 与 `AW_DISPATCH_TOKEN` 等中央凭据会从业务执行环境中移除。移除后以 `exec` 启动 bootstrap，替换掉以全部 Secret 启动的 shell 进程，任务不与该进程并存。任务源仓为私有仓时，bootstrap 输出写入 Runner 临时文件而不进入本公开仓的运行日志，日志中只保留任务结果摘要。Task 可以在 `RUNNER_TEMP/action-worker-publication` 暂存一个跨仓发布请求，但业务任务不持有目标仓写凭据。Action Worker 在任务成功后单独校验 `AW_REPOSITORY_POLICY`：源仓必须具有 `release-source`，目标仓必须具有 `release-target` 与 `pr`；只有通过后才向中央发布步骤注入 `AW_CONTROL_TOKEN`，并以 pull request 方式合入目标仓 `main`（目标仓 `main` 无 bypass，要求 PR 且 `validate-merge` 检查通过）。
 
 ## 10. Source 与 Release
 
@@ -519,6 +522,8 @@ business repository main
 Action Worker owns production credentials and runner-heavy deployment orchestration. The source repository owns only product code and project-specific deployment tooling. A deploy request cannot supply mutable refs, arbitrary repositories, CI conclusions, or deployment credentials.
 
 The generic source-script deploy executor requires the current default-branch HEAD, trusted Action Worker `CI Evidence`, Main Write Guard success, a privileged runner profile, and the source-owned deploy manifest. Product-specific emergency switches such as `AIG_IS_DEPLOY_ENABLED=false` remain inside the source-owned deploy entrypoint.
+
+The executor unsets every secret outside the source-declared scope and then starts the entrypoint with `exec`, replacing the shell that was started with every secret, so the entrypoint does not run beside it.
 
 ## 13. 目录
 
