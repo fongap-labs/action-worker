@@ -411,7 +411,7 @@ async function dispatchTask(
     event_type: "run-task",
     client_payload: {
       schema_version: "1",
-      request_id: `task-schedule:${identity}`,
+      request_id: `task-schedule-${identity}`,
       project: task.project,
       bootstrap_ref: task.head_sha,
       repository: task.repository,
