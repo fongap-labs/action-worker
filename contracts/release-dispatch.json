@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/fongap/action-worker/contracts/release-dispatch.json",
+  "$id": "https://github.com/fongap-labs/action-worker/contracts/release-dispatch.json",
   "title": "Release Dispatch",
   "type": "object",
   "additionalProperties": false,
