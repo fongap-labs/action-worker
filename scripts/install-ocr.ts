@@ -23,7 +23,11 @@ async function fileHash(path: string): Promise<string> {
   });
 }
 
-async function verifyAsset(binary: string, checksum: string): Promise<boolean> {
+export async function verifyAsset(
+  binary: string,
+  checksum: string,
+  pinnedSha256: string
+): Promise<boolean> {
   try {
     const binaryStat = await stat(binary);
     const checksumStat = await stat(checksum);
@@ -36,7 +40,12 @@ async function verifyAsset(binary: string, checksum: string): Promise<boolean> {
       return false;
     }
     const expected = (await readFile(checksum, "utf8")).trim().split(/\s+/)[0] ?? "";
-    return /^[0-9a-f]{64}$/.test(expected) && (await fileHash(binary)) === expected;
+    // The release checksum must agree with the digest pinned in policy, and the binary with both.
+    return (
+      /^[0-9a-f]{64}$/.test(pinnedSha256) &&
+      expected === pinnedSha256 &&
+      (await fileHash(binary)) === pinnedSha256
+    );
   } catch {
     return false;
   }
@@ -64,14 +73,18 @@ async function downloadFile(url: string, path: string): Promise<void> {
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  if (args.length !== 4) {
-    throw new CliError("Usage: install-ocr.ts <repository> <version> <asset> <cache-dir>", 64);
+  if (args.length !== 5) {
+    throw new CliError(
+      "Usage: install-ocr.ts <repository> <version> <asset> <sha256> <cache-dir>",
+      64
+    );
   }
-  const [repository = "", version = "", asset = "", cacheDir = ""] = args;
+  const [repository = "", version = "", asset = "", sha256 = "", cacheDir = ""] = args;
   if (
     !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) ||
     !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version) ||
     !/^[a-z0-9][a-z0-9._-]*$/.test(asset) ||
+    !/^[0-9a-f]{64}$/.test(sha256) ||
     !cacheDir
   ) {
     throw new CliError("ERROR: invalid OCR installer arguments.", 65);
@@ -86,14 +99,17 @@ async function main(): Promise<void> {
   const installed = join(binDir, "ocr");
   await mkdir(cacheDir, { recursive: true });
   await mkdir(binDir, { recursive: true });
-  if (!(await verifyAsset(binary, checksum))) {
+  if (!(await verifyAsset(binary, checksum, sha256))) {
     await rm(binary, { force: true });
     await rm(checksum, { force: true });
     const baseUrl = `https://github.com/${repository}/releases/download/open-code-review-v${version}`;
     await downloadFile(`${baseUrl}/${asset}`, binary);
     await downloadFile(`${baseUrl}/${asset}.sha256`, checksum);
-    if (!(await verifyAsset(binary, checksum))) {
-      throw new CliError("ERROR: OCR asset checksum verification failed.", 65);
+    if (!(await verifyAsset(binary, checksum, sha256))) {
+      throw new CliError(
+        "ERROR: OCR asset does not match the SHA-256 pinned in policies/review.json.",
+        65
+      );
     }
   }
   await copyFile(binary, installed);

@@ -503,6 +503,8 @@ tool catalog + metadata
 
 Business repositories do not run upstream download, checksum verification, packaging, or tool Release dispatch workflows. Tool metadata stays text-only in the distribution repository; executable payloads stay in GitHub Releases.
 
+The review engine that Action Worker executes is pinned in `policies/review.json` by `version` and `sha256`. The installer accepts a binary only when its digest equals the pinned value and the release checksum file agrees, so a replaced release asset cannot vouch for itself. Moving to a new engine release means updating both fields in one reviewed change.
+
 ## 12. Deploy
 
 Production deployment follows the same immutable-source boundary as Release Governance, but deploy execution does not publish a GitHub Release.
