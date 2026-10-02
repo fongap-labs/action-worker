@@ -37,7 +37,9 @@ test("metrics rendering preserves badge order and is idempotent", () => {
   );
   assert.equal(renderMetrics(rendered, counts, "fongap-labs/action-worker"), rendered);
   assert.equal(
-    renderMetrics(source.replaceAll("\n", "\r\n"), counts, "fongap-labs/action-worker").includes("\r"),
+    renderMetrics(source.replaceAll("\n", "\r\n"), counts, "fongap-labs/action-worker").includes(
+      "\r"
+    ),
     false
   );
 });
