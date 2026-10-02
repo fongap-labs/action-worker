@@ -60,6 +60,12 @@ class MockOAuthD1 {
     return {
       bind: (...values) => ({
         async first() {
+          // Atomic single-use read (DELETE ... RETURNING): only the first caller gets the row.
+          if (/^DELETE FROM oauth_flow_states WHERE state = \? RETURNING/.test(query)) {
+            const row = self.flows.get(values[0]);
+            self.flows.delete(values[0]);
+            return row ? { ...row } : null;
+          }
           if (/FROM oauth_flow_states/.test(query)) {
             const state = values[0];
             const row = self.flows.get(state);
@@ -575,6 +581,39 @@ await test('/oauth/start without an encryption key returns 503 (fail-closed)', a
     {},
   );
   assert.equal(res.status, 503);
+});
+
+await test('concurrent callbacks with one state exchange the code only once', async () => {
+  const db = new MockOAuthD1();
+  const env = makeEnv({ tier2: [tier2OauthNode('sub1')], db });
+  let exchanges = 0;
+  withMockFetch(async (input) => {
+    const url = new URL(typeof input === 'string' ? input : input.url);
+    if (url.hostname === 'auth.mock.example.com' && url.pathname === '/token') {
+      exchanges += 1;
+      return new Response(JSON.stringify({ access_token: 'exchanged-access-token', expires_in: 3600 }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+    throw new Error(`unexpected fetch: ${url}`);
+  });
+
+  const start = await worker.fetch(
+    new Request('https://gateway.example.com/oauth/start?provider=mock&node=sub1', {
+      headers: { authorization: `Bearer ${ACCESS_KEY}` },
+    }),
+    env,
+    {},
+  );
+  const state = new URL(start.headers.get('location')).searchParams.get('state');
+  const callback = () =>
+    worker.fetch(new Request(`https://gateway.example.com/oauth/callback/mock?code=auth-code-123&state=${encodeURIComponent(state)}`), env, {});
+
+  const statuses = (await Promise.all([callback(), callback()])).map((res) => res.status).sort();
+  assert.deepEqual(statuses, [200, 400]);
+  assert.equal(exchanges, 1, 'the authorization code is exchanged once');
+  assert.equal(db.flows.has(state), false);
 });
 
 await test('full callback flow stores the token and consumes the state', async () => {
