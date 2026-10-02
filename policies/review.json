@@ -41,6 +41,7 @@
     "name": "open-code-review",
     "version": "1.12.9",
     "asset": "open-code-review-linux-amd64",
+    "sha256": "9105c7081b8362a1cb0167f1ddfd1437e147a0e3c9a5af89c03c8859a5b0f0e8",
     "repository": "fongap-labs/external-vault"
   }
 }

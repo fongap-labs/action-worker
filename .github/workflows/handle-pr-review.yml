@@ -211,8 +211,9 @@ jobs:
           OCR_REPOSITORY: ${{ steps.ocr_dist.outputs.repository }}
           OCR_VERSION: ${{ steps.ocr_dist.outputs.version }}
           OCR_ASSET: ${{ steps.ocr_dist.outputs.asset }}
+          OCR_SHA256: ${{ steps.ocr_dist.outputs.sha256 }}
           OCR_CACHE_DIR: ${{ steps.ocr_dist.outputs.cache_dir }}
-        run: node scripts/install-ocr.ts "$OCR_REPOSITORY" "$OCR_VERSION" "$OCR_ASSET" "$OCR_CACHE_DIR"
+        run: node scripts/install-ocr.ts "$OCR_REPOSITORY" "$OCR_VERSION" "$OCR_ASSET" "$OCR_SHA256" "$OCR_CACHE_DIR"
 
       - name: Run AI review
         if: ${{ steps.plan.outputs.review_required == 'true' }}
