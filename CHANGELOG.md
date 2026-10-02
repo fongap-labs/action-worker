@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- test: cover the internal-vault lockfile-pinned Wrangler runtime for the Cloudflare deploy bricks and the masking of short and multi-line secrets in the internal-vault test pack.
+
 - test: cover the delta-suite git authorization header (scoped to the GitHub host, passed to clone and pull) in the delta-suite test pack.
 
 - test: cover the ai-gateway edge cache key (canonical JSON, distinct value types, scoped to the key group) in the ai-gateway test pack.

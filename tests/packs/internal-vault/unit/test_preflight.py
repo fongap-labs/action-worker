@@ -282,6 +282,25 @@ class TestInjectSecrets:
         assert proc.returncode == 0
         assert "::add-mask::gh" "p_test12345678901234567890123456789012ab" in proc.stderr
 
+    def test_short_and_multiline_secret_values_are_masked(self, tmp_path):
+        secrets_required = tmp_path / ".secrets.required"
+        secrets_required.write_text("AW_SHORT_PIN\nAW_MULTILINE_KEY\n", encoding="utf-8")
+        env = _clean_env("AW_SHORT_PIN", "AW_MULTILINE_KEY")
+        # NOT A REAL SECRET: short and multi-line fake values.
+        env["AW_SHORT_PIN"] = "4821"
+        env["AW_MULTILINE_KEY"] = "line-one-value\nline-two-value"
+
+        proc = subprocess.run(
+            [sys.executable, str(PREFLIGHT / "inject_secrets.py"),
+             "--secrets-required", str(secrets_required)],
+            capture_output=True, text=True, env=env,
+        )
+        assert proc.returncode == 0
+        masks = [line for line in proc.stderr.splitlines() if line.startswith("::add-mask::")]
+        assert "::add-mask::4821" in masks
+        assert "::add-mask::line-one-value" in masks
+        assert "::add-mask::line-two-value" in masks
+
     def test_no_secrets_required_passes(self):
         proc = subprocess.run(
             [sys.executable, str(PREFLIGHT / "inject_secrets.py"),
