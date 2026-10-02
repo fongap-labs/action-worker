@@ -66,7 +66,7 @@ test("accepts business-owner prefixes derived from scoped paths", () => {
 test("still rejects generic names inside a scoped business config", () => {
   const errors = validateConfigText(
     "projects/MarketBrief/.env.variables",
-    "ARTIFACT_REPOSITORY=fongap/external-vault"
+    "ARTIFACT_REPOSITORY=fongap-labs/external-vault"
   );
   assert.ok(errors.some((error) => error.includes("owning system")));
 });

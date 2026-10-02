@@ -1,6 +1,6 @@
 # 架构
 
-Action Worker 是 Fongap 的 GitHub 自动化控制平面。
+Action Worker 是 Fongap Labs 的 GitHub 自动化控制平面。
 
 长期边界以 [ARCHITECTURE_GOVERNANCE.md](ARCHITECTURE_GOVERNANCE.md) 为准；统一执行合同见 [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md)，Runner 与 self-hosted 边界见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。本文档描述当前实现与下一层收敛方向。
 
