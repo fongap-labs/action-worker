@@ -186,6 +186,7 @@ function makeEnv({ tier1, tier2, db, extraEnv } = {}) {
   return {
     AIG_ACCESS_KEY_AIR: ACCESS_KEY,
     AIG_ACCESS_MODELS_AIR: '*',
+    AIG_OAUTH_ADMIN_GROUPS: 'AIR',
     AIG_OAUTH_PROVIDERS: OAUTH_PROVIDERS_VAR,
     AIG_TOKEN_ENCRYPTION_KEY: KEY_B64,
     AIG_PUBLIC_URL: 'https://gateway.example.com',
@@ -453,6 +454,42 @@ await test('/oauth/start with a valid key returns a PKCE redirect', async () => 
   const state = location.searchParams.get('state');
   assert.ok(state);
   assert.ok(db.flows.has(state), 'flow state persisted in D1');
+});
+
+await test('/oauth/start refuses a valid key whose group is not an onboarding admin group', async () => {
+  const db = new MockOAuthD1();
+  const env = makeEnv({
+    tier2: [tier2OauthNode('sub1')],
+    db,
+    extraEnv: { AIG_ACCESS_KEY_PRO: 'pro-access-key', AIG_ACCESS_MODELS_PRO: '*' },
+  });
+  for (const init of [
+    { headers: { authorization: 'Bearer pro-access-key' } },
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ provider: 'mock', node: 'sub1', key: 'pro-access-key' }).toString(),
+    },
+  ]) {
+    const res = await worker.fetch(new Request('https://gateway.example.com/oauth/start?provider=mock&node=sub1', init), env, {});
+    assert.equal(res.status, 403);
+    assert.equal((await res.json()).error.type, 'gateway_oauth_forbidden');
+  }
+  assert.equal(db.flows.size, 0, 'no flow state is created for a refused group');
+});
+
+await test('/oauth/start is disabled when AIG_OAUTH_ADMIN_GROUPS is unset', async () => {
+  const db = new MockOAuthD1();
+  const env = makeEnv({ tier2: [tier2OauthNode('sub1')], db, extraEnv: { AIG_OAUTH_ADMIN_GROUPS: undefined } });
+  const res = await worker.fetch(
+    new Request('https://gateway.example.com/oauth/start?provider=mock&node=sub1', {
+      headers: { authorization: `Bearer ${ACCESS_KEY}` },
+    }),
+    env,
+    {},
+  );
+  assert.equal(res.status, 403);
+  assert.equal(db.flows.size, 0);
 });
 
 await test('/oauth/start without a gateway key renders the paste page', async () => {
