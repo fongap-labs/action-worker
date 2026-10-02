@@ -1,5 +1,5 @@
 {
-  "name": "@fongap/action-worker",
+  "name": "@fongap-labs/action-worker",
   "version": "0.0.0",
   "private": true,
   "type": "module",

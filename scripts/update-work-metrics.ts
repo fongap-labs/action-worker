@@ -303,7 +303,7 @@ async function main(): Promise<void> {
       throw new CliError(`README not found: ${readmePath}`, 66);
     }
   }
-  const repository = process.env.GITHUB_REPOSITORY ?? "fongap/action-worker";
+  const repository = process.env.GITHUB_REPOSITORY ?? "fongap-labs/action-worker";
   const owner = process.env.GITHUB_REPOSITORY_OWNER ?? repository.split("/", 1)[0] ?? "";
   const token = process.env.METRICS_TOKEN ?? "";
   const configured = process.env.METRICS_REPOSITORIES_JSON ?? "";
