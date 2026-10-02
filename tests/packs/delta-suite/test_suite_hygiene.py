@@ -70,4 +70,24 @@ def test_git_token_is_passed_through_the_environment_not_argv():
     argv_builder = ast.unparse(functions["build_git_auth"])
     assert "extraHeader" not in argv_builder and "Authorization" not in argv_builder
     env_builder = ast.unparse(functions["git_auth_env"])
-    assert "GIT_CONFIG_VALUE_0" in env_builder and "http.extraHeader" in env_builder
+    assert "GIT_CONFIG_VALUE_0" in env_builder and ".extraHeader" in env_builder
+    # The header is scoped to the configured GitHub host, never the bare http.extraHeader key.
+    assert "github_git_base()" in env_builder and "'http.extraHeader'" not in env_builder
+
+
+def test_git_clone_and_pull_hand_git_the_token_environment():
+    tree = ast.parse((ADVANCED / "connectors" / "provider_developer.py").read_text(encoding="utf-8"))
+    authenticated = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and getattr(node.func, "id", "") == "run_git" and node.args):
+            continue
+        words = {
+            item.value
+            for item in ast.walk(node.args[0])
+            if isinstance(item, ast.Constant) and isinstance(item.value, str)
+        }
+        if words & {"clone", "pull"}:
+            env = next((keyword.value for keyword in node.keywords if keyword.arg == "env"), None)
+            assert env is not None and ast.unparse(env) == "git_auth_env(secrets)", ast.unparse(node)
+            authenticated.append(words & {"clone", "pull"})
+    assert {"clone"} in authenticated and {"pull"} in authenticated
