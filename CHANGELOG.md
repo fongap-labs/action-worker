@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- fix [security]: pin the AI review engine binary by SHA-256 in `policies/review.json`; the installer accepts it only when the binary matches the pinned digest and the release checksum file agrees, so a replaced release asset cannot vouch for itself.
+
+- build: resolve every npm package from `registry.npmjs.org` instead of a third-party mirror (integrity hashes unchanged).
+
+- test: cover the ai-gateway `/health` node visibility per access key and the single-use OAuth flow state under concurrent callbacks, and teach the OAuth mock D1 the atomic `DELETE ... RETURNING` read.
+
 - test: cover the internal-vault lockfile-pinned Wrangler runtime for the Cloudflare deploy bricks and the masking of short and multi-line secrets in the internal-vault test pack.
 
 - test: cover the delta-suite git authorization header (scoped to the GitHub host, passed to clone and pull) in the delta-suite test pack.
