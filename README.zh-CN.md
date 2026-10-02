@@ -166,7 +166,7 @@ Action Worker 使用单一 Repository Variable `AW_REPOSITORY_POLICY` 管理仓�
 ```json
 {
   "fongap-labs/ai-gateway": ["pr", "task", "deploy"],
-  "fongap-labs/delta": ["pr", "task", "release-source"],
+  "fongap-labs/delta": ["pr", "task", "release-source", "release-target"],
   "fongap-labs/external-vault": ["pr", "task", "release-source", "release-target"]
 }
 ```
