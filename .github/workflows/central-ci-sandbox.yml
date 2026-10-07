@@ -91,6 +91,24 @@ jobs:
         shell: bash
         run: node aw/scripts/prepare-test-pack.ts "${{ github.workspace }}/aw" "${{ github.workspace }}/ci-control/.github/test-pack.json"
 
+      # Central, pinned secret scan of the commits this pull request adds. It is control code from this
+      # repository, runs before any target code, and reports findings as warnings unless
+      # AW_CENTRAL_GITLEAKS_MODE is set to enforce.
+      - name: Scan the change for secrets
+        env:
+          AW_GITLEAKS_MODE: ${{ vars.AW_CENTRAL_GITLEAKS_MODE || 'warn' }}
+          TARGET_PRIVATE: ${{ inputs.is_private }}
+          SCAN_BASE_SHA: ${{ inputs.base_sha }}
+          SCAN_HEAD_SHA: ${{ inputs.head_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          config=""
+          if [ -f "$GITHUB_WORKSPACE/ci-control/.gitleaks.toml" ]; then
+            config="$GITHUB_WORKSPACE/ci-control/.gitleaks.toml"
+          fi
+          node aw/scripts/central-secret-scan.ts "$GITHUB_WORKSPACE/target" "$SCAN_BASE_SHA" "$SCAN_HEAD_SHA" "$config"
+
       - name: Run trusted Linux CI
         env:
           CENTRAL_CI_AW_ROOT: ${{ github.workspace }}/aw

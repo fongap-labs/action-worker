@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat [security]: add a central, pinned secret scan of the commits a pull request adds (gitleaks 8.30.1 with a verified SHA-256, `scripts/central-secret-scan.ts`) to the Linux CI sandbox. It runs before any target code, uses the target's `.gitleaks.toml` from the trusted ref when it has one, prints rule names and counts (file and line only for public repositories) and only warns by default; set the Repository Variable `AW_CENTRAL_GITLEAKS_MODE` to `enforce` to make findings fail the build.
+
 - fix [security]: the main-branch ruleset now requires a pull request to be up to date with `main` before it can merge (`strict_required_status_checks_policy: true`), so `validate-merge` runs on the result of the merge. It applies to the public repositories; private repositories on the Free plan cannot have rulesets and rely on the Main Write Guard (ORG-006, phase 1).
 
 - docs: record the owner decision that the organization stays on the Free plan and the private repositories stay private in the ORG-006 and AW-002 proposals (rulesets apply to the four public repositories; the Main Write Guard is the control for the private ones).
