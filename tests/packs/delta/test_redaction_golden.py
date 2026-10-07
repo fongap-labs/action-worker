@@ -21,11 +21,20 @@ FIXTURE = target_root() / "crates" / "delta-core" / "tests" / "fixtures" / "reda
 # repository contains a string a secret scanner would report.
 AWS_KEY = "AKIA" + "IOSFODNN7EXAMPLE"
 GITHUB_TOKEN = "ghp_" + "a" * 36
+NVIDIA_KEY = "nvapi-" + "b" * 24
+JWT = "".join(
+    ["eyJ", "hbGciOiJIUzI1NiJ9.", "eyJ", "zdWIiOiIxMjM0NTY3ODkwIn0.", "dBjftJeZ4CVPmB92K27uhbUJU1p1r"]
+)
 
 
 def expand(value):
     if isinstance(value, str):
-        return value.replace("<<AWS_KEY>>", AWS_KEY).replace("<<GITHUB_TOKEN>>", GITHUB_TOKEN)
+        return (
+            value.replace("<<AWS_KEY>>", AWS_KEY)
+            .replace("<<GITHUB_TOKEN>>", GITHUB_TOKEN)
+            .replace("<<NVIDIA_KEY>>", NVIDIA_KEY)
+            .replace("<<JWT>>", JWT)
+        )
     if isinstance(value, list):
         return [expand(item) for item in value]
     if isinstance(value, dict):
@@ -44,6 +53,8 @@ SECRETS = [
     "sk-abcdefghijklmnopqrstuvwxyz0123",
     AWS_KEY,
     GITHUB_TOKEN,
+    NVIDIA_KEY,
+    JWT,
     "dBjftJeZ4CVPm",
 ]
 
@@ -113,7 +124,7 @@ def test_redaction_is_idempotent():
 
 
 def test_the_placeholders_stand_for_credential_shaped_text():
-    assert redact_text(f"k {AWS_KEY} {GITHUB_TOKEN}") == "k [redacted] [redacted]"
+    assert redact_text(f"k {AWS_KEY} {GITHUB_TOKEN} {NVIDIA_KEY} {JWT}") == "k [redacted] [redacted] [redacted] [redacted]"
 
 
 def test_url_helper_alone_is_unchanged_for_non_http_schemes():
