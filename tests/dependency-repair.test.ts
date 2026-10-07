@@ -7,6 +7,7 @@ import {
   selectDependencyRepair,
 } from "../scripts/dependency-repair.ts";
 import { needsDependencyRepair } from "../scripts/intake-open-prs.ts";
+import { gitPushEnvironment } from "../scripts/publish-dependency-repair.ts";
 
 const sha = "a".repeat(40);
 const baseSha = "b".repeat(40);
@@ -197,4 +198,15 @@ test("intake treats a PR with an unsafe file name as not repairable instead of f
     ),
     /boom/
   );
+});
+
+test("dependency repair pushes with an environment credential, not a stored or listed one", () => {
+  const environment = gitPushEnvironment("secret-token", "https://github.com/");
+  assert.equal(environment.GIT_CONFIG_COUNT, "1");
+  assert.equal(environment.GIT_CONFIG_KEY_0, "http.https://github.com/.extraheader");
+  assert.equal(
+    environment.GIT_CONFIG_VALUE_0,
+    `AUTHORIZATION: basic ${Buffer.from("x-access-token:secret-token").toString("base64")}`
+  );
+  assert.equal(environment.GIT_TERMINAL_PROMPT, "0");
 });
