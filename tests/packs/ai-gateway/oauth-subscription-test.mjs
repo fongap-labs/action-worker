@@ -524,8 +524,18 @@ await test('/oauth/start accepts the gateway key through the POST form body', as
     );
   // No Authorization header: the paste-page form body is the credential.
   const res = await post(ACCESS_KEY);
-  assert.equal(res.status, 302, 'form key authorizes the onboarding start');
-  const state = new URL(res.headers.get('location')).searchParams.get('state');
+  // A page that submits a form cannot follow a cross-origin redirect under form-action, so the form
+  // start answers with a refresh page; the previous 302 is still accepted until both sides ship.
+  let authorizeUrl;
+  if (res.status === 302) {
+    authorizeUrl = res.headers.get('location');
+  } else {
+    assert.equal(res.status, 200, 'form key authorizes the onboarding start');
+    const refresh = /http-equiv="refresh" content="0; url=([^"]+)"/.exec(await res.text());
+    assert.ok(refresh, 'form start answers with a refresh page');
+    authorizeUrl = refresh[1].replace(/&amp;/g, '&');
+  }
+  const state = new URL(authorizeUrl).searchParams.get('state');
   assert.ok(state && db.flows.has(state), 'flow state persisted');
   // A wrong form key is still rejected.
   assert.equal((await post('wrong-key')).status, 401, 'wrong form key rejected');
