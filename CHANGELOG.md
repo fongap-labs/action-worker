@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- test: cover the ai-gateway hardening in its pack: OAuth page CSP and the refresh-page form start, edge cache stream and credential scoping and unsafe-response skipping, token AAD binding, diagnostics key groups, the subscription and public dashboard switches, and the waitUntil purge.
 - docs: add `SECURITY.md` (English and Chinese) pointing to GitHub private vulnerability reporting; the backup contact is a TODO for the owner.
 
 - docs: describe the Gate as deterministic policy plus CI Evidence, with AI Review running asynchronously after the gate passes and only advising (README.md, README.zh-CN.md); drop the "review blocking thresholds" bullet, which has no policy behind it.
