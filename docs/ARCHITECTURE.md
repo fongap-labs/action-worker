@@ -556,6 +556,17 @@ The generic source-script deploy executor requires the current default-branch HE
 
 The executor unsets every secret outside the source-declared scope and then starts the entrypoint with `exec`, replacing the shell that was started with every secret, so the entrypoint does not run beside it.
 
+### 12.1 Deploy environments and secrets (central authority)
+
+The deploy manifest (`.github/deploy.json` in the source repository) only *requests* an environment. Two central policies decide what is granted:
+
+- `policies/deploy-environments.json` lists, per source repository, the environments it may use. `validate-deploy-source.ts` checks the manifest's `environment` against it right after parsing; a repository that is not listed, or an environment that is not listed for it, fails the deploy with exit code 77 before any runner starts. A repository therefore cannot name `production`, or another repository's environment, by itself.
+- `policies/deploy-secrets.json` lists, per repository and environment, the secret names the source may declare in `deploy.secrets.required` / `deploy.secrets.allowed` (the union is the ceiling), like `policies/task-secrets.json` does for tasks. `AW_DEPLOY_SECRET_POLICY_MODE` (Repository Variable, default `warn`) decides what happens to a name beyond the ceiling: `warn` prints `::warning::` and continues, `enforce` fails with exit code 65 and the entrypoint never starts. Change the policy file first, then the source's list. After a successful rehearsal deploy, set the variable to `enforce`.
+
+The deploy job also: checks the target out with the read-only `AW_CHECKOUT_TOKEN` (never `AW_CONTROL_TOKEN`), asks `resolve-secret-scope.ts` to refuse the control-plane credentials (`AW_CONTROL_TOKEN`, `AW_ADMIN_TOKEN`, `AW_DISPATCH_TOKEN`, `AW_CHECKOUT_TOKEN`, `GH_TOKEN`, `NODE_OPTIONS`) in any declared list, and fails if one of them is still in the environment before the entrypoint starts.
+
+Every job that uses `AW_ADMIN_TOKEN` (`apply-repo-settings.yml`, the publish job of `security-scan.yml`) runs in the `admin-ops` environment. Both environments (`production`, `admin-ops`) restrict deployment to `main`; repository_dispatch runs always use the default branch, and a `workflow_dispatch` run from another branch is refused by the environment. Repository-level copies of secrets stay in place until the environment copies have been verified; deleting them is a separate, manual owner step.
+
 ## 13. 目录
 
 Action Worker 按职责分层。当前 workflow 入口如下；业务能力通过通用 Contract / Manifest / Policy 接入，不以产品名建立长期 workflow：
