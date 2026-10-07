@@ -1149,6 +1149,9 @@ test("deploy and task entrypoints replace the shell that received every secret",
     '>"${RUNNER_TEMP}/action-worker-task.log" 2>&1',
     "Task output is suppressed because the task source repository is private.",
   ]);
+  // Artifacts of this public repository are downloadable by any signed-in user.
+  assert.doesNotMatch(task, /path: .*action-worker-task\.log/);
+  assert.doesNotMatch(task, /name: task-log-/);
 });
 
 test("only PR Governance reports an untrusted head instead of failing", async () => {
