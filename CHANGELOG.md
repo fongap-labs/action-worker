@@ -7,6 +7,7 @@
 - fix [security]: stop persisting checkout credentials in the dependency repair publish job, the validation workflows and the task dispatch workflow (the push now authenticates through the environment), and split `security-scan.yml` so CodeQL runs without secrets and only a separate publish job holds `AW_ADMIN_TOKEN`.
 
 - test: add workflow invariants that fail when a code-executing job references a central secret, a checkout persists credentials, or the CodeQL job gains a secret.
+- test: accept the refresh page that the ai-gateway OAuth form start returns after a form submit, alongside the previous 302, and stop asserting that a streamed request shares the edge cache entry of a non-streamed one, so the gateway fixes can merge without breaking this pack.
 
 - fix [security]: re-verify the task source in `handle-task-dispatch.yml` before any task runs; `bootstrap_ref` must be the current default-branch HEAD of the target repository, carry verified CI Evidence and pass the Main Write Guard, so a forged `run-task` dispatch can no longer make the executor run an arbitrary commit.
 
