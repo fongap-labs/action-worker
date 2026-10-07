@@ -67,6 +67,7 @@ async function main(): Promise<void> {
     expectedAdapterRaw = "",
     requireDefaultHeadRaw = "true",
     runnerPolicyPath = "policies/runner.json",
+    environmentPolicyPath = "policies/deploy-environments.json",
   ] = process.argv.slice(2);
 
   if (
@@ -74,7 +75,7 @@ async function main(): Promise<void> {
     !["true", "false"].includes(requireDefaultHeadRaw)
   ) {
     throw new CliError(
-      "Usage: validate-deploy-source.ts <expected-adapter> <require-default-head> [runner-policy]",
+      "Usage: validate-deploy-source.ts <expected-adapter> <require-default-head> [runner-policy] [environment-policy]",
       64
     );
   }
@@ -126,7 +127,8 @@ async function main(): Promise<void> {
     resolvedSha,
     parseJson(rawRepositoryPolicy, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
     await readJson(runnerPolicyPath),
-    reader
+    reader,
+    await readJson(environmentPolicyPath)
   );
   if (manifest.adapter !== expectedAdapter) {
     throw new CliError(
