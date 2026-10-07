@@ -10,7 +10,7 @@ jobs:
   validate:
     name: Validate dispatch request
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 30
 
     permissions:
       contents: read
@@ -40,6 +40,13 @@ jobs:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/validate-dispatch-payload.ts "$PAYLOAD"
+
+      - name: Validate task source
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          BOOTSTRAP_REF: ${{ steps.payload.outputs.bootstrap_ref }}
+        run: node scripts/validate-task-source.ts "$REPOSITORY" "$BOOTSTRAP_REF"
 
       - name: Resolve task source visibility
         id: visibility
@@ -71,6 +78,8 @@ jobs:
       AGENT_DOMAIN: ${{ needs.validate.outputs.agent_domain }}
       OPERATION: ${{ needs.validate.outputs.operation }}
       TASK_SOURCE_PRIVATE: ${{ needs.validate.outputs.is_private }}
+      TASK_SOURCE_REPOSITORY: ${{ needs.validate.outputs.repository }}
+      AW_TASK_SECRET_POLICY_MODE: ${{ vars.AW_TASK_SECRET_POLICY_MODE || 'warn' }}
 
     concurrency:
       group: action-worker-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.project }}
@@ -218,7 +227,10 @@ jobs:
                 "${RUNNER_TEMP}/action-worker-base-env.names" \
                 "$project_dir/.secrets.required" \
                 "$project_dir/.secrets.allowed" \
-                "AIG_ACCESS_KEY_AGENT"
+                "AIG_ACCESS_KEY_AGENT" \
+                "policies/task-secrets.json" \
+                "$TASK_SOURCE_REPOSITORY" \
+                "$PROJECT"
           )"
 
           while IFS= read -r secret_name; do
