@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- test: cover the delta web-fetch size and time limits, the URL guard's rejection of embedded credentials and IPv4 forms, and the shared credential-redaction golden fixture in the delta test pack.
+
 - fix [security]: re-verify the task source in `handle-task-dispatch.yml` before any task runs; `bootstrap_ref` must be the current default-branch HEAD of the target repository, carry verified CI Evidence and pass the Main Write Guard, so a forged `run-task` dispatch can no longer make the executor run an arbitrary commit.
 
 - fix [security]: verify `CI Evidence` against the control-repository run that produced it (publishing workflow, default branch, successful conclusion, status written during the run) in the deploy source gate, the task source gate and the Main Write Guard, instead of trusting the `target_url` prefix.
