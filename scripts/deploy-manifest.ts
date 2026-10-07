@@ -85,6 +85,43 @@ export function parseDeployManifest(value: unknown): DeployManifest {
   return value as DeployManifest;
 }
 
+// Central authority over which environments a repository may deploy to. The target declares its
+// environment in `.github/deploy.json`, but that is a request: it is honoured only when this policy
+// lists it, so a repository cannot name `production` (or another repository's environment) itself.
+export type DeployEnvironmentPolicy = Record<string, readonly string[]>;
+
+export function parseDeployEnvironmentPolicy(value: unknown): DeployEnvironmentPolicy {
+  if (!isJsonRecord(value) || value.schema_version !== 1 || !isJsonRecord(value.repositories)) {
+    throw new CliError("Deploy environment policy is invalid.", 65);
+  }
+  const policy: Record<string, string[]> = {};
+  for (const [repository, environments] of Object.entries(value.repositories)) {
+    if (
+      !repositoryPattern.test(repository) ||
+      !Array.isArray(environments) ||
+      environments.some((item) => typeof item !== "string" || !namePattern.test(item))
+    ) {
+      throw new CliError("Deploy environment policy entry is invalid.", 65);
+    }
+    policy[repository] = [...(environments as string[])];
+  }
+  return policy;
+}
+
+export function assertDeployEnvironmentAllowed(
+  policy: DeployEnvironmentPolicy,
+  repository: string,
+  environment: string
+): void {
+  const allowed = Object.hasOwn(policy, repository) ? (policy[repository] ?? []) : [];
+  if (!allowed.includes(environment)) {
+    throw new CliError(
+      `Deploy environment is not allowed for ${repository}: ${environment}. Allowed: ${allowed.join(", ") || "none"}.`,
+      77
+    );
+  }
+}
+
 export type ResolvedDeployManifest = DeployManifest & {
   repository: string;
   source_sha: string;
@@ -98,7 +135,8 @@ export async function resolveDeployManifest(
   sourceSha: string,
   repositoryPolicyValue: unknown,
   runnerPolicyValue: unknown,
-  reader: { get(path: string): Promise<unknown> }
+  reader: { get(path: string): Promise<unknown> },
+  environmentPolicyValue?: unknown
 ): Promise<ResolvedDeployManifest> {
   if (!repositoryPattern.test(repository) || !shaPattern.test(sourceSha)) {
     throw new CliError("Deploy manifest source identity is invalid.", 64);
@@ -115,6 +153,13 @@ export async function resolveDeployManifest(
       65
     )
   );
+  if (environmentPolicyValue !== undefined) {
+    assertDeployEnvironmentAllowed(
+      parseDeployEnvironmentPolicy(environmentPolicyValue),
+      repository,
+      manifest.environment
+    );
+  }
   const runnerPolicy = parseRunnerPolicy(runnerPolicyValue);
   const resolvedRunner = resolveRunnerProfile(runnerPolicy, manifest.runner_profile);
   if (resolvedRunner.profile.trust_domain !== "privileged") {

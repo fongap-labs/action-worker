@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat [security]: the source-script deploy path now takes its authority from the control plane. `policies/deploy-environments.json` lists the environments each repository may deploy to (the manifest only requests one, an unlisted request fails with exit code 77), `policies/deploy-secrets.json` caps the secrets a target may declare per repository and environment (`AW_DEPLOY_SECRET_POLICY_MODE` `warn` by default, `enforce` to refuse), the deploy checkout uses the read-only `AW_CHECKOUT_TOKEN` instead of `AW_CONTROL_TOKEN`, and the control-plane credentials are refused as declared names. Jobs that use `AW_ADMIN_TOKEN` now run in the `admin-ops` environment.
+
 - test: cover the AdFilter build header in the internal-vault pack: every source and its licence appear as Adblock Plus comment lines, the rule count and rules are unchanged, and a configured value cannot inject a rule line.
 - test: cover the delta-suite browser hardening: non-web request protocols are aborted, the guarded proxy demands per-session credentials (407), refuses CONNECT to non-web ports, releases idle connections and answers 503 beyond its connection cap.
 
