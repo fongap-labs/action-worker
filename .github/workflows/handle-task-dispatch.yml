@@ -296,16 +296,9 @@ jobs:
               exec bash "$TMP_SCRIPT" "$PROJECT" "$BOOTSTRAP_REF" "$REQUEST_ID"
           fi
           # Run logs of this public repository are world-readable; keep private task output off them.
+          # Artifacts of a public repository are downloadable by any signed-in GitHub user, so this
+          # log stays on the runner and is never uploaded.
           exec bash "$TMP_SCRIPT" "$PROJECT" "$BOOTSTRAP_REF" "$REQUEST_ID"               >"${RUNNER_TEMP}/action-worker-task.log" 2>&1
-
-      - name: Upload task log
-        if: always() && steps.task.outcome == 'failure'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: task-log-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/action-worker-task.log
-          if-no-files-found: ignore
-          retention-days: 7
 
       - name: Report task result
         if: always() && steps.task.outcome != 'skipped'
