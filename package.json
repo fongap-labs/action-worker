@@ -15,7 +15,8 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.14",
     "@types/node": "26.6.3",
-    "typescript": "7.0.2"
+    "typescript": "7.0.2",
+    "yaml": "2.9.1"
   },
   "imports": {
     "#kit/*": "./tests/kit/*"

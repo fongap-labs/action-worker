@@ -9,7 +9,7 @@ Task Dispatch · AI Agents · PR Governance · Release Governance · Deployment 
 [**English**](README.md) · [简体中文](README.zh-CN.md)
 
 <!-- work-metrics:start -->
-[![Task Dispatch](https://img.shields.io/badge/Task%20Dispatch-4-1A61FE?style=flat-square)](https://github.com/fongap-labs/action-worker/actions) [![AI Review](https://img.shields.io/badge/AI%20Review-118-0527FC?style=flat-square)](https://github.com/fongap-labs/action-worker/actions) [![PR Governance](https://img.shields.io/badge/PR%20Governance-303-212183?style=flat-square)](https://github.com/fongap-labs/action-worker/actions) [![Release Governance](https://img.shields.io/badge/Release%20Governance-6-08872B?style=flat-square)](https://github.com/fongap-labs/action-worker/releases) [![Status](https://img.shields.io/github/actions/workflow/status/fongap-labs/action-worker/validate-ci.yml?branch=main&style=flat-square&label=Status)](https://github.com/fongap-labs/action-worker/actions/workflows/validate-ci.yml)
+[![Task Dispatch](https://img.shields.io/badge/Task%20Dispatch-4-1A61FE?style=flat-square)](https://github.com/fongap-labs/action-worker/actions) [![AI Review](https://img.shields.io/badge/AI%20Review-118-0527FC?style=flat-square)](https://github.com/fongap-labs/action-worker/actions) [![PR Governance](https://img.shields.io/badge/PR%20Governance-333-212183?style=flat-square)](https://github.com/fongap-labs/action-worker/actions) [![Release Governance](https://img.shields.io/badge/Release%20Governance-6-08872B?style=flat-square)](https://github.com/fongap-labs/action-worker/releases) [![Status](https://img.shields.io/github/actions/workflow/status/fongap-labs/action-worker/validate-ci.yml?branch=main&style=flat-square&label=Status)](https://github.com/fongap-labs/action-worker/actions/workflows/validate-ci.yml)
 <!-- work-metrics:end -->
 
 <sub>Metrics: Task Dispatch = successful Handle Task Dispatch runs · AI Review = successful AI Review executions · PR Governance = successful Handle PR Dispatch runs · Release Governance = successful Handle Release Dispatch runs</sub>
@@ -24,7 +24,7 @@ Action Worker is the central GitHub automation orchestration and governance cont
 
 It centralizes task dispatch, AI agents, PR governance, CI evidence, release governance, and deployment admission. Product repositories keep product code, tests, builds, and deployment implementation.
 
-Callers declare the target. Action Worker verifies facts, builds a plan, runs reviews, and allows or blocks the change according to verifiable evidence.
+Callers declare the target. Action Worker verifies facts, builds a plan, and allows or blocks the change according to deterministic policy and verifiable evidence. An AI review runs after the gate and only advises.
 
 ```text
 Task / PR
@@ -59,7 +59,6 @@ Fixed boundaries and dynamic judgment are separated.
 - PR title and CHANGELOG contracts;
 - naming rules;
 - secrets and execution permissions;
-- review blocking thresholds;
 - Release SemVer, tags, and rollback;
 - final gates.
 
@@ -83,7 +82,7 @@ Agents may judge risk. They may not redefine permission boundaries or gates.
 | **Agent Skills** | Provide one shared execution discipline plus task skills for bug fixing, CI diagnosis, impact analysis, PR review, and release verification |
 | **CI Evidence** | Read execution evidence from the target repository's current head SHA through `ci.yml → validate-merge` |
 | **Source Policy** | Enforce target commit, default HEAD, and successful CI admission |
-| **Gate** | Combine AI Review, CI Evidence, and deterministic policy to allow or block |
+| **Gate** | Deterministic policy plus CI Evidence allow or block; AI Review runs asynchronously after the gate passes and is advisory |
 | **Release** | Centralize SemVer, tags, releases, asset re-verification, and rollback |
 | **Deploy** | Centralize deployment commit admission while keeping deployment implementation and production secrets in product repositories |
 
@@ -180,12 +179,14 @@ repository_dispatch
   ↓
 Action Worker
   ↓
-Validate → Inspect → Plan → CI Evidence → Optional AI Agents → Gate
+Validate → Inspect → Plan → CI Evidence → Gate
   ↓
-PR Governance commit status + sticky review summary
+PR Governance commit status
+  ↓ (after the gate passed)
+Advisory AI Review → sticky review summary
 ```
 
-Action Worker re-fetches the PR base/head SHA, title, state, and diff from GitHub. Callers cannot declare those facts. Changes that require CI first collect evidence for the current head SHA. Enabled AI agents may use that evidence, but the deterministic gate still requires `validate-merge=success`. Project tests remain in the managed repository sandbox; the central control plane never executes PR-provided code.
+Action Worker re-fetches the PR base/head SHA, title, state, and diff from GitHub. Callers cannot declare those facts. Changes that require CI first collect evidence for the current head SHA. The deterministic gate requires `validate-merge=success` and is decided before any AI agent runs; the advisory AI Review starts only after the gate passed and may read that evidence. Project tests remain in the managed repository sandbox; the central control plane never executes PR-provided code.
 
 ### 2. Task dispatch
 

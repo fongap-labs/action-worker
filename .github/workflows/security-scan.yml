@@ -58,7 +58,8 @@ jobs:
         with:
           repository: ${{ needs.prepare.outputs.repository }}
           ref: ${{ needs.prepare.outputs.source_sha }}
-          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          # Private sources never reach this job (resolve-security-scan.ts refuses them).
+          token: ${{ github.token }}
           path: target
           fetch-depth: 1
           persist-credentials: false
@@ -81,6 +82,22 @@ jobs:
           sha: ${{ needs.prepare.outputs.source_sha }}
           category: central/language:${{ matrix.language }}
 
+      - name: Upload SARIF
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: codeql-results-${{ matrix.language }}
+          path: ${{ runner.temp }}/codeql-results
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish SARIF
+    needs: [prepare, analyze]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
       - name: Checkout security publisher
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -92,6 +109,13 @@ jobs:
         with:
           node-version: 24
 
+      - name: Download SARIF
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: codeql-results-*
+          path: ${{ runner.temp }}/codeql-results
+          merge-multiple: true
+
       - name: Publish SARIF to target repository
         env:
           AW_ADMIN_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
@@ -99,8 +123,4 @@ jobs:
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
           SOURCE_REF: ${{ needs.prepare.outputs.ref }}
         run: |
-          node control/scripts/publish-security-scan.ts \
-            "$TARGET_REPOSITORY" \
-            "$SOURCE_SHA" \
-            "$SOURCE_REF" \
-            "$RUNNER_TEMP/codeql-results"
+          node control/scripts/publish-security-scan.ts             "$TARGET_REPOSITORY"             "$SOURCE_SHA"             "$SOURCE_REF"             "$RUNNER_TEMP/codeql-results"

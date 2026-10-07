@@ -10,6 +10,22 @@ import {
 import { GithubReader } from "./github-api.ts";
 import { CliError, handleError, isMain, parseJson, runText } from "./runtime-command.ts";
 
+// The checkout does not persist credentials, so authenticate the push through the environment
+// instead of a token written to .git/config or placed on the command line.
+export function gitPushEnvironment(
+  token: string,
+  serverUrl = process.env.GITHUB_SERVER_URL ?? "https://github.com"
+): NodeJS.ProcessEnv {
+  const basic = Buffer.from(`x-access-token:${token}`, "utf8").toString("base64");
+  return {
+    ...process.env,
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_CONFIG_COUNT: "1",
+    GIT_CONFIG_KEY_0: `http.${serverUrl.replace(/\/+$/, "")}/.extraheader`,
+    GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}`,
+  };
+}
+
 function safeRelativePath(value: unknown): value is string {
   return (
     typeof value === "string" &&
@@ -85,7 +101,7 @@ async function main(): Promise<void> {
 
   const request: DependencyRepairRequest = {
     schema_version: "1",
-    request_id: `publish:${repository.replace("/", "-")}:${prNumber}:${headSha.slice(0, 12)}`,
+    request_id: `publish:$repository.replace("/", "-"):$prNumber:$headSha.slice(0, 12)`,
     repository,
     pr_number: prNumber,
     head_sha: headSha,
@@ -97,7 +113,7 @@ async function main(): Promise<void> {
   }
 
   const manifestResponse = await reader.get(
-    `repos/${repository}/contents/.github/dependency-repair.json?ref=${baseSha}`
+    `repos/$repository/contents/.github/dependency-repair.json?ref=${baseSha}`
   );
   const manifest = parseDependencyRepairManifest(
     parseJson(
@@ -130,7 +146,7 @@ async function main(): Promise<void> {
     const source = confined(stagingRoot, path);
     const details = await stat(source);
     if (!details.isFile() || details.size > 50 * 1024 * 1024) {
-      throw new CliError(`Dependency repair artifact is invalid: ${path}.`, 66);
+      throw new CliError(`Dependency repair artifact is invalid: $path.`, 66);
     }
     const destination = confined(targetRoot, path);
     await mkdir(dirname(destination), { recursive: true });
@@ -164,6 +180,7 @@ async function main(): Promise<void> {
   );
   await runText("git", ["push", "origin", `HEAD:refs/heads/${headRef}`], {
     cwd: targetRoot,
+    env: gitPushEnvironment(token),
     timeoutMs: 60_000,
   });
 
