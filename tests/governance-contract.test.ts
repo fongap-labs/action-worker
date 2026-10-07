@@ -781,7 +781,12 @@ test("security scanning is source-owned, centrally executed, and private-safe", 
     "AW_CONTROL_TOKEN",
     "AW_ADMIN_TOKEN",
   ]);
-  assert.doesNotMatch(workflow, /actions\/(?:upload|download)-artifact/);
+  // CodeQL runs without any secret and hands SARIF to the publish job as a one-day artifact.
+  requireText(workflow, [
+    "actions/upload-artifact@",
+    "actions/download-artifact@",
+    "retention-days: 1",
+  ]);
   assert.doesNotMatch(
     workflow,
     /fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)/

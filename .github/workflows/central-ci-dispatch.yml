@@ -194,7 +194,7 @@ jobs:
       is_private: ${{ needs.prepare.outputs.is_private }}
     secrets:
       # Evaluated by GitHub before the sandbox starts; public targets receive no credential.
-      checkout_token: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CONTROL_TOKEN || '' }}
+      checkout_token: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CHECKOUT_TOKEN || '' }}
 
   security:
     name: Central CI / Security
@@ -220,7 +220,7 @@ jobs:
         with:
           repository: ${{ needs.prepare.outputs.repository }}
           ref: ${{ needs.prepare.outputs.head_sha }}
-          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          token: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CHECKOUT_TOKEN || github.token }}
           path: target
           fetch-depth: 0
           persist-credentials: false
@@ -246,7 +246,7 @@ jobs:
       is_private: ${{ needs.prepare.outputs.is_private }}
     secrets:
       # Evaluated by GitHub before the sandbox starts; public targets receive no credential.
-      checkout_token: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CONTROL_TOKEN || '' }}
+      checkout_token: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CHECKOUT_TOKEN || '' }}
 
   finalize:
     name: Publish Central CI
