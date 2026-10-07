@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import inspect
 import socket
 import socketserver
 import threading
@@ -46,6 +48,27 @@ def _stop_server(server, thread) -> None:
     thread.join(timeout=2)
 
 
+def _make_proxy(resolver, **options) -> GuardedBrowserProxy:
+    """Build a proxy, passing only the options this version of the proxy understands.
+
+    Newer proxies require credentials and restrict CONNECT ports; older ones have neither option and
+    simply ignore a Proxy-Authorization header, so the same tests are valid for both.
+    """
+    accepted = inspect.signature(GuardedBrowserProxy.__init__).parameters
+    return GuardedBrowserProxy(
+        resolver=resolver,
+        **{name: value for name, value in options.items() if name in accepted},
+    )
+
+
+def _auth_line(proxy: GuardedBrowserProxy) -> str:
+    credentials = getattr(proxy, "credentials", None)
+    if not credentials:
+        return ""
+    token = base64.b64encode(f"{credentials[0]}:{credentials[1]}".encode()).decode("ascii")
+    return f"Proxy-Authorization: Basic {token}\r\n"
+
+
 def test_proxy_target_parsing_preserves_logical_host() -> None:
     logical, host, port, path = _http_target(
         "http://example.test:8080/a?q=1",
@@ -65,9 +88,7 @@ def test_proxy_target_parsing_preserves_logical_host() -> None:
 def test_http_proxy_connects_to_resolver_address_not_hostname() -> None:
     upstream, upstream_thread = _start_server(_HTTPHandler)
     seen: list[str] = []
-    proxy = GuardedBrowserProxy(
-        resolver=lambda url: seen.append(url) or "127.0.0.1"
-    )
+    proxy = _make_proxy(lambda url: seen.append(url) or "127.0.0.1")
     try:
         proxy.start()
         proxy_host, proxy_port = proxy.server_url.removeprefix("http://").split(":")
@@ -77,6 +98,7 @@ def test_http_proxy_connects_to_resolver_address_not_hostname() -> None:
                 (
                     f"GET http://example.test:{target_port}/x HTTP/1.1\r\n"
                     f"Host: example.test:{target_port}\r\n"
+                    f"{_auth_line(proxy)}"
                     "Connection: close\r\n\r\n"
                 ).encode("ascii")
             )
@@ -89,6 +111,7 @@ def test_http_proxy_connects_to_resolver_address_not_hostname() -> None:
         assert b"200 OK" in response
         assert seen == [f"http://example.test:{target_port}/x"]
         assert upstream.last_request.startswith(b"GET /x HTTP/1.1\r\n")
+        assert b"Proxy-Authorization" not in upstream.last_request
     finally:
         proxy.stop()
         _stop_server(upstream, upstream_thread)
@@ -97,18 +120,20 @@ def test_http_proxy_connects_to_resolver_address_not_hostname() -> None:
 def test_connect_tunnel_uses_vetted_address() -> None:
     upstream, upstream_thread = _start_server(_EchoHandler)
     seen: list[str] = []
-    proxy = GuardedBrowserProxy(
-        resolver=lambda url: seen.append(url) or "127.0.0.1"
+    target_port = upstream.server_address[1]
+    proxy = _make_proxy(
+        lambda url: seen.append(url) or "127.0.0.1",
+        connect_ports=[target_port],
     )
     try:
         proxy.start()
         proxy_host, proxy_port = proxy.server_url.removeprefix("http://").split(":")
         with socket.create_connection((proxy_host, int(proxy_port)), timeout=5) as client:
-            target_port = upstream.server_address[1]
             client.sendall(
                 (
                     f"CONNECT example.test:{target_port} HTTP/1.1\r\n"
-                    f"Host: example.test:{target_port}\r\n\r\n"
+                    f"Host: example.test:{target_port}\r\n"
+                    f"{_auth_line(proxy)}\r\n"
                 ).encode("ascii")
             )
             response = client.recv(4096)
@@ -125,14 +150,17 @@ def test_policy_refusal_returns_403_without_connecting() -> None:
     def blocked(_url: str) -> str:
         raise PermissionError("loopback")
 
-    proxy = GuardedBrowserProxy(resolver=blocked)
+    proxy = _make_proxy(blocked)
     try:
         proxy.start()
         proxy_host, proxy_port = proxy.server_url.removeprefix("http://").split(":")
         with socket.create_connection((proxy_host, int(proxy_port)), timeout=5) as client:
             client.sendall(
-                b"CONNECT internal.example:443 HTTP/1.1\r\n"
-                b"Host: internal.example:443\r\n\r\n"
+                (
+                    "CONNECT internal.example:443 HTTP/1.1\r\n"
+                    "Host: internal.example:443\r\n"
+                    f"{_auth_line(proxy)}\r\n"
+                ).encode("ascii")
             )
             response = client.recv(4096)
         assert b"403 Proxy Error" in response
