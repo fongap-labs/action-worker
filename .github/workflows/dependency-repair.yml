@@ -30,6 +30,7 @@ jobs:
       working_directory: ${{ steps.resolve.outputs.working_directory }}
       output_paths_json: ${{ steps.resolve.outputs.output_paths_json }}
       runner_labels_json: ${{ steps.resolve.outputs.runner_labels_json }}
+      is_private: ${{ steps.visibility.outputs.is_private }}
 
     steps:
       - name: Checkout control plane
@@ -59,6 +60,17 @@ jobs:
           DEPENDENCY_REPAIR_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
         run: node scripts/resolve-dependency-repair.ts policies/runner.json
 
+      - name: Resolve target visibility
+        id: visibility
+        if: steps.resolve.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.resolve.outputs.repository }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "is_private=$(gh api "repos/$REPOSITORY" --jq '.private')" >> "$GITHUB_OUTPUT"
+
   compute:
     name: Dependency repair / ${{ needs.prepare.outputs.repair_id }}
     needs: prepare
@@ -75,7 +87,7 @@ jobs:
         with:
           repository: ${{ needs.prepare.outputs.repository }}
           ref: ${{ needs.prepare.outputs.head_sha }}
-          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          token: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CHECKOUT_TOKEN || github.token }}
           path: target
           fetch-depth: 1
           persist-credentials: false
@@ -138,6 +150,7 @@ jobs:
           token: ${{ secrets.AW_CONTROL_TOKEN }}
           path: target
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Checkout control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
