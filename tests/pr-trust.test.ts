@@ -105,3 +105,37 @@ test("trust evaluation refuses a head that moved after dispatch", () => {
   assert.throws(() => evaluatePrTrust(pull("OWNER"), [], olderSha), /PR head changed/);
   assert.throws(() => evaluatePrTrust(pull("OWNER"), [], "main"), /full commit SHA/);
 });
+
+function dependabotPull(
+  options: { private?: boolean; headRepository?: string; type?: string } = {}
+): Record<string, unknown> {
+  return {
+    author_association: "NONE",
+    user: { login: "dependabot[bot]", type: options.type ?? "Bot" },
+    head: { sha: headSha, repo: { full_name: options.headRepository ?? "fongap-labs/example" } },
+    base: { repo: { full_name: "fongap-labs/example", private: options.private ?? false } },
+  };
+}
+
+test("a Dependabot pull request from the same public repository needs no approval", () => {
+  assert.deepEqual(evaluatePrTrust(dependabotPull(), [], headSha), {
+    trusted: true,
+    basis: "dependency-bot",
+    association: "NONE",
+  });
+});
+
+test("a Dependabot pull request still waits for approval in a private or foreign repository", () => {
+  for (const pull of [
+    dependabotPull({ private: true }),
+    dependabotPull({ headRepository: "someone/example" }),
+    dependabotPull({ type: "User" }),
+  ]) {
+    assert.equal(evaluatePrTrust(pull, [], headSha).trusted, false);
+  }
+  assert.equal(
+    evaluatePrTrust(dependabotPull({ private: true }), [review("maintainer", "APPROVED")], headSha)
+      .trusted,
+    true
+  );
+});

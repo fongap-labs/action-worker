@@ -136,9 +136,12 @@ jobs:
         run: node scripts/validate-security.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policies/security.json"
 
       # Change code from an author without write access runs centrally only after a maintainer
-      # approves the current head commit.
+      # approves the current head commit. Until then the run reports "awaiting approval" and stops
+      # before CI; central intake picks the pull request up again once the approval exists.
       - name: Enforce PR trust
+        id: trust
         env:
+          PR_TRUST_UNTRUSTED: report
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
@@ -146,7 +149,7 @@ jobs:
         run: node scripts/pr-trust.ts "$REPOSITORY" "$PR_NUMBER" "$HEAD_SHA"
 
       - name: Dispatch centralized CI
-        if: steps.base_plan.outputs.ci_required == 'true'
+        if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
@@ -165,7 +168,7 @@ jobs:
             "$GITHUB_WORKSPACE/policies/execution.json"
 
       - name: Collect CI evidence
-        if: steps.base_plan.outputs.ci_required == 'true'
+        if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
@@ -174,7 +177,7 @@ jobs:
         run: node scripts/wait-ci-evidence.ts "$REPOSITORY" "$HEAD_SHA" "$GITHUB_WORKSPACE/policies/execution.json"
 
       - name: Publish explicit no-CI evidence
-        if: steps.base_plan.outputs.ci_required != 'true'
+        if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required != 'true'
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
@@ -193,7 +196,7 @@ jobs:
             -f "target_url=$RUN_URL" >/dev/null
 
       - name: Validate CI evidence
-        if: steps.base_plan.outputs.ci_required == 'true'
+        if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -201,6 +204,7 @@ jobs:
 
       - name: Mark deterministic gate passed
         id: gate
+        if: steps.trust.outputs.trusted == 'true'
         shell: bash
         run: echo "passed=true" >> "$GITHUB_OUTPUT"
 
@@ -222,7 +226,7 @@ jobs:
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           STATE: ${{ steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
-          DESCRIPTION: ${{ steps.gate.outputs.passed == 'true' && 'Action Worker PR governance passed' || 'Action Worker PR governance failed' }}
+          DESCRIPTION: ${{ steps.gate.outputs.passed == 'true' && 'Action Worker PR governance passed' || steps.trust.outputs.trusted == 'false' && 'Awaiting maintainer approval of the current head commit' || 'Action Worker PR governance failed' }}
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
 
       - name: Update central merge gate
@@ -233,7 +237,7 @@ jobs:
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           STATE: ${{ steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
-          DESCRIPTION: ${{ steps.gate.outputs.passed == 'true' && 'Action Worker merge gate passed' || 'Action Worker merge gate failed' }}
+          DESCRIPTION: ${{ steps.gate.outputs.passed == 'true' && 'Action Worker merge gate passed' || steps.trust.outputs.trusted == 'false' && 'Awaiting maintainer approval of the current head commit' || 'Action Worker merge gate failed' }}
           PR_STATUS_CONTEXT: validate-merge
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
 
@@ -244,7 +248,7 @@ jobs:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
-          GOVERNANCE_STATUS: ${{ steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
+          GOVERNANCE_STATUS: ${{ steps.gate.outputs.passed == 'true' && 'success' || steps.trust.outputs.trusted == 'false' && 'awaiting-approval' || 'failure' }}
           AI_REVIEW_STATE: ${{ steps.gate.outputs.passed == 'true' && steps.base_plan.outputs.review_required == 'true' && 'queued' || '' }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/publish-pr-review.ts "$REPOSITORY" "$PR_NUMBER" "$GOVERNANCE_STATUS" "$RUN_URL" /tmp/pr-plan.json /tmp/ocr-result.json "$AI_REVIEW_STATE"

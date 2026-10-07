@@ -6,6 +6,7 @@ import {
   selectDependencyRepair,
 } from "./dependency-repair.ts";
 import { GithubReader, githubEnvironment, isJsonRecord } from "./github-api.ts";
+import { AWAITING_APPROVAL_DESCRIPTION, evaluatePrTrust, listPullReviews } from "./pr-trust.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 
@@ -29,6 +30,7 @@ export type IntakeResult = {
   repair_blocked: number;
   in_flight: number;
   already_processed: number;
+  awaiting_approval: number;
 };
 
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -37,7 +39,10 @@ type StatusFact = {
   state: string;
   run_id: number;
   updated_at: string;
+  description: string;
 };
+
+type PullFacts = { number: number; headSha: string; pull: Record<string, unknown> };
 
 export const PENDING_STATUS_LEASE_MS = 120_000;
 
@@ -61,16 +66,17 @@ function statusMap(value: unknown, controlRepository: string): Map<string, Statu
     const state = typeof item.state === "string" ? item.state : "";
     const targetUrl = typeof item.target_url === "string" ? item.target_url : "";
     const updatedAt = typeof item.updated_at === "string" ? item.updated_at : "";
+    const description = typeof item.description === "string" ? item.description : "";
     const runId = trustedControlRunId(targetUrl, controlRepository);
     if (!runId) continue;
     if (context && state && !statuses.has(context)) {
-      statuses.set(context, { state, run_id: runId, updated_at: updatedAt });
+      statuses.set(context, { state, run_id: runId, updated_at: updatedAt, description });
     }
   }
   return statuses;
 }
 
-function pullFacts(value: unknown): { number: number; headSha: string } {
+function pullFacts(value: unknown): PullFacts {
   if (
     !isJsonRecord(value) ||
     typeof value.number !== "number" ||
@@ -84,14 +90,11 @@ function pullFacts(value: unknown): { number: number; headSha: string } {
   if (!shaPattern.test(headSha)) {
     throw new CliError("GitHub pull request head SHA is invalid.", 65);
   }
-  return { number: value.number, headSha };
+  return { number: value.number, headSha, pull: value };
 }
 
-async function openPullRequests(
-  reader: GithubGet,
-  repository: string
-): Promise<Array<{ number: number; headSha: string }>> {
-  const pulls: Array<{ number: number; headSha: string }> = [];
+async function openPullRequests(reader: GithubGet, repository: string): Promise<PullFacts[]> {
+  const pulls: PullFacts[] = [];
   for (let page = 1; page <= 20; page += 1) {
     const response = await reader.get(
       `repos/${repository}/pulls?state=open&per_page=100&page=${page}`
@@ -110,7 +113,7 @@ async function needsDispatch(
   reader: GithubGet,
   controlRepository: string,
   controlHeadSha: string
-): Promise<"dispatch" | "in-flight" | "processed"> {
+): Promise<"dispatch" | "in-flight" | "processed" | "awaiting-approval"> {
   const governance = statuses.get("PR Governance");
   const evidence = statuses.get("CI Evidence");
   const mergeGate = statuses.get("validate-merge");
@@ -133,6 +136,12 @@ async function needsDispatch(
   }
   if (pendingRunIds.length > 0) {
     return "dispatch";
+  }
+
+  // An untrusted head never reaches CI, so CI Evidence stays absent. Without this check the PR
+  // would be dispatched again on every intake run until someone approved it.
+  if (governance?.state === "failure" && governance.description === AWAITING_APPROVAL_DESCRIPTION) {
+    return "awaiting-approval";
   }
 
   if (governance && evidence && mergeGate) {
@@ -255,6 +264,7 @@ export async function scanOpenPullRequests(
     repair_blocked: 0,
     in_flight: 0,
     already_processed: 0,
+    awaiting_approval: 0,
   };
 
   for (const repository of repositories) {
@@ -278,6 +288,13 @@ export async function scanOpenPullRequests(
       if (governanceAction === "processed") {
         result.already_processed += 1;
         continue;
+      }
+      if (governanceAction === "awaiting-approval") {
+        const reviews = await listPullReviews(reader, repository, pull.number);
+        if (!evaluatePrTrust(pull.pull, reviews, pull.headSha).trusted) {
+          result.awaiting_approval += 1;
+          continue;
+        }
       }
 
       if (

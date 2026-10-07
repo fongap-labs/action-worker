@@ -13,14 +13,42 @@ export const TRUSTED_ASSOCIATIONS: ReadonlySet<string> = new Set([
 
 const DECISIVE_REVIEW_STATES = new Set(["APPROVED", "CHANGES_REQUESTED", "DISMISSED"]);
 
+// Dependabot is a GitHub App, so no account can register this login.
+const DEPENDENCY_BOT_LOGIN = "dependabot[bot]";
+
+// Written as the PR Governance description while a pull request waits for approval; central
+// intake reads it back and stops re-dispatching until an approval of the head commit exists.
+export const AWAITING_APPROVAL_DESCRIPTION =
+  "Awaiting maintainer approval of the current head commit";
+
 export type PrTrustDecision = {
   trusted: boolean;
-  basis: "author" | "approval" | "none";
+  basis: "author" | "approval" | "dependency-bot" | "none";
   association: string;
 };
 
 function login(value: unknown): string {
   return isJsonRecord(value) ? getJsonString(value, "login").toLowerCase() : "";
+}
+
+function repositoryOf(side: unknown): Record<string, unknown> {
+  return isJsonRecord(side) && isJsonRecord(side.repo) ? side.repo : {};
+}
+
+// Dependabot opens its pull requests from a branch of the target repository itself. In a public
+// target its change code runs in the sandbox with no credential, so it does not wait for approval.
+// A private target keeps the approval requirement because its sandbox holds a checkout token.
+function isPublicDependencyBotPull(pull: Record<string, unknown>): boolean {
+  const base = repositoryOf(pull.base);
+  const baseName = getJsonString(base, "full_name");
+  return (
+    login(pull.user) === DEPENDENCY_BOT_LOGIN &&
+    isJsonRecord(pull.user) &&
+    getJsonString(pull.user, "type") === "Bot" &&
+    base.private === false &&
+    baseName !== "" &&
+    getJsonString(repositoryOf(pull.head), "full_name") === baseName
+  );
 }
 
 // A pull request may run change code centrally when its author is trusted, or when a trusted
@@ -46,6 +74,9 @@ export function evaluatePrTrust(
   if (TRUSTED_ASSOCIATIONS.has(association)) {
     return { trusted: true, basis: "author", association };
   }
+  if (isPublicDependencyBotPull(pull)) {
+    return { trusted: true, basis: "dependency-bot", association };
+  }
 
   // Reviews arrive in submission order; each reviewer's latest decisive review on the head wins.
   const author = login(pull.user);
@@ -69,18 +100,15 @@ export function evaluatePrTrust(
   return { trusted: approved, basis: approved ? "approval" : "none", association };
 }
 
-async function listReviews(
+export async function listPullReviews(
+  reader: { get(path: string): Promise<unknown> },
   repository: string,
-  prNumber: string,
-  token: string
+  prNumber: number | string
 ): Promise<unknown[]> {
   const reviews: unknown[] = [];
   for (let page = 1; page <= 20; page += 1) {
     const rows = getJsonArray(
-      await getGithubJson(
-        `repos/${repository}/pulls/${prNumber}/reviews?per_page=100&page=${page}`,
-        token
-      )
+      await reader.get(`repos/${repository}/pulls/${prNumber}/reviews?per_page=100&page=${page}`)
     );
     reviews.push(...rows);
     if (rows.length < 100) {
@@ -97,10 +125,11 @@ async function main(): Promise<void> {
     throw new CliError("Usage: pr-trust.ts <repository> <pr-number> <expected-head-sha>", 64);
   }
 
-  const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, token);
+  const reader = { get: (path: string) => getGithubJson(path, token) };
+  const pull = await reader.get(`repos/${repository}/pulls/${prNumber}`);
   const decision = evaluatePrTrust(
     pull,
-    await listReviews(repository, prNumber, token),
+    await listPullReviews(reader, repository, prNumber),
     expectedHeadSha
   );
   await appendLines(process.env.GITHUB_OUTPUT, [
@@ -108,6 +137,15 @@ async function main(): Promise<void> {
     `basis=${decision.basis}`,
   ]);
   console.log(JSON.stringify(decision));
+  // PR Governance reports an untrusted head as awaiting approval and stops there. Every other
+  // caller, including the Central CI that executes change code, keeps failing closed.
+  if (!decision.trusted && process.env.PR_TRUST_UNTRUSTED === "report") {
+    console.log(
+      `::notice::${repository}#${prNumber} is from an author without write access (${decision.association || "NONE"}). ` +
+        "Central CI starts after a maintainer approves the current head commit."
+    );
+    return;
+  }
   if (!decision.trusted) {
     throw new CliError(
       `::error::${repository}#${prNumber} is from an author without write access (${decision.association || "NONE"}). ` +

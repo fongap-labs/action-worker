@@ -1,6 +1,6 @@
 import { writeFile } from "node:fs/promises";
-import { trustedCiStatus } from "./ci-evidence.ts";
-import { getGithubJson, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
+import { hasVerifiedCiEvidence, type JsonReader, trustedCiStatus } from "./ci-evidence.ts";
+import { GithubReader, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 
 function sleep(delayMs: number): Promise<void> {
@@ -47,7 +47,7 @@ export async function waitForCentralStatus(
   repository: string,
   headSha: string,
   ci: Record<string, unknown>,
-  token: string,
+  reader: JsonReader,
   controlRepository: string,
   pollSeconds: number,
   timeoutMinutes: number
@@ -56,7 +56,7 @@ export async function waitForCentralStatus(
   const deadline = Date.now() + timeoutMinutes * 60_000;
 
   while (Date.now() < deadline) {
-    const response = await getGithubJson(`repos/${repository}/commits/${headSha}/status`, token);
+    const response = await reader.get(`repos/${repository}/commits/${headSha}/status`);
     const status = trustedCiStatus(response, context, controlRepository);
 
     if (!status) {
@@ -72,6 +72,23 @@ export async function waitForCentralStatus(
       console.error(`Central CI pending: ${repository}@${headSha} context=${context}`);
       await sleep(pollSeconds * 1000);
       continue;
+    }
+
+    // A run URL in the status is only a claim. A success counts once the control run it names
+    // is confirmed as a successful CI Evidence run; wait for that run within the CI deadline.
+    if (state === "success") {
+      const pollMs = pollSeconds * 1000;
+      const verified = await hasVerifiedCiEvidence(reader, response, {
+        controlRepository,
+        runAttempts: Math.max(1, Math.ceil((deadline - Date.now()) / pollMs)),
+        retryDelayMs: pollMs,
+      });
+      if (!verified) {
+        throw new CliError(
+          `::error::CI Evidence for ${repository}@${headSha} was not produced by a successful Action Worker CI run.`,
+          65
+        );
+      }
     }
 
     const conclusion = state === "success" ? "success" : "failure";
@@ -128,7 +145,7 @@ async function main(): Promise<void> {
     repository,
     headSha,
     ci,
-    token,
+    new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token),
     controlRepository,
     pollSeconds,
     timeoutMinutes
