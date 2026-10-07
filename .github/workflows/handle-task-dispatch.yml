@@ -10,7 +10,7 @@ jobs:
   validate:
     name: Validate dispatch request
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 30
 
     permissions:
       contents: read

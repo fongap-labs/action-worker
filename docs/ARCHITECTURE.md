@@ -412,7 +412,7 @@ Task 使用 `AW_CONTROL_TOKEN` 获取受管私有仓固定 Commit；bootstrap �
 `run-task` 载荷只是调用方的声明。`handle-task-dispatch.yml` 的 `validate` 作业在载荷校验之后调用 `scripts/validate-task-source.ts`，由接收端重新核对事实，规则与 Deploy 路径一致：
 
 - `bootstrap_ref` 必须等于目标仓默认分支当前 HEAD；已过期时以退出码 75 失败，新 HEAD 由下一次派发处理；
-- 该提交必须带有经回查验证的 `CI Evidence`；
+- 该提交必须带有经回查验证的 `CI Evidence`；push 触发的任务可能先于主分支 CI 到达，因此最多等待约 20 分钟，仍无成功证据才失败；
 - 该提交必须通过 Main Write Guard（`assertTrustedMainWrite`）。
 
 `execute` 作业依赖 `validate`，复核失败时任务不会启动，也就不会解析该提交声明的 Secret 范围。
