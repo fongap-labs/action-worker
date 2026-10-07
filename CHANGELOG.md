@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- test: cover the Server Edge hardening in the internal-vault pack: the strict env loader rejects anything that could run or surprise, release defaults load like `source` did, configuration backups are pruned to three, and `deploy.sh` never downloads or runs the Tailscale installer without a matching pinned hash.
+
 - test: cover the AdFilter build header in the internal-vault pack: every source and its licence appear as Adblock Plus comment lines, the rule count and rules are unchanged, and a configured value cannot inject a rule line.
 - test: cover the delta-suite browser hardening: non-web request protocols are aborted, the guarded proxy demands per-session credentials (407), refuses CONNECT to non-web ports, releases idle connections and answers 503 beyond its connection cap.
 
