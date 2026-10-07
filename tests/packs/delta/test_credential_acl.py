@@ -44,6 +44,13 @@ def test_groups_inherited_entries_open_and_foreign_dacls_are_rejected(sddl):
     assert not vault._dacl_grants_only(sddl, USER)
 
 
+def test_the_local_administrator_alias_counts_only_for_rid_500():
+    admin = "S-1-5-21-1111-2222-3333-500"
+    assert vault._dacl_grants_only("D:PAI(A;;FA;;;LA)", admin)
+    assert not vault._dacl_grants_only("D:PAI(A;;FA;;;LA)", USER)
+    assert not vault._dacl_grants_only("D:PAI(A;;FA;;;LA)(A;;FA;;;SY)", admin)
+
+
 def test_deny_entries_are_not_grants():
     assert vault._dacl_grants_only(f"D:P(D;;FA;;;WD)(A;;FA;;;{USER})", USER)
 
