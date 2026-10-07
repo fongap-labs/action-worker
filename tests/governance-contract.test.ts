@@ -366,7 +366,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   assert.match(dispatchStep, /steps\.base_plan\.outputs\.review_required == 'true'/);
   assert.match(
     workflow,
-    /Validate CI evidence\n\s+if: steps\.base_plan\.outputs\.ci_required == 'true'/
+    /Validate CI evidence\n\s+if: steps\.trust\.outputs\.trusted == 'true' && steps\.base_plan\.outputs\.ci_required == 'true'/
   );
   assert.match(workflow, /STATE: \$\{\{ steps\.gate\.outputs\.passed == 'true'/);
   const ciDispatcher = await text("scripts/dispatch-central-ci.ts");
@@ -889,7 +889,8 @@ test("central CI deploy dispatch is source-owned and adapter-routed", async () =
     "Central CI / Security",
     "validate-security.ts",
     "SECURITY_RESULT",
-    "needs.security.result == 'success'",
+    '[[ "$SECURITY_RESULT" == "success" ]]',
+    "needs.finalize.result == 'success'",
     "Attest deploy source main write",
     "MAIN_WRITE_AUDIT_REPOSITORY: ${{ needs.prepare.outputs.repository }}",
     "MAIN_WRITE_AUDIT_RUN_URL",
@@ -1147,5 +1148,47 @@ test("deploy and task entrypoints replace the shell that received every secret",
     "TASK_SOURCE_PRIVATE: ${{ needs.validate.outputs.is_private }}",
     '>"${RUNNER_TEMP}/action-worker-task.log" 2>&1',
     "Task output is suppressed because the task source repository is private.",
+  ]);
+});
+
+test("only PR Governance reports an untrusted head instead of failing", async () => {
+  const { AWAITING_APPROVAL_DESCRIPTION } = await import("../scripts/pr-trust.ts");
+  const governance = await text(".github/workflows/handle-pr-dispatch.yml");
+  assert.match(
+    governance,
+    /- name: Enforce PR trust\n\s+id: trust\n\s+env:\n\s+PR_TRUST_UNTRUSTED: report\n/
+  );
+  assert.equal(governance.split(`'${AWAITING_APPROVAL_DESCRIPTION}'`).length - 1, 2);
+  for (const step of ["Dispatch centralized CI", "Collect CI evidence", "Validate CI evidence"]) {
+    assert.ok(
+      governance.includes(`- name: ${step}\n        if: steps.trust.outputs.trusted == 'true' && `),
+      `${step} runs only for a trusted head`
+    );
+  }
+  assert.match(
+    governance,
+    /- name: Mark deterministic gate passed\n\s+id: gate\n\s+if: steps\.trust\.outputs\.trusted == 'true'\n/
+  );
+
+  // The Central CI that executes change code keeps failing closed on an untrusted head.
+  const centralCi = await text(".github/workflows/central-ci-dispatch.yml");
+  assert.doesNotMatch(centralCi, /PR_TRUST_UNTRUSTED/);
+});
+
+test("Central CI follow-ups cannot fail the run that carries CI Evidence", async () => {
+  const workflow = await text(".github/workflows/central-ci-dispatch.yml");
+  const finalize = workflow.slice(
+    workflow.indexOf("  finalize:"),
+    workflow.indexOf("  follow-up:")
+  );
+  const followUp = workflow.slice(workflow.indexOf("  follow-up:"));
+  assert.match(finalize, /context=CI Evidence/);
+  assert.doesNotMatch(finalize, /dispatch-security-scan|dispatch-central-deploy|audit-main-writes/);
+  requireText(followUp, [
+    "if: needs.finalize.result == 'success'",
+    "continue-on-error: true",
+    "dispatch-security-scan.ts",
+    "audit-main-writes.ts",
+    "dispatch-central-deploy.ts",
   ]);
 });

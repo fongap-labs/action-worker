@@ -681,3 +681,11 @@ test("main write provenance rejects direct pushes and fake status-only trust", a
   await assert.rejects(() => validateMainWriteProvenance(reader, "fongap/example", mainSha, false));
   await assert.rejects(() => assertTrustedMainWrite(reader, "fongap/example", mainSha, false));
 });
+
+test("PR review summary tells a maintainer how to release a pull request awaiting approval", () => {
+  const body = buildReview("awaiting-approval", "https://example.test/run", undefined, undefined);
+  assert.match(body, /Gate: \*\*WAITING FOR APPROVAL\*\*/);
+  assert.match(body, /Review changes → Approve/);
+  assert.match(body, /Central PR Intake/);
+  assert.doesNotMatch(body, /Gate: \*\*FAIL\*\*/);
+});

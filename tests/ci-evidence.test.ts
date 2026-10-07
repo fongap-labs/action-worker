@@ -8,6 +8,7 @@ import {
   trustedCiStatus,
   trustedControlRunId,
 } from "../scripts/ci-evidence.ts";
+import { waitForCentralStatus } from "../scripts/wait-ci-evidence.ts";
 
 const controlRepository = "fongap-labs/action-worker";
 
@@ -223,6 +224,37 @@ test("requiring CI evidence on a commit polls the status and fails closed", asyn
   };
   await assert.rejects(
     requireVerifiedCiEvidence(forged, "fongap/example", sha, noDelay),
+    /not produced by a successful Action Worker CI run/
+  );
+});
+
+test("the PR gate rejects a success status that no successful control run produced", async () => {
+  const ci = { status_context: "CI Evidence" };
+  const statusPath = `repos/fongap-labs/target/commits/${"a".repeat(40)}/status`;
+  const reader = (run: unknown) => ({
+    async get(path: string): Promise<unknown> {
+      return path === statusPath ? evidenceStatus() : run;
+    },
+  });
+  await waitForCentralStatus(
+    "fongap-labs/target",
+    "a".repeat(40),
+    ci,
+    reader(controlRun()),
+    controlRepository,
+    5,
+    1
+  );
+  await assert.rejects(
+    waitForCentralStatus(
+      "fongap-labs/target",
+      "a".repeat(40),
+      ci,
+      reader(controlRun({ path: ".github/workflows/validate-ci.yml" })),
+      controlRepository,
+      5,
+      1
+    ),
     /not produced by a successful Action Worker CI run/
   );
 });

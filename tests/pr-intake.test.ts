@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { scanOpenPullRequests } from "../scripts/intake-open-prs.ts";
+import { AWAITING_APPROVAL_DESCRIPTION } from "../scripts/pr-trust.ts";
 
 const shaA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const shaB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -95,6 +96,7 @@ test("central PR intake scans every managed repository independent of visibility
     repair_blocked: 0,
     in_flight: 1,
     already_processed: 1,
+    awaiting_approval: 0,
   });
 });
 
@@ -482,4 +484,57 @@ test("central PR intake routes matching source-owned dependency repair before go
   assert.equal(result.dispatched, 0);
   assert.equal(result.repair_dispatched, 1);
   assert.equal(result.repair_blocked, 0);
+});
+
+test("central PR intake leaves a pull request that awaits approval alone until it is approved", async () => {
+  const repository = "fongap-labs/private-one";
+  const awaiting = {
+    context: "PR Governance",
+    state: "failure",
+    description: AWAITING_APPROVAL_DESCRIPTION,
+    target_url: "https://github.com/fongap-labs/action-worker/actions/runs/31",
+  };
+  const pull = (number: number, sha: string) => ({
+    number,
+    author_association: "NONE",
+    user: { login: "dependabot[bot]", type: "Bot" },
+    head: { sha, repo: { full_name: repository } },
+    base: { repo: { full_name: repository, private: true } },
+  });
+  const responses = new Map<string, unknown>([
+    [`repos/${repository}/pulls?state=open&per_page=100&page=1`, [pull(41, shaA), pull(42, shaB)]],
+    [`repos/${repository}/commits/${shaA}/status`, { statuses: [awaiting] }],
+    [`repos/${repository}/commits/${shaB}/status`, { statuses: [awaiting] }],
+    [`repos/${repository}/pulls/41/reviews?per_page=100&page=1`, []],
+    [
+      `repos/${repository}/pulls/42/reviews?per_page=100&page=1`,
+      [
+        {
+          user: { login: "maintainer" },
+          state: "APPROVED",
+          author_association: "MEMBER",
+          commit_id: shaB,
+        },
+      ],
+    ],
+  ]);
+
+  const dispatched: number[] = [];
+  const result = await scanOpenPullRequests(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        assert.equal(responses.has(path), true, `unexpected API path: ${path}`);
+        return responses.get(path);
+      },
+    },
+    async (_repository, pr) => {
+      dispatched.push(pr);
+    },
+    "fongap-labs/action-worker"
+  );
+
+  assert.deepEqual(dispatched, [42]);
+  assert.equal(result.awaiting_approval, 1);
+  assert.equal(result.dispatched, 1);
 });
