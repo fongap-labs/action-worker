@@ -570,6 +570,7 @@ test("main write guard accepts central merge authority and preserves local self-
             context: "CI Evidence",
             state: "success",
             target_url: "https://github.com/fongap-labs/action-worker/actions/runs/2",
+            created_at: "2026-09-25T00:00:30Z",
           },
           {
             context: "validate-merge",
@@ -577,6 +578,18 @@ test("main write guard accepts central merge authority and preserves local self-
             target_url: "https://github.com/fongap-labs/action-worker/actions/runs/1",
           },
         ],
+      },
+    ],
+    [
+      "repos/fongap-labs/action-worker/actions/runs/2",
+      {
+        repository: { full_name: "fongap-labs/action-worker" },
+        path: ".github/workflows/central-ci-dispatch.yml",
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        run_started_at: "2026-09-25T00:00:00Z",
+        updated_at: "2026-09-25T00:01:00Z",
       },
     ],
     [
@@ -602,6 +615,19 @@ test("main write guard accepts central merge authority and preserves local self-
   } as unknown as GithubReader;
 
   const provenance = await validateMainWriteProvenance(reader, "fongap/example", mainSha, true);
+  const forgedRun = {
+    ...(paths.get("repos/fongap-labs/action-worker/actions/runs/2") as Record<string, unknown>),
+    path: ".github/workflows/validate-ci.yml",
+  };
+  paths.set("repos/fongap-labs/action-worker/actions/runs/2", forgedRun);
+  await assert.rejects(
+    () => validateMainWriteProvenance(reader, "fongap/example", mainSha, true),
+    /CI Evidence/
+  );
+  paths.set("repos/fongap-labs/action-worker/actions/runs/2", {
+    ...forgedRun,
+    path: ".github/workflows/central-ci-dispatch.yml",
+  });
   assert.equal(provenance.pr_number, 7);
   assert.equal(provenance.pr_head_sha, prHeadSha);
   assert.equal(

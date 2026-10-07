@@ -1,5 +1,6 @@
+import { requireVerifiedCiEvidence } from "./ci-evidence.ts";
 import { type DeployAdapter, resolveDeployManifest } from "./deploy-manifest.ts";
-import { GithubReader, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
+import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
 import {
   appendLines,
@@ -20,17 +21,6 @@ export type DeployRequest = {
 const requestPattern = /^[A-Za-z0-9._:-]{1,128}$/;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
-
-function getControlRunPrefix(): string {
-  const fromEnv = process.env.CONTROL_RUN_PREFIX;
-  if (fromEnv) {
-    return fromEnv;
-  }
-  const serverUrl = process.env.GITHUB_SERVER_URL ?? "https://github.com";
-  return `${serverUrl}/fongap-labs/action-worker/actions/runs/`;
-}
-
-const controlRunPrefix = getControlRunPrefix();
 
 function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
   const actual = Object.keys(value).sort();
@@ -70,17 +60,6 @@ export function assertExpectedRepository(request: DeployRequest, expectedReposit
       64
     );
   }
-}
-
-export function hasTrustedCiEvidence(value: unknown): boolean {
-  const statuses = getJsonArray(value, "statuses");
-  return statuses.some(
-    (item) =>
-      isJsonRecord(item) &&
-      getJsonString(item, "context") === "CI Evidence" &&
-      getJsonString(item, "state") === "success" &&
-      getJsonString(item, "target_url").startsWith(controlRunPrefix)
-  );
 }
 
 async function main(): Promise<void> {
@@ -156,12 +135,7 @@ async function main(): Promise<void> {
     );
   }
 
-  const status = await reader.get(
-    `repos/${request.source_repository}/commits/${resolvedSha}/status`
-  );
-  if (!hasTrustedCiEvidence(status)) {
-    throw new CliError("::error::Deploy source has no successful Action Worker CI Evidence.", 65);
-  }
+  await requireVerifiedCiEvidence(reader, request.source_repository, resolvedSha);
 
   const mainWrite = await assertTrustedMainWrite(
     reader,
@@ -190,7 +164,7 @@ async function main(): Promise<void> {
     `- Adapter: ${manifest.adapter}`,
     `- Runner profile: ${manifest.runner_profile}`,
     `- Require default HEAD: ${requireDefaultHeadRaw}`,
-    "- CI Evidence: trusted Action Worker success",
+    "- CI Evidence: verified Action Worker success",
     `- Main Write Guard: success via PR #${mainWrite.pr_number}`,
   ]);
 }
