@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- test: cover owner-only credential files in the delta pack: SID-based ACL judgement (no dependence on the Windows language), creation with mode 0600, reporting of an unconfirmed protection and of a failing folder restriction, and a loose file restricted by the next save on Windows.
+
 - test: cover the AdFilter build header in the internal-vault pack: every source and its licence appear as Adblock Plus comment lines, the rule count and rules are unchanged, and a configured value cannot inject a rule line.
 - test: cover the delta-suite browser hardening: non-web request protocols are aborted, the guarded proxy demands per-session credentials (407), refuses CONNECT to non-web ports, releases idle connections and answers 503 beyond its connection cap.
 
