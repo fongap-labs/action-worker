@@ -19,13 +19,21 @@ export function buildReview(
   resultValue: unknown,
   isReviewQueued = false
 ): string {
-  const lines = [
-    marker,
-    "## PR Governance",
-    "",
-    `- Gate: **${status === "success" ? "PASS" : "FAIL"}**`,
-    "- AI Review role: advisory only; findings do not determine the gate.",
-  ];
+  const gate =
+    status === "success"
+      ? "PASS"
+      : status === "awaiting-approval"
+        ? "WAITING FOR APPROVAL"
+        : "FAIL";
+  const lines = [marker, "## PR Governance", "", `- Gate: **${gate}**`];
+  if (status === "awaiting-approval") {
+    lines.push(
+      "- Why: the author has no write access, so Central CI runs this code only after a maintainer approves the current head commit.",
+      "- Next step: a maintainer opens **Files changed → Review changes → Approve**. Action Worker continues within about 5 minutes; to start at once, run **Central PR Intake** from the Actions tab of action-worker.",
+      "- A new push needs a new approval."
+    );
+  }
+  lines.push("- AI Review role: advisory only; findings do not determine the gate.");
   if (isJsonRecord(planValue)) {
     const context = isJsonRecord(planValue.context) ? planValue.context : {};
     const triage = isJsonRecord(planValue.triage) ? planValue.triage : {};
@@ -126,7 +134,9 @@ async function main(): Promise<void> {
   if (!token) {
     throw new CliError("::error::GH_TOKEN is required.");
   }
-  const status = ["success", "failure", "cancelled"].includes(rawStatus) ? rawStatus : "failure";
+  const status = ["success", "failure", "cancelled", "awaiting-approval"].includes(rawStatus)
+    ? rawStatus
+    : "failure";
   const body = buildReview(
     status,
     runUrl,

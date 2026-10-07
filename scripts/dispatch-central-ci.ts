@@ -1,5 +1,5 @@
-import { hasTrustedSuccessfulCiEvidence } from "./ci-evidence.ts";
-import { getGithubJson, githubEnvironment, isJsonRecord, runGithubCli } from "./github-api.ts";
+import { hasVerifiedCiEvidence } from "./ci-evidence.ts";
+import { GithubReader, githubEnvironment, isJsonRecord, runGithubCli } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, readJson, runText } from "./runtime-command.ts";
 
@@ -53,8 +53,11 @@ async function main(): Promise<void> {
     throw new CliError("::error::Central CI control credentials are unavailable.", 65);
   }
 
-  const currentStatus = await getGithubJson(`repos/${repository}/commits/${headSha}/status`, token);
-  if (hasTrustedSuccessfulCiEvidence(currentStatus, context, controlRepository)) {
+  // Only a success that a real control run produced may skip CI; a status that merely names a
+  // control run URL is a claim anyone with status write access can make.
+  const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
+  const currentStatus = await reader.get(`repos/${repository}/commits/${headSha}/status`);
+  if (await hasVerifiedCiEvidence(reader, currentStatus, { controlRepository })) {
     console.log(`Central CI already satisfied: ${repository}@${headSha}`);
     return;
   }

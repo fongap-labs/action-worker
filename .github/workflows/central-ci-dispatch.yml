@@ -259,7 +259,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - name: Publish target status
@@ -292,21 +292,34 @@ jobs:
             exit 1
           fi
 
+  # Runs only after a passing CI Evidence was published. A failure here must not turn the CI run
+  # itself red: the PR gate and the release, deploy and task source checks accept CI Evidence only
+  # from a run that concluded successfully.
+  follow-up:
+    name: Dispatch Central CI Follow-ups
+    needs:
+      - prepare
+      - finalize
+    if: needs.finalize.result == 'success'
+    continue-on-error: true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
       - name: Checkout security scan control
-        if: ${{ needs.linux.result == 'success' && needs.security.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           path: security-control
           persist-credentials: false
 
       - name: Setup Node for security scan control
-        if: ${{ needs.linux.result == 'success' && needs.security.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
 
       - name: Dispatch central security scan
-        if: ${{ needs.linux.result == 'success' && needs.security.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
@@ -322,19 +335,19 @@ jobs:
             "$TARGET_PR_NUMBER"
 
       - name: Checkout deploy control
-        if: ${{ needs.prepare.outputs.pr_number == '0' && needs.linux.result == 'success' && needs.security.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
+        if: ${{ needs.prepare.outputs.pr_number == '0' }}
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Setup Node for deploy control
-        if: ${{ needs.prepare.outputs.pr_number == '0' && needs.linux.result == 'success' && needs.security.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
+        if: ${{ needs.prepare.outputs.pr_number == '0' }}
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
 
       - name: Attest deploy source main write
-        if: ${{ needs.prepare.outputs.pr_number == '0' && needs.linux.result == 'success' && needs.security.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
+        if: ${{ needs.prepare.outputs.pr_number == '0' }}
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
@@ -343,7 +356,7 @@ jobs:
         run: node scripts/audit-main-writes.ts
 
       - name: Dispatch automatic deploy
-        if: ${{ needs.prepare.outputs.pr_number == '0' && needs.linux.result == 'success' && needs.security.result == 'success' && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
+        if: ${{ needs.prepare.outputs.pr_number == '0' }}
         env:
           GH_TOKEN: ${{ github.token }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}

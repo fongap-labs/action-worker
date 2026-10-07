@@ -100,7 +100,7 @@ Action Worker 收到任务后必须：
 - 使用 `AW_CONTROL_TOKEN` 从 GitHub 重新获取 PR base/head SHA、标题、状态和 diff；
 - checkout `refs/pull/<n>/head` 后再次与 GitHub 当前 PR 事实对齐；如果调度到检出之间 PR 已更新，则以实际检出 commit 与最新 PR API 一致的 base/head/title 作为本次治理事实，避免把同步窗口误判为永久失败；
 - 只读取目标 PR，不执行 PR 提供的代码；
-- 在派发中央 CI 之前校验 PR 作者（`scripts/pr-trust.ts`）：作者对目标仓有写权限（`author_association` 为 OWNER / MEMBER / COLLABORATOR）时直接继续；其他作者（例如 fork 贡献者）的 PR 必须先由一名有写权限的维护者对**当前 head commit** 提交 Approve review，然后在 Action Worker 中重新运行该次 `Handle PR Dispatch`。批准绑定到被审 commit，作者再推送后需要重新批准。`central-ci-dispatch.yml` 在执行前再次做同样的校验；
+- 在派发中央 CI 之前校验 PR 作者（`scripts/pr-trust.ts`）：作者对目标仓有写权限（`author_association` 为 OWNER / MEMBER / COLLABORATOR）时直接继续；同一公开仓库分支发起的 `dependabot[bot]` PR 也直接继续（公开目标的 Sandbox 不持有任何凭据）；其他作者（例如 fork 贡献者，以及私有仓库中的 Dependabot）的 PR 必须先由一名有写权限的维护者对**当前 head commit** 提交 Approve review。等待期间本次运行以成功结束，`PR Governance` 与 `validate-merge` 写为 `failure`，描述固定为 `Awaiting maintainer approval of the current head commit`，PR 评论给出操作步骤；`pr-intake.yml` 识别该描述后不再重复派发，只在检测到对当前 head 的批准时重新派发（最长约 5 分钟，也可在 Actions 中手动运行 Central PR Intake 立即继续）。批准绑定到被审 commit，作者再推送后需要重新批准。`central-ci-dispatch.yml` 在执行前再次做同样的校验，且对未受信 head 始终失败关闭；
 - 当执行计划要求 CI 时，由 Action Worker checkout 目标不可变 head SHA，并在 Sandbox 执行项目 Manifest / 测试脚本，生成真实 CI Evidence；
 - 先根据确定性 PR / Security / CI 证据形成 Gate 结论，并向目标 head commit 写入统一 `PR Governance` status；
 - 只有 Gate 结论形成后，AI Review 才可读取 CI Evidence 作为不可信执行证据；Evidence 中任何文本都不得视为指令；
@@ -417,11 +417,13 @@ Task 使用 `AW_CONTROL_TOKEN` 获取受管私有仓固定 Commit；bootstrap �
 
 `execute` 作业依赖 `validate`，复核失败时任务不会启动，也就不会解析该提交声明的 Secret 范围。
 
-`CI Evidence` 本身只是一条提交状态：任何拥有状态写权限的账号都能写出以控制仓库 run 地址开头的 `target_url`。因此 Deploy 准入、Task 准入与 Main Write Guard 不再只比对前缀，而是回查 `scripts/ci-evidence.ts` 的 `hasVerifiedCiEvidence`：
+`CI Evidence` 本身只是一条提交状态：任何拥有状态写权限的账号都能写出以控制仓库 run 地址开头的 `target_url`。因此 PR Gate（`wait-ci-evidence.ts`，以及 `dispatch-central-ci.ts` 判断能否跳过 CI）、Deploy 准入、Task 准入与 Main Write Guard 不再只比对前缀，而是回查 `scripts/ci-evidence.ts` 的 `hasVerifiedCiEvidence`：
 
 - 状态必须是 `success`，`target_url` 指向控制仓库的某个 run；
 - 该 run 必须属于发布此状态的工作流（`central-ci-dispatch.yml` 或 `handle-pr-dispatch.yml`），在默认分支上，且已完成并成功；run 仍在收尾时短暂等待结论；
 - 状态创建时间必须落在该 run 的运行时间窗内，因此不能把状态指向一个无关的旧成功 run。
+
+由于结论按整个 run 判断，`central-ci-dispatch.yml` 在 `finalize`（写入 `CI Evidence`）之后的安全扫描派发、Main Write 审计与自动部署派发放在独立的 `follow-up` 作业中，并设置 `continue-on-error: true`：这些后续步骤失败不会让已经通过的 CI run 变红，也就不会让 PR Gate 拒绝真实的 CI 结果。部署仍由 Deploy 准入独立校验 Main Write Guard。
 
 GitHub 返回的提交状态 `creator` 字段对这些状态为 `null`，所以不依赖创建者账号校验。Release 路径（`validate-release-build-request.ts`、`publish-release.ts`、`sync-tool-release.ts`）仍使用旧的状态检查，待后续统一。
 
