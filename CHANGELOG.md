@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+- docs: add `SECURITY.md` (English and Chinese) pointing to GitHub private vulnerability reporting; the backup contact is a TODO for the owner.
+
+- docs: describe the Gate as deterministic policy plus CI Evidence, with AI Review running asynchronously after the gate passes and only advising (README.md, README.zh-CN.md); drop the "review blocking thresholds" bullet, which has no policy behind it.
+
+- fix [security]: task state artifacts are named `task-state-<hash of repository and project>` and carry a `manifest.json`; restore ignores an artifact whose manifest names another repository or project, so two different task sources can no longer share or poison each other's state (artifacts written under the old name are still restored during the 30 day retention window). For a private task source the public run log shows the project and request id only as short hashes and the commit as 7 characters.
 - ci: add `.github/security-scan.json` so Action Worker's own TypeScript and workflow files are scanned by CodeQL, and accept the CodeQL `actions` language in the security scan contract (`contracts/security-scan.json`, `scripts/security-scan.ts`).
 - fix: the engineering language rule no longer reports non-English text inside vendored minified bundles (`*.min.js`, `*.min.css`), which the repository that vendors a library cannot change; the same text in authored code is still reported.
 - feat [security]: the security gate now also reports OpenAI/Anthropic (`sk-ant-`, `sk-proj-`, legacy `sk-` keys), NVIDIA `nvapi-`, Hugging Face `hf_`, Tailscale `tskey-`, `CLOUDFLARE_API_TOKEN` assignments and JWTs in added lines, and `policies/security.json` gains `secret_allowlist`: a known harmless value is accepted only when both its file path and the whole matched text match, so it cannot excuse any other credential on the same line or in the same file. The only entry is the synthetic key in the internal-vault preflight tests.
