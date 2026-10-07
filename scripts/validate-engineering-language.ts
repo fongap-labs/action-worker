@@ -7,6 +7,9 @@ const CONTENT_FILE = /\.(?:txt|csv|tsv)$/i;
 const LOCALIZATION =
   /(^|\/)(?:i18n|locales?|translations?|messages)(\/|$)|(?:^|[._-])zh(?:[-_.](?:CN|Hans))?(?:[._-]|$)/i;
 const WORKFLOW = /^\.github\/workflows\/.*\.ya?ml$/i;
+// Minified third-party bundles are not authored engineering text; their built-in strings (for example
+// a charting library's Chinese locale) cannot be changed by the repository that vendors them.
+const MINIFIED_BUNDLE = /\.min\.(?:js|css)$/i;
 const CONFIG_KEY =
   /(?:["'][^"']*[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF][^"']*["']\s*:)|(?:^|\s)[^:#"'\s]*[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF][^:#"']*\s*:/u;
 const MACHINE_TEXT =
@@ -36,7 +39,12 @@ export function engineeringLineViolation(path: string, line: string): string | n
   if (path === "CHANGELOG.md") {
     return "CHANGELOG entries must use English.";
   }
-  if (MARKDOWN.test(path) || LOCALIZATION.test(path) || CONTENT_FILE.test(path)) {
+  if (
+    MARKDOWN.test(path) ||
+    LOCALIZATION.test(path) ||
+    CONTENT_FILE.test(path) ||
+    MINIFIED_BUNDLE.test(path)
+  ) {
     return null;
   }
   if (WORKFLOW.test(path)) {
