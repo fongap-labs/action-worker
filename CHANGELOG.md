@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- fix [security]: re-verify the task source in `handle-task-dispatch.yml` before any task runs; `bootstrap_ref` must be the current default-branch HEAD of the target repository, carry verified CI Evidence and pass the Main Write Guard, so a forged `run-task` dispatch can no longer make the executor run an arbitrary commit.
+
+- fix [security]: verify `CI Evidence` against the control-repository run that produced it (publishing workflow, default branch, successful conclusion, status written during the run) in the deploy source gate, the task source gate and the Main Write Guard, instead of trusting the `target_url` prefix.
+
+- feat: add `policies/task-secrets.json`, a central ceiling for the secrets a task source may declare per repository and project; `AW_TASK_SECRET_POLICY_MODE` selects `warn` (default) or `enforce`.
+
 - fix: scheduled task dispatches now use a `task-schedule-<identity>` request_id (hyphen separator) so they pass the payload validator's `[A-Za-z0-9_.-]` format check; the previous `task-schedule:<identity>` (colon) was rejected at intake, failing every scheduled task (MarketBrief, PharmaBrief, FongapBlog, AdFilter).
 
 - fix [security]: pin the AI review engine binary by SHA-256 in `policies/review.json`; the installer accepts it only when the binary matches the pinned digest and the release checksum file agrees, so a replaced release asset cannot vouch for itself.

@@ -407,6 +407,35 @@ Task 和 PR 的共同原则是：
 
 Task 使用 `AW_CONTROL_TOKEN` 获取受管私有仓固定 Commit；bootstrap 下载完成后，`AW_CONTROL_TOKEN`、`AW_ADMIN_TOKEN`、`AIG_ACCESS_KEY_AGENT` 与 `AW_DISPATCH_TOKEN` 等中央凭据会从业务执行环境中移除。移除后以 `exec` 启动 bootstrap，替换掉以全部 Secret 启动的 shell 进程，任务不与该进程并存。任务源仓为私有仓时，bootstrap 输出写入 Runner 临时文件而不进入本公开仓的运行日志，日志中只保留任务结果摘要。Task 可以在 `RUNNER_TEMP/action-worker-publication` 暂存一个跨仓发布请求，但业务任务不持有目标仓写凭据。Action Worker 在任务成功后单独校验 `AW_REPOSITORY_POLICY`：源仓必须具有 `release-source`，目标仓必须具有 `release-target` 与 `pr`；只有通过后才向中央发布步骤注入 `AW_CONTROL_TOKEN`，并以 pull request 方式合入目标仓 `main`（目标仓 `main` 无 bypass，要求 PR 且 `validate-merge` 检查通过）。
 
+### 9.1 任务源复核
+
+`run-task` 载荷只是调用方的声明。`handle-task-dispatch.yml` 的 `validate` 作业在载荷校验之后调用 `scripts/validate-task-source.ts`，由接收端重新核对事实，规则与 Deploy 路径一致：
+
+- `bootstrap_ref` 必须等于目标仓默认分支当前 HEAD；已过期时以退出码 75 失败，新 HEAD 由下一次派发处理；
+- 该提交必须带有经回查验证的 `CI Evidence`；
+- 该提交必须通过 Main Write Guard（`assertTrustedMainWrite`）。
+
+`execute` 作业依赖 `validate`，复核失败时任务不会启动，也就不会解析该提交声明的 Secret 范围。
+
+`CI Evidence` 本身只是一条提交状态：任何拥有状态写权限的账号都能写出以控制仓库 run 地址开头的 `target_url`。因此 Deploy 准入、Task 准入与 Main Write Guard 不再只比对前缀，而是回查 `scripts/ci-evidence.ts` 的 `hasVerifiedCiEvidence`：
+
+- 状态必须是 `success`，`target_url` 指向控制仓库的某个 run；
+- 该 run 必须属于发布此状态的工作流（`central-ci-dispatch.yml` 或 `handle-pr-dispatch.yml`），在默认分支上，且已完成并成功；run 仍在收尾时短暂等待结论；
+- 状态创建时间必须落在该 run 的运行时间窗内，因此不能把状态指向一个无关的旧成功 run。
+
+GitHub 返回的提交状态 `creator` 字段对这些状态为 `null`，所以不依赖创建者账号校验。Release 路径（`validate-release-build-request.ts`、`publish-release.ts`、`sync-tool-release.ts`）仍使用旧的状态检查，待后续统一。
+
+### 9.2 中央任务密钥清单
+
+任务源仓在 `projects/<project>/.secrets.required` 与 `.secrets.allowed` 中声明任务可保留的 Secret 名称，但该文件位于被执行方的提交里。`policies/task-secrets.json` 为每个「仓库 / 项目」登记允许声明的名称上限（`required` 与 `allowed` 的并集）；未登记的仓库或项目上限为空。
+
+`scripts/resolve-secret-scope.ts` 在传入「策略路径、仓库、项目」时，把任务源声明的名称与该上限比较。`AW_TASK_SECRET_POLICY_MODE`（Repository Variable，默认 `warn`）决定超出时的行为：
+
+- `warn`：任务继续，日志输出 `::warning::` 列出超出的名称；
+- `enforce`：以退出码 65 失败，任务不启动。
+
+新增任务项目或新增其 Secret 前，先更新 `policies/task-secrets.json`。观察 `warn` 日志确认没有意外超出后，再把 `AW_TASK_SECRET_POLICY_MODE` 设为 `enforce`。
+
 ## 10. Source 与 Release
 
 `validate-source-policy.yml` 继续作为当前迁移期 Source Gate 之一；长期 Source / CI 准入统一由中央 Execution Contract 生成可验证 Evidence。

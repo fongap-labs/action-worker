@@ -1,3 +1,4 @@
+import { hasVerifiedCiEvidence } from "./ci-evidence.ts";
 import {
   GithubReader,
   getJsonArray,
@@ -114,7 +115,7 @@ async function requireCentralPrEvidence(
       65
     );
   }
-  if (!successfulStatus(status, "CI Evidence")) {
+  if (!(await hasVerifiedCiEvidence(reader, status))) {
     throw new CliError(
       "::error::Merged PR head has no successful Action Worker CI Evidence status.",
       65
