@@ -87,7 +87,7 @@ jobs:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           DEPLOY_REQUEST_JSON: ${{ steps.dispatch_request.outputs.request_json || steps.manual_request.outputs.request_json }}
           CONTROL_RUN_PREFIX: ${{ github.server_url }}/fongap-labs/action-worker/actions/runs/
-        run: node scripts/validate-deploy-source.ts source-script true policies/runner.json
+        run: node scripts/validate-deploy-source.ts source-script true policies/runner.json policies/deploy-environments.json
 
   deploy:
     name: Execute source-script deploy
@@ -100,6 +100,7 @@ jobs:
       DEPLOY_SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
       DEPLOY_ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
       DEPLOY_ENTRYPOINT: ${{ needs.prepare.outputs.entrypoint }}
+      AW_DEPLOY_SECRET_POLICY_MODE: ${{ vars.AW_DEPLOY_SECRET_POLICY_MODE || 'warn' }}
 
     steps:
       - name: Checkout control plane
@@ -113,7 +114,7 @@ jobs:
         with:
           repository: ${{ needs.prepare.outputs.source_repository }}
           ref: ${{ needs.prepare.outputs.source_sha }}
-          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          token: ${{ secrets.AW_CHECKOUT_TOKEN }}
           path: target
           persist-credentials: false
 
@@ -141,15 +142,23 @@ jobs:
         run: |
           set -Eeuo pipefail
 
+          # The target declares its secrets, the central policy caps them (policies/deploy-secrets.json),
+          # and the control-plane credentials can never be requested.
           scope="$(
-            node control/scripts/resolve-secret-scope.ts               "${RUNNER_TEMP}/action-worker-base-env.names"               "target/.github/deploy.secrets.required"               "target/.github/deploy.secrets.allowed"
+            node control/scripts/resolve-secret-scope.ts \
+              "${RUNNER_TEMP}/action-worker-base-env.names" \
+              "target/.github/deploy.secrets.required" \
+              "target/.github/deploy.secrets.allowed" \
+              "AW_CONTROL_TOKEN,AW_ADMIN_TOKEN,AW_DISPATCH_TOKEN,AW_CHECKOUT_TOKEN,GH_TOKEN,NODE_OPTIONS" \
+              "control/policies/deploy-secrets.json" \
+              "$DEPLOY_SOURCE_REPOSITORY" "$DEPLOY_ENVIRONMENT" deploy
           )"
 
           while IFS= read -r secret_name; do
             [ -n "$secret_name" ] && unset "$secret_name"
           done < <(jq -r '.unset[]' <<< "$scope")
 
-          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN; do
+          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN AW_CHECKOUT_TOKEN; do
             if [ -n "${!central_name+x}" ]; then
               echo "::error::Central credential survived deploy isolation: ${central_name}." >&2
               exit 1
