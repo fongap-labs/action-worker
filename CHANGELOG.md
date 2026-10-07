@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 - feat [security]: the security gate now also reports OpenAI/Anthropic (`sk-ant-`, `sk-proj-`, legacy `sk-` keys), NVIDIA `nvapi-`, Hugging Face `hf_`, Tailscale `tskey-`, `CLOUDFLARE_API_TOKEN` assignments and JWTs in added lines, and `policies/security.json` gains `secret_allowlist`: a known harmless value is accepted only when both its file path and the whole matched text match, so it cannot excuse any other credential on the same line or in the same file. The only entry is the synthetic key in the internal-vault preflight tests.
+- fix [security]: check out private targets in the CI sandbox and the dependency repair compute job with a new read-only `AW_CHECKOUT_TOKEN` instead of `AW_CONTROL_TOKEN`, so jobs that run change code never hold a write-capable credential.
+
+- fix [security]: stop persisting checkout credentials in the dependency repair publish job, the validation workflows and the task dispatch workflow (the push now authenticates through the environment), and split `security-scan.yml` so CodeQL runs without secrets and only a separate publish job holds `AW_ADMIN_TOKEN`.
+
+- test: add workflow invariants that fail when a code-executing job references a central secret, a checkout persists credentials, or the CodeQL job gains a secret.
+- test: make the delta-suite browser proxy tests work with proxies that require credentials and restrict CONNECT ports, while still passing against the current proxy.
 
 - test: accept the refresh page that the ai-gateway OAuth form start returns after a form submit, alongside the previous 302, and stop asserting that a streamed request shares the edge cache entry of a non-streamed one, so the gateway fixes can merge without breaking this pack.
 
