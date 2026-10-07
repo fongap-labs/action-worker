@@ -28,6 +28,7 @@ jobs:
   apply-manual:
     if: github.event_name == 'workflow_dispatch'
     name: Apply repository settings
+    environment: admin-ops
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -51,6 +52,7 @@ jobs:
   apply-control-plane:
     if: github.event_name == 'push'
     name: Apply control-plane settings
+    environment: admin-ops
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -98,6 +100,7 @@ jobs:
     if: github.event_name == 'push'
     needs: resolve-managed
     name: Apply managed settings · ${{ matrix.repository }}
+    environment: admin-ops
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     strategy:

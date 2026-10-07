@@ -92,6 +92,7 @@ jobs:
 
   publish:
     name: Publish SARIF
+    environment: admin-ops
     needs: [prepare, analyze]
     if: ${{ !cancelled() && needs.prepare.result == 'success' }}
     runs-on: ubuntu-24.04
