@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix [security]: the main-branch ruleset now requires a pull request to be up to date with `main` before it can merge (`strict_required_status_checks_policy: true`), so `validate-merge` runs on the result of the merge. It applies to the public repositories; private repositories on the Free plan cannot have rulesets and rely on the Main Write Guard (ORG-006, phase 1).
+
 - docs: record the owner decision that the organization stays on the Free plan and the private repositories stay private in the ORG-006 and AW-002 proposals (rulesets apply to the four public repositories; the Main Write Guard is the control for the private ones).
 
 - docs: add design proposals for owner approval, with nothing implemented: AW-002 (isolate deploy and task secrets with Environments), AW-005 (what a pull request may change about its own CI) and ORG-006 (main-branch ruleset hardening), under `docs/proposals/`.

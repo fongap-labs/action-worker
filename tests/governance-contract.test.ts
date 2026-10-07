@@ -728,6 +728,11 @@ test("release, source, deploy, merge, and repository settings contracts remain i
     managedRulesets.map((rule) => rule.name),
     ["Protect Main Branch", "Protect Legacy Branches"]
   );
+  const mainRules = managedRulesets[0]?.rules as Array<Record<string, unknown>>;
+  const statusChecks = mainRules.find((rule) => rule.type === "required_status_checks");
+  const statusParameters = statusChecks?.parameters as Record<string, unknown>;
+  assert.equal(statusParameters.strict_required_status_checks_policy, true);
+  assert.deepEqual(statusParameters.required_status_checks, [{ context: "validate-merge" }]);
   assert.equal(repository.allow_merge_commit, false);
   assert.equal(repository.allow_squash_merge, true);
   assert.equal(repository.delete_branch_on_merge, true);
