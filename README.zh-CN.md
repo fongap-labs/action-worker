@@ -24,7 +24,7 @@ Action Worker 是面向多仓库的 GitHub 自动化编排与治理中枢。
 
 统一任务调度、AI Agent、PR 治理、CI Evidence、发布治理与部署准入；业务仓只保留产品代码、测试、构建和部署实现。
 
-调用方只指定目标，Action Worker 负责校验事实、生成计划、执行审查，并依据可验证结果放行或阻断。
+调用方只指定目标，Action Worker 负责校验事实、生成计划，并依据确定性策略与可验证结果放行或阻断；AI 审查在 Gate 之后运行，仅作建议。
 
 ```text
 Task / PR
@@ -61,7 +61,6 @@ Gate
 - PR 标题与 CHANGELOG 合同；
 - 命名规则；
 - Secret 与执行权限；
-- Review 阻断阈值；
 - Release 的 SemVer、Tag 与回滚；
 - Gate。
 
@@ -87,7 +86,7 @@ Agent 可以判断，不能改写权限边界或 Gate。
 | **Agent Skills** | 统一 Agent 执行纪律，并提供 Bug 修复、CI 诊断、影响分析、PR 审查与发布验证 Skill |
 | **CI Evidence** | 读取业务仓当前 head SHA 的 `ci.yml → validate-merge` 执行证据 |
 | **Source Policy** | 统一目标 Commit、默认 HEAD 与成功 CI 准入 |
-| **Gate** | 综合 AI Review、CI Evidence 与确定性策略放行或阻断 |
+| **Gate** | 由确定性策略与 CI Evidence 放行或阻断；AI Review 在 Gate 通过后异步运行，仅作建议 |
 | **Release** | 统一 SemVer、Tag、Release、资产复验与失败回滚 |
 | **Deploy** | 统一部署 Commit 准入；部署实现与生产 Secret 留业务仓 |
 
@@ -184,12 +183,14 @@ repository_dispatch
   ↓
 Action Worker
   ↓
-Validate → Inspect → Plan → CI Evidence → Optional AI Agents → Gate
+Validate → Inspect → Plan → CI Evidence → Gate
   ↓
-PR Governance commit status + sticky review summary
+PR Governance commit status
+  ↓（Gate 通过之后）
+建议性 AI Review → sticky review summary
 ```
 
-Action Worker 会重新从 GitHub 获取 PR 的 base/head SHA、标题、状态和 diff；调用方不能声明这些事实。需要 CI 的变更先收集当前 head SHA 的 CI Evidence；启用的 AI Agent 可以读取这些证据辅助判断，最终仍由确定性 Gate 要求 `validate-merge=success`。项目测试仍在业务仓 Sandbox 执行，中央 Control 不执行 PR 提供的代码。
+Action Worker 会重新从 GitHub 获取 PR 的 base/head SHA、标题、状态和 diff；调用方不能声明这些事实。需要 CI 的变更先收集当前 head SHA 的 CI Evidence；确定性 Gate 要求 `validate-merge=success`，并在任何 AI Agent 运行之前形成结论；建议性 AI Review 只在 Gate 通过后启动，可以读取这些证据。项目测试仍在业务仓 Sandbox 执行，中央 Control 不执行 PR 提供的代码。
 
 ### 2. 任务调度
 
