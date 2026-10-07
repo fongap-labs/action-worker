@@ -9,11 +9,22 @@ type NamedPattern = {
   pattern: string;
 };
 
+// A known harmless match of a secret pattern, accepted only when BOTH hold: the file path matches
+// "path" and the whole matched text matches "pattern" (full match, not a substring). A line is
+// reported unless every match on it is accepted this way, so an allowance for one fixture value
+// never lets a real credential on the same line or in the same file through.
+type SecretAllowance = {
+  path: string;
+  pattern: string;
+  reason: string;
+};
+
 type SecurityPolicy = {
   schema_version: number;
   path_allow_patterns: string[];
   forbidden_path_patterns: string[];
   secret_patterns: NamedPattern[];
+  secret_allowlist: SecretAllowance[];
   workflow_forbidden_patterns: NamedPattern[];
   approved_workflows: ApprovedWorkflow[];
   require_pinned_actions: boolean;
@@ -48,6 +59,27 @@ function namedPatterns(value: unknown, label: string): NamedPattern[] {
       throw new CliError(`::error::Invalid security policy entry: ${label}.`, 65);
     }
     return { name: item.name, pattern: item.pattern };
+  });
+}
+
+function secretAllowlist(value: unknown): SecretAllowance[] {
+  if (value === undefined) {
+    return [];
+  }
+  if (!Array.isArray(value)) {
+    throw new CliError("::error::Invalid security policy field: secret_allowlist.", 65);
+  }
+  return value.map((item) => {
+    if (
+      !isJsonRecord(item) ||
+      typeof item.path !== "string" ||
+      typeof item.pattern !== "string" ||
+      typeof item.reason !== "string" ||
+      item.reason.trim() === ""
+    ) {
+      throw new CliError("::error::Invalid security policy entry: secret_allowlist.", 65);
+    }
+    return { path: item.path, pattern: item.pattern, reason: item.reason };
   });
 }
 
@@ -89,6 +121,7 @@ function parsePolicy(value: unknown): SecurityPolicy {
     path_allow_patterns: stringArray(value.path_allow_patterns, "path_allow_patterns"),
     forbidden_path_patterns: stringArray(value.forbidden_path_patterns, "forbidden_path_patterns"),
     secret_patterns: namedPatterns(value.secret_patterns, "secret_patterns"),
+    secret_allowlist: secretAllowlist(value.secret_allowlist),
     workflow_forbidden_patterns: namedPatterns(
       value.workflow_forbidden_patterns,
       "workflow_forbidden_patterns"
@@ -128,9 +161,22 @@ function scanPinnedActions(path: string, content: string): SecurityViolation[] {
   return violations;
 }
 
+type CompiledAllowance = { path: RegExp; pattern: RegExp };
+
+function isAllowedMatch(path: string, text: string, allowances: CompiledAllowance[]): boolean {
+  return allowances.some((allowance) => {
+    if (!allowance.path.test(path)) {
+      return false;
+    }
+    const found = allowance.pattern.exec(text);
+    return found !== null && found.index === 0 && found[0].length === text.length;
+  });
+}
+
 function scanAddedLines(
   diff: string,
-  patterns: Array<{ name: string; regex: RegExp }>
+  patterns: Array<{ name: string; regex: RegExp }>,
+  allowances: CompiledAllowance[] = []
 ): SecurityViolation[] {
   const violations: SecurityViolation[] = [];
   let path = "";
@@ -148,8 +194,12 @@ function scanAddedLines(
     if (line.startsWith("+") && !line.startsWith("+++")) {
       const added = line.slice(1);
       for (const { name, regex } of patterns) {
-        regex.lastIndex = 0;
-        if (regex.test(added)) {
+        const every = new RegExp(
+          regex.source,
+          regex.flags.includes("g") ? regex.flags : regex.flags + "g"
+        );
+        const matches = [...added.matchAll(every)];
+        if (matches.some((match) => !isAllowedMatch(path, match[0], allowances))) {
           violations.push({ rule: name, path: path || "unknown", line: lineNumber });
         }
       }
@@ -179,6 +229,10 @@ export async function collectSecurityViolations(
   const secretPatterns = policy.secret_patterns.map(({ name, pattern }) => ({
     name,
     regex: compile(pattern),
+  }));
+  const allowances = policy.secret_allowlist.map(({ path, pattern }) => ({
+    path: compile(path),
+    pattern: compile(pattern),
   }));
   const workflowPatterns = policy.workflow_forbidden_patterns.map(({ name, pattern }) => ({
     name,
@@ -225,7 +279,7 @@ export async function collectSecurityViolations(
     ["diff", "--unified=0", "--no-color", "--no-ext-diff", base, head, "--"],
     { cwd: root, maxBuffer: 64 * 1024 * 1024 }
   );
-  violations.push(...scanAddedLines(diff, secretPatterns));
+  violations.push(...scanAddedLines(diff, secretPatterns, allowances));
 
   const unique = new Map<string, SecurityViolation>();
   for (const violation of violations) {
