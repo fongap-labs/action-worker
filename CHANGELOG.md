@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- test: cover the delta-suite browser hardening: non-web request protocols are aborted, the guarded proxy demands per-session credentials (407), refuses CONNECT to non-web ports, releases idle connections and answers 503 beyond its connection cap.
+
 - test: make the delta-suite browser proxy tests work with proxies that require credentials and restrict CONNECT ports, while still passing against the current proxy.
 
 - test: accept the refresh page that the ai-gateway OAuth form start returns after a form submit, alongside the previous 302, and stop asserting that a streamed request shares the edge cache entry of a non-streamed one, so the gateway fixes can merge without breaking this pack.
