@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- test: cover the delta web-fetch size and time limits, the URL guard's rejection of embedded credentials and IPv4 forms, and the shared credential-redaction golden fixture in the delta test pack.
 - test: cover the app-source license service hardening: bounded audit rows per client address with one summary row, hourly retention, the 4 KB body limit, the per-(ID, address) failed-attempt limit, the pepper file, and the nonce-based Content-Security-Policy.
 - test: cover the ai-gateway hardening in its pack: OAuth page CSP and the refresh-page form start, edge cache stream and credential scoping and unsafe-response skipping, token AAD binding, diagnostics key groups, the subscription and public dashboard switches, and the waitUntil purge.
 - docs: add `SECURITY.md` (English and Chinese) pointing to GitHub private vulnerability reporting; the backup contact is a TODO for the owner.
