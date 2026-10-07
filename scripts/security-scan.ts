@@ -38,6 +38,7 @@ const requestPattern = /^[A-Za-z0-9._:-]{1,128}$/;
 const shaPattern = /^[0-9a-f]{40}$/;
 const runnerPattern = /^[a-z][a-z0-9-]{0,63}$/;
 const languages = new Set([
+  "actions",
   "c-cpp",
   "csharp",
   "go",

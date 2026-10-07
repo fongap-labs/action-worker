@@ -377,6 +377,13 @@ test("engineering language rejects Chinese machine text but allows documentation
     null
   );
   assert.equal(engineeringLineViolation("data/export.csv", "中文,1"), null);
+  // Vendored minified bundles are exempt; the same text in authored code is not.
+  assert.equal(engineeringLineViolation("assets/js/lib.min.js", 'console.error("上游失败")'), null);
+  assert.equal(engineeringLineViolation("assets/css/lib.min.css", "/* 中文 */"), null);
+  assert.equal(
+    engineeringLineViolation("assets/js/app.js", 'console.error("上游失败")'),
+    "Logs, errors, and test descriptions must use English."
+  );
 });
 
 test("lifecycle filename rule distinguishes control labels from domain concepts", () => {

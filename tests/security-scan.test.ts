@@ -37,6 +37,19 @@ test("security scan manifest is exact and source-owned", () => {
   );
 });
 
+test("security scan manifest accepts the CodeQL actions language for workflow files", () => {
+  const manifest = parseSecurityScanManifest({
+    schema_version: "1",
+    engine: "codeql",
+    runner_profile: "linux-standard",
+    build_mode: "none",
+    languages: ["javascript-typescript", "actions"],
+    pull_requests: true,
+    default_branch: true,
+  });
+  assert.deepEqual(manifest.languages, ["javascript-typescript", "actions"]);
+});
+
 test("PR security scans trust base SHA config, never PR head config", async () => {
   const request = parseSecurityScanRequest({
     schema_version: "1",

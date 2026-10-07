@@ -32,6 +32,37 @@
     {
       "name": "stripe-live-key",
       "pattern": "(?:sk|rk)_live_[A-Za-z0-9]{16,}"
+    },
+    {
+      "name": "openai-anthropic-key",
+      "pattern": "\\bsk-(?:ant-[A-Za-z0-9_-]{20,}|(?:proj|svcacct|admin)-[A-Za-z0-9_-]{20,}|[A-Za-z0-9]{32,})"
+    },
+    {
+      "name": "nvidia-api-key",
+      "pattern": "\\bnvapi-[A-Za-z0-9_-]{20,}"
+    },
+    {
+      "name": "huggingface-token",
+      "pattern": "\\bhf_[A-Za-z0-9]{30,}"
+    },
+    {
+      "name": "tailscale-auth-key",
+      "pattern": "\\btskey-[A-Za-z0-9-]{20,}"
+    },
+    {
+      "name": "cloudflare-api-token",
+      "pattern": "CLOUDFLARE_API_TOKEN\\s*[:=]\\s*[\"']?[A-Za-z0-9_-]{30,}"
+    },
+    {
+      "name": "jwt",
+      "pattern": "eyJ[A-Za-z0-9_-]{8,}\\.eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}"
+    }
+  ],
+  "secret_allowlist": [
+    {
+      "path": "^tests/packs/internal-vault/unit/test_preflight\\.py$",
+      "pattern": "sk-[p]roj-aB3dE5fG7hI9jK1lM3nO5pQ7",
+      "reason": "Synthetic API key used to test that the internal-vault preflight masks secrets; the only match of any secret pattern in the history of the seven repositories that is not a real finding."
     }
   ],
   "workflow_forbidden_patterns": [
