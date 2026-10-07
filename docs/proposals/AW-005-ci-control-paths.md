@@ -1,6 +1,6 @@
 # Proposal AW-005: what a pull request may change about its own CI
 
-Status: **awaiting owner approval. Nothing here is implemented.**
+Status: **recommendation adopted** (option A for standard tools, option C for configuration files and repository-owned check scripts). Implemented for `ai-gateway`, the only repository whose control script went through `npm run` (PR "run biome and tsc from the central script with fixed arguments"). Centralising the repository-owned check scripts remains a separate project.
 
 ## 现状
 

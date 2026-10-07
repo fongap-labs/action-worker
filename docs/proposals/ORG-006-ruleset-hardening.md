@@ -1,6 +1,6 @@
 # Proposal ORG-006: harden the main-branch ruleset
 
-Status: **awaiting owner approval. `policies/rulesets.json` is not changed by this document.**
+Status: **phase 1 adopted** (strict status checks on the four public repositories; PR "require pull requests to be up to date before merging"). Phase 2 (one approval and a bypass actor) and phase 3 (GitHub App) are not started and need the owner's decision.
 
 ## 现状
 

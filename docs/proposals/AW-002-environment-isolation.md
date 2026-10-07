@@ -1,6 +1,6 @@
 # Proposal AW-002: isolate deploy and task secrets with GitHub Environments
 
-Status: **awaiting owner approval. Nothing here is implemented.**
+Status: **the deploy path is implemented** (PR "let the control plane decide deploy environments and secret ceilings": central environment and secret policies, read-only checkout token, `admin-ops` for admin-token jobs). **The task path stays as it is (option A)**; options B and C remain available after the deploy rehearsal. **Still manual for the owner:** one rehearsal deploy, switching `AW_DEPLOY_SECRET_POLICY_MODE` to `enforce`, then copying secrets into the environments and deleting the repository-level copies.
 
 ## 现状 (what exists today)
 
