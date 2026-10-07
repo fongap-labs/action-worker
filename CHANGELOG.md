@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- fix [security]: stop uploading the output of a failed private task as a `task-log-*` artifact. Artifacts of the public action-worker repository can be downloaded by any signed-in GitHub user, which bypassed the suppression of private task output in the run log; the log now stays on the runner.
 - fix: stop re-dispatching PR Governance every five minutes for a pull request that waits for approval. An untrusted head is now reported as `Awaiting maintainer approval of the current head commit` (the run itself succeeds, `PR Governance` and `validate-merge` stay `failure`, and the PR comment explains how to approve); Central PR Intake recognises that state and dispatches again only once a maintainer approved the current head. Dependabot pull requests from a branch of the same public repository no longer wait for approval; in private repositories they still do. Central CI keeps failing closed on an untrusted head.
 - fix [security]: the PR gate accepts `CI Evidence` only when the control run it names is a successful run of a workflow that publishes it (`hasVerifiedCiEvidence`), and `dispatch-central-ci.ts` no longer skips CI on a success status that merely names a control run URL. Central CI dispatches its follow-ups (security scan, Main Write audit, automatic deploy) from a separate `follow-up` job with `continue-on-error: true`, so a follow-up failure cannot turn a passing CI run red.
 
