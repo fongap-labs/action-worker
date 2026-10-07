@@ -15,6 +15,7 @@ export type TaskSecretPolicyMode = "warn" | "enforce";
 export type TaskSecretCeiling = {
   names: ReadonlySet<string>;
   mode: TaskSecretPolicyMode;
+  label?: "task" | "deploy";
 };
 
 function policyNames(value: unknown, where: string): string[] {
@@ -46,6 +47,32 @@ export async function readTaskSecretCeiling(
   return new Set([
     ...policyNames(projectEntry.required, "required"),
     ...policyNames(projectEntry.allowed, "allowed"),
+  ]);
+}
+
+// Deploys use the same ceiling idea as tasks: `policies/deploy-secrets.json` lists, per repository and
+// environment, every secret the target may declare. A name the target adds beyond it is reported
+// (warn) or refused (enforce).
+export async function readDeploySecretCeiling(
+  policyPath: string,
+  repository: string,
+  environment: string
+): Promise<ReadonlySet<string>> {
+  const policy: unknown = JSON.parse(await readFile(policyPath, "utf8"));
+  if (!isJsonRecord(policy) || policy.schema_version !== 1 || !isJsonRecord(policy.deployments)) {
+    throw new CliError("Deploy secret policy is invalid.", 65);
+  }
+  const repositoryEntry = Object.hasOwn(policy.deployments, repository)
+    ? policy.deployments[repository]
+    : undefined;
+  const environmentEntry =
+    isJsonRecord(repositoryEntry) && Object.hasOwn(repositoryEntry, environment)
+      ? repositoryEntry[environment]
+      : undefined;
+  if (!isJsonRecord(environmentEntry)) return new Set();
+  return new Set([
+    ...policyNames(environmentEntry.required, "required"),
+    ...policyNames(environmentEntry.allowed, "allowed"),
   ]);
 }
 
@@ -111,7 +138,7 @@ export async function resolveSecretScope(
     : [];
   if (ceiling?.mode === "enforce" && policyExcess.length > 0) {
     throw new CliError(
-      `Task source declares secrets outside the central task secret policy: ${policyExcess.join(", ")}.`,
+      `Source declares secrets outside the central ${ceiling.label ?? "task"} secret policy: ${policyExcess.join(", ")}.`,
       65
     );
   }
@@ -146,23 +173,40 @@ async function main(): Promise<void> {
     policyPath = "",
     repository = "",
     project = "",
+    kind = "task",
   ] = process.argv.slice(2);
   if (!baselinePath) {
     throw new CliError(
-      "Usage: resolve-secret-scope.ts <baseline> [required-file] [allowed-file] [denied-names] [task-secret-policy repository project]",
+      "Usage: resolve-secret-scope.ts <baseline> [required-file] [allowed-file] [denied-names] [secret-policy repository project-or-environment [task|deploy]]",
       64
     );
   }
-  const rawMode = process.env.AW_TASK_SECRET_POLICY_MODE || "warn";
+  if (kind !== "task" && kind !== "deploy") {
+    throw new CliError("The secret policy kind must be task or deploy.", 64);
+  }
+  const policyKind: "task" | "deploy" = kind === "deploy" ? "deploy" : "task";
+  const modeVariable =
+    kind === "deploy" ? "AW_DEPLOY_SECRET_POLICY_MODE" : "AW_TASK_SECRET_POLICY_MODE";
+  const rawMode = process.env[modeVariable] || "warn";
   if (rawMode !== "warn" && rawMode !== "enforce") {
-    throw new CliError("AW_TASK_SECRET_POLICY_MODE must be warn or enforce.", 64);
+    throw new CliError(`${modeVariable} must be warn or enforce.`, 64);
   }
   const mode: TaskSecretPolicyMode = rawMode === "enforce" ? "enforce" : "warn";
   if (policyPath && (!repository || !project)) {
-    throw new CliError("A task secret policy needs a repository and a project.", 64);
+    throw new CliError(
+      `A ${kind} secret policy needs a repository and ${kind === "deploy" ? "an environment" : "a project"}.`,
+      64
+    );
   }
   const ceiling = policyPath
-    ? { names: await readTaskSecretCeiling(policyPath, repository, project), mode }
+    ? {
+        names:
+          kind === "deploy"
+            ? await readDeploySecretCeiling(policyPath, repository, project)
+            : await readTaskSecretCeiling(policyPath, repository, project),
+        mode,
+        label: policyKind,
+      }
     : undefined;
   const deniedNames = deniedRaw
     .split(",")
@@ -178,7 +222,7 @@ async function main(): Promise<void> {
   );
   if (scope.policy_excess.length > 0) {
     console.error(
-      `::warning::Task source declares secrets outside the central task secret policy: ${scope.policy_excess.join(", ")}.`
+      `::warning::Source declares secrets outside the central ${kind} secret policy: ${scope.policy_excess.join(", ")}.`
     );
   }
   console.log(JSON.stringify(scope));
