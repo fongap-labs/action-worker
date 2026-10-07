@@ -64,7 +64,7 @@ test("jobs that execute change code reference no central credential", () => {
   assert.match(sandbox, /token: \$\{\{ secrets\.checkout_token \|\| github\.token \}\}/);
   assert.match(sandbox, /workflow_call:/);
   const privateOnlyToken =
-    "checkout_token: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CONTROL_TOKEN || '' }}";
+    "checkout_token: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CHECKOUT_TOKEN || '' }}";
   for (const job of ["linux", "windows"]) {
     const start = workflow.indexOf(`\n  ${job}:\n`);
     assert.notEqual(start, -1, `missing ${job} job`);

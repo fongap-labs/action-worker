@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- fix [security]: check out private targets in the CI sandbox and the dependency repair compute job with a new read-only `AW_CHECKOUT_TOKEN` instead of `AW_CONTROL_TOKEN`, so jobs that run change code never hold a write-capable credential.
+
+- fix [security]: stop persisting checkout credentials in the dependency repair publish job, the validation workflows and the task dispatch workflow (the push now authenticates through the environment), and split `security-scan.yml` so CodeQL runs without secrets and only a separate publish job holds `AW_ADMIN_TOKEN`.
+
+- test: add workflow invariants that fail when a code-executing job references a central secret, a checkout persists credentials, or the CodeQL job gains a secret.
+
 - fix [security]: re-verify the task source in `handle-task-dispatch.yml` before any task runs; `bootstrap_ref` must be the current default-branch HEAD of the target repository, carry verified CI Evidence and pass the Main Write Guard, so a forged `run-task` dispatch can no longer make the executor run an arbitrary commit.
 
 - fix [security]: verify `CI Evidence` against the control-repository run that produced it (publishing workflow, default branch, successful conclusion, status written during the run) in the deploy source gate, the task source gate and the Main Write Guard, instead of trusting the `target_url` prefix.

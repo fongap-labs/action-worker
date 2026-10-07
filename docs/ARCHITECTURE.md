@@ -122,7 +122,7 @@ Action Worker 收到任务后必须：
 
 可以执行 PR 代码、build 和 test，但不得获得中央 Secret 或部署凭据。
 
-中央 CI 的 Sandbox 作业位于 `central-ci-sandbox.yml`（reusable workflow）。Sandbox 作业不直接引用任何中央 Secret：公开目标仓用本次运行的只读 `github.token` 检出；只有私有目标仓才由调用方传入 `checkout_token`，该值在 GitHub 服务端求值，公开目标仓收到的是空值。
+中央 CI 的 Sandbox 作业位于 `central-ci-sandbox.yml`（reusable workflow）。Sandbox 作业不直接引用任何中央 Secret：公开目标仓用本次运行的只读 `github.token` 检出；只有私有目标仓才由调用方传入 `checkout_token`，该值是只读的 `AW_CHECKOUT_TOKEN`（仅 `Contents: Read`，范围仅限私有受管仓），在 GitHub 服务端求值，公开目标仓收到的是空值。会执行目标源码的作业（Sandbox、依赖修复的计算作业）不得引用 `AW_CONTROL_TOKEN` 或 `AW_ADMIN_TOKEN`；所有 `actions/checkout` 默认 `persist-credentials: false`，仅 `update-work-metrics.yml` 因需要提交而例外。`security-scan.yml` 的 CodeQL 作业不带任何 Secret，只产出 SARIF 工件，由独立的 `publish` 作业持有 `AW_ADMIN_TOKEN` 上传。`tests/workflow-invariants.test.ts` 把这些边界固化为测试。
 
 因此：
 
