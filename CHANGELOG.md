@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- docs: record the owner decision that the organization stays on the Free plan and the private repositories stay private in the ORG-006 and AW-002 proposals (rulesets apply to the four public repositories; the Main Write Guard is the control for the private ones).
+
 - docs: add design proposals for owner approval, with nothing implemented: AW-002 (isolate deploy and task secrets with Environments), AW-005 (what a pull request may change about its own CI) and ORG-006 (main-branch ruleset hardening), under `docs/proposals/`.
 - test: cover the AdFilter build header in the internal-vault pack: every source and its licence appear as Adblock Plus comment lines, the rule count and rules are unchanged, and a configured value cannot inject a rule line.
 - test: cover the delta-suite browser hardening: non-web request protocols are aborted, the guarded proxy demands per-session credentials (407), refuses CONNECT to non-web ports, releases idle connections and answers 503 beyond its connection cap.

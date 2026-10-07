@@ -34,6 +34,10 @@ The central repository, not the deployed repository, decides which environment a
 - GitHub Free: environment secrets and deployment branch policies are available for public repositories; whether private repositories on the Free plan can use environment protection rules is **not verified** (documentation could not be fetched in this session). The deploy environments live in the public `action-worker` repository, so this is not a blocker, but required reviewers on a private repository would be.
 - `repository_dispatch` jobs always run on the default branch, so "main only" is satisfied by construction; the policy still guards manual `workflow_dispatch` runs from other branches.
 
+## Plan constraints (owner, 2026-10-07)
+
+The organization stays on the Free plan and the private repositories stay private. This design is unaffected: the environments (`production`, `admin-ops`, and any `tasks-<repo>`) belong to the **public** `action-worker` repository, where environment secrets and the main-only deployment branch policy are available on Free. The private repositories only appear as deploy and task *sources*; nothing is configured in them.
+
 ## Owner steps (manual)
 
 1. Approve or amend this design (especially item 6).
