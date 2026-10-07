@@ -28,6 +28,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -88,6 +90,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
@@ -146,10 +150,15 @@ jobs:
         run: |
           set -Eeuo pipefail
 
+          # One artifact name per exact (repository, project) pair; a manifest inside the artifact is
+          # checked again on restore (scripts/task-state.ts).
+          artifact_name="$(node scripts/task-state.ts name "$SOURCE_REPOSITORY" "$PROJECT")"
+          # Transition only: artifacts written before the hashed name existed (retention is 30 days, so
+          # this branch goes quiet by itself). They carry no manifest and cannot be verified.
           safe_repository="${SOURCE_REPOSITORY//\//-}"
           safe_repository="${safe_repository//[^A-Za-z0-9_.-]/-}"
           safe_project="${PROJECT//[^A-Za-z0-9_.-]/-}"
-          artifact_name="task-state-${safe_repository}-${safe_project}"
+          legacy_artifact_name="task-state-${safe_repository}-${safe_project}"
           state_root="${RUNNER_TEMP}/action-worker-task-state"
 
           mkdir -p "$state_root/previous" "$state_root/current"
@@ -159,13 +168,7 @@ jobs:
           } >> "$GITHUB_ENV"
           echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
 
-          while IFS= read -r run_id; do
-            [ -n "$run_id" ] || continue
-            if gh run download "$run_id" -n "$artifact_name" -D "$state_root/previous" >/dev/null 2>&1; then
-              echo "Restored task state from run $run_id."
-              exit 0
-            fi
-          done < <(
+          mapfile -t run_ids < <(
             gh run list \
               --workflow handle-task-dispatch.yml \
               --status success \
@@ -173,6 +176,35 @@ jobs:
               --json databaseId \
               --jq '.[].databaseId'
           )
+
+          candidate="$state_root/candidate"
+          for run_id in "${run_ids[@]}"; do
+            [ -n "$run_id" ] || continue
+            rm -rf "$candidate"
+            mkdir -p "$candidate"
+            if gh run download "$run_id" -n "$artifact_name" -D "$candidate" >/dev/null 2>&1; then
+              if node scripts/task-state.ts verify "$candidate" "$SOURCE_REPOSITORY" "$PROJECT"; then
+                cp -a "$candidate/." "$state_root/previous/"
+                rm -rf "$candidate"
+                echo "Restored task state from run $run_id."
+                exit 0
+              fi
+              echo "Ignoring task state from run $run_id: its manifest does not match this repository and project."
+            fi
+          done
+
+          for run_id in "${run_ids[@]}"; do
+            [ -n "$run_id" ] || continue
+            rm -rf "$candidate"
+            mkdir -p "$candidate"
+            if gh run download "$run_id" -n "$legacy_artifact_name" -D "$candidate" >/dev/null 2>&1; then
+              cp -a "$candidate/." "$state_root/previous/"
+              rm -rf "$candidate"
+              echo "Restored legacy-named task state from run $run_id."
+              exit 0
+            fi
+          done
+          rm -rf "$candidate"
 
           echo "No previous task state found."
 
@@ -207,12 +239,22 @@ jobs:
               exit 1
           fi
 
+          # This repository's run logs are world-readable. For a private task source the project name,
+          # full commit and request id are shown only as short hashes (scripts/task-state.ts).
+          log_visibility=private
+          [ "$TASK_SOURCE_PRIVATE" = "false" ] && log_visibility=public
+          {
+              IFS= read -r log_project
+              IFS= read -r log_ref
+              IFS= read -r log_request_id
+          } < <(node scripts/task-state.ts log-view "$log_visibility" "$PROJECT" "$BOOTSTRAP_REF" "$REQUEST_ID")
+
           echo "::group::Task Info"
           echo "Run ID        : ${GITHUB_RUN_ID}"
-          echo "Request ID    : ${REQUEST_ID}"
+          echo "Request ID    : ${log_request_id}"
           echo "Schema        : ${SCHEMA_VERSION}"
-          echo "Project       : ${PROJECT}"
-          echo "Bootstrap Ref : ${BOOTSTRAP_REF}"
+          echo "Project       : ${log_project}"
+          echo "Bootstrap Ref : ${log_ref}"
           echo "Agent Domain  : ${AGENT_DOMAIN}"
           echo "Operation     : ${OPERATION}"
           echo "Skills        : ${AGENT_SKILLS}"
@@ -274,10 +316,18 @@ jobs:
           set -Eeuo pipefail
           rm -f             "${RUNNER_TEMP}/action-worker-base-env.names"             "${RUNNER_TEMP}/action-worker-repository-vars.json"             "${RUNNER_TEMP}/action-worker-task.log"
 
+          log_visibility=private
+          [ "$TASK_SOURCE_PRIVATE" = "false" ] && log_visibility=public
+          {
+            IFS= read -r log_project
+            IFS= read -r log_ref
+            IFS= read -r log_request_id
+          } < <(node scripts/task-state.ts log-view "$log_visibility" "$PROJECT" "$BOOTSTRAP_REF" "$REQUEST_ID")
+
           echo "::group::Task Result"
-          echo "Request ID    : ${REQUEST_ID}"
-          echo "Project       : ${PROJECT}"
-          echo "Bootstrap Ref : ${BOOTSTRAP_REF}"
+          echo "Request ID    : ${log_request_id}"
+          echo "Project       : ${log_project}"
+          echo "Bootstrap Ref : ${log_ref}"
           echo "Outcome       : ${TASK_OUTCOME}"
           echo "End Time      : $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
           echo "::endgroup::"
@@ -288,6 +338,11 @@ jobs:
           if [ "$TASK_OUTCOME" != "success" ]; then
             echo "::error::bootstrap.sh execution failed." >&2
           fi
+
+      - name: Write task state manifest
+        if: always()
+        shell: bash
+        run: node scripts/task-state.ts write "${RUNNER_TEMP}/action-worker-task-state/current" "$TASK_SOURCE_REPOSITORY" "$PROJECT" "$BOOTSTRAP_REF"
 
       - name: Upload task state
         if: always()
