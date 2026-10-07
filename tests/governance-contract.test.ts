@@ -189,25 +189,28 @@ test("main write audit reconciles on control-plane changes and schedule", async 
 
 test("integration guidance matches the current credential and private-repository model", async () => {
   const guide = await text("docs/INTEGRATION_GUIDE.md");
-  assert.doesNotMatch(guide, /`AW_EXECUTION_TOKEN` 仅用于/);
-  assert.match(guide, /AW_EXECUTION_TOKEN.*已删除/);
-  assert.match(guide, /GitHub Free.*私有仓库.*不支持 Ruleset 或 Protected Branch/);
+  assert.doesNotMatch(guide, /`AW_EXECUTION_TOKEN` is used/);
+  assert.match(guide, /`AW_EXECUTION_TOKEN` has been removed/);
+  assert.match(
+    guide,
+    /On GitHub Free, private repositories of an organization do not support rulesets or protected branches/
+  );
 });
 
 test("documentation readability convention is enforced in shared governance", async () => {
   const gov = await text("docs/SHARED_GOVERNANCE.md");
   requireText(gov, [
     "Documentation readability",
-    "机器读的文档（严谨）",
-    "人读的文档（小白友好）",
-    '先说"这是什么"再说"怎么做"',
-    "术语必须解释",
-    "用例子，不用抽象描述",
-    "精确无歧义",
-    "英文",
+    "Machine-read documents (rigorous)",
+    "Human-read documents (beginner-friendly)",
+    'Say "what this is" before "how to do it"',
+    "Explain every term",
+    "Use examples, not abstract descriptions",
+    "Precise and unambiguous",
+    "**English**",
   ]);
   const dev = await text("docs/DEVELOPMENT_GUIDE.md");
-  requireText(dev, ["没有项目背景的人也能看懂"]);
+  requireText(dev, ["can be understood by someone without project background"]);
 });
 
 test("skills README is beginner-friendly", async () => {

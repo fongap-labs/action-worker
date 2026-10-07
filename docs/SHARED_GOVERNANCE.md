@@ -1,8 +1,8 @@
 # Fongap Labs Shared Governance
 
-本文件定义 Fongap Labs 受管仓库的共用工程治理。只要一条规则适用于两个及以上仓库，就优先在 Action Worker 中维护；业务仓只保存项目本身独有的产品、架构、运行和边界规则。
+This file defines the shared engineering governance of the managed Fongap Labs repositories. Whenever a rule applies to two or more repositories, it is maintained in Action Worker first; a business repository keeps only the product, architecture, runtime and boundary rules that belong to that project alone.
 
-## 1. 权威边界
+## 1. Authority boundary
 
 ```text
 Action Worker
@@ -21,15 +21,15 @@ Business repository
 + thin integration workflows
 ```
 
-业务仓不得复制 Action Worker 已经定义的通用命名、变更分类、PR Gate、Execution Governance、Release Governance、Repository Policy 或 Agent 工程规则。
+A business repository must not copy the generic naming, change classification, PR gate, execution governance, release governance, Repository Policy or agent engineering rules that Action Worker already defines.
 
-公开仓库与私有仓库使用同一执行架构。除最薄 dispatch 和 GitHub 平台必须由目标仓创建的桥接检查外，CI、test、build、AI Review、release、deploy 和 scheduled task 等重执行统一进入 Action Worker。仓库可见性只能影响访问与平台保护能力，不得形成第二套执行路径。
+Public and private repositories use the same execution architecture. Apart from the thinnest dispatch and the bridge checks the GitHub platform requires the target repository to create, heavy execution — CI, test, build, AI Review, release, deploy and scheduled tasks — goes into Action Worker. Repository visibility may only affect access and platform protection features; it must never form a second execution path.
 
-统一执行边界以 [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md) 为准；Runner 抽象与 self-hosted 边界以 [RUNNER_POLICY.md](RUNNER_POLICY.md) 为准。
+The unified execution boundary is defined by [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md); the runner abstraction and the self-hosted boundary are defined by [RUNNER_POLICY.md](RUNNER_POLICY.md).
 
 ## 2. Shared rules
 
-以下规则由 Action Worker 统一维护：
+Action Worker maintains these rules for everyone:
 
 - repository governance and merge defaults;
 - naming conventions;
@@ -45,11 +45,11 @@ Business repository
 - common Agent entry and precedence rules;
 - cross-repository language and runtime convergence rules.
 
-语言治理遵循同一长期原则：小内核、大框架优先于任何单一语言目标。语言选择服从模块边界；在性能、安全、功能、兼容性和维护性不下降时优先减少无必要的语言与运行时，但禁止为了“统一技术栈”而重写已经稳定且边界清晰的实现。跨语言重复 Authority、重复状态和重复协议必须优先消除。
+Language governance follows the same long-term principle: a small kernel and a large framework come before any single-language goal. The choice of language follows module boundaries. When performance, security, functionality, compatibility and maintainability do not drop, unnecessary languages and runtimes are removed first, but rewriting a stable implementation with clear boundaries only to "unify the stack" is forbidden. Duplicate authorities, duplicate state and duplicate protocols across languages are removed first.
 
 ## 3. Project-local rules
 
-业务仓只保留无法脱离该项目成立的规则，例如：
+A business repository keeps only the rules that cannot exist without that project, for example:
 
 - product positioning and product boundary;
 - runtime / protocol / public API architecture;
@@ -59,13 +59,13 @@ Business repository
 - capability or extension boundaries;
 - project-specific build, package and deploy implementation.
 
-判断标准：
+The test:
 
-> 如果删除项目名后这条规则仍然适用于其他仓库，它通常不应继续留在业务仓。
+> If a rule still applies to other repositories once the project name is removed, it usually should not stay in the business repository.
 
 ## 4. Authority order
 
-发生冲突时按以下顺序处理：
+On conflict, this order applies:
 
 ```text
 machine contracts / policies / rules
@@ -79,19 +79,19 @@ project implementation documentation
 README / examples
 ```
 
-项目规则可以收紧共用规则，但不得绕过共用安全边界、PR Gate 或跨仓凭据边界。
+A project rule may tighten a shared rule, but must not bypass the shared security boundary, the PR gate or the cross-repository credential boundary.
 
-AI Review 不是共用门禁。它只负责审核、建议与问题发现；是否启用、是否成功、发现多少问题，都不能替代或改变确定性的 CI / PR / Security Gate。
+AI Review is not a shared gate. It only reviews, suggests and finds problems; whether it is enabled, whether it succeeds and how many problems it finds can never replace or change the deterministic CI / PR / Security gates.
 
-Security Gate 属于共用硬边界，必须由 Action Worker 的确定性检查执行，并覆盖公开仓与私有仓。
+The Security Gate is a shared hard boundary. It is executed by the deterministic checks of Action Worker and covers public and private repositories.
 
-`validate-merge` 是唯一 Merge Authority。AI Review 必须在确定性 Gate 结论之后运行，只产生 advisory finding。
+`validate-merge` is the only merge authority. AI Review runs after the deterministic gate conclusion and produces only advisory findings.
 
-Main Write Guard 是所有受管仓共享的 main provenance 硬边界。任何无法证明来自合法 PR Merge 的 `main` SHA 都视为 untrusted，不得 Release、Deploy、Publication 或进入 privileged execution。详细规则见 [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md)。
+The Main Write Guard is the main-provenance hard boundary shared by all managed repositories. A `main` SHA that cannot be proven to come from a legitimate PR merge is untrusted and cannot be released, deployed, published or used for privileged execution. See [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md) for the detailed rules.
 
 ## 5. Agent entry
 
-每个受管业务仓保留两个极薄入口：
+Every managed business repository keeps two very thin entry points:
 
 ```text
 AGENTS.md
@@ -103,11 +103,11 @@ Action Worker shared governance
 project-specific authoritative documents
 ```
 
-`AGENTS.md` 只负责跳转，不复制规则。业务仓 `CLAUDE.md` 只列出共享规则入口、项目级权威文档以及项目独有的少量禁止项。
+`AGENTS.md` only points onward and copies no rules. The business repository `CLAUDE.md` lists only the shared rule entry points, the project's authoritative documents and the few prohibitions that belong to the project alone.
 
 ## 6. Machine enforcement
 
-文档解释规则，但真正的治理必须由机器合同执行：
+Documentation explains the rules, but real governance is executed by machine contracts:
 
 ```text
 contracts/   input/output contracts
@@ -118,41 +118,41 @@ workflows/   orchestration
 tests/       governance regression tests
 ```
 
-任何重要规则如果只存在于 Markdown、没有对应机器约束，应被视为尚未完成治理闭环。
+An important rule that exists only in Markdown, without a matching machine constraint, has not closed its governance loop yet.
 
 ## 7. Platform capability
 
-治理目标与 GitHub 套餐能力分开描述。
+Governance goals are described separately from GitHub plan features.
 
-Action Worker Gate 对受管仓统一成立；GitHub 原生 Ruleset、branch protection 或 Administration API 只在当前仓库可用的套餐和权限范围内启用。GitHub Free 组织的私有仓不具备 Ruleset / Protected Branch 强制保护，因此中央 Gate 在这些仓库中是流程约束而非 GitHub 平台硬门禁。平台能力不足不能成为绕过中央 Gate 的理由，也不得在文档中假设私有仓已经获得与公开仓相同的强制保护。
+The Action Worker gate holds for every managed repository; native GitHub rulesets, branch protection or the Administration API are enabled only within the plan and permissions the current repository has. Private repositories of a GitHub Free organization have no enforced ruleset / protected-branch protection, so in those repositories the central gate is a process constraint and not a hard GitHub platform gate. Missing platform features are never a reason to bypass the central gate, and documentation must never assume that private repositories already have the same enforced protection as public ones.
 
 ## 8. Documentation readability
 
-Fongap Labs 名下所有仓库的文档分两类，各有明确的读者和写法要求：
+Documentation in every Fongap Labs repository falls into two kinds, each with its own reader and writing requirements:
 
-### 机器读的文档（严谨）
+### Machine-read documents (rigorous)
 
-读者是 AI Agent 和机器校验。包括 `SKILL.md`、`contracts/`、`policies/`、`rules/`。
+The readers are AI agents and machine checks. This covers `SKILL.md`, `contracts/`, `policies/` and `rules/`.
 
-要求：
+Requirements:
 
-1. **英文**。
-2. **精确无歧义**：每条规则只有一种解读，禁止"酌情"、"视情况"等模糊表述。
-3. **结构化**：用编号、代码块、明确的条件分支（`if...then`），不依赖上下文推断。
-4. **可验证**：机器能校验的规则必须对应合同测试。
+1. **English**.
+2. **Precise and unambiguous**: every rule has exactly one reading; vague wording such as "as appropriate" or "depending on the situation" is forbidden.
+3. **Structured**: use numbering, code blocks and explicit conditional branches (`if...then`); do not rely on inference from context.
+4. **Verifiable**: a rule a machine can check has a matching contract test.
 
-### 人读的文档（小白友好）
+### Human-read documents (beginner-friendly)
 
-读者是没有项目背景的人。包括 `README.md`、guide、治理文档的人面部分。
+The reader is someone without project background. This covers `README.md`, guides and the human-facing parts of governance documents.
 
-要求：
+Requirements:
 
-1. **英文**。
-2. **先说"这是什么"再说"怎么做"**：每篇文档开头用一到两句话说清用途，不要直接跳进实现细节。
-3. **术语必须解释**：第一次出现 frontmatter、dispatch、bootstrap、gate、manifest 等术语时，用括号或短句解释。
-4. **用例子，不用抽象描述**：能用具体例子说明的，不要只写规则文字。例子放在代码块里。
-5. **不假设读者懂 GitHub Actions**：解释 workflow、runner、dispatch 等概念时，用日常语言类比。
-6. **结构要分层**：先给小白看的快速说明，再给维护者看的技术细节。用标题分隔。
-7. **一段话只说一件事**：超过五行还没说完的，拆成列表或子标题。
+1. **English**.
+2. **Say "what this is" before "how to do it"**: every document opens with one or two sentences about its purpose instead of jumping straight into implementation details.
+3. **Explain every term**: the first time a term such as frontmatter, dispatch, bootstrap, gate or manifest appears, explain it in brackets or a short sentence.
+4. **Use examples, not abstract descriptions**: whatever a concrete example can show, do not describe with rule text alone. Put examples in code blocks.
+5. **Do not assume the reader knows GitHub Actions**: explain concepts such as workflow, runner and dispatch with everyday analogies.
+6. **Layer the structure**: first a quick explanation for beginners, then the technical details for maintainers, separated by headings.
+7. **One paragraph says one thing**: anything that is not finished after five lines becomes a list or gets subheadings.
 
-这条规则适用于 Action Worker 和所有受管业务仓。业务仓的 `CLAUDE.md`、`README.md` 和项目文档都应遵守。
+This rule applies to Action Worker and every managed business repository. A business repository's `CLAUDE.md`, `README.md` and project documentation follow it too. In Action Worker, Chinese appears only in `*.zh-CN.md` localization files (see [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) section 8.2).
