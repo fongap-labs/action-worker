@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- docs: add `SECURITY.md` (English and Chinese) pointing to GitHub private vulnerability reporting; the backup contact is a TODO for the owner.
+
 - docs: describe the Gate as deterministic policy plus CI Evidence, with AI Review running asynchronously after the gate passes and only advising (README.md, README.zh-CN.md); drop the "review blocking thresholds" bullet, which has no policy behind it.
 
 - fix [security]: task state artifacts are named `task-state-<hash of repository and project>` and carry a `manifest.json`; restore ignores an artifact whose manifest names another repository or project, so two different task sources can no longer share or poison each other's state (artifacts written under the old name are still restored during the 30 day retention window). For a private task source the public run log shows the project and request id only as short hashes and the commit as 7 characters.
