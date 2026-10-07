@@ -176,7 +176,12 @@ def test_browser_provider_forces_chromium_through_guarded_proxy() -> None:
         / "playwright_provider.py"
     ).read_text(encoding="utf-8")
     assert "GuardedBrowserProxy()" in source
-    assert 'proxy={"server": proxy_url}' in source
+    # Newer providers also pass the per-session proxy credentials; older ones only the server.
+    assert 'proxy={"server": proxy_url}' in source or (
+        '"server": proxy_url,' in source
+        and '"username": self._proxy.credentials[0],' in source
+        and '"password": self._proxy.credentials[1],' in source
+    )
     assert '"--proxy-bypass-list=<-loopback>"' in source
     assert '"--disable-quic"' in source
     assert '"--force-webrtc-ip-handling-policy=disable_non_proxied_udp"' in source
