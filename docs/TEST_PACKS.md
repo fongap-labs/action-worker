@@ -1,90 +1,90 @@
 # Test Packs
 
-受管业务仓不再存放自己的测试套件。每个业务仓的测试由 Action Worker 以 **Test Pack** 形式持有，位于 `tests/packs/<pack>/`，在中央 CI 中针对被检出的目标仓源码执行。
+Managed business repositories no longer keep their own test suites. Action Worker holds each business repository's tests as a **test pack** in `tests/packs/<pack>/`, and central CI runs it against the checked-out source of the target repository.
 
-## 1. 为什么集中
+## 1. Why tests are central
 
-- **测试不能被同一个 PR 削弱。** 业务仓的 `tests/` 与 `package.json` 脚本都位于 PR 作者可修改的范围内；Pack 来自可信 ref，PR 只能被它检验，不能改写它。
-- **积木复用。** `tests/kit/` 提供统一 harness、目标定位、fetch/时间/契约断言等积木，业务套件只写断言。
-- **一处治理。** 用例清单、门禁分层、Runner 并行与报告都由 Action Worker 统一维护。
+- **A PR cannot weaken its own tests.** A business repository's `tests/` and `package.json` scripts are within reach of the PR author; a pack comes from a trusted ref, so a PR can only be checked by it, never rewrite it.
+- **Reusable building blocks.** `tests/kit/` provides a shared harness, target lookup, fetch / time / contract assertions and other building blocks, so a business suite only writes assertions.
+- **Governed in one place.** The test inventory, gate tiers, runner parallelism and reporting are all maintained by Action Worker.
 
-## 2. 目录
+## 2. Layout
 
 ```text
 tests/
-  kit/               通用积木（harness、target、fetch、time、contract、mock-d1、python/kit_target.py）
-  run-pack.mjs       Pack 运行器：node tests/run-pack.mjs <pack> <绝对 target_root> [unit|gate|all]
-  packs/<pack>/      每个业务仓一个 Pack（pack.json + 套件）
-  inventory/         迁移前基线清单（只增不减）
+  kit/               shared building blocks (harness, target, fetch, time, contract, mock-d1, python/kit_target.py)
+  run-pack.mjs       pack runner: node tests/run-pack.mjs <pack> <absolute target_root> [unit|gate|all]
+  packs/<pack>/      one pack per business repository (pack.json + suites)
+  inventory/         pre-migration baseline inventories (may only grow)
 ```
 
-## 3. 执行合同
+## 3. Execution contract
 
-| 项 | 说明 |
+| Item | Description |
 |---|---|
-| 测试来源 | Action Worker（可信 ref 或 `.github/test-pack.json` 固定的历史提交） |
-| 被测代码 | `CENTRAL_TEST_TARGET_ROOT`（PR head 检出目录），只读、只导入 |
-| JS 套件 | `import … from '#target/<path>'` 导入目标源码；`#kit/*` 导入积木 |
-| Python 套件 | `from kit_target import target_root`；`PYTHONPATH` 含目标仓与 `tests/kit/python` |
-| 信任域 | `sandbox`：`execute_pr_code: true`、`allow_secrets: false`（见 `policies/execution.json`） |
-| 入口 | 业务仓 `central-ci.sh` 调用 `node "$CENTRAL_CI_AW_ROOT/tests/run-pack.mjs" <pack> "$TARGET_ROOT"` |
+| Test source | Action Worker (a trusted ref, or a historical commit pinned by `.github/test-pack.json`) |
+| Code under test | `CENTRAL_TEST_TARGET_ROOT` (the checkout of the PR head), read-only and imported only |
+| JS suites | `import … from '#target/<path>'` imports target source; `#kit/*` imports building blocks |
+| Python suites | `from kit_target import target_root`; `PYTHONPATH` contains the target repository and `tests/kit/python` |
+| Trust domain | `sandbox`: `execute_pr_code: true`, `allow_secrets: false` (see `policies/execution.json`) |
+| Entry point | the business repository's `central-ci.sh` calls `node "$CENTRAL_CI_AW_ROOT/tests/run-pack.mjs" <pack> "$TARGET_ROOT"` |
 
-`central-ci-dispatch.yml` 在 Linux/Windows 作业中检出 Action Worker 到 `aw/`，并导出 `CENTRAL_CI_AW_ROOT`。
+`central-ci-sandbox.yml` checks Action Worker out to `aw/` in the Linux and Windows jobs and exports `CENTRAL_CI_AW_ROOT`.
 
-## 4. 版本固定
+## 4. Version pinning
 
-业务仓 `.github/test-pack.json`：
+The business repository's `.github/test-pack.json`:
 
 ```json
 { "schema_version": 1, "pack": "ai-gateway", "ref": "main" }
 ```
 
-- `ref` 只能是 `main` 或完整 commit SHA；SHA 必须是 Action Worker 可信历史的祖先（`scripts/prepare-test-pack.ts` 校验）。
-- 该文件属于 **CI 控制路径**（与 `execution-manifest.json`、`central-ci.sh` 同级）：修改它需要同仓库可信维护者 PR，并按 head 自验证。
-- 行为变更（`breaking` / `api` / `migration`）走配对流程：先合并 Action Worker 的 Pack 变更，再让业务 PR 固定到该提交。
+- `ref` can only be `main` or a full commit SHA; a SHA must be an ancestor in Action Worker's trusted history (checked by `scripts/prepare-test-pack.ts`).
+- The file is a **CI control path** (like `execution-manifest.json` and `central-ci.sh`): changing it needs a PR from a trusted same-repository maintainer, and that PR is verified against its own head.
+- A behaviour change (`breaking` / `api` / `migration`) uses a paired flow: merge the pack change in Action Worker first, then pin the business PR to that commit.
 
-## 5. 用例清单（不丢用例）
+## 5. Test inventory (no test is lost)
 
-`tests/inventory/<pack>.baseline.json` 是**迁移前**在业务仓原位置运行得到的用例清单。
+`tests/inventory/<pack>.baseline.json` is the list of test cases collected **before migration** by running the suites in their original place in the business repository.
 
 ```bash
-# 收集当前 Pack（node）
+# Collect the current pack (node)
 node tests/kit/inventory.mjs collect --dir tests/packs/ai-gateway --cwd <target> \
   --preload tests/kit/register-target.mjs --target <target> --out current.json
-# 收集当前 Pack（python）
+# Collect the current pack (python)
 node tests/kit/inventory.mjs collect-python --dir tests/packs/delta \
   --config tests/packs/delta/pytest.ini --cwd <target> --target <target> --run --out current.json
-# 对账：基线中的每个用例必须仍存在且通过
+# Reconcile: every case in the baseline must still exist and pass
 node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.json --current current.json
 ```
 
-合并、重命名文件不会触发失败；删除或减少用例必须显式修改基线并经审阅。
+Merging or renaming files does not cause a failure; deleting or reducing test cases needs an explicit, reviewed change to the baseline.
 
-## 6. 仍留在业务仓的测试
+## 6. Tests that stay in the business repository
 
-判定规则：无法通过 `TARGET_ROOT` 从外部访问被测对象的测试才保留。
+Rule: a test stays only when it cannot reach the object under test from outside through `TARGET_ROOT`.
 
-- Rust 内联 `#[cfg(test)]` 与 crate 内集成测试（依赖 crate 私有项与 Cargo 编译图）。
-- 桌面端 Playwright e2e 与 vitest 组件测试（依赖 `apps/desktop` 工具链）。
-- 需要 root/Docker 的基础设施脚本测试（如 `internal-vault/services/server-edge/tests/*.sh`）。
-- `delta-suite/tests/foundation_runtime_e2e`（被编译进固定的 Foundation 核心 crate）。
-- `app-source/projects/SecurePigeon/crates/*/tests`（Rust crate 集成测试与模糊测试）。
+- Rust inline `#[cfg(test)]` tests and in-crate integration tests (they depend on crate-private items and the Cargo build graph).
+- Desktop Playwright e2e and vitest component tests (they depend on the `apps/desktop` toolchain).
+- Infrastructure script tests that need root or Docker (such as `internal-vault/services/server-edge/tests/*.sh`).
+- `delta-suite/tests/foundation_runtime_e2e` (compiled into the pinned Foundation core crate).
+- `app-source/projects/SecurePigeon/crates/*/tests` (Rust crate integration tests and fuzz tests).
 
-## 7. 新增测试
+## 7. Adding tests
 
-1. 在 `tests/packs/<pack>/` 新增套件；JS 用 `#kit/harness.mjs`（`node:test`），Python 用 pytest。
-2. 不要在套件里重复实现 `test()`、`dateAtIso()`、fetch mock，使用 `tests/kit/` 中的积木；缺少积木时先补积木。
-3. 需要时间/全局状态隔离的套件保持独立文件（例如依赖真实计时的用例）。
-4. 门禁层套件登记在 `pack.json` 的 `tiers.gate`；其余套件由磁盘发现，无需登记。
+1. Add the suite under `tests/packs/<pack>/`; JS uses `#kit/harness.mjs` (`node:test`), Python uses pytest.
+2. Do not reimplement `test()`, `dateAtIso()` or fetch mocks in a suite; use the building blocks in `tests/kit/`, and add a missing building block there first.
+3. Keep suites that need time or global-state isolation in their own files (for example cases that depend on real timing).
+4. Gate-tier suites are registered under `tiers.gate` in `pack.json`; all other suites are discovered from disk and need no registration.
 
-## 8. 各仓库现状
+## 8. Status per repository
 
-| 仓库 | Pack | 仍留在业务仓的测试 |
+| Repository | Pack | Tests that stay in the business repository |
 |---|---|---|
-| ai-gateway | `ai-gateway`（24 个模块） | 无 |
-| delta | `delta`（6 个模块） | Rust 内联与 crate 测试、`apps/desktop` 的 e2e 与 vitest、`packages/delta_worker_sdk` 等 3 个小型包内测试 |
-| delta-suite | `delta-suite`（4 个模块） | `tests/foundation_runtime_e2e` |
-| internal-vault | `internal-vault`（8 个模块） | `services/server-edge/tests/*.sh`（需要 root 与 Docker） |
-| app-source | `app-source`（1 个模块，license-service 的数据库测试） | `crates/*/tests`（Rust）；`legacy/test_*.py` 是 CI 从不执行的遗留脚本，不属于 Pack |
-| external-vault | 无 | 无测试套件；CI 只运行清单与密钥扫描检查脚本 |
-| AssHub | 无 | 空仓库 |
+| ai-gateway | `ai-gateway` (24 modules) | none |
+| delta | `delta` (6 modules) | Rust inline and crate tests, `apps/desktop` e2e and vitest, tests inside 3 small packages such as `packages/delta_worker_sdk` |
+| delta-suite | `delta-suite` (4 modules) | `tests/foundation_runtime_e2e` |
+| internal-vault | `internal-vault` (8 modules) | `services/server-edge/tests/*.sh` (need root and Docker) |
+| app-source | `app-source` (1 module, the database tests of license-service) | `crates/*/tests` (Rust); `legacy/test_*.py` are legacy scripts CI never runs and are not part of the pack |
+| external-vault | none | no test suite; CI runs only the manifest and secret scan check scripts |
+| AssHub | none | empty repository |

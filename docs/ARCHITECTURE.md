@@ -1,16 +1,16 @@
-# 架构
+# Architecture
 
-Action Worker 是 Fongap Labs 的 GitHub 自动化控制平面。
+Action Worker is the GitHub automation control plane of Fongap Labs.
 
-长期边界以 [ARCHITECTURE_GOVERNANCE.md](ARCHITECTURE_GOVERNANCE.md) 为准；统一执行合同见 [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md)，Runner 与 self-hosted 边界见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。本文档描述当前实现与下一层收敛方向。
+Long-term boundaries are defined by [ARCHITECTURE_GOVERNANCE.md](ARCHITECTURE_GOVERNANCE.md). The unified execution contract is in [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md), and the runner and self-hosted boundary is in [RUNNER_POLICY.md](RUNNER_POLICY.md). This document describes the current implementation and the next step of convergence.
 
-## 1. 核心模型
+## 1. Core model
 
 ```text
 Validate → Inspect → Plan → Execute → Gate → Advisory Review
 ```
 
-现有实现已经具备其中的大部分基础：
+The current implementation already provides most of this foundation:
 
 ```text
 PR Policy
@@ -33,59 +33,59 @@ Self CI
   Validate → Gate
 ```
 
-下一阶段不是增加项目专属规则，而是把这些入口继续收敛到同一套通用合同。
+The next stage does not add project-specific rules. It keeps converging these entry points onto one set of generic contracts.
 
-## 2. 中央边界
+## 2. Central boundary
 
 ```text
 Action Worker
-= 通用规则
-+ 调用验证
-+ 统一执行编排
-+ Runner Resolution
+= generic rules
++ caller validation
++ unified execution orchestration
++ runner resolution
 + AI Review
 + Gate
-+ Source / Release / Deploy 控制
++ Source / Release / Deploy control
 
-业务仓
-= 产品代码
-+ 测试代码
-+ 项目级 build / package / deploy 脚本
-+ Execution / Release / Deploy 等 source-owned Manifest
-+ 必要时保留迁移期最薄事件触发器
+Business repository
+= product code
++ test code
++ project-level build / package / deploy scripts
++ source-owned manifests (Execution / Release / Deploy)
++ the thinnest event trigger where still needed during migration
 ```
 
-Action Worker 不维护项目目录、不维护项目专属测试映射、不按仓库名称分支执行逻辑。
+Action Worker keeps no project directories, no project-specific test mappings and no execution logic that branches on a repository name.
 
-具体仓库名称不进入源码。仓库权限统一从 Repository Variable `AW_REPOSITORY_POLICY` 读取；同一仓库可声明 `pr`、`task`、`release-source`、`release-target` capability。
+Concrete repository names do not enter the source code. Repository permissions are read from one Repository Variable, `AW_REPOSITORY_POLICY`; a repository can be granted the `pr`, `task`, `release-source` and `release-target` capabilities.
 
 ## 3. PR
 
-当前默认入口由 `pr-intake.yml` 周期性扫描 `AW_REPOSITORY_POLICY` 中受管仓库的开放 PR，并向 `handle-pr-dispatch.yml` 提交统一治理任务。业务仓 Actions 不是安全前提。
+The default entry point is `pr-intake.yml`. It periodically scans the open pull requests of the managed repositories in `AW_REPOSITORY_POLICY` and submits one governance task per pull request to `handle-pr-dispatch.yml`. Business repository Actions are not a security prerequisite.
 
-迁移期仍允许最薄 `repository_dispatch` 触发器作为实时加速，但它不得保存命名规则、Agent、模型、Gate 阈值、中央 Secret 或审查规则，也不得承担重执行。
+During migration, the thinnest `repository_dispatch` trigger is still allowed as a real-time shortcut. It must not hold naming rules, agents, models, gate thresholds, central secrets or review rules, and it must not do heavy execution.
 
 ```text
-受管仓 PR
+Managed repository PR
   ↓
 Action Worker PR Intake
   ↓
 handle-pr-dispatch
   ↓
 Validate → Inspect → Plan → Security / CI / PR Gate
-  ├→ AW_CONTROL_TOKEN → 目标 PR deterministic status
-  └→ Gate 通过后 repository_dispatch run-pr-review
+  ├→ AW_CONTROL_TOKEN → deterministic status on the target PR
+  └→ after the gate passed: repository_dispatch run-pr-review
         ↓
-     handle-pr-review：AI Review → advisory summary
+     handle-pr-review: AI Review → advisory summary
 ```
 
-AI Review 是独立的 `handle-pr-review.yml`，只在 Gate 通过之后由 `handle-pr-dispatch` 触发。这样做有两个原因：Gate 那一次运行在 Gate 结论形成后就结束，不再被 AI 排队或评审拖住；AI 评审队列里只有真正处在评审阶段的运行，不会排在一个还在等 CI 的运行后面。
+AI Review is a separate workflow, `handle-pr-review.yml`, which `handle-pr-dispatch` starts only after the gate passed. There are two reasons: the gate run ends as soon as the gate conclusion exists, so AI queueing or review never holds it; and the AI review queue contains only runs that really are in review, never one that is still waiting for CI.
 
-评审 workflow 不信任触发方的说法：它重新读取 PR 当前 head，并确认该 head 上有 Action Worker 发布的 `PR Governance` success；PR 的 head 已经更新、PR 被关闭而没有合并、或 Gate 不成立时直接跳过。它没有任何写 Gate 状态的步骤。
+The review workflow does not trust what the sender claims. It re-reads the current PR head and confirms that this head carries a `PR Governance` success published by Action Worker. It skips the review when the PR head has moved, when the PR was closed without merging, or when the gate does not hold. It has no step that writes a gate status.
 
-评审通常比 CI 慢，PR 往往在评审结束前就已经合并。已合并的 PR 不算失效：评审照常完成，并在 PR 上补发评论。只有放弃的 PR（关闭而未合并）才会跳过评审。
+A review is usually slower than CI, and a PR is often merged before its review ends. A merged PR does not invalidate the review: the review completes and its comment is still posted. Only an abandoned PR (closed without merging) skips the review.
 
-PR Task 合同位于 `contracts/pr-task.json`：
+The PR Task contract is `contracts/pr-task.json`:
 
 ```text
 schema_version
@@ -94,46 +94,45 @@ repository
 pr_number
 ```
 
-Action Worker 收到任务后必须：
+When Action Worker receives a task it must:
 
-- 先按 `AW_REPOSITORY_POLICY` 的 `pr` capability 校验目标仓库；
-- 使用 `AW_CONTROL_TOKEN` 从 GitHub 重新获取 PR base/head SHA、标题、状态和 diff；
-- checkout `refs/pull/<n>/head` 后再次与 GitHub 当前 PR 事实对齐；如果调度到检出之间 PR 已更新，则以实际检出 commit 与最新 PR API 一致的 base/head/title 作为本次治理事实，避免把同步窗口误判为永久失败；
-- 只读取目标 PR，不执行 PR 提供的代码；
-- 在派发中央 CI 之前校验 PR 作者（`scripts/pr-trust.ts`）：作者对目标仓有写权限（`author_association` 为 OWNER / MEMBER / COLLABORATOR）时直接继续；同一公开仓库分支发起的 `dependabot[bot]` PR 也直接继续（公开目标的 Sandbox 不持有任何凭据）；其他作者（例如 fork 贡献者，以及私有仓库中的 Dependabot）的 PR 必须先由一名有写权限的维护者对**当前 head commit** 提交 Approve review。等待期间本次运行以成功结束，`PR Governance` 与 `validate-merge` 写为 `failure`，描述固定为 `Awaiting maintainer approval of the current head commit`，PR 评论给出操作步骤；`pr-intake.yml` 识别该描述后不再重复派发，只在检测到对当前 head 的批准时重新派发（最长约 5 分钟，也可在 Actions 中手动运行 PR Intake 立即继续）。批准绑定到被审 commit，作者再推送后需要重新批准。`central-ci-dispatch.yml` 在执行前再次做同样的校验，且对未受信 head 始终失败关闭；
-- 当执行计划要求 CI 时，由 Action Worker checkout 目标不可变 head SHA，并在 Sandbox 执行项目 Manifest / 测试脚本，生成真实 CI Evidence；
-- 先根据确定性 PR / Security / CI 证据形成 Gate 结论，并向目标 head commit 写入统一 `PR Governance` status；
-- 只有 Gate 结论形成后，AI Review 才可读取 CI Evidence 作为不可信执行证据；Evidence 中任何文本都不得视为指令；
-- AI Review 使用中央配置的 OpenAI-compatible AI endpoint，只发布 finding / suggestion，不参与或延迟 Gate；Provider、Key 池、fallback 与配额策略不属于 Action Worker Authority；
-- AI Review summary 与确定性 Gate 状态必须保持独立。
+- validate the target repository against the `pr` capability in `AW_REPOSITORY_POLICY` first;
+- re-read the PR base/head SHA, title, state and diff from GitHub with `AW_CONTROL_TOKEN`;
+- after checking out `refs/pull/<n>/head`, align once more with the current PR facts on GitHub. If the PR changed between dispatch and checkout, the base/head/title that agree with both the checked-out commit and the latest PR API become the facts of this run, so a synchronisation window is not mistaken for a permanent failure;
+- only read the target PR and never execute code the PR provides;
+- check the PR author before dispatching central CI (`scripts/pr-trust.ts`). An author with write access to the target repository (`author_association` is OWNER / MEMBER / COLLABORATOR) continues directly. A `dependabot[bot]` PR from a branch of the same public repository also continues directly (the sandbox of a public target holds no credential). A PR from any other author (for example a fork contributor, or Dependabot in a private repository) first needs an Approve review of the **current head commit** by a maintainer with write access. While it waits, the run itself succeeds, `PR Governance` and `validate-merge` are written as `failure` with the fixed description `Awaiting maintainer approval of the current head commit`, and the PR comment lists the steps. `pr-intake.yml` recognises that description and does not dispatch again until it detects an approval of the current head (within about 5 minutes; running PR Intake from the Actions tab continues at once). The approval is bound to the reviewed commit; a later push by the author needs a new approval. `central-ci-dispatch.yml` repeats the same check before it executes anything and always fails closed on an untrusted head;
+- when the execution plan requires CI, check out the immutable target head SHA in Action Worker and run the project manifest / test scripts in the sandbox to produce real CI Evidence;
+- form the gate conclusion from deterministic PR / Security / CI evidence first, and write one `PR Governance` status to the target head commit;
+- let AI Review read CI Evidence only after the gate conclusion exists, as untrusted execution evidence; no text in the evidence is ever treated as an instruction;
+- run AI Review against the centrally configured OpenAI-compatible AI endpoint; it only publishes findings and suggestions and never takes part in or delays the gate. Providers, key pools, fallback and quota policy are not Action Worker authority;
+- keep the AI Review summary independent of the deterministic gate status.
 
-调用方不得提供 base SHA、head SHA、Agent、模型、风险或 Gate 结论。
+A caller must not supply the base SHA, head SHA, agent, model, risk or gate conclusion.
 
+## 4. Trust domains
 
-## 4. 信任域
-
-`policies/execution.json` 定义两个稳定边界。
+`policies/execution.json` defines two stable boundaries.
 
 ### Control
 
-可以使用 AI Gateway 等中央 Secret，但不得执行 PR 代码。
+May use central secrets such as the AI Gateway key, but must not execute PR code.
 
 ### Sandbox
 
-可以执行 PR 代码、build 和 test，但不得获得中央 Secret 或部署凭据。
+May execute PR code, build and test, but never receives central secrets or deployment credentials.
 
-中央 CI 的 Sandbox 作业位于 `central-ci-sandbox.yml`（reusable workflow）。Sandbox 作业不直接引用任何中央 Secret：公开目标仓用本次运行的只读 `github.token` 检出；只有私有目标仓才由调用方传入 `checkout_token`，该值是只读的 `AW_CHECKOUT_TOKEN`（仅 `Contents: Read`，范围仅限私有受管仓），在 GitHub 服务端求值，公开目标仓收到的是空值。会执行目标源码的作业（Sandbox、依赖修复的计算作业）不得引用 `AW_CONTROL_TOKEN` 或 `AW_ADMIN_TOKEN`；所有 `actions/checkout` 默认 `persist-credentials: false`，仅 `update-work-metrics.yml` 因需要提交而例外。`security-scan-dispatch.yml` 的 CodeQL 作业不带任何 Secret，只产出 SARIF 工件，由独立的 `publish` 作业持有 `AW_ADMIN_TOKEN` 上传。`tests/workflow-invariants.test.ts` 把这些边界固化为测试。
+The sandbox jobs of central CI live in `central-ci-sandbox.yml` (a reusable workflow). Sandbox jobs reference no central secret directly. A public target is checked out with the run's read-only `github.token`; only for a private target does the caller pass `checkout_token`, which is the read-only `AW_CHECKOUT_TOKEN` (`Contents: Read` only, limited to private managed repositories). GitHub evaluates it on the server side, and a public target receives an empty value. Jobs that execute target source (the sandbox and the dependency repair compute job) must not reference `AW_CONTROL_TOKEN` or `AW_ADMIN_TOKEN`. Every `actions/checkout` uses `persist-credentials: false`; the only exception is `update-work-metrics.yml`, which has to commit. The CodeQL job of `security-scan-dispatch.yml` carries no secret and only produces a SARIF artifact; a separate `publish` job holds `AW_ADMIN_TOKEN` and uploads it. `tests/workflow-invariants.test.ts` turns these boundaries into tests.
 
-因此：
+Therefore:
 
 ```text
-Plan 可以动态
-权限边界不能动态
+The plan may be dynamic
+Permission boundaries may not
 ```
 
-## 5. Detect 与 Plan
+## 5. Detect and Plan
 
-PR 首先生成统一 Change Record：
+Every PR first produces one Change Record:
 
 ```text
 change_type = feat / fix / docs / style / refactor / perf /
@@ -142,19 +141,19 @@ change_type = feat / fix / docs / style / refactor / perf /
 attributes  = breaking / security / migration
 ```
 
-`validate-change-record.ts` 从 PR 标题与 CHANGELOG 生成并校验该记录。
+`validate-change-record.ts` builds and validates this record from the PR title and the CHANGELOG.
 
-现有 `detect-pr-context.ts` 再从以下证据生成技术 Context：
+`detect-pr-context.ts` then builds the technical context from this evidence:
 
 ```text
-Git Diff
-仓库标记
+Git diff
+repository markers
 CHANGELOG
 ```
 
-其中 `change_areas` 仅表示代码改到了 source / workflow / test / script 等技术区域，不属于变更分类。
+`change_areas` only states which technical regions the change touched (source / workflow / test / script and so on); it is not a change category.
 
-现有 `resolve-pr-plan.ts` 生成：
+`resolve-pr-plan.ts` produces:
 
 ```text
 checks
@@ -174,7 +173,7 @@ review_effort
 route_severity
 ```
 
-这些仍然是通用计划，不允许加入：
+These remain a generic plan. It must never contain:
 
 ```text
 if repository == delta
@@ -182,27 +181,27 @@ if repository == ai-gateway
 ...
 ```
 
-未来动态理解、历史基线和双 Agent 只能增强 Plan，不能改变这一边界。
+Future dynamic understanding, historical baselines and dual agents may only strengthen the plan; they cannot change this boundary.
 
-## 6. 测试
+## 6. Tests
 
-`policies/checks.json` 与 `policies/tests.json` 描述通用验证类别。
+`policies/checks.json` and `policies/tests.json` describe generic verification categories.
 
-项目测试代码继续与产品代码一起维护，但重执行统一收敛到 Action Worker Sandbox。
+Project test code stays with the product code, but heavy execution converges on the Action Worker sandbox.
 
-Action Worker 负责决定：
+Action Worker decides:
 
 ```text
-本次是否需要 CI 证据
-需要覆盖哪些通用测试类别
-使用哪个 runner_profile
-如何生成与 source SHA 绑定的 CI Evidence
-最终是否满足 Gate
+whether this change needs CI evidence
+which generic test categories it must cover
+which runner_profile to use
+how to produce CI Evidence bound to the source SHA
+whether the gate is finally satisfied
 ```
 
-Action Worker 不复制项目测试实现，也不保存“某仓库必须执行某命令”的项目映射。项目命令与平台需求由受版本控制的 Execution Manifest / 项目脚本描述。
+Action Worker does not copy project test implementations and keeps no project mapping of the form "repository X must run command Y". Project commands and platform requirements are described by the version-controlled execution manifest and project scripts.
 
-目标模式：
+Target model:
 
 ```text
 repository event
@@ -214,17 +213,17 @@ repository event
 → validate-merge bridge when required
 ```
 
-当 `ci_required=false` 时，Action Worker 仍显式产生“无需执行 CI”的成功 Evidence；Evidence 不允许以缺失表示“不需要”。
+When `ci_required=false`, Action Worker still writes an explicit successful "CI not required" evidence. A missing evidence never means "not required".
 
-业务仓如因 GitHub Ruleset 必须创建 `validate-merge` Check，只保留极轻 bridge，用于汇合中央 `CI Evidence` 与 `PR Governance`，不得再运行项目测试。
+If a GitHub ruleset forces a business repository to create a `validate-merge` check, it keeps only a very thin bridge that joins the central `CI Evidence` and `PR Governance`; it must not run project tests any more.
 
-迁移期旧业务仓 CI Runner 属于待清理路径，只允许缩小，不允许作为新增仓库模板。
+The old business-repository CI runners of the migration period are a path to be removed. They may only shrink and must not serve as a template for a new repository.
 
 ## 7. AI Agent Runtime
 
-AI Agent 是 Action Worker 的通用动态能力单元，不等同于代码审查角色，也不绑定某个模型。
+An AI agent is a generic dynamic capability unit of Action Worker. It is not the same as a code review role and is not bound to a model.
 
-当前可以存在的 Agent 包括但不限于：
+Agents that may exist today include, but are not limited to:
 
 ```text
 triage
@@ -232,7 +231,7 @@ review
 writing
 ```
 
-未来可以继续增加：
+More can be added later:
 
 ```text
 research
@@ -244,17 +243,17 @@ summary
 ...
 ```
 
-新增 Agent 不应要求再创建新的模型变量、开关变量或项目专属配置层。
+Adding an agent must not require a new model variable, a new switch variable or a project-specific configuration layer.
 
-### 7.1 单一运行配置
+### 7.1 One runtime configuration
 
-所有 Agent 的启停与逻辑模型统一由 Action Worker Repository Variable 控制：
+Switching agents on and off and choosing their logical models is controlled by one Action Worker Repository Variable:
 
 ```text
 AW_AI_AGENT_CONFIG
 ```
 
-示例：
+Example:
 
 ```json
 {
@@ -282,21 +281,21 @@ AW_AI_AGENT_CONFIG
 }
 ```
 
-配置未提供时，所有可选 AI Agent 默认关闭。某个 Agent 的 `enabled=false` 时，该 Agent 不执行，也不得成为 Gate 的依赖。
+Without this configuration every optional AI agent is off. When an agent has `enabled=false` it does not run and must not become a dependency of the gate.
 
-`model` 是该 Agent 的默认逻辑模型；`routes` 只在一个 Agent 内部确实需要不同模型时覆盖默认值。这样 Review 可以按 code / workflow / release / security / architecture 等审计类型路由，Writing 也可以在未来按不同写作任务增加 route，而不需要再修改全局变量结构。
+`model` is the agent's default logical model; `routes` override it only where one agent really needs different models. Review can route by audit type (code / workflow / release / security / architecture), and Writing can add routes for different writing tasks later, without changing the structure of the global variable.
 
-### 7.2 Policy 与模型分离
+### 7.2 Policy separate from models
 
-`AW_AI_AGENT_CONFIG` 只回答：
+`AW_AI_AGENT_CONFIG` only answers:
 
 ```text
-Agent 是否启用
-Agent 使用哪个逻辑模型
-Agent 内部 route 使用哪个逻辑模型
+whether an agent is enabled
+which logical model the agent uses
+which logical model a route inside the agent uses
 ```
 
-确定性规则继续由 policy / rule 管理，例如：
+Deterministic rules stay in policies and rules, for example:
 
 ```text
 policies/review.json
@@ -304,15 +303,15 @@ policies/triage.json
 rules/*.json
 ```
 
-这些文件负责审查范围、优先级、超时、恢复预算和规则，不保存模型名称。模型选择和治理规则不得形成双权威。
+These files hold review scope, priority, timeouts, resume budgets and rules; they hold no model names. Model selection and governance rules must not become two authorities.
 
-### 7.3 PR 治理中的 Agent
+### 7.3 Agents in PR governance
 
-PR Plan 先执行确定性判断。只有 `review` Agent 启用时，PR 才会进入 AI Review；`review.enabled=false` 时，PR 仍正常执行命名、CI Evidence、Change Record 和其他确定性 Gate，不因 AI 不可靠而失败。
+The PR plan makes the deterministic decisions first. A PR enters AI Review only when the `review` agent is enabled. With `review.enabled=false`, the PR still runs naming, CI Evidence, the Change Record and the other deterministic gates, and never fails because AI is unreliable.
 
-`triage` 是独立 Agent。它只有在自身启用且 Review 确实需要时才参与路由；Triage 不可单独把一个被禁用的 Review 重新打开。
+`triage` is a separate agent. It takes part in routing only when it is enabled itself and a review is really needed; triage alone cannot switch a disabled review back on.
 
-Review 内部当前可使用：
+Review routes available today:
 
 ```text
 code
@@ -323,20 +322,20 @@ architecture
 deep
 ```
 
-这些是 Review 的 route，不是全局 Agent 类型。未来新增 documentation、compliance、quality 等审计类型时，只扩展 Review route 与对应规则，不需要引入新的全局模型变量。
+These are review routes, not global agent types. A future audit type such as documentation, compliance or quality only extends the review routes and their rules; it does not introduce a new global model variable.
 
-### 7.4 Writing 与其他 Agent
+### 7.4 Writing and other agents
 
-Writing 与 Review 平级，不是 Review 的附属能力。Task Dispatch 会把 Action Worker Repository Variables 作为运行配置提供给下游可信任务，因此 Writing Agent 也应读取同一个 `AW_AI_AGENT_CONFIG`，而不是维护第二套写作模型变量。
+Writing is a peer of Review, not a part of it. Task Dispatch provides the Action Worker Repository Variables to trusted downstream tasks as runtime configuration, so the Writing agent reads the same `AW_AI_AGENT_CONFIG` instead of keeping a second set of writing model variables.
 
-为避免每个 downstream bootstrap 重复解析 JSON，Action Worker 会在 Task Dispatch 运行时从 `AW_AI_AGENT_CONFIG` 派生只读环境变量。它们不是 GitHub Repository Variables，也不是第二套配置权威：
+So that every downstream bootstrap does not parse the JSON again, Action Worker derives read-only environment variables from `AW_AI_AGENT_CONFIG` when Task Dispatch runs. They are not GitHub Repository Variables and not a second configuration authority:
 
 ```text
 AW_AI_AGENT_<AGENT>_MODEL
 AW_AI_AGENT_<AGENT>_<ROUTE>_MODEL
 ```
 
-例如：
+For example:
 
 ```text
 AW_AI_AGENT_WRITING_MODEL
@@ -344,35 +343,35 @@ AW_AI_AGENT_WRITING_MARKET_BRIEF_MODEL
 AW_AI_AGENT_WRITING_PHARMA_BRIEF_MODEL
 ```
 
-只有启用的 Agent 才会生成运行时变量；禁用 Agent 不生成模型值，因此引用方会 fail closed。若 Repository Variables 中手工定义与这些派生名称冲突的变量，Task Dispatch 必须拒绝执行，确保模型权威仍只有 `AW_AI_AGENT_CONFIG`。
+Runtime variables exist only for enabled agents. A disabled agent produces no model value, so whatever refers to it fails closed. If a Repository Variable defined by hand collides with one of these derived names, Task Dispatch must refuse to run, so `AW_AI_AGENT_CONFIG` stays the only model authority.
 
-后续 Planner、Critic、Research、Summary 等 Agent 也遵循同一原则：
+Later agents such as Planner, Critic, Research and Summary follow the same principle:
 
 ```text
-一个 Agent 运行配置入口
-→ 每个 Agent 独立 enabled
-→ 每个 Agent 独立逻辑模型
-→ 必要时使用 Agent 内部 routes
-→ Task Runtime 只消费派生模型值
+one agent runtime configuration entry
+→ every agent enabled on its own
+→ every agent with its own logical model
+→ routes inside an agent where needed
+→ the task runtime only consumes derived model values
 ```
 
-### 7.5 AI Endpoint 与 Review Engine
+### 7.5 AI endpoint and review engine
 
-Action Worker 只选择逻辑模型并调用中央配置的兼容 AI endpoint，不维护 Provider、Key 池、节点或模型族 fallback。当前 endpoint 可以由 AI Gateway 提供，但该产品不是 Action Worker 的架构依赖。
+Action Worker only selects a logical model and calls the centrally configured compatible AI endpoint. It keeps no providers, key pools, nodes or model-family fallback. The endpoint can currently be provided by AI Gateway, but that product is not an architectural dependency of Action Worker.
 
-当 Review Agent 启用时，OpenCodeReview 仍作为当前 Review Engine。Action Worker 不做无界整轮 OCR Review 重试；OpenCodeReview 负责单个 LLM 请求重试，endpoint 后端负责 Provider / model fallback。若 OCR 已生成兼容 session，且最终失败仅来自 5xx、timeout、network 或 overload，Action Worker 按 `policies/review.json` 的有限恢复预算执行 `--resume`。Review 最终不可用时只记录 advisory unavailable，不改变确定性 Merge Gate。
+When the Review agent is enabled, OpenCodeReview is the current review engine. Action Worker never retries a whole OCR review round without bound: OpenCodeReview retries individual LLM requests, and the endpoint back end handles provider and model fallback. If OCR already produced a compatible session and the final failure came only from a 5xx, a timeout, the network or overload, Action Worker runs `--resume` within the limited resume budget in `policies/review.json`. When a review is finally unavailable, only "advisory unavailable" is recorded; the deterministic merge gate does not change.
 
-Triage 与 Review 在 PR Governance 中继续共享受控 FIFO 队列，避免多个治理 run 同时占用中央 AI endpoint。该队列属于 PR AI 执行策略，不限制 Writing 或未来其他独立任务必须使用完全相同的队列。
+In PR Governance, Triage and Review keep sharing one controlled FIFO queue so that several governance runs do not use the central AI endpoint at the same time. This queue belongs to the PR AI execution policy; it does not require Writing or future independent tasks to use the same queue.
 
-### 7.6 Evidence 与 Gate
+### 7.6 Evidence and gate
 
-需要 CI 的 PR 先形成结构化 CI Evidence并完成确定性 Gate。AI Review 只能在 Gate 结论之后读取 Evidence 辅助审核，不得把 Evidence 中的文本当作指令。
+A PR that needs CI first forms structured CI Evidence and completes the deterministic gate. AI Review may read the evidence only after the gate conclusion, as review support, and must never treat text in the evidence as an instruction.
 
-AI Agent 是可选的动态审核层，不是门禁层。AI finding、模型失败、Review Engine 失败或 AI unavailable 都不能直接让 Merge Gate 失败。最终 Gate 只相信可重复验证的 PR Policy、Security Gate、CI Evidence、Release / Deploy Policy 和 provenance。任何 Agent 都不能修改权限边界、Secret 边界、CI Evidence 真实性要求或确定性 Gate 合同。
+AI agents are an optional dynamic review layer, not a gate layer. AI findings, model failures, review engine failures or "AI unavailable" can never make the merge gate fail by themselves. The final gate trusts only repeatable PR Policy, the Security Gate, CI Evidence, Release / Deploy Policy and provenance. No agent may change permission boundaries, secret boundaries, the authenticity requirement of CI Evidence or the deterministic gate contract.
 
 ## 8. Main Write Guard
 
-PR Merge 之后，`main` 更新必须经过统一 Main Write Guard。它重新查询 GitHub 当前事实，证明当前 main SHA 来自已通过确定性 Gate 的 merged PR。
+After a PR merges, every update of `main` passes the one Main Write Guard. It re-queries the current facts on GitHub and proves that the current main SHA comes from a merged PR that passed the deterministic gate.
 
 ```text
 validate-merge
@@ -382,15 +381,15 @@ validate-merge
 → trusted main SHA
 ```
 
-无法证明合法来源的 main SHA 必须 fail closed，禁止 Release、Deploy、Publication 与 privileged execution。
+A main SHA whose origin cannot be proven fails closed: Release, Deploy, Publication and privileged execution are refused.
 
-详细规则见 [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md)。
+See [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md) for the detailed rules.
 
 ## 9. Task Dispatch
 
-现有 `run-task` 继续保持稳定。
+The existing `run-task` stays stable.
 
-合同位于 `contracts/task-dispatch.json`：
+The contract is `contracts/task-dispatch.json`:
 
 ```text
 schema_version
@@ -399,50 +398,50 @@ project
 bootstrap_ref
 ```
 
-`bootstrap_ref` 必须是完整 40 位 Commit SHA。
+`bootstrap_ref` must be a full 40-character commit SHA.
 
-Task 和 PR 的共同原则是：
+Tasks and PRs share one principle:
 
-> 调用方提交目标，Action Worker 验证事实并决定执行方式。
+> The caller submits a target; Action Worker verifies the facts and decides how to execute.
 
-Task 使用 `AW_CONTROL_TOKEN` 获取受管私有仓固定 Commit；bootstrap 下载完成后，`AW_CONTROL_TOKEN`、`AW_ADMIN_TOKEN`、`AIG_ACCESS_KEY_AGENT` 与 `AW_DISPATCH_TOKEN` 等中央凭据会从业务执行环境中移除。移除后以 `exec` 启动 bootstrap，替换掉以全部 Secret 启动的 shell 进程，任务不与该进程并存。任务源仓为私有仓时，bootstrap 输出写入 Runner 临时文件而不进入本公开仓的运行日志，日志中只保留任务结果摘要。Task 可以在 `RUNNER_TEMP/action-worker-publication` 暂存一个跨仓发布请求，但业务任务不持有目标仓写凭据。Action Worker 在任务成功后单独校验 `AW_REPOSITORY_POLICY`：源仓必须具有 `release-source`，目标仓必须具有 `release-target` 与 `pr`；只有通过后才向中央发布步骤注入 `AW_CONTROL_TOKEN`，并以 pull request 方式合入目标仓 `main`（目标仓 `main` 无 bypass，要求 PR 且 `validate-merge` 检查通过）。
+A task uses `AW_CONTROL_TOKEN` to fetch the pinned commit of a managed private repository. Once the bootstrap is downloaded, central credentials such as `AW_CONTROL_TOKEN`, `AW_ADMIN_TOKEN`, `AIG_ACCESS_KEY_AGENT` and `AW_DISPATCH_TOKEN` are removed from the business execution environment. The bootstrap is then started with `exec`, which replaces the shell that was started with every secret, so the task never runs beside that process. When the task source repository is private, the bootstrap output goes to a runner temporary file instead of this public repository's run log; the log keeps only a summary of the task result, and the file is never uploaded as an artifact. A task may stage one cross-repository publication request in `RUNNER_TEMP/action-worker-publication`, but the business task holds no write credential for the target repository. After the task succeeds, Action Worker separately checks `AW_REPOSITORY_POLICY`: the source repository needs `release-source`, and the target repository needs `release-target` and `pr`. Only then is `AW_CONTROL_TOKEN` injected into the central publication step, which merges into the target repository's `main` through a pull request (`main` of the target has no bypass and requires a PR with a passing `validate-merge` check).
 
-### 9.1 任务源复核
+### 9.1 Task source re-verification
 
-`run-task` 载荷只是调用方的声明。`handle-task-dispatch.yml` 的 `validate` 作业在载荷校验之后调用 `scripts/validate-task-source.ts`，由接收端重新核对事实，规则与 Deploy 路径一致：
+A `run-task` payload is only the caller's claim. After validating the payload, the `validate` job of `handle-task-dispatch.yml` calls `scripts/validate-task-source.ts`, so the receiving side re-checks the facts with the same rules as the deploy path:
 
-- `bootstrap_ref` 必须等于目标仓默认分支当前 HEAD；已过期时以退出码 75 失败，新 HEAD 由下一次派发处理；
-- 该提交必须带有经回查验证的 `CI Evidence`；push 触发的任务可能先于主分支 CI 到达，因此最多等待约 20 分钟，仍无成功证据才失败；
-- 该提交必须通过 Main Write Guard（`assertTrustedMainWrite`）。
+- `bootstrap_ref` must equal the current HEAD of the target repository's default branch; a stale ref fails with exit code 75, and the next dispatch handles the new HEAD;
+- the commit must carry `CI Evidence` that passes re-verification. A push-triggered task can arrive before the main-branch CI, so it waits up to about 20 minutes and fails only if no successful evidence appears;
+- the commit must pass the Main Write Guard (`assertTrustedMainWrite`).
 
-`execute` 作业依赖 `validate`，复核失败时任务不会启动，也就不会解析该提交声明的 Secret 范围。
+The `execute` job depends on `validate`. When re-verification fails the task never starts, so the secret scope declared by that commit is never resolved.
 
-`CI Evidence` 本身只是一条提交状态：任何拥有状态写权限的账号都能写出以控制仓库 run 地址开头的 `target_url`。因此 PR Gate（`wait-ci-evidence.ts`，以及 `dispatch-central-ci.ts` 判断能否跳过 CI）、Deploy 准入、Task 准入与 Main Write Guard 不再只比对前缀，而是回查 `scripts/ci-evidence.ts` 的 `hasVerifiedCiEvidence`：
+`CI Evidence` itself is only a commit status: any account that can write commit statuses can set a `target_url` that starts with a control repository run URL. The PR gate (`wait-ci-evidence.ts`, and `dispatch-central-ci.ts` when it decides whether CI can be skipped), deploy admission, task admission and the Main Write Guard therefore do not stop at the prefix. They re-check with `hasVerifiedCiEvidence` in `scripts/ci-evidence.ts`:
 
-- 状态必须是 `success`，`target_url` 指向控制仓库的某个 run；
-- 该 run 必须属于发布此状态的工作流（`central-ci-dispatch.yml` 或 `handle-pr-dispatch.yml`），在默认分支上，且已完成并成功；run 仍在收尾时短暂等待结论；
-- 状态创建时间必须落在该 run 的运行时间窗内，因此不能把状态指向一个无关的旧成功 run。
+- the status must be `success` and its `target_url` must point at a run of the control repository;
+- that run must belong to a workflow that publishes this status (`central-ci-dispatch.yml` or `handle-pr-dispatch.yml`), run on the default branch, and be completed and successful; while the run is still finishing, the check briefly waits for the conclusion;
+- the status must have been created inside the run's time window, so a status cannot point at an unrelated old successful run.
 
-由于结论按整个 run 判断，`central-ci-dispatch.yml` 在 `finalize`（写入 `CI Evidence`）之后的安全扫描派发、Main Write 审计与自动部署派发放在独立的 `follow-up` 作业中，并设置 `continue-on-error: true`：这些后续步骤失败不会让已经通过的 CI run 变红，也就不会让 PR Gate 拒绝真实的 CI 结果。部署仍由 Deploy 准入独立校验 Main Write Guard。
+Because the conclusion is judged for the whole run, `central-ci-dispatch.yml` dispatches its follow-ups after `finalize` (which writes `CI Evidence`) — the security scan dispatch, the Main Write audit and the automatic deploy dispatch — from a separate `follow-up` job with `continue-on-error: true`. A failing follow-up cannot turn a passing CI run red, so the PR gate never rejects a real CI result because of one. Deploy admission still checks the Main Write Guard on its own.
 
-GitHub 返回的提交状态 `creator` 字段对这些状态为 `null`，所以不依赖创建者账号校验。Release 路径（`validate-release-build-request.ts`、`publish-release.ts`、`sync-tool-release.ts`）仍使用旧的状态检查，待后续统一。
+GitHub returns `null` in the `creator` field of these commit statuses, so the check does not rely on the creating account. The release path (`validate-release-build-request.ts`, `publish-release.ts`, `sync-tool-release.ts`) still uses the older status check and will be unified later.
 
-### 9.2 中央任务密钥清单
+### 9.2 Central task secret list
 
-任务源仓在 `projects/<project>/.secrets.required` 与 `.secrets.allowed` 中声明任务可保留的 Secret 名称，但该文件位于被执行方的提交里。`policies/task-secrets.json` 为每个「仓库 / 项目」登记允许声明的名称上限（`required` 与 `allowed` 的并集）；未登记的仓库或项目上限为空。
+A task source repository declares the secret names a task may keep in `projects/<project>/.secrets.required` and `.secrets.allowed`, but those files live in the commit of the party being executed. `policies/task-secrets.json` records, per repository and project, the ceiling of names it may declare (the union of `required` and `allowed`); a repository or project that is not listed has an empty ceiling.
 
-`scripts/resolve-secret-scope.ts` 在传入「策略路径、仓库、项目」时，把任务源声明的名称与该上限比较。`AW_TASK_SECRET_POLICY_MODE`（Repository Variable，默认 `warn`）决定超出时的行为：
+When `scripts/resolve-secret-scope.ts` receives the policy path, repository and project, it compares the names the task source declares with that ceiling. `AW_TASK_SECRET_POLICY_MODE` (Repository Variable, default `warn`) decides what happens to names beyond it:
 
-- `warn`：任务继续，日志输出 `::warning::` 列出超出的名称；
-- `enforce`：以退出码 65 失败，任务不启动。
+- `warn`: the task continues, and the log lists the excess names with `::warning::`;
+- `enforce`: the run fails with exit code 65 and the task does not start.
 
-新增任务项目或新增其 Secret 前，先更新 `policies/task-secrets.json`。观察 `warn` 日志确认没有意外超出后，再把 `AW_TASK_SECRET_POLICY_MODE` 设为 `enforce`。
+Update `policies/task-secrets.json` before adding a task project or one of its secrets. Set `AW_TASK_SECRET_POLICY_MODE` to `enforce` once the `warn` logs show no unexpected excess.
 
-## 10. Source 与 Release
+## 10. Source and Release
 
-Source / CI 准入统一由中央 Execution Contract 生成可验证 Evidence，并由 `hasVerifiedCiEvidence` 校验。
+Source and CI admission use verifiable evidence that the central execution contract produces and `hasVerifiedCiEvidence` checks.
 
-Release 的目标链路为中央事件驱动：
+The target release path is centrally event-driven:
 
 ```text
 immutable source
@@ -458,16 +457,16 @@ validate-release-request.ts
 publish-release.ts
 ```
 
-业务仓本地 source build workflow 只属于迁移兼容路径，不得用于新接入。
+A local source build workflow in a business repository is only a migration compatibility path and must not be used for new integrations.
 
-机器合同：
+Machine contracts:
 
 ```text
 contracts/release-dispatch.json
 contracts/release-manifest.json
 ```
 
-中央 Release Governance 验证：
+Central Release Governance verifies:
 
 ```text
 source repository allowlist
@@ -485,11 +484,11 @@ source repository allowlist
 → publish or rollback
 ```
 
-源仓保存 source-owned Release Manifest 与项目级 build/package 脚本，不保存目标仓写凭据。Artifact 由 Action Worker 中央执行产生，并用 provenance 将 artifact run 绑定到 source commit。Action Worker 使用中央凭据读取源仓、生成和验证 artifact，并写分发目标。
+The source repository keeps the source-owned release manifest and project-level build/package scripts, and no write credential for the target repository. Action Worker produces the artifact centrally and binds the artifact run to the source commit with provenance. Action Worker uses central credentials to read the source repository, to build and verify the artifact, and to write the distribution target.
 
-Tag 固定为 `<release-key>-v<semver>`。不保留裸 `v<semver>` 兼容路径。
+Tags are always `<release-key>-v<semver>`. There is no compatibility path for a bare `v<semver>`.
 
-## 10. Release Build
+## 11. Release Build
 
 Heavy release builds execute in Action Worker, not in business-repository runners.
 
@@ -510,7 +509,7 @@ Project-specific build commands remain in the source repository as narrow script
 
 The build matrix is resolved from the source-owned release manifest. Release targets and publication authority remain centrally governed; project build recipes must not be duplicated into a permanent repository-name mapping.
 
-## 11. Tool Distribution
+## 12. Tool Distribution
 
 Third-party tool metadata remains authoritative in the distribution repository:
 
@@ -536,7 +535,7 @@ Business repositories do not run upstream download, checksum verification, packa
 
 The review engine that Action Worker executes is pinned in `policies/review.json` by `version` and `sha256`. The installer accepts a binary only when its digest equals the pinned value and the release checksum file agrees, so a replaced release asset cannot vouch for itself. Moving to a new engine release means updating both fields in one reviewed change.
 
-## 12. Deploy
+## 13. Deploy
 
 Production deployment follows the same immutable-source boundary as Release Governance, but deploy execution does not publish a GitHub Release.
 
@@ -558,7 +557,7 @@ The generic source-script deploy executor requires the current default-branch HE
 
 The executor unsets every secret outside the source-declared scope and then starts the entrypoint with `exec`, replacing the shell that was started with every secret, so the entrypoint does not run beside it.
 
-### 12.1 Deploy environments and secrets (central authority)
+### 13.1 Deploy environments and secrets (central authority)
 
 The deploy manifest (`.github/deploy.json` in the source repository) only *requests* an environment. Two central policies decide what is granted:
 
@@ -569,9 +568,9 @@ The deploy job also: checks the target out with the read-only `AW_CHECKOUT_TOKEN
 
 Every job that uses `AW_ADMIN_TOKEN` (`apply-repository-settings.yml`, the publish job of `security-scan-dispatch.yml`) runs in the `admin-ops` environment. Both environments (`production`, `admin-ops`) restrict deployment to `main`; repository_dispatch runs always use the default branch, and a `workflow_dispatch` run from another branch is refused by the environment. Repository-level copies of secrets stay in place until the environment copies have been verified; deleting them is a separate, manual owner step.
 
-## 13. 目录
+## 14. Directory layout
 
-Action Worker 按职责分层。当前 workflow 入口如下；业务能力通过通用 Contract / Manifest / Policy 接入，不以产品名建立长期 workflow：
+Action Worker is layered by responsibility. The current workflow entry points are listed below. Business capabilities connect through generic contracts, manifests and policies; no long-lived workflow is named after a product:
 
 ```text
 .github/workflows/
@@ -623,7 +622,9 @@ docs/
   architecture, governance, naming, changelog, development, and integration guides
 ```
 
-禁止重新引入项目专属配置层，例如：
+`tests/workflow-naming.test.ts` checks the workflow names (see [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) section 8.1); the two files that keep an older name (`handle-pr-dispatch.yml`, `handle-pr-review.yml`) are recorded there with their reasons.
+
+Project-specific configuration layers must not come back, for example:
 
 ```text
 projects/<repository-or-product>/
@@ -631,13 +632,13 @@ profiles/<repository-or-product>/
 <repository-name>/
 ```
 
-通用、仓库无关的 `executors/`、`runners/`、`adapters/` 等框架层可以在确有实现需要时引入，但必须由通用 Contract / Policy 驱动，不得演变成项目映射表。
+Generic, repository-agnostic framework layers such as `executors/`, `runners/` or `adapters/` may be introduced when an implementation really needs them, but they must be driven by generic contracts and policies and must not turn into a project mapping table.
 
-项目专属 build / test / deploy 实现留在业务仓；Action Worker 只保存中央治理、通用执行框架和 Runner Resolution。业务仓脚本由 Action Worker checkout 后执行，不等于业务仓自己承担 Runner 重执行。
+Project-specific build / test / deploy implementations stay in the business repository; Action Worker keeps only central governance, the generic execution framework and runner resolution. A business repository script that Action Worker checks out and executes does not mean the business repository runs heavy runner execution itself.
 
-## 14. CI
+## 15. CI
 
-Action Worker 自身只有一个总 CI：`validate-ci.yml`。
+Action Worker itself has a single CI: `validate-ci.yml`.
 
 ```text
 naming
@@ -647,12 +648,12 @@ contracts
 validate-merge
 ```
 
-contracts 同时验证架构治理边界，防止仓库随着功能扩展重新长出项目专属配置。
+The contracts also verify the architecture governance boundaries, so the repository does not grow project-specific configuration again as features are added.
 
-## 15. 版本
+## 16. Versions
 
 ```text
-main = 当前最新基线
+main = current baseline
 ```
 
-Action Worker 只维护 `main` 这一条长期主线。
+Action Worker maintains only one long-lived line, `main`.
