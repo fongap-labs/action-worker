@@ -154,6 +154,13 @@ jobs:
               "$DEPLOY_SOURCE_REPOSITORY" "$DEPLOY_ENVIRONMENT" deploy
           )"
 
+          # Aliases first: a declared name takes the value of the stored secret the central policy
+          # names for it (for example CLOUDFLARE_API_TOKEN from CLOUDFLARE_API_TOKEN_SECONDARY).
+          while IFS=$'\t' read -r alias_name alias_from; do
+            [ -n "$alias_name" ] || continue
+            export "$alias_name=${!alias_from}"
+          done < <(jq -r '.alias[] | [.name, .from] | @tsv' <<< "$scope")
+
           while IFS= read -r secret_name; do
             [ -n "$secret_name" ] && unset "$secret_name"
           done < <(jq -r '.unset[]' <<< "$scope")

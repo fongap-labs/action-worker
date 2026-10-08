@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { readTaskSecretCeiling, resolveSecretScope } from "../scripts/resolve-secret-scope.ts";
+import {
+  readSecretAliases,
+  readTaskSecretCeiling,
+  resolveSecretScope,
+} from "../scripts/resolve-secret-scope.ts";
 
 test("secret scope exposes only source-declared secrets", async () => {
   const root = await mkdtemp(join(tmpdir(), "secret-scope-"));
@@ -180,4 +184,140 @@ test("shipped task secret policy is valid and denies unknown tasks", async () =>
     (await readTaskSecretCeiling(policyPath, "fongap-labs/ai-gateway", "model-discovery")).size,
     30
   );
+});
+
+const cloudflareAliases = new Map([["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_SECONDARY"]]);
+const cloudflareCeiling = {
+  names: new Set(["CLOUDFLARE_API_TOKEN"]),
+  mode: "enforce" as const,
+  aliases: cloudflareAliases,
+};
+
+test("an aliased name takes its value from the stored secret the policy names", async () => {
+  const files = await scopeFiles("CLOUDFLARE_API_TOKEN\n", "");
+  const scope = await resolveSecretScope(
+    files.baseline,
+    files.required,
+    files.allowed,
+    [],
+    {
+      PATH: "/bin",
+      CLOUDFLARE_API_TOKEN: "token-of-the-other-account",
+      CLOUDFLARE_API_TOKEN_PRIMARY: "primary",
+      CLOUDFLARE_API_TOKEN_SECONDARY: "secondary",
+    },
+    cloudflareCeiling
+  );
+  assert.deepEqual(scope.alias, [
+    { name: "CLOUDFLARE_API_TOKEN", from: "CLOUDFLARE_API_TOKEN_SECONDARY" },
+  ]);
+  // The qualified secrets never reach the task; the declared name is overwritten by the alias.
+  assert.deepEqual(scope.unset, ["CLOUDFLARE_API_TOKEN_PRIMARY", "CLOUDFLARE_API_TOKEN_SECONDARY"]);
+});
+
+test("a required aliased name does not fall back to the stored secret of its own name", async () => {
+  const files = await scopeFiles("CLOUDFLARE_API_TOKEN\n", "");
+  await assert.rejects(
+    resolveSecretScope(
+      files.baseline,
+      files.required,
+      files.allowed,
+      [],
+      { PATH: "/bin", CLOUDFLARE_API_TOKEN: "token-of-the-other-account" },
+      cloudflareCeiling
+    ),
+    /Required task secret is unavailable: CLOUDFLARE_API_TOKEN \(stored as CLOUDFLARE_API_TOKEN_SECONDARY\)/
+  );
+});
+
+test("an optional aliased name without its stored secret is removed, not left stale", async () => {
+  const files = await scopeFiles("", "CLOUDFLARE_API_TOKEN\n");
+  const scope = await resolveSecretScope(
+    files.baseline,
+    files.required,
+    files.allowed,
+    [],
+    { PATH: "/bin", CLOUDFLARE_API_TOKEN: "token-of-the-other-account" },
+    cloudflareCeiling
+  );
+  assert.deepEqual(scope.alias, []);
+  assert.deepEqual(scope.unset, ["CLOUDFLARE_API_TOKEN"]);
+});
+
+test("a policy cannot alias to a reserved, declared or repeated name", async () => {
+  const root = await mkdtemp(join(tmpdir(), "secret-alias-policy-"));
+  const policyPath = join(root, "policy.json");
+  const write = (aliases: Record<string, unknown>) =>
+    writeFile(
+      policyPath,
+      JSON.stringify({
+        schema_version: 1,
+        tasks: {
+          "o/r": {
+            p: { required: ["A_TOKEN", "B_TOKEN"], allowed: [], aliases },
+          },
+        },
+      })
+    );
+  await write({ A_TOKEN: "A_TOKEN_PRIMARY" });
+  assert.deepEqual(
+    [...(await readSecretAliases(policyPath, "task", "o/r", "p"))],
+    [["A_TOKEN", "A_TOKEN_PRIMARY"]]
+  );
+  for (const aliases of [
+    { A_TOKEN: "AW_CONTROL_TOKEN" },
+    { A_TOKEN: "B_TOKEN" },
+    { A_TOKEN: "A_TOKEN" },
+    { A_TOKEN: "SHARED", B_TOKEN: "SHARED" },
+    { UNDECLARED: "SOMETHING_ELSE" },
+  ]) {
+    await write(aliases);
+    await assert.rejects(readSecretAliases(policyPath, "task", "o/r", "p"), /alias is invalid/);
+  }
+});
+
+test("the central policies give each Cloudflare account its own qualified secret", async () => {
+  const deploy = await readSecretAliases(
+    "policies/deploy-secrets.json",
+    "deploy",
+    "fongap-labs/ai-gateway",
+    "production"
+  );
+  assert.deepEqual([...deploy], [["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_SECONDARY"]]);
+  for (const project of ["FongapBlog", "FongapCDN"]) {
+    const task = await readSecretAliases(
+      "policies/task-secrets.json",
+      "task",
+      "fongap-labs/internal-vault",
+      project
+    );
+    assert.deepEqual([...task], [["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_PRIMARY"]]);
+  }
+  // No other project of the same repository is redirected.
+  assert.equal(
+    (
+      await readSecretAliases(
+        "policies/task-secrets.json",
+        "task",
+        "fongap-labs/internal-vault",
+        "MarketChina"
+      )
+    ).size,
+    0
+  );
+});
+
+test("task and deploy workflows apply aliases before they remove the other secrets", async () => {
+  for (const [file, variable] of [
+    [".github/workflows/handle-task-dispatch.yml", "secret_scope"],
+    [".github/workflows/source-script-deploy.yml", "scope"],
+  ] as const) {
+    const workflow = await readFile(file, "utf8");
+    const apply = workflow.indexOf(`<<< "$${variable}")`);
+    const alias = workflow.indexOf("jq -r '.alias[]");
+    const unset = workflow.indexOf("jq -r '.unset[]'");
+    assert.ok(alias !== -1 && unset !== -1 && alias < unset, `${file}: aliases before unset`);
+    assert.ok(apply !== -1);
+    assert.match(workflow, /export "\$alias_name=\$\{!alias_from\}"/);
+  }
 });
