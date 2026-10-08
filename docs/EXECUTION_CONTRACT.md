@@ -1,12 +1,12 @@
 # Execution Contract
 
-本文档定义 Fongap Labs 受管仓库与 Action Worker 之间的统一执行边界。它适用于公开仓库和私有仓库，不因仓库可见性而改变。
+This document defines the unified execution boundary between the managed Fongap Labs repositories and Action Worker. It applies to public and private repositories alike and does not change with repository visibility.
 
-## 1. 核心原则
+## 1. Core principle
 
 ```text
 Business repository
-= source + project scripts + execution intent（测试由 Action Worker 的 Test Pack 持有，见 TEST_PACKS.md）
+= source + project scripts + execution intent (tests are held by Action Worker test packs, see TEST_PACKS.md)
 
 Action Worker
 = governance + authorization + planning + execution + evidence + provenance
@@ -15,13 +15,13 @@ Runner
 = disposable compute backend
 ```
 
-业务仓负责描述“需要做什么”，Action Worker 决定“是否允许、如何执行、在哪类 Runner 上执行”。
+The business repository describes "what needs to be done"; Action Worker decides "whether it is allowed, how it runs and on which kind of runner".
 
-除最薄事件触发器和 GitHub 平台必须保留的桥接检查外，CI、test、build、AI Review、release、deploy、scheduled task 等重执行应统一运行在 Action Worker。
+Apart from the thinnest event trigger and the bridge checks the GitHub platform requires, heavy execution — CI, test, build, AI Review, release, deploy and scheduled tasks — runs in Action Worker.
 
-这一规则同时适用于 public 与 private repository。仓库可见性只能影响访问方式和 GitHub 平台能力，不得产生第二套执行架构。
+This rule applies to public and private repositories alike. Repository visibility may only affect the access method and GitHub platform features; it must never produce a second execution architecture.
 
-## 2. 统一执行链
+## 2. Unified execution chain
 
 ```text
 Repository event
@@ -45,46 +45,46 @@ Evidence / Artifact / Provenance
 Gate / Publish / Deploy / Status
 ```
 
-业务仓不得通过自己的重型 workflow 绕过这条链。
+A business repository must not bypass this chain with heavy workflows of its own.
 
 ## 3. Business repository owns
 
-业务仓保留：
+A business repository keeps:
 
-- 产品源码；
-- 项目测试；
-- 项目级 build / package / deploy 脚本；
-- 项目运行所需配置模板；
-- Execution Manifest；
-- 最薄 dispatch workflow；
-- GitHub 平台要求必须由目标仓自身创建的极轻 Check / status bridge。
+- product source code;
+- project tests;
+- project-level build / package / deploy scripts;
+- configuration templates the project needs to run;
+- the execution manifest;
+- the thinnest dispatch workflow;
+- a very thin check / status bridge that the GitHub platform requires the target repository to create itself.
 
-业务仓可以声明执行需求，但不得声明中央凭据或授予自己权限。AI Review 只能提供 finding / suggestion，不属于 Capability Grant、CI Gate 或 Merge Gate。
+A business repository may declare execution needs, but may not declare central credentials or grant itself permissions. AI Review only provides findings and suggestions; it is not part of a capability grant, the CI gate or the merge gate.
 
 ## 4. Action Worker owns
 
-Action Worker 统一负责：
+Action Worker is responsible for:
 
-- 来源与 Commit 身份验证；
-- deterministic Security Gate，包括新增 Secret、敏感文件与危险 Workflow 模式检查；
-- Repository capability 校验；
-- Execution Request / Manifest 校验；
-- CI / test / build / AI Review / release / deploy / task orchestration；
-- Runner 选择；
-- 中央 Secret 与 Token 注入；
-- 信任域隔离；
-- artifact 与 provenance；
-- Gate；
-- 状态回写；
-- 发布与部署权限；
-- Main Write Guard 与 trusted main provenance；
-- 失败、超时、取消和重试策略。
+- verifying the source and the commit identity;
+- the deterministic Security Gate, including checks for newly added secrets, sensitive files and dangerous workflow patterns;
+- repository capability validation;
+- execution request and manifest validation;
+- CI / test / build / AI Review / release / deploy / task orchestration;
+- runner selection;
+- injecting central secrets and tokens;
+- trust domain isolation;
+- artifacts and provenance;
+- the gate;
+- status write-back;
+- publication and deployment permissions;
+- the Main Write Guard and trusted main provenance;
+- failure, timeout, cancellation and retry policy.
 
-Action Worker 不保存项目产品逻辑，也不得通过仓库名称、项目名称或产品名称选择执行实现。
+Action Worker stores no project product logic and must never choose an execution implementation by repository, project or product name.
 
 ## 5. Execution Request
 
-调用方只提交不可变任务身份与意图。长期最小语义为：
+A caller submits only an immutable task identity and intent. The long-term minimal semantics are:
 
 ```text
 schema_version
@@ -94,18 +94,18 @@ source_sha
 operation
 ```
 
-其中：
+Where:
 
-- `repository` 必须由中央 Repository Policy 允许；
-- `source_sha` 必须是不可变 Commit SHA；
-- `operation` 使用通用操作类型，例如 `ci`、`review`、`build`、`release`、`deploy`、`task`；
-- 调用方不得提交 Gate 结论、Secret、Token、实际 Runner 名称或中央权限结论。
+- `repository` must be allowed by the central Repository Policy;
+- `source_sha` must be an immutable commit SHA;
+- `operation` uses a generic operation type such as `ci`, `review`, `build`, `release`, `deploy` or `task`;
+- the caller must not submit gate conclusions, secrets, tokens, actual runner names or central permission conclusions.
 
-不同 operation 可以在机器合同中增加必要字段，但不得破坏以上边界。
+An operation may add the fields it needs in its machine contract, but must not break these boundaries.
 
 ## 6. Execution Manifest
 
-Execution Manifest 固定放在业务仓 `.github/execution-manifest.json`，描述项目自己的执行需求，例如：
+The execution manifest always lives at `.github/execution-manifest.json` in the business repository and describes the project's own execution needs, for example:
 
 ```text
 operation
@@ -117,7 +117,7 @@ timeout
 capability_requests
 ```
 
-`command` 使用参数数组，不使用拼接后的 shell 字符串。通用 Executor 只替换以下受控运行时 token：
+`command` is an argument array, not a concatenated shell string. The generic executor replaces only these controlled runtime tokens:
 
 ```text
 {target_root}
@@ -126,30 +126,30 @@ capability_requests
 {matrix.<key>}
 ```
 
-其中 `control_root` 指可信执行声明/脚本检出目录，`target_root` 指待验证 source SHA 的源码目录。PR 场景必须从可信 base/default branch 读取 Manifest 与项目脚本，不能直接执行 PR head 自带的新 Manifest。
+`control_root` is the checkout directory of the trusted execution declaration and scripts; `target_root` is the source directory of the SHA under verification. For a PR, the manifest and project scripts are read from the trusted base / default branch; a new manifest brought by the PR head is never executed directly.
 
-Manifest 可以描述：
+A manifest may describe:
 
-- 需要 Linux / Windows / macOS / ARM 等执行能力；
-- 需要调用哪个项目脚本；
-- 需要哪些项目 artifact；
-- 需要哪些通用 capability。
+- the execution capabilities it needs, such as Linux / Windows / macOS / ARM;
+- which project script to call;
+- which project artifacts it needs;
+- which generic capabilities it needs.
 
-Manifest 不得描述：
+A manifest must not describe:
 
-- GitHub Token 名称或值；
-- Cloudflare、SSH、生产环境等 Secret；
-- 中央管理 Token；
-- 具体 self-hosted Runner 名称；
-- 具体 Runner label 组合；
-- 任意目标仓写权限；
-- 绕过 Gate 的开关。
+- GitHub token names or values;
+- Cloudflare, SSH, production or other secrets;
+- central management tokens;
+- concrete self-hosted runner names;
+- concrete runner label combinations;
+- write access to any target repository;
+- switches that bypass the gate.
 
-Manifest 是 Capability Request，不是 Capability Grant。
+A manifest is a capability request, not a capability grant.
 
 ## 7. Capability grant
 
-Action Worker 根据以下事实生成 Grant：
+Action Worker builds a grant from these facts:
 
 ```text
 Repository Policy
@@ -160,9 +160,9 @@ Repository Policy
 + requested capabilities
 ```
 
-业务仓只能申请 capability，不能自行授予。
+A business repository can only request a capability, never grant one to itself.
 
-例如：
+For example:
 
 ```text
 release.publish
@@ -171,11 +171,11 @@ source.private-read
 artifact.write
 ```
 
-是否获得、对应什么 Secret、是否只能运行在受信 Runner，由 Action Worker 决定。
+Whether a capability is granted, which secrets it maps to, and whether it may run only on a trusted runner is decided by Action Worker.
 
 ## 8. Repository-agnostic rule
 
-Action Worker 的通用控制逻辑禁止出现：
+Generic Action Worker control logic must never contain:
 
 ```text
 if repository == ...
@@ -183,21 +183,21 @@ if project == ...
 if product == ...
 ```
 
-也禁止用等价的项目映射表把项目专属执行 recipe 搬到中央仓。
+Moving project-specific execution recipes into the central repository through an equivalent project mapping table is forbidden as well.
 
-项目级命令和脚本应留在项目仓；Action Worker 只读取标准 Manifest 并通过通用 Executor 执行。
+Project-level commands and scripts stay in the project repository; Action Worker only reads the standard manifest and executes it through a generic executor.
 
-新增普通仓库时，正常接入不应要求修改 Action Worker 核心代码。
+Integrating an ordinary new repository must not require a change to Action Worker core code.
 
 ## 9. Public and private repositories
 
-公开仓库和私有仓库使用同一 Execution Contract。
+Public and private repositories use the same execution contract.
 
-长期目标是中央 Execution Ingress 直接接收 GitHub App、Webhook 或其他可信事件源，并在 Action Worker 创建 Execution Request。业务仓 GitHub Actions 的可用性、额度或 Runner 状态不得成为中央治理和执行的前置条件。
+The long-term goal is a central execution ingress that receives events directly from a GitHub App, a webhook or another trusted event source and creates the execution request in Action Worker. The availability, minutes or runner state of business repository GitHub Actions must never be a precondition for central governance and execution.
 
-业务仓现有最薄 dispatch workflow 仅属于迁移路径。它可以暂时触发 Action Worker，但不得继续运行完整 CI、build、review、release 或 deploy，也不得成为长期安全前提。
+The existing thinnest dispatch workflow in a business repository is only a migration path. It may trigger Action Worker for now, but must not keep running full CI, build, review, release or deploy, and must not become a long-term security prerequisite.
 
-目标链路：
+Target chain:
 
 ```text
 GitHub repository event
@@ -206,33 +206,33 @@ GitHub repository event
 → central governance / execution
 ```
 
-因此，私有仓 Actions 分钟耗尽时，不应阻断长期架构中的 PR Governance、CI、Release 或 Deploy。
+So when a private repository runs out of Actions minutes, PR Governance, CI, Release and Deploy must not stop in the long-term architecture.
 
 ## 10. Main provenance requirement
 
-任何面向正式环境或正式分发的 operation 都必须验证 source SHA 的 Main Write Guard。
+Every operation that targets a formal environment or formal distribution must verify the Main Write Guard for its source SHA.
 
-至少包括：
+That includes at least:
 
-- `release`；
-- `deploy`；
-- publication；
-- production / privileged execution。
+- `release`;
+- `deploy`;
+- publication;
+- production / privileged execution.
 
-`source_sha` 位于 `main` 不能替代 provenance。只有与该 SHA 精确绑定的 `Main Write Guard = success` 才能授予对应 capability。
+A `source_sha` being on `main` does not replace provenance. Only `Main Write Guard = success` bound exactly to that SHA can grant the corresponding capability.
 
-AI Review 不属于此验证链。AI Review 必须在确定性 PR Gate 结论之后运行，并且不能改变 Main Write Guard。
+AI Review is not part of this verification chain. AI Review runs after the deterministic PR gate conclusion and cannot change the Main Write Guard.
 
 ## 11. Migration rule
 
-当前实现允许存在迁移期旧入口，但必须满足：
+The current implementation may keep older migration-period entry points, provided that:
 
-1. 新增能力不得继续扩大业务仓重执行；
-2. 新增仓库默认采用中央执行；
-3. 旧业务仓 workflow 只允许继续缩小，不允许增加新的重步骤；
-4. Action Worker 中现有项目专属执行映射应逐步迁移为通用 Manifest + Executor；
-5. 文档不得把迁移期实现描述为长期架构。
+1. a new capability does not grow heavy execution in business repositories further;
+2. a new repository uses central execution by default;
+3. an old business repository workflow may only shrink and must not gain new heavy steps;
+4. existing project-specific execution mappings in Action Worker migrate step by step to the generic manifest and executor;
+5. documentation never describes a migration-period implementation as the long-term architecture.
 
-最终验收标准：
+Final acceptance criterion:
 
-> 新增仓库、新项目或新的 Runner 后端，不需要修改 Action Worker Kernel。
+> A new repository, a new project or a new runner backend does not require a change to the Action Worker kernel.

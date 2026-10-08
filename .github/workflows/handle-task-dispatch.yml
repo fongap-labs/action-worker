@@ -144,22 +144,20 @@ jobs:
         id: task_state
         env:
           GH_TOKEN: ${{ github.token }}
+          AW_ARTIFACT_KEY: ${{ secrets.AW_ARTIFACT_KEY }}
           SOURCE_REPOSITORY: ${{ needs.validate.outputs.repository }}
           PROJECT: ${{ needs.validate.outputs.project }}
         shell: bash
         run: |
           set -Eeuo pipefail
 
-          # One artifact name per exact (repository, project) pair; a manifest inside the artifact is
-          # checked again on restore (scripts/task-state.ts).
+          # One artifact name per exact (repository, project) pair. The artifact is looked up by name
+          # and accepted only from a successful run of this workflow on main; its manifest is checked
+          # again, and a private source's state is decrypted first (scripts/task-state.ts).
           artifact_name="$(node scripts/task-state.ts name "$SOURCE_REPOSITORY" "$PROJECT")"
-          # Transition only: artifacts written before the hashed name existed (retention is 30 days, so
-          # this branch goes quiet by itself). They carry no manifest and cannot be verified.
-          safe_repository="${SOURCE_REPOSITORY//\//-}"
-          safe_repository="${safe_repository//[^A-Za-z0-9_.-]/-}"
-          safe_project="${PROJECT//[^A-Za-z0-9_.-]/-}"
-          legacy_artifact_name="task-state-${safe_repository}-${safe_project}"
           state_root="${RUNNER_TEMP}/action-worker-task-state"
+          visibility=private
+          [ "$TASK_SOURCE_PRIVATE" = "false" ] && visibility=public
 
           mkdir -p "$state_root/previous" "$state_root/current"
           {
@@ -168,45 +166,7 @@ jobs:
           } >> "$GITHUB_ENV"
           echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
 
-          mapfile -t run_ids < <(
-            gh run list \
-              --workflow handle-task-dispatch.yml \
-              --status success \
-              --limit 50 \
-              --json databaseId \
-              --jq '.[].databaseId'
-          )
-
-          candidate="$state_root/candidate"
-          for run_id in "${run_ids[@]}"; do
-            [ -n "$run_id" ] || continue
-            rm -rf "$candidate"
-            mkdir -p "$candidate"
-            if gh run download "$run_id" -n "$artifact_name" -D "$candidate" >/dev/null 2>&1; then
-              if node scripts/task-state.ts verify "$candidate" "$SOURCE_REPOSITORY" "$PROJECT"; then
-                cp -a "$candidate/." "$state_root/previous/"
-                rm -rf "$candidate"
-                echo "Restored task state from run $run_id."
-                exit 0
-              fi
-              echo "Ignoring task state from run $run_id: its manifest does not match this repository and project."
-            fi
-          done
-
-          for run_id in "${run_ids[@]}"; do
-            [ -n "$run_id" ] || continue
-            rm -rf "$candidate"
-            mkdir -p "$candidate"
-            if gh run download "$run_id" -n "$legacy_artifact_name" -D "$candidate" >/dev/null 2>&1; then
-              cp -a "$candidate/." "$state_root/previous/"
-              rm -rf "$candidate"
-              echo "Restored legacy-named task state from run $run_id."
-              exit 0
-            fi
-          done
-          rm -rf "$candidate"
-
-          echo "No previous task state found."
+          node scripts/task-state.ts restore "$state_root" "$SOURCE_REPOSITORY" "$PROJECT" "$visibility"
 
       - name: Execute downstream task
         id: task
@@ -279,7 +239,7 @@ jobs:
               [ -n "$secret_name" ] && unset "$secret_name"
           done < <(jq -r '.unset[]' <<< "$secret_scope")
 
-          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN; do
+          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN AW_ARTIFACT_KEY; do
               if [ -n "${!central_name+x}" ]; then
                   echo "::error::Central credential survived task isolation: ${central_name}." >&2
                   exit 1
@@ -297,8 +257,29 @@ jobs:
           fi
           # Run logs of this public repository are world-readable; keep private task output off them.
           # Artifacts of a public repository are downloadable by any signed-in GitHub user, so this
-          # log stays on the runner and is never uploaded.
+          # log leaves the runner only sealed with AW_ARTIFACT_KEY (Seal failed private task log).
           exec bash "$TMP_SCRIPT" "$PROJECT" "$BOOTSTRAP_REF" "$REQUEST_ID"               >"${RUNNER_TEMP}/action-worker-task.log" 2>&1
+
+      - name: Seal failed private task log
+        id: task_log
+        if: always() && steps.task.outcome == 'failure' && env.TASK_SOURCE_PRIVATE != 'false'
+        env:
+          AW_ARTIFACT_KEY: ${{ secrets.AW_ARTIFACT_KEY }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          log="${RUNNER_TEMP}/action-worker-task.log"
+          [ -f "$log" ] || exit 0
+          node scripts/task-state.ts seal-log "$log" "$TASK_SOURCE_REPOSITORY" "$PROJECT" "${RUNNER_TEMP}/action-worker-task-log"
+
+      - name: Upload sealed task log
+        if: always() && steps.task_log.outputs.path != ''
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: task-log-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.task_log.outputs.path }}
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Report task result
         if: always() && steps.task.outcome != 'skipped'
@@ -337,12 +318,24 @@ jobs:
         shell: bash
         run: node scripts/task-state.ts write "${RUNNER_TEMP}/action-worker-task-state/current" "$TASK_SOURCE_REPOSITORY" "$PROJECT" "$BOOTSTRAP_REF"
 
-      - name: Upload task state
+      - name: Seal task state
+        id: state_upload
         if: always()
+        env:
+          AW_ARTIFACT_KEY: ${{ secrets.AW_ARTIFACT_KEY }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          visibility=private
+          [ "$TASK_SOURCE_PRIVATE" = "false" ] && visibility=public
+          node scripts/task-state.ts seal-state "${RUNNER_TEMP}/action-worker-task-state" "$TASK_SOURCE_REPOSITORY" "$PROJECT" "$visibility"
+
+      - name: Upload task state
+        if: always() && steps.state_upload.outputs.path != ''
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.task_state.outputs.artifact_name }}
-          path: ${{ runner.temp }}/action-worker-task-state/current/
+          path: ${{ steps.state_upload.outputs.path }}
           if-no-files-found: ignore
           retention-days: 30
 

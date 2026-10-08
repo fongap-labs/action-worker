@@ -1,5 +1,5 @@
 # Agent Instructions
 
-本仓库的完整 Agent 工作规则统一维护在 [CLAUDE.md](CLAUDE.md)。
+The complete agent working rules for this repository are maintained in [CLAUDE.md](CLAUDE.md).
 
-任何 Agent 在分析、修改、审查或发布本仓库及接入 Action Worker 的业务仓之前，必须先读取并遵守 `CLAUDE.md`。
+Before analysing, changing, reviewing or releasing this repository or any business repository integrated with Action Worker, every agent must read and follow `CLAUDE.md`.
