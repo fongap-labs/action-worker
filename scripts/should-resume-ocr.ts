@@ -22,7 +22,7 @@ export function shouldResume(value: unknown): boolean {
     failed.every((request) => {
       const attempts = Array.isArray(request.attempts) ? request.attempts.filter(isJsonRecord) : [];
       const last = attempts.at(-1);
-      if (!last || last.outcome !== "error") {
+      if (last?.outcome !== "error") {
         return false;
       }
       const status = typeof last.status_code === "number" ? last.status_code : 0;
