@@ -12,6 +12,8 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { buildPackEnv } from "./kit/pack-env.mjs";
+
 const here = dirname(fileURLToPath(import.meta.url));
 
 /**
@@ -20,6 +22,7 @@ const here = dirname(fileURLToPath(import.meta.url));
  * @property {string} [suffix] File-name suffix of a node pack's suites.
  * @property {string[]} [command] Command that starts a python pack.
  * @property {{ gate?: string[] }} [tiers] Suites that belong to the gate tier.
+ * @property {string[]} [env] Process.env names forwarded to the test subprocess.
  */
 
 /**
@@ -61,8 +64,9 @@ function main() {
   /** @type {PackManifest} */
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const target = resolve(targetArg);
-  /** @type {NodeJS.ProcessEnv} */
-  const env = { ...process.env, CENTRAL_TEST_TARGET_ROOT: target };
+  // Allow-listed environment: base OS vars plus names the pack declares in
+  // pack.json. Host secrets (CI tokens, local dev keys) are never forwarded.
+  const env = buildPackEnv(manifest, target);
 
   if (manifest.runtime === "node") {
     const files = readdirSync(packDir)

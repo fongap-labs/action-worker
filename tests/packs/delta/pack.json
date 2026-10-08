@@ -2,5 +2,6 @@
   "schema_version": 1,
   "pack": "delta",
   "runtime": "python",
-  "command": ["uv", "run", "--locked", "--extra", "dev", "pytest"]
+  "command": ["uv", "run", "--locked", "--extra", "dev", "pytest"],
+  "env": ["UV_PROJECT_ENVIRONMENT", "UV_PYTHON"]
 }
