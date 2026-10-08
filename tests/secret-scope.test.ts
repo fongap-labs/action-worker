@@ -283,10 +283,13 @@ test("the central policies give each Cloudflare account its own qualified secret
     "fongap-labs/ai-gateway",
     "production"
   );
-  assert.deepEqual([...deploy], [
-    ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_SECONDARY"],
-    ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_SECONDARY"],
-  ]);
+  assert.deepEqual(
+    [...deploy],
+    [
+      ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_SECONDARY"],
+      ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_SECONDARY"],
+    ]
+  );
   for (const project of ["FongapBlog", "FongapCDN"]) {
     const task = await readSecretAliases(
       "policies/task-secrets.json",
@@ -294,10 +297,13 @@ test("the central policies give each Cloudflare account its own qualified secret
       "fongap-labs/internal-vault",
       project
     );
-    assert.deepEqual([...task], [
-      ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_PRIMARY"],
-      ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_PRIMARY"],
-    ]);
+    assert.deepEqual(
+      [...task],
+      [
+        ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_PRIMARY"],
+        ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_PRIMARY"],
+      ]
+    );
   }
   // No other project of the same repository is redirected.
   assert.equal(
