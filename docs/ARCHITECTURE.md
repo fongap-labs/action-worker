@@ -404,7 +404,7 @@ Tasks and PRs share one principle:
 
 > The caller submits a target; Action Worker verifies the facts and decides how to execute.
 
-A task uses `AW_CONTROL_TOKEN` to fetch the pinned commit of a managed private repository. Once the bootstrap is downloaded, central credentials such as `AW_CONTROL_TOKEN`, `AW_ADMIN_TOKEN`, `AIG_ACCESS_KEY_AGENT` and `AW_DISPATCH_TOKEN` are removed from the business execution environment. The bootstrap is then started with `exec`, which replaces the shell that was started with every secret, so the task never runs beside that process. When the task source repository is private, the bootstrap output goes to a runner temporary file instead of this public repository's run log; the log keeps only a summary of the task result, and the file leaves the runner only encrypted (section 9.3). A task may stage one cross-repository publication request in `RUNNER_TEMP/action-worker-publication`, but the business task holds no write credential for the target repository. After the task succeeds, Action Worker separately checks `AW_REPOSITORY_POLICY`: the source repository needs `release-source`, and the target repository needs `release-target` and `pr`. Only then is `AW_CONTROL_TOKEN` injected into the central publication step, which merges into the target repository's `main` through a pull request (`main` of the target has no bypass and requires a PR with a passing `validate-merge` check).
+A task uses `AW_CONTROL_TOKEN` to fetch the pinned commit of a managed private repository. Once the bootstrap is downloaded, central credentials such as `AW_CONTROL_TOKEN`, `AW_ADMIN_TOKEN`, `AIG_ACCESS_KEY_AGENT` and `AW_DISPATCH_TOKEN` are removed from the business execution environment. The bootstrap is then started with `exec`, which replaces the shell that was started with every secret, so the task never runs beside that process. When the task source repository is private, the bootstrap output goes to a runner temporary file instead of this public repository's run log; the log keeps only a summary of the task result, and the file leaves the runner only encrypted (section 9.4). A task may stage one cross-repository publication request in `RUNNER_TEMP/action-worker-publication`, but the business task holds no write credential for the target repository. After the task succeeds, Action Worker separately checks `AW_REPOSITORY_POLICY`: the source repository needs `release-source`, and the target repository needs `release-target` and `pr`. Only then is `AW_CONTROL_TOKEN` injected into the central publication step, which merges into the target repository's `main` through a pull request (`main` of the target has no bypass and requires a PR with a passing `validate-merge` check).
 
 ### 9.1 Task source re-verification
 
@@ -437,7 +437,15 @@ When `scripts/resolve-secret-scope.ts` receives the policy path, repository and 
 
 Update `policies/task-secrets.json` before adding a task project or one of its secrets. Set `AW_TASK_SECRET_POLICY_MODE` to `enforce` once the `warn` logs show no unexpected excess.
 
-### 9.3 Private task state and logs
+### 9.3 Secret aliases
+
+A source declares the secret name its code reads, for example `CLOUDFLARE_API_TOKEN`. When one name has to serve several accounts, a stored secret can hold only one value per name, so the central policy can give a task project or a deploy environment an **alias**: `"aliases": { "CLOUDFLARE_API_TOKEN": "CLOUDFLARE_API_TOKEN_SECONDARY" }` in `policies/task-secrets.json` or `policies/deploy-secrets.json`. The workflow then sets the declared name to the value of the stored secret named in the alias, before it removes every other secret; the source code, its `.secrets.required` / `.secrets.allowed` lists and its entrypoint do not change.
+
+- The stored secret of the declared name itself is never a fallback: an aliased name whose stored secret is missing fails (required) or is removed (optional), because the plain name may hold another account's token.
+- The alias target must not be a reserved name, must not be declared by the source, and cannot be shared by two aliases. The aliased name must be one the policy lists for that project or environment.
+- Today `CLOUDFLARE_API_TOKEN_PRIMARY` serves the internal-vault tasks FongapBlog and FongapCDN, and `CLOUDFLARE_API_TOKEN_SECONDARY` serves the ai-gateway deploy. Both are stored in action-worker like every other secret.
+
+### 9.4 Private task state and logs
 
 Artifacts of this public repository can be downloaded by any signed-in GitHub user. For a private task source, the task state (`task-state-<hash>`) and the log of a failed task (`task-log-<run>`) therefore leave the runner only encrypted with the secret `AW_ARTIFACT_KEY` (AES-256-GCM, `scripts/task-state.ts`). The encryption also binds each file to its kind, repository and project, so a file cannot be swapped into another task.
 
