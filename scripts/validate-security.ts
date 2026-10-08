@@ -196,7 +196,7 @@ function scanAddedLines(
       for (const { name, regex } of patterns) {
         const every = new RegExp(
           regex.source,
-          regex.flags.includes("g") ? regex.flags : regex.flags + "g"
+          regex.flags.includes("g") ? regex.flags : `${regex.flags}g`
         );
         const matches = [...added.matchAll(every)];
         if (matches.some((match) => !isAllowedMatch(path, match[0], allowances))) {
