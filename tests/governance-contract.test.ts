@@ -189,25 +189,28 @@ test("main write audit reconciles on control-plane changes and schedule", async 
 
 test("integration guidance matches the current credential and private-repository model", async () => {
   const guide = await text("docs/INTEGRATION_GUIDE.md");
-  assert.doesNotMatch(guide, /`AW_EXECUTION_TOKEN` 仅用于/);
-  assert.match(guide, /AW_EXECUTION_TOKEN.*已删除/);
-  assert.match(guide, /GitHub Free.*私有仓库.*不支持 Ruleset 或 Protected Branch/);
+  assert.doesNotMatch(guide, /`AW_EXECUTION_TOKEN` is used/);
+  assert.match(guide, /`AW_EXECUTION_TOKEN` has been removed/);
+  assert.match(
+    guide,
+    /On GitHub Free, private repositories of an organization do not support rulesets or protected branches/
+  );
 });
 
 test("documentation readability convention is enforced in shared governance", async () => {
   const gov = await text("docs/SHARED_GOVERNANCE.md");
   requireText(gov, [
     "Documentation readability",
-    "机器读的文档（严谨）",
-    "人读的文档（小白友好）",
-    '先说"这是什么"再说"怎么做"',
-    "术语必须解释",
-    "用例子，不用抽象描述",
-    "精确无歧义",
-    "英文",
+    "Machine-read documents (rigorous)",
+    "Human-read documents (beginner-friendly)",
+    'Say "what this is" before "how to do it"',
+    "Explain every term",
+    "Use examples, not abstract descriptions",
+    "Precise and unambiguous",
+    "**English**",
   ]);
   const dev = await text("docs/DEVELOPMENT_GUIDE.md");
-  requireText(dev, ["没有项目背景的人也能看懂"]);
+  requireText(dev, ["can be understood by someone without project background"]);
 });
 
 test("skills README is beginner-friendly", async () => {
@@ -509,7 +512,9 @@ test("task dispatch keeps the publication credential in the central control step
   const directSecrets = [
     ...workflow.matchAll(/\$\{\{\s*secrets\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g),
   ].map((match) => match[1]);
-  assert.deepEqual([...new Set(directSecrets)], ["AW_CONTROL_TOKEN"]);
+  assert.deepEqual([...new Set(directSecrets)].sort(), ["AW_ARTIFACT_KEY", "AW_CONTROL_TOKEN"]);
+  // The task itself never keeps the artifact key: it is checked like the central credentials.
+  assert.match(workflow, /for central_name in [A-Z_ ]*AW_ARTIFACT_KEY; do/);
   assert.doesNotMatch(workflow, /AW_EXECUTION_TOKEN|AW_EXECUTION_REPOSITORY/);
   assert.doesNotMatch(workflow, /raw\.githubusercontent\.com|Authorization: Bearer/);
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
@@ -1127,9 +1132,26 @@ test("deploy and task entrypoints replace the shell that received every secret",
     '>"${RUNNER_TEMP}/action-worker-task.log" 2>&1',
     "Task output is suppressed because the task source repository is private.",
   ]);
-  // Artifacts of this public repository are downloadable by any signed-in user.
+  // Artifacts of this public repository are downloadable by any signed-in user: the plain log is
+  // never uploaded, only the sealed copy, and only for a failed private task.
   assert.doesNotMatch(task, /path: .*action-worker-task\.log/);
-  assert.doesNotMatch(task, /name: task-log-/);
+  assert.match(
+    task,
+    /- name: Seal failed private task log\n\s+id: task_log\n\s+if: always\(\) && steps\.task\.outcome == 'failure' && env\.TASK_SOURCE_PRIVATE != 'false'\n/
+  );
+  assert.match(
+    task,
+    /- name: Upload sealed task log\n\s+if: always\(\) && steps\.task_log\.outputs\.path != ''[\s\S]*?path: \$\{\{ steps\.task_log\.outputs\.path \}\}/
+  );
+  assert.ok(
+    task.indexOf("- name: Seal failed private task log") <
+      task.indexOf("- name: Report task result"),
+    "the log is sealed before the report step deletes it"
+  );
+  assert.match(
+    task,
+    /- name: Upload task state\n\s+if: always\(\) && steps\.state_upload\.outputs\.path != ''[\s\S]*?path: \$\{\{ steps\.state_upload\.outputs\.path \}\}/
+  );
 });
 
 test("only PR Governance reports an untrusted head instead of failing", async () => {

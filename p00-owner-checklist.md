@@ -1,124 +1,124 @@
-# P-00：fongap-labs 组织人工操作清单（仅生成，未执行）
+# P-00: manual operations checklist for the fongap-labs organization (generated only, not executed)
 
-> 性质：本文件只列命令、前置、回滚与验证，**没有执行任何命令、没有读取任何密钥**。所有步骤由 owner 在自己的终端或 GitHub UI 中手工执行。
-> 关联：审查报告 ORG-001/002/003/004/005/009/011、AW-002/AW-003。
-> 命令默认为 bash（Git Bash 可用）；GitHub CLI 需先 `gh auth login`，且账号为组织 owner 并具备 `admin:org`、`repo` 范围。
+> Nature: this file only lists commands, prerequisites, rollback and verification. **No command was executed and no secret was read.** The owner runs every step by hand in their own terminal or in the GitHub UI.
+> Related: review report items ORG-001/002/003/004/005/009/011, AW-002/AW-003.
+> Commands are bash by default (Git Bash works). GitHub CLI needs `gh auth login` first, with an organization owner account that has the `admin:org` and `repo` scopes.
 
-## 0. 先读：核对中发现的 5 处需要你知晓的问题
+## 0. Read first: 5 issues found while checking that you need to know
 
-| # | 问题 | 影响 | 处理 |
+| # | Issue | Impact | Handling |
 |---|---|---|---|
-| 1 | **P-AW-3 提示词只覆盖部署与任务路径，没有给 `AW_ADMIN_TOKEN` 的消费者作业加 `environment: admin-ops`**（如 security-scan 的 publish、apply-repo-settings 等）。 | 若按 C3 删除仓库级 `AW_ADMIN_TOKEN`，这些作业会取不到令牌而失败。 | 在 P-AW-3 阶段 1 方案里要求代理枚举 `AW_ADMIN_TOKEN` 的全部消费作业并加上 `environment: admin-ops`；该密钥的 C3 排在最后。 |
-| 2 | 任务路径（handle-task-dispatch）使用的密钥（CLOUDFLARE_*、ALGOLIA_*、AIG_ACCESS_KEY_TASK、TUSHARE/TIINGO/FRED/ALPHAVANTAGE 等）用 `env: ${{ secrets }}` 整体注入，**消费者无法按名字 grep 枚举**。一个作业又只能声明一个 `environment`。 | 把这些密钥只放进 `production` 并删除仓库级副本，会让任务作业失效。 | 删除任一仓库级密钥前，必须确认所有消费它的作业都已声明对应环境。P-AW-3 阶段 1 的 (e) 要明确任务路径是否引入按仓库划分的环境；未定之前**任务路径用到的密钥不要执行 C3**。 |
-| 3 | 原清单的验证法「新建测试分支读取 `${#AW_ADMIN_TOKEN}`，长度应为 0」在 C1/C2 之后立即做是**无效**的，因为仓库级密钥还在，长度不会是 0。 | 会得到误导性结果。 | 本清单把该验证挪到 C3 之后，并增加「声明了环境但在非 main 分支运行应被拒绝」的第二项验证。 |
-| 4 | 环境必须建在 **action-worker 仓库**（部署工作流在那里运行），不是 internal-vault。原文 C1 末句容易被理解成在 internal-vault 建环境。 | 建错仓库则环境保护不生效。 | 本清单明确：所有环境都建在 `fongap-labs/action-worker`。 |
-| 5 | 缩小 GitHub App 权限，**由 App 的所有者在 App 注册页修改**，安装方（组织）只能卸载、暂停或限制仓库范围。 | 若 App 是第三方，无法移除其权限。 | 步骤 A 区分「自有 App」与「第三方 App」两种处理。 |
+| 1 | **The P-AW-3 prompt covers only the deploy and task paths and does not add `environment: admin-ops` to the jobs that consume `AW_ADMIN_TOKEN`** (such as the publish job of `security-scan-dispatch` and `apply-repository-settings`). | If the repository-level `AW_ADMIN_TOKEN` is deleted in C3, those jobs cannot get the token and fail. | In the phase 1 plan of P-AW-3, require the agent to list every job that consumes `AW_ADMIN_TOKEN` and add `environment: admin-ops`; do C3 for this secret last. |
+| 2 | The secrets used by the task path (handle-task-dispatch) — CLOUDFLARE_*, ALGOLIA_*, AIG_ACCESS_KEY_TASK, TUSHARE/TIINGO/FRED/ALPHAVANTAGE and others — are injected as a whole with `env: ${{ secrets }}`, so **their consumers cannot be listed by grepping for the name**. A job can also declare only one `environment`. | Putting these secrets only into `production` and deleting the repository-level copies would break the task jobs. | Before deleting any repository-level secret, confirm that every job that consumes it declares the matching environment. Item (e) of P-AW-3 phase 1 must decide whether the task path gets per-repository environments; until that is decided, **do not run C3 for secrets the task path uses**. |
+| 3 | The original verification "read `${#AW_ADMIN_TOKEN}` on a new test branch; the length should be 0" is **meaningless** right after C1/C2, because the repository-level secret still exists and the length will not be 0. | It gives a misleading result. | This checklist moves that verification after C3 and adds a second check: "a job that declares the environment but runs on a branch other than main must be refused". |
+| 4 | The environments must be created in the **action-worker repository** (where the deploy workflows run), not in internal-vault. The last sentence of the original C1 was easy to read as "create the environment in internal-vault". | An environment in the wrong repository gives no protection. | This checklist states it explicitly: every environment is created in `fongap-labs/action-worker`. |
+| 5 | Reducing a GitHub App's permissions is done **by the App's owner on the App registration page**; the installing side (the organization) can only uninstall, suspend or limit the repository scope. | If the App belongs to a third party, its permissions cannot be removed. | Step A handles "own App" and "third-party App" separately. |
 
-另有 3 个 API 细节我**未能在线核对官方文档**（文档查询工具在本会话不可用）。执行前请先按「先读后写」方式确认，不要直接写入：
+There are also 3 API details I **could not check against the official documentation online** (the documentation lookup tool was unavailable in that session). Before running them, confirm them read-first; do not write directly:
 
-- `sha_pinning_required` 是否为 `PUT /repos/{o}/{r}/actions/permissions` 的有效参数（步骤 F）。执行前用 `gh api repos/fongap-labs/ai-gateway/actions/permissions` 看返回里是否已有该字段；没有该字段时去官方文档 *REST API → Actions → Permissions* 核对。
-- `PUT .../environments/{name}` 对未传字段（`reviewers`、`wait_timer`）是否会重置：对**已有**环境（如 `production`）先 `GET` 保存现状，再把现有值一并写回（步骤 C1）。
-- 免费套餐下私有仓库是否可用 Environment 保护规则：本清单只在 **action-worker（公开仓库）** 上创建环境，规避该问题。
-
----
-
-## 建议执行顺序
-
-```
-D（5 分钟，纯启用） → A（核查 + 收缩）→ B（创建只读令牌）→ C1 → C2
-       → 合并 P-AW-1 / P-AW-2 / P-AW-3 并演练成功 → C3（逐个密钥）
-E / F（组织默认 + 平台层固定）可与上面并行；G 是决策项；H 是复核项。
-```
-
-预计耗时：D 5 分钟；A 20–40 分钟；B 10 分钟；C1+C2 30–60 分钟（取决于密钥数量）；E 15 分钟；F 试点 30 分钟；G 决策；H 30 分钟。
+- Whether `sha_pinning_required` is a valid parameter of `PUT /repos/{o}/{r}/actions/permissions` (step F). Before running it, check whether the response of `gh api repos/fongap-labs/ai-gateway/actions/permissions` already contains that field; if it does not, check the official documentation under *REST API → Actions → Permissions*.
+- Whether `PUT .../environments/{name}` resets fields that are not sent (`reviewers`, `wait_timer`): for an **existing** environment (such as `production`), `GET` and save its current state first, then write the existing values back together with the change (step C1).
+- Whether environment protection rules are available for private repositories on the Free plan: this checklist creates environments only in **action-worker (a public repository)**, which avoids the question.
 
 ---
 
-## 步骤 D（ORG-009，立即）：启用私密漏洞报告
+## Recommended order
 
-- **目的**：让外部研究者有私下上报渠道，不必公开提 issue。
-- **前置**：仅限**公开**仓库（私有仓库不支持）。现有 4 个公开仓库：delta、action-worker、external-vault、ai-gateway。
-- **命令（bash）**：
+```
+D (5 minutes, enable only) → A (inspect + reduce) → B (create a read-only token) → C1 → C2
+       → merge P-AW-1 / P-AW-2 / P-AW-3 and rehearse successfully → C3 (one secret at a time)
+E / F (organization defaults + platform pinning) can run in parallel; G is a decision; H is a review.
+```
+
+Estimated time: D 5 minutes; A 20–40 minutes; B 10 minutes; C1+C2 30–60 minutes (depending on the number of secrets); E 15 minutes; F pilot 30 minutes; G decision; H 30 minutes.
+
+---
+
+## Step D (ORG-009, now): enable private vulnerability reporting
+
+- **Purpose**: give outside researchers a private reporting channel so they do not have to open a public issue.
+- **Prerequisite**: **public** repositories only (private repositories do not support it). The 4 public repositories today: delta, action-worker, external-vault, ai-gateway.
+- **Command (bash)**:
   ```bash
   for r in delta action-worker external-vault ai-gateway; do
     gh api -X PUT "repos/fongap-labs/$r/private-vulnerability-reporting"
   done
   ```
-  PowerShell：
+  PowerShell:
   ```powershell
   foreach ($r in 'delta','action-worker','external-vault','ai-gateway') {
     gh api -X PUT "repos/fongap-labs/$r/private-vulnerability-reporting"
   }
   ```
-- **回滚**：把 `-X PUT` 换成 `-X DELETE`。
-- **验证**：
+- **Rollback**: replace `-X PUT` with `-X DELETE`.
+- **Verification**:
   ```bash
   for r in delta action-worker external-vault ai-gateway; do
     echo -n "$r: "; gh api "repos/fongap-labs/$r/private-vulnerability-reporting" --jq .enabled
   done
   ```
-  四行均应为 `true`。
+  All four lines should be `true`.
 
 ---
 
-## 步骤 A（ORG-003，立即）：核查并收缩 GitHub App
+## Step A (ORG-003, now): inspect and reduce GitHub Apps
 
-- **目的**：两个 GitHub App 权限过宽；先看清再收缩。
-- **前置**：组织 owner。
-- **步骤 1 · 盘点**
+- **Purpose**: two GitHub Apps have overly broad permissions; look first, then reduce.
+- **Prerequisite**: organization owner.
+- **Step 1 · inventory**
   ```bash
   gh api orgs/fongap-labs/installations \
     --jq '.installations[] | {id, app_slug, repository_selection, permissions}'
   ```
-- **步骤 2 · 看仓库范围（只能走 UI）**：Organization Settings → GitHub Apps → Installed GitHub Apps → 对每个 App 点 Configure，记录「Repository access」。
-  - REST 没有给组织 owner 直接列出某个安装下全部仓库的端点（需要 App 用户令牌），所以这里用 UI。
-- **步骤 3 · 处理**
-  - **闲置的 App**：Configure → Danger zone → Uninstall（或先 Suspend 观察一周）。
-  - **自有 App**（你是 App 所有者）：Settings → Developer settings → GitHub Apps → Edit → *Permissions & events*，移除 `workflows`、`secrets`、`organization_secrets`（及不必要的 `administration`）。权限**降低**会立即生效，不需要再批准。
-  - **第三方 App**：改不了其权限，只能把「Repository access」收窄为 Only select repositories，且**不含 action-worker、internal-vault、app-source**；仍不满意就卸载。
-- **回滚**：自有 App 可在注册页重新勾选权限，组织侧需重新批准升级请求；卸载后可重新安装。
-- **验证**：重新运行步骤 1 的命令，`permissions` 中不再有 `workflows`、`secrets`、`organization_secrets`；UI 中仓库范围符合预期。
+- **Step 2 · check the repository scope (UI only)**: Organization Settings → GitHub Apps → Installed GitHub Apps → click Configure for each App and note its "Repository access".
+  - REST has no endpoint that lets an organization owner list all repositories of an installation directly (it needs an App user token), so this step uses the UI.
+- **Step 3 · act**
+  - **An unused App**: Configure → Danger zone → Uninstall (or Suspend first and watch for a week).
+  - **Your own App** (you own the App): Settings → Developer settings → GitHub Apps → Edit → *Permissions & events*, remove `workflows`, `secrets`, `organization_secrets` (and `administration` if it is not needed). **Reducing** permissions takes effect immediately and needs no new approval.
+  - **A third-party App**: its permissions cannot be changed; narrow "Repository access" to Only select repositories, **excluding action-worker, internal-vault and app-source**; uninstall it if that is still not acceptable.
+- **Rollback**: for your own App, tick the permissions again on the registration page; the organization side must approve the upgrade request again. An uninstalled App can be installed again.
+- **Verification**: run the command of step 1 again; `permissions` no longer contains `workflows`, `secrets` or `organization_secrets`, and the repository scope in the UI is as expected.
 
 ---
 
-## 步骤 B（AW-003 前置）：创建只读令牌 `AW_CHECKOUT_TOKEN`
+## Step B (prerequisite for AW-003): create the read-only token `AW_CHECKOUT_TOKEN`
 
-- **目的**：让中央 CI 沙箱 / 依赖修复的计算作业在检出私有仓库时，不再使用高权限的 `AW_CONTROL_TOKEN`。
-- **前置**：现有私有仓库是 internal-vault、delta-suite、app-source（私有 = 不支持私密漏洞报告的那三个）。
-- **创建（UI，owner 亲自操作）**：GitHub → Settings → Developer settings → Fine-grained personal access tokens → Generate new token。
-  - Resource owner：`fongap-labs`（若组织要求审批，需在组织 Settings → Personal access tokens 里批准）
-  - Repository access：Only select repositories → delta-suite、internal-vault、app-source
-  - Permissions：Repository → **Contents: Read-only**（Metadata 自动只读）。其余全部 No access。
-  - Expiration：尽量短（建议 ≤ 90 天），并写入轮换日历。
-  - 更好的长期方案：专用 GitHub App 安装令牌（见审查报告 XR-003），本步骤先用 PAT 过渡。
-- **写入密钥（owner 在终端输入，值不要贴给任何代理或聊天窗口）**
+- **Purpose**: the central CI sandbox and the dependency repair compute job stop using the high-privilege `AW_CONTROL_TOKEN` when they check out private repositories.
+- **Prerequisite**: the private repositories today are internal-vault, delta-suite and app-source (private = the three that do not support private vulnerability reporting).
+- **Create it (UI, by the owner personally)**: GitHub → Settings → Developer settings → Fine-grained personal access tokens → Generate new token.
+  - Resource owner: `fongap-labs` (if the organization requires approval, approve it under organization Settings → Personal access tokens)
+  - Repository access: Only select repositories → delta-suite, internal-vault, app-source
+  - Permissions: Repository → **Contents: Read-only** (Metadata is read-only automatically). Everything else: No access.
+  - Expiration: as short as practical (≤ 90 days recommended), and put the rotation in your calendar.
+  - A better long-term option: a dedicated GitHub App installation token (see review report XR-003); this step uses a PAT as a stopgap.
+- **Store the secret (the owner types it in the terminal; never paste the value to an agent or a chat window)**
   ```bash
   gh secret set AW_CHECKOUT_TOKEN --repo fongap-labs/action-worker
   ```
-  命令会提示输入值；粘贴后回车。
-- **回滚**：`gh secret delete AW_CHECKOUT_TOKEN --repo fongap-labs/action-worker`，并在 GitHub 上撤销该 PAT。
-- **验证**
+  The command prompts for the value; paste it and press Enter.
+- **Rollback**: `gh secret delete AW_CHECKOUT_TOKEN --repo fongap-labs/action-worker`, and revoke the PAT on GitHub.
+- **Verification**
   ```bash
   gh secret list --repo fongap-labs/action-worker | grep AW_CHECKOUT_TOKEN
   ```
-  能看到名称与更新时间即可（看不到值是正常的）。
-- **注意**：该名称到位之前不要合并 P-AW-2。
+  Seeing the name and the update time is enough (not seeing the value is normal).
+- **Note**: do not merge P-AW-2 before this name exists.
 
 ---
 
-## 步骤 C（ORG-002 / AW-002）：用 Environment 隔离生产密钥——顺序不可颠倒
+## Step C (ORG-002 / AW-002): isolate production secrets with environments — the order cannot be changed
 
-> 所有环境都建在 **`fongap-labs/action-worker`**。
+> Every environment is created in **`fongap-labs/action-worker`**.
 
-### C0 · 先读现状（避免覆盖已有设置）
+### C0 · read the current state first (so existing settings are not overwritten)
 ```bash
 gh api repos/fongap-labs/action-worker/environments --jq '.environments[] | {name, protection_rules, deployment_branch_policy}'
 gh secret list --repo fongap-labs/action-worker
 ```
-把输出另存一份，作为回滚依据。若 `production` 已有 reviewers / wait_timer，在 C1 里一并写回。
+Save the output as the basis for rollback. If `production` already has reviewers / wait_timer, write them back in C1.
 
-### C1 · 创建受保护环境（仅 main 可部署）
-需要创建的环境：`admin-ops`、`production`，以及 internal-vault 的 `deploy.json` 所指的 `server-edge-cloud-edge`。
+### C1 · create protected environments (deployable only from main)
+Environments to create: `admin-ops`, `production`, and `server-edge-cloud-edge`, which the `deploy.json` of internal-vault refers to.
 
 ```bash
 for env in admin-ops production server-edge-cloud-edge; do
@@ -129,187 +129,193 @@ for env in admin-ops production server-edge-cloud-edge; do
     -f name=main -f type=branch
 done
 ```
-- 对已存在且有 reviewers 的环境，先按 C0 的输出补上 `-F wait_timer=…` 与 `reviewers` 再执行，不要裸 PUT。
-- **回滚**：`gh api -X DELETE repos/fongap-labs/action-worker/environments/<name>`（环境内的密钥会一并删除，所以 C2 之后不要随便回滚到这一步）。
-- **验证**：`gh api repos/fongap-labs/action-worker/environments/<name>/deployment-branch-policies --jq '.branch_policies[].name'` 返回 `main`。
+- For an existing environment with reviewers, add `-F wait_timer=…` and `reviewers` from the C0 output before running it; never send a bare PUT.
+- **Rollback**: `gh api -X DELETE repos/fongap-labs/action-worker/environments/<name>` (this also deletes the secrets inside the environment, so do not roll back to this step casually after C2).
+- **Verification**: `gh api repos/fongap-labs/action-worker/environments/<name>/deployment-branch-policies --jq '.branch_policies[].name'` returns `main`.
 
-### C2 · 把密钥复制到环境（owner 逐个输入值，仓库级副本先保留）
-| 密钥 | 目标环境 |
+### C2 · copy the secrets into the environments (the owner types each value; keep the repository-level copies for now)
+| Secret | Target environment |
 |---|---|
 | `AW_ADMIN_TOKEN` | `admin-ops` |
-| `CLOUDFLARE_API_TOKEN`、`AIG_ACCESS_KEY_*`、`AIG_TIER*_CREDENTIALS_*`、`AIG_TOKEN_ENCRYPTION_KEY`、`ALGOLIA_*` | `production` |
-| internal-vault 部署所需的 3 个名称（见其 `deploy.secrets.allowed`） | `server-edge-cloud-edge` |
+| `CLOUDFLARE_API_TOKEN`, `AIG_ACCESS_KEY_*`, `AIG_TIER*_CREDENTIALS_*`, `AIG_TOKEN_ENCRYPTION_KEY`, `ALGOLIA_*` | `production` |
+| the 3 names the internal-vault deploy needs (see its `deploy.secrets.allowed`) | `server-edge-cloud-edge` |
 
 ```bash
 gh secret set <NAME> --repo fongap-labs/action-worker --env <ENV>
 ```
-- 值只在终端提示符里输入。
-- **回滚**：`gh secret delete <NAME> --repo fongap-labs/action-worker --env <ENV>`。
-- **验证**：`gh secret list --repo fongap-labs/action-worker --env <ENV>`。
-- ⚠ 任务路径用到的密钥（CLOUDFLARE_ACCOUNT_ID、TUSHARE/TIINGO/FRED/ALPHAVANTAGE 等）**暂不迁移**，见第 0 节第 2 项。
+- Type the value only at the terminal prompt.
+- **Rollback**: `gh secret delete <NAME> --repo fongap-labs/action-worker --env <ENV>`.
+- **Verification**: `gh secret list --repo fongap-labs/action-worker --env <ENV>`.
+- ⚠ Secrets used by the task path (CLOUDFLARE_ACCOUNT_ID, TUSHARE/TIINGO/FRED/ALPHAVANTAGE and others) are **not migrated yet**; see section 0, item 2.
 
-### C3 · 删除仓库级密钥（逐个，且必须晚于 P-AW-3 合并并演练成功）
-**删除前核对清单（每个密钥都要过一遍）：**
-1. 该密钥的所有消费作业都已声明对应 `environment:`。
+### C3 · delete repository-level secrets (one at a time, and only after P-AW-3 is merged and rehearsed successfully)
+**Checklist before deleting (go through it for every secret):**
+1. Every job that consumes the secret declares the matching `environment:`.
    ```bash
-   # 在 action-worker 本地克隆中
+   # in a local clone of action-worker
    grep -rn "<NAME>" .github/workflows
-   grep -rn "secrets }}" .github/workflows   # 整体注入的位置；这些作业的环境必须已确认
+   grep -rn "secrets }}" .github/workflows   # places that inject all secrets; the environment of these jobs must be confirmed
    ```
-2. 已用 `workflow_dispatch` 或 dry-run 路径演练过一次部署并成功。
-3. 已确认 `AW_ADMIN_TOKEN` 的全部消费作业（security-scan publish、apply-repo-settings 等）都已加 `environment: admin-ops`。
+2. A deploy has been rehearsed once through `workflow_dispatch` or a dry-run path and succeeded.
+3. Every job that consumes `AW_ADMIN_TOKEN` (the publish job of `security-scan-dispatch`, `apply-repository-settings` and so on) declares `environment: admin-ops`.
 
 ```bash
 gh secret delete <NAME> --repo fongap-labs/action-worker
 ```
-- **回滚**：重新 `gh secret set <NAME> --repo fongap-labs/action-worker`（需重新输入值）。
-- **验证（只能在 C3 完成后做）**
-  - 测试 1：在新分支提交一个**不声明环境**的临时工作流，只执行 `echo ${#AW_ADMIN_TOKEN}`（打印长度，不打印值），触发 `push`；长度应为 `0`。
-  - 测试 2：同一分支再提交一个声明 `environment: admin-ops` 的工作流；作业应被拒绝（提示分支不被环境允许部署）。
-  - 完成后删除该测试分支。
+- **Rollback**: `gh secret set <NAME> --repo fongap-labs/action-worker` again (the value has to be typed again).
+- **Verification (only after C3)**
+  - Test 1: on a new branch, commit a temporary workflow that **declares no environment** and only runs `echo ${#AW_ADMIN_TOKEN}` (prints the length, not the value), triggered by `push`; the length should be `0`.
+  - Test 2: on the same branch, commit a workflow that declares `environment: admin-ops`; the job should be refused (the branch is not allowed to deploy to the environment).
+  - Delete the test branch afterwards.
 
 ---
 
-## 步骤 E（ORG-004）：组织默认安全设置
+## Step E (ORG-004): organization default security settings
 
-- **目的**：新建仓库默认开启基础安全能力。
-- **UI 路径**：Organization Settings → Code security（或 *Code security and analysis*）→ 为新仓库默认开启 Dependency graph、Dependabot alerts、Dependabot security updates、Secret scanning、Push protection；Settings → Member privileges → 关闭 Pages 创建；Settings → Member privileges / Admin repository permissions → 取消「允许仓库管理员邀请外部协作者」。
-- **回滚**：UI 中把对应开关切回。
-- **验证**：新建一个临时测试仓库，检查 Settings → Code security 是否按默认启用；检查完删除该测试仓库。
-- 说明：对已有仓库，开关可在同一页面点「Enable all」。
-- **按「Free 组织、私有仓库长期私有」的约束调整**：私有仓库的 Secret scanning / Push protection 属于付费能力，开了也不会生效，不要把它当作控制。私有仓库的替代做法：中央安全门（`policies/security.json`，已覆盖 OpenAI/Anthropic、NVIDIA、Hugging Face、Tailscale、Cloudflare、JWT 等格式）会检查每个 PR 新增的行；internal-vault 的 CI 另外运行固定版本的 gitleaks。Dependabot alerts / Dependabot 版本更新对私有仓库可用（本轮已为 app-source、delta-suite、internal-vault 配好）。
+- **Purpose**: new repositories get basic security features by default.
+- **UI path**: Organization Settings → Code security (or *Code security and analysis*) → turn on by default for new repositories: Dependency graph, Dependabot alerts, Dependabot security updates, Secret scanning, Push protection; Settings → Member privileges → turn off Pages creation; Settings → Member privileges / Admin repository permissions → untick "Allow repository administrators to invite outside collaborators".
+- **Rollback**: switch the same toggles back in the UI.
+- **Verification**: create a temporary test repository, check under Settings → Code security that the defaults are on, then delete the test repository.
+- Note: for existing repositories, the same page offers "Enable all".
+- **Adjusted for "Free organization, private repositories stay private"**: Secret scanning / Push protection for private repositories are paid features; turning them on has no effect, so do not count them as a control. The alternative for private repositories: the central security gate (`policies/security.json`, which already covers OpenAI/Anthropic, NVIDIA, Hugging Face, Tailscale, Cloudflare, JWT and other formats) checks the lines every PR adds, and the CI of internal-vault also runs a pinned gitleaks. Dependabot alerts and Dependabot version updates are available for private repositories (configured for app-source, delta-suite and internal-vault in this round).
 
 ---
 
-## 步骤 F（ORG-005）：平台层强制固定 SHA（先在 1 个仓库试点）
+## Step F (ORG-005): enforce pinned SHAs at the platform level (pilot in 1 repository first)
 
-- **目的**：即使工作流里有人写了浮动标签，平台也拒绝运行。
-- **前置**：确认 `sha_pinning_required` 是有效参数（见第 0 节）；先在 `ai-gateway` 试点。
-- **步骤 1 · 汇总该仓库实际用到的 Action（在本地克隆里）**
+- **Purpose**: even if someone writes a floating tag in a workflow, the platform refuses to run it.
+- **Prerequisite**: confirm that `sha_pinning_required` is a valid parameter (see section 0); pilot in `ai-gateway` first.
+- **Step 1 · list the actions the repository really uses (in a local clone)**
   ```bash
   grep -rhoE "uses: [^@ ]+" .github | sort -u
   ```
-  需要把 `actions/*`、`github/codeql-action`、`astral-sh/setup-uv`、`anchore/sbom-action` 等全部放行。另外检查 **可复用工作流**（`uses: fongap-labs/action-worker/.github/workflows/...@<ref>`）：开启 SHA 固定后它们也必须按完整 SHA 引用。
-- **步骤 2 · 先读现状**
+  All of `actions/*`, `github/codeql-action`, `astral-sh/setup-uv`, `anchore/sbom-action` and so on must be allowed. Also check **reusable workflows** (`uses: fongap-labs/action-worker/.github/workflows/...@<ref>`): with SHA pinning on, they must be referenced by full SHA as well.
+- **Step 2 · read the current state first**
   ```bash
   gh api repos/fongap-labs/ai-gateway/actions/permissions
   gh api repos/fongap-labs/ai-gateway/actions/permissions/selected-actions
   ```
-- **步骤 3 · 写入（先放行名单，再开启固定）**
+- **Step 3 · write (the allow list first, then turn on pinning)**
   ```bash
   gh api -X PUT repos/fongap-labs/ai-gateway/actions/permissions/selected-actions \
     -F github_owned_allowed=true -F verified_allowed=false \
     -f 'patterns_allowed[]=astral-sh/setup-uv@*' -f 'patterns_allowed[]=anchore/sbom-action@*'
-    # …按步骤 1 的汇总补全
+    # …complete it from the list of step 1
   gh api -X PUT repos/fongap-labs/ai-gateway/actions/permissions \
     -F enabled=true -f allowed_actions=selected -F sha_pinning_required=true
   ```
-- **回滚**：把 `sha_pinning_required=false`、`allowed_actions=all`。
-- **验证**：重新跑一次该仓库的 CI，应通过；再临时提交一个用 `@v4` 浮动标签的工作流，应被拒绝。通过后再推广到其他仓库。
-- **风险**：漏放行任何 Action 都会让 CI 失败；因此先试点。
+- **Rollback**: set `sha_pinning_required=false` and `allowed_actions=all`.
+- **Verification**: run the repository's CI once more; it should pass. Then temporarily commit a workflow that uses a floating `@v4` tag; it should be refused. Roll out to the other repositories only after that.
+- **Risk**: forgetting to allow any action makes CI fail; that is why it starts with a pilot.
 
 ---
 
-## 步骤 G（ORG-001）：付费方案决策——已决定，无需操作
+## Step G (ORG-001): paid plan decision — decided, nothing to do
 
-- **决定（2026-10-07，owner）**：fongap-labs 保持 **Free** 组织；现有私有仓库**长期保持私有**。因此 **不升级、不做任何"让私有仓库获得分支保护"的操作**。
-- **已用 API 验证的事实**：对 internal-vault、delta-suite、app-source，规则集和分支保护接口都返回 403「Upgrade to GitHub Pro or make this repository public」。这三个仓库永远不会有分支规则。
-- **替代控制**：Main Write Guard（`main-write-audit.yml` 每 5 分钟核对一次所有受管仓库的 `main`）。无法追溯到"通过确定性门禁并已合并的 PR"的 `main` 提交会被标成不可信，发布、部署、发布产物和特权任务都会拒绝它。2026-10-07 七个仓库的该状态均为 success。
-- **剩余风险（请记录为"风险接受"）**：私有仓库的 `main` 被直接推送无法被阻止，只能在约 5 分钟内发现并拒绝其产出。保持写权限只给两位维护者；`Main Write Guard` 状态变红或长时间不更新，就是警报。
-- **建议记录的复审日期**：下一次有人提议"让私有仓库公开"或"升级方案"时复审；否则每年复审一次。
-- ⚠ 向 `policies/rulesets.json` 合并任何变更仍需先看 action-worker `#439` 里的 ORG-006 方案：它在合并到 main 时会自动应用到 **四个公开仓库**（action-worker、ai-gateway、delta、external-vault）。
+- **Decision (2026-10-07, owner)**: fongap-labs stays a **Free** organization, and the existing private repositories **stay private long-term**. So there is **no upgrade and no action that would "give private repositories branch protection"**.
+- **Facts verified through the API**: for internal-vault, delta-suite and app-source, the ruleset and branch protection endpoints both return 403 "Upgrade to GitHub Pro or make this repository public". These three repositories will never have branch rules.
+- **Compensating control**: the Main Write Guard (`main-write-audit.yml` checks `main` of every managed repository every 5 minutes). A `main` commit that cannot be traced to "a merged PR that passed the deterministic gate" is marked untrusted, and releases, deploys, publications and privileged tasks all refuse it. On 2026-10-07 this status was success for all seven repositories.
+- **Residual risk (please record it as "risk accepted")**: a direct push to `main` of a private repository cannot be prevented; it can only be detected within about 5 minutes and denied any output. Keep write access limited to the two maintainers; a red or long-stale `Main Write Guard` status is the alarm.
+- **Suggested review date to record**: review again the next time someone proposes "make a private repository public" or "upgrade the plan"; otherwise once a year.
+- ⚠ Before merging any change to `policies/rulesets.json`, read the ORG-006 proposal in action-worker `#439`: on merge to main it is applied automatically to **the four public repositories** (action-worker, ai-gateway, delta, external-vault).
 
 ---
 
-## 步骤 H（ORG-011）：组织级复核
+## Step H (ORG-011): organization-level review
 
-- **组织级 Secrets / Variables**（需 `admin:org`）
+- **Organization secrets / variables** (needs `admin:org`)
   ```bash
   gh api orgs/fongap-labs/actions/secrets --jq '.secrets[] | {name, visibility, updated_at}'
   gh api orgs/fongap-labs/actions/variables --jq '.variables[] | {name, visibility}'
   ```
-- **Webhook 与 Deploy key（各仓库）**
+- **Webhooks and deploy keys (every repository)**
   ```bash
   for r in delta action-worker external-vault ai-gateway internal-vault delta-suite app-source; do
     echo "== $r"; gh api "repos/fongap-labs/$r/hooks" --jq '.[]|{name,active,url:.config.url}' 2>/dev/null
     gh api "repos/fongap-labs/$r/keys" --jq '.[]|{title,read_only}' 2>/dev/null
   done
   ```
-- **Fine-grained PAT 策略**：Organization Settings → Personal access tokens → Settings（是否要求审批、是否允许经典 PAT）与 Active tokens（列出已批准令牌）。
-- **审计日志（近 90 天）**：Organization Settings → Archive → Audit log（UI）。通过 API 读审计日志需要 Enterprise Cloud，Free 组织不可用。
-- **三个调度/控制/管理令牌**（`AW_DISPATCH_TOKEN` / `AW_CONTROL_TOKEN` / `AW_ADMIN_TOKEN`）：判断是 PAT 还是 App 令牌——看工作流里是否使用 `actions/create-github-app-token`（`grep -rn create-github-app-token .github`），并向创建者确认。登记：类型、权限、有效期、轮换负责人。`gh secret list` 只显示名称和更新时间，不会暴露值。
-- **回滚**：本步骤只读，无需回滚。
+- **Fine-grained PAT policy**: Organization Settings → Personal access tokens → Settings (whether approval is required, whether classic PATs are allowed) and Active tokens (lists the approved tokens).
+- **Audit log (last 90 days)**: Organization Settings → Archive → Audit log (UI). Reading the audit log through the API needs Enterprise Cloud and is not available to a Free organization.
+- **The three dispatch / control / admin tokens** (`AW_DISPATCH_TOKEN` / `AW_CONTROL_TOKEN` / `AW_ADMIN_TOKEN`): find out whether each is a PAT or an App token — check whether the workflows use `actions/create-github-app-token` (`grep -rn create-github-app-token .github`), and confirm with whoever created them. Record: type, permissions, expiry, rotation owner. `gh secret list` shows only names and update times and never exposes values.
+- **Rollback**: this step is read-only and needs no rollback.
 
 ---
 
-## 完成后自检
+## Self-check after completion
 
-| 检查 | 方法 |
+| Check | Method |
 |---|---|
-| App 权限已收窄 | 步骤 A 命令 1 的输出中无 `workflows`、`secrets`、`organization_secrets` |
-| 私密漏洞报告 | 步骤 D 验证，四个公开仓库均为 `true` |
-| 只读令牌就绪 | `gh secret list --repo fongap-labs/action-worker` 含 `AW_CHECKOUT_TOKEN` |
-| 环境已建 | C1 验证，`deployment-branch-policies` 为 `main` |
-| 密钥已隔离 | C3 之后做测试 1 与测试 2 |
-| 平台固定 SHA | 步骤 F 试点仓库 CI 通过，浮动标签被拒 |
+| App permissions reduced | the output of step A command 1 contains no `workflows`, `secrets` or `organization_secrets` |
+| Private vulnerability reporting | step D verification: all four public repositories return `true` |
+| Read-only token ready | `gh secret list --repo fongap-labs/action-worker` contains `AW_CHECKOUT_TOKEN` |
+| Environments created | C1 verification: `deployment-branch-policies` is `main` |
+| Secrets isolated | test 1 and test 2 after C3 |
+| Platform SHA pinning | the CI of the pilot repository in step F passes, and a floating tag is refused |
 
 ---
 
-## 附录：本轮修复之后的待办与决策（2026-10-07 更新）
+## Appendix: follow-ups and decisions after this round of fixes (updated 2026-10-07)
 
-> 前提（owner 决定）：Free 组织；私有仓库长期私有。
+> Premise (owner decision): Free organization; private repositories stay private long-term.
 
-### 已完成
+### Done
 
-- 我在你的授权下按顺序合并了 41 个 PR（action-worker、ai-gateway、app-source、delta、delta-suite、external-vault、internal-vault 的修复与测试）；所有合并都是 squash，没有开自动合并。
-- 在 `C:\Users\Fong\.claude\settings.json` 加了一条只允许对 fongap-labs 执行 `gh pr merge … --squash` 的权限规则；不需要时可删除。
+- With your authorisation I merged 41 PRs in order (fixes and tests in action-worker, ai-gateway, app-source, delta, delta-suite, external-vault and internal-vault); every merge was a squash, and auto-merge was never turned on.
+- I added a permission rule to `C:\Users\Fong\.claude\settings.json` that allows only `gh pr merge … --squash` for fongap-labs; delete it when it is no longer needed.
 
-### 还没合并的 PR
+### PRs not merged yet
 
-| PR | 状态 | 在等什么 |
+| PR | State | Waiting for |
 |---|---|---|
-| external-vault `#48` | 检查全绿 | 你先做一次手动检查：往 `adfilter.txt` 临时加 `ghp_` 加 36 位字母数字，应当报警；然后我再合 |
-| action-worker `#439`、delta `#118`、internal-vault `#54`、app-source `#44` | 只有方案文档 | 你拍板 |
-| delta `#119` | 清理 deny.toml 里 10 条已撤销的 gtk3 忽略项 | 审一下即可合并 |
-| Dependabot：internal-vault `#55`–`#64`、app-source `#45`、delta `#103`–`#112` | 检查是红的（作者不被信任，没有 CI 证据） | 见下面"Dependabot 建议" |
+| external-vault `#48` | all checks green | a manual check by you first: temporarily add `ghp_` plus 36 alphanumeric characters to `adfilter.txt`; it should raise an alert. Then I merge it |
+| action-worker `#439`, delta `#118`, internal-vault `#54`, app-source `#44` | proposal documents only | your decision |
+| delta `#119` | removes 10 revoked gtk3 ignore entries from deny.toml | a quick review, then merge |
+| Dependabot: internal-vault `#55`–`#64`, app-source `#45`, delta `#103`–`#112` | checks are red (untrusted author, no CI evidence) | see "Dependabot advice" below |
 
-### Dependabot 建议（我没有动任何一个）
+### Dependabot advice (I did not touch any of them)
 
-这些 PR 的检查是红的，原因是作者是机器人、不属于受信作者：要让 CI 跑起来，需要由你（或 fongxen）在 GitHub 上先审阅并 Approve，之后检查才会运行。这一步我不替你做。
+These PRs have red checks because the author is a bot and not a trusted author: for CI to run, you (or fongxen) must review and Approve on GitHub first, and then the checks run. I do not do this step for you.
 
-- **可以先审、风险低**：internal-vault `#55`（ruff 补丁）、`#57`（mypy 小版本，可能多几条类型报错）；app-source `#45`（cryptography 50.0.1→50.0.2，补丁）；delta `#107`（ruff 补丁）、`#105`（simple-icons 补丁）、`#103`（前端开发依赖组）。
-- **先别合，要配套改代码**：internal-vault `#59`、`#60`（boto3 1.35→1.43）。1.36 之后 boto3 默认会给上传加校验和，Cloudflare R2 常因此报错；`bricks/r2_storage_upload.py` 目前没有设置 `request_checksum_calculation="when_required"`。要和这项配置一起改并实测一次 R2 上传。
-- **大版本，风险高**：internal-vault `#56`（pandas 2→3）、`#61`（yfinance 0.2→1.7）、`#62`、`#64`（pyarrow 23→25，与 pandas 相关，代码里大量使用 parquet 读写）。建议单独做一轮升级，逐个跑完整的行情抓取流程。`#63`（tushare 补丁）和 `#58`（packaging 24→26）中等，放在上一批之后。
-- **Tauri 系列要一起升**：delta `#104`+`#108`（opener 前端/Rust 成对）、`#106`（@tauri-apps/api）、`#109`（updater，和更新器有关，优先审）、`#110`、`#111`、`#112`。Tauri 的前端包和 Rust 包主版本要对得上；单独合其中一个可能让构建报"版本不一致"。建议关闭这些单独的 PR，改成一次整体升级并实际构建验证。
+- **Low risk, review first**: internal-vault `#55` (ruff patch), `#57` (mypy minor version, may add a few type errors); app-source `#45` (cryptography 50.0.1→50.0.2, patch); delta `#107` (ruff patch), `#105` (simple-icons patch), `#103` (front-end dev dependency group).
+- **Do not merge yet; needs a matching code change**: internal-vault `#59`, `#60` (boto3 1.35→1.43). Since 1.36, boto3 adds checksums to uploads by default, which Cloudflare R2 often rejects; `bricks/r2_storage_upload.py` does not set `request_checksum_calculation="when_required"` yet. Change that setting together with the upgrade and test one R2 upload.
+- **Major versions, high risk**: internal-vault `#56` (pandas 2→3), `#61` (yfinance 0.2→1.7), `#62`, `#64` (pyarrow 23→25, related to pandas; the code reads and writes parquet a lot). Do a separate upgrade round and run the full market data fetch flow for each one. `#63` (tushare patch) and `#58` (packaging 24→26) are medium; do them after that batch.
+- **The Tauri series must be upgraded together**: delta `#104`+`#108` (opener front end / Rust as a pair), `#106` (@tauri-apps/api), `#109` (updater; it concerns the updater, review it first), `#110`, `#111`, `#112`. The major versions of the Tauri front-end packages and Rust crates must match; merging one alone can make the build fail with a "version mismatch". Close these individual PRs and do one combined upgrade with a real build to verify it.
 
-### 你要做的人工动作
+### Manual actions for you
 
-- **P-00 的 GitHub 设置**（A、B、C1/C2、D、E、F、H）：见上文各步骤；**C3（删仓库级密钥）要等 AW-002 的实现并演练成功之后**。
-- Windows 代码签名证书，以及放进受保护 Environment 的两个密钥（delta `#117` 已合并，没证书时构建不变）。
-- SECURITY.md 的备用联系方式（TODO 标记在 action-worker 的 `SECURITY.md` 里）。
-- 服务器主机侧：Tailscale Auth Key 属性、sudoers / authorized_keys、核对真实实例 `.env` 的格式（见 internal-vault `#54`）。
-- 找法务确认：AdFilter 聚合文件的许可证组合（见 external-vault `#47`）。
-- 创建 license 服务的 code-pepper 文件；决定临时访问 GUI 里"不为临时公钥包裹文件密钥"的默认值。
-- 可删除旧克隆：`C:\AgentHub\fongap-labs\action-worker`。
+- **Create `AW_ARTIFACT_KEY`** (once, about 2 minutes). Without it, private tasks keep no state between runs and their failure logs are not kept. In Git Bash:
+  ```bash
+  openssl rand -base64 32 > ~/aw-artifact.key
+  gh secret set AW_ARTIFACT_KEY --repo fongap-labs/action-worker < ~/aw-artifact.key
+  ```
+  Keep `~/aw-artifact.key` private (for example in your password manager): it is needed to read a failed private task log (see `docs/ARCHITECTURE.md` section 9.3). If it is lost, create a new one; old encrypted state is then ignored and the next run starts fresh.
+- **The GitHub settings of P-00** (A, B, C1/C2, D, E, F, H): see the steps above; **C3 (deleting repository-level secrets) waits until AW-002 is implemented and rehearsed successfully**.
+- The Windows code signing certificate, and the two secrets for it in a protected environment (delta `#117` is merged; without the certificate the build does not change).
+- The backup contact in SECURITY.md (marked TODO in the action-worker `SECURITY.md`).
+- On the server host: Tailscale auth key attributes, sudoers / authorized_keys, and checking the format of the real instance `.env` (see internal-vault `#54`).
+- Ask legal to confirm the licence combination of the AdFilter aggregate file (see external-vault `#47`).
+- Create the code-pepper file of the license service; decide the default of "do not wrap the file key for a temporary public key" in the temporary access GUI.
+- The old clone can be deleted: `C:\AgentHub\fongap-labs\action-worker`.
 
-### 等你拍板的决策
+### Decisions waiting for you
 
-| 事项 | 在哪个 PR | 我的建议 |
+| Item | In which PR | My recommendation |
 |---|---|---|
-| 密钥用 Environment 隔离，任务路径怎么做（A/B/C） | action-worker `#439` | 先只做部署路径；环境都在公开的 action-worker 里，不受"Free + 私有"影响 |
-| CI 控制路径（AW-005） | `#439` | 标准工具用固定命令；其余写进文档 |
-| 分支规则加严（ORG-006） | `#439` | 只影响 4 个公开仓库；先"严格状态检查"，再考虑"需要 1 个审批 + 保底豁免" |
-| 凭据存储（DL-002） | delta `#118` | 先做第 1 步（文件创建即受限、按 SID 判断） |
-| 服务器部署加固（IV-004/005） | internal-vault `#54` | (a)(c)(e) 可做；(b) 先选信任锚 |
-| 作者密钥文件 SPKEY02（APP-007） | app-source `#44` | scrypt N=2^16；新文件，不覆盖旧文件 |
-| **要发布的版本号（APP-011）** | app-source `#44` | 请告诉我 2.0.0 还是 0.1.0 |
-| 中央 CI 引入固定版本 gitleaks | action-worker `#436` 说明 | 单独一步做 |
+| Isolating secrets with environments, and what the task path does (A/B/C) | action-worker `#439` | do the deploy path only first; the environments all live in the public action-worker, so "Free + private" does not affect them |
+| CI control paths (AW-005) | `#439` | fixed commands for standard tools; document the rest |
+| Stricter branch rules (ORG-006) | `#439` | affects only the 4 public repositories; "strict status checks" first, then consider "1 required approval + an emergency bypass" |
+| Credential storage (DL-002) | delta `#118` | do step 1 first (files are restricted on creation, judged by SID) |
+| Server deploy hardening (IV-004/005) | internal-vault `#54` | (a)(c)(e) can be done; for (b), choose a trust anchor first |
+| Author key file SPKEY02 (APP-007) | app-source `#44` | scrypt N=2^16; a new file, the old file is not overwritten |
+| **Version number to release (APP-011)** | app-source `#44` | please tell me: 2.0.0 or 0.1.0 |
+| Pinned gitleaks in central CI | action-worker `#436` description | as a separate step |
 
-### 私有仓库的静态检查（替代 CodeQL）
+### Static checks for private repositories (instead of CodeQL)
 
-CodeQL 对私有仓库需要付费，所以我在本机做了一次性的替代扫描（没有改 CI）：
+CodeQL for private repositories is a paid feature, so I ran a one-off replacement scan on this machine (CI was not changed):
 
-- internal-vault（bandit）：无高危；9 个中危，多为固定的 /tmp 路径和已校验哈希的 Hugo 下载；唯一值得留意的是 `bricks/source_fetch.py` 用 `ElementTree` 解析外部 RSS（建议改 `defusedxml`，优先级低）。
-- delta-suite（bandit）：无高危；2 个中危是拼接 SQL 的告警，数值经 `resolve_limit` 限制，不是注入。
-- app-source（clippy + cargo-deny）：无错误，只有 6 条风格警告；`cargo deny check advisories` 通过。
-- 注意：中央 CI 对私有仓库隐藏详细日志，所以如果以后把这些扫描加进 CI，只能是"通过/失败"，细节要在本机复现。是否加进 CI 请你定。
+- internal-vault (bandit): no high findings; 9 medium, mostly fixed /tmp paths and a Hugo download whose hash is verified; the only one worth noting is that `bricks/source_fetch.py` parses external RSS with `ElementTree` (switching to `defusedxml` is recommended, low priority).
+- delta-suite (bandit): no high findings; the 2 medium ones are SQL concatenation warnings, and the values are bounded by `resolve_limit`, so they are not injections.
+- app-source (clippy + cargo-deny): no errors, only 6 style warnings; `cargo deny check advisories` passes.
+- Note: central CI hides detailed logs for private repositories, so if these scans are added to CI later, they can only report pass/fail and details must be reproduced locally. Whether to add them to CI is your decision.
