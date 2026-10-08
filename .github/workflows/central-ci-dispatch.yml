@@ -1,4 +1,4 @@
-name: Handle Central CI Dispatch
+name: Central CI Dispatch
 
 on:
   repository_dispatch:

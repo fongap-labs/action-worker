@@ -52,7 +52,7 @@ test("the CI dispatch hands the sandbox only the read-only checkout token", asyn
 });
 
 test("dependency repair computes without any central write credential", async () => {
-  const repair = await workflow("dependency-repair.yml");
+  const repair = await workflow("dependency-repair-dispatch.yml");
   assert.deepEqual(
     secretNames(repair.jobs.compute).filter((name) => centralSecrets.includes(name)),
     []
@@ -82,7 +82,7 @@ test("every checkout drops its credentials except the metrics commit", async () 
 });
 
 test("the security scan keeps the admin token away from the CodeQL job", async () => {
-  const scan = await workflow("security-scan.yml");
+  const scan = await workflow("security-scan-dispatch.yml");
   for (const [name, job] of Object.entries(scan.jobs)) {
     const usesAdmin = secretNames(job).includes("AW_ADMIN_TOKEN");
     assert.equal(usesAdmin, name === "publish", `${name} AW_ADMIN_TOKEN usage`);

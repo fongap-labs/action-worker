@@ -275,7 +275,11 @@ test("the prepare job validates the environment against the central policy file"
 
 test("every job that uses the admin token runs in the admin-ops environment", async () => {
   const violations: string[] = [];
-  for (const name of ["apply-repo-settings.yml", "security-scan.yml", "source-script-deploy.yml"]) {
+  for (const name of [
+    "apply-repository-settings.yml",
+    "security-scan-dispatch.yml",
+    "source-script-deploy.yml",
+  ]) {
     const parsed = await workflow(name);
     for (const [jobName, job] of Object.entries(parsed.jobs)) {
       const usesAdminToken = (job.steps ?? []).some((step) =>

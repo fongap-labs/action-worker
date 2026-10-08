@@ -1,4 +1,4 @@
-name: Central PR Intake
+name: PR Intake
 
 on:
   push:

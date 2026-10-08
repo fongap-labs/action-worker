@@ -1,4 +1,4 @@
-name: Central CI Intake
+name: CI Intake
 
 on:
   push:
