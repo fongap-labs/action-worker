@@ -292,6 +292,40 @@ jobs:
             exit 1
           fi
 
+  # A pull request whose CI stops in prepare (for example a CI control change from an untrusted
+  # author) never reaches finalize. Without this job the pending CI Evidence written by the
+  # dispatcher stays pending and PR Governance waits until its CI timeout.
+  prepare-failure:
+    name: Report Central CI Prepare Failure
+    needs: prepare
+    if: always() && needs.prepare.result == 'failure' && github.event.action == 'run-central-ci' && needs.prepare.outputs.repository != ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+
+    steps:
+      - name: Publish failed CI Evidence for the current head
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+          REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || exit 0
+          [[ "$REQUESTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 0
+
+          # Only the head that is still current gets a verdict; a newer head has its own CI run.
+          current_head="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
+          if [ "$current_head" != "$REQUESTED_HEAD_SHA" ]; then
+            echo "PR head moved to $current_head; no verdict for the stale head."
+            exit 0
+          fi
+
+          gh api --method POST "repos/$REPOSITORY/statuses/$REQUESTED_HEAD_SHA"             -f state=failure             -f "context=CI Evidence"             -f "description=Central CI stopped before running tests; open the run for the reason"             -f "target_url=$RUN_URL" >/dev/null
+
   # Runs only after a passing CI Evidence was published. A failure here must not turn the CI run
   # itself red: the PR gate and the release, deploy and task source checks accept CI Evidence only
   # from a run that concluded successfully.
