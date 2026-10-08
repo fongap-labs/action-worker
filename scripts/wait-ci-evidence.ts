@@ -1,5 +1,10 @@
 import { writeFile } from "node:fs/promises";
-import { hasVerifiedCiEvidence, type JsonReader, trustedCiStatus } from "./ci-evidence.ts";
+import {
+  hasVerifiedCiEvidence,
+  type JsonReader,
+  trustedCiStatus,
+  trustedControlRunId,
+} from "./ci-evidence.ts";
 import { GithubReader, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 
@@ -50,8 +55,9 @@ export async function waitForCentralStatus(
   reader: JsonReader,
   controlRepository: string,
   pollSeconds: number,
-  timeoutMinutes: number
-): Promise<void> {
+  timeoutMinutes: number,
+  isSingleCheck = false
+): Promise<"done" | "waiting"> {
   const context = getJsonString(ci, "status_context") || "CI Evidence";
   const deadline = Date.now() + timeoutMinutes * 60_000;
 
@@ -59,6 +65,7 @@ export async function waitForCentralStatus(
     const response = await reader.get(`repos/${repository}/commits/${headSha}/status`);
     const status = trustedCiStatus(response, context, controlRepository);
 
+    if (!status && isSingleCheck) return "waiting";
     if (!status) {
       console.error(
         `Central CI pending: waiting for trusted ${repository}@${headSha} context=${context}`
@@ -68,6 +75,7 @@ export async function waitForCentralStatus(
     }
 
     const state = getJsonString(status, "state") || "unknown";
+    if (state === "pending" && isSingleCheck) return "waiting";
     if (state === "pending") {
       console.error(`Central CI pending: ${repository}@${headSha} context=${context}`);
       await sleep(pollSeconds * 1000);
@@ -78,11 +86,20 @@ export async function waitForCentralStatus(
     // is confirmed as a successful CI Evidence run; wait for that run within the CI deadline.
     if (state === "success") {
       const pollMs = pollSeconds * 1000;
+      // A single check still gives the run that published the status about two minutes to finish
+      // its last jobs.
       const verified = await hasVerifiedCiEvidence(reader, response, {
         controlRepository,
-        runAttempts: Math.max(1, Math.ceil((deadline - Date.now()) / pollMs)),
-        retryDelayMs: pollMs,
+        runAttempts: isSingleCheck ? 24 : Math.max(1, Math.ceil((deadline - Date.now()) / pollMs)),
+        retryDelayMs: isSingleCheck ? 5_000 : pollMs,
       });
+      if (
+        !verified &&
+        isSingleCheck &&
+        (await isRunIncomplete(reader, status, controlRepository))
+      ) {
+        return "waiting";
+      }
       if (!verified) {
         throw new CliError(
           `::error::CI Evidence for ${repository}@${headSha} was not produced by a successful Action Worker CI run.`,
@@ -103,12 +120,23 @@ export async function waitForCentralStatus(
       gate_conclusion: conclusion,
       jobs: [{ name: context, status: "completed", conclusion }],
     });
-    return;
+    return "done";
   }
 
   throw new CliError(
     `::error::Timed out waiting for central CI: repository=${repository} head=${headSha} timeout=${timeoutMinutes}m`
   );
+}
+
+async function isRunIncomplete(
+  reader: JsonReader,
+  status: unknown,
+  controlRepository: string
+): Promise<boolean> {
+  const runId = trustedControlRunId(getJsonString(status, "target_url"), controlRepository);
+  if (runId === null) return false;
+  const run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
+  return getJsonString(run, "status") !== "completed";
 }
 
 async function main(): Promise<void> {
@@ -141,15 +169,24 @@ async function main(): Promise<void> {
   if (!token || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(controlRepository)) {
     throw new CliError("::error::Central CI evidence authority is unavailable.", 65);
   }
-  await waitForCentralStatus(
+  // CI_WAIT_MODE=once checks one time; PR Governance then ends and Central CI starts it again.
+  const isSingleCheck = process.env.CI_WAIT_MODE === "once";
+  const result = await waitForCentralStatus(
     repository,
     headSha,
     ci,
     new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token),
     controlRepository,
     pollSeconds,
-    timeoutMinutes
+    timeoutMinutes,
+    isSingleCheck
   );
+  if (result === "waiting") {
+    await appendLines(process.env.GITHUB_OUTPUT, ["waiting=true"]);
+    console.log(
+      `::notice::Central CI is still running for ${repository}@${headSha}; PR Governance continues when it finishes.`
+    );
+  }
 }
 
 if (isMain(import.meta.url)) {

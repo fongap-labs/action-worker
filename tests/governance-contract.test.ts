@@ -1163,14 +1163,16 @@ test("only PR Governance reports an untrusted head instead of failing", async ()
   );
   assert.equal(governance.split(`'${AWAITING_APPROVAL_DESCRIPTION}'`).length - 1, 2);
   for (const step of ["Dispatch centralized CI", "Collect CI evidence", "Validate CI evidence"]) {
+    const block = governance.slice(governance.indexOf(`- name: ${step}\n`)).split("\n");
+    const condition = block.slice(1, 3).find((line) => line.trimStart().startsWith("if: "));
     assert.ok(
-      governance.includes(`- name: ${step}\n        if: steps.trust.outputs.trusted == 'true' && `),
+      condition?.trimStart().startsWith("if: steps.trust.outputs.trusted == 'true' && "),
       `${step} runs only for a trusted head`
     );
   }
   assert.match(
     governance,
-    /- name: Mark deterministic gate passed\n\s+id: gate\n\s+if: steps\.trust\.outputs\.trusted == 'true'\n/
+    /- name: Mark deterministic gate passed\n\s+id: gate\n\s+if: steps\.trust\.outputs\.trusted == 'true' && steps\.evidence\.outputs\.waiting != 'true'\n/
   );
 
   // The Central CI that executes change code keeps failing closed on an untrusted head.
@@ -1194,4 +1196,35 @@ test("Central CI follow-ups cannot fail the run that carries CI Evidence", async
     "audit-main-writes.ts",
     "dispatch-central-deploy.ts",
   ]);
+});
+
+test("PR Governance checks CI once and Central CI resumes it with the verdict", async () => {
+  const { WAITING_FOR_CI_DESCRIPTION } = await import("../scripts/ci-evidence.ts");
+  const governance = await text(".github/workflows/handle-pr-dispatch.yml");
+  assert.match(
+    governance,
+    /- name: Collect CI evidence\n\s+id: evidence\n[\s\S]*?CI_WAIT_MODE: once\n/
+  );
+  assert.match(
+    governance,
+    /STATE: \$\{\{ steps\.gate\.outputs\.passed == 'true' && 'success' \|\| steps\.evidence\.outputs\.waiting == 'true' && 'pending' \|\| 'failure' \}\}/
+  );
+  assert.equal(governance.split(`'${WAITING_FOR_CI_DESCRIPTION}'`).length - 1, 2);
+  assert.match(
+    governance,
+    /- name: Publish PR review\n\s+if: \$\{\{ always\(\) && steps\.ownership\.outputs\.current == 'true' && steps\.evidence\.outputs\.waiting != 'true' \}\}/
+  );
+
+  const centralCi = await text(".github/workflows/central-ci-dispatch.yml");
+  const resume = centralCi.slice(centralCi.indexOf("  resume-governance:"));
+  requireText(resume, [
+    "- prepare-failure",
+    "- follow-up",
+    "github.event.action == 'run-central-ci'",
+    "needs.finalize.result == 'success' || needs.finalize.result == 'failure' || needs.prepare-failure.result == 'success'",
+    '[ "$current_head" != "$REQUESTED_HEAD_SHA" ]',
+    'event_type:"run-pr-governance"',
+    "contents: write",
+  ]);
+  assert.doesNotMatch(resume, /checkout|central-ci\.sh/);
 });

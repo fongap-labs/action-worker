@@ -1,4 +1,8 @@
-import { trustedControlRunId } from "./ci-evidence.ts";
+import {
+  CI_EVIDENCE_PENDING_TTL_MS,
+  trustedControlRunId,
+  WAITING_FOR_CI_DESCRIPTION,
+} from "./ci-evidence.ts";
 import {
   decodeGithubContent,
   parseDependencyRepairManifest,
@@ -46,13 +50,13 @@ type PullFacts = { number: number; headSha: string; pull: Record<string, unknown
 
 export const PENDING_STATUS_LEASE_MS = 120_000;
 
-function pendingLeaseActive(fact: StatusFact, nowMs = Date.now()): boolean {
+function pendingLeaseActive(
+  fact: StatusFact,
+  leaseMs = PENDING_STATUS_LEASE_MS,
+  nowMs = Date.now()
+): boolean {
   const updatedAtMs = Date.parse(fact.updated_at);
-  return (
-    Number.isFinite(updatedAtMs) &&
-    nowMs >= updatedAtMs &&
-    nowMs - updatedAtMs < PENDING_STATUS_LEASE_MS
-  );
+  return Number.isFinite(updatedAtMs) && nowMs >= updatedAtMs && nowMs - updatedAtMs < leaseMs;
 }
 
 function statusMap(value: unknown, controlRepository: string): Map<string, StatusFact> {
@@ -120,6 +124,15 @@ async function needsDispatch(
   const facts = [governance, evidence, mergeGate].filter(
     (item): item is StatusFact => item !== undefined
   );
+
+  // PR Governance ended its run while Central CI was running; Central CI starts it again with the
+  // verdict. Until then a pending CI Evidence of plausible age means the CI is still in flight.
+  if (governance?.state === "pending" && governance.description === WAITING_FOR_CI_DESCRIPTION) {
+    if (evidence?.state === "pending" && pendingLeaseActive(evidence, CI_EVIDENCE_PENDING_TTL_MS)) {
+      return "in-flight";
+    }
+    return "dispatch";
+  }
 
   const pendingRunIds = [
     ...new Set(facts.filter((item) => item.state === "pending").map((item) => item.run_id)),

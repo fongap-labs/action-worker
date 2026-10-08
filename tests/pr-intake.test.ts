@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { WAITING_FOR_CI_DESCRIPTION } from "../scripts/ci-evidence.ts";
 import { scanOpenPullRequests } from "../scripts/intake-open-prs.ts";
 import { AWAITING_APPROVAL_DESCRIPTION } from "../scripts/pr-trust.ts";
 
@@ -537,4 +538,55 @@ test("central PR intake leaves a pull request that awaits approval alone until i
   assert.deepEqual(dispatched, [42]);
   assert.equal(result.awaiting_approval, 1);
   assert.equal(result.dispatched, 1);
+});
+
+test("central PR intake leaves governance that waits for a running Central CI alone", async () => {
+  const repository = "fongap-labs/public-one";
+  const runUrl = "https://github.com/fongap-labs/action-worker/actions/runs/51";
+  const now = Date.now();
+  const waiting = {
+    context: "PR Governance",
+    state: "pending",
+    description: WAITING_FOR_CI_DESCRIPTION,
+    target_url: runUrl,
+    updated_at: new Date(now - 60 * 60_000).toISOString(),
+  };
+  const evidence = (state: string, ageMinutes: number) => ({
+    context: "CI Evidence",
+    state,
+    target_url: runUrl,
+    updated_at: new Date(now - ageMinutes * 60_000).toISOString(),
+  });
+  const pull = (number: number, sha: string) => ({ number, head: { sha } });
+  const responses = new Map<string, unknown>([
+    [
+      `repos/${repository}/pulls?state=open&per_page=100&page=1`,
+      [pull(1, shaA), pull(2, shaB), pull(3, shaC)],
+    ],
+    [
+      `repos/${repository}/commits/${shaA}/status`,
+      { statuses: [waiting, evidence("pending", 30)] },
+    ],
+    [
+      `repos/${repository}/commits/${shaB}/status`,
+      { statuses: [waiting, evidence("pending", 300)] },
+    ],
+    [`repos/${repository}/commits/${shaC}/status`, { statuses: [waiting, evidence("success", 1)] }],
+  ]);
+  const dispatched: number[] = [];
+  const result = await scanOpenPullRequests(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        assert.equal(responses.has(path), true, `unexpected API path: ${path}`);
+        return responses.get(path);
+      },
+    },
+    async (_repository, pr) => {
+      dispatched.push(pr);
+    },
+    "fongap-labs/action-worker"
+  );
+  assert.deepEqual(dispatched, [2, 3], "a stale CI and a missed resume are picked up again");
+  assert.equal(result.in_flight, 1);
 });
