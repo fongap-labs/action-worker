@@ -1,43 +1,43 @@
-# CHANGELOG 规范
+# CHANGELOG Conventions
 
-Action Worker 统一使用一套变更分类贯穿 PR、Agent、CHANGELOG 与 Release。
+Action Worker uses one change classification across PRs, agents, the CHANGELOG and releases.
 
 ## 0. Language
 
-PR 标题、CHANGELOG 条目和 Release Notes 的工程摘要必须使用英文。
+PR titles, CHANGELOG entries and the engineering summary of release notes must be in English.
 
-禁止：
+Forbidden:
 
-- 中文 CHANGELOG 条目；
-- 中英文混写的 CHANGELOG 条目；
-- 中文 PR summary；
-- 为不同仓库自行选择不同 CHANGELOG 语言。
+- CHANGELOG entries in Chinese;
+- CHANGELOG entries that mix Chinese and English;
+- PR summaries in Chinese;
+- each repository choosing its own CHANGELOG language.
 
-中文仅可出现在明确以中文维护的说明文档、UI 或本地化资源中；不得进入工程 CHANGELOG。
+Chinese may appear only in user-facing UI copy and localization resources (for example `*.zh-CN.md`); it never enters an engineering CHANGELOG.
 
-## 1. 唯一变更分类
+## 1. The one change classification
 
-只允许以下 11 类：
+Only these 11 types are allowed:
 
-| Type | 含义 |
+| Type | Meaning |
 |---|---|
-| `feat` | 新增功能或能力 |
-| `fix` | 修复缺陷 |
-| `docs` | 仅文档 |
-| `style` | 仅格式或样式，不改变逻辑 |
-| `refactor` | 重构，不新增功能、不修复缺陷 |
-| `perf` | 性能优化 |
-| `test` | 测试新增或调整 |
-| `build` | 构建、依赖、打包 |
-| `ci` | CI/CD、GitHub Actions |
-| `chore` | 其他维护性工作 |
-| `revert` | 回滚已有变更 |
+| `feat` | a new feature or capability |
+| `fix` | a defect fix |
+| `docs` | documentation only |
+| `style` | formatting or style only, no logic change |
+| `refactor` | restructuring with no new feature and no defect fix |
+| `perf` | performance improvement |
+| `test` | tests added or adjusted |
+| `build` | build, dependencies, packaging |
+| `ci` | CI/CD, GitHub Actions |
+| `chore` | other maintenance work |
+| `revert` | reverting an earlier change |
 
-禁止再定义 Added、Changed、Fixed、Internal 等第二套分类。
+A second classification such as Added, Changed, Fixed or Internal must not be defined.
 
-## 2. 变更属性
+## 2. Change attributes
 
-以下不是 Type，只是属性：
+These are not types, only attributes:
 
 ```text
 breaking
@@ -45,25 +45,25 @@ security
 migration
 ```
 
-一个 PR 只有一个主 Type，可以同时拥有多个属性。
+A PR has exactly one main type and may carry several attributes.
 
-例如：
+For example:
 
 ```text
 type: feat
 attributes: breaking, migration
 ```
 
-或：
+or:
 
 ```text
 type: fix
 attributes: security
 ```
 
-## 3. PR 标题
+## 3. PR title
 
-PR 标题必须采用 Conventional Commits 风格：
+A PR title follows the Conventional Commits style:
 
 ```text
 type: summary
@@ -72,7 +72,7 @@ type!: summary
 type(scope)!: summary
 ```
 
-示例：
+Examples:
 
 ```text
 feat: add repository allowlist validation
@@ -81,23 +81,23 @@ refactor: simplify PR plan resolution
 feat(auth)!: replace legacy authentication contract
 ```
 
-规则：
+Rules:
 
-- Type 必须来自上述 11 类；
-- scope 可选，只描述影响范围；
-- `!` 表示 breaking；
-- summary 必须使用英文并描述结果，不写 `update files`、`misc changes` 等无意义描述；
-- 一个 PR 只允许一个主 Type。
+- the type comes from the 11 types above;
+- the scope is optional and only describes the affected area;
+- `!` marks a breaking change;
+- the summary is in English and describes the result; meaningless summaries such as `update files` or `misc changes` are not allowed;
+- a PR has only one main type.
 
-## 4. CHANGELOG 文件
+## 4. CHANGELOG file
 
-项目统一使用：
+Every project uses:
 
 ```text
 CHANGELOG.md
 ```
 
-文件至少包含：
+The file contains at least:
 
 ```markdown
 # Changelog
@@ -105,22 +105,22 @@ CHANGELOG.md
 ## [Unreleased]
 ```
 
-所有待发布记录写入 `[Unreleased]`。
+Every entry that has not been released goes under `[Unreleased]`.
 
-不使用 Added / Changed / Fixed 等章节，不再做分类转换。
+There are no Added / Changed / Fixed sections and no conversion between classifications.
 
-## 5. CHANGELOG 条目
+## 5. CHANGELOG entries
 
-条目直接使用同一套 Type：
+Entries use the same types directly:
 
 ```markdown
-- feat: 增加 PR 仓库白名单校验。
-- fix [security]: 阻止 PR Sandbox 继承中央 Secret。
-- feat [breaking, migration]: 替换旧版认证配置格式。
-- perf: 降低 Provider 路由延迟。
+- feat: validate the PR repository allowlist.
+- fix [security]: stop the PR sandbox from inheriting central secrets.
+- feat [breaking, migration]: replace the legacy authentication configuration format.
+- perf: reduce provider routing latency.
 ```
 
-格式：
+Format:
 
 ```text
 - type: summary
@@ -128,7 +128,7 @@ CHANGELOG.md
 - type [attribute, attribute]: summary
 ```
 
-属性只允许：
+Allowed attributes:
 
 ```text
 breaking
@@ -136,11 +136,11 @@ security
 migration
 ```
 
-PR 标题使用 `!` 时，对应 CHANGELOG 条目必须包含 `breaking`。
+When a PR title uses `!`, its CHANGELOG entry must include `breaking`.
 
-## 6. 什么时候必须写 CHANGELOG
+## 6. When a CHANGELOG entry is required
 
-默认必须记录：
+Required by default for:
 
 ```text
 feat
@@ -149,7 +149,7 @@ perf
 revert
 ```
 
-以及任何带有以下属性的变更：
+and for every change with one of these attributes:
 
 ```text
 breaking
@@ -157,7 +157,7 @@ security
 migration
 ```
 
-默认不要求记录：
+Not required by default for:
 
 ```text
 docs
@@ -169,34 +169,34 @@ ci
 chore
 ```
 
-如果所谓 `refactor`、`ci`、`build` 实际改变了对外行为，则分类本身就不准确，应重新分类为 `feat`、`fix`、`perf` 等，而不是通过例外规则绕过。
+If a so-called `refactor`, `ci` or `build` change actually changes external behaviour, the classification itself is wrong. Reclassify it as `feat`, `fix`, `perf` and so on instead of bypassing the rule with an exception.
 
-## 7. Agent 默认职责
+## 7. Default agent duties
 
-正常 PR 不要求人工逐项判断。
+An ordinary PR does not need a person to decide each item.
 
-执行 Agent 在代码完成后必须：
+After the code is done, the executing agent must:
 
-1. 读取最终 diff，而不是根据最初任务描述猜测；
-2. 从 11 类中选择唯一主 Type；
-3. 判断是否存在 breaking / security / migration 属性；
-4. 设置或修正 PR 标题；
-5. 按本规范决定是否更新 `CHANGELOG.md`；
-6. CHANGELOG 内容使用英文，只描述实际结果，不罗列文件修改。
+1. read the final diff instead of guessing from the original task description;
+2. choose exactly one main type from the 11;
+3. decide whether the breaking / security / migration attributes apply;
+4. set or correct the PR title;
+5. decide by this convention whether `CHANGELOG.md` must be updated;
+6. write the CHANGELOG content in English, describing only the actual result and not listing changed files.
 
-Review Agent / Critic 必须重新检查：
+The review agent / critic must check again:
 
-- Type 与实际 diff 是否一致；
-- breaking 是否被漏标；
-- security / migration 是否被漏标；
-- 必须记录的 PR 是否遗漏 CHANGELOG；
-- CHANGELOG 是否使用英文并描述真实行为而非实现过程。
+- whether the type matches the actual diff;
+- whether breaking was left out;
+- whether security / migration were left out;
+- whether a PR that requires a CHANGELOG entry is missing one;
+- whether the CHANGELOG is in English and describes real behaviour rather than the implementation process.
 
-只有证据不足、业务语义无法从代码/测试/文档确定，或涉及不可逆高风险决策时，才升级给人确认。
+Escalate to a person only when the evidence is insufficient, when the business meaning cannot be determined from code, tests or documentation, or when an irreversible high-risk decision is involved.
 
-## 8. 禁止事项
+## 8. Forbidden
 
-禁止：
+Forbidden summaries:
 
 ```text
 update files
@@ -206,20 +206,20 @@ misc changes
 various improvements
 ```
 
-也禁止：
+Also forbidden:
 
-- 同一 PR 同时声明多个主 Type；
-- 用 `chore` 掩盖真实的 feat / fix / breaking；
-- 把 security 当作主 Type；
-- 把 breaking 当作主 Type；
-- 用第二套 Added / Changed / Fixed 分类；
-- 因为 Agent 不确定就静默省略 CHANGELOG。
+- declaring several main types in one PR;
+- using `chore` to hide a real feat / fix / breaking change;
+- using security as the main type;
+- using breaking as the main type;
+- using a second Added / Changed / Fixed classification;
+- silently leaving out a CHANGELOG entry because the agent is unsure.
 
 ## 9. Release
 
-Release Notes 直接消费同一套 Type。
+Release notes consume the same types directly.
 
-可以在展示层隐藏低价值类别，例如：
+The presentation layer may hide low-value types, for example:
 
 ```text
 docs
@@ -231,8 +231,8 @@ ci
 chore
 ```
 
-但底层分类不转换、不重命名。
+but the underlying classification is never converted or renamed.
 
-## 10. 最短规则
+## 10. Shortest rule
 
-> 一个 PR 一个 Type；PR 标题与 CHANGELOG 使用英文；Type 统一使用 Conventional Commits；breaking / security / migration 只是属性；CHANGELOG 不再维护第二套分类。
+> One PR, one type; PR titles and the CHANGELOG are in English; types follow Conventional Commits; breaking / security / migration are only attributes; the CHANGELOG keeps no second classification.

@@ -1,16 +1,16 @@
 # Repository Governance
 
-Action Worker 保存 Fongap Labs 受管仓库可共享的 Repository 默认设置与合并治理边界。
+Action Worker keeps the shareable repository defaults and the merge governance boundary for the managed Fongap Labs repositories.
 
 ## 1. Machine authority
 
-统一 Repository Policy 位于：
+The unified Repository Policy lives in:
 
 ```text
 policies/repository.json
 ```
 
-当前默认值：
+Current defaults:
 
 ```text
 Issues                  ON
@@ -30,13 +30,13 @@ Squash title            PR title
 Squash message          Blank
 ```
 
-仓库名不进入 Policy；Policy 只描述统一设置。
+Repository names do not enter the policy; it describes only the shared settings.
 
 ## 2. Application
 
-`policies/repository.json` 是受管仓库 Repository Settings 的唯一共享权威。
+`policies/repository.json` is the only shared authority for the Repository Settings of managed repositories.
 
-Action Worker 提供两种应用方式：
+Action Worker applies it in two ways:
 
 ```text
 push to main
@@ -49,20 +49,20 @@ manual workflow_dispatch
   → dry-run by default
 ```
 
-手工输入：
+Manual inputs:
 
 ```text
 repository = owner/name
 is_dry_run = true | false
 ```
 
-自动同步和手工写操作均使用独立 `AW_ADMIN_TOKEN`，不得与 `AW_CONTROL_TOKEN` 混用。脚本必须幂等应用设置并校验 GitHub 返回结果。
+Both the automatic sync and manual writes use the separate `AW_ADMIN_TOKEN`, never `AW_CONTROL_TOKEN`. The script applies the settings idempotently and verifies what GitHub returns.
 
-受管仓库不得长期保留与中央 Repository Policy 不一致的设置；如需项目级例外，必须先形成明确的治理理由并修改共享规则或记录例外边界。
+A managed repository must not keep settings that differ from the central Repository Policy for long. A project-level exception first needs an explicit governance reason, and then either a change to the shared rules or a recorded exception boundary.
 
 ## 3. Merge authority
 
-共享治理目标是：
+The shared governance target is:
 
 ```text
 Security Gate ───────────┐
@@ -72,15 +72,15 @@ PR deterministic policy ─┼→ validate-merge → merge
                          └→ AI Review after gate (advisory only)
 ```
 
-`validate-merge` 是唯一 Merge Authority。它由 Action Worker 在确定性 Security、CI Evidence 与 PR Policy 全部通过后直接发布到当前 PR head；AI Review 不属于它的输入，也不得改变它的结果。
+`validate-merge` is the only merge authority. Action Worker publishes it directly to the current PR head after the deterministic Security, CI Evidence and PR Policy checks all passed; AI Review is not one of its inputs and must not change its result.
 
-业务仓不再负责创建 `validate-merge` Check。公开仓的 Ruleset 直接要求中央 `validate-merge` status；私有 Free 仓虽然没有同等平台硬门禁，Main Write Guard 仍要求同一中央状态，因此两类仓库使用同一治理事实。
+Business repositories no longer create a `validate-merge` check. The ruleset of a public repository requires the central `validate-merge` status directly; private repositories on the Free plan have no equivalent hard platform gate, but the Main Write Guard still requires the same central status, so both kinds of repositories use the same governance facts.
 
-业务仓在 PR 关闭时的本地 `cancel-pr-work` 只属于迁移期实时加速；中央 Intake / reconciliation 必须保证业务仓 Actions 不可用时，失效任务仍能被中央控制面识别和收敛。
+A local `cancel-pr-work` in a business repository when a PR closes is only a real-time shortcut of the migration period; central intake / reconciliation must make sure the central control plane still recognises and settles stale work when business repository Actions are unavailable.
 
 ## 4. GitHub native enforcement
 
-Repository Policy 与 GitHub 原生保护是两个层次：
+The Repository Policy and GitHub's native protection are two layers:
 
 ```text
 Repository Policy
@@ -95,15 +95,15 @@ GitHub native protection
 └─ restrict bypass
 ```
 
-公开受管仓的 Repository Ruleset 由 Action Worker 中央管理，权威文件为 `policies/rulesets.json`。当前统一管理 `Protect Main Branch` 与 `Protect Legacy Branches`；不得在业务仓手工维护另一套规则定义。仓库设置与 Ruleset 均由 `apply-repository-settings.yml` 使用 `AW_ADMIN_TOKEN` 应用。
+The repository rulesets of public managed repositories are managed centrally by Action Worker; the authoritative file is `policies/rulesets.json`. It currently manages `Protect Main Branch` and `Protect Legacy Branches`; no second rule definition may be maintained by hand in a business repository. Repository settings and rulesets are both applied by `apply-repository-settings.yml` with `AW_ADMIN_TOKEN`.
 
-原生 Ruleset / branch-protection 能力取决于仓库可用的 GitHub 套餐和连接权限。GitHub Free 组织只对公开仓提供 Ruleset 与 Protected Branch；私有仓必须把这一点视为平台限制，不能在文档、审计或自动化中宣称其拥有与公开仓相同的 `main` 强制保护。私有仓仍必须走中央 PR Governance / CI Evidence / validate-merge 流程；GitHub 平台可以暂时缺少写入前强制，但 Main Write Guard 会在写入后隔离任何缺少中央 Merge Authority 的 main SHA。
+Native ruleset / branch protection depends on the GitHub plan available to the repository and on the connection permissions. A GitHub Free organization gets rulesets and protected branches only for public repositories; for private repositories this is a platform limit, and documentation, audits and automation must never claim that they have the same enforced `main` protection as public ones. Private repositories still go through the central PR Governance / CI Evidence / validate-merge flow; the GitHub platform may lack enforcement before the write for now, but the Main Write Guard quarantines, after the write, any main SHA that lacks the central merge authority.
 
-中央 `validate-merge` 合同仍应在所有受管仓保持一致；平台原生保护只在能力可用时作为额外强制层。
+The central `validate-merge` contract stays the same in every managed repository; native platform protection is only an extra enforcement layer where it is available.
 
 ## 5. Main Write Guard
 
-所有受管仓的 `main` 更新都必须进入统一 Main Write Guard。其职责不是重复 PR Gate，而是验证当前 `main` SHA 的来源是否合法。
+Every update of `main` in a managed repository goes into the one Main Write Guard. Its job is not to repeat the PR gate but to verify that the origin of the current `main` SHA is legitimate.
 
 ```text
 validate-merge
@@ -113,9 +113,9 @@ validate-merge
 → trusted main SHA
 ```
 
-Main Write Guard 必须从 GitHub 当前事实重新证明：目标 SHA 来自已合并到 `main` 的 PR，且该 PR/head 已通过要求的确定性 Gate。不得相信 commit message、actor、自报 PR number 或调用方提供的 Gate 结论。
+The Main Write Guard proves again from the current facts on GitHub that the target SHA comes from a PR merged into `main` and that this PR/head passed the required deterministic gate. It never trusts a commit message, an actor, a self-reported PR number or a gate conclusion supplied by the caller.
 
-如果无法证明合法来源：
+If a legitimate origin cannot be proven:
 
 ```text
 Main Write Guard = failure
@@ -126,15 +126,13 @@ Main Write Guard = failure
 → privileged execution denied
 ```
 
-公开仓在 GitHub 原生保护可用时同时依赖 Ruleset 在写入前拒绝直接 push；私有 Free 仓即使平台允许直接 push，也必须由 Main Write Guard 将该 SHA 隔离，禁止进入正式产出链。
+Where GitHub native protection is available, a public repository also relies on the ruleset to reject a direct push before the write; in a private Free repository, even when the platform allows a direct push, the Main Write Guard quarantines that SHA and keeps it out of the formal output chain.
 
-详细规则见 [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md)。
-
-## 6. Change rule
+See [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md) for the detailed rules.
 
 ## 6. Change rule
 
-调整共享默认值时，同步修改：
+When a shared default changes, change together:
 
 ```text
 policies/repository.json
@@ -142,4 +140,4 @@ policies/repository.json
 → this document
 ```
 
-项目独有的 Repository 例外必须有明确理由，不得复制成第二套通用 Policy。
+A repository exception specific to one project needs an explicit reason and must not be copied into a second generic policy.

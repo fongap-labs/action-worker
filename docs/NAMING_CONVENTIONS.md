@@ -1,42 +1,42 @@
 # Naming Conventions
 
-> 名称使用最少必要信息表达完整语义；既不能依赖隐藏上下文，也不要重复显而易见的信息。
+> A name expresses its full meaning with the least necessary information: it must not depend on hidden context, and it must not repeat what is already obvious.
 
-本文件包含两层规则：第 1–7 节适用于 Fongap Labs 受管仓库；第 8 节仅适用于 Action Worker 自身。业务仓不得复制本文件，只补充真正的项目级命名约束。
+This file has two layers of rules: sections 1–7 apply to all managed Fongap Labs repositories; section 8 applies only to Action Worker itself. Business repositories must not copy this file; they add only real project-level naming constraints.
 
 ## 1. Naming priority
 
-命名优先级按以下顺序执行：
+Naming priorities apply in this order:
 
-1. **Context-independent identity**：名称脱离仓库、文件、workflow 和调用位置后，仍应尽可能识别所属系统、用途和类型。
-2. **Canonical vocabulary**：一个概念只使用一个标准词。
-3. **Unambiguous abbreviation**：所属系统可以使用明确、公认、无歧义的缩写。
-4. **Minimum sufficient semantics**：只保留识别所必需的信息，不重复目录、平台或数据本身已经明确表达的语义。
-5. **Conciseness**：在完整语义成立后再缩短名称。
+1. **Context-independent identity**: taken out of its repository, file, workflow and call site, a name should still identify, as far as possible, the system it belongs to, its purpose and its type.
+2. **Canonical vocabulary**: one concept uses one standard word.
+3. **Unambiguous abbreviation**: the owning system may use a clear, recognised, unambiguous abbreviation.
+4. **Minimum sufficient semantics**: keep only the information needed for identification; do not repeat what the directory, the platform or the data itself already states.
+5. **Conciseness**: shorten a name only after its full meaning is in place.
 
-不得为了满足固定段数而删除系统、用途或类型信息；也不得为了“更完整”机械叠加实现细节。
+Do not remove system, purpose or type information to reach a fixed number of segments, and do not mechanically pile up implementation details to make a name "more complete".
 
-例如，外部 Secret：
+For example, an external secret:
 
 ```text
 SERVICE_TOKEN
 ```
 
-在某个仓库里可理解，但离开仓库后无法判断所属系统，因此不适合作为新的跨仓外部名称。
+is understandable inside one repository, but outside it nobody can tell which system it belongs to, so it is not suitable as a new cross-repository external name.
 
-更完整的形式：
+The more complete form:
 
 ```text
 AW_DISPATCH_TOKEN
 ```
 
-如果某个系统缩写已在本规范或项目规范中登记为 canonical abbreviation，也可以使用缩写形式。
+If a system abbreviation is registered as a canonical abbreviation in this convention or in a project convention, the abbreviated form may be used.
 
 ## 2. Scope rules
 
 ### 2.1 External boundary names
 
-以下名称必须优先满足“脱离上下文仍可识别”：
+These names must first of all be identifiable without context:
 
 - GitHub Variables;
 - GitHub Secrets;
@@ -46,23 +46,23 @@ AW_DISPATCH_TOKEN
 - cross-repository payload fields;
 - externally documented configuration keys.
 
-可按需要组合：
+They may combine, as needed:
 
 ```text
 System + Purpose + Type + Qualifier
 ```
 
-这不是固定模板，也不是要求四部分全部出现。名称达到“脱离上下文仍可识别”后，应停止继续加词。
+This is not a fixed template and does not require all four parts. Once a name is identifiable without context, stop adding words.
 
-数据表示形式（如 `JSON`、`YAML`）只有在以下情况才进入名称：
+A data representation (such as `JSON` or `YAML`) enters a name only when:
 
-- 同一概念同时存在多种表示形式；
-- 表示形式本身属于外部契约；
-- 不写表示形式会造成真实歧义。
+- the same concept exists in several representations at once;
+- the representation itself is part of an external contract;
+- leaving the representation out would create real ambiguity.
 
-否则不要把实现格式写进名称。
+Otherwise, do not put the implementation format into the name.
 
-例：
+Examples:
 
 ```text
 AW_DISPATCH_TOKEN
@@ -76,7 +76,7 @@ AIG_USAGE_D1_ID
 CLOUDFLARE_ACCOUNT_ID
 ```
 
-Qualifier 仅在确有多个同类配置时增加，例如 `AIR`、`PRO`、`MAX`。
+Add a qualifier only when several configurations of the same kind really exist, for example `AIR`, `PRO`, `MAX`.
 
 Runtime-derived names are allowed when they are generated from one canonical configuration source rather than configured independently. For AI Agent model routing, `AW_AI_AGENT_CONFIG` is the only configurable authority; names such as `AW_AI_AGENT_WRITING_MODEL` and `AW_AI_AGENT_WRITING_PHARMA_BRIEF_MODEL` are generated runtime environment variables and must not be defined as Repository Variables.
 
@@ -102,9 +102,9 @@ This does not permit generic names such as `ARTIFACT_REPOSITORY` or `OUTPUT_DIR`
 
 ### 2.2 Local source identifiers
 
-函数参数、局部变量、私有字段和短生命周期内部标识符可以依赖代码词法上下文，不要求重复所属系统前缀。
+Function parameters, local variables, private fields and short-lived internal identifiers may rely on their lexical context and do not need to repeat the owning system's prefix.
 
-例如在 `ai-gateway` 的 request 模块中：
+For example, in the request module of `ai-gateway`:
 
 ```text
 model
@@ -113,24 +113,22 @@ policy
 isEnabled
 ```
 
-比：
+is better than:
 
 ```text
 aiGatewayRequestModel
 aiGatewayRequestPolicy
 ```
 
-更合适。
-
-局部名称仍应准确、无歧义，并遵守 canonical vocabulary。
+Local names must still be accurate and unambiguous and follow the canonical vocabulary.
 
 ## 3. Abbreviations
 
-允许使用两类缩写：
+Two kinds of abbreviations are allowed:
 
 ### 3.1 Industry/platform abbreviations
 
-可直接使用广泛公认、无歧义的缩写，例如：
+Widely recognised, unambiguous abbreviations may be used directly, for example:
 
 ```text
 API
@@ -154,18 +152,18 @@ GCP
 
 ### 3.2 Project/system abbreviations
 
-Fongap Labs 自有系统缩写只有在以下条件同时满足时才能用于外部配置：
+An abbreviation of a Fongap Labs system may be used in external configuration only when all of these hold:
 
-- 已在共享规范或项目级长期规范中登记；
-- 一个缩写只对应一个系统；
-- 不与行业常见含义冲突；
-- 新成员无需依赖某个仓库上下文即可查到定义。
+- it is registered in the shared convention or in a long-lived project convention;
+- one abbreviation maps to one system;
+- it does not conflict with a common industry meaning;
+- a new member can look up its definition without relying on the context of a particular repository.
 
-禁止为缩短名称临时发明缩写。
+Inventing an abbreviation on the spot to shorten a name is forbidden.
 
-如果缩写没有稳定共识，使用完整系统名。
+If an abbreviation has no stable consensus, use the full system name.
 
-当前 Fongap Labs canonical system abbreviations：
+Current canonical Fongap Labs system abbreviations:
 
 | System | Abbreviation |
 |---|---|
@@ -175,21 +173,21 @@ Fongap Labs 自有系统缩写只有在以下条件同时满足时才能用于�
 | Delta | `DELTA` |
 | Server Edge | `SERVER_EDGE` |
 
-项目若新增系统缩写，应先修改本表，再在业务仓使用。
+A project that adds a system abbreviation changes this table first and then uses it in the business repository.
 
 ## 4. Source identifiers
 
-- Python、Rust、TypeScript/TSX 的新增或修改标识符遵循同一语义原则；
-- 局部函数和参数优先简洁，通常控制在约三段语义内，但语义完整优先；
-- Boolean 使用 `is / has / can / should` 语义前缀；
-- 禁止用 `impl / helper / common / misc / shared` 作为模糊职责词；`new / final / latest / temp / tmp` 作为工程生命周期标签时禁止进入长期控制面名称，但允许出现在语义明确的领域概念中（例如 `temp_access`）；
-- 测试、生成代码或第三方代码可由项目自己的检查器决定是否豁免。
+- New or changed identifiers in Python, Rust and TypeScript/TSX follow the same semantic principles;
+- local functions and parameters prefer brevity, usually about three semantic segments, but complete meaning comes first;
+- booleans use an `is / has / can / should` semantic prefix;
+- `impl / helper / common / misc / shared` are forbidden as vague responsibility words; `new / final / latest / temp / tmp` used as engineering lifecycle labels are forbidden in long-lived control-plane names, but are allowed in a clearly defined domain concept (for example `temp_access`);
+- tests, generated code and third-party code may be exempted by the project's own checker.
 
-“三段”只是一项局部可读性偏好，不得用于强制截断外部配置名称。
+"Three segments" is only a local readability preference and must never be used to truncate an external configuration name.
 
 ## 5. Configuration type words
 
-外部配置应尽可能保留能表达数据类型或资源类型的标准词，例如：
+External configuration should keep, as far as possible, a standard word that expresses the data or resource type, for example:
 
 ```text
 TOKEN
@@ -222,11 +220,11 @@ MODE
 CONFIG
 ```
 
-凭据不得用 `PAT` 作为新的标准类型词；统一使用更通用且可理解的 `TOKEN` 或 `KEY`，除非第三方平台的原生字段名必须保持不变。
+A credential must not use `PAT` as a new standard type word; use the more general and understandable `TOKEN` or `KEY`, unless the native field name of a third-party platform must stay unchanged.
 
 ## 6. Engineering language
 
-工程 diff 必须使用英文。这里的 diff 指新增或修改的工程内容，包括：
+An engineering diff must be in English. The diff means engineering content that is added or changed, including:
 
 - identifiers;
 - code comments;
@@ -237,24 +235,24 @@ CONFIG
 - PR titles and engineering summaries;
 - CHANGELOG entries.
 
-禁止在同一工程 diff 中混用中文和英文工程文本，也禁止新增中文工程注释、日志、错误信息、测试描述或 CHANGELOG 条目。
+Mixing Chinese and English engineering text in one engineering diff is forbidden, and so is adding Chinese engineering comments, logs, error messages, test descriptions or CHANGELOG entries.
 
-例外仅限：
+The only exceptions are:
 
 - user-facing UI copy;
 - localization resources;
-- explicitly Chinese-maintained documentation.
+- documentation that a business repository explicitly maintains in Chinese (Action Worker itself has no such documentation; see section 8).
 
-例外不扩展到 CHANGELOG、PR 标题、代码注释、workflow、日志、错误信息或测试描述；这些始终使用英文。
+The exceptions never extend to the CHANGELOG, PR titles, code comments, workflows, logs, error messages or test descriptions; those are always in English.
 
 ## 7. Files, terms and verbs
 
 - workflow / control script / test files use `kebab-case`;
 - governance documents use `UPPER_SNAKE_CASE.md`;
-- 文件名只表达文件自己的职责，不重复目录已经提供的上下文；
-- 长期名称避免生命周期词和模糊词。
+- a file name expresses only the file's own responsibility and does not repeat context the directory already provides;
+- long-lived names avoid lifecycle words and vague words.
 
-Canonical terms：
+Canonical terms:
 
 | Concept | Term |
 |---|---|
@@ -285,7 +283,7 @@ Canonical terms：
 | runner selection component | `runner resolver` |
 | compute provider class | `runner backend` |
 
-Preferred verbs：
+Preferred verbs:
 
 ```text
 get load fetch create update delete validate detect resolve evaluate
@@ -325,6 +323,29 @@ Action Worker CI enforces its own filename and architecture restrictions. Busine
 
 For the unified execution plane, business repositories use `runner_profile` as the external contract field. They must not expose concrete infrastructure names such as GitHub runner image names, `self-hosted` labels, runner groups, hostnames, or cloud instance names as project-level configuration. `runner profile` describes requirements; `runner resolver` selects the actual `runner backend`.
 
+### 8.1 Workflow file names
+
+Workflow and shell file names have at most three kebab-case segments (`scripts/validate-naming-rules.ts` and `scripts/validate-source-naming.py` enforce this in every managed repository). Within that limit, `tests/workflow-naming.test.ts` checks these rules for Action Worker's own workflows:
+
+- A workflow started by `repository_dispatch` and not by `push` takes the most complete name that fits in three segments: `handle-<subject>-dispatch.yml`, then `<subject>-dispatch.yml`, then `<subject>.yml`. The subject is the event name without `run-`. For example:
+
+  ```text
+  run-task                 → handle-task-dispatch.yml   (one-word subject: the full form fits)
+  run-security-scan        → security-scan-dispatch.yml (two words: handle is dropped)
+  run-source-script-deploy → source-script-deploy.yml   (three words: only the subject fits)
+  ```
+
+  `handle` marks the receiving side where it fits; senders are named `dispatch-*` (for example `scripts/dispatch-central-ci.ts`).
+- A scheduled reconciliation workflow that scans managed repositories and dispatches work is named `<subject>-intake.yml` (for example `pr-intake.yml`).
+- The display name (`name:`) spells out the file name word by word, with `pr` and `ci` written as `PR` and `CI` (`pr-intake.yml` is "PR Intake").
+- A file that keeps an older name is listed in the test with the reason renaming is not worth it. Today these are `handle-pr-dispatch.yml` (a CI Evidence trust anchor in `scripts/ci-evidence.ts`) and `handle-pr-review.yml` (counted by the AI Review queue).
+
+### 8.2 Documentation language
+
+Every document in Action Worker that people and agents work from — `CLAUDE.md`, `AGENTS.md`, `README.md`, `SECURITY.md`, `docs/`, `skills/`, `p00-owner-checklist.md` — is written in English. Chinese appears only in localization files named `*.zh-CN.md` (`README.zh-CN.md`, `docs/README.zh-CN.md`, `SECURITY.zh-CN.md`), which translate an English original and never carry rules the original does not have. `tests/documentation-language.test.ts` checks this.
+
+This rule is for Action Worker only. The engineering language check that runs on business repository pull requests still exempts Markdown, so a business repository may keep documentation it explicitly maintains in Chinese.
+
 ## 9. Short version
 
 ```text
@@ -339,5 +360,6 @@ One concept = one standard term
 Boolean = is / has / can / should
 Engineering diff = English
 CHANGELOG / PR title = English
+Action Worker documentation = English; Chinese only in *.zh-CN.md
 Plain data content files (.txt / .csv / .tsv) are language-exempt
 ```

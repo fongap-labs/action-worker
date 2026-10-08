@@ -1,6 +1,6 @@
 # Agent Guide
 
-本文件是 Action Worker 的 Agent 入口。Action Worker 同时是 Fongap Labs 共用治理的权威仓库。
+This file is the agent entry point for Action Worker. Action Worker is also the authoritative repository for Fongap Labs shared governance.
 
 ## Required reading
 

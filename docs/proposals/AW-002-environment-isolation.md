@@ -2,7 +2,7 @@
 
 Status: **the deploy path is implemented** (PR "let the control plane decide deploy environments and secret ceilings": central environment and secret policies, read-only checkout token, `admin-ops` for admin-token jobs). **The task path stays as it is (option A)**; options B and C remain available after the deploy rehearsal. **Still manual for the owner:** one rehearsal deploy, switching `AW_DEPLOY_SECRET_POLICY_MODE` to `enforce`, then copying secrets into the environments and deleting the repository-level copies.
 
-## 现状 (what exists today)
+## What exists today
 
 - `source-script-deploy.yml` job `deploy` already declares `environment: ${{ needs.prepare.outputs.environment }}`, but that value is read from the **target repository's** `deploy.json` (the party being deployed names its own environment). The step that runs target code uses `env: ${{ secrets }}`: every repository-level secret (and the environment's) is placed in the step environment and the names the target did not declare are then `unset`.
 - `handle-task-dispatch.yml` (job `execute`) does the same with `env: ${{ secrets }}` and the allow-list from the task source; since PR #410 a central ceiling (`policies/task-secrets.json`, `AW_TASK_SECRET_POLICY_MODE=warn|enforce`) can only reduce what a task source declares. The task job has **no** `environment:`.
@@ -28,7 +28,7 @@ The central repository, not the deployed repository, decides which environment a
    - **Recommendation: A now, B/C after the deploy rehearsal succeeds.** Task secrets cannot be removed from repository level until the consumers declare environments.
 7. **Transition and rollback**: repository-level secrets stay until the rehearsal passes. Rollback is reverting the PR; the old behaviour remains available as long as the repository-level secrets exist.
 
-## 影响 (impact and risks)
+## Impact and risks
 
 - Every deploy of ai-gateway (37 names, environment `production`) and internal-vault (3 names, `server-edge-cloud-edge`) depends on the two new policy files being complete; a missing name fails the deploy, intentionally.
 - GitHub Free: environment secrets and deployment branch policies are available for public repositories; whether private repositories on the Free plan can use environment protection rules is **not verified** (documentation could not be fetched in this session). The deploy environments live in the public `action-worker` repository, so this is not a blocker, but required reviewers on a private repository would be.

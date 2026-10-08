@@ -1,14 +1,22 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import {
+  artifactKey,
   buildTaskStateManifest,
+  openBytes,
+  openStateFile,
+  restoreTaskState,
+  sealBytes,
+  sealedStateFile,
+  sealStateDirectory,
   taskLogView,
   taskStateArtifactName,
   taskStateManifestFile,
   taskStateManifestMatches,
+  trustedStateRuns,
   verifyTaskStateDirectory,
   writeTaskStateManifest,
 } from "../scripts/task-state.ts";
@@ -88,7 +96,10 @@ test("public task sources keep the readable values", () => {
 test("the task workflow uses the hashed artifact name, the manifest and the log view", async () => {
   const workflow = await readFile(".github/workflows/handle-task-dispatch.yml", "utf8");
   assert.match(workflow, /node scripts\/task-state\.ts name /);
-  assert.match(workflow, /node scripts\/task-state\.ts verify /);
+  assert.match(workflow, /node scripts\/task-state\.ts restore /);
+  assert.match(workflow, /node scripts\/task-state\.ts seal-state /);
+  assert.match(workflow, /node scripts\/task-state\.ts seal-log /);
+  assert.doesNotMatch(workflow, /gh run list/);
   assert.match(workflow, /node scripts\/task-state\.ts write /);
   assert.match(workflow, /node scripts\/task-state\.ts log-view /);
   const echoed = workflow
@@ -98,5 +109,105 @@ test("the task workflow uses the hashed artifact name, the manifest and the log 
   for (const line of echoed) {
     assert.match(line, /\$\{log_(?:request_id|project|ref)\}/, line);
     assert.equal(/\$\{(?:REQUEST_ID|PROJECT|BOOTSTRAP_REF)\}/.test(line), false, line);
+  }
+});
+
+const sealKey = Buffer.alloc(32, 7);
+
+test("a sealed artifact opens only with its key, kind, repository and project", () => {
+  const plain = Buffer.from("private task output", "utf8");
+  const sealed = sealBytes(sealKey, "task-log", "o/r", "p", plain);
+  assert.equal(sealed.includes(plain), false, "the plain text does not appear in the sealed file");
+  assert.deepEqual(openBytes(sealKey, "task-log", "o/r", "p", sealed), plain);
+  for (const [key, kind, repository, project] of [
+    [Buffer.alloc(32, 8), "task-log", "o/r", "p"],
+    [sealKey, "task-state", "o/r", "p"],
+    [sealKey, "task-log", "o/other", "p"],
+    [sealKey, "task-log", "o/r", "q"],
+  ] as const) {
+    assert.throws(() => openBytes(key, kind, repository, project, sealed), /does not belong/);
+  }
+  assert.throws(() => artifactKey("c2hvcnQ="), /32 bytes/);
+});
+
+test("sealed task state round-trips through a directory", async () => {
+  const root = await mkdtemp(join(tmpdir(), "task-seal-"));
+  try {
+    const source = join(root, "source");
+    await writeTaskStateManifest(source, "o/r", "p", "a".repeat(40));
+    await writeFile(join(source, "cursor.txt"), "42\n", "utf8");
+    const sealedFile = join(root, sealedStateFile);
+    await sealStateDirectory(sealKey, source, "o/r", "p", sealedFile);
+    const opened = join(root, "opened");
+    await openStateFile(sealKey, sealedFile, "o/r", "p", opened);
+    assert.equal(await readFile(join(opened, "cursor.txt"), "utf8"), "42\n");
+    assert.equal(await verifyTaskStateDirectory(opened, "o/r", "p"), true);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+function artifactReader(runs: Record<number, Record<string, unknown>>) {
+  return {
+    async get(path: string): Promise<unknown> {
+      if (path.includes("/actions/artifacts?name=")) {
+        return {
+          artifacts: Object.keys(runs).map((id) => ({
+            expired: false,
+            workflow_run: { id: Number(id) },
+          })),
+        };
+      }
+      const id = Number(path.split("/").pop());
+      return runs[id];
+    },
+  };
+}
+
+const taskRun = {
+  path: ".github/workflows/handle-task-dispatch.yml",
+  head_branch: "main",
+  conclusion: "success",
+};
+
+test("task state is restored only from a successful run of the task workflow on main", async () => {
+  const reader = artifactReader({
+    1: { ...taskRun, path: ".github/workflows/validate-ci.yml" },
+    2: { ...taskRun, head_branch: "feature" },
+    3: { ...taskRun, conclusion: "failure" },
+    4: taskRun,
+  });
+  assert.deepEqual(await trustedStateRuns(reader, "o/aw", "task-state-x"), [4]);
+});
+
+test("a private task source restores only sealed state, and nothing without the key", async () => {
+  const root = await mkdtemp(join(tmpdir(), "task-restore-"));
+  try {
+    const plainState = join(root, "plain");
+    await writeTaskStateManifest(plainState, "o/r", "p", "a".repeat(40));
+    const sealedState = join(root, "sealed");
+    await mkdir(sealedState, { recursive: true });
+    await sealStateDirectory(sealKey, plainState, "o/r", "p", join(sealedState, sealedStateFile));
+    const reader = artifactReader({ 5: taskRun });
+    const restore = (source: string, key: Buffer | null) =>
+      restoreTaskState({
+        stateRoot: join(root, "state"),
+        repository: "o/r",
+        project: "p",
+        isPrivate: true,
+        key,
+        reader,
+        controlRepository: "o/aw",
+        download: async (_runId, _name, destination) => {
+          await cp(source, destination, { recursive: true });
+        },
+      });
+
+    assert.match(await restore(sealedState, null), /needs AW_ARTIFACT_KEY/);
+    assert.equal(await restore(plainState, sealKey), "No previous task state found.");
+    assert.equal(await restore(sealedState, sealKey), "Restored task state from run 5.");
+    assert.equal(await verifyTaskStateDirectory(join(root, "state", "previous"), "o/r", "p"), true);
+  } finally {
+    await rm(root, { recursive: true, force: true });
   }
 });
