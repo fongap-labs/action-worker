@@ -45,10 +45,22 @@ test("buildPackEnv forwards only manifest-declared names", () => {
 });
 
 test("buildPackEnv rejects invalid declared names", () => {
-  assert.throws(() => buildPackEnv({ env: ["lowercase_name"] }), /not a valid variable name/);
-  assert.throws(() => buildPackEnv({ env: ["9STARTS_WITH_DIGIT"] }), /not a valid variable name/);
-  assert.throws(() => buildPackEnv({ env: ["HAS-DASH"] }), /not a valid variable name/);
-  assert.throws(() => buildPackEnv({ env: [42] }), /array of strings/);
+  assert.throws(
+    () => buildPackEnv({ env: ["lowercase_name"] }, "/tmp/target"),
+    /not a valid variable name/
+  );
+  assert.throws(
+    () => buildPackEnv({ env: ["9STARTS_WITH_DIGIT"] }, "/tmp/target"),
+    /not a valid variable name/
+  );
+  assert.throws(
+    () => buildPackEnv({ env: ["HAS-DASH"] }, "/tmp/target"),
+    /not a valid variable name/
+  );
+  assert.throws(
+    () => buildPackEnv(JSON.parse('{"env":[42]}'), "/tmp/target"),
+    /not a valid variable name/
+  );
 });
 
 test("buildPackEnv forwards Windows mixed-case base variables case-insensitively", () => {

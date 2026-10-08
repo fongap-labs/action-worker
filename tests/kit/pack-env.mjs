@@ -59,7 +59,7 @@ function validateName(name) {
 }
 
 /**
- * @param {object} manifest  Parsed pack.json.
+ * @param {{ env?: string[] }} manifest  Parsed pack.json.
  * @param {string} target    Absolute path to the repository under test.
  * @returns {NodeJS.ProcessEnv}
  */
@@ -68,9 +68,6 @@ export function buildPackEnv(manifest, target) {
   const allowed = new Set(BASE_VARS);
   const declared = Array.isArray(manifest.env) ? manifest.env : [];
   for (const name of declared) {
-    if (typeof name !== "string") {
-      throw new Error(`pack env: manifest.env must be an array of strings`);
-    }
     validateName(name);
     allowed.add(name);
   }
