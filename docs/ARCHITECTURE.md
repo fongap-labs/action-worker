@@ -79,6 +79,8 @@ Validate → Inspect → Plan → Security / CI / PR Gate
      handle-pr-review: AI Review → advisory summary
 ```
 
+PR Governance does not hold a runner while Central CI runs. It checks `CI Evidence` once; while CI is still running, the run ends with `PR Governance` and `validate-merge` set to pending, description `Waiting for Central CI`. When Central CI has a verdict for the current head, its `resume-governance` job dispatches `run-pr-governance` again, and that run reads the verdict and decides the gate. A failed `CI Evidence` from a Central CI run of the current control commit is final, so the resumed run does not start CI again (re-run that Central CI run to retry); a failure from an older control commit is retried. Central PR Intake treats a waiting PR as in flight while its pending `CI Evidence` is younger than 200 minutes, and dispatches it again otherwise.
+
 AI Review is a separate workflow, `handle-pr-review.yml`, which `handle-pr-dispatch` starts only after the gate passed. There are two reasons: the gate run ends as soon as the gate conclusion exists, so AI queueing or review never holds it; and the AI review queue contains only runs that really are in review, never one that is still waiting for CI.
 
 The review workflow does not trust what the sender claims. It re-reads the current PR head and confirms that this head carries a `PR Governance` success published by Action Worker. It skips the review when the PR head has moved, when the PR was closed without merging, or when the gate does not hold. It has no step that writes a gate status.

@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  CI_EVIDENCE_PENDING_TTL_MS,
   hasTrustedSuccessfulCiEvidence,
   hasVerifiedCiEvidence,
+  isFinalCiFailure,
   latestCiStatus,
   requireVerifiedCiEvidence,
   trustedCiStatus,
@@ -256,5 +258,96 @@ test("the PR gate rejects a success status that no successful control run produc
       1
     ),
     /not produced by a successful Action Worker CI run/
+  );
+});
+
+test("only a failure from a Central CI run of the current control commit is final", async () => {
+  const controlSha = "c".repeat(40);
+  const failed = evidenceStatus({ state: "failure" });
+  const reader = (run: unknown) => ({ get: async () => run });
+  const centralRun = { path: centralRunPath, head_sha: controlSha };
+  assert.equal(
+    await isFinalCiFailure(reader(centralRun), failed, controlRepository, controlSha),
+    true
+  );
+  assert.equal(
+    await isFinalCiFailure(
+      reader({ ...centralRun, head_sha: "d".repeat(40) }),
+      failed,
+      controlRepository,
+      controlSha
+    ),
+    false,
+    "an older control commit is retried"
+  );
+  assert.equal(
+    await isFinalCiFailure(
+      reader({ ...centralRun, path: ".github/workflows/handle-pr-dispatch.yml" }),
+      failed,
+      controlRepository,
+      controlSha
+    ),
+    false
+  );
+  assert.equal(
+    await isFinalCiFailure(reader(centralRun), evidenceStatus(), controlRepository, controlSha),
+    false
+  );
+  assert.equal(
+    await isFinalCiFailure(
+      reader(centralRun),
+      evidenceStatus({ state: "pending" }),
+      controlRepository,
+      controlSha
+    ),
+    false
+  );
+});
+
+test("a single CI check reports waiting instead of holding the runner", async () => {
+  const ci = { status_context: "CI Evidence" };
+  const sha = "a".repeat(40);
+  const reader = (status: unknown) => ({
+    get: async (path: string) => (path.endsWith("/status") ? status : controlRun()),
+  });
+  for (const status of [{ statuses: [] }, evidenceStatus({ state: "pending" })]) {
+    assert.equal(
+      await waitForCentralStatus(
+        "fongap-labs/target",
+        sha,
+        ci,
+        reader(status),
+        controlRepository,
+        5,
+        1,
+        true
+      ),
+      "waiting"
+    );
+  }
+  assert.equal(
+    await waitForCentralStatus(
+      "fongap-labs/target",
+      sha,
+      ci,
+      reader(evidenceStatus()),
+      controlRepository,
+      5,
+      1,
+      true
+    ),
+    "done"
+  );
+});
+
+test("a pending CI Evidence outlives the longest Central CI sandbox job", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const sandbox = await readFile(".github/workflows/central-ci-sandbox.yml", "utf8");
+  const longest = Math.max(
+    ...[...sandbox.matchAll(/timeout-minutes: (\d+)/g)].map((match) => Number(match[1]))
+  );
+  assert.ok(
+    CI_EVIDENCE_PENDING_TTL_MS > longest * 60_000,
+    `longest sandbox job: ${longest} minutes`
   );
 });

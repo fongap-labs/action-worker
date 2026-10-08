@@ -1,4 +1,4 @@
-import { hasVerifiedCiEvidence } from "./ci-evidence.ts";
+import { hasVerifiedCiEvidence, isFinalCiFailure } from "./ci-evidence.ts";
 import { GithubReader, githubEnvironment, isJsonRecord, runGithubCli } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, readJson, runText } from "./runtime-command.ts";
@@ -59,6 +59,14 @@ async function main(): Promise<void> {
   const currentStatus = await reader.get(`repos/${repository}/commits/${headSha}/status`);
   if (await hasVerifiedCiEvidence(reader, currentStatus, { controlRepository })) {
     console.log(`Central CI already satisfied: ${repository}@${headSha}`);
+    return;
+  }
+  const controlSha = process.env.GITHUB_SHA ?? "";
+  if (await isFinalCiFailure(reader, currentStatus, controlRepository, controlSha)) {
+    console.log(
+      `Central CI already failed for ${repository}@${headSha} with this control version; ` +
+        "re-run that Central CI run to try again."
+    );
     return;
   }
 

@@ -405,3 +405,47 @@ jobs:
             "$TARGET_PR_NUMBER" \
             policies/deploy.json \
             policies/runner.json
+
+  # PR Governance ends its run while Central CI is running instead of holding a runner for the whole
+  # CI. Once this run has a verdict for the current head, governance runs again and reads it.
+  resume-governance:
+    name: Resume PR Governance
+    needs:
+      - prepare
+      - finalize
+      - prepare-failure
+      - follow-up
+    if: always() && github.event.action == 'run-central-ci' && needs.prepare.outputs.repository != '' && (needs.finalize.result == 'success' || needs.finalize.result == 'failure' || needs.prepare-failure.result == 'success')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+
+    steps:
+      - name: Dispatch PR Governance for the current head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+          REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || exit 0
+          [[ "$REQUESTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 0
+
+          # A newer head has its own Central CI run, which resumes governance for it.
+          current_head="$(GH_TOKEN="$CONTROL_TOKEN" gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
+          if [ "$current_head" != "$REQUESTED_HEAD_SHA" ]; then
+            echo "PR head moved to $current_head; not resuming governance for the stale head."
+            exit 0
+          fi
+
+          payload="$(jq -cn \
+            --arg request_id "ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --arg repository "$REPOSITORY" \
+            --argjson pr_number "$PR_NUMBER" \
+            '{event_type:"run-pr-governance",client_payload:{schema_version:"1",request_id:$request_id,repository:$repository,pr_number:$pr_number}}')"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input - <<<"$payload" >/dev/null
+          echo "PR Governance dispatched for $REPOSITORY#$PR_NUMBER."

@@ -11,6 +11,16 @@ export const ciEvidenceWorkflowPaths: readonly string[] = [
   ".github/workflows/handle-pr-dispatch.yml",
 ];
 
+export const centralCiWorkflowPath = ".github/workflows/central-ci-dispatch.yml";
+
+// PR Governance writes this description when it ends its run while Central CI is still running.
+// Central CI dispatches governance again once it has a verdict (central-ci-dispatch.yml).
+export const WAITING_FOR_CI_DESCRIPTION = "Waiting for Central CI";
+
+// A pending CI Evidence younger than this still belongs to a Central CI that is running: the longest
+// sandbox job may take 180 minutes (central-ci-sandbox.yml), plus time in the queue.
+export const CI_EVIDENCE_PENDING_TTL_MS = 200 * 60_000;
+
 // The status is written by the run itself, so its creation time must fall inside the run window.
 const runWindowSlackMs = 120_000;
 
@@ -125,6 +135,37 @@ export async function hasVerifiedCiEvidence(
     if (attempt + 1 < runAttempts) await sleep(retryDelayMs);
   }
   return false;
+}
+
+/**
+ * A failed CI Evidence from a Central CI run of the current control commit is final: running CI again
+ * would only repeat it, and PR Governance that runs again after CI must not start another round. A
+ * failure from an older control commit is not final, so a control-plane fix re-evaluates the PR.
+ */
+export async function isFinalCiFailure(
+  reader: JsonReader,
+  response: unknown,
+  controlRepository: string,
+  controlSha: string
+): Promise<boolean> {
+  const status = trustedCiStatus(response, "CI Evidence", controlRepository);
+  const state = getJsonString(status, "state");
+  if (!status || (state !== "failure" && state !== "error") || !/^[0-9a-f]{40}$/.test(controlSha)) {
+    return false;
+  }
+  const runId = trustedControlRunId(getJsonString(status, "target_url"), controlRepository);
+  if (runId === null) return false;
+  let run: unknown;
+  try {
+    run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
+  } catch (error) {
+    if (isNotFound(error)) return false;
+    throw error;
+  }
+  return (
+    getJsonString(run, "path") === centralCiWorkflowPath &&
+    getJsonString(run, "head_sha") === controlSha
+  );
 }
 
 /** Wait for a verified successful CI Evidence on a commit; fail closed when it never appears. */

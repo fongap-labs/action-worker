@@ -167,9 +167,13 @@ jobs:
             "$RUN_URL" \
             "$GITHUB_WORKSPACE/policies/execution.json"
 
+      # One check only. While Central CI runs, this run ends as "Waiting for Central CI" instead of holding a
+      # runner; Central CI dispatches PR Governance again once it has a verdict.
       - name: Collect CI evidence
+        id: evidence
         if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'
         env:
+          CI_WAIT_MODE: once
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
@@ -196,7 +200,7 @@ jobs:
             -f "target_url=$RUN_URL" >/dev/null
 
       - name: Validate CI evidence
-        if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'
+        if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true' && steps.evidence.outputs.waiting != 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -204,7 +208,7 @@ jobs:
 
       - name: Mark deterministic gate passed
         id: gate
-        if: steps.trust.outputs.trusted == 'true'
+        if: steps.trust.outputs.trusted == 'true' && steps.evidence.outputs.waiting != 'true'
         shell: bash
         run: echo "passed=true" >> "$GITHUB_OUTPUT"
 
@@ -225,8 +229,8 @@ jobs:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          STATE: ${{ steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
-          DESCRIPTION: ${{ steps.gate.outputs.passed == 'true' && 'Action Worker PR governance passed' || steps.trust.outputs.trusted == 'false' && 'Awaiting maintainer approval of the current head commit' || 'Action Worker PR governance failed' }}
+          STATE: ${{ steps.gate.outputs.passed == 'true' && 'success' || steps.evidence.outputs.waiting == 'true' && 'pending' || 'failure' }}
+          DESCRIPTION: ${{ steps.gate.outputs.passed == 'true' && 'Action Worker PR governance passed' || steps.trust.outputs.trusted == 'false' && 'Awaiting maintainer approval of the current head commit' || steps.evidence.outputs.waiting == 'true' && 'Waiting for Central CI' || 'Action Worker PR governance failed' }}
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
 
       - name: Update central merge gate
@@ -236,13 +240,13 @@ jobs:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          STATE: ${{ steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
-          DESCRIPTION: ${{ steps.gate.outputs.passed == 'true' && 'Action Worker merge gate passed' || steps.trust.outputs.trusted == 'false' && 'Awaiting maintainer approval of the current head commit' || 'Action Worker merge gate failed' }}
+          STATE: ${{ steps.gate.outputs.passed == 'true' && 'success' || steps.evidence.outputs.waiting == 'true' && 'pending' || 'failure' }}
+          DESCRIPTION: ${{ steps.gate.outputs.passed == 'true' && 'Action Worker merge gate passed' || steps.trust.outputs.trusted == 'false' && 'Awaiting maintainer approval of the current head commit' || steps.evidence.outputs.waiting == 'true' && 'Waiting for Central CI' || 'Action Worker merge gate failed' }}
           PR_STATUS_CONTEXT: validate-merge
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
 
       - name: Publish PR review
-        if: ${{ always() && steps.ownership.outputs.current == 'true' }}
+        if: ${{ always() && steps.ownership.outputs.current == 'true' && steps.evidence.outputs.waiting != 'true' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
