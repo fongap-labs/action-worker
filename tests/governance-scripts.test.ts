@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { parseAiAgentConfig } from "../scripts/ai-agent-config.ts";
 import { applyTriage } from "../scripts/apply-ai-triage.ts";
-import { rulesetPayloads, settingsPayload } from "../scripts/apply-repo-settings.ts";
+import { rulesetPayloads, settingsPayload } from "../scripts/apply-repository-settings.ts";
 import { changeAreaForPath } from "../scripts/detect-pr-context.ts";
 import { variableEntries } from "../scripts/export-repository-variables.ts";
 import type { GithubReader } from "../scripts/github-api.ts";
@@ -686,6 +686,6 @@ test("PR review summary tells a maintainer how to release a pull request awaitin
   const body = buildReview("awaiting-approval", "https://example.test/run", undefined, undefined);
   assert.match(body, /Gate: \*\*WAITING FOR APPROVAL\*\*/);
   assert.match(body, /Review changes → Approve/);
-  assert.match(body, /Central PR Intake/);
+  assert.match(body, /PR Intake/);
   assert.doesNotMatch(body, /Gate: \*\*FAIL\*\*/);
 });

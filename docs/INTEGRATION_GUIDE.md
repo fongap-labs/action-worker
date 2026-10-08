@@ -67,7 +67,7 @@ capability_requests
 
 ```text
 PR
-→ Central PR Intake / optional migration thin dispatch
+→ PR Intake / optional migration thin dispatch
 → Security / Central CI / deterministic PR policy
 → CI Evidence
 → PR Governance / validate-merge
@@ -77,7 +77,7 @@ PR
 
 项目测试代码留在业务仓，但由 Action Worker checkout 不可变 source SHA 后在 Sandbox 执行。
 
-默认分支 CI 同样由公共 Action Worker 的 Central CI Intake 定期核对受管仓当前 HEAD；缺少 `CI Evidence` 时由中央主动派发 `run-central-ci-ref`。因此业务仓 `ci.yml` 只属于迁移期低延迟入口，不再是 main CI 的长期前置条件。
+默认分支 CI 同样由公共 Action Worker 的 CI Intake 定期核对受管仓当前 HEAD；缺少 `CI Evidence` 时由中央主动派发 `run-central-ci-ref`。因此业务仓 `ci.yml` 只属于迁移期低延迟入口，不再是 main CI 的长期前置条件。
 
 受 GitHub Ruleset 保护且要求 Check Run 来自目标仓 GitHub Actions 的仓库，可保留极轻 `validate-merge` bridge。它只汇合 `CI Evidence` 与 `PR Governance`。
 
@@ -189,9 +189,9 @@ PR 侧的最薄触发器使用 `templates/pr-dispatcher/dispatch-pr-governance.y
 - `push: true`：默认分支变化需要中央 Task Intake 自动发现；
 - `schedules`：调度槽到 project 的映射。
 
-Central Task Intake 定期扫描所有具有 `task` capability 的仓库，只读取真实默认分支 HEAD。对启用 `push` 的仓库，若当前 HEAD 尚无成功的 `Task Source` 状态，则以第一父提交作为 `before_sha` 派发 changed-project 解析；执行中写入 pending，成功写入 success，失败写入 failure 供下一轮重试。
+Task Intake 定期扫描所有具有 `task` capability 的仓库，只读取真实默认分支 HEAD。对启用 `push` 的仓库，若当前 HEAD 尚无成功的 `Task Source` 状态，则以第一父提交作为 `before_sha` 派发 changed-project 解析；执行中写入 pending，成功写入 success，失败写入 failure 供下一轮重试。
 
-手动任务直接从 Action Worker 的 `Handle Task Source Dispatch` workflow_dispatch 发起，只提交受管 repository 和 project。业务仓不再需要为了手动或 push 事件启动本地通知 Runner。
+手动任务直接从 Action Worker 的 `Task Source Dispatch` workflow_dispatch 发起，只提交受管 repository 和 project。业务仓不再需要为了手动或 push 事件启动本地通知 Runner。
 
 中央仓不得维护业务仓名或 project 名清单。
 

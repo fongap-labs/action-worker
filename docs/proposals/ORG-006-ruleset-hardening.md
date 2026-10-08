@@ -10,8 +10,8 @@ Status: **phase 1 adopted** (strict status checks on the four public repositorie
 - `strict_required_status_checks_policy: false` (a branch need not be up to date before merging).
 - The required check is matched by name (`context: "validate-merge"`) without an `integration_id`, so any actor that can create a commit status with that name satisfies it.
 - `bypass_actors: []`.
-- The file is applied to all managed repositories by `apply-repo-settings.yml` as soon as a change to `policies/rulesets.json` reaches `main` of this repository. One merge therefore changes every managed repository.
-- `scripts/apply-repo-settings.ts` skips rulesets for private repositories "under the current GitHub Free organization". Checked on 2026-10-07 against the API: for `internal-vault`, `delta-suite` and `app-source`, both the rulesets and the branch protection endpoints answer 403 "Upgrade to GitHub Pro or make this repository public". **Decision (owner, 2026-10-07): the organization stays on the Free plan and the private repositories stay private.** So these three repositories can never have a branch ruleset, and this proposal applies to the four public ones only (`action-worker`, `ai-gateway`, `delta`, `external-vault`).
+- The file is applied to all managed repositories by `apply-repository-settings.yml` as soon as a change to `policies/rulesets.json` reaches `main` of this repository. One merge therefore changes every managed repository.
+- `scripts/apply-repository-settings.ts` skips rulesets for private repositories "under the current GitHub Free organization". Checked on 2026-10-07 against the API: for `internal-vault`, `delta-suite` and `app-source`, both the rulesets and the branch protection endpoints answer 403 "Upgrade to GitHub Pro or make this repository public". **Decision (owner, 2026-10-07): the organization stays on the Free plan and the private repositories stay private.** So these three repositories can never have a branch ruleset, and this proposal applies to the four public ones only (`action-worker`, `ai-gateway`, `delta`, `external-vault`).
 - The organization has two people (`fongap`, `fongxen`).
 
 ## 选项 (each independent)
@@ -35,7 +35,7 @@ Rollback for each phase: revert the change in `policies/rulesets.json`; the next
 
 ## 影响与风险
 
-- Because one merge changes every managed repository, trial it first with `apply-repo-settings.yml` run manually in dry-run mode (`is_dry_run: true`) for a single repository.
+- Because one merge changes every managed repository, trial it first with `apply-repository-settings.yml` run manually in dry-run mode (`is_dry_run: true`) for a single repository.
 - A mistake that makes a ruleset unsatisfiable (e.g. approvals required but nobody can approve) blocks merges everywhere, including the PR that would fix it, unless a bypass actor exists. Add the bypass actor in the same PR as any approval requirement, and apply approvals to one repository first.
 - Unverified in this session (GitHub documentation was not reachable): whether `integration_id` can match a commit status context (I believe it applies to check runs only). The free-plan limit for private repositories is no longer open: it was confirmed with the API responses quoted above.
 

@@ -95,7 +95,7 @@ GitHub native protection
 └─ restrict bypass
 ```
 
-公开受管仓的 Repository Ruleset 由 Action Worker 中央管理，权威文件为 `policies/rulesets.json`。当前统一管理 `Protect Main Branch` 与 `Protect Legacy Branches`；不得在业务仓手工维护另一套规则定义。仓库设置与 Ruleset 均由 `apply-repo-settings.yml` 使用 `AW_ADMIN_TOKEN` 应用。
+公开受管仓的 Repository Ruleset 由 Action Worker 中央管理，权威文件为 `policies/rulesets.json`。当前统一管理 `Protect Main Branch` 与 `Protect Legacy Branches`；不得在业务仓手工维护另一套规则定义。仓库设置与 Ruleset 均由 `apply-repository-settings.yml` 使用 `AW_ADMIN_TOKEN` 应用。
 
 原生 Ruleset / branch-protection 能力取决于仓库可用的 GitHub 套餐和连接权限。GitHub Free 组织只对公开仓提供 Ruleset 与 Protected Branch；私有仓必须把这一点视为平台限制，不能在文档、审计或自动化中宣称其拥有与公开仓相同的 `main` 强制保护。私有仓仍必须走中央 PR Governance / CI Evidence / validate-merge 流程；GitHub 平台可以暂时缺少写入前强制，但 Main Write Guard 会在写入后隔离任何缺少中央 Merge Authority 的 main SHA。
 
