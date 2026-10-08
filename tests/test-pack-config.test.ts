@@ -4,10 +4,10 @@ import { parseTestPackConfig } from "../scripts/resolve-test-pack.ts";
 
 const sha = "c".repeat(40);
 
-test("accepts a pack pinned to main or to a full commit SHA", () => {
-  assert.deepEqual(parseTestPackConfig('{"schema_version":1,"pack":"ai-gateway","ref":"main"}'), {
+test("accepts a pack pinned to a full commit SHA", () => {
+  assert.deepEqual(parseTestPackConfig(`{"schema_version":1,"pack":"ai-gateway","ref":"${sha}"}`), {
     pack: "ai-gateway",
-    ref: "main",
+    ref: sha,
   });
   assert.deepEqual(parseTestPackConfig(`{"schema_version":1,"pack":"delta","ref":"${sha}"}`), {
     pack: "delta",
@@ -19,12 +19,13 @@ test("rejects unsafe pack names, mutable refs and unknown fields", () => {
   for (const text of [
     "not json",
     "[]",
-    '{"schema_version":2,"pack":"delta","ref":"main"}',
-    '{"schema_version":1,"pack":"../delta","ref":"main"}',
-    '{"schema_version":1,"pack":"Delta","ref":"main"}',
+    `{"schema_version":2,"pack":"delta","ref":"${sha}"}`,
+    `{"schema_version":1,"pack":"../delta","ref":"${sha}"}`,
+    `{"schema_version":1,"pack":"Delta","ref":"${sha}"}`,
     '{"schema_version":1,"pack":"delta","ref":"feature/x"}',
     '{"schema_version":1,"pack":"delta","ref":"abc123"}',
-    '{"schema_version":1,"pack":"delta","ref":"main","command":"rm -rf /"}',
+    '{"schema_version":1,"pack":"delta","ref":"main"}',
+    `{"schema_version":1,"pack":"delta","ref":"${sha}","command":"rm -rf /"}`,
   ]) {
     assert.throws(() => parseTestPackConfig(text), text);
   }
@@ -60,8 +61,8 @@ test("a pinned pack is checked out only when it is trusted history", async () =>
   const write = (ref: string) =>
     writeFile(configPath, JSON.stringify({ schema_version: 1, pack: "example", ref }));
 
-  await write("main");
-  assert.equal(await prepareTestPack(root, configPath), "main");
+  // Missing config file falls back to "main" (used by central CI where the
+  // worker is already checked out at the trusted ref).
   assert.equal(await prepareTestPack(root, join(root, "missing.json")), "main");
 
   await write(first);
