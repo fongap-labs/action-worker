@@ -1,4 +1,4 @@
-name: Handle Task Source Dispatch
+name: Task Source Dispatch
 
 on:
   repository_dispatch:

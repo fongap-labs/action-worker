@@ -120,18 +120,17 @@ test("governance files and TypeScript control entries exist", async () => {
     ".github/workflows/handle-pr-review.yml",
     ".github/workflows/handle-release-dispatch.yml",
     ".github/workflows/ci-intake.yml",
-    ".github/workflows/dependency-repair.yml",
+    ".github/workflows/dependency-repair-dispatch.yml",
     ".github/workflows/main-write-audit.yml",
     ".github/workflows/main-write-guard.yml",
     ".github/workflows/pr-intake.yml",
-    ".github/workflows/release-build.yml",
-    ".github/workflows/security-scan.yml",
+    ".github/workflows/release-build-dispatch.yml",
+    ".github/workflows/security-scan-dispatch.yml",
     ".github/workflows/security-scan-intake.yml",
     ".github/workflows/source-script-deploy.yml",
     ".github/workflows/sync-tool-release.yml",
     ".github/workflows/task-intake.yml",
     ".github/workflows/task-source-dispatch.yml",
-    ".github/workflows/validate-central-merge.yml",
     ".github/workflows/cancel-pr-work.yml",
     "skills/writing/SKILL.md",
   ];
@@ -596,7 +595,7 @@ test("task source ingress is source-owned and repository-agnostic", async () => 
 });
 
 test("release, source, deploy, merge, and repository settings contracts remain intact", async () => {
-  const releaseBuild = await text(".github/workflows/release-build.yml");
+  const releaseBuild = await text(".github/workflows/release-build-dispatch.yml");
   requireText(releaseBuild, [
     "types: [run-release-build]",
     "workflow_dispatch:",
@@ -681,35 +680,14 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   assert.equal(await exists(".github/workflows/validate-release-policy.yml"), false);
   assert.equal(await exists(".github/workflows/publish-release.yml"), false);
 
-  const source = await text(".github/workflows/validate-source-policy.yml");
-  requireText(source, [
-    "workflow_call:",
-    "contents: read",
-    "actions: read",
-    "target_sha:",
-    "ci_workflow:",
-    "require_default_head:",
-    "40-character commit SHA",
-    "default_branch",
-    "gh run list",
-    "databaseId",
-  ]);
-  const deploy = await text(".github/workflows/validate-deploy-policy.yml");
-  requireText(deploy, [
-    "workflow_call:",
-    "uses: ./.github/workflows/validate-source-policy.yml",
-    "target_sha: ${{ inputs.target_sha }}",
-    "ci_workflow: ${{ inputs.ci_workflow }}",
-  ]);
-  const centralMerge = await text(".github/workflows/validate-central-merge.yml");
-  requireText(centralMerge, [
-    "workflow_call:",
-    "checks: write",
-    "validate-merge",
-    "CI Evidence",
-    "PR Governance",
-    "check-runs",
-  ]);
+  // Reusable workflows that no repository called any more.
+  for (const removed of [
+    "validate-central-merge.yml",
+    "validate-deploy-policy.yml",
+    "validate-source-policy.yml",
+  ]) {
+    assert.equal(await exists(`.github/workflows/${removed}`), false);
+  }
 
   const merge = await text(".github/actions/validate-merge-policy/action.yml");
   requireText(merge, [
@@ -736,13 +714,13 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   assert.equal(repository.allow_merge_commit, false);
   assert.equal(repository.allow_squash_merge, true);
   assert.equal(repository.delete_branch_on_merge, true);
-  const settings = await text(".github/workflows/apply-repo-settings.yml");
+  const settings = await text(".github/workflows/apply-repository-settings.yml");
   requireText(settings, [
     "secrets.AW_ADMIN_TOKEN",
     "inputs.is_dry_run",
     "policies/rulesets.json",
-    "scripts/apply-repo-settings.ts",
-    "node scripts/apply-repo-settings.ts",
+    "scripts/apply-repository-settings.ts",
+    "node scripts/apply-repository-settings.ts",
     "node scripts/repository-policy.ts list pr",
   ]);
 });
@@ -774,7 +752,7 @@ test("closed PR cancellation validates policy and state before owning live concu
 });
 
 test("security scanning is source-owned, centrally executed, and private-safe", async () => {
-  const workflow = await text(".github/workflows/security-scan.yml");
+  const workflow = await text(".github/workflows/security-scan-dispatch.yml");
   requireText(workflow, [
     "types: [run-security-scan]",
     "resolve-security-scan.ts",
@@ -836,7 +814,7 @@ test("security scanning is source-owned, centrally executed, and private-safe", 
   requireText(intake, [
     "push:",
     "branches: [main]",
-    ".github/workflows/security-scan.yml",
+    ".github/workflows/security-scan-dispatch.yml",
     "scripts/security-scan.ts",
     'cron: "17 3 * * 1"',
     "contents: write",
@@ -1099,7 +1077,7 @@ test("central main write audit is independent of business repository Actions", a
 });
 
 test("dependency repair keeps compute and publication authority separated", async () => {
-  const workflow = await text(".github/workflows/dependency-repair.yml");
+  const workflow = await text(".github/workflows/dependency-repair-dispatch.yml");
   requireText(workflow, [
     "types: [run-dependency-repair]",
     "resolve-dependency-repair.ts",

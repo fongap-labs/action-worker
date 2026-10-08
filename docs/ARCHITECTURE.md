@@ -100,7 +100,7 @@ Action Worker 收到任务后必须：
 - 使用 `AW_CONTROL_TOKEN` 从 GitHub 重新获取 PR base/head SHA、标题、状态和 diff；
 - checkout `refs/pull/<n>/head` 后再次与 GitHub 当前 PR 事实对齐；如果调度到检出之间 PR 已更新，则以实际检出 commit 与最新 PR API 一致的 base/head/title 作为本次治理事实，避免把同步窗口误判为永久失败；
 - 只读取目标 PR，不执行 PR 提供的代码；
-- 在派发中央 CI 之前校验 PR 作者（`scripts/pr-trust.ts`）：作者对目标仓有写权限（`author_association` 为 OWNER / MEMBER / COLLABORATOR）时直接继续；同一公开仓库分支发起的 `dependabot[bot]` PR 也直接继续（公开目标的 Sandbox 不持有任何凭据）；其他作者（例如 fork 贡献者，以及私有仓库中的 Dependabot）的 PR 必须先由一名有写权限的维护者对**当前 head commit** 提交 Approve review。等待期间本次运行以成功结束，`PR Governance` 与 `validate-merge` 写为 `failure`，描述固定为 `Awaiting maintainer approval of the current head commit`，PR 评论给出操作步骤；`pr-intake.yml` 识别该描述后不再重复派发，只在检测到对当前 head 的批准时重新派发（最长约 5 分钟，也可在 Actions 中手动运行 Central PR Intake 立即继续）。批准绑定到被审 commit，作者再推送后需要重新批准。`central-ci-dispatch.yml` 在执行前再次做同样的校验，且对未受信 head 始终失败关闭；
+- 在派发中央 CI 之前校验 PR 作者（`scripts/pr-trust.ts`）：作者对目标仓有写权限（`author_association` 为 OWNER / MEMBER / COLLABORATOR）时直接继续；同一公开仓库分支发起的 `dependabot[bot]` PR 也直接继续（公开目标的 Sandbox 不持有任何凭据）；其他作者（例如 fork 贡献者，以及私有仓库中的 Dependabot）的 PR 必须先由一名有写权限的维护者对**当前 head commit** 提交 Approve review。等待期间本次运行以成功结束，`PR Governance` 与 `validate-merge` 写为 `failure`，描述固定为 `Awaiting maintainer approval of the current head commit`，PR 评论给出操作步骤；`pr-intake.yml` 识别该描述后不再重复派发，只在检测到对当前 head 的批准时重新派发（最长约 5 分钟，也可在 Actions 中手动运行 PR Intake 立即继续）。批准绑定到被审 commit，作者再推送后需要重新批准。`central-ci-dispatch.yml` 在执行前再次做同样的校验，且对未受信 head 始终失败关闭；
 - 当执行计划要求 CI 时，由 Action Worker checkout 目标不可变 head SHA，并在 Sandbox 执行项目 Manifest / 测试脚本，生成真实 CI Evidence；
 - 先根据确定性 PR / Security / CI 证据形成 Gate 结论，并向目标 head commit 写入统一 `PR Governance` status；
 - 只有 Gate 结论形成后，AI Review 才可读取 CI Evidence 作为不可信执行证据；Evidence 中任何文本都不得视为指令；
@@ -122,7 +122,7 @@ Action Worker 收到任务后必须：
 
 可以执行 PR 代码、build 和 test，但不得获得中央 Secret 或部署凭据。
 
-中央 CI 的 Sandbox 作业位于 `central-ci-sandbox.yml`（reusable workflow）。Sandbox 作业不直接引用任何中央 Secret：公开目标仓用本次运行的只读 `github.token` 检出；只有私有目标仓才由调用方传入 `checkout_token`，该值是只读的 `AW_CHECKOUT_TOKEN`（仅 `Contents: Read`，范围仅限私有受管仓），在 GitHub 服务端求值，公开目标仓收到的是空值。会执行目标源码的作业（Sandbox、依赖修复的计算作业）不得引用 `AW_CONTROL_TOKEN` 或 `AW_ADMIN_TOKEN`；所有 `actions/checkout` 默认 `persist-credentials: false`，仅 `update-work-metrics.yml` 因需要提交而例外。`security-scan.yml` 的 CodeQL 作业不带任何 Secret，只产出 SARIF 工件，由独立的 `publish` 作业持有 `AW_ADMIN_TOKEN` 上传。`tests/workflow-invariants.test.ts` 把这些边界固化为测试。
+中央 CI 的 Sandbox 作业位于 `central-ci-sandbox.yml`（reusable workflow）。Sandbox 作业不直接引用任何中央 Secret：公开目标仓用本次运行的只读 `github.token` 检出；只有私有目标仓才由调用方传入 `checkout_token`，该值是只读的 `AW_CHECKOUT_TOKEN`（仅 `Contents: Read`，范围仅限私有受管仓），在 GitHub 服务端求值，公开目标仓收到的是空值。会执行目标源码的作业（Sandbox、依赖修复的计算作业）不得引用 `AW_CONTROL_TOKEN` 或 `AW_ADMIN_TOKEN`；所有 `actions/checkout` 默认 `persist-credentials: false`，仅 `update-work-metrics.yml` 因需要提交而例外。`security-scan-dispatch.yml` 的 CodeQL 作业不带任何 Secret，只产出 SARIF 工件，由独立的 `publish` 作业持有 `AW_ADMIN_TOKEN` 上传。`tests/workflow-invariants.test.ts` 把这些边界固化为测试。
 
 因此：
 
@@ -440,7 +440,7 @@ GitHub 返回的提交状态 `creator` 字段对这些状态为 `null`，所以�
 
 ## 10. Source 与 Release
 
-`validate-source-policy.yml` 继续作为当前迁移期 Source Gate 之一；长期 Source / CI 准入统一由中央 Execution Contract 生成可验证 Evidence。
+Source / CI 准入统一由中央 Execution Contract 生成可验证 Evidence，并由 `hasVerifiedCiEvidence` 校验。
 
 Release 的目标链路为中央事件驱动：
 
@@ -567,7 +567,7 @@ The deploy manifest (`.github/deploy.json` in the source repository) only *reque
 
 The deploy job also: checks the target out with the read-only `AW_CHECKOUT_TOKEN` (never `AW_CONTROL_TOKEN`), asks `resolve-secret-scope.ts` to refuse the control-plane credentials (`AW_CONTROL_TOKEN`, `AW_ADMIN_TOKEN`, `AW_DISPATCH_TOKEN`, `AW_CHECKOUT_TOKEN`, `GH_TOKEN`, `NODE_OPTIONS`) in any declared list, and fails if one of them is still in the environment before the entrypoint starts.
 
-Every job that uses `AW_ADMIN_TOKEN` (`apply-repo-settings.yml`, the publish job of `security-scan.yml`) runs in the `admin-ops` environment. Both environments (`production`, `admin-ops`) restrict deployment to `main`; repository_dispatch runs always use the default branch, and a `workflow_dispatch` run from another branch is refused by the environment. Repository-level copies of secrets stay in place until the environment copies have been verified; deleting them is a separate, manual owner step.
+Every job that uses `AW_ADMIN_TOKEN` (`apply-repository-settings.yml`, the publish job of `security-scan-dispatch.yml`) runs in the `admin-ops` environment. Both environments (`production`, `admin-ops`) restrict deployment to `main`; repository_dispatch runs always use the default branch, and a `workflow_dispatch` run from another branch is refused by the environment. Repository-level copies of secrets stay in place until the environment copies have been verified; deleting them is a separate, manual owner step.
 
 ## 13. 目录
 
@@ -575,31 +575,34 @@ Action Worker 按职责分层。当前 workflow 入口如下；业务能力通�
 
 ```text
 .github/workflows/
-  apply-repo-settings.yml
-  cancel-pr-work.yml
-  central-ci-dispatch.yml
-  ci-intake.yml
-  dependency-repair.yml
+  # dispatch entry points: handle-<subject>-dispatch.yml, shortened to fit three segments
   handle-pr-dispatch.yml
   handle-pr-review.yml
   handle-release-dispatch.yml
   handle-task-dispatch.yml
+  cancel-pr-work.yml
+  central-ci-dispatch.yml
+  dependency-repair-dispatch.yml
+  release-build-dispatch.yml
+  security-scan-dispatch.yml
+  source-script-deploy.yml
+  task-source-dispatch.yml
+
+  # scheduled reconciliation that dispatches work: <subject>-intake.yml
+  ci-intake.yml
+  pr-intake.yml
+  security-scan-intake.yml
+  task-intake.yml
+
+  # reusable and standalone operations
+  apply-repository-settings.yml
+  central-ci-sandbox.yml
   main-write-audit.yml
   main-write-guard.yml
-  pr-intake.yml
   prune-stale-branches.yml
-  release-build.yml
-  security-scan-intake.yml
-  security-scan.yml
-  source-script-deploy.yml
   sync-tool-release.yml
-  task-intake.yml
-  task-source-dispatch.yml
   update-work-metrics.yml
-  validate-central-merge.yml
   validate-ci.yml
-  validate-deploy-policy.yml
-  validate-source-policy.yml
 
 contracts/
   PR / Task / Release / Release Build / Deploy / Provenance contracts

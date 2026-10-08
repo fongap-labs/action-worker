@@ -1,4 +1,4 @@
-name: Handle Dependency Repair Dispatch
+name: Dependency Repair Dispatch
 
 on:
   repository_dispatch:

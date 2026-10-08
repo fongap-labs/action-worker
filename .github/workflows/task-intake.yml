@@ -1,4 +1,4 @@
-name: Central Task Intake
+name: Task Intake
 
 on:
   push:
