@@ -404,7 +404,7 @@ Tasks and PRs share one principle:
 
 > The caller submits a target; Action Worker verifies the facts and decides how to execute.
 
-A task uses `AW_CONTROL_TOKEN` to fetch the pinned commit of a managed private repository. Once the bootstrap is downloaded, central credentials such as `AW_CONTROL_TOKEN`, `AW_ADMIN_TOKEN`, `AIG_ACCESS_KEY_AGENT` and `AW_DISPATCH_TOKEN` are removed from the business execution environment. The bootstrap is then started with `exec`, which replaces the shell that was started with every secret, so the task never runs beside that process. When the task source repository is private, the bootstrap output goes to a runner temporary file instead of this public repository's run log; the log keeps only a summary of the task result, and the file is never uploaded as an artifact. A task may stage one cross-repository publication request in `RUNNER_TEMP/action-worker-publication`, but the business task holds no write credential for the target repository. After the task succeeds, Action Worker separately checks `AW_REPOSITORY_POLICY`: the source repository needs `release-source`, and the target repository needs `release-target` and `pr`. Only then is `AW_CONTROL_TOKEN` injected into the central publication step, which merges into the target repository's `main` through a pull request (`main` of the target has no bypass and requires a PR with a passing `validate-merge` check).
+A task uses `AW_CONTROL_TOKEN` to fetch the pinned commit of a managed private repository. Once the bootstrap is downloaded, central credentials such as `AW_CONTROL_TOKEN`, `AW_ADMIN_TOKEN`, `AIG_ACCESS_KEY_AGENT` and `AW_DISPATCH_TOKEN` are removed from the business execution environment. The bootstrap is then started with `exec`, which replaces the shell that was started with every secret, so the task never runs beside that process. When the task source repository is private, the bootstrap output goes to a runner temporary file instead of this public repository's run log; the log keeps only a summary of the task result, and the file leaves the runner only encrypted (section 9.3). A task may stage one cross-repository publication request in `RUNNER_TEMP/action-worker-publication`, but the business task holds no write credential for the target repository. After the task succeeds, Action Worker separately checks `AW_REPOSITORY_POLICY`: the source repository needs `release-source`, and the target repository needs `release-target` and `pr`. Only then is `AW_CONTROL_TOKEN` injected into the central publication step, which merges into the target repository's `main` through a pull request (`main` of the target has no bypass and requires a PR with a passing `validate-merge` check).
 
 ### 9.1 Task source re-verification
 
@@ -436,6 +436,21 @@ When `scripts/resolve-secret-scope.ts` receives the policy path, repository and 
 - `enforce`: the run fails with exit code 65 and the task does not start.
 
 Update `policies/task-secrets.json` before adding a task project or one of its secrets. Set `AW_TASK_SECRET_POLICY_MODE` to `enforce` once the `warn` logs show no unexpected excess.
+
+### 9.3 Private task state and logs
+
+Artifacts of this public repository can be downloaded by any signed-in GitHub user. For a private task source, the task state (`task-state-<hash>`) and the log of a failed task (`task-log-<run>`) therefore leave the runner only encrypted with the secret `AW_ARTIFACT_KEY` (AES-256-GCM, `scripts/task-state.ts`). The encryption also binds each file to its kind, repository and project, so a file cannot be swapped into another task.
+
+- Without `AW_ARTIFACT_KEY`, nothing private is uploaded: the task runs without previous state and its failed log stays on the runner.
+- The task never keeps the key: `AW_` names are reserved in the secret scope, and the execute step fails if the key is still in its environment.
+- State is looked up by its artifact name and accepted only from a successful run of `handle-task-dispatch.yml` on `main`; its manifest is checked again after decryption.
+
+Reading a failed private task log (the owner, with the key file kept when the secret was created):
+
+```bash
+gh run download <run-id> -R fongap-labs/action-worker -n task-log-<run-id>-1 -D task-log
+AW_ARTIFACT_KEY="$(cat ~/aw-artifact.key)" node scripts/task-state.ts open-log task-log/task-log.seal <owner/repository> <project> task.log
+```
 
 ## 10. Source and Release
 

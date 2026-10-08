@@ -284,6 +284,12 @@ These PRs have red checks because the author is a bot and not a trusted author: 
 
 ### Manual actions for you
 
+- **Create `AW_ARTIFACT_KEY`** (once, about 2 minutes). Without it, private tasks keep no state between runs and their failure logs are not kept. In Git Bash:
+  ```bash
+  openssl rand -base64 32 > ~/aw-artifact.key
+  gh secret set AW_ARTIFACT_KEY --repo fongap-labs/action-worker < ~/aw-artifact.key
+  ```
+  Keep `~/aw-artifact.key` private (for example in your password manager): it is needed to read a failed private task log (see `docs/ARCHITECTURE.md` section 9.3). If it is lost, create a new one; old encrypted state is then ignored and the next run starts fresh.
 - **The GitHub settings of P-00** (A, B, C1/C2, D, E, F, H): see the steps above; **C3 (deleting repository-level secrets) waits until AW-002 is implemented and rehearsed successfully**.
 - The Windows code signing certificate, and the two secrets for it in a protected environment (delta `#117` is merged; without the certificate the build does not change).
 - The backup contact in SECURITY.md (marked TODO in the action-worker `SECURITY.md`).

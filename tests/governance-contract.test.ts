@@ -512,7 +512,9 @@ test("task dispatch keeps the publication credential in the central control step
   const directSecrets = [
     ...workflow.matchAll(/\$\{\{\s*secrets\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g),
   ].map((match) => match[1]);
-  assert.deepEqual([...new Set(directSecrets)], ["AW_CONTROL_TOKEN"]);
+  assert.deepEqual([...new Set(directSecrets)].sort(), ["AW_ARTIFACT_KEY", "AW_CONTROL_TOKEN"]);
+  // The task itself never keeps the artifact key: it is checked like the central credentials.
+  assert.match(workflow, /for central_name in [A-Z_ ]*AW_ARTIFACT_KEY; do/);
   assert.doesNotMatch(workflow, /AW_EXECUTION_TOKEN|AW_EXECUTION_REPOSITORY/);
   assert.doesNotMatch(workflow, /raw\.githubusercontent\.com|Authorization: Bearer/);
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
@@ -1130,9 +1132,26 @@ test("deploy and task entrypoints replace the shell that received every secret",
     '>"${RUNNER_TEMP}/action-worker-task.log" 2>&1',
     "Task output is suppressed because the task source repository is private.",
   ]);
-  // Artifacts of this public repository are downloadable by any signed-in user.
+  // Artifacts of this public repository are downloadable by any signed-in user: the plain log is
+  // never uploaded, only the sealed copy, and only for a failed private task.
   assert.doesNotMatch(task, /path: .*action-worker-task\.log/);
-  assert.doesNotMatch(task, /name: task-log-/);
+  assert.match(
+    task,
+    /- name: Seal failed private task log\n\s+id: task_log\n\s+if: always\(\) && steps\.task\.outcome == 'failure' && env\.TASK_SOURCE_PRIVATE != 'false'\n/
+  );
+  assert.match(
+    task,
+    /- name: Upload sealed task log\n\s+if: always\(\) && steps\.task_log\.outputs\.path != ''[\s\S]*?path: \$\{\{ steps\.task_log\.outputs\.path \}\}/
+  );
+  assert.ok(
+    task.indexOf("- name: Seal failed private task log") <
+      task.indexOf("- name: Report task result"),
+    "the log is sealed before the report step deletes it"
+  );
+  assert.match(
+    task,
+    /- name: Upload task state\n\s+if: always\(\) && steps\.state_upload\.outputs\.path != ''[\s\S]*?path: \$\{\{ steps\.state_upload\.outputs\.path \}\}/
+  );
 });
 
 test("only PR Governance reports an untrusted head instead of failing", async () => {
