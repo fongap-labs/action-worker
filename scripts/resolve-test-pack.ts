@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 const packPattern = /^[a-z][a-z0-9-]*$/;
-const refPattern = /^(?:main|[0-9a-f]{40})$/;
+const refPattern = /^[0-9a-f]{40}$/;
 
 export type TestPackConfig = { pack: string; ref: string };
 
@@ -26,7 +26,7 @@ export function parseTestPackConfig(text: string): TestPackConfig {
     throw new CliError("Test pack name is invalid.", 65);
   }
   if (typeof ref !== "string" || !refPattern.test(ref)) {
-    throw new CliError('Test pack ref must be "main" or a full commit SHA.', 65);
+    throw new CliError("Test pack ref must be a full 40-character commit SHA.", 65);
   }
   return { pack, ref };
 }

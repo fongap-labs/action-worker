@@ -9,9 +9,6 @@ export async function prepareTestPack(workerRoot: string, configPath: string): P
     return "main";
   }
   const { ref } = parseTestPackConfig(await readFile(configPath, "utf8"));
-  if (ref === "main") {
-    return ref;
-  }
   // A pinned pack must be history of the trusted default branch, never a side branch.
   try {
     await runCommand("git", ["merge-base", "--is-ancestor", ref, "HEAD"], { cwd: workerRoot });
