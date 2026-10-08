@@ -137,7 +137,7 @@ done
 | Secret | Target environment |
 |---|---|
 | `AW_ADMIN_TOKEN` | `admin-ops` |
-| `CLOUDFLARE_API_TOKEN`, `AIG_ACCESS_KEY_*`, `AIG_TIER*_CREDENTIALS_*`, `AIG_TOKEN_ENCRYPTION_KEY`, `ALGOLIA_*` | `production` |
+| `CLOUDFLARE_API_TOKEN` (**the ai-gateway Cloudflare account**, see "Two Cloudflare accounts" below), `AIG_ACCESS_KEY_*`, `AIG_TIER*_CREDENTIALS_*`, `AIG_TOKEN_ENCRYPTION_KEY`, `ALGOLIA_*` | `production` |
 | the 3 names the internal-vault deploy needs (see its `deploy.secrets.allowed`) | `server-edge-cloud-edge` |
 
 ```bash
@@ -147,6 +147,21 @@ gh secret set <NAME> --repo fongap-labs/action-worker --env <ENV>
 - **Rollback**: `gh secret delete <NAME> --repo fongap-labs/action-worker --env <ENV>`.
 - **Verification**: `gh secret list --repo fongap-labs/action-worker --env <ENV>`.
 - ⚠ Secrets used by the task path (CLOUDFLARE_ACCOUNT_ID, TUSHARE/TIINGO/FRED/ALPHAVANTAGE and others) are **not migrated yet**; see section 0, item 2.
+
+#### Two Cloudflare accounts share the name `CLOUDFLARE_API_TOKEN`
+
+Two different Cloudflare accounts use this one secret name, and a name can hold only one value per level:
+
+| Level | Holds the token of | Used by |
+|---|---|---|
+| environment `production` | the ai-gateway account | the ai-gateway deploy (its job is bound to `production`) |
+| repository (action-worker) | the account of FongapBlog and FongapCDN | internal-vault tasks (a task job is bound to no environment) |
+
+GitHub gives a job the environment secret in place of a repository secret of the same name, so both work side by side without renaming anything. Consequences:
+
+- Set the environment copy first (`gh secret set CLOUDFLARE_API_TOKEN --repo fongap-labs/action-worker --env production`), and type the **ai-gateway account's** token. Never paste a note or a description into the prompt: a stray non-ASCII character makes Wrangler refuse the token (the deploys of 2026-10-07).
+- **Never run C3 for `CLOUDFLARE_API_TOKEN`.** The repository-level copy belongs to the tasks and is not a leftover; deleting it breaks FongapBlog and FongapCDN.
+- Replacing the repository-level value changes the tasks only; replacing the environment value changes the ai-gateway deploy only. If a deploy and a task fail at the same time after one secret change, the two accounts were mixed up.
 
 ### C3 · delete repository-level secrets (one at a time, and only after P-AW-3 is merged and rehearsed successfully)
 **Checklist before deleting (go through it for every secret):**

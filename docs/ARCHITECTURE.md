@@ -583,6 +583,8 @@ The deploy manifest (`.github/deploy.json` in the source repository) only *reque
 
 The deploy job also: checks the target out with the read-only `AW_CHECKOUT_TOKEN` (never `AW_CONTROL_TOKEN`), asks `resolve-secret-scope.ts` to refuse the control-plane credentials (`AW_CONTROL_TOKEN`, `AW_ADMIN_TOKEN`, `AW_DISPATCH_TOKEN`, `AW_CHECKOUT_TOKEN`, `GH_TOKEN`, `NODE_OPTIONS`) in any declared list, and fails if one of them is still in the environment before the entrypoint starts.
 
+A secret name can exist at the repository level and in an environment with different values; a job bound to the environment gets the environment value. `CLOUDFLARE_API_TOKEN` relies on this: the `production` environment holds the ai-gateway account's token for the deploy, and the repository level holds the token the internal-vault tasks (FongapBlog, FongapCDN) use, which belongs to another Cloudflare account. The repository-level copy must therefore stay (see `p00-owner-checklist.md`).
+
 Every job that uses `AW_ADMIN_TOKEN` (`apply-repository-settings.yml`, the publish job of `security-scan-dispatch.yml`) runs in the `admin-ops` environment. Both environments (`production`, `admin-ops`) restrict deployment to `main`; repository_dispatch runs always use the default branch, and a `workflow_dispatch` run from another branch is refused by the environment. Repository-level copies of secrets stay in place until the environment copies have been verified; deleting them is a separate, manual owner step.
 
 ## 14. Directory layout
