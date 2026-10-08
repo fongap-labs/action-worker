@@ -16,6 +16,8 @@ export type TaskSecretCeiling = {
   names: ReadonlySet<string>;
   mode: TaskSecretPolicyMode;
   label?: "task" | "deploy";
+  // Declared name -> the stored secret that supplies its value (see readSecretAliases).
+  aliases?: ReadonlyMap<string, string>;
 };
 
 function policyNames(value: unknown, where: string): string[] {
@@ -48,6 +50,57 @@ export async function readTaskSecretCeiling(
     ...policyNames(projectEntry.required, "required"),
     ...policyNames(projectEntry.allowed, "allowed"),
   ]);
+}
+
+// A source declares the name its code reads (for example CLOUDFLARE_API_TOKEN). When one name serves
+// several accounts, the central policy says which stored secret supplies the value for one task project
+// or deploy environment: "aliases": { "CLOUDFLARE_API_TOKEN": "CLOUDFLARE_API_TOKEN_SECONDARY" }. The
+// source code and its secret lists stay unchanged, and the stored secret of the declared name itself is
+// never used for an aliased name.
+export async function readSecretAliases(
+  policyPath: string,
+  kind: "task" | "deploy",
+  repository: string,
+  key: string
+): Promise<ReadonlyMap<string, string>> {
+  const policy: unknown = JSON.parse(await readFile(policyPath, "utf8"));
+  const section = isJsonRecord(policy)
+    ? policy[kind === "deploy" ? "deployments" : "tasks"]
+    : undefined;
+  const repositoryEntry =
+    isJsonRecord(section) && Object.hasOwn(section, repository) ? section[repository] : undefined;
+  const entry =
+    isJsonRecord(repositoryEntry) && Object.hasOwn(repositoryEntry, key)
+      ? repositoryEntry[key]
+      : undefined;
+  const aliases = new Map<string, string>();
+  if (!isJsonRecord(entry) || entry.aliases === undefined) return aliases;
+  if (!isJsonRecord(entry.aliases)) {
+    throw new CliError(`Secret policy aliases are invalid: ${repository} ${key}.`, 65);
+  }
+  const declared = new Set([
+    ...policyNames(entry.required, "required"),
+    ...policyNames(entry.allowed, "allowed"),
+  ]);
+  const sources = new Set<string>();
+  for (const [name, from] of Object.entries(entry.aliases)) {
+    if (
+      !envNamePattern.test(name) ||
+      isReserved(name) ||
+      typeof from !== "string" ||
+      !envNamePattern.test(from) ||
+      isReserved(from) ||
+      from === name ||
+      declared.has(from) ||
+      sources.has(from) ||
+      !declared.has(name)
+    ) {
+      throw new CliError(`Secret policy alias is invalid: ${name} in ${repository} ${key}.`, 65);
+    }
+    sources.add(from);
+    aliases.set(name, from);
+  }
+  return aliases;
 }
 
 // Deploys use the same ceiling idea as tasks: `policies/deploy-secrets.json` lists, per repository and
@@ -106,7 +159,13 @@ export async function resolveSecretScope(
   deniedNames: readonly string[] = [],
   environment: NodeJS.ProcessEnv = process.env,
   ceiling?: TaskSecretCeiling
-): Promise<{ allowed: string[]; required: string[]; unset: string[]; policy_excess: string[] }> {
+): Promise<{
+  allowed: string[];
+  required: string[];
+  unset: string[];
+  policy_excess: string[];
+  alias: Array<{ name: string; from: string }>;
+}> {
   const baselineText = await readFile(baselinePath, "utf8");
   const baseline = new Set(
     baselineText
@@ -143,9 +202,31 @@ export async function resolveSecretScope(
     );
   }
 
+  // An aliased name takes its value from the stored secret the policy names; the stored secret of the
+  // declared name itself is not a fallback, because it may belong to another account.
+  const aliases = ceiling?.aliases ?? new Map<string, string>();
+  const alias: Array<{ name: string; from: string }> = [];
+  const dropped: string[] = [];
+  for (const name of [...allowed].sort()) {
+    const from = aliases.get(name);
+    if (from === undefined) continue;
+    if (denied.has(from)) {
+      throw new CliError(`Secret scope name is denied for this capability: ${from}.`, 65);
+    }
+    if (environment[from]) {
+      alias.push({ name, from });
+    } else {
+      dropped.push(name);
+    }
+  }
+
   for (const name of required) {
-    if (!environment[name]) {
-      throw new CliError(`Required task secret is unavailable: ${name}.`, 77);
+    const from = aliases.get(name);
+    if (from !== undefined ? !environment[from] : !environment[name]) {
+      throw new CliError(
+        `Required task secret is unavailable: ${name}${from === undefined ? "" : ` (stored as ${from})`}.`,
+        77
+      );
     }
   }
 
@@ -153,7 +234,7 @@ export async function resolveSecretScope(
     .filter((name) => !baseline.has(name))
     .sort();
   const unset = injected.filter(
-    (name) => isReserved(name) || denied.has(name) || !allowed.has(name)
+    (name) => isReserved(name) || denied.has(name) || !allowed.has(name) || dropped.includes(name)
   );
 
   return {
@@ -161,6 +242,7 @@ export async function resolveSecretScope(
     required: [...required].sort(),
     unset,
     policy_excess: policyExcess,
+    alias,
   };
 }
 
@@ -206,6 +288,7 @@ async function main(): Promise<void> {
             : await readTaskSecretCeiling(policyPath, repository, project),
         mode,
         label: policyKind,
+        aliases: await readSecretAliases(policyPath, policyKind, repository, project),
       }
     : undefined;
   const deniedNames = deniedRaw

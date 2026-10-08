@@ -137,7 +137,7 @@ done
 | Secret | Target environment |
 |---|---|
 | `AW_ADMIN_TOKEN` | `admin-ops` |
-| `CLOUDFLARE_API_TOKEN`, `AIG_ACCESS_KEY_*`, `AIG_TIER*_CREDENTIALS_*`, `AIG_TOKEN_ENCRYPTION_KEY`, `ALGOLIA_*` | `production` |
+| `CLOUDFLARE_API_TOKEN_SECONDARY` (the ai-gateway Cloudflare account, see "Two Cloudflare accounts" below), `AIG_ACCESS_KEY_*`, `AIG_TIER*_CREDENTIALS_*`, `AIG_TOKEN_ENCRYPTION_KEY`, `ALGOLIA_*` | `production` |
 | the 3 names the internal-vault deploy needs (see its `deploy.secrets.allowed`) | `server-edge-cloud-edge` |
 
 ```bash
@@ -147,6 +147,26 @@ gh secret set <NAME> --repo fongap-labs/action-worker --env <ENV>
 - **Rollback**: `gh secret delete <NAME> --repo fongap-labs/action-worker --env <ENV>`.
 - **Verification**: `gh secret list --repo fongap-labs/action-worker --env <ENV>`.
 - ⚠ Secrets used by the task path (CLOUDFLARE_ACCOUNT_ID, TUSHARE/TIINGO/FRED/ALPHAVANTAGE and others) are **not migrated yet**; see section 0, item 2.
+
+#### Two Cloudflare accounts: CLOUDFLARE_API_TOKEN_PRIMARY and CLOUDFLARE_API_TOKEN_SECONDARY
+
+The ai-gateway deploy and the internal-vault tasks FongapBlog and FongapCDN use two different Cloudflare accounts, but their code reads the same name, `CLOUDFLARE_API_TOKEN`. A stored secret holds one value per name, so setting it for one account broke the other (the ai-gateway deploys failed from 2026-10-07 after the secret was replaced on 2026-10-03). The central policy therefore maps the name to two stored secrets, both kept in action-worker:
+
+| Stored secret | Cloudflare account | Read as `CLOUDFLARE_API_TOKEN` by |
+|---|---|---|
+| `CLOUDFLARE_API_TOKEN_PRIMARY` | the account of FongapBlog and FongapCDN | those two internal-vault tasks |
+| `CLOUDFLARE_API_TOKEN_SECONDARY` | the ai-gateway account | the ai-gateway deploy |
+
+Nothing changes in ai-gateway or internal-vault. Set both **before** the change that adds the aliases is merged, and type each token only at the prompt (a pasted note or a stray non-ASCII character makes Wrangler refuse the token):
+
+```bash
+gh secret set CLOUDFLARE_API_TOKEN_PRIMARY   --repo fongap-labs/action-worker
+gh secret set CLOUDFLARE_API_TOKEN_SECONDARY --repo fongap-labs/action-worker
+```
+
+- The old stored `CLOUDFLARE_API_TOKEN` is ignored for these projects from then on, and can be deleted once both new secrets work.
+- If a task or the deploy fails with "Required task secret is unavailable: CLOUDFLARE_API_TOKEN (stored as …)", the named secret has not been created.
+- Replacing PRIMARY changes only the two tasks; replacing SECONDARY changes only the ai-gateway deploy. If both fail after one change, check which account the new token belongs to.
 
 ### C3 · delete repository-level secrets (one at a time, and only after P-AW-3 is merged and rehearsed successfully)
 **Checklist before deleting (go through it for every secret):**
