@@ -1,4 +1,3 @@
-import { extname } from "node:path";
 import { appendLines, CliError, handleError, isMain, runText } from "./runtime-command.ts";
 
 const HAN = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/u;
