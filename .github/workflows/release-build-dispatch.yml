@@ -1,4 +1,4 @@
-name: Handle Release Build Dispatch
+name: Release Build Dispatch
 
 on:
   repository_dispatch:

@@ -18,8 +18,8 @@ on:
     paths:
       - policies/repository.json
       - policies/rulesets.json
-      - scripts/apply-repo-settings.ts
-      - .github/workflows/apply-repo-settings.yml
+      - scripts/apply-repository-settings.ts
+      - .github/workflows/apply-repository-settings.yml
 
 permissions:
   contents: read
@@ -47,7 +47,7 @@ jobs:
           GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           TARGET_REPOSITORY: ${{ inputs.repository }}
           IS_DRY_RUN: ${{ inputs.is_dry_run }}
-        run: node scripts/apply-repo-settings.ts "$TARGET_REPOSITORY" "$IS_DRY_RUN"
+        run: node scripts/apply-repository-settings.ts "$TARGET_REPOSITORY" "$IS_DRY_RUN"
 
   apply-control-plane:
     if: github.event_name == 'push'
@@ -70,7 +70,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           TARGET_REPOSITORY: ${{ github.repository }}
-        run: node scripts/apply-repo-settings.ts "$TARGET_REPOSITORY" false
+        run: node scripts/apply-repository-settings.ts "$TARGET_REPOSITORY" false
 
   resolve-managed:
     if: github.event_name == 'push'
@@ -122,4 +122,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           TARGET_REPOSITORY: ${{ matrix.repository }}
-        run: node scripts/apply-repo-settings.ts "$TARGET_REPOSITORY" false
+        run: node scripts/apply-repository-settings.ts "$TARGET_REPOSITORY" false

@@ -1,4 +1,4 @@
-name: Cancel Closed PR Work
+name: Cancel PR Work
 
 on:
   repository_dispatch:

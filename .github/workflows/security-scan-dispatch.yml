@@ -1,4 +1,4 @@
-name: Handle Security Scan Dispatch
+name: Security Scan Dispatch
 
 on:
   repository_dispatch:
