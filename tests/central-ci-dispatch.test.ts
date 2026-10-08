@@ -85,3 +85,19 @@ test("central CI re-checks PR trust before resolving what to execute", () => {
     /- name: Enforce PR trust\n\s+if: github\.event\.action == 'run-central-ci'[\s\S]*?node scripts\/pr-trust\.ts "\$REPOSITORY" "\$PR_NUMBER" "\$EXPECTED_HEAD_SHA"[\s\S]*?- name: Resolve PR CI control/
   );
 });
+
+test("a pull request CI that fails in prepare still publishes a CI Evidence verdict", () => {
+  const job = workflow.slice(
+    workflow.indexOf("  prepare-failure:"),
+    workflow.indexOf("  follow-up:")
+  );
+  assert.match(
+    job,
+    /if: always\(\) && needs\.prepare\.result == 'failure' && github\.event\.action == 'run-central-ci'/
+  );
+  assert.match(job, /permissions: \{\}/);
+  assert.match(job, /\[ "\$current_head" != "\$REQUESTED_HEAD_SHA" \]/);
+  assert.match(job, /-f state=failure/);
+  assert.match(job, /-f "context=CI Evidence"/);
+  assert.doesNotMatch(job, /checkout|central-ci\.sh/);
+});
