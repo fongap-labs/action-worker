@@ -59,7 +59,7 @@ async function configureReview(): Promise<void> {
     ["llm.protocol", "openai"],
     ["llm.auth_token_cmd", 'printf "%s" "$OCR_LLM_TOKEN"'],
     ["llm.model", model],
-    ["language", "中文"],
+    ["language", "English"],
   ];
   for (const key of ["provider", "llm.extra_body"]) {
     try {
