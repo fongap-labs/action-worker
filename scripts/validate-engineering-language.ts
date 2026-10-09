@@ -61,6 +61,52 @@ export function engineeringLineViolation(path: string, line: string): string | n
   return null;
 }
 
+const QUOTED_ESCAPES: Record<string, number> = {
+  a: 0x07,
+  b: 0x08,
+  f: 0x0c,
+  n: 0x0a,
+  r: 0x0d,
+  t: 0x09,
+  v: 0x0b,
+  '"': 0x22,
+  "\\": 0x5c,
+};
+
+// Git writes a path with non-ASCII or special characters as a C-style quoted string with octal
+// escapes, for example `+++ "b/\350\201\224.md"`; decode it back into the real path.
+function unquoteGitPath(quoted: string): string {
+  const bytes: number[] = [];
+  const inner = quoted.slice(1, -1);
+  for (let index = 0; index < inner.length; index += 1) {
+    const char = inner[index] ?? "";
+    if (char !== "\\") {
+      bytes.push(...Buffer.from(char, "utf8"));
+      continue;
+    }
+    const octal = /^[0-7]{3}/.exec(inner.slice(index + 1, index + 4))?.[0];
+    if (octal) {
+      bytes.push(Number.parseInt(octal, 8));
+      index += 3;
+      continue;
+    }
+    const escaped = inner[index + 1] ?? "";
+    bytes.push(QUOTED_ESCAPES[escaped] ?? escaped.charCodeAt(0));
+    index += 1;
+  }
+  return Buffer.from(bytes).toString("utf8");
+}
+
+/** Path named by a `+++ ` diff header, or null for `/dev/null` and unrecognised headers. */
+export function diffHeaderPath(header: string): string | null {
+  if (!header.startsWith("+++ ")) {
+    return null;
+  }
+  const target = header.slice(4).replace(/\t.*$/, "");
+  const unquoted = target.startsWith('"') && target.endsWith('"') ? unquoteGitPath(target) : target;
+  return unquoted.startsWith("b/") ? unquoted.slice(2) : null;
+}
+
 export async function validateEngineeringDiff(
   base: string,
   head: string,
@@ -75,9 +121,14 @@ export async function validateEngineeringDiff(
   let failures = 0;
   const seen = new Set<string>();
   for (const raw of diff.split(/\r?\n/)) {
-    if (raw.startsWith("+++ b/")) {
-      path = raw.slice(6);
-      if (!seen.has(path)) {
+    if (raw.startsWith("diff --git ")) {
+      // A header that is not recognised below must not inherit the previous file's path.
+      path = "";
+      continue;
+    }
+    if (raw.startsWith("+++ ")) {
+      path = diffHeaderPath(raw) ?? "";
+      if (path && !seen.has(path)) {
         seen.add(path);
         files += 1;
       }

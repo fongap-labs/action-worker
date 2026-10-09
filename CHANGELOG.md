@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: the engineering language check reads `git diff` headers of files with non-ASCII or special characters in their path (`+++ "b/\350\201\224.md"`, which git writes as a quoted string) instead of keeping the previous file's path. Before, Chinese page text in a Chinese-named file that followed `CHANGELOG.md` in the diff was reported as a CHANGELOG entry, so a pull request that edited such pages failed PR Governance although its CHANGELOG entry was English. An unrecognised header now resets the path, so a line is never attributed to another file.
+
 - ci: the `Update Work Metrics` aggregate job checks out with `persist-credentials: false` like every other checkout in this repository, and the metrics push injects its credential through the git process environment for that single invocation instead of leaving the default token in `.git/config` for the whole job.
 
 - feat: the central secret policies can give a task project or a deploy environment an alias, so one declared secret name can take its value from a differently named stored secret (`"aliases"` in `policies/task-secrets.json` and `policies/deploy-secrets.json`, applied by `resolve-secret-scope.ts` before the other secrets are removed). `CLOUDFLARE_API_TOKEN` of the ai-gateway deploy now comes from `CLOUDFLARE_API_TOKEN_SECONDARY`, and that of the internal-vault tasks FongapBlog and FongapCDN from `CLOUDFLARE_API_TOKEN_PRIMARY`, because the two use different Cloudflare accounts; the source repositories do not change. Create both secrets before merging.
