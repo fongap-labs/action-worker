@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { parseAiAgentConfig } from "../scripts/ai-agent-config.ts";
 import { applyTriage } from "../scripts/apply-ai-triage.ts";
@@ -26,7 +29,9 @@ import { validateConfigText } from "../scripts/validate-config-naming.ts";
 import { validateDispatch } from "../scripts/validate-dispatch-payload.ts";
 import {
   assertEnglishText,
+  diffHeaderPath,
   engineeringLineViolation,
+  validateEngineeringDiff,
 } from "../scripts/validate-engineering-language.ts";
 import { hasLifecycleFilenameViolation } from "../scripts/validate-naming-rules.ts";
 import { validatePayload } from "../scripts/validate-pr-payload.ts";
@@ -384,6 +389,48 @@ test("engineering language rejects Chinese machine text but allows documentation
     engineeringLineViolation("assets/js/app.js", 'console.error("上游失败")'),
     "Logs, errors, and test descriptions must use English."
   );
+});
+
+test("engineering language reads quoted diff paths instead of reusing the previous file", async () => {
+  assert.equal(diffHeaderPath("+++ b/src/router.ts"), "src/router.ts");
+  assert.equal(diffHeaderPath("+++ b/docs/two words.md\t"), "docs/two words.md");
+  assert.equal(
+    diffHeaderPath('+++ "b/content/pages/\\350\\201\\224\\347\\263\\273.md"'),
+    "content/pages/联系.md"
+  );
+  assert.equal(diffHeaderPath('+++ "b/a\\"b\\\\c.txt"'), 'a"b\\c.txt');
+  assert.equal(diffHeaderPath("+++ /dev/null"), null);
+  assert.equal(diffHeaderPath("--- a/src/router.ts"), null);
+
+  // CHANGELOG.md sorts before the Chinese-named page; its path must not be reused for that page.
+  const root = await mkdtemp(join(tmpdir(), "engineering-language-"));
+  const git = (...args: string[]) =>
+    execFileSync("git", ["-C", root, "-c", "core.quotePath=true", ...args], { encoding: "utf8" });
+  try {
+    git("init", "-q");
+    git("config", "user.email", "test@example.invalid");
+    git("config", "user.name", "test");
+    await mkdir(join(root, "content"), { recursive: true });
+    await writeFile(join(root, "CHANGELOG.md"), "# Changelog\n");
+    await writeFile(join(root, "content", "联系.md"), "旧内容\n");
+    git("add", "-A");
+    git("commit", "-q", "-m", "base");
+    const base = git("rev-parse", "HEAD").trim();
+    await writeFile(join(root, "CHANGELOG.md"), "# Changelog\n\n- fix: refine pages.\n");
+    await writeFile(join(root, "content", "联系.md"), "新内容\n");
+    git("commit", "-q", "-am", "change");
+    const head = git("rev-parse", "HEAD").trim();
+    const result = await validateEngineeringDiff(base, head, root);
+    assert.deepEqual(result, { files: 2, additions: 3, failures: 0 });
+
+    // A Chinese CHANGELOG entry is still rejected.
+    await writeFile(join(root, "CHANGELOG.md"), "# Changelog\n\n- fix: 修复页面。\n");
+    git("commit", "-q", "-am", "chinese changelog");
+    const bad = await validateEngineeringDiff(base, git("rev-parse", "HEAD").trim(), root);
+    assert.equal(bad.failures, 1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
 
 test("lifecycle filename rule distinguishes control labels from domain concepts", () => {
