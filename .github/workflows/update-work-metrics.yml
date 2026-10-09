@@ -21,8 +21,7 @@ on:
 
 permissions:
   actions: read
-  contents: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: update-work-metrics-${{ github.event_name == 'workflow_run' && 'incremental' || 'reconcile' }}
@@ -48,7 +47,7 @@ jobs:
 
       - name: Sweep stale metrics branches
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           BRANCH: metrics/${{ github.run_id }}
         run: node scripts/manage-work-metrics.ts sweep
 
@@ -104,7 +103,7 @@ jobs:
         id: branch
         env:
           BRANCH: metrics/${{ github.run_id }}
-          GIT_PUSH_TOKEN: ${{ github.token }}
+          GIT_PUSH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
         run: node scripts/manage-work-metrics.ts branch
 
       - name: Create auto-update PR
@@ -132,7 +131,7 @@ jobs:
       - name: Merge update
         if: steps.changes.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           BRANCH: ${{ steps.branch.outputs.name }}
         run: node scripts/manage-work-metrics.ts merge
@@ -140,7 +139,7 @@ jobs:
       - name: Cleanup failed metrics update
         if: ${{ failure() && steps.changes.outputs.changed == 'true' }}
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           BRANCH: metrics/${{ github.run_id }}
         run: node scripts/manage-work-metrics.ts cleanup
