@@ -998,11 +998,12 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
   }
   assert.doesNotMatch(workflow, /shell:\s+bash|run:\s*\|/);
   assert.match(workflow, /METRICS_TOKEN:.*AW_CONTROL_TOKEN/);
-  assert.ok((workflow.match(/GH_TOKEN: \$\{\{ github\.token \}\}/g) ?? []).length >= 5);
+  assert.equal((workflow.match(/GH_TOKEN: \$\{\{ github\.token \}\}/g) ?? []).length, 2);
   assert.equal(
     (workflow.match(/GH_TOKEN: \$\{\{ secrets\.AW_CONTROL_TOKEN \}\}/g) ?? []).length,
-    1
+    4
   );
+  assert.match(workflow, /GIT_PUSH_TOKEN: \$\{\{ secrets\.AW_CONTROL_TOKEN \}\}/);
   const pullStep = workflow.slice(
     workflow.indexOf("      - name: Create auto-update PR"),
     workflow.indexOf("      - name: Wait for CI")

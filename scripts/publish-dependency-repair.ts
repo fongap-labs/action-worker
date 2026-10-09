@@ -168,11 +168,9 @@ async function main(): Promise<void> {
   }
 
   await runText("git", ["config", "user.name", "fongap"], { cwd: targetRoot });
-  await runText(
-    "git",
-    ["config", "user.email", "26006683+fongap@users.noreply.github.com"],
-    { cwd: targetRoot }
-  );
+  await runText("git", ["config", "user.email", "26006683+fongap@users.noreply.github.com"], {
+    cwd: targetRoot,
+  });
   await runText(
     "git",
     ["commit", "-m", `chore(deps): refresh generated dependency files [${repairId}]`],

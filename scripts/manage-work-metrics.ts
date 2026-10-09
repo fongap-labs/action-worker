@@ -88,11 +88,7 @@ async function createBranch(): Promise<void> {
   const branch = requireEnv("BRANCH");
   const pushToken = process.env.GIT_PUSH_TOKEN;
   await runCommand("git", ["config", "user.name", "fongap"]);
-  await runCommand("git", [
-    "config",
-    "user.email",
-    "26006683+fongap@users.noreply.github.com",
-  ]);
+  await runCommand("git", ["config", "user.email", "26006683+fongap@users.noreply.github.com"]);
   await runCommand("git", ["checkout", "-b", branch]);
   await runCommand("git", ["add", "README.md", "README.zh-CN.md"]);
   await runCommand("git", ["commit", "-m", "chore: update work metrics"]);
