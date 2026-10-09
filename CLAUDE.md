@@ -99,6 +99,10 @@ Do not add repository-name branches or project-specific policy layers inside Act
 
 Provider/model fallback belongs to AI Gateway. Action Worker may route logical review depth but must not recreate upstream provider failover.
 
+## Commit hygiene
+
+Every commit message, in this repository and in every repository governed by Action Worker, must not contain AI agent identity or attribution: no `Co-Authored-By:` trailer naming an AI agent (Claude, Claude Code, Codex, Copilot or similar), no `Generated with` / `Assisted by` / comparable tool line, and no agent, model or vendor name in the subject, body or trailers. The committer speaks for the change. Automated control-plane writes stay attributed to the maintainer identity, and an agent-assisted commit carries no trace of the agent.
+
 ## Completion
 
 A governance change is complete only when the corresponding machine contract/policy/action and regression tests match the documentation. Documentation-only intent is not an enforcement boundary.
