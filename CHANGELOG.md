@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- docs: `CLAUDE.md` adds a commit hygiene rule: a commit message in this repository or in any repository governed by Action Worker carries no AI agent identity or attribution — no `Co-Authored-By:` trailer naming an AI agent (Claude, Claude Code, Codex, Copilot or similar), no `Generated with` / `Assisted by` line, and no agent, model or vendor name in the subject, body or trailers. The committer speaks for the change; automated control-plane writes stay attributed to the maintainer identity.
+
 - fix: machine-interaction content is English only. `policies/release.json` `impact_patterns` keep only the English keywords (CHANGELOG entries are already enforced to be English by the engineering language check, so Chinese patterns could never match), and AI Review now configures the review engine with `language = English`, so its findings and summaries are written in precise English instead of Chinese. English human/agent documentation and the `*.zh-CN.md` localizations are unchanged.
 
 - fix: the engineering language check reads `git diff` headers of files with non-ASCII or special characters in their path (`+++ "b/\350\201\224.md"`, which git writes as a quoted string) instead of keeping the previous file's path. Before, Chinese page text in a Chinese-named file that followed `CHANGELOG.md` in the diff was reported as a CHANGELOG entry, so a pull request that edited such pages failed PR Governance although its CHANGELOG entry was English. An unrecognised header now resets the path, so a line is never attributed to another file.
