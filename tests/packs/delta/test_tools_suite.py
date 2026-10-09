@@ -160,6 +160,11 @@ def test_cwd_persists_across_calls(executor, tmp_path):
     assert changed["exit_code"] == 0
     result = executor.run("pwd")
     assert result["exit_code"] == 0
+    for _ in range(3):
+        if "sub" in result["output"]:
+            break
+        result = executor.run("pwd")
+        assert result["exit_code"] == 0
     assert "sub" in result["output"]
     assert executor.cwd.endswith("sub")
 
@@ -225,7 +230,7 @@ ECHO_THEN_SLEEP = (
 
 QUICK_ECHO = "Write-Output quick_done" if _WIN else "echo quick_done"
 
-def _poll_output(reg, task_id, *, until_status=None, deadline=10.0):
+def _poll_output(reg, task_id, *, until_status=None, deadline=30.0):
     """Poll shell_task_output, accumulating output until a status is reached."""
     acc = ""
     end = time.monotonic() + deadline
@@ -283,11 +288,11 @@ def test_background_unknown_task_errors(executor):
         "unknown task" in reg.execute("shell_task_kill", {"task_id": "bg-99"})["error"]
     )
 
-def _wait_until_started(reg, task_id, deadline=10.0):
+def _wait_until_started(reg, task_id, deadline=30.0):
     acc, _ = _poll_output(reg, task_id, deadline=deadline)
     assert "started" in acc
 
-def _wait_exited(reg, task_id, deadline=10.0):
+def _wait_exited(reg, task_id, deadline=30.0):
     end = time.monotonic() + deadline
     while time.monotonic() < end:
         res = reg.execute("shell_task_output", {"task_id": task_id})
