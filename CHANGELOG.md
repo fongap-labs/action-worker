@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: machine-interaction content is English only. `policies/release.json` `impact_patterns` keep only the English keywords (CHANGELOG entries are already enforced to be English by the engineering language check, so Chinese patterns could never match), and AI Review now configures the review engine with `language = English`, so its findings and summaries are written in precise English instead of Chinese. English human/agent documentation and the `*.zh-CN.md` localizations are unchanged.
+
 - fix: the engineering language check reads `git diff` headers of files with non-ASCII or special characters in their path (`+++ "b/\350\201\224.md"`, which git writes as a quoted string) instead of keeping the previous file's path. Before, Chinese page text in a Chinese-named file that followed `CHANGELOG.md` in the diff was reported as a CHANGELOG entry, so a pull request that edited such pages failed PR Governance although its CHANGELOG entry was English. An unrecognised header now resets the path, so a line is never attributed to another file.
 
 - ci: the `Update Work Metrics` aggregate job checks out with `persist-credentials: false` like every other checkout in this repository, and the metrics push injects its credential through the git process environment for that single invocation instead of leaving the default token in `.git/config` for the whole job.
