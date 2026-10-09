@@ -395,8 +395,8 @@ jobs:
           mkdir -p "$target_dir"
           cp -a "$PAYLOAD_DIR"/. "$target_dir"/
 
-          git -C "$WORK_DIR/target" config user.name "Fongap Labs Action Worker"
-          git -C "$WORK_DIR/target" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "$WORK_DIR/target" config user.name "fongap"
+          git -C "$WORK_DIR/target" config user.email "26006683+fongap@users.noreply.github.com"
           git -C "$WORK_DIR/target" add -- "$DEST_DIR"
 
           if git -C "$WORK_DIR/target" diff --cached --quiet; then
