@@ -86,6 +86,7 @@ async function detectChanges(): Promise<void> {
 
 async function createBranch(): Promise<void> {
   const branch = requireEnv("BRANCH");
+  const pushToken = process.env.GIT_PUSH_TOKEN;
   await runCommand("git", ["config", "user.name", "github-actions[bot]"]);
   await runCommand("git", [
     "config",
@@ -97,9 +98,26 @@ async function createBranch(): Promise<void> {
   await runCommand("git", ["commit", "-m", "chore: update work metrics"]);
   await runCommand("git", ["fetch", "origin", "main"]);
   await runCommand("git", ["rebase", "origin/main"]);
-  await runCommand("git", ["push", "origin", branch]);
+  await runCommand("git", ["push", "origin", branch], { env: gitPushEnv(pushToken) });
   const sha = await runText("git", ["rev-parse", "HEAD"]);
   await appendLines(process.env.GITHUB_OUTPUT, [`name=${branch}`, `sha=${sha}`]);
+}
+
+// The push credential passes through the process environment of this single
+// git invocation, never into .git/config: the workflow checks out with
+// persist-credentials: false, so no token sits on disk for the rest of the
+// job, and each push injects the header for its own process only.
+function gitPushEnv(token: string | undefined): NodeJS.ProcessEnv | undefined {
+  if (!token) {
+    return undefined;
+  }
+  const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
+  return {
+    ...process.env,
+    GIT_CONFIG_COUNT: "1",
+    GIT_CONFIG_KEY_0: "http.https://github.com/.extraheader",
+    GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}`,
+  };
 }
 
 async function createPull(): Promise<void> {

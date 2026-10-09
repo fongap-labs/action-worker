@@ -61,8 +61,8 @@ test("dependency repair computes without any central write credential", async ()
   assert.equal(usesWholeSecretsContext(repair.jobs.compute), false);
 });
 
-test("every checkout drops its credentials except the metrics commit", async () => {
-  const persisted = new Set(["update-work-metrics.yml#update#Checkout"]);
+test("every checkout drops its credentials", async () => {
+  const persisted = new Set<string>([]);
   const found: string[] = [];
   const violations: string[] = [];
   for (const name of await workflowNames()) {
