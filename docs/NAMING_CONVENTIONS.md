@@ -342,7 +342,7 @@ Workflow and shell file names have at most three kebab-case segments (`scripts/v
 
 ### 8.2 Documentation language
 
-Every document in Action Worker that people and agents work from — `CLAUDE.md`, `AGENTS.md`, `README.md`, `SECURITY.md`, `docs/`, `skills/`, `p00-owner-checklist.md` — is written in English. Chinese appears only in localization files named `*.zh-CN.md` (`README.zh-CN.md`, `docs/README.zh-CN.md`, `SECURITY.zh-CN.md`), which translate an English original and never carry rules the original does not have. `tests/documentation-language.test.ts` checks this.
+Every document in Action Worker that people and agents work from — `CLAUDE.md`, `AGENTS.md`, `README.md`, `SECURITY.md`, `docs/`, `skills/` — is written in English. Chinese appears only in localization files named `*.zh-CN.md` (`README.zh-CN.md`, `docs/README.zh-CN.md`, `SECURITY.zh-CN.md`), which translate an English original and never carry rules the original does not have. `tests/documentation-language.test.ts` checks this.
 
 This rule is for Action Worker only. The engineering language check that runs on business repository pull requests still exempts Markdown, so a business repository may keep documentation it explicitly maintains in Chinese.
 
