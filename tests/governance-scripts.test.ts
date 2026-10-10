@@ -418,13 +418,17 @@ test("engineering language exempts HTML template copy but rejects template comme
   );
   // Embedded logs stay English.
   assert.equal(
-    engineeringLineViolation("layouts/embed.html", '<script>console.error("上游失败")</script>', ""),
+    engineeringLineViolation(
+      "layouts/embed.html",
+      '<script>console.error("上游失败")</script>',
+      ""
+    ),
     "Logs, errors, and test descriptions must use English."
   );
 });
 
 test("HTML template comments are tracked across lines while template code is exempt", () => {
-  let scan = scanHtmlComments({ inComment: false }, "<section class=\"card\">");
+  let scan = scanHtmlComments({ inComment: false }, '<section class="card">');
   assert.deepEqual(scan.state, { inComment: false });
   assert.equal(scan.commentText, "");
 
@@ -432,10 +436,20 @@ test("HTML template comments are tracked across lines while template code is exe
   assert.deepEqual(scan.state, { inComment: true, kind: "hugo" });
 
   scan = scanHtmlComments(scan.state, "  合并所有链接数据：F 与 E 两组");
-  assert.equal(engineeringLineViolation("layouts/links.html", "  合并所有链接数据：F 与 E 两组", scan.commentText), "Engineering identifiers and comments must use English.");
+  assert.equal(
+    engineeringLineViolation(
+      "layouts/links.html",
+      "  合并所有链接数据：F 与 E 两组",
+      scan.commentText
+    ),
+    "Engineering identifiers and comments must use English."
+  );
 
   scan = scanHtmlComments(scan.state, "  {{< site-now >}}");
-  assert.equal(engineeringLineViolation("layouts/links.html", "  {{< site-now >}}", scan.commentText), null);
+  assert.equal(
+    engineeringLineViolation("layouts/links.html", "  {{< site-now >}}", scan.commentText),
+    null
+  );
 
   scan = scanHtmlComments(scan.state, "*/ -}}");
   assert.deepEqual(scan.state, { inComment: false });
@@ -444,7 +458,10 @@ test("HTML template comments are tracked across lines while template code is exe
   assert.deepEqual(scan.state, { inComment: true, kind: "html" });
 
   scan = scanHtmlComments(scan.state, "  页脚说明");
-  assert.equal(engineeringLineViolation("layouts/foot.html", "  页脚说明", scan.commentText), "Engineering identifiers and comments must use English.");
+  assert.equal(
+    engineeringLineViolation("layouts/foot.html", "  页脚说明", scan.commentText),
+    "Engineering identifiers and comments must use English."
+  );
 
   scan = scanHtmlComments(scan.state, "-->");
   assert.deepEqual(scan.state, { inComment: false });
