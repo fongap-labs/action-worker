@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: add the internal-vault task project EngineSuite to `policies/task-secrets.json`. Its `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` take their values from `CLOUDFLARE_API_TOKEN_PRIMARY` and `CLOUDFLARE_ACCOUNT_ID_PRIMARY` (the same Cloudflare account as FongapBlog and FongapCDN), and it may keep `ALGOLIA_APP_ID`, `ALGOLIA_WRITE_KEY`, `ENGINESUITE_ADMIN_TOKEN`, `ENGINESUITE_WEBHOOK_SECRET`, `ENGINESUITE_TURNSTILE_SECRET_KEY` and `ENGINESUITE_RESEND_KEY`. Create the four `ENGINESUITE_*` secrets before EngineSuite runs for the first time.
+
 - test: cover the internal-vault Cloudflare Workers release brick `cfworkers_service_deploy` in the `internal-vault` test pack: variable and secret handling, release order (preflight, migrations, one release), the removed secrets file, health check and rollback. The suite needs the brick from fongap-labs/internal-vault#86, so merge that pull request first.
 
 - docs: `CLAUDE.md` adds a commit hygiene rule: a commit message in this repository or in any repository governed by Action Worker carries no AI agent identity or attribution — no `Co-Authored-By:` trailer naming an AI agent (Claude, Claude Code, Codex, Copilot or similar), no `Generated with` / `Assisted by` line, and no agent, model or vendor name in the subject, body or trailers. The committer speaks for the change; automated control-plane writes stay attributed to the maintainer identity.
