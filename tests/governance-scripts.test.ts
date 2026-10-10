@@ -31,6 +31,7 @@ import {
   assertEnglishText,
   diffHeaderPath,
   engineeringLineViolation,
+  scanHtmlComments,
   validateEngineeringDiff,
 } from "../scripts/validate-engineering-language.ts";
 import { hasLifecycleFilenameViolation } from "../scripts/validate-naming-rules.ts";
@@ -391,6 +392,64 @@ test("engineering language rejects Chinese machine text but allows documentation
   );
 });
 
+test("engineering language exempts HTML template copy but rejects template comments", () => {
+  // Text between tags is user-facing copy; quoted attribute values are already stripped.
+  assert.equal(engineeringLineViolation("layouts/index.html", "<h2>订阅本站</h2>", ""), null);
+  assert.equal(
+    engineeringLineViolation("layouts/page.html", '<p class="note">不含广告与追踪。</p>', ""),
+    null
+  );
+  // Template comments stay English.
+  assert.equal(
+    engineeringLineViolation(
+      "layouts/_partials/links.html",
+      "{{/* 合并所有链接数据 */}}",
+      " 合并所有链接数据 "
+    ),
+    "Engineering identifiers and comments must use English."
+  );
+  assert.equal(
+    engineeringLineViolation(
+      "layouts/_partials/foot.html",
+      "<!-- 页脚：版权与导航 -->",
+      " 页脚：版权与导航 "
+    ),
+    "Engineering identifiers and comments must use English."
+  );
+  // Embedded logs stay English.
+  assert.equal(
+    engineeringLineViolation("layouts/embed.html", '<script>console.error("上游失败")</script>', ""),
+    "Logs, errors, and test descriptions must use English."
+  );
+});
+
+test("HTML template comments are tracked across lines while template code is exempt", () => {
+  let scan = scanHtmlComments({ inComment: false }, "<section class=\"card\">");
+  assert.deepEqual(scan.state, { inComment: false });
+  assert.equal(scan.commentText, "");
+
+  scan = scanHtmlComments(scan.state, "{{/*");
+  assert.deepEqual(scan.state, { inComment: true, kind: "hugo" });
+
+  scan = scanHtmlComments(scan.state, "  合并所有链接数据：F 与 E 两组");
+  assert.equal(engineeringLineViolation("layouts/links.html", "  合并所有链接数据：F 与 E 两组", scan.commentText), "Engineering identifiers and comments must use English.");
+
+  scan = scanHtmlComments(scan.state, "  {{< site-now >}}");
+  assert.equal(engineeringLineViolation("layouts/links.html", "  {{< site-now >}}", scan.commentText), null);
+
+  scan = scanHtmlComments(scan.state, "*/ -}}");
+  assert.deepEqual(scan.state, { inComment: false });
+
+  scan = scanHtmlComments(scan.state, "<!--");
+  assert.deepEqual(scan.state, { inComment: true, kind: "html" });
+
+  scan = scanHtmlComments(scan.state, "  页脚说明");
+  assert.equal(engineeringLineViolation("layouts/foot.html", "  页脚说明", scan.commentText), "Engineering identifiers and comments must use English.");
+
+  scan = scanHtmlComments(scan.state, "-->");
+  assert.deepEqual(scan.state, { inComment: false });
+});
+
 test("engineering language reads quoted diff paths instead of reusing the previous file", async () => {
   assert.equal(diffHeaderPath("+++ b/src/router.ts"), "src/router.ts");
   assert.equal(diffHeaderPath("+++ b/docs/two words.md\t"), "docs/two words.md");
@@ -428,6 +487,42 @@ test("engineering language reads quoted diff paths instead of reusing the previo
     git("commit", "-q", "-am", "chinese changelog");
     const bad = await validateEngineeringDiff(base, git("rev-parse", "HEAD").trim(), root);
     assert.equal(bad.failures, 1);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("engineering language flags template comments and exempts template copy in a diff", async () => {
+  const root = await mkdtemp(join(tmpdir(), "engineering-language-html-"));
+  const git = (...args: string[]) =>
+    execFileSync("git", ["-C", root, ...args], { encoding: "utf8" });
+  try {
+    git("init", "-q");
+    git("config", "user.email", "test@example.invalid");
+    git("config", "user.name", "test");
+    const layouts = join(root, "layouts");
+    await mkdir(layouts, { recursive: true });
+    await writeFile(join(layouts, "index.html"), "<main></main>\n");
+    git("add", "-A");
+    git("commit", "-q", "-m", "base");
+    const base = git("rev-parse", "HEAD").trim();
+    await writeFile(
+      join(layouts, "index.html"),
+      [
+        "<main>",
+        "  {{/*",
+        "  中文注释：跨行模板块",
+        "  */ -}}",
+        "  <h2>订阅本站</h2>",
+        "  <p>新文章更新第一时间送达。</p>",
+        "</main>",
+        "",
+      ].join("\n")
+    );
+    git("commit", "-q", "-am", "change");
+    const result = await validateEngineeringDiff(base, git("rev-parse", "HEAD").trim(), root);
+    // Only the comment body line fails; the copy between tags is exempt.
+    assert.equal(result.failures, 1);
   } finally {
     await rm(root, { recursive: true, force: true });
   }

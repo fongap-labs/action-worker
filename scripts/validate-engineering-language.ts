@@ -9,6 +9,12 @@ const WORKFLOW = /^\.github\/workflows\/.*\.ya?ml$/i;
 // Minified third-party bundles are not authored engineering text; their built-in strings (for example
 // a charting library's Chinese locale) cannot be changed by the repository that vendors them.
 const MINIFIED_BUNDLE = /\.min\.(?:js|css)$/i;
+// In an HTML template the text between tags is user-facing copy; template comments stay English.
+const HTML_TEMPLATE = /\.(?:html?|htm)$/i;
+const HUGO_COMMENT_OPEN = /\{\{-?\s*\/\*/;
+const HUGO_COMMENT_CLOSE = /\*\/\s*-?\}\}/;
+const HTML_COMMENT_OPEN = "<!--";
+const HTML_COMMENT_CLOSE = "-->";
 const CONFIG_KEY =
   /(?:["'][^"']*[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF][^"']*["']\s*:)|(?:^|\s)[^:#"'\s]*[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF][^:#"']*\s*:/u;
 const MACHINE_TEXT =
@@ -31,7 +37,56 @@ function stripQuotedStrings(line: string): string {
     .replace(/`(?:\\.|[^`\\])*`/g, "``");
 }
 
-export function engineeringLineViolation(path: string, line: string): string | null {
+export type HtmlCommentState = { inComment: false } | { inComment: true; kind: "html" | "hugo" };
+
+const NO_HTML_COMMENT: HtmlCommentState = { inComment: false };
+
+type HtmlCommentScan = { state: HtmlCommentState; commentText: string };
+
+// Collect the comment text one HTML template line carries and the comment state after it, so a
+// multi-line `<!-- -->` or `{{/* */}}` block keeps every body line attributed to the comment.
+export function scanHtmlComments(state: HtmlCommentState, line: string): HtmlCommentScan {
+  let current = state;
+  const pieces: string[] = [];
+  let index = 0;
+  while (index < line.length) {
+    if (current.inComment) {
+      let closer: { index: number; length: number } | null = null;
+      if (current.kind === "hugo") {
+        const match = HUGO_COMMENT_CLOSE.exec(line.slice(index));
+        closer = match ? { index: match.index, length: match[0].length } : null;
+      } else {
+        const at = line.indexOf(HTML_COMMENT_CLOSE, index);
+        closer = at === -1 ? null : { index: at, length: HTML_COMMENT_CLOSE.length };
+      }
+      if (!closer) {
+        pieces.push(line.slice(index));
+        break;
+      }
+      pieces.push(line.slice(index, index + closer.index));
+      index += closer.index + closer.length;
+      current = NO_HTML_COMMENT;
+      continue;
+    }
+    const htmlOpen = line.indexOf(HTML_COMMENT_OPEN, index);
+    const hugoMatch = HUGO_COMMENT_OPEN.exec(line.slice(index));
+    const hugoOpen = hugoMatch ? index + hugoMatch.index : -1;
+    if (htmlOpen === -1 && hugoOpen === -1) {
+      break;
+    }
+    const hugoMarker = hugoMatch?.[0].length ?? 0;
+    const opensHtml = htmlOpen !== -1 && (hugoOpen === -1 || htmlOpen < hugoOpen);
+    current = { inComment: true, kind: opensHtml ? "html" : "hugo" };
+    index = opensHtml ? htmlOpen + HTML_COMMENT_OPEN.length : hugoOpen + hugoMarker;
+  }
+  return { state: current, commentText: pieces.join("") };
+}
+
+export function engineeringLineViolation(
+  path: string,
+  line: string,
+  templateComments = ""
+): string | null {
   if (!containsHan(line)) {
     return null;
   }
@@ -44,6 +99,16 @@ export function engineeringLineViolation(path: string, line: string): string | n
     CONTENT_FILE.test(path) ||
     MINIFIED_BUNDLE.test(path)
   ) {
+    return null;
+  }
+  if (HTML_TEMPLATE.test(path)) {
+    // Text between tags is user-facing copy; embedded logs and template comments stay English.
+    if (MACHINE_TEXT.test(line)) {
+      return "Logs, errors, and test descriptions must use English.";
+    }
+    if (containsHan(templateComments)) {
+      return "Engineering identifiers and comments must use English.";
+    }
     return null;
   }
   if (WORKFLOW.test(path)) {
@@ -116,6 +181,7 @@ export async function validateEngineeringDiff(
     cwd: root,
   });
   let path = "";
+  let templateCommentState: HtmlCommentState = NO_HTML_COMMENT;
   let files = 0;
   let additions = 0;
   let failures = 0;
@@ -128,6 +194,7 @@ export async function validateEngineeringDiff(
     }
     if (raw.startsWith("+++ ")) {
       path = diffHeaderPath(raw) ?? "";
+      templateCommentState = NO_HTML_COMMENT;
       if (path && !seen.has(path)) {
         seen.add(path);
         files += 1;
@@ -139,7 +206,13 @@ export async function validateEngineeringDiff(
     }
     additions += 1;
     const line = raw.slice(1);
-    const violation = engineeringLineViolation(path, line);
+    let templateComments = "";
+    if (HTML_TEMPLATE.test(path)) {
+      const scanned = scanHtmlComments(templateCommentState, line);
+      templateCommentState = scanned.state;
+      templateComments = scanned.commentText;
+    }
+    const violation = engineeringLineViolation(path, line, templateComments);
     if (violation) {
       console.log(`::error file=${path}::${violation}`);
       failures += 1;
@@ -164,7 +237,7 @@ async function main(): Promise<void> {
     `- Added lines: ${result.additions}`,
     `- Violations: ${result.failures}`,
     "",
-    "Rule: engineering diffs, PR titles, and CHANGELOG entries use English; documentation, localization, and plain data content are exempt.",
+    "Rule: engineering diffs, PR titles, and CHANGELOG entries use English; documentation, localization, HTML template copy, and plain data content are exempt.",
   ]);
   if (result.failures > 0) {
     process.exit(1);

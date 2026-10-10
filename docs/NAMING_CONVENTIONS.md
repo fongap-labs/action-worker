@@ -245,6 +245,8 @@ The only exceptions are:
 
 The exceptions never extend to the CHANGELOG, PR titles, code comments, workflows, logs, error messages or test descriptions; those are always in English.
 
+In an HTML template the text between tags is user-facing copy, so the engineering language check exempts it together with quoted attribute values. Template comments (`<!-- -->` in HTML, `{{/* */}}` in Hugo) and logs embedded in the template stay English, and the check attributes every body line of a multi-line comment block to the comment.
+
 ## 7. Files, terms and verbs
 
 - workflow / control script / test files use `kebab-case`;
@@ -362,4 +364,5 @@ Engineering diff = English
 CHANGELOG / PR title = English
 Action Worker documentation = English; Chinese only in *.zh-CN.md
 Plain data content files (.txt / .csv / .tsv) are language-exempt
+HTML template copy is language-exempt; template comments stay English
 ```
