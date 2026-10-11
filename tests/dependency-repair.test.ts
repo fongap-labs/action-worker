@@ -7,7 +7,7 @@ import {
   selectDependencyRepair,
 } from "../scripts/dependency-repair.ts";
 import { needsDependencyRepair } from "../scripts/intake-open-prs.ts";
-import { gitPushEnvironment } from "../scripts/publish-dependency-repair.ts";
+import { gitPushEnvironment, repairManifestPath } from "../scripts/publish-dependency-repair.ts";
 
 const sha = "a".repeat(40);
 const baseSha = "b".repeat(40);
@@ -209,4 +209,11 @@ test("dependency repair pushes with an environment credential, not a stored or l
     `AUTHORIZATION: basic ${Buffer.from("x-access-token:secret-token").toString("base64")}`
   );
   assert.equal(environment.GIT_TERMINAL_PROMPT, "0");
+});
+
+test("repair manifest path interpolates the repository and base SHA", () => {
+  assert.equal(
+    repairManifestPath("fongap-labs/delta", baseSha),
+    `repos/fongap-labs/delta/contents/.github/dependency-repair.json?ref=${baseSha}`
+  );
 });
