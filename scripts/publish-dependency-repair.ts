@@ -63,6 +63,12 @@ async function filesUnder(root: string): Promise<string[]> {
   return files.sort();
 }
 
+// The repair grant is read from the base the PR opened against, so a manifest
+// landing on main while the PR is open cannot widen the approved output paths.
+export function repairManifestPath(repository: string, baseSha: string): string {
+  return `repos/${repository}/contents/.github/dependency-repair.json?ref=${baseSha}`;
+}
+
 async function main(): Promise<void> {
   const [
     repository = "",
@@ -101,7 +107,7 @@ async function main(): Promise<void> {
 
   const request: DependencyRepairRequest = {
     schema_version: "1",
-    request_id: `publish:$repository.replace("/", "-"):$prNumber:$headSha.slice(0, 12)`,
+    request_id: `publish:${repository.replace("/", "-")}:${prNumber}:${headSha.slice(0, 12)}`,
     repository,
     pr_number: prNumber,
     head_sha: headSha,
@@ -112,9 +118,7 @@ async function main(): Promise<void> {
     throw new CliError("Dependency repair PR moved before publication.", 75);
   }
 
-  const manifestResponse = await reader.get(
-    `repos/$repository/contents/.github/dependency-repair.json?ref=${baseSha}`
-  );
+  const manifestResponse = await reader.get(repairManifestPath(repository, baseSha));
   const manifest = parseDependencyRepairManifest(
     parseJson(
       decodeGithubContent(manifestResponse),
@@ -146,7 +150,7 @@ async function main(): Promise<void> {
     const source = confined(stagingRoot, path);
     const details = await stat(source);
     if (!details.isFile() || details.size > 50 * 1024 * 1024) {
-      throw new CliError(`Dependency repair artifact is invalid: $path.`, 66);
+      throw new CliError(`Dependency repair artifact is invalid: ${path}.`, 66);
     }
     const destination = confined(targetRoot, path);
     await mkdir(dirname(destination), { recursive: true });
