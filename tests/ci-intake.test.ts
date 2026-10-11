@@ -211,3 +211,31 @@ test("central CI intake excludes the control repository without hardcoded names"
   assert.deepEqual(dispatched, [businessRepository]);
   assert.equal(result.repositories, 1);
 });
+
+test("central CI intake can be limited to the repository of a task source request", async () => {
+  const responses = new Map<string, unknown>([
+    ["repos/fongap-labs/one", { default_branch: "main" }],
+    ["repos/fongap-labs/one/commits/main", { sha: shaA }],
+    [`repos/fongap-labs/one/commits/${shaA}/status`, { statuses: [] }],
+  ]);
+
+  const dispatched: Array<{ repository: string; sha: string }> = [];
+  const result = await scanMainCi(
+    { "fongap-labs/one": ["pr"], "fongap-labs/two": ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        assert.equal(responses.has(path), true, `unexpected API path: ${path}`);
+        return responses.get(path);
+      },
+    },
+    async (repository, sha) => {
+      dispatched.push({ repository, sha });
+    },
+    "",
+    undefined,
+    "fongap-labs/one"
+  );
+
+  assert.deepEqual(dispatched, [{ repository: "fongap-labs/one", sha: shaA }]);
+  assert.deepEqual(result, { repositories: 1, dispatched: 1, in_flight: 0, already_processed: 0 });
+});

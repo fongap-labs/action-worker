@@ -102,10 +102,12 @@ export async function scanMainCi(
   reader: GithubGet,
   dispatch: Dispatch,
   excludedRepository = "",
-  reserve?: Reserve
+  reserve?: Reserve,
+  onlyRepository = ""
 ): Promise<CiIntakeResult> {
   const repositories = repositoriesForCapability(policyValue, "pr").filter(
-    (repository) => repository !== excludedRepository
+    (repository) =>
+      repository !== excludedRepository && (!onlyRepository || repository === onlyRepository)
   );
   const result: CiIntakeResult = {
     repositories: repositories.length,
@@ -207,6 +209,12 @@ async function main(): Promise<void> {
   const ingressToken = process.env.AW_INGRESS_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   const apiUrl = process.env.GITHUB_API_URL ?? "https://api.github.com";
+  // A task source request needs CI for its own repository now, not on the next scheduled scan.
+  const onlyRepository = process.env.AW_CI_INTAKE_REPOSITORY ?? "";
+
+  if (onlyRepository && !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(onlyRepository)) {
+    throw new CliError("AW_CI_INTAKE_REPOSITORY must be owner/repository.", 64);
+  }
 
   if (!policyRaw || !controlToken || !ingressToken || !controlRepository) {
     throw new CliError(
@@ -225,7 +233,8 @@ async function main(): Promise<void> {
     controlRepository,
     async (repository, headSha) => {
       await reserveCiStatus(controlRepository, controlToken, repository, headSha);
-    }
+    },
+    onlyRepository
   );
 
   console.log(JSON.stringify(result));
