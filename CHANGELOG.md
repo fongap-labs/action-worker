@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: a task source request now asks for central CI on its own repository before the task waits for it. Task Source Dispatch runs the CI Intake logic for that one repository (`AW_CI_INTAKE_REPOSITORY`), so a push or manual task no longer depends on the scheduled CI Intake, which GitHub starts only every few hours instead of every 10 minutes; before, the task source check waited 20 minutes for CI Evidence that nobody had requested and failed. The job gets `contents: write` for the dispatch, like CI Intake.
+
 - feat: add the internal-vault task project EngineSuite to `policies/task-secrets.json`. Its `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` take their values from `CLOUDFLARE_API_TOKEN_PRIMARY` and `CLOUDFLARE_ACCOUNT_ID_PRIMARY` (the same Cloudflare account as FongapBlog and FongapCDN), and it may keep `ALGOLIA_APP_ID`, `ALGOLIA_WRITE_KEY`, `ENGINESUITE_ADMIN_TOKEN`, `ENGINESUITE_WEBHOOK_SECRET`, `ENGINESUITE_TURNSTILE_SECRET_KEY` and `ENGINESUITE_RESEND_KEY`. Create the four `ENGINESUITE_*` secrets before EngineSuite runs for the first time.
 
 - test: cover the internal-vault Cloudflare Workers release brick `cfworkers_service_deploy` in the `internal-vault` test pack: variable and secret handling, release order (preflight, migrations, one release), the removed secrets file, health check and rollback. The suite needs the brick from fongap-labs/internal-vault#86, so merge that pull request first.

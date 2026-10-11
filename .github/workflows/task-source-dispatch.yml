@@ -28,6 +28,9 @@ jobs:
     if: github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # contents: write lets the step below dispatch central CI with the workflow token, like CI Intake.
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout control plane
@@ -100,6 +103,15 @@ jobs:
             echo "mode=$mode"
             echo "project=$project"
           } >> "$GITHUB_OUTPUT"
+
+      - name: Request central CI for the source
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_CONTROL_REPOSITORY: ${{ github.repository }}
+          AW_CI_INTAKE_REPOSITORY: ${{ steps.source.outputs.repository }}
+        run: node scripts/intake-main-ci.ts
 
       - name: Mark task source in progress
         if: steps.source.outputs.mode == 'push'
