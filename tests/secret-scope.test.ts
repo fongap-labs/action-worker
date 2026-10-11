@@ -305,6 +305,25 @@ test("the central policies give each Cloudflare account its own qualified secret
       ]
     );
   }
+  // MarketChina reuses the primary account's Cloudflare credentials under its R2-style names.
+  assert.deepEqual(
+    [
+      ...(await readSecretAliases(
+        "policies/task-secrets.json",
+        "task",
+        "fongap-labs/internal-vault",
+        "MarketChina"
+      )),
+    ],
+    [
+      ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_PRIMARY"],
+      ["CLOUDFLARE_ACCESS_KEY", "CLOUDFLARE_API_TOKEN_PRIMARY"],
+      ["CLOUDFLARE_SECRET_KEY", "CLOUDFLARE_SECRET_KEY_PRIMARY"],
+      ["CLOUDFLARE_BUCKET_NAME", "CLOUDFLARE_BUCKET_NAME_PRIMARY"],
+      ["TUSHARE_API_URL", "TUSHARE_API_URL_PRIMARY"],
+      ["TUSHARE_API_TOKEN", "TUSHARE_API_TOKEN_PRIMARY"],
+    ]
+  );
   // No other project of the same repository is redirected.
   assert.equal(
     (
