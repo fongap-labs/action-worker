@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix [security]: the tool sync publishes only from a default-branch HEAD whose commit has a valid GitHub signature. An unsigned HEAD defers the sync, so a release tag never points at an unverified commit.
+
 - feat: the tool sync takes the tool key as a required third argument (`scripts/sync-tool-release.ts <policy> <artifact-dir> <tool-key>`) and the workflow runs a matrix of every catalog tool that it names explicitly (`open-code-review`, `r-base`). The sync no longer takes its tool from the review policy's `engine.name`, so a catalog entry such as `r-base` is reached at all, and no run falls back to a default tool. The review policy still supplies the distribution repository.
 
 - feat: a tool distribution can mirror a pinned HTTPS file instead of a GitHub Release. A catalog entry with `"distribution": "url"` reads `upstream_url`, `upstream_version`, `upstream_asset`, `upstream_sha256` and `license_expression` from its metadata (`parseUrlToolMetadata`); the upstream file must match the pinned SHA-256 or the sync fails before anything is published. The URL must be HTTPS with no credentials, and its last path segment must equal `upstream_asset`. The GitHub Release path (`"distribution": "github-release"`) is unchanged, and an unknown distribution fails the sync.

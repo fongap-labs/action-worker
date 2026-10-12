@@ -145,6 +145,18 @@ export function parseUrlToolMetadata(value: unknown): UrlToolMetadata {
   return value as UrlToolMetadata;
 }
 
+/**
+ * Whether GitHub reports a valid signature on the commit. A release tag points at its commit, so
+ * a release made from an unsigned commit would not show as verified.
+ */
+export function isVerifiedCommit(commit: unknown): boolean {
+  if (!isJsonRecord(commit) || !isJsonRecord(commit.commit)) {
+    return false;
+  }
+  const verification = commit.commit.verification;
+  return isJsonRecord(verification) && verification.verified === true;
+}
+
 export function selectStableRelease(value: unknown): Record<string, unknown> {
   for (const release of getJsonArray(value)) {
     if (!isJsonRecord(release) || release.draft === true || release.prerelease === true) {
@@ -366,6 +378,21 @@ async function main(): Promise<void> {
   const sourceSha = getJsonString(commit, "sha");
   if (!/^[0-9a-f]{40}$/.test(sourceSha)) {
     throw new CliError("Distribution repository default HEAD is invalid.", 65);
+  }
+
+  if (!isVerifiedCommit(commit)) {
+    await appendLines(process.env.GITHUB_OUTPUT, [
+      "publish=false",
+      `source_repository=${distributionRepository}`,
+      `source_sha=${sourceSha}`,
+    ]);
+    await appendLines(process.env.GITHUB_STEP_SUMMARY, [
+      "## Tool distribution sync",
+      "",
+      `- source: ${distributionRepository}@${sourceSha}`,
+      "- result: deferred until the default HEAD commit has a verified signature",
+    ]);
+    return;
   }
 
   const status = await reader.get(`repos/${distributionRepository}/commits/${sourceSha}/status`);
