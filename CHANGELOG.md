@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix [migration]: the delta-suite contract test no longer requires the Foundation package version in `pyproject.toml`; the Foundation compatibility is pinned only by its immutable commit and the capability ABI, worker manifest and connector catalog format versions.
+
 - feat [breaking, migration]: the application version of a release comes only from the version entered when the release is started, and it is required. Release Build no longer reads a version from the source repository or compares the entered version with it, `.github/release.manifest.json` drops `version_source`, and the build script receives the version as `-Version`. The delta test pack drops its version-consistency checks.
 
 - fix [security]: the tool sync publishes only from a default-branch HEAD whose commit has a valid GitHub signature. An unsigned HEAD defers the sync, so a release tag never points at an unverified commit.

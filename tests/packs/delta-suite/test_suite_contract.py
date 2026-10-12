@@ -221,19 +221,15 @@ class TestNoPrivateFunctionLeakage:
 class TestFoundationCompatibilityPin:
     """Production compatibility must target an immutable Foundation revision."""
 
-    def test_foundation_contract_is_immutable_and_version_aligned(self):
+    def test_foundation_contract_is_immutable(self):
         config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
         foundation = config["tool"]["delta-suite"]["foundation"]
         ref = foundation["git-ref"]
-        version = foundation["version"]
 
         assert re.fullmatch(r"[0-9a-f]{40}", ref), ref
         assert foundation["capability-abi"] == 2
         assert foundation["worker-manifest"] == 1
         assert foundation["connector-catalog"] == 1
-
-        dependencies = config["project"]["dependencies"]
-        assert f"delta=={version}" in dependencies
 
         delta_source = config["tool"]["uv"]["sources"]["delta"]
         assert delta_source["git"] == "https://github.com/fongap-labs/delta.git"
