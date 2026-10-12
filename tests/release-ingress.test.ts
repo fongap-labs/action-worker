@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  normalizeVersion,
-  resolveManualReleaseBuild,
-} from "../scripts/resolve-release-build-ingress.ts";
+import { resolveManualReleaseBuild } from "../scripts/resolve-release-build-ingress.ts";
+import { normalizeReleaseVersion } from "../scripts/validate-release-build-request.ts";
 
 const sha = "a".repeat(40);
 
@@ -45,7 +43,7 @@ test("manual release ingress rejects unmanaged repositories and unstable version
   await assert.rejects(
     resolveManualReleaseBuild(
       "fongap-labs/unmanaged",
-      "",
+      "1.2.3",
       { "fongap-labs/example": ["release-source"] },
       reader,
       "123",
@@ -54,5 +52,24 @@ test("manual release ingress rejects unmanaged repositories and unstable version
     /not allowed for release-source/
   );
 
-  assert.throws(() => normalizeVersion("v1.2.3-rc.1"), /stable SemVer/);
+  assert.throws(() => normalizeReleaseVersion("v1.2.3-rc.1"), /stable SemVer/);
+});
+
+test("manual release ingress requires the version to be entered", async () => {
+  const reader = {
+    async get(): Promise<unknown> {
+      throw new Error("GitHub should not be queried");
+    },
+  };
+  await assert.rejects(
+    resolveManualReleaseBuild(
+      "fongap-labs/example",
+      "",
+      { "fongap-labs/example": ["release-source"] },
+      reader,
+      "123",
+      "1"
+    ),
+    /stable SemVer/
+  );
 });

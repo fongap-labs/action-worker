@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  parseCargoPackageVersion,
-  parseCargoWorkspaceVersion,
+  normalizeReleaseVersion,
   parseReleaseBuildManifest,
   parseReleaseBuildRequest,
 } from "../scripts/validate-release-build-request.ts";
@@ -18,10 +17,6 @@ const manifest = {
   node_version_file: ".nvmrc",
   python_version_file: ".python-version",
   sbom_asset: "delta-windows-x64-portable.sbom.cdx.json",
-  version_source: {
-    type: "cargo-package",
-    path: "apps/desktop/src-tauri/Cargo.toml",
-  },
   builds: [
     {
       id: "windows-portable",
@@ -92,17 +87,18 @@ test("release build request is immutable-source only", () => {
   assert.throws(() => parseReleaseBuildRequest({ ...request, source_sha: "main" }));
 });
 
-test("cargo version parsers require stable SemVer", () => {
-  assert.equal(
-    parseCargoWorkspaceVersion(
-      '[workspace]\n\n[workspace.package]\nversion = "0.1.0"\nedition = "2021"\n'
-    ),
-    "0.1.0"
-  );
-  assert.equal(
-    parseCargoPackageVersion('[package]\nname = "delta-desktop"\nversion = "0.1.0"\n'),
-    "0.1.0"
-  );
-  assert.throws(() => parseCargoWorkspaceVersion('[workspace.package]\nversion = "0.1.0-dev.1"\n'));
-  assert.throws(() => parseCargoPackageVersion('[package]\nversion = "0.1.0-rc.1"\n'));
+test("the release request is the only source of the application version", () => {
+  const request = {
+    schema_version: "1",
+    request_id: "release-build-1",
+    source_repository: "fongap-labs/app-source",
+    source_sha: "a".repeat(40),
+    requested_version: "1.2.3",
+  };
+  assert.equal(normalizeReleaseVersion("v1.2.3"), "1.2.3");
+  assert.equal(normalizeReleaseVersion("0.0.1"), "0.0.1");
+  for (const version of ["", "v", "1.2", "1.2.3-rc.1", "1.2.3.dev0", "latest"]) {
+    assert.throws(() => normalizeReleaseVersion(version), /stable SemVer/);
+    assert.throws(() => parseReleaseBuildRequest({ ...request, requested_version: version }));
+  }
 });

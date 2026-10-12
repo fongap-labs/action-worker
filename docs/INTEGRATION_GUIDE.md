@@ -207,13 +207,15 @@ immutable source
 → finalize / rollback
 ```
 
-The business repository keeps the project build / package scripts and declares in `.github/release.manifest.json` the version source, build targets, assets and an abstract `runner_profile`. Action Worker reads and validates that manifest from the immutable source SHA and selects the actual runner through the central runner policy.
+The business repository keeps the project build / package scripts and declares in `.github/release.manifest.json` the build targets, assets and an abstract `runner_profile`. The manifest carries no version. Action Worker reads and validates that manifest from the immutable source SHA and selects the actual runner through the central runner policy.
 
 A project manifest must not declare central secrets, tokens or a concrete GitHub / self-hosted runner label. Publication credentials for the target repository always stay in Action Worker.
 
 The central repository must not keep a release build matrix grouped by repository or product.
 
-A manual release also starts from the unified Release Build workflow in Action Worker: the user only chooses the managed `source_repository` and an optional stable version; Action Worker reads the current default-branch HEAD of that repository itself and runs the same source / CI / provenance checks. A business repository does not need to start its own runner to "announce a release".
+The released version is the version the person enters when starting the release. A business repository must not keep a rule that constrains it: no version-source check, no consistency check between files, no required CHANGELOG release heading. The project build script declares a mandatory `-Version` parameter, writes that version into the built application, and may verify that the built artifact carries it.
+
+A manual release also starts from the unified Release Build workflow in Action Worker: the user chooses the managed `source_repository` and enters the stable version, which is required; Action Worker reads the current default-branch HEAD of that repository itself and runs the same source / CI / provenance checks. A business repository does not need to start its own runner to "announce a release".
 
 ## 13. Deploy
 

@@ -13,10 +13,6 @@ const manifest = {
   node_version_file: ".nvmrc",
   python_version_file: "",
   sbom_asset: "example.sbom.cdx.json",
-  version_source: {
-    type: "cargo-package",
-    path: "Cargo.toml",
-  },
   builds: [
     {
       id: "windows",
@@ -64,17 +60,16 @@ test("release build manifest rejects concrete runner labels and duplicate assets
   );
 });
 
-test("release build manifest rejects unsafe paths and target ambiguity", () => {
-  assert.throws(() =>
-    parseReleaseBuildManifest({
-      ...manifest,
-      version_source: {
-        type: "cargo-package",
-        path: "../Cargo.toml",
-      },
-    })
-  );
+test("release build manifest cannot carry a version", () => {
+  for (const field of ["version", "version_source"]) {
+    assert.throws(
+      () => parseReleaseBuildManifest({ ...manifest, [field]: "1.2.3" }),
+      /manifest is invalid/
+    );
+  }
+});
 
+test("release build manifest rejects target ambiguity", () => {
   assert.throws(() =>
     parseReleaseBuildManifest({
       ...manifest,

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat [breaking, migration]: the application version of a release comes only from the version entered when the release is started, and it is required. Release Build no longer reads a version from the source repository or compares the entered version with it, `.github/release.manifest.json` drops `version_source`, and the build script receives the version as `-Version`. The delta test pack drops its version-consistency checks.
+
 - fix [security]: the tool sync publishes only from a default-branch HEAD whose commit has a valid GitHub signature. An unsigned HEAD defers the sync, so a release tag never points at an unverified commit.
 
 - feat: the tool sync takes the tool key as a required third argument (`scripts/sync-tool-release.ts <policy> <artifact-dir> <tool-key>`) and the workflow runs a matrix of every catalog tool that it names explicitly (`open-code-review`, `r-base`). The sync no longer takes its tool from the review policy's `engine.name`, so a catalog entry such as `r-base` is reached at all, and no run falls back to a default tool. The review policy still supplies the distribution repository.

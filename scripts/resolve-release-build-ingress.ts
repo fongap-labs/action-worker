@@ -1,19 +1,14 @@
 import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
-import { parseReleaseBuildRequest } from "./validate-release-build-request.ts";
+import {
+  normalizeReleaseVersion,
+  parseReleaseBuildRequest,
+} from "./validate-release-build-request.ts";
 
 type GithubGet = {
   get(path: string): Promise<unknown>;
 };
-
-export function normalizeVersion(value: string): string {
-  const version = value.replace(/^v/, "");
-  if (version && !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)) {
-    throw new CliError("Requested release version must be stable SemVer.", 64);
-  }
-  return version;
-}
 
 export async function resolveManualReleaseBuild(
   repository: string,
@@ -23,7 +18,7 @@ export async function resolveManualReleaseBuild(
   runId: string,
   runAttempt: string
 ): Promise<ReturnType<typeof parseReleaseBuildRequest>> {
-  const requestedVersion = normalizeVersion(requestedVersionRaw);
+  const requestedVersion = normalizeReleaseVersion(requestedVersionRaw);
   validateRepositoryCapability(repository, policy, "release-source");
   const repo = await reader.get(`repos/${repository}`);
   if (!isJsonRecord(repo)) {
