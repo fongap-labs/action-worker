@@ -10,8 +10,6 @@ type GithubGet = {
   get(path: string): Promise<unknown>;
 };
 
-export const normalizeVersion = normalizeReleaseVersion;
-
 export async function resolveManualReleaseBuild(
   repository: string,
   requestedVersionRaw: string,
@@ -20,7 +18,7 @@ export async function resolveManualReleaseBuild(
   runId: string,
   runAttempt: string
 ): Promise<ReturnType<typeof parseReleaseBuildRequest>> {
-  const requestedVersion = normalizeVersion(requestedVersionRaw);
+  const requestedVersion = normalizeReleaseVersion(requestedVersionRaw);
   validateRepositoryCapability(repository, policy, "release-source");
   const repo = await reader.get(`repos/${repository}`);
   if (!isJsonRecord(repo)) {
