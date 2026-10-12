@@ -124,11 +124,11 @@ test("governance files and TypeScript control entries exist", async () => {
     ".github/workflows/main-write-audit.yml",
     ".github/workflows/main-write-guard.yml",
     ".github/workflows/pr-intake.yml",
-    ".github/workflows/release-build-dispatch.yml",
+    ".github/workflows/release-app.yml",
     ".github/workflows/security-scan-dispatch.yml",
     ".github/workflows/security-scan-intake.yml",
-    ".github/workflows/source-script-deploy.yml",
-    ".github/workflows/sync-tool-release.yml",
+    ".github/workflows/deploy-source-script.yml",
+    ".github/workflows/release-tool.yml",
     ".github/workflows/task-intake.yml",
     ".github/workflows/task-source-dispatch.yml",
     ".github/workflows/cancel-pr-work.yml",
@@ -195,6 +195,19 @@ test("integration guidance matches the current credential and private-repository
     guide,
     /On GitHub Free, private repositories of an organization do not support rulesets or protected branches/
   );
+});
+
+test("the integration guide says which workflow starts a release or a deploy", async () => {
+  const guide = await text("docs/INTEGRATION_GUIDE.md");
+  const workflows: Record<string, string> = {
+    "Release App": ".github/workflows/release-app.yml",
+    "Release Tool": ".github/workflows/release-tool.yml",
+    "Deploy Source Script": ".github/workflows/deploy-source-script.yml",
+  };
+  for (const [displayName, path] of Object.entries(workflows)) {
+    assert.match(await text(path), new RegExp(`^name: ${displayName}$`, "m"), path);
+    requireText(guide, [`\`${displayName}\` (\`${path.split("/").pop()}\`)`]);
+  }
 });
 
 test("documentation readability convention is enforced in shared governance", async () => {
@@ -600,7 +613,7 @@ test("task source ingress is source-owned and repository-agnostic", async () => 
 });
 
 test("release, source, deploy, merge, and repository settings contracts remain intact", async () => {
-  const releaseBuild = await text(".github/workflows/release-build-dispatch.yml");
+  const releaseBuild = await text(".github/workflows/release-app.yml");
   requireText(releaseBuild, [
     "types: [run-release-build]",
     "workflow_dispatch:",
@@ -912,7 +925,7 @@ test("central CI deploy dispatch is source-owned and adapter-routed", async () =
 });
 
 test("source-script deploy execution is manifest-driven and repository-agnostic", async () => {
-  const workflow = await text(".github/workflows/source-script-deploy.yml");
+  const workflow = await text(".github/workflows/deploy-source-script.yml");
   requireText(workflow, [
     "types: [run-source-script-deploy]",
     "workflow_dispatch:",
@@ -960,7 +973,7 @@ test("source-script deploy execution is manifest-driven and repository-agnostic"
 });
 
 test("tool distribution sync runs only in the central control plane", async () => {
-  const workflow = await text(".github/workflows/sync-tool-release.yml");
+  const workflow = await text(".github/workflows/release-tool.yml");
   requireText(workflow, [
     "schedule:",
     "sync-tool-release.ts",
@@ -1125,7 +1138,7 @@ test("PR governance enforces trust before it dispatches central CI", async () =>
 });
 
 test("deploy and task entrypoints replace the shell that received every secret", async () => {
-  const deploy = await text(".github/workflows/source-script-deploy.yml");
+  const deploy = await text(".github/workflows/deploy-source-script.yml");
   assert.match(deploy, /\n\s+exec bash "\$DEPLOY_ENTRYPOINT"\n/);
   assert.doesNotMatch(deploy, /\n\s+bash "\$DEPLOY_ENTRYPOINT"\n/);
 

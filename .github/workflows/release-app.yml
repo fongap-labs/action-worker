@@ -1,4 +1,4 @@
-name: Release Build Dispatch
+name: Release App
 
 on:
   repository_dispatch:

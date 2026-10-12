@@ -578,7 +578,7 @@ business repository main
 
 Action Worker owns production credentials and runner-heavy deployment orchestration. The source repository owns only product code and project-specific deployment tooling. A deploy request cannot supply mutable refs, arbitrary repositories, CI conclusions, or deployment credentials.
 
-The generic source-script deploy executor requires the current default-branch HEAD, trusted Action Worker `CI Evidence`, Main Write Guard success, a privileged runner profile, and the source-owned deploy manifest. Product-specific emergency switches such as `AIG_IS_DEPLOY_ENABLED=false` remain inside the source-owned deploy entrypoint.
+The generic source-script deploy executor is the `Deploy Source Script` workflow (`deploy-source-script.yml`), named after its adapter. Central CI starts it after a trusted main write when the repository's `.github/deploy.json` has `automatic: true`, and a person can start it by hand with a repository and an exact SHA. It requires the current default-branch HEAD, trusted Action Worker `CI Evidence`, Main Write Guard success, a privileged runner profile, and the source-owned deploy manifest. Product-specific emergency switches such as `AIG_IS_DEPLOY_ENABLED=false` remain inside the source-owned deploy entrypoint.
 
 The executor unsets every secret outside the source-declared scope and then starts the entrypoint with `exec`, replacing the shell that was started with every secret, so the entrypoint does not run beside it.
 
@@ -607,10 +607,14 @@ Action Worker is layered by responsibility. The current workflow entry points ar
   cancel-pr-work.yml
   central-ci-dispatch.yml
   dependency-repair-dispatch.yml
-  release-build-dispatch.yml
   security-scan-dispatch.yml
-  source-script-deploy.yml
   task-source-dispatch.yml
+
+  # release and deploy entry points, named by kind: release-<kind>.yml, deploy-<adapter>.yml
+  # (a person starts them from the Actions tab; automation can start them too)
+  release-app.yml
+  release-tool.yml
+  deploy-source-script.yml
 
   # scheduled reconciliation that dispatches work: <subject>-intake.yml
   ci-intake.yml
@@ -624,7 +628,6 @@ Action Worker is layered by responsibility. The current workflow entry points ar
   main-write-audit.yml
   main-write-guard.yml
   prune-stale-branches.yml
-  sync-tool-release.yml
   update-work-metrics.yml
   validate-ci.yml
 

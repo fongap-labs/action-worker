@@ -341,7 +341,7 @@ test("the central policies give each Cloudflare account its own qualified secret
 test("task and deploy workflows apply aliases before they remove the other secrets", async () => {
   for (const [file, variable] of [
     [".github/workflows/handle-task-dispatch.yml", "secret_scope"],
-    [".github/workflows/source-script-deploy.yml", "scope"],
+    [".github/workflows/deploy-source-script.yml", "scope"],
   ] as const) {
     const workflow = await readFile(file, "utf8");
     const apply = workflow.indexOf(`<<< "$${variable}")`);

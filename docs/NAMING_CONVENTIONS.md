@@ -334,11 +334,12 @@ Workflow and shell file names have at most three kebab-case segments (`scripts/v
   ```text
   run-task                 → handle-task-dispatch.yml   (one-word subject: the full form fits)
   run-security-scan        → security-scan-dispatch.yml (two words: handle is dropped)
-  run-source-script-deploy → source-script-deploy.yml   (three words: only the subject fits)
+  run-source-script-deploy → source-script-deploy.yml   (three words: only the subject fits; an illustration, the deploy workflow is named by adapter, see below)
   ```
 
   `handle` marks the receiving side where it fits; senders are named `dispatch-*` (for example `scripts/dispatch-central-ci.ts`).
 - A scheduled reconciliation workflow that scans managed repositories and dispatches work is named `<subject>-intake.yml` (for example `pr-intake.yml`).
+- A workflow that releases or deploys is named `release-<kind>.yml` or `deploy-<adapter>.yml`, so a person finds the right one by what they want to do. `<kind>` says what is released: `app` is an application built from a source repository, `tool` is a third-party tool mirrored from upstream. `<adapter>` is a key of `adapters` in `policies/deploy.json` (today `source-script`). The name never contains a product or repository. Each of them declares `workflow_dispatch`, because a person starts it from the Actions tab; automation can start it too (the deploy workflow after a trusted main write, the tool release on a schedule), so the dispatch-event rule above does not apply to them. `docs/INTEGRATION_GUIDE.md` section 12.1 says which one to run. The test checks the kind and the adapter, so a new kind or adapter is a deliberate edit.
 - The display name (`name:`) spells out the file name word by word, with `pr` and `ci` written as `PR` and `CI` (`pr-intake.yml` is "PR Intake").
 - A file that keeps an older name is listed in the test with the reason renaming is not worth it. Today these are `handle-pr-dispatch.yml` (a CI Evidence trust anchor in `scripts/ci-evidence.ts`) and `handle-pr-review.yml` (counted by the AI Review queue).
 

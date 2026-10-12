@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- refactor [migration]: the release and deploy workflows are named by their kind, so a person finds the right one by what they want to do: `Release Build Dispatch` is now `Release App` (`release-app.yml`), `Sync Tool Release` is `Release Tool` (`release-tool.yml`) and `Source Script Deploy` is `Deploy Source Script` (`deploy-source-script.yml`). The dispatch events, inputs and behavior are unchanged. Anything that starts them by file name or by their old display name must use the new one. `docs/INTEGRATION_GUIDE.md` section 12.1 lists which workflow starts which release or deploy.
+
 - fix [migration]: the delta-suite contract test no longer requires the Foundation package version in `pyproject.toml`; the Foundation compatibility is pinned only by its immutable commit and the capability ABI, worker manifest and connector catalog format versions.
 
 - feat [breaking, migration]: the application version of a release comes only from the version entered when the release is started, and it is required. Release Build no longer reads a version from the source repository or compares the entered version with it, `.github/release.manifest.json` drops `version_source`, and the build script receives the version as `-Version`. The delta test pack drops its version-consistency checks.

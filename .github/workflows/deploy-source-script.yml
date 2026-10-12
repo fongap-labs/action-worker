@@ -1,4 +1,4 @@
-name: Source Script Deploy
+name: Deploy Source Script
 
 on:
   repository_dispatch:

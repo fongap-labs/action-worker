@@ -244,7 +244,7 @@ function secretNames(value: unknown): string[] {
 }
 
 test("the deploy job names no central write credential and checks out with the read-only token", async () => {
-  const deploy = (await workflow("source-script-deploy.yml")).jobs.deploy;
+  const deploy = (await workflow("deploy-source-script.yml")).jobs.deploy;
   assert.ok(deploy);
   const names = secretNames(deploy);
   assert.equal(names.includes("AW_CONTROL_TOKEN"), false);
@@ -256,7 +256,7 @@ test("the deploy job names no central write credential and checks out with the r
 });
 
 test("the deploy entrypoint step applies the central deploy secret policy", async () => {
-  const deploy = (await workflow("source-script-deploy.yml")).jobs.deploy;
+  const deploy = (await workflow("deploy-source-script.yml")).jobs.deploy;
   const step = deploy?.steps?.find(
     (item) => item.name === "Execute source-owned deploy entrypoint"
   );
@@ -267,7 +267,7 @@ test("the deploy entrypoint step applies the central deploy secret policy", asyn
 });
 
 test("the prepare job validates the environment against the central policy file", async () => {
-  const text = await readFile(".github/workflows/source-script-deploy.yml", "utf8");
+  const text = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
   assert.match(
     text,
     /validate-deploy-source\.ts source-script true policies\/runner\.json policies\/deploy-environments\.json/
@@ -279,7 +279,7 @@ test("every job that uses the admin token runs in the admin-ops environment", as
   for (const name of [
     "apply-repository-settings.yml",
     "security-scan-dispatch.yml",
-    "source-script-deploy.yml",
+    "deploy-source-script.yml",
   ]) {
     const parsed = await workflow(name);
     for (const [jobName, job] of Object.entries(parsed.jobs)) {
