@@ -3,8 +3,42 @@ import { test } from "node:test";
 import {
   checksumForAsset,
   parseToolMetadata,
+  parseUrlToolMetadata,
   selectStableRelease,
 } from "../scripts/sync-tool-release.ts";
+
+const pinnedUrlMetadata = {
+  schema_version: "1",
+  release_key: "r-base",
+  platform: "source",
+  arch: "any",
+  upstream_url: "https://cran.r-project.org/src/base/R-4/R-4.6.0.tar.xz",
+  upstream_version: "4.6.0",
+  upstream_asset: "R-4.6.0.tar.xz",
+  upstream_sha256: "b".repeat(64),
+  license_expression: "GPL-2.0-or-later",
+};
+
+test("url tool metadata pins a version and a SHA-256 for an HTTPS file", () => {
+  assert.deepEqual(parseUrlToolMetadata(pinnedUrlMetadata), pinnedUrlMetadata);
+});
+
+test("url tool metadata refuses an unpinned, plain-HTTP or mismatched source", () => {
+  const refused = (change: Record<string, unknown>) =>
+    assert.throws(() => parseUrlToolMetadata({ ...pinnedUrlMetadata, ...change }));
+  refused({ upstream_url: "http://cran.r-project.org/src/base/R-4/R-4.6.0.tar.xz" });
+  refused({ upstream_url: "https://user:pass@cran.r-project.org/R-4/R-4.6.0.tar.xz" });
+  refused({ upstream_url: "https://cran.r-project.org/src/base/R-4/R-4.6.1.tar.xz" });
+  refused({ upstream_sha256: "__PIN_R_SOURCE_SHA256_HERE__" });
+  refused({ upstream_sha256: "0".repeat(64) });
+  refused({ upstream_sha256: "B".repeat(64) });
+  refused({ upstream_version: "4.6" });
+  refused({ release_channel: "stable" });
+});
+
+test("url tool metadata rejects unknown keys", () => {
+  assert.throws(() => parseUrlToolMetadata({ ...pinnedUrlMetadata, extra: true }));
+});
 
 test("tool metadata is explicit and stable-channel only", () => {
   const metadata = {
