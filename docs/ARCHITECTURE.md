@@ -517,7 +517,7 @@ Heavy release builds execute in Action Worker, not in business-repository runner
 
 ```text
 release-build ingress
-→ source repository + optional requested version
+→ source repository + required requested version
 → resolve current immutable default-branch source
 → Action Worker source/default-HEAD/CI admission
 → central build matrix
@@ -527,6 +527,8 @@ release-build ingress
 → Release Governance
 → external-vault Release
 ```
+
+The released version is the version entered when the release is started and nothing else. Action Worker reads no version from the source repository and compares the entered version with no file. The build script receives it as `-Version` and writes it into the built application.
 
 Project-specific build commands remain in the source repository as narrow scripts. Runner selection, Node/Python/Rust setup, build attestation, package-level SBOM generation, artifact aggregation, target repository, release manifest generation, provenance, publication, verification, and rollback are centrally governed.
 

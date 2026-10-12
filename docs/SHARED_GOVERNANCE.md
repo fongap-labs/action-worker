@@ -41,11 +41,18 @@ Action Worker maintains these rules for everyone:
 - central CI / build / review / release / deploy / task execution;
 - runner profiles, runner resolution and self-hosted boundaries;
 - release and deploy governance;
+- the application version of a release, which comes only from the version entered when the release is started;
 - cross-repository trust and secret boundaries;
 - common Agent entry and precedence rules;
 - cross-repository language and runtime convergence rules.
 
 Language governance follows the same long-term principle: a small kernel and a large framework come before any single-language goal. The choice of language follows module boundaries. When performance, security, functionality, compatibility and maintainability do not drop, unnecessary languages and runtimes are removed first, but rewriting a stable implementation with clear boundaries only to "unify the stack" is forbidden. Duplicate authorities, duplicate state and duplicate protocols across languages are removed first.
+
+### Application version
+
+The application version of a release is controlled only by the version a person enters when the release is started. No other source constrains it: not a version field in a repository file, not a manifest, not a CHANGELOG heading, not a consistency check between files, not a comparison with the previous release. A managed repository must not add such a rule, and Action Worker must not read a version from a source repository.
+
+The release build receives the entered version as the `-Version` parameter of the project build script and writes it into the built application. The versions of the tools that build the application (Node, Python, Rust, runners) are not application versions and stay pinned as before.
 
 ## 3. Project-local rules
 

@@ -219,6 +219,8 @@ Also forbidden:
 
 Release notes consume the same types directly.
 
+A CHANGELOG heading never decides or gates the version of a release. The version is only the one entered when the release is started.
+
 The presentation layer may hide low-value types, for example:
 
 ```text

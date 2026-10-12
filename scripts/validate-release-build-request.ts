@@ -10,11 +10,6 @@ import {
   readJson,
 } from "./runtime-command.ts";
 
-type VersionSource = {
-  type: "cargo-workspace" | "cargo-package";
-  path: string;
-};
-
 type BuildEntry = {
   id: string;
   runner_profile: string;
@@ -35,7 +30,6 @@ export type ReleaseBuildManifest = {
   node_version_file: string;
   python_version_file: string;
   sbom_asset: string;
-  version_source: VersionSource;
   builds: BuildEntry[];
 };
 
@@ -52,27 +46,6 @@ export function decodeGithubContent(value: unknown): string {
     throw new CliError("GitHub contents response is invalid.", 65);
   }
   return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
-}
-
-function parseStableCargoVersion(
-  content: string,
-  sectionName: "workspace.package" | "package"
-): string {
-  const escaped = sectionName.replace(".", "\\.");
-  const section = content.match(new RegExp(`\\[${escaped}\\]([\\s\\S]*?)(?=\\r?\\n\\[|$)`));
-  const version = section?.[1]?.match(/^\s*version\s*=\s*"([^"]+)"\s*$/m)?.[1] ?? "";
-  if (!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)) {
-    throw new CliError("Release version source does not contain stable SemVer.", 65);
-  }
-  return version;
-}
-
-export function parseCargoWorkspaceVersion(content: string): string {
-  return parseStableCargoVersion(content, "workspace.package");
-}
-
-export function parseCargoPackageVersion(content: string): string {
-  return parseStableCargoVersion(content, "package");
 }
 
 function isRelativePath(value: unknown): value is string {
@@ -107,7 +80,6 @@ export function parseReleaseBuildManifest(value: unknown): ReleaseBuildManifest 
       "sbom_asset",
       "schema_version",
       "target_repository",
-      "version_source",
     ]) ||
     value.schema_version !== 1 ||
     !isAssetName(value.artifact_name) ||
@@ -123,11 +95,6 @@ export function parseReleaseBuildManifest(value: unknown): ReleaseBuildManifest 
     !isRelativePath(value.node_version_file) ||
     !isRelativePath(value.python_version_file) ||
     !isAssetName(value.sbom_asset, true) ||
-    !isJsonRecord(value.version_source) ||
-    !exactKeys(value.version_source, ["path", "type"]) ||
-    !["cargo-workspace", "cargo-package"].includes(String(value.version_source.type)) ||
-    !isRelativePath(value.version_source.path) ||
-    value.version_source.path === "" ||
     !Array.isArray(value.builds) ||
     value.builds.length < 1 ||
     value.builds.length > 32
@@ -179,6 +146,18 @@ export function parseReleaseBuildManifest(value: unknown): ReleaseBuildManifest 
   return value as unknown as ReleaseBuildManifest;
 }
 
+/**
+ * The application version is supplied only by the release request. It is never read
+ * from, compared with or constrained by the source repository.
+ */
+export function normalizeReleaseVersion(value: string): string {
+  const version = value.replace(/^v/, "");
+  if (!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)) {
+    throw new CliError("Requested release version must be stable SemVer.", 64);
+  }
+  return version;
+}
+
 export function parseReleaseBuildRequest(value: unknown): {
   request_id: string;
   source_repository: string;
@@ -202,7 +181,7 @@ export function parseReleaseBuildRequest(value: unknown): {
     typeof value.source_sha !== "string" ||
     !/^[0-9a-f]{40}$/.test(value.source_sha) ||
     typeof value.requested_version !== "string" ||
-    value.requested_version.length > 64
+    !/^v?[0-9]+\.[0-9]+\.[0-9]+$/.test(value.requested_version)
   ) {
     throw new CliError("Release build dispatch payload is invalid.", 64);
   }
@@ -273,22 +252,7 @@ async function main(): Promise<void> {
   );
   validateRepositoryCapability(manifest.target_repository, repositoryPolicy, "release-target");
 
-  const versionResponse = await reader.get(
-    `repos/${request.source_repository}/contents/${manifest.version_source.path}?ref=${request.source_sha}`
-  );
-  const versionContent = decodeGithubContent(versionResponse);
-  const version =
-    manifest.version_source.type === "cargo-workspace"
-      ? parseCargoWorkspaceVersion(versionContent)
-      : parseCargoPackageVersion(versionContent);
-
-  const requestedVersion = request.requested_version.replace(/^v/, "");
-  if (requestedVersion && requestedVersion !== version) {
-    throw new CliError(
-      `Requested release version does not match source version: requested=${requestedVersion} source=${version}.`,
-      65
-    );
-  }
+  const version = normalizeReleaseVersion(request.requested_version);
 
   const runnerPolicy = parseRunnerPolicy(await readJson(process.argv[2] ?? "policies/runner.json"));
   const matrix = manifest.builds.map((build) => {

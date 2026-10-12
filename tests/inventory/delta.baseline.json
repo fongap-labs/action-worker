@@ -303,26 +303,12 @@
         "test_repo_has_no_deprecated_paths": 1,
         "test_gate_catches_every_retired_shape": 1,
         "test_gate_ignores_current_paths_and_history": 1,
-        "test_version_sources_are_consistent": 1,
-        "test_case1_stable_version_equivalent": 1,
-        "test_case2_dev_version_cross_ecosystem_equivalent": 1,
-        "test_case3_real_version_mismatch_fails": 1,
-        "test_case4_different_prerelease_numbers_fails": 1,
-        "test_case5_release_mode_accepts_stable_baseline": 1,
-        "test_release_mode_output_includes_version_and_tag": 1,
         "test_portable_zip_structure_if_present": 1
       },
       "passed": [
         "test_repo_has_no_deprecated_paths",
         "test_gate_catches_every_retired_shape",
-        "test_gate_ignores_current_paths_and_history",
-        "test_version_sources_are_consistent",
-        "test_case1_stable_version_equivalent",
-        "test_case2_dev_version_cross_ecosystem_equivalent",
-        "test_case3_real_version_mismatch_fails",
-        "test_case4_different_prerelease_numbers_fails",
-        "test_case5_release_mode_accepts_stable_baseline",
-        "test_release_mode_output_includes_version_and_tag"
+        "test_gate_ignores_current_paths_and_history"
       ]
     },
     "test_sanitize.py": {

@@ -606,6 +606,7 @@ test("release, source, deploy, merge, and repository settings contracts remain i
     "workflow_dispatch:",
     "source_repository:",
     "requested_version:",
+    "-Version $env:RELEASE_VERSION",
     "resolve-release-build-ingress.ts",
     "steps.ingress.outputs.request_json",
     "validate-release-build-request.ts",
@@ -642,6 +643,10 @@ test("release, source, deploy, merge, and repository settings contracts remain i
     releaseBuildValidator,
     /repositories\[request\.source_repository\]|fongap-labs\/(?:delta|app-source)/
   );
+  // The application version comes only from the version entered when the release is started.
+  assert.doesNotMatch(releaseBuildValidator, /version_source|Cargo\.toml|parseCargo/);
+  assert.doesNotMatch(await text("contracts/release-build.json"), /version_source/);
+  assert.match(releaseBuild, /requested_version:\n\s+description: [^\n]+\n\s+required: true/);
 
   const release = await text(".github/workflows/handle-release-dispatch.yml");
   requireText(release, [

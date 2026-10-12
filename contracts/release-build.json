@@ -15,7 +15,6 @@
     "node_version_file",
     "python_version_file",
     "sbom_asset",
-    "version_source",
     "builds"
   ],
   "properties": {
@@ -29,15 +28,6 @@
     "node_version_file": { "type": "string", "maxLength": 512 },
     "python_version_file": { "type": "string", "maxLength": 512 },
     "sbom_asset": { "type": "string", "maxLength": 128 },
-    "version_source": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["type", "path"],
-      "properties": {
-        "type": { "enum": ["cargo-workspace", "cargo-package"] },
-        "path": { "type": "string", "minLength": 1, "maxLength": 512 }
-      }
-    },
     "builds": {
       "type": "array",
       "minItems": 1,
