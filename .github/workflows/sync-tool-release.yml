@@ -20,9 +20,14 @@ concurrency:
 
 jobs:
   sync:
-    name: Sync verified tool release
+    name: Sync verified tool release (${{ matrix.tool }})
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every catalog tool is listed explicitly; a run never falls back to one tool.
+        tool: [open-code-review, r-base]
 
     steps:
       - name: Checkout
@@ -39,7 +44,8 @@ jobs:
         id: sync
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-        run: node scripts/sync-tool-release.ts policies/review.json "$RUNNER_TEMP/tool-release"
+          TOOL_KEY: ${{ matrix.tool }}
+        run: node scripts/sync-tool-release.ts policies/review.json "$RUNNER_TEMP/tool-release" "$TOOL_KEY"
 
       - name: Upload release artifact
         if: ${{ steps.sync.outputs.publish == 'true' }}

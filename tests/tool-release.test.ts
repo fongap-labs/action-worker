@@ -5,6 +5,7 @@ import {
   parseToolMetadata,
   parseUrlToolMetadata,
   selectStableRelease,
+  toolKeyArgument,
 } from "../scripts/sync-tool-release.ts";
 
 const pinnedUrlMetadata = {
@@ -76,4 +77,13 @@ test("upstream checksum parsing binds the requested asset", () => {
     hash
   );
   assert.throws(() => checksumForAsset(`${hash}  other-asset\n`, "opencodereview-linux-amd64"));
+});
+
+test("the tool sync takes its tool key explicitly and never defaults", () => {
+  assert.equal(toolKeyArgument("r-base"), "r-base");
+  assert.equal(toolKeyArgument("open-code-review"), "open-code-review");
+  assert.throws(() => toolKeyArgument(undefined), /Usage/);
+  assert.throws(() => toolKeyArgument(""), /Usage/);
+  assert.throws(() => toolKeyArgument("R Base"), /Usage/);
+  assert.throws(() => toolKeyArgument("../r-base"), /Usage/);
 });
