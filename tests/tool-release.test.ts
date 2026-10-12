@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   checksumForAsset,
+  isVerifiedCommit,
   parseToolMetadata,
   parseUrlToolMetadata,
   selectStableRelease,
@@ -86,4 +87,17 @@ test("the tool sync takes its tool key explicitly and never defaults", () => {
   assert.throws(() => toolKeyArgument(""), /Usage/);
   assert.throws(() => toolKeyArgument("R Base"), /Usage/);
   assert.throws(() => toolKeyArgument("../r-base"), /Usage/);
+});
+
+test("a release is only published from a verified commit", () => {
+  assert.equal(
+    isVerifiedCommit({ sha: "a".repeat(40), commit: { verification: { verified: true } } }),
+    true
+  );
+  assert.equal(
+    isVerifiedCommit({ commit: { verification: { verified: false, reason: "unsigned" } } }),
+    false
+  );
+  assert.equal(isVerifiedCommit({ commit: {} }), false);
+  assert.equal(isVerifiedCommit({}), false);
 });
