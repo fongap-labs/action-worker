@@ -320,12 +320,24 @@ async function syncUrlRelease(input: UrlSyncInput): Promise<void> {
   ]);
 }
 
+/**
+ * The catalog key of the tool to sync. It is always given explicitly; there is no default tool,
+ * so a sync can never pick a tool by accident.
+ */
+export function toolKeyArgument(value: string | undefined): string {
+  if (!value || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value)) {
+    throw new CliError("Usage: sync-tool-release.ts <review-policy> <artifact-dir> <tool-key>", 64);
+  }
+  return value;
+}
+
 async function main(): Promise<void> {
   const policyPath = process.argv[2] ?? "policies/review.json";
   const artifactDir = process.argv[3] ?? "";
   if (!artifactDir) {
-    throw new CliError("Usage: sync-tool-release.ts <review-policy> <artifact-dir>", 64);
+    throw new CliError("Usage: sync-tool-release.ts <review-policy> <artifact-dir> <tool-key>", 64);
   }
+  const toolKey = toolKeyArgument(process.argv[4]);
 
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const apiUrl = process.env.GITHUB_API_URL ?? "https://api.github.com";
@@ -343,11 +355,7 @@ async function main(): Promise<void> {
   const policy = await readJson(policyPath);
   const engine = isJsonRecord(policy) && isJsonRecord(policy.engine) ? policy.engine : {};
   const distributionRepository = getJsonString(engine, "repository");
-  const toolKey = getJsonString(engine, "name");
-  if (
-    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(distributionRepository) ||
-    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(toolKey)
-  ) {
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(distributionRepository)) {
     throw new CliError("Review engine catalog location is invalid.", 65);
   }
 

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: the tool sync takes the tool key as a required third argument (`scripts/sync-tool-release.ts <policy> <artifact-dir> <tool-key>`) and the workflow runs a matrix of every catalog tool that it names explicitly (`open-code-review`, `r-base`). The sync no longer takes its tool from the review policy's `engine.name`, so a catalog entry such as `r-base` is reached at all, and no run falls back to a default tool. The review policy still supplies the distribution repository.
+
 - feat: a tool distribution can mirror a pinned HTTPS file instead of a GitHub Release. A catalog entry with `"distribution": "url"` reads `upstream_url`, `upstream_version`, `upstream_asset`, `upstream_sha256` and `license_expression` from its metadata (`parseUrlToolMetadata`); the upstream file must match the pinned SHA-256 or the sync fails before anything is published. The URL must be HTTPS with no credentials, and its last path segment must equal `upstream_asset`. The GitHub Release path (`"distribution": "github-release"`) is unchanged, and an unknown distribution fails the sync.
 
 - fix: a task source request now asks for central CI on its own repository before the task waits for it. Task Source Dispatch runs the CI Intake logic for that one repository (`AW_CI_INTAKE_REPOSITORY`), so a push or manual task no longer depends on the scheduled CI Intake, which GitHub starts only every few hours instead of every 10 minutes; before, the task source check waited 20 minutes for CI Evidence that nobody had requested and failed. The job gets `contents: write` for the dispatch, like CI Intake.
