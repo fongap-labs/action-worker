@@ -215,7 +215,19 @@ The central repository must not keep a release build matrix grouped by repositor
 
 The released version is the version the person enters when starting the release. A business repository must not keep a rule that constrains it: no version-source check, no consistency check between files, no required CHANGELOG release heading. The project build script declares a mandatory `-Version` parameter, writes that version into the built application, and may verify that the built artifact carries it.
 
-A manual release also starts from the unified Release Build workflow in Action Worker: the user chooses the managed `source_repository` and enters the stable version, which is required; Action Worker reads the current default-branch HEAD of that repository itself and runs the same source / CI / provenance checks. A business repository does not need to start its own runner to "announce a release".
+A manual release also starts from the `Release App` workflow in Action Worker: the user chooses the managed `source_repository` and enters the stable version, which is required; Action Worker reads the current default-branch HEAD of that repository itself and runs the same source / CI / provenance checks. A business repository does not need to start its own runner to "announce a release".
+
+### 12.1 Which workflow starts a release or a deploy
+
+Release and deploy workflows are named by the kind of release or by the deploy adapter, never by a product or repository. Find the row, open that workflow in the Actions tab of Action Worker and press "Run workflow".
+
+| You want to | Workflow | Inputs | Also started by | Used today by |
+|---|---|---|---|---|
+| Release an application built from a source repository | `Release App` (`release-app.yml`) | `source_repository`, `requested_version` (required stable SemVer) | a `run-release-build` dispatch event | delta, app-source |
+| Release a third-party tool mirrored from upstream | `Release Tool` (`release-tool.yml`) | none (every catalog tool) | a schedule, every 6 hours | external-vault `tools/` |
+| Deploy a source commit | `Deploy Source Script` (`deploy-source-script.yml`) | `source_repository`, `source_sha` (the exact 40-character SHA) | central CI after a trusted main write, when the repository's `.github/deploy.json` has `automatic: true` | ai-gateway (automatic), internal-vault (by hand only) |
+
+`Handle Release Dispatch` publishes both kinds of release; the workflows above start it, a person never does. "Used today by" is a snapshot: each repository's own `.github/release.manifest.json` or `.github/deploy.json` and `AW_REPOSITORY_POLICY` decide, not this table.
 
 ## 13. Deploy
 

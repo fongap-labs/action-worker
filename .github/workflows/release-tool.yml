@@ -1,10 +1,10 @@
-name: Sync Tool Release
+name: Release Tool
 
 on:
   push:
     branches: [main]
     paths:
-      - ".github/workflows/sync-tool-release.yml"
+      - ".github/workflows/release-tool.yml"
       - "scripts/sync-tool-release.ts"
       - "policies/review.json"
   schedule:

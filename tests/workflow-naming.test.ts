@@ -6,6 +6,7 @@ import { parse } from "yaml";
 type Workflow = { name?: string; on?: Record<string, unknown> };
 
 const workflowDirectory = ".github/workflows";
+const deployPolicyPath = "policies/deploy.json";
 const acronyms: Record<string, string> = { ci: "CI", pr: "PR" };
 // Workflow file names have at most three kebab-case segments (scripts/validate-naming-rules.ts).
 const maxSegments = 3;
@@ -18,6 +19,15 @@ const dispatchNameExceptions: Record<string, string> = {
   "handle-pr-review.yml":
     "the AI Review queue counts runs of this file (scripts/wait-review-turn.ts)",
 };
+
+// What a release workflow releases. A new kind is a deliberate edit here and in
+// docs/NAMING_CONVENTIONS.md section 8.1, never a repository or product name.
+const releaseKinds = ["app", "tool"];
+
+// A workflow that releases or deploys is a named entry point (`release-<kind>.yml`,
+// `deploy-<adapter>.yml`): a person starts it from the Actions tab, and automation may also start
+// it, so the dispatch-event rule below does not apply to it.
+const operationPattern = /^(release|deploy)-(.+)\.yml$/;
 
 async function workflows(): Promise<Array<{ file: string; workflow: Workflow }>> {
   const files = (await readdir(workflowDirectory)).filter((file) => file.endsWith(".yml")).sort();
@@ -66,6 +76,7 @@ test("the dispatch file name keeps as much of the rule as three segments allow",
 
 test("workflow files are named after the dispatch event they handle", async () => {
   for (const { file, workflow } of await workflows()) {
+    if (operationPattern.test(file)) continue;
     const event = dispatchEvent(workflow);
     if (event === undefined) continue;
     const expected = expectedDispatchFile(event);
@@ -80,6 +91,31 @@ test("workflow files are named after the dispatch event they handle", async () =
 test("every workflow display name spells out its file name", async () => {
   for (const { file, workflow } of await workflows()) {
     assert.equal(workflow.name, displayName(file), `display name of ${file}`);
+  }
+});
+
+test("release and deploy workflows are named by kind and can be started by hand", async () => {
+  const deploy = JSON.parse(await readFile(deployPolicyPath, "utf8")) as {
+    adapters: Record<string, unknown>;
+  };
+  const operations = (await workflows()).filter(({ file }) => operationPattern.test(file));
+  assert.deepEqual(
+    operations.map(({ file }) => file),
+    ["deploy-source-script.yml", "release-app.yml", "release-tool.yml"]
+  );
+  for (const { file, workflow } of operations) {
+    const match = operationPattern.exec(file);
+    assert.ok(match, file);
+    const [, verb, subject = ""] = match;
+    if (verb === "deploy") {
+      assert.ok(subject in deploy.adapters, `${file}: ${subject} is not a deploy adapter`);
+    } else {
+      assert.ok(releaseKinds.includes(subject), `${file}: ${subject} is not a release kind`);
+    }
+    assert.ok(
+      "workflow_dispatch" in (workflow.on ?? {}),
+      `${file} is an entry point a person starts, so it declares workflow_dispatch`
+    );
   }
 });
 
