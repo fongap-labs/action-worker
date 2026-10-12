@@ -972,6 +972,7 @@ test("tool distribution sync runs only in the central control plane", async () =
     "CI Evidence",
     "checksumForAsset",
     "selectStableRelease",
+    "parseUrlToolMetadata",
   ]);
 });
 

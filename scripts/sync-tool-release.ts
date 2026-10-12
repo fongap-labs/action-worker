@@ -73,6 +73,78 @@ export function parseToolMetadata(value: unknown): ToolMetadata {
   return value as ToolMetadata;
 }
 
+/**
+ * A tool whose upstream is a plain HTTPS file rather than a GitHub Release, such as the CRAN R
+ * source tarball. The version and the SHA-256 are pinned here: the upstream publishes no checksum
+ * file this job could trust. The metadata lives in the distribution repository, so the pin is
+ * reviewed there and gated by its CI Evidence.
+ */
+export type UrlToolMetadata = {
+  schema_version: "1";
+  release_key: string;
+  platform: string;
+  arch: string;
+  upstream_url: string;
+  upstream_version: string;
+  upstream_asset: string;
+  upstream_sha256: string;
+  license_expression: string;
+};
+
+function isHttpsFileUrl(text: string, asset: string): boolean {
+  try {
+    const url = new URL(text);
+    return (
+      url.protocol === "https:" &&
+      url.username === "" &&
+      url.password === "" &&
+      url.hash === "" &&
+      decodeURIComponent(url.pathname.split("/").pop() ?? "") === asset
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function parseUrlToolMetadata(value: unknown): UrlToolMetadata {
+  const keys = [
+    "arch",
+    "license_expression",
+    "platform",
+    "release_key",
+    "schema_version",
+    "upstream_asset",
+    "upstream_sha256",
+    "upstream_url",
+    "upstream_version",
+  ] as const;
+  if (
+    !isJsonRecord(value) ||
+    !exactKeys(value, keys) ||
+    value.schema_version !== "1" ||
+    typeof value.release_key !== "string" ||
+    !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value.release_key) ||
+    typeof value.platform !== "string" ||
+    !/^[a-z0-9][a-z0-9-]*$/.test(value.platform) ||
+    typeof value.arch !== "string" ||
+    !/^[a-z0-9][a-z0-9-]*$/.test(value.arch) ||
+    typeof value.upstream_asset !== "string" ||
+    !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value.upstream_asset) ||
+    typeof value.upstream_url !== "string" ||
+    !isHttpsFileUrl(value.upstream_url, value.upstream_asset) ||
+    typeof value.upstream_version !== "string" ||
+    !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(value.upstream_version) ||
+    typeof value.upstream_sha256 !== "string" ||
+    !/^[0-9a-f]{64}$/.test(value.upstream_sha256) ||
+    /^0+$/.test(value.upstream_sha256) ||
+    typeof value.license_expression !== "string" ||
+    !/^[A-Za-z0-9][A-Za-z0-9.+() -]*$/.test(value.license_expression)
+  ) {
+    throw new CliError("tool distribution metadata is invalid.", 65);
+  }
+  return value as UrlToolMetadata;
+}
+
 export function selectStableRelease(value: unknown): Record<string, unknown> {
   for (const release of getJsonArray(value)) {
     if (!isJsonRecord(release) || release.draft === true || release.prerelease === true) {
@@ -153,6 +225,101 @@ async function downloadFile(url: string, path: string): Promise<void> {
   throw lastError;
 }
 
+type UrlSyncInput = {
+  reader: GithubReader;
+  controlToken: string;
+  entry: unknown;
+  distributionRepository: string;
+  metadataPath: string;
+  sourceSha: string;
+  artifactDir: string;
+  artifactRepository: string;
+  artifactRunId: number;
+};
+
+/**
+ * Mirror a pinned HTTPS upstream file. The download must match the SHA-256 in the distribution
+ * repository's metadata; a mismatch fails the job and nothing is published.
+ */
+async function syncUrlRelease(input: UrlSyncInput): Promise<void> {
+  const { reader, controlToken, entry, distributionRepository, sourceSha } = input;
+  const metadata = parseUrlToolMetadata(
+    await repositoryJson(reader, distributionRepository, input.metadataPath, sourceSha)
+  );
+  const version = metadata.upstream_version;
+  const targetTag = `${metadata.release_key}-v${version}`;
+  const artifactName = `${metadata.release_key}-release`;
+  const sourceOutputs = [
+    `source_repository=${distributionRepository}`,
+    `source_sha=${sourceSha}`,
+    `artifact_name=${artifactName}`,
+  ];
+
+  if (
+    await githubExists(`repos/${distributionRepository}/releases/tags/${targetTag}`, controlToken)
+  ) {
+    await appendLines(process.env.GITHUB_OUTPUT, ["publish=false", ...sourceOutputs]);
+    await appendLines(process.env.GITHUB_STEP_SUMMARY, [
+      "## Tool distribution sync",
+      "",
+      `- upstream: ${metadata.upstream_url}`,
+      `- target: ${distributionRepository}@${targetTag}`,
+      "- result: already published",
+    ]);
+    return;
+  }
+
+  await rm(input.artifactDir, { recursive: true, force: true });
+  await mkdir(input.artifactDir, { recursive: true });
+  const assetPath = join(input.artifactDir, metadata.upstream_asset);
+  await downloadFile(metadata.upstream_url, assetPath);
+  const actualChecksum = await sha256File(assetPath);
+  if (actualChecksum !== metadata.upstream_sha256) {
+    throw new CliError(`${metadata.upstream_asset} checksum verification failed.`, 66);
+  }
+
+  const manifest = {
+    schema_version: "1",
+    target_repository: distributionRepository,
+    release_key: metadata.release_key,
+    version,
+    release_name: `${getJsonString(entry, "name") || metadata.release_key} ${version}`,
+    release_notes: `Verified mirror of ${metadata.upstream_url} (SHA-256 ${actualChecksum}).`,
+    prerelease: false,
+    license: {
+      expression: metadata.license_expression,
+    },
+    assets: [{ name: metadata.upstream_asset, sha256: actualChecksum }],
+  };
+  const provenance = {
+    schema_version: "1",
+    source_repository: distributionRepository,
+    source_sha: sourceSha,
+    artifact_repository: input.artifactRepository,
+    artifact_run_id: input.artifactRunId,
+  };
+  await writeFile(
+    join(input.artifactDir, "release-manifest.json"),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+    "utf8"
+  );
+  await writeFile(
+    join(input.artifactDir, "release-provenance.json"),
+    `${JSON.stringify(provenance, null, 2)}\n`,
+    "utf8"
+  );
+
+  await appendLines(process.env.GITHUB_OUTPUT, ["publish=true", ...sourceOutputs]);
+  await appendLines(process.env.GITHUB_STEP_SUMMARY, [
+    "## Tool distribution sync",
+    "",
+    `- upstream: ${metadata.upstream_url}`,
+    `- source metadata: ${distributionRepository}@${sourceSha}`,
+    `- artifact: ${input.artifactRepository}@run-${input.artifactRunId}/${artifactName}`,
+    `- target: ${distributionRepository}@${targetTag}`,
+  ]);
+}
+
 async function main(): Promise<void> {
   const policyPath = process.argv[2] ?? "policies/review.json";
   const artifactDir = process.argv[3] ?? "";
@@ -227,6 +394,25 @@ async function main(): Promise<void> {
   const catalogSource = getJsonString(entry, "source_repository");
   if (!/^tools\/[a-z0-9-]+\/[A-Za-z0-9._-]+$/.test(metadataPath)) {
     throw new CliError("Tool metadata path is invalid.", 65);
+  }
+
+  const distribution = getJsonString(entry, "distribution");
+  if (distribution === "url") {
+    await syncUrlRelease({
+      reader,
+      controlToken,
+      entry,
+      distributionRepository,
+      metadataPath,
+      sourceSha,
+      artifactDir,
+      artifactRepository,
+      artifactRunId,
+    });
+    return;
+  }
+  if (distribution !== "github-release") {
+    throw new CliError(`Tool distribution is not supported: ${toolKey}.`, 65);
   }
 
   const metadata = parseToolMetadata(
