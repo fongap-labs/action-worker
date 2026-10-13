@@ -877,6 +877,8 @@ test("PR review summary tells a maintainer how to release a pull request awaitin
   assert.match(body, /Review changes → Approve/);
   // The approval is the only step: nothing has to be started by hand afterwards.
   assert.match(body, /continues automatically after the approval/);
+  // GitHub sends no event with secrets on an approval, so Intake notices it; the wait is not hidden.
+  assert.match(body, /next Intake run, usually within an hour/);
   assert.doesNotMatch(body, /Actions tab|run \*\*/);
   assert.doesNotMatch(body, /Gate: \*\*FAIL\*\*/);
 });

@@ -5,7 +5,7 @@ import { dispatcherRunsOn } from "../scripts/resolve-dispatcher-runs-on.ts";
 import { parseRunnerPolicy } from "../scripts/runner-policy.ts";
 import { workflowContentHash } from "../scripts/validate-security.ts";
 
-const templateFile = "templates/pr-dispatcher/dispatch-pr-governance.yml";
+const templateFile = "templates/bridge/notify-action-worker.yml";
 
 test("the approved dispatcher hash in the security policy matches the template", async () => {
   const template = await readFile(templateFile, "utf8");
@@ -13,7 +13,7 @@ test("the approved dispatcher hash in the security policy matches the template",
     approved_workflows: Array<{ path: string; sha256: string }>;
   };
   assert.deepEqual(policy.approved_workflows, [
-    { path: ".github/workflows/dispatch-pr-governance.yml", sha256: workflowContentHash(template) },
+    { path: ".github/workflows/notify-action-worker.yml", sha256: workflowContentHash(template) },
   ]);
 });
 
@@ -25,8 +25,26 @@ test("the dispatcher template names no runner, checks out nothing and runs no pu
   );
   assert.equal(/self-hosted/.test(template.replace(/^\s*#.*$/gm, "")), false);
   assert.equal(/^\s*-?\s*uses:/m.test(template), false);
-  assert.match(template, /types: \[opened, synchronize\]/);
   assert.match(template, /dependabot\[bot\]/);
+});
+
+test("the bridge tells Action Worker about every change it cannot see by itself", async () => {
+  const template = await readFile(templateFile, "utf8");
+  // A pull request change starts governance; closing it stops the central work for it; a push to
+  // main wakes Intake, which requests central CI, attests the write and starts changed tasks.
+  assert.match(
+    template,
+    /pull_request_target:\n\s+types: \[opened, synchronize, reopened, closed\]/
+  );
+  assert.match(template, /push:\n\s+branches: \[main\]/);
+  for (const event of ["run-pr-governance", "cancel-pr-work", "run-intake"]) {
+    assert.match(template, new RegExp(`event_type[":]+\\s*"?${event}"`), event);
+  }
+  // Only the pull request job writes, and only the PR Governance status of the head commit.
+  assert.match(template, /^permissions: \{\}$/m);
+  assert.equal([...template.matchAll(/statuses: write/g)].length, 1);
+  // The push payload names nothing, so a private repository's name never reaches a public run.
+  assert.match(template, /--data '\{"event_type":"run-intake"\}'/);
 });
 
 test("the dispatcher runner comes from central policy and never leaves the control domain", async () => {

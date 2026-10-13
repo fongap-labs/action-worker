@@ -29,7 +29,7 @@ export function buildReview(
   if (status === "awaiting-approval") {
     lines.push(
       "- Why: the author has no write access, so Central CI runs this code only after a maintainer approves the current head commit.",
-      "- Next step: a maintainer opens **Files changed → Review changes → Approve**. Nothing else is needed: Action Worker continues automatically after the approval, usually within a few minutes.",
+      "- Next step: a maintainer opens **Files changed → Review changes → Approve**. Nothing else is needed: Action Worker continues automatically after the approval on its next Intake run, usually within an hour; any push to main of a managed repository starts that run at once.",
       "- A new push needs a new approval."
     );
   }
