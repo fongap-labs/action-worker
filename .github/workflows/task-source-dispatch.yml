@@ -195,7 +195,9 @@ jobs:
                   awk -F/ '$1 == "projects" && $2 !~ /^_/ && $2 != "" {print $2}' |
                   sort -u |
                   while IFS= read -r name; do
-                    [ -f "projects/$name/task.json" ] && printf '%s\n' "$name"
+                    if [ -f "projects/$name/task.json" ]; then
+                      printf '%s\n' "$name"
+                    fi
                   done
               )"
               ;;
