@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: a failed request of the job that prunes runs of removed workflows names the request path in its error. The run of 41d8f02 failed with `GitHub API returned HTTP 404.` and the log did not say which call was refused. The job deletes nothing before its first request succeeds.
+
 - feat [migration]: one Intake workflow (`intake.yml`) replaces PR Intake, CI Intake, Task Intake, Security Scan Intake and Main Write Audit, and Task Source Dispatch no longer runs on a schedule. GitHub started the five-minute schedules of this repository only every 2.6 to 9.8 hours, so Intake also runs on every push to `main` and on the `run-intake` event, and each kind of work is one job of it. Anything that starts the removed workflows by name must send `run-intake` instead.
 
 - fix: scheduled task projects catch up every slot that fell due in the last 12 hours and has not been dispatched, instead of only slots of the last 20 minutes. A slot is dispatched once, recorded by the `Task Schedule/<project>` status on the source commit. Before, none of 13 observed slots was dispatched, because the schedule rarely ran within 20 minutes after a slot.
