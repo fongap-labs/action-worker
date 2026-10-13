@@ -942,6 +942,11 @@ test("central CI deploy dispatch is source-owned and adapter-routed", async () =
     "policies/deploy.json",
     "policies/runner.json",
     "needs.prepare.outputs.pr_number == '0'",
+    // A failed security scan dispatch must not silently skip the main write attestation and the
+    // deploy, and an untrusted main write must never be deployed.
+    "if: ${{ !cancelled() && needs.prepare.outputs.pr_number == '0' }}",
+    "if: ${{ !cancelled() && steps.deploy_control.outcome == 'success' }}",
+    "if: ${{ !cancelled() && steps.attest.outcome == 'success' }}",
     "contents: write",
     "AW_REPOSITORY_POLICY",
     'repository-policy.ts validate "$REPOSITORY" pr',

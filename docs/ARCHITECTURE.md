@@ -609,11 +609,19 @@ Action Worker 拥有生产凭据，并负责需要 Runner 资源的重型部署�
 
 ## 14. 目录结构
 
-Action Worker 按职责分层。当前的工作流入口列于下方。业务能力通过通用合同、清单与策略与之连接；没有任何长期工作流以产品命名：
+Action Worker 按职责分层。当前的工作流按分类列于下方（分类规则见 [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) 第 8.3 节，由 `tests/workflow-classes.test.ts` 强制执行）。业务能力通过通用合同、清单与策略与之连接；没有任何长期工作流以产品命名：
 
 ```text
 .github/workflows/
-  # 分发入口：handle-<subject>-dispatch.yml，必要时缩短以符合三段限制
+  # 入口：唯一可以从 Actions 标签页手动启动的工作流；自动化也通过 repository_dispatch 启动它们
+  release-app.yml
+  deploy-source-script.yml
+  task-source-dispatch.yml
+
+  # 对账：唯一的 Intake，扫描受管仓库并分发工作
+  intake.yml
+
+  # 事件处理：只由 repository_dispatch 启动
   handle-pr-dispatch.yml
   handle-pr-review.yml
   handle-release-dispatch.yml
@@ -622,28 +630,17 @@ Action Worker 按职责分层。当前的工作流入口列于下方。业务能
   central-ci-dispatch.yml
   dependency-repair-dispatch.yml
   security-scan-dispatch.yml
-  task-source-dispatch.yml
 
-  # 发布与部署入口，按类型命名：release-<kind>.yml、deploy-<adapter>.yml
-  # （由人从 Actions 标签页启动；自动化也可以启动它们）
-  release-app.yml
-  release-tool.yml
-  deploy-source-script.yml
-
-  # 分发工作的定时对账：<subject>-intake.yml
-  ci-intake.yml
-  pr-intake.yml
-  security-scan-intake.yml
-  task-intake.yml
-
-  # 可复用与独立的操作
+  # 维护：由 Action Worker 自身的 push、PR、定时或运行完成事件启动
   apply-repository-settings.yml
-  central-ci-sandbox.yml
-  main-write-audit.yml
   main-write-guard.yml
-  prune-stale-branches.yml
+  prune-stale-state.yml
+  release-tool.yml
   update-work-metrics.yml
   validate-ci.yml
+
+  # 可复用：只被其他工作流调用
+  central-ci-sandbox.yml
 
 contracts/
   PR / Task / Release / Release Build / Deploy / Provenance 合同

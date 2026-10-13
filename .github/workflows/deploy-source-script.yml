@@ -99,27 +99,26 @@ jobs:
           )"
           echo "request_json=$request" >> "$GITHUB_OUTPUT"
 
-      # Intake may not have reached this source yet, so a manual deploy asks for central CI and
-      # attests the main write on its own source now. The validation stays the authority and
-      # reports an untrusted write. The automatic path is dispatched by the Central CI follow-up
-      # after both have already happened.
+      # Intake may not have reached this source yet, so every deploy asks for central CI and
+      # attests the main write on its own source now; both are no-ops when already done. An
+      # automatic deploy can name a newer main than the commit whose CI started it (see
+      # scripts/dispatch-central-deploy.ts). The validation stays the authority and reports an
+      # untrusted write.
       - name: Request central CI for the source
-        if: github.event_name == 'workflow_dispatch'
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_INGRESS_TOKEN: ${{ github.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
-          AW_CI_INTAKE_REPOSITORY: ${{ steps.manual_request.outputs.source_repository }}
+          AW_CI_INTAKE_REPOSITORY: ${{ steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository }}
         run: node scripts/intake-main-ci.ts
 
       - name: Attest the source main write
-        if: github.event_name == 'workflow_dispatch'
         continue-on-error: true
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          MAIN_WRITE_AUDIT_REPOSITORY: ${{ steps.manual_request.outputs.source_repository }}
+          MAIN_WRITE_AUDIT_REPOSITORY: ${{ steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository }}
           MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/audit-main-writes.ts
 

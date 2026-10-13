@@ -369,7 +369,7 @@ Action Worker 的每个工作流恰好属于一个分类，同类工作流使用
 | 入口 | `release-app.yml`、`deploy-source-script.yml`、`task-source-dispatch.yml` | `workflow_dispatch`、`repository_dispatch` | 有，每个输入都有说明 |
 | 对账 | `intake.yml` | `push`（main）、`repository_dispatch`（`run-intake`）、`schedule` | 无 |
 | 事件处理 | `*-dispatch.yml`、`handle-pr-review.yml`、`cancel-pr-work.yml` | `repository_dispatch` | 无 |
-| 维护 | `apply-repository-settings.yml`、`main-write-guard.yml`、`prune-stale-branches.yml`、`release-tool.yml`、`update-work-metrics.yml`、`validate-ci.yml` | `push`、`pull_request`、`schedule`、`workflow_run` | 无 |
+| 维护 | `apply-repository-settings.yml`、`main-write-guard.yml`、`prune-stale-state.yml`、`release-tool.yml`、`update-work-metrics.yml`、`validate-ci.yml` | `push`、`pull_request`、`schedule`、`workflow_run` | 无 |
 | 可复用 | `central-ci-sandbox.yml` | `workflow_call` | 无 |
 
 所有分类共同遵守：

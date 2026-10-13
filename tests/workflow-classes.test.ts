@@ -45,7 +45,7 @@ const classes = {
   maintenance: [
     "apply-repository-settings.yml",
     "main-write-guard.yml",
-    "prune-stale-branches.yml",
+    "prune-stale-state.yml",
     "release-tool.yml",
     "update-work-metrics.yml",
     "validate-ci.yml",
