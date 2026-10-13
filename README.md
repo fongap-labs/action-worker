@@ -99,7 +99,7 @@ AI Review 通过版本已固定的 [Alibaba OpenCodeReview](https://github.com/a
 - `permissions` 仅为 `statuses: write`；
 - 跳过 Dependabot 的 PR（它无法读取 Actions 密钥，由中央 Intake 处理）；
 - `runs-on` 通过 `AW_DISPATCH_RUNS_ON` 变量从中央解析；
-- 在分发前后向 PR 写入 `PR Governance` 状态，并通过 `AW_DISPATCH_TOKEN` 调用 `run-pr-governance` 事件。
+- 分发前把 `PR Governance` 状态写为 `pending`，分发失败时写为 `failure`；并通过 `AW_DISPATCH_TOKEN` 发送 `run-pr-governance` 事件。
 
 受管仓库只需要 `AW_DISPATCH_TOKEN`，且权限仅限于在同一组织内向 `action-worker` 发送 `repository_dispatch`。目标仓库由 `GITHUB_REPOSITORY_OWNER` 推导。`AI_GATEWAY_URL`、`AIG_ACCESS_KEY_AGENT` 与跨仓库写回凭据只保留在 Action Worker 中。
 
@@ -186,7 +186,7 @@ event_type = run-task
 
 ### 3. 发布治理
 
-发布的构建与分发由中央统一编排。源仓库保留项目自有的构建/打包脚本，以及源仓库自有的 `.github/release.manifest.json`。Action Worker 解析不可变的源 SHA，校验 CI 与 provenance，选择抽象的 Runner Profile，执行声明的构建/打包路径，并产出受治理的发布产物。
+发布的构建与分发由中央统一编排。源仓库保留项目自有的构建/打包脚本，以及源仓库自有的 `.github/release.manifest.json`。Action Worker 解析不可变的源 SHA，校验 CI 与 provenance，选择抽象的 Runner Profile（运行器配置档），执行声明的构建/打包路径，并产出受治理的发布产物。
 
 ```text
 不可变源码

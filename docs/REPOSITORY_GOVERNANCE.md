@@ -26,8 +26,8 @@ Update PR branches      开启
 Delete head branches    开启
 
 Web commit sign-off     关闭
-Squash title            PR title
-Squash message          Blank
+Squash title            PR 标题（PR_TITLE）
+Squash message          空（BLANK）
 ```
 
 Repository Policy 不包含仓库名称，只描述共享设置。

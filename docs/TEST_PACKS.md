@@ -66,9 +66,9 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 
 - Rust 的内联 `#[cfg(test)]` 测试，以及 crate 内部的集成测试（它们依赖 crate 私有项与 Cargo 构建图）。
 - 桌面端的 Playwright e2e 与 vitest 组件测试（它们依赖 `apps/desktop` 工具链）。
-- 需要 root 或 Docker 的基础设施脚本测试。
-- 编译进固定版本核心 crate 的运行时端到端测试。
-- Rust crate 的集成测试与模糊测试。
+- 需要 root 或 Docker 的基础设施脚本测试（例如 `internal-vault/services/server-edge/tests/*.sh`）。
+- 编译进固定版本核心 crate 的运行时端到端测试（`delta-suite/tests/foundation_runtime_e2e`）。
+- Rust crate 的集成测试与模糊测试（`app-source/projects/SecurePigeon/crates/*/tests`）。
 
 ## 7. 添加测试
 
@@ -83,8 +83,8 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 |---|---|---|
 | ai-gateway | `ai-gateway`（24 个模块） | 无 |
 | delta | `delta`（6 个模块） | Rust 内联与 crate 测试、`apps/desktop` 的 e2e 与 vitest、3 个小包（如 `packages/delta_worker_sdk`）内的测试 |
-| delta-suite | `delta-suite`（4 个模块） | 编译进固定版本核心的运行时 e2e 测试 |
-| internal-vault | `internal-vault`（8 个模块） | 基础设施 shell 测试（需要 root 与 Docker） |
-| app-source | `app-source`（1 个模块，license-service 的数据库测试） | Rust crate 测试；CI 从不运行的遗留 Python 脚本不属于测试包 |
+| delta-suite | `delta-suite`（4 个模块） | 编译进固定版本核心的运行时 e2e 测试（`tests/foundation_runtime_e2e`） |
+| internal-vault | `internal-vault`（8 个模块） | 基础设施 shell 测试（`services/server-edge/tests/*.sh`，需要 root 与 Docker） |
+| app-source | `app-source`（1 个模块，license-service 的数据库测试） | Rust crate 测试（`crates/*/tests`）；`legacy/test_*.py` 是 CI 从不运行的遗留脚本，不属于测试包 |
 | external-vault | 无 | 无测试套件；CI 只运行 manifest 与 secret scan 检查脚本 |
 | AssHub | 无 | 空仓库 |

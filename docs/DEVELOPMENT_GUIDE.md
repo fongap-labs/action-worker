@@ -19,11 +19,30 @@
 
 ## 2. Action Worker 负责的内容
 
-Action Worker 负责：PR 治理、CI / 测试 / 构建执行、AI Review、CI Evidence、任务与定时执行、Runner 解析、门禁、Source Policy、Release 的构建 / 治理 / 发布、Deploy 的治理与执行、产物与 provenance、通用的状态写回，以及通用的输入输出合同。
+Action Worker 负责：
+
+- PR 治理、CI Evidence 与 AI Review；
+- CI / 测试 / 构建执行；
+- 任务与定时执行；
+- Runner 解析与门禁；
+- Source Policy；
+- Release 的构建、治理与发布；
+- Deploy 的治理与执行；
+- 产物与 provenance（来源证明）；
+- 通用的状态写回与输入输出合同。
 
 ## 3. 业务仓库负责的内容
 
-业务仓库保留：产品代码、无法从仓库外部运行的项目测试（见 [TEST_PACKS.md](TEST_PACKS.md) 第 6 节）、构建 / 打包 / 部署脚本、项目架构与协议、执行清单、平台专属的工具链声明、最薄的分发入口，以及 GitHub 平台确实需要时的一个极薄的检查桥接。
+业务仓库保留：
+
+- 产品代码；
+- 无法从仓库外部运行的项目测试（见 [TEST_PACKS.md](TEST_PACKS.md) 第 6 节）；
+- 构建 / 打包 / 部署脚本；
+- 项目架构与协议；
+- 执行清单；
+- 平台专属的工具链声明；
+- 最薄的分发入口；
+- GitHub 平台确实需要时的一个极薄的检查桥接。
 
 业务仓库不得保留第二套中央治理，也不得为了自身方便而长期运行重型的 CI / 构建 / 审查 / 发布 / 部署。
 
@@ -71,7 +90,17 @@ Action Worker 负责：PR 治理、CI / 测试 / 构建执行、AI Review、CI E
 
 ## 7. 工作流变更
 
-工作流变更至少检查：权限是否最小化；密钥是否可能到达不可信的执行域；触发器是否可能被 fork 或 PR 输入滥用；并发是否正确；源 SHA 是否不可变；Runner 是否由中央策略选择；产物与证据是否绑定到源 SHA；此外还要通过确定性的 Security Gate、actionlint、合同测试，以及在需要时的 ShellCheck。
+工作流变更至少检查以下内容：
+
+- 权限是否最小化；
+- 密钥是否可能到达不可信的执行域；
+- 触发器是否可能被 fork 或 PR 输入滥用；
+- 并发是否正确；
+- 源 SHA 是否不可变；
+- Runner 是否由中央策略选择；
+- 产物与证据是否绑定到源 SHA。
+
+此外还要通过确定性的 Security Gate、actionlint、合同测试，以及在需要时的 ShellCheck。
 
 工作流文件名遵循 [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) 第 8.1 节的规则；`tests/workflow-naming.test.ts` 会对其进行检查。
 

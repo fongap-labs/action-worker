@@ -1,6 +1,6 @@
 # 架构治理
 
-Action Worker 是 Fongap Labs 的 GitHub 自动化治理与执行平面。本文件定义长期边界。实现可以分阶段迁移，但任何按照这些边界运行的实现，都不得继续扩张。
+Action Worker 是 Fongap Labs 的 GitHub 自动化治理与执行平面。本文件定义长期边界。实现可以分阶段迁移，但与这些边界相悖的现有实现，都不得继续扩张。
 
 统一执行合同见 [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md)，Runner 与 self-hosted 边界见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。
 
@@ -132,17 +132,17 @@ operation
 
 项目的测试、构建与部署命令，可以存放在版本受控的执行清单或项目脚本中。
 
-## 5. 执行清单
+## 5. 执行清单（Execution Manifest）
 
 业务仓库可以描述：
 
 ```text
 operation
 runner_profile
-commands
+command
 matrix
 artifacts
-timeout
+timeout_minutes
 capability_requests
 ```
 
@@ -201,7 +201,11 @@ merge
 
 业务仓库不得保留第二套重型 Runner 流程用作"本地 CI"。
 
-源仓库自有的 CI 控制只能通过 PR 治理更新；为修复 CI 而直接写入 `main` 是禁止的。普通 PR 始终运行默认分支上的可信 CI 控制。只有来自同一仓库、且 GitHub `author_association` 为 `OWNER`、`MEMBER` 或 `COLLABORATOR` 的维护者 PR，在修改 `.github/execution-manifest.json`、`.github/scripts/central-ci.sh` 或 `.github/scripts/central-ci.ps1` 时，才可以使用自己不可变的 head SHA 作为候选 CI 控制进行自验证。来自 fork 或不可信作者、且修改了 CI 控制的 PR，失败即关闭。
+源仓库自有的 CI 控制只能通过 PR 治理更新；为修复 CI 而直接写入 `main` 是禁止的。
+
+- 普通 PR 始终运行默认分支上的可信 CI 控制。
+- 只有同时满足以下条件的维护者 PR，才可以使用自己不可变的 head SHA 作为候选 CI 控制进行自验证：来自同一仓库；GitHub `author_association` 为 `OWNER`、`MEMBER` 或 `COLLABORATOR`；修改了 `.github/execution-manifest.json`、`.github/scripts/central-ci.sh` 或 `.github/scripts/central-ci.ps1`。
+- 来自 fork 或不可信作者、且修改了 CI 控制的 PR，失败即关闭。
 
 候选 CI 控制仍在沙箱中运行：它不接收生产密钥、中央管理令牌或特权 Runner。候选控制只有在通过 Security Gate、Central CI 与 `validate-merge` 之后，才会进入默认分支。
 

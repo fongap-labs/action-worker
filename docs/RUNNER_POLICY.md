@@ -1,6 +1,6 @@
 # Runner 策略
 
-本文件定义 Action Worker 的 Runner 抽象、Runner 选择与信任边界。
+本文件定义 Action Worker 的 Runner（运行器）抽象、Runner 选择与信任边界。
 
 ## 1. Runner 归属
 

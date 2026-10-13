@@ -250,7 +250,7 @@ CONFIG
 ## 7. 文件、术语与动词
 
 - 工作流、控制脚本与测试文件使用 `kebab-case`；
-- 治理文档使用 `UPPER_SNAKE.md`；
+- 治理文档使用 `UPPER_SNAKE_CASE.md`；
 - 文件名只表达该文件自身的职责，不重复目录已经提供的上下文；
 - 长期存在的名称避免生命周期词与模糊词。
 
@@ -339,7 +339,12 @@ Action Worker 的 CI 会强制执行自身的文件名与架构限制。业务�
 
   在能放下的情况下，`handle` 标记接收方；发送方命名为 `dispatch-*`（例如 `scripts/dispatch-central-ci.ts`）。
 - 扫描受管仓库并分发工作的定时对账工作流命名为 `<subject>-intake.yml`（例如 `pr-intake.yml`）。
-- 负责发布或部署的工作流命名为 `release-<kind>.yml` 或 `deploy-<adapter>.yml`，使人能根据想要做的事找到正确的工作流。`<kind>` 说明发布的对象：`app` 是由源仓库构建的应用，`tool` 是从上游镜像而来的第三方工具。`<adapter>` 是 `policies/deploy.json` 中 `adapters` 的一个键（目前为 `source-script`）。名称中从不包含产品或仓库名。每个此类工作流都声明 `workflow_dispatch`，因为人会从 Actions 标签页启动它；自动化也可以启动它（可信的 main 写入之后启动部署工作流，按计划启动工具发布），因此上面的 dispatch 事件规则不适用于它们。`docs/INTEGRATION_GUIDE.md` 第 12.1 节说明应运行哪一个。该测试检查 kind 与 adapter，因此新增 kind 或 adapter 必须是一次有意的修改。
+- 负责发布或部署的工作流命名为 `release-<kind>.yml` 或 `deploy-<adapter>.yml`，使人能根据想要做的事找到正确的工作流。
+  - `<kind>` 说明发布的对象：`app` 是由源仓库构建的应用，`tool` 是从上游镜像而来的第三方工具。
+  - `<adapter>` 是 `policies/deploy.json` 中 `adapters` 的一个键（目前为 `source-script`）。
+  - 名称中从不包含产品或仓库名。
+  - 每个此类工作流都声明 `workflow_dispatch`，因为人会从 Actions 标签页启动它；自动化也可以启动它（可信的 main 写入之后启动部署工作流，按计划启动工具发布），因此上面的 dispatch 事件规则不适用于它们。
+  - `docs/INTEGRATION_GUIDE.md` 第 12.1 节说明应运行哪一个。该测试检查 kind 与 adapter，因此新增 kind 或 adapter 必须是一次有意的修改。
 - 显示名称（`name:`）逐词拼出文件名，其中 `pr` 与 `ci` 写作 `PR` 与 `CI`（`pr-intake.yml` 的显示名为 "PR Intake"）。
 - 保留旧名称的文件会在测试中列出，并写明不值得重命名的原因。目前包括 `handle-pr-dispatch.yml`（`scripts/ci-evidence.ts` 中的 CI Evidence 信任锚点）与 `handle-pr-review.yml`（计入 AI Review 队列）。
 

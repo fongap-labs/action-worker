@@ -100,7 +100,11 @@ Action Worker 接收到任务后必须：
 - 使用 `AW_CONTROL_TOKEN` 从 GitHub 重新读取 PR 的 base/head SHA、标题、状态与 diff；
 - 在检出 `refs/pull/<n>/head` 之后，再与 GitHub 上的当前 PR 事实对齐一次。如果在分发与检出之间 PR 发生了变化，则与检出的提交和最新 PR API 同时一致的 base/head/标题，成为本次运行的事实，从而避免把同步窗口误判为永久失败；
 - 只读取目标 PR，绝不执行 PR 提供的代码；
-- 在分发中央 CI 之前检查 PR 作者（`scripts/pr-trust.ts`）。具有目标仓库写权限的作者（`author_association` 为 OWNER / MEMBER / COLLABORATOR）直接继续。来自同一公开仓库分支的 `dependabot[bot]` PR 同样直接继续（公开目标的沙箱不持有任何凭据）。来自其他作者的 PR（例如 fork 贡献者，或私有仓库中的 Dependabot）则需要一位具有写权限的维护者对**当前 head 提交**给出 Approve 审查。等待期间，运行本身成功，但 `PR Governance` 与 `validate-merge` 会被写为 `failure`，描述固定为 `Awaiting maintainer approval of the current head commit`，PR 评论中列出操作步骤。`pr-intake.yml` 识别该描述，并且在检测到对当前 head 的批准之前不会再次分发（大约 5 分钟内；从 Actions 标签页手动运行 PR Intake 会立即继续）。批准绑定到被审查的提交；作者之后的新推送需要新的批准。`central-ci-dispatch.yml` 在执行任何操作之前会重复同样的检查，对不可信的 head 始终失败即关闭；
+- 在分发中央 CI 之前检查 PR 作者（`scripts/pr-trust.ts`）：
+  - 具有目标仓库写权限的作者（`author_association` 为 OWNER / MEMBER / COLLABORATOR）直接继续；
+  - 来自同一公开仓库分支的 `dependabot[bot]` PR 同样直接继续（公开目标的沙箱不持有任何凭据）；
+  - 来自其他作者的 PR（例如 fork 贡献者，或私有仓库中的 Dependabot）需要一位具有写权限的维护者对**当前 head 提交**给出 Approve 审查。等待期间，运行本身成功，但 `PR Governance` 与 `validate-merge` 会被写为 `failure`，描述固定为 `Awaiting maintainer approval of the current head commit`，PR 评论中列出操作步骤。`pr-intake.yml` 识别该描述，并且在检测到对当前 head 的批准之前不会再次分发（大约 5 分钟内；从 Actions 标签页手动运行 PR Intake 会立即继续）。批准绑定到被审查的提交；作者之后的新推送需要新的批准；
+  - `central-ci-dispatch.yml` 在执行任何操作之前会重复同样的检查，对不可信的 head 始终失败即关闭；
 - 当执行计划需要 CI 时，在 Action Worker 中检出目标的不可变 head SHA，并在沙箱中运行项目清单 / 测试脚本，以产生真实的 CI Evidence；
 - 首先由确定性的 PR / Security / CI 证据形成门禁结论，然后向目标 head 提交写入一个 `PR Governance` 状态；
 - 只有在门禁结论形成之后，AI Review 才能读取 CI Evidence，并且将其视为不可信的执行证据；证据中的任何文本都绝不会被当作指令；
@@ -121,7 +125,13 @@ Action Worker 接收到任务后必须：
 
 可以执行 PR 代码、进行构建与测试，但绝不接收中央密钥或部署凭据。
 
-中央 CI 的沙箱作业位于 `central-ci-sandbox.yml`（一个可复用的工作流）。沙箱作业不直接引用任何中央密钥。公开目标使用本次运行的只读 `github.token` 检出；只有私有目标，调用方才会传入 `checkout_token`，即只读的 `AW_CHECKOUT_TOKEN`（仅有 `Contents: Read` 权限，且仅限私有的受管仓库）。GitHub 在服务端评估该令牌，公开目标收到的值为空。执行目标源码的作业（沙箱与依赖修复的计算作业）不得引用 `AW_CONTROL_TOKEN` 或 `AW_ADMIN_TOKEN`。每个 `actions/checkout` 都使用 `persist-credentials: false`；唯一例外是需要提交的 `update-work-metrics.yml`。`security-scan-dispatch.yml` 的 CodeQL 作业不携带任何密钥，只生成 SARIF 产物；单独的 `publish` 作业持有 `AW_ADMIN_TOKEN` 并上传它。`tests/workflow-invariants.test.ts` 把这些边界转化为测试。
+中央 CI 的沙箱作业位于 `central-ci-sandbox.yml`（一个可复用的工作流）。沙箱作业不直接引用任何中央密钥。
+
+- 检出方式：公开目标使用本次运行的只读 `github.token`。只有私有目标，调用方才会传入 `checkout_token`，即只读的 `AW_CHECKOUT_TOKEN`（仅有 `Contents: Read` 权限，且仅限私有的受管仓库）。GitHub 在服务端评估该令牌，公开目标收到的值为空。
+- 执行目标源码的作业（沙箱与依赖修复的计算作业）不得引用 `AW_CONTROL_TOKEN` 或 `AW_ADMIN_TOKEN`。
+- 每个 `actions/checkout` 都使用 `persist-credentials: false`；唯一例外是需要提交的 `update-work-metrics.yml`。
+- `security-scan-dispatch.yml` 的 CodeQL 作业不携带任何密钥，只生成 SARIF 产物；单独的 `publish` 作业持有 `AW_ADMIN_TOKEN` 并上传它。
+- `tests/workflow-invariants.test.ts` 把这些边界转化为测试。
 
 因此：
 
@@ -404,7 +414,11 @@ bootstrap_ref
 
 > 调用方提交目标；Action Worker 核实事实，并决定如何安全地执行。
 
-任务使用 `AW_CONTROL_TOKEN` 获取受管私有仓库的固定提交。bootstrap 下载完成后，`AW_CONTROL_TOKEN`、`AW_ADMIN_TOKEN`、`AIG_ACCESS_KEY_AGENT` 与 `AW_DISPATCH_TOKEN` 等中央凭据会从业务执行环境中移除。随后使用 `exec` 启动 bootstrap，从而替换掉带有全部密钥启动的 shell，使任务不会与该进程并存。当任务源仓库为私有仓库时，bootstrap 的输出会写入 Runner 的临时文件，而不是写入这个公开仓库的运行日志；日志只保留任务结果的摘要，该文件离开 Runner 时只以加密形式存在（见第 9.4 节）。任务可以在 `RUNNER_TEMP/action-worker-publication` 中暂存一个跨仓库发布请求，但业务任务不持有目标仓库的写入凭据。任务成功之后，Action Worker 会另行检查 `AW_REPOSITORY_POLICY`：源仓库需要 `release-source`，目标仓库需要 `release-target` 与 `pr`。只有在这些检查通过之后，`AW_CONTROL_TOKEN` 才会注入中央发布步骤，并通过 pull request 合并进目标仓库的 `main`（目标的 `main` 没有绕过项，并要求 PR 且 `validate-merge` 检查通过）。
+任务使用 `AW_CONTROL_TOKEN` 获取受管私有仓库的固定提交。bootstrap 下载完成后，`AW_CONTROL_TOKEN`、`AW_ADMIN_TOKEN`、`AIG_ACCESS_KEY_AGENT` 与 `AW_DISPATCH_TOKEN` 等中央凭据会从业务执行环境中移除。随后使用 `exec` 启动 bootstrap，从而替换掉带有全部密钥启动的 shell，使任务不会与该进程并存。
+
+- 当任务源仓库为私有仓库时，bootstrap 的输出会写入 Runner 的临时文件，而不是写入这个公开仓库的运行日志；日志只保留任务结果的摘要，该文件离开 Runner 时只以加密形式存在（见第 9.4 节）。
+- 任务可以在 `RUNNER_TEMP/action-worker-publication` 中暂存一个跨仓库发布请求，但业务任务不持有目标仓库的写入凭据。
+- 任务成功之后，Action Worker 会另行检查 `AW_REPOSITORY_POLICY`：源仓库需要 `release-source`，目标仓库需要 `release-target` 与 `pr`。只有在这些检查通过之后，`AW_CONTROL_TOKEN` 才会注入中央发布步骤，并通过 pull request 合并进目标仓库的 `main`（目标的 `main` 没有绕过项，并要求 PR 且 `validate-merge` 检查通过）。
 
 ### 9.1 任务源重新校验
 
@@ -443,7 +457,7 @@ GitHub 在这些提交状态中返回的 `creator` 字段为 `null`，因此检�
 
 - 声明名称本身的已存储密钥绝不作为回退：别名名称对应的已存储密钥缺失时，必需项失败，可选项被移除，因为普通名称可能保存的是另一个账户的令牌。
 - 别名的目标不得是保留名称，不得由源仓库声明，并且两个别名不能共享同一个目标。被别名的名称必须是策略为该项目或环境列出的名称。
-- 当前的别名分配记录在 `policies/task-secrets.json` 与 `policies/deploy-secrets.json` 中，本文件不再重复列出。所有密钥，无论是否使用别名，都存储在 Action Worker 中。
+- 当前的别名分配：`CLOUDFLARE_API_TOKEN_PRIMARY` 服务于 internal-vault 的任务 FongapBlog 与 FongapCDN，`CLOUDFLARE_API_TOKEN_SECONDARY` 服务于 ai-gateway 的部署。所有密钥，无论是否使用别名，都存储在 Action Worker 中。
 
 ### 9.4 私有任务状态与日志
 
@@ -558,7 +572,7 @@ Action Worker 负责定时同步与校验：
 
 业务仓库不运行上游下载、校验和验证、打包或工具 Release 分发工作流。工具元数据在分发仓库中只以文本形式存在；可执行的载荷保存在 GitHub Releases 中。
 
-Action Worker 执行的审查引擎在 `policies/review.json` 中通过 `version` 与 `sha256` 固定。安装器只有在二进制的摘要与 Release 校验和文件一致时才接受它，因此被替换的 Release 资产无法为自身背书。切换到新的引擎版本，需要在一次经过评审的变更中同时更新这两个字段。
+Action Worker 执行的审查引擎在 `policies/review.json` 中通过 `version` 与 `sha256` 固定。安装器只有在二进制的摘要既等于固定值、又与 Release 校验和文件一致时才接受它，因此被替换的 Release 资产无法为自身背书。切换到新的引擎版本，需要在一次经过评审的变更中同时更新这两个字段。
 
 ## 13. Deploy
 

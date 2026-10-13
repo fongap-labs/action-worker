@@ -50,10 +50,10 @@ operation
 ```text
 operation
 runner_profile
-commands
+command
 matrix
 artifacts
-timeout
+timeout_minutes
 capability_requests
 ```
 
@@ -100,7 +100,7 @@ PR
 
 规则：
 
-- 分片名只能使用小写字母、数字和连字符，长度不超过 32 个字符，最多 8 个分片；`all` 为保留名称。
+- 分片名必须以小写字母开头，之后只能使用小写字母、数字和连字符，长度不超过 32 个字符；最多 8 个分片；`all` 为保留名称。
 - `linux` 作业的 `matrix` 只允许键 `shard`。任何其他键、非法的分片名或超出上限的配置，都会使 CI 立即失败；不会静默跳过任何内容。
 - 未声明 `matrix.shard` 的仓库（包括没有清单的仓库）不受影响：它仍是一个作业，脚本接收的参数与之前完全相同。
 - 一旦声明，中央 CI 会为每个分片启动一个 Linux 作业，并以分片名作为第二个参数调用脚本。每个分片只负责自己的部分；只有所有分片都成功，`CI Evidence` 才为成功。
@@ -214,6 +214,10 @@ Task Intake 定期扫描每个具有 `task` 能力的仓库，并只读取真实
 
 中央仓库不得保留按仓库或产品分组的 Release 构建矩阵。
 
+发布版本即发布启动时人工输入的版本，且只有该版本。业务仓库不得保留约束该版本的规则：不得设置版本来源检查，不得做文件之间的一致性检查，也不得要求 CHANGELOG 中存在发布标题。项目构建脚本须声明必填的 `-Version` 参数，把该版本写入构建出的应用，并可校验构建产物确实携带该版本。
+
+手动发布同样从 Action Worker 中的 `Release App` 工作流启动：由用户选择受管的 `source_repository` 并输入必填的稳定版本号；Action Worker 自行读取该仓库默认分支的当前 HEAD，并执行相同的源 / CI / provenance 检查。业务仓库无需为了"宣布发布"而启动自己的 Runner。
+
 ### 12.1 启动发布或部署的工作流
 
 Release 与 Deploy 工作流按发布类型或部署适配器命名，绝不以产品或仓库命名。找到对应的行，在 Action Worker 的 Actions 标签页中打开该工作流，然后点击"Run workflow"。
@@ -221,7 +225,7 @@ Release 与 Deploy 工作流按发布类型或部署适配器命名，绝不以�
 | 你想要 | 工作流 | 输入 | 其他启动方式 | 当前使用方 |
 |---|---|---|---|---|
 | 发布由源仓库构建的应用 | `Release App` (`release-app.yml`) | `source_repository`、`requested_version`（必填的稳定 SemVer） | `run-release-build` 分发事件 | delta、app-source |
-| 发布从上游镜像而来的第三方工具 | `Release Tool` (`release-tool.yml`) | 无（每个目录中的工具） | 定时任务，每 6 小时一次 | external-vault `tools/` |
+| 发布从上游镜像而来的第三方工具 | `Release Tool` (`release-tool.yml`) | 无（处理工具目录中的全部工具） | 定时任务，每 6 小时一次 | external-vault `tools/` |
 | 部署某个源提交 | `Deploy Source Script` (`deploy-source-script.yml`) | `source_repository`、`source_sha`（精确的 40 位 SHA） | 可信的 main 写入之后中央 CI 启动，且仓库的 `.github/deploy.json` 中 `automatic: true` | ai-gateway（自动）、internal-vault（仅手动） |
 
 `Handle Release Dispatch` 负责发布两类产物；以上工作流负责启动它，人不直接运行它。"当前使用方"是一个快照：每个仓库自身的 `.github/release.manifest.json` 或 `.github/deploy.json`，以及 `AW_REPOSITORY_POLICY`，才是权威来源，而不是本表。

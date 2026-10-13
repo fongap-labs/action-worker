@@ -113,7 +113,7 @@ runner_profile
 command
 matrix
 artifacts
-timeout
+timeout_minutes
 capability_requests
 ```
 

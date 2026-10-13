@@ -1,6 +1,6 @@
 # 提案 AW-005：拉取请求可以修改自身 CI 的哪些内容
 
-状态：**已采纳建议**（标准工具采用方案 A，配置文件与仓库自有检查脚本采用方案 C）。已在 `ai-gateway` 中实施，它是唯一通过 `npm run` 调用控制脚本的仓库（PR "run biome and tsc from the central script with fixed arguments"）。将仓库自有检查脚本集中化仍是一个单独的项目。
+状态：**已采纳建议**（标准工具采用方案 A，配置文件与仓库自有检查脚本采用方案 C）。已在 `ai-gateway` 中实施；它此前是唯一通过 `npm run` 调用控制脚本的仓库（PR "run biome and tsc from the central script with fixed arguments"）。将仓库自有检查脚本集中化仍是一个单独的项目。
 
 ## 现状
 
@@ -14,7 +14,7 @@
 | | 思路 | 解决的缺口 | 成本 |
 |---|---|---|---|
 | A | 控制脚本（base 引用，可信）以固定参数直接调用标准工具，而不是 `npm run <script>` | 对于被迁移的命令有效。工具配置文件（`biome.jsonc`、`ruff.toml`、`tsconfig.json`）仍然由 PR 控制。在 `ai-gateway` 中，`validate:merge` 主要运行**仓库自有脚本**（`scripts/check-syntax.mjs`、`secret-scan.mjs`、`docs-check.mjs`、`link-check.mjs`、`deployment-config-check.mjs`、`migrations-check.mjs`、`test.mjs`），只有 `biome` 与 `tsc` 是标准工具，因此单独实施 A 在那里几乎没有效果 | 每个仓库的 `central-ci.sh` 需修改一处；保持脚本与包脚本同步 |
-| B | 把定义检查的文件加入 `CONTROL_PATHS`：`package.json`、`package-lock.json`、lint 与类型检查配置、`Cargo.toml` 的 lint 表、`ruff.toml` | 这些文件的变更成为"控制变更"，只接受来自可信的同仓库维护者的 PR | **对 Dependabot 的影响**：Dependabot 的 PR 作者关联为 `CONTRIBUTOR`，不可信，并且总是修改 `package.json` / 锁文件。它们会被拒绝，并提示"CI 控制变更需要可信的同仓库维护者 PR"。维护者的锁文件升级也会每次都切换到 head 引用的 CI |
+| B | 把定义检查的文件加入 `CONTROL_PATHS`：`package.json`、`package-lock.json`、lint 与类型检查配置、`Cargo.toml` 的 lint 表、`ruff.toml` | 这些文件的变更成为"控制变更"，只接受来自可信的同仓库维护者的 PR | **对 Dependabot 的影响**：Dependabot 的 PR 作者关联为 `CONTRIBUTOR`，不可信，并且总是修改 `package.json` / 锁文件。它们会被拒绝，并提示 `CI control changes require a trusted same-repository maintainer PR`。维护者的锁文件升级也会每次都切换到 head 引用的 CI |
 | C | 保持现状，并记录 PR 控制的脚本与配置可以削弱检查 | 无 | 无；依赖人工评审，以及 `package.json` / 配置文件上的 `CODEOWNERS` |
 
 ## 建议

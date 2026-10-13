@@ -4,7 +4,7 @@
 
 ## 现状
 
-- `source-script-deploy.yml` 的 `deploy` 作业已声明 `environment: ${{ needs.prepare.outputs.environment }}`，但该值读取自**被部署的目标仓库**的 `deploy.json`（被部署的一方自行声明环境）。运行目标代码的步骤使用 `env: ${{ secrets }}`：每个仓库级密钥（以及环境级密钥）都被放入该步骤的环境，随后目标未声明的名称被 `unset`。
+- `deploy-source-script.yml` 的 `deploy` 作业已声明 `environment: ${{ needs.prepare.outputs.environment }}`，但该值读取自**被部署的目标仓库**的 `deploy.json`（被部署的一方自行声明环境）。运行目标代码的步骤使用 `env: ${{ secrets }}`：每个仓库级密钥（以及环境级密钥）都被放入该步骤的环境，随后目标未声明的名称被 `unset`。
 - `handle-task-dispatch.yml`（`execute` 作业）同样使用 `env: ${{ secrets }}` 与任务源的允许列表；自 PR #410 起，一个中央上限（`policies/task-secrets.json`，`AW_TASK_SECRET_POLICY_MODE=warn|enforce`）只能减少任务源声明的内容。任务作业**没有** `environment:`。
 - `unset` 只是从进程环境中移除名称；它无法阻止同一作业中已运行的代码读取 Runner 内存，而且允许列表由被执行的一方声明。
 - `fongap-labs/action-worker` 中已存在 `production` 与 `admin-ops` 环境，部署分支策略为仅 main。仓库级密钥仍保留。

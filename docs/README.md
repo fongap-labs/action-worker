@@ -14,7 +14,7 @@ Action Worker 保存三类文档：
 |---|---|
 | [SHARED_GOVERNANCE.md](SHARED_GOVERNANCE.md) | 共用治理边界与 Fongap Labs 各仓库之间的权威关系 |
 | [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md) | 公开仓库与私有仓库统一的执行边界 |
-| [TEST_PACKS.md](TEST_PACKS.md) | 中央持有的测试包、共用测试套件与清单棘轮 |
+| [TEST_PACKS.md](TEST_PACKS.md) | 中央持有的测试包、共用测试套件与清单棘轮（只增不减的测试基线） |
 | [RUNNER_POLICY.md](RUNNER_POLICY.md) | Runner Profile、后端解析、信任域与 self-hosted 边界 |
 | [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md) | main 分支的来源证明、直接写入隔离与下游信任要求 |
 | [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) | 共用命名规则，以及 Action Worker 自身的附加约束 |

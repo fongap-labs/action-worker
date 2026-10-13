@@ -120,7 +120,7 @@ Action Worker 共用治理
 contracts/   输入输出合同
 policies/    确定性策略
 rules/       AI 审查策略
-actions/     合并执行
+.github/actions/ 合并执行
 workflows/   编排
 tests/       治理回归测试
 ```
