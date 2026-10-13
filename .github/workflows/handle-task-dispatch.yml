@@ -292,6 +292,9 @@ jobs:
         if: always() && steps.task.outcome != 'skipped'
         env:
           TASK_OUTCOME: ${{ steps.task.outcome }}
+          # Only whether the secret is set and whether the sealed log was produced, never a value.
+          ARTIFACT_KEY_STATE: ${{ secrets.AW_ARTIFACT_KEY != '' && 'configured' || 'not configured' }}
+          TASK_LOG_STATE: ${{ steps.task_log.outputs.path != '' && 'uploaded' || 'not uploaded' }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -318,6 +321,15 @@ jobs:
           fi
           if [ "$TASK_OUTCOME" != "success" ]; then
             echo "::error::bootstrap.sh execution failed." >&2
+            {
+              echo "## Task result"
+              echo ""
+              echo "- Outcome: ${TASK_OUTCOME}"
+              if [ "$TASK_SOURCE_PRIVATE" != "false" ]; then
+                echo "- AW_ARTIFACT_KEY: ${ARTIFACT_KEY_STATE}"
+                echo "- Private task log: ${TASK_LOG_STATE}"
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
 
       - name: Write task state manifest

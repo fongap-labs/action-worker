@@ -6,7 +6,7 @@
 
 - fix: the job that prunes runs of removed workflows no longer fails after it deletes the last run of a workflow. GitHub answers 404 for that workflow's runs once none are left, and the re-read after the delete stopped the run of `2161d01` (`actions/workflows/365532783/runs`). That re-read now treats the 404 as no runs left, like the first read does.
 
-- fix: scheduled task catch-up is paused. Intake dispatches only the slots due in the last 20 minutes again. The 12-hour window of the catch-up change started two `run-task` executions right after the merge of #740, and their failure is sealed in the private task log, so the cause is not yet known. The catch-up returns when `TASK_SOURCE_LOOKBACK_MINUTES` in `intake.yml` is set back to `720`.
+- fix: scheduled task catch-up is restored: `TASK_SOURCE_LOOKBACK_MINUTES` in `intake.yml` is `720` again. It dispatches only the latest due slot of each project, so it starts at most one task per scheduled project in an Intake run. The two `run-task` executions that followed #740 (`model-discovery` and `MarketBrief`) do not show that catch-up causes failures: about a third of the `Handle Task Dispatch` runs before #740 failed as well.
 
 - fix: a failed request of the job that prunes runs of removed workflows names the request path in its error. The run of 41d8f02 failed with `GitHub API returned HTTP 404.` and the log did not say which call was refused. The job deletes nothing before its first request succeeds.
 

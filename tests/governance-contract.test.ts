@@ -178,8 +178,7 @@ test("Intake reconciles every kind of work on the heartbeat, never by hand", asy
     "MAIN_WRITE_AUDIT_RUN_URL",
     "intake-task-sources.ts",
     "dispatch-scheduled-tasks.ts",
-    // Catch-up is paused at 20 minutes until the failing run-task executions are explained.
-    'TASK_SOURCE_LOOKBACK_MINUTES: "20"',
+    'TASK_SOURCE_LOOKBACK_MINUTES: "720"',
     "intake-security-scans.ts",
   ]);
   assert.doesNotMatch(workflow, /workflow_dispatch/);
@@ -1226,6 +1225,19 @@ test("deploy and task entrypoints replace the shell that received every secret",
     task,
     /- name: Upload task state\n\s+if: always\(\) && steps\.state_upload\.outputs\.path != ''[\s\S]*?path: \$\{\{ steps\.state_upload\.outputs\.path \}\}/
   );
+  // A failed task says whether its sealed log was kept, and whether the key is configured, without
+  // ever printing the key: that is the first thing to check when run-task fails.
+  const report = task.slice(task.indexOf("- name: Report task result"));
+  assert.match(
+    report,
+    /ARTIFACT_KEY_STATE: \$\{\{ secrets\.AW_ARTIFACT_KEY != '' && 'configured' \|\| 'not configured' \}\}/
+  );
+  assert.match(
+    report,
+    /TASK_LOG_STATE: \$\{\{ steps\.task_log\.outputs\.path != '' && 'uploaded' \|\| 'not uploaded' \}\}/
+  );
+  assert.match(report, /## Task result[\s\S]*GITHUB_STEP_SUMMARY/);
+  assert.doesNotMatch(report, /echo .*\$\{?AW_ARTIFACT_KEY\}?/);
 });
 
 test("only PR Governance reports an untrusted head instead of failing", async () => {

@@ -149,16 +149,15 @@ jobs:
         with:
           node-version: 24
 
-      # Catch-up is paused: only slots due in the last 20 minutes are dispatched, as before the
-      # catch-up change. The two run-task failures of 41d8f02 must be explained first. To resume,
-      # set this back to "720"; dispatches are deduplicated per slot either way.
+      # A slot up to 12 hours late runs once: only the latest due slot of each project is dispatched,
+      # and dispatches are deduplicated per slot.
       - name: Dispatch due scheduled tasks
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_INGRESS_TOKEN: ${{ github.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
-          TASK_SOURCE_LOOKBACK_MINUTES: "20"
+          TASK_SOURCE_LOOKBACK_MINUTES: "720"
         run: node scripts/dispatch-scheduled-tasks.ts
 
   security-scans:
