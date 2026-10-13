@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: PR Intake no longer re-dispatches governance and central CI for a pull request head that already has a verdict. A move of the default branch alone (the control revision) no longer re-dispatches a head whose `PR Governance`, `CI Evidence` and `validate-merge` statuses are complete, and a pending reservation whose run was cancelled is not retried. Before, a main push re-dispatched every open pull request whose verdict had failed, and the per-PR concurrency group of the central CI cancelled the job that was already running for the same pull request.
+
 - refactor [migration]: the release and deploy workflows are named by their kind, so a person finds the right one by what they want to do: `Release Build Dispatch` is now `Release App` (`release-app.yml`), `Sync Tool Release` is `Release Tool` (`release-tool.yml`) and `Source Script Deploy` is `Deploy Source Script` (`deploy-source-script.yml`). The dispatch events, inputs and behavior are unchanged. Anything that starts them by file name or by their old display name must use the new one. `docs/INTEGRATION_GUIDE.md` section 12.1 lists which workflow starts which release or deploy.
 
 - fix [migration]: the delta-suite contract test no longer requires the Foundation package version in `pyproject.toml`; the Foundation compatibility is pinned only by its immutable commit and the capability ABI, worker manifest and connector catalog format versions.

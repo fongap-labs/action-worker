@@ -111,8 +111,7 @@ async function openPullRequests(reader: GithubGet, repository: string): Promise<
 async function needsDispatch(
   statuses: Map<string, StatusFact>,
   reader: GithubGet,
-  controlRepository: string,
-  controlHeadSha: string
+  controlRepository: string
 ): Promise<"dispatch" | "in-flight" | "processed" | "awaiting-approval"> {
   const governance = statuses.get("PR Governance");
   const evidence = statuses.get("CI Evidence");
@@ -124,15 +123,24 @@ async function needsDispatch(
   const pendingRunIds = [
     ...new Set(facts.filter((item) => item.state === "pending").map((item) => item.run_id)),
   ];
+  const cancelledPendingRun = new Set<number>();
   for (const runId of pendingRunIds) {
     const run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
     const runStatus = isJsonRecord(run) && typeof run.status === "string" ? run.status : "";
     if (["queued", "in_progress", "pending", "waiting", "requested"].includes(runStatus)) {
       return "in-flight";
     }
+    if (isJsonRecord(run) && run.conclusion === "cancelled") {
+      cancelledPendingRun.add(runId);
+    }
   }
   if (facts.some((item) => item.state === "pending" && pendingLeaseActive(item))) {
     return "in-flight";
+  }
+  // A cancelled run was stopped on purpose, usually by a newer dispatch for the same PR. Retrying
+  // it here would cancel the job that is running for this head, so the head is left alone.
+  if (cancelledPendingRun.size > 0) {
+    return "processed";
   }
   if (pendingRunIds.length > 0) {
     return "dispatch";
@@ -144,28 +152,9 @@ async function needsDispatch(
     return "awaiting-approval";
   }
 
+  // A complete set of statuses is the verdict for this head. The control revision (main) is not
+  // part of the trigger: when main moves, a finished verdict is not recomputed for the same head.
   if (governance && evidence && mergeGate) {
-    if ([governance, evidence, mergeGate].every((item) => item.state === "success")) {
-      return "processed";
-    }
-
-    const failedRunIds = [
-      ...new Set(
-        [governance, evidence, mergeGate]
-          .filter((item) => item.state === "failure" || item.state === "error")
-          .map((item) => item.run_id)
-      ),
-    ];
-    if (shaPattern.test(controlHeadSha) && failedRunIds.length > 0) {
-      for (const runId of failedRunIds) {
-        const run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
-        const runHeadSha =
-          isJsonRecord(run) && typeof run.head_sha === "string" ? run.head_sha : "";
-        if (shaPattern.test(runHeadSha) && runHeadSha !== controlHeadSha) {
-          return "dispatch";
-        }
-      }
-    }
     return "processed";
   }
   return "dispatch";
@@ -250,7 +239,6 @@ export async function scanOpenPullRequests(
   dispatch: Dispatch,
   controlRepository: string,
   dispatchRepair?: Dispatch,
-  controlHeadSha = "",
   reserve?: Reserve
 ): Promise<IntakeResult> {
   const repositories = repositoriesForCapability(policyValue, "pr").filter(
@@ -275,12 +263,7 @@ export async function scanOpenPullRequests(
         await reader.get(`repos/${repository}/commits/${pull.headSha}/status`),
         controlRepository
       );
-      const governanceAction = await needsDispatch(
-        statuses,
-        reader,
-        controlRepository,
-        controlHeadSha
-      );
+      const governanceAction = await needsDispatch(statuses, reader, controlRepository);
       if (governanceAction === "in-flight") {
         result.in_flight += 1;
         continue;
@@ -450,7 +433,6 @@ async function main(): Promise<void> {
         headSha
       );
     },
-    process.env.GITHUB_SHA ?? "",
     async (repository, headSha, context, description) => {
       await reserveStatus(
         controlRepository,
