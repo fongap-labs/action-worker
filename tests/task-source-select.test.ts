@@ -23,7 +23,15 @@ function selectProjectsScript(): string {
 function git(cwd: string, ...args: string[]): string {
   const result = spawnSync(
     "git",
-    ["-c", "user.name=test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", ...args],
+    [
+      "-c",
+      "user.name=test",
+      "-c",
+      "user.email=test@example.invalid",
+      "-c",
+      "commit.gpgsign=false",
+      ...args,
+    ],
     { cwd, encoding: "utf8" }
   );
   assert.equal(result.status, 0, result.stderr);
@@ -67,7 +75,11 @@ function runSelect(changes: Record<string, string>) {
         GITHUB_OUTPUT: output,
       },
     });
-    return { status: result.status, stderr: result.stderr, outputs: readFileSync(output, "utf8").trim() };
+    return {
+      status: result.status,
+      stderr: result.stderr,
+      outputs: readFileSync(output, "utf8").trim(),
+    };
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
