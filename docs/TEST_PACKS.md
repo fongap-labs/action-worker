@@ -1,6 +1,6 @@
 # Test Packs
 
-Managed business repositories no longer keep their own test suites. Action Worker holds each business repository's tests as a **test pack** in `tests/packs/<pack>/`, and central CI runs it against the checked-out source of the target repository.
+Action Worker holds the tests of each pack-managed business repository as a **test pack** in `tests/packs/<pack>/`, and central CI runs the pack against the checked-out source of the target repository. Tests that cannot run from outside their repository stay in it (section 6).
 
 ## 1. Why tests are central
 
