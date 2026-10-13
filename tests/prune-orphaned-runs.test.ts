@@ -2,12 +2,23 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
+  describeRequestFailure,
   gracePeriodMs,
   isDeletableRun,
   isPastGracePeriod,
   maxDeletionsPerRun,
   orphanedWorkflows,
 } from "../scripts/prune-orphaned-runs.ts";
+
+test("a failed GitHub request names the path that was refused", () => {
+  const path = "repos/fongap-labs/action-worker/actions/workflows?per_page=100";
+  const error = describeRequestFailure(path, new Error("GitHub API returned HTTP 404."));
+  assert.equal(
+    error.message,
+    `::error::GitHub request failed for ${path}: GitHub API returned HTTP 404.`
+  );
+  assert.equal(error.exitCode, 1);
+});
 
 test("only workflow files missing from main are orphaned", () => {
   const listed = {

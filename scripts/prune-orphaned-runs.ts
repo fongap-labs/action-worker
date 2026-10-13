@@ -49,6 +49,20 @@ export function isDeletableRun(run: unknown): boolean {
   return getJsonString(run, "status") === "completed" && getJsonNumber(run, "id") > 0;
 }
 
+// The run log of a failed request must name the request, so the refused call is visible.
+export function describeRequestFailure(path: string, error: unknown): CliError {
+  const reason = error instanceof Error ? error.message : String(error);
+  return new CliError(`::error::GitHub request failed for ${path}: ${reason}`, 1);
+}
+
+async function getOrFail(reader: GithubReader, path: string): Promise<unknown> {
+  try {
+    return await reader.get(path);
+  } catch (error) {
+    throw describeRequestFailure(path, error);
+  }
+}
+
 async function main(): Promise<void> {
   const token = process.env.GH_TOKEN ?? "";
   const repository = process.env.GITHUB_REPOSITORY ?? "";
@@ -71,7 +85,7 @@ async function main(): Promise<void> {
 
   const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
   const orphaned = orphanedWorkflows(
-    await reader.get(`repos/${repository}/actions/workflows?per_page=100`),
+    await getOrFail(reader, `repos/${repository}/actions/workflows?per_page=100`),
     existsSync
   );
   const nowMs = Date.now();
@@ -82,7 +96,7 @@ async function main(): Promise<void> {
     const result: PruneResult = { ...workflow, deleted: 0, result: "" };
     results.push(result);
     const runsPath = `repos/${repository}/actions/workflows/${workflow.id}/runs?per_page=100`;
-    let runs = getJsonArray(await reader.get(runsPath), "workflow_runs");
+    let runs = getJsonArray(await getOrFail(reader, runsPath), "workflow_runs");
     if (runs.length > 0 && !isPastGracePeriod(runs[0], nowMs)) {
       result.result = "kept (last run less than 2 days ago)";
       continue;
@@ -104,7 +118,7 @@ async function main(): Promise<void> {
         result.deleted += 1;
         budget -= 1;
       }
-      runs = getJsonArray(await reader.get(runsPath), "workflow_runs");
+      runs = getJsonArray(await getOrFail(reader, runsPath), "workflow_runs");
     }
     const remaining = runs.length;
     result.result =
