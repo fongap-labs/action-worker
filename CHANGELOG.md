@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix [migration]: `CLOUDFLARE_ACCOUNT_ID` is a Repository Variable, not a secret. It is removed from the deploy secret ceiling for `fongap-labs/ai-gateway` in `policies/deploy-secrets.json`, together with its `CLOUDFLARE_ACCOUNT_ID_SECONDARY` alias. The deploy job still receives it, because the repository variables are exported to the job. A repository that stores it as a secret must move it to a variable.
+
 - fix: PR Intake no longer re-dispatches governance and central CI for a pull request head that already has a verdict. A move of the default branch alone (the control revision) no longer re-dispatches a head whose `PR Governance`, `CI Evidence` and `validate-merge` statuses are complete, and a pending status whose governance or central CI run was cancelled is not retried; a reservation whose intake run was cancelled still expires and is retried. Before, a main push re-dispatched every open pull request whose verdict had failed, and the per-PR concurrency group of the central CI cancelled the job that was already running for the same pull request.
 
 - fix: the self CI (`validate-ci.yml`) cancels a superseded run only for a pull request. A newer push to `main` no longer cancels the validation of an earlier main commit, which would have left that commit without a `validate-merge` verdict.
