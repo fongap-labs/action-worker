@@ -431,7 +431,42 @@ manifest 不得声明具体的 Runner 标签、主机、令牌或中央权限。
 - 并发组为 `source-script-deploy-<仓库>-<产品>-<环境>`。根目录布局没有产品段，因此为 `source-script-deploy-<仓库>-<环境>`。
 - 部署脚本可以读取环境变量 `DEPLOY_PRODUCT`（产品目录名，根目录布局为空）和 `DEPLOY_TRIGGER`（`push` 或 `manual`）。
 - 人工启动时请同时填写 `product` 与 `environment`。并发组只由输入决定，留空时不能保证与自动部署排在同一个组里；清单解析之后，部署作业本身还会按解析出的产品与环境再排一次队。
-- 定时部署（`schedule`）已在契约中预留，本版本尚未启用，启动时会被拒绝。
+- 定时部署的写法与行为见第 13.2 节。
+
+### 13.2 定时部署
+
+定时部署是指按固定时间自动部署一个环境，例如每天 20:00 部署预发环境。它与推送触发并列，写在同一个环境的 `triggers` 中。
+
+在清单中写出 `schedule`，每一项是一条五段式 cron 表达式（分 时 日 月 周），按 UTC 计算：
+
+```json
+{
+  "schema_version": "2",
+  "adapter": "source-script",
+  "root": "projects/web",
+  "entrypoint": "projects/web/deploy.sh",
+  "runner_profile": "production-deploy",
+  "ignore_docs_only": true,
+  "environments": {
+    "web-staging": { "triggers": { "schedule": ["0 12 * * *"] } }
+  }
+}
+```
+
+上面的例子在 UTC 12:00，即北京时间 20:00 触发。`schedule` 与 `push` 可以同时写在一个环境中。
+
+定时部署的规则：
+
+- 调度器每次运行时，为每个"产品 + 环境"找出最近一个到期的时间点。回看范围是 12 小时（`DEPLOY_SCHEDULE_LOOKBACK_MINUTES` 为 `720`），因为 GitHub 的定时任务可能晚于约定时间才启动。
+- 只派发最近的那一个时间点。错过的更早时间点不会补跑，否则一次晚到就会连续部署多次。
+- 每个时间点只派发一次。派发后，调度器在默认分支的提交上写入状态 `Deploy Schedule/<产品>/<环境>`（单产品仓库为 `Deploy Schedule/<环境>`），之后看到这个状态就跳过。
+- 只部署中央 CI 已通过的默认分支。如果当前的默认分支是红的，或还没有通过，本次跳过，并在运行摘要中说明原因。调度器不会改去部署更早的提交；在回看范围内，下一次运行会在分支变绿后重新考虑这个时间点。
+- 运行摘要同时显示 UTC 和北京时间。
+
+维护者须知：
+
+- 定时部署和推送部署一样要求环境没有必需审批人（required reviewers）。
+- 定时部署的请求带有 `trigger: schedule`；清单中没有 `schedule` 的环境，请求会被拒绝。
 
 ## 14. 普通新仓库不应做的事
 

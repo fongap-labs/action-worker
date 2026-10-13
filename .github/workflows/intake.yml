@@ -160,6 +160,35 @@ jobs:
           TASK_SOURCE_LOOKBACK_MINUTES: "720"
         run: node scripts/dispatch-scheduled-tasks.ts
 
+  deploy-schedules:
+    name: Scheduled deploys
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      # A slot up to 12 hours late runs once: only the latest due slot of each product environment is dispatched.
+      - name: Dispatch due scheduled deploys
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_CONTROL_REPOSITORY: ${{ github.repository }}
+          DEPLOY_SCHEDULE_LOOKBACK_MINUTES: "720"
+        run: node scripts/dispatch-scheduled-deploys.ts
+
   security-scans:
     name: Weekly security scans
     # Every central CI pass already scans its commit; this weekly run rescans unchanged default

@@ -1,6 +1,6 @@
 # 提案 AW-006：按产品发布与部署
 
-状态：**第 1 步与第 3 步（不含 3b）已实施；3b、第 2、4、5 步待实施**。本提案替代"一个仓库只有一个发布清单与一个部署清单"的假设，覆盖三类仓库：多产品仓库、单产品仓库、跟随型产品。
+状态：**第 1 步与第 3 步（不含 3b）已实施，定时部署已实施；3b、第 2、4、5 步待实施**。本提案替代"一个仓库只有一个发布清单与一个部署清单"的假设，覆盖三类仓库：多产品仓库、单产品仓库、跟随型产品。
 
 ## 1. 背景
 
@@ -113,12 +113,19 @@ projects/<目录名>/
 
 已实施（`tests/deploy-manifest.test.ts`、`tests/deploy-dispatch.test.ts`、`tests/deploy-policies.test.ts`、`tests/deploy-source.test.ts`）：
 
-- 清单同时支持 schema 1（原样保留）与 schema 2。schema 2 的环境可以声明 `push`（`true` 或 `paths`）与 `schedule`；`schedule` 只解析，尚未启用。
+- 清单同时支持 schema 1（原样保留）与 schema 2。schema 2 的环境可以声明 `push`（`true` 或 `paths`）与 `schedule`。
 - schema 2 的 `root` 只决定 `push: true` 的触发路径（`root/**`）；`entrypoint` 与 schema 1 一样相对于仓库根目录。
 - 分发按（产品，环境）逐个判断。路径未命中则跳过；"只改文档"的判断只看触发路径之内的文件。
 - 并发组与密钥键包含产品。根目录布局的并发组为 `source-script-deploy-<仓库>-<环境>`，这是相对于第 3 步之前的一处变化。
 - 产品布局的密钥范围总是 enforce，不受 `AW_DEPLOY_SECRET_POLICY_MODE` 影响：否则 warn 模式会放行产品声明的其他产品的密钥名。根目录布局不变。
 - 密钥声明文件放在产品目录（`projects/<产品>/deploy.secrets.*`，根目录布局为 `.github/`）。早先的任务描述写作 `.github/products/<产品>/`，与本提案 §3 和第 1 步已落地的发现逻辑冲突，以本提案为准。
+
+定时部署（第 6 节的定时触发）已实施：
+
+- `scripts/cron-schedule.ts` 承载 cron 解析与"最近到期时间点"计算，定时任务共用，行为不变。
+- `scripts/dispatch-scheduled-deploys.ts` 为每个"产品 + 环境"派发最近一个到期的时间点，回看 `DEPLOY_SCHEDULE_LOOKBACK_MINUTES`（720）分钟，去重状态为 `Deploy Schedule/<产品>/<环境>`（单产品为 `Deploy Schedule/<环境>`）。
+- 只部署中央 CI 已通过的默认分支；红色或未通过则本次跳过，不改去部署更早的提交。
+- `intake.yml` 的 `deploy-schedules` 作业运行它；派发的请求带有 `trigger: schedule`。
 
 未完成或未验证：
 
