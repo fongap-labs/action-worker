@@ -10,7 +10,11 @@ import {
   resolveDeployManifest,
 } from "../scripts/deploy-manifest.ts";
 import { isDeployPolicyKey, productPolicyKey } from "../scripts/deploy-policy-key.ts";
-import { readDeploySecretCeiling, resolveSecretScope } from "../scripts/resolve-secret-scope.ts";
+import {
+  readDeploySecretCeiling,
+  readSecretAliases,
+  resolveSecretScope,
+} from "../scripts/resolve-secret-scope.ts";
 
 const sha = "0123456789abcdef0123456789abcdef01234567";
 
@@ -216,12 +220,19 @@ test("the shipped deploy secret policy only holds valid, non-reserved names", as
     "production"
   );
   assert.ok(aiGateway.has("CLOUDFLARE_API_TOKEN"));
-  assert.equal(
+  assert.ok(
     aiGateway.has("CLOUDFLARE_ACCOUNT_ID"),
-    false,
-    "the account ID is a Repository Variable, not a secret"
+    "the account ID is a Repository Variable injected through a deploy alias"
   );
-  assert.equal(aiGateway.size, 37);
+  assert.equal(aiGateway.size, 38);
+  const aiGatewayAliases = await readSecretAliases(
+    "policies/deploy-secrets.json",
+    "deploy",
+    "fongap-labs/ai-gateway",
+    "production"
+  );
+  assert.equal(aiGatewayAliases.get("CLOUDFLARE_API_TOKEN"), "CLOUDFLARE_API_TOKEN_SECONDARY");
+  assert.equal(aiGatewayAliases.get("CLOUDFLARE_ACCOUNT_ID"), "CLOUDFLARE_ACCOUNT_ID_SECONDARY");
   const internalVault = await readDeploySecretCeiling(
     "policies/deploy-secrets.json",
     "fongap-labs/internal-vault",
