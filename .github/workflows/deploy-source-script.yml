@@ -6,12 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       source_repository:
-        description: Managed source repository
+        description: Managed source repository in owner/name form, for example your-org/your-service
         required: true
         type: string
       source_sha:
-        description: Exact 40-character source commit SHA
-        required: true
+        description: Exact 40-character commit SHA of the default-branch HEAD; leave empty to deploy the current HEAD
+        required: false
         type: string
 
 permissions:
@@ -25,7 +25,12 @@ jobs:
   prepare:
     name: Validate source-script deploy request
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # The source validation waits up to 20 minutes for the central CI verdict of the source.
+    timeout-minutes: 30
+    # contents: write lets the manual path dispatch central CI with the workflow token, like Task
+    # Source Dispatch; the deploy job below keeps the read-only workflow permission.
+    permissions:
+      contents: write
     outputs:
       source_repository: ${{ steps.source.outputs.source_repository }}
       source_sha: ${{ steps.source.outputs.source_sha }}
@@ -59,13 +64,27 @@ jobs:
         id: manual_request
         if: github.event_name == 'workflow_dispatch'
         env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           SOURCE_SHA: ${{ inputs.source_sha }}
         shell: bash
         run: |
           set -Eeuo pipefail
-          [[ "$SOURCE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
-          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          # Names the offending input and the allowed repositories instead of exiting silently.
+          node scripts/repository-policy.ts validate "$SOURCE_REPOSITORY" deploy
+          if [ -z "$SOURCE_SHA" ]; then
+            default_branch="$(gh api "repos/$SOURCE_REPOSITORY" --jq '.default_branch')"
+            SOURCE_SHA="$(gh api "repos/$SOURCE_REPOSITORY/commits/$default_branch" --jq '.sha')"
+          fi
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::source_sha must be a full 40-character lowercase commit SHA, or empty to deploy the current default-branch HEAD: got '$SOURCE_SHA'." >&2
+            exit 64
+          }
+          {
+            echo "source_repository=$SOURCE_REPOSITORY"
+            echo "source_sha=$SOURCE_SHA"
+          } >> "$GITHUB_OUTPUT"
           request="$(
             jq -cn \
               --arg request_id "manual-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
@@ -79,6 +98,18 @@ jobs:
               }'
           )"
           echo "request_json=$request" >> "$GITHUB_OUTPUT"
+
+      # GitHub starts the scheduled CI Intake only every few hours, so a manual deploy asks for central
+      # CI on its own source now; the automatic path runs after central CI has already passed.
+      - name: Request central CI for the source
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_CONTROL_REPOSITORY: ${{ github.repository }}
+          AW_CI_INTAKE_REPOSITORY: ${{ steps.manual_request.outputs.source_repository }}
+        run: node scripts/intake-main-ci.ts
 
       - name: Validate deploy source
         id: source

@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- fix: the Central CI follow-up job (`Dispatch Central CI Follow-ups`) is no longer skipped for a target without Windows CI. Its `if` had no status function, so GitHub added an implicit `success()` that a skipped `windows` job failed. A run for such a target (for example `fongap-labs/internal-vault` and `fongap-labs/ai-gateway`) therefore never dispatched its security scan, never attested the Main Write Guard of the main SHA and never dispatched the automatic deploy, and a task or deploy for that SHA failed with `Source SHA has no successful Main Write Guard status`. The job now runs whenever `finalize` succeeded.
+
+- fix: Release App and a manual Deploy Source Script request central CI for their source before the source check, like Task Source Dispatch, and the check waits up to 20 minutes for the verdict (`centralCiWait`, shared with the task source gate) instead of failing at once. GitHub starts the scheduled CI Intake only every few hours, so a release of a commit merged after the last intake failed with `Release build source has no trusted successful CI Evidence`. The release check now uses `requireVerifiedCiEvidence`, so it also verifies that a successful central CI run wrote the status. The `prepare` job of both workflows has a 30-minute timeout.
+
+- feat: a manual Deploy Source Script deploys the current default-branch HEAD when `source_sha` is empty, and a bad `source_repository` or `source_sha` fails with a message that names the input. Before, the step exited without any message.
+
+- fix: gate errors say what to do next. A bad repository name suggests the managed `owner/name`, a repository without the capability lists those that have it, CI Evidence and Main Write Guard failures name the run to open and the workflow to start, and the PR title, CHANGELOG and commit attribution errors show the expected form and the fix. `docs/INTEGRATION_GUIDE.md` section 12.2 explains each error in Chinese, and section 10 now states that the scheduled audit is only a fallback.
+
 - feat: pull requests fail when the author or committer of a commit names an AI agent or model, when a trailer such as `Co-Authored-By:` names one, or when a title or commit line is a tool attribution such as `Generated with`. Agent names in titles and commit prose are allowed.
 
 - feat: add a test-driven-development skill for task operations that change behavior in code with a test seam. Agents choose the highest public seam, write tests that verify behavior through the interface, reject implementation-coupled, tautological, and horizontally sliced tests, mock only at system boundaries, and work in red-green vertical slices.

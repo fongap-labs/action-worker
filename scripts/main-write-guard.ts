@@ -248,7 +248,10 @@ export async function assertTrustedMainWrite(
       await new Promise((resolve) => setTimeout(resolve, 5_000));
     }
   }
-  throw new CliError("::error::Source SHA has no successful Main Write Guard status.", 65);
+  throw new CliError(
+    `::error::Source SHA has no successful Main Write Guard status: ${repository}@${mainSha.slice(0, 12)} has not been attested yet. Run the Main Write Audit workflow (Actions > Main Write Audit > Run workflow), wait for it to finish, and start this workflow again.`,
+    65
+  );
 }
 
 function requestFromEnvironment(): MainWriteRequest {

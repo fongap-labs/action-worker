@@ -1,4 +1,5 @@
-import { GithubReader, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
+import { centralCiWait, requireVerifiedCiEvidence } from "./ci-evidence.ts";
+import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import { parseRunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
 import {
@@ -153,7 +154,10 @@ export function parseReleaseBuildManifest(value: unknown): ReleaseBuildManifest 
 export function normalizeReleaseVersion(value: string): string {
   const version = value.replace(/^v/, "");
   if (!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)) {
-    throw new CliError("Requested release version must be stable SemVer.", 64);
+    throw new CliError(
+      `Requested release version must be stable SemVer such as 1.2.3 or v1.2.3, without a pre-release or build suffix: got '${value}'.`,
+      64
+    );
   }
   return version;
 }
@@ -225,20 +229,13 @@ async function main(): Promise<void> {
     );
   }
 
-  const status = await reader.get(
-    `repos/${request.source_repository}/commits/${request.source_sha}/status`
+  // The release workflow requests central CI for the source before this step, so wait for it.
+  await requireVerifiedCiEvidence(
+    reader,
+    request.source_repository,
+    request.source_sha,
+    centralCiWait
   );
-  const evidence = getJsonArray(status, "statuses").find(
-    (item) => isJsonRecord(item) && getJsonString(item, "context") === "CI Evidence"
-  );
-  const targetUrl = isJsonRecord(evidence) ? getJsonString(evidence, "target_url") : "";
-  if (
-    !isJsonRecord(evidence) ||
-    getJsonString(evidence, "state") !== "success" ||
-    !/^https:\/\/github\.com\/fongap-labs\/action-worker\/actions\/runs\/\d+$/.test(targetUrl)
-  ) {
-    throw new CliError("Release build source has no trusted successful CI Evidence.", 65);
-  }
 
   const manifestResponse = await reader.get(
     `repos/${request.source_repository}/contents/.github/release.manifest.json?ref=${request.source_sha}`

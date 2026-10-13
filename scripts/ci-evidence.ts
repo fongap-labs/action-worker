@@ -14,6 +14,10 @@ export const ciEvidenceWorkflowPaths: readonly string[] = [
 // The status is written by the run itself, so its creation time must fall inside the run window.
 const runWindowSlackMs = 120_000;
 
+// A task source, release or deploy request is the moment central CI is requested for a commit that
+// was just merged, so the gate waits for the verdict (up to 20 minutes) instead of failing at once.
+export const centralCiWait = { statusAttempts: 120, retryDelayMs: 10_000 } as const;
+
 export type JsonReader = { get(path: string): Promise<unknown> };
 
 export type VerifiedCiEvidenceOptions = {
@@ -137,25 +141,30 @@ export async function requireVerifiedCiEvidence(
   const statusAttempts = options.statusAttempts ?? 1;
   const retryDelayMs = options.retryDelayMs ?? 5_000;
   const controlRepository = options.controlRepository ?? defaultControlRepository;
+  const commit = `${repository}@${sha.slice(0, 12)}`;
 
   for (let attempt = 0; attempt < statusAttempts; attempt += 1) {
     const response = await reader.get(`repos/${repository}/commits/${sha}/status`);
     const latest = latestCiStatus(response, "CI Evidence");
     const state = getJsonString(latest, "state");
+    const runUrl = getJsonString(latest, "target_url");
     if (state === "success") {
       if (await hasVerifiedCiEvidence(reader, response, options)) return;
       throw new CliError(
-        "::error::CI Evidence was not produced by a successful Action Worker CI run.",
+        `::error::CI Evidence for ${commit} was not produced by a successful Action Worker CI run (${runUrl}). Open that run to see why, or merge a new commit so central CI runs again.`,
         65
       );
     }
     if (state === "failure" || state === "error") {
-      throw new CliError("::error::Source SHA failed CI Evidence.", 65);
+      throw new CliError(
+        `::error::Source SHA failed CI Evidence: central CI failed for ${commit} (${runUrl}). Open the run to see the failing job, fix it through a pull request, and start this workflow again after the fix is merged and central CI has passed.`,
+        65
+      );
     }
     if (attempt + 1 < statusAttempts) await sleep(retryDelayMs);
   }
   throw new CliError(
-    `::error::Source SHA has no successful Action Worker CI Evidence (control=${controlRepository}).`,
+    `::error::Source SHA has no successful Action Worker CI Evidence (control=${controlRepository}, commit=${commit}). Central CI has not reported for this commit: run the CI Intake workflow (Actions > CI Intake > Run workflow), wait for Central CI Dispatch to finish, and start this workflow again.`,
     65
   );
 }

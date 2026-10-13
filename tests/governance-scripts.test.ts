@@ -115,6 +115,19 @@ test("PR task and repository policy remain fail closed", () => {
     validateRepositoryCapability("fongap/example", { "fongap/example": ["pr", "pr"] }, "pr")
   );
   assert.deepEqual(repositoriesForCapability(policy, "task"), ["fongap/example"]);
+  // A bare name is corrected to the managed repository; an unmanaged one lists the managed ones.
+  assert.throws(
+    () => validateRepositoryCapability("example", policy, "task"),
+    /Enter it as owner\/name, for example fongap\/example\./
+  );
+  assert.throws(
+    () => validateRepositoryCapability("unknown", policy, "task"),
+    (error: Error) => error.message.endsWith("Enter it as owner/name.")
+  );
+  assert.throws(
+    () => validateRepositoryCapability("other/repository", policy, "task"),
+    /Repositories with this capability: fongap\/example\./
+  );
   assert.equal(hasRepositoryCapability("fongap/example", policy, "task"), true);
   assert.equal(hasRepositoryCapability("fongap/example", policy, "deploy"), false);
   assert.equal(hasRepositoryCapability("fongap/unknown", policy, "pr"), false);

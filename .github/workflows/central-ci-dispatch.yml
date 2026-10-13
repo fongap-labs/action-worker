@@ -329,12 +329,15 @@ jobs:
   # Runs only after a passing CI Evidence was published. A failure here must not turn the CI run
   # itself red: the PR gate and the release, deploy and task source checks accept CI Evidence only
   # from a run that concluded successfully.
+  # always() is required: without a status function GitHub adds an implicit success(), which also
+  # looks at the jobs finalize depends on, so a skipped `windows` job (a target without Windows CI)
+  # would skip this job and no security scan, main write attestation or deploy would be dispatched.
   follow-up:
     name: Dispatch Central CI Follow-ups
     needs:
       - prepare
       - finalize
-    if: needs.finalize.result == 'success'
+    if: always() && needs.finalize.result == 'success'
     continue-on-error: true
     runs-on: ubuntu-24.04
     timeout-minutes: 15

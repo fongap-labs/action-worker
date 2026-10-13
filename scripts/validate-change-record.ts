@@ -145,7 +145,7 @@ export async function assertAttributionFree(
   }
   if (problems.length > 0) {
     throw new CliError(
-      `::error::Attribution check failed: ${problems.slice(0, 10).join("; ")}.`,
+      `::error::Attribution check failed: ${problems.slice(0, 10).join("; ")}. Rewrite the listed commits so that the author and committer are your own GitHub account (git config user.name and user.email, then git rebase <base> --exec 'git commit --amend --no-edit --reset-author') and no trailer or line in the message names an AI agent (git rebase -i <base>, reword), then force-push the branch.`,
       65
     );
   }
@@ -165,7 +165,10 @@ export async function validateChange(
   await assertAttributionFree(title, base, head, root, policyDir);
   const match = /^([a-z]+)(?:\(([A-Za-z0-9._/-]+)\))?(!)?:\s+(.+)$/.exec(title);
   if (!match) {
-    throw new CliError("::error::PR title must use type(scope)!: summary format.", 64);
+    throw new CliError(
+      `::error::PR title must use type(scope)!: summary format, for example 'fix(deploy): retry the health check'. Allowed types: ${policyList(value, "change_types").join(", ")}. Edit the pull request title.`,
+      64
+    );
   }
   const changeType = match[1] ?? "";
   const scope = match[2] ?? "";
@@ -205,7 +208,10 @@ export async function validateChange(
     for (const line of additions.filter((entry) => entry.startsWith("- "))) {
       const entry = /^- ([a-z]+)(?: \[([^\]]+)\])?: (.+)$/.exec(line);
       if (!entry) {
-        throw new CliError(`::error::Invalid CHANGELOG entry: ${line}`, 65);
+        throw new CliError(
+          `::error::Invalid CHANGELOG entry: ${line} Each added entry must look like '- fix: summary' or '- fix [breaking]: summary'.`,
+          65
+        );
       }
       const entryType = entry[1] ?? "";
       const entrySummary = entry[3] ?? "";

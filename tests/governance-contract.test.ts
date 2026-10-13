@@ -664,7 +664,7 @@ test("release, source, deploy, merge, and repository settings contracts remain i
     "resolveRunnerProfile",
     "release-source",
     "release-target",
-    "CI Evidence",
+    "requireVerifiedCiEvidence",
   ]);
   assert.doesNotMatch(
     releaseBuildValidator,
@@ -1233,10 +1233,42 @@ test("Central CI follow-ups cannot fail the run that carries CI Evidence", async
   assert.match(finalize, /context=CI Evidence/);
   assert.doesNotMatch(finalize, /dispatch-security-scan|dispatch-central-deploy|audit-main-writes/);
   requireText(followUp, [
-    "if: needs.finalize.result == 'success'",
+    "if: always() && needs.finalize.result == 'success'",
     "continue-on-error: true",
     "dispatch-security-scan.ts",
     "audit-main-writes.ts",
     "dispatch-central-deploy.ts",
   ]);
+});
+
+test("manual release, deploy and task entry points request central CI and explain bad input", async () => {
+  const release = await text(".github/workflows/release-app.yml");
+  const deploy = await text(".github/workflows/deploy-source-script.yml");
+  const task = await text(".github/workflows/task-source-dispatch.yml");
+  // GitHub starts the scheduled CI Intake only every few hours, so each entry asks for CI itself.
+  for (const workflow of [release, deploy, task]) {
+    requireText(workflow, [
+      "- name: Request central CI for the source",
+      "AW_CI_INTAKE_REPOSITORY:",
+      "node scripts/intake-main-ci.ts",
+    ]);
+  }
+  assert.ok(
+    release.indexOf("- name: Request central CI for the source") <
+      release.indexOf("- name: Validate release build request")
+  );
+  assert.ok(
+    deploy.indexOf("- name: Request central CI for the source") <
+      deploy.indexOf("- name: Validate deploy source")
+  );
+  // The validation waits for the verdict for up to 20 minutes, so the job must outlive the wait.
+  assert.match(release, /prepare:[\s\S]*?timeout-minutes: 30/);
+  assert.match(deploy, /prepare:[\s\S]*?timeout-minutes: 30/);
+  // A bad manual deploy input is named, never a silent exit; an empty SHA means the current HEAD.
+  requireText(deploy, [
+    'node scripts/repository-policy.ts validate "$SOURCE_REPOSITORY" deploy',
+    "source_sha must be a full 40-character lowercase commit SHA",
+  ]);
+  assert.doesNotMatch(deploy, /\[\[ "\$SOURCE_SHA" =~ [^\n]*\]\]\n/);
+  assert.match(deploy, /source_sha:\n\s+description: [^\n]+\n\s+required: false/);
 });

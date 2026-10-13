@@ -68,12 +68,31 @@ export function validateRepositoryCapability(
   capability: RepositoryCapability
 ): void {
   if (!repositoryPattern.test(repository)) {
-    throw new CliError(`::error::Invalid repository: ${repository}.`, 64);
+    const suggestions = suggestRepositories(value, repository);
+    throw new CliError(
+      `::error::Invalid repository: ${repository}. Enter it as owner/name${suggestions.length > 0 ? `, for example ${suggestions.join(" or ")}` : ""}.`,
+      64
+    );
   }
   const policy = parseRepositoryPolicy(value);
   if (!policy[repository]?.includes(capability)) {
-    throw new CliError(`::error::Repository is not allowed for ${capability}: ${repository}.`, 77);
+    const allowed = repositoriesForCapability(policy, capability);
+    throw new CliError(
+      `::error::Repository is not allowed for ${capability}: ${repository}. Repositories with this capability: ${allowed.join(", ") || "none"}.`,
+      77
+    );
   }
+}
+
+/** Policy entries whose name part equals what was typed, so a bare name can be corrected. */
+function suggestRepositories(value: unknown, typed: string): string[] {
+  if (!isJsonRecord(value)) {
+    return [];
+  }
+  const wanted = typed.toLowerCase();
+  return Object.keys(value)
+    .filter((name) => name.split("/")[1]?.toLowerCase() === wanted)
+    .sort();
 }
 
 async function main(): Promise<void> {

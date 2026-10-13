@@ -171,7 +171,13 @@ AIG_ACCESS_KEY_AGENT
 
 ## 10. Main Write Guard
 
-业务仓库不承担 Main Write Guard 的权威执行。公开的 `action-worker` 定期审计 `AW_REPOSITORY_POLICY` 中每个受管仓库的当前 `main`，重新查询 GitHub，并证明源 SHA 来自合法的 PR 合并。
+业务仓库不承担 Main Write Guard 的权威执行。公开的 `action-worker` 审计 `AW_REPOSITORY_POLICY` 中每个受管仓库的当前 `main`，重新查询 GitHub，并证明源 SHA 来自合法的 PR 合并。证明在三个时机产生：
+
+- 某个 `main` SHA 的中央 CI 通过之后，`Central CI Dispatch` 的 `Dispatch Central CI Follow-ups` 立即对该仓库运行 Main Write Audit；
+- `action-worker` 自己的 `main` 有 push 时，审计所有受管仓库；
+- 定时审计。GitHub 对定时触发只做尽力而为，实际可能每隔数小时才运行一次，所以定时审计只是兜底，不是实时来源。
+
+需要立即得到证明时（例如任务或部署报 `Source SHA has no successful Main Write Guard status`），在 Actions 中手动运行 `Main Write Audit`。
 
 业务仓库可以保留一个极薄的 main push 分发器，以缩短发现问题的延迟；但分发器缺失、Actions 分钟数耗尽或分发器被删除，都既不能产生可信的 main SHA，也不能削弱 Release / Deploy 的失败即关闭检查。
 
@@ -193,6 +199,8 @@ AIG_ACCESS_KEY_AGENT
 Task Intake 定期扫描每个具有 `task` 能力的仓库，并只读取真实的默认分支 HEAD。对于启用了 `push` 的仓库，如果当前 HEAD 还没有成功的 `Task Source` 状态，它会以第一个父提交作为 `before_sha` 分发一次变更项目的解析：运行期间写入 pending，成功时写入 success，失败时写入 failure，以便下一轮重试。
 
 手动任务直接从 Action Worker 中的 `Task Source Dispatch` workflow_dispatch 启动，只提交受管仓库与项目。业务仓库不再需要为手动或 push 事件启动本地通知 Runner。
+
+手动启动时，`repository` 写成 `owner/name`（只写仓库名会报错，并在报错中给出对应的完整名称），`project` 是该仓库 `projects/` 下含有 `task.json` 的目录名（填错时报错会列出可选项）。工作流会先为该仓库 `main` 的 HEAD 申请中央 CI，任务校验最多等待 20 分钟取得结果，不需要提前手动运行 CI。
 
 中央仓库不得保留业务仓库或项目名称列表。
 
@@ -216,7 +224,7 @@ Task Intake 定期扫描每个具有 `task` 能力的仓库，并只读取真实
 
 发布版本即发布启动时人工输入的版本，且只有该版本。业务仓库不得保留约束该版本的规则：不得设置版本来源检查，不得做文件之间的一致性检查，也不得要求 CHANGELOG 中存在发布标题。项目构建脚本须声明必填的 `-Version` 参数，把该版本写入构建出的应用，并可校验构建产物确实携带该版本。
 
-手动发布同样从 Action Worker 中的 `Release App` 工作流启动：由用户选择受管的 `source_repository` 并输入必填的稳定版本号；Action Worker 自行读取该仓库默认分支的当前 HEAD，并执行相同的源 / CI / provenance 检查。业务仓库无需为了"宣布发布"而启动自己的 Runner。
+手动发布同样从 Action Worker 中的 `Release App` 工作流启动：由用户选择受管的 `source_repository` 并输入必填的稳定版本号；Action Worker 自行读取该仓库默认分支的当前 HEAD，先为它申请中央 CI，再执行相同的源 / CI / provenance 检查，并最多等待 20 分钟取得 CI 结果。业务仓库无需为了"宣布发布"而启动自己的 Runner。
 
 ### 12.1 启动发布或部署的工作流
 
@@ -226,9 +234,40 @@ Release 与 Deploy 工作流按发布类型或部署适配器命名，绝不以�
 |---|---|---|---|---|
 | 发布由源仓库构建的应用 | `Release App` (`release-app.yml`) | `source_repository`、`requested_version`（必填的稳定 SemVer） | `run-release-build` 分发事件 | delta、app-source |
 | 发布从上游镜像而来的第三方工具 | `Release Tool` (`release-tool.yml`) | 无（处理工具目录中的全部工具） | 定时任务，每 6 小时一次 | external-vault `tools/` |
-| 部署某个源提交 | `Deploy Source Script` (`deploy-source-script.yml`) | `source_repository`、`source_sha`（精确的 40 位 SHA） | 可信的 main 写入之后中央 CI 启动，且仓库的 `.github/deploy.json` 中 `automatic: true` | ai-gateway（自动）、internal-vault（仅手动） |
+| 部署某个源提交 | `Deploy Source Script` (`deploy-source-script.yml`) | `source_repository`、`source_sha`（可选；留空部署默认分支的当前 HEAD，否则是精确的 40 位 SHA） | 可信的 main 写入之后中央 CI 启动，且仓库的 `.github/deploy.json` 中 `automatic: true` | ai-gateway（自动）、internal-vault（仅手动） |
 
 `Handle Release Dispatch` 负责发布两类产物；以上工作流负责启动它，人不直接运行它。"当前使用方"是一个快照：每个仓库自身的 `.github/release.manifest.json` 或 `.github/deploy.json`，以及 `AW_REPOSITORY_POLICY`，才是权威来源，而不是本表。
+
+### 12.2 启动前的检查与常见失败
+
+启动 `Release App` 或 `Deploy Source Script` 之前不需要手动准备 CI：工作流会先为源仓库默认分支的当前 HEAD 申请中央 CI，并最多等待 20 分钟取得结果。你只需要保证：
+
+1. 要发布或部署的改动已经通过 PR 合并进 `main`；
+2. `source_repository` 写成 `owner/name`，且该仓库在 `AW_REPOSITORY_POLICY` 中具有对应的能力（发布需要 `release-source`，部署需要 `deploy`）；
+3. 发布时 `requested_version` 写成稳定的 SemVer，例如 `1.2.3` 或 `v1.2.3`。
+
+失败时先打开失败的步骤，日志里的 `::error::` 同时给出原因和下一步。报错信息按工程规范使用英文，下表是对应的中文说明：
+
+| 日志中的报错 | 原因 | 怎么做 |
+|---|---|---|
+| `Invalid repository: x. Enter it as owner/name` | 只写了仓库名，没有写所有者 | 按提示写成 `owner/name` |
+| `Repository is not allowed for <能力>` | 该仓库没有这项能力 | 报错末尾列出了具备该能力的仓库；确需新增时，由管理员修改 `AW_REPOSITORY_POLICY` |
+| `Requested release version must be stable SemVer` | 版本带有预发布或构建后缀，或不是三段数字 | 改成 `1.2.3` 或 `v1.2.3` |
+| `source_sha must be a full 40-character lowercase commit SHA` | 部署的 SHA 不是完整的 40 位小写十六进制 | 填完整的 SHA，或留空以部署当前 HEAD |
+| `default HEAD moved` 或 `must be the current default-branch HEAD` | 你启动之后，默认分支又有了新提交 | 重新启动工作流，让它读取最新的 HEAD |
+| `Source SHA failed CI Evidence: central CI failed for ...` | 中央 CI 在该提交上失败 | 打开报错里的链接查看失败的 job，通过 PR 修复并合并，等中央 CI 通过后重新启动 |
+| `Source SHA has no successful Action Worker CI Evidence` | 等待 20 分钟后，中央 CI 仍没有结果 | 在 Actions 中运行 `CI Intake`，等 `Central CI Dispatch` 结束后重新启动 |
+| `was not produced by a successful Action Worker CI run` | 状态存在，但写入它的中央 CI 运行没有成功 | 打开报错里的运行，查看原因；必要时合并一个新提交，让中央 CI 重新运行 |
+| `Source SHA has no successful Main Write Guard status` | 该 `main` SHA 还没有被证明来自合法的 PR 合并 | 在 Actions 中运行 `Main Write Audit`，结束后重新启动 |
+| `Source SHA failed Main Write Guard` 或 `not uniquely attributable to a merged pull request` | `main` 上有不是由单个 PR 合并产生的提交，例如直接 push | 通过一个新的 PR 合并一个提交，让 `main` 的 HEAD 重新来自合法的合并 |
+
+PR 治理最常见的失败：
+
+| 日志中的报错 | 怎么做 |
+|---|---|
+| `PR title must use type(scope)!: summary format` | 把 PR 标题改成 `fix(deploy): retry the health check` 这样的格式；报错里列出了允许的类型 |
+| `Invalid CHANGELOG entry` 或 `must use English engineering text` | CHANGELOG 条目写成 `- fix: summary`，摘要使用英文 |
+| `Attribution check failed` | 提交的作者、提交者、trailer 或署名行出现了 AI 智能体名称。把作者与提交者改成你自己的 GitHub 账号，重写这些提交，然后强制推送分支 |
 
 ## 13. Deploy
 
