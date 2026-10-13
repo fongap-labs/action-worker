@@ -210,7 +210,7 @@ AIG_ACCESS_KEY_AGENT
 | 方式 | 谁启动 | 说明 |
 |---|---|---|
 | 变更触发 | Intake 的 `Changed task projects` 作业 | 业务仓库 `main` 的 push 通过桥接立即唤醒 Intake。对于启用了 `push` 的仓库，如果当前 HEAD 还没有成功的 `Task Source` 状态，它会以第一个父提交作为 `before_sha` 分发一次变更项目的解析：运行期间写入 pending，成功时写入 success，失败时写入 failure，以便下一轮重试 |
-| 定时 | Intake 的 `Scheduled task projects` 作业 | 每次 Intake 运行分发最近 20 分钟内到期的时段；每个时段只分发一次，由源提交上的 `Task Schedule/<project>` 状态记录。**补发已暂停**：错过的时段不会再补跑，直到查明 `run-task` 的失败原因。恢复时把 `intake.yml` 中的 `TASK_SOURCE_LOOKBACK_MINUTES` 改回 `"720"` |
+| 定时 | Intake 的 `Scheduled task projects` 作业 | 每次 Intake 运行分发过去 12 小时内到期的时段，但每个项目只补最近的一个到期时段；每个时段只分发一次，由源提交上的 `Task Schedule/<project>` 状态记录 |
 | 手动 | 人从 Actions → `Task Source Dispatch` → Run workflow 启动 | 只填受管仓库与项目 |
 
 手动启动时，`repository` 写成 `owner/name`（只写仓库名会报错，并在报错中给出对应的完整名称），`project` 是该仓库 `projects/` 下含有 `task.json` 的目录名（填错时报错会列出可选项）。工作流会先为该仓库 `main` 的 HEAD 申请中央 CI 并证明 main 写入，任务校验最多等待 20 分钟取得结果，不需要提前手动运行任何工作流。
