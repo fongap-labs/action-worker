@@ -252,7 +252,11 @@ test("central PR intake does not re-dispatch a head whose pending run was cancel
           return stalePendingStatuses(44);
         }
         if (path === "repos/fongap-labs/action-worker/actions/runs/44") {
-          return { status: "completed", conclusion: "cancelled" };
+          return {
+            status: "completed",
+            conclusion: "cancelled",
+            path: ".github/workflows/handle-pr-dispatch.yml",
+          };
         }
         throw new Error(`unexpected API path: ${path}`);
       },
@@ -267,6 +271,43 @@ test("central PR intake does not re-dispatch a head whose pending run was cancel
   assert.equal(result.in_flight, 0);
   assert.equal(result.dispatched, 0);
   assert.equal(result.already_processed, 1);
+});
+
+test("central PR intake retries a reservation whose intake run was cancelled", async () => {
+  // The reservation names the intake run that wrote it. A cancelled intake run never dispatched
+  // anything, so its reservation must expire and be retried as before.
+  const repository = "fongap-labs/example";
+  const dispatched: number[] = [];
+
+  const result = await scanOpenPullRequests(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path.includes("/pulls?")) {
+          return [{ number: 17, head: { sha: shaA } }];
+        }
+        if (path.endsWith("/status")) {
+          return stalePendingStatuses(45);
+        }
+        if (path === "repos/fongap-labs/action-worker/actions/runs/45") {
+          return {
+            status: "completed",
+            conclusion: "cancelled",
+            path: ".github/workflows/pr-intake.yml",
+          };
+        }
+        throw new Error(`unexpected API path: ${path}`);
+      },
+    },
+    async (_repository, pr) => {
+      dispatched.push(pr);
+    },
+    "fongap-labs/action-worker"
+  );
+
+  assert.deepEqual(dispatched, [17]);
+  assert.equal(result.dispatched, 1);
+  assert.equal(result.already_processed, 0);
 });
 
 test("central PR intake honors a recent queued reservation after the intake run completes", async () => {

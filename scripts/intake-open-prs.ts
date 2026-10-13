@@ -46,6 +46,12 @@ type PullFacts = { number: number; headSha: string; pull: Record<string, unknown
 
 export const PENDING_STATUS_LEASE_MS = 120_000;
 
+// Workflows whose run carries out a pull request verdict: governance and central CI.
+const verdictWorkflowPaths = new Set([
+  ".github/workflows/handle-pr-dispatch.yml",
+  ".github/workflows/central-ci-dispatch.yml",
+]);
+
 function pendingLeaseActive(fact: StatusFact, nowMs = Date.now()): boolean {
   const updatedAtMs = Date.parse(fact.updated_at);
   return (
@@ -130,15 +136,22 @@ async function needsDispatch(
     if (["queued", "in_progress", "pending", "waiting", "requested"].includes(runStatus)) {
       return "in-flight";
     }
-    if (isJsonRecord(run) && run.conclusion === "cancelled") {
+    // Only a run that carries out a verdict counts. A reservation written by an intake run names
+    // that intake run, and a cancelled intake run must let its reservation expire and be retried.
+    if (
+      isJsonRecord(run) &&
+      run.conclusion === "cancelled" &&
+      typeof run.path === "string" &&
+      verdictWorkflowPaths.has(run.path)
+    ) {
       cancelledPendingRun.add(runId);
     }
   }
   if (facts.some((item) => item.state === "pending" && pendingLeaseActive(item))) {
     return "in-flight";
   }
-  // A cancelled run was stopped on purpose, usually by a newer dispatch for the same PR. Retrying
-  // it here would cancel the job that is running for this head, so the head is left alone.
+  // A cancelled verdict run was stopped on purpose, usually by a newer dispatch for the same PR.
+  // Retrying it here would cancel the job that is running for this head, so the head is left alone.
   if (cancelledPendingRun.size > 0) {
     return "processed";
   }
