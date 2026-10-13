@@ -19,6 +19,12 @@
   ],
   "properties": {
     "schema_version": { "const": 1 },
+    "root": {
+      "type": "string",
+      "maxLength": 512,
+      "pattern": "^(?:(?!.*\\.\\.)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*)?$",
+      "description": "Repository-relative build root; the empty string or an omitted root is the repository root. A product under projects/ must declare a non-empty root."
+    },
     "artifact_name": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
     "target_repository": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$" },
     "release_key": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },

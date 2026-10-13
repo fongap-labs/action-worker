@@ -77,3 +77,16 @@ test("release build manifest rejects target ambiguity", () => {
     })
   );
 });
+
+test("release build manifest may declare a repository-relative root", () => {
+  for (const root of ["", "app", "projects/web"]) {
+    assert.equal(parseReleaseBuildManifest({ ...manifest, root }).root, root);
+  }
+  assert.equal("root" in parseReleaseBuildManifest(manifest), false);
+});
+
+test("release build manifest rejects a root that leaves the repository", () => {
+  for (const root of ["/projects/web", "projects/../secrets", "projects//web", 1]) {
+    assert.throws(() => parseReleaseBuildManifest({ ...manifest, root }), /manifest is invalid/);
+  }
+});

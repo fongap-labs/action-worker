@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: a repository may hold several products, each with its own release manifest in `projects/<name>/`, and Release App takes a `product` input to choose one. A product manifest declares `root`, the build directory relative to the repository root, and the build script reads the absolute path from `RELEASE_PRODUCT_ROOT`. Product discovery rejects a repository that mixes a root manifest with products, repeats a release key, or declares a root outside the repository. A repository with one release manifest in `.github/` builds as before, and the runs of different products use different concurrency groups, so they no longer queue behind each other.
+
 - fix: the job that prunes runs of removed workflows skips a workflow whose runs GitHub answers with HTTP 404 and records it in the run summary, instead of stopping the job. The run of `aa3b4c9` named the refused request (`actions/workflows/365531601/runs`), and the workflow was no longer served by GitHub, so nothing could be deleted for it. Any other failure still stops the job and names the request.
 
 - fix: the job that prunes runs of removed workflows no longer fails after it deletes the last run of a workflow. GitHub answers 404 for that workflow's runs once none are left, and the re-read after the delete stopped the run of `2161d01` (`actions/workflows/365532783/runs`). That re-read now treats the 404 as no runs left, like the first read does.

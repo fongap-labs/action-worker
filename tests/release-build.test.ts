@@ -102,3 +102,20 @@ test("the release request is the only source of the application version", () => 
     assert.throws(() => parseReleaseBuildRequest({ ...request, requested_version: version }));
   }
 });
+
+test("release build request names an optional product, validated as a product directory", () => {
+  const request = {
+    schema_version: "1",
+    request_id: "release-build-1",
+    source_repository: "fongap-labs/app-source",
+    source_sha: "a".repeat(40),
+    requested_version: "1.2.3",
+  };
+  assert.deepEqual(parseReleaseBuildRequest({ ...request, product: "web" }), {
+    ...request,
+    product: "web",
+  });
+  for (const product of ["", "../web", "web app", "-web"]) {
+    assert.throws(() => parseReleaseBuildRequest({ ...request, product }));
+  }
+});

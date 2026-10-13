@@ -657,7 +657,7 @@ test("release, source, deploy, merge, and repository settings contracts remain i
     "steps.ingress.outputs.request_json",
     "validate-release-build-request.ts",
     "package-release-build.ts",
-    "$GITHUB_WORKSPACE/source/.github/release.manifest.json",
+    "$GITHUB_WORKSPACE/source/$RELEASE_MANIFEST_PATH",
     "policies/runner.json",
     "fromJSON(matrix.runner_labels_json)",
     "AW_CONTROL_TOKEN",
@@ -677,7 +677,9 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   assert.equal(await exists("policies/release-build.json"), false);
   const releaseBuildValidator = await text("scripts/validate-release-build-request.ts");
   requireText(releaseBuildValidator, [
-    ".github/release.manifest.json",
+    "resolveReleaseBuildProduct",
+    "discoverProducts",
+    "selectProduct",
     "parseReleaseBuildManifest",
     "parseRunnerPolicy",
     "resolveRunnerProfile",
@@ -689,6 +691,8 @@ test("release, source, deploy, merge, and repository settings contracts remain i
     releaseBuildValidator,
     /repositories\[request\.source_repository\]|fongap-labs\/(?:delta|app-source)/
   );
+  // The manifest path comes from product discovery, never from a fixed path in the validator.
+  assert.doesNotMatch(releaseBuildValidator, /\.github\/release\.manifest\.json/);
   // The application version comes only from the version entered when the release is started.
   assert.doesNotMatch(releaseBuildValidator, /version_source|Cargo\.toml|parseCargo/);
   assert.doesNotMatch(await text("contracts/release-build.json"), /version_source/);

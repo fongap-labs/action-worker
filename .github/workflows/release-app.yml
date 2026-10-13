@@ -13,12 +13,16 @@ on:
         description: Application version in stable SemVer such as 1.2.3 (a leading v is accepted); the only source of the released version
         required: true
         type: string
+      product:
+        description: Product directory under projects/ in the source repository. Required when the repository has several products; leave it empty when the repository has one release manifest in .github/
+        required: false
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-build-${{ github.event.client_payload.source_repository || inputs.source_repository }}-${{ github.event.client_payload.source_sha || github.run_id }}
+  group: release-build-${{ github.event.client_payload.source_repository || inputs.source_repository }}${{ (github.event.client_payload.product || inputs.product) && format('-{0}', github.event.client_payload.product || inputs.product) || '' }}-${{ github.event.client_payload.source_sha || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -41,6 +45,8 @@ jobs:
       node_version_file: ${{ steps.request.outputs.node_version_file }}
       python_version_file: ${{ steps.request.outputs.python_version_file }}
       sbom_asset: ${{ steps.request.outputs.sbom_asset }}
+      manifest_path: ${{ steps.request.outputs.manifest_path }}
+      product_root: ${{ steps.request.outputs.product_root }}
 
     steps:
       - name: Checkout control plane
@@ -61,6 +67,7 @@ jobs:
           RELEASE_DISPATCH_JSON: ${{ toJSON(github.event.client_payload) }}
           RELEASE_SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           RELEASE_REQUESTED_VERSION: ${{ inputs.requested_version }}
+          RELEASE_PRODUCT: ${{ inputs.product }}
         run: node scripts/resolve-release-build-ingress.ts
 
       # Intake may not have reached this source yet, so a release asks for central CI on its own
@@ -143,11 +150,18 @@ jobs:
           RELEASE_SCRIPT: ${{ matrix.script }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
           RELEASE_OUTPUT_DIR: ${{ runner.temp }}\release-build
+          RELEASE_PRODUCT_RELATIVE_ROOT: ${{ needs.prepare.outputs.product_root }}
         run: |
           $ErrorActionPreference = "Stop"
           $script = Join-Path "$PWD\source" $env:RELEASE_SCRIPT
           if (-not (Test-Path -LiteralPath $script -PathType Leaf)) {
             throw "release build script not found: $script"
+          }
+          # The product root is the build root from the release manifest; the empty root is the repository root.
+          $relativeRoot = if ($env:RELEASE_PRODUCT_RELATIVE_ROOT) { $env:RELEASE_PRODUCT_RELATIVE_ROOT } else { "." }
+          $env:RELEASE_PRODUCT_ROOT = [System.IO.Path]::GetFullPath((Join-Path "$PWD\source" $relativeRoot))
+          if (-not (Test-Path -LiteralPath $env:RELEASE_PRODUCT_ROOT -PathType Container)) {
+            throw "release product root not found: $env:RELEASE_PRODUCT_ROOT"
           }
           & $script -Target $env:RELEASE_TARGET -Version $env:RELEASE_VERSION -OutputDir $env:RELEASE_OUTPUT_DIR
           if ($LASTEXITCODE -ne 0) {
@@ -222,9 +236,10 @@ jobs:
           SOURCE_REPOSITORY: ${{ needs.prepare.outputs.source_repository }}
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_MANIFEST_PATH: ${{ needs.prepare.outputs.manifest_path }}
         run: |
           node scripts/package-release-build.ts \
-            "$GITHUB_WORKSPACE/source/.github/release.manifest.json" \
+            "$GITHUB_WORKSPACE/source/$RELEASE_MANIFEST_PATH" \
             "$SOURCE_REPOSITORY" \
             "$SOURCE_SHA" \
             "$RELEASE_VERSION" \
