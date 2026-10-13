@@ -21,6 +21,21 @@
     "source_sha": {
       "type": "string",
       "pattern": "^[0-9a-f]{40}$"
+    },
+    "product": {
+      "type": "string",
+      "description": "Product directory name under projects/. Empty for a repository with one root manifest.",
+      "pattern": "^$|^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+    },
+    "environment": {
+      "type": "string",
+      "description": "Environment declared by the source manifest. Empty when the manifest declares one environment.",
+      "pattern": "^$|^[a-z][a-z0-9-]{0,63}$"
+    },
+    "trigger": {
+      "type": "string",
+      "description": "What started the deploy. Only manual and push run in this version; schedule is reserved.",
+      "enum": ["push", "schedule", "manual"]
     }
   }
 }
