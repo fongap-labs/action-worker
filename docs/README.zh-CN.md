@@ -35,6 +35,12 @@ Action Worker 同时保存三类内容：
 | [ARCHITECTURE_GOVERNANCE.md](ARCHITECTURE_GOVERNANCE.md) | Action Worker 控制平面的长期架构边界 |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | 当前实现与运行模型 |
 
+## Decision records
+
+| Document | Purpose |
+|---|---|
+| [proposals/](proposals/) | 决策记录。每个文件写明状态与尚需 owner 完成的步骤 |
+
 ## Machine authority
 
 文档解释“为什么”和“怎么做”，机器权威仍在：

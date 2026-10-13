@@ -36,6 +36,12 @@ The source of truth for reusable agent execution behavior is [`skills/`](../skil
 | [ARCHITECTURE_GOVERNANCE.md](ARCHITECTURE_GOVERNANCE.md) | Long-term control-plane architecture boundaries |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | Current implementation and runtime model |
 
+## Decision records
+
+| Document | Purpose |
+|---|---|
+| [proposals/](proposals/) | Decision records. Each file states its status and any remaining owner step |
+
 ## Machine authority
 
 Documentation explains why and how. Machine authority remains in:

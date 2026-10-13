@@ -48,17 +48,7 @@ Do not patch the final error message when the invalid state was created earlier.
 
 ### 3. Classify
 
-Classify related failures as:
-
-```text
-NEW_FAILURE
-EXISTING_FAILURE
-FLAKY
-ENVIRONMENT
-EXTERNAL_DEPENDENCY
-TOOLCHAIN
-EXPECTED
-```
+Classify each related failure with the classes defined in `agent-execution` section 5 before changing code.
 
 ### 4. Analyze blast radius
 

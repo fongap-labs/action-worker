@@ -187,7 +187,7 @@ Future dynamic understanding, historical baselines and dual agents may only stre
 
 `policies/checks.json` and `policies/tests.json` describe generic verification categories.
 
-Project test code stays with the product code, but heavy execution converges on the Action Worker sandbox.
+Tests that can run from outside the repository are held in Action Worker test packs ([TEST_PACKS.md](TEST_PACKS.md)); the rest stay with the product code. All tests run in the Action Worker sandbox.
 
 Action Worker decides:
 
@@ -443,7 +443,7 @@ A source declares the secret name its code reads, for example `CLOUDFLARE_API_TO
 
 - The stored secret of the declared name itself is never a fallback: an aliased name whose stored secret is missing fails (required) or is removed (optional), because the plain name may hold another account's token.
 - The alias target must not be a reserved name, must not be declared by the source, and cannot be shared by two aliases. The aliased name must be one the policy lists for that project or environment.
-- Today `CLOUDFLARE_API_TOKEN_PRIMARY` serves the internal-vault tasks FongapBlog and FongapCDN, and `CLOUDFLARE_API_TOKEN_SECONDARY` serves the ai-gateway deploy. Both are stored in action-worker like every other secret.
+- The current alias assignments are recorded in `policies/task-secrets.json` and `policies/deploy-secrets.json`. They are not repeated in this document. Every secret, aliased or not, is stored in Action Worker.
 
 ### 9.4 Private task state and logs
 

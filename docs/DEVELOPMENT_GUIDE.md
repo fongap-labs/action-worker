@@ -23,7 +23,7 @@ Action Worker carries: PR Governance, CI / test / build execution, AI Review, CI
 
 ## 3. Business repository owns
 
-A business repository keeps: product code, project tests, build / package / deploy scripts, project architecture and protocols, the execution manifest, platform-specific toolchain declarations, the thinnest dispatch, and a very thin check bridge where the GitHub platform really needs one.
+A business repository keeps: product code, the project tests that cannot run from outside the repository ([TEST_PACKS.md](TEST_PACKS.md) section 6), build / package / deploy scripts, project architecture and protocols, the execution manifest, platform-specific toolchain declarations, the thinnest dispatch, and a very thin check bridge where the GitHub platform really needs one.
 
 A business repository must not keep a second central governance, and must not run long-lived heavy CI / build / review / release / deploy for its own convenience.
 
@@ -50,7 +50,7 @@ When a boundary changes, change the contract, the policy or the regression tests
 
 ## 5. CI
 
-Project test code belongs to the business repository; by default it runs in the Action Worker sandbox.
+Tests that can run from outside the repository are held in Action Worker test packs ([TEST_PACKS.md](TEST_PACKS.md)). All tests run in the Action Worker sandbox.
 
 ```text
 repository event

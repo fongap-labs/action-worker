@@ -21,7 +21,7 @@ The business repository does not copy central governance and does not carry long
 
 ## 2. What the business repository keeps
 
-The business repository keeps: product source code, project tests, project build / package / deploy scripts, the project architecture, the execution manifest and the thinnest dispatch.
+The business repository keeps: product source code, the project tests that cannot run from outside the repository ([TEST_PACKS.md](TEST_PACKS.md) section 6), project build / package / deploy scripts, the project architecture, the execution manifest and the thinnest dispatch.
 
 If the GitHub platform requires the target repository to create a required check itself, it may also keep a very thin check bridge; that bridge must not run product tests or hold central secrets.
 

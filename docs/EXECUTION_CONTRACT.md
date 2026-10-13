@@ -52,7 +52,7 @@ A business repository must not bypass this chain with heavy workflows of its own
 A business repository keeps:
 
 - product source code;
-- project tests;
+- project tests that cannot run from outside the repository (see [TEST_PACKS.md](TEST_PACKS.md));
 - project-level build / package / deploy scripts;
 - configuration templates the project needs to run;
 - the execution manifest;

@@ -179,7 +179,7 @@ Only for controlled execution that really needs production credentials, a privat
 
 ## 7. CI and PR Governance
 
-Project tests are part of the product specification, so the test code stays in the business repository; where they run converges on Action Worker:
+Project tests are part of the product specification. Tests that can run from outside the business repository are held in Action Worker test packs ([TEST_PACKS.md](TEST_PACKS.md)); the rest stay in the business repository. All tests run in the Action Worker sandbox:
 
 ```text
 PR / push

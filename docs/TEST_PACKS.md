@@ -66,9 +66,9 @@ Rule: a test stays only when it cannot reach the object under test from outside 
 
 - Rust inline `#[cfg(test)]` tests and in-crate integration tests (they depend on crate-private items and the Cargo build graph).
 - Desktop Playwright e2e and vitest component tests (they depend on the `apps/desktop` toolchain).
-- Infrastructure script tests that need root or Docker (such as `internal-vault/services/server-edge/tests/*.sh`).
-- `delta-suite/tests/foundation_runtime_e2e` (compiled into the pinned Foundation core crate).
-- `app-source/projects/SecurePigeon/crates/*/tests` (Rust crate integration tests and fuzz tests).
+- Infrastructure shell tests that need root or Docker.
+- Runtime end-to-end tests compiled into a pinned core crate.
+- Rust crate integration tests and fuzz tests.
 
 ## 7. Adding tests
 
@@ -84,7 +84,7 @@ Rule: a test stays only when it cannot reach the object under test from outside 
 | ai-gateway | `ai-gateway` (24 modules) | none |
 | delta | `delta` (6 modules) | Rust inline and crate tests, `apps/desktop` e2e and vitest, tests inside 3 small packages such as `packages/delta_worker_sdk` |
 | delta-suite | `delta-suite` (4 modules) | `tests/foundation_runtime_e2e` |
-| internal-vault | `internal-vault` (8 modules) | `services/server-edge/tests/*.sh` (need root and Docker) |
-| app-source | `app-source` (1 module, the database tests of license-service) | `crates/*/tests` (Rust); `legacy/test_*.py` are legacy scripts CI never runs and are not part of the pack |
+| internal-vault | `internal-vault` (8 modules) | infrastructure shell tests (need root and Docker) |
+| app-source | `app-source` (1 module, the database tests of license-service) | Rust crate tests; legacy Python scripts that CI never runs are not part of the pack |
 | external-vault | none | no test suite; CI runs only the manifest and secret scan check scripts |
 | AssHub | none | empty repository |
