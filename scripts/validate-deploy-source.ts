@@ -2,6 +2,7 @@ import { centralCiWait, requireVerifiedCiEvidence } from "./ci-evidence.ts";
 import {
   type DeployAdapter,
   isDeployEnvironmentName,
+  type ResolvedDeployManifest,
   resolveDeployManifest,
 } from "./deploy-manifest.ts";
 import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
@@ -84,6 +85,26 @@ export function assertExpectedRepository(request: DeployRequest, expectedReposit
   }
 }
 
+// A request names the trigger that started it; the source manifest must declare that trigger for the
+// environment, so a request cannot deploy an environment on a trigger it does not have.
+export function assertDeployTrigger(
+  trigger: DeployTrigger,
+  manifest: Pick<ResolvedDeployManifest, "automatic" | "schedule" | "environment">
+): void {
+  if (trigger === "push" && !manifest.automatic) {
+    throw new CliError(
+      `::error::Push deploy requires a push trigger, and the source manifest declares none for ${manifest.environment}.`,
+      65
+    );
+  }
+  if (trigger === "schedule" && manifest.schedule.length === 0) {
+    throw new CliError(
+      `::error::Scheduled deploy requires a schedule, and the source manifest declares none for ${manifest.environment}.`,
+      65
+    );
+  }
+}
+
 async function main(): Promise<void> {
   const [
     expectedAdapterRaw = "",
@@ -145,10 +166,6 @@ async function main(): Promise<void> {
   }
 
   const trigger = request.trigger ?? "manual";
-  if (trigger === "schedule") {
-    throw new CliError("::error::Scheduled deploys are not enabled yet.", 64);
-  }
-
   const discovery = await discoverProducts(reader, request.source_repository, resolvedSha);
   const product = selectProduct(discovery.products, request.product ?? "");
   if (product.files["deploy.json"] === undefined) {
@@ -172,12 +189,7 @@ async function main(): Promise<void> {
       65
     );
   }
-  if (trigger === "push" && !manifest.automatic) {
-    throw new CliError(
-      `::error::Push deploy requires a push trigger, and the source manifest declares none for ${manifest.environment}.`,
-      65
-    );
-  }
+  assertDeployTrigger(trigger, manifest);
 
   // A manual deploy requests central CI for the commit just before this step, so wait for it.
   await requireVerifiedCiEvidence(reader, request.source_repository, resolvedSha, centralCiWait);

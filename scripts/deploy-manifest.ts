@@ -1,3 +1,4 @@
+import { parseCronSchedule } from "./cron-schedule.ts";
 import {
   assertUniqueEnvironments,
   isDeployPolicyKey,
@@ -82,7 +83,6 @@ const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
 const namePattern = /^[a-z][a-z0-9-]{0,63}$/;
 const pathPattern = /^[A-Za-z0-9._/-]+$/;
-const cronPattern = /^\S+( \S+){4}$/;
 const rootDeployManifestPath = ".github/deploy.json";
 
 export function isDeployEnvironmentName(value: string): boolean {
@@ -155,13 +155,15 @@ function parseSchemaOne(value: Record<string, unknown>): DeployManifestV1 {
 }
 
 function parseSchedule(value: unknown, environment: string): void {
-  if (
-    !Array.isArray(value) ||
-    value.length === 0 ||
-    value.length > 20 ||
-    value.some((item) => typeof item !== "string" || !cronPattern.test(item))
-  ) {
+  if (!Array.isArray(value) || value.length === 0 || value.length > 20) {
     throw new CliError(`Deploy schedule is invalid for environment ${environment}.`, 65);
+  }
+  for (const item of value) {
+    if (typeof item !== "string") {
+      throw new CliError(`Deploy schedule is invalid for environment ${environment}.`, 65);
+    }
+    // The same parser the scheduler uses, so a cron that cannot run is refused here.
+    parseCronSchedule(item, "Deploy schedule");
   }
 }
 
@@ -362,6 +364,7 @@ export type ResolvedDeployManifest = {
   adapter: DeployAdapter;
   automatic: boolean;
   push_paths: readonly string[] | null;
+  schedule: readonly string[];
   declares_triggers: boolean;
   root: string;
   entrypoint: string;
@@ -452,6 +455,7 @@ export async function resolveDeployManifest(
     adapter: plan.adapter,
     automatic: environment.push_paths !== null,
     push_paths: environment.push_paths,
+    schedule: environment.schedule,
     declares_triggers: environment.declares_triggers,
     root: plan.root,
     entrypoint: plan.entrypoint,
