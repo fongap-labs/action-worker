@@ -121,12 +121,14 @@ test("an invalid environment policy is rejected", () => {
   }
 });
 
-test("the shipped environment policy parses and covers the two deploying repositories", async () => {
+test("the shipped environment policy parses and keys each deploying product by its product key", async () => {
   const policy = parseDeployEnvironmentPolicy(
     JSON.parse(await readFile("policies/deploy-environments.json", "utf8"))
   );
   assert.deepEqual(policy["fongap-labs/ai-gateway"], ["production"]);
-  assert.deepEqual(policy["fongap-labs/internal-vault"], ["server-edge-cloud-edge"]);
+  assert.deepEqual(policy["fongap-labs/internal-vault/server-edge"], ["server-edge-cloud-edge"]);
+  // The repository key is gone: the product has no fallback to it.
+  assert.equal(Object.hasOwn(policy, "fongap-labs/internal-vault"), false);
 });
 
 // --- central deploy secret ceiling ---------------------------------------------------------------
@@ -223,9 +225,11 @@ test("the shipped deploy secret policy only holds valid, non-reserved names", as
   const internalVault = await readDeploySecretCeiling(
     "policies/deploy-secrets.json",
     "fongap-labs/internal-vault",
-    "server-edge-cloud-edge"
+    "server-edge-cloud-edge",
+    "server-edge"
   );
   assert.deepEqual([...internalVault].sort(), [
+    "SERVER_EDGE_RELEASE_SIGNING_KEY",
     "SERVER_EDGE_SECRET_BUNDLE",
     "SERVER_EDGE_SSH_PRIVATE_KEY",
     "SERVER_EDGE_TAILSCALE_AUTH_KEY",
@@ -460,7 +464,7 @@ test("a product's deploy scope drops another product's secret stored in its envi
   }
 });
 
-test("the shipped policies name no product key, so the root layout is unchanged", async () => {
+test("the shipped policies key every deploying product by its product key", async () => {
   const environments = parseDeployEnvironmentPolicy(
     JSON.parse(await readFile("policies/deploy-environments.json", "utf8"))
   );
@@ -469,11 +473,11 @@ test("the shipped policies name no product key, so the root layout is unchanged"
   };
   assert.deepEqual(Object.keys(environments).sort(), [
     "fongap-labs/ai-gateway",
-    "fongap-labs/internal-vault",
+    "fongap-labs/internal-vault/server-edge",
   ]);
   assert.deepEqual(Object.keys(secrets.deployments).sort(), [
     "fongap-labs/ai-gateway",
-    "fongap-labs/internal-vault",
+    "fongap-labs/internal-vault/server-edge",
   ]);
 });
 
