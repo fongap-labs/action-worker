@@ -10,7 +10,7 @@
 [![Task Dispatch](https://img.shields.io/badge/Task%20Dispatch-34-2A5588?style=flat-square&labelColor=1B2A41)](https://github.com/fongap-labs/action-worker/actions) [![AI Review](https://img.shields.io/badge/AI%20Review-118-4B4F8F?style=flat-square&labelColor=1B2A41)](https://github.com/fongap-labs/action-worker/actions) [![PR Governance](https://img.shields.io/badge/PR%20Governance-575-2E6B73?style=flat-square&labelColor=1B2A41)](https://github.com/fongap-labs/action-worker/actions) [![Release Governance](https://img.shields.io/badge/Release%20Governance-9-8C6D3F?style=flat-square&labelColor=1B2A41)](https://github.com/fongap-labs/action-worker/releases) [![Status](https://img.shields.io/github/actions/workflow/status/fongap-labs/action-worker/validate-ci.yml?branch=main&style=flat-square&labelColor=1B2A41&label=Status)](https://github.com/fongap-labs/action-worker/actions/workflows/validate-ci.yml)
 <!-- work-metrics:end -->
 
-[快速开始](#快速开始) · [维护者参考](#维护者参考) · [文档](docs/README.md) · [安全策略](SECURITY.md)
+[快速开始](#快速开始) · [维护者参考](#维护者参考)  · [安全策略](SECURITY.md)
 
 </div>
 
