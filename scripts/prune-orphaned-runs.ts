@@ -140,7 +140,8 @@ async function main(): Promise<void> {
         result.deleted += 1;
         budget -= 1;
       }
-      runs = getJsonArray(await getOrFail(reader, runsPath), "workflow_runs");
+      // Once the last run is deleted, GitHub answers 404 for the runs of the removed workflow: none are left.
+      runs = (await readWorkflowRuns(reader, runsPath)) ?? [];
     }
     const remaining = runs.length;
     result.result =
