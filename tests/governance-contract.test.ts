@@ -178,7 +178,8 @@ test("Intake reconciles every kind of work on the heartbeat, never by hand", asy
     "MAIN_WRITE_AUDIT_RUN_URL",
     "intake-task-sources.ts",
     "dispatch-scheduled-tasks.ts",
-    'TASK_SOURCE_LOOKBACK_MINUTES: "720"',
+    // Catch-up is paused at 20 minutes until the failing run-task executions are explained.
+    'TASK_SOURCE_LOOKBACK_MINUTES: "20"',
     "intake-security-scans.ts",
   ]);
   assert.doesNotMatch(workflow, /workflow_dispatch/);

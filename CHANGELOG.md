@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: scheduled task catch-up is paused. Intake dispatches only the slots due in the last 20 minutes again. The 12-hour window of the catch-up change started two `run-task` executions right after the merge of #740, and their failure is sealed in the private task log, so the cause is not yet known. The catch-up returns when `TASK_SOURCE_LOOKBACK_MINUTES` in `intake.yml` is set back to `720`.
+
 - fix: a failed request of the job that prunes runs of removed workflows names the request path in its error. The run of 41d8f02 failed with `GitHub API returned HTTP 404.` and the log did not say which call was refused. The job deletes nothing before its first request succeeds.
 
 - feat [migration]: one Intake workflow (`intake.yml`) replaces PR Intake, CI Intake, Task Intake, Security Scan Intake and Main Write Audit, and Task Source Dispatch no longer runs on a schedule. GitHub started the five-minute schedules of this repository only every 2.6 to 9.8 hours, so Intake also runs on every push to `main` and on the `run-intake` event, and each kind of work is one job of it. Anything that starts the removed workflows by name must send `run-intake` instead.
