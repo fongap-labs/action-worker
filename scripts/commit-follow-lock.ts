@@ -62,11 +62,11 @@ export function validateLockPatch(patch: string, lockPath: string): void {
     throw new CliError("uv.lock patch is larger than 16 MiB.", 65);
   }
   const lines = patch.split("\n");
-  let inHunk = false;
+  let isInHunk = false;
   let fileHeaders = 0;
   for (const line of lines) {
     if (line === "") continue;
-    if (!inHunk) {
+    if (!isInHunk) {
       if (line.startsWith("diff --git ")) {
         fileHeaders += 1;
         if (line !== `diff --git a/${lockPath} b/${lockPath}`) {
@@ -77,7 +77,7 @@ export function validateLockPatch(patch: string, lockPath: string): void {
       if (line.startsWith("index ")) continue;
       if (line === `--- a/${lockPath}` || line === `+++ b/${lockPath}`) continue;
       if (line.startsWith("@@ ")) {
-        inHunk = true;
+        isInHunk = true;
         continue;
       }
       throw new CliError(`uv.lock patch contains an unsupported header: ${line.slice(0, 80)}.`, 65);
@@ -85,7 +85,7 @@ export function validateLockPatch(patch: string, lockPath: string): void {
     if (line.startsWith("@@ ") || /^[ +\-\\]/.test(line)) continue;
     throw new CliError(`uv.lock patch contains an unsupported change: ${line.slice(0, 80)}.`, 65);
   }
-  if (fileHeaders !== 1 || !inHunk) {
+  if (fileHeaders !== 1 || !isInHunk) {
     throw new CliError(`uv.lock patch must change exactly ${lockPath}.`, 65);
   }
 }
