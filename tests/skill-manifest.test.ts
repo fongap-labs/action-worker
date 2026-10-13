@@ -203,7 +203,7 @@ test("discoverSkills scans committed skills/ directory", async () => {
   assert.ok(names.includes("pr-review"));
   assert.ok(names.includes("release-verify"));
   assert.ok(names.includes("writing"));
-  assert.ok(names.includes("tdd"));
+  assert.ok(names.includes("test-driven-development"));
   assert.ok(names.includes("writing-for-agents"));
 });
 
@@ -212,7 +212,7 @@ test("resolveAndVerifySkills resolves committed coding/task without config", asy
   assert.ok(result.includes("skills/agent-execution/SKILL.md"));
   assert.ok(result.includes("skills/code-minimality/SKILL.md"));
   assert.ok(result.includes("skills/bug-fix/SKILL.md"));
-  assert.ok(result.includes("skills/tdd/SKILL.md"));
+  assert.ok(result.includes("skills/test-driven-development/SKILL.md"));
 });
 
 test("resolveAndVerifySkills resolves committed writing/task", async () => {
@@ -222,7 +222,7 @@ test("resolveAndVerifySkills resolves committed writing/task", async () => {
   assert.ok(result.includes("skills/writing-for-agents/SKILL.md"));
   assert.ok(!result.includes("skills/code-minimality/SKILL.md"));
   assert.ok(!result.includes("skills/bug-fix/SKILL.md"));
-  assert.ok(!result.includes("skills/tdd/SKILL.md"));
+  assert.ok(!result.includes("skills/test-driven-development/SKILL.md"));
 });
 
 test("resolveAndVerifySkills rejects unknown domain", async () => {
@@ -249,14 +249,14 @@ test("every committed SKILL.md parses with valid frontmatter", async () => {
   assert.equal(skills.length, 11);
 });
 
-test("tdd is a coding task skill and writing-for-agents is a writing baseline", async () => {
-  const tdd = parseFrontmatter(
-    await readFile("skills/tdd/SKILL.md", "utf8"),
-    "skills/tdd/SKILL.md"
+test("test-driven-development is a coding task skill and writing-for-agents is a writing baseline", async () => {
+  const testDrivenDevelopment = parseFrontmatter(
+    await readFile("skills/test-driven-development/SKILL.md", "utf8"),
+    "skills/test-driven-development/SKILL.md"
   );
-  assert.equal(tdd.domain, "coding");
-  assert.equal(tdd.baseline, false);
-  assert.deepEqual(tdd.operations, ["task"]);
+  assert.equal(testDrivenDevelopment.domain, "coding");
+  assert.equal(testDrivenDevelopment.baseline, false);
+  assert.deepEqual(testDrivenDevelopment.operations, ["task"]);
 
   const writingForAgents = parseFrontmatter(
     await readFile("skills/writing-for-agents/SKILL.md", "utf8"),
@@ -269,7 +269,7 @@ test("tdd is a coding task skill and writing-for-agents is a writing baseline", 
 
 test("adapted skills carry their key rules and credit their upstream source", async () => {
   const checks: Record<string, string[]> = {
-    "skills/tdd/SKILL.md": [
+    "skills/test-driven-development/SKILL.md": [
       "Horizontal slicing",
       "Tautological",
       "Red before green",

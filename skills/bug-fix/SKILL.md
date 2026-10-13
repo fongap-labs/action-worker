@@ -124,7 +124,7 @@ reproduction fails before fix
 → regression test remains
 ```
 
-Write the regression test at a seam that exercises the real bug pattern as it occurs at the call site. Load `tdd` for the test design. If the only available seam is too shallow to reproduce the bug, record that as a finding: the architecture prevents the bug from being locked down. Do not add a test that gives false confidence.
+Write the regression test at a seam that exercises the real bug pattern as it occurs at the call site. Load `test-driven-development` for the test design. If the only available seam is too shallow to reproduce the bug, record that as a finding: the architecture prevents the bug from being locked down. Do not add a test that gives false confidence.
 
 If an automated test is not feasible, add the strongest deterministic verification available and record why.
 

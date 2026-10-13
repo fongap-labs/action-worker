@@ -19,7 +19,7 @@ Each subdirectory contains a `SKILL.md` file — a set of rules telling the AI a
 | [pr-review](pr-review/SKILL.md) | Checklist for reviewing pull requests |
 | [release-verify](release-verify/SKILL.md) | Before/after release: verify source, artifacts, checksums, rollback |
 | [writing](writing/SKILL.md) | For content tasks: no fabrication, verify facts, surgical edits |
-| [tdd](tdd/SKILL.md) | For code behavior changes with a test seam: test at public seams, red-green vertical slices |
+| [test-driven-development](test-driven-development/SKILL.md) | For code behavior changes with a test seam: test at public seams, red-green vertical slices |
 | [writing-for-agents](writing-for-agents/SKILL.md) | For agent-facing documents only (skills, AGENTS.md, CLAUDE.md): pointers, completion criteria, pruning |
 
 ## How to use
@@ -31,7 +31,7 @@ Examples:
 ```
 # Scenario 1: normal coding task (most common)
 # Do not fill anything. The system defaults to the "coding" domain.
-# Auto-loads: agent-execution + code-minimality + bug-fix + multi-agent-delegation + tdd
+# Auto-loads: agent-execution + code-minimality + bug-fix + multi-agent-delegation + test-driven-development
 
 # Scenario 2: writing task (docs, copy, briefs)
 # Add one field to the dispatch payload:

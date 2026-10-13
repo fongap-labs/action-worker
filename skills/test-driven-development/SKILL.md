@@ -1,11 +1,11 @@
 ---
-name: tdd
+name: test-driven-development
 description: Test-first implementation discipline for code changes that have a test seam. Covers test design at public seams, anti-patterns, and red-green cycles in vertical slices. Use for task operations that change observable behavior.
 domain: coding
 operations: [task]
 ---
 
-# TDD
+# Test-Driven Development
 
 Use for `task` operations that change observable behavior in code that has a test seam.
 
