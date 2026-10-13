@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: the Task Source job no longer fails silently when a pushed project changes without a `task.json` and sorts after the projects that have one. Its project selection ended on the failed `task.json` test, so the step exited 1 with no message (run 38461716285 on `ab3572e`, whose `projects/server-edge` carries only a deploy manifest). The selection now skips such a project and still dispatches the task projects of the push.
+
 - feat [migration]: the deploy policy entries of one managed product move from its repository key to its product key (`owner/name/product`) in one change, because an environment name may belong to one key only. The product no longer falls back to the repository key, so a manual deploy through the repository key is refused until the product's manifest uses the product layout. The moved secret ceiling also lists one signing key name that the product declares, which the product layout enforces.
 
 - feat: a deploy environment with `triggers.schedule` in its source manifest deploys on the cron schedule. The Intake job `deploy-schedules` runs the scheduler every five minutes on the heartbeat, looks back 12 hours for the latest due firing of each product environment, and dispatches it once, recorded as the `Deploy Schedule/<product>/<environment>` status on the default-branch head. A red or unverified default branch is skipped for that run rather than replaced by an older commit, because a scheduled deploy must not deploy an older change. Before, a deploy schedule was refused, so product environments could only deploy on a push or by hand. Task schedules keep their behavior; their cron parser moved to `scripts/cron-schedule.ts` unchanged.
