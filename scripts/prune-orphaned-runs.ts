@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import {
+  GithubHttpError,
   GithubReader,
   getJsonArray,
   getJsonNumber,
@@ -63,6 +64,22 @@ async function getOrFail(reader: GithubReader, path: string): Promise<unknown> {
   }
 }
 
+// GitHub still lists some removed workflows, but answers 404 for their runs. Nothing can be deleted
+// for them through the API, so the caller records them and moves on; any other failure stops the job.
+export async function readWorkflowRuns(
+  reader: GithubReader,
+  runsPath: string
+): Promise<unknown[] | undefined> {
+  try {
+    return getJsonArray(await reader.get(runsPath), "workflow_runs");
+  } catch (error) {
+    if (error instanceof GithubHttpError && error.status === 404) {
+      return undefined;
+    }
+    throw describeRequestFailure(runsPath, error);
+  }
+}
+
 async function main(): Promise<void> {
   const token = process.env.GH_TOKEN ?? "";
   const repository = process.env.GITHUB_REPOSITORY ?? "";
@@ -96,7 +113,12 @@ async function main(): Promise<void> {
     const result: PruneResult = { ...workflow, deleted: 0, result: "" };
     results.push(result);
     const runsPath = `repos/${repository}/actions/workflows/${workflow.id}/runs?per_page=100`;
-    let runs = getJsonArray(await getOrFail(reader, runsPath), "workflow_runs");
+    const listed = await readWorkflowRuns(reader, runsPath);
+    if (listed === undefined) {
+      result.result = "not reachable through the API (HTTP 404); nothing to delete";
+      continue;
+    }
+    let runs = listed;
     if (runs.length > 0 && !isPastGracePeriod(runs[0], nowMs)) {
       result.result = "kept (last run less than 2 days ago)";
       continue;

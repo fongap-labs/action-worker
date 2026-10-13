@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
+import { GithubReader } from "../scripts/github-api.ts";
 import {
   describeRequestFailure,
   gracePeriodMs,
@@ -8,6 +9,7 @@ import {
   isPastGracePeriod,
   maxDeletionsPerRun,
   orphanedWorkflows,
+  readWorkflowRuns,
 } from "../scripts/prune-orphaned-runs.ts";
 
 test("a failed GitHub request names the path that was refused", () => {
@@ -18,6 +20,34 @@ test("a failed GitHub request names the path that was refused", () => {
     `::error::GitHub request failed for ${path}: GitHub API returned HTTP 404.`
   );
   assert.equal(error.exitCode, 1);
+});
+
+test("a removed workflow GitHub answers 404 for is skipped, any other failure stops the job", async (context) => {
+  const originalFetch = globalThis.fetch;
+  context.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+  const reader = new GithubReader("https://api.example.test", "token", {
+    attemptLimit: 1,
+    retryDelayMs: 0,
+  });
+  const path = "repos/fongap-labs/action-worker/actions/workflows/365531601/runs?per_page=100";
+  const answer = (status: number, body: unknown) => {
+    globalThis.fetch = (async () => new Response(JSON.stringify(body), { status })) as typeof fetch;
+  };
+
+  answer(404, { message: "Not Found" });
+  assert.equal(await readWorkflowRuns(reader, path), undefined);
+
+  answer(200, { workflow_runs: [{ id: 7, status: "completed" }] });
+  assert.deepEqual(await readWorkflowRuns(reader, path), [{ id: 7, status: "completed" }]);
+
+  answer(500, {});
+  await assert.rejects(
+    () => readWorkflowRuns(reader, path),
+    (error: Error) =>
+      error.message === `::error::GitHub request failed for ${path}: GitHub API returned HTTP 500.`
+  );
 });
 
 test("only workflow files missing from main are orphaned", () => {
