@@ -10,10 +10,6 @@
 [![Task Dispatch](https://img.shields.io/badge/Task%20Dispatch-34-2A5588?style=flat-square&labelColor=1B2A41)](https://github.com/fongap-labs/action-worker/actions) [![AI Review](https://img.shields.io/badge/AI%20Review-118-4B4F8F?style=flat-square&labelColor=1B2A41)](https://github.com/fongap-labs/action-worker/actions) [![PR Governance](https://img.shields.io/badge/PR%20Governance-570-2E6B73?style=flat-square&labelColor=1B2A41)](https://github.com/fongap-labs/action-worker/actions) [![Release Governance](https://img.shields.io/badge/Release%20Governance-9-8C6D3F?style=flat-square&labelColor=1B2A41)](https://github.com/fongap-labs/action-worker/releases) [![Status](https://img.shields.io/github/actions/workflow/status/fongap-labs/action-worker/validate-ci.yml?branch=main&style=flat-square&labelColor=1B2A41&label=Status)](https://github.com/fongap-labs/action-worker/actions/workflows/validate-ci.yml)
 <!-- work-metrics:end -->
 
-[![License](https://img.shields.io/badge/License-MIT-5C6B80?style=flat-square&labelColor=1B2A41)](LICENSE) [![Node.js](https://img.shields.io/badge/Node.js-24%2B-5C6B80?style=flat-square&labelColor=1B2A41)](package.json)
-
-<sub>统计口径：Task Dispatch = Handle Task Dispatch 成功次数 · AI Review = AI Review 成功执行次数 · PR Governance = Handle PR Dispatch 成功次数 · Release Governance = Handle Release Dispatch 成功次数</sub>
-
 [快速开始](#快速开始) · [维护者参考](#维护者参考) · [文档](docs/README.md) · [安全策略](SECURITY.md)
 
 </div>
