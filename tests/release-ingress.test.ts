@@ -73,3 +73,30 @@ test("manual release ingress requires the version to be entered", async () => {
     /stable SemVer/
   );
 });
+
+test("manual release ingress passes the product only when one is entered", async () => {
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      if (path === "repos/fongap-labs/example") return { default_branch: "main" };
+      if (path === "repos/fongap-labs/example/commits/main") return { sha };
+      throw new Error(`unexpected path: ${path}`);
+    },
+  };
+  const policy = { "fongap-labs/example": ["release-source"] };
+
+  const request = await resolveManualReleaseBuild(
+    "fongap-labs/example",
+    "1.2.3",
+    policy,
+    reader,
+    "123",
+    "1",
+    "web"
+  );
+  assert.equal(request.product, "web");
+
+  await assert.rejects(
+    resolveManualReleaseBuild("fongap-labs/example", "1.2.3", policy, reader, "123", "1", "../web"),
+    /payload is invalid/
+  );
+});

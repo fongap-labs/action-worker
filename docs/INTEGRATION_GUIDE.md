@@ -229,7 +229,7 @@ AIG_ACCESS_KEY_AGENT
 → 完成 / 回滚
 ```
 
-业务仓库保留项目的构建 / 打包脚本，并在 `.github/release.manifest.json` 中声明构建目标、产物以及抽象的 `runner_profile`。该 manifest 不包含版本。Action Worker 从不可变的源 SHA 读取并校验该 manifest，并通过中央 Runner 策略选择实际的 Runner。
+业务仓库保留项目的构建 / 打包脚本，并在 `.github/release.manifest.json` 中声明构建目标、产物以及抽象的 `runner_profile`（一个仓库含有多个产品时见第 12.3 节）。该 manifest 不包含版本。Action Worker 从不可变的源 SHA 读取并校验该 manifest，并通过中央 Runner 策略选择实际的 Runner。
 
 项目 manifest 不得声明中央密钥、令牌，或具体的 GitHub / self-hosted Runner 标签。目标仓库的发布凭据始终保留在 Action Worker 中。
 
@@ -245,7 +245,7 @@ Release 与 Deploy 工作流按发布类型或部署适配器命名，绝不以�
 
 | 你想要 | 工作流 | 手动输入 | 自动启动方式 | 当前使用方 |
 |---|---|---|---|---|
-| 发布由源仓库构建的应用 | `Release App` (`release-app.yml`) | `source_repository`、`requested_version`（必填的稳定 SemVer） | `run-release-build` 分发事件 | delta、app-source |
+| 发布由源仓库构建的应用 | `Release App` (`release-app.yml`) | `source_repository`、`requested_version`（必填的稳定 SemVer）、`product`（仓库有多个产品时必填，见第 12.3 节） | `run-release-build` 分发事件 | delta、app-source |
 | 发布从上游镜像而来的第三方工具 | `Release Tool` (`release-tool.yml`) | 无手动按钮 | 定时任务，每 6 小时一次，处理工具目录中的全部工具 | external-vault `tools/` |
 | 部署某个源提交 | `Deploy Source Script` (`deploy-source-script.yml`) | `source_repository`、`source_sha`（可选；留空部署默认分支的当前 HEAD，否则是精确的 40 位 SHA） | 可信的 main 写入之后中央 CI 启动，且仓库的 `.github/deploy.json` 中 `automatic: true`；如果中央 CI 运行期间 `main` 之后只多了文档提交，则部署当前的 `main`，改动不会因为文档提交而漏部署 | ai-gateway（自动）、internal-vault（仅手动） |
 
@@ -271,6 +271,11 @@ Release 与 Deploy 工作流按发布类型或部署适配器命名，绝不以�
 | `Source SHA failed CI Evidence: central CI failed for ...` | 中央 CI 在该提交上失败 | 打开报错里的链接查看失败的 job，通过 PR 修复并合并，等中央 CI 通过后重新启动 |
 | `Source SHA has no successful Action Worker CI Evidence` | 等待 20 分钟后，中央 CI 仍没有结果（通常是 CI 仍在排队或运行） | 在 Actions → `Central CI Dispatch` 中找到该仓库的运行，等它通过后重新启动 |
 | `was not produced by a successful Action Worker CI run` | 状态存在，但写入它的中央 CI 运行没有成功 | 打开报错里的运行，查看原因；必要时合并一个新提交，让中央 CI 重新运行 |
+| `Product is required because the source repository has several products.` | 仓库有多个产品，但 `product` 留空 | 在 `product` 中填写报错列出的一个产品目录名 |
+| `Unknown product: <名称>.` | `product` 不是仓库 `projects/` 下的产品目录 | 从报错列出的产品中选择 |
+| `Repository has root manifests in .github/ and products under projects/.` | 同时存在根目录清单与 `projects/` 下的产品 | 只保留一种布局，见第 12.3 节 |
+| `Release key is declared by more than one product` | 两个产品的 `release_key` 相同 | 给其中一个产品改用不同的 `release_key` |
+| `Product release manifest must declare root` | 产品的发布清单缺少 `root`，或 `root` 不合法 | 填写相对仓库根目录的 `root`，不以 `/` 开头，也不包含 `..` |
 | `Source SHA has no successful Main Write Guard status` | 该 `main` SHA 还没有被证明来自合法的 PR 合并 | 几分钟后重新启动；仍然出现时，打开最新一次 `Intake` 运行的 `Main write audit` 作业查看原因 |
 | `Source SHA failed Main Write Guard` 或 `not uniquely attributable to a merged pull request` | `main` 上有不是由单个 PR 合并产生的提交，例如直接 push | 通过一个新的 PR 合并一个提交（需要通过 `validate-merge`），让 `main` 的 HEAD 重新来自合法的合并 |
 
@@ -281,6 +286,63 @@ PR 治理最常见的失败：
 | `PR title must use type(scope)!: summary format` | 把 PR 标题改成 `fix(deploy): retry the health check` 这样的格式；报错里列出了允许的类型 |
 | `Invalid CHANGELOG entry` 或 `must use English engineering text` | CHANGELOG 条目写成 `- fix: summary`，摘要使用英文 |
 | `Attribution check failed` | 提交的作者、提交者、trailer 或署名行出现了 AI 智能体名称。把作者与提交者改成你自己的 GitHub 账号，重写这些提交，然后强制推送分支 |
+
+### 12.3 多产品发布
+
+一个仓库里有多个软件时（例如同一个仓库同时包含网页版与接口服务），每个软件各自声明一份发布清单，放在自己的目录里。Action Worker 扫描仓库的 `projects/` 目录找到这些软件，启动发布时用 `product` 选出要发布的那一个。
+
+只有一个软件的仓库不需要任何改动，清单仍然放在 `.github/release.manifest.json`。
+
+目录示例：
+
+```text
+仓库根目录
+├── .github/
+│   ├── release.manifest.json      单产品仓库使用；多产品仓库不放这一份
+│   └── scripts/release-build.ps1  构建脚本，多个产品可以共用
+└── projects/
+    ├── web/
+    │   └── release.manifest.json  产品 web 的发布清单
+    └── api/
+        └── release.manifest.json  产品 api 的发布清单
+```
+
+规则：
+
+- 目录名就是产品名，例如 `web` 与 `api`。目录名只能使用字母、数字、`.`、`_`、`-`，长度 1 至 64，并以字母或数字开头。
+- 一个目录只有含有 `release.manifest.json`、`deploy.json` 或 `follows.json` 之一时才是产品；其他目录被忽略。
+- 根目录清单与 `projects/` 下的产品不能同时存在，否则发布失败，并提示只保留一种布局。
+- 同一个仓库内，每个产品的 `release_key` 必须不同。
+
+`root` 的含义：
+
+- 每个产品的发布清单都必须声明 `root`。它是构建时所在的目录，相对于仓库根目录，例如 `projects/web`。
+- `root` 不能以 `/` 开头，不能包含 `..`，也不能为空。
+- 单产品仓库的清单可以省略 `root`，省略就等于仓库根目录。
+- `root` 不必与产品目录相同，它只决定构建在哪里进行。
+
+发布清单的其余字段（`release_key`、`builds` 等）与单产品仓库相同，只需额外加上 `root` 一行。
+
+启动发布：
+
+- `Release App` 的 `product` 输入，仓库只有一个产品时留空，有多个产品时必填，填写产品目录名，例如 `web`。
+- 漏填或填错时，报错会列出可选的产品名。
+- 同一个仓库的不同产品可以同时发布，它们的并发组不同，互不排队。
+
+构建脚本读取 `RELEASE_PRODUCT_ROOT`：
+
+- 运行构建脚本之前，Action Worker 设置环境变量 `RELEASE_PRODUCT_ROOT`。它是产品根目录的绝对路径，即源码根目录加上 `root`。
+- 单产品仓库中，它等于源码根目录。
+- 构建脚本应基于这个变量解析产品内的路径，例如：
+
+```powershell
+$projectDirectory = Join-Path $env:RELEASE_PRODUCT_ROOT "build"
+```
+
+当前的限制：
+
+- 构建脚本仍须位于仓库根目录的 `.github/scripts/` 下，多个产品通过 `RELEASE_PRODUCT_ROOT` 区分；按产品放置脚本属于后续步骤。
+- 部署与跟随还没有按产品区分，属于 [AW-006](proposals/AW-006-product-release-and-deploy.md) 的后续步骤。
 
 ## 13. Deploy
 
