@@ -858,6 +858,8 @@ test("PR review summary tells a maintainer how to release a pull request awaitin
   const body = buildReview("awaiting-approval", "https://example.test/run", undefined, undefined);
   assert.match(body, /Gate: \*\*WAITING FOR APPROVAL\*\*/);
   assert.match(body, /Review changes → Approve/);
-  assert.match(body, /PR Intake/);
+  // The approval is the only step: nothing has to be started by hand afterwards.
+  assert.match(body, /continues automatically after the approval/);
+  assert.doesNotMatch(body, /Actions tab|run \*\*/);
   assert.doesNotMatch(body, /Gate: \*\*FAIL\*\*/);
 });

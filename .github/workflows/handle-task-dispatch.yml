@@ -415,7 +415,8 @@ jobs:
           fi
           echo "Publication pull request: ${pr_number}"
 
-          gh workflow run pr-intake.yml --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1 || true
+          # Start the governance of the publication pull request now instead of on the next heartbeat.
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/dispatches" -f event_type=run-intake >/dev/null 2>&1 || true
 
           deadline=$((SECONDS + 1800))
           while [ "$SECONDS" -lt "$deadline" ]; do
