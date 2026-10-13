@@ -13,12 +13,14 @@ Each subdirectory contains a `SKILL.md` file — a set of rules telling the AI a
 | [agent-execution](agent-execution/SKILL.md) | Baseline rules for every task: investigate first, verify after changes, avoid loops |
 | [code-minimality](code-minimality/SKILL.md) | When changing code: reuse over rewrite, delete over add, fix root cause not symptoms |
 | [multi-agent-delegation](multi-agent-delegation/SKILL.md) | When delegating to sub-agents: finite briefs, file ownership, trust boundaries, coordinator verification |
-| [bug-fix](bug-fix/SKILL.md) | For bug fixes: find root cause first, then add regression protection |
+| [bug-fix](bug-fix/SKILL.md) | For bug fixes: build a feedback loop, minimise, find root cause, then add regression protection |
 | [ci-diagnose](ci-diagnose/SKILL.md) | When CI is red: diagnose before touching code |
 | [change-impact](change-impact/SKILL.md) | Before changing shared code: figure out the blast radius |
 | [pr-review](pr-review/SKILL.md) | Checklist for reviewing pull requests |
 | [release-verify](release-verify/SKILL.md) | Before/after release: verify source, artifacts, checksums, rollback |
 | [writing](writing/SKILL.md) | For content tasks: no fabrication, verify facts, surgical edits |
+| [tdd](tdd/SKILL.md) | For code behavior changes with a test seam: test at public seams, red-green vertical slices |
+| [writing-for-agents](writing-for-agents/SKILL.md) | For agent-facing documents only (skills, AGENTS.md, CLAUDE.md): pointers, completion criteria, pruning |
 
 ## How to use
 
@@ -29,12 +31,13 @@ Examples:
 ```
 # Scenario 1: normal coding task (most common)
 # Do not fill anything. The system defaults to the "coding" domain.
-# Auto-loads: agent-execution + code-minimality + bug-fix
+# Auto-loads: agent-execution + code-minimality + bug-fix + multi-agent-delegation + tdd
 
 # Scenario 2: writing task (docs, copy, briefs)
 # Add one field to the dispatch payload:
 agent_domain: "writing"
-# Auto-loads: agent-execution + writing
+# Auto-loads: agent-execution + writing + writing-for-agents
+# writing-for-agents is a writing baseline: it is injected for every writing task, and the skill tells the agent to ignore it unless the document is agent-facing
 # Does NOT load code-minimality (no code changes needed)
 
 # Scenario 3: CI diagnosis task

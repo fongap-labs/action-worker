@@ -69,6 +69,24 @@ contract change
 
 Only run broad checks justified by the blast radius.
 
-## 6. Completion
+## 6. Door and blast radius
 
-The change is not complete until every `REQUIRES_UPDATE` consumer is updated or explicitly excluded with evidence.
+Record two fields in the report:
+
+```text
+Door: ONE_WAY | TWO_WAY
+Blast radius: one short phrase naming the widest affected scope
+```
+
+- `ONE_WAY`: a later commit or rollback cannot restore the previous state. Examples: deleted data, published artifacts, destructive migrations, removed public interfaces.
+- `TWO_WAY`: a later commit or rollback restores the previous behavior.
+
+A `ONE_WAY` change must name its point of no return and the evidence that has to pass before it ships.
+
+## 7. Completion
+
+The change is not complete until every `REQUIRES_UPDATE` consumer is updated or explicitly excluded with evidence, and the door and blast radius are recorded.
+
+## Provenance
+
+The door (one-way or two-way) and blast-radius fields are adapted from the `pr` skill of `mattpocock/skills` (MIT License, Copyright (c) 2026 Matt Pocock). Its pull-request body template is not included, because each managed repository's own template governs the PR body.

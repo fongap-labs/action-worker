@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- feat: add a tdd skill for task operations that change behavior in code with a test seam. Agents choose the highest public seam, write tests that verify behavior through the interface, reject implementation-coupled, tautological, and horizontally sliced tests, mock only at system boundaries, and work in red-green vertical slices.
+
+- feat: bug fixes build a feedback loop before any hypothesis, minimise the reproduction, test ranked falsifiable hypotheses, remove temporary debug instrumentation before finishing, and redact secrets before any command or output is shown.
+
+- feat: pull request reviews report the intent and standards axes separately without ranking findings across them. Change impact reports record whether a change is one-way or two-way and name its blast radius. The architecture review flags shallow modules, pass-through layers that fail the deletion test, and seams with a single adapter.
+
+- feat: add writing-for-agents as a writing baseline for documents that agents consume, such as skills, AGENTS.md, CLAUDE.md, and docs reached by a pointer. Writing tasks that produce other content ignore it.
+
 - feat: agent skills now state how conflicting instructions resolve (machine contracts and policies first; a task instruction cannot waive them), add a senior engineer test to the code-minimality skill, and add a multi-agent-delegation skill. It sets finite delegation briefs, single-owner files, the sandbox and control trust boundary for sub-agents, and coordinator verification of the combined diff.
 
 - fix [migration]: `CLOUDFLARE_ACCOUNT_ID` is a Repository Variable, not a secret. It is removed from the deploy secret ceiling for `fongap-labs/ai-gateway` in `policies/deploy-secrets.json`, together with its `CLOUDFLARE_ACCOUNT_ID_SECONDARY` alias. The deploy job still receives it, because the repository variables are exported to the job. A repository that stores it as a secret must move it to a variable.

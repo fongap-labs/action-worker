@@ -203,6 +203,8 @@ test("discoverSkills scans committed skills/ directory", async () => {
   assert.ok(names.includes("pr-review"));
   assert.ok(names.includes("release-verify"));
   assert.ok(names.includes("writing"));
+  assert.ok(names.includes("tdd"));
+  assert.ok(names.includes("writing-for-agents"));
 });
 
 test("resolveAndVerifySkills resolves committed coding/task without config", async () => {
@@ -210,14 +212,17 @@ test("resolveAndVerifySkills resolves committed coding/task without config", asy
   assert.ok(result.includes("skills/agent-execution/SKILL.md"));
   assert.ok(result.includes("skills/code-minimality/SKILL.md"));
   assert.ok(result.includes("skills/bug-fix/SKILL.md"));
+  assert.ok(result.includes("skills/tdd/SKILL.md"));
 });
 
 test("resolveAndVerifySkills resolves committed writing/task", async () => {
   const result = await resolveAndVerifySkills(process.cwd(), "writing", "task");
   assert.ok(result.includes("skills/agent-execution/SKILL.md"));
   assert.ok(result.includes("skills/writing/SKILL.md"));
+  assert.ok(result.includes("skills/writing-for-agents/SKILL.md"));
   assert.ok(!result.includes("skills/code-minimality/SKILL.md"));
   assert.ok(!result.includes("skills/bug-fix/SKILL.md"));
+  assert.ok(!result.includes("skills/tdd/SKILL.md"));
 });
 
 test("resolveAndVerifySkills rejects unknown domain", async () => {
@@ -231,6 +236,9 @@ test("resolveAndVerifySkills resolves operations with no operation-specific skil
   const result = await resolveAndVerifySkills(process.cwd(), "writing", "review");
   assert.ok(result.includes("skills/agent-execution/SKILL.md"));
   assert.ok(result.includes("skills/writing/SKILL.md"));
+  // writing-for-agents must stay a baseline: an operation-scoped skill in the writing
+  // domain would make every other writing operation fail to resolve.
+  assert.ok(result.includes("skills/writing-for-agents/SKILL.md"));
 });
 
 test("every committed SKILL.md parses with valid frontmatter", async () => {
@@ -238,7 +246,67 @@ test("every committed SKILL.md parses with valid frontmatter", async () => {
   for (const skill of skills) {
     assert.equal(await exists(skill.path), true, `missing skill file: ${skill.path}`);
   }
-  assert.equal(skills.length, 9);
+  assert.equal(skills.length, 11);
+});
+
+test("tdd is a coding task skill and writing-for-agents is a writing baseline", async () => {
+  const tdd = parseFrontmatter(
+    await readFile("skills/tdd/SKILL.md", "utf8"),
+    "skills/tdd/SKILL.md"
+  );
+  assert.equal(tdd.domain, "coding");
+  assert.equal(tdd.baseline, false);
+  assert.deepEqual(tdd.operations, ["task"]);
+
+  const writingForAgents = parseFrontmatter(
+    await readFile("skills/writing-for-agents/SKILL.md", "utf8"),
+    "skills/writing-for-agents/SKILL.md"
+  );
+  assert.equal(writingForAgents.domain, "writing");
+  assert.equal(writingForAgents.baseline, true);
+  assert.deepEqual(writingForAgents.operations, []);
+});
+
+test("adapted skills carry their key rules and credit their upstream source", async () => {
+  const checks: Record<string, string[]> = {
+    "skills/tdd/SKILL.md": [
+      "Horizontal slicing",
+      "Tautological",
+      "Red before green",
+      "## Provenance",
+    ],
+    "skills/bug-fix/SKILL.md": [
+      "## Redact first",
+      "<REDACTED>",
+      "Red-capable",
+      "falsifiable",
+      "[DEBUG-a4f2]",
+      "## Provenance",
+    ],
+    "skills/pr-review/SKILL.md": [
+      "## Review axes",
+      "Do not rank findings across axes",
+      "## Provenance",
+    ],
+    "skills/change-impact/SKILL.md": [
+      "## 6. Door and blast radius",
+      "ONE_WAY",
+      "TWO_WAY",
+      "## Provenance",
+    ],
+    "skills/writing-for-agents/SKILL.md": [
+      "## 1. Pointers",
+      "## 3. Steps and completion criteria",
+      "## Provenance",
+    ],
+  };
+  for (const [path, values] of Object.entries(checks)) {
+    const content = await readFile(path, "utf8");
+    for (const value of values) {
+      assert.ok(content.includes(value), `${path} missing: ${value}`);
+    }
+    assert.ok(content.includes("mattpocock/skills"), `${path} must credit mattpocock/skills`);
+  }
 });
 
 test("ported governance rules are present in the machine-read skills", async () => {
