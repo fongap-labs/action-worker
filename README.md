@@ -2,137 +2,108 @@
 
 # Action Worker
 
-**GitHub automation orchestration and governance control plane**
+**GitHub 自动化编排与治理控制平面**
 
-Task Dispatch · AI Agents · PR Governance · Release Governance · Deployment Governance
-
-[**English**](README.md) · [简体中文](README.zh-CN.md)
+任务调度 · AI Agent · PR 治理 · 发布治理 · 部署治理
 
 <!-- work-metrics:start -->
 [![Task Dispatch](https://img.shields.io/badge/Task%20Dispatch-33-1A61FE?style=flat-square)](https://github.com/fongap-labs/action-worker/actions) [![AI Review](https://img.shields.io/badge/AI%20Review-118-0527FC?style=flat-square)](https://github.com/fongap-labs/action-worker/actions) [![PR Governance](https://img.shields.io/badge/PR%20Governance-556-212183?style=flat-square)](https://github.com/fongap-labs/action-worker/actions) [![Release Governance](https://img.shields.io/badge/Release%20Governance-9-08872B?style=flat-square)](https://github.com/fongap-labs/action-worker/releases) [![Status](https://img.shields.io/github/actions/workflow/status/fongap-labs/action-worker/validate-ci.yml?branch=main&style=flat-square&label=Status)](https://github.com/fongap-labs/action-worker/actions/workflows/validate-ci.yml)
 <!-- work-metrics:end -->
 
-<sub>Metrics: Task Dispatch = successful Handle Task Dispatch runs · AI Review = successful AI Review executions · PR Governance = successful Handle PR Dispatch runs · Release Governance = successful Handle Release Dispatch runs</sub>
+<sub>统计口径：Task Dispatch = Handle Task Dispatch 成功次数 · AI Review = AI Review 成功执行次数 · PR Governance = Handle PR Dispatch 成功次数 · Release Governance = Handle Release Dispatch 成功次数</sub>
 
 </div>
 
 ---
 
-## What is Action Worker?
+## Action Worker 是什么
 
-Action Worker is the central GitHub automation orchestration and governance control plane for multiple repositories.
+Action Worker 是 Fongap Labs 多个 GitHub 仓库的中央自动化编排与治理控制平面。它统一负责任务调度、AI Agent、PR 治理、CI 证据、发布治理与部署准入；业务仓库只保留产品代码、测试、构建与部署实现。
 
-It centralizes task dispatch, AI agents, PR governance, CI evidence, release governance, and deployment admission. Product repositories keep product code, tests, builds, and deployment implementation.
-
-Callers declare the target. Action Worker verifies facts, builds a plan, and allows or blocks the change according to deterministic policy and verifiable evidence. An AI review runs after the gate and only advises.
+调用方只声明目标。Action Worker 核实事实、生成执行计划，并依据确定性策略与可验证的证据决定放行或阻断。AI 审查在门禁之后运行，仅提供建议。
 
 ```text
-Task / PR
+任务 / PR
    │
    ▼
-Validate
+Validate（校验）
    ↓
-Inspect
+Inspect（检查）
    ↓
-Plan
+Plan（计划）
    ↓
-Evidence
+Evidence（证据）
    ↓
-Triage
+Triage（分诊）
    ↓
-Review
+Review（审查）
    ↓
-Gate
+Gate（门禁）
 ```
 
-Action Worker does not maintain repository-name-specific branches and does not introduce `projects/`, `adapters/`, or `profiles/`.
+Action Worker 不维护按仓库名区分的分支，也不引入 `projects/`、`adapters/` 或 `profiles/` 目录。
 
-## Core design
+## 核心设计
 
-### Deterministic governance × AI agents
+### 确定性治理 × AI Agent
 
-Fixed boundaries and dynamic judgment are separated.
+固定边界与动态判断分离。
 
-**Deterministic governance** is enforced by scripts, contracts, and policies:
+**确定性治理**由脚本、合同与策略强制执行：
 
-- input contracts and caller identity;
-- PR title and CHANGELOG contracts;
-- naming rules;
-- secrets and execution permissions;
-- Release SemVer, tags, and rollback;
-- final gates.
+- 输入合同与调用方身份；
+- PR 标题与 CHANGELOG 合同；
+- 命名规则；
+- 密钥与执行权限；
+- Release 的 SemVer、标签与回滚；
+- 最终门禁。
 
-**Agent review** is responsible for:
+**Agent 审查**负责：
 
-- understanding diffs and context;
-- assessing code, architecture, security, workflow, and release risk;
-- selecting review roles and models;
-- reviewing execution results.
+- 理解差异与上下文；
+- 评估代码、架构、安全、工作流与发布风险；
+- 选择审查角色与模型；
+- 复核执行结果。
 
-Agents may judge risk. They may not redefine permission boundaries or gates.
+Agent 可以判断风险，但不能重新定义权限边界或门禁。
 
-## Capabilities
+## 能力
 
-| Capability | Purpose |
+| 能力 | 用途 |
 |---|---|
-| **Task Dispatch** | Dispatch trusted tasks through fixed events, payloads, and commit SHAs; cross-repository outputs pass the central Publication Gate |
-| **PR Policy** | Identify diff scope, change areas, and risk to build an execution plan |
-| **AI Triage** | Run a short structured semantic triage with `Code-Air`; it may only skip extremely low-risk review or escalate review strength |
-| **AI Review** | Select `code / workflow / security / architecture / release` review roles according to risk |
-| **Agent Skills** | Provide one shared execution discipline plus task skills for bug fixing, CI diagnosis, impact analysis, PR review, and release verification |
-| **CI Evidence** | Read execution evidence from the target repository's current head SHA through `ci.yml → validate-merge` |
-| **Source Policy** | Enforce target commit, default HEAD, and successful CI admission |
-| **Gate** | Deterministic policy plus CI Evidence allow or block; AI Review runs asynchronously after the gate passes and is advisory |
-| **Release** | Centralize SemVer, tags, releases, asset re-verification, and rollback |
-| **Deploy** | Centralize deployment commit admission while keeping deployment implementation and production secrets in product repositories |
+| **Task Dispatch** | 通过固定事件、载荷与提交 SHA 分发可信任务；跨仓库产出经过中央发布门禁 |
+| **PR Policy** | 识别差异范围、变更区域与风险，生成执行计划 |
+| **AI Triage** | 使用 `Code-Air` 做简短的结构化语义分诊；只能跳过风险极低的审查，或提高审查强度 |
+| **AI Review** | 按风险选择 `code / workflow / security / architecture / release` 审查角色 |
+| **Agent Skills** | 提供统一的执行纪律，以及缺陷修复、CI 诊断、影响分析、PR 审查和发布验证等任务技能 |
+| **CI Evidence** | 通过 `ci.yml → validate-merge`，从目标仓库当前 head SHA 读取执行证据 |
+| **Source Policy** | 强制目标提交、默认 HEAD 与 CI 成功准入 |
+| **Gate** | 确定性策略与 CI Evidence 决定放行或阻断；AI Review 在门禁通过后异步运行，仅供参考 |
+| **Release** | 集中管理 SemVer、标签、发布、产物复验与回滚 |
+| **Deploy** | 集中管理部署提交准入；部署实现与生产密钥保留在产品仓库 |
 
-Normal code, workflow, and release changes first receive a short structured AI Triage by `Code-Air`. If triage fails or returns an invalid result, the deterministic plan remains in force. Only low-risk `code` changes may skip full review at high confidence; security, architecture, and deep-risk changes may only escalate review strength.
+常规的代码、工作流与发布变更，首先由 `Code-Air` 做简短的结构化 AI Triage。若分诊失败或返回结果无效，确定性计划保持不变。只有风险很低的 `code` 变更，才能在高置信度下跳过完整审查；安全、架构与深度风险变更只能提高审查强度。
 
-AI Review runs centrally through the [Alibaba OpenCodeReview](https://github.com/alibaba/open-code-review) CLI pinned to an explicit version. Triage and Review share one global FIFO queue. Action Worker does not retry an entire review round. Request-level retry is handled by OpenCodeReview, while model-family, provider, key, protocol, and node fallback are delegated to AI Gateway.
+AI Review 通过版本已固定的 [Alibaba OpenCodeReview](https://github.com/alibaba/open-code-review) CLI 集中运行。Triage 与 Review 共享一个全局 FIFO 队列。Action Worker 不重试整轮审查：请求级重试由 OpenCodeReview 处理，模型族、供应商、密钥、协议与节点的回退则交给 AI Gateway。
 
-## Quick start
+## 快速开始
 
-### 1. PR governance
+### 1. PR 治理
 
-Managed repositories keep only a thin `dispatch-pr-governance.yml` trigger. It does not execute governance logic and never receives AI Gateway secrets. It only sends the smallest possible PR task to Action Worker:
+受管仓库只保留一个薄的 `dispatch-pr-governance.yml` 触发器。它不执行任何治理逻辑，也不接触 AI Gateway 密钥，只把最小化的 PR 任务发送给 Action Worker。
 
-```yaml
-name: Dispatch PR Governance
+已批准的完整模板位于 [`templates/pr-dispatcher/dispatch-pr-governance.yml`](templates/pr-dispatcher/dispatch-pr-governance.yml)，必须与该文件逐字节一致。它的要点是：
 
-on:
-  pull_request_target:
-    types: [opened, synchronize, reopened, edited]
+- 触发事件为 `pull_request_target`，类型为 `opened` 与 `synchronize`；
+- 通过 `concurrency` 按 PR 编号取消旧的分发；
+- `permissions` 仅为 `statuses: write`；
+- 跳过 Dependabot 的 PR（它无法读取 Actions 密钥，由中央 Intake 处理）；
+- `runs-on` 通过 `AW_DISPATCH_RUNS_ON` 变量从中央解析；
+- 分发前把 `PR Governance` 状态写为 `pending`，分发失败时写为 `failure`；并通过 `AW_DISPATCH_TOKEN` 发送 `run-pr-governance` 事件。
 
-permissions: {}
+受管仓库只需要 `AW_DISPATCH_TOKEN`，且权限仅限于在同一组织内向 `action-worker` 发送 `repository_dispatch`。目标仓库由 `GITHUB_REPOSITORY_OWNER` 推导。`AI_GATEWAY_URL`、`AIG_ACCESS_KEY_AGENT` 与跨仓库写回凭据只保留在 Action Worker 中。
 
-jobs:
-  dispatch:
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Dispatch central governance
-        env:
-          AW_DISPATCH_TOKEN: ${{ secrets.AW_DISPATCH_TOKEN }}
-          REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REQUEST_ID: pr-${{ github.repository_id }}-${{ github.event.pull_request.number }}-${{ github.run_id }}
-        run: |
-          payload="$(jq -cn \
-            --arg request_id "$REQUEST_ID" \
-            --arg repository "$REPOSITORY" \
-            --argjson pr_number "$PR_NUMBER" \
-            '{event_type:"run-pr-governance",client_payload:{schema_version:"1",request_id:$request_id,repository:$repository,pr_number:$pr_number}}')"
-
-          curl -fsS -X POST \
-            -H "Authorization: Bearer $AW_DISPATCH_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/repos/${GITHUB_REPOSITORY_OWNER}/action-worker/dispatches \
-            -d "$payload"
-```
-
-Managed repositories only need `AW_DISPATCH_TOKEN`, scoped to send `repository_dispatch` to `action-worker` in the same organization. The target repository is derived from `GITHUB_REPOSITORY_OWNER`. `AI_GATEWAY_URL`, `AIG_ACCESS_KEY_AGENT`, and cross-repository writeback credentials remain only in Action Worker.
-
-All AI agent runtime configuration is centralized in the Repository Variable `AW_AI_AGENT_CONFIG`:
+所有 AI Agent 的运行配置都集中在仓库变量 `AW_AI_AGENT_CONFIG` 中：
 
 ```json
 {
@@ -154,9 +125,9 @@ All AI agent runtime configuration is centralized in the Repository Variable `AW
 }
 ```
 
-Optional AI agents are disabled when not configured. The current recommended baseline keeps `review.enabled=false` until deterministic governance is independently stable. Writing, Review, and future agents can be enabled independently without maintaining review-specific switches.
+未配置的可选 Agent 保持关闭。当前推荐基线保持 `review.enabled=false`，直到确定性治理独立稳定。Writing、Review 与未来的 Agent 可以独立启用，无需为每个 Agent 维护单独的开关变量。
 
-Repository capabilities are managed by one Repository Variable, `AW_REPOSITORY_POLICY`. Each repository is registered once and receives only the capabilities it needs: `pr`, `task`, `release-source`, `release-target`, and/or `deploy`.
+仓库能力由单一仓库变量 `AW_REPOSITORY_POLICY` 管理。每个仓库只注册一次，并只获得其所需的能力：`pr`、`task`、`release-source`、`release-target` 和/或 `deploy`。
 
 ```json
 {
@@ -166,14 +137,14 @@ Repository capabilities are managed by one Repository Variable, `AW_REPOSITORY_P
 }
 ```
 
-Adding, removing, or changing repository permissions only changes this variable; it does not require Action Worker source changes.
+新增、删除或修改仓库权限，只需修改这个变量，不需要修改 Action Worker 源码。
 
-The central `AW_CONTROL_TOKEN` needs Contents Read/Write, Pull Requests Read/Write, Commit Statuses Read/Write, and **Actions Read** where the corresponding central capability is enabled. Contents Write is used only by trusted Control steps such as validated dependency-repair publication, release publication, and stale-branch ref pruning. `AW_ADMIN_TOKEN` remains reserved for repository administration such as Settings, Rulesets, and SARIF publication.
+中央 `AW_CONTROL_TOKEN` 需要 Contents 读写、Pull Requests 读写、Commit Statuses 读写，并在对应的中央能力启用时需要 **Actions 读取**权限。Contents 写入只用于受信任的控制步骤，例如经过校验的依赖修复发布、Release 发布和过期分支的引用清理。`AW_ADMIN_TOKEN` 仅保留给仓库管理用途，例如 Settings、Rulesets 与 SARIF 发布。
 
-Central PR flow:
+中央 PR 流程：
 
 ```text
-PR event
+PR 事件
   ↓
 repository_dispatch
   ↓
@@ -182,25 +153,25 @@ Action Worker
 Validate → Inspect → Plan → CI Evidence → Gate
   ↓
 PR Governance commit status
-  ↓ (after the gate passed)
-Advisory AI Review → sticky review summary
+  ↓ （门禁通过后）
+异步 AI Review → 粘性审查摘要
 ```
 
-Action Worker re-fetches the PR base/head SHA, title, state, and diff from GitHub. Callers cannot declare those facts. Changes that require CI first collect evidence for the current head SHA. The deterministic gate requires `validate-merge=success` and is decided before any AI agent runs; the advisory AI Review starts only after the gate passed and may read that evidence. Project tests remain in the managed repository sandbox; the central control plane never executes PR-provided code.
+Action Worker 会从 GitHub 重新获取 PR 的 base/head SHA、标题、状态与 diff，调用方无法声明这些事实。需要 CI 的变更，会针对当前 head SHA 收集证据。确定性门禁要求 `validate-merge=success`，并在任何 AI Agent 运行之前做出决定；异步 AI Review 只在门禁通过后启动，并且可以读取这些证据。项目测试仍在受管仓库的沙箱中运行，中央控制平面从不执行 PR 提供的代码。
 
-### 2. Task dispatch
+### 2. 任务分发
 
-Action Worker materializes the exact immutable task source SHA before executing source-owned code. The checkout uses central Control authority with persisted Git credentials disabled. Before `bootstrap.sh` runs, Control credentials are removed and the source task receives only the local `AW_SOURCE_DIR` snapshot plus explicitly source-declared project secrets.
+Action Worker 在执行源仓库自有代码之前，会先物化精确的、不可变的任务源 SHA。检出使用中央 Control 权限，并禁用持久化的 Git 凭据。在运行 `bootstrap.sh` 之前，Control 凭据会被移除，源任务只接收本地的 `AW_SOURCE_DIR` 快照，以及源仓库明确声明的项目密钥。
 
-`AW_EXECUTION_TOKEN` is deleted and must not be configured. Source bootstrap code does not clone its repository and does not inherit `AW_CONTROL_TOKEN`, `AW_ADMIN_TOKEN`, `AW_DISPATCH_TOKEN`, or the Agent gateway access key.
+`AW_EXECUTION_TOKEN` 已被删除，不得配置。源仓库的 bootstrap 代码不再自行 clone 仓库，也不继承 `AW_CONTROL_TOKEN`、`AW_ADMIN_TOKEN`、`AW_DISPATCH_TOKEN` 或 Agent 网关访问密钥。
 
-Task Dispatch accepts one fixed event:
+任务分发只接受一个固定事件：
 
 ```text
 event_type = run-task
 ```
 
-The payload contains only:
+载荷只包含：
 
 ```json
 {
@@ -211,84 +182,84 @@ The payload contains only:
 }
 ```
 
-`bootstrap_ref` must be a full immutable commit SHA. Source repositories own `.github/task-source.json`, project task contracts, entrypoints, and minimal secret scopes; scheduling and heavy execution remain in Action Worker.
+`bootstrap_ref` 必须是完整的、不可变的提交 SHA。源仓库负责 `.github/task-source.json`、项目任务合同、入口点以及最小的密钥范围；调度与重型执行仍由 Action Worker 负责。
 
-### 3. Release governance
+### 3. 发布治理
 
-Release build and publication are centrally orchestrated. A source repository keeps its project build/package scripts and source-owned `.github/release.manifest.json`; Action Worker resolves an immutable source SHA, validates CI and provenance, selects an abstract Runner Profile, executes the declared build/package path, and produces governed release artifacts.
+发布的构建与分发由中央统一编排。源仓库保留项目自有的构建/打包脚本，以及源仓库自有的 `.github/release.manifest.json`。Action Worker 解析不可变的源 SHA，校验 CI 与 provenance，选择抽象的 Runner Profile（运行器配置档），执行声明的构建/打包路径，并产出受治理的发布产物。
 
 ```text
-immutable source
+不可变源码
   ↓
-source-owned .github/release.manifest.json
+源仓库自有 .github/release.manifest.json
   ↓
-Action Worker Build / Package
+Action Worker 构建 / 打包
   ↓
-release artifact + provenance
+发布产物 + provenance
   ↓
 Release Governance
   ↓
-target publish
+目标仓库发布
   ↓
-re-download verification
+重新下载校验
   ↓
-finalize / rollback
+完成 / 回滚
 ```
 
-Source and target authority remain separate. `release-source` authorizes build inputs; `release-target` authorizes publication targets. Business repositories do not hold distribution-target write credentials.
+源仓库与目标仓库的权限相互独立：`release-source` 授权构建输入，`release-target` 授权发布目标。业务仓库不持有分发目标的写入凭据。
 
-Tags use:
+标签格式为：
 
 ```text
 <release-key>-v<semver>
 ```
 
-The central publisher validates the manifest and SHA256 values, publishes the declared assets and checksum files, re-downloads them for verification, and rolls back the release/tag created by that attempt on failure.
+中央发布器会校验 manifest 与 SHA256 值，发布声明的产物与校验和文件，重新下载进行核对；发布失败时，回滚本次尝试所创建的 release 与标签。
 
-### 4. Deployment governance
+### 4. 部署治理
 
-Deployment is source-owned but centrally executed:
+部署由源仓库声明、由中央执行：
 
 ```text
-immutable default-branch source
+不可变的默认分支源码
   ↓
-deploy capability
+deploy 能力
   ↓
-source-owned .github/deploy.json
+源仓库自有 .github/deploy.json
   ↓
 Central CI
   ↓
-synchronous Main Write Audit
+同步的 Main Write Audit
   ↓
 Runner Resolver
   ↓
-generic source-script executor
+通用 source-script 执行器
   ↓
-source-owned entrypoint
+源仓库自有入口点
   ↓
-health verification / rollback
+健康检查 / 回滚
 ```
 
-The manifest declares only deployment intent, abstract `runner_profile`, environment, and a safe source-owned entrypoint. Application secrets are explicitly scoped by `.github/deploy.secrets.required` / `.github/deploy.secrets.allowed`; Action Worker strips Control credentials before the source entrypoint runs.
+manifest 只声明部署意图、抽象的 `runner_profile`、环境以及一个安全的、由源仓库自有的入口点。应用密钥通过 `.github/deploy.secrets.required` / `.github/deploy.secrets.allowed` 明确限定范围；Action Worker 在源入口点运行之前移除所有 Control 凭据。
 
-Cloudflare, Server Edge, SSH, Tailscale, database migration, health-check, and rollback logic stay with the source repository. Heavy orchestration, provenance validation, privileged Runner resolution, secret isolation, and dispatch remain in Action Worker. Automatic deploy is fail-closed and runs only after successful Central CI and a trusted Main Write Guard for the exact source SHA.
+Cloudflare、Server Edge、SSH、Tailscale、数据库迁移、健康检查与回滚逻辑由源仓库负责。重型编排、provenance 校验、特权 Runner 解析、密钥隔离与分发由 Action Worker 负责。自动部署是失败即关闭的：仅在中央 CI 成功、且针对精确源 SHA 的受信任 Main Write Guard 通过之后才运行。
 
-## Change conventions
+## 变更约定
 
-PRs, agents, CHANGELOG entries, and releases share the same types:
+PR、Agent、CHANGELOG 与 Release 使用相同的类型：
 
 ```text
 feat / fix / docs / style / refactor / perf
 test / build / ci / chore / revert
 ```
 
-Attributes:
+属性：
 
 ```text
 breaking / security / migration
 ```
 
-PR titles:
+PR 标题格式：
 
 ```text
 type: summary
@@ -297,75 +268,70 @@ type!: summary
 type(scope)!: summary
 ```
 
-`CHANGELOG.md` updates are required by default for:
+以下类型默认必须更新 `CHANGELOG.md`：
 
 ```text
 feat / fix / perf / revert
 ```
 
-and for every breaking change.
+所有破坏性变更也必须更新。完整合同见 [CHANGELOG 约定](docs/CHANGELOG_CONVENTIONS.md)。
 
-See [CHANGELOG conventions](docs/CHANGELOG_CONVENTIONS.md) for the complete contract.
+## 安全边界
 
-## Security boundary
-
-PR code is always treated as untrusted input.
+PR 代码始终视为不可信输入。
 
 ```text
-Control
-├─ GitHub metadata
+Control（控制域）
+├─ GitHub 元数据
 ├─ diff
 ├─ Plan
 ├─ CI Evidence
-├─ optional AI Agents
+├─ 可选 AI Agent
 ├─ Gate
-└─ central secrets allowed
+└─ 允许使用中央密钥
 
-Sandbox
-├─ checkout PR head
+Sandbox（沙箱）
+├─ 检出 PR head
 ├─ build / test / verify
-└─ no central secrets
+└─ 不接触中央密钥
 ```
 
-Principle:
+原则：
 
-> Plans may be dynamic; permission boundaries and gates must remain fixed.
+> 计划可以动态变化；权限边界与门禁必须保持固定。
 
-Managed repository CI runners execute project code as the sandbox. Action Worker Control only reads CI Evidence and never sends AI Gateway credentials, cross-repository control credentials, or deployment secrets into that sandbox.
+受管仓库的 CI Runner 作为沙箱执行项目代码。Action Worker 的 Control 只读取 CI Evidence，从不把 AI Gateway 凭据、跨仓库控制凭据或部署密钥传入沙箱。
 
-## Documentation
+## 文档
 
-- [Documentation index](docs/README.md) — shared navigation for humans and agents
-- [Agent guide](CLAUDE.md) — required agent entry point and execution boundaries
-- [Agent Skills](skills/README.md) — source of truth for reusable agent execution skills
-- [Architecture](docs/ARCHITECTURE.md) — current implementation and convergence direction
-- [Architecture governance](docs/ARCHITECTURE_GOVERNANCE.md) — long-term boundaries and governance principles
-- [Naming conventions](docs/NAMING_CONVENTIONS.md) — shared naming rules
-- [CHANGELOG conventions](docs/CHANGELOG_CONVENTIONS.md) — shared PR, agent, CHANGELOG, and release classification
-- [Development guide](docs/DEVELOPMENT_GUIDE.md) — common development and verification flow
-- [Integration guide](docs/INTEGRATION_GUIDE.md) — standard onboarding for managed repositories
-- [Change Record contract](contracts/change-record.json) — machine-readable change contract
-- [PR Task contract](contracts/pr-task.json) — PR Task input contract
-- [Task Dispatch contract](contracts/task-dispatch.json) — Task Dispatch input contract
+- [文档索引](docs/README.md)：所有治理、架构与指南文档的导航
+- [Agent 指南](CLAUDE.md)：Agent 的必读入口与执行边界
+- [Agent Skills](skills/README.md)：可复用 Agent 执行技能的权威来源
+- [架构](docs/ARCHITECTURE.md)：当前实现与收敛方向
+- [架构治理](docs/ARCHITECTURE_GOVERNANCE.md)：长期边界与治理原则
+- [命名约定](docs/NAMING_CONVENTIONS.md)：共用命名规则
+- [CHANGELOG 约定](docs/CHANGELOG_CONVENTIONS.md)：PR、Agent、CHANGELOG 与 Release 的共用分类
+- [开发指南](docs/DEVELOPMENT_GUIDE.md)：通用开发与验证流程
+- [接入指南](docs/INTEGRATION_GUIDE.md)：受管仓库的标准接入规范
+- [Change Record 合同](contracts/change-record.json)：机器可读的变更合同
+- [PR Task 合同](contracts/pr-task.json)：PR Task 输入合同
+- [Task Dispatch 合同](contracts/task-dispatch.json)：Task Dispatch 输入合同
 
-Chinese overview: [README.zh-CN.md](README.zh-CN.md) · [docs/README.zh-CN.md](docs/README.zh-CN.md)
-
-## Repository layout
+## 仓库结构
 
 ```text
-.github/workflows/   GitHub entry points
-docs/                governance documentation for humans and agents
-contracts/           machine contracts
-policies/            deterministic governance policy
-rules/               AI review rules
-skills/              reusable agent execution skills
-scripts/             shared execution scripts
-tests/               governance and contract tests
+.github/workflows/   GitHub 入口
+docs/                面向人与 Agent 的治理文档
+contracts/           机器合同
+policies/            确定性治理策略
+rules/               AI 审查规则
+skills/              可复用 Agent 执行技能
+scripts/             共用执行脚本
+tests/               治理与合同测试
 ```
 
-Project-specific configuration does not belong in Action Worker.
+项目专属配置不属于 Action Worker。
 
-## License
+## 许可证
 
 [MIT](LICENSE)
-

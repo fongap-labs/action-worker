@@ -74,13 +74,7 @@ async function prepareIncrement(): Promise<void> {
 }
 
 async function detectChanges(): Promise<void> {
-  const status = await runText("git", [
-    "status",
-    "--porcelain",
-    "--",
-    "README.md",
-    "README.zh-CN.md",
-  ]);
+  const status = await runText("git", ["status", "--porcelain", "--", "README.md"]);
   await appendLines(process.env.GITHUB_OUTPUT, [`changed=${status ? "true" : "false"}`]);
 }
 
@@ -90,7 +84,7 @@ async function createBranch(): Promise<void> {
   await runCommand("git", ["config", "user.name", "fongap"]);
   await runCommand("git", ["config", "user.email", "26006683+fongap@users.noreply.github.com"]);
   await runCommand("git", ["checkout", "-b", branch]);
-  await runCommand("git", ["add", "README.md", "README.zh-CN.md"]);
+  await runCommand("git", ["add", "README.md"]);
   await runCommand("git", ["commit", "-m", "chore: update work metrics"]);
   await runCommand("git", ["fetch", "origin", "main"]);
   await runCommand("git", ["rebase", "origin/main"]);

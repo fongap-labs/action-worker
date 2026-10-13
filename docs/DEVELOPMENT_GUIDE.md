@@ -1,116 +1,145 @@
-# Development Guide
+# 开发指南
 
-This document defines the development flow shared by Action Worker and the managed business repositories. Machine boundaries are set by contracts / policies / rules and the governance documents.
+本文件定义 Action Worker 与受管业务仓库共用的开发流程。机器边界由合同、策略、规则与治理文档确定。
 
-## 1. Before you start
+## 1. 开始之前
 
-Decide first:
+先做以下判断：
 
-1. whether this is a project implementation or a generic governance / execution capability;
-2. whether a reusable contract, policy, executor or skill already exists;
-3. whether the change moves a trust, secret, runner, gate, release or deploy boundary;
-4. whether contract tests and documentation must change with it.
+1. 这是项目实现，还是通用的治理 / 执行能力；
+2. 是否已有可复用的合同、策略、执行器或 skill；
+3. 变更是否涉及信任、密钥、Runner、门禁、发布或部署边界；
+4. 合同测试与文档是否需要同步修改。
 
-Principle:
+原则：
 
-> Project implementations stay in the business repository; governance, authorization and heavy execution go into Action Worker.
+> 项目实现留在业务仓库；治理、授权与重型执行进入 Action Worker。
 
-Public and private repositories follow the same rules.
+公开仓库与私有仓库遵循相同的规则。
 
-## 2. Action Worker owns
+## 2. Action Worker 负责的内容
 
-Action Worker carries: PR Governance, CI / test / build execution, AI Review, CI Evidence, task / scheduled execution, runner resolution, the gate, Source Policy, release build / governance / publish, deploy governance / execution, artifacts / provenance, generic status write-back and the generic input and output contracts.
+Action Worker 负责：
 
-## 3. Business repository owns
+- PR 治理、CI Evidence 与 AI Review；
+- CI / 测试 / 构建执行；
+- 任务与定时执行；
+- Runner 解析与门禁；
+- Source Policy；
+- Release 的构建、治理与发布；
+- Deploy 的治理与执行；
+- 产物与 provenance（来源证明）；
+- 通用的状态写回与输入输出合同。
 
-A business repository keeps: product code, project tests, build / package / deploy scripts, project architecture and protocols, the execution manifest, platform-specific toolchain declarations, the thinnest dispatch, and a very thin check bridge where the GitHub platform really needs one.
+## 3. 业务仓库负责的内容
 
-A business repository must not keep a second central governance, and must not run long-lived heavy CI / build / review / release / deploy for its own convenience.
+业务仓库保留：
 
-## 4. Development flow
+- 产品代码；
+- 无法从仓库外部运行的项目测试（见 [TEST_PACKS.md](TEST_PACKS.md) 第 6 节）；
+- 构建 / 打包 / 部署脚本；
+- 项目架构与协议；
+- 执行清单；
+- 平台专属的工具链声明；
+- 最薄的分发入口；
+- GitHub 平台确实需要时的一个极薄的检查桥接。
+
+业务仓库不得保留第二套中央治理，也不得为了自身方便而长期运行重型的 CI / 构建 / 审查 / 发布 / 部署。
+
+## 4. 开发流程
 
 ```text
-Inspect
-→ Define Contract
-→ Implement
-→ Test
+检查
+→ 定义合同
+→ 实现
+→ 测试
 → PR
 → Security Gate
 → Central CI
 → Governance / validate-merge
-├→ Merge
-└→ AI Review (post-gate, advisory)
+├→ 合并
+└→ AI Review（门禁之后，仅供参考）
 
-Merge
+合并
 → Main Write Guard
-→ trusted main SHA
+→ 可信的 main SHA
 ```
 
-When a boundary changes, change the contract, the policy or the regression tests first, then the implementation.
+当边界发生变化时，先修改合同、策略或回归测试，再修改实现。
 
 ## 5. CI
 
-Project test code belongs to the business repository; by default it runs in the Action Worker sandbox.
+能够从仓库外部运行的测试，保存在 Action Worker 的测试包中（[TEST_PACKS.md](TEST_PACKS.md)）；其余测试保留在业务仓库中。所有测试默认都在 Action Worker 的沙箱中运行。
 
 ```text
-repository event
-→ thin dispatch
+仓库事件
+→ 薄分发
 → Action Worker
-→ checkout immutable source
-→ project test / build
+→ 检出不可变源码
+→ 项目测试 / 构建
 → CI Evidence
 ```
 
-If the GitHub platform requires the target repository to create a required check, a very thin `validate-merge` bridge may stay. That bridge runs no product tests; it only joins the central `CI Evidence` and `PR Governance`.
+如果 GitHub 平台要求目标仓库自行创建必需检查，可以保留一个极薄的 `validate-merge` 桥接。该桥接不运行任何产品测试，只负责连接中央的 `CI Evidence` 与 `PR Governance`。
 
 ## 6. Runner
 
-Project code must not bind to a concrete runner infrastructure. A project declares only `runner_profile`; the Action Worker runner policy resolves the actual GitHub-hosted or self-hosted backend.
+项目代码不得绑定具体的 Runner 基础设施。项目只声明 `runner_profile`；Action Worker 的 Runner 策略负责解析为实际的 GitHub 托管或 self-hosted 后端。
 
-Adding a self-hosted runner must not require a change in a business repository. See [RUNNER_POLICY.md](RUNNER_POLICY.md) for the detailed rules.
+新增 self-hosted Runner 不得要求修改业务仓库。详细规则见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。
 
-## 7. Workflow changes
+## 7. 工作流变更
 
-A workflow change checks at least: whether permissions are minimal, whether a secret reaches an untrusted execution domain, whether a trigger can be abused through fork or PR input, whether concurrency is correct, whether the source SHA is immutable, whether the runner is chosen by the central policy, whether artifacts and evidence are bound to the source SHA, plus the deterministic Security Gate, actionlint, contract tests and ShellCheck where needed.
+工作流变更至少检查以下内容：
 
-Workflow file names follow the rules in [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) section 7; `tests/workflow-naming.test.ts` checks them.
+- 权限是否最小化；
+- 密钥是否可能到达不可信的执行域；
+- 触发器是否可能被 fork 或 PR 输入滥用；
+- 并发是否正确；
+- 源 SHA 是否不可变；
+- Runner 是否由中央策略选择；
+- 产物与证据是否绑定到源 SHA。
 
-The Security Gate is independent of AI Review and at least blocks newly added high-confidence credentials, sensitive key files, `toJSON(secrets)`, `pull_request_target`, `permissions: write-all` and external actions that are not pinned to a commit SHA.
+此外还要通过确定性的 Security Gate、actionlint、合同测试，以及在需要时的 ShellCheck。
 
-Control logic is written in TypeScript first. Shell is only short runner glue or an explicit external bootstrap boundary.
+工作流文件名遵循 [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) 第 8.1 节的规则；`tests/workflow-naming.test.ts` 会对其进行检查。
 
-## 8. AI and the gate
+Security Gate 独立于 AI Review，至少阻止以下内容：新增的高置信度凭据、敏感密钥文件、`toJSON(secrets)`、`pull_request_target`、`permissions: write-all`，以及未固定到提交 SHA 的外部 action。
 
-AI reviews, suggests and finds problems; it decides neither permission boundaries nor the merge gate. AI Review runs after the deterministic PR gate conclusion, and every AI finding, whatever its severity, is advisory evidence. An AI Review timeout, an unavailable model or a review engine failure can neither change the gate nor delay its conclusion.
+控制逻辑优先使用 TypeScript 编写。Shell 只能作为简短的 Runner 胶水代码，或明确的外部引导边界。
 
-The gate trusts only deterministic policy, the Security Gate, CI Evidence, PR Policy, Release / Deploy Policy, current GitHub facts and execution provenance.
+## 8. AI 与门禁
 
-An agent must not change the deterministic gate through re-runs, a different model, a different runner or any review parameter.
+AI 负责审查、建议与发现问题；它既不决定权限边界，也不决定合并门禁。AI Review 在确定性 PR 门禁结论之后运行，无论严重程度如何，每个 AI 发现都只是仅供参考的证据。AI Review 超时、模型不可用或审查引擎故障，既不能改变门禁，也不能延迟门禁的结论。
+
+门禁只信任确定性策略、Security Gate、CI Evidence、PR Policy、Release / Deploy Policy、当前的 GitHub 事实以及执行 provenance。
+
+Agent 不得通过重新运行、更换模型、更换 Runner 或调整任何审查参数来改变确定性门禁。
 
 ## 9. Main Write Guard
 
-Every source SHA that enters a formal release or deploy must pass the Main Write Guard first. A branch named `main` is not proof of a trusted origin.
+每个进入正式 Release 或 Deploy 的源 SHA，都必须先通过 Main Write Guard。名为 `main` 的分支本身不构成可信来源的证明。
 
-A direct push, an unknown write or a SHA that cannot be linked to a merged PR that passed the gate fails closed.
+直接 push、未知写入，或无法关联到已通过门禁的已合并 PR 的 SHA，都失败即关闭。
 
 ## 10. Release / Deploy
 
-The business repository owns the project scripts; Action Worker owns central execution, credentials and governance.
+业务仓库负责项目脚本；Action Worker 负责中央执行、凭据与治理。
 
 ```text
-Release: immutable source → central build/package → artifact + provenance → Release Governance → publish / verify / rollback
-Deploy:  immutable source → central source gate → project deploy script → Runner Resolver → controlled deploy → health verify / rollback
+Release：不可变源码 → 中央构建 / 打包 → 产物 + provenance → Release Governance → 发布 / 验证 / 回滚
+Deploy： 不可变源码 → 中央源门禁 → 项目部署脚本 → Runner 解析 → 受控部署 → 健康检查 / 回滚
 ```
 
-## 11. Definition of done
+## 11. 完成定义
 
-Before finishing a task, confirm that:
+在结束一项任务之前，确认：
 
-- no repository-name or project-name branch was added;
-- no heavy execution was added to a business repository;
-- no runner infrastructure was written into a project contract;
-- there is no second secret / gate / release authority;
-- contract tests cover the new boundary;
-- the documentation distinguishes the current implementation from the target boundary;
-- old entry points were removed or explicitly added to the migration list;
-- new or changed documentation can be understood by someone without project background (see [SHARED_GOVERNANCE.md](SHARED_GOVERNANCE.md) section 8).
+- 没有新增按仓库名或项目名划分的分支；
+- 没有在业务仓库中新增重型执行；
+- 没有把 Runner 基础设施写入项目合同；
+- 不存在第二个密钥、门禁或发布权威；
+- 合同测试覆盖了新边界；
+- 文档区分了"当前实现"与"目标边界"；
+- 旧的入口已被删除，或已明确列入迁移清单；
+- 新增或修改的文档，没有项目背景的人也能读懂（见 [SHARED_GOVERNANCE.md](SHARED_GOVERNANCE.md) 第 8 节）。

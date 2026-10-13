@@ -38,7 +38,6 @@ try {
 
   const DOCS = [
     'README.md',
-    'README.zh-CN.md',
     'SECURITY.md',
     'scripts/README.md',
     'docs/architecture/overview.md',
@@ -57,7 +56,6 @@ try {
 
   const PROTOCOL_FACT_FILES = [
     'README.md',
-    'README.zh-CN.md',
     'docs/architecture/protocol-model.md',
     'docs/architecture/routing-model.md',
     'docs/operations/configuration.md',
@@ -102,7 +100,6 @@ try {
 
   const ACCESS_FACT_FILES = [
     'README.md',
-    'README.zh-CN.md',
     'SECURITY.md',
     'docs/operations/configuration.md',
     'docs/operations/deployment.md',
@@ -120,7 +117,6 @@ try {
 
   const SHARD_FACT_FILES = [
     'README.md',
-    'README.zh-CN.md',
     'SECURITY.md',
     'docs/architecture/routing-model.md',
     'docs/operations/configuration.md',

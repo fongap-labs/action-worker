@@ -92,7 +92,7 @@ jobs:
           METRICS_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           METRICS_REPOSITORIES_JSON: ${{ steps.repositories.outputs.repositories }}
           WORK_METRICS_JSON: ${{ steps.increment.outputs.json }}
-        run: node scripts/update-work-metrics.ts README.md README.zh-CN.md
+        run: node scripts/update-work-metrics.ts README.md
 
       - name: Check for changes
         id: changes

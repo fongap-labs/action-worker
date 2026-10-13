@@ -1,26 +1,26 @@
-# Runner Policy
+# Runner 策略
 
-This document defines the runner abstraction, runner selection and the trust boundaries of Action Worker.
+本文件定义 Action Worker 的 Runner（运行器）抽象、Runner 选择与信任边界。
 
-## 1. Runner ownership
+## 1. Runner 归属
 
-Runners belong to the Action Worker execution plane, not to business repositories.
+Runner 属于 Action Worker 执行平面，而不属于业务仓库。
 
-A business repository declares only `runner_profile` and must never name directly:
+业务仓库只声明 `runner_profile`，并且绝不能直接写明：
 
-- a GitHub-hosted runner image;
-- a self-hosted label;
-- a runner group;
-- a particular server, hostname or cloud instance;
-- a runner fallback order.
+- GitHub 托管的 Runner 镜像；
+- self-hosted 标签；
+- Runner 组；
+- 某台具体的服务器、主机名或云实例；
+- Runner 的回退顺序。
 
-Action Worker resolves the actual runner from the policy.
+Action Worker 从策略中解析实际的 Runner。
 
-## 2. Runner profiles
+## 2. Runner Profile
 
-A runner profile expresses an execution need, not an infrastructure instance.
+Runner Profile 表达执行需求，而不是基础设施实例。
 
-Long-lived generic profiles are recommended, for example:
+建议长期保留的通用 Profile，例如：
 
 ```text
 linux-standard
@@ -30,175 +30,175 @@ arm64-linux
 trusted-deploy
 ```
 
-The concrete set of profiles is managed by the machine policy; a business repository must not create a profile for one repository.
+Profile 的具体集合由机器策略管理；业务仓库不得为某一个仓库创建 Profile。
 
-## 3. Backends
+## 3. 后端
 
-Action Worker allows at least two kinds of runner backend:
+Action Worker 至少允许两类 Runner 后端：
 
 ```text
-github-hosted
-self-hosted
+github-hosted（GitHub 托管）
+self-hosted（自托管）
 ```
 
-When another compute backend is added in the future, the runner resolver is extended; business repository manifests do not change.
+将来增加其他计算后端时，扩展 Runner 解析器即可；业务仓库的清单无需修改。
 
-Self-hosted is a formally reserved backend, not an exception path.
+Self-hosted 是正式保留的后端，而不是例外路径。
 
-## 4. Resolution
+## 4. 解析
 
 ```text
 runner_profile
   ↓
 Runner Policy
   ↓
-trust / os / arch / resource / network requirements
+信任 / 操作系统 / 架构 / 资源 / 网络需求
   ↓
-Runner Resolver
+Runner Resolver（Runner 解析器）
   ↓
-actual backend and runner
+实际后端与 Runner
 ```
 
-For example:
+例如：
 
 ```text
 linux-standard
-→ GitHub-hosted Linux
+→ GitHub 托管的 Linux
 
 arm64-linux
-→ eligible ARM backend
+→ 符合条件的 ARM 后端
 
 trusted-deploy
-→ trusted runner with required private-network access
+→ 具备所需私有网络访问的受信任 Runner
 ```
 
-These are semantic examples only and not a fixed implementation mapping.
+以上只是语义示例，并不是固定的实现映射。
 
-## 5. Trust domains
+## 5. 信任域
 
-Runner selection follows trust domains, not performance alone.
+Runner 的选择遵循信任域，而不是只看性能。
 
-At least these are distinguished:
+至少区分以下三类：
 
 ```text
-sandbox
-control
-privileged
+sandbox（沙箱）
+control（控制）
+privileged（特权）
 ```
 
-### Sandbox
+### 沙箱
 
-May execute untrusted project code, PR code, builds and tests.
+可以执行不可信的项目代码、PR 代码、构建与测试。
 
-Must not hold:
+不得持有：
 
-- central management tokens;
-- AI Gateway management credentials;
-- production deployment credentials;
-- unnecessary cross-repository write access.
+- 中央管理令牌；
+- AI Gateway 管理凭据；
+- 生产部署凭据；
+- 不必要的跨仓库写权限。
 
-### Control
+### 控制
 
-May run governance, planning, evidence processing and controlled API operations.
+可以运行治理、规划、证据处理与受控的 API 操作。
 
-Must not execute untrusted PR code directly.
+不得直接执行不可信的 PR 代码。
 
-### Privileged
+### 特权
 
-Only for controlled operations that really need the production network or production credentials, such as a production deploy.
+仅用于确实需要生产网络或生产凭据的受控操作，例如生产部署。
 
-A privileged task fails closed and never falls back to a lower trust level because the target runner is unavailable.
+特权任务失败即关闭，绝不会因为目标 Runner 不可用而降级到较低的信任级别。
 
-## 6. Fallback
+## 6. 回退
 
-Runner fallback is decided by the central policy.
+Runner 回退由中央策略决定。
 
-Automatic fallback is allowed only between backends with equivalent security properties.
+只有在安全属性等价的后端之间，才允许自动回退。
 
-For example:
+例如：
 
-- an ordinary Linux build without secrets may switch between equivalent compute backends;
-- a deploy that needs a private network or production secrets must not fall back automatically to an ordinary GitHub-hosted runner;
-- an architecture mismatch must never continue by simulating "success".
+- 不含密钥的普通 Linux 构建，可以在等价的计算后端之间切换；
+- 需要私有网络或生产密钥的部署，不得自动回退到普通的 GitHub 托管 Runner；
+- 架构不匹配时，绝不能通过模拟"成功"继续执行。
 
-## 7. Self-hosted boundary
+## 7. Self-hosted 边界
 
-A self-hosted runner is a replaceable compute resource, not part of the business architecture.
+自托管 Runner 是可替换的计算资源，不属于业务架构的一部分。
 
-A business repository must not depend on:
+业务仓库不得依赖：
 
-- the runner hostname;
-- fixed local directories;
-- tools that are preinstalled but not declared;
-- long-lived workspace state maintained by hand;
-- secrets that exist only on one machine.
+- Runner 的主机名；
+- 固定的本地目录；
+- 已预装但未声明的工具；
+- 由人工维护的长期工作区状态；
+- 只存在于某台机器上的密钥。
 
-Self-hosted execution keeps, as far as possible:
+自托管执行应尽可能保持：
 
 ```text
-ephemeral workspace
-explicit dependencies
-least privilege
-clean checkout
-controlled cache
-auditable provenance
+临时工作区
+显式声明的依赖
+最小权限
+干净的检出
+受控的缓存
+可审计的 provenance
 ```
 
-## 8. Secrets
+## 8. 密钥
 
-Action Worker decides secret injection from the capability grant and the trust domain.
+Action Worker 根据能力授予与信任域决定密钥注入。
 
-A business manifest must not name secrets.
+业务清单不得声明密钥。
 
-A runner receives only the minimal credentials this task needs; after the task, no secret may be written to an artifact, cache, log or project workspace.
+Runner 只接收完成本次任务所需的最小凭据；任务结束后，任何密钥都不得写入产物、缓存、日志或项目工作区。
 
-## 9. Scheduling boundary
+## 9. 调度边界
 
-CI, build, review, release, deploy, tasks and scheduled jobs all choose their backend through the same runner resolver.
+CI、构建、审查、Release、Deploy、任务与定时作业，都通过同一个 Runner 解析器选择后端。
 
-This must never happen:
+绝不能出现以下情况：
 
 ```text
-CI has one runner selection
-Release has a second one
-Deploy hard-codes a third one
+CI 有一套 Runner 选择
+Release 另有一套
+Deploy 再硬编码第三套
 ```
 
-Different operations may state different needs, but the underlying resolution mechanism is one.
+不同的操作可以声明不同的需求，但底层的解析机制只有一套。
 
-## 10. Migration
+## 10. 迁移
 
-Workflows that use `runs-on` directly may keep doing so during migration, but in the long term they converge on the central runner policy.
+迁移期间，直接使用 `runs-on` 的工作流可以继续保留，但长期应收敛到中央 Runner 策略。
 
-A new business repository must not add a runner policy of its own.
+新的业务仓库不得添加自己的 Runner 策略。
 
-Acceptance criterion:
+验收标准：
 
-> Replacing GitHub-hosted runners, adding a self-hosted runner or migrating compute infrastructure requires no change to execution logic in business repositories.
+> 替换 GitHub 托管 Runner、新增 self-hosted Runner，或迁移计算基础设施，都不需要修改业务仓库中的执行逻辑。
 
-## 11. PR dispatcher runner extension
+## 11. PR 分发器的 Runner 扩展
 
-A business repository may use the approved thinnest PR trigger `templates/pr-dispatcher/dispatch-pr-governance.yml`, so that PR events reach central governance within about a minute. It runs in the control domain, only sends a notification, and neither checks out nor executes any PR code.
+业务仓库可以使用已批准的最薄 PR 触发器 `templates/pr-dispatcher/dispatch-pr-governance.yml`，使 PR 事件在约一分钟内到达中央治理。它运行在控制域中，只发送通知，既不检出也不执行任何 PR 代码。
 
-Runner selection follows section 1: the workflow file in the business repository contains no runner name or label; `runs-on` reads a centrally managed repository variable:
+Runner 选择遵循第 1 节：业务仓库中的工作流文件不包含 Runner 名称或标签；`runs-on` 读取一个由中央管理的仓库变量：
 
 ```text
 runs-on: ${{ fromJSON(vars.AW_DISPATCH_RUNS_ON || '"ubuntu-24.04"') }}
 ```
 
-- Without the variable, GitHub-hosted Linux is used.
-- The central policy provides two control-domain profiles: `control-standard` (GitHub-hosted) and `control-self-hosted` (`enabled: false` by default, falling back to `control-standard`).
-- The variable value is produced only by `node scripts/resolve-dispatcher-runs-on.ts <profile>`; that script refuses sandbox and privileged profiles.
+- 没有该变量时，使用 GitHub 托管的 Linux。
+- 中央策略提供两个控制域 Profile：`control-standard`（GitHub 托管）与 `control-self-hosted`（默认 `enabled: false`，回退到 `control-standard`）。
+- 变量的值只能由 `node scripts/resolve-dispatcher-runs-on.ts <profile>` 生成；该脚本拒绝沙箱与特权 Profile。
 
-To enable self-hosted for one repository (it uses your own compute and no GitHub-hosted minutes):
+若要为某个仓库启用 self-hosted（使用自己的计算资源，不消耗 GitHub 托管分钟数）：
 
 ```bash
 gh variable set AW_DISPATCH_RUNS_ON --repo fongap-labs/<repo>   --body "$(node scripts/resolve-dispatcher-runs-on.ts control-self-hosted)"
 ```
 
-Boundaries:
+边界：
 
-- Use it for private repositories only. Do not register a self-hosted runner for a public repository: a workflow from a fork PR could schedule code onto it.
-- When the runner is offline, GitHub does not fall back automatically and the job stays queued; central intake still covers governance, so only speed is affected, not security.
-- The file is protected by `approved_workflows` in the security gate: its path and content hash must match the approved template byte for byte, and any change puts it back under the `pull-request-target` rule.
-- Dependabot cannot read Actions secrets, so the trigger skips its pull requests and central intake handles them.
+- 仅用于私有仓库。不要为公开仓库注册 self-hosted Runner：来自 fork PR 的工作流可能会被调度到该 Runner 上。
+- 当 Runner 离线时，GitHub 不会自动回退，作业会保持排队；中央 Intake 仍然覆盖治理，因此只影响速度，不影响安全。
+- 该文件受安全门禁中的 `approved_workflows` 保护：其路径与内容哈希必须与已批准模板逐字节一致；任何修改都会使其重新落入 `pull-request-target` 规则。
+- Dependabot 无法读取 Actions 密钥，因此该触发器会跳过它的 PR，由中央 Intake 处理。

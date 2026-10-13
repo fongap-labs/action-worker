@@ -1,49 +1,49 @@
-# Proposal AW-002: isolate deploy and task secrets with GitHub Environments
+# 提案 AW-002：使用 GitHub Environments 隔离部署与任务密钥
 
-Status: **the deploy path is implemented** (PR "let the control plane decide deploy environments and secret ceilings": central environment and secret policies, read-only checkout token, `admin-ops` for admin-token jobs). **The task path stays as it is (option A)**; options B and C remain available after the deploy rehearsal. **Still manual for the owner:** one rehearsal deploy, switching `AW_DEPLOY_SECRET_POLICY_MODE` to `enforce`, then copying secrets into the environments and deleting the repository-level copies.
+状态：**部署路径已实施**（PR "let the control plane decide deploy environments and secret ceilings"：中央环境与密钥策略、只读检出令牌、为使用管理员令牌的作业设置 `admin-ops`）。**任务路径保持现状（方案 A）**；方案 B 与 C 在部署演练之后仍可选用。**仍需 owner 手动完成：** 一次演练部署、将 `AW_DEPLOY_SECRET_POLICY_MODE` 切换为 `enforce`、把密钥复制到各环境，然后删除仓库级副本。
 
-## What exists today
+## 现状
 
-- `source-script-deploy.yml` job `deploy` already declares `environment: ${{ needs.prepare.outputs.environment }}`, but that value is read from the **target repository's** `deploy.json` (the party being deployed names its own environment). The step that runs target code uses `env: ${{ secrets }}`: every repository-level secret (and the environment's) is placed in the step environment and the names the target did not declare are then `unset`.
-- `handle-task-dispatch.yml` (job `execute`) does the same with `env: ${{ secrets }}` and the allow-list from the task source; since PR #410 a central ceiling (`policies/task-secrets.json`, `AW_TASK_SECRET_POLICY_MODE=warn|enforce`) can only reduce what a task source declares. The task job has **no** `environment:`.
-- `unset` removes names from the process environment; it does not stop code that already runs in the same job from reading runner memory, and the allow-list is declared by the executed party.
-- Environments `production` and `admin-ops` exist in `fongap-labs/action-worker` with a main-only deployment branch policy. Repository-level secrets are still in place.
-- In the deploy path the 4th argument of `resolve-secret-scope.ts` (the denied names) is not passed, so only the target-declared allow-list and the built-in reserved prefixes apply.
+- `deploy-source-script.yml` 的 `deploy` 作业已声明 `environment: ${{ needs.prepare.outputs.environment }}`，但该值读取自**被部署的目标仓库**的 `deploy.json`（被部署的一方自行声明环境）。运行目标代码的步骤使用 `env: ${{ secrets }}`：每个仓库级密钥（以及环境级密钥）都被放入该步骤的环境，随后目标未声明的名称被 `unset`。
+- `handle-task-dispatch.yml`（`execute` 作业）同样使用 `env: ${{ secrets }}` 与任务源的允许列表；自 PR #410 起，一个中央上限（`policies/task-secrets.json`，`AW_TASK_SECRET_POLICY_MODE=warn|enforce`）只能减少任务源声明的内容。任务作业**没有** `environment:`。
+- `unset` 只是从进程环境中移除名称；它无法阻止同一作业中已运行的代码读取 Runner 内存，而且允许列表由被执行的一方声明。
+- `fongap-labs/action-worker` 中已存在 `production` 与 `admin-ops` 环境，部署分支策略为仅 main。仓库级密钥仍保留。
+- 在部署路径中，`resolve-secret-scope.ts` 的第 4 个参数（拒绝名称列表）未被传入，因此只应用目标声明的允许列表与内置保留前缀。
 
-## What we want
+## 目标
 
-The central repository, not the deployed repository, decides which environment a repo may use and which secret names may reach it; secrets move from repository level to environments, so a job that is not bound to an environment cannot read them at all.
+由中央仓库（而非被部署的仓库）决定某个仓库可以使用哪个环境，以及哪些密钥名称可以进入该环境；密钥从仓库级迁移到环境级，使未绑定环境的作业根本无法读取它们。
 
-## Design
+## 设计
 
-1. **Environment authority** (`policies/deploy-environments.json`): `{ "<owner/repo>": ["production", ...] }`. `validate-deploy-source.ts` checks, after parsing the manifest, that the declared `environment` is in the set for that repository; otherwise the deploy fails closed. A repository that is missing from the file cannot deploy.
-2. **Central secret list** (`policies/deploy-secrets.json`): `{ "<owner/repo>": { "<environment>": ["NAME", ...] } }`. The effective allow-list is the **intersection** of the target's `deploy.secrets.allowed` and this list; a target name outside the central list fails (not silently dropped), as the task ceiling does in `enforce` mode. Reserved prefixes stay rejected (`AW_`, `GITHUB_`, `RUNNER_`, `ACTIONS_`, `NODE_OPTIONS`, `GH_TOKEN`) and are passed as the 4th (denied) argument.
-3. **Branch restriction**: environments keep the deployment branch policy "main only". The deploy job runs on this repository's `main` (the workflow is dispatched by `repository_dispatch`, which always uses the default branch), so a PR branch cannot obtain environment secrets. No workflow change is needed for this beyond verifying it in the rehearsal below.
-4. **Checkout token**: `Checkout deploy source` stops using `AW_CONTROL_TOKEN`. It uses the read-only `AW_CHECKOUT_TOKEN` (already introduced for the CI jobs in PR #411) or `github.token` when the target is public. The invariant test from PR #411 is extended so the `deploy` job may not reference `AW_CONTROL_TOKEN` or `AW_ADMIN_TOKEN`.
-5. **Admin-token jobs**: every job that uses `AW_ADMIN_TOKEN` must also declare `environment: admin-ops`; otherwise moving that secret into the environment breaks it. This is a gap in the original plan. The affected workflow list is produced by a test that fails when a job references `secrets.AW_ADMIN_TOKEN` without `environment:`.
-6. **Task path** (`handle-task-dispatch.yml`) — three choices:
-   - A. Only the deploy path now; keep repository-level secrets for tasks, enforce the central ceiling. Lowest risk, keeps the main weakness for tasks.
-   - B. Add `environment: tasks-<repo>` per task source repository. A job's `environment:` can be an expression, so one job can serve all repositories, but every repository needs its own environment with its own copy of the secrets; per-project secrets (e.g. different projects of one repository) cannot be separated by environments, only by the central ceiling.
-   - C. B for repositories with real secrets (ai-gateway, internal-vault) and A for the rest.
-   - **Recommendation: A now, B/C after the deploy rehearsal succeeds.** Task secrets cannot be removed from repository level until the consumers declare environments.
-7. **Transition and rollback**: repository-level secrets stay until the rehearsal passes. Rollback is reverting the PR; the old behaviour remains available as long as the repository-level secrets exist.
+1. **环境权威**（`policies/deploy-environments.json`）：`{ "<owner/repo>": ["production", ...] }`。`validate-deploy-source.ts` 在解析 manifest 之后检查声明的 `environment` 是否属于该仓库的集合；否则部署失败即关闭。未列入该文件的仓库无法部署。
+2. **中央密钥列表**（`policies/deploy-secrets.json`）：`{ "<owner/repo>": { "<environment>": ["NAME", ...] } }`。有效允许列表是目标的 `deploy.secrets.allowed` 与该列表的**交集**；不在中央列表中的目标名称会导致失败（而不是被静默丢弃），与 `enforce` 模式下的任务上限一致。保留前缀仍被拒绝（`AW_`、`GITHUB_`、`RUNNER_`、`ACTIONS_`、`NODE_OPTIONS`、`GH_TOKEN`），并作为第 4 个（拒绝）参数传入。
+3. **分支限制**：环境保留"仅 main"的部署分支策略。部署作业运行在本仓库的 `main` 上（该工作流由 `repository_dispatch` 分发，而 `repository_dispatch` 始终使用默认分支），因此 PR 分支无法获得环境密钥。除在下方演练中验证外，无需为此修改工作流。
+4. **检出令牌**：`Checkout deploy source` 不再使用 `AW_CONTROL_TOKEN`，改用只读的 `AW_CHECKOUT_TOKEN`（已在 PR #411 中为 CI 作业引入），若目标为公开仓库则使用 `github.token`。PR #411 的不变量测试被扩展，使 `deploy` 作业不得引用 `AW_CONTROL_TOKEN` 或 `AW_ADMIN_TOKEN`。
+5. **管理员令牌作业**：每个使用 `AW_ADMIN_TOKEN` 的作业都必须同时声明 `environment: admin-ops`；否则将该密钥迁移到环境中会使其失效。这是原计划的一个缺口。受影响的工作流列表由一个测试生成，该测试在作业引用 `secrets.AW_ADMIN_TOKEN` 却没有 `environment:` 时失败。
+6. **任务路径**（`handle-task-dispatch.yml`）——三种选择：
+   - A. 目前只做部署路径；任务继续使用仓库级密钥，并强制执行中央上限。风险最低，但任务的主要弱点仍然存在。
+   - B. 为每个任务源仓库添加 `environment: tasks-<repo>`。作业的 `environment:` 可以是表达式，因此一个作业可以服务所有仓库，但每个仓库都需要自己的环境及其密钥副本；同一仓库的不同项目之间的密钥无法通过环境隔离，只能通过中央上限隔离。
+   - C. 对于有真实密钥的仓库（ai-gateway、internal-vault）采用 B，其余采用 A。
+   - **建议：现在采用 A，部署演练成功之后再采用 B/C。** 在使用方声明环境之前，任务密钥不能从仓库级移除。
+7. **过渡与回滚**：演练通过之前，仓库级密钥保持不变。回滚即撤销该 PR；只要仓库级密钥存在，旧行为就仍然可用。
 
-## Impact and risks
+## 影响与风险
 
-- Every deploy of ai-gateway (37 names, environment `production`) and internal-vault (3 names, `server-edge-cloud-edge`) depends on the two new policy files being complete; a missing name fails the deploy, intentionally.
-- GitHub Free: environment secrets and deployment branch policies are available for public repositories; whether private repositories on the Free plan can use environment protection rules is **not verified** (documentation could not be fetched in this session). The deploy environments live in the public `action-worker` repository, so this is not a blocker, but required reviewers on a private repository would be.
-- `repository_dispatch` jobs always run on the default branch, so "main only" is satisfied by construction; the policy still guards manual `workflow_dispatch` runs from other branches.
+- ai-gateway（37 个名称，环境 `production`）与 internal-vault（3 个名称，`server-edge-cloud-edge`）的每一次部署，都依赖两份新策略文件是否完整；缺少某个名称会导致部署失败，这是有意为之。
+- GitHub Free：环境密钥与部署分支策略适用于公开仓库；Free 套餐的私有仓库能否使用环境保护规则**未经验证**（本次会话无法获取文档）。部署环境位于公开的 `action-worker` 仓库中，因此这不构成阻碍，但私有仓库上的必需审批人将无法使用。
+- `repository_dispatch` 作业始终运行在默认分支上，因此"仅 main"在构造上已满足；策略仍然会约束从其他分支手动发起的 `workflow_dispatch` 运行。
 
-## Plan constraints (owner, 2026-10-07)
+## 计划约束（owner，2026-10-07）
 
-The organization stays on the Free plan and the private repositories stay private. This design is unaffected: the environments (`production`, `admin-ops`, and any `tasks-<repo>`) belong to the **public** `action-worker` repository, where environment secrets and the main-only deployment branch policy are available on Free. The private repositories only appear as deploy and task *sources*; nothing is configured in them.
+组织保持在 Free 套餐，私有仓库保持私有。本设计不受影响：环境（`production`、`admin-ops` 以及任何 `tasks-<repo>`）属于**公开**的 `action-worker` 仓库，在 Free 套餐下该仓库可以使用环境密钥与仅 main 的部署分支策略。私有仓库只作为部署与任务的*源*出现；不需要在其中做任何配置。
 
-## Owner steps (manual)
+## Owner 手动步骤
 
-1. Approve or amend this design (especially item 6).
-2. After implementation merges: create the same-named secrets in the environments (P-00 C2), run one `workflow_dispatch` deploy of ai-gateway as a health-check rehearsal, and only then delete the repository-level copies (P-00 C3). I will not delete any secret.
-3. Confirm `AW_CHECKOUT_TOKEN` is read-only (Contents: read) for all target repositories.
+1. 批准或修改本设计（尤其是第 6 项）。
+2. 实施合并后：在环境中创建同名密钥（P-00 C2），对 ai-gateway 执行一次 `workflow_dispatch` 部署作为健康检查演练，然后才删除仓库级副本（P-00 C3）。我不会删除任何密钥。
+3. 确认所有目标仓库的 `AW_CHECKOUT_TOKEN` 均为只读（Contents: read）。
 
-## Implementation plan after approval (phase 2)
+## 批准后的实施计划（第二阶段）
 
-New policy files and validators with tests; `validate-deploy-source.ts` environment check; wire the denied-names argument; swap the checkout token; extend the invariant tests; docs and CHANGELOG. Acceptance: `npm run check`, new tests for "unauthorised environment fails" and "target declares more than the central list fails".
+新增策略文件与校验器，并附带测试；在 `validate-deploy-source.ts` 中加入环境检查；接通拒绝名称参数；替换检出令牌；扩展不变量测试；更新文档与 CHANGELOG。验收标准：`npm run check` 通过，并新增"未授权环境失败"与"目标声明超出中央列表则失败"两项测试。

@@ -1,62 +1,62 @@
-# Architecture Governance
+# 架构治理
 
-Action Worker is the GitHub automation governance and execution plane of Fongap Labs. This document defines the long-term boundaries. The implementation may migrate in stages, but no implementation that runs against these boundaries may grow further.
+Action Worker 是 Fongap Labs 的 GitHub 自动化治理与执行平面。本文件定义长期边界。实现可以分阶段迁移，但与这些边界相悖的现有实现，都不得继续扩张。
 
-The unified execution contract is in [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md), and the runner and self-hosted boundary is in [RUNNER_POLICY.md](RUNNER_POLICY.md).
+统一执行合同见 [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md)，Runner 与 self-hosted 边界见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。
 
-## 1. Core boundary
+## 1. 核心边界
 
 ```text
 Action Worker
-= shared governance
-+ execution authority
-+ generic executors
-+ runner resolution
-+ AI Agent runtime
-+ gate
+= 共用治理
++ 执行权威
++ 通用执行器
++ Runner 解析
++ AI Agent 运行时
++ 门禁
 + provenance
 
-Business repository
-= source
-+ tests
-+ project scripts
-+ project architecture
-+ execution manifest
-+ migration-only thin event bridge
+业务仓库
+= 源码
++ 测试
++ 项目脚本
++ 项目架构
++ 执行清单
++ 迁移期间的薄事件桥
 
-Execution Ingress
-= trusted repository event intake
-+ Execution Request creation
+Execution Ingress（执行入口）
+= 可信的仓库事件接入
++ 创建 Execution Request
 
 Runner
-= disposable compute backend
+= 可丢弃的计算后端
 ```
 
-Public and private repositories use the same execution architecture.
+公开仓库与私有仓库使用相同的执行架构。
 
-The long-term entry point must be central as well: a GitHub App, a webhook or another trusted execution ingress turns repository events directly into Action Worker execution requests. The thin dispatch in a business repository is only a migration compatibility layer; whether a business repository has Actions minutes left must never be a dependency of central execution.
+长期的入口也必须是中央化的：由 GitHub App、webhook 或其他可信的执行入口，把仓库事件直接转换为 Action Worker 的执行请求。业务仓库中的薄分发只是迁移期间的兼容层；业务仓库是否还有 Actions 分钟数，绝不能成为中央执行的前提。
 
-Apart from the thinnest dispatch during migration, all execution — CI, test, build, AI Review, the merge gate, release, deploy, tasks and scheduled jobs — goes into Action Worker. Local check or status bridges in business repositories are also migration paths to be removed.
+除迁移期间最薄的分发之外，所有执行（CI、测试、构建、AI Review、合并门禁、Release、Deploy、任务与定时作业）都进入 Action Worker。业务仓库中的本地检查或状态桥接同样是需要移除的迁移路径。
 
-A business repository owns the project implementation, but not central governance, central secrets, runner policy or the final execution authority.
+业务仓库拥有项目实现，但不拥有中央治理、中央密钥、Runner 策略或最终执行权威。
 
-## 2. Small kernel, large framework
+## 2. 小内核，大框架
 
-The Action Worker kernel keeps only the stable authority:
+Action Worker 内核只保留稳定的权威：
 
 ```text
-Validate
-→ Inspect
-→ Plan
-→ Authorize
-→ Grant
-→ Resolve Runner
-→ Execute
-→ Evidence / Provenance
-→ Gate
+Validate（校验）
+→ Inspect（检查）
+→ Plan（计划）
+→ Authorize（授权）
+→ Grant（授予）
+→ Resolve Runner（解析 Runner）
+→ Execute（执行）
+→ Evidence / Provenance（证据 / 来源证明）
+→ Gate（门禁）
 ```
 
-The large framework is provided by generic executors:
+大框架由通用执行器提供：
 
 ```text
 CI
@@ -69,29 +69,29 @@ Scheduled Job
 Artifact
 ```
 
-Adding an ordinary repository, project or runner backend must not require a kernel change.
+新增一个普通仓库、项目或 Runner 后端，不得要求修改内核。
 
-### 2.1 Converging languages and runtimes
+### 2.1 语言与运行时收敛
 
-"Small kernel, large framework" is an architecture goal; a language is not. No repository or module may make "rewrite everything in Rust", "everything in TypeScript" or any other single-language move a refactoring goal of its own.
+"小内核，大框架"是架构目标；语言本身不是目标。任何仓库或模块都不得把"全部改写为 Rust"、"全部改为 TypeScript"或其他单一语言的迁移作为自身的重构目标。
 
-The choice of language follows module boundaries, performance, security, maintainability, ecosystem maturity and development efficiency. An existing implementation with a clear, stable and cheap language boundary must not be rewritten only to unify the language.
+语言选择跟随模块边界、性能、安全、可维护性、生态成熟度与开发效率。已有、边界清晰、稳定且语言边界成本低的实现，不得仅为统一语言而重写。
 
-At the same time, more languages are not better. Unneeded languages and runtimes should be removed first when all of these hold:
+但更多的语言并不更好。在以下条件全部成立时，应优先移除不需要的语言与运行时：
 
-- performance does not drop;
-- the security boundary does not weaken;
-- functionality and compatibility do not drop;
-- maintainability does not drop;
-- no heavier runtime, build chain or deployment burden is introduced.
+- 性能不下降；
+- 安全边界不削弱；
+- 功能与兼容性不下降；
+- 可维护性不下降；
+- 不引入更重的运行时、构建链或部署负担。
 
-One responsibility has exactly one authority, and one capability has exactly one execution contract. When two languages maintain duplicate implementations, duplicate state or duplicate protocols for the same responsibility, removing the overlap comes first; whether the language becomes uniform is a result, not the goal.
+一项职责只能有一个权威，一项能力只能有一个执行合同。当两种语言为同一职责维护重复的实现、重复的状态或重复的协议时，先消除重叠，语言是否统一是结果，而不是目标。
 
-Every multi-language boundary that stays long-term must be able to answer "why does this boundary need this language". Without an answer, it is treated as maintenance debt to converge.
+每一个需要长期保留的多语言边界，都必须能回答"这个边界为什么需要这种语言"。无法回答的边界，视为需要收敛的维护债务。
 
-## 3. Repository-agnostic
+## 3. 与仓库无关
 
-Generic Action Worker control logic must never contain:
+通用的 Action Worker 控制逻辑绝不能包含：
 
 ```text
 if repository == ...
@@ -99,17 +99,17 @@ if project == ...
 if product == ...
 ```
 
-An equivalent central project mapping table that stores project-specific build / test / deploy recipes is forbidden as well.
+同样禁止通过一张等价的中央项目映射表存放项目专属的构建、测试或部署配方。
 
-Project scripts and project parameters belong to the business repository. Action Worker reads the project's execution needs from the standard execution manifest, and a generic executor runs them.
+项目脚本与项目参数属于业务仓库。Action Worker 从标准的执行清单中读取项目的执行需求，由通用执行器运行。
 
-Repository allowlists and capabilities are runtime configuration and do not enter the source code.
+仓库白名单与能力是运行时配置，不进入源码。
 
-## 4. Execution Request
+## 4. 执行请求
 
-A caller submits only the task identity and the target, never a central execution conclusion.
+调用方只提交任务身份与目标，绝不提交中央的执行结论。
 
-Long-term minimal semantics:
+长期的最小语义：
 
 ```text
 schema_version
@@ -119,36 +119,36 @@ source_sha
 operation
 ```
 
-A caller must not submit:
+调用方不得提交：
 
-- central secrets;
-- tokens;
-- gate conclusions;
-- risk conclusions;
-- actual runner names;
-- self-hosted labels;
-- central permission conclusions;
-- any dynamic command that could bypass the manifest.
+- 中央密钥；
+- 令牌；
+- 门禁结论；
+- 风险结论；
+- 实际的 Runner 名称；
+- self-hosted 标签；
+- 中央的权限结论；
+- 任何可能绕过清单的动态命令。
 
-Project test, build and deploy commands may live in the version-controlled execution manifest or in project scripts.
+项目的测试、构建与部署命令，可以存放在版本受控的执行清单或项目脚本中。
 
-## 5. Execution Manifest
+## 5. 执行清单（Execution Manifest）
 
-A business repository may describe:
+业务仓库可以描述：
 
 ```text
 operation
 runner_profile
-commands
+command
 matrix
 artifacts
-timeout
+timeout_minutes
 capability_requests
 ```
 
-A manifest is a capability request, not a capability grant.
+清单是能力请求，而不是能力授予。
 
-A business repository may request, for example:
+业务仓库可以请求，例如：
 
 ```text
 source.read
@@ -157,168 +157,170 @@ release.publish
 deployment.production
 ```
 
-Whether a request is granted, which secrets it maps to, and which trust domain and runner it uses are decided by Action Worker.
+请求是否被授予、映射到哪些密钥，以及使用哪个信任域与 Runner，均由 Action Worker 决定。
 
-## 6. Trust domains
+## 6. 信任域
 
-### Control
+### Control（控制域）
 
-Allowed: reading GitHub metadata, Validate / Inspect / Plan, AI agents, Repository Policy, status write-back and controlled API operations.
+允许：读取 GitHub 元数据、执行 Validate / Inspect / Plan、运行 AI Agent、读取 Repository Policy、写回状态，以及受控的 API 操作。
 
-Directly executing untrusted PR code is forbidden.
+禁止直接执行不可信的 PR 代码。
 
-### Sandbox
+### Sandbox（沙箱）
 
-Allowed: checking out an immutable source SHA, running project test / build / verify, and producing artifacts and evidence.
+允许：检出不可变的源 SHA，运行项目的测试 / 构建 / 验证，并产生产物与证据。
 
-Forbidden: production secrets, central management tokens, unnecessary cross-repository write access and direct writes to production.
+禁止：生产密钥、中央管理令牌、不必要的跨仓库写权限，以及直接写入生产环境。
 
-### Privileged
+### Privileged（特权域）
 
-Only for controlled execution that really needs production credentials, a private network or high-privilege resources. Privileged tasks fail closed and must never fall back to a lower trust level because the target runner is unavailable.
+仅用于确实需要生产凭据、私有网络或高权限资源的受控执行。特权任务失败即关闭，绝不能因为目标 Runner 不可用而降级到较低的信任级别。
 
-## 7. CI and PR Governance
+## 7. CI 与 PR 治理
 
-Project tests are part of the product specification, so the test code stays in the business repository; where they run converges on Action Worker:
+项目测试是产品规格的一部分。能够从仓库外部运行的测试，保存在 Action Worker 的测试包中（[TEST_PACKS.md](TEST_PACKS.md)）；其余测试保留在业务仓库中。所有测试都在 Action Worker 的沙箱中运行：
 
 ```text
 PR / push
-→ thin dispatch
+→ 薄分发
 → Action Worker
-→ checkout immutable source
-→ deterministic Security Gate
+→ 检出不可变源码
+→ 确定性 Security Gate
 → Sandbox CI / test / build
 → CI Evidence
-→ deterministic PR Governance
+→ 确定性 PR Governance
 → validate-merge
-
-                  └→ AI Review after gate
-                     findings / suggestions only
-
+                  └→ 门禁之后执行 AI Review
+                     仅产生发现与建议
 merge
-→ main update
+→ main 更新
 → Main Write Guard
-→ trusted main SHA
+→ 可信的 main SHA
 ```
 
-A business repository must not keep a second heavy runner flow for "local CI".
+业务仓库不得保留第二套重型 Runner 流程用作"本地 CI"。
 
-Source-owned CI control is also updated only through PR governance; writing `main` directly to fix CI is forbidden. An ordinary PR always runs the trusted CI control from the default branch. Only a same-repository PR from a maintainer whose GitHub `author_association` is `OWNER`, `MEMBER` or `COLLABORATOR` may use its own immutable head SHA as candidate CI control for self-verification when it changes `.github/execution-manifest.json`, `.github/scripts/central-ci.sh` or `.github/scripts/central-ci.ps1`. A fork or untrusted author that changes CI control fails closed.
+源仓库自有的 CI 控制只能通过 PR 治理更新；为修复 CI 而直接写入 `main` 是禁止的。
 
-Candidate CI control still runs in the sandbox: it never receives production secrets, central management tokens or privileged runner access. Candidate control reaches the default branch only after it passed the Security Gate, Central CI and `validate-merge`.
+- 普通 PR 始终运行默认分支上的可信 CI 控制。
+- 只有同时满足以下条件的维护者 PR，才可以使用自己不可变的 head SHA 作为候选 CI 控制进行自验证：来自同一仓库；GitHub `author_association` 为 `OWNER`、`MEMBER` 或 `COLLABORATOR`；修改了 `.github/execution-manifest.json`、`.github/scripts/central-ci.sh` 或 `.github/scripts/central-ci.ps1`。
+- 来自 fork 或不可信作者、且修改了 CI 控制的 PR，失败即关闭。
 
-PR Intake must be idempotent for the same `repository + PR + head SHA`. Before it sends a Governance or Dependency Repair dispatch, Intake first publishes a pending reservation with a short lease; later scans must not dispatch again while the lease is valid or the corresponding central run is still running. Idempotency for repeated dispatches of the same head must not rely on runs cancelling each other, because that produces false failures and wastes CI minutes.
+候选 CI 控制仍在沙箱中运行：它不接收生产密钥、中央管理令牌或特权 Runner。候选控制只有在通过 Security Gate、Central CI 与 `validate-merge` 之后，才会进入默认分支。
 
-Central main-branch CI must be idempotent for the immutable `repository + head SHA` as well. Before CI Intake sends `run-central-ci-ref`, it first publishes a `CI Evidence=pending` reservation with a short lease; it must not dispatch again while the lease is valid or the corresponding central run is still running. Repeated requests for the same main SHA must not cancel each other; a later request that finds a successful `CI Evidence` for that SHA reuses the evidence and skips the heavy CI. PR CI may still let a new head cancel an old head, because that is stale work whose source identity has changed.
+PR Intake 对于相同的 `repository + PR + head SHA` 必须幂等。在发送 Governance 或 Dependency Repair 分发之前，Intake 先发布一个带有短租约的待处理预留；只要租约仍有效或对应的中央运行仍在进行，后续扫描不得再次分发。同一 head 的重复分发，不能依赖运行之间互相取消来保证幂等，因为这会产生误报失败并浪费 CI 分钟数。
 
-The only canonical commit status context of central CI is `CI Evidence`. No alias such as `ci-evidence` or `ci_evidence` may be published alongside it; every read, wait, Release/Deploy gate and audit refers to the same standard name.
+中央 main 分支 CI 对不可变的 `repository + head SHA` 同样必须幂等。CI Intake 在发送 `run-central-ci-ref` 之前，先发布一个 `CI Evidence=pending` 的预留并带有短租约；只要租约仍有效或对应的中央运行仍在进行，不得再次分发。针对同一 main SHA 的重复请求，不得互相取消；如果后来的请求发现该 SHA 已有成功的 `CI Evidence`，则复用该证据并跳过重型 CI。PR CI 仍允许新 head 取消旧 head，因为旧 head 是源身份已经改变的过期工作。
 
-The GitHub ruleset of a public repository requires the central `validate-merge` status published by Action Worker directly; business repositories no longer start a local runner to create a check of the same name. For private repositories on the Free plan, the Main Write Guard enforces the same central status as provenance after the fact.
+中央 CI 唯一的规范提交状态上下文是 `CI Evidence`。不得在它旁边发布 `ci-evidence` 或 `ci_evidence` 之类的别名；每一次读取、等待、Release/Deploy 门禁与审计，都引用同一个标准名称。
+
+公开仓库的 GitHub ruleset 直接要求 Action Worker 发布的中央 `validate-merge` 状态；业务仓库不再为同名检查启动本地 Runner。对于 Free 套餐的私有仓库，Main Write Guard 事后将同一中央状态作为来源证明执行。
 
 ## 8. Release
 
-Project build / package / deploy scripts stay in the project repository; heavy execution happens in Action Worker.
+项目的构建、打包与部署脚本保留在项目仓库中；重型执行发生在 Action Worker。
 
 ```text
-immutable source
-→ central build
-→ package / sign / SBOM / verify
+不可变源码
+→ 中央构建
+→ 打包 / 签名 / SBOM / 校验
 → release-manifest
 → release-provenance
 → Release Governance
-→ publish
-→ re-download verification
-→ finalize or rollback
+→ 发布
+→ 重新下载校验
+→ 完成或回滚
 ```
 
-A business repository holds no write credential for the target distribution repository. Old business-repository artifact paths of the migration period may only shrink and must not grow into a new long-term architecture.
+业务仓库不持有目标分发仓库的写入凭据。迁移期遗留的业务仓库产物路径只能缩减，不得发展为新的长期架构。
 
 ## 9. Deploy
 
-Production deployment uses the same execution contract:
+生产部署使用同一执行合同：
 
 ```text
-immutable source
-→ central source gate
-→ project deploy validation
-→ Runner Resolver
-→ privileged execution when required
-→ health verification
-→ rollback
+不可变源码
+→ 中央源门禁
+→ 项目部署校验
+→ Runner 解析
+→ 需要时执行特权任务
+→ 健康检查
+→ 回滚
 ```
 
-A business repository owns its deploy scripts, not production secrets or the runner mapping. When a deploy needs a private network, SSH, Tailscale or other production access, it can resolve to a trusted self-hosted runner; the business repository still declares only a generic runner profile / capability request.
+业务仓库拥有自己的部署脚本，但不拥有生产密钥或 Runner 映射。当部署需要私有网络、SSH、Tailscale 或其他生产访问时，它可以解析为受信任的 self-hosted Runner；业务仓库仍只声明通用的 Runner Profile 或能力请求。
 
 ## 10. Runner
 
-A business repository must not name an actual image such as `ubuntu-24.04`, `self-hosted`, a runner label, a runner group, a hostname or a cloud instance name.
+业务仓库不得写明实际的镜像（如 `ubuntu-24.04`）、`self-hosted`、Runner 标签、Runner 组、主机名或云实例名。
 
-A business repository declares only `runner_profile`. The Action Worker runner resolver decides the actual backend: GitHub-hosted, self-hosted or a future backend.
+业务仓库只声明 `runner_profile`。由 Action Worker 的 Runner 解析器决定实际后端：GitHub 托管、self-hosted 或未来的其他后端。
 
-Self-hosted is a formally reserved backend, not a project special case.
+Self-hosted 是正式保留的后端，而不是某个项目的特例。
 
 ## 11. AI Agent
 
-An AI agent is a generic dynamic capability. It owns no permission boundary and no merge gate.
+AI Agent 是一种通用的动态能力。它不拥有权限边界，也不拥有合并门禁。
 
-`AW_AI_AGENT_CONFIG` is the single runtime configuration for switching agents on and off and for their logical models. Policies and rules store deterministic rules and no second model selection.
+`AW_AI_AGENT_CONFIG` 是唯一的运行时配置，用于开关 Agent 并指定其逻辑模型。策略与规则只存放确定性规则，不存放第二份模型选择。
 
-AI Review reviews, suggests and finds problems. It must run after the deterministic PR gate conclusion. It may report critical / high / medium / low findings, but a finding by itself can never make CI, PR Governance, validate-merge or the Main Write Guard fail; an unavailable model, a timeout or a review engine failure must not change or delay the deterministic gate conclusion either.
+AI Review 负责审查、建议与发现问题。它必须在确定性 PR 门禁结论之后运行。它可以报告严重 / 高 / 中 / 低级别的发现，但单个发现本身永远不能导致 CI、PR Governance、validate-merge 或 Main Write Guard 失败；模型不可用、超时或审查引擎故障，同样不得改变或延迟确定性门禁的结论。
 
-The real threshold is set by repeatable CI, PR Policy, the Security Gate, Release / Deploy Policy and provenance. Agents may take part in planning, triage, review, writing and similar tasks, but cannot change secret boundaries, bypass capability grants or CI Evidence, change runner trust levels or lower the gate.
+真正的门禁阈值由可重复的 CI、PR Policy、Security Gate、Release / Deploy Policy 与 provenance 决定。Agent 可以参与规划、分诊、审查、写作等任务，但不能改变密钥边界、绕过能力授予或 CI Evidence、改变 Runner 信任级别，或降低门禁。
 
 ## 12. Main Write Guard
 
-`validate-merge` is the merge authority before `main`; the Main Write Guard is the provenance authority after `main` is updated.
+`validate-merge` 是 `main` 之前的合并权限；Main Write Guard 是 `main` 更新之后的来源证明权限。
 
-Every formal Release, Deploy, Publication and privileged execution requires that the target source SHA has a Main Write Guard success. Being on `main` alone is not a trusted origin.
+每一次正式的 Release、Deploy、Publication 与特权执行，都要求目标源 SHA 拥有 Main Write Guard 的成功结果。仅仅位于 `main` 上，不构成可信来源。
 
-The authoritative execution of the Main Write Guard must not depend on business repository Actions: Action Worker periodically audits the current `main` of every managed repository in the Repository Policy. A push dispatcher in a business repository can only be an optional real-time shortcut and is not a security prerequisite.
+Main Write Guard 的权威执行不得依赖业务仓库的 Actions：Action Worker 定期审计 Repository Policy 中每个受管仓库的当前 `main`。业务仓库中的 push 分发器只能作为可选的实时加速手段，不是安全前提。
 
-See [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md) for the detailed rules.
+详细规则见 [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md)。
 
-## 13. Repository policy
+## 13. 仓库策略
 
-Repository permissions are managed by the single `AW_REPOSITORY_POLICY`.
+仓库权限由单一的 `AW_REPOSITORY_POLICY` 管理。
 
-Integrating an ordinary repository should need no more than:
-
-```text
-register repository capability
-→ configure thin dispatch
-→ provide Execution Manifest / project scripts
-→ run
-```
-
-If adding an ordinary repository still requires a change to Action Worker core scripts or a project-specific policy, that is an architecture regression.
-
-## 14. Directory boundary
-
-Allowed long-term structure:
+接入一个普通仓库只需要：
 
 ```text
-.github/workflows/   platform entrypoints
-docs/                governance documentation
-contracts/           machine contracts
-policies/            deterministic policy
-rules/               AI review rules
-scripts/             generic execution/control logic
-tests/               governance regression tests
+注册仓库能力
+→ 配置薄分发
+→ 提供执行清单 / 项目脚本
+→ 运行
 ```
 
-Central configuration directories named after a repository or project are forbidden. `runner_profile` is a contract concept; it does not allow a project-specific `profiles/` configuration layer.
+如果接入普通仓库仍然需要修改 Action Worker 的核心脚本或添加项目专属策略，就属于架构退化。
 
-## 15. Migration rules
+## 14. 目录边界
 
-The current code does not yet meet every target boundary, so older migration-period implementations may exist, but they must follow these rules:
+允许的长期结构：
 
-1. A new capability must not grow heavy execution in business repositories further;
-2. A new repository uses central execution by default;
-3. An old business repository workflow may only shrink and must not gain new heavy steps;
-4. Project-specific build/deploy mappings in Action Worker migrate step by step to manifests and generic executors;
-5. Runner selection converges step by step on the runner resolver;
-6. Documentation must distinguish the "current implementation" from the "long-term boundary".
+```text
+.github/workflows/   平台入口
+docs/                治理文档
+contracts/           机器合同
+policies/            确定性策略
+rules/               AI 审查规则
+scripts/             通用执行 / 控制逻辑
+tests/               治理回归测试
+```
 
-## 16. Shortest principle
+禁止使用以仓库或项目名命名的中央配置目录。`runner_profile` 是合同概念；它不允许存在项目专属的 `profiles/` 配置层。
 
-> The business repository describes what to do; Action Worker decides whether it may be done and how to do it safely, and executes it; a runner only provides compute; the gate trusts only verifiable results bound to an immutable source.
+## 15. 迁移规则
+
+当前代码尚未满足所有目标边界，因此迁移期的旧实现可以暂时存在，但必须遵守以下规则：
+
+1. 新能力不得进一步在业务仓库中增加重型执行；
+2. 新仓库默认使用中央执行；
+3. 旧的业务仓库工作流只能缩减，不得新增重型步骤；
+4. Action Worker 中项目专属的构建/部署映射，应逐步迁移到清单与通用执行器；
+5. Runner 选择逐步收敛到 Runner 解析器；
+6. 文档必须区分"当前实现"与"长期边界"。
+
+## 16. 最短原则
+
+> 业务仓库描述要做什么；Action Worker 决定是否允许、以何种方式安全地执行，并负责执行；Runner 只提供计算；门禁只信任绑定在不可变源码上的、可验证的结果。
