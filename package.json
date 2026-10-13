@@ -20,5 +20,8 @@
   },
   "imports": {
     "#kit/*": "./tests/kit/*"
+  },
+  "dependencies": {
+    "smol-toml": "1.9.0"
   }
 }

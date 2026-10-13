@@ -342,7 +342,58 @@ $projectDirectory = Join-Path $env:RELEASE_PRODUCT_ROOT "build"
 当前的限制：
 
 - 构建脚本仍须位于仓库根目录的 `.github/scripts/` 下，多个产品通过 `RELEASE_PRODUCT_ROOT` 区分；按产品放置脚本属于后续步骤。
-- 跟随型产品（`follows.json`）还没有实现，属于 [AW-006](proposals/AW-006-product-release-and-deploy.md) 的后续步骤；部署已经按产品区分，见第 13.1 节。
+- 跟随型产品的固定版本由上游发布自动更新，见第 12.4 节；部署已经按产品区分，见第 13.1 节。
+
+### 12.4 跟随型产品
+
+跟随型产品是指它自己是独立的产品，但依赖另一个产品的某个已发布版本。例如一个高级版产品依赖基础库的某个版本。
+
+上游发布成功后，Action Worker 会为每个跟随方开一个 PR，把它固定的版本改成刚发布的版本。这个 PR 和其他 PR 一样经过正常的 PR 治理审查，由 owner 手动合并。
+
+跟随方在自己的仓库里放一份 `follows.json`：
+
+```json
+{
+  "upstream": { "repository": "your-org/shared-lib", "release_key": "shared-lib" },
+  "pins": [
+    { "path": "requirements.toml", "key": "shared.version", "value": "version" },
+    { "path": "lock/shared.json", "key": "/shared/commit", "value": "commit" }
+  ],
+  "lockfile": "uv"
+}
+```
+
+各字段的含义：
+
+- `upstream.repository` 是上游仓库，`release_key` 是上游发布清单里的发布键。
+- `pins` 列出要改的固定值。每一项写明文件（`path`，相对于仓库根目录）、键（`key`）和值的类型（`value`）。
+- 值的类型只有两种：`commit` 是 40 位提交号，`version` 是稳定版本号，例如 `1.4.0`。
+- 文件只能是 `.json` 或 `.toml`。JSON 的键写成 JSON Pointer，例如 `/shared/commit`；TOML 的键写成点分路径，例如 `shared.version`。
+- 同一个值在文件里出现多次时，只改声明的那一处。注释里出现的旧值不会被改动。
+- `lockfile` 可以省略。写成 `"uv"` 时，PR 会在 `uv.lock` 中更新锁定版本（见下文）。
+
+位置：
+
+- 单产品仓库把 `follows.json` 放在 `.github/`。
+- 多产品仓库把它放在 `projects/<产品>/`，与产品的其他文件放在一起。
+
+自动流程的几步：
+
+1. 上游发布成功。
+2. 控制域为每个跟随方在 `aw/follow/<产品>` 分支上提交一次改动，只改 `pins` 声明的文件，然后开或更新 PR。单产品仓库的分支名是 `aw/follow/<仓库名>`。
+3. 如果跟随方声明了 `lockfile: "uv"`，沙箱在这个分支的提交上运行 `uv lock`，并把 `uv.lock` 的差异作为产物交回。
+4. 控制域检查差异只涉及 `uv.lock`，并且分支没有被别人推进，然后只提交这一个文件。
+
+发布前的检查：
+
+- 跟随方在发布前，每个 `pins` 项的值必须对应上游某个已发布的版本或标签的提交。
+- 如果值不是上游已发布的版本，发布会被拒绝，错误中说明是哪个文件和哪个键。
+
+维护者须知：
+
+- `[tool.uv] required-version` 必须是一个精确版本，例如 `==0.9.1`。Action Worker 按这个版本安装 uv。
+- 沙箱只拿到只读的检出令牌，因此 `uv lock` 不能访问其他私有仓库的依赖。依赖私有仓库的 git 依赖需要额外的凭据，这个决定属于 owner。
+- 跟随 PR 只包含声明的文件，不会包含其他改动。
 
 ## 13. Deploy
 

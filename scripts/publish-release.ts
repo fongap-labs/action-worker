@@ -605,6 +605,8 @@ async function main(): Promise<void> {
       `tag=${tag}`,
       `release_url=${releaseUrl}`,
       `target_repository=${targetRepository}`,
+      `release_key=${manifest.release_key}`,
+      `version=${manifest.version}`,
     ]);
     await appendLines(process.env.GITHUB_STEP_SUMMARY, [
       "## Release Governance",
