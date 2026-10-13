@@ -276,14 +276,20 @@ test("a policy cannot alias to a reserved, declared or repeated name", async () 
   }
 });
 
-test("the central policies give each Cloudflare account its own qualified secret; the deploy account ID is a variable", async () => {
+test("the central policies give each Cloudflare account its own qualified secret", async () => {
   const deploy = await readSecretAliases(
     "policies/deploy-secrets.json",
     "deploy",
     "fongap-labs/ai-gateway",
     "production"
   );
-  assert.deepEqual([...deploy], [["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_SECONDARY"]]);
+  assert.deepEqual(
+    [...deploy],
+    [
+      ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_SECONDARY"],
+      ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_SECONDARY"],
+    ]
+  );
   for (const project of ["FongapBlog", "FongapCDN"]) {
     const task = await readSecretAliases(
       "policies/task-secrets.json",
