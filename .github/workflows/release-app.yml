@@ -15,7 +15,7 @@ on:
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-build-${{ github.event.client_payload.source_repository || inputs.source_repository }}-${{ github.event.client_payload.source_sha || github.run_id }}
@@ -27,6 +27,9 @@ jobs:
     runs-on: ubuntu-24.04
     # The request validation waits up to 20 minutes for the central CI verdict of the source.
     timeout-minutes: 30
+    # Asking for central CI sends an event to this repository, which needs contents: write.
+    permissions:
+      contents: write
 
     outputs:
       source_repository: ${{ steps.request.outputs.source_repository }}
@@ -60,8 +63,8 @@ jobs:
           RELEASE_REQUESTED_VERSION: ${{ inputs.requested_version }}
         run: node scripts/resolve-release-build-ingress.ts
 
-      # GitHub starts the scheduled CI Intake only every few hours, so a release asks for central CI
-      # on its own source now; the validation below waits for the verdict.
+      # Intake may not have reached this source yet, so a release asks for central CI on its own
+      # source now; the validation below waits for the verdict.
       - name: Request central CI for the source
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
@@ -70,6 +73,18 @@ jobs:
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
           AW_CI_INTAKE_REPOSITORY: ${{ steps.ingress.outputs.source_repository }}
         run: node scripts/intake-main-ci.ts
+
+      # The validation accepts only a main SHA attested as a merged pull request. Attest it now, the
+      # same way Intake does, so the release does not wait for the next Intake run. The validation
+      # stays the authority and reports an untrusted write.
+      - name: Attest the source main write
+        continue-on-error: true
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          MAIN_WRITE_AUDIT_REPOSITORY: ${{ steps.ingress.outputs.source_repository }}
+          MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/audit-main-writes.ts
 
       - name: Validate release build request
         id: request
@@ -160,6 +175,9 @@ jobs:
       - build-windows
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # Sending the run-release event needs contents: write.
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout control plane

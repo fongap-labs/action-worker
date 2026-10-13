@@ -821,6 +821,23 @@ test("main write guard accepts central merge authority and preserves local self-
     hasTrustedMainWriteGuard(paths.get(`repos/fongap/example/commits/${mainSha}/status`)),
     true
   );
+
+  // A failed guard names the SHA and says how main becomes trusted again.
+  paths.set(`repos/fongap/example/commits/${mainSha}/status`, {
+    statuses: [
+      {
+        context: "Main Write Guard",
+        state: "failure",
+        target_url: "https://github.com/fongap-labs/action-worker/actions/runs/3",
+      },
+    ],
+  });
+  await assert.rejects(
+    () => assertTrustedMainWrite(reader, "fongap/example", mainSha, true),
+    (error: Error) =>
+      error.message.includes(`fongap/example@${mainSha.slice(0, 12)}`) &&
+      error.message.includes("merging a pull request that passed validate-merge")
+  );
 });
 
 test("main write provenance rejects direct pushes and fake status-only trust", async () => {

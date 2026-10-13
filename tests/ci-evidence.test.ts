@@ -245,7 +245,8 @@ test("a CI evidence failure names the run to open and the next step", async () =
     requireVerifiedCiEvidence(missing, "fongap/example", sha, noDelay),
     (error: Error) =>
       error.message.includes("fongap/example@aaaaaaaaaaaa") &&
-      error.message.includes("run the CI Intake workflow")
+      error.message.includes("Actions > Central CI Dispatch") &&
+      error.message.includes("nothing needs to be started by hand")
   );
 });
 

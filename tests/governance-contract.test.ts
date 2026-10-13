@@ -193,7 +193,11 @@ test("Intake reconciles every kind of work on the heartbeat, never by hand", asy
     "security-scan-intake.yml",
     "main-write-audit.yml",
   ]) {
-    assert.equal(await exists(`.github/workflows/${retired}`), false, `${retired} is part of Intake`);
+    assert.equal(
+      await exists(`.github/workflows/${retired}`),
+      false,
+      `${retired} is part of Intake`
+    );
   }
 
   const audit = await text("scripts/audit-main-writes.ts");
@@ -776,9 +780,11 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   assert.equal(repository.allow_squash_merge, true);
   assert.equal(repository.delete_branch_on_merge, true);
   const settings = await text(".github/workflows/apply-repository-settings.yml");
+  // The daily run corrects settings changed by hand, so drift never needs a manual run.
   requireText(settings, [
     "secrets.AW_ADMIN_TOKEN",
-    "inputs.is_dry_run",
+    "schedule:",
+    "group: apply-repository-settings",
     "policies/rulesets.json",
     "scripts/apply-repository-settings.ts",
     "node scripts/apply-repository-settings.ts",
@@ -1088,15 +1094,17 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
 
 test("main write guard is the post-merge provenance authority", async () => {
   const workflow = await text(".github/workflows/main-write-guard.yml");
+  // The workflow guards Action Worker's own main with the workflow token; managed repositories are
+  // attested by audit-main-writes.ts, so nothing here needs the control token.
   requireText(workflow, [
     "push:",
     "branches: [main]",
-    "types: [run-main-write-guard]",
     "Main Write Guard",
-    "MAIN_WRITE_REQUIRE_CENTRAL_STATUSES",
+    'MAIN_WRITE_REQUIRE_CENTRAL_STATUSES: "false"',
+    "MAIN_WRITE_TOKEN: ${{ github.token }}",
     "node scripts/main-write-guard.ts",
-    "secrets.AW_CONTROL_TOKEN",
   ]);
+  assert.doesNotMatch(workflow, /repository_dispatch|secrets\./);
   const guard = await text("scripts/main-write-guard.ts");
   requireText(guard, [
     "merge_commit_sha",
@@ -1112,7 +1120,10 @@ test("main write guard is the post-merge provenance authority", async () => {
 
 test("central main write audit is independent of business repository Actions", async () => {
   const intake = await text(".github/workflows/intake.yml");
-  const workflow = intake.slice(intake.indexOf("  main-writes:"), intake.indexOf("  task-sources:"));
+  const workflow = intake.slice(
+    intake.indexOf("  main-writes:"),
+    intake.indexOf("  task-sources:")
+  );
   requireText(workflow, [
     "AW_CONTROL_TOKEN",
     "AW_REPOSITORY_POLICY",
@@ -1257,22 +1268,32 @@ test("manual release, deploy and task entry points request central CI and explai
   const release = await text(".github/workflows/release-app.yml");
   const deploy = await text(".github/workflows/deploy-source-script.yml");
   const task = await text(".github/workflows/task-source-dispatch.yml");
-  // GitHub starts the scheduled CI Intake only every few hours, so each entry asks for CI itself.
+  // Intake may not have reached the source yet, so each entry asks for CI and attests the main
+  // write itself. The attestation never blocks: the gate after it stays the authority, and a
+  // failed task source run would make Intake retry the same SHA on every heartbeat.
   for (const workflow of [release, deploy, task]) {
     requireText(workflow, [
       "- name: Request central CI for the source",
       "AW_CI_INTAKE_REPOSITORY:",
       "node scripts/intake-main-ci.ts",
+      "- name: Attest the source main write",
+      "MAIN_WRITE_AUDIT_REPOSITORY:",
+      "node scripts/audit-main-writes.ts",
     ]);
+    const attest = workflow.slice(workflow.indexOf("- name: Attest the source main write"));
+    assert.match(attest, /^[^\n]*\n(?:\s+if: [^\n]+\n)?\s+continue-on-error: true\n/);
   }
-  assert.ok(
-    release.indexOf("- name: Request central CI for the source") <
-      release.indexOf("- name: Validate release build request")
-  );
-  assert.ok(
-    deploy.indexOf("- name: Request central CI for the source") <
-      deploy.indexOf("- name: Validate deploy source")
-  );
+  for (const [workflow, gate] of [
+    [release, "- name: Validate release build request"],
+    [deploy, "- name: Validate deploy source"],
+    [task, "- name: Dispatch selected tasks"],
+  ] as const) {
+    assert.ok(
+      workflow.indexOf("- name: Request central CI for the source") <
+        workflow.indexOf("- name: Attest the source main write")
+    );
+    assert.ok(workflow.indexOf("- name: Attest the source main write") < workflow.indexOf(gate));
+  }
   // The validation waits for the verdict for up to 20 minutes, so the job must outlive the wait.
   assert.match(release, /prepare:[\s\S]*?timeout-minutes: 30/);
   assert.match(deploy, /prepare:[\s\S]*?timeout-minutes: 30/);
