@@ -139,7 +139,7 @@ Fongap Labs 各仓库的文档分为两类，各有读者与写作要求。
 
 ### 8.1 机器读取文档（严格）
 
-读者是 AI Agent 与机器检查。范围包括 `SKILL.md`、`contracts/`、`policies/` 与 `rules/`。
+读者是 AI Agent 与机器检查。范围包括 `SKILL.md`、`contracts/` 中的机器规则文件、`policies/` 与 `rules/`。`contracts/README.md` 不属于本节，见 8.2。
 
 **语言：英文。** `CLAUDE.md`、`AGENTS.md` 与 `skills/` 同样属于机器读取文档，使用英文。
 
@@ -152,7 +152,7 @@ Fongap Labs 各仓库的文档分为两类，各有读者与写作要求。
 
 ### 8.2 人类阅读文档（面向新人）
 
-读者是没有项目背景的人。范围包括 `README.md`、指南，以及治理文档中面向人的部分。
+读者是没有项目背景的人。范围包括 `README.md`、指南，`contracts/README.md`，以及治理文档中面向人的部分。
 
 **语言：中文。** 面向人的文档只保留一份中文版本，不保留英文副本或 `*.zh-CN.md` 镜像文件。
 
