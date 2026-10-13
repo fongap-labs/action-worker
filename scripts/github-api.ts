@@ -64,7 +64,7 @@ type ReaderOptions = {
   timeoutMs?: number;
 };
 
-class GithubHttpError extends Error {
+export class GithubHttpError extends Error {
   readonly retryAfterMs?: number;
   readonly status: number;
 
