@@ -84,6 +84,21 @@ deterministic gates
 
 This skill is advisory for agent execution and AI review. It must not bypass or lower CI, security, release, permission, or repository-protection gates, and it never auto-approves a change. Deterministic gates remain the only merge authority.
 
+## 8. Senior engineer test
+
+Before finishing a code change, ask:
+
+> Would a senior engineer consider this overcomplicated?
+
+If yes, reduce the change. Treat the answer as yes when any of these holds:
+
+- an abstraction has a single use site and no current requirement needs it;
+- a configuration option or extension point has no current caller;
+- code handles a scenario that the current contract rules out, and the code is outside the hard safety boundary in section 6;
+- the change is larger than the stated behavior requires.
+
+This test never removes a safeguard listed in section 6. Input validation, error handling, security checks, and permission checks stay even when the current contract makes a case unlikely, because they protect trust boundaries that the contract may not describe.
+
 ## Provenance
 
 The principles are derived from the upstream reference project Ponytail (`DietrichGebert/ponytail`, MIT License) and absorbed as native Action Worker rules. No Ponytail runtime, dependency, plugin, command, state file, or implementation code is included.

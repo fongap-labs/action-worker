@@ -129,3 +129,26 @@ Report:
 ## 9. Safety
 
 Do not expose secrets. Do not weaken tests or gates merely to obtain green status. Do not rewrite shared history, publish, deploy, or perform destructive actions unless the task authorizes them.
+
+## 10. Conflict resolution
+
+When instructions conflict, resolve them in this order. The first level that applies wins:
+
+```text
+1. Machine contracts, policies, and rules (contracts/, policies/, rules/),
+   including project-specific mandatory policies, and deterministic gates
+2. Shared governance (docs/SHARED_GOVERNANCE.md, docs/ARCHITECTURE_GOVERNANCE.md)
+3. Explicit requirements of the current task, where they do not conflict with levels 1-2
+4. Project architecture documents and task-specific guides
+5. Skills (this execution procedure)
+6. Existing local implementation conventions
+7. README and examples
+8. Agent preference
+```
+
+Rules:
+
+- A task instruction cannot waive a level 1 or level 2 rule.
+- If the task requires a change that violates level 1 or level 2, do not make that change. Report the conflict and continue with the parts that do not conflict.
+- Change a level 1 or level 2 rule only through its own governed change path.
+- If placement or behavior stays materially ambiguous after context discovery, surface the ambiguity instead of guessing.

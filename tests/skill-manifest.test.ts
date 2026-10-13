@@ -238,7 +238,39 @@ test("every committed SKILL.md parses with valid frontmatter", async () => {
   for (const skill of skills) {
     assert.equal(await exists(skill.path), true, `missing skill file: ${skill.path}`);
   }
-  assert.equal(skills.length, 8);
+  assert.equal(skills.length, 9);
+});
+
+test("ported governance rules are present in the machine-read skills", async () => {
+  const execution = await readFile("skills/agent-execution/SKILL.md", "utf8");
+  for (const value of [
+    "## 10. Conflict resolution",
+    "A task instruction cannot waive a level 1 or level 2 rule.",
+    "Change a level 1 or level 2 rule only through its own governed change path.",
+  ]) {
+    assert.ok(execution.includes(value), `agent-execution missing: ${value}`);
+  }
+
+  const minimality = await readFile("skills/code-minimality/SKILL.md", "utf8");
+  for (const value of [
+    "## 8. Senior engineer test",
+    "This test never removes a safeguard listed in section 6.",
+  ]) {
+    assert.ok(minimality.includes(value), `code-minimality missing: ${value}`);
+  }
+
+  const delegation = await readFile("skills/multi-agent-delegation/SKILL.md", "utf8");
+  const delegationSkill = parseFrontmatter(delegation, "skills/multi-agent-delegation/SKILL.md");
+  assert.equal(delegationSkill.domain, "coding");
+  assert.deepEqual(delegationSkill.operations, ["task"]);
+  for (const value of [
+    "Two agents must not edit the same file concurrently.",
+    "Stopping bound:",
+    "must not receive central secrets",
+    "A sub-agent's report is not evidence that the gate passed.",
+  ]) {
+    assert.ok(delegation.includes(value), `multi-agent-delegation missing: ${value}`);
+  }
 });
 
 test("composeAgentPrompt concatenates CLAUDE.md and skill files", async () => {
