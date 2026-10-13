@@ -12,6 +12,7 @@ Each subdirectory contains a `SKILL.md` file — a set of rules telling the AI a
 |---|---|
 | [agent-execution](agent-execution/SKILL.md) | Baseline rules for every task: investigate first, verify after changes, avoid loops |
 | [code-minimality](code-minimality/SKILL.md) | When changing code: reuse over rewrite, delete over add, fix root cause not symptoms |
+| [multi-agent-delegation](multi-agent-delegation/SKILL.md) | When delegating to sub-agents: finite briefs, file ownership, trust boundaries, coordinator verification |
 | [bug-fix](bug-fix/SKILL.md) | For bug fixes: find root cause first, then add regression protection |
 | [ci-diagnose](ci-diagnose/SKILL.md) | When CI is red: diagnose before touching code |
 | [change-impact](change-impact/SKILL.md) | Before changing shared code: figure out the blast radius |
