@@ -16,6 +16,8 @@
 
 > 新手请从 **这是什么** 读到 **快速开始**；维护者可直接跳到 [维护者参考](#维护者参考)。
 
+**目录**：[这是什么](#这是什么) · [一个例子](#一个例子) · [快速开始](#快速开始) · [进阶](#进阶action-worker-如何工作) · [仓库结构](#仓库结构) · [维护者参考](#维护者参考) · [参与贡献](#参与贡献) · [安全](#安全) · [许可证](#许可证)
+
 ## 这是什么
 
 Action Worker 是 Fongap Labs 的**中央质检站**，为所有受管仓库（接入统一治理的业务仓库）服务。仓库只声明"要检查什么"，质检站自行拉取代码、运行检查、留下证据，最后由**门禁**（Gate，决定放行或阻断的检查）给出结论。
@@ -113,6 +115,8 @@ flowchart TB
 | 控制域（Control） | 可使用中央密钥，只读取证据并做决定，从不执行 PR 代码 |
 | 沙箱（Sandbox） | 执行构建与测试，绝不接收中央密钥或部署凭据 |
 | 计划（Plan） | 根据改动范围，决定需要运行哪些检查 |
+| Main Write Guard | 主分支写入守卫，确认 `main` 上的提交来自合法的合并，只有可信提交才进入部署。详见 [主分支守卫](docs/MAIN_WRITE_GUARD.md)。 |
+| 中央 CI（Central CI） | 在中央运行测试包并生成 CI Evidence 的检查环境。 |
 | CI Evidence | 沙箱产生的执行记录，门禁只认可可验证的证据 |
 | 门禁（Gate） | 唯一的合并许可：`validate-merge` 成功才放行 |
 | 来源证明（provenance） | 记录产物由哪个不可变源码构建，供发布与部署核验 |
@@ -129,25 +133,13 @@ flowchart TB
 | `rules/` | AI 审查规则 |
 | `skills/` | 可复用的 Agent 执行技能 |
 | `scripts/` | 共用执行脚本 |
-| `tests/` | 治理与合同回归测试 |
+| `tests/` | 治理与合同回归测试；受管仓库的测试包位于 `tests/packs/<pack>/`（如 `ai-gateway`、`delta`） |
 | `templates/` | 业务仓库的标准触发器模板 |
 | `docs/` | 面向人与 Agent 的治理文档 |
 
 项目专属配置不属于 Action Worker，留在业务仓库中。
 
 ## 维护者参考
-
-### 本地检查
-
-需要 Node.js 24 及以上。提交前建议在本地运行：
-
-| 命令 | 作用 |
-|---|---|
-| `npm ci` | 按锁文件安装依赖 |
-| `npm run typecheck` | TypeScript 类型检查 |
-| `npm run lint` | Biome 代码与格式检查 |
-| `npm test` | 治理与合同测试 |
-| `npm run check` | 依次执行以上三项检查 |
 
 ### 发布与部署
 
@@ -190,6 +182,18 @@ flowchart LR
 - 治理变更必须同时更新合同、策略与回归测试；仅有文档不构成约束。
 - 不按仓库名分支，不新增 `projects/`、`adapters/`、`profiles/` 目录。
 - 提交信息只署名提交者，不含任何 AI Agent 或工具署名。
+
+### 本地检查
+
+需要 Node.js 24 及以上（以 `package.json` 的 `engines.node` 为准）。提交前建议在本地运行：
+
+| 命令 | 作用 |
+|---|---|
+| `npm ci` | 按锁文件安装依赖 |
+| `npm run typecheck` | TypeScript 类型检查 |
+| `npm run lint` | Biome 代码与格式检查 |
+| `npm test` | 治理与合同测试 |
+| `npm run check` | 依次执行以上三项检查 |
 
 ## 安全
 
