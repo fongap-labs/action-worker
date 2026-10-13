@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- feat: a follower product pins the version or commit of an upstream product in its own files, and a governed release of the upstream moves those pins. The release checks that each pin names a published upstream release before it publishes a follower. Action Worker now opens one pull request per follower on `aw/follow/<product>`, touching only the declared pin files, and a follower that declares a uv lockfile gets its `uv.lock` refreshed in the sandbox and committed only when the change is that one file. Before, a follower's version was set by hand, so a release could ship with a stale pin. The pin files are edited in place and checked against a re-parse, never rewritten, and TOML is read with a pinned dependency that was published at least two weeks before it was adopted.
+
 - fix: the Task Source job no longer fails silently when a pushed project changes without a `task.json` and sorts after the projects that have one. Its project selection ended on the failed `task.json` test, so the step exited 1 with no message (run 38461716285 on `ab3572e`, whose `projects/server-edge` carries only a deploy manifest). The selection now skips such a project and still dispatches the task projects of the push.
 
 - feat [migration]: the deploy policy entries of one managed product move from its repository key to its product key (`owner/name/product`) in one change, because an environment name may belong to one key only. The product no longer falls back to the repository key, so a manual deploy through the repository key is refused until the product's manifest uses the product layout. The moved secret ceiling also lists one signing key name that the product declares, which the product layout enforces.
