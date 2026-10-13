@@ -21,12 +21,120 @@ type ChangeRecord = {
   changelog_changed: boolean;
 };
 
-function policyList(policy: Record<string, unknown>, key: string): string[] {
+function policyList(policy: Record<string, unknown>, key: string, owner = "release"): string[] {
   const value = policy[key];
   if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
-    throw new CliError(`::error::Invalid release policy field: ${key}.`, 65);
+    throw new CliError(`::error::Invalid ${owner} policy field: ${key}.`, 65);
   }
   return value;
+}
+
+type AttributionPolicy = {
+  blockedTerms: string[];
+  identityOnlyTerms: string[];
+  allowedFileNames: string[];
+  blockedMessagePatterns: string[];
+};
+
+async function loadAttributionPolicy(policyDir: string): Promise<AttributionPolicy> {
+  const value = await readJson(join(policyDir, "attribution.json"));
+  if (!isJsonRecord(value) || value.schema_version !== 1) {
+    throw new CliError("::error::Invalid attribution policy.", 65);
+  }
+  return {
+    blockedTerms: policyList(value, "blocked_terms", "attribution"),
+    identityOnlyTerms: policyList(value, "identity_only_terms", "attribution"),
+    allowedFileNames: policyList(value, "allowed_file_names", "attribution"),
+    blockedMessagePatterns: policyList(value, "blocked_message_patterns", "attribution"),
+  };
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Allowed file names (CLAUDE.md, AGENTS.md) are removed before matching, so a commit that edits
+// those documents is not reported for naming them. Terms match whole words, ignoring case.
+function attributionViolations(
+  text: string,
+  terms: readonly string[],
+  patterns: readonly string[],
+  allowedFileNames: readonly string[]
+): string[] {
+  let scanned = text;
+  for (const fileName of allowedFileNames) {
+    scanned = scanned.split(fileName).join("");
+  }
+  const found: string[] = [];
+  if (terms.length > 0) {
+    const termPattern = new RegExp(`\\b(?:${terms.map(escapeRegExp).join("|")})\\b`, "i");
+    const match = termPattern.exec(scanned);
+    if (match) {
+      found.push(`names an AI agent or model: ${match[0]}`);
+    }
+  }
+  const lowered = scanned.toLowerCase();
+  for (const pattern of patterns) {
+    if (lowered.includes(pattern.toLowerCase())) {
+      found.push(`contains an AI attribution line: ${pattern}`);
+    }
+  }
+  return found;
+}
+
+// Checks the PR title and every non-merge commit in base..head. Merge commits are skipped because
+// git writes the branch name into their subject, which can name an agent without any attribution.
+export async function assertAttributionFree(
+  title: string,
+  base: string,
+  head: string,
+  root: string,
+  policyDir: string
+): Promise<void> {
+  const policy = await loadAttributionPolicy(policyDir);
+  const { allowedFileNames, blockedMessagePatterns, blockedTerms } = policy;
+  const problems = attributionViolations(
+    title,
+    blockedTerms,
+    blockedMessagePatterns,
+    allowedFileNames
+  ).map((problem) => `PR title ${problem}`);
+  const log = await runText(
+    "git",
+    ["log", "--no-merges", "--format=%H%x1f%an%x1f%ae%x1f%cn%x1f%ce%x1f%B%x1e", `${base}..${head}`],
+    { cwd: root }
+  );
+  const identityTerms = [...blockedTerms, ...policy.identityOnlyTerms];
+  for (const record of log.split("\x1e")) {
+    const [
+      sha = "",
+      authorName = "",
+      authorEmail = "",
+      committerName = "",
+      committerEmail = "",
+      body = "",
+    ] = record.split("\x1f");
+    const commit = sha.trim();
+    if (!commit) continue;
+    const identity = [authorName, authorEmail, committerName, committerEmail].join("\n");
+    for (const problem of attributionViolations(identity, identityTerms, [], allowedFileNames)) {
+      problems.push(`commit ${commit.slice(0, 7)} author or committer ${problem}`);
+    }
+    for (const problem of attributionViolations(
+      body,
+      blockedTerms,
+      blockedMessagePatterns,
+      allowedFileNames
+    )) {
+      problems.push(`commit ${commit.slice(0, 7)} message ${problem}`);
+    }
+  }
+  if (problems.length > 0) {
+    throw new CliError(
+      `::error::Attribution check failed: ${problems.slice(0, 10).join("; ")}.`,
+      65
+    );
+  }
 }
 
 export async function validateChange(
@@ -40,6 +148,7 @@ export async function validateChange(
   if (!isJsonRecord(value) || typeof value.changelog_file !== "string") {
     throw new CliError("::error::Invalid release policy.", 65);
   }
+  await assertAttributionFree(title, base, head, root, policyDir);
   const match = /^([a-z]+)(?:\(([A-Za-z0-9._/-]+)\))?(!)?:\s+(.+)$/.exec(title);
   if (!match) {
     throw new CliError("::error::PR title must use type(scope)!: summary format.", 64);

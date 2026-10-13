@@ -103,6 +103,8 @@ Provider/model fallback belongs to AI Gateway. Action Worker may route logical r
 
 Every commit message, in this repository and in every repository governed by Action Worker, must not contain AI agent identity or attribution: no `Co-Authored-By:` trailer naming an AI agent (Claude, Claude Code, Codex, Copilot or similar), no `Generated with` / `Assisted by` / comparable tool line, and no agent, model or vendor name in the subject, body or trailers. The committer speaks for the change. Automated control-plane writes stay attributed to the maintainer identity, and an agent-assisted commit carries no trace of the agent.
 
+An agent commits with the author and committer identity of the GitHub account its session is connected to: the account login and its GitHub noreply address. The repository does not fix that account. The commit attribution check in `scripts/validate-change-record.ts` fails a pull request whose title, commit message, author, or committer names an AI agent or model, using `policies/attribution.json`.
+
 ## Completion
 
 A governance change is complete only when the corresponding machine contract/policy/action and regression tests match the documentation. Documentation-only intent is not an enforcement boundary.

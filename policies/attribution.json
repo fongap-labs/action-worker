@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "blocked_terms": [
+    "claude",
+    "anthropic",
+    "codex",
+    "copilot",
+    "openai",
+    "chatgpt",
+    "gpt",
+    "gemini"
+  ],
+  "identity_only_terms": ["cursor", "devin", "fable", "haiku", "opus", "sonnet"],
+  "allowed_file_names": ["CLAUDE.md", "AGENTS.md"],
+  "blocked_message_patterns": ["Generated with", "Assisted by", "🤖"]
+}
