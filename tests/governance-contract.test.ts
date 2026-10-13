@@ -1031,6 +1031,8 @@ test("self CI requires deterministic security checks", async () => {
     "validate-merge",
   ]);
   assert.doesNotMatch(workflow, /shellcheck|tests\/test-[A-Za-z0-9-]+\.sh/);
+  // Only a superseded pull request head is cancelled; a push to main always keeps its validation.
+  assert.match(workflow, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
 });
 
 test("metrics workflow delegates branch and PR orchestration to TypeScript", async () => {
