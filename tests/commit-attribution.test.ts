@@ -174,6 +174,44 @@ test("skips merge commits whose subject names the merged branch", async (context
   await assertAttributionFree("docs: fix readme wording", base, head, root, policyDir);
 });
 
+test("blocks the widened model names and AI attribution phrases", async (context) => {
+  const { root, base, human } = await fixture(context);
+  const model = await commit(root, "docs: clarify setup\n\nWritten with DeepSeek", human);
+  await assert.rejects(
+    assertAttributionFree("docs: clarify setup", base, model, root, policyDir),
+    /names an AI agent or model: DeepSeek/
+  );
+  const phrase = await commit(root, "docs: clarify setup\n\nAI-generated summary", human);
+  await assert.rejects(
+    assertAttributionFree("docs: clarify setup", base, phrase, root, policyDir),
+    /contains an AI attribution line: AI-generated/
+  );
+  const grok = await commit(root, "docs: clarify setup", {
+    name: "Grok Ng",
+    email: "g@example.com",
+  });
+  await assert.rejects(
+    assertAttributionFree("docs: clarify setup", base, grok, root, policyDir),
+    /names an AI agent or model: Grok/
+  );
+});
+
+test("keeps the repository's own AI feature names allowed", async (context) => {
+  const { root, base, human } = await fixture(context);
+  const head = await commit(
+    root,
+    "feat: add AI Review and AI Gateway routing\n\nThe AI Review step reads the AI Gateway config.",
+    human
+  );
+  await assertAttributionFree(
+    "feat: add AI Review and AI Gateway routing",
+    base,
+    head,
+    root,
+    policyDir
+  );
+});
+
 test("fails closed when the attribution policy is missing", async (context) => {
   const { root, base, human } = await fixture(context);
   const head = await commit(root, "docs: clarify setup", human);
