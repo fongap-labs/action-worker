@@ -210,6 +210,22 @@ test("the integration guide says which workflow starts a release or a deploy", a
   }
 });
 
+test("test ownership points every governance document to the test packs", async () => {
+  for (const path of [
+    "docs/ARCHITECTURE_GOVERNANCE.md",
+    "docs/ARCHITECTURE.md",
+    "docs/DEVELOPMENT_GUIDE.md",
+    "docs/EXECUTION_CONTRACT.md",
+    "docs/INTEGRATION_GUIDE.md",
+  ]) {
+    assert.match(await text(path), /TEST_PACKS\.md/, `${path} must reference TEST_PACKS.md`);
+  }
+  requireText(await text("docs/TEST_PACKS.md"), [
+    "## 6. Tests that stay in the business repository",
+    "Action Worker holds the tests of each pack-managed business repository",
+  ]);
+});
+
 test("documentation readability convention is enforced in shared governance", async () => {
   const gov = await text("docs/SHARED_GOVERNANCE.md");
   requireText(gov, [
