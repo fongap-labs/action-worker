@@ -1,4 +1,6 @@
 import { centralCiWait, requireVerifiedCiEvidence } from "./ci-evidence.ts";
+import { isPinPublished, type JsonReader, readFileAt } from "./follow-github.ts";
+import { isPinValueOf, parseFollowManifest, pinValueAt } from "./follow-pins.ts";
 import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import {
   type ContentReader,
@@ -7,7 +9,7 @@ import {
   isRepositoryRelativePath,
   selectProduct,
 } from "./product-discovery.ts";
-import { validateRepositoryCapability } from "./repository-policy.ts";
+import { hasRepositoryCapability, validateRepositoryCapability } from "./repository-policy.ts";
 import { parseRunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
 import {
   appendLines,
@@ -223,6 +225,8 @@ export async function resolveReleaseBuildProduct(
   manifest_path: string;
   product_root: string;
   manifest: ReleaseBuildManifest;
+  // The follow declaration of the product, when it has one.
+  follows_text: string | null;
 }> {
   const discovery = await discoverProducts(reader, request.source_repository, request.source_sha);
   const product = selectProduct(discovery.products, request.product ?? "");
@@ -240,7 +244,47 @@ export async function resolveReleaseBuildProduct(
     manifest: parseReleaseBuildManifest(
       parseJson(manifestText, "Release build manifest must be valid JSON.", 65)
     ),
+    follows_text: product.files["follows.json"] ?? null,
   };
+}
+
+/**
+ * A follower may only release when each pin in its source commit holds a value that a published
+ * release of its upstream produced: a version pin names a published tag, a commit pin names the
+ * commit of a published tag of the release key.
+ */
+export async function verifyFollowPins(
+  reader: JsonReader,
+  args: { repository: string; sha: string; followsText: string; policy: unknown }
+): Promise<void> {
+  const manifest = parseFollowManifest(
+    parseJson(args.followsText, "Follow manifest must be valid JSON.", 65)
+  );
+  const upstream = manifest.upstream.repository;
+  if (!hasRepositoryCapability(upstream, args.policy, "release-target")) {
+    throw new CliError(`Follow upstream is not a managed release target: ${upstream}.`, 65);
+  }
+  for (const pin of manifest.pins) {
+    const text = await readFileAt(reader, args.repository, pin.path, args.sha);
+    if (text === null) {
+      throw new CliError(`Follow pin file is missing at the source commit: ${pin.path}.`, 65);
+    }
+    const value = pinValueAt(pin.path, text, pin.key);
+    if (!isPinValueOf(pin.value, value)) {
+      throw new CliError(
+        `Follow pin ${pin.key} in ${pin.path} must hold a single ${pin.value} string.`,
+        65
+      );
+    }
+    if (
+      !(await isPinPublished(reader, upstream, manifest.upstream.release_key, pin.value, value))
+    ) {
+      throw new CliError(
+        `Follow pin ${pin.key} in ${pin.path} is not a published ${pin.value} of ${upstream} (${manifest.upstream.release_key}): ${value}. Release the upstream first, or pin a published value.`,
+        65
+      );
+    }
+  }
 }
 
 async function main(): Promise<void> {
@@ -283,11 +327,17 @@ async function main(): Promise<void> {
     centralCiWait
   );
 
-  const { product, manifest_path, product_root, manifest } = await resolveReleaseBuildProduct(
-    reader,
-    request
-  );
+  const { product, manifest_path, product_root, manifest, follows_text } =
+    await resolveReleaseBuildProduct(reader, request);
   validateRepositoryCapability(manifest.target_repository, repositoryPolicy, "release-target");
+  if (follows_text !== null) {
+    await verifyFollowPins(reader, {
+      repository: request.source_repository,
+      sha: request.source_sha,
+      followsText: follows_text,
+      policy: repositoryPolicy,
+    });
+  }
 
   const version = normalizeReleaseVersion(request.requested_version);
 
