@@ -1,4 +1,4 @@
-import { requireVerifiedCiEvidence } from "./ci-evidence.ts";
+import { centralCiWait, requireVerifiedCiEvidence } from "./ci-evidence.ts";
 import { type DeployAdapter, resolveDeployManifest } from "./deploy-manifest.ts";
 import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
@@ -137,7 +137,8 @@ async function main(): Promise<void> {
     );
   }
 
-  await requireVerifiedCiEvidence(reader, request.source_repository, resolvedSha);
+  // A manual deploy requests central CI for the commit just before this step, so wait for it.
+  await requireVerifiedCiEvidence(reader, request.source_repository, resolvedSha, centralCiWait);
 
   const mainWrite = await assertTrustedMainWrite(
     reader,

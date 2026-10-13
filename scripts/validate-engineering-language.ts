@@ -26,7 +26,10 @@ export function containsHan(value: string): boolean {
 
 export function assertEnglishText(label: string, value: string): void {
   if (containsHan(value)) {
-    throw new CliError(`::error::${label} must use English engineering text.`, 65);
+    throw new CliError(
+      `::error::${label} must use English engineering text; rewrite it in English (Chinese belongs in human-facing documents only).`,
+      65
+    );
   }
 }
 

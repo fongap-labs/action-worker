@@ -6,11 +6,11 @@ on:
   workflow_dispatch:
     inputs:
       repository:
-        description: Managed task source repository
+        description: Managed task source repository in owner/name form, for example your-org/your-tasks
         required: true
         type: string
       project:
-        description: Project directory name under projects/
+        description: Project directory name under projects/ in that repository (it must contain task.json)
         required: true
         type: string
   schedule:
@@ -160,7 +160,11 @@ jobs:
                 exit 64
               }
               [ -f "projects/$PROJECT/task.json" ] || {
-                echo "::error::Unknown project or missing task.json: projects/$PROJECT/task.json" >&2
+                available="$(
+                  { find projects -mindepth 2 -maxdepth 2 -name task.json -printf '%h\n' 2>/dev/null || true; } |
+                    sed 's|^projects/||' | sort | paste -sd, -
+                )"
+                echo "::error::Unknown project or missing task.json: projects/$PROJECT/task.json. Projects with a task.json: ${available:-none}." >&2
                 exit 66
               }
               projects="$PROJECT"
