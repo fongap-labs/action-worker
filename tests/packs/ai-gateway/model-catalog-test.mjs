@@ -829,7 +829,7 @@ try {
 
   if (failures > 0) {
     console.error(`model-status-window-contract: ${failures} contract(s) FAILED`);
-    suiteExit(1);
+    throw new Error('suite stopped after recorded failures');
   }
   console.log('model-status-window-contract: all contracts passed');
   console.log('ok - file:model-status-window-contract');
@@ -1356,7 +1356,7 @@ try {
     assert.deepEqual(authorizeModel('anything', known, allowAll), { allowed: false, status: 404 });
   });
 
-  if (process.exitCode) suiteExit(1);
+  if (process.exitCode) throw new Error('suite stopped after recorded failures');
   console.log(`\nclosed-catalog tests passed (${passed}).`);
   console.log('ok - file:closed-catalog');
 } catch (error) {

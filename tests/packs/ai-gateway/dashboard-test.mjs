@@ -875,7 +875,7 @@ try {
 
   if (failures > 0) {
     console.error(`calendar-heatmap-contract: ${failures} contract(s) FAILED`);
-    suiteExit(1);
+    throw new Error('suite stopped after recorded failures');
   }
   console.log('calendar-heatmap-contract: all contracts passed');
   console.log('ok - file:calendar-heatmap-contract');

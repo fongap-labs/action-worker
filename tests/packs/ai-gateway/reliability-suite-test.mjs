@@ -188,7 +188,7 @@ try {
 
   if (failures > 0) {
     console.error(`reliability-core-contract: ${failures} contract(s) FAILED`);
-    suiteExit(1);
+    throw new Error('suite stopped after recorded failures');
   }
   console.log('reliability-core-contract: all contracts passed');
   console.log('ok - file:reliability-core-contract');
@@ -472,7 +472,7 @@ try {
   });
 
   console.log(`\nreliability-regression-test: ${passed} passed, ${failed} failed`);
-  if (failed > 0) suiteExit(1);
+  if (failed > 0) throw new Error('suite stopped after recorded failures');
   console.log('ok - file:reliability-regression');
 } catch (error) {
   console.error('not ok - reliability-regression-test.mjs failed');
@@ -1297,7 +1297,7 @@ try {
   // ─── Summary ────────────────────────────────────────────────────────────────
 
   console.log(`\n${passed} passed, ${failed} failed`);
-  if (failed > 0) suiteExit(1);
+  if (failed > 0) throw new Error('suite stopped after recorded failures');
   console.log('ok - file:reliability-performance');
 } catch (error) {
   console.error('not ok - reliability-performance-test.mjs failed');

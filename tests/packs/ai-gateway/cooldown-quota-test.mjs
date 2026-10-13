@@ -255,7 +255,7 @@ try {
   });
 
   console.log(`\nprovider-quota-413-test: ${passed} passed, ${failed} failed.`);
-  if (failed > 0) suiteExit(1);
+  if (failed > 0) throw new Error('suite stopped after recorded failures');
   console.log('ok - file:provider-quota-413');
 } catch (error) {
   console.error('not ok - provider-quota-413-test.mjs failed');
@@ -983,7 +983,7 @@ try {
   });
 
   console.log(`\n[scheduler-convergence] ${passed}/${passed + failed} passed`);
-  if (failed > 0) suiteExit(1);
+  if (failed > 0) throw new Error('suite stopped after recorded failures');
   console.log('ok - file:scheduler-convergence');
 } catch (error) {
   console.error('not ok - scheduler-convergence-test.mjs failed');
@@ -1178,7 +1178,7 @@ try {
 
   // ---- Summary ----
   console.log(`\n[scheduler-racelost-test] ${passed}/${passed + failed} passed`);
-  if (failed > 0) suiteExit(1);
+  if (failed > 0) throw new Error('suite stopped after recorded failures');
   console.log('ok - file:scheduler-racelost');
 } catch (error) {
   console.error('not ok - scheduler-racelost-test.mjs failed');
