@@ -748,6 +748,15 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   const statusParameters = statusChecks?.parameters as Record<string, unknown>;
   assert.equal(statusParameters.strict_required_status_checks_policy, true);
   assert.deepEqual(statusParameters.required_status_checks, [{ context: "validate-merge" }]);
+  // The ruleset requires one merge gate name. Every workflow that posts the merge gate must post
+  // that same name, or the required check never reports and the merge stays blocked.
+  for (const workflow of [".github/workflows/handle-pr-dispatch.yml"]) {
+    const postedContexts = [...(await text(workflow)).matchAll(/PR_STATUS_CONTEXT: (\S+)/g)].map(
+      (match) => match[1]
+    );
+    assert.ok(postedContexts.length > 0, `${workflow} posts no merge gate status`);
+    assert.deepEqual([...new Set(postedContexts)], ["validate-merge"], workflow);
+  }
   assert.equal(repository.allow_merge_commit, false);
   assert.equal(repository.allow_squash_merge, true);
   assert.equal(repository.delete_branch_on_merge, true);
