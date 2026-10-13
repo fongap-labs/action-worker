@@ -242,14 +242,17 @@ export async function assertTrustedMainWrite(
       .filter((item) => isJsonRecord(item) && getJsonString(item, "context") === "Main Write Guard")
       .map((item) => getJsonString(item, "state"));
     if (guardStates.includes("failure") || guardStates.includes("error")) {
-      throw new CliError("::error::Source SHA failed Main Write Guard.", 65);
+      throw new CliError(
+        `::error::Source SHA failed Main Write Guard: ${repository}@${mainSha.slice(0, 12)} did not come from a merged pull request with passing Action Worker checks, so it is not trusted. Change main only by merging a pull request that passed validate-merge; the next such merge makes main trusted again.`,
+        65
+      );
     }
     if (attempt + 1 < 12) {
       await new Promise((resolve) => setTimeout(resolve, 5_000));
     }
   }
   throw new CliError(
-    `::error::Source SHA has no successful Main Write Guard status: ${repository}@${mainSha.slice(0, 12)} has not been attested yet. Run the Main Write Audit workflow (Actions > Main Write Audit > Run workflow), wait for it to finish, and start this workflow again.`,
+    `::error::Source SHA has no successful Main Write Guard status: ${repository}@${mainSha.slice(0, 12)} has not been attested yet. Intake attests every managed main automatically within minutes; start this workflow again in a few minutes. If it repeats, the Main write audit job of the latest Intake run says why.`,
     65
   );
 }

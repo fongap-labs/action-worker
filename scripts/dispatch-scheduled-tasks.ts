@@ -143,7 +143,10 @@ export function cronMatches(date: Date, cron: string): boolean {
   if (Number.isNaN(date.getTime())) {
     throw new CliError("Task source schedule time is invalid.", 64);
   }
-  const parsed = parseCron(cron);
+  return matchesParsedCron(date, parseCron(cron));
+}
+
+function matchesParsedCron(date: Date, parsed: ReturnType<typeof parseCron>): boolean {
   if (
     !parsed.minute.has(date.getUTCMinutes()) ||
     !parsed.hour.has(date.getUTCHours()) ||
@@ -173,13 +176,26 @@ function slotKey(value: Date): string {
   return `${value.toISOString().slice(0, 16)}Z`;
 }
 
+// GitHub starts scheduled workflows only every few hours on this account (gaps of 2.6 to 9.8 hours
+// were observed), so the scheduler catches up the latest slot of each schedule that is at most this
+// late, instead of only the slots of the last few minutes. Dispatches are deduplicated per slot.
+export const maxLookbackMinutes = 1440;
+export const defaultLookbackMinutes = 720;
+
 export function projectsDueAt(
   manifest: TaskSourceManifest,
   now: Date,
-  lookbackMinutes = 20
+  lookbackMinutes = defaultLookbackMinutes
 ): DueProject[] {
-  if (!Number.isInteger(lookbackMinutes) || lookbackMinutes < 1 || lookbackMinutes > 60) {
-    throw new CliError("Task source lookback must be between 1 and 60 minutes.", 64);
+  if (
+    !Number.isInteger(lookbackMinutes) ||
+    lookbackMinutes < 1 ||
+    lookbackMinutes > maxLookbackMinutes
+  ) {
+    throw new CliError(
+      `Task source lookback must be between 1 and ${maxLookbackMinutes} minutes.`,
+      64
+    );
   }
   const current = minuteFloor(now);
   if (Number.isNaN(current.getTime())) {
@@ -188,10 +204,11 @@ export function projectsDueAt(
 
   const due = new Map<string, string>();
   for (const schedule of manifest.schedules) {
+    const parsed = parseCron(schedule.cron);
     let matched: Date | null = null;
     for (let offset = 0; offset < lookbackMinutes; offset += 1) {
       const candidate = new Date(current.getTime() - offset * 60_000);
-      if (cronMatches(candidate, schedule.cron)) {
+      if (matchesParsedCron(candidate, parsed)) {
         matched = candidate;
         break;
       }
@@ -350,23 +367,52 @@ function scheduleDescription(slot: string): string {
   return `Task dispatched for ${slot}`;
 }
 
-async function wasDispatched(task: ScheduledTask, token: string): Promise<boolean> {
-  const value = await getGithubJson(
-    `repos/${task.repository}/commits/${task.head_sha}/status`,
-    token
-  );
-  if (!isJsonRecord(value) || !Array.isArray(value.statuses)) {
-    throw new CliError(`GitHub task schedule status is invalid: ${task.repository}.`, 65);
+function commitShas(value: unknown, repository: string): string[] {
+  if (!Array.isArray(value)) {
+    throw new CliError(`GitHub commit list is invalid: ${repository}.`, 65);
   }
+  return value.map((item) => {
+    const sha = isJsonRecord(item) && typeof item.sha === "string" ? item.sha : "";
+    if (!shaPattern.test(sha)) {
+      throw new CliError(`GitHub commit list is invalid: ${repository}.`, 65);
+    }
+    return sha;
+  });
+}
+
+/**
+ * The dispatch of a slot is recorded on the default-branch head of that moment, which is the head
+ * of the slot time or a later one. Look at every one of those heads, so a new commit on the default
+ * branch does not make an already dispatched slot run again.
+ */
+export async function wasDispatched(
+  task: ScheduledTask,
+  get: (path: string) => Promise<unknown>
+): Promise<boolean> {
+  const slotTime = `${task.slot.slice(0, 16)}:00Z`;
+  const base = `repos/${task.repository}/commits?sha=${task.head_sha}`;
+  const heads = new Set([
+    task.head_sha,
+    ...commitShas(await get(`${base}&since=${slotTime}&per_page=100`), task.repository),
+    ...commitShas(await get(`${base}&until=${slotTime}&per_page=1`), task.repository),
+  ]);
   const context = scheduleContext(task.project);
   const description = scheduleDescription(task.slot);
-  return value.statuses.some(
-    (item) =>
-      isJsonRecord(item) &&
-      item.context === context &&
-      item.state === "success" &&
-      item.description === description
-  );
+  for (const sha of heads) {
+    const value = await get(`repos/${task.repository}/commits/${sha}/status`);
+    if (!isJsonRecord(value) || !Array.isArray(value.statuses)) {
+      throw new CliError(`GitHub task schedule status is invalid: ${task.repository}.`, 65);
+    }
+    const isRecorded = value.statuses.some(
+      (item) =>
+        isJsonRecord(item) &&
+        item.context === context &&
+        item.state === "success" &&
+        item.description === description
+    );
+    if (isRecorded) return true;
+  }
+  return false;
 }
 
 async function markDispatched(task: ScheduledTask, token: string): Promise<void> {
@@ -435,7 +481,7 @@ async function main(): Promise<void> {
   const ingressToken = process.env.AW_INGRESS_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   const nowRaw = process.env.TASK_SOURCE_NOW ?? "";
-  const lookbackRaw = process.env.TASK_SOURCE_LOOKBACK_MINUTES ?? "20";
+  const lookbackRaw = process.env.TASK_SOURCE_LOOKBACK_MINUTES ?? String(defaultLookbackMinutes);
   const now = nowRaw ? new Date(nowRaw) : new Date();
   const lookbackMinutes = Number(lookbackRaw);
 
@@ -449,7 +495,7 @@ async function main(): Promise<void> {
     Number.isNaN(now.getTime()) ||
     !Number.isInteger(lookbackMinutes) ||
     lookbackMinutes < 1 ||
-    lookbackMinutes > 60
+    lookbackMinutes > maxLookbackMinutes
   ) {
     throw new CliError("Task scheduler time or lookback is invalid.", 64);
   }
@@ -465,7 +511,7 @@ async function main(): Promise<void> {
   let dispatched = 0;
   let deduplicated = 0;
   for (const task of tasks) {
-    if (await wasDispatched(task, controlToken)) {
+    if (await wasDispatched(task, (path) => getGithubJson(path, controlToken))) {
       deduplicated += 1;
       continue;
     }

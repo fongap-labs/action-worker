@@ -119,17 +119,13 @@ test("governance files and TypeScript control entries exist", async () => {
     ".github/workflows/handle-pr-dispatch.yml",
     ".github/workflows/handle-pr-review.yml",
     ".github/workflows/handle-release-dispatch.yml",
-    ".github/workflows/ci-intake.yml",
     ".github/workflows/dependency-repair-dispatch.yml",
-    ".github/workflows/main-write-audit.yml",
+    ".github/workflows/intake.yml",
     ".github/workflows/main-write-guard.yml",
-    ".github/workflows/pr-intake.yml",
     ".github/workflows/release-app.yml",
     ".github/workflows/security-scan-dispatch.yml",
-    ".github/workflows/security-scan-intake.yml",
     ".github/workflows/deploy-source-script.yml",
     ".github/workflows/release-tool.yml",
-    ".github/workflows/task-intake.yml",
     ".github/workflows/task-source-dispatch.yml",
     ".github/workflows/cancel-pr-work.yml",
     "skills/writing/SKILL.md",
@@ -168,16 +164,41 @@ test("workflows use the canonical setup-node action runtime", async () => {
   }
 });
 
-test("main write audit reconciles on control-plane changes and schedule", async () => {
-  const workflow = await text(".github/workflows/main-write-audit.yml");
+test("Intake reconciles every kind of work on the heartbeat, never by hand", async () => {
+  const workflow = await text(".github/workflows/intake.yml");
   requireText(workflow, [
     "push:",
     "branches: [main]",
+    "types: [run-intake]",
     'cron: "*/5 * * * *"',
-    "workflow_dispatch:",
+    "group: intake",
+    "intake-open-prs.ts",
+    "intake-main-ci.ts",
     "audit-main-writes.ts",
     "MAIN_WRITE_AUDIT_RUN_URL",
+    "intake-task-sources.ts",
+    "dispatch-scheduled-tasks.ts",
+    'TASK_SOURCE_LOOKBACK_MINUTES: "720"',
+    "intake-security-scans.ts",
   ]);
+  assert.doesNotMatch(workflow, /workflow_dispatch/);
+  // The weekly rescan dispatches without deduplication, so it never runs on the heartbeat.
+  const securityScans = workflow.slice(workflow.indexOf("  security-scans:"));
+  assert.match(securityScans, /if: github\.event\.schedule == '17 3 \* \* 1'/);
+  assert.match(workflow, /cron: "17 3 \* \* 1"/);
+  for (const retired of [
+    "pr-intake.yml",
+    "ci-intake.yml",
+    "task-intake.yml",
+    "security-scan-intake.yml",
+    "main-write-audit.yml",
+  ]) {
+    assert.equal(
+      await exists(`.github/workflows/${retired}`),
+      false,
+      `${retired} is part of Intake`
+    );
+  }
 
   const audit = await text("scripts/audit-main-writes.ts");
   requireText(audit, [
@@ -584,16 +605,15 @@ test("task source ingress is source-owned and repository-agnostic", async () => 
     "project:",
     "AW_REPOSITORY_POLICY",
     'repository-policy.ts validate "$repository" task',
-    "dispatch-scheduled-tasks.ts",
     "AW_CONTROL_REPOSITORY",
     "Task Source",
-    "github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'",
-    "github.event_name == 'schedule'",
   ]);
   assert.doesNotMatch(
     workflow,
     /fongap-labs\/internal-vault|MarketBrief|PharmaBrief|commits\/main/
   );
+  // Scheduled projects are found by Intake; this workflow only handles a request.
+  assert.doesNotMatch(workflow, /schedule:|dispatch-scheduled-tasks/);
 
   const scheduler = await text("scripts/dispatch-scheduled-tasks.ts");
   requireText(scheduler, [
@@ -616,13 +636,12 @@ test("task source ingress is source-owned and repository-agnostic", async () => 
   ]);
   assert.doesNotMatch(intake, /fongap-labs\/internal-vault|MarketBrief|PharmaBrief/);
 
-  const intakeWorkflow = await text(".github/workflows/task-intake.yml");
+  const intakeWorkflow = await text(".github/workflows/intake.yml");
   requireText(intakeWorkflow, [
-    'cron: "*/5 * * * *"',
-    "workflow_dispatch:",
     "AW_REPOSITORY_POLICY",
     "AW_CONTROL_TOKEN",
     "intake-task-sources.ts",
+    "dispatch-scheduled-tasks.ts",
   ]);
 });
 
@@ -761,9 +780,11 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   assert.equal(repository.allow_squash_merge, true);
   assert.equal(repository.delete_branch_on_merge, true);
   const settings = await text(".github/workflows/apply-repository-settings.yml");
+  // The daily run corrects settings changed by hand, so drift never needs a manual run.
   requireText(settings, [
     "secrets.AW_ADMIN_TOKEN",
-    "inputs.is_dry_run",
+    "schedule:",
+    "group: apply-repository-settings",
     "policies/rulesets.json",
     "scripts/apply-repository-settings.ts",
     "node scripts/apply-repository-settings.ts",
@@ -856,13 +877,10 @@ test("security scanning is source-owned, centrally executed, and private-safe", 
     /- name: Publish SARIF to target repository[\s\S]*?AW_ADMIN_TOKEN: \$\{\{ secrets\.AW_ADMIN_TOKEN \}\}/
   );
 
-  const intake = await text(".github/workflows/security-scan-intake.yml");
-  requireText(intake, [
-    "push:",
-    "branches: [main]",
-    ".github/workflows/security-scan-dispatch.yml",
-    "scripts/security-scan.ts",
-    'cron: "17 3 * * 1"',
+  const intake = await text(".github/workflows/intake.yml");
+  const securityScans = intake.slice(intake.indexOf("  security-scans:"));
+  requireText(securityScans, [
+    "if: github.event.schedule == '17 3 * * 1'",
     "contents: write",
     "intake-security-scans.ts",
     "AW_REPOSITORY_POLICY",
@@ -924,6 +942,11 @@ test("central CI deploy dispatch is source-owned and adapter-routed", async () =
     "policies/deploy.json",
     "policies/runner.json",
     "needs.prepare.outputs.pr_number == '0'",
+    // A failed security scan dispatch must not silently skip the main write attestation and the
+    // deploy, and an untrusted main write must never be deployed.
+    "if: ${{ !cancelled() && needs.prepare.outputs.pr_number == '0' }}",
+    "if: ${{ !cancelled() && steps.deploy_control.outcome == 'success' }}",
+    "if: ${{ !cancelled() && steps.attest.outcome == 'success' }}",
     "contents: write",
     "AW_REPOSITORY_POLICY",
     'repository-policy.ts validate "$REPOSITORY" pr',
@@ -1076,15 +1099,17 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
 
 test("main write guard is the post-merge provenance authority", async () => {
   const workflow = await text(".github/workflows/main-write-guard.yml");
+  // The workflow guards Action Worker's own main with the workflow token; managed repositories are
+  // attested by audit-main-writes.ts, so nothing here needs the control token.
   requireText(workflow, [
     "push:",
     "branches: [main]",
-    "types: [run-main-write-guard]",
     "Main Write Guard",
-    "MAIN_WRITE_REQUIRE_CENTRAL_STATUSES",
+    'MAIN_WRITE_REQUIRE_CENTRAL_STATUSES: "false"',
+    "MAIN_WRITE_TOKEN: ${{ github.token }}",
     "node scripts/main-write-guard.ts",
-    "secrets.AW_CONTROL_TOKEN",
   ]);
+  assert.doesNotMatch(workflow, /repository_dispatch|secrets\./);
   const guard = await text("scripts/main-write-guard.ts");
   requireText(guard, [
     "merge_commit_sha",
@@ -1099,14 +1124,17 @@ test("main write guard is the post-merge provenance authority", async () => {
 });
 
 test("central main write audit is independent of business repository Actions", async () => {
-  const workflow = await text(".github/workflows/main-write-audit.yml");
+  const intake = await text(".github/workflows/intake.yml");
+  const workflow = intake.slice(
+    intake.indexOf("  main-writes:"),
+    intake.indexOf("  task-sources:")
+  );
   requireText(workflow, [
-    'cron: "*/5 * * * *"',
-    "workflow_dispatch:",
     "AW_CONTROL_TOKEN",
     "AW_REPOSITORY_POLICY",
     "node scripts/audit-main-writes.ts",
   ]);
+  assert.match(intake, /cron: "\*\/5 \* \* \* \*"/);
   const script = await text("scripts/audit-main-writes.ts");
   requireText(script, [
     'repositoriesForCapability(policy, "pr")',
@@ -1245,22 +1273,32 @@ test("manual release, deploy and task entry points request central CI and explai
   const release = await text(".github/workflows/release-app.yml");
   const deploy = await text(".github/workflows/deploy-source-script.yml");
   const task = await text(".github/workflows/task-source-dispatch.yml");
-  // GitHub starts the scheduled CI Intake only every few hours, so each entry asks for CI itself.
+  // Intake may not have reached the source yet, so each entry asks for CI and attests the main
+  // write itself. The attestation never blocks: the gate after it stays the authority, and a
+  // failed task source run would make Intake retry the same SHA on every heartbeat.
   for (const workflow of [release, deploy, task]) {
     requireText(workflow, [
       "- name: Request central CI for the source",
       "AW_CI_INTAKE_REPOSITORY:",
       "node scripts/intake-main-ci.ts",
+      "- name: Attest the source main write",
+      "MAIN_WRITE_AUDIT_REPOSITORY:",
+      "node scripts/audit-main-writes.ts",
     ]);
+    const attest = workflow.slice(workflow.indexOf("- name: Attest the source main write"));
+    assert.match(attest, /^[^\n]*\n(?:\s+if: [^\n]+\n)?\s+continue-on-error: true\n/);
   }
-  assert.ok(
-    release.indexOf("- name: Request central CI for the source") <
-      release.indexOf("- name: Validate release build request")
-  );
-  assert.ok(
-    deploy.indexOf("- name: Request central CI for the source") <
-      deploy.indexOf("- name: Validate deploy source")
-  );
+  for (const [workflow, gate] of [
+    [release, "- name: Validate release build request"],
+    [deploy, "- name: Validate deploy source"],
+    [task, "- name: Dispatch selected tasks"],
+  ] as const) {
+    assert.ok(
+      workflow.indexOf("- name: Request central CI for the source") <
+        workflow.indexOf("- name: Attest the source main write")
+    );
+    assert.ok(workflow.indexOf("- name: Attest the source main write") < workflow.indexOf(gate));
+  }
   // The validation waits for the verdict for up to 20 minutes, so the job must outlive the wait.
   assert.match(release, /prepare:[\s\S]*?timeout-minutes: 30/);
   assert.match(deploy, /prepare:[\s\S]*?timeout-minutes: 30/);

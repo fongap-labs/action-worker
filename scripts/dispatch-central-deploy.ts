@@ -80,6 +80,26 @@ export function isDocsOnly(paths: readonly string[]): boolean {
   );
 }
 
+// GitHub lists at most 300 files in a comparison, so a longer list may hide code changes.
+const comparisonFileLimit = 300;
+
+/**
+ * Main moved on while central CI ran for an older commit. The newer commit normally deploys
+ * itself after its own central CI. When everything after the older commit is documentation that
+ * the source skips, the newer commit will not deploy, so the older commit's change would never
+ * reach production; the current HEAD carries that change and is deployed instead.
+ */
+export function shouldDeployCurrentMain(comparison: unknown, isDocsOnlyIgnored: boolean): boolean {
+  if (!isDocsOnlyIgnored || getJsonString(comparison, "status") !== "ahead") {
+    return false;
+  }
+  const files = getJsonArray(comparison, "files")
+    .filter(isJsonRecord)
+    .map((item) => getJsonString(item, "filename"))
+    .filter(Boolean);
+  return files.length < comparisonFileLimit && isDocsOnly(files);
+}
+
 async function main(): Promise<void> {
   const [
     repository = "",
@@ -140,16 +160,14 @@ async function main(): Promise<void> {
   const defaultBranch = getJsonString(repositoryJson, "default_branch");
   const defaultCommit = await reader.get(`repos/${repository}/commits/${defaultBranch}`);
   const defaultSha = getJsonString(defaultCommit, "sha");
-  if (defaultSha !== headSha) {
-    throw new CliError(
-      `Automatic deploy source is stale: expected=${defaultSha} actual=${headSha}.`,
-      75
-    );
+  if (!shaPattern.test(defaultSha)) {
+    throw new CliError(`Automatic deploy source default HEAD is invalid: ${repository}.`, 65);
   }
 
+  // The current HEAD decides whether and how the source deploys.
   const manifest = await resolveDeployManifest(
     repository,
-    headSha,
+    defaultSha,
     repositoryPolicy,
     await readJson(runnerPolicyPath),
     reader
@@ -159,23 +177,39 @@ async function main(): Promise<void> {
     return;
   }
 
-  const commit = await reader.get(`repos/${repository}/commits/${headSha}`);
-  const changedFiles = getJsonArray(commit, "files")
-    .filter(isJsonRecord)
-    .map((item) => getJsonString(item, "filename"))
-    .filter(Boolean);
-
-  if (manifest.ignore_docs_only && isDocsOnly(changedFiles)) {
-    console.log(`Automatic deploy skipped for documentation-only commit: ${repository}@${headSha}`);
+  const skip = async (reason: string): Promise<void> => {
+    console.log(`Automatic deploy skipped (${reason}): ${repository}@${headSha}`);
     await appendLines(process.env.GITHUB_STEP_SUMMARY, [
       "## Central deploy dispatch",
       "",
       `- Repository: ${repository}`,
       `- Commit: ${headSha}`,
       `- Adapter: ${manifest.adapter}`,
-      "- Result: skipped (documentation-only)",
+      `- Result: skipped (${reason})`,
     ]);
-    return;
+  };
+
+  let deploySha = headSha;
+  if (defaultSha !== headSha) {
+    const comparison = await reader.get(`repos/${repository}/compare/${headSha}...${defaultSha}`);
+    if (!shouldDeployCurrentMain(comparison, manifest.ignore_docs_only)) {
+      await skip(`main moved on to ${defaultSha}, which deploys after its own central CI`);
+      return;
+    }
+    console.log(
+      `Main moved on to ${defaultSha} with documentation only, so the current main is deployed with this change.`
+    );
+    deploySha = defaultSha;
+  } else {
+    const commit = await reader.get(`repos/${repository}/commits/${headSha}`);
+    const changedFiles = getJsonArray(commit, "files")
+      .filter(isJsonRecord)
+      .map((item) => getJsonString(item, "filename"))
+      .filter(Boolean);
+    if (manifest.ignore_docs_only && isDocsOnly(changedFiles)) {
+      await skip("documentation-only");
+      return;
+    }
   }
 
   const policy = parseDeployPolicy(await readJson(policyPath));
@@ -184,7 +218,7 @@ async function main(): Promise<void> {
     "deploy",
     process.env.GITHUB_RUN_ID ?? "0",
     process.env.GITHUB_RUN_ATTEMPT ?? "1",
-    headSha.slice(0, 12),
+    deploySha.slice(0, 12),
   ].join("-");
   const payload = JSON.stringify({
     event_type: eventType,
@@ -192,7 +226,7 @@ async function main(): Promise<void> {
       schema_version: "1",
       request_id: requestId,
       source_repository: repository,
-      source_sha: headSha,
+      source_sha: deploySha,
     },
   });
 
@@ -209,14 +243,14 @@ async function main(): Promise<void> {
     "## Central deploy dispatch",
     "",
     `- Repository: ${repository}`,
-    `- Commit: ${headSha}`,
+    `- Commit: ${deploySha}`,
     `- Adapter: ${manifest.adapter}`,
     `- Runner profile: ${manifest.runner_profile}`,
     `- Event: ${eventType}`,
     "- Result: dispatched",
   ]);
   console.log(
-    `Central deploy dispatched: ${repository}@${headSha} -> ${manifest.adapter} -> ${eventType}`
+    `Central deploy dispatched: ${repository}@${deploySha} -> ${manifest.adapter} -> ${eventType}`
   );
 }
 

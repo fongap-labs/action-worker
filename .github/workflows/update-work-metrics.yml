@@ -13,11 +13,8 @@ on:
       - Handle PR Dispatch
       - Handle Release Dispatch
     types: [completed]
-  repository_dispatch:
-    types: [refresh-work-metrics]
   schedule:
     - cron: "17 0 * * *"
-  workflow_dispatch:
 
 permissions:
   actions: read

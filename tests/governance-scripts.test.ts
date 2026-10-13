@@ -821,6 +821,23 @@ test("main write guard accepts central merge authority and preserves local self-
     hasTrustedMainWriteGuard(paths.get(`repos/fongap/example/commits/${mainSha}/status`)),
     true
   );
+
+  // A failed guard names the SHA and says how main becomes trusted again.
+  paths.set(`repos/fongap/example/commits/${mainSha}/status`, {
+    statuses: [
+      {
+        context: "Main Write Guard",
+        state: "failure",
+        target_url: "https://github.com/fongap-labs/action-worker/actions/runs/3",
+      },
+    ],
+  });
+  await assert.rejects(
+    () => assertTrustedMainWrite(reader, "fongap/example", mainSha, true),
+    (error: Error) =>
+      error.message.includes(`fongap/example@${mainSha.slice(0, 12)}`) &&
+      error.message.includes("merging a pull request that passed validate-merge")
+  );
 });
 
 test("main write provenance rejects direct pushes and fake status-only trust", async () => {
@@ -858,6 +875,10 @@ test("PR review summary tells a maintainer how to release a pull request awaitin
   const body = buildReview("awaiting-approval", "https://example.test/run", undefined, undefined);
   assert.match(body, /Gate: \*\*WAITING FOR APPROVAL\*\*/);
   assert.match(body, /Review changes → Approve/);
-  assert.match(body, /PR Intake/);
+  // The approval is the only step: nothing has to be started by hand afterwards.
+  assert.match(body, /continues automatically after the approval/);
+  // GitHub sends no event with secrets on an approval, so Intake notices it; the wait is not hidden.
+  assert.match(body, /next Intake run, usually within an hour/);
+  assert.doesNotMatch(body, /Actions tab|run \*\*/);
   assert.doesNotMatch(body, /Gate: \*\*FAIL\*\*/);
 });

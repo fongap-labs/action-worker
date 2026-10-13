@@ -55,11 +55,11 @@ flowchart LR
 
 ### 接入一个业务仓库
 
-接入分三步。完成后，每个 PR 打开或推送新提交时，都会出现 `PR Governance` 状态检查。
+接入分三步。完成后，每个 PR 打开或推送新提交时，都会出现 `PR Governance` 状态检查；`main` 的每次 push 都会立即唤醒 Action Worker 的 Intake（中央 CI、main 写入证明、变更任务与自动部署）。
 
 | 步骤 | 位置 | 操作 |
 |---|---|---|
-| 1 | 业务仓库 | 新建 `.github/workflows/dispatch-pr-governance.yml`，内容与[标准模板](templates/pr-dispatcher/dispatch-pr-governance.yml)逐字节一致 |
+| 1 | 业务仓库 | 新建 `.github/workflows/notify-action-worker.yml`，内容与[标准模板](templates/bridge/notify-action-worker.yml)逐字节一致；这是业务仓库中唯一需要的 Action Worker 工作流 |
 | 2 | 业务仓库的 Secrets | 配置 `AW_DISPATCH_TOKEN`，它只允许向 `action-worker` 发送分发事件 |
 | 3 | Action Worker 的仓库变量 | 在 `AW_REPOSITORY_POLICY` 中登记仓库及其能力 |
 

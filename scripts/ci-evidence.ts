@@ -164,7 +164,7 @@ export async function requireVerifiedCiEvidence(
     if (attempt + 1 < statusAttempts) await sleep(retryDelayMs);
   }
   throw new CliError(
-    `::error::Source SHA has no successful Action Worker CI Evidence (control=${controlRepository}, commit=${commit}). Central CI has not reported for this commit: run the CI Intake workflow (Actions > CI Intake > Run workflow), wait for Central CI Dispatch to finish, and start this workflow again.`,
+    `::error::Source SHA has no successful Action Worker CI Evidence (control=${controlRepository}, commit=${commit}). Central CI has not reported for this commit within the wait: open Actions > Central CI Dispatch to see whether its run is still queued or running, and start this workflow again after it has passed. Intake requests central CI for every managed main automatically, so nothing needs to be started by hand.`,
     65
   );
 }

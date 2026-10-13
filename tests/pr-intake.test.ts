@@ -293,7 +293,7 @@ test("central PR intake retries a reservation whose intake run was cancelled", a
           return {
             status: "completed",
             conclusion: "cancelled",
-            path: ".github/workflows/pr-intake.yml",
+            path: ".github/workflows/intake.yml",
           };
         }
         throw new Error(`unexpected API path: ${path}`);

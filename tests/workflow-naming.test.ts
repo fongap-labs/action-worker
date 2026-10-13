@@ -24,9 +24,10 @@ const dispatchNameExceptions: Record<string, string> = {
 // docs/NAMING_CONVENTIONS.md section 8.1, never a repository or product name.
 const releaseKinds = ["app", "tool"];
 
-// A workflow that releases or deploys is a named entry point (`release-<kind>.yml`,
-// `deploy-<adapter>.yml`): a person starts it from the Actions tab, and automation may also start
-// it, so the dispatch-event rule below does not apply to it.
+// A workflow that releases or deploys is named by what it does (`release-<kind>.yml`,
+// `deploy-<adapter>.yml`), so a person finds it by the work they want done; the dispatch-event rule
+// below does not apply to it. Which of them a person may start is decided by its class
+// (tests/workflow-classes.test.ts).
 const operationPattern = /^(release|deploy)-(.+)\.yml$/;
 
 async function workflows(): Promise<Array<{ file: string; workflow: Workflow }>> {
@@ -94,7 +95,7 @@ test("every workflow display name spells out its file name", async () => {
   }
 });
 
-test("release and deploy workflows are named by kind and can be started by hand", async () => {
+test("release and deploy workflows are named by kind", async () => {
   const deploy = JSON.parse(await readFile(deployPolicyPath, "utf8")) as {
     adapters: Record<string, unknown>;
   };
@@ -103,7 +104,7 @@ test("release and deploy workflows are named by kind and can be started by hand"
     operations.map(({ file }) => file),
     ["deploy-source-script.yml", "release-app.yml", "release-tool.yml"]
   );
-  for (const { file, workflow } of operations) {
+  for (const { file } of operations) {
     const match = operationPattern.exec(file);
     assert.ok(match, file);
     const [, verb, subject = ""] = match;
@@ -112,10 +113,6 @@ test("release and deploy workflows are named by kind and can be started by hand"
     } else {
       assert.ok(releaseKinds.includes(subject), `${file}: ${subject} is not a release kind`);
     }
-    assert.ok(
-      "workflow_dispatch" in (workflow.on ?? {}),
-      `${file} is an entry point a person starts, so it declares workflow_dispatch`
-    );
   }
 });
 

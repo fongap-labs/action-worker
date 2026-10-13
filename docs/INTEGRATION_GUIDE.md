@@ -67,7 +67,7 @@ capability_requests
 
 ```text
 PR
-→ PR Intake / 可选的迁移薄分发
+→ 业务仓库的 Notify Action Worker 桥接（实时）/ Intake（兜底）
 → Security / Central CI / 确定性 PR 策略
 → CI Evidence
 → PR Governance / validate-merge
@@ -77,7 +77,7 @@ PR
 
 项目测试代码保留在业务仓库中（能从外部运行的测试放在测试包中），但 Action Worker 会检出不可变的源 SHA，并在沙箱中运行。
 
-默认分支的 CI 以同样的方式进行对账：公开的 Action Worker 中的 CI Intake 定期检查每个受管仓库的当前 HEAD，当缺少 `CI Evidence` 时分发 `run-central-ci-ref`。因此业务仓库的 `ci.yml` 只是低延迟的迁移入口，不再是 main CI 的长期前提。
+默认分支的 CI 以同样的方式进行对账：业务仓库的 `main` 有 push 时，桥接立即唤醒公开的 Action Worker 中的 Intake；Intake 检查每个受管仓库的当前 HEAD，当缺少 `CI Evidence` 时分发 `run-central-ci-ref`。桥接缺失时，Intake 也会在 Action Worker 自身的 push 或定时运行时补上，只是更慢。业务仓库不需要自己的 `ci.yml`。
 
 如果仓库的 GitHub ruleset 要求检查运行必须来自目标仓库自身的 GitHub Actions，它可以保留一个极薄的 `validate-merge` 桥接。该桥接只连接 `CI Evidence` 与 `PR Governance`。
 
@@ -114,7 +114,7 @@ PR 不能用自己的 head 修改安全扫描配置。中央 CodeQL 产生的 SA
 
 当前公开控制平面的 CodeQL 执行器只接受公开的源仓库。在日志抑制或私有安全执行器就绪之前，私有源仓库会失败即关闭；这是执行器的限制，不改变统一安全扫描合同。
 
-定期扫描由公开的 Action Worker 中的 Security Scan Intake 调度；业务仓库不需要定时运行的 CodeQL 工作流。
+定期扫描由公开的 Action Worker 中 Intake 的每周作业调度；业务仓库不需要定时运行的 CodeQL 工作流。
 
 ## 7. 依赖修复
 
@@ -163,7 +163,7 @@ AW_CONTROL_TOKEN
 AIG_ACCESS_KEY_AGENT
 ```
 
-迁移期间，业务仓库可以为薄分发保留最小化的凭据；一旦中央 PR / CI Intake 生效，该凭据就不再是治理与执行的长期硬依赖。中央管理、跨仓库写入、AI Gateway 与生产凭据绝不能下沉到业务仓库。
+业务仓库只为桥接保留一个最小化的凭据 `AW_DISPATCH_TOKEN`；它只用于通知，中央 Intake 在桥接缺失时仍能完成治理与执行，所以它不是长期硬依赖。中央管理、跨仓库写入、AI Gateway 与生产凭据绝不能下沉到业务仓库。
 
 `AW_CHECKOUT_TOKEN` 仅用于在沙箱和依赖修复计算作业中检出私有目标仓库。其权限只能是 `Contents: Read`，作用范围仅限受管的私有仓库，并且必须在过期前轮换。`AW_CONTROL_TOKEN` 用于中央读取、控制与状态治理。`AW_ADMIN_TOKEN` 仅用于可信控制步骤中的仓库级高权限写入，例如 Repository Settings / Rulesets，以及需要 Code Scanning 写权限的 SARIF 发布。高权限令牌绝不注入沙箱中的项目命令。
 
@@ -171,17 +171,26 @@ AIG_ACCESS_KEY_AGENT
 
 ## 10. Main Write Guard
 
-业务仓库不承担 Main Write Guard 的权威执行。公开的 `action-worker` 审计 `AW_REPOSITORY_POLICY` 中每个受管仓库的当前 `main`，重新查询 GitHub，并证明源 SHA 来自合法的 PR 合并。证明在三个时机产生：
+业务仓库不承担 Main Write Guard 的权威执行。公开的 `action-worker` 审计 `AW_REPOSITORY_POLICY` 中每个受管仓库的当前 `main`，重新查询 GitHub，并证明源 SHA 来自合法的 PR 合并。证明在以下时机自动产生，不需要手动运行任何工作流：
 
-- 某个 `main` SHA 的中央 CI 通过之后，`Central CI Dispatch` 的 `Dispatch Central CI Follow-ups` 立即对该仓库运行 Main Write Audit；
-- `action-worker` 自己的 `main` 有 push 时，审计所有受管仓库；
-- 定时审计。GitHub 对定时触发只做尽力而为，实际可能每隔数小时才运行一次，所以定时审计只是兜底，不是实时来源。
+- 业务仓库的 `main` 有 push 时，桥接唤醒 Intake，Intake 的 `Main write audit` 作业审计所有受管仓库；
+- `Release App`、`Deploy Source Script`、`Task Source Dispatch` 在校验之前，先对源仓库运行同一个审计；
+- 某个 `main` SHA 的中央 CI 通过之后，`Central CI Dispatch` 的 `Dispatch Central CI Follow-ups` 对该仓库运行审计；
+- `action-worker` 自己的 `main` 有 push，或定时运行时。GitHub 对定时触发只做尽力而为，实际可能每隔数小时才运行一次，所以定时运行只是兜底。
 
-需要立即得到证明时（例如任务或部署报 `Source SHA has no successful Main Write Guard status`），在 Actions 中手动运行 `Main Write Audit`。
+### 10.1 业务仓库桥接
 
-业务仓库可以保留一个极薄的 main push 分发器，以缩短发现问题的延迟；但分发器缺失、Actions 分钟数耗尽或分发器被删除，都既不能产生可信的 main SHA，也不能削弱 Release / Deploy 的失败即关闭检查。
+每个受管业务仓库只保留一个工作流 `.github/workflows/notify-action-worker.yml`，内容与 [`templates/bridge/notify-action-worker.yml`](../templates/bridge/notify-action-worker.yml) 逐字节一致，并配置仓库密钥 `AW_DISPATCH_TOKEN`。它只通知、不检出、不执行任何代码：
 
-最薄的 PR 侧触发器使用 `templates/pr-dispatcher/dispatch-pr-governance.yml`（只监听 `opened` 与 `synchronize`，跳过 Dependabot），并且仓库需要配置 `AW_DISPATCH_TOKEN`。它可以运行在 self-hosted Runner 上；见 [RUNNER_POLICY.md](RUNNER_POLICY.md) 第 11 节。
+| 业务仓库中发生的事 | 桥接发送给 Action Worker 的事件 | 结果 |
+|---|---|---|
+| PR 打开、更新或重新打开 | `run-pr-governance` | PR 治理、中央 CI 与 `validate-merge` |
+| PR 关闭（含合并） | `cancel-pr-work` | 取消该 PR 仍在进行的治理与中央 CI；未合并时也取消 AI Review |
+| push 到 `main` | `run-intake` | 中央 CI、main 写入证明、变更任务与自动部署 |
+
+由 Dependabot 触发的事件拿不到 Actions 密钥，由 Intake 处理。维护者批准一个等待批准的 PR 时，GitHub 不提供带密钥的事件，所以由下一次 Intake 运行发现批准；任何受管仓库的 `main` 有 push 都会立即启动这次运行。
+
+桥接缺失、Actions 分钟数耗尽或被删除，都既不能产生可信的 main SHA，也不能削弱 Release / Deploy 的失败即关闭检查，只会让 Action Worker 发现变化变慢。它可以运行在 self-hosted Runner 上；见 [RUNNER_POLICY.md](RUNNER_POLICY.md) 第 11 节。
 
 未经 Main Write Guard 证明的 SHA，不能用于 Release、Deploy、Publication 或特权执行。
 
@@ -193,14 +202,18 @@ AIG_ACCESS_KEY_AGENT
 
 业务仓库在 `.github/task-source.json` 中声明：
 
-- `push: true`：默认分支上的变更必须由 Task Intake 自动发现；
-- `schedules`：调度时段到项目的映射。
+- `push: true`：默认分支上的变更由 Intake 自动发现并运行变更的项目；
+- `schedules`：调度时段（cron）到项目的映射。
 
-Task Intake 定期扫描每个具有 `task` 能力的仓库，并只读取真实的默认分支 HEAD。对于启用了 `push` 的仓库，如果当前 HEAD 还没有成功的 `Task Source` 状态，它会以第一个父提交作为 `before_sha` 分发一次变更项目的解析：运行期间写入 pending，成功时写入 success，失败时写入 failure，以便下一轮重试。
+三种启动方式，结果相同：
 
-手动任务直接从 Action Worker 中的 `Task Source Dispatch` workflow_dispatch 启动，只提交受管仓库与项目。业务仓库不再需要为手动或 push 事件启动本地通知 Runner。
+| 方式 | 谁启动 | 说明 |
+|---|---|---|
+| 变更触发 | Intake 的 `Changed task projects` 作业 | 业务仓库 `main` 的 push 通过桥接立即唤醒 Intake。对于启用了 `push` 的仓库，如果当前 HEAD 还没有成功的 `Task Source` 状态，它会以第一个父提交作为 `before_sha` 分发一次变更项目的解析：运行期间写入 pending，成功时写入 success，失败时写入 failure，以便下一轮重试 |
+| 定时 | Intake 的 `Scheduled task projects` 作业 | GitHub 的定时触发可能晚到数小时，所以每次 Intake 运行都会补发过去 12 小时内到期但还没分发的时段；每个时段只分发一次，由源提交上的 `Task Schedule/<project>` 状态记录 |
+| 手动 | 人从 Actions → `Task Source Dispatch` → Run workflow 启动 | 只填受管仓库与项目 |
 
-手动启动时，`repository` 写成 `owner/name`（只写仓库名会报错，并在报错中给出对应的完整名称），`project` 是该仓库 `projects/` 下含有 `task.json` 的目录名（填错时报错会列出可选项）。工作流会先为该仓库 `main` 的 HEAD 申请中央 CI，任务校验最多等待 20 分钟取得结果，不需要提前手动运行 CI。
+手动启动时，`repository` 写成 `owner/name`（只写仓库名会报错，并在报错中给出对应的完整名称），`project` 是该仓库 `projects/` 下含有 `task.json` 的目录名（填错时报错会列出可选项）。工作流会先为该仓库 `main` 的 HEAD 申请中央 CI 并证明 main 写入，任务校验最多等待 20 分钟取得结果，不需要提前手动运行任何工作流。
 
 中央仓库不得保留业务仓库或项目名称列表。
 
@@ -224,23 +237,23 @@ Task Intake 定期扫描每个具有 `task` 能力的仓库，并只读取真实
 
 发布版本即发布启动时人工输入的版本，且只有该版本。业务仓库不得保留约束该版本的规则：不得设置版本来源检查，不得做文件之间的一致性检查，也不得要求 CHANGELOG 中存在发布标题。项目构建脚本须声明必填的 `-Version` 参数，把该版本写入构建出的应用，并可校验构建产物确实携带该版本。
 
-手动发布同样从 Action Worker 中的 `Release App` 工作流启动：由用户选择受管的 `source_repository` 并输入必填的稳定版本号；Action Worker 自行读取该仓库默认分支的当前 HEAD，先为它申请中央 CI，再执行相同的源 / CI / provenance 检查，并最多等待 20 分钟取得 CI 结果。业务仓库无需为了"宣布发布"而启动自己的 Runner。
+手动发布同样从 Action Worker 中的 `Release App` 工作流启动：由用户选择受管的 `source_repository` 并输入必填的稳定版本号；Action Worker 自行读取该仓库默认分支的当前 HEAD，先为它申请中央 CI 并证明 main 写入，再执行相同的源 / CI / provenance 检查，并最多等待 20 分钟取得 CI 结果。业务仓库无需为了"宣布发布"而启动自己的 Runner。
 
 ### 12.1 启动发布或部署的工作流
 
-Release 与 Deploy 工作流按发布类型或部署适配器命名，绝不以产品或仓库命名。找到对应的行，在 Action Worker 的 Actions 标签页中打开该工作流，然后点击"Run workflow"。
+Release 与 Deploy 工作流按发布类型或部署适配器命名，绝不以产品或仓库命名。需要手动启动时，找到对应的行，在 Action Worker 的 Actions 标签页中打开该工作流，然后点击"Run workflow"。Action Worker 中只有 `Release App`、`Deploy Source Script` 与 `Task Source Dispatch` 有这个按钮，其余工作流都自动运行。
 
-| 你想要 | 工作流 | 输入 | 其他启动方式 | 当前使用方 |
+| 你想要 | 工作流 | 手动输入 | 自动启动方式 | 当前使用方 |
 |---|---|---|---|---|
 | 发布由源仓库构建的应用 | `Release App` (`release-app.yml`) | `source_repository`、`requested_version`（必填的稳定 SemVer） | `run-release-build` 分发事件 | delta、app-source |
-| 发布从上游镜像而来的第三方工具 | `Release Tool` (`release-tool.yml`) | 无（处理工具目录中的全部工具） | 定时任务，每 6 小时一次 | external-vault `tools/` |
-| 部署某个源提交 | `Deploy Source Script` (`deploy-source-script.yml`) | `source_repository`、`source_sha`（可选；留空部署默认分支的当前 HEAD，否则是精确的 40 位 SHA） | 可信的 main 写入之后中央 CI 启动，且仓库的 `.github/deploy.json` 中 `automatic: true` | ai-gateway（自动）、internal-vault（仅手动） |
+| 发布从上游镜像而来的第三方工具 | `Release Tool` (`release-tool.yml`) | 无手动按钮 | 定时任务，每 6 小时一次，处理工具目录中的全部工具 | external-vault `tools/` |
+| 部署某个源提交 | `Deploy Source Script` (`deploy-source-script.yml`) | `source_repository`、`source_sha`（可选；留空部署默认分支的当前 HEAD，否则是精确的 40 位 SHA） | 可信的 main 写入之后中央 CI 启动，且仓库的 `.github/deploy.json` 中 `automatic: true`；如果中央 CI 运行期间 `main` 之后只多了文档提交，则部署当前的 `main`，改动不会因为文档提交而漏部署 | ai-gateway（自动）、internal-vault（仅手动） |
 
 `Handle Release Dispatch` 负责发布两类产物；以上工作流负责启动它，人不直接运行它。"当前使用方"是一个快照：每个仓库自身的 `.github/release.manifest.json` 或 `.github/deploy.json`，以及 `AW_REPOSITORY_POLICY`，才是权威来源，而不是本表。
 
 ### 12.2 启动前的检查与常见失败
 
-启动 `Release App` 或 `Deploy Source Script` 之前不需要手动准备 CI：工作流会先为源仓库默认分支的当前 HEAD 申请中央 CI，并最多等待 20 分钟取得结果。你只需要保证：
+启动 `Release App` 或 `Deploy Source Script` 之前不需要手动准备任何东西：工作流会先为源仓库默认分支的当前 HEAD 申请中央 CI 并证明 main 写入，并最多等待 20 分钟取得 CI 结果。你只需要保证：
 
 1. 要发布或部署的改动已经通过 PR 合并进 `main`；
 2. `source_repository` 写成 `owner/name`，且该仓库在 `AW_REPOSITORY_POLICY` 中具有对应的能力（发布需要 `release-source`，部署需要 `deploy`）；
@@ -256,10 +269,10 @@ Release 与 Deploy 工作流按发布类型或部署适配器命名，绝不以�
 | `source_sha must be a full 40-character lowercase commit SHA` | 部署的 SHA 不是完整的 40 位小写十六进制 | 填完整的 SHA，或留空以部署当前 HEAD |
 | `default HEAD moved` 或 `must be the current default-branch HEAD` | 你启动之后，默认分支又有了新提交 | 重新启动工作流，让它读取最新的 HEAD |
 | `Source SHA failed CI Evidence: central CI failed for ...` | 中央 CI 在该提交上失败 | 打开报错里的链接查看失败的 job，通过 PR 修复并合并，等中央 CI 通过后重新启动 |
-| `Source SHA has no successful Action Worker CI Evidence` | 等待 20 分钟后，中央 CI 仍没有结果 | 在 Actions 中运行 `CI Intake`，等 `Central CI Dispatch` 结束后重新启动 |
+| `Source SHA has no successful Action Worker CI Evidence` | 等待 20 分钟后，中央 CI 仍没有结果（通常是 CI 仍在排队或运行） | 在 Actions → `Central CI Dispatch` 中找到该仓库的运行，等它通过后重新启动 |
 | `was not produced by a successful Action Worker CI run` | 状态存在，但写入它的中央 CI 运行没有成功 | 打开报错里的运行，查看原因；必要时合并一个新提交，让中央 CI 重新运行 |
-| `Source SHA has no successful Main Write Guard status` | 该 `main` SHA 还没有被证明来自合法的 PR 合并 | 在 Actions 中运行 `Main Write Audit`，结束后重新启动 |
-| `Source SHA failed Main Write Guard` 或 `not uniquely attributable to a merged pull request` | `main` 上有不是由单个 PR 合并产生的提交，例如直接 push | 通过一个新的 PR 合并一个提交，让 `main` 的 HEAD 重新来自合法的合并 |
+| `Source SHA has no successful Main Write Guard status` | 该 `main` SHA 还没有被证明来自合法的 PR 合并 | 几分钟后重新启动；仍然出现时，打开最新一次 `Intake` 运行的 `Main write audit` 作业查看原因 |
+| `Source SHA failed Main Write Guard` 或 `not uniquely attributable to a merged pull request` | `main` 上有不是由单个 PR 合并产生的提交，例如直接 push | 通过一个新的 PR 合并一个提交（需要通过 `validate-merge`），让 `main` 的 HEAD 重新来自合法的合并 |
 
 PR 治理最常见的失败：
 

@@ -61,14 +61,14 @@ Action Worker 不保留项目目录、不保留项目专属的测试映射，也
 
 ## 3. PR
 
-默认入口是 `pr-intake.yml`。它定期扫描 `AW_REPOSITORY_POLICY` 中受管仓库的未关闭 PR，并为每个 PR 向 `handle-pr-dispatch.yml` 提交一个治理任务。业务仓库的 Actions 不是安全前提。
+兜底入口是 `intake.yml` 的 `Pull requests` 作业。它扫描 `AW_REPOSITORY_POLICY` 中受管仓库的未关闭 PR，并为每个缺少结论的 PR 向 `handle-pr-dispatch.yml` 提交一个治理任务。业务仓库的 Actions 不是安全前提。
 
-迁移期间仍允许最薄的 `repository_dispatch` 触发器作为实时加速手段。它不得保存命名规则、Agent、模型、门禁阈值、中央密钥或审查规则，也不得执行重型任务。
+实时入口是业务仓库中唯一的桥接 `notify-action-worker.yml`（模板见 `templates/bridge/`）：PR 变化时发送 `run-pr-governance`，PR 关闭时发送 `cancel-pr-work`，`main` 有 push 时发送 `run-intake`。它不得保存命名规则、Agent、模型、门禁阈值、中央密钥或审查规则，也不得执行重型任务。
 
 ```text
 受管仓库的 PR
   ↓
-Action Worker PR Intake
+桥接 run-pr-governance（实时）/ Intake（兜底）
   ↓
 handle-pr-dispatch
   ↓
@@ -103,7 +103,7 @@ Action Worker 接收到任务后必须：
 - 在分发中央 CI 之前检查 PR 作者（`scripts/pr-trust.ts`）：
   - 具有目标仓库写权限的作者（`author_association` 为 OWNER / MEMBER / COLLABORATOR）直接继续；
   - 来自同一公开仓库分支的 `dependabot[bot]` PR 同样直接继续（公开目标的沙箱不持有任何凭据）；
-  - 来自其他作者的 PR（例如 fork 贡献者，或私有仓库中的 Dependabot）需要一位具有写权限的维护者对**当前 head 提交**给出 Approve 审查。等待期间，运行本身成功，但 `PR Governance` 与 `validate-merge` 会被写为 `failure`，描述固定为 `Awaiting maintainer approval of the current head commit`，PR 评论中列出操作步骤。`pr-intake.yml` 识别该描述，并且在检测到对当前 head 的批准之前不会再次分发（大约 5 分钟内；从 Actions 标签页手动运行 PR Intake 会立即继续）。批准绑定到被审查的提交；作者之后的新推送需要新的批准；
+  - 来自其他作者的 PR（例如 fork 贡献者，或私有仓库中的 Dependabot）需要一位具有写权限的维护者对**当前 head 提交**给出 Approve 审查。等待期间，运行本身成功，但 `PR Governance` 与 `validate-merge` 会被写为 `failure`，描述固定为 `Awaiting maintainer approval of the current head commit`，PR 评论中列出操作步骤。Intake 的 `Pull requests` 作业识别该描述，并且在检测到对当前 head 的批准之前不会再次分发。GitHub 在批准时不提供带密钥的事件，所以批准由下一次 Intake 运行发现：任何受管仓库的 `main` 有 push 都会立即启动它，否则通常在一小时内（定时触发只是兜底，可能晚到数小时）。批准绑定到被审查的提交；作者之后的新推送需要新的批准；
   - `central-ci-dispatch.yml` 在执行任何操作之前会重复同样的检查，对不可信的 head 始终失败即关闭；
 - 当执行计划需要 CI 时，在 Action Worker 中检出目标的不可变 head SHA，并在沙箱中运行项目清单 / 测试脚本，以产生真实的 CI Evidence；
 - 首先由确定性的 PR / Security / CI 证据形成门禁结论，然后向目标 head 提交写入一个 `PR Governance` 状态；
@@ -609,11 +609,19 @@ Action Worker 拥有生产凭据，并负责需要 Runner 资源的重型部署�
 
 ## 14. 目录结构
 
-Action Worker 按职责分层。当前的工作流入口列于下方。业务能力通过通用合同、清单与策略与之连接；没有任何长期工作流以产品命名：
+Action Worker 按职责分层。当前的工作流按分类列于下方（分类规则见 [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) 第 8.3 节，由 `tests/workflow-classes.test.ts` 强制执行）。业务能力通过通用合同、清单与策略与之连接；没有任何长期工作流以产品命名：
 
 ```text
 .github/workflows/
-  # 分发入口：handle-<subject>-dispatch.yml，必要时缩短以符合三段限制
+  # 入口：唯一可以从 Actions 标签页手动启动的工作流；自动化也通过 repository_dispatch 启动它们
+  release-app.yml
+  deploy-source-script.yml
+  task-source-dispatch.yml
+
+  # 对账：唯一的 Intake，扫描受管仓库并分发工作
+  intake.yml
+
+  # 事件处理：只由 repository_dispatch 启动
   handle-pr-dispatch.yml
   handle-pr-review.yml
   handle-release-dispatch.yml
@@ -622,28 +630,17 @@ Action Worker 按职责分层。当前的工作流入口列于下方。业务能
   central-ci-dispatch.yml
   dependency-repair-dispatch.yml
   security-scan-dispatch.yml
-  task-source-dispatch.yml
 
-  # 发布与部署入口，按类型命名：release-<kind>.yml、deploy-<adapter>.yml
-  # （由人从 Actions 标签页启动；自动化也可以启动它们）
-  release-app.yml
-  release-tool.yml
-  deploy-source-script.yml
-
-  # 分发工作的定时对账：<subject>-intake.yml
-  ci-intake.yml
-  pr-intake.yml
-  security-scan-intake.yml
-  task-intake.yml
-
-  # 可复用与独立的操作
+  # 维护：由 Action Worker 自身的 push、PR、定时或运行完成事件启动
   apply-repository-settings.yml
-  central-ci-sandbox.yml
-  main-write-audit.yml
   main-write-guard.yml
-  prune-stale-branches.yml
+  prune-stale-state.yml
+  release-tool.yml
   update-work-metrics.yml
   validate-ci.yml
+
+  # 可复用：只被其他工作流调用
+  central-ci-sandbox.yml
 
 contracts/
   PR / Task / Release / Release Build / Deploy / Provenance 合同

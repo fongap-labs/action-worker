@@ -36,27 +36,18 @@ Repository Policy 不包含仓库名称，只描述共享设置。
 
 `policies/repository.json` 是受管仓库 Repository Settings 的唯一共享权威。
 
-Action Worker 通过两种方式应用它：
+Action Worker 自动应用它，不需要手动运行：
 
 ```text
-push 到 main
-  repository policy / apply workflow 变更
+push 到 main（repository policy / ruleset policy / apply 脚本或工作流变更）
+每天一次定时运行（纠正有人在仓库设置页面手动改动造成的漂移）
   → 应用到 Action Worker 自身
   → 应用到 AW_REPOSITORY_POLICY 中每个具有 pr 能力的仓库
-
-手动 workflow_dispatch
-  → 应用到一个仓库
-  → 默认为 dry-run（演练）
 ```
 
-手动输入：
+两种运行都使用独立的 `AW_ADMIN_TOKEN`，绝不使用 `AW_CONTROL_TOKEN`。脚本以幂等方式应用设置，并核对 GitHub 返回的结果；ruleset 已是最新时只打印 `already current`，不做写入。
 
-```text
-repository = owner/name
-is_dry_run = true | false
-```
-
-自动同步与手动写入都使用独立的 `AW_ADMIN_TOKEN`，绝不使用 `AW_CONTROL_TOKEN`。脚本以幂等方式应用设置，并核对 GitHub 返回的结果。
+需要在合并前预览一项策略变更时，在本地运行 `node scripts/apply-repository-settings.ts <owner/name> true`：它只打印将要应用的设置与 rulesets，不调用 GitHub。
 
 受管仓库不得长期保留与中央 Repository Policy 不一致的设置。项目级的例外必须先有明确的治理理由，然后要么修改共享规则，要么记录一个例外边界。
 
