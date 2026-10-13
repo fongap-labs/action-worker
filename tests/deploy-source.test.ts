@@ -59,3 +59,35 @@ test("deploy evidence must be verified against a successful Action Worker CI run
     );
   }
 });
+
+test("a deploy request may name a product, an environment and a trigger, and nothing else", () => {
+  const request = {
+    schema_version: "1",
+    request_id: "deploy-456",
+    source_repository: "fongap-labs/example",
+    source_sha: sha,
+  };
+  for (const extra of [
+    { product: "" },
+    { product: "alpha" },
+    { environment: "" },
+    { environment: "staging" },
+    { trigger: "manual" },
+    { trigger: "push" },
+    { trigger: "schedule" },
+  ]) {
+    assert.doesNotThrow(() => parseDeployRequest({ ...request, ...extra }), JSON.stringify(extra));
+  }
+  for (const extra of [
+    { product: "../alpha" },
+    { product: "a/b" },
+    { product: 1 },
+    { environment: "Production" },
+    { environment: "staging/x" },
+    { trigger: "hourly" },
+    { trigger: 1 },
+    { unknown: "x" },
+  ]) {
+    assert.throws(() => parseDeployRequest({ ...request, ...extra }), JSON.stringify(extra));
+  }
+});

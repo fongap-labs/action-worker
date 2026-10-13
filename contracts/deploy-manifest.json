@@ -2,35 +2,122 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/fongap-labs/action-worker/contracts/deploy-manifest.json",
   "title": "Deploy Manifest",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "schema_version",
-    "adapter",
-    "automatic",
-    "ignore_docs_only",
-    "runner_profile",
-    "environment",
-    "entrypoint"
-  ],
-  "properties": {
-    "schema_version": { "const": "1" },
-    "adapter": { "const": "source-script" },
-    "automatic": { "type": "boolean" },
-    "ignore_docs_only": { "type": "boolean" },
-    "runner_profile": {
-      "type": "string",
-      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+  "description": "schema 1 declares one environment for the whole repository. schema 2 declares environments with triggers, a product root and optional schedules.",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "adapter",
+        "automatic",
+        "ignore_docs_only",
+        "runner_profile",
+        "environment",
+        "entrypoint"
+      ],
+      "properties": {
+        "schema_version": { "const": "1" },
+        "adapter": { "const": "source-script" },
+        "automatic": { "type": "boolean" },
+        "ignore_docs_only": { "type": "boolean" },
+        "runner_profile": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        "environment": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        "entrypoint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "pattern": "^[A-Za-z0-9._/-]+$"
+        }
+      }
     },
-    "environment": {
-      "type": "string",
-      "pattern": "^[a-z][a-z0-9-]{0,63}$"
-    },
-    "entrypoint": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 512,
-      "pattern": "^[A-Za-z0-9._/-]+$"
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "adapter",
+        "root",
+        "entrypoint",
+        "runner_profile",
+        "ignore_docs_only",
+        "environments"
+      ],
+      "properties": {
+        "schema_version": { "const": "2" },
+        "adapter": { "const": "source-script" },
+        "root": {
+          "type": "string",
+          "maxLength": 512,
+          "description": "Product directory relative to the repository root. Empty means the whole repository.",
+          "pattern": "^$|^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*$"
+        },
+        "ignore_docs_only": { "type": "boolean" },
+        "runner_profile": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        "entrypoint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512,
+          "description": "Entrypoint relative to the repository root.",
+          "pattern": "^[A-Za-z0-9._/-]+$"
+        },
+        "environments": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[a-z][a-z0-9-]{0,63}$" },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "triggers": {
+                "type": "object",
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "push": {
+                    "description": "true deploys on a push that changes root/**; an object lists repository-relative paths, where a trailing /** matches a directory.",
+                    "oneOf": [
+                      { "const": true },
+                      {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["paths"],
+                        "properties": {
+                          "paths": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 50,
+                            "items": {
+                              "type": "string",
+                              "maxLength": 512,
+                              "pattern": "^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*(/\\*\\*)?$"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "schedule": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "items": { "type": "string", "pattern": "^\\S+( \\S+){4}$" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
-  }
+  ]
 }

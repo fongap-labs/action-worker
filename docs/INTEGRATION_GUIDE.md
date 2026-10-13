@@ -247,7 +247,7 @@ Release 与 Deploy 工作流按发布类型或部署适配器命名，绝不以�
 |---|---|---|---|---|
 | 发布由源仓库构建的应用 | `Release App` (`release-app.yml`) | `source_repository`、`requested_version`（必填的稳定 SemVer）、`product`（仓库有多个产品时必填，见第 12.3 节） | `run-release-build` 分发事件 | delta、app-source |
 | 发布从上游镜像而来的第三方工具 | `Release Tool` (`release-tool.yml`) | 无手动按钮 | 定时任务，每 6 小时一次，处理工具目录中的全部工具 | external-vault `tools/` |
-| 部署某个源提交 | `Deploy Source Script` (`deploy-source-script.yml`) | `source_repository`、`source_sha`（可选；留空部署默认分支的当前 HEAD，否则是精确的 40 位 SHA） | 可信的 main 写入之后中央 CI 启动，且仓库的 `.github/deploy.json` 中 `automatic: true`；如果中央 CI 运行期间 `main` 之后只多了文档提交，则部署当前的 `main`，改动不会因为文档提交而漏部署 | ai-gateway（自动）、internal-vault（仅手动） |
+| 部署某个源提交 | `Deploy Source Script` (`deploy-source-script.yml`) | `source_repository`、`source_sha`（可选；留空部署默认分支的当前 HEAD，否则是精确的 40 位 SHA） | 可信的 main 写入之后中央 CI 启动，且仓库部署清单中某个环境声明了 push 触发（单产品仓库为 `.github/deploy.json`，多产品仓库为 `projects/<产品>/deploy.json`，见第 13.1 节）；如果中央 CI 运行期间 `main` 之后只多了文档提交，则部署当前的 `main`，改动不会因为文档提交而漏部署 | ai-gateway（自动）、internal-vault（仅手动） |
 
 `Handle Release Dispatch` 负责发布两类产物；以上工作流负责启动它，人不直接运行它。"当前使用方"是一个快照：每个仓库自身的 `.github/release.manifest.json` 或 `.github/deploy.json`，以及 `AW_REPOSITORY_POLICY`，才是权威来源，而不是本表。
 
@@ -342,7 +342,7 @@ $projectDirectory = Join-Path $env:RELEASE_PRODUCT_ROOT "build"
 当前的限制：
 
 - 构建脚本仍须位于仓库根目录的 `.github/scripts/` 下，多个产品通过 `RELEASE_PRODUCT_ROOT` 区分；按产品放置脚本属于后续步骤。
-- 部署与跟随还没有按产品区分，属于 [AW-006](proposals/AW-006-product-release-and-deploy.md) 的后续步骤。
+- 跟随型产品（`follows.json`）还没有实现，属于 [AW-006](proposals/AW-006-product-release-and-deploy.md) 的后续步骤；部署已经按产品区分，见第 13.1 节。
 
 ## 13. Deploy
 
@@ -358,15 +358,80 @@ $projectDirectory = Join-Path $env:RELEASE_PRODUCT_ROOT "build"
 → 回滚
 ```
 
-业务仓库在 `.github/deploy.json` 中声明部署意图：`adapter`、是否自动部署、仅文档变更的策略、抽象的 `runner_profile`、环境标识符，以及当适配器需要时的源仓库自有入口点。
+业务仓库在部署清单中声明部署意图：`adapter`、自动部署的触发方式、仅文档变更的策略、抽象的 `runner_profile`、环境标识符，以及当适配器需要时的源仓库自有入口点。单产品仓库的清单是 `.github/deploy.json`；多产品仓库的清单放在各产品目录下，见第 13.1 节。
 
 部署权限独立于普通的 PR 权限。只有在 `AW_REPOSITORY_POLICY` 中明确拥有 `deploy` 能力的仓库，Action Worker 才会解析其部署 manifest。
 
-manifest 不得声明具体的 Runner 标签、主机、令牌或中央权限。源仓库自有的入口点在 `.github/deploy.secrets.required` / `.github/deploy.secrets.allowed` 中声明其最小密钥范围；只有在 `deploy` 能力、可信的 Main Write Guard 与特权 Runner 检查全部通过之后，Action Worker 才会注入该范围，并始终移除 Control 凭据。
+manifest 不得声明具体的 Runner 标签、主机、令牌或中央权限。源仓库自有的入口点在清单所在目录的 `deploy.secrets.required` / `deploy.secrets.allowed` 中声明其最小密钥范围（单产品仓库在 `.github/`，产品在 `projects/<产品>/`）；只有在 `deploy` 能力、可信的 Main Write Guard 与特权 Runner 检查全部通过之后，Action Worker 才会注入该范围，并始终移除 Control 凭据。
 
 `production-deploy` 是抽象的特权 Runner Profile；实际的 Runner 映射只由中央 Runner 策略决定。目前它可以映射到 GitHub 托管的 Runner；将来迁移到 self-hosted 时，业务仓库的 manifest 无需修改。
 
 当部署需要生产网络、SSH、Tailscale 或其他受信任的网络时，特权任务失败即关闭，绝不降级到沙箱或控制 Runner。
+
+### 13.1 多产品部署
+
+一个仓库可以包含多个产品，每个产品可以部署到一个或多个环境。本节说明 Action Worker 如何把它们区分开。
+
+先说结论：
+
+- 一个"仓库 + 产品 + 环境"对应一个 GitHub 环境。GitHub 环境是部署目标的命名空间，里面保存该目标的密钥和审批规则；它建在 Action Worker 仓库中，名称就是清单里的 `environment`。
+- 清单的位置决定产品：单产品仓库使用 `.github/deploy.json`，多产品仓库使用 `projects/<产品>/deploy.json`。两种布局不能混用。
+
+清单可以声明多个环境，每个环境有自己的触发方式（schema 2）：
+
+```json
+{
+  "schema_version": "2",
+  "adapter": "source-script",
+  "root": "projects/web",
+  "entrypoint": "projects/web/deploy.sh",
+  "runner_profile": "production-deploy",
+  "ignore_docs_only": true,
+  "environments": {
+    "web-production": { "triggers": { "push": true } },
+    "web-staging": { "triggers": { "push": { "paths": ["projects/web/**", "shared/ui/**"] } } },
+    "web-manual": {}
+  }
+}
+```
+
+各字段的含义：
+
+- `root` 是产品目录。`push: true` 表示任何改动落在 `root/**` 之下的推送都会自动部署这个环境。
+- `push.paths` 列出触发路径，相对于仓库根目录；以 `/**` 结尾的表示整个目录。共享代码位于产品目录之外时，用它把共享目录加进来。
+- 没有 `triggers` 的环境只能由人手动启动。
+- `entrypoint` 相对于仓库根目录。
+- 旧的 schema 1 清单继续有效：`automatic: true` 等于整个仓库的 push 触发，`automatic: false` 等于只能手动。
+
+自动部署的判断只看触发路径之内的文件：
+
+- 一次推送只有在改动落在某个环境的触发路径之内时，才会部署这个环境。
+- "只改文档就跳过"也只看触发路径之内的文件。路径之外的文档不会阻止代码改动的部署，路径之外的代码改动也不会启动部署。
+
+密钥与环境的授权按部署键进行。部署键是中央策略中的条目名：
+
+- 多产品仓库的键是 `owner/name/product`；单产品仓库的键仍是 `owner/name`。
+- 键只能写出确切的名称，不能使用通配符，因此一个条目只覆盖一个产品。
+- 同一个环境名在整份策略中只能属于一个键。
+
+申报流程：
+
+1. 仓库在自己的 PR 中写好清单，并在产品目录下声明密钥，例如 `projects/web/deploy.secrets.required`。
+2. 仓库所有者在中央策略 `policies/deploy-secrets.json` 与 `policies/deploy-environments.json` 中为 `owner/name/product` 增加条目，列出环境与允许的密钥名。中央审核这一步。
+3. 部署时，如果产品的键在策略中不存在，部署会被直接拒绝，错误输出中给出应补充的 JSON 片段。产品不会回退到仓库级的键。
+4. 产品只能拿到自己条目中授权的密钥。即使其他产品的密钥名出现在同一个 GitHub 环境里，也会被卸掉。
+
+启动方式与审批：
+
+- 自动部署的环境不能设置必需审批人（required reviewers）。自动部署没有人可以批准，因此分发时会报错，而不是等待或跳过。
+- 检查需要 Action Worker 的控制凭据能够读取该环境的保护规则。读取失败时自动部署会被拒绝，不会默默跳过检查。
+
+维护者须知：
+
+- 并发组为 `source-script-deploy-<仓库>-<产品>-<环境>`。根目录布局没有产品段，因此为 `source-script-deploy-<仓库>-<环境>`。
+- 部署脚本可以读取环境变量 `DEPLOY_PRODUCT`（产品目录名，根目录布局为空）和 `DEPLOY_TRIGGER`（`push` 或 `manual`）。
+- 人工启动时请同时填写 `product` 与 `environment`。并发组只由输入决定，留空时不能保证与自动部署排在同一个组里；清单解析之后，部署作业本身还会按解析出的产品与环境再排一次队。
+- 定时部署（`schedule`）已在契约中预留，本版本尚未启用，启动时会被拒绝。
 
 ## 14. 普通新仓库不应做的事
 

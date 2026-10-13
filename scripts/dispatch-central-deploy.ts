@@ -1,11 +1,19 @@
-import { type DeployAdapter, resolveDeployManifest } from "./deploy-manifest.ts";
 import {
+  type DeployAdapter,
+  parseDeployPlan,
+  type ResolvedDeployManifest,
+  resolveDeployManifest,
+  wholeRepositoryPath,
+} from "./deploy-manifest.ts";
+import {
+  GithubHttpError,
   GithubReader,
   getJsonArray,
   getJsonString,
   githubEnvironment,
   isJsonRecord,
 } from "./github-api.ts";
+import { type ContentReader, discoverProducts } from "./product-discovery.ts";
 import { hasRepositoryCapability } from "./repository-policy.ts";
 import {
   appendLines,
@@ -83,21 +91,126 @@ export function isDocsOnly(paths: readonly string[]): boolean {
 // GitHub lists at most 300 files in a comparison, so a longer list may hide code changes.
 const comparisonFileLimit = 300;
 
-/**
- * Main moved on while central CI ran for an older commit. The newer commit normally deploys
- * itself after its own central CI. When everything after the older commit is documentation that
- * the source skips, the newer commit will not deploy, so the older commit's change would never
- * reach production; the current HEAD carries that change and is deployed instead.
- */
-export function shouldDeployCurrentMain(comparison: unknown, isDocsOnlyIgnored: boolean): boolean {
-  if (!isDocsOnlyIgnored || getJsonString(comparison, "status") !== "ahead") {
-    return false;
-  }
-  const files = getJsonArray(comparison, "files")
+function changedFiles(commitOrComparison: unknown): string[] {
+  return getJsonArray(commitOrComparison, "files")
     .filter(isJsonRecord)
     .map((item) => getJsonString(item, "filename"))
     .filter(Boolean);
-  return files.length < comparisonFileLimit && isDocsOnly(files);
+}
+
+export function deployPathMatches(paths: readonly string[], file: string): boolean {
+  return paths.some((path) => {
+    if (path === wholeRepositoryPath) {
+      return true;
+    }
+    return path.endsWith("/**") ? file.startsWith(path.slice(0, -2)) : file === path;
+  });
+}
+
+export type DeployDecision = "deploy" | "path-unchanged" | "documentation-only";
+
+// Only the changed files under the trigger paths count, so documentation outside them neither
+// starts nor blocks a deploy of the environment.
+export function deployDecision(
+  paths: readonly string[],
+  isDocsOnlyIgnored: boolean,
+  files: readonly string[]
+): DeployDecision {
+  const scoped = files.filter((file) => deployPathMatches(paths, file));
+  if (scoped.length === 0 && !paths.includes(wholeRepositoryPath)) {
+    return "path-unchanged";
+  }
+  if (isDocsOnlyIgnored && isDocsOnly(scoped)) {
+    return "documentation-only";
+  }
+  return "deploy";
+}
+
+/**
+ * Main moved on while central CI ran for an older commit. The newer commit normally deploys
+ * itself after its own central CI. When the newer commit would not deploy this environment (its
+ * changes are documentation the source skips, or they miss the trigger paths), the older commit's
+ * change would never reach production; the current HEAD carries that change and is deployed instead.
+ */
+export function shouldDeployCurrentMain(
+  comparison: unknown,
+  isDocsOnlyIgnored: boolean,
+  paths: readonly string[] = [wholeRepositoryPath]
+): boolean {
+  if (getJsonString(comparison, "status") !== "ahead") {
+    return false;
+  }
+  const files = changedFiles(comparison);
+  if (files.length >= comparisonFileLimit) {
+    return false;
+  }
+  return deployDecision(paths, isDocsOnlyIgnored, files) !== "deploy";
+}
+
+// An automatic deploy runs without a person, so an environment that requires reviewers can never
+// finish it. A missing read is refused too: the check never passes by default.
+export async function assertNoRequiredReviewers(
+  reader: ContentReader,
+  controlRepository: string,
+  environment: string
+): Promise<void> {
+  let response: unknown;
+  try {
+    response = await reader.get(`repos/${controlRepository}/environments/${environment}`);
+  } catch (error) {
+    if (error instanceof GithubHttpError) {
+      throw new CliError(
+        `Environment ${environment} cannot be read with AW_CONTROL_TOKEN (HTTP ${error.status}); automatic deploy is refused.`,
+        77
+      );
+    }
+    throw error;
+  }
+  const rules =
+    isJsonRecord(response) && Array.isArray(response.protection_rules)
+      ? response.protection_rules
+      : undefined;
+  if (rules === undefined) {
+    throw new CliError(`GitHub environment response has no protection rules: ${environment}.`, 65);
+  }
+  if (rules.some((rule) => isJsonRecord(rule) && rule.type === "required_reviewers")) {
+    throw new CliError(
+      `Environment ${environment} requires reviewers, so an automatic deploy cannot finish. Remove the required reviewers from the environment, or remove the push trigger from the source manifest.`,
+      77
+    );
+  }
+}
+
+export type AutomaticDeployTarget = {
+  product: string;
+  environment: string;
+};
+
+// Every product and environment whose source manifest declares a push trigger, at the current HEAD.
+export async function automaticDeployTargets(
+  reader: ContentReader,
+  repository: string,
+  sha: string,
+  controlRepository: string
+): Promise<AutomaticDeployTarget[]> {
+  const discovery = await discoverProducts(reader, repository, sha);
+  const targets: AutomaticDeployTarget[] = [];
+  for (const product of discovery.products) {
+    const text = product.files["deploy.json"];
+    if (text === undefined) {
+      continue;
+    }
+    const plan = parseDeployPlan(text, repository);
+    for (const environment of plan.environments) {
+      if (environment.declares_triggers) {
+        await assertNoRequiredReviewers(reader, controlRepository, environment.environment);
+      }
+      if (environment.push_paths !== null) {
+        targets.push({ product: product.name, environment: environment.environment });
+      }
+    }
+  }
+  return targets;
 }
 
 async function main(): Promise<void> {
@@ -164,94 +277,129 @@ async function main(): Promise<void> {
     throw new CliError(`Automatic deploy source default HEAD is invalid: ${repository}.`, 65);
   }
 
-  // The current HEAD decides whether and how the source deploys.
-  const manifest = await resolveDeployManifest(
-    repository,
-    defaultSha,
-    repositoryPolicy,
-    await readJson(runnerPolicyPath),
-    reader
-  );
-  if (!manifest.automatic) {
+  // The current HEAD decides whether and how each product and environment deploys.
+  const targets = await automaticDeployTargets(reader, repository, defaultSha, controlRepository);
+  if (targets.length === 0) {
     console.log(`Automatic deploy is disabled by source manifest: ${repository}`);
     return;
   }
 
-  const skip = async (reason: string): Promise<void> => {
-    console.log(`Automatic deploy skipped (${reason}): ${repository}@${headSha}`);
+  const comparison =
+    defaultSha === headSha
+      ? undefined
+      : await reader.get(`repos/${repository}/compare/${headSha}...${defaultSha}`);
+  // A main that was rewritten (not ahead of HEAD) is skipped below, so HEAD is read only when the
+  // decision needs its changed files; a rewritten HEAD may no longer be served.
+  const needsHeadFiles =
+    comparison === undefined || getJsonString(comparison, "status") === "ahead";
+  const headFiles = needsHeadFiles
+    ? changedFiles(await reader.get(`repos/${repository}/commits/${headSha}`))
+    : [];
+  const policy = parseDeployPolicy(await readJson(policyPath));
+  const runnerPolicy = await readJson(runnerPolicyPath);
+
+  for (const [index, target] of targets.entries()) {
+    const manifest: ResolvedDeployManifest = await resolveDeployManifest(
+      repository,
+      defaultSha,
+      repositoryPolicy,
+      runnerPolicy,
+      reader,
+      undefined,
+      { product: target.product, environment: target.environment }
+    );
+    const label = `${repository} ${target.product || "(root)"} ${target.environment}`;
+    if (!manifest.automatic) {
+      console.log(`Automatic deploy is disabled by source manifest: ${label}`);
+      continue;
+    }
+    const paths = manifest.push_paths ?? [];
+
+    const skip = async (reason: string): Promise<void> => {
+      console.log(`Automatic deploy skipped (${reason}): ${label}@${headSha}`);
+      await appendLines(process.env.GITHUB_STEP_SUMMARY, [
+        "## Central deploy dispatch",
+        "",
+        `- Repository: ${repository}`,
+        `- Product: ${target.product || "(root)"}`,
+        `- Environment: ${target.environment}`,
+        `- Commit: ${headSha}`,
+        `- Adapter: ${manifest.adapter}`,
+        `- Result: skipped (${reason})`,
+      ]);
+    };
+
+    if (!needsHeadFiles) {
+      await skip(`main moved on to ${defaultSha}, which deploys after its own central CI`);
+      continue;
+    }
+    const decision = deployDecision(paths, manifest.ignore_docs_only, headFiles);
+    let deploySha = headSha;
+    if (decision === "path-unchanged") {
+      await skip("no push path changed");
+      continue;
+    }
+    if (defaultSha === headSha) {
+      if (decision === "documentation-only") {
+        await skip("documentation-only");
+        continue;
+      }
+    } else if (!shouldDeployCurrentMain(comparison, manifest.ignore_docs_only, paths)) {
+      await skip(`main moved on to ${defaultSha}, which deploys after its own central CI`);
+      continue;
+    } else {
+      console.log(
+        `Main moved on to ${defaultSha} with documentation or out-of-path changes only, so the current main is deployed with this change.`
+      );
+      deploySha = defaultSha;
+    }
+
+    const eventType = deployEventType(policy, manifest.adapter);
+    const requestId = [
+      "deploy",
+      process.env.GITHUB_RUN_ID ?? "0",
+      process.env.GITHUB_RUN_ATTEMPT ?? "1",
+      deploySha.slice(0, 12),
+      String(index),
+    ].join("-");
+    const payload = JSON.stringify({
+      event_type: eventType,
+      client_payload: {
+        schema_version: "1",
+        request_id: requestId,
+        source_repository: repository,
+        source_sha: deploySha,
+        product: target.product,
+        environment: target.environment,
+        trigger: "push",
+      },
+    });
+
+    await runText(
+      "gh",
+      ["api", "--method", "POST", `repos/${controlRepository}/dispatches`, "--input", "-"],
+      {
+        env: githubEnvironment(dispatchToken),
+        input: payload,
+      }
+    );
+
     await appendLines(process.env.GITHUB_STEP_SUMMARY, [
       "## Central deploy dispatch",
       "",
       `- Repository: ${repository}`,
-      `- Commit: ${headSha}`,
+      `- Product: ${target.product || "(root)"}`,
+      `- Environment: ${target.environment}`,
+      `- Commit: ${deploySha}`,
       `- Adapter: ${manifest.adapter}`,
-      `- Result: skipped (${reason})`,
+      `- Runner profile: ${manifest.runner_profile}`,
+      `- Event: ${eventType}`,
+      "- Result: dispatched",
     ]);
-  };
-
-  let deploySha = headSha;
-  if (defaultSha !== headSha) {
-    const comparison = await reader.get(`repos/${repository}/compare/${headSha}...${defaultSha}`);
-    if (!shouldDeployCurrentMain(comparison, manifest.ignore_docs_only)) {
-      await skip(`main moved on to ${defaultSha}, which deploys after its own central CI`);
-      return;
-    }
     console.log(
-      `Main moved on to ${defaultSha} with documentation only, so the current main is deployed with this change.`
+      `Central deploy dispatched: ${label}@${deploySha} -> ${manifest.adapter} -> ${eventType}`
     );
-    deploySha = defaultSha;
-  } else {
-    const commit = await reader.get(`repos/${repository}/commits/${headSha}`);
-    const changedFiles = getJsonArray(commit, "files")
-      .filter(isJsonRecord)
-      .map((item) => getJsonString(item, "filename"))
-      .filter(Boolean);
-    if (manifest.ignore_docs_only && isDocsOnly(changedFiles)) {
-      await skip("documentation-only");
-      return;
-    }
   }
-
-  const policy = parseDeployPolicy(await readJson(policyPath));
-  const eventType = deployEventType(policy, manifest.adapter);
-  const requestId = [
-    "deploy",
-    process.env.GITHUB_RUN_ID ?? "0",
-    process.env.GITHUB_RUN_ATTEMPT ?? "1",
-    deploySha.slice(0, 12),
-  ].join("-");
-  const payload = JSON.stringify({
-    event_type: eventType,
-    client_payload: {
-      schema_version: "1",
-      request_id: requestId,
-      source_repository: repository,
-      source_sha: deploySha,
-    },
-  });
-
-  await runText(
-    "gh",
-    ["api", "--method", "POST", `repos/${controlRepository}/dispatches`, "--input", "-"],
-    {
-      env: githubEnvironment(dispatchToken),
-      input: payload,
-    }
-  );
-
-  await appendLines(process.env.GITHUB_STEP_SUMMARY, [
-    "## Central deploy dispatch",
-    "",
-    `- Repository: ${repository}`,
-    `- Commit: ${deploySha}`,
-    `- Adapter: ${manifest.adapter}`,
-    `- Runner profile: ${manifest.runner_profile}`,
-    `- Event: ${eventType}`,
-    "- Result: dispatched",
-  ]);
-  console.log(
-    `Central deploy dispatched: ${repository}@${deploySha} -> ${manifest.adapter} -> ${eventType}`
-  );
 }
 
 if (isMain(import.meta.url)) {
