@@ -1,68 +1,68 @@
-# Naming Conventions
+# 命名约定
 
-> A name expresses its full meaning with the least necessary information: it must not depend on hidden context, and it must not repeat what is already obvious.
+> 名称应以最少的必要信息表达完整含义：不依赖隐含上下文，也不重复已经显而易见的信息。
 
-This file has two layers of rules: sections 1–7 apply to all managed Fongap Labs repositories; section 8 applies only to Action Worker itself. Business repositories must not copy this file; they add only real project-level naming constraints.
+本文件分两层规则：第 1–7 节适用于所有受管的 Fongap Labs 仓库；第 8 节只适用于 Action Worker 本身。业务仓库不得复制本文件，只补充真正属于项目层级的命名约束。
 
-## 1. Naming priority
+## 1. 命名优先级
 
-Naming priorities apply in this order:
+命名优先级按以下顺序应用：
 
-1. **Context-independent identity**: taken out of its repository, file, workflow and call site, a name should still identify, as far as possible, the system it belongs to, its purpose and its type.
-2. **Canonical vocabulary**: one concept uses one standard word.
-3. **Unambiguous abbreviation**: the owning system may use a clear, recognised, unambiguous abbreviation.
-4. **Minimum sufficient semantics**: keep only the information needed for identification; do not repeat what the directory, the platform or the data itself already states.
-5. **Conciseness**: shorten a name only after its full meaning is in place.
+1. **脱离上下文仍可识别**：名称脱离其仓库、文件、工作流与调用位置之后，仍应尽可能标明所属系统、用途与类型。
+2. **规范词汇**：同一概念使用一个标准词。
+3. **无歧义的缩写**：所属系统可以使用清晰、被认可、无歧义的缩写。
+4. **最小充分语义**：只保留识别所需的信息；不重复目录、平台或数据本身已经表达的内容。
+5. **简洁**：只有在完整含义已经确立之后，才缩短名称。
 
-Do not remove system, purpose or type information to reach a fixed number of segments, and do not mechanically pile up implementation details to make a name "more complete".
+不要为了凑出固定的段数而删除系统、用途或类型信息，也不要机械地堆砌实现细节来让名称"看起来更完整"。
 
-For example, an external secret:
+例如，一个外部密钥：
 
 ```text
 SERVICE_TOKEN
 ```
 
-is understandable inside one repository, but outside it nobody can tell which system it belongs to, so it is not suitable as a new cross-repository external name.
+在一个仓库内部可以理解，但在仓库之外无人能判断它属于哪个系统，因此不适合作为新的跨仓库外部名称。
 
-The more complete form:
+更完整的形式是：
 
 ```text
 AW_DISPATCH_TOKEN
 ```
 
-If a system abbreviation is registered as a canonical abbreviation in this convention or in a project convention, the abbreviated form may be used.
+如果某个系统缩写已在本约定或某个项目约定中登记为规范缩写，则可以使用缩写形式。
 
-## 2. Scope rules
+## 2. 适用范围
 
-### 2.1 External boundary names
+### 2.1 外部边界名称
 
-These names must first of all be identifiable without context:
+以下名称首先必须在脱离上下文的情况下即可识别：
 
-- GitHub Variables;
-- GitHub Secrets;
-- environment variables;
-- workflow inputs and outputs;
-- deployment parameters;
-- cross-repository payload fields;
-- externally documented configuration keys.
+- GitHub Variables；
+- GitHub Secrets；
+- 环境变量；
+- 工作流的输入与输出；
+- 部署参数；
+- 跨仓库的载荷字段；
+- 对外文档化的配置键。
 
-They may combine, as needed:
+可以按需组合以下要素：
 
 ```text
-System + Purpose + Type + Qualifier
+系统 + 用途 + 类型 + 限定词
 ```
 
-This is not a fixed template and does not require all four parts. Once a name is identifiable without context, stop adding words.
+这不是固定模板，也不要求四个部分都出现。名称一旦能脱离上下文识别，就停止添加词语。
 
-A data representation (such as `JSON` or `YAML`) enters a name only when:
+数据表示形式（如 `JSON` 或 `YAML`）只有在以下情况下才进入名称：
 
-- the same concept exists in several representations at once;
-- the representation itself is part of an external contract;
-- leaving the representation out would create real ambiguity.
+- 同一概念同时存在多种表示形式；
+- 该表示形式本身是外部合同的一部分；
+- 省略该表示形式会造成真正的歧义。
 
-Otherwise, do not put the implementation format into the name.
+否则，不要把实现格式写进名称。
 
-Examples:
+示例：
 
 ```text
 AW_DISPATCH_TOKEN
@@ -76,11 +76,11 @@ AIG_USAGE_D1_ID
 CLOUDFLARE_ACCOUNT_ID
 ```
 
-Add a qualifier only when several configurations of the same kind really exist, for example `AIR`, `PRO`, `MAX`.
+只有当同一类配置确实存在多个时，才添加限定词，例如 `AIR`、`PRO`、`MAX`。
 
-Runtime-derived names are allowed when they are generated from one canonical configuration source rather than configured independently. For AI Agent model routing, `AW_AI_AGENT_CONFIG` is the only configurable authority; names such as `AW_AI_AGENT_WRITING_MODEL` and `AW_AI_AGENT_WRITING_PHARMA_BRIEF_MODEL` are generated runtime environment variables and must not be defined as Repository Variables.
+当运行时名称是从一个规范配置源生成，而不是独立配置时，允许使用运行时派生名称。对于 AI Agent 的模型路由，`AW_AI_AGENT_CONFIG` 是唯一可配置的权威来源；`AW_AI_AGENT_WRITING_MODEL` 与 `AW_AI_AGENT_WRITING_PHARMA_BRIEF_MODEL` 这类名称是生成的运行时环境变量，不得定义为 Repository Variables。
 
-Business repositories may identify a scoped owner through the directory that owns the configuration. For external configuration under a recognized business scope such as:
+业务仓库可以通过配置所属的目录来标识受限的所有者。对于以下已认可的业务范围下的外部配置：
 
 ```text
 projects/<owner>/
@@ -91,20 +91,20 @@ crates/<owner>/
 skills/<owner>/
 ```
 
-the normalized owner name is a valid external prefix. Examples:
+标准化后的所有者名称可以作为有效的外部前缀。示例：
 
 ```text
 projects/MarketBrief/.env.variables → MARKETBRIEF_*
 services/server-edge/.env.example → SERVER_EDGE_*
 ```
 
-This does not permit generic names such as `ARTIFACT_REPOSITORY` or `OUTPUT_DIR`; the external name must still carry the scoped owner identity.
+这并不允许使用 `ARTIFACT_REPOSITORY` 或 `OUTPUT_DIR` 之类的通用名称；外部名称仍必须携带受限所有者的身份。
 
-### 2.2 Local source identifiers
+### 2.2 本地源码标识符
 
-Function parameters, local variables, private fields and short-lived internal identifiers may rely on their lexical context and do not need to repeat the owning system's prefix.
+函数参数、局部变量、私有字段与短生命周期的内部标识符可以依赖其词法上下文，不必重复所属系统的前缀。
 
-For example, in the request module of `ai-gateway`:
+例如，在 `ai-gateway` 的请求模块中：
 
 ```text
 model
@@ -113,22 +113,22 @@ policy
 isEnabled
 ```
 
-is better than:
+优于：
 
 ```text
 aiGatewayRequestModel
 aiGatewayRequestPolicy
 ```
 
-Local names must still be accurate and unambiguous and follow the canonical vocabulary.
+本地名称仍必须准确、无歧义，并遵循规范词汇。
 
-## 3. Abbreviations
+## 3. 缩写
 
-Two kinds of abbreviations are allowed:
+允许两类缩写：
 
-### 3.1 Industry/platform abbreviations
+### 3.1 行业与平台缩写
 
-Widely recognised, unambiguous abbreviations may be used directly, for example:
+广泛认可、无歧义的缩写可以直接使用，例如：
 
 ```text
 API
@@ -150,22 +150,22 @@ AWS
 GCP
 ```
 
-### 3.2 Project/system abbreviations
+### 3.2 项目与系统缩写
 
-An abbreviation of a Fongap Labs system may be used in external configuration only when all of these hold:
+Fongap Labs 系统的缩写只有在以下条件全部满足时，才可用于外部配置：
 
-- it is registered in the shared convention or in a long-lived project convention;
-- one abbreviation maps to one system;
-- it does not conflict with a common industry meaning;
-- a new member can look up its definition without relying on the context of a particular repository.
+- 已在共用约定或长期有效的项目约定中登记；
+- 一个缩写只对应一个系统；
+- 不与常见的行业含义冲突；
+- 新成员无需依赖某个仓库的上下文，即可查到其定义。
 
-Inventing an abbreviation on the spot to shorten a name is forbidden.
+临时发明缩写以缩短名称是禁止的。
 
-If an abbreviation has no stable consensus, use the full system name.
+如果某个缩写没有稳定的共识，使用完整的系统名称。
 
-Current canonical Fongap Labs system abbreviations:
+当前规范的 Fongap Labs 系统缩写如下：
 
-| System | Abbreviation |
+| 系统 | 缩写 |
 |---|---|
 | Action Worker | `AW` |
 | AI Gateway | `AIG` |
@@ -173,21 +173,21 @@ Current canonical Fongap Labs system abbreviations:
 | Delta | `DELTA` |
 | Server Edge | `SERVER_EDGE` |
 
-A project that adds a system abbreviation changes this table first and then uses it in the business repository.
+项目若新增系统缩写，应先修改此表，再在业务仓库中使用。
 
-## 4. Source identifiers
+## 4. 源码标识符
 
-- New or changed identifiers in Python, Rust and TypeScript/TSX follow the same semantic principles;
-- local functions and parameters prefer brevity, usually about three semantic segments, but complete meaning comes first;
-- booleans use an `is / has / can / should` semantic prefix;
-- `impl / helper / common / misc / shared` are forbidden as vague responsibility words; `new / final / latest / temp / tmp` used as engineering lifecycle labels are forbidden in long-lived control-plane names, but are allowed in a clearly defined domain concept (for example `temp_access`);
-- tests, generated code and third-party code may be exempted by the project's own checker.
+- Python、Rust 与 TypeScript/TSX 中新增或修改的标识符遵循相同的语义原则；
+- 局部函数与参数倾向简短，通常约三个语义段，但完整含义优先；
+- 布尔值使用 `is / has / can / should` 语义前缀；
+- `impl / helper / common / misc / shared` 作为职责模糊的词禁止使用；`new / final / latest / temp / tmp` 用作工程生命周期标签时，在长期存在的控制平面名称中禁止使用，但在明确定义的领域概念中允许（例如 `temp_access`）；
+- 测试、生成代码与第三方代码可以由项目自身的检查器豁免。
 
-"Three segments" is only a local readability preference and must never be used to truncate an external configuration name.
+"三段"只是局部可读性的偏好，绝不能用来截断外部配置名称。
 
-## 5. Configuration type words
+## 5. 配置类型词
 
-External configuration should keep, as far as possible, a standard word that expresses the data or resource type, for example:
+外部配置应尽可能保留表示数据或资源类型的标准词，例如：
 
 ```text
 TOKEN
@@ -220,81 +220,81 @@ MODE
 CONFIG
 ```
 
-A credential must not use `PAT` as a new standard type word; use the more general and understandable `TOKEN` or `KEY`, unless the native field name of a third-party platform must stay unchanged.
+新的凭据不得使用 `PAT` 作为标准类型词；应使用更通用、更易理解的 `TOKEN` 或 `KEY`，除非第三方平台的原生字段名必须保持不变。
 
-## 6. Engineering language
+## 6. 工程语言
 
-An engineering diff must be in English. The diff means engineering content that is added or changed, including:
+工程 diff 必须使用英文。工程 diff 指新增或修改的工程内容，包括：
 
-- identifiers;
-- code comments;
-- workflow names and steps;
-- logs and errors;
-- test descriptions;
-- configuration keys;
-- PR titles and engineering summaries;
-- CHANGELOG entries.
+- 标识符；
+- 代码注释；
+- 工作流名称与步骤；
+- 日志与错误信息；
+- 测试描述；
+- 配置键；
+- PR 标题与工程摘要；
+- CHANGELOG 条目。
 
-Mixing Chinese and English engineering text in one engineering diff is forbidden, and so is adding Chinese engineering comments, logs, error messages, test descriptions or CHANGELOG entries.
+在同一个工程 diff 中混用中英文工程文本是禁止的；新增中文的工程注释、日志、错误信息、测试描述或 CHANGELOG 条目同样禁止。
 
-The only exceptions are:
+唯一的例外是：
 
-- user-facing UI copy;
-- localization resources;
-- documentation that a business repository explicitly maintains in Chinese (Action Worker itself has no such documentation; see section 8).
+- 面向用户的界面文案；
+- 本地化资源；
+- 业务仓库明确以中文维护的文档（Action Worker 本身没有此类文档，见第 8.2 节）。
 
-The exceptions never extend to the CHANGELOG, PR titles, code comments, workflows, logs, error messages or test descriptions; those are always in English.
+这些例外永远不适用于 CHANGELOG、PR 标题、代码注释、工作流、日志、错误信息与测试描述；它们始终使用英文。
 
-In an HTML template the text between tags is user-facing copy, so the engineering language check exempts it together with quoted attribute values. Template comments (`<!-- -->` in HTML, `{{/* */}}` in Hugo) and logs embedded in the template stay English, and the check attributes every body line of a multi-line comment block to the comment.
+在 HTML 模板中，标签之间的文本属于面向用户的文案，工程语言检查会与带引号的属性值一并豁免。模板注释（HTML 中的 `<!-- -->`，Hugo 中的 `{{/* */}}`）以及模板中嵌入的日志必须保持英文，并且检查器会把多行注释块的每一行都归属于该注释。
 
-## 7. Files, terms and verbs
+## 7. 文件、术语与动词
 
-- workflow / control script / test files use `kebab-case`;
-- governance documents use `UPPER_SNAKE_CASE.md`;
-- a file name expresses only the file's own responsibility and does not repeat context the directory already provides;
-- long-lived names avoid lifecycle words and vague words.
+- 工作流、控制脚本与测试文件使用 `kebab-case`；
+- 治理文档使用 `UPPER_SNAKE.md`；
+- 文件名只表达该文件自身的职责，不重复目录已经提供的上下文；
+- 长期存在的名称避免生命周期词与模糊词。
 
-Canonical terms:
+规范术语：
 
-| Concept | Term |
+| 概念 | 术语 |
 |---|---|
-| machine contract | `contract` |
-| primary change category | `change type` |
-| technical changed region | `change area` |
-| fast semantic routing | `triage` |
-| code review | `review` |
-| review result | `finding` |
-| deterministic rule | `policy` |
-| policy exception | `override` |
-| project evidence | `context` |
-| model supplier | `provider` |
-| routing endpoint | `gateway` |
-| work unit | `task` |
-| dispatch | `dispatch` |
-| state | `status` |
-| validation | `validate / validation` |
-| publication | `release` |
-| Git tag | `tag` |
-| continuous integration | `CI` |
-| execution request | `execution request` |
-| project execution declaration | `execution manifest` |
-| generic execution unit | `executor` |
-| requested permission | `capability request` |
-| granted permission | `capability grant` |
-| abstract compute requirement | `runner profile` |
-| runner selection component | `runner resolver` |
-| compute provider class | `runner backend` |
+| 机器合同 | `contract` |
+| 主变更类别 | `change type` |
+| 技术变更区域 | `change area` |
+| 快速语义路由 | `triage` |
+| 代码审查 | `review` |
+| 审查结果 | `finding` |
+| 确定性规则 | `policy` |
+| 策略例外 | `override` |
+| 项目证据 | `context` |
+| 模型供应商 | `provider` |
+| 路由端点 | `gateway` |
+| 工作单元 | `task` |
+| 分发 | `dispatch` |
+| 状态 | `status` |
+| 校验 | `validate / validation` |
+| 发布 | `release` |
+| Git 标签 | `tag` |
+| 持续集成 | `CI` |
+| 执行请求 | `execution request` |
+| 项目执行声明 | `execution manifest` |
+| 通用执行单元 | `executor` |
+| 请求的权限 | `capability request` |
+| 授予的权限 | `capability grant` |
+| 抽象的计算需求 | `runner profile` |
+| Runner 选择组件 | `runner resolver` |
+| 计算提供方类别 | `runner backend` |
 
-Preferred verbs:
+推荐动词：
 
 ```text
 get load fetch create update delete validate detect resolve evaluate
 build generate handle execute publish summarize
 ```
 
-## 8. Action Worker only
+## 8. 仅适用于 Action Worker
 
-Action Worker is a generic governance and execution plane. Stable authority remains in:
+Action Worker 是通用的治理与执行平面。稳定的权威位于：
 
 ```text
 docs/
@@ -305,11 +305,11 @@ scripts/
 tests/
 ```
 
-Platform-required `.github/workflows/` is an exception.
+平台要求的 `.github/workflows/` 是例外。
 
-When the execution framework grows, repository-agnostic implementation layers such as `executors/`, `runners/`, or `adapters/` are allowed if they represent reusable capabilities and are driven by common contracts.
+当执行框架增长时，如果某些实现层代表可复用的通用能力，并由共用合同驱动，则允许引入与仓库无关的实现层，例如 `executors/`、`runners/` 或 `adapters/`。
 
-Action Worker must not introduce repository-specific configuration structures such as:
+Action Worker 不得引入仓库专属的配置结构，例如：
 
 ```text
 projects/<repository-or-product>/
@@ -317,53 +317,59 @@ profiles/<repository-or-product>/
 <repository-name>/
 ```
 
-A generic adapter is allowed; an adapter whose purpose is effectively “special-case repository X” is not.
+通用适配器是允许的；实质上是"对仓库 X 做特殊处理"的适配器则不允许。
 
-This restriction does **not** apply to business repositories. A product repository may legitimately use `projects/`, `apps/`, `crates/`, `tools/`, `skills/`, `output/`, or other semantically correct project-specific directories.
+此限制**不**适用于业务仓库。产品仓库可以合理地使用 `projects/`、`apps/`、`crates/`、`tools/`、`skills/`、`output/` 或其他语义正确的项目专属目录。
 
-Action Worker CI enforces its own filename and architecture restrictions. Business repositories may add stricter project-specific naming checks, but must not redefine the shared vocabulary.
+Action Worker 的 CI 会强制执行自身的文件名与架构限制。业务仓库可以增加更严格的项目专属命名检查，但不得重新定义共用词汇。
 
-For the unified execution plane, business repositories use `runner_profile` as the external contract field. They must not expose concrete infrastructure names such as GitHub runner image names, `self-hosted` labels, runner groups, hostnames, or cloud instance names as project-level configuration. `runner profile` describes requirements; `runner resolver` selects the actual `runner backend`.
+对于统一执行平面，业务仓库使用 `runner_profile` 作为外部合同字段。它们不得把具体的基础设施名称（例如 GitHub Runner 镜像名、`self-hosted` 标签、Runner 组、主机名或云实例名）暴露为项目级配置。`runner profile` 描述需求；`runner resolver` 选择实际的 `runner backend`。
 
-### 8.1 Workflow file names
+### 8.1 工作流文件名
 
-Workflow and shell file names have at most three kebab-case segments (`scripts/validate-naming-rules.ts` and `scripts/validate-source-naming.py` enforce this in every managed repository). Within that limit, `tests/workflow-naming.test.ts` checks these rules for Action Worker's own workflows:
+工作流与 shell 文件名最多包含三个 kebab-case 段（`scripts/validate-naming-rules.ts` 与 `scripts/validate-source-naming.py` 会在每个受管仓库中强制执行）。在此限制之内，`tests/workflow-naming.test.ts` 为 Action Worker 自身的工作流检查以下规则：
 
-- A workflow started by `repository_dispatch` and not by `push` takes the most complete name that fits in three segments: `handle-<subject>-dispatch.yml`, then `<subject>-dispatch.yml`, then `<subject>.yml`. The subject is the event name without `run-`. For example:
+- 由 `repository_dispatch` 而非 `push` 启动的工作流，取能放入三段中最完整的名称：`handle-<subject>-dispatch.yml`，然后是 `<subject>-dispatch.yml`，再然后是 `<subject>.yml`。subject 是去掉 `run-` 前缀的事件名。例如：
 
   ```text
-  run-task                 → handle-task-dispatch.yml   (one-word subject: the full form fits)
-  run-security-scan        → security-scan-dispatch.yml (two words: handle is dropped)
-  run-source-script-deploy → source-script-deploy.yml   (three words: only the subject fits; an illustration, the deploy workflow is named by adapter, see below)
+  run-task                 → handle-task-dispatch.yml   （单词 subject：完整形式可以放下）
+  run-security-scan        → security-scan-dispatch.yml （两个词：去掉 handle）
+  run-source-script-deploy → source-script-deploy.yml   （三个词：只保留 subject；仅作示例，部署工作流按适配器命名，见下文）
   ```
 
-  `handle` marks the receiving side where it fits; senders are named `dispatch-*` (for example `scripts/dispatch-central-ci.ts`).
-- A scheduled reconciliation workflow that scans managed repositories and dispatches work is named `<subject>-intake.yml` (for example `pr-intake.yml`).
-- A workflow that releases or deploys is named `release-<kind>.yml` or `deploy-<adapter>.yml`, so a person finds the right one by what they want to do. `<kind>` says what is released: `app` is an application built from a source repository, `tool` is a third-party tool mirrored from upstream. `<adapter>` is a key of `adapters` in `policies/deploy.json` (today `source-script`). The name never contains a product or repository. Each of them declares `workflow_dispatch`, because a person starts it from the Actions tab; automation can start it too (the deploy workflow after a trusted main write, the tool release on a schedule), so the dispatch-event rule above does not apply to them. `docs/INTEGRATION_GUIDE.md` section 12.1 says which one to run. The test checks the kind and the adapter, so a new kind or adapter is a deliberate edit.
-- The display name (`name:`) spells out the file name word by word, with `pr` and `ci` written as `PR` and `CI` (`pr-intake.yml` is "PR Intake").
-- A file that keeps an older name is listed in the test with the reason renaming is not worth it. Today these are `handle-pr-dispatch.yml` (a CI Evidence trust anchor in `scripts/ci-evidence.ts`) and `handle-pr-review.yml` (counted by the AI Review queue).
+  在能放下的情况下，`handle` 标记接收方；发送方命名为 `dispatch-*`（例如 `scripts/dispatch-central-ci.ts`）。
+- 扫描受管仓库并分发工作的定时对账工作流命名为 `<subject>-intake.yml`（例如 `pr-intake.yml`）。
+- 负责发布或部署的工作流命名为 `release-<kind>.yml` 或 `deploy-<adapter>.yml`，使人能根据想要做的事找到正确的工作流。`<kind>` 说明发布的对象：`app` 是由源仓库构建的应用，`tool` 是从上游镜像而来的第三方工具。`<adapter>` 是 `policies/deploy.json` 中 `adapters` 的一个键（目前为 `source-script`）。名称中从不包含产品或仓库名。每个此类工作流都声明 `workflow_dispatch`，因为人会从 Actions 标签页启动它；自动化也可以启动它（可信的 main 写入之后启动部署工作流，按计划启动工具发布），因此上面的 dispatch 事件规则不适用于它们。`docs/INTEGRATION_GUIDE.md` 第 12.1 节说明应运行哪一个。该测试检查 kind 与 adapter，因此新增 kind 或 adapter 必须是一次有意的修改。
+- 显示名称（`name:`）逐词拼出文件名，其中 `pr` 与 `ci` 写作 `PR` 与 `CI`（`pr-intake.yml` 的显示名为 "PR Intake"）。
+- 保留旧名称的文件会在测试中列出，并写明不值得重命名的原因。目前包括 `handle-pr-dispatch.yml`（`scripts/ci-evidence.ts` 中的 CI Evidence 信任锚点）与 `handle-pr-review.yml`（计入 AI Review 队列）。
 
-### 8.2 Documentation language
+### 8.2 文档语言
 
-Every document in Action Worker that people and agents work from — `CLAUDE.md`, `AGENTS.md`, `README.md`, `SECURITY.md`, `docs/`, `skills/` — is written in English. Chinese appears only in localization files named `*.zh-CN.md` (`README.zh-CN.md`, `docs/README.zh-CN.md`, `SECURITY.zh-CN.md`), which translate an English original and never carry rules the original does not have. `tests/documentation-language.test.ts` checks this.
+Action Worker 中供人和 Agent 使用的所有文档，按类型区分语言：
 
-This rule is for Action Worker only. The engineering language check that runs on business repository pull requests still exempts Markdown, so a business repository may keep documentation it explicitly maintains in Chinese.
+- **机器读取文档使用英文**：`CLAUDE.md`、`AGENTS.md` 与 `skills/`（包括 `skills/README.md`）。
+- **面向人的文档使用中文**：`README.md`、`SECURITY.md`、`docs/` 下的治理与指南文档，以及 `docs/proposals/`。每份文档只保留一个中文版本，不保留 `*.zh-CN.md` 或其他语言的镜像文件。
+- **例外**：`CHANGELOG.md` 是工程记录，使用英文。
 
-## 9. Short version
+`tests/documentation-language.test.ts` 检查上述规则：机器读取文档不得含有中文，面向人的文档必须含有中文，且仓库中不得存在 `*.zh-CN.md` 文件。
+
+本规则只适用于 Action Worker。业务仓库中工程语言检查对 Markdown 的豁免保持不变；业务仓库的人类阅读文档按 [SHARED_GOVERNANCE.md](SHARED_GOVERNANCE.md) 第 8.2 节使用中文。
+
+## 9. 简要版本
 
 ```text
-External name = identifiable without repository context
-Use minimum sufficient semantics
-System + Purpose + Type + Qualifier is a guide, not a fixed template
-Do not encode JSON/YAML unless representation is part of the contract
-Semantic completeness > segment count
-Recognized abbreviations are allowed; ad-hoc abbreviations are not
-Local source names may rely on lexical context
-One concept = one standard term
-Boolean = is / has / can / should
-Engineering diff = English
-CHANGELOG / PR title = English
-Action Worker documentation = English; Chinese only in *.zh-CN.md
-Plain data content files (.txt / .csv / .tsv) are language-exempt
-HTML template copy is language-exempt; template comments stay English
+外部名称 = 脱离仓库上下文仍可识别
+使用最小充分语义
+系统 + 用途 + 类型 + 限定词 是指导，不是固定模板
+除非表示形式属于合同，否则不把 JSON/YAML 编码进名称
+语义完整性优先于段数
+可识别的缩写允许；临时缩写不允许
+本地源码名称可依赖词法上下文
+一个概念 = 一个标准术语
+布尔值 = is / has / can / should
+工程 diff = 英文
+CHANGELOG / PR 标题 = 英文
+Action Worker 机器读取文档 = 英文；面向人的文档 = 中文（单一文件，无镜像）
+纯数据内容文件（.txt / .csv / .tsv）免除语言要求
+HTML 模板的文案免除语言要求；模板注释保持英文
 ```

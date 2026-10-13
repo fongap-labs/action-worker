@@ -189,12 +189,9 @@ test("main write audit reconciles on control-plane changes and schedule", async 
 
 test("integration guidance matches the current credential and private-repository model", async () => {
   const guide = await text("docs/INTEGRATION_GUIDE.md");
-  assert.doesNotMatch(guide, /`AW_EXECUTION_TOKEN` is used/);
-  assert.match(guide, /`AW_EXECUTION_TOKEN` has been removed/);
-  assert.match(
-    guide,
-    /On GitHub Free, private repositories of an organization do not support rulesets or protected branches/
-  );
+  assert.doesNotMatch(guide, /`AW_EXECUTION_TOKEN` 仍在使用/);
+  assert.match(guide, /`AW_EXECUTION_TOKEN` 已被删除/);
+  assert.match(guide, /在 GitHub Free 套餐下，组织的私有仓库不支持 rulesets 或保护分支/);
 });
 
 test("the integration guide says which workflow starts a release or a deploy", async () => {
@@ -221,25 +218,26 @@ test("test ownership points every governance document to the test packs", async 
     assert.match(await text(path), /TEST_PACKS\.md/, `${path} must reference TEST_PACKS.md`);
   }
   requireText(await text("docs/TEST_PACKS.md"), [
-    "## 6. Tests that stay in the business repository",
-    "Action Worker holds the tests of each pack-managed business repository",
+    "## 6. 留在业务仓库中的测试",
+    "Action Worker 持有每个受管业务仓库的测试",
   ]);
 });
 
 test("documentation readability convention is enforced in shared governance", async () => {
   const gov = await text("docs/SHARED_GOVERNANCE.md");
   requireText(gov, [
-    "Documentation readability",
-    "Machine-read documents (rigorous)",
-    "Human-read documents (beginner-friendly)",
-    'Say "what this is" before "how to do it"',
-    "Explain every term",
-    "Use examples, not abstract descriptions",
-    "Precise and unambiguous",
-    "**English**",
+    "文档可读性",
+    "机器读取文档（严格）",
+    "人类阅读文档（面向新人）",
+    '先说明"这是什么"，再说明"怎么做"',
+    "解释每个术语",
+    "用示例代替抽象描述",
+    "精确且无歧义",
+    "**英文**",
+    "**中文**",
   ]);
   const dev = await text("docs/DEVELOPMENT_GUIDE.md");
-  requireText(dev, ["can be understood by someone without project background"]);
+  requireText(dev, ["没有项目背景的人也能读懂"]);
 });
 
 test("skills README is beginner-friendly", async () => {

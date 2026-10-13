@@ -1,33 +1,33 @@
-# Integration Guide
+# 接入指南
 
-This document defines the minimum requirements for a managed repository to join the Action Worker unified execution plane. Public and private repositories use the same contract.
+本文件定义受管仓库加入 Action Worker 统一执行平面所需的最低要求。公开仓库与私有仓库使用同一套合同。
 
-## 1. Goal after integration
+## 1. 接入后的目标流程
 
 ```text
-Repository event
-→ central intake / migration thin dispatch
+仓库事件
+→ 中央接入 / 迁移期间的薄分发
 → Action Worker
-→ validate immutable source
-→ resolve Execution Manifest
-→ authorize capabilities
-→ resolve Runner
-→ execute
-→ evidence / provenance
-→ gate / release / deploy / status
+→ 校验不可变源码
+→ 解析执行清单
+→ 授权能力
+→ 解析 Runner
+→ 执行
+→ 证据 / provenance
+→ 门禁 / 发布 / 部署 / 状态
 ```
 
-The business repository does not copy central governance and does not carry long-term heavy execution.
+业务仓库不复制中央治理，也不长期承担重型执行。
 
-## 2. What the business repository keeps
+## 2. 业务仓库保留的内容
 
-The business repository keeps: product source code, the project tests that cannot run from outside the repository ([TEST_PACKS.md](TEST_PACKS.md) section 6), project build / package / deploy scripts, the project architecture, the execution manifest and the thinnest dispatch.
+业务仓库保留：产品源码、无法从仓库外部运行的项目测试（见 [TEST_PACKS.md](TEST_PACKS.md) 第 6 节）、项目构建 / 打包 / 部署脚本、项目架构、执行清单，以及最薄的分发入口。
 
-If the GitHub platform requires the target repository to create a required check itself, it may also keep a very thin check bridge; that bridge must not run product tests or hold central secrets.
+如果 GitHub 平台要求目标仓库自行创建必需检查，它可以保留一个极薄的检查桥接；该桥接不得运行产品测试，也不得持有中央密钥。
 
-## 3. Execution Request
+## 3. 执行请求
 
-An ordinary dispatch submits only the task identity and the target. Long-term minimal fields:
+普通分发只提交任务身份与目标。长期的最小字段：
 
 ```text
 schema_version
@@ -37,15 +37,15 @@ source_sha
 operation
 ```
 
-For a PR, the request may carry the PR number; Action Worker re-reads the real base/head SHA and diff.
+对于 PR，请求可以携带 PR 编号；Action Worker 会重新读取真实的 base/head SHA 与 diff。
 
-A caller must not submit secrets, tokens, actual runners, gate conclusions or central permission conclusions.
+调用方不得提交密钥、令牌、实际 Runner、门禁结论或中央权限结论。
 
-## 4. Execution Manifest
+## 4. 执行清单
 
-The project's own execution needs are described by a version-controlled manifest and project scripts.
+项目自身的执行需求，由版本受控的清单与项目脚本描述。
 
-It may declare:
+清单可以声明：
 
 ```text
 operation
@@ -57,35 +57,35 @@ timeout
 capability_requests
 ```
 
-It must not declare: central secrets, a concrete self-hosted runner, runner labels, cross-repository write tokens or switches that bypass the gate.
+清单不得声明：中央密钥、具体的 self-hosted Runner、Runner 标签、跨仓库写入令牌，或任何绕过门禁的开关。
 
-See [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md) for the detailed contract.
+详细合同见 [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md)。
 
-## 5. CI / PR
+## 5. CI 与 PR
 
-Target model:
+目标模型：
 
 ```text
 PR
-→ PR Intake / optional migration thin dispatch
-→ Security / Central CI / deterministic PR policy
+→ PR Intake / 可选的迁移薄分发
+→ Security / Central CI / 确定性 PR 策略
 → CI Evidence
 → PR Governance / validate-merge
-├→ merge authority
-└→ AI Review after gate (advisory only)
+├→ 合并权限
+└→ 门禁之后的 AI Review（仅供参考）
 ```
 
-Project test code stays in the business repository, but Action Worker checks out the immutable source SHA and runs it in the sandbox.
+项目测试代码保留在业务仓库中（能从外部运行的测试放在测试包中），但 Action Worker 会检出不可变的源 SHA，并在沙箱中运行。
 
-Default-branch CI is reconciled the same way: CI Intake in the public Action Worker periodically checks the current HEAD of every managed repository and dispatches `run-central-ci-ref` when `CI Evidence` is missing. A business repository `ci.yml` is therefore only a low-latency migration entry point and no longer a long-term precondition for main CI.
+默认分支的 CI 以同样的方式进行对账：公开的 Action Worker 中的 CI Intake 定期检查每个受管仓库的当前 HEAD，当缺少 `CI Evidence` 时分发 `run-central-ci-ref`。因此业务仓库的 `ci.yml` 只是低延迟的迁移入口，不再是 main CI 的长期前提。
 
-A repository whose GitHub ruleset requires the check run to come from the target repository's own GitHub Actions may keep a very thin `validate-merge` bridge. It only joins `CI Evidence` and `PR Governance`.
+如果仓库的 GitHub ruleset 要求检查运行必须来自目标仓库自身的 GitHub Actions，它可以保留一个极薄的 `validate-merge` 桥接。该桥接只连接 `CI Evidence` 与 `PR Governance`。
 
-### 5.1 Linux CI shards
+### 5.1 Linux CI 分片
 
-By default, Linux CI is a single job that runs the business repository's `central-ci.sh` from start to finish. In a large project this one job becomes the slowest part of the pipeline. A business repository can split it into several parallel "shards" in `.github/execution-manifest.json`, so the total time becomes that of the slowest shard instead of the sum of all parts.
+默认情况下，Linux CI 是一个作业，从头到尾运行业务仓库的 `central-ci.sh`。在大型项目中，这一个作业会成为流水线中最慢的部分。业务仓库可以在 `.github/execution-manifest.json` 中把它拆分为多个并行的"分片"，使总耗时等于最慢分片的耗时，而不是所有部分耗时之和。
 
-To do so, declare `matrix.shard` on the job with id `linux` of the `ci` operation, and pass the shard name to the script as its second argument:
+为此，请在 `ci` 操作中 id 为 `linux` 的作业上声明 `matrix.shard`，并把分片名作为第二个参数传给脚本：
 
 ```json
 {
@@ -98,56 +98,56 @@ To do so, declare `matrix.shard` on the job with id `linux` of the `ci` operatio
 }
 ```
 
-Rules:
+规则：
 
-- A shard name uses only lowercase letters, digits and hyphens, is at most 32 characters long, and there are at most 8 shards; `all` is reserved.
-- The `matrix` of the `linux` job allows only the key `shard`. Any other key, an invalid shard name or exceeding a limit fails CI immediately; nothing is silently skipped.
-- A repository that declares no `matrix.shard` (including one without a manifest) is not affected: it is still one job, and the script receives exactly the same arguments as before.
-- Once declared, Central CI starts one Linux job per shard and calls the script with the shard name as its second argument. Each shard must do only its own part; `CI Evidence` is success only when every shard succeeded.
-- Action Worker reads the manifest only from a trusted ref (the default branch, or the candidate head when a maintainer changes CI control). How the shards are split belongs to the business repository; Action Worker keeps no shard table for any project.
+- 分片名只能使用小写字母、数字和连字符，长度不超过 32 个字符，最多 8 个分片；`all` 为保留名称。
+- `linux` 作业的 `matrix` 只允许键 `shard`。任何其他键、非法的分片名或超出上限的配置，都会使 CI 立即失败；不会静默跳过任何内容。
+- 未声明 `matrix.shard` 的仓库（包括没有清单的仓库）不受影响：它仍是一个作业，脚本接收的参数与之前完全相同。
+- 一旦声明，中央 CI 会为每个分片启动一个 Linux 作业，并以分片名作为第二个参数调用脚本。每个分片只负责自己的部分；只有所有分片都成功，`CI Evidence` 才为成功。
+- Action Worker 只从可信的引用读取清单（默认分支，或维护者修改 CI 控制时的候选 head）。如何拆分分片属于业务仓库；Action Worker 不为任何项目保存分片表。
 
-## 6. Security Scan
+## 6. 安全扫描
 
-A business repository declares its security scan intent in `.github/security-scan.json`: the CodeQL languages, an abstract `runner_profile`, the build mode, and whether to scan PRs and/or the default branch. Action Worker reads the manifest from the trusted base / default SHA, resolves the runner and runs the scan.
+业务仓库在 `.github/security-scan.json` 中声明安全扫描意图：CodeQL 语言、抽象的 `runner_profile`、构建模式，以及是否扫描 PR 和/或默认分支。Action Worker 从可信的 base / 默认 SHA 读取该清单，解析 Runner 并运行扫描。
 
-A PR cannot change the security scan configuration with its own head. SARIF produced by the central CodeQL must not be kept as a public `action-worker` artifact; results are uploaded straight back to the source repository from the temporary runner and then destroyed.
+PR 不能用自己的 head 修改安全扫描配置。中央 CodeQL 产生的 SARIF 不得作为公开的 `action-worker` 产物保存；结果直接从临时 Runner 回传到源仓库，然后销毁。
 
-The CodeQL executor of the current public control plane accepts only public source repositories. Private sources fail closed until log suppression / a private security executor exists; this is a limit of the executor, not a change to the unified security scan contract.
+当前公开控制平面的 CodeQL 执行器只接受公开的源仓库。在日志抑制或私有安全执行器就绪之前，私有源仓库会失败即关闭；这是执行器的限制，不改变统一安全扫描合同。
 
-Periodic scans are scheduled by Security Scan Intake in the public Action Worker; a business repository does not need a scheduled CodeQL workflow.
+定期扫描由公开的 Action Worker 中的 Security Scan Intake 调度；业务仓库不需要定时运行的 CodeQL 工作流。
 
-## 7. Dependency repair
+## 7. 依赖修复
 
-Repairs such as dependency lock files or generated manifests — triggered by a trusted dependency bot and written back to the PR branch — use the source-owned `.github/dependency-repair.json`.
+依赖锁文件或生成清单之类的修复，由可信的依赖机器人触发，并回写到 PR 分支，使用源仓库自有的 `.github/dependency-repair.json`。
 
-The boundary is fixed:
+边界固定如下：
 
 ```text
-trusted PR facts + base manifest
-→ sandbox compute without persistent write credentials
-→ output-path confinement
-→ artifact handoff
-→ control-plane revalidation
-→ allowlisted branch write
+可信的 PR 事实 + 基础清单
+→ 无持久写入凭据的沙箱计算
+→ 输出路径限制
+→ 产物交接
+→ 控制平面重新校验
+→ 白名单分支写入
 ```
 
-The business repository declares only the adapter, an abstract `runner_profile`, the trusted actor, trigger paths, allowed outputs and tool versions. Action Worker does not choose a repair implementation by repository name.
+业务仓库只声明适配器、抽象的 `runner_profile`、可信的触发者、触发路径、允许的输出以及工具版本。Action Worker 不会按仓库名选择修复实现。
 
-The publication step must not run any target repository project command; it may only write allowlisted generated output back to a same-repository PR branch that still points at the same HEAD.
+发布步骤不得运行任何目标仓库的项目命令；它只能把白名单内的生成输出写回同仓库的 PR 分支，并且该分支仍指向同一个 HEAD。
 
-Before an old local repair workflow is deleted, the central path must first succeed on a real bot PR, so dependency repair never has a gap.
+在删除旧的本地修复工作流之前，中央路径必须先在一个真实的机器人 PR 上成功运行，确保依赖修复不出现空窗期。
 
 ## 8. Runner
 
-A business repository declares only `runner_profile` and never names a GitHub-hosted image, `self-hosted`, a runner group, labels or a hostname directly.
+业务仓库只声明 `runner_profile`，绝不直接写明 GitHub 托管镜像、`self-hosted`、Runner 组、标签或主机名。
 
-The Action Worker runner resolver chooses GitHub-hosted, self-hosted or a future backend.
+Action Worker 的 Runner 解析器会选择 GitHub 托管、self-hosted 或未来的其他后端。
 
-See [RUNNER_POLICY.md](RUNNER_POLICY.md) for the detailed rules.
+详细规则见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。
 
-## 9. Central configuration
+## 9. 中央配置
 
-Action Worker Repository Variables:
+Action Worker 仓库变量：
 
 ```text
 AW_REPOSITORY_POLICY
@@ -155,7 +155,7 @@ AW_AI_AGENT_CONFIG
 AI_GATEWAY_URL
 ```
 
-Action Worker secrets:
+Action Worker 密钥：
 
 ```text
 AW_ADMIN_TOKEN
@@ -163,120 +163,117 @@ AW_CONTROL_TOKEN
 AIG_ACCESS_KEY_AGENT
 ```
 
-During migration a business repository may keep the minimal credential for the thin dispatch; once central PR / CI intake is in effect, that credential is no longer a long-term hard dependency of governance and execution. Central management, cross-repository write, AI Gateway and production credentials must never move down into business repositories.
+迁移期间，业务仓库可以为薄分发保留最小化的凭据；一旦中央 PR / CI Intake 生效，该凭据就不再是治理与执行的长期硬依赖。中央管理、跨仓库写入、AI Gateway 与生产凭据绝不能下沉到业务仓库。
 
-`AW_CHECKOUT_TOKEN` is used only to check out private target repositories in the sandbox and in the dependency repair compute job. Its permission is `Contents: Read` only, its scope is limited to the private managed repositories, and it must be rotated before it expires. `AW_CONTROL_TOKEN` is used for central reads, control and status governance. `AW_ADMIN_TOKEN` is used only for repository-level high-privilege writes in trusted control steps, such as Repository Settings / Rulesets, and for SARIF publication, which needs Code Scanning write access. High-privilege tokens are never injected into sandbox project commands.
+`AW_CHECKOUT_TOKEN` 仅用于在沙箱和依赖修复计算作业中检出私有目标仓库。其权限只能是 `Contents: Read`，作用范围仅限受管的私有仓库，并且必须在过期前轮换。`AW_CONTROL_TOKEN` 用于中央读取、控制与状态治理。`AW_ADMIN_TOKEN` 仅用于可信控制步骤中的仓库级高权限写入，例如 Repository Settings / Rulesets，以及需要 Code Scanning 写权限的 SARIF 发布。高权限令牌绝不注入沙箱中的项目命令。
 
-`AW_EXECUTION_TOKEN` has been removed and is no longer configured. Central execution combines the existing least-privilege authorities with GitHub-native short-lived credentials.
+`AW_EXECUTION_TOKEN` 已被删除，不再配置。中央执行结合了现有的最小权限授权与 GitHub 原生的短期凭据。
 
 ## 10. Main Write Guard
 
-A business repository does not carry the authoritative execution of the Main Write Guard. The public `action-worker` periodically audits the current `main` of every managed repository in `AW_REPOSITORY_POLICY`, re-queries GitHub and proves that the source SHA comes from a legitimate PR merge.
+业务仓库不承担 Main Write Guard 的权威执行。公开的 `action-worker` 定期审计 `AW_REPOSITORY_POLICY` 中每个受管仓库的当前 `main`，重新查询 GitHub，并证明源 SHA 来自合法的 PR 合并。
 
-A business repository may keep a very thin main-push dispatcher to shorten detection latency, but a missing dispatcher, exhausted Actions minutes or a deleted dispatcher can neither produce a trusted main SHA nor weaken the fail-closed checks of Release / Deploy.
+业务仓库可以保留一个极薄的 main push 分发器，以缩短发现问题的延迟；但分发器缺失、Actions 分钟数耗尽或分发器被删除，都既不能产生可信的 main SHA，也不能削弱 Release / Deploy 的失败即关闭检查。
 
-The thinnest PR-side trigger uses `templates/pr-dispatcher/dispatch-pr-governance.yml` (only `opened` and `synchronize`, skipping Dependabot) and needs the repository to have `AW_DISPATCH_TOKEN`. It can run on a self-hosted runner; see [RUNNER_POLICY.md](RUNNER_POLICY.md) section 11.
+最薄的 PR 侧触发器使用 `templates/pr-dispatcher/dispatch-pr-governance.yml`（只监听 `opened` 与 `synchronize`，跳过 Dependabot），并且仓库需要配置 `AW_DISPATCH_TOKEN`。它可以运行在 self-hosted Runner 上；见 [RUNNER_POLICY.md](RUNNER_POLICY.md) 第 11 节。
 
-A SHA not proven by the Main Write Guard cannot be used for Release, Deploy, Publication or privileged execution.
+未经 Main Write Guard 证明的 SHA，不能用于 Release、Deploy、Publication 或特权执行。
 
-See [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md) for the detailed rules.
+详细规则见 [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md)。
 
-## 11. Task
+## 11. 任务
 
-Task projects stay in the business repository, but Action Worker owns the task entry point.
+任务项目保留在业务仓库中，但 Action Worker 拥有任务的入口。
 
-The business repository declares in `.github/task-source.json`:
-- `push: true`: changes on the default branch must be discovered automatically by Task Intake;
-- `schedules`: the mapping from schedule slots to projects.
+业务仓库在 `.github/task-source.json` 中声明：
 
-Task Intake periodically scans every repository with the `task` capability and reads only the real default-branch HEAD. For a repository with `push` enabled, if the current HEAD has no successful `Task Source` status yet, it dispatches a changed-project resolution with the first parent commit as `before_sha`; it writes pending while running, success on success, and failure on failure so the next round retries.
+- `push: true`：默认分支上的变更必须由 Task Intake 自动发现；
+- `schedules`：调度时段到项目的映射。
 
-A manual task is started directly from the `Task Source Dispatch` workflow_dispatch in Action Worker and submits only the managed repository and the project. A business repository no longer needs to start a local notification runner for manual or push events.
+Task Intake 定期扫描每个具有 `task` 能力的仓库，并只读取真实的默认分支 HEAD。对于启用了 `push` 的仓库，如果当前 HEAD 还没有成功的 `Task Source` 状态，它会以第一个父提交作为 `before_sha` 分发一次变更项目的解析：运行期间写入 pending，成功时写入 success，失败时写入 failure，以便下一轮重试。
 
-The central repository must not keep a list of business repository or project names.
+手动任务直接从 Action Worker 中的 `Task Source Dispatch` workflow_dispatch 启动，只提交受管仓库与项目。业务仓库不再需要为手动或 push 事件启动本地通知 Runner。
+
+中央仓库不得保留业务仓库或项目名称列表。
 
 ## 12. Release
 
 ```text
-immutable source
-→ Action Worker central build/package
+不可变源码
+→ Action Worker 中央构建 / 打包
 → release-manifest + provenance
 → Release Governance
-→ target publish
-→ re-download verification
-→ finalize / rollback
+→ 目标发布
+→ 重新下载校验
+→ 完成 / 回滚
 ```
 
-The business repository keeps the project build / package scripts and declares in `.github/release.manifest.json` the build targets, assets and an abstract `runner_profile`. The manifest carries no version. Action Worker reads and validates that manifest from the immutable source SHA and selects the actual runner through the central runner policy.
+业务仓库保留项目的构建 / 打包脚本，并在 `.github/release.manifest.json` 中声明构建目标、产物以及抽象的 `runner_profile`。该 manifest 不包含版本。Action Worker 从不可变的源 SHA 读取并校验该 manifest，并通过中央 Runner 策略选择实际的 Runner。
 
-A project manifest must not declare central secrets, tokens or a concrete GitHub / self-hosted runner label. Publication credentials for the target repository always stay in Action Worker.
+项目 manifest 不得声明中央密钥、令牌，或具体的 GitHub / self-hosted Runner 标签。目标仓库的发布凭据始终保留在 Action Worker 中。
 
-The central repository must not keep a release build matrix grouped by repository or product.
+中央仓库不得保留按仓库或产品分组的 Release 构建矩阵。
 
-The released version is the version the person enters when starting the release. A business repository must not keep a rule that constrains it: no version-source check, no consistency check between files, no required CHANGELOG release heading. The project build script declares a mandatory `-Version` parameter, writes that version into the built application, and may verify that the built artifact carries it.
+### 12.1 启动发布或部署的工作流
 
-A manual release also starts from the `Release App` workflow in Action Worker: the user chooses the managed `source_repository` and enters the stable version, which is required; Action Worker reads the current default-branch HEAD of that repository itself and runs the same source / CI / provenance checks. A business repository does not need to start its own runner to "announce a release".
+Release 与 Deploy 工作流按发布类型或部署适配器命名，绝不以产品或仓库命名。找到对应的行，在 Action Worker 的 Actions 标签页中打开该工作流，然后点击"Run workflow"。
 
-### 12.1 Which workflow starts a release or a deploy
-
-Release and deploy workflows are named by the kind of release or by the deploy adapter, never by a product or repository. Find the row, open that workflow in the Actions tab of Action Worker and press "Run workflow".
-
-| You want to | Workflow | Inputs | Also started by | Used today by |
+| 你想要 | 工作流 | 输入 | 其他启动方式 | 当前使用方 |
 |---|---|---|---|---|
-| Release an application built from a source repository | `Release App` (`release-app.yml`) | `source_repository`, `requested_version` (required stable SemVer) | a `run-release-build` dispatch event | delta, app-source |
-| Release a third-party tool mirrored from upstream | `Release Tool` (`release-tool.yml`) | none (every catalog tool) | a schedule, every 6 hours | external-vault `tools/` |
-| Deploy a source commit | `Deploy Source Script` (`deploy-source-script.yml`) | `source_repository`, `source_sha` (the exact 40-character SHA) | central CI after a trusted main write, when the repository's `.github/deploy.json` has `automatic: true` | ai-gateway (automatic), internal-vault (by hand only) |
+| 发布由源仓库构建的应用 | `Release App` (`release-app.yml`) | `source_repository`、`requested_version`（必填的稳定 SemVer） | `run-release-build` 分发事件 | delta、app-source |
+| 发布从上游镜像而来的第三方工具 | `Release Tool` (`release-tool.yml`) | 无（每个目录中的工具） | 定时任务，每 6 小时一次 | external-vault `tools/` |
+| 部署某个源提交 | `Deploy Source Script` (`deploy-source-script.yml`) | `source_repository`、`source_sha`（精确的 40 位 SHA） | 可信的 main 写入之后中央 CI 启动，且仓库的 `.github/deploy.json` 中 `automatic: true` | ai-gateway（自动）、internal-vault（仅手动） |
 
-`Handle Release Dispatch` publishes both kinds of release; the workflows above start it, a person never does. "Used today by" is a snapshot: each repository's own `.github/release.manifest.json` or `.github/deploy.json` and `AW_REPOSITORY_POLICY` decide, not this table.
+`Handle Release Dispatch` 负责发布两类产物；以上工作流负责启动它，人不直接运行它。"当前使用方"是一个快照：每个仓库自身的 `.github/release.manifest.json` 或 `.github/deploy.json`，以及 `AW_REPOSITORY_POLICY`，才是权威来源，而不是本表。
 
 ## 13. Deploy
 
 ```text
-immutable source
-→ deploy capability
-→ source-owned .github/deploy.json
-→ Action Worker source gate
-→ Runner Resolver
-→ adapter
-→ controlled deploy
-→ health verification
-→ rollback
+不可变源码
+→ deploy 能力
+→ 源仓库自有的 .github/deploy.json
+→ Action Worker 源门禁
+→ Runner 解析
+→ 适配器
+→ 受控部署
+→ 健康检查
+→ 回滚
 ```
 
-The business repository declares its deploy intent in `.github/deploy.json`: the `adapter`, whether to deploy automatically, the docs-only policy, an abstract `runner_profile`, the environment identifier, and the source-owned entrypoint when the adapter needs one.
+业务仓库在 `.github/deploy.json` 中声明部署意图：`adapter`、是否自动部署、仅文档变更的策略、抽象的 `runner_profile`、环境标识符，以及当适配器需要时的源仓库自有入口点。
 
-Deploy permission is separate from ordinary PR permission. Action Worker resolves a deploy manifest only for a repository that explicitly has the `deploy` capability in `AW_REPOSITORY_POLICY`.
+部署权限独立于普通的 PR 权限。只有在 `AW_REPOSITORY_POLICY` 中明确拥有 `deploy` 能力的仓库，Action Worker 才会解析其部署 manifest。
 
-A manifest must not declare a concrete runner label, host, token or central permission. The source-owned entrypoint declares its minimal secret scope in `.github/deploy.secrets.required` / `.github/deploy.secrets.allowed`; Action Worker injects that scope only after the `deploy` capability, a trusted Main Write Guard and the privileged runner checks pass, and always strips the control-plane credentials.
+manifest 不得声明具体的 Runner 标签、主机、令牌或中央权限。源仓库自有的入口点在 `.github/deploy.secrets.required` / `.github/deploy.secrets.allowed` 中声明其最小密钥范围；只有在 `deploy` 能力、可信的 Main Write Guard 与特权 Runner 检查全部通过之后，Action Worker 才会注入该范围，并始终移除 Control 凭据。
 
-`production-deploy` is an abstract privileged runner profile; the actual runner mapping is decided only by the central runner policy. It can map to GitHub-hosted today; when it moves to self-hosted later, the business repository manifest does not change.
+`production-deploy` 是抽象的特权 Runner Profile；实际的 Runner 映射只由中央 Runner 策略决定。目前它可以映射到 GitHub 托管的 Runner；将来迁移到 self-hosted 时，业务仓库的 manifest 无需修改。
 
-When a deploy needs the production network, SSH, Tailscale or another trusted network, a privileged task fails closed and never falls back to a sandbox / control runner.
+当部署需要生产网络、SSH、Tailscale 或其他受信任的网络时，特权任务失败即关闭，绝不降级到沙箱或控制 Runner。
 
-## 14. What an ordinary new repository should not do
+## 14. 普通新仓库不应做的事
 
-Integrating an ordinary new repository should not require:
+接入一个普通的新仓库，不应需要：
 
-- changing Action Worker core scripts;
-- adding conditions on repository or project names;
-- creating a project-specific configuration directory in Action Worker;
-- running full CI / build / review / release / deploy itself;
-- choosing a self-hosted runner itself;
-- storing central secrets;
-- copying central policies.
+- 修改 Action Worker 的核心脚本；
+- 添加基于仓库名或项目名的条件判断；
+- 在 Action Worker 中创建项目专属的配置目录；
+- 自行运行完整的 CI / 构建 / 审查 / 发布 / 部署；
+- 自行选择 self-hosted Runner；
+- 保存中央密钥；
+- 复制中央策略。
 
-If one of these seems necessary, first check whether a generic capability is missing.
+如果似乎必须做其中之一，先检查是否缺少某项通用能力。
 
-## 15. GitHub platform boundary
+## 15. GitHub 平台边界
 
-The unified execution architecture does not mean that every GitHub plan has the same platform enforcement.
+统一执行架构并不意味着每个 GitHub 套餐都具有相同的平台强制能力。
 
-On GitHub Free, private repositories of an organization do not support rulesets or protected branches, so the central gate in those repositories is a process constraint on the current plan, not a hard platform gate. Public repositories can still use the managed rulesets where the platform allows.
+在 GitHub Free 套餐下，组织的私有仓库不支持 rulesets 或保护分支，因此这些仓库中的中央门禁属于当前套餐下的流程约束，而不是硬性的平台门禁。公开仓库仍可在平台允许的范围内使用受管的 rulesets。
 
-Differences in platform features must not change the execution contract, and must not become a reason to move heavy execution back into business repositories.
+平台功能的差异不得改变执行合同，也不得成为把重型执行搬回业务仓库的理由。
 
-## 16. Migration period
+## 16. 迁移期
 
-Some repositories still keep old CI / Release / Deploy paths. They are migration debt.
+部分仓库仍保留旧的 CI / Release / Deploy 路径。它们是迁移债务。
 
-During migration, old paths may only shrink; new repositories and new capabilities use the unified execution contract directly.
+迁移期间，旧路径只能缩减；新仓库与新能力直接使用统一执行合同。

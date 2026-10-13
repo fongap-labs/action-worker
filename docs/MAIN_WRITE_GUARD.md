@@ -1,120 +1,120 @@
 # Main Write Guard
 
-This document defines the boundary for the origin of writes to the `main` branch of managed repositories.
+本文件定义受管仓库 `main` 分支写入来源的边界。
 
-## 1. Goal
+## 1. 目标
 
-Every managed repository, public or private, follows:
+每个受管仓库，无论公开还是私有，都遵循：
 
 ```text
-Only a PR that passed deterministic gates
-may produce a trusted main SHA.
+只有通过确定性门禁的 PR，
+才能产生可信的 main SHA。
 ```
 
-The long-term goal is not to "detect direct pushes" but to make sure a `main` SHA that did not come from a legitimate PR merge can never enter any formal execution chain.
+长期目标不是"检测直接 push"，而是确保一个无法证明来自合法 PR 合并的 `main` SHA，永远不能进入任何正式的执行链。
 
-## 2. Two gates
+## 2. 两道门禁
 
 ```text
-Before main
+进入 main 之前
   validate-merge
-  = merge eligibility
+  = 合并资格
 
-After main update
+main 更新之后
   Main Write Guard
-  = main provenance
+  = main 来源证明
 ```
 
-`validate-merge` decides whether a PR may merge. For managed business repositories it is a central commit status published directly by Action Worker and does not depend on business repository GitHub Actions. Action Worker's own self-CI may keep using a check of the same name in this repository.
+`validate-merge` 决定 PR 能否合并。对于受管业务仓库，它是 Action Worker 直接发布的中央提交状态，不依赖业务仓库的 GitHub Actions。Action Worker 自身的 self-CI 可以在本仓库中继续使用同名检查。
 
-`Main Write Guard` verifies that the current SHA of `main` really was produced by a PR that passed governance and was merged into `main`.
+`Main Write Guard` 验证 `main` 的当前 SHA 确实由一个通过了治理并合并进 `main` 的 PR 产生。
 
-These two responsibilities cannot be merged and cannot replace each other.
+这两项职责不能合并，也不能互相替代。
 
-## 3. Legitimate main writes
+## 3. 合法的 main 写入
 
-The Main Write Guard re-verifies against the current facts on GitHub; it never trusts a commit message, caller parameters or local state.
+Main Write Guard 只依据 GitHub 上的当前事实重新验证；它从不信任 commit message、调用方参数或本地状态。
 
-Long-term minimal conditions:
+长期的最低条件：
 
 ```text
-repository is managed
-head SHA is immutable
-head SHA is associated with a merged PR
-PR base is main
-PR merge result matches the main update
-required deterministic gate was successful for that PR/head
+仓库受管
+head SHA 不可变
+head SHA 关联到一个已合并的 PR
+PR 的 base 是 main
+PR 的合并结果与 main 的更新一致
+该 PR/head 已通过所需的确定性门禁
 ```
 
-The implementation adapts to the merge methods the repository currently allows. For the squash merge that Fongap Labs uses everywhere today, it must verify the real relationship between the merged PR returned by GitHub and the target `main` SHA.
+实现要适配仓库当前允许的合并方式。对于 Fongap Labs 目前普遍使用的 squash 合并，必须验证 GitHub 返回的已合并 PR 与目标 `main` SHA 之间的真实关系。
 
-None of the following proves legitimacy on its own:
+以下任何一项都不能单独证明合法性：
 
-- the commit message;
-- the actor name;
-- the branch name;
-- workflow inputs;
-- a self-reported PR number;
-- a self-reported `validate-merge` result.
+- commit message；
+- actor 名称；
+- 分支名称；
+- 工作流输入；
+- 自报的 PR 编号；
+- 自报的 `validate-merge` 结果。
 
-## 4. Illegitimate main writes
+## 4. 不合法的 main 写入
 
-If the Main Write Guard cannot prove that the current `main` SHA comes from a legitimate PR merge, that SHA is marked untrusted.
+如果 Main Write Guard 无法证明当前 `main` SHA 来自合法的 PR 合并，该 SHA 被标记为不可信。
 
 ```text
-direct push / unknown write
+直接 push / 未知写入
         ↓
 Main Write Guard = failure
         ↓
-main SHA = untrusted
+main SHA = untrusted（不可信）
         ↓
-Release denied
-Deploy denied
-Publication denied
-Privileged task denied
+拒绝 Release
+拒绝 Deploy
+拒绝 Publication
+拒绝特权任务
 ```
 
-In a repository where the GitHub platform cannot prevent a direct push in advance, the workflows still fail closed: an unproven SHA never gains any formal output capability.
+在 GitHub 平台无法提前阻止直接 push 的仓库中，工作流仍然失败即关闭：未经证明的 SHA 永远不能获得任何正式输出的能力。
 
-Whether an illegitimate write is rolled back automatically is an execution policy and cannot replace this trust decision. Even when an automatic rollback fails, the untrusted SHA still cannot be released or deployed.
+是否自动回滚不合法的写入，属于执行策略，不能替代这一信任判定。即使自动回滚失败，不可信的 SHA 也不能被发布或部署。
 
-## 5. Public and private
+## 5. 公开仓库与私有仓库
 
-### Platform enforcement available
+### 平台强制可用
 
-When GitHub rulesets / protected branches are available:
+当 GitHub rulesets / 保护分支可用时：
 
 ```text
-require pull request
-+ require central validate-merge status
-+ no bypass actor
-+ restrict direct main update
+要求 pull request
++ 要求中央 validate-merge 状态
++ 无绕过主体
++ 限制直接更新 main
 ```
 
-GitHub rejects the illegitimate path before the write, and the Main Write Guard remains a second provenance check.
+GitHub 会在写入之前拒绝不合法的路径，而 Main Write Guard 仍是第二道来源证明。
 
-### Platform enforcement unavailable
+### 平台强制不可用
 
-When the current GitHub plan cannot give a private repository equivalent enforced protection:
+当当前 GitHub 套餐无法为私有仓库提供等效的强制保护时：
 
 ```text
-direct main write may physically occur
-→ Main Write Guard must fail
-→ resulting SHA is quarantined
-→ every privileged downstream path must reject it
+直接写入 main 可能实际发生
+→ Main Write Guard 必须失败
+→ 结果 SHA 被隔离
+→ 每个特权的下游路径都必须拒绝它
 ```
 
-Differences in platform features must not produce a second governance model.
+平台功能的差异不得产生第二套治理模型。
 
-## 6. Workflow boundary
+## 6. 工作流边界
 
-The security of the Main Write Guard must not depend on whether business repository Actions can run.
+Main Write Guard 的安全性不得取决于业务仓库的 Actions 是否能运行。
 
-The authoritative baseline is the central Main Write Audit in the public `action-worker`, which periodically re-reads the current `main` of every managed repository and verifies provenance independently. Even if a business repository has no Actions minutes, its dispatcher was deleted, or a direct push also changed its workflows, an illegitimate SHA cannot gain trust.
+权威基线是公开的 `action-worker` 中的中央 Main Write Audit。它定期重新读取每个受管仓库的当前 `main`，并独立验证来源。即使业务仓库没有 Actions 分钟数、分发器已被删除，或直接 push 同时修改了它的工作流，不合法的 SHA 也不能获得信任。
 
-A business repository may keep a very thin `main` push bridge as a real-time shortcut, but it is not a security prerequisite and must never produce a trusted conclusion by itself.
+业务仓库可以保留一个极薄的 `main` push 桥接，作为实时加速手段；但它不是安全前提，且绝不能单独产生可信结论。
 
-Long-term minimal fields of the optional real-time event:
+可选实时事件的长期最小字段：
 
 ```text
 repository
@@ -124,67 +124,67 @@ event
 request_id
 ```
 
-A caller must not submit:
+调用方不得提交：
 
-- a boolean conclusion that "this is a legitimate merge";
-- the PR gate result;
-- release/deploy authorization;
-- secrets;
-- any bypass marker.
+- "这是合法合并"的布尔结论；
+- PR 门禁结果；
+- 发布或部署授权；
+- 密钥；
+- 任何绕过标记。
 
-Action Worker re-queries the GitHub facts and forms the `Main Write Guard` conclusion itself.
+Action Worker 重新查询 GitHub 事实，并自行形成 `Main Write Guard` 的结论。
 
-The central Main Write Audit discovers repositories dynamically from the managed repository list in `AW_REPOSITORY_POLICY`; project names must not be hard-coded in workflows or scripts. The audit must prove provenance again for every current main SHA and must not skip verification just because a success status of the same name already exists.
+中央 Main Write Audit 从 `AW_REPOSITORY_POLICY` 中的受管仓库列表动态发现仓库；项目名称不得硬编码在工作流或脚本中。审计必须对每一个当前的 main SHA 重新证明来源，不得仅因为已存在同名的成功状态就跳过验证。
 
-## 7. Downstream requirement
+## 7. 下游要求
 
-These operations require `Main Write Guard = success` bound exactly to the target source SHA:
+以下操作要求目标源 SHA 具有精确绑定的 `Main Write Guard = success`：
 
-- Release;
-- Deploy;
-- Publication;
-- production / privileged execution;
-- any task that can spread source code into a formal runtime or formal distribution environment.
+- Release；
+- Deploy；
+- Publication；
+- 生产 / 特权执行；
+- 任何可能把源码传播到正式运行环境或正式分发环境的任务。
 
-"The branch is called main" never replaces the Main Write Guard.
+"分支名为 main"永远不能替代 Main Write Guard。
 
 ## 8. AI Review
 
-AI Review is not part of the Main Write Guard and cannot take part in its conclusion.
+AI Review 不属于 Main Write Guard，也不能参与其结论。
 
-The order for a PR is:
+PR 的顺序为：
 
 ```text
-Security / CI / PR deterministic gates
+Security / CI / PR 确定性门禁
         ↓
-Action Worker validate-merge / PR Governance PASS
-        ├──→ merge authority
-        └──→ AI Review (advisory, asynchronous)
+Action Worker validate-merge / PR Governance 通过
+        ├──→ 合并权限
+        └──→ AI Review（仅供参考，异步）
 ```
 
-After the gate passed, AI Review may keep finding problems, making suggestions and posting comments, but it:
+门禁通过之后，AI Review 可以继续发现问题、提出建议并发表评论，但它：
 
-- must not change `validate-merge`;
-- must not change `PR Governance`;
-- must not change the `Main Write Guard`;
-- must not grant Release / Deploy permission;
-- must not delay or change the deterministic gate through failure, timeout or an unavailable model.
+- 不得改变 `validate-merge`；
+- 不得改变 `PR Governance`；
+- 不得改变 `Main Write Guard`；
+- 不得授予 Release / Deploy 权限；
+- 不得因失败、超时或模型不可用而延迟或改变确定性门禁。
 
-## 9. Permissions
+## 9. 权限
 
-The Main Write Guard itself only needs to read GitHub facts and publish a controlled status.
+Main Write Guard 本身只需要读取 GitHub 事实，并发布受控的状态。
 
-AI Review must not hold main write, merge, release or deploy permission.
+AI Review 不得拥有 main 写入、合并、Release 或 Deploy 权限。
 
-Every credential that can write `main`, publish a release or run a deploy is controlled by an independent deterministic authority.
+每一个能够写入 `main`、发布 Release 或执行 Deploy 的凭据，都由独立的确定性权威控制。
 
-## 10. Acceptance criteria
+## 10. 验收标准
 
-The governance loop is complete when:
+当以下条件全部成立时，治理闭环才算完成：
 
-1. every managed repository uses the same Main Write Guard contract;
-2. public repositories also enable the native PR-only protection where the platform allows;
-3. in private repositories, even when a direct push physically happens, the illegitimate SHA cannot enter the formal output chain;
-4. Release / Deploy verify the Main Write Guard;
-5. AI Review runs after the deterministic PR gate and never becomes a gate;
-6. no new runner, repository or product can bypass this chain.
+1. 每个受管仓库都使用同一份 Main Write Guard 合同；
+2. 在平台允许的范围内，公开仓库同时启用原生的"仅允许 PR"保护；
+3. 在私有仓库中，即使直接 push 确实发生，不合法的 SHA 也无法进入正式输出链；
+4. Release / Deploy 会校验 Main Write Guard；
+5. AI Review 在确定性 PR 门禁之后运行，且从不成为门禁；
+6. 没有新的 Runner、仓库或产品可以绕过这条链路。

@@ -7,37 +7,52 @@ import { containsHan } from "../scripts/validate-engineering-language.ts";
 
 const run = promisify(execFile);
 
-// A localization file translates an English original and is the only place for Chinese text.
-const localization = /\.zh-CN\.md$/;
-// The language switch at the top of an English document names the Chinese version in Chinese.
-const languageSwitch = /\[\**\u7b80\u4f53\u4e2d\u6587\**\]\([^)]*\.zh-CN\.md\)/g;
+// Machine-read documents: agent entry points and reusable agent skills. They are English.
+const machineRead = [/^CLAUDE\.md$/, /^AGENTS\.md$/, /^skills\//];
+// The CHANGELOG is the engineering record of the repository. It is English.
+const engineeringRecord = /^CHANGELOG\.md$/;
 // Test packs hold product fixtures of the managed repositories, not Action Worker documentation.
 const productFixtures = /^tests\/packs\//;
+// Chinese localization files are retired: the Chinese document is the only human-facing version.
+const localization = /\.zh-CN\.md$/;
 
 async function trackedMarkdown(): Promise<string[]> {
   const { stdout } = await run("git", ["ls-files", "*.md"]);
-  return stdout
-    .split("\n")
-    .filter((path) => path !== "" && !productFixtures.test(path) && !localization.test(path));
+  return stdout.split("\n").filter((path) => path !== "" && !productFixtures.test(path));
 }
 
-test("Action Worker documentation is written in English", async () => {
+function isMachineRead(path: string): boolean {
+  return machineRead.some((pattern) => pattern.test(path)) || engineeringRecord.test(path);
+}
+
+test("machine-read Action Worker documents are written in English", async () => {
   const violations: string[] = [];
   for (const path of await trackedMarkdown()) {
+    if (!isMachineRead(path)) continue;
     const lines = (await readFile(path, "utf8")).split("\n");
     lines.forEach((line, index) => {
-      if (containsHan(line.replace(languageSwitch, ""))) {
-        violations.push(`${path}:${index + 1}`);
-      }
+      if (containsHan(line)) violations.push(`${path}:${index + 1}`);
     });
   }
-  assert.deepEqual(violations, [], "Chinese text belongs only in a *.zh-CN.md localization file");
+  assert.deepEqual(violations, [], "Chinese text does not belong in machine-read documents");
 });
 
-test("every Chinese localization file translates an English original", async () => {
-  const { stdout } = await run("git", ["ls-files", "*.zh-CN.md"]);
-  for (const path of stdout.split("\n").filter(Boolean)) {
-    const original = path.replace(localization, ".md");
-    await assert.doesNotReject(readFile(original, "utf8"), `${path} has no English original`);
+test("human-facing Action Worker documents are written in Chinese", async () => {
+  const missing: string[] = [];
+  for (const path of await trackedMarkdown()) {
+    if (isMachineRead(path)) continue;
+    const text = await readFile(path, "utf8");
+    if (!containsHan(text)) missing.push(path);
   }
+  assert.deepEqual(missing, [], "human-facing documents must be written in Chinese");
+});
+
+test("no Chinese localization copies are kept beside the Chinese documents", async () => {
+  const { stdout } = await run("git", ["ls-files", "*.zh-CN.md"]);
+  const copies = stdout.split("\n").filter((path) => localization.test(path));
+  assert.deepEqual(
+    copies,
+    [],
+    "Chinese documents have one authoritative file, not a localization copy"
+  );
 });
