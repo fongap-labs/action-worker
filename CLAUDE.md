@@ -101,9 +101,9 @@ Provider/model fallback belongs to AI Gateway. Action Worker may route logical r
 
 ## Commit hygiene
 
-Every commit message, in this repository and in every repository governed by Action Worker, must not contain AI agent identity or attribution: no `Co-Authored-By:` trailer naming an AI agent (Claude, Claude Code, Codex, Copilot or similar), no `Generated with` / `Assisted by` / comparable tool line, and no agent, model or vendor name in the subject, body or trailers. The committer speaks for the change. Automated control-plane writes stay attributed to the maintainer identity, and an agent-assisted commit carries no trace of the agent.
+Every commit, in this repository and in every repository governed by Action Worker, must not carry AI agent identity or attribution. The commit must not name an AI agent, model, or vendor as its author or committer. No trailer may name an AI agent (Claude, Claude Code, Codex, Copilot or similar), for example `Co-Authored-By:`. No line may be a tool attribution such as `Generated with` or `Assisted by`. Agent names in the subject and in the body prose are allowed. The committer speaks for the change. Automated control-plane writes stay attributed to the maintainer identity, and an agent-assisted commit carries no trace of the agent.
 
-An agent commits with the author and committer identity of the GitHub account its session is connected to: the account login and its GitHub noreply address. The repository does not fix that account. The commit attribution check in `scripts/validate-change-record.ts` fails a pull request whose title, commit message, author, or committer names an AI agent or model, using `policies/attribution.json`.
+An agent commits with the author and committer identity of the GitHub account its session is connected to: the account login and its GitHub noreply address. The repository does not fix that account. The commit attribution check in `scripts/validate-change-record.ts` fails a pull request when an author or committer names an AI agent or model, when a trailer names one, or when a title or commit line begins with a tool attribution marker. Its terms live in `policies/attribution.json`.
 
 ## Completion
 

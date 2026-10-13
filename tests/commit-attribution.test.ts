@@ -100,8 +100,18 @@ test("rejects a Co-Authored-By trailer that names an AI agent", async (context) 
   );
   await assert.rejects(
     assertAttributionFree("docs: clarify setup", base, head, root, policyDir),
-    /commit .* message names an AI agent or model/
+    /trailer Co-Authored-By names an AI agent or model: Claude/
   );
+});
+
+test("accepts a Co-Authored-By trailer that names a human", async (context) => {
+  const { root, base, human } = await fixture(context);
+  const head = await commit(
+    root,
+    "docs: clarify setup\n\nCo-Authored-By: Grace Hopper <grace@example.com>",
+    human
+  );
+  await assertAttributionFree("docs: clarify setup", base, head, root, policyDir);
 });
 
 test("rejects generated-with and assisted-by attribution lines", async (context) => {
@@ -118,11 +128,15 @@ test("rejects generated-with and assisted-by attribution lines", async (context)
   );
 });
 
-test("accepts commits and titles that only name the CLAUDE.md and AGENTS.md files", async (context) => {
+test("allows agent names in the PR title and in commit prose", async (context) => {
   const { root, base, human } = await fixture(context);
-  const head = await commit(root, "docs: link CLAUDE.md and AGENTS.md from README", human);
+  const head = await commit(
+    root,
+    "docs: explain how Claude reads CLAUDE.md\n\nClaude Code and Codex are covered by the agent guide.",
+    human
+  );
   await assertAttributionFree(
-    "docs: link CLAUDE.md and AGENTS.md from README",
+    "docs: explain how Claude reads CLAUDE.md",
     base,
     head,
     root,
@@ -150,14 +164,18 @@ test("identity-only words are checked in identities but not in commit messages",
   );
 });
 
-test("rejects an AI name in the PR title", async (context) => {
+test("allows an AI agent name in the PR title but blocks an attribution line", async (context) => {
   const { root, base, human } = await fixture(context);
   const head = await commit(root, "feat: add support", human);
+  await assertAttributionFree("feat: add Claude support", base, head, root, policyDir);
   await assert.rejects(
-    assertAttributionFree("feat: add Claude support", base, head, root, policyDir),
-    /PR title names an AI agent or model: Claude/
+    assertAttributionFree("🤖 feat: add support", base, head, root, policyDir),
+    /PR title is an attribution line: 🤖 feat: add support/
   );
-  await assertAttributionFree("docs: link CLAUDE.md", base, head, root, policyDir);
+  await assert.rejects(
+    assertAttributionFree("Generated with Codex: add support", base, head, root, policyDir),
+    /PR title is an attribution line: Generated with Codex/
+  );
 });
 
 test("skips merge commits whose subject names the merged branch", async (context) => {
@@ -174,17 +192,18 @@ test("skips merge commits whose subject names the merged branch", async (context
   await assertAttributionFree("docs: fix readme wording", base, head, root, policyDir);
 });
 
-test("blocks the widened model names and AI attribution phrases", async (context) => {
+test("blocks widened model names in trailers and identities, but allows them in prose", async (context) => {
   const { root, base, human } = await fixture(context);
-  const model = await commit(root, "docs: clarify setup\n\nWritten with DeepSeek", human);
-  await assert.rejects(
-    assertAttributionFree("docs: clarify setup", base, model, root, policyDir),
-    /names an AI agent or model: DeepSeek/
+  const prose = await commit(root, "docs: clarify setup\n\nWritten with DeepSeek", human);
+  await assertAttributionFree("docs: clarify setup", base, prose, root, policyDir);
+  const trailer = await commit(
+    root,
+    "docs: clarify setup\n\nAssisted-by: Qwen <qwen@example.com>",
+    human
   );
-  const phrase = await commit(root, "docs: clarify setup\n\nAI-generated summary", human);
   await assert.rejects(
-    assertAttributionFree("docs: clarify setup", base, phrase, root, policyDir),
-    /contains an AI attribution line: AI-generated/
+    assertAttributionFree("docs: clarify setup", base, trailer, root, policyDir),
+    /trailer Assisted-by names an AI agent or model: Qwen/
   );
   const grok = await commit(root, "docs: clarify setup", {
     name: "Grok Ng",

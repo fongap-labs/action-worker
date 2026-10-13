@@ -32,8 +32,8 @@ function policyList(policy: Record<string, unknown>, key: string, owner = "relea
 type AttributionPolicy = {
   blockedTerms: string[];
   identityOnlyTerms: string[];
-  allowedFileNames: string[];
-  blockedMessagePatterns: string[];
+  blockedTrailerKeys: string[];
+  blockedLinePrefixes: string[];
 };
 
 async function loadAttributionPolicy(policyDir: string): Promise<AttributionPolicy> {
@@ -44,8 +44,8 @@ async function loadAttributionPolicy(policyDir: string): Promise<AttributionPoli
   return {
     blockedTerms: policyList(value, "blocked_terms", "attribution"),
     identityOnlyTerms: policyList(value, "identity_only_terms", "attribution"),
-    allowedFileNames: policyList(value, "allowed_file_names", "attribution"),
-    blockedMessagePatterns: policyList(value, "blocked_message_patterns", "attribution"),
+    blockedTrailerKeys: policyList(value, "blocked_trailer_keys", "attribution"),
+    blockedLinePrefixes: policyList(value, "blocked_line_prefixes", "attribution"),
   };
 }
 
@@ -53,37 +53,51 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Allowed file names (CLAUDE.md, AGENTS.md) are removed before matching, so a commit that edits
-// those documents is not reported for naming them. Terms match whole words, ignoring case.
-function attributionViolations(
-  text: string,
-  terms: readonly string[],
-  patterns: readonly string[],
-  allowedFileNames: readonly string[]
-): string[] {
-  let scanned = text;
-  for (const fileName of allowedFileNames) {
-    scanned = scanned.split(fileName).join("");
-  }
-  const found: string[] = [];
-  if (terms.length > 0) {
-    const termPattern = new RegExp(`\\b(?:${terms.map(escapeRegExp).join("|")})\\b`, "i");
-    const match = termPattern.exec(scanned);
-    if (match) {
-      found.push(`names an AI agent or model: ${match[0]}`);
+// Returns the first whole-word match of any term, ignoring case.
+function termMatch(text: string, terms: readonly string[]): string | undefined {
+  if (terms.length === 0) return undefined;
+  const termPattern = new RegExp(`\\b(?:${terms.map(escapeRegExp).join("|")})\\b`, "i");
+  return termPattern.exec(text)?.[0];
+}
+
+// Returns the first line that starts with an attribution prefix, ignoring case. Only line starts
+// count, so prose that mentions the same words mid-sentence is not an attribution line.
+function attributionLine(text: string, prefixes: readonly string[]): string | undefined {
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    const lowered = trimmed.toLowerCase();
+    if (prefixes.some((prefix) => lowered.startsWith(prefix.toLowerCase()))) {
+      return trimmed;
     }
   }
-  const lowered = scanned.toLowerCase();
-  for (const pattern of patterns) {
-    if (lowered.includes(pattern.toLowerCase())) {
-      found.push(`contains an AI attribution line: ${pattern}`);
+  return undefined;
+}
+
+// A trailer such as "Co-Authored-By: Name <email>" is checked by its value, so a human co-author
+// passes and an AI agent co-author fails. The key must be one of the policy trailer keys.
+function trailerViolations(
+  text: string,
+  keys: readonly string[],
+  terms: readonly string[]
+): string[] {
+  const found: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const match = /^([A-Za-z-]+):\s*(.*)$/.exec(line.trim());
+    if (!match) continue;
+    const key = (match[1] ?? "").toLowerCase();
+    if (!keys.includes(key)) continue;
+    const named = termMatch(match[2] ?? "", terms);
+    if (named) {
+      found.push(`trailer ${match[1]} names an AI agent or model: ${named}`);
     }
   }
   return found;
 }
 
-// Checks the PR title and every non-merge commit in base..head. Merge commits are skipped because
-// git writes the branch name into their subject, which can name an agent without any attribution.
+// Checks the PR title and every non-merge commit in base..head. The check blocks an AI agent or model
+// as author or committer, a trailer whose value names one, and an attribution line such as
+// "Generated with". Agent names in titles and in commit prose are allowed. Merge commits are skipped
+// because git writes the branch name into their subject.
 export async function assertAttributionFree(
   title: string,
   base: string,
@@ -92,19 +106,17 @@ export async function assertAttributionFree(
   policyDir: string
 ): Promise<void> {
   const policy = await loadAttributionPolicy(policyDir);
-  const { allowedFileNames, blockedMessagePatterns, blockedTerms } = policy;
-  const problems = attributionViolations(
-    title,
-    blockedTerms,
-    blockedMessagePatterns,
-    allowedFileNames
-  ).map((problem) => `PR title ${problem}`);
+  const problems: string[] = [];
+  const titleLine = attributionLine(title, policy.blockedLinePrefixes);
+  if (titleLine) {
+    problems.push(`PR title is an attribution line: ${titleLine}`);
+  }
   const log = await runText(
     "git",
     ["log", "--no-merges", "--format=%H%x1f%an%x1f%ae%x1f%cn%x1f%ce%x1f%B%x1e", `${base}..${head}`],
     { cwd: root }
   );
-  const identityTerms = [...blockedTerms, ...policy.identityOnlyTerms];
+  const identityTerms = [...policy.blockedTerms, ...policy.identityOnlyTerms];
   for (const record of log.split("\x1e")) {
     const [
       sha = "",
@@ -117,16 +129,18 @@ export async function assertAttributionFree(
     const commit = sha.trim();
     if (!commit) continue;
     const identity = [authorName, authorEmail, committerName, committerEmail].join("\n");
-    for (const problem of attributionViolations(identity, identityTerms, [], allowedFileNames)) {
-      problems.push(`commit ${commit.slice(0, 7)} author or committer ${problem}`);
+    const identityName = termMatch(identity, identityTerms);
+    if (identityName) {
+      problems.push(
+        `commit ${commit.slice(0, 7)} author or committer names an AI agent or model: ${identityName}`
+      );
     }
-    for (const problem of attributionViolations(
-      body,
-      blockedTerms,
-      blockedMessagePatterns,
-      allowedFileNames
-    )) {
-      problems.push(`commit ${commit.slice(0, 7)} message ${problem}`);
+    for (const problem of trailerViolations(body, policy.blockedTrailerKeys, policy.blockedTerms)) {
+      problems.push(`commit ${commit.slice(0, 7)} ${problem}`);
+    }
+    const bodyLine = attributionLine(body, policy.blockedLinePrefixes);
+    if (bodyLine) {
+      problems.push(`commit ${commit.slice(0, 7)} has an attribution line: ${bodyLine}`);
     }
   }
   if (problems.length > 0) {

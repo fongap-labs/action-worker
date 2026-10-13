@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- feat: pull requests fail when the title, a commit message, or the author or committer of a commit names an AI agent or model, or carries an attribution line such as `Generated with`. Documents named `CLAUDE.md` and `AGENTS.md` are exempt.
+- feat: pull requests fail when the author or committer of a commit names an AI agent or model, when a trailer such as `Co-Authored-By:` names one, or when a title or commit line is a tool attribution such as `Generated with`. Agent names in titles and commit prose are allowed.
 
 - feat: add a test-driven-development skill for task operations that change behavior in code with a test seam. Agents choose the highest public seam, write tests that verify behavior through the interface, reject implementation-coupled, tautological, and horizontally sliced tests, mock only at system boundaries, and work in red-green vertical slices.
 
