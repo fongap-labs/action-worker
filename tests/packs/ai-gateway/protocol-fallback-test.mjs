@@ -856,7 +856,7 @@ try {
     assert.equal(calls[0].body.model, 'up-model');
   });
 
-  if (process.exitCode) suiteExit(1);
+  if (process.exitCode) throw new Error('suite stopped after recorded failures');
   console.log(`\nprotocol-matrix tests passed (${passed}).`);
   console.log('ok - file:protocol-matrix');
 } catch (error) {

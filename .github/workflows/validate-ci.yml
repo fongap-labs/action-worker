@@ -10,9 +10,12 @@ on:
 permissions:
   contents: read
 
+# A newer pull request head makes the older run stale, so it is cancelled. A newer push to main
+# must not cancel the validation of an earlier main commit, which would leave that commit without
+# a verdict.
 concurrency:
   group: validate-ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   naming:

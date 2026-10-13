@@ -195,7 +195,18 @@ test("central PR intake excludes the control repository without hardcoded names"
   assert.equal(result.open_pull_requests, 1);
 });
 
-test("central PR intake retries stale pending control-plane runs", async () => {
+function stalePendingStatuses(runId: number) {
+  const targetUrl = `https://github.com/fongap-labs/action-worker/actions/runs/${runId}`;
+  return {
+    statuses: ["PR Governance", "CI Evidence", "validate-merge"].map((context) => ({
+      context,
+      state: "pending",
+      target_url: targetUrl,
+    })),
+  };
+}
+
+test("central PR intake retries stale pending control-plane runs that ended without a verdict", async () => {
   const repository = "fongap-labs/example";
   const dispatched: number[] = [];
 
@@ -207,28 +218,10 @@ test("central PR intake retries stale pending control-plane runs", async () => {
           return [{ number: 17, head: { sha: shaA } }];
         }
         if (path.endsWith("/status")) {
-          return {
-            statuses: [
-              {
-                context: "PR Governance",
-                state: "pending",
-                target_url: "https://github.com/fongap-labs/action-worker/actions/runs/44",
-              },
-              {
-                context: "CI Evidence",
-                state: "pending",
-                target_url: "https://github.com/fongap-labs/action-worker/actions/runs/44",
-              },
-              {
-                context: "validate-merge",
-                state: "pending",
-                target_url: "https://github.com/fongap-labs/action-worker/actions/runs/44",
-              },
-            ],
-          };
+          return stalePendingStatuses(44);
         }
         if (path === "repos/fongap-labs/action-worker/actions/runs/44") {
-          return { status: "completed", conclusion: "cancelled" };
+          return { status: "completed", conclusion: "failure" };
         }
         throw new Error(`unexpected API path: ${path}`);
       },
@@ -242,6 +235,79 @@ test("central PR intake retries stale pending control-plane runs", async () => {
   assert.deepEqual(dispatched, [17]);
   assert.equal(result.in_flight, 0);
   assert.equal(result.dispatched, 1);
+});
+
+test("central PR intake does not re-dispatch a head whose pending run was cancelled", async () => {
+  const repository = "fongap-labs/example";
+  const dispatched: number[] = [];
+
+  const result = await scanOpenPullRequests(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path.includes("/pulls?")) {
+          return [{ number: 17, head: { sha: shaA } }];
+        }
+        if (path.endsWith("/status")) {
+          return stalePendingStatuses(44);
+        }
+        if (path === "repos/fongap-labs/action-worker/actions/runs/44") {
+          return {
+            status: "completed",
+            conclusion: "cancelled",
+            path: ".github/workflows/handle-pr-dispatch.yml",
+          };
+        }
+        throw new Error(`unexpected API path: ${path}`);
+      },
+    },
+    async (_repository, pr) => {
+      dispatched.push(pr);
+    },
+    "fongap-labs/action-worker"
+  );
+
+  assert.deepEqual(dispatched, []);
+  assert.equal(result.in_flight, 0);
+  assert.equal(result.dispatched, 0);
+  assert.equal(result.already_processed, 1);
+});
+
+test("central PR intake retries a reservation whose intake run was cancelled", async () => {
+  // The reservation names the intake run that wrote it. A cancelled intake run never dispatched
+  // anything, so its reservation must expire and be retried as before.
+  const repository = "fongap-labs/example";
+  const dispatched: number[] = [];
+
+  const result = await scanOpenPullRequests(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path.includes("/pulls?")) {
+          return [{ number: 17, head: { sha: shaA } }];
+        }
+        if (path.endsWith("/status")) {
+          return stalePendingStatuses(45);
+        }
+        if (path === "repos/fongap-labs/action-worker/actions/runs/45") {
+          return {
+            status: "completed",
+            conclusion: "cancelled",
+            path: ".github/workflows/pr-intake.yml",
+          };
+        }
+        throw new Error(`unexpected API path: ${path}`);
+      },
+    },
+    async (_repository, pr) => {
+      dispatched.push(pr);
+    },
+    "fongap-labs/action-worker"
+  );
+
+  assert.deepEqual(dispatched, [17]);
+  assert.equal(result.dispatched, 1);
+  assert.equal(result.already_processed, 0);
 });
 
 test("central PR intake honors a recent queued reservation after the intake run completes", async () => {
@@ -307,7 +373,6 @@ test("central PR intake reserves governance before dispatch", async () => {
     },
     "fongap-labs/action-worker",
     undefined,
-    "",
     async (_repository, sha, context) => {
       events.push(`reserve:${context}:${sha}`);
     }
@@ -317,11 +382,11 @@ test("central PR intake reserves governance before dispatch", async () => {
   assert.equal(result.dispatched, 1);
 });
 
-test("central PR intake retries failed governance from an older control revision", async () => {
+test("central PR intake does not re-dispatch a failed verdict when only the control revision moved", async () => {
+  // A main push changes the control revision but not the PR head. The verdict for this head
+  // stands; re-dispatching it would cancel the central CI that is running for the same PR.
   const repository = "fongap-labs/example";
   const controlRepository = "fongap-labs/action-worker";
-  const oldControlSha = shaB;
-  const currentControlSha = shaC;
   const dispatched: number[] = [];
 
   const result = await scanOpenPullRequests(
@@ -340,67 +405,13 @@ test("central PR intake retries failed governance from an older control revision
             })),
           };
         }
-        if (path === `repos/${controlRepository}/actions/runs/51`) {
-          return {
-            status: "completed",
-            conclusion: "failure",
-            head_sha: oldControlSha,
-          };
-        }
         throw new Error(`unexpected API path: ${path}`);
       },
     },
     async (_repository, pr) => {
       dispatched.push(pr);
     },
-    controlRepository,
-    undefined,
-    currentControlSha
-  );
-
-  assert.deepEqual(dispatched, [31]);
-  assert.equal(result.dispatched, 1);
-  assert.equal(result.already_processed, 0);
-});
-
-test("central PR intake does not loop failed governance from the current control revision", async () => {
-  const repository = "fongap-labs/example";
-  const controlRepository = "fongap-labs/action-worker";
-  const currentControlSha = shaC;
-  const dispatched: number[] = [];
-
-  const result = await scanOpenPullRequests(
-    { [repository]: ["pr"] },
-    {
-      async get(path: string): Promise<unknown> {
-        if (path.includes("/pulls?")) {
-          return [{ number: 32, head: { sha: shaA } }];
-        }
-        if (path.endsWith(`/commits/${shaA}/status`)) {
-          return {
-            statuses: ["PR Governance", "CI Evidence", "validate-merge"].map((context) => ({
-              context,
-              state: "failure",
-              target_url: `https://github.com/${controlRepository}/actions/runs/52`,
-            })),
-          };
-        }
-        if (path === `repos/${controlRepository}/actions/runs/52`) {
-          return {
-            status: "completed",
-            conclusion: "failure",
-            head_sha: currentControlSha,
-          };
-        }
-        throw new Error(`unexpected API path: ${path}`);
-      },
-    },
-    async (_repository, pr) => {
-      dispatched.push(pr);
-    },
-    controlRepository,
-    undefined,
-    currentControlSha
+    controlRepository
   );
 
   assert.deepEqual(dispatched, []);
@@ -472,7 +483,6 @@ test("central PR intake routes matching source-owned dependency repair before go
     async (_repository, pr) => {
       repairs.push(pr);
     },
-    "",
     async (_repository, sha, context) => {
       reservations.push(`${context}:${sha}`);
     }

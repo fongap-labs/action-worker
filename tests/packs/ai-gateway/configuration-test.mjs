@@ -303,7 +303,7 @@ try {
   });
 
   if (!process.exitCode) console.log(`gateway configuration tests passed (${passed}).`);
-  else suiteExit(1);
+  else throw new Error('suite stopped after recorded failures');
   console.log('ok - file:gateway-configuration');
 } catch (error) {
   console.error('not ok - gateway-configuration-test.mjs failed');
@@ -473,7 +473,7 @@ try {
   });
 
   console.log(`\nconfig-matrix tests: ${passed} passed.`);
-  if (process.exitCode) suiteExit(1);
+  if (process.exitCode) throw new Error('suite stopped after recorded failures');
   console.log('ok - file:config-matrix');
 } catch (error) {
   console.error('not ok - config-matrix-test.mjs failed');
@@ -742,7 +742,7 @@ try {
     }
   });
 
-  if (process.exitCode) suiteExit(1);
+  if (process.exitCode) throw new Error('suite stopped after recorded failures');
   console.log(`node-config-shards tests passed (${passed}).`);
   console.log('ok - file:node-config-shards');
 } catch (error) {
