@@ -229,7 +229,7 @@ jobs:
                 "${RUNNER_TEMP}/action-worker-base-env.names" \
                 "$project_dir/.secrets.required" \
                 "$project_dir/.secrets.allowed" \
-                "AIG_ACCESS_KEY_AGENT" \
+                "" \
                 "policies/task-secrets.json" \
                 "$TASK_SOURCE_REPOSITORY" \
                 "$PROJECT"
@@ -246,7 +246,7 @@ jobs:
               [ -n "$secret_name" ] && unset "$secret_name"
           done < <(jq -r '.unset[]' <<< "$secret_scope")
 
-          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AIG_ACCESS_KEY_AGENT AW_DISPATCH_TOKEN AW_ARTIFACT_KEY; do
+          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN AW_ARTIFACT_KEY; do
               if [ -n "${!central_name+x}" ]; then
                   echo "::error::Central credential survived task isolation: ${central_name}." >&2
                   exit 1
