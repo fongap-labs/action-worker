@@ -129,17 +129,6 @@ jobs:
             echo "AGENT_SKILLS=${AGENT_SKILLS_JSON}"
           } >> "$GITHUB_ENV"
 
-      - name: Snapshot base environment
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-
-          compgen -e |
-            LC_ALL=C sort -u \
-            > "${RUNNER_TEMP}/action-worker-base-env.names"
-
-          chmod 600 "${RUNNER_TEMP}/action-worker-base-env.names"
-
       - name: Restore previous task state
         id: task_state
         env:
@@ -167,6 +156,17 @@ jobs:
           echo "artifact_name=$artifact_name" >> "$GITHUB_OUTPUT"
 
           node scripts/task-state.ts restore "$state_root" "$SOURCE_REPOSITORY" "$PROJECT" "$visibility"
+
+      - name: Snapshot base environment
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          compgen -e |
+            LC_ALL=C sort -u \
+            > "${RUNNER_TEMP}/action-worker-base-env.names"
+
+          chmod 600 "${RUNNER_TEMP}/action-worker-base-env.names"
 
       - name: Execute downstream task
         id: task
@@ -423,7 +423,7 @@ jobs:
           if [ -z "$pr_number" ]; then
               pr_title="chore: ${COMMIT_MESSAGE}"
               pr_body="Automated task publication from ${SOURCE_REPOSITORY} project ${PROJECT}. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-              pr_number="$(gh pr create --repo "$TARGET_REPOSITORY" --base main --head "$branch" --title "$pr_title" --body "$pr_body")"
+              pr_number="$(basename "$(gh pr create --repo "$TARGET_REPOSITORY" --base main --head "$branch" --title "$pr_title" --body "$pr_body")")"
           fi
           echo "Publication pull request: ${pr_number}"
 
