@@ -14,7 +14,7 @@ import pytest
 from kit_target import target_root
 
 REPO_ROOT = target_root()
-SERVICE = REPO_ROOT / "services" / "server-edge"
+SERVICE = REPO_ROOT / "projects" / "server-edge"
 DEPLOY = REPO_ROOT / "environments" / "server-edge" / "deploy.sh"
 
 pytestmark = pytest.mark.skipif(shutil.which("bash") is None, reason="needs bash")
