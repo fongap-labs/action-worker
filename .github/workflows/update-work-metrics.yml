@@ -9,9 +9,9 @@ on:
       - "scripts/update-work-metrics.ts"
   workflow_run:
     workflows:
-      - Handle Task Dispatch
-      - Handle PR Dispatch
-      - Handle Release Dispatch
+      - 自动 · 任务分发
+      - 自动 · PR 分发
+      - 自动 · 发布分发
     types: [completed]
   schedule:
     - cron: "17 0 * * *"

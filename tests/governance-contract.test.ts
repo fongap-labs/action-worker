@@ -218,9 +218,9 @@ test("integration guidance matches the current credential and private-repository
 test("the integration guide says which workflow starts a release or a deploy", async () => {
   const guide = await text("docs/INTEGRATION_GUIDE.md");
   const workflows: Record<string, string> = {
-    "Release App": ".github/workflows/release-app.yml",
-    "Release Tool": ".github/workflows/release-tool.yml",
-    "Deploy Source Script": ".github/workflows/deploy-source-script.yml",
+    "手动 · 发布应用": ".github/workflows/release-app.yml",
+    "自动 · 工具发布": ".github/workflows/release-tool.yml",
+    "手动 · 部署服务": ".github/workflows/deploy-source-script.yml",
   };
   for (const [displayName, path] of Object.entries(workflows)) {
     assert.match(await text(path), new RegExp(`^name: ${displayName}$`, "m"), path);
@@ -1092,7 +1092,7 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
   assert.match(workflow, /update-work-metrics\.yml/);
   assert.match(workflow, /scripts\/manage-work-metrics\.ts/);
   assert.match(workflow, /scripts\/update-work-metrics\.ts/);
-  assert.match(workflow, /Handle Release Dispatch/);
+  assert.match(workflow, /自动 · 发布分发/);
   assert.match(workflow, /github\.event_name != 'workflow_run'/);
   assert.doesNotMatch(workflow, /github\.event_name != 'push'/);
   assert.doesNotMatch(workflow, /gh workflow run validate-ci\.yml/);
