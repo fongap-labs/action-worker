@@ -14,10 +14,10 @@ test("release tags remain scoped by release key", () => {
   assert.equal(buildTag("example-tool", "1.2.3"), "example-tool-v1.2.3");
 });
 
-test("release titles default to the bare version without the release key", () => {
-  assert.equal(buildReleaseTitle(undefined, "1.2.3"), "v1.2.3");
-  assert.equal(buildReleaseTitle("", "1.2.3"), "v1.2.3");
-  assert.equal(buildReleaseTitle("Example 1.2.3", "1.2.3"), "Example 1.2.3");
+test("release titles are the product name followed by the version", () => {
+  assert.equal(buildReleaseTitle("Delta", "0.1.0"), "Delta v0.1.0");
+  assert.equal(buildReleaseTitle(undefined, "0.1.0"), "v0.1.0");
+  assert.equal(buildReleaseTitle("", "0.1.0"), "v0.1.0");
 });
 
 test("release assets use SHA256 digests", async () => {

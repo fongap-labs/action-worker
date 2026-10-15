@@ -173,7 +173,8 @@ export function buildTag(releaseKey: string, version: string): string {
 }
 
 export function buildReleaseTitle(releaseName: string | undefined, version: string): string {
-  return releaseName || `v${version}`;
+  const versionLabel = `v${version}`;
+  return releaseName ? `${releaseName} ${versionLabel}` : versionLabel;
 }
 
 export function validateArchive(entries: string): string[] {
