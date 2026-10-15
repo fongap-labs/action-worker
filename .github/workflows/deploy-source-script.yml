@@ -1,4 +1,4 @@
-name: Deploy Source Script
+name: 手动 · 部署服务
 
 on:
   repository_dispatch:
@@ -6,19 +6,19 @@ on:
   workflow_dispatch:
     inputs:
       source_repository:
-        description: Managed source repository in owner/name form, for example your-org/your-service
+        description: 源仓库（owner/name 形式，例如 your-org/your-service）
         required: true
         type: string
       source_sha:
-        description: Exact 40-character commit SHA of the default-branch HEAD; leave empty to deploy the current HEAD
+        description: 目标提交 SHA（40 位；留空则部署默认分支最新提交）
         required: false
         type: string
       product:
-        description: Product directory under projects/ in the source repository. Leave it empty when the repository has one root manifest in .github/; required when it has several products
+        description: 产品目录（位于源仓库 projects/ 下；单产品可留空，多产品必填）
         required: false
         type: string
       environment:
-        description: Environment declared by the source manifest, for example production. Leave it empty when the manifest declares one environment
+        description: 目标环境（须为源清单已声明者，如 production；单环境可留空）
         required: false
         type: string
 

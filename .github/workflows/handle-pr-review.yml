@@ -1,4 +1,4 @@
-name: Handle PR Review
+name: 自动 · PR 处理
 
 # Advisory AI Review. Handle PR Dispatch starts this workflow only after the deterministic gate
 # passed, so its queue holds only real reviews and never waits behind a run that is still

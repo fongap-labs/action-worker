@@ -1,4 +1,4 @@
-name: Validate CI
+name: 自动 · CI 验证
 
 on:
   push:

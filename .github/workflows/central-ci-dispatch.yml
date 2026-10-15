@@ -1,4 +1,4 @@
-name: Central CI Dispatch
+name: 自动 · CI 分发
 
 on:
   repository_dispatch:

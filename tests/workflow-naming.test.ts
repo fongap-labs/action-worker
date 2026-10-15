@@ -7,7 +7,6 @@ type Workflow = { name?: string; on?: Record<string, unknown> };
 
 const workflowDirectory = ".github/workflows";
 const deployPolicyPath = "policies/deploy.json";
-const acronyms: Record<string, string> = { ci: "CI", pr: "PR" };
 // Workflow file names have at most three kebab-case segments (scripts/validate-naming-rules.ts).
 const maxSegments = 3;
 
@@ -18,6 +17,30 @@ const dispatchNameExceptions: Record<string, string> = {
     "its path is a CI Evidence trust anchor (scripts/ci-evidence.ts) and a work metrics key",
   "handle-pr-review.yml":
     "the AI Review queue counts runs of this file (scripts/wait-review-turn.ts)",
+};
+
+// Chinese display names (手动/自动 prefix + verb-object) for the Actions UI. A new workflow
+// without an entry, or a name that drifts from its entry, fails the test, so the list stays exact.
+const chineseDisplayNames: Record<string, string> = {
+  "release-app.yml": "手动 · 发布应用",
+  "deploy-source-script.yml": "手动 · 部署服务",
+  "task-source-dispatch.yml": "手动 · 派发任务",
+  "intake.yml": "自动 · 总控调度",
+  "cancel-pr-work.yml": "自动 · PR 清理",
+  "apply-repository-settings.yml": "自动 · 仓库设置",
+  "prune-stale-state.yml": "自动 · 状态清理",
+  "update-work-metrics.yml": "自动 · 指标更新",
+  "central-ci-dispatch.yml": "自动 · CI 分发",
+  "central-ci-sandbox.yml": "自动 · CI 沙箱",
+  "validate-ci.yml": "自动 · CI 验证",
+  "main-write-guard.yml": "自动 · 主分支审计",
+  "dependency-repair-dispatch.yml": "自动 · 依赖修复",
+  "handle-task-dispatch.yml": "自动 · 任务分发",
+  "security-scan-dispatch.yml": "自动 · 安全扫描",
+  "handle-release-dispatch.yml": "自动 · 发布分发",
+  "release-tool.yml": "自动 · 工具发布",
+  "handle-pr-dispatch.yml": "自动 · PR 分发",
+  "handle-pr-review.yml": "自动 · PR 处理",
 };
 
 // What a release workflow releases. A new kind is a deliberate edit here and in
@@ -38,14 +61,6 @@ async function workflows(): Promise<Array<{ file: string; workflow: Workflow }>>
       workflow: parse(await readFile(`${workflowDirectory}/${file}`, "utf8")) as Workflow,
     }))
   );
-}
-
-function displayName(file: string): string {
-  return file
-    .replace(/\.yml$/, "")
-    .split("-")
-    .map((word) => acronyms[word] ?? `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
-    .join(" ");
 }
 
 // A workflow that is started by repository_dispatch and not by push is a dispatch entry point.
@@ -89,9 +104,9 @@ test("workflow files are named after the dispatch event they handle", async () =
   }
 });
 
-test("every workflow display name spells out its file name", async () => {
+test("every workflow display name matches its Chinese display name entry", async () => {
   for (const { file, workflow } of await workflows()) {
-    assert.equal(workflow.name, displayName(file), `display name of ${file}`);
+    assert.equal(workflow.name, chineseDisplayNames[file], `display name of ${file}`);
   }
 });
 

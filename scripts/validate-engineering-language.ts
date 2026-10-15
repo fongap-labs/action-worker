@@ -115,6 +115,11 @@ export function engineeringLineViolation(
     return null;
   }
   if (WORKFLOW.test(path)) {
+    // The name: field and workflow_dispatch input descriptions are user-facing copy
+    // shown in the Actions UI, not engineering identifiers or comments.
+    if (/^\s*(?:name|description)\s*:/i.test(line)) {
+      return null;
+    }
     return "Workflow engineering text must use English.";
   }
   if (CONFIG_KEY.test(line)) {

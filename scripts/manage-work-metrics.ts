@@ -30,13 +30,13 @@ export function metricIncrementForWorkflow(
   workflow: string,
   hasReview = false
 ): Record<string, number> {
-  if (workflow === "Handle Task Dispatch") {
+  if (workflow === "自动 · 任务分发") {
     return { dispatch: 1, pr_governance: 0, ai_review: 0, release_governance: 0 };
   }
-  if (workflow === "Handle PR Dispatch") {
+  if (workflow === "自动 · PR 分发") {
     return { dispatch: 0, pr_governance: 1, ai_review: hasReview ? 1 : 0, release_governance: 0 };
   }
-  if (workflow === "Handle Release Dispatch") {
+  if (workflow === "自动 · 发布分发") {
     return { dispatch: 0, pr_governance: 0, ai_review: 0, release_governance: 1 };
   }
   throw new CliError(`::error::Unsupported workflow_run source: ${workflow}`, 65);
@@ -50,7 +50,7 @@ async function prepareIncrement(): Promise<void> {
   }
   const workflow = process.env.SOURCE_WORKFLOW ?? "";
   let hasReview = false;
-  if (workflow === "Handle PR Dispatch") {
+  if (workflow === "自动 · PR 分发") {
     const token = requireEnv("GH_TOKEN");
     const repository = requireEnv("GITHUB_REPOSITORY");
     const runId = requireEnv("SOURCE_RUN_ID");

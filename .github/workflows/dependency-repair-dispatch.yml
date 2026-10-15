@@ -1,4 +1,4 @@
-name: Dependency Repair Dispatch
+name: 自动 · 依赖修复
 
 on:
   repository_dispatch:

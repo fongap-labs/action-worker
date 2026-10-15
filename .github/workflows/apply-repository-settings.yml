@@ -1,4 +1,4 @@
-name: Apply Repository Settings
+name: 自动 · 仓库设置
 
 # A change to the shared policy applies it at once; the daily run corrects drift made by hand in
 # repository settings. Both apply the same policy to every managed repository, so nobody has to

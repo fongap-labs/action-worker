@@ -376,8 +376,14 @@ test("engineering language rejects Chinese machine text but allows documentation
     engineeringLineViolation("CHANGELOG.md", "- fix: 修复路由。"),
     "CHANGELOG entries must use English."
   );
+  assert.equal(engineeringLineViolation(".github/workflows/ci.yml", "name: 校验"), null);
+  // Workflow input descriptions are user-facing copy and stay exempt.
   assert.equal(
-    engineeringLineViolation(".github/workflows/ci.yml", "name: 校验"),
+    engineeringLineViolation(".github/workflows/ci.yml", "description: 源仓库（owner/name 形式）"),
+    null
+  );
+  assert.equal(
+    engineeringLineViolation(".github/workflows/ci.yml", "run: echo 校验"),
     "Workflow engineering text must use English."
   );
   assert.equal(

@@ -1,4 +1,4 @@
-name: Task Source Dispatch
+name: 手动 · 派发任务
 
 on:
   repository_dispatch:
@@ -6,11 +6,11 @@ on:
   workflow_dispatch:
     inputs:
       repository:
-        description: Managed task source repository in owner/name form, for example your-org/your-tasks
+        description: 任务源仓库（owner/name 形式，例如 your-org/your-tasks）
         required: true
         type: string
       project:
-        description: Project directory name under projects/ in that repository (it must contain task.json)
+        description: 项目目录名（位于该仓库 projects/ 下，须含 task.json）
         required: true
         type: string
 

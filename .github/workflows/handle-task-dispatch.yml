@@ -1,4 +1,4 @@
-name: Handle Task Dispatch
+name: 自动 · 任务分发
 
 on:
   repository_dispatch:

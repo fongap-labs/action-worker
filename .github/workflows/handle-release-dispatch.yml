@@ -1,4 +1,4 @@
-name: Handle Release Dispatch
+name: 自动 · 发布分发
 
 on:
   repository_dispatch:

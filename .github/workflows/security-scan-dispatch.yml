@@ -1,4 +1,4 @@
-name: Security Scan Dispatch
+name: 自动 · 安全扫描
 
 on:
   repository_dispatch:

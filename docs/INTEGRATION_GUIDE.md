@@ -237,19 +237,19 @@ AIG_ACCESS_KEY_AGENT
 
 发布版本即发布启动时人工输入的版本，且只有该版本。业务仓库不得保留约束该版本的规则：不得设置版本来源检查，不得做文件之间的一致性检查，也不得要求 CHANGELOG 中存在发布标题。项目构建脚本须声明必填的 `-Version` 参数，把该版本写入构建出的应用，并可校验构建产物确实携带该版本。
 
-手动发布同样从 Action Worker 中的 `Release App` 工作流启动：由用户选择受管的 `source_repository` 并输入必填的稳定版本号；Action Worker 自行读取该仓库默认分支的当前 HEAD，先为它申请中央 CI 并证明 main 写入，再执行相同的源 / CI / provenance 检查，并最多等待 20 分钟取得 CI 结果。业务仓库无需为了"宣布发布"而启动自己的 Runner。
+手动发布同样从 Action Worker 中的 `手动 · 发布应用` 工作流启动：由用户选择受管的 `source_repository` 并输入必填的稳定版本号；Action Worker 自行读取该仓库默认分支的当前 HEAD，先为它申请中央 CI 并证明 main 写入，再执行相同的源 / CI / provenance 检查，并最多等待 20 分钟取得 CI 结果。业务仓库无需为了"宣布发布"而启动自己的 Runner。
 
 ### 12.1 启动发布或部署的工作流
 
-Release 与 Deploy 工作流按发布类型或部署适配器命名，绝不以产品或仓库命名。需要手动启动时，找到对应的行，在 Action Worker 的 Actions 标签页中打开该工作流，然后点击"Run workflow"。Action Worker 中只有 `Release App`、`Deploy Source Script` 与 `Task Source Dispatch` 有这个按钮，其余工作流都自动运行。
+Release 与 Deploy 工作流按发布类型或部署适配器命名，绝不以产品或仓库命名。需要手动启动时，找到对应的行，在 Action Worker 的 Actions 标签页中打开该工作流，然后点击"Run workflow"。Action Worker 中只有 `手动 · 发布应用`、`手动 · 部署服务` 与 `手动 · 派发任务` 有这个按钮，其余工作流都自动运行。
 
 | 你想要 | 工作流 | 手动输入 | 自动启动方式 | 当前使用方 |
 |---|---|---|---|---|
-| 发布由源仓库构建的应用 | `Release App` (`release-app.yml`) | `source_repository`、`requested_version`（必填的稳定 SemVer）、`product`（仓库有多个产品时必填，见第 12.3 节） | `run-release-build` 分发事件 | delta、app-source |
-| 发布从上游镜像而来的第三方工具 | `Release Tool` (`release-tool.yml`) | 无手动按钮 | 定时任务，每 6 小时一次，处理工具目录中的全部工具 | external-vault `tools/` |
-| 部署某个源提交 | `Deploy Source Script` (`deploy-source-script.yml`) | `source_repository`、`source_sha`（可选；留空部署默认分支的当前 HEAD，否则是精确的 40 位 SHA） | 可信的 main 写入之后中央 CI 启动，且仓库部署清单中某个环境声明了 push 触发（单产品仓库为 `.github/deploy.json`，多产品仓库为 `projects/<产品>/deploy.json`，见第 13.1 节）；如果中央 CI 运行期间 `main` 之后只多了文档提交，则部署当前的 `main`，改动不会因为文档提交而漏部署 | ai-gateway（自动）、internal-vault（仅手动） |
+| 发布由源仓库构建的应用 | `手动 · 发布应用` (`release-app.yml`) | `source_repository`、`requested_version`（必填的稳定 SemVer）、`product`（仓库有多个产品时必填，见第 12.3 节） | `run-release-build` 分发事件 | delta、app-source |
+| 发布从上游镜像而来的第三方工具 | `自动 · 工具发布` (`release-tool.yml`) | 无手动按钮 | 定时任务，每 6 小时一次，处理工具目录中的全部工具 | external-vault `tools/` |
+| 部署某个源提交 | `手动 · 部署服务` (`deploy-source-script.yml`) | `source_repository`、`source_sha`（可选；留空部署默认分支的当前 HEAD，否则是精确的 40 位 SHA） | 可信的 main 写入之后中央 CI 启动，且仓库部署清单中某个环境声明了 push 触发（单产品仓库为 `.github/deploy.json`，多产品仓库为 `projects/<产品>/deploy.json`，见第 13.1 节）；如果中央 CI 运行期间 `main` 之后只多了文档提交，则部署当前的 `main`，改动不会因为文档提交而漏部署 | ai-gateway（自动）、internal-vault（仅手动） |
 
-`Handle Release Dispatch` 负责发布两类产物；以上工作流负责启动它，人不直接运行它。"当前使用方"是一个快照：每个仓库自身的 `.github/release.manifest.json` 或 `.github/deploy.json`，以及 `AW_REPOSITORY_POLICY`，才是权威来源，而不是本表。
+`自动 · 发布分发` 负责发布两类产物；以上工作流负责启动它，人不直接运行它。"当前使用方"是一个快照：每个仓库自身的 `.github/release.manifest.json` 或 `.github/deploy.json`，以及 `AW_REPOSITORY_POLICY`，才是权威来源，而不是本表。
 
 ### 12.2 启动前的检查与常见失败
 
