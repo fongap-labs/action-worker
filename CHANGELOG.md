@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- fix: a release without a `release_name` is titled with its bare version (`v<version>`) instead of its tag, so the GitHub Release page of `delta-v0.1.0` reads `v0.1.0`. The tag itself stays `<release-key>-v<version>`, because the shared distribution repository `external-vault` holds releases of several products and tags must stay unique there, and follow pins match tags by that prefix. A release that declares a `release_name` keeps it.
+- fix: a release title is the product's `release_name` followed by the bare version (`Delta v0.1.0`), and a release without a `release_name` is titled `v<version>`. The tag stays `<release-key>-v<version>`, because the shared distribution repository `external-vault` holds releases of several products and tags must stay unique there, and follow pins match tags by that prefix. `release_name` now holds the display name only; a manifest that still includes the version must drop it. Tool releases use their catalog name as `release_name`, so their titles read `<name> v<version>`.
 
 - fix: the production deploy of `fongap-labs/ai-gateway` receives `CLOUDFLARE_ACCOUNT_ID` again. #706 removed the name and its alias from `policies/deploy-secrets.json`, expecting the Repository Variable of that name to reach the deploy job, but no variable named `CLOUDFLARE_ACCOUNT_ID` exists; only `CLOUDFLARE_ACCOUNT_ID_SECONDARY` does, and the target's deploy preflight requires `CLOUDFLARE_ACCOUNT_ID`. The name returns to the deploy ceiling with the alias `CLOUDFLARE_ACCOUNT_ID_SECONDARY`, so the account id stays a Variable and never a stored secret.
 

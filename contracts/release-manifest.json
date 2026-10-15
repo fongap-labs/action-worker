@@ -25,6 +25,7 @@
     },
     "release_name": {
       "type": "string",
+      "description": "Product display name without the version. The published release title is this name followed by v<version>.",
       "maxLength": 160
     },
     "release_notes": {

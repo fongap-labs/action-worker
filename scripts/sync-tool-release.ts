@@ -295,7 +295,7 @@ async function syncUrlRelease(input: UrlSyncInput): Promise<void> {
     target_repository: distributionRepository,
     release_key: metadata.release_key,
     version,
-    release_name: `${getJsonString(entry, "name") || metadata.release_key} ${version}`,
+    release_name: getJsonString(entry, "name") || metadata.release_key,
     release_notes: `Verified mirror of ${metadata.upstream_url} (SHA-256 ${actualChecksum}).`,
     prerelease: false,
     license: {
@@ -535,7 +535,7 @@ async function main(): Promise<void> {
     target_repository: distributionRepository,
     release_key: metadata.release_key,
     version,
-    release_name: `${getJsonString(entry, "name") || metadata.release_key} ${version}`,
+    release_name: getJsonString(entry, "name") || metadata.release_key,
     release_notes: `Verified mirror of ${metadata.source_repository} ${upstreamTag}.`,
     prerelease: false,
     license: {
