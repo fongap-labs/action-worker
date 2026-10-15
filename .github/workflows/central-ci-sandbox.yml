@@ -1,4 +1,4 @@
-name: Central CI Sandbox
+name: 自动 · CI 沙箱
 
 # Runs a target repository's trusted CI script against the change under test. Change code executes
 # in these jobs, so they reference no central credential: public targets are checked out with the

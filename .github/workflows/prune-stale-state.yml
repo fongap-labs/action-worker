@@ -1,4 +1,4 @@
-name: Prune Stale State
+name: 自动 · 状态清理
 
 # Removes what nobody needs any more: branches whose work is fully on main in every managed
 # repository, and the run history of workflows whose file is gone from Action Worker's main, so the

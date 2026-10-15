@@ -1,4 +1,4 @@
-name: Cancel PR Work
+name: 自动 · PR 清理
 
 on:
   repository_dispatch:

@@ -1,4 +1,4 @@
-name: Release App
+name: 手动 · 发布应用
 
 on:
   repository_dispatch:
@@ -6,15 +6,15 @@ on:
   workflow_dispatch:
     inputs:
       source_repository:
-        description: Managed source repository in owner/name form, for example your-org/your-app
+        description: 源仓库（owner/name 形式，例如 your-org/your-app）
         required: true
         type: string
       requested_version:
-        description: Application version in stable SemVer such as 1.2.3 (a leading v is accepted); the only source of the released version
+        description: 发布版本号（稳定语义化版本，如 1.2.3，可带 v 前缀）
         required: true
         type: string
       product:
-        description: Product directory under projects/ in the source repository. Required when the repository has several products; leave it empty when the repository has one release manifest in .github/
+        description: 产品目录（位于源仓库 projects/ 下；多产品必填，单产品可留空）
         required: false
         type: string
 

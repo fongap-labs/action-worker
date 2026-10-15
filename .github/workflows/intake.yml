@@ -1,4 +1,4 @@
-name: Intake
+name: 自动 · 总控调度
 
 # Finds the work that the managed repositories need and dispatches it. Every job is idempotent: it
 # acts only on what has no verdict yet, so running often is safe and cheap. GitHub starts the

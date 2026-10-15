@@ -1,4 +1,4 @@
-name: Main Write Guard
+name: 自动 · 主分支审计
 
 # Proves that each push to Action Worker's own main came from a merged pull request whose local
 # validate-merge check passed. Managed repositories are attested by the main-writes job of Intake

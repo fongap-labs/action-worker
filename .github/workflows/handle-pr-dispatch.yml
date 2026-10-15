@@ -1,4 +1,4 @@
-name: Handle PR Dispatch
+name: 自动 · PR 分发
 
 on:
   repository_dispatch:

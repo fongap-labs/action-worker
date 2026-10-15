@@ -1,4 +1,4 @@
-name: Update Work Metrics
+name: 自动 · 指标更新
 
 on:
   push:
