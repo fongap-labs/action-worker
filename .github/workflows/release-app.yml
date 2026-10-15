@@ -10,11 +10,11 @@ on:
         required: true
         type: string
       requested_version:
-        description: 发布版本号（稳定语义化版本，如 1.2.3，可带 v 前缀）
+        description: 发布版本号（稳定语义化版本，如 1.2.3 或 v1.2.3，不允许 pre-release 或 build 后缀）
         required: true
         type: string
       product:
-        description: 产品目录（位于源仓库 projects/ 下；多产品必填，单产品可留空）
+        description: 产品目录名（多产品仓库位于 projects/<产品>/ 下，必填；单产品仓库清单在 .github/ 根下，留空）
         required: false
         type: string
 
@@ -58,6 +58,10 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Resolve release build ingress
         id: ingress

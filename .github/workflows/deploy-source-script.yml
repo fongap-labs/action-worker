@@ -14,7 +14,7 @@ on:
         required: false
         type: string
       product:
-        description: 产品目录（位于源仓库 projects/ 下；单产品可留空，多产品必填）
+        description: 产品目录名（多产品仓库位于 projects/<产品>/ 下，必填；单产品仓库清单在 .github/ 根下，留空）
         required: false
         type: string
       environment:
