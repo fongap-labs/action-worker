@@ -1,15 +1,15 @@
-"""The AdFilter build names each source and its licence in comment lines of the generated header."""
+"""The AdFilter build keeps every source and licence attribution out of the generated header."""
 
 from __future__ import annotations
 
 import importlib.util
 import json
 
-import pytest
 from kit_target import target_root
 
 REPO_ROOT = target_root()
 SEPARATOR = "! " + "-" * 50
+ATTRIBUTION_PREFIXES = ("! Sources:", "! Licence:", "! Licence-Notice:")
 
 
 def _build_class():
@@ -33,51 +33,40 @@ def _header(lines: list[str]) -> list[str]:
     return lines[: lines.index(SEPARATOR)]
 
 
-def _task_notices() -> list[dict]:
+def _task_args() -> dict:
     task = json.loads((REPO_ROOT / "projects" / "AdFilter" / "task.json").read_text(encoding="utf-8"))
-    return task["steps"][0]["args"]["source_notices"]
+    return task["steps"][0]["args"]
 
 
-def test_the_task_declares_a_licence_for_every_remote_source():
+def test_the_task_declares_no_source_notices():
+    args = _task_args()
     variables = (REPO_ROOT / "projects" / "AdFilter" / ".env.variables").read_text(encoding="utf-8")
     sources = next(line for line in variables.splitlines() if line.startswith("ADFILTER_REMOTE_SOURCES="))
     assert sources.count("https://") == 7
-    notices = _task_notices()
-    assert len(notices) == 7
-    assert all(item["name"] and item["licence"] for item in notices)
+    assert "source_notices" not in args
+    assert args["output_file"] == "${ADFILTER_OUTPUT_FILE}"
+    assert args["remote_sources"] == "${ADFILTER_REMOTE_SOURCES}"
 
 
-def test_header_lists_sources_and_licences_as_comments(tmp_path):
-    lines = _build(tmp_path, _task_notices())
-    header = _header(lines)
-    text = "\n".join(header)
+def test_header_is_the_marker_and_the_metadata_comments_only(tmp_path):
+    header = _header(_build(tmp_path))
     assert header[0] == "[Adblock Plus 2.0]"
     assert all(line.startswith("!") for line in header[1:]), "the header must stay Adblock Plus comments"
-    assert "! Sources:" in header and "! Licence:" in header
-    assert any(line.startswith("! Licence-Notice:") and "output/adfilter/NOTICE" in line for line in header)
-    for notice in _task_notices():
-        assert f"!   {notice['name']}: {notice['licence']}" in header
-    assert "GPL-3.0" in text and "LGPL-3.0" in text and "CC BY 3.0" in text
+    assert [line.split(":")[0] for line in header[1:]] == ["! Title", "! Version", "! Expires", "! Count", "! Updated", "! Homepage"]
+    assert not any(line.startswith(ATTRIBUTION_PREFIXES) for line in header)
 
 
-def test_count_and_rules_are_unchanged_by_the_notice_lines(tmp_path):
-    lines = _build(tmp_path, _task_notices())
+def test_a_stale_source_notices_config_is_ignored(tmp_path):
+    notices = [
+        {"name": "AdGuard Base Filter", "licence": "GPL-3.0", "url": "https://github.com/AdguardTeam/AdguardFilters"},
+        {"name": "CJX's Annoyance List\n||evil.example^", "licence": "LGPL-3.0"},
+    ]
+    lines = _build(tmp_path, notices)
+    assert not any(line.startswith(ATTRIBUTION_PREFIXES) for line in lines)
+    assert not any("evil.example" in line or "AdGuard" in line or "LGPL-3.0" in line for line in lines)
+
+
+def test_count_and_rules_are_unchanged(tmp_path):
+    lines = _build(tmp_path)
     assert "! Count:       2" in lines
     assert lines[lines.index(SEPARATOR) + 2 :] == ["##.banner", "||ads.example^"]
-
-
-def test_without_notices_the_header_is_the_original_one(tmp_path):
-    header = _header(_build(tmp_path))
-    assert [line.split(":")[0] for line in header[1:]] == ["! Title", "! Version", "! Expires", "! Count", "! Updated", "! Homepage"]
-
-
-def test_a_configured_value_cannot_start_a_rule_line(tmp_path):
-    lines = _build(tmp_path, [{"name": "x\n||evil.example^", "licence": "y\r\n##.evil"}])
-    assert not any(line.startswith(("||evil", "##.evil")) for line in lines)
-    assert all(line.startswith("!") for line in _header(lines)[1:])
-
-
-@pytest.mark.parametrize("bad", [[{"name": "only a name"}], ["a string"], "not json"])
-def test_incomplete_notices_are_rejected(tmp_path, bad):
-    with pytest.raises(ValueError, match="PARAM_ERROR"):
-        _build(tmp_path, bad)
