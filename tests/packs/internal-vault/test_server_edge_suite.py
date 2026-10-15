@@ -60,7 +60,7 @@ def test_rejects_nested_config_path(tmp_path: Path) -> None:
 
 ROOT = target_root()
 
-SERVICE = ROOT / "services" / "server-edge"
+SERVICE = ROOT / "projects" / "server-edge"
 
 DEPLOY = ROOT / "environments" / "server-edge" / "deploy.sh"
 
@@ -84,7 +84,7 @@ def test_server_edge_source_is_owned_by_internal_vault() -> None:
 
 def test_deploy_uses_local_monorepo_source() -> None:
     text = DEPLOY.read_text(encoding="utf-8")
-    assert "services/server-edge" in text
+    assert "projects/server-edge" in text
     assert "raw.githubusercontent.com/fongap/server-edge" not in text
     assert "--source '$remote_dir/release'" in text
     assert 'git -C "$REPO_ROOT" rev-parse HEAD' in text
@@ -101,7 +101,7 @@ def test_deploy_is_source_owned_and_centrally_executed() -> None:
     assert manifest == {
         "schema_version": "2",
         "adapter": "source-script",
-        "root": "services/server-edge",
+        "root": "projects/server-edge",
         "entrypoint": "environments/server-edge/deploy.sh",
         "runner_profile": "production-deploy",
         "ignore_docs_only": True,
