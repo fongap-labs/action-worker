@@ -174,8 +174,8 @@ AIG_ACCESS_KEY_AGENT
 业务仓库不承担 Main Write Guard 的权威执行。公开的 `action-worker` 审计 `AW_REPOSITORY_POLICY` 中每个受管仓库的当前 `main`，重新查询 GitHub，并证明源 SHA 来自合法的 PR 合并。证明在以下时机自动产生，不需要手动运行任何工作流：
 
 - 业务仓库的 `main` 有 push 时，桥接唤醒 Intake，Intake 的 `Main write audit` 作业审计所有受管仓库；
-- `Release App`、`Deploy Source Script`、`Task Source Dispatch` 在校验之前，先对源仓库运行同一个审计；
-- 某个 `main` SHA 的中央 CI 通过之后，`Central CI Dispatch` 的 `Dispatch Central CI Follow-ups` 对该仓库运行审计；
+- `手动 · 发布应用`、`手动 · 部署服务`、`手动 · 派发任务` 在校验之前，先对源仓库运行同一个审计；
+- 某个 `main` SHA 的中央 CI 通过之后，`自动 · CI 分发` 的 `Dispatch Central CI Follow-ups` 对该仓库运行审计；
 - `action-worker` 自己的 `main` 有 push，或定时运行时。GitHub 对定时触发只做尽力而为，实际可能每隔数小时才运行一次，所以定时运行只是兜底。
 
 ### 10.1 业务仓库桥接
@@ -211,7 +211,7 @@ AIG_ACCESS_KEY_AGENT
 |---|---|---|
 | 变更触发 | Intake 的 `Changed task projects` 作业 | 业务仓库 `main` 的 push 通过桥接立即唤醒 Intake。对于启用了 `push` 的仓库，如果当前 HEAD 还没有成功的 `Task Source` 状态，它会以第一个父提交作为 `before_sha` 分发一次变更项目的解析：运行期间写入 pending，成功时写入 success，失败时写入 failure，以便下一轮重试 |
 | 定时 | Intake 的 `Scheduled task projects` 作业 | 每次 Intake 运行分发过去 12 小时内到期的时段，但每个项目只补最近的一个到期时段；每个时段只分发一次，由源提交上的 `Task Schedule/<project>` 状态记录 |
-| 手动 | 人从 Actions → `Task Source Dispatch` → Run workflow 启动 | 只填受管仓库与项目 |
+| 手动 | 人从 Actions → `手动 · 派发任务` → Run workflow 启动 | 只填受管仓库与项目 |
 
 手动启动时，`repository` 写成 `owner/name`（只写仓库名会报错，并在报错中给出对应的完整名称），`project` 是该仓库 `projects/` 下含有 `task.json` 的目录名（填错时报错会列出可选项）。工作流会先为该仓库 `main` 的 HEAD 申请中央 CI 并证明 main 写入，任务校验最多等待 20 分钟取得结果，不需要提前手动运行任何工作流。
 
@@ -253,7 +253,7 @@ Release 与 Deploy 工作流按发布类型或部署适配器命名，绝不以�
 
 ### 12.2 启动前的检查与常见失败
 
-启动 `Release App` 或 `Deploy Source Script` 之前不需要手动准备任何东西：工作流会先为源仓库默认分支的当前 HEAD 申请中央 CI 并证明 main 写入，并最多等待 20 分钟取得 CI 结果。你只需要保证：
+启动 `手动 · 发布应用` 或 `手动 · 部署服务` 之前不需要手动准备任何东西：工作流会先为源仓库默认分支的当前 HEAD 申请中央 CI 并证明 main 写入，并最多等待 20 分钟取得 CI 结果。你只需要保证：
 
 1. 要发布或部署的改动已经通过 PR 合并进 `main`；
 2. `source_repository` 写成 `owner/name`，且该仓库在 `AW_REPOSITORY_POLICY` 中具有对应的能力（发布需要 `release-source`，部署需要 `deploy`）；
@@ -269,14 +269,14 @@ Release 与 Deploy 工作流按发布类型或部署适配器命名，绝不以�
 | `source_sha must be a full 40-character lowercase commit SHA` | 部署的 SHA 不是完整的 40 位小写十六进制 | 填完整的 SHA，或留空以部署当前 HEAD |
 | `default HEAD moved` 或 `must be the current default-branch HEAD` | 你启动之后，默认分支又有了新提交 | 重新启动工作流，让它读取最新的 HEAD |
 | `Source SHA failed CI Evidence: central CI failed for ...` | 中央 CI 在该提交上失败 | 打开报错里的链接查看失败的 job，通过 PR 修复并合并，等中央 CI 通过后重新启动 |
-| `Source SHA has no successful Action Worker CI Evidence` | 等待 20 分钟后，中央 CI 仍没有结果（通常是 CI 仍在排队或运行） | 在 Actions → `Central CI Dispatch` 中找到该仓库的运行，等它通过后重新启动 |
+| `Source SHA has no successful Action Worker CI Evidence` | 等待 20 分钟后，中央 CI 仍没有结果（通常是 CI 仍在排队或运行） | 在 Actions → `自动 · CI 分发` 中找到该仓库的运行，等它通过后重新启动 |
 | `was not produced by a successful Action Worker CI run` | 状态存在，但写入它的中央 CI 运行没有成功 | 打开报错里的运行，查看原因；必要时合并一个新提交，让中央 CI 重新运行 |
 | `Product is required because the source repository has several products.` | 仓库有多个产品，但 `product` 留空 | 在 `product` 中填写报错列出的一个产品目录名 |
 | `Unknown product: <名称>.` | `product` 不是仓库 `projects/` 下的产品目录 | 从报错列出的产品中选择 |
 | `Repository has root manifests in .github/ and products under projects/.` | 同时存在根目录清单与 `projects/` 下的产品 | 只保留一种布局，见第 12.3 节 |
 | `Release key is declared by more than one product` | 两个产品的 `release_key` 相同 | 给其中一个产品改用不同的 `release_key` |
 | `Product release manifest must declare root` | 产品的发布清单缺少 `root`，或 `root` 不合法 | 填写相对仓库根目录的 `root`，不以 `/` 开头，也不包含 `..` |
-| `Source SHA has no successful Main Write Guard status` | 该 `main` SHA 还没有被证明来自合法的 PR 合并 | 几分钟后重新启动；仍然出现时，打开最新一次 `Intake` 运行的 `Main write audit` 作业查看原因 |
+| `Source SHA has no successful Main Write Guard status` | 该 `main` SHA 还没有被证明来自合法的 PR 合并 | 几分钟后重新启动；仍然出现时，打开最新一次 `自动 · 总控调度` 运行的 `Main write audit` 作业查看原因 |
 | `Source SHA failed Main Write Guard` 或 `not uniquely attributable to a merged pull request` | `main` 上有不是由单个 PR 合并产生的提交，例如直接 push | 通过一个新的 PR 合并一个提交（需要通过 `validate-merge`），让 `main` 的 HEAD 重新来自合法的合并 |
 
 PR 治理最常见的失败：
@@ -325,7 +325,7 @@ PR 治理最常见的失败：
 
 启动发布：
 
-- `Release App` 的 `product` 输入，仓库只有一个产品时留空，有多个产品时必填，填写产品目录名，例如 `web`。
+- `手动 · 发布应用` 的 `product` 输入，仓库只有一个产品时留空，有多个产品时必填，填写产品目录名，例如 `web`。
 - 漏填或填错时，报错会列出可选的产品名。
 - 同一个仓库的不同产品可以同时发布，它们的并发组不同，互不排队。
 

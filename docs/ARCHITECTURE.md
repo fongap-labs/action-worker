@@ -592,7 +592,7 @@ Action Worker 执行的审查引擎在 `policies/review.json` 中通过 `version
 
 Action Worker 拥有生产凭据，并负责需要 Runner 资源的重型部署编排。源仓库只拥有产品代码与项目专属的部署工具。部署请求不能提供可变的引用、任意仓库、CI 结论或部署凭据。
 
-通用的 source-script 部署执行器是 `Deploy Source Script` 工作流（`deploy-source-script.yml`），以其适配器命名。当仓库的 `.github/deploy.json` 中 `automatic: true` 时，中央 CI 会在可信的 main 写入之后启动它；人也可以通过指定仓库与精确 SHA 手动启动。它要求当前默认分支的 HEAD、可信的 Action Worker `CI Evidence`、Main Write Guard 成功、特权 Runner Profile，以及源仓库自有的部署 manifest。`AIG_IS_DEPLOY_ENABLED=false` 之类的产品专属紧急开关，仍保留在源仓库自有的部署入口点中。
+通用的 source-script 部署执行器是 `手动 · 部署服务` 工作流（`deploy-source-script.yml`），以其适配器命名。当仓库的 `.github/deploy.json` 中 `automatic: true` 时，中央 CI 会在可信的 main 写入之后启动它；人也可以通过指定仓库与精确 SHA 手动启动。它要求当前默认分支的 HEAD、可信的 Action Worker `CI Evidence`、Main Write Guard 成功、特权 Runner Profile，以及源仓库自有的部署 manifest。`AIG_IS_DEPLOY_ENABLED=false` 之类的产品专属紧急开关，仍保留在源仓库自有的部署入口点中。
 
 执行器会取消声明范围之外的每一个密钥，然后使用 `exec` 启动入口点，从而替换掉带有全部密钥启动的 shell，使入口点不与其并存。
 
