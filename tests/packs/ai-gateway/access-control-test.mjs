@@ -186,7 +186,7 @@ try {
     assert.deepEqual(filterVisibleModels(known, { authorized: true, allowAll: true }), []);
   });
 
-  if (process.exitCode) suiteExit(1);
+  if (process.exitCode) throw new Error('suite stopped after recorded failures');
   console.log(`\naccess-keys tests passed (${passed}).`);
   console.log('ok - file:access-keys');
 } catch (error) {

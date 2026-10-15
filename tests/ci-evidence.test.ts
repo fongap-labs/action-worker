@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
+  centralCiWait,
   hasTrustedSuccessfulCiEvidence,
   hasVerifiedCiEvidence,
   latestCiStatus,
@@ -226,6 +228,39 @@ test("requiring CI evidence on a commit polls the status and fails closed", asyn
     requireVerifiedCiEvidence(forged, "fongap/example", sha, noDelay),
     /not produced by a successful Action Worker CI run/
   );
+});
+
+test("a CI evidence failure names the run to open and the next step", async () => {
+  const sha = "a".repeat(40);
+  const failed = { get: async () => evidenceStatus({ state: "failure" }) };
+  await assert.rejects(
+    requireVerifiedCiEvidence(failed, "fongap/example", sha, noDelay),
+    (error: Error) =>
+      error.message.includes(evidenceRunUrl) &&
+      error.message.includes("fix it through a pull request")
+  );
+
+  const missing = { get: async () => ({ statuses: [] }) };
+  await assert.rejects(
+    requireVerifiedCiEvidence(missing, "fongap/example", sha, noDelay),
+    (error: Error) =>
+      error.message.includes("fongap/example@aaaaaaaaaaaa") &&
+      error.message.includes("Actions > Central CI Dispatch") &&
+      error.message.includes("nothing needs to be started by hand")
+  );
+});
+
+test("task source, release and deploy gates wait for central CI with one shared window", () => {
+  assert.deepEqual(centralCiWait, { statusAttempts: 120, retryDelayMs: 10_000 });
+  for (const file of [
+    "scripts/validate-task-source.ts",
+    "scripts/validate-release-build-request.ts",
+    "scripts/validate-deploy-source.ts",
+  ]) {
+    const source = readFileSync(file, "utf8");
+    assert.match(source, /centralCiWait/, `${file} waits with the shared window`);
+    assert.match(source, /requireVerifiedCiEvidence\(/, `${file} verifies the evidence run`);
+  }
 });
 
 test("the PR gate rejects a success status that no successful control run produced", async () => {

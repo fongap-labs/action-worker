@@ -115,6 +115,19 @@ test("PR task and repository policy remain fail closed", () => {
     validateRepositoryCapability("fongap/example", { "fongap/example": ["pr", "pr"] }, "pr")
   );
   assert.deepEqual(repositoriesForCapability(policy, "task"), ["fongap/example"]);
+  // A bare name is corrected to the managed repository; an unmanaged one lists the managed ones.
+  assert.throws(
+    () => validateRepositoryCapability("example", policy, "task"),
+    /Enter it as owner\/name, for example fongap\/example\./
+  );
+  assert.throws(
+    () => validateRepositoryCapability("unknown", policy, "task"),
+    (error: Error) => error.message.endsWith("Enter it as owner/name.")
+  );
+  assert.throws(
+    () => validateRepositoryCapability("other/repository", policy, "task"),
+    /Repositories with this capability: fongap\/example\./
+  );
   assert.equal(hasRepositoryCapability("fongap/example", policy, "task"), true);
   assert.equal(hasRepositoryCapability("fongap/example", policy, "deploy"), false);
   assert.equal(hasRepositoryCapability("fongap/unknown", policy, "pr"), false);
@@ -363,8 +376,14 @@ test("engineering language rejects Chinese machine text but allows documentation
     engineeringLineViolation("CHANGELOG.md", "- fix: 修复路由。"),
     "CHANGELOG entries must use English."
   );
+  assert.equal(engineeringLineViolation(".github/workflows/ci.yml", "name: 校验"), null);
+  // Workflow input descriptions are user-facing copy and stay exempt.
   assert.equal(
-    engineeringLineViolation(".github/workflows/ci.yml", "name: 校验"),
+    engineeringLineViolation(".github/workflows/ci.yml", "description: 源仓库（owner/name 形式）"),
+    null
+  );
+  assert.equal(
+    engineeringLineViolation(".github/workflows/ci.yml", "run: echo 校验"),
     "Workflow engineering text must use English."
   );
   assert.equal(
@@ -808,6 +827,23 @@ test("main write guard accepts central merge authority and preserves local self-
     hasTrustedMainWriteGuard(paths.get(`repos/fongap/example/commits/${mainSha}/status`)),
     true
   );
+
+  // A failed guard names the SHA and says how main becomes trusted again.
+  paths.set(`repos/fongap/example/commits/${mainSha}/status`, {
+    statuses: [
+      {
+        context: "Main Write Guard",
+        state: "failure",
+        target_url: "https://github.com/fongap-labs/action-worker/actions/runs/3",
+      },
+    ],
+  });
+  await assert.rejects(
+    () => assertTrustedMainWrite(reader, "fongap/example", mainSha, true),
+    (error: Error) =>
+      error.message.includes(`fongap/example@${mainSha.slice(0, 12)}`) &&
+      error.message.includes("merging a pull request that passed validate-merge")
+  );
 });
 
 test("main write provenance rejects direct pushes and fake status-only trust", async () => {
@@ -845,6 +881,10 @@ test("PR review summary tells a maintainer how to release a pull request awaitin
   const body = buildReview("awaiting-approval", "https://example.test/run", undefined, undefined);
   assert.match(body, /Gate: \*\*WAITING FOR APPROVAL\*\*/);
   assert.match(body, /Review changes → Approve/);
-  assert.match(body, /PR Intake/);
+  // The approval is the only step: nothing has to be started by hand afterwards.
+  assert.match(body, /continues automatically after the approval/);
+  // GitHub sends no event with secrets on an approval, so Intake notices it; the wait is not hidden.
+  assert.match(body, /next Intake run, usually within an hour/);
+  assert.doesNotMatch(body, /Actions tab|run \*\*/);
   assert.doesNotMatch(body, /Gate: \*\*FAIL\*\*/);
 });

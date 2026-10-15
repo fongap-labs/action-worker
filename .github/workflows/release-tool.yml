@@ -1,4 +1,4 @@
-name: Release Tool
+name: 自动 · 工具发布
 
 on:
   push:
@@ -9,10 +9,9 @@ on:
       - "policies/review.json"
   schedule:
     - cron: "17 */6 * * *"
-  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: sync-tool-release
@@ -23,6 +22,9 @@ jobs:
     name: Sync verified tool release (${{ matrix.tool }})
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    # Sending the run-release event needs contents: write; nothing else in the job writes.
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:

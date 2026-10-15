@@ -9,7 +9,12 @@ import {
   parseDeployEnvironmentPolicy,
   resolveDeployManifest,
 } from "../scripts/deploy-manifest.ts";
-import { readDeploySecretCeiling, resolveSecretScope } from "../scripts/resolve-secret-scope.ts";
+import { isDeployPolicyKey, productPolicyKey } from "../scripts/deploy-policy-key.ts";
+import {
+  readDeploySecretCeiling,
+  readSecretAliases,
+  resolveSecretScope,
+} from "../scripts/resolve-secret-scope.ts";
 
 const sha = "0123456789abcdef0123456789abcdef01234567";
 
@@ -120,12 +125,14 @@ test("an invalid environment policy is rejected", () => {
   }
 });
 
-test("the shipped environment policy parses and covers the two deploying repositories", async () => {
+test("the shipped environment policy parses and keys each deploying product by its product key", async () => {
   const policy = parseDeployEnvironmentPolicy(
     JSON.parse(await readFile("policies/deploy-environments.json", "utf8"))
   );
   assert.deepEqual(policy["fongap-labs/ai-gateway"], ["production"]);
-  assert.deepEqual(policy["fongap-labs/internal-vault"], ["server-edge-cloud-edge"]);
+  assert.deepEqual(policy["fongap-labs/internal-vault/server-edge"], ["server-edge-cloud-edge"]);
+  // The repository key is gone: the product has no fallback to it.
+  assert.equal(Object.hasOwn(policy, "fongap-labs/internal-vault"), false);
 });
 
 // --- central deploy secret ceiling ---------------------------------------------------------------
@@ -213,14 +220,27 @@ test("the shipped deploy secret policy only holds valid, non-reserved names", as
     "production"
   );
   assert.ok(aiGateway.has("CLOUDFLARE_API_TOKEN"));
-  assert.ok(aiGateway.has("CLOUDFLARE_ACCOUNT_ID"));
+  assert.ok(
+    aiGateway.has("CLOUDFLARE_ACCOUNT_ID"),
+    "the account ID is a Repository Variable injected through a deploy alias"
+  );
   assert.equal(aiGateway.size, 38);
+  const aiGatewayAliases = await readSecretAliases(
+    "policies/deploy-secrets.json",
+    "deploy",
+    "fongap-labs/ai-gateway",
+    "production"
+  );
+  assert.equal(aiGatewayAliases.get("CLOUDFLARE_API_TOKEN"), "CLOUDFLARE_API_TOKEN_SECONDARY");
+  assert.equal(aiGatewayAliases.get("CLOUDFLARE_ACCOUNT_ID"), "CLOUDFLARE_ACCOUNT_ID_SECONDARY");
   const internalVault = await readDeploySecretCeiling(
     "policies/deploy-secrets.json",
     "fongap-labs/internal-vault",
-    "server-edge-cloud-edge"
+    "server-edge-cloud-edge",
+    "server-edge"
   );
   assert.deepEqual([...internalVault].sort(), [
+    "SERVER_EDGE_RELEASE_SIGNING_KEY",
     "SERVER_EDGE_SECRET_BUNDLE",
     "SERVER_EDGE_SSH_PRIVATE_KEY",
     "SERVER_EDGE_TAILSCALE_AUTH_KEY",
@@ -292,4 +312,274 @@ test("every job that uses the admin token runs in the admin-ops environment", as
     }
   }
   assert.deepEqual(violations, []);
+});
+
+// --- product keys -------------------------------------------------------------------------------
+
+test("a product key is owner/name/product, and the root layout keeps the repository key", () => {
+  assert.equal(productPolicyKey("o/a", "alpha"), "o/a/alpha");
+  assert.equal(productPolicyKey("o/a", ""), "o/a");
+  for (const key of ["o/a", "o/a/alpha", "o/a/alpha.v2", "o/a/a-b_c"]) {
+    assert.equal(isDeployPolicyKey(key), true, key);
+  }
+  for (const key of ["o/a/*", "o/*", "o/a/", "o/a/-x", "o/a/.., ", "o/a/a/b", "o/a/Alpha b", ""]) {
+    assert.equal(isDeployPolicyKey(key), false, key);
+  }
+});
+
+test("an environment belongs to one key across the whole environment policy", () => {
+  assert.doesNotThrow(() =>
+    parseDeployEnvironmentPolicy({
+      schema_version: 1,
+      repositories: {
+        "o/a": ["production"],
+        "o/a/alpha": ["alpha-prod"],
+        "o/a/beta": ["beta-prod"],
+      },
+    })
+  );
+  assert.throws(
+    () =>
+      parseDeployEnvironmentPolicy({
+        schema_version: 1,
+        repositories: { "o/a": ["production"], "o/a/alpha": ["production"] },
+      }),
+    /lists environment production under both o\/a and o\/a\/alpha/
+  );
+});
+
+test("a product key with a wildcard or a malformed key is refused in the environment policy", () => {
+  for (const key of ["o/a/*", "o/a/Alpha/extra", "o/a/-alpha", "o/a/alpha/"]) {
+    assert.throws(
+      () =>
+        parseDeployEnvironmentPolicy({
+          schema_version: 1,
+          repositories: { [key]: ["production"] },
+        }),
+      /Deploy environment policy entry is invalid/,
+      key
+    );
+  }
+});
+
+test("the deploy secret policy refuses wildcard keys and an environment under two keys", async () => {
+  await withPolicy(
+    { schema_version: 1, deployments: { "o/a/*": { production: { allowed: ["TOKEN_A"] } } } },
+    async (path) => {
+      await assert.rejects(
+        readDeploySecretCeiling(path, "o/a", "production", "alpha"),
+        /key is invalid/
+      );
+    }
+  );
+  await withPolicy(
+    {
+      schema_version: 1,
+      deployments: {
+        "o/a/alpha": { production: { allowed: ["TOKEN_A"] } },
+        "o/a/beta": { production: { allowed: ["TOKEN_B"] } },
+      },
+    },
+    async (path) => {
+      await assert.rejects(
+        readDeploySecretCeiling(path, "o/a", "production", "alpha"),
+        /lists environment production under both o\/a\/alpha and o\/a\/beta/
+      );
+    }
+  );
+});
+
+test("a product reads only its own deploy secret entry, and a missing product entry is refused", async () => {
+  await withPolicy(
+    {
+      schema_version: 1,
+      deployments: {
+        "o/a": { production: { allowed: ["REPO_TOKEN"] } },
+        "o/a/alpha": { "alpha-prod": { allowed: ["ALPHA_TOKEN"] } },
+      },
+    },
+    async (path) => {
+      assert.deepEqual(
+        [...(await readDeploySecretCeiling(path, "o/a", "alpha-prod", "alpha"))],
+        ["ALPHA_TOKEN"]
+      );
+      // The product has no fallback to the repository's entry for the same environment.
+      assert.equal(
+        (await readDeploySecretCeiling(path, "o/a", "production")).has("REPO_TOKEN"),
+        true
+      );
+      assert.equal((await readDeploySecretCeiling(path, "o/a", "production", "alpha")).size, 0);
+      await assert.rejects(
+        readDeploySecretCeiling(path, "o/a", "production", "gamma", ["TOKEN_X", "TOKEN_Y"]),
+        (error: unknown) =>
+          error instanceof Error &&
+          /no entry for o\/a\/gamma, so the deploy is refused/.test(error.message) &&
+          /"o\/a\/gamma": \{[\s\S]*"production": \{[\s\S]*"allowed": \[\s*"TOKEN_X",\s*"TOKEN_Y"\s*\]/.test(
+            error.message
+          ) &&
+          !error.message.includes('"o/a":')
+      );
+    }
+  );
+});
+
+test("a product's deploy scope drops another product's secret stored in its environment", async () => {
+  const root = await mkdtemp(join(tmpdir(), "deploy-product-scope-"));
+  try {
+    const baseline = join(root, "baseline");
+    const required = join(root, "required");
+    const allowed = join(root, "allowed");
+    const declaredBeta = join(root, "declared-beta");
+    await writeFile(baseline, "PATH\n", "utf8");
+    await writeFile(required, "", "utf8");
+    await writeFile(allowed, "ALPHA_TOKEN\n", "utf8");
+    await writeFile(declaredBeta, "BETA_TOKEN\n", "utf8");
+    const policyPath = join(root, "deploy-secrets.json");
+    await writeFile(
+      policyPath,
+      JSON.stringify({
+        schema_version: 1,
+        deployments: {
+          "o/a/alpha": { "alpha-production": { allowed: ["ALPHA_TOKEN"] } },
+          "o/a/beta": { "beta-production": { allowed: ["BETA_TOKEN"] } },
+        },
+      }),
+      "utf8"
+    );
+    // Beta's secret was stored in alpha's GitHub environment by mistake.
+    const environment = { PATH: "/bin", ALPHA_TOKEN: "a", BETA_TOKEN: "b" };
+
+    const ceiling = {
+      names: await readDeploySecretCeiling(policyPath, "o/a", "alpha-production", "alpha"),
+      mode: "enforce" as const,
+      label: "deploy" as const,
+    };
+    const alphaScope = await resolveSecretScope(
+      baseline,
+      required,
+      allowed,
+      [],
+      environment,
+      ceiling
+    );
+    assert.deepEqual(alphaScope.allowed, ["ALPHA_TOKEN"]);
+    assert.deepEqual(alphaScope.unset, ["BETA_TOKEN"]);
+
+    // Alpha cannot declare beta's secret, even though beta's entry lists it.
+    await assert.rejects(
+      resolveSecretScope(baseline, required, declaredBeta, [], environment, ceiling),
+      /outside the central deploy secret policy: BETA_TOKEN/
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("the shipped policies key every deploying product by its product key", async () => {
+  const environments = parseDeployEnvironmentPolicy(
+    JSON.parse(await readFile("policies/deploy-environments.json", "utf8"))
+  );
+  const secrets = JSON.parse(await readFile("policies/deploy-secrets.json", "utf8")) as {
+    deployments: Record<string, unknown>;
+  };
+  assert.deepEqual(Object.keys(environments).sort(), [
+    "fongap-labs/ai-gateway",
+    "fongap-labs/internal-vault/server-edge",
+  ]);
+  assert.deepEqual(Object.keys(secrets.deployments).sort(), [
+    "fongap-labs/ai-gateway",
+    "fongap-labs/internal-vault/server-edge",
+  ]);
+});
+
+// --- concurrency groups -------------------------------------------------------------------------
+
+// Evaluates a GitHub expression for the subset these groups use: context lookups, format, && and ||.
+function evaluate(expression: string, values: Record<string, string | undefined>): string {
+  const format = (template: string, ...args: unknown[]) =>
+    template.replace(/\{(\d+)\}/g, (_match, index: string) => String(args[Number(index)]));
+  const lookup = (name: string) => values[name];
+  const source = expression.replace(
+    /[A-Za-z_][\w]*(?:\.\w+)+/g,
+    (name) => `lookup(${JSON.stringify(name)})`
+  );
+  return String(new Function("lookup", "format", `return (${source});`)(lookup, format));
+}
+
+function renderGroup(template: string, values: Record<string, string | undefined>): string {
+  return template.replace(/\$\{\{ (.*?) \}\}/g, (_match, expression: string) =>
+    evaluate(expression, values)
+  );
+}
+
+async function deployGroups(): Promise<{ workflow: string; job: string }> {
+  const parsed = parse(await readFile(".github/workflows/deploy-source-script.yml", "utf8")) as {
+    concurrency: { group: string };
+    jobs: { deploy: { concurrency: { group: string } } };
+  };
+  return { workflow: parsed.concurrency.group, job: parsed.jobs.deploy.concurrency.group };
+}
+
+test("the deploy concurrency group is unique per repository, product and environment", async () => {
+  const { workflow } = await deployGroups();
+  const group = (product: string | undefined, environment: string) =>
+    evaluate(workflow.replace(/^\$\{\{ (.*) \}\}$/, "$1"), {
+      "github.event.client_payload.source_repository": "fongap-labs/example",
+      "github.event.client_payload.product": product,
+      "github.event.client_payload.environment": environment,
+    });
+
+  assert.equal(group("", "production"), "source-script-deploy-fongap-labs/example-production");
+  assert.equal(
+    group("alpha", "production"),
+    "source-script-deploy-fongap-labs/example-alpha-production"
+  );
+  assert.equal(
+    group("beta", "production"),
+    "source-script-deploy-fongap-labs/example-beta-production"
+  );
+  assert.equal(group("alpha", "staging"), "source-script-deploy-fongap-labs/example-alpha-staging");
+  const groups = new Set([
+    group("", "production"),
+    group("alpha", "production"),
+    group("alpha", "staging"),
+  ]);
+  assert.equal(groups.size, 3);
+});
+
+test("a manual request and the resolved deploy job name the same concurrency group", async () => {
+  const { workflow, job } = await deployGroups();
+  const fromRequest = evaluate(workflow.replace(/^\$\{\{ (.*) \}\}$/, "$1"), {
+    "inputs.source_repository": "fongap-labs/example",
+    "inputs.product": "alpha",
+    "inputs.environment": "production",
+  });
+  const fromPrepare = renderGroup(job, {
+    "needs.prepare.outputs.source_repository": "fongap-labs/example",
+    "needs.prepare.outputs.product": "alpha",
+    "needs.prepare.outputs.environment": "production",
+  });
+  assert.equal(fromRequest, fromPrepare);
+  assert.equal(fromPrepare, "source-script-deploy-fongap-labs/example-alpha-production");
+
+  // The root layout has no product segment in either group.
+  const rootGroup = renderGroup(job, {
+    "needs.prepare.outputs.source_repository": "fongap-labs/example",
+    "needs.prepare.outputs.product": "",
+    "needs.prepare.outputs.environment": "production",
+  });
+  assert.equal(rootGroup, "source-script-deploy-fongap-labs/example-production");
+});
+
+test("the deploy workflow passes the product to the secret scope and the trigger to the entrypoint", async () => {
+  const deploy = (await workflow("deploy-source-script.yml")).jobs.deploy;
+  const text = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
+  assert.match(
+    text,
+    /"\$DEPLOY_SOURCE_REPOSITORY" "\$DEPLOY_ENVIRONMENT" deploy "\$DEPLOY_PRODUCT"/
+  );
+  assert.match(text, /target\/\$\{DEPLOY_PRODUCT_DIRECTORY\}\/deploy\.secrets\.required/);
+  assert.match(text, /DEPLOY_TRIGGER: \$\{\{ needs\.prepare\.outputs\.trigger \}\}/);
+  assert.match(text, /DEPLOY_PRODUCT: \$\{\{ needs\.prepare\.outputs\.product \}\}/);
+  assert.equal(deploy?.environment !== undefined, true);
 });

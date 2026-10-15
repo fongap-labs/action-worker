@@ -174,6 +174,28 @@ test("code and architecture reviews detect duplicate implementation, over-abstra
   }
 });
 
+test("architecture review applies the deletion test, the one-adapter rule, and shallow-module detection", async () => {
+  const rule = (await minimalityRuleTexts("rules/architecture.json"))[0] ?? "";
+  assert.ok(
+    rule.includes("Review for breaking changes"),
+    "architecture rule must keep the architecture review focus"
+  );
+  assert.match(rule, /Deletion test:/, "architecture review must apply the deletion test");
+  assert.match(rule, /One-adapter rule:/, "architecture review must apply the one-adapter rule");
+  assert.match(rule, /two implementations/, "a new port must need two implementations");
+  assert.match(rule, /shallow modules/, "architecture review must flag shallow modules");
+  assert.match(
+    rule,
+    /internal category shallow/,
+    "shallow findings must carry the shallow internal category"
+  );
+  assert.match(
+    rule,
+    /Keep the existing review output format/,
+    "the deletion test must not change the review output protocol"
+  );
+});
+
 test("minimality review rules never authorize cutting safety requirements", async () => {
   for (const path of minimalityReviewRuleFiles) {
     const rule = (await minimalityRuleTexts(path))[0] ?? "";

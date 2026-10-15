@@ -2,7 +2,7 @@ import { parseRunnerPolicy, type RunnerPolicy, resolveRunnerProfile } from "./ru
 import { CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 
 // Value for the AW_DISPATCH_RUNS_ON repository variable read by the approved PR dispatcher
-// (templates/pr-dispatcher). Business repositories never name runners; this script is the only
+// (templates/bridge/notify-action-worker.yml). Business repositories never name runners; this script is the only
 // place a profile turns into labels.
 export function dispatcherRunsOn(policy: RunnerPolicy, requestedProfile: string): string {
   const { profile } = resolveRunnerProfile(policy, requestedProfile);

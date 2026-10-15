@@ -1,5 +1,15 @@
-import { GithubReader, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
-import { validateRepositoryCapability } from "./repository-policy.ts";
+import { centralCiWait, requireVerifiedCiEvidence } from "./ci-evidence.ts";
+import { isPinPublished, type JsonReader, readFileAt } from "./follow-github.ts";
+import { isPinValueOf, parseFollowManifest, pinValueAt } from "./follow-pins.ts";
+import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
+import {
+  type ContentReader,
+  discoverProducts,
+  isProductName,
+  isRepositoryRelativePath,
+  selectProduct,
+} from "./product-discovery.ts";
+import { hasRepositoryCapability, validateRepositoryCapability } from "./repository-policy.ts";
 import { parseRunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
 import {
   appendLines,
@@ -21,6 +31,9 @@ type BuildEntry = {
 
 export type ReleaseBuildManifest = {
   schema_version: 1;
+  // Optional: the repository-relative build root. Required in a product under projects/, and the
+  // empty string means the repository root.
+  root?: string;
   artifact_name: string;
   target_repository: string;
   release_key: string;
@@ -33,19 +46,17 @@ export type ReleaseBuildManifest = {
   builds: BuildEntry[];
 };
 
-function exactKeys(value: Record<string, unknown>, required: readonly string[]): boolean {
-  const actual = Object.keys(value).sort();
-  const expected = [...required].sort();
+// `optional` lists keys that may be absent; every other key in `required` must be present, and no
+// other key may appear.
+function exactKeys(
+  value: Record<string, unknown>,
+  required: readonly string[],
+  optional: readonly string[] = []
+): boolean {
   return (
-    actual.length === expected.length && actual.every((item, index) => item === expected[index])
+    required.every((key) => Object.hasOwn(value, key)) &&
+    Object.keys(value).every((key) => required.includes(key) || optional.includes(key))
   );
-}
-
-export function decodeGithubContent(value: unknown): string {
-  if (!isJsonRecord(value) || value.encoding !== "base64" || typeof value.content !== "string") {
-    throw new CliError("GitHub contents response is invalid.", 65);
-  }
-  return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
 }
 
 function isRelativePath(value: unknown): value is string {
@@ -68,20 +79,27 @@ function isAssetName(value: unknown, isEmptyAllowed = false): value is string {
 export function parseReleaseBuildManifest(value: unknown): ReleaseBuildManifest {
   if (
     !isJsonRecord(value) ||
-    !exactKeys(value, [
-      "artifact_name",
-      "builds",
-      "license_expression",
-      "node_version_file",
-      "python_version_file",
-      "release_key",
-      "release_name",
-      "release_notes",
-      "sbom_asset",
-      "schema_version",
-      "target_repository",
-    ]) ||
+    !exactKeys(
+      value,
+      [
+        "artifact_name",
+        "builds",
+        "license_expression",
+        "node_version_file",
+        "python_version_file",
+        "release_key",
+        "release_name",
+        "release_notes",
+        "sbom_asset",
+        "schema_version",
+        "target_repository",
+      ],
+      ["root"]
+    ) ||
     value.schema_version !== 1 ||
+    (value.root !== undefined &&
+      (typeof value.root !== "string" ||
+        (value.root !== "" && !isRepositoryRelativePath(value.root)))) ||
     !isAssetName(value.artifact_name) ||
     typeof value.target_repository !== "string" ||
     !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(value.target_repository) ||
@@ -153,26 +171,31 @@ export function parseReleaseBuildManifest(value: unknown): ReleaseBuildManifest 
 export function normalizeReleaseVersion(value: string): string {
   const version = value.replace(/^v/, "");
   if (!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)) {
-    throw new CliError("Requested release version must be stable SemVer.", 64);
+    throw new CliError(
+      `Requested release version must be stable SemVer such as 1.2.3 or v1.2.3, without a pre-release or build suffix: got '${value}'.`,
+      64
+    );
   }
   return version;
 }
 
-export function parseReleaseBuildRequest(value: unknown): {
+export type ReleaseBuildRequest = {
   request_id: string;
   source_repository: string;
   source_sha: string;
   requested_version: string;
-} {
+  // Optional: the product under projects/. Required only when the source repository has several.
+  product?: string;
+};
+
+export function parseReleaseBuildRequest(value: unknown): ReleaseBuildRequest {
   if (
     !isJsonRecord(value) ||
-    !exactKeys(value, [
-      "request_id",
-      "requested_version",
-      "schema_version",
-      "source_repository",
-      "source_sha",
-    ]) ||
+    !exactKeys(
+      value,
+      ["request_id", "requested_version", "schema_version", "source_repository", "source_sha"],
+      ["product"]
+    ) ||
     value.schema_version !== "1" ||
     typeof value.request_id !== "string" ||
     !/^[A-Za-z0-9._:-]{1,128}$/.test(value.request_id) ||
@@ -181,16 +204,87 @@ export function parseReleaseBuildRequest(value: unknown): {
     typeof value.source_sha !== "string" ||
     !/^[0-9a-f]{40}$/.test(value.source_sha) ||
     typeof value.requested_version !== "string" ||
-    !/^v?[0-9]+\.[0-9]+\.[0-9]+$/.test(value.requested_version)
+    !/^v?[0-9]+\.[0-9]+\.[0-9]+$/.test(value.requested_version) ||
+    (value.product !== undefined &&
+      (typeof value.product !== "string" || !isProductName(value.product)))
   ) {
     throw new CliError("Release build dispatch payload is invalid.", 64);
   }
-  return value as {
-    request_id: string;
-    source_repository: string;
-    source_sha: string;
-    requested_version: string;
+  return value as ReleaseBuildRequest;
+}
+
+/**
+ * Reads the release manifest of the product the request names, from the immutable source commit.
+ * The manifest path is decided by discovery, never by the request.
+ */
+export async function resolveReleaseBuildProduct(
+  reader: ContentReader,
+  request: ReleaseBuildRequest
+): Promise<{
+  product: string;
+  manifest_path: string;
+  product_root: string;
+  manifest: ReleaseBuildManifest;
+  // The follow declaration of the product, when it has one.
+  follows_text: string | null;
+}> {
+  const discovery = await discoverProducts(reader, request.source_repository, request.source_sha);
+  const product = selectProduct(discovery.products, request.product ?? "");
+  const manifestText = product.files["release.manifest.json"];
+  if (manifestText === undefined) {
+    throw new CliError(
+      `Product has no release manifest: ${product.directory}/release.manifest.json.`,
+      65
+    );
+  }
+  return {
+    product: product.name,
+    manifest_path: `${product.directory}/release.manifest.json`,
+    product_root: product.root,
+    manifest: parseReleaseBuildManifest(
+      parseJson(manifestText, "Release build manifest must be valid JSON.", 65)
+    ),
+    follows_text: product.files["follows.json"] ?? null,
   };
+}
+
+/**
+ * A follower may only release when each pin in its source commit holds a value that a published
+ * release of its upstream produced: a version pin names a published tag, a commit pin names the
+ * commit of a published tag of the release key.
+ */
+export async function verifyFollowPins(
+  reader: JsonReader,
+  args: { repository: string; sha: string; followsText: string; policy: unknown }
+): Promise<void> {
+  const manifest = parseFollowManifest(
+    parseJson(args.followsText, "Follow manifest must be valid JSON.", 65)
+  );
+  const upstream = manifest.upstream.repository;
+  if (!hasRepositoryCapability(upstream, args.policy, "release-target")) {
+    throw new CliError(`Follow upstream is not a managed release target: ${upstream}.`, 65);
+  }
+  for (const pin of manifest.pins) {
+    const text = await readFileAt(reader, args.repository, pin.path, args.sha);
+    if (text === null) {
+      throw new CliError(`Follow pin file is missing at the source commit: ${pin.path}.`, 65);
+    }
+    const value = pinValueAt(pin.path, text, pin.key);
+    if (!isPinValueOf(pin.value, value)) {
+      throw new CliError(
+        `Follow pin ${pin.key} in ${pin.path} must hold a single ${pin.value} string.`,
+        65
+      );
+    }
+    if (
+      !(await isPinPublished(reader, upstream, manifest.upstream.release_key, pin.value, value))
+    ) {
+      throw new CliError(
+        `Follow pin ${pin.key} in ${pin.path} is not a published ${pin.value} of ${upstream} (${manifest.upstream.release_key}): ${value}. Release the upstream first, or pin a published value.`,
+        65
+      );
+    }
+  }
 }
 
 async function main(): Promise<void> {
@@ -225,32 +319,25 @@ async function main(): Promise<void> {
     );
   }
 
-  const status = await reader.get(
-    `repos/${request.source_repository}/commits/${request.source_sha}/status`
+  // The release workflow requests central CI for the source before this step, so wait for it.
+  await requireVerifiedCiEvidence(
+    reader,
+    request.source_repository,
+    request.source_sha,
+    centralCiWait
   );
-  const evidence = getJsonArray(status, "statuses").find(
-    (item) => isJsonRecord(item) && getJsonString(item, "context") === "CI Evidence"
-  );
-  const targetUrl = isJsonRecord(evidence) ? getJsonString(evidence, "target_url") : "";
-  if (
-    !isJsonRecord(evidence) ||
-    getJsonString(evidence, "state") !== "success" ||
-    !/^https:\/\/github\.com\/fongap-labs\/action-worker\/actions\/runs\/\d+$/.test(targetUrl)
-  ) {
-    throw new CliError("Release build source has no trusted successful CI Evidence.", 65);
-  }
 
-  const manifestResponse = await reader.get(
-    `repos/${request.source_repository}/contents/.github/release.manifest.json?ref=${request.source_sha}`
-  );
-  const manifest = parseReleaseBuildManifest(
-    parseJson(
-      decodeGithubContent(manifestResponse),
-      "Release build manifest must be valid JSON.",
-      65
-    )
-  );
+  const { product, manifest_path, product_root, manifest, follows_text } =
+    await resolveReleaseBuildProduct(reader, request);
   validateRepositoryCapability(manifest.target_repository, repositoryPolicy, "release-target");
+  if (follows_text !== null) {
+    await verifyFollowPins(reader, {
+      repository: request.source_repository,
+      sha: request.source_sha,
+      followsText: follows_text,
+      policy: repositoryPolicy,
+    });
+  }
 
   const version = normalizeReleaseVersion(request.requested_version);
 
@@ -276,6 +363,9 @@ async function main(): Promise<void> {
   await appendLines(process.env.GITHUB_OUTPUT, [
     `source_repository=${request.source_repository}`,
     `source_sha=${request.source_sha}`,
+    `product=${product}`,
+    `manifest_path=${manifest_path}`,
+    `product_root=${product_root}`,
     `version=${version}`,
     `artifact_name=${manifest.artifact_name}`,
     `target_repository=${manifest.target_repository}`,
@@ -289,6 +379,9 @@ async function main(): Promise<void> {
     JSON.stringify({
       source_repository: request.source_repository,
       source_sha: request.source_sha,
+      product,
+      manifest_path,
+      product_root,
       version,
       artifact_name: manifest.artifact_name,
       target_repository: manifest.target_repository,

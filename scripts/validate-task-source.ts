@@ -1,14 +1,10 @@
-import { requireVerifiedCiEvidence } from "./ci-evidence.ts";
+import { centralCiWait, requireVerifiedCiEvidence } from "./ci-evidence.ts";
 import { GithubReader, getJsonString } from "./github-api.ts";
 import { assertTrustedMainWrite, type MainWriteProvenance } from "./main-write-guard.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
-
-// A push-triggered task can arrive before central CI has finished on the new main commit, and the
-// dispatcher marks the commit processed once it has dispatched, so wait for CI instead of failing.
-const evidenceWait = { statusAttempts: 120, retryDelayMs: 10_000 };
 
 export type TaskSourceCheck = {
   default_branch: string;
@@ -50,7 +46,12 @@ export async function validateTaskSource(
     );
   }
 
-  await requireVerifiedCiEvidence(reader, repository, ref, { ...evidenceWait, ...evidenceOptions });
+  // A push-triggered task can arrive before central CI has finished on the new main commit, and the
+  // dispatcher marks the commit processed once it has dispatched, so wait for CI instead of failing.
+  await requireVerifiedCiEvidence(reader, repository, ref, {
+    ...centralCiWait,
+    ...evidenceOptions,
+  });
   const mainWrite = await assertTrustedMainWrite(reader, repository, ref, true);
   return { default_branch: defaultBranch, main_write: mainWrite };
 }

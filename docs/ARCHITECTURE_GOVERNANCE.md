@@ -209,9 +209,11 @@ merge
 
 候选 CI 控制仍在沙箱中运行：它不接收生产密钥、中央管理令牌或特权 Runner。候选控制只有在通过 Security Gate、Central CI 与 `validate-merge` 之后，才会进入默认分支。
 
-PR Intake 对于相同的 `repository + PR + head SHA` 必须幂等。在发送 Governance 或 Dependency Repair 分发之前，Intake 先发布一个带有短租约的待处理预留；只要租约仍有效或对应的中央运行仍在进行，后续扫描不得再次分发。同一 head 的重复分发，不能依赖运行之间互相取消来保证幂等，因为这会产生误报失败并浪费 CI 分钟数。
+Intake 的 PR 对账对于相同的 `repository + PR + head SHA` 必须幂等。在发送 Governance 或 Dependency Repair 分发之前，Intake 先发布一个带有短租约的待处理预留；只要租约仍有效或对应的中央运行仍在进行，后续扫描不得再次分发。同一 head 的重复分发，不能依赖运行之间互相取消来保证幂等，因为这会产生误报失败并浪费 CI 分钟数。
 
-中央 main 分支 CI 对不可变的 `repository + head SHA` 同样必须幂等。CI Intake 在发送 `run-central-ci-ref` 之前，先发布一个 `CI Evidence=pending` 的预留并带有短租约；只要租约仍有效或对应的中央运行仍在进行，不得再次分发。针对同一 main SHA 的重复请求，不得互相取消；如果后来的请求发现该 SHA 已有成功的 `CI Evidence`，则复用该证据并跳过重型 CI。PR CI 仍允许新 head 取消旧 head，因为旧 head 是源身份已经改变的过期工作。
+重新分发只由 PR head 的状态触发，不由默认分支（控制版本）的移动触发：head 已有完整的 `PR Governance`、`CI Evidence` 与 `validate-merge` 结论时，即使 main 已前进，Intake 也不再为该 head 分发，因为这会取消同一 PR 正在运行的中央 CI。待处理预留所指向的运行若已被取消，同样不再分发；只有租约已过期、且对应运行已结束但没有留下结论的预留，才会被重新分发。
+
+中央 main 分支 CI 对不可变的 `repository + head SHA` 同样必须幂等。Intake 的 main CI 对账（以及 Release、Deploy、Task 入口为源仓库申请 CI 时使用的同一脚本）在发送 `run-central-ci-ref` 之前，先发布一个 `CI Evidence=pending` 的预留并带有短租约；只要租约仍有效或对应的中央运行仍在进行，不得再次分发。针对同一 main SHA 的重复请求，不得互相取消；如果后来的请求发现该 SHA 已有成功的 `CI Evidence`，则复用该证据并跳过重型 CI。PR CI 仍允许新 head 取消旧 head，因为旧 head 是源身份已经改变的过期工作。
 
 中央 CI 唯一的规范提交状态上下文是 `CI Evidence`。不得在它旁边发布 `ci-evidence` 或 `ci_evidence` 之类的别名；每一次读取、等待、Release/Deploy 门禁与审计，都引用同一个标准名称。
 

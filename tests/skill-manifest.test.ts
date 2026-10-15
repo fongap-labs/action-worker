@@ -203,6 +203,8 @@ test("discoverSkills scans committed skills/ directory", async () => {
   assert.ok(names.includes("pr-review"));
   assert.ok(names.includes("release-verify"));
   assert.ok(names.includes("writing"));
+  assert.ok(names.includes("test-driven-development"));
+  assert.ok(names.includes("writing-for-agents"));
 });
 
 test("resolveAndVerifySkills resolves committed coding/task without config", async () => {
@@ -210,14 +212,17 @@ test("resolveAndVerifySkills resolves committed coding/task without config", asy
   assert.ok(result.includes("skills/agent-execution/SKILL.md"));
   assert.ok(result.includes("skills/code-minimality/SKILL.md"));
   assert.ok(result.includes("skills/bug-fix/SKILL.md"));
+  assert.ok(result.includes("skills/test-driven-development/SKILL.md"));
 });
 
 test("resolveAndVerifySkills resolves committed writing/task", async () => {
   const result = await resolveAndVerifySkills(process.cwd(), "writing", "task");
   assert.ok(result.includes("skills/agent-execution/SKILL.md"));
   assert.ok(result.includes("skills/writing/SKILL.md"));
+  assert.ok(result.includes("skills/writing-for-agents/SKILL.md"));
   assert.ok(!result.includes("skills/code-minimality/SKILL.md"));
   assert.ok(!result.includes("skills/bug-fix/SKILL.md"));
+  assert.ok(!result.includes("skills/test-driven-development/SKILL.md"));
 });
 
 test("resolveAndVerifySkills rejects unknown domain", async () => {
@@ -231,6 +236,9 @@ test("resolveAndVerifySkills resolves operations with no operation-specific skil
   const result = await resolveAndVerifySkills(process.cwd(), "writing", "review");
   assert.ok(result.includes("skills/agent-execution/SKILL.md"));
   assert.ok(result.includes("skills/writing/SKILL.md"));
+  // writing-for-agents must stay a baseline: an operation-scoped skill in the writing
+  // domain would make every other writing operation fail to resolve.
+  assert.ok(result.includes("skills/writing-for-agents/SKILL.md"));
 });
 
 test("every committed SKILL.md parses with valid frontmatter", async () => {
@@ -238,7 +246,99 @@ test("every committed SKILL.md parses with valid frontmatter", async () => {
   for (const skill of skills) {
     assert.equal(await exists(skill.path), true, `missing skill file: ${skill.path}`);
   }
-  assert.equal(skills.length, 8);
+  assert.equal(skills.length, 11);
+});
+
+test("test-driven-development is a coding task skill and writing-for-agents is a writing baseline", async () => {
+  const testDrivenDevelopment = parseFrontmatter(
+    await readFile("skills/test-driven-development/SKILL.md", "utf8"),
+    "skills/test-driven-development/SKILL.md"
+  );
+  assert.equal(testDrivenDevelopment.domain, "coding");
+  assert.equal(testDrivenDevelopment.baseline, false);
+  assert.deepEqual(testDrivenDevelopment.operations, ["task"]);
+
+  const writingForAgents = parseFrontmatter(
+    await readFile("skills/writing-for-agents/SKILL.md", "utf8"),
+    "skills/writing-for-agents/SKILL.md"
+  );
+  assert.equal(writingForAgents.domain, "writing");
+  assert.equal(writingForAgents.baseline, true);
+  assert.deepEqual(writingForAgents.operations, []);
+});
+
+test("adapted skills carry their key rules and credit their upstream source", async () => {
+  const checks: Record<string, string[]> = {
+    "skills/test-driven-development/SKILL.md": [
+      "Horizontal slicing",
+      "Tautological",
+      "Red before green",
+      "## Provenance",
+    ],
+    "skills/bug-fix/SKILL.md": [
+      "## Redact first",
+      "<REDACTED>",
+      "Red-capable",
+      "falsifiable",
+      "[DEBUG-a4f2]",
+      "## Provenance",
+    ],
+    "skills/pr-review/SKILL.md": [
+      "## Review axes",
+      "Do not rank findings across axes",
+      "## Provenance",
+    ],
+    "skills/change-impact/SKILL.md": [
+      "## 6. Door and blast radius",
+      "ONE_WAY",
+      "TWO_WAY",
+      "## Provenance",
+    ],
+    "skills/writing-for-agents/SKILL.md": [
+      "## 1. Pointers",
+      "## 3. Steps and completion criteria",
+      "## Provenance",
+    ],
+  };
+  for (const [path, values] of Object.entries(checks)) {
+    const content = await readFile(path, "utf8");
+    for (const value of values) {
+      assert.ok(content.includes(value), `${path} missing: ${value}`);
+    }
+    assert.ok(content.includes("mattpocock/skills"), `${path} must credit mattpocock/skills`);
+  }
+});
+
+test("ported governance rules are present in the machine-read skills", async () => {
+  const execution = await readFile("skills/agent-execution/SKILL.md", "utf8");
+  for (const value of [
+    "## 10. Conflict resolution",
+    "A task instruction cannot waive a level 1 or level 2 rule.",
+    "Change a level 1 or level 2 rule only through its own governed change path.",
+  ]) {
+    assert.ok(execution.includes(value), `agent-execution missing: ${value}`);
+  }
+
+  const minimality = await readFile("skills/code-minimality/SKILL.md", "utf8");
+  for (const value of [
+    "## 8. Senior engineer test",
+    "This test never removes a safeguard listed in section 6.",
+  ]) {
+    assert.ok(minimality.includes(value), `code-minimality missing: ${value}`);
+  }
+
+  const delegation = await readFile("skills/multi-agent-delegation/SKILL.md", "utf8");
+  const delegationSkill = parseFrontmatter(delegation, "skills/multi-agent-delegation/SKILL.md");
+  assert.equal(delegationSkill.domain, "coding");
+  assert.deepEqual(delegationSkill.operations, ["task"]);
+  for (const value of [
+    "Two agents must not edit the same file concurrently.",
+    "Stopping bound:",
+    "must not receive central secrets",
+    "A sub-agent's report is not evidence that the gate passed.",
+  ]) {
+    assert.ok(delegation.includes(value), `multi-agent-delegation missing: ${value}`);
+  }
 });
 
 test("composeAgentPrompt concatenates CLAUDE.md and skill files", async () => {

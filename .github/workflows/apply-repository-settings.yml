@@ -1,17 +1,9 @@
-name: Apply Repository Settings
+name: 自动 · 仓库设置
 
+# A change to the shared policy applies it at once; the daily run corrects drift made by hand in
+# repository settings. Both apply the same policy to every managed repository, so nobody has to
+# start this workflow.
 on:
-  workflow_dispatch:
-    inputs:
-      repository:
-        description: Target repository in owner/name format
-        required: true
-        type: string
-      is_dry_run:
-        description: Print managed settings without changing the repository
-        required: true
-        default: true
-        type: boolean
   push:
     branches:
       - main
@@ -20,37 +12,18 @@ on:
       - policies/rulesets.json
       - scripts/apply-repository-settings.ts
       - .github/workflows/apply-repository-settings.yml
+  schedule:
+    - cron: "43 4 * * *"
 
 permissions:
   contents: read
 
+concurrency:
+  group: apply-repository-settings
+  cancel-in-progress: false
+
 jobs:
-  apply-manual:
-    if: github.event_name == 'workflow_dispatch'
-    name: Apply repository settings
-    environment: admin-ops
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - name: Check out control plane
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-
-      - name: Apply managed settings
-        env:
-          GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
-          TARGET_REPOSITORY: ${{ inputs.repository }}
-          IS_DRY_RUN: ${{ inputs.is_dry_run }}
-        run: node scripts/apply-repository-settings.ts "$TARGET_REPOSITORY" "$IS_DRY_RUN"
-
   apply-control-plane:
-    if: github.event_name == 'push'
     name: Apply control-plane settings
     environment: admin-ops
     runs-on: ubuntu-24.04
@@ -73,7 +46,6 @@ jobs:
         run: node scripts/apply-repository-settings.ts "$TARGET_REPOSITORY" false
 
   resolve-managed:
-    if: github.event_name == 'push'
     name: Resolve managed repositories
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -97,7 +69,6 @@ jobs:
         run: node scripts/repository-policy.ts list pr
 
   apply-managed:
-    if: github.event_name == 'push'
     needs: resolve-managed
     name: Apply managed settings · ${{ matrix.repository }}
     environment: admin-ops

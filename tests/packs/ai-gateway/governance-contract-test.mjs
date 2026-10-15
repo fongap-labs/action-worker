@@ -1014,7 +1014,7 @@ try {
   });
 
   console.log(`\nArchitecture contract tests passed (${passed}).`);
-  if (process.exitCode) suiteExit(1);
+  if (process.exitCode) throw new Error('suite stopped after recorded failures');
   console.log('ok - file:architecture-contract');
 } catch (error) {
   console.error('not ok - architecture-contract-test.mjs failed');

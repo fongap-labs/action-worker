@@ -1,19 +1,17 @@
-name: Main Write Guard
+name: 自动 · 主分支审计
 
+# Proves that each push to Action Worker's own main came from a merged pull request whose local
+# validate-merge check passed. Managed repositories are attested by the main-writes job of Intake
+# and by the Central CI follow-up, both through scripts/audit-main-writes.ts.
 on:
   push:
     branches: [main]
-  repository_dispatch:
-    types: [run-main-write-guard]
 
 permissions:
   contents: read
-  checks: read
-  pull-requests: read
-  statuses: write
 
 concurrency:
-  group: main-write-guard-${{ github.event_name == 'push' && github.repository || github.event.client_payload.repository }}
+  group: main-write-guard
   cancel-in-progress: false
 
 jobs:
@@ -21,6 +19,11 @@ jobs:
     name: Main Write Guard
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    permissions:
+      contents: read
+      checks: read
+      pull-requests: read
+      statuses: write
 
     steps:
       - name: Checkout control plane
@@ -35,15 +38,13 @@ jobs:
 
       - name: Validate main write provenance
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          MAIN_WRITE_TOKEN: ${{ github.event_name == 'push' && github.token || secrets.AW_CONTROL_TOKEN }}
-          MAIN_WRITE_REQUIRE_POLICY: ${{ github.event_name == 'push' && 'false' || 'true' }}
-          MAIN_WRITE_REQUIRE_CENTRAL_STATUSES: ${{ github.event_name == 'push' && 'false' || 'true' }}
-          MAIN_WRITE_REPOSITORY: ${{ github.event_name == 'push' && github.repository || github.event.client_payload.repository }}
-          MAIN_WRITE_BEFORE_SHA: ${{ github.event_name == 'push' && github.event.before || github.event.client_payload.before_sha }}
-          MAIN_WRITE_HEAD_SHA: ${{ github.event_name == 'push' && github.sha || github.event.client_payload.head_sha }}
+          MAIN_WRITE_TOKEN: ${{ github.token }}
+          MAIN_WRITE_REQUIRE_POLICY: "false"
+          MAIN_WRITE_REQUIRE_CENTRAL_STATUSES: "false"
+          MAIN_WRITE_REPOSITORY: ${{ github.repository }}
+          MAIN_WRITE_BEFORE_SHA: ${{ github.event.before }}
+          MAIN_WRITE_HEAD_SHA: ${{ github.sha }}
           MAIN_WRITE_EVENT: push
-          MAIN_WRITE_REQUEST_ID: ${{ github.event_name == 'push' && format('push:{0}', github.run_id) || github.event.client_payload.request_id }}
+          MAIN_WRITE_REQUEST_ID: push:${{ github.run_id }}
           MAIN_WRITE_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          CONTROL_RUN_PREFIX: ${{ github.server_url }}/fongap-labs/action-worker/actions/runs/
         run: node scripts/main-write-guard.ts

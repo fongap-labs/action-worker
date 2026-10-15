@@ -78,8 +78,8 @@ test("security gate rejects sensitive files and unpinned workflow actions", asyn
   );
 });
 
-const templatePath = resolve("templates/pr-dispatcher/dispatch-pr-governance.yml");
-const approvedPath = ".github/workflows/dispatch-pr-governance.yml";
+const templatePath = resolve("templates/bridge/notify-action-worker.yml");
+const approvedPath = ".github/workflows/notify-action-worker.yml";
 
 async function commitWorkflow(
   path: string,

@@ -14,27 +14,48 @@ test('runtime build identity uses the gateway-scoped source SHA only', () => {
   assert.equal(resolveBuildSha({ GITHUB_SHA: controlSha }), 'unknown');
 });
 
-test('online verification rejects the wrong Worker build before accepting health', async () => {
+test('online verification rejects a Worker build that never matches', async () => {
   const original = globalThis.fetch;
   const expected = 'a'.repeat(40);
   const shortGrace = { graceMs: 100, intervalMs: 10 };
-  let calls = [];
   globalThis.fetch = async (url) => {
-    calls.push(url);
     if (url.endsWith('/health')) return Response.json({ ready: true, build: 'b'.repeat(40) });
     return Response.json({});
   };
   try {
     await assert.rejects(verifyRemote('https://gateway.example', 'test-placeholder', expected, shortGrace), /does not match/);
-    assert.ok(calls.filter((url) => url.endsWith('/health')).length >= 2, 'expected build-propagation retries');
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
+test('online verification keeps polling until the new build reports health', async () => {
+  const original = globalThis.fetch;
+  const expected = 'a'.repeat(40);
+  // A count, not a wall-clock window, decides when the new build appears, so the test does not depend on machine load.
+  const propagation = { graceMs: 60_000, intervalMs: 1 };
+  let healthCalls = 0;
+  let calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(url);
+    if (url.endsWith('/health')) {
+      healthCalls += 1;
+      return Response.json({ ready: true, build: healthCalls <= 2 ? 'b'.repeat(40) : expected });
+    }
+    return Response.json({});
+  };
+  try {
+    await verifyRemote('https://gateway.example', 'test-placeholder', expected, propagation);
+    assert.equal(healthCalls, 3, 'two stale health responses are retried before the new build is accepted');
 
     calls = [];
+    healthCalls = 0;
     globalThis.fetch = async (url) => {
       calls.push(url);
       if (url.endsWith('/health')) return Response.json({ ready: true, build: expected });
       return Response.json({});
     };
-    await verifyRemote('https://gateway.example', 'test-placeholder', expected, shortGrace);
+    await verifyRemote('https://gateway.example', 'test-placeholder', expected, propagation);
     assert.equal(calls.length, 3, 'build verification reuses the health probe');
 
     calls = [];

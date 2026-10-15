@@ -1,4 +1,12 @@
 import { createHash } from "node:crypto";
+import {
+  cronPattern,
+  cronMatches as cronScheduleMatches,
+  latestCronSlot,
+  minuteFloor,
+  parseCronSchedule,
+  slotKey,
+} from "./cron-schedule.ts";
 import { getGithubJson, githubEnvironment, githubExists, isJsonRecord } from "./github-api.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
@@ -27,7 +35,6 @@ type DueProject = {
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
 const projectPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
-const cronPattern = /^[0-9*/,?\- ]{1,128}$/;
 const scheduleContextPrefix = "Task Schedule/";
 
 function exactKeys(
@@ -49,137 +56,31 @@ function decodeGithubContent(value: unknown): string {
   return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
 }
 
-function isWildcard(value: string): boolean {
-  return value === "*" || value === "?";
-}
-
-function parseInteger(value: string, min: number, max: number, label: string): number {
-  if (!/^\d+$/.test(value)) {
-    throw new CliError(`Task source cron ${label} is invalid.`, 65);
-  }
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < min || parsed > max) {
-    throw new CliError(`Task source cron ${label} is out of range.`, 65);
-  }
-  return parsed;
-}
-
-function fieldValues(
-  field: string,
-  min: number,
-  max: number,
-  label: string,
-  isSundaySevenAllowed = false
-): Set<number> {
-  if (!field || !cronPattern.test(field)) {
-    throw new CliError(`Task source cron ${label} is invalid.`, 65);
-  }
-
-  const values = new Set<number>();
-  for (const rawPart of field.split(",")) {
-    if (!rawPart) {
-      throw new CliError(`Task source cron ${label} is invalid.`, 65);
-    }
-    const segments = rawPart.split("/");
-    if (segments.length > 2) {
-      throw new CliError(`Task source cron ${label} step is invalid.`, 65);
-    }
-    const base = segments[0]!;
-    const step =
-      segments.length === 2 ? parseInteger(segments[1]!, 1, max - min + 1, `${label} step`) : 1;
-
-    let start = min;
-    let end = max;
-    if (!isWildcard(base)) {
-      const range = base.split("-");
-      if (range.length > 2) {
-        throw new CliError(`Task source cron ${label} range is invalid.`, 65);
-      }
-      if (range.length === 2) {
-        start = parseInteger(range[0]!, min, isSundaySevenAllowed ? max + 1 : max, label);
-        end = parseInteger(range[1]!, min, isSundaySevenAllowed ? max + 1 : max, label);
-        if (start > end) {
-          throw new CliError(`Task source cron ${label} range is reversed.`, 65);
-        }
-      } else {
-        start = parseInteger(base, min, isSundaySevenAllowed ? max + 1 : max, label);
-        end = segments.length === 2 ? max : start;
-      }
-    }
-
-    for (let value = start; value <= end; value += step) {
-      values.add(isSundaySevenAllowed && value === 7 ? 0 : value);
-    }
-  }
-  return values;
-}
-
-function parseCron(cron: string): {
-  fields: string[];
-  minute: Set<number>;
-  hour: Set<number>;
-  day: Set<number>;
-  month: Set<number>;
-  weekday: Set<number>;
-} {
-  if (!cronPattern.test(cron)) {
-    throw new CliError("Task source cron is invalid.", 65);
-  }
-  const fields = cron.trim().split(/\s+/);
-  if (fields.length !== 5) {
-    throw new CliError("Task source cron must contain five fields.", 65);
-  }
-  return {
-    fields,
-    minute: fieldValues(fields[0]!, 0, 59, "minute"),
-    hour: fieldValues(fields[1]!, 0, 23, "hour"),
-    day: fieldValues(fields[2]!, 1, 31, "day-of-month"),
-    month: fieldValues(fields[3]!, 1, 12, "month"),
-    weekday: fieldValues(fields[4]!, 0, 6, "day-of-week", true),
-  };
-}
-
+// Task schedules keep their own wording in errors; the parser itself is shared with deploy schedules.
 export function cronMatches(date: Date, cron: string): boolean {
-  if (Number.isNaN(date.getTime())) {
-    throw new CliError("Task source schedule time is invalid.", 64);
-  }
-  const parsed = parseCron(cron);
-  if (
-    !parsed.minute.has(date.getUTCMinutes()) ||
-    !parsed.hour.has(date.getUTCHours()) ||
-    !parsed.month.has(date.getUTCMonth() + 1)
-  ) {
-    return false;
-  }
-
-  const dayMatch = parsed.day.has(date.getUTCDate());
-  const weekdayMatch = parsed.weekday.has(date.getUTCDay());
-  const dayWildcard = isWildcard(parsed.fields[2]!);
-  const weekdayWildcard = isWildcard(parsed.fields[4]!);
-
-  if (dayWildcard && weekdayWildcard) return true;
-  if (dayWildcard) return weekdayMatch;
-  if (weekdayWildcard) return dayMatch;
-  return dayMatch || weekdayMatch;
+  return cronScheduleMatches(date, cron, "Task source");
 }
 
-function minuteFloor(value: Date): Date {
-  const date = new Date(value);
-  date.setUTCSeconds(0, 0);
-  return date;
-}
-
-function slotKey(value: Date): string {
-  return `${value.toISOString().slice(0, 16)}Z`;
-}
+// GitHub starts scheduled workflows only every few hours on this account (gaps of 2.6 to 9.8 hours
+// were observed), so the scheduler catches up the latest slot of each schedule that is at most this
+// late, instead of only the slots of the last few minutes. Dispatches are deduplicated per slot.
+export const maxLookbackMinutes = 1440;
+export const defaultLookbackMinutes = 720;
 
 export function projectsDueAt(
   manifest: TaskSourceManifest,
   now: Date,
-  lookbackMinutes = 20
+  lookbackMinutes = defaultLookbackMinutes
 ): DueProject[] {
-  if (!Number.isInteger(lookbackMinutes) || lookbackMinutes < 1 || lookbackMinutes > 60) {
-    throw new CliError("Task source lookback must be between 1 and 60 minutes.", 64);
+  if (
+    !Number.isInteger(lookbackMinutes) ||
+    lookbackMinutes < 1 ||
+    lookbackMinutes > maxLookbackMinutes
+  ) {
+    throw new CliError(
+      `Task source lookback must be between 1 and ${maxLookbackMinutes} minutes.`,
+      64
+    );
   }
   const current = minuteFloor(now);
   if (Number.isNaN(current.getTime())) {
@@ -188,14 +89,8 @@ export function projectsDueAt(
 
   const due = new Map<string, string>();
   for (const schedule of manifest.schedules) {
-    let matched: Date | null = null;
-    for (let offset = 0; offset < lookbackMinutes; offset += 1) {
-      const candidate = new Date(current.getTime() - offset * 60_000);
-      if (cronMatches(candidate, schedule.cron)) {
-        matched = candidate;
-        break;
-      }
-    }
+    const parsed = parseCronSchedule(schedule.cron, "Task source");
+    const matched = latestCronSlot(parsed, current, lookbackMinutes);
     if (!matched) continue;
     const slot = slotKey(matched);
     for (const project of schedule.projects) {
@@ -245,7 +140,7 @@ export function parseTaskSourceManifest(value: unknown): TaskSourceManifest {
     ) {
       throw new CliError("Task source schedule is invalid.", 65);
     }
-    parseCron(raw.cron);
+    parseCronSchedule(raw.cron, "Task source");
     return {
       cron: raw.cron,
       projects: raw.projects as string[],
@@ -256,7 +151,7 @@ export function parseTaskSourceManifest(value: unknown): TaskSourceManifest {
 }
 
 export function projectsForSchedule(manifest: TaskSourceManifest, cron: string): string[] {
-  parseCron(cron);
+  parseCronSchedule(cron, "Task source");
   return [
     ...new Set(
       manifest.schedules.filter((entry) => entry.cron === cron).flatMap((entry) => entry.projects)
@@ -350,23 +245,52 @@ function scheduleDescription(slot: string): string {
   return `Task dispatched for ${slot}`;
 }
 
-async function wasDispatched(task: ScheduledTask, token: string): Promise<boolean> {
-  const value = await getGithubJson(
-    `repos/${task.repository}/commits/${task.head_sha}/status`,
-    token
-  );
-  if (!isJsonRecord(value) || !Array.isArray(value.statuses)) {
-    throw new CliError(`GitHub task schedule status is invalid: ${task.repository}.`, 65);
+function commitShas(value: unknown, repository: string): string[] {
+  if (!Array.isArray(value)) {
+    throw new CliError(`GitHub commit list is invalid: ${repository}.`, 65);
   }
+  return value.map((item) => {
+    const sha = isJsonRecord(item) && typeof item.sha === "string" ? item.sha : "";
+    if (!shaPattern.test(sha)) {
+      throw new CliError(`GitHub commit list is invalid: ${repository}.`, 65);
+    }
+    return sha;
+  });
+}
+
+/**
+ * The dispatch of a slot is recorded on the default-branch head of that moment, which is the head
+ * of the slot time or a later one. Look at every one of those heads, so a new commit on the default
+ * branch does not make an already dispatched slot run again.
+ */
+export async function wasDispatched(
+  task: ScheduledTask,
+  get: (path: string) => Promise<unknown>
+): Promise<boolean> {
+  const slotTime = `${task.slot.slice(0, 16)}:00Z`;
+  const base = `repos/${task.repository}/commits?sha=${task.head_sha}`;
+  const heads = new Set([
+    task.head_sha,
+    ...commitShas(await get(`${base}&since=${slotTime}&per_page=100`), task.repository),
+    ...commitShas(await get(`${base}&until=${slotTime}&per_page=1`), task.repository),
+  ]);
   const context = scheduleContext(task.project);
   const description = scheduleDescription(task.slot);
-  return value.statuses.some(
-    (item) =>
-      isJsonRecord(item) &&
-      item.context === context &&
-      item.state === "success" &&
-      item.description === description
-  );
+  for (const sha of heads) {
+    const value = await get(`repos/${task.repository}/commits/${sha}/status`);
+    if (!isJsonRecord(value) || !Array.isArray(value.statuses)) {
+      throw new CliError(`GitHub task schedule status is invalid: ${task.repository}.`, 65);
+    }
+    const isRecorded = value.statuses.some(
+      (item) =>
+        isJsonRecord(item) &&
+        item.context === context &&
+        item.state === "success" &&
+        item.description === description
+    );
+    if (isRecorded) return true;
+  }
+  return false;
 }
 
 async function markDispatched(task: ScheduledTask, token: string): Promise<void> {
@@ -435,7 +359,7 @@ async function main(): Promise<void> {
   const ingressToken = process.env.AW_INGRESS_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   const nowRaw = process.env.TASK_SOURCE_NOW ?? "";
-  const lookbackRaw = process.env.TASK_SOURCE_LOOKBACK_MINUTES ?? "20";
+  const lookbackRaw = process.env.TASK_SOURCE_LOOKBACK_MINUTES ?? String(defaultLookbackMinutes);
   const now = nowRaw ? new Date(nowRaw) : new Date();
   const lookbackMinutes = Number(lookbackRaw);
 
@@ -449,7 +373,7 @@ async function main(): Promise<void> {
     Number.isNaN(now.getTime()) ||
     !Number.isInteger(lookbackMinutes) ||
     lookbackMinutes < 1 ||
-    lookbackMinutes > 60
+    lookbackMinutes > maxLookbackMinutes
   ) {
     throw new CliError("Task scheduler time or lookback is invalid.", 64);
   }
@@ -465,7 +389,7 @@ async function main(): Promise<void> {
   let dispatched = 0;
   let deduplicated = 0;
   for (const task of tasks) {
-    if (await wasDispatched(task, controlToken)) {
+    if (await wasDispatched(task, (path) => getGithubJson(path, controlToken))) {
       deduplicated += 1;
       continue;
     }

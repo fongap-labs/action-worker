@@ -2,6 +2,6 @@
   "schema_version": 1,
   "repositories": {
     "fongap-labs/ai-gateway": ["production"],
-    "fongap-labs/internal-vault": ["server-edge-cloud-edge"]
+    "fongap-labs/internal-vault/server-edge": ["server-edge-cloud-edge"]
   }
 }

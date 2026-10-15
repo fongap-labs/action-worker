@@ -338,14 +338,14 @@ Action Worker 的 CI 会强制执行自身的文件名与架构限制。业务�
   ```
 
   在能放下的情况下，`handle` 标记接收方；发送方命名为 `dispatch-*`（例如 `scripts/dispatch-central-ci.ts`）。
-- 扫描受管仓库并分发工作的定时对账工作流命名为 `<subject>-intake.yml`（例如 `pr-intake.yml`）。
+- 扫描受管仓库并分发工作的对账工作流只有一个：`intake.yml`（显示名 "Intake"）。新增的对账类工作作为它的一个作业加入，不新建 `<subject>-intake.yml`。
 - 负责发布或部署的工作流命名为 `release-<kind>.yml` 或 `deploy-<adapter>.yml`，使人能根据想要做的事找到正确的工作流。
   - `<kind>` 说明发布的对象：`app` 是由源仓库构建的应用，`tool` 是从上游镜像而来的第三方工具。
   - `<adapter>` 是 `policies/deploy.json` 中 `adapters` 的一个键（目前为 `source-script`）。
   - 名称中从不包含产品或仓库名。
-  - 每个此类工作流都声明 `workflow_dispatch`，因为人会从 Actions 标签页启动它；自动化也可以启动它（可信的 main 写入之后启动部署工作流，按计划启动工具发布），因此上面的 dispatch 事件规则不适用于它们。
+  - 上面的 dispatch 事件规则不适用于它们。谁可以手动启动它们由 8.3 节的工作流分类决定：`release-app.yml` 与 `deploy-source-script.yml` 是入口，`release-tool.yml` 按计划自动运行。
   - `docs/INTEGRATION_GUIDE.md` 第 12.1 节说明应运行哪一个。该测试检查 kind 与 adapter，因此新增 kind 或 adapter 必须是一次有意的修改。
-- 显示名称（`name:`）逐词拼出文件名，其中 `pr` 与 `ci` 写作 `PR` 与 `CI`（`pr-intake.yml` 的显示名为 "PR Intake"）。
+- 显示名称（`name:`）逐词拼出文件名，其中 `pr` 与 `ci` 写作 `PR` 与 `CI`（`central-ci-dispatch.yml` 的显示名为 "Central CI Dispatch"）。
 - 保留旧名称的文件会在测试中列出，并写明不值得重命名的原因。目前包括 `handle-pr-dispatch.yml`（`scripts/ci-evidence.ts` 中的 CI Evidence 信任锚点）与 `handle-pr-review.yml`（计入 AI Review 队列）。
 
 ### 8.2 文档语言
@@ -359,6 +359,26 @@ Action Worker 中供人和 Agent 使用的所有文档，按类型区分语言�
 `tests/documentation-language.test.ts` 检查上述规则：机器读取文档不得含有中文，面向人的文档必须含有中文，且仓库中不得存在 `*.zh-CN.md` 文件。
 
 本规则只适用于 Action Worker。业务仓库中工程语言检查对 Markdown 的豁免保持不变；业务仓库的人类阅读文档按 [SHARED_GOVERNANCE.md](SHARED_GOVERNANCE.md) 第 8.2 节使用中文。
+
+### 8.3 工作流分类
+
+Action Worker 的每个工作流恰好属于一个分类，同类工作流使用相同的启动方式与设置。`tests/workflow-classes.test.ts` 列出每个分类的成员并强制执行下表；新增工作流必须先放进其中一类。
+
+| 分类 | 成员 | 可用的触发事件 | Actions 页面上的 Run workflow 按钮 |
+|---|---|---|---|
+| 入口 | `release-app.yml`、`deploy-source-script.yml`、`task-source-dispatch.yml` | `workflow_dispatch`、`repository_dispatch` | 有，每个输入都有说明 |
+| 对账 | `intake.yml` | `push`（main）、`repository_dispatch`（`run-intake`）、`schedule` | 无 |
+| 事件处理 | `*-dispatch.yml`、`handle-pr-review.yml`、`cancel-pr-work.yml` | `repository_dispatch` | 无 |
+| 维护 | `apply-repository-settings.yml`、`main-write-guard.yml`、`prune-stale-state.yml`、`release-tool.yml`、`update-work-metrics.yml`、`validate-ci.yml` | `push`、`pull_request`、`schedule`、`workflow_run` | 无 |
+| 可复用 | `central-ci-sandbox.yml` | `workflow_call` | 无 |
+
+所有分类共同遵守：
+
+- 只有入口工作流可以手动启动。其他工作作为事件的结果自动发生；没有完成的工作由 Intake 在下一轮自动重新发起，不提供手动按钮。
+- 工作流级别的 `permissions` 不授予任何写权限；需要写的作业在作业级别声明。
+- 每个作业都有 `timeout-minutes`，每个外部 action 都固定到完整的提交 SHA。
+- 每个被启动的工作流都声明 `concurrency`（工作流级别，或在必须互斥的作业上）。
+- Action Worker 自身不使用 `pull_request_target`，从不在持有中央密钥的环境中运行 PR 代码。
 
 ## 9. 简要版本
 

@@ -21,12 +21,134 @@ type ChangeRecord = {
   changelog_changed: boolean;
 };
 
-function policyList(policy: Record<string, unknown>, key: string): string[] {
+function policyList(policy: Record<string, unknown>, key: string, owner = "release"): string[] {
   const value = policy[key];
   if (!Array.isArray(value) || !value.every((item) => typeof item === "string")) {
-    throw new CliError(`::error::Invalid release policy field: ${key}.`, 65);
+    throw new CliError(`::error::Invalid ${owner} policy field: ${key}.`, 65);
   }
   return value;
+}
+
+type AttributionPolicy = {
+  blockedTerms: string[];
+  identityOnlyTerms: string[];
+  blockedTrailerKeys: string[];
+  blockedLinePrefixes: string[];
+};
+
+async function loadAttributionPolicy(policyDir: string): Promise<AttributionPolicy> {
+  const value = await readJson(join(policyDir, "attribution.json"));
+  if (!isJsonRecord(value) || value.schema_version !== 1) {
+    throw new CliError("::error::Invalid attribution policy.", 65);
+  }
+  return {
+    blockedTerms: policyList(value, "blocked_terms", "attribution"),
+    identityOnlyTerms: policyList(value, "identity_only_terms", "attribution"),
+    blockedTrailerKeys: policyList(value, "blocked_trailer_keys", "attribution"),
+    blockedLinePrefixes: policyList(value, "blocked_line_prefixes", "attribution"),
+  };
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Returns the first whole-word match of any term, ignoring case.
+function termMatch(text: string, terms: readonly string[]): string | undefined {
+  if (terms.length === 0) return undefined;
+  const termPattern = new RegExp(`\\b(?:${terms.map(escapeRegExp).join("|")})\\b`, "i");
+  return termPattern.exec(text)?.[0];
+}
+
+// Returns the first line that starts with an attribution prefix, ignoring case. Only line starts
+// count, so prose that mentions the same words mid-sentence is not an attribution line.
+function attributionLine(text: string, prefixes: readonly string[]): string | undefined {
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    const lowered = trimmed.toLowerCase();
+    if (prefixes.some((prefix) => lowered.startsWith(prefix.toLowerCase()))) {
+      return trimmed;
+    }
+  }
+  return undefined;
+}
+
+// A trailer such as "Co-Authored-By: Name <email>" is checked by its value, so a human co-author
+// passes and an AI agent co-author fails. The key must be one of the policy trailer keys.
+function trailerViolations(
+  text: string,
+  keys: readonly string[],
+  terms: readonly string[]
+): string[] {
+  const found: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    const match = /^([A-Za-z-]+):\s*(.*)$/.exec(line.trim());
+    if (!match) continue;
+    const key = (match[1] ?? "").toLowerCase();
+    if (!keys.includes(key)) continue;
+    const named = termMatch(match[2] ?? "", terms);
+    if (named) {
+      found.push(`trailer ${match[1]} names an AI agent or model: ${named}`);
+    }
+  }
+  return found;
+}
+
+// Checks the PR title and every non-merge commit in base..head. The check blocks an AI agent or model
+// as author or committer, a trailer whose value names one, and an attribution line such as
+// "Generated with". Agent names in titles and in commit prose are allowed. Merge commits are skipped
+// because git writes the branch name into their subject.
+export async function assertAttributionFree(
+  title: string,
+  base: string,
+  head: string,
+  root: string,
+  policyDir: string
+): Promise<void> {
+  const policy = await loadAttributionPolicy(policyDir);
+  const problems: string[] = [];
+  const titleLine = attributionLine(title, policy.blockedLinePrefixes);
+  if (titleLine) {
+    problems.push(`PR title is an attribution line: ${titleLine}`);
+  }
+  const log = await runText(
+    "git",
+    ["log", "--no-merges", "--format=%H%x1f%an%x1f%ae%x1f%cn%x1f%ce%x1f%B%x1e", `${base}..${head}`],
+    { cwd: root }
+  );
+  const identityTerms = [...policy.blockedTerms, ...policy.identityOnlyTerms];
+  for (const record of log.split("\x1e")) {
+    const [
+      sha = "",
+      authorName = "",
+      authorEmail = "",
+      committerName = "",
+      committerEmail = "",
+      body = "",
+    ] = record.split("\x1f");
+    const commit = sha.trim();
+    if (!commit) continue;
+    const identity = [authorName, authorEmail, committerName, committerEmail].join("\n");
+    const identityName = termMatch(identity, identityTerms);
+    if (identityName) {
+      problems.push(
+        `commit ${commit.slice(0, 7)} author or committer names an AI agent or model: ${identityName}`
+      );
+    }
+    for (const problem of trailerViolations(body, policy.blockedTrailerKeys, policy.blockedTerms)) {
+      problems.push(`commit ${commit.slice(0, 7)} ${problem}`);
+    }
+    const bodyLine = attributionLine(body, policy.blockedLinePrefixes);
+    if (bodyLine) {
+      problems.push(`commit ${commit.slice(0, 7)} has an attribution line: ${bodyLine}`);
+    }
+  }
+  if (problems.length > 0) {
+    throw new CliError(
+      `::error::Attribution check failed: ${problems.slice(0, 10).join("; ")}. Rewrite the listed commits so that the author and committer are your own GitHub account (git config user.name and user.email, then git rebase <base> --exec 'git commit --amend --no-edit --reset-author') and no trailer or line in the message names an AI agent (git rebase -i <base>, reword), then force-push the branch.`,
+      65
+    );
+  }
 }
 
 export async function validateChange(
@@ -40,9 +162,13 @@ export async function validateChange(
   if (!isJsonRecord(value) || typeof value.changelog_file !== "string") {
     throw new CliError("::error::Invalid release policy.", 65);
   }
+  await assertAttributionFree(title, base, head, root, policyDir);
   const match = /^([a-z]+)(?:\(([A-Za-z0-9._/-]+)\))?(!)?:\s+(.+)$/.exec(title);
   if (!match) {
-    throw new CliError("::error::PR title must use type(scope)!: summary format.", 64);
+    throw new CliError(
+      `::error::PR title must use type(scope)!: summary format, for example 'fix(deploy): retry the health check'. Allowed types: ${policyList(value, "change_types").join(", ")}. Edit the pull request title.`,
+      64
+    );
   }
   const changeType = match[1] ?? "";
   const scope = match[2] ?? "";
@@ -82,7 +208,10 @@ export async function validateChange(
     for (const line of additions.filter((entry) => entry.startsWith("- "))) {
       const entry = /^- ([a-z]+)(?: \[([^\]]+)\])?: (.+)$/.exec(line);
       if (!entry) {
-        throw new CliError(`::error::Invalid CHANGELOG entry: ${line}`, 65);
+        throw new CliError(
+          `::error::Invalid CHANGELOG entry: ${line} Each added entry must look like '- fix: summary' or '- fix [breaking]: summary'.`,
+          65
+        );
       }
       const entryType = entry[1] ?? "";
       const entrySummary = entry[3] ?? "";

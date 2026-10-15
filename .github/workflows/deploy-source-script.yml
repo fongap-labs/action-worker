@@ -1,4 +1,4 @@
-name: Deploy Source Script
+name: 手动 · 部署服务
 
 on:
   repository_dispatch:
@@ -6,32 +6,50 @@ on:
   workflow_dispatch:
     inputs:
       source_repository:
-        description: Managed source repository
+        description: 源仓库（owner/name 形式，例如 your-org/your-service）
         required: true
         type: string
       source_sha:
-        description: Exact 40-character source commit SHA
-        required: true
+        description: 目标提交 SHA（40 位；留空则部署默认分支最新提交）
+        required: false
+        type: string
+      product:
+        description: 产品目录名（多产品仓库位于 projects/<产品>/ 下，必填；单产品仓库清单在 .github/ 根下，留空）
+        required: false
+        type: string
+      environment:
+        description: 目标环境（须为源清单已声明者，如 production；单环境可留空）
+        required: false
         type: string
 
 permissions:
   contents: read
 
+# One group per repository, product and environment. The product segment is omitted for the root
+# layout, so a repository with one root manifest keeps the group source-script-deploy-<repository>-<environment>.
 concurrency:
-  group: source-script-deploy-${{ github.event.client_payload.source_repository || inputs.source_repository || 'manual' }}
+  group: ${{ format('source-script-deploy-{0}{1}-{2}', github.event.client_payload.source_repository || inputs.source_repository || 'manual', (github.event.client_payload.product || inputs.product) && format('-{0}', github.event.client_payload.product || inputs.product) || '', github.event.client_payload.environment || inputs.environment || 'manual') }}
   cancel-in-progress: false
 
 jobs:
   prepare:
     name: Validate source-script deploy request
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # The source validation waits up to 20 minutes for the central CI verdict of the source.
+    timeout-minutes: 30
+    # contents: write lets the manual path dispatch central CI with the workflow token, like Task
+    # Source Dispatch; the deploy job below keeps the read-only workflow permission.
+    permissions:
+      contents: write
     outputs:
       source_repository: ${{ steps.source.outputs.source_repository }}
       source_sha: ${{ steps.source.outputs.source_sha }}
       runner_labels_json: ${{ steps.source.outputs.runner_labels_json }}
       environment: ${{ steps.source.outputs.environment }}
       entrypoint: ${{ steps.source.outputs.entrypoint }}
+      product: ${{ steps.source.outputs.product }}
+      product_directory: ${{ steps.source.outputs.product_directory }}
+      trigger: ${{ steps.source.outputs.trigger }}
 
     steps:
       - name: Checkout control plane
@@ -59,26 +77,69 @@ jobs:
         id: manual_request
         if: github.event_name == 'workflow_dispatch'
         env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           SOURCE_SHA: ${{ inputs.source_sha }}
+          SOURCE_PRODUCT: ${{ inputs.product }}
+          SOURCE_ENVIRONMENT: ${{ inputs.environment }}
         shell: bash
         run: |
           set -Eeuo pipefail
-          [[ "$SOURCE_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]
-          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          # Names the offending input and the allowed repositories instead of exiting silently.
+          node scripts/repository-policy.ts validate "$SOURCE_REPOSITORY" deploy
+          if [ -z "$SOURCE_SHA" ]; then
+            default_branch="$(gh api "repos/$SOURCE_REPOSITORY" --jq '.default_branch')"
+            SOURCE_SHA="$(gh api "repos/$SOURCE_REPOSITORY/commits/$default_branch" --jq '.sha')"
+          fi
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::source_sha must be a full 40-character lowercase commit SHA, or empty to deploy the current default-branch HEAD: got '$SOURCE_SHA'." >&2
+            exit 64
+          }
+          {
+            echo "source_repository=$SOURCE_REPOSITORY"
+            echo "source_sha=$SOURCE_SHA"
+          } >> "$GITHUB_OUTPUT"
           request="$(
             jq -cn \
               --arg request_id "manual-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" \
               --arg source_repository "$SOURCE_REPOSITORY" \
               --arg source_sha "$SOURCE_SHA" \
+              --arg product "$SOURCE_PRODUCT" \
+              --arg environment "$SOURCE_ENVIRONMENT" \
               '{
                 schema_version: "1",
                 request_id: $request_id,
                 source_repository: $source_repository,
-                source_sha: $source_sha
+                source_sha: $source_sha,
+                product: $product,
+                environment: $environment
               }'
           )"
           echo "request_json=$request" >> "$GITHUB_OUTPUT"
+
+      # Intake may not have reached this source yet, so every deploy asks for central CI and
+      # attests the main write on its own source now; both are no-ops when already done. An
+      # automatic deploy can name a newer main than the commit whose CI started it (see
+      # scripts/dispatch-central-deploy.ts). The validation stays the authority and reports an
+      # untrusted write.
+      - name: Request central CI for the source
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_CONTROL_REPOSITORY: ${{ github.repository }}
+          AW_CI_INTAKE_REPOSITORY: ${{ steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository }}
+        run: node scripts/intake-main-ci.ts
+
+      - name: Attest the source main write
+        continue-on-error: true
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          MAIN_WRITE_AUDIT_REPOSITORY: ${{ steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository }}
+          MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/audit-main-writes.ts
 
       - name: Validate deploy source
         id: source
@@ -93,6 +154,11 @@ jobs:
     name: Execute source-script deploy
     needs: prepare
     environment: ${{ needs.prepare.outputs.environment }}
+    # The group uses the resolved values, so a request that left the product or environment empty
+    # still queues behind the same deploy of that product and environment.
+    concurrency:
+      group: source-script-deploy-${{ needs.prepare.outputs.source_repository }}${{ needs.prepare.outputs.product && format('-{0}', needs.prepare.outputs.product) || '' }}-${{ needs.prepare.outputs.environment }}
+      cancel-in-progress: false
     runs-on: ${{ fromJSON(needs.prepare.outputs.runner_labels_json) }}
     timeout-minutes: 45
     env:
@@ -100,6 +166,9 @@ jobs:
       DEPLOY_SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
       DEPLOY_ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
       DEPLOY_ENTRYPOINT: ${{ needs.prepare.outputs.entrypoint }}
+      DEPLOY_PRODUCT: ${{ needs.prepare.outputs.product }}
+      DEPLOY_PRODUCT_DIRECTORY: ${{ needs.prepare.outputs.product_directory }}
+      DEPLOY_TRIGGER: ${{ needs.prepare.outputs.trigger }}
       AW_DEPLOY_SECRET_POLICY_MODE: ${{ vars.AW_DEPLOY_SECRET_POLICY_MODE || 'warn' }}
 
     steps:
@@ -142,16 +211,17 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          # The target declares its secrets, the central policy caps them (policies/deploy-secrets.json),
-          # and the control-plane credentials can never be requested.
+          # The target declares its secrets in its product directory (.github/ for the root layout), the
+          # central policy caps them per product (policies/deploy-secrets.json), and the control-plane
+          # credentials can never be requested.
           scope="$(
             node control/scripts/resolve-secret-scope.ts \
               "${RUNNER_TEMP}/action-worker-base-env.names" \
-              "target/.github/deploy.secrets.required" \
-              "target/.github/deploy.secrets.allowed" \
+              "target/${DEPLOY_PRODUCT_DIRECTORY}/deploy.secrets.required" \
+              "target/${DEPLOY_PRODUCT_DIRECTORY}/deploy.secrets.allowed" \
               "AW_CONTROL_TOKEN,AW_ADMIN_TOKEN,AW_DISPATCH_TOKEN,AW_CHECKOUT_TOKEN,GH_TOKEN,NODE_OPTIONS" \
               "control/policies/deploy-secrets.json" \
-              "$DEPLOY_SOURCE_REPOSITORY" "$DEPLOY_ENVIRONMENT" deploy
+              "$DEPLOY_SOURCE_REPOSITORY" "$DEPLOY_ENVIRONMENT" deploy "$DEPLOY_PRODUCT"
           )"
 
           # Aliases first: a declared name takes the value of the stored secret the central policy
@@ -192,7 +262,9 @@ jobs:
             echo "## Source Script central deployment"
             echo
             echo "- Source: $DEPLOY_SOURCE_REPOSITORY@$DEPLOY_SOURCE_SHA"
+            echo "- Product: ${DEPLOY_PRODUCT:-(root)}"
             echo "- Environment: $DEPLOY_ENVIRONMENT"
+            echo "- Trigger: $DEPLOY_TRIGGER"
             echo "- Entrypoint: $DEPLOY_ENTRYPOINT"
             echo "- Result: ${{ job.status }}"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -87,8 +87,8 @@
   "path_terms": ["secret", "token", "auth", "permission", "credential"],
   "approved_workflows": [
     {
-      "path": ".github/workflows/dispatch-pr-governance.yml",
-      "sha256": "3128db3d54dcbafe4634d0140a3181e34ff0f0f5141be1af8c0111979d4d8fde"
+      "path": ".github/workflows/notify-action-worker.yml",
+      "sha256": "449b264bb08d6bab6421918aeab2769ff492ca464f1607bff575f9ba80174784"
     }
   ]
 }

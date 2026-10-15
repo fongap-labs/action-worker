@@ -1,0 +1,70 @@
+name: 自动 · 状态清理
+
+# Removes what nobody needs any more: branches whose work is fully on main in every managed
+# repository, and the run history of workflows whose file is gone from Action Worker's main, so the
+# Actions sidebar lists only workflows that exist.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/prune-stale-state.yml
+      - scripts/prune-stale-branches.ts
+      - scripts/prune-orphaned-runs.ts
+      - .github/branch-prune.json
+  schedule:
+    - cron: "31 5 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prune-stale-state
+  cancel-in-progress: false
+
+jobs:
+  branches:
+    name: Prune stale branches
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Prune fully subsumed branches
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+        run: node scripts/prune-stale-branches.ts
+
+  runs:
+    name: Prune runs of removed workflows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    # Deleting runs of this repository needs actions: write; no central secret is used.
+    permissions:
+      actions: write
+      contents: read
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Delete runs of removed workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/prune-orphaned-runs.ts

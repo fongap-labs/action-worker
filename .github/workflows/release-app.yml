@@ -1,4 +1,4 @@
-name: Release App
+name: 手动 · 发布应用
 
 on:
   repository_dispatch:
@@ -6,26 +6,34 @@ on:
   workflow_dispatch:
     inputs:
       source_repository:
-        description: Managed source repository in owner/name form
+        description: 源仓库（owner/name 形式，例如 your-org/your-app）
         required: true
         type: string
       requested_version:
-        description: Application version in stable SemVer; the only source of the released version
+        description: 发布版本号（稳定语义化版本，如 1.2.3 或 v1.2.3，不允许 pre-release 或 build 后缀）
         required: true
+        type: string
+      product:
+        description: 产品目录名（多产品仓库位于 projects/<产品>/ 下，必填；单产品仓库清单在 .github/ 根下，留空）
+        required: false
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: release-build-${{ github.event.client_payload.source_repository || inputs.source_repository }}-${{ github.event.client_payload.source_sha || github.run_id }}
+  group: release-build-${{ github.event.client_payload.source_repository || inputs.source_repository }}${{ (github.event.client_payload.product || inputs.product) && format('-{0}', github.event.client_payload.product || inputs.product) || '' }}-${{ github.event.client_payload.source_sha || github.run_id }}
   cancel-in-progress: false
 
 jobs:
   prepare:
     name: Prepare release build
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    # The request validation waits up to 20 minutes for the central CI verdict of the source.
+    timeout-minutes: 30
+    # Asking for central CI sends an event to this repository, which needs contents: write.
+    permissions:
+      contents: write
 
     outputs:
       source_repository: ${{ steps.request.outputs.source_repository }}
@@ -37,6 +45,8 @@ jobs:
       node_version_file: ${{ steps.request.outputs.node_version_file }}
       python_version_file: ${{ steps.request.outputs.python_version_file }}
       sbom_asset: ${{ steps.request.outputs.sbom_asset }}
+      manifest_path: ${{ steps.request.outputs.manifest_path }}
+      product_root: ${{ steps.request.outputs.product_root }}
 
     steps:
       - name: Checkout control plane
@@ -48,6 +58,10 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Resolve release build ingress
         id: ingress
@@ -57,7 +71,31 @@ jobs:
           RELEASE_DISPATCH_JSON: ${{ toJSON(github.event.client_payload) }}
           RELEASE_SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           RELEASE_REQUESTED_VERSION: ${{ inputs.requested_version }}
+          RELEASE_PRODUCT: ${{ inputs.product }}
         run: node scripts/resolve-release-build-ingress.ts
+
+      # Intake may not have reached this source yet, so a release asks for central CI on its own
+      # source now; the validation below waits for the verdict.
+      - name: Request central CI for the source
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_CONTROL_REPOSITORY: ${{ github.repository }}
+          AW_CI_INTAKE_REPOSITORY: ${{ steps.ingress.outputs.source_repository }}
+        run: node scripts/intake-main-ci.ts
+
+      # The validation accepts only a main SHA attested as a merged pull request. Attest it now, the
+      # same way Intake does, so the release does not wait for the next Intake run. The validation
+      # stays the authority and reports an untrusted write.
+      - name: Attest the source main write
+        continue-on-error: true
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          MAIN_WRITE_AUDIT_REPOSITORY: ${{ steps.ingress.outputs.source_repository }}
+          MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/audit-main-writes.ts
 
       - name: Validate release build request
         id: request
@@ -116,11 +154,18 @@ jobs:
           RELEASE_SCRIPT: ${{ matrix.script }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
           RELEASE_OUTPUT_DIR: ${{ runner.temp }}\release-build
+          RELEASE_PRODUCT_RELATIVE_ROOT: ${{ needs.prepare.outputs.product_root }}
         run: |
           $ErrorActionPreference = "Stop"
           $script = Join-Path "$PWD\source" $env:RELEASE_SCRIPT
           if (-not (Test-Path -LiteralPath $script -PathType Leaf)) {
             throw "release build script not found: $script"
+          }
+          # The product root is the build root from the release manifest; the empty root is the repository root.
+          $relativeRoot = if ($env:RELEASE_PRODUCT_RELATIVE_ROOT) { $env:RELEASE_PRODUCT_RELATIVE_ROOT } else { "." }
+          $env:RELEASE_PRODUCT_ROOT = [System.IO.Path]::GetFullPath((Join-Path "$PWD\source" $relativeRoot))
+          if (-not (Test-Path -LiteralPath $env:RELEASE_PRODUCT_ROOT -PathType Container)) {
+            throw "release product root not found: $env:RELEASE_PRODUCT_ROOT"
           }
           & $script -Target $env:RELEASE_TARGET -Version $env:RELEASE_VERSION -OutputDir $env:RELEASE_OUTPUT_DIR
           if ($LASTEXITCODE -ne 0) {
@@ -148,6 +193,9 @@ jobs:
       - build-windows
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    # Sending the run-release event needs contents: write.
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout control plane
@@ -192,9 +240,10 @@ jobs:
           SOURCE_REPOSITORY: ${{ needs.prepare.outputs.source_repository }}
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_MANIFEST_PATH: ${{ needs.prepare.outputs.manifest_path }}
         run: |
           node scripts/package-release-build.ts \
-            "$GITHUB_WORKSPACE/source/.github/release.manifest.json" \
+            "$GITHUB_WORKSPACE/source/$RELEASE_MANIFEST_PATH" \
             "$SOURCE_REPOSITORY" \
             "$SOURCE_SHA" \
             "$RELEASE_VERSION" \

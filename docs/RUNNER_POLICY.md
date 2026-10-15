@@ -176,9 +176,9 @@ Deploy 再硬编码第三套
 
 > 替换 GitHub 托管 Runner、新增 self-hosted Runner，或迁移计算基础设施，都不需要修改业务仓库中的执行逻辑。
 
-## 11. PR 分发器的 Runner 扩展
+## 11. 业务仓库桥接的 Runner 扩展
 
-业务仓库可以使用已批准的最薄 PR 触发器 `templates/pr-dispatcher/dispatch-pr-governance.yml`，使 PR 事件在约一分钟内到达中央治理。它运行在控制域中，只发送通知，既不检出也不执行任何 PR 代码。
+业务仓库使用已批准的最薄桥接 `templates/bridge/notify-action-worker.yml`，使 PR 事件与 `main` 的 push 在约一分钟内到达 Action Worker。它运行在控制域中，只发送通知，既不检出也不执行任何 PR 代码。
 
 Runner 选择遵循第 1 节：业务仓库中的工作流文件不包含 Runner 名称或标签；`runs-on` 读取一个由中央管理的仓库变量：
 

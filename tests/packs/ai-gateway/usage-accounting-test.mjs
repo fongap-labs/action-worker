@@ -791,7 +791,7 @@ try {
   });
 
   if (!process.exitCode) console.log(`\ntoken-usage tests passed (${passed}).`);
-  else suiteExit(1);
+  else throw new Error('suite stopped after recorded failures');
   console.log('ok - file:token-usage');
 } catch (error) {
   console.error('not ok - token-usage-test.mjs failed');
@@ -1341,7 +1341,7 @@ try {
   });
 
   if (!process.exitCode) console.log(`\ntoken-usage-store tests passed (${passed}).`);
-  else suiteExit(1);
+  else throw new Error('suite stopped after recorded failures');
   console.log('ok - file:token-usage-store');
 } catch (error) {
   console.error('not ok - token-usage-store-test.mjs failed');
@@ -1593,7 +1593,7 @@ try {
   }
   if (failed) {
     console.error(`upstream-attempt-usage: ${failed}/${tests.length} failed`);
-    suiteExit(1);
+    throw new Error('suite stopped after recorded failures');
   }
   console.log(`upstream-attempt-usage tests passed (${tests.length}).`);
   console.log('ok - file:upstream-attempt-usage');
@@ -1713,7 +1713,7 @@ try {
   });
 
   if (!process.exitCode) console.log(`daily-token-overlay tests passed (${passed}).`);
-  else suiteExit(1);
+  else throw new Error('suite stopped after recorded failures');
   console.log('ok - file:daily-token-overlay');
 } catch (error) {
   console.error('not ok - daily-token-overlay-test.mjs failed');
@@ -1942,7 +1942,7 @@ try {
 
   if (failures > 0) {
     console.error(`ttft-query-contract: ${failures} contract(s) FAILED`);
-    suiteExit(1);
+    throw new Error('suite stopped after recorded failures');
   }
   console.log('ttft-query-contract: all contracts passed');
   console.log('ok - file:ttft-query-contract');
@@ -2107,7 +2107,7 @@ try {
 
   if (failures > 0) {
     console.error(`model-stats-canonicalization: ${failures} contract(s) FAILED`);
-    suiteExit(1);
+    throw new Error('suite stopped after recorded failures');
   }
   console.log('model-stats-canonicalization: all contracts passed');
   console.log('ok - file:model-stats-canonicalization');

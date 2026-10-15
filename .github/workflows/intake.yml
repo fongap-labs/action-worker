@@ -1,0 +1,220 @@
+name: 自动 · 总控调度
+
+# Finds the work that the managed repositories need and dispatches it. Every job is idempotent: it
+# acts only on what has no verdict yet, so running often is safe and cheap. GitHub starts the
+# schedule of this repository only every few hours, so the push of main and the run-intake event
+# (sent by the repository bridges and by Action Worker itself) are the heartbeat, and the schedule
+# is the fallback. Nobody starts this workflow by hand.
+on:
+  push:
+    branches: [main]
+  repository_dispatch:
+    types: [run-intake]
+  schedule:
+    - cron: "*/5 * * * *"
+    - cron: "17 3 * * 1"
+
+permissions: {}
+
+concurrency:
+  group: intake
+  cancel-in-progress: false
+
+jobs:
+  pull-requests:
+    name: Pull requests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # contents: write lets the workflow token send the dispatch events.
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Reconcile open pull requests
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_CONTROL_REPOSITORY: ${{ github.repository }}
+        run: node scripts/intake-open-prs.ts
+
+  main-ci:
+    name: Main CI
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Reconcile main CI
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_CONTROL_REPOSITORY: ${{ github.repository }}
+        run: node scripts/intake-main-ci.ts
+
+  main-writes:
+    name: Main write audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # The audit reads and writes statuses with the control token; the workflow token only checks out.
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Audit managed main branches
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/audit-main-writes.ts
+
+  task-sources:
+    name: Changed task projects
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Reconcile task sources
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_CONTROL_REPOSITORY: ${{ github.repository }}
+        run: node scripts/intake-task-sources.ts
+
+  task-schedules:
+    name: Scheduled task projects
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      # A slot up to 12 hours late runs once: only the latest due slot of each project is dispatched,
+      # and dispatches are deduplicated per slot.
+      - name: Dispatch due scheduled tasks
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_CONTROL_REPOSITORY: ${{ github.repository }}
+          TASK_SOURCE_LOOKBACK_MINUTES: "720"
+        run: node scripts/dispatch-scheduled-tasks.ts
+
+  deploy-schedules:
+    name: Scheduled deploys
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      # A slot up to 12 hours late runs once: only the latest due slot of each product environment is dispatched.
+      - name: Dispatch due scheduled deploys
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_CONTROL_REPOSITORY: ${{ github.repository }}
+          DEPLOY_SCHEDULE_LOOKBACK_MINUTES: "720"
+        run: node scripts/dispatch-scheduled-deploys.ts
+
+  security-scans:
+    name: Weekly security scans
+    # Every central CI pass already scans its commit; this weekly run rescans unchanged default
+    # branches for newly published vulnerabilities. It dispatches without deduplication, so it runs
+    # only on its own schedule and never on the heartbeat.
+    if: github.event.schedule == '17 3 * * 1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+
+      - name: Reconcile default-branch security scans
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_CONTROL_REPOSITORY: ${{ github.repository }}
+        run: node scripts/intake-security-scans.ts

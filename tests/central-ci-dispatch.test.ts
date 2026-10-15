@@ -86,6 +86,18 @@ test("central CI re-checks PR trust before resolving what to execute", () => {
   );
 });
 
+test("follow-ups still run when the Windows job is skipped for a target without Windows CI", () => {
+  const windows = workflow.slice(
+    workflow.indexOf("\n  windows:\n"),
+    workflow.indexOf("  finalize:")
+  );
+  assert.match(windows, /has_windows == 'true'/, "the windows job is conditional");
+  const followUp = workflow.slice(workflow.indexOf("  follow-up:"));
+  // Without a status function GitHub adds an implicit success(), which a skipped ancestor fails.
+  assert.match(followUp, /\n {4}if: always\(\) && needs\.finalize\.result == 'success'\n/);
+  assert.match(followUp, /needs:\n\s+- prepare\n\s+- finalize\n/);
+});
+
 test("a pull request CI that fails in prepare still publishes a CI Evidence verdict", () => {
   const job = workflow.slice(
     workflow.indexOf("  prepare-failure:"),

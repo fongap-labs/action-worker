@@ -64,9 +64,18 @@ Reject duplicated authority, hidden coupling, repository-name branching, and new
 
 A failing check blocks only according to the repository's real policy. Diagnose whether it is caused by the PR before requesting unrelated code changes.
 
+## Review axes
+
+Report two axes separately:
+
+- **Intent (spec)**: does the change implement the requested behavior from the originating task brief or issue? Report requirements that are missing or partial, behavior that was not requested, and requirements that look implemented but are implemented wrongly. Quote the requirement for each finding. If no spec is available, say so in the report instead of skipping the axis silently.
+- **Standards**: does the change follow the repository's documented standards? Cite the document and the rule for each finding.
+
+Do not rank findings across axes. A change can pass one axis and fail the other, and one merged ranking hides that.
+
 ## Review output
 
-Prioritize findings by severity and provide:
+Prioritize findings by severity within each axis and provide:
 - concrete file/behavior;
 - failure mechanism;
 - impact;
@@ -74,3 +83,7 @@ Prioritize findings by severity and provide:
 - verification needed.
 
 Do not invent findings to fill categories.
+
+## Provenance
+
+The two-axis split (intent and standards, reported separately) is adapted from the `code-review` skill of `mattpocock/skills` (MIT License, Copyright (c) 2026 Matt Pocock). Its parallel sub-agents and smell checklist are not included: the review runs as one advisory pass, and a fixed checklist would encourage findings that do not exist.

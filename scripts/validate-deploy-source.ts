@@ -1,7 +1,13 @@
-import { requireVerifiedCiEvidence } from "./ci-evidence.ts";
-import { type DeployAdapter, resolveDeployManifest } from "./deploy-manifest.ts";
+import { centralCiWait, requireVerifiedCiEvidence } from "./ci-evidence.ts";
+import {
+  type DeployAdapter,
+  isDeployEnvironmentName,
+  type ResolvedDeployManifest,
+  resolveDeployManifest,
+} from "./deploy-manifest.ts";
 import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
+import { discoverProducts, isProductName, selectProduct } from "./product-discovery.ts";
 import {
   appendLines,
   CliError,
@@ -11,36 +17,53 @@ import {
   readJson,
 } from "./runtime-command.ts";
 
+export type DeployTrigger = "manual" | "push" | "schedule";
+
 export type DeployRequest = {
   schema_version: "1";
   request_id: string;
   source_repository: string;
   source_sha: string;
+  // Optional: empty or absent selects the only product (or the root manifest) of the source.
+  product?: string;
+  environment?: string;
+  trigger?: DeployTrigger;
 };
 
 const requestPattern = /^[A-Za-z0-9._:-]{1,128}$/;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
+const triggers: readonly string[] = ["manual", "push", "schedule"];
+const requiredKeys = ["request_id", "schema_version", "source_repository", "source_sha"];
+const optionalKeys = ["environment", "product", "trigger"];
 
-function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
-  const actual = Object.keys(value).sort();
-  const expected = [...keys].sort();
+function hasOnlyKeys(value: Record<string, unknown>): boolean {
+  const keys = Object.keys(value);
   return (
-    actual.length === expected.length && actual.every((item, index) => item === expected[index])
+    requiredKeys.every((key) => key in value) &&
+    keys.every((key) => requiredKeys.includes(key) || optionalKeys.includes(key))
   );
 }
 
 export function parseDeployRequest(value: unknown): DeployRequest {
   if (
     !isJsonRecord(value) ||
-    !exactKeys(value, ["request_id", "schema_version", "source_repository", "source_sha"]) ||
+    !hasOnlyKeys(value) ||
     value.schema_version !== "1" ||
     typeof value.request_id !== "string" ||
     !requestPattern.test(value.request_id) ||
     typeof value.source_repository !== "string" ||
     !repositoryPattern.test(value.source_repository) ||
     typeof value.source_sha !== "string" ||
-    !shaPattern.test(value.source_sha)
+    !shaPattern.test(value.source_sha) ||
+    (value.product !== undefined &&
+      (typeof value.product !== "string" ||
+        (value.product !== "" && !isProductName(value.product)))) ||
+    (value.environment !== undefined &&
+      (typeof value.environment !== "string" ||
+        (value.environment !== "" && !isDeployEnvironmentName(value.environment)))) ||
+    (value.trigger !== undefined &&
+      (typeof value.trigger !== "string" || !triggers.includes(value.trigger)))
   ) {
     throw new CliError("::error::Deploy request is invalid.", 64);
   }
@@ -58,6 +81,26 @@ export function assertExpectedRepository(request: DeployRequest, expectedReposit
     throw new CliError(
       "::error::Deploy request repository does not match the executor contract.",
       64
+    );
+  }
+}
+
+// A request names the trigger that started it; the source manifest must declare that trigger for the
+// environment, so a request cannot deploy an environment on a trigger it does not have.
+export function assertDeployTrigger(
+  trigger: DeployTrigger,
+  manifest: Pick<ResolvedDeployManifest, "automatic" | "schedule" | "environment">
+): void {
+  if (trigger === "push" && !manifest.automatic) {
+    throw new CliError(
+      `::error::Push deploy requires a push trigger, and the source manifest declares none for ${manifest.environment}.`,
+      65
+    );
+  }
+  if (trigger === "schedule" && manifest.schedule.length === 0) {
+    throw new CliError(
+      `::error::Scheduled deploy requires a schedule, and the source manifest declares none for ${manifest.environment}.`,
+      65
     );
   }
 }
@@ -122,13 +165,23 @@ async function main(): Promise<void> {
     );
   }
 
+  const trigger = request.trigger ?? "manual";
+  const discovery = await discoverProducts(reader, request.source_repository, resolvedSha);
+  const product = selectProduct(discovery.products, request.product ?? "");
+  if (product.files["deploy.json"] === undefined) {
+    throw new CliError(
+      `::error::Deploy manifest is missing for the requested product: ${product.directory || "(root)"}.`,
+      65
+    );
+  }
   const manifest = await resolveDeployManifest(
     request.source_repository,
     resolvedSha,
     parseJson(rawRepositoryPolicy, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
     await readJson(runnerPolicyPath),
     reader,
-    await readJson(environmentPolicyPath)
+    await readJson(environmentPolicyPath),
+    { product: product.name, environment: request.environment ?? "" }
   );
   if (manifest.adapter !== expectedAdapter) {
     throw new CliError(
@@ -136,8 +189,10 @@ async function main(): Promise<void> {
       65
     );
   }
+  assertDeployTrigger(trigger, manifest);
 
-  await requireVerifiedCiEvidence(reader, request.source_repository, resolvedSha);
+  // A manual deploy requests central CI for the commit just before this step, so wait for it.
+  await requireVerifiedCiEvidence(reader, request.source_repository, resolvedSha, centralCiWait);
 
   const mainWrite = await assertTrustedMainWrite(
     reader,
@@ -151,6 +206,9 @@ async function main(): Promise<void> {
     `source_sha=${resolvedSha}`,
     `default_branch=${defaultBranch}`,
     `adapter=${manifest.adapter}`,
+    `product=${manifest.product}`,
+    `product_directory=${manifest.product_directory}`,
+    `trigger=${trigger}`,
     `runner_profile=${manifest.runner_profile}`,
     `runner_labels_json=${manifest.runner_labels_json}`,
     `environment=${manifest.environment}`,
@@ -161,9 +219,12 @@ async function main(): Promise<void> {
     "## Deploy source gate",
     "",
     `- Repository: ${request.source_repository}`,
+    `- Product: ${manifest.product || "(root)"}`,
     `- Commit: ${resolvedSha}`,
     `- Default branch: ${defaultBranch}`,
     `- Adapter: ${manifest.adapter}`,
+    `- Environment: ${manifest.environment}`,
+    `- Trigger: ${trigger}`,
     `- Runner profile: ${manifest.runner_profile}`,
     `- Require default HEAD: ${requireDefaultHeadRaw}`,
     "- CI Evidence: verified Action Worker success",

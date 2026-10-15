@@ -70,7 +70,7 @@ DEPLOYMENT_DOC = SERVICE / "docs" / "DEPLOYMENT.md"
 
 BOOTSTRAP = SERVICE / "install" / "bootstrap.sh"
 
-DEPLOY_MANIFEST = ROOT / ".github" / "deploy.json"
+DEPLOY_MANIFEST = ROOT / "projects" / "server-edge" / "deploy.json"
 
 LOCAL_DEPLOY_WORKFLOW = ROOT / ".github" / "workflows" / "server-edge-deploy.yml"
 
@@ -99,14 +99,16 @@ def test_bootstrap_does_not_fetch_repository() -> None:
 def test_deploy_is_source_owned_and_centrally_executed() -> None:
     manifest = json.loads(DEPLOY_MANIFEST.read_text(encoding="utf-8"))
     assert manifest == {
-        "schema_version": "1",
+        "schema_version": "2",
         "adapter": "source-script",
-        "automatic": False,
-        "ignore_docs_only": True,
-        "runner_profile": "production-deploy",
-        "environment": "server-edge-cloud-edge",
+        "root": "services/server-edge",
         "entrypoint": "environments/server-edge/deploy.sh",
+        "runner_profile": "production-deploy",
+        "ignore_docs_only": True,
+        "environments": {"server-edge-cloud-edge": {}},
     }
+    # A repository keeps one layout: the root manifest must not sit beside the product.
+    assert not (ROOT / ".github" / "deploy.json").exists()
     assert not LOCAL_DEPLOY_WORKFLOW.exists()
 
 def test_primary_server_edge_identity_is_cloud_edge() -> None:

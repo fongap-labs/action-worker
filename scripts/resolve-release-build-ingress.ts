@@ -16,7 +16,8 @@ export async function resolveManualReleaseBuild(
   policy: unknown,
   reader: GithubGet,
   runId: string,
-  runAttempt: string
+  runAttempt: string,
+  product = ""
 ): Promise<ReturnType<typeof parseReleaseBuildRequest>> {
   const requestedVersion = normalizeReleaseVersion(requestedVersionRaw);
   validateRepositoryCapability(repository, policy, "release-source");
@@ -36,6 +37,8 @@ export async function resolveManualReleaseBuild(
     source_repository: repository,
     source_sha: sourceSha,
     requested_version: requestedVersion,
+    // An empty product is left out, so a single-product request keeps its existing shape.
+    ...(product === "" ? {} : { product }),
   });
 }
 
@@ -67,7 +70,8 @@ async function main(): Promise<void> {
       policy,
       new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token),
       process.env.GITHUB_RUN_ID ?? "",
-      process.env.GITHUB_RUN_ATTEMPT ?? "1"
+      process.env.GITHUB_RUN_ATTEMPT ?? "1",
+      process.env.RELEASE_PRODUCT ?? ""
     );
   } else {
     throw new CliError(`Unsupported release ingress event: ${eventName}.`, 64);

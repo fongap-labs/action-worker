@@ -1,4 +1,9 @@
 import { readFile } from "node:fs/promises";
+import {
+  assertUniqueEnvironments,
+  isDeployPolicyKey,
+  productPolicyKey,
+} from "./deploy-policy-key.ts";
 import { isJsonRecord } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 
@@ -103,21 +108,58 @@ export async function readSecretAliases(
   return aliases;
 }
 
-// Deploys use the same ceiling idea as tasks: `policies/deploy-secrets.json` lists, per repository and
+// Deploys use the same ceiling idea as tasks: `policies/deploy-secrets.json` lists, per deploy key and
 // environment, every secret the target may declare. A name the target adds beyond it is reported
-// (warn) or refused (enforce).
+// (warn) or refused (enforce). A product is keyed as "owner/name/product" and has no fallback to the
+// repository key: a product without an entry is refused, with the entry to add.
 export async function readDeploySecretCeiling(
   policyPath: string,
   repository: string,
-  environment: string
+  environment: string,
+  product = "",
+  declaredNames: readonly string[] = []
 ): Promise<ReadonlySet<string>> {
   const policy: unknown = JSON.parse(await readFile(policyPath, "utf8"));
   if (!isJsonRecord(policy) || policy.schema_version !== 1 || !isJsonRecord(policy.deployments)) {
     throw new CliError("Deploy secret policy is invalid.", 65);
   }
-  const repositoryEntry = Object.hasOwn(policy.deployments, repository)
-    ? policy.deployments[repository]
-    : undefined;
+  const deployments = policy.deployments;
+  for (const [key, entry] of Object.entries(deployments)) {
+    if (!isDeployPolicyKey(key) || !isJsonRecord(entry)) {
+      throw new CliError(`Deploy secret policy key is invalid: ${key}.`, 65);
+    }
+  }
+  assertUniqueEnvironments(
+    Object.entries(deployments).map(([key, entry]): [string, string[]] => [
+      key,
+      isJsonRecord(entry) ? Object.keys(entry) : [],
+    ]),
+    "Deploy secret policy"
+  );
+
+  const key = productPolicyKey(repository, product);
+  if (product !== "" && !Object.hasOwn(deployments, key)) {
+    throw new CliError(
+      [
+        `Deploy secret policy has no entry for ${key}, so the deploy is refused.`,
+        `Add this to policies/deploy-secrets.json, then deploy again:`,
+        JSON.stringify(
+          {
+            deployments: {
+              [key]: {
+                [environment]: { required: [], allowed: [...declaredNames].sort() },
+              },
+            },
+          },
+          null,
+          2
+        ),
+      ].join("\n"),
+      77
+    );
+  }
+
+  const repositoryEntry = Object.hasOwn(deployments, key) ? deployments[key] : undefined;
   const environmentEntry =
     isJsonRecord(repositoryEntry) && Object.hasOwn(repositoryEntry, environment)
       ? repositoryEntry[environment]
@@ -256,15 +298,19 @@ async function main(): Promise<void> {
     repository = "",
     project = "",
     kind = "task",
+    product = "",
   ] = process.argv.slice(2);
   if (!baselinePath) {
     throw new CliError(
-      "Usage: resolve-secret-scope.ts <baseline> [required-file] [allowed-file] [denied-names] [secret-policy repository project-or-environment [task|deploy]]",
+      "Usage: resolve-secret-scope.ts <baseline> [required-file] [allowed-file] [denied-names] [secret-policy repository project-or-environment [task|deploy [product]]]",
       64
     );
   }
   if (kind !== "task" && kind !== "deploy") {
     throw new CliError("The secret policy kind must be task or deploy.", 64);
+  }
+  if (product !== "" && kind !== "deploy") {
+    throw new CliError("Only a deploy secret policy takes a product.", 64);
   }
   const policyKind: "task" | "deploy" = kind === "deploy" ? "deploy" : "task";
   const modeVariable =
@@ -273,22 +319,29 @@ async function main(): Promise<void> {
   if (rawMode !== "warn" && rawMode !== "enforce") {
     throw new CliError(`${modeVariable} must be warn or enforce.`, 64);
   }
-  const mode: TaskSecretPolicyMode = rawMode === "enforce" ? "enforce" : "warn";
+  // A product never runs in warn mode: a name it declares beyond its policy would reach it, and
+  // another product's secret in the same environment must not leak that way.
+  const mode: TaskSecretPolicyMode = rawMode === "enforce" || product !== "" ? "enforce" : "warn";
   if (policyPath && (!repository || !project)) {
     throw new CliError(
       `A ${kind} secret policy needs a repository and ${kind === "deploy" ? "an environment" : "a project"}.`,
       64
     );
   }
+  const policyRepository = kind === "deploy" ? productPolicyKey(repository, product) : repository;
+  const declaredNames =
+    kind === "deploy" && product !== ""
+      ? [...(await readNames(requiredPath)), ...(await readNames(allowedPath))]
+      : [];
   const ceiling = policyPath
     ? {
         names:
           kind === "deploy"
-            ? await readDeploySecretCeiling(policyPath, repository, project)
+            ? await readDeploySecretCeiling(policyPath, repository, project, product, declaredNames)
             : await readTaskSecretCeiling(policyPath, repository, project),
         mode,
         label: policyKind,
-        aliases: await readSecretAliases(policyPath, policyKind, repository, project),
+        aliases: await readSecretAliases(policyPath, policyKind, policyRepository, project),
       }
     : undefined;
   const deniedNames = deniedRaw

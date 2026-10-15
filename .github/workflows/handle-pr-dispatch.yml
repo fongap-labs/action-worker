@@ -1,4 +1,4 @@
-name: Handle PR Dispatch
+name: 自动 · PR 分发
 
 on:
   repository_dispatch:
@@ -219,7 +219,7 @@ jobs:
         run: node scripts/check-status-owner.ts "$REPOSITORY" "$HEAD_SHA" "$RUN_URL"
 
       - name: Update final gate
-        if: ${{ always() && steps.ownership.outputs.current == 'true' }}
+        if: ${{ always() && !cancelled() && steps.ownership.outputs.current == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
@@ -230,7 +230,7 @@ jobs:
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
 
       - name: Update central merge gate
-        if: ${{ always() && steps.ownership.outputs.current == 'true' }}
+        if: ${{ always() && !cancelled() && steps.ownership.outputs.current == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
@@ -242,7 +242,7 @@ jobs:
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
 
       - name: Publish PR review
-        if: ${{ always() && steps.ownership.outputs.current == 'true' }}
+        if: ${{ always() && !cancelled() && steps.ownership.outputs.current == 'true' }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}

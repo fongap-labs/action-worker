@@ -179,7 +179,7 @@ async function main(): Promise<void> {
   const failures = results.filter((item) => item.state === "failure");
   if (failures.length > 0) {
     throw new CliError(
-      `::error::Main Write Audit failed for ${failures.length} repository/repositories: ${failures.map((item) => item.repository).join(", ")}.`,
+      `::error::Main Write Audit failed for ${failures.length} repository/repositories: ${failures.map((item) => `${item.repository} (${item.detail})`).join("; ")}.`,
       1
     );
   }

@@ -1,4 +1,4 @@
-name: Task Source Dispatch
+name: 手动 · 派发任务
 
 on:
   repository_dispatch:
@@ -6,29 +6,26 @@ on:
   workflow_dispatch:
     inputs:
       repository:
-        description: Managed task source repository
+        description: 任务源仓库（owner/name 形式，例如 your-org/your-tasks）
         required: true
         type: string
       project:
-        description: Project directory name under projects/
+        description: 项目目录名（位于该仓库 projects/ 下，须含 task.json）
         required: true
         type: string
-  schedule:
-    - cron: "*/5 * * * *"
 
 permissions: {}
 
 concurrency:
-  group: task-source-${{ github.event_name }}-${{ github.event.client_payload.repository || inputs.repository || 'global' }}
+  group: task-source-${{ github.event_name }}-${{ github.event.client_payload.repository || inputs.repository }}
   cancel-in-progress: false
 
 jobs:
   dispatch:
     name: Resolve and dispatch tasks
-    if: github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    # contents: write lets the step below dispatch central CI with the workflow token, like CI Intake.
+    # contents: write lets the step below dispatch central CI with the workflow token, like Intake.
     permissions:
       contents: write
 
@@ -113,6 +110,19 @@ jobs:
           AW_CI_INTAKE_REPOSITORY: ${{ steps.source.outputs.repository }}
         run: node scripts/intake-main-ci.ts
 
+      # The task gate accepts only a main SHA attested as a merged pull request. Attest it now, the
+      # same way Intake does, so the task does not wait for the next Intake run. The gate stays the
+      # authority: an untrusted write fails there, and this run still dispatches so Intake does not
+      # retry the same SHA on every heartbeat.
+      - name: Attest the source main write
+        continue-on-error: true
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          MAIN_WRITE_AUDIT_REPOSITORY: ${{ steps.source.outputs.repository }}
+          MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/audit-main-writes.ts
+
       - name: Mark task source in progress
         if: steps.source.outputs.mode == 'push'
         env:
@@ -160,7 +170,11 @@ jobs:
                 exit 64
               }
               [ -f "projects/$PROJECT/task.json" ] || {
-                echo "::error::Unknown project or missing task.json: projects/$PROJECT/task.json" >&2
+                available="$(
+                  { find projects -mindepth 2 -maxdepth 2 -name task.json -printf '%h\n' 2>/dev/null || true; } |
+                    sed 's|^projects/||' | sort | paste -sd, -
+                )"
+                echo "::error::Unknown project or missing task.json: projects/$PROJECT/task.json. Projects with a task.json: ${available:-none}." >&2
                 exit 66
               }
               projects="$PROJECT"
@@ -181,7 +195,9 @@ jobs:
                   awk -F/ '$1 == "projects" && $2 !~ /^_/ && $2 != "" {print $2}' |
                   sort -u |
                   while IFS= read -r name; do
-                    [ -f "projects/$name/task.json" ] && printf '%s\n' "$name"
+                    if [ -f "projects/$name/task.json" ]; then
+                      printf '%s\n' "$name"
+                    fi
                   done
               )"
               ;;
@@ -262,31 +278,3 @@ jobs:
             --arg target_url "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             '{state: $state, context: $context, target_url: $target_url}')"
           gh api --method POST "repos/$REPOSITORY/statuses/$HEAD_SHA" --input - <<< "$payload"
-
-  scheduled:
-    name: Dispatch scheduled tasks
-    if: github.event_name == 'schedule'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout control plane
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Setup Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 24
-
-      - name: Resolve and dispatch scheduled tasks
-        env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_INGRESS_TOKEN: ${{ github.token }}
-          AW_CONTROL_REPOSITORY: ${{ github.repository }}
-          TASK_SOURCE_LOOKBACK_MINUTES: "20"
-        run: node scripts/dispatch-scheduled-tasks.ts

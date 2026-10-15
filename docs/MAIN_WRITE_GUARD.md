@@ -110,19 +110,11 @@ GitHub 会在写入之前拒绝不合法的路径，而 Main Write Guard 仍是�
 
 Main Write Guard 的安全性不得取决于业务仓库的 Actions 是否能运行。
 
-权威基线是公开的 `action-worker` 中的中央 Main Write Audit。它定期重新读取每个受管仓库的当前 `main`，并独立验证来源。即使业务仓库没有 Actions 分钟数、分发器已被删除，或直接 push 同时修改了它的工作流，不合法的 SHA 也不能获得信任。
+权威基线是公开的 `action-worker` 中的中央 Main Write Audit（`scripts/audit-main-writes.ts`），由 Intake 的 `Main write audit` 作业、Central CI 的 follow-up 作业，以及 Release / Deploy / Task 入口在校验前运行。它重新读取受管仓库的当前 `main`，并独立验证来源。即使业务仓库没有 Actions 分钟数、桥接已被删除，或直接 push 同时修改了它的工作流，不合法的 SHA 也不能获得信任。
 
-业务仓库可以保留一个极薄的 `main` push 桥接，作为实时加速手段；但它不是安全前提，且绝不能单独产生可信结论。
+业务仓库的桥接 `notify-action-worker.yml` 在 `main` 有 push 时只发送不带任何字段的 `run-intake` 事件，作为实时加速手段；它不是安全前提，且绝不能单独产生可信结论。
 
-可选实时事件的长期最小字段：
-
-```text
-repository
-before_sha
-head_sha
-event
-request_id
-```
+`main-write-guard.yml` 只证明 Action Worker 自身 `main` 的每次 push，使用工作流令牌与本地 `validate-merge` 检查。
 
 调用方不得提交：
 
