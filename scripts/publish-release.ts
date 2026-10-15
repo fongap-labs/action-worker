@@ -172,6 +172,10 @@ export function buildTag(releaseKey: string, version: string): string {
   return `${releaseKey}-v${version}`;
 }
 
+export function buildReleaseTitle(releaseName: string | undefined, version: string): string {
+  return releaseName || `v${version}`;
+}
+
 export function validateArchive(entries: string): string[] {
   const names = entries.split(/\r?\n/).filter(Boolean);
   if (names.length === 0) {
@@ -455,7 +459,7 @@ async function main(): Promise<void> {
 
     targetRepository = manifest.target_repository;
     tag = buildTag(manifest.release_key, manifest.version);
-    const name = manifest.release_name || tag;
+    const name = buildReleaseTitle(manifest.release_name, manifest.version);
     const releaseNotes = manifest.release_notes ?? "";
     const isPrerelease = manifest.prerelease ?? false;
     const licenseExpression = manifest.license?.expression ?? "Apache-2.0";

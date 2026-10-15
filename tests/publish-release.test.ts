@@ -3,10 +3,21 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { buildTag, sha256File, validateArchive } from "../scripts/publish-release.ts";
+import {
+  buildReleaseTitle,
+  buildTag,
+  sha256File,
+  validateArchive,
+} from "../scripts/publish-release.ts";
 
 test("release tags remain scoped by release key", () => {
   assert.equal(buildTag("example-tool", "1.2.3"), "example-tool-v1.2.3");
+});
+
+test("release titles default to the bare version without the release key", () => {
+  assert.equal(buildReleaseTitle(undefined, "1.2.3"), "v1.2.3");
+  assert.equal(buildReleaseTitle("", "1.2.3"), "v1.2.3");
+  assert.equal(buildReleaseTitle("Example 1.2.3", "1.2.3"), "Example 1.2.3");
 });
 
 test("release assets use SHA256 digests", async () => {
