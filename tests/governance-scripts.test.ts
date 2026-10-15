@@ -382,10 +382,7 @@ test("engineering language rejects Chinese machine text but allows documentation
   );
   // Workflow input descriptions are user-facing copy and stay exempt.
   assert.equal(
-    engineeringLineViolation(
-      ".github/workflows/ci.yml",
-      "description: 源仓库（owner/name 形式）"
-    ),
+    engineeringLineViolation(".github/workflows/ci.yml", "description: 源仓库（owner/name 形式）"),
     null
   );
   assert.equal(
