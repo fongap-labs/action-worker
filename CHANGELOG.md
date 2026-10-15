@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: the internal-vault server-edge CI step is a trusted control path, so a pull request that moves the product and changes `.github/scripts/server-edge-ci.sh` is checked with its own script instead of the base branch copy that still points at `services/server-edge`.
+
 - fix: a release without a `release_name` is titled with its bare version (`v<version>`) instead of its tag, so the GitHub Release page of `delta-v0.1.0` reads `v0.1.0`. The tag itself stays `<release-key>-v<version>`, because the shared distribution repository `external-vault` holds releases of several products and tags must stay unique there, and follow pins match tags by that prefix. A release that declares a `release_name` keeps it.
 
 - fix: the production deploy of `fongap-labs/ai-gateway` receives `CLOUDFLARE_ACCOUNT_ID` again. #706 removed the name and its alias from `policies/deploy-secrets.json`, expecting the Repository Variable of that name to reach the deploy job, but no variable named `CLOUDFLARE_ACCOUNT_ID` exists; only `CLOUDFLARE_ACCOUNT_ID_SECONDARY` does, and the target's deploy preflight requires `CLOUDFLARE_ACCOUNT_ID`. The name returns to the deploy ceiling with the alias `CLOUDFLARE_ACCOUNT_ID_SECONDARY`, so the account id stays a Variable and never a stored secret.

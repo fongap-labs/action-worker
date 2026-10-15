@@ -10,6 +10,7 @@ const CONTROL_PATHS = new Set([
   ".github/execution-manifest.json",
   ".github/scripts/central-ci.sh",
   ".github/scripts/central-ci.ps1",
+  ".github/scripts/server-edge-ci.sh",
   ".github/test-pack.json",
 ]);
 
