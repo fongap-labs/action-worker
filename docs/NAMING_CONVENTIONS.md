@@ -345,7 +345,7 @@ Action Worker 的 CI 会强制执行自身的文件名与架构限制。业务�
   - 名称中从不包含产品或仓库名。
   - 上面的 dispatch 事件规则不适用于它们。谁可以手动启动它们由 8.3 节的工作流分类决定：`release-app.yml` 与 `deploy-source-script.yml` 是入口，`release-tool.yml` 按计划自动运行。
   - `docs/INTEGRATION_GUIDE.md` 第 12.1 节说明应运行哪一个。该测试检查 kind 与 adapter，因此新增 kind 或 adapter 必须是一次有意的修改。
-- 显示名称（`name:`）逐词拼出文件名，其中 `pr` 与 `ci` 写作 `PR` 与 `CI`（`central-ci-dispatch.yml` 的显示名为 "Central CI Dispatch"）。
+- 工作流显示名由 `tests/workflow-naming.test.ts` 中的中文映射锁定；例如 `release-app.yml` 对应 `手动 · 发布应用`。
 - 保留旧名称的文件会在测试中列出，并写明不值得重命名的原因。目前包括 `handle-pr-dispatch.yml`（`scripts/ci-evidence.ts` 中的 CI Evidence 信任锚点）与 `handle-pr-review.yml`（计入 AI Review 队列）。
 
 ### 8.2 文档语言

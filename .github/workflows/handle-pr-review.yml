@@ -1,6 +1,6 @@
 name: 自动 · PR 处理
 
-# Advisory AI Review. Handle PR Dispatch starts this workflow only after the deterministic gate
+# Advisory AI Review. handle-pr-dispatch.yml starts this workflow only after the deterministic gate
 # passed, so its queue holds only real reviews and never waits behind a run that is still
 # waiting for CI. Nothing here can change the gate.
 on:
