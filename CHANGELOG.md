@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: an automatic deploy starts again. The workflow and the deploy job named the same concurrency group for an automatic request, so the deploy job waited behind its own run and failed without ever starting, while a manual deploy stayed clear of it because its empty environment input resolved to `manual`. The workflow group now carries its own `source-script-deploy-pipeline-` prefix, and the deploy job keeps `source-script-deploy-`, so the two never collide.
+
 - fix: the packaged release manifest keeps `release_name` as the display name, so a release published from a build titles as `Delta v0.1.0` instead of `Delta 0.1.0 v0.1.0`.
 
 - fix: a release title is the product's `release_name` followed by the bare version (`Delta v0.1.0`), and a release without a `release_name` is titled `v<version>`. The tag stays `<release-key>-v<version>`, because the shared distribution repository `external-vault` holds releases of several products and tags must stay unique there, and follow pins match tags by that prefix. `release_name` now holds the display name only; a manifest that still includes the version must drop it. Tool releases use their catalog name as `release_name`, so their titles read `<name> v<version>`.

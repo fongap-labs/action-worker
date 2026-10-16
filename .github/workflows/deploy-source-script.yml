@@ -25,10 +25,10 @@ on:
 permissions:
   contents: read
 
-# One group per repository, product and environment. The product segment is omitted for the root
-# layout, so a repository with one root manifest keeps the group source-script-deploy-<repository>-<environment>.
+# One pipeline group per repository, product and environment. Must differ from the deploy job-level
+# group below, or the deploy job deadlocks behind its own run and fails without starting.
 concurrency:
-  group: ${{ format('source-script-deploy-{0}{1}-{2}', github.event.client_payload.source_repository || inputs.source_repository || 'manual', (github.event.client_payload.product || inputs.product) && format('-{0}', github.event.client_payload.product || inputs.product) || '', github.event.client_payload.environment || inputs.environment || 'manual') }}
+  group: ${{ format('source-script-deploy-pipeline-{0}{1}-{2}', github.event.client_payload.source_repository || inputs.source_repository || 'manual', (github.event.client_payload.product || inputs.product) && format('-{0}', github.event.client_payload.product || inputs.product) || '', github.event.client_payload.environment || inputs.environment || 'manual') }}
   cancel-in-progress: false
 
 jobs:
