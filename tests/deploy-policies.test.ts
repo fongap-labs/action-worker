@@ -520,7 +520,7 @@ async function deployGroups(): Promise<{ workflow: string; job: string }> {
   return { workflow: parsed.concurrency.group, job: parsed.jobs.deploy.concurrency.group };
 }
 
-test("the deploy concurrency group is unique per repository, product and environment", async () => {
+test("the deploy pipeline group is unique per repository, product and environment", async () => {
   const { workflow } = await deployGroups();
   const group = (product: string | undefined, environment: string) =>
     evaluate(workflow.replace(/^\$\{\{ (.*) \}\}$/, "$1"), {
@@ -529,16 +529,22 @@ test("the deploy concurrency group is unique per repository, product and environ
       "github.event.client_payload.environment": environment,
     });
 
-  assert.equal(group("", "production"), "source-script-deploy-fongap-labs/example-production");
+  assert.equal(
+    group("", "production"),
+    "source-script-deploy-pipeline-fongap-labs/example-production"
+  );
   assert.equal(
     group("alpha", "production"),
-    "source-script-deploy-fongap-labs/example-alpha-production"
+    "source-script-deploy-pipeline-fongap-labs/example-alpha-production"
   );
   assert.equal(
     group("beta", "production"),
-    "source-script-deploy-fongap-labs/example-beta-production"
+    "source-script-deploy-pipeline-fongap-labs/example-beta-production"
   );
-  assert.equal(group("alpha", "staging"), "source-script-deploy-fongap-labs/example-alpha-staging");
+  assert.equal(
+    group("alpha", "staging"),
+    "source-script-deploy-pipeline-fongap-labs/example-alpha-staging"
+  );
   const groups = new Set([
     group("", "production"),
     group("alpha", "production"),
@@ -547,7 +553,7 @@ test("the deploy concurrency group is unique per repository, product and environ
   assert.equal(groups.size, 3);
 });
 
-test("a manual request and the resolved deploy job name the same concurrency group", async () => {
+test("the deploy job group never collides with its own pipeline group", async () => {
   const { workflow, job } = await deployGroups();
   const fromRequest = evaluate(workflow.replace(/^\$\{\{ (.*) \}\}$/, "$1"), {
     "inputs.source_repository": "fongap-labs/example",
@@ -559,7 +565,10 @@ test("a manual request and the resolved deploy job name the same concurrency gro
     "needs.prepare.outputs.product": "alpha",
     "needs.prepare.outputs.environment": "production",
   });
-  assert.equal(fromRequest, fromPrepare);
+  // An automatic request resolves exactly what the deploy job resolves. Equal groups make the job
+  // wait behind its own run and fail without starting, so the pipeline group keeps its own prefix.
+  assert.notEqual(fromRequest, fromPrepare);
+  assert.equal(fromRequest, "source-script-deploy-pipeline-fongap-labs/example-alpha-production");
   assert.equal(fromPrepare, "source-script-deploy-fongap-labs/example-alpha-production");
 
   // The root layout has no product segment in either group.
