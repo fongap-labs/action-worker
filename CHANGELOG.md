@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: the packaged release manifest keeps `release_name` as the display name, so a release published from a build titles as `Delta v0.1.0` instead of `Delta 0.1.0 v0.1.0`.
+
 - fix: a release title is the product's `release_name` followed by the bare version (`Delta v0.1.0`), and a release without a `release_name` is titled `v<version>`. The tag stays `<release-key>-v<version>`, because the shared distribution repository `external-vault` holds releases of several products and tags must stay unique there, and follow pins match tags by that prefix. `release_name` now holds the display name only; a manifest that still includes the version must drop it. Tool releases use their catalog name as `release_name`, so their titles read `<name> v<version>`.
 
 - fix: the internal-vault server-edge CI step is a trusted control path, so a pull request that moves the product and changes `.github/scripts/server-edge-ci.sh` is checked with its own script instead of the base branch copy that still points at `services/server-edge`.

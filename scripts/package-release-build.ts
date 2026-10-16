@@ -3,7 +3,10 @@ import { createReadStream } from "node:fs";
 import { readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { CliError, handleError, isMain, readJson } from "./runtime-command.ts";
-import { parseReleaseBuildManifest } from "./validate-release-build-request.ts";
+import {
+  parseReleaseBuildManifest,
+  type ReleaseBuildManifest,
+} from "./validate-release-build-request.ts";
 
 async function sha256File(path: string): Promise<string> {
   return await new Promise((resolve, reject) => {
@@ -13,6 +16,28 @@ async function sha256File(path: string): Promise<string> {
     input.on("data", (chunk) => hash.update(chunk));
     input.on("end", () => resolve(hash.digest("hex")));
   });
+}
+
+/**
+ * The packaged manifest carries the display name only. The publisher appends the version to form
+ * the release title, so a version here would print it twice.
+ */
+export function buildReleaseManifest(
+  manifest: ReleaseBuildManifest,
+  version: string,
+  assets: { name: string; sha256: string }[]
+) {
+  return {
+    schema_version: "1",
+    target_repository: manifest.target_repository,
+    release_key: manifest.release_key,
+    version,
+    release_name: manifest.release_name,
+    release_notes: manifest.release_notes,
+    prerelease: false,
+    license: { expression: manifest.license_expression },
+    assets,
+  };
 }
 
 async function main(): Promise<void> {
@@ -62,17 +87,7 @@ async function main(): Promise<void> {
     throw new CliError("Release artifact runtime identity is invalid.", 77);
   }
 
-  const releaseManifest = {
-    schema_version: "1",
-    target_repository: manifest.target_repository,
-    release_key: manifest.release_key,
-    version,
-    release_name: `${manifest.release_name} ${version}`,
-    release_notes: manifest.release_notes,
-    prerelease: false,
-    license: { expression: manifest.license_expression },
-    assets,
-  };
+  const releaseManifest = buildReleaseManifest(manifest, version, assets);
   const provenance = {
     schema_version: "1",
     source_repository: sourceRepository,
