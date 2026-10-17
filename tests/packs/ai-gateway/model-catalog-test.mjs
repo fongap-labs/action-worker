@@ -19,7 +19,7 @@ import { queryRecentModelEvidence } from '#target/src/observability/token-usage-
 import { providerWire } from '#target/src/providers/registry.ts';
 import { __resetAllStateForTests } from '#target/src/reliability/node-state.ts';
 import { __resetTier1StateForTests, getTier1Model, recordTier1Ttft } from '#target/src/reliability/tier1-state.ts';
-import { authorizeModel, filterVisibleModels } from '#target/src/request/model-authz.ts';
+import { authorizeModel, filterVisibleModels, resolveClientModel } from '#target/src/request/model-authz.ts';
 import { buildModelFallbackRounds } from '#target/src/request/model-fallback.ts';
 import { MODEL_STATUS_HISTORICAL_WINDOW_MS, MODEL_STATUS_RECENT_WINDOW_MS, getPublicModelStatus } from '#target/src/runtime/model-status.ts';
 import { supportsRequest } from '#target/src/scheduler/scheduler.ts';
@@ -1348,6 +1348,26 @@ try {
     const key = allowlist('ghost');
     assert.deepEqual(authorizeModel('ghost', known, key), { allowed: false, status: 404 });
     assert.deepEqual(filterVisibleModels(known, key), []);
+  });
+
+  test('client model spelling is case-insensitive and context-length tags resolve to the catalog entry', () => {
+    const known = new Set(['Code-Ultra', 'Code-Max', 'Code-Pro']);
+    // Claude Code appends the official 1M-context tag to the model string.
+    assert.equal(resolveClientModel('Code-Ultra[1m]', known), 'Code-Ultra');
+    assert.equal(resolveClientModel('code-max', known), 'Code-Max');
+    assert.equal(resolveClientModel('CODE-PRO', known), 'Code-Pro');
+    // Unknown models survive unchanged, so fail-closed paths stay 404/403.
+    assert.equal(resolveClientModel('unknown-model', known), 'unknown-model');
+    assert.equal(resolveClientModel('unknown-model[1m]', known), 'unknown-model');
+    assert.deepEqual(resolveClientModel('unknown-model[1m]', new Set()), 'unknown-model');
+
+    // Authorization forgives the same casing differences, on allowlists
+    // configured in the operator's spelling and on allow-all keys.
+    const key = allowlist('code-max');
+    assert.equal(authorizeModel('Code-Max', known, key).allowed, true);
+    assert.equal(authorizeModel('code-ultra', known, allowAll).allowed, true);
+    assert.deepEqual(authorizeModel('Air', known, key), { allowed: false, status: 403 });
+    assert.deepEqual(authorizeModel('unknown-model', known, key), { allowed: false, status: 403 });
   });
 
   test('empty catalog exposes and authorizes zero models', () => {
