@@ -64,9 +64,12 @@ try {
   ];
   for (const file of PROTOCOL_FACT_FILES) {
     const text = read(file);
-    assert.doesNotMatch(text, /Responses\s*(?:→|->)\s*Anthropic/i, `${file}: Responses must remain Native Only`);
-    assert.doesNotMatch(text, /three-way|三向/i, `${file}: no three-way protocol fallback`);
-    assert.doesNotMatch(text, /"openai:responses"\s*:\s*\["anthropic:messages"\]/, `${file}: invalid Responses fallback`);
+    assert.doesNotMatch(
+      text,
+      /Responses[^.\n]{0,60}(?:native[- ]only|native only|仅原生|不做翻译|无法翻译)/i,
+      `${file}: Responses participates in the IR matrix, no native-only claim`,
+    );
+    assert.doesNotMatch(text, /three-way|三向/i, `${file}: no chained multi-protocol fallback`);
     ok(`${file} protocol contract`);
   }
 
@@ -74,7 +77,9 @@ try {
     const text = read(file);
     assert.match(text, /anthropic:messages[\s\S]{0,180}openai:chat_completions/);
     assert.match(text, /openai:chat_completions[\s\S]{0,180}anthropic:messages/);
-    ok(`${file} bidirectional Chat/Messages fallback`);
+    assert.match(text, /openai:responses[\s\S]{0,180}anthropic:messages/, `${file}: matrix includes Responses targets`);
+    assert.match(text, /openai:responses[\s\S]{0,180}openai:chat_completions/, `${file}: matrix includes Chat targets for Responses`);
+    ok(`${file} documented protocol fallback matrix`);
   }
 
   const ALLOWED_NODE_FIELDS = new Set(['id', 'provider', 'base_url', 'priority', 'models', 'auth']);

@@ -1065,13 +1065,13 @@ await run('config: invalid JSON returns {} with diagnostic', () => {
 
 await run('config: default ON — unset env applies built-in default chain', () => {
   // Unset AIG_PROTOCOL_FALLBACKS: built-in default chains are applied silently.
-  // The defaults are the only safe cross-protocol fallbacks for the routes
-  // that have a complete Request + Response + Stream + Error converter
-  // (Anthropic Messages <-> OpenAI Chat Completions).
+  // The defaults cover the full matrix: every route has a complete
+  // Request + Response + Stream + Error translator pair through the IR.
   const cfg = loadProtocolFallbacks({});
   assert.deepEqual(cfg, {
-    'anthropic:messages': ['openai:chat_completions'],
-    'openai:chat_completions': ['anthropic:messages'],
+    'anthropic:messages': ['openai:chat_completions', 'openai:responses'],
+    'openai:chat_completions': ['anthropic:messages', 'openai:responses'],
+    'openai:responses': ['anthropic:messages', 'openai:chat_completions'],
   });
   assert.deepEqual(getProtocolFallbacksDiagnostics({}), [], 'default chain has no diagnostics');
 });
@@ -1079,8 +1079,9 @@ await run('config: default ON — unset env applies built-in default chain', () 
 await run('config: default ON — empty string is treated as unset', () => {
   const cfg = loadProtocolFallbacks({ AIG_PROTOCOL_FALLBACKS: '' });
   assert.deepEqual(cfg, {
-    'anthropic:messages': ['openai:chat_completions'],
-    'openai:chat_completions': ['anthropic:messages'],
+    'anthropic:messages': ['openai:chat_completions', 'openai:responses'],
+    'openai:chat_completions': ['anthropic:messages', 'openai:responses'],
+    'openai:responses': ['anthropic:messages', 'openai:chat_completions'],
   });
 });
 
@@ -1149,7 +1150,8 @@ await run('config: unsupported conversion source -> blocking error', () => {
 });
 
 await run('config: unsupported conversion target -> blocking error', () => {
-  const env = { AIG_PROTOCOL_FALLBACKS: '{"anthropic:messages": ["openai:responses"]}' };
+  // Self-conversion is not a supported matrix pair.
+  const env = { AIG_PROTOCOL_FALLBACKS: '{"openai:chat_completions": ["openai:chat_completions"]}' };
   const cfg = loadProtocolFallbacks(env);
   assert.deepEqual(cfg, {}, 'unsupported target produces empty config');
   const diag = getProtocolFallbacksDiagnostics(env);
@@ -1158,6 +1160,14 @@ await run('config: unsupported conversion target -> blocking error', () => {
     diag.some((d) => /not a supported conversion/i.test(d)),
     'diagnostic mentions unsupported conversion',
   );
+});
+
+await run('config: Responses surfaces are accepted conversion targets (matrix)', () => {
+  const env = { AIG_PROTOCOL_FALLBACKS: '{"anthropic:messages": ["openai:responses"]}' };
+  const cfg = loadProtocolFallbacks(env);
+  assert.deepEqual(cfg['anthropic:messages'], ['openai:responses'], 'Responses↔targets accepted');
+  const diag = getProtocolFallbacksDiagnostics(env);
+  assert.deepEqual(diag, [], 'no diagnostics for the matrix pair');
 });
 
 // =====================================================================
@@ -2128,7 +2138,7 @@ const okResponsesObject = () => ({
   usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
 });
 
-await run('handler: OpenAI Responses client + only Anthropic upstream (no fallback) -> 404', async () => {
+await run('handler: OpenAI Responses client + only Anthropic upstream -> success via matrix (non-stream)', async () => {
   resetMock();
   routeHandlers['a1.example.com'] = () => jsonUpstream(okAnthropicMessage());
   const env = makeEnv({
@@ -2144,18 +2154,52 @@ await run('handler: OpenAI Responses client + only Anthropic upstream (no fallba
     env,
     {},
   );
-  // Responses is native-only: no fallback from Responses -> Anthropic.
-  // Only an Anthropic node exists, so the gateway returns 404 (no compatible node).
-  assert.equal(res.status, 404, '404 from no compatible node');
+  // The default chain now converts Responses -> Messages through the IR matrix.
+  assert.equal(res.status, 200, 'matrix fallback serves the Responses client');
+  const body = await res.json();
+  assert.equal(body.object, 'response');
+  assert.equal(body.model, 'code-max');
+  assert.equal(body.output[0].content[0].type, 'output_text');
+  assert.equal(body.output[0].content[0].text, 'hello');
+  assert.equal(res.headers.get('x-gateway-node'), 'a1');
+  // The upstream call must still be a native Anthropic Messages request.
+  assert.equal(upstreamCalls.length, 1);
+  assert.equal(new URL(upstreamCalls[0].url).pathname, '/v1/messages');
+  assert.equal(upstreamCalls[0].body.stream, true, 'matrix always streams the upstream');
 });
 
-await run('handler: OpenAI Responses client + only Anthropic upstream (no fallback, stream) -> 404', async () => {
+await run('handler: OpenAI Responses client + only Anthropic upstream -> success via matrix (stream)', async () => {
   resetMock();
-  routeHandlers['a1.example.com'] = () => jsonUpstream(okAnthropicMessage());
+  // Anthropic-native SSE lifecycle
+  const lines = [
+    'event: message_start\ndata: {"type":"message_start","message":{"id":"m1","type":"message","role":"assistant","model":"up-model","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":1,"output_tokens":0}}}\n\n',
+    'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}\n\n',
+    'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}\n\n',
+    'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}\n\n',
+    'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":1,"output_tokens":1}}\n\n',
+    'event: message_stop\ndata: {"type":"message_stop"}\n\n',
+  ];
+  const sseUpstream = () => {
+    const encoder = new TextEncoder();
+    let i = 0;
+    return new Response(
+      new ReadableStream({
+        pull(controller) {
+          if (i >= lines.length) {
+            controller.close();
+            return;
+          }
+          controller.enqueue(encoder.encode(lines[i++]));
+        },
+      }),
+      { status: 200, headers: { 'content-type': 'text/event-stream' } },
+    );
+  };
+  routeHandlers['a1.example.com'] = () => sseUpstream();
   const env = makeEnv({
     tier1: [anthropicResponsesNode('a1')],
     secrets: { a1: 'k' },
-    extraEnv: { AIG_SHOULD_EXPOSE_UPSTREAM: 'true', AIG_ACCESS_MODELS_AIR: 'code-max' },
+    extraEnv: { AIG_ACCESS_MODELS_AIR: 'code-max' },
   });
   const res = await worker.fetch(
     responsesApiRequest({
@@ -2166,11 +2210,15 @@ await run('handler: OpenAI Responses client + only Anthropic upstream (no fallba
     env,
     {},
   );
-  // Responses is native-only: no fallback from Responses -> Anthropic.
-  assert.equal(res.status, 404, '404 from no compatible node');
+  assert.equal(res.status, 200, 'matrix fallback serves the streaming Responses client');
+  assert.match(res.headers.get('content-type') || '', /text\/event-stream/, 'streamed Responses SSE');
+  const text = await res.text();
+  assert.match(text, /event:\s*response\.created/, 'Responses SSE lifecycle begins');
+  assert.match(text, /"output_text"/, 'text deltas translated');
+  assert.match(text, /event:\s*response\.completed/, 'Responses SSE lifecycle completes');
 });
 
-await run('handler: OpenAI Responses client + Anthropic 529 (no fallback) -> 404', async () => {
+await run('handler: OpenAI Responses client + Anthropic 529 -> rotation exhausts to gateway 5xx', async () => {
   resetMock();
   // Only Anthropic upstream, which always 529s.
   routeHandlers['a1.example.com'] = () => jsonUpstream({ error: { message: 'overloaded' } }, 529);
@@ -2187,9 +2235,9 @@ await run('handler: OpenAI Responses client + Anthropic 529 (no fallback) -> 404
     env,
     {},
   );
-  // Responses is native-only: no fallback from Responses -> Anthropic.
-  // Only an Anthropic node exists, so the gateway returns 404 (no compatible node).
-  assert.equal(res.status, 404, '404 from no compatible node');
+  // The matrix attempts the Anthropic node; a 529 exhausts the chain and the
+  // gateway surfaces a server-side error (never a 404-shaped "no node").
+  assert.ok(res.status >= 500, `gateway 5xx after exhausted matrix chain, got ${res.status}`);
 });
 
 await run('handler: OpenAI Responses client + only OpenAI Responses upstream -> success (native path)', async () => {
@@ -2218,7 +2266,7 @@ await run('handler: OpenAI Responses client + only OpenAI Responses upstream -> 
   assert.equal(res.headers.get('x-gateway-node'), 'r1');
 });
 
-await run('handler: OpenAI Responses client + Anthropic upstream with tool_use (no fallback) -> 404', async () => {
+await run('handler: OpenAI Responses client + Anthropic upstream with tool_use -> matrix function_call', async () => {
   resetMock();
   routeHandlers['a1.example.com'] = () =>
     jsonUpstream({
@@ -2247,8 +2295,17 @@ await run('handler: OpenAI Responses client + Anthropic upstream with tool_use (
     env,
     {},
   );
-  // Responses is native-only: no fallback from Responses -> Anthropic.
-  assert.equal(res.status, 404, '404 from no compatible node');
+  // tool_use + text translate into a Responses object with a function_call item.
+  assert.equal(res.status, 200, 'matrix serves tool_use through the Responses client');
+  const body = await res.json();
+  assert.equal(body.object, 'response');
+  const messageItem = body.output.find((item) => item.type === 'message');
+  assert.ok(messageItem, 'translated message item present');
+  assert.equal(messageItem.content[0].text, 'on it');
+  const callItem = body.output.find((item) => item.type === 'function_call');
+  assert.ok(callItem, 'function_call item translated');
+  assert.equal(callItem.name, 'lookup');
+  assert.equal(JSON.parse(callItem.arguments).city, 'sf');
 });
 
 // ---- Tear down / summary ---------------------------------------------------
