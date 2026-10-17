@@ -58,7 +58,15 @@ Deleting a migration file is not deleting the database. A generic "clean it up" 
 
 Locate the first failing point and repair the root cause, keeping the necessary verification. Do not stack a workaround on the symptom, then a special case, then another fallback.
 
-## 5. No speculative extension
+## 5. Regenerate, do not hand-merge generated files
+
+Lockfiles (`package-lock.json`, `pnpm-lock.yaml`, `uv.lock`, `Cargo.lock`, etc.) are machine-generated. When a conflict or inconsistency occurs:
+
+- resolve by re-running the package manager command, not by manually editing the file;
+- never hand-merge lockfile conflict markers;
+- verify the regenerated lockfile matches the declared dependency versions.
+
+## 6. No speculative extension
 
 Do not incidentally:
 
@@ -71,7 +79,7 @@ Do not incidentally:
 
 A potential future need is not a current requirement. Make such changes only when the task cannot be completed without them.
 
-## 6. Hard safety boundary
+## 7. Hard safety boundary
 
 Minimality never justifies removing or weakening:
 
@@ -90,11 +98,11 @@ deterministic gates
 
 "Fewer lines" is never a reason to cut input validation, permission checks, exception handling, security checks, or audit records.
 
-## 7. Governance position
+## 8. Governance position
 
 This skill is advisory for agent execution and AI review. It must not bypass or lower CI, security, release, permission, or repository-protection gates, and it never auto-approves a change. Deterministic gates remain the only merge authority.
 
-## 8. Senior engineer test
+## 9. Senior engineer test
 
 Before finishing a code change, ask:
 
@@ -104,10 +112,10 @@ If yes, reduce the change. Treat the answer as yes when any of these holds:
 
 - an abstraction has a single use site and no current requirement needs it;
 - a configuration option or extension point has no current caller;
-- code handles a scenario that the current contract rules out, and the code is outside the hard safety boundary in section 6;
+- code handles a scenario that the current contract rules out, and the code is outside the hard safety boundary in section 7;
 - the change is larger than the stated behavior requires.
 
-This test never removes a safeguard listed in section 6. Input validation, error handling, security checks, and permission checks stay even when the current contract makes a case unlikely, because they protect trust boundaries that the contract may not describe.
+This test never removes a safeguard listed in section 7. Input validation, error handling, security checks, and permission checks stay even when the current contract makes a case unlikely, because they protect trust boundaries that the contract may not describe.
 
 ## Provenance
 
