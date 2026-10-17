@@ -205,6 +205,11 @@ test("discoverSkills scans committed skills/ directory", async () => {
   assert.ok(names.includes("writing"));
   assert.ok(names.includes("test-driven-development"));
   assert.ok(names.includes("writing-for-agents"));
+  assert.ok(names.includes("deploy-verify"));
+  assert.ok(names.includes("flaky-test-triage"));
+  assert.ok(names.includes("security-remediation"));
+  assert.ok(names.includes("contract-evolution"));
+  assert.ok(names.includes("semantic-refactor"));
 });
 
 test("resolveAndVerifySkills resolves committed coding/task without config", async () => {
@@ -246,7 +251,7 @@ test("every committed SKILL.md parses with valid frontmatter", async () => {
   for (const skill of skills) {
     assert.equal(await exists(skill.path), true, `missing skill file: ${skill.path}`);
   }
-  assert.equal(skills.length, 11);
+  assert.equal(skills.length, 16);
 });
 
 test("test-driven-development is a coding task skill and writing-for-agents is a writing baseline", async () => {
@@ -321,8 +326,8 @@ test("ported governance rules are present in the machine-read skills", async () 
 
   const minimality = await readFile("skills/code-minimality/SKILL.md", "utf8");
   for (const value of [
-    "## 8. Senior engineer test",
-    "This test never removes a safeguard listed in section 6.",
+    "## 9. Senior engineer test",
+    "This test never removes a safeguard listed in section 7.",
   ]) {
     assert.ok(minimality.includes(value), `code-minimality missing: ${value}`);
   }

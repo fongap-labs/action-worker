@@ -15,9 +15,14 @@ Each subdirectory contains a `SKILL.md` file — a set of rules telling the AI a
 | [multi-agent-delegation](multi-agent-delegation/SKILL.md) | When delegating to sub-agents: finite briefs, file ownership, trust boundaries, coordinator verification |
 | [bug-fix](bug-fix/SKILL.md) | For bug fixes: build a feedback loop, minimise, find root cause, then add regression protection |
 | [ci-diagnose](ci-diagnose/SKILL.md) | When CI is red: diagnose before touching code |
+| [flaky-test-triage](flaky-test-triage/SKILL.md) | When a test fails intermittently: stress-reproduce, classify non-determinism, quarantine or fix root cause |
 | [change-impact](change-impact/SKILL.md) | Before changing shared code: figure out the blast radius |
 | [pr-review](pr-review/SKILL.md) | Checklist for reviewing pull requests |
 | [release-verify](release-verify/SKILL.md) | Before/after release: verify source, artifacts, checksums, rollback |
+| [deploy-verify](deploy-verify/SKILL.md) | Before/after deploy: verify Main Write Guard, environment, health checks, rollback readiness |
+| [security-remediation](security-remediation/SKILL.md) | For vulnerability patches and CVE remediation: minimal version steps, taint-source validation, secret rotation |
+| [contract-evolution](contract-evolution/SKILL.md) | When evolving shared contracts: extend-first, deprecation lifecycle, schema compatibility verification |
+| [semantic-refactor](semantic-refactor/SKILL.md) | When refactoring is the explicit task: behavioral safety net, step-isolated commits, zero contract drift |
 | [writing](writing/SKILL.md) | For content tasks: no fabrication, verify facts, surgical edits |
 | [test-driven-development](test-driven-development/SKILL.md) | For code behavior changes with a test seam: test at public seams, red-green vertical slices |
 | [writing-for-agents](writing-for-agents/SKILL.md) | For agent-facing documents only (skills, AGENTS.md, CLAUDE.md): pointers, completion criteria, pruning |
@@ -31,7 +36,11 @@ Examples:
 ```
 # Scenario 1: normal coding task (most common)
 # Do not fill anything. The system defaults to the "coding" domain.
-# Auto-loads: agent-execution + code-minimality + bug-fix + multi-agent-delegation + test-driven-development
+# Auto-loads: agent-execution + code-minimality + bug-fix + multi-agent-delegation
+#             + test-driven-development + security-remediation + contract-evolution
+#             + semantic-refactor + flaky-test-triage
+# Each skill declares its trigger in the description; the agent applies only the
+# relevant one and ignores the rest.
 
 # Scenario 2: writing task (docs, copy, briefs)
 # Add one field to the dispatch payload:
@@ -44,7 +53,12 @@ agent_domain: "writing"
 # Specify the operation:
 agent_domain: "coding"
 operation: "ci"
-# Auto-loads: agent-execution + code-minimality + ci-diagnose
+# Auto-loads: agent-execution + code-minimality + ci-diagnose + flaky-test-triage
+
+# Scenario 4: deploy task
+agent_domain: "coding"
+operation: "deploy"
+# Auto-loads: agent-execution + code-minimality + change-impact + deploy-verify
 ```
 
 ## How the system picks skills
