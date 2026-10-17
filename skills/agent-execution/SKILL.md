@@ -44,6 +44,17 @@ Do not:
 
 A newly discovered issue may be changed only when the task requested it, the current change caused it, or the requested behavior cannot work without it. Otherwise report it separately.
 
+Before adding any new source-code path (a helper, guard, branch, fallback, adapter, or owner file), state why the task cannot be met without it:
+
+```text
+Need: <what requested behavior requires it>
+No-code option: <why docs, config, or reuse cannot cover it>
+Boundary: <smallest change that covers the need>
+Decision: code-change | no-change | needs-clarification
+```
+
+If the decision is not `code-change`, do not write the code.
+
 ## 4. Define success before editing
 
 Convert the task into verifiable outcomes.
@@ -114,6 +125,16 @@ A task is complete when:
 - required documentation or changelog updates are complete;
 - final diff contains no temporary or out-of-scope changes.
 
+Before claiming complete, run one fresh falsifying check against the requested behavior. Stale, partial, or verify-later evidence does not satisfy the checklist. Grade the claim:
+
+```text
+A: target + regression verified; no meaningful unknown
+B: target verified; bounded residual risk stated
+C: partial only; no full-completion claim
+```
+
+At B or C, state the uncovered scope explicitly. Never claim complete then verify later; downgrade the claim to match the narrowest evidence.
+
 Then stop.
 
 ## 8. Reporting
@@ -152,3 +173,7 @@ Rules:
 - If the task requires a change that violates level 1 or level 2, do not make that change. Report the conflict and continue with the parts that do not conflict.
 - Change a level 1 or level 2 rule only through its own governed change path.
 - If placement or behavior stays materially ambiguous after context discovery, surface the ambiguity instead of guessing.
+
+## Provenance
+
+The Change Necessity decision token in section 3 is adapted from the `systematic-debugging` and `writing-plans` skills of `GanyuanRan/Aegis` (MIT License). The fresh-check requirement and A/B/C confidence grading in section 7 are adapted from its `verification-before-completion` skill. Their diagnostic layers, workspace artifacts, evidence-slot receipts, activation-mode gate, and method-pack governance vocabulary are not included; only the necessity gate and the falsifying-check-before-claim rule with confidence grades are absorbed as native Action Worker rules.

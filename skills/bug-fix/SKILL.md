@@ -81,6 +81,23 @@ symptom
 
 Do not patch the final error message when the invalid state was created earlier.
 
+Before patching, confirm the located site is the canonical owner, not a symptom carrier. A candidate fix is probably NOT the owner when it is any of:
+
+- keyword, phrase, regex, negation-word list, or sample-text exception;
+- local guard, extra conditional, `try`/`catch`, early return, or one-off branch;
+- fallback, adapter, compatibility branch, or legacy path expansion;
+- consumer / caller / presentation-layer patch;
+- downstream logic re-parses raw text or re-infers state while a typed intent, normalized state, contract, or other source-of-truth exists upstream;
+- artifact / download / export / readback / cache patch without producer proof.
+
+If any signal matches, keep drilling upward until you reach the canonical owner. A locally green test does not clear this triage.
+
+```text
+Patch shape: <which signal, or none>
+Canonical owner: <owner, or unknown>
+Decision: fix owner | continue investigation | escalate
+```
+
 Before testing any cause, write 3 to 5 ranked hypotheses. Each hypothesis must be falsifiable:
 
 ```text
@@ -164,3 +181,5 @@ Unrelated failures become separate findings. Do not expand the current patch ind
 ## Provenance
 
 The feedback-loop, minimisation, falsifiable-hypothesis, instrumentation, and redaction rules are adapted from the `diagnosing-bugs` skill of `mattpocock/skills` (MIT License, Copyright (c) 2026 Matt Pocock). Steps that waited for a human answer were changed to report and stop, because the task runs unattended.
+
+The patch-shape ownership triage in step 3 is adapted from the `systematic-debugging` skill of `GanyuanRan/Aegis` (MIT License). Its diagnostic layers, workspace artifacts, and method-pack governance vocabulary are not included; only the canonical-owner signal list and decision shape are absorbed as native Action Worker rules.
