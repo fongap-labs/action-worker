@@ -44,6 +44,16 @@ Do not add wrapper, adapter, factory, registry, manager, service, abstraction la
 
 When removing unused code solves the problem, delete it instead of adding a compatibility layer.
 
+Classify what you delete before deleting it:
+
+```text
+code-retirement: source code, duplicate owners, stale fallbacks → delete directly
+derived-state: caches, generated indexes, temporary exports → verify they rebuild first, then delete
+persistent-state: live database rows, source-of-truth files, user or audit records → never delete automatically; stop and require explicit human confirmation
+```
+
+Deleting a migration file is not deleting the database. A generic "clean it up" instruction in the task does not authorize deleting persistent state.
+
 ## 4. Fix the root cause
 
 Locate the first failing point and repair the root cause, keeping the necessary verification. Do not stack a workaround on the symptom, then a special case, then another fallback.
@@ -101,4 +111,4 @@ This test never removes a safeguard listed in section 6. Input validation, error
 
 ## Provenance
 
-The principles are derived from the upstream reference project Ponytail (`DietrichGebert/ponytail`, MIT License) and absorbed as native Action Worker rules. No Ponytail runtime, dependency, plugin, command, state file, or implementation code is included.
+The principles are derived from the upstream reference project Ponytail (`DietrichGebert/ponytail`, MIT License) and absorbed as native Action Worker rules. No Ponytail runtime, dependency, plugin, command, state file, or implementation code is included. The deletion classification in section 3 is adapted from the `anti-entropy-governance` skill of `GanyuanRan/Aegis` (MIT License); its data-destruction guard, compat-exception gate, retirement-decision contract, and workspace artifacts are not included, only the deletion classes and the code-versus-data distinction.
