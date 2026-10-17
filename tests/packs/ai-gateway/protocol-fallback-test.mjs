@@ -732,9 +732,18 @@ try {
     assert.equal(calls[0].path, '/v1/responses');
   });
 
-  await test('Responses remains Native Only and never converts to Messages', async () => {
+  await test('Responses falls back to Messages through the default matrix chain', async () => {
     handlers['anth.example.com'] = () => json(messageOk());
     const res = await worker.fetch(responsesRequest(), env([messagesNode('anth')]), {});
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.object, 'response');
+    assert.equal(calls[0].path, '/v1/messages');
+  });
+
+  await test('Responses stays untranslated only when fallbacks are disabled', async () => {
+    handlers['anth.example.com'] = () => json(messageOk());
+    const res = await worker.fetch(responsesRequest(), env([messagesNode('anth')], { AIG_PROTOCOL_FALLBACKS: 'disable' }), {});
     assert.notEqual(res.status, 200);
     assert.equal(calls.length, 0);
   });

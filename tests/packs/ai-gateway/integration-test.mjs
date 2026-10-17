@@ -693,9 +693,21 @@ await test('OpenAI Responses uses the native OpenAI provider profile', async () 
   assert.equal(upstreamCalls[0].path, '/v1/responses');
 });
 
-await test('Responses route never falls back to a chat-only node', async () => {
-  routeHandlers['chatonly.example.com'] = () => jsonResponse(okChat());
+await test('Responses route falls back to a chat-only node through the matrix', async () => {
+  routeHandlers['chatonly.example.com'] = () => jsonResponse(okChat('translated'));
   const env = makeEnv({ tier1: [openaiNode('chatonly')], secrets: { chatonly: 'k' } });
+  const res = await worker.fetch(responsesRequest(), env, {});
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.object, 'response');
+  assert.equal(body.model, 'general-air');
+  assert.equal(body.output[0].content[0].text, 'translated');
+  assert.equal(upstreamCalls[0].path, '/v1/chat/completions');
+});
+
+await test('Responses route stays untranslated when fallbacks are disabled', async () => {
+  routeHandlers['chatonly.example.com'] = () => jsonResponse(okChat());
+  const env = makeEnv({ tier1: [openaiNode('chatonly')], secrets: { chatonly: 'k' }, extraEnv: { AIG_PROTOCOL_FALLBACKS: 'disable' } });
   const res = await worker.fetch(responsesRequest(), env, {});
   assert.equal(res.status, 404);
   assert.equal(upstreamCalls.length, 0);
