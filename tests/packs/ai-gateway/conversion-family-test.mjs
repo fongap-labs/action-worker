@@ -645,6 +645,37 @@ try {
     });
   });
 
+  await test('reasoning_effort maps to thinkingConfig with includeThoughts', () => {
+    const r = envelope({ model: 'm', messages: [{ role: 'user', content: 'hi' }], reasoning_effort: 'medium' });
+    assert.deepEqual(r.envelope.request.generationConfig, { thinkingConfig: { thinkingBudget: 8192, includeThoughts: true } });
+    const combined = envelope({
+      model: 'm',
+      messages: [{ role: 'user', content: 'hi' }],
+      max_tokens: 64,
+      reasoning_effort: 'low',
+    });
+    assert.equal(combined.envelope.request.generationConfig.maxOutputTokens, 64);
+    assert.deepEqual(combined.envelope.request.generationConfig.thinkingConfig, { thinkingBudget: 1024, includeThoughts: true });
+  });
+
+  await test('reasoning_effort vocabulary pins every canonical effort budget', () => {
+    const budgets = { minimal: 1024, low: 1024, medium: 8192, high: 24576, xhigh: 24576, max: 24576 };
+    for (const [effort, budget] of Object.entries(budgets)) {
+      const r = envelope({ model: 'm', messages: [{ role: 'user', content: 'hi' }], reasoning_effort: effort });
+      assert.deepEqual(r.envelope.request.generationConfig, { thinkingConfig: { thinkingBudget: budget, includeThoughts: true } }, `effort=${effort}`);
+    }
+  });
+
+  await test("reasoning_effort 'none' omits thinkingConfig (provider default stays)", () => {
+    const r = envelope({ model: 'm', messages: [{ role: 'user', content: 'hi' }], reasoning_effort: 'none' });
+    assert.equal(r.envelope.request.generationConfig, undefined);
+  });
+
+  await test('refusal: unknown reasoning_effort values fail the envelope (fail-closed)', () => {
+    assert.equal(envelope({ model: 'm', messages: [{ role: 'user', content: 'hi' }], reasoning_effort: 'baloney' }), null);
+    assert.equal(envelope({ model: 'm', messages: [{ role: 'user', content: 'hi' }], reasoning_effort: 3 }), null);
+  });
+
   await test('stream flag selects streaming endpoint semantics', () => {
     assert.equal(envelope({ model: 'm', messages: [{ role: 'user', content: 'hi' }], stream: true }).streaming, true);
     assert.equal(envelope({ model: 'm', messages: [{ role: 'user', content: 'hi' }] }).streaming, false);
@@ -716,6 +747,38 @@ try {
     assert.equal(out.choices[0].finish_reason, 'stop');
     assert.deepEqual(out.usage, { prompt_tokens: 3, completion_tokens: 5, total_tokens: 8, prompt_tokens_details: { cached_tokens: 1 } });
     assert.equal(out.model, 'gemini-2.5-pro');
+  });
+
+  await test('object: thought parts surface as reasoning_content', () => {
+    const out = codeAssistObjectToOpenAIChat({
+      candidates: [
+        {
+          content: {
+            parts: [{ text: 'step 1', thought: true }, { text: 'step 2', thought: true }, { text: 'answer' }],
+            role: 'model',
+          },
+          finishReason: 'STOP',
+        },
+      ],
+      usageMetadata: { promptTokenCount: 2, candidatesTokenCount: 7, thoughtsTokenCount: 5, totalTokenCount: 14 },
+    });
+    assert.equal(out.choices[0].message.content, 'answer');
+    assert.equal(out.choices[0].message.reasoning_content, 'step 1\nstep 2');
+    assert.equal(out.choices[0].finish_reason, 'stop');
+    assert.deepEqual(out.usage, {
+      prompt_tokens: 2,
+      completion_tokens: 12,
+      total_tokens: 14,
+      completion_tokens_details: { reasoning_tokens: 5 },
+    });
+  });
+
+  await test('object: thought-only response survives with null content', () => {
+    const out = codeAssistObjectToOpenAIChat({
+      candidates: [{ content: { parts: [{ text: 'only thinking', thought: true }], role: 'model' }, finishReason: 'STOP' }],
+    });
+    assert.equal(out.choices[0].message.content, null);
+    assert.equal(out.choices[0].message.reasoning_content, 'only thinking');
   });
 
   await test('object: function call maps to tool_calls', () => {
@@ -801,6 +864,27 @@ try {
     assert.equal(parsed.choices[0].delta.tool_calls[0].function.name, 'get_weather');
     assert.equal(parsed.choices[0].delta.tool_calls[0].function.arguments, '{"city":"sf"}');
     assert.equal(parsed.choices[0].delta.tool_calls[0].type, 'function');
+  });
+
+  await test('stream: thought deltas become reasoning_content before content', async () => {
+    const input = new Response(
+      sse(
+        { candidates: [{ content: { parts: [{ text: 'thinking…', thought: true }], role: 'model' }, index: 0 }] },
+        { candidates: [{ content: { parts: [{ text: 'and thinking more', thought: true }, { text: 'answer' }], role: 'model' }, finishReason: 'STOP' }] },
+      ),
+    ).body;
+    const out = await readStream(createOpenAIChatStreamFromCodeAssist(input, { messageId: 'm', model: 'm' }));
+    const deltas = out
+      .split('\n\n')
+      .filter((c) => c.startsWith('data: ') && !c.startsWith('data: [DONE]'))
+      .map((c) => JSON.parse(c.replace(/^data: /, '')))
+      .filter((chunk) => Object.keys(chunk.choices[0]?.delta ?? {}).some((k) => k === 'content' || k === 'reasoning_content'))
+      .map((chunk) => chunk.choices[0].delta);
+    assert.deepEqual(deltas, [
+      { reasoning_content: 'thinking…' },
+      { reasoning_content: 'and thinking more' },
+      { content: 'answer' },
+    ]);
   });
 
   await test('stream: clean upstream end finalizes even without finishReason', async () => {
