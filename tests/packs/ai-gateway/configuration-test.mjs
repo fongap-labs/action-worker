@@ -699,6 +699,32 @@ try {
     assert.throws(() => buildPlan({ tiers: { 1: [node('a')] }, secretsMap: { a: 'x', ghost: 'y' } }), /no matching node/);
   });
 
+  test('tier-2 oauth subscription nodes plan without base_url or credential', () => {
+    const oauth = () => {
+      const n = node('sub', { auth: 'oauth', models: { 'general-ultra': 'up' } });
+      delete n.base_url;
+      return n;
+    };
+    assert.doesNotThrow(() => assertNodesArray([oauth()], 'tier-2', 2));
+    const plan = buildPlan({ tiers: { 2: [oauth()] }, secretsMap: {} });
+    assert.ok(plan.vars.AIG_TIER2_NODES_01.includes('"auth":"oauth"'));
+    assert.equal(Object.keys(plan.secrets).length, 0);
+  });
+
+  test('oauth nodes keep exactly one credential source (token store only)', () => {
+    assert.throws(
+      () => buildPlan({ tiers: { 2: [node('sub', { auth: 'oauth' })] }, secretsMap: { sub: 'x' } }),
+      /must not have a static credential/,
+    );
+  });
+
+  test('auth:"oauth" is a Tier 2 marker only and must be the string "oauth"', () => {
+    assert.throws(() => assertNodesArray([node('a', { auth: 'oauth' })], 'tier-1', 1), /only allowed on tier-2/);
+    assert.throws(() => buildPlan({ tiers: { 3: [node('a', { auth: 'oauth' })] }, secretsMap: {} }), /only allowed on tier-2/);
+    assert.throws(() => assertNodesArray([node('a', { auth: 'bearer' })], 'tier-2', 2), /auth must be the string "oauth"/);
+    assert.throws(() => assertNodesArray([node('a', { auth: 'oauth' })]), /only allowed on tier-2/);
+  });
+
   test('secret object is strict', () => {
     assert.throws(() => assertSecretsObject([]), /JSON object/);
     assert.throws(() => assertSecretsObject({ a: '' }), /non-empty string/);
