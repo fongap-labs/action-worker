@@ -12,12 +12,7 @@
 // Uses only node:test + node:assert. Exits 0 on success, 1 on failure.
 import assert from 'node:assert/strict';
 import { getFallbackChain, getProtocolFallbacksDiagnostics, loadProtocolFallbacks } from '#target/src/config/protocol-fallbacks.ts';
-import { convertAnthropicResponseToOpenAIChat } from '#target/src/conversion/anthropic-response-to-openai-chat.ts';
-import { createOpenAIChatStreamFromAnthropic } from '#target/src/conversion/anthropic-stream-to-openai-chat.ts';
-import { ConversionError, convertAnthropicToOpenAIRequest } from '#target/src/conversion/anthropic-to-openai.ts';
-import { convertOpenAIChatRequestToAnthropic, DEFAULT_MAX_TOKENS } from '#target/src/conversion/openai-chat-request-to-anthropic.ts';
-import { convertOpenAIToAnthropicResponse, convertOpenAIUsageToAnthropic } from '#target/src/conversion/openai-to-anthropic.ts';
-import { createAnthropicStreamFromOpenAI } from '#target/src/conversion/stream-converter.ts';
+import { convertRequest, convertResponse, convertStream, DEFAULT_MAX_TOKENS, ConversionError, convertOpenAIUsageToAnthropic } from './conversion-matrix-adapters.mjs';
 import worker from '#target/src/index.ts';
 import { __resetAllStateForTests } from '#target/src/reliability/node-state.ts';
 import { __resetTier1StateForTests } from '#target/src/reliability/tier1-state.ts';
@@ -46,7 +41,7 @@ async function run(name, fn) {
 console.log('conversion-test: starting\n');
 
 await run('conversion: text roundtrip', () => {
-  const out = convertAnthropicToOpenAIRequest({
+  const out = convertRequest('anthropic', 'openai_chat', {
     model: 'claude-x',
     system: 'you are helpful',
     max_tokens: 100,
@@ -67,7 +62,7 @@ await run('conversion: text roundtrip', () => {
 });
 
 await run('conversion: tool_use roundtrip (assistant + tool_result)', () => {
-  const out = convertAnthropicToOpenAIRequest({
+  const out = convertRequest('anthropic', 'openai_chat', {
     max_tokens: 64,
     messages: [
       {
@@ -107,7 +102,7 @@ await run('conversion: tool_use roundtrip (assistant + tool_result)', () => {
 });
 
 await run('conversion: response conversion (text + tool_use, finish=tool_calls)', () => {
-  const out = convertOpenAIToAnthropicResponse({
+  const out = convertResponse('openai_chat', 'anthropic', {
     id: 'chatcmpl-1',
     model: 'up-model',
     choices: [
@@ -155,7 +150,7 @@ await run('conversion: usage conversion', () => {
 await run('conversion: unsupported image block throws ConversionError', () => {
   let caught;
   try {
-    convertAnthropicToOpenAIRequest({
+    convertRequest('anthropic', 'openai_chat', {
       max_tokens: 10,
       messages: [{ role: 'user', content: [{ type: 'image', source: {} }] }],
     });
@@ -169,7 +164,7 @@ await run('conversion: unsupported image block throws ConversionError', () => {
 await run('conversion: unsupported tool_choice throws ConversionError', () => {
   let caught;
   try {
-    convertAnthropicToOpenAIRequest({
+    convertRequest('anthropic', 'openai_chat', {
       max_tokens: 10,
       tool_choice: { type: 'bogus' },
       messages: [{ role: 'user', content: 'hi' }],
@@ -186,7 +181,7 @@ await run('conversion: unsupported tool_choice throws ConversionError', () => {
 // =====================================================================
 
 await run('conversion: OpenAI Chat -> Anthropic request — text roundtrip', () => {
-  const out = convertOpenAIChatRequestToAnthropic({
+  const out = convertRequest('openai_chat', 'anthropic', {
     model: 'gpt-4o',
     messages: [{ role: 'user', content: 'hi' }],
   });
@@ -200,7 +195,7 @@ await run('conversion: OpenAI Chat -> Anthropic request — text roundtrip', () 
 });
 
 await run('conversion: OpenAI Chat -> Anthropic request — system (string) + developer (string)', () => {
-  const out = convertOpenAIChatRequestToAnthropic({
+  const out = convertRequest('openai_chat', 'anthropic', {
     model: 'gpt-4o',
     system: 'you are helpful',
     messages: [
@@ -223,7 +218,7 @@ await run('conversion: OpenAI Chat -> Anthropic request — system (string) + de
 });
 
 await run('conversion: OpenAI Chat -> Anthropic request — temperature/top_p/stop/stream passthrough', () => {
-  const out = convertOpenAIChatRequestToAnthropic({
+  const out = convertRequest('openai_chat', 'anthropic', {
     model: 'gpt-4o',
     temperature: 0.7,
     top_p: 0.9,
@@ -238,7 +233,7 @@ await run('conversion: OpenAI Chat -> Anthropic request — temperature/top_p/st
 });
 
 await run('conversion: OpenAI Chat -> Anthropic request — stop string becomes single-element array', () => {
-  const out = convertOpenAIChatRequestToAnthropic({
+  const out = convertRequest('openai_chat', 'anthropic', {
     model: 'gpt-4o',
     stop: 'END',
     messages: [{ role: 'user', content: 'hi' }],
@@ -247,7 +242,7 @@ await run('conversion: OpenAI Chat -> Anthropic request — stop string becomes 
 });
 
 await run('conversion: OpenAI Chat -> Anthropic request — max_tokens explicit pass-through', () => {
-  const out = convertOpenAIChatRequestToAnthropic({
+  const out = convertRequest('openai_chat', 'anthropic', {
     model: 'gpt-4o',
     max_tokens: 256,
     messages: [{ role: 'user', content: 'hi' }],
@@ -256,7 +251,7 @@ await run('conversion: OpenAI Chat -> Anthropic request — max_tokens explicit 
 });
 
 await run('conversion: OpenAI Chat -> Anthropic request — assistant tool_calls -> tool_use', () => {
-  const out = convertOpenAIChatRequestToAnthropic({
+  const out = convertRequest('openai_chat', 'anthropic', {
     model: 'gpt-4o',
     messages: [
       { role: 'user', content: 'lookup sf' },
@@ -288,7 +283,7 @@ await run('conversion: OpenAI Chat -> Anthropic request — assistant tool_calls
 });
 
 await run('conversion: OpenAI Chat -> Anthropic request — role=tool -> tool_result', () => {
-  const out = convertOpenAIChatRequestToAnthropic({
+  const out = convertRequest('openai_chat', 'anthropic', {
     model: 'gpt-4o',
     messages: [
       {
@@ -309,7 +304,7 @@ await run('conversion: OpenAI Chat -> Anthropic request — role=tool -> tool_re
 });
 
 await run('conversion: OpenAI Chat -> Anthropic request — multiple consecutive tool messages merge', () => {
-  const out = convertOpenAIChatRequestToAnthropic({
+  const out = convertRequest('openai_chat', 'anthropic', {
     model: 'gpt-4o',
     messages: [
       {
@@ -334,7 +329,7 @@ await run('conversion: OpenAI Chat -> Anthropic request — multiple consecutive
 });
 
 await run('conversion: OpenAI Chat -> Anthropic request — tools[].function.parameters -> input_schema', () => {
-  const out = convertOpenAIChatRequestToAnthropic({
+  const out = convertRequest('openai_chat', 'anthropic', {
     model: 'gpt-4o',
     tools: [
       {
@@ -357,7 +352,7 @@ await run('conversion: OpenAI Chat -> Anthropic request — tools[].function.par
 
 await run('conversion: OpenAI Chat -> Anthropic request — tool_choice auto/required/none/function', () => {
   const mk = (tc) =>
-    convertOpenAIChatRequestToAnthropic({
+    convertRequest('openai_chat', 'anthropic', {
       model: 'gpt-4o',
       tool_choice: tc,
       messages: [{ role: 'user', content: 'hi' }],
@@ -372,7 +367,7 @@ await run('conversion: OpenAI Chat -> Anthropic request — tool_choice auto/req
 await run('conversion: OpenAI Chat -> Anthropic request — unsupported tool_choice type rejected', () => {
   let caught;
   try {
-    convertOpenAIChatRequestToAnthropic({
+    convertRequest('openai_chat', 'anthropic', {
       model: 'gpt-4o',
       tool_choice: { type: 'weird' },
       messages: [{ role: 'user', content: 'hi' }],
@@ -385,7 +380,7 @@ await run('conversion: OpenAI Chat -> Anthropic request — unsupported tool_cho
 });
 
 await run('conversion: OpenAI Chat -> Anthropic request — image_url is converted to image block', () => {
-  const out = convertOpenAIChatRequestToAnthropic({
+  const out = convertRequest('openai_chat', 'anthropic', {
     model: 'gpt-4o',
     messages: [
       {
@@ -409,7 +404,7 @@ await run('conversion: OpenAI Chat -> Anthropic request — image_url is convert
 await run('conversion: OpenAI Chat -> Anthropic request — input_audio is rejected (not silently dropped)', () => {
   let caught;
   try {
-    convertOpenAIChatRequestToAnthropic({
+    convertRequest('openai_chat', 'anthropic', {
       model: 'gpt-4o',
       messages: [
         {
@@ -428,7 +423,7 @@ await run('conversion: OpenAI Chat -> Anthropic request — input_audio is rejec
 await run('conversion: OpenAI Chat -> Anthropic request — unknown role is rejected', () => {
   let caught;
   try {
-    convertOpenAIChatRequestToAnthropic({
+    convertRequest('openai_chat', 'anthropic', {
       model: 'gpt-4o',
       messages: [{ role: 'function', content: 'legacy' }],
     });
@@ -449,7 +444,7 @@ await run('conversion: OpenAI Chat -> Anthropic request — DEFAULT_MAX_TOKENS i
 // =====================================================================
 
 await run('conversion: Anthropic response -> OpenAI Chat — text only (end_turn)', () => {
-  const out = convertAnthropicResponseToOpenAIChat({
+  const out = convertResponse('anthropic', 'openai_chat', {
     id: 'msg_1',
     type: 'message',
     role: 'assistant',
@@ -472,7 +467,7 @@ await run('conversion: Anthropic response -> OpenAI Chat — text only (end_turn
 });
 
 await run('conversion: Anthropic response -> OpenAI Chat — tool_use (finish=tool_use)', () => {
-  const out = convertAnthropicResponseToOpenAIChat({
+  const out = convertResponse('anthropic', 'openai_chat', {
     id: 'msg_2',
     type: 'message',
     role: 'assistant',
@@ -499,7 +494,7 @@ await run('conversion: Anthropic response -> OpenAI Chat — tool_use (finish=to
 
 await run('conversion: Anthropic response -> OpenAI Chat — stop_reason mapping', () => {
   const mk = (sr) =>
-    convertAnthropicResponseToOpenAIChat({
+    convertResponse('anthropic', 'openai_chat', {
       id: 'm',
       type: 'message',
       role: 'assistant',
@@ -515,7 +510,7 @@ await run('conversion: Anthropic response -> OpenAI Chat — stop_reason mapping
 });
 
 await run('conversion: Anthropic response -> OpenAI Chat — usage total_tokens computed when missing', () => {
-  const out = convertAnthropicResponseToOpenAIChat({
+  const out = convertResponse('anthropic', 'openai_chat', {
     id: 'm',
     type: 'message',
     role: 'assistant',
@@ -529,7 +524,7 @@ await run('conversion: Anthropic response -> OpenAI Chat — usage total_tokens 
 });
 
 await run('conversion: Anthropic response -> OpenAI Chat — missing usage defaults to 0', () => {
-  const out = convertAnthropicResponseToOpenAIChat({
+  const out = convertResponse('anthropic', 'openai_chat', {
     id: 'm',
     type: 'message',
     role: 'assistant',
@@ -544,7 +539,7 @@ await run('conversion: Anthropic response -> OpenAI Chat — missing usage defau
 await run('conversion: Anthropic response -> OpenAI Chat — unsupported content type is rejected', () => {
   let caught;
   try {
-    convertAnthropicResponseToOpenAIChat({
+    convertResponse('anthropic', 'openai_chat', {
       id: 'm',
       type: 'message',
       role: 'assistant',
@@ -560,7 +555,7 @@ await run('conversion: Anthropic response -> OpenAI Chat — unsupported content
 });
 
 await run('conversion: Anthropic response -> OpenAI Chat — thinking-only response converts to reasoning_content', () => {
-  const out = convertAnthropicResponseToOpenAIChat({
+  const out = convertResponse('anthropic', 'openai_chat', {
     id: 'm',
     type: 'message',
     role: 'assistant',
@@ -653,7 +648,7 @@ await run('conversion: stream Anthropic -> OpenAI Chat — text + end_turn, real
     }),
     sseAnthropicEvent('message_stop', { type: 'message_stop' }),
   ];
-  const stream = createOpenAIChatStreamFromAnthropic(makeSseResponse(anthropicChunks), {
+  const stream = convertStream('anthropic', 'openai_chat', makeSseResponse(anthropicChunks), {
     messageId: 'chatcmpl-test-1',
     model: 'claude-x',
   });
@@ -709,7 +704,7 @@ await run('conversion: stream Anthropic -> OpenAI Chat — tool_use + tool_calls
     }),
     sseAnthropicEvent('message_stop', { type: 'message_stop' }),
   ];
-  const stream = createOpenAIChatStreamFromAnthropic(makeSseResponse(anthropicChunks), {
+  const stream = convertStream('anthropic', 'openai_chat', makeSseResponse(anthropicChunks), {
     messageId: 'chatcmpl-test-2',
     model: 'claude-x',
   });
@@ -754,7 +749,7 @@ await run('conversion: stream Anthropic -> OpenAI Chat — message_start only is
     sseAnthropicEvent('content_block_start', { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }),
     // No deltas; upstream ends.
   ];
-  const stream = createOpenAIChatStreamFromAnthropic(makeSseResponse(anthropicChunks), {
+  const stream = convertStream('anthropic', 'openai_chat', makeSseResponse(anthropicChunks), {
     messageId: 'chatcmpl-test-3',
     model: 'claude-x',
   });
@@ -782,7 +777,7 @@ await run('conversion: stream Anthropic -> OpenAI Chat — max_tokens maps to le
     sseAnthropicEvent('message_delta', { type: 'message_delta', delta: { stop_reason: 'max_tokens', stop_sequence: null } }),
     sseAnthropicEvent('message_stop', { type: 'message_stop' }),
   ];
-  const stream = createOpenAIChatStreamFromAnthropic(makeSseResponse(anthropicChunks), {
+  const stream = convertStream('anthropic', 'openai_chat', makeSseResponse(anthropicChunks), {
     messageId: 'chatcmpl-test-4',
     model: 'claude-x',
   });
@@ -817,7 +812,7 @@ await run('conversion: stream Anthropic -> OpenAI Chat — usage chunk emitted a
     }),
     sseAnthropicEvent('message_stop', { type: 'message_stop' }),
   ];
-  const stream = createOpenAIChatStreamFromAnthropic(makeSseResponse(anthropicChunks), {
+  const stream = convertStream('anthropic', 'openai_chat', makeSseResponse(anthropicChunks), {
     messageId: 'chatcmpl-test-5',
     model: 'claude-x',
   });
@@ -897,7 +892,7 @@ await run('conversion: stream text roundtrip', async () => {
     sseEvent('', { choices: [{ delta: {}, finish_reason: 'stop' }] }),
     'data: [DONE]\n\n',
   ];
-  const stream = createAnthropicStreamFromOpenAI(makeSseResponse(openAiChunks), {
+  const stream = convertStream('openai_chat', 'anthropic', makeSseResponse(openAiChunks), {
     messageId: 'msg_test1',
     model: 'claude-x',
     inputTokens: 4,
@@ -935,7 +930,7 @@ await run('conversion: stream tool_calls roundtrip (split across chunks)', async
     sseEvent('', { choices: [{ delta: {}, finish_reason: 'tool_calls' }] }),
     'data: [DONE]\n\n',
   ];
-  const stream = createAnthropicStreamFromOpenAI(makeSseResponse(openAiChunks), {
+  const stream = convertStream('openai_chat', 'anthropic', makeSseResponse(openAiChunks), {
     messageId: 'msg_test2',
     model: 'claude-x',
   });
@@ -980,7 +975,7 @@ await run('conversion: stream OpenAI -> Anthropic — reasoning_content becomes 
     sseEvent('', { choices: [{ delta: {}, finish_reason: 'stop' }] }),
     'data: [DONE]\n\n',
   ];
-  const stream = createAnthropicStreamFromOpenAI(makeSseResponse(openAiChunks), {
+  const stream = convertStream('openai_chat', 'anthropic', makeSseResponse(openAiChunks), {
     messageId: 'msg_test_reasoning',
     model: 'claude-x',
     inputTokens: 4,
@@ -1019,7 +1014,7 @@ await run('conversion: stream OpenAI -> Anthropic — reasoning_content becomes 
 });
 
 await run('conversion: non-stream OpenAI -> Anthropic — reasoning_content becomes thinking block', () => {
-  const out = convertOpenAIToAnthropicResponse({
+  const out = convertResponse('openai_chat', 'anthropic', {
     id: 'cmpl-test',
     object: 'chat.completion',
     created: Date.now(),

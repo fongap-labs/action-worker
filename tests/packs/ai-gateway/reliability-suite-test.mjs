@@ -11,7 +11,7 @@
 import { createMockD1 } from '#kit/mock-d1-database.mjs';
 import { targetPath, targetRoot as root } from '#kit/target.mjs';
 import { loadPoliciesConfig } from '#target/src/config/policies.ts';
-import { createOpenAIChatStreamFromAnthropic } from '#target/src/conversion/anthropic-stream-to-openai-chat.ts';
+import { convertStream } from './conversion-matrix-adapters.mjs';
 import worker from '#target/src/index.ts';
 import { TTFT_BUCKET_BOUNDARIES_MS, persistTokenUsage, queryAllModelsTtftPercentiles, queryModelUsageCoverage, ttftBucketIndex } from '#target/src/observability/token-usage-store.ts';
 import { classifyUpstreamStatus } from '#target/src/reliability/classify.ts';
@@ -312,7 +312,7 @@ try {
         controller.close();
       },
     });
-    const reader = createOpenAIChatStreamFromAnthropic(source, { messageId: 'm2', model: 'claude' }).getReader();
+    const reader = convertStream('anthropic', 'openai_chat', source, { messageId: 'm2', model: 'claude' }).getReader();
     const decoder = new TextDecoder();
     let out = '';
     for (;;) {
