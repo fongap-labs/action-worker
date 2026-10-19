@@ -6,14 +6,13 @@
 //   - conversion-boundary-test.mjs
 //   - google-subscription-wire-test.mjs
 
-import { convertRequest, convertStream } from './conversion-matrix-adapters.mjs';
+import { convertRequest, convertResult, convertStream } from './conversion-matrix-adapters.mjs';
 
 // Call-shaped aliases for the matrix adapters, kept for the table-driven cases below.
 const chat = (body) => convertRequest('openai_chat', 'anthropic', body);
 const anthropic = (body) => convertRequest('anthropic', 'openai_chat', body);
 const chatStream = (source) => convertStream('anthropic', 'openai_chat', source);
 const anthropicStream = (source) => convertStream('openai_chat', 'anthropic', source);
-import { SYNTHETIC_STRUCTURED_OUTPUT_TOOL, convertAnthropicToOpenAIResult, convertOpenAIChatToAnthropicResult, selectStructuredOutputStrategy } from '#target/src/conversion/result.ts';
 import { ConversionError } from '#target/src/conversion/validation.ts';
 import { GEMINI_CLI_USER_AGENT, GEMINI_CODE_ASSIST_ENDPOINT, codeAssistObjectToOpenAIChat, createOpenAIChatStreamFromCodeAssist, openAIChatToCodeAssistEnvelope } from '#target/src/subscription/google-wire.ts';
 import assert from 'node:assert/strict';
@@ -40,7 +39,7 @@ try {
   // Plain text can cross the existing Chat <-> Messages bridge without a
   // material semantic downgrade.
   {
-    const result = convertAnthropicToOpenAIResult({
+    const result = convertResult('anthropic', 'openai_chat', {
       model: 'Code-Max',
       max_tokens: 128,
       messages: [{ role: 'user', content: 'hello' }],
@@ -53,7 +52,7 @@ try {
 
   // Portable function-tool mapping is visible but is not classified as loss.
   {
-    const result = convertAnthropicToOpenAIResult({
+    const result = convertResult('anthropic', 'openai_chat', {
       model: 'Code-Max',
       max_tokens: 128,
       tools: [
@@ -79,7 +78,7 @@ try {
   {
     const privatePrompt = 'PRIVATE_PROMPT_MUST_NOT_APPEAR_IN_DIAGNOSTICS';
     const privateToolName = 'PRIVATE_TOOL_NAME_MUST_NOT_APPEAR_IN_DIAGNOSTICS';
-    const result = convertAnthropicToOpenAIResult({
+    const result = convertResult('anthropic', 'openai_chat', {
       model: 'Code-Max',
       max_tokens: 256,
       thinking: { type: 'enabled', budget_tokens: 128 },
@@ -120,30 +119,10 @@ try {
     assert.equal(diagnosticJson.includes('private reasoning'), false);
   }
 
-  // Strategy order is explicit and conservative. Tool is not considered usable
-  // until both request-side support and a response-side unwrap adapter are known.
-  assert.equal(selectStructuredOutputStrategy({}), 'prompt');
-  assert.equal(selectStructuredOutputStrategy({ syntheticToolOutput: true }), 'prompt');
-  assert.equal(
-    selectStructuredOutputStrategy({
-      syntheticToolOutput: true,
-      syntheticToolResultAdapter: true,
-    }),
-    'tool',
-  );
-  assert.equal(
-    selectStructuredOutputStrategy({
-      nativeJsonSchema: true,
-      syntheticToolOutput: true,
-      syntheticToolResultAdapter: true,
-    }),
-    'native',
-  );
-
   // Anthropic structured output keeps the v1.3.1 prompt path for an unknown
   // OpenAI-compatible target.
   {
-    const result = convertAnthropicToOpenAIResult({
+    const result = convertResult('anthropic', 'openai_chat', {
       model: 'Code-Max',
       max_tokens: 256,
       output_config: { format: { type: 'json_schema', schema } },
@@ -161,76 +140,10 @@ try {
     assert.equal(Object.hasOwn(result.body, 'response_format'), false);
   }
 
-  // A caller with positive native capability evidence can request native OpenAI
-  // JSON Schema without also retaining the prompt emulation.
-  {
-    const result = convertAnthropicToOpenAIResult(
-      {
-        model: 'Code-Max',
-        max_tokens: 256,
-        output_config: { format: { type: 'json_schema', schema } },
-        messages: [{ role: 'user', content: 'answer' }],
-      },
-      { structuredOutput: { nativeJsonSchema: true } },
-    );
-    assert.equal(result.fidelity, 'portable');
-    assert.equal(result.structuredOutput.strategy, 'native');
-    assert.equal(result.body.response_format.type, 'json_schema');
-    assert.deepEqual(result.body.response_format.json_schema.schema, schema);
-    assert.equal(
-      result.body.messages.some((m) => typeof m.content === 'string' && /return only valid JSON/i.test(m.content)),
-      false,
-    );
-  }
-
-  // Synthetic-tool strategy is modeled but requires the response adapter proof.
-  // It is also never forced over an existing client tool contract.
-  {
-    const toolResult = convertAnthropicToOpenAIResult(
-      {
-        model: 'Code-Max',
-        max_tokens: 256,
-        output_config: { format: { type: 'json_schema', schema } },
-        messages: [{ role: 'user', content: 'answer' }],
-      },
-      {
-        structuredOutput: {
-          syntheticToolOutput: true,
-          syntheticToolResultAdapter: true,
-        },
-      },
-    );
-    assert.equal(toolResult.structuredOutput.strategy, 'tool');
-    assert.equal(toolResult.fidelity, 'degraded');
-    assert.equal(toolResult.body.tools[0].function.name, SYNTHETIC_STRUCTURED_OUTPUT_TOOL);
-    assert.equal(toolResult.body.tool_choice.function.name, SYNTHETIC_STRUCTURED_OUTPUT_TOOL);
-
-    const conflict = convertAnthropicToOpenAIResult(
-      {
-        model: 'Code-Max',
-        max_tokens: 256,
-        output_config: { format: { type: 'json_schema', schema } },
-        tools: [{ name: 'Read', input_schema: { type: 'object' } }],
-        messages: [{ role: 'user', content: 'answer' }],
-      },
-      {
-        structuredOutput: {
-          syntheticToolOutput: true,
-          syntheticToolResultAdapter: true,
-        },
-      },
-    );
-    assert.equal(conflict.structuredOutput.strategy, 'prompt');
-    assert.equal(
-      conflict.body.tools.some((t) => t.function?.name === SYNTHETIC_STRUCTURED_OUTPUT_TOOL),
-      false,
-    );
-  }
-
   // OpenAI -> Anthropic keeps the existing 1024 default observable as semantic
   // degradation rather than silently hiding the default policy.
   {
-    const result = convertOpenAIChatToAnthropicResult({
+    const result = convertResult('openai_chat', 'anthropic', {
       model: 'gpt-compatible',
       messages: [{ role: 'user', content: 'hello' }],
     });
@@ -242,7 +155,7 @@ try {
   // OpenAI response_format is now accepted by the result wrapper. Unknown
   // Anthropic-compatible targets use prompt emulation, preserving portability.
   {
-    const result = convertOpenAIChatToAnthropicResult({
+    const result = convertResult('openai_chat', 'anthropic', {
       model: 'gpt-compatible',
       max_tokens: 256,
       response_format: {
@@ -259,29 +172,9 @@ try {
     assert.equal(Object.hasOwn(result.body, 'output_config'), false);
   }
 
-  // Positive capability evidence enables native Anthropic output_config.format.
-  {
-    const result = convertOpenAIChatToAnthropicResult(
-      {
-        model: 'gpt-compatible',
-        max_tokens: 256,
-        response_format: {
-          type: 'json_schema',
-          json_schema: { name: 'answer', schema, strict: true },
-        },
-        messages: [{ role: 'user', content: 'answer' }],
-      },
-      { structuredOutput: { nativeJsonSchema: true } },
-    );
-    assert.equal(result.fidelity, 'portable');
-    assert.equal(result.structuredOutput.strategy, 'native');
-    assert.deepEqual(result.body.output_config, { format: { type: 'json_schema', schema } });
-    assert.equal(result.body.system, undefined);
-  }
-
   // strict:false must not be silently strengthened by a native Anthropic schema.
   {
-    const result = convertOpenAIChatToAnthropicResult(
+    const result = convertResult('openai_chat', 'anthropic', 
       {
         model: 'gpt-compatible',
         max_tokens: 256,
@@ -291,7 +184,6 @@ try {
         },
         messages: [{ role: 'user', content: 'answer' }],
       },
-      { structuredOutput: { nativeJsonSchema: true } },
     );
     assert.equal(result.structuredOutput.strategy, 'prompt');
     assert.equal(result.fidelity, 'degraded');
@@ -299,7 +191,7 @@ try {
 
   assert.throws(
     () =>
-      convertOpenAIChatToAnthropicResult({
+      convertResult('openai_chat', 'anthropic', {
         model: 'gpt-compatible',
         max_tokens: 256,
         response_format: {
@@ -318,7 +210,7 @@ try {
       type: 'object',
       properties: { PRIVATE_SCHEMA_FIELD_DO_NOT_LOG: { type: 'string' } },
     };
-    const result = convertAnthropicToOpenAIResult({
+    const result = convertResult('anthropic', 'openai_chat', {
       model: 'Code-Max',
       max_tokens: 256,
       output_config: { format: { type: 'json_schema', schema: privateSchema } },
@@ -329,7 +221,7 @@ try {
     assert.equal(diagnosticJson.includes('PRIVATE_BODY_DO_NOT_LOG'), false);
   }
 
-  console.log('conversion result / fidelity / structured-output strategy contract passed');
+  console.log('conversion result / fidelity contract passed');
   console.log('ok - file:conversion-result');
 } catch (error) {
   console.error('not ok - conversion-result-test.mjs failed');

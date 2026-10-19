@@ -227,7 +227,10 @@ try {
   assert.match(moduleAudit, /Tier 1 ownership/i);
   assert.match(moduleAudit, /request\/attempt\/success\.ts/i);
   assert.match(moduleAudit, /Automatic cooldown jitter/i);
-  assert.match(moduleAudit, /no universal IR/i);
+  // The conversion row names the single IR matrix (current wording). The earlier
+  // "no universal IR" wording is still accepted so this suite passes on main until the
+  // matrix change lands.
+  assert.match(moduleAudit, /conversion\/matrix|no universal IR/i);
   ok('module boundary audit pins baseline, resolved ownership, and anti-over-abstraction guardrails');
 
   const calendar = read('docs/architecture/calendar-heatmap.md');
