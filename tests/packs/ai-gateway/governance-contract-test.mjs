@@ -1110,8 +1110,6 @@ try {
   const router = read('src/request/router.ts');
   const diagnostics = read('src/observability/diagnostic-endpoints.ts');
   const deploy = read('scripts/github-deployment-config.mjs');
-  const installSh = read('scripts/install.sh');
-  const installPs1 = read('scripts/install.ps1');
   const toolingReadme = read('scripts/README.md');
   const product = read('docs/governance/product-policy.md');
 
@@ -1123,16 +1121,8 @@ try {
   // biome-ignore lint/suspicious/noTemplateCurlyInString: verifies the literal ${origin} text appears in the deployment script source
   assert.ok(deploy.includes('`${origin}/health`'), 'deployment verifier must use /health');
   assert.match(deploy, /healthBody\?\.build !== expectedBuild/, 'deployment verification must compare commit SHA');
-  for (const [name, source] of [
-    ['POSIX installer', installSh],
-    ['PowerShell installer', installPs1],
-  ]) {
-    assert.equal(source.includes('/version'), false, `${name} must not probe retired /version`);
-    assert.equal(source.includes('scripts/version-check.mjs'), false, `${name} must not call the deleted version-check script`);
-    assert.ok(source.includes('/health'), `${name} must verify /health`);
-    assert.ok(source.includes('/v1/models'), `${name} must verify /v1/models`);
-    assert.ok(source.includes('engines.node'), `${name} must read the Node requirement from package.json`);
-  }
+  assert.equal(existsSync(join(root, 'scripts/install.sh')), false, 'scripts/install.sh must stay retired');
+  assert.equal(existsSync(join(root, 'scripts/install.ps1')), false, 'scripts/install.ps1 must stay retired');
   assert.doesNotMatch(
     toolingReadme,
     /version:sync|Version synchronization|version-check\.mjs/i,
