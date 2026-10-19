@@ -29,6 +29,11 @@ export function convertResponse(from, to, data) {
   return replyToObject(reply, to);
 }
 
+/** Full ConversionResult (body, fidelity, diagnostics, structuredOutput) for a matrix pair. */
+export function convertResult(from, to, body) {
+  return convertMatrixRequest(from, to, body);
+}
+
 /** Client-protocol SSE stream decoded from an upstream body (ReadableStream or Response). */
 export function convertStream(from, to, upstream, { messageId, onUpstreamUsage, inputTokens } = {}) {
   const body = upstream instanceof Response ? upstream.body : upstream;
