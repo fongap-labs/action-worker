@@ -6,11 +6,14 @@
 //   - conversion-boundary-test.mjs
 //   - google-subscription-wire-test.mjs
 
-import { createOpenAIChatStreamFromAnthropic as chatStream } from '#target/src/conversion/anthropic-stream-to-openai-chat.ts';
-import { convertAnthropicToOpenAIRequest as anthropic } from '#target/src/conversion/anthropic-to-openai.ts';
-import { convertOpenAIChatRequestToAnthropic as chat } from '#target/src/conversion/openai-chat-request-to-anthropic.ts';
+import { convertRequest, convertStream } from './conversion-matrix-adapters.mjs';
+
+// Call-shaped aliases for the matrix adapters, kept for the table-driven cases below.
+const chat = (body) => convertRequest('openai_chat', 'anthropic', body);
+const anthropic = (body) => convertRequest('anthropic', 'openai_chat', body);
+const chatStream = (source) => convertStream('anthropic', 'openai_chat', source);
+const anthropicStream = (source) => convertStream('openai_chat', 'anthropic', source);
 import { SYNTHETIC_STRUCTURED_OUTPUT_TOOL, convertAnthropicToOpenAIResult, convertOpenAIChatToAnthropicResult, selectStructuredOutputStrategy } from '#target/src/conversion/result.ts';
-import { createAnthropicStreamFromOpenAI as anthropicStream } from '#target/src/conversion/stream-converter.ts';
 import { ConversionError } from '#target/src/conversion/validation.ts';
 import { GEMINI_CLI_USER_AGENT, GEMINI_CODE_ASSIST_ENDPOINT, codeAssistObjectToOpenAIChat, createOpenAIChatStreamFromCodeAssist, openAIChatToCodeAssistEnvelope } from '#target/src/subscription/google-wire.ts';
 import assert from 'node:assert/strict';
@@ -367,24 +370,24 @@ try {
   // converter must ACCEPT it and safely drop it, because a legal Anthropic
   // request carrying metadata must still be able to fall back to OpenAI.
   test('Chat rejects unsupported metadata instead of dropping semantics', () => {
-    assert.throws(() => chat({ model: 'm', messages: [message], metadata: { user_id: 'x' } }), /conversion_not_supported/);
+    assert.throws(() => convertRequest('openai_chat', 'anthropic', { model: 'm', messages: [message], metadata: { user_id: 'x' } }), /conversion_not_supported/);
   });
   test('Messages accepts metadata (safe drop) instead of blocking fallback', () => {
-    const out = anthropic({ model: 'm', max_tokens: 20, metadata: { user_id: 'x' }, messages: [message] });
+    const out = convertRequest('anthropic', 'openai_chat', { model: 'm', max_tokens: 20, metadata: { user_id: 'x' }, messages: [message] });
     assert.equal(out.model, 'm');
     assert.equal(out.messages[0].role, 'user');
     assert.equal(out.metadata, undefined, 'metadata is dropped, not forwarded');
   });
   test('Chat rejects non-equivalent sampling, strict tools, and invalid JSON arguments', () => {
-    assert.throws(() => chat({ model: 'm', messages: [message], temperature: 1.5 }), /conversion_not_supported/);
+    assert.throws(() => convertRequest('openai_chat', 'anthropic', { model: 'm', messages: [message], temperature: 1.5 }), /conversion_not_supported/);
     assert.throws(
-      () => chat({ model: 'm', messages: [message], tools: [{ type: 'function', function: { name: 'f', strict: true } }] }),
+      () => convertRequest('openai_chat', 'anthropic', { model: 'm', messages: [message], tools: [{ type: 'function', function: { name: 'f', strict: true } }] }),
       /conversion_not_supported/,
     );
     for (const argumentsValue of ['{broken', '[]', 'null', '1']) {
       assert.throws(
         () =>
-          chat({
+          convertRequest('openai_chat', 'anthropic', {
             model: 'm',
             messages: [{ role: 'assistant', tool_calls: [{ id: 'c', type: 'function', function: { name: 'f', arguments: argumentsValue } }] }],
           }),
@@ -393,7 +396,7 @@ try {
     }
   });
   test('Messages preserves text after tool_use and emits parallel tool results at top level', () => {
-    const out = anthropic({
+    const out = convertRequest('anthropic', 'openai_chat', {
       model: 'm',
       messages: [
         {
@@ -453,7 +456,7 @@ try {
   ];
 
   test('Chat tool index starts at zero after text and usage does not duplicate finish', async () => {
-    const text = await read(chatStream(source([...textBlock(0, 'a'), ...toolBlock(1), ...stop('tool_use'), ...stop('tool_use')])));
+    const text = await read(convertStream('anthropic', 'openai_chat', source([...textBlock(0, 'a'), ...toolBlock(1), ...stop('tool_use'), ...stop('tool_use')])));
     const events = eventsFrom(text);
     assert.deepEqual(
       events

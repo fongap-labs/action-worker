@@ -10,7 +10,7 @@
 //   - model-stats-canonicalization-test.mjs
 
 import { createMockD1 } from '#kit/mock-d1-database.mjs';
-import { createOpenAIChatStreamFromAnthropic } from '#target/src/conversion/anthropic-stream-to-openai-chat.ts';
+import { convertStream } from './conversion-matrix-adapters.mjs';
 import { ensureModelTtftContainers, fmtModelTtft } from '#target/src/dashboard/model-status-view.ts';
 import { __resetDashboardCacheForTests, dashboardResponse } from '#target/src/dashboard/pages.ts';
 import { metricsResponse } from '#target/src/observability/diagnostic-endpoints.ts';
@@ -1509,7 +1509,7 @@ try {
       'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":3}}\n\n',
       'event: message_stop\ndata: {"type":"message_stop"}\n\n',
     ]);
-    const converted = createOpenAIChatStreamFromAnthropic(source.body, {
+    const converted = convertStream('anthropic', 'openai_chat', source.body, {
       model: 'Code-Max',
       onUpstreamUsage: (usage) => observeUpstreamAttemptUsage(c, usage),
     });

@@ -8,9 +8,9 @@
 // generic Chat-only upstream.
 
 import assert from 'node:assert/strict';
-import { ConversionError, convertAnthropicToOpenAIRequest } from '#target/src/conversion/anthropic-to-openai.ts';
+import { convertRequest, ConversionError } from './conversion-matrix-adapters.mjs';
 
-const converted = convertAnthropicToOpenAIRequest({
+const converted = convertRequest('anthropic', 'openai_chat', {
   model: 'Code-Max',
   max_tokens: 4096,
   stream: true,
@@ -143,7 +143,7 @@ const structuredSchema = {
   required: ['answer'],
   additionalProperties: false,
 };
-const structured = convertAnthropicToOpenAIRequest({
+const structured = convertRequest('anthropic', 'openai_chat', {
   model: 'Code-Max',
   max_tokens: 1024,
   output_config: {
@@ -160,7 +160,7 @@ assert.equal(Object.hasOwn(structured, 'output_config'), false);
 
 assert.throws(
   () =>
-    convertAnthropicToOpenAIRequest({
+    convertRequest('anthropic', 'openai_chat', {
       model: 'Code-Max',
       max_tokens: 1024,
       output_config: {
@@ -174,7 +174,7 @@ assert.throws(
 
 assert.throws(
   () =>
-    convertAnthropicToOpenAIRequest({
+    convertRequest('anthropic', 'openai_chat', {
       model: 'Code-Max',
       max_tokens: 1024,
       tools: [{ type: 'advisor_20260301', name: 'advisor', model: 'claude-opus-5' }],
@@ -187,7 +187,7 @@ assert.throws(
 
 assert.throws(
   () =>
-    convertAnthropicToOpenAIRequest({
+    convertRequest('anthropic', 'openai_chat', {
       model: 'Code-Max',
       max_tokens: 1024,
       messages: [

@@ -8,7 +8,7 @@
 //   - responses-error-diagnostics-test.mjs
 //   - protocol-matrix-test.mjs
 
-import { convertAnthropicToOpenAIRequest } from '#target/src/conversion/anthropic-to-openai.ts';
+import { convertRequest } from './conversion-matrix-adapters.mjs';
 import worker from '#target/src/index.ts';
 import { buildResponsesError } from '#target/src/protocol/responses/index.ts';
 import { __resetAdaptive429StateForTests } from '#target/src/reliability/adaptive-429.ts';
@@ -337,7 +337,7 @@ try {
     required: ['answer'],
     additionalProperties: false,
   };
-  const structured = convertAnthropicToOpenAIRequest({
+  const structured = convertRequest('anthropic', 'openai_chat', {
     model: 'code-max',
     max_tokens: 1024,
     output_config: {
