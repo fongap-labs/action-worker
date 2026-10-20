@@ -1,6 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { GithubReader, isJsonRecord, runGithubCli } from "./github-api.ts";
 import { CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
-import { GithubReader, githubEnvironment, isJsonRecord, getJsonString, getJsonArray, runGithubCli } from "./github-api.ts";
 
 type DeployGap = {
   product: string;
@@ -14,12 +13,7 @@ async function getChangedFiles(
   token: string
 ): Promise<string[]> {
   const response = await runGithubCli(
-    [
-      "api",
-      "--paginate",
-      "--slurp",
-      `repos/${repository}/compare/${baseSha}...${headSha}`,
-    ],
+    ["api", "--paginate", "--slurp", `repos/${repository}/compare/${baseSha}...${headSha}`],
     token
   );
   const data = JSON.parse(response) as unknown;
@@ -35,7 +29,7 @@ function extractProductsFromPaths(paths: string[]): Set<string> {
   const products = new Set<string>();
   for (const path of paths) {
     const match = path.match(/^projects\/([^/]+)\/(?:deploy\.json|release\.manifest\.json)$/);
-    if (match && match[1]) {
+    if (match?.[1]) {
       products.add(match[1]);
     }
   }
@@ -121,7 +115,13 @@ export async function main(): Promise<void> {
       64
     );
   }
-  const [controlRepo, targetRepo, baseSha, headSha, token] = args as [string, string, string, string, string];
+  const [controlRepo, targetRepo, baseSha, headSha, token] = args as [
+    string,
+    string,
+    string,
+    string,
+    string,
+  ];
   const reader = new GithubReader("https://api.github.com", token);
   const files = await getChangedFiles(targetRepo, baseSha, headSha, token);
   const products = extractProductsFromPaths(files);

@@ -101,7 +101,7 @@ export function buildReview(
       lines.push("- AI Review: policy skipped.");
     }
   }
-  if (deployGapHint && deployGapHint.trim()) {
+  if (deployGapHint?.trim()) {
     lines.push(deployGapHint.trim());
   }
   lines.push("", `[Action Worker run](${runUrl})`);
