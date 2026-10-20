@@ -323,7 +323,7 @@ await test('S7 failover wall-clock budget prevents dispatch after the budget is 
     upstreamCalls.map((c) => c.host),
     ['slow.example.com'],
   );
-  assert.equal(res.headers.get('x-should-retry'), 'false');
+  assert.notEqual(res.headers.get('x-should-retry'), 'false', 'a spent failover budget is transient, so the client may retry');
   assertNoLeaks(['slow', 'fast']);
 });
 

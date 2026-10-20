@@ -555,14 +555,22 @@ await test('responses missing auth returns 401 without touching upstream', async
   assert.equal(upstreamCalls.length, 0);
 });
 
-await test('terminal errors carry x-should-retry:false but 429 stays retryable', async () => {
+await test('terminal errors stay retryable only when purely transient; 429 stays retryable', async () => {
   resetMock();
   routeHandlers['hdr.example.com'] = () => jsonUpstream({}, 503);
   const env = makeEnv({ tier1: [node('hdr')], secrets: { hdr: 'k' } });
-  // all-nodes-failed -> 502 terminal
+  // all-nodes-failed on upstream 5xx only -> transient 502: the client may retry
   const res502 = await worker.fetch(responsesRequest({ model: 'code-max', input: 'hi' }), env, {});
   assert.equal(res502.status, 502);
-  assert.equal(res502.headers.get('x-should-retry'), 'false');
+  assert.notEqual(res502.headers.get('x-should-retry'), 'false');
+
+  // a non-transient terminal failure (the upstream rejects the model) stays final
+  resetMock();
+  routeHandlers['hdr3.example.com'] = () => jsonUpstream({ error: { message: 'model not found' } }, 404);
+  const env3 = makeEnv({ tier1: [node('hdr3')], secrets: { hdr3: 'k' } });
+  const res404 = await worker.fetch(responsesRequest({ model: 'code-max', input: 'hi' }), env3, {});
+  assert.equal(res404.status, 502);
+  assert.equal(res404.headers.get('x-should-retry'), 'false');
 
   // upstream 429 -> retryable: no x-should-retry:false header
   resetMock();
