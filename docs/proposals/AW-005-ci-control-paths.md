@@ -19,7 +19,7 @@
 
 ## 建议
 
-**标准工具（`biome`、`tsc`、`ruff`、`cargo`）采用 A；配置文件与仓库自有检查脚本采用 C；并依靠 CODEOWNERS 进行评审**（已在 ORG-009 的 PR 中完成）。要真正关闭 `ai-gateway` 的缺口，需要把它的检查脚本迁移到中央拥有的代码中（例如 `tests/packs/ai-gateway` 或在检出目录上运行的 Action Worker 脚本）；这是一个较大的项目，建议单独立项，而不要与本提案捆绑。不要对 `package.json` 与锁文件采用 B：这会破坏 Dependabot 的流程，并为每次依赖更新增加摩擦。如果以后需要 B，应仅适用于 lint / 类型检查配置，依赖清单保持在范围之外；这需要单独的决定。
+**标准工具（`biome`、`tsc`、`ruff`、`cargo`）采用 A；配置文件与仓库自有检查脚本采用 C；并依靠 CODEOWNERS 进行评审**（已在 ORG-009 的 PR 中完成：ai-gateway #78、external-vault #49、internal-vault #53、app-source #43）。要真正关闭 `ai-gateway` 的缺口，需要把它的检查脚本迁移到中央拥有的代码中（例如 `tests/packs/ai-gateway` 或在检出目录上运行的 Action Worker 脚本）；这是一个较大的项目，建议单独立项，而不要与本提案捆绑。不要对 `package.json` 与锁文件采用 B：这会破坏 Dependabot 的流程，并为每次依赖更新增加摩擦。如果以后需要 B，应仅适用于 lint / 类型检查配置，依赖清单保持在范围之外；这需要单独的决定。
 
 采纳后的迁移步骤：
 

@@ -17,7 +17,7 @@
 ## 选项（各自独立）
 
 1. **要求 1 人审批。** 每个 PR 都需要除作者之外的一人批准（GitHub 不允许作者批准自己的 PR）。在两人组织中，这意味着其中一人的每个 PR 都需要另一人批准。Dependabot 的 PR 与自动化 PR（工作指标、机器人提交）同样需要人工批准。风险：如果一人离开，就没有任何东西能合并，而且没有绕过主体可以退路（`bypass_actors: []`）。
-2. **对控制路径要求 CODEOWNERS 审批。** 开启 `require_code_owner_review`，并使用 `CODEOWNERS` 文件（action-worker 已有；ai-gateway、app-source、external-vault、internal-vault 在 ORG-009 的 PR 中获得各自的文件）。GitHub 的规则是按仓库而非按路径：开启后，**每一个**被 CODEOWNERS 规则覆盖的文件都需要所有者批准，而 `*` 规则覆盖一切。要把它限制到 `.github/workflows/**`、`policies/**`、`scripts/**`、`contracts/**`，就必须从 CODEOWNERS 中删除全局的 `*` 行，这会使其他路径不再受所有者评审。这等价于选项 1 再加上指定谁可以批准。
+2. **对控制路径要求 CODEOWNERS 审批。** 开启 `require_code_owner_review`，并使用 `CODEOWNERS` 文件（action-worker 已有；ai-gateway、app-source、external-vault、internal-vault 在 ORG-009 的 PR 中获得各自的文件：ai-gateway #78、external-vault #49、internal-vault #53、app-source #43）。GitHub 的规则是按仓库而非按路径：开启后，**每一个**被 CODEOWNERS 规则覆盖的文件都需要所有者批准，而 `*` 规则覆盖一切。要把它限制到 `.github/workflows/**`、`policies/**`、`scripts/**`、`contracts/**`，就必须从 CODEOWNERS 中删除全局的 `*` 行，这会使其他路径不再受所有者评审。这等价于选项 1 再加上指定谁可以批准。
 3. **严格的状态检查。** `strict_required_status_checks_policy: true` 要求分支在合并前与 `main` 保持最新，从而使 `validate-merge` 在合并结果上运行。代价：在本组织中连续合并，每个未关闭的 PR 都必须在每次合并后更新（Dependabot 的 "rebase" 与 `allow_update_branch` 有所帮助；而我的 PR 大量堆叠）。
 4. **把 `validate-merge` 绑定到发布它的应用（`integration_id`）。** 必需检查可以指定必须产生它的 GitHub App，但这只适用于 checks（Checks API），不适用于普通的提交状态。`validate-merge` 目前由令牌以提交状态的形式发布。绑定需要改用创建 check run 的 GitHub App，或至少改用专用的 App 身份：这需要新的基础设施（App 注册、将密钥存为 secret、轮换）。在此之前，任何拥有写权限和令牌的人都能发布该名称的状态。
 5. **把 `fongap` 加为绕过主体**（未被要求，之所以列出，是因为选项 1 至 3 使其成为必要的紧急路径）。绕过应限于"仅 pull request"模式，而非"始终"。
