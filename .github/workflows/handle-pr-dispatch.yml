@@ -76,6 +76,27 @@ jobs:
           INITIAL_TITLE: ${{ steps.facts.outputs.title }}
         run: node scripts/resolve-pr-facts.ts resolve
 
+      - name: Check deploy configuration gaps
+        id: deploy_gap
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          CONTROL_REPOSITORY: ${{ github.repository }}
+          TARGET_REPOSITORY: ${{ steps.payload.outputs.repository }}
+          BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
+          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
+        run: |
+          node scripts/check-deploy-gap.ts \
+            "$CONTROL_REPOSITORY" \
+            "$TARGET_REPOSITORY" \
+            "$BASE_SHA" \
+            "$HEAD_SHA" \
+            "$GH_TOKEN" \
+          | tee /tmp/deploy-gap-hint.md
+          echo "hint<<EOF" >> "$GITHUB_OUTPUT"
+          cat /tmp/deploy-gap-hint.md >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
       - name: Mark governance in progress
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
@@ -250,8 +271,9 @@ jobs:
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           GOVERNANCE_STATUS: ${{ steps.gate.outputs.passed == 'true' && 'success' || steps.trust.outputs.trusted == 'false' && 'awaiting-approval' || 'failure' }}
           AI_REVIEW_STATE: ${{ steps.gate.outputs.passed == 'true' && steps.base_plan.outputs.review_required == 'true' && 'queued' || '' }}
+          DEPLOY_GAP_HINT: ${{ steps.deploy_gap.outputs.hint }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node scripts/publish-pr-review.ts "$REPOSITORY" "$PR_NUMBER" "$GOVERNANCE_STATUS" "$RUN_URL" /tmp/pr-plan.json /tmp/ocr-result.json "$AI_REVIEW_STATE"
+        run: node scripts/publish-pr-review.ts "$REPOSITORY" "$PR_NUMBER" "$GOVERNANCE_STATUS" "$RUN_URL" /tmp/pr-plan.json /tmp/ocr-result.json "$AI_REVIEW_STATE" "$DEPLOY_GAP_HINT"
 
       # AI Review runs as its own workflow after the gate so its queue never waits behind CI.
       - name: Dispatch AI review
