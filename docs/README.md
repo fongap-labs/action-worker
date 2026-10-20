@@ -12,16 +12,20 @@ Action Worker 保存三类文档：
 
 | 文档 | 用途 |
 |---|---|
-| [SHARED_GOVERNANCE.md](SHARED_GOVERNANCE.md) | 共用治理边界与 Fongap Labs 各仓库之间的权威关系 |
+| [00_GOVERNANCE_OVERVIEW.md](00_GOVERNANCE_OVERVIEW.md) | 治理文档总览与按任务导航 |
+| [01_SHARED_GOVERNANCE.md](01_SHARED_GOVERNANCE.md) | 共用治理边界与 Fongap Labs 各仓库之间的权威关系 |
+| [02_REPOSITORY_GOVERNANCE.md](02_REPOSITORY_GOVERNANCE.md) | 仓库设置、合并策略与 GitHub 平台能力边界 |
+| [03_NAMING_CONVENTIONS.md](03_NAMING_CONVENTIONS.md) | 共用命名规则，以及 Action Worker 自身的附加约束 |
+| [04_CHANGELOG_CONVENTIONS.md](04_CHANGELOG_CONVENTIONS.md) | PR、CHANGELOG 与 Release 的统一变更分类 |
+| [05_INTEGRATION_GUIDE.md](05_INTEGRATION_GUIDE.md) | 受管仓库接入中央治理的标准规范 |
+| [06_RELEASE_DEPLOY_GUIDE.md](06_RELEASE_DEPLOY_GUIDE.md) | 发布与部署的手动操作、排查与多产品布局 |
+| [07_MAIN_WRITE_GUARD.md](07_MAIN_WRITE_GUARD.md) | main 分支的来源证明、直接写入隔离与下游信任要求 |
 | [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md) | 公开仓库与私有仓库统一的执行边界 |
-| [TEST_PACKS.md](TEST_PACKS.md) | 中央持有的测试包、共用测试套件与清单棘轮（只增不减的测试基线） |
 | [RUNNER_POLICY.md](RUNNER_POLICY.md) | Runner Profile、后端解析、信任域与 self-hosted 边界 |
-| [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md) | main 分支的来源证明、直接写入隔离与下游信任要求 |
-| [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) | 共用命名规则，以及 Action Worker 自身的附加约束 |
-| [CHANGELOG_CONVENTIONS.md](CHANGELOG_CONVENTIONS.md) | PR、CHANGELOG 与 Release 的统一变更分类 |
+| [TEST_PACKS.md](TEST_PACKS.md) | 中央持有的测试包、共用测试套件与清单棘轮（只增不减的测试基线） |
+| [GOVERNANCE_CHANGE_CHECKLIST.md](GOVERNANCE_CHANGE_CHECKLIST.md) | 修改共用治理时必须同步完成的清单 |
+| [TERMINOLOGY.md](TERMINOLOGY.md) | 核心概念与配置类型词的统一术语 |
 | [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) | 通用开发、验证、PR 与合并规则 |
-| [REPOSITORY_GOVERNANCE.md](REPOSITORY_GOVERNANCE.md) | 仓库设置、合并策略与 GitHub 平台能力边界 |
-| [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) | 受管仓库接入中央治理的标准规范 |
 
 ## Agent Skills
 
@@ -60,20 +64,20 @@ Agent Skills 是可复用的执行流程，不是确定性策略的权威。文�
 → CLAUDE.md
 → skills/agent-execution/SKILL.md
 → 任务相关的 skill
-→ docs/SHARED_GOVERNANCE.md
+→ docs/01_SHARED_GOVERNANCE.md
 → docs/ARCHITECTURE_GOVERNANCE.md
 → docs/EXECUTION_CONTRACT.md
 → docs/RUNNER_POLICY.md
-→ docs/MAIN_WRITE_GUARD.md
+→ docs/07_MAIN_WRITE_GUARD.md
 → 相关 contracts / policies / rules
 
 在受管仓库中工作
 → 仓库自身的 CLAUDE.md
-→ docs/SHARED_GOVERNANCE.md
+→ docs/01_SHARED_GOVERNANCE.md
 → 项目专属的架构与边界文档
 
 修改共用治理
-→ docs/SHARED_GOVERNANCE.md
+→ docs/01_SHARED_GOVERNANCE.md
 → 相关 contracts / policies / rules
 → 治理回归测试
 ```

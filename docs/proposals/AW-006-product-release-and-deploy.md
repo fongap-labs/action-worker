@@ -146,7 +146,7 @@ projects/<目录名>/
 - 跟随的解析与修改在 `scripts/follow-pins.ts`（纯函数）；GitHub 访问在 `scripts/follow-github.ts`；控制域的分支与 PR 在 `scripts/dispatch-follow-updates.ts`；沙箱的 `uv lock` 在 `scripts/lock-follow.ts`；控制域只提交 `uv.lock` 的在 `scripts/commit-follow-lock.ts`。
 - TOML 解析使用 `smol-toml` 1.9.0（精确版本，零依赖，发布于 2026-09-22，满足"发布满两周"）。1.9.1 发布于 2026-10-09，未采用。
 - 跟随方的 `follows.json` 位置遵循 §3；本次的 `.github/products/` 写法与 §3 冲突，未采用。
-- 错误信息使用英文，因为它们属于工程 diff（见 `docs/NAMING_CONVENTIONS.md` §6）。
+- 错误信息使用英文，因为它们属于工程 diff（见 `docs/03_NAMING_CONVENTIONS.md` §6）。
 
 ## 11. 未决问题
 

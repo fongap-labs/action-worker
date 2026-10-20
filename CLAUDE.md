@@ -8,12 +8,12 @@ This file is the agent entry point for Action Worker. Action Worker is also the 
 2. `skills/agent-execution/SKILL.md`
 3. task-related `skills/*/SKILL.md`
 4. `docs/README.md`
-5. `docs/SHARED_GOVERNANCE.md`
+5. `docs/01_SHARED_GOVERNANCE.md`
 6. `docs/ARCHITECTURE_GOVERNANCE.md`
-7. `docs/NAMING_CONVENTIONS.md`
+7. `docs/03_NAMING_CONVENTIONS.md`
 8. task-related `contracts/`, `policies/`, `rules/`
 9. development tasks: `docs/DEVELOPMENT_GUIDE.md`
-10. repository integration: `docs/INTEGRATION_GUIDE.md`
+10. repository integration: `docs/05_INTEGRATION_GUIDE.md`
 
 ## Skill chain
 
@@ -40,7 +40,7 @@ The dispatch payload may include optional `agent_domain` (default `coding`) and 
 ```text
 contracts / policies / rules
         ↓
-docs/SHARED_GOVERNANCE.md
+docs/01_SHARED_GOVERNANCE.md
         ↓
 docs/ARCHITECTURE_GOVERNANCE.md
         ↓

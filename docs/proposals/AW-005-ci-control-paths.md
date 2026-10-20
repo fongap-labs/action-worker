@@ -25,7 +25,7 @@
 
 1. 在 `central-ci.sh` 调用 `npm run <script>` 的每个仓库中（目前只有 `ai-gateway`），把对标准工具的调用替换为直接命令与固定标志（`npx biome check .`、`npx tsc --noEmit`）；开发者仍保留 npm 脚本。仓库自有脚本保持不变，直到上述单独的项目完成。
 2. 在 `tests/packs/<repo>` 中添加一个测试：如果 `central-ci.sh` 调用了 `npm run`，则测试失败。
-3. 在 `docs/INTEGRATION_GUIDE.md` 中记录：控制脚本不得执行 PR 控制的文件中定义的命令，以及哪些配置文件仍由 PR 控制。
+3. 在 `docs/05_INTEGRATION_GUIDE.md` 中记录：控制脚本不得执行 PR 控制的文件中定义的命令，以及哪些配置文件仍由 PR 控制。
 
 ## 影响
 

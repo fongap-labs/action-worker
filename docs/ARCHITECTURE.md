@@ -393,7 +393,7 @@ validate-merge
 
 无法证明来源的 main SHA 失败即关闭：Release、Deploy、Publication 与特权执行都会被拒绝。
 
-详细规则见 [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md)。
+详细规则见 [07_MAIN_WRITE_GUARD.md](07_MAIN_WRITE_GUARD.md)。
 
 ## 9. Task Dispatch
 
@@ -609,7 +609,7 @@ Action Worker 拥有生产凭据，并负责需要 Runner 资源的重型部署�
 
 ## 14. 目录结构
 
-Action Worker 按职责分层。当前的工作流按分类列于下方（分类规则见 [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) 第 8.3 节，由 `tests/workflow-classes.test.ts` 强制执行）。业务能力通过通用合同、清单与策略与之连接；没有任何长期工作流以产品命名：
+Action Worker 按职责分层。当前的工作流按分类列于下方（分类规则见 [03_NAMING_CONVENTIONS.md](03_NAMING_CONVENTIONS.md) 第 8.3 节，由 `tests/workflow-classes.test.ts` 强制执行）。业务能力通过通用合同、清单与策略与之连接；没有任何长期工作流以产品命名：
 
 ```text
 .github/workflows/
@@ -661,7 +661,7 @@ docs/
   架构、治理、命名、CHANGELOG、开发与接入指南
 ```
 
-`tests/workflow-naming.test.ts` 检查工作流名称（见 [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) 第 8.1 节）；两个保留旧名称的文件（`handle-pr-dispatch.yml`、`handle-pr-review.yml`）在那里记录了原因。
+`tests/workflow-naming.test.ts` 检查工作流名称（见 [03_NAMING_CONVENTIONS.md](03_NAMING_CONVENTIONS.md) §2）；两个保留旧名称的文件（`handle-pr-dispatch.yml`、`handle-pr-review.yml`）在那里记录了原因。
 
 禁止重新引入项目专属的配置层，例如：
 
