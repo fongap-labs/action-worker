@@ -1,6 +1,6 @@
 # 提案 AW-005：拉取请求可以修改自身 CI 的哪些内容
 
-状态：**已采纳建议**（标准工具采用方案 A，配置文件与仓库自有检查脚本采用方案 C）。已在 `ai-gateway` 中实施；它此前是唯一通过 `npm run` 调用控制脚本的仓库（PR "run biome and tsc from the central script with fixed arguments"）。将仓库自有检查脚本集中化仍是一个单独的项目。
+状态：**已采纳建议**（标准工具采用方案 A，配置文件与仓库自有检查脚本采用方案 C）。已在 `ai-gateway` 中实施；它此前是唯一通过 `npm run` 调用控制脚本的仓库（PR "run biome and tsc from the central script with fixed arguments"）。将仓库自有检查脚本集中化仍是一个单独的项目（提案 AW-007）。
 
 ## 现状
 
