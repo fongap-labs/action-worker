@@ -64,7 +64,7 @@
 | execution request | 执行请求（schema_version, request_id, repository, source_sha, operation） |
 | execution manifest | 项目执行声明（operation, runner_profile, command, matrix, artifacts, timeout_minutes, capability_requests） |
 | executor | 通用执行单元（Runner + 环境 + 凭据范围） |
-| capability request | 请求的权限（如 `source.read`、`deploy:production`） |
+| capability request | 请求的权限（如 `source.read`、`deployment.production`） |
 | capability grant | 授予的权限（由中央策略决定） |
 | runner profile | 抽象的计算需求（如 `linux-standard`、`production-deploy`） |
 | runner resolver | Runner 选择组件（按 profile 解析到 backend） |

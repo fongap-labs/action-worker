@@ -102,7 +102,7 @@ Action Worker 负责：
 
 此外还要通过确定性的 Security Gate、actionlint、合同测试，以及在需要时的 ShellCheck。
 
-工作流文件名遵循 [03_NAMING_CONVENTIONS.md](03_NAMING_CONVENTIONS.md) §2的规则；`tests/workflow-naming.test.ts` 会对其进行检查。
+工作流文件名遵循 [03_NAMING_CONVENTIONS.md](03_NAMING_CONVENTIONS.md) §8 的规则；`tests/workflow-naming.test.ts` 会对其进行检查。
 
 Security Gate 独立于 AI Review，至少阻止以下内容：新增的高置信度凭据、敏感密钥文件、`toJSON(secrets)`、`pull_request_target`、`permissions: write-all`，以及未固定到提交 SHA 的外部 action。
 

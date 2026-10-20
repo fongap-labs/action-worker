@@ -15,9 +15,8 @@
 - [ ] `deploy-environments.json` — 可部署环境白名单
 - [ ] `task-secrets.json` — 任务密钥上限、别名映射
 - [ ] `execution.json` — 执行合同默认值（runner profile 映射、超时、能力边界）
-- [ ] `repository-policy.json` — `AW_REPOSITORY_POLICY` 变量对应的仓库能力矩阵
 
-> 修改任一策略文件后，必须同步更新对应的**合同测试**（见下）。
+> 修改任一策略文件后，必须同步更新对应的**合同测试**（见下）。仓库能力矩阵由 `AW_REPOSITORY_POLICY`（GitHub Repository Variable）承载，不是 `policies/` 下的文件。
 
 ---
 
@@ -27,14 +26,15 @@
 - [ ] `workflow-classes.test.ts` — 验证工作流分类、命名、权限、超时、concurrency
 - [ ] `workflow-naming.test.ts` — 验证工作流文件名三段限制、显示名映射
 - [ ] `documentation-language.test.ts` — 验证机器文档纯英文、人类文档含中文、无 `*.zh-CN.md`
-- [ ] `validate-change-record.test.ts` — 验证 PR 标题格式、CHANGELOG 条目、AI 署名卫生
-- [ ] `validate-engineering-language.test.ts` — 验证工程 diff 纯英文、例外路径豁免
+- [ ] `commit-attribution.test.ts` / `control-flows.test.ts` — 验证 PR 标题格式、CHANGELOG 条目、AI 署名卫生
+- [ ] `documentation-language.test.ts` / `governance-scripts.test.ts` — 验证工程 diff 纯英文、例外路径豁免
 - [ ] `naming-rules.test.ts` / `validate-source-naming.py` — 验证外部名称、缩写、配置类型词
 
 ---
 
 ## 3. 核心治理文档（`docs/`）
 
+- [ ] `00_GOVERNANCE_OVERVIEW.md` — 一页纸总览与关键文档速查（如入口/章节变化）
 - [ ] `01_SHARED_GOVERNANCE.md` — 权威边界、共用规则、语言分层、Agent 入口、机器执行、平台能力
 - [ ] `02_REPOSITORY_GOVERNANCE.md` — Repository Policy、应用方式、合并权限、原生强制、Main Write Guard 引用
 - [ ] `03_NAMING_CONVENTIONS.md` — 命名优先级、外部边界名称、本地标识符、缩写、配置类型词、工程语言、文件/术语/动词、Action Worker 专属
@@ -42,6 +42,10 @@
 - [ ] `05_INTEGRATION_GUIDE.md` — 接入目标流程、业务仓库保留内容、执行请求/清单、CI 与 PR、安全扫描、依赖修复、Runner、中央配置、Main Write Guard 桥接、任务、Release、Deploy、新仓库不应做的事、平台边界、迁移期
 - [ ] `06_RELEASE_DEPLOY_GUIDE.md` — Release/Deploy 手动操作、启动前检查/常见失败、多产品发布/部署、定时部署、跟随型产品
 - [ ] `07_MAIN_WRITE_GUARD.md` — 规则、触发时机、证明逻辑、失败后果、业务仓库桥接、故障排查
+- [ ] `EXECUTION_CONTRACT.md` — 统一执行合同（执行请求/清单/能力授予/信任域）
+- [ ] `ARCHITECTURE.md` — 当前实现与收敛方向（如工作流/目录结构变化）
+- [ ] `DEVELOPMENT_GUIDE.md` — 开发与验证规则
+- [ ] `TEST_PACKS.md` — 中央测试包归属（如测试所有权变化）
 - [ ] `RUNNER_POLICY.md` — Runner Profile 定义、解析器逻辑、backend 选择、self-hosted 边界、特权 Runner
 - [ ] `ARCHITECTURE_GOVERNANCE.md` — 架构治理规则（如有变更）
 - [ ] `GOVERNANCE_CHANGE_CHECKLIST.md` — 本清单（如流程本身变更）

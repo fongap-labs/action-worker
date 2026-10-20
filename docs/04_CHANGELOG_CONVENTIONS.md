@@ -234,6 +234,6 @@ chore
 
 - 语言与文档分层：`01_SHARED_GOVERNANCE.md` §2
 - 变更类型与属性定义：`TERMINOLOGY.md`
-- PR 标题格式：`03_NAMING_CONVENTIONS.md` §1（外部边界名称）
+- PR 标题格式：本文件 §3
 - Agent 入口与职责：`01_SHARED_GOVERNANCE.md` §5–6
 - Release 版本唯一来源：`01_SHARED_GOVERNANCE.md` §3 与 `06_RELEASE_DEPLOY_GUIDE.md` §4
