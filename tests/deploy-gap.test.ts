@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   extractProductsFromPaths,
   formatGapHint,
+  gapsForKeys,
   hasProductPolicyKey,
   parsePullRequestFiles,
   productPolicyKey,
@@ -92,4 +93,28 @@ test("the hint names the central files that need an entry", () => {
 
 test("no gap produces no hint", () => {
   assert.equal(formatGapHint([]), "");
+});
+
+test("a product that is registered in the central policy has no gap", () => {
+  const keys = ["fongap-labs/ai-gateway", "fongap-labs/internal-vault/server-edge"];
+  const gaps = gapsForKeys(keys, keys, "fongap-labs/internal-vault", new Set(["server-edge"]));
+  assert.deepEqual(gaps, []);
+});
+
+test("the product key belongs to the target repository", () => {
+  const keys = ["fongap-labs/internal-vault/server-edge"];
+  const gaps = gapsForKeys(keys, keys, "fongap-labs/action-worker", new Set(["server-edge"]));
+  assert.deepEqual(gaps, [
+    { product: "server-edge", missing: ["deploy-environments.json", "deploy-secrets.json"] },
+  ]);
+});
+
+test("a product that is only registered in one policy file names that file", () => {
+  const gaps = gapsForKeys(
+    ["fongap-labs/internal-vault/server-edge"],
+    [],
+    "fongap-labs/internal-vault",
+    new Set(["server-edge"])
+  );
+  assert.deepEqual(gaps, [{ product: "server-edge", missing: ["deploy-secrets.json"] }]);
 });
