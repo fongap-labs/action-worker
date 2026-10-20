@@ -289,6 +289,7 @@ jobs:
             -f "target_url=$RUN_URL" >/dev/null
 
           if [[ "$state" != "success" ]]; then
+            echo "::error::Central CI failed for $REPOSITORY@$HEAD_SHA: linux=$LINUX_RESULT security=$SECURITY_RESULT windows=$WINDOWS_RESULT"
             exit 1
           fi
 

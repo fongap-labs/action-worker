@@ -20,8 +20,11 @@ permissions:
   actions: read
   contents: read
 
+# One serialized group: two concurrent runs both editing README.md race on the
+# rebase in manage-work-metrics.ts branch (rebase origin/main fails after the
+# other run's metrics merge lands mid-run).
 concurrency:
-  group: update-work-metrics-${{ github.event_name == 'workflow_run' && 'incremental' || 'reconcile' }}
+  group: update-work-metrics
   cancel-in-progress: false
 
 jobs:
