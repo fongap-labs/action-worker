@@ -190,7 +190,7 @@
         "responses created-only then EOF rotates to a healthy node": 1,
         "responses unknown model returns 404-shaped gateway error": 1,
         "responses missing auth returns 401 without touching upstream": 1,
-        "terminal errors carry x-should-retry:false but 429 stays retryable": 1,
+        "terminal errors stay retryable only when purely transient; 429 stays retryable": 1,
         "responses tools and host-managed features pass through natively": 1,
         "responses instructions / reasoning effort / metadata pass through verbatim": 1,
         "responses input function_call + function_call_output history is forwarded verbatim": 1,
