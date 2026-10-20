@@ -133,30 +133,23 @@ async function readPolicyKeys(
   return policyKeys(document, section);
 }
 
-export async function collectGaps(
-  repository: string,
-  products: ReadonlySet<string>,
-  token: string
-): Promise<DeployGap[]> {
-  const environmentKeys = await readPolicyKeys(
-    repository,
-    "policies/deploy-environments.json",
-    "repositories",
-    token
-  );
-  const secretKeys = await readPolicyKeys(
-    repository,
-    "policies/deploy-secrets.json",
-    "deployments",
-    token
-  );
+/**
+ * The gaps of the products, given the central policy keys. The product key belongs to the target
+ * repository, so a product of another repository never satisfies the lookup.
+ */
+export function gapsForKeys(
+  environmentKeys: readonly string[],
+  secretKeys: readonly string[],
+  targetRepository: string,
+  products: ReadonlySet<string>
+): DeployGap[] {
   const gaps: DeployGap[] = [];
   for (const product of [...products].sort()) {
     const missing: string[] = [];
-    if (!hasProductPolicyKey(environmentKeys, repository, product)) {
+    if (!hasProductPolicyKey(environmentKeys, targetRepository, product)) {
       missing.push("deploy-environments.json");
     }
-    if (!hasProductPolicyKey(secretKeys, repository, product)) {
+    if (!hasProductPolicyKey(secretKeys, targetRepository, product)) {
       missing.push("deploy-secrets.json");
     }
     if (missing.length > 0) {
@@ -164,6 +157,27 @@ export async function collectGaps(
     }
   }
   return gaps;
+}
+
+export async function collectGaps(
+  policyRepository: string,
+  targetRepository: string,
+  products: ReadonlySet<string>,
+  token: string
+): Promise<DeployGap[]> {
+  const environmentKeys = await readPolicyKeys(
+    policyRepository,
+    "policies/deploy-environments.json",
+    "repositories",
+    token
+  );
+  const secretKeys = await readPolicyKeys(
+    policyRepository,
+    "policies/deploy-secrets.json",
+    "deployments",
+    token
+  );
+  return gapsForKeys(environmentKeys, secretKeys, targetRepository, products);
 }
 
 export async function main(): Promise<void> {
@@ -185,7 +199,7 @@ export async function main(): Promise<void> {
     await writeHint("");
     return;
   }
-  const gaps = await collectGaps(controlRepo, products, token);
+  const gaps = await collectGaps(controlRepo, targetRepo, products, token);
   await writeHint(formatGapHint(gaps));
 }
 
