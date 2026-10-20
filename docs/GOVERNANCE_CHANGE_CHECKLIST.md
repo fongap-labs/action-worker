@@ -60,7 +60,6 @@
 - [ ] `apply-repository-settings.ts` — 读取 policies/*.json，幂等应用 Repository Settings 与 rulesets
 - [ ] `validate-change-record.ts` — PR 标题、CHANGELOG、AI 署名、变更分类
 - [ ] `validate-engineering-language.ts` — 工程 diff 英文检查
-- [ ] `validate-changelog-format.ts` — CHANGELOG 格式校验（ASCII、无 markdown、长度、句号、类型、属性）
 - [ ] `validate-security.ts` — Security Gate（密钥扫描、AI Review 引擎哈希、依赖修复边界）
 - [ ] `validate-naming-rules.ts` / `validate-source-naming.py` — 命名规范校验
 - [ ] `main-write-guard.ts` — Main Write Guard 审计逻辑

@@ -117,7 +117,7 @@ if product == ...
 
 业务仓库在 `.github/execution-manifest.json` 中描述自身的执行需求；字段、令牌替换与禁止声明由 `EXECUTION_CONTRACT.md` §6 定义。
 
-清单是能力请求，而不是能力授予。能力名称、授予条件与密钥映射由 `EXECUTION_CONTRACT.md` §7 与 `policies/capabilities.json` 定义；请求是否被授予、使用哪个信任域与 Runner，均由 Action Worker 决定。
+清单是能力请求，而不是能力授予。能力名称、授予条件与密钥映射由 `EXECUTION_CONTRACT.md` §7 定义；请求是否被授予、使用哪个信任域与 Runner，均由 Action Worker 决定。
 
 ## 6. 信任域
 

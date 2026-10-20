@@ -58,7 +58,6 @@ test("governance files and TypeScript control entries exist", async () => {
     "contracts/security-scan.json",
     "contracts/task-dispatch.json",
     "contracts/task-source.json",
-    "policies/capabilities.json",
     "policies/deploy.json",
     "policies/execution.json",
     "policies/runner.json",
@@ -95,16 +94,13 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/dependency-repair.ts",
     "scripts/dispatch-security-scan.ts",
     "scripts/execution-contract.ts",
-    "scripts/execution-policy.ts",
     "scripts/resolve-ci-capabilities.ts",
     "scripts/resolve-ci-control-ref.ts",
     "scripts/resolve-dependency-repair.ts",
     "scripts/resolve-release-build-ingress.ts",
-    "scripts/resolve-execution-plan.ts",
     "scripts/resolve-pr-plan.ts",
     "scripts/resolve-security-scan.ts",
     "scripts/run-ai-triage.ts",
-    "scripts/run-execution-job.ts",
     "scripts/security-scan.ts",
     "scripts/runner-policy.ts",
     "scripts/runtime-command.ts",
@@ -123,7 +119,6 @@ test("governance files and TypeScript control entries exist", async () => {
     "scripts/dispatch-scheduled-tasks.ts",
     "scripts/validate-task-publication.ts",
     "scripts/validate-release-request.ts",
-    ".github/actions/validate-merge-policy/action.yml",
     ".github/workflows/handle-pr-dispatch.yml",
     ".github/workflows/handle-pr-review.yml",
     ".github/workflows/handle-release-dispatch.yml",
@@ -758,15 +753,7 @@ test("release, source, deploy, merge, and repository settings contracts remain i
     assert.equal(await exists(`.github/workflows/${removed}`), false);
   }
 
-  const merge = await text(".github/actions/validate-merge-policy/action.yml");
-  requireText(merge, [
-    "ci-result:",
-    "head-sha:",
-    "require-pr-governance:",
-    "PR Governance",
-    "Local CI evidence did not pass",
-    "PR Governance blocked merge",
-  ]);
+  assert.equal(await exists(".github/actions/validate-merge-policy"), false);
 
   const repository = await json("policies/repository.json");
   const rulesetPolicy = await json("policies/rulesets.json");
