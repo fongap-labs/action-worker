@@ -33,5 +33,3 @@
 - 在所调查的仓库中，只有 `ai-gateway` 的控制脚本调用了 `npm run`；其他仓库已经直接调用工具，因此 A 仅涉及一个仓库加上测试包测试。该 PR 修改了一个控制文件，因此它的 CI 从其 head 引用运行，并且需要可信的同仓库作者。
 - 诚实的限制：实施 A 之后，`ai-gateway` 仍会从 PR 运行其自有的检查脚本；那里的缺口只能由单独的集中化项目关闭。
 - 任何方案都无法覆盖：PR 修改 `ruff.toml` 或 `tsconfig.json` 以放宽某条规则。在这种情况下，评审者（CODEOWNERS）就是控制手段。
----
-> **ORG-009 引用记录**：ai-gateway #78、external-vault #49、internal-vault #53、app-source #43（均为 CodeQL + CODEOWNERS / Dependabot + CODEOWNERS PR）。
