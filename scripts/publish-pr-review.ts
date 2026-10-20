@@ -17,7 +17,8 @@ export function buildReview(
   runUrl: string,
   planValue: unknown,
   resultValue: unknown,
-  isReviewQueued = false
+  isReviewQueued = false,
+  deployGapHint = ""
 ): string {
   const gate =
     status === "success"
@@ -100,15 +101,18 @@ export function buildReview(
       lines.push("- AI Review: policy skipped.");
     }
   }
+  if (deployGapHint?.trim()) {
+    lines.push(deployGapHint.trim());
+  }
   lines.push("", `[Action Worker run](${runUrl})`);
   return `${lines.join("\n")}\n`;
 }
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  if (args.length < 6 || args.length > 7) {
+  if (args.length < 6 || args.length > 8) {
     throw new CliError(
-      "Usage: publish-pr-review.ts <repository> <pr-number> <status> <run-url> <plan-file> <result-file> [queued]",
+      "Usage: publish-pr-review.ts <repository> <pr-number> <status> <run-url> <plan-file> <result-file> [queued] [deploy-gap-hint]",
       64
     );
   }
@@ -120,6 +124,7 @@ async function main(): Promise<void> {
     planPath = "",
     resultPath = "",
     reviewState = "",
+    deployGapHint = "",
   ] = args;
   if (reviewState !== "" && reviewState !== "queued") {
     throw new CliError(`::error::Invalid AI Review state: ${reviewState}.`, 64);
@@ -142,7 +147,8 @@ async function main(): Promise<void> {
     runUrl,
     await optionalJson(planPath),
     await optionalJson(resultPath),
-    reviewState === "queued"
+    reviewState === "queued",
+    deployGapHint
   );
   const commentsText = await runGithubCli(
     [
