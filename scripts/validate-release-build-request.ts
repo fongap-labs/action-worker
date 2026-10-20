@@ -134,6 +134,7 @@ export function parseReleaseBuildManifest(value: unknown): ReleaseBuildManifest 
       !/^[A-Za-z0-9_.-]+$/.test(build.target) ||
       typeof build.script !== "string" ||
       !isRelativePath(build.script) ||
+      !build.script.endsWith(".ps1") ||
       !Array.isArray(build.assets) ||
       build.assets.length < 1 ||
       !build.assets.every((asset) => isAssetName(asset)) ||

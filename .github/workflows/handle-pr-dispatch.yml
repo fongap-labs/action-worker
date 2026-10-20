@@ -79,13 +79,13 @@ jobs:
       - name: Check deploy configuration gaps
         id: deploy_gap
         if: ${{ always() }}
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           CONTROL_REPOSITORY: ${{ github.repository }}
           TARGET_REPOSITORY: ${{ steps.payload.outputs.repository }}
-          BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
-          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
-        run: node scripts/check-deploy-gap.ts "$CONTROL_REPOSITORY" "$TARGET_REPOSITORY" "$BASE_SHA" "$HEAD_SHA" "$GH_TOKEN"
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+        run: node scripts/check-deploy-gap.ts "$CONTROL_REPOSITORY" "$TARGET_REPOSITORY" "$PR_NUMBER" "$GH_TOKEN"
 
       - name: Mark governance in progress
         env:

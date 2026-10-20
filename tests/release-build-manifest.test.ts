@@ -90,3 +90,38 @@ test("release build manifest rejects a root that leaves the repository", () => {
     assert.throws(() => parseReleaseBuildManifest({ ...manifest, root }), /manifest is invalid/);
   }
 });
+
+test("release build script is a relative path from the product root", () => {
+  for (const script of [
+    ".github/scripts/release-build.ps1",
+    "scripts/release-build.ps1",
+    "build/win/release.ps1",
+  ]) {
+    const parsed = parseReleaseBuildManifest({
+      ...manifest,
+      builds: [{ ...manifest.builds[0], script }],
+    });
+    assert.equal(parsed.builds[0]?.script, script);
+  }
+});
+
+test("release build script must be a PowerShell script inside the repository", () => {
+  for (const script of [
+    "",
+    "release-build.sh",
+    "release-build",
+    "../outside/release-build.ps1",
+    "/absolute/release-build.ps1",
+    "scripts/../../release-build.ps1",
+  ]) {
+    assert.throws(
+      () =>
+        parseReleaseBuildManifest({
+          ...manifest,
+          builds: [{ ...manifest.builds[0], script }],
+        }),
+      /matrix entry is invalid/,
+      `script accepted: ${script}`
+    );
+  }
+});

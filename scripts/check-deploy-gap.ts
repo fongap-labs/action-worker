@@ -1,92 +1,164 @@
-import { GithubReader, isJsonRecord, runGithubCli } from "./github-api.ts";
+import { randomUUID } from "node:crypto";
+
+import { getJsonArray, getJsonString, isJsonRecord, runGithubCli } from "./github-api.ts";
+import { isProductName } from "./product-discovery.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
-type DeployGap = {
+export type DeployGap = {
   product: string;
   missing: string[];
 };
 
-async function getChangedFiles(
-  repository: string,
-  baseSha: string,
-  headSha: string,
-  token: string
-): Promise<string[]> {
-  const response = await runGithubCli(
-    ["api", "--paginate", "--slurp", `repos/${repository}/compare/${baseSha}...${headSha}`],
-    token
-  );
-  const data = JSON.parse(response) as unknown;
-  if (!isJsonRecord(data) || !Array.isArray(data.files)) {
-    throw new CliError("Invalid compare response", 65);
-  }
-  return data.files
-    .filter((f) => isJsonRecord(f) && typeof f.filename === "string")
-    .map((f) => f.filename);
-}
+const productManifestPattern = /^projects\/([^/]+)\/(?:deploy\.json|release\.manifest\.json)$/;
 
-function extractProductsFromPaths(paths: string[]): Set<string> {
+/**
+ * The product directories a pull request touches. Only a product under projects/ needs a central
+ * policy entry; a repository with a single product keeps its root manifest and its repository key.
+ * A directory name that is not a product name is not a product, so it is skipped.
+ */
+export function extractProductsFromPaths(paths: readonly string[]): Set<string> {
   const products = new Set<string>();
   for (const path of paths) {
-    const match = path.match(/^projects\/([^/]+)\/(?:deploy\.json|release\.manifest\.json)$/);
-    if (match?.[1]) {
+    const match = path.match(productManifestPattern);
+    if (match?.[1] && isProductName(match[1])) {
       products.add(match[1]);
     }
   }
   return products;
 }
 
-async function checkPolicyGaps(
-  reader: GithubReader,
-  controlRepository: string,
-  products: Set<string>
+/**
+ * The central policy key of one product of one repository. A product key is the repository key
+ * plus the product name; a repository key never counts as a product key.
+ */
+export function productPolicyKey(repository: string, product: string): string {
+  return `${repository}/${product}`;
+}
+
+export function hasProductPolicyKey(
+  keys: readonly string[],
+  repository: string,
+  product: string
+): boolean {
+  return keys.includes(productPolicyKey(repository, product));
+}
+
+/**
+ * The hint lists the central files that need an entry for the product. It is advisory: a product
+ * that is never deployed needs no entry, and the files are named so the author can copy the shape.
+ */
+export function formatGapHint(gaps: readonly DeployGap[]): string {
+  if (gaps.length === 0) {
+    return "";
+  }
+  const lines = ["", "### Deploy Configuration Gaps", ""];
+  for (const gap of gaps) {
+    lines.push(`- Product \`${gap.product}\` has no central deploy policy entry:`);
+    for (const file of gap.missing) {
+      lines.push(`  - \`policies/${file}\` needs a \`${gap.product}\` entry for this repository`);
+    }
+  }
+  lines.push(
+    "",
+    "_A product that is never deployed needs no entry. Otherwise add one, then re-run governance._"
+  );
+  return lines.join("\n");
+}
+
+/**
+ * The file names of a paginated pull request files response. --paginate with --slurp answers with
+ * one array per page, so the pages are flattened before the names are read.
+ */
+export function parsePullRequestFiles(response: string): string[] {
+  const pages = JSON.parse(response) as unknown;
+  const files = Array.isArray(pages)
+    ? pages.flatMap((page) => (Array.isArray(page) ? page : []))
+    : getJsonArray(pages);
+  return files
+    .filter((file) => isJsonRecord(file) && typeof file.filename === "string")
+    .map((file) => file.filename);
+}
+
+/**
+ * The files of a pull request. The compare endpoint truncates its file list, so the pull request
+ * files endpoint is used instead.
+ */
+export async function listPullRequestFiles(
+  repository: string,
+  prNumber: number,
+  token: string
+): Promise<string[]> {
+  const response = await runGithubCli(
+    ["api", "--paginate", "--slurp", `repos/${repository}/pulls/${prNumber}/files?per_page=100`],
+    token
+  );
+  return parsePullRequestFiles(response);
+}
+
+function policyKeys(document: unknown, section: string): string[] {
+  if (!isJsonRecord(document)) {
+    return [];
+  }
+  const value = document[section];
+  if (!isJsonRecord(value)) {
+    return [];
+  }
+  return Object.keys(value);
+}
+
+async function readPolicyKeys(
+  repository: string,
+  path: string,
+  section: string,
+  token: string
+): Promise<string[]> {
+  const response = await runGithubCli(
+    ["api", `repos/${repository}/contents/${path}?ref=main`],
+    token
+  );
+  const record = JSON.parse(response) as unknown;
+  if (!isJsonRecord(record)) {
+    throw new CliError(`Invalid policy response for ${path}.`, 65);
+  }
+  const encoding = getJsonString(record, "encoding");
+  const content = getJsonString(record, "content");
+  if (encoding !== "base64" || content === "") {
+    throw new CliError(`Policy file ${path} is not readable as base64 content.`, 65);
+  }
+  const document = parseJson(
+    Buffer.from(content.replace(/\n/g, ""), "base64").toString("utf8"),
+    `Policy file ${path} must be valid JSON.`,
+    65
+  );
+  return policyKeys(document, section);
+}
+
+export async function collectGaps(
+  repository: string,
+  products: ReadonlySet<string>,
+  token: string
 ): Promise<DeployGap[]> {
+  const environmentKeys = await readPolicyKeys(
+    repository,
+    "policies/deploy-environments.json",
+    "repositories",
+    token
+  );
+  const secretKeys = await readPolicyKeys(
+    repository,
+    "policies/deploy-secrets.json",
+    "deployments",
+    token
+  );
   const gaps: DeployGap[] = [];
-  const policiesRef = "main";
-
-  let deployEnvs: Record<string, string[]> = {};
-  let deploySecrets: Record<string, string[]> = {};
-
-  try {
-    const envsResponse = await reader.get(
-      `repos/${controlRepository}/contents/policies/deploy-environments.json?ref=${policiesRef}`
-    );
-    const envsRecord = envsResponse as { content?: string; encoding?: string };
-    if (envsRecord.content && envsRecord.encoding === "base64") {
-      deployEnvs = parseJson(
-        Buffer.from(envsRecord.content, "base64").toString("utf8"),
-        "deploy-environments.json must be valid JSON",
-        65
-      ) as Record<string, string[]>;
-    }
-  } catch {
-    // If no policy file, all products are gaps
-  }
-
-  try {
-    const secretsResponse = await reader.get(
-      `repos/${controlRepository}/contents/policies/deploy-secrets.json?ref=${policiesRef}`
-    );
-    const secretsRecord = secretsResponse as { content?: string; encoding?: string };
-    if (secretsRecord.content && secretsRecord.encoding === "base64") {
-      deploySecrets = parseJson(
-        Buffer.from(secretsRecord.content, "base64").toString("utf8"),
-        "deploy-secrets.json must be valid JSON",
-        65
-      ) as Record<string, string[]>;
-    }
-  } catch {
-    // If no policy file, all products are gaps
-  }
-
-  for (const product of products) {
+  for (const product of [...products].sort()) {
     const missing: string[] = [];
-    // Product key format: owner/name/product
-    // We don't know owner/name here, so check if ANY key ends with /<product>
-    const envKeys = Object.keys(deployEnvs).filter((k) => k.endsWith(`/${product}`));
-    const secretKeys = Object.keys(deploySecrets).filter((k) => k.endsWith(`/${product}`));
-    if (envKeys.length === 0) missing.push("deploy-environments.json");
-    if (secretKeys.length === 0) missing.push("deploy-secrets.json");
+    if (!hasProductPolicyKey(environmentKeys, repository, product)) {
+      missing.push("deploy-environments.json");
+    }
+    if (!hasProductPolicyKey(secretKeys, repository, product)) {
+      missing.push("deploy-secrets.json");
+    }
     if (missing.length > 0) {
       gaps.push({ product, missing });
     }
@@ -94,53 +166,39 @@ async function checkPolicyGaps(
   return gaps;
 }
 
-function formatGapHint(gaps: DeployGap[]): string {
-  if (gaps.length === 0) return "";
-  const lines = ["", "### Deploy Configuration Gaps", ""];
-  for (const gap of gaps) {
-    lines.push(`- Product \`${gap.product}\` is missing central policy entries:`);
-    for (const m of gap.missing) {
-      lines.push(`  - \`policies/${m}\` needs a \`${gap.product}\` entry`);
-    }
-  }
-  lines.push("", "_Add the missing entries to the central policy files and re-run governance._");
-  return lines.join("\n");
-}
-
 export async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  if (args.length < 5) {
+  if (args.length < 4) {
     throw new CliError(
-      "Usage: check-deploy-gap.ts <control-repo> <target-repo> <base-sha> <head-sha> <token>",
+      "Usage: check-deploy-gap.ts <control-repo> <target-repo> <pr-number> <token>",
       64
     );
   }
-  const [controlRepo, targetRepo, baseSha, headSha, token] = args as [
-    string,
-    string,
-    string,
-    string,
-    string,
-  ];
-  const reader = new GithubReader("https://api.github.com", token);
-  const files = await getChangedFiles(targetRepo, baseSha, headSha, token);
+  const [controlRepo, targetRepo, rawPrNumber, token] = args as [string, string, string, string];
+  if (!/^[1-9][0-9]*$/.test(rawPrNumber)) {
+    throw new CliError(`::error::Invalid pull request number: ${rawPrNumber}.`, 64);
+  }
+  const prNumber = Number.parseInt(rawPrNumber, 10);
+  const files = await listPullRequestFiles(targetRepo, prNumber, token);
   const products = extractProductsFromPaths(files);
   if (products.size === 0) {
     await writeHint("");
     return;
   }
-  const gaps = await checkPolicyGaps(reader, controlRepo, products);
+  const gaps = await collectGaps(controlRepo, products, token);
   await writeHint(formatGapHint(gaps));
 }
 
-// The hint can span several lines, so it is written as a heredoc output value.
+// The hint can span several lines, so it is written as a heredoc output value. The delimiter is
+// unique so that nothing in the hint can end the heredoc early.
 async function writeHint(hint: string): Promise<void> {
   console.log(hint);
   const output = process.env.GITHUB_OUTPUT;
   if (!output) {
     return;
   }
-  await appendLines(output, ["hint<<EOF", hint, "EOF"]);
+  const delimiter = `EOF_${randomUUID()}`;
+  await appendLines(output, [`hint<<${delimiter}`, hint, delimiter]);
 }
 
 if (isMain(import.meta.url)) {
