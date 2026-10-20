@@ -152,7 +152,7 @@ test("governance files and TypeScript control entries exist", async () => {
 });
 
 test("workflows use the canonical setup-node action runtime", async () => {
-  const canonical = "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0";
+  const canonical = "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0";
   const retired = "actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0";
   const workflows = (await readdir(".github/workflows")).filter(
     (name) => name.endsWith(".yml") || name.endsWith(".yaml")
