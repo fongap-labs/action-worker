@@ -530,6 +530,22 @@ test("a pull request merged while its AI review waited is still reviewed", async
   );
 });
 
+test("a pull request merged while its governance ran keeps the gate result", async () => {
+  // The Main Write Guard proves a main write from the PR Governance status on the merged head.
+  // Cancelling the governance run on merge left that status unpublished, so the repository main
+  // stayed untrusted and every later intake reported the main write as unproven.
+  const cancel = await text(".github/workflows/cancel-pr-work.yml");
+  assert.match(
+    cancel,
+    /Cancel PR Governance\n\s+needs: validate\n\s+if: needs\.validate\.outputs\.merged != 'true'/
+  );
+  // An abandoned pull request still has its stale governance work cancelled.
+  assert.match(
+    cancel,
+    /Cancel PR Governance[\s\S]*?group: pr-governance-[\s\S]*?cancel-in-progress: true/
+  );
+});
+
 test("task dispatch keeps the publication credential in the central control step", async () => {
   const workflow = await text(".github/workflows/handle-task-dispatch.yml");
   requireText(workflow, [

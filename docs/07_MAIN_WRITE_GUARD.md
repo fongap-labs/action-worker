@@ -127,6 +127,8 @@ Main Write Guard 的安全性不得取决于业务仓库的 Actions 是否能运
 
 业务仓库的桥接 `notify-action-worker.yml` 在 `main` 有 push 时只发送不带任何字段的 `run-intake` 事件，作为实时加速手段；它不是安全前提，且绝不能单独产生可信结论。
 
+已合并的 Pull Request 不取消其 PR Governance 运行。Main Write Guard 依据合并 head 上的 PR Governance 状态证明 main 来源；若在合并时取消该运行，状态永远不会发布，该仓库的 `main` 将持续处于不可信状态，后续每次 Intake 都会报告来源无法证明。只有被放弃的 Pull Request 才取消其治理工作。
+
 `main-write-guard.yml` 只证明 Action Worker 自身 `main` 的每次 push，使用工作流令牌与本地 `validate-merge` 检查。
 
 调用方不得提交：

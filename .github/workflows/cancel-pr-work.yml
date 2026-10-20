@@ -52,9 +52,14 @@ jobs:
           }
           echo "merged=$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.merged')" >> "$GITHUB_OUTPUT"
 
+  # A merged pull request keeps its governance run: the Main Write Guard proves the main write
+  # from the PR Governance status on the merged head, so cancelling the run on merge left that
+  # status unpublished and the repository main permanently untrusted. Only an abandoned pull
+  # request has its governance work cancelled.
   governance:
     name: Cancel PR Governance
     needs: validate
+    if: needs.validate.outputs.merged != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 1
     concurrency:
