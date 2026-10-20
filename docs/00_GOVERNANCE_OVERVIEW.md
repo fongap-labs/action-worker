@@ -50,7 +50,7 @@ main push → Intake → Central CI → Main Write Guard → 可信 main SHA
 | 命名变量/Secret/工作流 | `03_NAMING_CONVENTIONS.md` |
 | 写 PR 标题/CHANGELOG | `04_CHANGELOG_CONVENTIONS.md` |
 | 发布/部署手动操作 | `06_RELEASE_DEPLOY_GUIDE.md` §1–3 |
-| Main Write Guard 失败怎么办 | `07_MAIN_WRITE_GUARD.md` §4 |
+| Main Write Guard 失败怎么办 | `06_RELEASE_DEPLOY_GUIDE.md` §3（对策）；后果见 `07_MAIN_WRITE_GUARD.md` §4 |
 | 修改共用规则清单 | `GOVERNANCE_CHANGE_CHECKLIST.md` |
 | 术语表（英文键+中文解释） | `TERMINOLOGY.md` |
 

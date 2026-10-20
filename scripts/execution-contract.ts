@@ -1,6 +1,5 @@
-import { readFile } from "node:fs/promises";
 import { isJsonRecord } from "./github-api.ts";
-import { CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
+import { CliError } from "./runtime-command.ts";
 
 export const executionOperations = [
   "ci",
@@ -331,31 +330,4 @@ export function jobsForOperation(
     throw new CliError(`Execution Manifest does not define operation: ${operation}.`, 65);
   }
   return entry.jobs;
-}
-
-async function main(): Promise<void> {
-  const [command, input = "", operation = ""] = process.argv.slice(2);
-  if (command === "request") {
-    const request = parseExecutionRequest(
-      parseJson(input, "Execution Request is not valid JSON.", 64)
-    );
-    console.log(JSON.stringify(request));
-    return;
-  }
-  if (command === "manifest") {
-    if (!input) throw new CliError("Usage: execution-contract.ts manifest <path> [operation]", 64);
-    const manifest = parseExecutionManifest(JSON.parse(await readFile(input, "utf8")) as unknown);
-    if (operation) {
-      if (!operationSet.has(operation)) throw new CliError(`Unknown operation: ${operation}.`, 64);
-      console.log(JSON.stringify(jobsForOperation(manifest, operation as ExecutionOperation)));
-      return;
-    }
-    console.log(JSON.stringify(manifest));
-    return;
-  }
-  throw new CliError("Usage: execution-contract.ts <request|manifest> <input> [operation]", 64);
-}
-
-if (isMain(import.meta.url)) {
-  main().catch(handleError);
 }

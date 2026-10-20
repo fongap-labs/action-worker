@@ -69,7 +69,7 @@ test("jobs that run scripts depending on npm packages install dependencies first
       const reached = new Set<string>();
       for (const step of steps) {
         for (const match of (step.run ?? "").matchAll(
-          /node (?:(?:control|aw)\/)?scripts\/([a-z0-9-]+)\.ts/g
+          /node (?:[A-Za-z0-9_./-]+\/)?scripts\/([a-z0-9-]+)\.ts/g
         )) {
           reached.add(match[1] ?? "");
         }

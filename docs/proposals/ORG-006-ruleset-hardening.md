@@ -7,7 +7,7 @@
 `policies/rulesets.json` 为每个受管仓库定义了 "Protect Main Branch"：禁止删除、禁止非快进更新、线性历史、仅允许 squash 合并、审查线程必须解决，并要求状态检查 `validate-merge`。与本提案相关的具体内容：
 
 - `required_approving_review_count: 0`、`require_code_owner_review: false`、`require_last_push_approval: false`、`dismiss_stale_reviews_on_push: false`。
-- `strict_required_status_checks_policy: false`（合并前分支不必是最新的）。
+- `strict_required_status_checks_policy: true`（第一阶段已采纳：合并前分支必须与 `main` 保持最新）。
 - 必需检查按名称匹配（`context: "validate-merge"`），没有 `integration_id`，因此任何能够创建该名称提交状态的主体都能满足它。
 - `bypass_actors: []`。
 - 只要本仓库的 `policies/rulesets.json` 变更进入 `main`，`apply-repository-settings.yml` 就会把该文件应用到所有受管仓库。因此一次合并就会改变每个受管仓库。
@@ -24,7 +24,7 @@
 
 ## 建议（分阶段）
 
-1. **私有仓库（已决定，无需配置）：** 补偿性控制是 Main Write Guard，它已经覆盖全部七个仓库。`main-write-audit.yml` 每五分钟重新检查每个受管的 `main`；无法追溯到通过确定性门禁的已合并 PR 的 `main` SHA，会得到 `Main Write Guard = failure` 并被标记为不可信，因此 Release、Deploy、Publication 与特权任务都会拒绝它（失败即关闭）。2026-10-07，所有七个仓库的 `main` 上该状态均为 `success`。剩余风险需要明确说明：私有仓库的 `main` 上的直接 push 无法被阻止，只能在约五分钟内被发现，并且拒绝其任何官方输出。写权限应仅限于两名维护者，并保持审计工作流健康；失败或过期的 `Main Write Guard` 状态就是警报。
+1. **私有仓库（已决定，无需配置）：** 补偿性控制是 Main Write Guard，它已经覆盖全部七个仓库。`intake.yml` 的 `Main write audit` 作业在受管仓库 `main` push 经桥接唤醒时即时重新审计每个受管的 `main`，并以定时运行兜底（GitHub 定时仅尽力而为，实际间隔可能达数小时）；无法追溯到通过确定性门禁的已合并 PR 的 `main` SHA，会得到 `Main Write Guard = failure` 并被标记为不可信，因此 Release、Deploy、Publication 与特权任务都会拒绝它（失败即关闭）。2026-10-07，所有七个仓库的 `main` 上该状态均为 `success`。剩余风险需要明确说明：私有仓库的 `main` 上的直接 push 无法被阻止，只能在下一次审计时被发现（通常由 push 即时触发，定时兜底），并且拒绝其任何官方输出。写权限应仅限于两名维护者，并保持审计工作流健康；失败或过期的 `Main Write Guard` 状态就是警报。
 2. **第一阶段：** 对 PR 量较低的仓库采用选项 3（严格模式），然后观察一周。如果添加了仓库级覆盖，则通过仓库级覆盖实施，而不是通过共享文件；否则它将应用于所有仓库。
 3. **第二阶段：** 当存在第二名常规评审者时采用选项 1（选项 5 作为紧急路径）。在此之前不要采用：在两人加上大量自动化 PR 的情况下，它会阻塞工作。
 4. **第三阶段：** 只有在因其他原因引入 GitHub App 时才采用选项 4（它也有助于 AW-002 与 AW-007）。

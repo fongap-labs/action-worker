@@ -35,7 +35,7 @@ updates:
         patterns:
           - "@types/*"
           - "typescript"
-          - "biome"
+          - "@biomejs/*"
         update-types:
           - "minor"
           - "patch"

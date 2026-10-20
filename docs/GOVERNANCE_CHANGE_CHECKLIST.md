@@ -103,7 +103,7 @@
 ## 7. 合并后动作
 
 - [ ] 合并后，`apply-repository-settings.yml` 会在下一次 push/main 或定时运行时自动应用到所有受管仓库
-- [ ] 观察 Actions：`Apply Repository Settings`、`Main Write Guard`、`Intake` 运行无报错
+- [ ] 观察 Actions：`自动 · 仓库设置`、`自动 · 主分支审计`、`自动 · 总控调度` 运行无报错
 - [ ] 如有破坏性变更，需在相关业务仓库协调发布/部署/任务的手动验证
 
 ---

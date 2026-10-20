@@ -106,15 +106,7 @@ Fongap Labs 系统缩写仅在以下条件**全部满足**时可用于外部配�
 
 **临时发明缩写以缩短名称禁止**。无稳定共识时使用完整系统名称。
 
-当前规范的 Fongap Labs 系统缩写（同步自 `TERMINOLOGY.md`）：
-
-| 系统 | 缩写 |
-|------|------|
-| Action Worker | `AW` |
-| AI Gateway | `AIG` |
-| App Source | `APP_SOURCE` |
-| Delta | `DELTA` |
-| Server Edge | `SERVER_EDGE` |
+当前规范的 Fongap Labs 系统缩写维护在 `TERMINOLOGY.md` §系统缩写（已登记，可用于外部配置），本文件不复制该表。
 
 项目新增系统缩写：先修改 `TERMINOLOGY.md` 此表，再在业务仓库使用。
 

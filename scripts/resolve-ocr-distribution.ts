@@ -2,9 +2,7 @@ import { join } from "node:path";
 import { getJsonString, isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 
-async function main(): Promise<void> {
-  const policyPath = process.argv[2] ?? "";
-  const policy = await readJson(policyPath);
+export function resolveOcrDistribution(policy: unknown, home: string): string[] {
   const engine = isJsonRecord(policy) && isJsonRecord(policy.engine) ? policy.engine : {};
   const repository = getJsonString(engine, "repository");
   const version = getJsonString(engine, "version");
@@ -20,17 +18,25 @@ async function main(): Promise<void> {
   ) {
     throw new CliError("::error::Invalid OCR distribution policy.", 65);
   }
-  const home = process.env.HOME ?? "";
   if (!home) {
     throw new CliError("::error::HOME is required.", 65);
   }
-  await appendLines(process.env.GITHUB_OUTPUT, [
+  return [
     `repository=${repository}`,
     `version=${version}`,
     `asset=${asset}`,
     `sha256=${sha256}`,
     `cache_dir=${join(home, ".cache", "action-worker", "ocr", version)}`,
-  ]);
+  ];
+}
+
+async function main(): Promise<void> {
+  const policyPath = process.argv[2] ?? "";
+  const policy = await readJson(policyPath);
+  await appendLines(
+    process.env.GITHUB_OUTPUT,
+    resolveOcrDistribution(policy, process.env.HOME ?? "")
+  );
 }
 
 if (isMain(import.meta.url)) {

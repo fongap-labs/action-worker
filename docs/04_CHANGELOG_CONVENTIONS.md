@@ -119,12 +119,7 @@ CHANGELOG.md
 - type [attribute, attribute]: summary
 ```
 
-允许属性：
-```
-breaking
-security
-migration
-```
+允许属性：`breaking`、`security`、`migration`（定义与用法见 §2）。
 
 当 PR 标题使用 `!` 时，其 CHANGELOG 条目**必须**包含 `breaking`。
 
@@ -210,17 +205,7 @@ Release 说明直接使用相同的类型。
 
 CHANGELOG 标题**永远不决定或约束** Release 版本。版本只来自发布启动时输入的版本。
 
-展示层可隐藏低价值类型，例如：
-```
-docs
-style
-refactor
-test
-build
-ci
-chore
-```
-但底层分类永远不被转换或重命名。
+展示层可隐藏低价值类型（清单见 §6 的「默认不要求写的类型」），但底层分类永远不被转换或重命名。
 
 ---
 

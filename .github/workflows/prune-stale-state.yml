@@ -10,7 +10,6 @@ on:
       - .github/workflows/prune-stale-state.yml
       - scripts/prune-stale-branches.ts
       - scripts/prune-orphaned-runs.ts
-      - .github/branch-prune.json
   schedule:
     - cron: "31 5 * * *"
 
