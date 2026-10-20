@@ -133,7 +133,7 @@ export function parseReleaseBuildManifest(value: unknown): ReleaseBuildManifest 
       typeof build.target !== "string" ||
       !/^[A-Za-z0-9_.-]+$/.test(build.target) ||
       typeof build.script !== "string" ||
-      !/^\.github\/scripts\/[A-Za-z0-9._-]+\.ps1$/.test(build.script) ||
+      !isRelativePath(build.script) ||
       !Array.isArray(build.assets) ||
       build.assets.length < 1 ||
       !build.assets.every((asset) => isAssetName(asset)) ||
