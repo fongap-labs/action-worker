@@ -8,7 +8,7 @@ Fongap Labs 的中央 GitHub 自动化控制平面统一负责任务分发、PR 
 [![Task Dispatch](https://img.shields.io/badge/Task%20Dispatch-50-2A5588?style=flat-square&labelColor=1B2A41)](https://github.com/fongap-labs/action-worker/actions) [![AI Review](https://img.shields.io/badge/AI%20Review-118-4B4F8F?style=flat-square&labelColor=1B2A41)](https://github.com/fongap-labs/action-worker/actions) [![PR Governance](https://img.shields.io/badge/PR%20Governance-670-2E6B73?style=flat-square&labelColor=1B2A41)](https://github.com/fongap-labs/action-worker/actions) [![Release Governance](https://img.shields.io/badge/Release%20Governance-15-8C6D3F?style=flat-square&labelColor=1B2A41)](https://github.com/fongap-labs/action-worker/releases) [![Status](https://img.shields.io/github/actions/workflow/status/fongap-labs/action-worker/validate-ci.yml?branch=main&style=flat-square&labelColor=1B2A41&label=Status)](https://github.com/fongap-labs/action-worker/actions/workflows/validate-ci.yml)
 <!-- work-metrics:end -->
 
-[快速开始](#快速开始) · [接入指南](docs/INTEGRATION_GUIDE.md) · [维护者参考](#维护者参考) · [安全策略](SECURITY.md)
+[快速开始](#快速开始) · [接入指南](docs/05_INTEGRATION_GUIDE.md) · [维护者参考](#维护者参考) · [安全策略](SECURITY.md)
 
 </div>
 
@@ -18,8 +18,8 @@ Fongap Labs 的中央 GitHub 自动化控制平面统一负责任务分发、PR 
 
 | 阶段 | 目标 | 必读文档 | 预计时间 |
 | --- | --- | --- | --- |
-| 入门 | 理解定位与核心流程 | README 全文、[SHARED_GOVERNANCE](docs/SHARED_GOVERNANCE.md) | 30 min |
-| 接入 | 让业务仓库跑通 PR Governance | [INTEGRATION_GUIDE](docs/INTEGRATION_GUIDE.md) | 1 h |
+| 入门 | 理解定位与核心流程 | README 全文、[01_SHARED_GOVERNANCE](docs/01_SHARED_GOVERNANCE.md) | 30 min |
+| 接入 | 让业务仓库跑通 PR Governance | [05_INTEGRATION_GUIDE](docs/05_INTEGRATION_GUIDE.md) | 1 h |
 | 开发 | 在本地跑通类型/测试/门禁 | [DEVELOPMENT_GUIDE](docs/DEVELOPMENT_GUIDE.md) | 2 h |
 | 发布 | 完成一次受管发布 | [架构文档 §13](docs/ARCHITECTURE.md#13-部署治理) | 1 h |
 
@@ -147,7 +147,7 @@ flowchart TB
 | 控制域（Control） | 可使用中央密钥，只读取证据并做决定，从不执行 PR 代码 |
 | 沙箱（Sandbox） | 执行构建与测试，绝不接收中央密钥或部署凭据 |
 | 计划（Plan） | 根据改动范围，决定需要运行哪些检查 |
-| Main Write Guard | 主分支写入守卫，确认 `main` 上的提交来自合法的合并，只有可信提交才进入部署。详见 [主分支守卫](docs/MAIN_WRITE_GUARD.md)。 |
+| Main Write Guard | 主分支写入守卫，确认 `main` 上的提交来自合法的合并，只有可信提交才进入部署。详见 [主分支守卫](docs/07_MAIN_WRITE_GUARD.md)。 |
 | 中央 CI（Central CI） | 在中央运行测试包并生成 CI Evidence 的检查环境。 |
 | CI Evidence | 沙箱产生的执行记录，门禁只认可可验证的证据 |
 | 门禁（Gate） | 唯一的合并许可：`validate-merge` 成功才放行 |
@@ -198,17 +198,17 @@ flowchart LR
 | 想了解 | 阅读 |
 |---|---|
 | 文档总索引 | [docs/README.md](docs/README.md) |
-| 共用治理与权威顺序 | [docs/SHARED_GOVERNANCE.md](docs/SHARED_GOVERNANCE.md) |
+| 共用治理与权威顺序 | [docs/01_SHARED_GOVERNANCE.md](docs/01_SHARED_GOVERNANCE.md) |
 | 架构与当前实现 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
-| 受管仓库接入规范 | [docs/INTEGRATION_GUIDE.md](docs/INTEGRATION_GUIDE.md) |
+| 受管仓库接入规范 | [docs/05_INTEGRATION_GUIDE.md](docs/05_INTEGRATION_GUIDE.md) |
 | 开发与验证流程 | [docs/DEVELOPMENT_GUIDE.md](docs/DEVELOPMENT_GUIDE.md) |
-| 变更分类与 CHANGELOG | [docs/CHANGELOG_CONVENTIONS.md](docs/CHANGELOG_CONVENTIONS.md) |
+| 变更分类与 CHANGELOG | [docs/04_CHANGELOG_CONVENTIONS.md](docs/04_CHANGELOG_CONVENTIONS.md) |
 | Agent 入口 | [CLAUDE.md](CLAUDE.md)、[skills/README.md](skills/README.md) |
 
 ## 参与贡献
 
 - 面向人的文档用中文；工程 diff、PR 标题与 CHANGELOG 用英文。
-- PR 标题格式为 `type(scope): summary`，`type` 取值见 [CHANGELOG 约定](docs/CHANGELOG_CONVENTIONS.md)。
+- PR 标题格式为 `type(scope): summary`，`type` 取值见 [CHANGELOG 约定](docs/04_CHANGELOG_CONVENTIONS.md)。
 - `feat`、`fix`、`perf`、`revert` 与破坏性变更必须更新 `CHANGELOG.md`。
 - 治理变更必须同时更新合同、策略与回归测试；仅有文档不构成约束。
 - 不按仓库名分支，不新增 `projects/`、`adapters/`、`profiles/` 目录。

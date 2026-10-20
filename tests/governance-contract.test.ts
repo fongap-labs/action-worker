@@ -32,8 +32,16 @@ test("governance files and TypeScript control entries exist", async () => {
     "docs/README.md",
     "docs/ARCHITECTURE.md",
     "docs/ARCHITECTURE_GOVERNANCE.md",
-    "docs/NAMING_CONVENTIONS.md",
-    "docs/CHANGELOG_CONVENTIONS.md",
+    "docs/00_GOVERNANCE_OVERVIEW.md",
+    "docs/01_SHARED_GOVERNANCE.md",
+    "docs/02_REPOSITORY_GOVERNANCE.md",
+    "docs/03_NAMING_CONVENTIONS.md",
+    "docs/04_CHANGELOG_CONVENTIONS.md",
+    "docs/05_INTEGRATION_GUIDE.md",
+    "docs/06_RELEASE_DEPLOY_GUIDE.md",
+    "docs/07_MAIN_WRITE_GUARD.md",
+    "docs/GOVERNANCE_CHANGE_CHECKLIST.md",
+    "docs/TERMINOLOGY.md",
     "docs/DEVELOPMENT_GUIDE.md",
     "contracts/change-record.json",
     "contracts/dependency-repair.json",
@@ -209,14 +217,15 @@ test("Intake reconciles every kind of work on the heartbeat, never by hand", asy
 });
 
 test("integration guidance matches the current credential and private-repository model", async () => {
-  const guide = await text("docs/INTEGRATION_GUIDE.md");
+  const guide = await text("docs/05_INTEGRATION_GUIDE.md");
   assert.doesNotMatch(guide, /`AW_EXECUTION_TOKEN` 仍在使用/);
   assert.match(guide, /`AW_EXECUTION_TOKEN` 已被删除/);
   assert.match(guide, /在 GitHub Free 套餐下，组织的私有仓库不支持 rulesets 或保护分支/);
 });
 
 test("the integration guide says which workflow starts a release or a deploy", async () => {
-  const guide = await text("docs/INTEGRATION_GUIDE.md");
+  const guide =
+    (await text("docs/05_INTEGRATION_GUIDE.md")) + (await text("docs/06_RELEASE_DEPLOY_GUIDE.md"));
   const workflows: Record<string, string> = {
     "手动 · 发布应用": ".github/workflows/release-app.yml",
     "自动 · 工具发布": ".github/workflows/release-tool.yml",
@@ -234,7 +243,7 @@ test("test ownership points every governance document to the test packs", async 
     "docs/ARCHITECTURE.md",
     "docs/DEVELOPMENT_GUIDE.md",
     "docs/EXECUTION_CONTRACT.md",
-    "docs/INTEGRATION_GUIDE.md",
+    "docs/05_INTEGRATION_GUIDE.md",
   ]) {
     assert.match(await text(path), /TEST_PACKS\.md/, `${path} must reference TEST_PACKS.md`);
   }
@@ -245,7 +254,7 @@ test("test ownership points every governance document to the test packs", async 
 });
 
 test("documentation readability convention is enforced in shared governance", async () => {
-  const gov = await text("docs/SHARED_GOVERNANCE.md");
+  const gov = await text("docs/01_SHARED_GOVERNANCE.md");
   requireText(gov, [
     "文档可读性",
     "机器读取文档（严格）",

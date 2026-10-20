@@ -44,7 +44,7 @@ const chineseDisplayNames: Record<string, string> = {
 };
 
 // What a release workflow releases. A new kind is a deliberate edit here and in
-// docs/03-naming-conventions.md, never a repository or product name.
+// docs/03_NAMING_CONVENTIONS.md, never a repository or product name.
 const releaseKinds = ["app", "tool"];
 
 // A workflow that releases or deploys is named by what it does (`release-<kind>.yml`,

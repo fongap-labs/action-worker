@@ -29,7 +29,6 @@
 - [ ] `documentation-language.test.ts` — 验证机器文档纯英文、人类文档含中文、无 `*.zh-CN.md`
 - [ ] `validate-change-record.test.ts` — 验证 PR 标题格式、CHANGELOG 条目、AI 署名卫生
 - [ ] `validate-engineering-language.test.ts` — 验证工程 diff 纯英文、例外路径豁免
-- [ ] `validate-changelog-format.test.ts` — 验证 ASCII-only、无 markdown、≤120 字符、无尾句号、类型小写
 - [ ] `naming-rules.test.ts` / `validate-source-naming.py` — 验证外部名称、缩写、配置类型词
 
 ---
@@ -43,8 +42,8 @@
 - [ ] `05_INTEGRATION_GUIDE.md` — 接入目标流程、业务仓库保留内容、执行请求/清单、CI 与 PR、安全扫描、依赖修复、Runner、中央配置、Main Write Guard 桥接、任务、Release、Deploy、新仓库不应做的事、平台边界、迁移期
 - [ ] `06_RELEASE_DEPLOY_GUIDE.md` — Release/Deploy 手动操作、启动前检查/常见失败、多产品发布/部署、定时部署、跟随型产品
 - [ ] `07_MAIN_WRITE_GUARD.md` — 规则、触发时机、证明逻辑、失败后果、业务仓库桥接、故障排查
-- [ ] `08-runner-policy.md` — Runner Profile 定义、解析器逻辑、backend 选择、self-hosted 边界、特权 Runner
-- [ ] `08-architecture-governance.md` — 架构治理规则（如有变更）
+- [ ] `RUNNER_POLICY.md` — Runner Profile 定义、解析器逻辑、backend 选择、self-hosted 边界、特权 Runner
+- [ ] `ARCHITECTURE_GOVERNANCE.md` — 架构治理规则（如有变更）
 - [ ] `GOVERNANCE_CHANGE_CHECKLIST.md` — 本清单（如流程本身变更）
 - [ ] `TERMINOLOGY.md` — 术语表（如新增/修改术语）
 
@@ -110,17 +109,17 @@
 
 | 旧文件 | 新文件 |
 |--------|--------|
-| `01_SHARED_GOVERNANCE.md` | `01_SHARED_GOVERNANCE.md` |
-| `02_REPOSITORY_GOVERNANCE.md` | `02_REPOSITORY_GOVERNANCE.md` |
-| `03_NAMING_CONVENTIONS.md` | `03_NAMING_CONVENTIONS.md` |
-| `04_CHANGELOG_CONVENTIONS.md` | `04_CHANGELOG_CONVENTIONS.md` |
-| `05_INTEGRATION_GUIDE.md` | `05_INTEGRATION_GUIDE.md` + `06_RELEASE_DEPLOY_GUIDE.md` |
-| `07_MAIN_WRITE_GUARD.md` | `07_MAIN_WRITE_GUARD.md` |
-| `08-runner-policy.md` | `08-runner-policy.md` |
-| `10-architecture-governance.md` | `10-architecture-governance.md` |
-| `09-execution-contract.md` | `09-execution-contract.md` |
+| `SHARED_GOVERNANCE.md` | `01_SHARED_GOVERNANCE.md` |
+| `REPOSITORY_GOVERNANCE.md` | `02_REPOSITORY_GOVERNANCE.md` |
+| `NAMING_CONVENTIONS.md` | `03_NAMING_CONVENTIONS.md` |
+| `CHANGELOG_CONVENTIONS.md` | `04_CHANGELOG_CONVENTIONS.md` |
+| `INTEGRATION_GUIDE.md` | `05_INTEGRATION_GUIDE.md` + `06_RELEASE_DEPLOY_GUIDE.md`（拆分） |
+| `MAIN_WRITE_GUARD.md` | `07_MAIN_WRITE_GUARD.md` |
+| `RUNNER_POLICY.md` | `RUNNER_POLICY.md`（未改名） |
+| `ARCHITECTURE_GOVERNANCE.md` | `ARCHITECTURE_GOVERNANCE.md`（未改名） |
+| `EXECUTION_CONTRACT.md` | `EXECUTION_CONTRACT.md`（未改名） |
 | （新增） | `00_GOVERNANCE_OVERVIEW.md` |
 | （新增） | `GOVERNANCE_CHANGE_CHECKLIST.md` |
 | （新增） | `TERMINOLOGY.md` |
 
-> 旧文件保留一周作为重定向，首行标注 `> **已移至 [新文档](新路径)**`，一周后删除。
+> 重构时旧文件直接删除，没有保留重定向副本；如需查看历史，用 `git log --follow -- docs/<文件名>`。

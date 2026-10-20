@@ -2,7 +2,7 @@
 
 Action Worker 是 Fongap Labs 的 GitHub 自动化治理与执行平面。本文件定义长期边界。实现可以分阶段迁移，但与这些边界相悖的现有实现，都不得继续扩张。
 
-统一执行合同见 [09-execution-contract.md](09-execution-contract.md)，Runner 与 self-hosted 边界见 [08-runner-policy.md](08-runner-policy.md)。
+统一执行合同见 [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md)，Runner 与 self-hosted 边界见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。
 
 ## 1. 核心边界
 

@@ -20,7 +20,7 @@ Confirm:
 - Main Write Guard success result bound to that SHA;
 - required CI evidence for that SHA.
 
-A SHA merely on `main` is not sufficient. Only a Main Write Guard result bound to the exact SHA authorizes deployment. See `MAIN_WRITE_GUARD.md`.
+A SHA merely on `main` is not sufficient. Only a Main Write Guard result bound to the exact SHA authorizes deployment. See `07_MAIN_WRITE_GUARD.md`.
 
 ## 2. Verify deploy manifest and environment
 

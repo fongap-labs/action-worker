@@ -158,7 +158,7 @@ When instructions conflict, resolve them in this order. The first level that app
 ```text
 1. Machine contracts, policies, and rules (contracts/, policies/, rules/),
    including project-specific mandatory policies, and deterministic gates
-2. Shared governance (docs/SHARED_GOVERNANCE.md, docs/ARCHITECTURE_GOVERNANCE.md)
+2. Shared governance (docs/01_SHARED_GOVERNANCE.md, docs/ARCHITECTURE_GOVERNANCE.md)
 3. Explicit requirements of the current task, where they do not conflict with levels 1-2
 4. Project architecture documents and task-specific guides
 5. Skills (this execution procedure)

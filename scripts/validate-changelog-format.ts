@@ -1,11 +1,13 @@
 import { CliError, handleError, isMain, runText } from "./runtime-command.ts";
 
-const ASCII_ONLY = /^[\x00-\x7F]*$/;
 const MAX_SUMMARY_LENGTH = 120;
 const ENTRY_PATTERN = /^- ([a-z]+)(?: \[([^\]]+)\])?: (.+)$/;
 
 function isAscii(text: string): boolean {
-  return ASCII_ONLY.test(text);
+  for (const char of text) {
+    if (char.charCodeAt(0) > 127) return false;
+  }
+  return true;
 }
 
 function hasMarkdown(text: string): boolean {
@@ -20,23 +22,22 @@ function hasTrailingPeriod(text: string): boolean {
 function validateChangelog(content: string, filePath: string): string[] {
   const errors: string[] = [];
   const lines = content.split(/\r?\n/);
-  let inUnreleased = false;
+  let isInUnreleased = false;
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const lineNum = i + 1;
+  for (const [index, line] of lines.entries()) {
+    const lineNum = index + 1;
 
     if (line === "## [Unreleased]") {
-      inUnreleased = true;
+      isInUnreleased = true;
       continue;
     }
 
-    if (line.startsWith("## ") && inUnreleased) {
+    if (line.startsWith("## ") && isInUnreleased) {
       // Left unreleased section
-      inUnreleased = false;
+      isInUnreleased = false;
     }
 
-    if (!inUnreleased) continue;
+    if (!isInUnreleased) continue;
 
     if (!line.startsWith("- ")) continue;
 
@@ -57,7 +58,7 @@ function validateChangelog(content: string, filePath: string): string[] {
       continue;
     }
 
-    const [, type, attr, summary] = match;
+    const [, type = "", attr, summary = ""] = match;
 
     // Check summary length
     if (summary.length > MAX_SUMMARY_LENGTH) {
@@ -68,23 +69,17 @@ function validateChangelog(content: string, filePath: string): string[] {
 
     // Check trailing period
     if (hasTrailingPeriod(summary)) {
-      errors.push(
-        `${filePath}:${lineNum}: summary should not end with a period: ${summary}`
-      );
+      errors.push(`${filePath}:${lineNum}: summary should not end with a period: ${summary}`);
     }
 
     // Check markdown formatting
     if (hasMarkdown(summary)) {
-      errors.push(
-        `${filePath}:${lineNum}: summary contains markdown formatting: ${summary}`
-      );
+      errors.push(`${filePath}:${lineNum}: summary contains markdown formatting: ${summary}`);
     }
 
     // Check type is lowercase
     if (type !== type.toLowerCase()) {
-      errors.push(
-        `${filePath}:${lineNum}: type must be lowercase: ${type}`
-      );
+      errors.push(`${filePath}:${lineNum}: type must be lowercase: ${type}`);
     }
 
     // Check attribute format if present
@@ -99,17 +94,13 @@ function validateChangelog(content: string, filePath: string): string[] {
 }
 
 export async function validateChangelogFormat(
-  base: string,
+  _base: string,
   head: string,
   root: string,
   changelogFile: string
 ): Promise<void> {
   // Get the changelog file content at HEAD
-  const content = await runText(
-    "git",
-    ["show", `${head}:${changelogFile}`],
-    { cwd: root }
-  );
+  const content = await runText("git", ["show", `${head}:${changelogFile}`], { cwd: root });
 
   const errors = validateChangelog(content, changelogFile);
 

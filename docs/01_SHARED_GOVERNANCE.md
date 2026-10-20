@@ -27,7 +27,7 @@ Action Worker
 
 公开仓库与私有仓库使用同一套执行架构。除 GitHub 平台要求目标仓库自行创建的最薄分发与桥接检查之外，**所有重型执行（CI、测试、构建、AI Review、Release、Deploy 与定时任务）都进入 Action Worker**。仓库可见性只能影响访问方式与 GitHub 平台保护功能，不得形成第二条执行路径。
 
-统一执行边界由 `09-execution-contract.md` 定义；Runner 抽象与 self-hosted 边界由 `08-runner-policy.md` 定义。
+统一执行边界由 `EXECUTION_CONTRACT.md` 定义；Runner 抽象与 self-hosted 边界由 `RUNNER_POLICY.md` 定义。
 
 ---
 
@@ -54,9 +54,9 @@ Action Worker 为所有受管仓库维护以下规则：
 - 工程 diff、PR 标题、CHANGELOG 条目与 Release 摘要使用英文（§2）
 - 通用开发与验证规则
 - PR 治理与合并门禁合同（见 `02_REPOSITORY_GOVERNANCE.md` §3）
-- 公开仓库与私有仓库统一的执行合同（见 `09-execution-contract.md`）
+- 公开仓库与私有仓库统一的执行合同（见 `EXECUTION_CONTRACT.md`）
 - 中央 CI / 构建 / 审查 / 发布 / 部署 / 任务执行
-- Runner Profile、Runner 解析与自托管边界（见 `08-runner-policy.md`）
+- Runner Profile、Runner 解析与自托管边界（见 `RUNNER_POLICY.md`）
 - 发布与部署治理（见 `06_RELEASE_DEPLOY_GUIDE.md`）
 - Release 的应用版本，**仅来自发布启动时输入的版本**（不得由仓库文件版本字段、manifest、CHANGELOG 标题、文件一致性检查或上次发布比较决定）
 - 跨仓库的信任与密钥边界
@@ -174,7 +174,7 @@ Action Worker 门禁对每个受管仓库都成立；原生 GitHub rulesets、�
 
 要求：
 1. **中文**，术语保留英文原词（见 `TERMINOLOGY.md`）
-2. **先说明“是什么”，再说明“怎么做”**：每份文档以一两句话说明用途
+2. **先说明"这是什么"，再说明"怎么做"**：每份文档以一两句话说明用途，不直接进入实现细节
 3. **解释每个术语**：dispatch、bootstrap、gate、manifest 等首现时用括号或一句话解释
 4. **用示例代替抽象描述**：能用具体示例的不只用规则文字；示例放代码块
 5. **不假设读者了解 GitHub Actions**：用日常比喻解释 workflow、runner、dispatch

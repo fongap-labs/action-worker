@@ -2,7 +2,7 @@
 
 Action Worker 是 Fongap Labs 的 GitHub 自动化控制平面。
 
-长期边界由 [10-architecture-governance.md](10-architecture-governance.md) 定义。统一执行合同见 [09-execution-contract.md](09-execution-contract.md)，Runner 与 self-hosted 边界见 [08-runner-policy.md](08-runner-policy.md)。本文件描述当前的实现，以及下一步的收敛方向。
+长期边界由 [ARCHITECTURE_GOVERNANCE.md](ARCHITECTURE_GOVERNANCE.md) 定义。统一执行合同见 [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md)，Runner 与 self-hosted 边界见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。本文件描述当前的实现，以及下一步的收敛方向。
 
 ## 1. 核心模型
 

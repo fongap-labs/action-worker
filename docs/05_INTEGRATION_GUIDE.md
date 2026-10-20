@@ -75,7 +75,7 @@ capability_requests
 
 清单**不得声明**：中央密钥、具体 self-hosted Runner、Runner 标签、跨仓库写入令牌、绕过门禁的开关。
 
-详细合同见 `09-execution-contract.md`。
+详细合同见 `EXECUTION_CONTRACT.md`。
 
 ### 4.1 Linux CI 分片（可选）
 
@@ -162,7 +162,7 @@ PR
 
 Action Worker 的 Runner 解析器选择 GitHub 托管、self-hosted 或未来后端。
 
-详细规则见 `08-runner-policy.md`。
+详细规则见 `RUNNER_POLICY.md`。
 
 ---
 
@@ -187,6 +187,8 @@ AIG_ACCESS_KEY_AGENT
 `AW_CHECKOUT_TOKEN`：仅用于沙箱与依赖修复计算作业检出私有目标仓库。权限仅 `Contents: Read`，仅限受管私有仓库，过期前轮换。
 `AW_CONTROL_TOKEN`：中央读取、控制与状态治理。
 `AW_ADMIN_TOKEN`：仅用于可信控制步骤的仓库级高权限写入（Repository Settings / Rulesets、SARIF 发布所需 Code Scanning 写权限）。高权限令牌绝不注入沙箱项目命令。
+
+`AW_EXECUTION_TOKEN` 已被删除，不再配置。中央执行结合了现有的最小权限授权与 GitHub 原生的短期凭据。
 
 ---
 
@@ -216,7 +218,7 @@ AIG_ACCESS_KEY_AGENT
 
 Dependabot 事件拿不到 Actions 密钥，由 Intake 处理。维护者批准等待批准的 PR 时，GitHub 不提供带密钥事件，由下一次 Intake 运行发现批准；任何受管仓库 `main` push 都会立即启动这次运行。
 
-桥接缺失、Actions 分钟数耗尽或被删除，**既不能产生可信 main SHA，也不能削弱 Release/Deploy 的失败即关闭检查**，只会让 Action Worker 发现变化变慢。可运行在 self-hosted Runner（见 `08-runner-policy.md` §11）。
+桥接缺失、Actions 分钟数耗尽或被删除，**既不能产生可信 main SHA，也不能削弱 Release/Deploy 的失败即关闭检查**，只会让 Action Worker 发现变化变慢。可运行在 self-hosted Runner（见 `RUNNER_POLICY.md` §11）。
 
 ---
 
@@ -260,7 +262,7 @@ Dependabot 事件拿不到 Actions 密钥，由 Intake 处理。维护者批准�
 
 统一执行架构不意味每个 GitHub 套餐具备相同平台强制能力。
 
-**GitHub Free 组织私有仓库不支持 rulesets/保护分支**，中央门禁属于流程约束而非硬性平台门禁。公开仓库仍可在平台允许范围内使用受管 rulesets。
+在 GitHub Free 套餐下，组织的私有仓库不支持 rulesets 或保护分支，因此这些仓库中的中央门禁属于当前套餐下的流程约束，而不是硬性的平台门禁。公开仓库仍可在平台允许的范围内使用受管的 rulesets。
 
 **平台功能差异不得改变执行合同，也不得成为把重型执行搬回业务仓库的理由。**
 

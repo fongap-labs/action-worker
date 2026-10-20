@@ -86,7 +86,7 @@ Action Worker 负责：
 
 项目代码不得绑定具体的 Runner 基础设施。项目只声明 `runner_profile`；Action Worker 的 Runner 策略负责解析为实际的 GitHub 托管或 self-hosted 后端。
 
-新增 self-hosted Runner 不得要求修改业务仓库。详细规则见 [08-runner-policy.md](08-runner-policy.md)。
+新增 self-hosted Runner 不得要求修改业务仓库。详细规则见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。
 
 ## 7. 工作流变更
 
