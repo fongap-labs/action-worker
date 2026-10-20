@@ -2,8 +2,8 @@
 
 本文件定义受管仓库加入 Action Worker 统一执行平面所需的**最低要求**。公开仓库与私有仓库使用同一套合同。
 
-详细运维操作（发布/部署手动步骤、错误码表、多产品布局、定时部署、跟随型产品）见 `06-release-deploy-guide.md`。
-Main Write Guard 完整规则见 `07-main-write-guard.md`。
+详细运维操作（发布/部署手动步骤、错误码表、多产品布局、定时部署、跟随型产品）见 `06_RELEASE_DEPLOY_GUIDE.md`。
+Main Write Guard 完整规则见 `07_MAIN_WRITE_GUARD.md`。
 
 ---
 
@@ -202,7 +202,7 @@ AIG_ACCESS_KEY_AGENT
 
 **未经 Main Write Guard 证明的 SHA，不能用于 Release/Deploy/Publication/特权执行。**
 
-完整规则见 `07-main-write-guard.md`。
+完整规则见 `07_MAIN_WRITE_GUARD.md`。
 
 ### 10.1 业务仓库桥接（必须）
 

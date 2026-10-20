@@ -51,11 +51,11 @@ main push → Intake → Central CI → Main Write Guard → 可信 main SHA
 
 | 需求 | 读哪份 |
 |------|--------|
-| 新仓库接入最小配置 | `05-integration-guide.md` §2–4 |
-| 命名变量/Secret/工作流 | `03-naming-conventions.md` |
-| 写 PR 标题/CHANGELOG | `04-changelog-conventions.md` |
-| 发布/部署手动操作 | `06-release-deploy-guide.md` §1–3 |
-| Main Write Guard 失败怎么办 | `07-main-write-guard.md` §4 |
+| 新仓库接入最小配置 | `05_INTEGRATION_GUIDE.md` §2–4 |
+| 命名变量/Secret/工作流 | `03_NAMING_CONVENTIONS.md` |
+| 写 PR 标题/CHANGELOG | `04_CHANGELOG_CONVENTIONS.md` |
+| 发布/部署手动操作 | `06_RELEASE_DEPLOY_GUIDE.md` §1–3 |
+| Main Write Guard 失败怎么办 | `07_MAIN_WRITE_GUARD.md` §4 |
 | 修改共用规则清单 | `GOVERNANCE_CHANGE_CHECKLIST.md` |
 | 术语表（英文键+中文解释） | `TERMINOLOGY.md` |
 

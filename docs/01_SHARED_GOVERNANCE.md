@@ -40,7 +40,7 @@ Action Worker
 | **工程产出**（PR 标题、CHANGELOG 条目、代码注释、工作流名称/步骤、日志、错误信息、测试描述、配置键） | **英文** | 严禁中英混用 |
 | **例外** | — | 面向用户的界面文案、本地化资源、纯数据文件（`.txt/.csv/.tsv`）、HTML 模板标签间文案（模板注释保持英文） |
 
-> **所有其他文档中的语言规则均以本节为准**；其它文档仅保留“参见 `01-shared-governance.md §2`”。
+> **所有其他文档中的语言规则均以本节为准**；其它文档仅保留“参见 `01_SHARED_GOVERNANCE.md §2`”。
 
 ---
 
@@ -48,16 +48,16 @@ Action Worker
 
 Action Worker 为所有受管仓库维护以下规则：
 
-- 仓库治理与合并默认值（见 `02-repository-governance.md`）
-- 命名约定（见 `03-naming-conventions.md` 与 `TERMINOLOGY.md`）
-- CHANGELOG 与 PR 变更分类（见 `04-changelog-conventions.md`）
+- 仓库治理与合并默认值（见 `02_REPOSITORY_GOVERNANCE.md`）
+- 命名约定（见 `03_NAMING_CONVENTIONS.md` 与 `TERMINOLOGY.md`）
+- CHANGELOG 与 PR 变更分类（见 `04_CHANGELOG_CONVENTIONS.md`）
 - 工程 diff、PR 标题、CHANGELOG 条目与 Release 摘要使用英文（§2）
 - 通用开发与验证规则
-- PR 治理与合并门禁合同（见 `02-repository-governance.md` §3）
+- PR 治理与合并门禁合同（见 `02_REPOSITORY_GOVERNANCE.md` §3）
 - 公开仓库与私有仓库统一的执行合同（见 `09-execution-contract.md`）
 - 中央 CI / 构建 / 审查 / 发布 / 部署 / 任务执行
 - Runner Profile、Runner 解析与自托管边界（见 `08-runner-policy.md`）
-- 发布与部署治理（见 `06-release-deploy-guide.md`）
+- 发布与部署治理（见 `06_RELEASE_DEPLOY_GUIDE.md`）
 - Release 的应用版本，**仅来自发布启动时输入的版本**（不得由仓库文件版本字段、manifest、CHANGELOG 标题、文件一致性检查或上次发布比较决定）
 - 跨仓库的信任与密钥边界
 - 通用 Agent 入口与优先级规则（见 §5）
@@ -108,7 +108,7 @@ README / 示例
 
 `validate-merge` 是**唯一的合并权限**。AI Review 在确定性门禁结论之后运行，只产生仅供参考的发现。
 
-**Main Write Guard** 是所有受管仓库共用的 main 来源硬边界。无法证明来自合法 PR 合并的 `main` SHA 视为不可信，不得用于发布、部署、公开分发或特权执行。详细规则见 `07-main-write-guard.md`。
+**Main Write Guard** 是所有受管仓库共用的 main 来源硬边界。无法证明来自合法 PR 合并的 `main` SHA 视为不可信，不得用于发布、部署、公开分发或特权执行。详细规则见 `07_MAIN_WRITE_GUARD.md`。
 
 ---
 

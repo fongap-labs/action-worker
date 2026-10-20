@@ -2,7 +2,7 @@
 
 Action Worker 在 PR、Agent、CHANGELOG 与 Release 之间使用同一套变更分类。
 
-**语言规则**：PR 标题、CHANGELOG 条目、Release 说明的工程摘要必须使用英文。详见 `01-shared-governance.md` §2。
+**语言规则**：PR 标题、CHANGELOG 条目、Release 说明的工程摘要必须使用英文。详见 `01_SHARED_GOVERNANCE.md` §2。
 
 ---
 
@@ -232,8 +232,8 @@ chore
 
 ## 11. 相关引用
 
-- 语言与文档分层：`01-shared-governance.md` §2
+- 语言与文档分层：`01_SHARED_GOVERNANCE.md` §2
 - 变更类型与属性定义：`TERMINOLOGY.md`
-- PR 标题格式：`03-naming-conventions.md` §1（外部边界名称）
-- Agent 入口与职责：`01-shared-governance.md` §5–6
-- Release 版本唯一来源：`01-shared-governance.md` §3 与 `06-release-deploy-guide.md` §4
+- PR 标题格式：`03_NAMING_CONVENTIONS.md` §1（外部边界名称）
+- Agent 入口与职责：`01_SHARED_GOVERNANCE.md` §5–6
+- Release 版本唯一来源：`01_SHARED_GOVERNANCE.md` §3 与 `06_RELEASE_DEPLOY_GUIDE.md` §4

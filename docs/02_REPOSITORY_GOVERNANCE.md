@@ -108,7 +108,7 @@ GitHub 原生保护
 
 ## 5. Main Write Guard 引用
 
-Main Write Guard 的完整规则、触发时机、证明逻辑、失败后果、业务仓库桥接与故障排查见 `07-main-write-guard.md`。
+Main Write Guard 的完整规则、触发时机、证明逻辑、失败后果、业务仓库桥接与故障排查见 `07_MAIN_WRITE_GUARD.md`。
 
 本文件仅记录仓库治理层面的接口：
 - 公开仓库：ruleset 在写入前拒绝直接 push；Main Write Guard 在写入后二次隔离
@@ -134,7 +134,7 @@ policies/repository.json
 
 | 需求 | 读哪份 |
 |------|--------|
-| 完整 Main Write Guard 规则 | `07-main-write-guard.md` |
-| 业务仓库桥接模板与事件表 | `05-integration-guide.md` §3 |
-| Release/Deploy 运维操作 | `06-release-deploy-guide.md` |
-| 共用治理宪法与语言规则 | `01-shared-governance.md` |
+| 完整 Main Write Guard 规则 | `07_MAIN_WRITE_GUARD.md` |
+| 业务仓库桥接模板与事件表 | `05_INTEGRATION_GUIDE.md` §3 |
+| Release/Deploy 运维操作 | `06_RELEASE_DEPLOY_GUIDE.md` |
+| 共用治理宪法与语言规则 | `01_SHARED_GOVERNANCE.md` |

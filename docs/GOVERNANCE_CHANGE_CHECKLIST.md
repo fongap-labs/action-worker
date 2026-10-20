@@ -36,13 +36,13 @@
 
 ## 3. 核心治理文档（`docs/`）
 
-- [ ] `01-shared-governance.md` — 权威边界、共用规则、语言分层、Agent 入口、机器执行、平台能力
-- [ ] `02-repository-governance.md` — Repository Policy、应用方式、合并权限、原生强制、Main Write Guard 引用
-- [ ] `03-naming-conventions.md` — 命名优先级、外部边界名称、本地标识符、缩写、配置类型词、工程语言、文件/术语/动词、Action Worker 专属
-- [ ] `04-changelog-conventions.md` — 语言、唯一变更分类、变更属性、PR 标题、CHANGELOG 文件、条目格式、必写规则、Agent 职责、禁止事项、Release
-- [ ] `05-integration-guide.md` — 接入目标流程、业务仓库保留内容、执行请求/清单、CI 与 PR、安全扫描、依赖修复、Runner、中央配置、Main Write Guard 桥接、任务、Release、Deploy、新仓库不应做的事、平台边界、迁移期
-- [ ] `06-release-deploy-guide.md` — Release/Deploy 手动操作、启动前检查/常见失败、多产品发布/部署、定时部署、跟随型产品
-- [ ] `07-main-write-guard.md` — 规则、触发时机、证明逻辑、失败后果、业务仓库桥接、故障排查
+- [ ] `01_SHARED_GOVERNANCE.md` — 权威边界、共用规则、语言分层、Agent 入口、机器执行、平台能力
+- [ ] `02_REPOSITORY_GOVERNANCE.md` — Repository Policy、应用方式、合并权限、原生强制、Main Write Guard 引用
+- [ ] `03_NAMING_CONVENTIONS.md` — 命名优先级、外部边界名称、本地标识符、缩写、配置类型词、工程语言、文件/术语/动词、Action Worker 专属
+- [ ] `04_CHANGELOG_CONVENTIONS.md` — 语言、唯一变更分类、变更属性、PR 标题、CHANGELOG 文件、条目格式、必写规则、Agent 职责、禁止事项、Release
+- [ ] `05_INTEGRATION_GUIDE.md` — 接入目标流程、业务仓库保留内容、执行请求/清单、CI 与 PR、安全扫描、依赖修复、Runner、中央配置、Main Write Guard 桥接、任务、Release、Deploy、新仓库不应做的事、平台边界、迁移期
+- [ ] `06_RELEASE_DEPLOY_GUIDE.md` — Release/Deploy 手动操作、启动前检查/常见失败、多产品发布/部署、定时部署、跟随型产品
+- [ ] `07_MAIN_WRITE_GUARD.md` — 规则、触发时机、证明逻辑、失败后果、业务仓库桥接、故障排查
 - [ ] `08-runner-policy.md` — Runner Profile 定义、解析器逻辑、backend 选择、self-hosted 边界、特权 Runner
 - [ ] `08-architecture-governance.md` — 架构治理规则（如有变更）
 - [ ] `GOVERNANCE_CHANGE_CHECKLIST.md` — 本清单（如流程本身变更）
@@ -110,16 +110,16 @@
 
 | 旧文件 | 新文件 |
 |--------|--------|
-| `01-shared-governance.md` | `01-shared-governance.md` |
-| `02-repository-governance.md` | `02-repository-governance.md` |
-| `03-naming-conventions.md` | `03-naming-conventions.md` |
-| `04-changelog-conventions.md` | `04-changelog-conventions.md` |
-| `05-integration-guide.md` | `05-integration-guide.md` + `06-release-deploy-guide.md` |
-| `07-main-write-guard.md` | `07-main-write-guard.md` |
+| `01_SHARED_GOVERNANCE.md` | `01_SHARED_GOVERNANCE.md` |
+| `02_REPOSITORY_GOVERNANCE.md` | `02_REPOSITORY_GOVERNANCE.md` |
+| `03_NAMING_CONVENTIONS.md` | `03_NAMING_CONVENTIONS.md` |
+| `04_CHANGELOG_CONVENTIONS.md` | `04_CHANGELOG_CONVENTIONS.md` |
+| `05_INTEGRATION_GUIDE.md` | `05_INTEGRATION_GUIDE.md` + `06_RELEASE_DEPLOY_GUIDE.md` |
+| `07_MAIN_WRITE_GUARD.md` | `07_MAIN_WRITE_GUARD.md` |
 | `08-runner-policy.md` | `08-runner-policy.md` |
 | `10-architecture-governance.md` | `10-architecture-governance.md` |
 | `09-execution-contract.md` | `09-execution-contract.md` |
-| （新增） | `00-governance-overview.md` |
+| （新增） | `00_GOVERNANCE_OVERVIEW.md` |
 | （新增） | `GOVERNANCE_CHANGE_CHECKLIST.md` |
 | （新增） | `TERMINOLOGY.md` |
 

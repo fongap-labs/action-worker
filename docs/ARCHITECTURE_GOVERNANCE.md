@@ -279,7 +279,7 @@ AI Review 负责审查、建议与发现问题。它必须在确定性 PR 门禁
 
 Main Write Guard 的权威执行不得依赖业务仓库的 Actions：Action Worker 定期审计 Repository Policy 中每个受管仓库的当前 `main`。业务仓库中的 push 分发器只能作为可选的实时加速手段，不是安全前提。
 
-详细规则见 [07-main-write-guard.md](07-main-write-guard.md)。
+详细规则见 [07_MAIN_WRITE_GUARD.md](07_MAIN_WRITE_GUARD.md)。
 
 ## 13. 仓库策略
 

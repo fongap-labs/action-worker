@@ -2,7 +2,7 @@
 
 本文件定义受管仓库 `main` 分支写入来源的边界。
 
-**语言规则**：工程产出（PR 标题、CHANGELOG 条目、代码注释、工作流、日志、错误信息、测试描述、配置键）必须使用英文。详见 `01-shared-governance.md` §2。
+**语言规则**：工程产出（PR 标题、CHANGELOG 条目、代码注释、工作流、日志、错误信息、测试描述、配置键）必须使用英文。详见 `01_SHARED_GOVERNANCE.md` §2。
 
 ---
 
@@ -204,8 +204,8 @@ AI Review 不得拥有 main 写入、合并、Release 或 Deploy 权限。
 
 ## 11. 相关引用
 
-- 语言与文档分层：`01-shared-governance.md` §2
-- 仓库治理与合并权限：`02-repository-governance.md` §3
-- 业务仓库桥接模板：`05-integration-guide.md` §10.1
-- Release/Deploy 下游要求：`06-release-deploy-guide.md` §1
-- 共用治理宪法：`01-shared-governance.md` §5
+- 语言与文档分层：`01_SHARED_GOVERNANCE.md` §2
+- 仓库治理与合并权限：`02_REPOSITORY_GOVERNANCE.md` §3
+- 业务仓库桥接模板：`05_INTEGRATION_GUIDE.md` §10.1
+- Release/Deploy 下游要求：`06_RELEASE_DEPLOY_GUIDE.md` §1
+- 共用治理宪法：`01_SHARED_GOVERNANCE.md` §5

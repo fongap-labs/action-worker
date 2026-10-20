@@ -12,16 +12,16 @@ Action Worker 保存三类文档：
 
 | 文档 | 用途 |
 |---|---|
-| [01-shared-governance.md](01-shared-governance.md) | 共用治理边界与 Fongap Labs 各仓库之间的权威关系 |
+| [01_SHARED_GOVERNANCE.md](01_SHARED_GOVERNANCE.md) | 共用治理边界与 Fongap Labs 各仓库之间的权威关系 |
 | [09-execution-contract.md](09-execution-contract.md) | 公开仓库与私有仓库统一的执行边界 |
 | [TEST_PACKS.md](TEST_PACKS.md) | 中央持有的测试包、共用测试套件与清单棘轮（只增不减的测试基线） |
 | [08-runner-policy.md](08-runner-policy.md) | Runner Profile、后端解析、信任域与 self-hosted 边界 |
-| [07-main-write-guard.md](07-main-write-guard.md) | main 分支的来源证明、直接写入隔离与下游信任要求 |
-| [03-naming-conventions.md](03-naming-conventions.md) | 共用命名规则，以及 Action Worker 自身的附加约束 |
-| [04-changelog-conventions.md](04-changelog-conventions.md) | PR、CHANGELOG 与 Release 的统一变更分类 |
-| [05-integration-guide.md](05-integration-guide.md) | 通用开发、验证、PR 与合并规则 |
-| [02-repository-governance.md](02-repository-governance.md) | 仓库设置、合并策略与 GitHub 平台能力边界 |
-| [05-integration-guide.md](05-integration-guide.md) | 受管仓库接入中央治理的标准规范 |
+| [07_MAIN_WRITE_GUARD.md](07_MAIN_WRITE_GUARD.md) | main 分支的来源证明、直接写入隔离与下游信任要求 |
+| [03_NAMING_CONVENTIONS.md](03_NAMING_CONVENTIONS.md) | 共用命名规则，以及 Action Worker 自身的附加约束 |
+| [04_CHANGELOG_CONVENTIONS.md](04_CHANGELOG_CONVENTIONS.md) | PR、CHANGELOG 与 Release 的统一变更分类 |
+| [05_INTEGRATION_GUIDE.md](05_INTEGRATION_GUIDE.md) | 通用开发、验证、PR 与合并规则 |
+| [02_REPOSITORY_GOVERNANCE.md](02_REPOSITORY_GOVERNANCE.md) | 仓库设置、合并策略与 GitHub 平台能力边界 |
+| [05_INTEGRATION_GUIDE.md](05_INTEGRATION_GUIDE.md) | 受管仓库接入中央治理的标准规范 |
 
 ## Agent Skills
 
@@ -60,20 +60,20 @@ Agent Skills 是可复用的执行流程，不是确定性策略的权威。文�
 → CLAUDE.md
 → skills/agent-execution/SKILL.md
 → 任务相关的 skill
-→ docs/01-shared-governance.md
+→ docs/01_SHARED_GOVERNANCE.md
 → docs/10-architecture-governance.md
 → docs/09-execution-contract.md
 → docs/08-runner-policy.md
-→ docs/07-main-write-guard.md
+→ docs/07_MAIN_WRITE_GUARD.md
 → 相关 contracts / policies / rules
 
 在受管仓库中工作
 → 仓库自身的 CLAUDE.md
-→ docs/01-shared-governance.md
+→ docs/01_SHARED_GOVERNANCE.md
 → 项目专属的架构与边界文档
 
 修改共用治理
-→ docs/01-shared-governance.md
+→ docs/01_SHARED_GOVERNANCE.md
 → 相关 contracts / policies / rules
 → 治理回归测试
 ```
