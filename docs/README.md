@@ -12,16 +12,16 @@ Action Worker 保存三类文档：
 
 | 文档 | 用途 |
 |---|---|
-| [SHARED_GOVERNANCE.md](SHARED_GOVERNANCE.md) | 共用治理边界与 Fongap Labs 各仓库之间的权威关系 |
-| [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md) | 公开仓库与私有仓库统一的执行边界 |
+| [01-shared-governance.md](01-shared-governance.md) | 共用治理边界与 Fongap Labs 各仓库之间的权威关系 |
+| [09-execution-contract.md](09-execution-contract.md) | 公开仓库与私有仓库统一的执行边界 |
 | [TEST_PACKS.md](TEST_PACKS.md) | 中央持有的测试包、共用测试套件与清单棘轮（只增不减的测试基线） |
-| [RUNNER_POLICY.md](RUNNER_POLICY.md) | Runner Profile、后端解析、信任域与 self-hosted 边界 |
-| [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md) | main 分支的来源证明、直接写入隔离与下游信任要求 |
-| [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) | 共用命名规则，以及 Action Worker 自身的附加约束 |
-| [CHANGELOG_CONVENTIONS.md](CHANGELOG_CONVENTIONS.md) | PR、CHANGELOG 与 Release 的统一变更分类 |
-| [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) | 通用开发、验证、PR 与合并规则 |
-| [REPOSITORY_GOVERNANCE.md](REPOSITORY_GOVERNANCE.md) | 仓库设置、合并策略与 GitHub 平台能力边界 |
-| [INTEGRATION_GUIDE.md](INTEGRATION_GUIDE.md) | 受管仓库接入中央治理的标准规范 |
+| [08-runner-policy.md](08-runner-policy.md) | Runner Profile、后端解析、信任域与 self-hosted 边界 |
+| [07-main-write-guard.md](07-main-write-guard.md) | main 分支的来源证明、直接写入隔离与下游信任要求 |
+| [03-naming-conventions.md](03-naming-conventions.md) | 共用命名规则，以及 Action Worker 自身的附加约束 |
+| [04-changelog-conventions.md](04-changelog-conventions.md) | PR、CHANGELOG 与 Release 的统一变更分类 |
+| [05-integration-guide.md](05-integration-guide.md) | 通用开发、验证、PR 与合并规则 |
+| [02-repository-governance.md](02-repository-governance.md) | 仓库设置、合并策略与 GitHub 平台能力边界 |
+| [05-integration-guide.md](05-integration-guide.md) | 受管仓库接入中央治理的标准规范 |
 
 ## Agent Skills
 
@@ -31,8 +31,8 @@ Action Worker 保存三类文档：
 
 | 文档 | 用途 |
 |---|---|
-| [ARCHITECTURE_GOVERNANCE.md](ARCHITECTURE_GOVERNANCE.md) | 控制平面的长期架构边界 |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | 当前实现与运行模型 |
+| [10-architecture-governance.md](10-architecture-governance.md) | 控制平面的长期架构边界 |
+| [10-architecture-governance.md](10-architecture-governance.md) | 当前实现与运行模型 |
 
 ## 决策记录
 
@@ -60,20 +60,20 @@ Agent Skills 是可复用的执行流程，不是确定性策略的权威。文�
 → CLAUDE.md
 → skills/agent-execution/SKILL.md
 → 任务相关的 skill
-→ docs/SHARED_GOVERNANCE.md
-→ docs/ARCHITECTURE_GOVERNANCE.md
-→ docs/EXECUTION_CONTRACT.md
-→ docs/RUNNER_POLICY.md
-→ docs/MAIN_WRITE_GUARD.md
+→ docs/01-shared-governance.md
+→ docs/10-architecture-governance.md
+→ docs/09-execution-contract.md
+→ docs/08-runner-policy.md
+→ docs/07-main-write-guard.md
 → 相关 contracts / policies / rules
 
 在受管仓库中工作
 → 仓库自身的 CLAUDE.md
-→ docs/SHARED_GOVERNANCE.md
+→ docs/01-shared-governance.md
 → 项目专属的架构与边界文档
 
 修改共用治理
-→ docs/SHARED_GOVERNANCE.md
+→ docs/01-shared-governance.md
 → 相关 contracts / policies / rules
 → 治理回归测试
 ```

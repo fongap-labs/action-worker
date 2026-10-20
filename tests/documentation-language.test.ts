@@ -7,8 +7,14 @@ import { containsHan } from "../scripts/validate-engineering-language.ts";
 
 const run = promisify(execFile);
 
-// Machine-read documents: agent entry points and reusable agent skills. They are English.
-const machineRead = [/^CLAUDE\.md$/, /^AGENTS\.md$/, /^skills\//];
+// Machine-read documents: agent entry points, reusable agent skills, execution contract, terminology.
+const machineRead = [
+  /^CLAUDE\.md$/,
+  /^AGENTS\.md$/,
+  /^skills\//,
+  /^09-execution-contract\.md$/,
+  /^TERMINOLOGY\.md$/,
+];
 // The CHANGELOG is the engineering record of the repository. It is English.
 const engineeringRecord = /^CHANGELOG\.md$/;
 // Test packs hold product fixtures of the managed repositories, not Action Worker documentation.

@@ -86,7 +86,7 @@ Action Worker 负责：
 
 项目代码不得绑定具体的 Runner 基础设施。项目只声明 `runner_profile`；Action Worker 的 Runner 策略负责解析为实际的 GitHub 托管或 self-hosted 后端。
 
-新增 self-hosted Runner 不得要求修改业务仓库。详细规则见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。
+新增 self-hosted Runner 不得要求修改业务仓库。详细规则见 [08-runner-policy.md](08-runner-policy.md)。
 
 ## 7. 工作流变更
 
@@ -102,7 +102,7 @@ Action Worker 负责：
 
 此外还要通过确定性的 Security Gate、actionlint、合同测试，以及在需要时的 ShellCheck。
 
-工作流文件名遵循 [NAMING_CONVENTIONS.md](NAMING_CONVENTIONS.md) 第 8.1 节的规则；`tests/workflow-naming.test.ts` 会对其进行检查。
+工作流文件名遵循 [03-naming-conventions.md](03-naming-conventions.md) §2的规则；`tests/workflow-naming.test.ts` 会对其进行检查。
 
 Security Gate 独立于 AI Review，至少阻止以下内容：新增的高置信度凭据、敏感密钥文件、`toJSON(secrets)`、`pull_request_target`、`permissions: write-all`，以及未固定到提交 SHA 的外部 action。
 
@@ -142,4 +142,4 @@ Deploy： 不可变源码 → 中央源门禁 → 项目部署脚本 → Runner 
 - 合同测试覆盖了新边界；
 - 文档区分了"当前实现"与"目标边界"；
 - 旧的入口已被删除，或已明确列入迁移清单；
-- 新增或修改的文档，没有项目背景的人也能读懂（见 [SHARED_GOVERNANCE.md](SHARED_GOVERNANCE.md) 第 8 节）。
+- 新增或修改的文档，没有项目背景的人也能读懂（见 [01-shared-governance.md](01-shared-governance.md) §2）。

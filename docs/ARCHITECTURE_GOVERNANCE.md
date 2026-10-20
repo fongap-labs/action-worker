@@ -2,7 +2,7 @@
 
 Action Worker 是 Fongap Labs 的 GitHub 自动化治理与执行平面。本文件定义长期边界。实现可以分阶段迁移，但与这些边界相悖的现有实现，都不得继续扩张。
 
-统一执行合同见 [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md)，Runner 与 self-hosted 边界见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。
+统一执行合同见 [09-execution-contract.md](09-execution-contract.md)，Runner 与 self-hosted 边界见 [08-runner-policy.md](08-runner-policy.md)。
 
 ## 1. 核心边界
 
@@ -279,7 +279,7 @@ AI Review 负责审查、建议与发现问题。它必须在确定性 PR 门禁
 
 Main Write Guard 的权威执行不得依赖业务仓库的 Actions：Action Worker 定期审计 Repository Policy 中每个受管仓库的当前 `main`。业务仓库中的 push 分发器只能作为可选的实时加速手段，不是安全前提。
 
-详细规则见 [MAIN_WRITE_GUARD.md](MAIN_WRITE_GUARD.md)。
+详细规则见 [07-main-write-guard.md](07-main-write-guard.md)。
 
 ## 13. 仓库策略
 
