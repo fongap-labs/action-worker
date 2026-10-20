@@ -107,57 +107,17 @@ if product == ...
 
 ## 4. 执行请求
 
-调用方只提交任务身份与目标，绝不提交中央的执行结论。
+调用方只提交任务身份与目标，绝不提交中央的执行结论。最小字段与语义由 `EXECUTION_CONTRACT.md` §5 定义。
 
-长期的最小语义：
-
-```text
-schema_version
-request_id
-repository
-source_sha
-operation
-```
-
-调用方不得提交：
-
-- 中央密钥；
-- 令牌；
-- 门禁结论；
-- 风险结论；
-- 实际的 Runner 名称；
-- self-hosted 标签；
-- 中央的权限结论；
-- 任何可能绕过清单的动态命令。
+调用方不得提交门禁结论、密钥、令牌、实际的 Runner 名称或任何可能绕过清单的动态命令。
 
 项目的测试、构建与部署命令，可以存放在版本受控的执行清单或项目脚本中。
 
 ## 5. 执行清单（Execution Manifest）
 
-业务仓库可以描述：
+业务仓库在 `.github/execution-manifest.json` 中描述自身的执行需求；字段、令牌替换与禁止声明由 `EXECUTION_CONTRACT.md` §6 定义。
 
-```text
-operation
-runner_profile
-command
-matrix
-artifacts
-timeout_minutes
-capability_requests
-```
-
-清单是能力请求，而不是能力授予。
-
-业务仓库可以请求，例如：
-
-```text
-source.read
-artifact.write
-release.publish
-deployment.production
-```
-
-请求是否被授予、映射到哪些密钥，以及使用哪个信任域与 Runner，均由 Action Worker 决定。
+清单是能力请求，而不是能力授予。能力名称、授予条件与密钥映射由 `EXECUTION_CONTRACT.md` §7 与 `policies/capabilities.json` 定义；请求是否被授予、使用哪个信任域与 Runner，均由 Action Worker 决定。
 
 ## 6. 信任域
 
@@ -314,14 +274,10 @@ tests/               治理回归测试
 
 ## 15. 迁移规则
 
-当前代码尚未满足所有目标边界，因此迁移期的旧实现可以暂时存在，但必须遵守以下规则：
+迁移期旧实现的完整规则（新能力不得增加重型执行、新仓库默认中央执行、旧工作流只能缩减、项目专属映射逐步迁移到清单与通用执行器）见 `EXECUTION_CONTRACT.md` §11。本文件补充：
 
-1. 新能力不得进一步在业务仓库中增加重型执行；
-2. 新仓库默认使用中央执行；
-3. 旧的业务仓库工作流只能缩减，不得新增重型步骤；
-4. Action Worker 中项目专属的构建/部署映射，应逐步迁移到清单与通用执行器；
-5. Runner 选择逐步收敛到 Runner 解析器；
-6. 文档必须区分"当前实现"与"长期边界"。
+- Runner 选择逐步收敛到 Runner 解析器；
+- 文档必须区分"当前实现"与"长期边界"。
 
 ## 16. 最短原则
 

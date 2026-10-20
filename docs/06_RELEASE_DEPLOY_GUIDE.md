@@ -43,7 +43,7 @@
 | `Repository has root manifests in .github/ and products under projects/.` | 根清单与 projects 共存 | 只保留一种布局（见 §5） |
 | `Release key is declared by more than one product` | 两产品 `release_key` 相同 | 给其中一个改用不同 `release_key` |
 | `Product release manifest must declare root` | 缺少 `root` 或 `root` 非法 | 填相对仓库根目录的路径，不以 `/` 开头、不含 `..` |
-| `Source SHA has no successful Main Write Guard status` | `main` SHA 未证明来自合法 PR 合并 | 几分钟后重启；仍现则查看最新 `自动 · 总控调度` → `Main write audit` 作业 |
+| `Source SHA has no successful Main Write Guard status` | `main` SHA 未证明来自合法 PR 合并 | 几分钟后重启；仍出现则查看最新 `自动 · 总控调度` → `Main write audit` 作业 |
 | `Source SHA failed Main Write Guard` / `not uniquely attributable to a merged pull request` | `main` 有直接 push 等非法提交 | 通过新 PR 合并提交（需通过 `validate-merge`），让 `main` HEAD 回到合法合并 |
 
 **PR 治理常见失败**：

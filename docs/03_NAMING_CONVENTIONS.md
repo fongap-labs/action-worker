@@ -2,7 +2,7 @@
 
 > 名称应以最少的必要信息表达完整含义：不依赖隐含上下文，也不重复已经显而易见的信息。
 
-本文件分两层规则：第 1–7 节适用于所有受管的 Fongap Labs 仓库；§2只适用于 Action Worker 本身。业务仓库不得复制本文件，只补充真正属于项目层级的命名约束。
+本文件分两层规则：第 1–6 节适用于所有受管的 Fongap Labs 仓库；§7–8 只适用于 Action Worker 本身。业务仓库不得复制本文件，只补充真正属于项目层级的命名约束。
 
 **语言规则**：工程 diff、PR 标题、CHANGELOG、代码注释、工作流、日志、错误信息、测试描述、配置键必须使用英文。详见 `01_SHARED_GOVERNANCE.md` §2。
 
@@ -199,12 +199,12 @@ Action Worker CI 强制执行自身文件名与架构限制。业务仓库可增
   - `run-security-scan` → `security-scan-dispatch.yml`
   - `run-source-script-deploy` → `source-script-deploy.yml`（仅示例，部署工作流按适配器命名，见下）
 - 能放下时 `handle` 标记接收方；发送方命名为 `dispatch-*`（如 `scripts/dispatch-central-ci.ts`）
-- 对账工作流只有一个：`intake.yml`（显示名 "Intake"）。新增对账类工作作为它的一个作业加入，不新建 `<subject>-intake.yml`
+- 对账工作流只有一个：`intake.yml`（显示名 `自动 · 总控调度`）。新增对账类工作作为它的一个作业加入，不新建 `<subject>-intake.yml`
 - 发布/部署工作流命名为 `release-<kind>.yml` 或 `deploy-<adapter>.yml`，使人按想做的事找到正确工作流
   - `<kind>`：`app`（源仓库构建应用）、`tool`（上游镜像第三方工具）
   - `<adapter>`：`policies/deploy.json` 中 `adapters` 键（目前为 `source-script`）
   - 名称**从不包含产品或仓库名**
-  - 上述 dispatch 事件规则不适用于它们。手动启动权限由 §8.3 工作流分类决定：`release-app.yml` 与 `deploy-source-script.yml` 是入口，`release-tool.yml` 按计划自动运行
+  - 上述 dispatch 事件规则不适用于它们。手动启动权限由 §8.2 工作流分类决定：`release-app.yml` 与 `deploy-source-script.yml` 是入口，`release-tool.yml` 按计划自动运行
 - 工作流显示名由 `tests/workflow-naming.test.ts` 中文映射锁定（如 `release-app.yml` 对应 `手动 · 发布应用`）
 - 保留旧名称文件在测试中列出并写明不值得重命名原因。目前包括 `handle-pr-dispatch.yml`（CI Evidence 信任锚点）与 `handle-pr-review.yml`（计入 AI Review 队列）
 

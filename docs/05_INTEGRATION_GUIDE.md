@@ -119,6 +119,7 @@ PR
 - 桥接缺失时，Intake 也会在 Action Worker 自身 push 或定时运行时补上（较慢）
 - 业务仓库**不需要**自己的 `ci.yml`
 - 若仓库 ruleset 要求检查来自目标仓库自身 Actions，可保留极薄的 `validate-merge` 桥接，仅连接 `CI Evidence` 与 `PR Governance`
+- 控制脚本（`.github/scripts/central-ci.sh` 等）不得执行 PR 控制的文件中定义的命令：标准工具（`biome`、`tsc`、`ruff`、`cargo`）由控制脚本以固定标志直接调用，不经 `npm run`；工具配置文件（如 `biome.json`、`ruff.toml`、`tsconfig.json`）与仓库自有检查脚本仍由 PR 控制，依赖评审与 `CODEOWNERS` 把关（决策记录见 `proposals/AW-005-ci-control-paths.md`）
 
 ---
 
@@ -246,15 +247,7 @@ Dependabot 事件拿不到 Actions 密钥，由 Intake 处理。维护者批准�
 
 ## 12. 常见接入错误（速查）
 
-| 报错 | 处理 |
-|------|------|
-| `Invalid repository: x. Enter it as owner/name` | 写成 `owner/name` |
-| `Repository is not allowed for <能力>` | 修改 `AW_REPOSITORY_POLICY` 增加该仓库能力 |
-| `Requested release version must be stable SemVer` | 改成 `1.2.3` 或 `v1.2.3` |
-| `source_sha must be a full 40-character lowercase commit SHA` | 填完整 SHA 或留空 |
-| `PR title must use type(scope)!: summary format` | 改成 `fix(deploy): retry the health check` |
-| `Invalid CHANGELOG entry` / `must use English engineering text` | CHANGELOG 写 `- fix: summary`，摘要用英文 |
-| `Attribution check failed` | 作者/提交者/trailer/署名行出现 AI 名称；改成自己的 GitHub 账号，重写提交，强制推送 |
+接入、发布与部署的常见报错与对策统一维护在 `06_RELEASE_DEPLOY_GUIDE.md` §3（含 PR 治理常见失败），本节不再重复。
 
 ---
 

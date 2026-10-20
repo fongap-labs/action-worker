@@ -20,14 +20,13 @@ Action Worker 从策略中解析实际的 Runner。
 
 Runner Profile 表达执行需求，而不是基础设施实例。
 
-建议长期保留的通用 Profile，例如：
+当前启用的通用 Profile（权威定义见 `policies/runner.json`），例如：
 
 ```text
+control-standard
 linux-standard
 windows-build
-macos-build
-arm64-linux
-trusted-deploy
+production-deploy
 ```
 
 Profile 的具体集合由机器策略管理；业务仓库不得为某一个仓库创建 Profile。
@@ -68,7 +67,7 @@ linux-standard
 arm64-linux
 → 符合条件的 ARM 后端
 
-trusted-deploy
+production-deploy
 → 具备所需私有网络访问的受信任 Runner
 ```
 
