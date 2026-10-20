@@ -207,5 +207,5 @@ AI Review 不得拥有 main 写入、合并、Release 或 Deploy 权限。
 - 语言与文档分层：`01_SHARED_GOVERNANCE.md` §2
 - 仓库治理与合并权限：`02_REPOSITORY_GOVERNANCE.md` §3
 - 业务仓库桥接模板：`05_INTEGRATION_GUIDE.md` §10.1
-- Release/Deploy 下游要求：`06_RELEASE_DEPLOY_GUIDE.md` §1
+- Release/Deploy 下游要求：`06_RELEASE_DEPLOY_GUIDE.md` §3
 - 共用治理宪法：`01_SHARED_GOVERNANCE.md` §5

@@ -183,7 +183,7 @@ AW_CONTROL_TOKEN
 AIG_ACCESS_KEY_AGENT
 ```
 
-业务仓库只为桥接保留一个最小化凭据 `AW_DISPATCH_TOKEN`（仅用于通知）。中央 Intake 在桥接缺失时仍能完成治理与执行，所以它不是长期硬依赖。**中央管理、跨仓库写入、AI Gateway 与生产凭据绝不能下沉到业务仓库。**
+业务仓库只为桥接保留一个最小化凭据 `AW_DISPATCH_TOKEN`（仅用于通知）。中央 Intake 在桥接缺失时仍能完成治理与执行，所以它不是长期硬依赖。**中央管理、跨仓库写入、AI Gateway 与生产凭据绝不能下沉到业务仓库。** 桥接可用可选变量 `AW_DISPATCH_RUNS_ON` 覆盖 `runs-on`（未设置时使用 GitHub 托管 Linux；见 `RUNNER_POLICY.md` §11）。
 
 `AW_CHECKOUT_TOKEN`：仅用于沙箱与依赖修复计算作业检出私有目标仓库。权限仅 `Contents: Read`，仅限受管私有仓库，过期前轮换。
 `AW_CONTROL_TOKEN`：中央读取、控制与状态治理。
