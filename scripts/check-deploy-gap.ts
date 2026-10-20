@@ -1,5 +1,5 @@
 import { GithubReader, isJsonRecord, runGithubCli } from "./github-api.ts";
-import { CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
+import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 type DeployGap = {
   product: string;
@@ -126,11 +126,21 @@ export async function main(): Promise<void> {
   const files = await getChangedFiles(targetRepo, baseSha, headSha, token);
   const products = extractProductsFromPaths(files);
   if (products.size === 0) {
-    console.log("");
+    await writeHint("");
     return;
   }
   const gaps = await checkPolicyGaps(reader, controlRepo, products);
-  console.log(formatGapHint(gaps));
+  await writeHint(formatGapHint(gaps));
+}
+
+// The hint can span several lines, so it is written as a heredoc output value.
+async function writeHint(hint: string): Promise<void> {
+  console.log(hint);
+  const output = process.env.GITHUB_OUTPUT;
+  if (!output) {
+    return;
+  }
+  await appendLines(output, ["hint<<EOF", hint, "EOF"]);
 }
 
 if (isMain(import.meta.url)) {

@@ -85,17 +85,7 @@ jobs:
           TARGET_REPOSITORY: ${{ steps.payload.outputs.repository }}
           BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
-        run: |
-          node scripts/check-deploy-gap.ts \
-            "$CONTROL_REPOSITORY" \
-            "$TARGET_REPOSITORY" \
-            "$BASE_SHA" \
-            "$HEAD_SHA" \
-            "$GH_TOKEN" \
-          | tee /tmp/deploy-gap-hint.md
-          echo "hint<<EOF" >> "$GITHUB_OUTPUT"
-          cat /tmp/deploy-gap-hint.md >> "$GITHUB_OUTPUT"
-          echo "EOF" >> "$GITHUB_OUTPUT"
+        run: node scripts/check-deploy-gap.ts "$CONTROL_REPOSITORY" "$TARGET_REPOSITORY" "$BASE_SHA" "$HEAD_SHA" "$GH_TOKEN"
 
       - name: Mark governance in progress
         env:
