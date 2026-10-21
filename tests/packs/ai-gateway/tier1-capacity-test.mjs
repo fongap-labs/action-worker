@@ -18,6 +18,7 @@ import {
   classifyTier1Failure,
   isTier1Eligible,
   recordTier1Success,
+  recordTier1Ttft,
   releaseTier1Slot,
 } from '#target/src/reliability/tier1-state.ts';
 import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affinity.ts';
@@ -340,4 +341,31 @@ test('a stalled affinity read does not hold the request and writes nothing', asy
   assert.ok(Date.now() - started < 1_000);
   assert.equal(kv.gets, 1);
   assert.equal(kv.puts, 0, 'an unknown binding is not overwritten');
+});
+
+// ---- Load spreads across Tier 1 keys -----------------------------------------
+
+test('a fast Tier 1 key that is already busy yields to an idle slower key', () => {
+  const fast = tier1Node('fast');
+  const slow = tier1Node('slow');
+  recordTier1Ttft('fast', 'm1', 500);
+  recordTier1Ttft('slow', 'm1', 2_000);
+  const held = [];
+  const counts = { fast: 0, slow: 0 };
+  for (let i = 0; i < 20; i++) {
+    const pick = pickTier1Candidate([fast, slow], REQ, new Set(), { now: 1_000 + i });
+    counts[pick.node.id]++;
+    held.push(pick);
+  }
+  for (const pick of held) releaseTier1Slot(pick.node.id, pick.releaseToken);
+  assert.ok(counts.slow >= 5, `slow key share ${JSON.stringify(counts)}`);
+  assert.ok(counts.fast > counts.slow, `fast key still preferred ${JSON.stringify(counts)}`);
+});
+
+test('an idle fast key still wins over an idle slow key', () => {
+  recordTier1Ttft('fast', 'm1', 500);
+  recordTier1Ttft('slow', 'm1', 2_000);
+  const pick = pickTier1Candidate([tier1Node('fast'), tier1Node('slow')], REQ, new Set(), { now: 1_000 });
+  assert.equal(pick.node.id, 'fast');
+  releaseTier1Slot('fast', pick.releaseToken);
 });
