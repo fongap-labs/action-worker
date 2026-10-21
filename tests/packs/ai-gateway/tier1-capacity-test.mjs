@@ -21,7 +21,7 @@ import {
   releaseTier1Slot,
 } from '#target/src/reliability/tier1-state.ts';
 import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affinity.ts';
-import { validateGatewayRuntime } from '#target/scripts/github-deployment-config.mjs';
+import { loadRuntimeConfig, validateGatewayRuntime } from '#target/scripts/github-deployment-config.mjs';
 import { pickTier1Candidate } from '#target/src/scheduler/tier1-scheduler.ts';
 
 const ACCESS_KEY = 'tier1-capacity-key';
@@ -270,4 +270,27 @@ test('with no usable node the configuration is still invalid', () => {
   const config = loadGatewayConfig(env);
   assert.equal(config.status, 'invalid');
   assert.equal(config.ready, false);
+});
+
+// ---- Diagnostics never quote credential text --------------------------------
+
+test('a malformed credential shard is reported without quoting any of its text', async () => {
+  const secret = 'sk-live-SECRETVALUE123456';
+  const env = tier1OnlyEnv(['good'], { AIG_TIER1_CREDENTIALS_02: `{"other": ${secret}}` });
+  const config = loadGatewayConfig(env);
+  assert.ok(config.diagnostics.some((d) => d.includes('AIG_TIER1_CREDENTIALS_02')));
+  assert.ok(!config.diagnostics.join('\n').includes('sk-live'), 'no credential fragment in diagnostics');
+  const health = await worker.fetch(
+    new Request('https://gateway.example.com/health', { headers: { authorization: `Bearer ${ACCESS_KEY}` } }),
+    env,
+    {},
+  );
+  assert.ok(!(await health.text()).includes('sk-live'), 'no credential fragment on /health');
+});
+
+test('a malformed secrets document fails the deploy without quoting it', () => {
+  assert.throws(
+    () => loadRuntimeConfig('{"AIG_TIER1_NODES_01": "[]"}', '{"AIG_ACCESS_KEY_PRO": sk-live-SECRETVALUE123456}'),
+    (error) => /not valid JSON/.test(error.message) && !error.message.includes('sk-live'),
+  );
 });
