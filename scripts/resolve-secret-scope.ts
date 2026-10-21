@@ -17,6 +17,30 @@ function isReserved(name: string): boolean {
 
 export type TaskSecretPolicyMode = "warn" | "enforce";
 
+/**
+ * The mode that decides what a source may declare beyond the central policy.
+ *
+ * The default is closed: a name outside the policy stops the run instead of
+ * receiving the secret. An open default would let any source ask for a secret the
+ * central policy never granted it, and an unregistered project would have an empty
+ * ceiling, which in an open mode grants every name it declares.
+ */
+export const defaultSecretPolicyMode: TaskSecretPolicyMode = "enforce";
+
+/** Resolve the policy mode of a task or deploy from the environment value. */
+export function resolveSecretPolicyMode(
+  kind: "task" | "deploy",
+  raw: string | undefined
+): TaskSecretPolicyMode {
+  const modeVariable =
+    kind === "deploy" ? "AW_DEPLOY_SECRET_POLICY_MODE" : "AW_TASK_SECRET_POLICY_MODE";
+  const value = raw ?? defaultSecretPolicyMode;
+  if (value !== "warn" && value !== "enforce") {
+    throw new CliError(`${modeVariable} must be warn or enforce.`, 64);
+  }
+  return value;
+}
+
 export type TaskSecretCeiling = {
   names: ReadonlySet<string>;
   mode: TaskSecretPolicyMode;
@@ -42,7 +66,8 @@ function policyNames(value: unknown, where: string): string[] {
 export async function readTaskSecretCeiling(
   policyPath: string,
   repository: string,
-  project: string
+  project: string,
+  declaredNames: readonly string[] = []
 ): Promise<ReadonlySet<string>> {
   const policy: unknown = JSON.parse(await readFile(policyPath, "utf8"));
   if (!isJsonRecord(policy) || policy.schema_version !== 1 || !isJsonRecord(policy.tasks)) {
@@ -50,7 +75,31 @@ export async function readTaskSecretCeiling(
   }
   const repositoryEntry = policy.tasks[repository];
   const projectEntry = isJsonRecord(repositoryEntry) ? repositoryEntry[project] : undefined;
-  if (!isJsonRecord(projectEntry)) return new Set();
+  if (!isJsonRecord(projectEntry)) {
+    // An unregistered project has no ceiling at all, so every name it declares would be
+    // outside the policy. Refuse it with the entry the policy needs.
+    if (declaredNames.length > 0) {
+      throw new CliError(
+        [
+          `Task secret policy has no entry for ${repository} ${project}, so the task is refused.`,
+          `Add this to policies/task-secrets.json, then run the task again:`,
+          JSON.stringify(
+            {
+              tasks: {
+                [repository]: {
+                  [project]: { required: [], allowed: [...declaredNames].sort() },
+                },
+              },
+            },
+            null,
+            2
+          ),
+        ].join("\n"),
+        77
+      );
+    }
+    return new Set();
+  }
   return new Set([
     ...policyNames(projectEntry.required, "required"),
     ...policyNames(projectEntry.allowed, "allowed"),
@@ -315,10 +364,7 @@ async function main(): Promise<void> {
   const policyKind: "task" | "deploy" = kind === "deploy" ? "deploy" : "task";
   const modeVariable =
     kind === "deploy" ? "AW_DEPLOY_SECRET_POLICY_MODE" : "AW_TASK_SECRET_POLICY_MODE";
-  const rawMode = process.env[modeVariable] || "warn";
-  if (rawMode !== "warn" && rawMode !== "enforce") {
-    throw new CliError(`${modeVariable} must be warn or enforce.`, 64);
-  }
+  const rawMode = resolveSecretPolicyMode(kind, process.env[modeVariable]);
   // A product never runs in warn mode: a name it declares beyond its policy would reach it, and
   // another product's secret in the same environment must not leak that way.
   const mode: TaskSecretPolicyMode = rawMode === "enforce" || product !== "" ? "enforce" : "warn";
@@ -329,16 +375,13 @@ async function main(): Promise<void> {
     );
   }
   const policyRepository = kind === "deploy" ? productPolicyKey(repository, product) : repository;
-  const declaredNames =
-    kind === "deploy" && product !== ""
-      ? [...(await readNames(requiredPath)), ...(await readNames(allowedPath))]
-      : [];
+  const declaredNames = [...(await readNames(requiredPath)), ...(await readNames(allowedPath))];
   const ceiling = policyPath
     ? {
         names:
           kind === "deploy"
             ? await readDeploySecretCeiling(policyPath, repository, project, product, declaredNames)
-            : await readTaskSecretCeiling(policyPath, repository, project),
+            : await readTaskSecretCeiling(policyPath, repository, project, declaredNames),
         mode,
         label: policyKind,
         aliases: await readSecretAliases(policyPath, policyKind, policyRepository, project),

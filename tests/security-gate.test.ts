@@ -188,3 +188,58 @@ test("security gate rejects workflow expressions pasted into shell arguments but
     []
   );
 });
+
+test("security gate rejects a workflow expression pasted into a shell command on the same line", async (context) => {
+  const sameLine = await commitWorkflow(
+    ".github/workflows/same-line.yml",
+    [
+      "name: Same line",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  publish:",
+      "    runs-on: ubuntu-24.04",
+      "    steps:",
+      '      - run: node publish.ts "${{ github.event.issue.title }}"',
+      "",
+    ].join("\n")
+  );
+  context.after(() => rm(sameLine.root, { recursive: true, force: true }));
+  const sameLineViolations = await collectSecurityViolations(
+    sameLine.root,
+    sameLine.base,
+    sameLine.head,
+    policyPath
+  );
+  assert.equal(
+    sameLineViolations.some((item) => item.rule === "expression-as-shell-argument"),
+    true
+  );
+});
+
+test("security gate rejects a workflow expression inside a shell command in a run block", async (context) => {
+  const blockCommand = await commitWorkflow(
+    ".github/workflows/block-command.yml",
+    [
+      "name: Block command",
+      "on: workflow_dispatch",
+      "jobs:",
+      "  publish:",
+      "    runs-on: ubuntu-24.04",
+      "    steps:",
+      "      - run: |",
+      '          curl "${{ github.event.issue.title }}"',
+      "",
+    ].join("\n")
+  );
+  context.after(() => rm(blockCommand.root, { recursive: true, force: true }));
+  const blockCommandViolations = await collectSecurityViolations(
+    blockCommand.root,
+    blockCommand.base,
+    blockCommand.head,
+    policyPath
+  );
+  assert.equal(
+    blockCommandViolations.some((item) => item.rule === "expression-as-shell-argument"),
+    true
+  );
+});

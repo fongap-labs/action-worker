@@ -5,6 +5,7 @@ import { access, mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from "
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { controlRepositoryOf, hasVerifiedCiEvidence } from "./ci-evidence.ts";
 import {
   GithubReader,
   getGithubJson,
@@ -368,13 +369,13 @@ async function main(): Promise<void> {
     `repos/${sourceRepository}/commits/${sourceSha}/status`,
     controlToken
   );
-  const ciEvidence = getJsonArray(statusJson, "statuses").find(
-    (status) => isJsonRecord(status) && getJsonString(status, "context") === "CI Evidence"
-  );
-  const ciEvidenceState = isJsonRecord(ciEvidence) ? getJsonString(ciEvidence, "state") : "";
-  if (ciEvidenceState !== "success") {
+  if (
+    !(await hasVerifiedCiEvidence(sourceReader, statusJson, {
+      controlRepository: controlRepositoryOf(),
+    }))
+  ) {
     throw new CliError(
-      `::error::Central CI Evidence is not successful for source commit: sha=${sourceSha} state=${ciEvidenceState || "missing"}.`,
+      `::error::Central CI Evidence is not successful for source commit: sha=${sourceSha}. The status must come from a successful Action Worker CI run; open that run to see why, or merge a new commit so central CI runs again.`,
       65
     );
   }

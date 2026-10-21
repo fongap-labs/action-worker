@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- fix: a workflow expression pasted into a shell command is rejected again. The rule matched a line that only held the expression, so `run: node publish.ts "${{ github.event.issue.title }}"` and a command inside a `run` block slipped through; the expression now counts when it sits inside quotes anywhere on the line, while an expression that is a plain YAML value, such as an `env` entry, stays allowed.
+
+- fix: the gate statuses are checked against the run that produced them. `PR Governance`, `validate-merge` and `Main Write Guard` only had to carry a target_url that started with the control run prefix, so any account that can write a commit status could name a run that does not exist and make a main write look trusted; each status now counts only when the control repository really holds a successful run of the workflow that publishes it, and the status was written while that run was executing. The release path uses the same verification as the gate instead of reading the status on its own.
+
+- fix: the central secret policy is closed by default. The task and deploy secret modes defaulted to `warn`, so a name outside the central policy was only reported in the log and still reached the source, and a project the policy does not list had an empty ceiling that granted every name it declared; both modes now default to `enforce`, and a task project the policy does not list is refused with the policy entry it needs.
+
 - fix: a merged pull request keeps its governance run. The cancellation workflow stopped the PR Governance run of every closed pull request, so a pull request that was merged while its governance was still running never published the gate status on its head. The Main Write Guard proves a main write from that status, so the repository main stayed untrusted and every later intake reported the main write as unproven. Only an abandoned pull request has its governance work cancelled now.
 
 - chore: the commit that settled the two open IR matrix items carried a co-author trailer that named an AI agent, which the commit hygiene rule of this repository forbids. The default branch history was rewritten without that trailer and without the empty marker commit that followed it, keeping every tree, author, committer and message otherwise unchanged. The main branch ruleset was relaxed for that rewrite and is restored in the same change.

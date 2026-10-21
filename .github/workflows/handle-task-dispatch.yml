@@ -81,7 +81,7 @@ jobs:
       OPERATION: ${{ needs.validate.outputs.operation }}
       TASK_SOURCE_PRIVATE: ${{ needs.validate.outputs.is_private }}
       TASK_SOURCE_REPOSITORY: ${{ needs.validate.outputs.repository }}
-      AW_TASK_SECRET_POLICY_MODE: ${{ vars.AW_TASK_SECRET_POLICY_MODE || 'warn' }}
+          AW_TASK_SECRET_POLICY_MODE: ${{ vars.AW_TASK_SECRET_POLICY_MODE || 'enforce' }}
 
     concurrency:
       group: action-worker-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.project }}

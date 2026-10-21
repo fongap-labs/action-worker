@@ -5,10 +5,28 @@ const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 export const defaultControlRepository = "fongap-labs/action-worker";
 
+/**
+ * The control repository is the repository the control plane runs in, so a workflow of the
+ * control plane sees it as GITHUB_REPOSITORY. A script that runs outside a workflow falls
+ * back to the published control repository.
+ */
+export function controlRepositoryOf(): string {
+  const fromEnv = process.env.GITHUB_REPOSITORY ?? "";
+  return repositoryPattern.test(fromEnv) ? fromEnv : defaultControlRepository;
+}
+
 // Only these control workflows publish a successful "CI Evidence" status.
 export const ciEvidenceWorkflowPaths: readonly string[] = [
   ".github/workflows/central-ci-dispatch.yml",
   ".github/workflows/handle-pr-dispatch.yml",
+];
+
+// The control workflow that publishes the PR gate verdict on a pull request head.
+export const prGateWorkflowPaths: readonly string[] = [".github/workflows/handle-pr-dispatch.yml"];
+
+// The control workflow that attests a main write.
+export const mainWriteGuardWorkflowPaths: readonly string[] = [
+  ".github/workflows/main-write-guard.yml",
 ];
 
 // The status is written by the run itself, so its creation time must fall inside the run window.
@@ -90,9 +108,10 @@ function runInsideWindow(run: JsonRecord, createdAt: number): boolean {
  * repository and require that it is a successful run of a workflow that publishes this status,
  * on the default branch, and that the status was written while that run was executing.
  */
-export async function hasVerifiedCiEvidence(
+export async function hasVerifiedControlStatus(
   reader: JsonReader,
   response: unknown,
+  context: string,
   options: VerifiedCiEvidenceOptions = {}
 ): Promise<boolean> {
   const controlRepository = options.controlRepository ?? defaultControlRepository;
@@ -100,7 +119,7 @@ export async function hasVerifiedCiEvidence(
   const runAttempts = options.runAttempts ?? 12;
   const retryDelayMs = options.retryDelayMs ?? 5_000;
 
-  const status = trustedCiStatus(response, "CI Evidence", controlRepository);
+  const status = trustedCiStatus(response, context, controlRepository);
   if (!status || getJsonString(status, "state") !== "success") return false;
   const runId = trustedControlRunId(getJsonString(status, "target_url"), controlRepository);
   const createdAt = Date.parse(getJsonString(status, "created_at"));
@@ -129,6 +148,14 @@ export async function hasVerifiedCiEvidence(
     if (attempt + 1 < runAttempts) await sleep(retryDelayMs);
   }
   return false;
+}
+
+export async function hasVerifiedCiEvidence(
+  reader: JsonReader,
+  response: unknown,
+  options: VerifiedCiEvidenceOptions = {}
+): Promise<boolean> {
+  return hasVerifiedControlStatus(reader, response, "CI Evidence", options);
 }
 
 /** Wait for a verified successful CI Evidence on a commit; fail closed when it never appears. */
