@@ -70,26 +70,25 @@ function world() {
     [
       `repos/${repository}/commits/${prHeadSha}/status`,
       {
-        statuses: [
-          gateStatus("PR Governance", 1),
-          ciStatus(2),
-          gateStatus("validate-merge", 1),
-        ],
+        statuses: [gateStatus("PR Governance", 1), ciStatus(2), gateStatus("validate-merge", 1)],
       },
     ],
     [
       `repos/${repository}/commits/${headSha}/status`,
       {
-        statuses: [
-          ciStatus(3),
-          gateStatus("Main Write Guard", 4),
-        ],
+        statuses: [ciStatus(3), gateStatus("Main Write Guard", 4)],
       },
     ],
-    ["repos/fongap-labs/action-worker/actions/runs/1", run(".github/workflows/handle-pr-dispatch.yml")],
+    [
+      "repos/fongap-labs/action-worker/actions/runs/1",
+      run(".github/workflows/handle-pr-dispatch.yml"),
+    ],
     ["repos/fongap-labs/action-worker/actions/runs/2", run()],
     ["repos/fongap-labs/action-worker/actions/runs/3", run()],
-    ["repos/fongap-labs/action-worker/actions/runs/4", run(".github/workflows/main-write-guard.yml")],
+    [
+      "repos/fongap-labs/action-worker/actions/runs/4",
+      run(".github/workflows/main-write-guard.yml"),
+    ],
   ]);
   const requested: string[] = [];
   const reader = {
