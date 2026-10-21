@@ -32,6 +32,15 @@ function ciStatus(runId: number) {
   };
 }
 
+function gateStatus(context: string, runId: number) {
+  return {
+    context,
+    state: "success",
+    target_url: `${controlRuns}${runId}`,
+    created_at: "2026-10-02T13:11:10Z",
+  };
+}
+
 function world() {
   const paths = new Map<string, unknown>([
     [`repos/${repository}`, { default_branch: "main" }],
@@ -62,9 +71,9 @@ function world() {
       `repos/${repository}/commits/${prHeadSha}/status`,
       {
         statuses: [
-          { context: "PR Governance", state: "success", target_url: `${controlRuns}1` },
+          gateStatus("PR Governance", 1),
           ciStatus(2),
-          { context: "validate-merge", state: "success", target_url: `${controlRuns}1` },
+          gateStatus("validate-merge", 1),
         ],
       },
     ],
@@ -73,12 +82,14 @@ function world() {
       {
         statuses: [
           ciStatus(3),
-          { context: "Main Write Guard", state: "success", target_url: `${controlRuns}4` },
+          gateStatus("Main Write Guard", 4),
         ],
       },
     ],
+    ["repos/fongap-labs/action-worker/actions/runs/1", run(".github/workflows/handle-pr-dispatch.yml")],
     ["repos/fongap-labs/action-worker/actions/runs/2", run()],
     ["repos/fongap-labs/action-worker/actions/runs/3", run()],
+    ["repos/fongap-labs/action-worker/actions/runs/4", run(".github/workflows/main-write-guard.yml")],
   ]);
   const requested: string[] = [];
   const reader = {
