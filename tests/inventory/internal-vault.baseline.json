@@ -758,7 +758,12 @@
         "TestRunStep::test_secret_redaction_in_summary": 1,
         "TestRunStep::test_dependency_skipped_after_failure": 1,
         "TestTopology::test_dag_cycle_detected": 1,
-        "TestTopology::test_unknown_target": 1
+        "TestTopology::test_unknown_target": 1,
+        "TestTaskPayloadSource::test_rendered_task_piped_on_stdin": 1,
+        "TestTaskPayloadSource::test_task_payload_piped_on_stdin": 1,
+        "TestTaskPayloadSource::test_empty_stdin_rejected": 1,
+        "TestTaskPayloadSource::test_malformed_stdin_rejected": 1,
+        "TestTaskPayloadSource::test_stdin_payload_must_be_object": 1
       },
       "passed": [
         "TestRunStep::test_successful_step",
@@ -766,7 +771,12 @@
         "TestRunStep::test_secret_redaction_in_summary",
         "TestRunStep::test_dependency_skipped_after_failure",
         "TestTopology::test_dag_cycle_detected",
-        "TestTopology::test_unknown_target"
+        "TestTopology::test_unknown_target",
+        "TestTaskPayloadSource::test_rendered_task_piped_on_stdin",
+        "TestTaskPayloadSource::test_task_payload_piped_on_stdin",
+        "TestTaskPayloadSource::test_empty_stdin_rejected",
+        "TestTaskPayloadSource::test_malformed_stdin_rejected",
+        "TestTaskPayloadSource::test_stdin_payload_must_be_object"
       ]
     },
     "unit/test_preflight.py": {
