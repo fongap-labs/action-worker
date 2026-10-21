@@ -1,4 +1,10 @@
-import { hasVerifiedCiEvidence } from "./ci-evidence.ts";
+import {
+  controlRepositoryOf,
+  hasVerifiedCiEvidence,
+  hasVerifiedControlStatus,
+  mainWriteGuardWorkflowPaths,
+  prGateWorkflowPaths,
+} from "./ci-evidence.ts";
 import {
   GithubReader,
   getJsonArray,
@@ -30,16 +36,10 @@ const requestPattern = /^[A-Za-z0-9._:-]{1,128}$/;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
 
-function getControlRunPrefix(): string {
-  const fromEnv = process.env.CONTROL_RUN_PREFIX;
-  if (fromEnv) {
-    return fromEnv;
-  }
-  const serverUrl = process.env.GITHUB_SERVER_URL ?? "https://github.com";
-  return `${serverUrl}/fongap-labs/action-worker/actions/runs/`;
+function getControlRepository(): string {
+  // The control plane runs this script, so the repository it runs in is the control repository.
+  return controlRepositoryOf();
 }
-
-const controlRunPrefix = getControlRunPrefix();
 
 function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
   const actual = Object.keys(value).sort();
@@ -89,18 +89,20 @@ function appSlug(value: unknown): string {
   return isJsonRecord(value) ? getJsonString(value.app, "slug") : "";
 }
 
-function successfulStatus(value: unknown, context: string): boolean {
-  return getJsonArray(value, "statuses").some(
-    (item) =>
-      isJsonRecord(item) &&
-      getJsonString(item, "context") === context &&
-      getJsonString(item, "state") === "success" &&
-      getJsonString(item, "target_url").startsWith(controlRunPrefix)
-  );
-}
-
-export function hasTrustedMainWriteGuard(value: unknown): boolean {
-  return successfulStatus(value, "Main Write Guard");
+/**
+ * A gate status is only a claim: any account that can write commit statuses can name a run
+ * that does not exist. The status counts only when the control repository really holds a
+ * successful run of the workflow that publishes it, and the status was written while that run
+ * was executing.
+ */
+export async function hasVerifiedMainWriteGuard(
+  reader: GithubReader,
+  value: unknown
+): Promise<boolean> {
+  return hasVerifiedControlStatus(reader, value, "Main Write Guard", {
+    controlRepository: getControlRepository(),
+    workflowPaths: mainWriteGuardWorkflowPaths,
+  });
 }
 
 async function requireCentralPrEvidence(
@@ -109,19 +111,30 @@ async function requireCentralPrEvidence(
   prHeadSha: string
 ): Promise<void> {
   const status = await reader.get(`repos/${repository}/commits/${prHeadSha}/status`);
-  if (!successfulStatus(status, "PR Governance")) {
+  const controlRepository = getControlRepository();
+  if (
+    !(await hasVerifiedControlStatus(reader, status, "PR Governance", {
+      controlRepository,
+      workflowPaths: prGateWorkflowPaths,
+    }))
+  ) {
     throw new CliError(
       "::error::Merged PR head has no successful Action Worker PR Governance status.",
       65
     );
   }
-  if (!(await hasVerifiedCiEvidence(reader, status))) {
+  if (!(await hasVerifiedCiEvidence(reader, status, { controlRepository }))) {
     throw new CliError(
       "::error::Merged PR head has no successful Action Worker CI Evidence status.",
       65
     );
   }
-  if (!successfulStatus(status, "validate-merge")) {
+  if (
+    !(await hasVerifiedControlStatus(reader, status, "validate-merge", {
+      controlRepository,
+      workflowPaths: prGateWorkflowPaths,
+    }))
+  ) {
     throw new CliError(
       "::error::Merged PR head has no successful Action Worker validate-merge status.",
       65
@@ -235,7 +248,7 @@ export async function assertTrustedMainWrite(
   );
   for (let attempt = 0; attempt < 12; attempt += 1) {
     const status = await reader.get(`repos/${repository}/commits/${mainSha}/status`);
-    if (hasTrustedMainWriteGuard(status)) {
+    if (await hasVerifiedMainWriteGuard(reader, status)) {
       return provenance;
     }
     const guardStates = getJsonArray(status, "statuses")

@@ -438,7 +438,7 @@ bootstrap_ref
 
 由于结论是针对整个运行做出的，`central-ci-dispatch.yml` 会在 `finalize`（写入 `CI Evidence`）之后，由一个单独的 `follow-up` 作业（`continue-on-error: true`）分发后续工作：安全扫描分发、Main Write audit 以及自动部署分发。后续步骤的失败不能使通过的 CI 运行变红，因此 PR 门禁永远不会因为某一个后续步骤而拒绝真实的 CI 结果。部署准入仍会自行检查 Main Write Guard。
 
-GitHub 在这些提交状态中返回的 `creator` 字段为 `null`，因此检查不依赖创建状态的账户。发布路径（`validate-release-build-request.ts`、`publish-release.ts`、`sync-tool-release.ts`）仍使用较早的状态检查，之后会统一。
+GitHub 在这些提交状态中返回的 `creator` 字段为 `null`，因此检查不依赖创建状态的账户。发布路径（`validate-release-build-request.ts`、`publish-release.ts`、`sync-tool-release.ts`）与门禁路径使用同一个 `hasVerifiedCiEvidence`：它按 context 找到最新一条状态，再用状态里的 target_url 回到控制仓查这个 run 是否真的存在、是否是对应控制 workflow 的成功 run，以及状态是否写在该 run 执行期间。`PR Governance`、`validate-merge` 与 `Main Write Guard` 三条门禁状态同样按这个方式核验，不再只比对 target_url 的前缀。
 
 ### 9.2 中央任务密钥列表
 

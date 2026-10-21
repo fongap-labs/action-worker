@@ -6,6 +6,7 @@ import test from "node:test";
 import {
   readSecretAliases,
   readTaskSecretCeiling,
+  resolveSecretPolicyMode,
   resolveSecretScope,
 } from "../scripts/resolve-secret-scope.ts";
 
@@ -184,6 +185,28 @@ test("shipped task secret policy is valid and denies unknown tasks", async () =>
     (await readTaskSecretCeiling(policyPath, "fongap-labs/ai-gateway", "model-discovery")).size,
     30
   );
+});
+
+test("the secret policy mode is closed unless a repository variable opens it", () => {
+  assert.equal(resolveSecretPolicyMode("task", undefined), "enforce");
+  assert.equal(resolveSecretPolicyMode("deploy", undefined), "enforce");
+  assert.equal(resolveSecretPolicyMode("task", "warn"), "warn");
+  assert.equal(resolveSecretPolicyMode("deploy", "enforce"), "enforce");
+  assert.throws(() => resolveSecretPolicyMode("task", "maybe"), /must be warn or enforce/);
+  assert.throws(() => resolveSecretPolicyMode("deploy", ""), /must be warn or enforce/);
+});
+
+test("a task the central policy does not list is refused with the entry it needs", async () => {
+  const root = await mkdtemp(join(tmpdir(), "secret-scope-"));
+  const policyPath = join(root, "policy.json");
+  await writeFile(policyPath, JSON.stringify({ schema_version: 1, tasks: {} }));
+  await assert.rejects(
+    readTaskSecretCeiling(policyPath, "fongap-labs/example", "Example", ["APP_TOKEN"]),
+    (error: Error) =>
+      error.message.includes("has no entry for fongap-labs/example Example") &&
+      error.message.includes("APP_TOKEN")
+  );
+  assert.equal((await readTaskSecretCeiling(policyPath, "fongap-labs/example", "Example")).size, 0);
 });
 
 const cloudflareAliases = new Map([["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_SECONDARY"]]);

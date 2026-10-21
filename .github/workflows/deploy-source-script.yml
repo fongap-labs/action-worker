@@ -151,7 +151,6 @@ jobs:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           DEPLOY_REQUEST_JSON: ${{ steps.dispatch_request.outputs.request_json || steps.manual_request.outputs.request_json }}
-          CONTROL_RUN_PREFIX: ${{ github.server_url }}/fongap-labs/action-worker/actions/runs/
         run: node scripts/validate-deploy-source.ts source-script true policies/runner.json policies/deploy-environments.json
 
   deploy:
@@ -173,7 +172,7 @@ jobs:
       DEPLOY_PRODUCT: ${{ needs.prepare.outputs.product }}
       DEPLOY_PRODUCT_DIRECTORY: ${{ needs.prepare.outputs.product_directory }}
       DEPLOY_TRIGGER: ${{ needs.prepare.outputs.trigger }}
-      AW_DEPLOY_SECRET_POLICY_MODE: ${{ vars.AW_DEPLOY_SECRET_POLICY_MODE || 'warn' }}
+      AW_DEPLOY_SECRET_POLICY_MODE: ${{ vars.AW_DEPLOY_SECRET_POLICY_MODE || 'enforce' }}
 
     steps:
       - name: Checkout control plane

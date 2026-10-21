@@ -80,7 +80,7 @@
     },
     {
       "name": "expression-as-shell-argument",
-      "pattern": "^\\s*\"?\\$\\{\\{\\s*(?:needs|steps|inputs|github\\.event)\\."
+      "pattern": "(?:^\\s*\"?\\$\\{\\{\\s*(?:needs|steps|inputs|github\\.event)\\.)|(?:[\"']\\$\\{\\{\\s*(?:needs|steps|inputs|github\\.event)\\.)"
     }
   ],
   "require_pinned_actions": true,

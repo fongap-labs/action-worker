@@ -12,7 +12,7 @@ import { variableEntries } from "../scripts/export-repository-variables.ts";
 import type { GithubReader } from "../scripts/github-api.ts";
 import {
   assertTrustedMainWrite,
-  hasTrustedMainWriteGuard,
+  hasVerifiedMainWriteGuard,
   parseMainWriteRequest,
   validateMainWriteProvenance,
 } from "../scripts/main-write-guard.ts";
@@ -750,6 +750,7 @@ test("main write guard accepts central merge authority and preserves local self-
             context: "PR Governance",
             state: "success",
             target_url: "https://github.com/fongap-labs/action-worker/actions/runs/1",
+            created_at: "2026-09-25T00:00:20Z",
           },
           {
             context: "CI Evidence",
@@ -761,8 +762,21 @@ test("main write guard accepts central merge authority and preserves local self-
             context: "validate-merge",
             state: "success",
             target_url: "https://github.com/fongap-labs/action-worker/actions/runs/1",
+            created_at: "2026-09-25T00:00:40Z",
           },
         ],
+      },
+    ],
+    [
+      "repos/fongap-labs/action-worker/actions/runs/1",
+      {
+        repository: { full_name: "fongap-labs/action-worker" },
+        path: ".github/workflows/handle-pr-dispatch.yml",
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        run_started_at: "2026-09-25T00:00:00Z",
+        updated_at: "2026-09-25T00:01:00Z",
       },
     ],
     [
@@ -778,6 +792,18 @@ test("main write guard accepts central merge authority and preserves local self-
       },
     ],
     [
+      "repos/fongap-labs/action-worker/actions/runs/3",
+      {
+        repository: { full_name: "fongap-labs/action-worker" },
+        path: ".github/workflows/main-write-guard.yml",
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        run_started_at: "2026-09-25T00:00:00Z",
+        updated_at: "2026-09-25T00:01:00Z",
+      },
+    ],
+    [
       `repos/fongap/example/commits/${mainSha}/status`,
       {
         statuses: [
@@ -785,6 +811,7 @@ test("main write guard accepts central merge authority and preserves local self-
             context: "Main Write Guard",
             state: "success",
             target_url: "https://github.com/fongap-labs/action-worker/actions/runs/3",
+            created_at: "2026-09-25T00:00:50Z",
           },
         ],
       },
@@ -824,9 +851,29 @@ test("main write guard accepts central merge authority and preserves local self-
     mainSha
   );
   assert.equal(
-    hasTrustedMainWriteGuard(paths.get(`repos/fongap/example/commits/${mainSha}/status`)),
+    await hasVerifiedMainWriteGuard(
+      reader,
+      paths.get(`repos/fongap/example/commits/${mainSha}/status`)
+    ),
     true
   );
+
+  // A gate status that names a run the control repository never held proves nothing.
+  paths.set("repos/fongap-labs/action-worker/actions/runs/3", {
+    ...(paths.get("repos/fongap-labs/action-worker/actions/runs/3") as Record<string, unknown>),
+    path: ".github/workflows/validate-ci.yml",
+  });
+  assert.equal(
+    await hasVerifiedMainWriteGuard(
+      reader,
+      paths.get(`repos/fongap/example/commits/${mainSha}/status`)
+    ),
+    false
+  );
+  paths.set("repos/fongap-labs/action-worker/actions/runs/3", {
+    ...(paths.get("repos/fongap-labs/action-worker/actions/runs/3") as Record<string, unknown>),
+    path: ".github/workflows/main-write-guard.yml",
+  });
 
   // A failed guard names the SHA and says how main becomes trusted again.
   paths.set(`repos/fongap/example/commits/${mainSha}/status`, {
@@ -860,6 +907,7 @@ test("main write provenance rejects direct pushes and fake status-only trust", a
             context: "Main Write Guard",
             state: "success",
             target_url: "https://github.com/fongap-labs/action-worker/actions/runs/9",
+            created_at: "2026-09-25T00:00:20Z",
           },
         ],
       },
@@ -869,9 +917,13 @@ test("main write provenance rejects direct pushes and fake status-only trust", a
     get: async (path: string) => paths.get(path),
   } as unknown as GithubReader;
 
+  // The status names a run the control repository never held, so it proves nothing.
   assert.equal(
-    hasTrustedMainWriteGuard(paths.get(`repos/fongap/example/commits/${mainSha}/status`)),
-    true
+    await hasVerifiedMainWriteGuard(
+      reader,
+      paths.get(`repos/fongap/example/commits/${mainSha}/status`)
+    ),
+    false
   );
   await assert.rejects(() => validateMainWriteProvenance(reader, "fongap/example", mainSha, false));
   await assert.rejects(() => assertTrustedMainWrite(reader, "fongap/example", mainSha, false));

@@ -42,11 +42,13 @@ gh workflow run release-app.yml -R fongap-labs/action-worker \
 - `validate-deploy-source` 通过（环境在中央列表中、密钥名在允许列表中）
 - 产物上传成功
 
-### 3. 将 `AW_DEPLOY_SECRET_POLICY_MODE` 切换为 `enforce`
+### 3. 确认 `AW_DEPLOY_SECRET_POLICY_MODE` 与 `AW_TASK_SECRET_POLICY_MODE` 为 `enforce`
 
-在 `fongap-labs/action-worker` 的 Settings → Variables → `AW_DEPLOY_SECRET_POLICY_MODE` 改为 `enforce`。
+两个模式现在**默认就是 `enforce`**：源码里超出中央允许列表的密钥名会直接失败，而不是只告警。仓库变量仍可覆盖，但只有在需要临时放宽时才应改成 `warn`。
 
-验证：再次触发一次部署，确认仍通过（现在任何超出中央列表的密钥名会直接失败）。
+在 `fongap-labs/action-worker` 的 Settings → Variables 中确认 `AW_DEPLOY_SECRET_POLICY_MODE` 与 `AW_TASK_SECRET_POLICY_MODE` 均为 `enforce`（或未设置）。
+
+验证：再次触发一次部署与一次任务，确认仍通过（现在任何超出中央列表的密钥名会直接失败）。未在 `policies/deploy-secrets.json` 或 `policies/task-secrets.json` 登记的项目会带着可直接粘贴的策略片段失败。
 
 ### 4. 删除仓库级密钥副本
 
@@ -61,7 +63,7 @@ gh workflow run release-app.yml -R fongap-labs/action-worker \
 ## 回滚方案
 
 如演练失败或 `enforce` 导致误拦截：
-1. 将 `AW_DEPLOY_SECRET_POLICY_MODE` 改回 `warn`
+1. 将 `AW_DEPLOY_SECRET_POLICY_MODE` / `AW_TASK_SECRET_POLICY_MODE` 改回 `warn`（或直接删除该变量——默认已经是 `enforce`，改回 `warn` 才是放宽）
 2. 恢复仓库级密钥（已备份值）
 3. 部署路径回退至旧行为（中央允许列表仅警告、不拦截）
 
@@ -70,5 +72,6 @@ gh workflow run release-app.yml -R fongap-labs/action-worker \
 - [ ] 所有目标环境密钥已创建且值正确
 - [ ] 每个目标仓库至少一次手动部署成功
 - [ ] `AW_DEPLOY_SECRET_POLICY_MODE=enforce` 下部署仍通过
+- [ ] `AW_TASK_SECRET_POLICY_MODE=enforce` 下任务仍通过
 - [ ] 仓库级密钥已删除
 - [ ] `AW_CHECKOUT_TOKEN` 仅含 `Contents: read`
