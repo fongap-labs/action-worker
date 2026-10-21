@@ -41,7 +41,9 @@ def test_materialize_config_and_secrets(tmp_path: Path) -> None:
     assert (root / "config" / "infra.env").read_text() == "INFRA_OVERLAY=auto\n"
     secret = root / "secrets" / "proxy-hub" / "providers" / "primary.url"
     assert secret.read_text() == "https://secret.example.invalid/sub\n"
-    assert secret.stat().st_mode & 0o777 == 0o600
+    if os.name == "posix":
+        # Windows has no POSIX permission bits, so the mode only says something there.
+        assert secret.stat().st_mode & 0o777 == 0o600
     assert "https://secret.example.invalid" not in result.stdout
     assert "https://secret.example.invalid" not in result.stderr
 
