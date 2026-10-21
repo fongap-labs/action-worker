@@ -2,6 +2,13 @@
 *.ts text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
+
+# The changelog only grows, and every change adds its entry at the top of the
+# unreleased section. Two changes that are open at the same time therefore touch the
+# same lines, and the merge stops with a conflict that has to be resolved by hand.
+# Unioning keeps the entries of both sides, which is what an append-only changelog
+# wants anyway.
+CHANGELOG.md merge=union
 /.gitignore whitespace=trailing-space,space-before-tab,cr-at-eol
 /CLAUDE.md whitespace=trailing-space,space-before-tab,cr-at-eol
 /docs/ARCHITECTURE.md whitespace=trailing-space,space-before-tab,cr-at-eol
