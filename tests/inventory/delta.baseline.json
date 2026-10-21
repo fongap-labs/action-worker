@@ -251,12 +251,24 @@
         "test_vendor_address_implementation_is_not_in_foundation": 1,
         "test_provider_operation_can_supply_address_parsing": 1
       },
-      "passed": [
-        "test_vendor_address_implementation_is_not_in_foundation",
-        "test_provider_operation_can_supply_address_parsing"
-      ]
-    },
-    "test_pdf_support.py": {
+        "passed": [
+          "test_vendor_address_implementation_is_not_in_foundation",
+          "test_provider_operation_can_supply_address_parsing"
+        ]
+      },
+      "test_naming_checker.py": {
+        "status": "collected",
+        "failed": [],
+        "cases": {
+          "test_a_long_runtime_function_is_reported": 1,
+          "test_a_long_test_module_function_is_allowed": 1
+        },
+        "passed": [
+          "test_a_long_runtime_function_is_reported",
+          "test_a_long_test_module_function_is_allowed"
+        ]
+      },
+      "test_pdf_support.py": {
       "status": "collected",
       "failed": [],
       "cases": {
