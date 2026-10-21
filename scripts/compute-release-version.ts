@@ -165,7 +165,8 @@ function asCommitRecord(value: unknown): CommitRecord | null {
   if (!isJsonRecord(value) || typeof value.sha !== "string" || !/^[0-9a-f]{40}$/.test(value.sha)) {
     return null;
   }
-  const message = typeof value.message === "string" ? value.message : "";
+  const commit = isJsonRecord(value.commit) ? value.commit : {};
+  const message = typeof commit.message === "string" ? commit.message : "";
   return { sha: value.sha, message };
 }
 
