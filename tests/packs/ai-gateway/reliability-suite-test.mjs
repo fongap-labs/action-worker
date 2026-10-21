@@ -554,9 +554,10 @@ try {
     };
     const response = await worker.fetch(request('Air', key), env, {});
     assert.notEqual(response.status, 200);
+    // Only the authorized Air key is dispatched (twice: its one last-resort retry).
     assert.deepEqual(
       calls.map((c) => c.model),
-      ['up-air'],
+      ['up-air', 'up-air'],
     );
   }
 

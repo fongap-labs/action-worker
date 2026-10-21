@@ -242,7 +242,9 @@ await test('S5 recovery: sustained failure admits one real half-open request at 
     return jsonResponse(okCompletion);
   };
   const env = makeEnv({ tier1: [node('recover')], secrets: { recover: 'k' } });
-  for (let i = 0; i < 3; i++) {
+  // Each failing request also spends its one last-resort retry on the sole key,
+  // so the circuit opens within the first two requests.
+  for (let i = 0; i < 3 && getTier1Model('recover', 'general-air').failureState !== 'cooldown'; i++) {
     const res = await worker.fetch(chatRequest(), env, {});
     assert.equal(res.status, 502);
   }

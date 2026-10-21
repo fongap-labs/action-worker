@@ -190,8 +190,9 @@ try {
 
   test('AIG_MODELS_CONFIG rejects malformed or unknown capability fields', () => {
     const malformed = loadGatewayConfig(makeEnv({ tier1: [node('m1')], secrets: { m1: 'x' }, extraEnv: { AIG_MODELS_CONFIG: '{bad' } }));
-    assert.equal(malformed.status, 'invalid');
-    assert.equal(malformed.ready, false);
+    // Rejected, so a deploy is refused; the usable node keeps serving meanwhile.
+    assert.equal(malformed.hasConfigErrors, true);
+    assert.equal(malformed.status, 'degraded');
     const diags = modelDiags({ m: { capabilities: { visionz: true, reasoning: 'yes' } } });
     assert.ok(diags.some((d) => d.includes('visionz')));
     assert.ok(diags.some((d) => d.includes('reasoning')));
@@ -282,7 +283,7 @@ try {
     assert.ok(policyDiags({ p: { max_in_flight: '4' } }).some((d) => d.includes('max_in_flight')));
   });
 
-  test('invalid policy/model references are fatal end-to-end', () => {
+  test('invalid policy/model references are configuration errors that degrade the runtime', () => {
     const badAttempts = loadGatewayConfig(
       makeEnv({
         tier1: [node('f1')],
@@ -290,7 +291,8 @@ try {
         extraEnv: { AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempts: 0 } }) },
       }),
     );
-    assert.equal(badAttempts.ready, false);
+    assert.equal(badAttempts.hasConfigErrors, true);
+    assert.equal(badAttempts.status, 'degraded');
     const missingPolicy = loadGatewayConfig(
       makeEnv({
         tier1: [node('f2')],
@@ -298,7 +300,8 @@ try {
         extraEnv: { AIG_MODELS_CONFIG: JSON.stringify({ 'general-air': { policy: 'missing' } }) },
       }),
     );
-    assert.equal(missingPolicy.ready, false);
+    assert.equal(missingPolicy.hasConfigErrors, true);
+    assert.equal(missingPolicy.status, 'degraded');
     assert.ok(missingPolicy.diagnostics.some((d) => d.includes('missing')));
   });
 

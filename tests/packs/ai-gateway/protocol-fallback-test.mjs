@@ -269,10 +269,15 @@ try {
   const collapsedBody = await collapsed.json();
   assert.match(collapsedBody?.error?.message || '', /compatible-model failover plan/i);
   assert.equal(collapsed.headers.get('x-gateway-error-code'), 'gateway_attempt_budget_exhausted');
-  assert.deepEqual(calls, [{ host: 'shared-account.example.com', model: 'same-real-model' }]);
-  assert.equal(collapsed.headers.get('x-gateway-attempts'), '1');
-  assert.equal(collapsed.headers.get('x-gateway-dispatches'), '1');
-  assert.equal(collapsed.headers.get('x-gateway-failure-kinds'), 'server:1');
+  // Aliases of one spent domain cost nothing; only the single last-resort
+  // same-key retry of the transient failure re-dispatches it.
+  assert.deepEqual(calls, [
+    { host: 'shared-account.example.com', model: 'same-real-model' },
+    { host: 'shared-account.example.com', model: 'same-real-model' },
+  ]);
+  assert.equal(collapsed.headers.get('x-gateway-attempts'), '2');
+  assert.equal(collapsed.headers.get('x-gateway-dispatches'), '2');
+  assert.equal(collapsed.headers.get('x-gateway-failure-kinds'), 'server:2');
 
   reset();
   const distinctModels = node('multi-model-account', {
@@ -284,20 +289,23 @@ try {
   assert.equal(distinct.status, 503);
   assert.deepEqual(
     calls.map((c) => c.model),
-    ['real-max', 'real-pro', 'real-ultra'],
+    // Each distinct domain once, then the last-resort retry of the most recent one.
+    ['real-max', 'real-pro', 'real-ultra', 'real-ultra'],
   );
-  assert.equal(distinct.headers.get('x-gateway-attempts'), '3');
-  assert.equal(distinct.headers.get('x-gateway-dispatches'), '3');
-  assert.equal(distinct.headers.get('x-gateway-failure-kinds'), 'server:3');
+  assert.equal(distinct.headers.get('x-gateway-attempts'), '4');
+  assert.equal(distinct.headers.get('x-gateway-dispatches'), '4');
+  assert.equal(distinct.headers.get('x-gateway-failure-kinds'), 'server:4');
 
   reset();
   const accountA = node('account-a', { 'Code-Max': 'real-shared', 'Code-Pro': 'real-shared', 'Code-Ultra': 'real-shared' });
   const accountB = node('account-b', { 'Code-Max': 'real-shared', 'Code-Pro': 'real-shared', 'Code-Ultra': 'real-shared' });
   const twoAccounts = await worker.fetch(request(), envFor([accountA, accountB]), {});
   assert.equal(twoAccounts.status, 503);
-  assert.equal(calls.length, 2);
+  // Both accounts once, then the last-resort retry of the most recent one.
+  assert.equal(calls.length, 3);
   assert.deepEqual(new Set(calls.map((c) => c.host)), new Set(['account-a.example.com', 'account-b.example.com']));
-  assert.equal(twoAccounts.headers.get('x-gateway-attempts'), '2');
+  assert.equal(calls[2].host, calls[1].host);
+  assert.equal(twoAccounts.headers.get('x-gateway-attempts'), '3');
 
   console.log('model-family failure-domain tests passed.');
   console.log('ok - file:model-family-failure-domain');
@@ -541,10 +549,11 @@ try {
   assert.equal(deadBody.error.type, 'api_error');
   assert.equal(deadBody.error.code, null);
   assert.equal(dead.headers.get('x-gateway-error-code'), 'gateway_upstream_exhausted');
-  assert.equal(dead.headers.get('x-gateway-attempts'), '1');
-  assert.equal(dead.headers.get('x-gateway-dispatches'), '1');
+  // The only key failed transiently, so it gets its one last-resort retry.
+  assert.equal(dead.headers.get('x-gateway-attempts'), '2');
+  assert.equal(dead.headers.get('x-gateway-dispatches'), '2');
   assert.equal(dead.headers.get('x-gateway-hedges'), '0');
-  assert.equal(dead.headers.get('x-gateway-failure-kinds'), 'server:1');
+  assert.equal(dead.headers.get('x-gateway-failure-kinds'), 'server:2');
   assert.equal(dead.headers.get('x-gateway-node'), null);
   assert.equal(dead.headers.get('x-gateway-provider'), null);
 
