@@ -73,7 +73,7 @@ test("manual release ingress resolves the current default-branch head", async ()
       "repos/fongap-labs/example/commits/main": { sha },
       "repos/fongap-labs/example/tags?per_page=100&page=1": [],
       "repos/fongap-labs/example/commits?sha=main&per_page=100&page=1": [
-        { sha: head, message: "fix: a change" },
+        { sha: head, commit: { message: "fix: a change" } },
       ],
     },
     sha
@@ -135,8 +135,8 @@ test("an empty requested version proposes the next version from the commit span"
     [`repos/fongap-labs/example/compare/${sha}...${head}`]: {
       total_commits: 2,
       commits: [
-        { sha: head, message: "feat: the wide lane" },
-        { sha: "c".repeat(40), message: "fix: the narrow lane" },
+        { sha: head, commit: { message: "feat: the wide lane" } },
+        { sha: "c".repeat(40), commit: { message: "fix: the narrow lane" } },
       ],
     },
   });
@@ -159,7 +159,7 @@ test("an empty requested version refuses a span without release-worthy changes",
     "repos/fongap-labs/example/commits/main": { sha: head },
     "repos/fongap-labs/example/tags?per_page=100&page=1": [],
     "repos/fongap-labs/example/commits?sha=main&per_page=100&page=1": [
-      { sha: head, message: "docs: the readme" },
+      { sha: head, commit: { message: "docs: the readme" } },
     ],
   });
   await assert.rejects(
@@ -174,8 +174,8 @@ test("an empty manifest release_notes falls back to the computed span notes", as
     "repos/fongap-labs/example/commits/main": { sha: head },
     "repos/fongap-labs/example/tags?per_page=100&page=1": [],
     "repos/fongap-labs/example/commits?sha=main&per_page=100&page=1": [
-      { sha: head, message: "feat: the wide lane" },
-      { sha: "c".repeat(40), message: "docs: the readme" },
+      { sha: head, commit: { message: "feat: the wide lane" } },
+      { sha: "c".repeat(40), commit: { message: "docs: the readme" } },
     ],
   });
   const request = await resolveManualReleaseBuild(
@@ -242,7 +242,7 @@ test("manual release ingress passes the product only when one is entered", async
         return [];
       }
       if (path.startsWith("repos/fongap-labs/example/commits?sha=main")) {
-        return [{ sha: head, message: "fix: a change" }];
+        return [{ sha: head, commit: { message: "fix: a change" } }];
       }
       throw new Error(`unexpected path: ${path}`);
     },

@@ -127,9 +127,12 @@ test("release notes refuse to exceed the manifest limit", () => {
 test("compare responses refuse to truncate the span", () => {
   const commits = Array.from({ length: 2 }, (_, index) => ({
     sha: sha(`a${index}`),
-    message: "fix: a",
+    commit: { message: "fix: a" },
   }));
   assert.equal(commitRecordsFromCompare({ total_commits: 2, commits }).length, 2);
+  assert.deepEqual(commitRecordsFromCompare({ total_commits: 1, commits: commits.slice(0, 1) }), [
+    { sha: sha("a0"), message: "fix: a" },
+  ]);
   assert.throws(
     () => commitRecordsFromCompare({ total_commits: 5, commits }),
     /Enter an explicit requested_version/
@@ -139,9 +142,10 @@ test("compare responses refuse to truncate the span", () => {
 test("commit lists keep a hard record budget", () => {
   const page = Array.from({ length: 100 }, (_, index) => ({
     sha: sha(`b${index}`),
-    message: "fix: a",
+    commit: { message: "fix: a" },
   }));
   assert.equal(commitRecordsFromList([page, page.slice(0, 50)]).length, 150);
+  assert.deepEqual(commitRecordsFromList([[page[0]]]), [{ sha: sha("b0"), message: "fix: a" }]);
   assert.throws(() => commitRecordsFromList([page, page, page, page]), /span reader accepts/);
 });
 
@@ -175,8 +179,8 @@ test("a first release reads the whole branch and proposes the smallest version",
   const reader = spanReader({
     "repos/fongap-labs/delta/tags?per_page=100&page=1": [],
     "repos/fongap-labs/delta/commits?sha=main&per_page=100&page=1": [
-      { sha: sha("1"), message: "feat: the first capability" },
-      { sha: sha("2"), message: "docs: the readme" },
+      { sha: sha("1"), commit: { message: "feat: the first capability" } },
+      { sha: sha("2"), commit: { message: "docs: the readme" } },
     ],
   });
   const span = await loadReleaseSpan(reader, {
@@ -205,8 +209,8 @@ test("a following release reads the span between the last release tag and the he
     [`repos/fongap-labs/delta/compare/${baseTagSha}...${sha("head")}`]: {
       total_commits: 2,
       commits: [
-        { sha: sha("head"), message: "fix: a later fix" },
-        { sha: sha("mid"), message: "feat: a feature" },
+        { sha: sha("head"), commit: { message: "fix: a later fix" } },
+        { sha: sha("mid"), commit: { message: "feat: a feature" } },
       ],
     },
   });
@@ -237,8 +241,8 @@ test("a product root keeps the span to the commits of its own tree", async () =>
     [`repos/fongap-labs/app-source/compare/${baseTagSha}...${head}`]: {
       total_commits: 2,
       commits: [
-        { sha: head, message: "fix: the web form" },
-        { sha: other, message: "feat: an unrelated product feature" },
+        { sha: head, commit: { message: "fix: the web form" } },
+        { sha: other, commit: { message: "feat: an unrelated product feature" } },
       ],
     },
   });
