@@ -172,7 +172,7 @@ jobs:
       DEPLOY_PRODUCT: ${{ needs.prepare.outputs.product }}
       DEPLOY_PRODUCT_DIRECTORY: ${{ needs.prepare.outputs.product_directory }}
       DEPLOY_TRIGGER: ${{ needs.prepare.outputs.trigger }}
-          AW_DEPLOY_SECRET_POLICY_MODE: ${{ vars.AW_DEPLOY_SECRET_POLICY_MODE || 'enforce' }}
+      AW_DEPLOY_SECRET_POLICY_MODE: ${{ vars.AW_DEPLOY_SECRET_POLICY_MODE || 'enforce' }}
 
     steps:
       - name: Checkout control plane
