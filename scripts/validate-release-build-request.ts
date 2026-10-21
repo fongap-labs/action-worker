@@ -187,6 +187,9 @@ export type ReleaseBuildRequest = {
   requested_version: string;
   // Optional: the product under projects/. Required only when the source repository has several.
   product?: string;
+  // Optional: release notes the ingress computed from the release span. The packaged manifest only
+  // uses them when the product manifest leaves its own release_notes empty.
+  release_notes?: string;
 };
 
 export function parseReleaseBuildRequest(value: unknown): ReleaseBuildRequest {
@@ -195,7 +198,7 @@ export function parseReleaseBuildRequest(value: unknown): ReleaseBuildRequest {
     !exactKeys(
       value,
       ["request_id", "requested_version", "schema_version", "source_repository", "source_sha"],
-      ["product"]
+      ["product", "release_notes"]
     ) ||
     value.schema_version !== "1" ||
     typeof value.request_id !== "string" ||
@@ -207,7 +210,9 @@ export function parseReleaseBuildRequest(value: unknown): ReleaseBuildRequest {
     typeof value.requested_version !== "string" ||
     !/^v?[0-9]+\.[0-9]+\.[0-9]+$/.test(value.requested_version) ||
     (value.product !== undefined &&
-      (typeof value.product !== "string" || !isProductName(value.product)))
+      (typeof value.product !== "string" || !isProductName(value.product))) ||
+    (value.release_notes !== undefined && typeof value.release_notes !== "string") ||
+    (typeof value.release_notes === "string" && value.release_notes.length > 20_000)
   ) {
     throw new CliError("Release build dispatch payload is invalid.", 64);
   }
@@ -375,6 +380,18 @@ async function main(): Promise<void> {
     `sbom_asset=${manifest.sbom_asset}`,
     `matrix=${JSON.stringify({ include: matrix })}`,
   ]);
+  const notes = request.release_notes ?? "";
+  // GitHub output values that hold newlines need the heredoc form; the notes are the only value
+  // the release request carries that spans lines.
+  if (notes.includes("\n")) {
+    await appendLines(process.env.GITHUB_OUTPUT, [
+      "release_notes<<RELEASE_NOTES_EOF",
+      ...notes.split("\n"),
+      "RELEASE_NOTES_EOF",
+    ]);
+  } else {
+    await appendLines(process.env.GITHUB_OUTPUT, [`release_notes=${notes}`]);
+  }
 
   console.log(
     JSON.stringify({

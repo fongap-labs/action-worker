@@ -58,7 +58,7 @@ Action Worker 为所有受管仓库维护以下规则：
 - 中央 CI / 构建 / 审查 / 发布 / 部署 / 任务执行
 - Runner Profile、Runner 解析与自托管边界（见 `RUNNER_POLICY.md`）
 - 发布与部署治理（见 `06_RELEASE_DEPLOY_GUIDE.md`）
-- Release 的应用版本，**仅来自发布启动时输入的版本**（不得由仓库文件版本字段、manifest、CHANGELOG 标题、文件一致性检查或上次发布比较决定）
+- Release 的应用版本，**仅来自发布启动时输入的版本**（留空时由 Action Worker 依据上次发布标签之后的 Conventional Commits 计算下一个稳定版本；无论哪种方式，都**不得**由仓库文件版本字段、manifest、CHANGELOG 标题、文件一致性检查决定）
 - 跨仓库的信任与密钥边界
 - 通用 Agent 入口与优先级规则（见 §5）
 - 跨仓库的语言与运行时收敛规则

@@ -10,8 +10,8 @@ on:
         required: true
         type: string
       requested_version:
-        description: 发布版本号（稳定语义化版本，如 1.2.3 或 v1.2.3，不允许 pre-release 或 build 后缀）
-        required: true
+        description: 发布版本号（稳定语义化版本，如 1.2.3 或 v1.2.3；留空则按上次发布后的 Conventional Commits 自动计算）
+        required: false
         type: string
       product:
         description: 产品目录名（多产品仓库位于 projects/<产品>/ 下，必填；单产品仓库清单在 .github/ 根下，留空）
@@ -47,6 +47,7 @@ jobs:
       sbom_asset: ${{ steps.request.outputs.sbom_asset }}
       manifest_path: ${{ steps.request.outputs.manifest_path }}
       product_root: ${{ steps.request.outputs.product_root }}
+      release_notes: ${{ steps.request.outputs.release_notes }}
 
     steps:
       - name: Checkout control plane
@@ -246,6 +247,7 @@ jobs:
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
           RELEASE_MANIFEST_PATH: ${{ needs.prepare.outputs.manifest_path }}
+          RELEASE_COMPUTED_NOTES: ${{ needs.prepare.outputs.release_notes }}
         run: |
           node scripts/package-release-build.ts \
             "$GITHUB_WORKSPACE/source/$RELEASE_MANIFEST_PATH" \

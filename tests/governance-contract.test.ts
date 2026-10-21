@@ -716,7 +716,15 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   // The application version comes only from the version entered when the release is started.
   assert.doesNotMatch(releaseBuildValidator, /version_source|Cargo\.toml|parseCargo/);
   assert.doesNotMatch(await text("contracts/release-build.json"), /version_source/);
-  assert.match(releaseBuild, /requested_version:\n\s+description: [^\n]+\n\s+required: true/);
+  // The entered version stays optional: an empty input computes the next version
+  // from the Conventional Commits span of the release. The computed notes flow
+  // from the ingress output into the packaging step.
+  assert.match(releaseBuild, /requested_version:\n\s+description: [^\n]+\n\s+required: false/);
+  assert.match(releaseBuild, /release_notes: \$\{\{ steps\.request\.outputs\.release_notes \}\}/);
+  assert.match(
+    releaseBuild,
+    /RELEASE_COMPUTED_NOTES: \$\{\{ needs\.prepare\.outputs\.release_notes \}\}/
+  );
 
   const release = await text(".github/workflows/handle-release-dispatch.yml");
   requireText(release, [
