@@ -164,3 +164,45 @@ test('a tripped model gets its recovery probe while another model of the same ke
   releaseTier1Slot('k1', probe.releaseToken);
   releaseTier1Slot('k1', busy.releaseToken);
 });
+
+// ---- Last-resort retry of a transient Tier 1 failure ------------------------
+
+test('Tier 1-only single key: one transient 5xx is retried on the same key', async () => {
+  const env = tier1OnlyEnv(['solo']);
+  const upstream = scriptedUpstream([() => errorResponse(500, 'overloaded')]);
+  const res = await withMockFetch(upstream.handler, () => chat(env));
+  assert.equal(res.status, 200);
+  assert.deepEqual(upstream.hosts, ['solo', 'solo']);
+});
+
+test('the same-key retry happens at most once per request', async () => {
+  const env = tier1OnlyEnv(['solo']);
+  const upstream = scriptedUpstream([() => errorResponse(500, 'overloaded'), () => errorResponse(502, 'bad gateway'), () => errorResponse(503, 'down')]);
+  const res = await withMockFetch(upstream.handler, () => chat(env));
+  assert.equal(res.status, 502);
+  assert.deepEqual(upstream.hosts, ['solo', 'solo']);
+});
+
+test('a rate limit, refusal or invalid request is never retried on the same key', async () => {
+  for (const failure of [
+    () => errorResponse(429, 'rate limit', { 'retry-after': '20' }),
+    () => errorResponse(403, 'forbidden'),
+    () => errorResponse(400, 'unsupported parameter'),
+  ]) {
+    __resetTier1StateForTests();
+    __resetAdaptive429StateForTests();
+    const upstream = scriptedUpstream([failure]);
+    const res = await withMockFetch(upstream.handler, () => chat(tier1OnlyEnv(['solo'])));
+    assert.notEqual(res.status, 200);
+    assert.deepEqual(upstream.hosts, ['solo']);
+  }
+});
+
+test('with every key failing transiently, the unused attempt budget retries one key once', async () => {
+  const env = tier1OnlyEnv(['k1', 'k2']);
+  const upstream = scriptedUpstream([() => errorResponse(500, 'overloaded'), () => errorResponse(500, 'overloaded')]);
+  const res = await withMockFetch(upstream.handler, () => chat(env));
+  assert.equal(res.status, 200);
+  assert.equal(upstream.hosts.length, 3);
+  assert.equal(upstream.hosts[2], upstream.hosts[1], 'the most recent transient failure is retried');
+});
