@@ -21,6 +21,7 @@ import {
   recordTier1Ttft,
   releaseTier1Slot,
 } from '#target/src/reliability/tier1-state.ts';
+import { __resetSharedTier1CooldownsForTests } from '#target/src/reliability/tier1-shared-cooldowns.ts';
 import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affinity.ts';
 import { buildWranglerConfig, loadRuntimeConfig, preflight, validateGatewayRuntime } from '#target/scripts/github-deployment-config.mjs';
 import { pickTier1Candidate } from '#target/src/scheduler/tier1-scheduler.ts';
@@ -31,6 +32,7 @@ const REQ = { protocol: 'openai', surface: 'chat_completions', model: 'm1', body
 
 beforeEach(() => {
   __resetAccessKeysCacheForTests();
+  __resetSharedTier1CooldownsForTests();
   __resetTier1StateForTests();
   __resetTier1AffinityForTests();
   __resetAdaptive429StateForTests();
@@ -298,14 +300,18 @@ test('a malformed secrets document fails the deploy without quoting it', () => {
 
 // ---- The affinity lookup never stalls a request -----------------------------
 
+// Counts reads and writes of session-affinity keys only; the same namespace also
+// holds the shared Tier 1 cooldowns.
 function countingKv({ hang = false } = {}) {
   const kv = { gets: 0, puts: 0 };
-  kv.get = async () => {
+  const isAffinity = (key) => String(key).startsWith('affinity:');
+  kv.get = async (key) => {
+    if (!isAffinity(key)) return null;
     kv.gets++;
     return hang ? new Promise(() => {}) : null;
   };
-  kv.put = async () => {
-    kv.puts++;
+  kv.put = async (key) => {
+    if (isAffinity(key)) kv.puts++;
   };
   return kv;
 }
@@ -422,4 +428,86 @@ test('an invalid analytics dataset name fails the deploy preflight', () => {
   const result = preflight(env);
   assert.equal(result.ok, false);
   assert.ok(result.errors.some((e) => e.includes('AIG_ANALYTICS_DATASET')), JSON.stringify(result.errors));
+});
+
+// ---- Long cooldowns are shared across isolates --------------------------------
+
+function memoryKv() {
+  const store = new Map();
+  const kv = { store, puts: 0, gets: 0 };
+  kv.get = async (key) => {
+    kv.gets++;
+    return store.has(key) ? store.get(key) : null;
+  };
+  kv.put = async (key, value) => {
+    kv.puts++;
+    store.set(key, value);
+  };
+  return kv;
+}
+
+// A fresh isolate: no in-memory Tier 1 state, only what KV remembers.
+function freshIsolate() {
+  __resetTier1StateForTests();
+  __resetAdaptive429StateForTests();
+  __resetSharedTier1CooldownsForTests();
+}
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+test('a key rejected with 401 is skipped by a new isolate without another upstream call', async () => {
+  const kv = memoryKv();
+  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const first = scriptedUpstream([() => errorResponse(401, 'invalid api key')]);
+  await withMockFetch(first.handler, () => chat(env));
+  await settle();
+  assert.equal(kv.puts, 1);
+  freshIsolate();
+  const second = scriptedUpstream([]);
+  const res = await withMockFetch(second.handler, () => chat(env));
+  assert.equal(res.status, 429);
+  assert.ok(Number(res.headers.get('retry-after')) > 3_000);
+  assert.deepEqual(second.hosts, []);
+});
+
+test('a key whose daily quota ran out is skipped by a new isolate while another key serves', async () => {
+  const kv = memoryKv();
+  const env = tier1OnlyEnv(['k1', 'k2'], { TIER1_AFFINITY: kv });
+  const first = scriptedUpstream([() => errorResponse(429, 'daily quota exceeded'), () => errorResponse(429, 'daily quota exceeded')]);
+  await withMockFetch(first.handler, () => chat(env));
+  await settle();
+  freshIsolate();
+  const quotaKeys = new Set(first.hosts);
+  const second = scriptedUpstream([]);
+  const res = await withMockFetch(second.handler, () => chat(env));
+  assert.equal(quotaKeys.size, 2);
+  assert.equal(res.status, 429, 'both keys are known to be out of quota');
+  assert.deepEqual(second.hosts, []);
+});
+
+test('a short rate-limit window is not shared', async () => {
+  const kv = memoryKv();
+  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const first = scriptedUpstream([() => errorResponse(429, 'rate limit', { 'retry-after': '20' })]);
+  await withMockFetch(first.handler, () => chat(env));
+  await settle();
+  assert.equal(kv.puts, 0);
+});
+
+test('a shared cooldown that has expired is ignored', async () => {
+  const kv = memoryKv();
+  kv.store.set('tier1-cooldowns:v1', JSON.stringify([{ node: 'solo', until: Date.now() - 1_000, reason: 'auth' }]));
+  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const res = await withMockFetch(scriptedUpstream([]).handler, () => chat(env));
+  assert.equal(res.status, 200);
+});
+
+test('a stalled shared-cooldown read does not hold the request', async () => {
+  const kv = memoryKv();
+  kv.get = () => new Promise(() => {});
+  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const res = await withMockFetch(scriptedUpstream([]).handler, () =>
+    Promise.race([chat(env), new Promise((resolve) => setTimeout(() => resolve({ status: 'stalled' }), 1_000))]),
+  );
+  assert.equal(res.status, 200);
 });
