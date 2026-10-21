@@ -8,6 +8,7 @@
 import { assert, beforeEach, test } from '#kit/harness.mjs';
 import { withMockFetch } from '#kit/fetch.mjs';
 import { __resetAccessKeysCacheForTests } from '#target/src/config/access-keys.ts';
+import { __resetBodyBudgetForTests } from '#target/src/ratelimit/body-budget.ts';
 import { loadGatewayConfig } from '#target/src/config/nodes.ts';
 import worker from '#target/src/index.ts';
 import { __resetAdaptive429StateForTests } from '#target/src/reliability/adaptive-429.ts';
@@ -32,6 +33,7 @@ const REQ = { protocol: 'openai', surface: 'chat_completions', model: 'm1', body
 
 beforeEach(() => {
   __resetAccessKeysCacheForTests();
+  __resetBodyBudgetForTests();
   __resetSharedTier1CooldownsForTests();
   __resetTier1StateForTests();
   __resetTier1AffinityForTests();
@@ -509,5 +511,53 @@ test('a stalled shared-cooldown read does not hold the request', async () => {
   const res = await withMockFetch(scriptedUpstream([]).handler, () =>
     Promise.race([chat(env), new Promise((resolve) => setTimeout(() => resolve({ status: 'stalled' }), 1_000))]),
   );
+  assert.equal(res.status, 200);
+});
+
+// ---- Large request bodies cannot exhaust an isolate's memory ------------------
+
+function largeChat(sizeBytes) {
+  const filler = 'x'.repeat(sizeBytes);
+  const body = JSON.stringify({ model: 'Code-Pro', messages: [{ role: 'user', content: filler }] });
+  return new Request('https://gateway.example.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${ACCESS_KEY}`, 'content-type': 'application/json', 'content-length': String(body.length) },
+    body,
+  });
+}
+
+test('large bodies beyond the in-flight memory budget are refused with a retryable 503', async () => {
+  const env = tier1OnlyEnv(['solo']);
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const handler = async () => {
+    await gate;
+    return okChat();
+  };
+  await withMockFetch(handler, async () => {
+    const first = worker.fetch(largeChat(17 * 1024 * 1024), env, { waitUntil() {} });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const refused = await Promise.race([
+      worker.fetch(largeChat(17 * 1024 * 1024), env, { waitUntil() {} }),
+      new Promise((resolve) => setTimeout(() => resolve({ status: 'admitted', headers: new Headers() }), 200)),
+    ]);
+    if (refused.status !== 503) release();
+    assert.equal(refused.status, 503);
+    assert.equal(refused.headers.get('retry-after'), '1');
+    assert.equal(refused.headers.get('x-should-retry'), null);
+    const small = await Promise.race([chat(env), new Promise((resolve) => setTimeout(() => resolve({ status: 'queued' }), 20))]);
+    assert.equal(small.status, 'queued', 'a small request is admitted and waits on the upstream like the first');
+    release();
+    assert.equal((await first).status, 200);
+    const later = await worker.fetch(largeChat(17 * 1024 * 1024), env, { waitUntil() {} });
+    assert.equal(later.status, 200, 'the budget is returned when a request ends');
+  });
+});
+
+test('a single maximum-size body is admitted when nothing else is in flight', async () => {
+  const env = tier1OnlyEnv(['solo']);
+  const res = await withMockFetch(scriptedUpstream([]).handler, () => worker.fetch(largeChat(19 * 1024 * 1024), env, { waitUntil() {} }));
   assert.equal(res.status, 200);
 });
