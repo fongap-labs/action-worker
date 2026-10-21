@@ -17,8 +17,10 @@ import {
   classifyTier1Failure,
   isTier1Eligible,
   recordTier1Success,
+  releaseTier1Slot,
 } from '#target/src/reliability/tier1-state.ts';
 import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affinity.ts';
+import { pickTier1Candidate } from '#target/src/scheduler/tier1-scheduler.ts';
 
 const ACCESS_KEY = 'tier1-capacity-key';
 const AUTH_COOLDOWN_MS = 3_600_000;
@@ -141,4 +143,24 @@ test('Tier 1-only single key: one refused request does not block the next one', 
     assert.equal(next.status, 200);
   });
   assert.deepEqual(upstream.hosts, ['solo', 'solo']);
+});
+
+// ---- Half-open recovery on a shared key -------------------------------------
+
+function tripModel(accountId, modelId, now) {
+  for (let i = 0; i < 3; i++) applyTier1Outcome(accountId, modelId, classifyTier1Failure({ kind: 'server' }), now + i);
+}
+
+test('a tripped model gets its recovery probe while another model of the same key is busy', () => {
+  const key = tier1Node('k1');
+  const now = 1_000_000;
+  tripModel('k1', 'm1', now);
+  const busy = pickTier1Candidate([key], { ...REQ, model: 'm2' }, new Set(), { now: now + 10 });
+  assert.ok(busy?.node, 'm2 request in flight');
+  const later = now + 10 * 60_000;
+  const probe = pickTier1Candidate([key], REQ, new Set(), { now: later });
+  assert.equal(probe?.node?.id, 'k1', 'm1 probe admitted despite the m2 request in flight');
+  assert.equal(pickTier1Candidate([key], REQ, new Set(), { now: later + 1 }), null, 'still one probe at a time');
+  releaseTier1Slot('k1', probe.releaseToken);
+  releaseTier1Slot('k1', busy.releaseToken);
 });
