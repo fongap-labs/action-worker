@@ -52,7 +52,7 @@ def test_header_is_the_marker_and_the_metadata_comments_only(tmp_path):
     header = _header(_build(tmp_path))
     assert header[0] == "[Adblock Plus 2.0]"
     assert all(line.startswith("!") for line in header[1:]), "the header must stay Adblock Plus comments"
-    assert [line.split(":")[0] for line in header[1:]] == ["! Title", "! Version", "! Expires", "! Count", "! Updated", "! Homepage"]
+    assert [line.split(":")[0] for line in header[1:]] == ["! Title", "! Count", "! Version", "! Expires", "! Updated", "! Homepage"]
     assert not any(line.startswith(ATTRIBUTION_PREFIXES) for line in header)
 
 
