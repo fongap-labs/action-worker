@@ -294,3 +294,50 @@ test('a malformed secrets document fails the deploy without quoting it', () => {
     (error) => /not valid JSON/.test(error.message) && !error.message.includes('sk-live'),
   );
 });
+
+// ---- The affinity lookup never stalls a request -----------------------------
+
+function countingKv({ hang = false } = {}) {
+  const kv = { gets: 0, puts: 0 };
+  kv.get = async () => {
+    kv.gets++;
+    return hang ? new Promise(() => {}) : null;
+  };
+  kv.put = async () => {
+    kv.puts++;
+  };
+  return kv;
+}
+
+const chatWithSession = (env, sessionId) =>
+  worker.fetch(
+    new Request('https://gateway.example.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${ACCESS_KEY}`, 'content-type': 'application/json', 'x-session-id': sessionId },
+      body: JSON.stringify({ model: 'Code-Pro', messages: [{ role: 'user', content: 'hi' }] }),
+    }),
+    env,
+    { waitUntil() {} },
+  );
+
+test('with a single Tier 1 key a session neither reads nor writes affinity', async () => {
+  const kv = countingKv();
+  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const res = await withMockFetch(scriptedUpstream([]).handler, () => chatWithSession(env, 'session-single-key'));
+  assert.equal(res.status, 200);
+  assert.equal(kv.gets, 0);
+  assert.equal(kv.puts, 0);
+});
+
+test('a stalled affinity read does not hold the request and writes nothing', async () => {
+  const kv = countingKv({ hang: true });
+  const env = tier1OnlyEnv(['k1', 'k2'], { TIER1_AFFINITY: kv });
+  const started = Date.now();
+  const res = await withMockFetch(scriptedUpstream([]).handler, () =>
+    Promise.race([chatWithSession(env, 'session-stalled-kv'), new Promise((resolve) => setTimeout(() => resolve({ status: 'stalled' }), 1_000))]),
+  );
+  assert.equal(res.status, 200);
+  assert.ok(Date.now() - started < 1_000);
+  assert.equal(kv.gets, 1);
+  assert.equal(kv.puts, 0, 'an unknown binding is not overwritten');
+});
