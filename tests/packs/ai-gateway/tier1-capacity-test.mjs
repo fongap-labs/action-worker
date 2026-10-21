@@ -22,7 +22,7 @@ import {
   releaseTier1Slot,
 } from '#target/src/reliability/tier1-state.ts';
 import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affinity.ts';
-import { loadRuntimeConfig, validateGatewayRuntime } from '#target/scripts/github-deployment-config.mjs';
+import { buildWranglerConfig, loadRuntimeConfig, preflight, validateGatewayRuntime } from '#target/scripts/github-deployment-config.mjs';
 import { pickTier1Candidate } from '#target/src/scheduler/tier1-scheduler.ts';
 
 const ACCESS_KEY = 'tier1-capacity-key';
@@ -368,4 +368,58 @@ test('an idle fast key still wins over an idle slow key', () => {
   const pick = pickTier1Candidate([tier1Node('fast'), tier1Node('slow')], REQ, new Set(), { now: 1_000 });
   assert.equal(pick.node.id, 'fast');
   releaseTier1Slot('fast', pick.releaseToken);
+});
+
+// ---- One analytics event per upstream call ------------------------------------
+
+function recordingDataset() {
+  const points = [];
+  return { points, writeDataPoint: (point) => points.push(point) };
+}
+
+test('every upstream call writes one analytics event that names the key, outcome and role', async () => {
+  const events = recordingDataset();
+  const env = tier1OnlyEnv(['solo'], { GATEWAY_EVENTS: events });
+  const upstream = scriptedUpstream([() => errorResponse(500, 'overloaded')]);
+  const res = await withMockFetch(upstream.handler, () => chat(env));
+  assert.equal(res.status, 200);
+  assert.equal(events.points.length, 2);
+  const [failed, retried] = events.points;
+  assert.deepEqual(failed.indexes, ['solo']);
+  assert.deepEqual(failed.blobs.slice(0, 6), ['solo', 'mock', 'tier-1', 'Code-Pro', 'server', 'primary']);
+  assert.equal(failed.doubles[0], 500);
+  assert.deepEqual(retried.blobs.slice(0, 6), ['solo', 'mock', 'tier-1', 'Code-Pro', 'ok', 'retry']);
+  assert.equal(retried.doubles[0], 200);
+});
+
+test('a broken analytics binding never fails a request', async () => {
+  const env = tier1OnlyEnv(['solo'], {
+    GATEWAY_EVENTS: {
+      writeDataPoint() {
+        throw new Error('dataset unavailable');
+      },
+    },
+  });
+  const res = await withMockFetch(scriptedUpstream([]).handler, () => chat(env));
+  assert.equal(res.status, 200);
+});
+
+test('the deploy binds the analytics dataset only when one is configured', () => {
+  assert.equal(buildWranglerConfig({}, '', 'kv').analytics_engine_datasets, undefined);
+  assert.deepEqual(buildWranglerConfig({}, '', 'kv', 'gateway_events').analytics_engine_datasets, [
+    { binding: 'GATEWAY_EVENTS', dataset: 'gateway_events' },
+  ]);
+});
+
+test('an invalid analytics dataset name fails the deploy preflight', () => {
+  const env = {
+    ...tier1OnlyEnv(['solo']),
+    AIG_AFFINITY_KV_ID: 'kv-id',
+    CLOUDFLARE_API_TOKEN: 'token',
+    CLOUDFLARE_ACCOUNT_ID: 'account',
+    AIG_ANALYTICS_DATASET: 'bad name!',
+  };
+  const result = preflight(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((e) => e.includes('AIG_ANALYTICS_DATASET')), JSON.stringify(result.errors));
 });
