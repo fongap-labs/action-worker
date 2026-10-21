@@ -8,6 +8,7 @@
 import { assert, beforeEach, test } from '#kit/harness.mjs';
 import { withMockFetch } from '#kit/fetch.mjs';
 import { __resetAccessKeysCacheForTests } from '#target/src/config/access-keys.ts';
+import { loadGatewayConfig } from '#target/src/config/nodes.ts';
 import worker from '#target/src/index.ts';
 import { __resetAdaptive429StateForTests } from '#target/src/reliability/adaptive-429.ts';
 import { classifyUpstreamStatus } from '#target/src/reliability/classify.ts';
@@ -20,6 +21,7 @@ import {
   releaseTier1Slot,
 } from '#target/src/reliability/tier1-state.ts';
 import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affinity.ts';
+import { validateGatewayRuntime } from '#target/scripts/github-deployment-config.mjs';
 import { pickTier1Candidate } from '#target/src/scheduler/tier1-scheduler.ts';
 
 const ACCESS_KEY = 'tier1-capacity-key';
@@ -205,4 +207,67 @@ test('with every key failing transiently, the unused attempt budget retries one 
   assert.equal(res.status, 200);
   assert.equal(upstream.hosts.length, 3);
   assert.equal(upstream.hosts[2], upstream.hosts[1], 'the most recent transient failure is retried');
+});
+
+// ---- A configuration error takes out only what it breaks ---------------------
+
+const runtimeOf = (env) => ({
+  vars: Object.fromEntries(Object.entries(env).filter(([k]) => !k.includes('CREDENTIALS') && !k.startsWith('AIG_ACCESS_KEY_'))),
+  secrets: Object.fromEntries(Object.entries(env).filter(([k]) => k.includes('CREDENTIALS') || k.startsWith('AIG_ACCESS_KEY_'))),
+});
+
+test('a policy typo degrades the gateway instead of failing every request', async () => {
+  const env = tier1OnlyEnv(['solo'], { AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempt: 5 } }) });
+  const config = loadGatewayConfig(env);
+  assert.equal(config.status, 'degraded');
+  assert.equal(config.ready, true);
+  assert.equal(config.hasConfigErrors, true);
+  assert.ok(config.diagnostics.some((d) => d.includes('max_attempt')));
+  const upstream = scriptedUpstream([]);
+  const res = await withMockFetch(upstream.handler, () => chat(env));
+  assert.equal(res.status, 200);
+});
+
+test('a configuration error still blocks a deploy, even when reduced capacity is allowed', () => {
+  const env = tier1OnlyEnv(['solo'], { AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempt: 5 } }) });
+  assert.throws(() => validateGatewayRuntime(runtimeOf(env), { allowDegraded: true }), /max_attempt/);
+});
+
+test('a node with a conflicting credential is excluded and the rest keep serving', async () => {
+  const env = tier1OnlyEnv(['good', 'bad'], { AIG_TIER3_CREDENTIALS_01: JSON.stringify({ bad: 'other-secret' }) });
+  const config = loadGatewayConfig(env);
+  assert.equal(config.status, 'degraded');
+  assert.deepEqual(
+    config.nodes.map((n) => n.id),
+    ['good'],
+  );
+  const upstream = scriptedUpstream([]);
+  const res = await withMockFetch(upstream.handler, () => chat(env));
+  assert.equal(res.status, 200);
+  assert.deepEqual(upstream.hosts, ['good']);
+});
+
+test('an ambiguous duplicate node id excludes every copy of it', () => {
+  const env = tier1OnlyEnv(['good', 'dup']);
+  env.AIG_TIER1_NODES_02 = JSON.stringify([{ id: 'dup', provider: 'mock', base_url: 'https://elsewhere.example.com/v1', models: { 'Code-Pro': 'up-model' } }]);
+  const config = loadGatewayConfig(env);
+  assert.equal(config.status, 'degraded');
+  assert.deepEqual(
+    config.nodes.map((n) => n.id),
+    ['good'],
+  );
+});
+
+test('an unparseable node shard is reported as lost capacity', () => {
+  const env = tier1OnlyEnv(['good'], { AIG_TIER1_NODES_02: '[{"id": broken' });
+  const config = loadGatewayConfig(env);
+  assert.equal(config.status, 'degraded');
+  assert.equal(config.ready, true);
+});
+
+test('with no usable node the configuration is still invalid', () => {
+  const env = tier1OnlyEnv(['bad'], { AIG_TIER3_CREDENTIALS_01: JSON.stringify({ bad: 'other-secret' }) });
+  const config = loadGatewayConfig(env);
+  assert.equal(config.status, 'invalid');
+  assert.equal(config.ready, false);
 });
