@@ -203,7 +203,9 @@ various improvements
 
 Release 说明直接使用相同的类型。
 
-CHANGELOG 标题**永远不决定或约束** Release 版本。版本只来自发布启动时输入的版本。
+CHANGELOG 标题**永远不决定或约束** Release 版本。版本来自发布启动时输入的稳定 SemVer；`release-app.yml` 的 `requested_version` 也可以留空，留空时 Action Worker 按上次 `<release_key>-vX.Y.Z` 标签之后的 Conventional Commits 自动计算下一个稳定版本（沿用 SemVer 0.x 规则；跨度内出现无法解析的提交标题会整次失败，改用显式版本即可）。
+
+Release notes 的唯一权威是产品清单里的 `release_notes` 字段。只有它为空字符串时，发布流程才会用自动生成的提交跨度清单（同样是 `- 类型: 摘要` 英文条目）填充；维护者手写的值永远优先。
 
 展示层可隐藏低价值类型（清单见 §6 的「默认不要求写的类型」），但底层分类永远不被转换或重命名。
 
