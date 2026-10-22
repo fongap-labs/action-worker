@@ -567,6 +567,39 @@ test('an isolate rereads the shared cooldowns at most once every 5 minutes', asy
   assert.equal(kv.gets, 2);
 });
 
+// ---- Claude Code auto mode through protocol fallback --------------------------
+
+const messages = (env, extra = {}) =>
+  worker.fetch(
+    new Request('https://gateway.example.com/v1/messages?beta=true', {
+      method: 'POST',
+      headers: { 'x-api-key': ACCESS_KEY, 'content-type': 'application/json', 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'Code-Pro', max_tokens: 64, stream: false, messages: [{ role: 'user', content: 'hello' }], ...extra }),
+    }),
+    env,
+    { waitUntil() {} },
+  );
+
+test('a field no upstream can carry is a 400 that names it, so the client can resend without it', async () => {
+  const env = tier1OnlyEnv(['solo']);
+  // Claude Code's auto permission mode asks Anthropic to classify tool calls server side.
+  const safeguards = [{ type: 'dangerous_tool_use', classifier_context: { v: 1, permission_mode: 'auto' } }];
+  const upstream = scriptedUpstream([]);
+  const refused = await withMockFetch(upstream.handler, () => messages(env, { safeguards }));
+  assert.equal(refused.status, 400);
+  const body = await refused.json();
+  assert.equal(body.type, 'error');
+  assert.equal(body.error.type, 'invalid_request_error');
+  assert.match(body.error.message, /"safeguards"/);
+  assert.equal(body.error.details.failure_kind, 'unsupported_request_field');
+  assert.deepEqual(body.error.details.unsupported_fields, ['safeguards']);
+  assert.deepEqual(upstream.hosts, [], 'nothing is sent upstream');
+
+  const resent = await withMockFetch(upstream.handler, () => messages(env));
+  assert.equal(resent.status, 200);
+  assert.deepEqual(upstream.hosts, ['solo']);
+});
+
 // ---- Large request bodies cannot exhaust an isolate's memory ------------------
 
 function largeChat(sizeBytes) {
