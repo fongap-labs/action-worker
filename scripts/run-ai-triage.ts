@@ -238,10 +238,9 @@ async function main(): Promise<void> {
   ];
 
   try {
-    const gitStat = await stat(join(repoRoot, ".git"));
-    if (!gitStat.isDirectory()) {
-      throw new Error("not a directory");
-    }
+    // A linked worktree carries .git as a file that points at the shared object store; both layouts
+    // behave like a repository for every git invocation below.
+    await stat(join(repoRoot, ".git"));
   } catch {
     throw new CliError(`ERROR: invalid repository root: ${repoRoot}`, 65);
   }
