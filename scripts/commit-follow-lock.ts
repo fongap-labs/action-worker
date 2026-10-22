@@ -90,13 +90,21 @@ export function validateLockPatch(patch: string, lockPath: string): void {
   }
 }
 
+/**
+ * Older lock artifacts were written from a trimmed `git diff`, so git apply rejects them with
+ * "corrupt patch" at the last line. A patch that changes anything needs its final newline.
+ */
+export function patchWithFinalNewline(patch: string): string {
+  return patch === "" || patch.endsWith("\n") ? patch : `${patch}\n`;
+}
+
 async function applyPatch(lockPath: string, current: string, patch: string): Promise<string> {
   const scratch = await mkdtemp(join(tmpdir(), "aw-follow-lock-"));
   try {
     await mkdir(dirname(join(scratch, lockPath)), { recursive: true });
     await writeFile(join(scratch, lockPath), current, "utf8");
     const patchFile = join(scratch, "uv-lock.patch");
-    await writeFile(patchFile, patch, "utf8");
+    await writeFile(patchFile, patchWithFinalNewline(patch), "utf8");
     await runCommand("git", ["apply", "--check", patchFile], { cwd: scratch, timeoutMs: 60_000 });
     await runCommand("git", ["apply", patchFile], { cwd: scratch, timeoutMs: 60_000 });
     return await readFile(join(scratch, lockPath), "utf8");

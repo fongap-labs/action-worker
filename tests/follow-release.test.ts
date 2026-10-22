@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   followLockFolders,
   parseFollowLockRequest,
+  patchWithFinalNewline,
   validateLockPatch,
 } from "../scripts/commit-follow-lock.ts";
 import {
@@ -274,6 +275,18 @@ test("follow lock artifacts are read in the flat and the per-artifact layout", (
     join("follow-lock", "follow-lock-a"),
     join("follow-lock", "follow-lock-b"),
   ]);
+});
+
+test("a patch without its final newline is still applied", () => {
+  assert.equal(patchWithFinalNewline(""), "");
+  assert.equal(
+    patchWithFinalNewline("diff --git a/uv.lock b/uv.lock\n+line"),
+    "diff --git a/uv.lock b/uv.lock\n+line\n"
+  );
+  assert.equal(
+    patchWithFinalNewline("diff --git a/uv.lock b/uv.lock\n+line\n"),
+    "diff --git a/uv.lock b/uv.lock\n+line\n"
+  );
 });
 
 const lockPatch = [
