@@ -147,6 +147,16 @@ async function commitOne(
   });
 }
 
+/**
+ * The download step keeps one directory per artifact when several followers report, and extracts a
+ * single artifact directly into the download root. Both layouts carry the request the same way, so
+ * the root that holds follow-lock.json is itself the folder.
+ */
+export function followLockFolders(directory: string, entries: readonly string[]): string[] {
+  if (entries.includes("follow-lock.json")) return [directory];
+  return entries.map((entry) => join(directory, entry));
+}
+
 async function main(): Promise<void> {
   const token = process.env.AW_CONTROL_TOKEN ?? "";
   const directory = process.env.FOLLOW_LOCK_DIR ?? "";
@@ -155,8 +165,7 @@ async function main(): Promise<void> {
   }
   const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
   const results: string[] = [];
-  for (const entry of (await readdir(directory)).sort()) {
-    const folder = join(directory, entry);
+  for (const folder of followLockFolders(directory, (await readdir(directory)).sort())) {
     const request = parseFollowLockRequest(
       parseJson(
         await readFile(join(folder, "follow-lock.json"), "utf8"),

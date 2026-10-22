@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { test } from "node:test";
-import { parseFollowLockRequest, validateLockPatch } from "../scripts/commit-follow-lock.ts";
+import {
+  followLockFolders,
+  parseFollowLockRequest,
+  validateLockPatch,
+} from "../scripts/commit-follow-lock.ts";
 import {
   type FollowRelease,
   followBranchName,
@@ -259,6 +264,16 @@ test("the required uv version must be one exact version", () => {
 test("the lock path is inside the project directory", () => {
   assert.equal(uvLockPath(""), "uv.lock");
   assert.equal(uvLockPath("projects/api"), "projects/api/uv.lock");
+});
+
+test("follow lock artifacts are read in the flat and the per-artifact layout", () => {
+  assert.deepEqual(followLockFolders("follow-lock", ["follow-lock.json", "uv-lock.patch"]), [
+    "follow-lock",
+  ]);
+  assert.deepEqual(followLockFolders("follow-lock", ["follow-lock-a", "follow-lock-b"]), [
+    join("follow-lock", "follow-lock-a"),
+    join("follow-lock", "follow-lock-b"),
+  ]);
 });
 
 const lockPatch = [
