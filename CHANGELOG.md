@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: a follower's uv.lock is committed after its upstream release. The lock artifacts land flat in the download root when one follower reports and as one directory per follower when several do; the commit job always expected a directory per artifact, so the first release with one follower failed on `follow-lock/follow-lock.json/follow-lock.json`. Both layouts now read the same request, and a unit test pins the two folder lists.
+
 - fix: a release from a managed repository passes the main-write gate again. The gate trusts a `Main Write Guard` status only when the control repository holds a successful run of the workflow that publishes it, but the trusted list named only `main-write-guard.yml`; managed main branches are attested by Intake, Central CI, Release App, Deploy and Task Source through `scripts/audit-main-writes.ts`, so every release and deploy of a managed repository failed with "has not been attested yet". The list now holds every workflow that runs the audit, and a contract test keeps it in step with `.github/workflows`.
 
 - fix: the release-span reader takes the commit subject from the GitHub commit payload. The ingress read a top-level `message` field that the commits API does not return, so every commit of a release span looked empty and an empty `requested_version` failed closed instead of proposing the next version. The reader now reads `commit.message`, and the compare/list fixtures mirror the payload the API returns.
