@@ -85,10 +85,14 @@ async function main(): Promise<void> {
     );
   }
 
-  const patch = await runText("git", ["diff", "--no-color", "--no-ext-diff", "--", lockPath], {
-    timeoutMs: 60_000,
-    maxBuffer: 64 * 1024 * 1024,
-  });
+  // runText trims the trailing newline, and a patch file without its final newline makes git apply
+  // report "corrupt patch" at the last line, so the patch is read without trimming.
+  const patch = (
+    await runCommand("git", ["diff", "--no-color", "--no-ext-diff", "--", lockPath], {
+      timeoutMs: 60_000,
+      maxBuffer: 64 * 1024 * 1024,
+    })
+  ).toString("utf8");
   await writeFile(patchPath, patch, "utf8");
   console.log(`uv ${version} locked ${lockPath}: ${patch === "" ? "no change" : "patch written"}.`);
 }

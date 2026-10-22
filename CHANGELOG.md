@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: a follower's uv.lock patch applies again. `lock-follow` read `git diff` through `runText`, which trims the trailing newline; `git apply` rejects such a file with "corrupt patch" on its last line, so the lock was never committed. The patch is now read without trimming, and the commit job adds the missing final newline for artifacts produced before this change.
+
 - fix: a follower's uv.lock is committed after its upstream release. The lock artifacts land flat in the download root when one follower reports and as one directory per follower when several do; the commit job always expected a directory per artifact, so the first release with one follower failed on `follow-lock/follow-lock.json/follow-lock.json`. Both layouts now read the same request, and a unit test pins the two folder lists.
 
 - fix: a release from a managed repository passes the main-write gate again. The gate trusts a `Main Write Guard` status only when the control repository holds a successful run of the workflow that publishes it, but the trusted list named only `main-write-guard.yml`; managed main branches are attested by Intake, Central CI, Release App, Deploy and Task Source through `scripts/audit-main-writes.ts`, so every release and deploy of a managed repository failed with "has not been attested yet". The list now holds every workflow that runs the audit, and a contract test keeps it in step with `.github/workflows`.
