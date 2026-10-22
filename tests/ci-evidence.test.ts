@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   centralCiWait,
   hasTrustedSuccessfulCiEvidence,
   hasVerifiedCiEvidence,
+  hasVerifiedControlStatus,
   latestCiStatus,
+  mainWriteGuardWorkflowPaths,
   requireVerifiedCiEvidence,
   trustedCiStatus,
   trustedControlRunId,
@@ -291,5 +293,62 @@ test("the PR gate rejects a success status that no successful control run produc
       1
     ),
     /not produced by a successful Action Worker CI run/
+  );
+});
+
+test("every control workflow that attests a main write is trusted", () => {
+  const workflowDir = ".github/workflows";
+  const publishers = readdirSync(workflowDir)
+    .filter((name) => name.endsWith(".yml"))
+    .filter((name) => {
+      const source = readFileSync(`${workflowDir}/${name}`, "utf8");
+      return (
+        source.includes("scripts/audit-main-writes.ts") ||
+        source.includes("scripts/main-write-guard.ts")
+      );
+    })
+    .map((name) => `${workflowDir}/${name}`)
+    .sort();
+  assert.deepEqual(publishers, [...mainWriteGuardWorkflowPaths].sort());
+});
+
+test("a main write attested by a release, intake or guard run is trusted", async () => {
+  const status = {
+    statuses: [
+      {
+        context: "Main Write Guard",
+        state: "success",
+        target_url: evidenceRunUrl,
+        created_at: "2026-10-02T13:11:43Z",
+      },
+    ],
+  };
+  const options = { ...noDelay, workflowPaths: mainWriteGuardWorkflowPaths };
+  for (const path of [
+    ".github/workflows/release-app.yml",
+    ".github/workflows/intake.yml",
+    ".github/workflows/main-write-guard.yml",
+  ]) {
+    assert.equal(
+      await hasVerifiedControlStatus(
+        runReader([controlRun({ path })]),
+        status,
+        "Main Write Guard",
+        {
+          ...options,
+        }
+      ),
+      true,
+      path
+    );
+  }
+  assert.equal(
+    await hasVerifiedControlStatus(
+      runReader([controlRun({ path: ".github/workflows/validate-ci.yml" })]),
+      status,
+      "Main Write Guard",
+      options
+    ),
+    false
   );
 });

@@ -24,9 +24,15 @@ export const ciEvidenceWorkflowPaths: readonly string[] = [
 // The control workflow that publishes the PR gate verdict on a pull request head.
 export const prGateWorkflowPaths: readonly string[] = [".github/workflows/handle-pr-dispatch.yml"];
 
-// The control workflow that attests a main write.
+// The control workflows that attest a main write. Every workflow that runs
+// scripts/audit-main-writes.ts publishes the status, so every one of them is trusted.
 export const mainWriteGuardWorkflowPaths: readonly string[] = [
+  ".github/workflows/central-ci-dispatch.yml",
+  ".github/workflows/deploy-source-script.yml",
+  ".github/workflows/intake.yml",
   ".github/workflows/main-write-guard.yml",
+  ".github/workflows/release-app.yml",
+  ".github/workflows/task-source-dispatch.yml",
 ];
 
 // The status is written by the run itself, so its creation time must fall inside the run window.
