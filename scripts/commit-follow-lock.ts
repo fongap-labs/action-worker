@@ -90,13 +90,21 @@ export function validateLockPatch(patch: string, lockPath: string): void {
   }
 }
 
+/**
+ * Older lock artifacts were written from a trimmed `git diff`, so git apply rejects them with
+ * "corrupt patch" at the last line. A patch that changes anything needs its final newline.
+ */
+export function patchWithFinalNewline(patch: string): string {
+  return patch === "" || patch.endsWith("\n") ? patch : `${patch}\n`;
+}
+
 async function applyPatch(lockPath: string, current: string, patch: string): Promise<string> {
   const scratch = await mkdtemp(join(tmpdir(), "aw-follow-lock-"));
   try {
     await mkdir(dirname(join(scratch, lockPath)), { recursive: true });
     await writeFile(join(scratch, lockPath), current, "utf8");
     const patchFile = join(scratch, "uv-lock.patch");
-    await writeFile(patchFile, patch, "utf8");
+    await writeFile(patchFile, patchWithFinalNewline(patch), "utf8");
     await runCommand("git", ["apply", "--check", patchFile], { cwd: scratch, timeoutMs: 60_000 });
     await runCommand("git", ["apply", patchFile], { cwd: scratch, timeoutMs: 60_000 });
     return await readFile(join(scratch, lockPath), "utf8");
@@ -147,6 +155,16 @@ async function commitOne(
   });
 }
 
+/**
+ * The download step keeps one directory per artifact when several followers report, and extracts a
+ * single artifact directly into the download root. Both layouts carry the request the same way, so
+ * the root that holds follow-lock.json is itself the folder.
+ */
+export function followLockFolders(directory: string, entries: readonly string[]): string[] {
+  if (entries.includes("follow-lock.json")) return [directory];
+  return entries.map((entry) => join(directory, entry));
+}
+
 async function main(): Promise<void> {
   const token = process.env.AW_CONTROL_TOKEN ?? "";
   const directory = process.env.FOLLOW_LOCK_DIR ?? "";
@@ -155,8 +173,7 @@ async function main(): Promise<void> {
   }
   const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
   const results: string[] = [];
-  for (const entry of (await readdir(directory)).sort()) {
-    const folder = join(directory, entry);
+  for (const folder of followLockFolders(directory, (await readdir(directory)).sort())) {
     const request = parseFollowLockRequest(
       parseJson(
         await readFile(join(folder, "follow-lock.json"), "utf8"),
