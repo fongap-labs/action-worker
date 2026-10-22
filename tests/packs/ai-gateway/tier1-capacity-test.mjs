@@ -23,7 +23,7 @@ import {
   releaseTier1Slot,
 } from '#target/src/reliability/tier1-state.ts';
 import { __resetSharedTier1CooldownsForTests, hydrateSharedTier1Cooldowns, shareLongTier1Cooldowns } from '#target/src/reliability/tier1-shared-cooldowns.ts';
-import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affinity.ts';
+import { __resetTier1AffinityForTests, resolveTier1SessionId } from '#target/src/scheduler/tier1-affinity.ts';
 import { buildWranglerConfig, loadRuntimeConfig, preflight, validateGatewayRuntime } from '#target/scripts/github-deployment-config.mjs';
 import { pickTier1Candidate } from '#target/src/scheduler/tier1-scheduler.ts';
 
@@ -361,6 +361,31 @@ test('a failed affinity read neither biases nor rewrites the binding', async () 
   }
   assert.equal(kv.gets, 3, 'a failed read is not cached as "no binding"');
   assert.equal(kv.puts, 0, 'Workers Free allows 1,000 KV writes a day; a failed read must not cost one');
+});
+
+test('a Claude Code conversation is a session through its own session header', async () => {
+  const kv = countingKv();
+  const env = tier1OnlyEnv(['k1', 'k2'], { TIER1_AFFINITY: kv });
+  const claudeCode = new Request('https://gateway.example.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${ACCESS_KEY}`,
+      'content-type': 'application/json',
+      'x-claude-code-session-id': 'baf7ad9f-3c14-4c5c-8b95-5bfa79d44f7c',
+    },
+    body: JSON.stringify({ model: 'Code-Pro', messages: [{ role: 'user', content: 'hi' }] }),
+  });
+  assert.equal(resolveTier1SessionId(claudeCode), 'baf7ad9f-3c14-4c5c-8b95-5bfa79d44f7c');
+  const res = await withMockFetch(scriptedUpstream([]).handler, () => worker.fetch(claudeCode, env, { waitUntil() {} }));
+  assert.equal(res.status, 200);
+  await new Promise((resolve) => setTimeout(resolve, 10)); // the binding is written after the response
+  assert.equal(kv.gets, 1, 'the conversation looks up its Tier 1 binding');
+  assert.equal(kv.puts, 1, 'and binds the key that served it');
+});
+
+test('an explicit x-session-id wins over the Claude Code session header', () => {
+  const both = new Request('https://x/', { headers: { 'x-session-id': 'explicit-session', 'x-claude-code-session-id': 'claude-code-session' } });
+  assert.equal(resolveTier1SessionId(both), 'explicit-session');
 });
 
 // ---- Load spreads across Tier 1 keys -----------------------------------------
