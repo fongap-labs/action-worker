@@ -8,6 +8,7 @@
 import { assert, beforeEach, test } from '#kit/harness.mjs';
 import { withMockFetch } from '#kit/fetch.mjs';
 import { __resetAccessKeysCacheForTests } from '#target/src/config/access-keys.ts';
+import { __resetBodyBudgetForTests } from '#target/src/ratelimit/body-budget.ts';
 import { loadGatewayConfig } from '#target/src/config/nodes.ts';
 import worker from '#target/src/index.ts';
 import { __resetAdaptive429StateForTests } from '#target/src/reliability/adaptive-429.ts';
@@ -18,10 +19,12 @@ import {
   classifyTier1Failure,
   isTier1Eligible,
   recordTier1Success,
+  recordTier1Ttft,
   releaseTier1Slot,
 } from '#target/src/reliability/tier1-state.ts';
+import { __resetSharedTier1CooldownsForTests } from '#target/src/reliability/tier1-shared-cooldowns.ts';
 import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affinity.ts';
-import { validateGatewayRuntime } from '#target/scripts/github-deployment-config.mjs';
+import { buildWranglerConfig, loadRuntimeConfig, preflight, validateGatewayRuntime } from '#target/scripts/github-deployment-config.mjs';
 import { pickTier1Candidate } from '#target/src/scheduler/tier1-scheduler.ts';
 
 const ACCESS_KEY = 'tier1-capacity-key';
@@ -30,6 +33,8 @@ const REQ = { protocol: 'openai', surface: 'chat_completions', model: 'm1', body
 
 beforeEach(() => {
   __resetAccessKeysCacheForTests();
+  __resetBodyBudgetForTests();
+  __resetSharedTier1CooldownsForTests();
   __resetTier1StateForTests();
   __resetTier1AffinityForTests();
   __resetAdaptive429StateForTests();
@@ -270,4 +275,289 @@ test('with no usable node the configuration is still invalid', () => {
   const config = loadGatewayConfig(env);
   assert.equal(config.status, 'invalid');
   assert.equal(config.ready, false);
+});
+
+// ---- Diagnostics never quote credential text --------------------------------
+
+test('a malformed credential shard is reported without quoting any of its text', async () => {
+  const secret = 'sk-live-SECRETVALUE123456';
+  const env = tier1OnlyEnv(['good'], { AIG_TIER1_CREDENTIALS_02: `{"other": ${secret}}` });
+  const config = loadGatewayConfig(env);
+  assert.ok(config.diagnostics.some((d) => d.includes('AIG_TIER1_CREDENTIALS_02')));
+  assert.ok(!config.diagnostics.join('\n').includes('sk-live'), 'no credential fragment in diagnostics');
+  const health = await worker.fetch(
+    new Request('https://gateway.example.com/health', { headers: { authorization: `Bearer ${ACCESS_KEY}` } }),
+    env,
+    {},
+  );
+  assert.ok(!(await health.text()).includes('sk-live'), 'no credential fragment on /health');
+});
+
+test('a malformed secrets document fails the deploy without quoting it', () => {
+  assert.throws(
+    () => loadRuntimeConfig('{"AIG_TIER1_NODES_01": "[]"}', '{"AIG_ACCESS_KEY_PRO": sk-live-SECRETVALUE123456}'),
+    (error) => /not valid JSON/.test(error.message) && !error.message.includes('sk-live'),
+  );
+});
+
+// ---- The affinity lookup never stalls a request -----------------------------
+
+// Counts reads and writes of session-affinity keys only; the same namespace also
+// holds the shared Tier 1 cooldowns.
+function countingKv({ hang = false } = {}) {
+  const kv = { gets: 0, puts: 0 };
+  const isAffinity = (key) => String(key).startsWith('affinity:');
+  kv.get = async (key) => {
+    if (!isAffinity(key)) return null;
+    kv.gets++;
+    return hang ? new Promise(() => {}) : null;
+  };
+  kv.put = async (key) => {
+    if (isAffinity(key)) kv.puts++;
+  };
+  return kv;
+}
+
+const chatWithSession = (env, sessionId) =>
+  worker.fetch(
+    new Request('https://gateway.example.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${ACCESS_KEY}`, 'content-type': 'application/json', 'x-session-id': sessionId },
+      body: JSON.stringify({ model: 'Code-Pro', messages: [{ role: 'user', content: 'hi' }] }),
+    }),
+    env,
+    { waitUntil() {} },
+  );
+
+test('with a single Tier 1 key a session neither reads nor writes affinity', async () => {
+  const kv = countingKv();
+  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const res = await withMockFetch(scriptedUpstream([]).handler, () => chatWithSession(env, 'session-single-key'));
+  assert.equal(res.status, 200);
+  assert.equal(kv.gets, 0);
+  assert.equal(kv.puts, 0);
+});
+
+test('a stalled affinity read does not hold the request and writes nothing', async () => {
+  const kv = countingKv({ hang: true });
+  const env = tier1OnlyEnv(['k1', 'k2'], { TIER1_AFFINITY: kv });
+  const started = Date.now();
+  const res = await withMockFetch(scriptedUpstream([]).handler, () =>
+    Promise.race([chatWithSession(env, 'session-stalled-kv'), new Promise((resolve) => setTimeout(() => resolve({ status: 'stalled' }), 1_000))]),
+  );
+  assert.equal(res.status, 200);
+  assert.ok(Date.now() - started < 1_000);
+  assert.equal(kv.gets, 1);
+  assert.equal(kv.puts, 0, 'an unknown binding is not overwritten');
+});
+
+// ---- Load spreads across Tier 1 keys -----------------------------------------
+
+test('a fast Tier 1 key that is already busy yields to an idle slower key', () => {
+  const fast = tier1Node('fast');
+  const slow = tier1Node('slow');
+  recordTier1Ttft('fast', 'm1', 500);
+  recordTier1Ttft('slow', 'm1', 2_000);
+  const held = [];
+  const counts = { fast: 0, slow: 0 };
+  for (let i = 0; i < 20; i++) {
+    const pick = pickTier1Candidate([fast, slow], REQ, new Set(), { now: 1_000 + i });
+    counts[pick.node.id]++;
+    held.push(pick);
+  }
+  for (const pick of held) releaseTier1Slot(pick.node.id, pick.releaseToken);
+  assert.ok(counts.slow >= 5, `slow key share ${JSON.stringify(counts)}`);
+  assert.ok(counts.fast > counts.slow, `fast key still preferred ${JSON.stringify(counts)}`);
+});
+
+test('an idle fast key still wins over an idle slow key', () => {
+  recordTier1Ttft('fast', 'm1', 500);
+  recordTier1Ttft('slow', 'm1', 2_000);
+  const pick = pickTier1Candidate([tier1Node('fast'), tier1Node('slow')], REQ, new Set(), { now: 1_000 });
+  assert.equal(pick.node.id, 'fast');
+  releaseTier1Slot('fast', pick.releaseToken);
+});
+
+// ---- One analytics event per upstream call ------------------------------------
+
+function recordingDataset() {
+  const points = [];
+  return { points, writeDataPoint: (point) => points.push(point) };
+}
+
+test('every upstream call writes one analytics event that names the key, outcome and role', async () => {
+  const events = recordingDataset();
+  const env = tier1OnlyEnv(['solo'], { GATEWAY_EVENTS: events });
+  const upstream = scriptedUpstream([() => errorResponse(500, 'overloaded')]);
+  const res = await withMockFetch(upstream.handler, () => chat(env));
+  assert.equal(res.status, 200);
+  assert.equal(events.points.length, 2);
+  const [failed, retried] = events.points;
+  assert.deepEqual(failed.indexes, ['solo']);
+  assert.deepEqual(failed.blobs.slice(0, 6), ['solo', 'mock', 'tier-1', 'Code-Pro', 'server', 'primary']);
+  assert.equal(failed.doubles[0], 500);
+  assert.deepEqual(retried.blobs.slice(0, 6), ['solo', 'mock', 'tier-1', 'Code-Pro', 'ok', 'retry']);
+  assert.equal(retried.doubles[0], 200);
+});
+
+test('a broken analytics binding never fails a request', async () => {
+  const env = tier1OnlyEnv(['solo'], {
+    GATEWAY_EVENTS: {
+      writeDataPoint() {
+        throw new Error('dataset unavailable');
+      },
+    },
+  });
+  const res = await withMockFetch(scriptedUpstream([]).handler, () => chat(env));
+  assert.equal(res.status, 200);
+});
+
+test('the deploy binds the analytics dataset only when one is configured', () => {
+  assert.equal(buildWranglerConfig({}, '', 'kv').analytics_engine_datasets, undefined);
+  assert.deepEqual(buildWranglerConfig({}, '', 'kv', 'gateway_events').analytics_engine_datasets, [
+    { binding: 'GATEWAY_EVENTS', dataset: 'gateway_events' },
+  ]);
+});
+
+test('an invalid analytics dataset name fails the deploy preflight', () => {
+  const env = {
+    ...tier1OnlyEnv(['solo']),
+    AIG_AFFINITY_KV_ID: 'kv-id',
+    CLOUDFLARE_API_TOKEN: 'token',
+    CLOUDFLARE_ACCOUNT_ID: 'account',
+    AIG_ANALYTICS_DATASET: 'bad name!',
+  };
+  const result = preflight(env);
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some((e) => e.includes('AIG_ANALYTICS_DATASET')), JSON.stringify(result.errors));
+});
+
+// ---- Long cooldowns are shared across isolates --------------------------------
+
+function memoryKv() {
+  const store = new Map();
+  const kv = { store, puts: 0, gets: 0 };
+  kv.get = async (key) => {
+    kv.gets++;
+    return store.has(key) ? store.get(key) : null;
+  };
+  kv.put = async (key, value) => {
+    kv.puts++;
+    store.set(key, value);
+  };
+  return kv;
+}
+
+// A fresh isolate: no in-memory Tier 1 state, only what KV remembers.
+function freshIsolate() {
+  __resetTier1StateForTests();
+  __resetAdaptive429StateForTests();
+  __resetSharedTier1CooldownsForTests();
+}
+
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+test('a key rejected with 401 is skipped by a new isolate without another upstream call', async () => {
+  const kv = memoryKv();
+  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const first = scriptedUpstream([() => errorResponse(401, 'invalid api key')]);
+  await withMockFetch(first.handler, () => chat(env));
+  await settle();
+  assert.equal(kv.puts, 1);
+  freshIsolate();
+  const second = scriptedUpstream([]);
+  const res = await withMockFetch(second.handler, () => chat(env));
+  assert.equal(res.status, 429);
+  assert.ok(Number(res.headers.get('retry-after')) > 3_000);
+  assert.deepEqual(second.hosts, []);
+});
+
+test('a key whose daily quota ran out is skipped by a new isolate while another key serves', async () => {
+  const kv = memoryKv();
+  const env = tier1OnlyEnv(['k1', 'k2'], { TIER1_AFFINITY: kv });
+  const first = scriptedUpstream([() => errorResponse(429, 'daily quota exceeded'), () => errorResponse(429, 'daily quota exceeded')]);
+  await withMockFetch(first.handler, () => chat(env));
+  await settle();
+  freshIsolate();
+  const quotaKeys = new Set(first.hosts);
+  const second = scriptedUpstream([]);
+  const res = await withMockFetch(second.handler, () => chat(env));
+  assert.equal(quotaKeys.size, 2);
+  assert.equal(res.status, 429, 'both keys are known to be out of quota');
+  assert.deepEqual(second.hosts, []);
+});
+
+test('a short rate-limit window is not shared', async () => {
+  const kv = memoryKv();
+  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const first = scriptedUpstream([() => errorResponse(429, 'rate limit', { 'retry-after': '20' })]);
+  await withMockFetch(first.handler, () => chat(env));
+  await settle();
+  assert.equal(kv.puts, 0);
+});
+
+test('a shared cooldown that has expired is ignored', async () => {
+  const kv = memoryKv();
+  kv.store.set('tier1-cooldowns:v1', JSON.stringify([{ node: 'solo', until: Date.now() - 1_000, reason: 'auth' }]));
+  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const res = await withMockFetch(scriptedUpstream([]).handler, () => chat(env));
+  assert.equal(res.status, 200);
+});
+
+test('a stalled shared-cooldown read does not hold the request', async () => {
+  const kv = memoryKv();
+  kv.get = () => new Promise(() => {});
+  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const res = await withMockFetch(scriptedUpstream([]).handler, () =>
+    Promise.race([chat(env), new Promise((resolve) => setTimeout(() => resolve({ status: 'stalled' }), 1_000))]),
+  );
+  assert.equal(res.status, 200);
+});
+
+// ---- Large request bodies cannot exhaust an isolate's memory ------------------
+
+function largeChat(sizeBytes) {
+  const filler = 'x'.repeat(sizeBytes);
+  const body = JSON.stringify({ model: 'Code-Pro', messages: [{ role: 'user', content: filler }] });
+  return new Request('https://gateway.example.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { authorization: `Bearer ${ACCESS_KEY}`, 'content-type': 'application/json', 'content-length': String(body.length) },
+    body,
+  });
+}
+
+test('large bodies beyond the in-flight memory budget are refused with a retryable 503', async () => {
+  const env = tier1OnlyEnv(['solo']);
+  let release;
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const handler = async () => {
+    await gate;
+    return okChat();
+  };
+  await withMockFetch(handler, async () => {
+    const first = worker.fetch(largeChat(17 * 1024 * 1024), env, { waitUntil() {} });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const refused = await Promise.race([
+      worker.fetch(largeChat(17 * 1024 * 1024), env, { waitUntil() {} }),
+      new Promise((resolve) => setTimeout(() => resolve({ status: 'admitted', headers: new Headers() }), 200)),
+    ]);
+    if (refused.status !== 503) release();
+    assert.equal(refused.status, 503);
+    assert.equal(refused.headers.get('retry-after'), '1');
+    assert.equal(refused.headers.get('x-should-retry'), null);
+    const small = await Promise.race([chat(env), new Promise((resolve) => setTimeout(() => resolve({ status: 'queued' }), 20))]);
+    assert.equal(small.status, 'queued', 'a small request is admitted and waits on the upstream like the first');
+    release();
+    assert.equal((await first).status, 200);
+    const later = await worker.fetch(largeChat(17 * 1024 * 1024), env, { waitUntil() {} });
+    assert.equal(later.status, 200, 'the budget is returned when a request ends');
+  });
+});
+
+test('a single maximum-size body is admitted when nothing else is in flight', async () => {
+  const env = tier1OnlyEnv(['solo']);
+  const res = await withMockFetch(scriptedUpstream([]).handler, () => worker.fetch(largeChat(19 * 1024 * 1024), env, { waitUntil() {} }));
+  assert.equal(res.status, 200);
 });
