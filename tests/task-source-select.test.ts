@@ -7,6 +7,27 @@ import { test } from "node:test";
 
 const workflow = readFileSync(".github/workflows/task-source-dispatch.yml", "utf8");
 
+// The step is executed by a runner whose bash provides git and jq, so the tests follow the workflow
+// rather than a copy. On Windows a PATH bash may be WSL with a foreign filesystem, and Git Bash
+// misses jq, so only a shell that holds both tools may run the step; without one the tests skip.
+function detectRunnerBash(): string | null {
+  const candidates =
+    process.platform === "win32" ? ["C:/Program Files/Git/bin/bash.exe"] : ["bash"];
+  for (const bash of candidates) {
+    const probe = spawnSync(
+      bash,
+      ["-c", "command -v git >/dev/null 2>&1 && command -v jq >/dev/null 2>&1"],
+      { encoding: "utf8" }
+    );
+    if (probe.status === 0) return bash;
+  }
+  return null;
+}
+
+// A plain boolean false is the documented no-skip value.
+const RUNNER_BASH = detectRunnerBash();
+const skipSelect = RUNNER_BASH === null ? "the runner bash with git and jq is unavailable" : false;
+
 // The step's own script, run as the runner runs it, so the test follows the workflow rather than a copy.
 function selectProjectsScript(): string {
   const start = workflow.indexOf("- name: Select projects");
@@ -63,7 +84,7 @@ function runSelect(changes: Record<string, string>) {
 
     const output = join(root, "github_output");
     writeFileSync(output, "");
-    const result = spawnSync("bash", ["-c", selectProjectsScript()], {
+    const result = spawnSync(RUNNER_BASH as string, ["-c", selectProjectsScript()], {
       cwd: root,
       encoding: "utf8",
       env: {
@@ -85,20 +106,24 @@ function runSelect(changes: Record<string, string>) {
   }
 }
 
-test("a changed project with a task.json is selected", () => {
+test("a changed project with a task.json is selected", { skip: skipSelect }, () => {
   const run = runSelect({ "projects/Alpha/task.json": '{"schedule":"daily"}' });
   assert.equal(run.status, 0, run.stderr);
   assert.equal(run.outputs, 'projects=["Alpha"]');
 });
 
-test("a changed project without a task.json selects nothing and does not fail the step", () => {
+test("a changed project without a task.json selects nothing and does not fail the step", {
+  skip: skipSelect,
+}, () => {
   // The project's name sorts last, so the loop's last test is the one that fails.
   const run = runSelect({ "projects/Zeta/deploy.json": "{}" });
   assert.equal(run.status, 0, run.stderr);
   assert.equal(run.outputs, "projects=[]");
 });
 
-test("a task project is still selected when a deploy-only project sorts after it", () => {
+test("a task project is still selected when a deploy-only project sorts after it", {
+  skip: skipSelect,
+}, () => {
   const run = runSelect({
     "projects/Alpha/task.json": '{"schedule":"daily"}',
     "projects/Zeta/deploy.json": "{}",
