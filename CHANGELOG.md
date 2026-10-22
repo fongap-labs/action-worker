@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- fix: a release from a managed repository passes the main-write gate again. The gate trusts a `Main Write Guard` status only when the control repository holds a successful run of the workflow that publishes it, but the trusted list named only `main-write-guard.yml`; managed main branches are attested by Intake, Central CI, Release App, Deploy and Task Source through `scripts/audit-main-writes.ts`, so every release and deploy of a managed repository failed with "has not been attested yet". The list now holds every workflow that runs the audit, and a contract test keeps it in step with `.github/workflows`.
+
 - fix: the release-span reader takes the commit subject from the GitHub commit payload. The ingress read a top-level `message` field that the commits API does not return, so every commit of a release span looked empty and an empty `requested_version` failed closed instead of proposing the next version. The reader now reads `commit.message`, and the compare/list fixtures mirror the payload the API returns.
 
 - chore: align the governance hub with the new release automation. The release span version computation ships with `.githooks/commit-msg`, a local Conventional Commits guard (install with `git config core.hooksPath .githooks`) and a dependency-free `commitlint.config.js` for manual history checks; CONTRIBUTING.md is the contributor entry point.
