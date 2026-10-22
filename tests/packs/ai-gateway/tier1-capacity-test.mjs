@@ -22,7 +22,7 @@ import {
   recordTier1Ttft,
   releaseTier1Slot,
 } from '#target/src/reliability/tier1-state.ts';
-import { __resetSharedTier1CooldownsForTests } from '#target/src/reliability/tier1-shared-cooldowns.ts';
+import { __resetSharedTier1CooldownsForTests, hydrateSharedTier1Cooldowns, shareLongTier1Cooldowns } from '#target/src/reliability/tier1-shared-cooldowns.ts';
 import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affinity.ts';
 import { buildWranglerConfig, loadRuntimeConfig, preflight, validateGatewayRuntime } from '#target/scripts/github-deployment-config.mjs';
 import { pickTier1Candidate } from '#target/src/scheduler/tier1-scheduler.ts';
@@ -304,12 +304,13 @@ test('a malformed secrets document fails the deploy without quoting it', () => {
 
 // Counts reads and writes of session-affinity keys only; the same namespace also
 // holds the shared Tier 1 cooldowns.
-function countingKv({ hang = false } = {}) {
+function countingKv({ hang = false, fail = false } = {}) {
   const kv = { gets: 0, puts: 0 };
   const isAffinity = (key) => String(key).startsWith('affinity:');
   kv.get = async (key) => {
     if (!isAffinity(key)) return null;
     kv.gets++;
+    if (fail) throw new Error('KV get() limit exceeded for the day.');
     return hang ? new Promise(() => {}) : null;
   };
   kv.put = async (key) => {
@@ -349,6 +350,17 @@ test('a stalled affinity read does not hold the request and writes nothing', asy
   assert.ok(Date.now() - started < 1_000);
   assert.equal(kv.gets, 1);
   assert.equal(kv.puts, 0, 'an unknown binding is not overwritten');
+});
+
+test('a failed affinity read neither biases nor rewrites the binding', async () => {
+  const kv = countingKv({ fail: true });
+  const env = tier1OnlyEnv(['k1', 'k2'], { TIER1_AFFINITY: kv });
+  for (let i = 0; i < 3; i++) {
+    const res = await withMockFetch(scriptedUpstream([]).handler, () => chatWithSession(env, 'session-read-limit'));
+    assert.equal(res.status, 200);
+  }
+  assert.equal(kv.gets, 3, 'a failed read is not cached as "no binding"');
+  assert.equal(kv.puts, 0, 'Workers Free allows 1,000 KV writes a day; a failed read must not cost one');
 });
 
 // ---- Load spreads across Tier 1 keys -----------------------------------------
@@ -487,6 +499,22 @@ test('a key whose daily quota ran out is skipped by a new isolate while another 
   assert.deepEqual(second.hosts, []);
 });
 
+test('a quota cooldown exactly at the sharing threshold is shared while the clock moves', async () => {
+  const kv = memoryKv();
+  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const realNow = Date.now;
+  let clock = realNow();
+  Date.now = () => ++clock; // every reading of the clock is a millisecond later
+  try {
+    await withMockFetch(scriptedUpstream([() => errorResponse(429, 'daily quota exceeded')]).handler, () => chat(env));
+  } finally {
+    Date.now = realNow;
+  }
+  await settle();
+  assert.equal(kv.puts, 1);
+  assert.match(kv.store.get('tier1-cooldowns:v1'), /"quota":true/);
+});
+
 test('a short rate-limit window is not shared', async () => {
   const kv = memoryKv();
   const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
@@ -512,6 +540,31 @@ test('a stalled shared-cooldown read does not hold the request', async () => {
     Promise.race([chat(env), new Promise((resolve) => setTimeout(() => resolve({ status: 'stalled' }), 1_000))]),
   );
   assert.equal(res.status, 200);
+});
+
+test('a burst of failures on one key writes the shared cooldowns once', async () => {
+  const kv = memoryKv();
+  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const pending = [];
+  const ctx = { waitUntil: (task) => pending.push(task) };
+  const now = Date.now();
+  for (let i = 0; i < 3; i++) {
+    applyTier1Outcome('solo', 'Code-Pro', classifyTier1Failure(classifyUpstreamStatus(401, new Headers(), {})), now + i * 1_000);
+    shareLongTier1Cooldowns(env, ctx, 'solo', now + i * 1_000);
+    await Promise.all(pending);
+  }
+  assert.equal(kv.puts, 1, 'nothing new was learned after the first rejection');
+});
+
+test('an isolate rereads the shared cooldowns at most once every 5 minutes', async () => {
+  const kv = memoryKv();
+  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const start = Date.now();
+  await hydrateSharedTier1Cooldowns(env, start);
+  await hydrateSharedTier1Cooldowns(env, start + 4 * 60_000);
+  assert.equal(kv.gets, 1);
+  await hydrateSharedTier1Cooldowns(env, start + 5 * 60_000);
+  assert.equal(kv.gets, 2);
 });
 
 // ---- Large request bodies cannot exhaust an isolate's memory ------------------
