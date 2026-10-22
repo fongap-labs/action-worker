@@ -9,6 +9,7 @@ import { __resetOAuthProvidersCacheForTests } from '#target/src/oauth/provider-c
 
 export const AIR_KEY = 'air-test-key';
 export const AGENT_KEY = 'agent-test-key';
+export const MAX_KEY = 'max-test-key';
 
 let keyB64 = '';
 for (const byte of new Uint8Array(32).fill(9)) keyB64 += String.fromCharCode(byte);
@@ -63,6 +64,8 @@ export function makeEnv(extra = {}) {
     AIG_ACCESS_MODELS_AIR: '*',
     AIG_ACCESS_KEY_AGENT: AGENT_KEY,
     AIG_ACCESS_MODELS_AGENT: '*',
+    AIG_ACCESS_KEY_MAX: MAX_KEY,
+    AIG_ACCESS_MODELS_MAX: '*',
     AIG_OAUTH_ADMIN_GROUPS: 'AIR',
     AIG_OAUTH_PROVIDERS: JSON.stringify({
       mock: {

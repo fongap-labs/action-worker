@@ -16,6 +16,8 @@ function makeEnv() {
     AIG_ACCESS_MODELS_AIR: 'model-a',
     AIG_ACCESS_KEY_PRO: 'pro-key',
     AIG_ACCESS_MODELS_PRO: '*',
+    // Visibility per key is the subject here, so every key may read /health.
+    AIG_DIAGNOSTICS_GROUPS: '*',
     AIG_TIER1_NODES_01: JSON.stringify([node('node-a', { 'model-a': 'up-a' }), node('node-b', { 'model-b': 'up-b' })]),
     AIG_TIER1_CREDENTIALS_01: JSON.stringify({ 'node-a': 'k', 'node-b': 'k' }),
   };
