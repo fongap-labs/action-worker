@@ -23,7 +23,7 @@ import {
   releaseTier1Slot,
 } from '#target/src/reliability/tier1-state.ts';
 import { __resetSharedTier1CooldownsForTests, hydrateSharedTier1Cooldowns, shareLongTier1Cooldowns } from '#target/src/reliability/tier1-shared-cooldowns.ts';
-import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affinity.ts';
+import { __resetTier1AffinityForTests, resolveTier1SessionId } from '#target/src/scheduler/tier1-affinity.ts';
 import { buildWranglerConfig, loadRuntimeConfig, preflight, validateGatewayRuntime } from '#target/scripts/github-deployment-config.mjs';
 import { pickTier1Candidate } from '#target/src/scheduler/tier1-scheduler.ts';
 
@@ -363,6 +363,31 @@ test('a failed affinity read neither biases nor rewrites the binding', async () 
   assert.equal(kv.puts, 0, 'Workers Free allows 1,000 KV writes a day; a failed read must not cost one');
 });
 
+test('a Claude Code conversation is a session through its own session header', async () => {
+  const kv = countingKv();
+  const env = tier1OnlyEnv(['k1', 'k2'], { TIER1_AFFINITY: kv });
+  const claudeCode = new Request('https://gateway.example.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${ACCESS_KEY}`,
+      'content-type': 'application/json',
+      'x-claude-code-session-id': 'baf7ad9f-3c14-4c5c-8b95-5bfa79d44f7c',
+    },
+    body: JSON.stringify({ model: 'Code-Pro', messages: [{ role: 'user', content: 'hi' }] }),
+  });
+  assert.equal(resolveTier1SessionId(claudeCode), 'baf7ad9f-3c14-4c5c-8b95-5bfa79d44f7c');
+  const res = await withMockFetch(scriptedUpstream([]).handler, () => worker.fetch(claudeCode, env, { waitUntil() {} }));
+  assert.equal(res.status, 200);
+  await new Promise((resolve) => setTimeout(resolve, 10)); // the binding is written after the response
+  assert.equal(kv.gets, 1, 'the conversation looks up its Tier 1 binding');
+  assert.equal(kv.puts, 1, 'and binds the key that served it');
+});
+
+test('an explicit x-session-id wins over the Claude Code session header', () => {
+  const both = new Request('https://x/', { headers: { 'x-session-id': 'explicit-session', 'x-claude-code-session-id': 'claude-code-session' } });
+  assert.equal(resolveTier1SessionId(both), 'explicit-session');
+});
+
 // ---- Load spreads across Tier 1 keys -----------------------------------------
 
 test('a fast Tier 1 key that is already busy yields to an idle slower key', () => {
@@ -565,6 +590,39 @@ test('an isolate rereads the shared cooldowns at most once every 5 minutes', asy
   assert.equal(kv.gets, 1);
   await hydrateSharedTier1Cooldowns(env, start + 5 * 60_000);
   assert.equal(kv.gets, 2);
+});
+
+// ---- Claude Code auto mode through protocol fallback --------------------------
+
+const messages = (env, extra = {}) =>
+  worker.fetch(
+    new Request('https://gateway.example.com/v1/messages?beta=true', {
+      method: 'POST',
+      headers: { 'x-api-key': ACCESS_KEY, 'content-type': 'application/json', 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'Code-Pro', max_tokens: 64, stream: false, messages: [{ role: 'user', content: 'hello' }], ...extra }),
+    }),
+    env,
+    { waitUntil() {} },
+  );
+
+test('a field no upstream can carry is a 400 that names it, so the client can resend without it', async () => {
+  const env = tier1OnlyEnv(['solo']);
+  // Claude Code's auto permission mode asks Anthropic to classify tool calls server side.
+  const safeguards = [{ type: 'dangerous_tool_use', classifier_context: { v: 1, permission_mode: 'auto' } }];
+  const upstream = scriptedUpstream([]);
+  const refused = await withMockFetch(upstream.handler, () => messages(env, { safeguards }));
+  assert.equal(refused.status, 400);
+  const body = await refused.json();
+  assert.equal(body.type, 'error');
+  assert.equal(body.error.type, 'invalid_request_error');
+  assert.match(body.error.message, /"safeguards"/);
+  assert.equal(body.error.details.failure_kind, 'unsupported_request_field');
+  assert.deepEqual(body.error.details.unsupported_fields, ['safeguards']);
+  assert.deepEqual(upstream.hosts, [], 'nothing is sent upstream');
+
+  const resent = await withMockFetch(upstream.handler, () => messages(env));
+  assert.equal(resent.status, 200);
+  assert.deepEqual(upstream.hosts, ['solo']);
 });
 
 // ---- Large request bodies cannot exhaust an isolate's memory ------------------
