@@ -60,11 +60,15 @@ jobs:
         with:
           node-version: 22
 
+      # A pull request is tested as it would merge into the default branch, so the central test pack
+      # from the control ref never runs against code that the default branch has already moved past.
+      # When the default branch changed under the PR and the merge conflicts, GitHub has no merge
+      # ref and the checkout fails as the merge gate.
       - name: Checkout target PR
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ inputs.repository }}
-          ref: ${{ inputs.head_sha }}
+          ref: ${{ inputs.pr_number != '0' && format('refs/pull/{0}/merge', inputs.pr_number) || inputs.head_sha }}
           token: ${{ secrets.checkout_token || github.token }}
           path: target
           fetch-depth: 0
@@ -88,7 +92,7 @@ jobs:
           path: aw
 
       - name: Pin central test pack
-        shell: bash
+        shell: pwsh
         run: node aw/scripts/prepare-test-pack.ts "${{ github.workspace }}/aw" "${{ github.workspace }}/ci-control/.github/test-pack.json"
 
       # Central, pinned secret scan of the commits this pull request adds. It is control code from this
@@ -173,11 +177,12 @@ jobs:
     timeout-minutes: 90
 
     steps:
+      # A pull request is tested as it would merge into the default branch; see the Linux job.
       - name: Checkout target PR
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ inputs.repository }}
-          ref: ${{ inputs.head_sha }}
+          ref: ${{ inputs.pr_number != '0' && format('refs/pull/{0}/merge', inputs.pr_number) || inputs.head_sha }}
           token: ${{ secrets.checkout_token || github.token }}
           path: target
           fetch-depth: 0

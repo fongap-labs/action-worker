@@ -113,3 +113,17 @@ test("a pull request CI that fails in prepare still publishes a CI Evidence verd
   assert.match(job, /-f "context=CI Evidence"/);
   assert.doesNotMatch(job, /checkout|central-ci\.sh/);
 });
+
+test("a pull request is tested as it merges into the default branch, and the bare head is not checked out", () => {
+  const checkoutTemplate =
+    "ref: ${{ inputs.pr_number != '0' && format('refs/pull/{0}/merge', inputs.pr_number) || inputs.head_sha }}";
+  // split(...).length === 3 means exactly two occurrences: the Linux and the Windows checkout.
+  assert.equal(sandbox.split(checkoutTemplate).length, 3, "both platform jobs test the merge ref");
+  assert.doesNotMatch(sandbox, /ref: \$\{\{ inputs\.head_sha \}\}/);
+  // The secret scan and the status verdicts keep working on the pull request's own commits.
+  const security = workflow.slice(
+    workflow.indexOf("  security:\n"),
+    workflow.indexOf("\n  windows:\n")
+  );
+  assert.match(security, /ref: \$\{\{ needs\.prepare\.outputs\.head_sha \}\}/);
+});
