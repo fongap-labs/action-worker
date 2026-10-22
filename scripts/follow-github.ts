@@ -1,7 +1,6 @@
 import { type FollowManifest, type PinValue, parseFollowManifest } from "./follow-pins.ts";
 import {
   GithubHttpError,
-  GithubReader,
   getJsonArray,
   getJsonString,
   githubEnvironment,

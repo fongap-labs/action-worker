@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- fix: central CI tests a pull request as it merges into the default branch. The sandbox checked out the bare PR head, so a PR based on an older default branch failed the central test pack on code the default branch had already changed - and the failure looked unrelated to the PR, like ai-gateway #148 against the diagnostics gating that another PR had just landed. The sandbox now checks out GitHub's `refs/pull/<number>/merge` for pull requests, a conflicted PR fails its checkout as the merge gate instead of failing someone else's tests, and the secret scan and the status verdicts keep the pull request's own commits.
+
+- fix: triage accepts a linked worktree as the repository root. The gate demanded `.git` as a directory, so running triage from a linked worktree, where `.git` is a file into the shared object store, reported `invalid repository root`.
+
+- chore: the task source select tests skip on a shell that cannot run the workflow step. The tests execute the workflow's own bash block, which the runners compose of git, `find`, `awk` and `jq`; on a Windows host without that combination spawning bash returned `null` and turned three genuine contract tests into permanent failures.
+
 - fix: a follower's uv.lock patch applies again. `lock-follow` read `git diff` through `runText`, which trims the trailing newline; `git apply` rejects such a file with "corrupt patch" on its last line, so the lock was never committed. The patch is now read without trimming, and the commit job adds the missing final newline for artifacts produced before this change.
 
 - fix: a follower's uv.lock is committed after its upstream release. The lock artifacts land flat in the download root when one follower reports and as one directory per follower when several do; the commit job always expected a directory per artifact, so the first release with one follower failed on `follow-lock/follow-lock.json/follow-lock.json`. Both layouts now read the same request, and a unit test pins the two folder lists.
