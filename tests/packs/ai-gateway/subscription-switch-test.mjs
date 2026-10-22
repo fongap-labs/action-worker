@@ -5,12 +5,12 @@
 
 import { assert, beforeEach, test } from '#kit/harness.mjs';
 import worker from '#target/src/index.ts';
-import { AIR_KEY, makeEnv, resetCaches } from './hardening-fixtures.mjs';
+import { MAX_KEY, makeEnv, resetCaches } from './hardening-fixtures.mjs';
 
 beforeEach(resetCaches);
 
 const health = async (env) => {
-  const res = await worker.fetch(new Request('https://gateway.example.com/health', { headers: { authorization: `Bearer ${AIR_KEY}` } }), env, {});
+  const res = await worker.fetch(new Request('https://gateway.example.com/health', { headers: { authorization: `Bearer ${MAX_KEY}` } }), env, {});
   return res.json();
 };
 const nodeIds = (body) => (body.endpoints ?? body.nodes ?? []).map((node) => node.id);

@@ -607,6 +607,7 @@ try {
     return {
       AIG_ACCESS_KEY_AIR: ACCESS_KEY,
       AIG_ACCESS_MODELS_AIR: '*',
+      AIG_DIAGNOSTICS_GROUPS: 'AIR',
       TIER1_SCHEDULER_SEED: 'arch-contract-test',
       ...(tier1 ? { AIG_TIER1_NODES_01: JSON.stringify(tier1) } : {}),
       ...(tier2 ? { AIG_TIER2_NODES_01: JSON.stringify(tier2) } : {}),

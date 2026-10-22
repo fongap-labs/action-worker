@@ -873,6 +873,7 @@ try {
       AIG_TIER1_NODES_01: JSON.stringify([currentNode()]),
       AIG_ACCESS_KEY_AIR: 'gw-key',
       AIG_ACCESS_MODELS_AIR: 'code-pro',
+      AIG_DIAGNOSTICS_GROUPS: 'AIR',
       AIG_TIER1_CREDENTIALS_01: JSON.stringify({ 'node-a': 'upstream-key' }),
     };
   }
