@@ -104,14 +104,18 @@ const responsesNode = (id, extra = {}) => ({
 });
 
 function chatRequest(body = {}, key = ACCESS_KEY, init = {}) {
+  // Like a JSON client, declare the exact body length: a body without Content-Length is charged
+  // the worst case by the in-flight body budget.
+  const payload = JSON.stringify({ model: 'general-air', messages: [], ...body });
   return new Request('https://gateway.example.com/v1/chat/completions', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
+      'content-length': String(new TextEncoder().encode(payload).length),
       ...(key !== null ? { authorization: `Bearer ${key}` } : {}),
       ...(init.headers || {}),
     },
-    body: JSON.stringify({ model: 'general-air', messages: [], ...body }),
+    body: payload,
     signal: init.signal,
   });
 }

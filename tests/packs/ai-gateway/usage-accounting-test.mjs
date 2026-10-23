@@ -15,12 +15,19 @@ import { ensureModelTtftContainers, fmtModelTtft } from '#target/src/dashboard/m
 import { __resetDashboardCacheForTests, dashboardResponse } from '#target/src/dashboard/pages.ts';
 import { metricsResponse } from '#target/src/observability/diagnostic-endpoints.ts';
 import { reportedUsageFromPayload } from '#target/src/observability/reported-usage.ts';
-import { TTFT_BUCKET_BOUNDARIES_MS, cleanupModelStats, loadUpstreamSummary, normalizeHour, normalizeModelKey, persistTokenUsage, persistUpstreamAttemptUsage, queryAllModelsTtftPercentiles, queryModelUsageCoverage, queryRecentModelEvidence, queryTokenDailySeries, queryTokenModelUsage, queryTokenSummary, tokenStatsD1, tokenUsagePayload } from '#target/src/observability/token-usage-store.ts';
+import { TTFT_BUCKET_BOUNDARIES_MS, __resetUsageBufferForTests, cleanupModelStats, loadUpstreamSummary, normalizeHour, normalizeModelKey, flushUsageBuffer, persistTokenUsage, persistUpstreamAttemptUsage, queryAllModelsTtftPercentiles, queryModelUsageCoverage, queryRecentModelEvidence, queryTokenDailySeries, queryTokenModelUsage, queryTokenSummary, tokenStatsD1, tokenUsagePayload } from '#target/src/observability/token-usage-store.ts';
 import { __resetTokenStatsForTests, normalizeTokenUsage, normalizeUsageReport, recordTokenUsage, summarizeTokenStats, tokenMetricSeries } from '#target/src/observability/token-usage.ts';
 import { withUsageStreamOptions } from '#target/src/protocol/openai.ts';
 import { observeUpstreamAttemptUsage, recordTokens, recordUndeliveredUpstreamAttempt } from '#target/src/request/attempt/observability.ts';
 import { trackStreamResponse } from '#target/src/stream/track.ts';
 import assert from 'node:assert/strict';
+
+// Writes are buffered per isolate and flushed on read. Flush right away so each
+// test sees exactly the write set it made.
+async function persistNow(...args) {
+  await persistTokenUsage(...args);
+  await flushUsageBuffer();
+}
 
 // ==========================================================================
 // token-usage-test.mjs
@@ -365,8 +372,8 @@ try {
     env.TOKEN_STATS_DB = d1;
     const HOUR = 3_600_000;
     const h0 = Math.floor(Date.now() / HOUR) * HOUR;
-    await persistTokenUsage(env, { input_tokens: 50, output_tokens: 20 }, h0);
-    await persistTokenUsage(env, { input_tokens: 30, cache_read_input_tokens: 20, output_tokens: 10 }, h0 - 25 * HOUR);
+    await persistNow(env, { input_tokens: 50, output_tokens: 20 }, h0);
+    await persistNow(env, { input_tokens: 30, cache_read_input_tokens: 20, output_tokens: 10 }, h0 - 25 * HOUR);
     const html = await pageText(anonRequest(), env);
     assert.ok(!html.includes('24 小时 Token 构成'));
     assert.ok(!html.includes('累计 Token 构成'));
@@ -395,7 +402,7 @@ try {
     const env = deepClone(ENV);
     env.TOKEN_STATS_DB = d1;
     const h0 = Math.floor(Date.now() / 3_600_000) * 3_600_000;
-    await persistTokenUsage(env, { prompt_tokens: 100, completion_tokens: 10 }, h0);
+    await persistNow(env, { prompt_tokens: 100, completion_tokens: 10 }, h0);
     const html = await pageText(anonRequest(), env);
     assert.match(html, /缓存读取占比<\/div>\s*<strong>—<\/strong>/);
     assert.match(html, /缓存读取 Token<\/div>\s*<strong>—<\/strong>/);
@@ -407,8 +414,8 @@ try {
     env.TOKEN_STATS_DB = d1;
     const HOUR = 3_600_000;
     const h0 = Math.floor(Date.now() / HOUR) * HOUR;
-    await persistTokenUsage(env, { prompt_tokens: 100, completion_tokens: 0 }, h0, 'code-max');
-    await persistTokenUsage(env, { prompt_tokens: 40, completion_tokens: 10 }, h0, 'ultra');
+    await persistNow(env, { prompt_tokens: 100, completion_tokens: 0 }, h0, 'code-max');
+    await persistNow(env, { prompt_tokens: 40, completion_tokens: 10 }, h0, 'ultra');
     const html = await pageText(anonRequest(), env);
     assert.ok(html.includes('模型使用 · 近 7 天'));
     assert.ok(html.includes('model-ranking'));
@@ -435,8 +442,8 @@ try {
     env.AIG_TIER1_CREDENTIALS_01 = JSON.stringify({ 'node-a': 'test-key' });
     const HOUR = 3_600_000;
     const h0 = Math.floor(Date.now() / HOUR) * HOUR;
-    await persistTokenUsage(env, { prompt_tokens: 900, completion_tokens: 0 }, h0, 'code-max');
-    await persistTokenUsage(env, { prompt_tokens: 300, completion_tokens: 0 }, h0, 'CODE-ULTRA');
+    await persistNow(env, { prompt_tokens: 900, completion_tokens: 0 }, h0, 'code-max');
+    await persistNow(env, { prompt_tokens: 300, completion_tokens: 0 }, h0, 'CODE-ULTRA');
     const html = await pageText(anonRequest(), env);
     assert.ok(html.includes('>Code-Max<'));
     assert.ok(html.includes('>Code-Ultra<'));
@@ -459,7 +466,7 @@ try {
       ['m5', 30],
       ['m6', 20],
     ];
-    for (const [model, tokens] of models) await persistTokenUsage(env, { prompt_tokens: tokens, completion_tokens: 0 }, h0, model);
+    for (const [model, tokens] of models) await persistNow(env, { prompt_tokens: tokens, completion_tokens: 0 }, h0, model);
     const html = await pageText(anonRequest(), env);
     for (const model of ['m1', 'm2', 'm3']) assert.ok(html.includes(`>${model}<`));
     for (const model of ['m4', 'm5', 'm6']) assert.ok(!html.includes(`>${model}<`));
@@ -651,7 +658,7 @@ try {
     env.TOKEN_STATS_DB = d1;
     const HOUR = 3_600_000;
     const h0 = Math.floor(Date.now() / HOUR) * HOUR;
-    await persistTokenUsage(env, { prompt_tokens: 100, completion_tokens: 0 }, h0, 'code-max');
+    await persistNow(env, { prompt_tokens: 100, completion_tokens: 0 }, h0, 'code-max');
     const [html1, html2] = await Promise.all([pageText(anonRequest(), env), pageText(anonRequest(), env)]);
     // Each render mints its own CSP nonce, so strip it before comparing.
     assert.equal(html1.replace(/nonce="[^"]*"/g, 'nonce=""'), html2.replace(/nonce="[^"]*"/g, 'nonce=""'));
@@ -665,7 +672,7 @@ try {
     env.TOKEN_STATS_DB = d1;
     const HOUR = 3_600_000;
     const h0 = Math.floor(Date.now() / HOUR) * HOUR;
-    await persistTokenUsage(env, { prompt_tokens: 100, completion_tokens: 0 }, h0, 'code-max');
+    await persistNow(env, { prompt_tokens: 100, completion_tokens: 0 }, h0, 'code-max');
     const realNow = Date.now;
     let fakeNow = h0 + 1_000;
     Date.now = () => fakeNow;
@@ -673,7 +680,7 @@ try {
       const html1 = await pageText(anonRequest(), env);
       assert.ok(html1.includes('code-max'));
       assert.equal(d1._reads.length, 8);
-      await persistTokenUsage(env, { prompt_tokens: 200, completion_tokens: 0 }, h0, 'ultra');
+      await persistNow(env, { prompt_tokens: 200, completion_tokens: 0 }, h0, 'ultra');
       fakeNow += 44_000;
       const cached = await pageText(anonRequest(), env);
       assert.ok(!cached.includes('>200<'));
@@ -696,8 +703,8 @@ try {
     envB.TOKEN_STATS_DB = d1b;
     const HOUR = 3_600_000;
     const h0 = Math.floor(Date.now() / HOUR) * HOUR;
-    await persistTokenUsage(envA, { prompt_tokens: 100, completion_tokens: 0 }, h0, 'model-a');
-    await persistTokenUsage(envB, { prompt_tokens: 200, completion_tokens: 0 }, h0, 'model-b');
+    await persistNow(envA, { prompt_tokens: 100, completion_tokens: 0 }, h0, 'model-a');
+    await persistNow(envB, { prompt_tokens: 200, completion_tokens: 0 }, h0, 'model-b');
     const htmlA = await pageText(anonRequest(), envA);
     assert.ok(htmlA.includes('model-a'));
     assert.ok(!htmlA.includes('model-b'));
@@ -902,7 +909,7 @@ try {
 
   await test('first insert creates the hour bucket and records both accounting views', async () => {
     const d1 = createMockD1();
-    await persistTokenUsage({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 2, completion_tokens: 8 }, H0);
+    await persistNow({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 2, completion_tokens: 8 }, H0);
     assert.deepEqual(d1._rows.get(normalizeHour(H0)), {
       input: 2,
       output: 8,
@@ -932,8 +939,8 @@ try {
 
   await test('same-hour upsert accumulates delivered and upstream success views atomically', async () => {
     const d1 = createMockD1();
-    await persistTokenUsage({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 2, completion_tokens: 3 }, H0);
-    await persistTokenUsage({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 4, completion_tokens: 6 }, H0);
+    await persistNow({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 2, completion_tokens: 3 }, H0);
+    await persistNow({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 4, completion_tokens: 6 }, H0);
     assert.deepEqual(d1._rows.get(normalizeHour(H0)), {
       input: 6,
       output: 9,
@@ -960,8 +967,8 @@ try {
 
   await test('different hours create separate buckets', async () => {
     const d1 = createMockD1();
-    await persistTokenUsage({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 1, completion_tokens: 0 }, H0);
-    await persistTokenUsage({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 0, completion_tokens: 2 }, H0 + HOUR);
+    await persistNow({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 1, completion_tokens: 0 }, H0);
+    await persistNow({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 0, completion_tokens: 2 }, H0 + HOUR);
     assert.equal(d1._rows.size, 2);
     assert.equal(d1._rows.get(normalizeHour(H0)).total, 1);
     assert.equal(d1._rows.get(normalizeHour(H0 + HOUR)).total, 2);
@@ -969,8 +976,8 @@ try {
 
   await test('missing usage bumps both success and upstream coverage counters, never tokens', async () => {
     const d1 = createMockD1();
-    await persistTokenUsage({ TOKEN_STATS_DB: d1 }, null, H0);
-    await persistTokenUsage({ TOKEN_STATS_DB: d1 }, {}, H0);
+    await persistNow({ TOKEN_STATS_DB: d1 }, null, H0);
+    await persistNow({ TOKEN_STATS_DB: d1 }, {}, H0);
     const row = d1._rows.get(normalizeHour(H0));
     assert.deepEqual(row, {
       input: 0,
@@ -1017,9 +1024,9 @@ try {
     const env = { TOKEN_STATS_DB: d1 };
     // A at H0 (5) is current; B at H0-25h (10) inside 7d but outside 24h; C at
     // H0-9d (20) outside 7d. Query "now" just after A.
-    await persistTokenUsage(env, { prompt_tokens: 5, completion_tokens: 0 }, H0);
-    await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 0 }, H0 - 25 * HOUR);
-    await persistTokenUsage(env, { prompt_tokens: 20, completion_tokens: 0 }, H0 - 9 * DAY);
+    await persistNow(env, { prompt_tokens: 5, completion_tokens: 0 }, H0);
+    await persistNow(env, { prompt_tokens: 10, completion_tokens: 0 }, H0 - 25 * HOUR);
+    await persistNow(env, { prompt_tokens: 20, completion_tokens: 0 }, H0 - 9 * DAY);
     const s = await queryTokenSummary(env, H0 + HOUR);
     assert.equal(s.available, true);
     assert.equal(s.cumulative.total, 35);
@@ -1035,8 +1042,8 @@ try {
   await test('upstream cumulative summary exposes lifetime input/output/cache composition from totals', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    await persistTokenUsage(env, { input_tokens: 50, output_tokens: 20 }, H0);
-    await persistTokenUsage(env, { input_tokens: 30, cache_creation_input_tokens: 10, cache_read_input_tokens: 20, output_tokens: 10 }, H0 - 25 * HOUR);
+    await persistNow(env, { input_tokens: 50, output_tokens: 20 }, H0);
+    await persistNow(env, { input_tokens: 30, cache_creation_input_tokens: 10, cache_read_input_tokens: 20, output_tokens: 10 }, H0 - 25 * HOUR);
     const s = await loadUpstreamSummary(env, H0 + HOUR);
     assert.equal(s.available, true);
     assert.equal(s.cumulative.input, 90, 'recognized cache-read tokens are split out of input');
@@ -1050,7 +1057,7 @@ try {
   await test('historical cache totals stay in input until reliable cache observation begins', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    await persistTokenUsage(env, { prompt_tokens: 1, completion_tokens: 0 }, H0);
+    await persistNow(env, { prompt_tokens: 1, completion_tokens: 0 }, H0);
 
     const historical = {
       upstreamInput: 80,
@@ -1079,7 +1086,7 @@ try {
   await test('upstream summary recognizes OpenAI-compatible cached-token details without inflating input', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    await persistTokenUsage(
+    await persistNow(
       env,
       {
         prompt_tokens: 100,
@@ -1088,7 +1095,7 @@ try {
       },
       H0,
     );
-    await persistTokenUsage(env, { prompt_tokens: 50, completion_tokens: 5 }, H0);
+    await persistNow(env, { prompt_tokens: 50, completion_tokens: 5 }, H0);
     const s = await loadUpstreamSummary(env, H0 + HOUR / 2);
     assert.equal(s.available, true);
     assert.equal(s.cumulative.input, 70, 'recognized cached tokens are split out while unknown cache stays in input');
@@ -1101,7 +1108,7 @@ try {
   await test('explicit zero cache report is preserved as observed zero instead of unknown', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    await persistTokenUsage(
+    await persistNow(
       env,
       {
         input_tokens: 40,
@@ -1120,10 +1127,10 @@ try {
   await test('coverage is reports/(reports+missing), null at 0/0', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    await persistTokenUsage(env, { prompt_tokens: 1, completion_tokens: 1 }, H0);
-    await persistTokenUsage(env, { prompt_tokens: 1, completion_tokens: 1 }, H0);
-    await persistTokenUsage(env, { prompt_tokens: 1, completion_tokens: 1 }, H0);
-    await persistTokenUsage(env, null, H0);
+    await persistNow(env, { prompt_tokens: 1, completion_tokens: 1 }, H0);
+    await persistNow(env, { prompt_tokens: 1, completion_tokens: 1 }, H0);
+    await persistNow(env, { prompt_tokens: 1, completion_tokens: 1 }, H0);
+    await persistNow(env, null, H0);
     const s = await queryTokenSummary(env, H0 + HOUR);
     assert.equal(s.cumulative.requests, 4);
     assert.equal(s.cumulative.reports, 3);
@@ -1138,8 +1145,8 @@ try {
     const env = { TOKEN_STATS_DB: d1 };
     // H0 is the current hour; H0 - 24h is 24 hours before.
     // In UTC+8, they fall on different calendar days because they are exactly 24h apart.
-    await persistTokenUsage(env, { prompt_tokens: 5, completion_tokens: 0 }, H0);
-    await persistTokenUsage(env, { prompt_tokens: 7, completion_tokens: 0 }, H0 - 24 * HOUR);
+    await persistNow(env, { prompt_tokens: 5, completion_tokens: 0 }, H0);
+    await persistNow(env, { prompt_tokens: 7, completion_tokens: 0 }, H0 - 24 * HOUR);
     const s = await queryTokenSummary(env, H0 + HOUR / 2);
     assert.equal(s.today.total, 5, 'only the current UTC+8 day counts as today');
     assert.equal(s.today.requests, 1);
@@ -1161,9 +1168,9 @@ try {
     const d0_00 = Date.UTC(2026, 7, 28, 16, 0, 0); // 2026-08-28T16:00:00Z = 2026-08-29 UTC+8
     const d0_01 = Date.UTC(2026, 7, 28, 17, 0, 0); // 2026-08-28T17:00:00Z = 2026-08-29 UTC+8 (same day)
     const d1_00 = Date.UTC(2026, 7, 27, 16, 0, 0); // 2026-08-27T16:00:00Z = 2026-08-28 UTC+8 (previous day)
-    await persistTokenUsage(env, { prompt_tokens: 1, completion_tokens: 2 }, d0_00);
-    await persistTokenUsage(env, { prompt_tokens: 3, completion_tokens: 4 }, d0_01);
-    await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 0 }, d1_00);
+    await persistNow(env, { prompt_tokens: 1, completion_tokens: 2 }, d0_00);
+    await persistNow(env, { prompt_tokens: 3, completion_tokens: 4 }, d0_01);
+    await persistNow(env, { prompt_tokens: 10, completion_tokens: 0 }, d1_00);
     const day = '2026-08-29'; // UTC+8 day for d0_00 and d0_01
     const prevDay = '2026-08-28'; // UTC+8 day for d1_00
     const series = await queryTokenDailySeries(env, prevDay, d0_01 + HOUR);
@@ -1196,14 +1203,15 @@ try {
       },
     };
     // A non-D1-looking prepare is rejected by tokenStatsD1, so persistence skips.
-    const res = await persistTokenUsage({}, { prompt_tokens: 1 });
+    const res = await persistNow({}, { prompt_tokens: 1 });
     assert.equal(res, undefined);
     assert.equal(called, false);
   });
 
-  await test('a D1 write rejection rejects the returned promise (caller swallows it)', async () => {
+  await test('a D1 write rejection rejects the flush that writes it (caller swallows it)', async () => {
     const d1 = createMockD1({ failWrites: true });
-    await assert.rejects(persistTokenUsage({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 1 }, H0), /mock D1 write failure/);
+    await assert.rejects(persistTokenUsage({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 1 }, H0).then(() => flushUsageBuffer()), /mock D1 write failure/);
+    __resetUsageBufferForTests();
   });
 
   await test('a synchronous D1 prepare failure is converted to a classified promise rejection', async () => {
@@ -1214,10 +1222,11 @@ try {
     };
     let failure;
     try {
-      await persistTokenUsage({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 1 }, H0, 'test-model');
+      await persistNow({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 1 }, H0, 'test-model');
     } catch (error) {
       failure = error;
     }
+    __resetUsageBufferForTests();
     assert.equal(failure?.scope, 'global');
     assert.match(failure?.message || '', /mock synchronous prepare failure/);
   });
@@ -1241,10 +1250,10 @@ try {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
     // two writes for ultra (same hour), one for code-max, one for air (missing only)
-    await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 20 }, H0, 'ultra');
-    await persistTokenUsage(env, { prompt_tokens: 5, completion_tokens: 5 }, H0, 'ultra');
-    await persistTokenUsage(env, { prompt_tokens: 100, completion_tokens: 0 }, H0, 'code-max');
-    await persistTokenUsage(env, null, H0, 'air');
+    await persistNow(env, { prompt_tokens: 10, completion_tokens: 20 }, H0, 'ultra');
+    await persistNow(env, { prompt_tokens: 5, completion_tokens: 5 }, H0, 'ultra');
+    await persistNow(env, { prompt_tokens: 100, completion_tokens: 0 }, H0, 'code-max');
+    await persistNow(env, null, H0, 'air');
     const r = await queryTokenModelUsage(env, 7, H0 + HOUR);
     assert.equal(r.available, true);
     assert.equal(r.rows.length, 3, 'three distinct models');
@@ -1263,8 +1272,8 @@ try {
   await test('queryTokenModelUsage excludes rows outside the requested window', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 0 }, H0, 'ultra');
-    await persistTokenUsage(env, { prompt_tokens: 999, completion_tokens: 0 }, H0 - 8 * DAY, 'old-model');
+    await persistNow(env, { prompt_tokens: 10, completion_tokens: 0 }, H0, 'ultra');
+    await persistNow(env, { prompt_tokens: 999, completion_tokens: 0 }, H0 - 8 * DAY, 'old-model');
     const r = await queryTokenModelUsage(env, 7, H0 + HOUR);
     assert.equal(r.rows.length, 1, 'only in-window model');
     assert.equal(r.rows[0].model, 'ultra');
@@ -1273,51 +1282,53 @@ try {
   await test('persistTokenUsage without model skips the per-model table write', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    await persistTokenUsage(env, { prompt_tokens: 1, completion_tokens: 1 }, H0);
+    await persistNow(env, { prompt_tokens: 1, completion_tokens: 1 }, H0);
     assert.equal(d1._modelRows.size, 0, 'no per-model rows when model is omitted');
     assert.equal(d1._rows.size, 1, 'global aggregate still written');
   });
 
-  await test('per-model write failure is classified once and does not roll back global write', async () => {
+  await test('a failed batch writes no table and the increments are retried by the next flush', async () => {
+    // Real D1 batch() is atomic, so a per-model failure fails the whole batch.
+    // The flush restores the increments to the buffer instead of dropping them.
     const d1 = createMockD1();
-    const origPrepare = d1.prepare.bind(d1);
-    d1.prepare = (sql) => {
-      const stmt = origPrepare(sql);
-      const origRun = stmt.run.bind(stmt);
-      stmt.run = async (...args) => {
-        if (/token_usage_model_hourly/i.test(sql)) throw new Error('mock per-model write failure');
-        return origRun(...args);
-      };
-      return stmt;
+    const origBatch = d1.batch;
+    d1.batch = async () => {
+      throw new Error('mock per-model write failure');
     };
     let failure;
     try {
       await persistTokenUsage({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 10, completion_tokens: 20 }, H0, 'test-model');
+      await flushUsageBuffer();
     } catch (error) {
       failure = error;
     }
-    assert.equal(failure?.scope, 'per-model');
-    assert.equal(failure?.model, 'test-model');
+    assert.equal(failure?.scope, 'global');
     assert.match(failure?.message || '', /mock per-model write failure/);
-    assert.equal(d1._rows.size, 1, 'global aggregate still written despite per-model failure');
-    assert.equal(d1._modelRows.size, 0, 'no per-model rows due to write failure');
+    assert.equal(d1._rows.size, 0, 'a failed batch writes no global row');
+    assert.equal(d1._modelRows.size, 0, 'a failed batch writes no per-model row');
+
+    d1.batch = origBatch;
+    await flushUsageBuffer();
+    assert.equal(d1._rows.size, 1, 'the restored increments are written by the next flush');
+    assert.equal(d1._modelRows.size, 1);
+    assert.equal(d1._rows.get(normalizeHour(H0)).total, 30);
+    __resetUsageBufferForTests();
   });
 
-  await test('global write failure is the single classified rejection when both writes fail', async () => {
+  await test('a failed write leaves no rows and the rejection reaches the caller of the flush', async () => {
     const d1 = createMockD1({ failWrites: true });
     const env = { TOKEN_STATS_DB: d1 };
-    // Global write fails -> promise rejects (caller catches and logs)
-    await assert.rejects(persistTokenUsage(env, { prompt_tokens: 1 }, H0, 'test-model'), /mock D1 write failure/);
-    // Since global write failed, no rows should be written
-    assert.equal(d1._rows.size, 0, 'no global rows when write fails');
-    assert.equal(d1._modelRows.size, 0, 'no model rows when global write fails');
+    await assert.rejects(persistTokenUsage(env, { prompt_tokens: 1 }, H0, 'test-model').then(() => flushUsageBuffer()), /mock D1 write failure/);
+    assert.equal(d1._rows.size, 0, 'no global rows when the write fails');
+    assert.equal(d1._modelRows.size, 0, 'no model rows when the write fails');
+    __resetUsageBufferForTests();
   });
 
   await test('cleanupModelStats deletes only per-model rows older than seven days', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    await persistTokenUsage(env, { prompt_tokens: 5 }, H0 - 8 * DAY, 'old-model');
-    await persistTokenUsage(env, { prompt_tokens: 7 }, H0 - 6 * DAY, 'current-model');
+    await persistNow(env, { prompt_tokens: 5 }, H0 - 8 * DAY, 'old-model');
+    await persistNow(env, { prompt_tokens: 7 }, H0 - 6 * DAY, 'current-model');
     const originalNow = Date.now;
     Date.now = () => H0;
     try {
@@ -1379,6 +1390,9 @@ try {
           },
         };
       },
+      batch(statements) {
+        return Promise.all(statements.map((statement) => statement.run()));
+      },
     };
   }
 
@@ -1409,7 +1423,7 @@ try {
 
   test('successful delivery updates delivered and upstream views in the same write set', async () => {
     const d1 = fakeD1();
-    await persistTokenUsage({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 11, completion_tokens: 7, total_tokens: 18 }, Date.UTC(2026, 8, 15, 12), null);
+    await persistNow({ TOKEN_STATS_DB: d1 }, { prompt_tokens: 11, completion_tokens: 7, total_tokens: 18 }, Date.UTC(2026, 8, 15, 12), null);
     assert.equal(d1.writes.length, 2, 'success path must not double D1 write count');
     const global = d1.writes.find((w) => w.sql.includes('token_usage_hourly'));
     assert.ok(global);
@@ -1421,6 +1435,7 @@ try {
   test('failed physical attempt updates only upstream columns and never estimates missing tokens', async () => {
     const d1 = fakeD1();
     await persistUpstreamAttemptUsage({ TOKEN_STATS_DB: d1 }, null, Date.UTC(2026, 8, 15, 12), null);
+    await flushUsageBuffer();
     assert.equal(d1.writes.length, 2);
     const global = d1.writes.find((w) => w.sql.includes('token_usage_hourly'));
     assert.ok(global);
@@ -1456,6 +1471,7 @@ try {
     recordUndeliveredUpstreamAttempt(c, node, { prompt_tokens: 90, completion_tokens: 10, total_tokens: 100 });
     recordTokens(c, node, { prompt_tokens: 90, completion_tokens: 10, total_tokens: 100 });
     await Promise.all(waits);
+    await flushUsageBuffer();
     assert.equal(d1.writes.length, 3, 'one upstream-only global/totals/model write set, not repeated settlements');
     const global = d1.writes.find((w) => w.sql.includes('token_usage_hourly'));
     assert.deepEqual(global.params.slice(1), [9, 1, 0, 0, 10, 1, 1, 0, 9, 0, 0, 0]);
@@ -1480,6 +1496,7 @@ try {
     observeUpstreamAttemptUsage(c, { input_tokens: 12, output_tokens: 3 });
     recordTokens(c, node, null);
     await Promise.all(waits);
+    await flushUsageBuffer();
     const global = d1.writes.find((w) => w.sql.includes('token_usage_hourly'));
     assert.deepEqual(global.params.slice(1, 9), [12, 3, 0, 0, 15, 1, 1, 0]);
     assert.deepEqual(global.params.slice(9, 17), [12, 3, 0, 0, 15, 1, 1, 0]);
@@ -1516,6 +1533,7 @@ try {
     await drain(new Response(converted));
     recordTokens(c, node, null);
     await Promise.all(waits);
+    await flushUsageBuffer();
 
     const global = d1.writes.find((w) => w.sql.includes('token_usage_hourly'));
     assert.ok(global);
@@ -1663,14 +1681,14 @@ try {
     });
 
     // 09-10 UTC+8: 01:00, 12:00, 22:00 => full-day total 120.
-    await persistTokenUsage(env, { prompt_tokens: 30, completion_tokens: 0 }, Date.UTC(2026, 8, 9, 17, 0, 0));
-    await persistTokenUsage(env, { prompt_tokens: 40, completion_tokens: 0 }, Date.UTC(2026, 8, 10, 4, 0, 0));
-    await persistTokenUsage(env, { prompt_tokens: 50, completion_tokens: 0 }, Date.UTC(2026, 8, 10, 14, 0, 0));
+    await persistNow(env, { prompt_tokens: 30, completion_tokens: 0 }, Date.UTC(2026, 8, 9, 17, 0, 0));
+    await persistNow(env, { prompt_tokens: 40, completion_tokens: 0 }, Date.UTC(2026, 8, 10, 4, 0, 0));
+    await persistNow(env, { prompt_tokens: 50, completion_tokens: 0 }, Date.UTC(2026, 8, 10, 14, 0, 0));
 
     // A 09-04 hourly row is deliberately present in the mock. It must not
     // replace the stable daily row because 09-04 is outside the seven FULL
     // calendar-day overlay window at this `now`.
-    await persistTokenUsage(env, { prompt_tokens: 50, completion_tokens: 0 }, Date.UTC(2026, 8, 4, 4, 0, 0));
+    await persistNow(env, { prompt_tokens: 50, completion_tokens: 0 }, Date.UTC(2026, 8, 4, 4, 0, 0));
 
     const series = await queryTokenDailySeries(env, '2026-09-04', now);
 
@@ -1692,7 +1710,7 @@ try {
       reports: 1,
       missing: 0,
     });
-    await persistTokenUsage(env, { prompt_tokens: 20, completion_tokens: 0 }, Date.UTC(2026, 8, 11, 0, 0, 0));
+    await persistNow(env, { prompt_tokens: 20, completion_tokens: 0 }, Date.UTC(2026, 8, 11, 0, 0, 0));
 
     const series = await queryTokenDailySeries(env, '2026-09-11', now);
     assert.equal(series.get('2026-09-11').total, 20);
@@ -1705,7 +1723,7 @@ try {
     const now = Date.UTC(2026, 8, 11, 1, 30, 0);
     const hour = Date.UTC(2026, 8, 10, 4, 0, 0); // 09-10 12:00 UTC+8
 
-    await persistTokenUsage(env, { prompt_tokens: 12, completion_tokens: 0 }, hour);
+    await persistNow(env, { prompt_tokens: 12, completion_tokens: 0 }, hour);
     const series = await queryTokenDailySeries(env, '2026-09-01', now);
 
     assert.equal(series.get('2026-09-10').total, 12);
@@ -1770,7 +1788,7 @@ try {
   {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'air', 400);
+    await persistNow(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'air', 400);
     const res = await queryAllModelsTtftPercentiles(env, WEEK_MS, now());
     const publicModels = [
       { id: 'air' },
@@ -1805,7 +1823,7 @@ try {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
     for (let i = 0; i < 20; i++) {
-      await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, `model-${i}`, 400);
+      await persistNow(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, `model-${i}`, 400);
     }
     const before = d1._reads.length;
     await queryAllModelsTtftPercentiles(env, WEEK_MS, now());
@@ -1815,7 +1833,7 @@ try {
     const d1b = createMockD1();
     const envB = { TOKEN_STATS_DB: d1b };
     for (let i = 0; i < 4; i++) {
-      await persistTokenUsage(envB, { prompt_tokens: 10, completion_tokens: 5 }, h0, `model-${i}`, 400);
+      await persistNow(envB, { prompt_tokens: 10, completion_tokens: 5 }, h0, `model-${i}`, 400);
     }
     const beforeB = d1b._reads.length;
     await queryAllModelsTtftPercentiles(envB, WEEK_MS, now());
@@ -1826,8 +1844,8 @@ try {
   {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'Code-Max', 400);
-    await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'CODE-MAX', 600);
+    await persistNow(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'Code-Max', 400);
+    await persistNow(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'CODE-MAX', 600);
     const res = await queryAllModelsTtftPercentiles(env, WEEK_MS, now());
     check(
       'C03 case variants aggregate into one canonical key',
@@ -1842,7 +1860,7 @@ try {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
     for (let i = 0; i < P50_MIN - 1; i++) {
-      await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'rare-model', 400);
+      await persistNow(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'rare-model', 400);
     }
     const res = await queryAllModelsTtftPercentiles(env, WEEK_MS, now());
     const e = res.ttft.get('rare-model');
@@ -1856,7 +1874,7 @@ try {
     const d1b = createMockD1();
     const envB = { TOKEN_STATS_DB: d1b };
     for (let i = 0; i < P50_MIN; i++) {
-      await persistTokenUsage(envB, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'healthy-model', 400);
+      await persistNow(envB, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'healthy-model', 400);
     }
     const resB = await queryAllModelsTtftPercentiles(envB, WEEK_MS, now());
     const eB = resB.ttft.get('healthy-model');
@@ -1870,7 +1888,7 @@ try {
     const d1c = createMockD1();
     const envC = { TOKEN_STATS_DB: d1c };
     for (let i = 0; i < P95_MIN; i++) {
-      await persistTokenUsage(envC, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'full-model', 400);
+      await persistNow(envC, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'full-model', 400);
     }
     const resC = await queryAllModelsTtftPercentiles(envC, WEEK_MS, now());
     const eC = resC.ttft.get('full-model');
@@ -1889,7 +1907,7 @@ try {
     // the bucket upper bound TTFT_BUCKET_BOUNDARIES_MS[1] = 500 (needs P95_MIN
     // for p95 to be present).
     for (let i = 0; i < P95_MIN; i++) {
-      await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'bucketed', 100 + i * 20);
+      await persistNow(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'bucketed', 100 + i * 20);
     }
     const res = await queryAllModelsTtftPercentiles(env, WEEK_MS, now());
     const e = res.ttft.get('bucketed');
@@ -1905,10 +1923,10 @@ try {
     const d1b = createMockD1();
     const envB = { TOKEN_STATS_DB: d1b };
     for (let i = 0; i < 12; i++) {
-      await persistTokenUsage(envB, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'mixed', 50);
+      await persistNow(envB, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'mixed', 50);
     }
     for (let i = 0; i < 8; i++) {
-      await persistTokenUsage(envB, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'mixed', 3000);
+      await persistNow(envB, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'mixed', 3000);
     }
     const resB = await queryAllModelsTtftPercentiles(envB, WEEK_MS, now());
     const eB = resB.ttft.get('mixed');
@@ -1925,7 +1943,7 @@ try {
     const env = { TOKEN_STATS_DB: d1 };
     // P95_MIN samples all ≥10s (bucket 6, upper bound = Infinity).
     for (let i = 0; i < P95_MIN; i++) {
-      await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'slow-model', 12000);
+      await persistNow(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'slow-model', 12000);
     }
     const res = await queryAllModelsTtftPercentiles(env, WEEK_MS, now());
     const e = res.ttft.get('slow-model');
@@ -2091,8 +2109,8 @@ try {
   {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'Code-Max', 400);
-    await persistTokenUsage(env, { prompt_tokens: 1, completion_tokens: 1 }, h0, 'CODE-MAX', 400);
+    await persistNow(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'Code-Max', 400);
+    await persistNow(env, { prompt_tokens: 1, completion_tokens: 1 }, h0, 'CODE-MAX', 400);
     const [usage, evidence] = await Promise.all([queryTokenModelUsage(env, 7, now()), queryRecentModelEvidence(env, undefined, now())]);
     check(
       'C05 writer-canonicalized rows read back as one canonical dimension',

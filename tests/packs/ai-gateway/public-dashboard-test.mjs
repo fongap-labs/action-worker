@@ -17,7 +17,13 @@ test('the dashboard and badge are public by default', async () => {
   assert.equal((await badge(makeEnv())).status, 200);
 });
 
-test('with the switch off both answer 404', async () => {
+test('with the switch on both answer 200', async () => {
+  const env = makeEnv({ AIG_PUBLIC_DASHBOARD: 'true' });
+  assert.equal((await page(env)).status, 200);
+  assert.equal((await badge(env)).status, 200);
+});
+
+test('with the switch explicitly off both answer 404', async () => {
   const env = makeEnv({ AIG_PUBLIC_DASHBOARD: 'false' });
   assert.equal((await page(env)).status, 404);
   assert.equal((await badge(env)).status, 404);

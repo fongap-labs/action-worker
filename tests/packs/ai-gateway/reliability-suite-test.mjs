@@ -13,7 +13,15 @@ import { targetPath, targetRoot as root } from '#kit/target.mjs';
 import { loadPoliciesConfig } from '#target/src/config/policies.ts';
 import { convertStream } from './conversion-matrix-adapters.mjs';
 import worker from '#target/src/index.ts';
-import { TTFT_BUCKET_BOUNDARIES_MS, persistTokenUsage, queryAllModelsTtftPercentiles, queryModelUsageCoverage, ttftBucketIndex } from '#target/src/observability/token-usage-store.ts';
+import {
+  __resetUsageBufferForTests,
+  flushUsageBuffer,
+  persistTokenUsage,
+  queryAllModelsTtftPercentiles,
+  queryModelUsageCoverage,
+  TTFT_BUCKET_BOUNDARIES_MS,
+  ttftBucketIndex,
+} from '#target/src/observability/token-usage-store.ts';
 import { classifyUpstreamStatus } from '#target/src/reliability/classify.ts';
 import { __resetAllStateForTests, acquireSlot, getNodeState, markProbeFailure, recordFailure, recordNeutralEnd, recordSuccess, recordTtft } from '#target/src/reliability/node-state.ts';
 import { __resetTier1StateForTests } from '#target/src/reliability/tier1-state.ts';
@@ -26,6 +34,13 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+// Writes are buffered per isolate. Flush right away so each assertion reads this write.
+async function persistNow(...args) {
+  await persistTokenUsage(...args);
+  await flushUsageBuffer();
+}
+
 
 // ==========================================================================
 // reliability-core-contract-test.mjs
@@ -820,8 +835,10 @@ try {
 
   header('5. D1 write failure -> no double-charge, rejection surfaces to caller');
 
-  await test('persistTokenUsage rejects with the underlying D1 error (caller decides to swallow)', async () => {
-    let writeCount = 0;
+  await test('a failed buffer flush rejects with the underlying D1 error (caller decides to swallow)', async () => {
+    __resetUsageBufferForTests();
+    let batchCount = 0;
+    let statementCount = 0;
     const env = {
       TOKEN_STATS_DB: {
         prepare() {
@@ -829,28 +846,30 @@ try {
             bind() {
               return this;
             },
-            async run() {
-              writeCount += 1;
-              throw new Error('d1-explode');
-            },
           };
+        },
+        async batch(statements) {
+          batchCount += 1;
+          statementCount += statements.length;
+          throw new Error('d1-explode');
         },
       },
     };
     let caught = null;
     try {
-      await persistTokenUsage(env, { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }, now, 'model-d1-fail', 100);
+      // The event may or may not trigger a flush itself; either way the failure reaches the caller.
+      await persistNow(env, { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }, now, 'model-d1-fail', 100);
+      await flushUsageBuffer();
     } catch (error) {
       caught = error;
     }
-    assert.ok(caught, 'persistTokenUsage must reject on D1 failure (caller awaits via waitUntil)');
+    __resetUsageBufferForTests();
+    assert.ok(caught, 'a failed flush must reject so the caller can log it');
     assert.match(String(caught?.message || caught), /d1-explode/);
-    // The persist path writes to multiple tables (hourly + per-model + totals).
-    // What we are testing is that an in-attempt retry path does NOT exist:
-    // the writes happened once each, and the rejection propagates instead of
-    // being swallowed. A re-running count > expectedTables would indicate a
-    // retry loop leaking in via waitUntil.
-    assert.ok(writeCount <= 3, `D1 prepare/run called at most 3 times; saw ${writeCount}`);
+    // One event flushes as one batch of at most the three statements it needs
+    // (hourly, totals and per-model). A retry loop would show up as extra batches.
+    assert.equal(batchCount, 1, `one D1 batch per flush; saw ${batchCount}`);
+    assert.ok(statementCount <= 3, `at most three statements per event; saw ${statementCount}`);
   });
 
   await test('a successful persistTokenUsage that is followed by a D1 reject in the next attempt does not double-count in memory', () => {
@@ -1011,7 +1030,7 @@ try {
   await test('successful TTFT is recorded in histogram', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }, 1000, 'model-a', 1500);
+    await persistNow(env, { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }, 1000, 'model-a', 1500);
     const key = `${new Date(1000).toISOString().slice(0, 13)}:00:00Z|model-a`;
     const row = d1._modelRows.get(key);
     assert.ok(row, 'model row exists');
@@ -1025,7 +1044,7 @@ try {
   await test('null TTFT does not produce a sample', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }, 1000, 'model-a', null);
+    await persistNow(env, { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }, 1000, 'model-a', null);
     const key = `${new Date(1000).toISOString().slice(0, 13)}:00:00Z|model-a`;
     const row = d1._modelRows.get(key);
     assert.ok(row, 'model row exists');
@@ -1037,7 +1056,7 @@ try {
   await test('undefined TTFT does not produce a sample', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }, 1000, 'model-a', undefined);
+    await persistNow(env, { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }, 1000, 'model-a', undefined);
     const key = `${new Date(1000).toISOString().slice(0, 13)}:00:00Z|model-a`;
     const row = d1._modelRows.get(key);
     assert.ok(row, 'model row exists');
@@ -1048,10 +1067,10 @@ try {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
-    await persistTokenUsage(env, usage, 1000, 'model-a', 50); // bucket 0
-    await persistTokenUsage(env, usage, 2000, 'model-a', 200); // bucket 1
-    await persistTokenUsage(env, usage, 3000, 'model-a', 1500); // bucket 3
-    await persistTokenUsage(env, usage, 4000, 'model-a', 6000); // bucket 5
+    await persistNow(env, usage, 1000, 'model-a', 50); // bucket 0
+    await persistNow(env, usage, 2000, 'model-a', 200); // bucket 1
+    await persistNow(env, usage, 3000, 'model-a', 1500); // bucket 3
+    await persistNow(env, usage, 4000, 'model-a', 6000); // bucket 5
     const key = `${new Date(1000).toISOString().slice(0, 13)}:00:00Z|model-a`;
     const row = d1._modelRows.get(key);
     assert.ok(row, 'model row exists');
@@ -1065,7 +1084,7 @@ try {
   await test('no model -> no TTFT columns written', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }, 1000, null, 1500);
+    await persistNow(env, { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 }, 1000, null, 1500);
     assert.equal(d1._modelRows.size, 0, 'no model rows written');
   });
 
@@ -1080,12 +1099,12 @@ try {
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
     // model-a: 10 delivered with usage, 0 missing -> 100% coverage
     for (let i = 0; i < 10; i++) {
-      await persistTokenUsage(env, usage, now - i * 1000, 'model-a');
+      await persistNow(env, usage, now - i * 1000, 'model-a');
     }
     // model-b: 1 delivered with usage, 9 delivered without usage -> 10% coverage
-    await persistTokenUsage(env, usage, now, 'model-b');
+    await persistNow(env, usage, now, 'model-b');
     for (let i = 0; i < 9; i++) {
-      await persistTokenUsage(env, null, now - (i + 1) * 1000, 'model-b');
+      await persistNow(env, null, now - (i + 1) * 1000, 'model-b');
     }
     const result = await queryModelUsageCoverage(env, 7, now);
     assert.equal(result.available, true);
@@ -1128,7 +1147,7 @@ try {
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
     // Only 3 samples (< P50 threshold of 5)
     for (let i = 0; i < 3; i++) {
-      await persistTokenUsage(env, usage, now - i * 1000, 'model-a', 1000 + i * 500);
+      await persistNow(env, usage, now - i * 1000, 'model-a', 1000 + i * 500);
     }
     const result = (await queryAllModelsTtftPercentiles(env, WEEK_MS, now)).ttft.get('model-a');
     assert.equal(result.available, true);
@@ -1146,7 +1165,7 @@ try {
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
     // 20 samples (≥ P95 threshold of 20): all in bucket 3 (1-2s)
     for (let i = 0; i < 20; i++) {
-      await persistTokenUsage(env, usage, now - i * 1000, 'model-a', 1200);
+      await persistNow(env, usage, now - i * 1000, 'model-a', 1200);
     }
     const result = (await queryAllModelsTtftPercentiles(env, WEEK_MS, now)).ttft.get('model-a');
     assert.equal(result.available, true);
@@ -1165,10 +1184,10 @@ try {
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
     // 20 samples: 12 in bucket 2 (500ms-1s), 8 in bucket 4 (2-5s)
     for (let i = 0; i < 12; i++) {
-      await persistTokenUsage(env, usage, now - i * 1000, 'model-a', 700);
+      await persistNow(env, usage, now - i * 1000, 'model-a', 700);
     }
     for (let i = 0; i < 8; i++) {
-      await persistTokenUsage(env, usage, now - (12 + i) * 1000, 'model-a', 3000);
+      await persistNow(env, usage, now - (12 + i) * 1000, 'model-a', 3000);
     }
     const result = (await queryAllModelsTtftPercentiles(env, WEEK_MS, now)).ttft.get('model-a');
     assert.equal(result.available, true);
@@ -1205,7 +1224,7 @@ try {
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
     // provider-a: 10 delivered with usage
     for (let i = 0; i < 10; i++) {
-      await persistTokenUsage(env, usage, now - i * 1000, 'model-a');
+      await persistNow(env, usage, now - i * 1000, 'model-a');
     }
     const result = await queryModelUsageCoverage(env, 7, now);
     assert.equal(result.available, true);
@@ -1220,10 +1239,10 @@ try {
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
     // provider-new: 5 delivered with usage, 5 delivered without usage
     for (let i = 0; i < 5; i++) {
-      await persistTokenUsage(env, usage, now - i * 1000, 'model-new');
+      await persistNow(env, usage, now - i * 1000, 'model-new');
     }
     for (let i = 0; i < 5; i++) {
-      await persistTokenUsage(env, null, now - (5 + i) * 1000, 'model-new');
+      await persistNow(env, null, now - (5 + i) * 1000, 'model-new');
     }
     const result = await queryModelUsageCoverage(env, 7, now);
     assert.equal(result.available, true);
@@ -1242,7 +1261,7 @@ try {
     const now = Date.now();
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
     for (let i = 0; i < 20; i++) {
-      await persistTokenUsage(env, usage, now - i * 1000, 'provider-a', 4000);
+      await persistNow(env, usage, now - i * 1000, 'provider-a', 4000);
     }
     const cov = await queryModelUsageCoverage(env, 7, now);
     const ttft = (await queryAllModelsTtftPercentiles(env, WEEK_MS, now)).ttft.get('provider-a');
@@ -1258,10 +1277,10 @@ try {
     const now = Date.now();
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
     // 1 delivered with usage
-    await persistTokenUsage(env, usage, now, 'provider-b', 500);
+    await persistNow(env, usage, now, 'provider-b', 500);
     // 9 delivered without usage (missing usage data)
     for (let i = 0; i < 9; i++) {
-      await persistTokenUsage(env, null, now - (i + 1) * 1000, 'provider-b');
+      await persistNow(env, null, now - (i + 1) * 1000, 'provider-b');
     }
     const cov = await queryModelUsageCoverage(env, 7, now);
     const ttft = (await queryAllModelsTtftPercentiles(env, WEEK_MS, now)).ttft.get('provider-b');
@@ -1281,11 +1300,11 @@ try {
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
     // 5 fast failures (delivered without usage) - should NOT produce TTFT samples
     for (let i = 0; i < 5; i++) {
-      await persistTokenUsage(env, null, now - i * 1000, 'model-fast-fail');
+      await persistNow(env, null, now - i * 1000, 'model-fast-fail');
     }
     // 5 slow successes (delivered with usage, 4s TTFT each)
     for (let i = 0; i < 5; i++) {
-      await persistTokenUsage(env, usage, now - (5 + i) * 1000, 'model-fast-fail', 4000);
+      await persistNow(env, usage, now - (5 + i) * 1000, 'model-fast-fail', 4000);
     }
     const cov = await queryModelUsageCoverage(env, 7, now);
     const ttft = (await queryAllModelsTtftPercentiles(env, WEEK_MS, now)).ttft.get('model-fast-fail');

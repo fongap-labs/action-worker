@@ -1090,13 +1090,10 @@ try {
   }
 
   {
-    const html = quickStartSection({
-      apiBase: 'https://gateway.example.com/v1',
-      accessGroups: ['MAX'],
-    });
+    const html = quickStartSection({ apiBase: 'https://gateway.example.com/v1' });
     assert.ok(!html.includes('AIG_ACCESS_KEY_AIR'), 'quick start must not imply AIR is the only usable key');
     assert.ok(!html.includes('GATEWAY_API_KEY'), 'quick start uses standard client API-key variables directly');
-    assert.ok(html.includes('Key 组：MAX'), 'quick start key-group list comes from runtime access configuration');
+    assert.ok(!html.includes('Key 组'), 'quick start must not render access-key group labels');
   }
 
   console.log('dashboard model filter tests passed.');
@@ -1188,12 +1185,10 @@ try {
   }
 
   {
-    const html = quickStartSection({
-      apiBase: 'https://runtime.example/v1',
-      accessGroups: ['MAX'],
-    });
-    assert.ok(html.includes('Key 组：MAX'), 'quick start renders only configured access groups');
-    assert.ok(!html.includes('AIR / PRO / MAX / ULTRA / AGENT'), 'quick start must not hard-code the full access-group catalog');
+    const html = quickStartSection({ apiBase: 'https://runtime.example/v1' });
+    for (const group of ['AIR', 'PRO', 'MAX', 'ULTRA', 'AGENT']) {
+      assert.ok(!html.includes(group), `quick start must not render access-key group ${group}`);
+    }
     assert.ok(html.includes('OPENAI_BASE_URL') && html.includes('https://runtime.example/v1'), 'OpenAI quick start uses the runtime public URL');
     assert.ok(
       html.includes('OPENAI_API_KEY') && html.includes('&lt;YOUR_GATEWAY_KEY&gt;'),
@@ -1209,7 +1204,7 @@ try {
   {
     const pages = fs.readFileSync(join(root, 'src', 'dashboard', 'pages.ts'), 'utf8');
     assert.ok(pages.includes('AIG_PUBLIC_URL'), 'dashboard quick start derives its public endpoint from backend runtime metadata');
-    assert.ok(/loadAccessKeysConfig\(\w+\)\.keys\.map/.test(pages), 'dashboard quick start derives access groups from configured gateway keys');
+    assert.ok(!pages.includes('loadAccessKeysConfig'), 'dashboard page does not read access-key group names');
   }
 
   console.log('dashboard consumption semantics tests passed.');
@@ -1284,6 +1279,14 @@ try {
   assert.match(degradedSvg, /Live data temporarily unavailable/);
   assert.equal((degradedSvg.match(/class="value">—<\/text>/g) || []).length, 4);
   assert.match(degradedSvg, /class="metric-value">—<\/text>/);
+
+  const hiddenRoute = await preflight(
+    new Request('https://gateway.example/readme-status.svg', { headers: { accept: 'image/svg+xml' } }),
+    { AIG_PUBLIC_DASHBOARD: 'false' },
+    {},
+  );
+  assert.equal(hiddenRoute.ok, false);
+  assert.equal(hiddenRoute.response.status, 404);
 
   const publicRoute = await preflight(new Request('https://gateway.example/readme-status.svg', { headers: { accept: 'image/svg+xml' } }), {}, {});
   assert.equal(publicRoute.ok, false);
