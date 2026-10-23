@@ -1,4 +1,4 @@
-import { access, writeFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isJsonRecord } from "./github-api.ts";
 import {
@@ -110,6 +110,7 @@ export async function detectContext(
   if (
     !isJsonRecord(release) ||
     typeof release.changelog_file !== "string" ||
+    typeof release.changelog_fragment_dir !== "string" ||
     !isJsonRecord(release.impact_patterns)
   ) {
     throw new CliError("ERROR: invalid release context policy.", 65);
@@ -156,21 +157,31 @@ export async function detectContext(
     }
   }
 
+  // Impact declarations come from the changelog entries a change adds: lines added to the
+  // changelog file and the content of each new changelog fragment.
   const hasChangelog = changedFiles.includes(release.changelog_file);
-  let additions = "";
+  const fragmentFiles = changedFiles.filter((path) =>
+    path.startsWith(`${release.changelog_fragment_dir}/`)
+  );
+  const sources: string[] = [];
   if (hasChangelog) {
     const diff = await runText(
       "git",
       ["diff", "--unified=0", base, head, "--", release.changelog_file],
       { cwd: root }
     );
-    additions = diff
-      .split(/\r?\n/)
-      .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
-      .map((line) => line.slice(1))
-      .join("\n")
-      .toLowerCase();
+    sources.push(
+      diff
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
+        .map((line) => line.slice(1))
+        .join("\n")
+    );
   }
+  for (const path of fragmentFiles) {
+    sources.push(await readFile(join(root, path), "utf8"));
+  }
+  const additions = sources.join("\n").toLowerCase();
   for (const category of [
     "breaking",
     "security",
@@ -202,7 +213,7 @@ export async function detectContext(
     changed_files: changedFiles,
     project_types: [...projects].sort(),
     change_areas: [...areas].sort(),
-    changelog_changed: hasChangelog,
+    changelog_changed: hasChangelog || fragmentFiles.length > 0,
     declared_impacts: [...impacts].sort(),
     risk: highSignals ? "high" : mediumSignals ? "medium" : "low",
   };

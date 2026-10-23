@@ -11,7 +11,7 @@ const run = promisify(execFile);
 const machineRead = [/^CLAUDE\.md$/, /^AGENTS\.md$/, /^skills\//];
 // Test packs hold product fixtures of the managed repositories, not Action Worker documentation.
 const productFixtures = /^tests\/packs\//;
-const changelog = /^CHANGELOG\.md$/;
+const changelog = /^(?:CHANGELOG\.md|changelog\.d\/[^/]+\.md)$/;
 // Chinese localization files are retired: the Chinese document is the only human-facing version.
 const localization = /\.zh-CN\.md$/;
 

@@ -27,6 +27,44 @@ test("an entry names one category, optional attributes and a Chinese summary", (
   assert.equal(parseEntry("- 修复 没有冒号"), null);
 });
 
+test("pending fragments are released after the unreleased entries, in category order", () => {
+  const before = "# Changelog\n\n## [Unreleased]\n\n- 修复: 已在未发布区的条目。\n\n## [0.1.0]\n";
+  const after = promoteUnreleased(before, {
+    version: "0.2.0",
+    date: "2026-10-23",
+    releaseUrl: "https://example.invalid/releases/0.2.0",
+    categories,
+    fragments: [
+      "- 安全 [security]: 收紧密钥权限。\n",
+      "- 新增: 增加导出命令。\n- 修复: 修正超时。\n",
+    ],
+  });
+  const release = after.slice(after.indexOf("## [0.2.0]"), after.indexOf("## [0.1.0]"));
+  assert.deepEqual(
+    release.split("\n").filter((line) => line.startsWith("### ") || line.startsWith("- ")),
+    [
+      "### 新增",
+      "- 增加导出命令。",
+      "### 修复",
+      "- 已在未发布区的条目。",
+      "- 修正超时。",
+      "### 安全",
+      "- [security] 收紧密钥权限。",
+    ]
+  );
+  assert.throws(
+    () =>
+      promoteUnreleased(before, {
+        version: "0.2.0",
+        date: "2026-10-23",
+        releaseUrl: "https://example.invalid/releases/0.2.0",
+        categories,
+        fragments: ["不是条目的一行。\n"],
+      }),
+    /changelog fragment holds a line that is not an entry/
+  );
+});
+
 test("a summary must be Chinese text and must not carry mojibake", () => {
   assert.doesNotThrow(() => assertChineseSummary("修复 Settings ▸ Privacy 的显示。"));
   assert.throws(() => assertChineseSummary("repair the router."), CliError);
@@ -102,7 +140,7 @@ test("promoting refuses an empty Unreleased and an unknown category", () => {
   };
   assert.throws(
     () => promoteUnreleased("# Changelog\n\n## [Unreleased]\n\n## [0.1.0]\n", options),
-    /has no entries/
+    /No CHANGELOG entries/
   );
   assert.throws(
     () => promoteUnreleased("# Changelog\n\n## [Unreleased]\n- 其他: 未知类别。\n", options),

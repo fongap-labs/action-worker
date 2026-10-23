@@ -45,15 +45,40 @@ export function assertChineseSummary(summary: string): void {
   }
 }
 
+// Parses the entry lines of one source (the [Unreleased] section or one changelog fragment).
+// Blank lines are skipped; any other line must be an entry in a permitted category.
+export function parseEntries(
+  text: string,
+  categories: readonly string[],
+  source: string
+): ChangelogEntry[] {
+  const entries: ChangelogEntry[] = [];
+  for (const line of text.split("\n")) {
+    if (line.trim() === "") continue;
+    const entry = parseEntry(line);
+    if (!entry) {
+      throw new CliError(`::error::${source} holds a line that is not an entry: ${line}`, 65);
+    }
+    if (!categories.includes(entry.category)) {
+      throw new CliError(`::error::${source} uses unknown category: ${entry.category}.`, 65);
+    }
+    entries.push(entry);
+  }
+  return entries;
+}
+
 export type PromoteOptions = {
   version: string;
   date: string;
   releaseUrl: string;
   categories: readonly string[];
+  // Contents of the changelog fragments awaiting release, in the order they are assembled.
+  fragments?: readonly string[];
 };
 
-// Moves every [Unreleased] entry into one released version section. The version heading links
-// to its GitHub Release, and the categories follow the order in release.json.
+// Moves every [Unreleased] entry and every pending fragment entry into one released version
+// section. The version heading links to its GitHub Release, and the categories follow the order
+// in release.json.
 export function promoteUnreleased(content: string, options: PromoteOptions): string {
   const lines = content.split("\n");
   const start = lines.indexOf("## [Unreleased]");
@@ -63,20 +88,16 @@ export function promoteUnreleased(content: string, options: PromoteOptions): str
   let end = lines.findIndex((line, index) => index > start && line.startsWith("## "));
   if (end === -1) end = lines.length;
 
-  const entries: ChangelogEntry[] = [];
-  for (const line of lines.slice(start + 1, end)) {
-    if (line.trim() === "") continue;
-    const entry = parseEntry(line);
-    if (!entry) {
-      throw new CliError(`::error::[Unreleased] holds a line that is not an entry: ${line}`, 65);
-    }
-    if (!options.categories.includes(entry.category)) {
-      throw new CliError(`::error::[Unreleased] uses unknown category: ${entry.category}.`, 65);
-    }
-    entries.push(entry);
+  const entries = parseEntries(
+    lines.slice(start + 1, end).join("\n"),
+    options.categories,
+    "[Unreleased]"
+  );
+  for (const fragment of options.fragments ?? []) {
+    entries.push(...parseEntries(fragment, options.categories, "changelog fragment"));
   }
   if (entries.length === 0) {
-    throw new CliError("::error::[Unreleased] has no entries to release.", 65);
+    throw new CliError("::error::No CHANGELOG entries to release.", 65);
   }
 
   const release = [`## [${options.version}](${options.releaseUrl}) - ${options.date}`];
