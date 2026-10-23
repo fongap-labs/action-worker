@@ -30,9 +30,25 @@
 
 ## 待实施的两阶段发布
 
-1. 发布启动（人工输入或中央自动计算版本）后，中央读取 `[Unreleased]`，生成版本小节，在目标仓库创建 `aw/changelog/<tag>` 分支并开 PR。
-2. 等待 PR 经门禁合并。合并提交由 Main Write Guard 证明来源，之后才允许打 tag。
-3. 在合并提交上创建 tag 与 GitHub Release，发布的产物仍由中央构建。
+现状（事实）：`scripts/publish-release.ts` 在发布时直接在目标仓库默认分支的当前 HEAD 上创建 tag 与 Release（约第 463–530 行），不写 CHANGELOG。Release 说明取清单的 `release_notes`，为空时只有出处信息。
+
+目标流程：
+
+1. 发布启动时确定版本（沿用现有输入或自动计算）。中央读取目标仓库默认分支的 `CHANGELOG.md` 与 `changelog.d/*.md`，用 `promoteUnreleased` 生成版本小节。
+2. 中央在目标仓库创建分支 `aw/changelog/<tag>`，提交三处改动：写入版本小节、清空 `[Unreleased]`、删除已汇总的条目文件；然后开 PR，标题为 `chore(release): <tag>`。
+3. 该 PR 走正常的 PR 治理与 `validate-merge`。合并后，Main Write Guard 证明合并提交的来源。
+4. 中央在合并提交上创建 tag 与 Release，产物仍由中央构建。
+5. 超时（沿用 30 分钟）或 PR 被关闭：不打 tag，关闭 PR 并删除分支。
+
+需要 owner 决定的设计点（括号内为建议）：
+
+- **发布 PR 如何放行**（由校验器重算）：当前校验会拒绝改动 `[Unreleased]`。建议对标题为 `chore(release): <tag>` 的 PR，校验器从基线的 `[Unreleased]` 与条目文件重新计算期望改动，只有 diff 与之完全一致才放行。这样不需要信任发布者，任何偏差都被拒绝。
+- **tag 指向哪里**（指向合并提交）：目前 tag 指向发布时的 HEAD。改为合并提交后，tag 对应的代码包含版本小节，并且有 Main Write Guard 证明。这会改变 tag 的时机。
+- **Release 说明的来源**（`release_notes` 为空时使用本次版本小节）：这修改了 `01_SHARED_GOVERNANCE.md` §3 与 `docs/04` §9 的现行规则，原来为空时使用提交跨度清单。
+- **并发**：发布 PR 只删除它汇总的条目文件。发布期间新增的条目文件不在该 PR 中，不会冲突，留到下一次发布。
+- **幂等**：重跑时若 `aw/changelog/<tag>` 已存在且已合并，直接继续打 tag；若未合并，复用同一 PR，不新开。
+
+实施范围：`scripts/publish-release.ts`（发布 PR 阶段与等待）、`scripts/changelog-release.ts`（生成期望改动）、`scripts/validate-change-record.ts`（发布 PR 的重算校验）、`.github/workflows/release-app.yml`（如需新 job）、合同测试与回归测试。按 `GOVERNANCE_CHANGE_CHECKLIST.md` 单独 PR，并先经 owner 确认本设计。
 
 该流程需要新的状态与等待机制，以及对 GitHub API 的实际调用验证，因此单独立项实施。
 
