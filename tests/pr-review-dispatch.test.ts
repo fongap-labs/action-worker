@@ -129,8 +129,9 @@ test("PR review comment says AI review is queued only while it is pending", () =
   assert.match(queued, /AI Review: queued/);
   assert.doesNotMatch(queued, /policy skipped|unavailable or incomplete/);
 
+  // A skipped AI review adds no line: the comment states only what happened.
   const skipped = buildReview("success", "https://example.test/run", undefined, undefined);
-  assert.match(skipped, /AI Review: policy skipped\./);
+  assert.doesNotMatch(skipped, /policy skipped/);
 
   const finished = buildReview(
     "success",

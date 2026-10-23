@@ -66,10 +66,16 @@
 → Action Worker 中央构建/打包
 → release-manifest + provenance
 → Release Governance
-→ 目标发布
+→ 版本小节 PR（chore(release): <tag>）→ 门禁 → 合并
+→ 合并提交上打 tag、创建 Release
 → 重新下载校验
 → 完成 / 回滚
 ```
+
+- 版本小节由中央依据目标仓库的 `CHANGELOG.md` 与 `changelog.d/` 条目文件生成，经 PR 合入后才打 tag。发布 PR 只能改 `CHANGELOG.md` 并删除已汇总的条目文件，校验器会从基线重新计算，内容不一致即拒绝。
+- 版本说明：产品清单的 `release_notes` 非空时使用它；为空时使用本次版本小节。提交跨度清单不再作为版本说明来源。
+- 没有条目文件也没有未发布条目的仓库无法发布，会以 `No CHANGELOG entries to release` 失败。
+- 发布 PR 等待门禁的时间计入发布时限（默认 30 分钟）。门禁失败时 PR 保持开放，重跑会复用它，不会新开。
 
 - 业务仓库保留构建/打包脚本，在 `.github/release.manifest.json`（单产品）或 `projects/<产品>/release.manifest.json`（多产品）声明构建目标、产物、`runner_profile`
 - Manifest **不含版本**；版本仅来自发布启动时手动输入
