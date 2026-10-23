@@ -384,12 +384,11 @@ jobs:
           WORK_DIR="$(mktemp -d)"
           branch="task-publication/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           pr_number=""
+          # A publication pull request is never closed here. Closing it cancels its central CI
+          # (cancel-pr-work) and removes the verdict a maintainer needs, so a gate failure keeps the
+          # pull request open for inspection.
           # shellcheck disable=SC2317  # invoked from the EXIT trap
           cleanup_publication() {
-              rc=$?
-              if [ "$rc" -ne 0 ] && [ -n "$pr_number" ]; then
-                  gh pr close "$pr_number" --repo "$TARGET_REPOSITORY" --delete-branch >/dev/null 2>&1 || true
-              fi
               rm -rf "$WORK_DIR" "$PUBLISH_ROOT"
           }
           trap cleanup_publication EXIT
@@ -461,10 +460,17 @@ jobs:
                       sleep 10
                       ;;
                   failure)
-                      echo "::error::Publication pull request #${pr_number} failed the validate-merge check." >&2
-                      exit 1
+                      # A newer gate run of the same head may still replace the failure, so a single
+                      # read does not end the publication. Three consecutive reads (about a minute) do.
+                      failure_reads=$(( ${failure_reads:-0} + 1 ))
+                      if [ "$failure_reads" -ge 3 ]; then
+                          echo "::error::Publication pull request #${pr_number} failed the validate-merge check." >&2
+                          exit 1
+                      fi
+                      sleep 20
                       ;;
                   *)
+                      failure_reads=0
                       sleep 20
                       ;;
               esac

@@ -75,6 +75,8 @@ PR 确定性策略 ───────────┼→ validate-merge → �
 
 `validate-merge` 是**唯一的合并权限**。Action Worker 在当前 PR head 上直接发布它，前提是确定性的 Security、CI Evidence 与 PR Policy 检查全部通过；AI Review 不是它的输入，也不得改变其结果。
 
+被取消的中央 CI 运行（被同一 head 的较新运行取代，或 PR 已关闭）不写入 `CI Evidence` 结论，结论由取代它的运行给出。自动发布 PR 的门禁失败时，发布步骤先连续读取三次，仍失败则结束并保持该 PR 开放，不关闭它。
+
 业务仓库不再创建 `validate-merge` 检查。公开仓库的 ruleset 直接要求中央 `validate-merge` 状态；Free 套餐的私有仓库没有等效的平台硬门禁，但 Main Write Guard 仍要求同一个中央状态，因此两类仓库使用相同的治理事实。
 
 业务仓库中 PR 关闭时的本地 `cancel-pr-work`，只是迁移期的实时加速手段；中央 Intake / 对账必须保证，即使业务仓库的 Actions 不可用，中央控制平面仍能识别并结束过期的工作。
