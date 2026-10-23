@@ -34,7 +34,11 @@ test('the code paste page allows form-action self', async () => {
 });
 
 test('the dashboard and other HTML pages keep form-action none', async () => {
-  const res = await worker.fetch(new Request('https://gateway.example.com/', { headers: { accept: 'text/html' } }), makeEnv(), {});
+  const res = await worker.fetch(
+    new Request('https://gateway.example.com/', { headers: { accept: 'text/html' } }),
+    makeEnv({ AIG_PUBLIC_DASHBOARD: 'true' }),
+    {},
+  );
   assert.equal(res.status, 200);
   assert.match(csp(res), /form-action 'none'/);
   assert.match(csp(htmlResponse('x')), /form-action 'none'/);

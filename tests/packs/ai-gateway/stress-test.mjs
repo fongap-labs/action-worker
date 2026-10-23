@@ -79,10 +79,16 @@ const node = (id, extra = {}) => ({
 });
 
 function chatRequest(body = {}, init = {}) {
+  // Declare the exact body length, as a JSON client does (see integration-test.mjs).
+  const payload = JSON.stringify({ model: 'general-air', messages: [], ...body });
   return new Request('https://gateway.example.com/v1/chat/completions', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${ACCESS_KEY}` },
-    body: JSON.stringify({ model: 'general-air', messages: [], ...body }),
+    headers: {
+      'content-type': 'application/json',
+      'content-length': String(new TextEncoder().encode(payload).length),
+      authorization: `Bearer ${ACCESS_KEY}`,
+    },
+    body: payload,
     signal: init.signal,
   });
 }

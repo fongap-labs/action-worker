@@ -658,7 +658,8 @@ test('large bodies beyond the in-flight memory budget are refused with a retryab
     assert.equal(refused.status, 503);
     assert.equal(refused.headers.get('retry-after'), '1');
     assert.equal(refused.headers.get('x-should-retry'), null);
-    const small = await Promise.race([chat(env), new Promise((resolve) => setTimeout(() => resolve({ status: 'queued' }), 20))]);
+    // A small body with a declared Content-Length is charged its real size, not the worst case.
+    const small = await Promise.race([worker.fetch(largeChat(64), env, { waitUntil() {} }), new Promise((resolve) => setTimeout(() => resolve({ status: 'queued' }), 20))]);
     assert.equal(small.status, 'queued', 'a small request is admitted and waits on the upstream like the first');
     release();
     assert.equal((await first).status, 200);
