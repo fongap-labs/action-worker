@@ -1280,15 +1280,15 @@ try {
   assert.equal((degradedSvg.match(/class="value">—<\/text>/g) || []).length, 4);
   assert.match(degradedSvg, /class="metric-value">—<\/text>/);
 
-  const hiddenRoute = await preflight(new Request('https://gateway.example/readme-status.svg', { headers: { accept: 'image/svg+xml' } }), {}, {});
+  const hiddenRoute = await preflight(
+    new Request('https://gateway.example/readme-status.svg', { headers: { accept: 'image/svg+xml' } }),
+    { AIG_PUBLIC_DASHBOARD: 'false' },
+    {},
+  );
   assert.equal(hiddenRoute.ok, false);
   assert.equal(hiddenRoute.response.status, 404);
 
-  const publicRoute = await preflight(
-    new Request('https://gateway.example/readme-status.svg', { headers: { accept: 'image/svg+xml' } }),
-    { AIG_PUBLIC_DASHBOARD: 'true' },
-    {},
-  );
+  const publicRoute = await preflight(new Request('https://gateway.example/readme-status.svg', { headers: { accept: 'image/svg+xml' } }), {}, {});
   assert.equal(publicRoute.ok, false);
   assert.equal(publicRoute.response.status, 200);
   assert.match(publicRoute.response.headers.get('content-type') || '', /^image\/svg\+xml/);
