@@ -275,6 +275,14 @@ jobs:
         run: |
           set -Eeuo pipefail
 
+          # A cancelled run carries no verdict: a newer dispatch of the same head cancelled it, or
+          # the pull request closed. Writing failure here would replace the pending status of the
+          # newer run, and PR Governance would fail on a run that was superseded.
+          if [[ "$LINUX_RESULT" == "cancelled" || "$SECURITY_RESULT" == "cancelled" || "$WINDOWS_RESULT" == "cancelled" ]]; then
+            echo "Central CI was cancelled for $REPOSITORY@$HEAD_SHA; CI Evidence is left to the run that replaces it."
+            exit 0
+          fi
+
           state=failure
           description="Central CI failed"
           if [[ "$LINUX_RESULT" == "success" ]] && [[ "$SECURITY_RESULT" == "success" ]] && [[ "$WINDOWS_RESULT" == "success" || "$WINDOWS_RESULT" == "skipped" ]]; then
