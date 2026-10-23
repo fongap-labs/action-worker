@@ -4,480 +4,345 @@
 
 - 新增: 按六类类别整理 CHANGELOG 条目；门禁校验类别与 PR 类型的映射、中文摘要、乱码与安全属性，发布时可按类别生成带版本链接的小节。
 
-- fix: central CI tests a pull request as it merges into the default branch. The sandbox checked out the bare PR head, so a PR based on an older default branch failed the central test pack on code the default branch had already changed - and the failure looked unrelated to the PR, like ai-gateway #148 against the diagnostics gating that another PR had just landed. The sandbox now checks out GitHub's `refs/pull/<number>/merge` for pull requests, a conflicted PR fails its checkout as the merge gate instead of failing someone else's tests, and the secret scan and the status verdicts keep the pull request's own commits.
+- 安全 [security]: `PR Governance`、`validate-merge` 与 `Main Write Guard` 状态只有在控制仓库确实存在成功运行、且状态在该运行期间写入时才计入。此前任何能写 commit status 的账号都可以让状态指向不存在的运行，使 main 写入被视为可信。
 
-- fix: triage accepts a linked worktree as the repository root. The gate demanded `.git` as a directory, so running triage from a linked worktree, where `.git` is a file into the shared object store, reported `invalid repository root`.
+- 安全 [security]: 任务与部署的密钥模式默认改为 `enforce`。策略未列出的任务项目会被拒绝，并提示需要添加的策略条目。此前 `warn` 模式只记录日志，未列出项目的密钥上限为空，却授予其声明的全部名称。
 
-- chore: the task source select tests skip on a shell that cannot run the workflow step. The tests execute the workflow's own bash block, which the runners compose of git, `find`, `awk` and `jq`; on a Windows host without that combination spawning bash returned `null` and turned three genuine contract tests into permanent failures.
+- 安全 [security]: 源脚本部署的权限由控制面决定。`policies/deploy-environments.json` 列出每个仓库允许部署的环境，未列出的请求以退出码 77 失败；`policies/deploy-secrets.json` 限定每个仓库与环境可声明的密钥；部署检出改用只读的 `AW_CHECKOUT_TOKEN`；使用 `AW_ADMIN_TOKEN` 的作业在 `admin-ops` 环境中运行。
 
-- fix: a follower's uv.lock patch applies again. `lock-follow` read `git diff` through `runText`, which trims the trailing newline; `git apply` rejects such a file with "corrupt patch" on its last line, so the lock was never committed. The patch is now read without trimming, and the commit job adds the missing final newline for artifacts produced before this change.
+- 安全 [security]: 私有任务源的任务状态与失败日志只以 `AW_ARTIFACT_KEY`（AES-256-GCM，绑定类型、仓库与项目）加密上传，没有密钥则不上传任何私有内容。失败的私有任务日志可用 `node scripts/task-state.ts open-log` 查看。
 
-- fix: a follower's uv.lock is committed after its upstream release. The lock artifacts land flat in the download root when one follower reports and as one directory per follower when several do; the commit job always expected a directory per artifact, so the first release with one follower failed on `follow-lock/follow-lock.json/follow-lock.json`. Both layouts now read the same request, and a unit test pins the two folder lists.
+- 安全 [security]: 失败的私有任务不再以 `task-log-*` 制品上传，因为公开仓库的制品可被任何登录用户下载；日志只保留在运行器上。
 
-- fix: a release from a managed repository passes the main-write gate again. The gate trusts a `Main Write Guard` status only when the control repository holds a successful run of the workflow that publishes it, but the trusted list named only `main-write-guard.yml`; managed main branches are attested by Intake, Central CI, Release App, Deploy and Task Source through `scripts/audit-main-writes.ts`, so every release and deploy of a managed repository failed with "has not been attested yet". The list now holds every workflow that runs the audit, and a contract test keeps it in step with `.github/workflows`.
+- 安全 [security]: PR 门禁只接受真正由发布工作流成功运行产生的 `CI Evidence`（`hasVerifiedCiEvidence`）。中央 CI 的后续作业（安全扫描、主写入审计、自动部署）改为独立的 `follow-up` 作业运行，其失败不会使通过的 CI 变红。
 
-- fix: the release-span reader takes the commit subject from the GitHub commit payload. The ingress read a top-level `message` field that the commits API does not return, so every commit of a release span looked empty and an empty `requested_version` failed closed instead of proposing the next version. The reader now reads `commit.message`, and the compare/list fixtures mirror the payload the API returns.
+- 安全 [security]: Linux CI 沙箱新增中央密钥扫描：固定版本 gitleaks 8.30.1，SHA-256 校验，在任何目标代码运行前扫描 PR 新增的提交。默认只警告，设置 `AW_CENTRAL_GITLEAKS_MODE=enforce` 后发现即失败。
 
-- chore: align the governance hub with the new release automation. The release span version computation ships with `.githooks/commit-msg`, a local Conventional Commits guard (install with `git config core.hooksPath .githooks`) and a dependency-free `commitlint.config.js` for manual history checks; CONTRIBUTING.md is the contributor entry point.
+- 安全 [security]: 公开仓库的 main 规则集要求 PR 与最新 `main` 同步后才能合并（`strict_required_status_checks_policy: true`），`validate-merge` 在合并结果上运行。私有仓库（免费版套餐）无法使用规则集，依赖 Main Write Guard。
 
-- feat: a release computes its version from the Conventional Commits span when the release starts without a version. Release App takes `requested_version` as an optional input now: when it is empty, the ingress resolves the previous `<release-key>-v<version>` tag of the target repository, reads the commit span up to the current default-branch HEAD, classifies every subject under the eleven change types (a breaking marker or footer means major for 1.x and newer and minor for 0.x) and proposes the next stable version. A span that holds no release-worthy commit, a subject that is not Conventional Commits, and a truncated or oversized span (more than 200 commits) fail the release with the fix named in the message; an explicitly entered version keeps the old behavior. When the product manifest leaves `release_notes` empty, the same span generates the release notes as `- type: summary` lines, subject to the same refusals; a manifest that carries its own notes stays the authority, and packaging fills computed notes only into the empty field. The computed notes travel through the release request like the version does, and the governance contract pins both inputs as optional.
-- fix: a workflow expression pasted into a shell command is rejected again. The rule matched a line that only held the expression, so `run: node publish.ts "${{ github.event.issue.title }}"` and a command inside a `run` block slipped through; the expression now counts when it sits inside quotes anywhere on the line, while an expression that is a plain YAML value, such as an `env` entry, stays allowed.
+- 安全 [security]: 安全门禁新增对 OpenAI 与 Anthropic（`sk-ant-`、`sk-proj-`、旧式 `sk-`）、NVIDIA `nvapi-`、Hugging Face `hf_`、Tailscale `tskey-`、`CLOUDFLARE_API_TOKEN` 赋值与 JWT 的检测。`policies/security.json` 的 `secret_allowlist` 只放行路径与匹配文本同时一致的已知无害值。
 
-- fix: the gate statuses are checked against the run that produced them. `PR Governance`, `validate-merge` and `Main Write Guard` only had to carry a target_url that started with the control run prefix, so any account that can write a commit status could name a run that does not exist and make a main write look trusted; each status now counts only when the control repository really holds a successful run of the workflow that publishes it, and the status was written while that run was executing. The release path uses the same verification as the gate instead of reading the status on its own.
+- 安全 [security]: 私有目标在 CI 沙箱与依赖修复计算作业中改用只读的 `AW_CHECKOUT_TOKEN` 检出，运行变更代码的作业不再持有可写凭据。检出凭据不再持久化到依赖修复发布、验证与任务派发工作流中。`security-scan.yml` 拆分后，CodeQL 不接触密钥，只有单独的发布作业持有 `AW_ADMIN_TOKEN`。
 
-- fix: the central secret policy is closed by default. The task and deploy secret modes defaulted to `warn`, so a name outside the central policy was only reported in the log and still reached the source, and a project the policy does not list had an empty ceiling that granted every name it declared; both modes now default to `enforce`, and a task project the policy does not list is refused with the policy entry it needs.
+- 安全 [security]: 任务执行前在 `handle-task-dispatch.yml` 中重新验证任务源：`bootstrap_ref` 必须是目标仓库当前默认分支的 HEAD，携带有效的 CI Evidence，并通过 Main Write Guard。伪造的 `run-task` 派发无法让执行器运行任意提交。
 
-- fix: a merged pull request keeps its governance run. The cancellation workflow stopped the PR Governance run of every closed pull request, so a pull request that was merged while its governance was still running never published the gate status on its head. The Main Write Guard proves a main write from that status, so the repository main stayed untrusted and every later intake reported the main write as unproven. Only an abandoned pull request has its governance work cancelled now.
+- 安全 [security]: 部署源门禁、任务源门禁与 Main Write Guard 通过控制仓库中产生该证据的运行来验证 `CI Evidence`（发布工作流、默认分支、成功结论，且状态在运行期间写入），不再信任 `target_url` 的前缀。
 
-- chore: the commit that settled the two open IR matrix items carried a co-author trailer that named an AI agent, which the commit hygiene rule of this repository forbids. The default branch history was rewritten without that trailer and without the empty marker commit that followed it, keeping every tree, author, committer and message otherwise unchanged. The main branch ruleset was relaxed for that rewrite and is restored in the same change.
+- 安全 [security]: AI 审查引擎二进制按 `policies/review.json` 中的 SHA-256 固定。安装器只在二进制、固定摘要与发布校验文件三者一致时接受，替换的发布资产无法为自己作证。
 
-- feat: add five agent skills. `deploy-verify` mirrors `release-verify` for the deploy operation: it verifies the source SHA's Main Write Guard result, the deploy manifest and environment, the project deploy script, health checks, and rollback readiness. `flaky-test-triage` owns non-deterministic test failures that `ci-diagnose` only classifies as `FLAKY`: it proves flakiness with a repeated run, classifies the cause, quarantines without blocking, fixes the owning site, and verifies under stress. `security-remediation` covers vulnerability patches and CVE remediation: advisory verification, impact scope, minimal version steps, taint-source validation, secret rotation, and regression protection. `contract-evolution` owns backward-compatible contract evolution and builds on `change-impact`: extend-first, deprecation lifecycle, schema compatibility verification, and consumer update tracking. `semantic-refactor` owns behavior-preserving transformation when refactoring is the explicit task: a behavioral safety net, step-isolated commits, and zero contract drift. `code-minimality` also gains a rule to regenerate machine-generated lockfiles rather than hand-merging them.
+- 安全 [security]: 作者没有写权限的 PR，只有在维护者批准当前 head 提交后才运行中央 CI，并在中央 CI 工作流内重新检查，然后才执行任何变更代码。
 
-- fix: an automatic deploy starts again. The workflow and the deploy job named the same concurrency group for an automatic request, so the deploy job waited behind its own run and failed without ever starting, while a manual deploy stayed clear of it because its empty environment input resolved to `manual`. The workflow group now carries its own `source-script-deploy-pipeline-` prefix, and the deploy job keeps `source-script-deploy-`, so the two never collide.
+- 安全 [security]: Linux 与 Windows 中央 CI 作业移入 `central-ci-sandbox.yml`。该工作流不引用任何中央密钥，只在私有目标时接收检出令牌。
 
-- fix: the packaged release manifest keeps `release_name` as the display name, so a release published from a build titles as `Delta v0.1.0` instead of `Delta 0.1.0 v0.1.0`.
+- 安全 [security]: 部署与任务入口在移除越界密钥后以 `exec` 启动，私有仓库任务的输出不写入运行日志。
 
-- fix: a release title is the product's `release_name` followed by the bare version (`Delta v0.1.0`), and a release without a `release_name` is titled `v<version>`. The tag stays `<release-key>-v<version>`, because the shared distribution repository `external-vault` holds releases of several products and tags must stay unique there, and follow pins match tags by that prefix. `release_name` now holds the display name only; a manifest that still includes the version must drop it. Tool releases use their catalog name as `release_name`, so their titles read `<name> v<version>`.
+- 安全 [security]: 任务状态制品按仓库与项目的哈希命名，并附带 `manifest.json`。恢复时忽略清单指向其他仓库或项目的制品，两个任务源不再相互共享或污染状态。
 
-- fix: the internal-vault server-edge CI step is a trusted control path, so a pull request that moves the product and changes `.github/scripts/server-edge-ci.sh` is checked with its own script instead of the base branch copy that still points at `services/server-edge`.
+- 安全 [security]: Validate CI 中的 actionlint 从固定版本的发布包安装，并校验 SHA-256，不再执行从 `main` 分支获取的脚本。
 
-- fix: the production deploy of `fongap-labs/ai-gateway` receives `CLOUDFLARE_ACCOUNT_ID` again. #706 removed the name and its alias from `policies/deploy-secrets.json`, expecting the Repository Variable of that name to reach the deploy job, but no variable named `CLOUDFLARE_ACCOUNT_ID` exists; only `CLOUDFLARE_ACCOUNT_ID_SECONDARY` does, and the target's deploy preflight requires `CLOUDFLARE_ACCOUNT_ID`. The name returns to the deploy ceiling with the alias `CLOUDFLARE_ACCOUNT_ID_SECONDARY`, so the account id stays a Variable and never a stored secret.
+- 安全 [security]: CI 派发、依赖修复、Release 构建与安全扫描工作流把 `needs.*.outputs` 通过 `env` 传给 shell 步骤，不再直接粘贴进脚本。安全门禁新增 `expression-as-shell-argument` 规则，防止该模式再次出现。
 
-- feat: a follower product pins the version or commit of an upstream product in its own files, and a governed release of the upstream moves those pins. The release checks that each pin names a published upstream release before it publishes a follower. Action Worker now opens one pull request per follower on `aw/follow/<product>`, touching only the declared pin files, and a follower that declares a uv lockfile gets its `uv.lock` refreshed in the sandbox and committed only when the change is that one file. Before, a follower's version was set by hand, so a release could ship with a stale pin. The pin files are edited in place and checked against a re-parse, never rewritten, and TOML is read with a pinned dependency that was published at least two weeks before it was adopted.
+- 安全 [security]: 公开仓库的 CodeQL 扫描覆盖 Action Worker 自身的 TypeScript 与 workflow 文件（`.github/security-scan.json`），安全扫描契约接受 `actions` 语言。
 
-- fix: the Task Source job no longer fails silently when a pushed project changes without a `task.json` and sorts after the projects that have one. Its project selection ended on the failed `task.json` test, so the step exited 1 with no message (run 38461716285 on `ab3572e`, whose `projects/server-edge` carries only a deploy manifest). The selection now skips such a project and still dispatches the task projects of the push.
+- 安全 [security, migration]: 工具同步只从带有效 GitHub 签名的默认分支 HEAD 发布。未签名的 HEAD 会延后同步，发布标签不会指向未经验证的提交。
 
-- feat [migration]: the deploy policy entries of one managed product move from its repository key to its product key (`owner/name/product`) in one change, because an environment name may belong to one key only. The product no longer falls back to the repository key, so a manual deploy through the repository key is refused until the product's manifest uses the product layout. The moved secret ceiling also lists one signing key name that the product declares, which the product layout enforces.
+- 修复: 中央 CI 以 PR 合并进默认分支后的结果进行测试（检出 `refs/pull/<number>/merge`）。基于旧默认分支的 PR 不再因他人已改动的代码而失败；冲突的 PR 在检出步骤失败，密钥扫描与状态判定保留 PR 自身的提交。
 
-- feat: a deploy environment with `triggers.schedule` in its source manifest deploys on the cron schedule. The Intake job `deploy-schedules` runs the scheduler every five minutes on the heartbeat, looks back 12 hours for the latest due firing of each product environment, and dispatches it once, recorded as the `Deploy Schedule/<product>/<environment>` status on the default-branch head. A red or unverified default branch is skipped for that run rather than replaced by an older commit, because a scheduled deploy must not deploy an older change. Before, a deploy schedule was refused, so product environments could only deploy on a push or by hand. Task schedules keep their behavior; their cron parser moved to `scripts/cron-schedule.ts` unchanged.
+- 修复: triage 接受链接的 worktree 作为仓库根目录。门禁此前要求 `.git` 是目录，而链接的 worktree 中它是指向共享对象库的文件。
 
-- feat [migration]: a repository may deploy several products and environments. A deploy manifest with `schema_version` `2` declares environments with their own triggers: a `push` of `true` watches the product root, and `push.paths` lists other repository paths; an environment without triggers is manual only. A product keeps its manifest and secret declarations in `projects/<name>/`, and Deploy Source Script takes a `product` and an `environment` input. An automatic deploy runs per environment and only when the change reaches its trigger paths, and an environment with required reviewers is refused because it cannot finish without a person. The deploy concurrency group is now `source-script-deploy-<repository>-<product>-<environment>`, and a root manifest uses `source-script-deploy-<repository>-<environment>`, so environments of one repository no longer queue behind each other. Deploy policy keys are `owner/name/product`, a product without an entry is refused with the entry to add instead of falling back to the repository key, and a product's secret ceiling always enforces. Schema 1 manifests and the root manifest keep their behavior.
+- 修复: follower 的 uv.lock 补丁可以再次应用。`lock-follow` 读取 `git diff` 时去掉了末尾换行，`git apply` 因此拒绝补丁，锁文件从未提交；现在保留换行，提交作业为旧产物补齐最后的换行。
 
-- feat: a repository may hold several products, each with its own release manifest in `projects/<name>/`, and Release App takes a `product` input to choose one. A product manifest declares `root`, the build directory relative to the repository root, and the build script reads the absolute path from `RELEASE_PRODUCT_ROOT`. Product discovery rejects a repository that mixes a root manifest with products, repeats a release key, or declares a root outside the repository. A repository with one release manifest in `.github/` builds as before, and the runs of different products use different concurrency groups, so they no longer queue behind each other.
+- 修复: follower 的 uv.lock 在上游发布后正确提交。一个 follower 时产物平铺在下载根目录，多个 follower 时每个一个目录；提交作业此前只接受后者，因此单个 follower 的首次发布失败。两种布局现在读取同一份请求，并由单元测试固定。
 
-- fix: the job that prunes runs of removed workflows skips a workflow whose runs GitHub answers with HTTP 404 and records it in the run summary, instead of stopping the job. The run of `aa3b4c9` named the refused request (`actions/workflows/365531601/runs`), and the workflow was no longer served by GitHub, so nothing could be deleted for it. Any other failure still stops the job and names the request.
+- 修复: 受管仓库的发布与部署重新通过 main 写入门禁。可信列表只包含 `main-write-guard.yml`，但受管仓库的 main 由 Intake、中央 CI、Release App、部署与任务源通过 `audit-main-writes.ts` 证明；现在列表包含所有运行审计的工作流，并由契约测试与 `.github/workflows` 保持同步。
 
-- fix: the job that prunes runs of removed workflows no longer fails after it deletes the last run of a workflow. GitHub answers 404 for that workflow's runs once none are left, and the re-read after the delete stopped the run of `2161d01` (`actions/workflows/365532783/runs`). That re-read now treats the 404 as no runs left, like the first read does.
+- 修复: 版本计算从 GitHub 提交 payload 的 `commit.message` 读取提交标题。此前读取的顶层 `message` 字段在提交 API 中并不存在，导致空的 `requested_version` 直接失败，而不是提议下一个版本。
 
-- fix: scheduled task catch-up is restored: `TASK_SOURCE_LOOKBACK_MINUTES` in `intake.yml` is `720` again. It dispatches only the latest due slot of each project, so it starts at most one task per scheduled project in an Intake run. The two `run-task` executions that followed #740 (`model-discovery` and `MarketBrief`) do not show that catch-up causes failures: about a third of the `Handle Task Dispatch` runs before #740 failed as well.
+- 修复: 工作流表达式被粘贴进 shell 命令的检查重新生效。引号内任意位置的表达式都计入；`env` 中作为普通 YAML 值的表达式仍然允许。
 
-- fix: a failed request of the job that prunes runs of removed workflows names the request path in its error. The run of 41d8f02 failed with `GitHub API returned HTTP 404.` and the log did not say which call was refused. The job deletes nothing before its first request succeeds.
+- 修复: 门禁状态只属于仍在运行的 PR 治理。关闭的 PR 的取消工作流不再停止已合并 PR 的治理运行，否则 main 会一直处于不可信状态。只有被放弃的 PR 才取消治理工作。
 
-- feat [migration]: one Intake workflow (`intake.yml`) replaces PR Intake, CI Intake, Task Intake, Security Scan Intake and Main Write Audit, and Task Source Dispatch no longer runs on a schedule. GitHub started the five-minute schedules of this repository only every 2.6 to 9.8 hours, so Intake also runs on every push to `main` and on the `run-intake` event, and each kind of work is one job of it. Anything that starts the removed workflows by name must send `run-intake` instead.
+- 修复: 被合并的 PR 保留其治理运行，main 的来源证明不会因此失效。
 
-- fix: scheduled task projects catch up every slot that fell due in the last 12 hours and has not been dispatched, instead of only slots of the last 20 minutes. A slot is dispatched once, recorded by the `Task Schedule/<project>` status on the source commit. Before, none of 13 observed slots was dispatched, because the schedule rarely ran within 20 minutes after a slot.
+- 修复: 自动部署重新启动。工作流与部署作业此前使用相同的并发组，导致部署作业等待自己的运行而从未开始；现在工作流组使用 `source-script-deploy-pipeline-` 前缀。
 
-- feat [migration]: every workflow belongs to one class (entry, intake, handler, maintenance or reusable) and `tests/workflow-classes.test.ts` enforces the rules of each class. Only Release App, Deploy Source Script and Task Source Dispatch keep a Run workflow button; the manual triggers of Apply Repository Settings, Prune Stale Branches, Release Tool, Update Work Metrics and Validate CI are removed. Workflow-level permissions grant no write, every job has a timeout and every started workflow declares a concurrency group. `docs/03_NAMING_CONVENTIONS.md` section 8.3 lists the classes.
+- 修复: 发布标题为产品的 `release_name` 加上纯版本号（如 `Delta v0.1.0`），没有 `release_name` 时为 `v<version>`。标签仍为 `<release-key>-v<version>`，因为 `external-vault` 托管多个产品的发布，标签必须唯一。
 
-- feat: Apply Repository Settings also runs once a day, so a setting changed by hand in a managed repository returns to the shared policy without a manual run.
+- 修复: internal-vault 的 server-edge CI 步骤属于可信控制路径。修改 `.github/scripts/server-edge-ci.sh` 的 PR 使用自身的脚本检查，不再使用仍指向 `services/server-edge` 的基础分支副本。
 
-- fix: Release App, Deploy Source Script and Task Source Dispatch attest the source main write with `scripts/audit-main-writes.ts` before their gate. Before, the gate waited only 60 seconds for the Main Write Guard status that the Central CI follow-up writes later, and failed when the follow-up was slower. The step never blocks; the gate stays the authority.
+- 修复: ai-gateway 的生产部署重新接收 `CLOUDFLARE_ACCOUNT_ID`，别名为 `CLOUDFLARE_ACCOUNT_ID_SECONDARY`。此前的移除假定它是仓库变量，但实际上该名称不存在，只有 `_SECONDARY` 是变量，而部署预检要求 `CLOUDFLARE_ACCOUNT_ID`。
 
-- fix: an automatic deploy is no longer lost when main moves on while central CI runs. If everything after the commit is documentation that the source skips, the current main, which carries the change, is deployed; otherwise the newer main deploys itself after its own central CI. Before, the follow-up failed with exit 75 and a documentation-only newer commit skipped its deploy, so the change never reached production. A failed security scan dispatch no longer skips the attestation and the deploy of the same follow-up.
+- 修复: 推送的项目若没有 `task.json` 且排在有 `task.json` 的项目之后，任务源作业不再静默退出 1，而是跳过该项目并继续派发其他任务项目。
 
-- feat [migration]: business repositories use one bridge, `templates/bridge/notify-action-worker.yml` (`Notify Action Worker`), approved in `policies/security.json`. It sends `run-pr-governance` when a pull request is opened, updated or reopened, `cancel-pr-work` when it is closed, and `run-intake` on a push to `main`, so central CI, the main write attestation, changed task projects and automatic deploys start at once. It replaces `dispatch-pr-governance.yml` and a repository's own `ci.yml` dispatcher; both keep working until a repository switches.
+- 修复: 定时任务补跑恢复。`TASK_SOURCE_LOOKBACK_MINUTES` 恢复为 720，每个项目只派发最近一个到期时段；并且补跑过去 12 小时内所有未派发的时段，每个时段派发一次（由源提交上的 `Task Schedule/<project>` 状态记录）。此前只看最近 20 分钟，观察到的 13 个时段一个都没有派发。
 
-- feat: Prune Stale Branches becomes Prune Stale State (`prune-stale-state.yml`). A new job deletes the runs of workflows whose file is gone from `main`, two days after their last run and at most 400 runs per run, so the Actions sidebar lists only workflows that exist.
+- 修复: 定时任务派发的 `request_id` 改为 `task-schedule-<identity>`（连字符）。此前冒号格式在入口校验时被拒绝，导致 MarketBrief、PharmaBrief、FongapBlog 与 AdFilter 的所有定时任务失败。
 
-- fix: the Main Write Guard workflow only guards Action Worker's own `main` with the workflow token; the `run-main-write-guard` and `refresh-work-metrics` events had no sender and are removed. Error messages no longer tell a person to run a removed workflow, and the PR comment for a pull request awaiting approval says the approval is picked up on the next Intake run, usually within an hour.
+- 修复: 清理已删除工作流运行记录的作业：遇到 HTTP 404 的工作流时跳过并记录在运行摘要中；删除最后一条运行后的重新读取把 404 视为"没有运行"；其他失败仍会停止作业，并在错误中写明请求路径。
 
-- fix: the Central CI follow-up job (`Dispatch Central CI Follow-ups`) is no longer skipped for a target without Windows CI. Its `if` had no status function, so GitHub added an implicit `success()` that a skipped `windows` job failed. A run for such a target (for example `fongap-labs/internal-vault` and `fongap-labs/ai-gateway`) therefore never dispatched its security scan, never attested the Main Write Guard of the main SHA and never dispatched the automatic deploy, and a task or deploy for that SHA failed with `Source SHA has no successful Main Write Guard status`. The job now runs whenever `finalize` succeeded.
+- 修复: 中央 CI 的后续作业不再因目标没有 Windows CI 而被跳过。此前缺少状态函数，这些仓库的安全扫描、main 写入证明与自动部署都不会运行；现在只要 `finalize` 成功即运行。
 
-- fix: Release App and a manual Deploy Source Script request central CI for their source before the source check, like Task Source Dispatch, and the check waits up to 20 minutes for the verdict (`centralCiWait`, shared with the task source gate) instead of failing at once. GitHub starts the scheduled CI Intake only every few hours, so a release of a commit merged after the last intake failed with `Release build source has no trusted successful CI Evidence`. The release check now uses `requireVerifiedCiEvidence`, so it also verifies that a successful central CI run wrote the status. The `prepare` job of both workflows has a 30-minute timeout.
+- 修复: Release App 与手动 Deploy Source Script 在检查源之前为该源请求中央 CI，检查最多等待 20 分钟。发布检查使用 `requireVerifiedCiEvidence`，确认成功的中央 CI 运行确实写入了状态；两个工作流的 `prepare` 作业超时为 30 分钟。
 
-- feat: a manual Deploy Source Script deploys the current default-branch HEAD when `source_sha` is empty, and a bad `source_repository` or `source_sha` fails with a message that names the input. Before, the step exited without any message.
+- 修复: Release App 与 Deploy Source Script 在门禁前用 `audit-main-writes.ts` 为源 main 写入做证明，不再只等待 60 秒。步骤不阻塞，门禁仍是权威。
 
-- fix: gate errors say what to do next. A bad repository name suggests the managed `owner/name`, a repository without the capability lists those that have it, CI Evidence and Main Write Guard failures name the run to open and the workflow to start, and the PR title, CHANGELOG and commit attribution errors show the expected form and the fix. `docs/05_INTEGRATION_GUIDE.md` section 12.2 explains each error in Chinese, and section 10 now states that the scheduled audit is only a fallback.
+- 修复: 中央 CI 运行期间 main 前进时，自动部署不再丢失。若之后的提交全是源会跳过的文档，则部署当前 main（已包含该变更）；否则较新的 main 在自己的中央 CI 后部署。
 
-- feat: pull requests fail when the author or committer of a commit names an AI agent or model, when a trailer such as `Co-Authored-By:` names one, or when a title or commit line is a tool attribution such as `Generated with`. Agent names in titles and commit prose are allowed.
+- 修复: 中央 CI 在 PR 的准备作业中停止时（例如不可信作者修改了 CI 控制文件），当前 head 写入 `CI Evidence = failure` 并附运行链接。此前状态一直 pending，PR 治理要等 120 分钟才超时。
 
-- feat: add a test-driven-development skill for task operations that change behavior in code with a test seam. Agents choose the highest public seam, write tests that verify behavior through the interface, reject implementation-coupled, tautological, and horizontally sliced tests, mock only at system boundaries, and work in red-green vertical slices.
+- 修复: 维护者批准前，等待批准的 PR 不再每五分钟重新派发 PR 治理。不可信的 head 报告为 `Awaiting maintainer approval of the current head commit`；Central PR Intake 只在维护者批准当前 head 后再次派发。
 
-- feat: bug fixes build a feedback loop before any hypothesis, minimise the reproduction, test ranked falsifiable hypotheses, remove temporary debug instrumentation before finishing, and redact secrets before any command or output is shown.
+- 修复: PR Intake 不再为已有结论的 PR head 重新派发治理与中央 CI。仅移动默认分支（控制修订）不会重新派发已完成状态的 head；被取消的待定状态会重试。此前每次 main 推送都会重新派发所有失败的 PR。
 
-- feat: pull request reviews report the intent and standards axes separately without ranking findings across them. Change impact reports record whether a change is one-way or two-way and name its blast radius. The architecture review flags shallow modules, pass-through layers that fail the deletion test, and seams with a single adapter.
+- 修复: 自身 CI（`validate-ci.yml`）只为 PR 取消被取代的运行。main 上较新的推送不再取消较早的 main 提交的验证。
 
-- feat: add writing-for-agents as a writing baseline for documents that agents consume, such as skills, AGENTS.md, CLAUDE.md, and docs reached by a pointer. Writing tasks that produce other content ignore it.
+- 修复: 没有 `deploy` 能力的仓库跳过自动部署步骤，不再以退出码 77 失败；delta、delta-suite、app-source 与 external-vault 的绿色 main 推送不再以中央 CI 失败结束。
 
-- feat: agent skills now state how conflicting instructions resolve (machine contracts and policies first; a task instruction cannot waive them), add a senior engineer test to the code-minimality skill, and add a multi-agent-delegation skill. It sets finite delegation briefs, single-owner files, the sandbox and control trust boundary for sub-agents, and coordinator verification of the combined diff.
+- 修复: 合并时仍在等待或运行建议性 AI 审查的 PR 继续获得审查与评论；未合并就关闭的 PR 仍被跳过。
 
-- fix [migration]: `CLOUDFLARE_ACCOUNT_ID` is a Repository Variable, not a secret. It is removed from the deploy secret ceiling for `fongap-labs/ai-gateway` in `policies/deploy-secrets.json`, together with its `CLOUDFLARE_ACCOUNT_ID_SECONDARY` alias. The deploy job still receives it, because the repository variables are exported to the job. A repository that stores it as a secret must move it to a variable.
+- 修复: 建议性 AI 审查作为独立工作流，只在确定性门禁通过后启动。PR 不再排在等待中央 CI 的无关运行之后，治理运行随门禁结束。
 
-- fix: PR Intake no longer re-dispatches governance and central CI for a pull request head that already has a verdict. A move of the default branch alone (the control revision) no longer re-dispatches a head whose `PR Governance`, `CI Evidence` and `validate-merge` statuses are complete, and a pending status whose governance or central CI run was cancelled is not retried; a reservation whose intake run was cancelled still expires and is retried. Before, a main push re-dispatched every open pull request whose verdict had failed, and the per-PR concurrency group of the central CI cancelled the job that was already running for the same pull request.
+- 修复: 文件名超出安全字符集（如非 ASCII 名称）的 PR 不再中断所有仓库的依赖修复对账，该 PR 被视为不适用依赖修复。
 
-- fix: the self CI (`validate-ci.yml`) cancels a superseded run only for a pull request. A newer push to `main` no longer cancels the validation of an earlier main commit, which would have left that commit without a `validate-merge` verdict.
+- 修复: 任务发布改为经治理的 PR 合入，不再直接推送到受保护的目标分支。
 
-- refactor [migration]: the release and deploy workflows are named by their kind, so a person finds the right one by what they want to do: `Release Build Dispatch` is now `Release App` (`release-app.yml`), `Sync Tool Release` is `Release Tool` (`release-tool.yml`) and `Source Script Deploy` is `Deploy Source Script` (`deploy-source-script.yml`). The dispatch events, inputs and behavior are unchanged. Anything that starts them by file name or by their old display name must use the new one. `docs/05_INTEGRATION_GUIDE.md` section 12.1 lists which workflow starts which release or deploy.
+- 修复: 发布源门禁接受中央 CI Evidence。源仓库不再运行本地 `ci.yml` 时，此前的检查会失败。
 
-- fix [migration]: the delta-suite contract test no longer requires the Foundation package version in `pyproject.toml`; the Foundation compatibility is pinned only by its immutable commit and the capability ABI, worker manifest and connector catalog format versions.
+- 修复: 安全门禁的 diff 缓冲区加大，使大型生成的发布产物也能被扫描（此前超过 16 MiB 上限）。纯数据内容文件豁免工程语言门禁，使生成的发布产物能通过治理检查。
 
-- feat [breaking, migration]: the application version of a release comes only from the version entered when the release is started, and it is required. Release Build no longer reads a version from the source repository or compares the entered version with it, `.github/release.manifest.json` drops `version_source`, and the build script receives the version as `-Version`. The delta test pack drops its version-consistency checks.
+- 修复: PR 的项目类型先依据变更的 monorepo 路径检测，再回退到仓库根清单。
 
-- fix [security]: the tool sync publishes only from a default-branch HEAD whose commit has a valid GitHub signature. An unsigned HEAD defers the sync, so a release tag never points at an unverified commit.
+- 修复: Python 命名校验拒绝变更时输出详细诊断。
 
-- feat: the tool sync takes the tool key as a required third argument (`scripts/sync-tool-release.ts <policy> <artifact-dir> <tool-key>`) and the workflow runs a matrix of every catalog tool that it names explicitly (`open-code-review`, `r-base`). The sync no longer takes its tool from the review policy's `engine.name`, so a catalog entry such as `r-base` is reached at all, and no run falls back to a default tool. The review policy still supplies the distribution repository.
+- 修复: 一组 PR 与中央 CI 状态的竞态问题：短期保留 CI Evidence，相邻的对账运行不再为同一个不可变提交重复派发；重复的 main SHA 派发串行化，并复用成功的 CI Evidence；PR 治理在控制修订前进后重试，但不在同一修订上循环；已关闭 PR 的取消目标在进入并发组前校验；关闭 PR 时取消过期的 PR 治理与中央 CI。
 
-- feat: a tool distribution can mirror a pinned HTTPS file instead of a GitHub Release. A catalog entry with `"distribution": "url"` reads `upstream_url`, `upstream_version`, `upstream_asset`, `upstream_sha256` and `license_expression` from its metadata (`parseUrlToolMetadata`); the upstream file must match the pinned SHA-256 or the sync fails before anything is published. The URL must be HTTPS with no credentials, and its last path segment must equal `upstream_asset`. The GitHub Release path (`"distribution": "github-release"`) is unchanged, and an unknown distribution fails the sync.
+- 修复: 过期的 PR 治理运行不再覆盖较新运行的评论与最终提交状态；PR 治理并发按当前控制面修订分组，过期运行不会阻塞较新的 Action Worker 发布。
 
-- fix: a task source request now asks for central CI on its own repository before the task waits for it. Task Source Dispatch runs the CI Intake logic for that one repository (`AW_CI_INTAKE_REPOSITORY`), so a push or manual task no longer depends on the scheduled CI Intake, which GitHub starts only every few hours instead of every 10 minutes; before, the task source check waited 20 minutes for CI Evidence that nobody had requested and failed. The job gets `contents: write` for the dispatch, like CI Intake.
+- 修复: `validate-merge` 只由可信的 GitHub Actions 检查发布，中央 CI 不再发布冲突的提交状态。
 
-- feat: add the internal-vault task project EngineSuite to `policies/task-secrets.json`. Its `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` take their values from `CLOUDFLARE_API_TOKEN_PRIMARY` and `CLOUDFLARE_ACCOUNT_ID_PRIMARY` (the same Cloudflare account as FongapBlog and FongapCDN), and it may keep `ALGOLIA_APP_ID`, `ALGOLIA_WRITE_KEY`, `ENGINESUITE_ADMIN_TOKEN`, `ENGINESUITE_WEBHOOK_SECRET`, `ENGINESUITE_TURNSTILE_SECRET_KEY` and `ENGINESUITE_RESEND_KEY`. Create the four `ENGINESUITE_*` secrets before EngineSuite runs for the first time.
+- 修复: 治理计划不要求 CI 时，显式发布成功的 CI Evidence，最终合并门禁不再从缺失的证据推断意图。
 
-- test: cover the internal-vault Cloudflare Workers release brick `cfworkers_service_deploy` in the `internal-vault` test pack: variable and secret handling, release order (preflight, migrations, one release), the removed secrets file, health check and rollback. The suite needs the brick from fongap-labs/internal-vault#86, so merge that pull request first.
+- 修复: AI Gateway 的源 SHA 通过 `AIG_BUILD_SHA` 注入，不再使用控制面的 GitHub SHA。
 
-- fix: the engineering language check treats the text between tags in an HTML template as the user-facing UI copy it is, so a Chinese-audience site can edit its templates without failing PR Governance; quoted attribute values were already exempt. Template comments (`<!-- -->` in HTML, `{{/* */}}` in Hugo) and logs embedded in a template stay English, and every body line of a multi-line comment block is attributed to the comment, so a Chinese comment cannot hide across lines.
+- 修复: 工程语言检查把 HTML 模板标签之间的文本视为面向用户的界面文案。模板注释与模板中嵌入的日志仍需英文；多行注释块的每一行都归属该注释，中文注释不能藏在行与行之间。
 
-- docs: `CLAUDE.md` adds a commit hygiene rule: a commit message in this repository or in any repository governed by Action Worker carries no AI agent identity or attribution  --  no `Co-Authored-By:` trailer naming an AI agent (Claude, Claude Code, Codex, Copilot or similar), no `Generated with` / `Assisted by` line, and no agent, model or vendor name in the subject, body or trailers. The committer speaks for the change; automated control-plane writes stay attributed to the maintainer identity.
+- 修复: 工程语言检查正确读取 git diff 中带引号的非 ASCII 路径头，避免把其他文件的中文页面文本误判为 CHANGELOG 条目。
 
-- fix: machine-interaction content is English only. `policies/release.json` `impact_patterns` keep only the English keywords (CHANGELOG entries are already enforced to be English by the engineering language check, so Chinese patterns could never match), and AI Review now configures the review engine with `language = English`, so its findings and summaries are written in precise English instead of Chinese. English human/agent documentation and the `*.zh-CN.md` localizations are unchanged.
+- 修复: 工程语言规则不再报告压缩打包文件（`*.min.js`、`*.min.css`）中的非英文文本；作者编写的代码中同类文本仍会报告。
 
-- fix: the engineering language check reads `git diff` headers of files with non-ASCII or special characters in their path (`+++ "b/\350\201\224.md"`, which git writes as a quoted string) instead of keeping the previous file's path. Before, Chinese page text in a Chinese-named file that followed `CHANGELOG.md` in the diff was reported as a CHANGELOG entry, so a pull request that edited such pages failed PR Governance although its CHANGELOG entry was English. An unrecognised header now resets the path, so a line is never attributed to another file.
+- 修复: 机器交互内容只用英文：`impact_patterns` 只保留英文关键字，AI 审查引擎配置为英文输出。
 
-- ci: the `Update Work Metrics` aggregate job checks out with `persist-credentials: false` like every other checkout in this repository, and the metrics push injects its credential through the git process environment for that single invocation instead of leaving the default token in `.git/config` for the whole job.
+- 修复: 共享命名校验区分工程生命周期标签与限定的领域概念；Python、Rust 与 TypeScript 的变更源码命名校验集中实施。
 
-- feat: the central secret policies can give a task project or a deploy environment an alias, so one declared secret name can take its value from a differently named stored secret (`"aliases"` in `policies/task-secrets.json` and `policies/deploy-secrets.json`, applied by `resolve-secret-scope.ts` before the other secrets are removed). `CLOUDFLARE_API_TOKEN` of the ai-gateway deploy now comes from `CLOUDFLARE_API_TOKEN_SECONDARY`, and that of the internal-vault tasks FongapBlog and FongapCDN from `CLOUDFLARE_API_TOKEN_PRIMARY`, because the two use different Cloudflare accounts; the source repositories do not change. Create both secrets before merging.
-- fix: when Central CI for a pull request stops in its prepare job (for example because an untrusted author changed a CI control file), it now writes `CI Evidence = failure` to the current head with a link to the run. Before, the pending status stayed pending and PR Governance waited 120 minutes before it timed out.
-- fix [security]: task state and failed task logs of a private task source are uploaded only encrypted with the new secret `AW_ARTIFACT_KEY` (AES-256-GCM, bound to the kind, repository and project); without the key nothing private is uploaded. The previous state is now found by its artifact name and accepted only from a successful run of `handle-task-dispatch.yml` on `main`, instead of scanning the last 50 runs, so a project that runs rarely keeps its state. The owner reads a failed private task log with `node scripts/task-state.ts open-log`.
-- docs: write every Action Worker document that people and agents work from in English (`CLAUDE.md`, `AGENTS.md`, `SECURITY.md`, `docs/`, the proposals and `p00-owner-checklist.md`). Chinese stays only in `*.zh-CN.md` localization files, now including `SECURITY.zh-CN.md`, and `tests/documentation-language.test.ts` enforces it. `docs/03_NAMING_CONVENTIONS.md` records the rule and the workflow naming rule. Business repositories keep the existing Markdown exemption of the engineering language check.
-- ci: name every workflow by one rule within the existing three-segment limit, checked by `tests/workflow-naming.test.ts`. A workflow started by `repository_dispatch` takes the most complete name that fits: `handle-<subject>-dispatch.yml`, then `<subject>-dispatch.yml`, then `<subject>.yml`, where the subject is the event name without `run-`. Every display name now spells out its file name. Renamed `dependency-repair`, `security-scan` and `release-build` to `*-dispatch`, and `apply-repo-settings` (workflow and script) to `apply-repository-settings`; renamed the display names of the intakes (for example "Central PR Intake" is now "PR Intake") and of the other dispatch entry points. `handle-pr-dispatch` and `handle-pr-review` are recorded exceptions. Removed the reusable workflows `validate-central-merge`, `validate-deploy-policy` and `validate-source-policy`, which no repository called.
-- test: cover the R2 client configuration of the internal-vault upload brick (checksums only when required, plain settings for older botocore).
+- 修复: `APP_SOURCE_` 外部配置前缀作为与上下文无关的系统身份；承认带作用域的业务所有者，同时仍拒绝依赖上下文的通用名称；把 MODE 配置名视为非布尔值。
 
-- fix [security]: stop uploading the output of a failed private task as a `task-log-*` artifact. Artifacts of the public action-worker repository can be downloaded by any signed-in GitHub user, which bypassed the suppression of private task output in the run log; the log now stays on the runner.
-- fix: stop re-dispatching PR Governance every five minutes for a pull request that waits for approval. An untrusted head is now reported as `Awaiting maintainer approval of the current head commit` (the run itself succeeds, `PR Governance` and `validate-merge` stay `failure`, and the PR comment explains how to approve); Central PR Intake recognises that state and dispatches again only once a maintainer approved the current head. Dependabot pull requests from a branch of the same public repository no longer wait for approval; in private repositories they still do. Central CI keeps failing closed on an untrusted head.
-- fix [security]: the PR gate accepts `CI Evidence` only when the control run it names is a successful run of a workflow that publishes it (`hasVerifiedCiEvidence`), and `dispatch-central-ci.ts` no longer skips CI on a success status that merely names a control run URL. Central CI dispatches its follow-ups (security scan, Main Write audit, automatic deploy) from a separate `follow-up` job with `continue-on-error: true`, so a follow-up failure cannot turn a passing CI run red.
+- 修复: 下游 bootstrap 执行前，只读的任务执行凭据与中央控制、发布凭据隔离。
 
-- feat [security]: add a central, pinned secret scan of the commits a pull request adds (gitleaks 8.30.1 with a verified SHA-256, `scripts/central-secret-scan.ts`) to the Linux CI sandbox. It runs before any target code, uses the target's `.gitleaks.toml` from the trusted ref when it has one, prints rule names and counts (file and line only for public repositories) and only warns by default; set the Repository Variable `AW_CENTRAL_GITLEAKS_MODE` to `enforce` to make findings fail the build.
+- 修复: 统一以 `main` 作为最新的控制基线，移除残留的 `v1` 引用。
 
-- fix [security]: the main-branch ruleset now requires a pull request to be up to date with `main` before it can merge (`strict_required_status_checks_policy: true`), so `validate-merge` runs on the result of the merge. It applies to the public repositories; private repositories on the Free plan cannot have rulesets and rely on the Main Write Guard (ORG-006, phase 1).
+- 修复: CHANGELOG 更新归为文档类，只有真正的发布语义或声明的发布影响才选择发布审查；发布 AI 审查的范围包含 JSONC 部署配置与 CHANGELOG。
 
-- docs: record the owner decision that the organization stays on the Free plan and the private repositories stay private in the ORG-006 and AW-002 proposals (rulesets apply to the four public repositories; the Main Write Guard is the control for the private ones).
+- 修复: 代码最小化审查指南合并进每个文件唯一的 OpenCodeReview 规则条目，不再被当作重复路径模式丢弃。
 
-- docs: add design proposals for owner approval, with nothing implemented: AW-002 (isolate deploy and task secrets with Environments), AW-005 (what a pull request may change about its own CI) and ORG-006 (main-branch ruleset hardening), under `docs/proposals/`.
-- test: cover owner-only credential files in the delta pack: SID-based ACL judgement (no dependence on the Windows language), creation with mode 0600, reporting of an unconfirmed protection and of a failing folder restriction, and a loose file restricted by the next save on Windows.
-- test: cover the Server Edge hardening in the internal-vault pack: the strict env loader rejects anything that could run or surprise, release defaults load like `source` did, configuration backups are pruned to three, and `deploy.sh` never downloads or runs the Tailscale installer without a matching pinned hash.
-- feat [security]: the source-script deploy path now takes its authority from the control plane. `policies/deploy-environments.json` lists the environments each repository may deploy to (the manifest only requests one, an unlisted request fails with exit code 77), `policies/deploy-secrets.json` caps the secrets a target may declare per repository and environment (`AW_DEPLOY_SECRET_POLICY_MODE` `warn` by default, `enforce` to refuse), the deploy checkout uses the read-only `AW_CHECKOUT_TOKEN` instead of `AW_CONTROL_TOKEN`, and the control-plane credentials are refused as declared names. Jobs that use `AW_ADMIN_TOKEN` now run in the `admin-ops` environment.
+- 修复: 发布 AI 审查使用 Code-Max，阻断策略不变。
 
-- test: cover the AdFilter build header in the internal-vault pack: every source and its licence appear as Adblock Plus comment lines, the rule count and rules are unchanged, and a configured value cannot inject a rule line.
-- test: cover the delta-suite browser hardening: non-web request protocols are aborted, the guarded proxy demands per-session credentials (407), refuses CONNECT to non-web ports, releases idle connections and answers 503 beyond its connection cap.
+- 修复: AI 审查设置：禁用的审查权限对所有仓库（包括 AI Gateway 引导）生效，模型覆盖不能静默重新启用审查；普通代码审查的任务预算为 5 分钟，覆盖 300 秒 LLM 超时；为打破 AI Gateway 的自审循环，临时使用授权的 Audit-Max 模型审查；AI Gateway 引导审查使用中央配置的模型，同时保留架构规则、高强度与关键阻断。
 
-- test: cover the delta web-fetch size and time limits, the URL guard's rejection of embedded credentials and IPv4 forms, and the shared credential-redaction golden fixture in the delta test pack.
-- test: cover the app-source license service hardening: bounded audit rows per client address with one summary row, hourly retention, the 4 KB body limit, the per-(ID, address) failed-attempt limit, the pepper file, and the nonce-based Content-Security-Policy.
-- test: cover the ai-gateway hardening in its pack: OAuth page CSP and the refresh-page form start, edge cache stream and credential scoping and unsafe-response skipping, token AAD binding, diagnostics key groups, the subscription and public dashboard switches, and the waitUntil purge.
-- docs: add `SECURITY.md` (English and Chinese) pointing to GitHub private vulnerability reporting; the backup contact is a TODO for the owner.
+- 修复: 短暂的 AI 审查失败增加有界指数退避的会话恢复，保持 FIFO 单并发。
 
-- docs: describe the Gate as deterministic policy plus CI Evidence, with AI Review running asynchronously after the gate passes and only advising (README.md, README.zh-CN.md); drop the "review blocking thresholds" bullet, which has no policy behind it.
+- 修复: 分诊与 AI 审查跨 Action Worker 修订串行化，避免 main 更新产生并发的 AI Gateway 调用方。
 
-- fix [security]: task state artifacts are named `task-state-<hash of repository and project>` and carry a `manifest.json`; restore ignores an artifact whose manifest names another repository or project, so two different task sources can no longer share or poison each other's state (artifacts written under the old name are still restored during the 30 day retention window). For a private task source the public run log shows the project and request id only as short hashes and the commit as 7 characters.
-- ci: add `.github/security-scan.json` so Action Worker's own TypeScript and workflow files are scanned by CodeQL, and accept the CodeQL `actions` language in the security scan contract (`contracts/security-scan.json`, `scripts/security-scan.ts`).
-- fix: the engineering language rule no longer reports non-English text inside vendored minified bundles (`*.min.js`, `*.min.css`), which the repository that vendors a library cannot change; the same text in authored code is still reported.
-- feat [security]: the security gate now also reports OpenAI/Anthropic (`sk-ant-`, `sk-proj-`, legacy `sk-` keys), NVIDIA `nvapi-`, Hugging Face `hf_`, Tailscale `tskey-`, `CLOUDFLARE_API_TOKEN` assignments and JWTs in added lines, and `policies/security.json` gains `secret_allowlist`: a known harmless value is accepted only when both its file path and the whole matched text match, so it cannot excuse any other credential on the same line or in the same file. The only entry is the synthetic key in the internal-vault preflight tests.
-- fix [security]: check out private targets in the CI sandbox and the dependency repair compute job with a new read-only `AW_CHECKOUT_TOKEN` instead of `AW_CONTROL_TOKEN`, so jobs that run change code never hold a write-capable credential.
+- 修复: 自动 PR 创建被拒绝时清理临时指标分支；本地指标 PR 的创建与合并使用仓库范围的 GitHub 令牌。
 
-- fix [security]: stop persisting checkout credentials in the dependency repair publish job, the validation workflows and the task dispatch workflow (the push now authenticates through the environment), and split `security-scan.yml` so CodeQL runs without secrets and only a separate publish job holds `AW_ADMIN_TOKEN`.
+- 修复: 审查分发与发布仓库白名单移入版本化的治理策略；OpenCodeReview 分发仓库从规范的 Action Worker 仓库变量解析；强制规范的治理配置名称，并限制治理令牌的指标变更。
 
-- test: add workflow invariants that fail when a code-executing job references a central secret, a checkout persists credentials, or the CodeQL job gains a secret.
-- test: make the delta-suite browser proxy tests work with proxies that require credentials and restrict CONNECT ports, while still passing against the current proxy.
+- 修复: OpenCodeReview 清单的失败分类与原因输出到治理日志。
 
-- test: accept the refresh page that the ai-gateway OAuth form start returns after a form submit, alongside the previous 302, and stop asserting that a streamed request shares the edge cache entry of a non-streamed one, so the gateway fixes can merge without breaking this pack.
+- 修复: 中央 CI 证据等待最长两小时，PR 治理仍在三小时的执行预算内。
 
-- fix [security]: re-verify the task source in `handle-task-dispatch.yml` before any task runs; `bootstrap_ref` must be the current default-branch HEAD of the target repository, carry verified CI Evidence and pass the Main Write Guard, so a forged `run-task` dispatch can no longer make the executor run an arbitrary commit.
+- 修复: 轻量仓库合并门禁保持 GitHub Actions 必需检查的身份，中央 CI 失败详情只向公开目标展示。
 
-- fix [security]: verify `CI Evidence` against the control-repository run that produced it (publishing workflow, default branch, successful conclusion, status written during the run) in the deploy source gate, the task source gate and the Main Write Guard, instead of trusting the `target_url` prefix.
+- 修复: 发布产物的 `validate-merge` 与 PR 治理状态统一由一个可复用工作流创建，并满足 GitHub Checks API 的契约。
 
-- feat: add `policies/task-secrets.json`, a central ceiling for the secrets a task source may declare per repository and project; `AW_TASK_SECRET_POLICY_MODE` selects `warn` (default) or `enforce`.
+- 修复: 合并门禁从 PR 治理的最终提交状态触发，并通过 `repository_dispatch` 触发；反向跨仓库派发凭据已移除。
 
-- fix: scheduled task dispatches now use a `task-schedule-<identity>` request_id (hyphen separator) so they pass the payload validator's `[A-Za-z0-9_.-]` format check; the previous `task-schedule:<identity>` (colon) was rejected at intake, failing every scheduled task (MarketBrief, PharmaBrief, FongapBlog, AdFilter).
+- 修复: Delta 注册为外部配置的规范所有者，与仓库无关的名称统一使用 `DELTA` 前缀。
 
-- fix [security]: pin the AI review engine binary by SHA-256 in `policies/review.json`; the installer accepts it only when the binary matches the pinned digest and the release checksum file agrees, so a replaced release asset cannot vouch for itself.
+- 修复: 通过 `repository_dispatch` 触发仓库合并门禁。
 
-- build: resolve every npm package from `registry.npmjs.org` instead of a third-party mirror (integrity hashes unchanged).
+- 修复: 同一修订上的 AI Review 重跑按当前尝试开始时间排序，复用的低运行 ID 无法绕过全局 FIFO 队列。
 
-- test: cover the ai-gateway `/health` node visibility per access key and the single-use OAuth flow state under concurrent callbacks, and teach the OAuth mock D1 the atomic `DELETE ... RETURNING` read.
+- 修复: 工作指标汇总作业对本地 Actions 与清理仍使用工作流范围的令牌，只有 PR 创建使用 `AW_CONTROL_TOKEN`。
 
-- test: cover the internal-vault lockfile-pinned Wrangler runtime for the Cloudflare deploy bricks and the masking of short and multi-line secrets in the internal-vault test pack.
+- 修复: 陈旧的指标分支清理独立于源工作流成功与否运行，并在每次指标更新前清理已关闭的陈旧分支。
 
-- test: cover the delta-suite git authorization header (scoped to the GitHub host, passed to clone and pull) in the delta-suite test pack.
+- 修复: 指标工作流本身变更时，清理陈旧指标分支的引导自动运行。
 
-- test: cover the ai-gateway edge cache key (canonical JSON, distinct value types, scoped to the key group) in the ai-gateway test pack.
+- 修复: 发布与部署的 Release App 与 Deploy Source Script 中，`source_sha` 为空时部署默认分支当前 HEAD；无效的仓库或 SHA 失败时给出包含输入名的消息。
 
-- test: cover the ai-gateway onboarding key-group limit (`AIG_OAUTH_ADMIN_GROUPS`) in the ai-gateway test pack.
+- 修复: 中央 CI 派发、发布与门禁错误给出下一步操作：仓库名错误时建议 `owner/name`，缺少能力时列出具备该能力的仓库，CI Evidence 与 Main Write Guard 失败时指出要打开的运行与要启动的工作流。
 
-- fix [security]: run central CI for a pull request whose author has no write access only after a maintainer approves its current head commit, and re-check this inside the central CI workflow before any change code runs.
 
-- fix [security]: move the Linux and Windows central CI jobs into the `central-ci-sandbox.yml` reusable workflow, which references no central secret and receives a checkout token only for private targets.
+- 修复: 跟随型产品的固定值与上游已发布版本不匹配时，发布前拒绝并指出文件与键。
 
-- fix [security]: start deploy and task entrypoints with `exec` after out-of-scope secrets are unset, and keep the output of tasks from private repositories out of run logs.
+- 修复: 删除过时的 `AW_EXECUTION_TOKEN` 指南，记录 GitHub 免费版私有仓库保护的限制。
 
-- fix: list the actual maintainers in CODEOWNERS instead of a team that does not exist.
 
-- fix: skip the automatic deploy step for repositories that do not have the `deploy` capability instead of failing with exit 77, so a green main push of delta, delta-suite, app-source or external-vault no longer ends in a red Central CI run.
+- 修复 [migration]: `CLOUDFLARE_ACCOUNT_ID` 的别名与部署密钥上限保持一致，部署作业仍接收仓库变量。
 
-- fix [security]: install actionlint in Validate CI from a pinned release with a verified SHA-256 instead of executing a script fetched from the `main` branch.
+- 修复 [migration]: delta-suite 契约测试不再要求 `pyproject.toml` 中的 Foundation 包版本；Foundation 兼容性只由不可变提交与能力 ABI、工作进程清单、连接器目录格式版本固定。
 
-- fix [security]: pass `needs.*.outputs` to shell steps in the CI dispatch, dependency-repair, release-build and security-scan workflows through `env` instead of pasting them into the script text, and add the `expression-as-shell-argument` rule to the security gate so the pattern cannot return.
 
-- test: add static hygiene checks for the delta-suite test pack (HTTP-helper keywords that do not exist, credentials in URL query strings, tokens on the git command line).
+- 变更: 将 `CHANGELOG.md` 的历史修正为不含 AI 署名 trailer 的提交：默认分支中一次带有 `Co-Authored-By:` 的提交被重写，树、作者、提交者与消息均保持不变；重写期间临时放宽 main 规则集，之后恢复。
 
-- test: add HTTP-level tests for the app-source license service (admin token, real client IP for rate limits, input clamping, log hygiene, signing with the redeem code's edition and features, optional code pepper).
+- 变更: 治理入口与发布自动化对齐：版本计算随 `.githooks/commit-msg` 与 `commitlint.config.js` 一起提供，CONTRIBUTING.md 作为贡献者入口。
 
-- fix: keep reviewing and commenting on a pull request that was merged while its advisory AI Review waited or ran, instead of dropping the review; a pull request closed without merging is still skipped.
+- 变更: 文档改为英文，中文只保留在 `*.zh-CN.md` 本地化文件中（包括 `SECURITY.zh-CN.md`），由测试强制。业务仓库仍保留 Markdown 豁免。
 
-- fix: run advisory AI Review as its own workflow that starts only after the deterministic gate passes, so a pull request no longer waits in the AI queue behind unrelated runs that are still waiting for central CI, and the governance run ends when the gate does.
+- 变更: `CLAUDE.md` 增加提交卫生规则：不得出现 AI 代理身份或署名（如 `Co-Authored-By:`、`Generated with`），标题与正文中也不得出现代理、模型或厂商名称。
 
-- feat: let a managed repository split its Linux CI into parallel shards by declaring `matrix.shard` on the `linux` job of its trusted Execution Manifest, so CI wall time becomes the slowest shard instead of the sum of all phases; repositories without shards keep their exact single-job invocation.
+- 变更: 门禁说明改为确定性策略加 CI Evidence，AI 审查在门禁通过后异步运行且只提出建议。删除没有策略依据的"审查阻断阈值"项。
 
-- feat: add an approved thin PR dispatcher template whose runner is resolved centrally, with a self-hosted control profile, and let the security gate exempt a workflow only while it is byte-identical to an audited hash.
+- 变更: 仓库文档默认使用英文，并增加简体中文伴随索引。
 
-- test: follow the internal-vault#43 brick rename to global_market_fetch and assert the fake token body instead of a contiguous credential literal in the internal-vault test pack.
+- 变更: 工作流统一使用固定版本 `actions/setup-node@v7.0.0`，拒绝已退役的 v4 固定版本。
 
-- test: assert the English Hugo checksum error message in the internal-vault test pack, matching the English-only messages of internal-vault#43.
+- 变更 [breaking]: 删除重复的 `ci-evidence` 提交状态别名，`CI Evidence` 是唯一的中央 CI 状态上下文。
 
-- test: sync the ai-gateway test pack and shared mock D1 helper with the test changes of ai-gateway#65 (one added case, none removed) and replace its inventory baseline.
+- 变更 [breaking]: Release Governance 的源身份与产物运行身份分离，并要求按契约签名的发布来源证明。
 
-- test: sync the internal-vault test pack with the test changes of internal-vault#43 (15 added cases, none removed) and replace its inventory baseline.
+- 变更 [breaking, migration]: 外部配置名称统一加 AW/AIG 系统标识命名空间，强制与上下文无关的外部名称；给出最小充分命名规则，并登记 AW/AIG 系统缩写。与上下文无关的配置语义优先于任意段数限制；共享配置名称一次性切换，非规范配置标识符被拒绝。
 
-- fix: keep central PR intake running when an open pull request touches a file name outside the safe alphabet, such as a non-ASCII name, by treating it as not eligible for dependency repair instead of aborting reconciliation of every repository.
+- 变更 [breaking, migration]: 发布版本只来自发布时输入的版本，且必填。Release Build 不再读取源仓库的版本或与之比较；清单删除 `version_source`；构建脚本以 `-Version` 接收版本。delta 测试包删除版本一致性检查。
 
-- feat: add the `app-source` test pack for the license-service database tests and document the state of every managed repository in `docs/TEST_PACKS.md`.
+- 变更 [migration]: 发布与部署工作流按类型重命名：`Release Build Dispatch` 改为 `Release App`（`release-app.yml`），`Sync Tool Release` 改为 `Release Tool`（`release-tool.yml`），`Source Script Deploy` 改为 `Deploy Source Script`（`deploy-source-script.yml`）。事件、输入与行为不变，按旧名称启动的调用方须改用新名称。
 
-- feat: centralize product test suites as Action Worker test packs with a shared test kit, a pack runner, a pre-migration case inventory, and `.github/test-pack.json` as a protected CI control path.
+- 变更 [migration]: 每个工作流属于一个类别（入口、Intake、处理器、维护或可复用），`tests/workflow-classes.test.ts` 强制执行。只有 Release App、Deploy Source Script 与 Task Source Dispatch 保留手动运行按钮；所有工作流默认无写权限，每个作业有超时，每个工作流都有并发组。
 
-- fix: raise the security gate diff buffer so large generated publication artifacts can be scanned instead of exceeding the 16 MiB cap.
+- 变更 [migration]: 一个 Intake 工作流（`intake.yml`）替代 PR Intake、CI Intake、Task Intake、Security Scan Intake 与 Main Write Audit，Task Source Dispatch 不再定时运行。GitHub 对本仓库五分钟定时的执行间隔为 2.6 到 9.8 小时，因此 Intake 也会在每次 main 推送与 `run-intake` 事件时运行。任何按旧名称启动工作流的调用方必须改发 `run-intake`。
 
-- fix: exempt plain data content files from the engineering language gate so generated publication artifacts can pass governance.
+- 变更 [migration]: 业务仓库使用统一的通知桥接 `templates/bridge/notify-action-worker.yml`（`Notify Action Worker`，已在 `policies/security.json` 中批准）。PR 打开、更新或重开时发送 `run-pr-governance`，关闭时发送 `cancel-pr-work`，main 推送时发送 `run-intake`。它取代 `dispatch-pr-governance.yml` 与仓库自有的 `ci.yml` 派发器；旧方式在仓库切换前仍可用。
 
-- fix: land task publication through a governed pull request instead of a direct push to the protected target branch.
+- 变更: Apply Repository Settings 每天运行一次，手工在受管仓库中改动的设置会回到共享策略。
 
-- fix: accept central CI Evidence as the release source gate when source repositories no longer host local ci.yml runs.
+- 变更: 删除未被调用的可复用工作流（`validate-central-merge`、`validate-deploy-policy`、`validate-source-policy`）。`apply-repo-settings` 重命名为 `apply-repository-settings`，各 Intake 的显示名称与派发入口的显示名称统一为文件名。
 
-- fix: merge code-minimality review guidance into the single OpenCodeReview rule entry per file so it reaches the AI review model instead of being dropped as a duplicate path-pattern entry.
+- 变更: 工作流按统一规则命名，并由 `tests/workflow-naming.test.ts` 检查：由 `repository_dispatch` 启动的工作流取最完整且可用的名称（`handle-<subject>-dispatch.yml`、`<subject>-dispatch.yml`、`<subject>.yml`）。`handle-pr-dispatch` 与 `handle-pr-review` 为已记录的例外。
 
-- feat: add a code-minimality agent skill and AI review rules that prefer reuse, deletion, and minimal change sets without weakening safety or gates.
+- 变更: 工作指标汇总作业的检出不持久化凭据；推送时只为单次调用通过进程环境注入凭据。
 
-- fix: detect PR project types from changed monorepo paths before falling back to repository-root manifests.
+- 变更: 工作指标徽章改用 GitHub 品牌配色与 Shields 默认标签背景；Dispatch 徽章更名为 Task Dispatch；Dispatch 定义为成功的 Handle Task Dispatch 运行，并依据已完成的治理事件更新全部徽章。
 
-- fix: surface detailed source-naming diagnostics when the Python naming validator rejects a change.
+- 变更: 工作指标每日重算，并自动更新任务派发、PR 治理与发布治理的数据。
 
-- fix: reserve short-lived `CI Evidence` before main-CI intake dispatch so adjacent reconciliation runs cannot launch duplicate Central CI for the same immutable head.
+- 变更: 工作流定时清理陈旧分支的作业更名为 Prune Stale State（`prune-stale-state.yml`）。新作业删除文件已不在 `main` 中的工作流的运行记录，最后一次运行两天后删除，每次最多 400 条。
 
-- chore: standardize GitHub workflows on the pinned `actions/setup-node@v7.0.0` runtime and reject the retired v4 action pin.
+- 变更: Main Write Guard 工作流只守护 Action Worker 自身的 `main`；无发送者的 `run-main-write-guard` 与 `refresh-work-metrics` 事件已移除。
 
-- refactor [breaking]: hard cut the duplicate `ci-evidence` commit-status alias and keep `CI Evidence` as the single canonical Central CI status context.
+- 变更: 任务派发在 PR 合并时间内完成门禁；Release App 与 Deploy Source Script 为其源请求中央 CI，等待时间与任务源门禁共用 `centralCiWait`。
 
-- fix: serialize duplicate main-SHA Central CI dispatches and reuse successful CI Evidence instead of cancelling and rerunning the same immutable source.
+- 变更: Task Source Dispatch 为该仓库直接请求中央 CI（`AW_CI_INTAKE_REPOSITORY`），不再依赖每几小时才运行一次的定时 CI Intake。
 
-- fix: reserve short-lived PR intake statuses before dispatch so repeated reconciliation cannot launch duplicate Governance or Dependency Repair runs for the same head.
+- 变更: 工具同步需要显式传入工具键（`scripts/sync-tool-release.ts <policy> <artifact-dir> <tool-key>`），工作流对 `open-code-review` 与 `r-base` 分别运行矩阵。同步不再从审查策略的 `engine.name` 取工具，因此 `r-base` 这样的目录条目可以被使用。
 
-- fix: retry failed PR governance after the Action Worker control revision advances while avoiding retry loops on the same revision.
+- 变更: 工具分发支持镜像一个固定哈希的 HTTPS 文件（`"distribution": "url"`），上游文件 SHA-256 不符时同步在发布前失败；URL 必须是 HTTPS 且不含凭据。GitHub Release 分发保持不变，未知分发方式会失败。
 
-- fix: expose only trusted CI script line and exit code for private-repository failures while keeping detailed logs suppressed.
+- 变更: 自动化作业与 OpenCodeReview 调整：普通 Code-Pro 审查任务限定 2 分钟；正常的 workflow 与发布变更使用单轮 Code-Pro；瞬时会话恢复限定为一次检查点保留的恢复；使用经验证的外部发布安装 OpenCodeReview（不再使用 npm 引导，该引导仅在 OCR 资产确认缺失时临时允许）。
 
-- refactor: resolve closed-PR cancellation repository authority through AW_REPOSITORY_POLICY instead of a duplicated workflow allowlist.
+- 变更: 分诊与 AI 审查共享一个 FIFO 队列，移除整次审查重试；请求重试交给 OpenCodeReview，模型、提供方与密钥回退交给 AI Gateway。控制证据注入临时提交，不改变受治理的 PR head。
 
-- fix: validate closed-PR cancellation targets before entering governance and Central CI concurrency groups.
+- 变更: AI 分诊与审查通过 `AW_IS_AI_REVIEW_ENABLED` 选择开启，确定性治理门禁不变。
 
-- fix: cancel stale PR Governance and Central CI work when a managed pull request is closed.
 
-- fix: reserve validate-merge for the trusted GitHub Actions check and stop Central CI from publishing a conflicting commit status.
 
-- fix: inject the validated AI Gateway source SHA through AIG_BUILD_SHA instead of the control-plane GitHub SHA.
 
-- feat: centralize repository Main and Legacy Ruleset creation and drift repair in Action Worker.
 
-- docs: remove obsolete AW_EXECUTION_TOKEN guidance and document GitHub Free private-repository protection limits.
+- 变更: 测试包：产品测试套件集中为 Action Worker 测试包，附带共享测试工具、测试包运行器与迁移前的用例清单；`.github/test-pack.json` 作为受保护的 CI 控制路径；`docs/TEST_PACKS.md` 记录各受管仓库的状态。
 
-- docs: replace the stale exhaustive architecture tree with the current responsibility-based control-plane layout.
+- 变更: 为各受管仓库的加固行为补充测试：owner-only 凭据文件、服务器边缘的环境加载与备份保留、AdFilter 头部、delta-suite 浏览器代理、delta 网页抓取与脱敏夹具、app-source 许可证服务、ai-gateway 的 OAuth、边缘缓存、订阅与仪表盘开关。
 
-- feat: inject Tier 2 OAuth provider configuration and token-encryption key only through the central AI Gateway deploy and readiness workflows.
+- 变更: internal-vault 测试包同步 `cfworkers_service_deploy` 的变量与密钥处理、发布顺序、健康检查与回滚；R2 客户端配置与密钥掩码也有测试覆盖。
 
-- fix: publish explicit successful CI Evidence when the governance plan does not require CI so final merge gates never infer intent from missing evidence.
+- 变更: 工作流不引用中央密钥、检出不持久化凭据、CodeQL 作业不接触密钥的不变量测试。
 
-- refactor: enable automatic AI Gateway deployment through the central deploy executor and register manual Server Edge deployment policy.
+- 变更: 记录 owner 决定：组织保持免费版套餐，私有仓库保持私有；规则集只适用于四个公开仓库，私有仓库依赖 Main Write Guard（ORG-006 与 AW-002 提案）。
 
-- feat: centralize Server Edge deployment execution and production credentials in Action Worker.
+- 变更: 新增设计提案 AW-002（用 Environments 隔离部署与任务密钥）、AW-005（PR 可以修改自身 CI 的范围）与 ORG-006（main 分支规则集加固），均待 owner 批准，未实施。
 
-- feat: add a source-gated central AI Gateway deployment executor with centralized production credentials, health verification, and rollback.
+- 变更: 新增 `SECURITY.md`（英文与中文），指向 GitHub 私密漏洞报告；备用联系人待 owner 补充。
 
-- feat: move AI Gateway nightly CI into Action Worker without publishing deploy-triggering commit statuses.
+- 变更: 文档说明门禁由确定性策略与 CI Evidence 组成。删除没有策略依据的"审查阻断阈值"项。
 
-- feat: add non-destructive central deployment readiness checks for AI Gateway and Server Edge.
+- 变更: 新增 `scripts/central-secret-scan.ts` 与 `policies/security.json` 中的 `secret_allowlist`，并在 CI 沙箱中使用目标仓库可信引用的 `.gitleaks.toml`。
 
-- fix: skip centralized model discovery safely until its provider configuration is available in Action Worker.
 
-- feat: centralize AI Gateway model discovery and snapshot retention in Action Worker.
+- 变更: 工程语言门禁的检查覆盖 HTML 模板与 Hugo 注释，`*.min.*` 文件例外。
 
-- feat: extend centralized Release Build to Delta with project-scoped environment setup, provenance attestation, and CycloneDX SBOM packaging.
 
-- feat: centralize App Source release build runners, artifact packaging, and provenance in Action Worker.
+- 新增: 公开仓库的 main 与 legacy 规则集由 Action Worker 统一创建并修复漂移。
 
-- fix: key Release Governance concurrency by the v2 source and artifact identities.
+- 新增: 发布未指定版本时，Release App 从上一个 `<release-key>-v<version>` 标签之后的 Conventional Commits 计算下一个稳定版本（破坏性标记按 SemVer 规则处理）。跨度内没有可发布的提交、出现非规范标题或超过 200 个提交时失败，并在消息中给出修复方法；显式输入版本时保持原行为。清单的 `release_notes` 为空时，同一跨度生成发布说明。
 
-- fix: include deleted files in PR context so workflow removals still trigger CI and governance.
+- 新增: 手动部署在 `source_sha` 为空时部署默认分支当前 HEAD。
 
-- test: run centralized tool-sync smoke validation when its control files change on main.
+- 新增: PR 在作者或提交者名称包含 AI 代理或模型名、trailer（如 `Co-Authored-By:`）包含代理名、或标题与提交行是工具署名（如 `Generated with`）时失败。标题与提交正文中的代理名称允许出现。
 
-- feat: centralize verified third-party tool synchronization and Release artifact preparation in Action Worker.
+- 新增: 新增 `test-driven-development`、`writing-for-agents` 与 `multi-agent-delegation` 技能；`bug-fixes` 先建立反馈回路再提出假设；PR 审查分别报告意图与标准两个维度；代理技能说明冲突指令的解决顺序（机器合同与策略优先，任务指令不能放弃它们）。
 
-- refactor [breaking]: split Release Governance source identity from artifact-run identity and require signed-by-contract release provenance.
+- 新增: 新增 `deploy-verify`、`flaky-test-triage`、`security-remediation`、`contract-evolution` 与 `semantic-refactor` 五个代理技能；`code-minimality` 增加"重新生成而非手工合并机器生成的锁文件"的规则，并新增代码最小化审查指南与 AI 审查规则。
 
-- fix: register Delta as a canonical external configuration owner so repository-independent names use the stable DELTA prefix.
+- 新增: 中央 CI 派发 Release 与 Deploy 时，`requested_version` 与 `release_notes` 作为可选输入（见上文版本计算）。
 
-- fix: satisfy the GitHub Checks API contract when creating the centralized validate-merge check run.
+- 新增: 每个发布附带许可证元数据，默认 Apache-2.0，可由应用级显式覆盖。
 
-- refactor: trigger merge gates from the final PR Governance commit status and remove reverse cross-repository dispatch credentials.
+- 新增: 普通 PR 审查前新增 Code-Air AI 分诊，带确定性安全下限，并可跳过高置信度的低风险审查。
 
-- fix: trigger repository merge gates through repository_dispatch and centralize GitHub Actions check creation in one reusable workflow.
+- 新增: 集中校验 Python、Rust 与 TypeScript 变更源码的命名。
 
-- refactor: reuse `AW_CONTROL_TOKEN` for private task bootstrap reads and remove the redundant `AW_EXECUTION_TOKEN` credential contract.
+- 新增: 集中的第三方工具同步与发布产物准备（OpenCodeReview、R Base 等）。
 
-- fix: use the repository administration credential for cross-repository merge-gate workflow dispatch while keeping PR control credentials read-only for Actions.
+- 新增: 治理前预检 AI Gateway 模型访问，Agent 密钥无法调用所需审查模型时尽早失败。
 
-- fix: preserve GitHub Actions required-check identity with a lightweight repository merge gate and expose central CI failure details only for public targets.
+- 新增: `AW_AI_AGENT_CONFIG` 集中配置可选的 AI Agent 启用与逻辑模型路由；任务运行时的 AI Agent 模型变量由此推导。审查、分诊、写作与未来代理共用一个配置来源。
 
-- fix: allow centralized CI evidence waits up to two hours while keeping PR governance within its three-hour execution budget.
+- 新增: 任务源与部署源可以为密钥声明别名（`policies/task-secrets.json` 与 `policies/deploy-secrets.json` 的 `aliases`）。ai-gateway 部署的 `CLOUDFLARE_API_TOKEN` 取自 `CLOUDFLARE_API_TOKEN_SECONDARY`，internal-vault 任务 FongapBlog 与 FongapCDN 取自 `_PRIMARY`，二者使用不同的 Cloudflare 账号。
 
-- feat: extend centralized CI execution to every managed business repository while retaining project-owned trusted test entrypoints.
+- 新增: `policies/task-secrets.json` 为 EngineSuite 项目设置密钥上限：`CLOUDFLARE_API_TOKEN` 与 `CLOUDFLARE_ACCOUNT_ID` 取自 `_PRIMARY`，并允许 Algolia 与 `ENGINESUITE_*` 密钥。首次运行前须创建这些密钥。
 
-- fix: honor disabled AI review authority for every repository, including AI Gateway bootstrap, so model overrides cannot silently re-enable review.
+- 新增: 中央密钥策略新增任务源的密钥上限（`policies/task-secrets.json`）；`AW_TASK_SECRET_POLICY_MODE` 可选 `warn`（默认）或 `enforce`。
 
-- fix: give normal code AI reviews a five-minute task budget so the outer review process can cover the configured 300-second LLM timeout.
+- 新增: 中央 CI 扩展到所有受管业务仓库，保留项目自有的可信测试入口。
 
-- fix: keep the context-selected AI review active for a trusted bootstrap model override and validate that explicit model against the Agent key before review execution.
+- 新增: 托管仓库可在可信执行清单的 `linux` 作业上声明 `matrix.shard`，把 Linux CI 拆分为并行分片；无分片的仓库保持原有的单作业调用。
 
-- fix: use the centrally configured independent writing model for temporary AI Gateway bootstrap review while preserving architecture rules, high effort, CI evidence, and critical blocking.
+- 新增: 经批准的薄 PR 派发器模板（运行器由中央解析，支持自托管控制配置）；安全门禁仅对与审计哈希一致的工作流豁免。
 
-- fix: use the centrally configured default AI review model for AI Gateway bootstrap while preserving architecture rules, high effort, CI evidence, and critical blocking.
+- 新增: 跟随型产品在自身文件中固定上游产品的版本或提交，上游受治理发布后移动这些固定值。发布前检查每个固定值对应已发布的上游版本；Action Worker 为每个 follower 在 `aw/follow/<product>` 上开一个 PR，只修改声明的固定文件。声明 uv 锁文件的 follower 在沙箱中刷新 `uv.lock`，且只在变更仅涉及该文件时才提交。
 
-- fix: run AI Gateway bootstrap review one capability tier below an Ultra architecture route so the current gateway can be repaired without disabling AI Review or hard-coding a model family.
 
-- fix: preserve AI review bootstrap compatibility by resolving AI Gateway self-review from the centrally authorized architecture route instead of a hard-coded model alias.
+- 新增: 部署环境在源清单声明 `triggers.schedule` 时按 cron 计划部署。Intake 的 `deploy-schedules` 作业每 5 分钟运行一次，回看 12 小时取每个产品环境最近一次到期的触发，并以默认分支 HEAD 上的 `Deploy Schedule/<product>/<environment>` 状态记录。默认分支红色或未验证时跳过本次，不改为部署更早的提交。
 
-- fix: allow AI review rate-limit retry windows to use a ten-minute task budget without weakening governance gates.
+- 新增: 一个仓库可部署多个产品与环境。schema 2 的部署清单按环境声明触发器（`push` 为 `true` 时监视产品根目录，`push.paths` 可列出其他路径）；无触发器的环境只能手动部署；需要必需审批人的环境被拒绝。
 
-- fix: temporarily review AI Gateway changes with the authorized Audit-Max model to break the gateway self-review bootstrap cycle without disabling AI Review.
+- 新增: 一个仓库可含多个产品，每个产品在 `projects/<name>/` 中声明发布清单，Release App 通过 `product` 输入选择；构建脚本从 `RELEASE_PRODUCT_ROOT` 读取产品根目录；不同产品的运行互不排队。
 
-- fix: align the default AI review task budget with the configured 300-second LLM timeout.
+- 变更 [migration]: 同一托管产品的部署策略条目从仓库键迁移到产品键 `owner/name/product`。产品不再回退到仓库键，通过仓库键的手动部署被拒绝，直到其清单使用产品布局。
 
-- fix: classify CHANGELOG updates as documentation so release review is selected only by actual release semantics or declared release impact.
 
-- style: align work-metric value colors with the GitHub brand palette.
+- 变更: 工具同步与发布的 Release 标签与标题规则统一：标签为 `<release-key>-v<version>`，标题为 `<release_name> v<version>`。
 
-- style: use default Shields label backgrounds and GitHub label colors for work-metric values.
 
-- style: apply a visually reviewed muted palette to work-metric badges.
+- 修复: 中央 Intake 在打开的 PR 修改了安全字符集以外的文件名（如非 ASCII 名称）时继续运行，不再中断对账。
 
-- style: use a muted low-saturation palette for work-metric badges and lighten shared labels.
+- 修复: 任务派发在源 CI 缺失时会请求中央 CI，不再等待从未被请求的 CI Evidence。
 
-- style: rename the Dispatch badge to Task Dispatch and unify work-metric badge colors.
+- 修复: 定时任务派发与 Intake 中的请求被验证，不再因冒号格式而被拒绝。
 
-- fix: give architecture and security AI reviews a five-minute task budget so high-effort Audit-Ultra reviews can complete within the configured 300-second LLM timeout.
+- 安全 [security]: 删除并非必要的 `task-log-*` 制品上传，私有任务输出保留在运行器上。
 
-- fix: define Dispatch as successful Handle Task Dispatch runs and lock work-metric badge semantics in tests and documentation.
+- 安全 [security]: 私有仓库任务的状态与日志只以加密形式上传，并按制品名称恢复最近的成功状态，而不是扫描最近 50 次运行。
 
-- fix: update all work-metrics badges from completed governance events, synchronize localized READMEs, and wait for PR CI without workflow-dispatch permissions.
+- 安全 [security]: PR 治理在等待批准时不再重复派发；只有维护者批准当前 head 后才继续。
 
-- docs: make English the default repository documentation language and add Simplified Chinese companion indexes.
 
-- fix: distinguish engineering lifecycle labels from qualified domain concepts in shared naming validation.
-
-- fix: isolate read-only task execution credentials from central control and publication credentials before downstream bootstrap execution.
-
-- fix: use `AW_CONTROL_TOKEN` only for work-metrics PR creation while keeping local Actions and cleanup on the workflow-scoped token.
-
-- fix: trigger the stale metrics-branch sweep when its implementation script changes on main.
-
-- fix: force GET for stale-metrics pull-request discovery so GitHub CLI does not reinterpret query fields as a PR creation request.
-
-- fix: execute stale metrics-branch cleanup in the standalone sweep job rather than the gated aggregation job.
-
-- fix: bootstrap stale metrics-branch cleanup when the metrics workflow itself changes on main.
-
-- fix: run stale work-metrics branch cleanup independently of source workflow success.
-
-- fix: sweep stale closed work-metrics branches before each metrics update.
-
-- fix: accept the `APP_SOURCE_` external configuration prefix as a context-independent system identity.
-
-- fix: keep work-metrics repository actions on the workflow-scoped GitHub token and clean failed metric PRs and branches.
-
-- fix: recognize scoped business owners in external configuration naming while continuing to reject generic context-dependent names.
-
-- feat: derive task-runtime AI Agent model variables from `AW_AI_AGENT_CONFIG` so downstream writing and future agents share one model authority without project-level model settings.
-
-- refactor: centralize optional AI Agent enablement and logical-model routing in `AW_AI_AGENT_CONFIG`, keeping Review, Triage, Writing, and future agents under one runtime configuration authority.
-
-- fix: run release AI review on Code-Max while preserving the same strict blocking policy.
-
-- feat: preflight AI Gateway model access so governance fails early when the Agent key cannot call required review models.
-
-- fix: give release AI reviews a five-minute task budget so transient gateway failover can complete without weakening review gates.
-
-- fix: include JSONC deployment configuration and CHANGELOG files in release AI review scope.
-
-- fix: make AI Triage and Review opt-in through AW_IS_AI_REVIEW_ENABLED while preserving deterministic governance gates.
-
-- fix: give workflow AI reviews a five-minute task budget without increasing other review-agent timeouts.
-
-- fix: treat MODE configuration names as non-Boolean during naming validation.
-
-- fix: add bounded exponential-backoff session recovery for transient AI review failures while preserving FIFO single concurrency.
-
-- fix: move review distribution and release repository allowlists into versioned governance policy.
-
-- fix: resolve the OpenCodeReview distribution repository from the canonical Action Worker repository variable.
-
-- fix: enforce canonical governance configuration names, execution-source allowlisting, and governance-token metrics mutations.
-
-- refactor [breaking]: namespace Action Worker external configuration with AW/AIG system identity and enforce context-independent external names.
-
-- docs: define minimum-sufficient external naming and register AW/AIG system abbreviations.
-
-- fix: prioritize context-independent configuration semantics over arbitrary segment-count limits.
-
-- refactor [breaking, migration]: hard cut shared configuration names and reject non-canonical configuration identifiers.
-
-- perf: bound each normal Code-Pro review task to two minutes so multi-file governance remains responsive while gateway fallback and fail-closed behavior stay unchanged.
-
-- perf: inject controlled CI evidence into matching ephemeral base/head commits so it remains readable without becoming an extra reviewed file.
-
-- fix: order AI Review reruns by the current attempt start time so a reused low run ID cannot bypass the global FIFO queue.
-
-- fix: expose controlled CI evidence to commit-based AI Review through an ephemeral local commit without changing the governed PR head.
-
-- perf: limit transient OpenCodeReview session recovery to one checkpoint-preserving resume after production validation showed a single resume is sufficient.
-
-- refactor: remove the temporary npm bootstrap now that verified OpenCodeReview release assets are published.
-
-- perf: use one-round Code-Pro review for normal workflow/release changes; Triage still escalates high/deep risk to Code-Ultra/high.
-
-- fix: temporarily allow npm bootstrap only when the configured OCR Release asset is confirmed missing (HTTP 404); remove after the first mirrored Release is published.
-
-- fix: serialize Triage and AI Review across Action Worker revisions so a main update cannot create concurrent AI Gateway callers.
-
-- refactor: install OpenCodeReview from verified external releases with runner cache instead of npm.
-
-- fix: resume one compatible OpenCodeReview session after transient 5xx, timeout, network, or overload failures without repeating completed review work.
-
-- feat: add per-Release license metadata with Apache-2.0 as the default and explicit App-level overrides.
-
-- feat: add Code-Air AI Triage before normal PR review, with deterministic safety floors and high-confidence low-risk review skipping.
-
-- refactor: keep Triage and AI Review on one FIFO queue, remove whole-review retry, and delegate request retry to OpenCodeReview plus model/provider/key fallback to AI Gateway.
-
-- fix: clean temporary metrics branches when automated PR creation is rejected.
-
-- fix: use the repository-scoped GitHub token for local work-metrics PR creation and merge.
-
-- feat: centralize changed-source naming validation for Python, Rust, and TypeScript.
-
-- fix: serialize OpenCodeReview subtasks through policy-defined review concurrency to avoid upstream provider burst failures.
-
-- fix: prevent stale PR governance runs from overwriting review comments or final commit status owned by a newer run.
-
-- fix: scope PR governance concurrency to the current control-plane revision so stale runs cannot block a newer Action Worker release.
-
-- fix: surface OpenCodeReview manifest failure classifications and reasons in governance logs.
-
-- feat: recompute and auto-update task dispatch, PR governance, and release governance work metrics daily.
-
-- fix: unify on `main` as the latest control baseline and remove residual `v1` references.
+- 安全 [security]: 日志与输出中的私有内容被掩码，私有仓库的失败只显示短哈希与提交的 7 位前缀。
