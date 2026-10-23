@@ -207,7 +207,7 @@ flowchart LR
 
 ## 参与贡献
 
-- 面向人的文档用中文；工程 diff、PR 标题与 CHANGELOG 用英文。
+- 面向人的文档与 CHANGELOG 条目用中文；工程 diff 与 PR 标题用英文。
 - PR 标题格式为 `type(scope): summary`，`type` 取值见 [CHANGELOG 约定](docs/04_CHANGELOG_CONVENTIONS.md)。
 - `feat`、`fix`、`perf`、`revert` 与破坏性变更必须更新 `CHANGELOG.md`。
 - 治理变更必须同时更新合同、策略与回归测试；仅有文档不构成约束。

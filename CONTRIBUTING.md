@@ -21,7 +21,7 @@ npx --yes --package=@commitlint/cli@19 commitlint --from origin/main --to HEAD
 
 ## CHANGELOG
 
-每个 PR 在 `CHANGELOG.md` 的 `[Unreleased]` 下新增一条英文条目：`- type: summary`，方便日后自动汇总为 Release notes。
+每个 PR 在 `CHANGELOG.md` 的 `[Unreleased]` 下新增一条中文条目：`- 类别: 中文摘要`，类别取自新增、变更、弃用、移除、修复、安全六类，条目格式与映射见 `docs/04_CHANGELOG_CONVENTIONS.md`。
 
 ## Pull Request
 

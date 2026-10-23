@@ -93,9 +93,6 @@ export function engineeringLineViolation(
   if (!containsHan(line)) {
     return null;
   }
-  if (path === "CHANGELOG.md") {
-    return "CHANGELOG entries must use English.";
-  }
   if (
     MARKDOWN.test(path) ||
     LOCALIZATION.test(path) ||
@@ -245,7 +242,7 @@ async function main(): Promise<void> {
     `- Added lines: ${result.additions}`,
     `- Violations: ${result.failures}`,
     "",
-    "Rule: engineering diffs, PR titles, and CHANGELOG entries use English; documentation, localization, HTML template copy, and plain data content are exempt.",
+    "Rule: engineering diffs and PR titles use English; CHANGELOG entries use Chinese (CHANGELOG_CONVENTIONS §5); documentation, localization, HTML template copy, and plain data content are exempt.",
   ]);
   if (result.failures > 0) {
     process.exit(1);

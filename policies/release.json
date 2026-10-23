@@ -16,6 +16,14 @@
   ],
   "change_attributes": ["breaking", "security", "migration"],
   "changelog_required_types": ["feat", "fix", "perf", "revert"],
+  "changelog_categories": ["新增", "变更", "弃用", "移除", "修复", "安全"],
+  "changelog_category_types": {
+    "feat": ["新增", "变更", "弃用"],
+    "fix": ["修复", "变更"],
+    "perf": ["变更"],
+    "revert": ["变更", "修复"]
+  },
+  "security_category": "安全",
   "impact_patterns": {
     "breaking": ["breaking"],
     "security": ["security"],

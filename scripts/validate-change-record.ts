@@ -1,5 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { assertChineseSummary, parseEntry } from "./changelog-release.ts";
 import { isJsonRecord } from "./github-api.ts";
 import {
   appendLines,
@@ -151,6 +152,24 @@ export async function assertAttributionFree(
   }
 }
 
+// CHANGELOG_CONVENTIONS §4: which categories a PR type may write. A type missing from the
+// policy writes no category of its own, so only the security category can satisfy it.
+function changelogCategoriesForType(policy: Record<string, unknown>, changeType: string): string[] {
+  const value = policy.changelog_category_types;
+  if (!isJsonRecord(value)) {
+    throw new CliError("::error::Invalid release policy field: changelog_category_types.", 65);
+  }
+  const categories = value[changeType];
+  if (categories === undefined) return [];
+  if (!Array.isArray(categories) || !categories.every((item) => typeof item === "string")) {
+    throw new CliError(
+      `::error::Invalid release policy field: changelog_category_types.${changeType}.`,
+      65
+    );
+  }
+  return categories;
+}
+
 export async function validateChange(
   title: string,
   base: string,
@@ -204,34 +223,41 @@ export async function validateChange(
       .split(/\r?\n/)
       .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
       .map((line) => line.slice(1));
+    const categories = policyList(value, "changelog_categories");
+    const allowedCategories = changelogCategoriesForType(value, changeType);
+    const securityCategory = value.security_category;
+    if (typeof securityCategory !== "string" || !categories.includes(securityCategory)) {
+      throw new CliError("::error::Invalid release policy field: security_category.", 65);
+    }
     let hasMatching = false;
     for (const line of additions.filter((entry) => entry.startsWith("- "))) {
-      const entry = /^- ([a-z]+)(?: \[([^\]]+)\])?: (.+)$/.exec(line);
+      const entry = parseEntry(line);
       if (!entry) {
         throw new CliError(
-          `::error::Invalid CHANGELOG entry: ${line} Each added entry must look like '- fix: summary' or '- fix [breaking]: summary'.`,
+          `::error::Invalid CHANGELOG entry: ${line} Each added entry must look like '- 修复: 中文摘要' or '- 新增 [breaking]: 中文摘要'.`,
           65
         );
       }
-      const entryType = entry[1] ?? "";
-      const entrySummary = entry[3] ?? "";
-      assertEnglishText("CHANGELOG entry summary", entrySummary);
-      if (!changeTypes.includes(entryType)) {
-        throw new CliError(`::error::CHANGELOG uses unsupported change type: ${entryType}.`, 65);
+      assertChineseSummary(entry.summary);
+      if (!categories.includes(entry.category)) {
+        throw new CliError(`::error::CHANGELOG uses unsupported category: ${entry.category}.`, 65);
       }
-      const attributes = (entry[2] ?? "")
-        .split(",")
-        .map((item) => item.trim())
-        .filter(Boolean);
-      if (attributes.some((item) => !allowedAttrs.includes(item))) {
+      if (entry.attributes.some((item) => !allowedAttrs.includes(item))) {
         throw new CliError(
-          `::error::CHANGELOG contains unsupported attributes: ${entry[2] ?? ""}.`,
+          `::error::CHANGELOG contains unsupported attributes: ${entry.attributes.join(", ")}.`,
           65
         );
       }
-      if (entryType === changeType) {
+      const isSecurityEntry = entry.attributes.includes("security");
+      if (isSecurityEntry !== (entry.category === securityCategory)) {
+        throw new CliError(
+          `::error::A CHANGELOG entry uses the ${securityCategory} category exactly when it carries the security attribute.`,
+          65
+        );
+      }
+      if (allowedCategories.includes(entry.category) || entry.category === securityCategory) {
         hasMatching = true;
-        if (isBreaking && !attributes.includes("breaking")) {
+        if (isBreaking && !entry.attributes.includes("breaking")) {
           throw new CliError(
             "::error::A breaking PR CHANGELOG entry must include the breaking attribute.",
             65

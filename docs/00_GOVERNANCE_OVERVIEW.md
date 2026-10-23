@@ -38,7 +38,7 @@ main push → Intake → Central CI → Main Write Guard → 可信 main SHA
 
 ## 语言与文档分层
 
-唯一权威见 `01_SHARED_GOVERNANCE.md` §2：机器读取文档用英文，人类阅读文档用中文，工程产出（PR 标题、CHANGELOG、代码注释、工作流、日志）用英文；例外见该节。
+唯一权威见 `01_SHARED_GOVERNANCE.md` §2：机器读取文档用英文，人类阅读文档用中文，工程产出（PR 标题、代码注释、工作流、日志）用英文，CHANGELOG 条目用中文；例外见该节。
 
 ---
 

@@ -54,7 +54,7 @@
 | 日志报错 | 处理 |
 |----------|------|
 | `PR title must use type(scope)!: summary format` | 改成 `fix(deploy): retry the health check` 格式；报错列出允许类型 |
-| `Invalid CHANGELOG entry` / `must use English engineering text` | CHANGELOG 写成 `- fix: summary`，摘要用英文 |
+| `Invalid CHANGELOG entry` / `CHANGELOG uses unsupported category` / `must be Chinese text` | CHANGELOG 写成 `- 修复: 中文摘要`，类别取自六类，摘要用中文（见 `04_CHANGELOG_CONVENTIONS.md` §5） |
 | `Attribution check failed` | 作者/提交者/trailer/署名行出现 AI 名称。改成自己的 GitHub 账号，重写提交，强制推送 |
 
 ---

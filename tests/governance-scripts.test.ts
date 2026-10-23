@@ -372,10 +372,7 @@ test("Server Edge external configuration uses its registered owner prefix", () =
 test("engineering language rejects Chinese machine text but allows documentation and UI strings", () => {
   assert.doesNotThrow(() => assertEnglishText("PR title summary", "centralize merge policy"));
   assert.throws(() => assertEnglishText("PR title summary", "统一合并门禁"));
-  assert.equal(
-    engineeringLineViolation("CHANGELOG.md", "- fix: 修复路由。"),
-    "CHANGELOG entries must use English."
-  );
+  assert.equal(engineeringLineViolation("CHANGELOG.md", "- 修复: 修复路由。"), null);
   assert.equal(engineeringLineViolation(".github/workflows/ci.yml", "name: 校验"), null);
   // Workflow input descriptions are user-facing copy and stay exempt.
   assert.equal(
@@ -518,11 +515,12 @@ test("engineering language reads quoted diff paths instead of reusing the previo
     const result = await validateEngineeringDiff(base, head, root);
     assert.deepEqual(result, { files: 2, additions: 3, failures: 0 });
 
-    // A Chinese CHANGELOG entry is still rejected.
-    await writeFile(join(root, "CHANGELOG.md"), "# Changelog\n\n- fix: 修复页面。\n");
+    // CHANGELOG entries are Chinese (CHANGELOG_CONVENTIONS §5), so a Chinese entry passes the
+    // language check; the entry format itself is checked by validate-change-record.
+    await writeFile(join(root, "CHANGELOG.md"), "# Changelog\n\n- 修复: 修复页面。\n");
     git("commit", "-q", "-am", "chinese changelog");
-    const bad = await validateEngineeringDiff(base, git("rev-parse", "HEAD").trim(), root);
-    assert.equal(bad.failures, 1);
+    const chinese = await validateEngineeringDiff(base, git("rev-parse", "HEAD").trim(), root);
+    assert.equal(chinese.failures, 0);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
