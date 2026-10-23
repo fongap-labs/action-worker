@@ -6,7 +6,7 @@
 
 - 已实施：类别映射与条目格式（`policies/release.json`）、门禁（`scripts/validate-change-record.ts`）、语言检查（`scripts/validate-engineering-language.ts`）、版本小节生成（`scripts/changelog-release.ts`，纯函数，含测试）、治理文档与合同测试。
 - 已实施：两阶段发布的阶段一（`scripts/changelog-release-pr.ts`、`scripts/publish-release.ts`）。发布时先生成版本小节并经 PR 合入，再在合并提交上打 tag 与创建 Release；发布 PR 由校验器重算放行（`scripts/validate-change-record.ts`、`assertReleaseChange`）。版本说明为空时使用版本小节，提交跨度清单的回退已移除（`resolve-release-build-ingress.ts`、`package-release-build.ts`）。
-- 未实施：业务仓库中既有的英文 `[Unreleased]` 条目迁移（action-worker 有 250 条英文条目，其余仓库同样存在）。见下文"既有英文条目"。
+- 已实施并核实：业务仓库中既有的英文 `[Unreleased]` 条目已全部改写为中文。2026-10-23 核对 7 个仓库在 `main` 上的 `[Unreleased]`，均无英文条目。见下文"既有英文条目"。
 - 未验证：阶段一尚未对真实目标仓库端到端运行。它依赖目标仓库的 PR 门禁、Main Write Guard 与中央 CI 对合并提交给出证明，这些只能在真实发布中验证。
 - 已实施：条目文件（`changelog.d/`）替换 `CHANGELOG.md merge=union`，包括校验（`scripts/validate-change-record.ts`）、汇总函数（`scripts/changelog-release.ts` 的 `promoteUnreleased` 接受条目文件）、`.gitattributes` 的改动、文档与测试。
 
@@ -23,10 +23,7 @@
 
 ## 既有英文条目
 
-`[Unreleased]` 中的英文条目（action-worker 有 250 条）不符合新格式，`promoteUnreleased` 会拒绝它们。发布前必须先处理，可选：
-
-- 将既有条目逐条翻译为中文并归入六类类别（工作量大，需要逐条核对）；
-- 或只对新条目强制新格式，既有条目在下一次发布时整体放入一个标注"历史条目"的小节（需要 owner 同意这种例外）。
+状态：已完成。此前 `[Unreleased]` 中的英文条目（action-worker 曾有 250 条）已逐条改写为中文，并归入六类类别，经各仓库的 CHANGELOG 改写 PR 合入。2026-10-23 核对 7 个仓库在 `main` 上的 `[Unreleased]`，均无英文条目。没有采用"历史条目"例外。
 
 ## 两阶段发布（阶段一已实施）
 
