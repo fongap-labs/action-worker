@@ -5,6 +5,7 @@ import { access, mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from "
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { publishChangelogRelease, type ReleasePolicy } from "./changelog-release-pr.ts";
 import { controlRepositoryOf, hasVerifiedCiEvidence } from "./ci-evidence.ts";
 import {
   GithubReader,
@@ -227,6 +228,29 @@ async function waitForCompletedRun(
     `::error::Artifact run did not complete before release validation: repository=${repository} run=${runId}.`,
     75
   );
+}
+
+// The changelog file and fragment directory come from the control repository's release policy,
+// the same policy the change record validator enforces.
+async function readReleasePolicy(): Promise<ReleasePolicy> {
+  const value = await readJson(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "policies", "release.json")
+  );
+  if (
+    !isJsonRecord(value) ||
+    typeof value.changelog_file !== "string" ||
+    typeof value.changelog_fragment_dir !== "string" ||
+    !Array.isArray(value.changelog_categories)
+  ) {
+    throw new CliError("::error::Invalid release policy for the changelog release.", 65);
+  }
+  return {
+    changelog_file: value.changelog_file,
+    changelog_fragment_dir: value.changelog_fragment_dir,
+    changelog_categories: value.changelog_categories.filter(
+      (item): item is string => typeof item === "string"
+    ),
+  };
 }
 
 async function rollbackRelease(
@@ -462,7 +486,6 @@ async function main(): Promise<void> {
     targetRepository = manifest.target_repository;
     tag = buildTag(manifest.release_key, manifest.version);
     const name = buildReleaseTitle(manifest.release_name, manifest.version);
-    const releaseNotes = manifest.release_notes ?? "";
     const isPrerelease = manifest.prerelease ?? false;
     const licenseExpression = manifest.license?.expression ?? "Apache-2.0";
     const licenseFile = manifest.license?.file ?? "";
@@ -480,6 +503,21 @@ async function main(): Promise<void> {
     if (await githubExists(`repos/${targetRepository}/releases/tags/${tag}`, controlToken)) {
       throw new CliError(`::error::Release already exists in ${targetRepository}: ${tag}.`, 65);
     }
+
+    // The changelog version section is merged first; the tag then points at its merge commit.
+    const changelogRelease = await publishChangelogRelease({
+      repository: targetRepository,
+      defaultBranch: targetBranch,
+      baseSha: targetSha,
+      tag,
+      version: manifest.version,
+      date: new Date().toISOString().slice(0, 10),
+      releaseUrl: `https://github.com/${targetRepository}/releases/tag/${tag}`,
+      policy: await readReleasePolicy(),
+      token: controlToken,
+    });
+    const releaseSha = changelogRelease.mergeSha;
+    const releaseNotes = manifest.release_notes || changelogRelease.notes;
 
     const provenance = [
       `Source: https://github.com/${sourceRepository}/commit/${sourceSha}`,
@@ -505,7 +543,7 @@ async function main(): Promise<void> {
         "-f",
         `ref=refs/tags/${tag}`,
         "-f",
-        `sha=${targetSha}`,
+        `sha=${releaseSha}`,
       ],
       controlToken
     );
@@ -521,7 +559,7 @@ async function main(): Promise<void> {
           "-f",
           `tag_name=${tag}`,
           "-f",
-          `target_commitish=${targetSha}`,
+          `target_commitish=${releaseSha}`,
           "-f",
           `name=${name}`,
           "-f",
@@ -623,7 +661,7 @@ async function main(): Promise<void> {
       `- Central CI Evidence: success`,
 
       `- Main Write Guard: success via PR #${mainWrite.pr_number}`,
-      `- Target: ${targetRepository}@${targetSha}`,
+      `- Target: ${targetRepository}@${releaseSha}`,
       `- Tag: ${tag}`,
       `- License: ${licenseExpression}`,
       ...(licenseFile ? [`- License file: ${licenseFile}`] : []),

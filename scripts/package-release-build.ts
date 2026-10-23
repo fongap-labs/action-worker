@@ -20,17 +20,15 @@ async function sha256File(path: string): Promise<string> {
 
 /**
  * The packaged manifest carries the display name only. The publisher appends the version to form
- * the release title, so a version here would print it twice. The computed notes only fill an
- * empty manifest value: the release manifest stays the authority for curated release notes.
+ * the release title, so a version here would print it twice. The release notes are the manifest's
+ * own value; an empty value is filled at publication from the changelog version section.
  */
 export function buildReleaseManifest(
   manifest: ReleaseBuildManifest,
   version: string,
-  assets: { name: string; sha256: string }[],
-  computedNotes = ""
+  assets: { name: string; sha256: string }[]
 ) {
-  const releaseNotes =
-    computedNotes !== "" && manifest.release_notes === "" ? computedNotes : manifest.release_notes;
+  const releaseNotes = manifest.release_notes;
   if (releaseNotes.length > 20_000) {
     throw new CliError(
       `Release notes hold ${releaseNotes.length} characters, above the 20000 character manifest limit.`,
@@ -97,12 +95,7 @@ async function main(): Promise<void> {
     throw new CliError("Release artifact runtime identity is invalid.", 77);
   }
 
-  const releaseManifest = buildReleaseManifest(
-    manifest,
-    version,
-    assets,
-    (process.env.RELEASE_COMPUTED_NOTES ?? "").trim()
-  );
+  const releaseManifest = buildReleaseManifest(manifest, version, assets);
   const provenance = {
     schema_version: "1",
     source_repository: sourceRepository,

@@ -168,7 +168,7 @@ test("an empty requested version refuses a span without release-worthy changes",
   );
 });
 
-test("an empty manifest release_notes falls back to the computed span notes", async () => {
+test("an empty manifest release_notes stays empty; publication fills it from the changelog", async () => {
   const reader = rootLayoutReader(manifestJson({ release_notes: "" }), {
     "repos/fongap-labs/example": { default_branch: "main" },
     "repos/fongap-labs/example/commits/main": { sha: head },
@@ -186,7 +186,7 @@ test("an empty manifest release_notes falls back to the computed span notes", as
     "123",
     "1"
   );
-  assert.equal(request.release_notes, "- feat: the wide lane");
+  assert.equal(request.release_notes ?? "", "");
 });
 
 test("manual release ingress passes the product only when one is entered", async () => {

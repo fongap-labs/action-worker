@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { assertChineseSummary, parseEntry } from "./changelog-release.ts";
+import { assertChineseSummary, assertReleaseChange, parseEntry } from "./changelog-release.ts";
 import { isJsonRecord } from "./github-api.ts";
 import {
   appendLines,
@@ -229,6 +229,43 @@ async function assertNotOnBase(root: string, base: string, path: string): Promis
   }
 }
 
+// A release pull request removes the fragments it releases and adds one version section. Nothing
+// else may change, and the result must be exactly what the base branch and those fragments produce.
+async function assertReleasePullRequest(
+  policy: Record<string, unknown>,
+  root: string,
+  base: string,
+  head: string,
+  changedPaths: readonly string[]
+): Promise<void> {
+  const changelogFile = policy.changelog_file as string;
+  const fragmentDir = policy.changelog_fragment_dir as string;
+  const removed = (
+    await runText("git", ["diff", "--name-only", "--diff-filter=D", base, head], { cwd: root })
+  )
+    .split(/\r?\n/)
+    .filter((path) => path.startsWith(`${fragmentDir}/`));
+  for (const path of changedPaths) {
+    if (path !== changelogFile) {
+      throw new CliError(
+        `::error::A release pull request may change only ${changelogFile} and remove fragments; ${path} is not allowed.`,
+        65
+      );
+    }
+  }
+  const baseChangelog = await runText("git", ["show", `${base}:${changelogFile}`], { cwd: root });
+  const removedFragments: string[] = [];
+  for (const path of removed) {
+    removedFragments.push(await runText("git", ["show", `${base}:${path}`], { cwd: root }));
+  }
+  assertReleaseChange({
+    baseChangelog,
+    headChangelog: await readFile(join(root, changelogFile), "utf8"),
+    removedFragments,
+    categories: policyList(policy, "changelog_categories"),
+  });
+}
+
 export async function validateChange(
   title: string,
   base: string,
@@ -270,6 +307,20 @@ export async function validateChange(
     { cwd: root }
   );
   const changedPaths = changedText.split(/\r?\n/).filter(Boolean);
+  // The release pull request is the one change that writes the unreleased section. Its content is
+  // recomputed from the base branch, so it is accepted only when it matches exactly.
+  if (changeType === "chore" && scope === "release") {
+    await assertReleasePullRequest(value, root, base, head, changedPaths);
+    return {
+      schema_version: "1",
+      type: changeType,
+      scope,
+      attributes: [],
+      summary,
+      changelog_required: false,
+      changelog_changed: true,
+    };
+  }
   if (changedPaths.includes(changelogFile)) {
     await assertUnreleasedUntouched(root, base, changelogFile);
   }

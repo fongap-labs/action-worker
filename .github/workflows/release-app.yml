@@ -247,7 +247,6 @@ jobs:
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
           RELEASE_MANIFEST_PATH: ${{ needs.prepare.outputs.manifest_path }}
-          RELEASE_COMPUTED_NOTES: ${{ needs.prepare.outputs.release_notes }}
         run: |
           node scripts/package-release-build.ts \
             "$GITHUB_WORKSPACE/source/$RELEASE_MANIFEST_PATH" \

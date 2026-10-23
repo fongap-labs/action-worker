@@ -113,3 +113,70 @@ export function promoteUnreleased(content: string, options: PromoteOptions): str
 
   return [...lines.slice(0, start + 1), "", ...release, "", ...lines.slice(end)].join("\n");
 }
+
+// The heading a release adds: `## [version](release-url) - date`.
+const RELEASE_HEADING = /^## \[([^\]]+)\]\((https:\/\/[^)\s]+)\) - (\d{4}-\d{2}-\d{2})$/;
+
+export type ReleaseHeading = { version: string; releaseUrl: string; date: string };
+
+export function releaseHeadingOf(line: string): ReleaseHeading | null {
+  const match = RELEASE_HEADING.exec(line);
+  if (!match) return null;
+  return { version: match[1] ?? "", releaseUrl: match[2] ?? "", date: match[3] ?? "" };
+}
+
+// The body of one version section: the lines under its heading, up to the next version heading.
+export function releaseSectionBody(content: string, version: string): string {
+  const lines = content.split("\n");
+  const start = lines.findIndex((line) => releaseHeadingOf(line)?.version === version);
+  if (start === -1) {
+    throw new CliError(`::error::CHANGELOG has no section for version ${version}.`, 65);
+  }
+  let end = lines.findIndex((line, index) => index > start && line.startsWith("## "));
+  if (end === -1) end = lines.length;
+  return lines
+    .slice(start + 1, end)
+    .join("\n")
+    .trim();
+}
+
+export type ReleaseChangeInput = {
+  baseChangelog: string;
+  headChangelog: string;
+  // Contents, at the base branch, of the fragments the release change removes.
+  removedFragments: readonly string[];
+  categories: readonly string[];
+};
+
+// A release pull request is accepted only when it is exactly what promoting the removed fragments
+// and the unreleased entries produces. The version heading is read from the change itself, so
+// the check cannot be satisfied by anything other than the entries it claims to release.
+export function assertReleaseChange(input: ReleaseChangeInput): ReleaseHeading {
+  const baseHeadings = new Set(input.baseChangelog.split(/\r?\n/));
+  const added = input.headChangelog
+    .split(/\r?\n/)
+    .filter((line) => !baseHeadings.has(line))
+    .map(releaseHeadingOf)
+    .filter((heading): heading is ReleaseHeading => heading !== null);
+  if (added.length !== 1) {
+    throw new CliError(
+      `::error::A release pull request must add exactly one version section; found ${added.length}.`,
+      65
+    );
+  }
+  const heading = added[0] as ReleaseHeading;
+  const expected = promoteUnreleased(input.baseChangelog, {
+    version: heading.version,
+    date: heading.date,
+    releaseUrl: heading.releaseUrl,
+    categories: input.categories,
+    fragments: input.removedFragments,
+  });
+  if (input.headChangelog.trimEnd() !== expected.trimEnd()) {
+    throw new CliError(
+      "::error::The release change does not match the unreleased entries and the fragments it removes.",
+      65
+    );
+  }
+  return heading;
+}

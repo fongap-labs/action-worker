@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  buildReleaseNotes,
   bumpForChanges,
   changesFromSpan,
   classifyCommit,
@@ -97,31 +96,6 @@ test("nextVersion applies SemVer, including the 0.x minor rule", () => {
   assert.equal(nextVersion(undefined, "minor"), "0.1.0");
   assert.equal(nextVersion(undefined, "patch"), "0.0.1");
   assert.throws(() => nextVersion("1.2", "patch"), /non-stable version base/);
-});
-
-test("release notes keep the entry format and drop the low-value types", () => {
-  const notes = buildReleaseNotes([
-    { type: "docs", attributes: [], summary: "explain the release flow" },
-    { type: "fix", attributes: [], summary: "stop the retry storm" },
-    { type: "chore", attributes: ["security"], summary: "rotate the scan key" },
-    { type: "feat", attributes: ["breaking", "migration"], summary: "move the config format" },
-  ]);
-  assert.equal(
-    notes,
-    [
-      "- fix: stop the retry storm",
-      "- chore [security]: rotate the scan key",
-      "- feat [breaking, migration]: move the config format",
-    ].join("\n")
-  );
-});
-
-test("release notes refuse to exceed the manifest limit", () => {
-  const long: { type: string; attributes: string[]; summary: string }[] = Array.from(
-    { length: 2000 },
-    (_, index) => ({ type: "fix", attributes: [], summary: `fix number ${index} `.padEnd(20, "x") })
-  );
-  assert.throws(() => buildReleaseNotes(long), /manifest limit/);
 });
 
 test("compare responses refuse to truncate the span", () => {

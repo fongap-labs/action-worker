@@ -36,27 +36,13 @@ test("packaged release keeps the display name so the title carries the version o
   assert.equal(buildReleaseTitle(release.release_name, release.version), "Delta v0.1.0");
 });
 
-test("computed notes only fill an empty manifest value, and the manifest stays the authority", () => {
+test("the manifest's release notes are kept as written; an empty value is left for publication", () => {
   const silent = parseReleaseBuildManifest({ ...build, release_notes: "" });
   const assets = [{ name: "delta-windows-x64-portable.zip", sha256: "a".repeat(64) }];
 
-  const filled = buildReleaseManifest(silent, "0.1.0", assets, "- fix: stop the retry storm");
-  assert.equal(filled.release_notes, "- fix: stop the retry storm");
-
-  const curated = buildReleaseManifest(build, "0.1.0", assets, "- fix: stop the retry storm");
+  const curated = buildReleaseManifest(build, "0.1.0", assets);
   assert.equal(curated.release_notes, "Delta Windows portable release.");
 
-  const quiet = buildReleaseManifest(silent, "0.1.0", assets, "");
-  assert.equal(quiet.release_notes, "");
-});
-
-test("packaged release notes refuse to exceed the manifest limit", () => {
-  const silent = parseReleaseBuildManifest({
-    ...build,
-    release_notes: "",
-  });
-  assert.throws(
-    () => buildReleaseManifest(silent, "0.1.0", [], "- fix: x".repeat(4000)),
-    /manifest limit/
-  );
+  const empty = buildReleaseManifest(silent, "0.1.0", assets);
+  assert.equal(empty.release_notes, "");
 });
