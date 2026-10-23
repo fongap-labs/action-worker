@@ -88,10 +88,10 @@ test('anonymous floods get 429 gateway_auth_throttled from the 61st attempt, whi
   __resetKeyRpmForTests();
 });
 
-test('the gateway key RPM defaults to 120 and the attempt throttle to 60; an explicit 0 disables the RPM cap', () => {
-  assert.equal(getLimits({}).gatewayKeyRpm, 120);
+test('the gateway key RPM cap defaults to off and the attempt throttle to 60; a positive value enables the cap', () => {
+  assert.equal(getLimits({}).gatewayKeyRpm, 0);
   assert.equal(getLimits({}).authAttemptRpm, 60);
-  assert.equal(getLimits({ AIG_ACCESS_KEY_RPM: '0' }).gatewayKeyRpm, 0);
+  assert.equal(getLimits({ AIG_ACCESS_KEY_RPM: '600' }).gatewayKeyRpm, 600);
 });
 
 // ---- streamed edge-cache hit accounting (FIX-2) ----
