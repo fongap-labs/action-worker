@@ -98,7 +98,7 @@ test("the release request is the only source of the application version", () => 
   assert.equal(normalizeReleaseVersion("v1.2.3"), "1.2.3");
   assert.equal(normalizeReleaseVersion("0.0.1"), "0.0.1");
   for (const version of ["", "v", "1.2", "1.2.3-rc.1", "1.2.3.dev0", "latest"]) {
-    assert.throws(() => normalizeReleaseVersion(version), /stable SemVer/);
+    assert.throws(() => normalizeReleaseVersion(version), /X\.Y\.Z/);
     assert.throws(() => parseReleaseBuildRequest({ ...request, requested_version: version }));
   }
 });

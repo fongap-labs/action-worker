@@ -254,7 +254,7 @@ various improvements
 
 Release 版本说明使用 §1 的类别分组，顺序与 `[Unreleased]` 小节一致。
 
-CHANGELOG 标题**永远不决定或约束** Release 版本。版本来自发布启动时输入的稳定 SemVer；`release-app.yml` 的 `requested_version` 也可以留空，留空时 Action Worker 按上次 `<release_key>-vX.Y.Z` 标签之后的 Conventional Commits 自动计算下一个稳定版本（沿用 SemVer 0.x 规则；跨度内出现无法解析的提交标题会整次失败，改用显式版本即可）。
+CHANGELOG 标题**永远不决定或约束** Release 版本。版本来自发布启动时手动输入：正式版为 `X.Y.Z`，beta 版为 `X.Y.Z-beta.N`（N ≥ 1，作为 GitHub 预发布发布）。正式版发布时，汇总同一版本的所有 beta 条目；beta 只含自己的条目。`release-app.yml` 的 `requested_version` 也可以留空，留空时 Action Worker 按上次 `<release_key>-vX.Y.Z` 标签之后的 Conventional Commits 自动计算下一个稳定版本（沿用 SemVer 0.x 规则；跨度内出现无法解析的提交标题会整次失败，改用显式版本即可）。
 
 发布流程（AW-008 阶段一）：
 

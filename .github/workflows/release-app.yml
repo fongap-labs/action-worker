@@ -10,7 +10,7 @@ on:
         required: true
         type: string
       requested_version:
-        description: 发布版本号（稳定语义化版本，如 1.2.3 或 v1.2.3；留空则按上次发布后的 Conventional Commits 自动计算）
+        description: 发布版本号。正式版填 X.Y.Z（如 1.2.3 或 v1.2.3），beta 版填 X.Y.Z-beta.N（如 1.2.3-beta.1，作为预发布发布）。留空则按上次正式版后的 Conventional Commits 自动计算正式版
         required: false
         type: string
       product:

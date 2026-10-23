@@ -110,7 +110,7 @@ test("manual release ingress rejects unmanaged repositories and unstable version
     /not allowed for release-source/
   );
 
-  assert.throws(() => normalizeReleaseVersion("v1.2.3-rc.1"), /stable SemVer/);
+  assert.throws(() => normalizeReleaseVersion("v1.2.3-rc.1"), /X\.Y\.Z/);
 });
 
 test("manual release ingress rejects unstable versions before touching the manifest", async () => {
@@ -120,7 +120,7 @@ test("manual release ingress rejects unstable versions before touching the manif
   });
   await assert.rejects(
     resolveManualReleaseBuild("fongap-labs/example", "1.2.3-rc.1", policy(), reader, "123", "1"),
-    /stable SemVer/
+    /X\.Y\.Z/
   );
 });
 

@@ -169,11 +169,15 @@ export function parseReleaseBuildManifest(value: unknown): ReleaseBuildManifest 
  * The application version is supplied only by the release request. It is never read
  * from, compared with or constrained by the source repository.
  */
+// A formal version (1.2.3) or a beta of one (1.2.3-beta.1). Build metadata and other pre-release
+// labels are not accepted, so each tag names exactly one of the two modes.
+export const RELEASE_VERSION_PATTERN = /^[0-9]+\.[0-9]+\.[0-9]+(?:-beta\.[1-9][0-9]*)?$/;
+
 export function normalizeReleaseVersion(value: string): string {
   const version = value.replace(/^v/, "");
-  if (!/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version)) {
+  if (!RELEASE_VERSION_PATTERN.test(version)) {
     throw new CliError(
-      `Requested release version must be stable SemVer such as 1.2.3 or v1.2.3, without a pre-release or build suffix: got '${value}'.`,
+      `Requested release version must be X.Y.Z (formal) or X.Y.Z-beta.N (beta, N >= 1) such as 1.2.3 or 1.2.3-beta.1, with an optional leading v: got '${value}'.`,
       64
     );
   }
@@ -208,7 +212,7 @@ export function parseReleaseBuildRequest(value: unknown): ReleaseBuildRequest {
     typeof value.source_sha !== "string" ||
     !/^[0-9a-f]{40}$/.test(value.source_sha) ||
     typeof value.requested_version !== "string" ||
-    !/^v?[0-9]+\.[0-9]+\.[0-9]+$/.test(value.requested_version) ||
+    !RELEASE_VERSION_PATTERN.test(value.requested_version.replace(/^v/, "")) ||
     (value.product !== undefined &&
       (typeof value.product !== "string" || !isProductName(value.product))) ||
     (value.release_notes !== undefined && typeof value.release_notes !== "string") ||
