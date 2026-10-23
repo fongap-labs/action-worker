@@ -4,7 +4,7 @@ Action Worker 在 PR、Agent、CHANGELOG 与 Release 之间使用同一套变更
 
 **语言规则**：PR 标题与工程 diff 使用英文；CHANGELOG 条目与 Release 版本说明使用中文。详见 `01_SHARED_GOVERNANCE.md` §2。
 
-**实施状态**：类别映射、条目格式与门禁已实施（`policies/release.json`、`scripts/changelog-release.ts`、`scripts/validate-change-record.ts`）。发布时由中央生成 CHANGELOG 并经 PR 合入的流程尚未实施，见 `docs/proposals/AW-008-changelog-release-automation.md`。
+**实施状态**：类别映射、条目格式与门禁已实施（`policies/release.json`、`scripts/changelog-release.ts`、`scripts/validate-change-record.ts`）。发布时由中央生成 CHANGELOG 并经 PR 合入的流程尚未实施，见 `docs/proposals/AW-008-changelog-release-automation.md`。§4 当前描述的 `[Unreleased]` 与 `merge=union` 仍是现行规则；改为条目文件（`changelog.d/`）的方案已同意，待实施，同见 AW-008。
 
 ---
 

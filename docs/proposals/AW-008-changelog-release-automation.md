@@ -7,6 +7,7 @@
 - 已实施：类别映射与条目格式（`policies/release.json`）、门禁（`scripts/validate-change-record.ts`）、语言检查（`scripts/validate-engineering-language.ts`）、版本小节生成（`scripts/changelog-release.ts`，纯函数，含测试）、治理文档与合同测试。
 - 未实施：中央发布流程中的"生成 CHANGELOG → 开 PR → 合并后打 tag 与创建 Release"两阶段流程。`publish-release.ts` 目前仍直接在目标仓库创建 tag 与 Release，不写 CHANGELOG。见下文"待实施的两阶段发布"。
 - 未实施：业务仓库中既有的英文 `[Unreleased]` 条目迁移（action-worker 有 250 条英文条目，其余仓库同样存在）。见下文"既有英文条目"。
+- 未实施：以条目文件（`changelog.d/`）替换 `CHANGELOG.md merge=union`。owner 已于 2026-10-23 同意该方案，见下文"条目文件"。
 
 ## 方案 C 的默认决定
 
@@ -33,6 +34,26 @@
 3. 在合并提交上创建 tag 与 GitHub Release，发布的产物仍由中央构建。
 
 该流程需要新的状态与等待机制，以及对 GitHub API 的实际调用验证，因此单独立项实施。
+
+## 条目文件：替换 `merge=union`（已同意，待实施）
+
+问题：`CHANGELOG.md` 的 `[Unreleased]` 顶部是所有 PR 都会改的同一段行。`merge=union` 只在本地 git 合并时生效，GitHub 网页端不执行它，因此 PR 仍报告冲突。即使在本地合并，两边都加入相同行时，union 也会保留两份，形成重复条目。PR #986 同时遇到了这两个问题。
+
+决定：每个变更不再直接改 `CHANGELOG.md`，而是新增一个条目文件。
+
+1. **位置与命名**：`changelog.d/<slug>.md`。`<slug>` 由作者取一个仓库内唯一的短英文 kebab-case 名，例如 `csi-verdict-supersede`。一个文件可以包含多条条目。
+2. **内容**：沿用 `docs/04_CHANGELOG_CONVENTIONS.md` §5 的条目格式（`- 类别 [属性]: 中文摘要`）。
+3. **门禁**：需要条目的 PR 必须新增至少一个条目文件。`scripts/validate-change-record.ts` 沿用现有的格式、类别、安全配对与乱码检查，并拒绝同一仓库中重复的文件名。
+4. **汇总**：发布阶段一（见上文"待实施的两阶段发布"）时，中央读取 `changelog.d/*.md`，按六类顺序写入版本小节，并在同一个 PR 中删除这些条目文件。
+5. **`[Unreleased]`**：`CHANGELOG.md` 保留该标题。新变更不再把条目写入这里，待发布的条目只存在于 `changelog.d/`。实施前已经在 `[Unreleased]` 中的条目保持原位，在下一次发布时与条目文件一起汇总。
+6. **冲突**：两个 PR 各自新增不同文件名时不会冲突。两个 PR 选了同一文件名会产生 add/add 冲突，概率很低，解决办法是改名；不会产生静默重复。
+7. **`.gitattributes`**：实施时删除 `CHANGELOG.md merge=union`。
+
+为什么不选其他办法：去掉 `merge=union` 只是回到手工解冲突，而加一个重复检查只是把重复变成红色检查。两者都保留了共享行，问题会反复出现。
+
+实施范围（单独 PR，按 `docs/GOVERNANCE_CHANGE_CHECKLIST.md`）：`docs/04_CHANGELOG_CONVENTIONS.md` §4、§9；`scripts/changelog-release.ts`（输入从 `[Unreleased]` 扩展到条目文件）；`scripts/validate-change-record.ts`（文件位置与重复名检查）；`.gitattributes`；对应回归测试。
+
+本设计 PR 只改文档，不改变任何执行逻辑。在实施 PR 合并前，`docs/04` §4 描述的现行规则仍然有效。
 
 ## 背景
 
