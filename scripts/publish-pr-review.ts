@@ -91,15 +91,10 @@ export function buildReview(
     lines.push(
       "- AI Review: queued; this comment is updated when it finishes and it does not affect the merge gate."
     );
-  } else {
-    const isReviewRequired = isJsonRecord(planValue) && planValue.review_required === true;
-    if (isReviewRequired) {
-      lines.push(
-        "- AI Review: unavailable or incomplete; advisory result did not affect the merge gate."
-      );
-    } else {
-      lines.push("- AI Review: policy skipped.");
-    }
+  } else if (isJsonRecord(planValue) && planValue.review_required === true) {
+    lines.push(
+      "- AI Review: unavailable or incomplete; advisory result did not affect the merge gate."
+    );
   }
   if (deployGapHint?.trim()) {
     lines.push(deployGapHint.trim());
@@ -168,6 +163,11 @@ async function main(): Promise<void> {
   );
   const commentId =
     isJsonRecord(current) && typeof current.id === "number" ? String(current.id) : "";
+  // A pass posts nothing new; an existing comment is still updated so it never shows a stale failure.
+  if (!commentId && status === "success") {
+    console.log(`PR governance passed; no comment needed: ${repository}#${prNumber}`);
+    return;
+  }
   if (commentId) {
     await runGithubCli(
       [
