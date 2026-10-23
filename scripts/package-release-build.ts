@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 import {
   parseReleaseBuildManifest,
+  RELEASE_VERSION_PATTERN,
   type ReleaseBuildManifest,
 } from "./validate-release-build-request.ts";
 
@@ -49,14 +50,15 @@ export function buildReleaseManifest(
   };
 }
 
-async function main(): Promise<void> {
+export function parsePackageArguments(args: readonly string[]) {
   const [manifestPath = "", sourceRepository = "", sourceSha = "", version = "", artifactDir = ""] =
-    process.argv.slice(2);
+    args;
+  // The version is the one the release request validated: a formal X.Y.Z or a beta X.Y.Z-beta.N.
   if (
     !manifestPath ||
     !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(sourceRepository) ||
     !/^[0-9a-f]{40}$/.test(sourceSha) ||
-    !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(version) ||
+    !RELEASE_VERSION_PATTERN.test(version) ||
     !artifactDir
   ) {
     throw new CliError(
@@ -64,6 +66,13 @@ async function main(): Promise<void> {
       64
     );
   }
+  return { manifestPath, sourceRepository, sourceSha, version, artifactDir };
+}
+
+async function main(): Promise<void> {
+  const { manifestPath, sourceRepository, sourceSha, version, artifactDir } = parsePackageArguments(
+    process.argv.slice(2)
+  );
 
   const manifest = parseReleaseBuildManifest(await readJson(manifestPath));
   const expected = [

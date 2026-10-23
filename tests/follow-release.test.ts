@@ -386,3 +386,12 @@ test("the follow jobs run in the right order, and the sandbox job holds no contr
     assert.equal(JSON.stringify(jobs[name]).includes("AW_CONTROL_TOKEN"), true, name);
   }
 });
+
+test("the follow job is skipped for a pre-release so followers stay on the last formal release", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const workflow = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
+  assert.match(
+    workflow,
+    /follow:\n\s+name: Dispatch follow updates\n\s+needs: release\n\s+if: needs\.release\.result == 'success' && !contains\(needs\.release\.outputs\.version, '-'\)/
+  );
+});

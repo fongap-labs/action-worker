@@ -43,10 +43,12 @@ jobs:
 
   # Control domain. Moves the pins of every follower of the published release to its tag, one commit
   # per follower on aw/follow/<product>, and opens or finds the pull request for that branch.
+  # A beta is a pre-release: followers keep pointing at the last formal release, so the job is
+  # skipped for any version that carries a pre-release part (X.Y.Z-beta.N).
   follow:
     name: Dispatch follow updates
     needs: release
-    if: needs.release.result == 'success'
+    if: needs.release.result == 'success' && !contains(needs.release.outputs.version, '-')
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:

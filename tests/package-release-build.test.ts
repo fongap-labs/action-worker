@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildReleaseManifest } from "../scripts/package-release-build.ts";
+import { buildReleaseManifest, parsePackageArguments } from "../scripts/package-release-build.ts";
 import { buildReleaseTitle } from "../scripts/publish-release.ts";
 import { parseReleaseBuildManifest } from "../scripts/validate-release-build-request.ts";
 
@@ -45,4 +45,30 @@ test("the manifest's release notes are kept as written; an empty value is left f
 
   const empty = buildReleaseManifest(silent, "0.1.0", assets);
   assert.equal(empty.release_notes, "");
+});
+
+test("the packaging arguments accept a formal version and a beta, and reject other versions", () => {
+  const sha = "a".repeat(40);
+  const args = (version: string) => [
+    ".github/release.manifest.json",
+    "fongap-labs/delta",
+    sha,
+    version,
+    "release-package",
+  ];
+  assert.equal(parsePackageArguments(args("1.2.3")).version, "1.2.3");
+  assert.equal(parsePackageArguments(args("0.1.1-beta.1")).version, "0.1.1-beta.1");
+  for (const version of ["", "v1.2.3", "1.2", "1.2.3-beta.0", "1.2.3-rc.1", "1.2.3+build"]) {
+    assert.throws(() => parsePackageArguments(args(version)), /Usage: package-release-build/);
+  }
+  assert.throws(
+    () => parsePackageArguments(args("1.2.3").slice(0, 4)),
+    /Usage: package-release-build/
+  );
+});
+
+test("a beta is packaged as a pre-release and a formal version is not", () => {
+  const assets = [{ name: "delta-windows-x64-portable.zip", sha256: "a".repeat(64) }];
+  assert.equal(buildReleaseManifest(build, "0.1.1-beta.1", assets).prerelease, true);
+  assert.equal(buildReleaseManifest(build, "0.1.1", assets).prerelease, false);
 });
