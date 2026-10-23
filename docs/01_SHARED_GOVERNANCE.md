@@ -37,7 +37,8 @@ Action Worker
 |----------|------|------|
 | **机器读取文档**（`contracts/`、`policies/`、`rules/`、`skills/`、`CLAUDE.md`、`AGENTS.md`） | **英文** | 精确、无歧义、结构化（编号/代码块/显式条件分支）、可验证（有合同测试） |
 | **人类阅读文档**（`README.md`、指南、治理文档、`proposals/`） | **中文** | 单一文件，无镜像；先说“是什么”，再讲“怎么做”；每个术语首现时解释；用示例代替抽象；不假设读者懂 GitHub Actions；分层组织（初学者/维护者）；一段只表达一件事 |
-| **工程产出**（PR 标题、CHANGELOG 条目、代码注释、工作流名称/步骤、日志、错误信息、测试描述、配置键） | **英文** | 严禁中英混用 |
+| **工程产出**（PR 标题、代码注释、工作流名称/步骤、日志、错误信息、测试描述、配置键） | **英文** | 严禁中英混用 |
+| **CHANGELOG 条目与 Release 版本说明** | **中文** | 类别与格式见 `04_CHANGELOG_CONVENTIONS.md` §1、§5；不得含乱码 |
 | **例外** | — | 面向用户的界面文案、本地化资源、纯数据文件（`.txt/.csv/.tsv`）、HTML 模板标签间文案（模板注释保持英文） |
 
 > **所有其他文档中的语言规则均以本节为准**；其它文档仅保留“参见 `01_SHARED_GOVERNANCE.md §2`”。
@@ -51,7 +52,7 @@ Action Worker 为所有受管仓库维护以下规则：
 - 仓库治理与合并默认值（见 `02_REPOSITORY_GOVERNANCE.md`）
 - 命名约定（见 `03_NAMING_CONVENTIONS.md` 与 `TERMINOLOGY.md`）
 - CHANGELOG 与 PR 变更分类（见 `04_CHANGELOG_CONVENTIONS.md`）
-- 工程 diff、PR 标题、CHANGELOG 条目与 Release 摘要使用英文（§2）
+- 工程 diff 与 PR 标题使用英文；CHANGELOG 条目与 Release 版本说明使用中文（§2）
 - 通用开发与验证规则
 - PR 治理与合并门禁合同（见 `02_REPOSITORY_GOVERNANCE.md` §3）
 - 公开仓库与私有仓库统一的执行合同（见 `EXECUTION_CONTRACT.md`）

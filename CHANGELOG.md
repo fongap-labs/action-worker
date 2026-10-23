@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 按六类类别整理 CHANGELOG 条目；门禁校验类别与 PR 类型的映射、中文摘要、乱码与安全属性，发布时可按类别生成带版本链接的小节。
+
 - fix: central CI tests a pull request as it merges into the default branch. The sandbox checked out the bare PR head, so a PR based on an older default branch failed the central test pack on code the default branch had already changed - and the failure looked unrelated to the PR, like ai-gateway #148 against the diagnostics gating that another PR had just landed. The sandbox now checks out GitHub's `refs/pull/<number>/merge` for pull requests, a conflicted PR fails its checkout as the merge gate instead of failing someone else's tests, and the secret scan and the status verdicts keep the pull request's own commits.
 
 - fix: triage accepts a linked worktree as the repository root. The gate demanded `.git` as a directory, so running triage from a linked worktree, where `.git` is a file into the shared object store, reported `invalid repository root`.

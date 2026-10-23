@@ -4,7 +4,7 @@
 
 本文件分两层规则：第 1–6 节适用于所有受管的 Fongap Labs 仓库；§7–8 只适用于 Action Worker 本身。业务仓库不得复制本文件，只补充真正属于项目层级的命名约束。
 
-**语言规则**：工程 diff、PR 标题、CHANGELOG、代码注释、工作流、日志、错误信息、测试描述、配置键必须使用英文。详见 `01_SHARED_GOVERNANCE.md` §2。
+**语言规则**：工程 diff、PR 标题、代码注释、工作流、日志、错误信息、测试描述、配置键必须使用英文；CHANGELOG 条目使用中文。详见 `01_SHARED_GOVERNANCE.md` §2。
 
 ---
 
@@ -206,7 +206,7 @@ Action Worker CI 强制执行自身文件名与架构限制。业务仓库可增
 |----------|------|------|
 | 机器读取文档（`CLAUDE.md`、`AGENTS.md`、`skills/` 含 `skills/README.md`） | **英文** | 精确、结构化、可验证 |
 | 面向人文档（`README.md`、`SECURITY.md`、`docs/` 治理与指南、`docs/proposals/`） | **中文** | 单一文件，无镜像，先说“是什么” |
-| `CHANGELOG.md` | **英文** | 工程记录 |
+| `CHANGELOG.md` | **中文** | 版本记录，条目格式见 `04_CHANGELOG_CONVENTIONS.md` |
 
 `tests/documentation-language.test.ts` 检查：机器文档不得含中文、人类文档须含中文、仓库中不得存在 `*.zh-CN.md`。
 

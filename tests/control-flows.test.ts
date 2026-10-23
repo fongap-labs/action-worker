@@ -44,7 +44,7 @@ test("change record enforces title and CHANGELOG contracts", async (context) => 
   await writeFile(join(root, "README.md"), "# Fixture\n\nFeature.\n", "utf8");
   await writeFile(
     join(root, "CHANGELOG.md"),
-    "# Changelog\n\n## [Unreleased]\n- feat: Add example capability.\n",
+    "# Changelog\n\n## [Unreleased]\n- 新增: 增加示例能力。\n",
     "utf8"
   );
   await git(root, ["add", "."]);
@@ -59,6 +59,30 @@ test("change record enforces title and CHANGELOG contracts", async (context) => 
   );
   assert.equal(feature.scope, "core");
   assert.equal(feature.changelog_changed, true);
+
+  // CHANGELOG_CONVENTIONS §5: Chinese summary, a category the PR type may write, and the
+  // security category exactly with the security attribute.
+  const rejected = [
+    "- 新增: add example capability.",
+    "- 修复: 修复示例能力。",
+    "- 新增 [security]: 增加示例能力。",
+    "- 安全: 收紧示例能力。",
+  ];
+  for (const entry of rejected) {
+    await git(root, ["reset", "--hard", "-q", base]);
+    await writeFile(
+      join(root, "CHANGELOG.md"),
+      `# Changelog\n\n## [Unreleased]\n${entry}\n`,
+      "utf8"
+    );
+    await git(root, ["add", "."]);
+    await git(root, ["commit", "-qm", "bad entry"]);
+    const badHead = await git(root, ["rev-parse", "HEAD"]);
+    await assert.rejects(
+      validateChange("feat(core): add example capability", base, badHead, root, policyDir),
+      `${entry} must be refused`
+    );
+  }
 });
 
 test("context detection classifies workflow and declared impacts", async (context) => {

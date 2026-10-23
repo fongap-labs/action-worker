@@ -1,6 +1,38 @@
 # 提案 AW-008：CHANGELOG 自动生成与按仓库发版
 
-状态：**待 owner 决定**。本提案只记录决策选项、将要改动的规则范围与实施顺序，不含代码改动。在 owner 批准前，所有受管仓库保持现状。
+状态：**已决定：方案 C**（2026-10-23，owner 确认）。方案 C = 中文 CHANGELOG 与六类类别（本提案选项 B 的语言与分类）+ 中央生成、经 PR 合入、中央打 tag 与 Release、版本只来自发布输入或中央自动计算（本提案选项 A 的发布部分）。
+
+实施进度：
+
+- 已实施：类别映射与条目格式（`policies/release.json`）、门禁（`scripts/validate-change-record.ts`）、语言检查（`scripts/validate-engineering-language.ts`）、版本小节生成（`scripts/changelog-release.ts`，纯函数，含测试）、治理文档与合同测试。
+- 未实施：中央发布流程中的"生成 CHANGELOG → 开 PR → 合并后打 tag 与创建 Release"两阶段流程。`publish-release.ts` 目前仍直接在目标仓库创建 tag 与 Release，不写 CHANGELOG。见下文"待实施的两阶段发布"。
+- 未实施：业务仓库中既有的英文 `[Unreleased]` 条目迁移（action-worker 有 250 条英文条目，其余仓库同样存在）。见下文"既有英文条目"。
+
+## 方案 C 的默认决定
+
+以下默认值由实施时选定，owner 可以修改，修改后需同步更新 `policies/release.json`、`docs/04_CHANGELOG_CONVENTIONS.md` 与对应测试。
+
+1. 类别顺序：新增、变更、弃用、移除、修复、安全。
+2. 类别映射：`feat` → 新增、变更、弃用；`fix` → 修复、变更；`perf` → 变更；`revert` → 变更、修复；安全类别只能由 `security` 属性产生，且带 `security` 属性的条目必须是安全类别。
+3. 摘要必须含汉字，并拒绝常见乱码（`â€`、`â–`、`Â` 加空白、U+FFFD）。英文标识符可以保留在中文句子中。
+4. PR 类型仍使用 11 种类型，PR 标题保持英文。
+5. 破坏性变更必须归入 `feat`、`fix`、`perf` 或 `revert`。`refactor` 等不要求条目的类型不能承载破坏性变更。
+6. 版本小节标题链接到 GitHub Release 地址，格式为 `## [版本](release-url) - 日期`。
+
+## 既有英文条目
+
+`[Unreleased]` 中的英文条目（action-worker 有 250 条）不符合新格式，`promoteUnreleased` 会拒绝它们。发布前必须先处理，可选：
+
+- 将既有条目逐条翻译为中文并归入六类类别（工作量大，需要逐条核对）；
+- 或只对新条目强制新格式，既有条目在下一次发布时整体放入一个标注"历史条目"的小节（需要 owner 同意这种例外）。
+
+## 待实施的两阶段发布
+
+1. 发布启动（人工输入或中央自动计算版本）后，中央读取 `[Unreleased]`，生成版本小节，在目标仓库创建 `aw/changelog/<tag>` 分支并开 PR。
+2. 等待 PR 经门禁合并。合并提交由 Main Write Guard 证明来源，之后才允许打 tag。
+3. 在合并提交上创建 tag 与 GitHub Release，发布的产物仍由中央构建。
+
+该流程需要新的状态与等待机制，以及对 GitHub API 的实际调用验证，因此单独立项实施。
 
 ## 背景
 
@@ -53,7 +85,7 @@
 
 按选项 B 完成后，业务仓库的 `release.yml` 需要：读取 `[Unreleased]`，生成中文小节，开 release PR 回写版本号，合并后在合并提交上打 tag，并创建 GitHub Release。
 
-## 需要 owner 决定的问题
+## 需要 owner 决定的问题（已于 2026-10-23 决定为方案 C，上文记录实际取值）
 
 1. 选择选项 A 还是选项 B。
 2. 若选 B：是否接受 §B 中的 5 项规则变更，以及撤销业务仓库的中央发布能力？
