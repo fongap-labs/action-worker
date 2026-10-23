@@ -32,5 +32,9 @@ test("the publish step ends on a validate-merge failure only after repeated read
   assert.match(failure, /failure_reads=\$\(\( \$\{failure_reads:-0\} \+ 1 \)\)/);
   assert.match(failure, /-ge 3/, "the publication ends after three consecutive failure reads");
   assert.match(failure, /failed the validate-merge check/);
-  assert.match(taskDispatch, /\*\)\n\s+failure_reads=0/, "any other state resets the failure count");
+  assert.match(
+    taskDispatch,
+    /\*\)\n\s+failure_reads=0/,
+    "any other state resets the failure count"
+  );
 });
