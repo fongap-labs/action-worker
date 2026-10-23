@@ -1,9 +1,4 @@
-import {
-  buildReleaseNotes,
-  bumpForChanges,
-  loadReleaseSpan,
-  nextVersion,
-} from "./compute-release-version.ts";
+import { bumpForChanges, loadReleaseSpan, nextVersion } from "./compute-release-version.ts";
 import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
@@ -81,12 +76,8 @@ export async function resolveManualReleaseBuild(
     request.requested_version = nextVersion(span.base_version, bump);
   }
 
-  if (manifest.release_notes === "") {
-    const notes = buildReleaseNotes(span.changes);
-    if (notes !== "") {
-      return parseReleaseBuildRequest({ ...request, release_notes: notes });
-    }
-  }
+  // Empty release notes are filled at publication from the changelog version section, so no
+  // commit-span notes are proposed here.
   return parseReleaseBuildRequest(request);
 }
 

@@ -122,40 +122,6 @@ export function nextVersion(base: string | undefined, bump: Exclude<ReleaseBump,
   return `${major}.${minor}.${patch + 1}`;
 }
 
-// The release manifest contract (contracts/release-manifest.json) caps notes at 20000 characters,
-// so the generated text is bounded before it enters the release request.
-const RELEASE_NOTES_LIMIT = 20_000;
-
-/**
- * Formats the qualifying changes of one release span the way CHANGELOG_CONVENTIONS.md §5 expects
- * release notes to read. Low-value types enter only when they carry an attribute, and a span that
- * qualifies nothing returns an empty string, so the publisher keeps the provenance-only body.
- */
-export function buildReleaseNotes(changes: readonly CommitChange[]): string {
-  const lines: string[] = [];
-  for (const change of changes) {
-    const qualifies =
-      change.type === "feat" ||
-      change.type === "fix" ||
-      change.type === "perf" ||
-      change.type === "revert" ||
-      change.attributes.length > 0;
-    if (!qualifies) {
-      continue;
-    }
-    const attributes = change.attributes.length > 0 ? ` [${change.attributes.join(", ")}]` : "";
-    lines.push(`- ${change.type}${attributes}: ${change.summary}`);
-  }
-  const notes = lines.join("\n");
-  if (notes.length > RELEASE_NOTES_LIMIT) {
-    throw new CliError(
-      `Generated release notes hold ${notes.length} characters, above the ${RELEASE_NOTES_LIMIT} character manifest limit. Keep PR summaries short or curate release_notes in the release manifest.`,
-      66
-    );
-  }
-  return notes;
-}
-
 type CommitRecord = {
   sha: string;
   message: string;

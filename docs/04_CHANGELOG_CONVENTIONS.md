@@ -4,7 +4,7 @@ Action Worker 在 PR、Agent、CHANGELOG 与 Release 之间使用同一套变更
 
 **语言规则**：PR 标题与工程 diff 使用英文；CHANGELOG 条目与 Release 版本说明使用中文。详见 `01_SHARED_GOVERNANCE.md` §2。
 
-**实施状态**：类别映射、条目格式与门禁已实施（`policies/release.json`、`scripts/changelog-release.ts`、`scripts/validate-change-record.ts`）。发布时由中央生成 CHANGELOG 并经 PR 合入的流程尚未实施，见 `docs/proposals/AW-008-changelog-release-automation.md`。条目文件（`changelog.d/`）已实施，取代了直接写 `[Unreleased]` 与 `merge=union`，见 §4 与 AW-008；发布时调用汇总的步骤随两阶段发布一并实施。
+**实施状态**：类别映射、条目格式与门禁已实施（`policies/release.json`、`scripts/changelog-release.ts`、`scripts/validate-change-record.ts`）。条目文件（`changelog.d/`）取代了直接写 `[Unreleased]` 与 `merge=union`，见 §4。发布时由中央生成版本小节、经 PR 合入并在合并提交上打 tag 的流程（§9）已实施，见 `docs/proposals/AW-008-changelog-release-automation.md`。
 
 ---
 
@@ -256,9 +256,14 @@ Release 版本说明使用 §1 的类别分组，顺序与 `[Unreleased]` 小节
 
 CHANGELOG 标题**永远不决定或约束** Release 版本。版本来自发布启动时输入的稳定 SemVer；`release-app.yml` 的 `requested_version` 也可以留空，留空时 Action Worker 按上次 `<release_key>-vX.Y.Z` 标签之后的 Conventional Commits 自动计算下一个稳定版本（沿用 SemVer 0.x 规则；跨度内出现无法解析的提交标题会整次失败，改用显式版本即可）。
 
-Release 的标签与 GitHub Release 由 `scripts/publish-release.ts` 创建；版本说明的唯一权威是产品清单里的 `release_notes` 字段。只有它为空字符串时，发布流程才会用自动生成的提交跨度清单填充；维护者手写的值永远优先。
+发布流程（AW-008 阶段一）：
 
-目标流程（尚未实施）：发布时由中央依据 `[Unreleased]` 生成版本小节，经 PR 合入目标仓库，合并后在合并提交上打 tag 并创建 Release。
+1. 中央读取目标仓库默认分支的 `CHANGELOG.md` 与 `changelog.d/` 条目文件，生成版本小节。
+2. 中央开一个分支 `aw/changelog/<tag>` 的 PR，标题为 `chore(release): <tag>`。它删除已汇总的条目文件，并写入版本小节。校验器从基线重新计算期望内容，只有完全一致才放行。
+3. 该 PR 走正常的门禁，合并后由 Main Write Guard 证明合并提交的来源。
+4. 中央在合并提交上创建 tag 与 GitHub Release。
+
+版本说明来自产品清单的 `release_notes`。只有它为空字符串时，才使用本次版本小节的内容；维护者手写的值永远优先。提交跨度清单不再作为版本说明的来源。
 
 ---
 
