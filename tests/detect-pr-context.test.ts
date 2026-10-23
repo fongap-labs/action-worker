@@ -64,7 +64,11 @@ test("project type detection follows changed monorepo paths before root manifest
     );
     await writeFile(
       join(policyDir, "release.json"),
-      JSON.stringify({ changelog_file: "CHANGELOG.md", impact_patterns: {} }),
+      JSON.stringify({
+        changelog_file: "CHANGELOG.md",
+        changelog_fragment_dir: "changelog.d",
+        impact_patterns: {},
+      }),
       "utf8"
     );
 

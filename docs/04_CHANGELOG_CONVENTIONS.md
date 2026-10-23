@@ -4,7 +4,7 @@ Action Worker 在 PR、Agent、CHANGELOG 与 Release 之间使用同一套变更
 
 **语言规则**：PR 标题与工程 diff 使用英文；CHANGELOG 条目与 Release 版本说明使用中文。详见 `01_SHARED_GOVERNANCE.md` §2。
 
-**实施状态**：类别映射、条目格式与门禁已实施（`policies/release.json`、`scripts/changelog-release.ts`、`scripts/validate-change-record.ts`）。发布时由中央生成 CHANGELOG 并经 PR 合入的流程尚未实施，见 `docs/proposals/AW-008-changelog-release-automation.md`。§4 当前描述的 `[Unreleased]` 与 `merge=union` 仍是现行规则；改为条目文件（`changelog.d/`）的方案已同意，待实施，同见 AW-008。
+**实施状态**：类别映射、条目格式与门禁已实施（`policies/release.json`、`scripts/changelog-release.ts`、`scripts/validate-change-record.ts`）。发布时由中央生成 CHANGELOG 并经 PR 合入的流程尚未实施，见 `docs/proposals/AW-008-changelog-release-automation.md`。条目文件（`changelog.d/`）已实施，取代了直接写 `[Unreleased]` 与 `merge=union`，见 §4 与 AW-008；发布时调用汇总的步骤随两阶段发布一并实施。
 
 ---
 
@@ -119,9 +119,19 @@ CHANGELOG.md
 ## [Unreleased]
 ```
 
-所有未发布条目放在 `[Unreleased]` 之下。`[Unreleased]` 只保存条目，不写小节标题；发布后，条目被移入一个版本小节，小节下按 §1 的类别分组。
+每个变更的条目写在它自己的条目文件里，而不是 `CHANGELOG.md`：
 
-并发变更时，仓库的 `.gitattributes` 应对 `CHANGELOG.md` 声明 `merge=union`：每个变更都在 `[Unreleased]` 顶部加入自己的条目，两个同时打开的变更因此会碰到同一段行；并集合并会同时保留两边的条目，不必每次手工解冲突。条目一旦发布即视为不可变，不要回头改写已发布的条目，否则并集合并会同时保留两个版本。
+```
+changelog.d/<slug>.md
+```
+
+`<slug>` 是仓库内唯一的小写 kebab-case 名字（如 `csi-verdict-supersede`），一个文件可以包含多条条目，格式见 §5。需要条目的 PR 必须新增至少一个条目文件；已在基线分支上存在的条目文件不得修改，也不得用同名文件。
+
+`CHANGELOG.md` 的 `[Unreleased]` 由发布汇总，pull request 不修改它。已在 `[Unreleased]` 中的条目保持原位，在下一次发布时与条目文件一起汇总。
+
+发布时，条目文件与 `[Unreleased]` 中的条目一并汇总到一个版本小节，小节下按 §1 的类别分组，然后移除这些条目文件。条目一旦发布即视为不可变，不要回头改写已发布的条目。
+
+> 历史说明：此前所有变更直接写入 `[Unreleased]` 顶部并依赖 `merge=union`。该做法在 GitHub 网页端不生效，且两边加入相同行时会重复条目，已由条目文件取代（见 AW-008）。
 
 版本小节的标题链接到该版本的 GitHub Release：
 

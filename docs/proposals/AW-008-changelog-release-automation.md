@@ -7,7 +7,8 @@
 - 已实施：类别映射与条目格式（`policies/release.json`）、门禁（`scripts/validate-change-record.ts`）、语言检查（`scripts/validate-engineering-language.ts`）、版本小节生成（`scripts/changelog-release.ts`，纯函数，含测试）、治理文档与合同测试。
 - 未实施：中央发布流程中的"生成 CHANGELOG → 开 PR → 合并后打 tag 与创建 Release"两阶段流程。`publish-release.ts` 目前仍直接在目标仓库创建 tag 与 Release，不写 CHANGELOG。见下文"待实施的两阶段发布"。
 - 未实施：业务仓库中既有的英文 `[Unreleased]` 条目迁移（action-worker 有 250 条英文条目，其余仓库同样存在）。见下文"既有英文条目"。
-- 未实施：以条目文件（`changelog.d/`）替换 `CHANGELOG.md merge=union`。owner 已于 2026-10-23 同意该方案，见下文"条目文件"。
+- 已实施：条目文件（`changelog.d/`）替换 `CHANGELOG.md merge=union`，包括校验（`scripts/validate-change-record.ts`）、汇总函数（`scripts/changelog-release.ts` 的 `promoteUnreleased` 接受条目文件）、`.gitattributes` 的改动、文档与测试。
+- 未实施：发布时调用汇总并删除已汇总的条目文件。它属于两阶段发布的阶段一，目前 `promoteUnreleased` 只有测试调用，没有发布流程调用。发布 PR 会改写 `[Unreleased]`，校验当前会拒绝这种改动，所以阶段一实施时必须为发布 PR 明确放行，不能靠绕过。
 
 ## 方案 C 的默认决定
 
@@ -35,7 +36,7 @@
 
 该流程需要新的状态与等待机制，以及对 GitHub API 的实际调用验证，因此单独立项实施。
 
-## 条目文件：替换 `merge=union`（已同意，待实施）
+## 条目文件：替换 `merge=union`（已实施，发布调用待实施）
 
 问题：`CHANGELOG.md` 的 `[Unreleased]` 顶部是所有 PR 都会改的同一段行。`merge=union` 只在本地 git 合并时生效，GitHub 网页端不执行它，因此 PR 仍报告冲突。即使在本地合并，两边都加入相同行时，union 也会保留两份，形成重复条目。PR #986 同时遇到了这两个问题。
 
@@ -53,7 +54,7 @@
 
 实施范围（单独 PR，按 `docs/GOVERNANCE_CHANGE_CHECKLIST.md`）：`docs/04_CHANGELOG_CONVENTIONS.md` §4、§9；`scripts/changelog-release.ts`（输入从 `[Unreleased]` 扩展到条目文件）；`scripts/validate-change-record.ts`（文件位置与重复名检查）；`.gitattributes`；对应回归测试。
 
-本设计 PR 只改文档，不改变任何执行逻辑。在实施 PR 合并前，`docs/04` §4 描述的现行规则仍然有效。
+实施后，`merge=union` 已删除，PR 不再修改 `[Unreleased]`。发布时汇总条目文件并删除它们，要等两阶段发布的阶段一实施后才会发生；在此之前，条目文件会一直累积在 `changelog.d/` 中。
 
 ## 背景
 

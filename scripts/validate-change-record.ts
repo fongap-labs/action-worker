@@ -170,6 +170,65 @@ function changelogCategoriesForType(policy: Record<string, unknown>, changeType:
   return categories;
 }
 
+// The text between `## [Unreleased]` and the next version heading. Pull requests may not change it.
+function unreleasedSection(content: string): string {
+  const lines = content.split(/\r?\n/);
+  const start = lines.indexOf("## [Unreleased]");
+  if (start === -1) return "";
+  const next = lines.findIndex((line, index) => index > start && line.startsWith("## "));
+  return lines
+    .slice(start + 1, next === -1 ? lines.length : next)
+    .join("\n")
+    .trim();
+}
+
+async function assertUnreleasedUntouched(root: string, base: string, changelogFile: string) {
+  const content = await readFile(join(root, changelogFile), "utf8");
+  if (!content.split(/\r?\n/).includes("## [Unreleased]")) {
+    throw new CliError(`::error::${changelogFile} must contain ## [Unreleased].`, 65);
+  }
+  const listed = await runText("git", ["ls-tree", "--name-only", base, "--", changelogFile], {
+    cwd: root,
+  });
+  const before =
+    listed === ""
+      ? ""
+      : unreleasedSection(
+          await runText("git", ["show", `${base}:${changelogFile}`], { cwd: root })
+        );
+  if (unreleasedSection(content) !== before) {
+    throw new CliError(
+      `::error::${changelogFile} [Unreleased] is not edited by pull requests. Add a changelog fragment under changelog.d/ instead.`,
+      65
+    );
+  }
+}
+
+// A fragment is named after its change: a lowercase kebab-case slug, directly under the directory.
+function assertNewFragment(path: string, fragmentDir: string): void {
+  const name = path.slice(fragmentDir.length + 1);
+  if (name.includes("/") || !/^[a-z0-9]+(?:-[a-z0-9]+)*\.md$/.test(name)) {
+    throw new CliError(
+      `::error::Changelog fragment ${path} must be named ${fragmentDir}/<slug>.md with a lowercase kebab-case slug.`,
+      65
+    );
+  }
+}
+
+// A fragment name already used on the base branch would collide with another change; a fragment
+// is only ever added, never edited.
+async function assertNotOnBase(root: string, base: string, path: string): Promise<void> {
+  const listed = await runText("git", ["ls-tree", "--name-only", base, "--", path], {
+    cwd: root,
+  });
+  if (listed !== "") {
+    throw new CliError(
+      `::error::Changelog fragment ${path} already exists on the base branch. Choose another slug.`,
+      65
+    );
+  }
+}
+
 export async function validateChange(
   title: string,
   base: string,
@@ -201,40 +260,46 @@ export async function validateChange(
     throw new CliError(`::error::Unsupported change type: ${changeType}.`, 64);
   }
   const changelogFile = value.changelog_file;
+  const fragmentDir = value.changelog_fragment_dir;
+  if (typeof fragmentDir !== "string" || fragmentDir === "") {
+    throw new CliError("::error::Invalid release policy field: changelog_fragment_dir.", 65);
+  }
   const changedText = await runText(
     "git",
     ["diff", "--name-only", "--diff-filter=ACMR", base, head],
     { cwd: root }
   );
-  const changelogChanged = changedText.split(/\r?\n/).includes(changelogFile);
-  const changelogRequired = isBreaking || requiredTypes.includes(changeType);
-  if (changelogRequired && !changelogChanged) {
-    throw new CliError(`::error::Change type ${changeType} must update ${changelogFile}.`, 65);
+  const changedPaths = changedText.split(/\r?\n/).filter(Boolean);
+  if (changedPaths.includes(changelogFile)) {
+    await assertUnreleasedUntouched(root, base, changelogFile);
   }
-  if (changelogChanged) {
-    const content = await readFile(join(root, changelogFile), "utf8");
-    if (!content.split(/\r?\n/).includes("## [Unreleased]")) {
-      throw new CliError(`::error::${changelogFile} must contain ## [Unreleased].`, 65);
-    }
-    const diff = await runText("git", ["diff", "--unified=0", base, head, "--", changelogFile], {
-      cwd: root,
-    });
-    const additions = diff
-      .split(/\r?\n/)
-      .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
-      .map((line) => line.slice(1));
-    const categories = policyList(value, "changelog_categories");
-    const allowedCategories = changelogCategoriesForType(value, changeType);
-    const securityCategory = value.security_category;
-    if (typeof securityCategory !== "string" || !categories.includes(securityCategory)) {
-      throw new CliError("::error::Invalid release policy field: security_category.", 65);
-    }
-    let hasMatching = false;
-    for (const line of additions.filter((entry) => entry.startsWith("- "))) {
+  // Each change adds its own fragment; the fragments are assembled into the version section at
+  // release. Shared lines in CHANGELOG.md are what made concurrent pull requests conflict.
+  const fragments = changedPaths.filter((path) => path.startsWith(`${fragmentDir}/`));
+  const changelogRequired = isBreaking || requiredTypes.includes(changeType);
+  if (changelogRequired && fragments.length === 0) {
+    throw new CliError(
+      `::error::Change type ${changeType} must add a changelog fragment under ${fragmentDir}/.`,
+      65
+    );
+  }
+  const categories = policyList(value, "changelog_categories");
+  const allowedCategories = changelogCategoriesForType(value, changeType);
+  const securityCategory = value.security_category;
+  if (typeof securityCategory !== "string" || !categories.includes(securityCategory)) {
+    throw new CliError("::error::Invalid release policy field: security_category.", 65);
+  }
+  let hasMatching = false;
+  for (const path of fragments) {
+    assertNewFragment(path, fragmentDir);
+    await assertNotOnBase(root, base, path);
+    const content = await readFile(join(root, path), "utf8");
+    for (const line of content.split(/\r?\n/)) {
+      if (line.trim() === "") continue;
       const entry = parseEntry(line);
       if (!entry) {
         throw new CliError(
-          `::error::Invalid CHANGELOG entry: ${line} Each added entry must look like '- 修复: 中文摘要' or '- 新增 [breaking]: 中文摘要'.`,
+          `::error::Invalid changelog fragment entry in ${path}: ${line} Each entry must look like '- 修复: 中文摘要' or '- 新增 [breaking]: 中文摘要'.`,
           65
         );
       }
@@ -265,12 +330,12 @@ export async function validateChange(
         }
       }
     }
-    if (changelogRequired && !hasMatching) {
-      throw new CliError(
-        `::error::CHANGELOG must add an entry matching PR type '${changeType}'.`,
-        65
-      );
-    }
+  }
+  if (changelogRequired && !hasMatching) {
+    throw new CliError(
+      `::error::A changelog fragment must add an entry matching PR type '${changeType}'.`,
+      65
+    );
   }
   return {
     schema_version: "1",
@@ -279,7 +344,7 @@ export async function validateChange(
     attributes: isBreaking ? ["breaking"] : [],
     summary,
     changelog_required: changelogRequired,
-    changelog_changed: changelogChanged,
+    changelog_changed: fragments.length > 0,
   };
 }
 

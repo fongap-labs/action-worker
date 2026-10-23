@@ -1,0 +1,1 @@
+- 变更: 每个变更改为在 `changelog.d/` 下新增自己的条目文件，不再直接修改 `CHANGELOG.md` 的 `[Unreleased]`，并行的 PR 不再因此冲突或重复条目。
