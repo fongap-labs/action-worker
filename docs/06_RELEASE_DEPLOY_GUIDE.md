@@ -8,7 +8,7 @@
 
 | 目的 | 工作流 | 手动输入 | 自动触发 |
 |------|--------|----------|----------|
-| 发布由源仓库构建的应用 | `手动 · 发布应用` (`release-app.yml`) | `source_repository` (owner/name)、`requested_version` (稳定 SemVer，可留空=自动计算)、`product` (多产品时必填) | `run-release-build` 分发事件 |
+| 发布由源仓库构建的应用 | `手动 · 发布应用` (`release-app.yml`) | `source_repository` (owner/name)、`requested_version` (正式版 `X.Y.Z`，beta 版 `X.Y.Z-beta.N`，可留空=自动计算正式版)、`product` (多产品时必填) | `run-release-build` 分发事件 |
 | 发布上游镜像的第三方工具 | `自动 · 工具发布` (`release-tool.yml`) | 无 | 定时，每 6 小时 |
 | 部署某个源提交 | `手动 · 部署服务` (`deploy-source-script.yml`) | `source_repository` (owner/name)、`source_sha` (可选，留空=当前 HEAD) | 中央 CI 通过且部署清单声明 push 触发 |
 
@@ -22,7 +22,7 @@
 
 1. 目标改动已通过 PR 合并进 `main`
 2. `source_repository` 写成 `owner/name`，且该仓库在 `AW_REPOSITORY_POLICY` 中具备对应能力（`release-source` / `deploy`）
-3. 发布时 `requested_version` 填稳定 SemVer（如 `1.2.3` 或 `v1.2.3`），或留空由 Action Worker 按上次发布的 Conventional Commits 自动计算下一个稳定版本
+3. 发布时 `requested_version` 手动填写：正式版如 `1.2.3` 或 `v1.2.3`，beta 版如 `1.2.3-beta.1`（作为预发布发布）。留空由 Action Worker 按上次正式版之后的 Conventional Commits 自动计算下一个正式版
 
 ---
 
@@ -32,7 +32,7 @@
 |----------|------|------|
 | `Invalid repository: x. Enter it as owner/name` | 只写仓库名 | 按提示写成 `owner/name` |
 | `Repository is not allowed for <能力>` | 仓库缺少能力 | 报错末尾列出具备该能力的仓库；需新增时修改 `AW_REPOSITORY_POLICY` |
-| `Requested release version must be stable SemVer` | 版本带预发布/构建后缀或非三段数字 | 改成 `1.2.3` 或 `v1.2.3` |
+| `Requested release version must be X.Y.Z (formal) or X.Y.Z-beta.N` | 版本不是三段数字，或预发布后缀不是 `-beta.N`（N ≥ 1） | 改成 `1.2.3`、`v1.2.3` 或 `1.2.3-beta.1` |
 | `No release-worthy Conventional Commits since <base>. Cut a change or enter an explicit requested_version.` | 自动模式下跨度内没有 feat/fix 等可发布提交 | 合并新改动的 PR 后重启，或显式填一个稳定版本 |
 | `Commit subjects are not Conventional Commits titles (CHANGELOG_CONVENTIONS.md §3): ...` | 自动模式跨度内混入未按规范书写的提交标题 | 修正提交信息（PR 标题即提交标题），或显式填稳定版本跳过自动计算 |
 | `The commit span holds N commits, more than ... accepts. Enter an explicit requested_version instead.` | 距上次发布积累的提交太多（compare 截断 / 跨度上限 / 产品根过滤上限） | 显式填稳定版本，让本次发布先落地 |

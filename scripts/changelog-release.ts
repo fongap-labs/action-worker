@@ -67,6 +67,53 @@ export function parseEntries(
   return entries;
 }
 
+// The entries of every beta section of one formal version, oldest first. A beta section is written
+// as `### category` groups of `- [attributes] summary` lines, which this reads back.
+export function betaEntriesOf(
+  content: string,
+  version: string,
+  categories: readonly string[]
+): ChangelogEntry[] {
+  if (version.includes("-")) return [];
+  const sections: string[][] = [];
+  let current: string[] | null = null;
+  for (const line of content.split("\n")) {
+    const heading = releaseHeadingOf(line);
+    if (heading) {
+      current = heading.version.startsWith(`${version}-beta.`) ? [] : null;
+      if (current) sections.push(current);
+    } else if (line.startsWith("## ")) {
+      current = null;
+    } else if (current) {
+      current.push(line);
+    }
+  }
+  // The newest section sits first in the file, so reverse to read the betas in release order.
+  const entries: ChangelogEntry[] = [];
+  for (const section of sections.reverse()) {
+    let category = "";
+    for (const line of section) {
+      const group = /^### (.+)$/.exec(line);
+      if (group) {
+        category = group[1] ?? "";
+        continue;
+      }
+      const item = /^-(?: \[([^\]]+)\])? (.+)$/.exec(line);
+      if (item && categories.includes(category)) {
+        entries.push({
+          category,
+          attributes: (item[1] ?? "")
+            .split(",")
+            .map((attribute) => attribute.trim())
+            .filter(Boolean),
+          summary: item[2] ?? "",
+        });
+      }
+    }
+  }
+  return entries;
+}
+
 export type PromoteOptions = {
   version: string;
   date: string;
@@ -88,10 +135,10 @@ export function promoteUnreleased(content: string, options: PromoteOptions): str
   let end = lines.findIndex((line, index) => index > start && line.startsWith("## "));
   if (end === -1) end = lines.length;
 
-  const entries = parseEntries(
-    lines.slice(start + 1, end).join("\n"),
-    options.categories,
-    "[Unreleased]"
+  // A formal release lists the entries of every beta of its version first, so no beta change is lost.
+  const entries = betaEntriesOf(content, options.version, options.categories);
+  entries.push(
+    ...parseEntries(lines.slice(start + 1, end).join("\n"), options.categories, "[Unreleased]")
   );
   for (const fragment of options.fragments ?? []) {
     entries.push(...parseEntries(fragment, options.categories, "changelog fragment"));
