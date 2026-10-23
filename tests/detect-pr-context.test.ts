@@ -108,3 +108,75 @@ test("project path classifier recognizes nested language sources", () => {
   assert.equal(projectTypeForPath(".github/workflows/validate.yml"), "github-automation");
   assert.equal(projectTypeForPath("docs/ARCHITECTURE.md"), null);
 });
+
+test("a release change that deletes changelog fragments does not fail context detection", async () => {
+  const root = await mkdtemp(join(tmpdir(), "action-worker-fragment-context-"));
+  try {
+    await exec("git", ["init", "-q"], { cwd: root });
+    await exec("git", ["config", "user.email", "test@example.invalid"], { cwd: root });
+    await exec("git", ["config", "user.name", "Test"], { cwd: root });
+
+    const policyDir = join(root, "policies");
+    await mkdir(policyDir, { recursive: true });
+    await writeFile(
+      join(policyDir, "workflow.json"),
+      JSON.stringify({ path_prefixes: [".github/workflows/"] }),
+      "utf8"
+    );
+    await writeFile(
+      join(policyDir, "security.json"),
+      JSON.stringify({ path_terms: ["secret"] }),
+      "utf8"
+    );
+    await writeFile(
+      join(policyDir, "release.json"),
+      JSON.stringify({
+        changelog_file: "CHANGELOG.md",
+        changelog_fragment_dir: "changelog.d",
+        impact_patterns: { performance: ["latency"] },
+      }),
+      "utf8"
+    );
+
+    await mkdir(join(root, "changelog.d"), { recursive: true });
+    const fragment = join(root, "changelog.d", "reduce-latency.md");
+    await writeFile(join(root, "CHANGELOG.md"), "# Changelog\n\n## [Unreleased]\n", "utf8");
+    await writeFile(fragment, "- 变更: 降低 latency。\n", "utf8");
+    await exec("git", ["add", "."], { cwd: root });
+    await exec("git", ["commit", "-qm", "base"], { cwd: root });
+    const { stdout: base } = await exec("git", ["rev-parse", "HEAD"], { cwd: root });
+
+    // The release assembles the fragment into the changelog and removes the fragment file.
+    await writeFile(
+      join(root, "CHANGELOG.md"),
+      "# Changelog\n\n## [Unreleased]\n\n## [0.1.1] - 2026-10-23\n\n### 变更\n\n- 降低 latency。\n",
+      "utf8"
+    );
+    await rm(fragment);
+    await exec("git", ["add", "-A"], { cwd: root });
+    await exec("git", ["commit", "-qm", "release"], { cwd: root });
+    const { stdout: releaseHead } = await exec("git", ["rev-parse", "HEAD"], { cwd: root });
+
+    const release = await detectContext(base.trim(), releaseHead.trim(), root, policyDir);
+    assert.deepEqual(release.changed_files.sort(), [
+      "CHANGELOG.md",
+      "changelog.d/reduce-latency.md",
+    ]);
+    assert.equal(release.changelog_changed, true);
+
+    // A fragment the change adds is still read for its impact declarations.
+    await writeFile(
+      join(root, "changelog.d", "new-latency.md"),
+      "- 变更: 降低 latency。\n",
+      "utf8"
+    );
+    await exec("git", ["add", "-A"], { cwd: root });
+    await exec("git", ["commit", "-qm", "add fragment"], { cwd: root });
+    const { stdout: addHead } = await exec("git", ["rev-parse", "HEAD"], { cwd: root });
+
+    const added = await detectContext(releaseHead.trim(), addHead.trim(), root, policyDir);
+    assert.deepEqual(added.declared_impacts, ["performance"]);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
