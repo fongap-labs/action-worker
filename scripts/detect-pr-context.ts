@@ -179,7 +179,11 @@ export async function detectContext(
     );
   }
   for (const path of fragmentFiles) {
-    sources.push(await readFile(join(root, path), "utf8"));
+    // The release that assembles a version deletes its fragments; a deleted fragment declares
+    // nothing, so only the fragments that still exist in the checked-out change are read.
+    if (await pathExists(join(root, path))) {
+      sources.push(await readFile(join(root, path), "utf8"));
+    }
   }
   const additions = sources.join("\n").toLowerCase();
   for (const category of [
