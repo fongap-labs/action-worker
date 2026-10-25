@@ -29,6 +29,7 @@ import {
   claimTier1Slot,
   classifyTier1Failure,
   getTier1Account,
+  getTier1Model,
   recordTier1Success,
   wakeTier1ProviderSiblings,
 } from '#target/src/reliability/tier1-state.ts';
@@ -117,7 +118,7 @@ await test('a long-lived allowance keeps the hours its provider states; a short 
 });
 
 await test('the long-allowance ladder is tunable and malformed input keeps the built-in one', () => {
-  assert.deepEqual([...ADAPTIVE_429_QUOTA_STEPS_MS], [300_000, 600_000, 1_200_000, 2_400_000, 3_600_000, 7_200_000, 10_800_000, 18_000_000]);
+  assert.deepEqual([...ADAPTIVE_429_QUOTA_STEPS_MS], [300_000, 600_000, 1_200_000, 1_800_000], 'the built-in ladder tops out at 30 minutes');
   assert.deepEqual([...adaptive429StepsFromEnv('600000,3600000', ADAPTIVE_429_QUOTA_STEPS_MS)], [600_000, 3_600_000]);
   assert.equal(adaptive429StepsFromEnv('nope', ADAPTIVE_429_QUOTA_STEPS_MS), ADAPTIVE_429_QUOTA_STEPS_MS);
 });
@@ -192,6 +193,66 @@ await test('a 5-hour allowance cools the whole key for 5 minutes, then 10 minute
   } finally {
     Date.now = realNow;
   }
+});
+
+await test('a per-minute 429 never graduates to the long-allowance ladder, however often its probe fails', async () => {
+  let probes = 0;
+  globalThis.fetch = async () => {
+    probes++;
+    return new Response(JSON.stringify({ error: { message: 'Rate limit reached on tokens per minute (TPM): Limit 6000' } }), {
+      status: 429,
+      headers: { 'content-type': 'application/json' },
+    });
+  };
+  const nodes = [{ id: 'limited', provider: 'window-provider', base_url: 'https://limited.example.com/v1', models: { 'general-air': 'up' } }];
+  const e = gatewayEnv(nodes, { limited: 'k1' });
+  const realNow = Date.now;
+  let offsetMs = 0;
+  Date.now = () => realNow() + offsetMs;
+  try {
+    for (let i = 0; i < 8; i++) {
+      // Move past every possible cooldown, so each request is the key's recovery probe.
+      offsetMs += 6 * 3_600_000;
+      const before = probes;
+      await worker.fetch(chatRequest(), e, {});
+      assert.equal(probes, before + 1, `request ${i + 1} probed the limited key once`);
+      const account = getTier1Account('limited');
+      const model = getTier1Model('limited', 'general-air');
+      assert.notEqual(account.accountCooldownIsQuota, true, `probe ${i + 1}: a per-minute limit is never recorded as a long-lived allowance`);
+      assert.notEqual(model.cooldownIsQuota, true, `probe ${i + 1}: neither on the model`);
+      const longest = Math.max(account.accountCooldownUntil, model.cooldownUntil) - Date.now();
+      assert.ok(longest <= 300_000, `probe ${i + 1}: the per-minute ladder stays capped at 5 minutes, got ${longest}`);
+    }
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+await test('a Tier 1 long allowance is benched for at most 30 minutes, whatever wait the provider states', async () => {
+  globalThis.fetch = async (input) => {
+    const host = new URL(typeof input === 'string' ? input : input.url).hostname;
+    if (host === 'quota.example.com') {
+      return new Response(JSON.stringify({ error: { message: 'You have reached the usage limit for this 5 hour window' } }), {
+        status: 429,
+        headers: { 'content-type': 'application/json', 'retry-after': '18000' },
+      });
+    }
+    return new Response(JSON.stringify(okCompletion), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  const nodes = [
+    { id: 'quota', provider: 'plan-provider', base_url: 'https://quota.example.com/v1', models: { 'general-air': 'up' } },
+    { id: 'healthy', provider: 'plan-provider', base_url: 'https://healthy.example.com/v1', models: { 'general-air': 'up' } },
+  ];
+  const e = gatewayEnv(nodes, { quota: 'k1', healthy: 'k2' }, { TIER1_SCHEDULER_SEED: 'tuning-quota-cap' });
+  for (let i = 0; i < 20 && getTier1Account('quota').accountCooldownUntil === 0; i++) {
+    const res = await worker.fetch(chatRequest(), e, {});
+    assert.equal(res.status, 200, 'a healthy sibling key always serves the request');
+  }
+  const account = getTier1Account('quota');
+  assert.equal(account.accountCooldownReason, 'rate_limit');
+  assert.equal(account.accountCooldownIsQuota, true, 'an explicit 5 hour window is still recognised as a long allowance');
+  const remaining = account.accountCooldownUntil - Date.now();
+  assert.ok(remaining > 1_790_000 && remaining <= 1_800_000, `the stated 5 hours is capped at 30 minutes, got ${remaining}`);
 });
 
 await test('a sibling is not woken early out of a long-allowance cooldown, only out of a short-window one', () => {
