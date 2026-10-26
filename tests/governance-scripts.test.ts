@@ -641,6 +641,12 @@ test("release contracts bind source, artifact provenance, target, assets, and li
     "fongap/target": ["release-target"],
   };
   validateRelease(request, manifest, policy);
+  // A release may carry the entries it owns; the list is bounded and holds single lines only.
+  validateRelease(request, { ...manifest, changelog_entries: ["新增: 同步示例。"] }, policy);
+  assert.throws(() => validateRelease(request, { ...manifest, changelog_entries: [] }, policy));
+  assert.throws(() =>
+    validateRelease(request, { ...manifest, changelog_entries: ["新增: 同步\n示例。"] }, policy)
+  );
   validateReleaseProvenance(request, provenance);
   assert.throws(() => validateReleaseProvenance(request, { ...provenance, artifact_run_id: 124 }));
   assert.throws(() =>

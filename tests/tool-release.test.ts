@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { entriesFromLines } from "../scripts/changelog-release.ts";
 import {
   checksumForAsset,
   isVerifiedCommit,
+  mirrorChangelogEntries,
   parseToolMetadata,
   parseUrlToolMetadata,
   selectStableRelease,
@@ -36,6 +38,15 @@ test("url tool metadata refuses an unpinned, plain-HTTP or mismatched source", (
   refused({ upstream_sha256: "B".repeat(64) });
   refused({ upstream_version: "4.6" });
   refused({ release_channel: "stable" });
+});
+
+test("every mirror release carries its own entry, which the publisher accepts", () => {
+  const categories = ["新增", "变更", "弃用", "移除", "修复", "安全"];
+  const entries = mirrorChangelogEntries("CRAN 上游文件 DoE.base_1.2-5.tar.gz（版本 1.2.5）");
+  assert.deepEqual(entries, [
+    "新增: 同步 CRAN 上游文件 DoE.base_1.2-5.tar.gz（版本 1.2.5），SHA-256 已校验。",
+  ]);
+  assert.equal(entriesFromLines(entries, categories).length, 1);
 });
 
 test("url tool metadata accepts a three- or four-part numeric version", () => {
