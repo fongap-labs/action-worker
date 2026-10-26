@@ -698,3 +698,55 @@ def test_portable_zip_structure_if_present():
         ]
         for req in required:
             assert any(n.startswith(req) for n in names), f"missing required: {req}"
+
+
+# ==========================================================================
+# Search providers report a refused request instead of an empty result list
+# ==========================================================================
+
+class _FakeResponse:
+    def __init__(self, status: int, body: dict):
+        self.status_code = status
+        self._body = body
+
+    def raise_for_status(self):
+        import httpx
+
+        if self.status_code >= 400:
+            request = httpx.Request("GET", "https://search.example/api")
+            raise httpx.HTTPStatusError(
+                f"HTTP {self.status_code}",
+                request=request,
+                response=httpx.Response(self.status_code, request=request),
+            )
+
+    def json(self):
+        return self._body
+
+
+@pytest.mark.parametrize(
+    "provider_name,verb",
+    [("TavilyProvider", "post"), ("BraveProvider", "get")],
+)
+def test_a_search_provider_refused_by_its_api_raises_instead_of_returning_nothing(
+    monkeypatch, provider_name, verb
+):
+    import httpx
+    from integrations.web import providers
+
+    monkeypatch.setattr(
+        httpx, verb, lambda *a, **k: _FakeResponse(401, {"error": "invalid api key"})
+    )
+    provider = getattr(providers, provider_name)("bad-key")
+    with pytest.raises(httpx.HTTPStatusError):
+        provider.search("anything")
+
+
+def test_a_search_provider_with_a_good_reply_still_returns_results(monkeypatch):
+    import httpx
+    from integrations.web import providers
+
+    body = {"results": [{"title": "T", "url": "https://x.example", "content": "C"}]}
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: _FakeResponse(200, body))
+    results = providers.TavilyProvider("key").search("q")
+    assert [r.title for r in results] == ["T"]
