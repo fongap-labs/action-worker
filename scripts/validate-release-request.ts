@@ -5,7 +5,8 @@ import { CliError, handleError, isMain, parseJson, readJson } from "./runtime-co
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const requestPattern = /^[A-Za-z0-9._:-]{1,128}$/;
 const assetPattern = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
-const versionPattern = /^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
+const versionPattern =
+  /^[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 
 function isExactKeys(
   value: Record<string, unknown>,

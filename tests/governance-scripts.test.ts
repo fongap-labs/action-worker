@@ -647,6 +647,13 @@ test("release contracts bind source, artifact provenance, target, assets, and li
   assert.throws(() =>
     validateRelease(request, { ...manifest, changelog_entries: ["新增: 同步\n示例。"] }, policy)
   );
+  // A mirrored CRAN package may carry a four-part numeric version (AlgDesign 1.2.1.2); a fifth
+  // part, or a non-numeric part, is not a version.
+  validateRelease(request, { ...manifest, version: "1.2.1.2" }, policy);
+  validateRelease(request, { ...manifest, version: "1.2.1.2-beta.1" }, policy);
+  assert.throws(() => validateRelease(request, { ...manifest, version: "1.2.1.2.3" }, policy));
+  assert.throws(() => validateRelease(request, { ...manifest, version: "1.2.1.x" }, policy));
+  assert.throws(() => validateRelease(request, { ...manifest, version: "1.2" }, policy));
   validateReleaseProvenance(request, provenance);
   assert.throws(() => validateReleaseProvenance(request, { ...provenance, artifact_run_id: 124 }));
   assert.throws(() =>
