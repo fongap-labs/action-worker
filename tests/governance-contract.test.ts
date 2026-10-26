@@ -1366,3 +1366,19 @@ test("manual release, deploy and task entry points request central CI and explai
   assert.doesNotMatch(deploy, /\[\[ "\$SOURCE_SHA" =~ [^\n]*\]\]\n/);
   assert.match(deploy, /source_sha:\n\s+description: [^\n]+\n\s+required: false/);
 });
+
+test("an unfinished PR Governance status is resolved by a job that runs after a failed governance", async () => {
+  const governance = await text(".github/workflows/handle-pr-dispatch.yml");
+  const start = governance.indexOf("\n  resolve-unfinished:\n");
+  assert.ok(start >= 0, "resolve-unfinished job");
+  const job = governance.slice(start);
+  assert.match(
+    job,
+    /needs: govern\n\s+if: \$\{\{ always\(\) && needs\.govern\.result != 'success' \}\}/
+  );
+  assert.match(
+    job,
+    /node scripts\/resolve-unfinished-governance\.ts "\$REPOSITORY" "\$PR_NUMBER" "\$RUN_URL"/
+  );
+  assert.doesNotMatch(job, /pull_request|checkout target/i);
+});

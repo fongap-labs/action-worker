@@ -279,3 +279,39 @@ jobs:
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           REQUEST_ID: review-${{ github.run_id }}-${{ github.run_attempt }}
         run: node scripts/dispatch-pr-review.ts "$REPOSITORY" "$PR_NUMBER" "$REQUEST_ID" "$HEAD_SHA"
+
+  # Control domain. The governance run can end before it marks its head: the pull request may be
+  # merged or closed first ("Target PR is not open"), or the run may be cancelled or time out. The
+  # status intake queued for it then stays pending for ever, and the Main Write Audit can never
+  # accept that head. This job resolves such an unfinished status to a failure. It runs no pull
+  # request code, only reads the pull request and writes the status.
+  resolve-unfinished:
+    name: Resolve unfinished PR Governance
+    needs: govern
+    if: ${{ always() && needs.govern.result != 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Resolve unfinished PR governance
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          CONTROL_REPOSITORY: ${{ github.repository }}
+          REPOSITORY: ${{ github.event.client_payload.repository }}
+          PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/resolve-unfinished-governance.ts "$REPOSITORY" "$PR_NUMBER" "$RUN_URL"
