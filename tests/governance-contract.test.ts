@@ -724,6 +724,12 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   assert.doesNotMatch(releaseBuild, /RELEASE_COMPUTED_NOTES/);
 
   const release = await text(".github/workflows/handle-release-dispatch.yml");
+  // GitHub keeps one pending run per concurrency group and cancels the rest, so the group must
+  // name the artifact: releases of several tools from one sync run must not share it.
+  assert.match(
+    release,
+    /concurrency:\n\s+group: release-\$\{\{ github\.event\.client_payload\.source_repository \}\}-\$\{\{ github\.event\.client_payload\.source_sha \}\}-\$\{\{ github\.event\.client_payload\.artifact_name \}\}-\$\{\{ github\.event\.client_payload\.artifact_run_id \}\}\n\s+cancel-in-progress: false/
+  );
   requireText(release, [
     "types: [run-release]",
     "source_repository",
