@@ -1267,6 +1267,34 @@ test("deploy and task entrypoints replace the shell that received every secret",
   assert.doesNotMatch(report, /echo .*\$\{?AW_ARTIFACT_KEY\}?/);
 });
 
+test("a cancelled PR Governance run still resolves the status it owns", async () => {
+  // A status left pending by a cancelled run blocks the Main Write Audit for that merged head.
+  const governance = await text(".github/workflows/handle-pr-dispatch.yml");
+  for (const step of ["Update final gate", "Update central merge gate"]) {
+    const start = governance.indexOf(`- name: ${step}\n`);
+    assert.ok(start >= 0, step);
+    const block = governance.slice(start, governance.indexOf("\n      - name:", start + 1));
+    assert.match(
+      block,
+      /if: \$\{\{ always\(\) && steps\.ownership\.outputs\.current == 'true' \}\}/
+    );
+    // cancelled() is only allowed in step conditions, so the gates read the cancellation step.
+    assert.doesNotMatch(block, /cancelled\(\)/);
+    assert.match(
+      block,
+      /STATE: \$\{\{ steps\.cancellation\.outputs\.cancelled != 'true' && steps\.gate\.outputs\.passed == 'true'/
+    );
+    assert.match(
+      block,
+      /DESCRIPTION: \$\{\{ steps\.cancellation\.outputs\.cancelled == 'true' && /
+    );
+  }
+  assert.match(
+    governance,
+    /- name: Note cancellation\n\s+id: cancellation\n\s+if: \$\{\{ cancelled\(\) \}\}/
+  );
+});
+
 test("only PR Governance reports an untrusted head instead of failing", async () => {
   const { AWAITING_APPROVAL_DESCRIPTION } = await import("../scripts/pr-trust.ts");
   const governance = await text(".github/workflows/handle-pr-dispatch.yml");
@@ -1349,4 +1377,20 @@ test("manual release, deploy and task entry points request central CI and explai
   ]);
   assert.doesNotMatch(deploy, /\[\[ "\$SOURCE_SHA" =~ [^\n]*\]\]\n/);
   assert.match(deploy, /source_sha:\n\s+description: [^\n]+\n\s+required: false/);
+});
+
+test("an unfinished PR Governance status is resolved by a job that runs after a failed governance", async () => {
+  const governance = await text(".github/workflows/handle-pr-dispatch.yml");
+  const start = governance.indexOf("\n  resolve-unfinished:\n");
+  assert.ok(start >= 0, "resolve-unfinished job");
+  const job = governance.slice(start);
+  assert.match(
+    job,
+    /needs: govern\n\s+if: \$\{\{ always\(\) && needs\.govern\.result != 'success' \}\}/
+  );
+  assert.match(
+    job,
+    /node scripts\/resolve-unfinished-governance\.ts "\$REPOSITORY" "\$PR_NUMBER" "\$RUN_URL"/
+  );
+  assert.doesNotMatch(job, /pull_request|checkout target/i);
 });

@@ -1,0 +1,1 @@
+- 修复: PR 治理运行被取消或超时时，中央仍会把它拥有的 PR Governance 与 validate-merge 状态写为失败，不再留下永远 pending 的状态，主分支写入审计因此可以通过。
