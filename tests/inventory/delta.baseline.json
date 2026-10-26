@@ -395,46 +395,6 @@
         "test_explicit_target_dispatches_without_vendor_logic"
       ]
     },
-    "test_shell.py": {
-      "status": "collected",
-      "failed": [],
-      "cases": {
-        "test_marker_parsers_accept_prefixed_windows_output": 1,
-        "test_cwd_persists_across_calls": 1,
-        "test_env_persists_across_calls": 1,
-        "test_exit_code_captured": 1,
-        "test_timeout_kills_command": 1,
-        "test_large_output_truncated_keeps_tail": 1,
-        "test_shell_tool_integration": 1,
-        "test_run_shell_accepts_description_and_clamped_timeout": 1,
-        "test_background_task_runs_and_exits": 1,
-        "test_background_task_kill": 1,
-        "test_background_unknown_task_errors": 1,
-        "test_background_spawn_reports_pid_and_detach": 1,
-        "test_process_events_reported_to_sink": 1,
-        "test_process_sink_errors_never_break_execution": 1,
-        "test_managed_task_killed_on_shutdown": 1,
-        "test_detached_task_survives_shutdown": 1
-      },
-      "passed": [
-        "test_marker_parsers_accept_prefixed_windows_output",
-        "test_cwd_persists_across_calls",
-        "test_env_persists_across_calls",
-        "test_exit_code_captured",
-        "test_timeout_kills_command",
-        "test_large_output_truncated_keeps_tail",
-        "test_shell_tool_integration",
-        "test_run_shell_accepts_description_and_clamped_timeout",
-        "test_background_task_runs_and_exits",
-        "test_background_task_kill",
-        "test_background_unknown_task_errors",
-        "test_background_spawn_reports_pid_and_detach",
-        "test_process_events_reported_to_sink",
-        "test_process_sink_errors_never_break_execution",
-        "test_managed_task_killed_on_shutdown",
-        "test_detached_task_survives_shutdown"
-      ]
-    },
     "test_state_dir.py": {
       "status": "collected",
       "failed": [],
