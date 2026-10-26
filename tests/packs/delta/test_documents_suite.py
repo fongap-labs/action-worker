@@ -302,3 +302,54 @@ def test_read_file_lines_unicode_path(tmp_path):
     assert "error" not in out, out
     assert "一行" in out["content"]
     assert "二行" in out["content"]
+
+
+# ==========================================================================
+# A .docx reads its document.xml only up to a bounded size
+# ==========================================================================
+
+def _docx_bytes(document_xml: str | None) -> bytes:
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        if document_xml is not None:
+            zf.writestr("word/document.xml", document_xml)
+    return buf.getvalue()
+
+
+_PARAGRAPH_XML = (
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+    "<w:body><w:p><w:r><w:t>hello</w:t></w:r></w:p></w:body></w:document>"
+)
+
+
+def test_a_docx_within_the_limit_is_read(tmp_path):
+    from integrations.tools import documents
+
+    target = tmp_path / "ok.docx"
+    target.write_bytes(_docx_bytes(_PARAGRAPH_XML))
+    blocks = documents._read_docx(target)
+    assert blocks[0]["text"] == "hello"
+    assert not blocks[0].get("error")
+
+
+def test_a_docx_whose_document_xml_is_over_the_limit_is_refused_unread(tmp_path, monkeypatch):
+    from integrations.tools import documents
+
+    monkeypatch.setattr(documents, "_MAX_DOCX_XML_BYTES", 64)
+    target = tmp_path / "bomb.docx"
+    # Highly compressible, so the file is small while document.xml declares far more than the limit.
+    target.write_bytes(_docx_bytes(_PARAGRAPH_XML + " " * 100_000))
+    assert target.stat().st_size < 5_000
+    blocks = documents._read_docx(target)
+    assert blocks[0]["error"] is True
+    assert "too large" in blocks[0]["text"]
+
+
+def test_a_docx_without_document_xml_still_reports_it(tmp_path):
+    from integrations.tools import documents
+
+    target = tmp_path / "empty.docx"
+    target.write_bytes(_docx_bytes(None))
+    assert "missing" in documents._read_docx(target)[0]["text"]
