@@ -11,6 +11,7 @@ import {
   requireVerifiedCiEvidence,
   trustedCiStatus,
   trustedControlRunId,
+  verificationRecorder,
 } from "../scripts/ci-evidence.ts";
 import { waitForCentralStatus } from "../scripts/wait-ci-evidence.ts";
 
@@ -175,6 +176,41 @@ test("CI evidence with a missing run, wrong prefix, wrong state or no timestamp 
     ),
     /HTTP 500/
   );
+});
+
+test("each verification step reports the step that decided it", async () => {
+  const cases: Array<[string, unknown, unknown[]]> = [
+    ["status-missing", { statuses: [] }, [controlRun()]],
+    ["status-not-success", evidenceStatus({ state: "pending" }), [controlRun()]],
+    ["run-not-found", evidenceStatus(), [new Error("GitHub API returned HTTP 404.")]],
+    ["run-mismatch", evidenceStatus(), [controlRun({ path: ".github/workflows/validate-ci.yml" })]],
+    ["run-not-success", evidenceStatus(), [controlRun({ conclusion: "failure" })]],
+    [
+      "run-outside-window",
+      evidenceStatus(),
+      [controlRun({ run_started_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:01:00Z" })],
+    ],
+    ["verified", evidenceStatus(), [controlRun()]],
+  ];
+  for (const [expected, response, runs] of cases) {
+    const steps: string[] = [];
+    const verdict = await hasVerifiedControlStatus(runReader(runs), response, "CI Evidence", {
+      ...noDelay,
+      trace: (step) => {
+        steps.push(step);
+      },
+    });
+    assert.equal(steps.at(-1), expected, JSON.stringify(response));
+    assert.equal(verdict, expected === "verified");
+  }
+});
+
+test("a verification recorder remembers the last step that failed", () => {
+  const recorder = verificationRecorder("PR Governance test");
+  assert.equal(recorder.lastFailure(), "no verification step ran");
+  recorder.trace("run-mismatch", { run_id: 1 });
+  recorder.trace("verified", { run_id: 1 });
+  assert.equal(recorder.lastFailure(), "run-mismatch");
 });
 
 test("CI evidence waits for a run that is still finishing and fails closed if it never ends", async () => {

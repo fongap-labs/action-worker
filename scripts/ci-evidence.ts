@@ -44,13 +44,35 @@ export const centralCiWait = { statusAttempts: 120, retryDelayMs: 10_000 } as co
 
 export type JsonReader = { get(path: string): Promise<unknown> };
 
+/** Receives the step that decided a verification. It reports only; it never changes the verdict. */
+export type VerificationTrace = (step: string, detail: Record<string, unknown>) => void;
+
 export type VerifiedCiEvidenceOptions = {
   controlRepository?: string;
   workflowPaths?: readonly string[];
   runAttempts?: number;
   statusAttempts?: number;
   retryDelayMs?: number;
+  trace?: VerificationTrace;
 };
+
+/**
+ * Records every verification step and remembers the last step that failed, so a gate error can
+ * say which check refused the status instead of only that it did.
+ */
+export function verificationRecorder(label: string): {
+  trace: VerificationTrace;
+  lastFailure: () => string;
+} {
+  let failure = "no verification step ran";
+  return {
+    trace(step, detail) {
+      console.log(`verification ${label} ${step} ${JSON.stringify(detail)}`);
+      if (step !== "verified") failure = step;
+    },
+    lastFailure: () => failure,
+  };
+}
 
 export function trustedControlRunId(targetUrl: string, controlRepository: string): number | null {
   if (!repositoryPattern.test(controlRepository)) return null;
@@ -124,19 +146,42 @@ export async function hasVerifiedControlStatus(
   const workflowPaths = options.workflowPaths ?? ciEvidenceWorkflowPaths;
   const runAttempts = options.runAttempts ?? 12;
   const retryDelayMs = options.retryDelayMs ?? 5_000;
+  const trace: VerificationTrace = options.trace ?? (() => undefined);
 
   const status = trustedCiStatus(response, context, controlRepository);
-  if (!status || getJsonString(status, "state") !== "success") return false;
+  if (!status) {
+    trace("status-missing", {
+      context,
+      contexts: getJsonArray(response, "statuses")
+        .filter(isJsonRecord)
+        .map((item) => getJsonString(item, "context")),
+    });
+    return false;
+  }
+  if (getJsonString(status, "state") !== "success") {
+    trace("status-not-success", { context, state: getJsonString(status, "state") });
+    return false;
+  }
   const runId = trustedControlRunId(getJsonString(status, "target_url"), controlRepository);
   const createdAt = Date.parse(getJsonString(status, "created_at"));
-  if (runId === null || !Number.isFinite(createdAt)) return false;
+  if (runId === null || !Number.isFinite(createdAt)) {
+    trace("status-untimed", {
+      context,
+      run_id: runId,
+      created_at: getJsonString(status, "created_at"),
+    });
+    return false;
+  }
 
   for (let attempt = 0; attempt < runAttempts; attempt += 1) {
     let run: unknown;
     try {
       run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
     } catch (error) {
-      if (isNotFound(error)) return false;
+      if (isNotFound(error)) {
+        trace("run-not-found", { context, run_id: runId });
+        return false;
+      }
       throw error;
     }
     if (
@@ -145,14 +190,39 @@ export async function hasVerifiedControlStatus(
       !workflowPaths.includes(getJsonString(run, "path")) ||
       getJsonString(run, "head_branch") !== "main"
     ) {
+      trace("run-mismatch", {
+        context,
+        run_id: runId,
+        is_object: isJsonRecord(run),
+        repository: isJsonRecord(run) ? getJsonString(run.repository, "full_name") : null,
+        path: isJsonRecord(run) ? getJsonString(run, "path") : null,
+        head_branch: isJsonRecord(run) ? getJsonString(run, "head_branch") : null,
+      });
       return false;
     }
     if (getJsonString(run, "status") === "completed") {
-      return getJsonString(run, "conclusion") === "success" && runInsideWindow(run, createdAt);
+      const conclusion = getJsonString(run, "conclusion");
+      if (conclusion !== "success") {
+        trace("run-not-success", { context, run_id: runId, conclusion });
+        return false;
+      }
+      if (!runInsideWindow(run, createdAt)) {
+        trace("run-outside-window", {
+          context,
+          run_id: runId,
+          status_created_at: getJsonString(status, "created_at"),
+          run_started_at: getJsonString(run, "run_started_at"),
+          run_updated_at: getJsonString(run, "updated_at"),
+        });
+        return false;
+      }
+      trace("verified", { context, run_id: runId });
+      return true;
     }
     // The status is published before the last steps of the run finish; wait for the verdict.
     if (attempt + 1 < runAttempts) await sleep(retryDelayMs);
   }
+  trace("run-still-running", { context, run_id: runId, attempts: runAttempts });
   return false;
 }
 
