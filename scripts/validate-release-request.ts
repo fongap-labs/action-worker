@@ -79,7 +79,13 @@ export function validateRelease(
     return;
   }
   const requiredKeys = ["schema_version", "target_repository", "release_key", "version", "assets"];
-  const optionalKeys = ["release_name", "release_notes", "prerelease", "license"];
+  const optionalKeys = [
+    "release_name",
+    "release_notes",
+    "changelog_entries",
+    "prerelease",
+    "license",
+  ];
   if (
     !isJsonRecord(manifest) ||
     !isExactKeys(manifest, requiredKeys, optionalKeys) ||
@@ -95,6 +101,17 @@ export function validateRelease(
       (typeof manifest.release_name !== "string" || manifest.release_name.length > 160)) ||
     (manifest.release_notes !== undefined &&
       (typeof manifest.release_notes !== "string" || manifest.release_notes.length > 20_000)) ||
+    (manifest.changelog_entries !== undefined &&
+      (!Array.isArray(manifest.changelog_entries) ||
+        manifest.changelog_entries.length < 1 ||
+        manifest.changelog_entries.length > 20 ||
+        manifest.changelog_entries.some(
+          (line) =>
+            typeof line !== "string" ||
+            line.length > 300 ||
+            line.includes("\n") ||
+            line.includes("\r")
+        ))) ||
     (manifest.prerelease !== undefined && typeof manifest.prerelease !== "boolean") ||
     !Array.isArray(manifest.assets) ||
     manifest.assets.length < 1 ||

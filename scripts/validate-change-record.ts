@@ -1,6 +1,11 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { assertChineseSummary, assertReleaseChange, parseEntry } from "./changelog-release.ts";
+import {
+  assertChineseSummary,
+  assertReleaseChange,
+  assertScopedReleaseChange,
+  parseEntry,
+} from "./changelog-release.ts";
 import { isJsonRecord } from "./github-api.ts";
 import {
   appendLines,
@@ -254,16 +259,22 @@ async function assertReleasePullRequest(
     }
   }
   const baseChangelog = await runText("git", ["show", `${base}:${changelogFile}`], { cwd: root });
+  const headChangelog = await readFile(join(root, changelogFile), "utf8");
+  const categories = policyList(policy, "changelog_categories");
+  // A release that owns its entries removes no fragment and leaves [Unreleased] as it was. Its
+  // section is checked against its own entries, since the entries it claims are not on the base.
+  if (
+    removed.length === 0 &&
+    unreleasedSection(headChangelog) === unreleasedSection(baseChangelog)
+  ) {
+    assertScopedReleaseChange({ baseChangelog, headChangelog, categories });
+    return;
+  }
   const removedFragments: string[] = [];
   for (const path of removed) {
     removedFragments.push(await runText("git", ["show", `${base}:${path}`], { cwd: root }));
   }
-  assertReleaseChange({
-    baseChangelog,
-    headChangelog: await readFile(join(root, changelogFile), "utf8"),
-    removedFragments,
-    categories: policyList(policy, "changelog_categories"),
-  });
+  assertReleaseChange({ baseChangelog, headChangelog, removedFragments, categories });
 }
 
 export async function validateChange(

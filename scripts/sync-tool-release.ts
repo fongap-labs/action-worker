@@ -237,6 +237,14 @@ async function downloadFile(url: string, path: string): Promise<void> {
   throw lastError;
 }
 
+/**
+ * The changelog entry of a mirror release. Every mirror carries its own entry, so publishing one
+ * upstream version never depends on another tool's pending entries or on a human-written fragment.
+ */
+export function mirrorChangelogEntries(upstream: string): string[] {
+  return [`新增: 同步 ${upstream}，SHA-256 已校验。`];
+}
+
 type UrlSyncInput = {
   reader: GithubReader;
   controlToken: string;
@@ -297,6 +305,9 @@ async function syncUrlRelease(input: UrlSyncInput): Promise<void> {
     version,
     release_name: getJsonString(entry, "name") || metadata.release_key,
     release_notes: `Verified mirror of ${metadata.upstream_url} (SHA-256 ${actualChecksum}).`,
+    changelog_entries: mirrorChangelogEntries(
+      `CRAN 上游文件 ${metadata.upstream_asset}（版本 ${version}）`
+    ),
     prerelease: false,
     license: {
       expression: metadata.license_expression,
@@ -537,6 +548,9 @@ async function main(): Promise<void> {
     version,
     release_name: getJsonString(entry, "name") || metadata.release_key,
     release_notes: `Verified mirror of ${metadata.source_repository} ${upstreamTag}.`,
+    changelog_entries: mirrorChangelogEntries(
+      `上游发布 ${metadata.source_repository} ${upstreamTag}`
+    ),
     prerelease: false,
     license: {
       expression: metadata.license_expression,

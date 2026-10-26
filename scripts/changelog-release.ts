@@ -114,14 +114,40 @@ export function betaEntriesOf(
   return entries;
 }
 
-export type PromoteOptions = {
+export type ReleaseSectionOptions = {
   version: string;
   date: string;
   releaseUrl: string;
   categories: readonly string[];
+};
+
+export type PromoteOptions = ReleaseSectionOptions & {
   // Contents of the changelog fragments awaiting release, in the order they are assembled.
   fragments?: readonly string[];
 };
+
+export type ScopedPromoteOptions = ReleaseSectionOptions & {
+  // The release's own entries. A release that owns its entries takes nothing else.
+  entries: readonly ChangelogEntry[];
+};
+
+// One version section: its heading, then the category groups in the order of release.json.
+function renderRelease(
+  entries: readonly ChangelogEntry[],
+  options: ReleaseSectionOptions
+): string[] {
+  const release = [`## [${options.version}](${options.releaseUrl}) - ${options.date}`];
+  for (const category of options.categories) {
+    const items = entries.filter((entry) => entry.category === category);
+    if (items.length === 0) continue;
+    release.push("", `### ${category}`, "");
+    for (const item of items) {
+      const attributes = item.attributes.length > 0 ? ` [${item.attributes.join(", ")}]` : "";
+      release.push(`-${attributes} ${item.summary}`);
+    }
+  }
+  return release;
+}
 
 // Moves every [Unreleased] entry and every pending fragment entry into one released version
 // section. The version heading links to its GitHub Release, and the categories follow the order
@@ -147,18 +173,91 @@ export function promoteUnreleased(content: string, options: PromoteOptions): str
     throw new CliError("::error::No CHANGELOG entries to release.", 65);
   }
 
-  const release = [`## [${options.version}](${options.releaseUrl}) - ${options.date}`];
-  for (const category of options.categories) {
-    const items = entries.filter((entry) => entry.category === category);
-    if (items.length === 0) continue;
-    release.push("", `### ${category}`, "");
-    for (const item of items) {
-      const attributes = item.attributes.length > 0 ? ` [${item.attributes.join(", ")}]` : "";
-      release.push(`-${attributes} ${item.summary}`);
-    }
+  return [
+    ...lines.slice(0, start + 1),
+    "",
+    ...renderRelease(entries, options),
+    "",
+    ...lines.slice(end),
+  ].join("\n");
+}
+
+// Writes the version section of a release that owns its entries outright, such as a mirror of one
+// upstream file. Unlike promoteUnreleased, the [Unreleased] entries and the fragments stay where
+// they are: they belong to other releases, so this release never consumes them.
+export function promoteEntries(content: string, options: ScopedPromoteOptions): string {
+  const lines = content.split("\n");
+  const start = lines.indexOf("## [Unreleased]");
+  if (start === -1) {
+    throw new CliError("::error::CHANGELOG must contain ## [Unreleased].", 65);
+  }
+  let end = lines.findIndex((line, index) => index > start && line.startsWith("## "));
+  if (end === -1) end = lines.length;
+  if (options.entries.length === 0) {
+    throw new CliError("::error::No CHANGELOG entries to release.", 65);
   }
 
-  return [...lines.slice(0, start + 1), "", ...release, "", ...lines.slice(end)].join("\n");
+  const before = lines.slice(0, end);
+  while (before.length > start + 1 && before[before.length - 1] === "") {
+    before.pop();
+  }
+  return [...before, "", ...renderRelease(options.entries, options), "", ...lines.slice(end)].join(
+    "\n"
+  );
+}
+
+// Entry lines written in a manifest, each `<category>[ [<attribute>, ...]]: <summary>`, checked the
+// same way as a fragment entry: a permitted category and a Chinese summary.
+export function entriesFromLines(
+  lines: readonly string[],
+  categories: readonly string[]
+): ChangelogEntry[] {
+  const entries = lines.map((line) => {
+    const entry = parseEntry(`- ${line}`);
+    if (!entry) {
+      throw new CliError(`::error::Changelog entry is not valid: ${line}`, 65);
+    }
+    if (!categories.includes(entry.category)) {
+      throw new CliError(`::error::Changelog entry uses unknown category: ${entry.category}.`, 65);
+    }
+    assertChineseSummary(entry.summary);
+    return entry;
+  });
+  if (entries.length === 0) {
+    throw new CliError("::error::No CHANGELOG entries to release.", 65);
+  }
+  return entries;
+}
+
+// The entries of one version section read back from its category groups, as promoteEntries
+// writes them. Any other line is refused.
+export function entriesOfSection(body: string, categories: readonly string[]): ChangelogEntry[] {
+  const entries: ChangelogEntry[] = [];
+  let category = "";
+  for (const line of body.split("\n")) {
+    if (line.trim() === "") continue;
+    const group = /^### (.+)$/.exec(line);
+    if (group) {
+      category = group[1] ?? "";
+      if (!categories.includes(category)) {
+        throw new CliError(`::error::Release section uses unknown category: ${category}.`, 65);
+      }
+      continue;
+    }
+    const item = /^-(?: \[([^\]]+)\])? (.+)$/.exec(line);
+    if (!item || !categories.includes(category)) {
+      throw new CliError(`::error::Release section holds a line that is not an entry: ${line}`, 65);
+    }
+    entries.push({
+      category,
+      attributes: (item[1] ?? "")
+        .split(",")
+        .map((attribute) => attribute.trim())
+        .filter(Boolean),
+      summary: item[2] ?? "",
+    });
+  }
+  return entries;
 }
 
 // The heading a release adds: `## [version](release-url) - date`.
@@ -173,11 +272,13 @@ export function releaseHeadingOf(line: string): ReleaseHeading | null {
 }
 
 // The body of one version section: the lines under its heading, up to the next version heading.
-export function releaseSectionBody(content: string, version: string): string {
+// Sections are matched by their release URL, which names a unique tag; several tools may share a
+// version number.
+export function releaseSectionBody(content: string, releaseUrl: string): string {
   const lines = content.split("\n");
-  const start = lines.findIndex((line) => releaseHeadingOf(line)?.version === version);
+  const start = lines.findIndex((line) => releaseHeadingOf(line)?.releaseUrl === releaseUrl);
   if (start === -1) {
-    throw new CliError(`::error::CHANGELOG has no section for version ${version}.`, 65);
+    throw new CliError(`::error::CHANGELOG has no section for ${releaseUrl}.`, 65);
   }
   let end = lines.findIndex((line, index) => index > start && line.startsWith("## "));
   if (end === -1) end = lines.length;
@@ -195,12 +296,10 @@ export type ReleaseChangeInput = {
   categories: readonly string[];
 };
 
-// A release pull request is accepted only when it is exactly what promoting the removed fragments
-// and the unreleased entries produces. The version heading is read from the change itself, so
-// the check cannot be satisfied by anything other than the entries it claims to release.
-export function assertReleaseChange(input: ReleaseChangeInput): ReleaseHeading {
-  const baseHeadings = new Set(input.baseChangelog.split(/\r?\n/));
-  const added = input.headChangelog
+// The one version section a release change adds. The heading is read from the change itself.
+function addedReleaseHeading(baseChangelog: string, headChangelog: string): ReleaseHeading {
+  const baseHeadings = new Set(baseChangelog.split(/\r?\n/));
+  const added = headChangelog
     .split(/\r?\n/)
     .filter((line) => !baseHeadings.has(line))
     .map(releaseHeadingOf)
@@ -211,7 +310,14 @@ export function assertReleaseChange(input: ReleaseChangeInput): ReleaseHeading {
       65
     );
   }
-  const heading = added[0] as ReleaseHeading;
+  return added[0] as ReleaseHeading;
+}
+
+// A release pull request is accepted only when it is exactly what promoting the removed fragments
+// and the unreleased entries produces. The version heading is read from the change itself, so
+// the check cannot be satisfied by anything other than the entries it claims to release.
+export function assertReleaseChange(input: ReleaseChangeInput): ReleaseHeading {
+  const heading = addedReleaseHeading(input.baseChangelog, input.headChangelog);
   const expected = promoteUnreleased(input.baseChangelog, {
     version: heading.version,
     date: heading.date,
@@ -222,6 +328,40 @@ export function assertReleaseChange(input: ReleaseChangeInput): ReleaseHeading {
   if (input.headChangelog.trimEnd() !== expected.trimEnd()) {
     throw new CliError(
       "::error::The release change does not match the unreleased entries and the fragments it removes.",
+      65
+    );
+  }
+  return heading;
+}
+
+export type ScopedReleaseChangeInput = {
+  baseChangelog: string;
+  headChangelog: string;
+  categories: readonly string[];
+};
+
+// A release that owns its entries adds one version section and changes nothing else. The section
+// must be exactly what promoteEntries writes from the entries it carries, so the summaries are
+// checked as Chinese text and the section cannot carry a second release.
+export function assertScopedReleaseChange(input: ScopedReleaseChangeInput): ReleaseHeading {
+  const heading = addedReleaseHeading(input.baseChangelog, input.headChangelog);
+  const entries = entriesOfSection(
+    releaseSectionBody(input.headChangelog, heading.releaseUrl),
+    input.categories
+  );
+  for (const entry of entries) {
+    assertChineseSummary(entry.summary);
+  }
+  const expected = promoteEntries(input.baseChangelog, {
+    version: heading.version,
+    date: heading.date,
+    releaseUrl: heading.releaseUrl,
+    categories: input.categories,
+    entries,
+  });
+  if (input.headChangelog.trimEnd() !== expected.trimEnd()) {
+    throw new CliError(
+      "::error::The scoped release change does not match the entries of its own section.",
       65
     );
   }

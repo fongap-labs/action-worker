@@ -1,4 +1,9 @@
-import { promoteUnreleased, releaseSectionBody } from "./changelog-release.ts";
+import {
+  entriesFromLines,
+  promoteEntries,
+  promoteUnreleased,
+  releaseSectionBody,
+} from "./changelog-release.ts";
 import {
   GithubReader,
   getGithubJson,
@@ -33,6 +38,9 @@ export type ChangelogReleaseOptions = {
   releaseUrl: string;
   policy: ReleasePolicy;
   token: string;
+  // The release's own entry lines (`<category>: <summary>`). When given, the release owns its
+  // entries: it neither consumes [Unreleased] or the fragments nor removes them.
+  entries?: readonly string[];
   pollSeconds?: number;
   timeoutMinutes?: number;
 };
@@ -133,6 +141,7 @@ async function findReleasePullRequest(
 
 // Writes the release branch: the assembled changelog, then the removal of every fragment it
 // releases, then the pull request. Each step is a separate commit made through the contents API.
+// A release that owns its entries writes only its own version section and removes nothing.
 async function openReleasePullRequest(options: ChangelogReleaseOptions, branch: string) {
   const { repository, baseSha, defaultBranch, tag, version, date, releaseUrl, policy, token } =
     options;
@@ -140,14 +149,23 @@ async function openReleasePullRequest(options: ChangelogReleaseOptions, branch: 
   if (!changelog) {
     throw new CliError(`::error::${repository} has no ${policy.changelog_file}.`, 65);
   }
-  const fragments = await listFragments(options);
-  const expected = promoteUnreleased(changelog.content, {
-    version,
-    date,
-    releaseUrl,
-    categories: policy.changelog_categories,
-    fragments: fragments.map((fragment) => fragment.content),
-  });
+  const owned = options.entries !== undefined;
+  const fragments = owned ? [] : await listFragments(options);
+  const expected = owned
+    ? promoteEntries(changelog.content, {
+        version,
+        date,
+        releaseUrl,
+        categories: policy.changelog_categories,
+        entries: entriesFromLines(options.entries ?? [], policy.changelog_categories),
+      })
+    : promoteUnreleased(changelog.content, {
+        version,
+        date,
+        releaseUrl,
+        categories: policy.changelog_categories,
+        fragments: fragments.map((fragment) => fragment.content),
+      });
 
   const message = releasePullRequestTitle(tag);
   // A branch without a pull request is left by an earlier attempt that failed; it is rebuilt.
@@ -217,7 +235,11 @@ async function openReleasePullRequest(options: ChangelogReleaseOptions, branch: 
       "-f",
       `base=${defaultBranch}`,
       "-f",
-      `body=Automated changelog release for ${tag}. It assembles the unreleased entries and the fragments into the version section.`,
+      `body=Automated changelog release for ${tag}. ${
+        owned
+          ? "It adds the version section of this release's own entries."
+          : "It assembles the unreleased entries and the fragments into the version section."
+      }`,
     ],
     token
   );
@@ -366,6 +388,6 @@ export async function publishChangelogRelease(
   }
   return {
     mergeSha,
-    notes: releaseSectionBody(changelog.content, options.version),
+    notes: releaseSectionBody(changelog.content, options.releaseUrl),
   };
 }

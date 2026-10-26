@@ -50,6 +50,9 @@ type ReleaseManifest = {
   version: string;
   release_name?: string;
   release_notes?: string;
+  // The release's own changelog entries. A release that carries them owns them: it does not
+  // consume the shared [Unreleased] section or the fragments of other releases.
+  changelog_entries?: string[];
   prerelease?: boolean;
   assets: ReleaseAsset[];
   license?: {
@@ -515,6 +518,7 @@ async function main(): Promise<void> {
       releaseUrl: `https://github.com/${targetRepository}/releases/tag/${tag}`,
       policy: await readReleasePolicy(),
       token: controlToken,
+      entries: manifest.changelog_entries,
     });
     const releaseSha = changelogRelease.mergeSha;
     const releaseNotes = manifest.release_notes || changelogRelease.notes;
