@@ -6,9 +6,33 @@ import { test } from "node:test";
 import {
   buildReleaseTitle,
   buildTag,
+  mirrorSourceIsCurrent,
   sha256File,
   validateArchive,
 } from "../scripts/publish-release.ts";
+
+test("a mirror source may lag the default branch only while its own pins are unchanged", () => {
+  const compare = (status: string, filenames: string[]) => ({
+    status,
+    files: filenames.map((filename) => ({ filename })),
+  });
+  // Changelog commits of other releases, and other tools, do not invalidate a mirror.
+  assert.equal(
+    mirrorSourceIsCurrent(compare("ahead", ["CHANGELOG.md", "tools/rsm/tool.json"]), "doe-base"),
+    true
+  );
+  assert.equal(mirrorSourceIsCurrent(compare("identical", []), "doe-base"), true);
+  // Its own directory changed, or the source is not an ancestor, or the file list is unreadable.
+  assert.equal(
+    mirrorSourceIsCurrent(compare("ahead", ["tools/doe-base/tool.json"]), "doe-base"),
+    false
+  );
+  assert.equal(mirrorSourceIsCurrent(compare("diverged", []), "doe-base"), false);
+  assert.equal(mirrorSourceIsCurrent(compare("behind", []), "doe-base"), false);
+  assert.equal(mirrorSourceIsCurrent({ status: "ahead" }, "doe-base"), false);
+  const truncated = Array.from({ length: 300 }, (_, index) => `docs/${index}.md`);
+  assert.equal(mirrorSourceIsCurrent(compare("ahead", truncated), "doe-base"), false);
+});
 
 test("release tags remain scoped by release key", () => {
   assert.equal(buildTag("example-tool", "1.2.3"), "example-tool-v1.2.3");

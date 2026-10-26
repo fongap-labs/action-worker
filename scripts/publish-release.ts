@@ -288,6 +288,54 @@ async function rollbackRelease(
   }
 }
 
+// Whether a mirror's source commit still stands for the default branch: the commit is an ancestor
+// of the default-branch head, and nothing under the mirror's own tools/<release_key>/ directory
+// changed since, so the pins it publishes are the ones on the default branch. A comparison that
+// lists too few files to show that is refused.
+export function mirrorSourceIsCurrent(comparison: unknown, releaseKey: string): boolean {
+  const status = getJsonString(comparison, "status");
+  if (status !== "ahead" && status !== "identical") {
+    return false;
+  }
+  const files =
+    isJsonRecord(comparison) && Array.isArray(comparison.files) ? comparison.files : null;
+  if (files === null || files.length >= 300) {
+    return false;
+  }
+  return files.every((file) => !getJsonString(file, "filename").startsWith(`tools/${releaseKey}/`));
+}
+
+// The source must be the default-branch head, except for a mirror. Other releases merge their
+// changelog commits to the default branch while a sync batch runs, so a mirror's source goes stale
+// as soon as the first of them publishes. The pins must still be unchanged, so that is allowed.
+async function assertSourceCurrent(
+  sourceRepository: string,
+  sourceSha: string,
+  defaultSha: string,
+  manifest: ReleaseManifest,
+  token: string
+): Promise<void> {
+  if (sourceSha === defaultSha) {
+    return;
+  }
+  if (manifest.changelog_entries === undefined) {
+    throw new CliError(
+      `::error::Release source must be the current default-branch HEAD: expected=${defaultSha} actual=${sourceSha}.`,
+      65
+    );
+  }
+  const comparison = await getGithubJson(
+    `repos/${sourceRepository}/compare/${sourceSha}...${defaultSha}`,
+    token
+  );
+  if (!mirrorSourceIsCurrent(comparison, manifest.release_key)) {
+    throw new CliError(
+      `::error::Mirror source ${sourceSha} is not behind ${defaultSha} with ${manifest.release_key} unchanged.`,
+      65
+    );
+  }
+}
+
 async function main(): Promise<void> {
   const requestPath =
     process.argv[2] ??
@@ -336,12 +384,6 @@ async function main(): Promise<void> {
     controlToken
   );
   const defaultSha = getJsonString(defaultCommit, "sha");
-  if (sourceSha !== defaultSha) {
-    throw new CliError(
-      `::error::Release source must be the current default-branch HEAD: expected=${defaultSha} actual=${sourceSha}.`,
-      65
-    );
-  }
 
   const sourceReader = new GithubReader(
     process.env.GITHUB_API_URL ?? "https://api.github.com",
@@ -461,6 +503,7 @@ async function main(): Promise<void> {
     }
 
     const manifest = asManifest(await readJson(manifestPath));
+    await assertSourceCurrent(sourceRepository, sourceSha, defaultSha, manifest, controlToken);
     const actualFiles = await listRootFiles(artifactDir, [
       "release-manifest.json",
       "release-provenance.json",
