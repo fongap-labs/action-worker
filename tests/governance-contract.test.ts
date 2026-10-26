@@ -1267,6 +1267,22 @@ test("deploy and task entrypoints replace the shell that received every secret",
   assert.doesNotMatch(report, /echo .*\$\{?AW_ARTIFACT_KEY\}?/);
 });
 
+test("a cancelled PR Governance run still resolves the status it owns", async () => {
+  // A status left pending by a cancelled run blocks the Main Write Audit for that merged head.
+  const governance = await text(".github/workflows/handle-pr-dispatch.yml");
+  for (const step of ["Update final gate", "Update central merge gate"]) {
+    const start = governance.indexOf(`- name: ${step}\n`);
+    assert.ok(start >= 0, step);
+    const block = governance.slice(start, governance.indexOf("\n      - name:", start + 1));
+    assert.match(
+      block,
+      /if: \$\{\{ always\(\) && steps\.ownership\.outputs\.current == 'true' \}\}/
+    );
+    assert.match(block, /STATE: \$\{\{ !cancelled\(\) && steps\.gate\.outputs\.passed == 'true'/);
+    assert.match(block, /DESCRIPTION: \$\{\{ cancelled\(\) && /);
+  }
+});
+
 test("only PR Governance reports an untrusted head instead of failing", async () => {
   const { AWAITING_APPROVAL_DESCRIPTION } = await import("../scripts/pr-trust.ts");
   const governance = await text(".github/workflows/handle-pr-dispatch.yml");
