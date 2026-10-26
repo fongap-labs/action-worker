@@ -4,6 +4,7 @@ import {
   hasVerifiedControlStatus,
   mainWriteGuardWorkflowPaths,
   prGateWorkflowPaths,
+  verificationRecorder,
 } from "./ci-evidence.ts";
 import {
   GithubReader,
@@ -112,31 +113,39 @@ async function requireCentralPrEvidence(
 ): Promise<void> {
   const status = await reader.get(`repos/${repository}/commits/${prHeadSha}/status`);
   const controlRepository = getControlRepository();
+  const label = `${repository}@${prHeadSha.slice(0, 12)}`;
+  const governance = verificationRecorder(`PR Governance ${label}`);
   if (
     !(await hasVerifiedControlStatus(reader, status, "PR Governance", {
       controlRepository,
       workflowPaths: prGateWorkflowPaths,
+      trace: governance.trace,
     }))
   ) {
     throw new CliError(
-      "::error::Merged PR head has no successful Action Worker PR Governance status.",
+      `::error::Merged PR head has no successful Action Worker PR Governance status (${governance.lastFailure()}).`,
       65
     );
   }
-  if (!(await hasVerifiedCiEvidence(reader, status, { controlRepository }))) {
+  const evidence = verificationRecorder(`CI Evidence ${label}`);
+  if (
+    !(await hasVerifiedCiEvidence(reader, status, { controlRepository, trace: evidence.trace }))
+  ) {
     throw new CliError(
-      "::error::Merged PR head has no successful Action Worker CI Evidence status.",
+      `::error::Merged PR head has no successful Action Worker CI Evidence status (${evidence.lastFailure()}).`,
       65
     );
   }
+  const mergeGate = verificationRecorder(`validate-merge ${label}`);
   if (
     !(await hasVerifiedControlStatus(reader, status, "validate-merge", {
       controlRepository,
       workflowPaths: prGateWorkflowPaths,
+      trace: mergeGate.trace,
     }))
   ) {
     throw new CliError(
-      "::error::Merged PR head has no successful Action Worker validate-merge status.",
+      `::error::Merged PR head has no successful Action Worker validate-merge status (${mergeGate.lastFailure()}).`,
       65
     );
   }
