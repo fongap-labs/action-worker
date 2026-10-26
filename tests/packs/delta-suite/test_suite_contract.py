@@ -13,6 +13,7 @@ from __future__ import annotations
 from kit_target import target_root
 
 import ast
+import json
 import pathlib
 import re
 import sys
@@ -21,6 +22,9 @@ import tomllib
 import pytest
 
 ROOT = target_root()
+# The shared release policy names the changelog file and fragment directory for every managed
+# repository; the top-level allowlist reads them from there instead of keeping a copy.
+SHARED_RELEASE_POLICY = pathlib.Path(__file__).resolve().parents[3] / "policies" / "release.json"
 
 
 def _scan_files(suffixes: set[str], skip_dirs: set[str]):
@@ -248,12 +252,15 @@ class TestRepositoryBoundary:
 
     def test_allowed_roots_only(self):
         """Only approved top-level directories."""
+        release_policy = json.loads(SHARED_RELEASE_POLICY.read_text(encoding="utf-8"))
         allowed = {
             ".github", "advanced", "docs", "scripts", "tests",
             ".gitignore", "README.md", "AGENTS.md", "CLAUDE.md",
             "PROVENANCE.md", "SECURITY.md",
-            "CHANGELOG.md", "LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md",
+            "LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md",
             "pyproject.toml", "uv.lock", ".pre-commit-config.yaml",
+            release_policy["changelog_file"],
+            release_policy["changelog_fragment_dir"],
         }
         for item in ROOT.iterdir():
             if (
