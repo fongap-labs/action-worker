@@ -142,7 +142,10 @@ async function findReleasePullRequest(
 // Writes the release branch: the assembled changelog, then the removal of every fragment it
 // releases, then the pull request. Each step is a separate commit made through the contents API.
 // A release that owns its entries writes only its own version section and removes nothing.
-async function openReleasePullRequest(options: ChangelogReleaseOptions, branch: string) {
+async function openReleasePullRequest(
+  options: ChangelogReleaseOptions,
+  branch: string
+): Promise<number> {
   const { repository, baseSha, defaultBranch, tag, version, date, releaseUrl, policy, token } =
     options;
   const changelog = await readFileAt(repository, policy.changelog_file, baseSha, token);
@@ -222,7 +225,7 @@ async function openReleasePullRequest(options: ChangelogReleaseOptions, branch: 
       token
     );
   }
-  await runGithubCli(
+  const created = await runGithubCli(
     [
       "api",
       "--method",
@@ -243,6 +246,7 @@ async function openReleasePullRequest(options: ChangelogReleaseOptions, branch: 
     ],
     token
   );
+  return getJsonNumber(JSON.parse(created) as unknown, "number");
 }
 
 async function validateMergeState(
@@ -264,6 +268,13 @@ async function validateMergeState(
   return "pending";
 }
 
+// The release branch conflicts with the default branch because another release merged first. The
+// branch is stale, not failed: it is rebuilt from the current head instead of waiting out the deadline.
+class StaleReleaseBranch extends Error {}
+
+// How many times a stale release section is rebuilt before the release fails.
+const MAX_RELEASE_REBUILDS = 3;
+
 // Waits for the pull request to pass its gate and merges it. A failed gate is re-read a few times
 // first, because a newer gate run may still replace it. The pull request stays open on failure so
 // that a rerun resumes it instead of opening another one.
@@ -284,6 +295,11 @@ async function waitForMerge(
       throw new CliError(
         `::error::Release pull request #${number} was closed without merging. Reopen it or delete ${releaseBranchOf(options.tag)} and rerun.`,
         65
+      );
+    }
+    if (getJsonString(pull, "mergeable_state") === "dirty") {
+      throw new StaleReleaseBranch(
+        `Release pull request #${number} conflicts with ${repository}@${options.defaultBranch}.`
       );
     }
     const head = getJsonString(getJsonRecord(pull, "head"), "sha");
@@ -367,27 +383,39 @@ export async function publishChangelogRelease(
   const pollMs = (options.pollSeconds ?? 20) * 1000;
   const deadline = Date.now() + (options.timeoutMinutes ?? 30) * 60_000;
 
-  let pull = await findReleasePullRequest(repository, branch, token);
-  if (!pull) {
-    await openReleasePullRequest(options, branch);
-    pull = await findReleasePullRequest(repository, branch, token);
-  }
-  if (!pull) {
-    throw new CliError(`::error::Release pull request for ${tag} was not created.`, 65);
-  }
-  const number = getJsonNumber(pull, "number");
-  const mergeSha = await waitForMerge(options, number, pollMs, deadline);
-  await waitForMainWriteGuard(options, mergeSha);
+  const pull = await findReleasePullRequest(repository, branch, token);
+  let number = pull ? getJsonNumber(pull, "number") : await openReleasePullRequest(options, branch);
+  for (let rebuilds = 0; ; rebuilds += 1) {
+    try {
+      const mergeSha = await waitForMerge(options, number, pollMs, deadline);
+      await waitForMainWriteGuard(options, mergeSha);
 
-  const changelog = await readFileAt(repository, policy.changelog_file, mergeSha, token);
-  if (!changelog) {
-    throw new CliError(
-      `::error::${repository} has no ${policy.changelog_file} at ${mergeSha}.`,
-      65
-    );
+      const changelog = await readFileAt(repository, policy.changelog_file, mergeSha, token);
+      if (!changelog) {
+        throw new CliError(
+          `::error::${repository} has no ${policy.changelog_file} at ${mergeSha}.`,
+          65
+        );
+      }
+      return {
+        mergeSha,
+        notes: releaseSectionBody(changelog.content, options.releaseUrl),
+      };
+    } catch (error) {
+      if (!(error instanceof StaleReleaseBranch) || rebuilds >= MAX_RELEASE_REBUILDS) {
+        throw error;
+      }
+      // Close the conflicting pull request and rebuild the section on the current default-branch
+      // head. Each rebuild rereads the head, so it converges once no other release is in flight.
+      await runGithubCli(
+        ["api", "--method", "PATCH", `repos/${repository}/pulls/${number}`, "-f", "state=closed"],
+        token
+      );
+      const head = getJsonString(
+        await getGithubJson(`repos/${repository}/commits/${options.defaultBranch}`, token),
+        "sha"
+      );
+      number = await openReleasePullRequest({ ...options, baseSha: head }, branch);
+    }
   }
-  return {
-    mergeSha,
-    notes: releaseSectionBody(changelog.content, options.releaseUrl),
-  };
 }
