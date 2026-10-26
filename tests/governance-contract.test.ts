@@ -1278,9 +1278,21 @@ test("a cancelled PR Governance run still resolves the status it owns", async ()
       block,
       /if: \$\{\{ always\(\) && steps\.ownership\.outputs\.current == 'true' \}\}/
     );
-    assert.match(block, /STATE: \$\{\{ !cancelled\(\) && steps\.gate\.outputs\.passed == 'true'/);
-    assert.match(block, /DESCRIPTION: \$\{\{ cancelled\(\) && /);
+    // cancelled() is only allowed in step conditions, so the gates read the cancellation step.
+    assert.doesNotMatch(block, /cancelled\(\)/);
+    assert.match(
+      block,
+      /STATE: \$\{\{ steps\.cancellation\.outputs\.cancelled != 'true' && steps\.gate\.outputs\.passed == 'true'/
+    );
+    assert.match(
+      block,
+      /DESCRIPTION: \$\{\{ steps\.cancellation\.outputs\.cancelled == 'true' && /
+    );
   }
+  assert.match(
+    governance,
+    /- name: Note cancellation\n\s+id: cancellation\n\s+if: \$\{\{ cancelled\(\) \}\}/
+  );
 });
 
 test("only PR Governance reports an untrusted head instead of failing", async () => {

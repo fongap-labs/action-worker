@@ -40,12 +40,12 @@ export function targetRunId(target: string, controlRepository: string): number |
 export function isUnfinished(
   status: { state: string; target: string } | null,
   ownRunUrl: string,
-  targetRunCompleted: boolean
+  isTargetRunCompleted: boolean
 ): boolean {
   if (status === null || status.state !== "pending") {
     return false;
   }
-  return status.target === ownRunUrl || targetRunCompleted;
+  return status.target === ownRunUrl || isTargetRunCompleted;
 }
 
 async function main(): Promise<void> {
@@ -71,14 +71,14 @@ async function main(): Promise<void> {
   const status = latestGovernanceStatus(combined);
 
   const runId = status ? targetRunId(status.target, controlRepository) : null;
-  const targetRunCompleted =
+  const isTargetRunCompleted =
     runId === null
       ? false
       : getJsonString(
           await getGithubJson(`repos/${controlRepository}/actions/runs/${runId}`, token),
           "status"
         ) === "completed";
-  if (!isUnfinished(status, ownRunUrl, targetRunCompleted)) {
+  if (!isUnfinished(status, ownRunUrl, isTargetRunCompleted)) {
     console.log(`PR governance for ${repository}@${head} is not left unfinished.`);
     return;
   }

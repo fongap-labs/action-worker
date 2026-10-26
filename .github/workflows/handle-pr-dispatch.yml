@@ -229,6 +229,13 @@ jobs:
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/check-status-owner.ts "$REPOSITORY" "$HEAD_SHA" "$RUN_URL"
 
+      # Records a cancelled run. The context is only readable in a step condition, so the final
+      # gates below read this output instead of calling cancelled() themselves.
+      - name: Note cancellation
+        id: cancellation
+        if: ${{ cancelled() }}
+        run: echo "cancelled=true" >> "$GITHUB_OUTPUT"
+
       # Runs even when this run is cancelled or times out. Skipping it on cancellation left the
       # status this run published pending for ever, so the Main Write Audit could never trust a merge
       # of that head. A cancelled run is failed explicitly; it never reports success.
@@ -239,8 +246,8 @@ jobs:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          STATE: ${{ !cancelled() && steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
-          DESCRIPTION: ${{ cancelled() && 'Action Worker PR governance was cancelled' || steps.gate.outputs.passed == 'true' && 'Action Worker PR governance passed' || steps.trust.outputs.trusted == 'false' && 'Awaiting maintainer approval of the current head commit' || 'Action Worker PR governance failed' }}
+          STATE: ${{ steps.cancellation.outputs.cancelled != 'true' && steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
+          DESCRIPTION: ${{ steps.cancellation.outputs.cancelled == 'true' && 'Action Worker PR governance was cancelled' || steps.gate.outputs.passed == 'true' && 'Action Worker PR governance passed' || steps.trust.outputs.trusted == 'false' && 'Awaiting maintainer approval of the current head commit' || 'Action Worker PR governance failed' }}
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
 
       - name: Update central merge gate
@@ -250,8 +257,8 @@ jobs:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          STATE: ${{ !cancelled() && steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
-          DESCRIPTION: ${{ cancelled() && 'Action Worker merge gate was cancelled' || steps.gate.outputs.passed == 'true' && 'Action Worker merge gate passed' || steps.trust.outputs.trusted == 'false' && 'Awaiting maintainer approval of the current head commit' || 'Action Worker merge gate failed' }}
+          STATE: ${{ steps.cancellation.outputs.cancelled != 'true' && steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
+          DESCRIPTION: ${{ steps.cancellation.outputs.cancelled == 'true' && 'Action Worker merge gate was cancelled' || steps.gate.outputs.passed == 'true' && 'Action Worker merge gate passed' || steps.trust.outputs.trusted == 'false' && 'Awaiting maintainer approval of the current head commit' || 'Action Worker merge gate failed' }}
           PR_STATUS_CONTEXT: validate-merge
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
 
