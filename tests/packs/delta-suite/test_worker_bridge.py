@@ -150,6 +150,7 @@ def test_worker_manifest_contains_connector_workers() -> None:
         "notion_search",
         "github_search",
     } <= names
+    assert {"suite_f2", "suite_shelf_life", "suite_poolability"} <= names
     assert {
         "browser_open_url",
         "browser_snapshot",
@@ -166,12 +167,16 @@ def test_worker_manifest_contains_connector_workers() -> None:
         assert Path(item["program"]).is_absolute()
         if item["tool_name"].startswith("browser_"):
             assert item["arguments"][:2] == ["-m", "advanced.browser.worker"]
+        elif item["tool_name"].startswith("suite_"):
+            assert item["arguments"][:2] == ["-m", "advanced.cmc.worker"]
         else:
             assert item["arguments"][:2] == ["-m", "advanced.worker"]
         if item["tool_name"].startswith("browser_"):
             assert item["capability_id"] == f"delta-suite.browser.{item['tool_name']}"
             assert item["persistent"] is True
             assert item["process_key"] == "browser"
+        elif item["tool_name"].startswith("suite_"):
+            assert item["capability_id"].startswith("delta-suite.cmc.")
         else:
             assert item["capability_id"] == f"delta-suite.connector.{item['tool_name']}"
         assert item["grants"]["exec"] is False

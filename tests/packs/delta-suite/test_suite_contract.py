@@ -235,9 +235,12 @@ class TestFoundationCompatibilityPin:
         assert foundation["worker-manifest"] == 1
         assert foundation["connector-catalog"] == 1
 
-        delta_source = config["tool"]["uv"]["sources"]["delta"]
-        assert delta_source["git"] == "https://github.com/fongap-labs/delta.git"
-        assert delta_source["rev"] == ref
+        # Suite depends on the public Worker SDK, not the full delta distribution (ADR-0082).
+        assert "delta" not in config["project"]["dependencies"]
+        sdk_source = config["tool"]["uv"]["sources"]["delta-worker-sdk"]
+        assert sdk_source["git"] == "https://github.com/fongap-labs/delta.git"
+        assert sdk_source["rev"] == ref
+        assert sdk_source["subdirectory"] == "packages/delta_worker_sdk"
 
 
 class TestRepositoryBoundary:
@@ -267,6 +270,7 @@ class TestRepositoryBoundary:
                 item.name.startswith(".git")
                 or item.name.startswith(".pytest")
                 or item.name.startswith(".ruff")
+                or item.name.startswith(".venv")
                 or item.name in {"build", "dist"}
                 or item.name.endswith(".egg-info")
             ):
