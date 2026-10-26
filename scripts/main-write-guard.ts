@@ -4,6 +4,7 @@ import {
   hasVerifiedControlStatus,
   mainWriteGuardWorkflowPaths,
   prGateWorkflowPaths,
+  trustedControlRunId,
   verificationRecorder,
 } from "./ci-evidence.ts";
 import {
@@ -91,19 +92,59 @@ function appSlug(value: unknown): string {
 }
 
 /**
+ * The run id of the workflow that is asking, when it runs inside GitHub Actions.
+ */
+function currentControlRunId(): number | null {
+  const raw = process.env.GITHUB_RUN_ID ?? "";
+  return /^\d+$/.test(raw) ? Number(raw) : null;
+}
+
+/**
  * A gate status is only a claim: any account that can write commit statuses can name a run
  * that does not exist. The status counts only when the control repository really holds a
  * successful run of the workflow that publishes it, and the status was written while that run
  * was executing.
+ *
+ * A main write may be attested more than once (intake, central CI, a release, or the deploy
+ * that is validating it). Attestations of an immutable main write are cumulative, so the
+ * newest VERIFIED one wins: walk them newest first, skip the asking run's own attestation, and
+ * accept the first one whose control run already ended successfully. A deploy attests its
+ * source immediately before it validates it, so without this its own still-running status
+ * would shadow an earlier completed attestation and every automatic deploy after a merge would
+ * fail with "has not been attested yet".
  */
 export async function hasVerifiedMainWriteGuard(
   reader: GithubReader,
   value: unknown
 ): Promise<boolean> {
-  return hasVerifiedControlStatus(reader, value, "Main Write Guard", {
-    controlRepository: getControlRepository(),
-    workflowPaths: mainWriteGuardWorkflowPaths,
-  });
+  const controlRepository = getControlRepository();
+  const selfRunId = currentControlRunId();
+  const statuses = getJsonArray(value, "statuses")
+    .filter(isJsonRecord)
+    .filter((item) => getJsonString(item, "context") === "Main Write Guard")
+    .filter(
+      (item) =>
+        selfRunId === null ||
+        trustedControlRunId(getJsonString(item, "target_url"), controlRepository) !== selfRunId
+    )
+    .sort(
+      (left, right) =>
+        Date.parse(getJsonString(right, "created_at")) -
+        Date.parse(getJsonString(left, "created_at"))
+    );
+  for (const status of statuses) {
+    if (
+      await hasVerifiedControlStatus(reader, { statuses: [status] }, "Main Write Guard", {
+        controlRepository,
+        workflowPaths: mainWriteGuardWorkflowPaths,
+        // The outer caller (assertTrustedMainWrite) owns the waiting window.
+        runAttempts: 1,
+      })
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 async function requireCentralPrEvidence(

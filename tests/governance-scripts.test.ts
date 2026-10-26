@@ -904,6 +904,78 @@ test("main write guard accepts central merge authority and preserves local self-
   );
 });
 
+test("a newer in-progress main write attestation does not shadow an older verified one", async () => {
+  const controlRepository = "fongap-labs/action-worker";
+  const selfRunUrl = "https://github.com/fongap-labs/action-worker/actions/runs/9";
+  const olderRunUrl = "https://github.com/fongap-labs/action-worker/actions/runs/3";
+  const selfStatus = {
+    context: "Main Write Guard",
+    state: "success",
+    target_url: selfRunUrl,
+    created_at: "2026-09-25T00:02:10Z",
+  };
+  const status = {
+    statuses: [
+      // The deploy that is validating now attested its source seconds ago; it is still running.
+      selfStatus,
+      // Central CI completed its own attestation of the same immutable main write.
+      {
+        context: "Main Write Guard",
+        state: "success",
+        target_url: olderRunUrl,
+        created_at: "2026-09-25T00:00:50Z",
+      },
+    ],
+  };
+  const paths = new Map<string, unknown>([
+    [
+      "repos/fongap-labs/action-worker/actions/runs/9",
+      {
+        repository: { full_name: controlRepository },
+        path: ".github/workflows/deploy-source-script.yml",
+        head_branch: "main",
+        status: "in_progress",
+        conclusion: null,
+        run_started_at: "2026-09-25T00:02:00Z",
+        updated_at: "2026-09-25T00:02:05Z",
+      },
+    ],
+    [
+      "repos/fongap-labs/action-worker/actions/runs/3",
+      {
+        repository: { full_name: controlRepository },
+        path: ".github/workflows/central-ci-dispatch.yml",
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        run_started_at: "2026-09-25T00:00:00Z",
+        updated_at: "2026-09-25T00:01:00Z",
+      },
+    ],
+  ]);
+  const requested: string[] = [];
+  const reader = {
+    get: async (path: string) => {
+      requested.push(path);
+      if (!paths.has(path)) throw new Error(`unexpected path: ${path}`);
+      return paths.get(path);
+    },
+  } as unknown as GithubReader;
+
+  const previousRunId = process.env.GITHUB_RUN_ID;
+  process.env.GITHUB_RUN_ID = "9";
+  try {
+    assert.equal(await hasVerifiedMainWriteGuard(reader, status), true);
+    // The asking run cannot verify itself, so its own attestation is never looked up.
+    assert.deepEqual(requested, ["repos/fongap-labs/action-worker/actions/runs/3"]);
+    // Only the asking run's own attestation is left: nothing independent proves the write yet.
+    assert.equal(await hasVerifiedMainWriteGuard(reader, { statuses: [selfStatus] }), false);
+  } finally {
+    if (previousRunId === undefined) delete process.env.GITHUB_RUN_ID;
+    else process.env.GITHUB_RUN_ID = previousRunId;
+  }
+});
+
 test("main write provenance rejects direct pushes and fake status-only trust", async () => {
   const mainSha = "4".repeat(40);
   const paths = new Map<string, unknown>([
