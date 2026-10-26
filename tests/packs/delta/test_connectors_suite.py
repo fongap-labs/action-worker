@@ -593,6 +593,33 @@ def test_send_attachment_must_live_inside_roots(tmp_path):
     assert ok["ok"]
     assert [p.get_filename() for p in smtp.sent[0].iter_attachments()] == ["ok.txt"]
 
+def test_send_refuses_attachments_over_the_size_limit_without_reading_them(tmp_path, monkeypatch):
+    from integrations.connectors import email_tools
+
+    monkeypatch.setattr(email_tools, "_MAX_ATTACHMENT_BYTES", 10)
+    smtp = FakeSMTP()
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    (scratch / "a.txt").write_text("123456")
+    (scratch / "b.txt").write_text("123456")
+    tools = _tools(
+        _connected_secrets(tmp_path),
+        smtp=smtp,
+        roots=[RootDir(path=scratch, writable=True)],
+    )
+    # Each file is inside the limit, together they are not.
+    refused = tools["email_send"](
+        to="a@b.c",
+        subject="s",
+        body="b",
+        attachments=[str(scratch / "a.txt"), str(scratch / "b.txt")],
+    )
+    assert "larger than" in refused["error"] and not smtp.sent
+    one = tools["email_send"](
+        to="a@b.c", subject="s", body="b", attachments=[str(scratch / "a.txt")]
+    )
+    assert one["ok"]
+
 def test_approval_gating(tmp_path):
     tools = _tools(_connected_secrets(tmp_path))
     gated = {
