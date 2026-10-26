@@ -133,7 +133,7 @@ export function parseUrlToolMetadata(value: unknown): UrlToolMetadata {
     typeof value.upstream_url !== "string" ||
     !isHttpsFileUrl(value.upstream_url, value.upstream_asset) ||
     typeof value.upstream_version !== "string" ||
-    !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(value.upstream_version) ||
+    !/^[0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?$/.test(value.upstream_version) ||
     typeof value.upstream_sha256 !== "string" ||
     !/^[0-9a-f]{64}$/.test(value.upstream_sha256) ||
     /^0+$/.test(value.upstream_sha256) ||

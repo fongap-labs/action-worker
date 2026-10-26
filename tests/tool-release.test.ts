@@ -38,6 +38,22 @@ test("url tool metadata refuses an unpinned, plain-HTTP or mismatched source", (
   refused({ release_channel: "stable" });
 });
 
+test("url tool metadata accepts a three- or four-part numeric version", () => {
+  const fourPart = {
+    ...pinnedUrlMetadata,
+    release_key: "algdesign",
+    upstream_url: "https://cran.r-project.org/src/contrib/AlgDesign_1.2.1.2.tar.gz",
+    upstream_version: "1.2.1.2",
+    upstream_asset: "AlgDesign_1.2.1.2.tar.gz",
+  };
+  assert.deepEqual(parseUrlToolMetadata(fourPart), fourPart);
+  const refused = (version: string) =>
+    assert.throws(() => parseUrlToolMetadata({ ...pinnedUrlMetadata, upstream_version: version }));
+  refused("1.2-5");
+  refused("2.7");
+  refused("1.2.1.2.3");
+});
+
 test("url tool metadata rejects unknown keys", () => {
   assert.throws(() => parseUrlToolMetadata({ ...pinnedUrlMetadata, extra: true }));
 });
