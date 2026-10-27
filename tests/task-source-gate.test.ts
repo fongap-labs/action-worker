@@ -79,6 +79,7 @@ function world() {
         statuses: [ciStatus(3), gateStatus("Main Write Guard", 4)],
       },
     ],
+    [`repos/${repository}/statuses/${headSha}?per_page=100`, [gateStatus("Main Write Guard", 4)]],
     [
       "repos/fongap-labs/action-worker/actions/runs/1",
       run(".github/workflows/handle-pr-dispatch.yml"),
@@ -156,12 +157,14 @@ test("task source gate rejects a commit that is not a trusted main write", async
   assert.equal(await exitCodeOf(validateTaskSource(direct.reader, repository, headSha, fast)), 65);
 
   const failedGuard = world();
+  const failedStatuses = [
+    ciStatus(3),
+    { context: "Main Write Guard", state: "failure", target_url: `${controlRuns}4` },
+  ];
   failedGuard.paths.set(`repos/${repository}/commits/${headSha}/status`, {
-    statuses: [
-      ciStatus(3),
-      { context: "Main Write Guard", state: "failure", target_url: `${controlRuns}4` },
-    ],
+    statuses: failedStatuses,
   });
+  failedGuard.paths.set(`repos/${repository}/statuses/${headSha}?per_page=100`, failedStatuses);
   assert.equal(
     await exitCodeOf(validateTaskSource(failedGuard.reader, repository, headSha, fast)),
     65
