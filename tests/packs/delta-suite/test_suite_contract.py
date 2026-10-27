@@ -257,7 +257,7 @@ class TestRepositoryBoundary:
         """Only approved top-level directories."""
         release_policy = json.loads(SHARED_RELEASE_POLICY.read_text(encoding="utf-8"))
         allowed = {
-            ".github", "advanced", "docs", "scripts", "tests",
+            ".github", "advanced", "docs", "scripts", "tests", "validation",
             ".gitignore", "README.md", "AGENTS.md", "CLAUDE.md",
             "PROVENANCE.md", "SECURITY.md",
             "LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md",
