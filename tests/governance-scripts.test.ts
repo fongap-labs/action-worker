@@ -827,6 +827,17 @@ test("main write guard accepts central merge authority and preserves local self-
         ],
       },
     ],
+    [
+      `repos/fongap/example/statuses/${mainSha}?per_page=100`,
+      [
+        {
+          context: "Main Write Guard",
+          state: "success",
+          target_url: "https://github.com/fongap-labs/action-worker/actions/runs/3",
+          created_at: "2026-09-25T00:00:50Z",
+        },
+      ],
+    ],
   ]);
   const reader = {
     get: async (path: string) => {
@@ -887,15 +898,15 @@ test("main write guard accepts central merge authority and preserves local self-
   });
 
   // A failed guard names the SHA and says how main becomes trusted again.
-  paths.set(`repos/fongap/example/commits/${mainSha}/status`, {
-    statuses: [
-      {
-        context: "Main Write Guard",
-        state: "failure",
-        target_url: "https://github.com/fongap-labs/action-worker/actions/runs/3",
-      },
-    ],
-  });
+  const failedGuard = [
+    {
+      context: "Main Write Guard",
+      state: "failure",
+      target_url: "https://github.com/fongap-labs/action-worker/actions/runs/3",
+    },
+  ];
+  paths.set(`repos/fongap/example/commits/${mainSha}/status`, { statuses: failedGuard });
+  paths.set(`repos/fongap/example/statuses/${mainSha}?per_page=100`, failedGuard);
   await assert.rejects(
     () => assertTrustedMainWrite(reader, "fongap/example", mainSha, true),
     (error: Error) =>
@@ -1016,6 +1027,94 @@ test("a main write attestation outside its control run window names the rejected
     if (previousRunId !== undefined) process.env.GITHUB_RUN_ID = previousRunId;
   }
   assert.deepEqual(steps, ["run-outside-window"]);
+});
+
+test("a deploy's own attestation does not hide the Intake attestation of the same main write", async () => {
+  const mainSha = "5".repeat(40);
+  const prHeadSha = "6".repeat(40);
+  const selfStatus = {
+    context: "Main Write Guard",
+    state: "success",
+    target_url: "https://github.com/fongap-labs/action-worker/actions/runs/9",
+    created_at: "2026-09-25T00:02:10Z",
+  };
+  const intakeStatus = {
+    context: "Main Write Guard",
+    state: "success",
+    target_url: "https://github.com/fongap-labs/action-worker/actions/runs/3",
+    created_at: "2026-09-25T00:00:50Z",
+  };
+  const paths = new Map<string, unknown>([
+    ["repos/fongap/example", { default_branch: "main" }],
+    [`repos/fongap/example/commits/${mainSha}`, { sha: mainSha }],
+    [
+      `repos/fongap/example/commits/${mainSha}/pulls?per_page=100`,
+      [
+        {
+          number: 7,
+          merged_at: "2026-09-25T00:00:00Z",
+          merge_commit_sha: mainSha,
+          base: { ref: "main" },
+        },
+      ],
+    ],
+    [
+      "repos/fongap/example/pulls/7",
+      {
+        number: 7,
+        merged_at: "2026-09-25T00:00:00Z",
+        merge_commit_sha: mainSha,
+        base: { ref: "main" },
+        head: { sha: prHeadSha },
+      },
+    ],
+    [
+      `repos/fongap/example/commits/${prHeadSha}/check-runs?filter=latest&per_page=100`,
+      {
+        check_runs: [
+          {
+            name: "validate-merge",
+            status: "completed",
+            conclusion: "success",
+            app: { slug: "github-actions" },
+          },
+        ],
+      },
+    ],
+    // The combined endpoint keeps only the newest status per context: the deploy's own.
+    [`repos/fongap/example/commits/${mainSha}/status`, { statuses: [selfStatus] }],
+    // The full list keeps the earlier Intake attestation as well.
+    [`repos/fongap/example/statuses/${mainSha}?per_page=100`, [selfStatus, intakeStatus]],
+    [
+      "repos/fongap-labs/action-worker/actions/runs/3",
+      {
+        repository: { full_name: "fongap-labs/action-worker" },
+        path: ".github/workflows/intake.yml",
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        run_started_at: "2026-09-25T00:00:00Z",
+        updated_at: "2026-09-25T00:01:00Z",
+      },
+    ],
+  ]);
+  const reader = {
+    get: async (path: string) => {
+      if (!paths.has(path)) throw new Error(`unexpected path: ${path}`);
+      return paths.get(path);
+    },
+  } as unknown as GithubReader;
+
+  const previousRunId = process.env.GITHUB_RUN_ID;
+  process.env.GITHUB_RUN_ID = "9";
+  try {
+    const provenance = await assertTrustedMainWrite(reader, "fongap/example", mainSha, false);
+    assert.equal(provenance.main_sha, mainSha);
+    assert.equal(provenance.pr_number, 7);
+  } finally {
+    if (previousRunId === undefined) delete process.env.GITHUB_RUN_ID;
+    else process.env.GITHUB_RUN_ID = previousRunId;
+  }
 });
 
 test("main write provenance rejects direct pushes and fake status-only trust", async () => {

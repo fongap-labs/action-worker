@@ -304,7 +304,13 @@ export async function assertTrustedMainWrite(
   const guard = verificationRecorder(label);
   let observed: JsonRecord[] = [];
   for (let attempt = 0; attempt < 12; attempt += 1) {
-    const status = await reader.get(`repos/${repository}/commits/${mainSha}/status`);
+    // The combined status endpoint keeps only the newest status per context, so a deploy's own
+    // attestation would hide every earlier one. The full list keeps them all.
+    const status = {
+      statuses: getJsonArray(
+        await reader.get(`repos/${repository}/statuses/${mainSha}?per_page=100`)
+      ),
+    };
     if (await hasVerifiedMainWriteGuard(reader, status, guard.trace)) {
       return provenance;
     }

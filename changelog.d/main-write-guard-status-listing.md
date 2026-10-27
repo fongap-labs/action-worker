@@ -1,0 +1,1 @@
+- 修复: 部署门禁改为读取某个 main SHA 的全部 `Main Write Guard` 状态，不再使用合并状态接口。该接口每个 context 只返回最新一条，部署自身的审计状态会遮蔽更早的 Intake 证明，导致 `has not been attested yet` 反复出现。证明规则不变。
