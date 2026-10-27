@@ -5,6 +5,7 @@ import {
   mainWriteGuardWorkflowPaths,
   prGateWorkflowPaths,
   trustedControlRunId,
+  type VerificationTrace,
   verificationRecorder,
 } from "./ci-evidence.ts";
 import {
@@ -13,6 +14,7 @@ import {
   getJsonNumber,
   getJsonString,
   isJsonRecord,
+  type JsonRecord,
   runGithubCli,
 } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
@@ -115,7 +117,8 @@ function currentControlRunId(): number | null {
  */
 export async function hasVerifiedMainWriteGuard(
   reader: GithubReader,
-  value: unknown
+  value: unknown,
+  trace: VerificationTrace = () => undefined
 ): Promise<boolean> {
   const controlRepository = getControlRepository();
   const selfRunId = currentControlRunId();
@@ -139,6 +142,7 @@ export async function hasVerifiedMainWriteGuard(
         workflowPaths: mainWriteGuardWorkflowPaths,
         // The outer caller (assertTrustedMainWrite) owns the waiting window.
         runAttempts: 1,
+        trace,
       })
     ) {
       return true;
@@ -296,14 +300,18 @@ export async function assertTrustedMainWrite(
     mainSha,
     isCentralStatusRequired
   );
+  const label = `Main Write Guard ${repository}@${mainSha.slice(0, 12)}`;
+  const guard = verificationRecorder(label);
+  let observed: JsonRecord[] = [];
   for (let attempt = 0; attempt < 12; attempt += 1) {
     const status = await reader.get(`repos/${repository}/commits/${mainSha}/status`);
-    if (await hasVerifiedMainWriteGuard(reader, status)) {
+    if (await hasVerifiedMainWriteGuard(reader, status, guard.trace)) {
       return provenance;
     }
-    const guardStates = getJsonArray(status, "statuses")
-      .filter((item) => isJsonRecord(item) && getJsonString(item, "context") === "Main Write Guard")
-      .map((item) => getJsonString(item, "state"));
+    observed = getJsonArray(status, "statuses")
+      .filter(isJsonRecord)
+      .filter((item) => getJsonString(item, "context") === "Main Write Guard");
+    const guardStates = observed.map((item) => getJsonString(item, "state"));
     if (guardStates.includes("failure") || guardStates.includes("error")) {
       throw new CliError(
         `::error::Source SHA failed Main Write Guard: ${repository}@${mainSha.slice(0, 12)} did not come from a merged pull request with passing Action Worker checks, so it is not trusted. Change main only by merging a pull request that passed validate-merge; the next such merge makes main trusted again.`,
@@ -314,8 +322,17 @@ export async function assertTrustedMainWrite(
       await new Promise((resolve) => setTimeout(resolve, 5_000));
     }
   }
+  console.log(
+    `verification ${label} observed ${JSON.stringify(
+      observed.map((item) => ({
+        state: getJsonString(item, "state"),
+        target_url: getJsonString(item, "target_url"),
+        created_at: getJsonString(item, "created_at"),
+      }))
+    )}`
+  );
   throw new CliError(
-    `::error::Source SHA has no successful Main Write Guard status: ${repository}@${mainSha.slice(0, 12)} has not been attested yet. Intake attests every managed main automatically within minutes; start this workflow again in a few minutes. If it repeats, the Main write audit job of the latest Intake run says why.`,
+    `::error::Source SHA has no successful Main Write Guard status: ${repository}@${mainSha.slice(0, 12)} has not been attested yet. Intake attests every managed main automatically within minutes; start this workflow again in a few minutes. If it repeats, the Main write audit job of the latest Intake run says why. Last check: ${guard.lastFailure()}.`,
     65
   );
 }

@@ -976,6 +976,48 @@ test("a newer in-progress main write attestation does not shadow an older verifi
   }
 });
 
+test("a main write attestation outside its control run window names the rejected check", async () => {
+  const controlRepository = "fongap-labs/action-worker";
+  // The status was written long after the run that claims it had already ended.
+  const status = {
+    statuses: [
+      {
+        context: "Main Write Guard",
+        state: "success",
+        target_url: "https://github.com/fongap-labs/action-worker/actions/runs/3",
+        created_at: "2026-09-26T00:00:00Z",
+      },
+    ],
+  };
+  const reader = {
+    get: async (path: string) => {
+      assert.equal(path, "repos/fongap-labs/action-worker/actions/runs/3");
+      return {
+        repository: { full_name: controlRepository },
+        path: ".github/workflows/intake.yml",
+        head_branch: "main",
+        status: "completed",
+        conclusion: "success",
+        run_started_at: "2026-09-25T00:00:00Z",
+        updated_at: "2026-09-25T00:01:00Z",
+      };
+    },
+  } as unknown as GithubReader;
+
+  const steps: string[] = [];
+  const previousRunId = process.env.GITHUB_RUN_ID;
+  delete process.env.GITHUB_RUN_ID;
+  try {
+    assert.equal(
+      await hasVerifiedMainWriteGuard(reader, status, (step) => steps.push(step)),
+      false
+    );
+  } finally {
+    if (previousRunId !== undefined) process.env.GITHUB_RUN_ID = previousRunId;
+  }
+  assert.deepEqual(steps, ["run-outside-window"]);
+});
+
 test("main write provenance rejects direct pushes and fake status-only trust", async () => {
   const mainSha = "4".repeat(40);
   const paths = new Map<string, unknown>([

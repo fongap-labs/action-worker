@@ -1,0 +1,1 @@
+- 变更: Main Write Guard 拒绝未证明的 main SHA 时，日志会列出该 SHA 上实际看到的 `Main Write Guard` 状态（状态、目标运行、写入时间），并说明最后一项校验为何未通过；`has not been attested yet` 报错末尾也附带该原因。证明规则本身不变。
