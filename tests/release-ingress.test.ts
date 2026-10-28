@@ -168,6 +168,35 @@ test("an empty requested version refuses a span without release-worthy changes",
   );
 });
 
+test("an entered version never reads the commit span", async () => {
+  // Only the repository, its head and the manifest are served: any read of the tags, the compare or
+  // the commit list would fail the reader, as a span of more than 50 commits fails the real one.
+  for (const entered of ["1.2.3", "v0.1.1-beta.3"]) {
+    const reader = rootLayoutReader(
+      manifestJson(),
+      {
+        "repos/fongap-labs/example": { default_branch: "main" },
+        "repos/fongap-labs/example/commits/main": { sha },
+      },
+      sha
+    );
+    const request = await resolveManualReleaseBuild(
+      "fongap-labs/example",
+      entered,
+      policy(),
+      reader,
+      "123",
+      "1"
+    );
+    assert.equal(request.requested_version, normalizeReleaseVersion(entered));
+    assert.equal(
+      reader.calls.some((path) => /\/tags|\/compare\/|commits\?sha=/.test(path)),
+      false,
+      `${entered} read the commit span`
+    );
+  }
+});
+
 test("an empty manifest release_notes stays empty; publication fills it from the changelog", async () => {
   const reader = rootLayoutReader(manifestJson({ release_notes: "" }), {
     "repos/fongap-labs/example": { default_branch: "main" },

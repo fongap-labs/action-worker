@@ -53,16 +53,18 @@ export async function resolveManualReleaseBuild(
   };
 
   const { manifest } = await resolveReleaseBuildProduct(reader, request);
-  const span = await loadReleaseSpan(reader, {
-    target_repository: manifest.target_repository,
-    source_repository: repository,
-    source_sha: sourceSha,
-    default_branch: defaultBranch,
-    release_key: manifest.release_key,
-    root: manifest.root ?? "",
-  });
 
+  // The commit span only proposes a version, so an entered version never reads it: a long span or
+  // an unparsable commit title cannot block a release whose version the maintainer already chose.
   if (requestedVersionRaw === "") {
+    const span = await loadReleaseSpan(reader, {
+      target_repository: manifest.target_repository,
+      source_repository: repository,
+      source_sha: sourceSha,
+      default_branch: defaultBranch,
+      release_key: manifest.release_key,
+      root: manifest.root ?? "",
+    });
     const bump = bumpForChanges(span.changes);
     if (bump === null) {
       const base = span.base_version
