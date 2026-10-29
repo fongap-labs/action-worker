@@ -256,30 +256,19 @@ async function readReleasePolicy(): Promise<ReleasePolicy> {
   };
 }
 
+// Only an unpublished draft is ever rolled back: no tag exists until the Release is published.
 async function rollbackRelease(
   repository: string,
   tag: string,
   releaseId: string,
   isReleaseCreated: boolean,
-  isTagCreated: boolean,
   token: string
 ): Promise<void> {
   if (isReleaseCreated && releaseId) {
-    console.log(`::warning::Release publication failed; rolling back Release: ${tag}.`);
+    console.log(`::warning::Release publication failed; rolling back draft Release: ${tag}.`);
     try {
       await runGithubCli(
         ["api", "--method", "DELETE", `repos/${repository}/releases/${releaseId}`],
-        token
-      );
-    } catch {
-      // Rollback is best effort and the original publication error remains authoritative.
-    }
-  }
-  if (isTagCreated) {
-    console.log(`::warning::Rolling back Tag: ${tag}.`);
-    try {
-      await runGithubCli(
-        ["api", "--method", "DELETE", `repos/${repository}/git/refs/tags/${tag}`],
         token
       );
     } catch {
@@ -470,7 +459,6 @@ async function main(): Promise<void> {
   const artifactDir = join(workDir, "artifact");
   await mkdir(artifactDir);
 
-  let isTagCreated = false;
   let isReleaseCreated = false;
   let releaseId = "";
   let targetRepository = "";
@@ -581,21 +569,8 @@ async function main(): Promise<void> {
     ].join("\n");
     const body = releaseNotes ? `${releaseNotes}\n\n${provenance}` : provenance;
 
-    await runGithubCli(
-      [
-        "api",
-        "--method",
-        "POST",
-        `repos/${targetRepository}/git/refs`,
-        "-f",
-        `ref=refs/tags/${tag}`,
-        "-f",
-        `sha=${releaseSha}`,
-      ],
-      controlToken
-    );
-    isTagCreated = true;
-
+    // A draft Release holds no Git tag. The tag is created from target_commitish only when the
+    // verified draft is published below, so a failed release leaves no formal tag behind.
     const releaseJson = JSON.parse(
       await runGithubCli(
         [
@@ -677,6 +652,7 @@ async function main(): Promise<void> {
       }
     }
 
+    // Publishing the verified draft is the only step that creates the tag, at releaseSha.
     await runGithubCli(
       [
         "api",
@@ -690,7 +666,6 @@ async function main(): Promise<void> {
     );
 
     isReleaseCreated = false;
-    isTagCreated = false;
 
     await appendLines(process.env.GITHUB_OUTPUT, [
       `tag=${tag}`,
@@ -715,14 +690,7 @@ async function main(): Promise<void> {
       `- URL: ${releaseUrl}`,
     ]);
   } catch (error) {
-    await rollbackRelease(
-      targetRepository,
-      tag,
-      releaseId,
-      isReleaseCreated,
-      isTagCreated,
-      controlToken
-    );
+    await rollbackRelease(targetRepository, tag, releaseId, isReleaseCreated, controlToken);
     throw error;
   } finally {
     await rm(workDir, { recursive: true, force: true });

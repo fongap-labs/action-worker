@@ -67,10 +67,12 @@
 → release-manifest + provenance
 → Release Governance
 → 版本小节 PR（chore(release): <tag>）→ 门禁 → 合并
-→ 合并提交上打 tag、创建 Release
-→ 重新下载校验
-→ 完成 / 回滚
+→ 草稿 Release（草稿不产生 tag）→ 上传资产 → 校验（SHA256 与 checksum）
+→ 正式发布 Release，此时在合并提交上创建 tag
+→ 完成 / 回滚（失败时只删除草稿，不留下 tag）
 ```
+
+tag 只在 Release 校验通过并正式发布时才出现；任何更早的失败都不会留下正式 tag。
 
 - 版本小节由中央依据目标仓库的 `CHANGELOG.md` 与 `changelog.d/` 条目文件生成，经 PR 合入后才打 tag。发布 PR 只能改 `CHANGELOG.md` 并删除已汇总的条目文件，校验器会从基线重新计算，内容不一致即拒绝。
 - 版本说明：产品清单的 `release_notes` 非空时使用它；为空时使用本次版本小节。提交跨度清单不再作为版本说明来源。

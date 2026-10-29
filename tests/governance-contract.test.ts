@@ -765,9 +765,12 @@ test("release, source, deploy, merge, and repository settings contracts remain i
     "rollbackRelease",
     '"draft=true"',
     '"draft=false"',
+    "target_commitish=${releaseSha}",
     "assertTrustedMainWrite",
     "Main Write Guard",
   ]);
+  // The formal tag is created only by publishing the verified draft Release; no earlier git ref write.
+  assert.doesNotMatch(publisher, /git\/refs/);
   assert.equal(await exists(".github/workflows/validate-release-policy.yml"), false);
   assert.equal(await exists(".github/workflows/publish-release.yml"), false);
 

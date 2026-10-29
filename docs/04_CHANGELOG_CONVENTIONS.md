@@ -261,7 +261,7 @@ CHANGELOG 标题**永远不决定或约束** Release 版本。版本来自发布
 1. 中央读取目标仓库默认分支的 `CHANGELOG.md` 与 `changelog.d/` 条目文件，生成版本小节。
 2. 中央开一个分支 `aw/changelog/<tag>` 的 PR，标题为 `chore(release): <tag>`。它删除已汇总的条目文件，并写入版本小节。校验器从基线重新计算期望内容，只有完全一致才放行。
 3. 该 PR 走正常的门禁，合并后由 Main Write Guard 证明合并提交的来源。
-4. 中央在合并提交上创建 tag 与 GitHub Release。
+4. 中央先以草稿形式创建 GitHub Release（草稿不产生 tag），上传并校验全部资产；校验通过后正式发布，此时才在合并提交上创建 tag。校验失败只删除草稿，不留下 tag。
 
 **自有条目发布**（清单带 `changelog_entries`，用于多工具仓库中的上游镜像，例如 `external-vault` 的工具）：
 
