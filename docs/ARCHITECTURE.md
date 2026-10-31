@@ -419,6 +419,7 @@ bootstrap_ref
 - 当任务源仓库为私有仓库时，bootstrap 的输出会写入 Runner 的临时文件，而不是写入这个公开仓库的运行日志；日志只保留任务结果的摘要，该文件离开 Runner 时只以加密形式存在（见第 9.4 节）。
 - 任务可以在 `RUNNER_TEMP/action-worker-publication` 中暂存一个跨仓库发布请求，但业务任务不持有目标仓库的写入凭据。
 - 任务成功之后，Action Worker 会另行检查 `AW_REPOSITORY_POLICY`：源仓库需要 `release-source`，目标仓库需要 `release-target` 与 `pr`。只有在这些检查通过之后，`AW_CONTROL_TOKEN` 才会注入中央发布步骤，并通过 pull request 合并进目标仓库的 `main`（目标的 `main` 没有绕过项，并要求 PR 且 `validate-merge` 检查通过）。
+- 中央发布步骤在提交前调用 `scripts/prepare-publication-target.ts`，强制执行**目标仓库自己声明的契约**，而不是在 Action Worker 中硬编码业务规则：若目标仓库存在 `.github/output-retention.json`，则按其中声明的每个 `output/<项目>` 的期数上限裁剪最老的周期目录；若目标仓库存在 `.github/manifest-allowlist.json` 且待发布载荷含 `manifest.json`，则把非 URL 字段中的 URL 脱敏为 `[url-redacted]`，其余黑名单命中一律 fail-closed 拒绝发布。两个配置文件写坏时同样 fail-closed。
 
 ### 9.1 任务源重新校验
 
