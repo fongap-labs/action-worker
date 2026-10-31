@@ -406,9 +406,20 @@ jobs:
           mkdir -p "$target_dir"
           cp -a "$PAYLOAD_DIR"/. "$target_dir"/
 
+          # Enforce the target repository's own contracts before committing: prune the
+          # oldest output periods per .github/output-retention.json and sanitize the
+          # published manifest.json per .github/manifest-allowlist.json.
+          prepare_output="$(node scripts/prepare-publication-target.ts "$WORK_DIR/target" "$DEST_DIR")"
+          echo "$prepare_output"
+          project_dir="$(echo "$prepare_output" | sed -n 's/^PROJECT_DIR=//p')"
+
           git -C "$WORK_DIR/target" config user.name "fongap"
           git -C "$WORK_DIR/target" config user.email "26006683+fongap@users.noreply.github.com"
-          git -C "$WORK_DIR/target" add -- "$DEST_DIR"
+          if [ -n "$project_dir" ]; then
+              git -C "$WORK_DIR/target" add -A -- "$DEST_DIR" "$project_dir"
+          else
+              git -C "$WORK_DIR/target" add -- "$DEST_DIR"
+          fi
 
           if git -C "$WORK_DIR/target" diff --cached --quiet; then
               echo "No publication changes."
