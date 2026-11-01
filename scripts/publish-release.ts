@@ -667,7 +667,7 @@ async function main(): Promise<void> {
 
     isReleaseCreated = false;
 
-    const npmToken = process.env.NPM_TOKEN?.trim();
+    const npmToken = (process.env.AW_NPM_TOKEN ?? process.env.NPM_TOKEN)?.trim();
     const tgzAsset = manifest.assets.find((a) => a.name.endsWith(".tgz"));
     let npmPublishStatus = "skipped";
     if (npmToken && tgzAsset) {
@@ -688,7 +688,9 @@ async function main(): Promise<void> {
         });
         npmPublishStatus = `published (${tgzAsset.name})`;
       } catch (err) {
-        console.warn(`::warning::npm publish failed: ${err instanceof Error ? err.message : String(err)}`);
+        console.warn(
+          `::warning::npm publish failed: ${err instanceof Error ? err.message : String(err)}`
+        );
         npmPublishStatus = "failed";
       }
     }
