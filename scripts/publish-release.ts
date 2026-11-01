@@ -667,6 +667,34 @@ async function main(): Promise<void> {
 
     isReleaseCreated = false;
 
+    const npmToken = (process.env.AW_NPM_TOKEN ?? process.env.NPM_TOKEN)?.trim();
+    const tgzAsset = manifest.assets.find((a) => a.name.endsWith(".tgz"));
+    let npmPublishStatus = "skipped";
+    if (npmToken && tgzAsset) {
+      const tgzPath = join(verifyDir, tgzAsset.name);
+      const isBeta = manifest.version.includes("-beta.");
+      const publishArgs = ["publish", tgzPath, "--access", "public"];
+      if (isBeta) {
+        publishArgs.push("--tag", "beta");
+      }
+      try {
+        await runCommand("npm", publishArgs, {
+          env: {
+            ...process.env,
+            NODE_AUTH_TOKEN: npmToken,
+            npm_config_registry: "https://registry.npmjs.org/",
+            npm_config__authToken: npmToken,
+          },
+        });
+        npmPublishStatus = `published (${tgzAsset.name})`;
+      } catch (err) {
+        console.warn(
+          `::warning::npm publish failed: ${err instanceof Error ? err.message : String(err)}`
+        );
+        npmPublishStatus = "failed";
+      }
+    }
+
     await appendLines(process.env.GITHUB_OUTPUT, [
       `tag=${tag}`,
       `release_url=${releaseUrl}`,
@@ -688,6 +716,7 @@ async function main(): Promise<void> {
       `- License: ${licenseExpression}`,
       ...(licenseFile ? [`- License file: ${licenseFile}`] : []),
       `- URL: ${releaseUrl}`,
+      ...(npmPublishStatus !== "skipped" ? [`- npm publish: ${npmPublishStatus}`] : []),
     ]);
   } catch (error) {
     await rollbackRelease(targetRepository, tag, releaseId, isReleaseCreated, controlToken);
