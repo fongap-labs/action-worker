@@ -11,6 +11,8 @@ const WORKFLOW = /^\.github\/workflows\/.*\.ya?ml$/i;
 const MINIFIED_BUNDLE = /\.min\.(?:js|css)$/i;
 // In an HTML template the text between tags is user-facing copy; template comments stay English.
 const HTML_TEMPLATE = /\.(?:html?|htm)$/i;
+// Standalone desktop client applications and system utility tools authored for users.
+const CLIENT_APPLICATION = /^projects\/(?:Steno|WinCleaner|WorkBuddyCleaner)\//i;
 const HUGO_COMMENT_OPEN = /\{\{-?\s*\/\*/;
 const HUGO_COMMENT_CLOSE = /\*\/\s*-?\}\}/;
 const HTML_COMMENT_OPEN = "<!--";
@@ -97,7 +99,8 @@ export function engineeringLineViolation(
     MARKDOWN.test(path) ||
     LOCALIZATION.test(path) ||
     CONTENT_FILE.test(path) ||
-    MINIFIED_BUNDLE.test(path)
+    MINIFIED_BUNDLE.test(path) ||
+    CLIENT_APPLICATION.test(path)
   ) {
     return null;
   }
