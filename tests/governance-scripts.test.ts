@@ -569,10 +569,7 @@ test("lifecycle filename rule distinguishes control labels from domain concepts"
     hasLifecycleFilenameViolation("projects/SecurePigeon/crates/pigeon-store/src/temp_access.rs"),
     false
   );
-  assert.equal(
-    hasLifecycleFilenameViolation("projects/WinCleaner/Build/New-CleanIso.ps1"),
-    false
-  );
+  assert.equal(hasLifecycleFilenameViolation("projects/WinCleaner/Build/New-CleanIso.ps1"), false);
 });
 
 test("repository variables are sorted and validated", () => {
