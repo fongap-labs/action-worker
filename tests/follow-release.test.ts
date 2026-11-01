@@ -314,7 +314,7 @@ test("a patch that adds, deletes, renames or touches another file is refused", (
     lockPatch.replace("index 1111111..2222222 100644", "new file mode 100644"),
     lockPatch.replace("index 1111111..2222222 100644", "deleted file mode 100644"),
     lockPatch.replace("index 1111111..2222222 100644", "rename from projects/api/uv.lock"),
-    lockPatch + "diff --git a/projects/api/uv.lock b/projects/api/uv.lock\n",
+    `${lockPatch}diff --git a/projects/api/uv.lock b/projects/api/uv.lock\n`,
     lockPatch.replace("@@ -1,3 +1,3 @@", "@@ -1,3 +1,3 @@\n-- not a dash line\n!bad"),
   ];
   for (const patch of refused) {

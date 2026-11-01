@@ -143,4 +143,3 @@ jobs:
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           BRANCH: metrics/${{ github.run_id }}
         run: node scripts/manage-work-metrics.ts cleanup
-

@@ -29,7 +29,8 @@ jobs:
       fail-fast: false
       matrix:
         # Every catalog tool is listed explicitly; a run never falls back to one tool.
-        tool: [open-code-review, r-base, doe-base, frf2, rsm, algdesign, qcc, blandr, bland-altman-leh]
+        tool:
+          [open-code-review, r-base, doe-base, frf2, rsm, algdesign, qcc, blandr, bland-altman-leh]
 
     steps:
       - name: Checkout
