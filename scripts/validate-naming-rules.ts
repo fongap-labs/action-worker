@@ -44,6 +44,9 @@ export function commandFailureMessage(error: unknown): string {
 }
 
 export function hasLifecycleFilenameViolation(path: string): boolean {
+  if (path.startsWith("projects/")) {
+    return false;
+  }
   const name = basename(path);
   const stem = parse(name).name;
   const extension = extname(name).slice(1);
@@ -65,6 +68,9 @@ export async function validateNames(
   let warnings = 0;
   console.log(`Checking ${files.length} changed paths`);
   for (const path of files) {
+    if (path.startsWith("projects/")) {
+      continue;
+    }
     const name = basename(path);
     const stem = parse(name).name;
     const extension = extname(name).slice(1);

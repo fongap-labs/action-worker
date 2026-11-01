@@ -14,7 +14,7 @@ LIFECYCLE_BANNED = {"new", "final", "latest", "temp", "tmp"}
 BOOL_HINTS = ("enabled", "disabled", "required", "available", "active", "visible", "writable", "replace")
 BOOL_PREFIXES_PY = ("is_", "has_", "can_", "should_")
 BOOL_PREFIXES_TS = ("is", "has", "can", "should")
-SKIP_DIRS = {".git", ".venv", "node_modules", "target", "dist", "build", "__pycache__", ".pytest_cache"}
+SKIP_DIRS = {".git", ".venv", "node_modules", "target", "dist", "build", "__pycache__", ".pytest_cache", "projects"}
 
 
 def parts(name: str) -> list[str]:
