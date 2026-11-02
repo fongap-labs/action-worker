@@ -48,7 +48,11 @@ async function main(): Promise<void> {
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
 
-  if (!controlToken || !rawPolicy || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(controlRepository)) {
+  if (
+    !controlToken ||
+    !rawPolicy ||
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(controlRepository)
+  ) {
     throw new CliError("CI follow-up control credentials are unavailable.", 77);
   }
   const request = parseFollowUpRequest(parseJson(rawRequest, "Invalid CI follow-up payload.", 65));
@@ -58,10 +62,11 @@ async function main(): Promise<void> {
     "pr"
   );
 
-  const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", controlToken);
-  const status = await reader.get(
-    `repos/${request.repository}/commits/${request.head_sha}/status`
+  const reader = new GithubReader(
+    process.env.GITHUB_API_URL ?? "https://api.github.com",
+    controlToken
   );
+  const status = await reader.get(`repos/${request.repository}/commits/${request.head_sha}/status`);
   if (!matchesFollowUpEvidence(status, controlRepository, request.ci_run_id)) {
     throw new CliError("CI follow-up does not own the successful CI Evidence status.", 65);
   }
@@ -86,7 +91,9 @@ async function main(): Promise<void> {
       throw new CliError("CI follow-up cannot process a stale or closed PR revision.", 75);
     }
   }
-  console.log(`Verified CI follow-up: ${request.repository}@${request.head_sha} run=${request.ci_run_id}`);
+  console.log(
+    `Verified CI follow-up: ${request.repository}@${request.head_sha} run=${request.ci_run_id}`
+  );
 }
 
 if (isMain(import.meta.url)) {
