@@ -46,7 +46,7 @@ export function parseReviewModelPolicy(value: unknown): ReviewModelPolicy {
   ) {
     throw new CliError("::error::Review model policy must route each review agent to an allowed model.", 65);
   }
-  return value as ReviewModelPolicy;
+  return value as unknown as ReviewModelPolicy;
 }
 
 export function applyReviewModels(rawConfig: string, policyValue: unknown): string {
