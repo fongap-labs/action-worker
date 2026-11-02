@@ -40,7 +40,10 @@ export async function findIncidents(
   throw new CliError("::error::Main write incident search exceeded supported pagination.", 65);
 }
 
-export async function assertNoOpenMainWriteIncidents(reader: Reader, repository: string): Promise<void> {
+export async function assertNoOpenMainWriteIncidents(
+  reader: Reader,
+  repository: string
+): Promise<void> {
   const incidents = await findIncidents(reader, repository, "open");
   if (incidents.length === 0) return;
   const numbers = incidents.map((issue) => getJsonNumber(issue, "number")).filter((n) => n > 0);

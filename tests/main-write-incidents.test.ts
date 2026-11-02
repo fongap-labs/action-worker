@@ -18,7 +18,11 @@ const incident = {
 test("an unresolved maintainer incident blocks the official main write attestation", async () => {
   await assert.rejects(
     assertNoOpenMainWriteIncidents(
-      { async get(): Promise<unknown> { return [incident]; } },
+      {
+        async get(): Promise<unknown> {
+          return [incident];
+        },
+      },
       "org/private-repo"
     ),
     /Unresolved main write incident\(s\).*#128/
@@ -28,7 +32,11 @@ test("an unresolved maintainer incident blocks the official main write attestati
 test("a resolved incident no longer blocks an attestation", async () => {
   await assert.doesNotReject(
     assertNoOpenMainWriteIncidents(
-      { async get(): Promise<unknown> { return []; } },
+      {
+        async get(): Promise<unknown> {
+          return [];
+        },
+      },
       "org/private-repo"
     )
   );
@@ -36,7 +44,11 @@ test("a resolved incident no longer blocks an attestation", async () => {
 
 test("an untrusted outsider cannot block release by creating a similarly titled public issue", async () => {
   const issues = await findIncidents(
-    { async get(): Promise<unknown> { return [{ ...incident, author_association: "NONE" }]; } },
+    {
+      async get(): Promise<unknown> {
+        return [{ ...incident, author_association: "NONE" }];
+      },
+    },
     "org/public-repo",
     "open"
   );
@@ -46,7 +58,11 @@ test("an untrusted outsider cannot block release by creating a similarly titled 
 test("incident discovery rejects unexpected API responses", async () => {
   await assert.rejects(
     findIncidents(
-      { async get(): Promise<unknown> { return {}; } },
+      {
+        async get(): Promise<unknown> {
+          return {};
+        },
+      },
       "org/repo",
       "open"
     ),
@@ -57,7 +73,11 @@ test("incident discovery rejects unexpected API responses", async () => {
 test("repeated scans cannot duplicate an already recorded commit incident", async () => {
   assert.equal(incidentTitle(sha), `Main write incident: ${sha.slice(0, 12)}`);
   const shouldCreate = await shouldCreateIncident(
-    { async get(): Promise<unknown> { return [{ ...incident, title: incidentTitle(sha), state: "closed" }]; } },
+    {
+      async get(): Promise<unknown> {
+        return [{ ...incident, title: incidentTitle(sha), state: "closed" }];
+      },
+    },
     "org/private-repo",
     sha
   );
