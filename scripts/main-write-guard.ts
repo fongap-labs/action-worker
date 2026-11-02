@@ -221,6 +221,20 @@ async function requireLocalMergeCheck(
   }
 }
 
+/**
+ * GitHub may omit a valid squash-merge commit from commits/{sha}/pulls.
+ * The final "(#number)" in the signed commit subject is only a lookup hint.
+ * The referenced PR must independently prove the exact merge SHA and base branch.
+ */
+function mergedPrNumberHint(commit: unknown): number | null {
+  const details = isJsonRecord(commit) ? commit.commit : undefined;
+  const subject = getJsonString(details, "message").split("\n", 1)[0] ?? "";
+  const match = /\(#([1-9][0-9]*)\)$/.exec(subject);
+  if (!match) return null;
+  const number = Number(match[1]);
+  return Number.isSafeInteger(number) ? number : null;
+}
+
 export async function validateMainWriteProvenance(
   reader: GithubReader,
   repository: string,
@@ -248,14 +262,28 @@ export async function validateMainWriteProvenance(
   const associated = getJsonArray(
     await reader.get(`repos/${repository}/commits/${mainSha}/pulls?per_page=100`)
   );
-  const candidates = associated.filter(
-    (item) =>
-      isJsonRecord(item) &&
-      getJsonString(item, "merged_at") !== "" &&
-      getJsonString(item, "merge_commit_sha") === mainSha &&
-      baseRef(item) === "main" &&
-      getJsonNumber(item, "number") > 0
-  );
+  const isExactMerge = (value: unknown): boolean =>
+    isJsonRecord(value) &&
+    getJsonString(value, "merged_at") !== "" &&
+    getJsonString(value, "merge_commit_sha") === mainSha &&
+    baseRef(value) === "main" &&
+    getJsonNumber(value, "number") > 0;
+  const candidates = associated.filter(isExactMerge);
+
+  // The reverse association API sometimes omits freshly merged squash commits.
+  // Never infer trust from the commit subject alone: verify the claimed PR via
+  // its own endpoint and require an exact, immutable merge SHA match.
+  let fallbackPr: unknown;
+  if (associated.length === 0 && candidates.length === 0) {
+    const hint = mergedPrNumberHint(commit);
+    if (hint !== null) {
+      fallbackPr = await reader.get(`repos/${repository}/pulls/${hint}`);
+      if (isExactMerge(fallbackPr) && getJsonNumber(fallbackPr, "number") === hint) {
+        candidates.push(fallbackPr);
+      }
+    }
+  }
+
   if (candidates.length !== 1) {
     throw new CliError(
       `::error::Main SHA is not uniquely attributable to a merged pull request: ${repository}@${mainSha}.`,
@@ -264,7 +292,7 @@ export async function validateMainWriteProvenance(
   }
 
   const prNumber = getJsonNumber(candidates[0], "number");
-  const pr = await reader.get(`repos/${repository}/pulls/${prNumber}`);
+  const pr = fallbackPr ?? (await reader.get(`repos/${repository}/pulls/${prNumber}`));
   const prHeadSha = headSha(pr);
   if (
     getJsonString(pr, "merged_at") === "" ||
