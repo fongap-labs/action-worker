@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  classifyGithubFailure,
   GithubHttpError,
   GithubReader,
-  classifyGithubFailure,
   isGithubMissing,
   isRetryableStatus,
   parseRetryAfter,
@@ -75,18 +75,23 @@ test("GitHub 403 distinguishes primary quota exhaustion from missing permissions
   const calls: string[] = [];
   globalThis.fetch = async (url) => {
     calls.push(String(url));
-    return Response.json({ message: "API rate limit exceeded for user ID 12345." }, {
-      status: 403,
-      headers: {
-        "x-ratelimit-remaining": "0",
-        "x-ratelimit-reset": "4102444800",
-        "x-github-request-id": "TRACE-123",
-      },
-    });
+    return Response.json(
+      { message: "API rate limit exceeded for user ID 12345." },
+      {
+        status: 403,
+        headers: {
+          "x-ratelimit-remaining": "0",
+          "x-ratelimit-reset": "4102444800",
+          "x-github-request-id": "TRACE-123",
+        },
+      }
+    );
   };
   try {
     const reader = new GithubReader("https://api.github.test", "test-placeholder", {
-      attemptLimit: 3, retryDelayMs: 0, timeoutMs: 1000,
+      attemptLimit: 3,
+      retryDelayMs: 0,
+      timeoutMs: 1000,
     });
     await assert.rejects(
       () => reader.get("repos/example/project?token=not-a-real-token"),
@@ -112,13 +117,18 @@ test("GitHub 403 permission failure is not treated as a transient rate limit", a
   let calls = 0;
   globalThis.fetch = async () => {
     calls++;
-    return Response.json({ message: "Resource not accessible by personal access token" }, {
-      status: 403,
-    });
+    return Response.json(
+      { message: "Resource not accessible by personal access token" },
+      {
+        status: 403,
+      }
+    );
   };
   try {
     const reader = new GithubReader("https://api.github.test", "test-placeholder", {
-      attemptLimit: 4, retryDelayMs: 0, timeoutMs: 1000,
+      attemptLimit: 4,
+      retryDelayMs: 0,
+      timeoutMs: 1000,
     });
     await assert.rejects(
       () => reader.get("repos/example/project"),
@@ -141,14 +151,20 @@ test("secondary limits remain retryable when GitHub returns a retry-after header
   globalThis.fetch = async () => {
     attempts++;
     return attempts === 1
-      ? Response.json({ message: "You have exceeded a secondary rate limit." }, {
-        status: 403, headers: { "retry-after": "0" },
-      })
+      ? Response.json(
+          { message: "You have exceeded a secondary rate limit." },
+          {
+            status: 403,
+            headers: { "retry-after": "0" },
+          }
+        )
       : Response.json({ ok: true });
   };
   try {
     const reader = new GithubReader("https://api.github.test", "test-placeholder", {
-      attemptLimit: 2, retryDelayMs: 0, timeoutMs: 1000,
+      attemptLimit: 2,
+      retryDelayMs: 0,
+      timeoutMs: 1000,
     });
     assert.deepEqual(await reader.get("repos/example/project"), { ok: true });
     assert.equal(attempts, 2);
