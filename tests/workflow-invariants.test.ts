@@ -137,10 +137,7 @@ test("governed Release dispatches npm only after publication and never publishes
     release.jobs.npm?.if,
     "needs.release.result == 'success' && needs.release.outputs.npm_asset == 'true'"
   );
-  assert.equal(
-    release.jobs.npm?.permissions?.contents,
-    "write"
-  );
+  assert.equal(release.jobs.npm?.permissions?.contents, "write");
   assert.match(JSON.stringify(release.jobs.npm), /run-npm-republish/);
   assert.match(source, /npm_asset=/);
   assert.doesNotMatch(source, /publishNpmTarball|AW_NPM_TOKEN/);
