@@ -64,11 +64,20 @@ type ReaderOptions = {
   timeoutMs?: number;
 };
 
-export type GithubFailureKind = "primary-rate-limit" | "secondary-rate-limit" | "permission" | "http";
+export type GithubFailureKind =
+  | "primary-rate-limit"
+  | "secondary-rate-limit"
+  | "permission"
+  | "http";
 
-export function classifyGithubFailure(status: number, headers: Headers, message: string): GithubFailureKind {
+export function classifyGithubFailure(
+  status: number,
+  headers: Headers,
+  message: string
+): GithubFailureKind {
   if (status !== 403 && status !== 429) return "http";
-  if (/secondary rate limit|abuse detection|too many requests/i.test(message)) return "secondary-rate-limit";
+  if (/secondary rate limit|abuse detection|too many requests/i.test(message))
+    return "secondary-rate-limit";
   if (headers.get("x-ratelimit-remaining") === "0" || /API rate limit exceeded/i.test(message)) {
     return "primary-rate-limit";
   }
@@ -101,16 +110,23 @@ export class GithubHttpError extends Error {
     } = {}
   ) {
     const kind = details.kind ?? "http";
-    const where = details.path ? ` on GET ${details.path}` : "";
-    const explanation = kind === "primary-rate-limit"
-      ? "primary API rate limit exhausted"
-      : kind === "secondary-rate-limit"
-        ? "secondary API rate limit"
-        : kind === "permission" ? "access forbidden; check token repository permissions and SSO" : "";
-    const reset = kind === "primary-rate-limit" && details.resetAtMs
-      ? `; reset at ${new Date(details.resetAtMs).toISOString()}` : "";
+    const where = details.path && (status === 403 || status === 429) ? ` on GET ${details.path}` : "";
+    const explanation =
+      kind === "primary-rate-limit"
+        ? "primary API rate limit exhausted"
+        : kind === "secondary-rate-limit"
+          ? "secondary API rate limit"
+          : kind === "permission"
+            ? "access forbidden; check token repository permissions and SSO"
+            : "";
+    const reset =
+      kind === "primary-rate-limit" && details.resetAtMs
+        ? `; reset at ${new Date(details.resetAtMs).toISOString()}`
+        : "";
     const request = details.requestId ? `; request ID ${details.requestId}` : "";
-    super(`GitHub API returned HTTP ${status}${where}${explanation ? `: ${explanation}` : ""}${reset}${request}.`);
+    super(
+      `GitHub API returned HTTP ${status}${where}${explanation ? `: ${explanation}` : ""}${reset}${request}.`
+    );
     this.name = "GithubHttpError";
     this.status = status;
     this.retryAfterMs = retryAfterMs;
@@ -186,7 +202,7 @@ export class GithubReader {
           const kind = classifyGithubFailure(response.status, response.headers, githubMessage);
           const resetAtMs = rateLimitReset(response.headers);
           const retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
-          const safePath = "/" + (path.startsWith("/") ? path.slice(1) : path).split("?")[0];
+          const safePath = `/${(path.startsWith("/") ? path.slice(1) : path).split("?")[0]}`;
           throw new GithubHttpError(response.status, retryAfterMs, {
             path: safePath,
             kind,
@@ -197,19 +213,25 @@ export class GithubReader {
         return (await response.json()) as unknown;
       } catch (error) {
         lastError = error;
-        const retryReset = error instanceof GithubHttpError && error.kind === "primary-rate-limit"
-          ? error.resetAtMs === undefined ? undefined : Math.max(0, error.resetAtMs - Date.now())
-          : undefined;
+        const retryReset =
+          error instanceof GithubHttpError && error.kind === "primary-rate-limit"
+            ? error.resetAtMs === undefined
+              ? undefined
+              : Math.max(0, error.resetAtMs - Date.now())
+            : undefined;
         // Do not spin on exhausted primary quota or wait hours in a release workflow.
-        const canRetry = !(error instanceof GithubHttpError)
-          || isRetryableStatus(error.status)
-          || error.kind === "secondary-rate-limit"
-          || (retryReset !== undefined && retryReset <= 30_000);
+        const canRetry =
+          !(error instanceof GithubHttpError) ||
+          isRetryableStatus(error.status) ||
+          error.kind === "secondary-rate-limit" ||
+          (retryReset !== undefined && retryReset <= 30_000);
         if (!canRetry || attempt + 1 >= this.attemptLimit) throw error;
-        const retryDelay = retryReset !== undefined
-          ? retryReset + 250
-          : error instanceof GithubHttpError && error.retryAfterMs !== undefined
-            ? error.retryAfterMs : this.retryDelayMs * 2 ** attempt;
+        const retryDelay =
+          retryReset !== undefined
+            ? retryReset + 250
+            : error instanceof GithubHttpError && error.retryAfterMs !== undefined
+              ? error.retryAfterMs
+              : this.retryDelayMs * 2 ** attempt;
         await sleep(Math.min(retryDelay, 30_000));
       } finally {
         clearTimeout(timer);
