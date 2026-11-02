@@ -92,7 +92,10 @@ test("CI follow-ups are dispatched independently when Windows is skipped", () =>
     workflow.indexOf("  finalize:")
   );
   assert.match(windows, /has_windows == 'true'/, "the windows job is conditional");
-  const finalize = workflow.slice(workflow.indexOf("  finalize:"), workflow.indexOf("  prepare-failure:"));
+  const finalize = workflow.slice(
+    workflow.indexOf("  finalize:"),
+    workflow.indexOf("  prepare-failure:")
+  );
   assert.match(finalize, /Dispatch asynchronous CI follow-ups/);
   assert.match(finalize, /run-ci-follow-up/);
   assert.match(finalize, /if: success\(\)/);
