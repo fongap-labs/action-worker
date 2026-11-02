@@ -5,6 +5,8 @@ import { parse } from "yaml";
 
 type Step = { name?: string; uses?: string; with?: Record<string, unknown> };
 type Job = {
+  needs?: string | string[];
+  permissions?: Record<string, unknown>;
   steps?: Step[];
   secrets?: unknown;
   uses?: string;
@@ -136,12 +138,12 @@ test("governed Release dispatches npm only after publication and never publishes
     "needs.release.result == 'success' && needs.release.outputs.npm_asset == 'true'"
   );
   assert.equal(
-    (release.jobs.npm as Job & { permissions?: Record<string, unknown> }).permissions?.contents,
+    release.jobs.npm?.permissions?.contents,
     "write"
   );
   assert.match(JSON.stringify(release.jobs.npm), /run-npm-republish/);
   assert.match(source, /npm_asset=/);
   assert.doesNotMatch(source, /publishNpmTarball|AW_NPM_TOKEN/);
   assert.match(JSON.stringify(npm), /run-npm-republish/);
-  assert.match(JSON.stringify(npm), /republish-release-npm\\.ts/);
+  assert.ok(JSON.stringify(npm).includes("republish-release-npm.ts"));
 });
