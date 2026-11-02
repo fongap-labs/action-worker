@@ -9,10 +9,10 @@ permissions:
   actions: read
 
 concurrency:
-  group: pr-governance-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}
+  group: pr-governance-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}-${{ github.event.client_payload.head_sha }}
   # Never cancel an in-flight governance run: its successful status must remain attributable
   # to a completed successful control run for Main Write Guard provenance.
-  # Duplicate intake/bridge events may queue; closing an unmerged PR uses cancel-pr-work.yml.
+  # Duplicate events for one head queue together; an obsolete head cannot block the next revision.
   cancel-in-progress: false
 
 jobs:
