@@ -11,6 +11,8 @@ on:
       - policies/repository.json
       - policies/rulesets.json
       - scripts/apply-repository-settings.ts
+      - scripts/apply-review-models.ts
+      - policies/review-models.json
       - .github/workflows/apply-repository-settings.yml
   schedule:
     - cron: "43 4 * * *"
@@ -44,6 +46,12 @@ jobs:
           GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           TARGET_REPOSITORY: ${{ github.repository }}
         run: node scripts/apply-repository-settings.ts "$TARGET_REPOSITORY" false
+
+      - name: Apply AI Review models
+        env:
+          GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          TARGET_REPOSITORY: ${{ github.repository }}
+        run: node scripts/apply-review-models.ts "$TARGET_REPOSITORY"
 
   resolve-managed:
     name: Resolve managed repositories
