@@ -24,6 +24,7 @@ jobs:
       target_repository: ${{ steps.release.outputs.target_repository }}
       release_key: ${{ steps.release.outputs.release_key }}
       version: ${{ steps.release.outputs.version }}
+      npm_asset: ${{ steps.release.outputs.npm_asset }}
 
     steps:
       - name: Checkout
@@ -41,9 +42,35 @@ jobs:
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          AW_NPM_TOKEN: ${{ secrets.AW_NPM_TOKEN }}
           RELEASE_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
         run: node scripts/publish-release.ts
+
+  # GitHub Release publication is the boundary. npm distribution is a separate, replayable,
+  # provenance-verified workflow; npm failure must never roll back an already published Release.
+  npm:
+    name: Dispatch verified npm release
+    needs: release
+    if: needs.release.result == 'success' && needs.release.outputs.npm_asset == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    permissions:
+      contents: write
+
+    steps:
+      - name: Dispatch npm publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_REPOSITORY: ${{ needs.release.outputs.target_repository }}
+          RELEASE_TAG: ${{ needs.release.outputs.tag }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          payload="$(jq -cn \
+            --arg repository "$RELEASE_REPOSITORY" \
+            --arg tag "$RELEASE_TAG" \
+            '{event_type:"run-npm-republish",client_payload:{repository:$repository,tag:$tag}}')"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input - <<< "$payload"
 
   # Control domain. Moves the pins of every follower of the published release to its tag, one commit
   # per follower on aw/follow/<product>, and opens or finds the pull request for that branch.

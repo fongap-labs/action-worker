@@ -19,7 +19,6 @@ import {
   runGithubCli,
 } from "./github-api.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
-import { publishNpmTarball } from "./npm-publish.ts";
 import {
   appendLines,
   CliError,
@@ -668,28 +667,13 @@ async function main(): Promise<void> {
 
     isReleaseCreated = false;
 
-    const npmToken = (process.env.AW_NPM_TOKEN ?? process.env.NPM_TOKEN)?.trim();
-    const tgzAsset = manifest.assets.find((a) => a.name.endsWith(".tgz"));
-    let npmPublishStatus = "skipped";
-    if (npmToken && tgzAsset) {
-      const tgzPath = join(verifyDir, tgzAsset.name);
-      try {
-        await publishNpmTarball(tgzPath, workDir, npmToken, manifest.version);
-        npmPublishStatus = `published (${tgzAsset.name})`;
-      } catch (err) {
-        console.warn(
-          `::warning::npm publish failed: ${err instanceof Error ? err.message : String(err)}`
-        );
-        npmPublishStatus = "failed";
-      }
-    }
-
     await appendLines(process.env.GITHUB_OUTPUT, [
       `tag=${tag}`,
       `release_url=${releaseUrl}`,
       `target_repository=${targetRepository}`,
       `release_key=${manifest.release_key}`,
       `version=${manifest.version}`,
+      `npm_asset=${manifest.assets.some((asset) => asset.name.endsWith(".tgz")) ? "true" : "false"}`,
     ]);
     await appendLines(process.env.GITHUB_STEP_SUMMARY, [
       "## Release Governance",
@@ -705,7 +689,6 @@ async function main(): Promise<void> {
       `- License: ${licenseExpression}`,
       ...(licenseFile ? [`- License file: ${licenseFile}`] : []),
       `- URL: ${releaseUrl}`,
-      ...(npmPublishStatus !== "skipped" ? [`- npm publish: ${npmPublishStatus}`] : []),
     ]);
   } catch (error) {
     await rollbackRelease(targetRepository, tag, releaseId, isReleaseCreated, controlToken);

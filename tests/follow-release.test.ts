@@ -357,7 +357,7 @@ test("the follow jobs run in the right order, and the sandbox job holds no contr
   const jobs = workflow.jobs;
   assert.deepEqual(
     Object.keys(jobs).sort(),
-    ["follow", "follow-commit", "follow-lock", "release"].sort()
+    ["follow", "follow-commit", "follow-lock", "npm", "release"].sort()
   );
   assert.equal(jobs.follow?.needs, "release");
   assert.deepEqual(jobs["follow-lock"]?.needs, "follow");
@@ -365,6 +365,7 @@ test("the follow jobs run in the right order, and the sandbox job holds no contr
 
   // The release job hands the follow jobs the values they check against the upstream.
   assert.deepEqual(Object.keys(jobs.release?.outputs ?? {}).sort(), [
+    "npm_asset",
     "release_key",
     "tag",
     "target_repository",
