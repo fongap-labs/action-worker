@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { aiAgentModel, enabledAiModels, parseAiAgentConfig } from "../scripts/ai-agent-config.ts";
-import { applyReviewModels, hasAuditCode, parseReviewModelPolicy } from "../scripts/apply-review-models.ts";
+import {
+  applyReviewModels,
+  hasAuditCode,
+  parseReviewModelPolicy,
+} from "../scripts/apply-review-models.ts";
 
 const policy = { schema_version: 1, model: "Audit-Code" };
 
@@ -16,16 +20,22 @@ test("AI Review and enabled PR triage use Audit-Code; other agents stay unchange
     schema_version: 1,
     agents: {
       triage: { enabled: true, model: "Audit-Pro" },
-      review: { enabled: true, model: "Audit-Pro", routes: {
-        security: { model: "Audit-Ultra" },
-        release: { model: "Audit-Max" },
-      } },
+      review: {
+        enabled: true,
+        model: "Audit-Pro",
+        routes: {
+          security: { model: "Audit-Ultra" },
+          release: { model: "Audit-Max" },
+        },
+      },
       writing: { enabled: true, model: "Editor-Air" },
     },
   });
   const updated = JSON.parse(applyReviewModels(current, policy));
   assert.deepEqual(updated.agents.writing, {
-    enabled: true, model: "Editor-Air", routes: {},
+    enabled: true,
+    model: "Editor-Air",
+    routes: {},
   });
   const config = parseAiAgentConfig(JSON.stringify(updated));
   assert.deepEqual(enabledAiModels(config, ["triage", "review"]), ["Audit-Code"]);
