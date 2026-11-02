@@ -1,5 +1,8 @@
 import { GithubReader, getJsonString, runGithubCli } from "./github-api.ts";
-import { validateMainWriteProvenance } from "./main-write-guard.ts";
+import {
+  MainWriteVerificationPendingError,
+  validateMainWriteProvenance,
+} from "./main-write-guard.ts";
 import {
   assertNoOpenMainWriteIncidents,
   IncidentAccessError,
@@ -23,7 +26,7 @@ async function publishGuardStatus(
   repository: string,
   sha: string,
   token: string,
-  state: "success" | "failure",
+  state: "success" | "failure" | "pending",
   description: string,
   runUrl: string
 ): Promise<void> {
@@ -154,6 +157,7 @@ async function main(): Promise<void> {
       if (
         shaPattern.test(mainSha) &&
         !(error instanceof IncidentAccessError) &&
+        !(error instanceof MainWriteVerificationPendingError) &&
         !detail.startsWith("Unresolved main write incident(s)")
       ) {
         try {
@@ -185,8 +189,10 @@ async function main(): Promise<void> {
             repository,
             mainSha,
             token,
-            "failure",
-            "Untrusted main write",
+            error instanceof MainWriteVerificationPendingError ? "pending" : "failure",
+            error instanceof MainWriteVerificationPendingError
+              ? "Central PR evidence is still running"
+              : "Untrusted main write",
             runUrl
           );
         } catch {

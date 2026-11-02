@@ -37,6 +37,22 @@ export type MainWriteProvenance = {
   pr_head_sha: string;
 };
 
+/**
+ * A valid status can be published before its Action Worker run finishes.
+ * This is not yet trusted, but it is also not evidence of an untrusted write.
+ */
+export class MainWriteVerificationPendingError extends CliError {}
+
+export function mainWriteEvidenceError(
+  context: "PR Governance" | "CI Evidence" | "validate-merge",
+  reason: string
+): CliError {
+  const message = `::error::Merged PR head has no successful Action Worker ${context} status (${reason}).`;
+  return reason === "run-still-running"
+    ? new MainWriteVerificationPendingError(message, 75)
+    : new CliError(message, 65);
+}
+
 const requestPattern = /^[A-Za-z0-9._:-]{1,128}$/;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -168,19 +184,13 @@ async function requireCentralPrEvidence(
       trace: governance.trace,
     }))
   ) {
-    throw new CliError(
-      `::error::Merged PR head has no successful Action Worker PR Governance status (${governance.lastFailure()}).`,
-      65
-    );
+    throw mainWriteEvidenceError("PR Governance", governance.lastFailure());
   }
   const evidence = verificationRecorder(`CI Evidence ${label}`);
   if (
     !(await hasVerifiedCiEvidence(reader, status, { controlRepository, trace: evidence.trace }))
   ) {
-    throw new CliError(
-      `::error::Merged PR head has no successful Action Worker CI Evidence status (${evidence.lastFailure()}).`,
-      65
-    );
+    throw mainWriteEvidenceError("CI Evidence", evidence.lastFailure());
   }
   const mergeGate = verificationRecorder(`validate-merge ${label}`);
   if (
@@ -190,10 +200,7 @@ async function requireCentralPrEvidence(
       trace: mergeGate.trace,
     }))
   ) {
-    throw new CliError(
-      `::error::Merged PR head has no successful Action Worker validate-merge status (${mergeGate.lastFailure()}).`,
-      65
-    );
+    throw mainWriteEvidenceError("validate-merge", mergeGate.lastFailure());
   }
 }
 
