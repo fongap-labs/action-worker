@@ -17,6 +17,28 @@ export function resolveModelsEndpoint(baseUrl: string): string {
   return `${gateway}/v1/models`;
 }
 
+export function resolveCompletionsEndpoint(baseUrl: string): string {
+  const gateway = baseUrl.replace(/\/+$/, "");
+  if (gateway.endsWith("/chat/completions")) return gateway;
+  if (gateway.endsWith("/v1")) return `${gateway}/chat/completions`;
+  return `${gateway}/v1/chat/completions`;
+}
+
+export function completionHasText(value: unknown): boolean {
+  if (!isRecord(value) || !Array.isArray(value.choices)) return false;
+  return value.choices.some((choice) => {
+    if (!isRecord(choice) || !isRecord(choice.message)) return false;
+    const content = choice.message.content;
+    if (typeof content === "string") return content.trim().length > 0;
+    return (
+      Array.isArray(content) &&
+      content.some(
+        (part) => isRecord(part) && typeof part.text === "string" && part.text.trim().length > 0
+      )
+    );
+  });
+}
+
 export function requiredPrAiModels(config: AiAgentConfig, explicitModel = ""): string[] {
   const models = new Set(enabledAiModels(config, ["triage", "review"]));
   const model = explicitModel.trim();
@@ -92,8 +114,49 @@ async function main(): Promise<void> {
     );
   }
 
+  // /v1/models can advertise an alias whose upstream is unusable. Confirm one real inference
+  // without sending any private repository content; report only HTTP status, never provider text.
+  const probeModel = (process.env.AI_ENDPOINT_REQUIRED_MODEL ?? "").trim() || required[0] || "";
+  const probeController = new AbortController();
+  const probeTimeout = setTimeout(() => probeController.abort(), 60_000);
+  let completion: Response;
+  try {
+    completion = await fetch(resolveCompletionsEndpoint(gatewayUrl), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: probeModel,
+        messages: [{ role: "user", content: "Reply with OK." }],
+        max_tokens: 96,
+        stream: false,
+      }),
+      signal: probeController.signal,
+    });
+  } catch {
+    throw new CliError("ERROR: AI endpoint inference probe timed out or failed to connect.", 65);
+  } finally {
+    clearTimeout(probeTimeout);
+  }
+  if (!completion.ok) {
+    throw new CliError(
+      `ERROR: AI endpoint inference probe for ${probeModel} returned HTTP ${completion.status}.`,
+      65
+    );
+  }
+  let completionBody: unknown;
+  try {
+    completionBody = JSON.parse(await completion.text()) as unknown;
+  } catch {
+    throw new CliError("ERROR: AI endpoint inference probe returned invalid JSON.", 65);
+  }
+  if (!completionHasText(completionBody)) {
+    throw new CliError("ERROR: AI endpoint inference probe returned no usable response text.", 65);
+  }
   console.log(
-    `AI endpoint access verified. Required models: ${required.join(", ")}. Visible models: ${visible.join(", ")}.`
+    `AI endpoint inference verified for ${probeModel}. Visible models: ${visible.join(", ")}.`
   );
 }
 

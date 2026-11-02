@@ -501,7 +501,11 @@ test("AI review runs as its own advisory workflow after the gate", async () => {
   );
   const stepCount = (aiSteps.match(/^ {6}- name: /gm) ?? []).length;
   assert.ok(stepCount >= 8);
-  assert.equal((aiSteps.match(/continue-on-error: true/g) ?? []).length, stepCount);
+  // Optional triage and cache failures remain nonblocking; a failed actual review must be visible.
+  assert.equal((aiSteps.match(/continue-on-error: true/g) ?? []).length, 2);
+  const reviewStep = aiSteps.slice(aiSteps.indexOf("      - name: Run AI review"));
+  assert.doesNotMatch(reviewStep, /continue-on-error: true/);
+  assert.match(workflow, /\/tmp\/ocr-result\.json finished/);
   assert.doesNotMatch(aiSteps, /BLOCK_SEVERITY|block_severity/);
   const publishStep = workflow.slice(workflow.indexOf("      - name: Publish PR review"));
   assert.match(

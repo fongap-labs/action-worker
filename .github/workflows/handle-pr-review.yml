@@ -138,7 +138,6 @@ jobs:
 
       - name: Validate AI endpoint access
         if: ${{ steps.base_plan.outputs.review_required == 'true' }}
-        continue-on-error: true
         env:
           AI_ENDPOINT_URL: ${{ vars.AI_GATEWAY_URL }}
           AI_ENDPOINT_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
@@ -147,7 +146,6 @@ jobs:
 
       - name: Wait for AI queue
         if: ${{ steps.base_plan.outputs.review_required == 'true' }}
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -182,7 +180,6 @@ jobs:
       - name: Resolve final plan
         id: plan
         if: ${{ steps.base_plan.outputs.review_required == 'true' }}
-        continue-on-error: true
         run: |
           node scripts/apply-ai-triage.ts \
             /tmp/pr-plan.base.json \
@@ -193,7 +190,6 @@ jobs:
       - name: Resolve OCR distribution
         id: ocr_dist
         if: ${{ steps.plan.outputs.review_required == 'true' }}
-        continue-on-error: true
         run: node scripts/resolve-ocr-distribution.ts "$GITHUB_WORKSPACE/policies/review.json"
 
       - name: Restore OCR cache
@@ -206,7 +202,6 @@ jobs:
 
       - name: Configure OpenCodeReview
         if: ${{ steps.plan.outputs.review_required == 'true' }}
-        continue-on-error: true
         env:
           OCR_REPOSITORY: ${{ steps.ocr_dist.outputs.repository }}
           OCR_VERSION: ${{ steps.ocr_dist.outputs.version }}
@@ -217,7 +212,6 @@ jobs:
 
       - name: Run AI review
         if: ${{ steps.plan.outputs.review_required == 'true' }}
-        continue-on-error: true
         env:
           AI_ENDPOINT_URL: ${{ vars.AI_GATEWAY_URL }}
           OCR_LLM_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
@@ -258,4 +252,4 @@ jobs:
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node scripts/publish-pr-review.ts "$REPOSITORY" "$PR_NUMBER" success "$RUN_URL" /tmp/pr-plan.json /tmp/ocr-result.json
+        run: node scripts/publish-pr-review.ts "$REPOSITORY" "$PR_NUMBER" success "$RUN_URL" /tmp/pr-plan.json /tmp/ocr-result.json finished

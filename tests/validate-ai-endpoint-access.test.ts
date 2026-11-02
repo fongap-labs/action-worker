@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { parseAiAgentConfig } from "../scripts/ai-agent-config.ts";
 import {
+  completionHasText,
   requiredPrAiModels,
+  resolveCompletionsEndpoint,
   resolveModelsEndpoint,
   visibleModelIds,
 } from "../scripts/validate-ai-endpoint-access.ts";
@@ -63,4 +65,27 @@ test("AI endpoint preflight parses visible callable model ids", () => {
     ["Code-Air", "Code-Pro"]
   );
   assert.throws(() => visibleModelIds({ models: [] }));
+});
+
+test("AI endpoint completion probe uses the same OpenAI URL as OCR", () => {
+  assert.equal(
+    resolveCompletionsEndpoint("https://api.example.test/v1"),
+    "https://api.example.test/v1/chat/completions"
+  );
+  assert.equal(
+    resolveCompletionsEndpoint("https://api.example.test/v1/chat/completions"),
+    "https://api.example.test/v1/chat/completions"
+  );
+  assert.equal(
+    resolveCompletionsEndpoint("https://api.example.test"),
+    "https://api.example.test/v1/chat/completions"
+  );
+});
+
+test("AI endpoint inference probe requires actual response text", () => {
+  assert.equal(completionHasText({ choices: [{ message: { content: "OK" } }] }), true);
+  assert.equal(completionHasText({ choices: [{ message: { content: [{ text: "OK" }] } }] }), true);
+  assert.equal(completionHasText({ choices: [{ message: { content: "" } }] }), false);
+  assert.equal(completionHasText({ choices: [] }), false);
+  assert.equal(completionHasText({ error: { message: "model unavailable" } }), false);
 });

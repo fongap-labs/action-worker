@@ -137,9 +137,41 @@ test("PR review comment says AI review is queued only while it is pending", () =
     "success",
     "https://example.test/run",
     { review_required: true, review_agent: "code" },
-    { comments: [] },
+    { status: "complete", manifest: { terminal_state: "complete" }, comments: [] },
     true
   );
   assert.match(finished, /AI Review found no issues\./);
   assert.doesNotMatch(finished, /queued/);
+});
+
+test("PR review never treats a failed or skipped OCR result as zero findings", () => {
+  const plan = { review_required: true, review_agent: "code", review_model: "Audit-Code" };
+  for (const state of ["failed", "skipped", "pending"]) {
+    const body = buildReview(
+      "success",
+      "https://example.test/review-run",
+      plan,
+      { status: state, manifest: { terminal_state: state }, comments: [] },
+      false,
+      "",
+      true
+    );
+    assert.match(body, /Gate: \*\*PASS\*\*/);
+    assert.match(body, /AI Review: \*\*FAILED or incomplete\*\*/);
+    assert.doesNotMatch(body, /AI Review found no issues/);
+  }
+});
+
+test("PR review publishes a successful zero-finding assessment explicitly", () => {
+  const body = buildReview(
+    "success",
+    "https://example.test/review-run",
+    { review_required: true, review_model: "Audit-Code" },
+    { status: "complete", manifest: { terminal_state: "complete" }, comments: [] },
+    false,
+    "",
+    true
+  );
+  assert.match(body, /AI Review: \*\*COMPLETE\*\*/);
+  assert.match(body, /Findings: 0/);
 });
