@@ -187,8 +187,9 @@ jobs:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           CI_EVIDENCE_PATH: /tmp/ci-evidence.json
-        run: node scripts/wait-ci-evidence.ts "$REPOSITORY" "$HEAD_SHA" "$GITHUB_WORKSPACE/policies/execution.json"
+        run: node scripts/wait-ci-evidence.ts "$REPOSITORY" "$HEAD_SHA" "$GITHUB_WORKSPACE/policies/execution.json" "$PR_NUMBER"
 
       - name: Publish explicit no-CI evidence
         if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required != 'true'
