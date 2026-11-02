@@ -92,7 +92,7 @@ test("product-scoped changelog entries survive packaging without consuming share
   );
   assert.throws(() => parseReleaseBuildManifest({ ...build, changelog_entries: [] }), /invalid/);
   assert.throws(
-    () => parseReleaseBuildManifest({ ...build, changelog_entries: ["修复: 错误。\\n伪造"] }),
+    () => parseReleaseBuildManifest({ ...build, changelog_entries: ["修复: 错误。\n伪造"] }),
     /invalid/
   );
 });
