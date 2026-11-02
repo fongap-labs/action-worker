@@ -10,10 +10,10 @@ permissions:
 
 concurrency:
   group: pr-governance-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}
-  # The latest dispatch supersedes older work for this PR. A cancelled run may never
-  # report success: the terminal gate and unfinished-run resolver fail closed.
-  # Otherwise an obsolete head can block the latest head for the entire CI wait timeout.
-  cancel-in-progress: true
+  # Never cancel an in-flight governance run: its successful status must remain attributable
+  # to a completed successful control run for Main Write Guard provenance.
+  # Duplicate intake/bridge events may queue; closing an unmerged PR uses cancel-pr-work.yml.
+  cancel-in-progress: false
 
 jobs:
   govern:
@@ -187,8 +187,9 @@ jobs:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           CI_EVIDENCE_PATH: /tmp/ci-evidence.json
-        run: node scripts/wait-ci-evidence.ts "$REPOSITORY" "$HEAD_SHA" "$GITHUB_WORKSPACE/policies/execution.json" "${{ steps.payload.outputs.pr_number }}"
+        run: node scripts/wait-ci-evidence.ts "$REPOSITORY" "$HEAD_SHA" "$GITHUB_WORKSPACE/policies/execution.json" "$PR_NUMBER"
 
       - name: Publish explicit no-CI evidence
         if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required != 'true'
