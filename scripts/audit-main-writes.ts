@@ -1,5 +1,10 @@
 import { GithubReader, getJsonString, runGithubCli } from "./github-api.ts";
 import { validateMainWriteProvenance } from "./main-write-guard.ts";
+import {
+  assertNoOpenMainWriteIncidents,
+  incidentTitle,
+  shouldCreateIncident,
+} from "./main-write-incidents.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
@@ -63,6 +68,7 @@ export async function auditRepositoryMain(
     mainSha,
     isCentralStatusRequired
   );
+  await assertNoOpenMainWriteIncidents(reader, repository);
   return { main_sha: mainSha, pr_number: provenance.pr_number };
 }
 
@@ -125,6 +131,7 @@ async function main(): Promise<void> {
         mainSha,
         repository !== controlRepository
       );
+      await assertNoOpenMainWriteIncidents(reader, repository);
       await publishGuardStatus(
         repository,
         mainSha,
@@ -142,6 +149,31 @@ async function main(): Promise<void> {
     } catch (error) {
       const detail =
         error instanceof Error ? error.message.replace(/^::error::/, "") : String(error);
+      // Record immutable evidence privately. A later clean merge must not silently close it.
+      if (shaPattern.test(mainSha) && !detail.startsWith("Unresolved main write incident(s)")) {
+        try {
+          if (await shouldCreateIncident(reader, repository, mainSha)) {
+            const summary = detail.slice(0, 700);
+            await runGithubCli(
+              [
+                "api",
+                "--method",
+                "POST",
+                `repos/${repository}/issues`,
+                "-f",
+                `title=${incidentTitle(mainSha)}`,
+                "-f",
+                `body=Main Write Audit rejected ${repository}@${mainSha}.\\n\\nReason: ${summary}\\n\\nRun: ${runUrl}\\n\\nKeep this issue open until a trusted remediation PR is verified and a maintainer accepts the historical incident. A newer successful merge does not retroactively approve this write.`,
+              ],
+              token
+            );
+          }
+        } catch (reportError) {
+          console.error(
+            `::error::Could not record main write incident in ${repository}: ${reportError instanceof Error ? reportError.message : String(reportError)}`
+          );
+        }
+      }
       if (shaPattern.test(mainSha)) {
         try {
           await publishGuardStatus(
