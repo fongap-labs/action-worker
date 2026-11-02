@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { GithubReader } from "../scripts/github-api.ts";
 import {
-  mainWriteEvidenceError,
   MainWriteVerificationPendingError,
+  mainWriteEvidenceError,
   validateMainWriteProvenance,
 } from "../scripts/main-write-guard.ts";
 
