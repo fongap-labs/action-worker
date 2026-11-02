@@ -148,7 +148,7 @@ async function main(): Promise<void> {
   }
 
   const [repository = "", headSha = "", policyPath = "", prNumber = ""] = args;
-  if (!/^[1-9]\\d*$/.test(prNumber)) {
+  if (!/^[1-9][0-9]*$/.test(prNumber)) {
     throw new CliError("::error::Invalid CI pull request number.", 65);
   }
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
