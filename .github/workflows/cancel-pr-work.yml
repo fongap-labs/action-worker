@@ -14,6 +14,7 @@ jobs:
     outputs:
       repository: ${{ steps.payload.outputs.repository }}
       pr_number: ${{ steps.payload.outputs.pr_number }}
+      head_sha: ${{ steps.closed.outputs.head_sha }}
       merged: ${{ steps.closed.outputs.merged }}
 
     steps:
@@ -51,6 +52,7 @@ jobs:
             exit 65
           }
           echo "merged=$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.merged')" >> "$GITHUB_OUTPUT"
+          echo "head_sha=$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')" >> "$GITHUB_OUTPUT"
 
   # A merged pull request keeps its governance run: the Main Write Guard proves the main write
   # from the PR Governance status on the merged head, so cancelling the run on merge left that
@@ -63,7 +65,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 1
     concurrency:
-      group: pr-governance-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}
+      group: pr-governance-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}-${{ needs.validate.outputs.head_sha }}
       cancel-in-progress: true
     steps:
       - env:
