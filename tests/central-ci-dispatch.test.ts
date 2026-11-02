@@ -102,10 +102,7 @@ test("CI follow-ups are dispatched independently when Windows is skipped", () =>
 });
 
 test("a pull request CI that fails in prepare still publishes a CI Evidence verdict", () => {
-  const job = workflow.slice(
-    workflow.indexOf("  prepare-failure:"),
-    workflow.length
-  );
+  const job = workflow.slice(workflow.indexOf("  prepare-failure:"), workflow.length);
   assert.match(
     job,
     /if: always\(\) && needs\.prepare\.result == 'failure' && github\.event\.action == 'run-central-ci'/
