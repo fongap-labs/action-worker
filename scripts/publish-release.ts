@@ -19,6 +19,7 @@ import {
   runGithubCli,
 } from "./github-api.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
+import { publishNpmTarball } from "./npm-publish.ts";
 import {
   appendLines,
   CliError,
@@ -672,20 +673,8 @@ async function main(): Promise<void> {
     let npmPublishStatus = "skipped";
     if (npmToken && tgzAsset) {
       const tgzPath = join(verifyDir, tgzAsset.name);
-      const isBeta = manifest.version.includes("-beta.");
-      const publishArgs = ["publish", tgzPath, "--access", "public"];
-      if (isBeta) {
-        publishArgs.push("--tag", "beta");
-      }
       try {
-        await runCommand("npm", publishArgs, {
-          env: {
-            ...process.env,
-            NODE_AUTH_TOKEN: npmToken,
-            npm_config_registry: "https://registry.npmjs.org/",
-            npm_config__authToken: npmToken,
-          },
-        });
+        await publishNpmTarball(tgzPath, workDir, npmToken, manifest.version);
         npmPublishStatus = `published (${tgzAsset.name})`;
       } catch (err) {
         console.warn(
