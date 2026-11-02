@@ -69,12 +69,31 @@ export async function checkAuditCodeAccess(endpoint: string, token: string): Pro
   }
 }
 
+export function reportReviewVariableError(
+  error: unknown,
+  repository: string,
+  operation: "read" | "update"
+): never {
+  if (error instanceof CliError && /(?:HTTP|status)\\s+403\\b/i.test(error.message)) {
+    throw new CliError(
+      `::error::Cannot ${operation} GitHub Actions variable ${variableName} in ${repository} (HTTP 403). Check AW_ADMIN_TOKEN repository access, Variables: Read and write permission, and organization approval.`,
+      65
+    );
+  }
+  throw error;
+}
+
 async function getVariable(repository: string, token: string): Promise<string> {
-  const response = await runText(
-    "gh",
-    ["api", `repos/${repository}/actions/variables/${variableName}`],
-    { env: { ...process.env, GH_TOKEN: token }, timeoutMs: 30_000 }
-  );
+  let response: string;
+  try {
+    response = await runText(
+      "gh",
+      ["api", `repos/${repository}/actions/variables/${variableName}`],
+      { env: { ...process.env, GH_TOKEN: token }, timeoutMs: 30_000 }
+    );
+  } catch (error) {
+    reportReviewVariableError(error, repository, "read");
+  }
   const value = JSON.parse(response) as unknown;
   if (!isJsonRecord(value) || typeof value.value !== "string") {
     throw new CliError("::error::AI agent variable response is invalid.", 65);
@@ -97,22 +116,26 @@ async function main(): Promise<void> {
     console.log("AI Review already uses Audit-Code.");
     return;
   }
-  await runText(
-    "gh",
-    [
-      "api",
-      "--method",
-      "PATCH",
-      `repos/${repository}/actions/variables/${variableName}`,
-      "--input",
-      "-",
-    ],
-    {
-      env: { ...process.env, GH_TOKEN: token },
-      input: JSON.stringify({ name: variableName, value: next }),
-      timeoutMs: 30_000,
-    }
-  );
+  try {
+    await runText(
+      "gh",
+      [
+        "api",
+        "--method",
+        "PATCH",
+        `repos/${repository}/actions/variables/${variableName}`,
+        "--input",
+        "-",
+      ],
+      {
+        env: { ...process.env, GH_TOKEN: token },
+        input: JSON.stringify({ name: variableName, value: next }),
+        timeoutMs: 30_000,
+      }
+    );
+  } catch (error) {
+    reportReviewVariableError(error, repository, "update");
+  }
   const saved = await getVariable(repository, token);
   if (JSON.stringify(JSON.parse(saved)) !== next) {
     throw new CliError("::error::AI Review model variable did not match source policy.", 65);
