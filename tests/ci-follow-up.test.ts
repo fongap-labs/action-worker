@@ -2,10 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { parse } from "yaml";
-import {
-  matchesFollowUpEvidence,
-  parseFollowUpRequest,
-} from "../scripts/verify-ci-follow-up.ts";
+import { matchesFollowUpEvidence, parseFollowUpRequest } from "../scripts/verify-ci-follow-up.ts";
 
 const repository = "fongap-labs/dsh-plugin";
 const sha = "a".repeat(40);
@@ -32,11 +29,13 @@ test("CI follow-ups require a complete revision-bound dispatch payload", () => {
 
 test("CI follow-ups cannot borrow another run's CI Evidence", () => {
   const status = {
-    statuses: [{
-      context: "CI Evidence",
-      state: "success",
-      target_url: `https://github.com/${controlRepository}/actions/runs/${runId}`,
-    }],
+    statuses: [
+      {
+        context: "CI Evidence",
+        state: "success",
+        target_url: `https://github.com/${controlRepository}/actions/runs/${runId}`,
+      },
+    ],
   };
   assert.equal(matchesFollowUpEvidence(status, controlRepository, runId), true);
   assert.equal(matchesFollowUpEvidence(status, controlRepository, runId + 1), false);
@@ -50,7 +49,14 @@ test("CI follow-ups cannot borrow another run's CI Evidence", () => {
   );
   assert.equal(
     matchesFollowUpEvidence(
-      { statuses: [{ ...status.statuses[0], target_url: "https://github.com/other/repo/actions/runs/41461735628" }] },
+      {
+        statuses: [
+          {
+            ...status.statuses[0],
+            target_url: "https://github.com/other/repo/actions/runs/41461735628",
+          },
+        ],
+      },
       controlRepository,
       runId
     ),
