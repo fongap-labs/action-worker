@@ -128,13 +128,27 @@ test("release build script must be a PowerShell or Node script inside the reposi
 });
 
 test("portable Node builds may opt out of the Rust toolchain without affecting legacy builds", () => {
-  const linux = { ...manifest.builds[0], id: "portable", runner_profile: "linux-standard",
-    target: "portable", script: "scripts/build-release.mjs", setup_rust: false };
-  assert.equal(parseReleaseBuildManifest({ ...manifest, builds: [linux] }).builds[0]?.setup_rust, false);
+  const linux = {
+    ...manifest.builds[0],
+    id: "portable",
+    runner_profile: "linux-standard",
+    target: "portable",
+    script: "scripts/build-release.mjs",
+    setup_rust: false,
+  };
+  assert.equal(
+    parseReleaseBuildManifest({ ...manifest, builds: [linux] }).builds[0]?.setup_rust,
+    false
+  );
   assert.equal(parseReleaseBuildManifest(manifest).builds[0]?.setup_rust, undefined);
   for (const setup_rust of ["false", 0, null]) {
-    assert.throws(() => parseReleaseBuildManifest({
-      ...manifest, builds: [{ ...linux, setup_rust }],
-    }), /matrix entry is invalid/);
+    assert.throws(
+      () =>
+        parseReleaseBuildManifest({
+          ...manifest,
+          builds: [{ ...linux, setup_rust }],
+        }),
+      /matrix entry is invalid/
+    );
   }
 });
