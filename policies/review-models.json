@@ -1,31 +1,4 @@
 {
   "schema_version": 1,
-  "models": [
-    "Audit-Pro",
-    "Audit-Max"
-  ],
-  "review": {
-    "enabled": true,
-    "model": "Audit-Pro",
-    "routes": {
-      "code": {
-        "model": "Audit-Pro"
-      },
-      "workflow": {
-        "model": "Audit-Pro"
-      },
-      "release": {
-        "model": "Audit-Max"
-      },
-      "security": {
-        "model": "Audit-Max"
-      },
-      "architecture": {
-        "model": "Audit-Max"
-      },
-      "deep": {
-        "model": "Audit-Max"
-      }
-    }
-  }
+  "model": "Audit-Code"
 }
