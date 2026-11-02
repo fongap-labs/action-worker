@@ -777,7 +777,25 @@ def test_final_uses_local_source_analysis_when_final_synthesis_fails():
     assert result["cards"][1]["bullets"]
     assert result["cards"][2]["bullets"]
     assert result["article"]["body_markdown"]
-    assert "504 upstream timeout" in result["editor_note"]
+    assert "fallback_reason=HTTP_504" in result["editor_note"]
+    assert "upstream timeout" not in result["editor_note"]
+
+
+def test_final_fallback_never_publishes_upstream_request_url():
+    builder = _builder__market_brief_resilient()
+    builder.date = "2026-09-14"
+
+    def failing_llm(system, user, max_tokens):
+        raise RuntimeError("403 at https://api.example.test/private?token=must-not-publish")
+
+    builder._llm = failing_llm
+    result = builder._final(_analyses())
+
+    assert result["status"] == "publish"
+    assert result["fallback"]["used"] is True
+    assert "fallback_reason=HTTP_403" in result["editor_note"]
+    assert "api.example.test" not in result["editor_note"]
+    assert "must-not-publish" not in result["editor_note"]
 
 def test_stale_dated_topics_are_removed_before_local_fallback():
     analyses = _analyses() + [{
