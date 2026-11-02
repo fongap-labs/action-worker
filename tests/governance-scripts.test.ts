@@ -682,6 +682,8 @@ test("PR review summary keeps AI findings advisory", () => {
       review_model: "Code-Ultra",
     },
     {
+      status: "complete",
+      manifest: { terminal_state: "complete" },
       comments: [
         {
           severity: "high",

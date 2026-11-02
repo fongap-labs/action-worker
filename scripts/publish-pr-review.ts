@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { getJsonArray, getJsonString, isJsonRecord, runGithubCli } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
+import { isReviewComplete } from "./validate-review-result.ts";
 
 const marker = "<!-- action-worker-pr-governance -->";
 
@@ -18,7 +19,8 @@ export function buildReview(
   planValue: unknown,
   resultValue: unknown,
   isReviewQueued = false,
-  deployGapHint = ""
+  deployGapHint = "",
+  isReviewFinished = false
 ): string {
   const gate =
     status === "success"
@@ -48,16 +50,14 @@ export function buildReview(
       lines.push(`- Model: \`${model}\``);
     }
   }
-  if (
-    isJsonRecord(resultValue) &&
-    (resultValue.comments === undefined || Array.isArray(resultValue.comments))
-  ) {
+  if (isReviewComplete(resultValue) && isJsonRecord(resultValue)) {
     const comments = Array.isArray(resultValue.comments)
       ? resultValue.comments.filter(isJsonRecord)
       : [];
     const countSeverity = (severity: string): number =>
       comments.filter((item) => getJsonString(item, "severity").toLowerCase() === severity).length;
     lines.push(
+      `- AI Review: **COMPLETE**`,
       `- Findings: ${comments.length} (critical ${countSeverity("critical")} · high ${countSeverity("high")} · medium ${countSeverity("medium")} · low ${countSeverity("low")})`
     );
     lines.push("");
@@ -91,9 +91,9 @@ export function buildReview(
     lines.push(
       "- AI Review: queued; this comment is updated when it finishes and it does not affect the merge gate."
     );
-  } else if (isJsonRecord(planValue) && planValue.review_required === true) {
+  } else if (isReviewFinished || (isJsonRecord(planValue) && planValue.review_required === true)) {
     lines.push(
-      "- AI Review: unavailable or incomplete; advisory result did not affect the merge gate."
+      "- AI Review: **FAILED or incomplete**; no successful AI assessment is available. Check the linked review run. The merge gate is unaffected."
     );
   }
   if (deployGapHint?.trim()) {
@@ -121,7 +121,7 @@ async function main(): Promise<void> {
     reviewState = "",
     deployGapHint = "",
   ] = args;
-  if (reviewState !== "" && reviewState !== "queued") {
+  if (!["", "queued", "finished"].includes(reviewState)) {
     throw new CliError(`::error::Invalid AI Review state: ${reviewState}.`, 64);
   }
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
@@ -143,7 +143,8 @@ async function main(): Promise<void> {
     await optionalJson(planPath),
     await optionalJson(resultPath),
     reviewState === "queued",
-    deployGapHint
+    deployGapHint,
+    reviewState === "finished"
   );
   const commentsText = await runGithubCli(
     [
@@ -163,8 +164,9 @@ async function main(): Promise<void> {
   );
   const commentId =
     isJsonRecord(current) && typeof current.id === "number" ? String(current.id) : "";
-  // A pass posts nothing new; an existing comment is still updated so it never shows a stale failure.
-  if (!commentId && status === "success") {
+  // A passing gate with no requested AI review needs no comment. A queued or finished review
+  // always publishes its outcome, including failure and zero findings.
+  if (!commentId && status === "success" && reviewState === "") {
     console.log(`PR governance passed; no comment needed: ${repository}#${prNumber}`);
     return;
   }
