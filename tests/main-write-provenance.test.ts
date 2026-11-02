@@ -33,12 +33,14 @@ function fixture(
       if (path === `repos/${repository}/pulls/44`) return hintedPr;
       if (path === `repos/${repository}/commits/${headSha}/check-runs?filter=latest&per_page=100`) {
         return {
-          check_runs: [{
-            name: "validate-merge",
-            status: "completed",
-            conclusion: "success",
-            app: { slug: "github-actions" },
-          }],
+          check_runs: [
+            {
+              name: "validate-merge",
+              status: "completed",
+              conclusion: "success",
+              app: { slug: "github-actions" },
+            },
+          ],
         };
       }
       throw new Error(`Unexpected API path: ${path}`);
