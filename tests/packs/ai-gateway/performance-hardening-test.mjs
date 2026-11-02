@@ -349,7 +349,7 @@ test('usage events inside the five-minute flush window share one D1 batch', asyn
     Date.now = () => t0;
     await persistTokenUsage(env, { prompt_tokens: 1, completion_tokens: 1 }, t0, 'm');
     const afterFirst = d1._writes.length;
-    assert.equal(afterFirst, 0, 'the first event is buffered to avoid a hot-row write on every burst');
+    assert.ok(afterFirst > 0, 'the first delivered event is persisted for short-lived isolates');
     for (let i = 0; i < 20; i++) await persistTokenUsage(env, { prompt_tokens: 1, completion_tokens: 1 }, t0 + i, 'm');
     assert.equal(d1._writes.length, afterFirst, 'later events inside the window stay buffered');
     Date.now = () => t0 + 5 * 60_000;

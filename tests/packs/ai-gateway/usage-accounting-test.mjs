@@ -373,10 +373,15 @@ try {
   await test('model sampling keeps provider-reported global token totals unsampled', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1, AIG_TOKEN_D1_SAMPLE_PCT: '0' };
-    await persistNow(env, { prompt_tokens: 11, completion_tokens: 4, total_tokens: 15 }, Date.now(), 'rare-model');
+    const now = Date.now();
+    await persistNow(env, { prompt_tokens: 11, completion_tokens: 4, total_tokens: 15 }, now, 'rare-model', 250);
     assert.ok(d1._writes.some((write) => write.sql.includes('token_usage_hourly')), 'global hourly aggregate is persisted');
     assert.ok(d1._writes.some((write) => write.sql.includes('token_usage_totals')), 'global lifetime aggregate is persisted');
-    assert.ok(!d1._writes.some((write) => write.sql.includes('token_usage_model_hourly')), 'zero sampling skips model detail only');
+    const model = d1._modelRows.get(`${normalizeHour(now)}|rare-model`);
+    assert.equal(model.requests, 1, 'success evidence is retained');
+    assert.equal(model.successful_ttft_count, 1, 'TTFT evidence is retained');
+    assert.equal(model.upstreamTotal, 0, 'zero sampling excludes model token detail');
+    assert.equal(model.upstreamAttempts, 0, 'zero sampling excludes model physical-attempt detail');
     const summary = await queryTokenSummary(env);
     assert.equal(summary?.available, true);
     assert.equal(summary.cumulative.total, 15);
@@ -388,11 +393,13 @@ try {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
     await persistTokenUsage(env, { prompt_tokens: 7, completion_tokens: 2 }, Date.now(), 'model-a');
+    await persistTokenUsage(env, { prompt_tokens: 3, completion_tokens: 1 }, Date.now(), 'model-a');
+    const writesBeforeRead = d1._writes.length;
     const summary = await queryTokenSummary(env);
     assert.equal(summary?.available, true);
-    assert.equal(d1._writes.length, 0, 'a read does not add D1 row writes');
+    assert.equal(d1._writes.length, writesBeforeRead, 'a read does not add D1 row writes');
     await flushUsageBuffer();
-    assert.ok(d1._writes.length > 0);
+    assert.ok(d1._writes.length > writesBeforeRead);
   });
 
   await test('dashboard labels sampled model detail and does not extrapolate it', async () => {
@@ -403,9 +410,9 @@ try {
     await persistNow(env, { prompt_tokens: 10, completion_tokens: 2 }, Date.now(), 'model-a');
     const html = await pageText(anonRequest(), env);
     assert.ok(html.includes('模型维度数据按 1% 抽样，未外推。'));
-    assert.ok(html.includes('D1 已持久化 1 / 1 次上游 usage 报告'));
-    assert.ok(html.includes('下一次 usage 写入时提交'));
-    assert.ok(html.includes('Worker 无法读取账户级 D1 配额'));
+    assert.ok(!html.includes('D1 已持久化'));
+    assert.ok(!html.includes('下一次 usage 写入时提交'));
+    assert.ok(!html.includes('Worker 无法读取账户级 D1 配额'));
   });
 
   await test('dashboard distinguishes no persisted traffic from incomplete upstream usage coverage', async () => {
@@ -417,9 +424,10 @@ try {
 
     const partial = await seededEnv([[{ prompt_tokens: 10, completion_tokens: 2 }], [null]]);
     const partialHtml = await pageText(anonRequest(), partial);
-    assert.ok(partialHtml.includes('D1 已持久化 1 / 2 次上游 usage 报告'));
-    assert.ok(partialHtml.includes('覆盖率 50.0%'));
-    assert.ok(partialHtml.includes('未报告的 Token 不估算'));
+    assert.ok(partialHtml.includes('>12<'));
+    assert.ok(!partialHtml.includes('D1 已持久化'));
+    const summary = await loadUpstreamSummary(partial);
+    assert.equal(summary.coverage, 0.5, 'coverage remains available to other consumers');
   });
 
   await test('token composition uses cumulative input, output, and reported cache-read totals without an extra heading', async () => {
