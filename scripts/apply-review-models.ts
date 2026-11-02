@@ -1,4 +1,4 @@
-import { parseAiAgentConfig } from "./ai-agent-config.ts";
+import { type AiAgentConfigEntry, parseAiAgentConfig } from "./ai-agent-config.ts";
 import { isJsonRecord } from "./github-api.ts";
 import { resolveModelsEndpoint } from "./validate-ai-endpoint-access.ts";
 import { CliError, handleError, isMain, readJson, runText } from "./runtime-command.ts";
@@ -23,7 +23,7 @@ export function parseReviewModelPolicy(value: unknown): ReviewModelPolicy {
 export function applyReviewModels(rawConfig: string, policyValue: unknown): string {
   const config = parseAiAgentConfig(rawConfig);
   const policy = parseReviewModelPolicy(policyValue);
-  const agents = {
+  const agents: Record<string, AiAgentConfigEntry> = {
     ...config.agents,
     review: { enabled: true, model: policy.model, routes: {} },
   };
