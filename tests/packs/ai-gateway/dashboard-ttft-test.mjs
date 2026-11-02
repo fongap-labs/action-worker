@@ -102,7 +102,9 @@ test('TTFT and success evidence are persisted and rendered when token detail sam
   assert.match(html, /≤1s/);
   assert.match(html, />20<\/div>/);
   const usageHtml = await usageSection(env, now);
-  assert.doesNotMatch(usageHtml, /D1 已持久化|统计批次在约|Worker 无法读取账户级/);
+  assert.ok(!usageHtml.includes('D1 已持久化'));
+  assert.ok(!usageHtml.includes('统计批次在约'));
+  assert.ok(!usageHtml.includes('Worker 无法读取账户级'));
   db.close();
 });
 
@@ -181,6 +183,6 @@ test('a TTFT query failure is distinguished from an empty result', async () => {
   const stats = await getCachedDashboardStats(env, Date.now());
   assert.equal(stats.ttft, null);
   const html = renderModels({ models: [{ id: 'Air', status: 'no_record' }] }, stats.ttft).html;
-  assert.match(html, /TTFT 统计暂不可用/);
-  assert.doesNotMatch(html, /暂无 TTFT 样本/);
+  assert.ok(html.includes('TTFT 统计暂不可用'));
+  assert.ok(!html.includes('暂无 TTFT 样本'));
 });
