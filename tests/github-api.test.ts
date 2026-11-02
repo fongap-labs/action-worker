@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  classifyGithubFailure,
+  GithubHttpError,
   GithubReader,
   isGithubMissing,
   isRetryableStatus,
@@ -66,4 +68,108 @@ test("GitHub readers retry transient HTTP errors", async () => {
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("GitHub 403 distinguishes primary quota exhaustion from missing permissions", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls: string[] = [];
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    return Response.json(
+      { message: "API rate limit exceeded for user ID 12345." },
+      {
+        status: 403,
+        headers: {
+          "x-ratelimit-remaining": "0",
+          "x-ratelimit-reset": "4102444800",
+          "x-github-request-id": "TRACE-123",
+        },
+      }
+    );
+  };
+  try {
+    const reader = new GithubReader("https://api.github.test", "test-placeholder", {
+      attemptLimit: 3,
+      retryDelayMs: 0,
+      timeoutMs: 1000,
+    });
+    await assert.rejects(
+      () => reader.get("repos/example/project?token=not-a-real-token"),
+      (error: unknown) => {
+        assert.ok(error instanceof GithubHttpError);
+        assert.equal(error.kind, "primary-rate-limit");
+        assert.match(error.message, /HTTP 403/);
+        assert.match(error.message, /repos\/example\/project/);
+        assert.match(error.message, /reset at/);
+        assert.match(error.message, /TRACE-123/);
+        assert.ok(!error.message.includes("not-a-real-token"));
+        return true;
+      }
+    );
+    assert.equal(calls.length, 1, "an exhausted primary quota must not be retried immediately");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("GitHub 403 permission failure is not treated as a transient rate limit", async () => {
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls++;
+    return Response.json(
+      { message: "Resource not accessible by personal access token" },
+      {
+        status: 403,
+      }
+    );
+  };
+  try {
+    const reader = new GithubReader("https://api.github.test", "test-placeholder", {
+      attemptLimit: 4,
+      retryDelayMs: 0,
+      timeoutMs: 1000,
+    });
+    await assert.rejects(
+      () => reader.get("repos/example/project"),
+      (error: unknown) => {
+        assert.ok(error instanceof GithubHttpError);
+        assert.equal(error.kind, "permission");
+        assert.match(error.message, /permissions and SSO/);
+        return true;
+      }
+    );
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("secondary limits remain retryable when GitHub returns a retry-after header", async () => {
+  const originalFetch = globalThis.fetch;
+  let attempts = 0;
+  globalThis.fetch = async () => {
+    attempts++;
+    return attempts === 1
+      ? Response.json(
+          { message: "You have exceeded a secondary rate limit." },
+          {
+            status: 403,
+            headers: { "retry-after": "0" },
+          }
+        )
+      : Response.json({ ok: true });
+  };
+  try {
+    const reader = new GithubReader("https://api.github.test", "test-placeholder", {
+      attemptLimit: 2,
+      retryDelayMs: 0,
+      timeoutMs: 1000,
+    });
+    assert.deepEqual(await reader.get("repos/example/project"), { ok: true });
+    assert.equal(attempts, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.equal(classifyGithubFailure(403, new Headers(), "Forbidden"), "permission");
 });
