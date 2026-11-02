@@ -225,7 +225,8 @@ async function waitForCompletedRun(
     if (status === "completed") {
       return runJson;
     }
-    await new Promise((resolve) => setTimeout(resolve, 2_000));
+    // Avoid hammering the shared control-token quota while waiting for artifacts.
+    await new Promise((resolve) => setTimeout(resolve, 5_000));
   }
   throw new CliError(
     `::error::Artifact run did not complete before release validation: repository=${repository} run=${runId}.`,
