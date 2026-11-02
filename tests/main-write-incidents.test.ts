@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { GithubHttpError } from "../scripts/github-api.ts";
 import {
   assertNoOpenMainWriteIncidents,
   findIncidents,
+  IncidentAccessError,
   incidentTitle,
   shouldCreateIncident,
 } from "../scripts/main-write-incidents.ts";
@@ -82,4 +84,40 @@ test("repeated scans cannot duplicate an already recorded commit incident", asyn
     sha
   );
   assert.equal(shouldCreate, false);
+});
+
+test("a private Issues permission failure blocks audit with an actionable credential diagnostic", async () => {
+  for (const status of [403, 404]) {
+    await assert.rejects(
+      assertNoOpenMainWriteIncidents(
+        {
+          async get(): Promise<unknown> {
+            throw new GithubHttpError(status);
+          },
+        },
+        "fongap-labs/internal-vault"
+      ),
+      (error: unknown) =>
+        error instanceof IncidentAccessError &&
+        error.message.includes("fongap-labs/internal-vault") &&
+        error.message.includes(`HTTP ${status}`) &&
+        error.message.includes("AW_CONTROL_TOKEN") &&
+        error.message.includes("Issues: read and write")
+    );
+  }
+});
+
+test("transient incident-read errors remain distinguishable from missing permission", async () => {
+  await assert.rejects(
+    findIncidents(
+      {
+        async get(): Promise<unknown> {
+          throw new GithubHttpError(503);
+        },
+      },
+      "fongap-labs/internal-vault",
+      "open"
+    ),
+    (error: unknown) => error instanceof GithubHttpError && error.status === 503
+  );
 });

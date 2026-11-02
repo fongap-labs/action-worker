@@ -1,4 +1,4 @@
-import { getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
+import { GithubHttpError, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
 type Reader = { get(path: string): Promise<unknown> };
@@ -8,6 +8,15 @@ const prefix = "main write incident:";
 const trustedAssociations = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
+
+export class IncidentAccessError extends CliError {
+  constructor(repository: string, status: number) {
+    super(
+      `::error::Cannot inspect main write incidents in ${repository}: GitHub API HTTP ${status}. Check that AW_CONTROL_TOKEN has access to this repository and Issues: read and write. The main write audit cannot pass without reading unresolved incidents.`,
+      77
+    );
+  }
+}
 
 function isIncident(value: unknown): value is Issue {
   return (
@@ -28,9 +37,17 @@ export async function findIncidents(
   }
   const incidents: Issue[] = [];
   for (let page = 1; page <= 10; page += 1) {
-    const response = await reader.get(
-      `repos/${repository}/issues?state=${state}&per_page=100&page=${page}`
-    );
+    let response: unknown;
+    try {
+      response = await reader.get(
+        `repos/${repository}/issues?state=${state}&per_page=100&page=${page}`
+      );
+    } catch (error) {
+      if (error instanceof GithubHttpError && (error.status === 403 || error.status === 404)) {
+        throw new IncidentAccessError(repository, error.status);
+      }
+      throw error;
+    }
     if (!Array.isArray(response)) {
       throw new CliError("::error::Cannot verify main write incidents.", 65);
     }
