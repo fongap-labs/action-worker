@@ -38,6 +38,7 @@ const classes = {
   handler: [
     "cancel-pr-work.yml",
     "central-ci-dispatch.yml",
+    "ci-follow-up.yml",
     "dependency-repair-dispatch.yml",
     "handle-pr-dispatch.yml",
     "handle-pr-review.yml",

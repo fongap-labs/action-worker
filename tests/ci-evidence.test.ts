@@ -345,7 +345,9 @@ test("every control workflow that attests a main write is trusted", () => {
     })
     .map((name) => `${workflowDir}/${name}`)
     .sort();
-  assert.deepEqual(publishers, [...mainWriteGuardWorkflowPaths].sort());
+  // Previously completed CI runs continue to attest main writes after follow-ups move away.
+  const legacy = ".github/workflows/central-ci-dispatch.yml";
+  assert.deepEqual([...publishers, legacy].sort(), [...mainWriteGuardWorkflowPaths].sort());
 });
 
 test("a main write attested by a release, intake or guard run is trusted", async () => {

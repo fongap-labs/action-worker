@@ -921,8 +921,8 @@ test("security scanning is source-owned, centrally executed, and private-safe", 
     "AW_CONTROL_TOKEN",
   ]);
 
-  const centralCi = await text(".github/workflows/central-ci-dispatch.yml");
-  requireText(centralCi, [
+  const followUp = await text(".github/workflows/ci-follow-up.yml");
+  requireText(followUp, [
     "Dispatch central security scan",
     "dispatch-security-scan.ts",
     "AW_CONTROL_REPOSITORY",
@@ -960,26 +960,27 @@ test("central CI deploy dispatch is source-owned and adapter-routed", async () =
 
   const workflow =
     (await text(".github/workflows/central-ci-dispatch.yml")) +
-    (await text(".github/workflows/central-ci-sandbox.yml"));
+    (await text(".github/workflows/central-ci-sandbox.yml")) +
+    (await text(".github/workflows/ci-follow-up.yml"));
   requireText(workflow, [
     "Central CI / Security",
     "validate-security.ts",
     "SECURITY_RESULT",
     '[[ "$SECURITY_RESULT" == "success" ]]',
-    "needs.finalize.result == 'success'",
+    "run-ci-follow-up",
     "Attest deploy source main write",
-    "MAIN_WRITE_AUDIT_REPOSITORY: ${{ needs.prepare.outputs.repository }}",
+    "MAIN_WRITE_AUDIT_REPOSITORY: ${{ github.event.client_payload.repository }}",
     "MAIN_WRITE_AUDIT_RUN_URL",
     "audit-main-writes.ts",
     "Dispatch automatic deploy",
     "dispatch-central-deploy.ts",
     "policies/deploy.json",
     "policies/runner.json",
-    "needs.prepare.outputs.pr_number == '0'",
+    "github.event.client_payload.pr_number == 0",
     // A failed security scan dispatch must not silently skip the main write attestation and the
     // deploy, and an untrusted main write must never be deployed.
-    "if: ${{ !cancelled() && needs.prepare.outputs.pr_number == '0' }}",
-    "if: ${{ !cancelled() && steps.deploy_control.outcome == 'success' }}",
+    "if: ${{ !cancelled() && github.event.client_payload.pr_number == 0 }}",
+    "Verify completed CI evidence and source revision",
     "if: ${{ !cancelled() && steps.attest.outcome == 'success' }}",
     "contents: write",
     "AW_REPOSITORY_POLICY",
@@ -1326,18 +1327,15 @@ test("only PR Governance reports an untrusted head instead of failing", async ()
   assert.doesNotMatch(centralCi, /PR_TRUST_UNTRUSTED/);
 });
 
-test("Central CI follow-ups cannot fail the run that carries CI Evidence", async () => {
+test("CI follow-ups are independent from the run that carries CI Evidence", async () => {
   const workflow = await text(".github/workflows/central-ci-dispatch.yml");
-  const finalize = workflow.slice(
-    workflow.indexOf("  finalize:"),
-    workflow.indexOf("  follow-up:")
-  );
-  const followUp = workflow.slice(workflow.indexOf("  follow-up:"));
-  assert.match(finalize, /context=CI Evidence/);
-  assert.doesNotMatch(finalize, /dispatch-security-scan|dispatch-central-deploy|audit-main-writes/);
+  const followUp = await text(".github/workflows/ci-follow-up.yml");
+  assert.match(workflow, /context=CI Evidence/);
+  assert.match(workflow, /run-ci-follow-up/);
+  assert.doesNotMatch(workflow, /dispatch-security-scan|dispatch-central-deploy|audit-main-writes/);
   requireText(followUp, [
-    "if: always() && needs.finalize.result == 'success'",
-    "continue-on-error: true",
+    "types: [run-ci-follow-up]",
+    "verify-ci-follow-up.ts",
     "dispatch-security-scan.ts",
     "audit-main-writes.ts",
     "dispatch-central-deploy.ts",

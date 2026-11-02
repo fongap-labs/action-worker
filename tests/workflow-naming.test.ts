@@ -32,6 +32,7 @@ const chineseDisplayNames: Record<string, string> = {
   "prune-stale-state.yml": "自动 · 状态清理",
   "update-work-metrics.yml": "自动 · 指标更新",
   "central-ci-dispatch.yml": "自动 · CI 分发",
+  "ci-follow-up.yml": "自动 · CI 后续",
   "central-ci-sandbox.yml": "自动 · CI 沙箱",
   "validate-ci.yml": "自动 · CI 验证",
   "main-write-guard.yml": "自动 · 主分支审计",

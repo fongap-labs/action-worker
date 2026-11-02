@@ -27,7 +27,9 @@ export const prGateWorkflowPaths: readonly string[] = [".github/workflows/handle
 // The control workflows that attest a main write. Every workflow that runs
 // scripts/audit-main-writes.ts publishes the status, so every one of them is trusted.
 export const mainWriteGuardWorkflowPaths: readonly string[] = [
+  // Keep the previous publisher as a trust anchor for historical main-write attestations.
   ".github/workflows/central-ci-dispatch.yml",
+  ".github/workflows/ci-follow-up.yml",
   ".github/workflows/deploy-source-script.yml",
   ".github/workflows/intake.yml",
   ".github/workflows/main-write-guard.yml",

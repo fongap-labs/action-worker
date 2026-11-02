@@ -260,7 +260,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Publish target status
@@ -302,6 +302,24 @@ jobs:
             exit 1
           fi
 
+      - name: Dispatch asynchronous CI follow-ups
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          TARGET_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+          TARGET_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          payload="$(jq -cn \
+            --arg repository "$TARGET_REPOSITORY" \
+            --arg head_sha "$TARGET_HEAD_SHA" \
+            --argjson pr_number "$TARGET_PR_NUMBER" \
+            --argjson ci_run_id "$GITHUB_RUN_ID" \
+            '{event_type:"run-ci-follow-up",client_payload:{repository:$repository,head_sha:$head_sha,pr_number:$pr_number,ci_run_id:$ci_run_id}}')"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input - <<< "$payload"
+
   # A pull request whose CI stops in prepare (for example a CI control change from an untrusted
   # author) never reaches finalize. Without this job the pending CI Evidence written by the
   # dispatcher stays pending and PR Governance waits until its CI timeout.
@@ -342,83 +360,3 @@ jobs:
   # always() is required: without a status function GitHub adds an implicit success(), which also
   # looks at the jobs finalize depends on, so a skipped `windows` job (a target without Windows CI)
   # would skip this job and no security scan, main write attestation or deploy would be dispatched.
-  follow-up:
-    name: Dispatch Central CI Follow-ups
-    needs:
-      - prepare
-      - finalize
-    if: always() && needs.finalize.result == 'success'
-    continue-on-error: true
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout security scan control
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          path: security-control
-          persist-credentials: false
-
-      - name: Setup Node for security scan control
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-
-      - name: Dispatch central security scan
-        env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_INGRESS_TOKEN: ${{ github.token }}
-          AW_CONTROL_REPOSITORY: ${{ github.repository }}
-          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
-          TARGET_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
-          TARGET_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
-        run: |
-          node security-control/scripts/dispatch-security-scan.ts \
-            "$TARGET_REPOSITORY" \
-            "$TARGET_HEAD_SHA" \
-            "$TARGET_PR_NUMBER"
-
-      # The deploy does not depend on the security scan dispatch above: !cancelled() keeps a failed
-      # scan dispatch from silently skipping the attestation and the deploy. The job still turns red.
-      - name: Checkout deploy control
-        if: ${{ !cancelled() && needs.prepare.outputs.pr_number == '0' }}
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Setup Node for deploy control
-        id: deploy_control
-        if: ${{ !cancelled() && needs.prepare.outputs.pr_number == '0' }}
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-
-      - name: Attest deploy source main write
-        id: attest
-        if: ${{ !cancelled() && steps.deploy_control.outcome == 'success' }}
-        env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          MAIN_WRITE_AUDIT_REPOSITORY: ${{ needs.prepare.outputs.repository }}
-          MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node scripts/audit-main-writes.ts
-
-      - name: Dispatch automatic deploy
-        if: ${{ !cancelled() && steps.attest.outcome == 'success' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
-          TARGET_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
-          TARGET_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
-        run: |
-          node scripts/dispatch-central-deploy.ts \
-            "$TARGET_REPOSITORY" \
-            "$TARGET_HEAD_SHA" \
-            "$TARGET_PR_NUMBER" \
-            policies/deploy.json \
-            policies/runner.json

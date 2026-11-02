@@ -1,0 +1,81 @@
+name: 自动 · CI 后续
+
+on:
+  repository_dispatch:
+    types: [run-ci-follow-up]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-follow-up-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  follow-up:
+    name: Independent CI follow-ups
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Verify completed CI evidence and source revision
+        id: verified
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          CI_FOLLOW_UP_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
+        run: node scripts/verify-ci-follow-up.ts
+
+      - name: Dispatch central security scan
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_CONTROL_REPOSITORY: ${{ github.repository }}
+          TARGET_REPOSITORY: ${{ github.event.client_payload.repository }}
+          TARGET_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+          TARGET_PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+        run: |
+          node scripts/dispatch-security-scan.ts \
+            "$TARGET_REPOSITORY" \
+            "$TARGET_HEAD_SHA" \
+            "$TARGET_PR_NUMBER"
+
+      - name: Attest deploy source main write
+        id: attest
+        if: ${{ !cancelled() && github.event.client_payload.pr_number == 0 }}
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          MAIN_WRITE_AUDIT_REPOSITORY: ${{ github.event.client_payload.repository }}
+          MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/audit-main-writes.ts
+
+      - name: Dispatch automatic deploy
+        if: ${{ !cancelled() && steps.attest.outcome == 'success' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ github.event.client_payload.repository }}
+          TARGET_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+          TARGET_PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+        run: |
+          node scripts/dispatch-central-deploy.ts \
+            "$TARGET_REPOSITORY" \
+            "$TARGET_HEAD_SHA" \
+            "$TARGET_PR_NUMBER" \
+            policies/deploy.json \
+            policies/runner.json
