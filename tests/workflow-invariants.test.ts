@@ -4,7 +4,13 @@ import { test } from "node:test";
 import { parse } from "yaml";
 
 type Step = { name?: string; uses?: string; with?: Record<string, unknown> };
-type Job = { steps?: Step[]; secrets?: unknown; uses?: string; if?: string; concurrency?: Record<string, unknown> };
+type Job = {
+  steps?: Step[];
+  secrets?: unknown;
+  uses?: string;
+  if?: string;
+  concurrency?: Record<string, unknown>;
+};
 type Workflow = { jobs: Record<string, Job>; concurrency?: Record<string, unknown> };
 
 const workflowDirectory = ".github/workflows";
@@ -31,7 +37,6 @@ function usesWholeSecretsContext(value: unknown): boolean {
 
 const centralSecrets = ["AW_CONTROL_TOKEN", "AW_ADMIN_TOKEN", "AW_DISPATCH_TOKEN"];
 
-
 test("duplicate PR dispatches preserve completed governance provenance", async () => {
   const dispatch = await workflow("handle-pr-dispatch.yml");
   assert.match(String(dispatch.concurrency?.group), /pr-governance-/);
@@ -42,7 +47,7 @@ test("duplicate PR dispatches preserve completed governance provenance", async (
   );
   const cancellation = await workflow("cancel-pr-work.yml");
   assert.equal(
-    cancellation.jobs.governance?.["if"],
+    cancellation.jobs.governance?.if,
     "needs.validate.outputs.merged != 'true'",
     "only unmerged closed PRs may cancel active governance"
   );
