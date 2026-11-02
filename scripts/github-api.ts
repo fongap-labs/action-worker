@@ -78,7 +78,7 @@ export function classifyGithubFailure(status: number, headers: Headers, message:
 
 function rateLimitReset(headers: Headers): number | undefined {
   const raw = headers.get("x-ratelimit-reset");
-  if (raw === null || !/^\\d+$/.test(raw)) return undefined;
+  if (raw === null || !/^\d+$/.test(raw)) return undefined;
   const millis = Number(raw) * 1000;
   return Number.isSafeInteger(millis) ? millis : undefined;
 }
