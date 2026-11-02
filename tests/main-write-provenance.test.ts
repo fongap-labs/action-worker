@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { GithubReader } from "../scripts/github-api.ts";
-import { validateMainWriteProvenance } from "../scripts/main-write-guard.ts";
+import {
+  mainWriteEvidenceError,
+  MainWriteVerificationPendingError,
+  validateMainWriteProvenance,
+} from "../scripts/main-write-guard.ts";
 
 const repository = "fongap-labs/dsh-plugin";
 const mainSha = "a".repeat(40);
@@ -101,4 +105,25 @@ test("ambiguous associations are rejected even if the commit subject includes a 
     validateMainWriteProvenance(reader, repository, mainSha, false),
     /not uniquely attributable/
   );
+});
+
+test("ongoing control runs remain untrusted without creating permanent incident evidence", () => {
+  for (const context of ["PR Governance", "CI Evidence", "validate-merge"] as const) {
+    const pending = mainWriteEvidenceError(context, "run-still-running");
+    assert.ok(pending instanceof MainWriteVerificationPendingError);
+    assert.match(pending.message, /run-still-running/);
+    assert.match(pending.message, new RegExp(context));
+  }
+  for (const reason of [
+    "status-missing",
+    "status-not-success",
+    "run-not-success",
+    "run-outside-window",
+    "run-mismatch",
+    "run-not-found",
+  ]) {
+    const failure = mainWriteEvidenceError("PR Governance", reason);
+    assert.equal(failure instanceof MainWriteVerificationPendingError, false, reason);
+    assert.match(failure.message, new RegExp(reason));
+  }
 });
