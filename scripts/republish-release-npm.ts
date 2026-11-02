@@ -82,8 +82,9 @@ export function validateNpmRelease(
   }
   validateRepositoryCapability(sourceMatch[1] ?? "", policy, "release-source");
 
-  const assets = getJsonArray(release, "assets");
-  if (!assets.every(isJsonRecord)) {
+  const assetValues = getJsonArray(release, "assets");
+  const assets = assetValues.filter(isJsonRecord);
+  if (assets.length !== assetValues.length) {
     throw new CliError("::error::Release assets are invalid.", 66);
   }
   const tarballs = assets.filter(
