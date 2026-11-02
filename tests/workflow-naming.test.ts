@@ -23,6 +23,7 @@ const dispatchNameExceptions: Record<string, string> = {
 // without an entry, or a name that drifts from its entry, fails the test, so the list stays exact.
 const chineseDisplayNames: Record<string, string> = {
   "release-app.yml": "手动 · 发布应用",
+  "release-npm.yml": "手动 · 补发 npm 包",
   "deploy-source-script.yml": "手动 · 部署服务",
   "task-source-dispatch.yml": "手动 · 派发任务",
   "intake.yml": "自动 · 总控调度",
@@ -45,7 +46,7 @@ const chineseDisplayNames: Record<string, string> = {
 
 // What a release workflow releases. A new kind is a deliberate edit here and in
 // docs/03_NAMING_CONVENTIONS.md, never a repository or product name.
-const releaseKinds = ["app", "tool"];
+const releaseKinds = ["app", "npm", "tool"];
 
 // A workflow that releases or deploys is named by what it does (`release-<kind>.yml`,
 // `deploy-<adapter>.yml`), so a person finds it by the work they want done; the dispatch-event rule
@@ -117,7 +118,7 @@ test("release and deploy workflows are named by kind", async () => {
   const operations = (await workflows()).filter(({ file }) => operationPattern.test(file));
   assert.deepEqual(
     operations.map(({ file }) => file),
-    ["deploy-source-script.yml", "release-app.yml", "release-tool.yml"]
+    ["deploy-source-script.yml", "release-app.yml", "release-npm.yml", "release-tool.yml"]
   );
   for (const { file } of operations) {
     const match = operationPattern.exec(file);

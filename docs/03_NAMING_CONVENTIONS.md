@@ -196,7 +196,7 @@ Action Worker CI 强制执行自身文件名与架构限制。业务仓库可增
   - `<kind>`：`app`（源仓库构建应用）、`tool`（上游镜像第三方工具）
   - `<adapter>`：`policies/deploy.json` 中 `adapters` 键（目前为 `source-script`）
   - 名称**从不包含产品或仓库名**
-  - 上述 dispatch 事件规则不适用于它们。手动启动权限由 §8.2 工作流分类决定：`release-app.yml` 与 `deploy-source-script.yml` 是入口，`release-tool.yml` 按计划自动运行
+  - 上述 dispatch 事件规则不适用于它们。手动启动权限由 §8.2 工作流分类决定：`release-app.yml`、`release-npm.yml` 与 `deploy-source-script.yml` 是入口，`release-tool.yml` 按计划自动运行
 - 工作流显示名由 `tests/workflow-naming.test.ts` 中文映射锁定（如 `release-app.yml` 对应 `手动 · 发布应用`）
 - 保留旧名称文件在测试中列出并写明不值得重命名原因。目前包括 `handle-pr-dispatch.yml`（CI Evidence 信任锚点）与 `handle-pr-review.yml`（计入 AI Review 队列）
 
@@ -218,7 +218,7 @@ Action Worker CI 强制执行自身文件名与架构限制。业务仓库可增
 
 | 分类 | 成员 | 可用触发事件 | Run workflow 按钮 |
 |------|------|--------------|-------------------|
-| 入口 | `release-app.yml`、`deploy-source-script.yml`、`task-source-dispatch.yml` | `workflow_dispatch`、`repository_dispatch` | 有，每个输入有说明 |
+| 入口 | `release-app.yml`、`release-npm.yml`、`deploy-source-script.yml`、`task-source-dispatch.yml` | `workflow_dispatch`、`repository_dispatch` | 有，每个输入有说明 |
 | 对账 | `intake.yml` | `push`(main)、`repository_dispatch`(`run-intake`)、`schedule` | 无 |
 | 事件处理 | `*-dispatch.yml`、`handle-pr-review.yml`、`cancel-pr-work.yml` | `repository_dispatch` | 无 |
 | 维护 | `apply-repository-settings.yml`、`main-write-guard.yml`、`prune-stale-state.yml`、`release-tool.yml`、`update-work-metrics.yml`、`validate-ci.yml` | `push`、`pull_request`、`schedule`、`workflow_run` | 无 |
