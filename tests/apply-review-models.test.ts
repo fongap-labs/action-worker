@@ -64,7 +64,6 @@ test("model preflight recognizes Audit-Code only", () => {
   assert.equal(hasAuditCode({ error: "unauthorized" }), false);
 });
 
-
 test("GitHub variable permission failures identify the required admin token scope", () => {
   for (const operation of ["read", "update"] as const) {
     assert.throws(
@@ -86,5 +85,8 @@ test("GitHub variable permission failures identify the required admin token scop
 
 test("other GitHub variable errors preserve the original failure", () => {
   const original = new CliError("gh: Not Found (HTTP 404)", 1);
-  assert.throws(() => reportReviewVariableError(original, "fongap-labs/action-worker", "read"), (error) => error === original);
+  assert.throws(
+    () => reportReviewVariableError(original, "fongap-labs/action-worker", "read"),
+    (error) => error === original
+  );
 });
