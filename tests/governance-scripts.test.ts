@@ -798,7 +798,7 @@ test("main write guard accepts central merge authority and preserves local self-
       "repos/fongap-labs/action-worker/actions/runs/2",
       {
         repository: { full_name: "fongap-labs/action-worker" },
-        path: ".github/workflows/central-ci-dispatch.yml",
+        path: ".github/workflows/ci-follow-up.yml",
         head_branch: "main",
         status: "completed",
         conclusion: "success",
@@ -933,7 +933,7 @@ test("a newer in-progress main write attestation does not shadow an older verifi
     statuses: [
       // The deploy that is validating now attested its source seconds ago; it is still running.
       selfStatus,
-      // Central CI completed its own attestation of the same immutable main write.
+      // Independent CI follow-up completed its attestation of the same immutable main write.
       {
         context: "Main Write Guard",
         state: "success",
