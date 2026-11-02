@@ -74,7 +74,7 @@ export function reportReviewVariableError(
   repository: string,
   operation: "read" | "update"
 ): never {
-  if (error instanceof CliError && /(?:HTTP|status)\\s+403\\b/i.test(error.message)) {
+  if (error instanceof CliError && /(?:HTTP|status)\s+403\b/i.test(error.message)) {
     throw new CliError(
       `::error::Cannot ${operation} GitHub Actions variable ${variableName} in ${repository} (HTTP 403). Check AW_ADMIN_TOKEN repository access, Variables: Read and write permission, and organization approval.`,
       65
