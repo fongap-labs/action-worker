@@ -2,6 +2,7 @@ import { GithubReader, getJsonString, runGithubCli } from "./github-api.ts";
 import { validateMainWriteProvenance } from "./main-write-guard.ts";
 import {
   assertNoOpenMainWriteIncidents,
+  IncidentAccessError,
   incidentTitle,
   shouldCreateIncident,
 } from "./main-write-incidents.ts";
@@ -150,7 +151,11 @@ async function main(): Promise<void> {
       const detail =
         error instanceof Error ? error.message.replace(/^::error::/, "") : String(error);
       // Record immutable evidence privately. A later clean merge must not silently close it.
-      if (shaPattern.test(mainSha) && !detail.startsWith("Unresolved main write incident(s)")) {
+      if (
+        shaPattern.test(mainSha) &&
+        !(error instanceof IncidentAccessError) &&
+        !detail.startsWith("Unresolved main write incident(s)")
+      ) {
         try {
           if (await shouldCreateIncident(reader, repository, mainSha)) {
             const summary = detail.slice(0, 700);
@@ -170,7 +175,7 @@ async function main(): Promise<void> {
           }
         } catch (reportError) {
           console.error(
-            `::error::Could not record main write incident in ${repository}: ${reportError instanceof Error ? reportError.message : String(reportError)}`
+            `::error::Could not record main write incident in ${repository}: ${reportError instanceof Error ? reportError.message : String(reportError)}. Check AW_CONTROL_TOKEN Issues: write permission for this repository.`
           );
         }
       }
