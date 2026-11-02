@@ -39,7 +39,10 @@ const centralSecrets = ["AW_CONTROL_TOKEN", "AW_ADMIN_TOKEN", "AW_DISPATCH_TOKEN
 
 test("duplicate PR dispatches preserve completed governance provenance", async () => {
   const dispatch = await workflow("handle-pr-dispatch.yml");
-  assert.match(String(dispatch.concurrency?.group), /pr-governance-/);
+  assert.equal(
+    dispatch.concurrency?.group,
+    "pr-governance-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}-${{ github.event.client_payload.head_sha }}"
+  );
   assert.equal(
     dispatch.concurrency?.["cancel-in-progress"],
     false,
@@ -52,6 +55,10 @@ test("duplicate PR dispatches preserve completed governance provenance", async (
     "only unmerged closed PRs may cancel active governance"
   );
   assert.equal(cancellation.jobs.governance?.concurrency?.["cancel-in-progress"], true);
+  assert.equal(
+    cancellation.jobs.governance?.concurrency?.group,
+    "pr-governance-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}-${{ needs.validate.outputs.head_sha }}"
+  );
 });
 
 test("the CI sandbox references no secret except its read-only checkout token", async () => {
