@@ -19,6 +19,7 @@ import {
   runGithubCli,
 } from "./github-api.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
+import { publishNpmTarball } from "./npm-publish.ts";
 import {
   appendLines,
   CliError,
@@ -28,7 +29,6 @@ import {
   runCommand,
   runText,
 } from "./runtime-command.ts";
-import { publishNpmTarball } from "./npm-publish.ts";
 import { validateReleaseProvenance } from "./validate-release-request.ts";
 
 type ReleaseRequest = {

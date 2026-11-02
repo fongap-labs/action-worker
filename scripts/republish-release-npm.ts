@@ -3,9 +3,9 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  getGithubJson,
   getJsonArray,
   getJsonString,
-  getGithubJson,
   isJsonRecord,
   runGithubCli,
 } from "./github-api.ts";
@@ -69,8 +69,7 @@ export function validateNpmRelease(
     release.tag_name !== tag ||
     typeof release.prerelease !== "boolean" ||
     !/^[0-9a-f]{40}$/.test(getJsonString(release, "target_commitish")) ||
-    getJsonString(release, "html_url") !==
-      `https://github.com/${repository}/releases/tag/${tag}`
+    getJsonString(release, "html_url") !== `https://github.com/${repository}/releases/tag/${tag}`
   ) {
     throw new CliError("::error::npm republish requires the exact published GitHub Release.", 66);
   }
@@ -185,14 +184,7 @@ async function readPublishedIntegrity(
   try {
     const output = await runText(
       "npm",
-      [
-        "view",
-        `${packageName}@${version}`,
-        "dist.integrity",
-        "--json",
-        "--registry",
-        npmRegistry,
-      ],
+      ["view", `${packageName}@${version}`, "dist.integrity", "--json", "--registry", npmRegistry],
       { cwd: workingDirectory, env, timeoutMs: 30_000 }
     );
     let value: unknown = output;

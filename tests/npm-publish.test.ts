@@ -5,7 +5,6 @@ import { join } from "node:path";
 import { test } from "node:test";
 import {
   configureNpmAuth,
-  npmAuthConfig,
   npmPublishArgs,
   npmRegistry,
 } from "../scripts/npm-publish.ts";
@@ -30,12 +29,20 @@ test("npm auth uses a temporary .npmrc with environment token interpolation", as
 
 test("beta tarballs publish under the beta dist-tag", () => {
   assert.deepEqual(npmPublishArgs("package.tgz", "0.1.0-beta.2"), [
-    "publish", "package.tgz", "--access", "public", "--tag", "beta",
+    "publish",
+    "package.tgz",
+    "--access",
+    "public",
+    "--tag",
+    "beta",
   ]);
 });
 
 test("stable tarballs publish under npm's default dist-tag", () => {
   assert.deepEqual(npmPublishArgs("package.tgz", "1.2.3"), [
-    "publish", "package.tgz", "--access", "public",
+    "publish",
+    "package.tgz",
+    "--access",
+    "public",
   ]);
 });

@@ -81,12 +81,7 @@ test("npm package metadata must be public, scoped, and match the release tag", (
 });
 
 test("npm release checksums and integrity use the downloaded tarball bytes", () => {
-  assert.equal(
-    parseNpmChecksum(`${"a".repeat(64)}  package.tgz\n`, "package.tgz"),
-    "a".repeat(64)
-  );
-  assert.throws(() =>
-    parseNpmChecksum(`${"a".repeat(64)}  other.tgz`, "package.tgz")
-  );
+  assert.equal(parseNpmChecksum(`${"a".repeat(64)}  package.tgz\n`, "package.tgz"), "a".repeat(64));
+  assert.throws(() => parseNpmChecksum(`${"a".repeat(64)}  other.tgz`, "package.tgz"));
   assert.match(npmPackageIntegrity(Buffer.from("npm tarball")), /^sha512-/);
 });
