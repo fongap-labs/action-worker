@@ -47,9 +47,11 @@ jobs:
           TARGET_REPOSITORY: ${{ github.repository }}
         run: node scripts/apply-repository-settings.ts "$TARGET_REPOSITORY" false
 
-      - name: Apply AI Review models
+      - name: Apply AI Review model
         env:
           GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          AI_GATEWAY_URL: ${{ vars.AI_GATEWAY_URL }}
+          AI_GATEWAY_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
           TARGET_REPOSITORY: ${{ github.repository }}
         run: node scripts/apply-review-models.ts "$TARGET_REPOSITORY"
 
