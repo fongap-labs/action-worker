@@ -186,7 +186,7 @@ export class GithubReader {
           const kind = classifyGithubFailure(response.status, response.headers, githubMessage);
           const resetAtMs = rateLimitReset(response.headers);
           const retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
-          const safePath = "/" + path.replace(/^\\/+/, "").split("?")[0];
+          const safePath = "/" + (path.startsWith("/") ? path.slice(1) : path).split("?")[0];
           throw new GithubHttpError(response.status, retryAfterMs, {
             path: safePath,
             kind,
