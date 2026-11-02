@@ -1,4 +1,4 @@
-name: 手动 · 补发 npm 包
+name: 手动 ·  npm 发包
 
 on:
   repository_dispatch:
