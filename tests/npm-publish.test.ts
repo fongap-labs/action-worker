@@ -3,9 +3,14 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { configureNpmAuth, npmAuthConfig, npmPublishArgs, npmRegistry } from "../scripts/npm-publish.ts";
+import {
+  configureNpmAuth,
+  npmAuthConfig,
+  npmPublishArgs,
+  npmRegistry,
+} from "../scripts/npm-publish.ts";
 
-test("npm auth uses a temporary registry-scoped config with environment interpolation", async () => {
+test("npm auth uses a temporary .npmrc with environment token interpolation", async () => {
   const directory = await mkdtemp(join(tmpdir(), "action-worker-npm-auth-test-"));
   const token = "test-token-never-written-to-disk";
   try {

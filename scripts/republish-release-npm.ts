@@ -2,10 +2,24 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getJsonArray, getJsonString, getGithubJson, isJsonRecord, runGithubCli } from "./github-api.ts";
-import { CliError, appendLines, handleError, isMain, parseJson, runCommand, runText } from "./runtime-command.ts";
+import {
+  getJsonArray,
+  getJsonString,
+  getGithubJson,
+  isJsonRecord,
+  runGithubCli,
+} from "./github-api.ts";
 import { configureNpmAuth, npmRegistry, publishNpmTarball } from "./npm-publish.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
+import {
+  appendLines,
+  CliError,
+  handleError,
+  isMain,
+  parseJson,
+  runCommand,
+  runText,
+} from "./runtime-command.ts";
 
 type NpmPackageManifest = {
   name: string;
@@ -56,7 +70,7 @@ export function validateNpmRelease(
     typeof release.prerelease !== "boolean" ||
     !/^[0-9a-f]{40}$/.test(getJsonString(release, "target_commitish")) ||
     getJsonString(release, "html_url") !==
-      "https://github.com/" + repository + "/releases/tag/" + tag
+      `https://github.com/${repository}/releases/tag/${tag}`
   ) {
     throw new CliError("::error::npm republish requires the exact published GitHub Release.", 66);
   }
@@ -68,9 +82,13 @@ export function validateNpmRelease(
 
   const body = getJsonString(release, "body");
   const sourceMatch =
-    /^Source: https:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/commit\/[0-9a-f]{40}$/m.exec(body);
+    /^Source: https:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/commit\/[0-9a-f]{40}$/m.exec(
+      body
+    );
   const artifactMatch =
-    /^Artifact run: https:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/actions\/runs\/[1-9][0-9]*$/m.exec(body);
+    /^Artifact run: https:\/\/github\.com\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/actions\/runs\/[1-9][0-9]*$/m.exec(
+      body
+    );
   if (
     !sourceMatch ||
     !artifactMatch ||
@@ -78,7 +96,10 @@ export function validateNpmRelease(
     !/^Central CI Evidence: success$/m.test(body) ||
     !/^Main Write Guard: success via PR #[1-9][0-9]*$/m.test(body)
   ) {
-    throw new CliError("::error::Release provenance is incomplete or does not match Action Worker.", 66);
+    throw new CliError(
+      "::error::Release provenance is incomplete or does not match Action Worker.",
+      66
+    );
   }
   validateRepositoryCapability(sourceMatch[1] ?? "", policy, "release-source");
 
@@ -98,7 +119,7 @@ export function validateNpmRelease(
     throw new CliError("::error::Release npm tarball is missing.", 66);
   }
   const tarballName = getJsonString(tarball, "name");
-  const checksumName = tarballName + ".sha256";
+  const checksumName = `${tarballName}.sha256`;
   if (
     assets.filter(
       (asset) => asset.state === "uploaded" && getJsonString(asset, "name") === checksumName
@@ -123,7 +144,10 @@ export function parseNpmChecksum(value: string, expectedName: string): string {
   return match[1]!.toLowerCase();
 }
 
-export function validateNpmPackageManifest(value: unknown, expectedVersion: string): NpmPackageManifest {
+export function validateNpmPackageManifest(
+  value: unknown,
+  expectedVersion: string
+): NpmPackageManifest {
   if (
     !isJsonRecord(value) ||
     typeof value.name !== "string" ||
@@ -133,7 +157,10 @@ export function validateNpmPackageManifest(value: unknown, expectedVersion: stri
     value.version !== expectedVersion ||
     value.private === true
   ) {
-    throw new CliError("::error::Release tarball must contain a public @fongap-labs package matching its tag.", 66);
+    throw new CliError(
+      "::error::Release tarball must contain a public @fongap-labs package matching its tag.",
+      66
+    );
   }
   if (
     isJsonRecord(value.publishConfig) &&
@@ -146,7 +173,7 @@ export function validateNpmPackageManifest(value: unknown, expectedVersion: stri
 }
 
 export function npmPackageIntegrity(tarball: Uint8Array): string {
-  return "sha512-" + createHash("sha512").update(tarball).digest("base64");
+  return `sha512-${createHash("sha512").update(tarball).digest("base64")}`;
 }
 
 async function readPublishedIntegrity(
@@ -158,7 +185,14 @@ async function readPublishedIntegrity(
   try {
     const output = await runText(
       "npm",
-      ["view", packageName + "@" + version, "dist.integrity", "--json", "--registry", npmRegistry],
+      [
+        "view",
+        `${packageName}@${version}`,
+        "dist.integrity",
+        "--json",
+        "--registry",
+        npmRegistry,
+      ],
       { cwd: workingDirectory, env, timeoutMs: 30_000 }
     );
     let value: unknown = output;
@@ -212,7 +246,7 @@ async function ensureDistTag(
   }
   const tag = version.includes("-beta.") ? "beta" : "latest";
   if (isJsonRecord(distTags) && distTags[tag] === version) return;
-  await runCommand("npm", ["dist-tag", "add", packageName + "@" + version, tag], {
+  await runCommand("npm", ["dist-tag", "add", `${packageName}@${version}`, tag], {
     cwd: workingDirectory,
     env,
     timeoutMs: 30_000,
@@ -233,7 +267,7 @@ async function main(): Promise<void> {
   validateNpmRepublishRequest(repository, tag, controlRepository, policy);
 
   const release = await getGithubJson(
-    "repos/" + repository + "/releases/tags/" + encodeURIComponent(tag),
+    `repos/${repository}/releases/tags/${encodeURIComponent(tag)}`,
     controlToken
   );
   const releaseAsset = validateNpmRelease(repository, tag, controlRepository, release, policy);
@@ -266,11 +300,10 @@ async function main(): Promise<void> {
       throw new CliError("::error::Downloaded npm tarball failed Release SHA256 verification.", 66);
     }
 
-    const packageJsonText = await runText(
-      "tar",
-      ["-xOf", tarballPath, "package/package.json"],
-      { maxBuffer: 1024 * 1024, timeoutMs: 30_000 }
-    );
+    const packageJsonText = await runText("tar", ["-xOf", tarballPath, "package/package.json"], {
+      maxBuffer: 1024 * 1024,
+      timeoutMs: 30_000,
+    });
     const packageJson = parseJson(
       packageJsonText,
       "::error::Release npm tarball has invalid package metadata.",
@@ -295,12 +328,18 @@ async function main(): Promise<void> {
         npmEnv
       );
       if (verifiedIntegrity !== expectedIntegrity) {
-        throw new CliError("::error::Published npm package integrity does not match the verified Release asset.", 65);
+        throw new CliError(
+          "::error::Published npm package integrity does not match the verified Release asset.",
+          65
+        );
       }
       status = "published";
     } else {
       if (publishedIntegrity !== expectedIntegrity) {
-        throw new CliError("::error::npm version already exists with different tarball integrity.", 65);
+        throw new CliError(
+          "::error::npm version already exists with different tarball integrity.",
+          65
+        );
       }
       status = "already published";
     }
@@ -308,12 +347,14 @@ async function main(): Promise<void> {
     await appendLines(process.env.GITHUB_STEP_SUMMARY, [
       "## npm Release Republish",
       "",
-      "- Repository: " + repository,
-      "- Release tag: " + tag,
-      "- Package: " + packageManifest.name + "@" + packageManifest.version,
-      "- Result: " + status,
+      `- Repository: ${repository}`,
+      `- Release tag: ${tag}`,
+      `- Package: ${packageManifest.name}@${packageManifest.version}`,
+      `- Result: ${status}`,
     ]);
-    console.log("Verified npm package release: " + packageManifest.name + "@" + packageManifest.version + ".");
+    console.log(
+      `Verified npm package release: ${packageManifest.name}@${packageManifest.version}.`
+    );
   } finally {
     await rm(workDir, { recursive: true, force: true });
   }

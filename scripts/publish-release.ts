@@ -28,8 +28,8 @@ import {
   runCommand,
   runText,
 } from "./runtime-command.ts";
-import { validateReleaseProvenance } from "./validate-release-request.ts";
 import { publishNpmTarball } from "./npm-publish.ts";
+import { validateReleaseProvenance } from "./validate-release-request.ts";
 
 type ReleaseRequest = {
   source_repository: string;
