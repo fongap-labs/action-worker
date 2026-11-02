@@ -57,7 +57,11 @@
           "script": {
             "type": "string",
             "maxLength": 512,
-            "pattern": "^(?:(?!.*\\.\\.)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*)?[A-Za-z0-9._-]+\\.ps1$"
+            "pattern": "^(?:(?!.*\\.\\.)[A-Za-z0-9._-]+(?:/[A-Za-z0-9._-]+)*)?[A-Za-z0-9._-]+\\.(?:ps1|mjs)$"
+          },
+          "setup_rust": {
+            "type": "boolean",
+            "description": "Optional; defaults to true for legacy native builds."
           },
           "assets": {
             "type": "array",

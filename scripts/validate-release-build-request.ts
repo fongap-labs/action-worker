@@ -25,6 +25,7 @@ type BuildEntry = {
   runner_profile: string;
   target: string;
   script: string;
+  setup_rust?: boolean;
   assets: string[];
   attest_asset: string;
 };
@@ -125,7 +126,11 @@ export function parseReleaseBuildManifest(value: unknown): ReleaseBuildManifest 
   for (const build of value.builds) {
     if (
       !isJsonRecord(build) ||
-      !exactKeys(build, ["assets", "attest_asset", "id", "runner_profile", "script", "target"]) ||
+      !exactKeys(
+        build,
+        ["assets", "attest_asset", "id", "runner_profile", "script", "target"],
+        ["setup_rust"]
+      ) ||
       typeof build.id !== "string" ||
       !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(build.id) ||
       typeof build.runner_profile !== "string" ||
@@ -134,7 +139,8 @@ export function parseReleaseBuildManifest(value: unknown): ReleaseBuildManifest 
       !/^[A-Za-z0-9_.-]+$/.test(build.target) ||
       typeof build.script !== "string" ||
       !isRelativePath(build.script) ||
-      !build.script.endsWith(".ps1") ||
+      !(build.script.endsWith(".ps1") || build.script.endsWith(".mjs")) ||
+      (build.setup_rust !== undefined && typeof build.setup_rust !== "boolean") ||
       !Array.isArray(build.assets) ||
       build.assets.length < 1 ||
       !build.assets.every((asset) => isAssetName(asset)) ||
@@ -365,6 +371,7 @@ async function main(): Promise<void> {
       runner_profile: resolved.name,
       runner_labels_json: JSON.stringify(resolved.profile.labels),
       target: build.target,
+      setup_rust: build.setup_rust !== false,
       script: build.script,
       attest_asset: build.attest_asset,
     };

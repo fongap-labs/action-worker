@@ -201,3 +201,11 @@ gh variable set AW_DISPATCH_RUNS_ON --repo fongap-labs/<repo>   --body "$(node s
 - 当 Runner 离线时，GitHub 不会自动回退，作业会保持排队；中央 Intake 仍然覆盖治理，因此只影响速度，不影响安全。
 - 该文件受安全门禁中的 `approved_workflows` 保护：其路径与内容哈希必须与已批准模板逐字节一致；任何修改都会使其重新落入 `pull-request-target` 规则。
 - Dependabot 无法读取 Actions 密钥，因此该触发器会跳过它的 PR，由中央 Intake 处理。
+
+## 12. Release 构建脚本与可移植产物
+
+发布清单可指定 PowerShell `*.ps1`（保留 Windows 原生程序的现有方式）或 Node `*.mjs`（推荐纯 JavaScript/TypeScript 插件）。后者由 Action Worker 在所选 Runner 中通过 Node 执行，参数为 `--target`、`--version`、`--output-dir`。
+
+对不含原生二进制的插件可使用 `runner_profile: linux-standard`、`target: portable`、`setup_rust: false`；只有需要 Rust 工具链的项目才安装 Rust。默认不声明 `setup_rust` 时沿用原有行为（安装 Rust），以兼容已有发布清单。
+
+Linux 构建不等于只能在 Linux 运行。跨平台支持须通过安装包内容审计和宿主 Windows/macOS/Linux 的回归验证；带平台原生依赖的构建应分别声明目标和 Runner。
