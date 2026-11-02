@@ -124,3 +124,24 @@ test("the security scan keeps the admin token away from the CodeQL job", async (
     []
   );
 });
+
+test("governed Release dispatches npm only after publication and never publishes inline", async () => {
+  const release = await workflow("handle-release-dispatch.yml");
+  const npm = await workflow("release-npm.yml");
+  const source = await readFile("scripts/publish-release.ts", "utf8");
+
+  assert.equal(release.jobs.npm?.needs, "release");
+  assert.equal(
+    release.jobs.npm?.if,
+    "needs.release.result == 'success' && needs.release.outputs.npm_asset == 'true'"
+  );
+  assert.equal(
+    (release.jobs.npm as Job & { permissions?: Record<string, unknown> }).permissions?.contents,
+    "write"
+  );
+  assert.match(JSON.stringify(release.jobs.npm), /run-npm-republish/);
+  assert.match(source, /npm_asset=/);
+  assert.doesNotMatch(source, /publishNpmTarball|AW_NPM_TOKEN/);
+  assert.match(JSON.stringify(npm), /run-npm-republish/);
+  assert.match(JSON.stringify(npm), /republish-release-npm\\.ts/);
+});
