@@ -25,7 +25,12 @@ const workflowDirectory = ".github/workflows";
 const classes = {
   // The only workflows a person starts: each one has a Run workflow button in the Actions tab with
   // described inputs, and automation starts the same work through repository_dispatch.
-  entry: ["deploy-source-script.yml", "release-app.yml", "task-source-dispatch.yml"],
+  entry: [
+    "deploy-source-script.yml",
+    "release-app.yml",
+    "release-npm.yml",
+    "task-source-dispatch.yml",
+  ],
   // The one reconciler. It sweeps every managed repository and dispatches the work it finds.
   intake: ["intake.yml"],
   // Started by an event another workflow or a managed repository sends; never by a person or a

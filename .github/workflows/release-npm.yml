@@ -1,0 +1,50 @@
+name: 手动 · 补发 npm 包
+
+on:
+  repository_dispatch:
+    types: [run-npm-republish]
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: 已通过 Action Worker 发布 Release 的目标仓库（owner/name）
+        required: true
+        type: string
+      tag:
+        description: GitHub Release 标签（例如 dsh-ui-delta-v0.1.0-beta.2）
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-republish-${{ github.event.client_payload.repository || inputs.repository }}-${{ github.event.client_payload.tag || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Verify and publish npm package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Publish verified npm Release asset
+        env:
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_NPM_TOKEN: ${{ secrets.AW_NPM_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          AW_CONTROL_REPOSITORY: ${{ github.repository }}
+          NPM_REPUBLISH_REPOSITORY: ${{ github.event.client_payload.repository || inputs.repository }}
+          NPM_REPUBLISH_TAG: ${{ github.event.client_payload.tag || inputs.tag }}
+        run: node scripts/republish-release-npm.ts

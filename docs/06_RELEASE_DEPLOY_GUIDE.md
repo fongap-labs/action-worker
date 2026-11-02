@@ -9,16 +9,17 @@
 | 目的 | 工作流 | 手动输入 | 自动触发 |
 |------|--------|----------|----------|
 | 发布由源仓库构建的应用 | `手动 · 发布应用` (`release-app.yml`) | `source_repository` (owner/name)、`requested_version` (正式版 `X.Y.Z`，beta 版 `X.Y.Z-beta.N`，可留空=自动计算正式版)、`product` (多产品时必填) | `run-release-build` 分发事件 |
+| 补发已发布 Release 中的 npm 包 | `手动 · 补发 npm 包` (`release-npm.yml`) | `repository` (owner/name)、`tag` | `run-npm-republish` 分发事件 |
 | 发布上游镜像的第三方工具 | `自动 · 工具发布` (`release-tool.yml`) | 无 | 定时，每 6 小时 |
 | 部署某个源提交 | `手动 · 部署服务` (`deploy-source-script.yml`) | `source_repository` (owner/name)、`source_sha` (可选，留空=当前 HEAD) | 中央 CI 通过且部署清单声明 push 触发 |
 
-> 只有 `手动 · 发布应用`、`手动 · 部署服务`、`手动 · 派发任务` 有 Run workflow 按钮；其余工作流自动运行。
+> `手动 · 发布应用`、`手动 · 补发 npm 包`、`手动 · 部署服务`、`手动 · 派发任务` 有 Run workflow 按钮；其余工作流自动运行。
 
 ---
 
 ## 2. 启动前检查清单
 
-启动 `手动 · 发布应用` 或 `手动 · 部署服务` 前，**无需**手动准备 CI/main-write 证明——工作流会自动申请并等待最多 20 分钟。仅需确认：
+启动 `手动 · 发布应用` 或 `手动 · 部署服务` 前，**无需**手动准备 CI/main-write 证明——工作流会自动申请并等待最多 20 分钟。补发 npm 时只选择 Action Worker 已正式发布的 Release。仅需确认：
 
 1. 目标改动已通过 PR 合并进 `main`
 2. `source_repository` 写成 `owner/name`，且该仓库在 `AW_REPOSITORY_POLICY` 中具备对应能力（`release-source` / `deploy`）
@@ -111,6 +112,17 @@ tag 只在 Release 校验通过并正式发布时才出现；任何更早的失�
 构建脚本读取 `RELEASE_PRODUCT_ROOT`（产品根目录绝对路径）。
 
 ---
+
+### 4.2 补发已有 Release 到 npm
+
+如果 Release Governance 已成功创建 GitHub Release，但 npm 发布因认证配置失败，可从 Actions → `手动 · 补发 npm 包` 重新发布既有产物。输入目标仓库与 Release 标签，例如：
+
+```text
+repository: fongap-labs/dsh-plugin
+tag: dsh-ui-delta-v0.1.0-beta.2
+```
+
+工作流只接受受管策略允许的目标仓库，并校验 Release 的来源、中央 CI、Main Write Guard、tarball SHA256、包名和版本。它会先核对 npm 上的版本完整性；相同内容视为已发布并确保 `beta` / `latest` dist-tag 正确，不同内容则停止，避免覆盖不可变版本。Beta 版本使用 `beta` dist-tag。
 
 ## 5. 部署流程详解
 
