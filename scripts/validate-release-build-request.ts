@@ -126,7 +126,11 @@ export function parseReleaseBuildManifest(value: unknown): ReleaseBuildManifest 
   for (const build of value.builds) {
     if (
       !isJsonRecord(build) ||
-      !exactKeys(build, ["assets", "attest_asset", "id", "runner_profile", "script", "target"], ["setup_rust"]) ||
+      !exactKeys(
+        build,
+        ["assets", "attest_asset", "id", "runner_profile", "script", "target"],
+        ["setup_rust"]
+      ) ||
       typeof build.id !== "string" ||
       !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(build.id) ||
       typeof build.runner_profile !== "string" ||
