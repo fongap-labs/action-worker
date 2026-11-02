@@ -5,7 +5,9 @@ import {
   applyReviewModels,
   hasAuditCode,
   parseReviewModelPolicy,
+  reportReviewVariableError,
 } from "../scripts/apply-review-models.ts";
+import { CliError } from "../scripts/runtime-command.ts";
 
 const policy = { schema_version: 1, model: "Audit-Code" };
 
@@ -60,4 +62,29 @@ test("model preflight recognizes Audit-Code only", () => {
   assert.equal(hasAuditCode({ data: [{ id: "Audit-Max" }, { id: "Audit-Pro" }] }), false);
   assert.equal(hasAuditCode({ data: [] }), false);
   assert.equal(hasAuditCode({ error: "unauthorized" }), false);
+});
+
+
+test("GitHub variable permission failures identify the required admin token scope", () => {
+  for (const operation of ["read", "update"] as const) {
+    assert.throws(
+      () =>
+        reportReviewVariableError(
+          new CliError("gh: Resource not accessible by personal access token (HTTP 403)"),
+          "fongap-labs/action-worker",
+          operation
+        ),
+      (error: unknown) =>
+        error instanceof CliError &&
+        error.exitCode === 65 &&
+        error.message.includes(`Cannot ${operation} GitHub Actions variable AW_AI_AGENT_CONFIG`) &&
+        error.message.includes("AW_ADMIN_TOKEN") &&
+        error.message.includes("Variables: Read and write")
+    );
+  }
+});
+
+test("other GitHub variable errors preserve the original failure", () => {
+  const original = new CliError("gh: Not Found (HTTP 404)", 1);
+  assert.throws(() => reportReviewVariableError(original, "fongap-labs/action-worker", "read"), (error) => error === original);
 });
