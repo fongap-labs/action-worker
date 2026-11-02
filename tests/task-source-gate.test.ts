@@ -46,6 +46,7 @@ function world() {
     [`repos/${repository}`, { default_branch: "main" }],
     [`repos/${repository}/commits/main`, { sha: headSha }],
     [`repos/${repository}/commits/${headSha}`, { sha: headSha }],
+    [`repos/${repository}/issues?state=open&per_page=100&page=1`, []],
     [
       `repos/${repository}/commits/${headSha}/pulls?per_page=100`,
       [

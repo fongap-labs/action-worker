@@ -17,6 +17,7 @@ import {
   type JsonRecord,
   runGithubCli,
 } from "./github-api.ts";
+import { assertNoOpenMainWriteIncidents } from "./main-write-incidents.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
@@ -300,6 +301,7 @@ export async function assertTrustedMainWrite(
     mainSha,
     isCentralStatusRequired
   );
+  await assertNoOpenMainWriteIncidents(reader, repository);
   const label = `Main Write Guard ${repository}@${mainSha.slice(0, 12)}`;
   const guard = verificationRecorder(label);
   let observed: JsonRecord[] = [];

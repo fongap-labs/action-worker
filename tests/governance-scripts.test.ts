@@ -722,6 +722,7 @@ test("main write guard accepts central merge authority and preserves local self-
   const paths = new Map<string, unknown>([
     ["repos/fongap/example", { default_branch: "main" }],
     [`repos/fongap/example/commits/${mainSha}`, { sha: mainSha }],
+    ["repos/fongap/example/issues?state=open&per_page=100&page=1", []],
     [
       `repos/fongap/example/commits/${mainSha}/pulls?per_page=100`,
       [
@@ -1050,6 +1051,7 @@ test("a deploy's own attestation does not hide the Intake attestation of the sam
   const paths = new Map<string, unknown>([
     ["repos/fongap/example", { default_branch: "main" }],
     [`repos/fongap/example/commits/${mainSha}`, { sha: mainSha }],
+    ["repos/fongap/example/issues?state=open&per_page=100&page=1", []],
     [
       `repos/fongap/example/commits/${mainSha}/pulls?per_page=100`,
       [
@@ -1125,6 +1127,7 @@ test("main write provenance rejects direct pushes and fake status-only trust", a
   const paths = new Map<string, unknown>([
     ["repos/fongap/example", { default_branch: "main" }],
     [`repos/fongap/example/commits/${mainSha}`, { sha: mainSha }],
+    ["repos/fongap/example/issues?state=open&per_page=100&page=1", []],
     [`repos/fongap/example/commits/${mainSha}/pulls?per_page=100`, []],
     [
       `repos/fongap/example/commits/${mainSha}/status`,
