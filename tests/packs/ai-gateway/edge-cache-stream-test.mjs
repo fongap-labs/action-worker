@@ -2,13 +2,15 @@
 // Copyright (c) 2026 Fongap Labs
 //
 // Edge cache: streamed and non-streamed answers never share an entry, entries are scoped to the
-// credential that was presented, automatic caching is opt-in, and unsafe responses are not stored.
+// credential that was presented, caching requires explicit caller opt-in, and unsafe responses are not stored.
 
 import { assert, test } from '#kit/harness.mjs';
 import {
   buildEdgeCacheKeyRequest,
   callerCacheScope,
   edgeCacheEligible,
+  injectMissHeader,
+  matchEdgeCache,
   resolveEdgeCachePlan,
   storeEdgeCacheResponse,
 } from '#target/src/request/edge-cache.ts';
@@ -21,13 +23,13 @@ function req(headers = {}) {
 }
 
 async function urlFor(options) {
-  return (await buildEdgeCacheKeyRequest('openai_chat', 'Code-Max', body, 'AIR', options)).url;
+  return (await buildEdgeCacheKeyRequest('openai_chat', 'Code-Max', body, 'AIR', { host: 'gateway.example.com', ...options })).url;
 }
 
 test('a streamed request never shares the entry of a non-streamed one', async () => {
   assert.notEqual(await urlFor({ stream: true }), await urlFor({ stream: false }));
   const streamed = { ...body, stream: true };
-  const key = async (b) => (await buildEdgeCacheKeyRequest('openai_chat', 'Code-Max', b, 'AIR')).url;
+  const key = async (b) => (await buildEdgeCacheKeyRequest('openai_chat', 'Code-Max', b, 'AIR', { host: 'gateway.example.com' })).url;
   assert.notEqual(await key(streamed), await key(body));
   assert.equal(await key({ ...body, stream: false }), await key(body));
 });
@@ -35,7 +37,7 @@ test('a streamed request never shares the entry of a non-streamed one', async ()
 test('stream_options only matter for a streamed request', async () => {
   const withUsage = { ...body, stream: true, stream_options: { include_usage: true } };
   const without = { ...body, stream: true };
-  const key = async (b) => (await buildEdgeCacheKeyRequest('openai_chat', 'Code-Max', b, 'AIR')).url;
+  const key = async (b) => (await buildEdgeCacheKeyRequest('openai_chat', 'Code-Max', b, 'AIR', { host: 'gateway.example.com' })).url;
   assert.notEqual(await key(withUsage), await key(without));
   assert.equal(
     await key({ ...body, stream_options: { include_usage: true } }),
@@ -56,13 +58,13 @@ test('entries are scoped to the credential the caller presented', async () => {
   assert.equal(await callerCacheScope(req(), ENV), '');
 });
 
-test('temperature 0 is only cached automatically when AIG_EDGE_CACHE_AUTO is on', () => {
-  assert.equal(edgeCacheEligible('openai_chat', body, req()), false);
-  assert.equal(edgeCacheEligible('openai_chat', body, req(), {}), false);
-  assert.equal(edgeCacheEligible('openai_chat', body, req(), { AIG_EDGE_CACHE_AUTO: 'true' }), true);
-  assert.equal(edgeCacheEligible('openai_chat', { ...body, temperature: 0.7 }, req(), { AIG_EDGE_CACHE_AUTO: 'true' }), false);
-  assert.equal(edgeCacheEligible('openai_chat', { messages: [] }, req({ 'x-gateway-cache': 'true' })), true);
-  assert.equal(edgeCacheEligible('models', body, req({ 'x-gateway-cache': 'true' }), { AIG_EDGE_CACHE_AUTO: 'true' }), false);
+test('temperature zero does not opt in; the explicit header is required', () => {
+  assert.equal(edgeCacheEligible('openai_chat', req()), false);
+  assert.equal(edgeCacheEligible('openai_chat', req()), false);
+  assert.equal(edgeCacheEligible('openai_chat', req()), false);
+  assert.equal(edgeCacheEligible('openai_chat', req()), false);
+  assert.equal(edgeCacheEligible('openai_chat', req({ 'x-gateway-cache': 'true' })), true);
+  assert.equal(edgeCacheEligible('models', req({ 'x-gateway-cache': 'true' })), false);
 });
 
 test('the cache plan keys on the caller credential and the client stream choice', async () => {
@@ -80,29 +82,103 @@ test('the cache plan keys on the caller credential and the client stream choice'
 function withFakeCache(run) {
   return async () => {
     const stored = [];
+    const entries = new Map();
     const previous = globalThis.caches;
-    globalThis.caches = { default: { put: async (key, value) => stored.push([key, await value.text()]), match: async () => undefined } };
+    globalThis.caches = {
+      default: {
+        put: async (key, value) => {
+          const body = new Uint8Array(await value.arrayBuffer());
+          const headers = new Headers(value.headers);
+          const maxAge = Number(/max-age=(\d+)/i.exec(headers.get('cache-control') || '')?.[1] || 0);
+          stored.push({ url: key.url, body, headers });
+          entries.set(key.url, {
+            response: new Response(body, { status: value.status, headers }),
+            expiresAt: Date.now() + maxAge * 1000,
+          });
+        },
+        match: async (key) => {
+          const entry = entries.get(key.url);
+          if (!entry || Date.now() >= entry.expiresAt) {
+            entries.delete(key.url);
+            return undefined;
+          }
+          return entry.response.clone();
+        },
+      },
+    };
     try {
-      await run(stored);
+      await run(stored, entries);
     } finally {
       globalThis.caches = previous;
     }
   };
 }
 
-async function store(response, stream) {
+function beginStore(response, stream, route = 'openai_chat', options = {}) {
   const pending = [];
-  storeEdgeCacheResponse({ waitUntil: (p) => pending.push(p) }, new Request('https://edge-cache.ai-gateway.internal/x'), response, 60, stream);
+  const key = options.keyRequest || new Request(`https://gateway.example.com/__gateway_cache/v3/${route}/abc`);
+  storeEdgeCacheResponse({ waitUntil: (p) => pending.push(p) }, key, response, options.ttlSec || 60, stream, route, options.signal);
+  return { pending, key };
+}
+
+async function store(response, stream, route = 'openai_chat', options = {}) {
+  const { pending, key } = beginStore(response, stream, route, options);
   await Promise.all(pending);
+  return key;
 }
 
 const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
 const sse = (text) => new Response(text, { status: 200, headers: { 'content-type': 'text/event-stream' } });
 
-test('a plain JSON answer is stored with the HIT marker', withFakeCache(async (stored) => {
+test('a plain JSON answer is stored with a private-by-default client contract and a bounded edge TTL', withFakeCache(async (stored) => {
   await store(json({ choices: [{ message: { content: 'ok' } }] }), false);
   assert.equal(stored.length, 1);
-  assert.match(stored[0][1], /"content":"ok"/);
+  assert.match(new TextDecoder().decode(stored[0].body), /"content":"ok"/);
+  assert.equal(stored[0].headers.get('cache-control'), 'public, max-age=60');
+  assert.equal(stored[0].headers.has('x-gateway-cache-status'), false, 'HIT is added only at lookup time');
+}));
+
+test('lookup returns a genuine MISS then HIT with client-private headers', withFakeCache(async (stored) => {
+  const request = req({ origin: 'https://client.example' });
+  const absent = new Request('https://gateway.example.com/__gateway_cache/v3/openai_chat/absent');
+  assert.equal(await matchEdgeCache(absent, request, ENV), null);
+  const miss = injectMissHeader(json({ choices: [] }), request, ENV);
+  assert.equal(miss.headers.get('x-gateway-cache-status'), 'MISS');
+  assert.equal(miss.headers.get('cache-control'), 'private, no-store');
+
+  const key = await store(json({ choices: [{ message: { content: 'cached' } }] }), false);
+  const hit = await matchEdgeCache(key, request, ENV);
+  assert.ok(hit);
+  assert.equal(hit.status, 200);
+  assert.equal(hit.headers.get('x-gateway-cache-status'), 'HIT');
+  assert.equal(hit.headers.get('cache-control'), 'private, no-store');
+  assert.match(await hit.text(), /cached/);
+  assert.equal(stored.length, 1);
+}));
+
+test('stored TTL expires the entry and cache keys retain caller and request-host isolation', withFakeCache(async () => {
+  const originalNow = Date.now;
+  try {
+    Date.now = () => 10_000;
+    const env = { ...ENV, AIG_EDGE_CACHE_TTL_SEC: '2' };
+    const requestA = req({ authorization: 'Bearer secret-a', 'x-gateway-cache': 'true' });
+    const requestB = req({ authorization: 'Bearer secret-b', 'x-gateway-cache': 'true' });
+    const planA = await resolveEdgeCachePlan('openai_chat', 'Code-Max', body, requestA, env, 'AIR', false);
+    const planB = await resolveEdgeCachePlan('openai_chat', 'Code-Max', body, requestB, env, 'AIR', false);
+    assert.ok(planA && planB);
+    assert.equal(new URL(planA.keyRequest.url).host, 'gateway.example.com');
+    assert.notEqual(planA.keyRequest.url, planB.keyRequest.url);
+    await store(json({ choices: [{ message: { content: 'a only' } }] }), false, 'openai_chat', {
+      keyRequest: planA.keyRequest,
+      ttlSec: planA.ttlSec,
+    });
+    assert.ok(await matchEdgeCache(planA.keyRequest, requestA, env));
+    assert.equal(await matchEdgeCache(planB.keyRequest, requestB, env), null);
+    Date.now = () => 12_001;
+    assert.equal(await matchEdgeCache(planA.keyRequest, requestA, env), null);
+  } finally {
+    Date.now = originalNow;
+  }
 }));
 
 test('answers that ask the client to run a tool are never stored', withFakeCache(async (stored) => {
@@ -125,6 +201,64 @@ test('only a stream that ended normally is stored', withFakeCache(async (stored)
   await store(sse('data: {"choices":[{"delta":{"content":"par'), true);
   assert.deepEqual(stored, []);
   await store(sse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\n'), true);
-  await store(sse('event: message_stop\ndata: {"type":"message_stop"}\n\n'), true);
+  await store(sse('event: message_stop\ndata: {"type":"message_stop"}\n\n'), true, 'anthropic_messages');
   assert.equal(stored.length, 2);
+}));
+
+test('incomplete Responses events and byte content after a terminal marker are not replayed', withFakeCache(async (stored) => {
+  await store(sse('event: response.incomplete\ndata: {"type":"response.incomplete"}\n\n'), true, 'openai_responses');
+  const original = 'event: message_start\ndata: {"message":{"usage":{"input_tokens":1}}}\n\nevent: message_stop\ndata: {"type":"message_stop"}\n\n';
+  await store(sse(original), true, 'anthropic_messages');
+  assert.equal(stored.length, 1);
+  assert.equal(new TextDecoder().decode(stored[0].body), original);
+}));
+
+test('malformed SSE and data after completion are never cached, while event-like model text is safe', withFakeCache(async (stored) => {
+  await store(sse('data: not-json\n\ndata: [DONE]\n\n'), true);
+  await store(
+    sse('data: {"choices":[{"delta":{"content":"the text says response.incomplete"}}]}\n\ndata: [DONE]\n\n'),
+    true,
+  );
+  await store(sse('data: {"choices":[{"delta":{"content":"ok"}}]}\n\ndata: [DONE]\n\ndata: extra\n\n'), true);
+  assert.equal(stored.length, 1);
+}));
+
+test('client cancellation aborts cache-fill reads and prevents storage', withFakeCache(async (stored) => {
+  const encoder = new TextEncoder();
+  const controller = new AbortController();
+  let sourceCancelled = 0;
+  const response = new Response(
+    new ReadableStream({
+      start(streamController) {
+        streamController.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"x"}}]}\n\n'));
+      },
+      pull() {
+        return new Promise(() => {});
+      },
+      cancel() {
+        sourceCancelled++;
+      },
+    }),
+    { headers: { 'content-type': 'text/event-stream' } },
+  );
+  const clientResponse = response.clone();
+  const { pending } = beginStore(clientResponse, true, 'openai_chat', { signal: controller.signal });
+  const clientReader = response.body.getReader();
+  await clientReader.read();
+  controller.abort();
+  await clientReader.cancel();
+  await Promise.all(pending);
+  assert.equal(sourceCancelled, 1);
+  assert.deepEqual(stored, []);
+}));
+
+test('an oversized SSE frame is not cached when the bounded safety observer cannot inspect it', withFakeCache(async (stored) => {
+  const toolFrame = `data: ${JSON.stringify({ choices: [{ delta: { content: 'x'.repeat(70 * 1024), tool_calls: [{ index: 0 }] } }] })}\n\ndata: [DONE]\n\n`;
+  await store(sse(toolFrame), true);
+  assert.deepEqual(stored, []);
+}));
+
+test('responses larger than the per-fill memory cap are cancelled and not cached', withFakeCache(async (stored) => {
+  await store(json({ choices: [{ message: { content: 'x'.repeat(300 * 1024) } }] }), false);
+  assert.deepEqual(stored, []);
 }));
