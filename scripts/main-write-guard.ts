@@ -47,8 +47,7 @@ export function mainWriteEvidenceError(
   context: "PR Governance" | "CI Evidence" | "validate-merge",
   reason: string
 ): CliError {
-  const message =
-    `::error::Merged PR head has no successful Action Worker ${context} status (${reason}).`;
+  const message = `::error::Merged PR head has no successful Action Worker ${context} status (${reason}).`;
   return reason === "run-still-running"
     ? new MainWriteVerificationPendingError(message, 75)
     : new CliError(message, 65);
