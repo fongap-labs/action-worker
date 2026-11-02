@@ -43,6 +43,9 @@ export function buildReleaseManifest(
     version,
     release_name: manifest.release_name,
     release_notes: releaseNotes,
+    ...(manifest.changelog_entries !== undefined
+      ? { changelog_entries: manifest.changelog_entries }
+      : {}),
     // A beta is published as a GitHub pre-release, so it never becomes the repository's latest release.
     prerelease: version.includes("-beta."),
     license: { expression: manifest.license_expression },
