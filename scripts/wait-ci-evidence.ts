@@ -11,6 +11,26 @@ function policyNumber(value: Record<string, unknown>, key: string, fallback: num
   return typeof value[key] === "number" ? value[key] : fallback;
 }
 
+export async function assertCurrentPullHead(
+  reader: JsonReader,
+  repository: string,
+  prNumber: number,
+  headSha: string
+): Promise<void> {
+  const pull = await reader.get(`repos/${repository}/pulls/${prNumber}`);
+  if (!isJsonRecord(pull) || !isJsonRecord(pull.head)) {
+    throw new CliError("::error::Cannot verify the current pull request revision.", 65);
+  }
+  const currentHead = getJsonString(pull.head, "sha");
+  if (getJsonString(pull, "state") !== "open" || currentHead !== headSha) {
+    throw new CliError(
+      `::error::Abandoning obsolete CI wait for ${repository}#${prNumber}: ` +
+        `expected head ${headSha}, current head ${currentHead || "<missing>"}.`,
+      75
+    );
+  }
+}
+
 type Evidence = {
   repository: string;
   head_sha: string;
@@ -50,12 +70,16 @@ export async function waitForCentralStatus(
   reader: JsonReader,
   controlRepository: string,
   pollSeconds: number,
-  timeoutMinutes: number
+  timeoutMinutes: number,
+  prNumber?: number
 ): Promise<void> {
   const context = getJsonString(ci, "status_context") || "CI Evidence";
   const deadline = Date.now() + timeoutMinutes * 60_000;
 
   while (Date.now() < deadline) {
+    if (prNumber !== undefined) {
+      await assertCurrentPullHead(reader, repository, prNumber, headSha);
+    }
     const response = await reader.get(`repos/${repository}/commits/${headSha}/status`);
     const status = trustedCiStatus(response, context, controlRepository);
 
@@ -91,6 +115,9 @@ export async function waitForCentralStatus(
       }
     }
 
+    if (prNumber !== undefined) {
+      await assertCurrentPullHead(reader, repository, prNumber, headSha);
+    }
     const conclusion = state === "success" ? "success" : "failure";
     await publishEvidence({
       repository,
@@ -113,11 +140,17 @@ export async function waitForCentralStatus(
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  if (args.length !== 3) {
-    throw new CliError("Usage: wait-ci-evidence.ts <repository> <head-sha> <policy-file>", 64);
+  if (args.length !== 4) {
+    throw new CliError(
+      "Usage: wait-ci-evidence.ts <repository> <head-sha> <policy-file> <pr-number>",
+      64
+    );
   }
 
-  const [repository = "", headSha = "", policyPath = ""] = args;
+  const [repository = "", headSha = "", policyPath = "", prNumber = ""] = args;
+  if (!/^[1-9]\\d*$/.test(prNumber)) {
+    throw new CliError("::error::Invalid CI pull request number.", 65);
+  }
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
     throw new CliError("::error::Invalid CI repository.", 65);
   }
@@ -148,7 +181,8 @@ async function main(): Promise<void> {
     new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token),
     controlRepository,
     pollSeconds,
-    timeoutMinutes
+    timeoutMinutes,
+    Number(prNumber)
   );
 }
 

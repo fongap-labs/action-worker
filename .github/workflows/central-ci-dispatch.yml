@@ -8,7 +8,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: central-ci-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number || github.event.client_payload.head_sha }}
+  # Isolate each revision: a late dispatch for an old head must never cancel a current one.
+  group: central-ci-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.head_sha }}
   cancel-in-progress: ${{ github.event.action == 'run-central-ci' }}
 
 jobs:
