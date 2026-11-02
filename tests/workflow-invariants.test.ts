@@ -4,8 +4,8 @@ import { test } from "node:test";
 import { parse } from "yaml";
 
 type Step = { name?: string; uses?: string; with?: Record<string, unknown> };
-type Job = { steps?: Step[]; secrets?: unknown; uses?: string };
-type Workflow = { jobs: Record<string, Job> };
+type Job = { steps?: Step[]; secrets?: unknown; uses?: string; if?: string; concurrency?: Record<string, unknown> };
+type Workflow = { jobs: Record<string, Job>; concurrency?: Record<string, unknown> };
 
 const workflowDirectory = ".github/workflows";
 
@@ -30,6 +30,24 @@ function usesWholeSecretsContext(value: unknown): boolean {
 }
 
 const centralSecrets = ["AW_CONTROL_TOKEN", "AW_ADMIN_TOKEN", "AW_DISPATCH_TOKEN"];
+
+
+test("duplicate PR dispatches preserve completed governance provenance", async () => {
+  const dispatch = await workflow("handle-pr-dispatch.yml");
+  assert.match(String(dispatch.concurrency?.group), /pr-governance-/);
+  assert.equal(
+    dispatch.concurrency?.["cancel-in-progress"],
+    false,
+    "a duplicate intake dispatch must not cancel the run that published merge evidence"
+  );
+  const cancellation = await workflow("cancel-pr-work.yml");
+  assert.equal(
+    cancellation.jobs.governance?.["if"],
+    "needs.validate.outputs.merged != 'true'",
+    "only unmerged closed PRs may cancel active governance"
+  );
+  assert.equal(cancellation.jobs.governance?.concurrency?.["cancel-in-progress"], true);
+});
 
 test("the CI sandbox references no secret except its read-only checkout token", async () => {
   const sandbox = await workflow("central-ci-sandbox.yml");
