@@ -4,7 +4,7 @@
 // Regression tests for the hot-path performance and stability fixes: bounded body reads that report
 // truncation, the oversized buffered reply stop, stale-while-revalidate session affinity, the
 // pull-driven first-event guard, the streaming model-name rewrite, the isolate retry budget, the
-// cached access-key digests and the 30s usage flush window.
+// cached access-key digests and the rate-limited usage flush window.
 
 import { assert, test } from '#kit/harness.mjs';
 import { withMockFetch } from '#kit/fetch.mjs';
@@ -16,6 +16,7 @@ import { MAX_BUFFERED_REPLY_BYTES, readBodyTextBounded, safeReadErrorBody } from
 import { __resetAllStateForTests } from '#target/src/reliability/node-state.ts';
 import { RETRY_BUDGET_MIN, RetrySlot, __resetRetryBudgetForTests, isSpeculativeRetryAfter, snapshotRetryBudget } from '#target/src/reliability/retry-budget.ts';
 import { __resetTier1StateForTests } from '#target/src/reliability/tier1-state.ts';
+import { __resetIsolateConcurrencyForTests, admitIsolateRequest, releaseIsolateRequestAfterResponse } from '#target/src/ratelimit/isolate-concurrency.ts';
 import { authorize } from '#target/src/request/auth.ts';
 import { __resetTier1AffinityForTests, readTier1Affinity, snapshotTier1Affinity } from '#target/src/scheduler/tier1-affinity.ts';
 import { ensureFirstSseEvent } from '#target/src/stream/guard.ts';
@@ -81,9 +82,9 @@ const completion = (content) => ({
 
 test('readBodyTextBounded reports truncation only when bytes were left behind', async () => {
   const exact = await readBodyTextBounded(bytesResponse([enc.encode('abcd'), enc.encode('efgh')]), 8);
-  assert.deepEqual(exact, { text: 'abcdefgh', truncated: false });
+  assert.deepEqual(exact, { text: 'abcdefgh', isTruncated: false });
   const over = await readBodyTextBounded(bytesResponse([enc.encode('abcd'), enc.encode('efghi')]), 8);
-  assert.deepEqual(over, { text: 'abcdefgh', truncated: true });
+  assert.deepEqual(over, { text: 'abcdefgh', isTruncated: true });
   assert.equal(await safeReadErrorBody(bytesResponse([enc.encode('abcdefghij')]), 4), 'abcd');
 });
 
@@ -338,16 +339,62 @@ test('cached key digests keep authorizing the right group and rejecting the wron
 
 // ---- usage flush window -----------------------------------------------------------------
 
-test('usage events inside the flush window share one D1 batch', async () => {
+test('usage events inside the five-minute flush window share one D1 batch', async () => {
   __resetUsageBufferForTests();
   const d1 = createMockD1();
   const env = { TOKEN_STATS_DB: d1 };
   const t0 = Date.UTC(2026, 8, 15, 12);
-  await persistTokenUsage(env, { prompt_tokens: 1, completion_tokens: 1 }, t0, 'm');
-  const afterFirst = d1._writes.length;
-  assert.ok(afterFirst > 0, 'the first event is written at once');
-  for (let i = 0; i < 20; i++) await persistTokenUsage(env, { prompt_tokens: 1, completion_tokens: 1 }, t0 + i, 'm');
-  assert.equal(d1._writes.length, afterFirst, 'later events inside the window stay buffered');
-  await flushUsageBuffer();
-  assert.ok(d1._writes.length > afterFirst, 'a forced flush writes the merged increments');
+  const originalNow = Date.now;
+  try {
+    Date.now = () => t0;
+    await persistTokenUsage(env, { prompt_tokens: 1, completion_tokens: 1 }, t0, 'm');
+    const afterFirst = d1._writes.length;
+    assert.equal(afterFirst, 0, 'the first event is buffered to avoid a hot-row write on every burst');
+    for (let i = 0; i < 20; i++) await persistTokenUsage(env, { prompt_tokens: 1, completion_tokens: 1 }, t0 + i, 'm');
+    assert.equal(d1._writes.length, afterFirst, 'later events inside the window stay buffered');
+    Date.now = () => t0 + 5 * 60_000;
+    await persistTokenUsage(env, { prompt_tokens: 1, completion_tokens: 1 }, t0 + 5 * 60_000, 'm');
+    assert.ok(d1._writes.length > afterFirst, 'the first usage event after the window flushes the merged increments');
+  } finally {
+    Date.now = originalNow;
+  }
+});
+
+test('isolate admission remains held until a response body completes or is cancelled', async () => {
+  __resetIsolateConcurrencyForTests();
+  const release = admitIsolateRequest(1);
+  assert.ok(release);
+  let cancelled = false;
+  const source = new ReadableStream({
+    start(controller) {
+      controller.enqueue(enc.encode('chunk'));
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+  const response = releaseIsolateRequestAfterResponse(new Response(source), release);
+  assert.equal(admitIsolateRequest(1), null, 'a committed response still owns the isolate slot');
+  const reader = response.body.getReader();
+  assert.equal((await reader.read()).value.toString(), enc.encode('chunk').toString());
+  assert.equal(admitIsolateRequest(1), null, 'reading one body chunk does not release the slot');
+  await reader.cancel('client left');
+  assert.equal(cancelled, true, 'cancellation reaches the upstream reader');
+  assert.ok(admitIsolateRequest(1), 'cancellation releases the slot exactly once');
+  __resetIsolateConcurrencyForTests();
+});
+
+test('isolate admission releases after a streamed response reaches EOF', async () => {
+  __resetIsolateConcurrencyForTests();
+  const release = admitIsolateRequest(1);
+  const response = releaseIsolateRequestAfterResponse(new Response(new ReadableStream({
+    start(controller) {
+      controller.enqueue(enc.encode('chunk'));
+      controller.close();
+    },
+  })), release);
+  assert.equal(admitIsolateRequest(1), null);
+  assert.equal(await response.text(), 'chunk');
+  assert.ok(admitIsolateRequest(1), 'normal EOF releases the slot');
+  __resetIsolateConcurrencyForTests();
 });

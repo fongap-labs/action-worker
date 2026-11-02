@@ -865,5 +865,45 @@ await test('/health.build reports deployment commit and /version stays removed',
   assert.equal(upstreamCalls.length, 0);
 });
 
+await test('explicit cache miss fills the edge entry and a later hit avoids another upstream dispatch', async () => {
+  const previousCaches = globalThis.caches;
+  const entries = new Map();
+  globalThis.caches = {
+    default: {
+      async put(key, response) {
+        const body = await response.arrayBuffer();
+        entries.set(key.url, new Response(body, { status: response.status, headers: response.headers }));
+      },
+      async match(key) {
+        return entries.get(key.url)?.clone();
+      },
+    },
+  };
+  try {
+    routeHandlers['cache.example.com'] = () => jsonResponse(okChat('cache-hit'));
+    const env = makeEnv({
+      tier1: [openaiNode('cache')],
+      secrets: { cache: 'provider-key' },
+      extraEnv: { AIG_TOKEN_ENCRYPTION_KEY: 'k'.repeat(32), AIG_EDGE_CACHE_TTL_SEC: '60' },
+    });
+    const request = () => chatRequest({}, ACCESS_KEY, { headers: { 'x-gateway-cache': 'true' } });
+    const pending = [];
+    const first = await worker.fetch(request(), env, { waitUntil: (task) => pending.push(task) });
+    assert.equal(first.headers.get('x-gateway-cache-status'), 'MISS');
+    assert.equal(first.headers.get('cache-control'), 'private, no-store');
+    assert.equal((await first.json()).choices[0].message.content, 'cache-hit');
+    await Promise.all(pending);
+    assert.equal(upstreamCalls.length, 1);
+
+    const second = await worker.fetch(request(), env, {});
+    assert.equal(second.headers.get('x-gateway-cache-status'), 'HIT');
+    assert.equal(second.headers.get('cache-control'), 'private, no-store');
+    assert.equal((await second.json()).choices[0].message.content, 'cache-hit');
+    assert.equal(upstreamCalls.length, 1, 'a cache HIT does not dispatch to the provider');
+  } finally {
+    globalThis.caches = previousCaches;
+  }
+});
+
 if (!process.exitCode) console.log(`\nintegration tests passed (${passed}).`);
 else process.exit(1);

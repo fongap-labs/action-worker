@@ -7,7 +7,7 @@ import { assert, test } from '#kit/harness.mjs';
 import { buildEdgeCacheKeyRequest } from '#target/src/request/edge-cache.ts';
 
 async function key(body, group = 'AIR', route = 'openai_chat', model = 'Code-Max') {
-  return (await buildEdgeCacheKeyRequest(route, model, body, group)).url;
+  return (await buildEdgeCacheKeyRequest(route, model, body, group, { host: 'gateway.example.com' })).url;
 }
 
 test('object key order does not change the key', async () => {

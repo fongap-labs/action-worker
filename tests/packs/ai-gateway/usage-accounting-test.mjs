@@ -22,8 +22,8 @@ import { observeUpstreamAttemptUsage, recordTokens, recordUndeliveredUpstreamAtt
 import { trackStreamResponse } from '#target/src/stream/track.ts';
 import assert from 'node:assert/strict';
 
-// Writes are buffered per isolate and flushed on read. Flush right away so each
-// test sees exactly the write set it made.
+// Writes are buffered per isolate. Flush explicitly so each test sees exactly
+// the write set it made without relying on dashboard reads to cause D1 writes.
 async function persistNow(...args) {
   await persistTokenUsage(...args);
   await flushUsageBuffer();
@@ -309,16 +309,17 @@ try {
 
   const cellCount = (html) => (html.match(/class="cell"/g) || []).length;
   const monthLabels = (html) => [...html.matchAll(/<span style="grid-column:\d+">(\d{1,2})月<\/span>/g)].map((m) => m[1]);
-  function seededEnv(writes) {
+  async function seededEnv(writes) {
     const d1 = createMockD1();
     const env = deepClone(ENV);
     env.TOKEN_STATS_DB = d1;
     const h0 = Math.floor(Date.now() / 3_600_000) * 3_600_000;
-    for (const [usage, offsetHours = 0] of writes) persistTokenUsage(env, usage, h0 - offsetHours * 3_600_000);
+    for (const [usage, offsetHours = 0] of writes) await persistTokenUsage(env, usage, h0 - offsetHours * 3_600_000);
+    await flushUsageBuffer();
     return env;
   }
 
-  await test('no D1 binding degrades to 统计暂不可用 with em dashes, never a fake 0', async () => {
+  await test('no D1 binding is reported distinctly with em dashes, never a fake 0', async () => {
     const html = await pageText(authedRequest(), ENV);
     assert.ok(html.includes('使用情况'));
     assert.ok(!html.includes('class="utc8"'));
@@ -332,8 +333,10 @@ try {
     assert.ok(!html.includes('今日 Token'));
     assert.ok(!html.includes('累计 Token'));
     assert.ok(html.includes('>—<'));
-    assert.equal((html.match(/>—</g) || []).length, 5);
+    assert.equal((html.match(/>—</g) || []).length, 4);
     assert.ok(html.includes('model-usage-empty'));
+    assert.ok(html.includes('Token 统计数据库未绑定。'));
+    assert.ok(html.includes('D1 未绑定'));
     assert.ok(!html.includes('>0<'));
     assert.ok(!html.includes('class="cell"'));
     assert.ok(!html.includes('NaN'));
@@ -351,19 +354,72 @@ try {
     const res = await dashboardResponse(authedRequest(), env);
     assert.equal(res.status, 200);
     const html = await res.text();
-    assert.ok(html.includes('统计暂不可用'));
+    assert.ok(html.includes('Token 统计查询失败，暂不显示。'));
+    assert.ok(html.includes('D1 查询失败'));
     assert.ok(!html.includes('>0<'));
     assert.ok(!html.includes('class="cell"'));
   });
 
   await test('the D1-backed card renders the four KPIs from real aggregates', async () => {
-    const env = seededEnv([[{ prompt_tokens: 10, completion_tokens: 20 }], [{ prompt_tokens: 3, completion_tokens: 2 }], [null]]);
+    const env = await seededEnv([[{ prompt_tokens: 10, completion_tokens: 20 }], [{ prompt_tokens: 3, completion_tokens: 2 }], [null]]);
     const html = await pageText(anonRequest(), env);
     assert.ok(html.includes('使用情况'));
     assert.ok(html.includes('>35<'));
     assert.ok(!html.includes('class="utc8"'));
     assert.ok(!html.includes('累计请求'));
     assert.ok(!html.includes('Usage 覆盖率'));
+  });
+
+  await test('model sampling keeps provider-reported global token totals unsampled', async () => {
+    const d1 = createMockD1();
+    const env = { TOKEN_STATS_DB: d1, AIG_TOKEN_D1_SAMPLE_PCT: '0' };
+    await persistNow(env, { prompt_tokens: 11, completion_tokens: 4, total_tokens: 15 }, Date.now(), 'rare-model');
+    assert.ok(d1._writes.some((write) => write.sql.includes('token_usage_hourly')), 'global hourly aggregate is persisted');
+    assert.ok(d1._writes.some((write) => write.sql.includes('token_usage_totals')), 'global lifetime aggregate is persisted');
+    assert.ok(!d1._writes.some((write) => write.sql.includes('token_usage_model_hourly')), 'zero sampling skips model detail only');
+    const summary = await queryTokenSummary(env);
+    assert.equal(summary?.available, true);
+    assert.equal(summary.cumulative.total, 15);
+    assert.equal(summary.cumulative.requests, 1);
+  });
+
+  await test('dashboard reads do not flush a pending token batch into D1', async () => {
+    __resetUsageBufferForTests();
+    const d1 = createMockD1();
+    const env = { TOKEN_STATS_DB: d1 };
+    await persistTokenUsage(env, { prompt_tokens: 7, completion_tokens: 2 }, Date.now(), 'model-a');
+    const summary = await queryTokenSummary(env);
+    assert.equal(summary?.available, true);
+    assert.equal(d1._writes.length, 0, 'a read does not add D1 row writes');
+    await flushUsageBuffer();
+    assert.ok(d1._writes.length > 0);
+  });
+
+  await test('dashboard labels sampled model detail and does not extrapolate it', async () => {
+    const d1 = createMockD1();
+    const env = deepClone(ENV);
+    env.TOKEN_STATS_DB = d1;
+    env.AIG_TOKEN_D1_SAMPLE_PCT = '1';
+    await persistNow(env, { prompt_tokens: 10, completion_tokens: 2 }, Date.now(), 'model-a');
+    const html = await pageText(anonRequest(), env);
+    assert.ok(html.includes('模型维度数据按 1% 抽样，未外推。'));
+    assert.ok(html.includes('D1 已持久化 1 / 1 次上游 usage 报告'));
+    assert.ok(html.includes('下一次 usage 写入时提交'));
+    assert.ok(html.includes('Worker 无法读取账户级 D1 配额'));
+  });
+
+  await test('dashboard distinguishes no persisted traffic from incomplete upstream usage coverage', async () => {
+    const empty = deepClone(ENV);
+    empty.TOKEN_STATS_DB = createMockD1();
+    const emptyHtml = await pageText(anonRequest(), empty);
+    assert.ok(emptyHtml.includes('D1 暂无已持久化的物理上游尝试记录'));
+    assert.ok(emptyHtml.includes('这不能证明实际流量为零'));
+
+    const partial = await seededEnv([[{ prompt_tokens: 10, completion_tokens: 2 }], [null]]);
+    const partialHtml = await pageText(anonRequest(), partial);
+    assert.ok(partialHtml.includes('D1 已持久化 1 / 2 次上游 usage 报告'));
+    assert.ok(partialHtml.includes('覆盖率 50.0%'));
+    assert.ok(partialHtml.includes('未报告的 Token 不估算'));
   });
 
   await test('token composition uses cumulative input, output, and reported cache-read totals without an extra heading', async () => {
@@ -475,7 +531,7 @@ try {
   });
 
   await test('Token 活动 · 近 52 周 renders a full 364-cell heatmap with month labels', async () => {
-    const env = seededEnv([[{ prompt_tokens: 7, completion_tokens: 7 }]]);
+    const env = await seededEnv([[{ prompt_tokens: 7, completion_tokens: 7 }]]);
     const html = await pageText(anonRequest(), env);
     assert.ok(html.includes('Token 活动 · 近 52 周'));
     assert.ok(html.includes('次请求'));
@@ -493,7 +549,7 @@ try {
   });
 
   await test('the heatmap colors derive from daily totals, not per-hour noise', async () => {
-    const env = seededEnv([[{ prompt_tokens: 4000, completion_tokens: 0 }], [{ prompt_tokens: 1000, completion_tokens: 0 }, 24]]);
+    const env = await seededEnv([[{ prompt_tokens: 4000, completion_tokens: 0 }], [{ prompt_tokens: 1000, completion_tokens: 0 }, 24]]);
     const html = await pageText(authedRequest(), env);
     assert.ok(html.includes('data-level="4"'));
     assert.ok(html.includes('data-level="1"'));
@@ -506,7 +562,7 @@ try {
       { prompt_tokens: 10, completion_tokens: 20 },
       { model: 'secret-model', provider: 'secret-provider', nodeId: 'secret-node', tier: 'secret-tier' },
     );
-    const env = seededEnv([[{ prompt_tokens: 1, completion_tokens: 1 }]]);
+    const env = await seededEnv([[{ prompt_tokens: 1, completion_tokens: 1 }]]);
     const html = await pageText(anonRequest(), env);
     assert.ok(!html.includes('secret-node'));
     assert.ok(!html.includes('secret-provider'));
@@ -515,7 +571,7 @@ try {
   });
 
   await test('Chinese unit (万/亿) compaction renders on KPI values, never K/M/B', async () => {
-    const card = async (usage) => pageText(authedRequest(), seededEnv([[usage]]));
+    const card = async (usage) => pageText(authedRequest(), await seededEnv([[usage]]));
     assert.ok((await card({ prompt_tokens: 0, completion_tokens: 0 })).includes('>0<'));
     assert.ok((await card({ prompt_tokens: 999, completion_tokens: 0 })).includes('>999<'));
     assert.ok((await card({ prompt_tokens: 9820, completion_tokens: 0 })).includes('>9820<'));
@@ -720,7 +776,7 @@ try {
     const env = deepClone(ENV);
     env.TOKEN_STATS_DB = d1;
     const html = await pageText(anonRequest(), env);
-    assert.ok(html.includes('统计暂不可用'));
+    assert.ok(html.includes('Token 统计查询失败，暂不显示。'));
     for (const leak of [
       'token_usage_hourly',
       'token_usage_model_hourly',

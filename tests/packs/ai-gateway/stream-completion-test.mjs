@@ -15,7 +15,7 @@ import {
   tier1AccountInFlight,
 } from '#target/src/reliability/tier1-state.ts';
 import { ensureFirstSseEvent, FIRST_EVENT_MAX_PRE_BYTES, FIRST_EVENT_MAX_SSE_LINE, GUARD_ERROR } from '#target/src/stream/guard.ts';
-import { trackStreamResponse } from '#target/src/stream/track.ts';
+import { relayStreamResponse, trackStreamResponse } from '#target/src/stream/track.ts';
 
 let passed = 0;
 async function test(name, fn) {
@@ -190,7 +190,7 @@ await test('an existing Responses failure is not followed by a duplicate error e
   assert.equal((text.match(/event: error\b/g) || []).length, 0);
   assert.equal(interruptionCalls, 0);
   assert.equal(r.calls.failure, 1);
-  assertCommonShape(r.calls.ends[0], 'interrupted', 'missing_completion_marker');
+  assertCommonShape(r.calls.ends[0], 'interrupted', 'upstream_terminal_failure');
 });
 
 await test('an injected Responses error continues the observed sequence number', async () => {
@@ -509,6 +509,88 @@ await test('data lines arriving AFTER the completion marker are not scanned', as
   );
   await drain(res);
   assert.deepEqual(r.calls.usage, [null]);
+});
+
+await test('protocol-aware Chat tracking requires the [DONE] frame, not finish_reason or matching body text', async () => {
+  const r = recorder();
+  const input = `${sseChunk('the string data: [DONE] is only content')}${usageEvent({ prompt_tokens: 3, completion_tokens: 5, total_tokens: 8 })}`;
+  const res = trackStreamResponse(upstreamStream((c) => { c.enqueue(encoder.encode(input)); c.close(); }), {
+    ...r.opts,
+    protocol: 'openai_chat',
+  });
+  await drain(res);
+  assert.equal(r.calls.success, 0);
+  assert.equal(r.calls.failure, 1);
+  assert.equal(r.calls.usage.length, 0, 'usage from a truncated attempt is not counted as delivered');
+  assertCommonShape(r.calls.ends[0], 'interrupted', 'missing_completion_marker');
+});
+
+await test('protocol-aware Chat tracking preserves bytes and captures usage only after a real terminal frame', async () => {
+  const r = recorder();
+  const bytes = encoder.encode(`${usageEvent({ prompt_tokens: 3, completion_tokens: 5, total_tokens: 8 })}data: [DONE]\n\n`);
+  const res = trackStreamResponse(upstreamStream((c) => { c.enqueue(bytes); c.close(); }), {
+    ...r.withUsage(),
+    protocol: 'openai_chat',
+  });
+  const output = new Uint8Array(await res.arrayBuffer());
+  assert.deepEqual(output, bytes);
+  assert.equal(r.calls.success, 1);
+  assert.equal(r.calls.failure, 0);
+  assert.deepEqual(r.calls.usage, [{ prompt_tokens: 3, completion_tokens: 5, total_tokens: 8 }]);
+  assert.equal(r.calls.ends[0].completionMarkerSeen, true);
+});
+
+await test('protocol-aware Responses treats incomplete as a terminal failure and completed as success', async () => {
+  const incomplete = recorder();
+  const failed = trackStreamResponse(upstreamStream((c) => {
+    c.enqueue(encoder.encode('event: response.incomplete\ndata: {"type":"response.incomplete","response":{"status":"incomplete"}}\n\n'));
+    c.close();
+  }), { ...incomplete.opts, protocol: 'openai_responses' });
+  await drain(failed);
+  assert.equal(incomplete.calls.failure, 1);
+  assert.equal(incomplete.calls.success, 0);
+  assertCommonShape(incomplete.calls.ends[0], 'interrupted', 'upstream_terminal_failure');
+
+  const complete = recorder();
+  const response = trackStreamResponse(upstreamStream((c) => {
+    c.enqueue(encoder.encode('event: response.completed\ndata: {"type":"response.completed","response":{"status":"completed"}}\n\n'));
+    c.close();
+  }), { ...complete.opts, protocol: 'openai_responses' });
+  await drain(response);
+  assert.equal(complete.calls.success, 1);
+  assert.equal(complete.calls.failure, 0);
+});
+
+await test('byte-preserving relay observes protocol completion, usage, and EOF truncation', async () => {
+  const r = recorder();
+  const encoded = encoder.encode(`${usageEvent({ prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 })}data: [DONE]\n\n`);
+  const input = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoded.slice(0, 17));
+      controller.enqueue(encoded.slice(17));
+      controller.close();
+    },
+  });
+  const relay = relayStreamResponse(new Response(input, { headers: { 'content-type': 'text/event-stream' } }), {
+    ...r.opts,
+    protocol: 'openai_chat',
+    onAttemptUsage: (usage, outcome) => r.calls.usage.push({ usage, outcome }),
+    onUsage: (usage) => r.calls.usage.push({ delivered: usage }),
+  });
+  assert.deepEqual(new Uint8Array(await relay.arrayBuffer()), encoded);
+  assert.deepEqual(r.calls.usage, [
+    { usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 }, outcome: 'success' },
+    { delivered: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 } },
+  ]);
+  assert.equal(r.calls.success, 1);
+
+  const truncated = recorder();
+  const incomplete = relayStreamResponse(upstreamStream((c) => { c.enqueue(encoder.encode(sseChunk('partial'))); c.close(); }), {
+    ...truncated.opts,
+    protocol: 'openai_chat',
+  });
+  await drain(incomplete);
+  assert.equal(truncated.calls.failure, 1, 'raw EOF cannot be counted as a complete answer');
 });
 
 await test('first-event guard preserves the oversized-line failure code', async () => {

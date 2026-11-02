@@ -15,7 +15,7 @@ import { getModelsConfigDiagnostics, loadModelsConfig } from '#target/src/config
 import { getPolicy, loadPoliciesConfig } from '#target/src/config/policies.ts';
 import { collectKnownModels, isWildcardNode, loadModelRegistry, modelRegistryEntry, servesModel } from '#target/src/config/registry.ts';
 import worker from '#target/src/index.ts';
-import { queryRecentModelEvidence } from '#target/src/observability/token-usage-store.ts';
+import { flushUsageBuffer, queryRecentModelEvidence } from '#target/src/observability/token-usage-store.ts';
 import { providerWire } from '#target/src/providers/registry.ts';
 import { __resetAllStateForTests } from '#target/src/reliability/node-state.ts';
 import { __resetTier1StateForTests, getTier1Model, recordTier1Ttft } from '#target/src/reliability/tier1-state.ts';
@@ -286,6 +286,7 @@ try {
     const { persistTokenUsage } = await import('#target/src/observability/token-usage-store.ts');
     await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'air');
     await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'code-max');
+    await flushUsageBuffer();
     const out = await queryRecentModelEvidence(env, MODEL_STATUS_RECENT_WINDOW_MS, now());
     assert.equal(out.size, 2);
     assert.ok(out.has('air'));
@@ -308,6 +309,7 @@ try {
     const { persistTokenUsage } = await import('#target/src/observability/token-usage-store.ts');
     await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'air');
     await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, hOld, 'oldmodel');
+    await flushUsageBuffer();
     const out = await queryRecentModelEvidence(env, MODEL_STATUS_RECENT_WINDOW_MS, now());
     assert.ok(out.has('air'), 'recent traffic counted');
     assert.ok(!out.has('oldmodel'), 'old traffic outside window ignored');
@@ -323,6 +325,7 @@ try {
     // (an interrupted stream with partial data is still recent activity).
     const { persistTokenUsage } = await import('#target/src/observability/token-usage-store.ts');
     await persistTokenUsage(env, null, h0, 'broken-only');
+    await flushUsageBuffer();
     const out = await queryRecentModelEvidence(env, MODEL_STATUS_RECENT_WINDOW_MS, now());
     assert.ok(out.has('broken-only'), 'a row with requests > 0 (even if missing-usage) still counts as recent activity');
   });
@@ -431,6 +434,7 @@ try {
     const h0 = Math.floor((now() - 30 * 60_000) / HOUR) * HOUR;
     const { persistTokenUsage } = await import('#target/src/observability/token-usage-store.ts');
     await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'air');
+    await flushUsageBuffer();
     // Issue two concurrent page loads — the model-status query must be
     // coalesced by the existing dashboard cache, not re-issued.
     const readsBefore = d1._reads.length;
@@ -776,6 +780,7 @@ try {
     const h25 = Math.floor((now() - 25 * HOUR) / HOUR) * HOUR; // out of window
     await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h23, 'in-23h');
     await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h25, 'out-25h');
+    await flushUsageBuffer();
     const evidence = await queryRecentModelEvidence(env, undefined, now());
     check(
       'C03 23h-old success is evidence, 25h-old is not',
