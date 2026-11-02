@@ -110,7 +110,8 @@ export class GithubHttpError extends Error {
     } = {}
   ) {
     const kind = details.kind ?? "http";
-    const where = details.path && (status === 403 || status === 429) ? ` on GET ${details.path}` : "";
+    const where =
+      details.path && (status === 403 || status === 429) ? ` on GET ${details.path}` : "";
     const explanation =
       kind === "primary-rate-limit"
         ? "primary API rate limit exhausted"
