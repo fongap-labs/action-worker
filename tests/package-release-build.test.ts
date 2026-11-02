@@ -73,7 +73,6 @@ test("a beta is packaged as a pre-release and a formal version is not", () => {
   assert.equal(buildReleaseManifest(build, "0.1.1", assets).prerelease, false);
 });
 
-
 test("product-scoped changelog entries survive packaging without consuming shared records", () => {
   const scoped = parseReleaseBuildManifest({
     ...build,
@@ -83,8 +82,17 @@ test("product-scoped changelog entries survive packaging without consuming share
     ],
   });
   const assets = [{ name: "delta-windows-x64-portable.zip", sha256: "a".repeat(64) }];
-  assert.deepEqual(buildReleaseManifest(scoped, "0.1.0-beta.2", assets).changelog_entries, scoped.changelog_entries);
-  assert.equal(Object.hasOwn(buildReleaseManifest(build, "0.1.0-beta.2", assets), "changelog_entries"), false);
+  assert.deepEqual(
+    buildReleaseManifest(scoped, "0.1.0-beta.2", assets).changelog_entries,
+    scoped.changelog_entries
+  );
+  assert.equal(
+    Object.hasOwn(buildReleaseManifest(build, "0.1.0-beta.2", assets), "changelog_entries"),
+    false
+  );
   assert.throws(() => parseReleaseBuildManifest({ ...build, changelog_entries: [] }), /invalid/);
-  assert.throws(() => parseReleaseBuildManifest({ ...build, changelog_entries: ["修复: 错误。\n伪造"] }), /invalid/);
+  assert.throws(
+    () => parseReleaseBuildManifest({ ...build, changelog_entries: ["修复: 错误。\\n伪造"] }),
+    /invalid/
+  );
 });
