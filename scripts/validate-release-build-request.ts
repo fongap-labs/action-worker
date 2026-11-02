@@ -40,6 +40,8 @@ export type ReleaseBuildManifest = {
   release_key: string;
   release_name: string;
   release_notes: string;
+  // Product-owned entries are isolated from the repository-wide Unreleased section.
+  changelog_entries?: string[];
   license_expression: string;
   node_version_file: string;
   python_version_file: string;
@@ -95,7 +97,7 @@ export function parseReleaseBuildManifest(value: unknown): ReleaseBuildManifest 
         "schema_version",
         "target_repository",
       ],
-      ["root"]
+      ["root", "changelog_entries"]
     ) ||
     value.schema_version !== 1 ||
     (value.root !== undefined &&
@@ -109,6 +111,17 @@ export function parseReleaseBuildManifest(value: unknown): ReleaseBuildManifest 
     typeof value.release_name !== "string" ||
     value.release_name.length < 1 ||
     typeof value.release_notes !== "string" ||
+    (value.changelog_entries !== undefined &&
+      (!Array.isArray(value.changelog_entries) ||
+        value.changelog_entries.length < 1 ||
+        value.changelog_entries.length > 20 ||
+        value.changelog_entries.some(
+          (line) =>
+            typeof line !== "string" ||
+            line.length > 300 ||
+            line.includes("\n") ||
+            line.includes("\r")
+        ))) ||
     typeof value.license_expression !== "string" ||
     value.license_expression.length < 1 ||
     !isRelativePath(value.node_version_file) ||
