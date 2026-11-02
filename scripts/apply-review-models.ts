@@ -1,68 +1,73 @@
 import { parseAiAgentConfig } from "./ai-agent-config.ts";
 import { isJsonRecord } from "./github-api.ts";
+import { resolveModelsEndpoint } from "./validate-ai-endpoint-access.ts";
 import { CliError, handleError, isMain, readJson, runText } from "./runtime-command.ts";
 
 const variableName = "AW_AI_AGENT_CONFIG";
 const requiredRoutes = ["code", "workflow", "release", "security", "architecture", "deep"];
 
-type ReviewModelPolicy = {
-  schema_version: 1;
-  models: string[];
-  review: {
-    enabled: true;
-    model: string;
-    routes: Record<string, { model: string }>;
-  };
-};
+type ReviewModelPolicy = { schema_version: 1; model: "Audit-Code" };
 
 export function parseReviewModelPolicy(value: unknown): ReviewModelPolicy {
-  if (!isJsonRecord(value) || value.schema_version !== 1 || !Array.isArray(value.models)) {
-    throw new CliError("::error::Invalid review model policy.", 65);
-  }
-  const models = value.models;
   if (
-    models.length !== 2 ||
-    !models.every((model): model is string => typeof model === "string" && model.length > 0) ||
-    new Set(models).size !== models.length
+    !isJsonRecord(value) ||
+    value.schema_version !== 1 ||
+    value.model !== "Audit-Code" ||
+    Object.keys(value).length !== 2
   ) {
-    throw new CliError("::error::Review model policy must specify exactly two distinct models.", 65);
+    throw new CliError("::error::AI Review must use only Audit-Code.", 65);
   }
-  const review = value.review;
-  if (
-    !isJsonRecord(review) ||
-    review.enabled !== true ||
-    typeof review.model !== "string" ||
-    !models.includes(review.model) ||
-    !isJsonRecord(review.routes)
-  ) {
-    throw new CliError("::error::Review model policy has an invalid review configuration.", 65);
-  }
-  if (
-    Object.keys(review.routes).length !== requiredRoutes.length ||
-    !requiredRoutes.every((route) => {
-      const config = review.routes[route];
-      return isJsonRecord(config) && typeof config.model === "string" && models.includes(config.model);
-    })
-  ) {
-    throw new CliError("::error::Review model policy must route each review agent to an allowed model.", 65);
-  }
-  return value as unknown as ReviewModelPolicy;
+  return { schema_version: 1, model: "Audit-Code" };
 }
 
 export function applyReviewModels(rawConfig: string, policyValue: unknown): string {
-  parseAiAgentConfig(rawConfig);
-  const config = JSON.parse(rawConfig) as unknown;
-  if (!isJsonRecord(config) || !isJsonRecord(config.agents)) {
-    throw new CliError("::error::Invalid current AI agent configuration.", 65);
-  }
+  const config = parseAiAgentConfig(rawConfig);
   const policy = parseReviewModelPolicy(policyValue);
-  const updated = {
-    ...config,
-    agents: { ...config.agents, review: policy.review },
+  const agents = {
+    ...config.agents,
+    review: { enabled: true, model: policy.model, routes: {} },
   };
-  const result = JSON.stringify(updated);
+  // An enabled PR triage agent also uses Audit-Code; unrelated agents remain unchanged.
+  if (agents.triage?.enabled === true) {
+    agents.triage = { enabled: true, model: policy.model, routes: {} };
+  }
+  const result = JSON.stringify({ schema_version: 1, agents });
   parseAiAgentConfig(result);
   return result;
+}
+
+export function hasAuditCode(value: unknown): boolean {
+  return (
+    isJsonRecord(value) &&
+    Array.isArray(value.data) &&
+    value.data.some((entry) => isJsonRecord(entry) && entry.id === "Audit-Code")
+  );
+}
+
+export async function checkAuditCodeAccess(endpoint: string, token: string): Promise<void> {
+  if (!endpoint || !token) {
+    throw new CliError("::error::AI Gateway URL and agent token are required.", 65);
+  }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await fetch(resolveModelsEndpoint(endpoint), {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      throw new CliError(`::error::AI Gateway model access returned HTTP ${response.status}.`, 65);
+    }
+    const payload = await response.json() as unknown;
+    if (!hasAuditCode(payload)) {
+      throw new CliError(
+        "::error::AI Gateway has not authorized Audit-Code for its AGENT key. Configure a usable node mapping and AIG_ACCESS_MODELS_AGENT before syncing Action Worker.",
+        65
+      );
+    }
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function getVariable(repository: string, token: string): Promise<string> {
@@ -87,8 +92,10 @@ async function main(): Promise<void> {
   const policy = await readJson("policies/review-models.json");
   const current = await getVariable(repository, token);
   const next = applyReviewModels(current, policy);
+  // Fail closed without replacing the previous working model routing.
+  await checkAuditCodeAccess(process.env.AI_GATEWAY_URL ?? "", process.env.AI_GATEWAY_TOKEN ?? "");
   if (JSON.stringify(JSON.parse(current)) === next) {
-    console.log("AI Review models are already aligned with source policy.");
+    console.log("AI Review already uses Audit-Code.");
     return;
   }
   await runText(
@@ -104,7 +111,7 @@ async function main(): Promise<void> {
   if (JSON.stringify(JSON.parse(saved)) !== next) {
     throw new CliError("::error::AI Review model variable did not match source policy.", 65);
   }
-  console.log("AI Review model routes updated and verified. Other AI agents remain unchanged.");
+  console.log("AI Review now uses Audit-Code; unrelated agents are unchanged.");
 }
 
 if (isMain(import.meta.url)) {
