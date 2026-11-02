@@ -1,10 +1,9 @@
 import { type AiAgentConfigEntry, parseAiAgentConfig } from "./ai-agent-config.ts";
 import { isJsonRecord } from "./github-api.ts";
-import { resolveModelsEndpoint } from "./validate-ai-endpoint-access.ts";
 import { CliError, handleError, isMain, readJson, runText } from "./runtime-command.ts";
+import { resolveModelsEndpoint } from "./validate-ai-endpoint-access.ts";
 
 const variableName = "AW_AI_AGENT_CONFIG";
-const requiredRoutes = ["code", "workflow", "release", "security", "architecture", "deep"];
 
 type ReviewModelPolicy = { schema_version: 1; model: "Audit-Code" };
 
@@ -58,7 +57,7 @@ export async function checkAuditCodeAccess(endpoint: string, token: string): Pro
     if (!response.ok) {
       throw new CliError(`::error::AI Gateway model access returned HTTP ${response.status}.`, 65);
     }
-    const payload = await response.json() as unknown;
+    const payload = (await response.json()) as unknown;
     if (!hasAuditCode(payload)) {
       throw new CliError(
         "::error::AI Gateway has not authorized Audit-Code for its AGENT key. Configure a usable node mapping and AIG_ACCESS_MODELS_AGENT before syncing Action Worker.",
@@ -100,7 +99,14 @@ async function main(): Promise<void> {
   }
   await runText(
     "gh",
-    ["api", "--method", "PATCH", `repos/${repository}/actions/variables/${variableName}`, "--input", "-"],
+    [
+      "api",
+      "--method",
+      "PATCH",
+      `repos/${repository}/actions/variables/${variableName}`,
+      "--input",
+      "-",
+    ],
     {
       env: { ...process.env, GH_TOKEN: token },
       input: JSON.stringify({ name: variableName, value: next }),
