@@ -16,8 +16,8 @@ import {
   wasScheduledDeployDispatched,
 } from "../scripts/dispatch-scheduled-deploys.ts";
 import { GithubHttpError } from "../scripts/github-api.ts";
-import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 import { assertDeployTrigger } from "../scripts/validate-deploy-source.ts";
+import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const head = "0123456789abcdef0123456789abcdef01234567";
 const newerHead = "abcdef0123456789abcdef0123456789abcdef01";
@@ -231,12 +231,16 @@ test("a product and the root layout write different dedupe statuses", async () =
 
 // --- CI verdict ----------------------------------------------------------------------------------
 
-const ciSuccess = attestFixtureStatuses({
-  context: "CI Evidence",
-  state: "success",
-  target_url: `https://github.com/${controlRepository}/actions/runs/123`,
-  created_at: "2026-10-02T13:11:43Z",
-}, repository, head) as Record<string, unknown>;
+const ciSuccess = attestFixtureStatuses(
+  {
+    context: "CI Evidence",
+    state: "success",
+    target_url: `https://github.com/${controlRepository}/actions/runs/123`,
+    created_at: "2026-10-02T13:11:43Z",
+  },
+  repository,
+  head
+) as Record<string, unknown>;
 
 const run = {
   repository: { full_name: controlRepository },
@@ -251,7 +255,8 @@ const run = {
 function ciReader(statuses: unknown[], runValue: unknown = run) {
   return {
     async get(path: string): Promise<unknown> {
-      if (path === `repos/${repository}/commits/${head}/status`) return attestFixtureStatuses({ statuses }, repository, head);
+      if (path === `repos/${repository}/commits/${head}/status`)
+        return attestFixtureStatuses({ statuses }, repository, head);
       if (path === `repos/${controlRepository}/actions/runs/123`) return runValue;
       throw new GithubHttpError(404);
     },
