@@ -52,7 +52,10 @@ export function originalStatusDescription(value: unknown): string {
 }
 
 export function signedStatusDescription(status: CommitStatus, token: string): string {
-  const description = status.description.trimEnd().slice(0, 140 - signatureSuffixLength).trimEnd();
+  const description = status.description
+    .trimEnd()
+    .slice(0, 140 - signatureSuffixLength)
+    .trimEnd();
   if (!description) {
     throw new CliError("::error::Commit status description is empty after signing.", 64);
   }
