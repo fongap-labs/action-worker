@@ -57,7 +57,11 @@ function latestTaskStatus(value: unknown, repository: string, sha: string): stri
   return "";
 }
 
-function taskState(value: unknown, repository: string, sha: string): "dispatch" | "in-flight" | "processed" {
+function taskState(
+  value: unknown,
+  repository: string,
+  sha: string
+): "dispatch" | "in-flight" | "processed" {
   const state = latestTaskStatus(value, repository, sha);
   if (state === "pending") return "in-flight";
   if (state === "success") return "processed";
