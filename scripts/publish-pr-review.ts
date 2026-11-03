@@ -227,7 +227,11 @@ async function main(): Promise<void> {
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   const expectedHeadSha = process.env.HEAD_SHA ?? "";
-  if (!token || !controlToken || !/^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$/.test(controlRepository)) {
+  if (
+    !token ||
+    !controlToken ||
+    !new RegExp("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$").test(controlRepository)
+  ) {
     throw new CliError("::error::PR review publication requires issue and control credentials.", 77);
   }
   if (!/^[0-9a-f]{40}$/.test(expectedHeadSha)) {
@@ -246,7 +250,9 @@ async function main(): Promise<void> {
     controlRepository
   );
   if (!gate.current) {
-    console.log(`::notice::PR review publication skipped for a stale head: ${repository}#${prNumber}@${expectedHeadSha}.`);
+    console.log(
+      `::notice::PR review publication skipped for a stale head: ${repository}#${prNumber}@${expectedHeadSha}.`
+    );
     return;
   }
   const status =
@@ -256,7 +262,9 @@ async function main(): Promise<void> {
         ? "awaiting-approval"
         : "failure";
   if (rawStatus === "success" && status !== "success") {
-    console.warn(`::warning::PR review cannot claim success without current-head central gates: ${repository}#${prNumber}.`);
+    console.warn(
+      `::warning::PR review cannot claim success without current-head central gates: ${repository}#${prNumber}.`
+    );
   }
   const body = buildReview(
     status,
