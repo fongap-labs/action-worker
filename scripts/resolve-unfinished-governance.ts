@@ -7,13 +7,17 @@ import {
   runGithubCli,
 } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
+import { hasValidStatusAttestation, signedStatusDescription } from "./status-attestation.ts";
 
 const context = "PR Governance";
 const description = "Action Worker PR governance did not complete for this head";
 
 // The newest PR Governance status of a commit, read from its combined status.
 export function latestGovernanceStatus(
-  combined: unknown
+  combined: unknown,
+  repository: string,
+  sha: string,
+  statusToken = process.env.AW_STATUS_TOKEN ?? ""
 ): { state: string; target: string } | null {
   const statuses = getJsonArray(combined, "statuses")
     .filter((item) => isJsonRecord(item) && getJsonString(item, "context") === context)
@@ -21,7 +25,10 @@ export function latestGovernanceStatus(
       getJsonString(right, "created_at").localeCompare(getJsonString(left, "created_at"))
     );
   const latest = statuses[0];
-  if (!isJsonRecord(latest)) {
+  if (
+    !isJsonRecord(latest) ||
+    !hasValidStatusAttestation(latest, { repository, sha, context }, statusToken)
+  ) {
     return null;
   }
   return { state: getJsonString(latest, "state"), target: getJsonString(latest, "target_url") };
@@ -66,8 +73,8 @@ async function main(): Promise<void> {
   if (!/^[0-9a-f]{40}$/.test(head)) {
     throw new CliError(`::error::Pull request ${repository}#${prNumber} has no head commit.`, 65);
   }
-  const combined = await getGithubJson(`repos/${repository}/commits/${head}/status`, controlToken);
-  const status = latestGovernanceStatus(combined);
+  const combined = await getGithubJson(`repos/${repository}/commits/${head}/status`, statusToken);
+  const status = latestGovernanceStatus(combined, repository, head, statusToken);
 
   const runId = status ? targetRunId(status.target, controlRepository) : null;
   const isTargetRunCompleted =
@@ -93,7 +100,17 @@ async function main(): Promise<void> {
       "-f",
       `context=${context}`,
       "-f",
-      `description=${description}`,
+      `description=${signedStatusDescription(
+        {
+          repository,
+          sha: head,
+          state: "failure",
+          context,
+          description,
+          targetUrl: ownRunUrl,
+        },
+        statusToken
+      )}`,
       "-f",
       `target_url=${ownRunUrl}`,
     ],

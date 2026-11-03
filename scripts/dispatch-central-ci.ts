@@ -1,8 +1,9 @@
 import { hasVerifiedCiEvidence } from "./ci-evidence.ts";
 import { requireToken } from "./control-token.ts";
-import { GithubReader, githubEnvironment, isJsonRecord, runGithubCli } from "./github-api.ts";
+import { githubEnvironment, isJsonRecord, runGithubCli, statusAwareReader } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, readJson, runText } from "./runtime-command.ts";
+import { signedStatusDescription } from "./status-attestation.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -49,6 +50,7 @@ async function main(): Promise<void> {
   const context =
     typeof ci.status_context === "string" && ci.status_context ? ci.status_context : "CI Evidence";
   const statusToken = requireToken("status");
+  const controlToken = requireToken("control");
   const dispatchToken = requireToken("dispatch");
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   if (!repositoryPattern.test(controlRepository)) {
@@ -57,12 +59,20 @@ async function main(): Promise<void> {
 
   // Only a success that a real control run produced may skip CI; a status that merely names a
   // control run URL is a claim anyone with status write access can make.
-  const reader = new GithubReader(
+  const reader = statusAwareReader(
     process.env.GITHUB_API_URL ?? "https://api.github.com",
+    controlToken,
     statusToken
   );
   const currentStatus = await reader.get(`repos/${repository}/commits/${headSha}/status`);
-  if (await hasVerifiedCiEvidence(reader, currentStatus, { controlRepository })) {
+  if (
+    await hasVerifiedCiEvidence(reader, currentStatus, {
+      controlRepository,
+      targetRepository: repository,
+      targetSha: headSha,
+      statusToken,
+    })
+  ) {
     console.log(`Central CI already satisfied: ${repository}@${headSha}`);
     return;
   }
@@ -77,7 +87,17 @@ async function main(): Promise<void> {
     "-f",
     `context=${context}`,
     "-f",
-    "description=Central CI in progress",
+    `description=${signedStatusDescription(
+      {
+        repository,
+        sha: headSha,
+        state: "pending",
+        context,
+        description: "Central CI in progress",
+        targetUrl: runUrl,
+      },
+      statusToken
+    )}`,
   ];
   if (runUrl) {
     statusArgs.push("-f", `target_url=${runUrl}`);

@@ -1,7 +1,8 @@
 import { writeFile } from "node:fs/promises";
 import { hasVerifiedCiEvidence, type JsonReader, trustedCiStatus } from "./ci-evidence.ts";
-import { GithubReader, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
+import { getJsonNumber, getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
+import { requireStatusToken } from "./status-attestation.ts";
 
 function sleep(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -129,6 +130,8 @@ export async function waitForCentralStatus(
       const pollMs = pollSeconds * 1000;
       const verified = await hasVerifiedCiEvidence(reader, response, {
         controlRepository,
+        targetRepository: repository,
+        targetSha: headSha,
         runAttempts: Math.max(1, Math.ceil((deadline - Date.now()) / pollMs)),
         retryDelayMs: pollMs,
       });
@@ -194,16 +197,21 @@ async function main(): Promise<void> {
     throw new CliError("::error::CI timeout_minutes must be 1-120 minutes.", 65);
   }
 
-  const token = process.env.GH_TOKEN ?? "";
+  const statusToken = requireStatusToken();
+  const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
-  if (!token || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(controlRepository)) {
+  if (!controlToken || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(controlRepository)) {
     throw new CliError("::error::Central CI evidence authority is unavailable.", 65);
   }
   await waitForCentralStatus(
     repository,
     headSha,
     ci,
-    new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token),
+    statusAwareReader(
+      process.env.GITHUB_API_URL ?? "https://api.github.com",
+      controlToken,
+      statusToken
+    ),
     controlRepository,
     pollSeconds,
     timeoutMinutes,

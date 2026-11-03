@@ -39,6 +39,7 @@ jobs:
       - name: Validate main write provenance
         env:
           MAIN_WRITE_TOKEN: ${{ github.token }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           MAIN_WRITE_REQUIRE_POLICY: "false"
           MAIN_WRITE_REQUIRE_CENTRAL_STATUSES: "false"
           MAIN_WRITE_REPOSITORY: ${{ github.repository }}

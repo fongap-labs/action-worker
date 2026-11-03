@@ -8,7 +8,6 @@ import { fileURLToPath } from "node:url";
 import { prepareReleaseNotes, type ReleasePolicy } from "./changelog-release-notes.ts";
 import { controlRepositoryOf, hasVerifiedCiEvidence } from "./ci-evidence.ts";
 import {
-  GithubReader,
   getGithubJson,
   getJsonArray,
   getJsonNumber,
@@ -17,8 +16,10 @@ import {
   githubExists,
   isJsonRecord,
   runGithubCli,
+  statusAwareReader,
 } from "./github-api.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
+import { requireStatusToken } from "./status-attestation.ts";
 import {
   appendLines,
   CliError,
@@ -346,6 +347,7 @@ async function main(): Promise<void> {
   await requireCommand("unzip", ["-v"]);
 
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
+  const statusToken = requireStatusToken();
   if (!controlToken) {
     throw new CliError("AW_CONTROL_TOKEN is required.", 77);
   }
@@ -375,9 +377,10 @@ async function main(): Promise<void> {
   );
   const defaultSha = getJsonString(defaultCommit, "sha");
 
-  const sourceReader = new GithubReader(
+  const sourceReader = statusAwareReader(
     process.env.GITHUB_API_URL ?? "https://api.github.com",
-    controlToken
+    controlToken,
+    statusToken
   );
   const mainWrite = await assertTrustedMainWrite(
     sourceReader,
@@ -432,11 +435,14 @@ async function main(): Promise<void> {
 
   const statusJson = await getGithubJson(
     `repos/${sourceRepository}/commits/${sourceSha}/status`,
-    controlToken
+    statusToken
   );
   if (
     !(await hasVerifiedCiEvidence(sourceReader, statusJson, {
       controlRepository: controlRepositoryOf(),
+      targetRepository: sourceRepository,
+      targetSha: sourceSha,
+      statusToken,
     }))
   ) {
     throw new CliError(

@@ -130,6 +130,7 @@ jobs:
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           AW_INGRESS_TOKEN: ${{ github.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
         run: node scripts/intake-task-sources.ts
@@ -159,6 +160,7 @@ jobs:
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           AW_INGRESS_TOKEN: ${{ github.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
           TASK_SOURCE_LOOKBACK_MINUTES: "720"
@@ -188,6 +190,7 @@ jobs:
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           AW_INGRESS_TOKEN: ${{ github.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
           DEPLOY_SCHEDULE_LOOKBACK_MINUTES: "720"

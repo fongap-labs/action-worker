@@ -1,8 +1,9 @@
 import { trustedControlRunId } from "./ci-evidence.ts";
-import { GithubReader, getJsonString, githubEnvironment, isJsonRecord } from "./github-api.ts";
+import { getJsonString, githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
+import { hasValidStatusAttestation } from "./status-attestation.ts";
 
 type GithubGet = {
   get(path: string): Promise<unknown>;
@@ -27,21 +28,35 @@ type StatusFact = {
   updated_at: string;
 };
 
-function latestStatus(value: unknown, context: string): StatusFact | null {
+function latestStatus(
+  value: unknown,
+  context: string,
+  repository: string,
+  sha: string
+): StatusFact | null {
   if (!isJsonRecord(value) || !Array.isArray(value.statuses)) {
     throw new CliError("GitHub commit status response is invalid.", 65);
   }
-  for (const item of value.statuses) {
-    if (!isJsonRecord(item)) continue;
-    if (getJsonString(item, "context") === context) {
-      return {
-        state: getJsonString(item, "state"),
-        target_url: getJsonString(item, "target_url"),
-        updated_at: getJsonString(item, "updated_at"),
-      };
-    }
+  const latest = value.statuses
+    .filter((item) => isJsonRecord(item) && getJsonString(item, "context") === context)
+    .sort((left, right) =>
+      getJsonString(right, "created_at").localeCompare(getJsonString(left, "created_at"))
+    )[0];
+  if (
+    !isJsonRecord(latest) ||
+    !hasValidStatusAttestation(
+      latest,
+      { repository, sha, context },
+      process.env.AW_STATUS_TOKEN ?? ""
+    )
+  ) {
+    return null;
   }
-  return null;
+  return {
+    state: getJsonString(latest, "state"),
+    target_url: getJsonString(latest, "target_url"),
+    updated_at: getJsonString(latest, "updated_at"),
+  };
 }
 
 function pendingLeaseActive(fact: StatusFact, nowMs = Date.now()): boolean {
@@ -56,9 +71,11 @@ function pendingLeaseActive(fact: StatusFact, nowMs = Date.now()): boolean {
 async function ciState(
   value: unknown,
   reader: GithubGet,
-  controlRepository: string
+  controlRepository: string,
+  repository: string,
+  sha: string
 ): Promise<"dispatch" | "in-flight" | "processed"> {
-  const fact = latestStatus(value, "CI Evidence") ?? latestStatus(value, "ci-evidence");
+  const fact = latestStatus(value, "CI Evidence", repository, sha);
   if (!fact) return "dispatch";
   if (fact.state !== "pending") return "processed";
 
@@ -120,7 +137,7 @@ export async function scanMainCi(
   for (const repository of repositories) {
     const headSha = await defaultHead(reader, repository);
     const status = await reader.get(`repos/${repository}/commits/${headSha}/status`);
-    const state = await ciState(status, reader, excludedRepository);
+    const state = await ciState(status, reader, excludedRepository, repository, headSha);
     if (state === "in-flight") {
       result.in_flight += 1;
       continue;
@@ -211,7 +228,7 @@ async function main(): Promise<void> {
     );
   }
 
-  const reader = new GithubReader(apiUrl, controlToken);
+  const reader = statusAwareReader(apiUrl, controlToken, statusToken);
   const result = await scanMainCi(
     parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
     reader,

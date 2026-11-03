@@ -22,8 +22,12 @@ async function main(): Promise<void> {
     throw new CliError("::error::Invalid control target PR number.", 65);
   }
   const token = process.env.GH_TOKEN ?? "";
+  const statusToken = process.env.AW_STATUS_TOKEN ?? "";
   if (!token) {
     throw new CliError("::error::AW_CONTROL_TOKEN is required.");
+  }
+  if (!statusToken) {
+    throw new CliError("::error::AW_STATUS_TOKEN is required; no token fallback is permitted.", 77);
   }
   let pull: unknown;
   try {
@@ -44,8 +48,8 @@ async function main(): Promise<void> {
   );
   await checkAccess(
     `repos/${repository}/commits/${head}/status`,
-    token,
-    "::error::AW_CONTROL_TOKEN cannot read target commit status; Commit Statuses Read/Write is required."
+    statusToken,
+    "::error::AW_STATUS_TOKEN cannot read target commit status; Commit Statuses Read is required."
   );
   console.log(`repository=${repository}`);
   console.log(`pr_number=${prNumber}`);

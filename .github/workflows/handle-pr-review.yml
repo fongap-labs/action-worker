@@ -50,6 +50,7 @@ jobs:
       - name: Validate control credential
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
@@ -68,6 +69,7 @@ jobs:
         id: target
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
@@ -131,6 +133,8 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           CI_EVIDENCE_PATH: /tmp/ci-evidence.json
@@ -239,6 +243,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
@@ -251,6 +256,7 @@ jobs:
           GH_TOKEN: ${{ secrets.AW_ISSUE_TOKEN }}
           AW_ISSUE_TOKEN: ${{ secrets.AW_ISSUE_TOKEN }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}

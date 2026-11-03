@@ -1,5 +1,6 @@
 import { githubEnvironment } from "./github-api.ts";
 import { CliError, runCommand } from "./runtime-command.ts";
+import { signedStatusDescription } from "./status-attestation.ts";
 
 export function requireIntakeStatusToken(value: string | undefined): string {
   if (!value) {
@@ -19,6 +20,10 @@ export async function reserveIntakeCommitStatus(
   description: string,
   targetUrl: string
 ): Promise<void> {
+  const signedDescription = signedStatusDescription(
+    { repository, sha: headSha, state: "pending", context, description, targetUrl },
+    requireIntakeStatusToken(token)
+  );
   try {
     await runCommand(
       "gh",
@@ -32,7 +37,7 @@ export async function reserveIntakeCommitStatus(
         "-f",
         `context=${context}`,
         "-f",
-        `description=${description}`,
+        `description=${signedDescription}`,
         "-f",
         `target_url=${targetUrl}`,
       ],

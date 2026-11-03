@@ -5,7 +5,6 @@ import {
   releaseSectionBody,
 } from "./changelog-release.ts";
 import {
-  GithubReader,
   getGithubJson,
   getJsonArray,
   getJsonNumber,
@@ -15,9 +14,11 @@ import {
   isJsonRecord,
   type JsonRecord,
   runGithubCli,
+  statusAwareReader,
 } from "./github-api.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
 import { CliError } from "./runtime-command.ts";
+import { hasValidStatusAttestation } from "./status-attestation.ts";
 
 // Stage one of the two-phase release (AW-008): the central release assembles the changelog into a
 // pull request, waits for it to pass the normal gate, and only then tags the merge commit.
@@ -38,6 +39,7 @@ export type ChangelogReleaseOptions = {
   releaseUrl: string;
   policy: ReleasePolicy;
   token: string;
+  statusToken: string;
   // The release's own entry lines (`<category>: <summary>`). When given, the release owns its
   // entries: it neither consumes [Unreleased] or the fragments nor removes them.
   entries?: readonly string[];
@@ -252,11 +254,18 @@ async function openReleasePullRequest(
 async function validateMergeState(
   repository: string,
   sha: string,
-  token: string
+  statusToken: string
 ): Promise<"success" | "failure" | "pending"> {
-  const status = await getGithubJson(`repos/${repository}/commits/${sha}/status`, token);
+  const status = await getGithubJson(`repos/${repository}/commits/${sha}/status`, statusToken);
   const gate = getJsonArray(status, "statuses").find(
-    (item) => isJsonRecord(item) && getJsonString(item, "context") === "validate-merge"
+    (item) =>
+      isJsonRecord(item) &&
+      getJsonString(item, "context") === "validate-merge" &&
+      hasValidStatusAttestation(
+        item,
+        { repository, sha, context: "validate-merge" },
+        statusToken
+      )
   );
   const state = isJsonRecord(gate) ? getJsonString(gate, "state") : "";
   if (state === "success") {
@@ -303,7 +312,7 @@ async function waitForMerge(
       );
     }
     const head = getJsonString(getJsonRecord(pull, "head"), "sha");
-    const gate = await validateMergeState(repository, head, token);
+    const gate = await validateMergeState(repository, head, options.statusToken);
     if (gate === "failure") {
       failureReads += 1;
       if (failureReads >= 3) {
@@ -355,9 +364,10 @@ function getJsonRecord(value: unknown, key: string): unknown {
 const MAIN_WRITE_GUARD_ATTEMPTS = 30;
 
 async function waitForMainWriteGuard(options: ChangelogReleaseOptions, mergeSha: string) {
-  const reader = new GithubReader(
+  const reader = statusAwareReader(
     process.env.GITHUB_API_URL ?? "https://api.github.com",
-    options.token
+    options.token,
+    options.statusToken
   );
   for (let attempt = 1; attempt <= MAIN_WRITE_GUARD_ATTEMPTS; attempt += 1) {
     try {

@@ -1,7 +1,8 @@
 import { hasVerifiedCiEvidence, latestCiStatus, trustedControlRunId } from "./ci-evidence.ts";
-import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
+import { getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
+import { hasValidStatusAttestation, requireStatusToken } from "./status-attestation.ts";
 
 export type FollowUpRequest = {
   repository: string;
@@ -33,12 +34,16 @@ export function parseFollowUpRequest(value: unknown): FollowUpRequest {
 export function matchesFollowUpEvidence(
   combined: unknown,
   controlRepository: string,
-  runId: number
+  runId: number,
+  repository: string,
+  sha: string,
+  statusToken = process.env.AW_STATUS_TOKEN ?? ""
 ): boolean {
   const status = latestCiStatus(combined, "CI Evidence");
   return (
     getJsonString(status, "state") === "success" &&
-    trustedControlRunId(getJsonString(status, "target_url"), controlRepository) === runId
+    trustedControlRunId(getJsonString(status, "target_url"), controlRepository) === runId &&
+    hasValidStatusAttestation(status, { repository, sha, context: "CI Evidence" }, statusToken)
   );
 }
 
@@ -65,6 +70,7 @@ async function main(): Promise<void> {
   const rawRequest = process.env.CI_FOLLOW_UP_REQUEST_JSON ?? "";
   const rawPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
+  const statusToken = requireStatusToken();
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
 
   if (
@@ -81,17 +87,28 @@ async function main(): Promise<void> {
     "pr"
   );
 
-  const reader = new GithubReader(
+  const reader = statusAwareReader(
     process.env.GITHUB_API_URL ?? "https://api.github.com",
-    controlToken
+    controlToken,
+    statusToken
   );
   const status = await reader.get(`repos/${request.repository}/commits/${request.head_sha}/status`);
-  if (!matchesFollowUpEvidence(status, controlRepository, request.ci_run_id)) {
+  if (
+    !matchesFollowUpEvidence(
+      status,
+      controlRepository,
+      request.ci_run_id,
+      request.repository,
+      request.head_sha
+    )
+  ) {
     throw new CliError("CI follow-up does not own the successful CI Evidence status.", 65);
   }
   if (
     !(await hasVerifiedCiEvidence(reader, status, {
       controlRepository,
+      targetRepository: request.repository,
+      targetSha: request.head_sha,
       workflowPaths: [".github/workflows/central-ci-dispatch.yml"],
       runAttempts: 18,
       retryDelayMs: 5_000,

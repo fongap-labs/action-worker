@@ -5,11 +5,12 @@ import {
   resolveDependencyRepairFacts,
   selectDependencyRepair,
 } from "./dependency-repair.ts";
-import { GithubReader, githubEnvironment, isJsonRecord } from "./github-api.ts";
+import { githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
 import { AWAITING_APPROVAL_DESCRIPTION, evaluatePrTrust, listPullReviews } from "./pr-trust.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
+import { hasValidStatusAttestation } from "./status-attestation.ts";
 
 type GithubGet = {
   get(path: string): Promise<unknown>;
@@ -62,7 +63,12 @@ function pendingLeaseActive(fact: StatusFact, nowMs = Date.now()): boolean {
   );
 }
 
-function statusMap(value: unknown, controlRepository: string): Map<string, StatusFact> {
+function statusMap(
+  value: unknown,
+  controlRepository: string,
+  repository: string,
+  sha: string
+): Map<string, StatusFact> {
   if (!isJsonRecord(value) || !Array.isArray(value.statuses)) {
     throw new CliError("GitHub commit status response is invalid.", 65);
   }
@@ -75,7 +81,14 @@ function statusMap(value: unknown, controlRepository: string): Map<string, Statu
     const updatedAt = typeof item.updated_at === "string" ? item.updated_at : "";
     const description = typeof item.description === "string" ? item.description : "";
     const runId = trustedControlRunId(targetUrl, controlRepository);
-    if (!runId) continue;
+    if (
+      !runId ||
+      !hasValidStatusAttestation(
+        item,
+        { repository, sha, context },
+        process.env.AW_STATUS_TOKEN ?? ""
+      )
+    ) continue;
     if (context && state && !statuses.has(context)) {
       statuses.set(context, { state, run_id: runId, updated_at: updatedAt, description });
     }
@@ -275,7 +288,9 @@ export async function scanOpenPullRequests(
     for (const pull of pulls) {
       const statuses = statusMap(
         await reader.get(`repos/${repository}/commits/${pull.headSha}/status`),
-        controlRepository
+        controlRepository,
+        repository,
+        pull.headSha
       );
       const governanceAction = await needsDispatch(statuses, reader, controlRepository);
       if (governanceAction === "in-flight") {
@@ -402,7 +417,7 @@ async function main(): Promise<void> {
     );
   }
 
-  const reader = new GithubReader(apiUrl, controlToken);
+  const reader = statusAwareReader(apiUrl, controlToken, statusToken);
   const result = await scanOpenPullRequests(
     parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
     reader,
