@@ -249,7 +249,10 @@ export function statusAwareReader(
   statusToken: string
 ): GithubReader {
   if (!controlToken || !statusToken) {
-    throw new CliError("AW_CONTROL_TOKEN and AW_STATUS_TOKEN are both required; no token fallback is permitted.", 77);
+    throw new CliError(
+      "AW_CONTROL_TOKEN and AW_STATUS_TOKEN are both required; no token fallback is permitted.",
+      77
+    );
   }
   const controlReader = new GithubReader(apiUrl, controlToken);
   const statusReader = new GithubReader(apiUrl, statusToken);
