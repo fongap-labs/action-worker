@@ -37,17 +37,11 @@ export function scopeEnvName(scope: TokenScope): string {
   return scopeEnv[scope];
 }
 
-export function resolveToken(
-  scope: TokenScope,
-  env: NodeJS.ProcessEnv = process.env
-): string {
+export function resolveToken(scope: TokenScope, env: NodeJS.ProcessEnv = process.env): string {
   return env[scopeEnv[scope]] ?? "";
 }
 
-export function requireToken(
-  scope: TokenScope,
-  env: NodeJS.ProcessEnv = process.env
-): string {
+export function requireToken(scope: TokenScope, env: NodeJS.ProcessEnv = process.env): string {
   const value = resolveToken(scope, env);
   if (!value) {
     throw new CliError(
