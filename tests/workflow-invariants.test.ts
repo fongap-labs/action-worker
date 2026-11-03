@@ -68,7 +68,7 @@ test("all main CI intake entry points forward the dedicated status secret", asyn
       "deploy-source-script.yml#prepare#Request central CI for the source",
       "intake.yml#main-ci#Reconcile main CI",
       "release-app.yml#prepare#Request central CI for the source",
-      "task-source-dispatch.yml#prepare#Request central CI for the source",
+      "task-source-dispatch.yml#dispatch#Request central CI for the source",
     ].sort()
   );
 });
