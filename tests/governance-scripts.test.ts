@@ -16,7 +16,7 @@ import {
   parseMainWriteRequest,
   validateMainWriteProvenance,
 } from "../scripts/main-write-guard.ts";
-import { buildReview } from "../scripts/publish-pr-review.ts";
+import { buildReview, requiresMergeBlockedLabel } from "../scripts/publish-pr-review.ts";
 import { retryLines } from "../scripts/report-ocr-retry.ts";
 import {
   hasRepositoryCapability,
@@ -700,6 +700,22 @@ test("PR review summary keeps AI findings advisory", () => {
   assert.doesNotMatch(body, /Blocking threshold/);
   assert.match(body, /security/);
   assert.match(body, /src\/a\.ts:12/);
+});
+
+test("PR governance warns against manual merge when checks are not successful", () => {
+  for (const status of ["failure", "cancelled", "awaiting-approval"]) {
+    assert.equal(requiresMergeBlockedLabel(status), true);
+    const body = buildReview(status, "https://example.test/run", undefined, undefined);
+    assert.match(body, /DO NOT MERGE/);
+    assert.match(body, /exact current commit/);
+    assert.match(body, /CI Evidence/);
+    assert.match(body, /private repositories/);
+  }
+  assert.equal(requiresMergeBlockedLabel("success"), false);
+  assert.doesNotMatch(
+    buildReview("success", "https://example.test/run", undefined, undefined),
+    /DO NOT MERGE/
+  );
 });
 
 test("main write contract is exact and rejects caller trust claims", () => {
