@@ -23,7 +23,10 @@ export function verifyPinnedCheckout(snapshot: CheckoutSnapshot): void {
   }
   if (prNumber === "0") {
     if (checkedOutSha !== headSha) {
-      throw new CliError("::error::Branch CI checked out a different commit than the requested head.", 75);
+      throw new CliError(
+        "::error::Branch CI checked out a different commit than the requested head.",
+        75
+      );
     }
     return;
   }
@@ -31,16 +34,23 @@ export function verifyPinnedCheckout(snapshot: CheckoutSnapshot): void {
     throw new CliError("::error::PR CI checkout snapshot is incomplete or invalid.", 65);
   }
   if (checkedOutSha !== mergeSha) {
-    throw new CliError("::error::PR CI checked out a different merge commit than the pinned snapshot.", 75);
+    throw new CliError(
+      "::error::PR CI checked out a different merge commit than the pinned snapshot.",
+      75
+    );
   }
   // GitHub's synthetic PR merge commit has exactly two parents: base, then PR head.
   if (parents.length !== 2 || parents[0] !== baseSha || parents[1] !== headSha) {
-    throw new CliError("::error::PR CI merge parents do not match the approved base and head; rerun Central CI.", 75);
+    throw new CliError(
+      "::error::PR CI merge parents do not match the approved base and head; rerun Central CI.",
+      75
+    );
   }
 }
 
 function main(): void {
-  const [target = "", prNumber = "", baseSha = "", headSha = "", mergeSha = ""] = process.argv.slice(2);
+  const [target = "", prNumber = "", baseSha = "", headSha = "", mergeSha = ""] =
+    process.argv.slice(2);
   if (!target || !prNumber) {
     throw new CliError(
       "Usage: verify-ci-checkout.ts <target-dir> <pr-number> <base-sha> <head-sha> <merge-sha>",
