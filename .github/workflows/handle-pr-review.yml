@@ -248,7 +248,8 @@ jobs:
         if: ${{ always() && !cancelled() && steps.recheck.outputs.current == 'true' }}
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.AW_ISSUE_TOKEN || secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ secrets.AW_ISSUE_TOKEN }}
+          AW_ISSUE_TOKEN: ${{ secrets.AW_ISSUE_TOKEN }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
