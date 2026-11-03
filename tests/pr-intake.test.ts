@@ -404,7 +404,7 @@ test("central PR intake does not re-dispatch a failed verdict when only the cont
               state: "failure",
               target_url: `https://github.com/${controlRepository}/actions/runs/51`,
             })),
-          };
+          });
         }
         throw new Error(`unexpected API path: ${path}`);
       },
