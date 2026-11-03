@@ -225,7 +225,8 @@ async function main(): Promise<void> {
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   const expectedHeadSha = process.env.HEAD_SHA ?? "";
-  if (!token || !controlToken || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(controlRepository)) {    throw new CliError(
+  if (!token || !controlToken || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(controlRepository)) {
+    throw new CliError(
       "::error::PR review publication requires issue and control credentials.",
       77
     );
