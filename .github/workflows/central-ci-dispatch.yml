@@ -22,6 +22,7 @@ jobs:
       pr_number: ${{ steps.payload.outputs.pr_number || steps.ref_facts.outputs.pr_number }}
       base_sha: ${{ steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}
       head_sha: ${{ steps.facts.outputs.head_sha || steps.ref_facts.outputs.head_sha }}
+      merge_sha: ${{ steps.merge_ref.outputs.merge_sha || '' }}
       control_ref: ${{ steps.ci_control.outputs.control_ref || steps.ref_facts.outputs.control_ref || 'main' }}
       candidate_control: ${{ steps.ci_control.outputs.candidate_control || 'false' }}
       is_private: ${{ steps.visibility.outputs.is_private }}
@@ -161,6 +162,26 @@ jobs:
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
         run: node scripts/resolve-pr-facts.ts fetch
 
+      - name: Pin PR merge snapshot
+        id: merge_ref
+        if: github.event.action == 'run-central-ci'
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          EXPECTED_BASE_SHA: ${{ steps.facts.outputs.base_sha }}
+          EXPECTED_HEAD_SHA: ${{ steps.facts.outputs.head_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          merge_sha="$(gh api "repos/$REPOSITORY/git/ref/pull/$PR_NUMBER/merge" --jq '.object.sha')"
+          [[ "$merge_sha" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::GitHub did not provide a valid immutable PR merge SHA; retry after the merge ref is prepared." >&2
+            exit 75
+          }
+          echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
+          echo "Pinned PR merge snapshot: $merge_sha"
+
       - name: Validate requested revision
         if: github.event.action == 'run-central-ci'
         env:
@@ -191,6 +212,7 @@ jobs:
       pr_number: ${{ needs.prepare.outputs.pr_number }}
       base_sha: ${{ needs.prepare.outputs.base_sha }}
       head_sha: ${{ needs.prepare.outputs.head_sha }}
+      merge_sha: ${{ needs.prepare.outputs.merge_sha }}
       control_ref: ${{ needs.prepare.outputs.control_ref }}
       is_private: ${{ needs.prepare.outputs.is_private }}
     secrets:
