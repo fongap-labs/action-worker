@@ -77,7 +77,7 @@ test("unfinished governance passes both required dedicated token variables", asy
   const workflow = await readFile(".github/workflows/handle-pr-dispatch.yml", "utf8");
   const cleanup = workflow.split("      - name: Resolve unfinished PR governance")[1];
   assert.ok(cleanup, "cleanup step must exist");
-  const env = cleanup.split("        run:")[0];
+  const env = cleanup.split("        run:")[0] ?? "";
   assert.ok(env.includes('AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}'));
   assert.ok(env.includes('AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}'));
 });
