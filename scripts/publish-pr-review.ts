@@ -1,10 +1,62 @@
 import { readFile } from "node:fs/promises";
 import { resolveToken } from "./control-token.ts";
-import { getJsonArray, getJsonString, isJsonRecord, runGithubCli } from "./github-api.ts";
+import { getJsonArray, getJsonString, githubExists, isJsonRecord, runGithubCli } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { isReviewComplete } from "./validate-review-result.ts";
 
 const marker = "<!-- action-worker-pr-governance -->";
+const mergeBlockedLabel = "merge-blocked";
+
+export function requiresMergeBlockedLabel(status: string): boolean {
+  return status !== "success";
+}
+
+async function syncMergeBlockedLabel(
+  repository: string,
+  prNumber: string,
+  status: string,
+  token: string
+): Promise<void> {
+  const issueLabel = `repos/${repository}/issues/${prNumber}/labels/${mergeBlockedLabel}`;
+  if (!requiresMergeBlockedLabel(status)) {
+    if (await githubExists(issueLabel, token)) {
+      await runGithubCli(["api", "--method", "DELETE", issueLabel], token);
+    }
+    return;
+  }
+
+  const repositoryLabel = `repos/${repository}/labels/${mergeBlockedLabel}`;
+  if (!(await githubExists(repositoryLabel, token))) {
+    await runGithubCli(
+      [
+        "api",
+        "--method",
+        "POST",
+        `repos/${repository}/labels`,
+        "-f",
+        `name=${mergeBlockedLabel}`,
+        "-f",
+        "color=B60205",
+        "-f",
+        "description=Central merge gate is not yet successful",
+      ],
+      token
+    );
+  }
+  if (!(await githubExists(issueLabel, token))) {
+    await runGithubCli(
+      [
+        "api",
+        "--method",
+        "POST",
+        `repos/${repository}/issues/${prNumber}/labels`,
+        "-f",
+        `labels[]=${mergeBlockedLabel}`,
+      ],
+      token
+    );
+  }
+}
 
 async function optionalJson(path: string): Promise<unknown> {
   try {
@@ -30,6 +82,11 @@ export function buildReview(
         ? "WAITING FOR APPROVAL"
         : "FAIL";
   const lines = [marker, "## PR Governance", "", `- Gate: **${gate}**`];
+  if (requiresMergeBlockedLabel(status)) {
+    lines.push(
+      "- **DO NOT MERGE:** The current PR head is not authorized for merging. Wait until `PR Governance`, `CI Evidence`, and `validate-merge` are all successful on the exact current commit. GitHub may still show the Merge button for private repositories without enforceable branch protection."
+    );
+  }
   if (status === "awaiting-approval") {
     lines.push(
       "- Why: the author has no write access, so Central CI runs this code only after a maintainer approves the current head commit.",
@@ -147,6 +204,16 @@ async function main(): Promise<void> {
     deployGapHint,
     reviewState === "finished"
   );
+  // This label is a visible warning only. The verified commit statuses remain authoritative;
+  // label API failures must never accidentally authorize a merge or conceal the gate comment.
+  try {
+    await syncMergeBlockedLabel(repository, prNumber, status, token);
+  } catch (error) {
+    console.warn(
+      `::warning::Could not synchronize advisory ${mergeBlockedLabel} label for ${repository}#${prNumber}: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+
   const commentsText = await runGithubCli(
     [
       "api",
