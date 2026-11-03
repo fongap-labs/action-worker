@@ -45,3 +45,11 @@ test("workflows never substitute control token for scoped status, issue, or disp
     );
   }
 });
+
+test("private dependency repair cannot silently checkout with github.token", async () => {
+  const workflow = await readFile(".github/workflows/dependency-repair-dispatch.yml", "utf8");
+  assert.match(workflow, /name: Require private checkout token/);
+  assert.match(workflow, /if: needs\.prepare\.outputs\.is_private == 'true'/);
+  assert.match(workflow, /token: \\$\{\{ secrets\.AW_CHECKOUT_TOKEN \}\}/);
+  assert.doesNotMatch(workflow, /AW_CHECKOUT_TOKEN\s*\|\|\s*github\.token/);
+});
