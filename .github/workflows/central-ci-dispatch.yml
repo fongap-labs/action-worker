@@ -287,7 +287,7 @@ jobs:
     steps:
       - name: Publish target status
         env:
-          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN || secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           LINUX_RESULT: ${{ needs.linux.result }}
@@ -297,6 +297,10 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::Missing required secret AW_STATUS_TOKEN. Configure it in action-worker → Settings → Secrets and variables → Actions with Commit statuses: Read and Write." >&2
+            exit 77
+          fi
 
           # A cancelled run carries no verdict: a newer dispatch of the same head cancelled it, or
           # the pull request closed. Writing failure here would replace the pending status of the
@@ -356,7 +360,7 @@ jobs:
     steps:
       - name: Publish failed CI Evidence for the current head
         env:
-          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN || secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
@@ -364,6 +368,10 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::Missing required secret AW_STATUS_TOKEN. Configure it in action-worker → Settings → Secrets and variables → Actions with Commit statuses: Read and Write." >&2
+            exit 77
+          fi
           [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || exit 0
           [[ "$REQUESTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 0
 
