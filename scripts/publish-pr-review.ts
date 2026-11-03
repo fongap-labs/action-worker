@@ -1,6 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { resolveToken } from "./control-token.ts";
-import { getJsonArray, getJsonString, githubExists, isJsonRecord, runGithubCli } from "./github-api.ts";
+import {
+  getJsonArray,
+  getJsonString,
+  githubExists,
+  isJsonRecord,
+  runGithubCli,
+} from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { isReviewComplete } from "./validate-review-result.ts";
 
