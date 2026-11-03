@@ -1,4 +1,5 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { getJsonArray, getJsonString, isJsonRecord, type JsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
@@ -15,6 +16,56 @@ const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
 const signaturePattern = /(?:^| )\[aw1:([A-Za-z0-9_-]{43})\]$/;
 const signatureSuffixLength = " [aw1:]".length + 43;
+
+// A closed migration receipt binds an individually verified pre-signing status. It is not a
+// date-based exemption: a different status ID, subject, verdict or payload cannot reuse it.
+const migration: unknown = JSON.parse(
+  readFileSync(new URL("../policies/status-migration.json", import.meta.url), "utf8")
+);
+if (
+  !isJsonRecord(migration) ||
+  migration.schema_version !== 1 ||
+  !Number.isFinite(Date.parse(getJsonString(migration, "recorded_before"))) ||
+  !Array.isArray(migration.fingerprints) ||
+  !migration.fingerprints.every(
+    (value) => typeof value === "string" && /^[0-9a-f]{64}$/.test(value)
+  )
+) {
+  throw new CliError("::error::Invalid commit status migration receipts.", 65);
+}
+const migrationCutoff = Date.parse(getJsonString(migration, "recorded_before"));
+const migrationFingerprints = new Set(migration.fingerprints as string[]);
+
+function hasMigrationReceipt(
+  status: Record<string, unknown>,
+  subject: { repository: string; sha: string; context: string }
+): boolean {
+  const createdAt = getJsonString(status, "created_at");
+  if (
+    status.state !== "success" ||
+    !Number.isSafeInteger(status.id) ||
+    Number(status.id) <= 0 ||
+    !Number.isFinite(Date.parse(createdAt)) ||
+    Date.parse(createdAt) >= migrationCutoff
+  )
+    return false;
+  const fingerprint = createHash("sha256")
+    .update(
+      JSON.stringify([
+        "action-worker-status-migration-v1",
+        subject.repository.toLowerCase(),
+        subject.sha.toLowerCase(),
+        subject.context,
+        status.state,
+        status.description,
+        getJsonString(status, "target_url"),
+        status.id,
+        createdAt,
+      ])
+    )
+    .digest("hex");
+  return migrationFingerprints.has(fingerprint);
+}
 
 export function requireStatusToken(environment: NodeJS.ProcessEnv = process.env): string {
   const token = environment.AW_STATUS_TOKEN ?? "";
@@ -86,7 +137,7 @@ export function hasValidStatusAttestation(
     return false;
   }
   const match = signaturePattern.exec(description);
-  if (!match?.[1]) return false;
+  if (!match?.[1]) return hasMigrationReceipt(status, subject);
   const signedDescription = description.slice(0, match.index).trimEnd();
   const statusInput: CommitStatus = {
     repository: subject.repository,
