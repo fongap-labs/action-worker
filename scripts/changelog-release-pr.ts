@@ -261,11 +261,7 @@ async function validateMergeState(
     (item) =>
       isJsonRecord(item) &&
       getJsonString(item, "context") === "validate-merge" &&
-      hasValidStatusAttestation(
-        item,
-        { repository, sha, context: "validate-merge" },
-        statusToken
-      )
+      hasValidStatusAttestation(item, { repository, sha, context: "validate-merge" }, statusToken)
   );
   const state = isJsonRecord(gate) ? getJsonString(gate, "state") : "";
   if (state === "success") {
