@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { attestFixtureStatuses, fixtureStatusToken } from "./attested-status-fixtures.ts";
 import {
   isUnfinished,
   latestGovernanceStatus,
@@ -7,6 +8,8 @@ import {
 } from "../scripts/resolve-unfinished-governance.ts";
 
 const control = "fongap-labs/action-worker";
+const repository = "fongap/example";
+const sha = "a".repeat(40);
 const ownRun = "https://github.com/fongap-labs/action-worker/actions/runs/40331028617";
 
 test("the newest PR Governance status decides, and other contexts are ignored", () => {
@@ -32,8 +35,8 @@ test("the newest PR Governance status decides, and other contexts are ignored", 
       },
     ],
   };
-  assert.deepEqual(latestGovernanceStatus(combined), { state: "pending", target: "b" });
-  assert.equal(latestGovernanceStatus({ statuses: [] }), null);
+  assert.deepEqual(latestGovernanceStatus(attestFixtureStatuses(combined, repository, sha), repository, sha, fixtureStatusToken), { state: "pending", target: "b" });
+  assert.equal(latestGovernanceStatus({ statuses: [] }, repository, sha, fixtureStatusToken), null);
 });
 
 test("a status points at a run only when that run is in the control repository", () => {
