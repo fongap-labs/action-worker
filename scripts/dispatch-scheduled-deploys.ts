@@ -25,10 +25,10 @@ import {
   readJson,
   runCommand,
 } from "./runtime-command.ts";
-import { requireStatusToken } from "./status-attestation.ts";
 import {
   hasValidStatusAttestation,
   originalStatusDescription,
+  requireStatusToken,
   signedStatusDescription,
 } from "./status-attestation.ts";
 
