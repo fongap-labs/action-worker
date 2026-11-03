@@ -337,62 +337,11 @@ test("a follow lock request names a follow branch, a commit and a valid project 
 
 // --- workflow -----------------------------------------------------------------------------------
 
-test("the follow jobs run in the right order, and the sandbox job holds no control credential", async () => {
+test("release publishing does not run follower jobs or create pull requests", async () => {
   const { readFile } = await import("node:fs/promises");
   const { parse } = await import("yaml");
-  const workflow = parse(
-    await readFile(".github/workflows/handle-release-dispatch.yml", "utf8")
-  ) as {
-    jobs: Record<
-      string,
-      {
-        needs?: unknown;
-        if?: string;
-        permissions?: unknown;
-        outputs?: Record<string, string>;
-        steps?: Array<{ env?: unknown; run?: string }>;
-      }
-    >;
-  };
-  const jobs = workflow.jobs;
-  assert.deepEqual(
-    Object.keys(jobs).sort(),
-    ["follow", "follow-commit", "follow-lock", "npm", "release"].sort()
-  );
-  assert.equal(jobs.follow?.needs, "release");
-  assert.deepEqual(jobs["follow-lock"]?.needs, "follow");
-  assert.deepEqual(jobs["follow-commit"]?.needs, ["follow", "follow-lock"]);
-
-  // The release job hands the follow jobs the values they check against the upstream.
-  assert.deepEqual(Object.keys(jobs.release?.outputs ?? {}).sort(), [
-    "npm_asset",
-    "release_key",
-    "tag",
-    "target_repository",
-    "version",
-  ]);
-
-  // The sandbox job never sees a central credential.
-  const sandbox = JSON.stringify(jobs["follow-lock"]);
-  assert.equal(sandbox.includes("AW_CONTROL_TOKEN"), false);
-  assert.equal(sandbox.includes("AW_REPOSITORY_POLICY"), false);
-  assert.equal(
-    sandbox.includes("secrets.AW_CHECKOUT_TOKEN"),
-    true,
-    "a private follower needs the read token"
-  );
-
-  // Only the control-domain steps see the control token.
-  for (const name of ["follow", "follow-commit"]) {
-    assert.equal(JSON.stringify(jobs[name]).includes("AW_CONTROL_TOKEN"), true, name);
-  }
-});
-
-test("the follow job is skipped for a pre-release so followers stay on the last formal release", async () => {
-  const { readFile } = await import("node:fs/promises");
-  const workflow = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
-  assert.match(
-    workflow,
-    /follow:\n\s+name: Dispatch follow updates\n\s+needs: release\n\s+if: needs\.release\.result == 'success' && !contains\(needs\.release\.outputs\.version, '-'\)/
-  );
+  const content = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
+  const workflow = parse(content) as { jobs: Record<string, unknown> };
+  assert.deepEqual(Object.keys(workflow.jobs).sort(), ["npm", "release"]);
+  assert.doesNotMatch(content, /dispatch-follow-updates|commit-follow-lock|follow-lock:/);
 });

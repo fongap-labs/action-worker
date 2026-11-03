@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { newUnreleasedLines } from "../scripts/changelog-release-notes.ts";
 import {
   buildReleaseTitle,
   buildTag,
@@ -66,4 +67,13 @@ test("release archives allow only unique root-level files", () => {
   assert.throws(() => validateArchive("release-manifest.json\nnested/asset.tar.gz\n"));
   assert.throws(() => validateArchive("release-manifest.json\nrelease-manifest.json\n"));
   assert.throws(() => validateArchive(""));
+});
+
+test("release notes include only entries added after the last published tag", () => {
+  const older =
+    "# Changelog\n\n## [Unreleased]\n\n- 修复: 已发布。\n\n## [0.1.0](https://example.org) - 2026-10-01\n";
+  const current =
+    "# Changelog\n\n## [Unreleased]\n\n- 修复: 已发布。\n- 新增: 本次发布。\n\n## [0.1.0](https://example.org) - 2026-10-01\n";
+  assert.deepEqual(newUnreleasedLines(current, older), ["- 新增: 本次发布。"]);
+  assert.deepEqual(newUnreleasedLines(current, null), ["- 修复: 已发布。", "- 新增: 本次发布。"]);
 });

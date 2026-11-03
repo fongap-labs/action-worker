@@ -5,7 +5,7 @@ import { access, mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from "
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { publishChangelogRelease, type ReleasePolicy } from "./changelog-release-pr.ts";
+import { prepareReleaseNotes, type ReleasePolicy } from "./changelog-release-notes.ts";
 import { controlRepositoryOf, hasVerifiedCiEvidence } from "./ci-evidence.ts";
 import {
   GithubReader,
@@ -545,21 +545,31 @@ async function main(): Promise<void> {
       throw new CliError(`::error::Release already exists in ${targetRepository}: ${tag}.`, 65);
     }
 
-    // The changelog version section is merged first; the tag then points at its merge commit.
-    const changelogRelease = await publishChangelogRelease({
-      repository: targetRepository,
-      defaultBranch: targetBranch,
-      baseSha: targetSha,
-      tag,
-      version: manifest.version,
-      date: new Date().toISOString().slice(0, 10),
-      releaseUrl: `https://github.com/${targetRepository}/releases/tag/${tag}`,
-      policy: await readReleasePolicy(),
-      token: controlToken,
-      entries: manifest.changelog_entries,
-    });
-    const releaseSha = changelogRelease.mergeSha;
-    const releaseNotes = manifest.release_notes || changelogRelease.notes;
+    // Publishing is read-only against the target repository. A release never opens or
+    // merges a changelog PR, nor writes commits to the default branch.
+    if (targetRepository !== sourceRepository || targetSha !== sourceSha) {
+      await assertTrustedMainWrite(
+        sourceReader,
+        targetRepository,
+        targetSha,
+        true,
+        process.env.MAIN_WRITE_GUARD_BYPASS === "true"
+      );
+    }
+    const releaseSha = targetSha;
+    const releaseNotes =
+      manifest.release_notes ||
+      (await prepareReleaseNotes({
+        repository: targetRepository,
+        baseSha: targetSha,
+        releaseKey: manifest.release_key,
+        version: manifest.version,
+        date: new Date().toISOString().slice(0, 10),
+        releaseUrl: `https://github.com/${targetRepository}/releases/tag/${tag}`,
+        policy: await readReleasePolicy(),
+        token: controlToken,
+        entries: manifest.changelog_entries,
+      }));
 
     const provenance = [
       `Source: https://github.com/${sourceRepository}/commit/${sourceSha}`,

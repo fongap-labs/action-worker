@@ -144,3 +144,14 @@ test("governed Release dispatches npm only after publication and never publishes
   assert.match(JSON.stringify(npm), /run-npm-republish/);
   assert.ok(JSON.stringify(npm).includes("republish-release-npm.ts"));
 });
+
+test("publishing releases is read-only against source branches and never opens PRs", async () => {
+  const releaseWorkflow = await workflow("handle-release-dispatch.yml");
+  const source = await readFile("scripts/publish-release.ts", "utf8");
+  const notes = await readFile("scripts/changelog-release-notes.ts", "utf8");
+  assert.deepEqual(Object.keys(releaseWorkflow.jobs).sort(), ["npm", "release"]);
+  assert.doesNotMatch(source, /publishChangelogRelease|openReleasePullRequest|pulls\/[^\n]+merge/);
+  assert.match(source, /prepareReleaseNotes/);
+  assert.match(source, /const releaseSha = targetSha/);
+  assert.doesNotMatch(notes, /repos\/\$\{repository\}\/pulls|--method.*(?:POST|PATCH|PUT)/);
+});
