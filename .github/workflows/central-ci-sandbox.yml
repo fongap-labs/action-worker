@@ -130,10 +130,6 @@ jobs:
           persist-credentials: false
           path: aw
 
-      - name: Pin central test pack
-        shell: pwsh
-        run: node aw/scripts/prepare-test-pack.ts "${{ github.workspace }}/aw" "${{ github.workspace }}/ci-control/.github/test-pack.json"
-
       - name: Verify pinned CI checkout
         env:
           PINNED_PR_NUMBER: ${{ inputs.pr_number }}
@@ -141,6 +137,10 @@ jobs:
           PINNED_HEAD_SHA: ${{ inputs.head_sha }}
           PINNED_MERGE_SHA: ${{ inputs.merge_sha }}
         run: node aw/scripts/verify-ci-checkout.ts "$GITHUB_WORKSPACE/target" "$PINNED_PR_NUMBER" "$PINNED_BASE_SHA" "$PINNED_HEAD_SHA" "$PINNED_MERGE_SHA"
+
+      - name: Pin central test pack
+        shell: pwsh
+        run: node aw/scripts/prepare-test-pack.ts "${{ github.workspace }}/aw" "${{ github.workspace }}/ci-control/.github/test-pack.json"
 
       # Central, pinned secret scan of the commits this pull request adds. It is control code from this
       # repository, runs before any target code, and reports findings as warnings unless
@@ -292,10 +292,6 @@ jobs:
           persist-credentials: false
           path: aw
 
-      - name: Pin central test pack
-        shell: pwsh
-        run: node aw/scripts/prepare-test-pack.ts "${{ github.workspace }}/aw" "${{ github.workspace }}/ci-control/.github/test-pack.json"
-
       - name: Verify pinned CI checkout
         shell: pwsh
         env:
@@ -304,6 +300,10 @@ jobs:
           PINNED_HEAD_SHA: ${{ inputs.head_sha }}
           PINNED_MERGE_SHA: ${{ inputs.merge_sha }}
         run: node aw/scripts/verify-ci-checkout.ts "$env:GITHUB_WORKSPACE/target" "$env:PINNED_PR_NUMBER" "$env:PINNED_BASE_SHA" "$env:PINNED_HEAD_SHA" "$env:PINNED_MERGE_SHA"
+
+      - name: Pin central test pack
+        shell: pwsh
+        run: node aw/scripts/prepare-test-pack.ts "${{ github.workspace }}/aw" "${{ github.workspace }}/ci-control/.github/test-pack.json"
 
       - name: Run trusted Windows CI
         env:
