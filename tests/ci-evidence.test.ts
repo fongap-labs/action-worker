@@ -66,7 +66,7 @@ test("trusted successful CI evidence is idempotent", () => {
   const response = attestFixtureStatuses({
     statuses: [{ context: "CI Evidence", state: "success", target_url: "https://github.com/fongap-labs/action-worker/actions/runs/42" }],
   }, targetRepository, targetSha);
-  assert.equal(hasTrustedSuccessfulCiEvidence(response, "CI Evidence", controlRepository), true);
+  assert.equal(hasTrustedSuccessfulCiEvidence(response, "CI Evidence", controlRepository, targetRepository, targetSha, fixtureStatusToken), true);
 });
 
 const centralRunPath = ".github/workflows/central-ci-dispatch.yml";
@@ -343,7 +343,7 @@ test("every control workflow that attests a main write is trusted", () => {
 });
 
 test("a main write attested by a release, intake or guard run is trusted", async () => {
-  const status = {
+  const status = attestFixtureStatuses({
     statuses: [
       {
         context: "Main Write Guard",
