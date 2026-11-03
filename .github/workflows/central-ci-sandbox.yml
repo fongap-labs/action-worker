@@ -69,11 +69,15 @@ jobs:
       # When the default branch changed under the PR and the merge conflicts, GitHub has no merge
       # ref and the checkout fails as the merge gate.
       - name: Require private checkout token
-        if: inputs.is_private == 'true' && secrets.checkout_token == ''
+        if: inputs.is_private == 'true'
         shell: bash
+        env:
+          CHECKOUT_TOKEN: ${{ secrets.checkout_token }}
         run: |
-          echo "::error::Missing required secret AW_CHECKOUT_TOKEN. Configure it in action-worker → Settings → Secrets and variables → Actions. Grant Contents: Read access to the private target repositories." >&2
-          exit 77
+          if [ -z "${CHECKOUT_TOKEN:-}" ]; then
+            echo "::error::Missing required secret AW_CHECKOUT_TOKEN. Configure it in action-worker → Settings → Secrets and variables → Actions. Grant Contents: Read access to the private target repositories." >&2
+            exit 77
+          fi
 
       - name: Checkout private target PR
         if: inputs.is_private == 'true'
