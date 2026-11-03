@@ -30,5 +30,8 @@ test("Main Write Audit reads each dedicated credential independently", () => {
     "status"
   );
   assert.equal(requireAuditCredential("AW_ISSUE_TOKEN", "Issues: Read and write", env), "issue");
-  assert.equal(requireAuditCredential("AW_CONTROL_TOKEN", "managed repository reads", env), "control");
+  assert.equal(
+    requireAuditCredential("AW_CONTROL_TOKEN", "managed repository reads", env),
+    "control"
+  );
 });
