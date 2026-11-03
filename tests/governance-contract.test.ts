@@ -1143,7 +1143,8 @@ test("main write guard is the post-merge provenance authority", async () => {
     "MAIN_WRITE_TOKEN: ${{ github.token }}",
     "node scripts/main-write-guard.ts",
   ]);
-  assert.doesNotMatch(workflow, /repository_dispatch|secrets\./);
+  assert.doesNotMatch(workflow, /repository_dispatch/);
+  assert.match(workflow, /AW_STATUS_TOKEN/);
   const guard = await text("scripts/main-write-guard.ts");
   requireText(guard, [
     "merge_commit_sha",
