@@ -557,17 +557,19 @@ async function main(): Promise<void> {
       );
     }
     const releaseSha = targetSha;
-    const releaseNotes = manifest.release_notes || await prepareReleaseNotes({
-      repository: targetRepository,
-      baseSha: targetSha,
-      releaseKey: manifest.release_key,
-      version: manifest.version,
-      date: new Date().toISOString().slice(0, 10),
-      releaseUrl: `https://github.com/${targetRepository}/releases/tag/${tag}`,
-      policy: await readReleasePolicy(),
-      token: controlToken,
-      entries: manifest.changelog_entries,
-    });
+    const releaseNotes =
+      manifest.release_notes ||
+      (await prepareReleaseNotes({
+        repository: targetRepository,
+        baseSha: targetSha,
+        releaseKey: manifest.release_key,
+        version: manifest.version,
+        date: new Date().toISOString().slice(0, 10),
+        releaseUrl: `https://github.com/${targetRepository}/releases/tag/${tag}`,
+        policy: await readReleasePolicy(),
+        token: controlToken,
+        entries: manifest.changelog_entries,
+      }));
 
     const provenance = [
       `Source: https://github.com/${sourceRepository}/commit/${sourceSha}`,
