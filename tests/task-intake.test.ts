@@ -34,7 +34,9 @@ function sourceWithStatus(state = "") {
         }
         if (path === `repos/${repository}/commits/${headSha}/status`) {
           return {
-            statuses: state ? [attestFixtureStatuses({ context: "Task Source", state }, repository, headSha)] : [],
+            statuses: state
+              ? [attestFixtureStatuses({ context: "Task Source", state }, repository, headSha)]
+              : [],
           };
         }
         throw new Error(`unexpected path: ${path}`);
