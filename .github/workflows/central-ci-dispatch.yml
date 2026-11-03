@@ -196,6 +196,33 @@ jobs:
             exit 75
           fi
 
+      # Intake's two-minute pending lease points at the short-lived intake run. Once Central CI
+      # starts, transfer CI Evidence ownership to this long-running run so later intakes see
+      # an active verdict job even after the original lease expires.
+      - name: Attach Main CI lease to active Central CI run
+        if: github.event.action == 'run-central-ci-ref' && steps.ref_facts.outputs.should_run == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          REPOSITORY: ${{ steps.ref_facts.outputs.repository }}
+          HEAD_SHA: ${{ steps.ref_facts.outputs.head_sha }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::Missing AW_STATUS_TOKEN. Configure action-worker → Settings → Secrets and variables → Actions with Commit statuses: Read and write on the target repository." >&2
+            exit 77
+          fi
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::Cannot attach Central CI lease to an invalid head SHA." >&2
+            exit 65
+          }
+          gh api --method POST "repos/$REPOSITORY/statuses/$HEAD_SHA" \
+            -f state=pending \
+            -f "context=CI Evidence" \
+            -f "description=Central CI running; awaiting test verdict" \
+            -f "target_url=$RUN_URL" >/dev/null
+
   linux:
     name: Central CI / Linux (${{ matrix.shard }})
     needs: prepare
