@@ -96,10 +96,7 @@ export function requireAuditCredential(
 }
 
 async function main(): Promise<void> {
-  const statusToken = requireAuditCredential(
-    "AW_STATUS_TOKEN",
-    "Commit statuses: Read and write"
-  );
+  const statusToken = requireAuditCredential("AW_STATUS_TOKEN", "Commit statuses: Read and write");
   const issueToken = requireAuditCredential("AW_ISSUE_TOKEN", "Issues: Read and write");
   const controlToken = requireAuditCredential("AW_CONTROL_TOKEN", "managed repository reads");
   const rawPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
