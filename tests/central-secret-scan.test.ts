@@ -17,6 +17,8 @@ async function fakeGitleaks(directory: string, findings: unknown[]): Promise<str
     [
       'import { writeFileSync } from "node:fs";',
       "const args = process.argv.slice(2);",
+      // Gitleaks v8.30.1 takes the git target as a positional argument, not --source.
+      'if (args[0] !== "git" || args.includes("--source") || !args[1] || args[1].startsWith("--") || !args.includes("--log-opts")) process.exit(78);',
       'const out = args[args.indexOf("--report-path") + 1];',
       `writeFileSync(out, ${JSON.stringify(JSON.stringify(findings))});`,
       "",
