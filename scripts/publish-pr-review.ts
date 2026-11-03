@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { hasTrustedSuccessfulCiEvidence } from "./ci-evidence.ts";
-import { resolveToken } from "./control-token.ts";
+import { requireToken } from "./control-token.ts";
 import {
   getGithubJson,
   getJsonArray,
@@ -221,11 +221,11 @@ async function main(): Promise<void> {
   if (!/^[1-9][0-9]*$/.test(prNumber)) {
     throw new CliError(`::error::Invalid PR number: ${prNumber}.`, 64);
   }
-  const token = resolveToken("issue");
+  const token = requireToken("issue");
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   const expectedHeadSha = process.env.HEAD_SHA ?? "";
-  if (!token || !controlToken || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(controlRepository)) {
+  if (!controlToken || !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(controlRepository)) {
     throw new CliError(
       "::error::PR review publication requires issue and control credentials.",
       77

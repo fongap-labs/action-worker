@@ -1,3 +1,4 @@
+import { requireToken } from "./control-token.ts";
 import {
   getGithubJson,
   getJsonArray,
@@ -51,23 +52,21 @@ export function isUnfinished(
 async function main(): Promise<void> {
   const [repository = "", prNumber = "", ownRunUrl = ""] = process.argv.slice(2);
   const controlRepository = process.env.CONTROL_REPOSITORY ?? "";
-  const token = process.env.GH_TOKEN ?? "";
+  const controlToken = requireToken("control");
+  const statusToken = requireToken("status");
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) || !/^[0-9]+$/.test(prNumber)) {
     throw new CliError("::error::Invalid repository or pull request number.", 64);
   }
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(controlRepository) || !ownRunUrl) {
     throw new CliError("::error::Control repository and run URL are required.", 64);
   }
-  if (!token) {
-    throw new CliError("::error::GH_TOKEN is required.");
-  }
 
-  const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, token);
+  const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, controlToken);
   const head = isJsonRecord(pull) && isJsonRecord(pull.head) ? getJsonString(pull.head, "sha") : "";
   if (!/^[0-9a-f]{40}$/.test(head)) {
     throw new CliError(`::error::Pull request ${repository}#${prNumber} has no head commit.`, 65);
   }
-  const combined = await getGithubJson(`repos/${repository}/commits/${head}/status`, token);
+  const combined = await getGithubJson(`repos/${repository}/commits/${head}/status`, controlToken);
   const status = latestGovernanceStatus(combined);
 
   const runId = status ? targetRunId(status.target, controlRepository) : null;
@@ -75,7 +74,7 @@ async function main(): Promise<void> {
     runId === null
       ? false
       : getJsonString(
-          await getGithubJson(`repos/${controlRepository}/actions/runs/${runId}`, token),
+          await getGithubJson(`repos/${controlRepository}/actions/runs/${runId}`, controlToken),
           "status"
         ) === "completed";
   if (!isUnfinished(status, ownRunUrl, isTargetRunCompleted)) {
@@ -98,7 +97,7 @@ async function main(): Promise<void> {
       "-f",
       `target_url=${ownRunUrl}`,
     ],
-    token
+    statusToken
   );
   console.log(`Resolved unfinished PR governance for ${repository}@${head} as failure.`);
 }

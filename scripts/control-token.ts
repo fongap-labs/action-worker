@@ -1,20 +1,16 @@
 /**
- * Control-plane token scopes.
+ * Dedicated GitHub credentials. A missing scoped secret must never be replaced with
+ * GH_TOKEN, AW_CONTROL_TOKEN, or a token for a different operation.
  *
- * All tokens default to AW_CONTROL_TOKEN for backward compatibility. Configure the
- * scoped secrets in GitHub Actions settings to enable isolation.
+ * Fine-grained PAT repository permissions:
+ * - AW_STATUS_TOKEN   Commit statuses: Read and write on managed repositories
+ * - AW_ISSUE_TOKEN    Issues: Read and write on managed repositories
+ * - AW_DISPATCH_TOKEN Contents: Read and write on fongap-labs/action-worker
+ * - AW_CHECKOUT_TOKEN Contents: Read on private target repositories
+ * - AW_CONTROL_TOKEN  Only the remaining control-plane permissions
  *
- * Scope map:
- * - AW_STATUS_TOKEN     → repo:status (read/write commit statuses)
- * - AW_ISSUE_TOKEN      → repo:issues (read/write issues)
- * - AW_DISPATCH_TOKEN   → repo:dispatch (repository_dispatch events)
- * - AW_CHECKOUT_TOKEN   → contents:read (private repo checkout, already exists)
- * - AW_CONTROL_TOKEN    → full control-plane access (fallback for all)
- *
- * Rate-limit note: classic/fine-grained PATs from the same GitHub account share
- * a single 5000/hr pool. Token splitting primarily reduces blast radius (leak/revoke
- * impact) and enforces least privilege, NOT aggregate rate-limit expansion.
- * Use GitHub Apps for true multi-pool rate limits.
+ * Tokens owned by one GitHub account share its API rate-limit pool. Splitting
+ * credentials restricts authorization; it does not increase the shared quota.
  */
 
 import { CliError } from "./runtime-command.ts";
@@ -29,30 +25,29 @@ const scopeEnv: Record<TokenScope, string> = {
   control: "AW_CONTROL_TOKEN",
 };
 
+const scopePermissions: Record<TokenScope, string> = {
+  status: "Commit statuses: Read and write on managed repositories",
+  issue: "Issues: Read and write on managed repositories",
+  dispatch: "Contents: Read and write on fongap-labs/action-worker",
+  checkout: "Contents: Read on the private target repositories",
+  control: "the permissions required by the control-plane operation",
+};
+
 export function scopeEnvName(scope: TokenScope): string {
   return scopeEnv[scope];
 }
 
-// Returns the scoped token, or GH_TOKEN (standard workflow env var), or the control token when the scoped one is not configured.
-// Returns an empty string when neither is available.
-export function resolveToken(scope: TokenScope, fallbackScope: TokenScope = "control"): string {
-  const primary = process.env[scopeEnv[scope]] ?? "";
-  if (primary) return primary;
-  // GH_TOKEN is the standard env var passed by workflows for status/dispatch operations.
-  // Many workflows pass GH_TOKEN = AW_CONTROL_TOKEN. Accept it as a fallback.
-  if ((scope === "status" || scope === "dispatch") && process.env.GH_TOKEN) {
-    return process.env.GH_TOKEN;
-  }
-  return process.env[scopeEnv[fallbackScope]] ?? "";
+export function resolveToken(scope: TokenScope, env: NodeJS.ProcessEnv = process.env): string {
+  return env[scopeEnv[scope]] ?? "";
 }
 
-export function requireToken(scope: TokenScope, fallbackScope: TokenScope = "control"): string {
-  const token = resolveToken(scope, fallbackScope);
-  if (!token) {
+export function requireToken(scope: TokenScope, env: NodeJS.ProcessEnv = process.env): string {
+  const value = resolveToken(scope, env);
+  if (!value) {
     throw new CliError(
-      `::error::${scopeEnv[scope]} is required for this operation (or ${scopeEnv[fallbackScope]} as fallback).`,
+      `::error::Missing required GitHub secret ${scopeEnv[scope]}. Grant ${scopePermissions[scope]}. Configure: fongap-labs/action-worker → Settings → Secrets and variables → Actions. No token fallback is permitted.`,
       77
     );
   }
-  return token;
+  return value;
 }

@@ -22,7 +22,10 @@ async function main(): Promise<void> {
   }
   const token = process.env.GH_TOKEN ?? "";
   if (!token) {
-    throw new CliError("::error::GH_TOKEN is required.");
+    throw new CliError(
+      "::error::Missing required AW_STATUS_TOKEN for writing commit statuses. Grant Commit statuses: Read and write on the target repository, and configure fongap-labs/action-worker → Settings → Secrets and variables → Actions. No token fallback is permitted.",
+      77
+    );
   }
   const command = [
     "api",
