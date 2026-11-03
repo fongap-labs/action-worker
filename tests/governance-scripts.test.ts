@@ -10,7 +10,6 @@ import { rulesetPayloads, settingsPayload } from "../scripts/apply-repository-se
 import { changeAreaForPath } from "../scripts/detect-pr-context.ts";
 import { variableEntries } from "../scripts/export-repository-variables.ts";
 import type { GithubReader } from "../scripts/github-api.ts";
-import { attestFixtureStatuses, attestFixtureResponseForPath, fixtureStatusToken } from "./attested-status-fixtures.ts";
 import {
   assertTrustedMainWrite,
   hasVerifiedMainWriteGuard,
@@ -43,6 +42,11 @@ import { hasLifecycleFilenameViolation } from "../scripts/validate-naming-rules.
 import { validatePayload } from "../scripts/validate-pr-payload.ts";
 import { validateRelease, validateReleaseProvenance } from "../scripts/validate-release-request.ts";
 import { validateReview } from "../scripts/validate-review-result.ts";
+import {
+  attestFixtureResponseForPath,
+  attestFixtureStatuses,
+  fixtureStatusToken,
+} from "./attested-status-fixtures.ts";
 
 const sha = "0123456789abcdef0123456789abcdef01234567";
 
@@ -728,35 +732,52 @@ test("merge warning follows the exact current PR head and all central gates", ()
   const controlUrl = (run: number): string => `https://github.com/${repo}/actions/runs/${run}`;
   const head = "a".repeat(40);
   const pull = { head: { sha: head } };
-  const passed = attestFixtureStatuses({
-    statuses: ["PR Governance", "CI Evidence", "validate-merge"].map((context, i) => ({
-      context,
-      state: "success",
-      target_url: controlUrl(i + 1),
-    })),
-  }, repo, head);
+  const passed = attestFixtureStatuses(
+    {
+      statuses: ["PR Governance", "CI Evidence", "validate-merge"].map((context, i) => ({
+        context,
+        state: "success",
+        target_url: controlUrl(i + 1),
+      })),
+    },
+    repo,
+    head
+  );
   assert.deepEqual(evaluateMergeDisplayGate(pull, passed, head, repo, repo, fixtureStatusToken), {
     current: true,
     status: "success",
   });
   assert.deepEqual(
-    evaluateMergeDisplayGate({ head: { sha: "b".repeat(40) } }, passed, head, repo, repo, fixtureStatusToken),
+    evaluateMergeDisplayGate(
+      { head: { sha: "b".repeat(40) } },
+      passed,
+      head,
+      repo,
+      repo,
+      fixtureStatusToken
+    ),
     { current: false, status: "failure" }
   );
-  assert.deepEqual(evaluateMergeDisplayGate(pull, passed, "not-a-sha", repo, repo, fixtureStatusToken), {
-    current: false,
-    status: "failure",
-  });
+  assert.deepEqual(
+    evaluateMergeDisplayGate(pull, passed, "not-a-sha", repo, repo, fixtureStatusToken),
+    {
+      current: false,
+      status: "failure",
+    }
+  );
   for (const context of ["PR Governance", "CI Evidence", "validate-merge"]) {
     const failure = {
       statuses: passed.statuses.map((status) =>
         status.context === context ? { ...status, state: "failure" } : status
       ),
     };
-    assert.deepEqual(evaluateMergeDisplayGate(pull, failure, head, repo, repo, fixtureStatusToken), {
-      current: true,
-      status: "failure",
-    });
+    assert.deepEqual(
+      evaluateMergeDisplayGate(pull, failure, head, repo, repo, fixtureStatusToken),
+      {
+        current: true,
+        status: "failure",
+      }
+    );
   }
   assert.deepEqual(
     evaluateMergeDisplayGate(
@@ -768,7 +789,9 @@ test("merge warning follows the exact current PR head and all central gates", ()
         })),
       },
       head,
-      repo, repo, fixtureStatusToken
+      repo,
+      repo,
+      fixtureStatusToken
     ),
     { current: true, status: "failure" }
   );
@@ -951,8 +974,13 @@ test("main write guard accepts central merge authority and preserves local self-
   assert.equal(
     await hasVerifiedMainWriteGuard(
       reader,
-      attestFixtureStatuses(paths.get(`repos/fongap/example/commits/${mainSha}/status`), "fongap/example", mainSha),
-        "fongap/example", mainSha
+      attestFixtureStatuses(
+        paths.get(`repos/fongap/example/commits/${mainSha}/status`),
+        "fongap/example",
+        mainSha
+      ),
+      "fongap/example",
+      mainSha
     ),
     true
   );
@@ -965,8 +993,13 @@ test("main write guard accepts central merge authority and preserves local self-
   assert.equal(
     await hasVerifiedMainWriteGuard(
       reader,
-      attestFixtureStatuses(paths.get(`repos/fongap/example/commits/${mainSha}/status`), "fongap/example", mainSha),
-      "fongap/example", mainSha
+      attestFixtureStatuses(
+        paths.get(`repos/fongap/example/commits/${mainSha}/status`),
+        "fongap/example",
+        mainSha
+      ),
+      "fongap/example",
+      mainSha
     ),
     false
   );
@@ -1054,11 +1087,27 @@ test("a newer in-progress main write attestation does not shadow an older verifi
   const previousRunId = process.env.GITHUB_RUN_ID;
   process.env.GITHUB_RUN_ID = "9";
   try {
-    assert.equal(await hasVerifiedMainWriteGuard(reader, attestFixtureStatuses(status, "fongap/example", "1".repeat(40)), "fongap/example", "1".repeat(40)), true);
+    assert.equal(
+      await hasVerifiedMainWriteGuard(
+        reader,
+        attestFixtureStatuses(status, "fongap/example", "1".repeat(40)),
+        "fongap/example",
+        "1".repeat(40)
+      ),
+      true
+    );
     // The asking run cannot verify itself, so its own attestation is never looked up.
     assert.deepEqual(requested, ["repos/fongap-labs/action-worker/actions/runs/3"]);
     // Only the asking run's own attestation is left: nothing independent proves the write yet.
-    assert.equal(await hasVerifiedMainWriteGuard(reader, attestFixtureStatuses({ statuses: [selfStatus] }, "fongap/example", "1".repeat(40)), "fongap/example", "1".repeat(40)), false);
+    assert.equal(
+      await hasVerifiedMainWriteGuard(
+        reader,
+        attestFixtureStatuses({ statuses: [selfStatus] }, "fongap/example", "1".repeat(40)),
+        "fongap/example",
+        "1".repeat(40)
+      ),
+      false
+    );
   } finally {
     if (previousRunId === undefined) delete process.env.GITHUB_RUN_ID;
     else process.env.GITHUB_RUN_ID = previousRunId;
@@ -1098,7 +1147,13 @@ test("a main write attestation outside its control run window names the rejected
   delete process.env.GITHUB_RUN_ID;
   try {
     assert.equal(
-      await hasVerifiedMainWriteGuard(reader, attestFixtureStatuses(status, "fongap/example", "1".repeat(40)), "fongap/example", "1".repeat(40), (step) => steps.push(step)),
+      await hasVerifiedMainWriteGuard(
+        reader,
+        attestFixtureStatuses(status, "fongap/example", "1".repeat(40)),
+        "fongap/example",
+        "1".repeat(40),
+        (step) => steps.push(step)
+      ),
       false
     );
   } finally {
@@ -1225,8 +1280,13 @@ test("main write provenance rejects direct pushes and fake status-only trust", a
   assert.equal(
     await hasVerifiedMainWriteGuard(
       reader,
-      attestFixtureStatuses(paths.get(`repos/fongap/example/commits/${mainSha}/status`), "fongap/example", mainSha),
-      "fongap/example", mainSha
+      attestFixtureStatuses(
+        paths.get(`repos/fongap/example/commits/${mainSha}/status`),
+        "fongap/example",
+        mainSha
+      ),
+      "fongap/example",
+      mainSha
     ),
     false
   );
