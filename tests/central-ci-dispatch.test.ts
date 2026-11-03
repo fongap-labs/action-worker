@@ -5,11 +5,13 @@ import { test } from "node:test";
 const workflow = readFileSync(".github/workflows/central-ci-dispatch.yml", "utf8");
 const sandbox = readFileSync(".github/workflows/central-ci-sandbox.yml", "utf8");
 
-test("main CI dispatches do not cancel the same immutable head", () => {
+test("Central CI never cancels an active test for the same head SHA", () => {
   assert.match(
     workflow,
-    /cancel-in-progress: \$\{\{ github\.event\.action == 'run-central-ci' \}\}/
+    /group: central-ci-\$\{\{ github\.event\.client_payload\.repository \}\}-\$\{\{ github\.event\.client_payload\.head_sha \}\}/
   );
+  assert.match(workflow, /cancel-in-progress: false/);
+  assert.doesNotMatch(workflow, /cancel-in-progress: true/);
 });
 
 test("main CI reuses successful evidence before heavy jobs", () => {
