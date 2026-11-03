@@ -151,7 +151,14 @@ async function reserveCiStatus(
     throw new CliError("GITHUB_RUN_ID is required to reserve central CI status.", 64);
   }
   const targetUrl = `${serverUrl}/${controlRepository}/actions/runs/${runId}`;
-  await reserveIntakeCommitStatus(token, repository, headSha, "CI Evidence", "Central CI queued by central intake", targetUrl);
+  await reserveIntakeCommitStatus(
+    token,
+    repository,
+    headSha,
+    "CI Evidence",
+    "Central CI queued by central intake",
+    targetUrl
+  );
 }
 
 async function dispatchCentralCi(
