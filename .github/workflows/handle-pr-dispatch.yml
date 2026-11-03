@@ -335,6 +335,7 @@ jobs:
       - name: Resolve unfinished PR governance
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           CONTROL_REPOSITORY: ${{ github.repository }}
           REPOSITORY: ${{ github.event.client_payload.repository }}
