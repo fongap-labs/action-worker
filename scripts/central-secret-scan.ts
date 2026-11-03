@@ -113,7 +113,6 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv): Prom
     const report = join(work, "report.json");
     const args = [
       "git",
-      "--source",
       target,
       "--log-opts",
       `${base}..${head}`,
