@@ -39,6 +39,7 @@ jobs:
         run: node scripts/verify-ci-follow-up.ts
 
       - name: Dispatch central security scan
+        if: steps.verified.outputs.current == 'true'
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
@@ -55,7 +56,7 @@ jobs:
 
       - name: Attest deploy source main write
         id: attest
-        if: ${{ !cancelled() && github.event.client_payload.pr_number == 0 }}
+        if: ${{ !cancelled() && steps.verified.outputs.current == 'true' && github.event.client_payload.pr_number == 0 }}
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
@@ -66,7 +67,7 @@ jobs:
         run: node scripts/audit-main-writes.ts
 
       - name: Dispatch automatic deploy
-        if: ${{ !cancelled() && steps.attest.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.verified.outputs.current == 'true' && steps.attest.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
