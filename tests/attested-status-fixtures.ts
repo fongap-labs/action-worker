@@ -1,4 +1,7 @@
-import { originalStatusDescription, signedStatusDescription } from "../scripts/status-attestation.ts";
+import {
+  originalStatusDescription,
+  signedStatusDescription,
+} from "../scripts/status-attestation.ts";
 
 export const fixtureStatusToken = "action-worker-test-status-signing-key";
 process.env.AW_STATUS_TOKEN = fixtureStatusToken;
@@ -14,31 +17,31 @@ export function attestFixtureStatus(
     typeof context !== "string" ||
     !["pending", "success", "failure", "error"].includes(String(state)) ||
     !/^[0-9a-f]{40}$/.test(sha)
-  ) return status;
-  const rawDescription = typeof status.description === "string"
-    ? status.description : `Fixture ${context}`;
+  )
+    return status;
+  const rawDescription =
+    typeof status.description === "string" ? status.description : `Fixture ${context}`;
   const description = originalStatusDescription(status) || rawDescription;
   const targetUrl = typeof status.target_url === "string" ? status.target_url : "";
   return {
     ...status,
-    description: signedStatusDescription({
-      repository,
-      sha,
-      context,
-      state: state as "pending" | "success" | "failure" | "error",
-      description,
-      targetUrl,
-    }, fixtureStatusToken),
+    description: signedStatusDescription(
+      {
+        repository,
+        sha,
+        context,
+        state: state as "pending" | "success" | "failure" | "error",
+        description,
+        targetUrl,
+      },
+      fixtureStatusToken
+    ),
   };
 }
 
-export function attestFixtureStatuses<T>(
-  value: T,
-  repository: string,
-  sha: string
-): T {
+export function attestFixtureStatuses<T>(value: T, repository: string, sha: string): T {
   if (Array.isArray(value)) {
-    return value.map(item =>
+    return value.map((item) =>
       item !== null && typeof item === "object" && !Array.isArray(item)
         ? attestFixtureStatus(item as Record<string, unknown>, repository, sha)
         : item
@@ -53,7 +56,10 @@ export function attestFixtureStatuses<T>(
 }
 
 export function attestFixtureResponseForPath<T>(path: string, value: T): T {
-  const match = /^repos\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/(?:commits\/([0-9a-f]{40})\/status|statuses\/([0-9a-f]{40}))(?:\?|$)/.exec(path);
+  const match =
+    /^repos\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/(?:commits\/([0-9a-f]{40})\/status|statuses\/([0-9a-f]{40}))(?:\?|$)/.exec(
+      path
+    );
   if (!match) return value;
   return attestFixtureStatuses(value, match[1]!, (match[2] ?? match[3])!);
 }
