@@ -329,7 +329,7 @@ export async function assertTrustedMainWrite(
   repository: string,
   mainSha: string,
   isCentralStatusRequired = true,
-  bypassIncidents = false
+  isIncidentBypassEnabled = false
 ): Promise<MainWriteProvenance> {
   const provenance = await validateMainWriteProvenance(
     reader,
@@ -337,7 +337,7 @@ export async function assertTrustedMainWrite(
     mainSha,
     isCentralStatusRequired
   );
-  if (!bypassIncidents) {
+  if (!isIncidentBypassEnabled) {
     await assertNoOpenMainWriteIncidents(reader, repository);
   } else {
     console.log(

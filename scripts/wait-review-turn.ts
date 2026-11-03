@@ -17,7 +17,7 @@ function calculateBackoff(
   maxMs: number,
   jitterFactor = 0.2
 ): number {
-  const exponential = initialMs * Math.pow(2, attempt);
+  const exponential = initialMs * 2 ** attempt;
   const capped = Math.min(exponential, maxMs);
   const jitter = capped * jitterFactor * Math.random();
   return Math.floor(capped + jitter);
@@ -89,14 +89,18 @@ async function main(): Promise<void> {
       return;
     }
     if (owner !== lastOwner) {
-      console.error(`AI Review queue waiting: run=${runId} owner=${owner} (attempt ${attempt}/${maxAttempts})`);
+      console.error(
+        `AI Review queue waiting: run=${runId} owner=${owner} (attempt ${attempt}/${maxAttempts})`
+      );
       lastOwner = owner;
     }
     if (attempt < maxAttempts && Date.now() < deadline) {
       await sleep(calculateBackoff(attempt, initialPollMs, maxPollMs));
     }
   }
-  throw new CliError(`ERROR: AI Review queue wait exceeded ${waitMinutes} minute(s) attempts=${attempt}.`);
+  throw new CliError(
+    `ERROR: AI Review queue wait exceeded ${waitMinutes} minute(s) attempts=${attempt}.`
+  );
 }
 
 if (isMain(import.meta.url)) {

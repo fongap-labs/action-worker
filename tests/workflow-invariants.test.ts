@@ -39,16 +39,16 @@ function usesWholeSecretsContext(value: unknown): boolean {
 
 const centralSecrets = ["AW_CONTROL_TOKEN", "AW_ADMIN_TOKEN", "AW_DISPATCH_TOKEN"];
 
-test("duplicate PR dispatches preserve completed governance provenance", async () => {
+test("PR dispatch supersedes obsolete governance revisions", async () => {
   const dispatch = await workflow("handle-pr-dispatch.yml");
   assert.equal(
     dispatch.concurrency?.group,
-    "pr-governance-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}-${{ github.event.client_payload.head_sha }}"
+    "pr-governance-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}"
   );
   assert.equal(
     dispatch.concurrency?.["cancel-in-progress"],
-    false,
-    "a duplicate intake dispatch must not cancel the run that published merge evidence"
+    true,
+    "a newer PR revision must cancel obsolete governance runs"
   );
   const cancellation = await workflow("cancel-pr-work.yml");
   assert.equal(

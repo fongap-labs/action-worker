@@ -17,7 +17,7 @@ function calculateBackoff(
   maxMs: number,
   jitterFactor = 0.2
 ): number {
-  const exponential = initialMs * Math.pow(2, attempt);
+  const exponential = initialMs * 2 ** attempt;
   const capped = Math.min(exponential, maxMs);
   const jitter = capped * jitterFactor * Math.random();
   return Math.floor(capped + jitter);
@@ -114,7 +114,9 @@ export async function waitForCentralStatus(
 
     const state = getJsonString(status, "state") || "unknown";
     if (state === "pending") {
-      console.error(`Central CI pending: ${repository}@${headSha} context=${context} (attempt ${attempt}/${maxAttempts})`);
+      console.error(
+        `Central CI pending: ${repository}@${headSha} context=${context} (attempt ${attempt}/${maxAttempts})`
+      );
       if (attempt < maxAttempts && Date.now() < deadline) {
         await sleep(calculateBackoff(attempt, initialPollMs, maxPollMs));
       }

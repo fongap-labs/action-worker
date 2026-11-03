@@ -1,6 +1,6 @@
+import { resolveToken } from "./control-token.ts";
 import { githubEnvironment } from "./github-api.ts";
 import { CliError, handleError, isMain, runText } from "./runtime-command.ts";
-import { resolveToken } from "./control-token.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const requestPattern = /^[A-Za-z0-9._:-]{1,128}$/;

@@ -19,12 +19,7 @@
 
 import { CliError } from "./runtime-command.ts";
 
-export type TokenScope =
-  | "status"
-  | "issue"
-  | "dispatch"
-  | "checkout"
-  | "control";
+export type TokenScope = "status" | "issue" | "dispatch" | "checkout" | "control";
 
 const scopeEnv: Record<TokenScope, string> = {
   status: "AW_STATUS_TOKEN",

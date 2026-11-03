@@ -1,4 +1,10 @@
-import { GithubHttpError, getJsonNumber, getJsonString, isJsonRecord, runGithubCli } from "./github-api.ts";
+import {
+  GithubHttpError,
+  getJsonNumber,
+  getJsonString,
+  isJsonRecord,
+  runGithubCli,
+} from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
 type Reader = { get(path: string): Promise<unknown> };
@@ -93,16 +99,13 @@ export async function findIncidents(
 }
 
 // Returns only incidents that are open, not expired, and not resolved by a maintainer comment.
-export async function findActiveIncidents(
-  reader: Reader,
-  repository: string
-): Promise<Issue[]> {
+export async function findActiveIncidents(reader: Reader, repository: string): Promise<Issue[]> {
   const openIncidents = await findIncidents(reader, repository, "open");
   const active: Issue[] = [];
   for (const incident of openIncidents) {
     if (isExpired(incident)) continue;
     const number = getJsonNumber(incident, "number");
-    if (number > 0 && await isResolvedByComment(reader, repository, number)) continue;
+    if (number > 0 && (await isResolvedByComment(reader, repository, number))) continue;
     active.push(incident);
   }
   return active;
@@ -116,9 +119,8 @@ export async function assertNoOpenMainWriteIncidents(
   if (incidents.length === 0) return;
   const numbers = incidents.map((issue) => getJsonNumber(issue, "number")).filter((n) => n > 0);
   const expired = (await findIncidents(reader, repository, "open")).filter(isExpired);
-  const expiredNote = expired.length > 0
-    ? ` ${expired.length} expired incident(s) will be auto-closed.`
-    : "";
+  const expiredNote =
+    expired.length > 0 ? ` ${expired.length} expired incident(s) will be auto-closed.` : "";
   throw new CliError(
     `::error::Unresolved main write incident(s) in ${repository}: ${numbers.map((n) => `#${n}`).join(", ") || "unknown issue"}. ` +
       "The latest successful merge cannot clear historical untrusted writes. Review and explicitly resolve the incidents before release, deploy or trusted main attestation. " +
@@ -162,13 +164,24 @@ export async function closeExpiredIncidents(
     if (number <= 0) continue;
     try {
       await runGithubCli(
-        ["api", "--method", "PATCH", `repos/${repository}/issues/${number}`, "-f", "state=closed", "-f", "state_reason=completed"],
+        [
+          "api",
+          "--method",
+          "PATCH",
+          `repos/${repository}/issues/${number}`,
+          "-f",
+          "state=closed",
+          "-f",
+          "state_reason=completed",
+        ],
         token
       );
       console.log(`Auto-closed expired main write incident #${number} in ${repository}`);
       closed += 1;
     } catch (error) {
-      console.error(`Failed to close expired incident #${number} in ${repository}: ${error instanceof Error ? error.message : String(error)}`);
+      console.error(
+        `Failed to close expired incident #${number} in ${repository}: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   }
   return closed;

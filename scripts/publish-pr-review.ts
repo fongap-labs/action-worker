@@ -1,8 +1,8 @@
-import { readFile } from "node:fs/promises";
+import { resolveToken } from "./control-token.ts";
 import { getJsonArray, getJsonString, isJsonRecord, runGithubCli } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { isReviewComplete } from "./validate-review-result.ts";
-import { resolveToken } from "./control-token.ts";
+import { readFile } from "node:fs/promises";
 
 const marker = "<!-- action-worker-pr-governance -->";
 

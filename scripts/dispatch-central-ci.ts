@@ -1,8 +1,8 @@
 import { hasVerifiedCiEvidence } from "./ci-evidence.ts";
+import { resolveToken } from "./control-token.ts";
 import { GithubReader, githubEnvironment, isJsonRecord, runGithubCli } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, readJson, runText } from "./runtime-command.ts";
-import { resolveToken } from "./control-token.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -57,7 +57,10 @@ async function main(): Promise<void> {
 
   // Only a success that a real control run produced may skip CI; a status that merely names a
   // control run URL is a claim anyone with status write access can make.
-  const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", statusToken);
+  const reader = new GithubReader(
+    process.env.GITHUB_API_URL ?? "https://api.github.com",
+    statusToken
+  );
   const currentStatus = await reader.get(`repos/${repository}/commits/${headSha}/status`);
   if (await hasVerifiedCiEvidence(reader, currentStatus, { controlRepository })) {
     console.log(`Central CI already satisfied: ${repository}@${headSha}`);

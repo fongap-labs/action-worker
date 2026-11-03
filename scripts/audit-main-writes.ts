@@ -1,3 +1,4 @@
+import { resolveToken } from "./control-token.ts";
 import { GithubReader, getJsonString, runGithubCli } from "./github-api.ts";
 import {
   MainWriteVerificationPendingError,
@@ -7,12 +8,11 @@ import {
   assertNoOpenMainWriteIncidents,
   IncidentAccessError,
   incidentTitle,
-  shouldCreateIncident,
   closeExpiredIncidents,
+  shouldCreateIncident,
 } from "./main-write-incidents.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
-import { resolveToken } from "./control-token.ts";
 
 type AuditResult = {
   repository: string;
@@ -54,7 +54,7 @@ export async function auditRepositoryMain(
   reader: GithubReader,
   repository: string,
   isCentralStatusRequired = true,
-  bypassIncidents = false
+  isIncidentBypassEnabled = false
 ): Promise<{ main_sha: string; pr_number: number }> {
   const repositoryValue = await reader.get(`repos/${repository}`);
   const defaultBranch = getJsonString(repositoryValue, "default_branch");
@@ -75,7 +75,7 @@ export async function auditRepositoryMain(
     mainSha,
     isCentralStatusRequired
   );
-  if (!bypassIncidents) {
+  if (!isIncidentBypassEnabled) {
     await assertNoOpenMainWriteIncidents(reader, repository);
   }
   return { main_sha: mainSha, pr_number: provenance.pr_number };
@@ -118,7 +118,10 @@ async function main(): Promise<void> {
 
   // Reads span pull requests, commit statuses and issues, so the reader keeps the control token.
   // Writes are scoped: statuses use the status token, incidents use the issue token.
-  const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", controlToken);
+  const reader = new GithubReader(
+    process.env.GITHUB_API_URL ?? "https://api.github.com",
+    controlToken
+  );
   const results: AuditResult[] = [];
 
   for (const repository of repositories) {
