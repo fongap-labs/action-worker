@@ -10,7 +10,7 @@ import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-st
 import { AWAITING_APPROVAL_DESCRIPTION, evaluatePrTrust, listPullReviews } from "./pr-trust.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
-import { hasValidStatusAttestation } from "./status-attestation.ts";
+import { hasValidStatusAttestation, originalStatusDescription } from "./status-attestation.ts";
 
 type GithubGet = {
   get(path: string): Promise<unknown>;
@@ -79,7 +79,7 @@ function statusMap(
     const state = typeof item.state === "string" ? item.state : "";
     const targetUrl = typeof item.target_url === "string" ? item.target_url : "";
     const updatedAt = typeof item.updated_at === "string" ? item.updated_at : "";
-    const description = typeof item.description === "string" ? item.description : "";
+    const description = originalStatusDescription(item);
     const runId = trustedControlRunId(targetUrl, controlRepository);
     if (
       !runId ||
