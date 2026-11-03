@@ -68,12 +68,31 @@ jobs:
       # from the control ref never runs against code that the default branch has already moved past.
       # When the default branch changed under the PR and the merge conflicts, GitHub has no merge
       # ref and the checkout fails as the merge gate.
-      - name: Checkout target PR
+      - name: Require private checkout token
+        if: inputs.is_private == 'true' && secrets.checkout_token == ''
+        shell: bash
+        run: |
+          echo "::error::Missing required secret AW_CHECKOUT_TOKEN. Configure it in action-worker → Settings → Secrets and variables → Actions. Grant Contents: Read access to the private target repositories." >&2
+          exit 77
+
+      - name: Checkout private target PR
+        if: inputs.is_private == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.pr_number != '0' && inputs.merge_sha || inputs.head_sha }}
-          token: ${{ secrets.checkout_token || github.token }}
+          token: ${{ secrets.checkout_token }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout public target PR
+        if: inputs.is_private != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.pr_number != '0' && inputs.merge_sha || inputs.head_sha }}
+          token: ${{ github.token }}
           path: target
           fetch-depth: 0
           persist-credentials: false
@@ -186,12 +205,31 @@ jobs:
 
     steps:
       # A pull request is tested as it would merge into the default branch; see the Linux job.
-      - name: Checkout target PR
+      - name: Require private checkout token
+        if: inputs.is_private == 'true' && secrets.checkout_token == ''
+        shell: bash
+        run: |
+          echo "::error::Missing required secret AW_CHECKOUT_TOKEN. Configure it in action-worker → Settings → Secrets and variables → Actions. Grant Contents: Read access to the private target repositories." >&2
+          exit 77
+
+      - name: Checkout private target PR
+        if: inputs.is_private == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.pr_number != '0' && inputs.merge_sha || inputs.head_sha }}
-          token: ${{ secrets.checkout_token || github.token }}
+          token: ${{ secrets.checkout_token }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout public target PR
+        if: inputs.is_private != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.pr_number != '0' && inputs.merge_sha || inputs.head_sha }}
+          token: ${{ github.token }}
           path: target
           fetch-depth: 0
           persist-credentials: false
