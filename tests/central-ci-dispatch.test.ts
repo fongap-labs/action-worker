@@ -61,7 +61,9 @@ test("finalization waits for every Linux shard", () => {
 test("jobs that execute change code reference no central credential", () => {
   // The only secret the sandbox can see is the optional checkout token its caller passes.
   assert.deepEqual([...new Set(sandbox.match(/secrets\.[A-Za-z_]+/g))], ["secrets.checkout_token"]);
-  assert.match(sandbox, /token: \$\{\{ secrets\.checkout_token \|\| github\.token \}\}/);
+  assert.match(sandbox, /token: \$\{\{ secrets\.checkout_token \}\}/);
+  assert.match(sandbox, /token: \$\{\{ github\.token \}\}/);
+  assert.doesNotMatch(sandbox, /secrets\.checkout_token \|\| github\.token/);
   assert.match(sandbox, /workflow_call:/);
   const privateOnlyToken =
     "checkout_token: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CHECKOUT_TOKEN || '' }}";
@@ -114,13 +116,23 @@ test("a pull request CI that fails in prepare still publishes a CI Evidence verd
   assert.doesNotMatch(job, /checkout|central-ci\.sh/);
 });
 
-test("a pull request is tested as it merges into the default branch, and the bare head is not checked out", () => {
+test("a pull request is tested at a pinned merge SHA, not at a mutable merge ref", () => {
   const checkoutTemplate =
-    "ref: ${{ inputs.pr_number != '0' && format('refs/pull/{0}/merge', inputs.pr_number) || inputs.head_sha }}";
-  // split(...).length === 3 means exactly two occurrences: the Linux and the Windows checkout.
-  assert.equal(sandbox.split(checkoutTemplate).length, 3, "both platform jobs test the merge ref");
+    "ref: ${{ inputs.pr_number != '0' && inputs.merge_sha || inputs.head_sha }}";
+  // Four target checkouts: private and public variants on both Linux and Windows.
+  assert.equal(sandbox.split(checkoutTemplate).length, 5);
+  assert.doesNotMatch(sandbox, /format\('refs\/pull\/\{0\}\/merge'/);
   assert.doesNotMatch(sandbox, /ref: \$\{\{ inputs\.head_sha \}\}/);
-  // The secret scan and the status verdicts keep working on the pull request's own commits.
+  assert.match(workflow, /merge_sha: \$\{\{ steps\.merge_ref\.outputs\.merge_sha/);
+  assert.equal(
+    workflow.split("merge_sha: ${{ needs.prepare.outputs.merge_sha }}").length,
+    3,
+    "Linux and Windows receive the same prepared merge commit"
+  );
+  assert.match(sandbox, /node aw\/scripts\/verify-ci-checkout\.ts/);
+  assert.doesNotMatch(sandbox, /run: node aw\/scripts\/verify-ci-checkout\.ts[^\n]*\$\{\{ inputs\./);
+
+  // The secret scan and status verdicts still use the original PR head.
   const security = workflow.slice(
     workflow.indexOf("  security:\n"),
     workflow.indexOf("\n  windows:\n")
