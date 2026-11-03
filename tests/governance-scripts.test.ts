@@ -965,7 +965,8 @@ test("main write guard accepts central merge authority and preserves local self-
   assert.equal(
     await hasVerifiedMainWriteGuard(
       reader,
-      paths.get(`repos/fongap/example/commits/${mainSha}/status`)
+      attestFixtureStatuses(paths.get(`repos/fongap/example/commits/${mainSha}/status`), "fongap/example", mainSha),
+      "fongap/example", mainSha
     ),
     false
   );
