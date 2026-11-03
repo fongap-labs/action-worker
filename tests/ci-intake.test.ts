@@ -165,7 +165,7 @@ test("central CI intake retries an expired pending reservation", async () => {
   assert.equal(result.dispatched, 1);
 });
 
-test("central CI intake treats compatibility evidence as processed", async () => {
+test("central CI intake rechecks legacy unsigned compatibility evidence", async () => {
   const repository = "fongap-labs/example";
   let dispatches = 0;
   const result = await scanMainCi(
@@ -182,8 +182,8 @@ test("central CI intake treats compatibility evidence as processed", async () =>
     }
   );
 
-  assert.equal(dispatches, 0);
-  assert.equal(result.already_processed, 1);
+  assert.equal(dispatches, 1);
+  assert.equal(result.dispatched, 1);
 });
 
 test("central CI intake excludes the control repository without hardcoded names", async () => {
