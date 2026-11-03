@@ -50,3 +50,9 @@ export function attestFixtureStatuses(
   }
   return attestFixtureStatus(record, repository, sha);
 }
+
+export function attestFixtureResponseForPath(path: string, value: unknown): unknown {
+  const match = /^repos\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/(?:commits\/([0-9a-f]{40})\/status|statuses\/([0-9a-f]{40}))(?:\?|$)/.exec(path);
+  if (!match) return value;
+  return attestFixtureStatuses(value, match[1]!, (match[2] ?? match[3])!);
+}
