@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { parse } from "yaml";
-import { attestFixtureStatuses, fixtureStatusToken } from "./attested-status-fixtures.ts";
 import {
   isCurrentFollowUpTarget,
   matchesFollowUpEvidence,
   parseFollowUpRequest,
 } from "../scripts/verify-ci-follow-up.ts";
+import { attestFixtureStatuses, fixtureStatusToken } from "./attested-status-fixtures.ts";
 
 const repository = "fongap-labs/dsh-plugin";
 const sha = "a".repeat(40);
@@ -33,22 +33,42 @@ test("CI follow-ups require a complete revision-bound dispatch payload", () => {
 });
 
 test("CI follow-ups cannot borrow another run's CI Evidence", () => {
-  const status = attestFixtureStatuses({
-    statuses: [
-      {
-        context: "CI Evidence",
-        state: "success",
-        target_url: `https://github.com/${controlRepository}/actions/runs/${runId}`,
-      },
-    ],
-  }, repository, sha);
-  assert.equal(matchesFollowUpEvidence(status, controlRepository, runId, repository, sha, fixtureStatusToken), true);
-  assert.equal(matchesFollowUpEvidence(status, controlRepository, runId + 1, repository, sha, fixtureStatusToken), false);
+  const status = attestFixtureStatuses(
+    {
+      statuses: [
+        {
+          context: "CI Evidence",
+          state: "success",
+          target_url: `https://github.com/${controlRepository}/actions/runs/${runId}`,
+        },
+      ],
+    },
+    repository,
+    sha
+  );
+  assert.equal(
+    matchesFollowUpEvidence(status, controlRepository, runId, repository, sha, fixtureStatusToken),
+    true
+  );
+  assert.equal(
+    matchesFollowUpEvidence(
+      status,
+      controlRepository,
+      runId + 1,
+      repository,
+      sha,
+      fixtureStatusToken
+    ),
+    false
+  );
   assert.equal(
     matchesFollowUpEvidence(
       { statuses: [{ ...status.statuses[0], state: "pending" }] },
       controlRepository,
-      runId, repository, sha, fixtureStatusToken
+      runId,
+      repository,
+      sha,
+      fixtureStatusToken
     ),
     false
   );
@@ -63,7 +83,10 @@ test("CI follow-ups cannot borrow another run's CI Evidence", () => {
         ],
       },
       controlRepository,
-      runId, repository, sha, fixtureStatusToken
+      runId,
+      repository,
+      sha,
+      fixtureStatusToken
     ),
     false
   );
