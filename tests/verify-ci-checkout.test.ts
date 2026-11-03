@@ -43,7 +43,7 @@ test("PR checkout rejects merge commits built from a different base or head", ()
         headSha,
         mergeSha,
         checkedOutSha: mergeSha,
-        parents: [ "e".repeat(40), headSha ],
+        parents: ["e".repeat(40), headSha],
       }),
     /parents do not match/
   );
