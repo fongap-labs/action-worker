@@ -10,6 +10,12 @@ import {
 import { getGithubJson, githubEnvironment, githubExists, isJsonRecord } from "./github-api.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
+import {
+  hasValidStatusAttestation,
+  originalStatusDescription,
+  requireStatusToken,
+  signedStatusDescription,
+} from "./status-attestation.ts";
 
 export type TaskSourceManifest = {
   schema_version: "1";
@@ -265,7 +271,8 @@ function commitShas(value: unknown, repository: string): string[] {
  */
 export async function wasDispatched(
   task: ScheduledTask,
-  get: (path: string) => Promise<unknown>
+  get: (path: string) => Promise<unknown>,
+  statusToken = process.env.AW_STATUS_TOKEN ?? ""
 ): Promise<boolean> {
   const slotTime = `${task.slot.slice(0, 16)}:00Z`;
   const base = `repos/${task.repository}/commits?sha=${task.head_sha}`;
@@ -286,7 +293,8 @@ export async function wasDispatched(
         isJsonRecord(item) &&
         item.context === context &&
         item.state === "success" &&
-        item.description === description
+        originalStatusDescription(item) === description &&
+        hasValidStatusAttestation(item, { repository: task.repository, sha, context }, statusToken)
     );
     if (isRecorded) return true;
   }
@@ -294,14 +302,25 @@ export async function wasDispatched(
 }
 
 async function markDispatched(task: ScheduledTask, token: string): Promise<void> {
+  const targetUrl =
+    process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
+      ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+      : "";
   const payload = JSON.stringify({
     state: "success",
     context: scheduleContext(task.project),
-    description: scheduleDescription(task.slot),
-    target_url:
-      process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
-        ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
-        : undefined,
+    description: signedStatusDescription(
+      {
+        repository: task.repository,
+        sha: task.head_sha,
+        state: "success",
+        context: scheduleContext(task.project),
+        description: scheduleDescription(task.slot),
+        targetUrl,
+      },
+      token
+    ),
+    target_url: targetUrl || undefined,
   });
   await runCommand(
     "gh",
@@ -356,6 +375,7 @@ async function dispatchTask(
 async function main(): Promise<void> {
   const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
+  const statusToken = requireStatusToken();
   const ingressToken = process.env.AW_INGRESS_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   const nowRaw = process.env.TASK_SOURCE_NOW ?? "";
@@ -389,12 +409,22 @@ async function main(): Promise<void> {
   let dispatched = 0;
   let deduplicated = 0;
   for (const task of tasks) {
-    if (await wasDispatched(task, (path) => getGithubJson(path, controlToken))) {
+    if (
+      await wasDispatched(
+        task,
+        (path) =>
+          getGithubJson(
+            path,
+            /\/commits\/[^/]+\/status(?:\?|$)/.test(path) ? statusToken : controlToken
+          ),
+        statusToken
+      )
+    ) {
       deduplicated += 1;
       continue;
     }
     await dispatchTask(controlRepository, ingressToken, task);
-    await markDispatched(task, controlToken);
+    await markDispatched(task, statusToken);
     dispatched += 1;
   }
   console.log(

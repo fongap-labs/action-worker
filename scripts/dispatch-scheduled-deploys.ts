@@ -8,11 +8,11 @@ import {
   parseDeployPolicy,
 } from "./dispatch-central-deploy.ts";
 import {
-  GithubReader,
   getJsonArray,
   getJsonString,
   githubEnvironment,
   isJsonRecord,
+  statusAwareReader,
 } from "./github-api.ts";
 import { type ContentReader, discoverProducts } from "./product-discovery.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
@@ -25,6 +25,12 @@ import {
   readJson,
   runCommand,
 } from "./runtime-command.ts";
+import {
+  hasValidStatusAttestation,
+  originalStatusDescription,
+  requireStatusToken,
+  signedStatusDescription,
+} from "./status-attestation.ts";
 
 export type ScheduledDeployTarget = {
   repository: string;
@@ -192,7 +198,8 @@ function commitShas(value: unknown, repository: string): string[] {
  */
 export async function wasScheduledDeployDispatched(
   deploy: ScheduledDeploy,
-  get: (path: string) => Promise<unknown>
+  get: (path: string) => Promise<unknown>,
+  statusToken = process.env.AW_STATUS_TOKEN ?? ""
 ): Promise<boolean> {
   const slotTime = `${deploy.slot.slice(0, 16)}:00Z`;
   const base = `repos/${deploy.repository}/commits?sha=${deploy.head_sha}`;
@@ -213,7 +220,12 @@ export async function wasScheduledDeployDispatched(
         isJsonRecord(item) &&
         item.context === context &&
         item.state === "success" &&
-        item.description === description
+        originalStatusDescription(item) === description &&
+        hasValidStatusAttestation(
+          item,
+          { repository: deploy.repository, sha, context },
+          statusToken
+        )
     );
     if (isRecorded) return true;
   }
@@ -237,6 +249,8 @@ export async function mainCiVerdict(
   }
   const verified = await hasVerifiedCiEvidence(reader, response, {
     controlRepository,
+    targetRepository: repository,
+    targetSha: sha,
     runAttempts: 1,
     retryDelayMs: 0,
   });
@@ -281,14 +295,25 @@ export function beijingText(value: Date): string {
 }
 
 async function markDispatched(deploy: ScheduledDeploy, token: string): Promise<void> {
+  const targetUrl =
+    process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
+      ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+      : "";
   const payload = JSON.stringify({
     state: "success",
     context: scheduleContext(deploy.product, deploy.environment),
-    description: scheduleDescription(deploy.slot),
-    target_url:
-      process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
-        ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
-        : undefined,
+    description: signedStatusDescription(
+      {
+        repository: deploy.repository,
+        sha: deploy.head_sha,
+        state: "success",
+        context: scheduleContext(deploy.product, deploy.environment),
+        description: scheduleDescription(deploy.slot),
+        targetUrl,
+      },
+      token
+    ),
+    target_url: targetUrl || undefined,
   });
   await runCommand(
     "gh",
@@ -329,6 +354,7 @@ async function dispatchDeploy(
 async function main(): Promise<void> {
   const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
+  const statusToken = requireStatusToken();
   const ingressToken = process.env.AW_INGRESS_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   const lookbackRaw =
@@ -353,9 +379,10 @@ async function main(): Promise<void> {
   }
 
   const now = new Date();
-  const reader = new GithubReader(
+  const reader = statusAwareReader(
     process.env.GITHUB_API_URL ?? "https://api.github.com",
-    controlToken
+    controlToken,
+    statusToken
   );
   const policy = parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65);
   const eventType = deployEventType(
@@ -403,7 +430,7 @@ async function main(): Promise<void> {
       ingressToken,
       scheduledDeployRequestBody(deploy, eventType)
     );
-    await markDispatched(deploy, controlToken);
+    await markDispatched(deploy, statusToken);
     dispatched += 1;
     results.push({ ...label, result: "dispatched" });
   }

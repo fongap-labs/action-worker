@@ -9,9 +9,8 @@ import { CliError, handleError, isMain } from "./runtime-command.ts";
 //
 //   node central-secret-scan.ts <target-root> <base-sha> <head-sha> [gitleaks-config]
 //
-// AW_GITLEAKS_MODE=warn (default) reports findings as warnings and never fails the build;
-// AW_GITLEAKS_MODE=enforce fails the build when anything is found. A scan that cannot run (for
-// example the download failed) is a warning in warn mode and a failure in enforce mode.
+// AW_GITLEAKS_MODE=enforce (default) fails the build when findings are found. A scan that cannot
+// run (for example the download failed) also fails closed. Set warn explicitly to downgrade it.
 //
 // Findings are printed redacted: rule names and counts always; file and line only when the target
 // repository is public (TARGET_PRIVATE=false), because this log is public.
@@ -85,7 +84,7 @@ async function download(directory: string): Promise<string> {
 
 export async function main(argv: string[], environment: NodeJS.ProcessEnv): Promise<number> {
   const [target = "", base = "", head = "", config = ""] = argv;
-  const mode = environment.AW_GITLEAKS_MODE || "warn";
+  const mode = environment.AW_GITLEAKS_MODE || "enforce";
   if (!target || !base || !head) {
     throw new CliError(
       "Usage: central-secret-scan.ts <target-root> <base-sha> <head-sha> [config]",

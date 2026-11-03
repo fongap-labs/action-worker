@@ -1,5 +1,6 @@
 import { getJsonArray, getJsonString, isJsonRecord, type JsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
+import { hasValidStatusAttestation } from "./status-attestation.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
@@ -51,6 +52,9 @@ export type VerificationTrace = (step: string, detail: Record<string, unknown>) 
 
 export type VerifiedCiEvidenceOptions = {
   controlRepository?: string;
+  targetRepository?: string;
+  targetSha?: string;
+  statusToken?: string;
   workflowPaths?: readonly string[];
   runAttempts?: number;
   statusAttempts?: number;
@@ -89,7 +93,10 @@ export function trustedControlRunId(targetUrl: string, controlRepository: string
 export function latestCiStatus(response: unknown, context: string): JsonRecord | undefined {
   return getJsonArray(response, "statuses")
     .filter(isJsonRecord)
-    .find((item) => getJsonString(item, "context") === context);
+    .filter((item) => getJsonString(item, "context") === context)
+    .sort((left, right) =>
+      getJsonString(right, "created_at").localeCompare(getJsonString(left, "created_at"))
+    )[0];
 }
 
 export function trustedCiStatus(
@@ -106,10 +113,19 @@ export function trustedCiStatus(
 export function hasTrustedSuccessfulCiEvidence(
   response: unknown,
   context: string,
-  controlRepository: string
+  controlRepository: string,
+  targetRepository: string,
+  targetSha: string,
+  statusToken = process.env.AW_STATUS_TOKEN ?? ""
 ): boolean {
+  const status = trustedCiStatus(response, context, controlRepository);
   return (
-    getJsonString(trustedCiStatus(response, context, controlRepository), "state") === "success"
+    getJsonString(status, "state") === "success" &&
+    hasValidStatusAttestation(
+      status,
+      { repository: targetRepository, sha: targetSha, context },
+      statusToken
+    )
   );
 }
 
@@ -158,6 +174,22 @@ export async function hasVerifiedControlStatus(
         .filter(isJsonRecord)
         .map((item) => getJsonString(item, "context")),
     });
+    return false;
+  }
+  const targetRepository = options.targetRepository ?? "";
+  const targetSha = options.targetSha ?? "";
+  const statusToken = options.statusToken ?? process.env.AW_STATUS_TOKEN ?? "";
+  if (
+    !targetRepository ||
+    !targetSha ||
+    !statusToken ||
+    !hasValidStatusAttestation(
+      status,
+      { repository: targetRepository, sha: targetSha, context },
+      statusToken
+    )
+  ) {
+    trace("status-unattested", { context, repository: targetRepository, sha: targetSha });
     return false;
   }
   if (getJsonString(status, "state") !== "success") {
@@ -254,7 +286,14 @@ export async function requireVerifiedCiEvidence(
     const state = getJsonString(latest, "state");
     const runUrl = getJsonString(latest, "target_url");
     if (state === "success") {
-      if (await hasVerifiedCiEvidence(reader, response, options)) return;
+      if (
+        await hasVerifiedCiEvidence(reader, response, {
+          ...options,
+          targetRepository: repository,
+          targetSha: sha,
+        })
+      )
+        return;
       throw new CliError(
         `::error::CI Evidence for ${commit} was not produced by a successful Action Worker CI run (${runUrl}). Open that run to see why, or merge a new commit so central CI runs again.`,
         65

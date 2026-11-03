@@ -1,5 +1,6 @@
 import { getGithubJson, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
+import { hasValidStatusAttestation, requireStatusToken } from "./status-attestation.ts";
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -16,10 +17,7 @@ async function main(): Promise<void> {
   if (!runUrl) {
     throw new CliError("ERROR: run URL is required.", 64);
   }
-  const token = process.env.GH_TOKEN ?? "";
-  if (!token) {
-    throw new CliError("ERROR: GH_TOKEN is required.");
-  }
+  const token = requireStatusToken();
   const response = await getGithubJson(`repos/${repository}/commits/${sha}/status`, token);
   const statuses = getJsonArray(response, "statuses")
     .filter((item) => isJsonRecord(item) && getJsonString(item, "context") === context)
@@ -28,7 +26,14 @@ async function main(): Promise<void> {
     );
   const latest = statuses[0];
   const target = isJsonRecord(latest) ? getJsonString(latest, "target_url") : "";
-  if (target === runUrl) {
+  if (
+    target === runUrl &&
+    hasValidStatusAttestation(
+      latest,
+      { repository, sha, context },
+      process.env.AW_STATUS_TOKEN ?? ""
+    )
+  ) {
     await appendLines(process.env.GITHUB_OUTPUT, ["current=true"]);
     console.log(`Current run still owns ${context} for ${repository}@${sha}.`);
     return;

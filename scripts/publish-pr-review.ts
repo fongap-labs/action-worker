@@ -30,7 +30,9 @@ export function evaluateMergeDisplayGate(
   pull: unknown,
   combinedStatus: unknown,
   expectedHeadSha: string,
-  controlRepository: string
+  controlRepository: string,
+  targetRepository: string,
+  statusToken = process.env.AW_STATUS_TOKEN ?? ""
 ): MergeDisplayGate {
   const currentHead =
     isJsonRecord(pull) && isJsonRecord(pull.head) ? getJsonString(pull.head, "sha") : "";
@@ -39,7 +41,14 @@ export function evaluateMergeDisplayGate(
   }
 
   const allGatesPassed = ["PR Governance", "CI Evidence", "validate-merge"].every((context) =>
-    hasTrustedSuccessfulCiEvidence(combinedStatus, context, controlRepository)
+    hasTrustedSuccessfulCiEvidence(
+      combinedStatus,
+      context,
+      controlRepository,
+      targetRepository,
+      expectedHeadSha,
+      statusToken
+    )
   );
   return { current: true, status: allGatesPassed ? "success" : "failure" };
 }
@@ -222,6 +231,7 @@ async function main(): Promise<void> {
     throw new CliError(`::error::Invalid PR number: ${prNumber}.`, 64);
   }
   const token = requireToken("issue");
+  const statusToken = requireToken("status");
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   const expectedHeadSha = process.env.HEAD_SHA ?? "";
@@ -238,9 +248,16 @@ async function main(): Promise<void> {
   const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, controlToken);
   const combinedStatus = await getGithubJson(
     `repos/${repository}/commits/${expectedHeadSha}/status`,
-    controlToken
+    statusToken
   );
-  const gate = evaluateMergeDisplayGate(pull, combinedStatus, expectedHeadSha, controlRepository);
+  const gate = evaluateMergeDisplayGate(
+    pull,
+    combinedStatus,
+    expectedHeadSha,
+    controlRepository,
+    repository,
+    statusToken
+  );
   if (!gate.current) {
     console.log(
       `::notice::PR review publication skipped for a stale head: ${repository}#${prNumber}@${expectedHeadSha}.`

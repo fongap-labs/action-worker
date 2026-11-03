@@ -67,7 +67,7 @@ flowchart LR
 | 步骤 | 位置 | 操作 |
 |---|---|---|
 | 1 | 业务仓库 | 新建 `.github/workflows/notify-action-worker.yml`，内容与[标准模板](templates/bridge/notify-action-worker.yml)逐字节一致；这是业务仓库中唯一需要的 Action Worker 工作流 |
-| 2 | 业务仓库的 Secrets | 配置 `AW_DISPATCH_TOKEN`，它只允许向 `action-worker` 发送分发事件 |
+| 2 | 业务仓库的 Secrets | 配置 `AW_DISPATCH_TOKEN`，仅授权到 `fongap-labs/action-worker`，用于发送分发事件 |
 | 3 | Action Worker 的仓库变量 | 在 `AW_REPOSITORY_POLICY` 中登记仓库及其能力 |
 
 <details>
@@ -77,11 +77,9 @@ flowchart LR
 - **资源所有者**：选择拥有 `action-worker` 仓库的组织/账号
 - **仓库访问**：仅勾选 `fongap-labs/action-worker`
 - **权限**（最小集）：
-  - `Actions` → `Read`（触发 workflow_dispatch）
-  - `Metadata` → `Read`（读取仓库基础信息）
-  - `Repository variables` → `Read`（读取 `AW_REPOSITORY_POLICY`）
+  - `Contents` → `Read and write`（GitHub `repository_dispatch` API 的要求）
 - **过期时间**：建议 90 天，到期前轮换
-- **说明**：此令牌**不需要** `Contents`、`Administration`、`Deployments` 等高权限
+- **说明**：Fine-grained PAT 的 `Contents: Read and write` 也允许修改 `action-worker` 仓库内容；请只授权该仓库。它不需要 `Administration` 或 `Deployments` 权限。
 
 </details>
 

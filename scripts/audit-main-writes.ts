@@ -1,4 +1,4 @@
-import { GithubReader, getJsonString, runGithubCli } from "./github-api.ts";
+import { type GithubReader, getJsonString, runGithubCli, statusAwareReader } from "./github-api.ts";
 import {
   MainWriteVerificationPendingError,
   validateMainWriteProvenance,
@@ -12,6 +12,7 @@ import {
 } from "./main-write-incidents.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
+import { signedStatusDescription } from "./status-attestation.ts";
 
 type AuditResult = {
   repository: string;
@@ -31,6 +32,10 @@ async function publishGuardStatus(
   description: string,
   runUrl: string
 ): Promise<void> {
+  const signedDescription = signedStatusDescription(
+    { repository, sha, state, context: "Main Write Guard", description, targetUrl: runUrl },
+    token
+  );
   const args = [
     "api",
     "--method",
@@ -41,7 +46,7 @@ async function publishGuardStatus(
     "-f",
     "context=Main Write Guard",
     "-f",
-    `description=${description}`,
+    `description=${signedDescription}`,
   ];
   if (runUrl) {
     args.push("-f", `target_url=${runUrl}`);
@@ -132,9 +137,10 @@ async function main(): Promise<void> {
 
   // Reads span pull requests, commit statuses and issues, so the reader keeps the control token.
   // Writes are scoped: statuses use the status token, incidents use the issue token.
-  const reader = new GithubReader(
+  const reader = statusAwareReader(
     process.env.GITHUB_API_URL ?? "https://api.github.com",
-    controlToken
+    controlToken,
+    statusToken
   );
   const results: AuditResult[] = [];
 

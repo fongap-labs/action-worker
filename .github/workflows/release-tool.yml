@@ -47,6 +47,7 @@ jobs:
         id: sync
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           TOOL_KEY: ${{ matrix.tool }}
         run: node scripts/sync-tool-release.ts policies/review.json "$RUNNER_TEMP/tool-release" "$TOOL_KEY"
 

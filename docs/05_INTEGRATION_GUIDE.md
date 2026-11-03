@@ -183,25 +183,23 @@ AW_CONTROL_TOKEN
 AIG_ACCESS_KEY_AGENT
 ```
 
-业务仓库只为桥接保留一个最小化凭据 `AW_DISPATCH_TOKEN`（仅用于通知）。中央 Intake 在桥接缺失时仍能完成治理与执行，所以它不是长期硬依赖。**中央管理、跨仓库写入、AI Gateway 与生产凭据绝不能下沉到业务仓库。** 桥接可用可选变量 `AW_DISPATCH_RUNS_ON` 覆盖 `runs-on`（未设置时使用 GitHub 托管 Linux；见 `RUNNER_POLICY.md` §11）。
+业务仓库只为桥接保留凭据 `AW_DISPATCH_TOKEN`，仅授权到 `fongap-labs/action-worker`；其 Fine-grained PAT 需要 `Contents: Read and write` 才能调用 `repository_dispatch`，这也允许修改该仓库内容。中央 Intake 在桥接缺失时仍能完成治理与执行，所以它不是长期硬依赖。**中央管理、跨仓库写入、AI Gateway 与生产凭据绝不能下沉到业务仓库。** 桥接可用可选变量 `AW_DISPATCH_RUNS_ON` 覆盖 `runs-on`（未设置时使用 GitHub 托管 Linux；见 `RUNNER_POLICY.md` §11）。
 
 `AW_CHECKOUT_TOKEN`：仅用于沙箱与依赖修复计算作业检出私有目标仓库。权限仅 `Contents: Read`，仅限受管私有仓库，过期前轮换。
 `AW_CONTROL_TOKEN`：中央读取、控制与状态治理。
 `AW_ADMIN_TOKEN`：仅用于可信控制步骤的仓库级高权限写入（Repository Settings / Rulesets、SARIF 发布所需 Code Scanning 写权限）。高权限令牌绝不注入沙箱项目命令。
 
-### 9.1 控制令牌作用域拆分（可选启用）
+### 9.1 控制令牌作用域
 
-以下作用域令牌为**可选**配置。未配置时所有操作自动回退到 `AW_CONTROL_TOKEN`，行为与拆分前完全一致。配置后按用途隔离，令牌泄露或撤销的爆炸半径随之收敛：
+状态读写使用独立的 `AW_STATUS_TOKEN`，这是必需配置，缺失时状态读写会失败；不会回退到 `AW_CONTROL_TOKEN`。其他用途继续使用对应的既有令牌：
 
 | 作用域令牌 | 权限 | 用途 |
 |-----------|------|------|
-| `AW_STATUS_TOKEN` | `Commit Statuses: Read/Write` | 提交状态读写（`PR Governance`、`validate-merge`、`CI Evidence`、`Main Write Guard`） |
+| `AW_STATUS_TOKEN` | `Commit Statuses: Read/Write` | **必需**。提交状态读写及状态证明签名（`PR Governance`、`validate-merge`、`CI Evidence`、`Main Write Guard`） |
 | `AW_ISSUE_TOKEN` | `Issues: Read/Write` | Issue 与 PR 评论读写、主写入事件的创建与关闭 |
-| `AW_DISPATCH_TOKEN` | `Repository Dispatch: Write` | `repository_dispatch` 事件派发 |
+| `AW_DISPATCH_TOKEN` | 仅限 `fongap-labs/action-worker` 的 `Contents: Read and write` | `repository_dispatch` 事件派发（该权限也允许修改该仓库内容） |
 
-**限额说明**：同一 GitHub 账号下的 classic/fine-grained PAT 共享同一个 5000 次/小时限额池，因此令牌拆分的主要收益是**最小权限与爆炸半径收敛**，而非扩大总限额。需要真正的多限额池时应改用 GitHub App。
-
-工作流中以 `${{ secrets.AW_STATUS_TOKEN || secrets.AW_CONTROL_TOKEN }}` 形式引用：作用域令牌未配置时自动回退，无需同步修改工作流。
+状态证明由 `AW_STATUS_TOKEN` 对 `repository + SHA + context + state + description + target URL` 做 HMAC-SHA-256；验证方必须验证签名并匹配目标仓库和 SHA。其他状态令牌不可代签，`AW_ARTIFACT_KEY` 不参与此机制。
 
 `AW_EXECUTION_TOKEN` 已被删除，不再配置。中央执行结合了现有的最小权限授权与 GitHub 原生的短期凭据。
 

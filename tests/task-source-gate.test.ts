@@ -3,6 +3,7 @@ import { test } from "node:test";
 import type { GithubReader } from "../scripts/github-api.ts";
 import { CliError } from "../scripts/runtime-command.ts";
 import { validateTaskSource } from "../scripts/validate-task-source.ts";
+import { attestFixtureResponseForPath } from "./attested-status-fixtures.ts";
 
 const repository = "fongap-labs/example";
 const headSha = "a".repeat(40);
@@ -99,7 +100,7 @@ function world() {
       if (!paths.has(path)) {
         throw new Error(`unexpected path: ${path}`);
       }
-      return paths.get(path);
+      return attestFixtureResponseForPath(path, paths.get(path));
     },
   } as unknown as GithubReader;
   return { paths, reader, requested };

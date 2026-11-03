@@ -1,13 +1,14 @@
 import { parseTaskSourceManifest } from "./dispatch-scheduled-tasks.ts";
 import {
-  GithubReader,
   getJsonString,
   githubEnvironment,
   githubExists,
   isJsonRecord,
+  statusAwareReader,
 } from "./github-api.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
+import { hasValidStatusAttestation, requireStatusToken } from "./status-attestation.ts";
 
 type GithubSource = {
   get(path: string): Promise<unknown>;
@@ -34,21 +35,34 @@ function decodeGithubContent(value: unknown): string {
   return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
 }
 
-function latestTaskStatus(value: unknown): string {
+function latestTaskStatus(value: unknown, repository: string, sha: string): string {
   if (!isJsonRecord(value) || !Array.isArray(value.statuses)) {
     throw new CliError("GitHub commit status response is invalid.", 65);
   }
-  for (const item of value.statuses) {
-    if (!isJsonRecord(item)) continue;
-    if (getJsonString(item, "context") === "Task Source") {
-      return getJsonString(item, "state");
-    }
+  const latest = value.statuses
+    .filter((item) => isJsonRecord(item) && getJsonString(item, "context") === "Task Source")
+    .sort((left, right) =>
+      getJsonString(right, "created_at").localeCompare(getJsonString(left, "created_at"))
+    )[0];
+  if (
+    isJsonRecord(latest) &&
+    hasValidStatusAttestation(
+      latest,
+      { repository, sha, context: "Task Source" },
+      process.env.AW_STATUS_TOKEN ?? ""
+    )
+  ) {
+    return getJsonString(latest, "state");
   }
   return "";
 }
 
-function taskState(value: unknown): "dispatch" | "in-flight" | "processed" {
-  const state = latestTaskStatus(value);
+function taskState(
+  value: unknown,
+  repository: string,
+  sha: string
+): "dispatch" | "in-flight" | "processed" {
+  const state = latestTaskStatus(value, repository, sha);
   if (state === "pending") return "in-flight";
   if (state === "success") return "processed";
   return "dispatch";
@@ -128,7 +142,7 @@ export async function scanTaskSources(
     result.push_enabled += 1;
 
     const status = await source.get(`repos/${repository}/commits/${facts.head_sha}/status`);
-    const state = taskState(status);
+    const state = taskState(status, repository, facts.head_sha);
     if (state === "in-flight") {
       result.in_flight += 1;
       continue;
@@ -180,6 +194,7 @@ async function dispatchTaskSource(
 async function main(): Promise<void> {
   const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
+  const statusToken = requireStatusToken();
   const ingressToken = process.env.AW_INGRESS_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   const apiUrl = process.env.GITHUB_API_URL ?? "https://api.github.com";
@@ -190,7 +205,7 @@ async function main(): Promise<void> {
     );
   }
 
-  const reader = new GithubReader(apiUrl, controlToken);
+  const reader = statusAwareReader(apiUrl, controlToken, statusToken);
   const result = await scanTaskSources(
     parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
     {

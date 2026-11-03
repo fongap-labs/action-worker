@@ -15,8 +15,8 @@ test("Central CI never cancels an active test for the same head SHA", () => {
 });
 
 test("main CI reuses successful evidence before heavy jobs", () => {
-  assert.match(workflow, /select\(\.context == "CI Evidence"\)/);
-  assert.match(workflow, /context=CI Evidence/);
+  assert.match(workflow, /should-run-central-ci\.ts/);
+  assert.match(workflow, /"CI Evidence"/);
   assert.doesNotMatch(workflow, /ci-evidence/);
   assert.match(
     workflow,
@@ -113,9 +113,9 @@ test("a pull request CI that fails in prepare still publishes a CI Evidence verd
   );
   assert.match(job, /permissions: \{\}/);
   assert.match(job, /\[ "\$current_head" != "\$REQUESTED_HEAD_SHA" \]/);
-  assert.match(job, /-f state=failure/);
-  assert.match(job, /-f "context=CI Evidence"/);
-  assert.doesNotMatch(job, /checkout|central-ci\.sh/);
+  assert.match(job, /write-commit-status\.ts "\$REPOSITORY" "\$REQUESTED_HEAD_SHA" failure/);
+  assert.match(job, /"CI Evidence"/);
+  assert.doesNotMatch(job, /central-ci\.sh/);
 });
 
 test("a pull request is tested at a pinned merge SHA, not at a mutable merge ref", () => {
@@ -155,10 +155,10 @@ test("main CI transfers intake's short lease to the active Central CI run before
     prepareSection,
     /if: github\.event\.action == 'run-central-ci-ref' && steps\.ref_facts\.outputs\.should_run == 'true'/
   );
-  assert.match(prepareSection, /GH_TOKEN: \$\{\{ secrets\.AW_STATUS_TOKEN \}\}/);
-  assert.match(prepareSection, /repos\/\$REPOSITORY\/statuses\/\$HEAD_SHA/);
-  assert.match(prepareSection, /context=CI Evidence/);
-  assert.match(prepareSection, /target_url=\$RUN_URL/);
-  assert.match(prepareSection, /Missing AW_STATUS_TOKEN/);
+  assert.match(prepareSection, /AW_STATUS_TOKEN: \$\{\{ secrets\.AW_STATUS_TOKEN \}\}/);
+  assert.match(prepareSection, /write-commit-status\.ts "\$REPOSITORY" "\$HEAD_SHA"/);
+  assert.match(prepareSection, /"CI Evidence"/);
+  assert.match(prepareSection, /"\$RUN_URL"/);
+  assert.match(prepareSection, /AW_STATUS_TOKEN/);
   assert.doesNotMatch(prepareSection, /AW_STATUS_TOKEN \|\|/);
 });

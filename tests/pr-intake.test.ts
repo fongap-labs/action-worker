@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { scanOpenPullRequests } from "../scripts/intake-open-prs.ts";
 import { AWAITING_APPROVAL_DESCRIPTION } from "../scripts/pr-trust.ts";
+import { attestFixtureResponseForPath } from "./attested-status-fixtures.ts";
 
 const shaA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const shaB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -72,7 +73,7 @@ test("central PR intake scans every managed repository independent of visibility
     {
       async get(path: string): Promise<unknown> {
         assert.equal(responses.has(path), true, `unexpected API path: ${path}`);
-        return responses.get(path);
+        return attestFixtureResponseForPath(path, responses.get(path));
       },
     },
     async (repository, pr, sha) => {
@@ -218,7 +219,7 @@ test("central PR intake retries stale pending control-plane runs that ended with
           return [{ number: 17, head: { sha: shaA } }];
         }
         if (path.endsWith("/status")) {
-          return stalePendingStatuses(44);
+          return attestFixtureResponseForPath(path, stalePendingStatuses(44));
         }
         if (path === "repos/fongap-labs/action-worker/actions/runs/44") {
           return { status: "completed", conclusion: "failure" };
@@ -249,7 +250,7 @@ test("central PR intake does not re-dispatch a head whose pending run was cancel
           return [{ number: 17, head: { sha: shaA } }];
         }
         if (path.endsWith("/status")) {
-          return stalePendingStatuses(44);
+          return attestFixtureResponseForPath(path, stalePendingStatuses(44));
         }
         if (path === "repos/fongap-labs/action-worker/actions/runs/44") {
           return {
@@ -287,7 +288,7 @@ test("central PR intake retries a reservation whose intake run was cancelled", a
           return [{ number: 17, head: { sha: shaA } }];
         }
         if (path.endsWith("/status")) {
-          return stalePendingStatuses(45);
+          return attestFixtureResponseForPath(path, stalePendingStatuses(45));
         }
         if (path === "repos/fongap-labs/action-worker/actions/runs/45") {
           return {
@@ -323,7 +324,7 @@ test("central PR intake honors a recent queued reservation after the intake run 
           return [{ number: 18, head: { sha: shaA } }];
         }
         if (path.endsWith("/status")) {
-          return {
+          return attestFixtureResponseForPath(path, {
             statuses: [
               {
                 context: "PR Governance",
@@ -332,7 +333,7 @@ test("central PR intake honors a recent queued reservation after the intake run 
                 target_url: "https://github.com/fongap-labs/action-worker/actions/runs/45",
               },
             ],
-          };
+          });
         }
         if (path === "repos/fongap-labs/action-worker/actions/runs/45") {
           return { status: "completed", conclusion: "success" };
@@ -397,13 +398,13 @@ test("central PR intake does not re-dispatch a failed verdict when only the cont
           return [{ number: 31, head: { sha: shaA } }];
         }
         if (path.endsWith(`/commits/${shaA}/status`)) {
-          return {
+          return attestFixtureResponseForPath(path, {
             statuses: ["PR Governance", "CI Evidence", "validate-merge"].map((context) => ({
               context,
               state: "failure",
               target_url: `https://github.com/${controlRepository}/actions/runs/51`,
             })),
-          };
+          });
         }
         throw new Error(`unexpected API path: ${path}`);
       },
@@ -535,7 +536,7 @@ test("central PR intake leaves a pull request that awaits approval alone until i
     {
       async get(path: string): Promise<unknown> {
         assert.equal(responses.has(path), true, `unexpected API path: ${path}`);
-        return responses.get(path);
+        return attestFixtureResponseForPath(path, responses.get(path));
       },
     },
     async (_repository, pr) => {

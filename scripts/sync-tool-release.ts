@@ -3,13 +3,15 @@ import { createReadStream } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
-  GithubReader,
+  type GithubReader,
   getJsonArray,
   getJsonString,
   githubExists,
   isJsonRecord,
+  statusAwareReader,
 } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
+import { latestAttestedStatus, requireStatusToken } from "./status-attestation.ts";
 
 type ToolMetadata = {
   schema_version: "1";
@@ -363,6 +365,7 @@ async function main(): Promise<void> {
   const toolKey = toolKeyArgument(process.argv[4]);
 
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
+  const statusToken = requireStatusToken();
   const apiUrl = process.env.GITHUB_API_URL ?? "https://api.github.com";
   const artifactRepository = process.env.GITHUB_REPOSITORY ?? "";
   const artifactRunId = Number(process.env.GITHUB_RUN_ID ?? "");
@@ -382,7 +385,7 @@ async function main(): Promise<void> {
     throw new CliError("Review engine catalog location is invalid.", 65);
   }
 
-  const reader = new GithubReader(apiUrl, controlToken);
+  const reader = statusAwareReader(apiUrl, controlToken, statusToken);
   const repository = await reader.get(`repos/${distributionRepository}`);
   const defaultBranch = getJsonString(repository, "default_branch");
   const commit = await reader.get(`repos/${distributionRepository}/commits/${defaultBranch}`);
@@ -407,8 +410,10 @@ async function main(): Promise<void> {
   }
 
   const status = await reader.get(`repos/${distributionRepository}/commits/${sourceSha}/status`);
-  const ciEvidence = getJsonArray(status, "statuses").find(
-    (item) => isJsonRecord(item) && getJsonString(item, "context") === "CI Evidence"
+  const ciEvidence = latestAttestedStatus(
+    status,
+    { repository: distributionRepository, sha: sourceSha, context: "CI Evidence" },
+    statusToken
   );
   if (!isJsonRecord(ciEvidence) || getJsonString(ciEvidence, "state") !== "success") {
     await appendLines(process.env.GITHUB_OUTPUT, [

@@ -9,17 +9,19 @@ import {
   verificationRecorder,
 } from "./ci-evidence.ts";
 import {
-  GithubReader,
+  type GithubReader,
   getJsonArray,
   getJsonNumber,
   getJsonString,
   isJsonRecord,
   type JsonRecord,
   runGithubCli,
+  statusAwareReader,
 } from "./github-api.ts";
 import { assertNoOpenMainWriteIncidents } from "./main-write-incidents.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
+import { requireStatusToken, signedStatusDescription } from "./status-attestation.ts";
 
 export type MainWriteRequest = {
   schema_version: "1";
@@ -135,6 +137,8 @@ function currentControlRunId(): number | null {
 export async function hasVerifiedMainWriteGuard(
   reader: GithubReader,
   value: unknown,
+  repository: string,
+  sha: string,
   trace: VerificationTrace = () => undefined
 ): Promise<boolean> {
   const controlRepository = getControlRepository();
@@ -156,6 +160,8 @@ export async function hasVerifiedMainWriteGuard(
     if (
       await hasVerifiedControlStatus(reader, { statuses: [status] }, "Main Write Guard", {
         controlRepository,
+        targetRepository: repository,
+        targetSha: sha,
         workflowPaths: mainWriteGuardWorkflowPaths,
         // The outer caller (assertTrustedMainWrite) owns the waiting window.
         runAttempts: 1,
@@ -180,6 +186,8 @@ async function requireCentralPrEvidence(
   if (
     !(await hasVerifiedControlStatus(reader, status, "PR Governance", {
       controlRepository,
+      targetRepository: repository,
+      targetSha: prHeadSha,
       workflowPaths: prGateWorkflowPaths,
       trace: governance.trace,
     }))
@@ -188,7 +196,12 @@ async function requireCentralPrEvidence(
   }
   const evidence = verificationRecorder(`CI Evidence ${label}`);
   if (
-    !(await hasVerifiedCiEvidence(reader, status, { controlRepository, trace: evidence.trace }))
+    !(await hasVerifiedCiEvidence(reader, status, {
+      controlRepository,
+      targetRepository: repository,
+      targetSha: prHeadSha,
+      trace: evidence.trace,
+    }))
   ) {
     throw mainWriteEvidenceError("CI Evidence", evidence.lastFailure());
   }
@@ -196,6 +209,8 @@ async function requireCentralPrEvidence(
   if (
     !(await hasVerifiedControlStatus(reader, status, "validate-merge", {
       controlRepository,
+      targetRepository: repository,
+      targetSha: prHeadSha,
       workflowPaths: prGateWorkflowPaths,
       trace: mergeGate.trace,
     }))
@@ -355,7 +370,7 @@ export async function assertTrustedMainWrite(
         await reader.get(`repos/${repository}/statuses/${mainSha}?per_page=100`)
       ),
     };
-    if (await hasVerifiedMainWriteGuard(reader, status, guard.trace)) {
+    if (await hasVerifiedMainWriteGuard(reader, status, repository, mainSha, guard.trace)) {
       return provenance;
     }
     observed = getJsonArray(status, "statuses")
@@ -405,6 +420,17 @@ async function publishStatus(
   description: string
 ): Promise<void> {
   const runUrl = process.env.MAIN_WRITE_RUN_URL ?? "";
+  const signedDescription = signedStatusDescription(
+    {
+      repository: request.repository,
+      sha: request.head_sha,
+      state,
+      context: "Main Write Guard",
+      description,
+      targetUrl: runUrl,
+    },
+    requireStatusToken()
+  );
   const args = [
     "api",
     "--method",
@@ -415,7 +441,7 @@ async function publishStatus(
     "-f",
     "context=Main Write Guard",
     "-f",
-    `description=${description}`,
+    `description=${signedDescription}`,
   ];
   if (runUrl) {
     args.push("-f", `target_url=${runUrl}`);
@@ -426,6 +452,7 @@ async function publishStatus(
 async function main(): Promise<void> {
   const request = requestFromEnvironment();
   const token = process.env.MAIN_WRITE_TOKEN ?? "";
+  const statusToken = requireStatusToken();
   if (!token) {
     throw new CliError("::error::MAIN_WRITE_TOKEN is required.", 77);
   }
@@ -442,7 +469,11 @@ async function main(): Promise<void> {
     );
   }
 
-  const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
+  const reader = statusAwareReader(
+    process.env.GITHUB_API_URL ?? "https://api.github.com",
+    token,
+    statusToken
+  );
   try {
     const provenance = await validateMainWriteProvenance(
       reader,
@@ -452,7 +483,7 @@ async function main(): Promise<void> {
     );
     await publishStatus(
       request,
-      token,
+      statusToken,
       "success",
       `Trusted main write via PR #${provenance.pr_number}`
     );
@@ -474,7 +505,7 @@ async function main(): Promise<void> {
     ]);
   } catch (error) {
     try {
-      await publishStatus(request, token, "failure", "Untrusted main write");
+      await publishStatus(request, statusToken, "failure", "Untrusted main write");
     } catch {
       // Preserve the provenance validation error as authoritative.
     }

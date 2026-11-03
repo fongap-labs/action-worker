@@ -45,6 +45,7 @@ jobs:
       - name: Validate control credential
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
@@ -88,11 +89,12 @@ jobs:
           CONTROL_REPOSITORY: ${{ github.repository }}
           TARGET_REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
-        run: node scripts/check-deploy-gap.ts "$CONTROL_REPOSITORY" "$TARGET_REPOSITORY" "$PR_NUMBER" "$GH_TOKEN"
+        run: node scripts/check-deploy-gap.ts "$CONTROL_REPOSITORY" "$TARGET_REPOSITORY" "$PR_NUMBER" "$AW_CONTROL_TOKEN"
 
       - name: Mark governance in progress
         env:
           GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -101,6 +103,7 @@ jobs:
       - name: Mark central merge gate in progress
         env:
           GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -166,6 +169,7 @@ jobs:
         if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'
         env:
           GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           AW_DISPATCH_TOKEN: ${{ secrets.AW_DISPATCH_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
@@ -190,6 +194,8 @@ jobs:
           # intentionally has only status permissions and cannot GET /pulls/{n}.
           # Use the separately configured control read credential; no token fallback.
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
@@ -199,7 +205,7 @@ jobs:
       - name: Publish explicit no-CI evidence
         if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required != 'true'
         env:
-          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -207,13 +213,8 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          gh api \
-            --method POST \
-            "repos/$REPOSITORY/statuses/$HEAD_SHA" \
-            -f state='success' \
-            -f "context=CI Evidence" \
-            -f description='CI not required by governance plan' \
-            -f "target_url=$RUN_URL" >/dev/null
+          node scripts/write-commit-status.ts "$REPOSITORY" "$HEAD_SHA" success \
+            "CI Evidence" "CI not required by governance plan" "$RUN_URL"
 
       - name: Validate CI evidence
         if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'
@@ -233,6 +234,7 @@ jobs:
         if: ${{ always() && steps.resolved.outputs.head_sha != '' }}
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -252,6 +254,7 @@ jobs:
         if: ${{ always() && steps.ownership.outputs.current == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -263,6 +266,7 @@ jobs:
         if: ${{ always() && steps.ownership.outputs.current == 'true' }}
         env:
           GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -278,6 +282,7 @@ jobs:
           GH_TOKEN: ${{ secrets.AW_ISSUE_TOKEN }}
           AW_ISSUE_TOKEN: ${{ secrets.AW_ISSUE_TOKEN }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
@@ -330,6 +335,7 @@ jobs:
       - name: Resolve unfinished PR governance
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           CONTROL_REPOSITORY: ${{ github.repository }}
           REPOSITORY: ${{ github.event.client_payload.repository }}
           PR_NUMBER: ${{ github.event.client_payload.pr_number }}

@@ -7,6 +7,7 @@ import {
   matchesFollowUpEvidence,
   parseFollowUpRequest,
 } from "../scripts/verify-ci-follow-up.ts";
+import { attestFixtureStatuses, fixtureStatusToken } from "./attested-status-fixtures.ts";
 
 const repository = "fongap-labs/dsh-plugin";
 const sha = "a".repeat(40);
@@ -32,22 +33,42 @@ test("CI follow-ups require a complete revision-bound dispatch payload", () => {
 });
 
 test("CI follow-ups cannot borrow another run's CI Evidence", () => {
-  const status = {
-    statuses: [
-      {
-        context: "CI Evidence",
-        state: "success",
-        target_url: `https://github.com/${controlRepository}/actions/runs/${runId}`,
-      },
-    ],
-  };
-  assert.equal(matchesFollowUpEvidence(status, controlRepository, runId), true);
-  assert.equal(matchesFollowUpEvidence(status, controlRepository, runId + 1), false);
+  const status = attestFixtureStatuses(
+    {
+      statuses: [
+        {
+          context: "CI Evidence",
+          state: "success",
+          target_url: `https://github.com/${controlRepository}/actions/runs/${runId}`,
+        },
+      ],
+    },
+    repository,
+    sha
+  );
+  assert.equal(
+    matchesFollowUpEvidence(status, controlRepository, runId, repository, sha, fixtureStatusToken),
+    true
+  );
+  assert.equal(
+    matchesFollowUpEvidence(
+      status,
+      controlRepository,
+      runId + 1,
+      repository,
+      sha,
+      fixtureStatusToken
+    ),
+    false
+  );
   assert.equal(
     matchesFollowUpEvidence(
       { statuses: [{ ...status.statuses[0], state: "pending" }] },
       controlRepository,
-      runId
+      runId,
+      repository,
+      sha,
+      fixtureStatusToken
     ),
     false
   );
@@ -62,7 +83,10 @@ test("CI follow-ups cannot borrow another run's CI Evidence", () => {
         ],
       },
       controlRepository,
-      runId
+      runId,
+      repository,
+      sha,
+      fixtureStatusToken
     ),
     false
   );

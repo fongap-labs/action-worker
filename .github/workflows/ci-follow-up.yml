@@ -34,6 +34,7 @@ jobs:
         id: verified
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           CI_FOLLOW_UP_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
         run: node scripts/verify-ci-follow-up.ts

@@ -143,11 +143,10 @@ jobs:
         run: node aw/scripts/prepare-test-pack.ts "${{ github.workspace }}/aw" "${{ github.workspace }}/ci-control/.github/test-pack.json"
 
       # Central, pinned secret scan of the commits this pull request adds. It is control code from this
-      # repository, runs before any target code, and reports findings as warnings unless
-      # AW_CENTRAL_GITLEAKS_MODE is set to enforce.
+      # repository and runs before any target code. Findings and scanner failures fail closed by default.
       - name: Scan the change for secrets
         env:
-          AW_GITLEAKS_MODE: ${{ vars.AW_CENTRAL_GITLEAKS_MODE || 'warn' }}
+          AW_GITLEAKS_MODE: ${{ vars.AW_CENTRAL_GITLEAKS_MODE || 'enforce' }}
           TARGET_PRIVATE: ${{ inputs.is_private }}
           SCAN_BASE_SHA: ${{ inputs.base_sha }}
           SCAN_HEAD_SHA: ${{ inputs.head_sha }}

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { requireVerifiedCiEvidence } from "../scripts/ci-evidence.ts";
 import { assertExpectedRepository, parseDeployRequest } from "../scripts/validate-deploy-source.ts";
+import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const sha = "0123456789abcdef0123456789abcdef01234567";
 
@@ -43,7 +44,10 @@ test("deploy evidence must be verified against a successful Action Worker CI run
     updated_at: "2026-10-02T13:11:57Z",
   };
   const readerFor = (payload: unknown, runValue: unknown) => ({
-    get: async (path: string) => (path === statusPath ? payload : runValue),
+    get: async (path: string) =>
+      path === statusPath
+        ? attestFixtureStatuses(payload, "fongap-labs/example", deploySha)
+        : runValue,
   });
 
   await requireVerifiedCiEvidence(readerFor(status, run), "fongap-labs/example", deploySha);

@@ -241,3 +241,24 @@ export class GithubReader {
     throw lastError;
   }
 }
+
+/** Reads commit statuses with the dedicated status token and all other facts with control access. */
+export function statusAwareReader(
+  apiUrl: string,
+  controlToken: string,
+  statusToken: string
+): GithubReader {
+  if (!controlToken || !statusToken) {
+    throw new CliError(
+      "AW_CONTROL_TOKEN and AW_STATUS_TOKEN are both required; no token fallback is permitted.",
+      77
+    );
+  }
+  const controlReader = new GithubReader(apiUrl, controlToken);
+  const statusReader = new GithubReader(apiUrl, statusToken);
+  const statusPath = /^repos\/[^/]+\/(?:statuses\/[^/?]+|commits\/[^/]+\/status)(?:\?|$)/;
+  const readControlPath = controlReader.get.bind(controlReader);
+  controlReader.get = (path) =>
+    statusPath.test(path) ? statusReader.get(path) : readControlPath(path);
+  return controlReader;
+}

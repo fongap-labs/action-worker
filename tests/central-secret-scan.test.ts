@@ -60,7 +60,7 @@ test("warn mode reports findings and keeps the build green", async (context) => 
   const directory = await mkdtemp(join(tmpdir(), "secret-scan-"));
   context.after(() => rm(directory, { recursive: true, force: true }));
   const bin = await fakeGitleaks(directory, [finding, finding, { ...finding, RuleID: "jwt" }]);
-  const result = run(directory, bin, { TARGET_PRIVATE: "false" });
+  const result = run(directory, bin, { TARGET_PRIVATE: "false", AW_GITLEAKS_MODE: "warn" });
   assert.equal(result.status, 0, result.output);
   assert.match(result.output, /::warning::central secret scan: 3 finding\(s\)/);
   assert.match(result.output, /generic-api-key x2, jwt x1/);
@@ -92,7 +92,7 @@ test("a scan that cannot run is a warning in warn mode and a failure in enforce 
   context.after(() => rm(directory, { recursive: true, force: true }));
   const broken = join(directory, "broken.mjs");
   await writeFile(broken, "process.exit(3);\n", "utf8");
-  const warned = run(directory, broken, {});
+  const warned = run(directory, broken, { AW_GITLEAKS_MODE: "warn" });
   assert.equal(warned.status, 0, warned.output);
   assert.match(warned.output, /could not run and was skipped/);
   const enforced = run(directory, broken, { AW_GITLEAKS_MODE: "enforce" });
@@ -117,7 +117,7 @@ test("the pinned release and the workflow wiring are in place", async () => {
   assert.match(workflow, /node aw\/scripts\/central-secret-scan\.ts/);
   assert.match(
     workflow,
-    /AW_GITLEAKS_MODE: \$\{\{ vars\.AW_CENTRAL_GITLEAKS_MODE \|\| 'warn' \}\}/
+    /AW_GITLEAKS_MODE: \$\{\{ vars\.AW_CENTRAL_GITLEAKS_MODE \|\| 'enforce' \}\}/
   );
 });
 

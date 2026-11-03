@@ -1,5 +1,6 @@
 import { runGithubCli } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
+import { requireStatusToken, signedStatusDescription } from "./status-attestation.ts";
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -20,13 +21,18 @@ async function main(): Promise<void> {
   if (!["pending", "success", "failure", "error"].includes(state)) {
     throw new CliError(`::error::Invalid commit status state: ${state}.`, 64);
   }
-  const token = process.env.GH_TOKEN ?? "";
-  if (!token) {
-    throw new CliError(
-      "::error::Missing required AW_STATUS_TOKEN for writing commit statuses. Grant Commit statuses: Read and write on the target repository, and configure fongap-labs/action-worker → Settings → Secrets and variables → Actions. No token fallback is permitted.",
-      77
-    );
-  }
+  const token = requireStatusToken();
+  const signedDescription = signedStatusDescription(
+    {
+      repository,
+      sha,
+      state: state as "pending" | "success" | "failure" | "error",
+      context,
+      description,
+      targetUrl,
+    },
+    token
+  );
   const command = [
     "api",
     "--method",
@@ -37,7 +43,7 @@ async function main(): Promise<void> {
     "-f",
     `context=${context}`,
     "-f",
-    `description=${description}`,
+    `description=${signedDescription}`,
   ];
   if (targetUrl) {
     command.push("-f", `target_url=${targetUrl}`);
