@@ -1,0 +1,1 @@
+Attach Main CI's pending Commit Status reservation to the executing Central CI run before launching long-running tests. This lets existing intake reconciliation recognize an active run after the initial two-minute lease expires and avoids duplicate CI dispatch.
