@@ -117,7 +117,10 @@ async function main(): Promise<void> {
     const currentCommit = await reader.get(
       `repos/${request.repository}/commits/${encodeURIComponent(branch)}`
     );
-    if (!isJsonRecord(currentCommit) || !/^[0-9a-f]{40}$/.test(getJsonString(currentCommit, "sha"))) {
+    if (
+      !isJsonRecord(currentCommit) ||
+      !/^[0-9a-f]{40}$/.test(getJsonString(currentCommit, "sha"))
+    ) {
       throw new CliError("CI follow-up received an invalid default-branch head SHA.", 65);
     }
     if (!isCurrentFollowUpTarget(request, currentCommit)) {
