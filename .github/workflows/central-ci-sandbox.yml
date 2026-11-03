@@ -103,7 +103,6 @@ jobs:
         if: inputs.pr_number != '0'
         run: node aw/scripts/verify-ci-checkout.ts "$GITHUB_WORKSPACE/target" "${{ inputs.pr_number }}" "${{ inputs.base_sha }}" "${{ inputs.head_sha }}" "${{ inputs.merge_sha }}"
 
-
       # Central, pinned secret scan of the commits this pull request adds. It is control code from this
       # repository, runs before any target code, and reports findings as warnings unless
       # AW_CENTRAL_GITLEAKS_MODE is set to enforce.
@@ -227,7 +226,6 @@ jobs:
         if: inputs.pr_number != '0'
         shell: pwsh
         run: node aw/scripts/verify-ci-checkout.ts "$env:GITHUB_WORKSPACE/target" "${{ inputs.pr_number }}" "${{ inputs.base_sha }}" "${{ inputs.head_sha }}" "${{ inputs.merge_sha }}"
-
 
       - name: Run trusted Windows CI
         env:
