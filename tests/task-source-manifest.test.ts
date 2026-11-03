@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 import {
   cronMatches,
   defaultLookbackMinutes,
@@ -11,6 +10,7 @@ import {
   type ScheduledTask,
   wasDispatched,
 } from "../scripts/dispatch-scheduled-tasks.ts";
+import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const manifest = {
   schema_version: "1",
@@ -86,7 +86,8 @@ test("a slot dispatched on an earlier default-branch head is not dispatched agai
     if (path.includes("&since=")) return [{ sha: task.head_sha }];
     if (path.includes("&until=")) return [{ sha: earlierHead }];
     return path.includes(`/commits/${statusOn}/status`)
-      ? attestFixtureStatuses(recorded, task.repository, statusOn) : { statuses: [] };
+      ? attestFixtureStatuses(recorded, task.repository, statusOn)
+      : { statuses: [] };
   };
 
   assert.equal(await wasDispatched(task, world(earlierHead)), true);
