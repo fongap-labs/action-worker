@@ -6,6 +6,7 @@ import {
   selectDependencyRepair,
 } from "./dependency-repair.ts";
 import { GithubReader, githubEnvironment, isJsonRecord } from "./github-api.ts";
+import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
 import { AWAITING_APPROVAL_DESCRIPTION, evaluatePrTrust, listPullReviews } from "./pr-trust.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
@@ -351,28 +352,7 @@ async function reserveStatus(
     throw new CliError("GITHUB_RUN_ID is required to reserve central intake status.", 64);
   }
   const targetUrl = `${serverUrl}/${controlRepository}/actions/runs/${runId}`;
-  await runCommand(
-    "gh",
-    [
-      "api",
-      "--method",
-      "POST",
-      `repos/${repository}/statuses/${headSha}`,
-      "-f",
-      "state=pending",
-      "-f",
-      `context=${context}`,
-      "-f",
-      `description=${description}`,
-      "-f",
-      `target_url=${targetUrl}`,
-    ],
-    {
-      env: githubEnvironment(token),
-      timeoutMs: 30_000,
-      maxBuffer: 1024 * 1024,
-    }
-  );
+  await reserveIntakeCommitStatus(token, repository, headSha, context, description, targetUrl);
 }
 
 async function dispatchEvent(
@@ -410,6 +390,7 @@ async function dispatchEvent(
 async function main(): Promise<void> {
   const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
+  const statusToken = requireIntakeStatusToken(process.env.AW_STATUS_TOKEN);
   const dispatchToken = process.env.AW_INGRESS_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   const apiUrl = process.env.GITHUB_API_URL ?? "https://api.github.com";
@@ -449,7 +430,7 @@ async function main(): Promise<void> {
     async (repository, headSha, context, description) => {
       await reserveStatus(
         controlRepository,
-        controlToken,
+        statusToken,
         repository,
         headSha,
         context,
