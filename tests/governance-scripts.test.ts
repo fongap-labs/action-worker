@@ -1225,7 +1225,8 @@ test("main write provenance rejects direct pushes and fake status-only trust", a
   assert.equal(
     await hasVerifiedMainWriteGuard(
       reader,
-      paths.get(`repos/fongap/example/commits/${mainSha}/status`)
+      attestFixtureStatuses(paths.get(`repos/fongap/example/commits/${mainSha}/status`), "fongap/example", mainSha),
+      "fongap/example", mainSha
     ),
     false
   );
