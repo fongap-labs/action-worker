@@ -9,6 +9,10 @@ import {
   scanEnabled,
 } from "./security-scan.ts";
 
+export function isSupersededSecurityScan(error: unknown): boolean {
+  return error instanceof CliError && error.exitCode === 75;
+}
+
 async function main(): Promise<void> {
   const [repository = "", sourceSha = "", prNumberRaw = "0"] = process.argv.slice(2);
   const prNumber = Number(prNumberRaw);
@@ -42,7 +46,18 @@ async function main(): Promise<void> {
     process.env.GITHUB_API_URL ?? "https://api.github.com",
     controlToken
   );
-  const facts = await resolveSecurityScanFacts(reader, request);
+  const facts = await resolveSecurityScanFacts(reader, request).catch((error: unknown) => {
+    if (isSupersededSecurityScan(error)) {
+      console.log(
+        `::notice::Security scan superseded: ${repository}@${sourceSha}. The stale revision was not scanned; a current revision needs its own scan.`
+      );
+      return null;
+    }
+    throw error;
+  });
+  if (facts === null) {
+    return;
+  }
   if (facts.is_private) {
     console.log(
       `Security scan skipped: private source requires a private-safe executor: ${repository}.`
