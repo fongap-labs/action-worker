@@ -1095,12 +1095,12 @@ test("self CI requires deterministic security checks", async () => {
 
 test("metrics workflow delegates branch and PR orchestration to TypeScript", async () => {
   const workflow = await text(".github/workflows/update-work-metrics.yml");
-  for (const stage of ["increment", "changes", "branch", "pull", "cleanup", "ci", "merge"]) {
+  for (const stage of ["changes", "branch", "pull", "cleanup", "ci", "merge"]) {
     assert.ok(workflow.includes(`node scripts/manage-work-metrics.ts ${stage}`));
   }
   assert.doesNotMatch(workflow, /shell:\s+bash|run:\s*\|/);
   assert.match(workflow, /METRICS_TOKEN:.*AW_CONTROL_TOKEN/);
-  assert.equal((workflow.match(/GH_TOKEN: \$\{\{ github\.token \}\}/g) ?? []).length, 2);
+  assert.equal((workflow.match(/GH_TOKEN: \$\{\{ github\.token \}\}/g) ?? []).length, 1);
   assert.equal(
     (workflow.match(/GH_TOKEN: \$\{\{ secrets\.AW_CONTROL_TOKEN \}\}/g) ?? []).length,
     4
