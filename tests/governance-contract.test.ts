@@ -979,9 +979,9 @@ test("central CI deploy dispatch is source-owned and adapter-routed", async () =
     "github.event.client_payload.pr_number == 0",
     // A failed security scan dispatch must not silently skip the main write attestation and the
     // deploy, and an untrusted main write must never be deployed.
-    "if: ${{ !cancelled() && github.event.client_payload.pr_number == 0 }}",
+    "if: ${{ !cancelled() && steps.verified.outputs.current == 'true' && github.event.client_payload.pr_number == 0 }}",
     "Verify completed CI evidence and source revision",
-    "if: ${{ !cancelled() && steps.attest.outcome == 'success' }}",
+    "if: ${{ !cancelled() && steps.verified.outputs.current == 'true' && steps.attest.outcome == 'success' }}",
     "contents: write",
     "AW_REPOSITORY_POLICY",
     'repository-policy.ts validate "$REPOSITORY" pr',
