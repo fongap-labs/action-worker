@@ -1122,7 +1122,7 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
   assert.match(workflow, /schedule:/);
   assert.match(workflow, /cron: "17 0 \* \* \*"/);
   assert.doesNotMatch(workflow, /workflow_run:/);
-  assert.doesNotMatch(workflow, /  push:/);
+  assert.doesNotMatch(workflow, / {2}push:/);
   assert.match(workflow, /scripts\/manage-work-metrics\.ts/);
   assert.match(workflow, /scripts\/update-work-metrics\.ts/);
   assert.doesNotMatch(workflow, /gh workflow run validate-ci\.yml/);
