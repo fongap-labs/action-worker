@@ -130,7 +130,10 @@ test("a pull request is tested at a pinned merge SHA, not at a mutable merge ref
     "Linux and Windows receive the same prepared merge commit"
   );
   assert.match(sandbox, /node aw\/scripts\/verify-ci-checkout\.ts/);
-  assert.doesNotMatch(sandbox, /run: node aw\/scripts\/verify-ci-checkout\.ts[^\n]*\$\{\{ inputs\./);
+  assert.doesNotMatch(
+    sandbox,
+    /run: node aw\/scripts\/verify-ci-checkout\.ts[^\n]*\$\{\{ inputs\./
+  );
 
   // The secret scan and status verdicts still use the original PR head.
   const security = workflow.slice(
