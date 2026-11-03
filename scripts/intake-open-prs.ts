@@ -88,7 +88,8 @@ function statusMap(
         { repository, sha, context },
         process.env.AW_STATUS_TOKEN ?? ""
       )
-    ) continue;
+    )
+      continue;
     if (context && state && !statuses.has(context)) {
       statuses.set(context, { state, run_id: runId, updated_at: updatedAt, description });
     }
