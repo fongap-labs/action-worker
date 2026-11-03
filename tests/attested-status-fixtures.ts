@@ -1,4 +1,4 @@
-import { signedStatusDescription } from "../scripts/status-attestation.ts";
+import { originalStatusDescription, signedStatusDescription } from "../scripts/status-attestation.ts";
 
 export const fixtureStatusToken = "action-worker-test-status-signing-key";
 process.env.AW_STATUS_TOKEN = fixtureStatusToken;
@@ -15,8 +15,9 @@ export function attestFixtureStatus(
     !["pending", "success", "failure", "error"].includes(String(state)) ||
     !/^[0-9a-f]{40}$/.test(sha)
   ) return status;
-  const description = typeof status.description === "string"
+  const rawDescription = typeof status.description === "string"
     ? status.description : `Fixture ${context}`;
+  const description = originalStatusDescription(status) || rawDescription;
   const targetUrl = typeof status.target_url === "string" ? status.target_url : "";
   return {
     ...status,
@@ -31,27 +32,27 @@ export function attestFixtureStatus(
   };
 }
 
-export function attestFixtureStatuses(
-  value: unknown,
+export function attestFixtureStatuses<T>(
+  value: T,
   repository: string,
   sha: string
-): unknown {
+): T {
   if (Array.isArray(value)) {
     return value.map(item =>
       item !== null && typeof item === "object" && !Array.isArray(item)
         ? attestFixtureStatus(item as Record<string, unknown>, repository, sha)
         : item
-    );
+    ) as T;
   }
   if (value === null || typeof value !== "object") return value;
   const record = value as Record<string, unknown>;
   if (Array.isArray(record.statuses)) {
-    return { ...record, statuses: attestFixtureStatuses(record.statuses, repository, sha) };
+    return { ...record, statuses: attestFixtureStatuses(record.statuses, repository, sha) } as T;
   }
-  return attestFixtureStatus(record, repository, sha);
+  return attestFixtureStatus(record, repository, sha) as T;
 }
 
-export function attestFixtureResponseForPath(path: string, value: unknown): unknown {
+export function attestFixtureResponseForPath<T>(path: string, value: T): T {
   const match = /^repos\/([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\/(?:commits\/([0-9a-f]{40})\/status|statuses\/([0-9a-f]{40}))(?:\?|$)/.exec(path);
   if (!match) return value;
   return attestFixtureStatuses(value, match[1]!, (match[2] ?? match[3])!);
