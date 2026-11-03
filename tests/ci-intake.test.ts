@@ -138,7 +138,7 @@ test("central CI intake retries an expired pending reservation", async () => {
         if (path === `repos/${repository}`) return { default_branch: "main" };
         if (path === `repos/${repository}/commits/main`) return { sha: shaA };
         if (path === `repos/${repository}/commits/${shaA}/status`) {
-          return {
+          return attestFixtureResponseForPath(path, {
             statuses: [
               {
                 context: "CI Evidence",
