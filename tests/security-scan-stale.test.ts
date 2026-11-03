@@ -8,10 +8,7 @@ const repository = "fongap/example";
 const sourceSha = "a".repeat(40);
 
 test("only stale security scan revisions are skipped as superseded", () => {
-  assert.equal(
-    isSupersededSecurityScan(new CliError("Security scan request is stale", 75)),
-    true
-  );
+  assert.equal(isSupersededSecurityScan(new CliError("Security scan request is stale", 75)), true);
   assert.equal(isSupersededSecurityScan(new CliError("invalid PR base", 65)), false);
   assert.equal(isSupersededSecurityScan(new CliError("permission denied", 77)), false);
   assert.equal(isSupersededSecurityScan(new Error("unexpected failure")), false);
