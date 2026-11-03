@@ -3,6 +3,29 @@ name: 自动 · 发布分发
 on:
   repository_dispatch:
     types: [run-release]
+  workflow_dispatch:
+    inputs:
+      source_repository:
+        description: 源仓库（owner/name 形式）
+        required: true
+        type: string
+      source_sha:
+        description: 源提交 SHA（40 位）
+        required: true
+        type: string
+      artifact_name:
+        description: 已上传的构建 artifact 名称
+        required: true
+        type: string
+      artifact_run_id:
+        description: 生成 artifact 的控制面运行 ID
+        required: true
+        type: string
+      main_write_guard_bypass:
+        description: 破玻璃旁路：跳过 Main Write Guard 事件阻断（仅限维护者使用，会被审计记录）
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -43,6 +66,7 @@ jobs:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           RELEASE_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
+          MAIN_WRITE_GUARD_BYPASS: ${{ inputs.main_write_guard_bypass }}
         run: node scripts/publish-release.ts
 
   # GitHub Release publication is the boundary. npm distribution is a separate, replayable,

@@ -89,6 +89,28 @@ main SHA = untrusted（不可信）
 
 ---
 
+## 4.1 主写入事件生命周期
+
+当 Main Write Audit 发现不可信的 `main` SHA 时，会在该仓库创建一个标题为 `Main write incident: <sha-short>` 的 Issue。该 Issue **不是永久阻断**，而是可控的可观测实体：
+
+- **TTL（生存时间）**：默认 14 天。过期后自动关闭，不再阻断 Release/Deploy/Publication。
+- **提前解除**：维护者在 Issue 下评论 `/resolve` 即可立即解除阻断（需维护者身份：OWNER/MEMBER/COLLABORATOR）。
+- **重复事件去重**：同一 SHA 的多次审计失败只创建一个 Issue。
+
+> **注意**：较新的合法合并**不会**自动清除历史事件。事件必须显式解除或等待 TTL 过期。这是刻意设计：一次不可信的写入会产生持久的审计痕迹，强制维护者确认无残留风险后才能继续。
+
+### 4.2 破玻璃旁路
+
+在极端情况下（如生产事故热修复、上游依赖被劫持需紧急回滚），可通过以下方式跳过事件阻断：
+
+1. 在 `action-worker` 仓库手动触发 `手动 · 发布应用`、`手动 · 部署服务`、`自动 · 发布分发`（workflow_dispatch）。
+2. 勾选 **Main Write Guard Bypass**（布尔输入，默认 false）。
+3. 运行会跳过 `assertNoOpenMainWriteIncidents` 检查，但仍要求 `Main Write Guard` 状态验证（即 `validate-merge`、`CI Evidence` 等确定性门禁必须通过）。
+
+**审计痕迹**：旁路使用会记录在 GitHub Actions 运行日志与步骤摘要中，且 `Main Write Guard` 状态的 `description` 字段会包含 `bypass` 标记，便于事后复核。仅限维护者使用，建议配合环境保护规则限制触发者。
+
+---
+
 ## 5. 公开仓库与私有仓库
 
 ### 平台强制可用

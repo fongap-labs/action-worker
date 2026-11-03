@@ -8,9 +8,11 @@ import {
   IncidentAccessError,
   incidentTitle,
   shouldCreateIncident,
+  closeExpiredIncidents,
 } from "./main-write-incidents.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
+import { resolveToken } from "./control-token.ts";
 
 type AuditResult = {
   repository: string;
@@ -51,7 +53,8 @@ async function publishGuardStatus(
 export async function auditRepositoryMain(
   reader: GithubReader,
   repository: string,
-  isCentralStatusRequired = true
+  isCentralStatusRequired = true,
+  bypassIncidents = false
 ): Promise<{ main_sha: string; pr_number: number }> {
   const repositoryValue = await reader.get(`repos/${repository}`);
   const defaultBranch = getJsonString(repositoryValue, "default_branch");
@@ -72,16 +75,20 @@ export async function auditRepositoryMain(
     mainSha,
     isCentralStatusRequired
   );
-  await assertNoOpenMainWriteIncidents(reader, repository);
+  if (!bypassIncidents) {
+    await assertNoOpenMainWriteIncidents(reader, repository);
+  }
   return { main_sha: mainSha, pr_number: provenance.pr_number };
 }
 
 async function main(): Promise<void> {
-  const token = process.env.AW_CONTROL_TOKEN ?? "";
+  const statusToken = resolveToken("status");
+  const issueToken = resolveToken("issue");
+  const controlToken = resolveToken("control");
   const rawPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
   const runUrl = process.env.MAIN_WRITE_AUDIT_RUN_URL ?? "";
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
-  if (!token) {
+  if (!controlToken) {
     throw new CliError("::error::AW_CONTROL_TOKEN is required.", 77);
   }
   if (!rawPolicy) {
@@ -109,12 +116,21 @@ async function main(): Promise<void> {
   }
   const repositories = requestedRepository ? [requestedRepository] : managedRepositories;
 
-  const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
+  // Reads span pull requests, commit statuses and issues, so the reader keeps the control token.
+  // Writes are scoped: statuses use the status token, incidents use the issue token.
+  const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", controlToken);
   const results: AuditResult[] = [];
 
   for (const repository of repositories) {
     let mainSha = "";
     try {
+      // Auto-close expired incidents before auditing, so they don't block the pipeline.
+      try {
+        // Close expired incidents needs issue write permission
+        await closeExpiredIncidents(reader, repository, issueToken);
+      } catch {
+        // Non-fatal: the audit continues even if cleanup fails.
+      }
       const repositoryValue = await reader.get(`repos/${repository}`);
       const defaultBranch = getJsonString(repositoryValue, "default_branch");
       if (defaultBranch !== "main") {
@@ -129,19 +145,21 @@ async function main(): Promise<void> {
         throw new CliError(`::error::Managed repository main SHA is invalid: ${repository}.`, 65);
       }
 
-      const provenance = await validateMainWriteProvenance(
+      const bypassIncidents = process.env.MAIN_WRITE_GUARD_BYPASS === "true";
+      const provenance = await auditRepositoryMain(
         reader,
         repository,
-        mainSha,
-        repository !== controlRepository
+        repository !== controlRepository,
+        bypassIncidents
       );
-      await assertNoOpenMainWriteIncidents(reader, repository);
       await publishGuardStatus(
         repository,
         mainSha,
-        token,
+        statusToken,
         "success",
-        `Trusted main write via PR #${provenance.pr_number}`,
+        bypassIncidents
+          ? `Trusted main write via PR #${provenance.pr_number} (incident check bypassed)`
+          : `Trusted main write via PR #${provenance.pr_number}`,
         runUrl
       );
       results.push({
@@ -174,7 +192,7 @@ async function main(): Promise<void> {
                 "-f",
                 `body=Main Write Audit rejected ${repository}@${mainSha}.\\n\\nReason: ${summary}\\n\\nRun: ${runUrl}\\n\\nKeep this issue open until a trusted remediation PR is verified and a maintainer accepts the historical incident. A newer successful merge does not retroactively approve this write.`,
               ],
-              token
+              issueToken
             );
           }
         } catch (reportError) {
@@ -188,7 +206,7 @@ async function main(): Promise<void> {
           await publishGuardStatus(
             repository,
             mainSha,
-            token,
+            statusToken,
             error instanceof MainWriteVerificationPendingError ? "pending" : "failure",
             error instanceof MainWriteVerificationPendingError
               ? "Central PR evidence is still running"

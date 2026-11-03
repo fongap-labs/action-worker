@@ -328,7 +328,8 @@ export async function assertTrustedMainWrite(
   reader: GithubReader,
   repository: string,
   mainSha: string,
-  isCentralStatusRequired = true
+  isCentralStatusRequired = true,
+  bypassIncidents = false
 ): Promise<MainWriteProvenance> {
   const provenance = await validateMainWriteProvenance(
     reader,
@@ -336,7 +337,13 @@ export async function assertTrustedMainWrite(
     mainSha,
     isCentralStatusRequired
   );
-  await assertNoOpenMainWriteIncidents(reader, repository);
+  if (!bypassIncidents) {
+    await assertNoOpenMainWriteIncidents(reader, repository);
+  } else {
+    console.log(
+      `::warning::Main Write Guard bypassed the incident check for ${repository}@${mainSha.slice(0, 12)}. The write provenance is still verified.`
+    );
+  }
   const label = `Main Write Guard ${repository}@${mainSha.slice(0, 12)}`;
   const guard = verificationRecorder(label);
   let observed: JsonRecord[] = [];

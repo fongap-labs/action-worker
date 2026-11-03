@@ -189,6 +189,20 @@ AIG_ACCESS_KEY_AGENT
 `AW_CONTROL_TOKEN`：中央读取、控制与状态治理。
 `AW_ADMIN_TOKEN`：仅用于可信控制步骤的仓库级高权限写入（Repository Settings / Rulesets、SARIF 发布所需 Code Scanning 写权限）。高权限令牌绝不注入沙箱项目命令。
 
+### 9.1 控制令牌作用域拆分（可选启用）
+
+以下作用域令牌为**可选**配置。未配置时所有操作自动回退到 `AW_CONTROL_TOKEN`，行为与拆分前完全一致。配置后按用途隔离，令牌泄露或撤销的爆炸半径随之收敛：
+
+| 作用域令牌 | 权限 | 用途 |
+|-----------|------|------|
+| `AW_STATUS_TOKEN` | `Commit Statuses: Read/Write` | 提交状态读写（`PR Governance`、`validate-merge`、`CI Evidence`、`Main Write Guard`） |
+| `AW_ISSUE_TOKEN` | `Issues: Read/Write` | Issue 与 PR 评论读写、主写入事件的创建与关闭 |
+| `AW_DISPATCH_TOKEN` | `Repository Dispatch: Write` | `repository_dispatch` 事件派发 |
+
+**限额说明**：同一 GitHub 账号下的 classic/fine-grained PAT 共享同一个 5000 次/小时限额池，因此令牌拆分的主要收益是**最小权限与爆炸半径收敛**，而非扩大总限额。需要真正的多限额池时应改用 GitHub App。
+
+工作流中以 `${{ secrets.AW_STATUS_TOKEN || secrets.AW_CONTROL_TOKEN }}` 形式引用：作用域令牌未配置时自动回退，无需同步修改工作流。
+
 `AW_EXECUTION_TOKEN` 已被删除，不再配置。中央执行结合了现有的最小权限授权与 GitHub 原生的短期凭据。
 
 ---
