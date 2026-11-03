@@ -12,7 +12,7 @@ import {
 } from "./main-write-incidents.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
-import { resolveToken } from "./control-token.ts";
+import { requireToken, resolveToken } from "./control-token.ts";
 
 type AuditResult = {
   repository: string;
@@ -82,8 +82,8 @@ export async function auditRepositoryMain(
 }
 
 async function main(): Promise<void> {
-  const statusToken = resolveToken("status");
-  const issueToken = resolveToken("issue");
+  const statusToken = requireToken("status");
+  const issueToken = requireToken("issue");
   const controlToken = resolveToken("control");
   const rawPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
   const runUrl = process.env.MAIN_WRITE_AUDIT_RUN_URL ?? "";

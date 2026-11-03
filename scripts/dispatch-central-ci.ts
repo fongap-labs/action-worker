@@ -2,7 +2,7 @@ import { hasVerifiedCiEvidence } from "./ci-evidence.ts";
 import { GithubReader, githubEnvironment, isJsonRecord, runGithubCli } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, readJson, runText } from "./runtime-command.ts";
-import { resolveToken } from "./control-token.ts";
+import { requireToken } from "./control-token.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -48,8 +48,8 @@ async function main(): Promise<void> {
   const ci = isJsonRecord(policy) && isJsonRecord(policy.ci) ? policy.ci : {};
   const context =
     typeof ci.status_context === "string" && ci.status_context ? ci.status_context : "CI Evidence";
-  const statusToken = resolveToken("status");
-  const dispatchToken = resolveToken("dispatch");
+  const statusToken = requireToken("status");
+  const dispatchToken = requireToken("dispatch");
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   if (!statusToken || !dispatchToken || !repositoryPattern.test(controlRepository)) {
     throw new CliError("::error::Central CI control credentials are unavailable.", 65);

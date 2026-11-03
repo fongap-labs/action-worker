@@ -410,14 +410,15 @@ async function dispatchEvent(
 async function main(): Promise<void> {
   const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
+  const statusToken = process.env.AW_STATUS_TOKEN ?? "";
   const dispatchToken = process.env.AW_INGRESS_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   const apiUrl = process.env.GITHUB_API_URL ?? "https://api.github.com";
 
-  if (!policyRaw || !controlToken || !dispatchToken || !controlRepository) {
+  if (!policyRaw || !statusToken || !dispatchToken || !controlRepository) {
     throw new CliError(
-      "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
-      64
+      "AW_REPOSITORY_POLICY, AW_STATUS_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
+      77
     );
   }
 
@@ -449,7 +450,7 @@ async function main(): Promise<void> {
     async (repository, headSha, context, description) => {
       await reserveStatus(
         controlRepository,
-        controlToken,
+        statusToken,
         repository,
         headSha,
         context,

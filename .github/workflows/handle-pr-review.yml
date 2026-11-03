@@ -130,7 +130,7 @@ jobs:
         if: steps.base_plan.outputs.ci_required == 'true'
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           CI_EVIDENCE_PATH: /tmp/ci-evidence.json
@@ -248,7 +248,7 @@ jobs:
         if: ${{ always() && !cancelled() && steps.recheck.outputs.current == 'true' }}
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.AW_ISSUE_TOKEN || secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ secrets.AW_ISSUE_TOKEN }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}

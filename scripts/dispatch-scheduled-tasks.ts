@@ -356,6 +356,7 @@ async function dispatchTask(
 async function main(): Promise<void> {
   const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
+  const statusToken = process.env.AW_STATUS_TOKEN ?? "";
   const ingressToken = process.env.AW_INGRESS_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   const nowRaw = process.env.TASK_SOURCE_NOW ?? "";
@@ -363,10 +364,10 @@ async function main(): Promise<void> {
   const now = nowRaw ? new Date(nowRaw) : new Date();
   const lookbackMinutes = Number(lookbackRaw);
 
-  if (!policyRaw || !controlToken || !ingressToken || !controlRepository) {
+  if (!policyRaw || !statusToken || !ingressToken || !controlRepository) {
     throw new CliError(
-      "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
-      64
+      "AW_REPOSITORY_POLICY, AW_STATUS_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
+      77
     );
   }
   if (
@@ -394,7 +395,7 @@ async function main(): Promise<void> {
       continue;
     }
     await dispatchTask(controlRepository, ingressToken, task);
-    await markDispatched(task, controlToken);
+    await markDispatched(task, statusToken);
     dispatched += 1;
   }
   console.log(

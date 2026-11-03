@@ -1,20 +1,24 @@
 /**
- * Control-plane token scopes.
+ * Control-plane token scopes (strict mode: no fallback to AW_CONTROL_TOKEN).
  *
- * All tokens default to AW_CONTROL_TOKEN for backward compatibility. Configure the
- * scoped secrets in GitHub Actions settings to enable isolation.
+ * Each scope maps to one secret. A scoped secret that is not configured is a hard
+ * failure: operations never silently fall back to AW_CONTROL_TOKEN.
+ *
+ * Workflows inject the scoped secret via `GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}`
+ * (and similar). Scripts read it through resolveToken(scope), which accepts the scope's
+ * own env var first, then GH_TOKEN (set by the workflow to the scoped secret). Neither
+ * path falls back to AW_CONTROL_TOKEN.
  *
  * Scope map:
- * - AW_STATUS_TOKEN     → repo:status (read/write commit statuses)
- * - AW_ISSUE_TOKEN      → repo:issues (read/write issues)
- * - AW_DISPATCH_TOKEN   → repo:dispatch (repository_dispatch events)
- * - AW_CHECKOUT_TOKEN   → contents:read (private repo checkout, already exists)
- * - AW_CONTROL_TOKEN    → full control-plane access (fallback for all)
+ * - AW_STATUS_TOKEN     → Commit statuses Read/Write + Actions Read (verifies control runs)
+ * - AW_ISSUE_TOKEN      → Issues Read/Write (incidents, PR comments)
+ * - AW_DISPATCH_TOKEN   → Contents Read/Write on the action-worker repository (self-dispatch)
+ * - AW_CHECKOUT_TOKEN   → Contents Read, private managed repos only (already existed)
+ * - AW_CONTROL_TOKEN    → broad control-plane reads: pull requests, actions runs, repo metadata
  *
- * Rate-limit note: classic/fine-grained PATs from the same GitHub account share
- * a single 5000/hr pool. Token splitting primarily reduces blast radius (leak/revoke
- * impact) and enforces least privilege, NOT aggregate rate-limit expansion.
- * Use GitHub Apps for true multi-pool rate limits.
+ * Rate-limit note: classic/fine-grained PATs from the same GitHub account share a single
+ * 5000/hr pool. Token splitting reduces blast radius (leak/revoke impact) and enforces least
+ * privilege; it does not raise the ceiling. Use GitHub Apps for multiple pools.
  */
 
 import { CliError } from "./runtime-command.ts";
@@ -38,24 +42,20 @@ export function scopeEnvName(scope: TokenScope): string {
   return scopeEnv[scope];
 }
 
-// Returns the scoped token, or GH_TOKEN (standard workflow env var), or the control token when the scoped one is not configured.
-// Returns an empty string when neither is available.
-export function resolveToken(scope: TokenScope, fallbackScope: TokenScope = "control"): string {
+// Returns the token for the scope: the scope's own env var first, then GH_TOKEN (which
+// workflows set to the scoped secret). Never falls back to AW_CONTROL_TOKEN.
+export function resolveToken(scope: TokenScope): string {
   const primary = process.env[scopeEnv[scope]] ?? "";
   if (primary) return primary;
-  // GH_TOKEN is the standard env var passed by workflows for status/dispatch operations.
-  // Many workflows pass GH_TOKEN = AW_CONTROL_TOKEN. Accept it as a fallback.
-  if ((scope === "status" || scope === "dispatch") && process.env.GH_TOKEN) {
-    return process.env.GH_TOKEN;
-  }
-  return process.env[scopeEnv[fallbackScope]] ?? "";
+  return process.env.GH_TOKEN ?? "";
 }
 
-export function requireToken(scope: TokenScope, fallbackScope: TokenScope = "control"): string {
-  const token = resolveToken(scope, fallbackScope);
+export function requireToken(scope: TokenScope): string {
+  const token = resolveToken(scope);
   if (!token) {
     throw new CliError(
-      `::error::${scopeEnv[scope]} is required for this operation (or ${scopeEnv[fallbackScope]} as fallback).`,
+      `::error::${scopeEnv[scope]} is required for scope "${scope}" and is not configured. ` +
+        "Configure it in the repository secrets; scoped operations do not fall back to AW_CONTROL_TOKEN.",
       77
     );
   }

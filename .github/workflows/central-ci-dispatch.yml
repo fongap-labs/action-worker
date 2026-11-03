@@ -265,7 +265,7 @@ jobs:
     steps:
       - name: Publish target status
         env:
-          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN || secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           LINUX_RESULT: ${{ needs.linux.result }}
@@ -334,7 +334,7 @@ jobs:
     steps:
       - name: Publish failed CI Evidence for the current head
         env:
-          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN || secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
