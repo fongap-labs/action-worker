@@ -1,4 +1,4 @@
-import { GithubReader, getJsonString, runGithubCli, statusAwareReader } from "./github-api.ts";
+import { type GithubReader, getJsonString, runGithubCli, statusAwareReader } from "./github-api.ts";
 import {
   MainWriteVerificationPendingError,
   validateMainWriteProvenance,
