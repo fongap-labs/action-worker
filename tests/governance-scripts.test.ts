@@ -724,8 +724,7 @@ test("PR governance warns against manual merge when checks are not successful", 
 
 test("merge warning follows the exact current PR head and all central gates", () => {
   const repo = "fongap-labs/action-worker";
-  const controlUrl = (run: number): string =>
-    `https://github.com/${repo}/actions/runs/${run}`;
+  const controlUrl = (run: number): string => `https://github.com/${repo}/actions/runs/${run}`;
   const head = "a".repeat(40);
   const pull = { head: { sha: head } };
   const passed = {
@@ -761,7 +760,12 @@ test("merge warning follows the exact current PR head and all central gates", ()
   assert.deepEqual(
     evaluateMergeDisplayGate(
       pull,
-      { statuses: passed.statuses.map((status) => ({ ...status, target_url: "https://other.example/run" })) },
+      {
+        statuses: passed.statuses.map((status) => ({
+          ...status,
+          target_url: "https://other.example/run",
+        })),
+      },
       head,
       repo
     ),
