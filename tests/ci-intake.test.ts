@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { scanMainCi } from "../scripts/intake-main-ci.ts";
+import { attestFixtureResponseForPath, attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const shaA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const shaB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -39,7 +40,7 @@ test("central CI intake dispatches only default heads without evidence", async (
     {
       async get(path: string): Promise<unknown> {
         assert.equal(responses.has(path), true, `unexpected API path: ${path}`);
-        return responses.get(path);
+        return attestFixtureResponseForPath(path, responses.get(path));
       },
     },
     async (repository, sha) => {
@@ -97,7 +98,7 @@ test("central CI intake honors a recent reservation after the intake run complet
         if (path === `repos/${repository}`) return { default_branch: "main" };
         if (path === `repos/${repository}/commits/main`) return { sha: shaA };
         if (path === `repos/${repository}/commits/${shaA}/status`) {
-          return {
+          return attestFixtureResponseForPath(path, {
             statuses: [
               {
                 context: "CI Evidence",
@@ -106,7 +107,7 @@ test("central CI intake honors a recent reservation after the intake run complet
                 target_url: "https://github.com/fongap-labs/action-worker/actions/runs/45",
               },
             ],
-          };
+          });
         }
         if (path === "repos/fongap-labs/action-worker/actions/runs/45") {
           return { status: "completed", conclusion: "success" };
@@ -146,7 +147,7 @@ test("central CI intake retries an expired pending reservation", async () => {
                 target_url: "https://github.com/fongap-labs/action-worker/actions/runs/46",
               },
             ],
-          };
+          });
         }
         if (path === "repos/fongap-labs/action-worker/actions/runs/46") {
           return { status: "completed", conclusion: "failure" };
@@ -225,7 +226,7 @@ test("central CI intake can be limited to the repository of a task source reques
     {
       async get(path: string): Promise<unknown> {
         assert.equal(responses.has(path), true, `unexpected API path: ${path}`);
-        return responses.get(path);
+        return attestFixtureResponseForPath(path, responses.get(path));
       },
     },
     async (repository, sha) => {
