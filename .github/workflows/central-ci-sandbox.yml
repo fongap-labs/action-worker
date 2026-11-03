@@ -28,6 +28,10 @@ on:
       head_sha:
         required: true
         type: string
+      merge_sha:
+        required: false
+        type: string
+        default: ''
       control_ref:
         required: true
         type: string
@@ -68,11 +72,15 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ inputs.repository }}
-          ref: ${{ inputs.pr_number != '0' && format('refs/pull/{0}/merge', inputs.pr_number) || inputs.head_sha }}
+          ref: ${{ inputs.pr_number != '0' && inputs.merge_sha || inputs.head_sha }}
           token: ${{ secrets.checkout_token || github.token }}
           path: target
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Verify pinned CI checkout
+        if: inputs.pr_number != '0'
+        run: node aw/scripts/verify-ci-checkout.ts "$GITHUB_WORKSPACE/target" "${{ inputs.pr_number }}" "${{ inputs.base_sha }}" "${{ inputs.head_sha }}" "${{ inputs.merge_sha }}"
 
       - name: Checkout trusted CI control
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -187,6 +195,11 @@ jobs:
           path: target
           fetch-depth: 0
           persist-credentials: false
+
+      - name: Verify pinned CI checkout
+        if: inputs.pr_number != '0'
+        shell: pwsh
+        run: node aw/scripts/verify-ci-checkout.ts "$env:GITHUB_WORKSPACE/target" "${{ inputs.pr_number }}" "${{ inputs.base_sha }}" "${{ inputs.head_sha }}" "${{ inputs.merge_sha }}"
 
       - name: Checkout trusted CI control
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
