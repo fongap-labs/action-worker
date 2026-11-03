@@ -380,7 +380,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     "Publish explicit no-CI evidence",
     "steps.base_plan.outputs.ci_required != 'true'",
     "CI not required by governance plan",
-    "context=CI Evidence",
+    "CI Evidence",
   ]);
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
   assert.doesNotMatch(
@@ -1001,7 +1001,7 @@ test("central CI deploy dispatch is source-owned and adapter-routed", async () =
     workflow,
     /case "\$REPOSITORY"|needs\.prepare\.outputs\.repository == 'fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)'|fongap-labs\/(?:ai-gateway|delta|delta-suite|app-source|internal-vault|external-vault)\|/
   );
-  assert.match(workflow, /context=CI Evidence/);
+  assert.match(workflow, /"CI Evidence"/);
   assert.doesNotMatch(workflow, /ci-evidence/);
 });
 
@@ -1330,7 +1330,7 @@ test("only PR Governance reports an untrusted head instead of failing", async ()
 test("CI follow-ups are independent from the run that carries CI Evidence", async () => {
   const workflow = await text(".github/workflows/central-ci-dispatch.yml");
   const followUp = await text(".github/workflows/ci-follow-up.yml");
-  assert.match(workflow, /context=CI Evidence/);
+  assert.match(workflow, /"CI Evidence"/);
   assert.match(workflow, /run-ci-follow-up/);
   assert.doesNotMatch(workflow, /dispatch-security-scan|dispatch-central-deploy|audit-main-writes/);
   requireText(followUp, [
