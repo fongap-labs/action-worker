@@ -238,12 +238,35 @@ jobs:
         with:
           node-version: 24
 
-      - name: Checkout target source
+      - name: Require private checkout token
+        if: needs.prepare.outputs.is_private == 'true'
+        env:
+          CHECKOUT_TOKEN: ${{ secrets.AW_CHECKOUT_TOKEN }}
+        shell: bash
+        run: |
+          if [ -z "${CHECKOUT_TOKEN:-}" ]; then
+            echo "::error::Missing AW_CHECKOUT_TOKEN. Configure action-worker → Settings → Secrets and variables → Actions; grant Contents: Read to private target repositories." >&2
+            exit 77
+          fi
+
+      - name: Checkout private target source
+        if: needs.prepare.outputs.is_private == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ needs.prepare.outputs.repository }}
           ref: ${{ needs.prepare.outputs.head_sha }}
-          token: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CHECKOUT_TOKEN || github.token }}
+          token: ${{ secrets.AW_CHECKOUT_TOKEN }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout public target source
+        if: needs.prepare.outputs.is_private != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.prepare.outputs.repository }}
+          ref: ${{ needs.prepare.outputs.head_sha }}
+          token: ${{ github.token }}
           path: target
           fetch-depth: 0
           persist-credentials: false
@@ -265,6 +288,7 @@ jobs:
       pr_number: ${{ needs.prepare.outputs.pr_number }}
       base_sha: ${{ needs.prepare.outputs.base_sha }}
       head_sha: ${{ needs.prepare.outputs.head_sha }}
+      merge_sha: ${{ needs.prepare.outputs.merge_sha }}
       control_ref: ${{ needs.prepare.outputs.control_ref }}
       is_private: ${{ needs.prepare.outputs.is_private }}
     secrets:
