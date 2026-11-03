@@ -33,9 +33,7 @@ export function evaluateMergeDisplayGate(
   controlRepository: string
 ): MergeDisplayGate {
   const currentHead =
-    isJsonRecord(pull) && isJsonRecord(pull.head)
-      ? getJsonString(pull.head, "sha")
-      : "";
+    isJsonRecord(pull) && isJsonRecord(pull.head) ? getJsonString(pull.head, "sha") : "";
   if (!/^[0-9a-f]{40}$/.test(expectedHeadSha) || currentHead !== expectedHeadSha) {
     return { current: false, status: "failure" };
   }
@@ -230,9 +228,12 @@ async function main(): Promise<void> {
   if (
     !token ||
     !controlToken ||
-    !new RegExp("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$").test(controlRepository)
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(controlRepository)
   ) {
-    throw new CliError("::error::PR review publication requires issue and control credentials.", 77);
+    throw new CliError(
+      "::error::PR review publication requires issue and control credentials.",
+      77
+    );
   }
   if (!/^[0-9a-f]{40}$/.test(expectedHeadSha)) {
     throw new CliError("::error::PR review publication requires the exact head SHA.", 64);
@@ -243,12 +244,7 @@ async function main(): Promise<void> {
     `repos/${repository}/commits/${expectedHeadSha}/status`,
     controlToken
   );
-  const gate = evaluateMergeDisplayGate(
-    pull,
-    combinedStatus,
-    expectedHeadSha,
-    controlRepository
-  );
+  const gate = evaluateMergeDisplayGate(pull, combinedStatus, expectedHeadSha, controlRepository);
   if (!gate.current) {
     console.log(
       `::notice::PR review publication skipped for a stale head: ${repository}#${prNumber}@${expectedHeadSha}.`
