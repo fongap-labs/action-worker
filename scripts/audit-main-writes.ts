@@ -1,4 +1,3 @@
-import { resolveToken } from "./control-token.ts";
 import { GithubReader, getJsonString, runGithubCli } from "./github-api.ts";
 import {
   MainWriteVerificationPendingError,
@@ -81,10 +80,25 @@ export async function auditRepositoryMain(
   return { main_sha: mainSha, pr_number: provenance.pr_number };
 }
 
+export function requireAuditCredential(
+  name: "AW_STATUS_TOKEN" | "AW_ISSUE_TOKEN" | "AW_CONTROL_TOKEN",
+  permission: string,
+  env: NodeJS.ProcessEnv = process.env
+): string {
+  const token = env[name] ?? "";
+  if (!token) {
+    throw new CliError(
+      `::error::Missing required secret ${name}. Configure it in fongap-labs/action-worker → Settings → Secrets and variables → Actions. Required permissions: ${permission} on each managed repository. No token fallback is allowed.`,
+      77
+    );
+  }
+  return token;
+}
+
 async function main(): Promise<void> {
-  const statusToken = resolveToken("status");
-  const issueToken = resolveToken("issue");
-  const controlToken = resolveToken("control");
+  const statusToken = requireAuditCredential("AW_STATUS_TOKEN", "Commit statuses: Read and write");
+  const issueToken = requireAuditCredential("AW_ISSUE_TOKEN", "Issues: Read and write");
+  const controlToken = requireAuditCredential("AW_CONTROL_TOKEN", "managed repository reads");
   const rawPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
   const runUrl = process.env.MAIN_WRITE_AUDIT_RUN_URL ?? "";
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
@@ -200,7 +214,7 @@ async function main(): Promise<void> {
           }
         } catch (reportError) {
           console.error(
-            `::error::Could not record main write incident in ${repository}: ${reportError instanceof Error ? reportError.message : String(reportError)}. Check AW_CONTROL_TOKEN Issues: write permission for this repository.`
+            `::error::Could not record main write incident in ${repository}: ${reportError instanceof Error ? reportError.message : String(reportError)}. Check AW_ISSUE_TOKEN Issues: Read and write permission for this repository.`
           );
         }
       }

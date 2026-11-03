@@ -82,7 +82,7 @@ jobs:
     name: Main write audit
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    # The audit reads and writes statuses with the control token; the workflow token only checks out.
+    # Read-only control access; commit statuses and incident Issues require dedicated scoped secrets.
     permissions:
       contents: read
 
@@ -101,8 +101,8 @@ jobs:
       - name: Audit managed main branches
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN || secrets.AW_CONTROL_TOKEN }}
-          AW_ISSUE_TOKEN: ${{ secrets.AW_ISSUE_TOKEN || secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_ISSUE_TOKEN: ${{ secrets.AW_ISSUE_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/audit-main-writes.ts
