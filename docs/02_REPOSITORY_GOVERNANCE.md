@@ -83,7 +83,7 @@ PR 确定性策略 ───────────┼→ validate-merge → �
 
 ### 3.1 私有仓库的手动合并提醒
 
-未通过 PR Governance 的 PR，中央治理会自动添加红色 `merge-blocked` 标签，并在 PR 的治理评论中显示 **DO NOT MERGE**，要求当前提交的 `PR Governance`、`CI Evidence` 和 `validate-merge` 全部通过之后才允许合并。门禁通过时标签会自动移除。
+未通过 PR Governance 的 PR，中央治理会自动添加红色 `merge-blocked` 标签，并在 PR 的治理评论中显示 **DO NOT MERGE**，要求当前提交的 `PR Governance`、`CI Evidence` 和 `validate-merge` 全部通过之后才允许合并。只有再次读取 PR 当前 head 并确认其三项中央检查均成功，才会移除标签。较旧工作流在 PR head 已变更时不得修改评论或标签。
 
 **标签和评论只是显式提醒，不是 GitHub 原生强制保护。** 私有仓库若缺乏可执行的分支规则，GitHub 仍可能允许有人点击 Merge；不能将上述视觉提示误认为合并已被物理拦截。即使标签同步失败，提交状态及 Main Write Guard 仍然是权威。依赖升级（包括 Dependabot）同样必须走完整门禁。
 
