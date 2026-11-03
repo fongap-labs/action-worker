@@ -153,8 +153,11 @@ export async function resolveSecurityScanFacts(
     }
     const headSha = getJsonString(pull.head, "sha");
     const baseSha = getJsonString(pull.base, "sha");
-    if (headSha !== request.source_sha || !shaPattern.test(baseSha)) {
-      throw new CliError("Security scan request is stale or has an invalid PR base SHA.", 75);
+    if (headSha !== request.source_sha) {
+      throw new CliError("Security scan request is stale; PR head has moved.", 75);
+    }
+    if (!shaPattern.test(baseSha)) {
+      throw new CliError("Security scan request has an invalid PR base SHA.", 65);
     }
     return {
       repository: request.repository,
