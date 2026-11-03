@@ -191,7 +191,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ inputs.repository }}
-          ref: ${{ inputs.pr_number != '0' && format('refs/pull/{0}/merge', inputs.pr_number) || inputs.head_sha }}
+          ref: ${{ inputs.pr_number != '0' && inputs.merge_sha || inputs.head_sha }}
           token: ${{ secrets.checkout_token || github.token }}
           path: target
           fetch-depth: 0
