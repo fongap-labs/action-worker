@@ -7,12 +7,7 @@ on:
       - ".github/workflows/update-work-metrics.yml"
       - "scripts/manage-work-metrics.ts"
       - "scripts/update-work-metrics.ts"
-  workflow_run:
-    workflows:
-      - 自动 · 任务分发
-      - 自动 · PR 分发
-      - 自动 · 发布分发
-    types: [completed]
+  # Metrics are batched once per day rather than written after every release or PR.
   schedule:
     - cron: "17 0 * * *"
 
@@ -54,7 +49,6 @@ jobs:
   update:
     name: Aggregate and update
     needs: sweep
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
 
@@ -71,15 +65,6 @@ jobs:
         with:
           node-version: 24
 
-      - name: Prepare incremental metrics
-        id: increment
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EVENT_NAME: ${{ github.event_name }}
-          SOURCE_WORKFLOW: ${{ github.event.workflow_run.name }}
-          SOURCE_RUN_ID: ${{ github.event.workflow_run.id }}
-        run: node scripts/manage-work-metrics.ts increment
-
       - name: Resolve managed repositories
         id: repositories
         env:
@@ -91,7 +76,6 @@ jobs:
         env:
           METRICS_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           METRICS_REPOSITORIES_JSON: ${{ steps.repositories.outputs.repositories }}
-          WORK_METRICS_JSON: ${{ steps.increment.outputs.json }}
         run: node scripts/update-work-metrics.ts README.md
 
       - name: Check for changes
