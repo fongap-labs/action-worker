@@ -78,10 +78,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify pinned CI checkout
-        if: inputs.pr_number != '0'
-        run: node aw/scripts/verify-ci-checkout.ts "$GITHUB_WORKSPACE/target" "${{ inputs.pr_number }}" "${{ inputs.base_sha }}" "${{ inputs.head_sha }}" "${{ inputs.merge_sha }}"
-
       - name: Checkout trusted CI control
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -102,6 +98,11 @@ jobs:
       - name: Pin central test pack
         shell: pwsh
         run: node aw/scripts/prepare-test-pack.ts "${{ github.workspace }}/aw" "${{ github.workspace }}/ci-control/.github/test-pack.json"
+
+      - name: Verify pinned CI checkout
+        if: inputs.pr_number != '0'
+        run: node aw/scripts/verify-ci-checkout.ts "$GITHUB_WORKSPACE/target" "${{ inputs.pr_number }}" "${{ inputs.base_sha }}" "${{ inputs.head_sha }}" "${{ inputs.merge_sha }}"
+
 
       # Central, pinned secret scan of the commits this pull request adds. It is control code from this
       # repository, runs before any target code, and reports findings as warnings unless
@@ -196,11 +197,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Verify pinned CI checkout
-        if: inputs.pr_number != '0'
-        shell: pwsh
-        run: node aw/scripts/verify-ci-checkout.ts "$env:GITHUB_WORKSPACE/target" "${{ inputs.pr_number }}" "${{ inputs.base_sha }}" "${{ inputs.head_sha }}" "${{ inputs.merge_sha }}"
-
       - name: Checkout trusted CI control
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -226,6 +222,12 @@ jobs:
       - name: Pin central test pack
         shell: pwsh
         run: node aw/scripts/prepare-test-pack.ts "${{ github.workspace }}/aw" "${{ github.workspace }}/ci-control/.github/test-pack.json"
+
+      - name: Verify pinned CI checkout
+        if: inputs.pr_number != '0'
+        shell: pwsh
+        run: node aw/scripts/verify-ci-checkout.ts "$env:GITHUB_WORKSPACE/target" "${{ inputs.pr_number }}" "${{ inputs.base_sha }}" "${{ inputs.head_sha }}" "${{ inputs.merge_sha }}"
+
 
       - name: Run trusted Windows CI
         env:
