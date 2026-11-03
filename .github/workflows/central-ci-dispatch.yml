@@ -22,6 +22,7 @@ jobs:
       pr_number: ${{ steps.payload.outputs.pr_number || steps.ref_facts.outputs.pr_number }}
       base_sha: ${{ steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}
       head_sha: ${{ steps.facts.outputs.head_sha || steps.ref_facts.outputs.head_sha }}
+      merge_sha: ${{ steps.merge_ref.outputs.merge_sha || '' }}
       control_ref: ${{ steps.ci_control.outputs.control_ref || steps.ref_facts.outputs.control_ref || 'main' }}
       candidate_control: ${{ steps.ci_control.outputs.candidate_control || 'false' }}
       is_private: ${{ steps.visibility.outputs.is_private }}
@@ -161,6 +162,26 @@ jobs:
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
         run: node scripts/resolve-pr-facts.ts fetch
 
+      - name: Pin PR merge snapshot
+        id: merge_ref
+        if: github.event.action == 'run-central-ci'
+        env:
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          EXPECTED_BASE_SHA: ${{ steps.facts.outputs.base_sha }}
+          EXPECTED_HEAD_SHA: ${{ steps.facts.outputs.head_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          merge_sha="$(gh api "repos/$REPOSITORY/git/ref/pull/$PR_NUMBER/merge" --jq '.object.sha')"
+          [[ "$merge_sha" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::GitHub did not provide a valid immutable PR merge SHA; retry after the merge ref is prepared." >&2
+            exit 75
+          }
+          echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
+          echo "Pinned PR merge snapshot: $merge_sha"
+
       - name: Validate requested revision
         if: github.event.action == 'run-central-ci'
         env:
@@ -191,6 +212,7 @@ jobs:
       pr_number: ${{ needs.prepare.outputs.pr_number }}
       base_sha: ${{ needs.prepare.outputs.base_sha }}
       head_sha: ${{ needs.prepare.outputs.head_sha }}
+      merge_sha: ${{ needs.prepare.outputs.merge_sha }}
       control_ref: ${{ needs.prepare.outputs.control_ref }}
       is_private: ${{ needs.prepare.outputs.is_private }}
     secrets:
@@ -216,12 +238,35 @@ jobs:
         with:
           node-version: 24
 
-      - name: Checkout target source
+      - name: Require private checkout token
+        if: needs.prepare.outputs.is_private == 'true'
+        env:
+          CHECKOUT_TOKEN: ${{ secrets.AW_CHECKOUT_TOKEN }}
+        shell: bash
+        run: |
+          if [ -z "${CHECKOUT_TOKEN:-}" ]; then
+            echo "::error::Missing AW_CHECKOUT_TOKEN. Configure action-worker → Settings → Secrets and variables → Actions; grant Contents: Read to private target repositories." >&2
+            exit 77
+          fi
+
+      - name: Checkout private target source
+        if: needs.prepare.outputs.is_private == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ needs.prepare.outputs.repository }}
           ref: ${{ needs.prepare.outputs.head_sha }}
-          token: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CHECKOUT_TOKEN || github.token }}
+          token: ${{ secrets.AW_CHECKOUT_TOKEN }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout public target source
+        if: needs.prepare.outputs.is_private != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.prepare.outputs.repository }}
+          ref: ${{ needs.prepare.outputs.head_sha }}
+          token: ${{ github.token }}
           path: target
           fetch-depth: 0
           persist-credentials: false
@@ -243,6 +288,7 @@ jobs:
       pr_number: ${{ needs.prepare.outputs.pr_number }}
       base_sha: ${{ needs.prepare.outputs.base_sha }}
       head_sha: ${{ needs.prepare.outputs.head_sha }}
+      merge_sha: ${{ needs.prepare.outputs.merge_sha }}
       control_ref: ${{ needs.prepare.outputs.control_ref }}
       is_private: ${{ needs.prepare.outputs.is_private }}
     secrets:
@@ -265,7 +311,7 @@ jobs:
     steps:
       - name: Publish target status
         env:
-          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN || secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           LINUX_RESULT: ${{ needs.linux.result }}
@@ -275,6 +321,10 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::Missing required secret AW_STATUS_TOKEN. Configure it in action-worker → Settings → Secrets and variables → Actions with Commit statuses: Read and Write." >&2
+            exit 77
+          fi
 
           # A cancelled run carries no verdict: a newer dispatch of the same head cancelled it, or
           # the pull request closed. Writing failure here would replace the pending status of the
@@ -334,7 +384,7 @@ jobs:
     steps:
       - name: Publish failed CI Evidence for the current head
         env:
-          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN || secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
@@ -342,6 +392,10 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::error::Missing required secret AW_STATUS_TOKEN. Configure it in action-worker → Settings → Secrets and variables → Actions with Commit statuses: Read and Write." >&2
+            exit 77
+          fi
           [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || exit 0
           [[ "$REQUESTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 0
 

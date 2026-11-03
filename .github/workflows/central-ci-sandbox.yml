@@ -28,6 +28,10 @@ on:
       head_sha:
         required: true
         type: string
+      merge_sha:
+        required: false
+        type: string
+        default: ""
       control_ref:
         required: true
         type: string
@@ -64,22 +68,57 @@ jobs:
       # from the control ref never runs against code that the default branch has already moved past.
       # When the default branch changed under the PR and the merge conflicts, GitHub has no merge
       # ref and the checkout fails as the merge gate.
-      - name: Checkout target PR
+      - name: Require private checkout token
+        if: inputs.is_private == 'true'
+        shell: bash
+        env:
+          CHECKOUT_TOKEN: ${{ secrets.checkout_token }}
+        run: |
+          if [ -z "${CHECKOUT_TOKEN:-}" ]; then
+            echo "::error::Missing required secret AW_CHECKOUT_TOKEN. Configure it in action-worker → Settings → Secrets and variables → Actions. Grant Contents: Read access to the private target repositories." >&2
+            exit 77
+          fi
+
+      - name: Checkout private target PR
+        if: inputs.is_private == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ inputs.repository }}
-          ref: ${{ inputs.pr_number != '0' && format('refs/pull/{0}/merge', inputs.pr_number) || inputs.head_sha }}
-          token: ${{ secrets.checkout_token || github.token }}
+          ref: ${{ inputs.pr_number != '0' && inputs.merge_sha || inputs.head_sha }}
+          token: ${{ secrets.checkout_token }}
           path: target
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Checkout trusted CI control
+      - name: Checkout public target PR
+        if: inputs.is_private != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.pr_number != '0' && inputs.merge_sha || inputs.head_sha }}
+          token: ${{ github.token }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout private trusted CI control
+        if: inputs.is_private == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.control_ref }}
-          token: ${{ secrets.checkout_token || github.token }}
+          token: ${{ secrets.checkout_token }}
+          path: ci-control
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout public trusted CI control
+        if: inputs.is_private != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.control_ref }}
+          token: ${{ github.token }}
           path: ci-control
           fetch-depth: 1
           persist-credentials: false
@@ -94,6 +133,14 @@ jobs:
       - name: Pin central test pack
         shell: pwsh
         run: node aw/scripts/prepare-test-pack.ts "${{ github.workspace }}/aw" "${{ github.workspace }}/ci-control/.github/test-pack.json"
+
+      - name: Verify pinned CI checkout
+        env:
+          PINNED_PR_NUMBER: ${{ inputs.pr_number }}
+          PINNED_BASE_SHA: ${{ inputs.base_sha }}
+          PINNED_HEAD_SHA: ${{ inputs.head_sha }}
+          PINNED_MERGE_SHA: ${{ inputs.merge_sha }}
+        run: node aw/scripts/verify-ci-checkout.ts "$GITHUB_WORKSPACE/target" "$PINNED_PR_NUMBER" "$PINNED_BASE_SHA" "$PINNED_HEAD_SHA" "$PINNED_MERGE_SHA"
 
       # Central, pinned secret scan of the commits this pull request adds. It is control code from this
       # repository, runs before any target code, and reports findings as warnings unless
@@ -178,22 +225,57 @@ jobs:
 
     steps:
       # A pull request is tested as it would merge into the default branch; see the Linux job.
-      - name: Checkout target PR
+      - name: Require private checkout token
+        if: inputs.is_private == 'true'
+        shell: pwsh
+        env:
+          CHECKOUT_TOKEN: ${{ secrets.checkout_token }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CHECKOUT_TOKEN)) {
+            Write-Error "Missing required secret AW_CHECKOUT_TOKEN. Configure it in action-worker → Settings → Secrets and variables → Actions. Grant Contents: Read access to the private target repositories."
+            exit 77
+          }
+
+      - name: Checkout private target PR
+        if: inputs.is_private == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ inputs.repository }}
-          ref: ${{ inputs.pr_number != '0' && format('refs/pull/{0}/merge', inputs.pr_number) || inputs.head_sha }}
-          token: ${{ secrets.checkout_token || github.token }}
+          ref: ${{ inputs.pr_number != '0' && inputs.merge_sha || inputs.head_sha }}
+          token: ${{ secrets.checkout_token }}
           path: target
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Checkout trusted CI control
+      - name: Checkout public target PR
+        if: inputs.is_private != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.pr_number != '0' && inputs.merge_sha || inputs.head_sha }}
+          token: ${{ github.token }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout private trusted CI control
+        if: inputs.is_private == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.control_ref }}
-          token: ${{ secrets.checkout_token || github.token }}
+          token: ${{ secrets.checkout_token }}
+          path: ci-control
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout public trusted CI control
+        if: inputs.is_private != 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.control_ref }}
+          token: ${{ github.token }}
           path: ci-control
           fetch-depth: 1
           persist-credentials: false
@@ -213,6 +295,15 @@ jobs:
       - name: Pin central test pack
         shell: pwsh
         run: node aw/scripts/prepare-test-pack.ts "${{ github.workspace }}/aw" "${{ github.workspace }}/ci-control/.github/test-pack.json"
+
+      - name: Verify pinned CI checkout
+        shell: pwsh
+        env:
+          PINNED_PR_NUMBER: ${{ inputs.pr_number }}
+          PINNED_BASE_SHA: ${{ inputs.base_sha }}
+          PINNED_HEAD_SHA: ${{ inputs.head_sha }}
+          PINNED_MERGE_SHA: ${{ inputs.merge_sha }}
+        run: node aw/scripts/verify-ci-checkout.ts "$env:GITHUB_WORKSPACE/target" "$env:PINNED_PR_NUMBER" "$env:PINNED_BASE_SHA" "$env:PINNED_HEAD_SHA" "$env:PINNED_MERGE_SHA"
 
       - name: Run trusted Windows CI
         env:
