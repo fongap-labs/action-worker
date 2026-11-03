@@ -3,7 +3,13 @@ import { readdir, readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { parse } from "yaml";
 
-type Step = { name?: string; uses?: string; with?: Record<string, unknown> };
+type Step = {
+  name?: string;
+  uses?: string;
+  run?: string;
+  env?: Record<string, unknown>;
+  with?: Record<string, unknown>;
+};
 type Job = {
   needs?: string | string[];
   permissions?: Record<string, unknown>;
@@ -38,6 +44,34 @@ function usesWholeSecretsContext(value: unknown): boolean {
 }
 
 const centralSecrets = ["AW_CONTROL_TOKEN", "AW_ADMIN_TOKEN", "AW_DISPATCH_TOKEN"];
+
+test("all main CI intake entry points forward the dedicated status secret", async () => {
+  const found: string[] = [];
+  for (const name of await workflowNames()) {
+    const parsed = await workflow(name);
+    for (const [jobName, job] of Object.entries(parsed.jobs)) {
+      for (const step of job.steps ?? []) {
+        if (!step.run?.includes("scripts/intake-main-ci.ts")) continue;
+        const key = `${name}#${jobName}#${step.name ?? ""}`;
+        found.push(key);
+        assert.equal(
+          step.env?.AW_STATUS_TOKEN,
+          "${{ secrets.AW_STATUS_TOKEN }}",
+          `${key} must forward AW_STATUS_TOKEN without fallback`
+        );
+      }
+    }
+  }
+  assert.deepEqual(
+    found.sort(),
+    [
+      "deploy-source-script.yml#prepare#Request central CI for the source",
+      "intake.yml#main-ci#Reconcile main CI",
+      "release-app.yml#prepare#Request central CI for the source",
+      "task-source-dispatch.yml#dispatch#Request central CI for the source",
+    ].sort()
+  );
+});
 
 test("PR dispatch supersedes obsolete governance revisions", async () => {
   const dispatch = await workflow("handle-pr-dispatch.yml");
