@@ -84,8 +84,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           CONTROL_REPOSITORY: ${{ github.repository }}
           TARGET_REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
