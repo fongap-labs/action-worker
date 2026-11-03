@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { scanTaskSources } from "../scripts/intake-task-sources.ts";
+import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const headSha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const beforeSha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
@@ -33,7 +34,7 @@ function sourceWithStatus(state = "") {
         }
         if (path === `repos/${repository}/commits/${headSha}/status`) {
           return {
-            statuses: state ? [{ context: "Task Source", state }] : [],
+            statuses: state ? [attestFixtureStatuses({ context: "Task Source", state }, repository, headSha)] : [],
           };
         }
         throw new Error(`unexpected path: ${path}`);
