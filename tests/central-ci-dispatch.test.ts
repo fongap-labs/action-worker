@@ -142,3 +142,21 @@ test("a pull request is tested at a pinned merge SHA, not at a mutable merge ref
   );
   assert.match(security, /ref: \$\{\{ needs\.prepare\.outputs\.head_sha \}\}/);
 });
+
+test("main CI transfers intake's short lease to the active Central CI run before expensive jobs", () => {
+  const prepareSection = workflow.slice(
+    workflow.indexOf("  prepare:\n"),
+    workflow.indexOf("\n  linux:\n")
+  );
+  assert.match(prepareSection, /Attach Main CI lease to active Central CI run/);
+  assert.match(
+    prepareSection,
+    /if: github\.event\.action == 'run-central-ci-ref' && steps\.ref_facts\.outputs\.should_run == 'true'/
+  );
+  assert.match(prepareSection, /GH_TOKEN: \$\{\{ secrets\.AW_STATUS_TOKEN \}\}/);
+  assert.match(prepareSection, /repos\/\$REPOSITORY\/statuses\/\$HEAD_SHA/);
+  assert.match(prepareSection, /context=CI Evidence/);
+  assert.match(prepareSection, /target_url=\$RUN_URL/);
+  assert.match(prepareSection, /Missing AW_STATUS_TOKEN/);
+  assert.doesNotMatch(prepareSection, /AW_STATUS_TOKEN \|\|/);
+});
