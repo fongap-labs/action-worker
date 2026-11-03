@@ -379,7 +379,13 @@ async function main(): Promise<void> {
     process.env.GITHUB_API_URL ?? "https://api.github.com",
     controlToken
   );
-  const mainWrite = await assertTrustedMainWrite(sourceReader, sourceRepository, sourceSha, true);
+  const mainWrite = await assertTrustedMainWrite(
+    sourceReader,
+    sourceRepository,
+    sourceSha,
+    true,
+    process.env.MAIN_WRITE_GUARD_BYPASS === "true"
+  );
 
   const runJson = await waitForCompletedRun(artifactRepository, artifactRunId, controlToken);
   const runRepository = isJsonRecord(runJson) ? getJsonString(runJson.repository, "full_name") : "";

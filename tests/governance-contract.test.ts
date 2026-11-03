@@ -1155,7 +1155,8 @@ test("main write guard is the post-merge provenance authority", async () => {
     "Main Write Guard",
     "assertTrustedMainWrite",
   ]);
-  assert.doesNotMatch(guard, /commit message|actor.*trusted|bypass/i);
+  assert.doesNotMatch(guard, /commit message|actor.*trusted/i);
+  assert.match(guard, /if \(!isIncidentBypassEnabled\) \{\s*await assertNoOpenMainWriteIncidents/);
 });
 
 test("central main write audit is independent of business repository Actions", async () => {

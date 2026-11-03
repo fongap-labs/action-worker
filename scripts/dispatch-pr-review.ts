@@ -1,3 +1,4 @@
+import { resolveToken } from "./control-token.ts";
 import { githubEnvironment } from "./github-api.ts";
 import { CliError, handleError, isMain, runText } from "./runtime-command.ts";
 
@@ -45,7 +46,7 @@ async function main(): Promise<void> {
   }
   const [repository = "", prNumber = "", requestId = "", headSha = ""] = args;
   const payload = buildReviewDispatch(repository, prNumber, requestId, headSha);
-  const token = process.env.GH_TOKEN ?? "";
+  const token = resolveToken("dispatch");
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   if (!token || !repositoryPattern.test(controlRepository)) {
     throw new CliError("::error::PR review dispatch credentials are unavailable.", 65);

@@ -361,7 +361,13 @@ async function waitForMainWriteGuard(options: ChangelogReleaseOptions, mergeSha:
   );
   for (let attempt = 1; attempt <= MAIN_WRITE_GUARD_ATTEMPTS; attempt += 1) {
     try {
-      await assertTrustedMainWrite(reader, options.repository, mergeSha, true);
+      await assertTrustedMainWrite(
+        reader,
+        options.repository,
+        mergeSha,
+        true,
+        process.env.MAIN_WRITE_GUARD_BYPASS === "true"
+      );
       return;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

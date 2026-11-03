@@ -17,6 +17,11 @@ on:
         description: 产品目录名（多产品仓库位于 projects/<产品>/ 下，必填；单产品仓库清单在 .github/ 根下，留空）
         required: false
         type: string
+      main_write_guard_bypass:
+        description: 破玻璃旁路：跳过 Main Write Guard 事件阻断（仅限维护者使用，会被审计记录）
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -96,6 +101,7 @@ jobs:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           MAIN_WRITE_AUDIT_REPOSITORY: ${{ steps.ingress.outputs.source_repository }}
           MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          MAIN_WRITE_GUARD_BYPASS: ${{ inputs.main_write_guard_bypass }}
         run: node scripts/audit-main-writes.ts
 
       - name: Validate release build request

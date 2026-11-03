@@ -1,4 +1,5 @@
 import { hasVerifiedCiEvidence } from "./ci-evidence.ts";
+import { resolveToken } from "./control-token.ts";
 import { GithubReader, githubEnvironment, isJsonRecord, runGithubCli } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, readJson, runText } from "./runtime-command.ts";
@@ -47,15 +48,19 @@ async function main(): Promise<void> {
   const ci = isJsonRecord(policy) && isJsonRecord(policy.ci) ? policy.ci : {};
   const context =
     typeof ci.status_context === "string" && ci.status_context ? ci.status_context : "CI Evidence";
-  const token = process.env.GH_TOKEN ?? "";
+  const statusToken = resolveToken("status");
+  const dispatchToken = resolveToken("dispatch");
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
-  if (!token || !repositoryPattern.test(controlRepository)) {
+  if (!statusToken || !dispatchToken || !repositoryPattern.test(controlRepository)) {
     throw new CliError("::error::Central CI control credentials are unavailable.", 65);
   }
 
   // Only a success that a real control run produced may skip CI; a status that merely names a
   // control run URL is a claim anyone with status write access can make.
-  const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
+  const reader = new GithubReader(
+    process.env.GITHUB_API_URL ?? "https://api.github.com",
+    statusToken
+  );
   const currentStatus = await reader.get(`repos/${repository}/commits/${headSha}/status`);
   if (await hasVerifiedCiEvidence(reader, currentStatus, { controlRepository })) {
     console.log(`Central CI already satisfied: ${repository}@${headSha}`);
@@ -77,7 +82,7 @@ async function main(): Promise<void> {
   if (runUrl) {
     statusArgs.push("-f", `target_url=${runUrl}`);
   }
-  await runGithubCli(statusArgs, token);
+  await runGithubCli(statusArgs, statusToken);
 
   const payload = JSON.stringify({
     event_type: "run-central-ci",
@@ -94,7 +99,7 @@ async function main(): Promise<void> {
     "gh",
     ["api", "--method", "POST", `repos/${controlRepository}/dispatches`, "--input", "-"],
     {
-      env: githubEnvironment(token),
+      env: githubEnvironment(dispatchToken),
       input: payload,
     }
   );

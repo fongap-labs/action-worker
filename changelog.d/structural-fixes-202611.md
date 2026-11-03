@@ -1,0 +1,4 @@
+- 修复: Main Write Guard 事件引入 14 天 TTL 与维护者 /resolve 解除机制，支持发布/部署破玻璃旁路
+- 修复: PR Governance concurrency 改为 cancel-in-progress: true（按 PR 而非 head SHA），陈旧版本自动取消
+- 修复: wait-ci-evidence.ts 与 wait-review-turn.ts 改为指数退避轮询，降低 API 限额压力
+- 变更: 控制令牌作用域拆分 AW_STATUS_TOKEN / AW_ISSUE_TOKEN / AW_DISPATCH_TOKEN，回退 AW_CONTROL_TOKEN

@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { resolveToken } from "./control-token.ts";
 import { getJsonArray, getJsonString, isJsonRecord, runGithubCli } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { isReviewComplete } from "./validate-review-result.ts";
@@ -130,9 +131,9 @@ async function main(): Promise<void> {
   if (!/^[1-9][0-9]*$/.test(prNumber)) {
     throw new CliError(`::error::Invalid PR number: ${prNumber}.`, 64);
   }
-  const token = process.env.GH_TOKEN ?? "";
+  const token = resolveToken("issue");
   if (!token) {
-    throw new CliError("::error::GH_TOKEN is required.");
+    throw new CliError("::error::GH_TOKEN or AW_ISSUE_TOKEN is required.");
   }
   const status = ["success", "failure", "cancelled", "awaiting-approval"].includes(rawStatus)
     ? rawStatus

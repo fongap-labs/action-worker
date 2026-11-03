@@ -11,6 +11,18 @@ function sleep(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
+function calculateBackoff(
+  attempt: number,
+  initialMs: number,
+  maxMs: number,
+  jitterFactor = 0.2
+): number {
+  const exponential = initialMs * 2 ** attempt;
+  const capped = Math.min(exponential, maxMs);
+  const jitter = capped * jitterFactor * Math.random();
+  return Math.floor(capped + jitter);
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length !== 4) {
@@ -41,8 +53,13 @@ async function main(): Promise<void> {
     throw new CliError("ERROR: queue_wait_minutes must be 1-360.", 65);
   }
   const deadline = Date.now() + waitMinutes * 60_000;
+  const initialPollMs = pollSeconds * 1000;
+  const maxPollMs = 120_000; // cap at 120 seconds
+  const maxAttempts = 40; // total API call budget
   let lastOwner = "";
-  while (Date.now() < deadline) {
+  let attempt = 0;
+  while (Date.now() < deadline && attempt < maxAttempts) {
+    attempt++;
     const response = await getGithubJson(
       `repos/${repository}/actions/workflows/${workflow}/runs?per_page=100`,
       token
@@ -72,12 +89,18 @@ async function main(): Promise<void> {
       return;
     }
     if (owner !== lastOwner) {
-      console.error(`AI Review queue waiting: run=${runId} owner=${owner}`);
+      console.error(
+        `AI Review queue waiting: run=${runId} owner=${owner} (attempt ${attempt}/${maxAttempts})`
+      );
       lastOwner = owner;
     }
-    await sleep(pollSeconds * 1000);
+    if (attempt < maxAttempts && Date.now() < deadline) {
+      await sleep(calculateBackoff(attempt, initialPollMs, maxPollMs));
+    }
   }
-  throw new CliError(`ERROR: AI Review queue wait exceeded ${waitMinutes} minute(s).`);
+  throw new CliError(
+    `ERROR: AI Review queue wait exceeded ${waitMinutes} minute(s) attempts=${attempt}.`
+  );
 }
 
 if (isMain(import.meta.url)) {

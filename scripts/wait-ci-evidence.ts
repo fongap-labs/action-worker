@@ -11,6 +11,18 @@ function policyNumber(value: Record<string, unknown>, key: string, fallback: num
   return typeof value[key] === "number" ? value[key] : fallback;
 }
 
+function calculateBackoff(
+  attempt: number,
+  initialMs: number,
+  maxMs: number,
+  jitterFactor = 0.2
+): number {
+  const exponential = initialMs * 2 ** attempt;
+  const capped = Math.min(exponential, maxMs);
+  const jitter = capped * jitterFactor * Math.random();
+  return Math.floor(capped + jitter);
+}
+
 export async function assertCurrentPullHead(
   reader: JsonReader,
   repository: string,
@@ -76,25 +88,38 @@ export async function waitForCentralStatus(
   const context = getJsonString(ci, "status_context") || "CI Evidence";
   const deadline = Date.now() + timeoutMinutes * 60_000;
 
-  while (Date.now() < deadline) {
+  // Exponential backoff parameters
+  const initialPollMs = pollSeconds * 1000;
+  const maxPollMs = 60_000; // cap at 60 seconds
+  const maxAttempts = 30; // total API call budget
+  let attempt = 0;
+
+  while (Date.now() < deadline && attempt < maxAttempts) {
     if (prNumber !== undefined) {
       await assertCurrentPullHead(reader, repository, prNumber, headSha);
     }
     const response = await reader.get(`repos/${repository}/commits/${headSha}/status`);
     const status = trustedCiStatus(response, context, controlRepository);
+    attempt++;
 
     if (!status) {
       console.error(
-        `Central CI pending: waiting for trusted ${repository}@${headSha} context=${context}`
+        `Central CI pending: waiting for trusted ${repository}@${headSha} context=${context} (attempt ${attempt}/${maxAttempts})`
       );
-      await sleep(pollSeconds * 1000);
+      if (attempt < maxAttempts && Date.now() < deadline) {
+        await sleep(calculateBackoff(attempt, initialPollMs, maxPollMs));
+      }
       continue;
     }
 
     const state = getJsonString(status, "state") || "unknown";
     if (state === "pending") {
-      console.error(`Central CI pending: ${repository}@${headSha} context=${context}`);
-      await sleep(pollSeconds * 1000);
+      console.error(
+        `Central CI pending: ${repository}@${headSha} context=${context} (attempt ${attempt}/${maxAttempts})`
+      );
+      if (attempt < maxAttempts && Date.now() < deadline) {
+        await sleep(calculateBackoff(attempt, initialPollMs, maxPollMs));
+      }
       continue;
     }
 
@@ -134,7 +159,7 @@ export async function waitForCentralStatus(
   }
 
   throw new CliError(
-    `::error::Timed out waiting for central CI: repository=${repository} head=${headSha} timeout=${timeoutMinutes}m`
+    `::error::Timed out waiting for central CI: repository=${repository} head=${headSha} timeout=${timeoutMinutes}m attempts=${attempt}`
   );
 }
 
