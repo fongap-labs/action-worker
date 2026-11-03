@@ -9,7 +9,7 @@ import {
   verificationRecorder,
 } from "./ci-evidence.ts";
 import {
-  GithubReader,
+  type GithubReader,
   getJsonArray,
   getJsonNumber,
   getJsonString,
