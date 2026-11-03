@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { parse } from "yaml";
-import { matchesFollowUpEvidence, parseFollowUpRequest } from "../scripts/verify-ci-follow-up.ts";
+import {
+  isCurrentFollowUpTarget,
+  matchesFollowUpEvidence,
+  parseFollowUpRequest,
+} from "../scripts/verify-ci-follow-up.ts";
 
 const repository = "fongap-labs/dsh-plugin";
 const sha = "a".repeat(40);
@@ -79,4 +83,33 @@ test("CI completion dispatches follow-ups independently of its merge verdict", a
   assert.match(JSON.stringify(next.jobs["follow-up"]), /dispatch-security-scan.ts/);
   assert.match(JSON.stringify(next.jobs["follow-up"]), /audit-main-writes.ts/);
   assert.match(JSON.stringify(next.jobs["follow-up"]), /dispatch-central-deploy.ts/);
+});
+
+test("superseded main commits and stale PRs are not current follow-up targets", () => {
+  const mainRequest = { ...request, pr_number: 0 };
+  assert.equal(isCurrentFollowUpTarget(mainRequest, { sha }), true);
+  assert.equal(isCurrentFollowUpTarget(mainRequest, { sha: "b".repeat(40) }), false);
+  assert.equal(isCurrentFollowUpTarget(mainRequest, {}), false);
+  assert.equal(isCurrentFollowUpTarget(request, { state: "open", head: { sha } }), true);
+  assert.equal(isCurrentFollowUpTarget(request, { state: "closed", head: { sha } }), false);
+  assert.equal(
+    isCurrentFollowUpTarget(request, { state: "open", head: { sha: "b".repeat(40) } }),
+    false
+  );
+});
+
+test("only current CI follow-ups can dispatch scans, audit main or deploy", async () => {
+  const next = parse(await readFile(".github/workflows/ci-follow-up.yml", "utf8")) as {
+    jobs: Record<string, { steps: Array<{ name?: string; if?: string }> }>;
+  };
+  const steps = next.jobs["follow-up"]!.steps;
+  for (const name of [
+    "Dispatch central security scan",
+    "Attest deploy source main write",
+    "Dispatch automatic deploy",
+  ]) {
+    const step = steps.find((item) => item.name === name);
+    assert.ok(step, `Missing ${name} step`);
+    assert.match(step.if ?? "", /steps\.verified\.outputs\.current == 'true'/);
+  }
 });
