@@ -19,7 +19,6 @@ import {
   statusAwareReader,
 } from "./github-api.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
-import { requireStatusToken } from "./status-attestation.ts";
 import {
   appendLines,
   CliError,
@@ -29,6 +28,7 @@ import {
   runCommand,
   runText,
 } from "./runtime-command.ts";
+import { requireStatusToken } from "./status-attestation.ts";
 import { validateReleaseProvenance } from "./validate-release-request.ts";
 
 type ReleaseRequest = {
