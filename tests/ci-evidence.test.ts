@@ -14,8 +14,12 @@ import {
   verificationRecorder,
 } from "../scripts/ci-evidence.ts";
 import { waitForCentralStatus } from "../scripts/wait-ci-evidence.ts";
+import { attestFixtureStatuses, fixtureStatusToken } from "./attested-status-fixtures.ts";
 
 const controlRepository = "fongap-labs/action-worker";
+const targetRepository = "fongap/example";
+const targetSha = "a".repeat(40);
+const verified = { targetRepository, targetSha, statusToken: fixtureStatusToken };
 
 test("trusted control run URLs are exact and repository-scoped", () => {
   assert.equal(
@@ -55,38 +59,25 @@ test("only the latest matching trusted CI status can satisfy the gate", () => {
   };
   assert.equal(latestCiStatus(response, "CI Evidence")?.state, "success");
   assert.equal(trustedCiStatus(response, "CI Evidence", controlRepository), undefined);
-  assert.equal(hasTrustedSuccessfulCiEvidence(response, "CI Evidence", controlRepository), false);
+  assert.equal(hasTrustedSuccessfulCiEvidence(response, "CI Evidence", controlRepository, targetRepository, targetSha, fixtureStatusToken), false);
 });
 
 test("trusted successful CI evidence is idempotent", () => {
-  const response = {
-    statuses: [
-      {
-        context: "CI Evidence",
-        state: "success",
-        target_url: "https://github.com/fongap-labs/action-worker/actions/runs/42",
-      },
-    ],
-  };
+  const response = attestFixtureStatuses({
+    statuses: [{ context: "CI Evidence", state: "success", target_url: "https://github.com/fongap-labs/action-worker/actions/runs/42" }],
+  }, targetRepository, targetSha);
   assert.equal(hasTrustedSuccessfulCiEvidence(response, "CI Evidence", controlRepository), true);
 });
 
 const centralRunPath = ".github/workflows/central-ci-dispatch.yml";
 const evidenceRunUrl = "https://github.com/fongap-labs/action-worker/actions/runs/42";
-const noDelay = { retryDelayMs: 0 };
+const noDelay = { retryDelayMs: 0, ...verified };
 
 function evidenceStatus(overrides: Record<string, unknown> = {}) {
-  return {
-    statuses: [
-      {
-        context: "CI Evidence",
-        state: "success",
-        target_url: evidenceRunUrl,
-        created_at: "2026-10-02T13:11:43Z",
-        ...overrides,
-      },
-    ],
-  };
+  return attestFixtureStatuses({
+    statuses: [{ context: "CI Evidence", state: "success", target_url: evidenceRunUrl,
+      created_at: "2026-10-02T13:11:43Z", ...overrides }],
+  }, targetRepository, targetSha);
 }
 
 function controlRun(overrides: Record<string, unknown> = {}) {
@@ -119,13 +110,13 @@ function runReader(runs: Array<unknown | Error>) {
 
 test("verified CI evidence needs a successful control run of a publishing workflow", async () => {
   const reader = runReader([controlRun()]);
-  assert.equal(await hasVerifiedCiEvidence(reader, evidenceStatus(), noDelay), true);
+  assert.equal(await hasVerifiedCiEvidence(reader, evidenceStatus(), { ...noDelay, ...verified }), true);
   assert.deepEqual(reader.requested, ["repos/fongap-labs/action-worker/actions/runs/42"]);
   assert.equal(
     await hasVerifiedCiEvidence(
       runReader([controlRun({ path: ".github/workflows/handle-pr-dispatch.yml" })]),
       evidenceStatus(),
-      noDelay
+      { ...noDelay, ...verified }
     ),
     true
   );
@@ -144,7 +135,7 @@ test("forged CI evidence pointing at a wrong or unsuccessful run is rejected", a
   ];
   for (const run of rejected) {
     assert.equal(
-      await hasVerifiedCiEvidence(runReader([run]), evidenceStatus(), noDelay),
+      await hasVerifiedCiEvidence(runReader([run]), evidenceStatus(), { ...noDelay, ...verified }),
       false,
       JSON.stringify(run)
     );
@@ -153,7 +144,7 @@ test("forged CI evidence pointing at a wrong or unsuccessful run is rejected", a
 
 test("CI evidence with a missing run, wrong prefix, wrong state or no timestamp is rejected", async () => {
   const missing = runReader([new Error("GitHub API returned HTTP 404.")]);
-  assert.equal(await hasVerifiedCiEvidence(missing, evidenceStatus(), noDelay), false);
+  assert.equal(await hasVerifiedCiEvidence(missing, evidenceStatus(), { ...noDelay, ...verified }), false);
 
   const untouched = runReader([controlRun()]);
   for (const response of [
@@ -172,7 +163,7 @@ test("CI evidence with a missing run, wrong prefix, wrong state or no timestamp 
     hasVerifiedCiEvidence(
       runReader([new Error("GitHub API returned HTTP 500.")]),
       evidenceStatus(),
-      noDelay
+      { ...noDelay, ...verified }
     ),
     /HTTP 500/
   );
@@ -196,6 +187,7 @@ test("each verification step reports the step that decided it", async () => {
     const steps: string[] = [];
     const verdict = await hasVerifiedControlStatus(runReader(runs), response, "CI Evidence", {
       ...noDelay,
+      ...verified,
       trace: (step) => {
         steps.push(step);
       },
@@ -218,12 +210,12 @@ test("CI evidence waits for a run that is still finishing and fails closed if it
     controlRun({ status: "in_progress", conclusion: null }),
     controlRun(),
   ]);
-  assert.equal(await hasVerifiedCiEvidence(settling, evidenceStatus(), noDelay), true);
+  assert.equal(await hasVerifiedCiEvidence(settling, evidenceStatus(), { ...noDelay, ...verified }), true);
   assert.equal(settling.requested.length, 2);
 
   const stuck = runReader([controlRun({ status: "in_progress", conclusion: null })]);
   assert.equal(
-    await hasVerifiedCiEvidence(stuck, evidenceStatus(), { ...noDelay, runAttempts: 3 }),
+    await hasVerifiedCiEvidence(stuck, evidenceStatus(), { ...noDelay, ...verified, runAttempts: 3 }),
     false
   );
   assert.equal(stuck.requested.length, 3);
@@ -260,7 +252,7 @@ test("requiring CI evidence on a commit polls the status and fails closed", asyn
 
   const forged = {
     get: async (path: string) =>
-      path === statusPath ? evidenceStatus() : controlRun({ conclusion: "failure" }),
+      path === statusPath ? attestFixtureStatuses(evidenceStatus(), "fongap-labs/target", "a".repeat(40)) : controlRun({ conclusion: "failure" }),
   };
   await assert.rejects(
     requireVerifiedCiEvidence(forged, "fongap/example", sha, noDelay),
@@ -306,7 +298,7 @@ test("the PR gate rejects a success status that no successful control run produc
   const statusPath = `repos/fongap-labs/target/commits/${"a".repeat(40)}/status`;
   const reader = (run: unknown) => ({
     async get(path: string): Promise<unknown> {
-      return path === statusPath ? evidenceStatus() : run;
+      return path === statusPath ? attestFixtureStatuses(evidenceStatus(), "fongap-labs/target", "a".repeat(40)) : run;
     },
   });
   await waitForCentralStatus(
