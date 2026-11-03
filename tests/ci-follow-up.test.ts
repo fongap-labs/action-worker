@@ -63,7 +63,7 @@ test("CI follow-ups cannot borrow another run's CI Evidence", () => {
         ],
       },
       controlRepository,
-      runId
+      runId, repository, sha, fixtureStatusToken
     ),
     false
   );
