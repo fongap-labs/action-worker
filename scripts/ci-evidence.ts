@@ -119,10 +119,13 @@ export function hasTrustedSuccessfulCiEvidence(
   statusToken = process.env.AW_STATUS_TOKEN ?? ""
 ): boolean {
   const status = trustedCiStatus(response, context, controlRepository);
-  return getJsonString(status, "state") === "success" && hasValidStatusAttestation(
-    status,
-    { repository: targetRepository, sha: targetSha, context },
-    statusToken
+  return (
+    getJsonString(status, "state") === "success" &&
+    hasValidStatusAttestation(
+      status,
+      { repository: targetRepository, sha: targetSha, context },
+      statusToken
+    )
   );
 }
 
@@ -289,7 +292,8 @@ export async function requireVerifiedCiEvidence(
           targetRepository: repository,
           targetSha: sha,
         })
-      ) return;
+      )
+        return;
       throw new CliError(
         `::error::CI Evidence for ${commit} was not produced by a successful Action Worker CI run (${runUrl}). Open that run to see why, or merge a new commit so central CI runs again.`,
         65
