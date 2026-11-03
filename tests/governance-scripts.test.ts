@@ -16,7 +16,11 @@ import {
   parseMainWriteRequest,
   validateMainWriteProvenance,
 } from "../scripts/main-write-guard.ts";
-import { buildReview, requiresMergeBlockedLabel } from "../scripts/publish-pr-review.ts";
+import {
+  buildReview,
+  evaluateMergeDisplayGate,
+  requiresMergeBlockedLabel,
+} from "../scripts/publish-pr-review.ts";
 import { retryLines } from "../scripts/report-ocr-retry.ts";
 import {
   hasRepositoryCapability,
@@ -715,6 +719,53 @@ test("PR governance warns against manual merge when checks are not successful", 
   assert.doesNotMatch(
     buildReview("success", "https://example.test/run", undefined, undefined),
     /DO NOT MERGE/
+  );
+});
+
+test("merge warning follows the exact current PR head and all central gates", () => {
+  const repo = "fongap-labs/action-worker";
+  const controlUrl = (run: number): string =>
+    `https://github.com/${repo}/actions/runs/${run}`;
+  const head = "a".repeat(40);
+  const pull = { head: { sha: head } };
+  const passed = {
+    statuses: ["PR Governance", "CI Evidence", "validate-merge"].map((context, i) => ({
+      context,
+      state: "success",
+      target_url: controlUrl(i + 1),
+    })),
+  };
+  assert.deepEqual(evaluateMergeDisplayGate(pull, passed, head, repo), {
+    current: true,
+    status: "success",
+  });
+  assert.deepEqual(
+    evaluateMergeDisplayGate({ head: { sha: "b".repeat(40) } }, passed, head, repo),
+    { current: false, status: "failure" }
+  );
+  assert.deepEqual(evaluateMergeDisplayGate(pull, passed, "not-a-sha", repo), {
+    current: false,
+    status: "failure",
+  });
+  for (const context of ["PR Governance", "CI Evidence", "validate-merge"]) {
+    const failure = {
+      statuses: passed.statuses.map((status) =>
+        status.context === context ? { ...status, state: "failure" } : status
+      ),
+    };
+    assert.deepEqual(evaluateMergeDisplayGate(pull, failure, head, repo), {
+      current: true,
+      status: "failure",
+    });
+  }
+  assert.deepEqual(
+    evaluateMergeDisplayGate(
+      pull,
+      { statuses: passed.statuses.map((status) => ({ ...status, target_url: "https://other.example/run" })) },
+      head,
+      repo
+    ),
+    { current: true, status: "failure" }
   );
 });
 
