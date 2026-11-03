@@ -1095,12 +1095,12 @@ test("self CI requires deterministic security checks", async () => {
 
 test("metrics workflow delegates branch and PR orchestration to TypeScript", async () => {
   const workflow = await text(".github/workflows/update-work-metrics.yml");
-  for (const stage of ["increment", "changes", "branch", "pull", "cleanup", "ci", "merge"]) {
+  for (const stage of ["changes", "branch", "pull", "cleanup", "ci", "merge"]) {
     assert.ok(workflow.includes(`node scripts/manage-work-metrics.ts ${stage}`));
   }
   assert.doesNotMatch(workflow, /shell:\s+bash|run:\s*\|/);
   assert.match(workflow, /METRICS_TOKEN:.*AW_CONTROL_TOKEN/);
-  assert.equal((workflow.match(/GH_TOKEN: \$\{\{ github\.token \}\}/g) ?? []).length, 2);
+  assert.equal((workflow.match(/GH_TOKEN: \$\{\{ github\.token \}\}/g) ?? []).length, 1);
   assert.equal(
     (workflow.match(/GH_TOKEN: \$\{\{ secrets\.AW_CONTROL_TOKEN \}\}/g) ?? []).length,
     4
@@ -1119,13 +1119,12 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
   assert.match(sweepJob, /node scripts\/manage-work-metrics\.ts sweep/);
   assert.doesNotMatch(updateJob, /node scripts\/manage-work-metrics\.ts sweep/);
   assert.match(workflow, /needs: sweep/);
-  assert.match(workflow, /push:/);
-  assert.match(workflow, /update-work-metrics\.yml/);
+  assert.match(workflow, /schedule:/);
+  assert.match(workflow, /cron: "17 0 \* \* \*"/);
+  assert.doesNotMatch(workflow, /workflow_run:/);
+  assert.doesNotMatch(workflow, /  push:/);
   assert.match(workflow, /scripts\/manage-work-metrics\.ts/);
   assert.match(workflow, /scripts\/update-work-metrics\.ts/);
-  assert.match(workflow, /自动 · 发布分发/);
-  assert.match(workflow, /github\.event_name != 'workflow_run'/);
-  assert.doesNotMatch(workflow, /github\.event_name != 'push'/);
   assert.doesNotMatch(workflow, /gh workflow run validate-ci\.yml/);
   const metricsScript = await text("scripts/manage-work-metrics.ts");
   assert.match(metricsScript, /"api",\s*"--method",\s*"GET",\s*`repos\/\$\{repository\}\/pulls`/);
