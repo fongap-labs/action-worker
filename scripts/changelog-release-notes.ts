@@ -47,10 +47,12 @@ async function readFileAt(
   token: string
 ): Promise<string | null> {
   try {
-    return decode(await getGithubJson(
-      `repos/${repository}/contents/${path}?ref=${encodeURIComponent(ref)}`,
-      token
-    ));
+    return decode(
+      await getGithubJson(
+        `repos/${repository}/contents/${path}?ref=${encodeURIComponent(ref)}`,
+        token
+      )
+    );
   } catch (error) {
     if (isGithubMissing(error)) return null;
     throw error;
@@ -65,10 +67,12 @@ async function fragmentsAt(
 ): Promise<Map<string, string>> {
   let items: unknown[];
   try {
-    items = getJsonArray(await getGithubJson(
-      `repos/${repository}/contents/${path}?ref=${encodeURIComponent(ref)}`,
-      token
-    ));
+    items = getJsonArray(
+      await getGithubJson(
+        `repos/${repository}/contents/${path}?ref=${encodeURIComponent(ref)}`,
+        token
+      )
+    );
   } catch (error) {
     if (isGithubMissing(error)) return new Map();
     throw error;
@@ -98,10 +102,13 @@ function unreleasedBounds(changelog: string): { lines: string[]; start: number; 
 // Subtract the already-published snapshot so later releases do not repeat those notes.
 export function newUnreleasedLines(current: string, previous: string | null): string[] {
   const now = unreleasedBounds(current);
-  const before = previous === null ? [] : (() => {
-    const old = unreleasedBounds(previous);
-    return old.lines.slice(old.start + 1, old.end).filter((line) => line.trim() !== "");
-  })();
+  const before =
+    previous === null
+      ? []
+      : (() => {
+          const old = unreleasedBounds(previous);
+          return old.lines.slice(old.start + 1, old.end).filter((line) => line.trim() !== "");
+        })();
   const counts = new Map<string, number>();
   for (const line of before) counts.set(line, (counts.get(line) ?? 0) + 1);
   const result: string[] = [];
@@ -136,10 +143,12 @@ async function lastStableTag(options: ReleaseNotesOptions): Promise<string | nul
   const prefix = `${options.releaseKey}-v`;
   const versions: string[] = [];
   for (let page = 1; page <= 3; page += 1) {
-    const items = getJsonArray(await getGithubJson(
-      `repos/${options.repository}/tags?per_page=100&page=${page}`,
-      options.token
-    ));
+    const items = getJsonArray(
+      await getGithubJson(
+        `repos/${options.repository}/tags?per_page=100&page=${page}`,
+        options.token
+      )
+    );
     for (const item of items) {
       const name = getJsonString(item, "name");
       const version = name.startsWith(prefix) ? name.slice(prefix.length) : "";
@@ -149,7 +158,7 @@ async function lastStableTag(options: ReleaseNotesOptions): Promise<string | nul
     }
     if (items.length < 100) break;
   }
-  versions.sort((a, b) => olderThan(a, b) ? 1 : olderThan(b, a) ? -1 : 0);
+  versions.sort((a, b) => (olderThan(a, b) ? 1 : olderThan(b, a) ? -1 : 0));
   return versions[0] ? `${prefix}${versions[0]}` : null;
 }
 
@@ -173,7 +182,10 @@ export async function prepareReleaseNotes(options: ReleaseNotesOptions): Promise
     ? await readFileAt(repository, policy.changelog_file, previousTag, token)
     : null;
   const currentFragments = await fragmentsAt(
-    repository, policy.changelog_fragment_dir, baseSha, token
+    repository,
+    policy.changelog_fragment_dir,
+    baseSha,
+    token
   );
   const previousFragments = previousTag
     ? await fragmentsAt(repository, policy.changelog_fragment_dir, previousTag, token)
