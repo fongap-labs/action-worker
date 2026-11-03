@@ -186,7 +186,10 @@ jobs:
       - name: Collect CI evidence
         if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'
         env:
-          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN || secrets.AW_CONTROL_TOKEN }}
+          # This step reads both PR metadata and commit statuses. AW_STATUS_TOKEN
+          # intentionally has only status permissions and cannot GET /pulls/{n}.
+          # Use the separately configured control read credential; no token fallback.
+          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
