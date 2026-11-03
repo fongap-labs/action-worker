@@ -6,9 +6,9 @@ import {
 } from "./main-write-guard.ts";
 import {
   assertNoOpenMainWriteIncidents,
+  closeExpiredIncidents,
   IncidentAccessError,
   incidentTitle,
-  closeExpiredIncidents,
   shouldCreateIncident,
 } from "./main-write-incidents.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
