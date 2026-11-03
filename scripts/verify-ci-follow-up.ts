@@ -1,7 +1,7 @@
 import { hasVerifiedCiEvidence, latestCiStatus, trustedControlRunId } from "./ci-evidence.ts";
 import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
-import { CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
+import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 export type FollowUpRequest = {
   repository: string;
@@ -40,6 +40,25 @@ export function matchesFollowUpEvidence(
     getJsonString(status, "state") === "success" &&
     trustedControlRunId(getJsonString(status, "target_url"), controlRepository) === runId
   );
+}
+
+export function isCurrentFollowUpTarget(request: FollowUpRequest, target: unknown): boolean {
+  if (!isJsonRecord(target)) return false;
+  if (request.pr_number === 0) {
+    return getJsonString(target, "sha") === request.head_sha;
+  }
+  return (
+    getJsonString(target, "state") === "open" &&
+    isJsonRecord(target.head) &&
+    getJsonString(target.head, "sha") === request.head_sha
+  );
+}
+
+async function skipStaleFollowUp(request: FollowUpRequest): Promise<void> {
+  console.log(
+    `::notice::Skipping superseded CI follow-up for ${request.repository}@${request.head_sha}; no security scan or deployment will be dispatched.`
+  );
+  await appendLines(process.env.GITHUB_OUTPUT, ["current=false"]);
 }
 
 async function main(): Promise<void> {
@@ -82,15 +101,34 @@ async function main(): Promise<void> {
   }
   if (request.pr_number > 0) {
     const pull = await reader.get(`repos/${request.repository}/pulls/${request.pr_number}`);
+    if (!isJsonRecord(pull) || !isJsonRecord(pull.head)) {
+      throw new CliError("CI follow-up received invalid PR revision facts.", 65);
+    }
+    if (!isCurrentFollowUpTarget(request, pull)) {
+      await skipStaleFollowUp(request);
+      return;
+    }
+  } else {
+    const source = await reader.get(`repos/${request.repository}`);
+    const branch = getJsonString(source, "default_branch");
+    if (!branch) {
+      throw new CliError("CI follow-up cannot determine the source default branch.", 65);
+    }
+    const currentCommit = await reader.get(
+      `repos/${request.repository}/commits/${encodeURIComponent(branch)}`
+    );
     if (
-      !isJsonRecord(pull) ||
-      !isJsonRecord(pull.head) ||
-      getJsonString(pull, "state") !== "open" ||
-      getJsonString(pull.head, "sha") !== request.head_sha
+      !isJsonRecord(currentCommit) ||
+      !/^[0-9a-f]{40}$/.test(getJsonString(currentCommit, "sha"))
     ) {
-      throw new CliError("CI follow-up cannot process a stale or closed PR revision.", 75);
+      throw new CliError("CI follow-up received an invalid default-branch head SHA.", 65);
+    }
+    if (!isCurrentFollowUpTarget(request, currentCommit)) {
+      await skipStaleFollowUp(request);
+      return;
     }
   }
+  await appendLines(process.env.GITHUB_OUTPUT, ["current=true"]);
   console.log(
     `Verified CI follow-up: ${request.repository}@${request.head_sha} run=${request.ci_run_id}`
   );
