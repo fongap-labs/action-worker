@@ -1,5 +1,6 @@
 import { trustedControlRunId } from "./ci-evidence.ts";
 import { GithubReader, getJsonString, githubEnvironment, isJsonRecord } from "./github-api.ts";
+import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 
@@ -150,28 +151,7 @@ async function reserveCiStatus(
     throw new CliError("GITHUB_RUN_ID is required to reserve central CI status.", 64);
   }
   const targetUrl = `${serverUrl}/${controlRepository}/actions/runs/${runId}`;
-  await runCommand(
-    "gh",
-    [
-      "api",
-      "--method",
-      "POST",
-      `repos/${repository}/statuses/${headSha}`,
-      "-f",
-      "state=pending",
-      "-f",
-      "context=CI Evidence",
-      "-f",
-      "description=Central CI queued by central intake",
-      "-f",
-      `target_url=${targetUrl}`,
-    ],
-    {
-      env: githubEnvironment(token),
-      timeoutMs: 30_000,
-      maxBuffer: 1024 * 1024,
-    }
-  );
+  await reserveIntakeCommitStatus(token, repository, headSha, "CI Evidence", "Central CI queued by central intake", targetUrl);
 }
 
 async function dispatchCentralCi(
@@ -206,6 +186,7 @@ async function dispatchCentralCi(
 async function main(): Promise<void> {
   const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
+  const statusToken = requireIntakeStatusToken(process.env.AW_STATUS_TOKEN);
   const ingressToken = process.env.AW_INGRESS_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   const apiUrl = process.env.GITHUB_API_URL ?? "https://api.github.com";
@@ -232,7 +213,7 @@ async function main(): Promise<void> {
     },
     controlRepository,
     async (repository, headSha) => {
-      await reserveCiStatus(controlRepository, controlToken, repository, headSha);
+      await reserveCiStatus(controlRepository, statusToken, repository, headSha);
     },
     onlyRepository
   );
