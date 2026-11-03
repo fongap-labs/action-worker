@@ -45,7 +45,7 @@ jobs:
 
       - name: Mark dependency repair in progress
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ github.event.client_payload.repository }}
           HEAD_SHA: ${{ github.event.client_payload.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -82,12 +82,45 @@ jobs:
       changed: ${{ steps.collect.outputs.changed }}
 
     steps:
-      - name: Checkout target source
+      - name: Validate target visibility
+        env:
+          IS_PRIVATE: ${{ needs.prepare.outputs.is_private }}
+        shell: bash
+        run: |
+          if [[ "$IS_PRIVATE" != "true" && "$IS_PRIVATE" != "false" ]]; then
+            echo "::error::Target repository visibility must be explicitly confirmed before checkout." >&2
+            exit 65
+          fi
+
+      - name: Require private checkout token
+        if: needs.prepare.outputs.is_private == 'true'
+        env:
+          AW_CHECKOUT_TOKEN: ${{ secrets.AW_CHECKOUT_TOKEN }}
+        shell: bash
+        run: |
+          if [ -z "${AW_CHECKOUT_TOKEN:-}" ]; then
+            echo "::error::Missing required secret AW_CHECKOUT_TOKEN. Grant Contents: Read on the private target repository. Configure in fongap-labs/action-worker → Settings → Secrets and variables → Actions. No token fallback is permitted." >&2
+            exit 77
+          fi
+
+      - name: Checkout private target source
+        if: needs.prepare.outputs.is_private == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ needs.prepare.outputs.repository }}
           ref: ${{ needs.prepare.outputs.head_sha }}
-          token: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CHECKOUT_TOKEN || github.token }}
+          token: ${{ secrets.AW_CHECKOUT_TOKEN }}
+          path: target
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout public target source
+        if: needs.prepare.outputs.is_private == 'false'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.prepare.outputs.repository }}
+          ref: ${{ needs.prepare.outputs.head_sha }}
+          token: ${{ github.token }}
           path: target
           fetch-depth: 1
           persist-credentials: false
@@ -211,6 +244,7 @@ jobs:
       - name: Publish repair status and continue intake
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           AW_INGRESS_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ needs.prepare.outputs.repository || github.event.client_payload.repository }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number || github.event.client_payload.pr_number }}
@@ -238,7 +272,7 @@ jobs:
             fi
           fi
 
-          GH_TOKEN="$AW_CONTROL_TOKEN" node scripts/set-pr-status.ts \
+          GH_TOKEN="$AW_STATUS_TOKEN" node scripts/set-pr-status.ts \
             "$REPOSITORY" \
             "$HEAD_SHA" \
             "$state" \
