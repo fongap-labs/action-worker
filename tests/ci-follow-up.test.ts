@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { parse } from "yaml";
+import { attestFixtureStatuses, fixtureStatusToken } from "./attested-status-fixtures.ts";
 import {
   isCurrentFollowUpTarget,
   matchesFollowUpEvidence,
@@ -32,7 +33,7 @@ test("CI follow-ups require a complete revision-bound dispatch payload", () => {
 });
 
 test("CI follow-ups cannot borrow another run's CI Evidence", () => {
-  const status = {
+  const status = attestFixtureStatuses({
     statuses: [
       {
         context: "CI Evidence",
@@ -40,14 +41,14 @@ test("CI follow-ups cannot borrow another run's CI Evidence", () => {
         target_url: `https://github.com/${controlRepository}/actions/runs/${runId}`,
       },
     ],
-  };
-  assert.equal(matchesFollowUpEvidence(status, controlRepository, runId), true);
-  assert.equal(matchesFollowUpEvidence(status, controlRepository, runId + 1), false);
+  }, repository, sha);
+  assert.equal(matchesFollowUpEvidence(status, controlRepository, runId, repository, sha, fixtureStatusToken), true);
+  assert.equal(matchesFollowUpEvidence(status, controlRepository, runId + 1, repository, sha, fixtureStatusToken), false);
   assert.equal(
     matchesFollowUpEvidence(
       { statuses: [{ ...status.statuses[0], state: "pending" }] },
       controlRepository,
-      runId
+      runId, repository, sha, fixtureStatusToken
     ),
     false
   );
