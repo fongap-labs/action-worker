@@ -8,9 +8,10 @@ permissions:
   contents: read
 
 concurrency:
-  # Isolate each revision: a late dispatch for an old head must never cancel a current one.
+  # Isolate revisions; a duplicate request for the same head must never cancel running tests.
+  # GitHub keeps one running and one pending run per group, replacing older pending duplicates.
   group: central-ci-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.head_sha }}
-  cancel-in-progress: ${{ github.event.action == 'run-central-ci' }}
+  cancel-in-progress: false
 
 jobs:
   prepare:
