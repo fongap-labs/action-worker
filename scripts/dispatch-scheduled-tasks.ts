@@ -10,10 +10,10 @@ import {
 import { getGithubJson, githubEnvironment, githubExists, isJsonRecord } from "./github-api.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
-import { requireStatusToken } from "./status-attestation.ts";
 import {
   hasValidStatusAttestation,
   originalStatusDescription,
+  requireStatusToken,
   signedStatusDescription,
 } from "./status-attestation.ts";
 
@@ -294,11 +294,7 @@ export async function wasDispatched(
         item.context === context &&
         item.state === "success" &&
         originalStatusDescription(item) === description &&
-        hasValidStatusAttestation(
-          item,
-          { repository: task.repository, sha, context },
-          statusToken
-        )
+        hasValidStatusAttestation(item, { repository: task.repository, sha, context }, statusToken)
     );
     if (isRecorded) return true;
   }
