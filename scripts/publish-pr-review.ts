@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
+import { hasTrustedSuccessfulCiEvidence } from "./ci-evidence.ts";
 import { resolveToken } from "./control-token.ts";
 import {
+  getGithubJson,
   getJsonArray,
   getJsonString,
   githubExists,
@@ -15,6 +17,33 @@ const mergeBlockedLabel = "merge-blocked";
 
 export function requiresMergeBlockedLabel(status: string): boolean {
   return status !== "success";
+}
+
+export type MergeDisplayGate = {
+  current: boolean;
+  status: "success" | "failure";
+};
+
+// The label and comment are advisory and must follow the current PR head rather than a stale
+// workflow's claimed verdict. The authoritative merge guard independently verifies each run.
+export function evaluateMergeDisplayGate(
+  pull: unknown,
+  combinedStatus: unknown,
+  expectedHeadSha: string,
+  controlRepository: string
+): MergeDisplayGate {
+  const currentHead =
+    isJsonRecord(pull) && isJsonRecord(pull.head)
+      ? getJsonString(pull.head, "sha")
+      : "";
+  if (!/^[0-9a-f]{40}$/.test(expectedHeadSha) || currentHead !== expectedHeadSha) {
+    return { current: false, status: "failure" };
+  }
+
+  const allGatesPassed = ["PR Governance", "CI Evidence", "validate-merge"].every((context) =>
+    hasTrustedSuccessfulCiEvidence(combinedStatus, context, controlRepository)
+  );
+  return { current: true, status: allGatesPassed ? "success" : "failure" };
 }
 
 async function syncMergeBlockedLabel(
@@ -195,12 +224,40 @@ async function main(): Promise<void> {
     throw new CliError(`::error::Invalid PR number: ${prNumber}.`, 64);
   }
   const token = resolveToken("issue");
-  if (!token) {
-    throw new CliError("::error::GH_TOKEN or AW_ISSUE_TOKEN is required.");
+  const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
+  const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
+  const expectedHeadSha = process.env.HEAD_SHA ?? "";
+  if (!token || !controlToken || !/^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$/.test(controlRepository)) {
+    throw new CliError("::error::PR review publication requires issue and control credentials.", 77);
   }
-  const status = ["success", "failure", "cancelled", "awaiting-approval"].includes(rawStatus)
-    ? rawStatus
-    : "failure";
+  if (!/^[0-9a-f]{40}$/.test(expectedHeadSha)) {
+    throw new CliError("::error::PR review publication requires the exact head SHA.", 64);
+  }
+
+  const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, controlToken);
+  const combinedStatus = await getGithubJson(
+    `repos/${repository}/commits/${expectedHeadSha}/status`,
+    controlToken
+  );
+  const gate = evaluateMergeDisplayGate(
+    pull,
+    combinedStatus,
+    expectedHeadSha,
+    controlRepository
+  );
+  if (!gate.current) {
+    console.log(`::notice::PR review publication skipped for a stale head: ${repository}#${prNumber}@${expectedHeadSha}.`);
+    return;
+  }
+  const status =
+    gate.status === "success"
+      ? "success"
+      : rawStatus === "awaiting-approval"
+        ? "awaiting-approval"
+        : "failure";
+  if (rawStatus === "success" && status !== "success") {
+    console.warn(`::warning::PR review cannot claim success without current-head central gates: ${repository}#${prNumber}.`);
+  }
   const body = buildReview(
     status,
     runUrl,
