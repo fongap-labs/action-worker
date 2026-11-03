@@ -352,7 +352,7 @@ test("a main write attested by a release, intake or guard run is trusted", async
         created_at: "2026-10-02T13:11:43Z",
       },
     ],
-  };
+  }, targetRepository, targetSha);
   const options = { ...noDelay, workflowPaths: mainWriteGuardWorkflowPaths };
   for (const path of [
     ".github/workflows/release-app.yml",
