@@ -62,10 +62,15 @@ test("all main CI intake entry points forward the dedicated status secret", asyn
       }
     }
   }
-  assert.deepEqual(found.sort(), [
-    "intake.yml#main-ci#Reconcile main CI",
-    "release-app.yml#prepare#Request central CI for the source",
-  ].sort());
+  assert.deepEqual(
+    found.sort(),
+    [
+      "deploy-source-script.yml#prepare#Request central CI for the source",
+      "intake.yml#main-ci#Reconcile main CI",
+      "release-app.yml#prepare#Request central CI for the source",
+      "task-source-dispatch.yml#prepare#Request central CI for the source",
+    ].sort()
+  );
 });
 
 test("PR dispatch supersedes obsolete governance revisions", async () => {
