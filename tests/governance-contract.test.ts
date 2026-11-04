@@ -563,7 +563,8 @@ test("task dispatch keeps the publication credential in the central control step
     "action-worker-repository-vars.json",
     "AW_REPOSITORY_POLICY",
     "node-version: 24",
-    "Checkout task source",
+    "Checkout private task source",
+    "Checkout public task source",
     "repository: ${{ needs.validate.outputs.repository }}",
     "ref: ${{ needs.validate.outputs.bootstrap_ref }}",
     "path: task-source",
@@ -584,7 +585,12 @@ test("task dispatch keeps the publication credential in the central control step
   const directSecrets = [
     ...workflow.matchAll(/\$\{\{\s*secrets\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g),
   ].map((match) => match[1]);
-  assert.deepEqual([...new Set(directSecrets)].sort(), ["AW_ARTIFACT_KEY", "AW_CONTROL_TOKEN"]);
+  assert.deepEqual([...new Set(directSecrets)].sort(), [
+    "AW_APP_PRIVATE_KEY",
+    "AW_ARTIFACT_KEY",
+    "AW_CHECKOUT_TOKEN",
+    "AW_CONTROL_TOKEN",
+  ]);
   // The task itself never keeps the artifact key: it is checked like the central credentials.
   assert.match(workflow, /for central_name in [A-Z_ ]*AW_ARTIFACT_KEY; do/);
   assert.doesNotMatch(workflow, /AW_EXECUTION_TOKEN|AW_EXECUTION_REPOSITORY/);
