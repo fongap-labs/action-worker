@@ -52,6 +52,7 @@ jobs:
     outputs:
       source_repository: ${{ steps.source.outputs.source_repository }}
       source_sha: ${{ steps.source.outputs.source_sha }}
+      is_private: ${{ steps.source_visibility.outputs.is_private }}
       runner_labels_json: ${{ steps.source.outputs.runner_labels_json }}
       environment: ${{ steps.source.outputs.environment }}
       entrypoint: ${{ steps.source.outputs.entrypoint }}
@@ -108,6 +109,21 @@ jobs:
           permission-checks: read
           permission-statuses: read
           permission-issues: read
+
+      - name: Resolve deploy source visibility
+        id: source_visibility
+        env:
+          GH_TOKEN: ${{ steps.app_read.outputs.token }}
+          SOURCE_REPOSITORY: ${{ github.event.client_payload.source_repository || inputs.source_repository }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          is_private="$(gh api "repos/$SOURCE_REPOSITORY" --jq '.private')"
+          [[ "$is_private" == "true" || "$is_private" == "false" ]] || {
+            echo "::error::Unable to verify deploy source visibility." >&2
+            exit 77
+          }
+          echo "is_private=$is_private" >> "$GITHUB_OUTPUT"
 
       - name: Resolve manual deploy request
         id: manual_request
@@ -283,12 +299,33 @@ jobs:
           path: control
           persist-credentials: false
 
-      - name: Checkout deploy source
+      - name: Validate deploy source visibility
+        env:
+          IS_PRIVATE: ${{ needs.prepare.outputs.is_private }}
+        shell: bash
+        run: |
+          [[ "$IS_PRIVATE" == "true" || "$IS_PRIVATE" == "false" ]] || {
+            echo "::error::Deploy source visibility must be confirmed before checkout." >&2
+            exit 77
+          }
+
+      - name: Checkout private deploy source
+        if: needs.prepare.outputs.is_private == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ needs.prepare.outputs.source_repository }}
           ref: ${{ needs.prepare.outputs.source_sha }}
           token: ${{ secrets.AW_CHECKOUT_TOKEN }}
+          path: target
+          persist-credentials: false
+
+      - name: Checkout public deploy source
+        if: needs.prepare.outputs.is_private == 'false'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.prepare.outputs.source_repository }}
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          token: ${{ github.token }}
           path: target
           persist-credentials: false
 
