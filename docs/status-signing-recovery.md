@@ -20,7 +20,7 @@
 4. 提交运行。如 `admin-ops` 环境需要审批，由有权审核的维护者批准。
 5. 查看 **Bootstrap missing CI evidence signing keys** Job。成功后，脚本会设置 Repository Secret `AW_STATUS_SIGNING_KEYS` 并发送 `run-intake`，随后新运行才能读取更新后的 Secret 快照。
 
-这个恢复入口只在 `main` 上运行，不修改其他仓库设置，且密钥环已经存在时会拒绝重复初始化。原来的 **自动 · 仓库设置** 仍只接受 `push` 和 `schedule`，保持原有治理触发规则。
+这个恢复入口只在 `main` 上运行，并且只支持人工 `workflow_dispatch`（不接受 `repository_dispatch`）。不修改其他仓库设置，且密钥环已经存在时会拒绝重复初始化。原来的 **自动 · 仓库设置** 仍只接受 `push` 和 `schedule`，保持原有治理触发规则。
 
 ## 三、验证结果
 

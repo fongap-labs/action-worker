@@ -9,8 +9,6 @@ on:
         required: true
         type: boolean
         default: false
-  repository_dispatch:
-    types: [run-status-signing-recovery]
 
 permissions:
   contents: read
@@ -40,7 +38,6 @@ jobs:
           node-version: 24
 
       - name: Require operator confirmation
-        if: github.event_name == 'workflow_dispatch'
         env:
           RECOVERY_CONFIRMED: ${{ inputs.confirm }}
         shell: bash
