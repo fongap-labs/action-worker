@@ -8,6 +8,7 @@ permissions:
   contents: read
   actions: read
   pull-requests: read
+  statuses: read
 
 concurrency:
   # Isolate revisions; a duplicate request for the same head must never cancel running tests.
@@ -74,6 +75,7 @@ jobs:
           repositories: ${{ format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}
           permission-contents: read
           permission-actions: read
+          permission-statuses: read
           permission-pull-requests: read
 
       - name: Resolve branch CI request
@@ -142,7 +144,6 @@ jobs:
         if: github.event.action == 'run-central-ci'
         env:
           GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
         run: node scripts/validate-control-access.ts "$REPOSITORY" "$PR_NUMBER"
