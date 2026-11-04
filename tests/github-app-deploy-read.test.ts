@@ -35,10 +35,7 @@ test("deploy preflight routes trusted reads by repository without exposing App s
   const mint = step("Mint cross-repository deploy preflight read token");
   assert.equal(mint.id, "app_read");
   assert.equal(mint.if, undefined);
-  assert.equal(
-    mint.uses,
-    "./.github/actions/mint-app-token"
-  );
+  assert.equal(mint.uses, "./.github/actions/mint-app-token");
   assert.equal(
     mint.with?.repositories,
     "${{ format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}"

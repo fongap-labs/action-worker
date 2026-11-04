@@ -30,10 +30,7 @@ test("PR API reads use GITHUB_TOKEN locally and a scoped App token across manage
   const mint = findStep("Mint PR read token");
   assert.equal(mint.id, "app_read");
   assert.equal(mint.if, undefined);
-  assert.equal(
-    mint.uses,
-    "./.github/actions/mint-app-token"
-  );
+  assert.equal(mint.uses, "./.github/actions/mint-app-token");
   assert.equal(mint.with?.repositories, "${{ steps.api_scope.outputs.repository_name }}");
   assert.equal(mint.with?.owner, "${{ steps.api_scope.outputs.owner }}");
   assert.deepEqual(
