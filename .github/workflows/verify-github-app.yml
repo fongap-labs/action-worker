@@ -7,6 +7,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: verify-github-app-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   verify:
     name: Verify GitHub App read access
