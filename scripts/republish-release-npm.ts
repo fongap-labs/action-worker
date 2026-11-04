@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { requireToken } from "./control-token.ts";
 import {
   getGithubJson,
   getJsonArray,
@@ -10,7 +11,7 @@ import {
   runGithubCli,
 } from "./github-api.ts";
 import { configureNpmAuth, npmRegistry, publishNpmTarball } from "./npm-publish.ts";
-import { requireToken } from "./control-token.ts";
+
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import {
   appendLines,
