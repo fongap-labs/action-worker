@@ -36,10 +36,27 @@ jobs:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/validate-pr-payload.ts "$PAYLOAD"
 
+      - name: Resolve cancellation read scope
+        id: api_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ steps.payload.outputs.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint cancellation PR read token
+        id: app_read
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-pull-requests: read
+
       - name: Validate closed pull request
         id: closed
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.app_read.outputs.token }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
         shell: bash
