@@ -68,10 +68,31 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Resolve ingress source read scope
+        id: ingress_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ github.event.client_payload.source_repository || inputs.source_repository }}
+        run: node scripts/resolve-github-api-scope.ts release-source
+
+      - name: Mint release source read token
+        id: app_read
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.ingress_scope.outputs.owner }}
+          repositories: ${{ steps.ingress_scope.outputs.is_control_repository == 'true' && github.event.repository.name || format('{0},{1}', github.event.repository.name, steps.ingress_scope.outputs.repository_name) }}
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-statuses: read
+          permission-issues: read
+
       - name: Resolve release build ingress
         id: ingress
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           RELEASE_DISPATCH_JSON: ${{ toJSON(github.event.client_payload) }}
           RELEASE_SOURCE_REPOSITORY: ${{ inputs.source_repository }}
@@ -111,7 +132,7 @@ jobs:
       - name: Request central CI for the source
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
@@ -152,7 +173,7 @@ jobs:
       - name: Attest the source main write
         continue-on-error: true
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.audit_status_app.outputs.token }}
           AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           AW_ISSUE_API_TOKEN: ${{ steps.audit_issue_app.outputs.token }}
@@ -165,7 +186,7 @@ jobs:
       - name: Validate release build request
         id: request
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           RELEASE_BUILD_REQUEST_JSON: ${{ steps.ingress.outputs.request_json }}
         run: node scripts/validate-release-build-request.ts policies/runner.json
@@ -190,7 +211,7 @@ jobs:
         with:
           repository: ${{ needs.prepare.outputs.source_repository }}
           ref: ${{ needs.prepare.outputs.source_sha }}
-          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          token: ${{ secrets.AW_CHECKOUT_TOKEN }}
           path: source
           persist-credentials: false
 
@@ -313,7 +334,7 @@ jobs:
         with:
           repository: ${{ needs.prepare.outputs.source_repository }}
           ref: ${{ needs.prepare.outputs.source_sha }}
-          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          token: ${{ secrets.AW_CHECKOUT_TOKEN }}
           path: source
           persist-credentials: false
 
