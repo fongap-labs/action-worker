@@ -41,7 +41,7 @@ test("deploy preflight routes trusted reads by repository without exposing App s
   );
   assert.equal(
     mint.with?.repositories?.trim(),
-    "action-worker\n${{ steps.api_scope.outputs.repository_name }}"
+    "${{ github.event.repository.name }}\n${{ steps.api_scope.outputs.repository_name }}"
   );
   assert.deepEqual(
     Object.keys(mint.with ?? {})
