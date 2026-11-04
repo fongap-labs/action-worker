@@ -1,4 +1,4 @@
-import { validateRepositoryCapability, type RepositoryCapability } from "./repository-policy.ts";
+import { type RepositoryCapability, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
