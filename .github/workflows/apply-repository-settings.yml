@@ -60,7 +60,6 @@ jobs:
           TARGET_REPOSITORY: ${{ github.repository }}
         run: node scripts/apply-review-models.ts "$TARGET_REPOSITORY"
 
-
   bootstrap-signing:
     name: Bootstrap CI evidence signing keys
     environment: admin-ops
