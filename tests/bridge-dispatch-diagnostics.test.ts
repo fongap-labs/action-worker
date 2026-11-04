@@ -89,13 +89,13 @@ test("the bridge preserves successful dispatches and fails closed on rate limits
   for (const step of dispatched) {
     const helper = helperFrom(step);
     const success = execute(helper, { status: 204 });
-    assert.equal(success.status, 0, step.name);
+    assert.equal(success.status, 0, step.name ?? "dispatch entry");
     const limited = execute(helper, {
       status: 403,
       message: "You have exceeded a secondary rate limit. Please wait a few minutes before you try again.",
       headers: "HTTP/2 403\r\nx-ratelimit-remaining: 0\r\nretry-after: 60\r\nX-Unsafe: secret-metadata\r\n",
     });
-    assert.equal(limited.status, 1, step.name);
+    assert.equal(limited.status, 1, step.name ?? "dispatch entry");
     assert.match(limited.stderr, /HTTP 403, reason=secondary-rate-limit/);
     assert.match(limited.stderr, /x-ratelimit-remaining=0/);
     assert.match(limited.stderr, /retry-after=60/);
