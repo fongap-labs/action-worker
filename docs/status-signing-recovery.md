@@ -14,13 +14,13 @@
 
 在有该功能的 `main` 合并后：
 
-1. 打开 **Actions → 自动 · 仓库设置**。
+1. 打开 **Actions → 手动 · 恢复签名密钥**。
 2. 选择 **Run workflow**，分支设为 `main`。
-3. 参数 `scope` 选择默认的 **`signing-only`**，而不是 `all`。
+3. 勾选 `confirm`，明确确认只恢复缺失的签名密钥且保留历史验签。不要在输入中粘贴任何令牌或密钥。
 4. 提交运行。如 `admin-ops` 环境需要审批，由有权审核的维护者批准。
-5. 查看 **Bootstrap CI evidence signing keys** Job。成功后，脚本会设置 Repository Secret `AW_STATUS_SIGNING_KEYS` 并发送 `run-intake`，随后新运行才能读取更新后的 Secret 快照。
+5. 查看 **Bootstrap missing CI evidence signing keys** Job。成功后，脚本会设置 Repository Secret `AW_STATUS_SIGNING_KEYS` 并发送 `run-intake`，随后新运行才能读取更新后的 Secret 快照。
 
-`signing-only` 模式将跳过控制仓库和其他受管仓库的设置同步。正常的 `push`、`schedule` 仍保留原先的全量设置逻辑。需要完整重同步时才选 `all`。
+这个恢复入口只在 `main` 上运行，不修改其他仓库设置，且密钥环已经存在时会拒绝重复初始化。原来的 **自动 · 仓库设置** 仍只接受 `push` 和 `schedule`，保持原有治理触发规则。
 
 ## 三、验证结果
 
