@@ -1,0 +1,2 @@
+- 新增: 将 GitHub Multi Connect staging 部署纳入 Action Worker 中央环境与密钥授权。
+- 优化: 将 GMC 缩写登记为 GitHub Multi Connect 的合法配置前缀。
