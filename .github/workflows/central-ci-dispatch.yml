@@ -52,12 +52,28 @@ jobs:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/validate-pr-payload.ts "$PAYLOAD"
 
+      # Only trusted control-plane steps receive the installation token. Do not pass it
+      # to the sandbox or replace the persistent CI Evidence signing key.
+      - name: Mint MCP Hub central CI read token
+        id: mcp_ci_read
+        if: github.event.client_payload.repository == 'fongap-labs/mcp-hub'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            action-worker
+            mcp-hub
+          permission-contents: read
+          permission-actions: read
+
       - name: Resolve branch CI request
         id: ref_facts
         if: github.event.action == 'run-central-ci-ref'
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ (github.event.client_payload.repository == 'fongap-labs/mcp-hub' && steps.mcp_ci_read.outputs.token) || (github.event.client_payload.repository != 'fongap-labs/mcp-hub' && secrets.AW_CONTROL_TOKEN) }}
+          AW_CONTROL_TOKEN: ${{ (github.event.client_payload.repository == 'fongap-labs/mcp-hub' && steps.mcp_ci_read.outputs.token) || (github.event.client_payload.repository != 'fongap-labs/mcp-hub' && secrets.AW_CONTROL_TOKEN) }}
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ github.event.client_payload.repository }}
           REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
@@ -107,7 +123,7 @@ jobs:
       - name: Resolve target visibility
         id: visibility
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ (github.event.client_payload.repository == 'fongap-labs/mcp-hub' && steps.mcp_ci_read.outputs.token) || (github.event.client_payload.repository != 'fongap-labs/mcp-hub' && secrets.AW_CONTROL_TOKEN) }}
           REPOSITORY: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
         shell: bash
         run: |
@@ -146,7 +162,7 @@ jobs:
       - name: Resolve CI capabilities
         id: capabilities
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ (github.event.client_payload.repository == 'fongap-labs/mcp-hub' && steps.mcp_ci_read.outputs.token) || (github.event.client_payload.repository != 'fongap-labs/mcp-hub' && secrets.AW_CONTROL_TOKEN) }}
           REPOSITORY: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
           CONTROL_REF: ${{ steps.ci_control.outputs.control_ref || steps.ref_facts.outputs.control_ref || 'main' }}
         run: node scripts/resolve-ci-capabilities.ts "$REPOSITORY" "$CONTROL_REF"
