@@ -45,11 +45,12 @@ test("Central CI reads use GITHUB_TOKEN for the control repository and a scoped 
     Object.keys(mint.with ?? {})
       .filter((key) => key.startsWith("permission-"))
       .sort(),
-    ["permission-actions", "permission-contents", "permission-pull-requests"]
+    ["permission-actions", "permission-contents", "permission-pull-requests", "permission-statuses"]
   );
   assert.equal(mint.with?.["permission-contents"], "read");
   assert.equal(mint.with?.["permission-actions"], "read");
   assert.equal(mint.with?.["permission-pull-requests"], "read");
+  assert.equal(mint.with?.["permission-statuses"], "read");
 
   const scoped =
     "${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}";
@@ -71,6 +72,7 @@ test("Central CI reads use GITHUB_TOKEN for the control repository and a scoped 
     assert.equal(step(name).env?.AW_CONTROL_TOKEN, scoped, name);
   }
   assert.equal(parsed.permissions["pull-requests"], "read");
+  assert.equal(parsed.permissions.statuses, "read");
   const prepare = source.split("\n  linux:\n")[0] ?? "";
   assert.doesNotMatch(prepare, /secrets\.AW_CONTROL_TOKEN/);
 

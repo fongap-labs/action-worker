@@ -40,15 +40,16 @@ test("PR API reads use GITHUB_TOKEN locally and a scoped App token across manage
     Object.keys(mint.with ?? {})
       .filter((key) => key.startsWith("permission-"))
       .sort(),
-    ["permission-actions", "permission-contents", "permission-pull-requests"]
+    ["permission-actions", "permission-contents", "permission-pull-requests", "permission-statuses"]
   );
   assert.deepEqual(
     [
       mint.with?.["permission-actions"],
       mint.with?.["permission-contents"],
       mint.with?.["permission-pull-requests"],
+      mint.with?.["permission-statuses"],
     ],
-    ["read", "read", "read"]
+    ["read", "read", "read", "read"]
   );
 
   const readToken =
@@ -61,6 +62,7 @@ test("PR API reads use GITHUB_TOKEN locally and a scoped App token across manage
     assert.equal(findStep(name).env?.GH_TOKEN, readToken, name);
   }
   assert.equal(workflow.permissions["pull-requests"], "read");
+  assert.equal(workflow.permissions.statuses, "read");
   assert.equal(
     findStep("Mark governance in progress").env?.AW_STATUS_TOKEN,
     "${{ secrets.AW_STATUS_TOKEN }}"

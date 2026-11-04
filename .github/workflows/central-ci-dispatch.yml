@@ -8,6 +8,7 @@ permissions:
   contents: read
   actions: read
   pull-requests: read
+  statuses: read
 
 concurrency:
   # Isolate revisions; a duplicate request for the same head must never cancel running tests.
@@ -74,6 +75,7 @@ jobs:
           repositories: ${{ format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}
           permission-contents: read
           permission-actions: read
+          permission-statuses: read
           permission-pull-requests: read
 
       - name: Resolve branch CI request
@@ -142,7 +144,6 @@ jobs:
         if: github.event.action == 'run-central-ci'
         env:
           GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
         run: node scripts/validate-control-access.ts "$REPOSITORY" "$PR_NUMBER"
@@ -371,6 +372,8 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: write
+      statuses: write
+      actions: read
 
     steps:
       - name: Checkout control plane
@@ -384,9 +387,28 @@ jobs:
         with:
           node-version: 24
 
+      - name: Resolve status publication scope
+        id: status_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint cross-repository status write token
+        id: status_app
+        if: steps.status_scope.outputs.is_control_repository == 'false'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.status_scope.outputs.owner }}
+          repositories: ${{ steps.status_scope.outputs.repository_name }}
+          permission-statuses: write
+
       - name: Publish target status
         env:
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.status_scope.outputs.is_control_repository == 'true' && github.token || steps.status_app.outputs.token }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           LINUX_RESULT: ${{ needs.linux.result }}

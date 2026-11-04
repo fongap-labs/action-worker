@@ -19,10 +19,14 @@ async function main(): Promise<void> {
     throw new CliError("Invalid commit status subject or state.", 64);
   }
   const state = rawState as "pending" | "success" | "failure" | "error";
-  const token = requireStatusToken();
+  const signingKey = requireStatusToken();
+  // Status API authorization is independent of the durable HMAC signing key.
+  // Legacy callers retain their existing credential until their workflows migrate.
+  const apiToken = process.env.AW_STATUS_API_TOKEN ?? signingKey;
+  if (!apiToken) throw new CliError("::error::Missing status API credential.", 77);
   const signedDescription = signedStatusDescription(
     { repository, sha, state, context, description, targetUrl },
-    token
+    signingKey
   );
   await runGithubCli(
     [
@@ -39,7 +43,7 @@ async function main(): Promise<void> {
       "-f",
       `target_url=${targetUrl}`,
     ],
-    token
+    apiToken
   );
 }
 
