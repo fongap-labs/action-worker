@@ -39,7 +39,7 @@ test("GitHub App diagnostic is manual-only, read-only and does not use personal 
   assert.equal(mint.with?.["client-id"], "${{ vars.AW_APP_CLIENT_ID }}");
   assert.equal(mint.with?.["private-key"], "${{ secrets.AW_APP_PRIVATE_KEY }}");
   assert.equal(mint.with?.owner, "${{ github.repository_owner }}");
-  assert.equal(mint.with?.repositories.trim(), "action-worker\nmcp-hub");
+  assert.equal(mint.with?.repositories?.trim(), "action-worker\nmcp-hub");
 
   const check = steps.find((step) => step.run?.includes("gh api"));
   assert.ok(check);
