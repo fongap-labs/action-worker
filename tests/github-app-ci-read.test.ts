@@ -40,8 +40,8 @@ test("Central CI reads use GITHUB_TOKEN for the control repository and a scoped 
   assert.equal(mint.with?.["client-id"], "${{ vars.AW_APP_CLIENT_ID }}");
   assert.equal(mint.with?.["private-key"], "${{ secrets.AW_APP_PRIVATE_KEY }}");
   assert.equal(
-    mint.with?.repositories?.trim(),
-    "${{ github.event.repository.name }}\n${{ steps.api_scope.outputs.repository_name }}"
+    mint.with?.repositories,
+    "${{ format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}"
   );
   assert.equal(mint.with?.owner, "${{ steps.api_scope.outputs.owner }}");
   assert.deepEqual(
