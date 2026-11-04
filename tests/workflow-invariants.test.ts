@@ -189,3 +189,19 @@ test("publishing releases is read-only against source branches and never opens P
   assert.match(source, /const releaseSha = targetSha/);
   assert.doesNotMatch(notes, /repos\/\$\{repository\}\/pulls|--method.*(?:POST|PATCH|PUT)/);
 });
+
+
+test("manual source deploy resolves default HEAD without spending the control PAT REST quota", async () => {
+  const deploy = await workflow("deploy-source-script.yml");
+  const step = deploy.jobs.prepare?.steps?.find((item) => item.name === "Resolve manual deploy request");
+  assert.ok(step, "manual deploy resolver must exist");
+  assert.equal(step.env?.AW_CHECKOUT_TOKEN, "${{ secrets.AW_CHECKOUT_TOKEN }}");
+  assert.equal(step.env?.AW_REPOSITORY_POLICY, "${{ vars.AW_REPOSITORY_POLICY }}");
+  assert.match(step.run ?? "", /repository-policy\\.ts validate/);
+  assert.match(step.run ?? "", /git ls-remote --exit-code/);
+  assert.match(step.run ?? "", /GIT_CONFIG_KEY_0=http\\.https:\/\/github\\.com\/\\.extraheader/);
+  assert.match(step.run ?? "", /GIT_TERMINAL_PROMPT=0/);
+  assert.match(step.run ?? "", /Missing required AW_CHECKOUT_TOKEN/);
+  assert.match(step.run ?? "", /source_sha=\\$SOURCE_SHA/);
+  assert.doesNotMatch(step.run ?? "", /gh api|secrets\\.AW_CONTROL_TOKEN/);
+});
