@@ -174,13 +174,16 @@ test("every checkout drops its credentials", async () => {
   assert.deepEqual(found, [...persisted], "the allowlist has no stale entry");
 });
 
-test("the security scan keeps the admin token away from the CodeQL job", async () => {
+test("the security scan keeps SARIF publish credentials away from the CodeQL job", async () => {
   const scan = await workflow("security-scan-dispatch.yml");
   for (const [name, job] of Object.entries(scan.jobs)) {
-    const usesAdmin = secretNames(job).includes("AW_ADMIN_TOKEN");
-    assert.equal(usesAdmin, name === "publish", `${name} AW_ADMIN_TOKEN usage`);
+    const hasSarifWriter = job.steps?.some(
+      (step) => step.env?.AW_SECURITY_EVENTS_API_TOKEN === "${{ steps.sarif_app.outputs.token }}"
+    );
+    assert.equal(Boolean(hasSarifWriter), name === "publish", `${name} SARIF writer use`);
   }
   assert.deepEqual(secretNames(scan.jobs.analyze), []);
+  assert.equal(secretNames(scan.jobs.publish).includes("AW_ADMIN_TOKEN"), false);
   assert.equal(usesWholeSecretsContext(scan.jobs.analyze), false);
   assert.deepEqual(
     scan.jobs.publish?.steps?.filter((step) => step.uses?.includes("codeql")),
