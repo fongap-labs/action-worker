@@ -1100,19 +1100,21 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
     assert.ok(workflow.includes(`node scripts/manage-work-metrics.ts ${stage}`));
   }
   assert.doesNotMatch(workflow, /shell:\s+bash|run:\s*\|/);
-  assert.match(workflow, /METRICS_TOKEN:.*AW_CONTROL_TOKEN/);
+  assert.match(workflow, /METRICS_TOKEN:.*steps\.metrics_read_app\.outputs\.token/);
   assert.equal((workflow.match(/GH_TOKEN: \$\{\{ github\.token \}\}/g) ?? []).length, 1);
   assert.equal(
-    (workflow.match(/GH_TOKEN: \$\{\{ secrets\.AW_CONTROL_TOKEN \}\}/g) ?? []).length,
+    (workflow.match(/GH_TOKEN: \$\{\{ steps\.control_write_app\.outputs\.token \}\}/g) ?? []).length,
     4
   );
-  assert.match(workflow, /GIT_PUSH_TOKEN: \$\{\{ secrets\.AW_CONTROL_TOKEN \}\}/);
+  assert.match(workflow, /GIT_PUSH_TOKEN: \$\{\{ steps\.control_write_app\.outputs\.token \}\}/);
   const pullStep = workflow.slice(
     workflow.indexOf("      - name: Create auto-update PR"),
     workflow.indexOf("      - name: Wait for CI")
   );
-  assert.match(pullStep, /GH_TOKEN: \$\{\{ secrets\.AW_CONTROL_TOKEN \}\}/);
+  assert.match(pullStep, /GH_TOKEN: \$\{\{ steps\.control_write_app\.outputs\.token \}\}/);
   assert.match(workflow, /Cleanup failed metrics update/);
+  assert.doesNotMatch(workflow, /secrets\.AW_CONTROL_TOKEN/);
+  assert.match(workflow, /permission-pull-requests: write/);
   assert.match(workflow, /Sweep stale metrics branches/);
   assert.match(workflow, /node scripts\/manage-work-metrics\.ts sweep/);
   const sweepJob = workflow.slice(workflow.indexOf("  sweep:"), workflow.indexOf("  update:"));
