@@ -44,8 +44,8 @@ test("CodeQL publisher rejects using the broad admin PAT as a credential", async
   assert.match(source, /process\.env\.AW_SECURITY_EVENTS_API_TOKEN/);
   assert.doesNotMatch(source, /process\.env\.AW_ADMIN_TOKEN/);
   assert.match(source, /no PAT fallback/);
-  const action = parse(
-    await readFile(".github/actions/mint-app-token/action.yml", "utf8")
-  ) as { inputs: Record<string, unknown> };
+  const action = parse(await readFile(".github/actions/mint-app-token/action.yml", "utf8")) as {
+    inputs: Record<string, unknown>;
+  };
   assert.ok(action.inputs["permission-security-events"]);
 });
