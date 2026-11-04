@@ -1,0 +1,1 @@
+- 新增: 为 Action Worker 增加独立的手动 GitHub App 只读连通性检查，使用已配置的 Client ID 和私钥生成短期安装令牌，仅验证 action-worker 和 mcp-hub 的仓库读取权限；原有个人 Token、CI 证据签名和生产部署不受影响。
