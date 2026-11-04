@@ -1,14 +1,16 @@
-# Task publication encryption key setup
+# 任务产物加密密钥配置
 
-This runbook is for the draft task-publication isolation workflow in PR #1380. The workflow is **not production-ready until the keys are configured and a real private-source publication succeeds**.
+本指南用于 [PR #1380](https://github.com/fongap-labs/action-worker/pull/1380) 的任务执行与发布隔离。**在配好密钥并验证真实私有任务发布之前，不得将 #1380 当作已经完成的生产迁移。**
 
-The executor only receives an RSA public key. The protected publisher running in the `admin-ops` environment receives the private key and the separately scoped GitHub App writer. Never put the publication private key in a repository-wide Secret: `env: ${{ secrets }}` is used by the source-owned task executor, and a repository Secret would become reachable there.
+执行 Job 只能取得 RSA 公钥；受 `admin-ops` Environment 保护的发布 Job 才能取得私钥以及单仓库 GitHub App 写入令牌。
 
-## 1. Create keys locally, outside every Git repository
+**严禁将 `AW_PUBLICATION_PRIVATE_KEY` 配置为普通 Repository Secret 或 Organization Secret。** 现有下游任务执行步骤使用 `env: ${{ secrets }}`，这两类 Secret 可能进入运行第三方代码的 Job；应只将私钥放在受保护的 `admin-ops` Environment Secret 中。
 
-Use Node.js 24 or later. Do not generate private keys in GitHub Actions logs, a web service, a chat, or the Action Worker checkout.
+## 一、本机生成密钥
 
-On Windows PowerShell:
+使用 Node.js 24 或更新版本，在所有 Git 仓库目录之外生成，不得通过网页、聊天、Actions 日志或线上服务生成私钥。
+
+Windows PowerShell：
 
 ```powershell
 $directory = Join-Path $env:USERPROFILE "AW-Keys\task-publication"
@@ -18,7 +20,7 @@ node scripts/prepare-publication-keys.ts verify `
   (Join-Path $directory "publication-private.pkcs8.pem")
 ```
 
-On Linux/macOS:
+Linux/macOS：
 
 ```bash
 umask 077
@@ -29,29 +31,32 @@ node scripts/prepare-publication-keys.ts verify \
   "$keydir/publication-private.pkcs8.pem"
 ```
 
-The generator creates a **3072-bit RSA** pair, uses exclusive file creation (will not overwrite an existing key), prevents generation inside the checkout, and never prints the key contents. On POSIX the files are created with mode `0600`. On Windows, also inspect and restrict NTFS ACLs for the key directory to the current user.
+脚本生成 **RSA-3072** 密钥对，以独占创建模式写文件，禁止覆盖已有密钥，拒绝把密钥生成到当前源码仓库中，不会打印密钥内容。POSIX 文件权限设置为 `0600`；Windows 还应检查 NTFS ACL，限制密钥目录仅当前账户可读。
 
-## 2. Configure GitHub
+## 二、配置 GitHub
 
-In `fongap-labs/action-worker`:
+目标仓库：`fongap-labs/action-worker`。
 
-1. **Settings → Secrets and variables → Actions → Variables:** create repository variable `AW_PUBLICATION_PUBLIC_KEY`. Set its value to the complete single-line contents of `publication-public.spki.base64`.
-2. **Settings → Environments → admin-ops → Environment secrets:** create `AW_PUBLICATION_PRIVATE_KEY`. Set its value to the full PEM text from `publication-private.pkcs8.pem`, including the BEGIN/END lines. Retain protected-environment approvals.
-3. Ensure the installed GitHub App can mint a **target-repository-only** `Contents: write` / `Pull requests: write` token, and an independent **control-repository-only** `Contents: write` dispatch token. Check installation repository scope, not just the App's declared permissions.
+1. 打开 **Settings → Secrets and variables → Actions → Variables**，新增 Repository Variable：`AW_PUBLICATION_PUBLIC_KEY`。内容为 `publication-public.spki.base64` 文件中的完整单行 Base64 字符串。
+2. 打开 **Settings → Environments → admin-ops → Environment secrets**，新增 `AW_PUBLICATION_PRIVATE_KEY`。内容为 `publication-private.pkcs8.pem` 的完整 PEM 文本，包含首尾标记行。保留 `admin-ops` 的审批与访问保护。
+3. 检查 GitHub App 已在目标仓库获得 `Contents: write`、`Pull requests: write`，在控制仓库获得 `Contents: write`，且安装范围确实包括这些仓库。仅在 App 配置页面勾选权限，并不代表安装端已经批准。
 
-**Never** configure `AW_PUBLICATION_PRIVATE_KEY` as an organization Secret or a normal repository Secret; it must only exist in the protected environment. Do not commit either file or paste its contents into issues, logs, PRs or support requests.
+**不要**把私钥文件提交至 Git、发布为 Artifact、粘贴到 PR/Issue、发送到聊天工具或写入运行日志。GitHub Secrets 无法通过普通读取 API 验证其值，可在本机用 `verify` 确认公私钥匹配，再用受保护的实际任务进行端到端验证。
 
-## 3. Validation before merging PR #1380
+## 三、合并 #1380 前验收
 
-1. Confirm the public key and private key have matching material locally using the `verify` command.
-2. Keep PR #1380 as a draft until all required CI checks succeed with the latest `main`.
-3. Run a controlled task that stages a small sample publication in an approved repository. Confirm the execution job can seal the payload and cannot obtain the private key or App credentials.
-4. Confirm the protected publication job can decrypt and revalidate the artifact, publishes a governed PR to exactly the authorized target, and passes its required `validate-merge` check.
-5. Run an unauthorized-target test and a wrong-key test. Both must fail closed without publication.
-6. Inspect the public Action Worker artifact and logs to confirm private source names, source content and secrets are not readable.
+1. 本机执行 `verify`，确认所生成公私钥匹配。
+2. 确认 #1380 已基于最新 `main` 通过全部必要 CI 检查。
+3. 选择已在仓库策略中授权的小型测试任务，让其生成少量产物。
+4. 确认执行 Job 只能使用公钥加密，不存在私钥或 App 写入令牌。
+5. 确认受保护发布 Job 可以解密并重新校验产物，目标仓库范围正确，创建的发布 PR 经 `validate-merge` 通过后才合并。
+6. 分别测试未经授权的目标仓库、错误私钥与被篡改的密文；三者均必须拒绝发布。
+7. 检查公开可见的 Action Worker 日志和 Artifact，确认私有源码、私有仓库标识以及凭据未以明文泄露。
 
-The `AW_PUBLICATION_PUBLIC_KEY` variable must be configured **before** enabling staged publication. Do not bypass failed setup or governance checks by restoring `AW_CONTROL_TOKEN` in the executor.
+未配置 `AW_PUBLICATION_PUBLIC_KEY` 时，带待发布产物的任务应明确失败；不能为了让任务通过而恢复执行环境中的 `AW_CONTROL_TOKEN`。
 
-## Rotation
+## 四、密钥轮换
 
-The draft workflow has a single active keypair, not a multi-key decrypt ring. Rotating either key independently breaks in-flight encrypted artifacts. Schedule both variable and protected Secret updates together when no task publication is running. Previously sealed artifacts may become undecryptable; re-run affected tasks. Delete local private copies only under an approved key custody and recovery policy.
+目前草稿方案只有一组活动密钥，**不支持多密钥同时解密**。仅在没有任务正在发布时成对更新 Repository Variable 与 Environment Secret。旧密钥生成的在途加密产物可能无法再解密，需要重新运行有关任务。
+
+私钥如已泄露，应立即轮换并接受在途发布任务失败，不得继续信任旧密钥。私钥本地备份的保存与销毁应遵循既定密钥托管规则。
