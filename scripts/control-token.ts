@@ -16,7 +16,7 @@
 
 import { CliError } from "./runtime-command.ts";
 
-export type TokenScope = "status" | "issue" | "dispatch" | "checkout" | "release" | "control";
+export type TokenScope = "status" | "issue" | "dispatch" | "checkout" | "release" | "branch" | "control";
 
 const scopeEnv: Record<TokenScope, string> = {
   status: "AW_STATUS_API_TOKEN",
@@ -24,6 +24,7 @@ const scopeEnv: Record<TokenScope, string> = {
   dispatch: "AW_DISPATCH_API_TOKEN",
   checkout: "AW_CHECKOUT_TOKEN",
   release: "AW_RELEASE_API_TOKEN",
+  branch: "AW_BRANCH_API_TOKEN",
   control: "AW_CONTROL_TOKEN",
 };
 
@@ -33,6 +34,7 @@ const scopePermissions: Record<TokenScope, string> = {
   dispatch: "a GitHub App token with Contents write on fongap-labs/action-worker",
   checkout: "Contents: Read on the private target repositories",
   release: "a scoped GitHub App token with Contents: Read on the release target",
+  branch: "a scoped GitHub App token with Contents: Write and Pull requests: Read on managed repositories",
   control: "the permissions required by the control-plane operation",
 };
 
