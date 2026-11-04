@@ -43,10 +43,30 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Resolve task source read scope
+        id: source_read_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ github.event.client_payload.repository || inputs.repository }}
+        run: node scripts/resolve-github-api-scope.ts task
+
+      - name: Mint task source read token
+        id: app_read
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.source_read_scope.outputs.owner }}
+          repositories: ${{ steps.source_read_scope.outputs.is_control_repository == 'true' && github.event.repository.name || format('{0},{1}', github.event.repository.name, steps.source_read_scope.outputs.repository_name) }}
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-issues: read
+
       - name: Resolve source request
         id: source
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           PAYLOAD_REPOSITORY: ${{ github.event.client_payload.repository || inputs.repository }}
           PAYLOAD_MODE: ${{ github.event.client_payload.mode || 'manual' }}
@@ -134,7 +154,7 @@ jobs:
       - name: Request central CI for the source
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
@@ -176,7 +196,7 @@ jobs:
       - name: Attest the source main write
         continue-on-error: true
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.audit_status_app.outputs.token }}
           AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           AW_ISSUE_API_TOKEN: ${{ steps.audit_issue_app.outputs.token }}
@@ -200,7 +220,7 @@ jobs:
         with:
           repository: ${{ steps.source.outputs.repository }}
           ref: ${{ steps.source.outputs.head_sha }}
-          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          token: ${{ steps.app_read.outputs.token }}
           path: target
           fetch-depth: 0
           persist-credentials: false
