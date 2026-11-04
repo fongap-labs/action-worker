@@ -86,6 +86,8 @@ jobs:
   execute:
     name: Execute task
     needs: validate
+    outputs:
+      publication_staged: ${{ steps.publication.outputs.staged }}
     runs-on: ubuntu-24.04
     timeout-minutes: 65
 
@@ -410,10 +412,103 @@ jobs:
           SOURCE_REPOSITORY: ${{ needs.validate.outputs.repository }}
         run: node scripts/validate-task-publication.ts
 
-      - name: Publish staged artifact
+      - name: Seal staged publication for isolated publisher
         if: steps.publication.outputs.staged == 'true'
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_PUBLICATION_PUBLIC_KEY: ${{ vars.AW_PUBLICATION_PUBLIC_KEY }}
+        run: |
+          node scripts/task-publication-envelope.ts seal \
+            "$RUNNER_TEMP/action-worker-publication" \
+            "$RUNNER_TEMP/task-publication/sealed.json"
+
+      - name: Upload encrypted task publication
+        if: steps.publication.outputs.staged == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: task-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/task-publication/sealed.json
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Governed task publication
+    needs: [validate, execute]
+    if: needs.execute.result == 'success' && needs.execute.outputs.publication_staged == 'true'
+    environment: admin-ops
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout trusted publisher
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Download encrypted task publication
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: task-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/task-publication
+
+      - name: Open encrypted publication on clean runner
+        env:
+          AW_PUBLICATION_PRIVATE_KEY: ${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}
+          TASK_SOURCE_REPOSITORY: ${{ needs.validate.outputs.repository }}
+          PROJECT: ${{ needs.validate.outputs.project }}
+          BOOTSTRAP_REF: ${{ needs.validate.outputs.bootstrap_ref }}
+        run: |
+          node scripts/task-publication-envelope.ts open \
+            "$RUNNER_TEMP/task-publication/sealed.json" \
+            "$RUNNER_TEMP/action-worker-publication"
+
+      - name: Revalidate staged publication
+        id: publication
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          SOURCE_REPOSITORY: ${{ needs.validate.outputs.repository }}
+          TASK_SOURCE_PRIVATE: ${{ needs.validate.outputs.is_private }}
+        run: node scripts/validate-task-publication.ts
+
+      - name: Resolve publication target App scope
+        id: target_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ steps.publication.outputs.target_repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint target publication App token
+        id: target_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.target_scope.outputs.owner }}
+          repositories: ${{ steps.target_scope.outputs.repository_name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Mint control publication intake token
+        id: control_dispatch_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Publish staged artifact
+        env:
+          GH_TOKEN: ${{ steps.target_app.outputs.token }}
+          AW_DISPATCH_API_TOKEN: ${{ steps.control_dispatch_app.outputs.token }}
+          TASK_SOURCE_PRIVATE: ${{ needs.validate.outputs.is_private }}
           TARGET_REPOSITORY: ${{ steps.publication.outputs.target_repository }}
           DEST_DIR: ${{ steps.publication.outputs.dest_dir }}
           DELETE_STALE: ${{ steps.publication.outputs.delete_stale }}
@@ -471,19 +566,26 @@ jobs:
               exit 0
           fi
 
+          if [ "$TASK_SOURCE_PRIVATE" != "false" ]; then
+              COMMIT_MESSAGE="chore: publish task outputs"
+          fi
           git -C "$WORK_DIR/target" commit -m "$COMMIT_MESSAGE"
           git -C "$WORK_DIR/target" push --force origin "HEAD:refs/heads/$branch"
 
           pr_number="$(gh pr list --repo "$TARGET_REPOSITORY" --head "$branch" --state open --json number --jq '.[0].number // empty')"
           if [ -z "$pr_number" ]; then
               pr_title="chore: ${COMMIT_MESSAGE}"
-              pr_body="Automated task publication from ${SOURCE_REPOSITORY} project ${PROJECT}. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              if [ "$TASK_SOURCE_PRIVATE" = "false" ]; then
+                  pr_body="Automated task publication from ${SOURCE_REPOSITORY} project ${PROJECT}. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              else
+                  pr_body="Automated task publication from an approved private source. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              fi
               pr_number="$(basename "$(gh pr create --repo "$TARGET_REPOSITORY" --base main --head "$branch" --title "$pr_title" --body "$pr_body")")"
           fi
           echo "Publication pull request: ${pr_number}"
 
           # Start the governance of the publication pull request now instead of on the next heartbeat.
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/dispatches" -f event_type=run-intake >/dev/null 2>&1 || true
+          GH_TOKEN="$AW_DISPATCH_API_TOKEN" gh api --method POST "repos/${GITHUB_REPOSITORY}/dispatches" -f event_type=run-intake >/dev/null 2>&1 || true
 
           deadline=$((SECONDS + 1800))
           while [ "$SECONDS" -lt "$deadline" ]; do
