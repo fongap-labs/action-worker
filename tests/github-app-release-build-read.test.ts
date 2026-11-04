@@ -31,12 +31,30 @@ test("Release Build uses GitHub App for preflight and a dedicated read-only chec
     const step = prepare.find((candidate) => candidate.name === name);
     assert.equal(step?.env?.AW_CONTROL_TOKEN, "${{ steps.app_read.outputs.token }}", name);
   }
-  for (const [job, name] of [
-    ["build", "Checkout source"],
-    ["package", "Checkout release source"],
-  ] as const) {
-    const step = workflow.jobs[job]?.steps.find((candidate) => candidate.name === name);
-    assert.equal(step?.with?.token, "${{ secrets.AW_CHECKOUT_TOKEN }}", job);
-    assert.equal(step?.with?.["persist-credentials"], false);
-  }
+  const build = workflow.jobs.build?.steps.find((step) => step.name === "Checkout source");
+  assert.equal(build?.with?.token, "${{ secrets.AW_CHECKOUT_TOKEN }}");
+  assert.equal(build?.with?.["persist-credentials"], false);
+  assert.equal(
+    workflow.jobs.build?.steps.some(
+      (step) => step.name === "Mint release package source read token"
+    ),
+    false
+  );
+
+  const pkg = workflow.jobs.package?.steps ?? [];
+  const scope = pkg.find((step) => step.name === "Resolve release package source scope");
+  const mint = pkg.find((step) => step.name === "Mint release package source read token");
+  const checkout = pkg.find((step) => step.name === "Checkout release source");
+  assert.equal(scope?.id, "package_scope");
+  assert.equal(scope?.env?.TARGET_REPOSITORY, "${{ needs.prepare.outputs.source_repository }}");
+  assert.equal(mint?.id, "package_read_app");
+  assert.equal(mint?.with?.repositories, "${{ steps.package_scope.outputs.repository_name }}");
+  assert.deepEqual(
+    Object.entries(mint?.with ?? {}).filter(([key]) => key.startsWith("permission-")),
+    [["permission-contents", "read"]]
+  );
+  assert.equal(checkout?.with?.token, "${{ steps.package_read_app.outputs.token }}");
+  assert.equal(checkout?.with?.["persist-credentials"], false);
+  const pkgText = source.split("\n  package:\n")[1] ?? "";
+  assert.doesNotMatch(pkgText, /secrets\.AW_CHECKOUT_TOKEN/);
 });
