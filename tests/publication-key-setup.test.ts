@@ -19,7 +19,7 @@ test("publication setup generates compatible RSA-3072 keys outside the checkout"
     const privateText = await readFile(privatePath, "utf8");
     assert.match(publicText.trim(), /^[A-Za-z0-9+/]+=*$/);
     assert.match(privateText, new RegExp(["^-----BEGIN", "PRIVATE KEY-----"].join(" ")));
-    assert.doesNotMatch(publicText, /BEGIN PRIVATE KEY/);
+    assert.equal(publicText.startsWith("-----BEGIN"), false);
     validatePublicationKeyPair(publicText, privateText);
     await verifyPublicationKeys(publicPath, privatePath);
     if (process.platform !== "win32") {
