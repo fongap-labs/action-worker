@@ -1,1 +1,1 @@
-- 改进: Action Worker 的 PR 治理、中央 CI 和部署预检按访问范围统一分流 GitHub 凭据：本仓库读取使用 GITHUB_TOKEN，经过仓库策略批准的同组织跨仓库读取使用按目标仓库和操作精简授权的短期 GitHub App Token，不再按 MCP Hub 等具体仓库硬编码，也不回退个人 PAT；CI Evidence 签名、写入及部署安全边界保持不变。
+- 改进: PR 基本信息读取、中央 CI 准备阶段及部署预检只读链路统一按访问对象分流认证：本仓库使用 GITHUB_TOKEN，同组织、策略允许且已安装 GitHub App 的其他仓库使用最小权限短期 App Token；未安装或授权不足直接报错，不退回个人 PAT。原有 CI Evidence 签名、状态发布、审计写入及部署审批仍使用既有独立路径，本轮不执行写入令牌迁移。
