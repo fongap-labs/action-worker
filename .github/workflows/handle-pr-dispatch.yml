@@ -8,6 +8,7 @@ permissions:
   contents: read
   actions: read
   pull-requests: read
+  statuses: read
 
 concurrency:
   group: pr-governance-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}
@@ -64,11 +65,11 @@ jobs:
           permission-contents: read
           permission-pull-requests: read
           permission-actions: read
+          permission-statuses: read
 
       - name: Validate control credential
         env:
           GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
