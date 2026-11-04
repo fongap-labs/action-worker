@@ -71,8 +71,9 @@ test("deploy preflight routes trusted reads by repository without exposing App s
     step("Validate deploy source").env?.AW_STATUS_TOKEN,
     "${{ secrets.AW_STATUS_TOKEN }}"
   );
+  assert.match(text, /for central_name in [^\\n]*AW_APP_PRIVATE_KEY/);
   assert.doesNotMatch(
     JSON.stringify(workflow.jobs.deploy),
-    /AW_APP_PRIVATE_KEY|AW_APP_CLIENT_ID|steps\.app_read\.outputs\.token/
+    /secrets\\.AW_APP_PRIVATE_KEY|secrets\\.AW_APP_CLIENT_ID|steps\\.app_read\\.outputs\\.token/
   );
 });
