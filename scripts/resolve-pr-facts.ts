@@ -27,7 +27,7 @@ export function resolveCurrentBaseSha(base: unknown, branch: unknown, repository
     throw new CliError("::error::PR base repository does not match the request repository.", 65);
   }
   const baseRef = getJsonString(base, "ref");
-  if (!baseRef || /[\\r\\n]/.test(baseRef)) {
+  if (!baseRef || /[\r\n]/.test(baseRef)) {
     throw new CliError("::error::PR base branch is invalid.", 65);
   }
   const commit = isJsonRecord(branch) && isJsonRecord(branch.commit) ? branch.commit : {};
@@ -51,7 +51,7 @@ export async function fetchPullFacts(
   const base = isJsonRecord(pull.base) ? pull.base : {};
   const head = isJsonRecord(pull.head) ? pull.head : {};
   const baseRef = getJsonString(base, "ref");
-  if (!baseRef || /[\\r\\n]/.test(baseRef)) {
+  if (!baseRef || /[\r\n]/.test(baseRef)) {
     throw new CliError("::error::PR base branch is invalid.", 65);
   }
   const branch = await getGithubJson(
