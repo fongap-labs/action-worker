@@ -822,7 +822,9 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   const settings = await text(".github/workflows/apply-repository-settings.yml");
   // The daily run corrects settings changed by hand, so drift never needs a manual run.
   requireText(settings, [
-    "secrets.AW_ADMIN_TOKEN",
+    "permission-administration: write",
+    "permission-variables: write",
+    "permission-secrets: write",
     "schedule:",
     "group: apply-repository-settings",
     "policies/rulesets.json",
@@ -830,6 +832,7 @@ test("release, source, deploy, merge, and repository settings contracts remain i
     "node scripts/apply-repository-settings.ts",
     "node scripts/repository-policy.ts list pr",
   ]);
+  assert.doesNotMatch(settings, /secrets\.AW_ADMIN_TOKEN/);
 });
 
 test("closed PR cancellation validates policy and state before owning live concurrency groups", async () => {
