@@ -9,7 +9,7 @@ type Step = {
   if?: string;
   uses?: string;
   env?: Record<string, string>;
-  with?: Record<string, string>;
+  with?: Record<string, string | boolean>;
 };
 
 test("Central CI security scan gets a target-only App read token, not private checkout PAT", async () => {
@@ -42,7 +42,7 @@ test("Central CI security scan gets a target-only App read token, not private ch
     find("Checkout private target source").with?.token,
     "${{ steps.security_read_app.outputs.token }}"
   );
-  assert.equal(find("Checkout private target source").with?.["persist-credentials"], "false");
+  assert.equal(find("Checkout private target source").with?.["persist-credentials"], false);
   const sec = source.split("\n  security:\n")[1]?.split("\n  windows:\n")[0] ?? "";
   assert.doesNotMatch(sec, /secrets\.AW_CHECKOUT_TOKEN|secrets\.AW_CONTROL_TOKEN/);
   assert.equal(
