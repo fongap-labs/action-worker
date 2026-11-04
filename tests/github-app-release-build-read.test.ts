@@ -47,10 +47,7 @@ test("Release Build uses GitHub App for preflight and a dedicated read-only chec
     (step) => step.name === "Require dedicated private release checkout credential"
   );
   assert.equal(requirePrivate?.if, "needs.prepare.outputs.is_private == 'true'");
-  assert.equal(
-    requirePrivate?.env?.AW_CHECKOUT_TOKEN,
-    "${{ secrets.AW_CHECKOUT_TOKEN }}"
-  );
+  assert.equal(requirePrivate?.env?.AW_CHECKOUT_TOKEN, "${{ secrets.AW_CHECKOUT_TOKEN }}");
   assert.equal(buildPrivate?.if, "needs.prepare.outputs.is_private == 'true'");
   assert.equal(buildPublic?.if, "needs.prepare.outputs.is_private == 'false'");
   assert.equal(buildPrivate?.with?.token, "${{ secrets.AW_CHECKOUT_TOKEN }}");
