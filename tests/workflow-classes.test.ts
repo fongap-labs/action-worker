@@ -27,6 +27,7 @@ const classes = {
   // described inputs, and automation starts the same work through repository_dispatch.
   entry: [
     "deploy-source-script.yml",
+    "recover-status-signing.yml",
     "release-app.yml",
     "release-npm.yml",
     "task-source-dispatch.yml",
