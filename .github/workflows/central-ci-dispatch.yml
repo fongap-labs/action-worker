@@ -21,7 +21,7 @@ jobs:
     outputs:
       repository: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
       pr_number: ${{ steps.payload.outputs.pr_number || steps.ref_facts.outputs.pr_number }}
-      base_sha: ${{ steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}
+      base_sha: ${{ steps.merge_ref.outputs.base_sha || steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}
       head_sha: ${{ steps.facts.outputs.head_sha || steps.ref_facts.outputs.head_sha }}
       merge_sha: ${{ steps.merge_ref.outputs.merge_sha || '' }}
       control_ref: ${{ steps.ci_control.outputs.control_ref || steps.ref_facts.outputs.control_ref || 'main' }}
@@ -176,8 +176,16 @@ jobs:
             echo "::error::GitHub did not provide a valid immutable PR merge SHA; retry after the merge ref is prepared." >&2
             exit 75
           }
+          merge_commit="$(gh api "repos/$REPOSITORY/git/commits/$merge_sha")"
+          merge_base_sha="$(jq -r '.parents[0].sha // empty' <<< "$merge_commit")"
+          merge_head_sha="$(jq -r '.parents[1].sha // empty' <<< "$merge_commit")"
+          if [[ "$merge_base_sha" != "$EXPECTED_BASE_SHA" || "$merge_head_sha" != "$EXPECTED_HEAD_SHA" ]]; then
+            echo "::error::GitHub PR merge snapshot does not match the current base/head; retry after the merge ref is refreshed. expected base=$EXPECTED_BASE_SHA head=$EXPECTED_HEAD_SHA; actual base=$merge_base_sha head=$merge_head_sha" >&2
+            exit 75
+          fi
+          echo "base_sha=$merge_base_sha" >> "$GITHUB_OUTPUT"
           echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
-          echo "Pinned PR merge snapshot: $merge_sha"
+          echo "Pinned PR merge snapshot: $merge_sha (base: $merge_base_sha, head: $merge_head_sha)"
 
       - name: Validate requested revision
         if: github.event.action == 'run-central-ci'

@@ -16,6 +16,29 @@ export function pullAllowsFacts(pull: unknown, isMergedAllowed: boolean): boolea
   return pull.state === "open" || (isMergedAllowed && pull.merged === true);
 }
 
+/**
+ * The pull request payload's base.sha can lag behind the actual target branch tip.
+ * Resolve the base against the branch endpoint so CI pins the same base GitHub uses
+ * to construct refs/pull/<number>/merge.
+ */
+export function resolveCurrentBaseSha(base: unknown, branch: unknown, repository: string): string {
+  const baseRepo =
+    isJsonRecord(base) && isJsonRecord(base.repo) ? getJsonString(base.repo, "full_name") : "";
+  if (baseRepo !== repository) {
+    throw new CliError("::error::PR base repository does not match the request repository.", 65);
+  }
+  const baseRef = getJsonString(base, "ref");
+  if (!baseRef || /[\r\n]/.test(baseRef)) {
+    throw new CliError("::error::PR base branch is invalid.", 65);
+  }
+  const commit = isJsonRecord(branch) && isJsonRecord(branch.commit) ? branch.commit : {};
+  const baseSha = getJsonString(commit, "sha");
+  if (!/^[0-9a-f]{40}$/.test(baseSha)) {
+    throw new CliError("::error::Target base branch HEAD SHA is invalid.", 65);
+  }
+  return baseSha;
+}
+
 export async function fetchPullFacts(
   repository: string,
   prNumber: string,
@@ -28,14 +51,18 @@ export async function fetchPullFacts(
   }
   const base = isJsonRecord(pull.base) ? pull.base : {};
   const head = isJsonRecord(pull.head) ? pull.head : {};
-  const baseRepo = isJsonRecord(base.repo) ? getJsonString(base.repo, "full_name") : "";
-  if (baseRepo !== repository) {
-    throw new CliError("::error::PR base repository does not match the request repository.", 65);
+  const baseRef = getJsonString(base, "ref");
+  if (!baseRef || /[\r\n]/.test(baseRef)) {
+    throw new CliError("::error::PR base branch is invalid.", 65);
   }
-  const baseSha = getJsonString(base, "sha");
+  const branch = await getGithubJson(
+    `repos/${repository}/branches/${encodeURIComponent(baseRef)}`,
+    token
+  );
+  const baseSha = resolveCurrentBaseSha(base, branch, repository);
   const headSha = getJsonString(head, "sha");
-  if (!/^[0-9a-f]{40}$/.test(baseSha) || !/^[0-9a-f]{40}$/.test(headSha)) {
-    throw new CliError("::error::PR base or head SHA is invalid.", 65);
+  if (!/^[0-9a-f]{40}$/.test(headSha)) {
+    throw new CliError("::error::PR head SHA is invalid.", 65);
   }
   return {
     baseSha,
