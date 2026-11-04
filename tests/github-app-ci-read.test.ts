@@ -26,10 +26,7 @@ test("Central CI reads use GITHUB_TOKEN for the control repository and a scoped 
   };
   const scope = step("Resolve central CI API scope");
   assert.equal(scope.id, "api_scope");
-  assert.equal(
-    scope.env?.TARGET_REPOSITORY,
-    "${{ github.event.client_payload.repository }}"
-  );
+  assert.equal(scope.env?.TARGET_REPOSITORY, "${{ github.event.client_payload.repository }}");
   const mint = step("Mint cross-repository central CI read token");
   assert.equal(mint.id, "app_read");
   assert.equal(mint.if, "steps.api_scope.outputs.is_control_repository == 'false'");
