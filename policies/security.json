@@ -88,7 +88,7 @@
   "approved_workflows": [
     {
       "path": ".github/workflows/notify-action-worker.yml",
-      "sha256": "449b264bb08d6bab6421918aeab2769ff492ca464f1607bff575f9ba80174784"
+      "sha256": "ed15cae6d2f8637a24b2ebc583d09e629a5862f781d56b9b405ce962d5d1bc8f"
     }
   ]
 }

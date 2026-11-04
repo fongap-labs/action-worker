@@ -202,6 +202,15 @@ gh variable set AW_DISPATCH_RUNS_ON --repo fongap-labs/<repo>   --body "$(node s
 - 该文件受安全门禁中的 `approved_workflows` 保护：其路径与内容哈希必须与已批准模板逐字节一致；任何修改都会使其重新落入 `pull-request-target` 规则。
 - Dependabot 无法读取 Actions 密钥，因此该触发器会跳过它的 PR，由中央 Intake 处理。
 
+### 11.1 分发失败诊断
+
+通知桥接在 `repository_dispatch` 请求返回非 204 响应时仍保持失败关闭，不使用其他 Token 自动回退，也不打印 Secret。
+
+- 输出 HTTP 状态及有限错误类别：`token-access-denied`、`bad-credentials`、`organization-authorization`、`rate-limit`、`secondary-rate-limit` 或 `unknown`。
+- 仅输出经过数字格式校验的 `x-ratelimit-remaining`、`x-ratelimit-limit`、`x-ratelimit-reset`、`retry-after` 响应头；不输出其他头或 GitHub 原始错误正文。
+- `403` 本身不能证明 Token 没有配置。若出现速率限制，应按 GitHub 返回的时间窗口处理；若为 `token-access-denied`，需检查目标 `action-worker` 的授权、Token 有效性及组织审批。
+- 分发桥接模板受 SHA-256 白名单约束。先更新中央模板及 `policies/security.json` 并通过治理；再以模板完整内容更新各业务仓库的 `.github/workflows/notify-action-worker.yml`。不得临时绕过安全白名单。
+
 ## 12. Release 构建脚本与可移植产物
 
 发布清单可指定 PowerShell `*.ps1`（保留 Windows 原生程序的现有方式）或 Node `*.mjs`（推荐纯 JavaScript/TypeScript 插件）。后者由 Action Worker 在所选 Runner 中通过 Node 执行，参数为 `--target`、`--version`、`--output-dir`。
