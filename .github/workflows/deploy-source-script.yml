@@ -164,7 +164,7 @@ jobs:
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ steps.api_scope.outputs.owner }}
           repositories: |
-            action-worker
+            ${{ github.event.repository.name }}
             ${{ steps.api_scope.outputs.repository_name }}
           permission-contents: read
           permission-actions: read
