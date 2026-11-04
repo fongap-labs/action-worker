@@ -7,7 +7,7 @@ type Job = {
   if?: string;
   needs?: string | string[];
   environment?: string;
-  steps?: Array<{ name?: string; env?: Record<string, string> }>;
+  steps?: Array<{ name?: string; env?: Record<string, string>; "continue-on-error"?: boolean }>;
 };
 
 test("manual signing recovery selects only protected signing job by default", async () => {
@@ -46,5 +46,5 @@ test("manual signing recovery uses existing legacy verifier without disabling si
   assert.equal(keys?.env?.AW_STATUS_TOKEN, "${{ secrets.AW_STATUS_TOKEN }}");
   assert.equal(keys?.env?.AW_STATUS_SIGNING_KEYS, "${{ secrets.AW_STATUS_SIGNING_KEYS }}");
   assert.equal(keys?.env?.GH_TOKEN, "${{ secrets.AW_ADMIN_TOKEN }}");
-  assert.doesNotMatch(source, /continue-on-error:\s*true[\s\S]*?Bootstrap status signing keyring/);
+  assert.equal(keys?.["continue-on-error"], undefined);
 });
