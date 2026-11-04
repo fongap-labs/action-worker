@@ -31,6 +31,8 @@ const classes = {
     "release-npm.yml",
     "task-source-dispatch.yml",
   ],
+  // Read-only diagnostics are operator-started and never trigger deployments or governance.
+  diagnostic: ["verify-github-app.yml"],
   // The one reconciler. It sweeps every managed repository and dispatches the work it finds.
   intake: ["intake.yml"],
   // Started by an event another workflow or a managed repository sends; never by a person or a
@@ -65,6 +67,7 @@ type WorkflowClass = keyof typeof classes;
 // The events each class may be started by.
 const allowedTriggers: Record<WorkflowClass, readonly string[]> = {
   entry: ["repository_dispatch", "workflow_dispatch"],
+  diagnostic: ["workflow_dispatch"],
   intake: ["push", "repository_dispatch", "schedule"],
   handler: ["repository_dispatch"],
   maintenance: ["pull_request", "push", "schedule", "workflow_run"],
@@ -116,10 +119,14 @@ test("each workflow is started only by the events its class allows", async () =>
   }
 });
 
-test("only entry workflows show a Run workflow button, and each one explains its inputs", async () => {
+test("only entry and diagnostic workflows show a Run workflow button", async () => {
   for (const { file, workflow } of await workflows()) {
     const kind = classOf(file);
     const triggers = workflow.on ?? {};
+    if (kind === "diagnostic") {
+      assert.deepEqual(Object.keys(triggers), ["workflow_dispatch"], `${file} is manual-only`);
+      continue;
+    }
     if (kind !== "entry") {
       assert.equal("workflow_dispatch" in triggers, false, `${file} must not be started by hand`);
       continue;
