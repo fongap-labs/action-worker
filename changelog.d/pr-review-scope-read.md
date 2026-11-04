@@ -1,0 +1,1 @@
+- 修复: PR AI Review 的准备检查及最终目标复核改用按仓库授权的短期 GitHub App 只读令牌，本仓库操作使用 GITHUB_TOKEN；提交状态读取不再要求个人 AW_CONTROL_TOKEN 具备 Commit Statuses Read，AW_STATUS_TOKEN 继续仅用于证据签名验证，审批与合并门禁不变。

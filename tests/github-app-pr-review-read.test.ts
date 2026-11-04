@@ -1,0 +1,85 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { test } from "node:test";
+import { parse } from "yaml";
+
+type Step = {
+  name?: string;
+  id?: string;
+  if?: string;
+  uses?: string;
+  with?: Record<string, string>;
+  env?: Record<string, string>;
+};
+
+test("PR AI Review preflight reads via a policy-scoped token, not a personal PAT", async () => {
+  const workflow = parse(await readFile(".github/workflows/handle-pr-review.yml", "utf8")) as {
+    permissions: Record<string, string>;
+    jobs: { prepare: { steps: Step[] }; review: { steps: Step[] } };
+  };
+  const prepare = (name: string) => {
+    const step = workflow.jobs.prepare.steps.find((item) => item.name === name);
+    assert.ok(step, name);
+    return step;
+  };
+
+  assert.equal(workflow.permissions.statuses, "read");
+  const scope = prepare("Resolve PR review API scope");
+  assert.equal(scope.id, "api_scope");
+  assert.equal(scope.env?.TARGET_REPOSITORY, "${{ steps.payload.outputs.repository }}");
+  const mint = prepare("Mint cross-repository PR review read token");
+  assert.equal(mint.if, "steps.api_scope.outputs.is_control_repository == 'false'");
+  assert.equal(mint.with?.repositories, "${{ steps.api_scope.outputs.repository_name }}");
+  assert.deepEqual(
+    Object.entries(mint.with ?? {})
+      .filter(([key]) => key.startsWith("permission-"))
+      .map(([key, value]) => [key, value]),
+    [
+      ["permission-contents", "read"],
+      ["permission-actions", "read"],
+      ["permission-pull-requests", "read"],
+      ["permission-statuses", "read"],
+    ]
+  );
+  const selected =
+    "${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}";
+  for (const name of [
+    "Validate control credential",
+    "Fetch PR facts",
+    "Confirm the gate passed for the requested head",
+  ]) {
+    assert.equal(prepare(name).env?.GH_TOKEN, selected);
+  }
+  assert.equal(prepare("Validate control credential").env?.AW_STATUS_TOKEN, undefined);
+  assert.equal(
+    prepare("Confirm the gate passed for the requested head").env?.AW_STATUS_TOKEN,
+    "${{ secrets.AW_STATUS_TOKEN }}"
+  );
+});
+
+test("final review re-check mints a fresh read token after long-running AI work", async () => {
+  const workflow = parse(await readFile(".github/workflows/handle-pr-review.yml", "utf8")) as {
+    jobs: { review: { steps: Step[] } };
+  };
+  const steps = workflow.jobs.review.steps;
+  const scope = steps.find((step) => step.name === "Resolve final PR review API scope");
+  assert.equal(scope?.id, "review_scope");
+  const mint = steps.find((step) => step.name === "Mint final PR review read token");
+  assert.equal(mint?.id, "review_app");
+  assert.equal(mint?.with?.["permission-statuses"], "read");
+  assert.equal(mint?.with?.["permission-pull-requests"], "read");
+  const recheck = steps.find((step) => step.name === "Recheck review target");
+  assert.equal(
+    recheck?.env?.GH_TOKEN,
+    "${{ steps.review_scope.outputs.is_control_repository == 'true' && github.token || steps.review_app.outputs.token }}"
+  );
+  assert.equal(recheck?.env?.AW_STATUS_TOKEN, "${{ secrets.AW_STATUS_TOKEN }}");
+  assert.ok(steps.indexOf(mint!) < steps.indexOf(recheck!));
+
+  const script = await readFile("scripts/check-review-target.ts", "utf8");
+  assert.match(
+    script,
+    /getGithubJson\(`repos\/\$\{repository\}\/commits\/\$\{headSha\}\/status`, token\)/
+  );
+  assert.match(script, /hasValidStatusAttestation/);
+});
