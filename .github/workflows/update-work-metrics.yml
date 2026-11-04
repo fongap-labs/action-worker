@@ -35,9 +35,20 @@ jobs:
         with:
           node-version: 24
 
+      - name: Mint metrics maintenance token
+        id: control_write_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: read
+
       - name: Sweep stale metrics branches
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.control_write_app.outputs.token }}
           BRANCH: metrics/${{ github.run_id }}
         run: node scripts/manage-work-metrics.ts sweep
 
@@ -66,10 +77,33 @@ jobs:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/repository-policy.ts list pr
 
+      - name: Mint metrics multi-repository read token
+        id: metrics_read_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ format('{0},{1}', github.event.repository.name, steps.repositories.outputs.repositories_csv) }}
+          permission-actions: read
+          permission-contents: read
+
+      - name: Mint control metrics write token
+        id: control_write_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-actions: read
+          permission-contents: write
+          permission-pull-requests: write
+
       - name: Aggregate work metrics
         id: metrics
         env:
-          METRICS_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          METRICS_TOKEN: ${{ steps.metrics_read_app.outputs.token }}
           METRICS_REPOSITORIES_JSON: ${{ steps.repositories.outputs.repositories }}
         run: node scripts/update-work-metrics.ts README.md
 
@@ -82,14 +116,14 @@ jobs:
         id: branch
         env:
           BRANCH: metrics/${{ github.run_id }}
-          GIT_PUSH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GIT_PUSH_TOKEN: ${{ steps.control_write_app.outputs.token }}
         run: node scripts/manage-work-metrics.ts branch
 
       - name: Create auto-update PR
         if: steps.changes.outputs.changed == 'true'
         id: pr
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.control_write_app.outputs.token }}
           BRANCH: ${{ steps.branch.outputs.name }}
           DISPATCH: ${{ steps.metrics.outputs.dispatch }}
           PR_GOVERNANCE: ${{ steps.metrics.outputs.pr_governance }}
@@ -110,7 +144,7 @@ jobs:
       - name: Merge update
         if: steps.changes.outputs.changed == 'true'
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.control_write_app.outputs.token }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           BRANCH: ${{ steps.branch.outputs.name }}
         run: node scripts/manage-work-metrics.ts merge
@@ -118,7 +152,7 @@ jobs:
       - name: Cleanup failed metrics update
         if: ${{ failure() && steps.changes.outputs.changed == 'true' }}
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.control_write_app.outputs.token }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
           BRANCH: metrics/${{ github.run_id }}
         run: node scripts/manage-work-metrics.ts cleanup
