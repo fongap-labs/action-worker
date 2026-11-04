@@ -141,7 +141,8 @@ test("the CI dispatch hands the sandbox only the read-only checkout token", asyn
     assert.deepEqual(secretNames(job.secrets), ["AW_CHECKOUT_TOKEN"], name);
   }
   const checkout = dispatch.jobs.security?.steps?.find((step) => step.with?.path === "target");
-  assert.deepEqual(secretNames(checkout), ["AW_CHECKOUT_TOKEN"]);
+  assert.deepEqual(secretNames(checkout), []);
+  assert.equal(checkout?.with?.token, "${{ steps.security_read_app.outputs.token }}");
 });
 
 test("dependency repair computes without any central write credential", async () => {
