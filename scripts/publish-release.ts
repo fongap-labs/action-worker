@@ -347,9 +347,14 @@ async function main(): Promise<void> {
   await requireCommand("unzip", ["-v"]);
 
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
+  const releaseWriteToken = process.env.AW_RELEASE_WRITE_API_TOKEN ?? "";
+  const approvedTarget = process.env.AW_RELEASE_TARGET_REPOSITORY ?? "";
   const statusToken = requireStatusToken();
-  if (!controlToken) {
-    throw new CliError("AW_CONTROL_TOKEN is required.", 77);
+  if (!controlToken || !releaseWriteToken || !approvedTarget) {
+    throw new CliError(
+      "Read, target-only App write and approved target credentials are required for release publication; no PAT fallback.",
+      77
+    );
   }
 
   await validateRequest(requestPath);
@@ -530,6 +535,12 @@ async function main(): Promise<void> {
     }
 
     targetRepository = manifest.target_repository;
+    if (targetRepository !== approvedTarget) {
+      throw new CliError(
+        "::error::Release manifest target differs from the previously authorized App token scope.",
+        77
+      );
+    }
     tag = buildTag(manifest.release_key, manifest.version);
     const name = buildReleaseTitle(manifest.release_name, manifest.version);
     const isPrerelease = manifest.prerelease ?? false;
@@ -613,7 +624,7 @@ async function main(): Promise<void> {
           "-F",
           "draft=true",
         ],
-        controlToken
+        releaseWriteToken
       )
     ) as unknown;
     releaseId = String(getJsonNumber(releaseJson, "id"));
@@ -625,7 +636,7 @@ async function main(): Promise<void> {
     ).map((file) => join(artifactDir, file));
     await runGithubCli(
       ["release", "upload", tag, ...uploadFiles, "--repo", targetRepository],
-      controlToken
+      releaseWriteToken
     );
 
     const expectedReleaseNames = manifest.assets
@@ -633,7 +644,7 @@ async function main(): Promise<void> {
       .sort();
     const publishedJson = await getGithubJson(
       `repos/${targetRepository}/releases/${releaseId}/assets?per_page=100`,
-      controlToken
+      releaseWriteToken
     );
     const actualReleaseNames = getJsonArray(publishedJson)
       .map((asset) => getJsonString(asset, "name"))
@@ -649,7 +660,7 @@ async function main(): Promise<void> {
     await mkdir(verifyDir);
     await runGithubCli(
       ["release", "download", tag, "--repo", targetRepository, "--dir", verifyDir],
-      controlToken
+      releaseWriteToken
     );
     for (const asset of manifest.assets) {
       const downloaded = join(verifyDir, asset.name);
@@ -684,7 +695,7 @@ async function main(): Promise<void> {
         "-F",
         "draft=false",
       ],
-      controlToken
+      releaseWriteToken
     );
 
     isReleaseCreated = false;
@@ -713,7 +724,7 @@ async function main(): Promise<void> {
       `- URL: ${releaseUrl}`,
     ]);
   } catch (error) {
-    await rollbackRelease(targetRepository, tag, releaseId, isReleaseCreated, controlToken);
+    await rollbackRelease(targetRepository, tag, releaseId, isReleaseCreated, releaseWriteToken);
     throw error;
   } finally {
     await rm(workDir, { recursive: true, force: true });
