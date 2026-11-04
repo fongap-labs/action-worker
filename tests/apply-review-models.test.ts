@@ -77,7 +77,7 @@ test("GitHub variable permission failures identify the required admin token scop
         error instanceof CliError &&
         error.exitCode === 65 &&
         error.message.includes(`Cannot ${operation} GitHub Actions variable AW_AI_AGENT_CONFIG`) &&
-        error.message.includes("AW_ADMIN_TOKEN") &&
+        error.message.includes("GitHub App installation") &&
         error.message.includes("Variables: Read and write")
     );
   }
