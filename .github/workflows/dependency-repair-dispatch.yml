@@ -70,10 +70,21 @@ jobs:
           PR_STATUS_CONTEXT: Dependency Repair
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" pending "Action Worker dependency repair in progress" "$RUN_URL"
 
+      - name: Mint dependency repair read token
+        id: prepare_read_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.status_scope.outputs.owner }}
+          repositories: ${{ steps.status_scope.outputs.repository_name }}
+          permission-contents: read
+          permission-pull-requests: read
+
       - name: Resolve dependency repair
         id: resolve
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.prepare_read_app.outputs.token }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           DEPENDENCY_REPAIR_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
         run: node scripts/resolve-dependency-repair.ts policies/runner.json
@@ -82,7 +93,7 @@ jobs:
         id: visibility
         if: steps.resolve.outputs.enabled == 'true'
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.prepare_read_app.outputs.token }}
           REPOSITORY: ${{ steps.resolve.outputs.repository }}
         shell: bash
         run: |
@@ -193,16 +204,6 @@ jobs:
           name: dependency-repair-output
           path: ${{ runner.temp }}/dependency-repair
 
-      - name: Checkout target branch
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: ${{ needs.prepare.outputs.repository }}
-          ref: ${{ needs.prepare.outputs.head_sha }}
-          token: ${{ secrets.AW_CONTROL_TOKEN }}
-          path: target
-          fetch-depth: 1
-          persist-credentials: false
-
       - name: Checkout control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -214,9 +215,48 @@ jobs:
         with:
           node-version: 24
 
+      - name: Resolve dependency repair publish scope
+        id: publish_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+        run: node control/scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint dependency repair publish read token
+        id: publish_read_app
+        uses: ./control/.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.publish_scope.outputs.owner }}
+          repositories: ${{ steps.publish_scope.outputs.repository_name }}
+          permission-contents: read
+          permission-pull-requests: read
+
+      - name: Mint dependency repair publish push token
+        id: publish_push_app
+        uses: ./control/.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.publish_scope.outputs.owner }}
+          repositories: ${{ steps.publish_scope.outputs.repository_name }}
+          permission-contents: write
+
+      - name: Checkout target branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.prepare.outputs.repository }}
+          ref: ${{ needs.prepare.outputs.head_sha }}
+          token: ${{ steps.publish_read_app.outputs.token }}
+          path: target
+          fetch-depth: 1
+          persist-credentials: false
+
       - name: Revalidate and publish generated outputs
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.publish_read_app.outputs.token }}
+          AW_REPAIR_PUSH_API_TOKEN: ${{ steps.publish_push_app.outputs.token }}
           OUTPUT_PATHS_JSON: ${{ needs.prepare.outputs.output_paths_json }}
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
           TARGET_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
@@ -286,9 +326,19 @@ jobs:
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
 
+      - name: Mint dependency repair final PR read token
+        id: final_read_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.status_scope.outputs.owner }}
+          repositories: ${{ steps.status_scope.outputs.repository_name }}
+          permission-pull-requests: read
+
       - name: Publish repair status and continue intake
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.final_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
