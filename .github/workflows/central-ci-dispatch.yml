@@ -315,14 +315,33 @@ jobs:
         with:
           node-version: 24
 
+      - name: Resolve private security checkout scope
+        id: security_scope
+        if: needs.prepare.outputs.is_private == 'true'
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint private security checkout read token
+        id: security_read_app
+        if: needs.prepare.outputs.is_private == 'true'
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.security_scope.outputs.owner }}
+          repositories: ${{ steps.security_scope.outputs.repository_name }}
+          permission-contents: read
+
       - name: Require private checkout token
         if: needs.prepare.outputs.is_private == 'true'
         env:
-          CHECKOUT_TOKEN: ${{ secrets.AW_CHECKOUT_TOKEN }}
+          CHECKOUT_TOKEN: ${{ steps.security_read_app.outputs.token }}
         shell: bash
         run: |
           if [ -z "${CHECKOUT_TOKEN:-}" ]; then
-            echo "::error::Missing AW_CHECKOUT_TOKEN. Configure action-worker → Settings → Secrets and variables → Actions; grant Contents: Read to private target repositories." >&2
+            echo "::error::Missing scoped App read token for private security checkout. Verify App installation Contents: Read on target; no PAT fallback." >&2
             exit 77
           fi
 
@@ -332,7 +351,7 @@ jobs:
         with:
           repository: ${{ needs.prepare.outputs.repository }}
           ref: ${{ needs.prepare.outputs.head_sha }}
-          token: ${{ secrets.AW_CHECKOUT_TOKEN }}
+          token: ${{ steps.security_read_app.outputs.token }}
           path: target
           fetch-depth: 0
           persist-credentials: false
