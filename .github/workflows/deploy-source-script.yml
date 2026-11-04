@@ -86,7 +86,7 @@ jobs:
         id: manual_request
         if: github.event_name == 'workflow_dispatch'
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CHECKOUT_TOKEN: ${{ secrets.AW_CHECKOUT_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           SOURCE_SHA: ${{ inputs.source_sha }}
@@ -98,8 +98,22 @@ jobs:
           # Names the offending input and the allowed repositories instead of exiting silently.
           node scripts/repository-policy.ts validate "$SOURCE_REPOSITORY" deploy
           if [ -z "$SOURCE_SHA" ]; then
-            default_branch="$(gh api "repos/$SOURCE_REPOSITORY" --jq '.default_branch')"
-            SOURCE_SHA="$(gh api "repos/$SOURCE_REPOSITORY/commits/$default_branch" --jq '.sha')"
+            # Git transport avoids consuming the shared user PAT REST quota. The existing
+            # read-only checkout credential supports private source repositories too.
+            if [ -z "$AW_CHECKOUT_TOKEN" ]; then
+              echo "::error::Missing required AW_CHECKOUT_TOKEN to resolve source HEAD." >&2
+              exit 77
+            fi
+            auth="$(printf 'x-access-token:%s' "$AW_CHECKOUT_TOKEN" | base64 -w 0)"
+            SOURCE_SHA="$(
+              GIT_TERMINAL_PROMPT=0 \
+              GIT_CONFIG_COUNT=1 \
+              GIT_CONFIG_KEY_0=http.https://github.com/.extraheader \
+              GIT_CONFIG_VALUE_0="AUTHORIZATION: basic $auth" \
+              git ls-remote --exit-code "https://github.com/$SOURCE_REPOSITORY.git" HEAD |
+                awk '$2 == "HEAD" {print $1}'
+            )"
+            unset auth
           fi
           [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || {
             echo "::error::source_sha must be a full 40-character lowercase commit SHA, or empty to deploy the current default-branch HEAD: got '$SOURCE_SHA'." >&2
