@@ -19,3 +19,7 @@ Desktop.ini
 # Python bytecode from central test packs
 __pycache__/
 *.pyc
+
+# Locally-generated task publication encryption keys; never commit either key file.
+**/publication-private.pkcs8.pem
+**/publication-public.spki.base64
