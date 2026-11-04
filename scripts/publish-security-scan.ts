@@ -29,7 +29,7 @@ async function sleep(ms: number): Promise<void> {
 
 async function main(): Promise<void> {
   const [repository = "", sourceSha = "", ref = "", sarifRoot = ""] = process.argv.slice(2);
-  const token = process.env.AW_ADMIN_TOKEN ?? "";
+  const token = process.env.AW_SECURITY_EVENTS_API_TOKEN ?? "";
   if (
     !repositoryPattern.test(repository) ||
     !shaPattern.test(sourceSha) ||
@@ -38,7 +38,7 @@ async function main(): Promise<void> {
     !token
   ) {
     throw new CliError(
-      "Usage: publish-security-scan.ts <repository> <source-sha> <ref> <sarif-root> with AW_ADMIN_TOKEN.",
+      "Usage: publish-security-scan.ts <repository> <source-sha> <ref> <sarif-root> with AW_SECURITY_EVENTS_API_TOKEN; no PAT fallback.",
       64
     );
   }
