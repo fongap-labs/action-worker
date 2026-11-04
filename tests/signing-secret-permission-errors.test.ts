@@ -22,7 +22,10 @@ test("signing bootstrap reports repository Secrets write scope on permission den
 
 test("signing bootstrap does not misclassify API rate-limit failures as missing permissions", () => {
   const primary = new CliError("gh: API rate limit exceeded (HTTP 403)", 1);
-  assert.throws(() => reportSigningSecretAccessError(primary, "fongap-labs/action-worker"), (e) => e === primary);
+  assert.throws(
+    () => reportSigningSecretAccessError(primary, "fongap-labs/action-worker"),
+    (e) => e === primary
+  );
   const secondary = new CliError("gh: secondary rate limit (HTTP 403)", 1);
   assert.throws(
     () => reportSigningSecretAccessError(secondary, "fongap-labs/action-worker"),
