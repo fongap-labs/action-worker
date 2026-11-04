@@ -23,10 +23,7 @@ test("GitHub App diagnostic is manual-only, read-only and does not use personal 
 
   assert.deepEqual(Object.keys(workflow.on), ["workflow_dispatch"]);
   assert.deepEqual(workflow.permissions, { contents: "read" });
-  assert.doesNotMatch(
-    source,
-    /AW_(?:CONTROL|STATUS|ISSUE|DISPATCH|CHECKOUT|ADMIN)_TOKEN/
-  );
+  assert.doesNotMatch(source, /AW_(?:CONTROL|STATUS|ISSUE|DISPATCH|CHECKOUT|ADMIN)_TOKEN/);
 
   const steps = workflow.jobs.verify.steps;
   const mint = steps.find((step) => step.id === "app");
