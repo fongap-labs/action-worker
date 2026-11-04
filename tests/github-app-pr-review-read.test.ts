@@ -77,6 +77,9 @@ test("final review re-check mints a fresh read token after long-running AI work"
   assert.ok(steps.indexOf(mint!) < steps.indexOf(recheck!));
 
   const script = await readFile("scripts/check-review-target.ts", "utf8");
-  assert.match(script, /getGithubJson\(`repos\/\$\{repository\}\/commits\/\$\{headSha\}\/status`, token\)/);
+  assert.match(
+    script,
+    /getGithubJson\(`repos\/\$\{repository\}\/commits\/\$\{headSha\}\/status`, token\)/
+  );
   assert.match(script, /hasValidStatusAttestation/);
 });
