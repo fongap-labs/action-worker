@@ -31,7 +31,10 @@ test("PR API reads use GITHUB_TOKEN locally and a scoped App token across manage
   assert.equal(mint.id, "app_read");
   assert.equal(mint.if, undefined);
   assert.equal(mint.uses, "./.github/actions/mint-app-token");
-  assert.equal(mint.with?.repositories, "${{ steps.api_scope.outputs.is_control_repository == 'true' && github.event.repository.name || format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}");
+  assert.equal(
+    mint.with?.repositories,
+    "${{ steps.api_scope.outputs.is_control_repository == 'true' && github.event.repository.name || format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}"
+  );
   assert.equal(mint.with?.owner, "${{ steps.api_scope.outputs.owner }}");
   assert.deepEqual(
     Object.keys(mint.with ?? {})
@@ -66,12 +69,28 @@ test("PR API reads use GITHUB_TOKEN locally and a scoped App token across manage
   );
   assert.equal(findStep("Checkout target PR").with?.token, "${{ steps.app_read.outputs.token }}");
   assert.equal(findStep("Enforce PR trust").env?.GH_TOKEN, "${{ steps.app_read.outputs.token }}");
-  assert.equal(findStep("Collect CI evidence").env?.AW_CONTROL_TOKEN, "${{ steps.app_read.outputs.token }}");
+  assert.equal(
+    findStep("Collect CI evidence").env?.AW_CONTROL_TOKEN,
+    "${{ steps.app_read.outputs.token }}"
+  );
   const finalRead = findStep("Mint final governance read token");
   assert.equal(finalRead.with?.["permission-actions"], "read");
   assert.equal(finalRead.with?.["permission-statuses"], "read");
-  assert.equal(findStep("Resolve governance ownership").env?.GH_TOKEN, "${{ steps.final_read_app.outputs.token }}");
-  assert.equal(findStep("Publish PR review").env?.AW_CONTROL_TOKEN, "${{ steps.final_read_app.outputs.token }}");
-  assert.equal(findStep("Resolve unfinished PR governance").env?.AW_CONTROL_TOKEN, "${{ steps.unfinished_read_app.outputs.token }}");
-  assert.doesNotMatch(source, /secrets\.AW_CONTROL_TOKEN/, "governance must not use the personal control token");
+  assert.equal(
+    findStep("Resolve governance ownership").env?.GH_TOKEN,
+    "${{ steps.final_read_app.outputs.token }}"
+  );
+  assert.equal(
+    steps.find((step) => step.name === "Publish PR review" && step.env?.AW_CONTROL_TOKEN)?.env?.AW_CONTROL_TOKEN,
+    "${{ steps.final_read_app.outputs.token }}"
+  );
+  assert.equal(
+    findStep("Resolve unfinished PR governance").env?.AW_CONTROL_TOKEN,
+    "${{ steps.unfinished_read_app.outputs.token }}"
+  );
+  assert.doesNotMatch(
+    source,
+    /secrets\.AW_CONTROL_TOKEN/,
+    "governance must not use the personal control token"
+  );
 });
