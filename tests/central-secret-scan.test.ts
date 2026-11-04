@@ -144,7 +144,7 @@ test("scanner failures reveal safe categories but never leak private stderr", as
   const broken = join(directory, "broken.mjs");
   await writeFile(
     broken,
-    'console.error("fatal: bad revision; secret=ghp_privateNeverLogThisValue"); process.exit(128);\n',
+    'console.error("fatal: bad revision; secret=privateNeverLogThisValue"); process.exit(128);\n',
     "utf8"
   );
   const result = run(directory, broken, { TARGET_PRIVATE: "true", AW_GITLEAKS_MODE: "enforce" });
