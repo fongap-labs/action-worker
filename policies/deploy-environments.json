@@ -1,8 +1,14 @@
 {
   "schema_version": 1,
   "repositories": {
-    "fongap-labs/ai-gateway": ["production"],
-    "fongap-labs/internal-vault/server-edge": ["server-edge-cloud-edge"],
-    "fongap-labs/github-multi-connect": ["github-multi-connect-staging"]
+    "fongap-labs/ai-gateway": [
+      "production"
+    ],
+    "fongap-labs/internal-vault/server-edge": [
+      "server-edge-cloud-edge"
+    ],
+    "fongap-labs/mcp-hub": [
+      "mcp-hub-staging"
+    ]
   }
 }

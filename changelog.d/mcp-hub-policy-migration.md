@@ -1,0 +1,2 @@
+- 更新: 将中央部署策略从旧 GitHub Multi Connect 仓库迁移至 MCP Hub，并登记 MCP 平台变量前缀。
+- 安全: 业务密钥由目标仓库 Environment 独立保管，不复制至 Action Worker。
