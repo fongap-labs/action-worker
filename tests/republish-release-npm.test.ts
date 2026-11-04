@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
+import { parse } from "yaml";
 import {
   npmPackageIntegrity,
   parseNpmChecksum,
@@ -84,4 +86,23 @@ test("npm release checksums and integrity use the downloaded tarball bytes", () 
   assert.equal(parseNpmChecksum(`${"a".repeat(64)}  package.tgz\n`, "package.tgz"), "a".repeat(64));
   assert.throws(() => parseNpmChecksum(`${"a".repeat(64)}  other.tgz`, "package.tgz"));
   assert.match(npmPackageIntegrity(Buffer.from("npm tarball")), /^sha512-/);
+});
+
+test("npm Release reads use only a target-scoped, read-only App token", async () => {
+  const source = await readFile(".github/workflows/release-npm.yml", "utf8");
+  const workflow = parse(source) as {
+    jobs: { publish: { steps: Array<{ name?: string; id?: string; env?: Record<string, string>; with?: Record<string, string> }> } };
+  };
+  const find = (name: string) => workflow.jobs.publish.steps.find((step) => step.name === name);
+  const scope = find("Resolve npm Release API scope");
+  assert.equal(scope?.id, "api_scope");
+  assert.equal(scope?.env?.TARGET_REPOSITORY, "${{ github.event.client_payload.repository || inputs.repository }}");
+  const mint = find("Mint npm Release read token");
+  assert.equal(mint?.with?.repositories, "${{ steps.api_scope.outputs.repository_name }}");
+  assert.deepEqual(
+    Object.entries(mint?.with ?? {}).filter(([key]) => key.startsWith("permission-")),
+    [["permission-contents", "read"]]
+  );
+  assert.equal(find("Publish verified npm Release asset")?.env?.AW_RELEASE_API_TOKEN, "${{ steps.release_app.outputs.token }}");
+  assert.doesNotMatch(source, /secrets\.AW_CONTROL_TOKEN/);
 });
