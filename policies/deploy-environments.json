@@ -3,6 +3,6 @@
   "repositories": {
     "fongap-labs/ai-gateway": ["production"],
     "fongap-labs/internal-vault/server-edge": ["server-edge-cloud-edge"],
-    "fongap-labs/mcp-hub": ["mcp-hub-staging"]
+    "fongap-labs/mcp-hub": ["mcp-hub-ops"]
   }
 }

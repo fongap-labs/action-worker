@@ -492,6 +492,9 @@ test("the shipped policies key every deploying product by its product key", asyn
     "fongap-labs/internal-vault/server-edge",
     "fongap-labs/mcp-hub",
   ]);
+  assert.deepEqual(environments["fongap-labs/mcp-hub"], ["mcp-hub-ops"]);
+  const mcpSecrets = secrets.deployments["fongap-labs/mcp-hub"] as Record<string, unknown>;
+  assert.deepEqual(Object.keys(mcpSecrets), ["mcp-hub-ops"]);
 });
 
 // --- concurrency groups -------------------------------------------------------------------------

@@ -162,3 +162,27 @@ test("main CI transfers intake's short lease to the active Central CI run before
   assert.match(prepareSection, /AW_STATUS_TOKEN/);
   assert.doesNotMatch(prepareSection, /AW_STATUS_TOKEN \|\|/);
 });
+
+test("PR diff base and pinned merge base remain separate", () => {
+  const pinnedBase =
+    "base_sha: ${{ steps.merge_ref.outputs.base_sha || steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}";
+  const reviewedBase =
+    "diff_base_sha: ${{ steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}";
+  assert.ok(workflow.includes(pinnedBase));
+  assert.ok(workflow.includes(reviewedBase));
+  const pinStep = workflow.slice(
+    workflow.indexOf("- name: Pin PR merge snapshot"),
+    workflow.indexOf("- name: Validate requested revision")
+  );
+  assert.ok(pinStep.includes("branches/$encoded_base_ref"));
+  assert.ok(pinStep.includes("git/commits/$merge_sha"));
+  assert.ok(pinStep.includes(".parents[0].sha"));
+  assert.ok(pinStep.includes(".parents[1].sha"));
+  assert.ok(pinStep.includes('"$merge_base_sha" != "$current_base_sha"'));
+  assert.ok(pinStep.includes('"$merge_head_sha" != "$EXPECTED_HEAD_SHA"'));
+  assert.ok(pinStep.includes('echo "base_sha=$merge_base_sha"'));
+  assert.ok(workflow.includes("diff_base_sha: ${{ needs.prepare.outputs.diff_base_sha }}"));
+  assert.ok(workflow.includes("BASE_SHA: ${{ needs.prepare.outputs.diff_base_sha }}"));
+  assert.ok(sandbox.includes("SCAN_BASE_SHA: ${{ inputs.diff_base_sha }}"));
+  assert.ok(sandbox.includes("PINNED_BASE_SHA: ${{ inputs.base_sha }}"));
+});

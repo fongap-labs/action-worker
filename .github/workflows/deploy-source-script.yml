@@ -157,6 +157,7 @@ jobs:
         id: source
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           DEPLOY_REQUEST_JSON: ${{ steps.dispatch_request.outputs.request_json || steps.manual_request.outputs.request_json }}
           MAIN_WRITE_GUARD_BYPASS: ${{ inputs.main_write_guard_bypass }}

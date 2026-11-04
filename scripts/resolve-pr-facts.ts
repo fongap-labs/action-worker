@@ -16,6 +16,23 @@ export function pullAllowsFacts(pull: unknown, isMergedAllowed: boolean): boolea
   return pull.state === "open" || (isMergedAllowed && pull.merged === true);
 }
 
+/**
+ * Keep the PR's reviewed base for change-scope checks. The live branch tip
+ * is used only when verifying the synthetic merge checkout.
+ */
+export function resolvePullDiffBaseSha(base: unknown, repository: string): string {
+  const baseRepo =
+    isJsonRecord(base) && isJsonRecord(base.repo) ? getJsonString(base.repo, "full_name") : "";
+  if (baseRepo !== repository) {
+    throw new CliError("::error::PR base repository does not match the request repository.", 65);
+  }
+  const baseSha = getJsonString(base, "sha");
+  if (!/^[0-9a-f]{40}$/.test(baseSha)) {
+    throw new CliError("::error::PR diff base SHA is invalid.", 65);
+  }
+  return baseSha;
+}
+
 export async function fetchPullFacts(
   repository: string,
   prNumber: string,
@@ -28,14 +45,10 @@ export async function fetchPullFacts(
   }
   const base = isJsonRecord(pull.base) ? pull.base : {};
   const head = isJsonRecord(pull.head) ? pull.head : {};
-  const baseRepo = isJsonRecord(base.repo) ? getJsonString(base.repo, "full_name") : "";
-  if (baseRepo !== repository) {
-    throw new CliError("::error::PR base repository does not match the request repository.", 65);
-  }
-  const baseSha = getJsonString(base, "sha");
+  const baseSha = resolvePullDiffBaseSha(base, repository);
   const headSha = getJsonString(head, "sha");
-  if (!/^[0-9a-f]{40}$/.test(baseSha) || !/^[0-9a-f]{40}$/.test(headSha)) {
-    throw new CliError("::error::PR base or head SHA is invalid.", 65);
+  if (!/^[0-9a-f]{40}$/.test(headSha)) {
+    throw new CliError("::error::PR head SHA is invalid.", 65);
   }
   return {
     baseSha,
