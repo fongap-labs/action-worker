@@ -16,7 +16,7 @@ test("PR API reads use GITHUB_TOKEN locally and a scoped App token across manage
   const source = await readFile(".github/workflows/handle-pr-dispatch.yml", "utf8");
   const workflow = parse(source) as {
     permissions: Record<string, string>;
-    jobs: { govern: { steps: Step[] } };
+    jobs: { govern: { steps: Step[] }; "resolve-unfinished": { steps: Step[] } };
   };
   const steps = workflow.jobs.govern.steps;
   const findStep = (name: string) => {
@@ -86,7 +86,8 @@ test("PR API reads use GITHUB_TOKEN locally and a scoped App token across manage
     "${{ steps.final_read_app.outputs.token }}"
   );
   assert.equal(
-    findStep("Resolve unfinished PR governance").env?.AW_CONTROL_TOKEN,
+    workflow.jobs["resolve-unfinished"].steps.find((step) => step.name === "Resolve unfinished PR governance")?.env
+      ?.AW_CONTROL_TOKEN,
     "${{ steps.unfinished_read_app.outputs.token }}"
   );
   assert.doesNotMatch(
