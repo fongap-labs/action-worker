@@ -22,7 +22,8 @@ export function pullAllowsFacts(pull: unknown, isMergedAllowed: boolean): boolea
  * to construct refs/pull/<number>/merge.
  */
 export function resolveCurrentBaseSha(base: unknown, branch: unknown, repository: string): string {
-  const baseRepo = isJsonRecord(base) && isJsonRecord(base.repo) ? getJsonString(base.repo, "full_name") : "";
+  const baseRepo =
+    isJsonRecord(base) && isJsonRecord(base.repo) ? getJsonString(base.repo, "full_name") : "";
   if (baseRepo !== repository) {
     throw new CliError("::error::PR base repository does not match the request repository.", 65);
   }
