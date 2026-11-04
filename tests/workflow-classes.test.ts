@@ -132,7 +132,11 @@ test("only entry, diagnostic and protected recovery workflows show a Run workflo
     }
     if (kind === "recovery") {
       assert.deepEqual(Object.keys(triggers), ["workflow_dispatch"], `${file} must be manual-only`);
-      assert.deepEqual(Object.keys(workflow.jobs ?? {}), ["bootstrap"], `${file} may only bootstrap`);
+      assert.deepEqual(
+        Object.keys(workflow.jobs ?? {}),
+        ["bootstrap"],
+        `${file} may only bootstrap`
+      );
       const job = workflow.jobs?.bootstrap as Job & { environment?: string; if?: string };
       assert.equal(job.environment, "admin-ops", `${file} requires admin-ops`);
       assert.equal(job.if, "github.ref == 'refs/heads/main'", `${file} requires main`);
