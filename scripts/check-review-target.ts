@@ -1,8 +1,9 @@
 import { trustedCiStatus } from "./ci-evidence.ts";
+import { requireStatusToken } from "./control-token.ts";
 import { getGithubJson, getJsonString, isJsonRecord } from "./github-api.ts";
 import { pullAllowsFacts } from "./resolve-pr-facts.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
-import { hasValidStatusAttestation, requireStatusToken } from "./status-attestation.ts";
+import { hasValidStatusAttestation } from "./status-attestation.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -19,8 +20,7 @@ export function evaluateReviewTarget(
   status: unknown,
   requestedHeadSha: string,
   controlRepository: string,
-  repository: string,
-  statusToken = process.env.AW_STATUS_TOKEN ?? ""
+  repository: string
 ): ReviewTarget {
   if (!isJsonRecord(pull) || !pullAllowsFacts(pull, true)) {
     return { current: false, reason: "the pull request was closed without merging" };
@@ -32,11 +32,11 @@ export function evaluateReviewTarget(
   const governance = trustedCiStatus(status, governanceContext, controlRepository);
   if (
     getJsonString(governance, "state") !== "success" ||
-    !hasValidStatusAttestation(
-      governance,
-      { repository, sha: requestedHeadSha, context: governanceContext },
-      statusToken
-    )
+    !hasValidStatusAttestation(governance, {
+      repository,
+      sha: requestedHeadSha,
+      context: governanceContext,
+    })
   ) {
     return {
       current: false,
@@ -68,15 +68,8 @@ async function main(): Promise<void> {
     throw new CliError("::error::Review target authority is unavailable.", 65);
   }
   const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, token);
-  const status = await getGithubJson(`repos/${repository}/commits/${headSha}/status`, token);
-  const target = evaluateReviewTarget(
-    pull,
-    status,
-    headSha,
-    controlRepository,
-    repository,
-    statusToken
-  );
+  const status = await getGithubJson(`repos/${repository}/commits/${headSha}/status`, statusToken);
+  const target = evaluateReviewTarget(pull, status, headSha, controlRepository, repository);
   await appendLines(process.env.GITHUB_OUTPUT, [`current=${target.current}`]);
   console.log(
     target.current

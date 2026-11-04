@@ -42,11 +42,7 @@ import { hasLifecycleFilenameViolation } from "../scripts/validate-naming-rules.
 import { validatePayload } from "../scripts/validate-pr-payload.ts";
 import { validateRelease, validateReleaseProvenance } from "../scripts/validate-release-request.ts";
 import { validateReview } from "../scripts/validate-review-result.ts";
-import {
-  attestFixtureResponseForPath,
-  attestFixtureStatuses,
-  fixtureStatusToken,
-} from "./attested-status-fixtures.ts";
+import { attestFixtureResponseForPath, attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const sha = "0123456789abcdef0123456789abcdef01234567";
 
@@ -743,41 +739,28 @@ test("merge warning follows the exact current PR head and all central gates", ()
     repo,
     head
   );
-  assert.deepEqual(evaluateMergeDisplayGate(pull, passed, head, repo, repo, fixtureStatusToken), {
+  assert.deepEqual(evaluateMergeDisplayGate(pull, passed, head, repo, repo), {
     current: true,
     status: "success",
   });
   assert.deepEqual(
-    evaluateMergeDisplayGate(
-      { head: { sha: "b".repeat(40) } },
-      passed,
-      head,
-      repo,
-      repo,
-      fixtureStatusToken
-    ),
+    evaluateMergeDisplayGate({ head: { sha: "b".repeat(40) } }, passed, head, repo, repo),
     { current: false, status: "failure" }
   );
-  assert.deepEqual(
-    evaluateMergeDisplayGate(pull, passed, "not-a-sha", repo, repo, fixtureStatusToken),
-    {
-      current: false,
-      status: "failure",
-    }
-  );
+  assert.deepEqual(evaluateMergeDisplayGate(pull, passed, "not-a-sha", repo, repo), {
+    current: false,
+    status: "failure",
+  });
   for (const context of ["PR Governance", "CI Evidence", "validate-merge"]) {
     const failure = {
       statuses: passed.statuses.map((status) =>
         status.context === context ? { ...status, state: "failure" } : status
       ),
     };
-    assert.deepEqual(
-      evaluateMergeDisplayGate(pull, failure, head, repo, repo, fixtureStatusToken),
-      {
-        current: true,
-        status: "failure",
-      }
-    );
+    assert.deepEqual(evaluateMergeDisplayGate(pull, failure, head, repo, repo), {
+      current: true,
+      status: "failure",
+    });
   }
   assert.deepEqual(
     evaluateMergeDisplayGate(
@@ -790,8 +773,7 @@ test("merge warning follows the exact current PR head and all central gates", ()
       },
       head,
       repo,
-      repo,
-      fixtureStatusToken
+      repo
     ),
     { current: true, status: "failure" }
   );

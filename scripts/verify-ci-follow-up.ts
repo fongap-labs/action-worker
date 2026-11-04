@@ -1,8 +1,9 @@
 import { hasVerifiedCiEvidence, latestCiStatus, trustedControlRunId } from "./ci-evidence.ts";
+import { requireStatusToken } from "./control-token.ts";
 import { getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
-import { hasValidStatusAttestation, requireStatusToken } from "./status-attestation.ts";
+import { hasValidStatusAttestation } from "./status-attestation.ts";
 
 export type FollowUpRequest = {
   repository: string;
@@ -36,14 +37,13 @@ export function matchesFollowUpEvidence(
   controlRepository: string,
   runId: number,
   repository: string,
-  sha: string,
-  statusToken = process.env.AW_STATUS_TOKEN ?? ""
+  sha: string
 ): boolean {
   const status = latestCiStatus(combined, "CI Evidence");
   return (
     getJsonString(status, "state") === "success" &&
     trustedControlRunId(getJsonString(status, "target_url"), controlRepository) === runId &&
-    hasValidStatusAttestation(status, { repository, sha, context: "CI Evidence" }, statusToken)
+    hasValidStatusAttestation(status, { repository, sha, context: "CI Evidence" })
   );
 }
 

@@ -3,8 +3,13 @@ import {
   signedStatusDescription,
 } from "../scripts/status-attestation.ts";
 
-export const fixtureStatusToken = "action-worker-test-status-signing-key";
-process.env.AW_STATUS_TOKEN = fixtureStatusToken;
+const fixtureSigningKey = Buffer.alloc(32, 7).toString("base64url");
+process.env.AW_STATUS_SIGNING_KEYS = JSON.stringify({
+  schema_version: 1,
+  active: "test",
+  keys: { test: fixtureSigningKey },
+  legacy_tokens: [],
+});
 
 export function attestFixtureStatus(
   status: Record<string, unknown>,
@@ -25,17 +30,14 @@ export function attestFixtureStatus(
   const targetUrl = typeof status.target_url === "string" ? status.target_url : "";
   return {
     ...status,
-    description: signedStatusDescription(
-      {
-        repository,
-        sha,
-        context,
-        state: state as "pending" | "success" | "failure" | "error",
-        description,
-        targetUrl,
-      },
-      fixtureStatusToken
-    ),
+    description: signedStatusDescription({
+      repository,
+      sha,
+      context,
+      state: state as "pending" | "success" | "failure" | "error",
+      description,
+      targetUrl,
+    }),
   };
 }
 

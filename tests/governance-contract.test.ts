@@ -1025,7 +1025,7 @@ test("source-script deploy execution is manifest-driven and repository-agnostic"
     "resolve-secret-scope.ts",
     "deploy.secrets.required",
     "deploy.secrets.allowed",
-    "for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN",
+    "for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN AW_CHECKOUT_TOKEN AW_APP_PRIVATE_KEY AW_STATUS_API_TOKEN AW_ISSUE_API_TOKEN AW_DISPATCH_API_TOKEN AW_STATUS_SIGNING_KEYS",
     "Execute source-owned deploy entrypoint",
   ]);
   assert.doesNotMatch(workflow, /for central_name in[^\n]*AIG_ACCESS_KEY_AGENT/);
@@ -1140,11 +1140,11 @@ test("main write guard is the post-merge provenance authority", async () => {
     "branches: [main]",
     "Main Write Guard",
     'MAIN_WRITE_REQUIRE_CENTRAL_STATUSES: "false"',
-    "MAIN_WRITE_TOKEN: ${{ github.token }}",
+    "MAIN_WRITE_TOKEN: ${{ steps.status_app.outputs.token }}",
     "node scripts/main-write-guard.ts",
   ]);
   assert.doesNotMatch(workflow, /repository_dispatch/);
-  assert.match(workflow, /AW_STATUS_TOKEN/);
+  assert.match(workflow, /AW_STATUS_SIGNING_KEYS/);
   const guard = await text("scripts/main-write-guard.ts");
   requireText(guard, [
     "merge_commit_sha",

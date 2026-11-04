@@ -242,7 +242,7 @@ export class GithubReader {
   }
 }
 
-/** Reads commit statuses with the dedicated status token and all other facts with control access. */
+/** Reads commit statuses with the dedicated App API token and all other facts with control access. */
 export function statusAwareReader(
   apiUrl: string,
   controlToken: string,
@@ -250,7 +250,7 @@ export function statusAwareReader(
 ): GithubReader {
   if (!controlToken || !statusToken) {
     throw new CliError(
-      "AW_CONTROL_TOKEN and AW_STATUS_TOKEN are both required; no token fallback is permitted.",
+      "AW_CONTROL_TOKEN and AW_STATUS_API_TOKEN are both required; no token fallback is permitted.",
       77
     );
   }

@@ -34,11 +34,8 @@ test("deploy preflight routes trusted reads by repository without exposing App s
   );
   const mint = step("Mint cross-repository deploy preflight read token");
   assert.equal(mint.id, "app_read");
-  assert.equal(mint.if, "steps.api_scope.outputs.is_control_repository == 'false'");
-  assert.equal(
-    mint.uses,
-    "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1"
-  );
+  assert.equal(mint.if, undefined);
+  assert.equal(mint.uses, "./.github/actions/mint-app-token");
   assert.equal(
     mint.with?.repositories,
     "${{ format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}"
@@ -64,12 +61,12 @@ test("deploy preflight routes trusted reads by repository without exposing App s
   assert.equal(step("Request central CI for the source").env?.AW_CONTROL_TOKEN, token);
   assert.equal(step("Validate deploy source").env?.AW_CONTROL_TOKEN, token);
   assert.equal(
-    step("Attest the source main write").env?.AW_STATUS_TOKEN,
-    "${{ secrets.AW_STATUS_TOKEN }}"
+    step("Attest the source main write").env?.AW_STATUS_API_TOKEN,
+    "${{ steps.audit_status_app.outputs.token }}"
   );
   assert.equal(
-    step("Validate deploy source").env?.AW_STATUS_TOKEN,
-    "${{ secrets.AW_STATUS_TOKEN }}"
+    step("Validate deploy source").env?.AW_STATUS_API_TOKEN,
+    "${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}"
   );
   assert.match(text, /for central_name in [^\\n]*AW_APP_PRIVATE_KEY/);
   assert.doesNotMatch(

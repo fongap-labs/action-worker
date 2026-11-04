@@ -12,6 +12,10 @@ on:
       - policies/rulesets.json
       - scripts/apply-repository-settings.ts
       - scripts/apply-review-models.ts
+      - scripts/bootstrap-status-signing.ts
+      - scripts/status-signing-keys.ts
+      - scripts/status-attestation.ts
+      - .github/actions/mint-app-token/action.yml
       - policies/review-models.json
       - .github/workflows/apply-repository-settings.yml
   schedule:
@@ -19,6 +23,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: apply-repository-settings
@@ -54,6 +59,25 @@ jobs:
           AI_GATEWAY_TOKEN: ${{ secrets.AIG_ACCESS_KEY_AGENT }}
           TARGET_REPOSITORY: ${{ github.repository }}
         run: node scripts/apply-review-models.ts "$TARGET_REPOSITORY"
+
+      - name: Mint status bootstrap dispatch token
+        id: bootstrap_dispatch
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Bootstrap status signing keyring
+        env:
+          GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_DISPATCH_API_TOKEN: ${{ steps.bootstrap_dispatch.outputs.token }}
+          AW_BOOTSTRAP_READ_TOKEN: ${{ github.token }}
+        run: node scripts/bootstrap-status-signing.ts
 
   resolve-managed:
     name: Resolve managed repositories

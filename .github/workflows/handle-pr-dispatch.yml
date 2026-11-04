@@ -44,8 +44,6 @@ jobs:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/validate-pr-payload.ts "$PAYLOAD"
 
-      # Phase 1: move MCP Hub's PR fact reads to the installation's independent API quota.
-      # Other managed repositories continue unchanged until their App access is verified.
       - name: Resolve PR API scope
         id: api_scope
         env:
@@ -53,10 +51,9 @@ jobs:
           TARGET_REPOSITORY: ${{ steps.payload.outputs.repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
-      - name: Mint cross-repository PR read token
+      - name: Mint PR read token
         id: app_read
-        if: steps.api_scope.outputs.is_control_repository == 'false'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: ./.github/actions/mint-app-token
         with:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
@@ -115,10 +112,22 @@ jobs:
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
         run: node scripts/check-deploy-gap.ts "$CONTROL_REPOSITORY" "$TARGET_REPOSITORY" "$PR_NUMBER" "$AW_CONTROL_TOKEN"
 
+      - name: Mint pending status token
+        id: status_pending_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-statuses: write
+
       - name: Mark governance in progress
+        id: mark_governance
         env:
-          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          GH_TOKEN: ${{ steps.status_pending_app.outputs.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.status_pending_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -126,8 +135,9 @@ jobs:
 
       - name: Mark central merge gate in progress
         env:
-          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          GH_TOKEN: ${{ steps.status_pending_app.outputs.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.status_pending_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -191,11 +201,34 @@ jobs:
 
       - name: Dispatch centralized CI
         if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'
+        uses: ./.github/actions/mint-app-token
+        id: ci_dispatch_status_app
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-statuses: write
+
+      - name: Mint centralized CI dispatch token
+        if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'
+        id: ci_dispatch_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Dispatch centralized CI
+        if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'
         env:
-          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          GH_TOKEN: ${{ steps.ci_dispatch_status_app.outputs.token }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
-          AW_DISPATCH_TOKEN: ${{ secrets.AW_DISPATCH_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.ci_dispatch_status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_DISPATCH_API_TOKEN: ${{ steps.ci_dispatch_app.outputs.token }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
@@ -214,12 +247,12 @@ jobs:
       - name: Collect CI evidence
         if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'
         env:
-          # This step reads both PR metadata and commit statuses. AW_STATUS_TOKEN
-          # intentionally has only status permissions and cannot GET /pulls/{n}.
+          # This step reads both PR metadata and commit statuses through separate scoped credentials.
           # Use the separately configured control read credential; no token fallback.
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
@@ -228,8 +261,20 @@ jobs:
 
       - name: Publish explicit no-CI evidence
         if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required != 'true'
+        id: no_ci_status_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-statuses: write
+
+      - name: Publish explicit no-CI evidence
+        if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required != 'true'
         env:
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.no_ci_status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -258,7 +303,8 @@ jobs:
         if: ${{ always() && steps.resolved.outputs.head_sha != '' }}
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -274,11 +320,23 @@ jobs:
       # Runs even when this run is cancelled or times out. Skipping it on cancellation left the
       # status this run published pending for ever, so the Main Write Audit could never trust a merge
       # of that head. A cancelled run is failed explicitly; it never reports success.
+      - name: Mint final status token
+        if: ${{ always() && steps.ownership.outputs.current == 'true' }}
+        id: final_status_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-statuses: write
+
       - name: Update final gate
         if: ${{ always() && steps.ownership.outputs.current == 'true' }}
         env:
-          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          GH_TOKEN: ${{ steps.final_status_app.outputs.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.final_status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -289,8 +347,9 @@ jobs:
       - name: Update central merge gate
         if: ${{ always() && steps.ownership.outputs.current == 'true' }}
         env:
-          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          GH_TOKEN: ${{ steps.final_status_app.outputs.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.final_status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -301,12 +360,23 @@ jobs:
 
       - name: Publish PR review
         if: ${{ always() && !cancelled() && steps.ownership.outputs.current == 'true' }}
+        id: issue_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-issues: write
+
+      - name: Publish PR review
+        if: ${{ always() && !cancelled() && steps.ownership.outputs.current == 'true' }}
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.AW_ISSUE_TOKEN }}
-          AW_ISSUE_TOKEN: ${{ secrets.AW_ISSUE_TOKEN }}
+          GH_TOKEN: ${{ steps.issue_app.outputs.token }}
+          AW_ISSUE_API_TOKEN: ${{ steps.issue_app.outputs.token }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.final_status_app.outputs.token }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
@@ -319,10 +389,21 @@ jobs:
       # AI Review runs as its own workflow after the gate so its queue never waits behind CI.
       - name: Dispatch AI review
         if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.base_plan.outputs.review_required == 'true' }}
+        id: review_dispatch_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Dispatch AI review
+        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.base_plan.outputs.review_required == 'true' }}
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.AW_DISPATCH_TOKEN }}
-          AW_DISPATCH_TOKEN: ${{ secrets.AW_DISPATCH_TOKEN }}
+          GH_TOKEN: ${{ steps.review_dispatch_app.outputs.token }}
+          AW_DISPATCH_API_TOKEN: ${{ steps.review_dispatch_app.outputs.token }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
@@ -356,11 +437,29 @@ jobs:
         with:
           node-version: 24
 
+      - name: Resolve unfinished status scope
+        id: status_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ github.event.client_payload.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint unfinished status token
+        id: status_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.status_scope.outputs.owner }}
+          repositories: ${{ steps.status_scope.outputs.repository_name }}
+          permission-statuses: write
+
       - name: Resolve unfinished PR governance
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           CONTROL_REPOSITORY: ${{ github.repository }}
           REPOSITORY: ${{ github.event.client_payload.repository }}
           PR_NUMBER: ${{ github.event.client_payload.pr_number }}

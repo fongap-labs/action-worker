@@ -44,10 +44,14 @@ async function publishGuardStatus(
   description: string,
   runUrl: string
 ): Promise<void> {
-  const signedDescription = signedStatusDescription(
-    { repository, sha, state, context: "Main Write Guard", description, targetUrl: runUrl },
-    token
-  );
+  const signedDescription = signedStatusDescription({
+    repository,
+    sha,
+    state,
+    context: "Main Write Guard",
+    description,
+    targetUrl: runUrl,
+  });
   const args = [
     "api",
     "--method",
@@ -98,7 +102,7 @@ export async function auditRepositoryMain(
 }
 
 export function requireAuditCredential(
-  name: "AW_STATUS_TOKEN" | "AW_ISSUE_TOKEN" | "AW_CONTROL_TOKEN",
+  name: "AW_STATUS_API_TOKEN" | "AW_ISSUE_API_TOKEN" | "AW_CONTROL_TOKEN",
   permission: string,
   env: NodeJS.ProcessEnv = process.env
 ): string {
@@ -113,8 +117,8 @@ export function requireAuditCredential(
 }
 
 async function main(): Promise<void> {
-  const statusToken = requireAuditCredential("AW_STATUS_TOKEN", "Commit statuses: Read and write");
-  const issueToken = requireAuditCredential("AW_ISSUE_TOKEN", "Issues: Read and write");
+  const statusToken = requireAuditCredential("AW_STATUS_API_TOKEN", "Commit statuses: Write");
+  const issueToken = requireAuditCredential("AW_ISSUE_API_TOKEN", "Issues: Write");
   const controlToken = requireAuditCredential("AW_CONTROL_TOKEN", "managed repository reads");
   const rawPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
   const runUrl = process.env.MAIN_WRITE_AUDIT_RUN_URL ?? "";
@@ -246,7 +250,7 @@ async function main(): Promise<void> {
           }
         } catch (reportError) {
           console.error(
-            `::error::Could not record main write incident in ${repository}: ${reportError instanceof Error ? reportError.message : String(reportError)}. Check AW_ISSUE_TOKEN Issues: Read and write permission for this repository.`
+            `::error::Could not record main write incident in ${repository}: ${reportError instanceof Error ? reportError.message : String(reportError)}. Check AW_ISSUE_API_TOKEN Issues: Write permission for this repository.`
           );
         }
       }
@@ -302,7 +306,7 @@ async function main(): Promise<void> {
   );
   if (statusPublicationErrors.length > 0) {
     throw new CliError(
-      `::error::Main Write Audit could not publish ${statusPublicationErrors.length} repository guard status(es): ${statusPublicationErrors.join("; ")}. Check AW_STATUS_TOKEN Commit statuses: Read and write on the affected repositories.`,
+      `::error::Main Write Audit could not publish ${statusPublicationErrors.length} repository guard status(es): ${statusPublicationErrors.join("; ")}. Check AW_STATUS_API_TOKEN Commit statuses: Write on the affected repositories.`,
       77
     );
   }

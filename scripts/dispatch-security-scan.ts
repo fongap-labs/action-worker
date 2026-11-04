@@ -22,7 +22,7 @@ async function main(): Promise<void> {
     65
   );
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
-  const ingressToken = process.env.AW_INGRESS_TOKEN ?? "";
+  const ingressToken = process.env.AW_DISPATCH_API_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   if (
     !controlToken ||

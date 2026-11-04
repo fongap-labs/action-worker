@@ -54,7 +54,6 @@ export type VerifiedCiEvidenceOptions = {
   controlRepository?: string;
   targetRepository?: string;
   targetSha?: string;
-  statusToken?: string;
   workflowPaths?: readonly string[];
   runAttempts?: number;
   statusAttempts?: number;
@@ -115,17 +114,12 @@ export function hasTrustedSuccessfulCiEvidence(
   context: string,
   controlRepository: string,
   targetRepository: string,
-  targetSha: string,
-  statusToken = process.env.AW_STATUS_TOKEN ?? ""
+  targetSha: string
 ): boolean {
   const status = trustedCiStatus(response, context, controlRepository);
   return (
     getJsonString(status, "state") === "success" &&
-    hasValidStatusAttestation(
-      status,
-      { repository: targetRepository, sha: targetSha, context },
-      statusToken
-    )
+    hasValidStatusAttestation(status, { repository: targetRepository, sha: targetSha, context })
   );
 }
 
@@ -178,16 +172,10 @@ export async function hasVerifiedControlStatus(
   }
   const targetRepository = options.targetRepository ?? "";
   const targetSha = options.targetSha ?? "";
-  const statusToken = options.statusToken ?? process.env.AW_STATUS_TOKEN ?? "";
   if (
     !targetRepository ||
     !targetSha ||
-    !statusToken ||
-    !hasValidStatusAttestation(
-      status,
-      { repository: targetRepository, sha: targetSha, context },
-      statusToken
-    )
+    !hasValidStatusAttestation(status, { repository: targetRepository, sha: targetSha, context })
   ) {
     trace("status-unattested", { context, repository: targetRepository, sha: targetSha });
     return false;

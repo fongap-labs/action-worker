@@ -58,8 +58,7 @@ jobs:
 
       - name: Mint cross-repository PR review read token
         id: app_read
-        if: steps.api_scope.outputs.is_control_repository == 'false'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: ./.github/actions/mint-app-token
         with:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
@@ -91,7 +90,8 @@ jobs:
         id: target
         env:
           GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
@@ -117,6 +117,26 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
+
+      - name: Resolve CI evidence API scope
+        id: evidence_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint CI evidence read token
+        id: evidence_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.evidence_scope.outputs.owner }}
+          repositories: ${{ steps.evidence_scope.outputs.repository_name }}
+          permission-contents: read
+          permission-pull-requests: read
+          permission-actions: read
+          permission-statuses: read
 
       - name: Checkout target PR
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -156,7 +176,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.evidence_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           CI_EVIDENCE_PATH: /tmp/ci-evidence.json
@@ -270,7 +291,7 @@ jobs:
       - name: Mint final PR review read token
         id: review_app
         if: ${{ always() && !cancelled() && steps.review_scope.outputs.is_control_repository == 'false' }}
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: ./.github/actions/mint-app-token
         with:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
@@ -286,7 +307,8 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.review_scope.outputs.is_control_repository == 'true' && github.token || steps.review_app.outputs.token }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.review_scope.outputs.is_control_repository == 'true' && github.token || steps.review_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
@@ -294,12 +316,24 @@ jobs:
 
       - name: Publish PR review
         if: ${{ always() && !cancelled() && steps.recheck.outputs.current == 'true' }}
+        id: issue_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.review_scope.outputs.owner }}
+          repositories: ${{ steps.review_scope.outputs.repository_name }}
+          permission-issues: write
+
+      - name: Publish PR review
+        if: ${{ always() && !cancelled() && steps.recheck.outputs.current == 'true' }}
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.AW_ISSUE_TOKEN }}
-          AW_ISSUE_TOKEN: ${{ secrets.AW_ISSUE_TOKEN }}
+          GH_TOKEN: ${{ steps.issue_app.outputs.token }}
+          AW_ISSUE_API_TOKEN: ${{ steps.issue_app.outputs.token }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.review_scope.outputs.is_control_repository == 'true' && github.token || steps.review_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}

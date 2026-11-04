@@ -6,7 +6,7 @@ import {
   latestGovernanceStatus,
   targetRunId,
 } from "../scripts/resolve-unfinished-governance.ts";
-import { attestFixtureStatuses, fixtureStatusToken } from "./attested-status-fixtures.ts";
+import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const control = "fongap-labs/action-worker";
 const repository = "fongap/example";
@@ -37,15 +37,10 @@ test("the newest PR Governance status decides, and other contexts are ignored", 
     ],
   };
   assert.deepEqual(
-    latestGovernanceStatus(
-      attestFixtureStatuses(combined, repository, sha),
-      repository,
-      sha,
-      fixtureStatusToken
-    ),
+    latestGovernanceStatus(attestFixtureStatuses(combined, repository, sha), repository, sha),
     { state: "pending", target: "b" }
   );
-  assert.equal(latestGovernanceStatus({ statuses: [] }, repository, sha, fixtureStatusToken), null);
+  assert.equal(latestGovernanceStatus({ statuses: [] }, repository, sha), null);
 });
 
 test("a status points at a run only when that run is in the control repository", () => {
@@ -79,5 +74,6 @@ test("unfinished governance passes both required dedicated token variables", asy
   assert.ok(cleanup, "cleanup step must exist");
   const env = cleanup.split("        run:")[0] ?? "";
   assert.ok(env.includes("AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}"));
-  assert.ok(env.includes("AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}"));
+  assert.ok(env.includes("AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}"));
+  assert.ok(env.includes("AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}"));
 });

@@ -36,9 +36,8 @@ jobs:
     runs-on: ubuntu-24.04
     # The request validation waits up to 20 minutes for the central CI verdict of the source.
     timeout-minutes: 30
-    # Asking for central CI sends an event to this repository, which needs contents: write.
     permissions:
-      contents: write
+      contents: read
 
     outputs:
       source_repository: ${{ steps.request.outputs.source_repository }}
@@ -80,14 +79,42 @@ jobs:
           RELEASE_PRODUCT: ${{ inputs.product }}
         run: node scripts/resolve-release-build-ingress.ts
 
+      - name: Resolve release source status scope
+        id: api_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ steps.ingress.outputs.source_repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint release source status token
+        id: status_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-statuses: write
+
+      - name: Mint central CI dispatch token
+        id: dispatch_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
       # Intake may not have reached this source yet, so a release asks for central CI on its own
       # source now; the validation below waits for the verdict.
       - name: Request central CI for the source
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
-          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
           AW_CI_INTAKE_REPOSITORY: ${{ steps.ingress.outputs.source_repository }}
         run: node scripts/intake-main-ci.ts
@@ -95,11 +122,40 @@ jobs:
       # The validation accepts only a main SHA attested as a merged pull request. Attest it now, the
       # same way Intake does, so the release does not wait for the next Intake run. The validation
       # stays the authority and reports an untrusted write.
+      - name: Resolve source audit API scope
+        id: audit_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ steps.ingress.outputs.source_repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint source audit status token
+        id: audit_status_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.audit_scope.outputs.owner }}
+          repositories: ${{ steps.audit_scope.outputs.repository_name }}
+          permission-statuses: write
+
+      - name: Mint source audit issue token
+        id: audit_issue_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.audit_scope.outputs.owner }}
+          repositories: ${{ steps.audit_scope.outputs.repository_name }}
+          permission-issues: write
+
       - name: Attest the source main write
         continue-on-error: true
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.audit_status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_ISSUE_API_TOKEN: ${{ steps.audit_issue_app.outputs.token }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           MAIN_WRITE_AUDIT_REPOSITORY: ${{ steps.ingress.outputs.source_repository }}
           MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -227,9 +283,8 @@ jobs:
       - build
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    # Sending the run-release event needs contents: write.
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - name: Checkout control plane
@@ -295,9 +350,19 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+      - name: Mint release governance dispatch token
+        id: dispatch_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
       - name: Dispatch Release Governance
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           SOURCE_REPOSITORY: ${{ needs.prepare.outputs.source_repository }}
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
           ARTIFACT_NAME: ${{ needs.prepare.outputs.artifact_name }}

@@ -1,3 +1,4 @@
+import { requireStatusToken } from "./control-token.ts";
 import { parseTaskSourceManifest } from "./dispatch-scheduled-tasks.ts";
 import {
   getJsonString,
@@ -8,7 +9,7 @@ import {
 } from "./github-api.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
-import { hasValidStatusAttestation, requireStatusToken } from "./status-attestation.ts";
+import { hasValidStatusAttestation } from "./status-attestation.ts";
 
 type GithubSource = {
   get(path: string): Promise<unknown>;
@@ -46,11 +47,7 @@ function latestTaskStatus(value: unknown, repository: string, sha: string): stri
     )[0];
   if (
     isJsonRecord(latest) &&
-    hasValidStatusAttestation(
-      latest,
-      { repository, sha, context: "Task Source" },
-      process.env.AW_STATUS_TOKEN ?? ""
-    )
+    hasValidStatusAttestation(latest, { repository, sha, context: "Task Source" })
   ) {
     return getJsonString(latest, "state");
   }
@@ -195,12 +192,12 @@ async function main(): Promise<void> {
   const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const statusToken = requireStatusToken();
-  const ingressToken = process.env.AW_INGRESS_TOKEN ?? "";
+  const ingressToken = process.env.AW_DISPATCH_API_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   const apiUrl = process.env.GITHUB_API_URL ?? "https://api.github.com";
   if (!policyRaw || !controlToken || !ingressToken || !controlRepository) {
     throw new CliError(
-      "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
+      "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_DISPATCH_API_TOKEN, and AW_CONTROL_REPOSITORY are required.",
       64
     );
   }

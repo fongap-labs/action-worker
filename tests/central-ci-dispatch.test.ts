@@ -155,12 +155,18 @@ test("main CI transfers intake's short lease to the active Central CI run before
     prepareSection,
     /if: github\.event\.action == 'run-central-ci-ref' && steps\.ref_facts\.outputs\.should_run == 'true'/
   );
-  assert.match(prepareSection, /AW_STATUS_TOKEN: \$\{\{ secrets\.AW_STATUS_TOKEN \}\}/);
+  assert.match(
+    prepareSection,
+    /AW_STATUS_API_TOKEN: \$\{\{ steps\.api_scope\.outputs\.is_control_repository == 'true' && github\.token \|\| steps\.app_read\.outputs\.token \}\}/
+  );
   assert.match(prepareSection, /write-commit-status\.ts "\$REPOSITORY" "\$HEAD_SHA"/);
   assert.match(prepareSection, /"CI Evidence"/);
   assert.match(prepareSection, /"\$RUN_URL"/);
-  assert.match(prepareSection, /AW_STATUS_TOKEN/);
-  assert.doesNotMatch(prepareSection, /AW_STATUS_TOKEN \|\|/);
+  assert.match(
+    prepareSection,
+    /AW_STATUS_SIGNING_KEYS: \$\{\{ secrets\.AW_STATUS_SIGNING_KEYS \}\}/
+  );
+  assert.doesNotMatch(prepareSection, /AW_STATUS_API_TOKEN \|\|/);
 });
 
 test("PR diff base and pinned merge base remain separate", () => {

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { requireStatusToken } from "./control-token.ts";
 import {
   cronPattern,
   cronMatches as cronScheduleMatches,
@@ -13,7 +14,6 @@ import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-
 import {
   hasValidStatusAttestation,
   originalStatusDescription,
-  requireStatusToken,
   signedStatusDescription,
 } from "./status-attestation.ts";
 
@@ -271,8 +271,7 @@ function commitShas(value: unknown, repository: string): string[] {
  */
 export async function wasDispatched(
   task: ScheduledTask,
-  get: (path: string) => Promise<unknown>,
-  statusToken = process.env.AW_STATUS_TOKEN ?? ""
+  get: (path: string) => Promise<unknown>
 ): Promise<boolean> {
   const slotTime = `${task.slot.slice(0, 16)}:00Z`;
   const base = `repos/${task.repository}/commits?sha=${task.head_sha}`;
@@ -294,7 +293,7 @@ export async function wasDispatched(
         item.context === context &&
         item.state === "success" &&
         originalStatusDescription(item) === description &&
-        hasValidStatusAttestation(item, { repository: task.repository, sha, context }, statusToken)
+        hasValidStatusAttestation(item, { repository: task.repository, sha, context })
     );
     if (isRecorded) return true;
   }
@@ -309,17 +308,14 @@ async function markDispatched(task: ScheduledTask, token: string): Promise<void>
   const payload = JSON.stringify({
     state: "success",
     context: scheduleContext(task.project),
-    description: signedStatusDescription(
-      {
-        repository: task.repository,
-        sha: task.head_sha,
-        state: "success",
-        context: scheduleContext(task.project),
-        description: scheduleDescription(task.slot),
-        targetUrl,
-      },
-      token
-    ),
+    description: signedStatusDescription({
+      repository: task.repository,
+      sha: task.head_sha,
+      state: "success",
+      context: scheduleContext(task.project),
+      description: scheduleDescription(task.slot),
+      targetUrl,
+    }),
     target_url: targetUrl || undefined,
   });
   await runCommand(
@@ -376,7 +372,7 @@ async function main(): Promise<void> {
   const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const statusToken = requireStatusToken();
-  const ingressToken = process.env.AW_INGRESS_TOKEN ?? "";
+  const ingressToken = process.env.AW_DISPATCH_API_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   const nowRaw = process.env.TASK_SOURCE_NOW ?? "";
   const lookbackRaw = process.env.TASK_SOURCE_LOOKBACK_MINUTES ?? String(defaultLookbackMinutes);
@@ -385,7 +381,7 @@ async function main(): Promise<void> {
 
   if (!policyRaw || !controlToken || !ingressToken || !controlRepository) {
     throw new CliError(
-      "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
+      "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_DISPATCH_API_TOKEN, and AW_CONTROL_REPOSITORY are required.",
       64
     );
   }
@@ -410,14 +406,11 @@ async function main(): Promise<void> {
   let deduplicated = 0;
   for (const task of tasks) {
     if (
-      await wasDispatched(
-        task,
-        (path) =>
-          getGithubJson(
-            path,
-            /\/commits\/[^/]+\/status(?:\?|$)/.test(path) ? statusToken : controlToken
-          ),
-        statusToken
+      await wasDispatched(task, (path) =>
+        getGithubJson(
+          path,
+          /\/commits\/[^/]+\/status(?:\?|$)/.test(path) ? statusToken : controlToken
+        )
       )
     ) {
       deduplicated += 1;

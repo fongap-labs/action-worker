@@ -1,7 +1,7 @@
 import { hasVerifiedCiEvidence } from "./ci-evidence.ts";
+import { requireStatusToken } from "./control-token.ts";
 import { statusAwareReader } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
-import { requireStatusToken } from "./status-attestation.ts";
 
 async function main(): Promise<void> {
   const [repository = "", sha = ""] = process.argv.slice(2);
@@ -24,7 +24,6 @@ async function main(): Promise<void> {
     controlRepository,
     targetRepository: repository,
     targetSha: sha,
-    statusToken,
     runAttempts: 1,
     retryDelayMs: 0,
   });

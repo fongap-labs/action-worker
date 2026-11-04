@@ -70,7 +70,6 @@ async function main(): Promise<void> {
       controlRepository,
       targetRepository: repository,
       targetSha: headSha,
-      statusToken,
     })
   ) {
     console.log(`Central CI already satisfied: ${repository}@${headSha}`);
@@ -87,17 +86,14 @@ async function main(): Promise<void> {
     "-f",
     `context=${context}`,
     "-f",
-    `description=${signedStatusDescription(
-      {
-        repository,
-        sha: headSha,
-        state: "pending",
-        context,
-        description: "Central CI in progress",
-        targetUrl: runUrl,
-      },
-      statusToken
-    )}`,
+    `description=${signedStatusDescription({
+      repository,
+      sha: headSha,
+      state: "pending",
+      context,
+      description: "Central CI in progress",
+      targetUrl: runUrl,
+    })}`,
   ];
   if (runUrl) {
     statusArgs.push("-f", `target_url=${runUrl}`);

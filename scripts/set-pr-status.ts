@@ -1,6 +1,7 @@
+import { requireToken } from "./control-token.ts";
 import { runGithubCli } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
-import { requireStatusToken, signedStatusDescription } from "./status-attestation.ts";
+import { signedStatusDescription } from "./status-attestation.ts";
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -21,18 +22,15 @@ async function main(): Promise<void> {
   if (!["pending", "success", "failure", "error"].includes(state)) {
     throw new CliError(`::error::Invalid commit status state: ${state}.`, 64);
   }
-  const token = requireStatusToken();
-  const signedDescription = signedStatusDescription(
-    {
-      repository,
-      sha,
-      state: state as "pending" | "success" | "failure" | "error",
-      context,
-      description,
-      targetUrl,
-    },
-    token
-  );
+  const token = requireToken("status");
+  const signedDescription = signedStatusDescription({
+    repository,
+    sha,
+    state: state as "pending" | "success" | "failure" | "error",
+    context,
+    description,
+    targetUrl,
+  });
   const command = [
     "api",
     "--method",

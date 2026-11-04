@@ -25,9 +25,8 @@ jobs:
     name: Resolve and dispatch tasks
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    # contents: write lets the step below dispatch central CI with the workflow token, like Intake.
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - name: Checkout control plane
@@ -105,12 +104,40 @@ jobs:
             echo "project=$project"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Resolve task source API scope
+        id: api_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ steps.source.outputs.repository }}
+        run: node scripts/resolve-github-api-scope.ts managed
+
+      - name: Mint task source status token
+        id: status_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-statuses: write
+
+      - name: Mint control dispatch token
+        id: dispatch_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
       - name: Request central CI for the source
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
-          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
           AW_CI_INTAKE_REPOSITORY: ${{ steps.source.outputs.repository }}
         run: node scripts/intake-main-ci.ts
@@ -119,11 +146,40 @@ jobs:
       # same way Intake does, so the task does not wait for the next Intake run. The gate stays the
       # authority: an untrusted write fails there, and this run still dispatches so Intake does not
       # retry the same SHA on every heartbeat.
+      - name: Resolve source audit scope
+        id: audit_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ steps.source.outputs.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint source audit status token
+        id: audit_status_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.audit_scope.outputs.owner }}
+          repositories: ${{ steps.audit_scope.outputs.repository_name }}
+          permission-statuses: write
+
+      - name: Mint source audit issue token
+        id: audit_issue_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.audit_scope.outputs.owner }}
+          repositories: ${{ steps.audit_scope.outputs.repository_name }}
+          permission-issues: write
+
       - name: Attest the source main write
         continue-on-error: true
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.audit_status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_ISSUE_API_TOKEN: ${{ steps.audit_issue_app.outputs.token }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           MAIN_WRITE_AUDIT_REPOSITORY: ${{ steps.source.outputs.repository }}
           MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -132,7 +188,8 @@ jobs:
       - name: Mark task source in progress
         if: steps.source.outputs.mode == 'push'
         env:
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ steps.source.outputs.repository }}
           HEAD_SHA: ${{ steps.source.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -212,7 +269,7 @@ jobs:
 
       - name: Dispatch selected tasks
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           REPOSITORY: ${{ steps.source.outputs.repository }}
           HEAD_SHA: ${{ steps.source.outputs.head_sha }}
           PROJECTS: ${{ steps.projects.outputs.projects }}
@@ -260,7 +317,8 @@ jobs:
       - name: Finalize task source status
         if: always() && steps.source.outcome == 'success' && steps.source.outputs.mode == 'push'
         env:
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ steps.source.outputs.repository }}
           HEAD_SHA: ${{ steps.source.outputs.head_sha }}
           JOB_STATUS: ${{ job.status }}

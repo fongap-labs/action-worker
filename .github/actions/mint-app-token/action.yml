@@ -1,0 +1,57 @@
+name: Mint scoped GitHub App token
+description: Create a short lived installation token for one explicit repository set and permission set.
+
+inputs:
+  client-id:
+    description: GitHub App client ID.
+    required: true
+  private-key:
+    description: GitHub App private key.
+    required: true
+  owner:
+    description: Owner of the App installation.
+    required: true
+  repositories:
+    description: Comma or newline separated repository names in the selected owner.
+    required: true
+  permission-actions:
+    description: Optional Actions API permission (read or write).
+    required: false
+  permission-checks:
+    description: Optional checks API permission (read or write).
+    required: false
+  permission-contents:
+    description: Optional repository contents permission (read or write).
+    required: false
+  permission-issues:
+    description: Optional issues API permission (read or write).
+    required: false
+  permission-pull-requests:
+    description: Optional pull requests API permission (read or write).
+    required: false
+  permission-statuses:
+    description: Optional commit statuses API permission (read or write).
+    required: false
+
+outputs:
+  token:
+    description: Short lived GitHub App installation token.
+    value: ${{ steps.mint.outputs.token }}
+
+runs:
+  using: composite
+  steps:
+    - name: Create installation token
+      id: mint
+      uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+      with:
+        client-id: ${{ inputs.client-id }}
+        private-key: ${{ inputs.private-key }}
+        owner: ${{ inputs.owner }}
+        repositories: ${{ inputs.repositories }}
+        permission-actions: ${{ inputs.permission-actions }}
+        permission-checks: ${{ inputs.permission-checks }}
+        permission-contents: ${{ inputs.permission-contents }}
+        permission-issues: ${{ inputs.permission-issues }}
+        permission-pull-requests: ${{ inputs.permission-pull-requests }}
+        permission-statuses: ${{ inputs.permission-statuses }}

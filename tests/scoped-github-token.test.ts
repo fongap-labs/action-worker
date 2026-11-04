@@ -12,7 +12,7 @@ test("scoped GitHub tokens never inherit control or GH_TOKEN credentials", () =>
       (error: unknown) =>
         error instanceof Error &&
         error.message.includes(scopeEnvName(scope)) &&
-        error.message.includes("Settings") &&
+        error.message.includes("token") &&
         error.message.includes("No token fallback")
     );
   }
@@ -21,9 +21,9 @@ test("scoped GitHub tokens never inherit control or GH_TOKEN credentials", () =>
 
 test("each scoped credential is selected only by its own name", () => {
   const env = {
-    AW_STATUS_TOKEN: "status",
-    AW_ISSUE_TOKEN: "issue",
-    AW_DISPATCH_TOKEN: "dispatch",
+    AW_STATUS_API_TOKEN: "status",
+    AW_ISSUE_API_TOKEN: "issue",
+    AW_DISPATCH_API_TOKEN: "dispatch",
     AW_CHECKOUT_TOKEN: "checkout",
     AW_CONTROL_TOKEN: "control",
     GH_TOKEN: "generic",

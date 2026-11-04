@@ -1,16 +1,16 @@
 /**
- * Dedicated GitHub credentials. A missing scoped secret must never be replaced with
- * GH_TOKEN, AW_CONTROL_TOKEN, or a token for a different operation.
+ * Operation-specific credentials. App API tokens are minted by trusted workflows and are
+ * intentionally kept separate from the HMAC signing key, control-plane reads and checkout token.
  *
- * Fine-grained PAT repository permissions:
- * - AW_STATUS_TOKEN   Commit statuses: Read and write on managed repositories
- * - AW_ISSUE_TOKEN    Issues: Read and write on managed repositories
- * - AW_DISPATCH_TOKEN Contents: Read and write on fongap-labs/action-worker
+ * GitHub App token permissions:
+ * - AW_STATUS_API_TOKEN   Commit statuses: scoped read or write
+ * - AW_ISSUE_API_TOKEN    Issues: scoped write
+ * - AW_DISPATCH_API_TOKEN Contents: write on fongap-labs/action-worker
  * - AW_CHECKOUT_TOKEN Contents: Read on private target repositories
  * - AW_CONTROL_TOKEN  Only the remaining control-plane permissions
  *
- * Tokens owned by one GitHub account share its API rate-limit pool. Splitting
- * credentials restricts authorization; it does not increase the shared quota.
+ * App tokens are short-lived and repository-scoped. Missing operation tokens never fall back to
+ * GH_TOKEN, AW_CONTROL_TOKEN, a signing key or a token minted for a different operation.
  */
 
 import { CliError } from "./runtime-command.ts";
@@ -18,17 +18,17 @@ import { CliError } from "./runtime-command.ts";
 export type TokenScope = "status" | "issue" | "dispatch" | "checkout" | "control";
 
 const scopeEnv: Record<TokenScope, string> = {
-  status: "AW_STATUS_TOKEN",
-  issue: "AW_ISSUE_TOKEN",
-  dispatch: "AW_DISPATCH_TOKEN",
+  status: "AW_STATUS_API_TOKEN",
+  issue: "AW_ISSUE_API_TOKEN",
+  dispatch: "AW_DISPATCH_API_TOKEN",
   checkout: "AW_CHECKOUT_TOKEN",
   control: "AW_CONTROL_TOKEN",
 };
 
 const scopePermissions: Record<TokenScope, string> = {
-  status: "Commit statuses: Read and write on managed repositories",
-  issue: "Issues: Read and write on managed repositories",
-  dispatch: "Contents: Read and write on fongap-labs/action-worker",
+  status: "a scoped GitHub App token with Commit statuses read or write",
+  issue: "a scoped GitHub App token with Issues write",
+  dispatch: "a GitHub App token with Contents write on fongap-labs/action-worker",
   checkout: "Contents: Read on the private target repositories",
   control: "the permissions required by the control-plane operation",
 };
@@ -45,9 +45,14 @@ export function requireToken(scope: TokenScope, env: NodeJS.ProcessEnv = process
   const value = resolveToken(scope, env);
   if (!value) {
     throw new CliError(
-      `::error::Missing required GitHub secret ${scopeEnv[scope]}. Grant ${scopePermissions[scope]}. Configure: fongap-labs/action-worker → Settings → Secrets and variables → Actions. No token fallback is permitted.`,
+      `::error::Missing required ${scopeEnv[scope]}. Grant ${scopePermissions[scope]} in the calling workflow. No token fallback is permitted.`,
       77
     );
   }
   return value;
+}
+
+/** Backward-compatible name for API readers; this is never signing material. */
+export function requireStatusToken(env: NodeJS.ProcessEnv = process.env): string {
+  return requireToken("status", env);
 }

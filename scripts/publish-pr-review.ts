@@ -31,8 +31,7 @@ export function evaluateMergeDisplayGate(
   combinedStatus: unknown,
   expectedHeadSha: string,
   controlRepository: string,
-  targetRepository: string,
-  statusToken = process.env.AW_STATUS_TOKEN ?? ""
+  targetRepository: string
 ): MergeDisplayGate {
   const currentHead =
     isJsonRecord(pull) && isJsonRecord(pull.head) ? getJsonString(pull.head, "sha") : "";
@@ -46,8 +45,7 @@ export function evaluateMergeDisplayGate(
       context,
       controlRepository,
       targetRepository,
-      expectedHeadSha,
-      statusToken
+      expectedHeadSha
     )
   );
   return { current: true, status: allGatesPassed ? "success" : "failure" };
@@ -255,8 +253,7 @@ async function main(): Promise<void> {
     combinedStatus,
     expectedHeadSha,
     controlRepository,
-    repository,
-    statusToken
+    repository
   );
   if (!gate.current) {
     console.log(

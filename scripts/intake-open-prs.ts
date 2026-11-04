@@ -81,15 +81,7 @@ function statusMap(
     const updatedAt = typeof item.updated_at === "string" ? item.updated_at : "";
     const description = originalStatusDescription(item);
     const runId = trustedControlRunId(targetUrl, controlRepository);
-    if (
-      !runId ||
-      !hasValidStatusAttestation(
-        item,
-        { repository, sha, context },
-        process.env.AW_STATUS_TOKEN ?? ""
-      )
-    )
-      continue;
+    if (!runId || !hasValidStatusAttestation(item, { repository, sha, context })) continue;
     if (context && state && !statuses.has(context)) {
       statuses.set(context, { state, run_id: runId, updated_at: updatedAt, description });
     }
@@ -406,14 +398,14 @@ async function dispatchEvent(
 async function main(): Promise<void> {
   const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
-  const statusToken = requireIntakeStatusToken(process.env.AW_STATUS_TOKEN);
-  const dispatchToken = process.env.AW_INGRESS_TOKEN ?? "";
+  const statusToken = requireIntakeStatusToken(process.env.AW_STATUS_API_TOKEN);
+  const dispatchToken = process.env.AW_DISPATCH_API_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   const apiUrl = process.env.GITHUB_API_URL ?? "https://api.github.com";
 
   if (!policyRaw || !controlToken || !dispatchToken || !controlRepository) {
     throw new CliError(
-      "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
+      "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_DISPATCH_API_TOKEN, and AW_CONTROL_REPOSITORY are required.",
       64
     );
   }

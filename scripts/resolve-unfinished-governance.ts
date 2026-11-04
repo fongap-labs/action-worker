@@ -16,8 +16,7 @@ const description = "Action Worker PR governance did not complete for this head"
 export function latestGovernanceStatus(
   combined: unknown,
   repository: string,
-  sha: string,
-  statusToken = process.env.AW_STATUS_TOKEN ?? ""
+  sha: string
 ): { state: string; target: string } | null {
   const statuses = getJsonArray(combined, "statuses")
     .filter((item) => isJsonRecord(item) && getJsonString(item, "context") === context)
@@ -25,10 +24,7 @@ export function latestGovernanceStatus(
       getJsonString(right, "created_at").localeCompare(getJsonString(left, "created_at"))
     );
   const latest = statuses[0];
-  if (
-    !isJsonRecord(latest) ||
-    !hasValidStatusAttestation(latest, { repository, sha, context }, statusToken)
-  ) {
+  if (!isJsonRecord(latest) || !hasValidStatusAttestation(latest, { repository, sha, context })) {
     return null;
   }
   return { state: getJsonString(latest, "state"), target: getJsonString(latest, "target_url") };
@@ -74,7 +70,7 @@ async function main(): Promise<void> {
     throw new CliError(`::error::Pull request ${repository}#${prNumber} has no head commit.`, 65);
   }
   const combined = await getGithubJson(`repos/${repository}/commits/${head}/status`, statusToken);
-  const status = latestGovernanceStatus(combined, repository, head, statusToken);
+  const status = latestGovernanceStatus(combined, repository, head);
 
   const runId = status ? targetRunId(status.target, controlRepository) : null;
   const isTargetRunCompleted =
@@ -100,17 +96,14 @@ async function main(): Promise<void> {
       "-f",
       `context=${context}`,
       "-f",
-      `description=${signedStatusDescription(
-        {
-          repository,
-          sha: head,
-          state: "failure",
-          context,
-          description,
-          targetUrl: ownRunUrl,
-        },
-        statusToken
-      )}`,
+      `description=${signedStatusDescription({
+        repository,
+        sha: head,
+        state: "failure",
+        context,
+        description,
+        targetUrl: ownRunUrl,
+      })}`,
       "-f",
       `target_url=${ownRunUrl}`,
     ],

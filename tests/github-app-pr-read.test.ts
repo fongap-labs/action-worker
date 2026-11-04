@@ -27,13 +27,10 @@ test("PR API reads use GITHUB_TOKEN locally and a scoped App token across manage
   const scope = findStep("Resolve PR API scope");
   assert.equal(scope.id, "api_scope");
   assert.match(scope.env?.TARGET_REPOSITORY ?? "", /steps\.payload\.outputs\.repository/);
-  const mint = findStep("Mint cross-repository PR read token");
+  const mint = findStep("Mint PR read token");
   assert.equal(mint.id, "app_read");
-  assert.equal(mint.if, "steps.api_scope.outputs.is_control_repository == 'false'");
-  assert.equal(
-    mint.uses,
-    "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1"
-  );
+  assert.equal(mint.if, undefined);
+  assert.equal(mint.uses, "./.github/actions/mint-app-token");
   assert.equal(mint.with?.repositories, "${{ steps.api_scope.outputs.repository_name }}");
   assert.equal(mint.with?.owner, "${{ steps.api_scope.outputs.owner }}");
   assert.deepEqual(
@@ -64,8 +61,8 @@ test("PR API reads use GITHUB_TOKEN locally and a scoped App token across manage
   assert.equal(workflow.permissions["pull-requests"], "read");
   assert.equal(workflow.permissions.statuses, "read");
   assert.equal(
-    findStep("Mark governance in progress").env?.AW_STATUS_TOKEN,
-    "${{ secrets.AW_STATUS_TOKEN }}"
+    findStep("Mark governance in progress").env?.AW_STATUS_API_TOKEN,
+    "${{ steps.status_pending_app.outputs.token }}"
   );
   assert.equal(findStep("Checkout target PR").with?.token, "${{ secrets.AW_CONTROL_TOKEN }}");
 });
