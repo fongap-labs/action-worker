@@ -81,7 +81,8 @@ test("PR API reads use GITHUB_TOKEN locally and a scoped App token across manage
     "${{ steps.final_read_app.outputs.token }}"
   );
   assert.equal(
-    steps.find((step) => step.name === "Publish PR review" && step.env?.AW_CONTROL_TOKEN)?.env?.AW_CONTROL_TOKEN,
+    steps.find((step) => step.name === "Publish PR review" && step.env?.AW_CONTROL_TOKEN)?.env
+      ?.AW_CONTROL_TOKEN,
     "${{ steps.final_read_app.outputs.token }}"
   );
   assert.equal(
