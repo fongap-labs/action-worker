@@ -162,3 +162,21 @@ test("main CI transfers intake's short lease to the active Central CI run before
   assert.match(prepareSection, /AW_STATUS_TOKEN/);
   assert.doesNotMatch(prepareSection, /AW_STATUS_TOKEN \|\|/);
 });
+
+
+test("PR merge snapshot validates the current base and head parents before CI fan-out", () => {
+  assert.match(
+    workflow,
+    /base_sha: \\$\\{\\{ steps\\.merge_ref\\.outputs\\.base_sha \\|\\| steps\\.facts\\.outputs\\.base_sha \\|\\| steps\\.ref_facts\\.outputs\\.base_sha \\}\\}/
+  );
+  const pinStep = workflow.slice(
+    workflow.indexOf("- name: Pin PR merge snapshot"),
+    workflow.indexOf("- name: Validate requested revision")
+  );
+  assert.match(pinStep, /git\\/commits\\/\\$merge_sha/);
+  assert.match(pinStep, /parents\\[0\\]\\.sha/);
+  assert.match(pinStep, /parents\\[1\\]\\.sha/);
+  assert.match(pinStep, /merge_base_sha.*EXPECTED_BASE_SHA/);
+  assert.match(pinStep, /merge_head_sha.*EXPECTED_HEAD_SHA/);
+  assert.match(pinStep, /echo "base_sha=\\$merge_base_sha"/);
+});
