@@ -17,15 +17,6 @@ inputs:
   permission-actions:
     description: Optional Actions API permission (read or write).
     required: false
-  permission-administration:
-    description: Optional repository administration permission (read or write).
-    required: false
-  permission-variables:
-    description: Optional Actions repository variables permission (read or write).
-    required: false
-  permission-secrets:
-    description: Optional Actions repository secrets permission (read or write).
-    required: false
   permission-checks:
     description: Optional checks API permission (read or write).
     required: false
@@ -59,9 +50,6 @@ runs:
         owner: ${{ inputs.owner }}
         repositories: ${{ inputs.repositories }}
         permission-actions: ${{ inputs.permission-actions }}
-        permission-administration: ${{ inputs.permission-administration }}
-        permission-variables: ${{ inputs.permission-variables }}
-        permission-secrets: ${{ inputs.permission-secrets }}
         permission-checks: ${{ inputs.permission-checks }}
         permission-contents: ${{ inputs.permission-contents }}
         permission-issues: ${{ inputs.permission-issues }}
