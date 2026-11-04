@@ -91,6 +91,7 @@ jobs:
 
     permissions:
       actions: read
+      contents: read
 
     env:
       AW_SOURCE_DIR: ${{ github.workspace }}/task-source
