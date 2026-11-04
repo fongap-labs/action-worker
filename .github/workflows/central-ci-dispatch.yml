@@ -371,7 +371,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: read
+      contents: write
       statuses: write
       actions: read
 
