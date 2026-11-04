@@ -1,6 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { requireToken } from "./control-token.ts";
 import {
   GithubReader,
   getJsonArray,
@@ -133,11 +134,11 @@ async function cloneMirror(repository: string, token: string, destination: strin
 }
 
 async function main(): Promise<void> {
-  const token = process.env.AW_CONTROL_TOKEN ?? "";
+  const token = requireToken("branch");
   const rawPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
   const dryRun = process.env.BRANCH_PRUNE_DRY_RUN === "true";
   if (!token || !rawPolicy) {
-    throw new CliError("AW_CONTROL_TOKEN and AW_REPOSITORY_POLICY are required.", 77);
+    throw new CliError("AW_BRANCH_API_TOKEN and AW_REPOSITORY_POLICY are required.", 77);
   }
 
   const policy = parseJson(rawPolicy, "AW_REPOSITORY_POLICY must be valid JSON.", 65);

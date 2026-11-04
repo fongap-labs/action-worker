@@ -37,9 +37,27 @@ jobs:
         with:
           node-version: 24
 
+      - name: Resolve branch prune repository scope
+        id: prune_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/repository-policy.ts list pr
+
+      - name: Mint branch prune token
+        id: branch_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.prune_scope.outputs.repositories_csv }}
+          permission-contents: write
+          permission-pull-requests: read
+
       - name: Prune fully subsumed branches
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_BRANCH_API_TOKEN: ${{ steps.branch_app.outputs.token }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/prune-stale-branches.ts
 
