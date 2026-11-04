@@ -579,9 +579,11 @@ test("task dispatch keeps the publication credential in the central control step
     "Upload task state",
     "node scripts/validate-task-publication.ts",
     "Publish staged artifact",
-    "secrets.AW_CONTROL_TOKEN",
+    "AW_PUBLICATION_PRIVATE_KEY",
+    "task-publication-envelope.ts",
   ]);
   assert.doesNotMatch(workflow, /toJSON\s*\(\s*secrets\s*\)/);
+  assert.doesNotMatch(workflow, /secrets\.AW_CONTROL_TOKEN/);
   const directSecrets = [
     ...workflow.matchAll(/\$\{\{\s*secrets\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g),
   ].map((match) => match[1]);
@@ -589,7 +591,7 @@ test("task dispatch keeps the publication credential in the central control step
     "AW_APP_PRIVATE_KEY",
     "AW_ARTIFACT_KEY",
     "AW_CHECKOUT_TOKEN",
-    "AW_CONTROL_TOKEN",
+    "AW_PUBLICATION_PRIVATE_KEY",
   ]);
   // The task itself never keeps the artifact key: it is checked like the central credentials.
   assert.match(workflow, /for central_name in [A-Z_ ]*AW_ARTIFACT_KEY; do/);
