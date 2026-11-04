@@ -10,6 +10,8 @@ on:
 permissions:
   contents: read
   actions: read
+  pull-requests: read
+  statuses: read
 
 concurrency:
   group: pr-review-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}
@@ -47,10 +49,30 @@ jobs:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/validate-pr-payload.ts "$PAYLOAD"
 
+      - name: Resolve PR review API scope
+        id: api_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ steps.payload.outputs.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint cross-repository PR review read token
+        id: app_read
+        if: steps.api_scope.outputs.is_control_repository == 'false'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-statuses: read
+
       - name: Validate control credential
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
@@ -59,7 +81,7 @@ jobs:
       - name: Fetch PR facts
         id: facts
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           ALLOW_MERGED_PR: "true"
@@ -68,7 +90,7 @@ jobs:
       - name: Confirm the gate passed for the requested head
         id: target
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
@@ -237,12 +259,33 @@ jobs:
             "$HEAD_SHA" \
             "$GITHUB_WORKSPACE/rules/$REVIEW_RULE"
 
+      - name: Resolve final PR review API scope
+        id: review_scope
+        if: ${{ always() && !cancelled() && needs.prepare.outputs.repository != '' }}
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint final PR review read token
+        id: review_app
+        if: ${{ always() && !cancelled() && steps.review_scope.outputs.is_control_repository == 'false' }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.review_scope.outputs.owner }}
+          repositories: ${{ steps.review_scope.outputs.repository_name }}
+          permission-contents: read
+          permission-pull-requests: read
+          permission-statuses: read
+
       - name: Recheck review target
         id: recheck
         if: ${{ always() && !cancelled() }}
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.review_scope.outputs.is_control_repository == 'true' && github.token || steps.review_app.outputs.token }}
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
