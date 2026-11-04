@@ -133,9 +133,13 @@ async function main(): Promise<void> {
     `commit_message=${manifest.commit_message}`,
     `payload_dir=${payloadDir}`,
   ]);
-  console.log(
-    `Task publication validated: ${sourceRepository} -> ${manifest.target_repository}/${manifest.dest_dir}`
-  );
+  if (process.env.TASK_SOURCE_PRIVATE !== "false") {
+    console.log("Task publication validated for a private source.");
+  } else {
+    console.log(
+      `Task publication validated: ${sourceRepository} -> ${manifest.target_repository}/${manifest.dest_dir}`
+    );
+  }
 }
 
 if (isMain(import.meta.url)) {
