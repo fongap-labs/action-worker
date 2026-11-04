@@ -1,6 +1,20 @@
 import { appendLines, CliError, handleError, isMain, runText } from "./runtime-command.ts";
 import { prepareStatusSigningKeys, signingSnapshotIsFresh } from "./status-signing-keys.ts";
 
+export function reportSigningSecretAccessError(error: unknown, repository: string): never {
+  if (
+    error instanceof CliError &&
+    /(?:HTTP|status)\s+403\b/i.test(error.message) &&
+    !/rate limit exceeded|secondary rate limit|abuse detection/i.test(error.message)
+  ) {
+    throw new CliError(
+      `::error::Cannot manage Actions Secret AW_STATUS_SIGNING_KEYS in ${repository} (HTTP 403). The protected admin-ops credential must have repository Secrets: Read and write permission; any GitHub App installation must also approve this grant. Keep AW_STATUS_TOKEN legacy verification until bootstrap succeeds.`,
+      77
+    );
+  }
+  throw error;
+}
+
 async function main(): Promise<void> {
   const repository = process.env.GITHUB_REPOSITORY ?? "";
   const adminToken = process.env.GH_TOKEN ?? "";
@@ -44,8 +58,11 @@ async function main(): Promise<void> {
         })
       );
     } catch (error) {
-      if (!(error instanceof Error) || !/HTTP 404\b/.test(error.message)) throw error;
-      metadata = null;
+      if (error instanceof Error && /HTTP 404\b/.test(error.message)) {
+        metadata = null;
+      } else {
+        reportSigningSecretAccessError(error, repository);
+      }
     }
     if (
       !signingSnapshotIsFresh(
@@ -61,11 +78,15 @@ async function main(): Promise<void> {
     }
     // gh encrypts the secret using the repository public key. Neither the key nor retained legacy
     // verifier material is printed or passed on the command line.
-    await runText("gh", ["secret", "set", "AW_STATUS_SIGNING_KEYS", "--repo", repository], {
-      input: JSON.stringify(result.keys),
-      env: { ...process.env, GH_TOKEN: adminToken },
-      timeoutMs: 30_000,
-    });
+    try {
+      await runText("gh", ["secret", "set", "AW_STATUS_SIGNING_KEYS", "--repo", repository], {
+        input: JSON.stringify(result.keys),
+        env: { ...process.env, GH_TOKEN: adminToken },
+        timeoutMs: 30_000,
+      });
+    } catch (error) {
+      reportSigningSecretAccessError(error, repository);
+    }
     // A newly queued run receives the newly saved repository secret; this run keeps its snapshot.
     await runText(
       "gh",
