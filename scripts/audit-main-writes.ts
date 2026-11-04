@@ -14,12 +14,24 @@ import { repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
 
-type AuditResult = {
+export type AuditResult = {
   repository: string;
   main_sha: string;
-  state: "success" | "failure";
+  state: "success" | "failure" | "pending";
   detail: string;
 };
+
+export function countAuditResults(results: readonly AuditResult[]): {
+  verified: number;
+  rejected: number;
+  pending: number;
+} {
+  return {
+    verified: results.filter((result) => result.state === "success").length,
+    rejected: results.filter((result) => result.state === "failure").length,
+    pending: results.filter((result) => result.state === "pending").length,
+  };
+}
 
 const shaPattern = /^[0-9a-f]{40}$/;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -143,9 +155,11 @@ async function main(): Promise<void> {
     statusToken
   );
   const results: AuditResult[] = [];
+  const statusPublicationErrors: string[] = [];
 
   for (const repository of repositories) {
     let mainSha = "";
+    let hasVerifiedProvenance = false;
     try {
       // Auto-close expired incidents before auditing, so they don't block the pipeline.
       try {
@@ -175,6 +189,7 @@ async function main(): Promise<void> {
         repository !== controlRepository,
         bypassIncidents
       );
+      hasVerifiedProvenance = true;
       await publishGuardStatus(
         repository,
         mainSha,
@@ -194,6 +209,17 @@ async function main(): Promise<void> {
     } catch (error) {
       const detail =
         error instanceof Error ? error.message.replace(/^::error::/, "") : String(error);
+      if (hasVerifiedProvenance) {
+        // A failed status POST is an operational failure, not evidence of an untrusted write.
+        statusPublicationErrors.push(`${repository}: ${detail}`);
+        results.push({
+          repository,
+          main_sha: mainSha,
+          state: "pending",
+          detail: `Verified provenance; could not publish attestation: ${detail}`,
+        });
+        continue;
+      }
       // Record immutable evidence privately. A later clean merge must not silently close it.
       if (
         shaPattern.test(mainSha) &&
@@ -224,26 +250,29 @@ async function main(): Promise<void> {
           );
         }
       }
+      const statusState =
+        error instanceof MainWriteVerificationPendingError ? "pending" : "failure";
       if (shaPattern.test(mainSha)) {
         try {
           await publishGuardStatus(
             repository,
             mainSha,
             statusToken,
-            error instanceof MainWriteVerificationPendingError ? "pending" : "failure",
+            statusState,
             error instanceof MainWriteVerificationPendingError
               ? "Central PR evidence is still running"
               : "Untrusted main write",
             runUrl
           );
-        } catch {
-          // Keep the provenance failure authoritative.
+        } catch (statusError) {
+          const cause = statusError instanceof Error ? statusError.message : String(statusError);
+          statusPublicationErrors.push(`${repository}: ${cause}`);
         }
       }
       results.push({
         repository,
         main_sha: mainSha || "unknown",
-        state: "failure",
+        state: statusState,
         detail,
       });
     }
@@ -260,15 +289,23 @@ async function main(): Promise<void> {
     ),
   ]);
 
-  const failures = results.filter((item) => item.state === "failure");
-  if (failures.length > 0) {
+  const totals = countAuditResults(results);
+  for (const result of results) {
+    if (result.state !== "success") {
+      console.warn(
+        `::warning::Main Write Guard ${result.state} for ${result.repository}@${result.main_sha}: ${result.detail}`
+      );
+    }
+  }
+  console.log(
+    `Main Write Audit completed: ${totals.verified} verified, ${totals.rejected} rejected, ${totals.pending} pending. Each repository is enforced by its own Main Write Guard status; repository violations do not fail the central intake.`
+  );
+  if (statusPublicationErrors.length > 0) {
     throw new CliError(
-      `::error::Main Write Audit failed for ${failures.length} repository/repositories: ${failures.map((item) => `${item.repository} (${item.detail})`).join("; ")}.`,
-      1
+      `::error::Main Write Audit could not publish ${statusPublicationErrors.length} repository guard status(es): ${statusPublicationErrors.join("; ")}. Check AW_STATUS_TOKEN Commit statuses: Read and write on the affected repositories.`,
+      77
     );
   }
-
-  console.log(`Main Write Audit passed for ${results.length} repositories.`);
 }
 
 if (isMain(import.meta.url)) {
