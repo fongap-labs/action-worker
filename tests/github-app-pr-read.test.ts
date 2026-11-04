@@ -33,7 +33,9 @@ test("only MCP Hub PR fact reads use a scoped GitHub App token", async () => {
   assert.equal(mint.with?.["permission-pull-requests"], "read");
   assert.equal(mint.with?.["permission-actions"], "read");
   assert.deepEqual(
-    Object.keys(mint.with ?? {}).filter((key) => key.startsWith("permission-")).sort(),
+    Object.keys(mint.with ?? {})
+      .filter((key) => key.startsWith("permission-"))
+      .sort(),
     ["permission-actions", "permission-contents", "permission-pull-requests"]
   );
 
@@ -48,6 +50,9 @@ test("only MCP Hub PR fact reads use a scoped GitHub App token", async () => {
     assert.equal(findStep(name).env?.GH_TOKEN, readToken, name);
   }
 
-  assert.equal(findStep("Mark governance in progress").env?.AW_STATUS_TOKEN, "${{ secrets.AW_STATUS_TOKEN }}");
+  assert.equal(
+    findStep("Mark governance in progress").env?.AW_STATUS_TOKEN,
+    "${{ secrets.AW_STATUS_TOKEN }}"
+  );
   assert.equal(findStep("Checkout target PR").with?.token, "${{ secrets.AW_CONTROL_TOKEN }}");
 });
