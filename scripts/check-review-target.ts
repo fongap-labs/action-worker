@@ -68,7 +68,7 @@ async function main(): Promise<void> {
     throw new CliError("::error::Review target authority is unavailable.", 65);
   }
   const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, token);
-  const status = await getGithubJson(`repos/${repository}/commits/${headSha}/status`, statusToken);
+  const status = await getGithubJson(`repos/${repository}/commits/${headSha}/status`, token);
   const target = evaluateReviewTarget(
     pull,
     status,
