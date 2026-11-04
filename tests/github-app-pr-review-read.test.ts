@@ -105,7 +105,8 @@ test("review checkout, evidence and publication do not use personal control toke
     "${{ steps.evidence_app.outputs.token }}"
   );
   assert.equal(
-    steps.find((step) => step.name === "Publish PR review" && step.env?.AW_CONTROL_TOKEN)?.env?.AW_CONTROL_TOKEN,
+    steps.find((step) => step.name === "Publish PR review" && step.env?.AW_CONTROL_TOKEN)?.env
+      ?.AW_CONTROL_TOKEN,
     "${{ steps.review_app.outputs.token }}"
   );
 });
