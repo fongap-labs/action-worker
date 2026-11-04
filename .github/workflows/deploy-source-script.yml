@@ -85,11 +85,35 @@ jobs:
           request="$(jq -c . <<< "$PAYLOAD")"
           echo "request_json=$request" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve deploy source API scope
+        id: api_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ github.event.client_payload.source_repository || inputs.source_repository }}
+        run: node scripts/resolve-github-api-scope.ts deploy
+
+      # The prepare job only reads source facts; deployment secrets are available later
+      # in the isolated, environment-approved deployment job.
+      - name: Mint cross-repository deploy preflight read token
+        id: app_read
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-checks: read
+          permission-statuses: read
+          permission-issues: read
+
       - name: Resolve manual deploy request
         id: manual_request
         if: github.event_name == 'workflow_dispatch'
         env:
-          AW_CHECKOUT_TOKEN: ${{ secrets.AW_CHECKOUT_TOKEN }}
+          AW_DEPLOY_SOURCE_READ_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           SOURCE_SHA: ${{ inputs.source_sha }}
@@ -101,13 +125,13 @@ jobs:
           # Names the offending input and the allowed repositories instead of exiting silently.
           node scripts/repository-policy.ts validate "$SOURCE_REPOSITORY" deploy
           if [ -z "$SOURCE_SHA" ]; then
-            # Git transport avoids consuming the shared user PAT REST quota. The existing
-            # read-only checkout credential supports private source repositories too.
-            if [ -z "$AW_CHECKOUT_TOKEN" ]; then
-              echo "::error::Missing required AW_CHECKOUT_TOKEN to resolve source HEAD." >&2
+            # Git transport avoids consuming the shared personal PAT REST quota. The existing
+            # short-lived repository-scoped App read credential supports private source repositories too.
+            if [ -z "$AW_DEPLOY_SOURCE_READ_TOKEN" ]; then
+              echo "::error::Missing scoped GitHub App read token to resolve source HEAD; no personal PAT fallback." >&2
               exit 77
             fi
-            auth="$(printf 'x-access-token:%s' "$AW_CHECKOUT_TOKEN" | base64 -w 0)"
+            auth="$(printf 'x-access-token:%s' "$AW_DEPLOY_SOURCE_READ_TOKEN" | base64 -w 0)"
             SOURCE_SHA="$(
               GIT_TERMINAL_PROMPT=0 \
               GIT_CONFIG_COUNT=1 \
@@ -143,30 +167,6 @@ jobs:
               }'
           )"
           echo "request_json=$request" >> "$GITHUB_OUTPUT"
-
-      - name: Resolve deploy source API scope
-        id: api_scope
-        env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          TARGET_REPOSITORY: ${{ steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository }}
-        run: node scripts/resolve-github-api-scope.ts deploy
-
-      # The prepare job only reads source facts; deployment secrets are available later
-      # in the isolated, environment-approved deployment job.
-      - name: Mint cross-repository deploy preflight read token
-        id: app_read
-        uses: ./.github/actions/mint-app-token
-        with:
-          client-id: ${{ vars.AW_APP_CLIENT_ID }}
-          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
-          owner: ${{ steps.api_scope.outputs.owner }}
-          repositories: ${{ format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}
-          permission-contents: read
-          permission-actions: read
-          permission-pull-requests: read
-          permission-checks: read
-          permission-statuses: read
-          permission-issues: read
 
       - name: Mint deploy source CI status token
         id: ci_status_app
