@@ -137,7 +137,6 @@ test("findings are summarised by rule and annotated only for public targets", ()
   assert.throws(() => summarizeFindings({}, true));
 });
 
-
 test("scanner failures reveal safe categories but never leak private stderr", async (context) => {
   const directory = await mkdtemp(join(tmpdir(), "secret-scan-"));
   context.after(() => rm(directory, { recursive: true, force: true }));
