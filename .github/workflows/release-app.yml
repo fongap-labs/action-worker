@@ -42,6 +42,7 @@ jobs:
     outputs:
       source_repository: ${{ steps.request.outputs.source_repository }}
       source_sha: ${{ steps.request.outputs.source_sha }}
+      is_private: ${{ steps.source_visibility.outputs.is_private }}
       version: ${{ steps.request.outputs.version }}
       artifact_name: ${{ steps.request.outputs.artifact_name }}
       target_repository: ${{ steps.request.outputs.target_repository }}
@@ -99,6 +100,21 @@ jobs:
           RELEASE_REQUESTED_VERSION: ${{ inputs.requested_version }}
           RELEASE_PRODUCT: ${{ inputs.product }}
         run: node scripts/resolve-release-build-ingress.ts
+
+      - name: Resolve release source visibility
+        id: source_visibility
+        env:
+          GH_TOKEN: ${{ steps.app_read.outputs.token }}
+          SOURCE_REPOSITORY: ${{ steps.ingress.outputs.source_repository }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          is_private="$(gh api "repos/$SOURCE_REPOSITORY" --jq '.private')"
+          [[ "$is_private" == "true" || "$is_private" == "false" ]] || {
+            echo "::error::Unable to verify release source visibility." >&2
+            exit 77
+          }
+          echo "is_private=$is_private" >> "$GITHUB_OUTPUT"
 
       - name: Resolve release source status scope
         id: api_scope
@@ -206,12 +222,34 @@ jobs:
       id-token: write
 
     steps:
-      - name: Checkout source
+      - name: Require dedicated private release checkout credential
+        if: needs.prepare.outputs.is_private == 'true'
+        env:
+          AW_CHECKOUT_TOKEN: ${{ secrets.AW_CHECKOUT_TOKEN }}
+        shell: bash
+        run: |
+          if [ -z "${AW_CHECKOUT_TOKEN:-}" ]; then
+            echo "::error::Private release build requires AW_CHECKOUT_TOKEN with Contents: Read; no fallback." >&2
+            exit 77
+          fi
+
+      - name: Checkout private source
+        if: needs.prepare.outputs.is_private == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ needs.prepare.outputs.source_repository }}
           ref: ${{ needs.prepare.outputs.source_sha }}
           token: ${{ secrets.AW_CHECKOUT_TOKEN }}
+          path: source
+          persist-credentials: false
+
+      - name: Checkout public source
+        if: needs.prepare.outputs.is_private == 'false'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.prepare.outputs.source_repository }}
+          ref: ${{ needs.prepare.outputs.source_sha }}
+          token: ${{ github.token }}
           path: source
           persist-credentials: false
 
