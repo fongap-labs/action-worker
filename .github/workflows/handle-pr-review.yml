@@ -290,13 +290,13 @@ jobs:
 
       - name: Mint final PR review read token
         id: review_app
-        if: ${{ always() && !cancelled() && steps.review_scope.outputs.is_control_repository == 'false' }}
+        if: ${{ always() && !cancelled() && steps.review_scope.outputs.repository_name != '' }}
         uses: ./.github/actions/mint-app-token
         with:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ steps.review_scope.outputs.owner }}
-          repositories: ${{ steps.review_scope.outputs.repository_name }}
+          repositories: ${{ steps.review_scope.outputs.is_control_repository == 'true' && github.event.repository.name || format('{0},{1}', github.event.repository.name, steps.review_scope.outputs.repository_name) }}
           permission-contents: read
           permission-pull-requests: read
           permission-statuses: read
