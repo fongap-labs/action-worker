@@ -18,7 +18,10 @@ test("task source resolves policy before minting a scoped App read token", async
   assert.doesNotMatch(source, /secrets\.AW_CONTROL_TOKEN/);
   const scope = step("Resolve task source read scope");
   assert.equal(scope?.id, "source_read_scope");
-  assert.equal(scope?.env?.TARGET_REPOSITORY, "${{ github.event.client_payload.repository || inputs.repository }}");
+  assert.equal(
+    scope?.env?.TARGET_REPOSITORY,
+    "${{ github.event.client_payload.repository || inputs.repository }}"
+  );
   const mint = step("Mint task source read token");
   assert.equal(mint?.id, "app_read");
   assert.deepEqual(
