@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { countAuditResults, type AuditResult } from "../scripts/audit-main-writes.ts";
+import { type AuditResult, countAuditResults } from "../scripts/audit-main-writes.ts";
 
 const sha = "a".repeat(40);
 
