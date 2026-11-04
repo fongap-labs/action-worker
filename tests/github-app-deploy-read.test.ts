@@ -40,8 +40,8 @@ test("deploy preflight routes trusted reads by repository without exposing App s
     "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1"
   );
   assert.equal(
-    mint.with?.repositories?.trim(),
-    "${{ github.event.repository.name }}\n${{ steps.api_scope.outputs.repository_name }}"
+    mint.with?.repositories,
+    "${{ format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}"
   );
   assert.deepEqual(
     Object.keys(mint.with ?? {})
