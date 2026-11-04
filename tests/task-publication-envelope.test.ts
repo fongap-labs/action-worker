@@ -106,6 +106,19 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
   assert.ok(execute);
   assert.ok(publish);
   assert.equal(publish.environment, "admin-ops");
+  const keyGuard = execute.steps.find(
+    (step) => step.name === "Reject publisher private key in task execution"
+  );
+  assert.ok(keyGuard);
+  assert.equal(
+    keyGuard.env?.PUBLISHER_KEY_EXPOSED,
+    "${{ secrets.AW_PUBLICATION_PRIVATE_KEY != '' }}"
+  );
+  assert.ok(
+    execute.steps.findIndex((step) => step.name === "Reject publisher private key in task execution") <
+      execute.steps.findIndex((step) => step.name === "Execute downstream task")
+  );
+  assert.match(source, /AW_PUBLICATION_PRIVATE_KEY must be an admin-ops Environment Secret/);
   assert.deepEqual(publish.needs, ["validate", "execute"]);
   assert.equal(execute.outputs?.publication_staged, "${{ steps.publication.outputs.staged }}");
   assert.equal(

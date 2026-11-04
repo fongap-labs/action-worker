@@ -204,6 +204,16 @@ jobs:
 
           node scripts/task-state.ts restore "$state_root" "$SOURCE_REPOSITORY" "$PROJECT" "$visibility"
 
+      - name: Reject publisher private key in task execution
+        env:
+          PUBLISHER_KEY_EXPOSED: ${{ secrets.AW_PUBLICATION_PRIVATE_KEY != '' }}
+        shell: bash
+        run: |
+          if [ "$PUBLISHER_KEY_EXPOSED" = "true" ]; then
+            echo "::error::AW_PUBLICATION_PRIVATE_KEY must be an admin-ops Environment Secret, never an organization or repository Secret." >&2
+            exit 77
+          fi
+
       - name: Snapshot base environment
         shell: bash
         run: |
