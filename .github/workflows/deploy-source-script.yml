@@ -278,7 +278,7 @@ jobs:
               "${RUNNER_TEMP}/action-worker-base-env.names" \
               "target/${DEPLOY_PRODUCT_DIRECTORY}/deploy.secrets.required" \
               "target/${DEPLOY_PRODUCT_DIRECTORY}/deploy.secrets.allowed" \
-              "AW_CONTROL_TOKEN,AW_ADMIN_TOKEN,AW_DISPATCH_TOKEN,AW_CHECKOUT_TOKEN,GH_TOKEN,NODE_OPTIONS" \
+              "AW_CONTROL_TOKEN,AW_ADMIN_TOKEN,AW_DISPATCH_TOKEN,AW_CHECKOUT_TOKEN,AW_APP_PRIVATE_KEY,GH_TOKEN,NODE_OPTIONS" \
               "control/policies/deploy-secrets.json" \
               "$DEPLOY_SOURCE_REPOSITORY" "$DEPLOY_ENVIRONMENT" deploy "$DEPLOY_PRODUCT"
           )"
@@ -294,7 +294,7 @@ jobs:
             [ -n "$secret_name" ] && unset "$secret_name"
           done < <(jq -r '.unset[]' <<< "$scope")
 
-          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN AW_CHECKOUT_TOKEN; do
+          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN AW_CHECKOUT_TOKEN AW_APP_PRIVATE_KEY; do
             if [ -n "${!central_name+x}" ]; then
               echo "::error::Central credential survived deploy isolation: ${central_name}." >&2
               exit 1
