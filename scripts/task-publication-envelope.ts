@@ -24,9 +24,6 @@ type Payload = { manifest: unknown; files: PublicationFile[] };
 
 type Envelope = {
   schema_version: "1";
-  repository: string;
-  project: string;
-  bootstrap_ref: string;
   encrypted_key: string;
   iv: string;
   tag: string;
@@ -130,7 +127,6 @@ export async function sealTaskPublication(
   );
   const envelope: Envelope = {
     schema_version: "1",
-    ...identity,
     encrypted_key: wrapped.toString("base64"),
     iv: iv.toString("base64"),
     tag: cipher.getAuthTag().toString("base64"),
@@ -152,9 +148,6 @@ export async function openTaskPublication(
   if (
     !isJsonRecord(envelope) ||
     envelope.schema_version !== "1" ||
-    envelope.repository !== identity.repository ||
-    envelope.project !== identity.project ||
-    envelope.bootstrap_ref !== identity.bootstrap_ref ||
     !["encrypted_key", "iv", "tag", "ciphertext"].every(
       (field) => typeof envelope[field] === "string"
     )
