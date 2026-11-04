@@ -41,7 +41,7 @@ test("Central CI reads use GITHUB_TOKEN for the control repository and a scoped 
   assert.equal(mint.with?.["private-key"], "${{ secrets.AW_APP_PRIVATE_KEY }}");
   assert.equal(
     mint.with?.repositories?.trim(),
-    "action-worker\n${{ steps.api_scope.outputs.repository_name }}"
+    "${{ github.event.repository.name }}\n${{ steps.api_scope.outputs.repository_name }}"
   );
   assert.equal(mint.with?.owner, "${{ steps.api_scope.outputs.owner }}");
   assert.deepEqual(
