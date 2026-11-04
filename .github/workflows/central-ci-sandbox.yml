@@ -357,8 +357,7 @@ jobs:
           if (-not (Test-Path -LiteralPath $log -PathType Leaf)) { exit 0 }
           $body = Get-Content -LiteralPath $log -Raw -ErrorAction SilentlyContinue
           if ([string]::IsNullOrEmpty($body)) { exit 0 }
-          $failures = [regex]::Matches($body, '(?m)^WC_TEST_FAIL_INDEX=([1-9][0-9]{0,2})\r?
-)
+          $failures = [regex]::Matches($body, '(?m)^WC_TEST_FAIL_INDEX=([1-9][0-9]{0,2})(?![0-9])')
           if ($failures.Count -gt 0 -and $failures.Count -le 999) {
             $first = [int]$failures[0].Groups[1].Value
             Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value ("windows_diagnostic=wc-test-{0}-{1}" -f $first, $failures.Count)
