@@ -35,7 +35,9 @@ test("Release Build uses GitHub App for preflight and a dedicated read-only chec
   assert.equal(build?.with?.token, "${{ secrets.AW_CHECKOUT_TOKEN }}");
   assert.equal(build?.with?.["persist-credentials"], false);
   assert.equal(
-    workflow.jobs.build?.steps.some((step) => step.name === "Mint release package source read token"),
+    workflow.jobs.build?.steps.some(
+      (step) => step.name === "Mint release package source read token"
+    ),
     false
   );
 
@@ -44,10 +46,7 @@ test("Release Build uses GitHub App for preflight and a dedicated read-only chec
   const mint = pkg.find((step) => step.name === "Mint release package source read token");
   const checkout = pkg.find((step) => step.name === "Checkout release source");
   assert.equal(scope?.id, "package_scope");
-  assert.equal(
-    scope?.env?.TARGET_REPOSITORY,
-    "${{ needs.prepare.outputs.source_repository }}"
-  );
+  assert.equal(scope?.env?.TARGET_REPOSITORY, "${{ needs.prepare.outputs.source_repository }}");
   assert.equal(mint?.id, "package_read_app");
   assert.equal(mint?.with?.repositories, "${{ steps.package_scope.outputs.repository_name }}");
   assert.deepEqual(
