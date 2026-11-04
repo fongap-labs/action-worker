@@ -39,7 +39,10 @@ test("task execution never receives the App private key or broad control checkou
   const workflow = parse(source) as { jobs: Record<string, { steps: Step[] }> };
   const steps = workflow.jobs.execute?.steps ?? [];
   const find = (name: string) => steps.find((step) => step.name === name);
-  assert.equal(steps.some((step) => step.name?.includes("Mint")), false);
+  assert.equal(
+    steps.some((step) => step.name?.includes("Mint")),
+    false
+  );
   assert.equal(
     find("Require dedicated private task checkout credential")?.if,
     "needs.validate.outputs.is_private == 'true'"
@@ -48,10 +51,7 @@ test("task execution never receives the App private key or broad control checkou
     find("Checkout private task source")?.with?.token,
     "${{ secrets.AW_CHECKOUT_TOKEN }}"
   );
-  assert.equal(
-    find("Checkout public task source")?.with?.token,
-    "${{ github.token }}"
-  );
+  assert.equal(find("Checkout public task source")?.with?.token, "${{ github.token }}");
   assert.equal(find("Checkout private task source")?.with?.["persist-credentials"], false);
   assert.equal(find("Checkout public task source")?.with?.["persist-credentials"], false);
   assert.doesNotMatch(
