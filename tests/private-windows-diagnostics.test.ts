@@ -6,10 +6,7 @@ const sandbox = readFileSync(".github/workflows/central-ci-sandbox.yml", "utf8")
 const dispatch = readFileSync(".github/workflows/central-ci-dispatch.yml", "utf8");
 
 test("private Windows diagnostics emit only strictly bounded numerical indices", () => {
-  assert.match(
-    sandbox,
-    /value: \$\{\{ jobs\.windows\.outputs\.windows_diagnostic \}\}/
-  );
+  assert.match(sandbox, /value: \$\{\{ jobs\.windows\.outputs\.windows_diagnostic \}\}/);
   assert.match(
     sandbox,
     /windows_diagnostic: \$\{\{ steps\.private_diag\.outputs\.windows_diagnostic \}\}/
