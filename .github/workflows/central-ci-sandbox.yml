@@ -38,6 +38,10 @@ on:
       is_private:
         required: true
         type: string
+    outputs:
+      windows_diagnostic:
+        description: Numeric failure index and count for private WinCleaner test suites only
+        value: ${{ jobs.windows.outputs.windows_diagnostic }}
     secrets:
       checkout_token:
         description: Read token for private targets only
@@ -221,6 +225,8 @@ jobs:
     if: inputs.platform == 'windows'
     runs-on: windows-latest
     timeout-minutes: 90
+    outputs:
+      windows_diagnostic: ${{ steps.private_diag.outputs.windows_diagnostic }}
 
     steps:
       # A pull request is tested as it would merge into the default branch; see the Linux job.
@@ -338,3 +344,22 @@ jobs:
           }
 
           Write-Host "Central Windows CI passed for $env:TARGET_REPOSITORY."
+
+      # Only a numeric test index is released from the private Windows log.
+      # The source code, test names, paths and stderr stay in runner-local log.
+      # This diagnostic cannot change or bypass any CI success verdict.
+      - name: Export private test index
+        id: private_diag
+        if: always() && inputs.is_private == 'true' && inputs.repository == 'fongap-labs/app-source'
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP "central-ci-windows.log"
+          if (-not (Test-Path -LiteralPath $log -PathType Leaf)) { exit 0 }
+          $body = Get-Content -LiteralPath $log -Raw -ErrorAction SilentlyContinue
+          if ([string]::IsNullOrEmpty($body)) { exit 0 }
+          $failures = [regex]::Matches($body, '(?m)^WC_TEST_FAIL_INDEX=([1-9][0-9]{0,2})\r?
+)
+          if ($failures.Count -gt 0 -and $failures.Count -le 999) {
+            $first = [int]$failures[0].Groups[1].Value
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value ("windows_diagnostic=wc-test-{0}-{1}" -f $first, $failures.Count)
+          }
