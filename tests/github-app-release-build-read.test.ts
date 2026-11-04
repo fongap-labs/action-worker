@@ -34,7 +34,7 @@ test("Release Build uses GitHub App for preflight and a dedicated read-only chec
   for (const [job, name] of [
     ["build", "Checkout source"],
     ["publish", "Checkout release source"],
-  ]) {
+  ] as const) {
     const step = workflow.jobs[job]?.steps.find((candidate) => candidate.name === name);
     assert.equal(step?.with?.token, "${{ secrets.AW_CHECKOUT_TOKEN }}", job);
     assert.equal(step?.with?.["persist-credentials"], false);
