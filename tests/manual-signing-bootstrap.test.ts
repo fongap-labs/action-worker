@@ -20,14 +20,11 @@ type Workflow = {
     repository_dispatch: { types: string[] };
   };
   concurrency: { group: string; "cancel-in-progress": boolean };
-  jobs: Record<
-    string,
-    { if?: string; environment?: string; needs?: string; steps: Step[] }
-  >;
+  jobs: Record<string, { if?: string; environment?: string; needs?: string; steps: Step[] }>;
 };
 
 test("manual signing recovery is a protected entry, not a manual maintenance job", async () => {
-  const source = await readFile(".github/workflows/recover-status-signing.yml", "utf8");
+  const source = await readFile(".github/workflows/status-signing-recovery.yml", "utf8");
   const workflow = parse(source) as Workflow;
   assert.deepEqual(Object.keys(workflow.on).sort(), ["repository_dispatch", "workflow_dispatch"]);
   assert.deepEqual(workflow.on.repository_dispatch.types, ["run-status-signing-recovery"]);
@@ -64,7 +61,7 @@ test("manual signing recovery is a protected entry, not a manual maintenance job
 });
 
 test("manual signing recovery preserves legacy verifiers and refuses bypasses", async () => {
-  const source = await readFile(".github/workflows/recover-status-signing.yml", "utf8");
+  const source = await readFile(".github/workflows/status-signing-recovery.yml", "utf8");
   const workflow = parse(source) as Workflow;
   const steps = workflow.jobs.bootstrap?.steps ?? [];
   const find = (name: string) => {
