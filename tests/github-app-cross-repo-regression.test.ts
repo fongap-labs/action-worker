@@ -34,13 +34,19 @@ test("PR Governance retains independently scoped read, status, dispatch and issu
   assert.equal(read.with?.["permission-actions"], "read");
   assert.equal(read.with?.["permission-statuses"], "read");
   assert.match(read.with?.repositories ?? "", /format\('\{0\},\{1\}'/);
-  assert.equal(requireStep(steps, "Mint pending status token").with?.["permission-statuses"], "write");
+  assert.equal(
+    requireStep(steps, "Mint pending status token").with?.["permission-statuses"],
+    "write"
+  );
   assert.equal(
     requireStep(steps, "Mint centralized CI dispatch token").with?.["permission-contents"],
     "write"
   );
   assert.equal(requireStep(steps, "Mint final governance read token").id, "final_read_app");
-  assert.equal(requireStep(steps, "Mint unfinished governance read token").id, "unfinished_read_app");
+  assert.equal(
+    requireStep(steps, "Mint unfinished governance read token").id,
+    "unfinished_read_app"
+  );
   assert.equal(
     requireStep(steps, "Checkout target PR").with?.token,
     "${{ steps.app_read.outputs.token }}"
@@ -56,8 +62,9 @@ test("CI, deploy and AI Review independently mint appropriate App permissions", 
   assert.equal(requireStep(ci, "Mint status write token").with?.["permission-statuses"], "write");
   const deploy = await workflowSteps("deploy-source-script");
   assert.equal(
-    requireStep(deploy, "Mint cross-repository deploy preflight read token").with
-      ?.["permission-contents"],
+    requireStep(deploy, "Mint cross-repository deploy preflight read token").with?.[
+      "permission-contents"
+    ],
     "read"
   );
   assert.equal(
@@ -69,7 +76,10 @@ test("CI, deploy and AI Review independently mint appropriate App permissions", 
     "write"
   );
   const review = await workflowSteps("handle-pr-review");
-  assert.equal(requireStep(review, "Mint CI evidence read token").with?.["permission-actions"], "read");
+  assert.equal(
+    requireStep(review, "Mint CI evidence read token").with?.["permission-actions"],
+    "read"
+  );
   assert.equal(
     requireStep(review, "Mint final PR review read token").with?.["permission-statuses"],
     "read"
