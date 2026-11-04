@@ -5,7 +5,7 @@ import { requireToken, resolveToken, scopeEnvName } from "../scripts/control-tok
 
 test("scoped GitHub tokens never inherit control or GH_TOKEN credentials", () => {
   const env = { AW_CONTROL_TOKEN: "control", GH_TOKEN: "generic" };
-  for (const scope of ["status", "issue", "dispatch", "checkout"] as const) {
+  for (const scope of ["status", "issue", "dispatch", "checkout", "release"] as const) {
     assert.equal(resolveToken(scope, env), "");
     assert.throws(
       () => requireToken(scope, env),
@@ -25,10 +25,11 @@ test("each scoped credential is selected only by its own name", () => {
     AW_ISSUE_API_TOKEN: "issue",
     AW_DISPATCH_API_TOKEN: "dispatch",
     AW_CHECKOUT_TOKEN: "checkout",
+    AW_RELEASE_API_TOKEN: "release",
     AW_CONTROL_TOKEN: "control",
     GH_TOKEN: "generic",
   };
-  for (const scope of ["status", "issue", "dispatch", "checkout", "control"] as const) {
+  for (const scope of ["status", "issue", "dispatch", "checkout", "release", "control"] as const) {
     assert.equal(requireToken(scope, env), scope);
   }
 });

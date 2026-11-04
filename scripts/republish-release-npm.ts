@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { requireToken } from "./control-token.ts";
 import {
   getGithubJson,
   getJsonArray,
@@ -10,6 +11,7 @@ import {
   runGithubCli,
 } from "./github-api.ts";
 import { configureNpmAuth, npmRegistry, publishNpmTarball } from "./npm-publish.ts";
+
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import {
   appendLines,
@@ -246,13 +248,13 @@ async function ensureDistTag(
 }
 
 async function main(): Promise<void> {
-  const controlToken = process.env.AW_CONTROL_TOKEN?.trim();
+  const releaseToken = requireToken("release").trim();
   const npmToken = (process.env.AW_NPM_TOKEN ?? process.env.NPM_TOKEN)?.trim();
   const repository = process.env.NPM_REPUBLISH_REPOSITORY?.trim() ?? "";
   const tag = process.env.NPM_REPUBLISH_TAG?.trim() ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY?.trim() ?? "";
   const rawPolicy = process.env.AW_REPOSITORY_POLICY;
-  if (!controlToken || !npmToken || !rawPolicy) {
+  if (!releaseToken || !npmToken || !rawPolicy) {
     throw new CliError("::error::Missing npm republish credentials or repository policy.", 65);
   }
   const policy = parseJson(rawPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65);
@@ -260,7 +262,7 @@ async function main(): Promise<void> {
 
   const release = await getGithubJson(
     `repos/${repository}/releases/tags/${encodeURIComponent(tag)}`,
-    controlToken
+    releaseToken
   );
   const releaseAsset = validateNpmRelease(repository, tag, controlRepository, release, policy);
   const workDir = await mkdtemp(join(tmpdir(), "action-worker-npm-republish-"));
@@ -279,7 +281,7 @@ async function main(): Promise<void> {
         "--pattern",
         releaseAsset.checksumName,
       ],
-      controlToken
+      releaseToken
     );
     const tarballPath = join(workDir, releaseAsset.tarballName);
     const tarball = await readFile(tarballPath);

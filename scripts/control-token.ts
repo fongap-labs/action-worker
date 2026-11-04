@@ -7,6 +7,7 @@
  * - AW_ISSUE_API_TOKEN    Issues: scoped write
  * - AW_DISPATCH_API_TOKEN Contents: write on fongap-labs/action-worker
  * - AW_CHECKOUT_TOKEN Contents: Read on private target repositories
+ * - AW_RELEASE_API_TOKEN Contents: Read on the explicit release target
  * - AW_CONTROL_TOKEN  Only the remaining control-plane permissions
  *
  * App tokens are short-lived and repository-scoped. Missing operation tokens never fall back to
@@ -15,13 +16,14 @@
 
 import { CliError } from "./runtime-command.ts";
 
-export type TokenScope = "status" | "issue" | "dispatch" | "checkout" | "control";
+export type TokenScope = "status" | "issue" | "dispatch" | "checkout" | "release" | "control";
 
 const scopeEnv: Record<TokenScope, string> = {
   status: "AW_STATUS_API_TOKEN",
   issue: "AW_ISSUE_API_TOKEN",
   dispatch: "AW_DISPATCH_API_TOKEN",
   checkout: "AW_CHECKOUT_TOKEN",
+  release: "AW_RELEASE_API_TOKEN",
   control: "AW_CONTROL_TOKEN",
 };
 
@@ -30,6 +32,7 @@ const scopePermissions: Record<TokenScope, string> = {
   issue: "a scoped GitHub App token with Issues write",
   dispatch: "a GitHub App token with Contents write on fongap-labs/action-worker",
   checkout: "Contents: Read on the private target repositories",
+  release: "a scoped GitHub App token with Contents: Read on the release target",
   control: "the permissions required by the control-plane operation",
 };
 
