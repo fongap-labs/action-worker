@@ -33,7 +33,10 @@ test("dependency repair isolates reads, publishing and sandbox source checkout",
 
   // Untrusted dependency computation cannot mint an App token or access a writer.
   const compute = workflow.jobs.compute?.steps ?? [];
-  assert.equal(compute.some((step) => step.uses?.includes("mint-app-token")), false);
+  assert.equal(
+    compute.some((step) => step.uses?.includes("mint-app-token")),
+    false
+  );
   assert.equal(
     inJob("compute", "Checkout private target source").with?.token,
     "${{ secrets.AW_CHECKOUT_TOKEN }}"
@@ -51,14 +54,19 @@ test("dependency repair isolates reads, publishing and sandbox source checkout",
   );
   const publish = inJob("publish", "Revalidate and publish generated outputs");
   assert.equal(publish.env?.AW_CONTROL_TOKEN, "${{ steps.publish_read_app.outputs.token }}");
-  assert.equal(publish.env?.AW_REPAIR_PUSH_API_TOKEN, "${{ steps.publish_push_app.outputs.token }}");
+  assert.equal(
+    publish.env?.AW_REPAIR_PUSH_API_TOKEN,
+    "${{ steps.publish_push_app.outputs.token }}"
+  );
 
   assert.equal(
     inJob("finalize", "Publish repair status and continue intake").env?.AW_CONTROL_TOKEN,
     "${{ steps.final_read_app.outputs.token }}"
   );
   assert.equal(
-    inJob("finalize", "Mint dependency repair final PR read token").with?.["permission-pull-requests"],
+    inJob("finalize", "Mint dependency repair final PR read token").with?.[
+      "permission-pull-requests"
+    ],
     "read"
   );
 });
