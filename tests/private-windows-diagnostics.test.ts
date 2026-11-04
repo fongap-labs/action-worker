@@ -8,7 +8,7 @@ const dispatch = readFileSync(".github/workflows/central-ci-dispatch.yml", "utf8
 test("private Windows diagnostics emit only strictly bounded numerical indices", () => {
   assert.match(
     sandbox,
-    /windows_diagnostic: \$\{\{ jobs\.windows\.outputs\.windows_diagnostic \}\}/
+    /value: \$\{\{ jobs\.windows\.outputs\.windows_diagnostic \}\}/
   );
   assert.match(
     sandbox,
