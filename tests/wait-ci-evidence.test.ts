@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { assertCurrentPullHead, calculateBackoff, waitForCentralStatus } from "../scripts/wait-ci-evidence.ts";
+import {
+  assertCurrentPullHead,
+  calculateBackoff,
+  waitForCentralStatus,
+} from "../scripts/wait-ci-evidence.ts";
 
 const original = "a".repeat(40);
 const updated = "b".repeat(40);
