@@ -359,6 +359,9 @@ jobs:
           if ([string]::IsNullOrEmpty($body)) { exit 0 }
           $failures = [regex]::Matches($body, '(?m)^WC_TEST_FAIL_INDEX=([1-9][0-9]{0,2})(?![0-9])')
           if ($failures.Count -gt 0 -and $failures.Count -le 999) {
-            $first = [int]$failures[0].Groups[1].Value
-            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value ("windows_diagnostic=wc-test-{0}-{1}" -f $first, $failures.Count)
+            # Publish up to five distinct numeric indices, never private names,
+            # paths or log contents. The failure verdict remains unchanged.
+            $indices = @($failures | Select-Object -First 5 | ForEach-Object { [int]$_.Groups[1].Value })
+            $joined = $indices -join '.'
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value ("windows_diagnostic=wc-tests-{0}-{1}" -f $joined, $failures.Count)
           }

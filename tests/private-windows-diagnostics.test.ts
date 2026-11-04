@@ -16,7 +16,8 @@ test("private Windows diagnostics emit only strictly bounded numerical indices",
     /if: always\(\) && inputs\.is_private == 'true' && inputs\.repository == 'fongap-labs\/app-source'/
   );
   assert.match(sandbox, /WC_TEST_FAIL_INDEX=\(\[1-9\]\[0-9\]\{0,2\}\)/);
-  assert.match(sandbox, /windows_diagnostic=wc-test-/);
+  assert.match(sandbox, /windows_diagnostic=wc-tests-/);
+  assert.match(sandbox, /Select-Object -First 5/);
   assert.doesNotMatch(sandbox, /Get-Content \$log\s*(?:\r?\n)\s*Write-Host/);
 });
 
@@ -25,8 +26,8 @@ test("CI Evidence stays fail-closed while including numeric-only private diagnos
     dispatch,
     /WINDOWS_DIAGNOSTIC: \$\{\{ needs\.windows\.outputs\.windows_diagnostic \|\| '' \}\}/
   );
-  assert.match(dispatch, /WINDOWS_RESULT" == "failure" && "\$WINDOWS_DIAGNOSTIC" =~ \^wc-test-/);
-  assert.match(dispatch, /description="Windows regression failed at case #/);
+  assert.match(dispatch, /WINDOWS_RESULT" == "failure" && "\$WINDOWS_DIAGNOSTIC" =~ \^wc-tests-/);
+  assert.match(dispatch, /description="Windows regression failed cases /);
   assert.match(
     dispatch,
     /node scripts\/write-commit-status\.ts "\$REPOSITORY" "\$HEAD_SHA" "\$state"/
