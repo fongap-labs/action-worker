@@ -17,7 +17,6 @@ type Workflow = {
     workflow_dispatch: {
       inputs: { confirm: { type: string; default: boolean; required: boolean } };
     };
-    repository_dispatch: { types: string[] };
   };
   concurrency: { group: string; "cancel-in-progress": boolean };
   jobs: Record<string, { if?: string; environment?: string; needs?: string; steps: Step[] }>;
@@ -26,8 +25,7 @@ type Workflow = {
 test("manual signing recovery is a protected entry, not a manual maintenance job", async () => {
   const source = await readFile(".github/workflows/status-signing-recovery.yml", "utf8");
   const workflow = parse(source) as Workflow;
-  assert.deepEqual(Object.keys(workflow.on).sort(), ["repository_dispatch", "workflow_dispatch"]);
-  assert.deepEqual(workflow.on.repository_dispatch.types, ["run-status-signing-recovery"]);
+  assert.deepEqual(Object.keys(workflow.on), ["workflow_dispatch"]);
   assert.equal(workflow.on.workflow_dispatch.inputs.confirm.type, "boolean");
   assert.equal(workflow.on.workflow_dispatch.inputs.confirm.required, true);
   assert.equal(workflow.on.workflow_dispatch.inputs.confirm.default, false);
@@ -40,7 +38,7 @@ test("manual signing recovery is a protected entry, not a manual maintenance job
   assert.equal(bootstrap.if, "github.ref == 'refs/heads/main'");
   assert.equal(bootstrap.needs, undefined);
   const confirm = bootstrap.steps.find((step) => step.name === "Require operator confirmation");
-  assert.equal(confirm?.if, "github.event_name == 'workflow_dispatch'");
+  assert.equal(confirm?.if, undefined);
   assert.equal(confirm?.env?.RECOVERY_CONFIRMED, "${{ inputs.confirm }}");
   const prerequisite = bootstrap.steps.find(
     (step) => step.name === "Confirm signing recovery is needed"
