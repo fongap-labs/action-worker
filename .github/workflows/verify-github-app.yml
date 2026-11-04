@@ -1,0 +1,53 @@
+name: 手动 · 验证 GitHub App
+
+on:
+  workflow_dispatch:
+
+# Verify installation auth independently of the personal PAT and without write permissions.
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-github-app-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify GitHub App read access
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Mint read-only GitHub App token
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            action-worker
+            mcp-hub
+          permission-contents: read
+
+      - name: Verify scoped access to both repositories
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          for repository in action-worker mcp-hub; do
+            path="$(gh api "repos/${REPOSITORY_OWNER}/${repository}/contents/README.md" --jq '.path')"
+            if [[ "$path" != "README.md" ]]; then
+              echo "::error::GitHub App cannot read README.md in ${REPOSITORY_OWNER}/${repository}." >&2
+              exit 1
+            fi
+          done
+          echo "GitHub App installation token verified: contents read for action-worker and mcp-hub."
+          {
+            echo "## GitHub App read-only verification"
+            echo
+            echo "- Scope: action-worker, mcp-hub"
+            echo "- Repository permission: contents: read"
+            echo "- Result: verified"
+          } >> "$GITHUB_STEP_SUMMARY"
