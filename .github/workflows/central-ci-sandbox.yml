@@ -25,6 +25,9 @@ on:
       base_sha:
         required: true
         type: string
+      diff_base_sha:
+        required: true
+        type: string
       head_sha:
         required: true
         type: string
@@ -152,7 +155,7 @@ jobs:
         env:
           AW_GITLEAKS_MODE: ${{ vars.AW_CENTRAL_GITLEAKS_MODE || 'enforce' }}
           TARGET_PRIVATE: ${{ inputs.is_private }}
-          SCAN_BASE_SHA: ${{ inputs.base_sha }}
+          SCAN_BASE_SHA: ${{ inputs.diff_base_sha }}
           SCAN_HEAD_SHA: ${{ inputs.head_sha }}
         shell: bash
         run: |

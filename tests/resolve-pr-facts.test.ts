@@ -1,41 +1,35 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { resolveCurrentBaseSha } from "../scripts/resolve-pr-facts.ts";
+import { resolvePullDiffBaseSha } from "../scripts/resolve-pr-facts.ts";
 
 const repository = "fongap-labs/app-source";
 
-test("PR facts use the live base branch HEAD instead of a stale PR base SHA", () => {
+test("PR scope keeps the reviewed base when main moves before CI dispatch", () => {
   const pullBase = {
     ref: "main",
     sha: "5a6e1ff12a0f96116ba5927217e5b499afc9020d",
     repo: { full_name: repository },
   };
-  const branch = {
-    name: "main",
-    commit: { sha: "e29a0d094efb50192e831b1815a806641b4e339d" },
-  };
-
   assert.equal(
-    resolveCurrentBaseSha(pullBase, branch, repository),
-    "e29a0d094efb50192e831b1815a806641b4e339d"
+    resolvePullDiffBaseSha(pullBase, repository),
+    "5a6e1ff12a0f96116ba5927217e5b499afc9020d"
   );
 });
 
-test("PR base resolution rejects a base repository outside the requested repository", () => {
+test("PR diff base rejects a different repository", () => {
   assert.throws(
     () =>
-      resolveCurrentBaseSha(
-        { ref: "main", repo: { full_name: "other/project" } },
-        { commit: { sha: "e29a0d094efb50192e831b1815a806641b4e339d" } },
+      resolvePullDiffBaseSha(
+        { ref: "main", sha: "a".repeat(40), repo: { full_name: "other/project" } },
         repository
       ),
     /base repository does not match/
   );
 });
 
-test("PR base resolution rejects a missing or invalid live branch SHA", () => {
+test("PR diff base rejects an invalid SHA", () => {
   assert.throws(
-    () => resolveCurrentBaseSha({ ref: "main", repo: { full_name: repository } }, {}, repository),
-    /base branch HEAD SHA is invalid/
+    () => resolvePullDiffBaseSha({ ref: "main", repo: { full_name: repository } }, repository),
+    /diff base SHA is invalid/
   );
 });
