@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { summarizeFindings } from "../scripts/central-secret-scan.ts";
+import { scannerFailureReason, summarizeFindings } from "../scripts/central-secret-scan.ts";
 
 const script = "scripts/central-secret-scan.ts";
 const sha = (character: string): string => character.repeat(40);
@@ -135,4 +135,28 @@ test("findings are summarised by rule and annotated only for public targets", ()
   assert.deepEqual(privateSummary.annotations, []);
   assert.equal(summarizeFindings(findings, true).annotations.length, 3);
   assert.throws(() => summarizeFindings({}, true));
+});
+
+test("scanner failures reveal safe categories but never leak private stderr", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "secret-scan-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const broken = join(directory, "broken.mjs");
+  await writeFile(
+    broken,
+    'console.error("fatal: bad revision; secret=privateNeverLogThisValue"); process.exit(128);\n',
+    "utf8"
+  );
+  const result = run(directory, broken, { TARGET_PRIVATE: "true", AW_GITLEAKS_MODE: "enforce" });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /scanner could not resolve the Git commit range/);
+  assert.doesNotMatch(result.output, /privateNeverLogThisValue/);
+  assert.doesNotMatch(result.output, /fatal: bad revision/);
+  assert.equal(
+    scannerFailureReason(126, null, undefined, "Error: unknown flag --unsupported"),
+    "scanner rejected a CLI option"
+  );
+  assert.equal(
+    scannerFailureReason(null, null, Object.assign(new Error("too much"), { code: "ENOBUFS" }), ""),
+    "scanner output exceeded the bounded capture buffer"
+  );
 });

@@ -28,6 +28,33 @@ type Finding = { RuleID?: string; File?: string; StartLine?: number };
 
 export type ScanSummary = { count: number; rules: string; annotations: string[] };
 
+// Only publish a fixed error category. Raw scanner stderr can contain private file names,
+// Git patch content, or secret candidates and must never enter public CI logs.
+export function scannerFailureReason(
+  status: number | null,
+  signal: NodeJS.Signals | null,
+  error: NodeJS.ErrnoException | undefined,
+  stderr: string
+): string {
+  if (error?.code === "ENOBUFS") return "scanner output exceeded the bounded capture buffer";
+  if (error?.code === "ENOENT") return "scanner executable not found";
+  if (error?.code === "EACCES") return "scanner executable cannot be executed";
+  if (error) return "scanner process could not start";
+  if (signal) return "scanner terminated by a signal";
+  if (/unknown flag|unknown shorthand flag|unknown command/i.test(stderr))
+    return "scanner rejected a CLI option";
+  if (/invalid.*config|failed to.*config|config.*(?:error|parse)/i.test(stderr))
+    return "scanner rejected its configuration";
+  if (
+    /fatal: bad revision|unknown revision|ambiguous argument|bad object|not a git repository/i.test(
+      stderr
+    )
+  )
+    return "scanner could not resolve the Git commit range";
+  if (status !== null) return `scanner exited with code ${status}`;
+  return "scanner exited without a status";
+}
+
 export function summarizeFindings(findings: unknown, isTargetPublic: boolean): ScanSummary {
   if (!Array.isArray(findings)) {
     throw new CliError("unreadable gitleaks report", 65);
@@ -127,11 +154,14 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv): Prom
     ];
     if (config) args.push("--config", config);
     // A JavaScript stand-in (used by the tests, which also run on Windows) is started through node.
+    const options = { encoding: "utf8" as const, maxBuffer: 8 * 1024 * 1024 };
     const ran = bin.endsWith(".mjs")
-      ? spawnSync(process.execPath, [bin, ...args], { encoding: "utf8" })
-      : spawnSync(bin, args, { encoding: "utf8" });
+      ? spawnSync(process.execPath, [bin, ...args], options)
+      : spawnSync(bin, args, options);
     if (ran.error || ran.status !== 0) {
-      throw new CannotRun("gitleaks failed to run");
+      throw new CannotRun(
+        scannerFailureReason(ran.status, ran.signal, ran.error, ran.stderr ?? "")
+      );
     }
     let summary: ScanSummary;
     try {
