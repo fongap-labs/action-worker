@@ -94,7 +94,10 @@ test("manual deploy resolves private source HEAD with pre-minted scoped App read
   assert.equal(step?.env?.AW_DEPLOY_SOURCE_READ_TOKEN, "${{ steps.app_read.outputs.token }}");
   assert.equal(step?.env?.AW_REPOSITORY_POLICY, "${{ vars.AW_REPOSITORY_POLICY }}");
   assert.doesNotMatch(source, /AW_CHECKOUT_TOKEN: \$\{\{ secrets\.AW_CHECKOUT_TOKEN \}\}/);
-  const manualBlock = source.split("      - name: Resolve manual deploy request")[1]?.split("      - name: Mint deploy source CI status token")[0] ?? "";
+  const manualBlock =
+    source
+      .split("      - name: Resolve manual deploy request")[1]
+      ?.split("      - name: Mint deploy source CI status token")[0] ?? "";
   assert.match(manualBlock, /git ls-remote --exit-code/);
   assert.match(manualBlock, /no personal PAT fallback/);
   assert.doesNotMatch(manualBlock, /secrets\.AW_CHECKOUT_TOKEN/);
