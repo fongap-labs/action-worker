@@ -32,6 +32,9 @@ inputs:
   permission-statuses:
     description: Optional commit statuses API permission (read or write).
     required: false
+  permission-security-events:
+    description: Optional CodeQL Security events API permission (read or write).
+    required: false
 
 outputs:
   token:
@@ -55,3 +58,4 @@ runs:
         permission-issues: ${{ inputs.permission-issues }}
         permission-pull-requests: ${{ inputs.permission-pull-requests }}
         permission-statuses: ${{ inputs.permission-statuses }}
+        permission-security-events: ${{ inputs.permission-security-events }}

@@ -135,9 +135,26 @@ jobs:
           path: ${{ runner.temp }}/codeql-results
           merge-multiple: true
 
+      - name: Resolve SARIF target repository scope
+        id: sarif_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+        run: node control/scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint target-only code scanning writer
+        id: sarif_app
+        uses: ./control/.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.sarif_scope.outputs.owner }}
+          repositories: ${{ steps.sarif_scope.outputs.repository_name }}
+          permission-security-events: write
+
       - name: Publish SARIF to target repository
         env:
-          AW_ADMIN_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          AW_SECURITY_EVENTS_API_TOKEN: ${{ steps.sarif_app.outputs.token }}
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
           SOURCE_REF: ${{ needs.prepare.outputs.ref }}

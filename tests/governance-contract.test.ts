@@ -870,7 +870,7 @@ test("security scanning is source-owned, centrally executed, and private-safe", 
     "upload: never",
     "publish-security-scan.ts",
     "AW_CONTROL_TOKEN",
-    "AW_ADMIN_TOKEN",
+    "AW_SECURITY_EVENTS_API_TOKEN",
   ]);
   // CodeQL runs without any secret and hands SARIF to the publish job as a one-day artifact.
   requireText(workflow, [
@@ -910,12 +910,13 @@ test("security scanning is source-owned, centrally executed, and private-safe", 
     "commit_sha",
     "processing_status",
     'tool_name: "CodeQL"',
-    "AW_ADMIN_TOKEN",
+    "AW_SECURITY_EVENTS_API_TOKEN",
   ]);
-  assert.doesNotMatch(publisher, /AW_CONTROL_TOKEN/);
+  assert.doesNotMatch(publisher, /AW_CONTROL_TOKEN|AW_ADMIN_TOKEN/);
+  assert.doesNotMatch(workflow, /secrets\.AW_ADMIN_TOKEN/);
   assert.match(
     workflow,
-    /- name: Publish SARIF to target repository[\s\S]*?AW_ADMIN_TOKEN: \$\{\{ secrets\.AW_ADMIN_TOKEN \}\}/
+    /- name: Publish SARIF to target repository[\s\S]*?AW_SECURITY_EVENTS_API_TOKEN: \$\{\{ steps\.sarif_app\.outputs\.token \}\}/
   );
 
   const intake = await text(".github/workflows/intake.yml");
