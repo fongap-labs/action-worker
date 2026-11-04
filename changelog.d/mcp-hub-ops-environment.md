@@ -1,0 +1,1 @@
+- 修复: 将 MCP Hub 部署环境名称统一为 mcp-hub-ops，保留 Action Worker 中央管控。
