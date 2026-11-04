@@ -1,0 +1,1 @@
+- 新增: MCP Hub 的中央 CI 源分支校验、目标仓库可见性和 CI 能力读取使用独立计额的 GitHub App 临时只读令牌，非 MCP Hub 仓库仍使用原凭据；CI Evidence 签名和发布不变。
