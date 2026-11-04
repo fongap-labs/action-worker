@@ -120,7 +120,10 @@ test("release publication is scoped to the artifact target and uses no broad PAT
   );
   const publish = find("Publish governed release");
   assert.equal(publish.env?.AW_CONTROL_TOKEN, "${{ steps.release_read_app.outputs.token }}");
-  assert.equal(publish.env?.AW_RELEASE_WRITE_API_TOKEN, "${{ steps.release_write_app.outputs.token }}");
+  assert.equal(
+    publish.env?.AW_RELEASE_WRITE_API_TOKEN,
+    "${{ steps.release_write_app.outputs.token }}"
+  );
   assert.equal(
     publish.env?.AW_RELEASE_TARGET_REPOSITORY,
     "${{ steps.release_target.outputs.target_repository }}"
@@ -134,5 +137,8 @@ test("release script refuses missing App writer and enforces artifact target mat
   assert.match(source, /AW_RELEASE_TARGET_REPOSITORY/);
   assert.match(source, /targetRepository !== approvedTarget/);
   assert.match(source, /no PAT fallback/);
-  assert.match(source, /rollbackRelease\(targetRepository, tag, releaseId, isReleaseCreated, releaseWriteToken\)/);
+  assert.match(
+    source,
+    /rollbackRelease\(targetRepository, tag, releaseId, isReleaseCreated, releaseWriteToken\)/
+  );
 });
