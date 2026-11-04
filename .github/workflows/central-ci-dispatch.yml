@@ -371,7 +371,9 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: write
+      contents: read
+      statuses: write
+      actions: read
 
     steps:
       - name: Checkout control plane
@@ -385,9 +387,28 @@ jobs:
         with:
           node-version: 24
 
+      - name: Resolve status publication scope
+        id: status_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint cross-repository status write token
+        id: status_app
+        if: steps.status_scope.outputs.is_control_repository == 'false'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.status_scope.outputs.owner }}
+          repositories: ${{ steps.status_scope.outputs.repository_name }}
+          permission-statuses: write
+
       - name: Publish target status
         env:
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.status_scope.outputs.is_control_repository == 'true' && github.token || steps.status_app.outputs.token }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           LINUX_RESULT: ${{ needs.linux.result }}
