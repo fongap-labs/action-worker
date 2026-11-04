@@ -78,10 +78,7 @@ test("a recorded pre-signing status is recognized only for its exact subject and
     hasValidStatusAttestation(receipt, { ...subject, repository: "fongap-labs/other" }),
     false
   );
-  assert.equal(
-    hasValidStatusAttestation(receipt, { ...subject, sha: "a".repeat(40) }),
-    false
-  );
+  assert.equal(hasValidStatusAttestation(receipt, { ...subject, sha: "a".repeat(40) }), false);
 });
 
 test("legacy aw1 and new aw2 signatures verify without a GitHub API token", () => {
@@ -92,14 +89,12 @@ test("legacy aw1 and new aw2 signatures verify without a GitHub API token", () =
     hasValidStatusAttestation({ ...status, description: legacyDescription }, subject),
     true
   );
-  const description = signedStatusDescription(
-    {
-      ...subject,
-      state: "success",
-      description: receipt.description,
-      targetUrl: receipt.target_url,
-    }
-  );
+  const description = signedStatusDescription({
+    ...subject,
+    state: "success",
+    description: receipt.description,
+    targetUrl: receipt.target_url,
+  });
   const originalStatusToken = process.env.AW_STATUS_TOKEN;
   process.env.AW_STATUS_TOKEN = "not-the-legacy-signing-key";
   try {

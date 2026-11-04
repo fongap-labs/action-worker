@@ -1,7 +1,7 @@
 import {
   parseRepositoryPolicy,
-  repositoryCapabilities,
   type RepositoryCapability,
+  repositoryCapabilities,
   validateRepositoryCapability,
 } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
@@ -25,7 +25,10 @@ export function resolveGithubApiScope(
   }
   if (capability === "managed") {
     if (!parseRepositoryPolicy(policy)[targetRepository]) {
-      throw new CliError(`::error::Repository is not managed by this control plane: ${targetRepository}.`, 77);
+      throw new CliError(
+        `::error::Repository is not managed by this control plane: ${targetRepository}.`,
+        77
+      );
     }
   } else {
     validateRepositoryCapability(targetRepository, policy, capability);

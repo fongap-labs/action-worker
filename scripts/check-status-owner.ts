@@ -1,6 +1,6 @@
+import { requireStatusToken } from "./control-token.ts";
 import { getGithubJson, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
-import { requireStatusToken } from "./control-token.ts";
 import { hasValidStatusAttestation } from "./status-attestation.ts";
 
 async function main(): Promise<void> {
@@ -27,13 +27,7 @@ async function main(): Promise<void> {
     );
   const latest = statuses[0];
   const target = isJsonRecord(latest) ? getJsonString(latest, "target_url") : "";
-  if (
-    target === runUrl &&
-    hasValidStatusAttestation(
-      latest,
-      { repository, sha, context }
-    )
-  ) {
+  if (target === runUrl && hasValidStatusAttestation(latest, { repository, sha, context })) {
     await appendLines(process.env.GITHUB_OUTPUT, ["current=true"]);
     console.log(`Current run still owns ${context} for ${repository}@${sha}.`);
     return;

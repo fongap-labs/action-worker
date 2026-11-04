@@ -1,8 +1,8 @@
 import { trustedCiStatus } from "./ci-evidence.ts";
+import { requireStatusToken } from "./control-token.ts";
 import { getGithubJson, getJsonString, isJsonRecord } from "./github-api.ts";
 import { pullAllowsFacts } from "./resolve-pr-facts.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
-import { requireStatusToken } from "./control-token.ts";
 import { hasValidStatusAttestation } from "./status-attestation.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -32,10 +32,11 @@ export function evaluateReviewTarget(
   const governance = trustedCiStatus(status, governanceContext, controlRepository);
   if (
     getJsonString(governance, "state") !== "success" ||
-    !hasValidStatusAttestation(
-      governance,
-      { repository, sha: requestedHeadSha, context: governanceContext }
-    )
+    !hasValidStatusAttestation(governance, {
+      repository,
+      sha: requestedHeadSha,
+      context: governanceContext,
+    })
   ) {
     return {
       current: false,
@@ -67,17 +68,8 @@ async function main(): Promise<void> {
     throw new CliError("::error::Review target authority is unavailable.", 65);
   }
   const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, token);
-  const status = await getGithubJson(
-    `repos/${repository}/commits/${headSha}/status`,
-    statusToken
-  );
-  const target = evaluateReviewTarget(
-    pull,
-    status,
-    headSha,
-    controlRepository,
-    repository
-  );
+  const status = await getGithubJson(`repos/${repository}/commits/${headSha}/status`, statusToken);
+  const target = evaluateReviewTarget(pull, status, headSha, controlRepository, repository);
   await appendLines(process.env.GITHUB_OUTPUT, [`current=${target.current}`]);
   console.log(
     target.current

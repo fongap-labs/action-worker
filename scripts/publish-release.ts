@@ -7,6 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareReleaseNotes, type ReleasePolicy } from "./changelog-release-notes.ts";
 import { controlRepositoryOf, hasVerifiedCiEvidence } from "./ci-evidence.ts";
+import { requireStatusToken } from "./control-token.ts";
 import {
   getGithubJson,
   getJsonArray,
@@ -28,7 +29,6 @@ import {
   runCommand,
   runText,
 } from "./runtime-command.ts";
-import { requireStatusToken } from "./control-token.ts";
 import { validateReleaseProvenance } from "./validate-release-request.ts";
 
 type ReleaseRequest = {

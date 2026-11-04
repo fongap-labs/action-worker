@@ -1,3 +1,4 @@
+import { requireStatusToken } from "./control-token.ts";
 import { parseTaskSourceManifest } from "./dispatch-scheduled-tasks.ts";
 import {
   getJsonString,
@@ -8,7 +9,6 @@ import {
 } from "./github-api.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
-import { requireStatusToken } from "./control-token.ts";
 import { hasValidStatusAttestation } from "./status-attestation.ts";
 
 type GithubSource = {
@@ -47,10 +47,7 @@ function latestTaskStatus(value: unknown, repository: string, sha: string): stri
     )[0];
   if (
     isJsonRecord(latest) &&
-    hasValidStatusAttestation(
-      latest,
-      { repository, sha, context: "Task Source" }
-    )
+    hasValidStatusAttestation(latest, { repository, sha, context: "Task Source" })
   ) {
     return getJsonString(latest, "state");
   }

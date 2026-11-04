@@ -77,7 +77,7 @@ test("all main CI intake entry points use separate App API and signing credentia
         );
         assert.equal(dispatchMint?.with?.["permission-contents"], "write", `${key} dispatch scope`);
         assert.equal(step.env?.AW_STATUS_SIGNING_KEYS, "${{ secrets.AW_STATUS_SIGNING_KEYS }}", key);
-        assert.equal(step.env?.AW_DISPATCH_API_TOKEN, "${{ steps.dispatch_app.outputs.token }}", key);
+        assert.equal(step.env?.AW_DISPATCH_API_TOKEN, `${{ steps.${dispatchStepId}.outputs.token }}`, key);
       }
     }
   }
@@ -190,7 +190,10 @@ test("governed Release dispatches npm only after publication and never publishes
     release.jobs.npm?.if,
     "needs.release.result == 'success' && needs.release.outputs.npm_asset == 'true'"
   );
-  assert.equal(release.jobs.npm?.permissions?.contents, "write");
+  assert.equal(release.jobs.npm?.permissions?.contents, "read");
+  const dispatch = release.jobs.npm?.steps?.find((step) => step.id === "dispatch_app");
+  assert.equal(dispatch?.uses, "./.github/actions/mint-app-token");
+  assert.equal(dispatch?.with?.["permission-contents"], "write");
   assert.match(JSON.stringify(release.jobs.npm), /run-npm-republish/);
   assert.match(source, /npm_asset=/);
   assert.doesNotMatch(source, /publishNpmTarball|AW_NPM_TOKEN/);

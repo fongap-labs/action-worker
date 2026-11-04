@@ -22,44 +22,27 @@ function statuses(...items: Array<Record<string, unknown>>): unknown {
 
 test("AI review target is current only for the open head whose gate passed", () => {
   const passed = statuses({ context: "PR Governance", state: "success", target_url: runUrl });
-  assert.deepEqual(
-    evaluateReviewTarget(
-      pull(),
-      passed,
-      headSha,
-      controlRepository,
-      repository
-    ),
-    {
-      current: true,
-      reason: "the gate passed for the current pull request head",
-    }
-  );
+  assert.deepEqual(evaluateReviewTarget(pull(), passed, headSha, controlRepository, repository), {
+    current: true,
+    reason: "the gate passed for the current pull request head",
+  });
 });
 
 test("AI review still runs for a pull request that was merged while it waited", () => {
   const passed = statuses({ context: "PR Governance", state: "success", target_url: runUrl });
   const merged = pull({ state: "closed", merged: true });
   assert.equal(
-    evaluateReviewTarget(merged, passed, headSha, controlRepository, repository)
-      .current,
+    evaluateReviewTarget(merged, passed, headSha, controlRepository, repository).current,
     true
   );
   // The head and the gate are still checked, so a merged pull request gets no free pass.
   const moved = pull({ state: "closed", merged: true, head: { sha: "b".repeat(40) } });
   assert.equal(
-    evaluateReviewTarget(moved, passed, headSha, controlRepository, repository)
-      .current,
+    evaluateReviewTarget(moved, passed, headSha, controlRepository, repository).current,
     false
   );
   assert.equal(
-    evaluateReviewTarget(
-      merged,
-      statuses(),
-      headSha,
-      controlRepository,
-      repository
-    ).current,
+    evaluateReviewTarget(merged, statuses(), headSha, controlRepository, repository).current,
     false
   );
 });
@@ -99,13 +82,7 @@ test("AI review target is rejected when the pull request moved or was abandoned"
     /head changed/
   );
   assert.equal(
-    evaluateReviewTarget(
-      undefined,
-      passed,
-      headSha,
-      controlRepository,
-      repository
-    ).current,
+    evaluateReviewTarget(undefined, passed, headSha, controlRepository, repository).current,
     false
   );
 });
@@ -125,13 +102,7 @@ test("AI review target never trusts a gate status that is not a central success"
   ];
   for (const status of rejected) {
     assert.equal(
-      evaluateReviewTarget(
-        pull(),
-        status,
-        headSha,
-        controlRepository,
-        repository
-      ).current,
+      evaluateReviewTarget(pull(), status, headSha, controlRepository, repository).current,
       false,
       JSON.stringify(status)
     );

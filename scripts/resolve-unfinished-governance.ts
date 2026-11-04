@@ -24,10 +24,7 @@ export function latestGovernanceStatus(
       getJsonString(right, "created_at").localeCompare(getJsonString(left, "created_at"))
     );
   const latest = statuses[0];
-  if (
-    !isJsonRecord(latest) ||
-    !hasValidStatusAttestation(latest, { repository, sha, context })
-  ) {
+  if (!isJsonRecord(latest) || !hasValidStatusAttestation(latest, { repository, sha, context })) {
     return null;
   }
   return { state: getJsonString(latest, "state"), target: getJsonString(latest, "target_url") };
@@ -99,16 +96,14 @@ async function main(): Promise<void> {
       "-f",
       `context=${context}`,
       "-f",
-      `description=${signedStatusDescription(
-        {
-          repository,
-          sha: head,
-          state: "failure",
-          context,
-          description,
-          targetUrl: ownRunUrl,
-        }
-      )}`,
+      `description=${signedStatusDescription({
+        repository,
+        sha: head,
+        state: "failure",
+        context,
+        description,
+        targetUrl: ownRunUrl,
+      })}`,
       "-f",
       `target_url=${ownRunUrl}`,
     ],

@@ -76,10 +76,7 @@ test("Central CI reads use GITHUB_TOKEN for the control repository and a scoped 
   const prepare = source.split("\n  linux:\n")[0] ?? "";
   assert.doesNotMatch(prepare, /secrets\.AW_CONTROL_TOKEN/);
 
-  assert.equal(
-    step("Resolve branch CI request").env?.AW_STATUS_TOKEN,
-    undefined
-  );
+  assert.equal(step("Resolve branch CI request").env?.AW_STATUS_TOKEN, undefined);
   assert.equal(
     step("Resolve branch CI request").env?.AW_STATUS_SIGNING_KEYS,
     "${{ secrets.AW_STATUS_SIGNING_KEYS }}"

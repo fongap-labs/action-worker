@@ -34,10 +34,10 @@ test("deploy preflight routes trusted reads by repository without exposing App s
   );
   const mint = step("Mint cross-repository deploy preflight read token");
   assert.equal(mint.id, "app_read");
-  assert.equal(mint.if, "steps.api_scope.outputs.is_control_repository == 'false'");
+  assert.equal(mint.if, undefined);
   assert.equal(
     mint.uses,
-    "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1"
+    "./.github/actions/mint-app-token"
   );
   assert.equal(
     mint.with?.repositories,

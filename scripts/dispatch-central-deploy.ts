@@ -1,3 +1,4 @@
+import { requireToken } from "./control-token.ts";
 import {
   type DeployAdapter,
   parseDeployPlan,
@@ -15,7 +16,6 @@ import {
 } from "./github-api.ts";
 import { type ContentReader, discoverProducts } from "./product-discovery.ts";
 import { hasRepositoryCapability } from "./repository-policy.ts";
-import { requireToken } from "./control-token.ts";
 import {
   appendLines,
   CliError,

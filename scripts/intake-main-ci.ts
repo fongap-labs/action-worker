@@ -42,13 +42,7 @@ function latestStatus(
     .sort((left, right) =>
       getJsonString(right, "created_at").localeCompare(getJsonString(left, "created_at"))
     )[0];
-  if (
-    !isJsonRecord(latest) ||
-    !hasValidStatusAttestation(
-      latest,
-      { repository, sha, context }
-    )
-  ) {
+  if (!isJsonRecord(latest) || !hasValidStatusAttestation(latest, { repository, sha, context })) {
     return null;
   }
   return {

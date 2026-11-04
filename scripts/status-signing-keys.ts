@@ -50,10 +50,7 @@ export function prepareStatusSigningKeys(
   const existing = parseStatusSigningKeys(raw);
   const legacyTokens = [...(existing?.legacy_tokens ?? [])];
   if (legacyToken && !legacyTokens.includes(legacyToken)) legacyTokens.push(legacyToken);
-  if (
-    existing?.active === desiredId &&
-    legacyTokens.length === existing.legacy_tokens.length
-  )
+  if (existing?.active === desiredId && legacyTokens.length === existing.legacy_tokens.length)
     return { keys: existing, changed: false };
   if (existing?.active === desiredId) {
     const keys = { ...existing, legacy_tokens: legacyTokens };

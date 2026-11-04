@@ -86,16 +86,14 @@ async function main(): Promise<void> {
     "-f",
     `context=${context}`,
     "-f",
-    `description=${signedStatusDescription(
-      {
-        repository,
-        sha: headSha,
-        state: "pending",
-        context,
-        description: "Central CI in progress",
-        targetUrl: runUrl,
-      }
-    )}`,
+    `description=${signedStatusDescription({
+      repository,
+      sha: headSha,
+      state: "pending",
+      context,
+      description: "Central CI in progress",
+      targetUrl: runUrl,
+    })}`,
   ];
   if (runUrl) {
     statusArgs.push("-f", `target_url=${runUrl}`);

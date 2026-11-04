@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { requireStatusToken } from "./control-token.ts";
 import {
   cronPattern,
   cronMatches as cronScheduleMatches,
@@ -15,7 +16,6 @@ import {
   originalStatusDescription,
   signedStatusDescription,
 } from "./status-attestation.ts";
-import { requireStatusToken } from "./control-token.ts";
 
 export type TaskSourceManifest = {
   schema_version: "1";
@@ -308,16 +308,14 @@ async function markDispatched(task: ScheduledTask, token: string): Promise<void>
   const payload = JSON.stringify({
     state: "success",
     context: scheduleContext(task.project),
-    description: signedStatusDescription(
-      {
-        repository: task.repository,
-        sha: task.head_sha,
-        state: "success",
-        context: scheduleContext(task.project),
-        description: scheduleDescription(task.slot),
-        targetUrl,
-      }
-    ),
+    description: signedStatusDescription({
+      repository: task.repository,
+      sha: task.head_sha,
+      state: "success",
+      context: scheduleContext(task.project),
+      description: scheduleDescription(task.slot),
+      targetUrl,
+    }),
     target_url: targetUrl || undefined,
   });
   await runCommand(
@@ -408,13 +406,11 @@ async function main(): Promise<void> {
   let deduplicated = 0;
   for (const task of tasks) {
     if (
-      await wasDispatched(
-        task,
-        (path) =>
-          getGithubJson(
-            path,
-            /\/commits\/[^/]+\/status(?:\?|$)/.test(path) ? statusToken : controlToken
-          ),
+      await wasDispatched(task, (path) =>
+        getGithubJson(
+          path,
+          /\/commits\/[^/]+\/status(?:\?|$)/.test(path) ? statusToken : controlToken
+        )
       )
     ) {
       deduplicated += 1;

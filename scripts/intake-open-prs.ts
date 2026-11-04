@@ -81,14 +81,7 @@ function statusMap(
     const updatedAt = typeof item.updated_at === "string" ? item.updated_at : "";
     const description = originalStatusDescription(item);
     const runId = trustedControlRunId(targetUrl, controlRepository);
-    if (
-      !runId ||
-      !hasValidStatusAttestation(
-        item,
-        { repository, sha, context }
-      )
-    )
-      continue;
+    if (!runId || !hasValidStatusAttestation(item, { repository, sha, context })) continue;
     if (context && state && !statuses.has(context)) {
       statuses.set(context, { state, run_id: runId, updated_at: updatedAt, description });
     }

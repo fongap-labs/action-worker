@@ -37,11 +37,7 @@ test("the newest PR Governance status decides, and other contexts are ignored", 
     ],
   };
   assert.deepEqual(
-    latestGovernanceStatus(
-      attestFixtureStatuses(combined, repository, sha),
-      repository,
-      sha
-    ),
+    latestGovernanceStatus(attestFixtureStatuses(combined, repository, sha), repository, sha),
     { state: "pending", target: "b" }
   );
   assert.equal(latestGovernanceStatus({ statuses: [] }, repository, sha), null);

@@ -8,6 +8,7 @@ import {
   type VerificationTrace,
   verificationRecorder,
 } from "./ci-evidence.ts";
+import { requireStatusToken } from "./control-token.ts";
 import {
   type GithubReader,
   getJsonArray,
@@ -21,7 +22,6 @@ import {
 import { assertNoOpenMainWriteIncidents } from "./main-write-incidents.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
-import { requireStatusToken } from "./control-token.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
 
 export type MainWriteRequest = {
@@ -421,16 +421,14 @@ async function publishStatus(
   description: string
 ): Promise<void> {
   const runUrl = process.env.MAIN_WRITE_RUN_URL ?? "";
-  const signedDescription = signedStatusDescription(
-    {
-      repository: request.repository,
-      sha: request.head_sha,
-      state,
-      context: "Main Write Guard",
-      description,
-      targetUrl: runUrl,
-    }
-  );
+  const signedDescription = signedStatusDescription({
+    repository: request.repository,
+    sha: request.head_sha,
+    state,
+    context: "Main Write Guard",
+    description,
+    targetUrl: runUrl,
+  });
   const args = [
     "api",
     "--method",

@@ -1,6 +1,6 @@
+import { requireToken } from "./control-token.ts";
 import { runGithubCli } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
-import { requireToken } from "./control-token.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
 
 async function main(): Promise<void> {
@@ -21,9 +21,14 @@ async function main(): Promise<void> {
   }
   const state = rawState as "pending" | "success" | "failure" | "error";
   const apiToken = requireToken("status");
-  const signedDescription = signedStatusDescription(
-    { repository, sha, state, context, description, targetUrl }
-  );
+  const signedDescription = signedStatusDescription({
+    repository,
+    sha,
+    state,
+    context,
+    description,
+    targetUrl,
+  });
   await runGithubCli(
     [
       "api",

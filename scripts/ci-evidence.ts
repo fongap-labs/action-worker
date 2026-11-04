@@ -119,10 +119,7 @@ export function hasTrustedSuccessfulCiEvidence(
   const status = trustedCiStatus(response, context, controlRepository);
   return (
     getJsonString(status, "state") === "success" &&
-    hasValidStatusAttestation(
-      status,
-      { repository: targetRepository, sha: targetSha, context }
-    )
+    hasValidStatusAttestation(status, { repository: targetRepository, sha: targetSha, context })
   );
 }
 
@@ -178,10 +175,7 @@ export async function hasVerifiedControlStatus(
   if (
     !targetRepository ||
     !targetSha ||
-    !hasValidStatusAttestation(
-      status,
-      { repository: targetRepository, sha: targetSha, context }
-    )
+    !hasValidStatusAttestation(status, { repository: targetRepository, sha: targetSha, context })
   ) {
     trace("status-unattested", { context, repository: targetRepository, sha: targetSha });
     return false;

@@ -44,9 +44,14 @@ async function publishGuardStatus(
   description: string,
   runUrl: string
 ): Promise<void> {
-  const signedDescription = signedStatusDescription(
-    { repository, sha, state, context: "Main Write Guard", description, targetUrl: runUrl }
-  );
+  const signedDescription = signedStatusDescription({
+    repository,
+    sha,
+    state,
+    context: "Main Write Guard",
+    description,
+    targetUrl: runUrl,
+  });
   const args = [
     "api",
     "--method",

@@ -46,18 +46,9 @@ test("CI follow-ups cannot borrow another run's CI Evidence", () => {
     repository,
     sha
   );
+  assert.equal(matchesFollowUpEvidence(status, controlRepository, runId, repository, sha), true);
   assert.equal(
-    matchesFollowUpEvidence(status, controlRepository, runId, repository, sha),
-    true
-  );
-  assert.equal(
-    matchesFollowUpEvidence(
-      status,
-      controlRepository,
-      runId + 1,
-      repository,
-      sha
-    ),
+    matchesFollowUpEvidence(status, controlRepository, runId + 1, repository, sha),
     false
   );
   assert.equal(

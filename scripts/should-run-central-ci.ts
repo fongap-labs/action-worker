@@ -1,7 +1,7 @@
 import { hasVerifiedCiEvidence } from "./ci-evidence.ts";
+import { requireStatusToken } from "./control-token.ts";
 import { statusAwareReader } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
-import { requireStatusToken } from "./control-token.ts";
 
 async function main(): Promise<void> {
   const [repository = "", sha = ""] = process.argv.slice(2);

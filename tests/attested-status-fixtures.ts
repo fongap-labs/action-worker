@@ -30,16 +30,14 @@ export function attestFixtureStatus(
   const targetUrl = typeof status.target_url === "string" ? status.target_url : "";
   return {
     ...status,
-    description: signedStatusDescription(
-      {
-        repository,
-        sha,
-        context,
-        state: state as "pending" | "success" | "failure" | "error",
-        description,
-        targetUrl,
-      }
-    ),
+    description: signedStatusDescription({
+      repository,
+      sha,
+      context,
+      state: state as "pending" | "success" | "failure" | "error",
+      description,
+      targetUrl,
+    }),
   };
 }
 

@@ -20,9 +20,14 @@ export async function reserveIntakeCommitStatus(
   description: string,
   targetUrl: string
 ): Promise<void> {
-  const signedDescription = signedStatusDescription(
-    { repository, sha: headSha, state: "pending", context, description, targetUrl }
-  );
+  const signedDescription = signedStatusDescription({
+    repository,
+    sha: headSha,
+    state: "pending",
+    context,
+    description,
+    targetUrl,
+  });
   try {
     await runCommand(
       "gh",

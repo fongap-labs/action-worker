@@ -28,7 +28,8 @@ test("PR AI Review preflight reads via a policy-scoped token, not a personal PAT
   assert.equal(scope.id, "api_scope");
   assert.equal(scope.env?.TARGET_REPOSITORY, "${{ steps.payload.outputs.repository }}");
   const mint = prepare("Mint cross-repository PR review read token");
-  assert.equal(mint.if, "steps.api_scope.outputs.is_control_repository == 'false'");
+  assert.equal(mint.if, undefined);
+  assert.equal(mint.uses, "./.github/actions/mint-app-token");
   assert.equal(mint.with?.repositories, "${{ steps.api_scope.outputs.repository_name }}");
   assert.deepEqual(
     Object.entries(mint.with ?? {})

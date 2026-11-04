@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { hasVerifiedCiEvidence, type JsonReader, latestCiStatus } from "./ci-evidence.ts";
+import { requireStatusToken } from "./control-token.ts";
 import { latestCronSlot, minuteFloor, parseCronSchedule, slotKey } from "./cron-schedule.ts";
 import { parseDeployPlan } from "./deploy-manifest.ts";
 import {
@@ -30,7 +31,6 @@ import {
   originalStatusDescription,
   signedStatusDescription,
 } from "./status-attestation.ts";
-import { requireStatusToken } from "./control-token.ts";
 
 export type ScheduledDeployTarget = {
   repository: string;
@@ -220,10 +220,7 @@ export async function wasScheduledDeployDispatched(
         item.context === context &&
         item.state === "success" &&
         originalStatusDescription(item) === description &&
-        hasValidStatusAttestation(
-          item,
-          { repository: deploy.repository, sha, context }
-        )
+        hasValidStatusAttestation(item, { repository: deploy.repository, sha, context })
     );
     if (isRecorded) return true;
   }
@@ -300,16 +297,14 @@ async function markDispatched(deploy: ScheduledDeploy, token: string): Promise<v
   const payload = JSON.stringify({
     state: "success",
     context: scheduleContext(deploy.product, deploy.environment),
-    description: signedStatusDescription(
-      {
-        repository: deploy.repository,
-        sha: deploy.head_sha,
-        state: "success",
-        context: scheduleContext(deploy.product, deploy.environment),
-        description: scheduleDescription(deploy.slot),
-        targetUrl,
-      }
-    ),
+    description: signedStatusDescription({
+      repository: deploy.repository,
+      sha: deploy.head_sha,
+      state: "success",
+      context: scheduleContext(deploy.product, deploy.environment),
+      description: scheduleDescription(deploy.slot),
+      targetUrl,
+    }),
     target_url: targetUrl || undefined,
   });
   await runCommand(

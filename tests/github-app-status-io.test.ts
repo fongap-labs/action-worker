@@ -59,10 +59,7 @@ test("central CI publication signs with stable secret but publishes with scoped 
   );
   assert.equal(job.permissions.statuses, "read");
   const publish = step("Publish target status");
-  assert.equal(
-    publish.env?.AW_STATUS_API_TOKEN,
-    "${{ steps.status_app.outputs.token }}"
-  );
+  assert.equal(publish.env?.AW_STATUS_API_TOKEN, "${{ steps.status_app.outputs.token }}");
   assert.equal(publish.env?.AW_STATUS_SIGNING_KEYS, "${{ secrets.AW_STATUS_SIGNING_KEYS }}");
   const script = await readFile("scripts/write-commit-status.ts", "utf8");
   assert.match(script, /signedStatusDescription\(/);

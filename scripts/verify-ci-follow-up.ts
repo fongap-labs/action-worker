@@ -1,9 +1,9 @@
 import { hasVerifiedCiEvidence, latestCiStatus, trustedControlRunId } from "./ci-evidence.ts";
+import { requireStatusToken } from "./control-token.ts";
 import { getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { hasValidStatusAttestation } from "./status-attestation.ts";
-import { requireStatusToken } from "./control-token.ts";
 
 export type FollowUpRequest = {
   repository: string;
