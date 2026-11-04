@@ -1,11 +1,8 @@
-import { resolveGithubApiScope } from "./resolve-github-api-scope.ts";
 import { repositoriesForCapability } from "./repository-policy.ts";
+import { resolveGithubApiScope } from "./resolve-github-api-scope.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
-export function scopedReleaseRepositories(
-  policy: unknown,
-  controlRepository: string
-): string[] {
+export function scopedReleaseRepositories(policy: unknown, controlRepository: string): string[] {
   const [controlOwner = "", controlName = ""] = controlRepository.split("/");
   if (!controlOwner || !controlName) {
     throw new CliError("::error::A valid control repository is required.", 64);
@@ -28,9 +25,7 @@ async function main(): Promise<void> {
     65
   );
   const repositoryNames = scopedReleaseRepositories(policy, process.env.GITHUB_REPOSITORY ?? "");
-  await appendLines(process.env.GITHUB_OUTPUT, [
-    `repositories_csv=${repositoryNames.join(",")}`,
-  ]);
+  await appendLines(process.env.GITHUB_OUTPUT, [`repositories_csv=${repositoryNames.join(",")}`]);
   console.log(`Release scope includes ${repositoryNames.length} managed repositories.`);
 }
 
