@@ -8,7 +8,7 @@ import {
   publicEncrypt,
   randomBytes,
 } from "node:crypto";
-import { lstat, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { isJsonRecord } from "./github-api.ts";
@@ -75,7 +75,11 @@ async function collect(root: string, current = root): Promise<PublicationFile[]>
 }
 
 function keyPublic(raw: string) {
-  const key = createPublicKey({ key: Buffer.from(raw.trim(), "base64"), format: "der", type: "spki" });
+  const key = createPublicKey({
+    key: Buffer.from(raw.trim(), "base64"),
+    format: "der",
+    type: "spki",
+  });
   if (key.asymmetricKeyType !== "rsa" || (key.asymmetricKeyDetails?.modulusLength ?? 0) < 3072) {
     throw new CliError("Publication encryption key must be RSA 3072-bit or stronger.", 77);
   }
@@ -217,10 +221,12 @@ async function main(): Promise<void> {
     project: process.env.PROJECT ?? "",
     bootstrap_ref: process.env.BOOTSTRAP_REF ?? "",
   };
-  if (!first || !second) throw new CliError("Usage: task-publication-envelope.ts seal|open IN OUT", 64);
+  if (!first || !second)
+    throw new CliError("Usage: task-publication-envelope.ts seal|open IN OUT", 64);
   if (operation === "seal") {
     const publicKey = process.env.AW_PUBLICATION_PUBLIC_KEY ?? "";
-    if (!publicKey) throw new CliError("AW_PUBLICATION_PUBLIC_KEY repository variable is required.", 77);
+    if (!publicKey)
+      throw new CliError("AW_PUBLICATION_PUBLIC_KEY repository variable is required.", 77);
     const data = await sealTaskPublication(first, identity, publicKey);
     await mkdir(dirname(second), { recursive: true });
     await writeFile(second, data, { flag: "wx" });
