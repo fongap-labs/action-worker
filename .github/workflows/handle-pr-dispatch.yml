@@ -58,7 +58,7 @@ jobs:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ steps.api_scope.outputs.owner }}
-          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          repositories: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.event.repository.name || format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}
           permission-contents: read
           permission-pull-requests: read
           permission-actions: read
@@ -85,7 +85,7 @@ jobs:
         with:
           repository: ${{ steps.payload.outputs.repository }}
           ref: refs/pull/${{ steps.payload.outputs.pr_number }}/head
-          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          token: ${{ steps.app_read.outputs.token }}
           path: target
           fetch-depth: 0
           persist-credentials: false
@@ -106,7 +106,7 @@ jobs:
         if: ${{ always() }}
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.app_read.outputs.token }}
           CONTROL_REPOSITORY: ${{ github.repository }}
           TARGET_REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
@@ -193,7 +193,7 @@ jobs:
         id: trust
         env:
           PR_TRUST_UNTRUSTED: report
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.app_read.outputs.token }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
@@ -225,7 +225,7 @@ jobs:
         if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'
         env:
           GH_TOKEN: ${{ steps.ci_dispatch_status_app.outputs.token }}
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.ci_dispatch_status_app.outputs.token }}
           AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           AW_DISPATCH_API_TOKEN: ${{ steps.ci_dispatch_app.outputs.token }}
@@ -249,8 +249,8 @@ jobs:
         env:
           # This step reads both PR metadata and commit statuses through separate scoped credentials.
           # Use the separately configured control read credential; no token fallback.
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.app_read.outputs.token }}
+          AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
@@ -302,7 +302,7 @@ jobs:
         id: ownership
         if: ${{ always() && steps.resolved.outputs.head_sha != '' }}
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
@@ -375,7 +375,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.issue_app.outputs.token }}
           AW_ISSUE_API_TOKEN: ${{ steps.issue_app.outputs.token }}
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.final_status_app.outputs.token }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
@@ -454,10 +454,23 @@ jobs:
           repositories: ${{ steps.status_scope.outputs.repository_name }}
           permission-statuses: write
 
+      - name: Mint unfinished governance read token
+        id: unfinished_read_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.status_scope.outputs.owner }}
+          repositories: ${{ steps.status_scope.outputs.is_control_repository == 'true' && github.event.repository.name || format('{0},{1}', github.event.repository.name, steps.status_scope.outputs.repository_name) }}
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-statuses: read
+
       - name: Resolve unfinished PR governance
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.unfinished_read_app.outputs.token }}
+          AW_CONTROL_TOKEN: ${{ steps.unfinished_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           CONTROL_REPOSITORY: ${{ github.repository }}
