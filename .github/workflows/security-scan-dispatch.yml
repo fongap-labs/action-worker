@@ -35,10 +35,28 @@ jobs:
         with:
           node-version: 24
 
+      - name: Resolve security scan read scope
+        id: api_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ github.event.client_payload.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint security scan read token
+        id: app_read
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-contents: read
+          permission-pull-requests: read
+
       - name: Resolve trusted security scan
         id: resolve
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           SECURITY_SCAN_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
         run: node scripts/resolve-security-scan.ts policies/runner.json

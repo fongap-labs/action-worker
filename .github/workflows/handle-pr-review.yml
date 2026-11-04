@@ -63,7 +63,7 @@ jobs:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ steps.api_scope.outputs.owner }}
-          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          repositories: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.event.repository.name || format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}
           permission-contents: read
           permission-actions: read
           permission-pull-requests: read
@@ -132,7 +132,7 @@ jobs:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ steps.evidence_scope.outputs.owner }}
-          repositories: ${{ steps.evidence_scope.outputs.repository_name }}
+          repositories: ${{ steps.evidence_scope.outputs.is_control_repository == 'true' && github.event.repository.name || format('{0},{1}', github.event.repository.name, steps.evidence_scope.outputs.repository_name) }}
           permission-contents: read
           permission-pull-requests: read
           permission-actions: read
@@ -143,7 +143,7 @@ jobs:
         with:
           repository: ${{ needs.prepare.outputs.repository }}
           ref: ${{ needs.prepare.outputs.head_sha }}
-          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          token: ${{ steps.evidence_app.outputs.token }}
           path: target
           fetch-depth: 0
           persist-credentials: false
@@ -174,8 +174,8 @@ jobs:
         if: steps.base_plan.outputs.ci_required == 'true'
         continue-on-error: true
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.evidence_app.outputs.token }}
+          AW_CONTROL_TOKEN: ${{ steps.evidence_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.evidence_app.outputs.token }}
           AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
@@ -290,13 +290,13 @@ jobs:
 
       - name: Mint final PR review read token
         id: review_app
-        if: ${{ always() && !cancelled() && steps.review_scope.outputs.is_control_repository == 'false' }}
+        if: ${{ always() && !cancelled() && steps.review_scope.outputs.repository_name != '' }}
         uses: ./.github/actions/mint-app-token
         with:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ steps.review_scope.outputs.owner }}
-          repositories: ${{ steps.review_scope.outputs.repository_name }}
+          repositories: ${{ steps.review_scope.outputs.is_control_repository == 'true' && github.event.repository.name || format('{0},{1}', github.event.repository.name, steps.review_scope.outputs.repository_name) }}
           permission-contents: read
           permission-pull-requests: read
           permission-statuses: read
@@ -331,7 +331,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.issue_app.outputs.token }}
           AW_ISSUE_API_TOKEN: ${{ steps.issue_app.outputs.token }}
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.review_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.review_scope.outputs.is_control_repository == 'true' && github.token || steps.review_app.outputs.token }}
           AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}

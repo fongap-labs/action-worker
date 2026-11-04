@@ -30,7 +30,10 @@ test("PR AI Review preflight reads via a policy-scoped token, not a personal PAT
   const mint = prepare("Mint cross-repository PR review read token");
   assert.equal(mint.if, undefined);
   assert.equal(mint.uses, "./.github/actions/mint-app-token");
-  assert.equal(mint.with?.repositories, "${{ steps.api_scope.outputs.repository_name }}");
+  assert.equal(
+    mint.with?.repositories,
+    "${{ steps.api_scope.outputs.is_control_repository == 'true' && github.event.repository.name || format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}"
+  );
   assert.deepEqual(
     Object.entries(mint.with ?? {})
       .filter(([key]) => key.startsWith("permission-"))
@@ -86,4 +89,24 @@ test("final review re-check mints a fresh read token after long-running AI work"
     /getGithubJson\([\s\S]*?repos\/\$\{repository\}\/commits\/\$\{headSha\}\/status`,\s*statusToken\)/
   );
   assert.match(script, /hasValidStatusAttestation/);
+});
+
+test("review checkout, evidence and publication do not use personal control tokens", async () => {
+  const source = await readFile(".github/workflows/handle-pr-review.yml", "utf8");
+  const workflow = parse(source) as {
+    jobs: { review: { steps: Step[] } };
+  };
+  assert.doesNotMatch(source, /secrets\.AW_CONTROL_TOKEN/);
+  const steps = workflow.jobs.review.steps;
+  const find = (name: string) => steps.find((step) => step.name === name);
+  assert.equal(find("Checkout target PR")?.with?.token, "${{ steps.evidence_app.outputs.token }}");
+  assert.equal(
+    find("Collect CI evidence")?.env?.AW_CONTROL_TOKEN,
+    "${{ steps.evidence_app.outputs.token }}"
+  );
+  assert.equal(
+    steps.find((step) => step.name === "Publish PR review" && step.env?.AW_CONTROL_TOKEN)?.env
+      ?.AW_CONTROL_TOKEN,
+    "${{ steps.review_app.outputs.token }}"
+  );
 });
