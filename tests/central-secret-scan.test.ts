@@ -116,7 +116,7 @@ test("the pinned release and the workflow wiring are in place", async () => {
   assert.match(text, /GITLEAKS_LINUX_X64_SHA256 =\s*"[0-9a-f]{64}"/);
   assert.match(text, /createHash\("sha256"\)/);
   const workflow = await readFile(".github/workflows/central-ci-sandbox.yml", "utf8");
-  assert.match(workflow, /node aw\/scripts\/central-secret-scan\.ts/);
+  assert.match(workflow, /node aw-security\/scripts\/central-secret-scan\.ts/);
   assert.match(
     workflow,
     /AW_GITLEAKS_MODE: \$\{\{ vars\.AW_CENTRAL_GITLEAKS_MODE \|\| 'enforce' \}\}/
@@ -159,4 +159,17 @@ test("scanner failures reveal safe categories but never leak private stderr", as
     scannerFailureReason(null, null, Object.assign(new Error("too much"), { code: "ENOBUFS" }), ""),
     "scanner output exceeded the bounded capture buffer"
   );
+});
+
+test("a pinned historical test pack cannot downgrade the current central security scanner", async () => {
+  const workflow = await readFile(".github/workflows/central-ci-sandbox.yml", "utf8");
+  const securityCheckout = workflow.indexOf("- name: Checkout current central security scanner");
+  const pinnedPack = workflow.indexOf("- name: Pin central test pack");
+  const scannerRun = workflow.indexOf("node aw-security/scripts/central-secret-scan.ts");
+  assert.ok(securityCheckout >= 0 && pinnedPack > securityCheckout && scannerRun > pinnedPack);
+  const securityBlock = workflow.slice(securityCheckout, pinnedPack);
+  assert.match(securityBlock, /ref: \$\{\{ github\.sha \}\}/);
+  assert.match(securityBlock, /path: aw-security/);
+  assert.match(securityBlock, /persist-credentials: false/);
+  assert.doesNotMatch(workflow, /node aw\/scripts\/central-secret-scan\.ts/);
 });
