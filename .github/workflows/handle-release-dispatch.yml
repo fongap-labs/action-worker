@@ -42,6 +42,25 @@ jobs:
           TARGET_REPOSITORY: ${{ github.event.client_payload.source_repository }}
         run: node scripts/resolve-github-api-scope.ts release-source
 
+      - name: Resolve release read repository scope
+        id: release_scopes
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+        run: node scripts/resolve-release-repositories.ts
+
+      - name: Mint governed release read token
+        id: release_read_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.release_scopes.outputs.repositories_csv }}
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-issues: read
+
       - name: Mint release status read token
         id: status_app
         uses: ./.github/actions/mint-app-token
@@ -49,13 +68,43 @@ jobs:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ steps.status_scope.outputs.owner }}
-          repositories: ${{ steps.status_scope.outputs.repository_name }}
+          repositories: ${{ steps.release_scopes.outputs.repositories_csv }}
           permission-statuses: read
+
+      - name: Download proposed release artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ github.event.client_payload.artifact_name }}
+          run-id: ${{ github.event.client_payload.artifact_run_id }}
+          repository: ${{ github.event.client_payload.artifact_repository }}
+          github-token: ${{ steps.release_read_app.outputs.token }}
+          path: ${{ runner.temp }}/governed-release-target
+
+      - name: Resolve verified release target scope
+        id: release_target
+        env:
+          AW_CONTROL_TOKEN: ${{ steps.release_read_app.outputs.token }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          RELEASE_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
+          RELEASE_ARTIFACT_DIR: ${{ runner.temp }}/governed-release-target
+        run: node scripts/resolve-release-target.ts
+
+      - name: Mint target-only release publication token
+        id: release_write_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.release_target.outputs.owner }}
+          repositories: ${{ steps.release_target.outputs.repository_name }}
+          permission-contents: write
 
       - name: Publish governed release
         id: release
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.release_read_app.outputs.token }}
+          AW_RELEASE_WRITE_API_TOKEN: ${{ steps.release_write_app.outputs.token }}
+          AW_RELEASE_TARGET_REPOSITORY: ${{ steps.release_target.outputs.target_repository }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
