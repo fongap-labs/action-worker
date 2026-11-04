@@ -1,0 +1,1 @@
+- 新增: MCP Hub 的 PR 基本信息读取先行改用 GitHub App 最小只读安装令牌（Contents、Pull requests、Actions），降低中央治理对个人 API 配额的依赖；其他仓库与 CI 证据签名、状态发布继续维持原行为。

@@ -42,9 +42,24 @@ jobs:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/validate-pr-payload.ts "$PAYLOAD"
 
+      # Phase 1: move MCP Hub's PR fact reads to the installation's independent API quota.
+      # Other managed repositories continue unchanged until their App access is verified.
+      - name: Mint MCP Hub read-only GitHub App token
+        id: mcp_app_read
+        if: steps.payload.outputs.repository == 'fongap-labs/mcp-hub'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: mcp-hub
+          permission-contents: read
+          permission-pull-requests: read
+          permission-actions: read
+
       - name: Validate control credential
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ (steps.payload.outputs.repository == 'fongap-labs/mcp-hub' && steps.mcp_app_read.outputs.token) || (steps.payload.outputs.repository != 'fongap-labs/mcp-hub' && secrets.AW_CONTROL_TOKEN) }}
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
@@ -54,7 +69,7 @@ jobs:
       - name: Fetch PR facts
         id: facts
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ (steps.payload.outputs.repository == 'fongap-labs/mcp-hub' && steps.mcp_app_read.outputs.token) || (steps.payload.outputs.repository != 'fongap-labs/mcp-hub' && secrets.AW_CONTROL_TOKEN) }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
         run: node scripts/resolve-pr-facts.ts fetch
@@ -72,7 +87,7 @@ jobs:
       - name: Resolve checked-out PR facts
         id: resolved
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ (steps.payload.outputs.repository == 'fongap-labs/mcp-hub' && steps.mcp_app_read.outputs.token) || (steps.payload.outputs.repository != 'fongap-labs/mcp-hub' && secrets.AW_CONTROL_TOKEN) }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           INITIAL_BASE_SHA: ${{ steps.facts.outputs.base_sha }}
