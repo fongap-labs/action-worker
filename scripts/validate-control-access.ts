@@ -1,7 +1,11 @@
-import { getJsonString, GithubHttpError, GithubReader, isJsonRecord } from "./github-api.ts";
+import { GithubHttpError, GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 
-export async function checkAccess(path: string, token: string, permissionMessage: string): Promise<unknown> {
+export async function checkAccess(
+  path: string,
+  token: string,
+  permissionMessage: string
+): Promise<unknown> {
   const reader = new GithubReader("https://api.github.com", token, {
     attemptLimit: 2,
     timeoutMs: 15_000,
@@ -31,7 +35,10 @@ export async function checkAccess(path: string, token: string, permissionMessage
       if (error.status === 403 || error.status === 404) {
         throw new CliError(permissionMessage, 77);
       }
-      throw new CliError(`::error::GitHub API returned HTTP ${error.status} during control-read validation.`, 69);
+      throw new CliError(
+        `::error::GitHub API returned HTTP ${error.status} during control-read validation.`,
+        69
+      );
     }
     throw new CliError(
       "::error::Control-read verification failed due to a transport or response error.",
