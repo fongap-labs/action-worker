@@ -34,9 +34,7 @@ test("status-read preflight requires the scoped API token, not the signing secre
 });
 
 test("central CI publication signs with stable secret but publishes with scoped App authorization", async () => {
-  const workflow = parse(
-    await readFile(".github/workflows/central-ci-dispatch.yml", "utf8")
-  ) as {
+  const workflow = parse(await readFile(".github/workflows/central-ci-dispatch.yml", "utf8")) as {
     jobs: {
       finalize: {
         permissions: Record<string, string>;
