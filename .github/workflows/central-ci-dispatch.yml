@@ -345,6 +345,7 @@ jobs:
           LINUX_RESULT: ${{ needs.linux.result }}
           SECURITY_RESULT: ${{ needs.security.result }}
           WINDOWS_RESULT: ${{ needs.windows.result }}
+          WINDOWS_DIAGNOSTIC: ${{ needs.windows.outputs.windows_diagnostic || '' }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         shell: bash
         run: |
@@ -359,6 +360,14 @@ jobs:
 
           state=failure
           description="Central CI failed"
+          # The reusable Windows sandbox exports only an indexed failure
+          # count, never private paths, log output, test names or source code.
+          # The signed status is posted to the private target repository.
+          if [[ "$WINDOWS_RESULT" == "failure" && "$WINDOWS_DIAGNOSTIC" =~ ^wc-tests-([0-9]{1,3}(\.[0-9]{1,3}){0,4})-([1-9][0-9]{0,2})$ ]]; then
+            numbers="${BASH_REMATCH[1]}"
+            count="${BASH_REMATCH[3]}"
+            description="Windows regression failed cases ${numbers//./,} ($count failures)"
+          fi
           if [[ "$LINUX_RESULT" == "success" ]] && [[ "$SECURITY_RESULT" == "success" ]] && [[ "$WINDOWS_RESULT" == "success" || "$WINDOWS_RESULT" == "skipped" ]]; then
             state=success
             description="Central CI passed"
