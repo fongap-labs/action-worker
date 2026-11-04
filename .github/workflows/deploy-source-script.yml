@@ -46,6 +46,11 @@ jobs:
     # Source Dispatch; the deploy job below keeps the read-only workflow permission.
     permissions:
       contents: write
+      actions: read
+      pull-requests: read
+      checks: read
+      statuses: read
+      issues: read
     outputs:
       source_repository: ${{ steps.source.outputs.source_repository }}
       source_sha: ${{ steps.source.outputs.source_sha }}
@@ -141,19 +146,26 @@ jobs:
           )"
           echo "request_json=$request" >> "$GITHUB_OUTPUT"
 
-      # Scope independent API quota to MCP Hub. The deployment preflight reads repository,
-      # CI, PR, check, status and issue facts but must not receive write permissions.
-      - name: Mint MCP Hub deploy preflight read token
-        id: mcp_deploy_read
-        if: (steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository) == 'fongap-labs/mcp-hub'
+      - name: Resolve deploy source API scope
+        id: api_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository }}
+        run: node scripts/resolve-github-api-scope.ts deploy
+
+      # The prepare job only reads source facts; deployment secrets are available later
+      # in the isolated, environment-approved deployment job.
+      - name: Mint cross-repository deploy preflight read token
+        id: app_read
+        if: steps.api_scope.outputs.is_control_repository == 'false'
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
+          owner: ${{ steps.api_scope.outputs.owner }}
           repositories: |
             action-worker
-            mcp-hub
+            ${{ steps.api_scope.outputs.repository_name }}
           permission-contents: read
           permission-actions: read
           permission-pull-requests: read
@@ -169,7 +181,7 @@ jobs:
       - name: Request central CI for the source
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          AW_CONTROL_TOKEN: ${{ ((steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository) == 'fongap-labs/mcp-hub' && steps.mcp_deploy_read.outputs.token) || ((steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository) != 'fongap-labs/mcp-hub' && secrets.AW_CONTROL_TOKEN) }}
+          AW_CONTROL_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           AW_INGRESS_TOKEN: ${{ github.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
@@ -190,7 +202,7 @@ jobs:
       - name: Validate deploy source
         id: source
         env:
-          AW_CONTROL_TOKEN: ${{ ((steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository) == 'fongap-labs/mcp-hub' && steps.mcp_deploy_read.outputs.token) || ((steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository) != 'fongap-labs/mcp-hub' && secrets.AW_CONTROL_TOKEN) }}
+          AW_CONTROL_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           DEPLOY_REQUEST_JSON: ${{ steps.dispatch_request.outputs.request_json || steps.manual_request.outputs.request_json }}
