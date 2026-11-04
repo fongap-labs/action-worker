@@ -44,7 +44,7 @@ test("the bridge tells Action Worker about every change it cannot see by itself"
   assert.match(template, /^permissions: \{\}$/m);
   assert.equal([...template.matchAll(/statuses: write/g)].length, 1);
   // The push payload names nothing, so a private repository's name never reaches a public run.
-  assert.match(template, /--data '\{"event_type":"run-intake"\}'/);
+  assert.match(template, /dispatch_with_diagnostics '\{"event_type":"run-intake"\}'/);
 });
 
 test("the dispatcher runner comes from central policy and never leaves the control domain", async () => {
