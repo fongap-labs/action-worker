@@ -71,9 +71,7 @@ jobs:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ steps.api_scope.outputs.owner }}
-          repositories: |
-            ${{ github.event.repository.name }}
-            ${{ steps.api_scope.outputs.repository_name }}
+          repositories: ${{ format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}
           permission-contents: read
           permission-actions: read
           permission-pull-requests: read
