@@ -73,6 +73,6 @@ test("App token composite forwards only the explicitly selected admin permission
   for (const permission of ["administration", "variables", "secrets"]) {
     const key = `permission-${permission}`;
     assert.ok(action.inputs[key], key);
-    assert.equal(forwarded[key], `${{ inputs.${key} }}`);
+    assert.equal(forwarded[key], ["${{ inputs.", key, " }}"].join(""));
   }
 });
