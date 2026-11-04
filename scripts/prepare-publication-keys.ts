@@ -44,6 +44,9 @@ export async function generatePublicationKeys(directory: string): Promise<{
 }> {
   const target = resolve(directory);
   const checkoutRoot = await realpath(process.cwd());
+  if (target === checkoutRoot || target.startsWith(`${checkoutRoot}${sep}`)) {
+    throw new CliError("Generate publication keys outside the source checkout.", 77);
+  }
   await mkdir(target, { recursive: true, mode: 0o700 });
   const targetRoot = await realpath(target);
   const metadata = await lstat(target);
