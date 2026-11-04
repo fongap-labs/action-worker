@@ -484,13 +484,13 @@ test("the shipped policies key every deploying product by its product key", asyn
   };
   assert.deepEqual(Object.keys(environments).sort(), [
     "fongap-labs/ai-gateway",
-    "fongap-labs/mcp-hub",
     "fongap-labs/internal-vault/server-edge",
+    "fongap-labs/mcp-hub",
   ]);
   assert.deepEqual(Object.keys(secrets.deployments).sort(), [
     "fongap-labs/ai-gateway",
-    "fongap-labs/mcp-hub",
     "fongap-labs/internal-vault/server-edge",
+    "fongap-labs/mcp-hub",
   ]);
 });
 
