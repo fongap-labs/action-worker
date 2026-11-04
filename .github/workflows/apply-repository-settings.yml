@@ -60,6 +60,22 @@ jobs:
           TARGET_REPOSITORY: ${{ github.repository }}
         run: node scripts/apply-review-models.ts "$TARGET_REPOSITORY"
 
+  bootstrap-signing:
+    name: Bootstrap CI evidence signing keys
+    environment: admin-ops
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
       - name: Mint status bootstrap dispatch token
         id: bootstrap_dispatch
         uses: ./.github/actions/mint-app-token
