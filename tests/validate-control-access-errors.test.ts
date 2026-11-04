@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { checkAccess } from "../scripts/validate-control-access.ts";
 import { CliError } from "../scripts/runtime-command.ts";
+import { checkAccess } from "../scripts/validate-control-access.ts";
 
 test("control read reports exhausted primary GitHub quota, not missing status permission", async () => {
   const original = globalThis.fetch;
@@ -21,8 +21,12 @@ test("control read reports exhausted primary GitHub quota, not missing status pe
   };
   try {
     await assert.rejects(
-      () => checkAccess("repos/fongap-labs/dsh-plugin/commits/example/status", "secret-placeholder",
-        "::error::Commit Statuses Read is required."),
+      () =>
+        checkAccess(
+          "repos/fongap-labs/dsh-plugin/commits/example/status",
+          "secret-placeholder",
+          "::error::Commit Statuses Read is required."
+        ),
       (error: unknown) => {
         assert.ok(error instanceof CliError);
         assert.equal(error.exitCode, 75);
@@ -43,15 +47,16 @@ test("control read retains strict permission checks for real authorization failu
   let calls = 0;
   globalThis.fetch = async () => {
     calls++;
-    return Response.json(
-      { message: "Resource not accessible by integration" },
-      { status: 403 }
-    );
+    return Response.json({ message: "Resource not accessible by integration" }, { status: 403 });
   };
   try {
     await assert.rejects(
-      () => checkAccess("repos/example/repo/actions/runs?per_page=1", "secret-placeholder",
-        "::error::Actions Read is required."),
+      () =>
+        checkAccess(
+          "repos/example/repo/actions/runs?per_page=1",
+          "secret-placeholder",
+          "::error::Actions Read is required."
+        ),
       (error: unknown) => {
         assert.ok(error instanceof CliError);
         assert.equal(error.exitCode, 77);
@@ -71,7 +76,12 @@ test("control read identifies 401 credentials separately from permission and rat
   globalThis.fetch = async () => Response.json({ message: "Bad credentials" }, { status: 401 });
   try {
     await assert.rejects(
-      () => checkAccess("repos/example/repo/pulls/12", "secret-placeholder", "Pull Requests Read required"),
+      () =>
+        checkAccess(
+          "repos/example/repo/pulls/12",
+          "secret-placeholder",
+          "Pull Requests Read required"
+        ),
       (error: unknown) => {
         assert.ok(error instanceof CliError);
         assert.equal(error.exitCode, 77);
@@ -96,7 +106,11 @@ test("valid scoped control reads are not broadened or sent with a second credent
   };
   try {
     assert.deepEqual(
-      await checkAccess("repos/example/repo/commits/abc/status", "scoped-test-credential", "Status read required"),
+      await checkAccess(
+        "repos/example/repo/commits/abc/status",
+        "scoped-test-credential",
+        "Status read required"
+      ),
       { ok: true }
     );
     assert.deepEqual(paths, ["https://api.github.com/repos/example/repo/commits/abc/status"]);
