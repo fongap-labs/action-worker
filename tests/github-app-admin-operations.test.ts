@@ -43,8 +43,14 @@ test("admin settings and signing use distinct repository-scoped GitHub App crede
     Object.entries(secrets.with ?? {}).filter(([key]) => key.startsWith("permission-")),
     [["permission-secrets", "write"]]
   );
-  assert.equal(find("Apply managed settings").env?.GH_TOKEN, "${{ steps.admin_app.outputs.token }}");
-  assert.equal(find("Apply AI Review model").env?.GH_TOKEN, "${{ steps.review_vars_app.outputs.token }}");
+  assert.equal(
+    find("Apply managed settings").env?.GH_TOKEN,
+    "${{ steps.admin_app.outputs.token }}"
+  );
+  assert.equal(
+    find("Apply AI Review model").env?.GH_TOKEN,
+    "${{ steps.review_vars_app.outputs.token }}"
+  );
   const bootstrap = find("Bootstrap status signing keyring");
   assert.equal(bootstrap.env?.GH_TOKEN, "${{ steps.signing_secrets_app.outputs.token }}");
   assert.equal(bootstrap.env?.AW_STATUS_TOKEN, "${{ secrets.AW_STATUS_TOKEN }}");
