@@ -115,10 +115,7 @@ test("source deploy checkout uses no dedicated private token for public reposito
   const visibility = prepare.steps.find((step) => step.name === "Resolve deploy source visibility");
   assert.equal(visibility?.id, "source_visibility");
   assert.equal(visibility?.env?.GH_TOKEN, "${{ steps.app_read.outputs.token }}");
-  assert.equal(
-    prepare.outputs.is_private,
-    "${{ steps.source_visibility.outputs.is_private }}"
-  );
+  assert.equal(prepare.outputs.is_private, "${{ steps.source_visibility.outputs.is_private }}");
   const deploy = workflow.jobs.deploy.steps;
   const find = (name: string) => deploy.find((step) => step.name === name);
   const privateSource = find("Checkout private deploy source");
