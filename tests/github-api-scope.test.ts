@@ -11,12 +11,7 @@ const policy = {
 
 test("control repository is authorized for GITHUB_TOKEN", () => {
   assert.deepEqual(
-    resolveGithubApiScope(
-      "fongap-labs/action-worker",
-      "fongap-labs/action-worker",
-      policy,
-      "pr"
-    ),
+    resolveGithubApiScope("fongap-labs/action-worker", "fongap-labs/action-worker", policy, "pr"),
     { owner: "fongap-labs", repository_name: "action-worker", is_control_repository: true }
   );
 });
@@ -46,5 +41,7 @@ test("App token scope cannot bypass repository capability grants or owner bounda
     () => resolveGithubApiScope("another-org/example", "fongap-labs/action-worker", policy, "pr"),
     /Cross-owner access requires/
   );
-  assert.throws(() => resolveGithubApiScope("not-a-repository", "fongap-labs/action-worker", policy, "pr"));
+  assert.throws(() =>
+    resolveGithubApiScope("not-a-repository", "fongap-labs/action-worker", policy, "pr")
+  );
 });
