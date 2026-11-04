@@ -86,8 +86,9 @@ test("PR API reads use GITHUB_TOKEN locally and a scoped App token across manage
     "${{ steps.final_read_app.outputs.token }}"
   );
   assert.equal(
-    workflow.jobs["resolve-unfinished"].steps.find((step) => step.name === "Resolve unfinished PR governance")?.env
-      ?.AW_CONTROL_TOKEN,
+    workflow.jobs["resolve-unfinished"].steps.find(
+      (step) => step.name === "Resolve unfinished PR governance"
+    )?.env?.AW_CONTROL_TOKEN,
     "${{ steps.unfinished_read_app.outputs.token }}"
   );
   assert.doesNotMatch(
