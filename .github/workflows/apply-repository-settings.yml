@@ -20,16 +20,6 @@ on:
       - .github/workflows/apply-repository-settings.yml
   schedule:
     - cron: "43 4 * * *"
-  workflow_dispatch:
-    inputs:
-      scope:
-        description: 手动恢复范围；默认仅初始化签名密钥，不修改所有受管仓库设置
-        type: choice
-        required: true
-        default: signing-only
-        options:
-          - signing-only
-          - all
 
 permissions:
   contents: read
@@ -42,7 +32,6 @@ concurrency:
 jobs:
   apply-control-plane:
     name: Apply control-plane settings
-    if: github.event_name != 'workflow_dispatch' || inputs.scope == 'all'
     environment: admin-ops
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -108,7 +97,6 @@ jobs:
 
   resolve-managed:
     name: Resolve managed repositories
-    if: github.event_name != 'workflow_dispatch' || inputs.scope == 'all'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
