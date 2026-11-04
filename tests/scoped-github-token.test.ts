@@ -30,7 +30,15 @@ test("each scoped credential is selected only by its own name", () => {
     AW_CONTROL_TOKEN: "control",
     GH_TOKEN: "generic",
   };
-  for (const scope of ["status", "issue", "dispatch", "checkout", "release", "branch", "control"] as const) {
+  for (const scope of [
+    "status",
+    "issue",
+    "dispatch",
+    "checkout",
+    "release",
+    "branch",
+    "control",
+  ] as const) {
     assert.equal(requireToken(scope, env), scope);
   }
 });
