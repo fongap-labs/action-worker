@@ -33,7 +33,7 @@ inputs:
     description: Optional commit statuses API permission (read or write).
     required: false
   permission-security-events:
-    description: Optional code scanning Security events API permission (read or write).
+    description: Optional CodeQL Security events API permission (read or write).
     required: false
 
 outputs:
