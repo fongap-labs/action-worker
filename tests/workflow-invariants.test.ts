@@ -190,10 +190,11 @@ test("publishing releases is read-only against source branches and never opens P
   assert.doesNotMatch(notes, /repos\/\$\{repository\}\/pulls|--method.*(?:POST|PATCH|PUT)/);
 });
 
-
 test("manual source deploy resolves default HEAD without spending the control PAT REST quota", async () => {
   const deploy = await workflow("deploy-source-script.yml");
-  const step = deploy.jobs.prepare?.steps?.find((item) => item.name === "Resolve manual deploy request");
+  const step = deploy.jobs.prepare?.steps?.find(
+    (item) => item.name === "Resolve manual deploy request"
+  );
   assert.ok(step, "manual deploy resolver must exist");
   assert.equal(step.env?.AW_CHECKOUT_TOKEN, "${{ secrets.AW_CHECKOUT_TOKEN }}");
   assert.equal(step.env?.AW_REPOSITORY_POLICY, "${{ vars.AW_REPOSITORY_POLICY }}");
