@@ -43,9 +43,30 @@ jobs:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/validate-dispatch-payload.ts "$PAYLOAD"
 
+      - name: Resolve task source read scope
+        id: task_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ steps.payload.outputs.repository }}
+        run: node scripts/resolve-github-api-scope.ts task
+
+      - name: Mint task validation read token
+        id: task_read_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.task_scope.outputs.owner }}
+          repositories: ${{ steps.task_scope.outputs.is_control_repository == 'true' && github.event.repository.name || format('{0},{1}', github.event.repository.name, steps.task_scope.outputs.repository_name) }}
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-statuses: read
+          permission-issues: read
+
       - name: Validate task source
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.task_read_app.outputs.token }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           BOOTSTRAP_REF: ${{ steps.payload.outputs.bootstrap_ref }}
         run: node scripts/validate-task-source.ts "$REPOSITORY" "$BOOTSTRAP_REF"
@@ -53,7 +74,7 @@ jobs:
       - name: Resolve task source visibility
         id: visibility
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.task_read_app.outputs.token }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
         shell: bash
         run: |
@@ -70,6 +91,7 @@ jobs:
 
     permissions:
       actions: read
+      contents: read
 
     env:
       AW_SOURCE_DIR: ${{ github.workspace }}/task-source
@@ -98,12 +120,35 @@ jobs:
         with:
           node-version: 24
 
-      - name: Checkout task source
+      - name: Require dedicated private task checkout credential
+        if: needs.validate.outputs.is_private == 'true'
+        env:
+          AW_CHECKOUT_TOKEN: ${{ secrets.AW_CHECKOUT_TOKEN }}
+        shell: bash
+        run: |
+          if [ -z "${AW_CHECKOUT_TOKEN:-}" ]; then
+            echo "::error::AW_CHECKOUT_TOKEN with Contents: Read is required for private task source checkout; no personal control PAT fallback." >&2
+            exit 77
+          fi
+
+      - name: Checkout private task source
+        if: needs.validate.outputs.is_private == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ needs.validate.outputs.repository }}
           ref: ${{ needs.validate.outputs.bootstrap_ref }}
-          token: ${{ secrets.AW_CONTROL_TOKEN }}
+          token: ${{ secrets.AW_CHECKOUT_TOKEN }}
+          path: task-source
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout public task source
+        if: needs.validate.outputs.is_private == 'false'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ needs.validate.outputs.repository }}
+          ref: ${{ needs.validate.outputs.bootstrap_ref }}
+          token: ${{ github.token }}
           path: task-source
           fetch-depth: 1
           persist-credentials: false
