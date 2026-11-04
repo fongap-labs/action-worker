@@ -159,7 +159,7 @@ async function main(): Promise<void> {
 
   for (const repository of repositories) {
     let mainSha = "";
-    let provenanceVerified = false;
+    let hasVerifiedProvenance = false;
     try {
       // Auto-close expired incidents before auditing, so they don't block the pipeline.
       try {
@@ -189,7 +189,7 @@ async function main(): Promise<void> {
         repository !== controlRepository,
         bypassIncidents
       );
-      provenanceVerified = true;
+      hasVerifiedProvenance = true;
       await publishGuardStatus(
         repository,
         mainSha,
@@ -209,7 +209,7 @@ async function main(): Promise<void> {
     } catch (error) {
       const detail =
         error instanceof Error ? error.message.replace(/^::error::/, "") : String(error);
-      if (provenanceVerified) {
+      if (hasVerifiedProvenance) {
         // A failed status POST is an operational failure, not evidence of an untrusted write.
         statusPublicationErrors.push(`${repository}: ${detail}`);
         results.push({
@@ -250,7 +250,8 @@ async function main(): Promise<void> {
           );
         }
       }
-      const statusState = error instanceof MainWriteVerificationPendingError ? "pending" : "failure";
+      const statusState =
+        error instanceof MainWriteVerificationPendingError ? "pending" : "failure";
       if (shaPattern.test(mainSha)) {
         try {
           await publishGuardStatus(
