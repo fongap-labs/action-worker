@@ -47,8 +47,8 @@ test("all seven intake jobs use policy-scoped App reads without personal control
       job
     );
     assert.ok(
-      steps.some((step) =>
-        step.env?.AW_CONTROL_TOKEN === "${{ steps.control_read_app.outputs.token }}"
+      steps.some(
+        (step) => step.env?.AW_CONTROL_TOKEN === "${{ steps.control_read_app.outputs.token }}"
       ),
       job
     );
