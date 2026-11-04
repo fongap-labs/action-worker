@@ -1,4 +1,9 @@
-import { createPrivateKey, createPublicKey, generateKeyPairSync, timingSafeEqual } from "node:crypto";
+import {
+  createPrivateKey,
+  createPublicKey,
+  generateKeyPairSync,
+  timingSafeEqual,
+} from "node:crypto";
 import { lstat, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
@@ -11,8 +16,8 @@ export function validatePublicationKeyPair(publicText: string, privateText: stri
   if (!/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encoded)) {
     throw new CliError("Publication public key must be standard base64 DER/SPKI.", 65);
   }
-  let publicKey;
-  let privateKey;
+  let publicKey: ReturnType<typeof createPublicKey>;
+  let privateKey: ReturnType<typeof createPrivateKey>;
   try {
     publicKey = createPublicKey({
       key: Buffer.from(encoded, "base64"),
@@ -56,7 +61,10 @@ export async function generatePublicationKeys(directory: string): Promise<{
     targetRoot === checkoutRoot ||
     targetRoot.startsWith(`${checkoutRoot}${sep}`)
   ) {
-    throw new CliError("Generate publication keys outside the source checkout and outside symlinks.", 77);
+    throw new CliError(
+      "Generate publication keys outside the source checkout and outside symlinks.",
+      77
+    );
   }
   const publicPath = join(targetRoot, publicFilename);
   const privatePath = join(targetRoot, privateFilename);
@@ -79,7 +87,10 @@ export async function generatePublicationKeys(directory: string): Promise<{
   return { publicPath, privatePath };
 }
 
-export async function verifyPublicationKeys(publicPath: string, privatePath: string): Promise<void> {
+export async function verifyPublicationKeys(
+  publicPath: string,
+  privatePath: string
+): Promise<void> {
   const [publicKey, privateKey] = await Promise.all([
     readFile(publicPath, "utf8"),
     readFile(privatePath, "utf8"),
