@@ -1,0 +1,1 @@
+- 修复: PR 与中央 CI 的提交状态读取改用已经授权的最小权限 API 凭据，不再要求 AW_STATUS_TOKEN 具有提交状态读取权限；中央 CI 最终结果发布使用按仓库限权的 GitHub App Token（本仓库使用 GITHUB_TOKEN），签名仍沿用稳定的 AW_STATUS_TOKEN，历史 CI Evidence 可继续验证。其他状态写入入口暂不迁移。
