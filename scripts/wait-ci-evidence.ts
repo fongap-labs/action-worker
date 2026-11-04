@@ -12,16 +12,18 @@ function policyNumber(value: Record<string, unknown>, key: string, fallback: num
   return typeof value[key] === "number" ? value[key] : fallback;
 }
 
-function calculateBackoff(
+export function calculateBackoff(
   attempt: number,
   initialMs: number,
   maxMs: number,
+  remainingMs: number,
   jitterFactor = 0.2
 ): number {
-  const exponential = initialMs * 2 ** attempt;
-  const capped = Math.min(exponential, maxMs);
+  // Bound every request by the configured deadline. The capped interval also
+  // limits API usage without introducing a second, shorter attempt deadline.
+  const capped = Math.min(initialMs * 2 ** Math.min(attempt, 30), maxMs);
   const jitter = capped * jitterFactor * Math.random();
-  return Math.floor(capped + jitter);
+  return Math.max(0, Math.min(maxMs, remainingMs, Math.floor(capped + jitter)));
 }
 
 export async function assertCurrentPullHead(
@@ -89,13 +91,13 @@ export async function waitForCentralStatus(
   const context = getJsonString(ci, "status_context") || "CI Evidence";
   const deadline = Date.now() + timeoutMinutes * 60_000;
 
-  // Exponential backoff parameters
+  // Back off to at most one request per minute while honoring the full
+  // policy deadline (30 attempts previously ended a 120-minute wait early).
   const initialPollMs = pollSeconds * 1000;
-  const maxPollMs = 60_000; // cap at 60 seconds
-  const maxAttempts = 30; // total API call budget
+  const maxPollMs = 60_000;
   let attempt = 0;
 
-  while (Date.now() < deadline && attempt < maxAttempts) {
+  while (Date.now() < deadline) {
     if (prNumber !== undefined) {
       await assertCurrentPullHead(reader, repository, prNumber, headSha);
     }
@@ -105,10 +107,10 @@ export async function waitForCentralStatus(
 
     if (!status) {
       console.error(
-        `Central CI pending: waiting for trusted ${repository}@${headSha} context=${context} (attempt ${attempt}/${maxAttempts})`
+        `Central CI pending: waiting for trusted ${repository}@${headSha} context=${context} (poll ${attempt}, remaining ${Math.ceil(Math.max(0, deadline - Date.now()) / 60_000)}m)`
       );
-      if (attempt < maxAttempts && Date.now() < deadline) {
-        await sleep(calculateBackoff(attempt, initialPollMs, maxPollMs));
+      if (Date.now() < deadline) {
+        await sleep(calculateBackoff(attempt, initialPollMs, maxPollMs, deadline - Date.now()));
       }
       continue;
     }
@@ -116,10 +118,10 @@ export async function waitForCentralStatus(
     const state = getJsonString(status, "state") || "unknown";
     if (state === "pending") {
       console.error(
-        `Central CI pending: ${repository}@${headSha} context=${context} (attempt ${attempt}/${maxAttempts})`
+        `Central CI pending: ${repository}@${headSha} context=${context} (poll ${attempt}, remaining ${Math.ceil(Math.max(0, deadline - Date.now()) / 60_000)}m)`
       );
-      if (attempt < maxAttempts && Date.now() < deadline) {
-        await sleep(calculateBackoff(attempt, initialPollMs, maxPollMs));
+      if (Date.now() < deadline) {
+        await sleep(calculateBackoff(attempt, initialPollMs, maxPollMs, deadline - Date.now()));
       }
       continue;
     }
