@@ -45,7 +45,11 @@ export function scannerFailureReason(
     return "scanner rejected a CLI option";
   if (/invalid.*config|failed to.*config|config.*(?:error|parse)/i.test(stderr))
     return "scanner rejected its configuration";
-  if (/fatal: bad revision|unknown revision|ambiguous argument|bad object|not a git repository/i.test(stderr))
+  if (
+    /fatal: bad revision|unknown revision|ambiguous argument|bad object|not a git repository/i.test(
+      stderr
+    )
+  )
     return "scanner could not resolve the Git commit range";
   if (status !== null) return `scanner exited with code ${status}`;
   return "scanner exited without a status";
