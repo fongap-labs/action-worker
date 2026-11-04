@@ -141,6 +141,26 @@ jobs:
           )"
           echo "request_json=$request" >> "$GITHUB_OUTPUT"
 
+      # Scope independent API quota to MCP Hub. The deployment preflight reads repository,
+      # CI, PR, check, status and issue facts but must not receive write permissions.
+      - name: Mint MCP Hub deploy preflight read token
+        id: mcp_deploy_read
+        if: (steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository) == 'fongap-labs/mcp-hub'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            action-worker
+            mcp-hub
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-checks: read
+          permission-statuses: read
+          permission-issues: read
+
       # Intake may not have reached this source yet, so every deploy asks for central CI and
       # attests the main write on its own source now; both are no-ops when already done. An
       # automatic deploy can name a newer main than the commit whose CI started it (see
@@ -149,7 +169,7 @@ jobs:
       - name: Request central CI for the source
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ ((steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository) == 'fongap-labs/mcp-hub' && steps.mcp_deploy_read.outputs.token) || ((steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository) != 'fongap-labs/mcp-hub' && secrets.AW_CONTROL_TOKEN) }}
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           AW_INGRESS_TOKEN: ${{ github.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
@@ -170,7 +190,7 @@ jobs:
       - name: Validate deploy source
         id: source
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ ((steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository) == 'fongap-labs/mcp-hub' && steps.mcp_deploy_read.outputs.token) || ((steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository) != 'fongap-labs/mcp-hub' && secrets.AW_CONTROL_TOKEN) }}
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           DEPLOY_REQUEST_JSON: ${{ steps.dispatch_request.outputs.request_json || steps.manual_request.outputs.request_json }}
