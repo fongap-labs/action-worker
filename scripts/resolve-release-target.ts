@@ -1,7 +1,14 @@
 import { join } from "node:path";
 import { getGithubJson, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import { resolveGithubApiScope } from "./resolve-github-api-scope.ts";
-import { appendLines, CliError, handleError, isMain, parseJson, readJson } from "./runtime-command.ts";
+import {
+  appendLines,
+  CliError,
+  handleError,
+  isMain,
+  parseJson,
+  readJson,
+} from "./runtime-command.ts";
 import { validateRelease, validateReleaseProvenance } from "./validate-release-request.ts";
 
 export function releaseTargetFromArtifact(
@@ -52,27 +59,24 @@ async function main(): Promise<void> {
     throw new CliError("::error::Release App read token is required.", 77);
   }
   const runId = request.artifact_run_id as number;
-  const run = await getGithubJson(
-    `repos/${artifactRepository}/actions/runs/${runId}`,
-    readToken
-  );
+  const run = await getGithubJson(`repos/${artifactRepository}/actions/runs/${runId}`, readToken);
   if (
     !isJsonRecord(run) ||
     getJsonString(run, "status") !== "completed" ||
     getJsonString(run, "conclusion") !== "success" ||
     getJsonString(run.repository, "full_name") !== artifactRepository
   ) {
-    throw new CliError("::error::Release artifact run is not successful or does not match its repository.", 75);
+    throw new CliError(
+      "::error::Release artifact run is not successful or does not match its repository.",
+      75
+    );
   }
   const artifactList = await getGithubJson(
     `repos/${artifactRepository}/actions/runs/${runId}/artifacts?per_page=100`,
     readToken
   );
   const matching = getJsonArray(artifactList, "artifacts").filter(
-    (item) =>
-      isJsonRecord(item) &&
-      item.name === request.artifact_name &&
-      item.expired === false
+    (item) => isJsonRecord(item) && item.name === request.artifact_name && item.expired === false
   );
   if (matching.length !== 1) {
     throw new CliError("::error::Release artifact must be unique and unexpired.", 66);
