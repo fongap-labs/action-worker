@@ -137,6 +137,17 @@ jobs:
           persist-credentials: false
           path: aw
 
+      # This checkout is never rewound to the target's pinned test pack. Security enforcement
+      # always uses the trusted control-plane revision for the current workflow run.
+      - name: Checkout current central security scanner
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+          persist-credentials: false
+          path: aw-security
+
       - name: Verify pinned CI checkout
         env:
           PINNED_PR_NUMBER: ${{ inputs.pr_number }}
@@ -149,8 +160,8 @@ jobs:
         shell: pwsh
         run: node aw/scripts/prepare-test-pack.ts "${{ github.workspace }}/aw" "${{ github.workspace }}/ci-control/.github/test-pack.json"
 
-      # Central, pinned secret scan of the commits this pull request adds. It is control code from this
-      # repository and runs before any target code. Findings and scanner failures fail closed by default.
+      # Central secret scan uses the current trusted control-plane SHA, not the target's
+      # historical test-pack ref. Findings and scanner failures fail closed by default.
       - name: Scan the change for secrets
         env:
           AW_GITLEAKS_MODE: ${{ vars.AW_CENTRAL_GITLEAKS_MODE || 'enforce' }}
@@ -164,7 +175,7 @@ jobs:
           if [ -f "$GITHUB_WORKSPACE/ci-control/.gitleaks.toml" ]; then
             config="$GITHUB_WORKSPACE/ci-control/.gitleaks.toml"
           fi
-          node aw/scripts/central-secret-scan.ts "$GITHUB_WORKSPACE/target" "$SCAN_BASE_SHA" "$SCAN_HEAD_SHA" "$config"
+          node aw-security/scripts/central-secret-scan.ts "$GITHUB_WORKSPACE/target" "$SCAN_BASE_SHA" "$SCAN_HEAD_SHA" "$config"
 
       - name: Run trusted Linux CI
         env:
