@@ -82,12 +82,19 @@ async function main(): Promise<void> {
     targetRoot = "",
   ] = process.argv.slice(2);
   const token = process.env.AW_CONTROL_TOKEN ?? "";
+  const pushToken = process.env.AW_REPAIR_PUSH_API_TOKEN ?? "";
   const prNumber = Number(prRaw);
   const outputPaths = parseJson(
     rawOutputPaths,
     "Dependency repair output paths must be valid JSON.",
     64
   );
+  if (!pushToken) {
+    throw new CliError(
+      "AW_REPAIR_PUSH_API_TOKEN is required for dependency repair branch writes; no control PAT fallback is permitted.",
+      77
+    );
+  }
   if (
     !token ||
     !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) ||
@@ -182,7 +189,7 @@ async function main(): Promise<void> {
   );
   await runText("git", ["push", "origin", `HEAD:refs/heads/${headRef}`], {
     cwd: targetRoot,
-    env: gitPushEnvironment(token),
+    env: gitPushEnvironment(pushToken),
     timeoutMs: 60_000,
   });
 

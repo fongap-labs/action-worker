@@ -35,7 +35,7 @@ jobs:
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ github.event.client_payload.repository }}
-        run: node scripts/resolve-github-api-scope.ts managed
+        run: node scripts/resolve-github-api-scope.ts pr
 
       - name: Mint CI evidence read token
         id: status_read_app
@@ -46,6 +46,19 @@ jobs:
           owner: ${{ steps.api_scope.outputs.owner }}
           repositories: ${{ steps.api_scope.outputs.repository_name }}
           permission-statuses: read
+
+      - name: Mint control read token
+        id: control_read_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.event.repository.name || format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-issues: read
 
       - name: Mint control dispatch token
         id: dispatch_app
@@ -60,7 +73,7 @@ jobs:
       - name: Verify completed CI evidence and source revision
         id: verified
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_read_app.outputs.token }}
           AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
@@ -71,7 +84,7 @@ jobs:
         if: steps.verified.outputs.current == 'true'
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
           TARGET_REPOSITORY: ${{ github.event.client_payload.repository }}
@@ -109,7 +122,7 @@ jobs:
         id: attest
         if: ${{ !cancelled() && steps.verified.outputs.current == 'true' && github.event.client_payload.pr_number == 0 }}
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.attest_status_app.outputs.token }}
           AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           AW_ISSUE_API_TOKEN: ${{ steps.attest_issue_app.outputs.token }}
@@ -122,7 +135,7 @@ jobs:
         if: ${{ !cancelled() && steps.verified.outputs.current == 'true' && steps.attest.outcome == 'success' }}
         env:
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ github.event.client_payload.repository }}
           TARGET_HEAD_SHA: ${{ github.event.client_payload.head_sha }}

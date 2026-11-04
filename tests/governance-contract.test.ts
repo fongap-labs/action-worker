@@ -1065,7 +1065,8 @@ test("tool distribution sync runs only in the central control plane", async () =
   requireText(workflow, [
     "schedule:",
     "sync-tool-release.ts",
-    "AW_CONTROL_TOKEN",
+    "AW_CONTROL_TOKEN: ${{ steps.distribution_app.outputs.token }}",
+    "Mint tool distribution read token",
     "run-release",
     'schema_version: "2"',
     "artifact_repository",

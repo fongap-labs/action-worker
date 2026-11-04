@@ -531,10 +531,20 @@ jobs:
           repositories: ${{ steps.status_scope.outputs.repository_name }}
           permission-statuses: write
 
+      - name: Mint failed CI PR read token
+        id: failed_ci_read_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.status_scope.outputs.owner }}
+          repositories: ${{ steps.status_scope.outputs.repository_name }}
+          permission-pull-requests: read
+
       - name: Publish failed CI Evidence for the current head
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.failed_ci_read_app.outputs.token }}
+          AW_CONTROL_TOKEN: ${{ steps.failed_ci_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
