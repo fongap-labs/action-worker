@@ -3,49 +3,89 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { parse } from "yaml";
 
-type Job = {
+type Step = {
+  name?: string;
+  id?: string;
+  env?: Record<string, string>;
   if?: string;
-  needs?: string | string[];
-  environment?: string;
-  steps?: Array<{ name?: string; env?: Record<string, string>; "continue-on-error"?: boolean }>;
+  with?: Record<string, string>;
+  "continue-on-error"?: boolean;
 };
 
-test("manual signing recovery selects only protected signing job by default", async () => {
-  const source = await readFile(".github/workflows/apply-repository-settings.yml", "utf8");
-  const workflow = parse(source) as {
-    on: {
-      workflow_dispatch: {
-        inputs: { scope: { default: string; options: string[]; required: boolean } };
-      };
+type Workflow = {
+  on: {
+    workflow_dispatch: {
+      inputs: { confirm: { type: string; default: boolean; required: boolean } };
     };
-    jobs: Record<string, Job>;
+    repository_dispatch: { types: string[] };
   };
-  const scope = workflow.on.workflow_dispatch.inputs.scope;
-  assert.equal(scope.default, "signing-only");
-  assert.equal(scope.required, true);
-  assert.deepEqual(scope.options, ["signing-only", "all"]);
-  const condition = "github.event_name != 'workflow_dispatch' || inputs.scope == 'all'";
-  assert.equal(workflow.jobs["apply-control-plane"]?.if, condition);
-  assert.equal(workflow.jobs["resolve-managed"]?.if, condition);
-  assert.equal(workflow.jobs["apply-managed"]?.needs, "resolve-managed");
-  const signing = workflow.jobs["bootstrap-signing"];
-  assert.ok(signing);
-  assert.equal(signing.environment, "admin-ops");
-  assert.equal(signing.if, undefined);
-  assert.equal(
-    signing.steps?.some((step) => step.name === "Bootstrap status signing keyring"),
-    true
+  concurrency: { group: string; "cancel-in-progress": boolean };
+  jobs: Record<
+    string,
+    { if?: string; environment?: string; needs?: string; steps: Step[] }
+  >;
+};
+
+test("manual signing recovery is a protected entry, not a manual maintenance job", async () => {
+  const source = await readFile(".github/workflows/recover-status-signing.yml", "utf8");
+  const workflow = parse(source) as Workflow;
+  assert.deepEqual(Object.keys(workflow.on).sort(), ["repository_dispatch", "workflow_dispatch"]);
+  assert.deepEqual(workflow.on.repository_dispatch.types, ["run-status-signing-recovery"]);
+  assert.equal(workflow.on.workflow_dispatch.inputs.confirm.type, "boolean");
+  assert.equal(workflow.on.workflow_dispatch.inputs.confirm.required, true);
+  assert.equal(workflow.on.workflow_dispatch.inputs.confirm.default, false);
+  assert.equal(workflow.concurrency.group, "apply-repository-settings");
+  assert.equal(workflow.concurrency["cancel-in-progress"], false);
+  assert.deepEqual(Object.keys(workflow.jobs), ["bootstrap"]);
+  const bootstrap = workflow.jobs.bootstrap;
+  assert.ok(bootstrap);
+  assert.equal(bootstrap.environment, "admin-ops");
+  assert.equal(bootstrap.if, "github.ref == 'refs/heads/main'");
+  assert.equal(bootstrap.needs, undefined);
+  const confirm = bootstrap.steps.find((step) => step.name === "Require operator confirmation");
+  assert.equal(confirm?.if, "github.event_name == 'workflow_dispatch'");
+  assert.equal(confirm?.env?.RECOVERY_CONFIRMED, "${{ inputs.confirm }}");
+  const prerequisite = bootstrap.steps.find(
+    (step) => step.name === "Confirm signing recovery is needed"
   );
+  assert.equal(
+    prerequisite?.env?.AW_LEGACY_VERIFIER_PRESENT,
+    "${{ secrets.AW_STATUS_TOKEN != '' }}"
+  );
+  assert.equal(
+    prerequisite?.env?.AW_KEYRING_PRESENT,
+    "${{ secrets.AW_STATUS_SIGNING_KEYS != '' }}"
+  );
+
+  const maintenance = parse(
+    await readFile(".github/workflows/apply-repository-settings.yml", "utf8")
+  ) as { on: Record<string, unknown> };
+  assert.equal(maintenance.on.workflow_dispatch, undefined);
 });
 
-test("manual signing recovery uses existing legacy verifier without disabling signing", async () => {
-  const source = await readFile(".github/workflows/apply-repository-settings.yml", "utf8");
-  const workflow = parse(source) as { jobs: Record<string, Job> };
-  const bootstrap = workflow.jobs["bootstrap-signing"];
-  assert.ok(bootstrap);
-  const keys = bootstrap.steps?.find((step) => step.name === "Bootstrap status signing keyring");
-  assert.equal(keys?.env?.AW_STATUS_TOKEN, "${{ secrets.AW_STATUS_TOKEN }}");
-  assert.equal(keys?.env?.AW_STATUS_SIGNING_KEYS, "${{ secrets.AW_STATUS_SIGNING_KEYS }}");
-  assert.equal(keys?.env?.GH_TOKEN, "${{ secrets.AW_ADMIN_TOKEN }}");
-  assert.equal(keys?.["continue-on-error"], undefined);
+test("manual signing recovery preserves legacy verifiers and refuses bypasses", async () => {
+  const source = await readFile(".github/workflows/recover-status-signing.yml", "utf8");
+  const workflow = parse(source) as Workflow;
+  const steps = workflow.jobs.bootstrap?.steps ?? [];
+  const find = (name: string) => {
+    const step = steps.find((entry) => entry.name === name);
+    assert.ok(step, name);
+    return step;
+  };
+  const token = find("Mint status bootstrap dispatch token");
+  assert.equal(token.with?.repositories, "${{ github.event.repository.name }}");
+  assert.equal(token.with?.["permission-contents"], "write");
+  assert.equal(
+    find("Bootstrap status signing keyring").env?.GH_TOKEN,
+    "${{ secrets.AW_ADMIN_TOKEN }}"
+  );
+  const signing = find("Bootstrap status signing keyring");
+  assert.equal(signing.env?.AW_STATUS_TOKEN, "${{ secrets.AW_STATUS_TOKEN }}");
+  assert.equal(signing.env?.AW_STATUS_SIGNING_KEYS, "${{ secrets.AW_STATUS_SIGNING_KEYS }}");
+  assert.equal(signing.env?.AW_STATUS_SIGNING_KEY_ID, "k1");
+  assert.equal(signing.env?.AW_BOOTSTRAP_READ_TOKEN, "${{ github.token }}");
+  assert.equal(signing.env?.AW_DISPATCH_API_TOKEN, "${{ steps.bootstrap_dispatch.outputs.token }}");
+  assert.equal(signing["continue-on-error"], undefined);
+  assert.doesNotMatch(source, /toJSON\s*\(\s*secrets\s*\)|env:\s*\$\{\{\s*secrets\s*\}\}/);
+  assert.match(source, /this recovery entry must not rotate an existing keyring/);
 });
