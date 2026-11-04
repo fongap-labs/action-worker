@@ -76,15 +76,18 @@ test("Central CI reads use GITHUB_TOKEN for the control repository and a scoped 
   const prepare = source.split("\n  linux:\n")[0] ?? "";
   assert.doesNotMatch(prepare, /secrets\.AW_CONTROL_TOKEN/);
 
-  // The long-lived signed status attestation remains on its original stable secret.
   assert.equal(
     step("Resolve branch CI request").env?.AW_STATUS_TOKEN,
-    "${{ secrets.AW_STATUS_TOKEN }}"
+    undefined
+  );
+  assert.equal(
+    step("Resolve branch CI request").env?.AW_STATUS_SIGNING_KEYS,
+    "${{ secrets.AW_STATUS_SIGNING_KEYS }}"
   );
   assert.equal(
     step("Attach Main CI lease to active Central CI run").env?.AW_STATUS_TOKEN,
-    "${{ secrets.AW_STATUS_TOKEN }}"
+    undefined
   );
   const publish = parsed.jobs.finalize.steps.find((item) => item.name === "Publish target status");
-  assert.equal(publish?.env?.AW_STATUS_TOKEN, "${{ secrets.AW_STATUS_TOKEN }}");
+  assert.equal(publish?.env?.AW_STATUS_API_TOKEN, "${{ steps.status_app.outputs.token }}");
 });

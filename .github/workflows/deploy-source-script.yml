@@ -42,10 +42,8 @@ jobs:
     runs-on: ubuntu-24.04
     # The source validation waits up to 20 minutes for the central CI verdict of the source.
     timeout-minutes: 30
-    # contents: write lets the manual path dispatch central CI with the workflow token, like Task
-    # Source Dispatch; the deploy job below keeps the read-only workflow permission.
     permissions:
-      contents: write
+      contents: read
       actions: read
       pull-requests: read
       checks: read
@@ -157,8 +155,7 @@ jobs:
       # in the isolated, environment-approved deployment job.
       - name: Mint cross-repository deploy preflight read token
         id: app_read
-        if: steps.api_scope.outputs.is_control_repository == 'false'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: ./.github/actions/mint-app-token
         with:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
@@ -171,6 +168,26 @@ jobs:
           permission-statuses: read
           permission-issues: read
 
+      - name: Mint deploy source CI status token
+        id: ci_status_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-statuses: write
+
+      - name: Mint central CI dispatch token
+        id: ci_dispatch_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
       # Intake may not have reached this source yet, so every deploy asks for central CI and
       # attests the main write on its own source now; both are no-ops when already done. An
       # automatic deploy can name a newer main than the commit whose CI started it (see
@@ -180,17 +197,47 @@ jobs:
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
-          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.ci_status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_DISPATCH_API_TOKEN: ${{ steps.ci_dispatch_app.outputs.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
           AW_CI_INTAKE_REPOSITORY: ${{ steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository }}
         run: node scripts/intake-main-ci.ts
+
+      - name: Resolve source audit API scope
+        id: audit_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint source audit status token
+        id: audit_status_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.audit_scope.outputs.owner }}
+          repositories: ${{ steps.audit_scope.outputs.repository_name }}
+          permission-statuses: write
+
+      - name: Mint source audit issue token
+        id: audit_issue_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.audit_scope.outputs.owner }}
+          repositories: ${{ steps.audit_scope.outputs.repository_name }}
+          permission-issues: write
 
       - name: Attest the source main write
         continue-on-error: true
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.audit_status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_ISSUE_API_TOKEN: ${{ steps.audit_issue_app.outputs.token }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           MAIN_WRITE_AUDIT_REPOSITORY: ${{ steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository }}
           MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -201,7 +248,8 @@ jobs:
         id: source
         env:
           AW_CONTROL_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           DEPLOY_REQUEST_JSON: ${{ steps.dispatch_request.outputs.request_json || steps.manual_request.outputs.request_json }}
           MAIN_WRITE_GUARD_BYPASS: ${{ inputs.main_write_guard_bypass }}
@@ -276,7 +324,7 @@ jobs:
               "${RUNNER_TEMP}/action-worker-base-env.names" \
               "target/${DEPLOY_PRODUCT_DIRECTORY}/deploy.secrets.required" \
               "target/${DEPLOY_PRODUCT_DIRECTORY}/deploy.secrets.allowed" \
-              "AW_CONTROL_TOKEN,AW_ADMIN_TOKEN,AW_DISPATCH_TOKEN,AW_CHECKOUT_TOKEN,AW_APP_PRIVATE_KEY,GH_TOKEN,NODE_OPTIONS" \
+              "AW_CONTROL_TOKEN,AW_ADMIN_TOKEN,AW_DISPATCH_TOKEN,AW_CHECKOUT_TOKEN,AW_APP_PRIVATE_KEY,AW_STATUS_API_TOKEN,AW_ISSUE_API_TOKEN,AW_DISPATCH_API_TOKEN,AW_STATUS_SIGNING_KEYS,GH_TOKEN,NODE_OPTIONS" \
               "control/policies/deploy-secrets.json" \
               "$DEPLOY_SOURCE_REPOSITORY" "$DEPLOY_ENVIRONMENT" deploy "$DEPLOY_PRODUCT"
           )"
@@ -292,7 +340,7 @@ jobs:
             [ -n "$secret_name" ] && unset "$secret_name"
           done < <(jq -r '.unset[]' <<< "$scope")
 
-          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN AW_CHECKOUT_TOKEN AW_APP_PRIVATE_KEY; do
+          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN AW_CHECKOUT_TOKEN AW_APP_PRIVATE_KEY AW_STATUS_API_TOKEN AW_ISSUE_API_TOKEN AW_DISPATCH_API_TOKEN AW_STATUS_SIGNING_KEYS; do
             if [ -n "${!central_name+x}" ]; then
               echo "::error::Central credential survived deploy isolation: ${central_name}." >&2
               exit 1

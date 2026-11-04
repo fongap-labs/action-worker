@@ -64,8 +64,8 @@ test("PR API reads use GITHUB_TOKEN locally and a scoped App token across manage
   assert.equal(workflow.permissions["pull-requests"], "read");
   assert.equal(workflow.permissions.statuses, "read");
   assert.equal(
-    findStep("Mark governance in progress").env?.AW_STATUS_TOKEN,
-    "${{ secrets.AW_STATUS_TOKEN }}"
+    findStep("Mark governance in progress").env?.AW_STATUS_API_TOKEN,
+    "${{ steps.status_pending_app.outputs.token }}"
   );
   assert.equal(findStep("Checkout target PR").with?.token, "${{ secrets.AW_CONTROL_TOKEN }}");
 });

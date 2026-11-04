@@ -92,11 +92,11 @@ async function main(): Promise<void> {
     65
   );
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
-  const ingressToken = process.env.AW_INGRESS_TOKEN ?? "";
+  const ingressToken = process.env.AW_DISPATCH_API_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   if (!controlToken || !ingressToken || !controlRepository) {
     throw new CliError(
-      "AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
+      "AW_CONTROL_TOKEN, AW_DISPATCH_API_TOKEN, and AW_CONTROL_REPOSITORY are required.",
       64
     );
   }

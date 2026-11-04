@@ -64,12 +64,12 @@ test("deploy preflight routes trusted reads by repository without exposing App s
   assert.equal(step("Request central CI for the source").env?.AW_CONTROL_TOKEN, token);
   assert.equal(step("Validate deploy source").env?.AW_CONTROL_TOKEN, token);
   assert.equal(
-    step("Attest the source main write").env?.AW_STATUS_TOKEN,
-    "${{ secrets.AW_STATUS_TOKEN }}"
+    step("Attest the source main write").env?.AW_STATUS_API_TOKEN,
+    "${{ steps.audit_status_app.outputs.token }}"
   );
   assert.equal(
-    step("Validate deploy source").env?.AW_STATUS_TOKEN,
-    "${{ secrets.AW_STATUS_TOKEN }}"
+    step("Validate deploy source").env?.AW_STATUS_API_TOKEN,
+    "${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}"
   );
   assert.match(text, /for central_name in [^\\n]*AW_APP_PRIVATE_KEY/);
   assert.doesNotMatch(

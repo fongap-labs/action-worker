@@ -7,7 +7,7 @@ import {
   matchesFollowUpEvidence,
   parseFollowUpRequest,
 } from "../scripts/verify-ci-follow-up.ts";
-import { attestFixtureStatuses, fixtureStatusToken } from "./attested-status-fixtures.ts";
+import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const repository = "fongap-labs/dsh-plugin";
 const sha = "a".repeat(40);
@@ -47,7 +47,7 @@ test("CI follow-ups cannot borrow another run's CI Evidence", () => {
     sha
   );
   assert.equal(
-    matchesFollowUpEvidence(status, controlRepository, runId, repository, sha, fixtureStatusToken),
+    matchesFollowUpEvidence(status, controlRepository, runId, repository, sha),
     true
   );
   assert.equal(
@@ -56,8 +56,7 @@ test("CI follow-ups cannot borrow another run's CI Evidence", () => {
       controlRepository,
       runId + 1,
       repository,
-      sha,
-      fixtureStatusToken
+      sha
     ),
     false
   );
@@ -67,8 +66,7 @@ test("CI follow-ups cannot borrow another run's CI Evidence", () => {
       controlRepository,
       runId,
       repository,
-      sha,
-      fixtureStatusToken
+      sha
     ),
     false
   );
@@ -85,8 +83,7 @@ test("CI follow-ups cannot borrow another run's CI Evidence", () => {
       controlRepository,
       runId,
       repository,
-      sha,
-      fixtureStatusToken
+      sha
     ),
     false
   );

@@ -5,7 +5,7 @@ import { signedStatusDescription } from "./status-attestation.ts";
 export function requireIntakeStatusToken(value: string | undefined): string {
   if (!value) {
     throw new CliError(
-      "::error::Missing required secret AW_STATUS_TOKEN. In fongap-labs/action-worker open Settings → Secrets and variables → Actions and configure AW_STATUS_TOKEN with Commit statuses: Read and write on every managed repository. No token fallback is permitted.",
+      "::error::Missing required AW_STATUS_API_TOKEN. Mint a repository-scoped GitHub App token with Commit statuses write in the calling workflow. No token fallback is permitted.",
       77
     );
   }
@@ -21,8 +21,7 @@ export async function reserveIntakeCommitStatus(
   targetUrl: string
 ): Promise<void> {
   const signedDescription = signedStatusDescription(
-    { repository, sha: headSha, state: "pending", context, description, targetUrl },
-    requireIntakeStatusToken(token)
+    { repository, sha: headSha, state: "pending", context, description, targetUrl }
   );
   try {
     await runCommand(
@@ -50,7 +49,7 @@ export async function reserveIntakeCommitStatus(
   } catch (error) {
     if (error instanceof CliError && /HTTP (?:403|404)\b/.test(error.message)) {
       throw new CliError(
-        `::error::AW_STATUS_TOKEN cannot create Commit Status in ${repository} (HTTP 403/404). Check Fine-grained PAT repository selection, organization approval, and Commit statuses: Read and write. Save it under fongap-labs/action-worker → Settings → Secrets and variables → Actions → AW_STATUS_TOKEN. Do not fall back to AW_CONTROL_TOKEN.`,
+        `::error::The scoped GitHub App token cannot create Commit Status in ${repository} (HTTP 403/404). Confirm the App installation includes this repository and Commit statuses: Write.`,
         77
       );
     }

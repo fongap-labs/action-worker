@@ -5,7 +5,7 @@ import { buildReviewDispatch } from "../scripts/dispatch-pr-review.ts";
 import { buildReview } from "../scripts/publish-pr-review.ts";
 import { pullAllowsFacts } from "../scripts/resolve-pr-facts.ts";
 import { validatePayload } from "../scripts/validate-pr-payload.ts";
-import { attestFixtureStatuses, fixtureStatusToken } from "./attested-status-fixtures.ts";
+import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const controlRepository = "fongap/control";
 const headSha = "a".repeat(40);
@@ -28,8 +28,7 @@ test("AI review target is current only for the open head whose gate passed", () 
       passed,
       headSha,
       controlRepository,
-      repository,
-      fixtureStatusToken
+      repository
     ),
     {
       current: true,
@@ -42,14 +41,14 @@ test("AI review still runs for a pull request that was merged while it waited", 
   const passed = statuses({ context: "PR Governance", state: "success", target_url: runUrl });
   const merged = pull({ state: "closed", merged: true });
   assert.equal(
-    evaluateReviewTarget(merged, passed, headSha, controlRepository, repository, fixtureStatusToken)
+    evaluateReviewTarget(merged, passed, headSha, controlRepository, repository)
       .current,
     true
   );
   // The head and the gate are still checked, so a merged pull request gets no free pass.
   const moved = pull({ state: "closed", merged: true, head: { sha: "b".repeat(40) } });
   assert.equal(
-    evaluateReviewTarget(moved, passed, headSha, controlRepository, repository, fixtureStatusToken)
+    evaluateReviewTarget(moved, passed, headSha, controlRepository, repository)
       .current,
     false
   );
@@ -59,8 +58,7 @@ test("AI review still runs for a pull request that was merged while it waited", 
       statuses(),
       headSha,
       controlRepository,
-      repository,
-      fixtureStatusToken
+      repository
     ).current,
     false
   );
@@ -86,8 +84,7 @@ test("AI review target is rejected when the pull request moved or was abandoned"
       passed,
       headSha,
       controlRepository,
-      repository,
-      fixtureStatusToken
+      repository
     ).reason,
     /closed without merging/
   );
@@ -97,8 +94,7 @@ test("AI review target is rejected when the pull request moved or was abandoned"
       passed,
       headSha,
       controlRepository,
-      repository,
-      fixtureStatusToken
+      repository
     ).reason,
     /head changed/
   );
@@ -108,8 +104,7 @@ test("AI review target is rejected when the pull request moved or was abandoned"
       passed,
       headSha,
       controlRepository,
-      repository,
-      fixtureStatusToken
+      repository
     ).current,
     false
   );
@@ -135,8 +130,7 @@ test("AI review target never trusts a gate status that is not a central success"
         status,
         headSha,
         controlRepository,
-        repository,
-        fixtureStatusToken
+        repository
       ).current,
       false,
       JSON.stringify(status)

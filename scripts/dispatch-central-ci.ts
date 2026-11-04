@@ -70,7 +70,6 @@ async function main(): Promise<void> {
       controlRepository,
       targetRepository: repository,
       targetSha: headSha,
-      statusToken,
     })
   ) {
     console.log(`Central CI already satisfied: ${repository}@${headSha}`);
@@ -95,8 +94,7 @@ async function main(): Promise<void> {
         context,
         description: "Central CI in progress",
         targetUrl: runUrl,
-      },
-      statusToken
+      }
     )}`,
   ];
   if (runUrl) {

@@ -22,9 +22,8 @@ jobs:
     name: Sync verified tool release (${{ matrix.tool }})
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    # Sending the run-release event needs contents: write; nothing else in the job writes.
     permissions:
-      contents: write
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -43,11 +42,39 @@ jobs:
         with:
           node-version: 24
 
+      - name: Resolve release source repositories
+        id: release_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/repository-policy.ts list release-source
+
+      - name: Mint release status read token
+        id: status_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.release_scope.outputs.repositories_csv }}
+          permission-statuses: read
+
+      - name: Mint release dispatch token
+        id: dispatch_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
       - name: Prepare verified tool artifact
         id: sync
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           TOOL_KEY: ${{ matrix.tool }}
         run: node scripts/sync-tool-release.ts policies/review.json "$RUNNER_TEMP/tool-release" "$TOOL_KEY"
 
@@ -63,7 +90,7 @@ jobs:
       - name: Dispatch release governance
         if: ${{ steps.sync.outputs.publish == 'true' }}
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           SOURCE_REPOSITORY: ${{ steps.sync.outputs.source_repository }}
           SOURCE_SHA: ${{ steps.sync.outputs.source_sha }}
           ARTIFACT_NAME: ${{ steps.sync.outputs.artifact_name }}

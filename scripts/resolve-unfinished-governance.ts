@@ -16,8 +16,7 @@ const description = "Action Worker PR governance did not complete for this head"
 export function latestGovernanceStatus(
   combined: unknown,
   repository: string,
-  sha: string,
-  statusToken = process.env.AW_STATUS_TOKEN ?? ""
+  sha: string
 ): { state: string; target: string } | null {
   const statuses = getJsonArray(combined, "statuses")
     .filter((item) => isJsonRecord(item) && getJsonString(item, "context") === context)
@@ -27,7 +26,7 @@ export function latestGovernanceStatus(
   const latest = statuses[0];
   if (
     !isJsonRecord(latest) ||
-    !hasValidStatusAttestation(latest, { repository, sha, context }, statusToken)
+    !hasValidStatusAttestation(latest, { repository, sha, context })
   ) {
     return null;
   }
@@ -74,7 +73,7 @@ async function main(): Promise<void> {
     throw new CliError(`::error::Pull request ${repository}#${prNumber} has no head commit.`, 65);
   }
   const combined = await getGithubJson(`repos/${repository}/commits/${head}/status`, statusToken);
-  const status = latestGovernanceStatus(combined, repository, head, statusToken);
+  const status = latestGovernanceStatus(combined, repository, head);
 
   const runId = status ? targetRunId(status.target, controlRepository) : null;
   const isTargetRunCompleted =
@@ -108,8 +107,7 @@ async function main(): Promise<void> {
           context,
           description,
           targetUrl: ownRunUrl,
-        },
-        statusToken
+        }
       )}`,
       "-f",
       `target_url=${ownRunUrl}`,

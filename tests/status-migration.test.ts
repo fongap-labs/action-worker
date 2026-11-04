@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { hasVerifiedControlStatus } from "../scripts/ci-evidence.ts";
@@ -21,6 +22,26 @@ const receipt = {
   created_at: "2026-11-03T13:53:00Z",
 };
 const token = "migration-test-status-token";
+process.env.AW_STATUS_SIGNING_KEYS = JSON.stringify({
+  schema_version: 1,
+  active: "test",
+  keys: { test: Buffer.alloc(32, 11).toString("base64url") },
+  legacy_tokens: [token],
+});
+
+function signedAw1StatusDescription(status: typeof receipt, signingToken: string): string {
+  const message = JSON.stringify([
+    "action-worker-status-v1",
+    subject.repository.toLowerCase(),
+    subject.sha.toLowerCase(),
+    status.context,
+    status.state,
+    status.description,
+    status.target_url,
+  ]);
+  const signature = createHmac("sha256", signingToken).update(message).digest("base64url");
+  return `${status.description} [aw1:${signature}]`;
+}
 
 test("the closed migration contains 21 unique SHA-256 receipts from before signing", () => {
   const policy = JSON.parse(
@@ -34,7 +55,7 @@ test("the closed migration contains 21 unique SHA-256 receipts from before signi
 });
 
 test("a recorded pre-signing status is recognized only for its exact subject and payload", () => {
-  assert.equal(hasValidStatusAttestation(receipt, subject, token), true);
+  assert.equal(hasValidStatusAttestation(receipt, subject), true);
   for (const changed of [
     { id: receipt.id + 1 },
     { id: undefined },
@@ -49,38 +70,48 @@ test("a recorded pre-signing status is recognized only for its exact subject and
     { description: `${receipt.description} [aw1:${"a".repeat(43)}]` },
   ])
     assert.equal(
-      hasValidStatusAttestation({ ...receipt, ...changed }, subject, token),
+      hasValidStatusAttestation({ ...receipt, ...changed }, subject),
       false,
       JSON.stringify(changed)
     );
   assert.equal(
-    hasValidStatusAttestation(receipt, { ...subject, repository: "fongap-labs/other" }, token),
+    hasValidStatusAttestation(receipt, { ...subject, repository: "fongap-labs/other" }),
     false
   );
   assert.equal(
-    hasValidStatusAttestation(receipt, { ...subject, sha: "a".repeat(40) }, token),
+    hasValidStatusAttestation(receipt, { ...subject, sha: "a".repeat(40) }),
     false
   );
-  assert.equal(hasValidStatusAttestation(receipt, subject, ""), false);
 });
 
-test("unrecorded unsigned statuses remain rejected while new signed statuses work", () => {
+test("legacy aw1 and new aw2 signatures verify without a GitHub API token", () => {
   const status = { ...receipt, id: receipt.id + 1, created_at: "2026-11-04T00:00:00Z" };
-  assert.equal(hasValidStatusAttestation(status, subject, token), false);
+  assert.equal(hasValidStatusAttestation(status, subject), false);
+  const legacyDescription = signedAw1StatusDescription(status, token);
+  assert.equal(
+    hasValidStatusAttestation({ ...status, description: legacyDescription }, subject),
+    true
+  );
   const description = signedStatusDescription(
     {
       ...subject,
       state: "success",
       description: receipt.description,
       targetUrl: receipt.target_url,
-    },
-    token
+    }
   );
-  assert.equal(hasValidStatusAttestation({ ...status, description }, subject, token), true);
-  assert.equal(
-    hasValidStatusAttestation({ ...status, description }, subject, "wrong-token"),
-    false
-  );
+  const originalStatusToken = process.env.AW_STATUS_TOKEN;
+  process.env.AW_STATUS_TOKEN = "not-the-legacy-signing-key";
+  try {
+    assert.equal(hasValidStatusAttestation({ ...status, description }, subject), true);
+    assert.equal(
+      hasValidStatusAttestation({ ...status, description: legacyDescription }, subject),
+      true
+    );
+  } finally {
+    if (originalStatusToken === undefined) delete process.env.AW_STATUS_TOKEN;
+    else process.env.AW_STATUS_TOKEN = originalStatusToken;
+  }
 });
 
 test("a migrated status still requires the original successful publishing run and time window", async () => {
@@ -105,7 +136,6 @@ test("a migrated status still requires the original successful publishing run an
       {
         targetRepository: subject.repository,
         targetSha: subject.sha,
-        statusToken: token,
         retryDelayMs: 0,
       }
     );

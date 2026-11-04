@@ -43,10 +43,27 @@ jobs:
         with:
           node-version: 24
 
+      - name: Resolve dependency repair status scope
+        id: status_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ github.event.client_payload.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint dependency repair status token
+        id: status_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.status_scope.outputs.owner }}
+          repositories: ${{ steps.status_scope.outputs.repository_name }}
+          permission-statuses: write
+
       - name: Mark dependency repair in progress
         env:
-          GH_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ github.event.client_payload.repository }}
           HEAD_SHA: ${{ github.event.client_payload.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -229,7 +246,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
-      contents: write
+      contents: read
 
     steps:
       - name: Checkout control plane
@@ -242,11 +259,39 @@ jobs:
         with:
           node-version: 24
 
+      - name: Resolve final dependency repair status scope
+        id: status_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository || github.event.client_payload.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint final dependency repair status token
+        id: status_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.status_scope.outputs.owner }}
+          repositories: ${{ steps.status_scope.outputs.repository_name }}
+          permission-statuses: write
+
+      - name: Mint intake dispatch token
+        id: dispatch_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
       - name: Publish repair status and continue intake
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
-          AW_INGRESS_TOKEN: ${{ github.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           REPOSITORY: ${{ needs.prepare.outputs.repository || github.event.client_payload.repository }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number || github.event.client_payload.pr_number }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha || github.event.client_payload.head_sha }}
@@ -273,7 +318,7 @@ jobs:
             fi
           fi
 
-          GH_TOKEN="$AW_STATUS_TOKEN" node scripts/set-pr-status.ts \
+          AW_STATUS_API_TOKEN="$AW_STATUS_API_TOKEN" node scripts/set-pr-status.ts \
             "$REPOSITORY" \
             "$HEAD_SHA" \
             "$state" \
@@ -320,7 +365,7 @@ jobs:
               }'
           )"
 
-          GH_TOKEN="$AW_INGRESS_TOKEN" gh api \
+          GH_TOKEN="$AW_DISPATCH_API_TOKEN" gh api \
             --method POST \
             "repos/$GITHUB_REPOSITORY/dispatches" \
             --input - <<< "$payload"

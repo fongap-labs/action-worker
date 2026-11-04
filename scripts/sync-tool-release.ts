@@ -11,7 +11,8 @@ import {
   statusAwareReader,
 } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
-import { latestAttestedStatus, requireStatusToken } from "./status-attestation.ts";
+import { latestAttestedStatus } from "./status-attestation.ts";
+import { requireStatusToken } from "./control-token.ts";
 
 type ToolMetadata = {
   schema_version: "1";
@@ -412,8 +413,7 @@ async function main(): Promise<void> {
   const status = await reader.get(`repos/${distributionRepository}/commits/${sourceSha}/status`);
   const ciEvidence = latestAttestedStatus(
     status,
-    { repository: distributionRepository, sha: sourceSha, context: "CI Evidence" },
-    statusToken
+    { repository: distributionRepository, sha: sourceSha, context: "CI Evidence" }
   );
   if (!isJsonRecord(ciEvidence) || getJsonString(ciEvidence, "state") !== "success") {
     await appendLines(process.env.GITHUB_OUTPUT, [

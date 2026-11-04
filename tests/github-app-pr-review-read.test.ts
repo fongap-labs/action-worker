@@ -50,10 +50,10 @@ test("PR AI Review preflight reads via a policy-scoped token, not a personal PAT
   ]) {
     assert.equal(prepare(name).env?.GH_TOKEN, selected);
   }
-  assert.equal(prepare("Validate control credential").env?.AW_STATUS_TOKEN, undefined);
+  assert.equal(prepare("Validate control credential").env?.AW_STATUS_API_TOKEN, undefined);
   assert.equal(
-    prepare("Confirm the gate passed for the requested head").env?.AW_STATUS_TOKEN,
-    "${{ secrets.AW_STATUS_TOKEN }}"
+    prepare("Confirm the gate passed for the requested head").env?.AW_STATUS_API_TOKEN,
+    selected
   );
 });
 
@@ -73,13 +73,16 @@ test("final review re-check mints a fresh read token after long-running AI work"
     recheck?.env?.GH_TOKEN,
     "${{ steps.review_scope.outputs.is_control_repository == 'true' && github.token || steps.review_app.outputs.token }}"
   );
-  assert.equal(recheck?.env?.AW_STATUS_TOKEN, "${{ secrets.AW_STATUS_TOKEN }}");
+  assert.equal(
+    recheck?.env?.AW_STATUS_API_TOKEN,
+    "${{ steps.review_scope.outputs.is_control_repository == 'true' && github.token || steps.review_app.outputs.token }}"
+  );
   assert.ok(steps.indexOf(mint!) < steps.indexOf(recheck!));
 
   const script = await readFile("scripts/check-review-target.ts", "utf8");
   assert.match(
     script,
-    /getGithubJson\(`repos\/\$\{repository\}\/commits\/\$\{headSha\}\/status`, token\)/
+    /getGithubJson\([\s\S]*?repos\/\$\{repository\}\/commits\/\$\{headSha\}\/status`,\s*statusToken\)/
   );
   assert.match(script, /hasValidStatusAttestation/);
 });

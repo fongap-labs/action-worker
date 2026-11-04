@@ -28,7 +28,8 @@ test("status-read preflight requires the scoped API token, not the signing secre
     const steps = Object.values(workflow.jobs).flatMap((job) => job.steps ?? []);
     const validation = steps.find((step) => step.name === "Validate control credential");
     assert.ok(validation, path);
-    assert.equal(validation.env?.AW_STATUS_TOKEN, undefined, path);
+    assert.equal(validation.env?.AW_STATUS_API_TOKEN, undefined, path);
+    assert.equal(validation.env?.AW_STATUS_SIGNING_KEYS, undefined, path);
     assert.equal(workflow.permissions.statuses, "read", path);
   }
 });
@@ -48,23 +49,23 @@ test("central CI publication signs with stable secret but publishes with scoped 
     assert.ok(found, name);
     return found;
   };
-  const mint = step("Mint cross-repository status write token");
-  assert.equal(mint.if, "steps.status_scope.outputs.is_control_repository == 'false'");
+  const mint = step("Mint status write token");
+  assert.equal(mint.uses, "./.github/actions/mint-app-token");
   assert.equal(mint.with?.repositories, "${{ steps.status_scope.outputs.repository_name }}");
   assert.equal(mint.with?.["permission-statuses"], "write");
   assert.deepEqual(
     Object.keys(mint.with ?? {}).filter((key) => key.startsWith("permission-")),
     ["permission-statuses"]
   );
-  assert.equal(job.permissions.statuses, "write");
+  assert.equal(job.permissions.statuses, "read");
   const publish = step("Publish target status");
-  assert.equal(publish.env?.AW_STATUS_TOKEN, "${{ secrets.AW_STATUS_TOKEN }}");
   assert.equal(
     publish.env?.AW_STATUS_API_TOKEN,
-    "${{ steps.status_scope.outputs.is_control_repository == 'true' && github.token || steps.status_app.outputs.token }}"
+    "${{ steps.status_app.outputs.token }}"
   );
+  assert.equal(publish.env?.AW_STATUS_SIGNING_KEYS, "${{ secrets.AW_STATUS_SIGNING_KEYS }}");
   const script = await readFile("scripts/write-commit-status.ts", "utf8");
-  assert.match(script, /signedStatusDescription\([\s\S]*?signingKey/);
+  assert.match(script, /signedStatusDescription\(/);
   assert.match(script, /runGithubCli\([\s\S]*?apiToken/);
-  assert.match(script, /process\.env\.AW_STATUS_API_TOKEN \?\? signingKey/);
+  assert.doesNotMatch(script, /AW_STATUS_TOKEN|signingKey/);
 });

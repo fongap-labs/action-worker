@@ -21,7 +21,8 @@ import {
 import { assertNoOpenMainWriteIncidents } from "./main-write-incidents.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
-import { requireStatusToken, signedStatusDescription } from "./status-attestation.ts";
+import { requireStatusToken } from "./control-token.ts";
+import { signedStatusDescription } from "./status-attestation.ts";
 
 export type MainWriteRequest = {
   schema_version: "1";
@@ -428,8 +429,7 @@ async function publishStatus(
       context: "Main Write Guard",
       description,
       targetUrl: runUrl,
-    },
-    requireStatusToken()
+    }
   );
   const args = [
     "api",

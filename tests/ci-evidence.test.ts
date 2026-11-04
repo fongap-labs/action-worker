@@ -14,12 +14,12 @@ import {
   verificationRecorder,
 } from "../scripts/ci-evidence.ts";
 import { waitForCentralStatus } from "../scripts/wait-ci-evidence.ts";
-import { attestFixtureStatuses, fixtureStatusToken } from "./attested-status-fixtures.ts";
+import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const controlRepository = "fongap-labs/action-worker";
 const targetRepository = "fongap/example";
 const targetSha = "a".repeat(40);
-const verified = { targetRepository, targetSha, statusToken: fixtureStatusToken };
+const verified = { targetRepository, targetSha };
 
 test("trusted control run URLs are exact and repository-scoped", () => {
   assert.equal(
@@ -65,8 +65,7 @@ test("only the latest matching trusted CI status can satisfy the gate", () => {
       "CI Evidence",
       controlRepository,
       targetRepository,
-      targetSha,
-      fixtureStatusToken
+      targetSha
     ),
     false
   );
@@ -92,8 +91,7 @@ test("trusted successful CI evidence is idempotent", () => {
       "CI Evidence",
       controlRepository,
       targetRepository,
-      targetSha,
-      fixtureStatusToken
+      targetSha
     ),
     true
   );

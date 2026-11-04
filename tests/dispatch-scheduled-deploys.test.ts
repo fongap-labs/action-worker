@@ -364,7 +364,7 @@ test("the Intake deploy-schedules job matches the task-schedules job", async () 
   assert.ok(deploy, "deploy-schedules job exists");
   assert.equal(deploy.name, "Scheduled deploys");
   assert.equal(deploy["timeout-minutes"], 10);
-  assert.deepEqual(deploy.permissions, { contents: "write" });
+  assert.deepEqual(deploy.permissions, { contents: "read" });
   assert.deepEqual(
     deploy.steps?.map((step) => step.uses),
     tasks?.steps?.map((step) => step.uses)
@@ -374,8 +374,9 @@ test("the Intake deploy-schedules job matches the task-schedules job", async () 
   assert.deepEqual(run?.env, {
     AW_REPOSITORY_POLICY: "${{ vars.AW_REPOSITORY_POLICY }}",
     AW_CONTROL_TOKEN: "${{ secrets.AW_CONTROL_TOKEN }}",
-    AW_STATUS_TOKEN: "${{ secrets.AW_STATUS_TOKEN }}",
-    AW_INGRESS_TOKEN: "${{ github.token }}",
+    AW_STATUS_API_TOKEN: "${{ steps.status_app.outputs.token }}",
+    AW_STATUS_SIGNING_KEYS: "${{ secrets.AW_STATUS_SIGNING_KEYS }}",
+    AW_DISPATCH_API_TOKEN: "${{ steps.dispatch_app.outputs.token }}",
     AW_CONTROL_REPOSITORY: "${{ github.repository }}",
     DEPLOY_SCHEDULE_LOOKBACK_MINUTES: "720",
   });

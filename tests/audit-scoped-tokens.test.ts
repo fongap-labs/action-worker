@@ -5,8 +5,8 @@ import { requireAuditCredential } from "../scripts/audit-main-writes.ts";
 test("Main Write Audit requires scoped tokens without control-token fallback", () => {
   const withControlOnly = { AW_CONTROL_TOKEN: "control" };
   for (const [name, permission] of [
-    ["AW_STATUS_TOKEN", "Commit statuses: Read and write"],
-    ["AW_ISSUE_TOKEN", "Issues: Read and write"],
+    ["AW_STATUS_API_TOKEN", "Commit statuses: Write"],
+    ["AW_ISSUE_API_TOKEN", "Issues: Write"],
   ] as const) {
     assert.throws(
       () => requireAuditCredential(name, permission, withControlOnly),
@@ -22,14 +22,14 @@ test("Main Write Audit requires scoped tokens without control-token fallback", (
 test("Main Write Audit reads each dedicated credential independently", () => {
   const env = {
     AW_CONTROL_TOKEN: "control",
-    AW_STATUS_TOKEN: "status",
-    AW_ISSUE_TOKEN: "issue",
+    AW_STATUS_API_TOKEN: "status",
+    AW_ISSUE_API_TOKEN: "issue",
   };
   assert.equal(
-    requireAuditCredential("AW_STATUS_TOKEN", "Commit statuses: Read and write", env),
+    requireAuditCredential("AW_STATUS_API_TOKEN", "Commit statuses: Write", env),
     "status"
   );
-  assert.equal(requireAuditCredential("AW_ISSUE_TOKEN", "Issues: Read and write", env), "issue");
+  assert.equal(requireAuditCredential("AW_ISSUE_API_TOKEN", "Issues: Write", env), "issue");
   assert.equal(
     requireAuditCredential("AW_CONTROL_TOKEN", "managed repository reads", env),
     "control"

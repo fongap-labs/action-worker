@@ -35,11 +35,29 @@ jobs:
         with:
           node-version: 24
 
+      - name: Resolve release source API scope
+        id: status_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ github.event.client_payload.source_repository }}
+        run: node scripts/resolve-github-api-scope.ts release-source
+
+      - name: Mint release status read token
+        id: status_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.status_scope.outputs.owner }}
+          repositories: ${{ steps.status_scope.outputs.repository_name }}
+          permission-statuses: read
+
       - name: Publish governed release
         id: release
         env:
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           RELEASE_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
         run: node scripts/publish-release.ts
@@ -53,12 +71,22 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     permissions:
-      contents: write
+      contents: read
 
     steps:
+      - name: Mint npm dispatch token
+        id: dispatch_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
       - name: Dispatch npm publication
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           RELEASE_REPOSITORY: ${{ needs.release.outputs.target_repository }}
           RELEASE_TAG: ${{ needs.release.outputs.tag }}
         shell: bash

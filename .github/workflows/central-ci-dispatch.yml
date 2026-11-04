@@ -84,7 +84,8 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_CONTROL_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ github.event.client_payload.repository }}
           REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
           SCHEMA_VERSION: ${{ github.event.client_payload.schema_version }}
@@ -239,13 +240,25 @@ jobs:
             exit 75
           fi
 
+      - name: Mint CI lease status token
+        id: lease_status_app
+        if: github.event.action == 'run-central-ci-ref' && steps.ref_facts.outputs.should_run == 'true'
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-statuses: write
+
       # Intake's two-minute pending lease points at the short-lived intake run. Once Central CI
       # starts, transfer CI Evidence ownership to this long-running run so later intakes see
       # an active verdict job even after the original lease expires.
       - name: Attach Main CI lease to active Central CI run
         if: github.event.action == 'run-central-ci-ref' && steps.ref_facts.outputs.should_run == 'true'
         env:
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.lease_status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ steps.ref_facts.outputs.repository }}
           HEAD_SHA: ${{ steps.ref_facts.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -371,8 +384,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: write
-      statuses: write
+      contents: read
+      statuses: read
       actions: read
 
     steps:
@@ -394,10 +407,9 @@ jobs:
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
-      - name: Mint cross-repository status write token
+      - name: Mint status write token
         id: status_app
-        if: steps.status_scope.outputs.is_control_repository == 'false'
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        uses: ./.github/actions/mint-app-token
         with:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
@@ -407,8 +419,8 @@ jobs:
 
       - name: Publish target status
         env:
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
-          AW_STATUS_API_TOKEN: ${{ steps.status_scope.outputs.is_control_repository == 'true' && github.token || steps.status_app.outputs.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           LINUX_RESULT: ${{ needs.linux.result }}
@@ -452,8 +464,19 @@ jobs:
 
       - name: Dispatch asynchronous CI follow-ups
         if: success()
+        uses: ./.github/actions/mint-app-token
+        id: followup_dispatch_app
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Send CI follow-up event
+        if: success()
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.followup_dispatch_app.outputs.token }}
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
           TARGET_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           TARGET_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
@@ -491,11 +514,29 @@ jobs:
         with:
           node-version: 24
 
+      - name: Resolve failed CI status scope
+        id: status_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint failed CI status token
+        id: status_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.status_scope.outputs.owner }}
+          repositories: ${{ steps.status_scope.outputs.repository_name }}
+          permission-statuses: write
+
       - name: Publish failed CI Evidence for the current head
         env:
           GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
           AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
-          AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
+          AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
+          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}

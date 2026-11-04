@@ -1,6 +1,7 @@
 import { runGithubCli } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
-import { requireStatusToken, signedStatusDescription } from "./status-attestation.ts";
+import { requireToken } from "./control-token.ts";
+import { signedStatusDescription } from "./status-attestation.ts";
 
 async function main(): Promise<void> {
   const [repository = "", sha = "", rawState = "", context = "", description = "", targetUrl = ""] =
@@ -19,14 +20,9 @@ async function main(): Promise<void> {
     throw new CliError("Invalid commit status subject or state.", 64);
   }
   const state = rawState as "pending" | "success" | "failure" | "error";
-  const signingKey = requireStatusToken();
-  // Status API authorization is independent of the durable HMAC signing key.
-  // Legacy callers retain their existing credential until their workflows migrate.
-  const apiToken = process.env.AW_STATUS_API_TOKEN ?? signingKey;
-  if (!apiToken) throw new CliError("::error::Missing status API credential.", 77);
+  const apiToken = requireToken("status");
   const signedDescription = signedStatusDescription(
-    { repository, sha, state, context, description, targetUrl },
-    signingKey
+    { repository, sha, state, context, description, targetUrl }
   );
   await runGithubCli(
     [

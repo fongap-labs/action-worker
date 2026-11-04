@@ -28,9 +28,9 @@ import {
 import {
   hasValidStatusAttestation,
   originalStatusDescription,
-  requireStatusToken,
   signedStatusDescription,
 } from "./status-attestation.ts";
+import { requireStatusToken } from "./control-token.ts";
 
 export type ScheduledDeployTarget = {
   repository: string;
@@ -198,8 +198,7 @@ function commitShas(value: unknown, repository: string): string[] {
  */
 export async function wasScheduledDeployDispatched(
   deploy: ScheduledDeploy,
-  get: (path: string) => Promise<unknown>,
-  statusToken = process.env.AW_STATUS_TOKEN ?? ""
+  get: (path: string) => Promise<unknown>
 ): Promise<boolean> {
   const slotTime = `${deploy.slot.slice(0, 16)}:00Z`;
   const base = `repos/${deploy.repository}/commits?sha=${deploy.head_sha}`;
@@ -223,8 +222,7 @@ export async function wasScheduledDeployDispatched(
         originalStatusDescription(item) === description &&
         hasValidStatusAttestation(
           item,
-          { repository: deploy.repository, sha, context },
-          statusToken
+          { repository: deploy.repository, sha, context }
         )
     );
     if (isRecorded) return true;
@@ -310,8 +308,7 @@ async function markDispatched(deploy: ScheduledDeploy, token: string): Promise<v
         context: scheduleContext(deploy.product, deploy.environment),
         description: scheduleDescription(deploy.slot),
         targetUrl,
-      },
-      token
+      }
     ),
     target_url: targetUrl || undefined,
   });
@@ -355,7 +352,7 @@ async function main(): Promise<void> {
   const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const statusToken = requireStatusToken();
-  const ingressToken = process.env.AW_INGRESS_TOKEN ?? "";
+  const ingressToken = process.env.AW_DISPATCH_API_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   const lookbackRaw =
     process.env.DEPLOY_SCHEDULE_LOOKBACK_MINUTES ?? String(defaultLookbackMinutes);
@@ -363,7 +360,7 @@ async function main(): Promise<void> {
 
   if (!policyRaw || !controlToken || !ingressToken || !repositoryPattern.test(controlRepository)) {
     throw new CliError(
-      "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
+      "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_DISPATCH_API_TOKEN, and AW_CONTROL_REPOSITORY are required.",
       64
     );
   }

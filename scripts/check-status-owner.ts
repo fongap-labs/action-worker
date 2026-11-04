@@ -1,6 +1,7 @@
 import { getGithubJson, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
-import { hasValidStatusAttestation, requireStatusToken } from "./status-attestation.ts";
+import { requireStatusToken } from "./control-token.ts";
+import { hasValidStatusAttestation } from "./status-attestation.ts";
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -30,8 +31,7 @@ async function main(): Promise<void> {
     target === runUrl &&
     hasValidStatusAttestation(
       latest,
-      { repository, sha, context },
-      process.env.AW_STATUS_TOKEN ?? ""
+      { repository, sha, context }
     )
   ) {
     await appendLines(process.env.GITHUB_OUTPUT, ["current=true"]);

@@ -45,7 +45,6 @@ import { validateReview } from "../scripts/validate-review-result.ts";
 import {
   attestFixtureResponseForPath,
   attestFixtureStatuses,
-  fixtureStatusToken,
 } from "./attested-status-fixtures.ts";
 
 const sha = "0123456789abcdef0123456789abcdef01234567";
@@ -743,7 +742,7 @@ test("merge warning follows the exact current PR head and all central gates", ()
     repo,
     head
   );
-  assert.deepEqual(evaluateMergeDisplayGate(pull, passed, head, repo, repo, fixtureStatusToken), {
+  assert.deepEqual(evaluateMergeDisplayGate(pull, passed, head, repo, repo), {
     current: true,
     status: "success",
   });
@@ -753,13 +752,12 @@ test("merge warning follows the exact current PR head and all central gates", ()
       passed,
       head,
       repo,
-      repo,
-      fixtureStatusToken
+      repo
     ),
     { current: false, status: "failure" }
   );
   assert.deepEqual(
-    evaluateMergeDisplayGate(pull, passed, "not-a-sha", repo, repo, fixtureStatusToken),
+    evaluateMergeDisplayGate(pull, passed, "not-a-sha", repo, repo),
     {
       current: false,
       status: "failure",
@@ -772,7 +770,7 @@ test("merge warning follows the exact current PR head and all central gates", ()
       ),
     };
     assert.deepEqual(
-      evaluateMergeDisplayGate(pull, failure, head, repo, repo, fixtureStatusToken),
+      evaluateMergeDisplayGate(pull, failure, head, repo, repo),
       {
         current: true,
         status: "failure",
@@ -790,8 +788,7 @@ test("merge warning follows the exact current PR head and all central gates", ()
       },
       head,
       repo,
-      repo,
-      fixtureStatusToken
+      repo
     ),
     { current: true, status: "failure" }
   );

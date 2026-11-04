@@ -111,7 +111,21 @@ async function main(): Promise<void> {
         65
       );
     }
-    await appendLines(process.env.GITHUB_OUTPUT, [`repositories=${JSON.stringify(repositories)}`]);
+    const controlOwner = (process.env.GITHUB_REPOSITORY ?? "").split("/")[0] ?? "";
+    const repositoryNames = repositories.map((repository) => {
+      const [owner = "", name = ""] = repository.split("/");
+      if (!controlOwner || owner.toLowerCase() !== controlOwner.toLowerCase() || !name) {
+        throw new CliError(
+          `::error::GitHub App repository scope must stay within ${controlOwner || "the control owner"}: ${repository}.`,
+          77
+        );
+      }
+      return name;
+    });
+    await appendLines(process.env.GITHUB_OUTPUT, [
+      `repositories=${JSON.stringify(repositories)}`,
+      `repositories_csv=${repositoryNames.join(",")}`,
+    ]);
     console.log(`Repository policy resolved: ${first} -> ${repositories.length} repositories.`);
     return;
   }

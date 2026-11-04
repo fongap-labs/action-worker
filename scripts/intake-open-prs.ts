@@ -85,8 +85,7 @@ function statusMap(
       !runId ||
       !hasValidStatusAttestation(
         item,
-        { repository, sha, context },
-        process.env.AW_STATUS_TOKEN ?? ""
+        { repository, sha, context }
       )
     )
       continue;
@@ -406,14 +405,14 @@ async function dispatchEvent(
 async function main(): Promise<void> {
   const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
-  const statusToken = requireIntakeStatusToken(process.env.AW_STATUS_TOKEN);
-  const dispatchToken = process.env.AW_INGRESS_TOKEN ?? "";
+  const statusToken = requireIntakeStatusToken(process.env.AW_STATUS_API_TOKEN);
+  const dispatchToken = process.env.AW_DISPATCH_API_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   const apiUrl = process.env.GITHUB_API_URL ?? "https://api.github.com";
 
   if (!policyRaw || !controlToken || !dispatchToken || !controlRepository) {
     throw new CliError(
-      "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
+      "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_DISPATCH_API_TOKEN, and AW_CONTROL_REPOSITORY are required.",
       64
     );
   }

@@ -5,6 +5,7 @@ import { parse } from "yaml";
 
 type Step = {
   name?: string;
+  id?: string;
   uses?: string;
   run?: string;
   env?: Record<string, unknown>;
@@ -45,20 +46,38 @@ function usesWholeSecretsContext(value: unknown): boolean {
 
 const centralSecrets = ["AW_CONTROL_TOKEN", "AW_ADMIN_TOKEN", "AW_DISPATCH_TOKEN"];
 
-test("all main CI intake entry points forward the dedicated status secret", async () => {
+test("all main CI intake entry points use separate App API and signing credentials", async () => {
   const found: string[] = [];
   for (const name of await workflowNames()) {
     const parsed = await workflow(name);
     for (const [jobName, job] of Object.entries(parsed.jobs)) {
-      for (const step of job.steps ?? []) {
+      for (const [index, step] of (job.steps ?? []).entries()) {
         if (!step.run?.includes("scripts/intake-main-ci.ts")) continue;
         const key = `${name}#${jobName}#${step.name ?? ""}`;
         found.push(key);
+        const statusToken = String(step.env?.AW_STATUS_API_TOKEN ?? "");
+        const dispatchToken = String(step.env?.AW_DISPATCH_API_TOKEN ?? "");
+        const statusStepId = /^\$\{\{ steps\.([a-z_]+)\.outputs\.token \}\}$/.exec(
+          statusToken
+        )?.[1];
+        const dispatchStepId = /^\$\{\{ steps\.([a-z_]+)\.outputs\.token \}\}$/.exec(
+          dispatchToken
+        )?.[1];
+        assert.ok(statusStepId, `${key} must forward a scoped App status token`);
+        assert.ok(dispatchStepId, `${key} must forward a scoped App dispatch token`);
+        const priorSteps = (job.steps ?? []).slice(0, index);
+        const statusMint = priorSteps.find((candidate) => candidate.id === statusStepId);
+        const dispatchMint = priorSteps.find((candidate) => candidate.id === dispatchStepId);
+        assert.equal(statusMint?.uses, "./.github/actions/mint-app-token", `${key} status mint`);
+        assert.equal(statusMint?.with?.["permission-statuses"], "write", `${key} status scope`);
         assert.equal(
-          step.env?.AW_STATUS_TOKEN,
-          "${{ secrets.AW_STATUS_TOKEN }}",
-          `${key} must forward AW_STATUS_TOKEN without fallback`
+          dispatchMint?.uses,
+          "./.github/actions/mint-app-token",
+          `${key} dispatch mint`
         );
+        assert.equal(dispatchMint?.with?.["permission-contents"], "write", `${key} dispatch scope`);
+        assert.equal(step.env?.AW_STATUS_SIGNING_KEYS, "${{ secrets.AW_STATUS_SIGNING_KEYS }}", key);
+        assert.equal(step.env?.AW_DISPATCH_API_TOKEN, "${{ steps.dispatch_app.outputs.token }}", key);
       }
     }
   }

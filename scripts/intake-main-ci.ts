@@ -46,8 +46,7 @@ function latestStatus(
     !isJsonRecord(latest) ||
     !hasValidStatusAttestation(
       latest,
-      { repository, sha, context },
-      process.env.AW_STATUS_TOKEN ?? ""
+      { repository, sha, context }
     )
   ) {
     return null;
@@ -210,8 +209,8 @@ async function dispatchCentralCi(
 async function main(): Promise<void> {
   const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
-  const statusToken = requireIntakeStatusToken(process.env.AW_STATUS_TOKEN);
-  const ingressToken = process.env.AW_INGRESS_TOKEN ?? "";
+  const statusToken = requireIntakeStatusToken(process.env.AW_STATUS_API_TOKEN);
+  const ingressToken = process.env.AW_DISPATCH_API_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   const apiUrl = process.env.GITHUB_API_URL ?? "https://api.github.com";
   // A task source request needs CI for its own repository now, not on the next scheduled scan.
@@ -223,7 +222,7 @@ async function main(): Promise<void> {
 
   if (!policyRaw || !controlToken || !ingressToken || !controlRepository) {
     throw new CliError(
-      "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_INGRESS_TOKEN, and AW_CONTROL_REPOSITORY are required.",
+      "AW_REPOSITORY_POLICY, AW_CONTROL_TOKEN, AW_DISPATCH_API_TOKEN, and AW_CONTROL_REPOSITORY are required.",
       64
     );
   }

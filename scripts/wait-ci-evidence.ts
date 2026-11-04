@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 import { hasVerifiedCiEvidence, type JsonReader, trustedCiStatus } from "./ci-evidence.ts";
 import { getJsonNumber, getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
-import { requireStatusToken } from "./status-attestation.ts";
+import { requireStatusToken } from "./control-token.ts";
 
 function sleep(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
