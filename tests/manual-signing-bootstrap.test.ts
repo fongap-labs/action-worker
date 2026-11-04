@@ -42,6 +42,7 @@ test("manual signing recovery uses existing legacy verifier without disabling si
   const source = await readFile(".github/workflows/apply-repository-settings.yml", "utf8");
   const workflow = parse(source) as { jobs: Record<string, Job> };
   const bootstrap = workflow.jobs["bootstrap-signing"];
+  assert.ok(bootstrap);
   const keys = bootstrap.steps?.find((step) => step.name === "Bootstrap status signing keyring");
   assert.equal(keys?.env?.AW_STATUS_TOKEN, "${{ secrets.AW_STATUS_TOKEN }}");
   assert.equal(keys?.env?.AW_STATUS_SIGNING_KEYS, "${{ secrets.AW_STATUS_SIGNING_KEYS }}");
