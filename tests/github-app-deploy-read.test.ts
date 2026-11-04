@@ -61,6 +61,11 @@ test("deploy preflight routes trusted reads by repository without exposing App s
   assert.equal(step("Request central CI for the source").env?.AW_CONTROL_TOKEN, token);
   assert.equal(step("Validate deploy source").env?.AW_CONTROL_TOKEN, token);
   assert.equal(
+    step("Attest the source main write").env?.AW_CONTROL_TOKEN,
+    "${{ steps.app_read.outputs.token }}"
+  );
+  assert.doesNotMatch(text, /secrets\.AW_CONTROL_TOKEN/);
+  assert.equal(
     step("Attest the source main write").env?.AW_STATUS_API_TOKEN,
     "${{ steps.audit_status_app.outputs.token }}"
   );
