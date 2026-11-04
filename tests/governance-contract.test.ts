@@ -1103,7 +1103,8 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
   assert.match(workflow, /METRICS_TOKEN:.*steps\.metrics_read_app\.outputs\.token/);
   assert.equal((workflow.match(/GH_TOKEN: \$\{\{ github\.token \}\}/g) ?? []).length, 1);
   assert.equal(
-    (workflow.match(/GH_TOKEN: \$\{\{ steps\.control_write_app\.outputs\.token \}\}/g) ?? []).length,
+    (workflow.match(/GH_TOKEN: \$\{\{ steps\.control_write_app\.outputs\.token \}\}/g) ?? [])
+      .length,
     4
   );
   assert.match(workflow, /GIT_PUSH_TOKEN: \$\{\{ steps\.control_write_app\.outputs\.token \}\}/);
