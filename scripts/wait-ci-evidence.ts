@@ -23,7 +23,7 @@ export function calculateBackoff(
   // limits API usage without introducing a second, shorter attempt deadline.
   const capped = Math.min(initialMs * 2 ** Math.min(attempt, 30), maxMs);
   const jitter = capped * jitterFactor * Math.random();
-  return Math.max(0, Math.min(remainingMs, Math.floor(capped + jitter)));
+  return Math.max(0, Math.min(maxMs, remainingMs, Math.floor(capped + jitter)));
 }
 
 export async function assertCurrentPullHead(
