@@ -1,14 +1,11 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { parse } from "yaml";
-import {
-  openTaskPublication,
-  sealTaskPublication,
-} from "../scripts/task-publication-envelope.ts";
+import { openTaskPublication, sealTaskPublication } from "../scripts/task-publication-envelope.ts";
 
 const identity = {
   repository: "fongap-labs/private-source",
@@ -41,7 +38,10 @@ test("task publication is confidential across the runner boundary and bound to s
     await writeFile(join(input, "payload", "nested", "sensitive.txt"), "private-results");
     const pair = keys();
     const sealed = await sealTaskPublication(input, identity, pair.publicKey);
-    assert.doesNotMatch(sealed.toString("utf8"), /private-source|sensitive-project|private-results/);
+    assert.doesNotMatch(
+      sealed.toString("utf8"),
+      /private-source|sensitive-project|private-results/
+    );
     await assert.rejects(
       openTaskPublication(
         sealed,
@@ -77,10 +77,7 @@ test("task publication sealing refuses symbolic links instead of archiving escap
     await mkdir(join(root, "payload"), { recursive: true });
     await writeFile(join(root, "manifest.json"), "{}");
     await symlink("/etc/passwd", join(root, "payload", "leak"));
-    await assert.rejects(
-      sealTaskPublication(root, identity, keys().publicKey),
-      /symbolic links/
-    );
+    await assert.rejects(sealTaskPublication(root, identity, keys().publicKey), /symbolic links/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -111,8 +108,14 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
   assert.equal(publish.environment, "admin-ops");
   assert.deepEqual(publish.needs, ["validate", "execute"]);
   assert.equal(execute.outputs?.publication_staged, "${{ steps.publication.outputs.staged }}");
-  assert.equal(execute.steps.some((step) => step.uses?.includes("mint-app-token")), false);
-  assert.equal(execute.steps.some((step) => step.name === "Publish staged artifact"), false);
+  assert.equal(
+    execute.steps.some((step) => step.uses?.includes("mint-app-token")),
+    false
+  );
+  assert.equal(
+    execute.steps.some((step) => step.name === "Publish staged artifact"),
+    false
+  );
   assert.ok(execute.steps.some((step) => step.name === "Upload encrypted task publication"));
   const mint = publish.steps.find((step) => step.name === "Mint target publication App token");
   assert.equal(mint?.with?.["permission-contents"], "write");
@@ -123,6 +126,8 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
     "${{ steps.target_app.outputs.token }}"
   );
   assert.doesNotMatch(source, /secrets\.AW_CONTROL_TOKEN/);
-  assert.ok(source.includes("AW_PUBLICATION_PRIVATE_KEY: ${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}"));
+  assert.ok(
+    source.includes("AW_PUBLICATION_PRIVATE_KEY: ${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}")
+  );
   assert.ok(source.includes("AW_PUBLICATION_PUBLIC_KEY: ${{ vars.AW_PUBLICATION_PUBLIC_KEY }}"));
 });
