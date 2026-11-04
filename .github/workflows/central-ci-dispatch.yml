@@ -6,6 +6,8 @@ on:
 
 permissions:
   contents: read
+  actions: read
+  pull-requests: read
 
 concurrency:
   # Isolate revisions; a duplicate request for the same head must never cancel running tests.
@@ -52,28 +54,34 @@ jobs:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/validate-pr-payload.ts "$PAYLOAD"
 
-      # Only trusted control-plane steps receive the installation token. Do not pass it
-      # to the sandbox or replace the persistent CI Evidence signing key.
-      - name: Mint MCP Hub central CI read token
-        id: mcp_ci_read
-        if: github.event.client_payload.repository == 'fongap-labs/mcp-hub'
+      - name: Resolve central CI API scope
+        id: api_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ github.event.client_payload.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      # Same-repository reads use GITHUB_TOKEN; cross-repository reads use a scoped App
+      # installation token. No personal PAT fallback when App creation fails.
+      - name: Mint cross-repository central CI read token
+        id: app_read
+        if: steps.api_scope.outputs.is_control_repository == 'false'
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: |
-            action-worker
-            mcp-hub
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}
           permission-contents: read
           permission-actions: read
+          permission-pull-requests: read
 
       - name: Resolve branch CI request
         id: ref_facts
         if: github.event.action == 'run-central-ci-ref'
         env:
-          GH_TOKEN: ${{ (github.event.client_payload.repository == 'fongap-labs/mcp-hub' && steps.mcp_ci_read.outputs.token) || (github.event.client_payload.repository != 'fongap-labs/mcp-hub' && secrets.AW_CONTROL_TOKEN) }}
-          AW_CONTROL_TOKEN: ${{ (github.event.client_payload.repository == 'fongap-labs/mcp-hub' && steps.mcp_ci_read.outputs.token) || (github.event.client_payload.repository != 'fongap-labs/mcp-hub' && secrets.AW_CONTROL_TOKEN) }}
+          GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
+          AW_CONTROL_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ github.event.client_payload.repository }}
           REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
@@ -123,7 +131,7 @@ jobs:
       - name: Resolve target visibility
         id: visibility
         env:
-          GH_TOKEN: ${{ (github.event.client_payload.repository == 'fongap-labs/mcp-hub' && steps.mcp_ci_read.outputs.token) || (github.event.client_payload.repository != 'fongap-labs/mcp-hub' && secrets.AW_CONTROL_TOKEN) }}
+          GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           REPOSITORY: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
         shell: bash
         run: |
@@ -133,7 +141,7 @@ jobs:
       - name: Validate control credential
         if: github.event.action == 'run-central-ci'
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
@@ -143,7 +151,7 @@ jobs:
       - name: Enforce PR trust
         if: github.event.action == 'run-central-ci'
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           EXPECTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
@@ -153,7 +161,7 @@ jobs:
         id: ci_control
         if: github.event.action == 'run-central-ci'
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           EXPECTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
@@ -162,7 +170,7 @@ jobs:
       - name: Resolve CI capabilities
         id: capabilities
         env:
-          AW_CONTROL_TOKEN: ${{ (github.event.client_payload.repository == 'fongap-labs/mcp-hub' && steps.mcp_ci_read.outputs.token) || (github.event.client_payload.repository != 'fongap-labs/mcp-hub' && secrets.AW_CONTROL_TOKEN) }}
+          AW_CONTROL_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           REPOSITORY: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
           CONTROL_REF: ${{ steps.ci_control.outputs.control_ref || steps.ref_facts.outputs.control_ref || 'main' }}
         run: node scripts/resolve-ci-capabilities.ts "$REPOSITORY" "$CONTROL_REF"
@@ -171,7 +179,7 @@ jobs:
         id: facts
         if: github.event.action == 'run-central-ci'
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
         run: node scripts/resolve-pr-facts.ts fetch
@@ -180,7 +188,7 @@ jobs:
         id: merge_ref
         if: github.event.action == 'run-central-ci'
         env:
-          GH_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           EXPECTED_HEAD_SHA: ${{ steps.facts.outputs.head_sha }}

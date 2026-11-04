@@ -46,6 +46,11 @@ jobs:
     # Source Dispatch; the deploy job below keeps the read-only workflow permission.
     permissions:
       contents: write
+      actions: read
+      pull-requests: read
+      checks: read
+      statuses: read
+      issues: read
     outputs:
       source_repository: ${{ steps.source.outputs.source_repository }}
       source_sha: ${{ steps.source.outputs.source_sha }}
@@ -141,6 +146,31 @@ jobs:
           )"
           echo "request_json=$request" >> "$GITHUB_OUTPUT"
 
+      - name: Resolve deploy source API scope
+        id: api_scope
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository }}
+        run: node scripts/resolve-github-api-scope.ts deploy
+
+      # The prepare job only reads source facts; deployment secrets are available later
+      # in the isolated, environment-approved deployment job.
+      - name: Mint cross-repository deploy preflight read token
+        id: app_read
+        if: steps.api_scope.outputs.is_control_repository == 'false'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-checks: read
+          permission-statuses: read
+          permission-issues: read
+
       # Intake may not have reached this source yet, so every deploy asks for central CI and
       # attests the main write on its own source now; both are no-ops when already done. An
       # automatic deploy can name a newer main than the commit whose CI started it (see
@@ -149,7 +179,7 @@ jobs:
       - name: Request central CI for the source
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           AW_INGRESS_TOKEN: ${{ github.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
@@ -170,7 +200,7 @@ jobs:
       - name: Validate deploy source
         id: source
         env:
-          AW_CONTROL_TOKEN: ${{ secrets.AW_CONTROL_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           DEPLOY_REQUEST_JSON: ${{ steps.dispatch_request.outputs.request_json || steps.manual_request.outputs.request_json }}
@@ -246,7 +276,7 @@ jobs:
               "${RUNNER_TEMP}/action-worker-base-env.names" \
               "target/${DEPLOY_PRODUCT_DIRECTORY}/deploy.secrets.required" \
               "target/${DEPLOY_PRODUCT_DIRECTORY}/deploy.secrets.allowed" \
-              "AW_CONTROL_TOKEN,AW_ADMIN_TOKEN,AW_DISPATCH_TOKEN,AW_CHECKOUT_TOKEN,GH_TOKEN,NODE_OPTIONS" \
+              "AW_CONTROL_TOKEN,AW_ADMIN_TOKEN,AW_DISPATCH_TOKEN,AW_CHECKOUT_TOKEN,AW_APP_PRIVATE_KEY,GH_TOKEN,NODE_OPTIONS" \
               "control/policies/deploy-secrets.json" \
               "$DEPLOY_SOURCE_REPOSITORY" "$DEPLOY_ENVIRONMENT" deploy "$DEPLOY_PRODUCT"
           )"
@@ -262,7 +292,7 @@ jobs:
             [ -n "$secret_name" ] && unset "$secret_name"
           done < <(jq -r '.unset[]' <<< "$scope")
 
-          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN AW_CHECKOUT_TOKEN; do
+          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN AW_CHECKOUT_TOKEN AW_APP_PRIVATE_KEY; do
             if [ -n "${!central_name+x}" ]; then
               echo "::error::Central credential survived deploy isolation: ${central_name}." >&2
               exit 1

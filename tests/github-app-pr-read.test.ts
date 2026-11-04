@@ -12,36 +12,47 @@ type Step = {
   env?: Record<string, string>;
 };
 
-test("only MCP Hub PR fact reads use a scoped GitHub App token", async () => {
+test("PR API reads use GITHUB_TOKEN locally and a scoped App token across managed repositories", async () => {
   const source = await readFile(".github/workflows/handle-pr-dispatch.yml", "utf8");
-  const workflow = parse(source) as { jobs: { govern: { steps: Step[] } } };
+  const workflow = parse(source) as {
+    permissions: Record<string, string>;
+    jobs: { govern: { steps: Step[] } };
+  };
   const steps = workflow.jobs.govern.steps;
   const findStep = (name: string) => {
     const step = steps.find((candidate) => candidate.name === name);
     assert.ok(step, `missing step: ${name}`);
     return step;
   };
-  const mint = findStep("Mint MCP Hub read-only GitHub App token");
-  assert.equal(mint.id, "mcp_app_read");
-  assert.equal(mint.if, "steps.payload.outputs.repository == 'fongap-labs/mcp-hub'");
+  const scope = findStep("Resolve PR API scope");
+  assert.equal(scope.id, "api_scope");
+  assert.match(scope.env?.TARGET_REPOSITORY ?? "", /steps\.payload\.outputs\.repository/);
+  const mint = findStep("Mint cross-repository PR read token");
+  assert.equal(mint.id, "app_read");
+  assert.equal(mint.if, "steps.api_scope.outputs.is_control_repository == 'false'");
   assert.equal(
     mint.uses,
     "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1"
   );
-  assert.equal(mint.with?.repositories, "mcp-hub");
-  assert.equal(mint.with?.["permission-contents"], "read");
-  assert.equal(mint.with?.["permission-pull-requests"], "read");
-  assert.equal(mint.with?.["permission-actions"], "read");
+  assert.equal(mint.with?.repositories, "${{ steps.api_scope.outputs.repository_name }}");
+  assert.equal(mint.with?.owner, "${{ steps.api_scope.outputs.owner }}");
   assert.deepEqual(
     Object.keys(mint.with ?? {})
       .filter((key) => key.startsWith("permission-"))
       .sort(),
     ["permission-actions", "permission-contents", "permission-pull-requests"]
   );
+  assert.deepEqual(
+    [
+      mint.with?.["permission-actions"],
+      mint.with?.["permission-contents"],
+      mint.with?.["permission-pull-requests"],
+    ],
+    ["read", "read", "read"]
+  );
 
-  // The two branches are exclusive. A missing App token for MCP Hub never falls back to a PAT.
   const readToken =
-    "${{ (steps.payload.outputs.repository == 'fongap-labs/mcp-hub' && steps.mcp_app_read.outputs.token) || (steps.payload.outputs.repository != 'fongap-labs/mcp-hub' && secrets.AW_CONTROL_TOKEN) }}";
+    "${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}";
   for (const name of [
     "Validate control credential",
     "Fetch PR facts",
@@ -49,7 +60,7 @@ test("only MCP Hub PR fact reads use a scoped GitHub App token", async () => {
   ]) {
     assert.equal(findStep(name).env?.GH_TOKEN, readToken, name);
   }
-
+  assert.equal(workflow.permissions["pull-requests"], "read");
   assert.equal(
     findStep("Mark governance in progress").env?.AW_STATUS_TOKEN,
     "${{ secrets.AW_STATUS_TOKEN }}"
