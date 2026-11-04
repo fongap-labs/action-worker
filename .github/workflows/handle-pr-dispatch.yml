@@ -110,7 +110,7 @@ jobs:
           CONTROL_REPOSITORY: ${{ github.repository }}
           TARGET_REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
-        run: node scripts/check-deploy-gap.ts "$CONTROL_REPOSITORY" "$TARGET_REPOSITORY" "$PR_NUMBER" "$AW_CONTROL_TOKEN"
+        run: node scripts/check-deploy-gap.ts "$CONTROL_REPOSITORY" "$TARGET_REPOSITORY" "$PR_NUMBER" "$GH_TOKEN"
 
       - name: Mint pending status token
         id: status_pending_app
