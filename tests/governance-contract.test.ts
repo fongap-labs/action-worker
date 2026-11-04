@@ -594,7 +594,7 @@ test("task dispatch keeps the publication credential in the central control step
     "AW_PUBLICATION_PRIVATE_KEY",
   ]);
   // The task itself never keeps the artifact key: it is checked like the central credentials.
-  assert.match(workflow, /for central_name in [A-Z_ ]*AW_ARTIFACT_KEY; do/);
+  assert.match(workflow, /for central_name in [A-Z_ ]*AW_ARTIFACT_KEY AW_PUBLICATION_PRIVATE_KEY; do/);
   assert.doesNotMatch(workflow, /AW_EXECUTION_TOKEN|AW_EXECUTION_REPOSITORY/);
   assert.doesNotMatch(workflow, /raw\.githubusercontent\.com|Authorization: Bearer/);
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
