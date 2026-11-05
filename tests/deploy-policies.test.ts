@@ -365,7 +365,8 @@ test("the deploy workflow stages only individually scoped Secrets before source 
     assert.equal(secretNames(step.env).length, 1);
     assert.match(step.run ?? "", /write-deploy-secret\.ts/);
   }
-  assert.doesNotMatch(JSON.stringify(deploy), /env:\s*\$\{\{\s*secrets\s*\}\}/);
+  const sourceText = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
+  assert.doesNotMatch(sourceText, /env:\s*\$\{\{\s*secrets\s*\}\}/);
 });
 
 test("the prepare job validates the environment against the central policy file", async () => {
