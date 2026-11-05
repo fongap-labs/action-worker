@@ -1,8 +1,8 @@
 import { getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
-// CHANGELOG_CONVENTIONS.md §1 lists the eleven permitted change types; a commit subject that uses
-// another word is not a Conventional Commits title. §2 defines breaking as an attribute, so the
+// CHANGELOG_CONVENTIONS.md §1 defines three types for NEW PR titles. Historical commits may use
+// earlier conventional types; the release span parser recognizes them without permitting new PRs. §2
 // `!` marker and the "BREAKING CHANGE" footer fold into it, the only attribute a commit carries.
 const COMMIT_SUBJECT =
   /^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(?:\([A-Za-z0-9._/ -]{1,64}\))?(!)?:\s+(.+)$/;
