@@ -162,10 +162,7 @@ test("main CI transfers intake's short lease to the active Central CI run before
   assert.match(prepareSection, /write-commit-status\.ts "\$REPOSITORY" "\$HEAD_SHA"/);
   assert.match(prepareSection, /"CI Evidence"/);
   assert.match(prepareSection, /"\$RUN_URL"/);
-  assert.match(
-    prepareSection,
-    /AW_STATUS_KEYRING: \$\{\{ secrets\.AW_STATUS_KEYRING \}\}/
-  );
+  assert.match(prepareSection, /AW_STATUS_KEYRING: \$\{\{ secrets\.AW_STATUS_KEYRING \}\}/);
   assert.doesNotMatch(prepareSection, /AW_STATUS_API_TOKEN \|\|/);
 });
 

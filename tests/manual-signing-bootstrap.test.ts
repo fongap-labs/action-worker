@@ -47,10 +47,7 @@ test("manual signing recovery is a protected entry, not a manual maintenance job
     prerequisite?.env?.AW_LEGACY_VERIFIER_PRESENT,
     "${{ secrets.AW_STATUS_TOKEN != '' }}"
   );
-  assert.equal(
-    prerequisite?.env?.AW_KEYRING_PRESENT,
-    "${{ secrets.AW_STATUS_KEYRING != '' }}"
-  );
+  assert.equal(prerequisite?.env?.AW_KEYRING_PRESENT, "${{ secrets.AW_STATUS_KEYRING != '' }}");
 
   const maintenance = parse(
     await readFile(".github/workflows/apply-repository-settings.yml", "utf8")
