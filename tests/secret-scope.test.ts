@@ -379,17 +379,17 @@ test("the central policies give each Cloudflare account its own qualified secret
   );
 });
 
-test("task and deploy workflows apply aliases before they remove the other secrets", async () => {
-  for (const [file, variable] of [
-    [".github/workflows/handle-task-dispatch.yml", "secret_scope"],
-    [".github/workflows/deploy-source-script.yml", "scope"],
-  ] as const) {
-    const workflow = await readFile(file, "utf8");
-    const apply = workflow.indexOf(`<<< "$${variable}")`);
-    const alias = workflow.indexOf("jq -r '.alias[]");
-    const unset = workflow.indexOf("jq -r '.unset[]'");
-    assert.ok(alias !== -1 && unset !== -1 && alias < unset, `${file}: aliases before unset`);
-    assert.ok(apply !== -1);
-    assert.match(workflow, /export "\$alias_name=\$\{!alias_from\}"/);
-  }
+test("task aliases are applied before cleanup and deploy aliases are resolved before injection", async () => {
+  const taskWorkflow = await readFile(".github/workflows/handle-task-dispatch.yml", "utf8");
+  const alias = taskWorkflow.indexOf("jq -r '.alias[]");
+  const unset = taskWorkflow.indexOf("jq -r '.unset[]'");
+  assert.ok(alias !== -1 && unset !== -1 && alias < unset);
+  assert.match(taskWorkflow, /export "\$alias_name=\$\{!alias_from\}"/);
+
+  const deployWorkflow = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
+  assert.match(deployWorkflow, /resolve-deploy-secret-plan\.ts/);
+  assert.match(deployWorkflow, /steps\.secret_plan\.outputs\.inject_sources/);
+  assert.match(deployWorkflow, /secrets\.CLOUDFLARE_API_TOKEN_SECONDARY/);
+  assert.doesNotMatch(deployWorkflow, /secrets\.CLOUDFLARE_ACCOUNT_ID_SECONDARY/);
+  assert.doesNotMatch(deployWorkflow, /env:\s*\$\{\{\s*secrets\s*\}\}/);
 });
