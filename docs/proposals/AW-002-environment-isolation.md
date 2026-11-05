@@ -11,7 +11,7 @@
 5. 使用 `AW_ADMIN_TOKEN` 的作业必须绑定受保护的 `admin-ops` Environment。
 6. 部署作业由中央工作流执行；`repository_dispatch` 使用默认分支，不允许 PR 分支取得部署环境密钥。
 
-## AI Gateway 运行时密钥边界
+## 运行时密钥边界
 
 AI Gateway 的部署环境与运维环境职责分离：
 
