@@ -5,15 +5,18 @@ import { GithubReader, githubEnvironment } from "./github-api.ts";
 import { CliError, handleError, isMain, runCommand } from "./runtime-command.ts";
 import {
   artifactKey,
-  restoreTaskState,
   type RestoreOptions,
+  restoreTaskState,
   verifyTaskStateDirectory,
   writeTaskStateManifest,
 } from "./task-state.ts";
 import { sealTaskTransfer, type TransferIdentity } from "./task-transfer-envelope.ts";
 import { packTaskTransferFiles } from "./task-transfer-files.ts";
 
-export type StatePreparationOptions = Omit<RestoreOptions, "stateRoot" | "strictArchiveValidation"> & {
+export type StatePreparationOptions = Omit<
+  RestoreOptions,
+  "stateRoot" | "shouldValidateArchive"
+> & {
   bootstrapRef: string;
   requestId: string;
   runId: string;
@@ -39,7 +42,7 @@ export async function prepareTrustedTaskState(
   const restoredMessage = await restoreTaskState({
     ...options,
     stateRoot,
-    strictArchiveValidation: true,
+    shouldValidateArchive: true,
   });
   const previous = join(stateRoot, "previous");
   const restored = !restoredMessage.startsWith("No previous task state");
@@ -76,12 +79,7 @@ async function main(): Promise<void> {
   const existingKey = process.env.AW_ARTIFACT_KEY ?? "";
   const token = process.env.GH_TOKEN ?? "";
   const publicKey = process.env.AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY ?? "";
-  if (
-    !outputFile ||
-    !token ||
-    !publicKey ||
-    (visibility !== "true" && visibility !== "false")
-  ) {
+  if (!outputFile || !token || !publicKey || (visibility !== "true" && visibility !== "false")) {
     throw new CliError("Trusted state preparation is missing required configuration.", 77);
   }
   const root = await mkdtemp(join(tmpdir(), "aw-state-prepare-"));
@@ -102,14 +100,28 @@ async function main(): Promise<void> {
       download: async (runId, name, destination) => {
         await runCommand(
           "gh",
-          ["run", "download", String(runId), "-R", process.env.GITHUB_REPOSITORY ?? "", "-n", name, "-D", destination],
+          [
+            "run",
+            "download",
+            String(runId),
+            "-R",
+            process.env.GITHUB_REPOSITORY ?? "",
+            "-n",
+            name,
+            "-D",
+            destination,
+          ],
           { env: githubEnvironment(token) }
         );
       },
     });
     await mkdir(dirname(outputFile), { recursive: true, mode: 0o700 });
     await writeFile(outputFile, prepared.envelope, { flag: "wx", mode: 0o600 });
-    console.log(prepared.restored ? "Trusted task state prepared from prior run." : "Trusted new task state prepared.");
+    console.log(
+      prepared.restored
+        ? "Trusted task state prepared from prior run."
+        : "Trusted new task state prepared."
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
