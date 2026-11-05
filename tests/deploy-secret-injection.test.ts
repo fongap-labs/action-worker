@@ -90,7 +90,7 @@ test("deploy plan separates existing Secrets from explicit Repository Variables"
   }
 });
 
-test("shipped product ceilings remain isolated and retain AI Gateway health alias", async () => {
+test("shipped product ceilings remain isolated and require independent AI Gateway health key", async () => {
   const policyPath = "policies/deploy-secrets.json";
   const ai = await readDeploySecretCeiling(policyPath, "fongap-labs/ai-gateway", "production");
   assert.deepEqual([...ai].sort(), [
