@@ -1,5 +1,5 @@
-import { CliError } from "./runtime-command.ts";
 import { readSecretAliases, readTaskSecretCeiling } from "./resolve-secret-scope.ts";
+import { CliError } from "./runtime-command.ts";
 
 // GitHub Actions must reference each Secret explicitly in the future isolated task Job.
 // This plan contains NAMES ONLY and never reads or forwards Secret values.
