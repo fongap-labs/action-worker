@@ -22,7 +22,6 @@ export type ConfigAuditSummary = {
   automatic_writes: false;
 };
 
-type TreeEntry = { path: string; sha: string; type: string };
 const repositoryPattern = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
 const secretNamePattern = /^[A-Z][A-Z0-9_]*$/;
 const declarationPattern = /^projects\/([A-Za-z0-9][A-Za-z0-9_.-]*)\/\.secrets\.(required|allowed)$/;
@@ -194,7 +193,7 @@ async function main(): Promise<void> {
   });
   // All output is aggregate-only. Public control-repository logs must not reveal private config.
   try {
-    console.log(JSON.stringify(await auditSources(reader, repositories, policy), null, 2));
+    console.log(JSON.stringify(await auditSources(reader, repositories as string[], policy), null, 2));
   } catch {
     throw new CliError("Read-only configuration audit incomplete; no results published.", 77);
   }
