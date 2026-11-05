@@ -261,7 +261,11 @@ test("manual release and deploy cannot bypass unresolved main-write incidents", 
     "scripts/validate-task-source.ts",
   ]) {
     const code = await readFile(name, "utf8");
-    assert.doesNotMatch(code, /isIncidentBypassEnabled|bypassIncidents|MAIN_WRITE_GUARD_BYPASS/, name);
+    assert.doesNotMatch(
+      code,
+      /isIncidentBypassEnabled|bypassIncidents|MAIN_WRITE_GUARD_BYPASS/,
+      name
+    );
     if (name.endsWith("audit-main-writes.ts") || name.endsWith("main-write-guard.ts")) {
       assert.match(code, /await assertNoOpenMainWriteIncidents\(reader, repository\)/, name);
     }
