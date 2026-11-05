@@ -4,7 +4,7 @@ Action Worker 是 Fongap Labs 的 GitHub 自动化治理与执行平面。本文
 
 统一执行合同见 [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md)，Runner 与 self-hosted 边界见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。
 
-## 1. 核心边界（Core Boundaries）
+## 1. 核心边界
 
 ```text
 Action Worker
@@ -40,7 +40,7 @@ Runner
 
 业务仓库拥有项目实现，但不拥有中央治理、中央密钥、Runner 策略或最终执行权威。
 
-## 2. 小内核，大框架（Small Kernel Large Framework）
+## 2. 小内核，大框架
 
 Action Worker 内核只保留稳定的权威：
 
@@ -89,7 +89,7 @@ Artifact
 
 每一个需要长期保留的多语言边界，都必须能回答"这个边界为什么需要这种语言"。无法回答的边界，视为需要收敛的维护债务。
 
-## 3. 与仓库无关（Repository Independence）
+## 3. 与仓库无关
 
 通用的 Action Worker 控制逻辑绝不能包含：
 
@@ -105,7 +105,7 @@ if product == ...
 
 仓库白名单与能力是运行时配置，不进入源码。
 
-## 4. 执行请求（Execution Request）
+## 4. 执行请求
 
 调用方只提交任务身份与目标，绝不提交中央的执行结论。最小字段与语义由 `EXECUTION_CONTRACT.md` §5 定义。
 
@@ -113,13 +113,13 @@ if product == ...
 
 项目的测试、构建与部署命令，可以存放在版本受控的执行清单或项目脚本中。
 
-## 5. 执行清单（Execution Manifest）
+## 5. 执行清单
 
 业务仓库在 `.github/execution-manifest.json` 中描述自身的执行需求；字段、令牌替换与禁止声明由 `EXECUTION_CONTRACT.md` §6 定义。
 
 清单是能力请求，而不是能力授予。能力名称、授予条件与密钥映射由 `EXECUTION_CONTRACT.md` §7 定义；请求是否被授予、使用哪个信任域与 Runner，均由 Action Worker 决定。
 
-## 6. 信任域（Trust Domains）
+## 6. 信任域
 
 ### Control（控制域）
 
@@ -137,7 +137,7 @@ if product == ...
 
 仅用于确实需要生产凭据、私有网络或高权限资源的受控执行。特权任务失败即关闭，绝不能因为目标 Runner 不可用而降级到较低的信任级别。
 
-## 7. CI 与 PR 治理（CI and PR Governance）
+## 7. 持续集成 与 合并请求 治理
 
 项目测试是产品规格的一部分。能够从仓库外部运行的测试，保存在 Action Worker 的测试包中（[TEST_PACKS.md](TEST_PACKS.md)）；其余测试保留在业务仓库中。所有测试都在 Action Worker 的沙箱中运行：
 
@@ -179,7 +179,7 @@ Intake 的 PR 对账对于相同的 `repository + PR + head SHA` 必须幂等。
 
 公开仓库的 GitHub ruleset 直接要求 Action Worker 发布的中央 `validate-merge` 状态；业务仓库不再为同名检查启动本地 Runner。对于 Free 套餐的私有仓库，Main Write Guard 事后将同一中央状态作为来源证明执行。
 
-## 8. Release（Release）
+## 8. 发布
 
 项目的构建、打包与部署脚本保留在项目仓库中；重型执行发生在 Action Worker。
 
@@ -197,7 +197,7 @@ Intake 的 PR 对账对于相同的 `repository + PR + head SHA` 必须幂等。
 
 业务仓库不持有目标分发仓库的写入凭据。迁移期遗留的业务仓库产物路径只能缩减，不得发展为新的长期架构。
 
-## 9. Deploy（Deploy）
+## 9. 部署
 
 生产部署使用同一执行合同：
 
@@ -213,7 +213,7 @@ Intake 的 PR 对账对于相同的 `repository + PR + head SHA` 必须幂等。
 
 业务仓库拥有自己的部署脚本，但不拥有生产密钥或 Runner 映射。当部署需要私有网络、SSH、Tailscale 或其他生产访问时，它可以解析为受信任的 self-hosted Runner；业务仓库仍只声明通用的 Runner Profile 或能力请求。
 
-## 10. Runner（Runner）
+## 10. 运行器
 
 业务仓库不得写明实际的镜像（如 `ubuntu-24.04`）、`self-hosted`、Runner 标签、Runner 组、主机名或云实例名。
 
@@ -221,7 +221,7 @@ Intake 的 PR 对账对于相同的 `repository + PR + head SHA` 必须幂等。
 
 Self-hosted 是正式保留的后端，而不是某个项目的特例。
 
-## 11. AI Agent（AI Agent）
+## 11. 智能体
 
 AI Agent 是一种通用的动态能力。它不拥有权限边界，也不拥有合并门禁。
 
@@ -231,7 +231,7 @@ AI Review 负责审查、建议与发现问题。它必须在确定性 PR 门禁
 
 真正的门禁阈值由可重复的 CI、PR Policy、Security Gate、Release / Deploy Policy 与 provenance 决定。Agent 可以参与规划、分诊、审查、写作等任务，但不能改变密钥边界、绕过能力授予或 CI Evidence、改变 Runner 信任级别，或降低门禁。
 
-## 12. Main Write Guard（Main Write Guard）
+## 12. 主分支来源审计
 
 `validate-merge` 是 `main` 之前的合并权限；Main Write Guard 是 `main` 更新之后的来源证明权限。
 
@@ -241,7 +241,7 @@ Main Write Guard 的权威执行不得依赖业务仓库的 Actions：Action Wor
 
 详细规则见 [07_MAIN_WRITE_GUARD.md](07_MAIN_WRITE_GUARD.md)。
 
-## 13. 仓库策略（Repository Policy）
+## 13. 仓库策略
 
 仓库权限由单一的 `AW_REPOSITORY_POLICY` 管理。
 
@@ -256,7 +256,7 @@ Main Write Guard 的权威执行不得依赖业务仓库的 Actions：Action Wor
 
 如果接入普通仓库仍然需要修改 Action Worker 的核心脚本或添加项目专属策略，就属于架构退化。
 
-## 14. 目录边界（Directory Boundaries）
+## 14. 目录边界
 
 允许的长期结构：
 
@@ -272,13 +272,13 @@ tests/               治理回归测试
 
 禁止使用以仓库或项目名命名的中央配置目录。`runner_profile` 是合同概念；它不允许存在项目专属的 `profiles/` 配置层。
 
-## 15. 迁移规则（Migration Rules）
+## 15. 迁移规则
 
 迁移期旧实现的完整规则（新能力不得增加重型执行、新仓库默认中央执行、旧工作流只能缩减、项目专属映射逐步迁移到清单与通用执行器）见 `EXECUTION_CONTRACT.md` §11。本文件补充：
 
 - Runner 选择逐步收敛到 Runner 解析器；
 - 文档必须区分"当前实现"与"长期边界"。
 
-## 16. 最短原则（Core Principle）
+## 16. 最短原则
 
 > 业务仓库描述要做什么；Action Worker 决定是否允许、以何种方式安全地执行，并负责执行；Runner 只提供计算；门禁只信任绑定在不可变源码上的、可验证的结果。
