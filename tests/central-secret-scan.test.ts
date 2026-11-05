@@ -161,6 +161,20 @@ test("scanner failures reveal safe categories but never leak private stderr", as
   );
 });
 
+test("release downloads classify HTTP and transport failures without exposing stderr", async () => {
+  const source = await readFile(script, "utf8");
+  assert.match(source, /spawnSync\\(\\s*"curl"/);
+  assert.match(source, /--retry-all-errors/);
+  assert.match(source, /--proto",\\s*"=https"/);
+  assert.doesNotMatch(source, /fetch\\(url/);
+  assert.equal(downloadFailureReason(22, null, undefined, "403"), "download returned HTTP 403");
+  assert.equal(downloadFailureReason(28, null, undefined, "000"), "download process failed with code 28");
+  assert.equal(
+    downloadFailureReason(null, null, Object.assign(new Error("missing"), { code: "ENOENT" }), ""),
+    "curl executable not found"
+  );
+});
+
 test("a pinned historical test pack cannot downgrade the current central security scanner", async () => {
   const workflow = await readFile(".github/workflows/central-ci-sandbox.yml", "utf8");
   const securityCheckout = workflow.indexOf("- name: Checkout current central security scanner");
