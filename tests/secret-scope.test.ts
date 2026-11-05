@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import {
+  readDeploySecretCeiling,
   readSecretAliases,
   readTaskSecretCeiling,
   resolveSecretPolicyMode,
@@ -297,6 +298,15 @@ test("a policy cannot alias to a reserved, declared or repeated name", async () 
     await write(aliases);
     await assert.rejects(readSecretAliases(policyPath, "task", "o/r", "p"), /alias is invalid/);
   }
+});
+
+test("AI Gateway inference auth key has a production-only deployment ceiling", async () => {
+  const policyPath = "policies/deploy-secrets.json";
+  const gateway = await readDeploySecretCeiling(policyPath, "fongap-labs/ai-gateway", "production");
+  const hub = await readDeploySecretCeiling(policyPath, "fongap-labs/mcp-hub", "mcp-hub-ops");
+  assert.equal(gateway.has("AIG_INFERENCE_AUTH_KEY"), true);
+  assert.equal(hub.has("AIG_INFERENCE_AUTH_KEY"), false);
+  assert.equal(gateway.has("AW_APP_PRIVATE_KEY"), false);
 });
 
 test("the central policies give each Cloudflare account its own qualified secret", async () => {
