@@ -351,9 +351,48 @@ jobs:
             "control/policies/deploy-secrets.json" \
             "$DEPLOY_SOURCE_REPOSITORY" "$DEPLOY_ENVIRONMENT" "$DEPLOY_PRODUCT"
 
-      - name: Stage selected product deployment Secret bundle
+      - name: Stage authorized deployment Secrets
         env:
-          AW_DEPLOY_SECRET_BUNDLE: ${{ secrets[steps.secret_plan.outputs.bundle_secret_name] }}
+          AW_DEPLOY_SECRET_00: ${{ secrets[steps.secret_plan.outputs.secret_00] }}
+          AW_DEPLOY_SECRET_01: ${{ secrets[steps.secret_plan.outputs.secret_01] }}
+          AW_DEPLOY_SECRET_02: ${{ secrets[steps.secret_plan.outputs.secret_02] }}
+          AW_DEPLOY_SECRET_03: ${{ secrets[steps.secret_plan.outputs.secret_03] }}
+          AW_DEPLOY_SECRET_04: ${{ secrets[steps.secret_plan.outputs.secret_04] }}
+          AW_DEPLOY_SECRET_05: ${{ secrets[steps.secret_plan.outputs.secret_05] }}
+          AW_DEPLOY_SECRET_06: ${{ secrets[steps.secret_plan.outputs.secret_06] }}
+          AW_DEPLOY_SECRET_07: ${{ secrets[steps.secret_plan.outputs.secret_07] }}
+          AW_DEPLOY_SECRET_08: ${{ secrets[steps.secret_plan.outputs.secret_08] }}
+          AW_DEPLOY_SECRET_09: ${{ secrets[steps.secret_plan.outputs.secret_09] }}
+          AW_DEPLOY_SECRET_10: ${{ secrets[steps.secret_plan.outputs.secret_10] }}
+          AW_DEPLOY_SECRET_11: ${{ secrets[steps.secret_plan.outputs.secret_11] }}
+          AW_DEPLOY_SECRET_12: ${{ secrets[steps.secret_plan.outputs.secret_12] }}
+          AW_DEPLOY_SECRET_13: ${{ secrets[steps.secret_plan.outputs.secret_13] }}
+          AW_DEPLOY_SECRET_14: ${{ secrets[steps.secret_plan.outputs.secret_14] }}
+          AW_DEPLOY_SECRET_15: ${{ secrets[steps.secret_plan.outputs.secret_15] }}
+          AW_DEPLOY_SECRET_16: ${{ secrets[steps.secret_plan.outputs.secret_16] }}
+          AW_DEPLOY_SECRET_17: ${{ secrets[steps.secret_plan.outputs.secret_17] }}
+          AW_DEPLOY_SECRET_18: ${{ secrets[steps.secret_plan.outputs.secret_18] }}
+          AW_DEPLOY_SECRET_19: ${{ secrets[steps.secret_plan.outputs.secret_19] }}
+          AW_DEPLOY_SECRET_20: ${{ secrets[steps.secret_plan.outputs.secret_20] }}
+          AW_DEPLOY_SECRET_21: ${{ secrets[steps.secret_plan.outputs.secret_21] }}
+          AW_DEPLOY_SECRET_22: ${{ secrets[steps.secret_plan.outputs.secret_22] }}
+          AW_DEPLOY_SECRET_23: ${{ secrets[steps.secret_plan.outputs.secret_23] }}
+          AW_DEPLOY_SECRET_24: ${{ secrets[steps.secret_plan.outputs.secret_24] }}
+          AW_DEPLOY_SECRET_25: ${{ secrets[steps.secret_plan.outputs.secret_25] }}
+          AW_DEPLOY_SECRET_26: ${{ secrets[steps.secret_plan.outputs.secret_26] }}
+          AW_DEPLOY_SECRET_27: ${{ secrets[steps.secret_plan.outputs.secret_27] }}
+          AW_DEPLOY_SECRET_28: ${{ secrets[steps.secret_plan.outputs.secret_28] }}
+          AW_DEPLOY_SECRET_29: ${{ secrets[steps.secret_plan.outputs.secret_29] }}
+          AW_DEPLOY_SECRET_30: ${{ secrets[steps.secret_plan.outputs.secret_30] }}
+          AW_DEPLOY_SECRET_31: ${{ secrets[steps.secret_plan.outputs.secret_31] }}
+          AW_DEPLOY_SECRET_32: ${{ secrets[steps.secret_plan.outputs.secret_32] }}
+          AW_DEPLOY_SECRET_33: ${{ secrets[steps.secret_plan.outputs.secret_33] }}
+          AW_DEPLOY_SECRET_34: ${{ secrets[steps.secret_plan.outputs.secret_34] }}
+          AW_DEPLOY_SECRET_35: ${{ secrets[steps.secret_plan.outputs.secret_35] }}
+          AW_DEPLOY_SECRET_36: ${{ secrets[steps.secret_plan.outputs.secret_36] }}
+          AW_DEPLOY_SECRET_37: ${{ secrets[steps.secret_plan.outputs.secret_37] }}
+          AW_DEPLOY_SECRET_38: ${{ secrets[steps.secret_plan.outputs.secret_38] }}
+          AW_DEPLOY_SECRET_39: ${{ secrets[steps.secret_plan.outputs.secret_39] }}
         run: node control/scripts/stage-deploy-secret-bundle.ts
 
       - name: Execute source-owned deploy entrypoint
@@ -361,6 +400,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           node control/scripts/run-scoped-deploy.ts
+
       - name: Deployment summary
         if: always()
         shell: bash
