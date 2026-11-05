@@ -150,6 +150,24 @@ function inherited(entries: readonly OrgEntry[], repository: RepositoryInfo): Se
   );
 }
 
+function environmentNames(entries: unknown[]): Set<string> {
+  const names = new Set<string>();
+  for (const entry of entries) {
+    if (
+      !isJsonRecord(entry) ||
+      typeof entry.name !== "string" ||
+      entry.name.length === 0 ||
+      entry.name.length > 255 ||
+      /[\x00-\x1f]/.test(entry.name) ||
+      names.has(entry.name)
+    ) {
+      throw new CliError("Configuration inventory contains invalid environment metadata.", 65);
+    }
+    names.add(entry.name);
+  }
+  return names;
+}
+
 function namesOf(entries: unknown[]): Set<string> {
   const names = new Set<string>();
   for (const entry of entries) {
@@ -253,8 +271,8 @@ export async function auditStorageMetadata(
 
     const environments = await listAll(reader, "repos/" + repository + "/environments", "environments");
     result.environment_count += environments.length;
-    const environmentNames = namesOf(environments);
-    for (const name of environmentNames) {
+    const environmentsByName = environmentNames(environments);
+    for (const name of environmentsByName) {
       const url = "repos/" + repository + "/environments/" + encodeURIComponent(name);
       const environmentSecrets = namesOf(await listAll(reader, url + "/secrets", "secrets"));
       const environmentVariables = namesOf(await listAll(reader, url + "/variables", "variables"));
@@ -291,7 +309,9 @@ async function main(): Promise<void> {
   });
   try {
     // Only aggregate counts leave this function. Never expose private names or Variable values.
-    console.log(JSON.stringify(await auditStorageMetadata(reader, repositories as string[]), null, 2));
+    console.log(
+      JSON.stringify(await auditStorageMetadata(reader, repositories as string[]), null, 2)
+    );
   } catch {
     throw new CliError("Read-only storage audit incomplete; no report published.", 77);
   }
