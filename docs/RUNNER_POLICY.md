@@ -1,4 +1,4 @@
-# Runner 策略
+# 运行器策略
 
 本文件定义 Action Worker 的 Runner（运行器）抽象、Runner 选择与信任边界。
 
