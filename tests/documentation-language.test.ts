@@ -57,7 +57,7 @@ test("no Chinese localization copies are kept beside the Chinese documents", asy
   );
 });
 
-test("human governance documents use Chinese-only second and third-level headings", async () => {
+test("human governance documents use Chinese-only headings", async () => {
   const violations: string[] = [];
   const paths = (await trackedMarkdown()).filter(
     (path) =>
@@ -71,14 +71,14 @@ test("human governance documents use Chinese-only second and third-level heading
         inFence = !inFence;
         return;
       }
-      if (inFence || !/^#{2,3} /.test(line)) return;
-      const normalized = line.replace(/^#{2,3} (?:\d+(?:\.\d+)*\.\s*)?/, "");
+      if (inFence || !/^#{1,3} /.test(line)) return;
+      const normalized = line.replace(/^#{1,3} (?:\d+(?:\.\d+)*\.\s*)?/, "");
       if (!/\p{Script=Han}/u.test(normalized) || /[A-Za-z]/.test(normalized)) {
         violations.push(`${path}:${index + 1}: ${line}`);
       }
     });
   }
-  assert.deepEqual(violations, [], "second and third-level headings must be concise Chinese");
+  assert.deepEqual(violations, [], "all governance titles and headings must be Chinese");
 });
 
 test("authoritative governance rules use short Chinese sentences and paired examples", async () => {
