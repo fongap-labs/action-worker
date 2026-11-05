@@ -148,7 +148,11 @@ test("only entry, diagnostic and protected operations workflows show a Run workf
     }
     if (kind === "operation") {
       assert.deepEqual(Object.keys(triggers), ["workflow_dispatch"], `${file} must be manual-only`);
-      assert.deepEqual(Object.keys(workflow.jobs ?? {}), ["manage"], `${file} has one controlled operations job`);
+      assert.deepEqual(
+        Object.keys(workflow.jobs ?? {}),
+        ["manage"],
+        `${file} has one controlled operations job`
+      );
       const job = workflow.jobs?.manage as Job & { environment?: string; if?: string };
       assert.equal(job.environment, "ai-gateway-ops", `${file} requires ai-gateway-ops`);
       assert.equal(job.if, "github.ref == 'refs/heads/main'", `${file} requires main`);
