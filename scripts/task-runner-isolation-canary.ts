@@ -87,7 +87,7 @@ export function validateResult(input: unknown, preparation: CanaryPreparation): 
     data.background_attempted !== true ||
     data.result !== PAYLOAD
   )
-    throw new CliError("Isolation canary result failed authentication of test context.", 66);
+    throw new CliError("Isolation canary result failed synthetic context validation.", 66);
   return data as CanaryResult;
 }
 
