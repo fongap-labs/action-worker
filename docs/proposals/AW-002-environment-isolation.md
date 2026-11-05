@@ -30,7 +30,7 @@ AI Gateway `production` 的中央密钥上限为三个声明名称：
 
 Provider 凭据、访问分组密钥、Tier 凭据、OAuth 加密密钥及推理/生成中心认证密钥保留在 Cloudflare Worker Secrets。正常代码部署只通过 `wrangler secret list` 读取名称和类型，不读取、重传或删除值；缺少必需密钥时在代码发布前失败。
 
-`ai-gateway-ops` 工作流仅在 main 上手动触发，并绑定 `ai-gateway-ops` Environment。维护者需手动创建该 Environment、设置必需审批人，并配置独立 Cloudflare 运维令牌。密钥更新值通过 Environment Secret `AIG_OPS_SECRET_VALUE` 单次传入标准输入，不得作为工作流输入；更新后检查 Worker 健康，失败时回滚上一版本。
+`ai-gateway-ops` 工作流仅在 main 上手动触发，并绑定 `ai-gateway-ops` Environment。维护者需手动创建该 Environment、设置必需审批人，并配置独立 Cloudflare 运维令牌。密钥更新值通过 Environment Secret `AIG_OPS_SECRET_VALUE` 单次传入标准输入，不得作为工作流输入；更新后检查 Worker 健康；失败即失败关闭，由维护者通过受审批的 `put` 操作恢复受控密钥库中的旧值。
 
 Environment 的实际保护规则无法通过仓库文件自动创建，必须由维护者在 GitHub Settings 中配置。未创建并保护 `ai-gateway-ops` 前，不得运行密钥更新工作流。
 
