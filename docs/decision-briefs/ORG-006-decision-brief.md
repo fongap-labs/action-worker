@@ -4,7 +4,7 @@
 
 ---
 
-## 背景（Background）
+## 背景
 
 - **第一阶段已采纳**（PR #477）：四公开仓库启用严格状态检查（分支必须与 `main` 保持最新）。
 - **私有仓库**：Free 套餐限制，无法配置 ruleset。补偿控制 = Main Write Guard（已覆盖 7 仓库，状态均 success）。
@@ -12,7 +12,7 @@
 
 ---
 
-## 第二阶段：一人审批 + 绕过主体（Second Phase Approvals）
+## 第二阶段：一人审批 + 绕过主体
 
 ### 选项
 
@@ -41,7 +41,7 @@
 
 ---
 
-## 第三阶段：GitHub App 绑定 `validate-merge`（Third Phase GitHub App Binding）
+## 第三阶段：代码托管应用 绑定 合并门禁
 
 ### 现状
 
@@ -66,7 +66,7 @@
 
 ---
 
-## Owner 决策清单（Owner Decisions）
+## 维护者 决策清单
 
 | 决策项 | 选项 | 建议 | Owner 拍板 |
 |--------|------|------|------------|
@@ -77,7 +77,7 @@
 
 ---
 
-## 回滚方式（Rollback）
+## 回滚方式
 
 所有 ruleset 变更仅需还原 `policies/rulesets.json`，下一次 `apply-repository-settings.yml` 运行即恢复。建议先 `is_dry_run: true` 单仓库试验。
 
