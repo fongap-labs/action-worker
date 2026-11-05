@@ -107,7 +107,13 @@ test("shipped product ceilings remain isolated and retain AI Gateway health alia
   assert.equal(aliases.get("AIG_DEPLOY_HEALTH_KEY"), "AIG_ACCESS_KEY_AGENT");
   assert.equal(aliases.get("CLOUDFLARE_API_TOKEN"), "CLOUDFLARE_API_TOKEN_SECONDARY");
   assert.deepEqual(
-    [...(await readDeploySecretVariableSources(policyPath, "fongap-labs/ai-gateway", "production"))],
+    [
+      ...(await readDeploySecretVariableSources(
+        policyPath,
+        "fongap-labs/ai-gateway",
+        "production"
+      )),
+    ],
     ["CLOUDFLARE_ACCOUNT_ID_SECONDARY"]
   );
   const mcp = await readDeploySecretCeiling(policyPath, "fongap-labs/mcp-hub", "production");
@@ -169,7 +175,12 @@ test("source deployment environment excludes other product and control-plane cre
         required: true,
         kind: "variable" as const,
       },
-      { name: "OPTIONAL_TOKEN", source: "OPTIONAL_TOKEN", required: false, kind: "secret" as const },
+      {
+        name: "OPTIONAL_TOKEN",
+        source: "OPTIONAL_TOKEN",
+        required: false,
+        kind: "secret" as const,
+      },
     ],
   };
   const base = {
