@@ -11,6 +11,7 @@ import {
   sealTaskPublication,
   verifyPublicationKeyPair,
 } from "../scripts/task-publication-envelope.ts";
+import { taskConcurrencyGroup } from "../scripts/validate-dispatch-payload.ts";
 import { validateManifest } from "../scripts/validate-task-publication.ts";
 
 const identity = {
@@ -133,6 +134,7 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
     validate.steps.find((step) => step.name === "Validate task source")?.env?.AW_STATUS_KEYRING,
     "${{ secrets.AW_STATUS_KEYRING }}"
   );
+  assert.equal(validate.outputs?.task_group, "${{ steps.payload.outputs.task_group }}");
   const execute = workflow.jobs.execute;
   const publish = workflow.jobs.publish;
   assert.ok(execute);
@@ -180,7 +182,7 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
   const opener = publish.steps.find(
     (step) => step.name === "Open encrypted publication on clean runner"
   );
-  assert.equal(opener?.env?.REQUEST_ID, "${{ needs.validate.outputs.request_id }}");
+  assert.equal(opener?.env?.REQUEST_ID, "${{ github.event.client_payload.request_id }}");
   // The public control-plane run must not expose private task identity in step metadata.
   assert.doesNotMatch(source, /toJSON\(github\.event\.client_payload\)/);
   assert.match(source, /run: node scripts\/validate-dispatch-payload\.ts\n/);
@@ -188,6 +190,13 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
   assert.equal(source.match(/Mask task identifiers in public logs/g)?.length, 2);
   assert.equal(source.match(/::add-mask::\$value/g)?.length, 3);
   const executeJob = source.split("  execute:")[1]?.split("  publish:")[0] ?? "";
+  const publishJob = source.split("  publish:")[1] ?? "";
+  for (const name of ["repository", "project", "bootstrap_ref", "request_id"]) {
+    assert.ok(!executeJob.includes(`needs.validate.outputs.${name}`));
+    assert.ok(!publishJob.includes(`needs.validate.outputs.${name}`));
+  }
+  assert.ok(source.includes("group: action-worker-${{ needs.validate.outputs.task_group }}"));
+  assert.ok(executeJob.includes("repository: ${{ github.event.client_payload.repository }}"));
   assert.doesNotMatch(
     executeJob.split("    steps:")[0] ?? "",
     /REQUEST_ID:|BOOTSTRAP_REF:|TASK_SOURCE_REPOSITORY:|PROJECT:/
@@ -264,6 +273,7 @@ test("task request is loaded from GitHub event file without printing the payload
     const outputs = await readFile(outputPath, "utf8");
     assert.match(outputs, /project=sensitive-project/);
     assert.match(outputs, /repository=fongap-labs\/private-source/);
+    assert.match(outputs, /task_group=[0-9a-f]{32}/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -343,4 +353,12 @@ test("private task publication masks target metadata before policy authorization
   );
   assert.ok(mask > 0 && mask < policy);
   assert.match(source, /manifest\.target_repository, manifest\.dest_dir, manifest\.commit_message/);
+});
+
+test("private task concurrency uses a stable opaque project key", () => {
+  const group = taskConcurrencyGroup("fongap-labs/private-source", "project-1");
+  assert.match(group, /^[0-9a-f]{32}$/);
+  assert.equal(group, taskConcurrencyGroup("Fongap-Labs/private-source", "project-1"));
+  assert.notEqual(group, taskConcurrencyGroup("fongap-labs/private-source", "project-2"));
+  assert.notEqual(group, taskConcurrencyGroup("fongap-labs/different-source", "project-1"));
 });

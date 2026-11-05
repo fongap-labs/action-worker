@@ -17,10 +17,7 @@ jobs:
 
     outputs:
       schema_version: ${{ steps.payload.outputs.schema_version }}
-      request_id: ${{ steps.payload.outputs.request_id }}
-      project: ${{ steps.payload.outputs.project }}
-      bootstrap_ref: ${{ steps.payload.outputs.bootstrap_ref }}
-      repository: ${{ steps.payload.outputs.repository }}
+      task_group: ${{ steps.payload.outputs.task_group }}
       agent_domain: ${{ steps.payload.outputs.agent_domain }}
       operation: ${{ steps.payload.outputs.operation }}
       is_private: ${{ steps.visibility.outputs.is_private }}
@@ -115,7 +112,7 @@ jobs:
       AW_TASK_SECRET_POLICY_MODE: ${{ vars.AW_TASK_SECRET_POLICY_MODE || 'enforce' }}
 
     concurrency:
-      group: action-worker-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.project }}
+      group: action-worker-${{ needs.validate.outputs.task_group }}
       cancel-in-progress: false
 
     steps:
@@ -167,8 +164,8 @@ jobs:
         if: needs.validate.outputs.is_private == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: ${{ needs.validate.outputs.repository }}
-          ref: ${{ needs.validate.outputs.bootstrap_ref }}
+          repository: ${{ github.event.client_payload.repository }}
+          ref: ${{ github.event.client_payload.bootstrap_ref }}
           token: ${{ secrets.AW_CHECKOUT_TOKEN }}
           path: task-source
           fetch-depth: 1
@@ -178,8 +175,8 @@ jobs:
         if: needs.validate.outputs.is_private == 'false'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: ${{ needs.validate.outputs.repository }}
-          ref: ${{ needs.validate.outputs.bootstrap_ref }}
+          repository: ${{ github.event.client_payload.repository }}
+          ref: ${{ github.event.client_payload.bootstrap_ref }}
           token: ${{ github.token }}
           path: task-source
           fetch-depth: 1
@@ -211,8 +208,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           AW_ARTIFACT_KEY: ${{ secrets.AW_ARTIFACT_KEY }}
-          SOURCE_REPOSITORY: ${{ needs.validate.outputs.repository }}
-          PROJECT: ${{ needs.validate.outputs.project }}
+          SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+          PROJECT: ${{ github.event.client_payload.project }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -449,7 +446,7 @@ jobs:
         id: publication
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          SOURCE_REPOSITORY: ${{ needs.validate.outputs.repository }}
+          SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
         run: node scripts/validate-task-publication.ts
 
       - name: Seal staged publication for isolated publisher
@@ -517,10 +514,10 @@ jobs:
       - name: Open encrypted publication on clean runner
         env:
           AW_PUBLICATION_PRIVATE_KEY: ${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}
-          TASK_SOURCE_REPOSITORY: ${{ needs.validate.outputs.repository }}
-          PROJECT: ${{ needs.validate.outputs.project }}
-          BOOTSTRAP_REF: ${{ needs.validate.outputs.bootstrap_ref }}
-          REQUEST_ID: ${{ needs.validate.outputs.request_id }}
+          TASK_SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+          PROJECT: ${{ github.event.client_payload.project }}
+          BOOTSTRAP_REF: ${{ github.event.client_payload.bootstrap_ref }}
+          REQUEST_ID: ${{ github.event.client_payload.request_id }}
         run: |
           node scripts/task-publication-envelope.ts open \
             "$RUNNER_TEMP/task-publication/sealed.json" \
@@ -530,7 +527,7 @@ jobs:
         id: publication
         env:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-          SOURCE_REPOSITORY: ${{ needs.validate.outputs.repository }}
+          SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
           TASK_SOURCE_PRIVATE: ${{ needs.validate.outputs.is_private }}
         run: node scripts/validate-task-publication.ts
 
@@ -572,8 +569,8 @@ jobs:
           DELETE_STALE: ${{ steps.publication.outputs.delete_stale }}
           COMMIT_MESSAGE: ${{ steps.publication.outputs.commit_message }}
           PAYLOAD_DIR: ${{ steps.publication.outputs.payload_dir }}
-          SOURCE_REPOSITORY: ${{ needs.validate.outputs.repository }}
-          PROJECT: ${{ needs.validate.outputs.project }}
+          SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+          PROJECT: ${{ github.event.client_payload.project }}
         shell: bash
         run: |
           set -Eeuo pipefail
