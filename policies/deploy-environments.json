@@ -1,17 +1,9 @@
 {
   "schema_version": 1,
   "repositories": {
-    "fongap-labs/ai-gateway": [
-      "production"
-    ],
-    "fongap-labs/internal-vault/server-edge": [
-      "server-edge-cloud-edge"
-    ],
-    "fongap-labs/mcp-hub": [
-      "mcp-hub-ops"
-    ],
-    "fongap-labs/ai-gateway/inference-center": [
-      "inference-center-ops"
-    ]
+    "fongap-labs/ai-gateway": ["production"],
+    "fongap-labs/internal-vault/server-edge": ["server-edge-cloud-edge"],
+    "fongap-labs/mcp-hub": ["mcp-hub-ops"],
+    "fongap-labs/ai-gateway/inference-center": ["inference-center-ops"]
   }
 }
