@@ -2,7 +2,7 @@
 
 当 Main Write Guard、中央 CI、任务分发同时出现 `AW_STATUS_KEYRING is required to sign commit statuses` 时，不能通过跳过校验或恢复无签名状态来消除红叉。必须初始化新的独立 HMAC 签名密钥，并保留 `AW_STATUS_TOKEN` 对历史 `aw1` 状态的验证材料。
 
-## 一、先补管理权限（Grant Administrative Access）
+## 一、先补管理权限
 
 此操作必须由有权限管理 `fongap-labs/action-worker` 的管理员执行。
 
@@ -10,7 +10,7 @@
 2. 确认 `AW_ADMIN_TOKEN` 对 **仅** `fongap-labs/action-worker` 仓库有 **Secrets: Read and write** 权限。如果是 Fine-grained PAT，请检查令牌持有人、仓库选择、到期时间和组织审批；如果是 GitHub App，请确认安装方已批准相应仓库权限。权限不足时的 HTTP 403 与限流并不是同一种故障。
 3. 由管理员按组织的密钥托管流程更新 Repository Secret `AW_ADMIN_TOKEN`。不要在 Issue、PR、Actions 日志或聊天中粘贴令牌值。仓库设置与 AI Review 变量仍使用此凭据，调整范围时需要保留它们原有的必要权限。
 
-## 二、只运行签名初始化（Initialize Signing Key）
+## 二、只运行签名初始化
 
 在有该功能的 `main` 合并后：
 
@@ -22,7 +22,7 @@
 
 这个恢复入口只在 `main` 上运行，并且只支持人工 `workflow_dispatch`（不接受 `repository_dispatch`）。不修改其他仓库设置，且密钥环已经存在时会拒绝重复初始化。原来的 **自动 · 仓库设置** 仍只接受 `push` 和 `schedule`，保持原有治理触发规则。
 
-## 三、验证结果（Verify Recovery）
+## 三、验证结果
 
 检查 `action-worker → Settings → Secrets and variables → Actions` 已出现 `AW_STATUS_KEYRING`（无需查看 Secret 的实际值）。再检查新产生的 Main Write Guard、主分支审计和中央 CI 运行，确认不再因缺少签名密钥失败。
 
