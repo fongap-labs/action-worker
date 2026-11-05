@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { GithubReader, isJsonRecord } from "./github-api.ts";
@@ -190,7 +190,15 @@ async function main(): Promise<void> {
     } else if (command === "prepare" && arg && token) {
       const result = await prepareIsolatedPublicState(reader, repository, project, sha);
       await writeFile(arg, result, { flag: "wx", mode: 0o600 });
-    } else if (command === "finalize" && arg && destination) {
+    } else if (command === "open-input" && arg && destination) {
+    identity(repository, project, sha);
+    await unpackTaskTransferFiles(await readFile(arg), destination);
+  } else if (command === "pack-output" && arg && destination) {
+    identity(repository, project, sha);
+    await mkdir(arg, { recursive: true, mode: 0o700 });
+    await writeTaskStateManifest(arg, repository, project, sha);
+    await writeFile(destination, await packTaskTransferFiles(arg), { flag: "wx", mode: 0o600 });
+  } else if (command === "finalize" && arg && destination) {
       await finalizeIsolatedPublicState(
         await readFile(arg),
         destination,
