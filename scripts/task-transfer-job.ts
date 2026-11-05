@@ -1,5 +1,5 @@
 import { constants as fsConstants } from "node:fs";
-import { mkdir, open, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { verifyTaskStateDirectory } from "./task-state.ts";
@@ -146,7 +146,8 @@ export async function runTaskTransferCommand(
       await unpackTaskTransferFiles(opened, to);
       await requireStateManifest(to, identity);
     } catch {
-      await rm(to, { recursive: true, force: true });
+      // Never delete a destination that could predate this operation (for example EEXIST).
+      // The caller uses an isolated temporary workspace and must discard it after failure.
       throw new CliError("Task transfer state validation failed.", 66);
     }
   } else if (command === "seal-log") {
