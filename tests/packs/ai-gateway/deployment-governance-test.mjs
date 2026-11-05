@@ -45,7 +45,11 @@ try {
   assert.match(deployScript, /AIG_IS_DEPLOY_ENABLED/);
   assert.match(deployScript, /cloudflare-wrangler\.mjs deploy/);
   assert.match(deployScript, /cloudflare-wrangler\.mjs rollback/);
-  assert.match(deployScript, /github-deployment-config\.mjs health-check/);
+  assert.match(deployScript, /persistent-deployment\.mjs preflight/);
+  assert.match(deployScript, /persistent-deployment\.mjs verify-secrets/);
+  assert.match(deployScript, /secret list/);
+  assert.doesNotMatch(deployScript, /--secrets-file|gateway-secrets\.json/);
+  assert.match(deployScript, /persistent-deployment\.mjs health-check/);
   assert.doesNotMatch(deployScript, /AW_DISPATCH_TOKEN|AW_CONTROL_TOKEN|AW_ADMIN_TOKEN/);
   assert.doesNotMatch(deployScript, /wrangler@\d+\.\d+\.\d+/);
 
