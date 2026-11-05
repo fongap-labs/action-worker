@@ -274,6 +274,8 @@ jobs:
   deploy:
     name: Execute source-script deploy
     needs: prepare
+    # Exactly one GitHub Environment per deployment job. The prepare gate checks
+    # the source manifest against the central authorization policy.
     environment: ${{ needs.prepare.outputs.environment }}
     # The group uses the resolved values, so a request that left the product or environment empty
     # still queues behind the same deploy of that product and environment.

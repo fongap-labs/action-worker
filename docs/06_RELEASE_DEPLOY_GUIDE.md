@@ -176,9 +176,9 @@ Schema 2 示例：
 
 密钥按部署键授权：
 - 多产品键 = `owner/name/product`，单产品 = `owner/name`
-- 同一环境名全策略仅属一个键
+- `production` 可由多个获授权产品共用，按部署键独立执行密钥白名单；其他 Environment 不得跨产品复用
 - 产品只拿自己条目授权的密钥
-- 可选部署密钥须同时出现在中央策略的 `allowed` 和源仓库的 `deploy.secrets.allowed`；环境未配置该密钥时仍可部署。`mcp-hub-ops` 允许可选的 `MCP_RUNTIME_KEY`，仅供 MCP Hub 的部署入口使用。
+- 可选部署密钥须同时出现在中央策略的 `allowed` 和源仓库的 `deploy.secrets.allowed`；环境未配置该密钥时仍可部署。MCP Hub 的 `production` 只授予 Cloudflare 部署凭据，不允许任何 `MCP_*` 运行时密钥。
 
 并发两层：
 - 流水线组：`source-script-deploy-pipeline-<仓库>-<产品>-<环境>`（输入决定，防重复启动）
@@ -188,6 +188,28 @@ Schema 2 示例：
 环境变量：`DEPLOY_PRODUCT`（产品目录名，根布局为空）、`DEPLOY_TRIGGER`（`push`/`manual`）。
 
 手动启动需同时填 `product` 与 `environment`。
+
+---
+
+### 5.2 MCP Hub 运维与生产部署隔离
+
+```text
+Action Worker
+├─ prepare：不绑定 Environment；仅做源 SHA / CI / 策略校验
+├─ MCP Hub 运维任务（如需要）：mcp-hub-ops
+└─ deploy：production
+    └─ 仅传 Cloudflare 部署凭据
+Cloudflare Worker Secrets：保留 MCP Hub 业务运行时密钥
+```
+
+- `mcp-hub-ops`：只供确需 MCP Hub 运维凭据的任务使用。当前通用部署工作流没有 MCP Hub 专属运维 Job，不得为了占用 Environment 而新增空 Job。
+- `production`：Action Worker 统一生产部署 Environment。MCP Hub 仅允许部署 Secret `CLOUDFLARE_API_TOKEN_SECONDARY`；`CLOUDFLARE_ACCOUNT_ID_SECONDARY` 是中央 Variable，不是运行时密钥。
+- MCP Hub 部署所需的普通 Variables 包括 `MCP_D1_ID`、`MCP_PUBLIC_URL`、`MCP_ACTIVE_ID`，以及现有的 `GMC_WRITE_MODE`、`GMC_CONTENT_MODE`、`MCP_OAUTH_TTL` 等可选配置；实际存放位置由运维人员核实。
+- `MCP_ADMIN_KEY`、`MCP_APPROVAL_KEY`、`MCP_COOKIE_KEY`、`MCP_KEYRING_JSON`、`MCP_INGEST_JWK`、`MCP_RUNTIME_KEY` 属于 Cloudflare Worker 业务运行时密钥，禁止从 GitHub 的部署 Job 转交。
+- `prepare` 与 `deploy` 之间只传源仓库、commit SHA、环境、入口、Runner、产品等非敏感元数据。Job 只绑定一个 Environment，不允许通过 artifacts、outputs、日志或命令参数传递密钥。
+- 该中央策略先于 MCP Hub 源仓库清单变更合并：旧 `mcp-hub-ops` 部署请求会因环境策略不匹配而拒绝；必须等 MCP Hub 后续独立 PR 更新清单与部署脚本后才能恢复部署，不得回退到旧密钥转交方式。
+- 部署凭据缺失即失败，不使用 Token 回退；部署时省略 Worker Secret 不能视为已经删除 Cloudflare 端的既存密钥。停用密钥须由运维人员显式删除并核验。
+- 尚须由运维人员核实 GitHub Environment Secrets/Variables 和 Cloudflare Secrets 的实际配置状态。本 PR 不读取或修改任何真实密钥，也不触发部署。
 
 ---
 

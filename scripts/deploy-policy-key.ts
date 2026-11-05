@@ -15,8 +15,8 @@ export function productPolicyKey(repository: string, product: string): string {
   return product === "" ? repository : `${repository}/${product}`;
 }
 
-// An environment name belongs to one key across the whole policy, so one GitHub environment never
-// serves two products.
+// Operations environments remain exclusive to one product. The shared production Environment is
+// an explicit exception; per-product deployment authorization and secret ceilings still apply.
 export function assertUniqueEnvironments(
   entries: Iterable<[key: string, environments: readonly string[]]>,
   label: string
@@ -25,6 +25,7 @@ export function assertUniqueEnvironments(
   for (const [key, environments] of entries) {
     for (const environment of environments) {
       const owner = owners.get(environment);
+      if (environment === "production") continue;
       if (owner !== undefined && owner !== key) {
         throw new CliError(
           `${label} lists environment ${environment} under both ${owner} and ${key}. An environment belongs to one key.`,
