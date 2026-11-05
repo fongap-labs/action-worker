@@ -106,6 +106,7 @@ export async function packTaskTransferFiles(root: string): Promise<Buffer> {
   if (encoded.length > MAX_PAYLOAD_BYTES) {
     throw new CliError("Task transfer encoded payload exceeds the limit.", 66);
   }
+  validateTaskTransferFiles(encoded);
   return encoded;
 }
 
@@ -158,10 +159,7 @@ export function validateTaskTransferFiles(input: Buffer): TransferEntry[] {
     if (item.kind === "directory" && Object.keys(item).sort().join(",") === "kind,path") {
       seen.set(folded, "directory");
       entries.push({ kind: "directory", path: item.path });
-    } else if (
-      item.kind === "file" &&
-      Object.keys(item).sort().join(",") === "base64,kind,path"
-    ) {
+    } else if (item.kind === "file" && Object.keys(item).sort().join(",") === "base64,kind,path") {
       const data = decodedFile(item.base64);
       total += data.length;
       if (total > MAX_TOTAL_BYTES) {
@@ -189,9 +187,7 @@ export async function unpackTaskTransferFiles(input: Buffer, destination: string
   // Validate every entry before creating even the root directory.
   const entries = validateTaskTransferFiles(input);
   await mkdir(destination, { mode: 0o700 });
-  const ordered = [...entries].sort(
-    (a, b) => a.path.split("/").length - b.path.split("/").length
-  );
+  const ordered = [...entries].sort((a, b) => a.path.split("/").length - b.path.split("/").length);
   for (const entry of ordered) {
     const path = join(destination, ...entry.path.split("/"));
     if (entry.kind === "directory") {
