@@ -357,9 +357,7 @@ test("the deploy job names no central write credential and checks out with the r
 
 test("the deploy workflow dynamically selects one product-scoped Secret bundle", async () => {
   const deploy = (await workflow("deploy-source-script.yml")).jobs.deploy;
-  const plan = deploy?.steps?.find(
-    (item) => item.name === "Resolve deploy Secret plan"
-  );
+  const plan = deploy?.steps?.find((item) => item.name === "Resolve deploy Secret plan");
   const stage = deploy?.steps?.find(
     (item) => item.name === "Stage selected product deployment Secret bundle"
   );
