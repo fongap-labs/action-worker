@@ -61,7 +61,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           # Local-only synthetic attack: no credentials, private data or target service access.
-          nohup sh -c 'sleep 2; printf "%s\n" "poisoned" > "$1"' _ "$RUNNER_TEMP/canary-background-poison" >/dev/null 2>&1 &
+          nohup node -e 'setTimeout(() => require("node:fs").writeFileSync(process.argv[1], "poisoned"), 2000)' "$RUNNER_TEMP/canary-background-poison" >/dev/null 2>&1 &
           echo 'AW_CANARY_POISON=1' >> "$GITHUB_ENV"
           node scripts/task-runner-isolation-canary.ts execute             "$RUNNER_TEMP/canary-input/prepare.json" "$RUNNER_TEMP/result.json"
       - name: Upload untrusted synthetic result only
