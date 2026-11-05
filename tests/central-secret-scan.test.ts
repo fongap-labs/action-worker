@@ -170,7 +170,12 @@ test("release downloads classify HTTP and transport failures without exposing st
   assert.equal(downloadFailureReason(22, null, undefined, "403"), "download returned HTTP 403");
   assert.equal(downloadFailureReason(28, null, undefined, "000"), "download process failed with code 28");
   assert.equal(
-    downloadFailureReason(null, null, Object.assign(new Error("missing"), { code: "ENOENT" }), ""),
+    downloadFailureReason(
+      null,
+      null,
+      Object.assign(new Error("missing"), { code: "ENOENT" }),
+      ""
+    ),
     "curl executable not found"
   );
 });
