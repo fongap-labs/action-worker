@@ -49,7 +49,7 @@ test("manual signing recovery is a protected entry, not a manual maintenance job
   );
   assert.equal(
     prerequisite?.env?.AW_KEYRING_PRESENT,
-    "${{ secrets.AW_STATUS_SIGNING_KEYS != '' }}"
+    "${{ secrets.AW_STATUS_KEYRING != '' }}"
   );
 
   const maintenance = parse(
@@ -76,7 +76,7 @@ test("manual signing recovery preserves legacy verifiers and refuses bypasses", 
   );
   const signing = find("Bootstrap status signing keyring");
   assert.equal(signing.env?.AW_STATUS_TOKEN, "${{ secrets.AW_STATUS_TOKEN }}");
-  assert.equal(signing.env?.AW_STATUS_SIGNING_KEYS, "${{ secrets.AW_STATUS_SIGNING_KEYS }}");
+  assert.equal(signing.env?.AW_STATUS_KEYRING, "${{ secrets.AW_STATUS_KEYRING }}");
   assert.equal(signing.env?.AW_STATUS_SIGNING_KEY_ID, "k1");
   assert.equal(signing.env?.AW_BOOTSTRAP_READ_TOKEN, "${{ github.token }}");
   assert.equal(signing.env?.AW_DISPATCH_API_TOKEN, "${{ steps.bootstrap_dispatch.outputs.token }}");

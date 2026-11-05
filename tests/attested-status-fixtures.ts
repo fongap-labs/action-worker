@@ -4,7 +4,7 @@ import {
 } from "../scripts/status-attestation.ts";
 
 const fixtureSigningKey = Buffer.alloc(32, 7).toString("base64url");
-process.env.AW_STATUS_SIGNING_KEYS = JSON.stringify({
+process.env.AW_STATUS_KEYRING = JSON.stringify({
   schema_version: 1,
   active: "test",
   keys: { test: fixtureSigningKey },

@@ -34,7 +34,7 @@ test("signing bootstrap failure cannot prevent repository settings reconciliatio
   assert.equal(matrix.needs, "resolve-managed");
   const signing = bootstrap.steps.find((step) => step.name === "Bootstrap status signing keyring");
   assert.equal(signing?.env?.GH_TOKEN, "${{ secrets.AW_ADMIN_TOKEN }}");
-  assert.equal(signing?.env?.AW_STATUS_SIGNING_KEYS, "${{ secrets.AW_STATUS_SIGNING_KEYS }}");
+  assert.equal(signing?.env?.AW_STATUS_KEYRING, "${{ secrets.AW_STATUS_KEYRING }}");
   assert.equal(signing?.env?.AW_STATUS_TOKEN, "${{ secrets.AW_STATUS_TOKEN }}");
   assert.equal(
     signing?.env?.AW_DISPATCH_API_TOKEN,

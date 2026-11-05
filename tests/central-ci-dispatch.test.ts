@@ -164,7 +164,7 @@ test("main CI transfers intake's short lease to the active Central CI run before
   assert.match(prepareSection, /"\$RUN_URL"/);
   assert.match(
     prepareSection,
-    /AW_STATUS_SIGNING_KEYS: \$\{\{ secrets\.AW_STATUS_SIGNING_KEYS \}\}/
+    /AW_STATUS_KEYRING: \$\{\{ secrets\.AW_STATUS_KEYRING \}\}/
   );
   assert.doesNotMatch(prepareSection, /AW_STATUS_API_TOKEN \|\|/);
 });

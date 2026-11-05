@@ -89,9 +89,9 @@ export function originalStatusDescription(value: unknown): string {
 }
 
 export function signedStatusDescription(status: CommitStatus): string {
-  const keys = parseStatusSigningKeys(process.env.AW_STATUS_SIGNING_KEYS ?? "");
+  const keys = parseStatusSigningKeys(process.env.AW_STATUS_KEYRING ?? "");
   if (!keys)
-    throw new CliError("::error::AW_STATUS_SIGNING_KEYS is required to sign commit statuses.", 77);
+    throw new CliError("::error::AW_STATUS_KEYRING is required to sign commit statuses.", 77);
   const attempt = process.env.GITHUB_RUN_ATTEMPT || "1";
   if (!/^[1-9][0-9]{0,5}$/.test(attempt))
     throw new CliError("Invalid GitHub run attempt for status signing.", 65);
@@ -150,7 +150,7 @@ export function hasValidStatusAttestation(
     description: signedDescription,
     targetUrl,
   };
-  const keys = parseStatusSigningKeys(process.env.AW_STATUS_SIGNING_KEYS ?? "");
+  const keys = parseStatusSigningKeys(process.env.AW_STATUS_KEYRING ?? "");
   const keyId = match[1];
   const actual = Buffer.from(match[3], "base64url");
   if (keyId) {

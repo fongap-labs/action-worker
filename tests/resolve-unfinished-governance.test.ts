@@ -75,5 +75,5 @@ test("unfinished governance passes both required dedicated token variables", asy
   const env = cleanup.split("        run:")[0] ?? "";
   assert.ok(env.includes("AW_CONTROL_TOKEN: ${{ steps.unfinished_read_app.outputs.token }}"));
   assert.ok(env.includes("AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}"));
-  assert.ok(env.includes("AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}"));
+  assert.ok(env.includes("AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}"));
 });

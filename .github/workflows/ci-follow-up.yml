@@ -75,7 +75,7 @@ jobs:
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_read_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           CI_FOLLOW_UP_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
         run: node scripts/verify-ci-follow-up.ts
@@ -124,7 +124,7 @@ jobs:
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.attest_status_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_ISSUE_API_TOKEN: ${{ steps.attest_issue_app.outputs.token }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           MAIN_WRITE_AUDIT_REPOSITORY: ${{ github.event.client_payload.repository }}

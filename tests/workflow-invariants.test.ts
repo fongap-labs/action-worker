@@ -77,8 +77,8 @@ test("all main CI intake entry points use separate App API and signing credentia
         );
         assert.equal(dispatchMint?.with?.["permission-contents"], "write", `${key} dispatch scope`);
         assert.equal(
-          step.env?.AW_STATUS_SIGNING_KEYS,
-          "${{ secrets.AW_STATUS_SIGNING_KEYS }}",
+          step.env?.AW_STATUS_KEYRING,
+          "${{ secrets.AW_STATUS_KEYRING }}",
           key
         );
         assert.equal(
