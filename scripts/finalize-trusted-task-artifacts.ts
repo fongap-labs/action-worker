@@ -81,7 +81,10 @@ export async function finalizeTrustedTaskArtifacts(
   }
   if (options.encryptedLogPath !== null) {
     if (!options.isPrivate || options.artifactKey === null) {
-      throw new CliError("Trusted private log finalization requires the private-source contract.", 77);
+      throw new CliError(
+        "Trusted private log finalization requires the private-source contract.",
+        77
+      );
     }
     const log = join(options.workRoot, "private-log.txt");
     await runTaskTransferCommand(
@@ -113,11 +116,7 @@ async function main(): Promise<void> {
   const visibility = process.env.TASK_SOURCE_PRIVATE ?? "";
   const key = process.env.AW_ARTIFACT_KEY ?? "";
   const privateKey = process.env.AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY ?? "";
-  if (
-    !outputRoot ||
-    !privateKey ||
-    (visibility !== "true" && visibility !== "false")
-  ) {
+  if (!outputRoot || !privateKey || (visibility !== "true" && visibility !== "false")) {
     throw new CliError("Trusted task finalization configuration is missing.", 77);
   }
   const root = await mkdtemp(join(tmpdir(), "aw-task-finalization-"));
