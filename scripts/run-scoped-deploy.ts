@@ -73,7 +73,8 @@ export function buildScopedDeployEnvironment(
   }
   for (const entry of plan.secrets) {
     delete environment[entry.name];
-    const value = entry.kind === "variable" ? baseEnvironment[entry.source] : secretValues.get(entry.name);
+    const value =
+      entry.kind === "variable" ? baseEnvironment[entry.source] : secretValues.get(entry.name);
     if (!value) {
       if (entry.required) {
         throw new CliError(
@@ -96,7 +97,9 @@ export async function loadScopedSecretValues(
   plan: SecretPlan
 ): Promise<Map<string, string>> {
   assertPlan(plan);
-  const expected = new Set(plan.secrets.filter((entry) => entry.kind === "secret").map((entry) => entry.name));
+  const expected = new Set(
+    plan.secrets.filter((entry) => entry.kind === "secret").map((entry) => entry.name)
+  );
   let files: string[] = [];
   try {
     files = await readdir(directory);
