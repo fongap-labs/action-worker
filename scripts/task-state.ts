@@ -11,6 +11,7 @@ import {
   isJsonRecord,
 } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, runCommand } from "./runtime-command.ts";
+import { inspectLegacyStateArchive } from "./verify-legacy-task-archive.ts";
 
 // Task state is carried between runs in a workflow artifact. The artifact name must identify one
 // (repository, project) pair exactly: replacing unsafe characters with "-" lets "a/b-c" + "d" and
@@ -196,9 +197,11 @@ export async function openStateFile(
   sealedFile: string,
   repository: string,
   project: string,
-  directory: string
+  directory: string,
+  shouldValidateArchive = false
 ): Promise<void> {
   const plain = openBytes(key, "task-state", repository, project, await readFile(sealedFile));
+  if (shouldValidateArchive) inspectLegacyStateArchive(plain);
   await withTempDirectory(async (temp) => {
     const archive = join(temp, "state.tar.gz");
     await writeFile(archive, plain);
@@ -253,6 +256,7 @@ export type RestoreOptions = {
   reader: ArtifactReader;
   controlRepository: string;
   download: (runId: number, name: string, destination: string) => Promise<void>;
+  shouldValidateArchive?: boolean;
 };
 
 export async function restoreTaskState(options: RestoreOptions): Promise<string> {
@@ -274,13 +278,28 @@ export async function restoreTaskState(options: RestoreOptions): Promise<string>
       try {
         await options.download(runId, name, candidate);
         if (key !== null && isPrivate) {
-          await openStateFile(key, join(candidate, sealedStateFile), repository, project, opened);
+          await openStateFile(
+            key,
+            join(candidate, sealedStateFile),
+            repository,
+            project,
+            opened,
+            options.shouldValidateArchive ?? false
+          );
         }
       } catch {
+        if (options.shouldValidateArchive) {
+          throw new CliError("Trusted task state restoration failed archive validation.", 66);
+        }
         continue;
       }
       const source = isPrivate ? opened : candidate;
-      if (!isLegacy && !(await verifyTaskStateDirectory(source, repository, project))) continue;
+      if (!isLegacy && !(await verifyTaskStateDirectory(source, repository, project))) {
+        if (options.shouldValidateArchive) {
+          throw new CliError("Trusted task state restoration found a mismatched manifest.", 66);
+        }
+        continue;
+      }
       if ((await readdir(source)).length === 0) continue;
       await cp(source, join(stateRoot, "previous"), { recursive: true });
       await rm(candidate, { recursive: true, force: true });
