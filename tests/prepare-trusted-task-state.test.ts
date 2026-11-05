@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { prepareTrustedTaskState } from "../scripts/prepare-trusted-task-state.ts";
 import {
-  sealStateDirectory,
   sealedStateFile,
+  sealStateDirectory,
   writeTaskStateManifest,
 } from "../scripts/task-state.ts";
 import { openTaskTransfer } from "../scripts/task-transfer-envelope.ts";
