@@ -317,7 +317,13 @@ test("MCP Hub production deploy passes only the Cloudflare credential", async ()
 
 // --- workflow invariants -------------------------------------------------------------------------
 
-type Step = { name?: string; if?: string; env?: unknown; with?: Record<string, unknown>; run?: string };
+type Step = {
+  name?: string;
+  if?: string;
+  env?: unknown;
+  with?: Record<string, unknown>;
+  run?: string;
+};
 type Job = { environment?: unknown; steps?: Step[] };
 type Workflow = { jobs: Record<string, Job> };
 
@@ -351,16 +357,25 @@ test("the deploy job names no central write credential and checks out with the r
 
 test("the deploy workflow dynamically selects one product-scoped Secret bundle", async () => {
   const deploy = (await workflow("deploy-source-script.yml")).jobs.deploy;
-  const plan = deploy?.steps?.find((item) => item.name === "Resolve deploy Secret plan");
-  const stage = deploy?.steps?.find((item) => item.name === "Stage selected product deployment Secret bundle");
-  const execute = deploy?.steps?.find((item) => item.name === "Execute source-owned deploy entrypoint");
+  const plan = deploy?.steps?.find(
+    (item) => item.name === "Resolve deploy Secret plan"
+  );
+  const stage = deploy?.steps?.find(
+    (item) => item.name === "Stage selected product deployment Secret bundle"
+  );
+  const execute = deploy?.steps?.find(
+    (item) => item.name === "Execute source-owned deploy entrypoint"
+  );
   assert.match(plan?.run ?? "", /resolve-deploy-secret-plan\.ts/);
   assert.match(plan?.run ?? "", /policies\/deploy-secrets\.json/);
   assert.match(execute?.run ?? "", /run-scoped-deploy\.ts/);
   assert.equal(execute?.env, undefined);
   const stageEnv = stage?.env as Record<string, string> | undefined;
   assert.deepEqual(Object.keys(stageEnv ?? {}), ["AW_DEPLOY_SECRET_BUNDLE"]);
-  assert.equal(stageEnv?.AW_DEPLOY_SECRET_BUNDLE, "$" + "{{ secrets[steps.secret_plan.outputs.bundle_secret_name] }}");
+  assert.equal(
+    stageEnv?.AW_DEPLOY_SECRET_BUNDLE,
+    "$" + "{{ secrets[steps.secret_plan.outputs.bundle_secret_name] }}"
+  );
   assert.equal(stage?.run, "node control/scripts/stage-deploy-secret-bundle.ts");
   const sourceText = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
   assert.equal(sourceText.includes("env: $" + "{{ secrets }}"), false);
