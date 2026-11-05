@@ -100,7 +100,7 @@
 
 ## 选项
 
-### 选项 A（推荐）：保持治理不变，由中央生成 CHANGELOG
+### 第一方案：中央生成变更记录
 
 - 在中央发布流程中，依据 `[Unreleased]` 与已合并 PR 标题生成版本小节，并通过 PR 合入目标仓库（因为直接写 `main` 不可信）。
 - 版本仍只来自发布启动时输入或自动计算。
@@ -108,7 +108,7 @@
 - 实施范围：`publish-release.ts`、`package-release-build.ts`、`release-app.yml`，以及对应合同测试。
 - 业务仓库只需：激活 `core.hooksPath`（或在 README 中给出一次性命令）、补齐 ai-gateway 钩子、为 delta-suite 增加指向中央文档的 `CONTRIBUTING.md`。
 
-### 选项 B：中文 Keep a Changelog，按仓库独立发版（用户请求的方向）
+### 第二方案：按仓库独立发布
 
 实施本选项必须同时推翻以下已有规则，每一项都需要 owner 明确批准：
 
