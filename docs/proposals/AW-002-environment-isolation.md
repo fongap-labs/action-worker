@@ -26,7 +26,7 @@ AI Gateway `production` 的中央密钥上限为三个声明名称：
 - `CLOUDFLARE_ACCOUNT_ID`
 - `AIG_DEPLOY_HEALTH_KEY`
 
-`AIG_DEPLOY_HEALTH_KEY` 通过中央别名读取 Action Worker 的 `AIG_ACCESS_KEY_AGENT`，仅用于部署后健康检查，不写入 Wrangler 配置。
+`AIG_DEPLOY_HEALTH_KEY` 是独立随机凭据，直接存储在 Action Worker `production` Environment，并以同名 Cloudflare Worker Secret 保存在运行时。它只允许部署健康检查路由，不属于用户访问组，不得复用任何 `AIG_ACCESS_KEY_<GROUP>`。
 
 Provider 凭据、访问分组密钥、Tier 凭据、OAuth 加密密钥及推理/生成中心认证密钥保留在 Cloudflare Worker Secrets。正常代码部署只通过 `wrangler secret list` 读取名称和类型，不读取、重传或删除值；缺少必需密钥时在代码发布前失败。
 
@@ -48,7 +48,7 @@ Environment 的实际保护规则无法通过仓库文件自动创建，必须�
 ## 维护者手动步骤
 
 1. 在 Action Worker 中创建并保护 `ai-gateway-ops`：仅 main、至少一名必需审批人。
-2. 配置 `CLOUDFLARE_API_TOKEN_OPS`、`CLOUDFLARE_ACCOUNT_ID_OPS`、`AIG_DEPLOY_HEALTH_KEY`、`AIG_PUBLIC_URL`；`AIG_OPS_SECRET_VALUE` 仅在单项更新前临时设置。
+2. 在 `production` 与 `ai-gateway-ops` Environment 中配置独立且一致的 `AIG_DEPLOY_HEALTH_KEY`；另配置 `CLOUDFLARE_API_TOKEN_OPS`、`CLOUDFLARE_ACCOUNT_ID_OPS`、`AIG_PUBLIC_URL`；`AIG_OPS_SECRET_VALUE` 仅在单项更新前临时设置。
 3. 运行 `ai-gateway-ops.yml` 的 `inventory`，核对 Cloudflare Worker 已有运行时密钥名称。
 4. 如缺失，逐个使用 `put` 补齐并通过健康检查；成功后删除临时 `AIG_OPS_SECRET_VALUE`。
 5. 盘点通过后，从 Action Worker 的 `production` Environment 与仓库级 Secrets 中删除已迁入 Cloudflare 的 AIG 运行时密钥副本，只保留部署合同要求的凭据。
