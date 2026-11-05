@@ -119,9 +119,11 @@ jobs:
         run: |
           set -Eeuo pipefail
           # Wrangler reads the value from stdin. Never pass it as an argument or print it.
-          printf '%s' "$AIG_OPS_SECRET_VALUE" |
-            npx --yes wrangler@4.114.0 secret put "$SECRET_NAME" --config "$RUNNER_TEMP/wrangler.jsonc"
+          secret_value="$AIG_OPS_SECRET_VALUE"
           unset AIG_OPS_SECRET_VALUE
+          printf '%s' "$secret_value" |
+            npx --yes wrangler@4.114.0 secret put "$SECRET_NAME" --config "$RUNNER_TEMP/wrangler.jsonc"
+          unset secret_value
 
           npx --yes wrangler@4.114.0 secret list --format json --config "$RUNNER_TEMP/wrangler.jsonc" > "$RUNNER_TEMP/worker-secrets.json"
           jq -e --arg name "$SECRET_NAME" 'any(.[]; .name == $name and .type == "secret_text")' "$RUNNER_TEMP/worker-secrets.json" > /dev/null || {
