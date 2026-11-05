@@ -35,7 +35,7 @@ test("deploy secret plan separates stored Secrets from explicitly declared Repos
       PATH: "/usr/bin", ACCOUNT_ID_VARIABLE: "account-id",
     });
     assert.deepEqual(plan, [
-      { name: "ACCOUNT_ID", source: "ACCOUNT_ID_VARIABLE", required: false, kind: "variable" },
+      { name: "ACCOUNT_ID", source: "ACCOUNT_ID_VARIABLE", required: true, kind: "variable" },
       { name: "TOKEN_OPTIONAL", source: "TOKEN_OPTIONAL", required: false, kind: "secret" },
       { name: "TOKEN_REQUIRED", source: "TOKEN_REQUIRED", required: true, kind: "secret" },
     ]);
