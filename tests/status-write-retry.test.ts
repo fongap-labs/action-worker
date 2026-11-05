@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   isRetryableStatusWriteError,
-  retryTransientStatusWrite,
   postGithubCommitStatus,
+  retryTransientStatusWrite,
 } from "../scripts/status-write-retry.ts";
 
 test("status writes retry transient GitHub failures and stop when recovered", async () => {
