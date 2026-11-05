@@ -178,6 +178,7 @@ Schema 2 示例：
 - 多产品键 = `owner/name/product`，单产品 = `owner/name`
 - 同一环境名全策略仅属一个键
 - 产品只拿自己条目授权的密钥
+- 可选部署密钥须同时出现在中央策略的 `allowed` 和源仓库的 `deploy.secrets.allowed`；环境未配置该密钥时仍可部署。`mcp-hub-ops` 允许可选的 `MCP_RUNTIME_KEY`，仅供 MCP Hub 的部署入口使用。
 
 并发两层：
 - 流水线组：`source-script-deploy-pipeline-<仓库>-<产品>-<环境>`（输入决定，防重复启动）
