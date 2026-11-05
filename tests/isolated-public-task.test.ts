@@ -216,7 +216,12 @@ test("pilot workflow is explicitly gated; legacy job and publisher never run for
         if?: string;
         needs?: string | string[];
         permissions?: Record<string, string>;
-        steps?: Array<{ env?: unknown; run?: string; uses?: string; with?: Record<string, unknown> }>;
+        steps?: Array<{
+          env?: unknown;
+          run?: string;
+          uses?: string;
+          with?: Record<string, unknown>;
+        }>;
       }
     >;
   };
