@@ -166,7 +166,10 @@ async function main(): Promise<void> {
     !["seal-state", "open-state", "seal-log", "open-log"].includes(command) ||
     !["state-to-task", "state-from-task", "log-from-task"].includes(purpose)
   ) {
-    throw new CliError("Usage: task-transfer-job.ts seal-state|open-state|seal-log|open-log purpose from to", 64);
+    throw new CliError(
+      "Usage: task-transfer-job.ts seal-state|open-state|seal-log|open-log purpose from to",
+      64
+    );
   }
   await runTaskTransferCommand(
     command as TransferCommand,
