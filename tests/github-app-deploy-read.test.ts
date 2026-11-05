@@ -73,7 +73,11 @@ test("deploy preflight routes trusted reads by repository without exposing App s
     step("Validate deploy source").env?.AW_STATUS_API_TOKEN,
     "${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}"
   );
-  assert.match(text, /for central_name in [^\\n]*AW_APP_PRIVATE_KEY/);
+  const scopedRunner = await readFile("scripts/run-scoped-deploy.ts", "utf8");
+  for (const name of ["AW_CONTROL_TOKEN", "AW_CHECKOUT_TOKEN", "AW_APP_PRIVATE_KEY", "AW_STATUS_KEYRING"]) {
+    assert.ok(scopedRunner.includes(name), `missing control-plane credential filter: ${name}`);
+  }
+  assert.doesNotMatch(text, /for central_name in [^\\n]*AW_APP_PRIVATE_KEY/);
   assert.doesNotMatch(
     JSON.stringify(workflow.jobs.deploy),
     /secrets\\.AW_APP_PRIVATE_KEY|secrets\\.AW_APP_CLIENT_ID|steps\\.app_read\\.outputs\\.token/
