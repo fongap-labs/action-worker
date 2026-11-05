@@ -248,18 +248,16 @@ test("test ownership points every governance document to the test packs", async 
   ]);
 });
 
-test("documentation readability convention is enforced in shared governance", async () => {
+test("shared governance requires concise Chinese rules and contrasting examples", async () => {
   const gov = await text("docs/01_SHARED_GOVERNANCE.md");
   requireText(gov, [
-    "文档可读性",
-    "机器读取文档（严格）",
-    "人类阅读文档（面向新人）",
-    '先说明"这是什么"，再说明"怎么做"',
-    "解释每个术语",
-    "用示例代替抽象描述",
-    "精确且无歧义",
-    "**英文**",
-    "**中文**",
+    "## 2. 文档语言",
+    "治理说明只写中文",
+    "### ❌ 错误做法 / 反面教材",
+    "### ✅ 正确做法 / 规范范例",
+    "中央共用规范",
+    "主分支来源证明",
+    "独立最小权限凭据",
   ]);
   const dev = await text("docs/DEVELOPMENT_GUIDE.md");
   requireText(dev, ["没有项目背景的人也能读懂"]);
