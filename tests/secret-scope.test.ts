@@ -417,14 +417,14 @@ test("task and deploy workflows apply aliases before they remove the other secre
 test("AI Gateway operations workflow is protected and never accepts secret values as inputs", async () => {
   const workflow = await readFile(".github/workflows/ai-gateway-ops.yml", "utf8");
   assert.match(workflow, /environment: ai-gateway-ops/);
-  assert.match(workflow, /if: github\\.ref == 'refs\\/heads\\/main'/);
+  assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/);
   assert.match(workflow, /workflow_dispatch:/);
   assert.doesNotMatch(workflow, /repository_dispatch:/);
   assert.match(workflow, /CLOUDFLARE_API_TOKEN_OPS/);
   assert.match(workflow, /AIG_OPS_SECRET_VALUE/);
-  assert.match(workflow, /printf '%s' "\\$AIG_OPS_SECRET_VALUE" \\|/);
+  assert.match(workflow, /printf '%s' "\$AIG_OPS_SECRET_VALUE" \|/);
   assert.match(workflow, /secret list --format json/);
   assert.match(workflow, /rollback/);
-  assert.doesNotMatch(workflow, /echo[^\\n]*AIG_OPS_SECRET_VALUE/);
-  assert.doesNotMatch(workflow, /secret_value:\\s*\\n\\s*required:/i);
+  assert.doesNotMatch(workflow, /echo[^\n]*AIG_OPS_SECRET_VALUE/);
+  assert.doesNotMatch(workflow, /secret_value:\s*\n\s*required:/i);
 });
