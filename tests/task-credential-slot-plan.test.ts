@@ -8,9 +8,7 @@ import {
   maxTaskCredentialSlots,
 } from "../scripts/task-credential-slot-plan.ts";
 
-async function policy(
-  config: unknown
-): Promise<{ path: string; cleanup: () => Promise<void> }> {
+async function policy(config: unknown): Promise<{ path: string; cleanup: () => Promise<void> }> {
   const dir = await mkdtemp(join(tmpdir(), "aw-credential-slots-"));
   const path = join(dir, "policy.json");
   await writeFile(path, JSON.stringify({ schema_version: 1, tasks: config }));
@@ -69,7 +67,13 @@ test("unapproved names, overlapping declarations and reserved credentials fail c
       /overlapping/
     );
     await assert.rejects(
-      buildTaskCredentialSlotPlan(item.path, "fongap-labs/example", "project", ["AW_ARTIFACT_KEY"], []),
+      buildTaskCredentialSlotPlan(
+        item.path,
+        "fongap-labs/example",
+        "project",
+        ["AW_ARTIFACT_KEY"],
+        []
+      ),
       /invalid/
     );
   } finally {
@@ -90,7 +94,10 @@ test("a missing project with any declared credentials fails closed", async () =>
 });
 
 test("credential plan requires bounded count and unique source secrets", async () => {
-  const names = Array.from({ length: maxTaskCredentialSlots + 1 }, (_, index) => `KEY_${index + 1}`);
+  const names = Array.from(
+    { length: maxTaskCredentialSlots + 1 },
+    (_, index) => `KEY_${index + 1}`
+  );
   const item = await policy({
     "fongap-labs/example": { project: { required: [], allowed: names } },
   });
