@@ -9,6 +9,7 @@ on:
       - scripts/verify-publication-key-pair.ts
       - scripts/prepare-publication-keys.ts
       - docs/task-publication-keys.md
+      - .github/actions/mint-app-token/action.yml
 
 permissions:
   contents: read
@@ -57,3 +58,48 @@ jobs:
           AW_PUBLICATION_PUBLIC_KEY: ${{ vars.AW_PUBLICATION_PUBLIC_KEY }}
           AW_PUBLICATION_PRIVATE_KEY: ${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}
         run: node scripts/verify-publication-key-pair.ts
+
+  publication-app:
+    name: Verify scoped publication App write permission
+    needs: protected-pair
+    if: github.ref == 'refs/heads/main'
+    environment: admin-ops
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted App token action
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Mint strictly scoped publication token
+        id: target_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ vars.AW_PUBLICATION_TEST_REPOSITORY || 'mcp-hub' }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Verify token has one authorized repository
+        env:
+          GH_TOKEN: ${{ steps.target_app.outputs.token }}
+          TARGET_OWNER: ${{ github.repository_owner }}
+          TARGET_NAME: ${{ vars.AW_PUBLICATION_TEST_REPOSITORY || 'mcp-hub' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$TARGET_NAME" =~ ^[A-Za-z0-9_.-]+$ ]] || {
+            echo "::error::Publication App test target must be one repository name." >&2
+            exit 64
+          }
+          scoped="$(gh api installation/repositories --jq '[.repositories[].full_name] | join(",")')"
+          if [ "$scoped" != "$TARGET_OWNER/$TARGET_NAME" ]; then
+            echo "::error::Publication App token must have exactly one repository in scope." >&2
+            exit 77
+          fi
+          echo "Scoped GitHub App publication token verified with Contents and Pull requests write."

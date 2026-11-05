@@ -81,3 +81,30 @@ test("publication key validation never runs on pull-request-controlled code", as
   assert.equal(step?.env?.AW_PUBLICATION_PRIVATE_KEY, "${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}");
   assert.doesNotMatch(source, /toJSON\s*\(\s*secrets\s*\)/);
 });
+
+test("trusted main preflight checks a single publication App writer in a protected job", async () => {
+  const source = await readFile(".github/workflows/publication-key-verify.yml", "utf8");
+  const workflow = parse(source) as {
+    on: Record<string, unknown>;
+    jobs: Record<string, {
+      environment?: string;
+      needs?: string;
+      if?: string;
+      steps: Array<{ name?: string; uses?: string; with?: Record<string, string>; env?: Record<string, string> }>;
+    }>;
+  };
+  const publisher = workflow.jobs["publication-app"];
+  assert.ok(publisher);
+  assert.equal(publisher.environment, "admin-ops");
+  assert.equal(publisher.needs, "protected-pair");
+  assert.equal(publisher.if, "github.ref == 'refs/heads/main'");
+  assert.equal(workflow.on.workflow_dispatch, undefined);
+  assert.equal(workflow.on.pull_request, undefined);
+  const mint = publisher.steps.find((step) => step.name === "Mint strictly scoped publication token");
+  assert.equal(mint?.with?.["permission-contents"], "write");
+  assert.equal(mint?.with?.["permission-pull-requests"], "write");
+  assert.equal(mint?.with?.repositories, "${{ vars.AW_PUBLICATION_TEST_REPOSITORY || 'mcp-hub' }}");
+  assert.ok(
+    publisher.steps.some((step) => step.name === "Verify token has one authorized repository")
+  );
+});
