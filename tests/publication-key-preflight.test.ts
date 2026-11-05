@@ -188,11 +188,17 @@ test("protected App preflight validates the actual private-source publication ta
 test("one-time governed canary needs an explicit main-commit marker", async () => {
   const source = await readFile(".github/workflows/publication-key-verify.yml", "utf8");
   const flow = parse(source) as {
-    jobs: Record<string, { environment?: string; steps: Array<{
-      name?: string;
-      if?: string;
-      with?: Record<string, string>;
-    }> }>;
+    jobs: Record<
+      string,
+      {
+        environment?: string;
+        steps: Array<{
+          name?: string;
+          if?: string;
+          with?: Record<string, string>;
+        }>;
+      }
+    >;
   };
   const job = flow.jobs["smoke-open"];
   assert.ok(job);
