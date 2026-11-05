@@ -177,7 +177,7 @@ runner_profile → 中央运行器解析
 状态签名 → AW_STATUS_KEYRING
 ```
 
-接口凭据与签名密钥分离。缺少专用权限必须失败，不使用自动令牌回退；具体权限见 `RUNNER_POLICY.md` 和 `07_MAIN_WRITE_GUARD.md`。
+接口凭据与签名密钥分离。`AW_EXECUTION_TOKEN` 已被删除。缺少专用权限必须失败，不使用自动令牌回退；具体权限见 `RUNNER_POLICY.md` 和 `07_MAIN_WRITE_GUARD.md`。
 
 ## 8. 通知桥接
 
@@ -224,4 +224,4 @@ runner_profile → 中央运行器解析
           → 可信主分支证明 → 执行
 ```
 
-免费组织私有仓库可能缺少原生保护，不能因此放宽中央门禁。发布、部署及故障处理见 `06_RELEASE_DEPLOY_GUIDE.md`。
+在 GitHub Free 套餐下，组织的私有仓库不支持 rulesets 或保护分支，不能因此放宽中央门禁。发布、部署及故障处理见 `06_RELEASE_DEPLOY_GUIDE.md`。
