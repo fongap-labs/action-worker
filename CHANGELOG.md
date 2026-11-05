@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 复用独立 Environment Secrets 进行动态逐项注入，避免要求运维迁移 JSON 密钥包；保持现有 Cloudflare Worker 运行时密钥隔离。
+
 - 修复: AI Gateway 中央合同测试验证 Cloudflare 运行时密钥持久保存、生产部署密钥范围收敛及禁止明文密钥上传。
 
 - 修复: 部署工作流改为动态选择产品密钥包，隔离共享环境中的其他产品凭据。
