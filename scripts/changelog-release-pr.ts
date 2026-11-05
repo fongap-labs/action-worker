@@ -25,7 +25,6 @@ import { hasValidStatusAttestation } from "./status-attestation.ts";
 
 export type ReleasePolicy = {
   changelog_file: string;
-  changelog_fragment_dir: string;
   changelog_categories: string[];
 };
 
@@ -41,7 +40,7 @@ export type ChangelogReleaseOptions = {
   token: string;
   statusToken: string;
   // The release's own entry lines (`<category>: <summary>`). When given, the release owns its
-  // entries: it neither consumes [Unreleased] or the fragments nor removes them.
+  // entries: it never consumes shared [Unreleased] entries.
   entries?: readonly string[];
   pollSeconds?: number;
   timeoutMinutes?: number;
@@ -89,42 +88,6 @@ async function readFileAt(
   }
 }
 
-async function listFragments(
-  options: ChangelogReleaseOptions
-): Promise<Array<{ path: string; content: string; sha: string }>> {
-  const { repository, baseSha, token, policy } = options;
-  let listing: unknown[];
-  try {
-    listing = getJsonArray(
-      await getGithubJson(
-        `repos/${repository}/contents/${policy.changelog_fragment_dir}?ref=${baseSha}`,
-        token
-      )
-    );
-  } catch (error) {
-    if (isGithubMissing(error)) {
-      return [];
-    }
-    throw error;
-  }
-  const fragments: Array<{ path: string; content: string; sha: string }> = [];
-  for (const item of listing) {
-    if (
-      !isJsonRecord(item) ||
-      item.type !== "file" ||
-      !getJsonString(item, "name").endsWith(".md")
-    ) {
-      continue;
-    }
-    const path = getJsonString(item, "path");
-    const file = await readFileAt(repository, path, baseSha, token);
-    if (file) {
-      fragments.push({ path, ...file });
-    }
-  }
-  return fragments.sort((left, right) => left.path.localeCompare(right.path));
-}
-
 async function findReleasePullRequest(
   repository: string,
   branch: string,
@@ -141,9 +104,7 @@ async function findReleasePullRequest(
   return found ?? null;
 }
 
-// Writes the release branch: the assembled changelog, then the removal of every fragment it
-// releases, then the pull request. Each step is a separate commit made through the contents API.
-// A release that owns its entries writes only its own version section and removes nothing.
+// Writes a single changelog version section on a release branch, then opens a pull request.
 async function openReleasePullRequest(
   options: ChangelogReleaseOptions,
   branch: string
@@ -155,7 +116,6 @@ async function openReleasePullRequest(
     throw new CliError(`::error::${repository} has no ${policy.changelog_file}.`, 65);
   }
   const owned = options.entries !== undefined;
-  const fragments = owned ? [] : await listFragments(options);
   const expected = owned
     ? promoteEntries(changelog.content, {
         version,
@@ -169,7 +129,6 @@ async function openReleasePullRequest(
         date,
         releaseUrl,
         categories: policy.changelog_categories,
-        fragments: fragments.map((fragment) => fragment.content),
       });
 
   const message = releasePullRequestTitle(tag);
@@ -210,23 +169,6 @@ async function openReleasePullRequest(
     ],
     token
   );
-  for (const fragment of fragments) {
-    await runGithubCli(
-      [
-        "api",
-        "--method",
-        "DELETE",
-        `repos/${repository}/contents/${fragment.path}`,
-        "-f",
-        `message=${message}`,
-        "-f",
-        `sha=${fragment.sha}`,
-        "-f",
-        `branch=${branch}`,
-      ],
-      token
-    );
-  }
   const created = await runGithubCli(
     [
       "api",
@@ -243,7 +185,7 @@ async function openReleasePullRequest(
       `body=Automated changelog release for ${tag}. ${
         owned
           ? "It adds the version section of this release's own entries."
-          : "It assembles the unreleased entries and the fragments into the version section."
+          : "It promotes the [Unreleased] entries into the version section."
       }`,
     ],
     token
