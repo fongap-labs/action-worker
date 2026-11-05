@@ -118,6 +118,14 @@ async function main(): Promise<void> {
     parseJson(rawPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65)
   );
   const manifest = validateManifest(await readJson(manifestPath));
+  // This workflow may run in a public repository for a private task. Mask the
+  // publication target and output metadata before policy errors or later steps.
+  if (process.env.TASK_SOURCE_PRIVATE !== "false") {
+    for (const value of [manifest.target_repository, manifest.dest_dir, manifest.commit_message]) {
+      const escaped = value.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+      console.log(`::add-mask::${escaped}`);
+    }
+  }
   validateRepositoryCapability(sourceRepository, policy, "release-source");
   validateRepositoryCapability(manifest.target_repository, policy, "release-target");
   validateRepositoryCapability(manifest.target_repository, policy, "pr");
