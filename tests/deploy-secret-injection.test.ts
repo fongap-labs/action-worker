@@ -4,9 +4,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
 import test from "node:test";
-import { readDeploySecretVariableSources, resolveDeploySecretPlan } from "../scripts/resolve-secret-scope.ts";
+import {
+  readDeploySecretBundleName,
+  readDeploySecretVariableSources,
+  resolveDeploySecretPlan,
+} from "../scripts/resolve-secret-scope.ts";
 import { buildScopedDeployEnvironment, loadScopedSecretValues } from "../scripts/run-scoped-deploy.ts";
-import { stageDeploySecretValue } from "../scripts/write-deploy-secret.ts";
+import { stageDeploySecretBundle } from "../scripts/stage-deploy-secret-bundle.ts";
 
 test("deploy secret plan separates stored Secrets from explicitly declared Repository Variables", async () => {
   const root = await mkdtemp(join(tmpdir(), "deploy-secret-plan-"));
@@ -21,6 +25,7 @@ test("deploy secret plan separates stored Secrets from explicitly declared Repos
       deployments: {
         "owner/repo": {
           production: {
+            bundle_secret: "AW_DEPLOY_SECRET_BUNDLE_EXAMPLE",
             required: ["TOKEN_REQUIRED"],
             allowed: ["TOKEN_OPTIONAL", "ACCOUNT_ID"],
             aliases: { ACCOUNT_ID: "ACCOUNT_ID_VARIABLE" },
@@ -31,6 +36,10 @@ test("deploy secret plan separates stored Secrets from explicitly declared Repos
     }));
     const variableSources = await readDeploySecretVariableSources(policy, "owner/repo", "production");
     assert.deepEqual([...variableSources], ["ACCOUNT_ID_VARIABLE"]);
+    assert.equal(
+      await readDeploySecretBundleName(policy, "owner/repo", "production"),
+      "AW_DEPLOY_SECRET_BUNDLE_EXAMPLE",
+    );
     const plan = await resolveDeploySecretPlan(required, allowed, policy, "owner/repo", "production", "", {
       PATH: "/usr/bin", ACCOUNT_ID_VARIABLE: "account-id",
     });
@@ -45,7 +54,9 @@ test("deploy secret plan separates stored Secrets from explicitly declared Repos
     );
     await writeFile(allowed, "UNAUTHORIZED_SECRET\n");
     await assert.rejects(
-      resolveDeploySecretPlan(required, allowed, policy, "owner/repo", "production", "", { PATH: "/usr/bin", ACCOUNT_ID_VARIABLE: "x" }),
+      resolveDeploySecretPlan(required, allowed, policy, "owner/repo", "production", "", {
+        PATH: "/usr/bin", ACCOUNT_ID_VARIABLE: "x",
+      }),
       /outside the central deploy secret policy: UNAUTHORIZED_SECRET/,
     );
   } finally {
@@ -53,32 +64,63 @@ test("deploy secret plan separates stored Secrets from explicitly declared Repos
   }
 });
 
-test("shipped policy marks only the AI Gateway account ID alias as a Repository Variable", async () => {
+test("shipped policy assigns a unique product bundle and preserves the AI Gateway variable alias", async () => {
+  const aiGateway = await readDeploySecretBundleName(
+    "policies/deploy-secrets.json", "fongap-labs/ai-gateway", "production",
+  );
+  const serverEdge = await readDeploySecretBundleName(
+    "policies/deploy-secrets.json", "fongap-labs/internal-vault", "server-edge-cloud-edge", "server-edge",
+  );
+  const mcpHub = await readDeploySecretBundleName(
+    "policies/deploy-secrets.json", "fongap-labs/mcp-hub", "production",
+  );
+  assert.deepEqual(
+    [aiGateway, serverEdge, mcpHub],
+    [
+      "AW_DEPLOY_SECRET_BUNDLE_AI_GATEWAY",
+      "AW_DEPLOY_SECRET_BUNDLE_SERVER_EDGE",
+      "AW_DEPLOY_SECRET_BUNDLE_MCP_HUB",
+    ],
+  );
   const sources = await readDeploySecretVariableSources(
-    "policies/deploy-secrets.json", "fongap-labs/ai-gateway", "production"
+    "policies/deploy-secrets.json", "fongap-labs/ai-gateway", "production",
   );
   assert.deepEqual([...sources], ["CLOUDFLARE_ACCOUNT_ID_SECONDARY"]);
   const hubSources = await readDeploySecretVariableSources(
-    "policies/deploy-secrets.json", "fongap-labs/mcp-hub", "production"
+    "policies/deploy-secrets.json", "fongap-labs/mcp-hub", "production",
   );
   assert.deepEqual([...hubSources], []);
 });
 
-test("only the requested stored Secret is staged and missing optional values are omitted", async () => {
-  const root = await mkdtemp(join(tmpdir(), "deploy-secret-stage-"));
+test("product bundle stages only plan-authorized Secret values and rejects unknown keys", async () => {
+  const root = await mkdtemp(join(tmpdir(), "deploy-secret-bundle-"));
   try {
     const plan = {
       schema_version: 1 as const,
       secrets: [
         { name: "TOKEN_REQUIRED", source: "TOKEN_REQUIRED", required: true, kind: "secret" as const },
         { name: "TOKEN_OPTIONAL", source: "TOKEN_OPTIONAL", required: false, kind: "secret" as const },
+        { name: "ACCOUNT_ID", source: "ACCOUNT_ID_VARIABLE", required: true, kind: "variable" as const },
       ],
     };
-    assert.equal(await stageDeploySecretValue("TOKEN_REQUIRED", "test-value", plan, root), true);
-    assert.equal(await stageDeploySecretValue("TOKEN_OPTIONAL", "", plan, root), false);
-    assert.equal(await readFile(join(root, "action-worker-deploy-secrets", "TOKEN_REQUIRED"), "utf8"), "test-value");
-    await assert.rejects(stageDeploySecretValue("TOKEN_REQUIRED", "", plan, root), /Required deploy Secret is unavailable/);
-    await assert.rejects(stageDeploySecretValue("UNDECLARED", "nope", plan, root), /not in the approved plan/);
+    const staged = await stageDeploySecretBundle(
+      JSON.stringify({ TOKEN_REQUIRED: "test-value" }),
+      plan,
+      root,
+    );
+    assert.deepEqual(staged, ["TOKEN_REQUIRED"]);
+    assert.equal(
+      await readFile(join(root, "action-worker-deploy-secrets", "TOKEN_REQUIRED"), "utf8"),
+      "test-value",
+    );
+    await assert.rejects(
+      stageDeploySecretBundle(JSON.stringify({ TOKEN_OPTIONAL: "extra" }), plan, root),
+      /Required deploy Secret is missing from the product bundle: TOKEN_REQUIRED/,
+    );
+    await assert.rejects(
+      stageDeploySecretBundle(JSON.stringify({ TOKEN_REQUIRED: "x", OTHER_SECRET: "nope" }), plan, root),
+      /outside the current deployment plan: OTHER_SECRET/,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -122,49 +164,39 @@ test("staged Secret files are restricted to the plan and have private permission
         { name: "TOKEN_B", source: "TOKEN_B", required: false, kind: "secret" as const },
       ],
     };
-    await stageDeploySecretValue("TOKEN_A", "a", plan, root);
+    await stageDeploySecretBundle(JSON.stringify({ TOKEN_A: "a" }), plan, root);
     const values = await loadScopedSecretValues(join(root, "action-worker-deploy-secrets"), plan);
     assert.deepEqual([...values], [["TOKEN_A", "a"]]);
     await writeFile(join(root, "action-worker-deploy-secrets", "OTHER"), "x");
-    await assert.rejects(loadScopedSecretValues(join(root, "action-worker-deploy-secrets"), plan), /Unexpected file/);
+    await assert.rejects(
+      loadScopedSecretValues(join(root, "action-worker-deploy-secrets"), plan),
+      /Unexpected file/,
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
 });
 
-test("the deploy workflow has one-secret collector steps and no broad Secrets context", async () => {
+test("the deploy workflow dynamically injects one product bundle and stays repository-agnostic", async () => {
   const workflow = parse(await readFile(".github/workflows/deploy-source-script.yml", "utf8")) as {
-    jobs: Record<string, { steps?: Array<{ name?: string; if?: string; env?: Record<string, string>; run?: string }> }>;
+    jobs: Record<string, { steps?: Array<{ name?: string; env?: Record<string, string>; run?: string }> }>;
   };
   const steps = workflow.jobs.deploy?.steps ?? [];
-  const collectors = steps.filter((step) => step.name?.startsWith("Collect scoped deploy Secret "));
-  const policy = JSON.parse(await readFile("policies/deploy-secrets.json", "utf8")) as {
-    deployments: Record<string, Record<string, { required?: string[]; allowed?: string[]; aliases?: Record<string, string>; variable_sources?: string[] }>>;
-  };
-  const expected = new Set<string>();
-  for (const environments of Object.values(policy.deployments)) {
-    for (const entry of Object.values(environments)) {
-      for (const name of [...(entry.required ?? []), ...(entry.allowed ?? [])]) {
-        const source = entry.aliases?.[name] ?? name;
-        if (!(entry.variable_sources ?? []).includes(source)) expected.add(source);
-      }
-    }
-  }
-  const actual = new Set<string>();
-  for (const step of collectors) {
-    const source = step.name?.replace("Collect scoped deploy Secret ", "") ?? "";
-    actual.add(source);
-    assert.deepEqual(Object.keys(step.env ?? {}), ["AW_DEPLOY_SECRET_VALUE"]);
-    assert.equal(step.env?.AW_DEPLOY_SECRET_VALUE, "${{ secrets." + source + " }}");
-    assert.match(step.if ?? "", /steps\.secret_plan\.outputs\.inject_sources/);
-    assert.equal(step.run, "node control/scripts/write-deploy-secret.ts " + source);
-  }
-  assert.deepEqual([...actual].sort(), [...expected].sort());
-  const sourceText = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
-  assert.doesNotMatch(sourceText, /env:\s*\$\{\{\s*secrets\s*\}\}/);
+  const plan = steps.find((step) => step.name === "Resolve deploy Secret plan");
+  const stage = steps.find((step) => step.name === "Stage selected product deployment Secret bundle");
   const execute = steps.find((step) => step.name === "Execute source-owned deploy entrypoint");
+  assert.match(plan?.run ?? "", /resolve-deploy-secret-plan\.ts/);
+  assert.deepEqual(Object.keys(stage?.env ?? {}), ["AW_DEPLOY_SECRET_BUNDLE"]);
+  assert.equal(
+    stage?.env?.AW_DEPLOY_SECRET_BUNDLE,
+    "$" + "{{ secrets[steps.secret_plan.outputs.bundle_secret_name] }}",
+  );
+  assert.equal(stage?.run, "node control/scripts/stage-deploy-secret-bundle.ts");
   assert.equal(execute?.env, undefined);
   assert.match(execute?.run ?? "", /run-scoped-deploy\.ts/);
-  assert.equal(expected.has("CLOUDFLARE_ACCOUNT_ID_SECONDARY"), false);
-  assert.equal(expected.has("MCP_RUNTIME_KEY"), false);
+  const sourceText = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
+  assert.equal(sourceText.includes("env: $" + "{{ secrets }}"), false);
+  for (const name of ["AIG_ACCESS_KEY_AGENT", "SERVER_EDGE_SECRET_BUNDLE", "CLOUDFLARE_API_TOKEN_SECONDARY"]) {
+    assert.equal(sourceText.includes("secrets." + name), false, name);
+  }
 });
