@@ -104,7 +104,7 @@ test("shipped product ceilings remain isolated and require independent AI Gatewa
     "fongap-labs/ai-gateway",
     "production"
   );
-  assert.equal(aliases.get("AIG_DEPLOY_HEALTH_KEY"), "AIG_ACCESS_KEY_AGENT");
+  assert.equal(aliases.has("AIG_DEPLOY_HEALTH_KEY"), false);
   assert.equal(aliases.get("CLOUDFLARE_API_TOKEN"), "CLOUDFLARE_API_TOKEN_SECONDARY");
   assert.deepEqual(
     [
