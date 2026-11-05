@@ -33,23 +33,20 @@ jobs:
     permissions:
       contents: read
     env:
-      OPERATION: \${{ inputs.operation }}
-      SECRET_NAME: \${{ inputs.secret_name }}
-      CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN_OPS }}
-      CLOUDFLARE_ACCOUNT_ID: \${{ vars.CLOUDFLARE_ACCOUNT_ID_OPS }}
-      AIG_OPS_SECRET_VALUE: \${{ secrets.AIG_OPS_SECRET_VALUE }}
-      AIG_DEPLOY_HEALTH_KEY: \${{ secrets.AIG_DEPLOY_HEALTH_KEY }}
-      AIG_PUBLIC_URL: \${{ vars.AIG_PUBLIC_URL }}
+      OPERATION: ${{ inputs.operation }}
+      SECRET_NAME: ${{ inputs.secret_name }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_OPS }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID_OPS }}
     steps:
       - name: Validate operation and protected environment
         shell: bash
         run: |
           set -Eeuo pipefail
-          [[ -n "\${CLOUDFLARE_API_TOKEN:-}" ]] || {
+          [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || {
             echo "::error::Missing ai-gateway-ops secret CLOUDFLARE_API_TOKEN_OPS; no production-token fallback."
             exit 77
           }
-          [[ "\${CLOUDFLARE_ACCOUNT_ID:-}" =~ ^[a-f0-9]{32}$ ]] || {
+          [[ "${CLOUDFLARE_ACCOUNT_ID:-}" =~ ^[a-f0-9]{32}$ ]] || {
             echo "::error::Missing or invalid ai-gateway-ops variable CLOUDFLARE_ACCOUNT_ID_OPS."
             exit 77
           }
@@ -61,20 +58,30 @@ jobs:
                 echo "::error::Secret name is outside the AI Gateway runtime secret allowlist."
                 exit 64
               }
-              [[ -n "\${AIG_OPS_SECRET_VALUE:-}" ]] || {
-                echo "::error::Missing temporary ai-gateway-ops secret AIG_OPS_SECRET_VALUE; no workflow-input or token fallback."
-                exit 77
-              }
-              [[ -n "\${AIG_DEPLOY_HEALTH_KEY:-}" && "\${AIG_PUBLIC_URL:-}" == https://* ]] || {
-                echo "::error::Missing health-check credential or HTTPS AIG_PUBLIC_URL; refusing secret mutation."
-                exit 77
-              }
               ;;
             *)
               echo "::error::Unsupported operation."
               exit 64
               ;;
           esac
+
+      - name: Validate secret update inputs
+        if: inputs.operation == 'put'
+        shell: bash
+        env:
+          AIG_OPS_SECRET_VALUE: ${{ secrets.AIG_OPS_SECRET_VALUE }}
+          AIG_DEPLOY_HEALTH_KEY: ${{ secrets.AIG_DEPLOY_HEALTH_KEY }}
+          AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "${AIG_OPS_SECRET_VALUE:-}" ]] || {
+            echo "::error::Missing temporary ai-gateway-ops secret AIG_OPS_SECRET_VALUE; no workflow-input or token fallback."
+            exit 77
+          }
+          [[ -n "${AIG_DEPLOY_HEALTH_KEY:-}" && "${AIG_PUBLIC_URL:-}" == https://* ]] || {
+            echo "::error::Missing health-check credential or HTTPS AIG_PUBLIC_URL; refusing secret mutation."
+            exit 77
+          }
 
       - name: Prepare minimal Wrangler target
         shell: bash
@@ -105,6 +112,10 @@ jobs:
       - name: Update one Cloudflare Worker Secret
         if: inputs.operation == 'put'
         shell: bash
+        env:
+          AIG_OPS_SECRET_VALUE: ${{ secrets.AIG_OPS_SECRET_VALUE }}
+          AIG_DEPLOY_HEALTH_KEY: ${{ secrets.AIG_DEPLOY_HEALTH_KEY }}
+          AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
         run: |
           set -Eeuo pipefail
           # Wrangler reads the value from stdin. Never pass it as an argument or print it.
@@ -123,7 +134,7 @@ jobs:
           for attempt in 1 2 3; do
             if curl --silent --show-error --fail --max-time 15 \
               -H "Authorization: Bearer $AIG_DEPLOY_HEALTH_KEY" \
-              "\${AIG_PUBLIC_URL%/}/health" > "$RUNNER_TEMP/health.json" &&
+              "${AIG_PUBLIC_URL%/}/health" > "$RUNNER_TEMP/health.json" &&
               jq -e '.ready == true and .nodes_usable == .nodes_total' "$RUNNER_TEMP/health.json" > /dev/null; then
               healthy=true
               break
@@ -147,5 +158,5 @@ jobs:
             echo "- Operation: $OPERATION"
             echo "- Worker: ai-gateway"
             echo "- Secret value: never written to workflow output"
-            echo "- Result: \${{ job.status }}"
+            echo "- Result: ${{ job.status }}"
           } >> "$GITHUB_STEP_SUMMARY"
