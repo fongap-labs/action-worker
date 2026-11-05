@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { GithubReader, isJsonRecord } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import {
-  taskStateArtifactName,
   legacyTaskStateArtifactName,
+  taskStateArtifactName,
   writeTaskStateManifest,
 } from "./task-state.ts";
 import { packTaskTransferFiles, unpackTaskTransferFiles } from "./task-transfer-files.ts";
@@ -57,15 +57,10 @@ export async function validateIsolatedPublicTask(
     policyEntry.allowed.length !== 0 ||
     (isJsonRecord(policyEntry.aliases) && Object.keys(policyEntry.aliases).length !== 0) ||
     (policyEntry.aliases !== undefined && !isJsonRecord(policyEntry.aliases))
-  ) fail();
+  )
+    fail();
 
-  const admission = await validateTaskSecretAdmission(
-    reader,
-    repository,
-    project,
-    sha,
-    policyPath
-  );
+  const admission = await validateTaskSecretAdmission(reader, repository, project, sha, policyPath);
   if (admission.required_count !== 0 || admission.allowed_count !== 0) fail();
 
   const commit = await reader.get(`repos/${repository}/git/commits/${sha}`);
@@ -87,9 +82,7 @@ export async function validateIsolatedPublicTask(
         )
     )
   ) fail();
-  const entries = listing.tree.filter(
-    (entry) => isJsonRecord(entry) && entry.path === markerPath
-  );
+  const entries = listing.tree.filter((entry) => isJsonRecord(entry) && entry.path === markerPath);
   if (entries.length !== 1) fail();
   const marker = entries[0];
   if (
@@ -125,7 +118,9 @@ export async function prepareIsolatedPublicState(
     taskStateArtifactName(repository, project),
     legacyTaskStateArtifactName(repository, project),
   ]) {
-    const listing = await reader.get(`repos/${controlRepository}/actions/artifacts?name=${encodeURIComponent(name)}&per_page=1`);
+    const listing = await reader.get(
+      `repos/${controlRepository}/actions/artifacts?name=${encodeURIComponent(name)}&per_page=1`
+    );
     if (
       !isJsonRecord(listing) ||
       !Number.isSafeInteger(listing.total_count) ||
