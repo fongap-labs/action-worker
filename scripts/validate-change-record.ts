@@ -192,13 +192,13 @@ function unreleasedSection(content: string): string {
     .trim();
 }
 
-function outsideUnreleased(content: string): string {
-  const { lines, start, end } = unreleasedBounds(content);
-  return [...lines.slice(0, start + 1), ...lines.slice(end)].join("\n").trimEnd();
+function publishedSections(content: string): string {
+  const { lines, end } = unreleasedBounds(content);
+  return lines.slice(end).join("\n").trimEnd();
 }
 
 export function addedUnreleasedEntries(baseContent: string, headContent: string): string[] {
-  if (outsideUnreleased(baseContent) !== outsideUnreleased(headContent)) {
+  if (publishedSections(baseContent) !== publishedSections(headContent)) {
     throw new CliError("::error::A normal PR must not modify released CHANGELOG sections.", 65);
   }
   const previous = unreleasedSection(baseContent)
@@ -357,8 +357,10 @@ export async function validateChange(
     const baseChangelog = await runText("git", ["show", `${base}:${changelogFile}`], { cwd: root });
     const headChangelog = await readFile(join(root, changelogFile), "utf8");
     if (isMigration) {
-      const baseReleased = outsideUnreleased(baseChangelog).replace(/^# Changelog/, "# 更新日志");
-      if (baseReleased !== outsideUnreleased(headChangelog)) {
+      if (
+        !headChangelog.startsWith("# 更新日志\\n".replace("\\\\n", "\\n")) ||
+        publishedSections(baseChangelog) !== publishedSections(headChangelog)
+      ) {
         throw new CliError("::error::CHANGELOG migration must preserve published sections.", 65);
       }
       entries = unreleasedSection(headChangelog)
