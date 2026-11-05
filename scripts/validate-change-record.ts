@@ -310,7 +310,7 @@ export async function validateChange(
   );
   const deletedNames = removedLegacy.split(/\r?\n/).filter(Boolean).sort();
   const previousNames = previousLegacy.split(/\r?\n/).filter(Boolean).sort();
-  if (previousNames.length > 0 &&
+  if (deletedNames.length > 0 &&
       (deletedNames.length !== previousNames.length ||
         JSON.stringify(deletedNames) !== JSON.stringify(previousNames) ||
         remainingLegacy.trim() !== "")) {
@@ -319,7 +319,7 @@ export async function validateChange(
       65
     );
   }
-  const isMigration = previousNames.length > 0;
+  const isMigration = deletedNames.length > 0;
   if (isMigration && !changedPaths.includes(changelogFile)) {
     throw new CliError("::error::Retiring changelog.d requires a consolidated CHANGELOG.md.", 65);
   }
