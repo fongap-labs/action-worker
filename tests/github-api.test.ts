@@ -7,6 +7,7 @@ import {
   isGithubMissing,
   isRetryableStatus,
   parseRetryAfter,
+  statusAwareReader,
 } from "../scripts/github-api.ts";
 import { CliError } from "../scripts/runtime-command.ts";
 
@@ -172,4 +173,52 @@ test("secondary limits remain retryable when GitHub returns a retry-after header
     globalThis.fetch = originalFetch;
   }
   assert.equal(classifyGithubFailure(403, new Headers(), "Forbidden"), "permission");
+});
+
+test("status-aware reader uses the dedicated status App token for full owner/repo paths", async () => {
+  const originalFetch = globalThis.fetch;
+  const calls: Array<{ path: string; auth: string }> = [];
+  globalThis.fetch = async (url, init) => {
+    const headers = new Headers(init?.headers);
+    calls.push({
+      path: String(url).replace("https://api.github.test/", ""),
+      auth: headers.get("authorization") ?? "",
+    });
+    return Response.json({ statuses: [] });
+  };
+  try {
+    const reader = statusAwareReader("https://api.github.test", "control-read", "status-read");
+    for (const path of [
+      "repos/fongap-labs/internal-vault/commits/abc123/status",
+      "repos/fongap-labs/internal-vault/commits/abc123/status?per_page=100",
+      "repos/fongap-labs/internal-vault/statuses/abc123",
+    ]) {
+      await reader.get(path);
+    }
+    await reader.get("repos/fongap-labs/internal-vault/commits/main");
+    await reader.get("repos/fongap-labs/internal-vault");
+    assert.deepEqual(
+      calls.map((call) => call.auth),
+      [
+        "Bearer status-read",
+        "Bearer status-read",
+        "Bearer status-read",
+        "Bearer control-read",
+        "Bearer control-read",
+      ]
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("status-aware reader fails closed when either dedicated token is missing", () => {
+  assert.throws(
+    () => statusAwareReader("https://api.github.test", "control-read", ""),
+    /no token fallback/
+  );
+  assert.throws(
+    () => statusAwareReader("https://api.github.test", "", "status-read"),
+    /no token fallback/
+  );
 });
