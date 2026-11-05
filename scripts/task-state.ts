@@ -198,10 +198,10 @@ export async function openStateFile(
   repository: string,
   project: string,
   directory: string,
-  strictArchiveValidation = false
+  shouldValidateArchive = false
 ): Promise<void> {
   const plain = openBytes(key, "task-state", repository, project, await readFile(sealedFile));
-  if (strictArchiveValidation) inspectLegacyStateArchive(plain);
+  if (shouldValidateArchive) inspectLegacyStateArchive(plain);
   await withTempDirectory(async (temp) => {
     const archive = join(temp, "state.tar.gz");
     await writeFile(archive, plain);
@@ -256,7 +256,7 @@ export type RestoreOptions = {
   reader: ArtifactReader;
   controlRepository: string;
   download: (runId: number, name: string, destination: string) => Promise<void>;
-  strictArchiveValidation?: boolean;
+  shouldValidateArchive?: boolean;
 };
 
 export async function restoreTaskState(options: RestoreOptions): Promise<string> {
@@ -284,18 +284,18 @@ export async function restoreTaskState(options: RestoreOptions): Promise<string>
             repository,
             project,
             opened,
-            options.strictArchiveValidation ?? false
+            options.shouldValidateArchive ?? false
           );
         }
       } catch {
-        if (options.strictArchiveValidation) {
+        if (options.shouldValidateArchive) {
           throw new CliError("Trusted task state restoration failed archive validation.", 66);
         }
         continue;
       }
       const source = isPrivate ? opened : candidate;
       if (!isLegacy && !(await verifyTaskStateDirectory(source, repository, project))) {
-        if (options.strictArchiveValidation) {
+        if (options.shouldValidateArchive) {
           throw new CliError("Trusted task state restoration found a mismatched manifest.", 66);
         }
         continue;
