@@ -6,7 +6,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { parse } from "yaml";
-import { openTaskPublication, sealTaskPublication, verifyPublicationKeyPair } from "../scripts/task-publication-envelope.ts";
+import {
+  openTaskPublication,
+  sealTaskPublication,
+  verifyPublicationKeyPair,
+} from "../scripts/task-publication-envelope.ts";
 import { validateManifest } from "../scripts/validate-task-publication.ts";
 
 const identity = {
@@ -166,9 +170,7 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
     source.includes("AW_PUBLICATION_PRIVATE_KEY: ${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}")
   );
   assert.ok(source.includes("AW_PUBLICATION_PUBLIC_KEY: ${{ vars.AW_PUBLICATION_PUBLIC_KEY }}"));
-  assert.ok(
-    publish.steps.some((step) => step.name === "Verify protected publication key pair")
-  );
+  assert.ok(publish.steps.some((step) => step.name === "Verify protected publication key pair"));
   const opener = publish.steps.find(
     (step) => step.name === "Open encrypted publication on clean runner"
   );
