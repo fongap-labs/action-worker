@@ -323,19 +323,14 @@ test("the central policies give each Cloudflare account its own qualified secret
       ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_SECONDARY"],
     ]
   );
-  const center = await readSecretAliases(
+  // The retired inference product has no deployment credential aliases.
+  const retired = await readSecretAliases(
     "policies/deploy-secrets.json",
     "deploy",
     "fongap-labs/ai-gateway/inference-center",
     "inference-center-ops"
   );
-  assert.deepEqual(
-    [...center],
-    [
-      ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_SECONDARY"],
-      ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_SECONDARY"],
-    ]
-  );
+  assert.deepEqual([...retired], []);
   for (const project of ["FongapBlog", "FongapCDN"]) {
     const task = await readSecretAliases(
       "policies/task-secrets.json",
