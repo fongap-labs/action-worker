@@ -22,35 +22,37 @@ async function initRepo(): Promise<string> {
   return root;
 }
 
-test("change record enforces title and CHANGELOG contracts", async (context) => {
+test("change record requires concise Chinese entries in CHANGELOG.md", async (context) => {
   const root = await initRepo();
   context.after(() => rm(root, { recursive: true, force: true }));
+  const initial = "# Changelog\n\n## [Unreleased]\n";
   await writeFile(join(root, "README.md"), "# Fixture\n", "utf8");
-  await writeFile(join(root, "CHANGELOG.md"), "# Changelog\n\n## [Unreleased]\n", "utf8");
+  await writeFile(join(root, "CHANGELOG.md"), initial, "utf8");
   await git(root, ["add", "."]);
   await git(root, ["commit", "-qm", "base"]);
   const base = await git(root, ["rev-parse", "HEAD"]);
+
   await writeFile(join(root, "README.md"), "# Fixture\n\nMore docs.\n", "utf8");
   await git(root, ["add", "README.md"]);
   await git(root, ["commit", "-qm", "docs"]);
   const docsHead = await git(root, ["rev-parse", "HEAD"]);
-  const docs = await validateChange("docs: clarify setup", base, docsHead, root, policyDir);
-  assert.equal(docs.type, "docs");
-  assert.equal(docs.changelog_required, false);
-  await assert.rejects(validateChange("feature: invalid type", base, docsHead, root, policyDir));
+  assert.equal(
+    (await validateChange("chore: clarify setup", base, docsHead, root, policyDir)).type,
+    "chore"
+  );
+  await assert.rejects(validateChange("docs: clarify setup", base, docsHead, root, policyDir));
   await assert.rejects(validateChange("feat: add feature", base, docsHead, root, policyDir));
 
-  await git(root, ["reset", "--hard", "-q", base]);
-  await writeFile(join(root, "README.md"), "# Fixture\n\nFeature.\n", "utf8");
-  await mkdir(join(root, "changelog.d"), { recursive: true });
-  await writeFile(
-    join(root, "changelog.d", "example-capability.md"),
-    "- 新增: 增加示例能力。\n",
-    "utf8"
-  );
-  await git(root, ["add", "."]);
-  await git(root, ["commit", "-qm", "feature"]);
-  const featureHead = await git(root, ["rev-parse", "HEAD"]);
+  async function commitEntry(content: string, message: string): Promise<string> {
+    await git(root, ["reset", "--hard", "-q", base]);
+    await rm(join(root, "changelog.d"), { recursive: true, force: true });
+    await writeFile(join(root, "CHANGELOG.md"), content, "utf8");
+    await git(root, ["add", "."]);
+    await git(root, ["commit", "-qm", message]);
+    return git(root, ["rev-parse", "HEAD"]);
+  }
+
+  const featureHead = await commitEntry(initial + "\n- 新增: 增加示例能力。\n", "direct entry");
   const feature = await validateChange(
     "feat(core): add example capability",
     base,
@@ -61,76 +63,44 @@ test("change record enforces title and CHANGELOG contracts", async (context) => 
   assert.equal(feature.scope, "core");
   assert.equal(feature.changelog_changed, true);
 
-  // CHANGELOG_CONVENTIONS §5: Chinese summary, a category the PR type may write, and the
-  // security category exactly with the security attribute.
-  const rejected = [
+  for (const entry of [
     "- 新增: add example capability.",
     "- 修复: 修复示例能力。",
-    "- 新增 [security]: 增加示例能力。",
     "- 安全: 收紧示例能力。",
-  ];
-  for (const entry of rejected) {
-    await git(root, ["reset", "--hard", "-q", base]);
-    await mkdir(join(root, "changelog.d"), { recursive: true });
-    await writeFile(join(root, "changelog.d", "bad-entry.md"), `${entry}\n`, "utf8");
-    await git(root, ["add", "."]);
-    await git(root, ["commit", "-qm", "bad entry"]);
-    const badHead = await git(root, ["rev-parse", "HEAD"]);
+    "- 新增: " + "优化配置和执行流程".repeat(11) + "。",
+  ]) {
+    const head = await commitEntry(initial + "\n" + entry + "\n", "bad entry");
     await assert.rejects(
-      validateChange("feat(core): add example capability", base, badHead, root, policyDir),
-      `${entry} must be refused`
+      validateChange("feat(core): add example capability", base, head, root, policyDir),
+      entry
     );
   }
 
-  // Pull requests do not write the unreleased section of CHANGELOG.md: a fragment carries the entry.
-  await git(root, ["reset", "--hard", "-q", base]);
-  await writeFile(
-    join(root, "CHANGELOG.md"),
-    "# Changelog\n\n## [Unreleased]\n- 新增: 增加示例能力。\n",
-    "utf8"
+  const duplicateHead = await commitEntry(
+    initial + "\n- 新增: 增加示例能力。\n- 新增: 增加示例能力。\n",
+    "duplicate entry"
   );
-  await git(root, ["add", "."]);
-  await git(root, ["commit", "-qm", "direct entry"]);
-  const directHead = await git(root, ["rev-parse", "HEAD"]);
-  await assert.rejects(
-    validateChange("feat(core): add example capability", base, directHead, root, policyDir),
-    "a direct edit of the unreleased section must be refused"
-  );
+  await assert.rejects(validateChange("feat: add feature", base, duplicateHead, root, policyDir));
 
-  // Fragment names are new, lowercase and kebab-case.
   await git(root, ["reset", "--hard", "-q", base]);
   await mkdir(join(root, "changelog.d"), { recursive: true });
-  await writeFile(
-    join(root, "changelog.d", "Example_Capability.md"),
-    "- 新增: 增加示例能力。\n",
-    "utf8"
-  );
+  await writeFile(join(root, "changelog.d", "legacy.md"), "- 新增: 旧片段。\n", "utf8");
   await git(root, ["add", "."]);
-  await git(root, ["commit", "-qm", "bad name"]);
-  const badNameHead = await git(root, ["rev-parse", "HEAD"]);
+  await git(root, ["commit", "-qm", "legacy fragment"]);
+  const fragmentHead = await git(root, ["rev-parse", "HEAD"]);
   await assert.rejects(
-    validateChange("feat(core): add example capability", base, badNameHead, root, policyDir),
-    "a fragment name that is not kebab-case must be refused"
+    validateChange("feat: add feature", base, fragmentHead, root, policyDir),
+    "changelog.d files must be rejected"
   );
 
-  // A fragment already on the base branch is never edited by another change.
-  await git(root, ["reset", "--hard", "-q", base]);
-  await mkdir(join(root, "changelog.d"), { recursive: true });
-  await writeFile(join(root, "changelog.d", "shared-name.md"), "- 新增: 增加示例能力。\n", "utf8");
-  await git(root, ["add", "."]);
-  await git(root, ["commit", "-qm", "seed fragment"]);
-  const seedHead = await git(root, ["rev-parse", "HEAD"]);
-  await writeFile(
-    join(root, "changelog.d", "shared-name.md"),
-    "- 新增: 增加另一项能力。\n",
-    "utf8"
+  const seeded = await commitEntry(initial + "\n- 修复: 修复旧问题。\n", "seed old entry");
+  const edited = await commitEntry(
+    initial + "\n- 修复: 修改旧问题。\n- 新增: 增加示例能力。\n",
+    "edit old entry"
   );
-  await git(root, ["add", "."]);
-  await git(root, ["commit", "-qm", "edit fragment"]);
-  const editHead = await git(root, ["rev-parse", "HEAD"]);
   await assert.rejects(
-    validateChange("feat(core): add example capability", seedHead, editHead, root, policyDir),
-    "an existing fragment must not be edited"
+    validateChange("feat: add feature", seeded, edited, root, policyDir),
+    "existing entries cannot be rewritten"
   );
 });
 

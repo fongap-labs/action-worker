@@ -59,7 +59,7 @@ Action Worker 不保留项目目录、不保留项目专属的测试映射，也
 
 具体的仓库名称不进入源码。仓库权限从一个仓库变量 `AW_REPOSITORY_POLICY` 读取；一个仓库可以被授予 `pr`、`task`、`release-source` 与 `release-target` 能力。
 
-## 3. PR
+## 3. 合并请求
 
 兜底入口是 `intake.yml` 的 `Pull requests` 作业。它扫描 `AW_REPOSITORY_POLICY` 中受管仓库的未关闭 PR，并为每个缺少结论的 PR 向 `handle-pr-dispatch.yml` 提交一个治理任务。业务仓库的 Actions 不是安全前提。
 
@@ -117,11 +117,11 @@ Action Worker 接收到任务后必须：
 
 `policies/execution.json` 定义了两个稳定的边界。
 
-### Control（控制域）
+### 控制域
 
 可以使用中央密钥（例如 AI Gateway 密钥），但不得执行 PR 代码。
 
-### Sandbox（沙箱）
+### 沙箱域
 
 可以执行 PR 代码、进行构建与测试，但绝不接收中央密钥或部署凭据。
 
@@ -229,7 +229,7 @@ Action Worker 不复制项目的测试实现，也不保留"仓库 X 必须运�
 
 迁移期的旧业务仓库 CI Runner 是需要移除的路径。它们只能缩减，不能成为新仓库的模板。
 
-## 7. AI Agent 运行时
+## 7. 智能体 运行时
 
 AI Agent 是 Action Worker 的通用动态能力单元。它不同于代码审查角色，也不绑定到某个模型。
 
@@ -315,7 +315,7 @@ rules/*.json
 
 这些文件保存审查范围、优先级、超时、恢复预算与规则；其中不包含模型名称。模型选择与治理规则不得成为两个权威。
 
-### 7.3 PR 治理中的 Agent
+### 7.3 合并请求中的智能体
 
 PR 计划首先做出确定性决定。只有当 `review` Agent 启用时，PR 才进入 AI Review。当 `review.enabled=false` 时，PR 仍然运行命名检查、CI Evidence、Change Record 与其他确定性门禁，并且绝不会因为 AI 不可靠而失败。
 
@@ -334,7 +334,7 @@ deep
 
 这些是审查路由，而不是全局的 Agent 类型。未来新增的审计类型（例如文档、合规或质量）只扩展审查路由及其规则，不引入新的全局模型变量。
 
-### 7.4 Writing 与其他 Agent
+### 7.4 写作与其他智能体
 
 Writing 与 Review 是同级的 Agent，而不是 Review 的一部分。Task Dispatch 把 Action Worker 的仓库变量作为运行时配置提供给可信的下游任务，因此 Writing Agent 读取同一份 `AW_AI_AGENT_CONFIG`，而不是维护第二套写作模型变量。
 
@@ -365,7 +365,7 @@ Planner、Critic、Research 与 Summary 等后续 Agent，遵循同样的原则�
 → 任务运行时只消费派生的模型值
 ```
 
-### 7.5 AI 端点与审查引擎
+### 7.5 模型端点与审查引擎
 
 Action Worker 只选择逻辑模型，并调用中央配置的兼容 AI 端点。它不保存供应商、密钥池、节点或模型族的回退。该端点目前可以由 AI Gateway 提供，但该产品并非 Action Worker 的架构依赖。
 
@@ -379,7 +379,7 @@ Action Worker 只选择逻辑模型，并调用中央配置的兼容 AI 端点�
 
 AI Agent 是可选的动态审查层，而不是门禁层。AI 发现、模型故障、审查引擎故障或"AI 不可用"，本身都不能使合并门禁失败。最终门禁只信任可重复的 PR Policy、Security Gate、CI Evidence、Release / Deploy Policy 与 provenance。任何 Agent 都不得改变权限边界、密钥边界、CI Evidence 的真实性要求或确定性门禁合同。
 
-## 8. Main Write Guard
+## 8. 主分支来源审计
 
 PR 合并之后，`main` 的每一次更新都经过同一个 Main Write Guard。它会重新查询 GitHub 上的当前事实，并证明当前 main SHA 来自一个通过了确定性门禁的已合并 PR。
 
@@ -395,7 +395,7 @@ validate-merge
 
 详细规则见 [07_MAIN_WRITE_GUARD.md](07_MAIN_WRITE_GUARD.md)。
 
-## 9. Task Dispatch
+## 9. 任务调度
 
 现有的 `run-task` 保持稳定。
 
@@ -475,7 +475,7 @@ gh run download <run-id> -R fongap-labs/action-worker -n task-log-<run-id>-1 -D 
 AW_ARTIFACT_KEY="$(cat ~/aw-artifact.key)" node scripts/task-state.ts open-log task-log/task-log.seal <owner/repository> <project> task.log
 ```
 
-## 10. 源码与 Release
+## 10. 源码与 发布
 
 源码与 CI 准入使用中央执行合同所产生、并由 `hasVerifiedCiEvidence` 检查的可验证证据。
 
@@ -526,7 +526,7 @@ contracts/release-manifest.json
 
 标签始终为 `<release-key>-v<semver>`。不存在针对裸 `v<semver>` 的兼容路径。
 
-## 11. Release 构建
+## 11. 发布 构建
 
 重型 Release 构建在 Action Worker 中执行，而不是在业务仓库的 Runner 上执行。
 
@@ -575,7 +575,7 @@ Action Worker 负责定时同步与校验：
 
 Action Worker 执行的审查引擎在 `policies/review.json` 中通过 `version` 与 `sha256` 固定。安装器只有在二进制的摘要既等于固定值、又与 Release 校验和文件一致时才接受它，因此被替换的 Release 资产无法为自身背书。切换到新的引擎版本，需要在一次经过评审的变更中同时更新这两个字段。
 
-## 13. Deploy
+## 13. 部署
 
 生产部署遵循与 Release Governance 相同的不可变源码边界，但部署执行不会发布 GitHub Release。
 
@@ -676,7 +676,7 @@ profiles/<repository-or-product>/
 
 项目专属的构建 / 测试 / 部署实现保留在业务仓库中；Action Worker 只保留中央治理、通用执行框架与 Runner 解析。Action Worker 检出并执行的业务仓库脚本，并不意味着业务仓库自身在运行重型 Runner 执行。
 
-## 15. CI
+## 15. 持续集成
 
 Action Worker 自身只有一个 CI：`validate-ci.yml`。
 

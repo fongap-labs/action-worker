@@ -1,4 +1,4 @@
-import { access, readFile, writeFile } from "node:fs/promises";
+import { access, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { isJsonRecord } from "./github-api.ts";
 import {
@@ -110,7 +110,6 @@ export async function detectContext(
   if (
     !isJsonRecord(release) ||
     typeof release.changelog_file !== "string" ||
-    typeof release.changelog_fragment_dir !== "string" ||
     !isJsonRecord(release.impact_patterns)
   ) {
     throw new CliError("ERROR: invalid release context policy.", 65);
@@ -157,12 +156,8 @@ export async function detectContext(
     }
   }
 
-  // Impact declarations come from the changelog entries a change adds: lines added to the
-  // changelog file and the content of each new changelog fragment.
+  // Impact declarations come from lines newly added to CHANGELOG.md.
   const hasChangelog = changedFiles.includes(release.changelog_file);
-  const fragmentFiles = changedFiles.filter((path) =>
-    path.startsWith(`${release.changelog_fragment_dir}/`)
-  );
   const sources: string[] = [];
   if (hasChangelog) {
     const diff = await runText(
@@ -177,13 +172,6 @@ export async function detectContext(
         .map((line) => line.slice(1))
         .join("\n")
     );
-  }
-  for (const path of fragmentFiles) {
-    // The release that assembles a version deletes its fragments; a deleted fragment declares
-    // nothing, so only the fragments that still exist in the checked-out change are read.
-    if (await pathExists(join(root, path))) {
-      sources.push(await readFile(join(root, path), "utf8"));
-    }
   }
   const additions = sources.join("\n").toLowerCase();
   for (const category of [
@@ -217,7 +205,7 @@ export async function detectContext(
     changed_files: changedFiles,
     project_types: [...projects].sort(),
     change_areas: [...areas].sort(),
-    changelog_changed: hasChangelog || fragmentFiles.length > 0,
+    changelog_changed: hasChangelog,
     declared_impacts: [...impacts].sort(),
     risk: highSignals ? "high" : mediumSignals ? "medium" : "low",
   };

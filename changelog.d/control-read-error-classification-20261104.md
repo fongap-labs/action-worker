@@ -1,3 +1,0 @@
-- 修复: Action Worker 中央 CI 的仓库读取授权预检区分 GitHub API 主限流、次级限流、凭据失效与真实权限拒绝，不再把所有 HTTP 403 误报为缺少 Commit Statuses Read。
-- 变更: 复用现有的 GitHubReader 限流分类及重试约束，保持单一范围受限的 GitHub App 读取凭据和独立的 AW_STATUS_TOKEN 状态发布权限。
-- 变更: 增加主限流不得重复请求、实际 403 权限拒绝、401 凭据失效及范围受限授权头的回归测试。

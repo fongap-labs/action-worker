@@ -33,7 +33,7 @@ node scripts/prepare-publication-keys.ts verify \
 
 脚本生成 **RSA-3072** 密钥对，以独占创建模式写文件，禁止覆盖已有密钥，拒绝把密钥生成到当前源码仓库中，不会打印密钥内容。POSIX 文件权限设置为 `0600`；Windows 还应检查 NTFS ACL，限制密钥目录仅当前账户可读。
 
-## 二、配置 GitHub
+## 二、配置 代码托管平台
 
 目标仓库：`fongap-labs/action-worker`。
 

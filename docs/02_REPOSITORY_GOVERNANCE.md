@@ -1,148 +1,123 @@
-# 仓库治理
+# 仓库治理规范
 
-Action Worker 维护受管 Fongap Labs 仓库可共享的仓库默认设置与合并治理边界。
+## 1. 仓库设置
 
----
+所有受管仓库使用中央默认设置。
 
-## 1. 机器权威
+### ❌ 错误做法 / 反面教材
 
-统一的 Repository Policy 位于：
+各仓库手动维护不同的合并方式。
 
+```text
+项目甲：允许合并提交
+项目乙：允许变基合并
 ```
+
+### ✅ 正确做法 / 规范范例
+
+从唯一策略文件统一下发。
+
+```text
 policies/repository.json
+  → 禁用合并提交与变基合并
+  → 启用压缩合并与合并后删除分支
 ```
 
-当前默认值：
+## 2. 应用权限
 
-```
-Issues                  开启
-Projects                关闭
-Wiki                    关闭
-Discussions             关闭
+共享设置仅由中央授权写入。
 
-Merge commits           关闭
-Squash merging          开启
-Rebase merging          关闭
-Auto-merge              关闭
-Update PR branches      开启
-Delete head branches    开启
+### ❌ 错误做法 / 反面教材
 
-Web commit sign-off     关闭
-Squash title            PR 标题（PR_TITLE）
-Squash message          空（BLANK）
+使用普通控制令牌修改设置。
+
+```text
+AW_CONTROL_TOKEN → 修改仓库设置
 ```
 
-Repository Policy 不包含仓库名称，只描述共享设置。
+### ✅ 正确做法 / 规范范例
 
----
+使用独立管理凭据，缺失即失败。
 
-## 2. 应用方式
-
-`policies/repository.json` 是受管仓库 Repository Settings 的唯一共享权威。
-
-Action Worker 自动应用它，无需手动运行：
-
-```
-push 到 main（repository policy / ruleset policy / apply 脚本或工作流变更）
-每天一次定时运行（纠正有人在仓库设置页面手动改动造成的漂移）
-  → 应用到 Action Worker 自身
-  → 应用到 AW_REPOSITORY_POLICY 中每个具有 pr 能力的仓库
+```text
+AW_ADMIN_TOKEN → 应用 policies/repository.json
 ```
 
-两种运行都使用独立的 `AW_ADMIN_TOKEN`，绝不使用 `AW_CONTROL_TOKEN`。脚本以幂等方式应用设置，并核对 GitHub 返回的结果；ruleset 已是最新时只打印 `already current`，不做写入。
+合并前只读预览：
 
-需要在合并前预览一项策略变更时，在本地运行：
 ```bash
 node scripts/apply-repository-settings.ts <owner/name> true
 ```
-它只打印将要应用的设置与 rulesets，不调用 GitHub。
 
-受管仓库不得长期保留与中央 Repository Policy 不一致的设置。项目级的例外必须先有明确的治理理由，然后要么修改共享规则，要么记录一个例外边界。
+## 3. 合并门禁
 
----
+仅中央检查有权批准合并。
 
-## 3. 合并权限
+### ❌ 错误做法 / 反面教材
 
-共用治理的目标门禁流程：
+用智能体审查或本地状态代替门禁。
 
-```
-Security Gate ───────────┐
-Central CI Evidence ─────┤
-PR 确定性策略 ───────────┼→ validate-merge → 合并
-                          │
-                          └→ 门禁之后的 AI Review（仅供参考）
+```text
+人工评价通过 → 直接合并
 ```
 
-`validate-merge` 是**唯一的合并权限**。Action Worker 在当前 PR head 上直接发布它，前提是确定性的 Security、CI Evidence 与 PR Policy 检查全部通过；AI Review 不是它的输入，也不得改变其结果。
+### ✅ 正确做法 / 规范范例
 
-被取消的中央 CI 运行（被同一 head 的较新运行取代，或 PR 已关闭）不写入 `CI Evidence` 结论，结论由取代它的运行给出。自动发布 PR 的门禁失败时，发布步骤先连续读取三次，仍失败则结束并保持该 PR 开放，不关闭它。
+全部确定性证据成功后才合并。
 
-业务仓库不再创建 `validate-merge` 检查。公开仓库的 ruleset 直接要求中央 `validate-merge` 状态；Free 套餐的私有仓库没有等效的平台硬门禁，但 Main Write Guard 仍要求同一个中央状态，因此两类仓库使用相同的治理事实。
-
-业务仓库中 PR 关闭时的本地 `cancel-pr-work`，只是迁移期的实时加速手段；中央 Intake / 对账必须保证，即使业务仓库的 Actions 不可用，中央控制平面仍能识别并结束过期的工作。
-
-### 3.1 私有仓库的手动合并提醒
-
-未通过 PR Governance 的 PR，中央治理会自动添加红色 `merge-blocked` 标签，并在 PR 的治理评论中显示 **DO NOT MERGE**，要求当前提交的 `PR Governance`、`CI Evidence` 和 `validate-merge` 全部通过之后才允许合并。只有再次读取 PR 当前 head 并确认其三项中央检查均成功，才会移除标签。较旧工作流在 PR head 已变更时不得修改评论或标签。
-
-**标签和评论只是显式提醒，不是 GitHub 原生强制保护。** 私有仓库若缺乏可执行的分支规则，GitHub 仍可能允许有人点击 Merge；不能将上述视觉提示误认为合并已被物理拦截。即使标签同步失败，提交状态及 Main Write Guard 仍然是权威。依赖升级（包括 Dependabot）同样必须走完整门禁。
-
----
-
-## 4. GitHub 原生强制
-
-仓库策略与 GitHub 原生保护是两层：
-
-```
-Repository Policy
-├─ 功能开关
-├─ 合并方式
-└─ 分支清理
-
-GitHub 原生保护
-├─ 要求 pull request
-├─ 要求状态检查
-├─ 保护 main
-└─ 限制绕过
+```text
+安全校验 + 中央持续集成证据 + 合并请求策略
+                  ↓
+            validate-merge
+                  ↓
+                合并
 ```
 
-受管公开仓库的 repository rulesets 由 Action Worker 集中管理，权威文件为 `policies/rulesets.json`。它目前管理 `Protect Main Branch` 与 `Protect Legacy Branches`；业务仓库**不得手动维护第二份规则定义**。Repository Settings 与 rulesets 都由 `apply-repository-settings.yml` 使用 `AW_ADMIN_TOKEN` 应用。
+被取消或过期的运行不得冒充成功证据。
 
-原生 ruleset / 分支保护取决于仓库所在的 GitHub 套餐与连接权限。**GitHub Free 组织只为公开仓库提供 rulesets 与保护分支**；对于私有仓库，这是平台限制。文档、审计与自动化绝不能声称私有仓库具备与公开仓库相同的强制 `main` 保护。私有仓库仍走中央 PR Governance / CI Evidence / validate-merge 流程；平台目前可能在写入之前缺少强制力，但 Main Write Guard 会在写入之后，将任何缺少中央合并权限的 main SHA 隔离。
+## 4. 平台保护
 
-中央 `validate-merge` 合同在每个受管仓库中保持不变；平台原生保护只是在可用时额外提供的一层强制。
+平台保护不可用时仍执行中央规则。
 
----
+### ❌ 错误做法 / 反面教材
 
-## 5. Main Write Guard 引用
+把提醒标签当作平台强制保护。
 
-Main Write Guard 的完整规则、触发时机、证明逻辑、失败后果、业务仓库桥接与故障排查见 `07_MAIN_WRITE_GUARD.md`。
-
-本文件仅记录仓库治理层面的接口：
-- 公开仓库：ruleset 在写入前拒绝直接 push；Main Write Guard 在写入后二次隔离
-- Free 套餐私有仓库：平台允许直接 push，Main Write Guard 隔离该 SHA，使其无法进入正式输出链（Release/Deploy/Publication/特权执行）
-
----
-
-## 6. 变更规则
-
-当共享默认值发生变化时，应同时修改：
-
+```text
+merge-blocked 标签 → 已禁止合并
 ```
+
+### ✅ 正确做法 / 规范范例
+
+区分写入前保护与写入后隔离。
+
+```text
+公开仓库 → 原生保护 + 中央门禁 + 主分支来源审计
+私有仓库 → 中央门禁 + 主分支来源审计
+```
+
+免费组织的私有仓库可能缺少强制分支保护。任何未经证明的主分支提交不得进入发布或部署链。
+
+## 5. 规则修改
+
+策略、测试、文档必须同时更新。
+
+### ❌ 错误做法 / 反面教材
+
+直接在单仓库修改共用规则。
+
+```text
+业务仓库设置 → 新增全局合并例外
+```
+
+### ✅ 正确做法 / 规范范例
+
+只修改中央权威及相应测试。
+
+```text
 policies/repository.json
-→ 治理测试
-→ 本文件
+  → 治理合同测试
+  → docs/02_REPOSITORY_GOVERNANCE.md
 ```
 
-仅针对某个项目的仓库例外，必须有明确的理由，并且不得被复制到第二份通用策略中。
-
----
-
-## 7. 关键文档速查
-
-| 需求 | 读哪份 |
-|------|--------|
-| 完整 Main Write Guard 规则 | `07_MAIN_WRITE_GUARD.md` |
-| 业务仓库桥接模板与事件表 | `05_INTEGRATION_GUIDE.md` §10.1 |
-| Release/Deploy 运维操作 | `06_RELEASE_DEPLOY_GUIDE.md` |
-| 共用治理宪法与语言规则 | `01_SHARED_GOVERNANCE.md` |
+不得创建第二套仓库治理规则；主分支证明详见 `07_MAIN_WRITE_GUARD.md`。

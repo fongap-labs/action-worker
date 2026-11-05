@@ -17,7 +17,7 @@
 
 公开仓库与私有仓库遵循相同的规则。
 
-## 2. Action Worker 负责的内容
+## 2. 中央工作器 负责的内容
 
 Action Worker 负责：
 
@@ -67,7 +67,7 @@ Action Worker 负责：
 
 当边界发生变化时，先修改合同、策略或回归测试，再修改实现。
 
-## 5. CI
+## 5. 持续集成
 
 能够从仓库外部运行的测试，保存在 Action Worker 的测试包中（[TEST_PACKS.md](TEST_PACKS.md)）；其余测试保留在业务仓库中。所有测试默认都在 Action Worker 的沙箱中运行。
 
@@ -82,7 +82,7 @@ Action Worker 负责：
 
 如果 GitHub 平台要求目标仓库自行创建必需检查，可以保留一个极薄的 `validate-merge` 桥接。该桥接不运行任何产品测试，只负责连接中央的 `CI Evidence` 与 `PR Governance`。
 
-## 6. Runner
+## 6. 运行器
 
 项目代码不得绑定具体的 Runner 基础设施。项目只声明 `runner_profile`；Action Worker 的 Runner 策略负责解析为实际的 GitHub 托管或 self-hosted 后端。
 
@@ -108,7 +108,7 @@ Security Gate 独立于 AI Review，至少阻止以下内容：新增的高置�
 
 控制逻辑优先使用 TypeScript 编写。Shell 只能作为简短的 Runner 胶水代码，或明确的外部引导边界。
 
-## 8. AI 与门禁
+## 8. 人工智能 与门禁
 
 AI 负责审查、建议与发现问题；它既不决定权限边界，也不决定合并门禁。AI Review 在确定性 PR 门禁结论之后运行，无论严重程度如何，每个 AI 发现都只是仅供参考的证据。AI Review 超时、模型不可用或审查引擎故障，既不能改变门禁，也不能延迟门禁的结论。
 
@@ -116,13 +116,13 @@ AI 负责审查、建议与发现问题；它既不决定权限边界，也不�
 
 Agent 不得通过重新运行、更换模型、更换 Runner 或调整任何审查参数来改变确定性门禁。
 
-## 9. Main Write Guard
+## 9. 主分支来源审计
 
 每个进入正式 Release 或 Deploy 的源 SHA，都必须先通过 Main Write Guard。名为 `main` 的分支本身不构成可信来源的证明。
 
 直接 push、未知写入，或无法关联到已通过门禁的已合并 PR 的 SHA，都失败即关闭。
 
-## 10. Release / Deploy
+## 10. 发布与部署
 
 业务仓库负责项目脚本；Action Worker 负责中央执行、凭据与治理。
 

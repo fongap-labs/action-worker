@@ -1,4 +1,4 @@
-# 提案 AW-008：CHANGELOG 自动生成与按仓库发版
+# 提案：变更记录与自动发布
 
 状态：**已决定：方案 C**（2026-10-23，owner 确认）。方案 C = 中文 CHANGELOG 与六类类别（本提案选项 B 的语言与分类）+ 中央生成、经 PR 合入、中央打 tag 与 Release、版本只来自发布输入或中央自动计算（本提案选项 A 的发布部分）。
 
@@ -10,7 +10,7 @@
 - 未验证：阶段一尚未对真实目标仓库端到端运行。它依赖目标仓库的 PR 门禁、Main Write Guard 与中央 CI 对合并提交给出证明，这些只能在真实发布中验证。
 - 已实施：条目文件（`changelog.d/`）替换 `CHANGELOG.md merge=union`，包括校验（`scripts/validate-change-record.ts`）、汇总函数（`scripts/changelog-release.ts` 的 `promoteUnreleased` 接受条目文件）、`.gitattributes` 的改动、文档与测试。
 
-## 方案 C 的默认决定
+## 第三方案 的默认决定
 
 以下默认值由实施时选定，owner 可以修改，修改后需同步更新 `policies/release.json`、`docs/04_CHANGELOG_CONVENTIONS.md` 与对应测试。
 
@@ -25,7 +25,7 @@
 
 状态：已完成。此前 `[Unreleased]` 中的英文条目（action-worker 曾有 250 条）已逐条改写为中文，并归入六类类别，经各仓库的 CHANGELOG 改写 PR 合入。2026-10-23 核对 7 个仓库在 `main` 上的 `[Unreleased]`，均无英文条目。没有采用"历史条目"例外。
 
-## 两阶段发布（阶段一已实施）
+## 两阶段发布
 
 现状（事实）：`scripts/publish-release.ts` 在发布时直接在目标仓库默认分支的当前 HEAD 上创建 tag 与 Release（约第 463–530 行），不写 CHANGELOG。Release 说明取清单的 `release_notes`，为空时只有出处信息。
 
@@ -49,7 +49,7 @@
 
 该流程需要新的状态与等待机制，以及对 GitHub API 的实际调用验证，因此单独立项实施。
 
-## 条目文件：替换 `merge=union`（已实施）
+## 条目文件：替换 自动合并策略
 
 问题：`CHANGELOG.md` 的 `[Unreleased]` 顶部是所有 PR 都会改的同一段行。`merge=union` 只在本地 git 合并时生效，GitHub 网页端不执行它，因此 PR 仍报告冲突。即使在本地合并，两边都加入相同行时，union 也会保留两份，形成重复条目。PR #986 同时遇到了这两个问题。
 
@@ -91,7 +91,7 @@
 
 此外，`docs/07_MAIN_WRITE_GUARD.md` 规定：无法证明来自合法 PR 合并的 `main` SHA 视为不可信，不得用于发布或部署。因此，直接向 `main` 提交版本号或 CHANGELOG 更新，会使该 SHA 失去发布资格。
 
-## 当前中央机制（事实）
+## 当前中央机制
 
 - `scripts/publish-release.ts` 创建 tag 与 GitHub Release（约第 480–520 行），但不写 CHANGELOG。
 - `scripts/compute-release-version.ts` 依据 Conventional Commits 计算版本，只接受 11 种类型的英文标题。
@@ -100,7 +100,7 @@
 
 ## 选项
 
-### 选项 A（推荐）：保持治理不变，由中央生成 CHANGELOG
+### 第一方案：中央生成变更记录
 
 - 在中央发布流程中，依据 `[Unreleased]` 与已合并 PR 标题生成版本小节，并通过 PR 合入目标仓库（因为直接写 `main` 不可信）。
 - 版本仍只来自发布启动时输入或自动计算。
@@ -108,7 +108,7 @@
 - 实施范围：`publish-release.ts`、`package-release-build.ts`、`release-app.yml`，以及对应合同测试。
 - 业务仓库只需：激活 `core.hooksPath`（或在 README 中给出一次性命令）、补齐 ai-gateway 钩子、为 delta-suite 增加指向中央文档的 `CONTRIBUTING.md`。
 
-### 选项 B：中文 Keep a Changelog，按仓库独立发版（用户请求的方向）
+### 第二方案：按仓库独立发布
 
 实施本选项必须同时推翻以下已有规则，每一项都需要 owner 明确批准：
 
@@ -120,14 +120,14 @@
 
 按选项 B 完成后，业务仓库的 `release.yml` 需要：读取 `[Unreleased]`，生成中文小节，开 release PR 回写版本号，合并后在合并提交上打 tag，并创建 GitHub Release。
 
-## 需要 owner 决定的问题（已于 2026-10-23 决定为方案 C，上文记录实际取值）
+## 需要 维护者 决定的问题
 
 1. 选择选项 A 还是选项 B。
 2. 若选 B：是否接受 §B 中的 5 项规则变更，以及撤销业务仓库的中央发布能力？
 3. 若选 B：版本回写是否采用 release PR（推荐），还是只打 tag、不回写版本号？
 4. 若选 B：中文 CHANGELOG 的分类是否要加入 `breaking` / `security` / `migration` 属性，还是完全用六类代替？
 
-## 实施顺序（选项确定后）
+## 实施顺序
 
 按 `docs/GOVERNANCE_CHANGE_CHECKLIST.md` 执行，单独一个 PR，不得与业务仓库改动混在一起：
 

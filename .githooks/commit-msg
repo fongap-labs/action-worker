@@ -1,6 +1,6 @@
 #!/bin/sh
 # Conventional Commits subject guard (.githooks/commit-msg).
-# The authority for the eleven types and the subject format is
+# The authority for the three types and the subject format is
 # fongap-labs/action-worker docs/04_CHANGELOG_CONVENTIONS.md. This script only
 # gives the author fast local feedback; the central PR gate stays the authority.
 # Usage: commit-msg <message-file> | commit-msg <subject> [...]
@@ -8,7 +8,7 @@
 
 set -u
 
-TYPES="build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test"
+TYPES="feat|fix|chore"
 # (type|)(scope|)(!|): subject — the scope is one word without spaces.
 SUBJECT_RE="^($TYPES)(\([^ ()]+\))?(!)?: .+"
 
@@ -19,12 +19,6 @@ if [ "$#" -ge 1 ] && [ -f "$1" ]; then
 else
   subject="$*"
 fi
-
-case "$subject" in
-  Merge* | Revert*)
-    exit 0
-    ;;
-esac
 
 if [ -z "$subject" ]; then
   echo "commit-msg: empty subject; use 'type(scope): summary' (fongap-labs docs/04_CHANGELOG_CONVENTIONS.md)." >&2

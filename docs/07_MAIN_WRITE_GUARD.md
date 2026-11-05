@@ -1,4 +1,4 @@
-# Main Write Guard
+# 主分支写入审计
 
 本文件定义受管仓库 `main` 分支写入来源的边界。
 
@@ -39,7 +39,7 @@ main 更新之后
 
 ---
 
-## 3. 合法的 main 写入
+## 3. 合法的 主分支 写入
 
 Main Write Guard 只依据 GitHub 上的当前事实重新验证；它从不信任 commit message、调用方参数或本地状态。
 
@@ -76,7 +76,7 @@ PR 的合并结果与 main 的更新一致
 
 ---
 
-## 4. 不合法的 main 写入
+## 4. 不合法的 主分支 写入
 
 如果 Main Write Guard 无法证明当前 `main` SHA 来自合法的 PR 合并，该 SHA 被标记为不可信。
 
@@ -190,7 +190,7 @@ Action Worker 重新查询 GitHub 事实，并自行形成 `Main Write Guard` �
 
 ---
 
-## 8. AI Review
+## 8. 人工智能 审查
 
 AI Review 不属于 Main Write Guard，也不能参与其结论。
 
@@ -240,6 +240,6 @@ AI Review 不得拥有 main 写入、合并、Release 或 Deploy 权限。
 
 - 语言与文档分层：`01_SHARED_GOVERNANCE.md` §2
 - 仓库治理与合并权限：`02_REPOSITORY_GOVERNANCE.md` §3
-- 业务仓库桥接模板：`05_INTEGRATION_GUIDE.md` §10.1
+- 业务仓库桥接模板：`05_INTEGRATION_GUIDE.md` §8
 - Release/Deploy 下游要求：`06_RELEASE_DEPLOY_GUIDE.md` §3
-- 共用治理宪法：`01_SHARED_GOVERNANCE.md` §5
+- 共用治理宪法：`01_SHARED_GOVERNANCE.md` §3

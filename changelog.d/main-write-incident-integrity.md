@@ -1,1 +1,0 @@
-- fix: Keep untrusted main writes visible as private source-owned incidents and fail closed on privileged operations until explicit resolution.

@@ -19,7 +19,7 @@ const sha = (seed: string): string =>
     .padEnd(40, "0")
     .slice(0, 40);
 
-test("commit subjects classify under the eleven change types", () => {
+test("commit subjects recognize exactly feat, fix and chore", () => {
   assert.deepEqual(classifyCommit("feat: add repository allowlist validation"), {
     type: "feat",
     attributes: [],
@@ -31,6 +31,8 @@ test("commit subjects classify under the eleven change types", () => {
     summary: "stop retrying a disabled provider",
   });
   assert.equal(classifyCommit("update files"), null);
+  assert.equal(classifyCommit("docs: documentation"), null);
+  assert.equal(classifyCommit("perf: optimize latency"), null);
   assert.deepEqual(classifyCommit("chore: update work metrics (#926)"), {
     type: "chore",
     attributes: [],
@@ -68,11 +70,11 @@ test("merge subjects skip the classification without failing", () => {
 
 test("the bump follows CHANGELOG_CONVENTIONS §6", () => {
   assert.equal(bumpForChanges([]), null);
-  assert.equal(bumpForChanges([{ type: "docs", attributes: [] }]), null);
+  assert.throws(() => bumpForChanges([{ type: "docs", attributes: [] }]));
   assert.equal(bumpForChanges([{ type: "chore", attributes: [] }]), null);
   assert.equal(bumpForChanges([{ type: "fix", attributes: [] }]), "patch");
-  assert.equal(bumpForChanges([{ type: "perf", attributes: [] }]), "patch");
-  assert.equal(bumpForChanges([{ type: "revert", attributes: [] }]), "patch");
+  assert.throws(() => bumpForChanges([{ type: "perf", attributes: [] }]));
+  assert.throws(() => bumpForChanges([{ type: "revert", attributes: [] }]));
   assert.equal(bumpForChanges([{ type: "feat", attributes: [] }]), "minor");
   assert.equal(
     bumpForChanges([
@@ -83,7 +85,7 @@ test("the bump follows CHANGELOG_CONVENTIONS §6", () => {
   );
   assert.equal(bumpForChanges([{ type: "feat", attributes: ["breaking"] }]), "major");
   // CHANGELOG_CONVENTIONS §6: a change with an attribute is release-worthy even at a low-value type.
-  assert.equal(bumpForChanges([{ type: "chore", attributes: ["security"] }]), "patch");
+  assert.equal(bumpForChanges([{ type: "chore", attributes: ["security"] }]), null);
 });
 
 test("nextVersion applies SemVer, including the 0.x minor rule", () => {
@@ -123,7 +125,7 @@ test("commit lists keep a hard record budget", () => {
   assert.throws(() => commitRecordsFromList([page, page, page, page]), /span reader accepts/);
 });
 
-test("a span with an unparsable subject fails closed and names the offender", () => {
+test("a span with a nonstandard subject or unsupported type fails closed", () => {
   assert.throws(
     () =>
       changesFromSpan([
@@ -131,6 +133,10 @@ test("a span with an unparsable subject fails closed and names the offender", ()
         { sha: sha("d"), message: "fix: a proper one" },
       ]),
     /not Conventional Commits titles.*misc changes/
+  );
+  assert.throws(
+    () => changesFromSpan([{ sha: sha("e"), message: "docs: update readme" }]),
+    /not Conventional Commits/
   );
   assert.deepEqual(changesFromSpan([{ sha: sha("e"), message: "Merge branch 'x'" }]), []);
 });
@@ -154,7 +160,7 @@ test("a first release reads the whole branch and proposes the smallest version",
     "repos/fongap-labs/delta/tags?per_page=100&page=1": [],
     "repos/fongap-labs/delta/commits?sha=main&per_page=100&page=1": [
       { sha: sha("1"), commit: { message: "feat: the first capability" } },
-      { sha: sha("2"), commit: { message: "docs: the readme" } },
+      { sha: sha("2"), commit: { message: "chore: update the readme" } },
     ],
   });
   const span = await loadReleaseSpan(reader, {

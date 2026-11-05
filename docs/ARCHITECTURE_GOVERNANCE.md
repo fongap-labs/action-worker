@@ -113,7 +113,7 @@ if product == ...
 
 项目的测试、构建与部署命令，可以存放在版本受控的执行清单或项目脚本中。
 
-## 5. 执行清单（Execution Manifest）
+## 5. 执行清单
 
 业务仓库在 `.github/execution-manifest.json` 中描述自身的执行需求；字段、令牌替换与禁止声明由 `EXECUTION_CONTRACT.md` §6 定义。
 
@@ -121,23 +121,23 @@ if product == ...
 
 ## 6. 信任域
 
-### Control（控制域）
+### 控制域
 
 允许：读取 GitHub 元数据、执行 Validate / Inspect / Plan、运行 AI Agent、读取 Repository Policy、写回状态，以及受控的 API 操作。
 
 禁止直接执行不可信的 PR 代码。
 
-### Sandbox（沙箱）
+### 沙箱域
 
 允许：检出不可变的源 SHA，运行项目的测试 / 构建 / 验证，并产生产物与证据。
 
 禁止：生产密钥、中央管理令牌、不必要的跨仓库写权限，以及直接写入生产环境。
 
-### Privileged（特权域）
+### 特权域
 
 仅用于确实需要生产凭据、私有网络或高权限资源的受控执行。特权任务失败即关闭，绝不能因为目标 Runner 不可用而降级到较低的信任级别。
 
-## 7. CI 与 PR 治理
+## 7. 持续集成 与 合并请求 治理
 
 项目测试是产品规格的一部分。能够从仓库外部运行的测试，保存在 Action Worker 的测试包中（[TEST_PACKS.md](TEST_PACKS.md)）；其余测试保留在业务仓库中。所有测试都在 Action Worker 的沙箱中运行：
 
@@ -179,7 +179,7 @@ Intake 的 PR 对账对于相同的 `repository + PR + head SHA` 必须幂等。
 
 公开仓库的 GitHub ruleset 直接要求 Action Worker 发布的中央 `validate-merge` 状态；业务仓库不再为同名检查启动本地 Runner。对于 Free 套餐的私有仓库，Main Write Guard 事后将同一中央状态作为来源证明执行。
 
-## 8. Release
+## 8. 发布
 
 项目的构建、打包与部署脚本保留在项目仓库中；重型执行发生在 Action Worker。
 
@@ -197,7 +197,7 @@ Intake 的 PR 对账对于相同的 `repository + PR + head SHA` 必须幂等。
 
 业务仓库不持有目标分发仓库的写入凭据。迁移期遗留的业务仓库产物路径只能缩减，不得发展为新的长期架构。
 
-## 9. Deploy
+## 9. 部署
 
 生产部署使用同一执行合同：
 
@@ -213,7 +213,7 @@ Intake 的 PR 对账对于相同的 `repository + PR + head SHA` 必须幂等。
 
 业务仓库拥有自己的部署脚本，但不拥有生产密钥或 Runner 映射。当部署需要私有网络、SSH、Tailscale 或其他生产访问时，它可以解析为受信任的 self-hosted Runner；业务仓库仍只声明通用的 Runner Profile 或能力请求。
 
-## 10. Runner
+## 10. 运行器
 
 业务仓库不得写明实际的镜像（如 `ubuntu-24.04`）、`self-hosted`、Runner 标签、Runner 组、主机名或云实例名。
 
@@ -221,7 +221,7 @@ Intake 的 PR 对账对于相同的 `repository + PR + head SHA` 必须幂等。
 
 Self-hosted 是正式保留的后端，而不是某个项目的特例。
 
-## 11. AI Agent
+## 11. 智能体
 
 AI Agent 是一种通用的动态能力。它不拥有权限边界，也不拥有合并门禁。
 
@@ -231,7 +231,7 @@ AI Review 负责审查、建议与发现问题。它必须在确定性 PR 门禁
 
 真正的门禁阈值由可重复的 CI、PR Policy、Security Gate、Release / Deploy Policy 与 provenance 决定。Agent 可以参与规划、分诊、审查、写作等任务，但不能改变密钥边界、绕过能力授予或 CI Evidence、改变 Runner 信任级别，或降低门禁。
 
-## 12. Main Write Guard
+## 12. 主分支来源审计
 
 `validate-merge` 是 `main` 之前的合并权限；Main Write Guard 是 `main` 更新之后的来源证明权限。
 

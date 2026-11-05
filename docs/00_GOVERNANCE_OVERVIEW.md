@@ -1,76 +1,72 @@
-# Fongap Labs 治理全景（一页纸）
+# 治理入口
 
-## 权威金字塔
+## 1. 权威顺序
 
-```
-机器合同 / 策略 / 规则
-        ↓
-Action Worker 共用治理
-        ↓
-项目架构 / 项目边界
-        ↓
-项目实现文档
-        ↓
-README / 示例
+共用规则只在中央维护。
+
+### ❌ 错误做法 / 反面教材
+
+让项目文件覆盖组织规则。
+
+```text
+项目规范 → 覆盖中央门禁
 ```
 
-冲突时按上述顺序裁决；完整裁决规则见 `01_SHARED_GOVERNANCE.md` §5。
+### ✅ 正确做法 / 规范范例
 
----
+按机器合同与中央规则裁决。
 
-## 核心流程
-
-```
-PR → Notify Bridge → PR Governance (Security / CI Evidence / PR 策略) → validate-merge → 合并
-                                              ↓
-                                        门禁后 AI Review（仅参考）
-
-main push → Intake → Central CI → Main Write Guard → 可信 main SHA
-                                                      ↓
-                                              Release / Deploy / Task / Publication 均需可信 SHA
+```text
+机器合同 → 共用规范 → 项目边界 → 项目说明
 ```
 
-- **Security Gate**：确定性检查，覆盖公开/私有仓库，硬边界
-- **validate-merge**：唯一合并权限，AI Review 不参与
-- **Main Write Guard**：所有受管仓库共用的 main 来源硬边界；无法证明来自合法 PR 合并的 SHA 视为不可信，拒绝 Release/Deploy/Publication/特权执行
+详见 `01_SHARED_GOVERNANCE.md`。
 
----
+## 2. 合并与发布
 
-## 语言与文档分层
+无可信证据不得进入正式执行链。
 
-唯一权威见 `01_SHARED_GOVERNANCE.md` §2：机器读取文档用英文，人类阅读文档用中文，工程产出（PR 标题、代码注释、工作流、日志）用英文，CHANGELOG 条目用中文；例外见该节。
+### ❌ 错误做法 / 反面教材
 
----
+审查建议替代合并许可。
 
-## 关键文档速查
-
-| 需求 | 读哪份 |
-|------|--------|
-| 新仓库接入最小配置 | `05_INTEGRATION_GUIDE.md` §2–4 |
-| 命名变量/Secret/工作流 | `03_NAMING_CONVENTIONS.md` |
-| 写 PR 标题/CHANGELOG | `04_CHANGELOG_CONVENTIONS.md` |
-| 发布/部署手动操作 | `06_RELEASE_DEPLOY_GUIDE.md` §1–3 |
-| Main Write Guard 失败怎么办 | `06_RELEASE_DEPLOY_GUIDE.md` §3（对策）；后果见 `07_MAIN_WRITE_GUARD.md` §4 |
-| 修改共用规则清单 | `GOVERNANCE_CHANGE_CHECKLIST.md` |
-| 术语表（英文键+中文解释） | `TERMINOLOGY.md` |
-
----
-
-## 机器执行闭环
-
-```
-contracts/   输入输出合同
-policies/    确定性策略
-rules/       AI 审查策略
-.github/actions/  合并执行
-workflows/   编排
-tests/       治理回归测试
+```text
+智能体审查 → 直接发布
 ```
 
-完整闭环说明见 `01_SHARED_GOVERNANCE.md` §7。
+### ✅ 正确做法 / 规范范例
 
----
+中央检查通过后再证明主分支。
 
-## 平台能力边界
+```text
+安全检查 + 持续集成证据 + 合并请求策略
+          → validate-merge → 合并
+          → 主分支来源证明 → 发布/部署
+```
 
-公开仓库、私有仓库与平台功能缺失的完整边界见 `01_SHARED_GOVERNANCE.md` §8。核心结论：平台功能缺失永远不能成为绕过中央门禁的理由。
+## 3. 文档查阅
+
+按任务读取唯一权威文件。
+
+### ❌ 错误做法 / 反面教材
+
+复制多个版本的共用规范。
+
+```text
+业务仓库甲/命名规范.md
+业务仓库乙/命名规范.md
+```
+
+### ✅ 正确做法 / 规范范例
+
+统一引用中央文档。
+
+```text
+命名 → 03_NAMING_CONVENTIONS.md
+变更 → 04_CHANGELOG_CONVENTIONS.md
+接入 → 05_INTEGRATION_GUIDE.md
+发布 → 06_RELEASE_DEPLOY_GUIDE.md
+主分支 → 07_MAIN_WRITE_GUARD.md
+```
+
+完整索引见 `README.md`。
