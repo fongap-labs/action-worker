@@ -11,6 +11,10 @@ export type ConfigAuditSummary = {
   public_repositories: number;
   private_repositories: number;
   source_manifests: number;
+  deploy_source_manifests: number;
+  declared_deploy_secret_names: number;
+  declared_deploy_variable_names: number;
+  deploy_policy_status: "not-verified";
   declared_secret_names: number;
   declared_variable_names: number;
   variable_policy_status: "not-defined-by-task-secret-policy";
@@ -28,6 +32,8 @@ const repositoryPattern = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
 const secretNamePattern = /^[A-Z][A-Z0-9_]*$/;
 const declarationPattern =
   /^projects\/([A-Za-z0-9][A-Za-z0-9_.-]*)\/\.(secrets|vars)\.(required|allowed)$/;
+const deployDeclarationPattern =
+  /^(?:projects\/([A-Za-z0-9][A-Za-z0-9_.-]*)\/|\.github\/)deploy\.(secrets|vars)\.(required|allowed)$/;
 
 export function parseSecretNames(input: string): { names: string[]; invalid: number } {
   const names = new Set<string>();
@@ -52,6 +58,18 @@ export function sourceManifest(
   if (!match?.[1] || !match[2] || !match[3]) return null;
   return {
     project: match[1],
+    dataClass: match[2] === "secrets" ? "secret" : "variable",
+    kind: match[3],
+  };
+}
+
+export function deploySourceManifest(
+  path: string
+): { project: string; dataClass: "secret" | "variable"; kind: string } | null {
+  const match = deployDeclarationPattern.exec(path);
+  if (!match?.[2] || !match[3]) return null;
+  return {
+    project: match[1] ?? "__repository__",
     dataClass: match[2] === "secrets" ? "secret" : "variable",
     kind: match[3],
   };
@@ -118,6 +136,10 @@ export async function auditSources(
     public_repositories: 0,
     private_repositories: 0,
     source_manifests: 0,
+    deploy_source_manifests: 0,
+    declared_deploy_secret_names: 0,
+    declared_deploy_variable_names: 0,
+    deploy_policy_status: "not-verified",
     declared_secret_names: 0,
     declared_variable_names: 0,
     variable_policy_status: "not-defined-by-task-secret-policy",
@@ -157,23 +179,41 @@ export async function auditSources(
     const entries = tree.tree as unknown[];
     const projects = new Map<string, Set<string>>();
     const variableProjects = new Map<string, Set<string>>();
+    const deploySecretProjects = new Map<string, Set<string>>();
+    const deployVariableProjects = new Map<string, Set<string>>();
     for (const entry of entries) {
       if (!isJsonRecord(entry) || entry.type !== "blob") continue;
       const path = getText(entry, "path");
       const manifest = sourceManifest(path);
-      if (!manifest) continue;
+      const deployment = deploySourceManifest(path);
+      if (!manifest && !deployment) continue;
+      const declaration = manifest ?? deployment;
+      if (!declaration) continue;
       const blobSha = getText(entry, "sha");
       if (!/^[a-f0-9]{40}$/.test(blobSha)) {
         throw new CliError("Configuration audit blob identity is invalid.", 65);
       }
       const value = await reader.get(`repos/${repository}/git/blobs/${blobSha}`);
       const parsed = parseSecretNames(decodeBlob(value));
-      const target = manifest.dataClass === "secret" ? projects : variableProjects;
-      const names = target.get(manifest.project) ?? new Set<string>();
+      const target = deployment
+        ? declaration.dataClass === "secret"
+          ? deploySecretProjects
+          : deployVariableProjects
+        : declaration.dataClass === "secret"
+          ? projects
+          : variableProjects;
+      const names = target.get(declaration.project) ?? new Set<string>();
       for (const name of parsed.names) names.add(name);
-      target.set(manifest.project, names);
+      target.set(declaration.project, names);
       summary.source_manifests++;
+      if (deployment) summary.deploy_source_manifests++;
       summary.invalid_declarations += parsed.invalid;
+    }
+    for (const names of deploySecretProjects.values()) {
+      summary.declared_deploy_secret_names += names.size;
+    }
+    for (const names of deployVariableProjects.values()) {
+      summary.declared_deploy_variable_names += names.size;
     }
     for (const names of variableProjects.values()) {
       summary.declared_variable_names += names.size;
