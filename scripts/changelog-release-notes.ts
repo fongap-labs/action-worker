@@ -6,18 +6,15 @@ import {
 } from "./changelog-release.ts";
 import {
   getGithubJson,
-  getJsonArray,
   getJsonString,
   isGithubMissing,
   isJsonRecord,
 } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
-// Release preparation is read-only. The source branch, changelog and fragments are never
-// changed by a release. Only a normal code PR may update them.
+// Release preparation is read-only. Only code PRs update shared [Unreleased] entries.
 export type ReleasePolicy = {
   changelog_file: string;
-  changelog_fragment_dir: string;
   changelog_categories: string[];
 };
 
@@ -57,36 +54,6 @@ async function readFileAt(
     if (isGithubMissing(error)) return null;
     throw error;
   }
-}
-
-async function fragmentsAt(
-  repository: string,
-  path: string,
-  ref: string,
-  token: string
-): Promise<Map<string, string>> {
-  let items: unknown[];
-  try {
-    items = getJsonArray(
-      await getGithubJson(
-        `repos/${repository}/contents/${path}?ref=${encodeURIComponent(ref)}`,
-        token
-      )
-    );
-  } catch (error) {
-    if (isGithubMissing(error)) return new Map();
-    throw error;
-  }
-  const fragments = new Map<string, string>();
-  for (const item of items) {
-    if (!isJsonRecord(item) || item.type !== "file") continue;
-    const name = getJsonString(item, "name");
-    const fragmentPath = getJsonString(item, "path");
-    if (!name.endsWith(".md") || !fragmentPath) continue;
-    const content = await readFileAt(repository, fragmentPath, ref, token);
-    if (content !== null) fragments.set(fragmentPath, content);
-  }
-  return fragments;
 }
 
 function unreleasedBounds(changelog: string): { lines: string[]; start: number; end: number } {
@@ -181,21 +148,9 @@ export async function prepareReleaseNotes(options: ReleaseNotesOptions): Promise
   const previous = previousTag
     ? await readFileAt(repository, policy.changelog_file, previousTag, token)
     : null;
-  const currentFragments = await fragmentsAt(
-    repository,
-    policy.changelog_fragment_dir,
-    baseSha,
-    token
-  );
-  const previousFragments = previousTag
-    ? await fragmentsAt(repository, policy.changelog_fragment_dir, previousTag, token)
-    : new Map<string, string>();
-  const newFragments = [...currentFragments]
-    .filter(([path, body]) => previousFragments.get(path) !== body)
-    .map(([, body]) => body);
   const snapshot = promoteUnreleased(
     withUnreleasedLines(current, newUnreleasedLines(current, previous)),
-    { ...shared, fragments: newFragments }
+    shared
   );
   return releaseSectionBody(snapshot, releaseUrl);
 }
