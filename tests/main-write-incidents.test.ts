@@ -88,7 +88,7 @@ test("official Action Worker bot incidents remain blocking even without member a
       },
       "org/private-repo"
     ),
-    /Unresolved main write incident\\(s\\).*#129/
+    /Unresolved main write incident\(s\).*#129/
   );
   assert.equal(
     await shouldCreateIncident(
