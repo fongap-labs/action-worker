@@ -8,8 +8,8 @@
 
 - 提交（即 Squash merge 后的 PR 标题）使用 `type(scope): summary` 格式，类型只允许三种：`feat`、`fix`、`chore`。
 - 破坏性变更用 `!`（如 `feat(api)!: drop the v1 protocol`）或正文中的 `BREAKING CHANGE` 脚注声明；安全、迁移等只用中文 CHANGELOG 条目的属性标注，不增加新类型。
-- 摘要使用英文工程文本；非 ASCII、`Merge`/`Revert` 以外的裸消息会被拒绝。
-- 权威定义见 `docs/04_CHANGELOG_CONVENTIONS.md`；本仓库与中央 PR 门禁执行同一套规则，本地的 `.githooks/commit-msg` 只是提前反馈。
+- 摘要使用英文工程文本；标题须符合三类格式，不允许其他类型或图标前缀。
+- 权威定义见 `docs/04_CHANGELOG_CONVENTIONS.md`；本仓库与中央 PR 门禁执行同一套规则，本地的 `.githooks/commit-msg` 与 `commitlint.config.cjs` 用于提前校验格式，CI 仍是唯一门禁。
 
 本地安装消息校验：
 
@@ -21,7 +21,7 @@ npx --yes --package=@commitlint/cli@19 commitlint --from origin/main --to HEAD
 
 ## CHANGELOG（Changelog）
 
-每个 PR 在 `CHANGELOG.md` 的 `[Unreleased]` 下新增一条中文条目：`- 类别: 中文摘要`，类别取自新增、变更、弃用、移除、修复、安全六类，条目格式与映射见 `docs/04_CHANGELOG_CONVENTIONS.md`。
+`feat`、`fix` 必须在 `CHANGELOG.md` 的 `[Unreleased]` 下新增中文条目，`chore` 可省略。类别仅允许“新增、修复、维护”，摘要不超过 80 字符；禁止 `changelog.d/`。
 
 ## Pull Request（Pull Requests）
 
