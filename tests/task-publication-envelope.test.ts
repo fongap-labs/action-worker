@@ -189,6 +189,10 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
   // A publication PR must never silently skip central CI or governance.
   assert.match(source, /Central governance dispatch failed for publication PR/);
   assert.match(source, /Publication destination traverses a target repository symlink/);
+  assert.match(source, /Publication destination contains an unsafe existing symlink/);
+  const nestedGuard = source.indexOf('find "$target_dir" -type l -print -quit');
+  const copy = source.indexOf('cp -a "$PAYLOAD_DIR"');
+  assert.ok(nestedGuard > 0 && copy > nestedGuard);
   assert.doesNotMatch(source, /event_type=run-intake[^\n]*\|\| true/);
   assert.equal(
     publish.steps.find((step) => step.name === "Mint control publication intake token")?.with?.[
@@ -323,4 +327,12 @@ test("task publication CLI seals in executor and opens on a separate clean publi
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("private task publication masks target metadata before policy authorization", async () => {
+  const source = await readFile("scripts/validate-task-publication.ts", "utf8");
+  const mask = source.indexOf("console.log(`::add-mask::${escaped}`)");
+  const policy = source.indexOf('validateRepositoryCapability(sourceRepository, policy, "release-source")');
+  assert.ok(mask > 0 && mask < policy);
+  assert.match(source, /manifest\.target_repository, manifest\.dest_dir, manifest\.commit_message/);
 });
