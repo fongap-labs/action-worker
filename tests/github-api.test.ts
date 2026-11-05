@@ -197,13 +197,16 @@ test("status-aware reader uses the dedicated status App token for full owner/rep
     }
     await reader.get("repos/fongap-labs/internal-vault/commits/main");
     await reader.get("repos/fongap-labs/internal-vault");
-    assert.deepEqual(calls.map((call) => call.auth), [
-      "Bearer status-read",
-      "Bearer status-read",
-      "Bearer status-read",
-      "Bearer control-read",
-      "Bearer control-read",
-    ]);
+    assert.deepEqual(
+      calls.map((call) => call.auth),
+      [
+        "Bearer status-read",
+        "Bearer status-read",
+        "Bearer status-read",
+        "Bearer control-read",
+        "Bearer control-read",
+      ]
+    );
   } finally {
     globalThis.fetch = originalFetch;
   }
