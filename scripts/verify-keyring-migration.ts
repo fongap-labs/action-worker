@@ -35,7 +35,10 @@ async function main(): Promise<void> {
   const readToken = process.env.AW_BOOTSTRAP_READ_TOKEN ?? "";
   const runId = process.env.GITHUB_RUN_ID ?? "";
   if (!oldRaw || !newRaw || !adminToken || !readToken || !/^[1-9][0-9]*$/.test(runId)) {
-    throw new CliError("Signing migration requires both secrets and protected admin and read credentials.", 77);
+    throw new CliError(
+      "Signing migration requires both secrets and protected admin and read credentials.",
+      77
+    );
   }
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
     throw new CliError("Signing migration requires an exact control repository.", 77);
@@ -68,7 +71,10 @@ async function main(): Promise<void> {
     ) as { name?: string; updated_at?: string };
     const updatedAt = Date.parse(metadata.updated_at ?? "");
     if (metadata.name !== name || !Number.isFinite(updatedAt) || updatedAt >= queuedAt) {
-      throw new CliError("Signing migration secret changed after this run started; refusing to overwrite.", 75);
+      throw new CliError(
+        "Signing migration secret changed after this run started; refusing to overwrite.",
+        75
+      );
     }
   }
   // One-way migration of existing trusted HMAC material. Never print values or pass them on argv.
@@ -77,7 +83,9 @@ async function main(): Promise<void> {
     env: { ...process.env, GH_TOKEN: adminToken },
     timeoutMs: 30_000,
   });
-  console.log("Replacement signing keyring securely synchronized from existing material. Queue a new run to verify its fresh snapshot.");
+  console.log(
+    "Replacement signing keyring securely synchronized from existing material. Queue a new run to verify its fresh snapshot."
+  );
 }
 
 if (isMain(import.meta.url)) {
