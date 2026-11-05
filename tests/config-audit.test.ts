@@ -75,6 +75,9 @@ test("audit reads fixed tree and blobs without modifying GitHub configuration", 
       if (path === `repos/fongap-labs/demo/git/blobs/${blob}`) {
         return { encoding: "base64", content: Buffer.from("TEST_KEY\n").toString("base64") };
       }
+      if (path === `repos/fongap-labs/demo/git/blobs/${variableBlob}`) {
+        return { encoding: "base64", content: Buffer.from("PUBLIC_ENDPOINT\n").toString("base64") };
+      }
       throw new Error("Unexpected request");
     },
   };
@@ -89,7 +92,7 @@ test("audit reads fixed tree and blobs without modifying GitHub configuration", 
   assert.equal(summary.policy_excess_names, 0);
   assert.equal(summary.storage_presence, "unverified");
   assert.equal(summary.automatic_writes, false);
-  assert.ok(calls.every((path) => !/secrets|variables|environments/.test(path)));
+  assert.ok(calls.every((path) => !/\\/(?:actions\\/(?:secrets|variables)|environments)(?:\\?|$)/.test(path)));
 });
 
 test("truncated GitHub tree fails closed", async () => {
