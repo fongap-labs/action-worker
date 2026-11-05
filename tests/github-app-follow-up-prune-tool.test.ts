@@ -57,7 +57,7 @@ test("branch pruning does not reuse the broad control PAT or status signing mate
     step(steps, "Prune fully subsumed branches").env?.AW_BRANCH_API_TOKEN,
     "${{ steps.branch_app.outputs.token }}"
   );
-  assert.doesNotMatch(source, /AW_STATUS_SIGNING_KEYS/);
+  assert.doesNotMatch(source, /AW_STATUS_KEYRING/);
 });
 
 test("tool release uses App read token independently from status verification", async () => {

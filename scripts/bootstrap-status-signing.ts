@@ -8,7 +8,7 @@ export function reportSigningSecretAccessError(error: unknown, repository: strin
     !/rate limit exceeded|secondary rate limit|abuse detection/i.test(error.message)
   ) {
     throw new CliError(
-      `::error::Cannot manage Actions Secret AW_STATUS_SIGNING_KEYS in ${repository} (HTTP 403). The protected admin-ops credential must have repository Secrets: Read and write permission; any GitHub App installation must also approve this grant. Keep AW_STATUS_TOKEN legacy verification until bootstrap succeeds.`,
+      `::error::Cannot manage Actions Secret AW_STATUS_KEYRING in ${repository} (HTTP 403). The protected admin-ops credential must have repository Secrets: Read and write permission; any GitHub App installation must also approve this grant. Keep AW_STATUS_TOKEN legacy verification until bootstrap succeeds.`,
       77
     );
   }
@@ -24,7 +24,7 @@ async function main(): Promise<void> {
       77
     );
   const result = prepareStatusSigningKeys(
-    process.env.AW_STATUS_SIGNING_KEYS ?? "",
+    process.env.AW_STATUS_KEYRING ?? "",
     process.env.AW_STATUS_SIGNING_KEY_ID || "k1",
     undefined,
     process.env.AW_STATUS_TOKEN ?? ""
@@ -52,7 +52,7 @@ async function main(): Promise<void> {
     let metadata: unknown | null;
     try {
       metadata = JSON.parse(
-        await runText("gh", ["api", `repos/${repository}/actions/secrets/AW_STATUS_SIGNING_KEYS`], {
+        await runText("gh", ["api", `repos/${repository}/actions/secrets/AW_STATUS_KEYRING`], {
           env: { ...process.env, GH_TOKEN: adminToken },
           timeoutMs: 30_000,
         })
@@ -66,7 +66,7 @@ async function main(): Promise<void> {
     }
     if (
       !signingSnapshotIsFresh(
-        process.env.AW_STATUS_SIGNING_KEYS ?? "",
+        process.env.AW_STATUS_KEYRING ?? "",
         metadata,
         String(run.created_at ?? "")
       )
@@ -79,7 +79,7 @@ async function main(): Promise<void> {
     // gh encrypts the secret using the repository public key. Neither the key nor retained legacy
     // verifier material is printed or passed on the command line.
     try {
-      await runText("gh", ["secret", "set", "AW_STATUS_SIGNING_KEYS", "--repo", repository], {
+      await runText("gh", ["secret", "set", "AW_STATUS_KEYRING", "--repo", repository], {
         input: JSON.stringify(result.keys),
         env: { ...process.env, GH_TOKEN: adminToken },
         timeoutMs: 30_000,

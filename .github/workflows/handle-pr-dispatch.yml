@@ -127,7 +127,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.status_pending_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_pending_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -137,7 +137,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.status_pending_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_pending_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -227,7 +227,7 @@ jobs:
           GH_TOKEN: ${{ steps.ci_dispatch_status_app.outputs.token }}
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.ci_dispatch_status_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_DISPATCH_API_TOKEN: ${{ steps.ci_dispatch_app.outputs.token }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
@@ -252,7 +252,7 @@ jobs:
           GH_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
@@ -274,7 +274,7 @@ jobs:
         if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required != 'true'
         env:
           AW_STATUS_API_TOKEN: ${{ steps.no_ci_status_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -320,7 +320,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.final_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.final_read_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -352,7 +352,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.final_status_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.final_status_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -365,7 +365,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.final_status_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.final_status_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -488,7 +488,7 @@ jobs:
           GH_TOKEN: ${{ steps.unfinished_read_app.outputs.token }}
           AW_CONTROL_TOKEN: ${{ steps.unfinished_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           CONTROL_REPOSITORY: ${{ github.repository }}
           REPOSITORY: ${{ github.event.client_payload.repository }}
           PR_NUMBER: ${{ github.event.client_payload.pr_number }}

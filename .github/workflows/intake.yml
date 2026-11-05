@@ -86,7 +86,7 @@ jobs:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
         run: node scripts/intake-open-prs.ts
@@ -156,7 +156,7 @@ jobs:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
         run: node scripts/intake-main-ci.ts
@@ -225,7 +225,7 @@ jobs:
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_ISSUE_API_TOKEN: ${{ steps.issue_app.outputs.token }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -367,7 +367,7 @@ jobs:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
           TASK_SOURCE_LOOKBACK_MINUTES: "720"
@@ -439,7 +439,7 @@ jobs:
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
           DEPLOY_SCHEDULE_LOOKBACK_MINUTES: "720"

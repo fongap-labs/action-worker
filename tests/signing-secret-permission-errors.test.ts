@@ -13,7 +13,7 @@ test("signing bootstrap reports repository Secrets write scope on permission den
     (error: unknown) =>
       error instanceof CliError &&
       error.exitCode === 77 &&
-      error.message.includes("AW_STATUS_SIGNING_KEYS") &&
+      error.message.includes("AW_STATUS_KEYRING") &&
       error.message.includes("Secrets: Read and write") &&
       error.message.includes("GitHub App") &&
       error.message.includes("AW_STATUS_TOKEN")

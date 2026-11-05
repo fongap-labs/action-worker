@@ -50,7 +50,7 @@ jobs:
       - name: Confirm signing recovery is needed
         env:
           AW_LEGACY_VERIFIER_PRESENT: ${{ secrets.AW_STATUS_TOKEN != '' }}
-          AW_KEYRING_PRESENT: ${{ secrets.AW_STATUS_SIGNING_KEYS != '' }}
+          AW_KEYRING_PRESENT: ${{ secrets.AW_STATUS_KEYRING != '' }}
         shell: bash
         run: |
           if [ "$AW_LEGACY_VERIFIER_PRESENT" != "true" ]; then
@@ -58,7 +58,7 @@ jobs:
             exit 77
           fi
           if [ "$AW_KEYRING_PRESENT" = "true" ]; then
-            echo "::error::AW_STATUS_SIGNING_KEYS already exists; this recovery entry must not rotate an existing keyring." >&2
+            echo "::error::AW_STATUS_KEYRING already exists; this recovery entry must not rotate an existing keyring." >&2
             exit 64
           fi
 
@@ -76,7 +76,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_STATUS_SIGNING_KEY_ID: k1
           AW_DISPATCH_API_TOKEN: ${{ steps.bootstrap_dispatch.outputs.token }}
           AW_BOOTSTRAP_READ_TOKEN: ${{ github.token }}

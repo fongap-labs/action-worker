@@ -375,7 +375,7 @@ test("the Intake deploy-schedules job matches the task-schedules job", async () 
     AW_REPOSITORY_POLICY: "${{ vars.AW_REPOSITORY_POLICY }}",
     AW_CONTROL_TOKEN: "${{ steps.control_read_app.outputs.token }}",
     AW_STATUS_API_TOKEN: "${{ steps.status_app.outputs.token }}",
-    AW_STATUS_SIGNING_KEYS: "${{ secrets.AW_STATUS_SIGNING_KEYS }}",
+    AW_STATUS_KEYRING: "${{ secrets.AW_STATUS_KEYRING }}",
     AW_DISPATCH_API_TOKEN: "${{ steps.dispatch_app.outputs.token }}",
     AW_CONTROL_REPOSITORY: "${{ github.repository }}",
     DEPLOY_SCHEDULE_LOOKBACK_MINUTES: "720",

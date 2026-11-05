@@ -50,7 +50,7 @@ jobs:
         env:
           MAIN_WRITE_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           MAIN_WRITE_REQUIRE_POLICY: "false"
           MAIN_WRITE_REQUIRE_CENTRAL_STATUSES: "false"
           MAIN_WRITE_REPOSITORY: ${{ github.repository }}
