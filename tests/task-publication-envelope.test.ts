@@ -363,7 +363,6 @@ test("private task concurrency uses a stable opaque project key", () => {
   assert.notEqual(group, taskConcurrencyGroup("fongap-labs/different-source", "project-1"));
 });
 
-
 test("publisher waits for current-head review without bypassing central governance", async () => {
   const source = await readFile(".github/workflows/handle-task-dispatch.yml", "utf8");
   const publisher = source.split("  publish:")[1] ?? "";
