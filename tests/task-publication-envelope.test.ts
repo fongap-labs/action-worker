@@ -185,7 +185,7 @@ test("publication destination rejects Git metadata and unsafe path segments", ()
     "output/.hidden",
     "output/../secrets",
     "output//report",
-    "output/report\\nname",
+    "output/report\nname",
   ]) {
     assert.throws(
       () => validateManifest({ ...publication, dest_dir }),
