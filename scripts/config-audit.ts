@@ -201,7 +201,9 @@ async function main(): Promise<void> {
   });
   // All output is aggregate-only. Public control-repository logs must not reveal private config.
   try {
-    console.log(JSON.stringify(await auditSources(reader, repositories as string[], policy), null, 2));
+    console.log(
+      JSON.stringify(await auditSources(reader, repositories as string[], policy), null, 2)
+    );
   } catch {
     throw new CliError("Read-only configuration audit incomplete; no results published.", 77);
   }
