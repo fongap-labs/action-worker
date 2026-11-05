@@ -1,6 +1,6 @@
 <div align="center">
 
-# Action Worker
+# 中央自动化工作器
 
 Fongap Labs 的中央 GitHub 自动化控制平面统一负责任务分发、PR 治理、AI 审查、发布治理与部署治理。
 
