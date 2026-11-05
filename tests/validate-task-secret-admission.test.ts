@@ -53,7 +53,13 @@ async function fixture(
 test("only pinned blobs are read and no credentials are fetched", async () => {
   const x = await fixture("SERVICE_KEY\n", "OPTIONAL_KEY\n");
   try {
-    const result = await validateTaskSecretAdmission(x.reader, repository, "demo", ref, x.policyPath);
+    const result = await validateTaskSecretAdmission(
+      x.reader,
+      repository,
+      "demo",
+      ref,
+      x.policyPath
+    );
     assert.deepEqual(result, {
       required_count: 1,
       allowed_count: 1,
@@ -102,11 +108,16 @@ test("truncated trees and unsafe manifests are refused", async () => {
     const original = x.reader.get;
     await assert.rejects(
       validateTaskSecretAdmission(
-        { async get(path: string) {
-          if (path.includes("/git/trees/")) return { truncated: true, tree: [] };
-          return original(path);
-        } },
-        repository, "demo", ref, x.policyPath
+        {
+          async get(path: string) {
+            if (path.includes("/git/trees/")) return { truncated: true, tree: [] };
+            return original(path);
+          },
+        },
+        repository,
+        "demo",
+        ref,
+        x.policyPath
       ),
       /incomplete/
     );
@@ -132,7 +143,8 @@ test("alias sources must be distinct and require central approval", async () => 
     tasks: {
       [repository]: {
         demo: {
-          required: ["SERVICE_KEY"], allowed: ["OPTIONAL_KEY"],
+          required: ["SERVICE_KEY"],
+          allowed: ["OPTIONAL_KEY"],
           aliases: { SERVICE_KEY: "SHARED_KEY", OPTIONAL_KEY: "SHARED_KEY" },
         },
       },
