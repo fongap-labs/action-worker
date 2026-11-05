@@ -7,6 +7,8 @@ on:
     paths:
       - .github/workflows/publication-key-verify.yml
       - scripts/verify-publication-key-pair.ts
+      - scripts/prepare-publication-keys.ts
+      - docs/task-publication-keys.md
 
 permissions:
   contents: read
