@@ -19,7 +19,7 @@ type Publication = {
   commit_message: string;
 };
 
-function validateManifest(value: unknown): Publication {
+export function validateManifest(value: unknown): Publication {
   if (!isJsonRecord(value)) {
     throw new CliError("::error::Task publication manifest must be a JSON object.", 64);
   }
@@ -48,7 +48,17 @@ function validateManifest(value: unknown): Publication {
     throw new CliError("::error::Task publication manifest values are invalid.", 64);
   }
   const destDir = value.dest_dir.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
-  if (!destDir || destDir.split("/").some((part) => !part || part === "." || part === "..")) {
+  const parts = destDir.split("/");
+  if (
+    !destDir ||
+    parts.some(
+      (part) =>
+        !part ||
+        part === "." ||
+        part === ".." ||
+        !/^[\\p{L}\\p{N}_-][\\p{L}\\p{N}_.-]*$/u.test(part)
+    )
+  ) {
     throw new CliError("::error::Task publication destination is invalid.", 64);
   }
   return {
