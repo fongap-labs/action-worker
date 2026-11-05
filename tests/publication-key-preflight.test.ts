@@ -195,6 +195,7 @@ test("one-time governed canary needs an explicit main-commit marker", async () =
     }> }>;
   };
   const job = flow.jobs["smoke-open"];
+  assert.ok(job);
   assert.equal(job.environment, "admin-ops");
   const publisher = job.steps.find(
     (step) => step.name === "Publish canary through central PR governance"
