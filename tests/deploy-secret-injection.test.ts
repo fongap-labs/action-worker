@@ -164,9 +164,9 @@ test("staged Secret files are restricted to the plan and have private permission
         { name: "TOKEN_B", source: "TOKEN_B", required: false, kind: "secret" as const },
       ],
     };
-    await stageDeploySecretBundle(JSON.stringify({ TOKEN_A: "a" }), plan, root);
+    await stageDeploySecretBundle(JSON.stringify({ TOKEN_A: "test-value-a" }), plan, root);
     const values = await loadScopedSecretValues(join(root, "action-worker-deploy-secrets"), plan);
-    assert.deepEqual([...values], [["TOKEN_A", "a"]]);
+    assert.deepEqual([...values], [["TOKEN_A", "test-value-a"]]);
     await writeFile(join(root, "action-worker-deploy-secrets", "OTHER"), "x");
     await assert.rejects(
       loadScopedSecretValues(join(root, "action-worker-deploy-secrets"), plan),
