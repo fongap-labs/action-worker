@@ -389,8 +389,7 @@ async function main(): Promise<void> {
     sourceReader,
     sourceRepository,
     sourceSha,
-    true,
-    process.env.MAIN_WRITE_GUARD_BYPASS === "true"
+    true
   );
 
   const runJson = await waitForCompletedRun(artifactRepository, artifactRunId, controlToken);
@@ -566,8 +565,7 @@ async function main(): Promise<void> {
         sourceReader,
         targetRepository,
         targetSha,
-        true,
-        process.env.MAIN_WRITE_GUARD_BYPASS === "true"
+        true
       );
     }
     const releaseSha = targetSha;
