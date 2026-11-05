@@ -53,10 +53,7 @@ export function validateManifest(value: unknown): Publication {
     !destDir ||
     parts.some(
       (part) =>
-        !part ||
-        part === "." ||
-        part === ".." ||
-        !/^[\p{L}\p{N}_-][\p{L}\p{N}_.-]*$/u.test(part)
+        !part || part === "." || part === ".." || !/^[\p{L}\p{N}_-][\p{L}\p{N}_.-]*$/u.test(part)
     )
   ) {
     throw new CliError("::error::Task publication destination is invalid.", 64);
