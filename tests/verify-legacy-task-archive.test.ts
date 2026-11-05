@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { gzipSync, gunzipSync } from "node:zlib";
 import { link, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { gunzipSync, gzipSync } from "node:zlib";
 import { inspectLegacyStateArchive } from "../scripts/verify-legacy-task-archive.ts";
 
 async function fixture() {
@@ -16,7 +16,7 @@ async function fixture() {
 
 function tarBytes(root: string, format = "gnu"): Buffer {
   const archive = join(root, "state.tar.gz");
-  execFileSync("tar", ["--format=" + format, "-czf", archive, "-C", join(root, "input"), "."]);
+  execFileSync("tar", [`--format=${format}`, "-czf", archive, "-C", join(root, "input"), "."]);
   return requireBytes(archive);
 }
 
@@ -38,7 +38,7 @@ function modifyFirstFileName(compressed: Buffer, name: string): Buffer {
       header.fill(32, 148, 156);
       let sum = 0;
       for (let offset = 0; offset < 512; offset++) sum += header[offset] ?? 0;
-      header.write(sum.toString(8).padStart(6, "0") + "\0 ", 148, "ascii");
+      header.write(`${sum.toString(8).padStart(6, "0")}\0 `, 148, "ascii");
       return gzipSync(archive);
     }
   }
