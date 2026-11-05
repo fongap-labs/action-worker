@@ -309,10 +309,6 @@ export async function validateChange(
   }
   const categories = policyList(value, "changelog_categories");
   const allowedCategories = changelogCategoriesForType(value, changeType);
-  const securityCategory = value.security_category;
-  if (typeof securityCategory !== "string" || !categories.includes(securityCategory)) {
-    throw new CliError("::error::Invalid release policy field: security_category.", 65);
-  }
   let hasMatching = false;
   for (const line of entries) {
     const entry = parseEntry(line);
@@ -326,11 +322,7 @@ export async function validateChange(
     if (entry.attributes.some((attribute) => !allowedAttrs.includes(attribute))) {
       throw new CliError(`::error::Unsupported CHANGELOG attributes: ${entry.attributes.join(", ")}.`, 65);
     }
-    const security = entry.attributes.includes("security");
-    if (security !== (entry.category === securityCategory)) {
-      throw new CliError("::error::Security entries must use 安全 [security], and vice versa.", 65);
-    }
-    if (allowedCategories.includes(entry.category) || entry.category === securityCategory) {
+    if (allowedCategories.includes(entry.category)) {
       hasMatching = true;
       if (isBreaking && !entry.attributes.includes("breaking")) {
         throw new CliError("::error::A breaking CHANGELOG entry must carry breaking.", 65);
