@@ -10,9 +10,15 @@ import {
 test("manifest parser only scans explicit source declarations", () => {
   assert.deepEqual(sourceManifest("projects/demo/.secrets.required"), {
     project: "demo",
+    dataClass: "secret",
     kind: "required",
   });
   assert.equal(sourceManifest("tests/fixtures/projects/demo/.secrets.required"), null);
+  assert.deepEqual(sourceManifest("projects/demo/.vars.allowed"), {
+    project: "demo",
+    dataClass: "variable",
+    kind: "allowed",
+  });
   assert.equal(sourceManifest("projects/demo/secret.txt"), null);
 });
 
@@ -49,6 +55,7 @@ test("audit reads fixed tree and blobs without modifying GitHub configuration", 
   const calls: string[] = [];
   const sha = "a".repeat(40);
   const blob = "b".repeat(40);
+  const variableBlob = "c".repeat(40);
   const reader = {
     async get(path: string): Promise<unknown> {
       calls.push(path);
@@ -59,7 +66,10 @@ test("audit reads fixed tree and blobs without modifying GitHub configuration", 
       if (path === `repos/fongap-labs/demo/git/trees/${sha}?recursive=1`) {
         return {
           truncated: false,
-          tree: [{ type: "blob", path: "projects/test/.secrets.required", sha: blob }],
+          tree: [
+            { type: "blob", path: "projects/test/.secrets.required", sha: blob },
+            { type: "blob", path: "projects/test/.vars.allowed", sha: variableBlob },
+          ],
         };
       }
       if (path === `repos/fongap-labs/demo/git/blobs/${blob}`) {
@@ -74,6 +84,8 @@ test("audit reads fixed tree and blobs without modifying GitHub configuration", 
   assert.equal(summary.repositories_scanned, 1);
   assert.equal(summary.private_repositories, 1);
   assert.equal(summary.declared_secret_names, 1);
+  assert.equal(summary.declared_variable_names, 1);
+  assert.equal(summary.variable_policy_status, "not-defined-by-task-secret-policy");
   assert.equal(summary.policy_excess_names, 0);
   assert.equal(summary.storage_presence, "unverified");
   assert.equal(summary.automatic_writes, false);
