@@ -2,7 +2,7 @@
 
 > 基于提案 AW-002 "使用 GitHub Environments 隔离部署与任务密钥"。部署路径已合并（PR #477），任务路径保持方案 A（仓库级密钥 + 中央上限）。以下为 owner 手动完成步骤。
 
-## 先决条件
+## 先决条件（Prerequisites）
 
 - 提案设计已批准（尤其是方案选择：任务路径采用 A）
 - 中央策略文件已就位：
@@ -12,7 +12,7 @@
 - 检出令牌已替换：`AW_CONTROL_TOKEN` → `AW_CHECKOUT_TOKEN`（只读 Contents: read）
 - 所有使用 `AW_ADMIN_TOKEN` 的作业均声明 `environment: admin-ops`
 
-## Owner 手动步骤
+## Owner 手动步骤（Owner Actions）
 
 ### 1. 在环境中创建同名密钥
 
@@ -60,14 +60,14 @@ gh workflow run release-app.yml -R fongap-labs/action-worker \
 - Scopes: `Contents: read`（不含 `Actions: write`、`Secrets: write` 等）
 - 用于 `deploy-source-script.yml` 的 `Checkout deploy source` 步骤
 
-## 回滚方案
+## 回滚方案（Rollback Plan）
 
 如演练失败或 `enforce` 导致误拦截：
 1. 将 `AW_DEPLOY_SECRET_POLICY_MODE` / `AW_TASK_SECRET_POLICY_MODE` 改回 `warn`（或直接删除该变量——默认已经是 `enforce`，改回 `warn` 才是放宽）
 2. 恢复仓库级密钥（已备份值）
 3. 部署路径回退至旧行为（中央允许列表仅警告、不拦截）
 
-## 验收标准
+## 验收标准（Acceptance Criteria）
 
 - [ ] 所有目标环境密钥已创建且值正确
 - [ ] 每个目标仓库至少一次手动部署成功
