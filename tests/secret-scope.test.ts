@@ -340,16 +340,12 @@ test("the central policies give each Cloudflare account its own qualified secret
       ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_SECONDARY"],
     ]
   );
-  assert.equal(
-    (
-      await readDeploySecretCeiling(
-        "policies/deploy-secrets.json",
-        "fongap-labs/ai-gateway",
-        "production"
-      )
-    ).has("AIG_ACCESS_KEY_AGENT"),
-    false
+  const gateway = await readDeploySecretCeiling(
+    "policies/deploy-secrets.json",
+    "fongap-labs/ai-gateway",
+    "production"
   );
+  assert.equal(gateway.has("AIG_ACCESS_KEY_AGENT"), false);
   assert.equal(gateway.has("AIG_DEPLOY_HEALTH_KEY"), true);
   assert.equal(deploy.has("AIG_DEPLOY_HEALTH_KEY"), false);
   // The retired inference product has no deployment credential aliases.
