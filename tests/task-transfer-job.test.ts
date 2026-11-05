@@ -39,9 +39,14 @@ test("task state is transferred using inbound and outbound keys without governan
     const outbound = keypair();
     const source = join(root, "source");
     await mkdir(source);
-    await writeFile(join(source, "manifest.json"), JSON.stringify({
-      repository, project: "product", bootstrap_ref: ref,
-    }));
+    await writeFile(
+      join(source, "manifest.json"),
+      JSON.stringify({
+        repository,
+        project: "product",
+        bootstrap_ref: ref,
+      })
+    );
     await writeFile(join(source, "cursor.txt"), "42");
     const incoming = join(root, "incoming.seal");
     await runTaskTransferCommand("seal-state", "state-to-task", source, incoming, {
