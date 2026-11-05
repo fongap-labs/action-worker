@@ -63,18 +63,22 @@ const deployEnv = (extra) => ({
   AIG_AFFINITY_KV_ID: 'kv-id',
   ...extra,
 });
-const healthErrors = (env) => preflight(env).errors.filter((error) => error.includes('/health'));
+const deploymentHealthErrors = (env) => preflight(env).errors.filter((error) => error.includes('AIG_DEPLOY_HEALTH_KEY'));
 
-test('a deploy whose keys cannot read /health fails the preflight', () => {
-  const errors = healthErrors(deployEnv({ AIG_ACCESS_KEY_AIR: 'k' }));
+test('deployment preflight requires a dedicated health secret', () => {
+  const errors = deploymentHealthErrors(deployEnv({ AIG_ACCESS_KEY_AIR: 'k' }));
   assert.equal(errors.length, 1);
-  assert.match(errors[0], /AIG_DIAGNOSTICS_GROUPS allows MAX, ULTRA/);
+  assert.match(errors[0], /at least 32 characters/);
 });
 
-test('a deploy passes the preflight once one configured key may read /health', () => {
-  assert.deepEqual(healthErrors(deployEnv({ AIG_ACCESS_KEY_AIR: 'k', AIG_ACCESS_KEY_MAX: 'm' })), []);
-  assert.deepEqual(healthErrors(deployEnv({ AIG_ACCESS_KEY_AIR: 'k', AIG_DIAGNOSTICS_GROUPS: 'air' })), []);
-  assert.deepEqual(healthErrors(deployEnv({ AIG_ACCESS_KEY_AIR: 'k', AIG_DIAGNOSTICS_GROUPS: '*' })), []);
+test('deployment preflight accepts a dedicated health secret without changing user diagnostics groups', () => {
+  const env = deployEnv({
+    AIG_ACCESS_KEY_AIR: 'k',
+    AIG_DEPLOY_HEALTH_KEY: 'deployment-health-key-0123456789abcdef0123456789abcdef',
+    AIG_DIAGNOSTICS_GROUPS: 'MAX',
+  });
+  assert.deepEqual(deploymentHealthErrors(env), []);
+  assert.deepEqual(preflight(env).errors, []);
 });
 
 test('the dedicated deployment health key is restricted to health probes', async () => {
