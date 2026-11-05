@@ -37,9 +37,9 @@ node -e "const fs=require('node:fs');console.log(fs.readFileSync('publication-pu
 1. `execute` Job 不接触发布私钥，仅上传加密文件。
 2. 新的 `publish` Job 在 `admin-ops` 环境解密，重新校验清单和文件，并创建目标仓库 PR。
 3. 发布 PR 继续执行 `validate-merge`，未跳过审核或强制合并。
-4. 工作流日志、Artifact 元数据、PR 标题与正文不泄露私有来源身份。
-5. 缺失密钥、密钥对不匹配、GitHub App 权限不足时必须明确失败。
+4. 密文使用来源仓库、项目、固定提交和请求编号共同验证身份，不允许跨请求重放；工作流日志、Artifact 元数据、PR 标题与正文不得泄露私有来源身份。
+5. `publish` Job 在下载 Artifact 前执行 `node scripts/task-publication-envelope.ts check-keys`，验证公钥变量与受保护私钥确实配对。缺失密钥、密钥不匹配或 GitHub App 权限不足时必须明确失败。
 
-加密 Artifact 只保留一天。**发布任务仍在运行时不得更换密钥对**，否则公钥加密的数据可能无法由新私钥解密。按批准的密钥轮换程序操作。
+加密 Artifact 只保留一天。单文件上限 50 MiB，总大小上限 100 MiB；封装程序在读取文件前逐项累计限制文件数量和体积。**发布任务仍在运行时不得更换密钥对**，否则公钥加密的数据可能无法由新私钥解密。按批准的密钥轮换程序操作。
 
 配置完成不代表已经验证成功；只有上述端到端场景通过后，才能将 #1380 从 Draft 改为 Ready。
