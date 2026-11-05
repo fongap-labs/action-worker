@@ -431,6 +431,7 @@ test("AI Gateway operations workflow is protected and never accepts secret value
   assert.doesNotMatch(workflow, /repository_dispatch:/);
   assert.match(workflow, /CLOUDFLARE_API_TOKEN_OPS/);
   assert.match(workflow, /AIG_OPS_SECRET_VALUE/);
+  assert.match(workflow, /AIG_DEPLOY_HEALTH_KEY\|AIG_TOKEN_ENCRYPTION_KEY/);
   assert.match(workflow, /secret_value="\$AIG_OPS_SECRET_VALUE"/);
   assert.match(workflow, /unset AIG_OPS_SECRET_VALUE/);
   assert.match(workflow, /printf '%s' "\$secret_value" \|/);
