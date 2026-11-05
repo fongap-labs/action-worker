@@ -131,3 +131,34 @@ test("central credentials are rejected if available in a task process", async ()
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("a failed open cannot remove a preexisting destination directory", async () => {
+  const root = await mkdtemp(join(tmpdir(), "aw-task-job-"));
+  try {
+    const key = keypair();
+    const destination = join(root, "preexisting");
+    await mkdir(destination);
+    await writeFile(join(destination, "keep.txt"), "must survive");
+    const state = join(root, "state");
+    await mkdir(state);
+    await writeFile(
+      join(state, "manifest.json"),
+      JSON.stringify({ repository, project: "product", bootstrap_ref: ref })
+    );
+    const sealed = join(root, "state.seal");
+    await runTaskTransferCommand("seal-state", "state-from-task", state, sealed, {
+      ...env(),
+      AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: key.publicKey,
+    });
+    await assert.rejects(
+      runTaskTransferCommand("open-state", "state-from-task", sealed, destination, {
+        ...env(),
+        AW_TASK_TRANSFER_RECIPIENT_PRIVATE_KEY: key.privateKey,
+      }),
+      /state validation/
+    );
+    assert.equal(await readFile(join(destination, "keep.txt"), "utf8"), "must survive");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
