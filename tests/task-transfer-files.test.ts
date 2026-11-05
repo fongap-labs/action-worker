@@ -1,25 +1,16 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
-import {
-  link,
-  lstat,
-  mkdir,
-  mkdtemp,
-  readFile,
-  rm,
-  symlink,
-  writeFile,
-} from "node:fs/promises";
+import { link, lstat, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { openTaskTransfer, sealTaskTransfer } from "../scripts/task-transfer-envelope.ts";
 import {
   packTaskTransferFiles,
   unpackTaskTransferFiles,
   validateTaskTransferFiles,
 } from "../scripts/task-transfer-files.ts";
-import { openTaskTransfer, sealTaskTransfer } from "../scripts/task-transfer-envelope.ts";
 
 async function sandbox() {
   const root = await mkdtemp(join(tmpdir(), "aw-task-file-test-"));
@@ -88,7 +79,10 @@ test("task transfer refuses symbolic links, hard links and device-like files", a
 test("task transfer refuses traversal, untrusted metadata and path collisions", () => {
   const file = { kind: "file", path: "a.txt", base64: Buffer.from("data").toString("base64") };
   for (const unsafe of ["../escape", "/abs", "folder/../escape", ".git/hooks", "a//b", "x\\y"]) {
-    assert.throws(() => validateTaskTransferFiles(payload([{ ...file, path: unsafe }])), /unsafe path/);
+    assert.throws(
+      () => validateTaskTransferFiles(payload([{ ...file, path: unsafe }])),
+      /unsafe path/
+    );
   }
   assert.throws(
     () => validateTaskTransferFiles(payload([file, { ...file, path: "A.txt" }])),
@@ -101,14 +95,14 @@ test("task transfer refuses traversal, untrusted metadata and path collisions", 
   assert.throws(
     () =>
       validateTaskTransferFiles(
-        payload([{ kind: "directory", path: "parent" }, { ...file, path: "parent/child", unexpected: true }])
+        payload([
+          { kind: "directory", path: "parent" },
+          { ...file, path: "parent/child", unexpected: true },
+        ])
       ),
     /schema/
   );
-  assert.throws(
-    () => validateTaskTransferFiles(payload([{ ...file, base64: "??" }])),
-    /encoding/
-  );
+  assert.throws(() => validateTaskTransferFiles(payload([{ ...file, base64: "??" }])), /encoding/);
 });
 
 test("task transfer rejects large state files and malformed payloads before write", async () => {
