@@ -20,9 +20,9 @@ export type TaskAdmissionResult = {
 type Reader = Pick<GithubReader, "get">;
 
 function reserved(name: string): boolean {
-  return /^(?:AW_|GITHUB_|RUNNER_|ACTIONS_)/.test(name) ||
-    name === "GH_TOKEN" ||
-    name === "NODE_OPTIONS";
+  return (
+    /^(?:AW_|GITHUB_|RUNNER_|ACTIONS_)/.test(name) || name === "GH_TOKEN" || name === "NODE_OPTIONS"
+  );
 }
 
 export function parseTaskSecretDeclaration(contents: string): string[] {
@@ -83,11 +83,7 @@ export async function validateTaskSecretAdmission(
     throw new CliError("Task admission source tree identity is invalid.", 65);
   }
   const listing = await reader.get(`repos/${repository}/git/trees/${treeSha}?recursive=1`);
-  if (
-    !isJsonRecord(listing) ||
-    listing.truncated !== false ||
-    !Array.isArray(listing.tree)
-  ) {
+  if (!isJsonRecord(listing) || listing.truncated !== false || !Array.isArray(listing.tree)) {
     throw new CliError("Task admission source tree is incomplete.", 65);
   }
 
@@ -153,15 +149,15 @@ async function main(): Promise<void> {
   const ref = process.env.BOOTSTRAP_REF?.toLowerCase() ?? "";
   const token = process.env.AW_CONTROL_TOKEN ?? "";
   if (!token) throw new CliError("Task admission requires a scoped source read token.", 77);
-  const reader = new GithubReader(
-    process.env.GITHUB_API_URL ?? "https://api.github.com",
-    token
-  );
+  const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
   try {
     await validateTaskSecretAdmission(reader, repository, project, ref);
   } catch {
     // Task identifiers and declarations may be private. The public workflow log receives no details.
-    throw new CliError("Task secret admission failed; see the private policy and source manifests.", 77);
+    throw new CliError(
+      "Task secret admission failed; see the private policy and source manifests.",
+      77
+    );
   }
   console.log("Task secret admission: policy and pinned source declarations verified.");
 }
