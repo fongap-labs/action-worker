@@ -2,7 +2,7 @@
 
 状态：**部署路径已实施**（PR "let the control plane decide deploy environments and secret ceilings"：中央环境与密钥策略、只读检出令牌、为使用管理员令牌的作业设置 `admin-ops`）。**任务路径保持现状（方案 A）**；方案 B 与 C 在部署演练之后仍可选用。**仍需 owner 手动完成：** 一次演练部署、将 `AW_DEPLOY_SECRET_POLICY_MODE` 切换为 `enforce`、把密钥复制到各环境，然后删除仓库级副本。
 
-## 现状（Current State）
+## 现状
 
 - `deploy-source-script.yml` 的 `deploy` 作业已声明 `environment: ${{ needs.prepare.outputs.environment }}`，但该值读取自**被部署的目标仓库**的 `deploy.json`（被部署的一方自行声明环境）。运行目标代码的步骤使用 `env: ${{ secrets }}`：每个仓库级密钥（以及环境级密钥）都被放入该步骤的环境，随后目标未声明的名称被 `unset`。
 - `handle-task-dispatch.yml`（`execute` 作业）同样使用 `env: ${{ secrets }}` 与任务源的允许列表；自 PR #410 起，一个中央上限（`policies/task-secrets.json`，`AW_TASK_SECRET_POLICY_MODE=warn|enforce`）只能减少任务源声明的内容。任务作业**没有** `environment:`。
@@ -10,11 +10,11 @@
 - `fongap-labs/action-worker` 中已存在 `production` 与 `admin-ops` 环境，部署分支策略为仅 main。仓库级密钥仍保留。
 - 在部署路径中，`resolve-secret-scope.ts` 的第 4 个参数（拒绝名称列表）未被传入，因此只应用目标声明的允许列表与内置保留前缀。
 
-## 目标（Objective）
+## 目标
 
 由中央仓库（而非被部署的仓库）决定某个仓库可以使用哪个环境，以及哪些密钥名称可以进入该环境；密钥从仓库级迁移到环境级，使未绑定环境的作业根本无法读取它们。
 
-## 设计（Design）
+## 设计
 
 1. **环境权威**（`policies/deploy-environments.json`）：`{ "<owner/repo>": ["production", ...] }`。`validate-deploy-source.ts` 在解析 manifest 之后检查声明的 `environment` 是否属于该仓库的集合；否则部署失败即关闭。未列入该文件的仓库无法部署。
 2. **中央密钥列表**（`policies/deploy-secrets.json`）：`{ "<owner/repo>": { "<environment>": ["NAME", ...] } }`。有效允许列表是目标的 `deploy.secrets.allowed` 与该列表的**交集**；不在中央列表中的目标名称会导致失败（而不是被静默丢弃），与 `enforce` 模式下的任务上限一致。保留前缀仍被拒绝（`AW_`、`GITHUB_`、`RUNNER_`、`ACTIONS_`、`NODE_OPTIONS`、`GH_TOKEN`），并作为第 4 个（拒绝）参数传入。
@@ -28,22 +28,22 @@
    - **建议：现在采用 A，部署演练成功之后再采用 B/C。** 在使用方声明环境之前，任务密钥不能从仓库级移除。
 7. **过渡与回滚**：演练通过之前，仓库级密钥保持不变。回滚即撤销该 PR；只要仓库级密钥存在，旧行为就仍然可用。
 
-## 影响与风险（Impact and Risks）
+## 影响与风险
 
 - ai-gateway（37 个名称，环境 `production`）与 internal-vault（3 个名称，`server-edge-cloud-edge`）的每一次部署，都依赖两份新策略文件是否完整；缺少某个名称会导致部署失败，这是有意为之。
 - GitHub Free：环境密钥与部署分支策略适用于公开仓库；Free 套餐的私有仓库能否使用环境保护规则**未经验证**（本次会话无法获取文档）。部署环境位于公开的 `action-worker` 仓库中，因此这不构成阻碍，但私有仓库上的必需审批人将无法使用。
 - `repository_dispatch` 作业始终运行在默认分支上，因此"仅 main"在构造上已满足；策略仍然会约束从其他分支手动发起的 `workflow_dispatch` 运行。
 
-## 计划约束（Owner Constraints）
+## 计划约束
 
 组织保持在 Free 套餐，私有仓库保持私有。本设计不受影响：环境（`production`、`admin-ops` 以及任何 `tasks-<repo>`）属于**公开**的 `action-worker` 仓库，在 Free 套餐下该仓库可以使用环境密钥与仅 main 的部署分支策略。私有仓库只作为部署与任务的*源*出现；不需要在其中做任何配置。
 
-## Owner 手动步骤（Owner Actions）
+## 维护者 手动步骤
 
 1. 批准或修改本设计（尤其是第 6 项）。
 2. 实施合并后：在环境中创建同名密钥（P-00 C2），对 ai-gateway 执行一次 `workflow_dispatch` 部署作为健康检查演练，然后才删除仓库级副本（P-00 C3）。我不会删除任何密钥。
 3. 确认所有目标仓库的 `AW_CHECKOUT_TOKEN` 均为只读（Contents: read）。
 
-## 批准后的实施计划（Approved Implementation Plan）
+## 批准后的实施计划
 
 新增策略文件与校验器，并附带测试；在 `validate-deploy-source.ts` 中加入环境检查；接通拒绝名称参数；替换检出令牌；扩展不变量测试；更新文档与 CHANGELOG。验收标准：`npm run check` 通过，并新增"未授权环境失败"与"目标声明超出中央列表则失败"两项测试。
