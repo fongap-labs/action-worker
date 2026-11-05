@@ -4,7 +4,7 @@ Action Worker 维护受管 Fongap Labs 仓库可共享的仓库默认设置与�
 
 ---
 
-## 1. 机器权威
+## 1. 机器权威（Policy Authority）
 
 统一的 Repository Policy 位于：
 
@@ -36,7 +36,7 @@ Repository Policy 不包含仓库名称，只描述共享设置。
 
 ---
 
-## 2. 应用方式
+## 2. 应用方式（Policy Application）
 
 `policies/repository.json` 是受管仓库 Repository Settings 的唯一共享权威。
 
@@ -61,7 +61,7 @@ node scripts/apply-repository-settings.ts <owner/name> true
 
 ---
 
-## 3. 合并权限
+## 3. 合并权限（Merge Authorization）
 
 共用治理的目标门禁流程：
 
@@ -89,7 +89,7 @@ PR 确定性策略 ───────────┼→ validate-merge → �
 
 ---
 
-## 4. GitHub 原生强制
+## 4. GitHub 原生强制（GitHub Enforcement）
 
 仓库策略与 GitHub 原生保护是两层：
 
@@ -114,7 +114,7 @@ GitHub 原生保护
 
 ---
 
-## 5. Main Write Guard 引用
+## 5. Main Write Guard 引用（Main Write Guard）
 
 Main Write Guard 的完整规则、触发时机、证明逻辑、失败后果、业务仓库桥接与故障排查见 `07_MAIN_WRITE_GUARD.md`。
 
@@ -124,7 +124,7 @@ Main Write Guard 的完整规则、触发时机、证明逻辑、失败后果、
 
 ---
 
-## 6. 变更规则
+## 6. 变更规则（Change Rules）
 
 当共享默认值发生变化时，应同时修改：
 
@@ -138,7 +138,7 @@ policies/repository.json
 
 ---
 
-## 7. 关键文档速查
+## 7. 关键文档速查（Document Index）
 
 | 需求 | 读哪份 |
 |------|--------|
