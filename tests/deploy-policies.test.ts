@@ -317,7 +317,7 @@ test("MCP Hub production deploy passes only the Cloudflare credential", async ()
 
 // --- workflow invariants -------------------------------------------------------------------------
 
-type Step = { name?: string; env?: unknown; with?: Record<string, unknown>; run?: string };
+type Step = { name?: string; if?: string; env?: unknown; with?: Record<string, unknown>; run?: string };
 type Job = { environment?: unknown; steps?: Step[] };
 type Workflow = { jobs: Record<string, Job> };
 
