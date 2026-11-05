@@ -1,6 +1,6 @@
 # Fongap Labs 治理全景（一页纸）
 
-## 权威金字塔
+## 权威金字塔（Authority Hierarchy）
 
 ```
 机器合同 / 策略 / 规则
@@ -18,7 +18,7 @@ README / 示例
 
 ---
 
-## 核心流程
+## 核心流程（Core Workflow）
 
 ```
 PR → Notify Bridge → PR Governance (Security / CI Evidence / PR 策略) → validate-merge → 合并
@@ -36,13 +36,13 @@ main push → Intake → Central CI → Main Write Guard → 可信 main SHA
 
 ---
 
-## 语言与文档分层
+## 语言与文档分层（Language and Documentation）
 
 唯一权威见 `01_SHARED_GOVERNANCE.md` §2：机器读取文档用英文，人类阅读文档用中文，工程产出（PR 标题、代码注释、工作流、日志）用英文，CHANGELOG 条目用中文；例外见该节。
 
 ---
 
-## 关键文档速查
+## 关键文档速查（Document Index）
 
 | 需求 | 读哪份 |
 |------|--------|
@@ -56,7 +56,7 @@ main push → Intake → Central CI → Main Write Guard → 可信 main SHA
 
 ---
 
-## 机器执行闭环
+## 机器执行闭环（Enforcement Loop）
 
 ```
 contracts/   输入输出合同
@@ -71,6 +71,6 @@ tests/       治理回归测试
 
 ---
 
-## 平台能力边界
+## 平台能力边界（Platform Boundaries）
 
 公开仓库、私有仓库与平台功能缺失的完整边界见 `01_SHARED_GOVERNANCE.md` §8。核心结论：平台功能缺失永远不能成为绕过中央门禁的理由。
