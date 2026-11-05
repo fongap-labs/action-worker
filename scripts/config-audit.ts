@@ -27,7 +27,7 @@ export type ConfigAuditSummary = {
 const repositoryPattern = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
 const secretNamePattern = /^[A-Z][A-Z0-9_]*$/;
 const declarationPattern =
-  /^projects\/([A-Za-z0-9][A-Za-z0-9_.-]*)\/\.secrets\.(required|allowed)$/;
+  /^projects\/([A-Za-z0-9][A-Za-z0-9_.-]*)\/\.(secrets|vars)\.(required|allowed)$/;
 
 export function parseSecretNames(input: string): { names: string[]; invalid: number } {
   const names = new Set<string>();
@@ -45,10 +45,12 @@ export function parseSecretNames(input: string): { names: string[]; invalid: num
   return { names: [...names], invalid };
 }
 
-export function sourceManifest(path: string): { project: string; kind: string } | null {
+export function sourceManifest(
+  path: string
+): { project: string; dataClass: "secret" | "variable"; kind: string } | null {
   const match = declarationPattern.exec(path);
-  if (!match?.[1] || !match[2]) return null;
-  return { project: match[1], kind: match[2] };
+  if (!match?.[1] || !match[2] || !match[3]) return null;
+  return { project: match[1], dataClass: match[2] === "secrets" ? "secret" : "variable", kind: match[3] };
 }
 
 export function policyDeclarationCheck(
@@ -147,7 +149,8 @@ export async function auditSources(
     }
     // A source file is pinned by its blob SHA, not by a mutable main branch path.
     const entries = tree.tree as unknown[];
-    const projects = new Map<string, Set<string>>();\n    const variableProjects = new Map<string, Set<string>>();
+    const projects = new Map<string, Set<string>>();
+    const variableProjects = new Map<string, Set<string>>();\n    const variableProjects = new Map<string, Set<string>>();
     for (const entry of entries) {
       if (!isJsonRecord(entry) || entry.type !== "blob") continue;
       const path = getText(entry, "path");
@@ -159,13 +162,17 @@ export async function auditSources(
       }
       const value = await reader.get(`repos/${repository}/git/blobs/${blobSha}`);
       const parsed = parseSecretNames(decodeBlob(value));
-      const names = projects.get(manifest.project) ?? new Set<string>();
+      const target = manifest.dataClass === "secret" ? projects : variableProjects;
+      const names = target.get(manifest.project) ?? new Set<string>();
       for (const name of parsed.names) names.add(name);
-      projects.set(manifest.project, names);
+      target.set(manifest.project, names);
       summary.source_manifests++;
       summary.invalid_declarations += parsed.invalid;
     }
-    for (const names of variableProjects.values()) {\n      summary.declared_variable_names += names.size;\n    }\n    for (const [project, names] of projects) {
+    for (const names of variableProjects.values()) {\n      summary.declared_variable_names += names.size;\n    }\n    for (const names of variableProjects.values()) {
+      summary.declared_variable_names += names.size;
+    }
+    for (const [project, names] of projects) {
       const checked = policyDeclarationCheck([...names], taskPolicy, repository, project);
       summary.declared_secret_names += names.size;
       summary.policy_excess_names += checked.excess;
