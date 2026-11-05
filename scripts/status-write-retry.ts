@@ -1,5 +1,5 @@
 const transientWriteFailure =
-  /(?:HTTP\\s+)(?:408|429|500|502|503|504)\\b|server error|bad gateway|service unavailable|gateway timeout|ECONNRESET|ETIMEDOUT|EAI_AGAIN/i;
+  /(?:HTTP\s+)(?:408|429|500|502|503|504)\b|server error|bad gateway|service unavailable|gateway timeout|ECONNRESET|ETIMEDOUT|EAI_AGAIN/i;
 
 export function isRetryableStatusWriteError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
