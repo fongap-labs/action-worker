@@ -50,7 +50,11 @@ export function sourceManifest(
 ): { project: string; dataClass: "secret" | "variable"; kind: string } | null {
   const match = declarationPattern.exec(path);
   if (!match?.[1] || !match[2] || !match[3]) return null;
-  return { project: match[1], dataClass: match[2] === "secrets" ? "secret" : "variable", kind: match[3] };
+  return {
+    project: match[1],
+    dataClass: match[2] === "secrets" ? "secret" : "variable",
+    kind: match[3],
+  };
 }
 
 export function policyDeclarationCheck(
