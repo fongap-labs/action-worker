@@ -178,32 +178,16 @@ Schema 2 示例：
 - 多产品键 = `owner/name/product`，单产品 = `owner/name`
 - `production` 可由多个获授权产品共用，按部署键独立执行密钥白名单；其他 Environment 不得跨产品复用
 - 产品只拿自己条目授权的密钥。
-- 部署工作流不注入整个 `secrets` 上下文；中央先解析仓库、环境、产品和源清单，再通过动态密钥名只读取一个产品密钥包。
-- 密钥包存放在 `fongap-labs/action-worker` 的 `production` Environment，JSON 键使用中央策略中的存储来源名称；不得包含其他产品的密钥或未授权键。
-- `variable_sources` 标明别名来源属于 Repository Variable（如 `CLOUDFLARE_ACCOUNT_ID_SECONDARY`），该变量不放入密钥包。
-- 密钥包中的值先逐项注册日志遮蔽，再按源清单和中央白名单提取；临时文件目录权限为 `0700`、文件权限为 `0600`，启动源脚本前删除。
-
-密钥包名称：
-
-| 产品 | `production` Environment Secret |
-| --- | --- |
-| AI Gateway | `AW_DEPLOY_SECRET_BUNDLE_AI_GATEWAY` |
-| Server Edge | `AW_DEPLOY_SECRET_BUNDLE_SERVER_EDGE` |
-| MCP Hub | `AW_DEPLOY_SECRET_BUNDLE_MCP_HUB` |
-
-配置范例（仅示意，尖括号内容须替换为现有密钥值）：
-
-```json
-{
-  "CLOUDFLARE_API_TOKEN_SECONDARY": "<现有 Cloudflare Token>"
-}
-```
-
-- AI Gateway 密钥包须包含其源清单授权的 Secret 来源；`CLOUDFLARE_ACCOUNT_ID_SECONDARY` 是 Repository Variable，禁止放入密钥包。
-- Server Edge 密钥包按中央策略包含四项已授权 Secret；MCP Hub 密钥包只包含 `CLOUDFLARE_API_TOKEN_SECONDARY`。
-- 每个密钥包最大 48 KiB；缺少必需项、包含未授权键或 JSON 格式错误时，部署失败关闭。
-- 配置新密钥包前不删除原有独立 Secret；三个产品均完成部署验收且确认没有其他工作流引用后，才可评估清理旧密钥。
-- 可选部署密钥须同时出现在中央策略的 `allowed` 和源仓库的 `deploy.secrets.allowed`；环境未配置该密钥时仍可部署。MCP Hub 的 `production` 不允许任何 `MCP_*` 运行时密钥。
+- 部署工作流不注入整个 `secrets` 上下文；中央先解析仓库、环境、产品与源清单，并对源清单实施中央策略上限。
+- 实际 Secret 名称以非敏感的 Job Step Outputs 形式传入固定槽位；只有对应的 `secrets[steps.secret_plan.outputs.secret_XX]` 被解析，最多 40 项，空槽位不传值。
+- 复用现有的独立 GitHub Environment Secrets，无需建立 JSON 密钥包，也不需要重新录入密钥。
+- `variable_sources` 仅用于声明 Repository Variable 别名来源，如 `CLOUDFLARE_ACCOUNT_ID_SECONDARY`。变量通过现有导出机制传递；不把变量伪装成 Secret。
+- 密钥值仅在可信暂存步骤中短暂存在。逐项注册日志遮蔽，文件目录权限为 `0700`、文件权限为 `0600`，源脚本启动前删除。
+- 部署子进程只继承必要系统与部署元数据、已导出的普通 Repository Variables，以及本次授权的 Secret；不继承 Action Worker 控制面密钥、Runner Token、整个 `secrets` 上下文、`NODE_OPTIONS`。
+- 缺少必需密钥、源清单越权、来源冲突或超过 40 项时失败关闭；可选密钥必须同时在中央 `allowed` 与源仓库 `deploy.secrets.allowed` 中声明。
+- MCP Hub 的 `production` 仅授权 `CLOUDFLARE_API_TOKEN_SECONDARY`；运行时 `MCP_*` 密钥继续保存在 Cloudflare Worker Secrets。
+- AI Gateway 正常部署仅授权 Cloudflare 部署凭据和 `AIG_DEPLOY_HEALTH_KEY` 健康检查别名，后者使用现有 `AIG_ACCESS_KEY_AGENT`；Provider/Tier/OAuth 密钥不随部署传入。Server Edge 维持 `server-edge-cloud-edge` 环境现有的四项授权配置。
+- 本次变更不修改任何已存 GitHub 或 Cloudflare Secret 的值，且不自动部署。
 
 并发两层：
 - 流水线组：`source-script-deploy-pipeline-<仓库>-<产品>-<环境>`（输入决定，防重复启动）
