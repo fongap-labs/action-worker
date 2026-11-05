@@ -11,7 +11,6 @@ const namePattern = /^[A-Z][A-Z0-9_]*$/;
 const repositoryPattern = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
 const criticalVariables = new Set([
   "AW_REPOSITORY_POLICY",
-  "AW_STATUS_SIGNING_KEYS",
   "AW_PUBLICATION_PUBLIC_KEY",
   "AW_TASK_SECRET_POLICY_MODE",
 ]);
@@ -158,7 +157,7 @@ function environmentNames(entries: unknown[]): Set<string> {
       typeof entry.name !== "string" ||
       entry.name.length === 0 ||
       entry.name.length > 255 ||
-      /[\x00-\x1f]/.test(entry.name) ||
+      Array.from(entry.name).some((character) => character.charCodeAt(0) < 32) ||
       names.has(entry.name)
     ) {
       throw new CliError("Configuration inventory contains invalid environment metadata.", 65);
@@ -269,7 +268,11 @@ export async function auditStorageMetadata(
     result.protected_variable_bindings += countCritical(repoVariables);
     result.protected_variable_bindings += countCritical(inheritedVariables);
 
-    const environments = await listAll(reader, "repos/" + repository + "/environments", "environments");
+    const environments = await listAll(
+      reader,
+      "repos/" + repository + "/environments",
+      "environments"
+    );
     result.environment_count += environments.length;
     const environmentsByName = environmentNames(environments);
     for (const name of environmentsByName) {
