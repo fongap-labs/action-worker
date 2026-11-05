@@ -191,7 +191,7 @@ Schema 2 示例：
 
 ---
 
-### 5.2 MCP Hub 运维与生产部署隔离
+### 5.2 运维与生产部署隔离
 
 ```text
 Action Worker
