@@ -77,7 +77,7 @@ capability_requests
 
 详细合同见 `EXECUTION_CONTRACT.md`。
 
-### 4.1 Linux CI 分片（可选）
+### 4.1 可选的持续集成分片
 
 默认 Linux CI 为单作业。大型项目可在 `ci` 操作中声明 `matrix.shard` 拆分为并行分片：
 
@@ -189,7 +189,7 @@ AIG_ACCESS_KEY_AGENT
 `AW_CONTROL_TOKEN`：中央读取、控制与状态治理。
 `AW_ADMIN_TOKEN`：仅用于可信控制步骤的仓库级高权限写入（Repository Settings / Rulesets、SARIF 发布所需 Code Scanning 写权限）。高权限令牌绝不注入沙箱项目命令。
 
-### 9.1 API 凭据与状态签名
+### 9.1 接口凭据与状态签名
 
 GitHub API 写入使用工作流按任务签发的短期 GitHub App Token。以下名称是传给具体脚本步骤的运行时环境变量，不是需要手动配置的 Secrets：
 
