@@ -105,9 +105,12 @@ test("authoritative governance rules use short Chinese sentences and paired exam
       }
       const wrong = body.indexOf("### ❌ 错误做法 / 反面教材");
       const right = body.indexOf("### ✅ 正确做法 / 规范范例");
-      if (wrong < 0 || right <= wrong ||
-          !body.slice(wrong + 1, right).some((line) => line.startsWith("```")) ||
-          !body.slice(right + 1).some((line) => line.startsWith("```"))) {
+      if (
+        wrong < 0 ||
+        right <= wrong ||
+        !body.slice(wrong + 1, right).some((line) => line.startsWith("```")) ||
+        !body.slice(right + 1).some((line) => line.startsWith("```"))
+      ) {
         violations.push(`${path}: ${chapter}: missing contrasting code examples`);
       }
     };
