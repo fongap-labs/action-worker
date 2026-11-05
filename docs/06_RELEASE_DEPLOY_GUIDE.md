@@ -4,7 +4,7 @@
 
 ---
 
-## 1. 发布 / 部署工作流速查
+## 1. 发布 / 部署工作流速查（Workflow Reference）
 
 | 目的 | 工作流 | 手动输入 | 自动触发 |
 |------|--------|----------|----------|
@@ -17,7 +17,7 @@
 
 ---
 
-## 2. 启动前检查清单
+## 2. 启动前检查清单（Preflight Checklist）
 
 启动 `手动 · 发布应用` 或 `手动 · 部署服务` 前，**无需**手动准备 CI/main-write 证明——工作流会自动申请并等待最多 20 分钟。补发 npm 时只选择 Action Worker 已正式发布的 Release。仅需确认：
 
@@ -27,7 +27,7 @@
 
 ---
 
-## 3. 常见失败与对策
+## 3. 常见失败与对策（Troubleshooting）
 
 | 日志报错 | 原因 | 处理 |
 |----------|------|------|
@@ -60,7 +60,7 @@
 
 ---
 
-## 4. 发布流程详解
+## 4. 发布流程详解（Release Workflow）
 
 ```
 不可变源码
@@ -124,7 +124,7 @@ tag: dsh-ui-delta-v0.1.0-beta.2
 
 工作流只接受受管策略允许的目标仓库，并校验 Release 的来源、中央 CI、Main Write Guard、tarball SHA256、包名和版本。它会先核对 npm 上的版本完整性；相同内容视为已发布并确保 `beta` / `latest` dist-tag 正确，不同内容则停止，避免覆盖不可变版本。Beta 版本使用 `beta` dist-tag。
 
-## 5. 部署流程详解
+## 5. 部署流程详解（Deployment Workflow）
 
 ```
 不可变源码
@@ -190,7 +190,7 @@ Schema 2 示例：
 
 ---
 
-## 6. 定时部署
+## 6. 定时部署（Scheduled Deployments）
 
 在环境 `triggers` 中加 `schedule`（五段式 cron，UTC）：
 
@@ -219,7 +219,7 @@ Schema 2 示例：
 
 ---
 
-## 7. 跟随型产品
+## 7. 跟随型产品（Follower Products）
 
 跟随型产品 = 独立产品但依赖上游某已发布版本。上游发布成功后，Action Worker 为每个跟随方开 PR，将固定版本改为新发布版本。
 
