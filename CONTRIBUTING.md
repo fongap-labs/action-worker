@@ -4,7 +4,7 @@
 
 所有变更一律通过 Pull Request 进入 `main`（Squash merge）。组织级治理合同见 `docs/01_SHARED_GOVERNANCE.md`；本文只列贡献者立即需要的内容。
 
-## 提交信息（Conventional Commits）
+## 提交信息
 
 - 提交（即 Squash merge 后的 PR 标题）使用 `type(scope): summary` 格式，类型只允许三种：`feat`、`fix`、`chore`。
 - 破坏性变更用 `!`（如 `feat(api)!: drop the v1 protocol`）或正文中的 `BREAKING CHANGE` 脚注声明；安全、迁移等只用中文 CHANGELOG 条目的属性标注，不增加新类型。
@@ -19,17 +19,17 @@ git config core.hooksPath .githooks
 npx --yes --package=@commitlint/cli@19 commitlint --from origin/main --to HEAD
 ```
 
-## CHANGELOG（Changelog）
+## 变更记录
 
 `feat`、`fix` 必须在 `CHANGELOG.md` 的 `[Unreleased]` 下新增中文条目，`chore` 可省略。类别仅允许“新增、修复、维护”，摘要不超过 80 字符；禁止 `changelog.d/`。
 
-## Pull Request（Pull Requests）
+## 合并请求
 
 1. 常规开发从 `main` 创建 `feat/*`、`fix/*`、`chore/*` 分支。
 2. 一个 PR 只有一个目标；PR 标题遵守上面的提交格式。
 3. 本地验证：`npm run check`（typecheck + lint + 全量测试，需要 Node 24 与 `npm ci`）。
 
-## 受治理保护的变更（Governed Changes）
+## 受治理保护的变更
 
 改动以下内容时，先阅读 `docs/GOVERNANCE_CHANGE_CHECKLIST.md`，并在 PR 描述中说明影响面：
 
