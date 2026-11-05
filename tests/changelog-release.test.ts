@@ -7,7 +7,7 @@ import {
 } from "../scripts/changelog-release.ts";
 import { CliError } from "../scripts/runtime-command.ts";
 
-const categories = ["新增", "变更", "弃用", "移除", "修复", "安全"];
+const categories = ["新增", "修复", "维护"];
 
 test("an entry names one category, optional attributes and a Chinese summary", () => {
   assert.deepEqual(parseEntry("- 修复: 修复路由重试。"), {
@@ -27,41 +27,18 @@ test("an entry names one category, optional attributes and a Chinese summary", (
   assert.equal(parseEntry("- 修复 没有冒号"), null);
 });
 
-test("pending fragments are released after the unreleased entries, in category order", () => {
-  const before = "# Changelog\n\n## [Unreleased]\n\n- 修复: 已在未发布区的条目。\n\n## [0.1.0]\n";
+test("pending entries are promoted directly from CHANGELOG.md", () => {
+  const before = "# Changelog\n\n## [Unreleased]\n\n- 修复: 修复路由重试。\n- 新增: 增加导出命令。\n\n## [0.1.0]\n";
   const after = promoteUnreleased(before, {
     version: "0.2.0",
     date: "2026-10-23",
     releaseUrl: "https://example.invalid/releases/0.2.0",
     categories,
-    fragments: [
-      "- 安全 [security]: 收紧密钥权限。\n",
-      "- 新增: 增加导出命令。\n- 修复: 修正超时。\n",
-    ],
   });
   const release = after.slice(after.indexOf("## [0.2.0]"), after.indexOf("## [0.1.0]"));
   assert.deepEqual(
     release.split("\n").filter((line) => line.startsWith("### ") || line.startsWith("- ")),
-    [
-      "### 新增",
-      "- 增加导出命令。",
-      "### 修复",
-      "- 已在未发布区的条目。",
-      "- 修正超时。",
-      "### 安全",
-      "- [security] 收紧密钥权限。",
-    ]
-  );
-  assert.throws(
-    () =>
-      promoteUnreleased(before, {
-        version: "0.2.0",
-        date: "2026-10-23",
-        releaseUrl: "https://example.invalid/releases/0.2.0",
-        categories,
-        fragments: ["不是条目的一行。\n"],
-      }),
-    /changelog fragment holds a line that is not an entry/
+    ["### 新增", "- 增加导出命令。", "### 修复", "- 修复路由重试。"]
   );
 });
 
@@ -71,6 +48,7 @@ test("a summary must be Chinese text and must not carry mojibake", () => {
   assert.throws(() => assertChineseSummary("修复 Settings â–?Privacy"), CliError);
   assert.throws(() => assertChineseSummary("修复 range �"), CliError);
   assert.throws(() => assertChineseSummary("修复 wrong dash â€“ here"), CliError);
+  assert.throws(() => assertChineseSummary("优化配置和执行流程".repeat(11)), CliError);
 });
 
 test("promoting Unreleased moves every entry into a linked version section in category order", () => {
@@ -81,7 +59,7 @@ test("promoting Unreleased moves every entry into a linked version section in ca
     "",
     "- 修复: 修复路由重试。",
     "- 新增 [breaking]: 替换认证配置格式。",
-    "- 安全 [security]: 收紧 OAuth 回调校验。",
+    "- 修复 [security]: 收紧 OAuth 回调校验。",
     "- 新增: 增加导出命令。",
     "",
     "## [0.1.0](https://github.com/fongap-labs/example/releases/tag/example-v0.1.0) - 2026-09-18",
@@ -115,11 +93,10 @@ test("promoting Unreleased moves every entry into a linked version section in ca
       "",
       "### 修复",
       "",
+      "- [security] 收紧 OAuth 回调校验。",
       "- 修复路由重试。",
       "",
-      "### 安全",
-      "",
-      "- [security] 收紧 OAuth 回调校验。",
+
       "",
       "## [0.1.0](https://github.com/fongap-labs/example/releases/tag/example-v0.1.0) - 2026-09-18",
       "",
