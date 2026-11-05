@@ -1,4 +1,11 @@
-import { type GithubReader, getJsonString, runGithubCli, statusAwareReader } from "./github-api.ts";
+import {
+  GithubHttpError,
+  type GithubReader,
+  getJsonString,
+  isRetryableStatus,
+  runGithubCli,
+  statusAwareReader,
+} from "./github-api.ts";
 import {
   MainWriteVerificationPendingError,
   validateMainWriteProvenance,
@@ -30,6 +37,19 @@ export function countAuditResults(results: readonly AuditResult[]): {
     rejected: results.filter((result) => result.state === "failure").length,
     pending: results.filter((result) => result.state === "pending").length,
   };
+}
+
+/**
+ * Transient GitHub read failures have not proved an untrusted main write.
+ * Keep the guard pending and fail closed; do not record a permanent incident.
+ */
+export function isTransientAuditReadFailure(error: unknown): boolean {
+  return (
+    error instanceof GithubHttpError &&
+    (isRetryableStatus(error.status) ||
+      error.kind === "primary-rate-limit" ||
+      error.kind === "secondary-rate-limit")
+  );
 }
 
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -205,6 +225,7 @@ async function main(): Promise<void> {
     } catch (error) {
       const detail =
         error instanceof Error ? error.message.replace(/^::error::/, "") : String(error);
+      const transientReadFailure = isTransientAuditReadFailure(error);
       if (hasVerifiedProvenance) {
         // A failed status POST is an operational failure, not evidence of an untrusted write.
         statusPublicationErrors.push(`${repository}: ${detail}`);
@@ -221,6 +242,7 @@ async function main(): Promise<void> {
         shaPattern.test(mainSha) &&
         !(error instanceof IncidentAccessError) &&
         !(error instanceof MainWriteVerificationPendingError) &&
+        !transientReadFailure &&
         !detail.startsWith("Unresolved main write incident(s)")
       ) {
         try {
@@ -247,7 +269,9 @@ async function main(): Promise<void> {
         }
       }
       const statusState =
-        error instanceof MainWriteVerificationPendingError ? "pending" : "failure";
+        error instanceof MainWriteVerificationPendingError || transientReadFailure
+          ? "pending"
+          : "failure";
       if (shaPattern.test(mainSha)) {
         try {
           await publishGuardStatus(
@@ -255,9 +279,11 @@ async function main(): Promise<void> {
             mainSha,
             statusToken,
             statusState,
-            error instanceof MainWriteVerificationPendingError
-              ? "Central PR evidence is still running"
-              : "Untrusted main write",
+            transientReadFailure
+              ? "GitHub API temporarily unavailable"
+              : error instanceof MainWriteVerificationPendingError
+                ? "Central PR evidence is still running"
+                : "Untrusted main write",
             runUrl
           );
         } catch (statusError) {

@@ -203,6 +203,7 @@ jobs:
         id: request
         env:
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           RELEASE_BUILD_REQUEST_JSON: ${{ steps.ingress.outputs.request_json }}
         run: node scripts/validate-release-build-request.ts policies/runner.json
