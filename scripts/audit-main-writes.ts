@@ -86,8 +86,7 @@ async function publishGuardStatus(
 export async function auditRepositoryMain(
   reader: GithubReader,
   repository: string,
-  isCentralStatusRequired = true,
-  isIncidentBypassEnabled = false
+  isCentralStatusRequired = true
 ): Promise<{ main_sha: string; pr_number: number }> {
   const repositoryValue = await reader.get(`repos/${repository}`);
   const defaultBranch = getJsonString(repositoryValue, "default_branch");
@@ -108,9 +107,7 @@ export async function auditRepositoryMain(
     mainSha,
     isCentralStatusRequired
   );
-  if (!isIncidentBypassEnabled) {
-    await assertNoOpenMainWriteIncidents(reader, repository);
-  }
+  await assertNoOpenMainWriteIncidents(reader, repository);
   return { main_sha: mainSha, pr_number: provenance.pr_number };
 }
 
@@ -192,12 +189,10 @@ async function main(): Promise<void> {
         throw new CliError(`::error::Managed repository main SHA is invalid: ${repository}.`, 65);
       }
 
-      const bypassIncidents = process.env.MAIN_WRITE_GUARD_BYPASS === "true";
       const provenance = await auditRepositoryMain(
         reader,
         repository,
-        repository !== controlRepository,
-        bypassIncidents
+        repository !== controlRepository
       );
       hasVerifiedProvenance = true;
       await publishGuardStatus(
@@ -205,9 +200,7 @@ async function main(): Promise<void> {
         mainSha,
         statusToken,
         "success",
-        bypassIncidents
-          ? `Trusted main write via PR #${provenance.pr_number} (incident check bypassed)`
-          : `Trusted main write via PR #${provenance.pr_number}`,
+        `Trusted main write via PR #${provenance.pr_number}`,
         runUrl
       );
       results.push({

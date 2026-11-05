@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "purpose": "read-only-source-inventory-not-authorization",
+  "repositories": [
+    "fongap-labs/action-worker",
+    "fongap-labs/ai-gateway",
+    "fongap-labs/internal-vault",
+    "fongap-labs/external-vault",
+    "fongap-labs/mcp-hub",
+    "fongap-labs/delta",
+    "fongap-labs/delta-suite",
+    "fongap-labs/dsh-plugin",
+    "fongap-labs/app-source"
+  ]
+}
