@@ -1,4 +1,4 @@
-# 提案 ORG-006：加固 main 分支的 ruleset
+# 提案：加固主分支保护规则
 
 状态：**已采纳第一阶段**（四个公开仓库启用严格的状态检查；PR "require pull requests to be up to date before merging"）。第二阶段（一人审批与绕过主体）和第三阶段（GitHub App）尚未启动，需要 owner 决定。
 
