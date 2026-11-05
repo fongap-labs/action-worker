@@ -119,11 +119,13 @@ test("impact detection reads new CHANGELOG entries only", async () => {
     await mkdir(policyDir, { recursive: true });
     await writeFile(
       join(policyDir, "workflow.json"),
-      JSON.stringify({ path_prefixes: [".github/workflows/"] }), "utf8"
+      JSON.stringify({ path_prefixes: [".github/workflows/"] }),
+      "utf8"
     );
     await writeFile(
       join(policyDir, "security.json"),
-      JSON.stringify({ path_terms: ["secret"] }), "utf8"
+      JSON.stringify({ path_terms: ["secret"] }),
+      "utf8"
     );
     await writeFile(
       join(policyDir, "release.json"),
@@ -140,7 +142,8 @@ test("impact detection reads new CHANGELOG entries only", async () => {
     const { stdout: base } = await exec("git", ["rev-parse", "HEAD"], { cwd: root });
     await writeFile(
       join(root, "CHANGELOG.md"),
-      "# 更新日志\n\n## [Unreleased]\n\n- 维护: 降低 latency。\n", "utf8"
+      "# 更新日志\n\n## [Unreleased]\n\n- 维护: 降低 latency。\n",
+      "utf8"
     );
     await exec("git", ["add", "-A"], { cwd: root });
     await exec("git", ["commit", "-qm", "chore: update changelog"], { cwd: root });

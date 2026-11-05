@@ -18,7 +18,8 @@ import { validateChange } from "../scripts/validate-change-record.ts";
 const policyDir = resolve("policies");
 const categories = ["新增", "修复", "维护"];
 const releaseUrl = "https://github.com/fongap-labs/example/releases/tag/example-v0.2.0";
-const base = "# 更新日志\n\n## [Unreleased]\n\n- 修复: 修正超时。\n\n## [0.1.0](https://github.com/fongap-labs/example/releases/tag/example-v0.1.0) - 2026-10-01\n\n### 修复\n\n- 旧条目。\n";
+const base =
+  "# 更新日志\n\n## [Unreleased]\n\n- 修复: 修正超时。\n\n## [0.1.0](https://github.com/fongap-labs/example/releases/tag/example-v0.1.0) - 2026-10-01\n\n### 修复\n\n- 旧条目。\n";
 
 function releaseOf(changelog: string): string {
   return promoteUnreleased(changelog, {
@@ -31,24 +32,27 @@ function releaseOf(changelog: string): string {
 
 test("release changes must promote exactly the existing entries", () => {
   const head = releaseOf(base);
-  assert.deepEqual(
-    assertReleaseChange({ baseChangelog: base, headChangelog: head, categories }),
-    { version: "0.2.0", releaseUrl, date: "2026-10-23" }
-  );
+  assert.deepEqual(assertReleaseChange({ baseChangelog: base, headChangelog: head, categories }), {
+    version: "0.2.0",
+    releaseUrl,
+    date: "2026-10-23",
+  });
   assert.throws(
-    () => assertReleaseChange({
-      baseChangelog: base,
-      headChangelog: head.replace("修正超时", "改变超时"),
-      categories,
-    }),
+    () =>
+      assertReleaseChange({
+        baseChangelog: base,
+        headChangelog: head.replace("修正超时", "改变超时"),
+        categories,
+      }),
     /does not match/
   );
   assert.throws(
-    () => assertReleaseChange({
-      baseChangelog: base,
-      headChangelog: head + "\n## [0.0.9](https://example.invalid/v0.0.9) - 2026-09-01\n",
-      categories,
-    }),
+    () =>
+      assertReleaseChange({
+        baseChangelog: base,
+        headChangelog: head + "\n## [0.0.9](https://example.invalid/v0.0.9) - 2026-09-01\n",
+        categories,
+      }),
     /exactly one version section/
   );
 });
@@ -126,19 +130,21 @@ test("scoped releases preserve unrelated Unreleased entries", () => {
 test("scoped releases reject extra changes and unknown categories", () => {
   const head = scopedOf(base);
   assert.throws(
-    () => assertScopedReleaseChange({
-      baseChangelog: base,
-      headChangelog: head.replace("- 修复: 修正超时。", "- 修复: 修正超时。\n- 修复: 另一项。"),
-      categories,
-    }),
+    () =>
+      assertScopedReleaseChange({
+        baseChangelog: base,
+        headChangelog: head.replace("- 修复: 修正超时。", "- 修复: 修正超时。\n- 修复: 另一项。"),
+        categories,
+      }),
     /does not match/
   );
   assert.throws(
-    () => assertScopedReleaseChange({
-      baseChangelog: base,
-      headChangelog: head.replace("### 新增", "### 安全"),
-      categories,
-    }),
+    () =>
+      assertScopedReleaseChange({
+        baseChangelog: base,
+        headChangelog: head.replace("### 新增", "### 安全"),
+        categories,
+      }),
     /unknown category/
   );
 });

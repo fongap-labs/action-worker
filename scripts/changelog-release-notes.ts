@@ -57,13 +57,28 @@ async function readFileAt(
   }
 }
 
-async function ensureNoLegacyFragments(repository: string, ref: string, token: string): Promise<void> {
+async function ensureNoLegacyFragments(
+  repository: string,
+  ref: string,
+  token: string
+): Promise<void> {
   try {
     const entries = getJsonArray(
-      await getGithubJson(`repos/${repository}/contents/changelog.d?ref=${encodeURIComponent(ref)}`, token)
+      await getGithubJson(
+        `repos/${repository}/contents/changelog.d?ref=${encodeURIComponent(ref)}`,
+        token
+      )
     );
-    if (entries.some((item) => isJsonRecord(item) && item.type === "file" && getJsonString(item, "name").endsWith(".md"))) {
-      throw new CliError("Legacy changelog.d entries remain; move them to CHANGELOG.md before release.", 65);
+    if (
+      entries.some(
+        (item) =>
+          isJsonRecord(item) && item.type === "file" && getJsonString(item, "name").endsWith(".md")
+      )
+    ) {
+      throw new CliError(
+        "Legacy changelog.d entries remain; move them to CHANGELOG.md before release.",
+        65
+      );
     }
   } catch (error) {
     if (isGithubMissing(error)) return;

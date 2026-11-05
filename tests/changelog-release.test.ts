@@ -28,7 +28,8 @@ test("an entry names one category, optional attributes and a Chinese summary", (
 });
 
 test("pending entries are promoted directly from CHANGELOG.md", () => {
-  const before = "# Changelog\n\n## [Unreleased]\n\n- 修复: 修复路由重试。\n- 新增: 增加导出命令。\n\n## [0.1.0]\n";
+  const before =
+    "# Changelog\n\n## [Unreleased]\n\n- 修复: 修复路由重试。\n- 新增: 增加导出命令。\n\n## [0.1.0]\n";
   const after = promoteUnreleased(before, {
     version: "0.2.0",
     date: "2026-10-23",

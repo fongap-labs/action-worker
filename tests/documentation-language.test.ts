@@ -60,8 +60,8 @@ test("no Chinese localization copies are kept beside the Chinese documents", asy
 test("human governance documents use Chinese-only second and third-level headings", async () => {
   const violations: string[] = [];
   const paths = (await trackedMarkdown()).filter(
-    (path) => path.startsWith("docs/") ||
-      ["README.md", "SECURITY.md", "CONTRIBUTING.md"].includes(path)
+    (path) =>
+      path.startsWith("docs/") || ["README.md", "SECURITY.md", "CONTRIBUTING.md"].includes(path)
   );
   for (const path of paths) {
     const lines = (await readFile(path, "utf8")).split("\n");
@@ -73,7 +73,7 @@ test("human governance documents use Chinese-only second and third-level heading
       }
       if (inFence || !/^#{2,3} /.test(line)) return;
       const normalized = line.replace(/^#{2,3} (?:\d+(?:\.\d+)*\.\s*)?/, "");
-      if (!/[^\x00-\x7f]/.test(normalized) || /[A-Za-z]/.test(normalized)) {
+      if (!/\p{Script=Han}/u.test(normalized) || /[A-Za-z]/.test(normalized)) {
         violations.push(`${path}:${index + 1}: ${line}`);
       }
     });

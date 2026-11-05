@@ -134,7 +134,10 @@ test("a span with a nonstandard subject or unsupported type fails closed", () =>
       ]),
     /not Conventional Commits titles.*misc changes/
   );
-  assert.throws(() => changesFromSpan([{ sha: sha("e"), message: "docs: update readme" }]), /not Conventional Commits/);
+  assert.throws(
+    () => changesFromSpan([{ sha: sha("e"), message: "docs: update readme" }]),
+    /not Conventional Commits/
+  );
   assert.deepEqual(changesFromSpan([{ sha: sha("e"), message: "Merge branch 'x'" }]), []);
 });
 

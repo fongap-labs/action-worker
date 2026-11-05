@@ -89,12 +89,21 @@ async function readFileAt(
 }
 
 // Do not silently lose pending entries from repositories that have not migrated.
-async function ensureNoLegacyFragments(repository: string, baseSha: string, token: string): Promise<void> {
+async function ensureNoLegacyFragments(
+  repository: string,
+  baseSha: string,
+  token: string
+): Promise<void> {
   try {
     const entries = getJsonArray(
       await getGithubJson(`repos/${repository}/contents/changelog.d?ref=${baseSha}`, token)
     );
-    if (entries.some((item) => isJsonRecord(item) && item.type === "file" && getJsonString(item, "name").endsWith(".md"))) {
+    if (
+      entries.some(
+        (item) =>
+          isJsonRecord(item) && item.type === "file" && getJsonString(item, "name").endsWith(".md")
+      )
+    ) {
       throw new CliError(
         "::error::Legacy changelog.d entries remain. Move them to CHANGELOG.md in a governed PR before release.",
         65

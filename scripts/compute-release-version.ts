@@ -2,8 +2,7 @@ import { getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
 // Only feat, fix, chore are valid. Breaking changes use ! or a BREAKING CHANGE footer.
-const COMMIT_SUBJECT =
-  /^(feat|fix|chore)(?:\([A-Za-z0-9._/ -]{1,64}\))?(!)?:\s+(.+)$/;
+const COMMIT_SUBJECT = /^(feat|fix|chore)(?:\([A-Za-z0-9._/ -]{1,64}\))?(!)?:\s+(.+)$/;
 
 const BREAKING_FOOTER = /BREAKING[- ]CHANGE:/;
 

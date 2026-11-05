@@ -186,7 +186,10 @@ function unreleasedBounds(content: string): { lines: string[]; start: number; en
 
 function unreleasedSection(content: string): string {
   const { lines, start, end } = unreleasedBounds(content);
-  return lines.slice(start + 1, end).join("\n").trim();
+  return lines
+    .slice(start + 1, end)
+    .join("\n")
+    .trim();
 }
 
 function outsideUnreleased(content: string): string {
@@ -198,8 +201,14 @@ export function addedUnreleasedEntries(baseContent: string, headContent: string)
   if (outsideUnreleased(baseContent) !== outsideUnreleased(headContent)) {
     throw new CliError("::error::A normal PR must not modify released CHANGELOG sections.", 65);
   }
-  const previous = unreleasedSection(baseContent).split("\n").map((line) => line.trim()).filter(Boolean);
-  const current = unreleasedSection(headContent).split("\n").map((line) => line.trim()).filter(Boolean);
+  const previous = unreleasedSection(baseContent)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const current = unreleasedSection(headContent)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
   const additions: string[] = [];
   let nextPrevious = 0;
   for (const line of current) {
@@ -292,28 +301,41 @@ export async function validateChange(
     };
   }
   const legacyChanged = await runText(
-    "git", ["diff", "--name-only", "--diff-filter=ACMR", base, head, "--", "changelog.d/"], { cwd: root }
+    "git",
+    ["diff", "--name-only", "--diff-filter=ACMR", base, head, "--", "changelog.d/"],
+    { cwd: root }
   );
   if (legacyChanged.trim() !== "") {
-    throw new CliError("::error::changelog.d is retired. Write Chinese entries in CHANGELOG.md.", 65);
+    throw new CliError(
+      "::error::changelog.d is retired. Write Chinese entries in CHANGELOG.md.",
+      65
+    );
   }
   // Atomic retirement: every existing fragment must be removed in the same PR that
   // writes a complete, concise CHANGELOG. This is a one-time migration, not a type exemption.
   const removedLegacy = await runText(
-    "git", ["diff", "--name-only", "--diff-filter=D", base, head, "--", "changelog.d/"], { cwd: root }
+    "git",
+    ["diff", "--name-only", "--diff-filter=D", base, head, "--", "changelog.d/"],
+    { cwd: root }
   );
   const previousLegacy = await runText(
-    "git", ["ls-tree", "-r", "--name-only", base, "--", "changelog.d/"], { cwd: root }
+    "git",
+    ["ls-tree", "-r", "--name-only", base, "--", "changelog.d/"],
+    { cwd: root }
   );
   const remainingLegacy = await runText(
-    "git", ["ls-tree", "-r", "--name-only", head, "--", "changelog.d/"], { cwd: root }
+    "git",
+    ["ls-tree", "-r", "--name-only", head, "--", "changelog.d/"],
+    { cwd: root }
   );
   const deletedNames = removedLegacy.split(/\r?\n/).filter(Boolean).sort();
   const previousNames = previousLegacy.split(/\r?\n/).filter(Boolean).sort();
-  if (deletedNames.length > 0 &&
-      (deletedNames.length !== previousNames.length ||
-        JSON.stringify(deletedNames) !== JSON.stringify(previousNames) ||
-        remainingLegacy.trim() !== "")) {
+  if (
+    deletedNames.length > 0 &&
+    (deletedNames.length !== previousNames.length ||
+      JSON.stringify(deletedNames) !== JSON.stringify(previousNames) ||
+      remainingLegacy.trim() !== "")
+  ) {
     throw new CliError(
       "::error::Retire every changelog.d file together with a complete CHANGELOG.md migration.",
       65
@@ -325,7 +347,10 @@ export async function validateChange(
   }
   const changelogRequired = isBreaking || requiredTypes.includes(changeType);
   if (changelogRequired && !changedPaths.includes(changelogFile)) {
-    throw new CliError(`::error::Change type ${changeType} must update CHANGELOG.md [Unreleased].`, 65);
+    throw new CliError(
+      `::error::Change type ${changeType} must update CHANGELOG.md [Unreleased].`,
+      65
+    );
   }
   let entries: string[] = [];
   if (changedPaths.includes(changelogFile)) {
@@ -336,7 +361,10 @@ export async function validateChange(
       if (baseReleased !== outsideUnreleased(headChangelog)) {
         throw new CliError("::error::CHANGELOG migration must preserve published sections.", 65);
       }
-      entries = unreleasedSection(headChangelog).split("\n").map((line) => line.trim()).filter(Boolean);
+      entries = unreleasedSection(headChangelog)
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
       if (new Set(entries).size !== entries.length || entries.length === 0) {
         throw new CliError("::error::CHANGELOG migration requires unique, non-empty entries.", 65);
       }
@@ -350,14 +378,20 @@ export async function validateChange(
   for (const line of entries) {
     const entry = parseEntry(line);
     if (!entry) {
-      throw new CliError(`::error::Invalid CHANGELOG entry: ${line}. Expected '- 修复: 中文摘要'.`, 65);
+      throw new CliError(
+        `::error::Invalid CHANGELOG entry: ${line}. Expected '- 修复: 中文摘要'.`,
+        65
+      );
     }
     assertChineseSummary(entry.summary);
     if (!categories.includes(entry.category)) {
       throw new CliError(`::error::Unknown CHANGELOG category: ${entry.category}.`, 65);
     }
     if (entry.attributes.some((attribute) => !allowedAttrs.includes(attribute))) {
-      throw new CliError(`::error::Unsupported CHANGELOG attributes: ${entry.attributes.join(", ")}.`, 65);
+      throw new CliError(
+        `::error::Unsupported CHANGELOG attributes: ${entry.attributes.join(", ")}.`,
+        65
+      );
     }
     if (allowedCategories.includes(entry.category)) {
       hasMatching = true;
@@ -367,7 +401,10 @@ export async function validateChange(
     }
   }
   if (changelogRequired && !hasMatching) {
-    throw new CliError(`::error::CHANGELOG.md must add an entry matching PR type '${changeType}'.`, 65);
+    throw new CliError(
+      `::error::CHANGELOG.md must add an entry matching PR type '${changeType}'.`,
+      65
+    );
   }
   return {
     schema_version: "1",

@@ -36,7 +36,10 @@ test("change record requires concise Chinese entries in CHANGELOG.md", async (co
   await git(root, ["add", "README.md"]);
   await git(root, ["commit", "-qm", "docs"]);
   const docsHead = await git(root, ["rev-parse", "HEAD"]);
-  assert.equal((await validateChange("chore: clarify setup", base, docsHead, root, policyDir)).type, "chore");
+  assert.equal(
+    (await validateChange("chore: clarify setup", base, docsHead, root, policyDir)).type,
+    "chore"
+  );
   await assert.rejects(validateChange("docs: clarify setup", base, docsHead, root, policyDir));
   await assert.rejects(validateChange("feat: add feature", base, docsHead, root, policyDir));
 
@@ -49,12 +52,13 @@ test("change record requires concise Chinese entries in CHANGELOG.md", async (co
     return git(root, ["rev-parse", "HEAD"]);
   }
 
-  const featureHead = await commitEntry(
-    initial + "\n- 新增: 增加示例能力。\n",
-    "direct entry"
-  );
+  const featureHead = await commitEntry(initial + "\n- 新增: 增加示例能力。\n", "direct entry");
   const feature = await validateChange(
-    "feat(core): add example capability", base, featureHead, root, policyDir
+    "feat(core): add example capability",
+    base,
+    featureHead,
+    root,
+    policyDir
   );
   assert.equal(feature.scope, "core");
   assert.equal(feature.changelog_changed, true);
