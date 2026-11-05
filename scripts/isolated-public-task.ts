@@ -81,7 +81,8 @@ export async function validateIsolatedPublicTask(
           entry.path
         )
     )
-  ) fail();
+  )
+    fail();
   const entries = listing.tree.filter((entry) => isJsonRecord(entry) && entry.path === markerPath);
   if (entries.length !== 1) fail();
   const marker = entries[0];
@@ -91,14 +92,16 @@ export async function validateIsolatedPublicTask(
     marker.mode !== "100644" ||
     typeof marker.sha !== "string" ||
     !shaPattern.test(marker.sha)
-  ) fail();
+  )
+    fail();
   const blob = await reader.get(`repos/${repository}/git/blobs/${marker.sha}`);
   if (
     !isJsonRecord(blob) ||
     blob.encoding !== "base64" ||
     typeof blob.content !== "string" ||
     blob.content.length > 128
-  ) fail();
+  )
+    fail();
   const raw = blob.content.replace(/\s/g, "");
   if (!/^[A-Za-z0-9+/]*={0,2}$/.test(raw)) fail();
   const data = Buffer.from(raw, "base64");
@@ -127,7 +130,8 @@ export async function prepareIsolatedPublicState(
       (listing.total_count as number) !== 0 ||
       !Array.isArray(listing.artifacts) ||
       listing.artifacts.length !== 0
-    ) fail();
+    )
+      fail();
   }
   const root = await mkdtemp(join(tmpdir(), "aw-isolated-public-"));
   try {
@@ -186,21 +190,15 @@ async function main(): Promise<void> {
       const result = await prepareIsolatedPublicState(reader, repository, project, sha);
       await writeFile(arg, result, { flag: "wx", mode: 0o600 });
     } else if (command === "open-input" && arg && destination) {
-    identity(repository, project, sha);
-    await unpackTaskTransferFiles(await readFile(arg), destination);
-  } else if (command === "pack-output" && arg && destination) {
-    identity(repository, project, sha);
-    await mkdir(arg, { recursive: true, mode: 0o700 });
-    await writeTaskStateManifest(arg, repository, project, sha);
-    await writeFile(destination, await packTaskTransferFiles(arg), { flag: "wx", mode: 0o600 });
-  } else if (command === "finalize" && arg && destination) {
-      await finalizeIsolatedPublicState(
-        await readFile(arg),
-        destination,
-        repository,
-        project,
-        sha
-      );
+      identity(repository, project, sha);
+      await unpackTaskTransferFiles(await readFile(arg), destination);
+    } else if (command === "pack-output" && arg && destination) {
+      identity(repository, project, sha);
+      await mkdir(arg, { recursive: true, mode: 0o700 });
+      await writeTaskStateManifest(arg, repository, project, sha);
+      await writeFile(destination, await packTaskTransferFiles(arg), { flag: "wx", mode: 0o600 });
+    } else if (command === "finalize" && arg && destination) {
+      await finalizeIsolatedPublicState(await readFile(arg), destination, repository, project, sha);
     } else {
       throw new CliError("Isolated public task command is invalid.", 64);
     }
