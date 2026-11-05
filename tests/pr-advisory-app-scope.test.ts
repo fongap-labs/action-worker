@@ -6,14 +6,26 @@ import { parse } from "yaml";
 test("PR advisory publication requests only issue and pull-request write permissions", async () => {
   const source = await readFile(".github/workflows/handle-pr-dispatch.yml", "utf8");
   const workflow = parse(source) as {
-    jobs: { govern: { steps: Array<{ name?: string; id?: string; uses?: string; with?: Record<string,string>; env?: Record<string,string> }> } };
+    jobs: {
+      govern: {
+        steps: Array<{
+          name?: string;
+          id?: string;
+          uses?: string;
+          with?: Record<string, string>;
+          env?: Record<string, string>;
+        }>;
+      };
+    };
   };
   const steps = workflow.jobs.govern.steps;
   const minted = steps.find((step) => step.id === "issue_app");
   const publish = steps.find((step) => step.name === "Publish PR review" && step.env?.GH_TOKEN);
   assert.equal(minted?.uses, "./.github/actions/mint-app-token");
   assert.deepEqual(
-    Object.entries(minted?.with ?? {}).filter(([key]) => key.startsWith("permission-")).sort(),
+    Object.entries(minted?.with ?? {})
+      .filter(([key]) => key.startsWith("permission-"))
+      .sort(),
     [
       ["permission-issues", "write"],
       ["permission-pull-requests", "write"],
