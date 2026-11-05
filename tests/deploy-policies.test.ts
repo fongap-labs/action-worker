@@ -225,8 +225,9 @@ test("the shipped deploy secret policy only holds valid, non-reserved names", as
     aiGateway.has("CLOUDFLARE_ACCOUNT_ID"),
     "the account ID is a Repository Variable injected through a deploy alias"
   );
-  assert.equal(aiGateway.size, 39);
+  assert.equal(aiGateway.size, 40);
   assert.equal(aiGateway.has("AIG_INFERENCE_AUTH_KEY"), true);
+  assert.equal(aiGateway.has("AIG_GENERATION_AUTH_KEY"), true);
   await assert.rejects(
     () =>
       readDeploySecretCeiling(
