@@ -171,9 +171,6 @@ export async function auditSources(
       summary.source_manifests++;
       summary.invalid_declarations += parsed.invalid;
     }
-    for (const names of variableProjects.values()) {\n      summary.declared_variable_names += names.size;\n    }\n    for (const names of variableProjects.values()) {
-      summary.declared_variable_names += names.size;
-    }
     for (const names of variableProjects.values()) {
       summary.declared_variable_names += names.size;
     }
