@@ -200,14 +200,27 @@ jobs:
 
           log="$RUNNER_TEMP/central-ci-linux.log"
           failure_meta="$RUNNER_TEMP/central-ci-linux.failure"
-          trace_env="$RUNNER_TEMP/central-ci-bash-env"
-          cat >"$trace_env" <<'EOF'
-          trap 'code=$?; if [ -n "${CENTRAL_CI_FAILURE_FILE:-}" ]; then printf "%s:%s\n" "$LINENO" "$code" > "$CENTRAL_CI_FAILURE_FILE"; fi' ERR
+          wrapper="$RUNNER_TEMP/central-ci-wrapper.sh"
+          cat >"$wrapper" <<'EOF'
+          #!/usr/bin/env bash
+          set -Eeuo pipefail
+          record_failure() {
+            local code=$?
+            if [ "$code" -ne 0 ] && [ -n "${CENTRAL_CI_FAILURE_FILE:-}" ] && [ ! -s "$CENTRAL_CI_FAILURE_FILE" ]; then
+              printf "%s:%s\n" "${BASH_LINENO[0]:-$LINENO}" "$code" > "$CENTRAL_CI_FAILURE_FILE"
+            fi
+          }
+          trap record_failure ERR
+          trap record_failure EXIT
+          script="$1"
+          shift
+          source "$script" "$@"
           EOF
+          chmod 700 "$wrapper"
 
           set +e
-          CENTRAL_CI_FAILURE_FILE="$failure_meta" BASH_ENV="$trace_env" \
-            bash "$script" "${script_args[@]}" >"$log" 2>&1
+          CENTRAL_CI_FAILURE_FILE="$failure_meta" \
+            bash "$wrapper" "$script" "${script_args[@]}" >"$log" 2>&1
           code=$?
           set -e
 

@@ -1004,10 +1004,14 @@ test("central CI deploy dispatch is source-owned and adapter-routed", async () =
     "candidate_control",
     "needs.prepare.outputs.has_windows == 'true'",
     "CENTRAL_CI_FAILURE_FILE",
-    "BASH_ENV",
+    'source "$script" "$@"',
+    'bash "$wrapper" "$script" "${script_args[@]}"',
+    "trap record_failure ERR",
+    "trap record_failure EXIT",
     "Trusted CI failed at line",
     "Detailed output is suppressed because the target repository is private.",
   ]);
+  assert.doesNotMatch(workflow, /BASH_ENV=/);
   assert.doesNotMatch(workflow, /BASH_COMMAND|tail -n|cat "\$failure_meta"/);
   assert.doesNotMatch(
     workflow,

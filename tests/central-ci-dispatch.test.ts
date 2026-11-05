@@ -46,13 +46,17 @@ test("Linux CI fans out over the shards resolved from the trusted manifest", () 
   assert.match(sandbox, /CENTRAL_CI_SHARD: \$\{\{ inputs\.shard \}\}/);
 });
 
-test("an unsharded project keeps the exact single-argument script invocation", () => {
+test("an unsharded project keeps the exact target argument through the trusted CI wrapper", () => {
   assert.match(sandbox, /script_args=\("\$GITHUB_WORKSPACE\/target"\)/);
   assert.match(
     sandbox,
     /if \[ "\$CENTRAL_CI_SHARD" != "all" \]; then\n\s+script_args\+=\("\$CENTRAL_CI_SHARD"\)/
   );
-  assert.match(sandbox, /bash "\$script" "\$\{script_args\[@\]\}" >"\$log" 2>&1/);
+  assert.match(sandbox, /source "\$script" "\$\@"/);
+  assert.match(sandbox, /bash "\$wrapper" "\$script" "\$\{script_args\[@\]\}" >"\$log" 2>&1/);
+  assert.match(sandbox, /trap record_failure ERR/);
+  assert.match(sandbox, /trap record_failure EXIT/);
+  assert.doesNotMatch(sandbox, /BASH_ENV=/);
 });
 
 test("finalization waits for every Linux shard", () => {
