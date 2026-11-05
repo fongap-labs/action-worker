@@ -236,4 +236,3 @@ jobs:
           test "$(cat "$RUNNER_TEMP/publication-smoke/opened/payload/result.txt")" = 'private-publication-canary'
           node -e 'const m=require(process.argv[1]);if(m.target_repository!=="fongap-labs/mcp-hub"||m.schema_version!=="1")process.exit(66)' "$RUNNER_TEMP/publication-smoke/opened/manifest.json"
           echo "Cross-runner encrypted artifact verified with protected key and identity rejection."
-
