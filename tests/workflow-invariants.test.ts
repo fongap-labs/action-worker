@@ -255,7 +255,7 @@ test("manual release cannot bypass unresolved main-write incidents", async () =>
   for (const [name, code] of [
     ["audit", audit],
     ["guard", guard],
-  ]) {
+  ] as const) {
     assert.doesNotMatch(code, /isIncidentBypassEnabled|bypassIncidents|MAIN_WRITE_GUARD_BYPASS/, name);
     assert.match(code, /await assertNoOpenMainWriteIncidents\(reader, repository\)/, name);
   }
