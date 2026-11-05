@@ -19,6 +19,7 @@ import {
 import { repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
+import { postGithubCommitStatus } from "./status-write-retry.ts";
 
 export type AuditResult = {
   repository: string;
@@ -71,22 +72,15 @@ async function publishGuardStatus(
     description,
     targetUrl: runUrl,
   });
-  const args = [
-    "api",
-    "--method",
-    "POST",
-    `repos/${repository}/statuses/${sha}`,
-    "-f",
-    `state=${state}`,
-    "-f",
-    "context=Main Write Guard",
-    "-f",
-    `description=${signedDescription}`,
-  ];
-  if (runUrl) {
-    args.push("-f", `target_url=${runUrl}`);
-  }
-  await runGithubCli(args, token);
+  await postGithubCommitStatus({
+    repository,
+    sha,
+    token,
+    state,
+    context: "Main Write Guard",
+    description: signedDescription,
+    targetUrl: runUrl,
+  });
 }
 
 export async function auditRepositoryMain(
@@ -324,7 +318,7 @@ async function main(): Promise<void> {
   );
   if (statusPublicationErrors.length > 0) {
     throw new CliError(
-      `::error::Main Write Audit could not publish ${statusPublicationErrors.length} repository guard status(es): ${statusPublicationErrors.join("; ")}. Check AW_STATUS_API_TOKEN Commit statuses: Write on the affected repositories.`,
+      `::error::Main Write Audit could not publish ${statusPublicationErrors.length} repository guard status(es): ${statusPublicationErrors.join("; ")}. Check the GitHub API response and the dedicated AW_STATUS_API_TOKEN Commit statuses: Write permission.`,
       77
     );
   }
