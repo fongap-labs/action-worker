@@ -589,6 +589,17 @@ jobs:
           gh repo clone "$TARGET_REPOSITORY" "$WORK_DIR/target" -- --depth 1
           git -C "$WORK_DIR/target" switch -c "$branch"
 
+          # Never follow a symlink from an output path into the runner or Git metadata.
+          path_cursor="$WORK_DIR/target"
+          IFS='/' read -r -a destination_parts <<< "$DEST_DIR"
+          for part in "${destination_parts[@]}"; do
+              path_cursor="$path_cursor/$part"
+              if [ -L "$path_cursor" ]; then
+                  echo "::error::Publication destination traverses a target repository symlink." >&2
+                  exit 66
+              fi
+          done
+
           target_dir="$WORK_DIR/target/$DEST_DIR"
           if [ "$DELETE_STALE" = "true" ]; then
               rm -rf "$target_dir"
