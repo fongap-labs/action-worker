@@ -1,0 +1,57 @@
+name: 自动 · 发布密钥预检
+
+# Secret checks run only on the trusted main branch, never on PR-controlled code.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publication-key-verify.yml
+      - scripts/verify-publication-key-pair.ts
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publication-key-verify
+  cancel-in-progress: false
+
+jobs:
+  unprotected-scope:
+    name: Reject unprotected publication private key
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Require environment-only private key
+        env:
+          PUBLICATION_KEY_LEAKED: ${{ secrets.AW_PUBLICATION_PRIVATE_KEY != '' }}
+        shell: bash
+        run: |
+          if [ "$PUBLICATION_KEY_LEAKED" = "true" ]; then
+            echo "::error::AW_PUBLICATION_PRIVATE_KEY must be restricted to the admin-ops Environment Secret." >&2
+            exit 77
+          fi
+
+  protected-pair:
+    name: Verify protected RSA publication key pair
+    needs: unprotected-scope
+    if: github.ref == 'refs/heads/main'
+    environment: admin-ops
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout trusted control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Verify publication keys without exposing material
+        env:
+          AW_PUBLICATION_PUBLIC_KEY: ${{ vars.AW_PUBLICATION_PUBLIC_KEY }}
+          AW_PUBLICATION_PRIVATE_KEY: ${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}
+        run: node scripts/verify-publication-key-pair.ts

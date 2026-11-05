@@ -31,6 +31,7 @@ const chineseDisplayNames: Record<string, string> = {
   "intake.yml": "自动 · 总控调度",
   "cancel-pr-work.yml": "自动 · PR 清理",
   "apply-repository-settings.yml": "自动 · 仓库设置",
+  "publication-key-verify.yml": "自动 · 发布密钥预检",
   "prune-stale-state.yml": "自动 · 状态清理",
   "update-work-metrics.yml": "自动 · 指标更新",
   "central-ci-dispatch.yml": "自动 · CI 分发",
