@@ -349,15 +349,23 @@ test("the deploy job names no central write credential and checks out with the r
   assert.match(String(deploy.environment), /needs\.prepare\.outputs\.environment/);
 });
 
-test("the deploy entrypoint step applies the central deploy secret policy", async () => {
+test("the deploy workflow stages only individually scoped Secrets before source execution", async () => {
   const deploy = (await workflow("deploy-source-script.yml")).jobs.deploy;
-  const step = deploy?.steps?.find(
-    (item) => item.name === "Execute source-owned deploy entrypoint"
-  );
-  const run = step?.run ?? "";
-  assert.match(run, /policies\/deploy-secrets\.json/);
-  assert.match(run, /"\$DEPLOY_SOURCE_REPOSITORY" "\$DEPLOY_ENVIRONMENT" deploy/);
-  assert.match(run, /AW_CHECKOUT_TOKEN/);
+  const plan = deploy?.steps?.find((item) => item.name === "Resolve deploy Secret plan");
+  const execute = deploy?.steps?.find((item) => item.name === "Execute source-owned deploy entrypoint");
+  const collectors = (deploy?.steps ?? []).filter((item) => item.name?.startsWith("Collect scoped deploy Secret "));
+  assert.match(plan?.run ?? "", /resolve-deploy-secret-plan\.ts/);
+  assert.match(plan?.run ?? "", /policies\/deploy-secrets\.json/);
+  assert.match(execute?.run ?? "", /run-scoped-deploy\.ts/);
+  assert.equal(execute?.env, undefined);
+  assert.ok(collectors.length > 0);
+  for (const step of collectors) {
+    assert.deepEqual(Object.keys(step.env as Record<string, unknown>), ["AW_DEPLOY_SECRET_VALUE"]);
+    assert.match(String(step.if), /steps\.secret_plan\.outputs\.inject_sources/);
+    assert.equal(secretNames(step.env).length, 1);
+    assert.match(step.run ?? "", /write-deploy-secret\.ts/);
+  }
+  assert.doesNotMatch(JSON.stringify(deploy), /env:\s*\$\{\{\s*secrets\s*\}\}/);
 });
 
 test("the prepare job validates the environment against the central policy file", async () => {
