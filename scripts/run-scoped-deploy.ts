@@ -85,9 +85,7 @@ export function buildScopedDeployEnvironment(
   }
   for (const entry of plan.secrets) {
     const value =
-      entry.kind === "variable"
-        ? publicVariables[entry.source]
-        : secretValues.get(entry.name);
+      entry.kind === "variable" ? publicVariables[entry.source] : secretValues.get(entry.name);
     if (!value) {
       if (entry.required) {
         throw new CliError(`Required deploy ${entry.kind} is unavailable: ${entry.name}.`, 77);
