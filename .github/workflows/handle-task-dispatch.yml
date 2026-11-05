@@ -26,6 +26,17 @@ jobs:
       is_private: ${{ steps.visibility.outputs.is_private }}
 
     steps:
+      - name: Mask task identifiers in public logs
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          jq -r '.client_payload | [.repository, .project, .bootstrap_ref, .request_id] | .[] | select(type == "string")' "$GITHUB_EVENT_PATH" |
+            while IFS= read -r value; do
+              if [[ "$value" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)?$ ]]; then
+                echo "::add-mask::$value"
+              fi
+            done
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -39,9 +50,8 @@ jobs:
       - name: Validate request payload
         id: payload
         env:
-          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
-        run: node scripts/validate-dispatch-payload.ts "$PAYLOAD"
+        run: node scripts/validate-dispatch-payload.ts
 
       - name: Resolve task source read scope
         id: task_scope
@@ -98,13 +108,9 @@ jobs:
     env:
       AW_SOURCE_DIR: ${{ github.workspace }}/task-source
       SCHEMA_VERSION: ${{ needs.validate.outputs.schema_version }}
-      REQUEST_ID: ${{ needs.validate.outputs.request_id }}
-      PROJECT: ${{ needs.validate.outputs.project }}
-      BOOTSTRAP_REF: ${{ needs.validate.outputs.bootstrap_ref }}
       AGENT_DOMAIN: ${{ needs.validate.outputs.agent_domain }}
       OPERATION: ${{ needs.validate.outputs.operation }}
       TASK_SOURCE_PRIVATE: ${{ needs.validate.outputs.is_private }}
-      TASK_SOURCE_REPOSITORY: ${{ needs.validate.outputs.repository }}
       AW_TASK_SECRET_POLICY_MODE: ${{ vars.AW_TASK_SECRET_POLICY_MODE || 'enforce' }}
 
     concurrency:
@@ -112,6 +118,29 @@ jobs:
       cancel-in-progress: false
 
     steps:
+      - name: Shield and export verified task identity
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mapfile -t identity < <(jq -r '.client_payload | .repository, .project, .bootstrap_ref, .request_id' "$GITHUB_EVENT_PATH")
+          if [ "${#identity[@]}" -ne 4 ] || \
+             ! [[ "${identity[0]}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || \
+             ! [[ "${identity[1]}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$ ]] || \
+             ! [[ "${identity[2]}" =~ ^[0-9a-fA-F]{40}$ ]] || \
+             ! [[ "${identity[3]}" =~ ^[A-Za-z0-9_.-]{1,128}$ ]]; then
+            echo "::error::Verified task identity could not be reconstructed safely." >&2
+            exit 64
+          fi
+          for value in "${identity[@]}"; do
+            echo "::add-mask::$value"
+          done
+          {
+            printf 'TASK_SOURCE_REPOSITORY=%s\n' "${identity[0]}"
+            printf 'PROJECT=%s\n' "${identity[1]}"
+            printf 'BOOTSTRAP_REF=%s\n' "${identity[2]}"
+            printf 'REQUEST_ID=%s\n' "${identity[3]}"
+          } >> "$GITHUB_ENV"
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -451,6 +480,17 @@ jobs:
       contents: read
       actions: read
     steps:
+      - name: Mask task identifiers in public logs
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          jq -r '.client_payload | [.repository, .project, .bootstrap_ref, .request_id] | .[] | select(type == "string")' "$GITHUB_EVENT_PATH" |
+            while IFS= read -r value; do
+              if [[ "$value" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)?$ ]]; then
+                echo "::add-mask::$value"
+              fi
+            done
+
       - name: Checkout trusted publisher
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
