@@ -14,10 +14,7 @@ const namePattern = /^[A-Z][A-Z0-9_]*$/;
 const maximumBundleBytes = 48 * 1024;
 
 function addMask(value: string): void {
-  const escaped = value
-    .replace(/%/g, "%25")
-    .replace(/\r/g, "%0D")
-    .replace(/\n/g, "%0A");
+  const escaped = value.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
   process.stdout.write(`::add-mask::${escaped}\n`);
 }
 
