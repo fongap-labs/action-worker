@@ -80,6 +80,8 @@ jobs:
         env:
           AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
+          GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          AW_BOOTSTRAP_READ_TOKEN: ${{ github.token }}
         run: node scripts/verify-keyring-migration.ts
 
   bootstrap-signing:

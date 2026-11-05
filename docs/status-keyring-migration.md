@@ -8,9 +8,9 @@
 
 管理员在 `action-worker` 的 Repository Secrets 中配置 `AW_STATUS_KEYRING`，其中须包含与现有 `AW_STATUS_SIGNING_KEYS` **完全一致**的活动密钥、历史密钥和 `legacy_tokens`。
 
-本阶段为 `自动 · 仓库设置` 增加独立的 `Verify status keyring migration` Job，运行于受保护的 `admin-ops`。只比较两个 Secret，不修改它们，也不在日志中输出任何密钥材料。
+本阶段为 `自动 · 仓库设置` 增加独立的 `Verify status keyring migration` Job，运行于受保护的 `admin-ops`。先比较两个 Secret。如果不一致，将旧密钥环的完整内容经 GitHub Secrets API 安全写入新名称。仅允许受保护的 `admin-ops` 凭据执行，不在日志中输出任何密钥材料；旧 Secret 保持不变。
 
-如果新密钥环的内容无效、缺失、与旧密钥不同或丢失历史验签材料，Job 必须失败。原有 CI 继续从 `AW_STATUS_SIGNING_KEYS` 读取，不受校验失败影响。
+如果新密钥环格式无效或不一致，系统会从有效的旧密钥环复制。若旧密钥无效、Secret 不存在、权限不足或运行期间发生并发修改，则明确失败。复制成功后的新值只能在新排队的工作流中读取，必须再次运行校验确认一致。整个第一阶段原有 CI 仍从 `AW_STATUS_SIGNING_KEYS` 读取，不受迁移影响。
 
 ## 第二步：切换唯一配置
 
