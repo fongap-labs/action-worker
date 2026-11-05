@@ -5,7 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { prepareTrustedTaskState } from "../scripts/prepare-trusted-task-state.ts";
-import { sealStateDirectory, sealedStateFile, writeTaskStateManifest } from "../scripts/task-state.ts";
+import {
+  sealStateDirectory,
+  sealedStateFile,
+  writeTaskStateManifest,
+} from "../scripts/task-state.ts";
 import { openTaskTransfer } from "../scripts/task-transfer-envelope.ts";
 import { unpackTaskTransferFiles } from "../scripts/task-transfer-files.ts";
 
@@ -41,7 +45,13 @@ function reader(runIds: number[]) {
   };
 }
 
-function options(root: string, publicKey: string, fixture: string, runs: number[], isPrivate: boolean) {
+function options(
+  root: string,
+  publicKey: string,
+  fixture: string,
+  runs: number[],
+  isPrivate: boolean
+) {
   return {
     workRoot: join(root, "work"),
     repository,
@@ -73,8 +83,12 @@ test("trusted preparation sends a new task only an authenticated encrypted manif
     const opened = openTaskTransfer(
       prepared.envelope,
       {
-        repository, project, bootstrap_ref: bootstrapRef,
-        request_id: "request-1", run_id: "42000001", run_attempt: "1",
+        repository,
+        project,
+        bootstrap_ref: bootstrapRef,
+        request_id: "request-1",
+        run_id: "42000001",
+        run_attempt: "1",
         purpose: "state-to-task",
       },
       key.privateKey
@@ -97,15 +111,27 @@ test("trusted preparation restores an AWSEAL1 historical private state before en
     await mkdir(artifact);
     await writeTaskStateManifest(source, repository, project, "b".repeat(40));
     await writeFile(join(source, "cursor.txt"), "42");
-    await sealStateDirectory(artifactSecret, source, repository, project, join(artifact, sealedStateFile));
+    await sealStateDirectory(
+      artifactSecret,
+      source,
+      repository,
+      project,
+      join(artifact, sealedStateFile)
+    );
     const pair = keys();
-    const prepared = await prepareTrustedTaskState(options(root, pair.publicKey, artifact, [5], true));
+    const prepared = await prepareTrustedTaskState(
+      options(root, pair.publicKey, artifact, [5], true)
+    );
     assert.equal(prepared.restored, true);
     const opened = openTaskTransfer(
       prepared.envelope,
       {
-        repository, project, bootstrap_ref: bootstrapRef,
-        request_id: "request-1", run_id: "42000001", run_attempt: "1",
+        repository,
+        project,
+        bootstrap_ref: bootstrapRef,
+        request_id: "request-1",
+        run_id: "42000001",
+        run_attempt: "1",
         purpose: "state-to-task",
       },
       pair.privateKey
@@ -126,7 +152,13 @@ test("historical private archive with a symlink fails closed before trusted extr
     await mkdir(artifact);
     await writeTaskStateManifest(source, repository, project, bootstrapRef);
     await symlink("manifest.json", join(source, "malicious-link"));
-    await sealStateDirectory(artifactSecret, source, repository, project, join(artifact, sealedStateFile));
+    await sealStateDirectory(
+      artifactSecret,
+      source,
+      repository,
+      project,
+      join(artifact, sealedStateFile)
+    );
     const pair = keys();
     await assert.rejects(
       prepareTrustedTaskState(options(root, pair.publicKey, artifact, [5], true)),
