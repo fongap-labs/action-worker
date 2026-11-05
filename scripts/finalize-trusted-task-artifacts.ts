@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
@@ -51,6 +51,7 @@ export async function finalizeTrustedTaskArtifacts(
     GITHUB_RUN_ATTEMPT: options.runAttempt,
     AW_TASK_TRANSFER_RECIPIENT_PRIVATE_KEY: options.outboundPrivateKey,
   };
+  await mkdir(options.workRoot, { recursive: true, mode: 0o700 });
   let stateUploadPath: string | null = null;
   let logUploadPath: string | null = null;
   if (options.encryptedStatePath !== null) {
@@ -139,11 +140,9 @@ async function main(): Promise<void> {
     // Do not publish these paths until the caller uses encrypted private-artifact semantics.
     await mkdir(outputRoot, { mode: 0o700 });
     if (prepared.stateUploadPath) {
-      const { cp } = await import("node:fs/promises");
       await cp(prepared.stateUploadPath, join(outputRoot, "state"), { recursive: true });
     }
     if (prepared.logUploadPath) {
-      const { cp } = await import("node:fs/promises");
       await cp(prepared.logUploadPath, join(outputRoot, "log"), { recursive: true });
     }
     console.log("Trusted task finalization completed.");
