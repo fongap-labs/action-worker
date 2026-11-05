@@ -213,4 +213,5 @@ test("one-time governed canary needs an explicit main-commit marker", async () =
   assert.equal(token?.with?.["permission-pull-requests"], "write");
   assert.match(source, /Governed canary merged after all three required verdicts/);
   assert.match(source, /Central governance rejected canary; PR left open for inspection/);
+  assert.doesNotMatch(source, /\\\\\$\\\{\\\{/);
 });
