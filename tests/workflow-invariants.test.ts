@@ -237,26 +237,33 @@ test("manual source deploy resolves default HEAD without spending the control PA
   assert.doesNotMatch(step.run ?? "", /gh api|secrets\.AW_CONTROL_TOKEN/);
 });
 
-test("manual release cannot bypass unresolved main-write incidents", async () => {
-  const source = await readFile(".github/workflows/release-app.yml", "utf8");
-  const release = await workflow("release-app.yml");
-  const auditStep = release.jobs.prepare?.steps?.find(
-    (step) => step.name === "Attest the source main write"
-  );
-  assert.ok(auditStep, "release must perform Main Write Audit before validation");
-  assert.equal(
-    (auditStep as Step & { "continue-on-error"?: boolean })["continue-on-error"],
-    undefined,
-    "release cannot ignore a failed main-write attestation"
-  );
-  assert.doesNotMatch(source, /main_write_guard_bypass|MAIN_WRITE_GUARD_BYPASS/);
-  const audit = await readFile("scripts/audit-main-writes.ts", "utf8");
-  const guard = await readFile("scripts/main-write-guard.ts", "utf8");
-  for (const [name, code] of [
-    ["audit", audit],
-    ["guard", guard],
-  ] as const) {
+test("manual release and deploy cannot bypass unresolved main-write incidents", async () => {
+  for (const name of ["release-app.yml", "deploy-source-script.yml"]) {
+    const source = await readFile(`.github/workflows/${name}`, "utf8");
+    const pipeline = await workflow(name);
+    const auditStep = pipeline.jobs.prepare?.steps?.find(
+      (step) => step.name === "Attest the source main write"
+    );
+    assert.ok(auditStep, `${name} must perform Main Write Audit before validation`);
+    assert.equal(
+      (auditStep as Step & { "continue-on-error"?: boolean })["continue-on-error"],
+      undefined,
+      `${name} cannot ignore a failed main-write attestation`
+    );
+    assert.doesNotMatch(source, /main_write_guard_bypass|MAIN_WRITE_GUARD_BYPASS/);
+  }
+  for (const name of [
+    "scripts/audit-main-writes.ts",
+    "scripts/main-write-guard.ts",
+    "scripts/changelog-release-pr.ts",
+    "scripts/publish-release.ts",
+    "scripts/validate-deploy-source.ts",
+    "scripts/validate-task-source.ts",
+  ]) {
+    const code = await readFile(name, "utf8");
     assert.doesNotMatch(code, /isIncidentBypassEnabled|bypassIncidents|MAIN_WRITE_GUARD_BYPASS/, name);
-    assert.match(code, /await assertNoOpenMainWriteIncidents\(reader, repository\)/, name);
+    if (name.endsWith("audit-main-writes.ts") || name.endsWith("main-write-guard.ts")) {
+      assert.match(code, /await assertNoOpenMainWriteIncidents\(reader, repository\)/, name);
+    }
   }
 });
