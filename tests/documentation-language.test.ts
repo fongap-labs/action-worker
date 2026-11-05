@@ -11,7 +11,7 @@ const run = promisify(execFile);
 const machineRead = [/^CLAUDE\.md$/, /^AGENTS\.md$/, /^skills\//];
 // Test packs hold product fixtures of the managed repositories, not Action Worker documentation.
 const productFixtures = /^tests\/packs\//;
-const changelog = /^(?:CHANGELOG\.md|changelog\.d\/[^/]+\.md)$/;
+const changelog = /^CHANGELOG\.md$/;
 // Chinese localization files are retired: the Chinese document is the only human-facing version.
 const localization = /\.zh-CN\.md$/;
 
@@ -57,7 +57,7 @@ test("no Chinese localization copies are kept beside the Chinese documents", asy
   );
 });
 
-test("human governance documents use bilingual second-level headings", async () => {
+test("human governance documents use Chinese-only second-level headings", async () => {
   const violations: string[] = [];
   const paths = (await trackedMarkdown()).filter(
     (path) => path.startsWith("docs/") ||
@@ -73,10 +73,10 @@ test("human governance documents use bilingual second-level headings", async () 
       }
       if (inFence || !line.startsWith("## ")) return;
       const normalized = line.replace(/^## (?:\d+(?:\.\d+)*\.\s*)?/, "");
-      if (!/^.+（[A-Za-z][A-Za-z0-9 .&\x27/-]*）$/.test(normalized)) {
+      if (!/[^\x00-\x7f]/.test(normalized) || /[A-Za-z]/.test(normalized)) {
         violations.push(`${path}:${index + 1}: ${line}`);
       }
     });
   }
-  assert.deepEqual(violations, [], "second-level headings must use 中文（English）");
+  assert.deepEqual(violations, [], "second-level headings must be concise Chinese");
 });
