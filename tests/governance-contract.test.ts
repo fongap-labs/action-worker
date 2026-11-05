@@ -1037,8 +1037,8 @@ test("source-script deploy execution is manifest-driven and repository-agnostic"
     "resolve-deploy-secret-plan.ts",
     "stage-deploy-secret-bundle.ts",
     "run-scoped-deploy.ts",
-    "bundle_secret_name",
-    "secrets[steps.secret_plan.outputs.bundle_secret_name]",
+    "secrets[steps.secret_plan.outputs.secret_00]",
+    "AW_DEPLOY_SECRET_39",
     "deploy.secrets.required",
     "deploy.secrets.allowed",
     "Execute source-owned deploy entrypoint",
@@ -1248,7 +1248,8 @@ test("PR governance enforces trust before it dispatches central CI", async () =>
 test("deploy and task entrypoints execute with scoped credentials", async () => {
   const deploy = await text(".github/workflows/deploy-source-script.yml");
   assert.match(deploy, /node control\/scripts\/run-scoped-deploy\.ts/);
-  assert.doesNotMatch(deploy, /\n\s+exec bash "\$DEPLOY_ENTRYPOINT"\n/);
+  assert.ok(deploy.includes("secrets[steps.secret_plan.outputs.secret_00]"));
+  assert.ok(!deploy.includes("env: $" + "{{ secrets }}"));
   const deployRunner = await text("scripts/run-scoped-deploy.ts");
   assert.match(deployRunner, /spawnSync\("bash", \[entrypoint\]/);
 

@@ -265,7 +265,7 @@ test("the shipped deploy secret policy only holds valid, non-reserved names", as
   );
   assert.equal(aiGatewayAliases.get("CLOUDFLARE_API_TOKEN"), "CLOUDFLARE_API_TOKEN_SECONDARY");
   assert.equal(aiGatewayAliases.get("CLOUDFLARE_ACCOUNT_ID"), "CLOUDFLARE_ACCOUNT_ID_SECONDARY");
-  assert.equal(aiGatewayAliases.has("AIG_DEPLOY_HEALTH_KEY"), false);
+  assert.equal(aiGatewayAliases.get("AIG_DEPLOY_HEALTH_KEY"), "AIG_ACCESS_KEY_AGENT");
   const internalVault = await readDeploySecretCeiling(
     "policies/deploy-secrets.json",
     "fongap-labs/internal-vault",
@@ -375,12 +375,10 @@ test("the deploy job names no central write credential and checks out with the r
   assert.match(String(deploy.environment), /needs\.prepare\.outputs\.environment/);
 });
 
-test("the deploy workflow dynamically selects one product-scoped Secret bundle", async () => {
+test("the deploy workflow selects only the authorized dynamic Secret slots", async () => {
   const deploy = (await workflow("deploy-source-script.yml")).jobs.deploy;
   const plan = deploy?.steps?.find((item) => item.name === "Resolve deploy Secret plan");
-  const stage = deploy?.steps?.find(
-    (item) => item.name === "Stage selected product deployment Secret bundle"
-  );
+  const stage = deploy?.steps?.find((item) => item.name === "Stage authorized deployment Secrets");
   const execute = deploy?.steps?.find(
     (item) => item.name === "Execute source-owned deploy entrypoint"
   );
@@ -389,11 +387,13 @@ test("the deploy workflow dynamically selects one product-scoped Secret bundle",
   assert.match(execute?.run ?? "", /run-scoped-deploy\.ts/);
   assert.equal(execute?.env, undefined);
   const stageEnv = stage?.env as Record<string, string> | undefined;
-  assert.deepEqual(Object.keys(stageEnv ?? {}), ["AW_DEPLOY_SECRET_BUNDLE"]);
-  assert.equal(
-    stageEnv?.AW_DEPLOY_SECRET_BUNDLE,
-    "$" + "{{ secrets[steps.secret_plan.outputs.bundle_secret_name] }}"
-  );
+  const names = Object.keys(stageEnv ?? {});
+  assert.equal(names.length, 40);
+  for (const [index, name] of names.entries()) {
+    const slot = String(index).padStart(2, "0");
+    assert.equal(name, `AW_DEPLOY_SECRET_${slot}`);
+    assert.equal(stageEnv?.[name], "$" + `{{ secrets[steps.secret_plan.outputs.secret_${slot}] }}`);
+  }
   assert.equal(stage?.run, "node control/scripts/stage-deploy-secret-bundle.ts");
   const sourceText = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
   assert.equal(sourceText.includes("env: $" + "{{ secrets }}"), false);
@@ -723,12 +723,11 @@ test("the deploy job group never collides with its own pipeline group", async ()
   assert.equal(rootGroup, "source-script-deploy-fongap-labs/example-production");
 });
 
-test("the deploy workflow resolves product bundle policy and passes the trigger to the entrypoint", async () => {
+test("the deploy workflow resolves scoped policy and passes the trigger to the entrypoint", async () => {
   const deploy = (await workflow("deploy-source-script.yml")).jobs.deploy;
   const text = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
   assert.match(text, /"\$DEPLOY_SOURCE_REPOSITORY" "\$DEPLOY_ENVIRONMENT" "\$DEPLOY_PRODUCT"/);
   assert.match(text, /resolve-deploy-secret-plan\.ts/);
-  assert.match(text, /bundle_secret_name/);
   assert.match(text, /target\/\$\{DEPLOY_PRODUCT_DIRECTORY\}\/deploy\.secrets\.required/);
   assert.match(text, /DEPLOY_TRIGGER: \$\{\{ needs\.prepare\.outputs\.trigger \}\}/);
   assert.match(text, /DEPLOY_PRODUCT: \$\{\{ needs\.prepare\.outputs\.product \}\}/);

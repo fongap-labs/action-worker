@@ -220,57 +220,6 @@ export async function readDeploySecretCeiling(
   ]);
 }
 
-const deployBundleNamePattern = /^AW_DEPLOY_SECRET_BUNDLE_[A-Z0-9_]+$/;
-
-/** Resolve the single product-scoped GitHub Environment Secret used as the deployment bundle. */
-export async function readDeploySecretBundleName(
-  policyPath: string,
-  repository: string,
-  environment: string,
-  product = ""
-): Promise<string> {
-  const policy: unknown = JSON.parse(await readFile(policyPath, "utf8"));
-  if (!isJsonRecord(policy) || policy.schema_version !== 1 || !isJsonRecord(policy.deployments)) {
-    throw new CliError("Deploy secret policy is invalid.", 65);
-  }
-  const bundleNames = new Set<string>();
-  for (const [key, environments] of Object.entries(policy.deployments)) {
-    if (!isJsonRecord(environments)) {
-      throw new CliError(`Deploy secret policy entry is invalid: ${key}.`, 65);
-    }
-    for (const [environmentName, entry] of Object.entries(environments)) {
-      if (
-        !isJsonRecord(entry) ||
-        typeof entry.bundle_secret !== "string" ||
-        !deployBundleNamePattern.test(entry.bundle_secret) ||
-        bundleNames.has(entry.bundle_secret)
-      ) {
-        throw new CliError(
-          `Deploy secret bundle name is invalid or duplicated: ${key} ${environmentName}.`,
-          65
-        );
-      }
-      bundleNames.add(entry.bundle_secret);
-    }
-  }
-  const key = productPolicyKey(repository, product);
-  const repositoryEntry = Object.hasOwn(policy.deployments, key)
-    ? policy.deployments[key]
-    : undefined;
-  const entry =
-    isJsonRecord(repositoryEntry) && Object.hasOwn(repositoryEntry, environment)
-      ? repositoryEntry[environment]
-      : undefined;
-  if (
-    !isJsonRecord(entry) ||
-    typeof entry.bundle_secret !== "string" ||
-    !deployBundleNamePattern.test(entry.bundle_secret)
-  ) {
-    throw new CliError(`Deploy secret bundle is not configured for ${key} ${environment}.`, 77);
-  }
-  return entry.bundle_secret;
-}
-
 export type DeploySecretPlanEntry = {
   name: string;
   source: string;
@@ -325,7 +274,7 @@ export async function readDeploySecretVariableSources(
   return sources;
 }
 
-/** Resolve names and provenance before any GitHub Secret value is injected into a step. */
+/** Resolve the exact Secret and Variable sources before any Secret value is injected into a step. */
 export async function resolveDeploySecretPlan(
   requiredPath: string,
   allowedPath: string,
