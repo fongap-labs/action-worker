@@ -11,7 +11,7 @@
 
 `ai-gateway-ops` 不是部署目标，不得加入 `policies/deploy-environments.json`，也不得写入 AI Gateway 的 `.github/deploy.json`。
 
-## AI Gateway 正式部署凭据
+## 正式部署凭据
 
 Action Worker 中央策略对 `fongap-labs/ai-gateway` 的 `production` 只允许三个声明名称：
 
@@ -29,7 +29,7 @@ Action Worker 中央策略对 `fongap-labs/ai-gateway` 的 `production` 只允�
 
 Provider 凭据、其他访问分组密钥、OAuth 加密密钥、推理/生成中心认证密钥和 Tier 凭据不再属于 `production` 部署密钥范围。
 
-## 创建 ai-gateway-ops
+## 创建运维环境
 
 在 `fongap-labs/action-worker` 的 Settings → Environments 中手动创建 `ai-gateway-ops`。
 
