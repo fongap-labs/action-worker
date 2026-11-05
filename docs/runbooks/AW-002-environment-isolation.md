@@ -124,9 +124,9 @@ AI Gateway 的普通代码部署：
 
 ## 其他仓库
 
-- `fongap-labs/internal-vault/server-edge` 正式部署使用 `production`；Server Edge 仍是 Internal Vault 下的独立产品，不能借用 Blog、CDN 的任务密钥。 
+- `fongap-labs/internal-vault/server-edge` 正式部署使用 `production`；Server Edge 仍是 Internal Vault 下的独立产品，不能借用 Blog、CDN 的任务密钥。
 - Internal Vault 的 Blog、CDN、EngineSuite 等仍通过任务路径执行发布；本次不改变它们的触发器或任务凭据来源。
-- 迁移前由维护者将原 `server-edge-cloud-edge` 中 Server Edge 必需的 Variables 与 Secrets 安全迁入 `production`；不得仅改策略后立即触发生产部署。
+- 迁移前由维护者将原 `server-edge-cloud-edge` 中 Server Edge 必需的 Variables 与 Secrets 安全迁入 Action Worker 的 `production`；不得仅改策略后立即触发生产部署。GitHub Secrets 原值不可通过 API 回读，迁移须由授权维护者从受控密钥库配置。确认部署成功前不得清理旧环境。
 - `fongap-labs/mcp-hub` 继续使用 `production`。
 - 本次变更不修改任务路径；任务继续使用现有中央上限与仓库级密钥合同。
 
