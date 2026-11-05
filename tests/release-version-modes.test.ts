@@ -11,7 +11,7 @@ import {
   parseReleaseBuildManifest,
 } from "../scripts/validate-release-build-request.ts";
 
-const categories = ["新增", "变更", "弃用", "移除", "修复", "安全"];
+const categories = ["新增", "修复", "维护"];
 const url = (version: string) =>
   `https://github.com/fongap-labs/example/releases/tag/example-v${version}`;
 
@@ -111,9 +111,9 @@ test("a formal release lists the entries of its betas, and a beta lists only its
 });
 
 test("the beta entries read back from their sections keep category, attributes and summary", () => {
-  const content = `## [0.2.0-beta.1](${url("0.2.0-beta.1")}) - 2026-10-20\n\n### 安全\n\n- [security] 收紧权限。\n`;
+  const content = `## [0.2.0-beta.1](${url("0.2.0-beta.1")}) - 2026-10-20\n\n### 修复\n\n- [security] 收紧权限。\n`;
   assert.deepEqual(betaEntriesOf(content, "0.2.0", categories), [
-    { category: "安全", attributes: ["security"], summary: "收紧权限。" },
+    { category: "修复", attributes: ["security"], summary: "收紧权限。" },
   ]);
   assert.deepEqual(betaEntriesOf(content, "0.2.0-beta.1", categories), []);
 });
@@ -136,13 +136,11 @@ test("a formal release change that lists beta entries still passes the exact che
     date: "2026-10-23",
     releaseUrl: url("0.3.0"),
     categories,
-    fragments: ["- 修复: 修正超时。\n"],
   });
   assert.equal(
     assertReleaseChange({
       baseChangelog: base,
       headChangelog: head,
-      removedFragments: ["- 修复: 修正超时。\n"],
       categories,
     }).version,
     "0.3.0"
