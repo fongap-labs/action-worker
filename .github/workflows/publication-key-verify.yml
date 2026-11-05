@@ -2,6 +2,7 @@ name: 自动 · 发布密钥预检
 
 # Secret checks run only on the trusted main branch, never on PR-controlled code.
 on:
+  workflow_dispatch: {}
   push:
     branches: [main]
     paths:

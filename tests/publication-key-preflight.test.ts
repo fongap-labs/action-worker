@@ -58,6 +58,7 @@ test("publication key validation never runs on pull-request-controlled code", as
     >;
   };
   assert.ok(workflow.on.push);
+  assert.ok(workflow.on.workflow_dispatch);
   assert.equal(workflow.on.pull_request, undefined);
   const unprotected = workflow.jobs["unprotected-scope"];
   const protectedPair = workflow.jobs["protected-pair"];
