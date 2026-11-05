@@ -1,5 +1,6 @@
 import { requireToken } from "./control-token.ts";
 import { runGithubCli } from "./github-api.ts";
+import { retryTransientStatusWrite } from "./status-write-retry.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
 
@@ -46,7 +47,7 @@ async function main(): Promise<void> {
   if (targetUrl) {
     command.push("-f", `target_url=${targetUrl}`);
   }
-  await runGithubCli(command, token);
+  await retryTransientStatusWrite(() => runGithubCli(command, token));
   console.log(`PR status updated: ${repository}@${sha} ${context}=${state}`);
 }
 
