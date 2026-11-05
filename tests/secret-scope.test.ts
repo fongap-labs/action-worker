@@ -347,7 +347,11 @@ test("the central policies give each Cloudflare account its own qualified secret
   );
   assert.equal(gateway.has("AIG_ACCESS_KEY_AGENT"), false);
   assert.equal(gateway.has("AIG_DEPLOY_HEALTH_KEY"), true);
-  assert.equal(deploy.has("AIG_DEPLOY_HEALTH_KEY"), false, "Production health secret cannot alias the AGENT access key");
+  assert.equal(
+    deploy.has("AIG_DEPLOY_HEALTH_KEY"),
+    false,
+    "Production health secret cannot alias the AGENT access key"
+  );
   // The retired inference product has no deployment credential aliases.
   const retired = await readSecretAliases(
     "policies/deploy-secrets.json",
@@ -405,24 +409,38 @@ test("the central policies give each Cloudflare account its own qualified secret
 });
 
 test("AI Gateway health credential is required directly and never falls back to an access-group key", async () => {
-  const files = await scopeFiles("AIG_DEPLOY_HEALTH_KEY\\n", "");
+  const files = await scopeFiles("AIG_DEPLOY_HEALTH_KEY\n", "");
   const ceiling = {
     names: new Set(["AIG_DEPLOY_HEALTH_KEY"]),
     mode: "enforce" as const,
     aliases: new Map<string, string>(),
   };
   await assert.rejects(
-    resolveSecretScope(files.baseline, files.required, files.allowed, [], {
-      PATH: "/bin",
-      AIG_ACCESS_KEY_AGENT: "legacy-agent-key",
-    }, ceiling),
+    resolveSecretScope(
+      files.baseline,
+      files.required,
+      files.allowed,
+      [],
+      {
+        PATH: "/bin",
+        AIG_ACCESS_KEY_AGENT: "legacy-agent-key",
+      },
+      ceiling
+    ),
     /Required task secret is unavailable: AIG_DEPLOY_HEALTH_KEY/
   );
-  const valid = await resolveSecretScope(files.baseline, files.required, files.allowed, [], {
-    PATH: "/bin",
-    AIG_ACCESS_KEY_AGENT: "legacy-agent-key",
-    AIG_DEPLOY_HEALTH_KEY: "independent-32-character-health-secret",
-  }, ceiling);
+  const valid = await resolveSecretScope(
+    files.baseline,
+    files.required,
+    files.allowed,
+    [],
+    {
+      PATH: "/bin",
+      AIG_ACCESS_KEY_AGENT: "legacy-agent-key",
+      AIG_DEPLOY_HEALTH_KEY: "independent-32-character-health-secret",
+    },
+    ceiling
+  );
   assert.deepEqual(valid.allowed, ["AIG_DEPLOY_HEALTH_KEY"]);
   assert.deepEqual(valid.unset, ["AIG_ACCESS_KEY_AGENT"]);
 });
