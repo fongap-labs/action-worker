@@ -384,6 +384,7 @@ jobs:
           owner: ${{ steps.api_scope.outputs.owner }}
           repositories: ${{ steps.api_scope.outputs.repository_name }}
           permission-issues: write
+          permission-pull-requests: write
 
       - name: Publish PR review
         if: ${{ always() && !cancelled() && steps.ownership.outputs.current == 'true' }}
