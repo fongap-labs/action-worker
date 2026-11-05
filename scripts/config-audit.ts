@@ -115,6 +115,8 @@ export async function auditSources(
     private_repositories: 0,
     source_manifests: 0,
     declared_secret_names: 0,
+    declared_variable_names: 0,
+    variable_policy_status: "not-defined-by-task-secret-policy",
     policy_excess_names: 0,
     invalid_declarations: 0,
     credential_type_review_candidates: 0,
@@ -150,7 +152,7 @@ export async function auditSources(
     // A source file is pinned by its blob SHA, not by a mutable main branch path.
     const entries = tree.tree as unknown[];
     const projects = new Map<string, Set<string>>();
-    const variableProjects = new Map<string, Set<string>>();\n    const variableProjects = new Map<string, Set<string>>();
+    const variableProjects = new Map<string, Set<string>>();
     for (const entry of entries) {
       if (!isJsonRecord(entry) || entry.type !== "blob") continue;
       const path = getText(entry, "path");
@@ -170,6 +172,9 @@ export async function auditSources(
       summary.invalid_declarations += parsed.invalid;
     }
     for (const names of variableProjects.values()) {\n      summary.declared_variable_names += names.size;\n    }\n    for (const names of variableProjects.values()) {
+      summary.declared_variable_names += names.size;
+    }
+    for (const names of variableProjects.values()) {
       summary.declared_variable_names += names.size;
     }
     for (const [project, names] of projects) {
