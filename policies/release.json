@@ -1,7 +1,6 @@
 {
   "schema_version": 2,
   "changelog_file": "CHANGELOG.md",
-  "changelog_fragment_dir": "changelog.d",
   "change_types": [
     "feat",
     "fix",
