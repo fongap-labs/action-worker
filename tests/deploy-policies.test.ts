@@ -265,6 +265,7 @@ test("the shipped deploy secret policy only holds valid, non-reserved names", as
   );
   assert.equal(aiGatewayAliases.get("CLOUDFLARE_API_TOKEN"), "CLOUDFLARE_API_TOKEN_SECONDARY");
   assert.equal(aiGatewayAliases.get("CLOUDFLARE_ACCOUNT_ID"), "CLOUDFLARE_ACCOUNT_ID_SECONDARY");
+  assert.equal(aiGatewayAliases.has("AIG_DEPLOY_HEALTH_KEY"), false);
   const internalVault = await readDeploySecretCeiling(
     "policies/deploy-secrets.json",
     "fongap-labs/internal-vault",
