@@ -8,6 +8,7 @@ on:
       - .github/workflows/publication-key-verify.yml
       - scripts/verify-publication-key-pair.ts
       - scripts/prepare-publication-keys.ts
+      - scripts/task-publication-envelope.ts
       - docs/task-publication-keys.md
       - .github/actions/mint-app-token/action.yml
 
@@ -103,3 +104,97 @@ jobs:
             exit 77
           fi
           echo "Scoped GitHub App publication token verified with Contents and Pull requests write."
+
+  smoke-seal:
+    name: Seal artifact on untrusted runner
+    needs: unprotected-scope
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted encryption code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Encrypt synthetic private task on separate runner
+        env:
+          AW_PUBLICATION_PUBLIC_KEY: ${{ vars.AW_PUBLICATION_PUBLIC_KEY }}
+          TASK_SOURCE_REPOSITORY: fongap-labs/acceptance-fixture
+          PROJECT: publication-smoke
+          BOOTSTRAP_REF: ${{ github.sha }}
+          REQUEST_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          root="$RUNNER_TEMP/publication-smoke/staged"
+          mkdir -p "$root/payload"
+          printf '%s\n' '{"schema_version":"1","target_repository":"fongap-labs/mcp-hub","dest_dir":"output/acceptance-smoke","delete_stale":false,"commit_message":"chore: acceptance smoke"}' > "$root/manifest.json"
+          printf '%s' 'private-publication-canary' > "$root/payload/result.txt"
+          node scripts/task-publication-envelope.ts seal "$root" "$RUNNER_TEMP/publication-smoke/sealed.json"
+          if grep -Fq 'private-publication-canary' "$RUNNER_TEMP/publication-smoke/sealed.json"; then
+            echo "::error::Plaintext reached the transfer artifact." >&2
+            exit 66
+          fi
+
+      - name: Upload encrypted smoke artifact only
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: publication-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/publication-smoke/sealed.json
+          if-no-files-found: error
+          retention-days: 1
+
+  smoke-open:
+    name: Decrypt artifact on protected clean runner
+    needs: [protected-pair, smoke-seal]
+    if: github.ref == 'refs/heads/main'
+    environment: admin-ops
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout trusted decryption code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Download ciphertext on clean runner
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: publication-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/publication-smoke
+
+      - name: Prove request-binding rejection and decrypt
+        env:
+          AW_PUBLICATION_PRIVATE_KEY: ${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}
+          TASK_SOURCE_REPOSITORY: fongap-labs/acceptance-fixture
+          PROJECT: publication-smoke
+          BOOTSTRAP_REF: ${{ github.sha }}
+          REQUEST_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sealed="$RUNNER_TEMP/publication-smoke/sealed.json"
+          if REQUEST_ID=invalid-request node scripts/task-publication-envelope.ts open "$sealed" "$RUNNER_TEMP/invalid" > /dev/null 2>&1; then
+            echo "::error::Ciphertext accepted a different request identity." >&2
+            exit 66
+          fi
+          node scripts/task-publication-envelope.ts open "$sealed" "$RUNNER_TEMP/publication-smoke/opened"
+          test "$(cat "$RUNNER_TEMP/publication-smoke/opened/payload/result.txt")" = 'private-publication-canary'
+          node -e 'const m=require(process.argv[1]);if(m.target_repository!=="fongap-labs/mcp-hub"||m.schema_version!=="1")process.exit(66)' "$RUNNER_TEMP/publication-smoke/opened/manifest.json"
+          echo "Cross-runner encrypted artifact verified with protected key and identity rejection."
