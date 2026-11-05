@@ -28,7 +28,7 @@ test("status writes never retry permission failures or malformed requests", asyn
   await assert.rejects(
     retryTransientStatusWrite(async () => {
       calls += 1;
-      throw new Error("Resource not accessible by integration (HTTP 403)");
+        throw new Error("Resource not accessible by integration (HTTP 403)");
     }, async () => {}),
     /HTTP 403/
   );
