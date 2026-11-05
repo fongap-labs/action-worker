@@ -9,8 +9,8 @@ import {
   prepareIsolatedPublicState,
   validateIsolatedPublicTask,
 } from "../scripts/isolated-public-task.ts";
-import { packTaskTransferFiles } from "../scripts/task-transfer-files.ts";
 import { writeTaskStateManifest } from "../scripts/task-state.ts";
+import { packTaskTransferFiles } from "../scripts/task-transfer-files.ts";
 
 const repository = "fongap-labs/example";
 const project = "test";
@@ -82,7 +82,14 @@ test("private, unmarked, variable-bearing or secret-bearing task cannot enter pi
   const p = await policy(noSecrets);
   try {
     await assert.rejects(
-      validateIsolatedPublicTask(reader({ isPrivate: true }), repository, project, sha, "task", p.path),
+      validateIsolatedPublicTask(
+        reader({ isPrivate: true }),
+        repository,
+        project,
+        sha,
+        "task",
+        p.path
+      ),
       /eligible/
     );
     await assert.rejects(
@@ -94,7 +101,12 @@ test("private, unmarked, variable-bearing or secret-bearing task cannot enter pi
         reader({
           entries: [
             { path: markerPath, sha: markerSha, type: "blob", mode: "100644" },
-            { path: `projects/${project}/.vars.allowed`, sha: "d".repeat(40), type: "blob", mode: "100644" },
+            {
+              path: `projects/${project}/.vars.allowed`,
+              sha: "d".repeat(40),
+              type: "blob",
+              mode: "100644",
+            },
           ],
         }),
         repository,
@@ -137,7 +149,10 @@ test("new public pilot state passes bounded codec and strict manifest checks", a
     const packed = await prepareIsolatedPublicState(reader(), repository, project, sha);
     const dest = join(root, "new");
     await finalizeIsolatedPublicState(packed, dest, repository, project, sha);
-    const data = JSON.parse(await readFile(join(dest, "manifest.json"), "utf8")) as Record<string, string>;
+    const data = JSON.parse(await readFile(join(dest, "manifest.json"), "utf8")) as Record<
+      string,
+      string
+    >;
     assert.equal(data.repository, repository);
     assert.equal(data.project, project);
     assert.equal(data.bootstrap_ref, sha);
@@ -173,9 +188,15 @@ test("untrusted result is rejected on path traversal, wrong manifest or extra me
       ),
       /unsafe path/
     );
-    await writeFile(join(source, "manifest.json"), JSON.stringify({
-      repository, project, bootstrap_ref: sha, extra: "untrusted",
-    }));
+    await writeFile(
+      join(source, "manifest.json"),
+      JSON.stringify({
+        repository,
+        project,
+        bootstrap_ref: sha,
+        extra: "untrusted",
+      })
+    );
     const tampered = await packTaskTransferFiles(source);
     await assert.rejects(
       finalizeIsolatedPublicState(tampered, join(root, "extra"), repository, project, sha),
@@ -189,12 +210,15 @@ test("untrusted result is rejected on path traversal, wrong manifest or extra me
 test("pilot workflow is explicitly gated; legacy job and publisher never run for pilot", async () => {
   const text = await readFile(".github/workflows/handle-task-dispatch.yml", "utf8");
   const workflow = parse(text) as {
-    jobs: Record<string, {
-      if?: string;
-      needs?: string | string[];
-      permissions?: Record<string, string>;
-      steps?: Array<{ env?: unknown; run?: string }>;
-    }>;
+    jobs: Record<
+      string,
+      {
+        if?: string;
+        needs?: string | string[];
+        permissions?: Record<string, string>;
+        steps?: Array<{ env?: unknown; run?: string }>;
+      }
+    >;
   };
   const jobs = workflow.jobs;
   assert.match(jobs.execute?.if ?? "", /isolation_mode != 'true'/);
