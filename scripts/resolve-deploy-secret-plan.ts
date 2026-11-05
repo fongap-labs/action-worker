@@ -1,6 +1,6 @@
 import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { resolveDeploySecretPlan } from "./resolve-secret-scope.ts";
+import { readDeploySecretBundleName, resolveDeploySecretPlan } from "./resolve-secret-scope.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 export const deploySecretPlanPath = "action-worker-deploy-secret-plan.json";
@@ -13,6 +13,7 @@ async function main(): Promise<void> {
   }
   const runnerTemp = process.env.RUNNER_TEMP ?? "";
   if (!runnerTemp) throw new CliError("RUNNER_TEMP is not set.", 64);
+  const bundleSecretName = await readDeploySecretBundleName(policyPath, repository, environment, product);
   const plan = await resolveDeploySecretPlan(requiredPath, allowedPath, policyPath, repository, environment, product, process.env);
   const directory = join(runnerTemp, deploySecretDirectory);
   const path = join(runnerTemp, deploySecretPlanPath);
@@ -22,9 +23,9 @@ async function main(): Promise<void> {
   await chmod(directory, 0o700);
   await writeFile(path, JSON.stringify({ schema_version: 1, secrets: plan }), { encoding: "utf8", flag: "wx", mode: 0o600 });
   await chmod(path, 0o600);
-  const injectSources = plan.filter((entry) => entry.kind === "secret").map((entry) => entry.source).sort();
-  await appendLines(process.env.GITHUB_OUTPUT, [`inject_sources=${JSON.stringify(injectSources)}`]);
-  console.log(`Deploy secret plan resolved: ${plan.length} declared name(s), ${injectSources.length} Secret source(s), ${plan.length - injectSources.length} Variable source(s); values not read.`);
+  const secretCount = plan.filter((entry) => entry.kind === "secret").length;
+  await appendLines(process.env.GITHUB_OUTPUT, [`bundle_secret_name=${bundleSecretName}`]);
+  console.log(`Deploy secret plan resolved: ${plan.length} declared name(s), ${secretCount} Secret source(s), ${plan.length - secretCount} Variable source(s); values not read.`);
 }
 
 if (isMain(import.meta.url)) main().catch(handleError);
