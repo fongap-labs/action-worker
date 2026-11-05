@@ -266,10 +266,7 @@ export async function readDeploySecretBundleName(
     typeof entry.bundle_secret !== "string" ||
     !deployBundleNamePattern.test(entry.bundle_secret)
   ) {
-    throw new CliError(
-      `Deploy secret bundle is not configured for ${key} ${environment}.`,
-      77
-    );
+    throw new CliError(`Deploy secret bundle is not configured for ${key} ${environment}.`, 77);
   }
   return entry.bundle_secret;
 }
@@ -341,13 +338,9 @@ export async function resolveDeploySecretPlan(
   const required = await readNames(requiredPath);
   const optional = await readNames(allowedPath);
   const declared = new Set([...required, ...optional]);
-  const ceiling = await readDeploySecretCeiling(
-    policyPath,
-    repository,
-    environmentName,
-    product,
-    [...declared]
-  );
+  const ceiling = await readDeploySecretCeiling(policyPath, repository, environmentName, product, [
+    ...declared,
+  ]);
   const excess = [...declared].filter((name) => !ceiling.has(name)).sort();
   if (excess.length > 0) {
     throw new CliError(
@@ -368,10 +361,7 @@ export async function resolveDeploySecretPlan(
   for (const name of [...declared].sort()) {
     const source = aliases.get(name) ?? name;
     if (!envNamePattern.test(source) || isReserved(source) || seenSources.has(source)) {
-      throw new CliError(
-        `Deploy secret source is invalid or duplicated: ${source}.`,
-        65
-      );
+      throw new CliError(`Deploy secret source is invalid or duplicated: ${source}.`, 65);
     }
     seenSources.add(source);
     const kind = variableSources.has(source) ? "variable" : "secret";
