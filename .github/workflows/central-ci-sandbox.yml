@@ -206,8 +206,8 @@ jobs:
           set -Eeuo pipefail
           record_failure() {
             local code=$?
-            if [ "$code" -ne 0 ] && [ -n "\${CENTRAL_CI_FAILURE_FILE:-}" ] && [ ! -s "$CENTRAL_CI_FAILURE_FILE" ]; then
-              printf "%s:%s\n" "\${BASH_LINENO[0]:-$LINENO}" "$code" > "$CENTRAL_CI_FAILURE_FILE"
+            if [ "$code" -ne 0 ] && [ -n "${CENTRAL_CI_FAILURE_FILE:-}" ] && [ ! -s "$CENTRAL_CI_FAILURE_FILE" ]; then
+              printf "%s:%s\n" "${BASH_LINENO[0]:-$LINENO}" "$code" > "$CENTRAL_CI_FAILURE_FILE"
             fi
           }
           trap record_failure ERR
@@ -220,7 +220,7 @@ jobs:
 
           set +e
           CENTRAL_CI_FAILURE_FILE="$failure_meta" \
-            bash "$wrapper" "$script" "\${script_args[@]}" >"$log" 2>&1
+            bash "$wrapper" "$script" "${script_args[@]}" >"$log" 2>&1
           code=$?
           set -e
 
