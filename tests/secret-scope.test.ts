@@ -379,7 +379,7 @@ test("the central policies give each Cloudflare account its own qualified secret
   );
 });
 
-test("task aliases are applied before cleanup and deploy aliases are resolved before injection", async () => {
+test("task aliases remain isolated and deploy selects one product-scoped bundle", async () => {
   const taskWorkflow = await readFile(".github/workflows/handle-task-dispatch.yml", "utf8");
   const alias = taskWorkflow.indexOf("jq -r '.alias[]");
   const unset = taskWorkflow.indexOf("jq -r '.unset[]'");
@@ -388,8 +388,8 @@ test("task aliases are applied before cleanup and deploy aliases are resolved be
 
   const deployWorkflow = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
   assert.match(deployWorkflow, /resolve-deploy-secret-plan\.ts/);
-  assert.match(deployWorkflow, /steps\.secret_plan\.outputs\.inject_sources/);
-  assert.match(deployWorkflow, /secrets\.CLOUDFLARE_API_TOKEN_SECONDARY/);
-  assert.doesNotMatch(deployWorkflow, /secrets\.CLOUDFLARE_ACCOUNT_ID_SECONDARY/);
+  assert.match(deployWorkflow, /secrets\[steps\.secret_plan\.outputs\.bundle_secret_name\]/);
+  assert.match(deployWorkflow, /stage-deploy-secret-bundle\.ts/);
   assert.doesNotMatch(deployWorkflow, /env:\s*\$\{\{\s*secrets\s*\}\}/);
+  assert.doesNotMatch(deployWorkflow, /secrets\.CLOUDFLARE_API_TOKEN_SECONDARY/);
 });
