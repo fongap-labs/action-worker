@@ -254,12 +254,14 @@ test("main CI retries a signed old failure only after trusted control revision c
       if (path === `repos/${repository}/commits/main`) return { sha: shaA };
       if (path === `repos/${repository}/commits/${shaA}/status`) {
         return attestFixtureResponseForPath(path, {
-          statuses: [{
-            context: "CI Evidence",
-            state: "failure",
-            target_url: targetUrl,
-            updated_at: new Date().toISOString(),
-          }],
+          statuses: [
+            {
+              context: "CI Evidence",
+              state: "failure",
+              target_url: targetUrl,
+              updated_at: new Date().toISOString(),
+            },
+          ],
         });
       }
       if (path === `repos/${controlRepository}/actions/runs/1234`) {
@@ -277,7 +279,9 @@ test("main CI retries a signed old failure only after trusted control revision c
   const rerun = await scanMainCi(
     opts,
     reader,
-    async (name) => { seen.push(name); },
+    async (name) => {
+      seen.push(name);
+    },
     controlRepository,
     undefined,
     "",
@@ -290,7 +294,9 @@ test("main CI retries a signed old failure only after trusted control revision c
   const unchanged = await scanMainCi(
     opts,
     reader,
-    async (name) => { seen.push(name); },
+    async (name) => {
+      seen.push(name);
+    },
     controlRepository,
     undefined,
     "",
@@ -302,7 +308,9 @@ test("main CI retries a signed old failure only after trusted control revision c
   const missingTrustedVersion = await scanMainCi(
     opts,
     reader,
-    async () => { throw new Error("Untrusted retry must not dispatch"); },
+    async () => {
+      throw new Error("Untrusted retry must not dispatch");
+    },
     controlRepository
   );
   assert.equal(missingTrustedVersion.already_processed, 1);
@@ -327,8 +335,11 @@ test("main CI will not retry a signed failure from an untrusted or unfinished ru
           if (path === `repos/${repository}/commits/${shaB}/status`) {
             return attestFixtureResponseForPath(path, {
               statuses: [
-                { context: "CI Evidence", state: "failure",
-                  target_url: "https://github.com/fongap-labs/action-worker/actions/runs/1234" },
+                {
+                  context: "CI Evidence",
+                  state: "failure",
+                  target_url: "https://github.com/fongap-labs/action-worker/actions/runs/1234",
+                },
               ],
             });
           }
@@ -336,7 +347,9 @@ test("main CI will not retry a signed failure from an untrusted or unfinished ru
           throw new Error(`unexpected API path: ${path}`);
         },
       },
-      async () => { dispatches += 1; },
+      async () => {
+        dispatches += 1;
+      },
       controlRepository,
       undefined,
       "",
