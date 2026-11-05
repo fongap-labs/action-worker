@@ -1,112 +1,173 @@
-# 命名约定
+# 命名规范
 
-> **新增名称强制三段；三段不足时允许第四段。语义完整，不得凑数。**
+## 1. 标准段数
 
-第 1–6 节适用于全部受管 Fongap Labs 仓库；第 7–8 节仅适用于 Action Worker。业务仓库只补充项目专属约束，不复制共用规则。
+新增自有名称强制三个语义段。
 
-本文采用**中文说明、英文模板和英文范例**。语言规范以 `01_SHARED_GOVERNANCE.md` §2 为准。
+### ❌ 错误做法 / 反面教材
 
----
+缺少用途或类型。
 
-## 1. 核心原则
+```text
+AW_TOKEN
+MCP_KEY
+validate.ts
+```
 
-1. 新增自有外部配置与普通工程文件，**必须采用三个语义段**。
-2. 三段无法准确表达稳定用途、模块或类型时，**允许第四段**；不得增加第五段。
-3. **标准平台名称不受强制段数限制，不允许例外登记。**
-4. 名称使用 `TERMINOLOGY.md` 的规范词汇及系统缩写，禁止为缩短名称临时造词。
-5. 文件名不重复目录信息；局部标识符按上下文简洁命名。
-6. 历史协议与配置须先评估引用及兼容性，再逐步迁移；历史不合规名称不能成为新增名称的依据。
+### ✅ 正确做法 / 规范范例
 
----
-
-## 2. 外部配置
-
-适用于新增 GitHub Variables、Secrets、环境变量及自有公开配置键。
-
-**Standard Pattern**
+配置标识归属、用途、类型。
 
 ```text
 SYSTEM_PURPOSE_TYPE
 AW_STATUS_TOKEN
-AW_DISPATCH_TOKEN
-AIG_ACCESS_KEY
+MCP_ADMIN_KEY
+validate-naming-rules.ts
 ```
 
-**Extended Pattern**
+## 2. 第四段
+
+三段不够时才增加第四段。
+
+### ❌ 错误做法 / 反面教材
+
+堆叠重复词或第五段。
+
+```text
+AW_AI_AGENT_WRITING_MODEL_CONFIG
+```
+
+### ✅ 正确做法 / 规范范例
+
+第四段必须消除真实歧义。
 
 ```text
 SYSTEM_MODULE_PURPOSE_TYPE
 AW_STATUS_SIGNING_KEY
-AIG_USAGE_D1_ID
+AW_AI_AGENT_CONFIG
 ```
 
-第四段必须承载不可省略的区别；保留 `TOKEN`、`KEY`、`ID`、`CONFIG` 等标准类型词。仅当协议要求、多种表示并存或不标格式会歧义时，使用 `JSON`、`YAML` 等格式词。
+复杂参数优先采用结构化配置，不新增长于四段的自有外部变量。
 
-**语义段与下划线数量并不等价。** `APP_SOURCE`、`SERVER_EDGE` 等已定义的复合系统前缀各视为一个语义段；维护术语表不等于登记命名例外。
+## 3. 平台标准名称
 
-标准平台名称（如 `GITHUB_TOKEN`、`NODE_OPTIONS`）遵循平台要求，不限段数。既有协议字段（如 `request_id`、`source_sha`、`runner_profile`）不得未经版本化迁移而改名；新字段不据此获得豁免。
+标准平台名称遵循平台原样。
 
-AI Agent 路由的唯一可配置权威来源仍是 `AW_AI_AGENT_CONFIG`；`AW_AI_AGENT_WRITING_MODEL` 等历史派生运行时变量**不得**作为 Repository Variables。新增复杂项应进入结构化配置，不扩张为五段及以上的新变量。
+### ❌ 错误做法 / 反面教材
 
-业务仓库可从 `projects/<owner>/`、`apps/<owner>/`、`services/<owner>/` 等路径取得所有者前缀；外部名称仍须标明归属，不得新增 `ARTIFACT_REPOSITORY`、`OUTPUT_DIR` 等无归属名称。
-
----
-
-## 3. 文件命名
-
-新增自有工程文件采用三段 `kebab-case`；稳定职责必须细分时允许四段。扩展名不计段数。
+为了凑段数改写标准名称。
 
 ```text
-action-object-detail.ext
+GITHUB_ACTIONS_ACCESS_TOKEN
+NODE_RUNTIME_OPTIONS
+```
+
+### ✅ 正确做法 / 规范范例
+
+保留平台原生名称。
+
+```text
+GITHUB_TOKEN
+NODE_OPTIONS
+package.json
+Cargo.toml
+Dockerfile
+```
+
+**标准平台名称不受强制段数限制，不允许例外登记。** 不建立例外清单、审批或白名单。
+
+## 4. 文件名称
+
+自有普通文件用三个短横线语义段。
+
+### ❌ 错误做法 / 反面教材
+
+名称含糊或重复目录。
+
+```text
+helper.ts
+scripts/scripts-task-helper.ts
+```
+
+### ✅ 正确做法 / 规范范例
+
+动作、对象和职责准确对应。
+
+```text
 validate-naming-rules.ts
 dispatch-central-ci.ts
 session-state-manager.ts
 ```
 
-工作流与 Shell 文件仍受 §8 的**最多三段**现行检查约束；新增文件优先三段。治理文档使用 `UPPER_SNAKE_CASE.md`；现有编号及引用不得为凑段数随意更改。
+仅职责无法表达时允许第四段；扩展名不计段数。治理文档沿用大写下划线及既有编号，不随意修改引用。
 
-`package.json`、`Cargo.toml`、`README.md`、`LICENSE`、`Dockerfile` 等标准生态文件名沿用原生约定。第三方和生成文件不作为本规范的自有文件改名。
+## 5. 源码标识符
 
----
+局部标识符遵循语言原生习惯。
 
-## 4. 源码标识符
+### ❌ 错误做法 / 反面教材
 
-函数、参数、局部变量及私有字段遵循语言原生习惯，**不强制三段**。Python/Rust 使用 `snake_case`；TypeScript/TSX 按类别采用 `camelCase` 或 `PascalCase`。
+无意义地重复系统前缀。
 
 ```typescript
-const model = request.model;
+const actionWorkerSessionStateRestoreResult = true;
+```
+
+### ✅ 正确做法 / 规范范例
+
+作用域内只保留必要含义。
+
+```typescript
 const isEnabled = policy.isEnabled;
+const model = request.model;
 function restoreSessionState() {}
 ```
 
-布尔值使用 `is` / `has` / `can` / `should` 语义前缀。禁止用 `impl`、`helper`、`common`、`misc`、`shared` 掩盖职责；长期控制平面不使用 `new`、`final`、`latest`、`temp`、`tmp` 等生命周期标签（明确领域术语除外）。
+局部变量、函数及参数不强制三段。布尔名称优先使用 `is`、`has`、`can`、`should`。
 
----
+## 6. 缩写与归属
 
-## 5. 缩写与迁移
+系统缩写只在术语表统一定义。
 
-- 行业通用缩写可直接使用；系统缩写唯一来源为 `TERMINOLOGY.md`。
-- 新凭据以 `TOKEN` 或 `KEY` 表示类型，不使用 `PAT`（第三方原生字段除外）。
-- 历史工作流、密钥、签名证据、部署参数及 API 名称，必须通过引用清查和兼容验证后才能迁移。
-- **不设例外登记、豁免清单或人工批准绕过机制。** 历史不合规名称只能纳入迁移，不能据此新增相同模式。
+### ❌ 错误做法 / 反面教材
 
----
+临时发明缩写并省略归属。
 
-## 6. 持续集成 校验边界
-
-本文件定义**目标规范**；当前 CI 的实现范围必须如实区分：
-
-- `scripts/validate-naming-rules.ts`、`scripts/validate-source-naming.py`：工作流和 Shell 文件当前检查**最多三段**。
-- `scripts/validate-config-naming.ts`：当前检查外部系统前缀及部分凭据、布尔值规则，**尚未强制三段／四段**。
-- 后续增加段数检查时须解析规范复合前缀、平台原生命名，并区分新增与历史名称；**不得引入任意命名例外登记**或破坏既有 CI 合同。
-
----
-
-## 7. 仅适用于 中央工作器
-
-Action Worker 是通用治理与执行平面。稳定权威位于：
-
+```text
+STATUS_KEY
+ARTIFACT_REPOSITORY
 ```
+
+### ✅ 正确做法 / 规范范例
+
+使用已定义系统前缀。
+
+```text
+AW_STATUS_KEY
+APP_SOURCE_AUTH_TOKEN
+SERVER_EDGE_ACCESS_KEY
+```
+
+`APP_SOURCE`、`SERVER_EDGE` 各算一个复合系统语义段；术语维护不属于例外登记。格式后缀 `JSON` 等仅在协议要求时使用。
+
+## 7. 中央仓库边界
+
+中央仓库只容纳通用实现。
+
+### ❌ 错误做法 / 反面教材
+
+按某个业务仓库创建专属控制目录。
+
+```text
+projects/specific-repository/
+profiles/specific-repository/
+```
+
+### ✅ 正确做法 / 规范范例
+
+按合同及执行职责分层。
+
+```text
 docs/
 contracts/
 policies/
@@ -115,60 +176,52 @@ scripts/
 tests/
 ```
 
-平台要求的 `.github/workflows/` 为例外。
+业务仓库可使用产品目录；中央配置不得直接暴露具体执行主机，统一使用 `runner_profile`。
 
-执行框架增长时，若某实现层代表可复用通用能力并由共用合同驱动，允许引入仓库无关实现层（如 `executors/`、`runners/`、`adapters/`）。
+## 8. 工作流命名
 
-**Action Worker 不得引入仓库专属配置结构**，例如：
+新增工作流优先三段，最多三段。
+
+### ❌ 错误做法 / 反面教材
+
+包含仓库名、产品名或冗余前缀。
+
+```text
+handle-source-script-deploy.yml
+my-product-release-app.yml
 ```
-projects/<repository-or-product>/
-profiles/<repository-or-product>/
-<repository-name>/
+
+### ✅ 正确做法 / 规范范例
+
+按事件和职责命名。
+
+```text
+handle-task-dispatch.yml
+security-scan-dispatch.yml
+release-app.yml
+deploy-source-script.yml
 ```
-通用适配器允许；实质上“对仓库 X 做特殊处理”的适配器不允许。
 
-此限制**不**适用于业务仓库。产品仓库可合理使用 `projects/`、`apps/`、`crates/`、`tools/`、`skills/`、`output/` 等语义正确的项目专属目录。
+`intake.yml` 是既有单一对账入口；工作流分类、触发与权限以 `tests/workflow-classes.test.ts` 为准。现有入口不得未经引用及证据链验证直接改名。
 
-Action Worker CI 强制执行自身文件名与架构限制。业务仓库可增加更严格的项目专属命名检查，但**不得重新定义共用词汇**。
+## 9. 迁移与校验
 
-统一执行平面中，业务仓库使用 `runner_profile` 作为外部合同字段。不得把具体基础设施名称（GitHub Runner 镜像名、`self-hosted` 标签、Runner 组、主机名、云实例名）暴露为项目级配置。`runner profile` 描述需求；`runner resolver` 选择实际 `runner backend`。
+现行合同必须先验证再迁移。
 
----
+### ❌ 错误做法 / 反面教材
 
-## 8. 工作流文件名
+直接重命名密钥导致工作流失效。
 
-现行校验要求工作流与 Shell 文件名最多三个 kebab-case 段；新增文件应优先采用完整的三段式（`scripts/validate-naming-rules.ts` 与 `scripts/validate-source-naming.py` 在每个受管仓库强制执行）。`tests/workflow-naming.test.ts` 为 Action Worker 自身工作流检查以下规则：
+```text
+删除旧密钥 → 修改引用 → 不执行测试
+```
 
-- 由 `repository_dispatch` 启动的工作流，取能放入三段中最完整名称：`handle-<subject>-dispatch.yml` → `<subject>-dispatch.yml` → `<subject>.yml`。subject = 去掉 `run-` 前缀的事件名。
-  - `run-task` → `handle-task-dispatch.yml`
-  - `run-security-scan` → `security-scan-dispatch.yml`
-  - `run-source-script-deploy` → `source-script-deploy.yml`（仅示例，部署工作流按适配器命名，见下）
-- 能放下时 `handle` 标记接收方；发送方命名为 `dispatch-*`（如 `scripts/dispatch-central-ci.ts`）
-- 对账工作流只有一个：`intake.yml`（显示名 `自动 · 总控调度`）。新增对账类工作作为它的一个作业加入，不新建 `<subject>-intake.yml`
-- 发布/部署工作流命名为 `release-<kind>.yml` 或 `deploy-<adapter>.yml`，使人按想做的事找到正确工作流
-  - `<kind>`：`app`（源仓库构建应用）、`tool`（上游镜像第三方工具）
-  - `<adapter>`：`policies/deploy.json` 中 `adapters` 键（目前为 `source-script`）
-  - 名称**从不包含产品或仓库名**
-  - 上述 dispatch 事件规则不适用于它们。手动启动权限由 §8.2 工作流分类决定：`release-app.yml`、`release-npm.yml` 与 `deploy-source-script.yml` 是入口，`release-tool.yml` 按计划自动运行
-- 工作流显示名由 `tests/workflow-naming.test.ts` 中文映射锁定（如 `release-app.yml` 对应 `手动 · 发布应用`）
-- 历史文件名（如 `handle-pr-dispatch.yml`、`handle-pr-review.yml`）仍需维持现有事件和证据引用，迁移须单独验证；不得据此新增豁免名称
+### ✅ 正确做法 / 规范范例
 
-### 8.1 文档语言
+先清查引用、再验证迁移。
 
-机器读取文档使用英文；人类阅读文档使用中文；不建立中英镜像。规则以 `01_SHARED_GOVERNANCE.md` §2 为准，由 `tests/documentation-language.test.ts` 检查。
+```text
+引用清查 → 同步配置和代码 → 合同测试 → 切换名称
+```
 
-### 8.2 工作流分类
-
-每个工作流只能属于一个分类；成员及触发规则以 `tests/workflow-classes.test.ts` 为准。
-
-| 分类 | 允许触发 | 手动启动 |
-|------|----------|----------|
-| 入口 | `workflow_dispatch`、`repository_dispatch` | 允许 |
-| 诊断 | `workflow_dispatch` | 允许（只读） |
-| 恢复 | `workflow_dispatch` | 允许（仅 `main`，经 `admin-ops` 审批） |
-| 对账 | `push`（`main`）、`repository_dispatch`、`schedule` | 禁止 |
-| 事件处理 | `repository_dispatch` | 禁止 |
-| 维护 | `push`、`pull_request`、`schedule`、`workflow_run` | 禁止 |
-| 可复用 | `workflow_call` | 禁止 |
-
-所有工作流遵守最小权限：工作流级不授予写权限；作业有超时、固定 SHA 的外部 Action 和并发边界；禁止 `pull_request_target`，不在持有中央密钥的环境运行 PR 代码。
+当前文件名检查主要执行最多三段；配置校验尚未完整执行三至四段强制规则。禁止把文档目标描述成已经部署的门禁。
