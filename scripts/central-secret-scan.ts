@@ -90,7 +90,7 @@ export function downloadFailureReason(
   if (error?.code === "ENOENT") return "curl executable not found";
   if (error?.code === "ETIMEDOUT") return "download timed out";
   if (signal) return "download process terminated by a signal";
-  if (/^[45]\\d{2}$/.test(httpStatus)) return `download returned HTTP ${httpStatus}`;
+  if (/^[45]\d{2}$/.test(httpStatus)) return `download returned HTTP ${httpStatus}`;
   if (exitCode !== 0) return `download process failed with code ${exitCode ?? "unknown"}`;
   return "download did not return HTTP 200";
 }
