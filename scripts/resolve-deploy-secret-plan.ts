@@ -51,9 +51,7 @@ async function main(): Promise<void> {
   });
   await chmod(path, 0o600);
   const secretCount = plan.filter((entry) => entry.kind === "secret").length;
-  await appendLines(process.env.GITHUB_OUTPUT, [
-    `bundle_secret_name=${bundleSecretName}`,
-  ]);
+  await appendLines(process.env.GITHUB_OUTPUT, [`bundle_secret_name=${bundleSecretName}`]);
   console.log(
     `Deploy secret plan resolved: ${plan.length} declared name(s), ${secretCount} Secret source(s), ${plan.length - secretCount} Variable source(s); values not read.`
   );
