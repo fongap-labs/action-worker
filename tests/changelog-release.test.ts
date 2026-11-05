@@ -96,8 +96,6 @@ test("promoting Unreleased moves every entry into a linked version section in ca
       "- [security] 收紧 OAuth 回调校验。",
       "- 修复路由重试。",
       "",
-
-      "",
       "## [0.1.0](https://github.com/fongap-labs/example/releases/tag/example-v0.1.0) - 2026-09-18",
       "",
       "### 修复",
