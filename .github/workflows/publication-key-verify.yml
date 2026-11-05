@@ -105,6 +105,44 @@ jobs:
           fi
           echo "Scoped GitHub App publication token verified with Contents and Pull requests write."
 
+      - name: Verify private source and output target publication policy
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ github.repository_owner }}/external-vault
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "::add-mask::${GITHUB_REPOSITORY_OWNER}/internal-vault"
+          node scripts/repository-policy.ts validate "${GITHUB_REPOSITORY_OWNER}/internal-vault" release-source > /dev/null
+          node scripts/repository-policy.ts validate "$TARGET_REPOSITORY" release-target > /dev/null
+          node scripts/repository-policy.ts validate "$TARGET_REPOSITORY" pr > /dev/null
+          echo "Private source and publication target capabilities verified."
+
+      - name: Mint real publication target App token
+        id: real_target_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: external-vault
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Verify real publication target App isolation
+        env:
+          GH_TOKEN: ${{ steps.real_target_app.outputs.token }}
+          TARGET_OWNER: ${{ github.repository_owner }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          actual="$(gh api installation/repositories --jq '[.repositories[].full_name] | join(",")')"
+          if [ "$actual" != "$TARGET_OWNER/external-vault" ]; then
+            echo "::error::Actual publication App must be scoped only to external-vault." >&2
+            exit 77
+          fi
+          echo "Actual publication target App scope verified (Contents/Pull requests write)."
+
   smoke-seal:
     name: Seal artifact on untrusted runner
     needs: unprotected-scope
