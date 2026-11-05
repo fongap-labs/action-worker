@@ -1,4 +1,4 @@
-import { isJsonRecord, GithubReader } from "./github-api.ts";
+import { GithubReader, isJsonRecord } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { readSecretAliases, readTaskSecretCeiling } from "./resolve-secret-scope.ts";
 
