@@ -9,7 +9,8 @@ import {
 } from "node:crypto";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 
-const failed = "::error::Publication RSA-3072 public and protected private keys are missing, invalid, or mismatched.";
+const failed =
+  "::error::Publication RSA-3072 public and protected private keys are missing, invalid, or mismatched.";
 
 export function verifyPublicationKeyPair(publicBase64: string, privatePem: string): void {
   const encoded = publicBase64.trim();

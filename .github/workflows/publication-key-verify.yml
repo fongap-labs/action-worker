@@ -5,7 +5,7 @@ on:
   push:
     branches: [main]
     paths:
-      - .github/workflows/verify-task-publication-key.yml
+      - .github/workflows/publication-key-verify.yml
       - scripts/verify-publication-key-pair.ts
   workflow_dispatch:
 

@@ -17,9 +17,18 @@ function keys(bits: number) {
 test("protected publication preflight accepts a correct RSA-3072 pair", () => {
   const pair = keys(3072);
   assert.doesNotThrow(() => verifyPublicationKeyPair(pair.publicKey, pair.privateKey));
-  assert.throws(() => verifyPublicationKeyPair("", pair.privateKey), /missing, invalid, or mismatched/);
-  assert.throws(() => verifyPublicationKeyPair(pair.publicKey, ""), /missing, invalid, or mismatched/);
-  assert.throws(() => verifyPublicationKeyPair("not-base64!", pair.privateKey), /missing, invalid, or mismatched/);
+  assert.throws(
+    () => verifyPublicationKeyPair("", pair.privateKey),
+    /missing, invalid, or mismatched/
+  );
+  assert.throws(
+    () => verifyPublicationKeyPair(pair.publicKey, ""),
+    /missing, invalid, or mismatched/
+  );
+  assert.throws(
+    () => verifyPublicationKeyPair("not-base64!", pair.privateKey),
+    /missing, invalid, or mismatched/
+  );
   const other = keys(3072);
   assert.throws(
     () => verifyPublicationKeyPair(pair.publicKey, other.privateKey),
@@ -36,14 +45,17 @@ test("protected publication preflight refuses RSA below 3072 bits", () => {
 });
 
 test("publication key validation never runs on pull-request-controlled code", async () => {
-  const source = await readFile(".github/workflows/verify-task-publication-key.yml", "utf8");
+  const source = await readFile(".github/workflows/publication-key-verify.yml", "utf8");
   const workflow = parse(source) as {
     on: Record<string, unknown>;
-    jobs: Record<string, {
-      environment?: string;
-      needs?: string;
-      steps: Array<{ name?: string; env?: Record<string, string> }>;
-    }>;
+    jobs: Record<
+      string,
+      {
+        environment?: string;
+        needs?: string;
+        steps: Array<{ name?: string; env?: Record<string, string> }>;
+      }
+    >;
   };
   assert.ok(workflow.on.push);
   assert.equal(workflow.on.pull_request, undefined);
@@ -58,7 +70,9 @@ test("publication key validation never runs on pull-request-controlled code", as
     unprotected.steps[0]?.env?.PUBLICATION_KEY_LEAKED,
     "${{ secrets.AW_PUBLICATION_PRIVATE_KEY != '' }}"
   );
-  const step = protectedPair.steps.find((item) => item.name === "Verify publication keys without exposing material");
+  const step = protectedPair.steps.find(
+    (item) => item.name === "Verify publication keys without exposing material"
+  );
   assert.equal(step?.env?.AW_PUBLICATION_PUBLIC_KEY, "${{ vars.AW_PUBLICATION_PUBLIC_KEY }}");
   assert.equal(step?.env?.AW_PUBLICATION_PRIVATE_KEY, "${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}");
   assert.doesNotMatch(source, /toJSON\s*\(\s*secrets\s*\)/);
