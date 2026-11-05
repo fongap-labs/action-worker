@@ -6,13 +6,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { parse } from "yaml";
-import { openTaskPublication, sealTaskPublication } from "../scripts/task-publication-envelope.ts";
+import { openTaskPublication, sealTaskPublication, verifyPublicationKeyPair } from "../scripts/task-publication-envelope.ts";
 import { validateManifest } from "../scripts/validate-task-publication.ts";
 
 const identity = {
   repository: "fongap-labs/private-source",
   project: "sensitive-project",
   bootstrap_ref: "a".repeat(40),
+  request_id: "task-123",
 };
 
 function keys() {
@@ -53,6 +54,15 @@ test("task publication is confidential across the runner boundary and bound to s
       ),
       /authenticate|decrypt|Unsupported|authenticity/i
     );
+    await assert.rejects(
+      openTaskPublication(
+        sealed,
+        { ...identity, request_id: "task-124" },
+        pair.privateKey,
+        join(root, "wrong-request")
+      ),
+      /authenticate|decrypt|Unsupported|authenticity/i
+    );
     await openTaskPublication(sealed, identity, pair.privateKey, opened);
     assert.equal(
       await readFile(join(opened, "payload", "nested", "sensitive.txt"), "utf8"),
@@ -71,6 +81,16 @@ test("task publication is confidential across the runner boundary and bound to s
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("publication key pairing fails closed for a mismatched RSA key", () => {
+  const good = keys();
+  const wrong = keys();
+  assert.doesNotThrow(() => verifyPublicationKeyPair(good.publicKey, good.privateKey));
+  assert.throws(
+    () => verifyPublicationKeyPair(good.publicKey, wrong.privateKey),
+    /public and private keys do not match/
+  );
 });
 
 test("task publication sealing refuses symbolic links instead of archiving escapes", async () => {
@@ -146,6 +166,13 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
     source.includes("AW_PUBLICATION_PRIVATE_KEY: ${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}")
   );
   assert.ok(source.includes("AW_PUBLICATION_PUBLIC_KEY: ${{ vars.AW_PUBLICATION_PUBLIC_KEY }}"));
+  assert.ok(
+    publish.steps.some((step) => step.name === "Verify protected publication key pair")
+  );
+  const opener = publish.steps.find(
+    (step) => step.name === "Open encrypted publication on clean runner"
+  );
+  assert.equal(opener?.env?.REQUEST_ID, "${{ needs.validate.outputs.request_id }}");
   // The public control-plane run must not expose private task identity in step metadata.
   assert.doesNotMatch(source, /toJSON\(github\.event\.client_payload\)/);
   assert.match(source, /run: node scripts\/validate-dispatch-payload\.ts\n/);
@@ -248,6 +275,7 @@ test("task publication CLI seals in executor and opens on a separate clean publi
       TASK_SOURCE_REPOSITORY: identity.repository,
       PROJECT: identity.project,
       BOOTSTRAP_REF: identity.bootstrap_ref,
+      REQUEST_ID: identity.request_id,
     };
     execFileSync(
       process.execPath,
@@ -263,6 +291,17 @@ test("task publication CLI seals in executor and opens on a separate clean publi
     assert.doesNotMatch(
       await readFile(sealedPath, "utf8"),
       /private-source|sensitive-project|confidential-output/
+    );
+    assert.equal(
+      execFileSync(process.execPath, ["scripts/task-publication-envelope.ts", "check-keys"], {
+        encoding: "utf8",
+        env: {
+          ...sourceEnv,
+          AW_PUBLICATION_PUBLIC_KEY: pair.publicKey,
+          AW_PUBLICATION_PRIVATE_KEY: pair.privateKey,
+        },
+      }).trim(),
+      "Publication key pair validated."
     );
     execFileSync(
       process.execPath,
