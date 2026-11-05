@@ -220,6 +220,168 @@ export async function readDeploySecretCeiling(
   ]);
 }
 
+const deployBundleNamePattern = /^AW_DEPLOY_SECRET_BUNDLE_[A-Z0-9_]+$/;
+
+/** Resolve the single product-scoped GitHub Environment Secret used as the deployment bundle. */
+export async function readDeploySecretBundleName(
+  policyPath: string,
+  repository: string,
+  environment: string,
+  product = ""
+): Promise<string> {
+  const policy: unknown = JSON.parse(await readFile(policyPath, "utf8"));
+  if (!isJsonRecord(policy) || policy.schema_version !== 1 || !isJsonRecord(policy.deployments)) {
+    throw new CliError("Deploy secret policy is invalid.", 65);
+  }
+  const bundleNames = new Set<string>();
+  for (const [key, environments] of Object.entries(policy.deployments)) {
+    if (!isJsonRecord(environments)) {
+      throw new CliError(`Deploy secret policy entry is invalid: ${key}.`, 65);
+    }
+    for (const [environmentName, entry] of Object.entries(environments)) {
+      if (
+        !isJsonRecord(entry) ||
+        typeof entry.bundle_secret !== "string" ||
+        !deployBundleNamePattern.test(entry.bundle_secret) ||
+        bundleNames.has(entry.bundle_secret)
+      ) {
+        throw new CliError(
+          `Deploy secret bundle name is invalid or duplicated: ${key} ${environmentName}.`,
+          65
+        );
+      }
+      bundleNames.add(entry.bundle_secret);
+    }
+  }
+  const key = productPolicyKey(repository, product);
+  const repositoryEntry = Object.hasOwn(policy.deployments, key)
+    ? policy.deployments[key]
+    : undefined;
+  const entry =
+    isJsonRecord(repositoryEntry) && Object.hasOwn(repositoryEntry, environment)
+      ? repositoryEntry[environment]
+      : undefined;
+  if (
+    !isJsonRecord(entry) ||
+    typeof entry.bundle_secret !== "string" ||
+    !deployBundleNamePattern.test(entry.bundle_secret)
+  ) {
+    throw new CliError(`Deploy secret bundle is not configured for ${key} ${environment}.`, 77);
+  }
+  return entry.bundle_secret;
+}
+
+export type DeploySecretPlanEntry = {
+  name: string;
+  source: string;
+  required: boolean;
+  kind: "secret" | "variable";
+};
+
+/** Repository Variables may supply an alias source, but are never collected from the Secrets context. */
+export async function readDeploySecretVariableSources(
+  policyPath: string,
+  repository: string,
+  environment: string,
+  product = ""
+): Promise<ReadonlySet<string>> {
+  const policy: unknown = JSON.parse(await readFile(policyPath, "utf8"));
+  if (!isJsonRecord(policy) || policy.schema_version !== 1 || !isJsonRecord(policy.deployments)) {
+    throw new CliError("Deploy secret policy is invalid.", 65);
+  }
+  const key = productPolicyKey(repository, product);
+  const repositoryEntry = Object.hasOwn(policy.deployments, key)
+    ? policy.deployments[key]
+    : undefined;
+  const entry =
+    isJsonRecord(repositoryEntry) && Object.hasOwn(repositoryEntry, environment)
+      ? repositoryEntry[environment]
+      : undefined;
+  if (!isJsonRecord(entry) || entry.variable_sources === undefined) return new Set();
+  if (!Array.isArray(entry.variable_sources)) {
+    throw new CliError(
+      `Deploy secret variable_sources is invalid: ${repository} ${environment}.`,
+      65
+    );
+  }
+  const aliases = await readSecretAliases(policyPath, "deploy", key, environment);
+  const aliasSources = new Set(aliases.values());
+  const sources = new Set<string>();
+  for (const item of entry.variable_sources) {
+    if (
+      typeof item !== "string" ||
+      !envNamePattern.test(item) ||
+      isReserved(item) ||
+      !aliasSources.has(item) ||
+      sources.has(item)
+    ) {
+      throw new CliError(
+        `Deploy secret variable source is invalid: ${String(item)} in ${repository} ${environment}.`,
+        65
+      );
+    }
+    sources.add(item);
+  }
+  return sources;
+}
+
+/** Resolve names and provenance before any GitHub Secret value is injected into a step. */
+export async function resolveDeploySecretPlan(
+  requiredPath: string,
+  allowedPath: string,
+  policyPath: string,
+  repository: string,
+  environmentName: string,
+  product = "",
+  baseEnvironment: NodeJS.ProcessEnv = process.env
+): Promise<DeploySecretPlanEntry[]> {
+  const required = await readNames(requiredPath);
+  const optional = await readNames(allowedPath);
+  const declared = new Set([...required, ...optional]);
+  const ceiling = await readDeploySecretCeiling(policyPath, repository, environmentName, product, [
+    ...declared,
+  ]);
+  const excess = [...declared].filter((name) => !ceiling.has(name)).sort();
+  if (excess.length > 0) {
+    throw new CliError(
+      `Source declares secrets outside the central deploy secret policy: ${excess.join(", ")}.`,
+      65
+    );
+  }
+  const key = productPolicyKey(repository, product);
+  const aliases = await readSecretAliases(policyPath, "deploy", key, environmentName);
+  const variableSources = await readDeploySecretVariableSources(
+    policyPath,
+    repository,
+    environmentName,
+    product
+  );
+  const seenSources = new Set<string>();
+  const plan: DeploySecretPlanEntry[] = [];
+  for (const name of [...declared].sort()) {
+    const source = aliases.get(name) ?? name;
+    if (!envNamePattern.test(source) || isReserved(source) || seenSources.has(source)) {
+      throw new CliError(`Deploy secret source is invalid or duplicated: ${source}.`, 65);
+    }
+    seenSources.add(source);
+    const kind = variableSources.has(source) ? "variable" : "secret";
+    if (kind === "variable" && required.has(name) && !baseEnvironment[source]) {
+      throw new CliError(
+        `Required deploy variable is unavailable: ${name} (stored as ${source}).`,
+        77
+      );
+    }
+    if (kind === "secret" && Object.hasOwn(baseEnvironment, source)) {
+      throw new CliError(
+        `Deploy Secret source collides with a pre-existing non-secret environment variable: ${source}.`,
+        65
+      );
+    }
+    plan.push({ name, source, required: required.has(name), kind });
+  }
+  return plan;
+}
+
 async function readNames(path: string): Promise<Set<string>> {
   if (!path) return new Set();
   let text = "";

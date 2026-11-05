@@ -1034,10 +1034,13 @@ test("source-script deploy execution is manifest-driven and repository-agnostic"
     "DEPLOY_ENVIRONMENT",
     "DEPLOY_ENTRYPOINT",
     "REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}",
-    "resolve-secret-scope.ts",
+    "resolve-deploy-secret-plan.ts",
+    "stage-deploy-secret-bundle.ts",
+    "run-scoped-deploy.ts",
+    "bundle_secret_name",
+    "secrets[steps.secret_plan.outputs.bundle_secret_name]",
     "deploy.secrets.required",
     "deploy.secrets.allowed",
-    "for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN AW_CHECKOUT_TOKEN AW_APP_PRIVATE_KEY AW_STATUS_API_TOKEN AW_ISSUE_API_TOKEN AW_DISPATCH_API_TOKEN AW_STATUS_KEYRING",
     "Execute source-owned deploy entrypoint",
   ]);
   assert.doesNotMatch(workflow, /for central_name in[^\n]*AIG_ACCESS_KEY_AGENT/);
@@ -1242,10 +1245,12 @@ test("PR governance enforces trust before it dispatches central CI", async () =>
   );
 });
 
-test("deploy and task entrypoints replace the shell that received every secret", async () => {
+test("deploy and task entrypoints execute with scoped credentials", async () => {
   const deploy = await text(".github/workflows/deploy-source-script.yml");
-  assert.match(deploy, /\n\s+exec bash "\$DEPLOY_ENTRYPOINT"\n/);
-  assert.doesNotMatch(deploy, /\n\s+bash "\$DEPLOY_ENTRYPOINT"\n/);
+  assert.match(deploy, /node control\/scripts\/run-scoped-deploy\.ts/);
+  assert.doesNotMatch(deploy, /\n\s+exec bash "\$DEPLOY_ENTRYPOINT"\n/);
+  const deployRunner = await text("scripts/run-scoped-deploy.ts");
+  assert.match(deployRunner, /spawnSync\("bash", \[entrypoint\]/);
 
   const task = await text(".github/workflows/handle-task-dispatch.yml");
   assert.match(task, /exec bash "\$TMP_SCRIPT" "\$PROJECT" "\$BOOTSTRAP_REF" "\$REQUEST_ID"\n/);
