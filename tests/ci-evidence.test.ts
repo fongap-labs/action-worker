@@ -442,3 +442,13 @@ test("a main write attested by a release, intake or guard run is trusted", async
     false
   );
 });
+
+test("release validation supplies the status signing keyring for evidence verification", () => {
+  const workflow = readFileSync(".github/workflows/release-app.yml", "utf8");
+  const block = workflow.match(
+    /      - name: Validate release build request\n([\s\S]*?)\n  build:/
+  );
+  assert.ok(block, "release validation job exists");
+  assert.match(block[1]!, /AW_STATUS_KEYRING: \$\{\{ secrets\.AW_STATUS_KEYRING \}\}/);
+  assert.match(block[1]!, /run: node scripts\/validate-release-build-request\.ts/);
+});
