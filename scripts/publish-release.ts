@@ -385,12 +385,7 @@ async function main(): Promise<void> {
     controlToken,
     statusToken
   );
-  const mainWrite = await assertTrustedMainWrite(
-    sourceReader,
-    sourceRepository,
-    sourceSha,
-    true
-  );
+  const mainWrite = await assertTrustedMainWrite(sourceReader, sourceRepository, sourceSha, true);
 
   const runJson = await waitForCompletedRun(artifactRepository, artifactRunId, controlToken);
   const runRepository = isJsonRecord(runJson) ? getJsonString(runJson.repository, "full_name") : "";
@@ -561,12 +556,7 @@ async function main(): Promise<void> {
     // Publishing is read-only against the target repository. A release never opens or
     // merges a changelog PR, nor writes commits to the default branch.
     if (targetRepository !== sourceRepository || targetSha !== sourceSha) {
-      await assertTrustedMainWrite(
-        sourceReader,
-        targetRepository,
-        targetSha,
-        true
-      );
+      await assertTrustedMainWrite(sourceReader, targetRepository, targetSha, true);
     }
     const releaseSha = targetSha;
     const releaseNotes =
