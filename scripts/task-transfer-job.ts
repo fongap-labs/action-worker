@@ -1,10 +1,15 @@
 import { constants as fsConstants } from "node:fs";
-import { mkdir, open, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
-import { openTaskTransfer, sealTaskTransfer, type TransferIdentity, type TransferPurpose } from "./task-transfer-envelope.ts";
-import { packTaskTransferFiles, unpackTaskTransferFiles } from "./task-transfer-files.ts";
 import { verifyTaskStateDirectory } from "./task-state.ts";
+import {
+  openTaskTransfer,
+  sealTaskTransfer,
+  type TransferIdentity,
+  type TransferPurpose,
+} from "./task-transfer-envelope.ts";
+import { packTaskTransferFiles, unpackTaskTransferFiles } from "./task-transfer-files.ts";
 
 // Only the caller's fixed, trusted path is allowed. No task-supplied command or path
 // is ever evaluated as code on a privileged runner.
