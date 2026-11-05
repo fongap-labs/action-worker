@@ -56,3 +56,27 @@ test("no Chinese localization copies are kept beside the Chinese documents", asy
     "Chinese documents have one authoritative file, not a localization copy"
   );
 });
+
+test("human governance documents use bilingual second-level headings", async () => {
+  const violations: string[] = [];
+  const paths = (await trackedMarkdown()).filter(
+    (path) => path.startsWith("docs/") ||
+      ["README.md", "SECURITY.md", "CONTRIBUTING.md"].includes(path)
+  );
+  for (const path of paths) {
+    const lines = (await readFile(path, "utf8")).split("\n");
+    let inFence = false;
+    lines.forEach((line, index) => {
+      if (line.trimStart().startsWith("```")) {
+        inFence = !inFence;
+        return;
+      }
+      if (inFence || !line.startsWith("## ")) return;
+      const normalized = line.replace(/^## (?:\d+(?:\.\d+)*\.\s*)?/, "");
+      if (!/^.+（[A-Za-z][A-Za-z0-9 .&\x27/-]*）$/.test(normalized)) {
+        violations.push(`${path}:${index + 1}: ${line}`);
+      }
+    });
+  }
+  assert.deepEqual(violations, [], "second-level headings must use 中文（English）");
+});
