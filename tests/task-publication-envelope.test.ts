@@ -127,6 +127,12 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
       }
     >;
   };
+  const validate = workflow.jobs.validate;
+  assert.ok(validate);
+  assert.equal(
+    validate.steps.find((step) => step.name === "Validate task source")?.env?.AW_STATUS_KEYRING,
+    "${{ secrets.AW_STATUS_KEYRING }}"
+  );
   const execute = workflow.jobs.execute;
   const publish = workflow.jobs.publish;
   assert.ok(execute);
