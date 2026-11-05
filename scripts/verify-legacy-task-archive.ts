@@ -35,13 +35,13 @@ function zeroTerminated(data: Buffer): string {
   return decoded;
 }
 
-function safeName(name: string, directory: boolean): string | null {
+function safeName(name: string, isDirectory: boolean): string | null {
   if (name === "." || name === "./") {
-    if (!directory) refusal();
+    if (!isDirectory) refusal();
     return null;
   }
   const stripped = name.startsWith("./") ? name.slice(2) : name;
-  const normalized = directory && stripped.endsWith("/") ? stripped.slice(0, -1) : stripped;
+  const normalized = isDirectory && stripped.endsWith("/") ? stripped.slice(0, -1) : stripped;
   const parts = normalized.split("/");
   if (
     !normalized ||
@@ -91,7 +91,11 @@ function paxPath(data: Buffer): string | null {
 }
 
 export function inspectLegacyStateArchive(compressed: Buffer): LegacyArchiveSummary {
-  if (!Buffer.isBuffer(compressed) || compressed.length === 0 || compressed.length > MAX_COMPRESSED) {
+  if (
+    !Buffer.isBuffer(compressed) ||
+    compressed.length === 0 ||
+    compressed.length > MAX_COMPRESSED
+  ) {
     refusal();
   }
   let archive: Buffer;
@@ -110,7 +114,7 @@ export function inspectLegacyStateArchive(compressed: Buffer): LegacyArchiveSumm
   let totalContent = 0;
   let nextLongName: string | null = null;
   let nextPaxName: string | null = null;
-  let ended = false;
+  let hasEnded = false;
 
   while (offset < archive.length) {
     const header = archive.subarray(offset, offset + BLOCK);
@@ -119,14 +123,14 @@ export function inspectLegacyStateArchive(compressed: Buffer): LegacyArchiveSumm
         refusal();
       }
       if (!archive.subarray(offset).every((byte) => byte === 0)) refusal();
-      ended = true;
+      hasEnded = true;
       break;
     }
 
     const expected = numeric(header, 148, 8);
     let actual = 0;
     for (let i = 0; i < BLOCK; i++) {
-      actual += i >= 148 && i < 156 ? 32 : header[i] ?? 0;
+      actual += i >= 148 && i < 156 ? 32 : (header[i] ?? 0);
     }
     if (expected !== actual) refusal();
 
@@ -134,7 +138,7 @@ export function inspectLegacyStateArchive(compressed: Buffer): LegacyArchiveSumm
     const type = header[156] ?? 0;
     const rawName = zeroTerminated(header.subarray(0, 100));
     const prefix = zeroTerminated(header.subarray(345, 500));
-    const name = prefix ? prefix + "/" + rawName : rawName;
+    const name = prefix ? `${prefix}/${rawName}` : rawName;
     const padded = Math.ceil(size / BLOCK) * BLOCK;
     const start = offset + BLOCK;
     const end = start + size;
@@ -175,6 +179,6 @@ export function inspectLegacyStateArchive(compressed: Buffer): LegacyArchiveSumm
     }
   }
 
-  if (!ended || files + directories !== entries) refusal();
+  if (!hasEnded || files + directories !== entries) refusal();
   return { entries, files, directories };
 }
