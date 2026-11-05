@@ -155,8 +155,7 @@ export function openTaskTransfer(
   if (
     !isJsonRecord(input) ||
     input.schema_version !== "1" ||
-    Object.keys(input).sort().join(",") !==
-      "ciphertext,nonce,schema_version,tag,wrapped_key"
+    Object.keys(input).sort().join(",") !== "ciphertext,nonce,schema_version,tag,wrapped_key"
   ) {
     throw new CliError("Task transfer envelope has an unsupported schema.", 66);
   }
