@@ -501,6 +501,12 @@ jobs:
         with:
           node-version: 24
 
+      - name: Verify protected publication key pair
+        env:
+          AW_PUBLICATION_PUBLIC_KEY: ${{ vars.AW_PUBLICATION_PUBLIC_KEY }}
+          AW_PUBLICATION_PRIVATE_KEY: ${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}
+        run: node scripts/task-publication-envelope.ts check-keys
+
       - name: Download encrypted task publication
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -513,6 +519,7 @@ jobs:
           TASK_SOURCE_REPOSITORY: ${{ needs.validate.outputs.repository }}
           PROJECT: ${{ needs.validate.outputs.project }}
           BOOTSTRAP_REF: ${{ needs.validate.outputs.bootstrap_ref }}
+          REQUEST_ID: ${{ needs.validate.outputs.request_id }}
         run: |
           node scripts/task-publication-envelope.ts open \
             "$RUNNER_TEMP/task-publication/sealed.json" \
