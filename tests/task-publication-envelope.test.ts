@@ -134,8 +134,6 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
     validate.steps.find((step) => step.name === "Validate task source")?.env?.AW_STATUS_KEYRING,
     "${{ secrets.AW_STATUS_KEYRING }}"
   );
-  const validate = workflow.jobs.validate;
-  assert.ok(validate);
   assert.equal(validate.outputs?.task_group, "${{ steps.payload.outputs.task_group }}");
   const execute = workflow.jobs.execute;
   const publish = workflow.jobs.publish;
@@ -193,9 +191,14 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
   assert.equal(source.match(/::add-mask::\$value/g)?.length, 3);
   const executeJob = source.split("  execute:")[1]?.split("  publish:")[0] ?? "";
   const publishJob = source.split("  publish:")[1] ?? "";
-  assert.doesNotMatch(executeJob + publishJob, /needs\\.validate\\.outputs\\.(?:repository|project|bootstrap_ref|request_id)/);
-  assert.match(source, /group: action-worker-\\$\\{\\{ needs\\.validate\\.outputs\\.task_group \\}\\}/);
-  assert.match(executeJob, /repository: \\$\\{\\{ github\\.event\\.client_payload\\.repository \\}\\}/);
+  for (const name of ["repository", "project", "bootstrap_ref", "request_id"]) {
+    assert.ok(!executeJob.includes(`needs.validate.outputs.${name}`));
+    assert.ok(!publishJob.includes(`needs.validate.outputs.${name}`));
+  }
+  assert.ok(source.includes("group: action-worker-${{ needs.validate.outputs.task_group }}"));
+  assert.ok(
+    executeJob.includes("repository: ${{ github.event.client_payload.repository }}")
+  );
   assert.doesNotMatch(
     executeJob.split("    steps:")[0] ?? "",
     /REQUEST_ID:|BOOTSTRAP_REF:|TASK_SOURCE_REPOSITORY:|PROJECT:/
