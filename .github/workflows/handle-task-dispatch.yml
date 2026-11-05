@@ -693,8 +693,28 @@ jobs:
                       sleep 10
                       ;;
                   failure)
-                      # A newer gate run of the same head may still replace the failure, so a single
-                      # read does not end the publication. Three consecutive reads (about a minute) do.
+                      # An untrusted App-authored head awaits a separate maintainer review. This is
+                      # not a terminal policy rejection: keep waiting within the 30-minute deadline.
+                      # Never self-approve or bypass the signed central merge gate.
+                      head_oid="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json headRefOid --jq .headRefOid)"
+                      gate_note="$(gh api "repos/$TARGET_REPOSITORY/commits/$head_oid/status" --jq '[.statuses[] | select(.context == "validate-merge")] | first | .description // ""')"
+                      if [[ "$gate_note" == "Awaiting maintainer approval of the current head commit"* ]]; then
+                          if [ "${approval_wake_sent:-false}" != "true" ]; then
+                              review_count="$(gh api "repos/$TARGET_REPOSITORY/pulls/$pr_number/reviews?per_page=100" --jq "[.[] | select(.state == \"APPROVED\" and .commit_id == \"$head_oid\")] | length")"
+                              if [ "$review_count" -gt 0 ]; then
+                                  if ! GH_TOKEN="$AW_DISPATCH_API_TOKEN" gh api --method POST "repos/${GITHUB_REPOSITORY}/dispatches" -f event_type=run-intake >/dev/null; then
+                                      echo "::error::Central governance dispatch failed after maintainer review." >&2
+                                      exit 75
+                                  fi
+                                  approval_wake_sent=true
+                              fi
+                          fi
+                          failure_reads=0
+                          sleep 20
+                          continue
+                      fi
+                      # A later gate run may replace a failure; fail closed only on repeated
+                      # non-approval rejection, never on a pending explicit maintainer review.
                       failure_reads=$(( ${failure_reads:-0} + 1 ))
                       if [ "$failure_reads" -ge 3 ]; then
                           echo "::error::Publication pull request #${pr_number} failed the validate-merge check." >&2
