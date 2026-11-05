@@ -7,7 +7,7 @@ Main Write Guard 完整规则见 `07_MAIN_WRITE_GUARD.md`。
 
 ---
 
-## 1. 接入后的目标流程（Target Workflow）
+## 1. 接入后的目标流程
 
 ```
 仓库事件
@@ -26,7 +26,7 @@ Main Write Guard 完整规则见 `07_MAIN_WRITE_GUARD.md`。
 
 ---
 
-## 2. 业务仓库保留的内容（Repository Responsibilities）
+## 2. 业务仓库保留的内容
 
 - 产品源码
 - 无法从仓库外部运行的项目测试（可外部运行的测试放入测试包，见 `TEST_PACKS.md` §6）
@@ -39,7 +39,7 @@ Main Write Guard 完整规则见 `07_MAIN_WRITE_GUARD.md`。
 
 ---
 
-## 3. 执行请求（Execution Requests）
+## 3. 执行请求
 
 普通分发只提交任务身份与目标。长期最小字段：
 
@@ -57,7 +57,7 @@ operation
 
 ---
 
-## 4. 执行清单（Execution Manifest）
+## 4. 执行清单
 
 项目自身的执行需求，由版本受控的清单与项目脚本描述。
 
@@ -100,7 +100,7 @@ capability_requests
 
 ---
 
-## 5. CI 与 PR（CI and PR）
+## 5. 持续集成 与 合并请求
 
 目标模型：
 
@@ -123,7 +123,7 @@ PR
 
 ---
 
-## 6. 安全扫描（Security Scanning）
+## 6. 安全扫描
 
 业务仓库在 `.github/security-scan.json` 声明意图：CodeQL 语言、抽象 `runner_profile`、构建模式、是否扫描 PR/默认分支。Action Worker 从可信 base/默认 SHA 读取清单，解析 Runner 并运行扫描。
 
@@ -134,7 +134,7 @@ PR
 
 ---
 
-## 7. 依赖修复（Dependency Repair）
+## 7. 依赖修复
 
 依赖锁文件/生成清单修复，由可信依赖机器人触发，回写 PR 分支，使用源仓库自有 `.github/dependency-repair.json`。
 
@@ -157,7 +157,7 @@ PR
 
 ---
 
-## 8. Runner（Runner）
+## 8. 运行器
 
 业务仓库**只声明** `runner_profile`，**绝不**直接写明：GitHub 托管镜像、`self-hosted`、Runner 组、标签、主机名。
 
@@ -167,7 +167,7 @@ Action Worker 的 Runner 解析器选择 GitHub 托管、self-hosted 或未来�
 
 ---
 
-## 9. 中央配置（Central Configuration）
+## 9. 中央配置
 
 Action Worker 仓库变量：
 ```
@@ -207,7 +207,7 @@ GitHub API 写入使用工作流按任务签发的短期 GitHub App Token。以�
 
 ---
 
-## 10. Main Write Guard 概览（Main Write Guard）
+## 10. 主分支来源校验 概览
 
 业务仓库**不承担** Main Write Guard 权威执行。公开 `action-worker` 审计 `AW_REPOSITORY_POLICY` 中每个受管仓库的当前 `main`，重新查询 GitHub，证明源 SHA 来自合法 PR 合并。
 
@@ -237,7 +237,7 @@ Dependabot 事件拿不到 Actions 密钥，由 Intake 处理。维护者批准�
 
 ---
 
-## 11. 任务（Tasks）
+## 11. 任务
 
 任务项目保留在业务仓库，Action Worker 拥有任务入口。
 
@@ -259,13 +259,13 @@ Dependabot 事件拿不到 Actions 密钥，由 Intake 处理。维护者批准�
 
 ---
 
-## 12. 常见接入错误（Common Errors）
+## 12. 常见接入错误
 
 接入、发布与部署的常见报错与对策统一维护在 `06_RELEASE_DEPLOY_GUIDE.md` §3（含 PR 治理常见失败），本节不再重复。
 
 ---
 
-## 13. 平台边界（Platform Boundaries）
+## 13. 平台边界
 
 统一执行架构不意味每个 GitHub 套餐具备相同平台强制能力。
 
@@ -275,13 +275,13 @@ Dependabot 事件拿不到 Actions 密钥，由 Intake 处理。维护者批准�
 
 ---
 
-## 14. 迁移期（Migration Period）
+## 14. 迁移期
 
 部分仓库仍保留旧 CI/Release/Deploy 路径，属于迁移债务。迁移期间旧路径只能缩减；新仓库与新能力直接使用统一执行合同。
 
 ---
 
-## 15. 新仓库不应做的事（Disallowed Local Workflows）
+## 15. 新仓库不应做的事
 
 接入普通新仓库，**不应**需要：
 - 修改 Action Worker 核心脚本
