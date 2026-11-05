@@ -121,7 +121,7 @@ test("shipped product ceilings remain isolated and retain AI Gateway health alia
   const edge = await readDeploySecretCeiling(
     policyPath,
     "fongap-labs/internal-vault",
-    "server-edge-cloud-edge",
+    "production",
     "server-edge"
   );
   assert.equal(edge.size, 4);
