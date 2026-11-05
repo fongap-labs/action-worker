@@ -118,3 +118,40 @@ test("trusted main preflight checks a single publication App writer in a protect
     publisher.steps.some((step) => step.name === "Verify token has one authorized repository")
   );
 });
+
+test("production keys perform a real encrypted artifact round-trip between clean runners", async () => {
+  const source = await readFile(".github/workflows/publication-key-verify.yml", "utf8");
+  const workflow = parse(source) as {
+    on: Record<string, unknown>;
+    jobs: Record<
+      string,
+      {
+        environment?: string;
+        needs?: string | string[];
+        if?: string;
+        steps: Array<{ name?: string; env?: Record<string, string>; uses?: string }>;
+      }
+    >;
+  };
+  assert.equal(workflow.on.workflow_dispatch, undefined);
+  const sealer = workflow.jobs["smoke-seal"];
+  const opener = workflow.jobs["smoke-open"];
+  assert.ok(sealer);
+  assert.ok(opener);
+  assert.equal(sealer.environment, undefined);
+  assert.equal(sealer.needs, "unprotected-scope");
+  assert.equal(opener.environment, "admin-ops");
+  assert.deepEqual(opener.needs, ["protected-pair", "smoke-seal"]);
+  assert.equal(opener.if, "github.ref == 'refs/heads/main'");
+  assert.equal(
+    sealer.steps.some((step) => step.env?.AW_PUBLICATION_PRIVATE_KEY !== undefined),
+    false
+  );
+  assert.equal(
+    opener.steps.find((step) => step.name === "Prove request-binding rejection and decrypt")
+      ?.env?.AW_PUBLICATION_PRIVATE_KEY,
+    "${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}"
+  );
+  assert.ok(source.includes("Ciphertext accepted a different request identity."));
+  assert.ok(source.includes("Plaintext reached the transfer artifact."));
+});
