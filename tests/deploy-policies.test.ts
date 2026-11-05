@@ -130,6 +130,7 @@ test("the shipped environment policy parses and keys each deploying product by i
     JSON.parse(await readFile("policies/deploy-environments.json", "utf8"))
   );
   assert.deepEqual(policy["fongap-labs/ai-gateway"], ["production"]);
+  assert.deepEqual(policy["fongap-labs/ai-gateway/inference-center"], ["inference-center-ops"]);
   assert.deepEqual(policy["fongap-labs/internal-vault/server-edge"], ["server-edge-cloud-edge"]);
   // The repository key is gone: the product has no fallback to it.
   assert.equal(Object.hasOwn(policy, "fongap-labs/internal-vault"), false);
@@ -226,6 +227,17 @@ test("the shipped deploy secret policy only holds valid, non-reserved names", as
   );
   assert.equal(aiGateway.size, 39);
   assert.equal(aiGateway.has("AIG_INFERENCE_AUTH_KEY"), true);
+  const inference = await readDeploySecretCeiling(
+    "policies/deploy-secrets.json",
+    "fongap-labs/ai-gateway",
+    "inference-center-ops",
+    "inference-center"
+  );
+  assert.equal(inference.has("AIG_INFERENCE_AUTH_KEY"), true);
+  assert.equal(inference.has("AIG_TOKEN_ENCRYPTION_KEY"), true);
+  assert.equal(inference.has("AIG_ACCESS_KEY_AIR"), false);
+  assert.equal(inference.has("AW_APP_PRIVATE_KEY"), false);
+  assert.equal(inference.size, 34);
   const aiGatewayAliases = await readSecretAliases(
     "policies/deploy-secrets.json",
     "deploy",
@@ -550,11 +562,13 @@ test("the shipped policies key every deploying product by its product key", asyn
   };
   assert.deepEqual(Object.keys(environments).sort(), [
     "fongap-labs/ai-gateway",
+    "fongap-labs/ai-gateway/inference-center",
     "fongap-labs/internal-vault/server-edge",
     "fongap-labs/mcp-hub",
   ]);
   assert.deepEqual(Object.keys(secrets.deployments).sort(), [
     "fongap-labs/ai-gateway",
+    "fongap-labs/ai-gateway/inference-center",
     "fongap-labs/internal-vault/server-edge",
     "fongap-labs/mcp-hub",
   ]);
