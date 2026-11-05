@@ -198,8 +198,7 @@ async function main(): Promise<void> {
     reader,
     request.source_repository,
     resolvedSha,
-    true,
-    process.env.MAIN_WRITE_GUARD_BYPASS === "true"
+    true
   );
 
   await appendLines(process.env.GITHUB_OUTPUT, [

@@ -1179,7 +1179,8 @@ test("main write guard is the post-merge provenance authority", async () => {
     "assertTrustedMainWrite",
   ]);
   assert.doesNotMatch(guard, /commit message|actor.*trusted/i);
-  assert.match(guard, /if \(!isIncidentBypassEnabled\) \{\s*await assertNoOpenMainWriteIncidents/);
+  assert.match(guard, /await assertNoOpenMainWriteIncidents\(reader, repository\)/);
+  assert.doesNotMatch(guard, /isIncidentBypassEnabled|MAIN_WRITE_GUARD_BYPASS/);
 });
 
 test("central main write audit is independent of business repository Actions", async () => {
@@ -1373,9 +1374,9 @@ test("manual release, deploy and task entry points request central CI and explai
   const release = await text(".github/workflows/release-app.yml");
   const deploy = await text(".github/workflows/deploy-source-script.yml");
   const task = await text(".github/workflows/task-source-dispatch.yml");
-  // Intake may not have reached the source yet, so each entry asks for CI and attests the main
-  // write itself. The attestation never blocks: the gate after it stays the authority, and a
-  // failed task source run would make Intake retry the same SHA on every heartbeat.
+  // All entry points ask for central CI and attest the main write.
+  // Release and deploy must reject failed attestations. Task intake keeps its existing
+  // nonblocking audit to avoid repeated dispatch for the same source SHA.
   for (const workflow of [release, deploy, task]) {
     requireText(workflow, [
       "- name: Request central CI for the source",
@@ -1385,9 +1386,13 @@ test("manual release, deploy and task entry points request central CI and explai
       "MAIN_WRITE_AUDIT_REPOSITORY:",
       "node scripts/audit-main-writes.ts",
     ]);
-    const attest = workflow.slice(workflow.indexOf("- name: Attest the source main write"));
-    assert.match(attest, /^[^\n]*\n(?:\s+if: [^\n]+\n)?\s+continue-on-error: true\n/);
   }
+  for (const workflow of [release, deploy]) {
+    const attest = workflow.slice(workflow.indexOf("- name: Attest the source main write"));
+    assert.doesNotMatch(attest.split("\n").slice(0, 3).join("\n"), /continue-on-error: true/);
+  }
+  const taskAttest = task.slice(task.indexOf("- name: Attest the source main write"));
+  assert.match(taskAttest.split("\n").slice(0, 3).join("\n"), /continue-on-error: true/);
   for (const [workflow, gate] of [
     [release, "- name: Validate release build request"],
     [deploy, "- name: Validate deploy source"],
