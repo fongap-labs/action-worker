@@ -1,9 +1,4 @@
-import {
-  GithubHttpError,
-  getJsonNumber,
-  getJsonString,
-  isJsonRecord,
-} from "./github-api.ts";
+import { GithubHttpError, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
 type Reader = { get(path: string): Promise<unknown> };
