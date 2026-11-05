@@ -159,7 +159,7 @@ test("an empty requested version refuses a span without release-worthy changes",
     "repos/fongap-labs/example/commits/main": { sha: head },
     "repos/fongap-labs/example/tags?per_page=100&page=1": [],
     "repos/fongap-labs/example/commits?sha=main&per_page=100&page=1": [
-      { sha: head, commit: { message: "docs: the readme" } },
+      { sha: head, commit: { message: "chore: update the readme" } },
     ],
   });
   await assert.rejects(
@@ -204,7 +204,7 @@ test("an empty manifest release_notes stays empty; publication fills it from the
     "repos/fongap-labs/example/tags?per_page=100&page=1": [],
     "repos/fongap-labs/example/commits?sha=main&per_page=100&page=1": [
       { sha: head, commit: { message: "feat: the wide lane" } },
-      { sha: "c".repeat(40), commit: { message: "docs: the readme" } },
+      { sha: "c".repeat(40), commit: { message: "chore: update the readme" } },
     ],
   });
   const request = await resolveManualReleaseBuild(
