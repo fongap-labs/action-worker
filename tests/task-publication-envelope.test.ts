@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -164,4 +165,80 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
     ],
     "write"
   );
+});
+
+test("task request is loaded from GitHub event file without printing the payload", async () => {
+  const root = await mkdtemp(join(tmpdir(), "aw-event-input-test-"));
+  try {
+    const eventPath = join(root, "event.json");
+    const outputPath = join(root, "outputs");
+    await writeFile(
+      eventPath,
+      JSON.stringify({
+        action: "run-task",
+        client_payload: {
+          schema_version: "1",
+          request_id: "private-request",
+          project: "sensitive-project",
+          bootstrap_ref: identity.bootstrap_ref,
+          repository: identity.repository,
+        },
+      })
+    );
+    const stdout = execFileSync(process.execPath, ["scripts/validate-dispatch-payload.ts"], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        GITHUB_EVENT_PATH: eventPath,
+        GITHUB_OUTPUT: outputPath,
+        AW_REPOSITORY_POLICY: JSON.stringify({ [identity.repository]: ["task"] }),
+      },
+    });
+    assert.equal(stdout, "");
+    const outputs = await readFile(outputPath, "utf8");
+    assert.match(outputs, /project=sensitive-project/);
+    assert.match(outputs, /repository=fongap-labs\/private-source/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("task publication CLI seals in executor and opens on a separate clean publisher", async () => {
+  const root = await mkdtemp(join(tmpdir(), "aw-publication-cli-test-"));
+  try {
+    const staged = join(root, "staged");
+    const sealedPath = join(root, "sealed.json");
+    const opened = join(root, "opened");
+    await mkdir(join(staged, "payload"), { recursive: true });
+    await writeFile(join(staged, "manifest.json"), JSON.stringify({ target_repository: "fongap-labs/target" }));
+    await writeFile(join(staged, "payload", "result.txt"), "confidential-output");
+    const pair = keys();
+    const sourceEnv = {
+      ...process.env,
+      TASK_SOURCE_REPOSITORY: identity.repository,
+      PROJECT: identity.project,
+      BOOTSTRAP_REF: identity.bootstrap_ref,
+    };
+    execFileSync(process.execPath, ["scripts/task-publication-envelope.ts", "seal", staged, sealedPath], {
+      env: {
+        ...sourceEnv,
+        AW_PUBLICATION_PUBLIC_KEY: pair.publicKey,
+        AW_PUBLICATION_PRIVATE_KEY: "",
+      },
+    });
+    assert.doesNotMatch(
+      await readFile(sealedPath, "utf8"),
+      /private-source|sensitive-project|confidential-output/
+    );
+    execFileSync(process.execPath, ["scripts/task-publication-envelope.ts", "open", sealedPath, opened], {
+      env: {
+        ...sourceEnv,
+        AW_PUBLICATION_PUBLIC_KEY: "",
+        AW_PUBLICATION_PRIVATE_KEY: pair.privateKey,
+      },
+    });
+    assert.equal(await readFile(join(opened, "payload", "result.txt"), "utf8"), "confidential-output");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
