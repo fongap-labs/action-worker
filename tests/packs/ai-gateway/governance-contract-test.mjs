@@ -257,10 +257,29 @@ try {
   assert.equal(deployManifest.adapter, 'source-script');
   assert.equal(deployManifest.entrypoint, 'scripts/deploy.sh');
   assert.equal(deployManifest.automatic, true);
-  assert.match(deployScript, /github-deployment-config\.mjs prepare --from-env/);
+  // Runtime keys must stay in Cloudflare Worker Secrets, not in a normal
+  // production code deployment or any artifact shared between jobs.
+  const declaredDeploySecrets = read('.github/deploy.secrets.allowed')
+    .split(/\r?\n/)
+    .map((line) => line.replace(/#.*/, '').trim())
+    .filter(Boolean)
+    .sort();
+  const requiredDeploySecrets = read('.github/deploy.secrets.required')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .sort();
+  assert.deepEqual(declaredDeploySecrets, ['AIG_DEPLOY_HEALTH_KEY', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN']);
+  assert.deepEqual(requiredDeploySecrets, declaredDeploySecrets);
+  assert.match(deployScript, /persistent-deployment\.mjs preflight/);
+  assert.match(deployScript, /persistent-deployment\.mjs prepare/);
+  assert.match(deployScript, /cloudflare-wrangler\.mjs secret list/);
+  assert.match(deployScript, /persistent-deployment\.mjs verify-secrets/);
   assert.match(deployScript, /cloudflare-wrangler\.mjs deploy/);
+  assert.match(deployScript, /persistent-deployment\.mjs health-check/);
+  assert.doesNotMatch(deployScript, /--secrets-file|gateway-secrets\.json/);
   assert.doesNotMatch(deployScript, /AW_DISPATCH_TOKEN|AW_CONTROL_TOKEN|AW_ADMIN_TOKEN/);
-  ok(`source-owned deploy script consumes all ${RUNTIME_VAR_NAMES.length} runtime variables through the canonical config builder`);
+  ok(`source-owned deploy script verifies remote Cloudflare Secrets while preserving ${RUNTIME_VAR_NAMES.length} centrally configured runtime variables`);
 
   const devVars = read('.dev.vars.example');
   assert.match(devVars, /Defaults live in src\/config\/runtime-vars\.ts/i, '.dev.vars.example must point operators to runtime-vars.ts for defaults');
