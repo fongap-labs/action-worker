@@ -14,7 +14,7 @@ Fongap Labs 的中央 GitHub 自动化控制平面统一负责任务分发、PR 
 
 > 新手请从 **这是什么** 读到 **快速开始**；维护者可直接跳到 [维护者参考](#维护者参考)。
 
-## 新手学习路径
+## 新手学习路径（Learning Path）
 
 | 阶段 | 目标 | 必读文档 | 预计时间 |
 | --- | --- | --- | --- |
@@ -23,7 +23,7 @@ Fongap Labs 的中央 GitHub 自动化控制平面统一负责任务分发、PR 
 | 开发 | 在本地跑通类型/测试/门禁 | [DEVELOPMENT_GUIDE](docs/DEVELOPMENT_GUIDE.md) | 2 h |
 | 发布 | 完成一次受管发布 | [架构文档 §13](docs/ARCHITECTURE.md#13-部署治理) | 1 h |
 
-## 这是什么
+## 这是什么（Overview）
 
 Action Worker 是 Fongap Labs 的**中央质检站**，为所有受管仓库（接入统一治理的业务仓库）服务。仓库只声明"要检查什么"，质检站自行拉取代码、运行检查、留下证据，最后由**门禁**（Gate，决定放行或阻断的检查）给出结论。
 
@@ -35,7 +35,7 @@ Action Worker 是 Fongap Labs 的**中央质检站**，为所有受管仓库（�
 | **发布治理** | 统一版本号、产物校验与回滚 |
 | **部署治理** | 只有可信的 `main` 提交才能进入部署 |
 
-## 一个例子
+## 一个例子（Example）
 
 一个 PR 从提交到结论，经过的路径如下：
 
@@ -58,7 +58,7 @@ flowchart LR
 
 门禁阻断时，合并被拦下；门禁通过后，AI 审查才会异步给出参考意见。
 
-## 快速开始
+## 快速开始（Quick Start）
 
 ### 接入一个业务仓库
 
@@ -114,7 +114,7 @@ flowchart LR
 
 > ⚠️ **模板安全提示**：标准模板使用 `pull_request_target` 触发器且**不 checkout PR 代码**、**不执行 PR 任何脚本**。请**严格保持模板逐字节一致**；任何修改都会引入供应链风险。Fork 来源的 PR **不会**触发此工作流（安全设计）。
 
-## 进阶：Action Worker 如何工作
+## 进阶：Action Worker 如何工作（Architecture Overview）
 
 ```mermaid
 flowchart TB
@@ -151,7 +151,7 @@ flowchart TB
 | 门禁（Gate） | 唯一的合并许可：`validate-merge` 成功才放行 |
 | 来源证明（provenance） | 记录产物由哪个不可变源码构建，供发布与部署核验 |
 
-## 仓库结构
+## 仓库结构（Repository Structure）
 
 | 目录 | 内容 | 关键文件示例 |
 |---|---|---|
@@ -168,7 +168,7 @@ flowchart TB
 
 项目专属配置不属于 Action Worker，留在业务仓库中。
 
-## 维护者参考
+## 维护者参考（Maintainer Guide）
 
 ### 发布与部署
 
@@ -203,7 +203,7 @@ flowchart LR
 | 变更分类与 CHANGELOG | [docs/04_CHANGELOG_CONVENTIONS.md](docs/04_CHANGELOG_CONVENTIONS.md) |
 | Agent 入口 | [CLAUDE.md](CLAUDE.md)、[skills/README.md](skills/README.md) |
 
-## 参与贡献
+## 参与贡献（Contributing）
 
 - 面向人的文档与 CHANGELOG 条目用中文；工程 diff 与 PR 标题用英文。
 - PR 标题格式为 `type(scope): summary`，`type` 取值见 [CHANGELOG 约定](docs/04_CHANGELOG_CONVENTIONS.md)。
@@ -224,10 +224,10 @@ flowchart LR
 | `npm test` | 治理与合同测试 |
 | `npm run check` | 依次执行以上三项检查 |
 
-## 安全
+## 安全（Security）
 
 请勿在公开 Issue 中披露漏洞。使用 GitHub 私密报告：**Security → Advisories → Report a vulnerability**。详见 [SECURITY.md](SECURITY.md)。
 
-## 许可证
+## 许可证（License）
 
 [Apache-2.0](LICENSE)
