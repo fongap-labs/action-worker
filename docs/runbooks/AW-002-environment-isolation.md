@@ -97,7 +97,8 @@ gh workflow run ai-gateway-ops.yml \
 
 ## 单项运行时密钥更新
 
-执行入口在 `fongap-labs/action-worker` 的 `ai-gateway-ops` Environment，必须先启用 `main` 分支保护和必需审批人。工作流使用 Cloudflare 官方 Workers Secrets API 的 `GET` 和 `PUT`，绝不创建临时占位 Worker 代码；不使用 `wrangler secret put`，不进行整包 Secret 部署。\n
+执行入口在 `fongap-labs/action-worker` 的 `ai-gateway-ops` Environment，必须先启用 `main` 分支保护和必需审批人。工作流使用 Cloudflare 官方 Workers Secrets API 的 `GET` 和 `PUT`，绝不创建临时占位 Worker 代码；不使用 `wrangler secret put`，不进行整包 Secret 部署。
+
 先在 `ai-gateway-ops` Environment 中将待更新的值设置为 `AIG_OPS_SECRET_VALUE`，再启动：
 
 ```bash
