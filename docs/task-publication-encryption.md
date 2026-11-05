@@ -14,6 +14,32 @@ node -e "const fs=require('node:fs');console.log(fs.readFileSync('publication-pu
 
 以上命令会生成 PEM 格式私钥，以及 DER 格式公钥；最后一条命令输出公钥的 Base64 字符串。
 
+Windows PowerShell（已安装 Node.js）可直接生成同样的密钥，无需 OpenSSL：
+
+```powershell
+$dir = Join-Path $HOME "AW-Keys"
+New-Item -ItemType Directory -Force $dir | Out-Null
+$env:AW_PUBLICATION_KEY_DIR = $dir
+@'
+const {generateKeyPairSync} = require("node:crypto");
+const {existsSync, writeFileSync} = require("node:fs");
+const {join} = require("node:path");
+const target = join(process.env.AW_PUBLICATION_KEY_DIR, "publication-private.pem");
+if (existsSync(target)) throw new Error("私钥已存在，禁止覆盖");
+const pair = generateKeyPairSync("rsa", {
+  modulusLength: 3072,
+  publicKeyEncoding: {format: "der", type: "spki"},
+  privateKeyEncoding: {format: "pem", type: "pkcs8"},
+});
+writeFileSync(target, pair.privateKey, {flag: "wx", mode: 0o600});
+console.log("AW_PUBLICATION_PUBLIC_KEY=" + pair.publicKey.toString("base64"));
+console.log("私钥保存在 " + target);
+'@ | node
+Remove-Item Env:\AW_PUBLICATION_KEY_DIR
+```
+
+只复制屏幕输出的公钥字符串到仓库变量；从本机私钥文件复制 PEM 到 `admin-ops` 环境密钥。**不得把私钥内容发到聊天、Issue 或 CI 日志。**
+
 ## 二、配置密钥
 
 **私钥**：打开 `action-worker → Settings → Environments → admin-ops → Environment secrets`，创建 `AW_PUBLICATION_PRIVATE_KEY`。填写完整 PEM 文本，保留 `BEGIN PRIVATE KEY` 和 `END PRIVATE KEY` 标记。
