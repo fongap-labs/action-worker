@@ -42,7 +42,7 @@ gh workflow run release-app.yml -R fongap-labs/action-worker \
 - `validate-deploy-source` 通过（环境在中央列表中、密钥名在允许列表中）
 - 产物上传成功
 
-### 3. 确认 `AW_DEPLOY_SECRET_POLICY_MODE` 与 `AW_TASK_SECRET_POLICY_MODE` 为 `enforce`
+### 3. 确认密钥策略强制生效
 
 两个模式现在**默认就是 `enforce`**：源码里超出中央允许列表的密钥名会直接失败，而不是只告警。仓库变量仍可覆盖，但只有在需要临时放宽时才应改成 `warn`。
 
@@ -54,7 +54,7 @@ gh workflow run release-app.yml -R fongap-labs/action-worker \
 
 确认演练通过、且 `enforce` 模式下部署仍正常后，在每个目标仓库的 Settings → Secrets 中删除已迁移到环境的密钥。
 
-### 5. 确认 `AW_CHECKOUT_TOKEN` 为只读
+### 5. 确认检出凭据只读
 
 检查 `fongap-labs/action-worker` 的 `AW_CHECKOUT_TOKEN`（以及各业务仓库的对应 token）：
 - Scopes: `Contents: read`（不含 `Actions: write`、`Secrets: write` 等）
