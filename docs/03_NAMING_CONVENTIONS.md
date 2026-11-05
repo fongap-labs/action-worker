@@ -153,11 +153,11 @@ Action Worker CI 强制执行自身文件名与架构限制。业务仓库可增
 - 工作流显示名由 `tests/workflow-naming.test.ts` 中文映射锁定（如 `release-app.yml` 对应 `手动 · 发布应用`）
 - 历史文件名（如 `handle-pr-dispatch.yml`、`handle-pr-review.yml`）仍需维持现有事件和证据引用，迁移须单独验证；不得据此新增豁免名称
 
-### 8.1 文档语言（仅 Action Worker）
+### 8.1 文档语言
 
 机器读取文档使用英文；人类阅读文档使用中文；不建立中英镜像。规则以 `01_SHARED_GOVERNANCE.md` §2 为准，由 `tests/documentation-language.test.ts` 检查。
 
-### 8.2 工作流分类（仅 Action Worker）
+### 8.2 工作流分类
 
 每个工作流只能属于一个分类；成员及触发规则以 `tests/workflow-classes.test.ts` 为准。
 
