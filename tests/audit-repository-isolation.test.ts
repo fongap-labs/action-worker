@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { type AuditResult, countAuditResults, isTransientAuditReadFailure } from "../scripts/audit-main-writes.ts";
+import {
+  type AuditResult,
+  countAuditResults,
+  isTransientAuditReadFailure,
+} from "../scripts/audit-main-writes.ts";
 import { GithubHttpError } from "../scripts/github-api.ts";
 
 const sha = "a".repeat(40);
@@ -29,10 +33,7 @@ test("transient GitHub API failures are pending rather than evidence of an untru
     assert.equal(isTransientAuditReadFailure(new GithubHttpError(status)), true);
   }
   for (const kind of ["primary-rate-limit", "secondary-rate-limit"] as const) {
-    assert.equal(
-      isTransientAuditReadFailure(new GithubHttpError(403, undefined, { kind })),
-      true
-    );
+    assert.equal(isTransientAuditReadFailure(new GithubHttpError(403, undefined, { kind })), true);
   }
   assert.equal(isTransientAuditReadFailure(new GithubHttpError(403)), false);
   assert.equal(isTransientAuditReadFailure(new GithubHttpError(404)), false);
