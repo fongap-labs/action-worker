@@ -435,7 +435,8 @@ test("AI Gateway operations workflow is protected and never accepts secret value
   assert.match(workflow, /unset AIG_OPS_SECRET_VALUE/);
   assert.match(workflow, /printf '%s' "\$secret_value" \|/);
   assert.match(workflow, /secret list --format json/);
-  assert.match(workflow, /rollback/);
+  assert.match(workflow, /no automatic rollback is possible/i);
+  assert.doesNotMatch(workflow, /wrangler[^\n]*rollback/);
   assert.doesNotMatch(workflow, /echo[^\n]*\$AIG_OPS_SECRET_VALUE/);
   assert.doesNotMatch(workflow, /secret_value:\s*\n\s*required:/i);
 });
