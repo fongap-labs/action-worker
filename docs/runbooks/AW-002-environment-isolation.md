@@ -59,6 +59,14 @@ Environment Secrets：
 
 在 Action Worker 的 `production` Environment 中直接设置 `AIG_DEPLOY_HEALTH_KEY`，其值必须与 Cloudflare Worker Secret 同名值一致。它不是别名，不得复用 `AIG_ACCESS_KEY_AGENT` 或其他用户访问组密钥。
 
+生成独立凭据（在维护者本机终端执行；不要把输出粘贴到聊天、Issue、PR 或日志）：
+
+```bash
+openssl rand -hex 32
+```
+
+将同一个 64 位十六进制值分别保存到 Action Worker 的 `production`、`ai-gateway-ops` Environment Secret `AIG_DEPLOY_HEALTH_KEY`，以及 Cloudflare Worker Secret `AIG_DEPLOY_HEALTH_KEY`。不得复用 `AIG_ACCESS_KEY_<GROUP>`。
+
 在 Action Worker 的 `production` Environment 中直接设置 `AIG_DEPLOY_HEALTH_KEY`，其值必须与 Cloudflare Worker Secret 同名值一致。不得使用 `AIG_ACCESS_KEY_AGENT` 作为别名或复用任何用户访问组密钥。
 
 ## 首次核验与清理

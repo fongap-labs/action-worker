@@ -78,8 +78,8 @@ jobs:
             echo "::error::Missing temporary ai-gateway-ops secret AIG_OPS_SECRET_VALUE; no workflow-input or token fallback."
             exit 77
           }
-          if [[ "$SECRET_NAME" == "AIG_DEPLOY_HEALTH_KEY" && "${#AIG_OPS_SECRET_VALUE}" -lt 32 ]]; then
-            echo "::error::AIG_DEPLOY_HEALTH_KEY must contain at least 32 characters."
+          if [[ "$SECRET_NAME" == "AIG_DEPLOY_HEALTH_KEY" && ! "$AIG_OPS_SECRET_VALUE" =~ ^[A-Za-z0-9_-]{32,}$ ]]; then
+            echo "::error::AIG_DEPLOY_HEALTH_KEY must contain at least 32 URL-safe characters."
             exit 64
           fi
           [[ -n "${AIG_DEPLOY_HEALTH_KEY:-}" && "${AIG_PUBLIC_URL:-}" == https://* ]] || {
