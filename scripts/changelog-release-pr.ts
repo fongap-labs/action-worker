@@ -341,8 +341,7 @@ async function waitForMainWriteGuard(options: ChangelogReleaseOptions, mergeSha:
         reader,
         options.repository,
         mergeSha,
-        true,
-        process.env.MAIN_WRITE_GUARD_BYPASS === "true"
+        true
       );
       return;
     } catch (error) {
