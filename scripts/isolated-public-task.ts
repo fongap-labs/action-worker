@@ -6,7 +6,6 @@ import { CliError, handleError, isMain } from "./runtime-command.ts";
 import {
   taskStateArtifactName,
   legacyTaskStateArtifactName,
-  trustedStateRuns,
   writeTaskStateManifest,
 } from "./task-state.ts";
 import { packTaskTransferFiles, unpackTaskTransferFiles } from "./task-transfer-files.ts";
@@ -76,6 +75,18 @@ export async function validateIsolatedPublicTask(
   const listing = await reader.get(`repos/${repository}/git/trees/${treeSha}?recursive=1`);
   if (!isJsonRecord(listing) || listing.truncated !== false || !Array.isArray(listing.tree)) fail();
   const markerPath = `projects/${project}/.isolated-task`;
+  // A pilot must not ingest project Variables; this mode does not yet have
+  // a reviewed configuration classification or environment-scoped grant.
+  if (
+    listing.tree.some(
+      (entry) =>
+        isJsonRecord(entry) &&
+        typeof entry.path === "string" &&
+        [`projects/${project}/.vars.required`, `projects/${project}/.vars.allowed`].includes(
+          entry.path
+        )
+    )
+  ) fail();
   const entries = listing.tree.filter(
     (entry) => isJsonRecord(entry) && entry.path === markerPath
   );
@@ -108,12 +119,20 @@ export async function prepareIsolatedPublicState(
   sha: string
 ): Promise<Buffer> {
   identity(repository, project, sha);
-  // This pilot is deliberately one-shot: never silently discard historical state.
+  // Refuse any prior artifact, including failed, expired or unverified runs.
+  // Never interpret a truncated success-only history as an empty state.
   for (const name of [
     taskStateArtifactName(repository, project),
     legacyTaskStateArtifactName(repository, project),
   ]) {
-    if ((await trustedStateRuns(reader, controlRepository, name)).length > 0) fail();
+    const listing = await reader.get(`repos/${controlRepository}/actions/artifacts?name=${encodeURIComponent(name)}&per_page=1`);
+    if (
+      !isJsonRecord(listing) ||
+      !Number.isSafeInteger(listing.total_count) ||
+      (listing.total_count as number) !== 0 ||
+      !Array.isArray(listing.artifacts) ||
+      listing.artifacts.length !== 0
+    ) fail();
   }
   const root = await mkdtemp(join(tmpdir(), "aw-isolated-public-"));
   try {
