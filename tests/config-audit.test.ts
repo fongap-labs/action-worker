@@ -39,10 +39,10 @@ test("policy ceiling is not expanded by discovered source manifests", () => {
     policyDeclarationCheck(["KEY_A", "KEY_B"], policy, "fongap-labs/example", "demo"),
     { excess: 1, typeReview: 1 }
   );
-  assert.deepEqual(
-    policyDeclarationCheck(["KEY_A"], policy, "fongap-labs/example", "other"),
-    { excess: 1, typeReview: 0 }
-  );
+  assert.deepEqual(policyDeclarationCheck(["KEY_A"], policy, "fongap-labs/example", "other"), {
+    excess: 1,
+    typeReview: 0,
+  });
 });
 
 test("audit reads fixed tree and blobs without modifying GitHub configuration", async () => {
