@@ -59,33 +59,34 @@ function safeName(name: string, directory: boolean): string | null {
 }
 
 function paxPath(data: Buffer): string | null {
-  const contents = data.toString("utf8");
-  if (!Buffer.from(contents, "utf8").equals(data)) refusal();
   let cursor = 0;
   let path: string | null = null;
-  while (cursor < contents.length) {
-    const space = contents.indexOf(" ", cursor);
+  while (cursor < data.length) {
+    const space = data.indexOf(32, cursor);
     if (space < 0) refusal();
-    const sizeText = contents.slice(cursor, space);
-    if (!/^[1-9][0-9]{0,7}$/.test(sizeText)) refusal();
-    const length = Number(sizeText);
-    const line = contents.slice(cursor, cursor + length);
-    if (Buffer.byteLength(line, "utf8") !== length || !line.endsWith("\n")) refusal();
-    const body = line.slice(sizeText.length + 1, -1);
-    const equal = body.indexOf("=");
+    const lengthText = data.subarray(cursor, space).toString("ascii");
+    if (!/^[1-9][0-9]{0,7}$/.test(lengthText)) refusal();
+    const length = Number(lengthText);
+    if (length < space - cursor + 3 || cursor + length > data.length) refusal();
+    const record = data.subarray(space + 1, cursor + length);
+    if (record[record.length - 1] !== 10) refusal();
+    const body = record.subarray(0, -1);
+    const equal = body.indexOf(61);
     if (equal < 1) refusal();
-    const key = body.slice(0, equal);
-    const value = body.slice(equal + 1);
+    const key = body.subarray(0, equal).toString("ascii");
+    const bytes = body.subarray(equal + 1);
+    const value = bytes.toString("utf8");
+    if (!Buffer.from(value, "utf8").equals(bytes)) refusal();
     if (key === "path") {
       if (path !== null) refusal();
       path = value;
     } else if (!["mtime", "atime", "ctime"].includes(key)) {
-      // In particular, refuse GNU sparse, overriding size, and global attributes.
+      // Refuse GNU sparse, global attributes, and any metadata that changes extracted size.
       refusal();
     }
     cursor += length;
   }
-  if (cursor !== contents.length) refusal();
+  if (cursor !== data.length) refusal();
   return path;
 }
 
