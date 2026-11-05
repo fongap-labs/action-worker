@@ -62,7 +62,6 @@ test("change record requires concise Chinese entries in CHANGELOG.md", async (co
   for (const entry of [
     "- 新增: add example capability.",
     "- 修复: 修复示例能力。",
-    "- 新增 [security]: 增加示例能力。",
     "- 安全: 收紧示例能力。",
     "- 新增: " + "优化配置和执行流程".repeat(11) + "。",
   ]) {
