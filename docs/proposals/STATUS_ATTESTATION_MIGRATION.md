@@ -6,7 +6,7 @@
 
 每条摘要按 UTF-8 编码的 JSON 数组计算 SHA-256：`["action-worker-status-migration-v1", repository.toLowerCase(), sha.toLowerCase(), context, state, description, target_url, id, created_at]`。摘要存于 `policies/status-migration.json`，匹配后仍需通过原始运行与合并来源检查。此清单不允许新创建的无签名状态复用；状态 ID 与创建时间也是摘要的一部分。
 
-## 核实的发布作业（Verified Release Jobs）
+## 核实的发布作业
 
 | 原始运行 | 发布作业 | 作业日志 |
 |---|---|---|
@@ -25,7 +25,7 @@
 | [41473168146](https://github.com/fongap-labs/action-worker/actions/runs/41473168146) | Publish Central CI | [125372948566](https://github.com/fongap-labs/action-worker/actions/runs/41473168146/job/125372948566) |
 | [41473167251](https://github.com/fongap-labs/action-worker/actions/runs/41473167251) | PR Governance | [125373202006](https://github.com/fongap-labs/action-worker/actions/runs/41473167251/job/125373202006) |
 
-## 精确的原始状态（Original Status Evidence）
+## 精确的原始状态
 
 以下值来自 GitHub API；它们不包含凭据。
 
