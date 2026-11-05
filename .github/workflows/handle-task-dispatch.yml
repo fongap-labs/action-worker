@@ -303,7 +303,7 @@ jobs:
               [ -n "$secret_name" ] && unset "$secret_name"
           done < <(jq -r '.unset[]' <<< "$secret_scope")
 
-          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN AW_CHECKOUT_TOKEN AW_APP_PRIVATE_KEY AW_STATUS_TOKEN AW_STATUS_API_TOKEN AW_ISSUE_API_TOKEN AW_DISPATCH_API_TOKEN AW_STATUS_SIGNING_KEYS AW_ARTIFACT_KEY AW_PUBLICATION_PRIVATE_KEY; do
+          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN AW_CHECKOUT_TOKEN AW_APP_PRIVATE_KEY AW_STATUS_TOKEN AW_STATUS_API_TOKEN AW_ISSUE_API_TOKEN AW_DISPATCH_API_TOKEN AW_STATUS_KEYRING AW_ARTIFACT_KEY AW_PUBLICATION_PRIVATE_KEY; do
               if [ -n "${!central_name+x}" ]; then
                   echo "::error::Central credential survived task isolation: ${central_name}." >&2
                   exit 1
