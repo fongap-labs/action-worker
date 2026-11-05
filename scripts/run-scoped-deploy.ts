@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { lstat, readFile, readdir, rm } from "node:fs/promises";
+import { lstat, readdir, readFile, rm } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
 import { deploySecretDirectory, deploySecretPlanPath } from "./resolve-deploy-secret-plan.ts";
 import type { DeploySecretPlanEntry } from "./resolve-secret-scope.ts";
@@ -73,10 +73,7 @@ export function buildScopedDeployEnvironment(
   }
   for (const entry of plan.secrets) {
     delete environment[entry.name];
-    const value =
-      entry.kind === "variable"
-        ? baseEnvironment[entry.source]
-        : secretValues.get(entry.name);
+    const value = entry.kind === "variable" ? baseEnvironment[entry.source] : secretValues.get(entry.name);
     if (!value) {
       if (entry.required) {
         throw new CliError(
@@ -99,11 +96,7 @@ export async function loadScopedSecretValues(
   plan: SecretPlan
 ): Promise<Map<string, string>> {
   assertPlan(plan);
-  const expected = new Set(
-    plan.secrets
-      .filter((entry) => entry.kind === "secret")
-      .map((entry) => entry.name)
-  );
+  const expected = new Set(plan.secrets.filter((entry) => entry.kind === "secret").map((entry) => entry.name));
   let files: string[] = [];
   try {
     files = await readdir(directory);
@@ -114,10 +107,7 @@ export async function loadScopedSecretValues(
   }
   for (const file of files) {
     if (!expected.has(file)) {
-      throw new CliError(
-        `Unexpected file in deploy Secret staging directory: ${file}.`,
-        65
-      );
+      throw new CliError(`Unexpected file in deploy Secret staging directory: ${file}.`, 65);
     }
   }
   const values = new Map<string, string>();
@@ -126,10 +116,7 @@ export async function loadScopedSecretValues(
     try {
       const info = await lstat(path);
       if (!info.isFile() || info.isSymbolicLink() || (info.mode & 0o077) !== 0) {
-        throw new CliError(
-          `Deploy Secret staging file permissions are unsafe: ${entry.name}.`,
-          65
-        );
+        throw new CliError(`Deploy Secret staging file permissions are unsafe: ${entry.name}.`, 65);
       }
       const value = await readFile(path, "utf8");
       if (value.length > 0) {
@@ -140,10 +127,7 @@ export async function loadScopedSecretValues(
     } catch (error) {
       if (error instanceof Error && "code" in error && error.code === "ENOENT") {
         if (entry.required) {
-          throw new CliError(
-            `Required deploy Secret is unavailable: ${entry.name}.`,
-            77
-          );
+          throw new CliError(`Required deploy Secret is unavailable: ${entry.name}.`, 77);
         }
       } else {
         throw error;
@@ -172,11 +156,7 @@ async function main(): Promise<void> {
     const plan = JSON.parse(await readFile(planPath, "utf8")) as SecretPlan;
     assertPlan(plan);
     const secretValues = await loadScopedSecretValues(secretDirectory, plan);
-    const childEnvironment = buildScopedDeployEnvironment(
-      process.env,
-      plan,
-      secretValues
-    );
+    const childEnvironment = buildScopedDeployEnvironment(process.env, plan, secretValues);
     const targetDirectory = resolve(process.cwd(), "target");
     const targetEntrypoint = resolve(targetDirectory, entrypoint);
     if (!targetEntrypoint.startsWith(`${targetDirectory}${sep}`)) {
