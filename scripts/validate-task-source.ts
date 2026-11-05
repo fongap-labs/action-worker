@@ -56,8 +56,7 @@ export async function validateTaskSource(
     reader,
     repository,
     ref,
-    true,
-    process.env.MAIN_WRITE_GUARD_BYPASS === "true"
+    true
   );
   return { default_branch: defaultBranch, main_write: mainWrite };
 }
