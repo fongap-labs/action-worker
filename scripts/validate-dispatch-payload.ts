@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { isJsonRecord } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
@@ -78,10 +79,22 @@ export function validateDispatch(value: unknown): { agent_domain: string; operat
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
-  if (args.length !== 1) {
-    throw new CliError("::error::Pass the repository_dispatch client_payload JSON.", 64);
+  let value: unknown;
+  if (args.length === 1) {
+    value = parseJson(args[0] ?? "", "::error::client_payload is not valid JSON.", 64);
+  } else if (args.length === 0 && process.env.GITHUB_EVENT_PATH) {
+    const event = parseJson(
+      await readFile(process.env.GITHUB_EVENT_PATH, "utf8"),
+      "::error::GitHub event is not valid JSON.",
+      64
+    );
+    if (!isJsonRecord(event)) {
+      throw new CliError("::error::GitHub event must be a JSON object.", 64);
+    }
+    value = event.client_payload;
+  } else {
+    throw new CliError("::error::A GitHub event file or one client_payload JSON is required.", 64);
   }
-  const value = parseJson(args[0] ?? "", "::error::client_payload is not valid JSON.", 64);
   const { agent_domain: agentDomain, operation } = validateDispatch(value);
   const payload = value as Record<string, unknown>;
   const repositoryPolicy = process.env.AW_REPOSITORY_POLICY;

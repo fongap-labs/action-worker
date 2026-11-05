@@ -577,9 +577,11 @@ test("task dispatch keeps the publication credential in the central control step
     "Upload task state",
     "node scripts/validate-task-publication.ts",
     "Publish staged artifact",
-    "secrets.AW_CONTROL_TOKEN",
+    "AW_PUBLICATION_PRIVATE_KEY",
+    "task-publication-envelope.ts",
   ]);
   assert.doesNotMatch(workflow, /toJSON\s*\(\s*secrets\s*\)/);
+  assert.doesNotMatch(workflow, /secrets\.AW_CONTROL_TOKEN/);
   const directSecrets = [
     ...workflow.matchAll(/\$\{\{\s*secrets\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g),
   ].map((match) => match[1]);
@@ -587,10 +589,13 @@ test("task dispatch keeps the publication credential in the central control step
     "AW_APP_PRIVATE_KEY",
     "AW_ARTIFACT_KEY",
     "AW_CHECKOUT_TOKEN",
-    "AW_CONTROL_TOKEN",
+    "AW_PUBLICATION_PRIVATE_KEY",
   ]);
   // The task itself never keeps the artifact key: it is checked like the central credentials.
-  assert.match(workflow, /for central_name in [A-Z_ ]*AW_ARTIFACT_KEY; do/);
+  assert.match(
+    workflow,
+    /for central_name in [A-Z_ ]*AW_ARTIFACT_KEY AW_PUBLICATION_PRIVATE_KEY; do/
+  );
   assert.doesNotMatch(workflow, /AW_EXECUTION_TOKEN|AW_EXECUTION_REPOSITORY/);
   assert.doesNotMatch(workflow, /raw\.githubusercontent\.com|Authorization: Bearer/);
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
@@ -611,7 +616,7 @@ test("task publication lands through a governed pull request", async () => {
     'branch="task-publication/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"',
     "gh pr create",
     "--base main",
-    "chore: ${COMMIT_MESSAGE}",
+    "chore: ${COMMIT_MESSAGE#chore: }",
     "gh pr merge",
     "gh pr update-branch",
     "validate-merge",

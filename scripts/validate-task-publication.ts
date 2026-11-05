@@ -19,7 +19,7 @@ type Publication = {
   commit_message: string;
 };
 
-function validateManifest(value: unknown): Publication {
+export function validateManifest(value: unknown): Publication {
   if (!isJsonRecord(value)) {
     throw new CliError("::error::Task publication manifest must be a JSON object.", 64);
   }
@@ -48,7 +48,14 @@ function validateManifest(value: unknown): Publication {
     throw new CliError("::error::Task publication manifest values are invalid.", 64);
   }
   const destDir = value.dest_dir.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
-  if (!destDir || destDir.split("/").some((part) => !part || part === "." || part === "..")) {
+  const parts = destDir.split("/");
+  if (
+    !destDir ||
+    parts.some(
+      (part) =>
+        !part || part === "." || part === ".." || !/^[\p{L}\p{N}_-][\p{L}\p{N}_.-]*$/u.test(part)
+    )
+  ) {
     throw new CliError("::error::Task publication destination is invalid.", 64);
   }
   return {
@@ -111,6 +118,14 @@ async function main(): Promise<void> {
     parseJson(rawPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65)
   );
   const manifest = validateManifest(await readJson(manifestPath));
+  // This workflow may run in a public repository for a private task. Mask the
+  // publication target and output metadata before policy errors or later steps.
+  if (process.env.TASK_SOURCE_PRIVATE !== "false") {
+    for (const value of [manifest.target_repository, manifest.dest_dir, manifest.commit_message]) {
+      const escaped = value.replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+      console.log(`::add-mask::${escaped}`);
+    }
+  }
   validateRepositoryCapability(sourceRepository, policy, "release-source");
   validateRepositoryCapability(manifest.target_repository, policy, "release-target");
   validateRepositoryCapability(manifest.target_repository, policy, "pr");
@@ -133,9 +148,13 @@ async function main(): Promise<void> {
     `commit_message=${manifest.commit_message}`,
     `payload_dir=${payloadDir}`,
   ]);
-  console.log(
-    `Task publication validated: ${sourceRepository} -> ${manifest.target_repository}/${manifest.dest_dir}`
-  );
+  if (process.env.TASK_SOURCE_PRIVATE !== "false") {
+    console.log("Task publication validated for a private source.");
+  } else {
+    console.log(
+      `Task publication validated: ${sourceRepository} -> ${manifest.target_repository}/${manifest.dest_dir}`
+    );
+  }
 }
 
 if (isMain(import.meta.url)) {
