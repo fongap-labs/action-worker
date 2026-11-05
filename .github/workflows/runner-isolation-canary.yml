@@ -1,9 +1,13 @@
-name: 安全 · 任务 Runner 隔离演练
+name: 手动 · 验证 Runner 隔离
 
 on:
   workflow_dispatch:
 
 permissions: {}
+
+concurrency:
+  group: isolation-canary-${{ github.workflow }}-${{ github.run_id }}-${{ github.run_attempt }}
+  cancel-in-progress: false
 
 jobs:
   prepare:
