@@ -11,31 +11,30 @@ type SecretPlan = {
 };
 
 const namePattern = /^[A-Z][A-Z0-9_]*$/;
-const controlEnvironmentNames = new Set([
-  "AW_CONTROL_TOKEN",
-  "AW_ADMIN_TOKEN",
-  "AW_DISPATCH_TOKEN",
-  "AW_CHECKOUT_TOKEN",
-  "AW_APP_PRIVATE_KEY",
-  "AW_STATUS_API_TOKEN",
-  "AW_ISSUE_API_TOKEN",
-  "AW_DISPATCH_API_TOKEN",
-  "AW_STATUS_KEYRING",
-  "AW_DEPLOY_SECRET_POLICY_MODE",
-  "AW_DEPLOY_SECRET_VALUE",
-  "AW_DEPLOY_SECRET_BUNDLE",
-  "GH_TOKEN",
-  "GITHUB_TOKEN",
-  "ACTIONS_ID_TOKEN_REQUEST_TOKEN",
-  "ACTIONS_RUNTIME_TOKEN",
-  "ACTIONS_RUNTIME_URL",
-  "ACTIONS_CACHE_URL",
-  "ACTIONS_RESULTS_URL",
-  "NODE_OPTIONS",
-  "GITHUB_ENV",
-  "GITHUB_OUTPUT",
-  "GITHUB_PATH",
+const baseEnvironmentNames = new Set([
+  "PATH",
+  "HOME",
+  "LANG",
+  "LC_ALL",
+  "TZ",
+  "TMPDIR",
+  "RUNNER_TEMP",
+  "DEPLOY_SOURCE_REPOSITORY",
+  "DEPLOY_SOURCE_SHA",
+  "DEPLOY_ENVIRONMENT",
+  "DEPLOY_ENTRYPOINT",
+  "DEPLOY_PRODUCT",
+  "DEPLOY_PRODUCT_DIRECTORY",
+  "DEPLOY_TRIGGER",
+  "GITHUB_REPOSITORY",
+  "GITHUB_WORKSPACE",
   "GITHUB_STEP_SUMMARY",
+  "GITHUB_SHA",
+  "GITHUB_RUN_ID",
+  "GITHUB_RUN_ATTEMPT",
+  "CI",
+  "npm_config_cache",
+  "NPM_CONFIG_CACHE",
 ]);
 
 function assertPlan(plan: SecretPlan): void {
@@ -61,35 +60,45 @@ function assertPlan(plan: SecretPlan): void {
   }
 }
 
+function isOrdinaryVariable(name: string): boolean {
+  return (
+    /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) &&
+    !/^(?:AW_|GITHUB_|RUNNER_|ACTIONS_)/.test(name) &&
+    name !== "NODE_OPTIONS" &&
+    name !== "GH_TOKEN"
+  );
+}
+
 export function buildScopedDeployEnvironment(
-  baseEnvironment: NodeJS.ProcessEnv,
+  base: NodeJS.ProcessEnv,
   plan: SecretPlan,
-  secretValues: ReadonlyMap<string, string>
+  secretValues: ReadonlyMap<string, string>,
+  publicVariables: NodeJS.ProcessEnv = {}
 ): NodeJS.ProcessEnv {
   assertPlan(plan);
-  const environment: NodeJS.ProcessEnv = { ...baseEnvironment };
-  for (const name of controlEnvironmentNames) {
-    delete environment[name];
+  const result: NodeJS.ProcessEnv = {};
+  for (const name of baseEnvironmentNames) {
+    if (base[name] !== undefined) result[name] = base[name];
+  }
+  for (const [name, value] of Object.entries(publicVariables)) {
+    if (isOrdinaryVariable(name) && value !== undefined) result[name] = value;
   }
   for (const entry of plan.secrets) {
-    delete environment[entry.name];
     const value =
-      entry.kind === "variable" ? baseEnvironment[entry.source] : secretValues.get(entry.name);
+      entry.kind === "variable"
+        ? publicVariables[entry.source]
+        : secretValues.get(entry.name);
     if (!value) {
       if (entry.required) {
-        throw new CliError(
-          `Required deploy ${entry.kind} is unavailable: ${entry.name} (source ${entry.source}).`,
-          77
-        );
+        throw new CliError(`Required deploy ${entry.kind} is unavailable: ${entry.name}.`, 77);
       }
-    } else {
-      environment[entry.name] = value;
+      delete result[entry.name];
+      continue;
     }
-    if (entry.source !== entry.name) {
-      delete environment[entry.source];
-    }
+    result[entry.name] = value;
+    if (entry.source !== entry.name) delete result[entry.source];
   }
-  return environment;
+  return result;
 }
 
 export async function loadScopedSecretValues(
@@ -97,9 +106,8 @@ export async function loadScopedSecretValues(
   plan: SecretPlan
 ): Promise<Map<string, string>> {
   assertPlan(plan);
-  const expected = new Set(
-    plan.secrets.filter((entry) => entry.kind === "secret").map((entry) => entry.name)
-  );
+  const entries = plan.secrets.filter((entry) => entry.kind === "secret");
+  const expected = new Set(entries.map((entry) => entry.name));
   let files: string[] = [];
   try {
     files = await readdir(directory);
@@ -110,21 +118,20 @@ export async function loadScopedSecretValues(
   }
   for (const file of files) {
     if (!expected.has(file)) {
-      throw new CliError(`Unexpected file in deploy Secret staging directory: ${file}.`, 65);
+      throw new CliError(`Unexpected staged Secret file: ${file}.`, 65);
     }
   }
   const values = new Map<string, string>();
-  for (const entry of plan.secrets.filter((item) => item.kind === "secret")) {
-    const path = join(directory, entry.name);
+  for (const entry of entries) {
     try {
+      const path = join(directory, entry.name);
       const info = await lstat(path);
       if (!info.isFile() || info.isSymbolicLink() || (info.mode & 0o077) !== 0) {
-        throw new CliError(`Deploy Secret staging file permissions are unsafe: ${entry.name}.`, 65);
+        throw new CliError(`Unsafe staged Secret file: ${entry.name}.`, 65);
       }
       const value = await readFile(path, "utf8");
-      if (value.length > 0) {
-        values.set(entry.name, value);
-      } else if (entry.required) {
+      if (value) values.set(entry.name, value);
+      else if (entry.required) {
         throw new CliError(`Required deploy Secret is empty: ${entry.name}.`, 77);
       }
     } catch (error) {
@@ -140,12 +147,16 @@ export async function loadScopedSecretValues(
   return values;
 }
 
+function textValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value === null || value === undefined) return "";
+  return typeof value === "object" ? JSON.stringify(value) : String(value);
+}
+
 async function main(): Promise<void> {
   const runnerTemp = process.env.RUNNER_TEMP ?? "";
   const entrypoint = process.env.DEPLOY_ENTRYPOINT ?? "";
-  if (!runnerTemp) {
-    throw new CliError("RUNNER_TEMP is not set.", 64);
-  }
+  if (!runnerTemp) throw new CliError("RUNNER_TEMP is not set.", 64);
   if (
     !/^[A-Za-z0-9._/-]+$/.test(entrypoint) ||
     entrypoint.startsWith("/") ||
@@ -157,34 +168,36 @@ async function main(): Promise<void> {
   const secretDirectory = join(runnerTemp, deploySecretDirectory);
   try {
     const plan = JSON.parse(await readFile(planPath, "utf8")) as SecretPlan;
-    assertPlan(plan);
-    const secretValues = await loadScopedSecretValues(secretDirectory, plan);
-    const childEnvironment = buildScopedDeployEnvironment(process.env, plan, secretValues);
-    const targetDirectory = resolve(process.cwd(), "target");
-    const targetEntrypoint = resolve(targetDirectory, entrypoint);
-    if (!targetEntrypoint.startsWith(`${targetDirectory}${sep}`)) {
-      throw new CliError("Deploy entrypoint escapes the source checkout.", 64);
+    const values = await loadScopedSecretValues(secretDirectory, plan);
+    const publicVariablePath = join(runnerTemp, "action-worker-repository-vars.json");
+    const raw = JSON.parse(await readFile(publicVariablePath, "utf8")) as unknown;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      throw new CliError("Repository Variable snapshot is invalid.", 65);
     }
-    const info = await lstat(targetEntrypoint);
+    const publicVariables: NodeJS.ProcessEnv = {};
+    for (const [name, value] of Object.entries(raw)) {
+      if (isOrdinaryVariable(name)) publicVariables[name] = textValue(value);
+    }
+    const env = buildScopedDeployEnvironment(process.env, plan, values, publicVariables);
+    const target = resolve(process.cwd(), "target");
+    const script = resolve(target, entrypoint);
+    if (!script.startsWith(`${target}${sep}`)) {
+      throw new CliError("Deploy entrypoint escapes source checkout.", 64);
+    }
+    const info = await lstat(script);
     if (!info.isFile() || info.isSymbolicLink()) {
       throw new CliError("Deploy entrypoint is not a regular file.", 66);
     }
-    // Remove staged values before launching source-owned code; only the child environment carries them.
     await rm(secretDirectory, { recursive: true, force: true });
     await rm(planPath, { force: true });
-    const result = spawnSync("bash", [entrypoint], {
-      cwd: targetDirectory,
-      env: childEnvironment,
+    const child = spawnSync("bash", [entrypoint], {
+      cwd: target,
+      env,
       stdio: "inherit",
       shell: false,
     });
-    if (result.error) {
-      const code = "code" in result.error ? String(result.error.code) : "unknown";
-      console.error(`Deploy entrypoint could not start (${code}).`);
-      process.exitCode = 1;
-    } else {
-      process.exitCode = result.status ?? 1;
-    }
+    if (child.error) throw new CliError("Deploy entrypoint could not start.", 1);
+    process.exitCode = child.status ?? 1;
   } finally {
     await rm(secretDirectory, { recursive: true, force: true });
     await rm(planPath, { force: true });

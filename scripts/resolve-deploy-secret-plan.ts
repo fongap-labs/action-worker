@@ -1,10 +1,14 @@
 import { chmod, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { readDeploySecretBundleName, resolveDeploySecretPlan } from "./resolve-secret-scope.ts";
+import {
+  readDeploySecretVariableSources,
+  resolveDeploySecretPlan,
+} from "./resolve-secret-scope.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 export const deploySecretPlanPath = "action-worker-deploy-secret-plan.json";
 export const deploySecretDirectory = "action-worker-deploy-secrets";
+export const deploySecretSlots = 40;
 
 async function main(): Promise<void> {
   const [
@@ -23,12 +27,6 @@ async function main(): Promise<void> {
   }
   const runnerTemp = process.env.RUNNER_TEMP ?? "";
   if (!runnerTemp) throw new CliError("RUNNER_TEMP is not set.", 64);
-  const bundleSecretName = await readDeploySecretBundleName(
-    policyPath,
-    repository,
-    environment,
-    product
-  );
   const plan = await resolveDeploySecretPlan(
     requiredPath,
     allowedPath,
@@ -38,6 +36,16 @@ async function main(): Promise<void> {
     product,
     process.env
   );
+  const variableSources = await readDeploySecretVariableSources(
+    policyPath,
+    repository,
+    environment,
+    product
+  );
+  const secretEntries = plan.filter((entry) => entry.kind === "secret");
+  if (secretEntries.length > deploySecretSlots) {
+    throw new CliError(`Deploy Secret plan exceeds the fixed slot limit of ${deploySecretSlots}.`, 65);
+  }
   const directory = join(runnerTemp, deploySecretDirectory);
   const path = join(runnerTemp, deploySecretPlanPath);
   await rm(directory, { recursive: true, force: true });
@@ -50,10 +58,15 @@ async function main(): Promise<void> {
     mode: 0o600,
   });
   await chmod(path, 0o600);
-  const secretCount = plan.filter((entry) => entry.kind === "secret").length;
-  await appendLines(process.env.GITHUB_OUTPUT, [`bundle_secret_name=${bundleSecretName}`]);
+  const outputs = secretEntries.map(
+    (entry, index) => `secret_${String(index).padStart(2, "0")}=${entry.source}`
+  );
+  for (let index = secretEntries.length; index < deploySecretSlots; index += 1) {
+    outputs.push(`secret_${String(index).padStart(2, "0")}=`);
+  }
+  await appendLines(process.env.GITHUB_OUTPUT, outputs);
   console.log(
-    `Deploy secret plan resolved: ${plan.length} declared name(s), ${secretCount} Secret source(s), ${plan.length - secretCount} Variable source(s); values not read.`
+    `Deploy secret plan resolved: ${plan.length} authorized name(s), ${secretEntries.length} Secret slot(s), ${variableSources.size} Variable source(s); values not read.`
   );
 }
 
