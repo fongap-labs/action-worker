@@ -37,6 +37,9 @@ export function assertChineseSummary(summary: string): void {
       65
     );
   }
+  if ([...summary.trim()].length > 80) {
+    throw new CliError("::error::CHANGELOG summary must not exceed 80 characters.", 65);
+  }
   if (!containsHan(summary)) {
     throw new CliError(
       `::error::CHANGELOG entry summary must be Chinese text: ${summary}. English identifiers may stay inside the sentence.`,
