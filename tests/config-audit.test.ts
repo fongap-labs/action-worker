@@ -92,7 +92,14 @@ test("audit reads fixed tree and blobs without modifying GitHub configuration", 
   assert.equal(summary.policy_excess_names, 0);
   assert.equal(summary.storage_presence, "unverified");
   assert.equal(summary.automatic_writes, false);
-  assert.ok(calls.every((path) => !path.includes("/actions/secrets") && !path.includes("/actions/variables") && !path.includes("/environments")));
+  assert.ok(
+    calls.every(
+      (path) =>
+        !path.includes("/actions/secrets") &&
+        !path.includes("/actions/variables") &&
+        !path.includes("/environments")
+    )
+  );
 });
 
 test("truncated GitHub tree fails closed", async () => {
