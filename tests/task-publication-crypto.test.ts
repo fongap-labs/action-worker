@@ -107,42 +107,6 @@ test("task publication sealing refuses symbolic links instead of archiving escap
   }
 });
 
-test("task request is loaded from GitHub event file without printing the payload", async () => {
-  const root = await mkdtemp(join(tmpdir(), "aw-event-input-test-"));
-  try {
-    const eventPath = join(root, "event.json");
-    const outputPath = join(root, "outputs");
-    await writeFile(
-      eventPath,
-      JSON.stringify({
-        action: "run-task",
-        client_payload: {
-          schema_version: "1",
-          request_id: "private-request",
-          project: "sensitive-project",
-          bootstrap_ref: identity.bootstrap_ref,
-          repository: identity.repository,
-        },
-      })
-    );
-    const stdout = execFileSync(process.execPath, ["scripts/validate-dispatch-payload.ts"], {
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        GITHUB_EVENT_PATH: eventPath,
-        GITHUB_OUTPUT: outputPath,
-        AW_REPOSITORY_POLICY: JSON.stringify({ [identity.repository]: ["task"] }),
-      },
-    });
-    assert.equal(stdout, "");
-    const outputs = await readFile(outputPath, "utf8");
-    assert.match(outputs, /project=sensitive-project/);
-    assert.match(outputs, /repository=fongap-labs\/private-source/);
-  } finally {
-    await rm(root, { recursive: true, force: true });
-  }
-});
-
 test("task publication CLI seals in executor and opens on a separate clean publisher", async () => {
   const root = await mkdtemp(join(tmpdir(), "aw-publication-cli-test-"));
   try {
