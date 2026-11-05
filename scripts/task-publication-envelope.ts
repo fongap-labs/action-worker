@@ -7,8 +7,10 @@ import {
   privateDecrypt,
   publicEncrypt,
   randomBytes,
+  timingSafeEqual,
 } from "node:crypto";
-import { lstat, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { lstat, mkdir, open, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import { gunzipSync, gzipSync } from "node:zlib";
 import { isJsonRecord } from "./github-api.ts";
@@ -34,6 +36,7 @@ export type PublicationIdentity = {
   repository: string;
   project: string;
   bootstrap_ref: string;
+  request_id: string;
 };
 
 function aad(identity: PublicationIdentity): Buffer {
@@ -50,7 +53,11 @@ function validPath(path: string): boolean {
   );
 }
 
-async function collect(root: string, current = root): Promise<PublicationFile[]> {
+async function collect(
+  root: string,
+  current = root,
+  limits: { count: number; total: number } = { count: 0, total: 0 }
+): Promise<PublicationFile[]> {
   const found: PublicationFile[] = [];
   for (const entry of await readdir(current, { withFileTypes: true })) {
     const full = join(current, entry.name);
@@ -59,16 +66,33 @@ async function collect(root: string, current = root): Promise<PublicationFile[]>
       throw new CliError("Publication payload must not contain symbolic links.", 66);
     }
     if (stats.isDirectory()) {
-      found.push(...(await collect(root, full)));
+      found.push(...(await collect(root, full, limits)));
       continue;
     }
     const name = relative(root, full).split(sep).join("/");
     if (!stats.isFile() || !validPath(name) || stats.size > maxFileBytes) {
       throw new CliError("Publication payload contains an invalid file.", 66);
     }
-    found.push({ path: name, base64: (await readFile(full)).toString("base64") });
-    if (found.length > maxFiles) {
-      throw new CliError("Publication payload exceeds file count limit.", 66);
+    if (limits.count >= maxFiles || limits.total + stats.size > maxTotalBytes) {
+      throw new CliError("Publication payload exceeds the total transfer limit.", 66);
+    }
+    // O_NOFOLLOW closes the file-level symlink race between lstat and readFile.
+    const handle = await open(full, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+    try {
+      const currentInfo = await handle.stat();
+      if (!currentInfo.isFile() || currentInfo.size > maxFileBytes ||
+          limits.total + currentInfo.size > maxTotalBytes) {
+        throw new CliError("Publication payload contains an invalid or oversized file.", 66);
+      }
+      const data = await handle.readFile();
+      if (data.length > maxFileBytes || limits.total + data.length > maxTotalBytes) {
+        throw new CliError("Publication payload exceeds the total transfer limit.", 66);
+      }
+      limits.count += 1;
+      limits.total += data.length;
+      found.push({ path: name, base64: data.toString("base64") });
+    } finally {
+      await handle.close();
     }
   }
   return found.sort((a, b) => a.path.localeCompare(b.path));
@@ -86,6 +110,19 @@ function keyPublic(raw: string) {
   return key;
 }
 
+export function verifyPublicationKeyPair(publicKey: string, privateKey: string): void {
+  const expected = keyPublic(publicKey).export({ format: "der", type: "spki" });
+  const actual = createPublicKey(keyPrivate(privateKey)).export({ format: "der", type: "spki" });
+  if (
+    !Buffer.isBuffer(expected) ||
+    !Buffer.isBuffer(actual) ||
+    expected.length !== actual.length ||
+    !timingSafeEqual(expected, actual)
+  ) {
+    throw new CliError("Publication RSA public and private keys do not match.", 77);
+  }
+}
+
 function keyPrivate(raw: string) {
   const key = createPrivateKey(raw);
   if (key.asymmetricKeyType !== "rsa" || (key.asymmetricKeyDetails?.modulusLength ?? 0) < 3072) {
@@ -99,7 +136,12 @@ export async function sealTaskPublication(
   identity: PublicationIdentity,
   publicKey: string
 ): Promise<Buffer> {
-  if (!identity.repository || !identity.project || !/^[0-9a-f]{40}$/.test(identity.bootstrap_ref)) {
+  if (
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(identity.repository) ||
+    !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(identity.project) ||
+    !/^[0-9a-fA-F]{40}$/.test(identity.bootstrap_ref) ||
+    !/^[A-Za-z0-9_.-]{1,128}$/.test(identity.request_id)
+  ) {
     throw new CliError("Publication source identity must be complete and pinned.", 64);
   }
   const manifestPath = join(root, "manifest.json");
@@ -145,6 +187,9 @@ export async function openTaskPublication(
   privateKey: string,
   output: string
 ): Promise<void> {
+  if (!/^[A-Za-z0-9_.-]{1,128}$/.test(identity.request_id)) {
+    throw new CliError("Sealed publication request identity is invalid.", 64);
+  }
   if (input.length > maxSealedBytes) {
     throw new CliError("Sealed publication exceeds the transfer limit.", 66);
   }
@@ -220,7 +265,21 @@ async function main(): Promise<void> {
     repository: process.env.TASK_SOURCE_REPOSITORY ?? "",
     project: process.env.PROJECT ?? "",
     bootstrap_ref: process.env.BOOTSTRAP_REF ?? "",
+    request_id: process.env.REQUEST_ID ?? "",
   };
+  if (operation === "check-keys") {
+    const publicKey = process.env.AW_PUBLICATION_PUBLIC_KEY ?? "";
+    const privateKey = process.env.AW_PUBLICATION_PRIVATE_KEY ?? "";
+    if (!publicKey || !privateKey) {
+      throw new CliError(
+        "AW_PUBLICATION_PUBLIC_KEY and AW_PUBLICATION_PRIVATE_KEY must both be configured.",
+        77
+      );
+    }
+    verifyPublicationKeyPair(publicKey, privateKey);
+    console.log("Publication key pair validated.");
+    return;
+  }
   if (!first || !second)
     throw new CliError("Usage: task-publication-envelope.ts seal|open IN OUT", 64);
   if (operation === "seal") {
