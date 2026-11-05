@@ -32,7 +32,7 @@ const classes = {
     "task-source-dispatch.yml",
   ],
   // Read-only diagnostics are operator-started and never trigger deployments or governance.
-  diagnostic: ["verify-github-app.yml"],
+  diagnostic: ["runner-isolation-canary.yml", "verify-github-app.yml"],
   // Approved manual-only operations that mutate production Worker Secrets.
   operation: ["ai-gateway-ops.yml"],
   // Protected, manual-only recovery; no repository_dispatch bypass of explicit confirmation.
