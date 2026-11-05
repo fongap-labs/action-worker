@@ -349,24 +349,23 @@ test("the deploy job names no central write credential and checks out with the r
   assert.match(String(deploy.environment), /needs\.prepare\.outputs\.environment/);
 });
 
-test("the deploy workflow stages only individually scoped Secrets before source execution", async () => {
+test("the deploy workflow dynamically selects one product-scoped Secret bundle", async () => {
   const deploy = (await workflow("deploy-source-script.yml")).jobs.deploy;
   const plan = deploy?.steps?.find((item) => item.name === "Resolve deploy Secret plan");
+  const stage = deploy?.steps?.find((item) => item.name === "Stage selected product deployment Secret bundle");
   const execute = deploy?.steps?.find((item) => item.name === "Execute source-owned deploy entrypoint");
-  const collectors = (deploy?.steps ?? []).filter((item) => item.name?.startsWith("Collect scoped deploy Secret "));
   assert.match(plan?.run ?? "", /resolve-deploy-secret-plan\.ts/);
   assert.match(plan?.run ?? "", /policies\/deploy-secrets\.json/);
   assert.match(execute?.run ?? "", /run-scoped-deploy\.ts/);
   assert.equal(execute?.env, undefined);
-  assert.ok(collectors.length > 0);
-  for (const step of collectors) {
-    assert.deepEqual(Object.keys(step.env as Record<string, unknown>), ["AW_DEPLOY_SECRET_VALUE"]);
-    assert.match(String(step.if), /steps\.secret_plan\.outputs\.inject_sources/);
-    assert.equal(secretNames(step.env).length, 1);
-    assert.match(step.run ?? "", /write-deploy-secret\.ts/);
-  }
+  assert.deepEqual(Object.keys(stage?.env as Record<string, unknown>), ["AW_DEPLOY_SECRET_BUNDLE"]);
+  assert.equal(
+    stage?.env?.AW_DEPLOY_SECRET_BUNDLE,
+    "$" + "{{ secrets[steps.secret_plan.outputs.bundle_secret_name] }}",
+  );
+  assert.equal(stage?.run, "node control/scripts/stage-deploy-secret-bundle.ts");
   const sourceText = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
-  assert.doesNotMatch(sourceText, /env:\s*\$\{\{\s*secrets\s*\}\}/);
+  assert.equal(sourceText.includes("env: $" + "{{ secrets }}"), false);
 });
 
 test("the prepare job validates the environment against the central policy file", async () => {
