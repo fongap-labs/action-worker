@@ -80,28 +80,17 @@ test("deploy secret plan separates stored Secrets from explicitly declared Repos
       },
     ]);
     await assert.rejects(
-      resolveDeploySecretPlan(
-        required,
-        allowed,
-        policy,
-        "owner/repo",
-        "production",
-        "",
-        { PATH: "/usr/bin" }
-      ),
+      resolveDeploySecretPlan(required, allowed, policy, "owner/repo", "production", "", {
+        PATH: "/usr/bin",
+      }),
       /Required deploy variable is unavailable: ACCOUNT_ID/
     );
     await writeFile(allowed, "UNAUTHORIZED_SECRET\n");
     await assert.rejects(
-      resolveDeploySecretPlan(
-        required,
-        allowed,
-        policy,
-        "owner/repo",
-        "production",
-        "",
-        { PATH: "/usr/bin", ACCOUNT_ID_VARIABLE: "x" }
-      ),
+      resolveDeploySecretPlan(required, allowed, policy, "owner/repo", "production", "", {
+        PATH: "/usr/bin",
+        ACCOUNT_ID_VARIABLE: "x",
+      }),
       /outside the central deploy secret policy: UNAUTHORIZED_SECRET/
     );
   } finally {
@@ -126,11 +115,14 @@ test("shipped policy assigns a unique product bundle and preserves the AI Gatewa
     "fongap-labs/mcp-hub",
     "production"
   );
-  assert.deepEqual([aiGateway, serverEdge, mcpHub], [
-    "AW_DEPLOY_SECRET_BUNDLE_AI_GATEWAY",
-    "AW_DEPLOY_SECRET_BUNDLE_SERVER_EDGE",
-    "AW_DEPLOY_SECRET_BUNDLE_MCP_HUB",
-  ]);
+  assert.deepEqual(
+    [aiGateway, serverEdge, mcpHub],
+    [
+      "AW_DEPLOY_SECRET_BUNDLE_AI_GATEWAY",
+      "AW_DEPLOY_SECRET_BUNDLE_SERVER_EDGE",
+      "AW_DEPLOY_SECRET_BUNDLE_MCP_HUB",
+    ]
+  );
   const sources = await readDeploySecretVariableSources(
     "policies/deploy-secrets.json",
     "fongap-labs/ai-gateway",
@@ -178,10 +170,7 @@ test("product bundle stages only plan-authorized Secret values and rejects unkno
     );
     assert.deepEqual(staged, ["TOKEN_REQUIRED"]);
     assert.equal(
-      await readFile(
-        join(root, "action-worker-deploy-secrets", "TOKEN_REQUIRED"),
-        "utf8"
-      ),
+      await readFile(join(root, "action-worker-deploy-secrets", "TOKEN_REQUIRED"), "utf8"),
       "test-value"
     );
     await assert.rejects(
@@ -280,22 +269,12 @@ test("staged Secret files are restricted to the plan and have private permission
         },
       ],
     };
-    await stageDeploySecretBundle(
-      JSON.stringify({ TOKEN_A: "test-value-a" }),
-      plan,
-      root
-    );
-    const values = await loadScopedSecretValues(
-      join(root, "action-worker-deploy-secrets"),
-      plan
-    );
+    await stageDeploySecretBundle(JSON.stringify({ TOKEN_A: "test-value-a" }), plan, root);
+    const values = await loadScopedSecretValues(join(root, "action-worker-deploy-secrets"), plan);
     assert.deepEqual([...values], [["TOKEN_A", "test-value-a"]]);
     await writeFile(join(root, "action-worker-deploy-secrets", "OTHER"), "x");
     await assert.rejects(
-      loadScopedSecretValues(
-        join(root, "action-worker-deploy-secrets"),
-        plan
-      ),
+      loadScopedSecretValues(join(root, "action-worker-deploy-secrets"), plan),
       /Unexpected file/
     );
   } finally {
@@ -304,9 +283,7 @@ test("staged Secret files are restricted to the plan and have private permission
 });
 
 test("the deploy workflow dynamically injects one product bundle and stays repository-agnostic", async () => {
-  const workflow = parse(
-    await readFile(".github/workflows/deploy-source-script.yml", "utf8")
-  ) as {
+  const workflow = parse(await readFile(".github/workflows/deploy-source-script.yml", "utf8")) as {
     jobs: Record<
       string,
       {
@@ -319,15 +296,11 @@ test("the deploy workflow dynamically injects one product bundle and stays repos
     >;
   };
   const steps = workflow.jobs.deploy?.steps ?? [];
-  const plan = steps.find(
-    (step) => step.name === "Resolve deploy Secret plan"
-  );
+  const plan = steps.find((step) => step.name === "Resolve deploy Secret plan");
   const stage = steps.find(
     (step) => step.name === "Stage selected product deployment Secret bundle"
   );
-  const execute = steps.find(
-    (step) => step.name === "Execute source-owned deploy entrypoint"
-  );
+  const execute = steps.find((step) => step.name === "Execute source-owned deploy entrypoint");
   assert.match(plan?.run ?? "", /resolve-deploy-secret-plan\.ts/);
   assert.deepEqual(Object.keys(stage?.env ?? {}), ["AW_DEPLOY_SECRET_BUNDLE"]);
   const dynamicBundleExpression = [
@@ -338,10 +311,7 @@ test("the deploy workflow dynamically injects one product bundle and stays repos
   assert.equal(stage?.run, "node control/scripts/stage-deploy-secret-bundle.ts");
   assert.equal(execute?.env, undefined);
   assert.match(execute?.run ?? "", /run-scoped-deploy\.ts/);
-  const sourceText = await readFile(
-    ".github/workflows/deploy-source-script.yml",
-    "utf8"
-  );
+  const sourceText = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
   const broadSecretsMapping = ["env: $", "{{ secrets }}"].join("");
   assert.equal(sourceText.includes(broadSecretsMapping), false);
   for (const name of [
