@@ -88,7 +88,9 @@ async function requestCloudflare(
     typeof payload !== "object" ||
     (payload as Record<string, unknown>).success !== true
   ) {
-    throw new Error(`Cloudflare API refused the request (HTTP ${response.status}); no token fallback is allowed.`);
+    throw new Error(
+      `Cloudflare API refused the request (HTTP ${response.status}); no token fallback is allowed.`
+    );
   }
   return payload as Record<string, unknown>;
 }
@@ -233,16 +235,22 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const name = process.argv[3] ?? "";
   const env: OperationsEnvironment = { ...process.env };
   delete process.env.AIG_OPS_SECRET_VALUE;
-  runOperations(operation, name, env).then((names) => {
-    if (operation === "inventory") {
-      console.log("Cloudflare Worker Secret names (values are never read or printed):");
-      for (const secretName of names) console.log(secretName);
-      console.log("Inventory completed.");
-    } else {
-      console.log("AI Gateway runtime secret updated; name and health checks passed. No secret values were logged.");
-    }
-  }).catch((error: unknown) => {
-    console.error(`::error::${error instanceof Error ? error.message : "AI Gateway operations failed."}`);
-    process.exitCode = 1;
-  });
+  runOperations(operation, name, env)
+    .then((names) => {
+      if (operation === "inventory") {
+        console.log("Cloudflare Worker Secret names (values are never read or printed):");
+        for (const secretName of names) console.log(secretName);
+        console.log("Inventory completed.");
+      } else {
+        console.log(
+          "AI Gateway runtime secret updated; name and health checks passed. No secret values were logged."
+        );
+      }
+    })
+    .catch((error: unknown) => {
+      console.error(
+        `::error::${error instanceof Error ? error.message : "AI Gateway operations failed."}`
+      );
+      process.exitCode = 1;
+    });
 }
