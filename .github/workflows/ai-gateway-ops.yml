@@ -54,7 +54,7 @@ jobs:
             inventory)
               ;;
             put)
-              [[ "$SECRET_NAME" =~ ^(AIG_TOKEN_ENCRYPTION_KEY|AIG_(INFERENCE|GENERATION)_AUTH_KEY|AIG_ACCESS_KEY_(AIR|PRO|MAX|ULTRA|AGENT)|AIG_TIER[123]_CREDENTIALS_(0[1-9]|10))$ ]] || {
+              [[ "$SECRET_NAME" =~ ^(AIG_DEPLOY_HEALTH_KEY|AIG_TOKEN_ENCRYPTION_KEY|AIG_(INFERENCE|GENERATION)_AUTH_KEY|AIG_ACCESS_KEY_(AIR|PRO|MAX|ULTRA|AGENT)|AIG_TIER[123]_CREDENTIALS_(0[1-9]|10))$ ]] || {
                 echo "::error::Secret name is outside the AI Gateway runtime secret allowlist."
                 exit 64
               }
@@ -78,6 +78,10 @@ jobs:
             echo "::error::Missing temporary ai-gateway-ops secret AIG_OPS_SECRET_VALUE; no workflow-input or token fallback."
             exit 77
           }
+          if [[ "$SECRET_NAME" == "AIG_DEPLOY_HEALTH_KEY" && "${#AIG_OPS_SECRET_VALUE}" -lt 32 ]]; then
+            echo "::error::AIG_DEPLOY_HEALTH_KEY must contain at least 32 characters."
+            exit 64
+          fi
           [[ -n "${AIG_DEPLOY_HEALTH_KEY:-}" && "${AIG_PUBLIC_URL:-}" == https://* ]] || {
             echo "::error::Missing health-check credential or HTTPS AIG_PUBLIC_URL; refusing secret mutation."
             exit 77
