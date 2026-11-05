@@ -392,10 +392,7 @@ test("the deploy workflow selects only the authorized dynamic Secret slots", asy
   for (const [index, name] of names.entries()) {
     const slot = String(index).padStart(2, "0");
     assert.equal(name, `AW_DEPLOY_SECRET_${slot}`);
-    assert.equal(
-      stageEnv?.[name],
-      "$" + `{{ secrets[steps.secret_plan.outputs.secret_${slot}] }}`
-    );
+    assert.equal(stageEnv?.[name], "$" + `{{ secrets[steps.secret_plan.outputs.secret_${slot}] }}`);
   }
   assert.equal(stage?.run, "node control/scripts/stage-deploy-secret-bundle.ts");
   const sourceText = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
@@ -729,10 +726,7 @@ test("the deploy job group never collides with its own pipeline group", async ()
 test("the deploy workflow resolves scoped policy and passes the trigger to the entrypoint", async () => {
   const deploy = (await workflow("deploy-source-script.yml")).jobs.deploy;
   const text = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
-  assert.match(
-    text,
-    /"\$DEPLOY_SOURCE_REPOSITORY" "\$DEPLOY_ENVIRONMENT" "\$DEPLOY_PRODUCT"/
-  );
+  assert.match(text, /"\$DEPLOY_SOURCE_REPOSITORY" "\$DEPLOY_ENVIRONMENT" "\$DEPLOY_PRODUCT"/);
   assert.match(text, /resolve-deploy-secret-plan\.ts/);
   assert.match(text, /target\/\$\{DEPLOY_PRODUCT_DIRECTORY\}\/deploy\.secrets\.required/);
   assert.match(text, /DEPLOY_TRIGGER: \$\{\{ needs\.prepare\.outputs\.trigger \}\}/);
