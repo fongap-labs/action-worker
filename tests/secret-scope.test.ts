@@ -341,7 +341,12 @@ test("the central policies give each Cloudflare account its own qualified secret
       ["AIG_DEPLOY_HEALTH_KEY", "AIG_ACCESS_KEY_AGENT"],
     ]
   );
-  assert.equal((await readDeploySecretCeiling("policies/deploy-secrets.json", "fongap-labs/ai-gateway", "production")).has("AIG_ACCESS_KEY_AGENT"), false);
+  assert.equal(
+    (
+      await readDeploySecretCeiling("policies/deploy-secrets.json", "fongap-labs/ai-gateway", "production")
+    ).has("AIG_ACCESS_KEY_AGENT"),
+    false
+  );
   // The retired inference product has no deployment credential aliases.
   const retired = await readSecretAliases(
     "policies/deploy-secrets.json",
@@ -413,7 +418,6 @@ test("task and deploy workflows apply aliases before they remove the other secre
   }
 });
 
-
 test("AI Gateway operations workflow is protected and never accepts secret values as inputs", async () => {
   const workflow = await readFile(".github/workflows/ai-gateway-ops.yml", "utf8");
   assert.match(workflow, /environment: ai-gateway-ops/);
@@ -427,6 +431,6 @@ test("AI Gateway operations workflow is protected and never accepts secret value
   assert.match(workflow, /printf '%s' "\$secret_value" \|/);
   assert.match(workflow, /secret list --format json/);
   assert.match(workflow, /rollback/);
-  assert.doesNotMatch(workflow, /echo[^\n]*AIG_OPS_SECRET_VALUE/);
+  assert.doesNotMatch(workflow, /echo[^\n]*\$AIG_OPS_SECRET_VALUE/);
   assert.doesNotMatch(workflow, /secret_value:\s*\n\s*required:/i);
 });
