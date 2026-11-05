@@ -300,11 +300,28 @@ test("a policy cannot alias to a reserved, declared or repeated name", async () 
   }
 });
 
-test("AI Gateway inference auth key has a production-only deployment ceiling", async () => {
+test("AI Gateway production exposes deploy credentials only; runtime secrets stay in Cloudflare", async () => {
   const policyPath = "policies/deploy-secrets.json";
   const gateway = await readDeploySecretCeiling(policyPath, "fongap-labs/ai-gateway", "production");
-  const hub = await readDeploySecretCeiling(policyPath, "fongap-labs/mcp-hub", "mcp-hub-ops");
-  assert.equal(gateway.has("AIG_INFERENCE_AUTH_KEY"), true);
+  const hub = await readDeploySecretCeiling(policyPath, "fongap-labs/mcp-hub", "production");
+  assert.deepEqual([...gateway].sort(), [
+    "AIG_DEPLOY_HEALTH_KEY",
+    "CLOUDFLARE_ACCOUNT_ID",
+    "CLOUDFLARE_API_TOKEN",
+  ]);
+  for (const name of [
+    "AIG_TOKEN_ENCRYPTION_KEY",
+    "AIG_INFERENCE_AUTH_KEY",
+    "AIG_GENERATION_AUTH_KEY",
+    "AIG_ACCESS_KEY_AIR",
+    "AIG_ACCESS_KEY_PRO",
+    "AIG_ACCESS_KEY_MAX",
+    "AIG_ACCESS_KEY_ULTRA",
+    "AIG_ACCESS_KEY_AGENT",
+    "AIG_TIER1_CREDENTIALS_01",
+  ]) {
+    assert.equal(gateway.has(name), false, `${name} is not a production deployment secret`);
+  }
   assert.equal(hub.has("AIG_INFERENCE_AUTH_KEY"), false);
   assert.equal(gateway.has("AW_APP_PRIVATE_KEY"), false);
 });
@@ -319,6 +336,7 @@ test("the central policies give each Cloudflare account its own qualified secret
   assert.deepEqual(
     [...deploy],
     [
+      ["AIG_DEPLOY_HEALTH_KEY", "AIG_ACCESS_KEY_AGENT"],
       ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_SECONDARY"],
       ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_SECONDARY"],
     ]
