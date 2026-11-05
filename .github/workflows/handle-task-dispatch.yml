@@ -608,6 +608,12 @@ jobs:
           done
 
           target_dir="$WORK_DIR/target/$DEST_DIR"
+          # Existing symlinks below the destination can redirect the subsequent copy
+          # outside the approved directory even when every parent of DEST_DIR is safe.
+          if [ -d "$target_dir" ] && find "$target_dir" -type l -print -quit | grep -q .; then
+              echo "::error::Publication destination contains an unsafe existing symlink." >&2
+              exit 66
+          fi
           if [ "$DELETE_STALE" = "true" ]; then
               rm -rf "$target_dir"
           fi
