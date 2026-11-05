@@ -148,7 +148,9 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
   assert.match(source, /Central governance dispatch failed for publication PR/);
   assert.doesNotMatch(source, /event_type=run-intake[^\n]*\|\| true/);
   assert.equal(
-    publish.steps.find((step) => step.name === "Mint control publication intake token")?.with?.["permission-contents"],
+    publish.steps.find((step) => step.name === "Mint control publication intake token")?.with?.[
+      "permission-contents"
+    ],
     "write"
   );
 });
