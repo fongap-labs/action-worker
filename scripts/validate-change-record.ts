@@ -297,6 +297,32 @@ export async function validateChange(
   if (legacyChanged.trim() !== "") {
     throw new CliError("::error::changelog.d is retired. Write Chinese entries in CHANGELOG.md.", 65);
   }
+  // Atomic retirement: every existing fragment must be removed in the same PR that
+  // writes a complete, concise CHANGELOG. This is a one-time migration, not a type exemption.
+  const removedLegacy = await runText(
+    "git", ["diff", "--name-only", "--diff-filter=D", base, head, "--", "changelog.d/"], { cwd: root }
+  );
+  const previousLegacy = await runText(
+    "git", ["ls-tree", "-r", "--name-only", base, "--", "changelog.d/"], { cwd: root }
+  );
+  const remainingLegacy = await runText(
+    "git", ["ls-tree", "-r", "--name-only", head, "--", "changelog.d/"], { cwd: root }
+  );
+  const deletedNames = removedLegacy.split(/\r?\n/).filter(Boolean).sort();
+  const previousNames = previousLegacy.split(/\r?\n/).filter(Boolean).sort();
+  if (previousNames.length > 0 &&
+      (deletedNames.length !== previousNames.length ||
+        JSON.stringify(deletedNames) !== JSON.stringify(previousNames) ||
+        remainingLegacy.trim() !== "")) {
+    throw new CliError(
+      "::error::Retire every changelog.d file together with a complete CHANGELOG.md migration.",
+      65
+    );
+  }
+  const isMigration = previousNames.length > 0;
+  if (isMigration && !changedPaths.includes(changelogFile)) {
+    throw new CliError("::error::Retiring changelog.d requires a consolidated CHANGELOG.md.", 65);
+  }
   const changelogRequired = isBreaking || requiredTypes.includes(changeType);
   if (changelogRequired && !changedPaths.includes(changelogFile)) {
     throw new CliError(`::error::Change type ${changeType} must update CHANGELOG.md [Unreleased].`, 65);
@@ -305,7 +331,18 @@ export async function validateChange(
   if (changedPaths.includes(changelogFile)) {
     const baseChangelog = await runText("git", ["show", `${base}:${changelogFile}`], { cwd: root });
     const headChangelog = await readFile(join(root, changelogFile), "utf8");
-    entries = addedUnreleasedEntries(baseChangelog, headChangelog);
+    if (isMigration) {
+      const baseReleased = outsideUnreleased(baseChangelog).replace(/^# Changelog/, "# 更新日志");
+      if (baseReleased !== outsideUnreleased(headChangelog)) {
+        throw new CliError("::error::CHANGELOG migration must preserve published sections.", 65);
+      }
+      entries = unreleasedSection(headChangelog).split("\n").map((line) => line.trim()).filter(Boolean);
+      if (new Set(entries).size !== entries.length || entries.length === 0) {
+        throw new CliError("::error::CHANGELOG migration requires unique, non-empty entries.", 65);
+      }
+    } else {
+      entries = addedUnreleasedEntries(baseChangelog, headChangelog);
+    }
   }
   const categories = policyList(value, "changelog_categories");
   const allowedCategories = changelogCategoriesForType(value, changeType);
