@@ -627,8 +627,7 @@ jobs:
         with:
           name: isolated-output-${{ github.run_id }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/isolated-output
-      - name: Validate bounded state and manifest identity
-        id: state
+      - name: Validate and discard ephemeral stateless result
         env:
           TASK_SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
           PROJECT: ${{ github.event.client_payload.project }}
@@ -639,15 +638,7 @@ jobs:
           node scripts/isolated-public-task.ts finalize \
             "$RUNNER_TEMP/isolated-output/isolated-output.packed" \
             "$RUNNER_TEMP/verified-state"
-          name="$(node scripts/task-state.ts name "$TASK_SOURCE_REPOSITORY" "$PROJECT")"
-          echo "artifact_name=$name" >> "$GITHUB_OUTPUT"
-      - name: Upload verified public state in historical artifact shape
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: ${{ steps.state.outputs.artifact_name }}
-          path: ${{ runner.temp }}/verified-state
-          if-no-files-found: error
-          retention-days: 30
+          echo "Isolated stateless result verified; no historical state persisted."
 
   publish:
     name: Governed task publication
