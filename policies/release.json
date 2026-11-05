@@ -4,34 +4,65 @@
   "change_types": [
     "feat",
     "fix",
-    "docs",
-    "style",
-    "refactor",
-    "perf",
-    "test",
-    "build",
-    "ci",
-    "chore",
-    "revert"
+    "chore"
   ],
-  "change_attributes": ["breaking", "security", "migration"],
-  "changelog_required_types": ["feat", "fix", "perf", "revert"],
-  "changelog_categories": ["新增", "变更", "弃用", "移除", "修复", "安全"],
+  "change_attributes": [
+    "breaking",
+    "security",
+    "migration"
+  ],
+  "changelog_required_types": [
+    "feat",
+    "fix"
+  ],
+  "changelog_categories": [
+    "新增",
+    "变更",
+    "弃用",
+    "移除",
+    "修复",
+    "安全"
+  ],
   "changelog_category_types": {
-    "feat": ["新增", "变更", "弃用"],
-    "fix": ["修复", "变更"],
-    "perf": ["变更"],
-    "revert": ["变更", "修复"]
+    "feat": [
+      "新增",
+      "变更",
+      "弃用",
+      "移除"
+    ],
+    "fix": [
+      "修复",
+      "变更"
+    ],
+    "chore": []
   },
   "security_category": "安全",
   "impact_patterns": {
-    "breaking": ["breaking"],
-    "security": ["security"],
-    "migration": ["migration"],
-    "api": ["api"],
-    "deployment": ["deploy", "deployment"],
-    "performance": ["performance"],
-    "compatibility": ["compatible", "compatibility"],
-    "release": ["release"]
+    "breaking": [
+      "breaking"
+    ],
+    "security": [
+      "security"
+    ],
+    "migration": [
+      "migration"
+    ],
+    "api": [
+      "api"
+    ],
+    "deployment": [
+      "deploy",
+      "deployment"
+    ],
+    "performance": [
+      "performance"
+    ],
+    "compatibility": [
+      "compatible",
+      "compatibility"
+    ],
+    "release": [
+      "release"
+    ]
   }
 }
