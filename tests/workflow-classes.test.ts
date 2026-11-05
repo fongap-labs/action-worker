@@ -33,6 +33,8 @@ const classes = {
   ],
   // Read-only diagnostics are operator-started and never trigger deployments or governance.
   diagnostic: ["verify-github-app.yml"],
+  // Protected, manual-only recovery; no repository_dispatch bypass of explicit confirmation.
+  recovery: ["status-signing-recovery.yml"],
   // The one reconciler. It sweeps every managed repository and dispatches the work it finds.
   intake: ["intake.yml"],
   // Started by an event another workflow or a managed repository sends; never by a person or a
@@ -68,6 +70,7 @@ type WorkflowClass = keyof typeof classes;
 const allowedTriggers: Record<WorkflowClass, readonly string[]> = {
   entry: ["repository_dispatch", "workflow_dispatch"],
   diagnostic: ["workflow_dispatch"],
+  recovery: ["workflow_dispatch"],
   intake: ["push", "repository_dispatch", "schedule"],
   handler: ["repository_dispatch"],
   maintenance: ["pull_request", "push", "schedule", "workflow_run"],
@@ -119,12 +122,24 @@ test("each workflow is started only by the events its class allows", async () =>
   }
 });
 
-test("only entry and diagnostic workflows show a Run workflow button", async () => {
+test("only entry, diagnostic and protected recovery workflows show a Run workflow button", async () => {
   for (const { file, workflow } of await workflows()) {
     const kind = classOf(file);
     const triggers = workflow.on ?? {};
     if (kind === "diagnostic") {
       assert.deepEqual(Object.keys(triggers), ["workflow_dispatch"], `${file} is manual-only`);
+      continue;
+    }
+    if (kind === "recovery") {
+      assert.deepEqual(Object.keys(triggers), ["workflow_dispatch"], `${file} must be manual-only`);
+      assert.deepEqual(
+        Object.keys(workflow.jobs ?? {}),
+        ["bootstrap"],
+        `${file} may only bootstrap`
+      );
+      const job = workflow.jobs?.bootstrap as Job & { environment?: string; if?: string };
+      assert.equal(job.environment, "admin-ops", `${file} requires admin-ops`);
+      assert.equal(job.if, "github.ref == 'refs/heads/main'", `${file} requires main`);
       continue;
     }
     if (kind !== "entry") {

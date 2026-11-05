@@ -91,7 +91,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
@@ -177,7 +177,7 @@ jobs:
           GH_TOKEN: ${{ steps.evidence_app.outputs.token }}
           AW_CONTROL_TOKEN: ${{ steps.evidence_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.evidence_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           CI_EVIDENCE_PATH: /tmp/ci-evidence.json
@@ -308,7 +308,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.review_scope.outputs.is_control_repository == 'true' && github.token || steps.review_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.review_scope.outputs.is_control_repository == 'true' && github.token || steps.review_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
@@ -333,7 +333,7 @@ jobs:
           AW_ISSUE_API_TOKEN: ${{ steps.issue_app.outputs.token }}
           AW_CONTROL_TOKEN: ${{ steps.review_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.review_scope.outputs.is_control_repository == 'true' && github.token || steps.review_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           REPOSITORY: ${{ needs.prepare.outputs.repository }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}

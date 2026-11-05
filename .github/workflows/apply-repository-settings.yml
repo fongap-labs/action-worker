@@ -90,7 +90,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
           AW_STATUS_TOKEN: ${{ secrets.AW_STATUS_TOKEN }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_DISPATCH_API_TOKEN: ${{ steps.bootstrap_dispatch.outputs.token }}
           AW_BOOTSTRAP_READ_TOKEN: ${{ github.token }}
         run: node scripts/bootstrap-status-signing.ts

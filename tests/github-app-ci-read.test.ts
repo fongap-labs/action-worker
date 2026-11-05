@@ -78,8 +78,8 @@ test("Central CI reads use GITHUB_TOKEN for the control repository and a scoped 
 
   assert.equal(step("Resolve branch CI request").env?.AW_STATUS_TOKEN, undefined);
   assert.equal(
-    step("Resolve branch CI request").env?.AW_STATUS_SIGNING_KEYS,
-    "${{ secrets.AW_STATUS_SIGNING_KEYS }}"
+    step("Resolve branch CI request").env?.AW_STATUS_KEYRING,
+    "${{ secrets.AW_STATUS_KEYRING }}"
   );
   assert.equal(
     step("Attach Main CI lease to active Central CI run").env?.AW_STATUS_TOKEN,

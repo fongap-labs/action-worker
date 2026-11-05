@@ -106,7 +106,7 @@ jobs:
           AW_RELEASE_WRITE_API_TOKEN: ${{ steps.release_write_app.outputs.token }}
           AW_RELEASE_TARGET_REPOSITORY: ${{ steps.release_target.outputs.target_repository }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           RELEASE_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
         run: node scripts/publish-release.ts

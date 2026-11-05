@@ -199,9 +199,9 @@ GitHub API 写入使用工作流按任务签发的短期 GitHub App Token。以�
 | `AW_ISSUE_API_TOKEN` | 目标仓库 `Issues: Write` | Issue 与 PR 评论，以及主写入事件的创建和关闭 |
 | `AW_DISPATCH_API_TOKEN` | 仅控制仓库 `Contents: Write` | `repository_dispatch` 事件派发 |
 
-提交状态签名独立保存在控制仓库 Secret `AW_STATUS_SIGNING_KEYS` 的密钥环中。新状态对 `repository + SHA + context + state + description + target URL` 做 HMAC-SHA-256；验证方校验签名并匹配目标仓库和 SHA。该签名密钥不用于 GitHub API 访问，API Token 也不参与签名。
+提交状态签名独立保存在控制仓库 Secret `AW_STATUS_KEYRING` 的密钥环中。新状态对 `repository + SHA + context + state + description + target URL` 做 HMAC-SHA-256；验证方校验签名并匹配目标仓库和 SHA。该签名密钥不用于 GitHub API 访问，API Token 也不参与签名。
 
-迁移期间，`AW_STATUS_TOKEN` 只由状态签名初始化步骤读取，用来把旧 aw1 HMAC 验证材料保留到 `AW_STATUS_SIGNING_KEYS` 的 `legacy_tokens`；它不会被传给 GitHub API 客户端，也不是状态签名或 API 写入步骤的运行凭据。初始化完成前请保留它，以验证迁移前已签发或仍在运行的旧状态。`AW_ARTIFACT_KEY` 不参与状态签名。
+迁移期间，`AW_STATUS_TOKEN` 只由状态签名初始化步骤读取，用来把旧 aw1 HMAC 验证材料保留到 `AW_STATUS_KEYRING` 的 `legacy_tokens`；它不会被传给 GitHub API 客户端，也不是状态签名或 API 写入步骤的运行凭据。初始化完成前请保留它，以验证迁移前已签发或仍在运行的旧状态。`AW_ARTIFACT_KEY` 不参与状态签名。
 
 `AW_EXECUTION_TOKEN` 已被删除，不再配置。中央执行结合了现有的最小权限授权与 GitHub 原生的短期凭据。
 

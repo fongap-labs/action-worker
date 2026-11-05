@@ -84,7 +84,7 @@ jobs:
         env:
           AW_CONTROL_TOKEN: ${{ steps.distribution_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
-          AW_STATUS_SIGNING_KEYS: ${{ secrets.AW_STATUS_SIGNING_KEYS }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           TOOL_KEY: ${{ matrix.tool }}
         run: node scripts/sync-tool-release.ts policies/review.json "$RUNNER_TEMP/tool-release" "$TOOL_KEY"
 

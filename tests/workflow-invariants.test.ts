@@ -76,11 +76,7 @@ test("all main CI intake entry points use separate App API and signing credentia
           `${key} dispatch mint`
         );
         assert.equal(dispatchMint?.with?.["permission-contents"], "write", `${key} dispatch scope`);
-        assert.equal(
-          step.env?.AW_STATUS_SIGNING_KEYS,
-          "${{ secrets.AW_STATUS_SIGNING_KEYS }}",
-          key
-        );
+        assert.equal(step.env?.AW_STATUS_KEYRING, "${{ secrets.AW_STATUS_KEYRING }}", key);
         assert.equal(
           step.env?.AW_DISPATCH_API_TOKEN,
           "${{ steps." + dispatchStepId + ".outputs.token }}",
@@ -141,7 +137,8 @@ test("the CI dispatch hands the sandbox only the read-only checkout token", asyn
     assert.deepEqual(secretNames(job.secrets), ["AW_CHECKOUT_TOKEN"], name);
   }
   const checkout = dispatch.jobs.security?.steps?.find((step) => step.with?.path === "target");
-  assert.deepEqual(secretNames(checkout), ["AW_CHECKOUT_TOKEN"]);
+  assert.deepEqual(secretNames(checkout), []);
+  assert.equal(checkout?.with?.token, "${{ steps.security_read_app.outputs.token }}");
 });
 
 test("dependency repair computes without any central write credential", async () => {
@@ -229,13 +226,13 @@ test("manual source deploy resolves default HEAD without spending the control PA
     (item) => item.name === "Resolve manual deploy request"
   );
   assert.ok(step, "manual deploy resolver must exist");
-  assert.equal(step.env?.AW_CHECKOUT_TOKEN, "${{ secrets.AW_CHECKOUT_TOKEN }}");
+  assert.equal(step.env?.AW_DEPLOY_SOURCE_READ_TOKEN, "${{ steps.app_read.outputs.token }}");
   assert.equal(step.env?.AW_REPOSITORY_POLICY, "${{ vars.AW_REPOSITORY_POLICY }}");
   assert.match(step.run ?? "", /repository-policy\.ts validate/);
   assert.match(step.run ?? "", /git ls-remote --exit-code/);
   assert.match(step.run ?? "", /GIT_CONFIG_KEY_0=http\.https:\/\/github\.com\/\.extraheader/);
   assert.match(step.run ?? "", /GIT_TERMINAL_PROMPT=0/);
-  assert.match(step.run ?? "", /Missing required AW_CHECKOUT_TOKEN/);
+  assert.match(step.run ?? "", /Missing scoped GitHub App read token/);
   assert.match(step.run ?? "", /source_sha=\$SOURCE_SHA/);
   assert.doesNotMatch(step.run ?? "", /gh api|secrets\.AW_CONTROL_TOKEN/);
 });

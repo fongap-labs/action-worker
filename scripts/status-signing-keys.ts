@@ -17,7 +17,7 @@ export function parseStatusSigningKeys(raw: string): StatusSigningKeys | null {
   try {
     value = JSON.parse(raw);
   } catch {
-    throw new CliError("Invalid AW_STATUS_SIGNING_KEYS JSON.", 65);
+    throw new CliError("Invalid AW_STATUS_KEYRING JSON.", 65);
   }
   if (
     !isJsonRecord(value) ||
@@ -35,7 +35,7 @@ export function parseStatusSigningKeys(raw: string): StatusSigningKeys | null {
     !Array.isArray(value.legacy_tokens) ||
     !value.legacy_tokens.every((t) => typeof t === "string" && t.length > 0)
   )
-    throw new CliError("Invalid AW_STATUS_SIGNING_KEYS keyring.", 65);
+    throw new CliError("Invalid AW_STATUS_KEYRING keyring.", 65);
   return value as StatusSigningKeys;
 }
 
@@ -80,7 +80,7 @@ export function signingSnapshotIsFresh(
   if (metadata === null) return raw === "";
   if (
     !isJsonRecord(metadata) ||
-    metadata.name !== "AW_STATUS_SIGNING_KEYS" ||
+    metadata.name !== "AW_STATUS_KEYRING" ||
     typeof metadata.updated_at !== "string" ||
     !Number.isFinite(Date.parse(metadata.updated_at))
   )

@@ -269,8 +269,14 @@ test("the deploy job names no central write credential and checks out with the r
   const names = secretNames(deploy);
   assert.equal(names.includes("AW_CONTROL_TOKEN"), false);
   assert.equal(names.includes("AW_ADMIN_TOKEN"), false);
-  const checkout = deploy.steps?.find((step) => step.name === "Checkout deploy source");
-  assert.deepEqual(secretNames(checkout), ["AW_CHECKOUT_TOKEN"]);
+  const privateCheckout = deploy.steps?.find(
+    (step) => step.name === "Checkout private deploy source"
+  );
+  const publicCheckout = deploy.steps?.find(
+    (step) => step.name === "Checkout public deploy source"
+  );
+  assert.deepEqual(secretNames(privateCheckout), ["AW_CHECKOUT_TOKEN"]);
+  assert.deepEqual(secretNames(publicCheckout), []);
   // The environment is requested by the prepare job, which has validated it against the policy.
   assert.match(String(deploy.environment), /needs\.prepare\.outputs\.environment/);
 });

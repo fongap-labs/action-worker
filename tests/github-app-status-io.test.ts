@@ -29,7 +29,7 @@ test("status-read preflight requires the scoped API token, not the signing secre
     const validation = steps.find((step) => step.name === "Validate control credential");
     assert.ok(validation, path);
     assert.equal(validation.env?.AW_STATUS_API_TOKEN, undefined, path);
-    assert.equal(validation.env?.AW_STATUS_SIGNING_KEYS, undefined, path);
+    assert.equal(validation.env?.AW_STATUS_KEYRING, undefined, path);
     assert.equal(workflow.permissions.statuses, "read", path);
   }
 });
@@ -60,7 +60,7 @@ test("central CI publication signs with stable secret but publishes with scoped 
   assert.equal(job.permissions.statuses, "read");
   const publish = step("Publish target status");
   assert.equal(publish.env?.AW_STATUS_API_TOKEN, "${{ steps.status_app.outputs.token }}");
-  assert.equal(publish.env?.AW_STATUS_SIGNING_KEYS, "${{ secrets.AW_STATUS_SIGNING_KEYS }}");
+  assert.equal(publish.env?.AW_STATUS_KEYRING, "${{ secrets.AW_STATUS_KEYRING }}");
   const script = await readFile("scripts/write-commit-status.ts", "utf8");
   assert.match(script, /signedStatusDescription\(/);
   assert.match(script, /runGithubCli\([\s\S]*?apiToken/);

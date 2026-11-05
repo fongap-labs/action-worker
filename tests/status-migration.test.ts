@@ -22,7 +22,7 @@ const receipt = {
   created_at: "2026-11-03T13:53:00Z",
 };
 const token = "migration-test-status-token";
-process.env.AW_STATUS_SIGNING_KEYS = JSON.stringify({
+process.env.AW_STATUS_KEYRING = JSON.stringify({
   schema_version: 1,
   active: "test",
   keys: { test: Buffer.alloc(32, 11).toString("base64url") },
