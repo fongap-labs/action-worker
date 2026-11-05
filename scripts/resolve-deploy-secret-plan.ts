@@ -44,7 +44,10 @@ async function main(): Promise<void> {
   );
   const secretEntries = plan.filter((entry) => entry.kind === "secret");
   if (secretEntries.length > deploySecretSlots) {
-    throw new CliError(`Deploy Secret plan exceeds the fixed slot limit of ${deploySecretSlots}.`, 65);
+    throw new CliError(
+      `Deploy Secret plan exceeds the fixed slot limit of ${deploySecretSlots}.`,
+      65
+    );
   }
   const directory = join(runnerTemp, deploySecretDirectory);
   const path = join(runnerTemp, deploySecretPlanPath);
