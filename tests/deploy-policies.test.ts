@@ -241,7 +241,11 @@ test("the shipped deploy secret policy only holds valid, non-reserved names", as
     "AIG_ACCESS_KEY_AGENT",
     "AIG_TIER1_CREDENTIALS_01",
   ]) {
-    assert.equal(aiGateway.has(runtimeSecret), false, `${runtimeSecret} remains a Cloudflare Worker Secret`);
+    assert.equal(
+      aiGateway.has(runtimeSecret),
+      false,
+      `${runtimeSecret} remains a Cloudflare Worker Secret`
+    );
   }
   await assert.rejects(
     () =>
