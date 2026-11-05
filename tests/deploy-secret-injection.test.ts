@@ -155,9 +155,9 @@ test("the deploy workflow has one-secret collector steps and no broad Secrets co
     const source = step.name?.replace("Collect scoped deploy Secret ", "") ?? "";
     actual.add(source);
     assert.deepEqual(Object.keys(step.env ?? {}), ["AW_DEPLOY_SECRET_VALUE"]);
-    assert.equal(step.env?.AW_DEPLOY_SECRET_VALUE, \`\${{ secrets.\${source} }}\`);
+    assert.equal(step.env?.AW_DEPLOY_SECRET_VALUE, "${{ secrets." + source + " }}");
     assert.match(step.if ?? "", /steps\.secret_plan\.outputs\.inject_sources/);
-    assert.equal(step.run, \`node control/scripts/write-deploy-secret.ts \${source}\`);
+    assert.equal(step.run, "node control/scripts/write-deploy-secret.ts " + source);
   }
   assert.deepEqual([...actual].sort(), [...expected].sort());
   const sourceText = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
