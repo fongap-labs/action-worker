@@ -63,16 +63,70 @@ const deployEnv = (extra) => ({
   AIG_AFFINITY_KV_ID: 'kv-id',
   ...extra,
 });
-const healthErrors = (env) => preflight(env).errors.filter((error) => error.includes('/health'));
+const deploymentHealthErrors = (env) => preflight(env).errors.filter((error) => error.includes('AIG_DEPLOY_HEALTH_KEY'));
 
-test('a deploy whose keys cannot read /health fails the preflight', () => {
-  const errors = healthErrors(deployEnv({ AIG_ACCESS_KEY_AIR: 'k' }));
+test('deployment preflight requires a dedicated health secret', () => {
+  const errors = deploymentHealthErrors(deployEnv({ AIG_ACCESS_KEY_AIR: 'k' }));
   assert.equal(errors.length, 1);
-  assert.match(errors[0], /AIG_DIAGNOSTICS_GROUPS allows MAX, ULTRA/);
+  assert.match(errors[0], /at least 32 characters/);
 });
 
-test('a deploy passes the preflight once one configured key may read /health', () => {
-  assert.deepEqual(healthErrors(deployEnv({ AIG_ACCESS_KEY_AIR: 'k', AIG_ACCESS_KEY_MAX: 'm' })), []);
-  assert.deepEqual(healthErrors(deployEnv({ AIG_ACCESS_KEY_AIR: 'k', AIG_DIAGNOSTICS_GROUPS: 'air' })), []);
-  assert.deepEqual(healthErrors(deployEnv({ AIG_ACCESS_KEY_AIR: 'k', AIG_DIAGNOSTICS_GROUPS: '*' })), []);
+test('deployment preflight accepts a dedicated health secret without changing user diagnostics groups', () => {
+  const env = deployEnv({
+    AIG_ACCESS_KEY_AIR: 'k',
+    AIG_DEPLOY_HEALTH_KEY: 'deployment-health-key-0123456789abcdef0123456789abcdef',
+    AIG_DIAGNOSTICS_GROUPS: 'MAX',
+  });
+  assert.deepEqual(deploymentHealthErrors(env), []);
+  assert.deepEqual(preflight(env).errors, []);
+});
+
+test('the dedicated deployment health key is restricted to health probes', async () => {
+  const deployKey = 'deployment-health-key-0123456789abcdef0123456789abcdef';
+  const env = makeEnv({
+    AIG_DEPLOY_HEALTH_KEY: deployKey,
+    AIG_DIAGNOSTICS_GROUPS: 'MAX',
+  });
+
+  const health = await get('/health', deployKey, env);
+  assert.equal(health.status, 200);
+
+  const metrics = await get('/metrics', deployKey, env);
+  assert.equal(metrics.status, 401);
+
+  const models = await get('/v1/models', deployKey, env);
+  assert.equal(models.status, 200);
+  assert.deepEqual((await models.json()).data, []);
+
+  const countTokens = (messages, extra = {}) =>
+    worker.fetch(
+      new Request('https://gateway.example.com/v1/messages/count_tokens', {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${deployKey}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({ model: 'gateway-health-check', messages, ...extra }),
+      }),
+      env,
+      {},
+    );
+
+  assert.equal((await countTokens([])).status, 200);
+  assert.equal((await countTokens([{ role: 'user', content: 'not a health probe' }])).status, 403);
+  assert.equal((await countTokens([], { system: 'not a health probe' })).status, 403);
+
+  const generation = await worker.fetch(
+    new Request('https://gateway.example.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${deployKey}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ model: 'Code-Max', messages: [{ role: 'user', content: 'no' }] }),
+    }),
+    env,
+    {},
+  );
+  assert.equal(generation.status, 401);
 });

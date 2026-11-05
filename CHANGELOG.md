@@ -7,9 +7,10 @@
 
 - 修复: MCP Hub 中央部署改为共享 production，并移除所有运行时业务密钥的部署授权。
 
-- 新增: 为 AI Gateway 私有推理中心划分独立受控部署产品、环境及最小密钥授权范围。
 - 新增: 允许 MCP Hub 部署按需接收独立的 Runtime 派发密钥。
-- 修复: AI Gateway 生产部署密钥白名单允许专用推理中心内部鉴权密钥，其他仓库仍禁止获取。
+- 修复: AI Gateway 生产部署密钥上限收敛为 Cloudflare 发布凭据与健康检查别名，Provider/Tier/OAuth/中心认证密钥不再进入部署作业。
+- 新增: 增加受保护的 ai-gateway-ops 工作流，支持 Cloudflare Worker Secret 名称盘点、单项更新与健康检查；更新失败即失败关闭。
+- 修复: 部署健康检查改用独立的 AIG_DEPLOY_HEALTH_KEY，不再把 AIG_ACCESS_KEY_AGENT 暴露给 production 部署作业。
 - 修复: 自动发布遇到待维护者审批的合成 PR 时继续限时等待，审批后重新触发中央门禁。
 - 修复: 私有任务在日志遮蔽后以事件内容恢复身份，使用不可逆项目指纹保持队列隔离。
 - 修复: 可信任务源校验注入签名密钥环，确保重跑 CI 后的证据仍按密码学校验。

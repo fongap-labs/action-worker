@@ -1,0 +1,166 @@
+name: 手动 · 管理网关密钥
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: 操作类型（inventory 仅盘点名称；put 更新单个 Cloudflare Worker Secret）
+        required: true
+        type: choice
+        options:
+          - inventory
+          - put
+        default: inventory
+      secret_name:
+        description: put 操作的目标密钥名称（只接受 AI Gateway 运行时密钥）
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-gateway-ops-secret-management
+  cancel-in-progress: false
+
+jobs:
+  manage:
+    if: github.ref == 'refs/heads/main'
+    name: Manage AI Gateway runtime secret
+    runs-on: ubuntu-24.04
+    environment: ai-gateway-ops
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      OPERATION: ${{ inputs.operation }}
+      SECRET_NAME: ${{ inputs.secret_name }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_OPS }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID_OPS }}
+    steps:
+      - name: Validate operation and protected environment
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || {
+            echo "::error::Missing ai-gateway-ops secret CLOUDFLARE_API_TOKEN_OPS; no production-token fallback."
+            exit 77
+          }
+          [[ "${CLOUDFLARE_ACCOUNT_ID:-}" =~ ^[a-f0-9]{32}$ ]] || {
+            echo "::error::Missing or invalid ai-gateway-ops variable CLOUDFLARE_ACCOUNT_ID_OPS."
+            exit 77
+          }
+          case "$OPERATION" in
+            inventory)
+              ;;
+            put)
+              [[ "$SECRET_NAME" =~ ^(AIG_DEPLOY_HEALTH_KEY|AIG_TOKEN_ENCRYPTION_KEY|AIG_(INFERENCE|GENERATION)_AUTH_KEY|AIG_ACCESS_KEY_(AIR|PRO|MAX|ULTRA|AGENT)|AIG_TIER[123]_CREDENTIALS_(0[1-9]|10))$ ]] || {
+                echo "::error::Secret name is outside the AI Gateway runtime secret allowlist."
+                exit 64
+              }
+              ;;
+            *)
+              echo "::error::Unsupported operation."
+              exit 64
+              ;;
+          esac
+
+      - name: Validate secret update inputs
+        if: inputs.operation == 'put'
+        shell: bash
+        env:
+          AIG_OPS_SECRET_VALUE: ${{ secrets.AIG_OPS_SECRET_VALUE }}
+          AIG_DEPLOY_HEALTH_KEY: ${{ secrets.AIG_DEPLOY_HEALTH_KEY }}
+          AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
+        run: |
+          set -Eeuo pipefail
+          [[ -n "${AIG_OPS_SECRET_VALUE:-}" ]] || {
+            echo "::error::Missing temporary ai-gateway-ops secret AIG_OPS_SECRET_VALUE; no workflow-input or token fallback."
+            exit 77
+          }
+          if [[ "$SECRET_NAME" == "AIG_DEPLOY_HEALTH_KEY" && "${#AIG_OPS_SECRET_VALUE}" -lt 32 ]]; then
+            echo "::error::AIG_DEPLOY_HEALTH_KEY must contain at least 32 characters."
+            exit 64
+          fi
+          [[ -n "${AIG_DEPLOY_HEALTH_KEY:-}" && "${AIG_PUBLIC_URL:-}" == https://* ]] || {
+            echo "::error::Missing health-check credential or HTTPS AIG_PUBLIC_URL; refusing secret mutation."
+            exit 77
+          }
+
+      - name: Prepare minimal Wrangler target
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          cat > "$RUNNER_TEMP/wrangler.jsonc" <<EOF
+          {
+            "name": "ai-gateway",
+            "account_id": "$CLOUDFLARE_ACCOUNT_ID",
+            "compatibility_date": "2026-08-06",
+            "main": "$RUNNER_TEMP/ops-placeholder.js"
+          }
+          EOF
+          printf '%s\n' 'export default { fetch() { return new Response("operations-only"); } };' > "$RUNNER_TEMP/ops-placeholder.js"
+          chmod 600 "$RUNNER_TEMP/wrangler.jsonc" "$RUNNER_TEMP/ops-placeholder.js"
+
+      - name: Inventory Cloudflare Worker Secret names
+        if: inputs.operation == 'inventory'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npx --yes wrangler@4.114.0 secret list --format json --config "$RUNNER_TEMP/wrangler.jsonc" > "$RUNNER_TEMP/worker-secrets.json"
+          jq -e 'type == "array" and all(.[]; (.name | type) == "string" and .type == "secret_text")' "$RUNNER_TEMP/worker-secrets.json" > /dev/null
+          echo "Cloudflare Worker Secret names (values are never returned):"
+          jq -r '.[].name' "$RUNNER_TEMP/worker-secrets.json" | LC_ALL=C sort
+          echo "Inventory completed; no secret values were read."
+
+      - name: Update one Cloudflare Worker Secret
+        if: inputs.operation == 'put'
+        shell: bash
+        env:
+          AIG_OPS_SECRET_VALUE: ${{ secrets.AIG_OPS_SECRET_VALUE }}
+          AIG_DEPLOY_HEALTH_KEY: ${{ secrets.AIG_DEPLOY_HEALTH_KEY }}
+          AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
+        run: |
+          set -Eeuo pipefail
+          # Wrangler reads the value from stdin. Never pass it as an argument or print it.
+          secret_value="$AIG_OPS_SECRET_VALUE"
+          unset AIG_OPS_SECRET_VALUE
+          printf '%s' "$secret_value" |
+            npx --yes wrangler@4.114.0 secret put "$SECRET_NAME" --config "$RUNNER_TEMP/wrangler.jsonc"
+          unset secret_value
+
+          npx --yes wrangler@4.114.0 secret list --format json --config "$RUNNER_TEMP/wrangler.jsonc" > "$RUNNER_TEMP/worker-secrets.json"
+          jq -e --arg name "$SECRET_NAME" 'any(.[]; .name == $name and .type == "secret_text")' "$RUNNER_TEMP/worker-secrets.json" > /dev/null || {
+            echo "::error::Cloudflare did not confirm the updated secret name. The Worker Secret may already have changed; no automatic secret rollback is available."
+            exit 1
+          }
+
+          healthy=false
+          for attempt in 1 2 3; do
+            if curl --silent --show-error --fail --max-time 15 \
+              -H "Authorization: Bearer $AIG_DEPLOY_HEALTH_KEY" \
+              "${AIG_PUBLIC_URL%/}/health" > "$RUNNER_TEMP/health.json" &&
+              jq -e '.ready == true and .nodes_usable == .nodes_total' "$RUNNER_TEMP/health.json" > /dev/null; then
+              healthy=true
+              break
+            fi
+            if [[ "$attempt" -lt 3 ]]; then sleep 5; fi
+          done
+          if [[ "$healthy" != "true" ]]; then
+            echo "::error::Runtime health check failed after secret update. Worker Secrets are not versioned with Worker code; no automatic rollback is possible. Restore the previous value through a separately approved put operation."
+            exit 1
+          fi
+          echo "Cloudflare runtime secret updated and Worker health verified. Secret value was not logged."
+
+      - name: Operations summary
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## AI Gateway secret operations"
+            echo
+            echo "- Operation: $OPERATION"
+            echo "- Worker: ai-gateway"
+            echo "- Secret value: never written to workflow output"
+            echo "- Result: ${{ job.status }}"
+          } >> "$GITHUB_STEP_SUMMARY"
