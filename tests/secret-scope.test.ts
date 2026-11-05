@@ -444,20 +444,22 @@ test("task aliases remain isolated and deploy selects scoped slots", async () =>
 
 test("AI Gateway operations workflow is protected and never accepts secret values as inputs", async () => {
   const workflow = await readFile(".github/workflows/ai-gateway-ops.yml", "utf8");
+  const handler = await readFile("scripts/ai-gateway-ops.ts", "utf8");
   assert.match(workflow, /environment: ai-gateway-ops/);
-  assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/);
+  assert.match(workflow, /if: github\\.ref == 'refs\\/heads\\/main'/);
   assert.match(workflow, /workflow_dispatch:/);
   assert.doesNotMatch(workflow, /repository_dispatch:/);
   assert.match(workflow, /CLOUDFLARE_API_TOKEN_OPS/);
   assert.match(workflow, /AIG_OPS_SECRET_VALUE/);
-  assert.match(workflow, /AIG_DEPLOY_HEALTH_KEY\|AIG_TOKEN_ENCRYPTION_KEY/);
-  assert.match(workflow, /AIG_DEPLOY_HEALTH_KEY must contain at least 32 URL-safe characters/);
-  assert.match(workflow, /secret_value="\$AIG_OPS_SECRET_VALUE"/);
-  assert.match(workflow, /unset AIG_OPS_SECRET_VALUE/);
-  assert.match(workflow, /printf '%s' "\$secret_value" \|/);
-  assert.match(workflow, /secret list --format json/);
-  assert.match(workflow, /no automatic rollback is possible/i);
-  assert.doesNotMatch(workflow, /wrangler[^\n]*rollback/);
-  assert.doesNotMatch(workflow, /echo[^\n]*\$AIG_OPS_SECRET_VALUE/);
-  assert.doesNotMatch(workflow, /secret_value:\s*\n\s*required:/i);
+  assert.match(workflow, /AIG_DEPLOY_HEALTH_KEY/);
+  assert.match(workflow, /node scripts\\/ai-gateway-ops\\.ts put/);
+  assert.match(workflow, /node scripts\\/ai-gateway-ops\\.ts inventory/);
+  assert.match(workflow, /persist-credentials: false/);
+  assert.doesNotMatch(workflow, /wrangler|ops-placeholder|deploy\\s+--config|rollback/);
+  assert.doesNotMatch(workflow, /echo[^\\n]*\\$AIG_OPS_SECRET_VALUE/);
+  assert.doesNotMatch(workflow, /secret_value:\\s*\\n\\s*required:/i);
+  assert.match(handler, /PUT/);
+  assert.match(handler, /workers\\/scripts\\//);
+  assert.match(handler, /Content-Type/);
+  assert.doesNotMatch(handler, /spawn|exec|child_process|wrangler/);
 });
