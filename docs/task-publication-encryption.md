@@ -14,7 +14,7 @@ node -e "const fs=require('node:fs');console.log(fs.readFileSync('publication-pu
 
 以上命令会生成 PEM 格式私钥，以及 DER 格式公钥；最后一条命令输出公钥的 Base64 字符串。
 
-## 二、正确配置 GitHub
+## 二、配置密钥
 
 **私钥**：打开 `action-worker → Settings → Environments → admin-ops → Environment secrets`，创建 `AW_PUBLICATION_PRIVATE_KEY`。填写完整 PEM 文本，保留 `BEGIN PRIVATE KEY` 和 `END PRIVATE KEY` 标记。
 
@@ -24,7 +24,7 @@ node -e "const fs=require('node:fs');console.log(fs.readFileSync('publication-pu
 
 确保 `admin-ops` 设置了合理的分支限制和必要审核人员。临时私钥文件应按照组织密钥保管规范保护并在配置结束后安全清理。
 
-## 三、GitHub App 最小权限
+## 三、最小权限
 
 - 发布目标仓库需要 `Contents: write`、`Pull requests: write`。
 - `action-worker` 控制仓库需要 `Contents: write`，用于发送 `run-intake`。

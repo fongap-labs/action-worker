@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
@@ -81,25 +81,67 @@ export function summarizeFindings(findings: unknown, isTargetPublic: boolean): S
 
 class CannotRun extends Error {}
 
+export function downloadFailureReason(
+  exitCode: number | null,
+  signal: NodeJS.Signals | null,
+  error: NodeJS.ErrnoException | undefined,
+  httpStatus: string
+): string {
+  if (error?.code === "ENOENT") return "curl executable not found";
+  if (error?.code === "ETIMEDOUT") return "download timed out";
+  if (signal) return "download process terminated by a signal";
+  if (/^[45]\d{2}$/.test(httpStatus)) return `download returned HTTP ${httpStatus}`;
+  if (exitCode !== 0) return `download process failed with code ${exitCode ?? "unknown"}`;
+  return "download did not return HTTP 200";
+}
+
 async function download(directory: string): Promise<string> {
   if (process.platform !== "linux" || process.arch !== "x64") {
     throw new CannotRun("unsupported platform");
   }
   const archive = `gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz`;
   const url = `https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}`;
-  let bytes: Buffer;
-  try {
-    const response = await fetch(url, { redirect: "follow" });
-    if (!response.ok) throw new Error(String(response.status));
-    bytes = Buffer.from(await response.arrayBuffer());
-  } catch {
-    throw new CannotRun("download failed");
+  const path = join(directory, archive);
+  // GitHub release assets redirect to release-assets.githubusercontent.com. curl follows that
+  // redirect explicitly and retries transient network/5xx failures; no unverified binary is run.
+  const downloaded = spawnSync(
+    "curl",
+    [
+      "--fail",
+      "--location",
+      "--silent",
+      "--show-error",
+      "--retry",
+      "3",
+      "--retry-all-errors",
+      "--retry-delay",
+      "1",
+      "--connect-timeout",
+      "15",
+      "--max-time",
+      "180",
+      "--max-filesize",
+      "20000000",
+      "--proto",
+      "=https",
+      "--output",
+      path,
+      "--write-out",
+      "%{http_code}",
+      url,
+    ],
+    { encoding: "utf8", timeout: 190_000, maxBuffer: 1024 * 1024 }
+  );
+  const httpStatus = (downloaded.stdout ?? "").trim();
+  if (downloaded.error || downloaded.status !== 0 || httpStatus !== "200") {
+    throw new CannotRun(
+      downloadFailureReason(downloaded.status, downloaded.signal, downloaded.error, httpStatus)
+    );
   }
+  const bytes = await readFile(path);
   if (createHash("sha256").update(bytes).digest("hex") !== GITLEAKS_LINUX_X64_SHA256) {
     throw new CannotRun("checksum of the gitleaks archive does not match the pinned value");
   }
-  const path = join(directory, archive);
-  await writeFile(path, bytes);
   const unpacked = spawnSync("tar", ["-xzf", path, "-C", directory, "gitleaks"], {
     encoding: "utf8",
   });

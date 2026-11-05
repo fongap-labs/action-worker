@@ -1,4 +1,4 @@
-# 提案 AW-002：使用 GitHub Environments 隔离部署与任务密钥
+# 提案：部署与任务密钥隔离
 
 状态：**部署路径已实施**（PR "let the control plane decide deploy environments and secret ceilings"：中央环境与密钥策略、只读检出令牌、为使用管理员令牌的作业设置 `admin-ops`）。**任务路径保持现状（方案 A）**；方案 B 与 C 在部署演练之后仍可选用。**仍需 owner 手动完成：** 一次演练部署、将 `AW_DEPLOY_SECRET_POLICY_MODE` 切换为 `enforce`、把密钥复制到各环境，然后删除仓库级副本。
 
@@ -34,16 +34,16 @@
 - GitHub Free：环境密钥与部署分支策略适用于公开仓库；Free 套餐的私有仓库能否使用环境保护规则**未经验证**（本次会话无法获取文档）。部署环境位于公开的 `action-worker` 仓库中，因此这不构成阻碍，但私有仓库上的必需审批人将无法使用。
 - `repository_dispatch` 作业始终运行在默认分支上，因此"仅 main"在构造上已满足；策略仍然会约束从其他分支手动发起的 `workflow_dispatch` 运行。
 
-## 计划约束（owner，2026-10-07）
+## 计划约束
 
 组织保持在 Free 套餐，私有仓库保持私有。本设计不受影响：环境（`production`、`admin-ops` 以及任何 `tasks-<repo>`）属于**公开**的 `action-worker` 仓库，在 Free 套餐下该仓库可以使用环境密钥与仅 main 的部署分支策略。私有仓库只作为部署与任务的*源*出现；不需要在其中做任何配置。
 
-## Owner 手动步骤
+## 维护者 手动步骤
 
 1. 批准或修改本设计（尤其是第 6 项）。
 2. 实施合并后：在环境中创建同名密钥（P-00 C2），对 ai-gateway 执行一次 `workflow_dispatch` 部署作为健康检查演练，然后才删除仓库级副本（P-00 C3）。我不会删除任何密钥。
 3. 确认所有目标仓库的 `AW_CHECKOUT_TOKEN` 均为只读（Contents: read）。
 
-## 批准后的实施计划（第二阶段）
+## 批准后的实施计划
 
 新增策略文件与校验器，并附带测试；在 `validate-deploy-source.ts` 中加入环境检查；接通拒绝名称参数；替换检出令牌；扩展不变量测试；更新文档与 CHANGELOG。验收标准：`npm run check` 通过，并新增"未授权环境失败"与"目标声明超出中央列表则失败"两项测试。

@@ -11,7 +11,7 @@ const run = promisify(execFile);
 const machineRead = [/^CLAUDE\.md$/, /^AGENTS\.md$/, /^skills\//];
 // Test packs hold product fixtures of the managed repositories, not Action Worker documentation.
 const productFixtures = /^tests\/packs\//;
-const changelog = /^(?:CHANGELOG\.md|changelog\.d\/[^/]+\.md)$/;
+const changelog = /^CHANGELOG\.md$/;
 // Chinese localization files are retired: the Chinese document is the only human-facing version.
 const localization = /\.zh-CN\.md$/;
 
@@ -55,4 +55,78 @@ test("no Chinese localization copies are kept beside the Chinese documents", asy
     [],
     "Chinese documents have one authoritative file, not a localization copy"
   );
+});
+
+test("human governance documents use Chinese-only headings", async () => {
+  const violations: string[] = [];
+  const paths = (await trackedMarkdown()).filter(
+    (path) =>
+      path.startsWith("docs/") || ["README.md", "SECURITY.md", "CONTRIBUTING.md"].includes(path)
+  );
+  for (const path of paths) {
+    const lines = (await readFile(path, "utf8")).split("\n");
+    let inFence = false;
+    lines.forEach((line, index) => {
+      if (line.trimStart().startsWith("```")) {
+        inFence = !inFence;
+        return;
+      }
+      if (inFence || !/^#{1,3} /.test(line)) return;
+      const normalized = line.replace(/^#{1,3} (?:\d+(?:\.\d+)*\.\s*)?/, "");
+      if (!/\p{Script=Han}/u.test(normalized) || /[A-Za-z]/.test(normalized)) {
+        violations.push(`${path}:${index + 1}: ${line}`);
+      }
+    });
+  }
+  assert.deepEqual(violations, [], "all governance titles and headings must be Chinese");
+});
+
+test("authoritative governance rules use short Chinese sentences and paired examples", async () => {
+  const files = [
+    "docs/00_GOVERNANCE_OVERVIEW.md",
+    "docs/01_SHARED_GOVERNANCE.md",
+    "docs/02_REPOSITORY_GOVERNANCE.md",
+    "docs/03_NAMING_CONVENTIONS.md",
+    "docs/04_CHANGELOG_CONVENTIONS.md",
+    "docs/05_INTEGRATION_GUIDE.md",
+    "docs/GOVERNANCE_CHANGE_CHECKLIST.md",
+  ];
+  const violations: string[] = [];
+  for (const path of files) {
+    const lines = (await readFile(path, "utf8")).split("\n");
+    let fenced = false;
+    let chapter = "";
+    let body: string[] = [];
+    const verify = () => {
+      if (!chapter) return;
+      const first = body.find((line) => line.trim() !== "");
+      if (!first || [...first].length > 20 || !containsHan(first)) {
+        violations.push(`${path}: ${chapter}: summary must be Chinese and at most 20 characters`);
+      }
+      const wrong = body.indexOf("### ❌ 错误做法 / 反面教材");
+      const right = body.indexOf("### ✅ 正确做法 / 规范范例");
+      if (
+        wrong < 0 ||
+        right <= wrong ||
+        !body.slice(wrong + 1, right).some((line) => line.startsWith("```")) ||
+        !body.slice(right + 1).some((line) => line.startsWith("```"))
+      ) {
+        violations.push(`${path}: ${chapter}: missing contrasting code examples`);
+      }
+    };
+    for (const line of lines) {
+      if (line.startsWith("```")) {
+        fenced = !fenced;
+      }
+      if (!fenced && /^## \d+\. /.test(line)) {
+        verify();
+        chapter = line;
+        body = [];
+      } else if (chapter) {
+        body.push(line);
+      }
+    }
+    verify();
+  }
+  assert.deepEqual(violations, []);
 });

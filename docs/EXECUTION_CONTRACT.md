@@ -61,7 +61,7 @@ Gate / Publish / Deploy / Status（门禁 / 发布 / 部署 / 状态）
 
 业务仓库可以声明执行需求，但不得声明中央凭据，也不得为自己授予权限。AI Review 只提供发现与建议；它不属于能力授予、CI 门禁或合并门禁。
 
-## 4. Action Worker 负责的内容
+## 4. 中央工作器 负责的内容
 
 Action Worker 负责：
 
@@ -208,7 +208,7 @@ GitHub 仓库事件
 
 因此，当一个私有仓库的 Actions 分钟数耗尽时，PR Governance、CI、Release 与 Deploy 在长期架构中都不应停止。
 
-## 10. main 来源要求
+## 10. 主分支 来源要求
 
 任何面向正式环境或正式分发的操作，都必须校验其源 SHA 的 Main Write Guard。
 

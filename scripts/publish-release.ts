@@ -52,7 +52,7 @@ type ReleaseManifest = {
   release_name?: string;
   release_notes?: string;
   // The release's own changelog entries. A release that carries them owns them: it does not
-  // consume the shared [Unreleased] section or the fragments of other releases.
+  // consume the shared [Unreleased] entries of other releases.
   changelog_entries?: string[];
   prerelease?: boolean;
   assets: ReleaseAsset[];
@@ -235,7 +235,7 @@ async function waitForCompletedRun(
   );
 }
 
-// The changelog file and fragment directory come from the control repository's release policy,
+// The changelog file and categories come from the control repository's release policy,
 // the same policy the change record validator enforces.
 async function readReleasePolicy(): Promise<ReleasePolicy> {
   const value = await readJson(
@@ -244,14 +244,12 @@ async function readReleasePolicy(): Promise<ReleasePolicy> {
   if (
     !isJsonRecord(value) ||
     typeof value.changelog_file !== "string" ||
-    typeof value.changelog_fragment_dir !== "string" ||
     !Array.isArray(value.changelog_categories)
   ) {
     throw new CliError("::error::Invalid release policy for the changelog release.", 65);
   }
   return {
     changelog_file: value.changelog_file,
-    changelog_fragment_dir: value.changelog_fragment_dir,
     changelog_categories: value.changelog_categories.filter(
       (item): item is string => typeof item === "string"
     ),

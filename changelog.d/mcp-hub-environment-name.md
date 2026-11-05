@@ -1,1 +1,0 @@
-- 修复: 对齐 MCP Hub 在 Action Worker 的部署环境名称，统一使用 mcp-hub。

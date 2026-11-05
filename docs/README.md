@@ -27,11 +27,11 @@ Action Worker 保存三类文档：
 | [TERMINOLOGY.md](TERMINOLOGY.md) | 核心概念与配置类型词的统一术语 |
 | [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md) | 通用开发、验证、PR 与合并规则 |
 
-## Agent Skills
+## 智能体技能
 
 可复用 Agent 执行行为的权威来源位于 [`skills/`](../skills/README.md)。Skill 只定义执行流程，不得覆盖机器合同、策略或规则。
 
-## Action Worker 专属文档
+## 中央工作器 专属文档
 
 | 文档 | 用途 |
 |---|---|

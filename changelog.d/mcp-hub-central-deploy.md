@@ -1,1 +1,0 @@
-- 修复: 将 MCP Hub 部署改为 Action Worker 统一执行，并在中央 staging 白名单声明运行时密钥。

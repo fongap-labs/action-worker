@@ -1,8 +1,8 @@
-# Runner 策略
+# 运行器策略
 
 本文件定义 Action Worker 的 Runner（运行器）抽象、Runner 选择与信任边界。
 
-## 1. Runner 归属
+## 1. 运行器 归属
 
 Runner 属于 Action Worker 执行平面，而不属于业务仓库。
 
@@ -16,7 +16,7 @@ Runner 属于 Action Worker 执行平面，而不属于业务仓库。
 
 Action Worker 从策略中解析实际的 Runner。
 
-## 2. Runner Profile
+## 2. 运行器配置
 
 Runner Profile 表达执行需求，而不是基础设施实例。
 
@@ -120,7 +120,7 @@ Runner 回退由中央策略决定。
 - 需要私有网络或生产密钥的部署，不得自动回退到普通的 GitHub 托管 Runner；
 - 架构不匹配时，绝不能通过模拟"成功"继续执行。
 
-## 7. Self-hosted 边界
+## 7. 自托管 边界
 
 自托管 Runner 是可替换的计算资源，不属于业务架构的一部分。
 
@@ -175,7 +175,7 @@ Deploy 再硬编码第三套
 
 > 替换 GitHub 托管 Runner、新增 self-hosted Runner，或迁移计算基础设施，都不需要修改业务仓库中的执行逻辑。
 
-## 11. 业务仓库桥接的 Runner 扩展
+## 11. 业务仓库桥接的 运行器 扩展
 
 业务仓库使用已批准的最薄桥接 `templates/bridge/notify-action-worker.yml`，使 PR 事件与 `main` 的 push 在约一分钟内到达 Action Worker。它运行在控制域中，只发送通知，既不检出也不执行任何 PR 代码。
 
@@ -211,7 +211,7 @@ gh variable set AW_DISPATCH_RUNS_ON --repo fongap-labs/<repo>   --body "$(node s
 - `403` 本身不能证明 Token 没有配置。若出现速率限制，应按 GitHub 返回的时间窗口处理；若为 `token-access-denied`，需检查目标 `action-worker` 的授权、Token 有效性及组织审批。
 - 分发桥接模板受 SHA-256 白名单约束。先更新中央模板及 `policies/security.json` 并通过治理；再以模板完整内容更新各业务仓库的 `.github/workflows/notify-action-worker.yml`。不得临时绕过安全白名单。
 
-## 12. Release 构建脚本与可移植产物
+## 12. 发布 构建脚本与可移植产物
 
 发布清单可指定 PowerShell `*.ps1`（保留 Windows 原生程序的现有方式）或 Node `*.mjs`（推荐纯 JavaScript/TypeScript 插件）。后者由 Action Worker 在所选 Runner 中通过 Node 执行，参数为 `--target`、`--version`、`--output-dir`。
 

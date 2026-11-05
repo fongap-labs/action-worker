@@ -55,7 +55,7 @@
 | 日志报错 | 处理 |
 |----------|------|
 | `PR title must use type(scope)!: summary format` | 改成 `fix(deploy): retry the health check` 格式；报错列出允许类型 |
-| `Invalid CHANGELOG entry` / `CHANGELOG uses unsupported category` / `must be Chinese text` | CHANGELOG 写成 `- 修复: 中文摘要`，类别取自六类，摘要用中文（见 `04_CHANGELOG_CONVENTIONS.md` §5） |
+| `Invalid CHANGELOG entry` / `CHANGELOG uses unsupported category` / `must be Chinese text` | CHANGELOG 写成 `- 修复: 中文摘要`，类别仅为新增、修复、维护，摘要用中文（见 `04_CHANGELOG_CONVENTIONS.md` §5） |
 | `Attribution check failed` | 作者/提交者/trailer/署名行出现 AI 名称。改成自己的 GitHub 账号，重写提交，强制推送 |
 
 ---
@@ -75,13 +75,13 @@
 
 tag 只在 Release 校验通过并正式发布时才出现；任何更早的失败都不会留下正式 tag。
 
-- 版本小节由中央依据目标仓库的 `CHANGELOG.md` 与 `changelog.d/` 条目文件生成，经 PR 合入后才打 tag。发布 PR 只能改 `CHANGELOG.md` 并删除已汇总的条目文件，校验器会从基线重新计算，内容不一致即拒绝。
+- 版本小节仅根据目标仓库的 `CHANGELOG.md` 生成；发布 PR 仅改此文件，中央从基线重新计算并校验。
 - 版本说明：产品清单的 `release_notes` 非空时使用它；为空时使用本次版本小节。提交跨度清单不再作为版本说明来源。
-- 没有条目文件也没有未发布条目的仓库无法发布，会以 `No CHANGELOG entries to release` 失败。
+- 没有未发布条目的仓库无法发布，会以 `No CHANGELOG entries to release` 失败。
 - 发布 PR 等待门禁的时间计入发布时限（默认 30 分钟）。门禁失败时 PR 保持开放，重跑会复用它，不会新开。
 
 - 业务仓库保留构建/打包脚本，在 `.github/release.manifest.json`（单产品）或 `projects/<产品>/release.manifest.json`（多产品）声明构建目标、产物、`runner_profile`
-- Manifest **不含版本**；版本仅来自发布启动时手动输入
+- Manifest **不含版本**；版本来自发布请求，留空时由三类提交计算
 - 项目构建脚本必填 `-Version` 参数，将版本写入构建产物并校验
 
 ### 4.1 多产品发布
@@ -113,7 +113,7 @@ tag 只在 Release 校验通过并正式发布时才出现；任何更早的失�
 
 ---
 
-### 4.2 补发已有 Release 到 npm
+### 4.2 补发已有版本到包管理仓库
 
 如果 Release Governance 已成功创建 GitHub Release，但 npm 发布因认证配置失败，可从 Actions → `手动 · 补发 npm 包` 重新发布既有产物。输入目标仓库与 Release 标签，例如：
 

@@ -1,6 +1,6 @@
 <div align="center">
 
-# Action Worker
+# 中央自动化工作器
 
 Fongap Labs 的中央 GitHub 自动化控制平面统一负责任务分发、PR 治理、AI 审查、发布治理与部署治理。
 
@@ -114,7 +114,7 @@ flowchart LR
 
 > ⚠️ **模板安全提示**：标准模板使用 `pull_request_target` 触发器且**不 checkout PR 代码**、**不执行 PR 任何脚本**。请**严格保持模板逐字节一致**；任何修改都会引入供应链风险。Fork 来源的 PR **不会**触发此工作流（安全设计）。
 
-## 进阶：Action Worker 如何工作
+## 进阶：中央工作器 如何工作
 
 ```mermaid
 flowchart TB
