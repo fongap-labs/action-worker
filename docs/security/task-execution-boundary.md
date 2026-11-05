@@ -35,7 +35,7 @@ validate (trusted, read-only)
           execute fixed central publisher only
 ```
 
-## 跨 Runner 密钥边界
+## 跨执行环境密钥边界
 
 必须为入站和出站传输采用**不同的 RSA-3072 或更强密钥对**，不得复用任务发布密钥：
 
