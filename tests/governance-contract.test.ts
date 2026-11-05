@@ -326,7 +326,7 @@ test("runtime and machine policies preserve trust boundaries", async () => {
   const release = await json("policies/release.json");
   assert.equal(release.schema_version, 2);
   assert.deepEqual(release.change_attributes, ["breaking", "security", "migration"]);
-  assert.deepEqual(release.changelog_required_types, ["feat", "fix", "perf", "revert"]);
+  assert.deepEqual(release.changelog_required_types, ["feat", "fix"]);
   assert.equal(
     Object.keys(release).some((key) => key.endsWith("_repositories")),
     false
