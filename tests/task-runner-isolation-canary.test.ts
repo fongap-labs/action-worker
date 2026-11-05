@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -17,7 +17,10 @@ const attempt = "1";
 async function workspace() {
   const root = await mkdtemp(join(tmpdir(), "aw-runner-canary-"));
   await mkdir(join(root, "scripts"));
-  await writeFile(join(root, "scripts/task-transfer-envelope.ts"), "export const trusted = true;\n");
+  await writeFile(
+    join(root, "scripts/task-transfer-envelope.ts"),
+    "export const trusted = true;\n"
+  );
   return root;
 }
 
@@ -33,9 +36,14 @@ test("synthetic execution changes only its workspace and a clean checkout valida
       /CANARY_UNTRUSTED_WORKSPACE_MUTATION/
     );
     await finalizeCanary(clean, preparation, result, runId, attempt);
-    await assert.rejects(finalizeCanary(untrusted, preparation, result, runId, attempt), /poisoned/);
+    await assert.rejects(
+      finalizeCanary(untrusted, preparation, result, runId, attempt),
+      /poisoned/
+    );
   } finally {
-    await Promise.all([trusted, untrusted, clean].map((root) => rm(root, { recursive: true, force: true })));
+    await Promise.all(
+      [trusted, untrusted, clean].map((root) => rm(root, { recursive: true, force: true }))
+    );
   }
 });
 
