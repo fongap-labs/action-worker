@@ -8,7 +8,7 @@
 
 ---
 
-## 1. 核心原则
+## 1. 核心原则（Core Principles）
 
 1. 新增自有外部配置与普通工程文件，**必须采用三个语义段**。
 2. 三段无法准确表达稳定用途、模块或类型时，**允许第四段**；不得增加第五段。
@@ -83,7 +83,7 @@ function restoreSessionState() {}
 
 ---
 
-## 5. 缩写与迁移
+## 5. 缩写与迁移（Abbreviations and Migration）
 
 - 行业通用缩写可直接使用；系统缩写唯一来源为 `TERMINOLOGY.md`。
 - 新凭据以 `TOKEN` 或 `KEY` 表示类型，不使用 `PAT`（第三方原生字段除外）。
@@ -92,7 +92,7 @@ function restoreSessionState() {}
 
 ---
 
-## 6. CI 校验边界（Validation）
+## 6. CI 校验边界（CI Validation）
 
 本文件定义**目标规范**；当前 CI 的实现范围必须如实区分：
 
@@ -102,7 +102,7 @@ function restoreSessionState() {}
 
 ---
 
-## 7. 仅适用于 Action Worker
+## 7. 仅适用于 Action Worker（Action Worker Only）
 
 Action Worker 是通用治理与执行平面。稳定权威位于：
 
@@ -135,7 +135,7 @@ Action Worker CI 强制执行自身文件名与架构限制。业务仓库可增
 
 ---
 
-## 8. 工作流文件名（仅 Action Worker）
+## 8. 工作流文件名（Workflow Filenames）
 
 现行校验要求工作流与 Shell 文件名最多三个 kebab-case 段；新增文件应优先采用完整的三段式（`scripts/validate-naming-rules.ts` 与 `scripts/validate-source-naming.py` 在每个受管仓库强制执行）。`tests/workflow-naming.test.ts` 为 Action Worker 自身工作流检查以下规则：
 
