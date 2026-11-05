@@ -177,8 +177,33 @@ Schema 2 示例：
 密钥按部署键授权：
 - 多产品键 = `owner/name/product`，单产品 = `owner/name`
 - `production` 可由多个获授权产品共用，按部署键独立执行密钥白名单；其他 Environment 不得跨产品复用
-- 产品只拿自己条目授权的密钥
-- 可选部署密钥须同时出现在中央策略的 `allowed` 和源仓库的 `deploy.secrets.allowed`；环境未配置该密钥时仍可部署。MCP Hub 的 `production` 只授予 Cloudflare 部署凭据，不允许任何 `MCP_*` 运行时密钥。
+- 产品只拿自己条目授权的密钥。
+- 部署工作流不注入整个 `secrets` 上下文；中央先解析仓库、环境、产品和源清单，再通过动态密钥名只读取一个产品密钥包。
+- 密钥包存放在 `fongap-labs/action-worker` 的 `production` Environment，JSON 键使用中央策略中的存储来源名称；不得包含其他产品的密钥或未授权键。
+- `variable_sources` 标明别名来源属于 Repository Variable（如 `CLOUDFLARE_ACCOUNT_ID_SECONDARY`），该变量不放入密钥包。
+- 密钥包中的值先逐项注册日志遮蔽，再按源清单和中央白名单提取；临时文件目录权限为 `0700`、文件权限为 `0600`，启动源脚本前删除。
+
+密钥包名称：
+
+| 产品 | `production` Environment Secret |
+| --- | --- |
+| AI Gateway | `AW_DEPLOY_SECRET_BUNDLE_AI_GATEWAY` |
+| Server Edge | `AW_DEPLOY_SECRET_BUNDLE_SERVER_EDGE` |
+| MCP Hub | `AW_DEPLOY_SECRET_BUNDLE_MCP_HUB` |
+
+配置范例（仅示意，尖括号内容须替换为现有密钥值）：
+
+```json
+{
+  "CLOUDFLARE_API_TOKEN_SECONDARY": "<现有 Cloudflare Token>"
+}
+```
+
+- AI Gateway 密钥包须包含其源清单授权的 Secret 来源；`CLOUDFLARE_ACCOUNT_ID_SECONDARY` 是 Repository Variable，禁止放入密钥包。
+- Server Edge 密钥包按中央策略包含四项已授权 Secret；MCP Hub 密钥包只包含 `CLOUDFLARE_API_TOKEN_SECONDARY`。
+- 每个密钥包最大 48 KiB；缺少必需项、包含未授权键或 JSON 格式错误时，部署失败关闭。
+- 配置新密钥包前不删除原有独立 Secret；三个产品均完成部署验收且确认没有其他工作流引用后，才可评估清理旧密钥。
+- 可选部署密钥须同时出现在中央策略的 `allowed` 和源仓库的 `deploy.secrets.allowed`；环境未配置该密钥时仍可部署。MCP Hub 的 `production` 不允许任何 `MCP_*` 运行时密钥。
 
 并发两层：
 - 流水线组：`source-script-deploy-pipeline-<仓库>-<产品>-<环境>`（输入决定，防重复启动）

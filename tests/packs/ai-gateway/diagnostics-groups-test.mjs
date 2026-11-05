@@ -129,4 +129,23 @@ test('the dedicated deployment health key is restricted to health probes', async
     {},
   );
   assert.equal(generation.status, 401);
+
+  const reusedEnv = makeEnv({
+    AIG_DEPLOY_HEALTH_KEY: deployKey,
+    AIG_ACCESS_KEY_AGENT: deployKey,
+    AIG_ACCESS_MODELS_AGENT: '*',
+  });
+  const reusedGeneration = await worker.fetch(
+    new Request('https://gateway.example.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${deployKey}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ model: 'Code-Max', messages: [{ role: 'user', content: 'no' }] }),
+    }),
+    reusedEnv,
+    {},
+  );
+  assert.equal(reusedGeneration.status, 401);
 });

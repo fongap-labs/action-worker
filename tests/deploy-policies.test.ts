@@ -337,7 +337,13 @@ test("MCP Hub production deploy passes only the Cloudflare credential", async ()
 
 // --- workflow invariants -------------------------------------------------------------------------
 
-type Step = { name?: string; env?: unknown; with?: Record<string, unknown>; run?: string };
+type Step = {
+  name?: string;
+  if?: string;
+  env?: unknown;
+  with?: Record<string, unknown>;
+  run?: string;
+};
 type Job = { environment?: unknown; steps?: Step[] };
 type Workflow = { jobs: Record<string, Job> };
 
@@ -369,15 +375,28 @@ test("the deploy job names no central write credential and checks out with the r
   assert.match(String(deploy.environment), /needs\.prepare\.outputs\.environment/);
 });
 
-test("the deploy entrypoint step applies the central deploy secret policy", async () => {
+test("the deploy workflow dynamically selects one product-scoped Secret bundle", async () => {
   const deploy = (await workflow("deploy-source-script.yml")).jobs.deploy;
-  const step = deploy?.steps?.find(
+  const plan = deploy?.steps?.find((item) => item.name === "Resolve deploy Secret plan");
+  const stage = deploy?.steps?.find(
+    (item) => item.name === "Stage selected product deployment Secret bundle"
+  );
+  const execute = deploy?.steps?.find(
     (item) => item.name === "Execute source-owned deploy entrypoint"
   );
-  const run = step?.run ?? "";
-  assert.match(run, /policies\/deploy-secrets\.json/);
-  assert.match(run, /"\$DEPLOY_SOURCE_REPOSITORY" "\$DEPLOY_ENVIRONMENT" deploy/);
-  assert.match(run, /AW_CHECKOUT_TOKEN/);
+  assert.match(plan?.run ?? "", /resolve-deploy-secret-plan\.ts/);
+  assert.match(plan?.run ?? "", /policies\/deploy-secrets\.json/);
+  assert.match(execute?.run ?? "", /run-scoped-deploy\.ts/);
+  assert.equal(execute?.env, undefined);
+  const stageEnv = stage?.env as Record<string, string> | undefined;
+  assert.deepEqual(Object.keys(stageEnv ?? {}), ["AW_DEPLOY_SECRET_BUNDLE"]);
+  assert.equal(
+    stageEnv?.AW_DEPLOY_SECRET_BUNDLE,
+    "$" + "{{ secrets[steps.secret_plan.outputs.bundle_secret_name] }}"
+  );
+  assert.equal(stage?.run, "node control/scripts/stage-deploy-secret-bundle.ts");
+  const sourceText = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
+  assert.equal(sourceText.includes("env: $" + "{{ secrets }}"), false);
 });
 
 test("the prepare job validates the environment against the central policy file", async () => {
@@ -704,13 +723,12 @@ test("the deploy job group never collides with its own pipeline group", async ()
   assert.equal(rootGroup, "source-script-deploy-fongap-labs/example-production");
 });
 
-test("the deploy workflow passes the product to the secret scope and the trigger to the entrypoint", async () => {
+test("the deploy workflow resolves product bundle policy and passes the trigger to the entrypoint", async () => {
   const deploy = (await workflow("deploy-source-script.yml")).jobs.deploy;
   const text = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
-  assert.match(
-    text,
-    /"\$DEPLOY_SOURCE_REPOSITORY" "\$DEPLOY_ENVIRONMENT" deploy "\$DEPLOY_PRODUCT"/
-  );
+  assert.match(text, /"\$DEPLOY_SOURCE_REPOSITORY" "\$DEPLOY_ENVIRONMENT" "\$DEPLOY_PRODUCT"/);
+  assert.match(text, /resolve-deploy-secret-plan\.ts/);
+  assert.match(text, /bundle_secret_name/);
   assert.match(text, /target\/\$\{DEPLOY_PRODUCT_DIRECTORY\}\/deploy\.secrets\.required/);
   assert.match(text, /DEPLOY_TRIGGER: \$\{\{ needs\.prepare\.outputs\.trigger \}\}/);
   assert.match(text, /DEPLOY_PRODUCT: \$\{\{ needs\.prepare\.outputs\.product \}\}/);
