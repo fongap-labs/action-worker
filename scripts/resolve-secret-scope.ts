@@ -287,13 +287,9 @@ export async function resolveDeploySecretPlan(
   const required = await readNames(requiredPath);
   const optional = await readNames(allowedPath);
   const declared = new Set([...required, ...optional]);
-  const ceiling = await readDeploySecretCeiling(
-    policyPath,
-    repository,
-    environmentName,
-    product,
-    [...declared]
-  );
+  const ceiling = await readDeploySecretCeiling(policyPath, repository, environmentName, product, [
+    ...declared,
+  ]);
   const excess = [...declared].filter((name) => !ceiling.has(name)).sort();
   if (excess.length > 0) {
     throw new CliError(
