@@ -148,8 +148,8 @@ test("production keys perform a real encrypted artifact round-trip between clean
     false
   );
   assert.equal(
-    opener.steps.find((step) => step.name === "Prove request-binding rejection and decrypt")
-      ?.env?.AW_PUBLICATION_PRIVATE_KEY,
+    opener.steps.find((step) => step.name === "Prove request-binding rejection and decrypt")?.env
+      ?.AW_PUBLICATION_PRIVATE_KEY,
     "${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}"
   );
   assert.ok(source.includes("Ciphertext accepted a different request identity."));
