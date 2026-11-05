@@ -79,6 +79,14 @@ jobs:
           BOOTSTRAP_REF: ${{ steps.payload.outputs.bootstrap_ref }}
         run: node scripts/validate-task-source.ts "$REPOSITORY" "$BOOTSTRAP_REF"
 
+      - name: Preflight task Secret declarations and central ceiling
+        env:
+          AW_CONTROL_TOKEN: ${{ steps.task_read_app.outputs.token }}
+          TASK_SOURCE_REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PROJECT: ${{ steps.payload.outputs.project }}
+          BOOTSTRAP_REF: ${{ steps.payload.outputs.bootstrap_ref }}
+        run: node scripts/validate-task-secret-admission.ts
+
       - name: Resolve task source visibility
         id: visibility
         env:
