@@ -1,4 +1,4 @@
-# ORG-006 Ruleset 加固：Owner 决策简报
+# 分支保护决策简报
 
 > 配合提案 ORG-006《加固 main 分支 ruleset》。本文档汇总第二、三阶段的关键决策点，供 owner 拍板。
 
