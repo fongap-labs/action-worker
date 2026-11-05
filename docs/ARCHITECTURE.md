@@ -117,11 +117,11 @@ Action Worker 接收到任务后必须：
 
 `policies/execution.json` 定义了两个稳定的边界。
 
-### Control（控制域）
+### 控制域
 
 可以使用中央密钥（例如 AI Gateway 密钥），但不得执行 PR 代码。
 
-### Sandbox（沙箱）
+### 沙箱域
 
 可以执行 PR 代码、进行构建与测试，但绝不接收中央密钥或部署凭据。
 
@@ -315,7 +315,7 @@ rules/*.json
 
 这些文件保存审查范围、优先级、超时、恢复预算与规则；其中不包含模型名称。模型选择与治理规则不得成为两个权威。
 
-### 7.3 PR 治理中的 Agent
+### 7.3 合并请求中的智能体
 
 PR 计划首先做出确定性决定。只有当 `review` Agent 启用时，PR 才进入 AI Review。当 `review.enabled=false` 时，PR 仍然运行命名检查、CI Evidence、Change Record 与其他确定性门禁，并且绝不会因为 AI 不可靠而失败。
 
@@ -334,7 +334,7 @@ deep
 
 这些是审查路由，而不是全局的 Agent 类型。未来新增的审计类型（例如文档、合规或质量）只扩展审查路由及其规则，不引入新的全局模型变量。
 
-### 7.4 Writing 与其他 Agent
+### 7.4 写作与其他智能体
 
 Writing 与 Review 是同级的 Agent，而不是 Review 的一部分。Task Dispatch 把 Action Worker 的仓库变量作为运行时配置提供给可信的下游任务，因此 Writing Agent 读取同一份 `AW_AI_AGENT_CONFIG`，而不是维护第二套写作模型变量。
 
@@ -365,7 +365,7 @@ Planner、Critic、Research 与 Summary 等后续 Agent，遵循同样的原则�
 → 任务运行时只消费派生的模型值
 ```
 
-### 7.5 AI 端点与审查引擎
+### 7.5 模型端点与审查引擎
 
 Action Worker 只选择逻辑模型，并调用中央配置的兼容 AI 端点。它不保存供应商、密钥池、节点或模型族的回退。该端点目前可以由 AI Gateway 提供，但该产品并非 Action Worker 的架构依赖。
 
