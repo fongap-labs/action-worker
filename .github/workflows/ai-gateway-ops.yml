@@ -131,8 +131,7 @@ jobs:
 
           npx --yes wrangler@4.114.0 secret list --format json --config "$RUNNER_TEMP/wrangler.jsonc" > "$RUNNER_TEMP/worker-secrets.json"
           jq -e --arg name "$SECRET_NAME" 'any(.[]; .name == $name and .type == "secret_text")' "$RUNNER_TEMP/worker-secrets.json" > /dev/null || {
-            echo "::error::Cloudflare did not confirm the updated secret name."
-            npx --yes wrangler@4.114.0 rollback --config "$RUNNER_TEMP/wrangler.jsonc" || true
+            echo "::error::Cloudflare did not confirm the updated secret name. The Worker Secret may already have changed; no automatic secret rollback is available."
             exit 1
           }
 
@@ -148,8 +147,7 @@ jobs:
             if [[ "$attempt" -lt 3 ]]; then sleep 5; fi
           done
           if [[ "$healthy" != "true" ]]; then
-            echo "::error::Runtime health check failed after secret update; rolling back the previous Worker version."
-            npx --yes wrangler@4.114.0 rollback --config "$RUNNER_TEMP/wrangler.jsonc" || true
+            echo "::error::Runtime health check failed after secret update. Worker Secrets are not versioned with Worker code; no automatic rollback is possible. Restore the previous value through a separately approved put operation."
             exit 1
           fi
           echo "Cloudflare runtime secret updated and Worker health verified. Secret value was not logged."
