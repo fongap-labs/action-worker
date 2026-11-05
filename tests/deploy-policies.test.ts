@@ -693,10 +693,9 @@ test("the deploy job group never collides with its own pipeline group", async ()
 test("the deploy workflow resolves product bundle policy and passes the trigger to the entrypoint", async () => {
   const deploy = (await workflow("deploy-source-script.yml")).jobs.deploy;
   const text = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
-  assert.match(
-    text,
-    /"\$DEPLOY_SOURCE_REPOSITORY" "\$DEPLOY_ENVIRONMENT" deploy "\$DEPLOY_PRODUCT"/
-  );
+  assert.match(text, /"\$DEPLOY_SOURCE_REPOSITORY" "\$DEPLOY_ENVIRONMENT" "\$DEPLOY_PRODUCT"/);
+  assert.match(text, /resolve-deploy-secret-plan\.ts/);
+  assert.match(text, /bundle_secret_name/);
   assert.match(text, /target\/\$\{DEPLOY_PRODUCT_DIRECTORY\}\/deploy\.secrets\.required/);
   assert.match(text, /DEPLOY_TRIGGER: \$\{\{ needs\.prepare\.outputs\.trigger \}\}/);
   assert.match(text, /DEPLOY_PRODUCT: \$\{\{ needs\.prepare\.outputs\.product \}\}/);
