@@ -635,7 +635,7 @@ jobs:
 
           pr_number="$(gh pr list --repo "$TARGET_REPOSITORY" --head "$branch" --state open --json number --jq '.[0].number // empty')"
           if [ -z "$pr_number" ]; then
-              pr_title="chore: ${COMMIT_MESSAGE}"
+              pr_title="chore: ${COMMIT_MESSAGE#chore: }"
               if [ "$TASK_SOURCE_PRIVATE" = "false" ]; then
                   pr_body="Automated task publication from ${SOURCE_REPOSITORY} project ${PROJECT}. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
               else
