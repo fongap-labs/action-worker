@@ -45,7 +45,7 @@ export function assertChineseSummary(summary: string): void {
   }
 }
 
-// Parses the entry lines of one source (the [Unreleased] section or one changelog fragment).
+// Parses the entry lines of the [Unreleased] section.
 // Blank lines are skipped; any other line must be an entry in a permitted category.
 export function parseEntries(
   text: string,
@@ -121,10 +121,7 @@ export type ReleaseSectionOptions = {
   categories: readonly string[];
 };
 
-export type PromoteOptions = ReleaseSectionOptions & {
-  // Contents of the changelog fragments awaiting release, in the order they are assembled.
-  fragments?: readonly string[];
-};
+export type PromoteOptions = ReleaseSectionOptions;
 
 export type ScopedPromoteOptions = ReleaseSectionOptions & {
   // The release's own entries. A release that owns its entries takes nothing else.
@@ -149,7 +146,7 @@ function renderRelease(
   return release;
 }
 
-// Moves every [Unreleased] entry and every pending fragment entry into one released version
+// Moves every [Unreleased] entry into one released version
 // section. The version heading links to its GitHub Release, and the categories follow the order
 // in release.json.
 export function promoteUnreleased(content: string, options: PromoteOptions): string {
@@ -166,9 +163,6 @@ export function promoteUnreleased(content: string, options: PromoteOptions): str
   entries.push(
     ...parseEntries(lines.slice(start + 1, end).join("\n"), options.categories, "[Unreleased]")
   );
-  for (const fragment of options.fragments ?? []) {
-    entries.push(...parseEntries(fragment, options.categories, "changelog fragment"));
-  }
   if (entries.length === 0) {
     throw new CliError("::error::No CHANGELOG entries to release.", 65);
   }
@@ -183,7 +177,7 @@ export function promoteUnreleased(content: string, options: PromoteOptions): str
 }
 
 // Writes the version section of a release that owns its entries outright, such as a mirror of one
-// upstream file. Unlike promoteUnreleased, the [Unreleased] entries and the fragments stay where
+// upstream file. Unlike promoteUnreleased, the [Unreleased] entries stay where
 // they are: they belong to other releases, so this release never consumes them.
 export function promoteEntries(content: string, options: ScopedPromoteOptions): string {
   const lines = content.split("\n");
@@ -291,8 +285,6 @@ export function releaseSectionBody(content: string, releaseUrl: string): string 
 export type ReleaseChangeInput = {
   baseChangelog: string;
   headChangelog: string;
-  // Contents, at the base branch, of the fragments the release change removes.
-  removedFragments: readonly string[];
   categories: readonly string[];
 };
 
@@ -313,8 +305,7 @@ function addedReleaseHeading(baseChangelog: string, headChangelog: string): Rele
   return added[0] as ReleaseHeading;
 }
 
-// A release pull request is accepted only when it is exactly what promoting the removed fragments
-// and the unreleased entries produces. The version heading is read from the change itself, so
+// A release pull request is accepted only when it exactly promotes the base [Unreleased] entries. The version heading is read from the change itself, so
 // the check cannot be satisfied by anything other than the entries it claims to release.
 export function assertReleaseChange(input: ReleaseChangeInput): ReleaseHeading {
   const heading = addedReleaseHeading(input.baseChangelog, input.headChangelog);
@@ -323,11 +314,10 @@ export function assertReleaseChange(input: ReleaseChangeInput): ReleaseHeading {
     date: heading.date,
     releaseUrl: heading.releaseUrl,
     categories: input.categories,
-    fragments: input.removedFragments,
   });
   if (input.headChangelog.trimEnd() !== expected.trimEnd()) {
     throw new CliError(
-      "::error::The release change does not match the unreleased entries and the fragments it removes.",
+      "::error::The release change does not match the base [Unreleased] entries.",
       65
     );
   }
