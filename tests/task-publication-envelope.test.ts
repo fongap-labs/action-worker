@@ -332,7 +332,9 @@ test("task publication CLI seals in executor and opens on a separate clean publi
 test("private task publication masks target metadata before policy authorization", async () => {
   const source = await readFile("scripts/validate-task-publication.ts", "utf8");
   const mask = source.indexOf("console.log(`::add-mask::${escaped}`)");
-  const policy = source.indexOf('validateRepositoryCapability(sourceRepository, policy, "release-source")');
+  const policy = source.indexOf(
+    'validateRepositoryCapability(sourceRepository, policy, "release-source")'
+  );
   assert.ok(mask > 0 && mask < policy);
   assert.match(source, /manifest\.target_repository, manifest\.dest_dir, manifest\.commit_message/);
 });
