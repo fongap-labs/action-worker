@@ -113,7 +113,7 @@ tag 只在 Release 校验通过并正式发布时才出现；任何更早的失�
 
 ---
 
-### 4.2 补发已有 Release 到 npm
+### 4.2 补发已有版本到包管理仓库
 
 如果 Release Governance 已成功创建 GitHub Release，但 npm 发布因认证配置失败，可从 Actions → `手动 · 补发 npm 包` 重新发布既有产物。输入目标仓库与 Release 标签，例如：
 
