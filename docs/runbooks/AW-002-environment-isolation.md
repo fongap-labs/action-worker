@@ -57,6 +57,8 @@ Environment Secrets：
 
 `CLOUDFLARE_API_TOKEN_OPS` 不得复用 `CLOUDFLARE_API_TOKEN_SECONDARY`。不得将密钥值放进 workflow_dispatch 输入、命令参数、日志或产物。
 
+在 Action Worker 的 `production` Environment 中直接设置 `AIG_DEPLOY_HEALTH_KEY`，其值必须与 Cloudflare Worker Secret 同名值一致。它不是别名，不得复用 `AIG_ACCESS_KEY_AGENT` 或其他用户访问组密钥。
+
 在 Action Worker 的 `production` Environment 中直接设置 `AIG_DEPLOY_HEALTH_KEY`，其值必须与 Cloudflare Worker Secret 同名值一致。不得使用 `AIG_ACCESS_KEY_AGENT` 作为别名或复用任何用户访问组密钥。
 
 ## 首次核验与清理
