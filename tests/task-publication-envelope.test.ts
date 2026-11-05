@@ -196,9 +196,7 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
     assert.ok(!publishJob.includes(`needs.validate.outputs.${name}`));
   }
   assert.ok(source.includes("group: action-worker-${{ needs.validate.outputs.task_group }}"));
-  assert.ok(
-    executeJob.includes("repository: ${{ github.event.client_payload.repository }}")
-  );
+  assert.ok(executeJob.includes("repository: ${{ github.event.client_payload.repository }}"));
   assert.doesNotMatch(
     executeJob.split("    steps:")[0] ?? "",
     /REQUEST_ID:|BOOTSTRAP_REF:|TASK_SOURCE_REPOSITORY:|PROJECT:/
