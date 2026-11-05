@@ -180,6 +180,7 @@ Schema 2 示例：
 - 产品只拿自己条目授权的密钥
 - 部署工作流不再把整个 `${{ secrets }}` 集合注入执行步骤；中央先生成不含值的密钥计划，再按计划逐项读取单个 Secret。
 - 每个 Secret 收集步骤只接收一个明确的 `secrets.<名称>`；源部署入口由中央执行器构造子进程环境，只传递本次源清单声明且中央授权的密钥。
+- Secret 值仅暂存于 Runner 临时目录中的独立文件，目录权限为 `0700`、文件权限为 `0600`；中央执行器在启动源脚本前删除暂存文件。
 - `variable_sources` 用于标明别名来源属于 Repository Variable（如 `CLOUDFLARE_ACCOUNT_ID_SECONDARY`），不进入 Secret 收集步骤；别名源名称不会传给源部署脚本。
 - 可选部署密钥须同时出现在中央策略的 `allowed` 和源仓库的 `deploy.secrets.allowed`；环境未配置该密钥时仍可部署。MCP Hub 的 `production` 只授予 Cloudflare 部署凭据，不允许任何 `MCP_*` 运行时密钥。
 
