@@ -131,7 +131,7 @@ test("the shipped environment policy parses and keys each deploying product by i
   );
   assert.deepEqual(policy["fongap-labs/ai-gateway"], ["production"]);
   assert.equal(Object.hasOwn(policy, "fongap-labs/ai-gateway/inference-center"), false);
-  assert.deepEqual(policy["fongap-labs/internal-vault/server-edge"], ["server-edge-cloud-edge"]);
+  assert.deepEqual(policy["fongap-labs/internal-vault/server-edge"], ["production"]);
   // The repository key is gone: the product has no fallback to it.
   assert.equal(Object.hasOwn(policy, "fongap-labs/internal-vault"), false);
 });
@@ -265,11 +265,11 @@ test("the shipped deploy secret policy only holds valid, non-reserved names", as
   );
   assert.equal(aiGatewayAliases.get("CLOUDFLARE_API_TOKEN"), "CLOUDFLARE_API_TOKEN_SECONDARY");
   assert.equal(aiGatewayAliases.get("CLOUDFLARE_ACCOUNT_ID"), "CLOUDFLARE_ACCOUNT_ID_SECONDARY");
-  assert.equal(aiGatewayAliases.get("AIG_DEPLOY_HEALTH_KEY"), "AIG_ACCESS_KEY_AGENT");
+  assert.equal(aiGatewayAliases.has("AIG_DEPLOY_HEALTH_KEY"), false);
   const internalVault = await readDeploySecretCeiling(
     "policies/deploy-secrets.json",
     "fongap-labs/internal-vault",
-    "server-edge-cloud-edge",
+    "production",
     "server-edge"
   );
   assert.deepEqual([...internalVault].sort(), [

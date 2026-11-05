@@ -90,7 +90,7 @@ test("deploy plan separates existing Secrets from explicit Repository Variables"
   }
 });
 
-test("shipped product ceilings remain isolated and retain AI Gateway health alias", async () => {
+test("shipped product ceilings remain isolated and require independent AI Gateway health key", async () => {
   const policyPath = "policies/deploy-secrets.json";
   const ai = await readDeploySecretCeiling(policyPath, "fongap-labs/ai-gateway", "production");
   assert.deepEqual([...ai].sort(), [
@@ -104,7 +104,7 @@ test("shipped product ceilings remain isolated and retain AI Gateway health alia
     "fongap-labs/ai-gateway",
     "production"
   );
-  assert.equal(aliases.get("AIG_DEPLOY_HEALTH_KEY"), "AIG_ACCESS_KEY_AGENT");
+  assert.equal(aliases.has("AIG_DEPLOY_HEALTH_KEY"), false);
   assert.equal(aliases.get("CLOUDFLARE_API_TOKEN"), "CLOUDFLARE_API_TOKEN_SECONDARY");
   assert.deepEqual(
     [
@@ -121,7 +121,7 @@ test("shipped product ceilings remain isolated and retain AI Gateway health alia
   const edge = await readDeploySecretCeiling(
     policyPath,
     "fongap-labs/internal-vault",
-    "server-edge-cloud-edge",
+    "production",
     "server-edge"
   );
   assert.equal(edge.size, 4);

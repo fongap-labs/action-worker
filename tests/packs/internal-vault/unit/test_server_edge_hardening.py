@@ -198,7 +198,7 @@ def run_deploy(tmp_path: Path, *, install_sha256: str | None):
     result = sh(
         'export PATH="/usr/bin:/bin"; '
         f"{curl_function}"
-        "export SERVER_EDGE_TRANSPORT=tailscale DEPLOY_ENVIRONMENT=server-edge-test "
+        "export SERVER_EDGE_TRANSPORT=tailscale DEPLOY_ENVIRONMENT=production "
         "DEPLOY_SOURCE_SHA=0123456789abcdef0123456789abcdef01234567 "
         "SERVER_EDGE_TARGET_HOST=edge.example SERVER_EDGE_TARGET_USER=deploy "
         "SERVER_EDGE_CONFIG_BUNDLE='{}' SERVER_EDGE_SECRET_BUNDLE='{}'; "

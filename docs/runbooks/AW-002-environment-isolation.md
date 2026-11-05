@@ -4,9 +4,8 @@
 
 | 环境 | 用途 | 保护要求 |
 | --- | --- | --- |
-| `production` | 正式 Worker 部署 | 仅部署所需凭据；不得配置人工审批，以免阻断自动部署 |
+| `production` | AI Gateway、MCP Hub、Internal Vault 中 Server Edge 的正式部署 | 按产品中央密钥白名单，仅注入本次产品所需凭据；不得配置人工审批，以免阻断自动部署 |
 | `ai-gateway-ops` | AI Gateway 运行时密钥盘点与更新 | 仅 main；配置必需审批人 |
-| `server-edge-cloud-edge` | Internal Vault 边缘服务部署 | 保持现有策略 |
 | `admin-ops` | Action Worker 管理员操作 | 保持现有策略 |
 
 `ai-gateway-ops` 不是部署目标，不得加入 `policies/deploy-environments.json`，也不得写入 AI Gateway 的 `.github/deploy.json`。
@@ -52,7 +51,7 @@ Environment Secrets：
 | 名称 | 用途 |
 | --- | --- |
 | `CLOUDFLARE_API_TOKEN_OPS` | 单独创建的 Cloudflare 运维令牌；只授予管理 AI Gateway Worker Secrets 所需权限，并限制到对应账号/资源 |
-| `AIG_DEPLOY_HEALTH_KEY` | 与 Cloudflare 中 `AIG_ACCESS_KEY_AGENT` 当前值一致，用于密钥更新后的健康检查 |
+| `AIG_DEPLOY_HEALTH_KEY` | 独立健康检查密钥。与 Cloudflare Worker 同名 Secret 一致，不得复用任何访问组密钥 |
 | `AIG_OPS_SECRET_VALUE` | 单次更新使用的临时密钥值；每次更新前设置，成功后立即删除或替换 |
 
 `CLOUDFLARE_API_TOKEN_OPS` 不得复用 `CLOUDFLARE_API_TOKEN_SECONDARY`。不得将密钥值放进 workflow_dispatch 输入、命令参数、日志或产物。
@@ -67,7 +66,6 @@ openssl rand -hex 32
 
 将同一个 64 位十六进制值分别保存到 Action Worker 的 `production`、`ai-gateway-ops` Environment Secret `AIG_DEPLOY_HEALTH_KEY`，以及 Cloudflare Worker Secret `AIG_DEPLOY_HEALTH_KEY`。不得复用 `AIG_ACCESS_KEY_<GROUP>`。
 
-在 Action Worker 的 `production` Environment 中直接设置 `AIG_DEPLOY_HEALTH_KEY`，其值必须与 Cloudflare Worker Secret 同名值一致。不得使用 `AIG_ACCESS_KEY_AGENT` 作为别名或复用任何用户访问组密钥。
 
 ## 首次核验与清理
 
@@ -98,6 +96,8 @@ gh workflow run ai-gateway-ops.yml \
 
 ## 单项运行时密钥更新
 
+执行入口在 `fongap-labs/action-worker` 的 `ai-gateway-ops` Environment，必须先启用 `main` 分支保护和必需审批人。工作流使用 Cloudflare 官方 Workers Secrets API 的 `GET` 和 `PUT`，绝不创建临时占位 Worker 代码；不使用 `wrangler secret put`，不进行整包 Secret 部署。
+
 先在 `ai-gateway-ops` Environment 中将待更新的值设置为 `AIG_OPS_SECRET_VALUE`，再启动：
 
 ```bash
@@ -108,10 +108,10 @@ gh workflow run ai-gateway-ops.yml \
 ```
 
 - 工作流只允许更新 AI Gateway 的固定运行时密钥名称集合。
-- 值通过标准输入交给 Wrangler，不作为参数、日志或产物传递。
-- 更新后自动盘点密钥名称并检查 `/health`；健康检查失败即失败关闭，不宣称自动回滚 Secret 值。
+- 值仅存在于受保护 Job 的环境变量与当前 Node 进程内存；直接通过 Cloudflare Workers Secrets API 的 JSON 请求体写入指定 Worker，不以命令参数、日志或产物传递。
+- 更新前、后使用 Cloudflare API 盘点 Secret 名称；更新后验证 `/health`，失败即失败关闭，不宣称自动回滚 Secret 值。操作可能已经改变线上密钥，必须由维护者从受控密钥库恢复。
 - 成功后立即删除或替换 Environment Secret `AIG_OPS_SECRET_VALUE`。
-- 轮换 `AIG_DEPLOY_HEALTH_KEY` 时，先将 `production` 与 `ai-gateway-ops` Environment 中的同名 Secret 更新为同一新值，再将 `AIG_OPS_SECRET_VALUE` 临时设为该值并执行 `put`；确认健康检查通过后删除临时值。
+- 轮换 `AIG_DEPLOY_HEALTH_KEY` 时：先仅将新值写入 `ai-gateway-ops` 的临时 `AIG_OPS_SECRET_VALUE`，执行审批后的 `put`（脚本会用新值进行健康验证）；确认成功后再更新 `production` 和 `ai-gateway-ops` 内的 `AIG_DEPLOY_HEALTH_KEY`；删除临时值。未验证成功时不得提前切换生产健康检查凭据。
 
 ## 正常代码部署
 
@@ -125,12 +125,14 @@ AI Gateway 的普通代码部署：
 
 ## 其他仓库
 
-- `fongap-labs/internal-vault/server-edge` 继续使用 `server-edge-cloud-edge`。
+- `fongap-labs/internal-vault/server-edge` 正式部署使用 `production`；Server Edge 仍是 Internal Vault 下的独立产品，不能借用 Blog、CDN 的任务密钥。
+- Internal Vault 的 Blog、CDN、EngineSuite 等仍通过任务路径执行发布；本次不改变它们的触发器或任务凭据来源。
+- 迁移前由维护者将原 `server-edge-cloud-edge` 中 Server Edge 必需的 Variables 与 Secrets 安全迁入 Action Worker 的 `production`；不得仅改策略后立即触发生产部署。GitHub Secrets 原值不可通过 API 回读，迁移须由授权维护者从受控密钥库配置。确认部署成功前不得清理旧环境。
 - `fongap-labs/mcp-hub` 继续使用 `production`。
 - 本次变更不修改任务路径；任务继续使用现有中央上限与仓库级密钥合同。
 
 ## 回滚
 
-- 密钥更新后健康检查失败：工作流失败关闭并保留审计结果。Cloudflare Worker Secret 不随 Worker 代码版本回滚；维护者必须从受控密钥库取回旧值，再通过审批后的 `put` 操作恢复。
+- 密钥更新后健康检查失败：工作流失败关闭并保留审计结果。Cloudflare Secret 可能已经更新，不存在可靠的自动密钥值回滚；维护者必须从受控密钥库取回旧值，再通过审批后的 `put` 操作恢复。
 - 正常代码部署失败：由 AI Gateway 部署入口回滚 Worker 版本；D1 迁移不随 Worker 回滚自动撤销。
 - 不得以删除中央 allowlist、关闭 fail-closed 或增加 Token 自动回退作为修复手段。

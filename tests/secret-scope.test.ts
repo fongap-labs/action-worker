@@ -338,7 +338,6 @@ test("the central policies give each Cloudflare account its own qualified secret
     [
       ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_SECONDARY"],
       ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_SECONDARY"],
-      ["AIG_DEPLOY_HEALTH_KEY", "AIG_ACCESS_KEY_AGENT"],
     ]
   );
   const gateway = await readDeploySecretCeiling(
@@ -348,7 +347,11 @@ test("the central policies give each Cloudflare account its own qualified secret
   );
   assert.equal(gateway.has("AIG_ACCESS_KEY_AGENT"), false);
   assert.equal(gateway.has("AIG_DEPLOY_HEALTH_KEY"), true);
-  assert.equal(deploy.get("AIG_DEPLOY_HEALTH_KEY"), "AIG_ACCESS_KEY_AGENT");
+  assert.equal(
+    deploy.has("AIG_DEPLOY_HEALTH_KEY"),
+    false,
+    "Production health secret cannot alias the AGENT access key"
+  );
   // The retired inference product has no deployment credential aliases.
   const retired = await readSecretAliases(
     "policies/deploy-secrets.json",
@@ -405,6 +408,43 @@ test("the central policies give each Cloudflare account its own qualified secret
   );
 });
 
+test("AI Gateway health credential is required directly and never falls back to an access-group key", async () => {
+  const files = await scopeFiles("AIG_DEPLOY_HEALTH_KEY\n", "");
+  const ceiling = {
+    names: new Set(["AIG_DEPLOY_HEALTH_KEY"]),
+    mode: "enforce" as const,
+    aliases: new Map<string, string>(),
+  };
+  await assert.rejects(
+    resolveSecretScope(
+      files.baseline,
+      files.required,
+      files.allowed,
+      [],
+      {
+        PATH: "/bin",
+        AIG_ACCESS_KEY_AGENT: "legacy-agent-key",
+      },
+      ceiling
+    ),
+    /Required task secret is unavailable: AIG_DEPLOY_HEALTH_KEY/
+  );
+  const valid = await resolveSecretScope(
+    files.baseline,
+    files.required,
+    files.allowed,
+    [],
+    {
+      PATH: "/bin",
+      AIG_ACCESS_KEY_AGENT: "legacy-agent-key",
+      AIG_DEPLOY_HEALTH_KEY: "independent-32-character-health-secret",
+    },
+    ceiling
+  );
+  assert.deepEqual(valid.allowed, ["AIG_DEPLOY_HEALTH_KEY"]);
+  assert.deepEqual(valid.unset, ["AIG_ACCESS_KEY_AGENT"]);
+});
+
 test("task aliases remain isolated and deploy selects scoped slots", async () => {
   const taskWorkflow = await readFile(".github/workflows/handle-task-dispatch.yml", "utf8");
   const alias = taskWorkflow.indexOf("jq -r '.alias[]");
@@ -422,20 +462,22 @@ test("task aliases remain isolated and deploy selects scoped slots", async () =>
 
 test("AI Gateway operations workflow is protected and never accepts secret values as inputs", async () => {
   const workflow = await readFile(".github/workflows/ai-gateway-ops.yml", "utf8");
+  const handler = await readFile("scripts/ai-gateway-ops.ts", "utf8");
   assert.match(workflow, /environment: ai-gateway-ops/);
   assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/);
   assert.match(workflow, /workflow_dispatch:/);
   assert.doesNotMatch(workflow, /repository_dispatch:/);
   assert.match(workflow, /CLOUDFLARE_API_TOKEN_OPS/);
   assert.match(workflow, /AIG_OPS_SECRET_VALUE/);
-  assert.match(workflow, /AIG_DEPLOY_HEALTH_KEY\|AIG_TOKEN_ENCRYPTION_KEY/);
-  assert.match(workflow, /AIG_DEPLOY_HEALTH_KEY must contain at least 32 URL-safe characters/);
-  assert.match(workflow, /secret_value="\$AIG_OPS_SECRET_VALUE"/);
-  assert.match(workflow, /unset AIG_OPS_SECRET_VALUE/);
-  assert.match(workflow, /printf '%s' "\$secret_value" \|/);
-  assert.match(workflow, /secret list --format json/);
-  assert.match(workflow, /no automatic rollback is possible/i);
-  assert.doesNotMatch(workflow, /wrangler[^\n]*rollback/);
+  assert.match(workflow, /AIG_DEPLOY_HEALTH_KEY/);
+  assert.match(workflow, /node scripts\/ai-gateway-ops\.ts put/);
+  assert.match(workflow, /node scripts\/ai-gateway-ops\.ts inventory/);
+  assert.match(workflow, /persist-credentials: false/);
+  assert.doesNotMatch(workflow, /wrangler|ops-placeholder|deploy\s+--config|rollback/);
   assert.doesNotMatch(workflow, /echo[^\n]*\$AIG_OPS_SECRET_VALUE/);
   assert.doesNotMatch(workflow, /secret_value:\s*\n\s*required:/i);
+  assert.match(handler, /PUT/);
+  assert.match(handler, /workers\/scripts\//);
+  assert.match(handler, /Content-Type/);
+  assert.doesNotMatch(handler, /spawn|exec|child_process|wrangler/);
 });

@@ -107,7 +107,7 @@ def test_deploy_is_source_owned_and_centrally_executed() -> None:
         "entrypoint": "environments/server-edge/deploy.sh",
         "runner_profile": "production-deploy",
         "ignore_docs_only": True,
-        "environments": {"server-edge-cloud-edge": {}},
+        "environments": {"production": {}},
     }
     # A repository keeps one layout: the root manifest must not sit beside the product.
     assert not (ROOT / ".github" / "deploy.json").exists()
@@ -116,7 +116,8 @@ def test_deploy_is_source_owned_and_centrally_executed() -> None:
 def test_primary_server_edge_identity_is_cloud_edge() -> None:
     text = ENV_DOC.read_text(encoding="utf-8") + DEPLOYMENT_DOC.read_text(encoding="utf-8")
     assert "cloud-edge" in text
-    assert "server-edge-cloud-edge" in text
+    assert "production" in text
+    assert "server-edge-cloud-edge" not in text
     assert "oracle-main" not in text
     assert "server-edge-oracle-main" not in text
 
