@@ -1,6 +1,6 @@
 import { GithubReader, isJsonRecord } from "./github-api.ts";
-import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { readSecretAliases, readTaskSecretCeiling } from "./resolve-secret-scope.ts";
+import { CliError, handleError, isMain } from "./runtime-command.ts";
 
 // Admission reads fixed Git blobs only. No task code runs and no secret value is available here.
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
