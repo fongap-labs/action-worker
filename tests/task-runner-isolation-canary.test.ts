@@ -82,3 +82,16 @@ test("canary refuses altered trusted SHA and invalid run identity", async () => 
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("isolation canary workflow uses three separate jobs without secrets or deployment", async () => {
+  const workflow = await readFile(".github/workflows/runner-isolation-canary.yml", "utf8");
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /github.ref == 'refs\/heads\/main'/);
+  for (const job of ["prepare", "execute", "finalize"]) {
+    assert.match(workflow, new RegExp(`^  ${job}:`, "m"));
+  }
+  assert.doesNotMatch(workflow, /\$\{\{\s*secrets\./);
+  assert.doesNotMatch(workflow, /^\s*environment:/m);
+  assert.doesNotMatch(workflow, /env:\s*\$\{\{\s*secrets\s*\}\}/);
+  assert.doesNotMatch(workflow, /repository_dispatch:/);
+});
