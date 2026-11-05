@@ -12,6 +12,8 @@ export type ConfigAuditSummary = {
   private_repositories: number;
   source_manifests: number;
   declared_secret_names: number;
+  declared_variable_names: number;
+  variable_policy_status: "not-defined-by-task-secret-policy";
   policy_excess_names: number;
   invalid_declarations: number;
   credential_type_review_candidates: number;
@@ -145,7 +147,7 @@ export async function auditSources(
     }
     // A source file is pinned by its blob SHA, not by a mutable main branch path.
     const entries = tree.tree as unknown[];
-    const projects = new Map<string, Set<string>>();
+    const projects = new Map<string, Set<string>>();\n    const variableProjects = new Map<string, Set<string>>();
     for (const entry of entries) {
       if (!isJsonRecord(entry) || entry.type !== "blob") continue;
       const path = getText(entry, "path");
@@ -163,7 +165,7 @@ export async function auditSources(
       summary.source_manifests++;
       summary.invalid_declarations += parsed.invalid;
     }
-    for (const [project, names] of projects) {
+    for (const names of variableProjects.values()) {\n      summary.declared_variable_names += names.size;\n    }\n    for (const [project, names] of projects) {
       const checked = policyDeclarationCheck([...names], taskPolicy, repository, project);
       summary.declared_secret_names += names.size;
       summary.policy_excess_names += checked.excess;
