@@ -24,7 +24,8 @@ export type ConfigAuditSummary = {
 
 const repositoryPattern = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
 const secretNamePattern = /^[A-Z][A-Z0-9_]*$/;
-const declarationPattern = /^projects\/([A-Za-z0-9][A-Za-z0-9_.-]*)\/\.secrets\.(required|allowed)$/;
+const declarationPattern =
+  /^projects\/([A-Za-z0-9][A-Za-z0-9_.-]*)\/\.secrets\.(required|allowed)$/;
 
 export function parseSecretNames(input: string): { names: string[]; invalid: number } {
   const names = new Set<string>();
@@ -44,7 +45,7 @@ export function parseSecretNames(input: string): { names: string[]; invalid: num
 
 export function sourceManifest(path: string): { project: string; kind: string } | null {
   const match = declarationPattern.exec(path);
-  if (!match || !match[1] || !match[2]) return null;
+  if (!match?.[1] || !match[2]) return null;
   return { project: match[1], kind: match[2] };
 }
 
@@ -178,7 +179,11 @@ async function main(): Promise<void> {
   if (!token) throw new CliError("A dedicated read-only audit token is required.", 77);
   const targets: unknown = JSON.parse(await readFile("policies/config-audit-targets.json", "utf8"));
   const policy: unknown = JSON.parse(await readFile("policies/task-secrets.json", "utf8"));
-  if (!isJsonRecord(targets) || targets.schema_version !== 1 || !Array.isArray(targets.repositories)) {
+  if (
+    !isJsonRecord(targets) ||
+    targets.schema_version !== 1 ||
+    !Array.isArray(targets.repositories)
+  ) {
     throw new CliError("Configuration audit target declaration is invalid.", 65);
   }
   const repositories = targets.repositories;
@@ -186,7 +191,10 @@ async function main(): Promise<void> {
     repositories.length !== new Set(repositories).size ||
     repositories.some((item) => typeof item !== "string" || !repositoryPattern.test(item))
   ) {
-    throw new CliError("Configuration audit target list contains invalid or duplicate repositories.", 65);
+    throw new CliError(
+      "Configuration audit target list contains invalid or duplicate repositories.",
+      65
+    );
   }
   const reader = new GithubReader(process.env.GITHUB_API_URL || "https://api.github.com", token, {
     attemptLimit: 3,
