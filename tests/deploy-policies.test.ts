@@ -245,6 +245,65 @@ test("the shipped deploy secret policy only holds valid, non-reserved names", as
     "SERVER_EDGE_SSH_PRIVATE_KEY",
     "SERVER_EDGE_TAILSCALE_AUTH_KEY",
   ]);
+  const mcpHub = await readDeploySecretCeiling(
+    "policies/deploy-secrets.json",
+    "fongap-labs/mcp-hub",
+    "mcp-hub-ops"
+  );
+  assert.equal(mcpHub.has("MCP_RUNTIME_KEY"), true);
+  assert.equal(mcpHub.size, 7);
+  assert.equal(internalVault.has("MCP_RUNTIME_KEY"), false);
+});
+
+test("the optional MCP runtime key reaches only its declared deploy scope", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "mcp-deploy-scope-"));
+  try {
+    const baseline = join(directory, "baseline");
+    const required = join(directory, "required");
+    const allowed = join(directory, "allowed");
+    await writeFile(baseline, "PATH\n");
+    await writeFile(required, "MCP_ADMIN_KEY\n");
+    await writeFile(allowed, "MCP_RUNTIME_KEY\n");
+    const names = await readDeploySecretCeiling(
+      "policies/deploy-secrets.json",
+      "fongap-labs/mcp-hub",
+      "mcp-hub-ops"
+    );
+    const ceiling = { names, mode: "enforce" as const, label: "deploy" as const };
+    const environment = {
+      PATH: "/bin",
+      MCP_ADMIN_KEY: "admin",
+      MCP_RUNTIME_KEY: "runtime",
+      OTHER_SECRET: "hidden",
+    };
+    const scoped = await resolveSecretScope(baseline, required, allowed, [], environment, ceiling);
+    assert.deepEqual(scoped.allowed, ["MCP_ADMIN_KEY", "MCP_RUNTIME_KEY"]);
+    assert.deepEqual(scoped.unset, ["OTHER_SECRET"]);
+    const absent = await resolveSecretScope(
+      baseline,
+      required,
+      allowed,
+      [],
+      { PATH: "/bin", MCP_ADMIN_KEY: "admin" },
+      ceiling
+    );
+    assert.deepEqual(absent.required, ["MCP_ADMIN_KEY"]);
+    await assert.rejects(
+      resolveSecretScope(baseline, required, allowed, [], environment, {
+        names: await readDeploySecretCeiling(
+          "policies/deploy-secrets.json",
+          "fongap-labs/internal-vault",
+          "server-edge-cloud-edge",
+          "server-edge"
+        ),
+        mode: "enforce",
+        label: "deploy",
+      }),
+      /outside the central deploy secret policy: MCP_ADMIN_KEY, MCP_RUNTIME_KEY/
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 // --- workflow invariants -------------------------------------------------------------------------
