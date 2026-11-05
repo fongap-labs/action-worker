@@ -77,7 +77,11 @@ test("operation inputs and dedicated Cloudflare credentials fail closed", async 
     /AIG_OPS_SECRET_VALUE/
   );
   await assert.rejects(
-    putWorkerSecret("AIG_ACCESS_KEY_AIR", { ...mockEnv, AIG_PUBLIC_URL: "http://localhost" }, never),
+    putWorkerSecret(
+      "AIG_ACCESS_KEY_AIR",
+      { ...mockEnv, AIG_PUBLIC_URL: "http://localhost" },
+      never
+    ),
     /HTTPS/
   );
   await assert.rejects(
@@ -87,23 +91,39 @@ test("operation inputs and dedicated Cloudflare credentials fail closed", async 
 });
 
 test("dedicated deployment health credential cannot be weak or reused as an application key", () => {
-  assert.throws(() => validateSecretMutation("AIG_DEPLOY_HEALTH_KEY", {
+  assert.throws(
+    () =>
+      validateSecretMutation("AIG_DEPLOY_HEALTH_KEY", {
         ...mockEnv,
         AIG_OPS_SECRET_VALUE: "short",
-      }), /32 URL-safe/);
-  assert.throws(() => validateSecretMutation("AIG_DEPLOY_HEALTH_KEY", {
+      }),
+    /32 URL-safe/
+  );
+  assert.throws(
+    () =>
+      validateSecretMutation("AIG_DEPLOY_HEALTH_KEY", {
         ...mockEnv,
         AIG_OPS_SECRET_VALUE: "abc".repeat(20) + "/",
-      }), /32 URL-safe/);
-  assert.throws(() => validateSecretMutation("AIG_ACCESS_KEY_AGENT", {
+      }),
+    /32 URL-safe/
+  );
+  assert.throws(
+    () =>
+      validateSecretMutation("AIG_ACCESS_KEY_AGENT", {
         ...mockEnv,
         AIG_OPS_SECRET_VALUE: healthKey,
-      }), /must not reuse/);
+      }),
+    /must not reuse/
+  );
   assert.throws(() => validateSecretMutation("AIG_INFERENCE_AUTH_KEY", mockEnv), /32 characters/);
-  assert.throws(() => validateSecretMutation("AIG_TIER1_CREDENTIALS_01", {
+  assert.throws(
+    () =>
+      validateSecretMutation("AIG_TIER1_CREDENTIALS_01", {
         ...mockEnv,
         AIG_OPS_SECRET_VALUE: "x".repeat(4501),
-      }), /size limit/);
+      }),
+    /size limit/
+  );
 });
 
 test("put updates one secret via JSON API without uploading a Worker script", async () => {
@@ -150,30 +170,49 @@ test("rotating the health credential verifies with the newly written value", asy
     assert.equal(new Headers(init?.headers).get("authorization"), `Bearer ${replacement}`);
     return Response.json({ ready: true, nodes_total: 1, nodes_usable: 1 });
   });
-  await putWorkerSecret("AIG_DEPLOY_HEALTH_KEY", { ...mockEnv, AIG_OPS_SECRET_VALUE: replacement }, fetcher);
+  await putWorkerSecret(
+    "AIG_DEPLOY_HEALTH_KEY",
+    { ...mockEnv, AIG_OPS_SECRET_VALUE: replacement },
+    fetcher
+  );
 });
 
 test("Cloudflare API refusal and malformed responses fail closed without leaking values", async () => {
   const secret = "do-not-leak-private-secret";
-  const refused = mockFetch(() => Response.json({
-    success: false,
-    errors: [{ message: secret }],
-  }, { status: 403 }));
+  const refused = mockFetch(() =>
+    Response.json(
+      {
+        success: false,
+        errors: [{ message: secret }],
+      },
+      { status: 403 }
+    )
+  );
   await assert.rejects(
     putWorkerSecret("AIG_ACCESS_KEY_AIR", { ...mockEnv, AIG_OPS_SECRET_VALUE: secret }, refused),
-    (error: unknown) => error instanceof Error && error.message.includes("HTTP 403") && !error.message.includes(secret),
+    (error: unknown) =>
+      error instanceof Error &&
+      error.message.includes("HTTP 403") &&
+      !error.message.includes(secret)
   );
   const invalid = mockFetch(() => ok([{ name: "AIG_DEPLOY_HEALTH_KEY", type: "plain_text" }]));
-  await assert.rejects(listWorkerSecretNames(mockEnv, invalid), /Unexpected Cloudflare secret inventory/);
+  await assert.rejects(
+    listWorkerSecretNames(mockEnv, invalid),
+    /Unexpected Cloudflare secret inventory/
+  );
   const malformed = mockFetch(() => new Response("invalid json", { status: 200 }));
   await assert.rejects(listWorkerSecretNames(mockEnv, malformed), /invalid JSON/);
 });
 
 test("health failure after a secret update is reported without falsely claiming rollback", async () => {
   const fetcher = mockFetch((input, init) => {
-    if (String(input) === endpoint && init?.method === "PUT") return ok({ name: "AIG_ACCESS_KEY_AIR", type: "secret_text" });
+    if (String(input) === endpoint && init?.method === "PUT")
+      return ok({ name: "AIG_ACCESS_KEY_AIR", type: "secret_text" });
     if (String(input) === endpoint) return ok(names);
     return Response.json({ ready: false, nodes_total: 3, nodes_usable: 0 });
   });
-  await assert.rejects(putWorkerSecret("AIG_ACCESS_KEY_AIR", mockEnv, fetcher), /previous value via a separately approved operation/);
+  await assert.rejects(
+    putWorkerSecret("AIG_ACCESS_KEY_AIR", mockEnv, fetcher),
+    /previous value via a separately approved operation/
+  );
 });
