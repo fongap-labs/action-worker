@@ -6,7 +6,7 @@
 
 ---
 
-## 1. 目标
+## 1. 目标（Objective）
 
 每个受管仓库，无论公开还是私有，都遵循：
 
@@ -19,7 +19,7 @@
 
 ---
 
-## 2. 两道门禁
+## 2. 两道门禁（Two Gates）
 
 ```
 进入 main 之前
@@ -39,7 +39,7 @@ main 更新之后
 
 ---
 
-## 3. 合法的 main 写入
+## 3. 合法的 main 写入（Trusted Main Writes）
 
 Main Write Guard 只依据 GitHub 上的当前事实重新验证；它从不信任 commit message、调用方参数或本地状态。
 
@@ -76,7 +76,7 @@ PR 的合并结果与 main 的更新一致
 
 ---
 
-## 4. 不合法的 main 写入
+## 4. 不合法的 main 写入（Untrusted Main Writes）
 
 如果 Main Write Guard 无法证明当前 `main` SHA 来自合法的 PR 合并，该 SHA 被标记为不可信。
 
@@ -99,7 +99,7 @@ main SHA = untrusted（不可信）
 
 ---
 
-## 4.1 主写入事件生命周期
+## 4.1 主写入事件生命周期（Incident Lifecycle）
 
 当 Main Write Audit 发现不可信的 `main` SHA 时，会在该仓库创建一个标题为 `Main write incident: <sha-short>` 的 Issue。该 Issue **不是永久阻断**，而是可控的可观测实体：
 
@@ -121,7 +121,7 @@ main SHA = untrusted（不可信）
 
 ---
 
-## 5. 公开仓库与私有仓库
+## 5. 公开仓库与私有仓库（Public and Private Repositories）
 
 ### 平台强制可用
 
@@ -151,7 +151,7 @@ GitHub 会在写入之前拒绝不合法的路径，而 Main Write Guard 仍是�
 
 ---
 
-## 6. 工作流边界
+## 6. 工作流边界（Workflow Boundaries）
 
 Main Write Guard 的安全性不得取决于业务仓库的 Actions 是否能运行。
 
@@ -176,7 +176,7 @@ Action Worker 重新查询 GitHub 事实，并自行形成 `Main Write Guard` �
 
 ---
 
-## 7. 下游要求
+## 7. 下游要求（Downstream Requirements）
 
 以下操作要求目标源 SHA 具有精确绑定的 `Main Write Guard = success`：
 
@@ -190,7 +190,7 @@ Action Worker 重新查询 GitHub 事实，并自行形成 `Main Write Guard` �
 
 ---
 
-## 8. AI Review
+## 8. AI Review（AI Review）
 
 AI Review 不属于 Main Write Guard，也不能参与其结论。
 
@@ -213,7 +213,7 @@ Action Worker validate-merge / PR Governance 通过
 
 ---
 
-## 9. 权限
+## 9. 权限（Permissions）
 
 Main Write Guard 本身只需要读取 GitHub 事实，并发布受控的状态。
 
@@ -223,7 +223,7 @@ AI Review 不得拥有 main 写入、合并、Release 或 Deploy 权限。
 
 ---
 
-## 10. 验收标准
+## 10. 验收标准（Acceptance Criteria）
 
 当以下条件全部成立时，治理闭环才算完成：
 
@@ -236,7 +236,7 @@ AI Review 不得拥有 main 写入、合并、Release 或 Deploy 权限。
 
 ---
 
-## 11. 相关引用
+## 11. 相关引用（References）
 
 - 语言与文档分层：`01_SHARED_GOVERNANCE.md` §2
 - 仓库治理与合并权限：`02_REPOSITORY_GOVERNANCE.md` §3
