@@ -57,6 +57,8 @@ Environment Secrets：
 
 `CLOUDFLARE_API_TOKEN_OPS` 不得复用 `CLOUDFLARE_API_TOKEN_SECONDARY`。不得将密钥值放进 workflow_dispatch 输入、命令参数、日志或产物。
 
+在 Action Worker 的 `production` Environment 中直接设置 `AIG_DEPLOY_HEALTH_KEY`，其值必须与 Cloudflare Worker Secret 同名值一致。不得使用 `AIG_ACCESS_KEY_AGENT` 作为别名或复用任何用户访问组密钥。
+
 ## 首次核验与清理
 
 1. 创建并保护 `ai-gateway-ops`，配置上表变量与 Secrets。
@@ -97,7 +99,7 @@ gh workflow run ai-gateway-ops.yml \
 
 - 工作流只允许更新 AI Gateway 的固定运行时密钥名称集合。
 - 值通过标准输入交给 Wrangler，不作为参数、日志或产物传递。
-- 更新后自动盘点密钥名称并检查 `/health`；健康检查失败会回滚上一 Worker 版本。
+- 更新后自动盘点密钥名称并检查 `/health`；健康检查失败即失败关闭，不宣称自动回滚 Secret 值。
 - 成功后立即删除或替换 Environment Secret `AIG_OPS_SECRET_VALUE`。
 - 轮换 `AIG_DEPLOY_HEALTH_KEY` 时，先将 `production` 与 `ai-gateway-ops` Environment 中的同名 Secret 更新为同一新值，再将 `AIG_OPS_SECRET_VALUE` 临时设为该值并执行 `put`；确认健康检查通过后删除临时值。
 
@@ -119,6 +121,6 @@ AI Gateway 的普通代码部署：
 
 ## 回滚
 
-- 密钥更新后健康检查失败：工作流自动回滚上一 Worker 版本；确认 Cloudflare 中旧密钥版本恢复后再处理。
+- 密钥更新后健康检查失败：工作流失败关闭并保留审计结果。Cloudflare Worker Secret 不随 Worker 代码版本回滚；维护者必须从受控密钥库取回旧值，再通过审批后的 `put` 操作恢复。
 - 正常代码部署失败：由 AI Gateway 部署入口回滚 Worker 版本；D1 迁移不随 Worker 回滚自动撤销。
 - 不得以删除中央 allowlist、关闭 fail-closed 或增加 Token 自动回退作为修复手段。
