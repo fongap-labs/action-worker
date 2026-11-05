@@ -8,6 +8,7 @@ on:
       - .github/workflows/publication-key-verify.yml
       - scripts/verify-publication-key-pair.ts
       - scripts/prepare-publication-keys.ts
+      - scripts/task-publication-envelope.ts
       - docs/task-publication-keys.md
       - .github/actions/mint-app-token/action.yml
 
@@ -103,3 +104,237 @@ jobs:
             exit 77
           fi
           echo "Scoped GitHub App publication token verified with Contents and Pull requests write."
+
+      - name: Verify private source and output target publication policy
+        env:
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_REPOSITORY: ${{ github.repository_owner }}/external-vault
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          echo "::add-mask::${GITHUB_REPOSITORY_OWNER}/internal-vault"
+          node scripts/repository-policy.ts validate "${GITHUB_REPOSITORY_OWNER}/internal-vault" release-source > /dev/null
+          node scripts/repository-policy.ts validate "$TARGET_REPOSITORY" release-target > /dev/null
+          node scripts/repository-policy.ts validate "$TARGET_REPOSITORY" pr > /dev/null
+          echo "Private source and publication target capabilities verified."
+
+      - name: Mint real publication target App token
+        id: real_target_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: external-vault
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Verify real publication target App isolation
+        env:
+          GH_TOKEN: ${{ steps.real_target_app.outputs.token }}
+          TARGET_OWNER: ${{ github.repository_owner }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          actual="$(gh api installation/repositories --jq '[.repositories[].full_name] | join(",")')"
+          if [ "$actual" != "$TARGET_OWNER/external-vault" ]; then
+            echo "::error::Actual publication App must be scoped only to external-vault." >&2
+            exit 77
+          fi
+          echo "Actual publication target App scope verified (Contents/Pull requests write)."
+
+  smoke-seal:
+    name: Seal artifact on untrusted runner
+    needs: unprotected-scope
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted encryption code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Encrypt synthetic private task on separate runner
+        env:
+          AW_PUBLICATION_PUBLIC_KEY: ${{ vars.AW_PUBLICATION_PUBLIC_KEY }}
+          TASK_SOURCE_REPOSITORY: fongap-labs/acceptance-fixture
+          PROJECT: publication-smoke
+          BOOTSTRAP_REF: ${{ github.sha }}
+          REQUEST_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          root="$RUNNER_TEMP/publication-smoke/staged"
+          mkdir -p "$root/payload"
+          printf '%s\n' '{"schema_version":"1","target_repository":"fongap-labs/external-vault","dest_dir":"output/acceptance-smoke","delete_stale":false,"commit_message":"chore: acceptance smoke"}' > "$root/manifest.json"
+          printf '%s' 'private-publication-canary' > "$root/payload/result.txt"
+          node scripts/task-publication-envelope.ts seal "$root" "$RUNNER_TEMP/publication-smoke/sealed.json"
+          if grep -Fq 'private-publication-canary' "$RUNNER_TEMP/publication-smoke/sealed.json"; then
+            echo "::error::Plaintext reached the transfer artifact." >&2
+            exit 66
+          fi
+
+      - name: Upload encrypted smoke artifact only
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: publication-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/publication-smoke/sealed.json
+          if-no-files-found: error
+          retention-days: 1
+
+  smoke-open:
+    name: Decrypt artifact on protected clean runner
+    needs: [protected-pair, smoke-seal]
+    if: github.ref == 'refs/heads/main'
+    environment: admin-ops
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout trusted decryption code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Download ciphertext on clean runner
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: publication-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/publication-smoke
+
+      - name: Prove request-binding rejection and decrypt
+        env:
+          AW_PUBLICATION_PRIVATE_KEY: ${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}
+          TASK_SOURCE_REPOSITORY: fongap-labs/acceptance-fixture
+          PROJECT: publication-smoke
+          BOOTSTRAP_REF: ${{ github.sha }}
+          REQUEST_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sealed="$RUNNER_TEMP/publication-smoke/sealed.json"
+          if REQUEST_ID=invalid-request node scripts/task-publication-envelope.ts open "$sealed" "$RUNNER_TEMP/invalid" > /dev/null 2>&1; then
+            echo "::error::Ciphertext accepted a different request identity." >&2
+            exit 66
+          fi
+          node scripts/task-publication-envelope.ts open "$sealed" "$RUNNER_TEMP/publication-smoke/opened"
+          test "$(cat "$RUNNER_TEMP/publication-smoke/opened/payload/result.txt")" = 'private-publication-canary'
+          node -e 'const m=require(process.argv[1]);if(m.target_repository!=="fongap-labs/external-vault"||m.schema_version!=="1")process.exit(66)' "$RUNNER_TEMP/publication-smoke/opened/manifest.json"
+          echo "Cross-runner encrypted artifact verified with protected key and identity rejection."
+      - name: Mint one-time canary target token
+        if: contains(github.event.head_commit.message, '[publication-pr-canary]')
+        id: canary_target
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: external-vault
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Mint one-time central dispatch token
+        if: contains(github.event.head_commit.message, '[publication-pr-canary]')
+        id: canary_dispatch
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: action-worker
+          permission-contents: write
+
+      - name: Publish canary through central PR governance
+        if: contains(github.event.head_commit.message, '[publication-pr-canary]')
+        env:
+          GH_TOKEN: ${{ steps.canary_target.outputs.token }}
+          CONTROL_DISPATCH_TOKEN: ${{ steps.canary_dispatch.outputs.token }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+          TARGET_OWNER: ${{ github.repository_owner }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          target="$TARGET_OWNER/external-vault"
+          node scripts/repository-policy.ts validate "$target" release-target > /dev/null
+          node scripts/repository-policy.ts validate "$target" pr > /dev/null
+          root="$RUNNER_TEMP/publication-smoke/opened"
+          test "$(jq -r .target_repository "$root/manifest.json")" = "$target"
+          test "$(jq -r .dest_dir "$root/manifest.json")" = "output/acceptance-smoke"
+          test "$(jq -r .delete_stale "$root/manifest.json")" = "false"
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          gh auth setup-git
+          gh repo clone "$target" "$work/target" -- --depth 1
+          branch="task-publication/acceptance-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          git -C "$work/target" switch -c "$branch"
+          dest="$work/target/output/acceptance-smoke"
+          if [ -L "$dest" ] || { [ -d "$dest" ] && find "$dest" -type l -print -quit | grep -q .; }; then
+            echo "::error::Canary destination contains an unsafe symlink." >&2
+            exit 66
+          fi
+          mkdir -p "$dest"
+          cp "$root/payload/result.txt" "$dest/acceptance-$GITHUB_RUN_ID.txt"
+          git -C "$work/target" config user.name "fongap-action-worker[bot]"
+          git -C "$work/target" config user.email "26006683+fongap@users.noreply.github.com"
+          git -C "$work/target" add -A -- output/acceptance-smoke
+          git -C "$work/target" commit -m "chore: verify sealed publication canary"
+          git -C "$work/target" push origin "HEAD:refs/heads/$branch"
+          pr_url="$(gh pr create --repo "$target" --base main --head "$branch" \
+            --title "chore: verify sealed publication canary" \
+            --body "Synthetic encrypted cross-runner canary only. No private project code executed. Must pass central CI Evidence, PR Governance, and validate-merge.")"
+          pr_number="$(basename "$pr_url")"
+          echo "Canary target PR: $pr_url"
+          printf '\n- Canary PR: %s\n' "$pr_url" >> "$GITHUB_STEP_SUMMARY"
+          if ! GH_TOKEN="$CONTROL_DISPATCH_TOKEN" gh api --method POST \
+            "repos/$GITHUB_REPOSITORY/dispatches" -f event_type=run-intake > /dev/null; then
+            echo "::error::Central governance dispatch failed; keeping canary PR open." >&2
+            exit 75
+          fi
+          deadline=$((SECONDS + 960))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            state="$(gh pr view "$pr_number" --repo "$target" --json state --jq .state)"
+            if [ "$state" = MERGED ]; then
+              echo "Governed canary target PR merged."
+              exit 0
+            fi
+            if [ "$state" = CLOSED ]; then
+              echo "::error::Canary PR closed without merging." >&2
+              exit 65
+            fi
+            merge_state="$(gh pr view "$pr_number" --repo "$target" --json mergeStateStatus --jq .mergeStateStatus)"
+            if [ "$merge_state" = DIRTY ]; then
+              echo "::error::Canary target PR has conflicts." >&2
+              exit 65
+            fi
+            verdict="$(gh pr view "$pr_number" --repo "$target" --json statusCheckRollup \
+              --jq '[.statusCheckRollup[] | {name:(.name // .context), result:(.conclusion // .state)} | select(.name == "CI Evidence" or .name == "PR Governance" or .name == "validate-merge")] | if (map(.name) | unique | length) != 3 then "pending" elif any(.result == "FAILURE" or .result == "ERROR") then "failure" elif all(.result == "SUCCESS") then "success" else "pending" end')"
+            if [ "$verdict" = failure ]; then
+              echo "::error::Central governance rejected canary; PR left open for inspection." >&2
+              exit 65
+            fi
+            if [ "$verdict" = success ] && [ "$merge_state" = CLEAN ]; then
+              head_oid="$(gh pr view "$pr_number" --repo "$target" --json headRefOid --jq .headRefOid)"
+              if gh pr merge "$pr_number" --repo "$target" --squash --match-head-commit "$head_oid"; then
+                echo "Governed canary merged after all three required verdicts."
+                exit 0
+              fi
+            fi
+            sleep 20
+          done
+          echo "::error::Canary PR not merged within bounded acceptance window." >&2
+          exit 75
