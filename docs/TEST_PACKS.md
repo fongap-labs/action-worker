@@ -2,13 +2,13 @@
 
 Action Worker 持有每个受管业务仓库的测试，形式为 `tests/packs/<pack>/` 下的 **测试包（test pack）**。中央 CI 针对目标仓库检出的源码运行该测试包。只有无法从仓库外部运行的测试，才留在业务仓库中（见第 6 节）。
 
-## 1. 为什么测试集中管理（Why Centralize Tests）
+## 1. 为什么测试集中管理
 
 - **PR 不能削弱自己的测试。** 业务仓库的 `tests/` 与 `package.json` 脚本在 PR 作者的可控范围内；测试包来自可信引用，因此 PR 只能被它检查，而不能改写它。
 - **可复用的构建模块。** `tests/kit/` 提供共享的 harness、目标查找、fetch / 时间 / 合同断言等构建模块，因此业务测试套件只需编写断言。
 - **集中治理。** 测试清单、门禁层级、Runner 并行度与报告，都由 Action Worker 维护。
 
-## 2. 目录结构（Directory Structure）
+## 2. 目录结构
 
 ```text
 tests/
@@ -18,7 +18,7 @@ tests/
   inventory/         迁移前的基线清单（只能增长）
 ```
 
-## 3. 执行合同（Execution Contract）
+## 3. 执行合同
 
 | 项目 | 说明 |
 |---|---|
@@ -31,7 +31,7 @@ tests/
 
 `central-ci-sandbox.yml` 在 Linux 与 Windows 作业中将 Action Worker 检出到 `aw/`，并导出 `CENTRAL_CI_AW_ROOT`。
 
-## 4. 版本固定（Version Pinning）
+## 4. 版本固定
 
 业务仓库的 `.github/test-pack.json`：
 
@@ -43,7 +43,7 @@ tests/
 - 该文件是 **CI 控制路径**（与 `execution-manifest.json`、`central-ci.sh` 相同）：修改它需要来自同一仓库、可信维护者的 PR，并且该 PR 会针对其自身的 head 进行验证。
 - 行为变更（`breaking` / `api` / `migration`）采用成对流程：先在 Action Worker 中合并测试包的变更，再把业务 PR 固定到该提交。
 
-## 5. 测试清单（Test Inventory）
+## 5. 测试清单
 
 `tests/inventory/<pack>.baseline.json` 是在迁移之前，通过在业务仓库的原始位置运行测试套件而收集到的测试用例清单。
 
@@ -60,7 +60,7 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 
 合并或重命名文件不会导致失败；删除或减少测试用例，则需要一次明确的、经过评审的基线变更。
 
-## 6. 留在业务仓库中的测试（Repository-Owned Tests）
+## 6. 留在业务仓库中的测试
 
 规则：只有当测试无法通过 `TARGET_ROOT` 从外部触及被测对象时，它才留在业务仓库中。
 
@@ -70,14 +70,14 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 - 编译进固定版本核心 crate 的运行时端到端测试（`delta-suite/tests/foundation_runtime_e2e`）。
 - Rust crate 的集成测试与模糊测试（`app-source/projects/SecurePigeon/crates/*/tests`）。
 
-## 7. 添加测试（Adding Tests）
+## 7. 添加测试
 
 1. 将套件添加到 `tests/packs/<pack>/`；JS 使用 `#kit/harness.mjs`（`node:test`），Python 使用 pytest。
 2. 不要在套件中重新实现 `test()`、`dateAtIso()` 或 fetch mock；应使用 `tests/kit/` 中的构建模块，缺少所需模块时先在该目录中添加。
 3. 需要时间或全局状态隔离的套件，放在独立文件中（例如依赖真实计时的用例）。
 4. 门禁层级的套件在 `pack.json` 的 `tiers.gate` 下注册；其余套件从磁盘自动发现，无需注册。
 
-## 8. 各仓库状态（Repository Status）
+## 8. 各仓库状态
 
 | 仓库 | 测试包 | 留在业务仓库中的测试 |
 |---|---|---|
