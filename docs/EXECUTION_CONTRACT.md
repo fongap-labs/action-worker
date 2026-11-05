@@ -2,7 +2,7 @@
 
 本文件定义受管的 Fongap Labs 仓库与 Action Worker 之间统一的执行边界。它适用于公开仓库与私有仓库，并且不随仓库可见性而变化。
 
-## 1. 核心原则（Core Principles）
+## 1. 核心原则
 
 ```text
 业务仓库
@@ -21,7 +21,7 @@ Runner
 
 这条规则适用于公开仓库与私有仓库。仓库可见性只能影响访问方式与 GitHub 平台功能，绝不能产生第二套执行架构。
 
-## 2. 统一执行链（Execution Pipeline）
+## 2. 统一执行链
 
 ```text
 仓库事件
@@ -47,7 +47,7 @@ Gate / Publish / Deploy / Status（门禁 / 发布 / 部署 / 状态）
 
 业务仓库不得用它自己的重型工作流绕过这条执行链。
 
-## 3. 业务仓库负责的内容（Repository Responsibilities）
+## 3. 业务仓库负责的内容
 
 业务仓库保留：
 
@@ -61,7 +61,7 @@ Gate / Publish / Deploy / Status（门禁 / 发布 / 部署 / 状态）
 
 业务仓库可以声明执行需求，但不得声明中央凭据，也不得为自己授予权限。AI Review 只提供发现与建议；它不属于能力授予、CI 门禁或合并门禁。
 
-## 4. Action Worker 负责的内容（Action Worker Responsibilities）
+## 4. 中央工作器 负责的内容
 
 Action Worker 负责：
 
@@ -82,7 +82,7 @@ Action Worker 负责：
 
 Action Worker 不保存项目的产品逻辑，也绝不按仓库、项目或产品名称选择执行实现。
 
-## 5. 执行请求（Execution Request）
+## 5. 执行请求
 
 调用方只提交不可变的任务身份与执行意图。长期的最小语义为：
 
@@ -103,7 +103,7 @@ operation
 
 某个操作可以在其机器合同中增加所需的字段，但不得突破这些边界。
 
-## 6. 执行清单（Execution Manifest）
+## 6. 执行清单
 
 执行清单始终位于业务仓库的 `.github/execution-manifest.json`，描述项目自身的执行需求，例如：
 
@@ -147,7 +147,7 @@ capability_requests
 
 清单是能力请求，而不是能力授予。
 
-## 7. 能力授予（Capability Grants）
+## 7. 能力授予
 
 Action Worker 根据以下事实构建授予：
 
@@ -173,7 +173,7 @@ artifact.write
 
 某项能力是否被授予、映射到哪些密钥、以及是否只能在可信的 Runner 上运行，均由 Action Worker 决定。
 
-## 8. 与仓库无关的规则（Repository Independence）
+## 8. 与仓库无关的规则
 
 通用的 Action Worker 控制逻辑绝不能包含：
 
@@ -189,7 +189,7 @@ if product == ...
 
 接入一个普通的新仓库，不得要求修改 Action Worker 的核心代码。
 
-## 9. 公开仓库与私有仓库（Public and Private Repositories）
+## 9. 公开仓库与私有仓库
 
 公开仓库与私有仓库使用相同的执行合同。
 
@@ -208,7 +208,7 @@ GitHub 仓库事件
 
 因此，当一个私有仓库的 Actions 分钟数耗尽时，PR Governance、CI、Release 与 Deploy 在长期架构中都不应停止。
 
-## 10. main 来源要求（Trusted Main Requirements）
+## 10. 主分支 来源要求
 
 任何面向正式环境或正式分发的操作，都必须校验其源 SHA 的 Main Write Guard。
 
@@ -223,7 +223,7 @@ GitHub 仓库事件
 
 AI Review 不属于这条校验链。AI Review 在确定性 PR 门禁结论之后运行，不能改变 Main Write Guard。
 
-## 11. 迁移规则（Migration Rules）
+## 11. 迁移规则
 
 当前实现可以保留迁移期的旧入口，但须满足：
 
