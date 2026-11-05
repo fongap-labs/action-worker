@@ -155,3 +155,30 @@ test("production keys perform a real encrypted artifact round-trip between clean
   assert.ok(source.includes("Ciphertext accepted a different request identity."));
   assert.ok(source.includes("Plaintext reached the transfer artifact."));
 });
+
+test("protected App preflight validates the actual private-source publication target", async () => {
+  const source = await readFile(".github/workflows/publication-key-verify.yml", "utf8");
+  const flow = parse(source) as {
+    jobs: Record<string, { environment?: string; steps: Array<{
+      name?: string;
+      uses?: string;
+      with?: Record<string, string>;
+      env?: Record<string, string>;
+    }> }>;
+  };
+  const job = flow.jobs["publication-app"];
+  assert.equal(job?.environment, "admin-ops");
+  const step = job.steps.find(
+    (item) => item.name === "Verify private source and output target publication policy"
+  );
+  assert.equal(step?.env?.TARGET_REPOSITORY, "${{ github.repository_owner }}/external-vault");
+  const mint = job.steps.find(
+    (item) => item.name === "Mint real publication target App token"
+  );
+  assert.equal(mint?.with?.repositories, "external-vault");
+  assert.equal(mint?.with?.["permission-contents"], "write");
+  assert.equal(mint?.with?.["permission-pull-requests"], "write");
+  assert.ok(job.steps.some(
+    (item) => item.name === "Verify real publication target App isolation"
+  ));
+});
