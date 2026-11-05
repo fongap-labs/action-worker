@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { parse } from "yaml";
 import { openTaskPublication, sealTaskPublication } from "../scripts/task-publication-envelope.ts";
+import { validateManifest } from "../scripts/validate-task-publication.ts";
 
 const identity = {
   repository: "fongap-labs/private-source",
@@ -158,6 +159,7 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
   );
   // A publication PR must never silently skip central CI or governance.
   assert.match(source, /Central governance dispatch failed for publication PR/);
+  assert.match(source, /Publication destination traverses a target repository symlink/);
   assert.doesNotMatch(source, /event_type=run-intake[^\n]*\|\| true/);
   assert.equal(
     publish.steps.find((step) => step.name === "Mint control publication intake token")?.with?.[
@@ -165,6 +167,31 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
     ],
     "write"
   );
+});
+
+test("publication destination rejects Git metadata and unsafe path segments", () => {
+  const publication = {
+    schema_version: "1",
+    target_repository: "fongap-labs/target",
+    dest_dir: "output/report/2026-11-05",
+    delete_stale: true,
+    commit_message: "chore: publish task outputs",
+  };
+  assert.equal(validateManifest(publication).dest_dir, publication.dest_dir);
+  for (const dest_dir of [
+    ".git/hooks",
+    ".github/workflows",
+    "output/.git/hooks",
+    "output/.hidden",
+    "output/../secrets",
+    "output//report",
+    "output/report\\nname",
+  ]) {
+    assert.throws(
+      () => validateManifest({ ...publication, dest_dir }),
+      /Task publication destination is invalid/
+    );
+  }
 });
 
 test("task request is loaded from GitHub event file without printing the payload", async () => {
