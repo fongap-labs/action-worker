@@ -404,7 +404,7 @@ test("the central policies give each Cloudflare account its own qualified secret
   );
 });
 
-test("task aliases remain isolated and deploy selects one product-scoped bundle", async () => {
+test("task aliases remain isolated and deploy selects scoped slots", async () => {
   const taskWorkflow = await readFile(".github/workflows/handle-task-dispatch.yml", "utf8");
   const alias = taskWorkflow.indexOf("jq -r '.alias[]");
   const unset = taskWorkflow.indexOf("jq -r '.unset[]'");
@@ -413,7 +413,7 @@ test("task aliases remain isolated and deploy selects one product-scoped bundle"
 
   const deployWorkflow = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
   assert.match(deployWorkflow, /resolve-deploy-secret-plan\.ts/);
-  assert.match(deployWorkflow, /secrets\[steps\.secret_plan\.outputs\.bundle_secret_name\]/);
+  assert.match(deployWorkflow, /secrets\[steps\.secret_plan\.outputs\.secret_00\]/);
   assert.match(deployWorkflow, /stage-deploy-secret-bundle\.ts/);
   assert.doesNotMatch(deployWorkflow, /env:\s*\$\{\{\s*secrets\s*\}\}/);
   assert.doesNotMatch(deployWorkflow, /secrets\.CLOUDFLARE_API_TOKEN_SECONDARY/);
