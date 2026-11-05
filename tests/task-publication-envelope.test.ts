@@ -115,8 +115,9 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
     "${{ secrets.AW_PUBLICATION_PRIVATE_KEY != '' }}"
   );
   assert.ok(
-    execute.steps.findIndex((step) => step.name === "Reject publisher private key in task execution") <
-      execute.steps.findIndex((step) => step.name === "Execute downstream task")
+    execute.steps.findIndex(
+      (step) => step.name === "Reject publisher private key in task execution"
+    ) < execute.steps.findIndex((step) => step.name === "Execute downstream task")
   );
   assert.match(source, /AW_PUBLICATION_PRIVATE_KEY must be an admin-ops Environment Secret/);
   assert.deepEqual(publish.needs, ["validate", "execute"]);
