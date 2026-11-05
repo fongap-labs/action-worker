@@ -46,7 +46,11 @@ export type CanaryResult = {
   result: string;
 };
 
-export function parsePreparation(input: unknown, runId: string, attempt: string): CanaryPreparation {
+export function parsePreparation(
+  input: unknown,
+  runId: string,
+  attempt: string
+): CanaryPreparation {
   runIdentity(runId, attempt);
   const data = record(input);
   exact(data, ["schema", "run_id", "attempt", "trusted_sha256", "fixture_sha256"]);
@@ -58,15 +62,21 @@ export function parsePreparation(input: unknown, runId: string, attempt: string)
     typeof data.fixture_sha256 !== "string" ||
     !/^[a-f0-9]{64}$/.test(data.trusted_sha256) ||
     !/^[a-f0-9]{64}$/.test(data.fixture_sha256)
-  ) throw new CliError("Isolation canary preparation failed identity validation.", 66);
+  )
+    throw new CliError("Isolation canary preparation failed identity validation.", 66);
   return data as CanaryPreparation;
 }
 
 export function validateResult(input: unknown, preparation: CanaryPreparation): CanaryResult {
   const data = record(input);
   exact(data, [
-    "schema", "run_id", "attempt", "fixture_sha256",
-    "workspace_modified", "background_attempted", "result",
+    "schema",
+    "run_id",
+    "attempt",
+    "fixture_sha256",
+    "workspace_modified",
+    "background_attempted",
+    "result",
   ]);
   if (
     data.schema !== CANARY_SCHEMA ||
@@ -76,7 +86,8 @@ export function validateResult(input: unknown, preparation: CanaryPreparation): 
     data.workspace_modified !== true ||
     data.background_attempted !== true ||
     data.result !== PAYLOAD
-  ) throw new CliError("Isolation canary result failed authentication of test context.", 66);
+  )
+    throw new CliError("Isolation canary result failed authentication of test context.", 66);
   return data as CanaryResult;
 }
 
@@ -109,7 +120,7 @@ export async function runUntrustedCanary(
     throw new CliError("Isolation canary trusted source mismatched before mutation.", 66);
   }
   // This simulates downstream code changing a trusted script in its own workspace.
-  await writeFile(path, Buffer.concat([original, Buffer.from("\n" + ATTACK_TEXT + "\n")]));
+  await writeFile(path, Buffer.concat([original, Buffer.from(`\n${ATTACK_TEXT}\n`)]));
   const changed = await readFile(path);
   if (!changed.toString("utf8").includes(ATTACK_TEXT)) {
     throw new CliError("Isolation canary did not mutate the task workspace.", 66);
@@ -161,13 +172,7 @@ async function main(): Promise<void> {
     if (!fileB) throw new CliError("Isolation canary requires an output path.", 64);
     const prep = JSON.parse(await readFile(fileA, "utf8")) as unknown;
     const result = JSON.parse(await readFile(fileB, "utf8")) as unknown;
-    await finalizeCanary(
-      workspace,
-      parsePreparation(prep, runId, attempt),
-      result,
-      runId,
-      attempt
-    );
+    await finalizeCanary(workspace, parsePreparation(prep, runId, attempt), result, runId, attempt);
     console.log("Runner isolation canary passed.");
   } else {
     throw new CliError("Usage: task-runner-isolation-canary.ts prepare|execute|finalize ...", 64);
