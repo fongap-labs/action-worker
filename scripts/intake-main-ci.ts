@@ -66,10 +66,31 @@ async function ciState(
   reader: GithubGet,
   controlRepository: string,
   repository: string,
-  sha: string
+  sha: string,
+  currentControlHeadSha = ""
 ): Promise<"dispatch" | "in-flight" | "processed"> {
   const fact = latestStatus(value, "CI Evidence", repository, sha);
   if (!fact) return "dispatch";
+  if (fact.state === "success") return "processed";
+  // A signed failure from a previous trusted control revision can be rechecked after
+  // the CI implementation changes. Never rerun the same failed control revision in a loop.
+  if (fact.state === "failure" || fact.state === "error") {
+    if (!shaPattern.test(currentControlHeadSha) || !controlRepository) return "processed";
+    const runId = trustedControlRunId(fact.target_url, controlRepository);
+    if (!runId) return "processed";
+    const run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
+    if (
+      !isJsonRecord(run) ||
+      run.status !== "completed" ||
+      run.event !== "repository_dispatch" ||
+      run.conclusion !== "failure" ||
+      typeof run.head_sha !== "string" ||
+      !shaPattern.test(run.head_sha)
+    ) {
+      return "processed";
+    }
+    return run.head_sha === currentControlHeadSha ? "processed" : "dispatch";
+  }
   if (fact.state !== "pending") return "processed";
 
   if (!controlRepository) {
@@ -114,7 +135,8 @@ export async function scanMainCi(
   dispatch: Dispatch,
   excludedRepository = "",
   reserve?: Reserve,
-  onlyRepository = ""
+  onlyRepository = "",
+  currentControlHeadSha = ""
 ): Promise<CiIntakeResult> {
   const repositories = repositoriesForCapability(policyValue, "pr").filter(
     (repository) =>
@@ -130,7 +152,14 @@ export async function scanMainCi(
   for (const repository of repositories) {
     const headSha = await defaultHead(reader, repository);
     const status = await reader.get(`repos/${repository}/commits/${headSha}/status`);
-    const state = await ciState(status, reader, excludedRepository, repository, headSha);
+    const state = await ciState(
+      status,
+      reader,
+      excludedRepository,
+      repository,
+      headSha,
+      currentControlHeadSha
+    );
     if (state === "in-flight") {
       result.in_flight += 1;
       continue;
@@ -232,7 +261,8 @@ async function main(): Promise<void> {
     async (repository, headSha) => {
       await reserveCiStatus(controlRepository, statusToken, repository, headSha);
     },
-    onlyRepository
+    onlyRepository,
+    process.env.GITHUB_SHA ?? ""
   );
 
   console.log(JSON.stringify(result));

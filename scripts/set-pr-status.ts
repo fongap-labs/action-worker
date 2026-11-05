@@ -1,8 +1,8 @@
 import { requireToken } from "./control-token.ts";
 import { runGithubCli } from "./github-api.ts";
-import { retryTransientStatusWrite } from "./status-write-retry.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
+import { retryTransientStatusWrite } from "./status-write-retry.ts";
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);

@@ -4,7 +4,11 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { downloadFailureReason, scannerFailureReason, summarizeFindings } from "../scripts/central-secret-scan.ts";
+import {
+  downloadFailureReason,
+  scannerFailureReason,
+  summarizeFindings,
+} from "../scripts/central-secret-scan.ts";
 
 const script = "scripts/central-secret-scan.ts";
 const sha = (character: string): string => character.repeat(40);
@@ -168,14 +172,12 @@ test("release downloads classify HTTP and transport failures without exposing st
   assert.match(source, /--proto",\s*"=https"/);
   assert.doesNotMatch(source, /fetch\(url/);
   assert.equal(downloadFailureReason(22, null, undefined, "403"), "download returned HTTP 403");
-  assert.equal(downloadFailureReason(28, null, undefined, "000"), "download process failed with code 28");
   assert.equal(
-    downloadFailureReason(
-      null,
-      null,
-      Object.assign(new Error("missing"), { code: "ENOENT" }),
-      ""
-    ),
+    downloadFailureReason(28, null, undefined, "000"),
+    "download process failed with code 28"
+  );
+  assert.equal(
+    downloadFailureReason(null, null, Object.assign(new Error("missing"), { code: "ENOENT" }), ""),
     "curl executable not found"
   );
 });

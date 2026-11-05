@@ -240,3 +240,122 @@ test("central CI intake can be limited to the repository of a task source reques
   assert.deepEqual(dispatched, [{ repository: "fongap-labs/one", sha: shaA }]);
   assert.deepEqual(result, { repositories: 1, dispatched: 1, in_flight: 0, already_processed: 0 });
 });
+
+test("main CI retries a signed old failure only after trusted control revision changes", async () => {
+  const repository = "fongap-labs/example";
+  const controlRepository = "fongap-labs/action-worker";
+  const targetUrl = "https://github.com/fongap-labs/action-worker/actions/runs/1234";
+  const olderControl = "1111111111111111111111111111111111111111";
+  const newerControl = "2222222222222222222222222222222222222222";
+  const seen: string[] = [];
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      if (path === `repos/${repository}`) return { default_branch: "main" };
+      if (path === `repos/${repository}/commits/main`) return { sha: shaA };
+      if (path === `repos/${repository}/commits/${shaA}/status`) {
+        return attestFixtureResponseForPath(path, {
+          statuses: [
+            {
+              context: "CI Evidence",
+              state: "failure",
+              target_url: targetUrl,
+              updated_at: new Date().toISOString(),
+            },
+          ],
+        });
+      }
+      if (path === `repos/${controlRepository}/actions/runs/1234`) {
+        return {
+          status: "completed",
+          conclusion: "failure",
+          event: "repository_dispatch",
+          head_sha: olderControl,
+        };
+      }
+      throw new Error(`unexpected API path: ${path}`);
+    },
+  };
+  const opts = { [repository]: ["pr"] };
+  const rerun = await scanMainCi(
+    opts,
+    reader,
+    async (name) => {
+      seen.push(name);
+    },
+    controlRepository,
+    undefined,
+    "",
+    newerControl
+  );
+  assert.deepEqual(seen, [repository]);
+  assert.equal(rerun.dispatched, 1);
+
+  seen.length = 0;
+  const unchanged = await scanMainCi(
+    opts,
+    reader,
+    async (name) => {
+      seen.push(name);
+    },
+    controlRepository,
+    undefined,
+    "",
+    olderControl
+  );
+  assert.deepEqual(seen, []);
+  assert.equal(unchanged.already_processed, 1);
+
+  const missingTrustedVersion = await scanMainCi(
+    opts,
+    reader,
+    async () => {
+      throw new Error("Untrusted retry must not dispatch");
+    },
+    controlRepository
+  );
+  assert.equal(missingTrustedVersion.already_processed, 1);
+});
+
+test("main CI will not retry a signed failure from an untrusted or unfinished run", async () => {
+  const repository = "fongap-labs/example";
+  const controlRepository = "fongap-labs/action-worker";
+  const newerControl = "2222222222222222222222222222222222222222";
+  for (const run of [
+    { status: "in_progress", conclusion: null, event: "repository_dispatch", head_sha: shaA },
+    { status: "completed", conclusion: "success", event: "repository_dispatch", head_sha: shaA },
+    { status: "completed", conclusion: "failure", event: "push", head_sha: shaA },
+  ]) {
+    let dispatches = 0;
+    const result = await scanMainCi(
+      { [repository]: ["pr"] },
+      {
+        async get(path: string): Promise<unknown> {
+          if (path === `repos/${repository}`) return { default_branch: "main" };
+          if (path === `repos/${repository}/commits/main`) return { sha: shaB };
+          if (path === `repos/${repository}/commits/${shaB}/status`) {
+            return attestFixtureResponseForPath(path, {
+              statuses: [
+                {
+                  context: "CI Evidence",
+                  state: "failure",
+                  target_url: "https://github.com/fongap-labs/action-worker/actions/runs/1234",
+                },
+              ],
+            });
+          }
+          if (path === `repos/${controlRepository}/actions/runs/1234`) return run;
+          throw new Error(`unexpected API path: ${path}`);
+        },
+      },
+      async () => {
+        dispatches += 1;
+      },
+      controlRepository,
+      undefined,
+      "",
+      newerControl
+    );
+    assert.equal(result.already_processed, 1);
+    assert.equal(dispatches, 0);
+  }
+});

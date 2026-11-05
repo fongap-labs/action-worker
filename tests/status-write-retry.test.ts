@@ -26,10 +26,13 @@ test("status writes retry transient GitHub failures and stop when recovered", as
 test("status writes never retry permission failures or malformed requests", async () => {
   let calls = 0;
   await assert.rejects(
-    retryTransientStatusWrite(async () => {
-      calls += 1;
+    retryTransientStatusWrite(
+      async () => {
+        calls += 1;
         throw new Error("Resource not accessible by integration (HTTP 403)");
-    }, async () => {}),
+      },
+      async () => {}
+    ),
     /HTTP 403/
   );
   assert.equal(calls, 1);
