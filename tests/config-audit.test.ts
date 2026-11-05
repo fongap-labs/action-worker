@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   auditSources,
+  deploySourceManifest,
   parseSecretNames,
   policyDeclarationCheck,
   sourceManifest,
@@ -20,6 +21,17 @@ test("manifest parser only scans explicit source declarations", () => {
     kind: "allowed",
   });
   assert.equal(sourceManifest("projects/demo/secret.txt"), null);
+  assert.deepEqual(deploySourceManifest(".github/deploy.secrets.required"), {
+    project: "__repository__",
+    dataClass: "secret",
+    kind: "required",
+  });
+  assert.deepEqual(deploySourceManifest("projects/demo/deploy.vars.allowed"), {
+    project: "demo",
+    dataClass: "variable",
+    kind: "allowed",
+  });
+  assert.equal(deploySourceManifest("projects/demo/.secrets.allowed"), null);
 });
 
 test("declarations reject reserved and duplicate names", () => {
@@ -56,6 +68,7 @@ test("audit reads fixed tree and blobs without modifying GitHub configuration", 
   const sha = "a".repeat(40);
   const blob = "b".repeat(40);
   const variableBlob = "c".repeat(40);
+  const deployBlob = "d".repeat(40);
   const reader = {
     async get(path: string): Promise<unknown> {
       calls.push(path);
@@ -69,6 +82,7 @@ test("audit reads fixed tree and blobs without modifying GitHub configuration", 
           tree: [
             { type: "blob", path: "projects/test/.secrets.required", sha: blob },
             { type: "blob", path: "projects/test/.vars.allowed", sha: variableBlob },
+            { type: "blob", path: ".github/deploy.secrets.required", sha: deployBlob },
           ],
         };
       }
@@ -77,6 +91,9 @@ test("audit reads fixed tree and blobs without modifying GitHub configuration", 
       }
       if (path === `repos/fongap-labs/demo/git/blobs/${variableBlob}`) {
         return { encoding: "base64", content: Buffer.from("PUBLIC_ENDPOINT\n").toString("base64") };
+      }
+      if (path === `repos/fongap-labs/demo/git/blobs/${deployBlob}`) {
+        return { encoding: "base64", content: Buffer.from("DEPLOY_KEY\n").toString("base64") };
       }
       throw new Error("Unexpected request");
     },
@@ -88,6 +105,9 @@ test("audit reads fixed tree and blobs without modifying GitHub configuration", 
   assert.equal(summary.private_repositories, 1);
   assert.equal(summary.declared_secret_names, 1);
   assert.equal(summary.declared_variable_names, 1);
+  assert.equal(summary.declared_deploy_secret_names, 1);
+  assert.equal(summary.deploy_source_manifests, 1);
+  assert.equal(summary.deploy_policy_status, "not-verified");
   assert.equal(summary.variable_policy_status, "not-defined-by-task-secret-policy");
   assert.equal(summary.policy_excess_names, 0);
   assert.equal(summary.storage_presence, "unverified");
