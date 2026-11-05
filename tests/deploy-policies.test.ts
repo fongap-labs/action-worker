@@ -358,11 +358,9 @@ test("the deploy workflow dynamically selects one product-scoped Secret bundle",
   assert.match(plan?.run ?? "", /policies\/deploy-secrets\.json/);
   assert.match(execute?.run ?? "", /run-scoped-deploy\.ts/);
   assert.equal(execute?.env, undefined);
-  assert.deepEqual(Object.keys(stage?.env as Record<string, unknown>), ["AW_DEPLOY_SECRET_BUNDLE"]);
-  assert.equal(
-    stage?.env?.AW_DEPLOY_SECRET_BUNDLE,
-    "$" + "{{ secrets[steps.secret_plan.outputs.bundle_secret_name] }}",
-  );
+  const stageEnv = stage?.env as Record<string, string> | undefined;
+  assert.deepEqual(Object.keys(stageEnv ?? {}), ["AW_DEPLOY_SECRET_BUNDLE"]);
+  assert.equal(stageEnv?.AW_DEPLOY_SECRET_BUNDLE, "$" + "{{ secrets[steps.secret_plan.outputs.bundle_secret_name] }}");
   assert.equal(stage?.run, "node control/scripts/stage-deploy-secret-bundle.ts");
   const sourceText = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
   assert.equal(sourceText.includes("env: $" + "{{ secrets }}"), false);
@@ -692,7 +690,7 @@ test("the deploy job group never collides with its own pipeline group", async ()
   assert.equal(rootGroup, "source-script-deploy-fongap-labs/example-production");
 });
 
-test("the deploy workflow passes the product to the secret scope and the trigger to the entrypoint", async () => {
+test("the deploy workflow resolves product bundle policy and passes the trigger to the entrypoint", async () => {
   const deploy = (await workflow("deploy-source-script.yml")).jobs.deploy;
   const text = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
   assert.match(
