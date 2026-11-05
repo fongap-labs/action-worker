@@ -1,4 +1,4 @@
-# 提案 AW-002：使用 GitHub Environments 隔离部署与任务密钥
+# 提案：部署与任务密钥隔离
 
 状态：**部署路径已实施**（PR "let the control plane decide deploy environments and secret ceilings"：中央环境与密钥策略、只读检出令牌、为使用管理员令牌的作业设置 `admin-ops`）。**任务路径保持现状（方案 A）**；方案 B 与 C 在部署演练之后仍可选用。**仍需 owner 手动完成：** 一次演练部署、将 `AW_DEPLOY_SECRET_POLICY_MODE` 切换为 `enforce`、把密钥复制到各环境，然后删除仓库级副本。
 
