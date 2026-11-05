@@ -62,15 +62,30 @@ test("task transfer rejects malformed, duplicate-key equivalent and tampered env
   assert.throws(() => openTaskTransfer(Buffer.from("not-json"), identity, pair.privateKey));
   assert.throws(() => openTaskTransfer(Buffer.from("{}"), identity, pair.privateKey));
   assert.throws(
-    () => openTaskTransfer(Buffer.from(JSON.stringify({ ...parsed, unauthorized: true })), identity, pair.privateKey),
+    () =>
+      openTaskTransfer(
+        Buffer.from(JSON.stringify({ ...parsed, unauthorized: true })),
+        identity,
+        pair.privateKey
+      ),
     /schema/
   );
   assert.throws(
-    () => openTaskTransfer(Buffer.from(JSON.stringify({ ...parsed, nonce: "***" })), identity, pair.privateKey),
+    () =>
+      openTaskTransfer(
+        Buffer.from(JSON.stringify({ ...parsed, nonce: "***" })),
+        identity,
+        pair.privateKey
+      ),
     /encoding/
   );
   assert.throws(
-    () => openTaskTransfer(Buffer.from(JSON.stringify({ ...parsed, tag: Buffer.alloc(16).toString("base64") })), identity, pair.privateKey),
+    () =>
+      openTaskTransfer(
+        Buffer.from(JSON.stringify({ ...parsed, tag: Buffer.alloc(16).toString("base64") })),
+        identity,
+        pair.privateKey
+      ),
     /authentication/
   );
   const other = keypair();
@@ -101,7 +116,8 @@ test("task transfer rejects malformed context before encryption", () => {
     /identity/
   );
   assert.throws(
-    () => sealTaskTransfer(Buffer.from("data"), { ...identity, project: "../other" }, pair.publicKey),
+    () =>
+      sealTaskTransfer(Buffer.from("data"), { ...identity, project: "../other" }, pair.publicKey),
     /identity/
   );
 });
