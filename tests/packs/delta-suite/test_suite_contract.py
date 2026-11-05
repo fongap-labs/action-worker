@@ -265,7 +265,9 @@ class TestRepositoryBoundary:
             release_policy["changelog_file"],
         }
         assert "changelog_fragment_dir" not in release_policy
-        assert not (ROOT / "changelog.d").exists(), "Retired fragment directory must be absent"
+        assert not (ROOT / "changelog.d").exists(), (
+            "Retired fragment directory must be absent"
+        )
         for item in ROOT.iterdir():
             if (
                 item.name.startswith(".git")
