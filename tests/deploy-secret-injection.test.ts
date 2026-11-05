@@ -14,8 +14,8 @@ test("deploy secret plan separates stored Secrets from explicitly declared Repos
     const required = join(root, "required");
     const allowed = join(root, "allowed");
     const policy = join(root, "policy.json");
-    await writeFile(required, "TOKEN_REQUIRED\n");
-    await writeFile(allowed, "TOKEN_OPTIONAL\nACCOUNT_ID\n");
+    await writeFile(required, "TOKEN_REQUIRED\nACCOUNT_ID\n");
+    await writeFile(allowed, "TOKEN_OPTIONAL\n");
     await writeFile(policy, JSON.stringify({
       schema_version: 1,
       deployments: {
