@@ -338,7 +338,6 @@ test("the central policies give each Cloudflare account its own qualified secret
     [
       ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_SECONDARY"],
       ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_SECONDARY"],
-      ["AIG_DEPLOY_HEALTH_KEY", "AIG_ACCESS_KEY_AGENT"],
     ]
   );
   assert.equal(
@@ -351,6 +350,8 @@ test("the central policies give each Cloudflare account its own qualified secret
     ).has("AIG_ACCESS_KEY_AGENT"),
     false
   );
+  assert.equal(gateway.has("AIG_DEPLOY_HEALTH_KEY"), true);
+  assert.equal(deploy.has("AIG_DEPLOY_HEALTH_KEY"), false);
   // The retired inference product has no deployment credential aliases.
   const retired = await readSecretAliases(
     "policies/deploy-secrets.json",
