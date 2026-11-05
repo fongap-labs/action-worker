@@ -21,6 +21,7 @@ jobs:
       agent_domain: ${{ steps.payload.outputs.agent_domain }}
       operation: ${{ steps.payload.outputs.operation }}
       is_private: ${{ steps.visibility.outputs.is_private }}
+      isolation_mode: ${{ steps.isolation.outputs.enabled }}
 
     steps:
       - name: Mask task identifiers in public logs
@@ -99,8 +100,24 @@ jobs:
           [[ "$is_private" == "true" || "$is_private" == "false" ]]
           echo "is_private=$is_private" >> "$GITHUB_OUTPUT"
 
+      - name: Gate explicit stateless public isolation pilot
+        id: isolation
+        if: vars.AW_TASK_ISOLATION_PILOT_ENABLED == 'true' && vars.AW_TASK_ISOLATION_PILOT_GROUP == steps.payload.outputs.task_group
+        env:
+          AW_CONTROL_TOKEN: ${{ steps.task_read_app.outputs.token }}
+          TASK_SOURCE_REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PROJECT: ${{ steps.payload.outputs.project }}
+          BOOTSTRAP_REF: ${{ steps.payload.outputs.bootstrap_ref }}
+          OPERATION: ${{ steps.payload.outputs.operation }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node scripts/isolated-public-task.ts admit
+          echo "enabled=true" }} "$GITHUB_OUTPUT"
+
   execute:
     name: Execute task
+    if: needs.validate.outputs.isolation_mode != 'true'
     needs: validate
     outputs:
       publication_staged: ${{ steps.publication.outputs.staged }}
@@ -474,6 +491,163 @@ jobs:
           path: ${{ runner.temp }}/task-publication/sealed.json
           if-no-files-found: error
           retention-days: 1
+
+  prepare_isolated:
+    name: Prepare explicit public pilot state
+    needs: validate
+    if: needs.validate.outputs.isolation_mode == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout pinned trusted implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Refuse all historical state and produce bounded new-task input
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TASK_SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+          PROJECT: ${{ github.event.client_payload.project }}
+          BOOTSTRAP_REF: ${{ github.event.client_payload.bootstrap_ref }}
+        run: node scripts/isolated-public-task.ts prepare "$RUNNER_TEMP/isolated-input.packed"
+      - name: Upload run-bound task input
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: isolated-input-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/isolated-input.packed
+          if-no-files-found: error
+          retention-days: 1
+
+  run_isolated:
+    name: Run approved public task without governance credentials
+    needs: [validate, prepare_isolated]
+    if: needs.validate.outputs.isolation_mode == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    concurrency:
+      group: action-worker-${{ needs.validate.outputs.task_group }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+    env:
+      TASK_SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+      PROJECT: ${{ github.event.client_payload.project }}
+      BOOTSTRAP_REF: ${{ github.event.client_payload.bootstrap_ref }}
+      REQUEST_ID: ${{ github.event.client_payload.request_id }}
+      AW_TASK_STATE_DIR: ${{ runner.temp }}/isolated-task-state
+      AW_TASK_TRANSFER_ROLE: task
+    steps:
+      - name: Checkout pinned central code without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Checkout approved public source at verified commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.client_payload.repository }}
+          ref: ${{ github.event.client_payload.bootstrap_ref }}
+          token: ${{ github.token }}
+          path: task-source
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Download run-bound state input
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: isolated-input-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/isolated-input
+      - name: Restore bounded public state
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$AW_TASK_STATE_DIR"
+          node scripts/isolated-public-task.ts open-input \
+            "$RUNNER_TEMP/isolated-input/isolated-input.packed" \
+            "$AW_TASK_STATE_DIR/previous"
+          mkdir -p "$AW_TASK_STATE_DIR/current"
+      - name: Run verified public task without business or governance Secrets
+        id: bootstrap
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git -C task-source rev-parse HEAD)" = "$BOOTSTRAP_REF"
+          test -s task-source/bootstrap.sh
+          bash -n task-source/bootstrap.sh
+          bash task-source/bootstrap.sh "$PROJECT" "$BOOTSTRAP_REF" "$REQUEST_ID"
+      - name: Collect bounded task state as untrusted data
+        if: always() && steps.bootstrap.outcome != 'skipped'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node scripts/isolated-public-task.ts pack-output \
+            "$AW_TASK_STATE_DIR/current" "$RUNNER_TEMP/isolated-output.packed"
+      - name: Upload bounded public state for trusted finalizer
+        if: always() && steps.bootstrap.outcome != 'skipped'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: isolated-output-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/isolated-output.packed
+          if-no-files-found: error
+          retention-days: 1
+
+  finalize_isolated:
+    name: Verify state on fresh trusted runner
+    needs: [validate, prepare_isolated, run_isolated]
+    if: always() && needs.validate.outputs.isolation_mode == 'true' && needs.prepare_isolated.result == 'success' && (needs.run_isolated.result == 'success' || needs.run_isolated.result == 'failure')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout pinned trusted postprocessor
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Download untrusted output as data only
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: isolated-output-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/isolated-output
+      - name: Validate bounded state and manifest identity
+        id: state
+        env:
+          TASK_SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+          PROJECT: ${{ github.event.client_payload.project }}
+          BOOTSTRAP_REF: ${{ github.event.client_payload.bootstrap_ref }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node scripts/isolated-public-task.ts finalize \
+            "$RUNNER_TEMP/isolated-output/isolated-output.packed" \
+            "$RUNNER_TEMP/verified-state"
+          name="$(node scripts/task-state.ts name "$TASK_SOURCE_REPOSITORY" "$PROJECT")"
+          echo "artifact_name=$name" }} "$GITHUB_OUTPUT"
+      - name: Upload verified public state in historical artifact shape
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.state.outputs.artifact_name }}
+          path: ${{ runner.temp }}/verified-state
+          if-no-files-found: error
+          retention-days: 30
 
   publish:
     name: Governed task publication
