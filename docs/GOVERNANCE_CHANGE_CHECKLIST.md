@@ -4,7 +4,7 @@
 
 ---
 
-## 1. 策略文件（Policies）
+## 1. 策略文件
 
 - [ ] `repository.json` — 仓库默认设置（Issues/Projects/Wiki/Discussions、合并方式、自动清理）
 - [ ] `rulesets.json` — `Protect Main Branch` / `Protect Legacy Branches` 规则集定义
@@ -20,7 +20,7 @@
 
 ---
 
-## 2. 合同测试（Contract Tests）
+## 2. 合同测试
 
 - [ ] `governance-contract.test.ts` — 验证 main ruleset 必含 `validate-merge` 且 `strict_required_status_checks_policy: true`
 - [ ] `workflow-classes.test.ts` — 验证工作流分类、命名、权限、超时、concurrency
@@ -32,7 +32,7 @@
 
 ---
 
-## 3. 核心治理文档（Governance Documents）
+## 3. 核心治理文档
 
 - [ ] `00_GOVERNANCE_OVERVIEW.md` — 一页纸总览与关键文档速查（如入口/章节变化）
 - [ ] `01_SHARED_GOVERNANCE.md` — 权威边界、共用规则、语言分层、Agent 入口、机器执行、平台能力
@@ -55,7 +55,7 @@
 
 ---
 
-## 4. 机器执行脚本（Execution Scripts）
+## 4. 机器执行脚本
 
 - [ ] `apply-repository-settings.ts` — 读取 policies/*.json，幂等应用 Repository Settings 与 rulesets
 - [ ] `validate-change-record.ts` — PR 标题、CHANGELOG、AI 署名、变更分类
@@ -77,7 +77,7 @@
 
 ---
 
-## 5. 预览与验证（Preview and Validation）
+## 5. 预览与验证
 
 - [ ] 本地运行预览：
   ```bash
@@ -92,7 +92,7 @@
 
 ---
 
-## 6. PR 规范（Pull Request Rules）
+## 6. 合并请求 规范
 
 - **标题**：`chore(governance): <简述>` 或 `feat(governance): <简述>` / `fix(governance): <简述>`
 - **CHANGELOG**：必须在 `CHANGELOG.md` 的 `[Unreleased]` 下添加条目，属性包含 `[migration]`（如涉及策略/合同变更）或 `[breaking]`（如移除字段/改变默认行为）
@@ -100,7 +100,7 @@
 
 ---
 
-## 7. 合并后动作（Post-Merge Actions）
+## 7. 合并后动作
 
 - [ ] 合并后，`apply-repository-settings.yml` 会在下一次 push/main 或定时运行时自动应用到所有受管仓库
 - [ ] 观察 Actions：`自动 · 仓库设置`、`自动 · 主分支审计`、`自动 · 总控调度` 运行无报错
@@ -108,7 +108,7 @@
 
 ---
 
-## 附：文件名映射表（Legacy Filename Map）
+## 附：文件名映射表
 
 | 旧文件 | 新文件 |
 |--------|--------|
