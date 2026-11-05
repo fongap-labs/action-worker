@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { scannerFailureReason, summarizeFindings } from "../scripts/central-secret-scan.ts";
+import { downloadFailureReason, scannerFailureReason, summarizeFindings } from "../scripts/central-secret-scan.ts";
 
 const script = "scripts/central-secret-scan.ts";
 const sha = (character: string): string => character.repeat(40);
@@ -163,10 +163,10 @@ test("scanner failures reveal safe categories but never leak private stderr", as
 
 test("release downloads classify HTTP and transport failures without exposing stderr", async () => {
   const source = await readFile(script, "utf8");
-  assert.match(source, /spawnSync\\(\\s*"curl"/);
+  assert.match(source, /spawnSync\(\s*"curl"/);
   assert.match(source, /--retry-all-errors/);
-  assert.match(source, /--proto",\\s*"=https"/);
-  assert.doesNotMatch(source, /fetch\\(url/);
+  assert.match(source, /--proto",\s*"=https"/);
+  assert.doesNotMatch(source, /fetch\(url/);
   assert.equal(downloadFailureReason(22, null, undefined, "403"), "download returned HTTP 403");
   assert.equal(downloadFailureReason(28, null, undefined, "000"), "download process failed with code 28");
   assert.equal(
