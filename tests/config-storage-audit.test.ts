@@ -37,7 +37,10 @@ function fixture(overrides: Record<string, unknown> = {}) {
     },
     ["repos/" + repository + "/environments/production/variables"]: {
       total_count: 2,
-      variables: [{ name: "PUBLIC_NAME", value: "hidden" }, { name: "AW_REPOSITORY_POLICY", value: "hidden" }],
+      variables: [
+        { name: "PUBLIC_NAME", value: "hidden" },
+        { name: "AW_REPOSITORY_POLICY", value: "hidden" },
+      ],
     },
     ...overrides,
   };
