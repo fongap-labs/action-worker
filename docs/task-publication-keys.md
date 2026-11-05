@@ -6,7 +6,7 @@
 
 **严禁将 `AW_PUBLICATION_PRIVATE_KEY` 配置为普通 Repository Secret 或 Organization Secret。** 现有下游任务执行步骤使用 `env: ${{ secrets }}`，这两类 Secret 可能进入运行第三方代码的 Job；应只将私钥放在受保护的 `admin-ops` Environment Secret 中。
 
-## 一、本机生成密钥（Generate Local Keys）
+## 一、本机生成密钥
 
 使用 Node.js 24 或更新版本，在所有 Git 仓库目录之外生成，不得通过网页、聊天、Actions 日志或线上服务生成私钥。
 
@@ -33,7 +33,7 @@ node scripts/prepare-publication-keys.ts verify \
 
 脚本生成 **RSA-3072** 密钥对，以独占创建模式写文件，禁止覆盖已有密钥，拒绝把密钥生成到当前源码仓库中，不会打印密钥内容。POSIX 文件权限设置为 `0600`；Windows 还应检查 NTFS ACL，限制密钥目录仅当前账户可读。
 
-## 二、配置 GitHub（Configure GitHub）
+## 二、配置 代码托管平台
 
 目标仓库：`fongap-labs/action-worker`。
 
@@ -43,7 +43,7 @@ node scripts/prepare-publication-keys.ts verify \
 
 **不要**把私钥文件提交至 Git、发布为 Artifact、粘贴到 PR/Issue、发送到聊天工具或写入运行日志。GitHub Secrets 无法通过普通读取 API 验证其值，可在本机用 `verify` 确认公私钥匹配，再用受保护的实际任务进行端到端验证。
 
-## 三、合并 #1380 前验收（Pre-Merge Acceptance）
+## 三、合并 #1380 前验收
 
 1. 本机执行 `verify`，确认所生成公私钥匹配。
 2. 确认 #1380 已基于最新 `main` 通过全部必要 CI 检查。
@@ -55,7 +55,7 @@ node scripts/prepare-publication-keys.ts verify \
 
 未配置 `AW_PUBLICATION_PUBLIC_KEY` 时，带待发布产物的任务应明确失败；不能为了让任务通过而恢复执行环境中的 `AW_CONTROL_TOKEN`。
 
-## 四、密钥轮换（Key Rotation）
+## 四、密钥轮换
 
 目前草稿方案只有一组活动密钥，**不支持多密钥同时解密**。仅在没有任务正在发布时成对更新 Repository Variable 与 Environment Secret。旧密钥生成的在途加密产物可能无法再解密，需要重新运行有关任务。
 
