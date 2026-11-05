@@ -343,7 +343,11 @@ test("the central policies give each Cloudflare account its own qualified secret
   );
   assert.equal(
     (
-      await readDeploySecretCeiling("policies/deploy-secrets.json", "fongap-labs/ai-gateway", "production")
+      await readDeploySecretCeiling(
+        "policies/deploy-secrets.json",
+        "fongap-labs/ai-gateway",
+        "production"
+      )
     ).has("AIG_ACCESS_KEY_AGENT"),
     false
   );
