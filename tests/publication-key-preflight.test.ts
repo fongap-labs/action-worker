@@ -184,3 +184,26 @@ test("protected App preflight validates the actual private-source publication ta
   assert.equal(mint?.with?.["permission-pull-requests"], "write");
   assert.ok(job.steps.some((item) => item.name === "Verify real publication target App isolation"));
 });
+
+test("one-time governed canary needs an explicit main-commit marker", async () => {
+  const source = await readFile(".github/workflows/publication-key-verify.yml", "utf8");
+  const flow = parse(source) as {
+    jobs: Record<string, { environment?: string; steps: Array<{
+      name?: string;
+      if?: string;
+      with?: Record<string, string>;
+    }> }>;
+  };
+  const job = flow.jobs["smoke-open"];
+  assert.equal(job.environment, "admin-ops");
+  const publisher = job.steps.find(
+    (step) => step.name === "Publish canary through central PR governance"
+  );
+  assert.match(publisher?.if ?? "", /publication-pr-canary/);
+  const token = job.steps.find((step) => step.name === "Mint one-time canary target token");
+  assert.equal(token?.with?.repositories, "external-vault");
+  assert.equal(token?.with?.["permission-contents"], "write");
+  assert.equal(token?.with?.["permission-pull-requests"], "write");
+  assert.match(source, /Governed canary merged after all three required verdicts/);
+  assert.match(source, /Central governance rejected canary; PR left open for inspection/);
+});
