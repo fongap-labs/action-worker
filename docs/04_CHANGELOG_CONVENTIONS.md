@@ -1,294 +1,98 @@
-# CHANGELOG 约定
+# 变更记录规范
 
-Action Worker 在 PR、Agent、CHANGELOG 与 Release 之间使用同一套变更分类。PR 标题使用 11 种工程类型；CHANGELOG 条目使用 6 个面向读者的类别，并由 PR 类型映射得到。
+> **三类变更、单一文件、中文精炼、自动优先。**
 
-**语言规则**：PR 标题与工程 diff 使用英文；CHANGELOG 条目与 Release 版本说明使用中文。详见 `01_SHARED_GOVERNANCE.md` §2。
-
-**实施状态**：类别映射、条目格式与门禁已实施（`policies/release.json`、`scripts/changelog-release.ts`、`scripts/validate-change-record.ts`）。条目文件（`changelog.d/`）取代了直接写 `[Unreleased]` 与 `merge=union`，见 §4。发布时由中央生成版本小节、经 PR 合入并在合并提交上打 tag 的流程（§9）已实施，见 `docs/proposals/AW-008-changelog-release-automation.md`。
+此规范同时适用于 Action Worker 和受管业务仓库。PR 与提交标题使用英文；\`CHANGELOG.md\` 的条目和发布说明使用中文。语言权威见 \`01_SHARED_GOVERNANCE.md\` §2。
 
 ---
 
-## 1. PR 类型与 CHANGELOG 类别
+## 1. 变更类型（Change Types）
 
-PR 标题只允许以下 11 种类型，决定 PR 治理与版本计算：
+只允许以下三类，不接受其他类型、别名或图标前缀。
 
-| 类型 | 含义 |
-|------|------|
-| `feat` | 新功能或新能力 |
-| `fix` | 缺陷修复 |
-| `docs` | 仅文档 |
-| `style` | 仅格式或风格，无逻辑变化 |
-| `refactor` | 不新增功能、不修复缺陷的重构 |
-| `perf` | 性能改进 |
-| `test` | 新增或调整测试 |
-| `build` | 构建、依赖、打包 |
-| `ci` | CI/CD、GitHub Actions |
-| `chore` | 其他维护工作 |
-| `revert` | 撤销更早的变更 |
+| 类型 | 范围 | 默认版本影响 | CHANGELOG 类别 |
+|------|------|--------------|----------------|
+| \`feat\` | 新功能、新行为、新接口 | Minor | 新增 |
+| \`fix\` | 缺陷、错误行为、安全修复 | Patch | 修复 |
+| \`chore\` | 重构、配置、依赖、文档、测试、CI、样式及日常维护 | 无 | 维护 |
 
-CHANGELOG 条目只允许以下 6 个类别，按此顺序显示：
+破坏性变更使用 \`!\` 或 Conventional Commits 的 \`BREAKING CHANGE:\` 描述，不增加第四类；版本升幅优先于上述默认值。**不为历史类型设置校验例外。**
 
-| 类别 | 含义 |
-|------|------|
-| 新增 | 新功能或新能力 |
-| 变更 | 既有行为的调整、性能改进、撤销 |
-| 弃用 | 仍可用，但计划移除的功能 |
-| 移除 | 已删除的功能或字段 |
-| 修复 | 缺陷修复 |
-| 安全 | 安全相关变更，必须带 `security` 属性 |
+## 2. 变更属性（Change Attributes）
 
-类别由 PR 类型映射得到，映射表维护在 `policies/release.json` 的 `changelog_category_types` 中：
+\`breaking\`、\`security\`、\`migration\` 仅为元数据，**不是变更类型**，不创建额外类别。只有确实存在对应影响时才填写。新增安全修复仍是 \`fix\`，在中文条目中可标注 \`[security]\`。
 
-| PR 类型 | 允许的 CHANGELOG 类别 |
-|---------|-----------------------|
-| `feat` | 新增、变更、弃用 |
-| `fix` | 修复、变更 |
-| `perf` | 变更 |
-| `revert` | 变更、修复 |
+## 3. PR 与提交标题（PR and Commit Titles）
 
-安全条目例外：带 `security` 属性的条目必须使用 `安全` 类别，且 `安全` 类别的条目必须带 `security` 属性；此类条目可满足任何 PR 类型的 CHANGELOG 要求。
+采用统一格式：
 
-不得在 CHANGELOG 中使用英文类型名（如 `fix:`）或 Added/Changed/Fixed 等英文小节名。
+\`\`\`text
+feat: add agent scheduling
+fix(auth): reject invalid token
+chore: refresh documentation
+feat(api)!: replace the legacy contract
+\`\`\`
 
----
+\`scope\` 可省略；摘要必须使用英文，表达实际效果。禁止 \`docs:\`、\`refactor:\`、\`ci:\`、\`perf:\` 等旧类型，也禁止 \`:sparkles:\`、\`:bug:\`、\`:rocket:\` 等图标前缀。
 
-## 2. 变更属性
+## 4. 单一文件（Single Changelog）
 
-以下只是属性，**不是类型**：
+每个仓库只有一个变更记录来源：
 
-```
-breaking
-security
-migration
-```
-
-一个 PR 有且只有一个主类型，可带多个属性。
-
-示例：
-```
-type: feat
-attributes: breaking, migration
-```
-或：
-```
-type: fix
-attributes: security
-```
-
----
-
-## 3. PR 标题
-
-遵循 Conventional Commits 风格：
-
-```
-type: summary
-type(scope): summary
-type!: summary
-type(scope)!: summary
-```
-
-示例：
-```
-feat: add repository allowlist validation
-fix(router): stop retrying a disabled provider
-refactor: simplify PR plan resolution
-feat(auth)!: replace legacy authentication contract
-```
-
-规则：
-- 类型必须来自 §1 的 11 种类型
-- scope 可选，只描述受影响区域
-- `!` 标记破坏性变更
-- summary 使用英文，描述实际结果；`update files`、`misc changes` 等无实义摘要禁止
-- 一个 PR 只有一个主类型
-
----
-
-## 4. CHANGELOG 文件
-
-每个项目使用：
-```
+\`\`\`text
 CHANGELOG.md
-```
+\`\`\`
 
-文件至少包含：
-```markdown
-# Changelog
+新条目直接写在 \`## [Unreleased]\` 下。**废除 \`changelog.d/\`**：不得创建、读取或发布片段文件，不保留兼容路径。
 
+PR 可新增未发布条目，不得修改、删除已有条目或已发布版本小节。并行 PR 修改同一文件可能冲突；机器人应在最新 \`main\` 上重算并更新分支，不以 \`merge=union\` 绕开冲突检查。
+
+## 5. 中文条目（Chinese Entries）
+
+每条只写一项可理解的实际变化，不列文件、内部调用链或排查过程；一行一条，**摘要不超过 80 个字符**。
+
+\`\`\`markdown
 ## [Unreleased]
-```
 
-每个变更的条目写在它自己的条目文件里，而不是 `CHANGELOG.md`：
+- 新增: 支持自动分配多仓库任务。
+- 修复: 修复 CI 取消后状态长期挂起的问题。
+- 维护: 统一命名规范和文档索引。
+- 修复 [security]: 拒绝未授权的部署请求。
+\`\`\`
 
-```
-changelog.d/<slug>.md
-```
+英文标识符可以保留在中文句子中，但不得写英文摘要、乱码或无意义语句。类别仅允许 **新增、修复、维护**。
 
-`<slug>` 是仓库内唯一的小写 kebab-case 名字（如 `csi-verdict-supersede`），一个文件可以包含多条条目，格式见 §5。需要条目的 PR 必须新增至少一个条目文件；已在基线分支上存在的条目文件不得修改，也不得用同名文件。
+## 6. 记录条件（When to Record）
 
-`CHANGELOG.md` 的 `[Unreleased]` 由发布汇总，pull request 不修改它。已在 `[Unreleased]` 中的条目保持原位，在下一次发布时与条目文件一起汇总。
+\`feat\` 和 \`fix\` 必须有对应中文条目。\`chore\` 默认可省略；涉及破坏性行为时必须记录并标明 \`breaking\`。需要告知用户的维护变更可以主动记录，但不得把所有内部改动写进发布日志。
 
-发布时，条目文件与 `[Unreleased]` 中的条目一并汇总到一个版本小节，小节下按 §1 的类别分组，然后移除这些条目文件。条目一旦发布即视为不可变，不要回头改写已发布的条目。
+## 7. 自动生成（Automatic Generation）
 
-> 历史说明：此前所有变更直接写入 `[Unreleased]` 顶部并依赖 `merge=union`。该做法在 GitHub 网页端不生效，且两边加入相同行时会重复条目，已由条目文件取代（见 AW-008）。
+执行 Agent 优先读取最终 diff，提出以下内容：
 
-版本小节的标题链接到该版本的 GitHub Release：
+1. 一个 \`feat\`、\`fix\` 或 \`chore\` 类型。
+2. 一条英文 PR 标题。
+3. 需要时一条中文 CHANGELOG 摘要。
 
-```markdown
-## [1.2.0](https://github.com/<owner>/<repo>/releases/tag/<tag>) - 2026-10-23
+CI 校验标题类型、条目格式、类别映射及必要属性；**commitlint 只能校验格式，不能代替基于 diff 的语义判断**。不新增与 Action Worker 现有 PR 校验重复的独立权威。
 
-### 新增
+## 8. 禁止事项（Prohibited Practices）
 
-- 增加导出命令。
-```
+禁止额外类型、英文 CHANGELOG 摘要、空泛条目、无审查的自动发布，以及为旧类型登记豁免。禁止在 \`changelog.d/\` 新增文件或在发布时回退片段读取。
 
----
+## 9. 发布流程（Release Process）
 
-## 5. CHANGELOG 条目
+中央以可信 \`main\` 的 \`[Unreleased]\` 生成按三类分组的版本小节，并经 PR 与合并门禁后正式发布。Release Tag 只在资产校验通过后创建；CHANGELOG 标题不决定版本号。
 
-每条条目一行，格式为：
+自动版本建议基于 \`feat\`、\`fix\`、\`chore\` 与破坏性标记。跨度内存在不规范提交时应失败并明确指出，不自动回退到旧类型解析。
 
-```
-- 类别: 中文摘要
-- 类别 [属性]: 中文摘要
-- 类别 [属性, 属性]: 中文摘要
-```
+## 10. 最短规则（Quick Rules）
 
-示例：
-```markdown
-- 新增: 增加仓库白名单校验。
-- 安全 [security]: 阻止 PR 沙箱继承中央密钥。
-- 新增 [breaking, migration]: 替换旧的认证配置格式。
-- 变更: 降低提供方路由延迟。
-```
+> 新增 / 修复 / 维护；三种标题类型；中文摘要最多 80 字符；一个 CHANGELOG 文件；语义由 Agent 建议，规则由 CI 验证。
 
-规则：
-- 类别必须是 §1 的 6 个类别之一；
-- 摘要必须是中文，只描述实际结果，不列出变更文件；英文标识符（函数名、配置键）可保留在句子中；
-- 摘要不得含乱码（例如 `â€“`、`â–?`、`�`），需要符号时直接输入正确字符；
-- 允许属性：`breaking`、`security`、`migration`（定义与用法见 §2）；
-- 当 PR 标题使用 `!` 时，其 CHANGELOG 条目**必须**包含 `breaking`；
-- 破坏性变更必须归入 `feat`、`fix`、`perf` 或 `revert` 类型；`refactor` 等不要求条目的类型不能承载破坏性变更，应当重新分类。
+## 11. 权威引用（Authoritative References）
 
----
-
-## 6. 何时必须写 CHANGELOG 条目
-
-默认必须写的类型：
-```
-feat
-fix
-perf
-revert
-```
-以及带有以下任一属性的所有变更：
-```
-breaking
-security
-migration
-```
-
-默认不要求写的类型：
-```
-docs
-style
-refactor
-test
-build
-ci
-chore
-```
-
-> 如果某个所谓的 `refactor`、`ci` 或 `build` 实际上改变了外部行为，问题在于分类本身。应重新分类为 `feat`/`fix`/`perf` 等，而非用例外绕过规则。
-
----
-
-## 7. Agent 的默认职责
-
-普通 PR 不需要人逐项决定。代码完成后，执行的 Agent **必须**：
-
-1. 阅读最终的 diff，而非凭原始任务描述猜测
-2. 从 11 种类型中选择且只选择一个主类型
-3. 判断 breaking / security / migration 属性是否适用
-4. 设置或修正 PR 标题（英文）
-5. 依据本约定判断 `CHANGELOG.md` 是否必须更新
-6. 用中文撰写 CHANGELOG 条目，选择 §1 的类别，只描述实际结果，不列出变更文件，不产生乱码
-
-Review Agent 或审查者**必须**再次检查：
-- 类型是否与实际 diff 相符
-- 是否遗漏 breaking
-- 是否遗漏 security / migration
-- 应当有 CHANGELOG 条目的 PR 是否缺失条目
-- 类别是否与 PR 类型映射一致，安全类别与 `security` 属性是否一一对应
-- CHANGELOG 条目是否为中文，是否描述真实行为而非实现过程，是否含乱码
-
-只有在证据不足、无法从代码/测试/文档确定业务含义，或涉及不可逆高风险决策时，才升级给人处理。
-
----
-
-## 8. 禁止事项
-
-禁止的摘要：
-```
-update files
-fix bug
-refactor code
-misc changes
-various improvements
-```
-
-同样禁止：
-- 一个 PR 声明多个主类型
-- 用 `chore` 掩盖真实的 feat / fix / 破坏性变更
-- 把 security 作为主类型
-- 把 breaking 作为主类型
-- 在 CHANGELOG 中使用 §1 之外的类别，或使用英文类别名与 Added/Changed/Fixed 小节
-- 在 PR 类型与 CHANGELOG 类别之外另立分类体系
-- 因 Agent 不确定而悄悄省略应有的 CHANGELOG 条目
-- 在 CHANGELOG 中写英文条目或乱码
-
----
-
-## 9. Release
-
-Release 版本说明使用 §1 的类别分组，顺序与 `[Unreleased]` 小节一致。
-
-CHANGELOG 标题**永远不决定或约束** Release 版本。版本来自发布启动时手动输入：正式版为 `X.Y.Z`，beta 版为 `X.Y.Z-beta.N`（N ≥ 1，作为 GitHub 预发布发布）。正式版发布时，汇总同一版本的所有 beta 条目；beta 只含自己的条目。`release-app.yml` 的 `requested_version` 也可以留空，留空时 Action Worker 按上次 `<release_key>-vX.Y.Z` 标签之后的 Conventional Commits 自动计算下一个稳定版本（沿用 SemVer 0.x 规则；跨度内出现无法解析的提交标题会整次失败，改用显式版本即可）。
-
-发布流程（AW-008 阶段一）：
-
-1. 中央读取目标仓库默认分支的 `CHANGELOG.md` 与 `changelog.d/` 条目文件，生成版本小节。
-2. 中央开一个分支 `aw/changelog/<tag>` 的 PR，标题为 `chore(release): <tag>`。它删除已汇总的条目文件，并写入版本小节。校验器从基线重新计算期望内容，只有完全一致才放行。
-3. 该 PR 走正常的门禁，合并后由 Main Write Guard 证明合并提交的来源。
-4. 中央先以草稿形式创建 GitHub Release（草稿不产生 tag），上传并校验全部资产；校验通过后正式发布，此时才在合并提交上创建 tag。校验失败只删除草稿，不留下 tag。
-
-**自有条目发布**（清单带 `changelog_entries`，用于多工具仓库中的上游镜像，例如 `external-vault` 的工具）：
-
-- 这类发布只写自己的版本小节，**不读取、也不删除** `[Unreleased]` 与条目文件。各发布互不消耗对方的条目，不依赖发布顺序，也不需要为每个工具单独写片段。
-- 条目由中央生成，格式为 `新增: <中文摘要>`，并经同一套类别与中文摘要检查。
-- 发布 PR 只新增这一个版本小节且不改动其他内容。校验器从小节自身的条目重算小节，二者一致才放行。
-- 版本小节按 release URL（唯一的 tag）定位，不同工具即使版本号相同也不会串节。
-- 不同工具的发布互不排队，各自并行执行（`handle-release-dispatch.yml` 的并发组按 `artifact_name` 区分）。这些发布都在版本小节的同一位置插入，因此后合入的发布 PR 可能与主干冲突。此时中央关闭该 PR，按最新主干重建版本小节，最多重建 3 次。
-
-普通产品发布仍按上文第 1–2 步汇总 `[Unreleased]` 与条目文件。
-
-版本说明来自产品清单的 `release_notes`。只有它为空字符串时，才使用本次版本小节的内容；维护者手写的值永远优先。提交跨度清单不再作为版本说明的来源。
-
----
-
-## 10. 最短规则
-
-> 一个 PR，一个类型；PR 标题使用英文，CHANGELOG 条目使用中文并选择六类类别之一；类型遵循 Conventional Commits；breaking / security / migration 只是属性；版本只来自发布输入。
-
----
-
-## 11. 相关引用
-
-- 语言与文档分层：`01_SHARED_GOVERNANCE.md` §2
-- 变更类型与属性定义：`TERMINOLOGY.md`
-- 映射与类别的机器定义：`policies/release.json`
-- PR 标题格式：本文件 §3
-- Agent 入口与职责：`01_SHARED_GOVERNANCE.md` §5–6
-- Release 版本唯一来源：`01_SHARED_GOVERNANCE.md` §3 与 `06_RELEASE_DEPLOY_GUIDE.md` §4
-- 待实施的发布流程：`docs/proposals/AW-008-changelog-release-automation.md`
+- \`policies/release.json\`：类型、类别、记录要求。
+- \`scripts/validate-change-record.ts\`：PR 与 CHANGELOG 校验。
+- \`scripts/changelog-release.ts\`：版本小节生成。
+- \`06_RELEASE_DEPLOY_GUIDE.md\`：发布与部署操作。
