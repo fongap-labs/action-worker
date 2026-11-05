@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { isJsonRecord } from "./github-api.ts";
 import { validateRepositoryCapability } from "./repository-policy.ts";
@@ -77,6 +78,17 @@ export function validateDispatch(value: unknown): { agent_domain: string; operat
   return { agent_domain: agentDomain, operation };
 }
 
+/** Serialize only an opaque per-project group across Jobs; masked source names cannot be job outputs. */
+export function taskConcurrencyGroup(repository: string, project: string): string {
+  if (!repositoryPattern.test(repository) || !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(project)) {
+    throw new CliError("::error::Task concurrency identity is invalid.", 64);
+  }
+  return createHash("sha256")
+    .update(JSON.stringify([repository.toLowerCase(), project]))
+    .digest("hex")
+    .slice(0, 32);
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   let value: unknown;
@@ -108,6 +120,7 @@ async function main(): Promise<void> {
   );
   await appendLines(process.env.GITHUB_OUTPUT, [
     `schema_version=${String(payload.schema_version)}`,
+    `task_group=${taskConcurrencyGroup(String(payload.repository), String(payload.project))}`,
     `request_id=${String(payload.request_id)}`,
     `project=${String(payload.project)}`,
     `bootstrap_ref=${String(payload.bootstrap_ref)}`,
