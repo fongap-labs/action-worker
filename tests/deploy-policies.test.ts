@@ -261,58 +261,54 @@ test("the shipped deploy secret policy only holds valid, non-reserved names", as
   const mcpHub = await readDeploySecretCeiling(
     "policies/deploy-secrets.json",
     "fongap-labs/mcp-hub",
-    "mcp-hub-ops"
+    "production"
   );
-  assert.equal(mcpHub.has("MCP_RUNTIME_KEY"), true);
-  assert.equal(mcpHub.size, 7);
+  assert.deepEqual([...mcpHub], ["CLOUDFLARE_API_TOKEN_SECONDARY"]);
+  assert.equal(mcpHub.has("MCP_RUNTIME_KEY"), false);
+  assert.equal(mcpHub.has("MCP_ADMIN_KEY"), false);
   assert.equal(internalVault.has("MCP_RUNTIME_KEY"), false);
 });
 
-test("the optional MCP runtime key reaches only its declared deploy scope", async () => {
+test("MCP Hub production deploy passes only the Cloudflare credential", async () => {
   const directory = await mkdtemp(join(tmpdir(), "mcp-deploy-scope-"));
   try {
     const baseline = join(directory, "baseline");
     const required = join(directory, "required");
     const allowed = join(directory, "allowed");
     await writeFile(baseline, "PATH\n");
-    await writeFile(required, "MCP_ADMIN_KEY\n");
-    await writeFile(allowed, "MCP_RUNTIME_KEY\n");
+    await writeFile(required, "CLOUDFLARE_API_TOKEN_SECONDARY\n");
+    await writeFile(allowed, "");
     const names = await readDeploySecretCeiling(
       "policies/deploy-secrets.json",
       "fongap-labs/mcp-hub",
-      "mcp-hub-ops"
+      "production"
     );
     const ceiling = { names, mode: "enforce" as const, label: "deploy" as const };
     const environment = {
       PATH: "/bin",
+      CLOUDFLARE_API_TOKEN_SECONDARY: "cloudflare",
       MCP_ADMIN_KEY: "admin",
       MCP_RUNTIME_KEY: "runtime",
       OTHER_SECRET: "hidden",
     };
     const scoped = await resolveSecretScope(baseline, required, allowed, [], environment, ceiling);
-    assert.deepEqual(scoped.allowed, ["MCP_ADMIN_KEY", "MCP_RUNTIME_KEY"]);
-    assert.deepEqual(scoped.unset, ["OTHER_SECRET"]);
-    const absent = await resolveSecretScope(
-      baseline,
-      required,
-      allowed,
-      [],
-      { PATH: "/bin", MCP_ADMIN_KEY: "admin" },
-      ceiling
-    );
-    assert.deepEqual(absent.required, ["MCP_ADMIN_KEY"]);
+    assert.deepEqual(scoped.allowed, ["CLOUDFLARE_API_TOKEN_SECONDARY"]);
+    assert.deepEqual(scoped.unset, ["MCP_ADMIN_KEY", "MCP_RUNTIME_KEY", "OTHER_SECRET"]);
     await assert.rejects(
-      resolveSecretScope(baseline, required, allowed, [], environment, {
-        names: await readDeploySecretCeiling(
-          "policies/deploy-secrets.json",
-          "fongap-labs/internal-vault",
-          "server-edge-cloud-edge",
-          "server-edge"
-        ),
-        mode: "enforce",
-        label: "deploy",
-      }),
-      /outside the central deploy secret policy: MCP_ADMIN_KEY, MCP_RUNTIME_KEY/
+      resolveSecretScope(
+        baseline,
+        required,
+        allowed,
+        [],
+        { PATH: "/bin", MCP_ADMIN_KEY: "admin" },
+        ceiling
+      ),
+      /Required task secret is unavailable: CLOUDFLARE_API_TOKEN_SECONDARY/
+    );
+    await writeFile(allowed, "MCP_RUNTIME_KEY\n");
+    await assert.rejects(
+      resolveSecretScope(baseline, required, allowed, [], environment, ceiling),
+      /outside the central deploy secret policy: MCP_RUNTIME_KEY/
     );
   } finally {
     await rm(directory, { recursive: true, force: true });
@@ -405,7 +401,7 @@ test("a product key is owner/name/product, and the root layout keeps the reposit
   }
 });
 
-test("an environment belongs to one key across the whole environment policy", () => {
+test("only production can be shared across deployment policy keys", () => {
   assert.doesNotThrow(() =>
     parseDeployEnvironmentPolicy({
       schema_version: 1,
@@ -416,13 +412,19 @@ test("an environment belongs to one key across the whole environment policy", ()
       },
     })
   );
+  assert.doesNotThrow(() =>
+    parseDeployEnvironmentPolicy({
+      schema_version: 1,
+      repositories: { "o/a": ["production"], "o/a/alpha": ["production"] },
+    })
+  );
   assert.throws(
     () =>
       parseDeployEnvironmentPolicy({
         schema_version: 1,
-        repositories: { "o/a": ["production"], "o/a/alpha": ["production"] },
+        repositories: { "o/a": ["shared-ops"], "o/a/alpha": ["shared-ops"] },
       }),
-    /lists environment production under both o\/a and o\/a\/alpha/
+    /lists environment shared-ops under both o\/a and o\/a\/alpha/
   );
 });
 
@@ -440,7 +442,7 @@ test("a product key with a wildcard or a malformed key is refused in the environ
   }
 });
 
-test("the deploy secret policy refuses wildcard keys and an environment under two keys", async () => {
+test("the deploy secret policy refuses wildcard keys and shared operations environments", async () => {
   await withPolicy(
     { schema_version: 1, deployments: { "o/a/*": { production: { allowed: ["TOKEN_A"] } } } },
     async (path) => {
@@ -459,9 +461,28 @@ test("the deploy secret policy refuses wildcard keys and an environment under tw
       },
     },
     async (path) => {
+      assert.deepEqual(
+        [...(await readDeploySecretCeiling(path, "o/a", "production", "alpha"))],
+        ["TOKEN_A"]
+      );
+      assert.deepEqual(
+        [...(await readDeploySecretCeiling(path, "o/a", "production", "beta"))],
+        ["TOKEN_B"]
+      );
+    }
+  );
+  await withPolicy(
+    {
+      schema_version: 1,
+      deployments: {
+        "o/a/alpha": { "shared-ops": { allowed: ["TOKEN_A"] } },
+        "o/a/beta": { "shared-ops": { allowed: ["TOKEN_B"] } },
+      },
+    },
+    async (path) => {
       await assert.rejects(
-        readDeploySecretCeiling(path, "o/a", "production", "alpha"),
-        /lists environment production under both o\/a\/alpha and o\/a\/beta/
+        readDeploySecretCeiling(path, "o/a", "shared-ops", "alpha"),
+        /lists environment shared-ops under both o\/a\/alpha and o\/a\/beta/
       );
     }
   );
@@ -572,9 +593,9 @@ test("the shipped policies key every deploying product by its product key", asyn
     "fongap-labs/internal-vault/server-edge",
     "fongap-labs/mcp-hub",
   ]);
-  assert.deepEqual(environments["fongap-labs/mcp-hub"], ["mcp-hub-ops"]);
+  assert.deepEqual(environments["fongap-labs/mcp-hub"], ["production"]);
   const mcpSecrets = secrets.deployments["fongap-labs/mcp-hub"] as Record<string, unknown>;
-  assert.deepEqual(Object.keys(mcpSecrets), ["mcp-hub-ops"]);
+  assert.deepEqual(Object.keys(mcpSecrets), ["production"]);
 });
 
 // --- concurrency groups -------------------------------------------------------------------------
