@@ -4,9 +4,8 @@
 
 | 环境 | 用途 | 保护要求 |
 | --- | --- | --- |
-| `production` | 正式 Worker 部署 | 仅部署所需凭据；不得配置人工审批，以免阻断自动部署 |
+| `production` | AI Gateway、MCP Hub、Internal Vault 中 Server Edge 的正式部署 | 按产品中央密钥白名单，仅注入本次产品所需凭据；不得配置人工审批，以免阻断自动部署 |
 | `ai-gateway-ops` | AI Gateway 运行时密钥盘点与更新 | 仅 main；配置必需审批人 |
-| `server-edge-cloud-edge` | Internal Vault 边缘服务部署 | 保持现有策略 |
 | `admin-ops` | Action Worker 管理员操作 | 保持现有策略 |
 
 `ai-gateway-ops` 不是部署目标，不得加入 `policies/deploy-environments.json`，也不得写入 AI Gateway 的 `.github/deploy.json`。
@@ -125,7 +124,7 @@ AI Gateway 的普通代码部署：
 
 ## 其他仓库
 
-- `fongap-labs/internal-vault/server-edge` 继续使用 `server-edge-cloud-edge`。
+- `fongap-labs/internal-vault/server-edge` 正式部署使用 `production`；Server Edge 仍是 Internal Vault 下的独立产品，不能借用 Blog、CDN 的任务密钥。\n- Internal Vault 的 Blog、CDN、EngineSuite 等仍通过任务路径执行发布；本次不改变它们的触发器或任务凭据来源。\n- 迁移前由维护者将原 `server-edge-cloud-edge` 中 Server Edge 必需的 Variables 与 Secrets 安全迁入 `production`；不得仅改策略后立即触发生产部署。
 - `fongap-labs/mcp-hub` 继续使用 `production`。
 - 本次变更不修改任务路径；任务继续使用现有中央上限与仓库级密钥合同。
 
