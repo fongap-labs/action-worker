@@ -151,7 +151,10 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
   assert.equal(source.match(/Mask task identifiers in public logs/g)?.length, 2);
   assert.equal(source.match(/::add-mask::\$value/g)?.length, 3);
   const executeJob = source.split("  execute:")[1]?.split("  publish:")[0] ?? "";
-  assert.doesNotMatch(executeJob.split("    steps:")[0] ?? "", /REQUEST_ID:|BOOTSTRAP_REF:|TASK_SOURCE_REPOSITORY:|PROJECT:/);
+  assert.doesNotMatch(
+    executeJob.split("    steps:")[0] ?? "",
+    /REQUEST_ID:|BOOTSTRAP_REF:|TASK_SOURCE_REPOSITORY:|PROJECT:/
+  );
   // A publication PR must never silently skip central CI or governance.
   assert.match(source, /Central governance dispatch failed for publication PR/);
   assert.doesNotMatch(source, /event_type=run-intake[^\n]*\|\| true/);
