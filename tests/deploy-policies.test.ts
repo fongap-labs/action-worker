@@ -225,9 +225,28 @@ test("the shipped deploy secret policy only holds valid, non-reserved names", as
     aiGateway.has("CLOUDFLARE_ACCOUNT_ID"),
     "the account ID is a Repository Variable injected through a deploy alias"
   );
-  assert.equal(aiGateway.size, 40);
-  assert.equal(aiGateway.has("AIG_INFERENCE_AUTH_KEY"), true);
-  assert.equal(aiGateway.has("AIG_GENERATION_AUTH_KEY"), true);
+  assert.deepEqual([...aiGateway].sort(), [
+    "AIG_DEPLOY_HEALTH_KEY",
+    "CLOUDFLARE_ACCOUNT_ID",
+    "CLOUDFLARE_API_TOKEN",
+  ]);
+  for (const runtimeSecret of [
+    "AIG_TOKEN_ENCRYPTION_KEY",
+    "AIG_INFERENCE_AUTH_KEY",
+    "AIG_GENERATION_AUTH_KEY",
+    "AIG_ACCESS_KEY_AIR",
+    "AIG_ACCESS_KEY_PRO",
+    "AIG_ACCESS_KEY_MAX",
+    "AIG_ACCESS_KEY_ULTRA",
+    "AIG_ACCESS_KEY_AGENT",
+    "AIG_TIER1_CREDENTIALS_01",
+  ]) {
+    assert.equal(
+      aiGateway.has(runtimeSecret),
+      false,
+      `${runtimeSecret} remains a Cloudflare Worker Secret`
+    );
+  }
   await assert.rejects(
     () =>
       readDeploySecretCeiling(

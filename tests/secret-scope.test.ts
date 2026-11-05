@@ -300,11 +300,28 @@ test("a policy cannot alias to a reserved, declared or repeated name", async () 
   }
 });
 
-test("AI Gateway inference auth key has a production-only deployment ceiling", async () => {
+test("AI Gateway production exposes deploy credentials only; runtime secrets stay in Cloudflare", async () => {
   const policyPath = "policies/deploy-secrets.json";
   const gateway = await readDeploySecretCeiling(policyPath, "fongap-labs/ai-gateway", "production");
-  const hub = await readDeploySecretCeiling(policyPath, "fongap-labs/mcp-hub", "mcp-hub-ops");
-  assert.equal(gateway.has("AIG_INFERENCE_AUTH_KEY"), true);
+  const hub = await readDeploySecretCeiling(policyPath, "fongap-labs/mcp-hub", "production");
+  assert.deepEqual([...gateway].sort(), [
+    "AIG_DEPLOY_HEALTH_KEY",
+    "CLOUDFLARE_ACCOUNT_ID",
+    "CLOUDFLARE_API_TOKEN",
+  ]);
+  for (const name of [
+    "AIG_TOKEN_ENCRYPTION_KEY",
+    "AIG_INFERENCE_AUTH_KEY",
+    "AIG_GENERATION_AUTH_KEY",
+    "AIG_ACCESS_KEY_AIR",
+    "AIG_ACCESS_KEY_PRO",
+    "AIG_ACCESS_KEY_MAX",
+    "AIG_ACCESS_KEY_ULTRA",
+    "AIG_ACCESS_KEY_AGENT",
+    "AIG_TIER1_CREDENTIALS_01",
+  ]) {
+    assert.equal(gateway.has(name), false, `${name} is not a production deployment secret`);
+  }
   assert.equal(hub.has("AIG_INFERENCE_AUTH_KEY"), false);
   assert.equal(gateway.has("AW_APP_PRIVATE_KEY"), false);
 });
@@ -321,7 +338,18 @@ test("the central policies give each Cloudflare account its own qualified secret
     [
       ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_SECONDARY"],
       ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_SECONDARY"],
+      ["AIG_DEPLOY_HEALTH_KEY", "AIG_ACCESS_KEY_AGENT"],
     ]
+  );
+  assert.equal(
+    (
+      await readDeploySecretCeiling(
+        "policies/deploy-secrets.json",
+        "fongap-labs/ai-gateway",
+        "production"
+      )
+    ).has("AIG_ACCESS_KEY_AGENT"),
+    false
   );
   // The retired inference product has no deployment credential aliases.
   const retired = await readSecretAliases(
@@ -392,4 +420,21 @@ test("task and deploy workflows apply aliases before they remove the other secre
     assert.ok(apply !== -1);
     assert.match(workflow, /export "\$alias_name=\$\{!alias_from\}"/);
   }
+});
+
+test("AI Gateway operations workflow is protected and never accepts secret values as inputs", async () => {
+  const workflow = await readFile(".github/workflows/ai-gateway-ops.yml", "utf8");
+  assert.match(workflow, /environment: ai-gateway-ops/);
+  assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/);
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.doesNotMatch(workflow, /repository_dispatch:/);
+  assert.match(workflow, /CLOUDFLARE_API_TOKEN_OPS/);
+  assert.match(workflow, /AIG_OPS_SECRET_VALUE/);
+  assert.match(workflow, /secret_value="\$AIG_OPS_SECRET_VALUE"/);
+  assert.match(workflow, /unset AIG_OPS_SECRET_VALUE/);
+  assert.match(workflow, /printf '%s' "\$secret_value" \|/);
+  assert.match(workflow, /secret list --format json/);
+  assert.match(workflow, /rollback/);
+  assert.doesNotMatch(workflow, /echo[^\n]*\$AIG_OPS_SECRET_VALUE/);
+  assert.doesNotMatch(workflow, /secret_value:\s*\n\s*required:/i);
 });
