@@ -5,7 +5,6 @@ import {
 } from "./main-write-guard.ts";
 import {
   assertNoOpenMainWriteIncidents,
-  closeExpiredIncidents,
   IncidentAccessError,
   incidentTitle,
   shouldCreateIncident,
@@ -165,13 +164,6 @@ async function main(): Promise<void> {
     let mainSha = "";
     let hasVerifiedProvenance = false;
     try {
-      // Auto-close expired incidents before auditing, so they don't block the pipeline.
-      try {
-        // Close expired incidents needs issue write permission
-        await closeExpiredIncidents(reader, repository, issueToken);
-      } catch {
-        // Non-fatal: the audit continues even if cleanup fails.
-      }
       const repositoryValue = await reader.get(`repos/${repository}`);
       const defaultBranch = getJsonString(repositoryValue, "default_branch");
       if (defaultBranch !== "main") {

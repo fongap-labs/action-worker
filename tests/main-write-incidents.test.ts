@@ -31,6 +31,21 @@ test("an unresolved maintainer incident blocks the official main write attestati
   );
 });
 
+test("historical incidents do not expire without explicit resolution", async () => {
+  const oldIncident = { ...incident, created_at: "2001-01-01T00:00:00Z" };
+  await assert.rejects(
+    assertNoOpenMainWriteIncidents(
+      {
+        async get(path: string): Promise<unknown> {
+          return path.includes("/comments?") ? [] : [oldIncident];
+        },
+      },
+      "org/private-repo"
+    ),
+    /Unresolved main write incident/
+  );
+});
+
 test("a resolved incident no longer blocks an attestation", async () => {
   await assert.doesNotReject(
     assertNoOpenMainWriteIncidents(
@@ -49,6 +64,57 @@ test("an untrusted outsider cannot block release by creating a similarly titled 
     {
       async get(): Promise<unknown> {
         return [{ ...incident, author_association: "NONE" }];
+      },
+    },
+    "org/public-repo",
+    "open"
+  );
+  assert.deepEqual(issues, []);
+});
+
+test("official Action Worker bot incidents remain blocking even without member association", async () => {
+  const botIncident = {
+    ...incident,
+    number: 129,
+    author_association: "NONE",
+    user: { login: "fongap-action-worker[bot]", type: "Bot" },
+  };
+  await assert.rejects(
+    assertNoOpenMainWriteIncidents(
+      {
+        async get(path: string): Promise<unknown> {
+          return path.includes("/comments?") ? [] : [botIncident];
+        },
+      },
+      "org/private-repo"
+    ),
+    /Unresolved main write incident\(s\).*#129/
+  );
+  assert.equal(
+    await shouldCreateIncident(
+      {
+        async get(): Promise<unknown> {
+          return [{ ...botIncident, state: "closed", title: incidentTitle(sha) }];
+        },
+      },
+      "org/private-repo",
+      sha
+    ),
+    false
+  );
+});
+
+test("a user pretending to be the Action Worker bot cannot create a trusted incident", async () => {
+  const issues = await findIncidents(
+    {
+      async get(): Promise<unknown> {
+        return [
+          {
+            ...incident,
+            author_association: "NONE",
+            user: { login: "fongap-action-worker[bot]", type: "User" },
+          },
+        ];
       },
     },
     "org/public-repo",

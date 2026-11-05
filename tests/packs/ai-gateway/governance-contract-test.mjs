@@ -1048,9 +1048,9 @@ try {
   const overview = read('docs/architecture/overview.md');
 
   assert.match(product, /household, an individual operator, or a small trusted team/i);
-  assert.match(product, /Tier 1 — free-token capacity/i);
-  assert.match(product, /Tier 2 — membership\/subscription entitlement capacity/i);
-  assert.match(product, /Tier 3 — paid API capacity/i);
+  assert.match(product, /### \u514d\u8d39\u5bb9\u91cf[\s\S]{0,250}Tier 1/i);
+  assert.match(product, /### \u8ba2\u9605\u5bb9\u91cf[\s\S]{0,250}Tier 2/i);
+  assert.match(product, /### \u4ed8\u8d39\u5bb9\u91cf[\s\S]{0,250}Tier 3/i);
   assert.match(product, /maintains one current contract/i, 'repository must keep one current contract');
   assert.match(
     product,
