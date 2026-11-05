@@ -236,3 +236,27 @@ test("manual source deploy resolves default HEAD without spending the control PA
   assert.match(step.run ?? "", /source_sha=\$SOURCE_SHA/);
   assert.doesNotMatch(step.run ?? "", /gh api|secrets\.AW_CONTROL_TOKEN/);
 });
+
+test("manual release cannot bypass unresolved main-write incidents", async () => {
+  const source = await readFile(".github/workflows/release-app.yml", "utf8");
+  const release = await workflow("release-app.yml");
+  const auditStep = release.jobs.prepare?.steps?.find(
+    (step) => step.name === "Attest the source main write"
+  );
+  assert.ok(auditStep, "release must perform Main Write Audit before validation");
+  assert.equal(
+    (auditStep as Step & { "continue-on-error"?: boolean })["continue-on-error"],
+    undefined,
+    "release cannot ignore a failed main-write attestation"
+  );
+  assert.doesNotMatch(source, /main_write_guard_bypass|MAIN_WRITE_GUARD_BYPASS/);
+  const audit = await readFile("scripts/audit-main-writes.ts", "utf8");
+  const guard = await readFile("scripts/main-write-guard.ts", "utf8");
+  for (const [name, code] of [
+    ["audit", audit],
+    ["guard", guard],
+  ]) {
+    assert.doesNotMatch(code, /isIncidentBypassEnabled|bypassIncidents|MAIN_WRITE_GUARD_BYPASS/, name);
+    assert.match(code, /await assertNoOpenMainWriteIncidents\(reader, repository\)/, name);
+  }
+});
