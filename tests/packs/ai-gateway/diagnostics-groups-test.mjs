@@ -98,7 +98,7 @@ test('the dedicated deployment health key is restricted to health probes', async
   assert.equal(models.status, 200);
   assert.deepEqual((await models.json()).data, []);
 
-  const countTokens = (messages) =>
+  const countTokens = (messages, extra = {}) =>
     worker.fetch(
       new Request('https://gateway.example.com/v1/messages/count_tokens', {
         method: 'POST',
@@ -106,7 +106,7 @@ test('the dedicated deployment health key is restricted to health probes', async
           authorization: `Bearer ${deployKey}`,
           'content-type': 'application/json',
         },
-        body: JSON.stringify({ model: 'gateway-health-check', messages }),
+        body: JSON.stringify({ model: 'gateway-health-check', messages, ...extra }),
       }),
       env,
       {},
@@ -114,6 +114,7 @@ test('the dedicated deployment health key is restricted to health probes', async
 
   assert.equal((await countTokens([])).status, 200);
   assert.equal((await countTokens([{ role: 'user', content: 'not a health probe' }])).status, 403);
+  assert.equal((await countTokens([], { system: 'not a health probe' })).status, 403);
 
   const generation = await worker.fetch(
     new Request('https://gateway.example.com/v1/chat/completions', {
