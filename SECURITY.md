@@ -2,11 +2,11 @@
 
 本文件说明如何私下报告 Action Worker 的安全问题，以及哪些问题属于重点关注范围。
 
-## 支持范围（Supported Scope）
+## 支持范围
 
 Action Worker 是 `fongap-labs` 组织的控制平面。安全问题仅针对当前 `main` 分支处理。
 
-## 报告安全问题（Reporting Vulnerabilities）
+## 报告安全问题
 
 请不要在公开 Issue、Pull Request 或 Discussions 中披露漏洞细节、令牌（Token）、密钥（Secret）、个人数据或可直接利用的攻击步骤。
 
@@ -22,7 +22,7 @@ Security → Advisories → Report a vulnerability
 
 有用的报告应包含：受影响的工作流（workflow）或脚本、影响范围、最小复现条件，以及已验证的缓解方式。请勿提交真实凭据或与问题无关的用户数据。
 
-## 重点关注（Focus Areas）
+## 重点关注
 
 - 密钥到达本不应接触它的代码（任务、部署、沙箱边界）；
 - 绕过确定性门禁（Gate）、CI Evidence、Main Write Guard 或 Source Policy；
