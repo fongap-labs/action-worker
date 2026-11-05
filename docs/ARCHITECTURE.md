@@ -4,7 +4,7 @@ Action Worker 是 Fongap Labs 的 GitHub 自动化控制平面。
 
 长期边界由 [ARCHITECTURE_GOVERNANCE.md](ARCHITECTURE_GOVERNANCE.md) 定义。统一执行合同见 [EXECUTION_CONTRACT.md](EXECUTION_CONTRACT.md)，Runner 与 self-hosted 边界见 [RUNNER_POLICY.md](RUNNER_POLICY.md)。本文件描述当前的实现，以及下一步的收敛方向。
 
-## 1. 核心模型
+## 1. 核心模型（Core Model）
 
 ```text
 Validate → Inspect → Plan → Execute → Gate → Advisory Review（仅供参考的审查）
@@ -35,7 +35,7 @@ Self CI
 
 下一阶段不会增加项目专属的规则，而是把这些入口收敛到同一组通用合同上。
 
-## 2. 中央边界
+## 2. 中央边界（Central Boundaries）
 
 ```text
 Action Worker
@@ -59,7 +59,7 @@ Action Worker 不保留项目目录、不保留项目专属的测试映射，也
 
 具体的仓库名称不进入源码。仓库权限从一个仓库变量 `AW_REPOSITORY_POLICY` 读取；一个仓库可以被授予 `pr`、`task`、`release-source` 与 `release-target` 能力。
 
-## 3. PR
+## 3. PR（Pull Requests）
 
 兜底入口是 `intake.yml` 的 `Pull requests` 作业。它扫描 `AW_REPOSITORY_POLICY` 中受管仓库的未关闭 PR，并为每个缺少结论的 PR 向 `handle-pr-dispatch.yml` 提交一个治理任务。业务仓库的 Actions 不是安全前提。
 
@@ -113,7 +113,7 @@ Action Worker 接收到任务后必须：
 
 调用方不得提供 base SHA、head SHA、Agent、模型、风险或门禁结论。
 
-## 4. 信任域
+## 4. 信任域（Trust Domains）
 
 `policies/execution.json` 定义了两个稳定的边界。
 
@@ -140,7 +140,7 @@ Action Worker 接收到任务后必须：
 权限边界不能变化
 ```
 
-## 5. 检测与计划
+## 5. 检测与计划（Detection and Planning）
 
 每个 PR 首先生成一份 Change Record：
 
@@ -193,7 +193,7 @@ if repository == ai-gateway
 
 未来的动态理解、历史基线与双 Agent 只能加强计划，不能改变这一边界。
 
-## 6. 测试
+## 6. 测试（Testing）
 
 `policies/checks.json` 与 `policies/tests.json` 描述通用的验证类别。
 
@@ -229,7 +229,7 @@ Action Worker 不复制项目的测试实现，也不保留"仓库 X 必须运�
 
 迁移期的旧业务仓库 CI Runner 是需要移除的路径。它们只能缩减，不能成为新仓库的模板。
 
-## 7. AI Agent 运行时
+## 7. AI Agent 运行时（AI Agent Runtime）
 
 AI Agent 是 Action Worker 的通用动态能力单元。它不同于代码审查角色，也不绑定到某个模型。
 
@@ -379,7 +379,7 @@ Action Worker 只选择逻辑模型，并调用中央配置的兼容 AI 端点�
 
 AI Agent 是可选的动态审查层，而不是门禁层。AI 发现、模型故障、审查引擎故障或"AI 不可用"，本身都不能使合并门禁失败。最终门禁只信任可重复的 PR Policy、Security Gate、CI Evidence、Release / Deploy Policy 与 provenance。任何 Agent 都不得改变权限边界、密钥边界、CI Evidence 的真实性要求或确定性门禁合同。
 
-## 8. Main Write Guard
+## 8. Main Write Guard（Main Write Guard）
 
 PR 合并之后，`main` 的每一次更新都经过同一个 Main Write Guard。它会重新查询 GitHub 上的当前事实，并证明当前 main SHA 来自一个通过了确定性门禁的已合并 PR。
 
@@ -395,7 +395,7 @@ validate-merge
 
 详细规则见 [07_MAIN_WRITE_GUARD.md](07_MAIN_WRITE_GUARD.md)。
 
-## 9. Task Dispatch
+## 9. Task Dispatch（Task Dispatch）
 
 现有的 `run-task` 保持稳定。
 
@@ -475,7 +475,7 @@ gh run download <run-id> -R fongap-labs/action-worker -n task-log-<run-id>-1 -D 
 AW_ARTIFACT_KEY="$(cat ~/aw-artifact.key)" node scripts/task-state.ts open-log task-log/task-log.seal <owner/repository> <project> task.log
 ```
 
-## 10. 源码与 Release
+## 10. 源码与 Release（Sources and Releases）
 
 源码与 CI 准入使用中央执行合同所产生、并由 `hasVerifiedCiEvidence` 检查的可验证证据。
 
@@ -526,7 +526,7 @@ contracts/release-manifest.json
 
 标签始终为 `<release-key>-v<semver>`。不存在针对裸 `v<semver>` 的兼容路径。
 
-## 11. Release 构建
+## 11. Release 构建（Release Builds）
 
 重型 Release 构建在 Action Worker 中执行，而不是在业务仓库的 Runner 上执行。
 
@@ -549,7 +549,7 @@ release-build 入口
 
 构建矩阵从源仓库自有的 release manifest 解析而来。发布目标与发布权限保持中央治理；项目的构建配方不得被复制为永久的仓库名映射。
 
-## 12. 工具分发
+## 12. 工具分发（Tool Distribution）
 
 第三方工具的元数据，其权威保存在分发仓库中：
 
@@ -575,7 +575,7 @@ Action Worker 负责定时同步与校验：
 
 Action Worker 执行的审查引擎在 `policies/review.json` 中通过 `version` 与 `sha256` 固定。安装器只有在二进制的摘要既等于固定值、又与 Release 校验和文件一致时才接受它，因此被替换的 Release 资产无法为自身背书。切换到新的引擎版本，需要在一次经过评审的变更中同时更新这两个字段。
 
-## 13. Deploy
+## 13. Deploy（Deployment）
 
 生产部署遵循与 Release Governance 相同的不可变源码边界，但部署执行不会发布 GitHub Release。
 
@@ -608,7 +608,7 @@ Action Worker 拥有生产凭据，并负责需要 Runner 资源的重型部署�
 
 每个使用 `AW_ADMIN_TOKEN` 的作业（`apply-repository-settings.yml`、`security-scan-dispatch.yml` 的 publish 作业）都在 `admin-ops` 环境中运行。两个环境（`production`、`admin-ops`）都把部署限制为 `main`；repository_dispatch 运行始终使用默认分支，而从其他分支发起的 `workflow_dispatch` 运行会被该环境拒绝。仓库级的密钥副本在环境副本验证完成之前保持不变；删除它们是一个单独的、由所有者手动执行的步骤。
 
-## 14. 目录结构
+## 14. 目录结构（Directory Structure）
 
 Action Worker 按职责分层。当前的工作流按分类列于下方（分类规则见 [03_NAMING_CONVENTIONS.md](03_NAMING_CONVENTIONS.md) 第 8.2 节，由 `tests/workflow-classes.test.ts` 强制执行）。业务能力通过通用合同、清单与策略与之连接；没有任何长期工作流以产品命名：
 
@@ -676,7 +676,7 @@ profiles/<repository-or-product>/
 
 项目专属的构建 / 测试 / 部署实现保留在业务仓库中；Action Worker 只保留中央治理、通用执行框架与 Runner 解析。Action Worker 检出并执行的业务仓库脚本，并不意味着业务仓库自身在运行重型 Runner 执行。
 
-## 15. CI
+## 15. CI（Continuous Integration）
 
 Action Worker 自身只有一个 CI：`validate-ci.yml`。
 
@@ -690,7 +690,7 @@ validate-merge
 
 合同同时验证架构治理的边界，因此随着功能增加，仓库不会重新长出项目专属的配置。
 
-## 16. 版本
+## 16. 版本（Versioning）
 
 ```text
 main = 当前基线
