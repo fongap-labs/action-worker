@@ -52,12 +52,7 @@ export async function validateTaskSource(
     ...centralCiWait,
     ...evidenceOptions,
   });
-  const mainWrite = await assertTrustedMainWrite(
-    reader,
-    repository,
-    ref,
-    true
-  );
+  const mainWrite = await assertTrustedMainWrite(reader, repository, ref, true);
   return { default_branch: defaultBranch, main_write: mainWrite };
 }
 
