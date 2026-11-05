@@ -31,7 +31,6 @@
       "维护"
     ]
   },
-  "security_category": "安全",
   "impact_patterns": {
     "breaking": [
       "breaking"
