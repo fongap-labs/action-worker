@@ -56,7 +56,7 @@ export function validateManifest(value: unknown): Publication {
         !part ||
         part === "." ||
         part === ".." ||
-        !/^[\\p{L}\\p{N}_-][\\p{L}\\p{N}_.-]*$/u.test(part)
+        !/^[\p{L}\p{N}_-][\p{L}\p{N}_.-]*$/u.test(part)
     )
   ) {
     throw new CliError("::error::Task publication destination is invalid.", 64);
