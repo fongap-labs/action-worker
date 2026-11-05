@@ -22,8 +22,8 @@ import tomllib
 import pytest
 
 ROOT = target_root()
-# The shared release policy names the changelog file and fragment directory for every managed
-# repository; the top-level allowlist reads them from there instead of keeping a copy.
+# The shared release policy defines exactly one changelog file. Fragment directories are retired.
+# The top-level allowlist reads the canonical file name from the shared policy.
 SHARED_RELEASE_POLICY = pathlib.Path(__file__).resolve().parents[3] / "policies" / "release.json"
 
 
@@ -263,8 +263,9 @@ class TestRepositoryBoundary:
             "LICENSE", "NOTICE", "THIRD_PARTY_NOTICES.md",
             "pyproject.toml", "uv.lock", ".pre-commit-config.yaml",
             release_policy["changelog_file"],
-            release_policy["changelog_fragment_dir"],
         }
+        assert "changelog_fragment_dir" not in release_policy
+        assert not (ROOT / "changelog.d").exists(), "Retired fragment directory must be absent"
         for item in ROOT.iterdir():
             if (
                 item.name.startswith(".git")
