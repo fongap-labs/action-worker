@@ -595,7 +595,10 @@ jobs:
           echo "Publication pull request: ${pr_number}"
 
           # Start the governance of the publication pull request now instead of on the next heartbeat.
-          GH_TOKEN="$AW_DISPATCH_API_TOKEN" gh api --method POST "repos/${GITHUB_REPOSITORY}/dispatches" -f event_type=run-intake >/dev/null 2>&1 || true
+          if ! GH_TOKEN="$AW_DISPATCH_API_TOKEN" gh api --method POST "repos/${GITHUB_REPOSITORY}/dispatches" -f event_type=run-intake >/dev/null; then
+              echo "::error::Central governance dispatch failed for publication PR #${pr_number}; leaving PR open for inspection." >&2
+              exit 75
+          fi
 
           deadline=$((SECONDS + 1800))
           while [ "$SECONDS" -lt "$deadline" ]; do

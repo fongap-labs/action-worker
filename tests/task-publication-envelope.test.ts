@@ -144,4 +144,11 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
     source.includes("AW_PUBLICATION_PRIVATE_KEY: ${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}")
   );
   assert.ok(source.includes("AW_PUBLICATION_PUBLIC_KEY: ${{ vars.AW_PUBLICATION_PUBLIC_KEY }}"));
+  // A publication PR must never silently skip central CI or governance.
+  assert.match(source, /Central governance dispatch failed for publication PR/);
+  assert.doesNotMatch(source, /event_type=run-intake[^\n]*\|\| true/);
+  assert.equal(
+    publish.steps.find((step) => step.name === "Mint control publication intake token")?.with?.["permission-contents"],
+    "write"
+  );
 });
