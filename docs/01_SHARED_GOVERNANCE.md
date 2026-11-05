@@ -4,7 +4,7 @@
 
 ---
 
-## 1. 权威边界（Authority Boundaries）
+## 1. 权威边界
 
 ```
 Action Worker
@@ -31,7 +31,7 @@ Action Worker
 
 ---
 
-## 2. 语言与文档分层（Language and Documentation）
+## 2. 语言与文档分层
 
 | 文档类型 | 语言 | 说明 |
 |----------|------|------|
@@ -45,7 +45,7 @@ Action Worker
 
 ---
 
-## 3. 共用规则（Shared Rules）
+## 3. 共用规则
 
 Action Worker 为所有受管仓库维护以下规则：
 
@@ -68,7 +68,7 @@ Action Worker 为所有受管仓库维护以下规则：
 
 ---
 
-## 4. 项目本地规则（Project-Specific Rules）
+## 4. 项目本地规则
 
 业务仓库只保留**没有该项目就不可能存在**的规则，例如：
 
@@ -85,7 +85,7 @@ Action Worker 为所有受管仓库维护以下规则：
 
 ---
 
-## 5. 权威顺序（Authority Order）
+## 5. 权威顺序
 
 发生冲突时，按以下顺序裁决：
 
@@ -113,7 +113,7 @@ README / 示例
 
 ---
 
-## 6. Agent 入口（Agent Entrypoints）
+## 6. 智能体 入口
 
 每个受管业务仓库保留两个非常薄的入口文件：
 
@@ -132,7 +132,7 @@ Action Worker 共用治理
 
 ---
 
-## 7. 机器执行闭环（Enforcement Loop）
+## 7. 机器执行闭环
 
 文档解释规则，但真正的治理由机器合同执行：
 
@@ -149,7 +149,7 @@ tests/       治理回归测试
 
 ---
 
-## 8. 平台能力边界（Platform Boundaries）
+## 8. 平台能力边界
 
 治理目标与 GitHub 套餐功能应分别描述。
 
@@ -157,7 +157,7 @@ Action Worker 门禁对每个受管仓库都成立；原生 GitHub rulesets、�
 
 ---
 
-## 9. 文档可读性要求（Document Readability）
+## 9. 文档可读性要求
 
 ### 9.1 机器读取文档（严格）
 
@@ -184,6 +184,6 @@ Action Worker 门禁对每个受管仓库都成立；原生 GitHub rulesets、�
 
 ---
 
-## 10. 术语统一（Unified Terminology）
+## 10. 术语统一
 
 核心概念、配置类型词、推荐动词、系统缩写统一维护在 `TERMINOLOGY.md`。机器文档引用英文键，人类文档引用中文解释。**禁止在同一文档中混用两套术语。**
