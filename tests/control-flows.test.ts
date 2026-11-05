@@ -107,8 +107,7 @@ test("change record requires concise Chinese entries in CHANGELOG.md", async (co
 test("CHANGELOG preface may change without rewriting published versions", () => {
   const released = "\n## [0.1.0]\n\n### 修复\n\n- 旧版修复。\n";
   const before = "# Changelog\n\nLegacy fragment notes.\n\n## [Unreleased]\n" + released;
-  const after =
-    "# 更新日志\n\n## [Unreleased]\n\n- 修复: 修复新版问题。\n" + released;
+  const after = "# 更新日志\n\n## [Unreleased]\n\n- 修复: 修复新版问题。\n" + released;
   assert.deepEqual(addedUnreleasedEntries(before, after), ["- 修复: 修复新版问题。"]);
   assert.throws(
     () => addedUnreleasedEntries(before, after.replace("旧版修复。", "改写旧版修复。")),
@@ -120,21 +119,27 @@ test("retiring fragments allows removing obsolete preface but preserves released
   const root = await initRepo();
   context.after(() => rm(root, { recursive: true, force: true }));
   const released = "\n## [0.1.0]\n\n### 修复\n\n- 旧版修复。\n";
-  const previous = "# Changelog\n\nLegacy fragments live in changelog.d.\n\n## [Unreleased]\n" + released;
+  const previous =
+    "# Changelog\n\nLegacy fragments live in changelog.d.\n\n## [Unreleased]\n" + released;
   await writeFile(join(root, "CHANGELOG.md"), previous, "utf8");
   await mkdir(join(root, "changelog.d"));
   await writeFile(join(root, "changelog.d", "fix.md"), "- 修复: 修复新版问题。\n");
   await git(root, ["add", "."]);
   await git(root, ["commit", "-qm", "base"]);
   const base = await git(root, ["rev-parse", "HEAD"]);
-  const headText =
-    "# 更新日志\n\n## [Unreleased]\n\n- 修复: 修复新版问题。\n" + released;
+  const headText = "# 更新日志\n\n## [Unreleased]\n\n- 修复: 修复新版问题。\n" + released;
   await writeFile(join(root, "CHANGELOG.md"), headText, "utf8");
   await git(root, ["rm", "-q", "changelog.d/fix.md"]);
   await git(root, ["add", "."]);
   await git(root, ["commit", "-qm", "retire fragments"]);
   const head = await git(root, ["rev-parse", "HEAD"]);
-  const validated = await validateChange("fix: repair changelog migration", base, head, root, policyDir);
+  const validated = await validateChange(
+    "fix: repair changelog migration",
+    base,
+    head,
+    root,
+    policyDir
+  );
   assert.equal(validated.type, "fix");
 
   await writeFile(join(root, "CHANGELOG.md"), headText.replace("旧版修复。", "改写旧版修复。"));
