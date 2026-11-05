@@ -80,8 +80,11 @@ async function collect(
     const handle = await open(full, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
     try {
       const currentInfo = await handle.stat();
-      if (!currentInfo.isFile() || currentInfo.size > maxFileBytes ||
-          limits.total + currentInfo.size > maxTotalBytes) {
+      if (
+        !currentInfo.isFile() ||
+        currentInfo.size > maxFileBytes ||
+        limits.total + currentInfo.size > maxTotalBytes
+      ) {
         throw new CliError("Publication payload contains an invalid or oversized file.", 66);
       }
       const data = await handle.readFile();
