@@ -274,7 +274,7 @@ export async function validateChange(
   const changelogFile = value.changelog_file;
   const changedText = await runText(
     "git",
-    ["diff", "--name-only", "--diff-filter=ACMR", base, head],
+    ["diff", "--name-only", "--diff-filter=ACMRD", base, head],
     { cwd: root }
   );
   const changedPaths = changedText.split(/\r?\n/).filter(Boolean);
@@ -291,8 +291,10 @@ export async function validateChange(
       changelog_changed: true,
     };
   }
-  const legacyPaths = changedPaths.filter((path) => path.startsWith("changelog.d/"));
-  if (legacyPaths.length > 0) {
+  const legacyChanged = await runText(
+    "git", ["diff", "--name-only", "--diff-filter=ACMR", base, head, "--", "changelog.d/"], { cwd: root }
+  );
+  if (legacyChanged.trim() !== "") {
     throw new CliError("::error::changelog.d is retired. Write Chinese entries in CHANGELOG.md.", 65);
   }
   const changelogRequired = isBreaking || requiredTypes.includes(changeType);
