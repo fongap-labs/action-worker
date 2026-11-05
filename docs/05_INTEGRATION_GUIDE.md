@@ -69,10 +69,18 @@
 
 ```json
 {
-  "operation": "ci",
-  "runner_profile": "linux-standard",
-  "timeout_minutes": 180,
-  "capability_requests": ["source.read"]
+  "schema_version": "1",
+  "operations": {
+    "ci": {
+      "jobs": [{
+        "id": "linux",
+        "runner_profile": "linux-standard",
+        "command": ["bash", "{control_root}/.github/scripts/central-ci.sh", "{target_root}"],
+        "timeout_minutes": 180,
+        "capability_requests": ["source.read"]
+      }]
+    }
+  }
 }
 ```
 
