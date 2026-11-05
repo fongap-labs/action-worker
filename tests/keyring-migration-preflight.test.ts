@@ -34,7 +34,14 @@ test("migration compares current and historical signing material without changin
 test("migration preflight runs independently in a protected job", async () => {
   const source = await readFile(".github/workflows/apply-repository-settings.yml", "utf8");
   const workflow = parse(source) as {
-    jobs: Record<string, { needs?: unknown; environment?: string; steps?: Array<{ name?: string; env?: Record<string, string> }> }>;
+    jobs: Record<
+      string,
+      {
+        needs?: unknown;
+        environment?: string;
+        steps?: Array<{ name?: string; env?: Record<string, string> }>;
+      }
+    >;
   };
   const verify = workflow.jobs["verify-status-keyring-migration"];
   assert.ok(verify);
