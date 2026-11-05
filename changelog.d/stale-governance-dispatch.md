@@ -1,1 +1,0 @@
-- fix: Stop stale PR governance waits and isolate central CI by commit so superseded work cannot block current merge gates.
