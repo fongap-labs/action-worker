@@ -210,7 +210,10 @@ test("task publication CLI seals in executor and opens on a separate clean publi
     const sealedPath = join(root, "sealed.json");
     const opened = join(root, "opened");
     await mkdir(join(staged, "payload"), { recursive: true });
-    await writeFile(join(staged, "manifest.json"), JSON.stringify({ target_repository: "fongap-labs/target" }));
+    await writeFile(
+      join(staged, "manifest.json"),
+      JSON.stringify({ target_repository: "fongap-labs/target" })
+    );
     await writeFile(join(staged, "payload", "result.txt"), "confidential-output");
     const pair = keys();
     const sourceEnv = {
@@ -219,25 +222,36 @@ test("task publication CLI seals in executor and opens on a separate clean publi
       PROJECT: identity.project,
       BOOTSTRAP_REF: identity.bootstrap_ref,
     };
-    execFileSync(process.execPath, ["scripts/task-publication-envelope.ts", "seal", staged, sealedPath], {
-      env: {
-        ...sourceEnv,
-        AW_PUBLICATION_PUBLIC_KEY: pair.publicKey,
-        AW_PUBLICATION_PRIVATE_KEY: "",
-      },
-    });
+    execFileSync(
+      process.execPath,
+      ["scripts/task-publication-envelope.ts", "seal", staged, sealedPath],
+      {
+        env: {
+          ...sourceEnv,
+          AW_PUBLICATION_PUBLIC_KEY: pair.publicKey,
+          AW_PUBLICATION_PRIVATE_KEY: "",
+        },
+      }
+    );
     assert.doesNotMatch(
       await readFile(sealedPath, "utf8"),
       /private-source|sensitive-project|confidential-output/
     );
-    execFileSync(process.execPath, ["scripts/task-publication-envelope.ts", "open", sealedPath, opened], {
-      env: {
-        ...sourceEnv,
-        AW_PUBLICATION_PUBLIC_KEY: "",
-        AW_PUBLICATION_PRIVATE_KEY: pair.privateKey,
-      },
-    });
-    assert.equal(await readFile(join(opened, "payload", "result.txt"), "utf8"), "confidential-output");
+    execFileSync(
+      process.execPath,
+      ["scripts/task-publication-envelope.ts", "open", sealedPath, opened],
+      {
+        env: {
+          ...sourceEnv,
+          AW_PUBLICATION_PUBLIC_KEY: "",
+          AW_PUBLICATION_PRIVATE_KEY: pair.privateKey,
+        },
+      }
+    );
+    assert.equal(
+      await readFile(join(opened, "payload", "result.txt"), "utf8"),
+      "confidential-output"
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
