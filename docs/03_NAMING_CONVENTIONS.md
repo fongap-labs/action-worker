@@ -8,7 +8,7 @@
 
 ---
 
-## 1. 核心原则（Core Principles）
+## 1. 核心原则
 
 1. 新增自有外部配置与普通工程文件，**必须采用三个语义段**。
 2. 三段无法准确表达稳定用途、模块或类型时，**允许第四段**；不得增加第五段。
@@ -19,7 +19,7 @@
 
 ---
 
-## 2. 外部配置（External Configuration）
+## 2. 外部配置
 
 适用于新增 GitHub Variables、Secrets、环境变量及自有公开配置键。
 
@@ -52,7 +52,7 @@ AI Agent 路由的唯一可配置权威来源仍是 `AW_AI_AGENT_CONFIG`；`AW_A
 
 ---
 
-## 3. 文件命名（File Naming）
+## 3. 文件命名
 
 新增自有工程文件采用三段 `kebab-case`；稳定职责必须细分时允许四段。扩展名不计段数。
 
@@ -69,7 +69,7 @@ session-state-manager.ts
 
 ---
 
-## 4. 源码标识符（Source Identifiers）
+## 4. 源码标识符
 
 函数、参数、局部变量及私有字段遵循语言原生习惯，**不强制三段**。Python/Rust 使用 `snake_case`；TypeScript/TSX 按类别采用 `camelCase` 或 `PascalCase`。
 
@@ -83,7 +83,7 @@ function restoreSessionState() {}
 
 ---
 
-## 5. 缩写与迁移（Abbreviations and Migration）
+## 5. 缩写与迁移
 
 - 行业通用缩写可直接使用；系统缩写唯一来源为 `TERMINOLOGY.md`。
 - 新凭据以 `TOKEN` 或 `KEY` 表示类型，不使用 `PAT`（第三方原生字段除外）。
@@ -92,7 +92,7 @@ function restoreSessionState() {}
 
 ---
 
-## 6. CI 校验边界（CI Validation）
+## 6. 持续集成 校验边界
 
 本文件定义**目标规范**；当前 CI 的实现范围必须如实区分：
 
@@ -102,7 +102,7 @@ function restoreSessionState() {}
 
 ---
 
-## 7. 仅适用于 Action Worker（Action Worker Only）
+## 7. 仅适用于 中央工作器
 
 Action Worker 是通用治理与执行平面。稳定权威位于：
 
@@ -135,7 +135,7 @@ Action Worker CI 强制执行自身文件名与架构限制。业务仓库可增
 
 ---
 
-## 8. 工作流文件名（Workflow Filenames）
+## 8. 工作流文件名
 
 现行校验要求工作流与 Shell 文件名最多三个 kebab-case 段；新增文件应优先采用完整的三段式（`scripts/validate-naming-rules.ts` 与 `scripts/validate-source-naming.py` 在每个受管仓库强制执行）。`tests/workflow-naming.test.ts` 为 Action Worker 自身工作流检查以下规则：
 
