@@ -358,7 +358,7 @@ export async function validateChange(
     const headChangelog = await readFile(join(root, changelogFile), "utf8");
     if (isMigration) {
       if (
-        !headChangelog.startsWith("# 更新日志\\n".replace("\\\\n", "\\n")) ||
+        !headChangelog.startsWith("# 更新日志\n") ||
         publishedSections(baseChangelog) !== publishedSections(headChangelog)
       ) {
         throw new CliError("::error::CHANGELOG migration must preserve published sections.", 65);
