@@ -220,8 +220,6 @@ export async function readDeploySecretCeiling(
   ]);
 }
 
-
-
 const deployBundleNamePattern = /^AW_DEPLOY_SECRET_BUNDLE_[A-Z0-9_]+$/;
 
 /** Resolve the single product-scoped GitHub Environment Secret used as the deployment bundle. */
