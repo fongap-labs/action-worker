@@ -86,12 +86,20 @@ test("trusted main preflight checks a single publication App writer in a protect
   const source = await readFile(".github/workflows/publication-key-verify.yml", "utf8");
   const workflow = parse(source) as {
     on: Record<string, unknown>;
-    jobs: Record<string, {
-      environment?: string;
-      needs?: string;
-      if?: string;
-      steps: Array<{ name?: string; uses?: string; with?: Record<string, string>; env?: Record<string, string> }>;
-    }>;
+    jobs: Record<
+      string,
+      {
+        environment?: string;
+        needs?: string;
+        if?: string;
+        steps: Array<{
+          name?: string;
+          uses?: string;
+          with?: Record<string, string>;
+          env?: Record<string, string>;
+        }>;
+      }
+    >;
   };
   const publisher = workflow.jobs["publication-app"];
   assert.ok(publisher);
@@ -100,7 +108,9 @@ test("trusted main preflight checks a single publication App writer in a protect
   assert.equal(publisher.if, "github.ref == 'refs/heads/main'");
   assert.equal(workflow.on.workflow_dispatch, undefined);
   assert.equal(workflow.on.pull_request, undefined);
-  const mint = publisher.steps.find((step) => step.name === "Mint strictly scoped publication token");
+  const mint = publisher.steps.find(
+    (step) => step.name === "Mint strictly scoped publication token"
+  );
   assert.equal(mint?.with?.["permission-contents"], "write");
   assert.equal(mint?.with?.["permission-pull-requests"], "write");
   assert.equal(mint?.with?.repositories, "${{ vars.AW_PUBLICATION_TEST_REPOSITORY || 'mcp-hub' }}");
