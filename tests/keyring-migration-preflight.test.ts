@@ -15,6 +15,7 @@ const older = JSON.stringify({
 test("migration compares current and historical signing material without changing it", () => {
   assert.equal(keyringsMatch(older, older), true);
   assert.equal(keyringsMatch(older, ""), false);
+  assert.equal(keyringsMatch(older, "{invalid json"), false);
   const changedKey = JSON.stringify({
     schema_version: 1,
     active: "k1",
@@ -51,5 +52,7 @@ test("migration preflight runs independently in a protected job", async () => {
   assert.ok(step);
   assert.equal(step.env?.AW_STATUS_SIGNING_KEYS, "${{ secrets.AW_STATUS_SIGNING_KEYS }}");
   assert.equal(step.env?.AW_STATUS_KEYRING, "${{ secrets.AW_STATUS_KEYRING }}");
+  assert.equal(step.env?.GH_TOKEN, "${{ secrets.AW_ADMIN_TOKEN }}");
+  assert.equal(step.env?.AW_BOOTSTRAP_READ_TOKEN, "${{ github.token }}");
   assert.ok(workflow.jobs["bootstrap-signing"]);
 });
