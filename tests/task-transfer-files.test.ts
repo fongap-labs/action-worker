@@ -120,3 +120,43 @@ test("task transfer rejects large state files and malformed payloads before writ
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("trusted unpack rejects symlinked ancestors and does not write outside destination", async () => {
+  const { root } = await sandbox();
+  try {
+    const outside = join(root, "outside");
+    await mkdir(outside);
+    const shortcut = join(root, "redirect");
+    await symlink(outside, shortcut);
+    const data = payload([{ kind: "file", path: "secret.txt", base64: "c2VjcmV0" }]);
+    await assert.rejects(
+      unpackTaskTransferFiles(data, join(shortcut, "restored")),
+      /unsafe parent/
+    );
+    await assert.rejects(lstat(join(outside, "restored")), /ENOENT/);
+    await assert.rejects(
+      unpackTaskTransferFiles(data, `${root}/source/../bypass`),
+      /canonical path/
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("trusted unpack refuses existing destinations and symlink leaf", async () => {
+  const { root } = await sandbox();
+  try {
+    const data = payload([{ kind: "file", path: "safe.txt", base64: "c2FmZQ==" }]);
+    const original = join(root, "original");
+    await mkdir(original);
+    await writeFile(join(original, "keep.txt"), "unchanged");
+    const link = join(root, "destination");
+    await symlink(original, link);
+    await assert.rejects(unpackTaskTransferFiles(data, link), /EEXIST/);
+    await assert.rejects(unpackTaskTransferFiles(data, original), /EEXIST/);
+    assert.equal(await readFile(join(original, "keep.txt"), "utf8"), "unchanged");
+    await assert.rejects(lstat(join(original, "safe.txt")), /ENOENT/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
