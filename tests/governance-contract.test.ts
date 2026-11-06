@@ -573,8 +573,6 @@ test("task dispatch keeps the publication credential in the central control step
     "node scripts/resolve-task-secret-plan.ts resolve",
     "node scripts/resolve-task-secret-plan.ts verify",
     "secrets[steps.task_secret_plan.outputs.secret_00]",
-    ".secrets.required",
-    ".secrets.allowed",
     "Restore previous task state",
     "AW_TASK_STATE_DIR",
     "Upload task state",
@@ -583,6 +581,8 @@ test("task dispatch keeps the publication credential in the central control step
     "AW_PUBLICATION_PRIVATE_KEY",
     "task-publication-envelope.ts",
   ]);
+  const plan = await text("scripts/resolve-task-secret-plan.ts");
+  requireText(plan, [".secrets.required", ".secrets.allowed", "policies/task-secrets.json"]);
   assert.doesNotMatch(workflow, /toJSON\s*\(\s*secrets\s*\)/);
   assert.doesNotMatch(workflow, /env:\s*\$\{\{\s*secrets\s*\}\}/);
   assert.doesNotMatch(workflow, /secrets\.AW_CONTROL_TOKEN/);
