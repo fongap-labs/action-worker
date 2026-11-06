@@ -1292,14 +1292,14 @@ test("deploy and task entrypoints execute with scoped credentials", async () => 
   );
   assert.match(
     task,
-    /- name: Upload task state\n\s+if: always\(\) && steps\.state_upload\.outputs\.path != ''[\s\S]*?path: \$\{\{ steps\.state_upload\.outputs\.path \}\}/
+    /- name: Upload task state\n\s+if: steps\.task\.outcome == 'success' && steps\.state_upload\.outputs\.path != ''[\s\S]*?path: \$\{\{ steps\.state_upload\.outputs\.path \}\}/
   );
   // A failed task says whether its sealed log was kept, and whether the key is configured, without
   // ever printing the key: that is the first thing to check when run-task fails.
   const report = task.slice(task.indexOf("- name: Report task result"));
   assert.match(
     report,
-    /ARTIFACT_KEY_STATE: \$\{\{ secrets\.AW_ARTIFACT_KEY != '' && 'configured' \|\| 'not configured' \}\}/
+    /ARTIFACT_KEY_STATE: \$\{\{ needs\.validate\.outputs\.is_private == 'true' && secrets\.AW_ARTIFACT_KEY != '' && 'configured' \|\| 'not configured' \}\}/
   );
   assert.match(
     report,
