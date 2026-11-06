@@ -141,7 +141,7 @@ test("private pilot is separately gated, three fresh Jobs and no fallback to leg
         if?: string;
         needs?: string[];
         permissions?: Record<string, string>;
-        steps?: Array<{ uses?: string; run?: string; env?: unknown }>;
+        steps?: Array<{ name?: string; if?: string; uses?: string; run?: string; env?: unknown }>;
       }
     >;
   };
@@ -158,6 +158,15 @@ test("private pilot is separately gated, three fresh Jobs and no fallback to leg
   assert.match(raw, /AW_PRIVATE_ISOLATION_PILOT_ENABLED/);
   assert.match(raw, /AW_PRIVATE_ISOLATION_PILOT_GROUP/);
   assert.match(raw, /AW_PRIVATE_ISOLATION_LOCK_ATTESTED/);
+  const gate = jobs.validate?.steps?.find(
+    (step) => step.name === "Gate independent private isolation pilot"
+  );
+  assert.ok(gate);
+  assert.doesNotMatch(gate.if ?? "", /AW_PRIVATE_ISOLATION_LOCK_ATTESTED/);
+  assert.match(gate.if ?? "", /AW_PRIVATE_ISOLATION_PILOT_GROUP/);
+  assert.match(gate.run ?? "", /AW_PRIVATE_ISOLATION_LOCK_ATTESTED/);
+  assert.match(gate.run ?? "", /exit 77/);
+  assert.match(gate.run ?? "", /node scripts\/isolated-private-task\.ts/);
   assert.match(jobs.execute?.if ?? "", /private_isolation_mode != 'true'/);
   assert.match(JSON.stringify(jobs.run_private_isolated), /private-task-container\.ts/);
   assert.match(
