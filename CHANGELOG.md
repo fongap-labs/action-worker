@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 为受管桌面应用发布增加 macOS 15 ARM64 沙箱构建 Runner，保持独立平台构建与发布门禁。
+
 - 修复: AI Gateway 生产部署的健康密钥不再别名至 AGENT 访问密钥；运维 Secret 写入改用 Cloudflare Secrets API，禁止占位 Worker 覆盖代码。
 
 - 修复: 复用独立 Environment Secrets 进行动态逐项注入，避免要求运维迁移 JSON 密钥包；保持现有 Cloudflare Worker 运行时密钥隔离。
