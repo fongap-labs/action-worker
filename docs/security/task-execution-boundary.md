@@ -75,3 +75,18 @@ validate (trusted, read-only)
 ## 实施门禁
 
 本方案是 PR 2 的实现合同，不代表边界已经完成。未完成独立密钥初始化、跨 Job 加密传输、攻击测试和历史状态兼容测试前，不得删除旧流程、启用新流程或合并为生产路径。不得在本 PR 中创建 Environment、写入 Secret 或改变生产配置。
+
+## 工作流级状态互斥
+
+`handle-task-dispatch.yml` 的任务级 `concurrency` 必须覆盖整次
+`repository_dispatch` 运行，包括 `validate`、`prepare_private_isolated`、
+`run_private_isolated`、`finalize_private_isolated` 及旧版 `execute`。
+
+- 同一来源仓库与项目的任务使用同一个工作流级互斥组，不能因 run ID、request ID、提交 SHA 或 attempt 不同而跳过锁。
+- `cancel-in-progress: false` 防止新请求中断正在恢复或封存的任务；`queue: max` 避免默认的单 pending 项被新请求替换。GitHub 仍有每组 100 个等待请求的队列上限，超出时必须报告失败，不能宣称请求已排队。
+- 已有 `execute` 和 `run_private_isolated` 上的 Job 级锁只作为过渡兼容；单独锁定任务执行步骤无法保护前后的状态读取与写入。
+- 工作流并发互斥仅覆盖同一中央仓库中遵守相同组约定的 GitHub Actions 调度，不是跨仓库、GitHub API、手动操作、旧版本在途工作流或外部服务的通用分布式锁。
+- 私有试点仍必须保持关闭，直到对全部历史状态写入者进行清点、跨入口串行证明、实测并发以及失败恢复验收；`AW_PRIVATE_ISOLATION_LOCK_ATTESTED` 不可取代这些证据。
+- GitHub Actions 并发组不区分大小写，真实任务授权与历史 Artifact 身份仍以中央验证后的仓库与项目为准；不得把互斥分组当作授权校验。
+
+工作流级锁与独立配置管理写入者的资源级锁属于不同用途。前者不能作为 GitHub Secrets、Variables 等配置自动写入的批准条件。
