@@ -80,10 +80,7 @@ export function assessConfigLifecycle(evidence: ConfigLifecycleEvidence): Lifecy
   if (evidence.priorOperation === "unknown" || evidence.metadata === "unknown") {
     return decision("result-unknown");
   }
-  if (
-    evidence.metadata === "inaccessible" ||
-    evidence.consumerVerification === "inaccessible"
-  ) {
+  if (evidence.metadata === "inaccessible" || evidence.consumerVerification === "inaccessible") {
     return decision("access-restricted");
   }
   if (evidence.priorOperation === "in-progress") {
