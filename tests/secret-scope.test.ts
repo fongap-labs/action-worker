@@ -484,3 +484,35 @@ test("AI Gateway operations workflow is protected and never accepts secret value
   assert.match(handler, /Content-Type/);
   assert.doesNotMatch(handler, /spawn|exec|child_process|wrangler/);
 });
+
+test("task Secret aliases preserve credential types across every project", async () => {
+  const policy = JSON.parse(await readFile("policies/task-secrets.json", "utf8")) as {
+    tasks: Record<string, Record<string, { aliases?: Record<string, string> }>>;
+  };
+  const credentialType = (name: string): string | undefined => {
+    const normalized = name.replace(/_(?:PRIMARY|SECONDARY|[0-9]+)$/, "");
+    const types: Array<[RegExp, string]> = [
+      [/(?:^|_)ACCESS_KEY$/, "access-key"],
+      [/(?:^|_)API_TOKEN$/, "api-token"],
+      [/(?:^|_)SECRET_KEY$/, "secret-key"],
+      [/(?:^|_)PRIVATE_KEY$/, "private-key"],
+      [/(?:^|_)ACCOUNT_ID$/, "account-id"],
+      [/(?:^|_)BUCKET_NAME$/, "bucket-name"],
+      [/(?:^|_)PASSWORD$/, "password"],
+    ];
+    return types.find(([pattern]) => pattern.test(normalized))?.[1];
+  };
+  const mismatches: string[] = [];
+  for (const [repository, projects] of Object.entries(policy.tasks)) {
+    for (const [project, entry] of Object.entries(projects)) {
+      for (const [logical, stored] of Object.entries(entry.aliases ?? {})) {
+        const logicalType = credentialType(logical);
+        const storedType = credentialType(stored);
+        if (logicalType && storedType && logicalType !== storedType) {
+          mismatches.push(`${repository}:${project}:${logicalType}->${storedType}`);
+        }
+      }
+    }
+  }
+  assert.deepEqual(mismatches, []);
+});
