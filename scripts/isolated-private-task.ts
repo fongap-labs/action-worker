@@ -50,13 +50,7 @@ export async function validatePrivateIsolationAdmission(
   )
     reject();
 
-  const admission = await validateTaskSecretAdmission(
-    reader,
-    repository,
-    project,
-    sha,
-    policyPath
-  );
+  const admission = await validateTaskSecretAdmission(reader, repository, project, sha, policyPath);
   if (admission.required_count !== 0 || admission.allowed_count !== 0) reject();
 
   const commit = await reader.get(`repos/${repository}/git/commits/${sha}`);
