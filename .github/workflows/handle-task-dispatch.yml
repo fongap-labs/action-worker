@@ -12,6 +12,7 @@ permissions: {}
 concurrency:
   group: aw-task-lifecycle:${{ github.event.client_payload.repository }}:${{ github.event.client_payload.project }}
   cancel-in-progress: false
+  queue: max
 
 jobs:
   validate:

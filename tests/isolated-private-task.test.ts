@@ -185,7 +185,7 @@ test("workflow-level lock spans private prepare, execution, and finalization wit
   const lock = workflow.concurrency;
   assert.ok(lock, "task lifecycle must have a workflow-level lock");
   assert.equal(lock["cancel-in-progress"], false);
-  assert.equal(lock.queue, undefined, "unsupported queue syntax must not bypass Actionlint");
+  assert.equal(lock.queue, "max", "pending task runs must not replace earlier requests");
   assert.match(lock.group ?? "", /github\.event\.client_payload\.repository/);
   assert.match(lock.group ?? "", /github\.event\.client_payload\.project/);
   assert.doesNotMatch(lock.group ?? "", /request_id|run_id|bootstrap_ref|run_attempt/);
