@@ -53,7 +53,7 @@ export function assessConfigLifecycle(evidence: ConfigLifecycleEvidence): Lifecy
     !evidence ||
     typeof evidence !== "object" ||
     Object.values(evidence).some((value) => value === null || value === undefined) ||
-    Object.keys(evidence).length !== 15 ||
+    Object.keys(evidence).length !== 14 ||
     !["none", "in-progress", "completed", "unknown"].includes(evidence.priorOperation) ||
     !["absent", "present", "inaccessible", "unknown"].includes(evidence.metadata) ||
     !["not-run", "valid", "invalid", "inaccessible"].includes(evidence.consumerVerification)
