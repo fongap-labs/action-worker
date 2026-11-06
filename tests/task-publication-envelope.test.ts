@@ -154,7 +154,7 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
     ) < execute.steps.findIndex((step) => step.name === "Execute downstream task")
   );
   assert.match(source, /AW_PUBLICATION_PRIVATE_KEY must be an admin-ops Environment Secret/);
-  assert.deepEqual(publish.needs, ["validate", "execute"]);
+  assert.deepEqual(publish.needs, ["validate", "execute", "finalize_private_isolated"]);
   assert.equal(execute.outputs?.publication_staged, "${{ steps.publication.outputs.staged }}");
   assert.equal(
     execute.steps.some((step) => step.uses?.includes("mint-app-token")),
