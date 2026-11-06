@@ -375,7 +375,7 @@ test("the central policies give each Cloudflare account its own qualified secret
       ]
     );
   }
-  // MarketChina reuses the primary account's Cloudflare credentials under its R2-style names.
+  // MarketChina uses a dedicated R2 S3 access key; an API token is not interchangeable.
   assert.deepEqual(
     [
       ...(await readSecretAliases(
@@ -387,7 +387,6 @@ test("the central policies give each Cloudflare account its own qualified secret
     ],
     [
       ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_PRIMARY"],
-      ["CLOUDFLARE_ACCESS_KEY", "CLOUDFLARE_API_TOKEN_PRIMARY"],
       ["CLOUDFLARE_SECRET_KEY", "CLOUDFLARE_SECRET_KEY_PRIMARY"],
       ["CLOUDFLARE_BUCKET_NAME", "CLOUDFLARE_BUCKET_NAME_PRIMARY"],
       ["TUSHARE_API_URL", "TUSHARE_API_URL_PRIMARY"],
