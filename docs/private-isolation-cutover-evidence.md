@@ -1,46 +1,48 @@
-# Private task isolation — production cutover evidence gate
+# 私有任务隔离生产切换验收门禁
 
-Status: **BLOCKED**. This is an evidence checklist, not an activation procedure. No private pilot, credential provisioning, or production Secrets mutation is authorized by this document. Do not set an activation Variable just because CI is green.
+状态：**禁止切换**。本文仅定义证据门禁，不是启用操作说明。未授权开启私有试点、配置凭据或写入生产密钥。中央持续集成检查通过不等于可启用试点。
 
-## Current baseline (2026-11-06)
+## 当前基线
 
-- The merged encrypted publication path uses the existing protected publisher, not a second privileged publisher.
-- `policies/private-task-keys.json` currently has `"projects": {}`; there are **zero approved project enrollments**.
-- `AW_PRIVATE_ISOLATION_PILOT_ENABLED` defaults off unless explicitly provisioned, and the private source must pass fixed-SHA / exact-group / capability checks.
-- `AW_PRIVATE_ISOLATION_LOCK_ATTESTED` is an attestation only. Workflow `concurrency` serializes this workflow's group but cannot protect independent dispatchers, old in-flight workflows, or external artifact writers.
-- `AW_PRIVATE_LEGACY_EXECUTION_DISABLED` does not by itself migrate historical state. Until the old private Runner is retired, its legacy `execute` path still requires the private historical artifact key.
+截至 2026 年 11 月 6 日：
 
-## Evidence required before a single project is enabled
+- 已合并的加密发布路径复用现有受保护发布器，并未建立第二套高权限发布入口。
+- `policies/private-task-keys.json` 当前为 `"projects": {}`，即零个获准登记项目。
+- 私有试点必须显式配置 `AW_PRIVATE_ISOLATION_PILOT_ENABLED`，并通过固定提交、精确任务组和能力声明校验；默认不启用。
+- `AW_PRIVATE_ISOLATION_LOCK_ATTESTED` 只是证明声明。工作流 `concurrency` 无法保护独立派发器、历史运行和外部状态写入者。
+- `AW_PRIVATE_LEGACY_EXECUTION_DISABLED` 不负责迁移历史状态。旧私有执行路径尚未退出前，仍可能在可信执行环境中使用历史状态密钥。
 
-All items must be satisfied **for an exact source repository + project** and an approved immutable bootstrap SHA; record run URLs, SHA, the reviewing maintainer and UTC timestamps in a private change record. Never put key material, private task logs or private state in a public PR.
+## 单项目启用前的证据
 
-| Gate | Required evidence | Failure consequence |
+以下要求须针对精确的来源仓库、项目和已批准的固定源码提交逐项验收。应在受限变更记录中保存运行链接、提交标识、审核人和世界协调时间。不得把真实私钥、私有任务日志和历史状态原文写入公开拉取请求。
+
+| 门禁 | 必须提交的证据 | 不符合时的处理 |
 | --- | --- | --- |
-| 1. Source and scope | Repository is private, source SHA pinned, `projects/<project>/.isolated-private-task` exactly declares `stateful-private-v1`, operation is `task`; central task policy admits **zero** business Secrets and Variables | Reject, no legacy fallback for selected pilot |
-| 2. Key enrollment | Separately reviewed exact `repository:project` entry with distinct inbound/outbound SHA-256 public-key fingerprints; independently verify the four project-specific public Variable/private Secret roles and actual key pairs in their respective trust domains | Do not set pilot enabled |
-| 3. Historical recovery | Run against a copy of the project's **real historic encrypted artifact**. Prove manifest identity, encryption format, state bytes after restore, and next-run restore. Failed tasks must not overwrite the last good state; secrets and task identifiers must not appear in public logs | Halt and retain last good artifact |
-| 4. Lifecycle concurrency | Demonstrate serialization across new prepare/run/finalize, legacy executions already running, reruns, queued requests, every independent workflow and **all external state writers**. Capture overlapping-request evidence with no lost updates or canceled pending tasks | Do not attest lock or enable pilot |
-| 5. Adversarial Runner isolation | Real runner/container evidence for no network, read-only source, non-root, no host credentials, no Docker socket, no surviving background writer, no symlink/hardlink/path traversal/forged manifest, and strict artifact size/identity handling | Reject, fix implementation before retry |
-| 6. Controlled publication | Prove successful task can stage an encrypted bound artifact and the **existing** `admin-ops` publisher alone decrypts after policy/PR/CI guard; failed/unauthorized/mismatched requests publish nothing; verify existing release target compatibility | Do not enable publication for the project |
-| 7. Old Runner retirement | Inventory all pending, in-flight and alternative private execution entries. Prove no legacy private task can receive `AW_ARTIFACT_KEY` after cutover; then enable strict legacy rejection, with independent verification against bypass/fallback | Keep strict cutover unapproved |
-| 8. Operational rollback | Verify failure response preserves last good state, does not silently fall back to privileged execution, retains audit evidence, and has a tested recovery process without re-exposing the central key | Do not cut over |
+| 来源及范围 | 仓库确认为私有；固定源码提交；`projects/<project>/.isolated-private-task` 精确声明 `stateful-private-v1`；操作类型仅为 `task`；中央策略准入的业务密钥和变量均为零 | 拒绝任务；已命中试点时不得回退旧执行器 |
+| 项目密钥登记 | 精确匹配 `repository:project` 的独立审核条目；入站和出站公钥指纹不同；分别核实四个项目专属变量及密钥引用、密钥对和各自的信任域 | 不得启用试点 |
+| 历史状态恢复 | 使用真实历史加密工件的副本演练；核对清单身份、加密格式、恢复后的状态字节及下一次恢复；任务失败不得覆盖最后成功状态；公开日志不得泄露密钥或任务身份 | 终止并保留最后成功状态 |
+| 完整生命周期互斥 | 验证准备、执行、封存、历史运行、重跑、排队请求、独立工作流和全部外部写入者之间的互斥；记录并发证据，确保无丢失更新或待处理任务被意外取消 | 不得确认锁证明或启用试点 |
+| 恶意任务隔离 | 提供真实执行器和容器证据：禁止网络、只读源码、非特权用户、无宿主凭据、无容器套接字、无残留后台写入者；拒绝符号链接、硬链接、路径穿越、伪造清单和异常工件大小或身份 | 拒绝切换，先修复实现 |
+| 受保护发布 | 成功任务生成有身份绑定的加密发布工件；仅现有受保护发布器在策略、审核和检查通过后解密；失败、未授权或身份不符不得发布；验证现有目标仓库发布兼容性 | 不得为项目启用发布 |
+| 旧执行器退出 | 清点所有待处理、运行中及替代入口；确认切换后旧私有任务不再接触 `AW_ARTIFACT_KEY`；启用严格拒绝并独立测试不存在旁路或特权回退 | 不批准严格切换 |
+| 故障恢复 | 演练失败后保留最后成功状态、记录审计证据、禁止自动回退高权限执行器，并保证恢复过程不会重新暴露中央密钥 | 不得切换 |
 
-## Required sequence and sign-off
+## 验收顺序及审核
 
-1. **Read-only inventory:** enumerate the actual project, legacy state artifact lineage, currently active/queued runs, all writers, publication destinations, and project key enrollment. Missing inventory means blocked.
-2. **Isolated rehearsal:** on explicitly approved non-production material, check key-pair identity, historical-format compatibility, malicious task cases, encrypted publication and recovery. CI's synthetic Docker test is necessary but not a substitute for this.
-3. **Lock proof:** independently review complete ownership/lease/fencing or equivalent exclusion of every writer; a GitHub boolean or `queue: max` alone is insufficient.
-4. **Maintainer review:** two independent reviewers record the evidence and residual risks in a restricted change record. Do not paste Secret values or private artifact contents in that record.
-5. **Controlled cutover:** only after all eight gates pass, separately approve the exact project enrollment and minimal configuration changes. Stop on any mismatch; never use an automatic legacy privileged fallback.
-6. **Post-cutover verification:** validate first real run, subsequent historical restore, authorized publication, and that the old private Runner cannot execute. Document all run references.
-7. **Final removal:** only after evidence shows no remaining legacy users, submit a separate change to remove the old private `execute` credential path, with normal Security / Naming / Static / Contract / Real Docker / `validate-merge` gates intact.
+1. **只读清点。** 枚举真实项目、历史工件来源、在途及排队任务、全部状态写入者、发布目标和密钥登记。清点不完整则禁止切换。
+2. **隔离演练。** 仅使用明确批准的非生产材料，验证密钥身份、历史格式、恶意任务、加密发布和恢复。合成容器测试属于必要条件，但不能替代真实项目验收。
+3. **互斥证明。** 独立审查所有写入者共用的所有权、租约、隔离代际或等价排他协议。单个布尔值或 `queue: max` 不是充分证据。
+4. **维护者复核。** 由两名独立审核者在受限记录中核实证据和剩余风险，禁止粘贴密钥值及私有工件内容。
+5. **受控切换。** 八项门禁全部通过后，再单独审批精确项目登记及最小配置变更；发现不一致立即终止，禁止自动回退旧高权限路径。
+6. **切换后复核。** 核验首个真实任务、后续历史恢复、授权发布及旧私有执行器无法运行，留存运行链接。
+7. **最终清理。** 确认不存在旧版使用者后，另行提交移除旧私有执行凭据路径的变更，并保留安全、命名、静态分析、合同、真实容器集成及合并汇总检查。
 
-## Explicit prohibitions
+## 明确禁止事项
 
-- No automatic writes to production Secrets, Variables or Environments.
-- No shared transfer private keys or generic `AW_TASK_TRANSFER_*` fallback.
-- No use of `AW_ARTIFACT_KEY` in the nonprivileged private task Runner.
-- No bypass of CI Evidence, Main Write Guard, publication policy, approval or protected `admin-ops` controls.
-- No assertion of production readiness from static checks or synthetic integration tests alone.
+- 不得自动写入生产密钥、变量和环境。
+- 不得共用项目传输私钥，也不得回退通用 `AW_TASK_TRANSFER_*` 凭据。
+- 非特权私有任务执行器不得接触 `AW_ARTIFACT_KEY`。
+- 不得绕过持续集成证据、主分支写入保护、发布策略、审批或受保护发布器。
+- 不得仅凭静态检查或合成集成测试宣称生产就绪。
 
-**Current decision: NO-GO** because enrollment is empty and real project, writer-coordination, history and production evidence have not been supplied or independently verified.
+**当前结论：禁止切换。** 项目密钥登记为空，真实项目、外部写入者协调、历史兼容性和生产运行证据均未完成独立验证。
