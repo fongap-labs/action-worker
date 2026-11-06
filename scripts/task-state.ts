@@ -1,7 +1,19 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
-import { cp, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import {
+  cp,
+  lstat,
+  mkdir,
+  mkdtemp,
+  open,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, relative, sep } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import {
   GithubReader,
   getJsonArray,
@@ -72,12 +84,29 @@ export async function writeTaskStateManifest(
   bootstrapRef: string
 ): Promise<void> {
   await mkdir(directory, { recursive: true });
+  // A task may control the previous/current state tree. Never follow a
+  // redirected directory or overwrite a task-supplied manifest/symlink.
+  const stat = await lstat(directory);
+  if (
+    !isAbsolute(directory) ||
+    resolve(directory) !== directory ||
+    !stat.isDirectory() ||
+    stat.isSymbolicLink() ||
+    (await realpath(directory)) !== directory
+  ) {
+    throw new CliError("Task state manifest destination is not a trusted directory.", 66);
+  }
   const manifest = buildTaskStateManifest(repository, project, bootstrapRef);
-  await writeFile(
+  const handle = await open(
     join(directory, taskStateManifestFile),
-    `${JSON.stringify(manifest, null, 2)}\n`,
-    "utf8"
+    fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_NOFOLLOW,
+    0o600
   );
+  try {
+    await handle.writeFile(`${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  } finally {
+    await handle.close();
+  }
 }
 
 export async function verifyTaskStateDirectory(

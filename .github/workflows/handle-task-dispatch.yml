@@ -281,7 +281,7 @@ jobs:
         id: task_state
         env:
           GH_TOKEN: ${{ github.token }}
-          AW_ARTIFACT_KEY: ${{ secrets.AW_ARTIFACT_KEY }}
+          AW_ARTIFACT_KEY: ${{ needs.validate.outputs.is_private == 'true' && secrets.AW_ARTIFACT_KEY || '' }}
           SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
           PROJECT: ${{ github.event.client_payload.project }}
         shell: bash
@@ -504,7 +504,7 @@ jobs:
         env:
           TASK_OUTCOME: ${{ steps.task.outcome }}
           # Only whether the secret is set and whether the sealed log was produced, never a value.
-          ARTIFACT_KEY_STATE: ${{ secrets.AW_ARTIFACT_KEY != '' && 'configured' || 'not configured' }}
+          ARTIFACT_KEY_STATE: ${{ needs.validate.outputs.is_private == 'true' && secrets.AW_ARTIFACT_KEY != '' && 'configured' || 'not configured' }}
           TASK_LOG_STATE: ${{ steps.task_log.outputs.path != '' && 'uploaded' || 'not uploaded' }}
         shell: bash
         run: |
@@ -544,15 +544,15 @@ jobs:
           fi
 
       - name: Write task state manifest
-        if: always()
+        if: steps.task.outcome == 'success'
         shell: bash
         run: node scripts/task-state.ts write "${RUNNER_TEMP}/action-worker-task-state/current" "$TASK_SOURCE_REPOSITORY" "$PROJECT" "$BOOTSTRAP_REF"
 
       - name: Seal task state
         id: state_upload
-        if: always()
+        if: steps.task.outcome == 'success'
         env:
-          AW_ARTIFACT_KEY: ${{ secrets.AW_ARTIFACT_KEY }}
+          AW_ARTIFACT_KEY: ${{ needs.validate.outputs.is_private == 'true' && secrets.AW_ARTIFACT_KEY || '' }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -561,7 +561,7 @@ jobs:
           node scripts/task-state.ts seal-state "${RUNNER_TEMP}/action-worker-task-state" "$TASK_SOURCE_REPOSITORY" "$PROJECT" "$visibility"
 
       - name: Upload task state
-        if: always() && steps.state_upload.outputs.path != ''
+        if: steps.task.outcome == 'success' && steps.state_upload.outputs.path != ''
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ${{ steps.task_state.outputs.artifact_name }}
