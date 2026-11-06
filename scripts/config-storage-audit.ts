@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import { minimumConfigImpact } from "./config-security-classification.ts";
 import { GithubReader, isJsonRecord } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 
@@ -9,11 +10,6 @@ const MAX_PAGES = 20;
 const PAGE_SIZE = 100;
 const namePattern = /^[A-Z][A-Z0-9_]*$/;
 const repositoryPattern = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
-const criticalVariables = new Set([
-  "AW_REPOSITORY_POLICY",
-  "AW_PUBLICATION_PUBLIC_KEY",
-  "AW_TASK_SECRET_POLICY_MODE",
-]);
 
 type Reader = Pick<GithubReader, "get">;
 type OrgEntry = { name: string; visibility: "all" | "private" | "selected"; selected: Set<number> };
@@ -37,6 +33,8 @@ export type StorageAuditSummary = {
   environment_shadowed_secret_bindings: number;
   environment_shadowed_variable_bindings: number;
   protected_variable_bindings: number;
+  authorization_variable_bindings: number;
+  root_trust_variable_bindings: number;
   secret_values_read: false;
   secret_values_verified: false;
   consumer_credentials_verified: false;
@@ -185,10 +183,28 @@ function countShadowed(higher: ReadonlySet<string>, lower: ReadonlySet<string>):
   return count;
 }
 
-function countCritical(names: ReadonlySet<string>): number {
-  let count = 0;
-  for (const name of names) if (criticalVariables.has(name)) count++;
-  return count;
+function countImpacted(names: ReadonlySet<string>): {
+  protected: number;
+  authorization: number;
+  rootTrust: number;
+} {
+  let protectedCount = 0;
+  let authorization = 0;
+  let rootTrust = 0;
+  for (const name of names) {
+    const impact = minimumConfigImpact(name);
+    if (impact !== "ordinary-business") protectedCount++;
+    if (impact === "authorization-policy") authorization++;
+    if (impact === "root-trust") rootTrust++;
+  }
+  return { protected: protectedCount, authorization, rootTrust };
+}
+
+function addImpacted(result: StorageAuditSummary, names: ReadonlySet<string>): void {
+  const counts = countImpacted(names);
+  result.protected_variable_bindings += counts.protected;
+  result.authorization_variable_bindings += counts.authorization;
+  result.root_trust_variable_bindings += counts.rootTrust;
 }
 
 function repositoryInfo(value: unknown): RepositoryInfo {
@@ -232,6 +248,8 @@ export async function auditStorageMetadata(
     environment_shadowed_secret_bindings: 0,
     environment_shadowed_variable_bindings: 0,
     protected_variable_bindings: 0,
+    authorization_variable_bindings: 0,
+    root_trust_variable_bindings: 0,
     secret_values_read: false,
     secret_values_verified: false,
     consumer_credentials_verified: false,
@@ -265,8 +283,8 @@ export async function auditStorageMetadata(
       repoVariables,
       inheritedVariables
     );
-    result.protected_variable_bindings += countCritical(repoVariables);
-    result.protected_variable_bindings += countCritical(inheritedVariables);
+    addImpacted(result, repoVariables);
+    addImpacted(result, inheritedVariables);
 
     const environments = await listAll(
       reader,
@@ -289,7 +307,7 @@ export async function auditStorageMetadata(
         environmentVariables,
         new Set([...repoVariables, ...inheritedVariables])
       );
-      result.protected_variable_bindings += countCritical(environmentVariables);
+      addImpacted(result, environmentVariables);
     }
     result.repositories_verified++;
   }
