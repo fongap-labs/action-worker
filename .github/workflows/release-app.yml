@@ -210,10 +210,9 @@ jobs:
     runs-on: ${{ fromJSON(matrix.runner_labels_json) }}
     timeout-minutes: 90
 
+    # Source-controlled build scripts run without OIDC or attestation write privileges.
     permissions:
       contents: read
-      attestations: write
-      id-token: write
 
     steps:
       - name: Require dedicated private release checkout credential
@@ -315,11 +314,6 @@ jobs:
           fi
           node "$script" --target "$RELEASE_TARGET" --version "$RELEASE_VERSION" --output-dir "$RELEASE_OUTPUT_DIR"
 
-      - name: Attest build provenance
-        if: ${{ matrix.attest_asset != '' }}
-        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-path: ${{ runner.temp }}/release-build/${{ matrix.attest_asset }}
 
       - name: Upload build assets
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -329,11 +323,42 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  attest:
+    name: Attest release asset / ${{ matrix.id }}
+    needs:
+      - prepare
+      - build
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # This trusted job does not checkout or execute source-controlled build scripts.
+    permissions:
+      contents: read
+      attestations: write
+      id-token: write
+
+    steps:
+      - name: Download build artifact for attestation
+        if: ${{ matrix.attest_asset != '' }}
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-build-${{ matrix.id }}
+          path: ${{ runner.temp }}/release-build
+
+      - name: Attest build provenance
+        if: ${{ matrix.attest_asset != '' }}
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/release-build/${{ matrix.attest_asset }}
+
   package:
     name: Package governed release
     needs:
       - prepare
       - build
+      - attest
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
