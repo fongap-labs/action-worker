@@ -1,4 +1,5 @@
-import { lstat, readdir } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { lstat, open, readdir } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { isJsonRecord } from "./github-api.ts";
 import { parseRepositoryPolicy, validateRepositoryCapability } from "./repository-policy.ts";
@@ -8,7 +9,6 @@ import {
   handleError,
   isMain,
   parseJson,
-  readJson,
 } from "./runtime-command.ts";
 
 type Publication = {
@@ -102,12 +102,38 @@ async function main(): Promise<void> {
 
   const root = join(runnerTemp, "action-worker-publication");
   const manifestPath = join(root, "manifest.json");
+  let manifestInfo;
   try {
-    await lstat(manifestPath);
-  } catch {
+    manifestInfo = await lstat(manifestPath);
+  } catch (error) {
+    if (isJsonRecord(error) && error.code !== "ENOENT") {
+      throw new CliError("::error::Task publication manifest lookup failed.", 66);
+    }
     await appendLines(process.env.GITHUB_OUTPUT, ["staged=false"]);
     console.log("No task publication staged.");
     return;
+  }
+  if (
+    !manifestInfo.isFile() ||
+    manifestInfo.isSymbolicLink() ||
+    manifestInfo.nlink !== 1 ||
+    manifestInfo.size > 64 * 1024
+  ) {
+    throw new CliError("::error::Task publication manifest is unsafe.", 66);
+  }
+  const handle = await open(manifestPath, fsConstants.O_RDONLY | fsConstants.O_NOFOLLOW);
+  let manifestBytes: string;
+  try {
+    const currentInfo = await handle.stat();
+    if (!currentInfo.isFile() || currentInfo.nlink !== 1 || currentInfo.size > 64 * 1024) {
+      throw new CliError("::error::Task publication manifest changed or is unsafe.", 66);
+    }
+    manifestBytes = await handle.readFile({ encoding: "utf8" });
+    if (Buffer.byteLength(manifestBytes) !== currentInfo.size) {
+      throw new CliError("::error::Task publication manifest changed during validation.", 66);
+    }
+  } finally {
+    await handle.close();
   }
 
   const rawPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
@@ -117,7 +143,7 @@ async function main(): Promise<void> {
   const policy = parseRepositoryPolicy(
     parseJson(rawPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65)
   );
-  const manifest = validateManifest(await readJson(manifestPath));
+  const manifest = validateManifest(parseJson(manifestBytes, "::error::Task publication manifest is not valid JSON.", 66));
   // This workflow may run in a public repository for a private task. Mask the
   // publication target and output metadata before policy errors or later steps.
   if (process.env.TASK_SOURCE_PRIVATE !== "false") {
