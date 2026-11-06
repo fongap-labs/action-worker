@@ -72,11 +72,31 @@ test("metadata inventory detects inherited, repository and environment shadowing
   assert.equal(summary.environment_shadowed_secret_bindings, 1);
   assert.equal(summary.environment_shadowed_variable_bindings, 2);
   assert.equal(summary.protected_variable_bindings, 2);
+  assert.equal(summary.authorization_variable_bindings, 2);
+  assert.equal(summary.root_trust_variable_bindings, 0);
   assert.equal(summary.secret_values_read, false);
   assert.equal(summary.secret_values_verified, false);
   assert.equal(summary.automatic_writes, false);
   assert.doesNotMatch(JSON.stringify(summary), /ORG_KEY|ONLY_REPO|sensitive-policy|never-log/);
   assert.ok(calls.every((path) => path.includes("per_page=100") || path === "repos/" + repository));
+});
+
+test("audit protects root keys, authorization switches and security-sensitive variables", async () => {
+  const { reader } = fixture({
+    ["repos/" + repository + "/actions/variables"]: {
+      total_count: 3,
+      variables: [
+        { name: "AW_CI_EVIDENCE_PUBLIC_KEY", value: "do-not-emit" },
+        { name: "AW_TASK_ISOLATION_PILOT_ENABLED", value: "true" },
+        { name: "SERVICE_ACCESS_TOKEN", value: "do-not-emit" },
+      ],
+    },
+  });
+  const summary = await auditStorageMetadata(reader, [repository]);
+  assert.equal(summary.authorization_variable_bindings, 3);
+  assert.equal(summary.root_trust_variable_bindings, 1);
+  assert.equal(summary.protected_variable_bindings, 5);
+  assert.doesNotMatch(JSON.stringify(summary), /do-not-emit|SERVICE_ACCESS_TOKEN/);
 });
 
 test("metadata inventory rejects missing organization access rather than guessing inheritance", async () => {
