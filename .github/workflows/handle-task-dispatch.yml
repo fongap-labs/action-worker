@@ -31,6 +31,12 @@ jobs:
       is_private: ${{ steps.visibility.outputs.is_private }}
       isolation_mode: ${{ steps.isolation.outputs.enabled }}
       private_isolation_mode: ${{ steps.private_isolation.outputs.enabled }}
+      private_inbound_public_var: ${{ steps.private_key_plan.outputs.inbound_public_var }}
+      private_inbound_private_secret: ${{ steps.private_key_plan.outputs.inbound_private_secret }}
+      private_outbound_public_var: ${{ steps.private_key_plan.outputs.outbound_public_var }}
+      private_outbound_private_secret: ${{ steps.private_key_plan.outputs.outbound_private_secret }}
+      private_inbound_fingerprint: ${{ steps.private_key_plan.outputs.inbound_fingerprint }}
+      private_outbound_fingerprint: ${{ steps.private_key_plan.outputs.outbound_fingerprint }}
 
     steps:
       - name: Mask task identifiers in public logs
@@ -143,6 +149,20 @@ jobs:
           fi
           node scripts/isolated-private-task.ts
           echo "enabled=true" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve independently approved private project transfer keys
+        id: private_key_plan
+        if: steps.private_isolation.outputs.enabled == 'true'
+        env:
+          TASK_SOURCE_REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PROJECT: ${{ steps.payload.outputs.project }}
+        run: node scripts/private-task-key-plan.ts
+
+      - name: Refuse legacy private Runner when strict isolation is required
+        if: steps.visibility.outputs.is_private == 'true' && steps.private_isolation.outputs.enabled != 'true' && vars.AW_PRIVATE_LEGACY_EXECUTION_DISABLED == 'true'
+        run: |
+          echo "::error::Legacy private task Runner is disabled; no privileged fallback."
+          exit 77
 
   execute:
     name: Execute task
@@ -603,15 +623,15 @@ jobs:
           node-version: 24
       - name: Validate trusted inbound key against approved fingerprints
         env:
-          AW_TASK_TRANSFER_INBOUND_PUBLIC_KEY: ${{ vars.AW_TASK_TRANSFER_INBOUND_PUBLIC_KEY }}
-          AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT: ${{ vars.AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT }}
-          AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: ${{ vars.AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT }}
+          AW_TASK_TRANSFER_INBOUND_PUBLIC_KEY: ${{ vars[needs.validate.outputs.private_inbound_public_var] }}
+          AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT: ${{ needs.validate.outputs.private_inbound_fingerprint }}
+          AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: ${{ needs.validate.outputs.private_outbound_fingerprint }}
         run: node scripts/validate-task-transfer-key-role.ts trusted-prepare
       - name: Restore and encrypt private state without executing task code
         env:
           GH_TOKEN: ${{ github.token }}
           AW_ARTIFACT_KEY: ${{ secrets.AW_ARTIFACT_KEY }}
-          AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: ${{ vars.AW_TASK_TRANSFER_INBOUND_PUBLIC_KEY }}
+          AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: ${{ vars[needs.validate.outputs.private_inbound_public_var] }}
           TASK_SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
           PROJECT: ${{ github.event.client_payload.project }}
           BOOTSTRAP_REF: ${{ github.event.client_payload.bootstrap_ref }}
@@ -704,14 +724,14 @@ jobs:
           path: ${{ runner.temp }}/private-input
       - name: Verify task-only transfer key roles
         env:
-          AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: ${{ secrets.AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY }}
-          AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY: ${{ vars.AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY }}
-          AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT: ${{ vars.AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT }}
-          AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: ${{ vars.AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT }}
+          AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: ${{ secrets[needs.validate.outputs.private_inbound_private_secret] }}
+          AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY: ${{ vars[needs.validate.outputs.private_outbound_public_var] }}
+          AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT: ${{ needs.validate.outputs.private_inbound_fingerprint }}
+          AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: ${{ needs.validate.outputs.private_outbound_fingerprint }}
         run: node scripts/validate-task-transfer-key-role.ts task
       - name: Decrypt bounded historical state on nonprivileged host
         env:
-          AW_TASK_TRANSFER_RECIPIENT_PRIVATE_KEY: ${{ secrets.AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY }}
+          AW_TASK_TRANSFER_RECIPIENT_PRIVATE_KEY: ${{ secrets[needs.validate.outputs.private_inbound_private_secret] }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -730,7 +750,7 @@ jobs:
       - name: Stamp and encrypt private task state
         if: steps.private_bootstrap.outcome == 'success'
         env:
-          AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: ${{ vars.AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY }}
+          AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: ${{ vars[needs.validate.outputs.private_outbound_public_var] }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -742,7 +762,7 @@ jobs:
       - name: Encrypt private task log before leaving Runner
         if: always() && steps.private_bootstrap.outcome != 'skipped'
         env:
-          AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: ${{ vars.AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY }}
+          AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: ${{ vars[needs.validate.outputs.private_outbound_public_var] }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -807,14 +827,14 @@ jobs:
           path: ${{ runner.temp }}/private-result
       - name: Verify trusted finalization-only key role
         env:
-          AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY: ${{ secrets.AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY }}
-          AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT: ${{ vars.AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT }}
-          AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: ${{ vars.AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT }}
+          AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY: ${{ secrets[needs.validate.outputs.private_outbound_private_secret] }}
+          AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT: ${{ needs.validate.outputs.private_inbound_fingerprint }}
+          AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: ${{ needs.validate.outputs.private_outbound_fingerprint }}
         run: node scripts/validate-task-transfer-key-role.ts trusted-finalize
       - name: Validate and seal historical private state and log
         env:
           AW_ARTIFACT_KEY: ${{ secrets.AW_ARTIFACT_KEY }}
-          AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY: ${{ secrets.AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY }}
+          AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY: ${{ secrets[needs.validate.outputs.private_outbound_private_secret] }}
         shell: bash
         run: |
           set -Eeuo pipefail
