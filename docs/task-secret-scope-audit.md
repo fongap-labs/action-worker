@@ -29,8 +29,10 @@
 将来源仓库对应**固定提交**检出至本地目录，并在 Action Worker 仓库根目录运行：
 
 ```bash
-node scripts/audit-task-secret-scope.ts /path/to/pinned-source fongap-labs/internal-vault FongapCDN /path/to/names-only.json
+node scripts/audit-task-secret-scope.ts /path/to/pinned-source fongap-labs/internal-vault FongapCDN <40位完整源码提交SHA> /path/to/names-only.json
 ```
+
+工具会先检查本地来源目录的 Git HEAD 与指定的 40 位提交 SHA 完全一致，并拒绝改动或新增的项目密钥声明文件（`.secrets.required`、`.secrets.allowed`）；不允许用 `main`、标签或短 SHA 替代。固定提交 SHA 应来自已经核实的任务派发记录，而不是凭当前默认分支推测。
 
 输出只含分类数量，不输出来源路径、项目、Secret 名称或值。它会根据现有中央策略及来源声明重新验证槽位，分为仓库级名称匹配、已授权组织级名称匹配、仅 Environment 可见及清单未覆盖的项。
 
