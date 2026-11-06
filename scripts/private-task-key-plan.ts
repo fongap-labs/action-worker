@@ -60,12 +60,12 @@ export async function resolveProjectTransferKeyPlan(
     typeof policy.projects !== "object" ||
     policy.projects === null ||
     Array.isArray(policy.projects)
-  ) reject();
+  )
+    reject();
   const projects = policy.projects as Record<string, unknown>;
   const pair = projects[`${repository}:${project}`];
   if (typeof pair !== "object" || pair === null || Array.isArray(pair)) reject();
-  if (Object.keys(pair).sort().join(",") !== "inbound_fingerprint,outbound_fingerprint")
-    reject();
+  if (Object.keys(pair).sort().join(",") !== "inbound_fingerprint,outbound_fingerprint") reject();
   if (
     !("inbound_fingerprint" in pair) ||
     !("outbound_fingerprint" in pair) ||
@@ -74,7 +74,8 @@ export async function resolveProjectTransferKeyPlan(
     !fingerprintPattern.test(pair.inbound_fingerprint) ||
     !fingerprintPattern.test(pair.outbound_fingerprint) ||
     pair.inbound_fingerprint === pair.outbound_fingerprint
-  ) reject();
+  )
+    reject();
   return {
     inbound_public_var: `${prefix}_INBOUND_PUBLIC_KEY`,
     inbound_private_secret: `${prefix}_INBOUND_PRIVATE_KEY`,
