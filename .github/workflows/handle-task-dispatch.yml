@@ -126,8 +126,9 @@ jobs:
 
       - name: Gate independent private isolation pilot
         id: private_isolation
-        if: vars.AW_PRIVATE_ISOLATION_PILOT_ENABLED == 'true' && vars.AW_PRIVATE_ISOLATION_LOCK_ATTESTED == 'true' && vars.AW_PRIVATE_ISOLATION_PILOT_GROUP == steps.payload.outputs.task_group
+        if: vars.AW_PRIVATE_ISOLATION_PILOT_ENABLED == 'true' && vars.AW_PRIVATE_ISOLATION_PILOT_GROUP == steps.payload.outputs.task_group
         env:
+          AW_PRIVATE_ISOLATION_LOCK_ATTESTED: ${{ vars.AW_PRIVATE_ISOLATION_LOCK_ATTESTED }}
           AW_CONTROL_TOKEN: ${{ steps.task_read_app.outputs.token }}
           TASK_SOURCE_REPOSITORY: ${{ steps.payload.outputs.repository }}
           PROJECT: ${{ steps.payload.outputs.project }}
@@ -136,6 +137,10 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          if [ "$AW_PRIVATE_ISOLATION_LOCK_ATTESTED" != "true" ]; then
+            echo "::error::Private isolation attestation is missing; refusing legacy fallback."
+            exit 77
+          fi
           node scripts/isolated-private-task.ts
           echo "enabled=true" >> "$GITHUB_OUTPUT"
 
