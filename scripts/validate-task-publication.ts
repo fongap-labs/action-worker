@@ -3,13 +3,7 @@ import { lstat, open, readdir } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { isJsonRecord } from "./github-api.ts";
 import { parseRepositoryPolicy, validateRepositoryCapability } from "./repository-policy.ts";
-import {
-  appendLines,
-  CliError,
-  handleError,
-  isMain,
-  parseJson,
-} from "./runtime-command.ts";
+import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 type Publication = {
   schema_version: "1";
@@ -143,7 +137,9 @@ async function main(): Promise<void> {
   const policy = parseRepositoryPolicy(
     parseJson(rawPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65)
   );
-  const manifest = validateManifest(parseJson(manifestBytes, "::error::Task publication manifest is not valid JSON.", 66));
+  const manifest = validateManifest(
+    parseJson(manifestBytes, "::error::Task publication manifest is not valid JSON.", 66)
+  );
   // This workflow may run in a public repository for a private task. Mask the
   // publication target and output metadata before policy errors or later steps.
   if (process.env.TASK_SOURCE_PRIVATE !== "false") {
