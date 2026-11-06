@@ -51,6 +51,7 @@ test("task state is transferred using inbound and outbound keys without governan
     const incoming = join(root, "incoming.seal");
     await runTaskTransferCommand("seal-state", "state-to-task", source, incoming, {
       ...env(),
+      AW_TASK_TRANSFER_ROLE: "trusted-prepare",
       AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: inbound.publicKey,
     });
     const taskState = join(root, "task-state");
@@ -69,6 +70,7 @@ test("task state is transferred using inbound and outbound keys without governan
     await assert.rejects(
       runTaskTransferCommand("open-state", "state-from-task", encrypted, join(root, "wrong"), {
         ...env(),
+        AW_TASK_TRANSFER_ROLE: "trusted-finalize",
         AW_TASK_TRANSFER_RECIPIENT_PRIVATE_KEY: inbound.privateKey,
       }),
       /decryption/
@@ -76,6 +78,7 @@ test("task state is transferred using inbound and outbound keys without governan
     const destination = join(root, "trusted");
     await runTaskTransferCommand("open-state", "state-from-task", encrypted, destination, {
       ...env(),
+      AW_TASK_TRANSFER_ROLE: "trusted-finalize",
       AW_TASK_TRANSFER_RECIPIENT_PRIVATE_KEY: outbound.privateKey,
     });
     assert.equal(await readFile(join(destination, "cursor.txt"), "utf8"), "42");
@@ -101,13 +104,15 @@ test("task log encryption binds run identity and never emits plaintext in the en
       runTaskTransferCommand("open-log", "log-from-task", sealed, join(root, "invalid.log"), {
         ...env(),
         GITHUB_RUN_ATTEMPT: "2",
-        AW_TASK_TRANSFER_RECIPIENT_PRIVATE_KEY: outbound.privateKey,
+        AW_TASK_TRANSFER_ROLE: "trusted-finalize",
+      AW_TASK_TRANSFER_RECIPIENT_PRIVATE_KEY: outbound.privateKey,
       }),
       /authentication/
     );
     const output = join(root, "opened.log");
     await runTaskTransferCommand("open-log", "log-from-task", sealed, output, {
       ...env(),
+      AW_TASK_TRANSFER_ROLE: "trusted-finalize",
       AW_TASK_TRANSFER_RECIPIENT_PRIVATE_KEY: outbound.privateKey,
     });
     assert.equal(await readFile(output, "utf8"), "private task log");
