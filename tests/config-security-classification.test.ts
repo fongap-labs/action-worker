@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   assertOrdinaryVariableReconcileCandidate,
+  type ConfigIdentity,
   classifyConfig,
   minimumConfigImpact,
   validateConfigIdentity,
-  type ConfigIdentity,
 } from "../scripts/config-security-classification.ts";
 
 const base: ConfigIdentity = {
