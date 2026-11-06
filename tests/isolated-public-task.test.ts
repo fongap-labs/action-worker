@@ -216,7 +216,12 @@ test("pilot workflow is explicitly gated; legacy job and publisher never run for
         if?: string;
         needs?: string | string[];
         permissions?: Record<string, string>;
-        steps?: Array<{ env?: unknown; run?: string }>;
+        steps?: Array<{
+          env?: unknown;
+          run?: string;
+          uses?: string;
+          with?: Record<string, unknown>;
+        }>;
       }
     >;
   };
@@ -234,4 +239,25 @@ test("pilot workflow is explicitly gated; legacy job and publisher never run for
   assert.match(text, /AW_TASK_ISOLATION_PILOT_GROUP/);
   assert.doesNotMatch(JSON.stringify(jobs.finalize_isolated), /run:.*bootstrap\.sh/s);
   assert.deepEqual(jobs.run_isolated?.needs, ["validate", "prepare_isolated"]);
+  assert.equal(
+    jobs.finalize_isolated?.steps?.some((step) => step.uses?.includes("upload-artifact")),
+    false,
+    "a stateless pilot must never publish a restorable state artifact"
+  );
+  assert.match(JSON.stringify(jobs.finalize_isolated), /Stateless task completed/);
+  assert.equal(
+    jobs.run_isolated?.steps?.at(-1)?.run?.includes("bootstrap.sh"),
+    true,
+    "no scripts or uploads may run after untrusted bootstrap"
+  );
+  assert.equal(
+    jobs.run_isolated?.steps?.some((step) => step.uses?.includes("upload-artifact")),
+    false,
+    "untrusted job must not export files or state"
+  );
+  assert.equal(
+    jobs.finalize_isolated?.steps?.some((step) => step.uses?.includes("download-artifact")),
+    false,
+    "trusted finalizer must not ingest untrusted task files"
+  );
 });
