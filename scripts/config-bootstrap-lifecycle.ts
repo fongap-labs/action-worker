@@ -38,11 +38,11 @@ export type LifecycleDecision = {
 
 function decision(
   state: ConfigLifecycleState,
-  mayRequestProtectedInitialization = false
+  canRequestProtectedInitialization = false
 ): LifecycleDecision {
   return {
     state,
-    mayRequestProtectedInitialization,
+    mayRequestProtectedInitialization: canRequestProtectedInitialization,
     requiresHumanReview: state !== "verified",
     automaticWritesAllowed: false,
   };
