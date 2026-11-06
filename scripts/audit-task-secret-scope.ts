@@ -187,8 +187,16 @@ async function main(): Promise<void> {
     throw new CliError("Secret scope audit is restricted to an offline authorized terminal.", 77);
   }
   const args = process.argv.slice(2);
-  const [sourceRoot = "", repository = "", project = "", expectedSha = "", inventoryPath = ""] = args;
-  if (args.length !== 5 || !sourceRoot || !repository || !project || !expectedSha || !inventoryPath) {
+  const [sourceRoot = "", repository = "", project = "", expectedSha = "", inventoryPath = ""] =
+    args;
+  if (
+    args.length !== 5 ||
+    !sourceRoot ||
+    !repository ||
+    !project ||
+    !expectedSha ||
+    !inventoryPath
+  ) {
     throw new CliError(
       "Usage: audit-task-secret-scope.ts <pinned-source-root> <repository> <project> <full-source-sha> <inventory.json>",
       64
