@@ -93,12 +93,11 @@ test("inventory rejects values, extra fields and malformed names", () => {
     parseNamesOnlyInventory({ ...baseline, secret_values: { CF_ACCOUNT_PRIMARY: "sensitive" } })
   );
   assert.throws(() =>
-    parseNamesOnlyInventory({ ...baseline, repository: ["CF_ACCOUNT_PRIMARY", "CF_ACCOUNT_PRIMARY"] })
+    parseNamesOnlyInventory({
+      ...baseline,
+      repository: ["CF_ACCOUNT_PRIMARY", "CF_ACCOUNT_PRIMARY"],
+    })
   );
-  assert.throws(() =>
-    parseNamesOnlyInventory({ ...baseline, environments: { "bad/name": [] } })
-  );
-  assert.throws(() =>
-    parseNamesOnlyInventory({ ...baseline, repository: ["bad=value"] })
-  );
+  assert.throws(() => parseNamesOnlyInventory({ ...baseline, environments: { "bad/name": [] } }));
+  assert.throws(() => parseNamesOnlyInventory({ ...baseline, repository: ["bad=value"] }));
 });
