@@ -72,18 +72,18 @@ test("weak RSA, invalid encoding and wrong key pairs fail closed", () => {
   assert.throws(
     () =>
       validateTaskTransferKeyRole("task", {
-      ...expected,
-      AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: wrong.privateKey,
-      AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY: outbound.publicKey,
-    }),
+        ...expected,
+        AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: wrong.privateKey,
+        AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY: outbound.publicKey,
+      }),
     /contract failed/
   );
   assert.throws(
     () =>
       validateTaskTransferKeyRole("trusted-finalize", {
-      ...expected,
-      AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY: inbound.privateKey,
-    }),
+        ...expected,
+        AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY: inbound.privateKey,
+      }),
     /contract failed/
   );
 });
@@ -105,41 +105,42 @@ test("central key leakage, role mixing and same-key reuse fail closed", () => {
     assert.throws(
       () =>
         validateTaskTransferKeyRole("task", {
-        ...expected,
-        AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: inbound.privateKey,
-        AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY: outbound.publicKey,
-        [forbidden]: "leaked",
-      }),
+          ...expected,
+          AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: inbound.privateKey,
+          AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY: outbound.publicKey,
+          [forbidden]: "leaked",
+        }),
       /contract failed/
     );
   }
   assert.throws(
     () =>
       validateTaskTransferKeyRole("task", {
-      ...expected,
-      AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: inbound.privateKey,
-      AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY: outbound.publicKey,
-      AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY: outbound.privateKey,
-    }),
+        ...expected,
+        AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: inbound.privateKey,
+        AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY: outbound.publicKey,
+        AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY: outbound.privateKey,
+      }),
     /contract failed/
   );
   assert.throws(
     () =>
       validateTaskTransferKeyRole("trusted-prepare", {
-      ...expected,
-      AW_TASK_TRANSFER_INBOUND_PUBLIC_KEY: inbound.publicKey,
-      AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: inbound.privateKey,
-    }),
+        ...expected,
+        AW_TASK_TRANSFER_INBOUND_PUBLIC_KEY: inbound.publicKey,
+        AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: inbound.privateKey,
+      }),
     /contract failed/
   );
   assert.throws(
     () =>
       validateTaskTransferKeyRole("task", {
-      ...expected,
-      AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: expected.AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT,
-      AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: inbound.privateKey,
-      AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY: inbound.publicKey,
-    }),
+        ...expected,
+        AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT:
+          expected.AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT,
+        AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: inbound.privateKey,
+        AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY: inbound.publicKey,
+      }),
     /contract failed/
   );
 });
@@ -150,10 +151,10 @@ test("fingerprints require independent trusted pinning, never blank or malformed
   assert.throws(
     () =>
       validateTaskTransferKeyRole("trusted-prepare", {
-      AW_TASK_TRANSFER_INBOUND_PUBLIC_KEY: inbound.publicKey,
-      AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT: "0000",
-      AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: publicKeyFingerprint(outbound.publicKey),
-    }),
+        AW_TASK_TRANSFER_INBOUND_PUBLIC_KEY: inbound.publicKey,
+        AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT: "0000",
+        AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: publicKeyFingerprint(outbound.publicKey),
+      }),
     /contract failed/
   );
   assert.throws(() => validateTaskTransferKeyRole("task", {}), /contract failed/);
