@@ -26,7 +26,7 @@ test("policy candidate discovery preserves exact scope and rejects bad identifie
   });
   assert.equal(candidates.length, 2);
   assert.deepEqual(candidates.map((c) => c.project).sort(), ["Another", "SecretProject"]);
-  assert.throws(() => inventoryCandidates({ tasks: { "wrong": { P: {} } } }));
+  assert.throws(() => inventoryCandidates({ tasks: { wrong: { P: {} } } }));
   assert.throws(() => inventoryCandidates({ tasks: { "o/r": { "../bad": {} } } }));
 });
 
@@ -36,12 +36,9 @@ test("only successful main task workflow runs count as trusted metadata", async 
     async get(path: string): Promise<unknown> {
       seen.push(path);
       if (path.includes("/actions/artifacts?")) {
-        return { artifacts: [
-          artifact(1, 11),
-          artifact(2, 12),
-          artifact(3, 13),
-          artifact(4, 14, true),
-        ] };
+        return {
+          artifacts: [artifact(1, 11), artifact(2, 12), artifact(3, 13), artifact(4, 14, true)],
+        };
       }
       const run = Number(path.split("/").at(-1));
       if (run === 11) return validRun;
@@ -62,8 +59,14 @@ test("only successful main task workflow runs count as trusted metadata", async 
   assert.equal(json.includes("SecretProject"), false);
   assert.equal(json.includes("o/private"), false);
   assert.equal(json.includes(name), false);
-  assert.equal(seen.some((path) => path.includes("/actions/runs/14")), false);
-  assert.equal(seen.some((path) => /download|logs/.test(path)), false);
+  assert.equal(
+    seen.some((path) => path.includes("/actions/runs/14")),
+    false
+  );
+  assert.equal(
+    seen.some((path) => /download|logs/.test(path)),
+    false
+  );
 });
 
 test("rejects mismatched artifact identity rather than counting it", async () => {
