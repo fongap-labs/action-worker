@@ -171,3 +171,34 @@ test("private pilot is separately gated, three fresh Jobs and no fallback to leg
   assert.doesNotMatch(JSON.stringify(jobs.finalize_private_isolated), /bootstrap\.sh/);
   assert.match(JSON.stringify(jobs.prepare_private_isolated), /prepare-trusted-task-state\.ts/);
 });
+
+test("workflow-level lock spans private prepare, execution, and finalization without cancellation", async () => {
+  const raw = await readFile(".github/workflows/handle-task-dispatch.yml", "utf8");
+  const workflow = parse(raw) as {
+    concurrency?: {
+      group?: string;
+      "cancel-in-progress"?: boolean;
+      queue?: string;
+    };
+    jobs: Record<string, { needs?: string[]; concurrency?: unknown }>;
+  };
+  const lock = workflow.concurrency;
+  assert.ok(lock, "task lifecycle must have a workflow-level lock");
+  assert.equal(lock["cancel-in-progress"], false);
+  assert.equal(lock.queue, undefined, "unsupported queue syntax must not bypass Actionlint");
+  assert.match(lock.group ?? "", /github\.event\.client_payload\.repository/);
+  assert.match(lock.group ?? "", /github\.event\.client_payload\.project/);
+  assert.doesNotMatch(lock.group ?? "", /request_id|run_id|bootstrap_ref|run_attempt/);
+  assert.deepEqual(workflow.jobs.run_private_isolated?.needs, [
+    "validate",
+    "prepare_private_isolated",
+  ]);
+  assert.deepEqual(workflow.jobs.finalize_private_isolated?.needs, [
+    "validate",
+    "prepare_private_isolated",
+    "run_private_isolated",
+  ]);
+  // Job-level lock alone is insufficient because it does not include restore
+  // and finalize; retain it only as a compatibility boundary for legacy jobs.
+  assert.ok(workflow.jobs.run_private_isolated?.concurrency);
+});
