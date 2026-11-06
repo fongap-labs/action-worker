@@ -587,24 +587,8 @@ jobs:
           test -s task-source/bootstrap.sh
           bash -n task-source/bootstrap.sh
           bash task-source/bootstrap.sh "$PROJECT" "$BOOTSTRAP_REF" "$REQUEST_ID"
-      - name: Collect bounded task state as untrusted data
-        if: always() && steps.bootstrap.outcome != 'skipped'
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          node scripts/isolated-public-task.ts pack-output \
-            "$AW_TASK_STATE_DIR/current" "$RUNNER_TEMP/isolated-output.packed"
-      - name: Upload bounded public state for trusted finalizer
-        if: always() && steps.bootstrap.outcome != 'skipped'
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: isolated-output-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/isolated-output.packed
-          if-no-files-found: error
-          retention-days: 1
-
   finalize_isolated:
-    name: Verify state on fresh trusted runner
+    name: Confirm stateless outcome on fresh runner
     needs: [validate, prepare_isolated, run_isolated]
     if: always() && needs.validate.outputs.isolation_mode == 'true' && needs.prepare_isolated.result == 'success' && (needs.run_isolated.result == 'success' || needs.run_isolated.result == 'failure')
     runs-on: ubuntu-24.04
@@ -613,32 +597,17 @@ jobs:
       contents: read
       actions: read
     steps:
-      - name: Checkout pinned trusted postprocessor
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ github.sha }}
-          persist-credentials: false
-      - name: Setup Node
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-      - name: Download untrusted output as data only
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: isolated-output-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/isolated-output
-      - name: Validate and discard ephemeral stateless result
+      - name: Confirm untrusted job outcome without loading task files
         env:
-          TASK_SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
-          PROJECT: ${{ github.event.client_payload.project }}
-          BOOTSTRAP_REF: ${{ github.event.client_payload.bootstrap_ref }}
+          TASK_RUN_RESULT: ${{ needs.run_isolated.result }}
         shell: bash
         run: |
           set -Eeuo pipefail
-          node scripts/isolated-public-task.ts finalize \
-            "$RUNNER_TEMP/isolated-output/isolated-output.packed" \
-            "$RUNNER_TEMP/verified-state"
-          echo "Isolated stateless result verified; no historical state persisted."
+          if [ "$TASK_RUN_RESULT" != "success" ]; then
+            echo "::error::Isolated task failed; no output accepted or published."
+            exit 66
+          fi
+          echo "Stateless task completed; no task Artifact or historical state persisted."
 
   publish:
     name: Governed task publication
