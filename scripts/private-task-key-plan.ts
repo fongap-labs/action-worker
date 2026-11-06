@@ -62,7 +62,7 @@ export async function resolveProjectTransferKeyPlan(
     Array.isArray(policy.projects)
   ) reject();
   const projects = policy.projects as Record<string, unknown>;
-  const pair = projects[`${repository}\0${project}`];
+  const pair = projects[`${repository}:${project}`];
   if (typeof pair !== "object" || pair === null || Array.isArray(pair)) reject();
   if (Object.keys(pair).sort().join(",") !== "inbound_fingerprint,outbound_fingerprint")
     reject();
