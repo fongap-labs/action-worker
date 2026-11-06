@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { generateKeyPairSync } from "node:crypto";
+import { closeSync, openSync } from "node:fs";
 import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -68,15 +69,18 @@ function dockerRun(
   const imageIndex = args.indexOf(syntheticDigest);
   assert.ok(imageIndex >= 0);
   args[imageIndex] = image;
-  const result = spawnSync("docker", args, {
-    encoding: "utf8",
-    env: { PATH: process.env.PATH ?? "/usr/bin:/bin" },
-    timeout: 60_000,
-  });
-  if (result.error) throw result.error;
-  assert.equal(result.stdout, "", "private stdout must stay off public CI logs");
-  assert.equal(result.stderr, "", "private stderr must stay off public CI logs");
-  return result.status ?? 124;
+  const fd = openSync(log, "wx", 0o600);
+  try {
+    const result = spawnSync("docker", args, {
+      env: { PATH: process.env.PATH ?? "/usr/bin:/bin" },
+      stdio: ["ignore", fd, fd],
+      timeout: 60_000,
+    });
+    if (result.error) throw result.error;
+    return result.status ?? 124;
+  } finally {
+    closeSync(fd);
+  }
 }
 
 test("real Docker sandbox and private state/log handoff, including next-run restoration", {
