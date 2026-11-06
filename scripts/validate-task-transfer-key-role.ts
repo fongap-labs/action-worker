@@ -2,8 +2,8 @@ import {
   createHash,
   createPrivateKey,
   createPublicKey,
-  timingSafeEqual,
   type KeyObject,
+  timingSafeEqual,
 } from "node:crypto";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 
@@ -19,29 +19,20 @@ function fail(): never {
 }
 
 function publicDer(key: KeyObject): Buffer {
-  if (
-    key.asymmetricKeyType !== "rsa" ||
-    (key.asymmetricKeyDetails?.modulusLength ?? 0) < 3072
-  ) {
+  if (key.asymmetricKeyType !== "rsa" || (key.asymmetricKeyDetails?.modulusLength ?? 0) < 3072) {
     fail();
   }
   return createPublicKey(key).export({ format: "der", type: "spki" }) as Buffer;
 }
 
 export function publicKeyFingerprint(encoded: string): string {
-  if (
-    !encoded ||
-    encoded.length > 5500 ||
-    !BASE64.test(encoded)
-  ) fail();
+  if (!encoded || encoded.length > 5500 || !BASE64.test(encoded)) fail();
   const der = Buffer.from(encoded, "base64");
   if (der.length > 4096 || der.toString("base64") !== encoded) fail();
   try {
     const key = createPublicKey({ key: der, format: "der", type: "spki" });
-    if (
-      key.asymmetricKeyType !== "rsa" ||
-      (key.asymmetricKeyDetails?.modulusLength ?? 0) < 3072
-    ) fail();
+    if (key.asymmetricKeyType !== "rsa" || (key.asymmetricKeyDetails?.modulusLength ?? 0) < 3072)
+      fail();
     const canonical = key.export({ format: "der", type: "spki" }) as Buffer;
     if (!canonical.equals(der)) fail();
     return createHash("sha256").update(canonical).digest("hex");
