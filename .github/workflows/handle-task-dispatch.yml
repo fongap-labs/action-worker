@@ -22,6 +22,7 @@ jobs:
       operation: ${{ steps.payload.outputs.operation }}
       is_private: ${{ steps.visibility.outputs.is_private }}
       isolation_mode: ${{ steps.isolation.outputs.enabled }}
+      private_isolation_mode: ${{ steps.private_isolation.outputs.enabled }}
 
     steps:
       - name: Mask task identifiers in public logs
@@ -115,9 +116,24 @@ jobs:
           node scripts/isolated-public-task.ts admit
           echo "enabled=true" >> "$GITHUB_OUTPUT"
 
+      - name: Gate independent private isolation pilot
+        id: private_isolation
+        if: vars.AW_PRIVATE_ISOLATION_PILOT_ENABLED == 'true' && vars.AW_PRIVATE_ISOLATION_LOCK_ATTESTED == 'true' && vars.AW_PRIVATE_ISOLATION_PILOT_GROUP == steps.payload.outputs.task_group
+        env:
+          AW_CONTROL_TOKEN: ${{ steps.task_read_app.outputs.token }}
+          TASK_SOURCE_REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PROJECT: ${{ steps.payload.outputs.project }}
+          BOOTSTRAP_REF: ${{ steps.payload.outputs.bootstrap_ref }}
+          OPERATION: ${{ steps.payload.outputs.operation }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node scripts/isolated-private-task.ts
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
   execute:
     name: Execute task
-    if: needs.validate.outputs.isolation_mode != 'true'
+    if: needs.validate.outputs.isolation_mode != 'true' && needs.validate.outputs.private_isolation_mode != 'true'
     needs: validate
     outputs:
       publication_staged: ${{ steps.publication.outputs.staged }}
@@ -544,6 +560,282 @@ jobs:
           path: ${{ runner.temp }}/task-publication/sealed.json
           if-no-files-found: error
           retention-days: 1
+
+  prepare_private_isolated:
+    name: Restore historical state on a fresh trusted Runner
+    needs: validate
+    if: needs.validate.outputs.private_isolation_mode == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Mask private identifiers
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          jq -r '.client_payload | [.repository, .project, .bootstrap_ref, .request_id] | .[] | select(type == "string")' "$GITHUB_EVENT_PATH" |
+            while IFS= read -r value; do
+              echo "::add-mask::$value"
+            done
+      - name: Checkout pinned trusted state preparer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Validate trusted inbound key against approved fingerprints
+        env:
+          AW_TASK_TRANSFER_INBOUND_PUBLIC_KEY: ${{ vars.AW_TASK_TRANSFER_INBOUND_PUBLIC_KEY }}
+          AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT: ${{ vars.AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT }}
+          AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: ${{ vars.AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT }}
+        run: node scripts/validate-task-transfer-key-role.ts trusted-prepare
+      - name: Restore and encrypt private state without executing task code
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AW_ARTIFACT_KEY: ${{ secrets.AW_ARTIFACT_KEY }}
+          AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: ${{ vars.AW_TASK_TRANSFER_INBOUND_PUBLIC_KEY }}
+          TASK_SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+          PROJECT: ${{ github.event.client_payload.project }}
+          BOOTSTRAP_REF: ${{ github.event.client_payload.bootstrap_ref }}
+          REQUEST_ID: ${{ github.event.client_payload.request_id }}
+          TASK_SOURCE_PRIVATE: "true"
+        run: node scripts/prepare-trusted-task-state.ts "$RUNNER_TEMP/private-state-input.seal"
+      - name: Upload encrypted run-bound private state
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: private-input-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/private-state-input.seal
+          if-no-files-found: error
+          retention-days: 1
+
+  run_private_isolated:
+    name: Run private task in restricted container without central credentials
+    needs: [validate, prepare_private_isolated]
+    if: needs.validate.outputs.private_isolation_mode == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    permissions:
+      contents: read
+      actions: read
+    concurrency:
+      group: action-worker-${{ needs.validate.outputs.task_group }}
+      cancel-in-progress: false
+    outputs:
+      task_outcome: ${{ steps.private_bootstrap.outcome }}
+    env:
+      AW_SOURCE_DIR: ${{ github.workspace }}/task-source
+      AW_TASK_STATE_DIR: ${{ github.workspace }}/private-state
+      AW_TASK_PRIVATE_LOG_FILE: ${{ github.workspace }}/private-task.log
+      AW_TASK_TRANSFER_ROLE: task
+    steps:
+      - name: Mask private identifiers before source checkout
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          jq -r '.client_payload | [.repository, .project, .bootstrap_ref, .request_id] | .[] | select(type == "string")' "$GITHUB_EVENT_PATH" |
+            while IFS= read -r value; do
+              echo "::add-mask::$value"
+            done
+          mapfile -t private_identity < <(jq -r '.client_payload | .repository, .project, .bootstrap_ref, .request_id' "$GITHUB_EVENT_PATH")
+          if [ "${#private_identity[@]}" -ne 4 ]; then
+            echo "::error::Private task identity could not be exported." >&2
+            exit 64
+          fi
+          {
+            printf 'TASK_SOURCE_REPOSITORY=%s\n' "${private_identity[0]}"
+            printf 'PROJECT=%s\n' "${private_identity[1]}"
+            printf 'BOOTSTRAP_REF=%s\n' "${private_identity[2]}"
+            printf 'REQUEST_ID=%s\n' "${private_identity[3]}"
+          } >> "$GITHUB_ENV"
+      - name: Checkout pinned central transfer code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Verify approved private pilot image before downloading
+        env:
+          AW_TASK_CONTAINER_IMAGE: ${{ vars.AW_TASK_CONTAINER_IMAGE }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$AW_TASK_CONTAINER_IMAGE" =~ ^ghcr\.io/fongap-labs/[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$ ]]
+          docker pull "$AW_TASK_CONTAINER_IMAGE" >/dev/null
+      - name: Checkout approved private source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.client_payload.repository }}
+          ref: ${{ github.event.client_payload.bootstrap_ref }}
+          token: ${{ secrets.AW_CHECKOUT_TOKEN }}
+          path: task-source
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify source commit without printing identifiers
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git -C "$AW_SOURCE_DIR" rev-parse HEAD)" = "$BOOTSTRAP_REF"
+          test -s "$AW_SOURCE_DIR/bootstrap.sh"
+      - name: Download encrypted private input
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: private-input-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/private-input
+      - name: Verify task-only transfer key roles
+        env:
+          AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: ${{ secrets.AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY }}
+          AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY: ${{ vars.AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY }}
+          AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT: ${{ vars.AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT }}
+          AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: ${{ vars.AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT }}
+        run: node scripts/validate-task-transfer-key-role.ts task
+      - name: Decrypt bounded historical state on nonprivileged host
+        env:
+          AW_TASK_TRANSFER_RECIPIENT_PRIVATE_KEY: ${{ secrets.AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$AW_TASK_STATE_DIR"
+          chmod 700 "$AW_TASK_STATE_DIR"
+          node scripts/task-transfer-job.ts open-state state-to-task \
+            "$RUNNER_TEMP/private-input/private-state-input.seal" \
+            "$AW_TASK_STATE_DIR/previous"
+          mkdir -m 700 "$AW_TASK_STATE_DIR/current"
+      - name: Run isolated private bootstrap without host credentials
+        id: private_bootstrap
+        continue-on-error: true
+        env:
+          AW_TASK_CONTAINER_IMAGE: ${{ vars.AW_TASK_CONTAINER_IMAGE }}
+        run: node scripts/private-task-container.ts
+      - name: Stamp and encrypt private task state
+        if: always() && steps.private_bootstrap.outcome != 'skipped'
+        env:
+          AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: ${{ vars.AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node scripts/task-state.ts write "$AW_TASK_STATE_DIR/current" "$TASK_SOURCE_REPOSITORY" "$PROJECT" "$BOOTSTRAP_REF"
+          mkdir -p "$RUNNER_TEMP/private-output"
+          chmod 700 "$RUNNER_TEMP/private-output"
+          node scripts/task-transfer-job.ts seal-state state-from-task \
+            "$AW_TASK_STATE_DIR/current" "$RUNNER_TEMP/private-output/state.seal"
+      - name: Encrypt private task log before leaving Runner
+        if: always() && steps.private_bootstrap.outcome != 'skipped'
+        env:
+          AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: ${{ vars.AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -f "$AW_TASK_PRIVATE_LOG_FILE"
+          node scripts/task-transfer-job.ts seal-log log-from-task \
+            "$AW_TASK_PRIVATE_LOG_FILE" "$RUNNER_TEMP/private-output/log.seal"
+          rm -f "$AW_TASK_PRIVATE_LOG_FILE"
+      - name: Upload encrypted private output only
+        if: always() && steps.private_bootstrap.outcome != 'skipped'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: private-output-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/private-output
+          if-no-files-found: error
+          retention-days: 1
+
+  finalize_private_isolated:
+    name: Convert private results on clean trusted Runner
+    needs: [validate, prepare_private_isolated, run_private_isolated]
+    if: always() && needs.validate.outputs.private_isolation_mode == 'true' && needs.prepare_private_isolated.result == 'success' && needs.run_private_isolated.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    env:
+      TASK_SOURCE_PRIVATE: "true"
+      TASK_OUTCOME: ${{ needs.run_private_isolated.outputs.task_outcome }}
+    steps:
+      - name: Mask private identifiers
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          jq -r '.client_payload | [.repository, .project, .bootstrap_ref, .request_id] | .[] | select(type == "string")' "$GITHUB_EVENT_PATH" |
+            while IFS= read -r value; do
+              echo "::add-mask::$value"
+            done
+          mapfile -t private_identity < <(jq -r '.client_payload | .repository, .project, .bootstrap_ref, .request_id' "$GITHUB_EVENT_PATH")
+          if [ "${#private_identity[@]}" -ne 4 ]; then
+            echo "::error::Private task identity could not be exported." >&2
+            exit 64
+          fi
+          {
+            printf 'TASK_SOURCE_REPOSITORY=%s\n' "${private_identity[0]}"
+            printf 'PROJECT=%s\n' "${private_identity[1]}"
+            printf 'BOOTSTRAP_REF=%s\n' "${private_identity[2]}"
+            printf 'REQUEST_ID=%s\n' "${private_identity[3]}"
+          } >> "$GITHUB_ENV"
+      - name: Checkout pinned central finalizer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Download encrypted run-bound private results
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: private-output-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/private-result
+      - name: Verify trusted finalization-only key role
+        env:
+          AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY: ${{ secrets.AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY }}
+          AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT: ${{ vars.AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT }}
+          AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: ${{ vars.AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT }}
+        run: node scripts/validate-task-transfer-key-role.ts trusted-finalize
+      - name: Validate and seal historical private state and log
+        env:
+          AW_ARTIFACT_KEY: ${{ secrets.AW_ARTIFACT_KEY }}
+          AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY: ${{ secrets.AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node scripts/finalize-trusted-task-artifacts.ts \
+            "$RUNNER_TEMP/private-result/state.seal" \
+            "$RUNNER_TEMP/private-result/log.seal" \
+            "$RUNNER_TEMP/verified-private-artifacts"
+      - name: Derive existing historical state artifact name
+        id: artifact
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          name="$(node scripts/task-state.ts name "$TASK_SOURCE_REPOSITORY" "$PROJECT")"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - name: Upload encrypted historical private state
+        if: env.TASK_OUTCOME == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          path: ${{ runner.temp }}/verified-private-artifacts/state
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload encrypted private diagnostic log
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: task-log-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/verified-private-artifacts/log
+          if-no-files-found: error
+          retention-days: 7
+      - name: Fail run when isolated private bootstrap failed
+        if: env.TASK_OUTCOME != 'success'
+        run: |
+          echo "::error::Isolated private task failed; diagnostic log was sealed."
+          exit 66
 
   prepare_isolated:
     name: Prepare explicit public pilot state

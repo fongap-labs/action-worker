@@ -595,6 +595,8 @@ test("task dispatch keeps the publication credential in the central control step
     "AW_CHECKOUT_TOKEN",
     "AW_PUBLICATION_PRIVATE_KEY",
     "AW_STATUS_KEYRING",
+    "AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY",
+    "AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY",
   ]);
   // The task itself never keeps the artifact key: it is checked like the central credentials.
   assert.match(
