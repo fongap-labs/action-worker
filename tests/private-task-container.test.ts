@@ -60,6 +60,8 @@ test("container arguments refuse mutable images, host root UID, and invalid iden
     { groupId: 0 },
     { sourceDirectory: "relative" },
     { stateDirectory: "../relative" },
+    { stateDirectory: "/tmp/state,readonly" },
+    { sourceDirectory: "/tmp/source,bind-propagation=shared" },
     { bootstrapRef: "main" },
     { requestId: "../escape" },
     { project: "../escape" },
@@ -75,13 +77,10 @@ test("private task denies central credentials and any unsupported business Secre
     { NODE_OPTIONS: "--require malicious" },
     { API_KEY: "not-yet-reviewed" },
   ]) {
-    const run = { ...base, taskCredentials };
-    if (Object.hasOwn(taskCredentials, "API_KEY")) {
-      // Future reviewed task credentials require their own delivery contract.
-      assert.ok(privateTaskDockerArguments(run));
-    } else {
-      assert.throws(() => privateTaskDockerArguments(run), /security contract/);
-    }
+    assert.throws(
+      () => privateTaskDockerArguments({ ...base, taskCredentials }),
+      /security contract/
+    );
   }
 });
 
