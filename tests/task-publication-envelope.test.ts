@@ -188,7 +188,9 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
   assert.match(source, /run: node scripts\/validate-dispatch-payload\.ts\n/);
   assert.match(source, /Shield and export verified task identity/);
   assert.equal(source.match(/Mask task identifiers in public logs/g)?.length, 2);
-  assert.equal(source.match(/::add-mask::\$value/g)?.length, 3);
+  // The legacy validate/execute/publisher masks remain, and each new private
+  // Runner masks identifiers before touching private source or encrypted state.
+  assert.equal(source.match(/::add-mask::\$value/g)?.length, 6);
   const executeJob = source.split("  execute:")[1]?.split("  publish:")[0] ?? "";
   const publishJob = source.split("  publish:")[1] ?? "";
   for (const name of ["repository", "project", "bootstrap_ref", "request_id"]) {
