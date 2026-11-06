@@ -83,7 +83,7 @@ validate (trusted, read-only)
 `run_private_isolated`、`finalize_private_isolated` 及旧版 `execute`。
 
 - 同一来源仓库与项目的任务使用同一个工作流级互斥组，不能因 run ID、request ID、提交 SHA 或 attempt 不同而跳过锁。
-- `cancel-in-progress: false` 防止新请求中断正在恢复或封存的任务；`queue: max` 避免默认的单 pending 项被新请求替换。GitHub 仍有每组 100 个等待请求的队列上限，超出时必须报告失败，不能宣称请求已排队。
+- `cancel-in-progress: false` 防止新请求中断正在恢复或封存的任务。当前固定的 actionlint 1.7.12 尚不支持校验 GitHub 新增的 `queue: max`；现阶段默认只允许一个 pending 请求，第三个同组请求可能替换等待中的请求并使后者取消，必须将取消作为失败报告，不得宣称所有请求均获排队保证。完整试点激活前必须先以受信任且可复现的校验工具链验收多 pending 队列，并实际完成连续调度测试。
 - 已有 `execute` 和 `run_private_isolated` 上的 Job 级锁只作为过渡兼容；单独锁定任务执行步骤无法保护前后的状态读取与写入。
 - 工作流并发互斥仅覆盖同一中央仓库中遵守相同组约定的 GitHub Actions 调度，不是跨仓库、GitHub API、手动操作、旧版本在途工作流或外部服务的通用分布式锁。
 - 私有试点仍必须保持关闭，直到对全部历史状态写入者进行清点、跨入口串行证明、实测并发以及失败恢复验收；`AW_PRIVATE_ISOLATION_LOCK_ATTESTED` 不可取代这些证据。
