@@ -24,7 +24,8 @@ export async function stampPrivateTaskOutput(
     !/^fongap-labs\/[A-Za-z0-9_.-]+$/.test(repository) ||
     !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(project) ||
     !/^[a-f0-9]{40}$/.test(bootstrapRef)
-  ) reject();
+  )
+    reject();
   const root = await lstat(directory);
   if (!root.isDirectory() || root.isSymbolicLink() || (await realpath(directory)) !== directory) {
     reject();
