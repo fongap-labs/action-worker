@@ -35,10 +35,7 @@ test("the task controller retains lifecycle serialization across all task modes"
 });
 
 test("task-source dispatcher does not create another task-state writer", async () => {
-  const content = await readFile(
-    join(workflowDirectory, "task-source-dispatch.yml"),
-    "utf8"
-  );
+  const content = await readFile(join(workflowDirectory, "task-source-dispatch.yml"), "utf8");
   assert.match(content, /event_type: "run-task"/);
   assert.doesNotMatch(content, stateWritePattern);
 });
