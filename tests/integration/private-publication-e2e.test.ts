@@ -139,7 +139,7 @@ test("real private sandbox stages authorized publication without private key or 
     );
     const sealed = join(root, "publication.seal");
     await writeFile(sealed, encrypted, { mode: 0o600 });
-    assert.equal(await readFile(sealed), encrypted);
+    assert.deepEqual(await readFile(sealed), encrypted);
     await assert.rejects(
       openTaskPublication(
         encrypted,
