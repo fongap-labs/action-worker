@@ -6,8 +6,11 @@ import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { openTaskPublication, sealTaskPublication } from "../../scripts/task-publication-envelope.ts";
 import { privateTaskDockerArguments } from "../../scripts/private-task-container.ts";
+import {
+  openTaskPublication,
+  sealTaskPublication,
+} from "../../scripts/task-publication-envelope.ts";
 
 const image = `ghcr.io/fongap-labs/private-sandbox@sha256:${"a".repeat(64)}`;
 const dockerImage = process.env.AW_SANDBOX_TEST_IMAGE_ID ?? "";
@@ -73,53 +76,67 @@ test("real private sandbox stages authorized publication without private key or 
       delete_stale: false,
       commit_message: "chore: publish synthetic private report",
     };
-    await writeFile(join(source, "bootstrap.sh"), [
-      "set -Eeuo pipefail",
-      "test -z \"\${AW_PUBLICATION_PRIVATE_KEY:-}\"",
-      "test -z \"\${AW_APP_PRIVATE_KEY:-}\"",
-      "test -z \"\${GH_TOKEN:-}\"",
-      "test ! -e /var/run/docker.sock",
-      "if touch /task-source/not-allowed 2>/dev/null; then exit 71; fi",
-      "mkdir -p \"$RUNNER_TEMP/action-worker-publication/payload\"",
-      `printf '%s' '${JSON.stringify(manifest)}' > "$RUNNER_TEMP/action-worker-publication/manifest.json"`,
-      "echo PRIVATE_PUBLICATION_SENTINEL > \"$RUNNER_TEMP/action-worker-publication/payload/report.txt\"",
-      "",
-    ].join("\n"));
+    await writeFile(
+      join(source, "bootstrap.sh"),
+      [
+        "set -Eeuo pipefail",
+        'test -z "${AW_PUBLICATION_PRIVATE_KEY:-}"',
+        'test -z "${AW_APP_PRIVATE_KEY:-}"',
+        'test -z "${GH_TOKEN:-}"',
+        "test ! -e /var/run/docker.sock",
+        "if touch /task-source/not-allowed 2>/dev/null; then exit 71; fi",
+        'mkdir -p "$RUNNER_TEMP/action-worker-publication/payload"',
+        `printf '%s' '${JSON.stringify(manifest)}' > "$RUNNER_TEMP/action-worker-publication/manifest.json"`,
+        'echo PRIVATE_PUBLICATION_SENTINEL > "$RUNNER_TEMP/action-worker-publication/payload/report.txt"',
+        "",
+      ].join("\n")
+    );
     await chmod(join(source, "bootstrap.sh"), 0o755);
     const log = join(root, "private.log");
     assert.equal(runSyntheticTask(source, state, publication, log), 0);
-    assert.equal(await readFile(join(staged, "payload", "report.txt"), "utf8"), "PRIVATE_PUBLICATION_SENTINEL\n");
+    assert.equal(
+      await readFile(join(staged, "payload", "report.txt"), "utf8"),
+      "PRIVATE_PUBLICATION_SENTINEL\n"
+    );
 
     const policy = {
       [identity.repository]: ["release-source"],
       "fongap-labs/synthetic-target": ["release-target", "pr"],
     };
     const output = join(root, "validation-output");
-    const validated = spawnSync(
-      process.execPath,
-      ["scripts/validate-task-publication.ts"],
-      {
-        env: {
-          ...process.env,
-          RUNNER_TEMP: publication,
-          SOURCE_REPOSITORY: identity.repository,
-          TASK_SOURCE_PRIVATE: "true",
-          AW_REPOSITORY_POLICY: JSON.stringify(policy),
-          GITHUB_OUTPUT: output,
-        },
-        encoding: "utf8",
-      }
-    );
+    const validated = spawnSync(process.execPath, ["scripts/validate-task-publication.ts"], {
+      env: {
+        ...process.env,
+        RUNNER_TEMP: publication,
+        SOURCE_REPOSITORY: identity.repository,
+        TASK_SOURCE_PRIVATE: "true",
+        AW_REPOSITORY_POLICY: JSON.stringify(policy),
+        GITHUB_OUTPUT: output,
+      },
+      encoding: "utf8",
+    });
     assert.equal(validated.status, 0, validated.stderr);
     assert.match(await readFile(output, "utf8"), /staged=true/);
-    assert.doesNotMatch(validated.stdout, /synthetic-target|reports\/sandbox/);
+    const lines = validated.stdout.trim().split("\n");
+    assert.equal(lines.filter((line) => line.startsWith("::add-mask::")).length, 3);
+    assert.doesNotMatch(
+      lines.filter((line) => !line.startsWith("::add-mask::")).join("\n"),
+      /synthetic-target|reports\/sandbox/
+    );
     const keys = generateKeyPairSync("rsa", {
       modulusLength: 3072,
       publicKeyEncoding: { format: "der", type: "spki" },
       privateKeyEncoding: { format: "pem", type: "pkcs8" },
     });
-    const encrypted = await sealTaskPublication(staged, identity, keys.publicKey.toString("base64"));
-    assert.doesNotMatch(encrypted.toString("utf8"), /PRIVATE_PUBLICATION_SENTINEL|synthetic-target/);
+    const encrypted = await sealTaskPublication(
+      staged,
+      identity,
+      keys.publicKey.toString("base64")
+    );
+    assert.doesNotMatch(
+      encrypted.toString("utf8"),
+      /PRIVATE_PUBLICATION_SENTINEL|synthetic-target/
+    );
     const sealed = join(root, "publication.seal");
     await writeFile(sealed, encrypted, { mode: 0o600 });
     assert.equal(await readFile(sealed), encrypted);
