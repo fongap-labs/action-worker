@@ -70,13 +70,14 @@ test("container arguments refuse mutable images, host root UID, and invalid iden
 
 test("private task denies central credentials and any unsupported business Secret injection", () => {
   const base = settings("/tmp/secure-pilot");
-  for (const taskCredentials of [
+  const deniedCredentials: Array<Record<string, string>> = [
     { AW_ARTIFACT_KEY: "root" },
     { AW_APP_PRIVATE_KEY: "root" },
     { GH_TOKEN: "root" },
     { NODE_OPTIONS: "--require malicious" },
     { API_KEY: "not-yet-reviewed" },
-  ]) {
+  ];
+  for (const taskCredentials of deniedCredentials) {
     assert.throws(
       () => privateTaskDockerArguments({ ...base, taskCredentials }),
       /security contract/
