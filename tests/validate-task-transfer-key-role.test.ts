@@ -26,7 +26,10 @@ test("approved fingerprints permit independent trusted and task runner key roles
     AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT: publicKeyFingerprint(inbound.publicKey),
     AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: publicKeyFingerprint(outbound.publicKey),
   };
-  assert.equal(privateKeyFingerprint(inbound.privateKey), expected.AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT);
+  assert.equal(
+    privateKeyFingerprint(inbound.privateKey),
+    expected.AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT
+  );
   assert.deepEqual(
     validateTaskTransferKeyRole("trusted-prepare", {
       ...expected,
@@ -67,7 +70,8 @@ test("weak RSA, invalid encoding and wrong key pairs fail closed", () => {
   assert.throws(() => publicKeyFingerprint("!!!"), /contract failed/);
   assert.throws(() => privateKeyFingerprint("wrong"), /contract failed/);
   assert.throws(
-    () => validateTaskTransferKeyRole("task", {
+    () =>
+      validateTaskTransferKeyRole("task", {
       ...expected,
       AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: wrong.privateKey,
       AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY: outbound.publicKey,
@@ -75,7 +79,8 @@ test("weak RSA, invalid encoding and wrong key pairs fail closed", () => {
     /contract failed/
   );
   assert.throws(
-    () => validateTaskTransferKeyRole("trusted-finalize", {
+    () =>
+      validateTaskTransferKeyRole("trusted-finalize", {
       ...expected,
       AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY: inbound.privateKey,
     }),
@@ -90,9 +95,16 @@ test("central key leakage, role mixing and same-key reuse fail closed", () => {
     AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT: publicKeyFingerprint(inbound.publicKey),
     AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: publicKeyFingerprint(outbound.publicKey),
   };
-  for (const forbidden of ["AW_ARTIFACT_KEY", "AW_ADMIN_TOKEN", "AW_APP_PRIVATE_KEY", "AW_STATUS_KEYRING", "AW_PUBLICATION_PRIVATE_KEY"]) {
+  for (const forbidden of [
+    "AW_ARTIFACT_KEY",
+    "AW_ADMIN_TOKEN",
+    "AW_APP_PRIVATE_KEY",
+    "AW_STATUS_KEYRING",
+    "AW_PUBLICATION_PRIVATE_KEY",
+  ]) {
     assert.throws(
-      () => validateTaskTransferKeyRole("task", {
+      () =>
+        validateTaskTransferKeyRole("task", {
         ...expected,
         AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: inbound.privateKey,
         AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY: outbound.publicKey,
@@ -102,7 +114,8 @@ test("central key leakage, role mixing and same-key reuse fail closed", () => {
     );
   }
   assert.throws(
-    () => validateTaskTransferKeyRole("task", {
+    () =>
+      validateTaskTransferKeyRole("task", {
       ...expected,
       AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: inbound.privateKey,
       AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY: outbound.publicKey,
@@ -111,7 +124,8 @@ test("central key leakage, role mixing and same-key reuse fail closed", () => {
     /contract failed/
   );
   assert.throws(
-    () => validateTaskTransferKeyRole("trusted-prepare", {
+    () =>
+      validateTaskTransferKeyRole("trusted-prepare", {
       ...expected,
       AW_TASK_TRANSFER_INBOUND_PUBLIC_KEY: inbound.publicKey,
       AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: inbound.privateKey,
@@ -119,7 +133,8 @@ test("central key leakage, role mixing and same-key reuse fail closed", () => {
     /contract failed/
   );
   assert.throws(
-    () => validateTaskTransferKeyRole("task", {
+    () =>
+      validateTaskTransferKeyRole("task", {
       ...expected,
       AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: expected.AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT,
       AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: inbound.privateKey,
@@ -133,7 +148,8 @@ test("fingerprints require independent trusted pinning, never blank or malformed
   const inbound = pair();
   const outbound = pair();
   assert.throws(
-    () => validateTaskTransferKeyRole("trusted-prepare", {
+    () =>
+      validateTaskTransferKeyRole("trusted-prepare", {
       AW_TASK_TRANSFER_INBOUND_PUBLIC_KEY: inbound.publicKey,
       AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT: "0000",
       AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: publicKeyFingerprint(outbound.publicKey),
