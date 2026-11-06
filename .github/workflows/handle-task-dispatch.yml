@@ -660,10 +660,13 @@ jobs:
       cancel-in-progress: false
     outputs:
       task_outcome: ${{ steps.private_bootstrap.outcome }}
+      publication_staged: ${{ steps.private_publication.outputs.staged == 'true' && steps.private_seal_publication.outcome == 'success' && steps.private_upload_publication.outcome == 'success' }}
+      publication_failed: ${{ steps.private_publication.outcome == 'failure' || steps.private_seal_publication.outcome == 'failure' || steps.private_upload_publication.outcome == 'failure' }}
     env:
       AW_SOURCE_DIR: ${{ github.workspace }}/task-source
       AW_TASK_STATE_DIR: ${{ github.workspace }}/private-state
       AW_TASK_PRIVATE_LOG_FILE: ${{ github.workspace }}/private-task.log
+      AW_TASK_PUBLICATION_ROOT: ${{ github.workspace }}/private-publication
       AW_TASK_TRANSFER_ROLE: task
     steps:
       - name: Mask private identifiers before source checkout
@@ -741,6 +744,11 @@ jobs:
             "$RUNNER_TEMP/private-input/private-state-input.seal" \
             "$AW_TASK_STATE_DIR/previous"
           mkdir -m 700 "$AW_TASK_STATE_DIR/current"
+      - name: Prepare private publication staging outside source and state
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -m 700 "$AW_TASK_PUBLICATION_ROOT"
       - name: Run isolated private bootstrap without host credentials
         id: private_bootstrap
         continue-on-error: true
@@ -778,10 +786,45 @@ jobs:
           path: ${{ runner.temp }}/private-output
           if-no-files-found: error
           retention-days: 1
+      - name: Validate optional private publication without revealing its target
+        id: private_publication
+        if: steps.private_bootstrap.outcome == 'success'
+        continue-on-error: true
+        env:
+          RUNNER_TEMP: ${{ github.workspace }}/private-publication
+          SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+          TASK_SOURCE_PRIVATE: "true"
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+        run: node scripts/validate-task-publication.ts
+      - name: Seal approved private publication before leaving task Runner
+        id: private_seal_publication
+        if: steps.private_publication.outputs.staged == 'true'
+        continue-on-error: true
+        env:
+          AW_PUBLICATION_PUBLIC_KEY: ${{ vars.AW_PUBLICATION_PUBLIC_KEY }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -m 700 "$RUNNER_TEMP/task-publication"
+          node scripts/task-publication-envelope.ts seal \
+            "$AW_TASK_PUBLICATION_ROOT/action-worker-publication" \
+            "$RUNNER_TEMP/task-publication/sealed.json"
+      - name: Upload only encrypted approved private publication
+        id: private_upload_publication
+        if: steps.private_seal_publication.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: task-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/task-publication/sealed.json
+          if-no-files-found: error
+          retention-days: 1
 
   finalize_private_isolated:
     name: Convert private results on clean trusted Runner
     needs: [validate, prepare_private_isolated, run_private_isolated]
+    outputs:
+      publication_staged: ${{ steps.private_publication_confirm.outputs.staged }}
     if: always() && needs.validate.outputs.private_isolation_mode == 'true' && needs.prepare_private_isolated.result == 'success' && needs.run_private_isolated.result == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -870,6 +913,30 @@ jobs:
           path: ${{ runner.temp }}/verified-private-artifacts/log
           if-no-files-found: error
           retention-days: 7
+      - name: Download encrypted private publication if approved
+        if: env.TASK_OUTCOME == 'success' && needs.run_private_isolated.outputs.publication_staged == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: task-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/private-publication
+      - name: Verify encrypted publication artifact without decrypting
+        id: private_publication_confirm
+        if: env.TASK_OUTCOME == 'success' && needs.run_private_isolated.outputs.publication_staged == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          payload="$RUNNER_TEMP/private-publication/sealed.json"
+          test -f "$payload"
+          test ! -L "$payload"
+          test "$(find "$RUNNER_TEMP/private-publication" -type f | wc -l)" -eq 1
+          bytes="$(stat -c '%s' "$payload")"
+          test "$bytes" -gt 0 && test "$bytes" -le 157286400
+          echo "staged=true" >> "$GITHUB_OUTPUT"
+      - name: Reject failed private publication after preserving diagnostics
+        if: needs.run_private_isolated.outputs.publication_failed == 'true'
+        run: |
+          echo "::error::Private task publication failed; encrypted diagnostics were preserved."
+          exit 66
       - name: Fail run when isolated private bootstrap failed
         if: env.TASK_OUTCOME != 'success'
         run: |
@@ -995,8 +1062,8 @@ jobs:
 
   publish:
     name: Governed task publication
-    needs: [validate, execute]
-    if: needs.execute.result == 'success' && needs.execute.outputs.publication_staged == 'true'
+    needs: [validate, execute, finalize_private_isolated]
+    if: always() && needs.validate.result == 'success' && ((needs.execute.result == 'success' && needs.execute.outputs.publication_staged == 'true') || (needs.finalize_private_isolated.result == 'success' && needs.finalize_private_isolated.outputs.publication_staged == 'true'))
     environment: admin-ops
     runs-on: ubuntu-24.04
     timeout-minutes: 45
