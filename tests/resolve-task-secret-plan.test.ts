@@ -72,7 +72,7 @@ test("scoped task bindings reject unauthorized and duplicated declarations", asy
   try {
     await assert.rejects(
       resolveTaskSecretPlan(f.source, f.policyPath, repository, project),
-      /outside the central policy/
+      /central policy ceiling/
     );
     await writeFile(join(f.directory, ".secrets.required"), "REQUIRED_KEY\nREQUIRED_KEY\n");
     await assert.rejects(
