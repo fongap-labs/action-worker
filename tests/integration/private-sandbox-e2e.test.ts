@@ -9,6 +9,7 @@ import { test } from "node:test";
 import { finalizeTrustedTaskArtifacts } from "../../scripts/finalize-trusted-task-artifacts.ts";
 import { prepareTrustedTaskState } from "../../scripts/prepare-trusted-task-state.ts";
 import { privateTaskDockerArguments } from "../../scripts/private-task-container.ts";
+import { stampPrivateTaskOutput } from "../../scripts/stamp-private-task-output.ts";
 import {
   openBytes,
   openStateFile,
@@ -16,7 +17,6 @@ import {
   sealedStateFile,
 } from "../../scripts/task-state.ts";
 import { runTaskTransferCommand } from "../../scripts/task-transfer-job.ts";
-import { stampPrivateTaskOutput } from "../../scripts/stamp-private-task-output.ts";
 
 const repository = "fongap-labs/synthetic-private-e2e";
 const project = "sandbox";
@@ -101,19 +101,26 @@ test("real Docker sandbox and private state/log handoff, including next-run rest
       runAttempt: "1",
       isPrivate: true,
       key: artifactSecret,
-      reader: { async get(path: string): Promise<unknown> {
-        if (path.includes("/actions/artifacts?name=")) return { artifacts: [] };
-        throw new Error("Unexpected request");
-      }},
+      reader: {
+        async get(path: string): Promise<unknown> {
+          if (path.includes("/actions/artifacts?name=")) return { artifacts: [] };
+          throw new Error("Unexpected request");
+        },
+      },
       controlRepository: "fongap-labs/action-worker",
       inboundPublicKey: inbound.publicKey,
-      download: async () => { throw new Error("Unexpected historical download"); },
+      download: async () => {
+        throw new Error("Unexpected historical download");
+      },
     });
     assert.equal(prepared.restored, false);
     const encryptedInput = join(root.root, "inbound.seal");
     await writeFile(encryptedInput, prepared.envelope);
     await runTaskTransferCommand(
-      "open-state", "state-to-task", encryptedInput, join(root.state, "previous"),
+      "open-state",
+      "state-to-task",
+      encryptedInput,
+      join(root.state, "previous"),
       {
         TASK_SOURCE_REPOSITORY: repository,
         PROJECT: project,
@@ -125,20 +132,23 @@ test("real Docker sandbox and private state/log handoff, including next-run rest
         AW_TASK_TRANSFER_RECIPIENT_PRIVATE_KEY: inbound.privateKey,
       }
     );
-    await writeFile(join(root.source, "bootstrap.sh"), [
-      "set -Eeuo pipefail",
-      "test -r /task-state/previous/manifest.json",
-      "test -z \"\${AW_ARTIFACT_KEY:-}\"",
-      "test -z \"\${AW_APP_PRIVATE_KEY:-}\"",
-      "test -z \"\${GH_TOKEN:-}\"",
-      "test ! -e /var/run/docker.sock",
-      "test ! -e /host-secret",
-      "if touch /task-source/prohibited 2>/dev/null; then exit 71; fi",
-      "if (timeout 3 bash -c 'echo x >/dev/tcp/1.1.1.1/443' 2>/dev/null); then exit 72; fi",
-      "echo 43 > /task-state/current/cursor.txt",
-      "echo PRIVATE_SENTINEL_CHECK in-container-output",
-      "",
-    ].join("\n"));
+    await writeFile(
+      join(root.source, "bootstrap.sh"),
+      [
+        "set -Eeuo pipefail",
+        "test -r /task-state/previous/manifest.json",
+        'test -z "${AW_ARTIFACT_KEY:-}"',
+        'test -z "${AW_APP_PRIVATE_KEY:-}"',
+        'test -z "${GH_TOKEN:-}"',
+        "test ! -e /var/run/docker.sock",
+        "test ! -e /host-secret",
+        "if touch /task-source/prohibited 2>/dev/null; then exit 71; fi",
+        "if (timeout 3 bash -c 'echo x >/dev/tcp/1.1.1.1/443' 2>/dev/null); then exit 72; fi",
+        "echo 43 > /task-state/current/cursor.txt",
+        "echo PRIVATE_SENTINEL_CHECK in-container-output",
+          "",
+      ].join("\n")
+    );
     await chmod(join(root.source, "bootstrap.sh"), 0o755);
     const log = join(root.root, "private.log");
     assert.equal(dockerRun(root.source, root.state, log, requestedImage, { requestId }), 0);
@@ -191,7 +201,7 @@ test("real Docker sandbox and private state/log handoff, including next-run rest
       nextRunState,
       true
     );
-    assert.equal(await readFile(join(nextRunState, "cursor.txt"), "utf8"), "43");
+    assert.equal(await readFile(join(nextRunState, "cursor.txt"), "utf8"), "43\n");
     const encryptedHistoricalLog = await readFile(join(finalized.logUploadPath, sealedLogFile));
     assert.match(
       openBytes(artifactSecret, "task-log", repository, project, encryptedHistoricalLog).toString(),
@@ -225,12 +235,15 @@ test("real failing Docker task cannot silently produce successful recoverable st
   assert.match(requestedImage, /^sha256:[a-f0-9]{64}$/);
   const { root, source, state } = await fixture();
   try {
-    await writeFile(join(source, "bootstrap.sh"), [
-      "echo PRIVATE_FAILURE_SENTINEL",
-      "echo invalid > /task-state/current/cursor.txt",
-      "exit 19",
+    await writeFile(
+      join(source, "bootstrap.sh"),
+      [
+        "echo PRIVATE_FAILURE_SENTINEL",
+        "echo invalid > /task-state/current/cursor.txt",
+        "exit 19",
       "",
-    ].join("\n"));
+      ].join("\n")
+    );
     const log = join(root, "failed-private.log");
     assert.equal(dockerRun(source, state, log, requestedImage, { requestId: "failed-task" }), 19);
     assert.match(await readFile(log, "utf8"), /PRIVATE_FAILURE_SENTINEL/);
