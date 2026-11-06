@@ -169,7 +169,11 @@ test("real Docker sandbox and private state/log handoff, including next-run rest
       AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: outbound.publicKey,
     };
     await runTaskTransferCommand(
-      "seal-state", "state-from-task", join(root.state, "current"), stateSeal, outboundEnv
+      "seal-state",
+      "state-from-task",
+      join(root.state, "current"),
+      stateSeal,
+      outboundEnv
     );
     await runTaskTransferCommand("seal-log", "log-from-task", log, logSeal, outboundEnv);
     const sealedState = await readFile(stateSeal);
@@ -241,7 +245,7 @@ test("real failing Docker task cannot silently produce successful recoverable st
         "echo PRIVATE_FAILURE_SENTINEL",
         "echo invalid > /task-state/current/cursor.txt",
         "exit 19",
-      "",
+        "",
       ].join("\n")
     );
     const log = join(root, "failed-private.log");
