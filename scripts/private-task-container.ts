@@ -29,9 +29,7 @@ function reject(): never {
   throw new CliError("Private task container security contract rejected execution.", 77);
 }
 
-export function privateTaskDockerArguments(
-  settings: PrivateTaskContainerSettings
-): string[] {
+export function privateTaskDockerArguments(settings: PrivateTaskContainerSettings): string[] {
   if (
     !pinnedImage.test(settings.image) ||
     !repositoryPattern.test(settings.repository) ||
@@ -47,8 +45,8 @@ export function privateTaskDockerArguments(
     /[,\r\n\0]/.test(settings.sourceDirectory) ||
     /[,\r\n\0]/.test(settings.stateDirectory) ||
     Object.keys(settings.taskCredentials).length !== 0
-  ) reject();
-
+  )
+    reject();
 
   return [
     "run",
@@ -94,7 +92,9 @@ async function requiredDirectory(path: string): Promise<string> {
   return resolved;
 }
 
-export async function runPrivateTaskContainer(settings: PrivateTaskContainerSettings): Promise<void> {
+export async function runPrivateTaskContainer(
+  settings: PrivateTaskContainerSettings
+): Promise<void> {
   // A private pilot without approved credential delivery must fail closed rather than
   // acquiring a GitHub token or silently borrowing the central runner environment.
   if (Object.keys(settings.taskCredentials).length !== 0) reject();
@@ -108,7 +108,11 @@ export async function runPrivateTaskContainer(settings: PrivateTaskContainerSett
     sourceDirectory: source,
     stateDirectory: state,
   });
-  const log = await open(settings.logFile, fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_NOFOLLOW, 0o600);
+  const log = await open(
+    settings.logFile,
+    fsConstants.O_WRONLY | fsConstants.O_CREAT | fsConstants.O_EXCL | fsConstants.O_NOFOLLOW,
+    0o600
+  );
   try {
     // Never forward the host process environment or a Docker socket mount.
     // Private task stdout/stderr stays on this runner until the trusted envelope is sealed.
@@ -125,7 +129,10 @@ export async function runPrivateTaskContainer(settings: PrivateTaskContainerSett
       });
     });
     if (status !== 0) {
-      throw new CliError("Private task container failed; output retained for encrypted handling.", 66);
+      throw new CliError(
+        "Private task container failed; output retained for encrypted handling.",
+        66
+      );
     }
   } finally {
     await log.close();
