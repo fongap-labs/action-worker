@@ -603,7 +603,7 @@ jobs:
           PROJECT: ${{ github.event.client_payload.project }}
           BOOTSTRAP_REF: ${{ github.event.client_payload.bootstrap_ref }}
           REQUEST_ID: ${{ github.event.client_payload.request_id }}
-          TASK_SOURCE_PRIVATE: 'true'
+          TASK_SOURCE_PRIVATE: "true"
         run: node scripts/prepare-trusted-task-state.ts "$RUNNER_TEMP/private-state-input.seal"
       - name: Upload encrypted run-bound private state
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -751,7 +751,7 @@ jobs:
       PROJECT: ${{ github.event.client_payload.project }}
       BOOTSTRAP_REF: ${{ github.event.client_payload.bootstrap_ref }}
       REQUEST_ID: ${{ github.event.client_payload.request_id }}
-      TASK_SOURCE_PRIVATE: 'true'
+      TASK_SOURCE_PRIVATE: "true"
       TASK_OUTCOME: ${{ needs.run_private_isolated.outputs.task_outcome }}
     steps:
       - name: Mask private identifiers
