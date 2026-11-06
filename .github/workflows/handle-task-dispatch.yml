@@ -628,10 +628,6 @@ jobs:
     outputs:
       task_outcome: ${{ steps.private_bootstrap.outcome }}
     env:
-      TASK_SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
-      PROJECT: ${{ github.event.client_payload.project }}
-      BOOTSTRAP_REF: ${{ github.event.client_payload.bootstrap_ref }}
-      REQUEST_ID: ${{ github.event.client_payload.request_id }}
       AW_SOURCE_DIR: ${{ github.workspace }}/task-source
       AW_TASK_STATE_DIR: ${{ github.workspace }}/private-state
       AW_TASK_PRIVATE_LOG_FILE: ${{ github.workspace }}/private-task.log
@@ -645,6 +641,17 @@ jobs:
             while IFS= read -r value; do
               echo "::add-mask::$value"
             done
+          mapfile -t private_identity < <(jq -r '.client_payload | .repository, .project, .bootstrap_ref, .request_id' "$GITHUB_EVENT_PATH")
+          if [ "${#private_identity[@]}" -ne 4 ]; then
+            echo "::error::Private task identity could not be exported." >&2
+            exit 64
+          fi
+          {
+            printf 'TASK_SOURCE_REPOSITORY=%s\n' "${private_identity[0]}"
+            printf 'PROJECT=%s\n' "${private_identity[1]}"
+            printf 'BOOTSTRAP_REF=%s\n' "${private_identity[2]}"
+            printf 'REQUEST_ID=%s\n' "${private_identity[3]}"
+          } >> "$GITHUB_ENV"
       - name: Checkout pinned central transfer code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -749,10 +756,6 @@ jobs:
       contents: read
       actions: read
     env:
-      TASK_SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
-      PROJECT: ${{ github.event.client_payload.project }}
-      BOOTSTRAP_REF: ${{ github.event.client_payload.bootstrap_ref }}
-      REQUEST_ID: ${{ github.event.client_payload.request_id }}
       TASK_SOURCE_PRIVATE: "true"
       TASK_OUTCOME: ${{ needs.run_private_isolated.outputs.task_outcome }}
     steps:
@@ -764,6 +767,17 @@ jobs:
             while IFS= read -r value; do
               echo "::add-mask::$value"
             done
+          mapfile -t private_identity < <(jq -r '.client_payload | .repository, .project, .bootstrap_ref, .request_id' "$GITHUB_EVENT_PATH")
+          if [ "${#private_identity[@]}" -ne 4 ]; then
+            echo "::error::Private task identity could not be exported." >&2
+            exit 64
+          fi
+          {
+            printf 'TASK_SOURCE_REPOSITORY=%s\n' "${private_identity[0]}"
+            printf 'PROJECT=%s\n' "${private_identity[1]}"
+            printf 'BOOTSTRAP_REF=%s\n' "${private_identity[2]}"
+            printf 'REQUEST_ID=%s\n' "${private_identity[3]}"
+          } >> "$GITHUB_ENV"
       - name: Checkout pinned central finalizer
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
