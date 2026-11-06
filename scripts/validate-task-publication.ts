@@ -96,7 +96,7 @@ async function main(): Promise<void> {
 
   const root = join(runnerTemp, "action-worker-publication");
   const manifestPath = join(root, "manifest.json");
-  let manifestInfo;
+  let manifestInfo: Awaited<ReturnType<typeof lstat>>;
   try {
     manifestInfo = await lstat(manifestPath);
   } catch (error) {
