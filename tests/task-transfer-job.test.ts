@@ -105,7 +105,7 @@ test("task log encryption binds run identity and never emits plaintext in the en
         ...env(),
         GITHUB_RUN_ATTEMPT: "2",
         AW_TASK_TRANSFER_ROLE: "trusted-finalize",
-      AW_TASK_TRANSFER_RECIPIENT_PRIVATE_KEY: outbound.privateKey,
+        AW_TASK_TRANSFER_RECIPIENT_PRIVATE_KEY: outbound.privateKey,
       }),
       /authentication/
     );
@@ -153,16 +153,60 @@ test("a failed open cannot remove a preexisting destination directory", async ()
     const sealed = join(root, "state.seal");
     await runTaskTransferCommand("seal-state", "state-from-task", state, sealed, {
       ...env(),
+      AW_TASK_TRANSFER_ROLE: "task",
       AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: key.publicKey,
     });
     await assert.rejects(
       runTaskTransferCommand("open-state", "state-from-task", sealed, destination, {
         ...env(),
+        AW_TASK_TRANSFER_ROLE: "trusted-finalize",
         AW_TASK_TRANSFER_RECIPIENT_PRIVATE_KEY: key.privateKey,
       }),
       /state validation/
     );
     assert.equal(await readFile(join(destination, "keep.txt"), "utf8"), "must survive");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("transfer role is mandatory even when the encryption key is valid", async () => {
+  const root = await mkdtemp(join(tmpdir(), "aw-task-job-"));
+  try {
+    const key = keypair();
+    const source = join(root, "source");
+    await mkdir(source);
+    await writeFile(
+      join(source, "manifest.json"),
+      JSON.stringify({ repository, project: "product", bootstrap_ref: ref })
+    );
+    for (const role of ["", "task", "trusted-finalize"]) {
+      await assert.rejects(
+        runTaskTransferCommand("seal-state", "state-to-task", source, join(root, "out.seal"), {
+          ...env(),
+          AW_TASK_TRANSFER_ROLE: role,
+          AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: key.publicKey,
+        }),
+        /phase does not match/
+      );
+    }
+    await assert.rejects(
+      runTaskTransferCommand("open-state", "state-from-task", "incoming", "outgoing", {
+        ...env(),
+        AW_TASK_TRANSFER_ROLE: "task",
+        AW_TASK_TRANSFER_RECIPIENT_PRIVATE_KEY: key.privateKey,
+      }),
+      /phase does not match/
+    );
+    await assert.rejects(
+      runTaskTransferCommand("seal-state", "state-to-task", source, join(root, "out.seal"), {
+        ...env(),
+        AW_TASK_TRANSFER_ROLE: "trusted-prepare",
+        AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: key.privateKey,
+        AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: key.publicKey,
+      }),
+      /forbidden credential role/
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
