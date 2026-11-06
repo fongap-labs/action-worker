@@ -85,14 +85,22 @@ test("private Runner jobs bind all four keys to one pinned project and offer str
       string,
       {
         outputs?: Record<string, string>;
-        steps?: Array<{ name?: string; id?: string; if?: string; run?: string; env?: Record<string, string> }>;
+        steps?: Array<{
+          name?: string;
+          id?: string;
+          if?: string;
+          run?: string;
+          env?: Record<string, string>;
+        }>;
       }
     >;
   };
   const validate = workflow.jobs.validate;
   const gate = validate?.steps?.find((step) => step.id === "private_isolation");
   const keyPlan = validate?.steps?.find((step) => step.id === "private_key_plan");
-  const legacyCutoff = validate?.steps?.find((step) => step.name === "Refuse legacy private Runner when strict isolation is required");
+  const legacyCutoff = validate?.steps?.find(
+    (step) => step.name === "Refuse legacy private Runner when strict isolation is required"
+  );
   assert.ok(gate);
   assert.ok(keyPlan);
   assert.match(keyPlan.if ?? "", /private_isolation\.outputs\.enabled == 'true'/);
