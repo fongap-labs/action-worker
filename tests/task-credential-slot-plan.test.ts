@@ -136,3 +136,21 @@ test("R2 S3 Access Key never silently aliases to a Cloudflare API token", async 
     await item.cleanup();
   }
 });
+
+test("MarketChina R2 Access Key uses its own Secret identity, not the API Token", async () => {
+  const slots = await buildTaskCredentialSlotPlan(
+    "policies/task-secrets.json",
+    "fongap-labs/internal-vault",
+    "MarketChina",
+    ["CLOUDFLARE_ACCESS_KEY"],
+    []
+  );
+  assert.deepEqual(slots, [
+    {
+      slot: "AW_TASK_SECRET_SLOT_01",
+      logical_name: "CLOUDFLARE_ACCESS_KEY",
+      stored_name: "CLOUDFLARE_ACCESS_KEY",
+      required: true,
+    },
+  ]);
+});
