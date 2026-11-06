@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { GithubReader, getJsonArray, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
+import {
+  GithubReader,
+  getJsonArray,
+  getJsonNumber,
+  getJsonString,
+  isJsonRecord,
+} from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { taskStateArtifactName } from "./task-state.ts";
 
