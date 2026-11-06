@@ -146,7 +146,7 @@ test("real Docker sandbox and private state/log handoff, including next-run rest
         "if (timeout 3 bash -c 'echo x >/dev/tcp/1.1.1.1/443' 2>/dev/null); then exit 72; fi",
         "echo 43 > /task-state/current/cursor.txt",
         "echo PRIVATE_SENTINEL_CHECK in-container-output",
-          "",
+        "",
       ].join("\n")
     );
     await chmod(join(root.source, "bootstrap.sh"), 0o755);
