@@ -76,21 +76,19 @@ test("private publication has a separate writable mount without changing source 
   const root = await mkdtemp(join(tmpdir(), "aw-container-publication-"));
   try {
     await mkdir(join(root, "source"));
-    await mkdir(join(root, "state"));
+    await mkdir(join(root, "state", "subdirectory"), { recursive: true });
     await mkdir(join(root, "publication"));
     const configured = {
       ...settings(root),
       publicationDirectory: join(root, "publication"),
     };
     const args = privateTaskDockerArguments(configured);
-    assert.ok(
-      args.includes(`type=bind,source=${join(root, "publication")},target=/task-output`)
-    );
+    assert.ok(args.includes(`type=bind,source=${join(root, "publication")},target=/task-output`));
     assert.ok(args.includes("RUNNER_TEMP=/task-output"));
+    assert.ok(args.includes("AW_TASK_PUBLICATION_DIR=/task-output/action-worker-publication"));
     assert.ok(
-      args.includes("AW_TASK_PUBLICATION_DIR=/task-output/action-worker-publication")
+      args.includes(`type=bind,source=${join(root, "source")},target=/task-source,readonly`)
     );
-    assert.ok(args.includes(`type=bind,source=${join(root, "source")},target=/task-source,readonly`));
     assert.doesNotMatch(args.join(" "), /AW_PUBLICATION_PRIVATE_KEY|GH_TOKEN|docker\\.sock/);
     for (const publicationDirectory of [
       join(root, "source"),
