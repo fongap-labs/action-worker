@@ -1,6 +1,6 @@
 import { constants as fsConstants } from "node:fs";
 import { lstat, mkdir, open, readdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, isAbsolute, join, resolve } from "node:path";
 import { isJsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
@@ -186,6 +186,22 @@ export function validateTaskTransferFiles(input: Buffer): TransferEntry[] {
 export async function unpackTaskTransferFiles(input: Buffer, destination: string): Promise<void> {
   // Validate every entry before creating even the root directory.
   const entries = validateTaskTransferFiles(input);
+  if (!isAbsolute(destination) || resolve(destination) !== destination) {
+    throw new CliError("Task transfer destination must be an absolute canonical path.", 66);
+  }
+  // A malicious parent link could redirect an otherwise safe relative entry
+  // outside the trusted Runner workspace. Each existing ancestor must be real.
+  let parent = dirname(destination);
+  while (true) {
+    const info = await lstat(parent);
+    if (info.isSymbolicLink() || !info.isDirectory()) {
+      throw new CliError("Task transfer destination has an unsafe parent.", 66);
+    }
+    const next = dirname(parent);
+    if (next === parent) break;
+    parent = next;
+  }
+  // Exclusive creation rejects a preexisting directory or final symlink.
   await mkdir(destination, { mode: 0o700 });
   const ordered = [...entries].sort((a, b) => a.path.split("/").length - b.path.split("/").length);
   for (const entry of ordered) {
