@@ -31,24 +31,42 @@ function identityFrom(env: Environment, purpose: TransferPurpose): TransferIdent
   };
 }
 
-function requireTaskRunnerBoundary(env: Environment, purpose: TransferPurpose): void {
-  // Incoming task state and outgoing task results run without governance credentials.
-  // This check is an additional guard, never a substitute for a separate runner.
-  if (purpose !== "state-to-task" && purpose !== "state-from-task" && purpose !== "log-from-task") {
-    throw new CliError("Task transfer purpose is not recognized.", 65);
+type TransferRole = "trusted-prepare" | "task" | "trusted-finalize";
+
+function requireTransferBoundary(
+  env: Environment,
+  command: TransferCommand,
+  purpose: TransferPurpose
+): void {
+  const expectedRole: TransferRole =
+    command === "seal-state" && purpose === "state-to-task"
+      ? "trusted-prepare"
+      : (command === "open-state" && purpose === "state-to-task") ||
+          (command === "seal-state" && purpose === "state-from-task") ||
+          (command === "seal-log" && purpose === "log-from-task")
+        ? "task"
+        : "trusted-finalize";
+  if (env.AW_TASK_TRANSFER_ROLE !== expectedRole) {
+    throw new CliError("Task transfer phase does not match its trusted runner role.", 77);
   }
-  if (env.AW_TASK_TRANSFER_ROLE !== "task") return;
-  const forbidden = [
-    "AW_ARTIFACT_KEY",
-    "AW_ADMIN_TOKEN",
-    "AW_APP_PRIVATE_KEY",
-    "AW_STATUS_KEYRING",
-    "AW_PUBLICATION_PRIVATE_KEY",
-    "AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY",
-    "AW_TASK_TRANSFER_INBOUND_PUBLIC_KEY",
-  ];
+  const forbidden =
+    expectedRole === "task"
+      ? [
+          "AW_ARTIFACT_KEY",
+          "AW_ADMIN_TOKEN",
+          "AW_APP_PRIVATE_KEY",
+          "AW_STATUS_KEYRING",
+          "AW_PUBLICATION_PRIVATE_KEY",
+          "AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY",
+          "AW_TASK_TRANSFER_INBOUND_PUBLIC_KEY",
+        ]
+      : expectedRole === "trusted-prepare"
+        ? ["AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY", "AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY"]
+        : ["AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY", "AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY"];
   for (const name of forbidden) {
-    if (env[name]) throw new CliError("Central governance credential present on task runner.", 77);
+    if (env[name]) {
+      throw new CliError("Task transfer runner contains a forbidden credential role.", 77);
+    }
   }
 }
 
@@ -118,7 +136,7 @@ export async function runTaskTransferCommand(
     throw new CliError("Task transfer file paths are invalid.", 64);
   }
   const identity = identityFrom(env, purpose);
-  requireTaskRunnerBoundary(env, purpose);
+  requireTransferBoundary(env, command, purpose);
   const inbound = purpose === "state-to-task";
   const outbound = purpose === "state-from-task" || purpose === "log-from-task";
   if (
