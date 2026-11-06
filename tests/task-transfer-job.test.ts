@@ -130,7 +130,7 @@ test("central credentials are rejected if available in a task process", async ()
         AW_TASK_TRANSFER_ROLE: "task",
         AW_ARTIFACT_KEY: "configured",
       }),
-      /governance credential/
+      /forbidden credential role/
     );
   } finally {
     await rm(root, { recursive: true, force: true });
