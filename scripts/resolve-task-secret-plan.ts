@@ -1,7 +1,10 @@
 import { chmod, lstat, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
-import { buildTaskCredentialSlotPlan, maxTaskCredentialSlots } from "./task-credential-slot-plan.ts";
+import {
+  buildTaskCredentialSlotPlan,
+  maxTaskCredentialSlots,
+} from "./task-credential-slot-plan.ts";
 import { parseTaskSecretDeclaration } from "./validate-task-secret-admission.ts";
 
 export const taskSecretPlanFile = "action-worker-task-secret-plan.json";
@@ -20,7 +23,12 @@ async function readDeclaration(path: string): Promise<string[]> {
     if (error instanceof Error && "code" in error && error.code === "ENOENT") return [];
     throw error;
   }
-  if (!details.isFile() || details.isSymbolicLink() || details.nlink !== 1 || details.size > 16384) {
+  if (
+    !details.isFile() ||
+    details.isSymbolicLink() ||
+    details.nlink !== 1 ||
+    details.size > 16384
+  ) {
     throw new CliError("Task Secret declaration is not a bounded regular file.", 65);
   }
   return parseTaskSecretDeclaration(await readFile(path, "utf8"));
@@ -32,14 +40,22 @@ export async function resolveTaskSecretPlan(
   repository: string,
   project: string
 ): Promise<ScopedTaskSecretPlan> {
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) ||
-      !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(project)) {
+  if (
+    !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) ||
+    !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(project)
+  ) {
     throw new CliError("Task Secret plan identity is invalid.", 64);
   }
   const directory = join(sourceRoot, "projects", project);
   const required = await readDeclaration(join(directory, ".secrets.required"));
   const allowed = await readDeclaration(join(directory, ".secrets.allowed"));
-  const slots = await buildTaskCredentialSlotPlan(policyPath, repository, project, required, allowed);
+  const slots = await buildTaskCredentialSlotPlan(
+    policyPath,
+    repository,
+    project,
+    required,
+    allowed
+  );
   return { schema_version: 1, repository, project, slots };
 }
 
@@ -96,7 +112,9 @@ async function main(): Promise<void> {
       return `secret_${String(index).padStart(2, "0")}=${name}`;
     });
     await appendLines(process.env.GITHUB_OUTPUT, values);
-    console.log(`Task Secret scope resolved: ${plan.slots.length} authorized slot(s); no values read.`);
+    console.log(
+      `Task Secret scope resolved: ${plan.slots.length} authorized slot(s); no values read.`
+    );
   } else if (mode === "verify") {
     const plan = JSON.parse(await readFile(path, "utf8")) as ScopedTaskSecretPlan;
     if (plan.repository !== repository || plan.project !== project) {
