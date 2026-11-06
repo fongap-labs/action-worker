@@ -15,6 +15,7 @@ export type PrivateTaskContainerSettings = {
   image: string;
   sourceDirectory: string;
   stateDirectory: string;
+  publicationDirectory?: string;
   logFile: string;
   repository: string;
   project: string;
@@ -44,11 +45,14 @@ export function privateTaskDockerArguments(settings: PrivateTaskContainerSetting
     !isAbsolute(settings.stateDirectory) ||
     /[,\r\n\0]/.test(settings.sourceDirectory) ||
     /[,\r\n\0]/.test(settings.stateDirectory) ||
+    (settings.publicationDirectory !== undefined &&
+      (!isAbsolute(settings.publicationDirectory) ||
+        /[,\r\n\0]/.test(settings.publicationDirectory))) ||
     Object.keys(settings.taskCredentials).length !== 0
   )
     reject();
 
-  return [
+  const args = [
     "run",
     "--rm",
     "--pull=never",
@@ -66,6 +70,16 @@ export function privateTaskDockerArguments(settings: PrivateTaskContainerSetting
     `type=bind,source=${settings.sourceDirectory},target=/task-source,readonly`,
     "--mount",
     `type=bind,source=${settings.stateDirectory},target=/task-state`,
+    ...(settings.publicationDirectory
+      ? [
+          "--mount",
+          `type=bind,source=${settings.publicationDirectory},target=/task-output`,
+          "-e",
+          "RUNNER_TEMP=/task-output",
+          "-e",
+          "AW_TASK_PUBLICATION_DIR=/task-output/action-worker-publication",
+        ]
+      : []),
     "-e",
     "AW_TASK_STATE_DIR=/task-state",
     "-e",
@@ -83,6 +97,7 @@ export function privateTaskDockerArguments(settings: PrivateTaskContainerSetting
     settings.bootstrapRef,
     settings.requestId,
   ];
+  return args;
 }
 
 async function requiredDirectory(path: string): Promise<string> {
@@ -100,13 +115,24 @@ export async function runPrivateTaskContainer(
   if (Object.keys(settings.taskCredentials).length !== 0) reject();
   const source = await requiredDirectory(settings.sourceDirectory);
   const state = await requiredDirectory(settings.stateDirectory);
-  if (source === state || state.startsWith(`${source}/`) || source.startsWith(`${state}/`)) {
+  const publication = settings.publicationDirectory
+    ? await requiredDirectory(settings.publicationDirectory)
+    : undefined;
+  const roots = [source, state, ...(publication ? [publication] : [])];
+  if (
+    roots.some((root, index) =>
+      roots.some(
+        (other, otherIndex) =>
+          index !== otherIndex && (root === other || root.startsWith(`${other}/`))
+      )
+    )
+  )
     reject();
-  }
   const args = privateTaskDockerArguments({
     ...settings,
     sourceDirectory: source,
     stateDirectory: state,
+    publicationDirectory: publication,
   });
   const log = await open(
     settings.logFile,
@@ -143,6 +169,7 @@ async function main(): Promise<void> {
   const image = process.env.AW_TASK_CONTAINER_IMAGE ?? "";
   const sourceDirectory = process.env.AW_SOURCE_DIR ?? "";
   const stateDirectory = process.env.AW_TASK_STATE_DIR ?? "";
+  const publicationDirectory = process.env.AW_TASK_PUBLICATION_ROOT ?? "";
   const logFile = process.env.AW_TASK_PRIVATE_LOG_FILE ?? "";
   const userId = process.getuid?.() ?? 0;
   const groupId = process.getgid?.() ?? 0;
@@ -151,6 +178,7 @@ async function main(): Promise<void> {
     image,
     sourceDirectory,
     stateDirectory,
+    ...(publicationDirectory ? { publicationDirectory } : {}),
     logFile,
     repository: process.env.TASK_SOURCE_REPOSITORY ?? "",
     project: process.env.PROJECT ?? "",
