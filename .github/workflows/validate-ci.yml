@@ -220,7 +220,7 @@ jobs:
       - name: Run real isolated Docker and cryptographic state transfer regressions
         env:
           AW_SANDBOX_TEST_IMAGE_ID: ${{ steps.image.outputs.id }}
-        run: node --test tests/integration/private-sandbox-e2e.test.ts
+        run: node --test tests/integration/private-sandbox-e2e.test.ts tests/integration/private-publication-e2e.test.ts
 
   validate-merge:
     name: validate-merge
