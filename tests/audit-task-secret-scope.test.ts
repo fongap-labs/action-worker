@@ -1,10 +1,16 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import {
+  assertPinnedTaskSource,
   auditTaskSecretScope,
   parseNamesOnlyInventory,
+  verifyPinnedTaskSource,
 } from "../scripts/audit-task-secret-scope.ts";
 import type { ScopedTaskSecretPlan } from "../scripts/resolve-task-secret-plan.ts";
+import { runText } from "../scripts/runtime-command.ts";
 
 const plan: ScopedTaskSecretPlan = {
   schema_version: 1,
@@ -100,4 +106,41 @@ test("inventory rejects values, extra fields and malformed names", () => {
   );
   assert.throws(() => parseNamesOnlyInventory({ ...baseline, environments: { "bad/name": [] } }));
   assert.throws(() => parseNamesOnlyInventory({ ...baseline, repository: ["bad=value"] }));
+});
+
+test("pin guard rejects non-full SHA, changed HEAD and dirty declarations", () => {
+  const sha = "a".repeat(40);
+  assert.doesNotThrow(() => assertPinnedTaskSource(sha, sha.toUpperCase(), ""));
+  assert.throws(() => assertPinnedTaskSource("main", sha, ""), /Pinned source/);
+  assert.throws(() => assertPinnedTaskSource(sha, "b".repeat(40), ""), /Pinned source/);
+  assert.throws(
+    () => assertPinnedTaskSource(sha, sha, " M projects/Example/.secrets.required"),
+    /Pinned source/
+  );
+});
+
+test("pin guard rejects changed or untracked declarations in a local Git checkout", async () => {
+  const root = await mkdtemp(join(tmpdir(), "aw-pinned-secret-audit-"));
+  const dir = join(root, "projects", "Example");
+  const git = async (...args: string[]): Promise<string> =>
+    runText("git", ["-C", root, ...args], { timeoutMs: 5000, maxBuffer: 4096 });
+  try {
+    await mkdir(dir, { recursive: true });
+    await git("init", "-q");
+    await git("config", "user.email", "audit@example.invalid");
+    await git("config", "user.name", "Test Runner");
+    await writeFile(join(dir, ".secrets.required"), "TASK_KEY\\n");
+    await git("add", ".");
+    await git("commit", "-qm", "pin source declaration");
+    const sha = await git("rev-parse", "HEAD");
+    await verifyPinnedTaskSource(root, "Example", sha);
+    await assert.rejects(verifyPinnedTaskSource(root, "Example", "b".repeat(40)), /Pinned source/);
+    await writeFile(join(dir, ".secrets.required"), "OTHER_KEY\\n");
+    await assert.rejects(verifyPinnedTaskSource(root, "Example", sha), /Pinned source/);
+    await git("checkout", "--", "projects/Example/.secrets.required");
+    await writeFile(join(dir, ".secrets.allowed"), "EXTRA_KEY\\n");
+    await assert.rejects(verifyPinnedTaskSource(root, "Example", sha), /Pinned source/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
