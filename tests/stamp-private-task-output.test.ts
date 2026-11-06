@@ -23,10 +23,7 @@ test("successful isolated output gets a fresh, exclusive identity manifest", asy
     >;
     assert.deepEqual(data, { repository, project, bootstrap_ref: sha });
     assert.equal(await readFile(join(current, "cursor.txt"), "utf8"), "42");
-    await assert.rejects(
-      stampPrivateTaskOutput(current, repository, project, sha),
-      /EEXIST/
-    );
+    await assert.rejects(stampPrivateTaskOutput(current, repository, project, sha), /EEXIST/);
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -40,7 +37,10 @@ test("malicious links and forged manifests cannot overwrite trusted state or esc
     const outside = join(root, "outside.txt");
     await writeFile(outside, "sentinel");
     await symlink(outside, join(current, "manifest.json"));
-    await assert.rejects(stampPrivateTaskOutput(current, repository, project, sha), /symbolic links/);
+    await assert.rejects(
+      stampPrivateTaskOutput(current, repository, project, sha),
+      /symbolic links/
+    );
     assert.equal(await readFile(outside, "utf8"), "sentinel");
     await rm(join(current, "manifest.json"));
     await writeFile(join(current, "manifest.json"), '{"bootstrap_ref":"forged"}');
