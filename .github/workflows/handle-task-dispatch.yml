@@ -266,6 +266,13 @@ jobs:
             exit 77
           fi
 
+      - name: Resolve approved task Secret slots without loading values
+        id: task_secret_plan
+        env:
+          TASK_SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+          PROJECT: ${{ github.event.client_payload.project }}
+        run: node scripts/resolve-task-secret-plan.ts resolve
+
       - name: Snapshot base environment
         shell: bash
         run: |
@@ -279,7 +286,39 @@ jobs:
 
       - name: Execute downstream task
         id: task
-        env: ${{ secrets }}
+        env:
+          AW_TASK_SECRET_SLOT_01: ${{ secrets[steps.task_secret_plan.outputs.secret_00] }}
+          AW_TASK_SECRET_SLOT_02: ${{ secrets[steps.task_secret_plan.outputs.secret_01] }}
+          AW_TASK_SECRET_SLOT_03: ${{ secrets[steps.task_secret_plan.outputs.secret_02] }}
+          AW_TASK_SECRET_SLOT_04: ${{ secrets[steps.task_secret_plan.outputs.secret_03] }}
+          AW_TASK_SECRET_SLOT_05: ${{ secrets[steps.task_secret_plan.outputs.secret_04] }}
+          AW_TASK_SECRET_SLOT_06: ${{ secrets[steps.task_secret_plan.outputs.secret_05] }}
+          AW_TASK_SECRET_SLOT_07: ${{ secrets[steps.task_secret_plan.outputs.secret_06] }}
+          AW_TASK_SECRET_SLOT_08: ${{ secrets[steps.task_secret_plan.outputs.secret_07] }}
+          AW_TASK_SECRET_SLOT_09: ${{ secrets[steps.task_secret_plan.outputs.secret_08] }}
+          AW_TASK_SECRET_SLOT_10: ${{ secrets[steps.task_secret_plan.outputs.secret_09] }}
+          AW_TASK_SECRET_SLOT_11: ${{ secrets[steps.task_secret_plan.outputs.secret_10] }}
+          AW_TASK_SECRET_SLOT_12: ${{ secrets[steps.task_secret_plan.outputs.secret_11] }}
+          AW_TASK_SECRET_SLOT_13: ${{ secrets[steps.task_secret_plan.outputs.secret_12] }}
+          AW_TASK_SECRET_SLOT_14: ${{ secrets[steps.task_secret_plan.outputs.secret_13] }}
+          AW_TASK_SECRET_SLOT_15: ${{ secrets[steps.task_secret_plan.outputs.secret_14] }}
+          AW_TASK_SECRET_SLOT_16: ${{ secrets[steps.task_secret_plan.outputs.secret_15] }}
+          AW_TASK_SECRET_SLOT_17: ${{ secrets[steps.task_secret_plan.outputs.secret_16] }}
+          AW_TASK_SECRET_SLOT_18: ${{ secrets[steps.task_secret_plan.outputs.secret_17] }}
+          AW_TASK_SECRET_SLOT_19: ${{ secrets[steps.task_secret_plan.outputs.secret_18] }}
+          AW_TASK_SECRET_SLOT_20: ${{ secrets[steps.task_secret_plan.outputs.secret_19] }}
+          AW_TASK_SECRET_SLOT_21: ${{ secrets[steps.task_secret_plan.outputs.secret_20] }}
+          AW_TASK_SECRET_SLOT_22: ${{ secrets[steps.task_secret_plan.outputs.secret_21] }}
+          AW_TASK_SECRET_SLOT_23: ${{ secrets[steps.task_secret_plan.outputs.secret_22] }}
+          AW_TASK_SECRET_SLOT_24: ${{ secrets[steps.task_secret_plan.outputs.secret_23] }}
+          AW_TASK_SECRET_SLOT_25: ${{ secrets[steps.task_secret_plan.outputs.secret_24] }}
+          AW_TASK_SECRET_SLOT_26: ${{ secrets[steps.task_secret_plan.outputs.secret_25] }}
+          AW_TASK_SECRET_SLOT_27: ${{ secrets[steps.task_secret_plan.outputs.secret_26] }}
+          AW_TASK_SECRET_SLOT_28: ${{ secrets[steps.task_secret_plan.outputs.secret_27] }}
+          AW_TASK_SECRET_SLOT_29: ${{ secrets[steps.task_secret_plan.outputs.secret_28] }}
+          AW_TASK_SECRET_SLOT_30: ${{ secrets[steps.task_secret_plan.outputs.secret_29] }}
+          AW_TASK_SECRET_SLOT_31: ${{ secrets[steps.task_secret_plan.outputs.secret_30] }}
+          AW_TASK_SECRET_SLOT_32: ${{ secrets[steps.task_secret_plan.outputs.secret_31] }}
         run: |
           set -Eeuo pipefail
           IFS=$'\n\t'
@@ -332,28 +371,42 @@ jobs:
           echo "Start Time    : $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
           echo "::endgroup::"
 
-          project_dir="$AW_SOURCE_DIR/projects/$PROJECT"
-          secret_scope="$(
-              node scripts/resolve-secret-scope.ts \
-                "${RUNNER_TEMP}/action-worker-base-env.names" \
-                "$project_dir/.secrets.required" \
-                "$project_dir/.secrets.allowed" \
-                "" \
-                "policies/task-secrets.json" \
-                "$TASK_SOURCE_REPOSITORY" \
-                "$PROJECT"
-          )"
+          # Only authorized, bounded slots are injected. Never materialize the
+          # full GitHub Secrets context, even transiently.
+          node scripts/resolve-task-secret-plan.ts verify
 
-          # Aliases first: a declared name takes the value of the stored secret the central policy
-          # names for it (for example CLOUDFLARE_API_TOKEN from CLOUDFLARE_API_TOKEN_SECONDARY).
-          while IFS=$'\t' read -r alias_name alias_from; do
-            [ -n "$alias_name" ] || continue
-            export "$alias_name=${!alias_from}"
-          done < <(jq -r '.alias[] | [.name, .from] | @tsv' <<< "$secret_scope")
+          # Refuse to replace a pre-existing variable (including Repository
+          # Variables). Only the approved logical names may reach bootstrap.sh.
+          jq -e '.schema_version == 1 and (.slots | type == "array")' \
+            "${RUNNER_TEMP}/action-worker-task-secret-plan.json" >/dev/null
+          while IFS=$'\t' read -r slot logical required; do
+              [ -n "$slot" ] || continue
+              if grep -Fxq -- "$logical" "${RUNNER_TEMP}/action-worker-base-env.names"; then
+                  echo "::error::Task Secret conflicts with an existing environment variable." >&2
+                  exit 65
+              fi
+              value="${!slot-}"
+              if [ "$required" = "true" ] && [ -z "$value" ]; then
+                  echo "::error::Required task Secret slot is missing." >&2
+                  exit 77
+              fi
+              if [ -n "$value" ]; then
+                  export "$logical=$value"
+              fi
+              unset "$slot" value
+          done < <(jq -r '.slots[] | [.slot, .logical_name, .required] | @tsv' \
+              "${RUNNER_TEMP}/action-worker-task-secret-plan.json")
 
-          while IFS= read -r secret_name; do
-              [ -n "$secret_name" ] && unset "$secret_name"
-          done < <(jq -r '.unset[]' <<< "$secret_scope")
+          # Clear every fixed slot before task code can execute, including unused slots.
+          for slot_index in $(seq -w 1 32); do
+              unset "AW_TASK_SECRET_SLOT_${slot_index}"
+          done
+          for env_name in $(compgen -e); do
+              if [[ "$env_name" == AW_TASK_SECRET_SLOT_* ]]; then
+                  echo "::error::A task Secret staging slot survived cleanup." >&2
+                  exit 77
+              fi
+          done
 
           for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN AW_CHECKOUT_TOKEN AW_APP_PRIVATE_KEY AW_STATUS_TOKEN AW_STATUS_API_TOKEN AW_ISSUE_API_TOKEN AW_DISPATCH_API_TOKEN AW_STATUS_KEYRING AW_ARTIFACT_KEY AW_PUBLICATION_PRIVATE_KEY; do
               if [ -n "${!central_name+x}" ]; then

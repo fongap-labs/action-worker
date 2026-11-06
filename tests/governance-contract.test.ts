@@ -551,7 +551,8 @@ test("a pull request merged while its governance ran keeps the gate result", asy
 test("task dispatch keeps the publication credential in the central control step", async () => {
   const workflow = await text(".github/workflows/handle-task-dispatch.yml");
   requireText(workflow, [
-    "env: ${{ secrets }}",
+    "AW_TASK_SECRET_SLOT_01:",
+    "AW_TASK_SECRET_SLOT_32:",
     "REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}",
     "node scripts/export-repository-variables.ts",
     "node scripts/validate-repository-variables.ts",
@@ -569,9 +570,9 @@ test("task dispatch keeps the publication credential in the central control step
     "persist-credentials: false",
     "AW_SOURCE_DIR: ${{ github.workspace }}/task-source",
     'git -C "$AW_SOURCE_DIR" rev-parse HEAD',
-    "node scripts/resolve-secret-scope.ts",
-    ".secrets.required",
-    ".secrets.allowed",
+    "node scripts/resolve-task-secret-plan.ts resolve",
+    "node scripts/resolve-task-secret-plan.ts verify",
+    "secrets[steps.task_secret_plan.outputs.secret_00]",
     "Restore previous task state",
     "AW_TASK_STATE_DIR",
     "Upload task state",
@@ -580,7 +581,10 @@ test("task dispatch keeps the publication credential in the central control step
     "AW_PUBLICATION_PRIVATE_KEY",
     "task-publication-envelope.ts",
   ]);
+  const plan = await text("scripts/resolve-task-secret-plan.ts");
+  requireText(plan, [".secrets.required", ".secrets.allowed", "policies/task-secrets.json"]);
   assert.doesNotMatch(workflow, /toJSON\s*\(\s*secrets\s*\)/);
+  assert.doesNotMatch(workflow, /env:\s*\$\{\{\s*secrets\s*\}\}/);
   assert.doesNotMatch(workflow, /secrets\.AW_CONTROL_TOKEN/);
   const directSecrets = [
     ...workflow.matchAll(/\$\{\{\s*secrets\.([A-Za-z_][A-Za-z0-9_]*)\s*\}\}/g),

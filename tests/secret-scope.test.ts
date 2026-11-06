@@ -445,12 +445,15 @@ test("AI Gateway health credential is required directly and never falls back to 
   assert.deepEqual(valid.unset, ["AIG_ACCESS_KEY_AGENT"]);
 });
 
-test("task aliases remain isolated and deploy selects scoped slots", async () => {
+test("task execution uses only policy-scoped Secret slots; deployment remains scoped", async () => {
   const taskWorkflow = await readFile(".github/workflows/handle-task-dispatch.yml", "utf8");
-  const alias = taskWorkflow.indexOf("jq -r '.alias[]");
-  const unset = taskWorkflow.indexOf("jq -r '.unset[]'");
-  assert.ok(alias !== -1 && unset !== -1 && alias < unset);
-  assert.match(taskWorkflow, /export "\$alias_name=\$\{!alias_from\}"/);
+  assert.match(taskWorkflow, /resolve-task-secret-plan\.ts resolve/);
+  assert.match(taskWorkflow, /resolve-task-secret-plan\.ts verify/);
+  assert.match(taskWorkflow, /secrets\[steps\.task_secret_plan\.outputs\.secret_00\]/);
+  assert.match(taskWorkflow, /AW_TASK_SECRET_SLOT_32:/);
+  assert.match(taskWorkflow, /unset "\$slot" value/);
+  assert.match(taskWorkflow, /Central credential survived task isolation/);
+  assert.doesNotMatch(taskWorkflow, /env:\s*\$\{\{\s*secrets\s*\}\}/);
 
   const deployWorkflow = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
   assert.match(deployWorkflow, /resolve-deploy-secret-plan\.ts/);
