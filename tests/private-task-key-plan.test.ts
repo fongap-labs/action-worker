@@ -43,11 +43,12 @@ test("private transfer enrollment is exact repository+project and fingerprints a
     );
     assert.notEqual(privateTaskKeyPrefix(repo, project), privateTaskKeyPrefix(repo, "other"));
     assert.notEqual(privateTaskKeyPrefix(repo, project), privateTaskKeyPrefix(other, project));
-    for (const [r, p] of [
+    const wrongPairs: Array<[string, string]> = [
       [other, project],
       [repo, "Demo"],
       [repo, "other"],
-    ]) {
+    ];
+    for (const [r, p] of wrongPairs) {
       await assert.rejects(resolveProjectTransferKeyPlan(r, p, f.file), /enrollment/);
     }
   } finally {
