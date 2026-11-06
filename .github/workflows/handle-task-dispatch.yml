@@ -723,13 +723,13 @@ jobs:
           AW_TASK_CONTAINER_IMAGE: ${{ vars.AW_TASK_CONTAINER_IMAGE }}
         run: node scripts/private-task-container.ts
       - name: Stamp and encrypt private task state
-        if: always() && steps.private_bootstrap.outcome != 'skipped'
+        if: steps.private_bootstrap.outcome == 'success'
         env:
           AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: ${{ vars.AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY }}
         shell: bash
         run: |
           set -Eeuo pipefail
-          node scripts/task-state.ts write "$AW_TASK_STATE_DIR/current" "$TASK_SOURCE_REPOSITORY" "$PROJECT" "$BOOTSTRAP_REF"
+          node scripts/stamp-private-task-output.ts "$AW_TASK_STATE_DIR/current"
           mkdir -p "$RUNNER_TEMP/private-output"
           chmod 700 "$RUNNER_TEMP/private-output"
           node scripts/task-transfer-job.ts seal-state state-from-task \
@@ -813,8 +813,14 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          state_file=""
+          if [ "$TASK_OUTCOME" = "success" ]; then
+            state_file="$RUNNER_TEMP/private-result/state.seal"
+            test -f "$state_file"
+          fi
+          test -f "$RUNNER_TEMP/private-result/log.seal"
           node scripts/finalize-trusted-task-artifacts.ts \
-            "$RUNNER_TEMP/private-result/state.seal" \
+            "$state_file" \
             "$RUNNER_TEMP/private-result/log.seal" \
             "$RUNNER_TEMP/verified-private-artifacts"
       - name: Derive existing historical state artifact name
