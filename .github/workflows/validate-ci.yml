@@ -194,6 +194,34 @@ jobs:
       - name: Validate source naming
         run: python3 tests/test-source-naming.py
 
+  private-sandbox-integration:
+    name: Real private sandbox integration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout pinned test harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Build the disposable non-secret Docker test image
+        id: image
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          image_id="$(docker build --quiet -f tests/fixtures/private-sandbox/Dockerfile tests/fixtures/private-sandbox)"
+          [[ "$image_id" =~ ^sha256:[a-f0-9]{64}$ ]]
+          echo "id=$image_id" >> "$GITHUB_OUTPUT"
+      - name: Run real isolated Docker and cryptographic state transfer regressions
+        env:
+          AW_SANDBOX_TEST_IMAGE_ID: ${{ steps.image.outputs.id }}
+        run: node --test tests/integration/private-sandbox-e2e.test.ts
+
   validate-merge:
     name: validate-merge
     needs:
@@ -201,6 +229,7 @@ jobs:
       - security
       - static
       - contracts
+      - private-sandbox-integration
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 2
@@ -211,12 +240,13 @@ jobs:
           SECURITY_RESULT: ${{ needs.security.result }}
           STATIC_RESULT: ${{ needs.static.result }}
           CONTRACT_RESULT: ${{ needs.contracts.result }}
+          PRIVATE_SANDBOX_RESULT: ${{ needs.private-sandbox-integration.result }}
         shell: bash
         run: |
           set -Eeuo pipefail
 
-          if [ "$NAMING_RESULT" != "success" ] || [ "$SECURITY_RESULT" != "success" ] || [ "$STATIC_RESULT" != "success" ] || [ "$CONTRACT_RESULT" != "success" ]; then
-            echo "::error::CI failed: naming=$NAMING_RESULT security=$SECURITY_RESULT static=$STATIC_RESULT contracts=$CONTRACT_RESULT" >&2
+          if [ "$NAMING_RESULT" != "success" ] || [ "$SECURITY_RESULT" != "success" ] || [ "$STATIC_RESULT" != "success" ] || [ "$CONTRACT_RESULT" != "success" ] || [ "$PRIVATE_SANDBOX_RESULT" != "success" ]; then
+            echo "::error::CI failed: naming=$NAMING_RESULT security=$SECURITY_RESULT static=$STATIC_RESULT contracts=$CONTRACT_RESULT private-sandbox=$PRIVATE_SANDBOX_RESULT" >&2
             exit 1
           fi
 
