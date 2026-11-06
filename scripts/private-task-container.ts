@@ -4,12 +4,11 @@ import { lstat, open, realpath } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 
-const imageDigest = /^sha256:[a-f0-9]{64}$/;
+const pinnedImage = /^ghcr\.io\/fongap-labs\/[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$/;
 const repositoryPattern = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
 const projectPattern = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
 const requestPattern = /^[A-Za-z0-9_.-]{1,128}$/;
 const commitPattern = /^[a-f0-9]{40}$/;
-const forbiddenPrefix = /^(?:AW_|GITHUB_|RUNNER_|ACTIONS_)/;
 const maxExecutionMs = 60 * 60 * 1000;
 
 export type PrivateTaskContainerSettings = {
@@ -33,12 +32,8 @@ function reject(): never {
 export function privateTaskDockerArguments(
   settings: PrivateTaskContainerSettings
 ): string[] {
-  const [registry = "", digest = "", extra = ""] = settings.image.split("@");
   if (
-    !registry ||
-    extra ||
-    !registry.startsWith("ghcr.io/fongap-labs/") ||
-    !imageDigest.test(digest) ||
+    !pinnedImage.test(settings.image) ||
     !repositoryPattern.test(settings.repository) ||
     !projectPattern.test(settings.project) ||
     !commitPattern.test(settings.bootstrapRef) ||
@@ -48,19 +43,12 @@ export function privateTaskDockerArguments(
     settings.userId <= 0 ||
     settings.groupId <= 0 ||
     !isAbsolute(settings.sourceDirectory) ||
-    !isAbsolute(settings.stateDirectory)
+    !isAbsolute(settings.stateDirectory) ||
+    /[,\r\n\0]/.test(settings.sourceDirectory) ||
+    /[,\r\n\0]/.test(settings.stateDirectory) ||
+    Object.keys(settings.taskCredentials).length !== 0
   ) reject();
-  for (const [name, value] of Object.entries(settings.taskCredentials)) {
-    if (
-      !/^[A-Z][A-Z0-9_]*$/.test(name) ||
-      forbiddenPrefix.test(name) ||
-      name === "GH_TOKEN" ||
-      name === "NODE_OPTIONS" ||
-      typeof value !== "string" ||
-      value.includes("\0") ||
-      value.includes("\n")
-    ) reject();
-  }
+
 
   return [
     "run",
