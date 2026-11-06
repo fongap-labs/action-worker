@@ -21,13 +21,17 @@ test("only the task controller may contain known task-state write operations", a
 
 test("the task controller retains lifecycle serialization across all task modes", async () => {
   const content = await readFile(join(workflowDirectory, controllerFile), "utf8");
-  assert.match(
-    content,
-    /^concurrency:\n  group: aw-task-lifecycle:\$\{\{ github\.event\.client_payload\.repository \}\}:\$\{\{ github\.event\.client_payload\.project \}\}\n  cancel-in-progress: false/m
+  const lines = content.split("\n");
+  const concurrencyIndex = lines.indexOf("concurrency:");
+  assert.notEqual(concurrencyIndex, -1, "Task lifecycle concurrency must be configured");
+  assert.equal(
+    lines[concurrencyIndex + 1]?.trim(),
+    "group: aw-task-lifecycle:${{ github.event.client_payload.repository }}:${{ github.event.client_payload.project }}"
   );
-  assert.match(content, /node scripts\/task-state\.ts restore /);
-  assert.match(content, /node scripts\/task-state\.ts seal-state /);
-  assert.match(content, /steps\.private_isolation\.outputs\.enabled/);
+  assert.equal(lines[concurrencyIndex + 2]?.trim(), "cancel-in-progress: false");
+  assert.ok(content.includes("node scripts/task-state.ts restore "));
+  assert.ok(content.includes("node scripts/task-state.ts seal-state "));
+  assert.ok(content.includes("steps.private_isolation.outputs.enabled"));
 });
 
 test("task-source dispatcher does not create another task-state writer", async () => {
