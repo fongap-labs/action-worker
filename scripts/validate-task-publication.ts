@@ -106,7 +106,7 @@ async function main(): Promise<void> {
   try {
     manifestInfo = await lstat(manifestPath);
   } catch (error) {
-    if (isJsonRecord(error) && error.code !== "ENOENT") {
+    if (!isJsonRecord(error) || error.code !== "ENOENT") {
       throw new CliError("::error::Task publication manifest lookup failed.", 66);
     }
     await appendLines(process.env.GITHUB_OUTPUT, ["staged=false"]);
