@@ -25,7 +25,8 @@ export async function validatePrivateIsolationAdmission(
     !/^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/.test(project) ||
     !pattern.test(sha) ||
     operation !== "task"
-  ) reject();
+  )
+    reject();
 
   const metadata = await reader.get(`repos/${repository}`);
   if (!isJsonRecord(metadata) || metadata.private !== true) reject();
@@ -46,9 +47,16 @@ export async function validatePrivateIsolationAdmission(
     entry.allowed.length !== 0 ||
     (entry.aliases !== undefined &&
       (!isJsonRecord(entry.aliases) || Object.keys(entry.aliases).length !== 0))
-  ) reject();
+  )
+    reject();
 
-  const admission = await validateTaskSecretAdmission(reader, repository, project, sha, policyPath);
+  const admission = await validateTaskSecretAdmission(
+    reader,
+    repository,
+    project,
+    sha,
+    policyPath
+  );
   if (admission.required_count !== 0 || admission.allowed_count !== 0) reject();
 
   const commit = await reader.get(`repos/${repository}/git/commits/${sha}`);
@@ -60,9 +68,7 @@ export async function validatePrivateIsolationAdmission(
     reject();
 
   const markerPath = `projects/${project}/.isolated-private-task`;
-  const found = listing.tree.filter(
-    (item) => isJsonRecord(item) && item.path === markerPath
-  );
+  const found = listing.tree.filter((item) => isJsonRecord(item) && item.path === markerPath);
   if (
     found.length !== 1 ||
     listing.tree.some(
@@ -71,7 +77,8 @@ export async function validatePrivateIsolationAdmission(
         (item.path === `projects/${project}/.vars.required` ||
           item.path === `projects/${project}/.vars.allowed`)
     )
-  ) reject();
+  )
+    reject();
   const marker = found[0];
   if (
     !isJsonRecord(marker) ||
@@ -79,14 +86,16 @@ export async function validatePrivateIsolationAdmission(
     marker.mode !== "100644" ||
     typeof marker.sha !== "string" ||
     !pattern.test(marker.sha)
-  ) reject();
+  )
+    reject();
   const blob = await reader.get(`repos/${repository}/git/blobs/${marker.sha}`);
   if (
     !isJsonRecord(blob) ||
     blob.encoding !== "base64" ||
     typeof blob.content !== "string" ||
     blob.content.length > 128
-  ) reject();
+  )
+    reject();
   const base64 = blob.content.replace(/\s/g, "");
   if (!/^[A-Za-z0-9+/]*={0,2}$/.test(base64)) reject();
   const bytes = Buffer.from(base64, "base64");
