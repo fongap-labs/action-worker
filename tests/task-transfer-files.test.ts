@@ -135,7 +135,7 @@ test("trusted unpack rejects symlinked ancestors and does not write outside dest
     );
     await assert.rejects(lstat(join(outside, "restored")), /ENOENT/);
     await assert.rejects(
-      unpackTaskTransferFiles(data, join(root, "source", "..", "bypass")),
+      unpackTaskTransferFiles(data, `${root}/source/../bypass`),
       /canonical path/
     );
   } finally {
