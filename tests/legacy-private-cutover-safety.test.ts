@@ -39,7 +39,10 @@ test("untrusted legacy state cannot overwrite or redirect the trusted manifest",
 test("legacy task state is not saved after failed task execution or on skipped tasks", async () => {
   const raw = await readFile(".github/workflows/handle-task-dispatch.yml", "utf8");
   const workflow = parse(raw) as {
-    jobs: Record<string, { steps?: Array<{ name?: string; if?: string; env?: Record<string, string> }> }>;
+    jobs: Record<
+      string,
+      { steps?: Array<{ name?: string; if?: string; env?: Record<string, string> }> }
+    >;
   };
   const steps = workflow.jobs.execute?.steps ?? [];
   const find = (name: string) => steps.find((step) => step.name === name);
@@ -49,7 +52,10 @@ test("legacy task state is not saved after failed task execution or on skipped t
     find("Upload task state")?.if,
     "steps.task.outcome == 'success' && steps.state_upload.outputs.path != ''"
   );
-  assert.match(find("Restore previous task state")?.env?.AW_ARTIFACT_KEY ?? "", /is_private == 'true'/);
+  assert.match(
+    find("Restore previous task state")?.env?.AW_ARTIFACT_KEY ?? "",
+    /is_private == 'true'/
+  );
   assert.match(find("Seal task state")?.env?.AW_ARTIFACT_KEY ?? "", /is_private == 'true'/);
   assert.doesNotMatch(
     find("Restore previous task state")?.env?.AW_ARTIFACT_KEY ?? "",
