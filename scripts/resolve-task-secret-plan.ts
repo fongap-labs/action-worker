@@ -1,8 +1,8 @@
 import { chmod, lstat, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 import { buildTaskCredentialSlotPlan, maxTaskCredentialSlots } from "./task-credential-slot-plan.ts";
 import { parseTaskSecretDeclaration } from "./validate-task-secret-admission.ts";
-import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 export const taskSecretPlanFile = "action-worker-task-secret-plan.json";
 export type ScopedTaskSecretPlan = {
@@ -39,13 +39,7 @@ export async function resolveTaskSecretPlan(
   const directory = join(sourceRoot, "projects", project);
   const required = await readDeclaration(join(directory, ".secrets.required"));
   const allowed = await readDeclaration(join(directory, ".secrets.allowed"));
-  const slots = await buildTaskCredentialSlotPlan(
-    policyPath,
-    repository,
-    project,
-    required,
-    allowed
-  );
+  const slots = await buildTaskCredentialSlotPlan(policyPath, repository, project, required, allowed);
   return { schema_version: 1, repository, project, slots };
 }
 
@@ -107,6 +101,15 @@ async function main(): Promise<void> {
     const plan = JSON.parse(await readFile(path, "utf8")) as ScopedTaskSecretPlan;
     if (plan.repository !== repository || plan.project !== project) {
       throw new CliError("Task Secret slot identity changed.", 65);
+    }
+    const expected = await resolveTaskSecretPlan(
+      process.env.AW_SOURCE_DIR ?? "",
+      "policies/task-secrets.json",
+      repository,
+      project
+    );
+    if (JSON.stringify(expected) !== JSON.stringify(plan)) {
+      throw new CliError("Task Secret slot bindings changed after policy authorization.", 77);
     }
     const count = validateTaskSecretSlots(plan, process.env);
     console.log(`Task Secret slots verified: ${count} scoped binding(s); values withheld.`);
