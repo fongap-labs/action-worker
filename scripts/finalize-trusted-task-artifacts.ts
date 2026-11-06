@@ -49,6 +49,7 @@ export async function finalizeTrustedTaskArtifacts(
     REQUEST_ID: options.requestId,
     GITHUB_RUN_ID: options.runId,
     GITHUB_RUN_ATTEMPT: options.runAttempt,
+    AW_TASK_TRANSFER_ROLE: "trusted-finalize",
     AW_TASK_TRANSFER_RECIPIENT_PRIVATE_KEY: options.outboundPrivateKey,
   };
   await mkdir(options.workRoot, { recursive: true, mode: 0o700 });
