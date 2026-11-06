@@ -31,7 +31,7 @@ jobs:
           set -Eeuo pipefail
           jq -r '.client_payload | [.repository, .project, .bootstrap_ref, .request_id] | .[] | select(type == "string")' "$GITHUB_EVENT_PATH" |
             while IFS= read -r value; do
-              if ${{ "$value" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)?$ }}; then
+              if [[ "$value" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)?$ ]]; then
                 echo "::add-mask::$value"
               fi
             done
@@ -98,7 +98,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           is_private="$(gh api "repos/$REPOSITORY" --jq '.private')"
-          ${{ "$is_private" == "true" || "$is_private" == "false" }}
+          [[ "$is_private" == "true" || "$is_private" == "false" ]]
           echo "is_private=$is_private" >> "$GITHUB_OUTPUT"
 
       - name: Gate explicit stateless public isolation pilot
@@ -163,10 +163,10 @@ jobs:
           set -Eeuo pipefail
           mapfile -t identity < <(jq -r '.client_payload | .repository, .project, .bootstrap_ref, .request_id' "$GITHUB_EVENT_PATH")
           if [ "${#identity[@]}" -ne 4 ] || \
-             ! ${{ "${identity[0]}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ }} || \
-             ! ${{ "${identity[1]}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$ }} || \
-             ! ${{ "${identity[2]}" =~ ^[0-9a-fA-F]{40}$ }} || \
-             ! ${{ "${identity[3]}" =~ ^[A-Za-z0-9_.-]{1,128}$ }}; then
+             ! [[ "${identity[0]}" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || \
+             ! [[ "${identity[1]}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$ ]] || \
+             ! [[ "${identity[2]}" =~ ^[0-9a-fA-F]{40}$ ]] || \
+             ! [[ "${identity[3]}" =~ ^[A-Za-z0-9_.-]{1,128}$ ]]; then
             echo "::error::Verified task identity could not be reconstructed safely." >&2
             exit 64
           fi
@@ -418,7 +418,7 @@ jobs:
               unset "AW_TASK_SECRET_SLOT_${slot_index}"
           done
           for env_name in $(compgen -e); do
-              if ${{ "$env_name" == AW_TASK_SECRET_SLOT_* }}; then
+              if [[ "$env_name" == AW_TASK_SECRET_SLOT_* ]]; then
                   echo "::error::A task Secret staging slot survived cleanup." >&2
                   exit 77
               fi
@@ -633,8 +633,8 @@ jobs:
       BOOTSTRAP_REF: ${{ github.event.client_payload.bootstrap_ref }}
       REQUEST_ID: ${{ github.event.client_payload.request_id }}
       AW_SOURCE_DIR: ${{ github.workspace }}/task-source
-      AW_TASK_STATE_DIR: ${{ runner.temp }}/private-state
-      AW_TASK_PRIVATE_LOG_FILE: ${{ runner.temp }}/private-task.log
+      AW_TASK_STATE_DIR: ${{ github.workspace }}/private-state
+      AW_TASK_PRIVATE_LOG_FILE: ${{ github.workspace }}/private-task.log
       AW_TASK_TRANSFER_ROLE: task
     steps:
       - name: Mask private identifiers before source checkout
@@ -660,7 +660,7 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          ${{ "$AW_TASK_CONTAINER_IMAGE" =~ ^ghcr\.io/fongap-labs/[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$ }}
+          [[ "$AW_TASK_CONTAINER_IMAGE" =~ ^ghcr\.io/fongap-labs/[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$ ]]
           docker pull "$AW_TASK_CONTAINER_IMAGE" >/dev/null
       - name: Checkout approved private source without persisted credentials
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -695,7 +695,8 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          mkdir -m 700 -p "$AW_TASK_STATE_DIR"
+          mkdir -p "$AW_TASK_STATE_DIR"
+          chmod 700 "$AW_TASK_STATE_DIR"
           node scripts/task-transfer-job.ts open-state state-to-task \
             "$RUNNER_TEMP/private-input/private-state-input.seal" \
             "$AW_TASK_STATE_DIR/previous"
@@ -714,7 +715,8 @@ jobs:
         run: |
           set -Eeuo pipefail
           node scripts/task-state.ts write "$AW_TASK_STATE_DIR/current" "$TASK_SOURCE_REPOSITORY" "$PROJECT" "$BOOTSTRAP_REF"
-          mkdir -m 700 -p "$RUNNER_TEMP/private-output"
+          mkdir -p "$RUNNER_TEMP/private-output"
+          chmod 700 "$RUNNER_TEMP/private-output"
           node scripts/task-transfer-job.ts seal-state state-from-task \
             "$AW_TASK_STATE_DIR/current" "$RUNNER_TEMP/private-output/state.seal"
       - name: Encrypt private task log before leaving Runner
@@ -955,7 +957,7 @@ jobs:
           set -Eeuo pipefail
           jq -r '.client_payload | [.repository, .project, .bootstrap_ref, .request_id] | .[] | select(type == "string")' "$GITHUB_EVENT_PATH" |
             while IFS= read -r value; do
-              if ${{ "$value" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)?$ }}; then
+              if [[ "$value" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)?$ ]]; then
                 echo "::add-mask::$value"
               fi
             done
@@ -1169,7 +1171,7 @@ jobs:
                       # Never self-approve or bypass the signed central merge gate.
                       head_oid="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json headRefOid --jq .headRefOid)"
                       gate_note="$(gh api "repos/$TARGET_REPOSITORY/commits/$head_oid/status" --jq '[.statuses[] | select(.context == "validate-merge")] | first | .description // ""')"
-                      if ${{ "$gate_note" == "Awaiting maintainer approval of the current head commit"* }}; then
+                      if [[ "$gate_note" == "Awaiting maintainer approval of the current head commit"* ]]; then
                           if [ "${approval_wake_sent:-false}" != "true" ]; then
                               review_count="$(gh api "repos/$TARGET_REPOSITORY/pulls/$pr_number/reviews?per_page=100" --jq "[.[] | select(.state == \"APPROVED\" and .commit_id == \"$head_oid\")] | length")"
                               if [ "$review_count" -gt 0 ]; then
