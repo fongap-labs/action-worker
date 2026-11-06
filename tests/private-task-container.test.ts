@@ -72,6 +72,53 @@ test("container arguments refuse mutable images, host root UID, and invalid iden
     assert.throws(() => privateTaskDockerArguments({ ...base, ...changes }), /security contract/);
 });
 
+test("private publication has a separate writable mount without changing source isolation", async () => {
+  const root = await mkdtemp(join(tmpdir(), "aw-container-publication-"));
+  try {
+    await mkdir(join(root, "source"));
+    await mkdir(join(root, "state"));
+    await mkdir(join(root, "publication"));
+    const configured = {
+      ...settings(root),
+      publicationDirectory: join(root, "publication"),
+    };
+    const args = privateTaskDockerArguments(configured);
+    assert.ok(
+      args.includes(`type=bind,source=${join(root, "publication")},target=/task-output`)
+    );
+    assert.ok(args.includes("RUNNER_TEMP=/task-output"));
+    assert.ok(
+      args.includes("AW_TASK_PUBLICATION_DIR=/task-output/action-worker-publication")
+    );
+    assert.ok(args.includes(`type=bind,source=${join(root, "source")},target=/task-source,readonly`));
+    assert.doesNotMatch(args.join(" "), /AW_PUBLICATION_PRIVATE_KEY|GH_TOKEN|docker\\.sock/);
+    for (const publicationDirectory of [
+      join(root, "source"),
+      join(root, "state"),
+      join(root, "state", "subdirectory"),
+    ]) {
+      await assert.rejects(
+        runPrivateTaskContainer({ ...configured, publicationDirectory }),
+        /security contract/
+      );
+    }
+    await symlink(join(root, "source"), join(root, "alias"));
+    await assert.rejects(
+      runPrivateTaskContainer({
+        ...configured,
+        publicationDirectory: join(root, "alias"),
+      }),
+      /security contract/
+    );
+    assert.throws(
+      () => privateTaskDockerArguments({ ...configured, publicationDirectory: "relative" }),
+      /security contract/
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("private task denies central credentials and any unsupported business Secret injection", () => {
   const base = settings("/tmp/secure-pilot");
   const deniedCredentials: Array<Record<string, string>> = [
