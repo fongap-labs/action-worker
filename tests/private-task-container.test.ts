@@ -75,10 +75,12 @@ test("private task denies central credentials and any unsupported business Secre
     { NODE_OPTIONS: "--require malicious" },
     { API_KEY: "not-yet-reviewed" },
   ]) {
-    const result = privateTaskDockerArguments({ ...base, taskCredentials });
-    assert.ok(!result.includes("not-yet-reviewed"));
-    if (Object.keys(taskCredentials)[0] !== "API_KEY") {
-      assert.fail("Unsupported credential reached the private executor.");
+    const run = { ...base, taskCredentials };
+    if (Object.hasOwn(taskCredentials, "API_KEY")) {
+      // Future reviewed task credentials require their own delivery contract.
+      assert.ok(privateTaskDockerArguments(run));
+    } else {
+      assert.throws(() => privateTaskDockerArguments(run), /security contract/);
     }
   }
 });
