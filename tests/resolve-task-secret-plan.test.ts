@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -11,10 +11,7 @@ import {
 const repository = "fongap-labs/example";
 const project = "Demo";
 
-async function fixture(
-  declaration: { required: string; allowed: string },
-  policy: unknown
-) {
+async function fixture(declaration: { required: string; allowed: string }, policy: unknown) {
   const root = await mkdtemp(join(tmpdir(), "aw-task-scoped-secrets-"));
   const source = join(root, "source");
   const directory = join(source, "projects", project);
@@ -116,15 +113,23 @@ test("scoped task bindings fail closed for forged or overlapping slot plans", ()
     ],
   };
   assert.throws(
-    () => validateTaskSecretSlots({ ...base, slots: [{ ...base.slots[0]!, slot: "AW_TASK_SECRET_SLOT_02" }] }, {
-      AW_TASK_SECRET_SLOT_02: "value",
-    }),
+    () =>
+      validateTaskSecretSlots(
+        { ...base, slots: [{ ...base.slots[0]!, slot: "AW_TASK_SECRET_SLOT_02" }] },
+        {
+          AW_TASK_SECRET_SLOT_02: "value",
+        }
+      ),
     /invalid binding/
   );
   assert.throws(
-    () => validateTaskSecretSlots({ ...base, slots: [base.slots[0]!, base.slots[0]!] }, {
-      AW_TASK_SECRET_SLOT_01: "value",
-    }),
+    () =>
+      validateTaskSecretSlots(
+        { ...base, slots: [base.slots[0]!, base.slots[0]!] },
+        {
+          AW_TASK_SECRET_SLOT_01: "value",
+        }
+      ),
     /invalid binding/
   );
 });
