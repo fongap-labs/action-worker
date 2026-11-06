@@ -114,9 +114,7 @@ export function classifyConfig(
   return {
     sensitivity,
     security_impact:
-      sensitivity === "secret" && minimum === "ordinary-business"
-        ? "security-sensitive"
-        : minimum,
+      sensitivity === "secret" && minimum === "ordinary-business" ? "security-sensitive" : minimum,
   };
 }
 
