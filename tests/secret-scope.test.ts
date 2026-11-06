@@ -484,7 +484,7 @@ test("AI Gateway operations workflow is protected and never accepts secret value
   assert.doesNotMatch(handler, /spawn|exec|child_process|wrangler/);
 });
 
-test("task Secret aliases preserve credential types across every project", async () => {
+test("task and deploy Secret aliases preserve credential types", async () => {
   const policy = JSON.parse(await readFile("policies/task-secrets.json", "utf8")) as {
     tasks: Record<string, Record<string, { aliases?: Record<string, string> }>>;
   };
@@ -513,5 +513,42 @@ test("task Secret aliases preserve credential types across every project", async
       }
     }
   }
+  const deployPolicy = JSON.parse(await readFile("policies/deploy-secrets.json", "utf8")) as {
+    deployments: Record<string, Record<string, { aliases?: Record<string, string> }>>;
+  };
+  for (const [deployment, environments] of Object.entries(deployPolicy.deployments)) {
+    for (const [environment, entry] of Object.entries(environments)) {
+      for (const [logical, stored] of Object.entries(entry.aliases ?? {})) {
+        const logicalType = credentialType(logical);
+        const storedType = credentialType(stored);
+        if (logicalType && storedType && logicalType !== storedType) {
+          mismatches.push(`${deployment}:${environment}:${logicalType}->${storedType}`);
+        }
+      }
+    }
+  }
   assert.deepEqual(mismatches, []);
+});
+
+test("deploy variable sources cannot be credential-bearing names", async () => {
+  const policy = JSON.parse(await readFile("policies/deploy-secrets.json", "utf8")) as {
+    deployments: Record<
+      string,
+      Record<string, { aliases?: Record<string, string>; variable_sources?: string[] }>
+    >;
+  };
+  const violations: string[] = [];
+  const sensitiveName =
+    /(?:^|_)(?:TOKEN|SECRET|PASSWORD|CREDENTIALS?)(?:_|$)|(?:^|_)(?:PRIVATE|ACCESS|SIGNING|AUTH|API|WRITE|HEALTH)_KEY(?:_|$)/;
+  for (const [deployment, environments] of Object.entries(policy.deployments)) {
+    for (const [environment, entry] of Object.entries(environments)) {
+      const aliasSources = new Set(Object.values(entry.aliases ?? {}));
+      for (const source of entry.variable_sources ?? []) {
+        if (!aliasSources.has(source) || sensitiveName.test(source)) {
+          violations.push(`${deployment}:${environment}`);
+        }
+      }
+    }
+  }
+  assert.deepEqual(violations, []);
 });
