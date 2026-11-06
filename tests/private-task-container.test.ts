@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import {
+  type PrivateTaskContainerSettings,
   privateTaskDockerArguments,
   runPrivateTaskContainer,
-  type PrivateTaskContainerSettings,
 } from "../scripts/private-task-container.ts";
 
 const image = `ghcr.io/fongap-labs/task-runtime@sha256:${"a".repeat(64)}`;
@@ -37,11 +37,14 @@ test("private task container has an immutable image and explicit nonprivileged i
     "--pids-limit=128",
     "--memory=1g",
     "--cpus=2",
-  ]) assert.ok(args.includes(flag), flag);
+  ])
+    assert.ok(args.includes(flag), flag);
   assert.ok(args.includes("--user"));
   assert.ok(args.includes("1001:1001"));
   assert.ok(args.includes(image));
-  assert.ok(args.includes("type=bind,source=/tmp/secure-pilot/source,target=/task-source,readonly"));
+  assert.ok(
+    args.includes("type=bind,source=/tmp/secure-pilot/source,target=/task-source,readonly")
+  );
   assert.ok(args.includes("type=bind,source=/tmp/secure-pilot/state,target=/task-state"));
   assert.ok(args.includes("/bin/bash"));
   assert.ok(args.includes("/task-source/bootstrap.sh"));
@@ -65,7 +68,8 @@ test("container arguments refuse mutable images, host root UID, and invalid iden
     { bootstrapRef: "main" },
     { requestId: "../escape" },
     { project: "../escape" },
-  ]) assert.throws(() => privateTaskDockerArguments({ ...base, ...changes }), /security contract/);
+  ])
+    assert.throws(() => privateTaskDockerArguments({ ...base, ...changes }), /security contract/);
 });
 
 test("private task denies central credentials and any unsupported business Secret injection", () => {
