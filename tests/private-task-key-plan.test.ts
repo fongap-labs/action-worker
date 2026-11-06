@@ -69,7 +69,10 @@ test("missing, reused, malformed, or ambiguous key enrollment fails closed", asy
   for (const entry of badEntries) {
     const fixture = await policyFixture({ [`${repo}:${project}`]: entry });
     try {
-      await assert.rejects(resolveProjectTransferKeyPlan(repo, project, fixture.file), /enrollment/);
+      await assert.rejects(
+        resolveProjectTransferKeyPlan(repo, project, fixture.file),
+        /enrollment/
+      );
     } finally {
       await fixture.cleanup();
     }
