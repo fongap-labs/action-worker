@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
+import type { ScopedTaskSecretPlan } from "./resolve-task-secret-plan.ts";
 import { resolveTaskSecretPlan } from "./resolve-task-secret-plan.ts";
 import { CliError, isMain } from "./runtime-command.ts";
-import type { ScopedTaskSecretPlan } from "./resolve-task-secret-plan.ts";
 
 type Inventory = {
   coverage: "complete" | "partial";
@@ -81,10 +81,7 @@ export function parseNamesOnlyInventory(raw: unknown): Inventory {
   };
 }
 
-export function auditTaskSecretScope(
-  plan: ScopedTaskSecretPlan,
-  inventory: Inventory
-): Audit {
+export function auditTaskSecretScope(plan: ScopedTaskSecretPlan, inventory: Inventory): Audit {
   if (plan.schema_version !== 1 || !Array.isArray(plan.slots) || plan.slots.length > 32) {
     throw new CliError("Invalid approved Secret slot plan.", 65);
   }
