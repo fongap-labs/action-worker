@@ -6,7 +6,6 @@ import { CliError, handleError, isMain } from "./runtime-command.ts";
 
 const manifestPattern =
   /^(?:\.github|projects\/[A-Za-z0-9._-]+)\/(?:release\.manifest\.json|deploy\.json)$/;
-const shaPattern = /^[0-9a-f]{40}$/;
 const repositoryPattern = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
 
 type InventoryItem = {
