@@ -65,19 +65,28 @@ test("rejects malformed inventories, duplicate names, excluded grants, and cross
     reconcileRepositoryPolicy({ ...policy, grants: { ...policy.grants, "other/repo": ["pr"] } }, [])
   );
   assert.throws(() =>
-    reconcileRepositoryPolicy({
-      ...policy,
-      grants: { ...policy.grants, "fongap-labs/delta-legacy": ["pr"] },
-    }, [])
+    reconcileRepositoryPolicy(
+      {
+        ...policy,
+        grants: { ...policy.grants, "fongap-labs/delta-legacy": ["pr"] },
+      },
+      []
+    )
   );
 });
 
 test("onboarding workflow remains admin-only; repo settings are re-applied after policy changes", async () => {
-  const onboarding = await readFile(".github/workflows/reconcile-organization-repositories.yml", "utf8");
+  const onboarding = await readFile(
+    ".github/workflows/reconcile-organization-repositories.yml",
+    "utf8"
+  );
   const settings = await readFile(".github/workflows/apply-repository-settings.yml", "utf8");
   assert.match(onboarding, /environment: admin-ops/);
   assert.match(onboarding, /AW_ADMIN_TOKEN: \$\{\{ secrets\.AW_ADMIN_TOKEN \}\}/);
-  assert.match(onboarding, /AW_INVENTORY_APP_TOKEN: \$\{\{ steps\.inventory_app\.outputs\.token \}\}/);
+  assert.match(
+    onboarding,
+    /AW_INVENTORY_APP_TOKEN: \$\{\{ steps\.inventory_app\.outputs\.token \}\}/
+  );
   assert.doesNotMatch(onboarding, /permission-contents: write/);
   assert.match(settings, /types: \[managed-repositories-changed\]/);
 });
