@@ -254,11 +254,17 @@ jobs:
         run: |
           set -Eeuo pipefail
           if [[ ! "$BASE_SHA" =~ ^[a-f0-9]{40}$ ]] || [[ "$BASE_SHA" =~ ^0+$ ]]; then
-            echo "No usable baseline: skip the compatibility delta for the initial push."
+            echo "No usable baseline; skip compatibility delta for initial push."
             exit 0
           fi
-          if ! git diff --name-only "$BASE_SHA" "$HEAD_SHA" |
-            grep -Eq '^(policies/runner\.json|scripts/(validate-release-build-request|runner-policy|deploy-manifest)\.ts|contracts/(release-manifest|deploy-manifest)\.json)
+          if ! git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(policies/runner\.json|scripts/(validate-release-build-request|runner-policy|deploy-manifest)\.ts|contracts/(release-manifest|deploy-manifest)\.json)$'; then
+            echo "No central contract changes; external API scan skipped."
+            exit 0
+          fi
+          node scripts/downstream-compatibility.ts "$BASE_SHA"
+
+  validate-merge:
+    name: validate-merge
     needs:
       - naming
       - security
@@ -287,62 +293,6 @@ jobs:
 
           if [ "$NAMING_RESULT" != "success" ] || [ "$SECURITY_RESULT" != "success" ] || [ "$STATIC_RESULT" != "success" ] || [ "$CONTRACT_RESULT" != "success" ] || [ "$PRIVATE_SANDBOX_RESULT" != "success" ] || [ "$DOWNSTREAM_RESULT" != "success" ]; then
             echo "::error::CI failed: naming=$NAMING_RESULT security=$SECURITY_RESULT static=$STATIC_RESULT contracts=$CONTRACT_RESULT private-sandbox=$PRIVATE_SANDBOX_RESULT downstream=$DOWNSTREAM_RESULT" >&2
-            exit 1
-          fi
-
-          echo "CI merge gate passed."
-
-      - name: Checkout diagnostic code
-        if: failure()
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Setup Node for diagnostics
-        if: failure()
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-
-      - name: Classify failed steps
-        if: failure()
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/diagnose-ci-failure.ts
-; then
-            echo "No central contract change; no external API calls needed."
-            exit 0
-          fi
-          node scripts/downstream-compatibility.ts "$BASE_SHA"
-
-  validate-merge:
-    name: validate-merge
-    needs:
-      - naming
-      - security
-      - static
-      - contracts
-      - private-sandbox-integration
-    if: always()
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    permissions:
-      contents: read
-      actions: read
-    steps:
-      - name: Aggregate merge gate
-        env:
-          NAMING_RESULT: ${{ needs.naming.result }}
-          SECURITY_RESULT: ${{ needs.security.result }}
-          STATIC_RESULT: ${{ needs.static.result }}
-          CONTRACT_RESULT: ${{ needs.contracts.result }}
-          PRIVATE_SANDBOX_RESULT: ${{ needs.private-sandbox-integration.result }}
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-
-          if [ "$NAMING_RESULT" != "success" ] || [ "$SECURITY_RESULT" != "success" ] || [ "$STATIC_RESULT" != "success" ] || [ "$CONTRACT_RESULT" != "success" ] || [ "$PRIVATE_SANDBOX_RESULT" != "success" ]; then
-            echo "::error::CI failed: naming=$NAMING_RESULT security=$SECURITY_RESULT static=$STATIC_RESULT contracts=$CONTRACT_RESULT private-sandbox=$PRIVATE_SANDBOX_RESULT" >&2
             exit 1
           fi
 
