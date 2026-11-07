@@ -43,7 +43,6 @@ jobs:
       - name: Resolve PR repository scope
         id: pr_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/repository-policy.ts list pr
 
@@ -83,7 +82,6 @@ jobs:
 
       - name: Reconcile open pull requests
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
@@ -113,7 +111,6 @@ jobs:
       - name: Resolve PR repository scope
         id: pr_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/repository-policy.ts list pr
 
@@ -153,7 +150,6 @@ jobs:
 
       - name: Reconcile main CI
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
@@ -183,7 +179,6 @@ jobs:
       - name: Resolve PR repository scope
         id: pr_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/repository-policy.ts list pr
 
@@ -227,7 +222,6 @@ jobs:
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_ISSUE_API_TOKEN: ${{ steps.issue_app.outputs.token }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/audit-main-writes.ts
 
@@ -253,7 +247,6 @@ jobs:
       - name: Resolve task repository scope
         id: task_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/repository-policy.ts list task
 
@@ -293,7 +286,6 @@ jobs:
 
       - name: Reconcile task sources
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
@@ -322,7 +314,6 @@ jobs:
       - name: Resolve task repository scope
         id: task_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/repository-policy.ts list task
 
@@ -364,7 +355,6 @@ jobs:
 
       - name: Dispatch due scheduled tasks
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
@@ -395,7 +385,6 @@ jobs:
       - name: Resolve deploy repository scope
         id: deploy_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/repository-policy.ts list deploy
 
@@ -436,7 +425,6 @@ jobs:
 
       - name: Dispatch due scheduled deploys
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
@@ -470,7 +458,6 @@ jobs:
       - name: Resolve PR repository scope
         id: pr_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/repository-policy.ts list pr
 
@@ -500,7 +487,6 @@ jobs:
 
       - name: Reconcile default-branch security scans
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
