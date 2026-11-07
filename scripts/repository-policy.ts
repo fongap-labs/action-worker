@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { isJsonRecord } from "./github-api.ts";
-import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
+import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 export const repositoryCapabilities = [
   "pr",
@@ -15,6 +15,18 @@ const canonicalPolicyFile = "policies/repository-access.json";
 
 /** The versioned policy is authoritative: GitHub Actions variables cannot grant privileges. */
 export function readRepositoryPolicyText(): string {
+  // Test fixtures may supply synthetic repository identities only under Node's
+  // test runner. Production jobs never accept environment-based grants.
+  const fixture = process.env.NODE_TEST_CONTEXT ? process.env.AW_REPOSITORY_POLICY : "";
+  if (fixture) {
+    let value: unknown;
+    try {
+      value = JSON.parse(fixture) as unknown;
+    } catch {
+      throw new CliError("::error::Test repository policy fixture is invalid JSON.", 65);
+    }
+    return JSON.stringify(parseRepositoryPolicy(value));
+  }
   const raw = readFileSync(canonicalPolicyFile, "utf8");
   let data: unknown;
   try {
