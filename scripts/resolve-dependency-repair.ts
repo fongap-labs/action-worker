@@ -6,7 +6,7 @@ import {
   selectDependencyRepair,
 } from "./dependency-repair.ts";
 import { GithubReader } from "./github-api.ts";
-import { validateRepositoryCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, validateRepositoryCapability  } from "./repository-policy.ts";
 import { parseRunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
 import {
   appendLines,
@@ -26,7 +26,7 @@ async function main(): Promise<void> {
     )
   );
   const repositoryPolicy = parseJson(
-    process.env.AW_REPOSITORY_POLICY ?? "",
+    readRepositoryPolicyText() ?? "",
     "AW_REPOSITORY_POLICY must be valid JSON.",
     65
   );
