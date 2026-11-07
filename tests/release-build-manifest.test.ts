@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { parseReleaseBuildManifest } from "../scripts/validate-release-build-request.ts";
+import { parseRunnerPolicy, resolveRunnerProfile } from "../scripts/runner-policy.ts";
 
 const manifest = {
   schema_version: 1,
@@ -150,5 +152,42 @@ test("portable Node builds may opt out of the Rust toolchain without affecting l
         }),
       /matrix entry is invalid/
     );
+  }
+});
+
+test("business-owned release matrix resolves across enabled central platform profiles", async () => {
+  const policy = parseRunnerPolicy(JSON.parse(await readFile("policies/runner.json", "utf8")));
+  const windows = manifest.builds[0];
+  assert.ok(windows);
+  const builds = [
+    windows,
+    {
+      ...windows,
+      id: "linux",
+      runner_profile: "linux-standard",
+      target: "x86_64-unknown-linux-gnu",
+      script: "scripts/release-build.mjs",
+      assets: ["example-linux.tar.gz"],
+      attest_asset: "example-linux.tar.gz",
+    },
+    {
+      ...windows,
+      id: "macos",
+      runner_profile: "macos-build",
+      target: "universal-apple-darwin",
+      script: "scripts/release-build.mjs",
+      assets: ["example-macos.dmg"],
+      attest_asset: "example-macos.dmg",
+    },
+  ];
+  const parsed = parseReleaseBuildManifest({ ...manifest, builds });
+  assert.deepEqual(
+    parsed.builds.map((build) => build.id),
+    ["windows", "linux", "macos"]
+  );
+  for (const build of parsed.builds) {
+    const resolved = resolveRunnerProfile(policy, build.runner_profile);
+    assert.equal(resolved.profile.trust_domain, "sandbox");
+    assert.equal(resolved.profile.enabled, true);
   }
 });
