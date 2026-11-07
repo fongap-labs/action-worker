@@ -57,7 +57,7 @@ test("dedicated attestation job only downloads artifacts and produces provenance
   assert.equal(attest.steps?.[0]?.with?.name, "release-build-${{ matrix.id }}");
   assert.equal(
     attest.steps?.[1]?.with?.["subject-path"],
-    "${{ runner.temp }}/release-build/${{ matrix.attest_asset }}"
+    "${{ runner.temp }}/release-build/*"
   );
   assert.equal(
     attest.steps?.every(
