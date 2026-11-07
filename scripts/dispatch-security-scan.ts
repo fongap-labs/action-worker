@@ -1,5 +1,5 @@
 import { GithubReader, githubEnvironment, githubExists } from "./github-api.ts";
-import { validateRepositoryCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, validateRepositoryCapability  } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import {
   decodeGithubContent,
@@ -17,7 +17,7 @@ async function main(): Promise<void> {
   const [repository = "", sourceSha = "", prNumberRaw = "0"] = process.argv.slice(2);
   const prNumber = Number(prNumberRaw);
   const policy = parseJson(
-    process.env.AW_REPOSITORY_POLICY ?? "",
+    readRepositoryPolicyText() ?? "",
     "AW_REPOSITORY_POLICY must be valid JSON.",
     65
   );
