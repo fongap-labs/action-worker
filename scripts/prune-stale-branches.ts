@@ -1,20 +1,16 @@
-import {
-  } from "./github-api.ts";
-import { readRepositoryPolicyText,
-  getJsonArray,
-  getJsonString,
-  githubEnvironment,
-  isJsonRecord,
-  mkdtemp,
-  repositoriesForCapability,
-  rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { requireToken } from "./control-token.ts";
 import {
   GithubReader,
+  getJsonArray,
+  getJsonString,
+  githubEnvironment,
+  isJsonRecord,
   runGithubCli,
-} from "./repository-policy.ts";
+} from "./github-api.ts";
+import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runText } from "./runtime-command.ts";
 
 type Decision = {
