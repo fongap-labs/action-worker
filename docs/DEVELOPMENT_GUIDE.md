@@ -67,6 +67,15 @@ Action Worker 负责：
 
 当边界发生变化时，先修改合同、策略或回归测试，再修改实现。
 
+### 本地预检（不替代中央门禁）
+
+在 Action Worker 仓库中执行一次 `npm ci`（Node.js 24 或更新版本），然后：
+
+- `npm run preflight`：快速执行 TypeScript 类型检查、Biome 和关键环境/发布契约测试。
+- `npm run preflight -- full`：执行完整本地单测、格式检查与 Python 源码命名回归。
+
+这是零新增依赖的本地检查入口，不强制安装 Git Hook、Docker 或 act，也不运行需要 GitHub App、远程权限、签名密钥、受保护 Runner 或真实生产环境的检查。`validate-merge`、Security Gate、CI Evidence 和 Main Write Guard 始终以 GitHub 执行结果为准。
+
 ## 5. 持续集成
 
 能够从仓库外部运行的测试，保存在 Action Worker 的测试包中（[TEST_PACKS.md](TEST_PACKS.md)）；其余测试保留在业务仓库中。所有测试默认都在 Action Worker 的沙箱中运行。

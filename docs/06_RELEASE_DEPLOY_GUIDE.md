@@ -124,6 +124,28 @@ tag: dsh-ui-delta-v0.1.0-beta.2
 
 工作流只接受受管策略允许的目标仓库，并校验 Release 的来源、中央 CI、Main Write Guard、tarball SHA256、包名和版本。它会先核对 npm 上的版本完整性；相同内容视为已发布并确保 `beta` / `latest` dist-tag 正确，不同内容则停止，避免覆盖不可变版本。Beta 版本使用 `beta` dist-tag。
 
+### 4.3 业务仓库声明发布矩阵（既有合同）
+
+发布平台、构建脚本和产物由**业务仓库**的 `.github/release.manifest.json`（单产品）或 `projects/<产品>/release.manifest.json`（多产品）声明。Action Worker 只解析 `schema_version: 1` 合同，并将 `builds` 转成中央构建 Matrix；任何项目都不应自行复制中央发布 Workflow。
+
+例如，某个桌面产品按实际需要声明 Windows、Linux 与 macOS 三种构建（示例省略清单的其他必填字段）：
+
+```json
+{
+  "builds": [
+    {"id":"windows-x64","runner_profile":"windows-build","target":"x86_64-pc-windows-msvc","script":"scripts/build.ps1","assets":["app-windows.zip"],"attest_asset":"app-windows.zip"},
+    {"id":"linux-x64","runner_profile":"linux-standard","target":"x86_64-unknown-linux-gnu","script":"scripts/build.mjs","assets":["app-linux.tar.gz"],"attest_asset":"app-linux.tar.gz"},
+    {"id":"macos-universal","runner_profile":"macos-build","target":"universal-apple-darwin","script":"scripts/build.mjs","assets":["app-macos.dmg"],"attest_asset":"app-macos.dmg"}
+  ]
+}
+```
+
+- `runner_profile` 必须引用中央 `policies/runner.json` 中已启用的 **sandbox** 类型；业务仓库不得直接指定 Runner 标签、凭据或管理权限。
+- 每项 `assets` 是完整的预期文件清单，中央打包阶段拒绝缺失、重复和额外文件；并非声明某平台就保证该平台能够成功构建。
+- 当 `attest_asset` 非空时，独立可信 Job 对此构建产生的**全部上传文件**生成来源证明；原字段继续兼容既有清单，空值维持旧的跳过语义。
+- 多平台只按产品需求添加；不要求 AI Gateway、MCP Hub 这样的云服务产品生成桌面安装包。
+- 外部 GitHub Action 必须锁定完整的不可变 40 位 Commit SHA。破坏性合同更新需要另行版本化和兼容迁移，不允许隐式放宽门禁。
+
 ## 5. 部署流程详解
 
 ```
