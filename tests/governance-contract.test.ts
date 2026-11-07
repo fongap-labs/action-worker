@@ -444,10 +444,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   requireText(ciEvidenceWaiter, ["waitForCentralStatus", "CI Evidence"]);
   assert.doesNotMatch(ciEvidenceWaiter, /central_repositories|actions\/workflows\/\$\{workflow\}/);
   const prWorkflow = await text(".github/workflows/handle-pr-dispatch.yml");
-  assert.match(
-    prWorkflow,
-    /- name: Dispatch centralized CI[\s\S]*?dispatch-central-ci\.ts/
-  );
+  assert.match(prWorkflow, /- name: Dispatch centralized CI[\s\S]*?dispatch-central-ci\.ts/);
   const reviewRunner = await text("scripts/run-ai-review.ts");
   assert.match(reviewRunner, /AI Review \(advisory\)/);
   assert.doesNotMatch(reviewRunner, /merge is blocked|blocking findings|blockSeverity/);
