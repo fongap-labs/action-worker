@@ -316,7 +316,7 @@ jobs:
           retention-days: 7
 
   attest:
-    name: Attest release asset / ${{ matrix.id }}
+    name: Attest release assets / ${{ matrix.id }}
     needs:
       - prepare
       - build
@@ -343,7 +343,9 @@ jobs:
         if: ${{ matrix.attest_asset != '' }}
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: ${{ runner.temp }}/release-build/${{ matrix.attest_asset }}
+          # Attest all files from this business-declared build, not just the legacy opt-in marker.
+          # The build job uploads only its declared asset names to this isolated artifact.
+          subject-path: ${{ runner.temp }}/release-build/*
 
   package:
     name: Package governed release
