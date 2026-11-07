@@ -78,7 +78,9 @@ export function classifyFailure(job: string, step: string): FailedStep {
 
 function safeJobUrl(value: string | undefined): string | undefined {
   return typeof value === "string" &&
-    /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/[0-9]+\/job\/[0-9]+$/.test(value)
+    /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/[0-9]+\/job\/[0-9]+$/.test(
+      value
+    )
     ? value
     : undefined;
 }
