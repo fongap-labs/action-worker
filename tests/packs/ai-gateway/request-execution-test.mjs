@@ -29,7 +29,7 @@ import { pickTier1Candidate } from '#target/src/scheduler/tier1-scheduler.ts';
 import { collectOpenAIStreamObject } from '#target/src/stream/assemble.ts';
 import { UPSTREAM_PROCESSING_ERROR, upstreamProcessingError, upstreamProcessingErrorCode } from '#target/src/types/upstream-processing.ts';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -623,7 +623,11 @@ try {
   assert.equal(releaseTier1Slot(hedgeNode.id, occupiedToken), true);
 
   // --- Composition contract: protocol fallback capacity planning must use cap. ---
-  const fallbackSource = source('src/request/fallback.ts');
+  // Follow the actual owner when Gateway has moved fallback orchestration;
+  // the old src/request/fallback.ts can be a compatibility re-export only.
+  const fallbackOwnerPath = 'apps/gateway/fallback.ts';
+  const fallbackSource = existsSync(join(root, fallbackOwnerPath)) ? source(fallbackOwnerPath) : source('src/request/fallback.ts');
+  assert.ok(fallbackSource.includes('export async function runFallbackChain('), 'fallback must have a real owner');
   const fallbackCallStart = fallbackSource.indexOf('const fbTierCaps = computeTierCaps(');
   assert.ok(fallbackCallStart >= 0, 'protocol fallback tier-cap computation must exist');
   const fallbackCall = fallbackSource.slice(fallbackCallStart, fallbackCallStart + 700);
