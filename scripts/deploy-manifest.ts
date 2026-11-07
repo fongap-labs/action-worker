@@ -1,17 +1,21 @@
-import { parseCronSchedule } from "./cron-schedule.ts";
 import {
-  assertUniqueEnvironments,
+  } from "./deploy-policy-key.ts";
+import { GithubReader,
+  } from "./product-discovery.ts";
+import { readRepositoryPolicyText,
   isDeployPolicyKey,
-  productPolicyKey,
-} from "./deploy-policy-key.ts";
-import { GithubReader, isJsonRecord } from "./github-api.ts";
+  isJsonRecord } from "./github-api.ts";
 import {
   isProductName,
   isRepositoryRelativePath,
+  parseCronSchedule } from "./cron-schedule.ts";
+import {
+  assertUniqueEnvironments,
+  productPolicyKey,
   PRODUCTS_DIRECTORY,
   ROOT_MANIFEST_DIRECTORY,
-} from "./product-discovery.ts";
-import { readRepositoryPolicyText, validateRepositoryCapability  } from "./repository-policy.ts";
+  validateRepositoryCapability,
+} from "./repository-policy.ts";
 import { parseRunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
 import {
   appendLines,
