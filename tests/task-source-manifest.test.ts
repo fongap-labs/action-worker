@@ -85,9 +85,9 @@ test("a slot dispatched on an earlier default-branch head is not dispatched agai
     requests.push(path);
     if (path.includes("&since=")) return [{ sha: task.head_sha }];
     if (path.includes("&until=")) return [{ sha: earlierHead }];
-    return path.includes(`/commits/${statusOn}/status`)
-      ? attestFixtureStatuses(recorded, task.repository, statusOn)
-      : { statuses: [] };
+    return path.includes(`/commits/${statusOn}/statuses?`)
+      ? attestFixtureStatuses(recorded.statuses, task.repository, statusOn)
+      : [];
   };
 
   assert.equal(await wasDispatched(task, world(earlierHead)), true);

@@ -21,7 +21,7 @@ test("scheduled task and deploy deduplication check a signed receipt on page two
       return path.includes("&page=2") ? [{ sha: recordedSha }] : hundred;
     }
     if (path.includes("&until=")) return [];
-    const sha = path.match(/\/commits\/([0-9a-f]{40})\/status$/)?.[1] ?? "";
+    const sha = path.match(/\/commits\/([0-9a-f]{40})\/statuses\?/)?.[1] ?? "";
     const records =
       sha === recordedSha
         ? [
@@ -37,7 +37,7 @@ test("scheduled task and deploy deduplication check a signed receipt on page two
             },
           ]
         : [];
-    return attestFixtureStatuses({ statuses: records }, repository, sha);
+    return attestFixtureStatuses(records, repository, sha);
   };
   const task: ScheduledTask = { repository, head_sha: head, project: "MarketBrief", slot };
   const deploy = {

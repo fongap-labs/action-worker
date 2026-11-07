@@ -27,11 +27,8 @@ import {
   runCommand,
 } from "./runtime-command.ts";
 import { scheduledDispatchCandidateShas } from "./scheduled-dispatch-candidates.ts";
-import {
-  hasValidStatusAttestation,
-  originalStatusDescription,
-  signedStatusDescription,
-} from "./status-attestation.ts";
+import { hasScheduledDispatchReceipt } from "./scheduled-dispatch-statuses.ts";
+import { signedStatusDescription } from "./status-attestation.ts";
 
 export type ScheduledDeployTarget = {
   repository: string;
@@ -200,19 +197,9 @@ export async function wasScheduledDeployDispatched(
   const context = scheduleContext(deploy.product, deploy.environment);
   const description = scheduleDescription(deploy.slot);
   for (const sha of heads) {
-    const value = await get(`repos/${deploy.repository}/commits/${sha}/status`);
-    if (!isJsonRecord(value) || !Array.isArray(value.statuses)) {
-      throw new CliError(`GitHub deploy schedule status is invalid: ${deploy.repository}.`, 65);
+    if (await hasScheduledDispatchReceipt(deploy.repository, sha, context, description, get)) {
+      return true;
     }
-    const isRecorded = value.statuses.some(
-      (item) =>
-        isJsonRecord(item) &&
-        item.context === context &&
-        item.state === "success" &&
-        originalStatusDescription(item) === description &&
-        hasValidStatusAttestation(item, { repository: deploy.repository, sha, context })
-    );
-    if (isRecorded) return true;
   }
   return false;
 }
