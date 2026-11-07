@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 中央 CodeQL 任一分析失败时阻断受保护 SARIF 发布，禁止发布不完整安全扫描结果。
+
 - 修复: 安全扫描的受保护 SARIF 发布作业从可信控制仓库目录读取授权策略，修复工作目录不匹配导致的发布失败。
 
 - 新增: 从 fongap-bot GitHub App 自动发现组织仓库，新建合格仓库只授予 PR 治理，通过原有 validate-merge 自动合并接入 PR。
