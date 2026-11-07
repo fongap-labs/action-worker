@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { parse } from "yaml";
+import { parseReleaseBuildManifest } from "../scripts/validate-release-build-request.ts";
 import {
   hasVerifiedAsset,
   requiredAttestations,
   verifyArguments,
 } from "../scripts/verify-release-attestations.ts";
-import { parseReleaseBuildManifest } from "../scripts/validate-release-build-request.ts";
 
 const sample = parseReleaseBuildManifest({
   schema_version: 1,
@@ -33,10 +33,10 @@ const sample = parseReleaseBuildManifest({
 });
 
 test("formal releases require attestation for every asset; legacy betas may opt out", () => {
-  assert.deepEqual(requiredAttestations(sample, "1.2.3").map((x) => x.asset), [
-    "app.zip",
-    "app.tgz",
-  ]);
+  assert.deepEqual(
+    requiredAttestations(sample, "1.2.3").map((x) => x.asset),
+    ["app.zip", "app.tgz"]
+  );
   const unprotected = {
     ...sample,
     builds: sample.builds.map((build) => ({ ...build, attest_asset: "" })),
@@ -66,7 +66,11 @@ test("verification binds identity to central workflow and source digest", () => 
 test("verified evidence must name the exact file and expected SHA256", () => {
   const digest = "b".repeat(64);
   const bundle = [
-    { verificationResult: { statement: { subject: [{ name: "app.zip", digest: { sha256: digest } }] } } },
+    {
+      verificationResult: {
+        statement: { subject: [{ name: "app.zip", digest: { sha256: digest } }] },
+      },
+    },
   ];
   assert.equal(hasVerifiedAsset(bundle, "app.zip", digest), true);
   assert.equal(hasVerifiedAsset(bundle, "app.tgz", digest), false);
@@ -82,7 +86,9 @@ test("trusted package job must verify provenance after build/attest but before u
   assert.ok(pkg);
   assert.deepEqual(pkg.needs, ["prepare", "build", "attest"]);
   const steps = pkg.steps ?? [];
-  const verifyIndex = steps.findIndex((x) => x.name === "Verify build provenance and signer before packaging");
+  const verifyIndex = steps.findIndex(
+    (x) => x.name === "Verify build provenance and signer before packaging"
+  );
   const packageIndex = steps.findIndex((x) => x.name === "Build manifest and provenance");
   assert.ok(verifyIndex >= 0 && packageIndex > verifyIndex);
   assert.match(steps[verifyIndex]?.run ?? "", /verify-release-attestations.ts/);
