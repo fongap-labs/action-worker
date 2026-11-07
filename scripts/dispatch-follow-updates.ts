@@ -1,29 +1,27 @@
 import {
-  } from "./follow-github.ts";
-import { editPinFile,
-  } from "./github-api.ts";
-import { buildTag } from "./publish-release.ts";
-import { readRepositoryPolicyText,
   commitFiles,
-  getJsonString,
-  githubEnvironment,
-  GithubReader,
-  groupPinEdits,
-  hasRepositoryCapability,
-  isJsonRecord,
+  type FileChange,
+  type FollowFile,
   isPublishedRelease,
+  type JsonReader,
   listFollowFiles,
   openOrFindPullRequest,
   readFileAt,
-  repositoriesForCapability,
   resolveTagCommit,
-  type FileChange,
-  type FollowFile,
-  type FollowManifest,
-  type JsonReader,
-  type PinValue } from "./follow-pins.ts";
+} from "./follow-github.ts";
+import { editPinFile, type FollowManifest, groupPinEdits, type PinValue } from "./follow-pins.ts";
 import {
   GithubHttpError,
+  GithubReader,
+  getJsonString,
+  githubEnvironment,
+  isJsonRecord,
+} from "./github-api.ts";
+import { buildTag } from "./publish-release.ts";
+import {
+  hasRepositoryCapability,
+  readRepositoryPolicyText,
+  repositoriesForCapability,
 } from "./repository-policy.ts";
 import {
   appendLines,
