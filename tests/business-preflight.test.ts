@@ -1,21 +1,22 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { inspectBusinessProject, parseBusinessChecks } from "../scripts/business-preflight.ts";
 import { parseRunnerPolicy } from "../scripts/runner-policy.ts";
 
-const runnerPolicy = parseRunnerPolicy(
-  JSON.parse(await readFile("policies/runner.json", "utf8"))
-);
+const runnerPolicy = parseRunnerPolicy(JSON.parse(await readFile("policies/runner.json", "utf8")));
 
 test("optional business checks are strictly declared and contain no shell", () => {
   assert.deepEqual(parseBusinessChecks(undefined), []);
-  assert.deepEqual(parseBusinessChecks({
-    schema_version: 1,
-    checks: [{ id: "unit", command: "npm", args: ["test"], mode: "full" }],
-  }).map((x) => x.id), ["unit"]);
+  assert.deepEqual(
+    parseBusinessChecks({
+      schema_version: 1,
+      checks: [{ id: "unit", command: "npm", args: ["test"], mode: "full" }],
+    }).map((x) => x.id),
+    ["unit"]
+  );
   for (const check of [
     { id: "unit", command: "sh", args: ["-c", "curl example"], mode: "full" },
     { id: "unit", command: "npm", args: ["test"], mode: "prod" },
@@ -43,15 +44,17 @@ test("business preflight checks product-owned scripts and central sandbox policy
       node_version_file: "",
       python_version_file: "",
       sbom_asset: "",
-      builds: [{
-        id: "linux",
-        runner_profile: "linux-standard",
-        target: "portable",
-        script: "desktop/build.mjs",
-        acceptance_script: "desktop/verify.mjs",
-        assets: ["desktop.tgz"],
-        attest_asset: "desktop.tgz",
-      }],
+      builds: [
+        {
+          id: "linux",
+          runner_profile: "linux-standard",
+          target: "portable",
+          script: "desktop/build.mjs",
+          acceptance_script: "desktop/verify.mjs",
+          assets: ["desktop.tgz"],
+          attest_asset: "desktop.tgz",
+        },
+      ],
     };
     await writeFile(file, JSON.stringify(manifest));
     await writeFile(join(root, "packages", "desktop", "build.mjs"), "");
