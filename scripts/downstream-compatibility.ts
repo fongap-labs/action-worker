@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { parseDeployManifest } from "./deploy-manifest.ts";
-import { parseRunnerPolicy, resolveRunnerProfile, type RunnerPolicy } from "./runner-policy.ts";
+import { parseRunnerPolicy, type RunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { parseReleaseBuildManifest } from "./validate-release-build-request.ts";
 
@@ -13,7 +13,8 @@ type GithubTree = {
 };
 export type JsonGetter = (url: string) => Promise<unknown>;
 
-const profilePath = /^(?:\.github|projects\/[A-Za-z0-9._-]+)\/(?:release\.manifest\.json|deploy\.json)$/;
+const profilePath =
+  /^(?:\.github|projects\/[A-Za-z0-9._-]+)\/(?:release\.manifest\.json|deploy\.json)$/;
 
 function record(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -44,14 +45,14 @@ export function compatibilityRegressions(
 ): string[] {
   const findings: string[] = [];
   for (const consumer of consumers) {
-    let before;
+    let before: ReturnType<typeof resolveRunnerProfile>;
     try {
       before = resolveRunnerProfile(baseline, consumer.runner_profile);
     } catch {
       // An already invalid downstream declaration is not caused by this candidate.
       continue;
     }
-    let after;
+    let after: ReturnType<typeof resolveRunnerProfile>;
     try {
       after = resolveRunnerProfile(candidate, consumer.runner_profile);
     } catch (error) {
@@ -85,7 +86,10 @@ async function requestGithubJson(url: string): Promise<unknown> {
   if (process.env.GH_TOKEN) headers.Authorization = `Bearer ${process.env.GH_TOKEN}`;
   const response = await fetch(url, { headers, signal: AbortSignal.timeout(15000) });
   if (!response.ok) {
-    throw new CliError(`Read-only downstream compatibility request failed (${response.status}): ${url}`, 75);
+    throw new CliError(
+      `Read-only downstream compatibility request failed (${response.status}): ${url}`,
+      75
+    );
   }
   return response.json() as Promise<unknown>;
 }
@@ -128,7 +132,10 @@ export async function collectPublicConsumers(
           )
         );
         if (contents.encoding !== "base64" || typeof contents.content !== "string") {
-          throw new CliError(`Cannot read downstream manifest: ${repo.full_name}/${entry.path}`, 65);
+          throw new CliError(
+            `Cannot read downstream manifest: ${repo.full_name}/${entry.path}`,
+            65
+          );
         }
         const manifest = JSON.parse(
           Buffer.from(contents.content.replace(/\s+/g, ""), "base64").toString("utf8")
@@ -138,7 +145,10 @@ export async function collectPublicConsumers(
     }
     if (repos.length < 100) return result;
   }
-  throw new CliError("Repository enumeration exceeded 500; review pagination before updating rules.", 75);
+  throw new CliError(
+    "Repository enumeration exceeded 500; review pagination before updating rules.",
+    75
+  );
 }
 
 async function main(): Promise<void> {
@@ -151,9 +161,7 @@ async function main(): Promise<void> {
     maxBuffer: 1024 * 1024,
   });
   const baseline = parseRunnerPolicy(JSON.parse(baselineText));
-  const candidate = parseRunnerPolicy(
-    JSON.parse(await readFile("policies/runner.json", "utf8"))
-  );
+  const candidate = parseRunnerPolicy(JSON.parse(await readFile("policies/runner.json", "utf8")));
   const consumers = await collectPublicConsumers("fongap-labs", requestGithubJson);
   const findings = compatibilityRegressions(consumers, baseline, candidate);
   console.log(
@@ -161,7 +169,10 @@ async function main(): Promise<void> {
   );
   for (const finding of findings) console.error(`::error::${finding}`);
   if (findings.length > 0) {
-    throw new CliError(`Downstream runner compatibility regressed in ${findings.length} locations.`, 65);
+    throw new CliError(
+      `Downstream runner compatibility regressed in ${findings.length} locations.`,
+      65
+    );
   }
   console.log("No new downstream runner contract incompatibilities detected.");
 }
