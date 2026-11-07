@@ -5,10 +5,7 @@ import { test } from "node:test";
 import { parse } from "yaml";
 
 type Workflow = {
-  jobs?: Record<
-    string,
-    { environment?: string | { name?: unknown; deployment?: unknown } }
-  >;
+  jobs?: Record<string, { environment?: string | { name?: unknown; deployment?: unknown } }>;
 };
 
 test("operations environments never create GitHub Deployment records", async () => {
@@ -37,9 +34,9 @@ test("actual central deployments remain tracked under production", async () => {
   ) as Workflow;
   assert.equal(workflow.jobs?.deploy?.environment, "${{ needs.prepare.outputs.environment }}");
 
-  const policy = JSON.parse(
-    await readFile("policies/deploy-environments.json", "utf8")
-  ) as { repositories: Record<string, string[]> };
+  const policy = JSON.parse(await readFile("policies/deploy-environments.json", "utf8")) as {
+    repositories: Record<string, string[]>;
+  };
   for (const allowed of Object.values(policy.repositories)) {
     assert.deepEqual(allowed, ["production"]);
   }
