@@ -614,6 +614,24 @@ test("repository ruleset policy is exact and rejects duplicate managed names", (
   );
 });
 
+test("main branch ruleset requires fongap-bot to publish the merge gate", async () => {
+  const value = JSON.parse(await readFile("policies/rulesets.json", "utf8")) as unknown;
+  const main = rulesetPayloads(value).find((ruleset) => ruleset.name === "Protect Main Branch");
+  assert.ok(main, "main branch must have a centrally managed ruleset");
+  assert.equal(main.enforcement, "active");
+  assert.deepEqual(main.bypass_actors, []);
+  const rules = main.rules as Array<{ type: string; parameters?: Record<string, unknown> }>;
+  for (const type of ["deletion", "non_fast_forward", "required_linear_history", "pull_request"]) {
+    assert.ok(rules.some((rule) => rule.type === type), `missing GitHub hard gate: ${type}`);
+  }
+  const status = rules.find((rule) => rule.type === "required_status_checks");
+  assert.ok(status, "GitHub must enforce the merge status before a main update");
+  assert.equal(status.parameters?.strict_required_status_checks_policy, true);
+  assert.deepEqual(status.parameters?.required_status_checks, [
+    { context: "validate-merge", integration_id: 5609149 },
+  ]);
+});
+
 test("release contracts bind source, artifact provenance, target, assets, and license", () => {
   const request = {
     schema_version: "2",
