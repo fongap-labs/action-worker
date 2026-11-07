@@ -1059,7 +1059,9 @@ jobs:
     name: Governed task publication
     needs: [validate, execute, finalize_private_isolated]
     if: always() && needs.validate.result == 'success' && ((needs.execute.result == 'success' && needs.execute.outputs.publication_staged == 'true') || (needs.finalize_private_isolated.result == 'success' && needs.finalize_private_isolated.outputs.publication_staged == 'true'))
-    environment: admin-ops
+    environment:
+      name: admin-ops
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
