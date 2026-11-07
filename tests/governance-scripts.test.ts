@@ -639,62 +639,35 @@ test("main branch ruleset requires fongap-bot to publish the merge gate", async 
   ]);
 });
 
-test("Action Worker accepts solo-maintainer approval only through the trusted manual workflow", async () => {
+test("control repository keeps its original merge gate without a second approval channel", async () => {
   const value = JSON.parse(await readFile("policies/rulesets.json", "utf8")) as unknown;
   const rulesets = rulesetPayloads(value);
+  assert.deepEqual(
+    rulesets.map((ruleset) => ruleset.name),
+    ["Protect Main Branch", "Protect Legacy Branches"]
+  );
   const control = rulesetsForRepository(
     rulesets,
     "fongap-labs/action-worker",
     "fongap-labs/action-worker"
   );
-  const sensitive = control.find((ruleset) => ruleset.name === "Protect Control Plane");
-  assert.ok(sensitive, "control owner approval gate must exist");
-  assert.equal(sensitive.enforcement, "active");
-  assert.deepEqual(sensitive.bypass_actors, []);
-  const requirement = (
-    sensitive.rules as Array<{ type: string; parameters?: Record<string, unknown> }>
+  const controlMain = control.find((ruleset) => ruleset.name === "Protect Main Branch");
+  assert.ok(controlMain);
+  const controlCheck = (
+    controlMain.rules as Array<{ type: string; parameters?: Record<string, unknown> }>
   ).find((rule) => rule.type === "required_status_checks");
-  assert.ok(requirement, "owner approval must be enforced by GitHub");
-  assert.equal(requirement.parameters?.strict_required_status_checks_policy, true);
-  assert.deepEqual(requirement.parameters?.required_status_checks, [
-    { context: "Control Owner Approval", integration_id: 15368 },
-  ]);
-  assert.equal(
-    (sensitive.rules as Array<{ type: string }>).some((rule) => rule.type === "pull_request"),
-    false,
-    "single owner must not be required to get another user's PR review"
-  );
-
-  const main = control.find((ruleset) => ruleset.name === "Protect Main Branch");
-  assert.ok(main);
-  const mainStatus = (
-    main.rules as Array<{ type: string; parameters?: Record<string, unknown> }>
-  ).find((rule) => rule.type === "required_status_checks");
-  assert.deepEqual(mainStatus?.parameters?.required_status_checks, [
+  assert.deepEqual(controlCheck?.parameters?.required_status_checks, [
     { context: "validate-merge", integration_id: 15368 },
   ]);
-
-  const workflow = await readFile(".github/workflows/approve-control-plane.yml", "utf8");
-  assert.match(workflow, /environment: control-plane-approval/);
-  assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
-  assert.match(workflow, /github\.actor == 'fongap'/);
-  assert.match(workflow, /github\.triggering_actor == 'fongap'/);
-  assert.match(workflow, /actions\/runs\/\$GITHUB_RUN_ID\/approvals/);
-  assert.match(workflow, /\.user\.login == "fongap"/);
-  assert.match(workflow, /\.user\.type == "User"/);
-  assert.match(workflow, /\.head\.sha == \$sha/);
-  assert.match(workflow, /\[\[ "\$REVIEWED_SHA" =~ \^\[0-9a-f\]\{40\}\$ \]\]/);
-  assert.match(workflow, /-f context="Control Owner Approval"/);
-  assert.doesNotMatch(workflow, /actions\/checkout@|secrets\./);
+  const controlPullRequest = (
+    controlMain.rules as Array<{ type: string; parameters?: Record<string, unknown> }>
+  ).find((rule) => rule.type === "pull_request");
+  assert.equal(controlPullRequest?.parameters?.required_approving_review_count, 0);
 
   const business = rulesetsForRepository(
     rulesets,
     "fongap-labs/delta",
     "fongap-labs/action-worker"
-  );
-  assert.equal(
-    business.some((ruleset) => ruleset.name === "Protect Control Plane"),
-    false
   );
   const businessMain = business.find((ruleset) => ruleset.name === "Protect Main Branch");
   assert.ok(businessMain);
