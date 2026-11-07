@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 自动发现 fongap-labs 的 GitHub App 受管仓库，从版本化授权生成中央仓库策略并触发设置同步；新仓库仅默认启用 PR 治理，不自动开放任务、发布或部署权限。
+
 - 新增: 为受管桌面应用发布增加 macOS 15 ARM64 沙箱构建 Runner，保持独立平台构建与发布门禁。
 
 - 修复: AI Gateway 生产部署的健康密钥不再别名至 AGENT 访问密钥；运维 Secret 写入改用 Cloudflare Secrets API，禁止占位 Worker 覆盖代码。
