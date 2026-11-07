@@ -40,7 +40,6 @@ jobs:
       - name: Resolve branch prune repository scope
         id: prune_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/repository-policy.ts list pr
 
@@ -58,7 +57,6 @@ jobs:
       - name: Prune fully subsumed branches
         env:
           AW_BRANCH_API_TOKEN: ${{ steps.branch_app.outputs.token }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/prune-stale-branches.ts
 
   runs:
