@@ -403,6 +403,7 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+      attestations: read
 
     steps:
       - name: Checkout control plane

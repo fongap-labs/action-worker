@@ -80,11 +80,20 @@ test("verified evidence must name the exact file and expected SHA256", () => {
 
 test("trusted package job must verify provenance after build/attest but before upload", async () => {
   const workflow = parse(await readFile(".github/workflows/release-app.yml", "utf8")) as {
-    jobs: Record<string, { needs?: string[]; steps?: { name?: string; run?: string }[] }>;
+    jobs: Record<
+      string,
+      {
+        needs?: string[];
+        permissions?: Record<string, string>;
+        steps?: { name?: string; run?: string }[];
+      }
+    >;
   };
   const pkg = workflow.jobs.package;
   assert.ok(pkg);
   assert.deepEqual(pkg.needs, ["prepare", "build", "attest"]);
+  assert.equal(pkg.permissions?.attestations, "read");
+  assert.notEqual(pkg.permissions?.["id-token"], "write");
   const steps = pkg.steps ?? [];
   const verifyIndex = steps.findIndex(
     (x) => x.name === "Verify build provenance and signer before packaging"
