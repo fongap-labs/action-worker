@@ -1,14 +1,7 @@
-import {
-  hasVerifiedCiEvidence,
-  isJsonRecord,
-  latestCiStatus,
-  statusAwareReader } from "./github-api.ts";
-import { readRepositoryPolicyText,
-  trustedControlRunId } from "./ci-evidence.ts";
+import { hasVerifiedCiEvidence, latestCiStatus, trustedControlRunId } from "./ci-evidence.ts";
 import { requireStatusToken } from "./control-token.ts";
-import { getJsonString,
-  validateRepositoryCapability,
-} from "./repository-policy.ts";
+import { getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
+import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { hasValidStatusAttestation } from "./status-attestation.ts";
 
