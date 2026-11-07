@@ -1,0 +1,70 @@
+name: 自动 · 组织仓库接入
+
+# One automatic enrollment path. GitHub native PR Ruleset remains the merge authority.
+on:
+  push:
+    branches: [main]
+    paths:
+      - policies/repository-access.json
+      - scripts/enroll-organization-repositories.ts
+      - .github/workflows/enroll-organization-repositories.yml
+  workflow_run:
+    workflows: ["自动 · CI 验证"]
+    types: [completed]
+  schedule:
+    - cron: "11,41 * * * *"
+
+permissions:
+  contents: read
+  checks: read
+  pull-requests: read
+
+concurrency:
+  group: organization-repository-onboarding
+  cancel-in-progress: false
+
+jobs:
+  onboard:
+    name: Discover and safely enroll repositories
+    if: github.repository == 'fongap-labs/action-worker'
+    environment: admin-ops
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout trusted main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Mint App inventory read token
+        id: inventory
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          permission-contents: read
+
+      - name: Mint control repository PR token
+        id: writer
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Reconcile App installation into protected policy
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          AW_INVENTORY_TOKEN: ${{ steps.inventory.outputs.token }}
+          AW_REPOSITORY_WRITE_TOKEN: ${{ steps.writer.outputs.token }}
+        run: node scripts/enroll-organization-repositories.ts
