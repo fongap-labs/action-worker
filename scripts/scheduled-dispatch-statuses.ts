@@ -1,9 +1,6 @@
 import { isJsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
-import {
-  hasValidStatusAttestation,
-  originalStatusDescription,
-} from "./status-attestation.ts";
+import { hasValidStatusAttestation, originalStatusDescription } from "./status-attestation.ts";
 
 const pageSize = 100;
 const maxPages = 10;
