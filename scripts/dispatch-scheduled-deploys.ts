@@ -1,22 +1,31 @@
-import { createHash } from "node:crypto";
-import { hasVerifiedCiEvidence, type JsonReader, latestCiStatus } from "./ci-evidence.ts";
-import { requireStatusToken } from "./control-token.ts";
-import { latestCronSlot, minuteFloor, parseCronSchedule, slotKey } from "./cron-schedule.ts";
-import { parseDeployPlan } from "./deploy-manifest.ts";
 import {
-  assertNoRequiredReviewers,
-  deployEventType,
-  parseDeployPolicy,
-} from "./dispatch-central-deploy.ts";
+  } from "./dispatch-central-deploy.ts";
 import {
   getJsonArray,
+  } from "./github-api.ts";
+import { type ContentReader,
+  createHash } from "node:crypto";
+import { hasVerifiedCiEvidence,
+  deployEventType,
+  discoverProducts } from "./product-discovery.ts";
+import { readRepositoryPolicyText,
   getJsonString,
   githubEnvironment,
   isJsonRecord,
+  latestCiStatus } from "./ci-evidence.ts";
+import { requireStatusToken } from "./control-token.ts";
+import { latestCronSlot,
+  minuteFloor,
+  parseCronSchedule,
+  parseDeployPolicy,
+  repositoriesForCapability,
+  slotKey } from "./cron-schedule.ts";
+import { parseDeployPlan } from "./deploy-manifest.ts";
+import {
+  assertNoRequiredReviewers,
   statusAwareReader,
-} from "./github-api.ts";
-import { type ContentReader, discoverProducts } from "./product-discovery.ts";
-import { readRepositoryPolicyText, repositoriesForCapability  } from "./repository-policy.ts";
+  type JsonReader,
+} from "./repository-policy.ts";
 import {
   appendLines,
   CliError,
