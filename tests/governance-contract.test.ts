@@ -30,7 +30,25 @@ test("repository permissions come only from the versioned access policy", async 
   assert.equal(authority.schema_version, 1);
   assert.equal(authority.organization, "fongap-labs");
   assert.deepEqual(authority.excluded_repositories, ["fongap-labs/delta-legacy"]);
-  assert.equal(Object.keys(authority.grants as object).length, 9);
+  const grants = authority.grants as Record<string, string[]>;
+  const required: Record<string, string[]> = {
+    "fongap-labs/action-worker": ["pr", "task"],
+    "fongap-labs/ai-gateway": ["pr", "task", "deploy"],
+    "fongap-labs/delta": ["pr", "task", "release-source", "release-target"],
+    "fongap-labs/delta-suite": ["pr", "task"],
+    "fongap-labs/app-source": ["pr", "task", "release-source"],
+    "fongap-labs/internal-vault": ["pr", "task", "release-source", "deploy"],
+    "fongap-labs/external-vault": ["pr", "task", "release-source", "release-target"],
+    "fongap-labs/dsh-plugin": ["pr", "release-source", "release-target"],
+    "fongap-labs/mcp-hub": ["pr", "task", "deploy"],
+  };
+  for (const [repository, capabilities] of Object.entries(required)) {
+    assert.deepEqual(grants[repository], capabilities);
+  }
+  for (const [repository, capabilities] of Object.entries(grants)) {
+    assert.match(repository, /^fongap-labs\/[A-Za-z0-9_.-]+$/);
+    if (!Object.hasOwn(required, repository)) assert.deepEqual(capabilities, ["pr"]);
+  }
   const loader = await text("scripts/repository-policy.ts");
   assert.match(loader, /readFileSync\(canonicalPolicyFile, "utf8"\)/);
   const workflowPaths = (await readdir(".github/workflows")).filter((path) =>
