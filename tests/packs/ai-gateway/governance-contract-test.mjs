@@ -441,10 +441,16 @@ try {
   }
   assert.deepEqual(storeViolations, [], `persistent observability must stay routing-independent:\n${storeViolations.join('\n')}`);
 
-  const preflight = fs.readFileSync(path.join(srcRoot, 'request', 'preflight.ts'), 'utf8');
+  // The runtime may retain src/request/preflight.ts as a compatibility re-export.
+  // Inspect the actual owner when the Gateway app module has been extracted.
+  const gatewayPreflight = path.join(root, 'apps', 'gateway', 'preflight.ts');
+  const preflight = fs.readFileSync(fs.existsSync(gatewayPreflight) ? gatewayPreflight : path.join(srcRoot, 'request', 'preflight.ts'), 'utf8');
   assert.ok(
-    preflight.includes('../dashboard/pages.ts') && preflight.includes('../dashboard/readme-status.ts'),
-    'request preflight remains the owner of local dashboard route dispatch',
+    preflight.includes('/dashboard/pages.ts') &&
+      preflight.includes('/dashboard/readme-status.ts') &&
+      preflight.includes('dashboardResponse') &&
+      preflight.includes('readmeStatusSvgResponse'),
+    'gateway preflight must own the real local dashboard and status dispatch, not just a compatibility export',
   );
 
   const tier1State = fs.readFileSync(path.join(srcRoot, 'reliability', 'tier1-state.ts'), 'utf8');

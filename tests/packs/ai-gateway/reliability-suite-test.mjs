@@ -31,7 +31,7 @@ import { collectOpenAIStreamObject } from '#target/src/stream/assemble.ts';
 import { isAnthropicMessageMeaningful } from '#target/src/transport/anthropic.ts';
 import { isOpenAIChatCompletionMeaningful, isOpenAIResponsesObjectMeaningful } from '#target/src/transport/openai.ts';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -399,7 +399,8 @@ try {
   });
 
   await test('local diagnostic/model routes are exempt from key RPM', () => {
-    const src = readFileSync(join(root, 'src', 'request', 'preflight.ts'), 'utf8');
+    const modern = join(root, 'apps', 'gateway', 'preflight.ts');
+    const src = readFileSync(existsSync(modern) ? modern : join(root, 'src', 'request', 'preflight.ts'), 'utf8');
     const block = src.slice(src.indexOf("if (route !== 'health'"), src.indexOf('const diag ='));
     assert.ok(block.includes("route !== 'health'"));
     assert.ok(block.includes("route !== 'metrics'"));
@@ -479,7 +480,8 @@ try {
 
   await test('Tier 1 request scoring has no access-key group priority path', () => {
     const tier1State = readFileSync(join(root, 'src', 'reliability', 'tier1-state.ts'), 'utf8');
-    const preflight = readFileSync(join(root, 'src', 'request', 'preflight.ts'), 'utf8');
+    const modern = join(root, 'apps', 'gateway', 'preflight.ts');
+    const preflight = readFileSync(existsSync(modern) ? modern : join(root, 'src', 'request', 'preflight.ts'), 'utf8');
     const schedulerTypes = readFileSync(join(root, 'src', 'types', 'scheduler.ts'), 'utf8');
     assert.ok(!tier1State.includes('priorityFactor'));
     assert.ok(!preflight.includes('GROUP_PRIORITY'));
