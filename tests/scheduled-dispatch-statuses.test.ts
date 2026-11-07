@@ -26,10 +26,7 @@ test("task dedupe finds a past signed slot under the same commit and context", a
     slot: oldSlot,
   };
   const context = "Task Schedule/MarketBrief";
-  const statuses = [
-    signed(context, recentSlot, "Task"),
-    signed(context, oldSlot, "Task"),
-  ];
+  const statuses = [signed(context, recentSlot, "Task"), signed(context, oldSlot, "Task")];
   const requested: string[] = [];
   const get = async (path: string): Promise<unknown> => {
     requested.push(path);
@@ -53,10 +50,7 @@ test("deploy dedupe finds a historical signed slot on the same head", async () =
     slot_time: new Date("2026-10-13T12:00:00Z"),
     schedule: ["0 12 * * *"],
   };
-  const statuses = [
-    signed(context, recentSlot, "Deploy"),
-    signed(context, oldSlot, "Deploy"),
-  ];
+  const statuses = [signed(context, recentSlot, "Deploy"), signed(context, oldSlot, "Deploy")];
   const get = async (path: string): Promise<unknown> => {
     if (path.includes("&since=") || path.includes("&until=")) return [];
     if (path.includes("/statuses?per_page=100&page=1")) return statuses;
@@ -78,9 +72,7 @@ test("signed schedule receipts on a second status-history page are found", async
     `Task dispatched for ${oldSlot}`,
     async (path) => {
       requested.push(path);
-      return path.endsWith("page=1")
-        ? newerStatuses
-        : [signed(context, oldSlot, "Task")];
+      return path.endsWith("page=1") ? newerStatuses : [signed(context, oldSlot, "Task")];
     }
   );
   assert.equal(found, true);
