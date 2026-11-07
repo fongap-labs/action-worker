@@ -76,6 +76,29 @@ Action Worker 负责：
 
 这是零新增依赖的本地检查入口，不强制安装 Git Hook、Docker 或 act，也不运行需要 GitHub App、远程权限、签名密钥、受保护 Runner 或真实生产环境的检查。`validate-merge`、Security Gate、CI Evidence 和 Main Write Guard 始终以 GitHub 执行结果为准。
 
+### 业务仓库通用本地预检（无复制脚本）
+
+在本地拥有 `action-worker` 和任一业务仓库的检出目录时，从 Action Worker 运行：
+
+```bash
+npm run preflight:business -- ../dsh-plugin quick
+npm run preflight:business -- ../dsh-plugin full
+```
+
+工具读取业务仓库已有的 `.github/release.manifest.json`、`projects/*/release.manifest.json`、`deploy.json`，校验 Release Manifest 合同、Runner Profile 和本地构建/验收脚本路径。不运行部署。
+
+业务仓库可选声明 `.github/preflight.json`，不必复制脚本：
+
+```json
+{ "schema_version": 1, "checks": [
+  { "id": "unit", "command": "npm", "args": ["test"], "mode": "quick" },
+  { "id": "types", "command": "npm", "args": ["run", "typecheck"], "mode": "full" }
+] }
+```
+
+`quick` 运行契约及快速声明检查，`full` 还执行完整声明检查。只能调用 npm/pnpm/node/python/python3/cargo，不通过 shell 拼接命令；命令在本机以当前用户权限执行，勿对不可信代码运行。`action-worker` 需先执行 `npm ci`。此工具无法代替 GitHub App 权限、远程 Runner、真实签名与中央 `validate-merge`。
+
+中央 CI 的 `Public downstream compatibility` 在 Runner 政策、发布/部署合同解析器变化时，读取 `fongap-labs` 的**公开仓库**默认分支清单并进行新旧 Runner 兼容性对比。该步骤不借用高权限 GitHub App Token；私有仓库不会被误报为已扫描。发现新回归即阻止中央 PR 合并。
 ## 5. 持续集成
 
 能够从仓库外部运行的测试，保存在 Action Worker 的测试包中（[TEST_PACKS.md](TEST_PACKS.md)）；其余测试保留在业务仓库中。所有测试默认都在 Action Worker 的沙箱中运行。
