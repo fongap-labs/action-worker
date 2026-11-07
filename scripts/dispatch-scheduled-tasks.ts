@@ -12,11 +12,8 @@ import { getGithubJson, githubEnvironment, githubExists, isJsonRecord } from "./
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import { scheduledDispatchCandidateShas } from "./scheduled-dispatch-candidates.ts";
-import {
-  hasValidStatusAttestation,
-  originalStatusDescription,
-  signedStatusDescription,
-} from "./status-attestation.ts";
+import { hasScheduledDispatchReceipt } from "./scheduled-dispatch-statuses.ts";
+import { signedStatusDescription } from "./status-attestation.ts";
 
 export type TaskSourceManifest = {
   schema_version: "1";
@@ -270,19 +267,9 @@ export async function wasDispatched(
   const context = scheduleContext(task.project);
   const description = scheduleDescription(task.slot);
   for (const sha of heads) {
-    const value = await get(`repos/${task.repository}/commits/${sha}/status`);
-    if (!isJsonRecord(value) || !Array.isArray(value.statuses)) {
-      throw new CliError(`GitHub task schedule status is invalid: ${task.repository}.`, 65);
+    if (await hasScheduledDispatchReceipt(task.repository, sha, context, description, get)) {
+      return true;
     }
-    const isRecorded = value.statuses.some(
-      (item) =>
-        isJsonRecord(item) &&
-        item.context === context &&
-        item.state === "success" &&
-        originalStatusDescription(item) === description &&
-        hasValidStatusAttestation(item, { repository: task.repository, sha, context })
-    );
-    if (isRecorded) return true;
   }
   return false;
 }
@@ -396,7 +383,7 @@ async function main(): Promise<void> {
       await wasDispatched(task, (path) =>
         getGithubJson(
           path,
-          /\/commits\/[^/]+\/status(?:\?|$)/.test(path) ? statusToken : controlToken
+          /\/commits\/[^/]+\/statuses(?:\?|$)/.test(path) ? statusToken : controlToken
         )
       )
     ) {
