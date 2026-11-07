@@ -51,10 +51,7 @@ export async function scheduledDispatchCandidateShas(
 
   // Include the last head preceding the slot; it may contain the receipt when
   // a scheduled run started just after a commit boundary.
-  for (const sha of commitShas(
-    await get(`${base}&until=${slotTime}&per_page=1`),
-    repository
-  )) {
+  for (const sha of commitShas(await get(`${base}&until=${slotTime}&per_page=1`), repository)) {
     candidates.add(sha);
   }
   return candidates;
