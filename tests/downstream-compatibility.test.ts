@@ -65,14 +65,14 @@ test("public repo discovery inspects root and projects manifests read-only", asy
       return [{ full_name: "fongap-labs/example", default_branch: "main" }];
     if (url.includes("/git/trees/"))
       return {
-      truncated: false,
-      tree: [{ path: "projects/desktop/release.manifest.json", type: "blob" }],
-    };
+        truncated: false,
+        tree: [{ path: "projects/desktop/release.manifest.json", type: "blob" }],
+      };
     if (url.includes("/contents/"))
       return {
-      encoding: "base64",
-      content: Buffer.from(JSON.stringify(manifest)).toString("base64"),
-    };
+        encoding: "base64",
+        content: Buffer.from(JSON.stringify(manifest)).toString("base64"),
+      };
     throw new Error("Unexpected GitHub API URL");
   };
   const consumers = await collectPublicConsumers("fongap-labs", getJson);
