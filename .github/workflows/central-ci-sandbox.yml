@@ -41,9 +41,14 @@ on:
       is_private:
         required: true
         type: string
+      private_windows_numeric_diagnostic:
+        description: Trusted central policy grant for bounded private Windows numeric diagnostics
+        required: false
+        type: string
+        default: "false"
     outputs:
       windows_diagnostic:
-        description: Numeric failure index and count for private WinCleaner test suites only
+        description: Numeric failure index and count for centrally authorized private Windows suites only
         value: ${{ jobs.windows.outputs.windows_diagnostic }}
     secrets:
       checkout_token:
@@ -372,12 +377,12 @@ jobs:
 
           Write-Host "Central Windows CI passed for $env:TARGET_REPOSITORY."
 
-      # Only a numeric test index is released from the private Windows log.
+      # Only centrally authorized private Windows suites may export numeric failure indices.
       # The source code, test names, paths and stderr stay in runner-local log.
       # This diagnostic cannot change or bypass any CI success verdict.
       - name: Export private test index
         id: private_diag
-        if: always() && inputs.is_private == 'true' && inputs.repository == 'fongap-labs/app-source'
+        if: always() && inputs.is_private == 'true' && inputs.private_windows_numeric_diagnostic == 'true'
         shell: pwsh
         run: |
           $log = Join-Path $env:RUNNER_TEMP "central-ci-windows.log"
