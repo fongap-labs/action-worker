@@ -202,6 +202,22 @@ runner_profile → 中央运行器解析
 
 桥接使用受限 `AW_DISPATCH_TOKEN`，不检出或执行源码。桥接不可用时由中央对账补发现；发布及部署仍须主分支来源证明。模板位置为 `templates/bridge/notify-action-worker.yml`。
 
+## 9. 组织仓库自动发现
+
+`自动 · 组织仓库发现` 使用 `fongap-bot` 安装令牌定期列出可访问的组织仓库，从 `policies/organization-onboarding.json` 的版本化授权生成兼容旧工作流的 `AW_REPOSITORY_POLICY`。该变量由中央自动同步，不再要求维护者逐项编辑；仓库清单发生变化后触发中央 Intake 与统一仓库设置工作流。
+
+### ❌ 错误做法 / 反面教材
+
+把新增仓库自动赋予发布、部署或拥有全部密钥的权限。
+
+### ✅ 正确做法 / 规范范例
+
+新创建的、`main` 为默认分支的仓库只自动获得 `pr` 治理；`task`、`release-source`、`release-target`、`deploy` 等能力只来自受保护的版本化授权文件。旧仓库不会被意外自动接管，`delta-legacy` 明确排除。归档、不可访问或已删除的仓库从运行时列表中暂停，恢复访问后由版本化策略自动恢复其原有授权。
+
+**一次性组织设置**：若希望新建仓库免人工添加，必须把 `fongap-bot` 的 GitHub App 安装范围设为 `All repositories`；仍为 `Only select repositories` 时，中央只能发现已授权仓库，不能替 GitHub 扩大安装范围。
+
+自动登记不等于自动放行 CI：新项目必须提供真实 CI 执行清单与验证脚本，缺失或失败时继续拒绝合并；任何正式发布、部署仍需单独授权和可信主分支来源证明。受管的私有仓库不因缺少 GitHub 原生 Ruleset 而获得发布、部署例外。
+
 ## 9. 定时与手动任务
 
 任务声明留在项目，调度归中央。
