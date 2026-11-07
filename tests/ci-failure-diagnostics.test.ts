@@ -65,3 +65,26 @@ test("the existing merge gate remains mandatory and diagnostics run only after a
   assert.match(workflow, /actions: read/);
   assert.doesNotMatch(workflow, /continue-on-error: true/);
 });
+
+test("failed CI jobs link to exact trusted GitHub jobs without allowing arbitrary URLs", () => {
+  const findings = summarizeFailures([
+    {
+      name: "Static analysis",
+      conclusion: "failure",
+      html_url: "https://github.com/fongap-labs/action-worker/actions/runs/123/job/456",
+      steps: [{ name: "Lint with Biome", conclusion: "failure" }],
+    },
+    {
+      name: "Security checks",
+      conclusion: "failure",
+      html_url: "https://evil.example.org/inject",
+      steps: [{ name: "Validate security gate", conclusion: "failure" }],
+    },
+  ]);
+  const summary = markdownFailureSummary(findings, "fongap-labs/action-worker", "123");
+  assert.match(
+    summary,
+    /\[Static analysis\]\(https:\/\/github\.com\/fongap-labs\/action-worker\/actions\/runs\/123\/job\/456\)/
+  );
+  assert.doesNotMatch(summary, /evil\.example\.org/);
+});

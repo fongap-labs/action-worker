@@ -1,5 +1,9 @@
 import { readFile } from "node:fs/promises";
-import { hasTrustedSuccessfulCiEvidence } from "./ci-evidence.ts";
+import {
+  hasTrustedSuccessfulCiEvidence,
+  latestCiStatus,
+  trustedControlRunId,
+} from "./ci-evidence.ts";
 import { requireToken } from "./control-token.ts";
 import {
   getGithubJson,
@@ -49,6 +53,39 @@ export function evaluateMergeDisplayGate(
     )
   );
   return { current: true, status: allGatesPassed ? "success" : "failure" };
+}
+
+/** Advisory diagnosis of the current head; cannot change the merge verdict. */
+export function blockedGateDiagnostics(
+  combinedStatus: unknown,
+  controlRepository: string,
+  targetRepository: string,
+  targetSha: string
+): string[] {
+  const lines: string[] = [];
+  for (const context of ["PR Governance", "CI Evidence", "validate-merge"]) {
+    if (
+      hasTrustedSuccessfulCiEvidence(
+        combinedStatus,
+        context,
+        controlRepository,
+        targetRepository,
+        targetSha
+      )
+    ) {
+      continue;
+    }
+    const latest = latestCiStatus(combinedStatus, context);
+    const reported = getJsonString(latest, "state");
+    const state = ["success", "failure", "error", "pending"].includes(reported)
+      ? reported
+      : "not-reported";
+    const url = getJsonString(latest, "target_url");
+    const runId = trustedControlRunId(url, controlRepository);
+    const link = runId === null ? "" : ` · [Inspect control run](${url})`;
+    lines.push(`- \`${context}\`: reported \`${state}\`, not a verified passing gate${link}`);
+  }
+  return lines;
 }
 
 async function syncMergeBlockedLabel(
@@ -113,7 +150,8 @@ export function buildReview(
   resultValue: unknown,
   isReviewQueued = false,
   deployGapHint = "",
-  isReviewFinished = false
+  isReviewFinished = false,
+  gateDiagnostics: readonly string[] = []
 ): string {
   const gate =
     status === "success"
@@ -125,6 +163,13 @@ export function buildReview(
   if (requiresMergeBlockedLabel(status)) {
     lines.push(
       "- **DO NOT MERGE:** The current PR head is not authorized for merging. Wait until `PR Governance`, `CI Evidence`, and `validate-merge` are all successful on the exact current commit. GitHub may still show the Merge button for private repositories without enforceable branch protection."
+    );
+  }
+  if (status === "failure" && gateDiagnostics.length > 0) {
+    lines.push("### Deterministic gate diagnostics", "", ...gateDiagnostics);
+    lines.push(
+      "",
+      "Use linked CI/Action Worker job annotations and logs to locate exact file and line references; AI Review cannot override the gate."
     );
   }
   if (status === "awaiting-approval") {
@@ -279,7 +324,10 @@ async function main(): Promise<void> {
     await optionalJson(resultPath),
     reviewState === "queued",
     deployGapHint,
-    reviewState === "finished"
+    reviewState === "finished",
+    status === "failure"
+      ? blockedGateDiagnostics(combinedStatus, controlRepository, repository, expectedHeadSha)
+      : []
   );
   // This label is a visible warning only. The verified commit statuses remain authoritative;
   // label API failures must never accidentally authorize a merge or conceal the gate comment.
