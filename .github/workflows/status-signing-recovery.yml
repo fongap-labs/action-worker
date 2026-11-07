@@ -23,7 +23,9 @@ jobs:
   bootstrap:
     name: Bootstrap missing CI evidence signing keys
     if: github.ref == 'refs/heads/main'
-    environment: admin-ops
+    environment:
+      name: admin-ops
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
