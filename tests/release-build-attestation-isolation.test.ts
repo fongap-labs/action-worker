@@ -67,3 +67,20 @@ test("dedicated attestation job only downloads artifacts and produces provenance
   );
   assert.deepEqual(workflow.jobs.package?.needs, ["prepare", "build", "attest"]);
 });
+
+test("declared acceptance runs on the unprivileged build runner before artifact upload", async () => {
+  const workflow = parse(
+    await readFile(".github/workflows/release-app.yml", "utf8")
+  ) as ReleaseWorkflow;
+  const build = workflow.jobs.build;
+  assert.ok(build);
+  const steps = build.steps ?? [];
+  const upload = steps.findIndex((step) => step.name === "Upload build assets");
+  const powershell = steps.findIndex((step) => step.name === "Run product acceptance (PowerShell)");
+  const node = steps.findIndex((step) => step.name === "Run product acceptance (Node)");
+  assert.ok(powershell >= 0 && node > powershell && upload > node);
+  assert.match(steps[powershell]?.if ?? "", /matrix.acceptance_script/);
+  assert.match(steps[node]?.if ?? "", /matrix.acceptance_script/);
+  assert.notEqual(build.permissions?.["id-token"], "write");
+  assert.notEqual(build.permissions?.attestations, "write");
+});

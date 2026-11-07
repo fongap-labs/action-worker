@@ -191,3 +191,24 @@ test("business-owned release matrix resolves across enabled central platform pro
     assert.equal(resolved.profile.enabled, true);
   }
 });
+
+test("product acceptance script is optional and must stay within the product root", () => {
+  assert.equal(parseReleaseBuildManifest(manifest).builds[0]?.acceptance_script, undefined);
+  for (const script of ["scripts/verify.mjs", "scripts/verify.ps1"]) {
+    const parsed = parseReleaseBuildManifest({
+      ...manifest,
+      builds: [{ ...manifest.builds[0], acceptance_script: script }],
+    });
+    assert.equal(parsed.builds[0]?.acceptance_script, script);
+  }
+  for (const script of ["", "../verify.mjs", "/tmp/verify.ps1", "scripts/verify.sh", 42]) {
+    assert.throws(
+      () =>
+        parseReleaseBuildManifest({
+          ...manifest,
+          builds: [{ ...manifest.builds[0], acceptance_script: script }],
+        }),
+      /matrix entry is invalid/
+    );
+  }
+});
