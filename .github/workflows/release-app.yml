@@ -307,6 +307,52 @@ jobs:
           fi
           node "$script" --target "$RELEASE_TARGET" --version "$RELEASE_VERSION" --output-dir "$RELEASE_OUTPUT_DIR"
 
+      # Product-declared acceptance runs on the same unprivileged platform runner as its build.
+      # Legacy products without acceptance_script keep their existing release behavior.
+      - name: Run product acceptance (PowerShell)
+        if: ${{ endsWith(matrix.acceptance_script, '.ps1') }}
+        shell: pwsh
+        env:
+          RELEASE_TARGET: ${{ matrix.target }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_OUTPUT_DIR: ${{ runner.temp }}/release-build
+          RELEASE_PRODUCT_RELATIVE_ROOT: ${{ needs.prepare.outputs.product_root }}
+          ACCEPTANCE_SCRIPT: ${{ matrix.acceptance_script }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $relativeRoot = if ($env:RELEASE_PRODUCT_RELATIVE_ROOT) { $env:RELEASE_PRODUCT_RELATIVE_ROOT } else { "." }
+          $env:RELEASE_PRODUCT_ROOT = [System.IO.Path]::GetFullPath((Join-Path (Join-Path $env:GITHUB_WORKSPACE "source") $relativeRoot))
+          $script = Join-Path $env:RELEASE_PRODUCT_ROOT $env:ACCEPTANCE_SCRIPT
+          if (-not (Test-Path -LiteralPath $script -PathType Leaf)) {
+            throw "Release acceptance script not found: $script"
+          }
+          & $script -Target $env:RELEASE_TARGET -Version $env:RELEASE_VERSION -OutputDir $env:RELEASE_OUTPUT_DIR
+          if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+          }
+
+      - name: Run product acceptance (Node)
+        if: ${{ endsWith(matrix.acceptance_script, '.mjs') }}
+        shell: bash
+        env:
+          RELEASE_TARGET: ${{ matrix.target }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+          RELEASE_OUTPUT_DIR: ${{ runner.temp }}/release-build
+          RELEASE_PRODUCT_RELATIVE_ROOT: ${{ needs.prepare.outputs.product_root }}
+          ACCEPTANCE_SCRIPT: ${{ matrix.acceptance_script }}
+        run: |
+          set -Eeuo pipefail
+          product_root="$GITHUB_WORKSPACE/source"
+          if [[ -n "$RELEASE_PRODUCT_RELATIVE_ROOT" ]]; then
+            product_root="$product_root/$RELEASE_PRODUCT_RELATIVE_ROOT"
+          fi
+          script="$product_root/$ACCEPTANCE_SCRIPT"
+          if [[ ! -f "$script" ]]; then
+            echo "::error::Release acceptance script not found: $script" >&2
+            exit 1
+          fi
+          node "$script" --target "$RELEASE_TARGET" --version "$RELEASE_VERSION" --output-dir "$RELEASE_OUTPUT_DIR"
+
       - name: Upload build assets
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
