@@ -18,7 +18,11 @@ export type WorkflowJobFact = {
 
 export function classifyFailure(job: string, step: string): FailedStep {
   const label = `${job} ${step}`.toLowerCase();
-  if (/secret|security (?:scan|checks|gate)|attestation|provenance|main write guard|signature/.test(label)) {
+  if (
+    /secret|security (?:scan|checks|gate)|attestation|provenance|main write guard|signature/.test(
+      label
+    )
+  ) {
     return {
       job,
       step,
@@ -36,7 +40,11 @@ export function classifyFailure(job: string, step: string): FailedStep {
       recommendation: "Check GitHub App installation scope and the requested token permissions.",
     };
   }
-  if (/lint|biome|typescript|type.check|unit tests|contract tests|naming|actionlint|static analysis/.test(label)) {
+  if (
+    /lint|biome|typescript|type.check|unit tests|contract tests|naming|actionlint|static analysis/.test(
+      label
+    )
+  ) {
     return {
       job,
       step,
@@ -45,13 +53,16 @@ export function classifyFailure(job: string, step: string): FailedStep {
       recommendation: "Fix the code or test failure; rerun the unchanged merge gate.",
     };
   }
-  if (/checkout|setup node|install dependencies|npm ci|runner|network|rate limit|download/.test(label)) {
+  if (
+    /checkout|setup node|install dependencies|npm ci|runner|network|rate limit|download/.test(label)
+  ) {
     return {
       job,
       step,
       kind: "infrastructure",
       severity: "low",
-      recommendation: "Check the runner and dependency availability; retry only transient failures.",
+      recommendation:
+        "Check the runner and dependency availability; retry only transient failures.",
     };
   }
   return {
@@ -103,7 +114,9 @@ export function markdownFailureSummary(
     "| --- | --- | --- | --- |",
     ...rows,
     ...(findings.length > 20 ? ["", `Further failed steps omitted: ${findings.length - 20}.`] : []),
-    ...(!findings.length ? ["", "No failed upstream step was visible; inspect the run directly."] : []),
+    ...(!findings.length
+      ? ["", "No failed upstream step was visible; inspect the run directly."]
+      : []),
     "",
   ].join("\n");
 }
@@ -141,7 +154,9 @@ async function main(): Promise<void> {
   const findings = summarizeFailures(jobs);
   appendFileSync(summaryPath, markdownFailureSummary(findings, repository, runId), "utf8");
   // Do not create an Issue, a duplicate notification or a privileged retry here.
-  console.log(`CI triage completed: ${findings.length} failed step(s); merge gate remains unchanged.`);
+  console.log(
+    `CI triage completed: ${findings.length} failed step(s); merge gate remains unchanged.`
+  );
 }
 
 if (isMain(import.meta.url)) {
