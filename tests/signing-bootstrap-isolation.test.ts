@@ -28,7 +28,7 @@ test("signing bootstrap failure cannot prevent repository settings reconciliatio
     bootstrap.steps.some((step) => step.name === "Bootstrap status signing keyring"),
     true
   );
-  assert.equal(bootstrap.environment, "admin-ops");
+  assert.deepEqual(bootstrap.environment, { name: "admin-ops", deployment: false });
   assert.equal(bootstrap.needs, undefined);
   assert.equal(control.needs, undefined);
   assert.equal(matrix.needs, "resolve-managed");
