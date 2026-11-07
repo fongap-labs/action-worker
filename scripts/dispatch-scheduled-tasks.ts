@@ -9,7 +9,7 @@ import {
   slotKey,
 } from "./cron-schedule.ts";
 import { getGithubJson, githubEnvironment, githubExists, isJsonRecord } from "./github-api.ts";
-import { repositoriesForCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, repositoriesForCapability  } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import {
   hasValidStatusAttestation,
@@ -369,7 +369,7 @@ async function dispatchTask(
 }
 
 async function main(): Promise<void> {
-  const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
+  const policyRaw = readRepositoryPolicyText() ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const statusToken = requireStatusToken();
   const ingressToken = process.env.AW_DISPATCH_API_TOKEN ?? "";
