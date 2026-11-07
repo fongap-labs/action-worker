@@ -10,8 +10,8 @@ import {
 } from "./cron-schedule.ts";
 import { getGithubJson, githubEnvironment, githubExists, isJsonRecord } from "./github-api.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
-import { scheduledDispatchCandidateShas } from "./scheduled-dispatch-candidates.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
+import { scheduledDispatchCandidateShas } from "./scheduled-dispatch-candidates.ts";
 import {
   hasValidStatusAttestation,
   originalStatusDescription,
@@ -251,7 +251,6 @@ function scheduleContext(project: string): string {
 function scheduleDescription(slot: string): string {
   return `Task dispatched for ${slot}`;
 }
-
 
 /**
  * The dispatch of a slot is recorded on the default-branch head of that moment, which is the head
