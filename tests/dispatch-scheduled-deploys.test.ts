@@ -191,8 +191,8 @@ function dedupeGet(statuses: Record<string, unknown[]>) {
   return async (path: string): Promise<unknown> => {
     if (path.includes("until=")) return [{ sha: head }];
     if (path.includes("since=")) return [{ sha: newerHead }, { sha: head }];
-    const sha = path.match(/commits\/([0-9a-f]{40})\/status$/)?.[1] ?? "";
-    return attestFixtureStatuses({ statuses: statuses[sha] ?? [] }, repository, sha);
+    const sha = path.match(/commits\/([0-9a-f]{40})\/statuses\?/)?.[1] ?? "";
+    return attestFixtureStatuses(statuses[sha] ?? [], repository, sha);
   };
 }
 
