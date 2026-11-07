@@ -1,12 +1,14 @@
 import {
+  } from "./dependency-repair.ts";
+import { GithubReader } from "./github-api.ts";
+import { readRepositoryPolicyText,
   decodeGithubContent,
   parseDependencyRepairManifest,
   parseDependencyRepairRequest,
   resolveDependencyRepairFacts,
   selectDependencyRepair,
-} from "./dependency-repair.ts";
-import { GithubReader } from "./github-api.ts";
-import { readRepositoryPolicyText, validateRepositoryCapability  } from "./repository-policy.ts";
+  validateRepositoryCapability,
+} from "./repository-policy.ts";
 import { parseRunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
 import {
   appendLines,
