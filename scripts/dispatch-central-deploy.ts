@@ -1,25 +1,21 @@
+import { requireToken } from "./control-token.ts";
 import {
-  } from "./deploy-manifest.ts";
+  type DeployAdapter,
+  parseDeployPlan,
+  type ResolvedDeployManifest,
+  resolveDeployManifest,
+  wholeRepositoryPath,
+} from "./deploy-manifest.ts";
 import {
   GithubHttpError,
-  } from "./github-api.ts";
-import { type ContentReader,
-  discoverProducts } from "./product-discovery.ts";
-import { readRepositoryPolicyText,
+  GithubReader,
   getJsonArray,
   getJsonString,
   githubEnvironment,
-  GithubReader,
-  hasRepositoryCapability,
   isJsonRecord,
-  parseDeployPlan,
-  requireToken } from "./control-token.ts";
-import {
-  type DeployAdapter,
-  resolveDeployManifest,
-  type ResolvedDeployManifest,
-  wholeRepositoryPath,
-} from "./repository-policy.ts";
+} from "./github-api.ts";
+import { type ContentReader, discoverProducts } from "./product-discovery.ts";
+import { hasRepositoryCapability, readRepositoryPolicyText } from "./repository-policy.ts";
 import {
   appendLines,
   CliError,
