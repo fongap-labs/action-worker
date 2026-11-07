@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { getGithubJson, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
+import { readRepositoryPolicyText } from "./repository-policy.ts";
 import { resolveGithubApiScope } from "./resolve-github-api-scope.ts";
 import {
   appendLines,
@@ -10,7 +11,6 @@ import {
   readJson,
 } from "./runtime-command.ts";
 import { validateRelease, validateReleaseProvenance } from "./validate-release-request.ts";
-import { readRepositoryPolicyText } from "./repository-policy.ts";
 
 export function releaseTargetFromArtifact(
   request: unknown,
