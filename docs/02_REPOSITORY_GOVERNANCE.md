@@ -75,7 +75,7 @@ node scripts/apply-repository-settings.ts <owner/name> true
 
 被取消或过期的运行不得冒充成功证据。
 
-公开仓库的 `main` 必须同时启用 GitHub 强制 Ruleset，明确要求 `validate-merge` 来自 `fongap-bot`（GitHub App ID `5609149`）；Action Worker 负责计算结论，GitHub 负责在合并前强制检查发布来源和结果。不得用只做事后审计的软门禁替代可用的原生分支保护。
+公开业务仓库的 `main` 要求 `validate-merge` 来自 `fongap-bot`（App ID `5609149`）。Action Worker 自身的 `validate-merge` 是 GitHub Actions 自检（App ID `15368`），由同一份策略在应用时识别，不能错误锁定为业务仓库的机器人。GitHub 负责合并前拦截，中央审计不能替代平台硬门禁。
 
 ## 4. 平台保护
 
