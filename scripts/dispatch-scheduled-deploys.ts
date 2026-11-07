@@ -17,7 +17,6 @@ import {
 } from "./github-api.ts";
 import { type ContentReader, discoverProducts } from "./product-discovery.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
-import { scheduledDispatchCandidateShas } from "./scheduled-dispatch-candidates.ts";
 import {
   appendLines,
   CliError,
@@ -27,6 +26,7 @@ import {
   readJson,
   runCommand,
 } from "./runtime-command.ts";
+import { scheduledDispatchCandidateShas } from "./scheduled-dispatch-candidates.ts";
 import {
   hasValidStatusAttestation,
   originalStatusDescription,
