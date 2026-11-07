@@ -1,5 +1,5 @@
 import { GithubReader, githubEnvironment, githubExists } from "./github-api.ts";
-import { repositoriesForCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, repositoriesForCapability  } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import { decodeGithubContent, parseSecurityScanManifest } from "./security-scan.ts";
 
@@ -87,7 +87,7 @@ export async function scanDefaultBranchSecurity(
 
 async function main(): Promise<void> {
   const policy = parseJson(
-    process.env.AW_REPOSITORY_POLICY ?? "",
+    readRepositoryPolicyText() ?? "",
     "AW_REPOSITORY_POLICY must be valid JSON.",
     65
   );
