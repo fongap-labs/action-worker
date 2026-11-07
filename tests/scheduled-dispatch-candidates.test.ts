@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { scheduledDispatchCandidateShas } from "../scripts/scheduled-dispatch-candidates.ts";
 import { wasScheduledDeployDispatched } from "../scripts/dispatch-scheduled-deploys.ts";
-import { wasDispatched, type ScheduledTask } from "../scripts/dispatch-scheduled-tasks.ts";
+import { type ScheduledTask, wasDispatched } from "../scripts/dispatch-scheduled-tasks.ts";
+import { scheduledDispatchCandidateShas } from "../scripts/scheduled-dispatch-candidates.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const repository = "fongap-labs/example";
