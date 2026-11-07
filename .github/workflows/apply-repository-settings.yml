@@ -20,6 +20,8 @@ on:
       - .github/workflows/apply-repository-settings.yml
   schedule:
     - cron: "43 4 * * *"
+  repository_dispatch:
+    types: [managed-repositories-changed]
 
 permissions:
   contents: read
