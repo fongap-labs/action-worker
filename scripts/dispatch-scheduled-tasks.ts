@@ -11,6 +11,7 @@ import {
 import { getGithubJson, githubEnvironment, githubExists, isJsonRecord } from "./github-api.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
+import { scheduledDispatchCandidateShas } from "./scheduled-dispatch-candidates.ts";
 import {
   hasValidStatusAttestation,
   originalStatusDescription,
@@ -251,19 +252,6 @@ function scheduleDescription(slot: string): string {
   return `Task dispatched for ${slot}`;
 }
 
-function commitShas(value: unknown, repository: string): string[] {
-  if (!Array.isArray(value)) {
-    throw new CliError(`GitHub commit list is invalid: ${repository}.`, 65);
-  }
-  return value.map((item) => {
-    const sha = isJsonRecord(item) && typeof item.sha === "string" ? item.sha : "";
-    if (!shaPattern.test(sha)) {
-      throw new CliError(`GitHub commit list is invalid: ${repository}.`, 65);
-    }
-    return sha;
-  });
-}
-
 /**
  * The dispatch of a slot is recorded on the default-branch head of that moment, which is the head
  * of the slot time or a later one. Look at every one of those heads, so a new commit on the default
@@ -273,13 +261,12 @@ export async function wasDispatched(
   task: ScheduledTask,
   get: (path: string) => Promise<unknown>
 ): Promise<boolean> {
-  const slotTime = `${task.slot.slice(0, 16)}:00Z`;
-  const base = `repos/${task.repository}/commits?sha=${task.head_sha}`;
-  const heads = new Set([
+  const heads = await scheduledDispatchCandidateShas(
+    task.repository,
     task.head_sha,
-    ...commitShas(await get(`${base}&since=${slotTime}&per_page=100`), task.repository),
-    ...commitShas(await get(`${base}&until=${slotTime}&per_page=1`), task.repository),
-  ]);
+    task.slot,
+    get
+  );
   const context = scheduleContext(task.project);
   const description = scheduleDescription(task.slot);
   for (const sha of heads) {
