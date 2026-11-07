@@ -97,7 +97,7 @@ test("manual deploy resolves private source HEAD with pre-minted scoped App read
   const step = steps[manual];
   assert.equal(step?.if, "github.event_name == 'workflow_dispatch'");
   assert.equal(step?.env?.AW_DEPLOY_SOURCE_READ_TOKEN, "${{ steps.app_read.outputs.token }}");
-  assert.equal(step?.env?.AW_REPOSITORY_POLICY, "${{ vars.AW_REPOSITORY_POLICY }}");
+  assert.equal(step?.env?.AW_REPOSITORY_POLICY, undefined);
   assert.doesNotMatch(source, /AW_CHECKOUT_TOKEN: \$\{\{ secrets\.AW_CHECKOUT_TOKEN \}\}/);
   const manualBlock =
     source
