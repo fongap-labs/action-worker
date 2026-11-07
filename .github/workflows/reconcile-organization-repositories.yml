@@ -1,0 +1,54 @@
+name: 自动 · 组织仓库发现
+
+# Periodically reconciles the App installation inventory with versioned grants.
+# The GitHub App installation must be set to All repositories for zero-touch enrollment.
+on:
+  push:
+    branches: [main]
+    paths:
+      - policies/organization-onboarding.json
+      - scripts/reconcile-organization-repositories.ts
+      - .github/workflows/reconcile-organization-repositories.yml
+  schedule:
+    - cron: "19,49 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reconcile-organization-repositories
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    name: Discover and reconcile repositories
+    runs-on: ubuntu-24.04
+    environment: admin-ops
+    timeout-minutes: 10
+    steps:
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Mint inventory-only App token
+        id: inventory_app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          permission-contents: read
+
+      - name: Reconcile installed repositories
+        env:
+          AW_INVENTORY_APP_TOKEN: ${{ steps.inventory_app.outputs.token }}
+          AW_ADMIN_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
+        run: node scripts/reconcile-organization-repositories.ts
