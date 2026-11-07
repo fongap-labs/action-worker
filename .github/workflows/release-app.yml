@@ -344,7 +344,7 @@ jobs:
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           # Attest all files from this business-declared build, not just the legacy opt-in marker.
-          # The build job uploads only its declared asset names to this isolated artifact.
+          # The package step later rejects assets not listed in the business manifest.
           subject-path: ${{ runner.temp }}/release-build/*
 
   package:
