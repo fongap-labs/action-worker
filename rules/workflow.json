@@ -3,7 +3,7 @@
     {
       "path": "**/*",
       "merge_system_rule": true,
-      "rule": "Focus on GitHub Actions trust boundaries, event semantics, permissions, secret exposure, expression or shell injection, action pinning, concurrency, failure behavior, and merge-gate correctness."
+      "rule": "Focus on GitHub Actions trust boundaries, event semantics, permissions, secret exposure, expression or shell injection, action pinning, concurrency, failure behavior, and merge-gate correctness. External actions and reusable workflows must be pinned to an immutable full commit SHA, while business-owned manifests select Runner Profiles (not Runner labels). Check schema_version compatibility and document breaking transitions rather than silently changing downstream execution. AI findings remain advisory: never suggest changing or bypassing deterministic validate-merge, CI Evidence or security gates."
     }
   ]
 }
