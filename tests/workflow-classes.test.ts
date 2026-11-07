@@ -33,8 +33,6 @@ const classes = {
   ],
   // Read-only diagnostics are operator-started and never trigger deployments or governance.
   diagnostic: ["runner-isolation-canary.yml", "verify-github-app.yml"],
-  // Explicit GitHub environment approval by the repository owner, no second maintainer.
-  approval: ["approve-control-plane.yml"],
   // Approved manual-only operations that mutate production Worker Secrets.
   operation: ["ai-gateway-ops.yml"],
   // Protected, manual-only recovery; no repository_dispatch bypass of explicit confirmation.
@@ -75,7 +73,6 @@ type WorkflowClass = keyof typeof classes;
 const allowedTriggers: Record<WorkflowClass, readonly string[]> = {
   entry: ["repository_dispatch", "workflow_dispatch"],
   diagnostic: ["workflow_dispatch"],
-  approval: ["workflow_dispatch"],
   operation: ["workflow_dispatch"],
   recovery: ["workflow_dispatch"],
   intake: ["push", "repository_dispatch", "schedule"],
@@ -147,15 +144,6 @@ test("only entry, diagnostic and protected operations workflows show a Run workf
       const job = workflow.jobs?.bootstrap as Job & { environment?: string; if?: string };
       assert.equal(job.environment, "admin-ops", `${file} requires admin-ops`);
       assert.equal(job.if, "github.ref == 'refs/heads/main'", `${file} requires main`);
-      continue;
-    }
-    if (kind === "approval") {
-      assert.deepEqual(Object.keys(triggers), ["workflow_dispatch"], `${file} is manual-only`);
-      assert.deepEqual(Object.keys(workflow.jobs ?? {}), ["confirm"]);
-      const job = workflow.jobs?.confirm as Job & { environment?: string; if?: string };
-      assert.equal(job.environment, "control-plane-approval");
-      assert.match(job.if ?? "", /github\.ref == 'refs\/heads\/main'/);
-      assert.match(job.if ?? "", /github\.actor == 'fongap'/);
       continue;
     }
     if (kind === "operation") {
