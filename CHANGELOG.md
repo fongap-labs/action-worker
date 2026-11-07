@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: AI Gateway fallback 容量测试读取实际 Gateway 所有权模块，兼容源文件未迁移和兼容导出两种布局，保留 Tier 1 maxInFlight 断言。
+
 - 修复: AI Gateway 中央测试按实际运行模块选择 Gateway 预检源码，兼容原 src 路径与拆分后的 apps/gateway，继续验证路由、仪表盘及 RPM 豁免语义。
 
 - 修复: 定时任务和部署使用 GitHub 完整提交状态历史验证已签名的旧时段派发回执，不再依赖仅保留上下文最新状态的合并视图；历史扫描分页且超限拒绝危险重放。
