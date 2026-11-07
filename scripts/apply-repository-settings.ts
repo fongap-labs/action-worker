@@ -65,11 +65,7 @@ export function rulesetsForRepository(
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(controlRepository)) {
     throw new CliError("Trusted control repository is required for ruleset scoping.", 2);
   }
-  return rulesets
-    .filter(
-      (ruleset) => ruleset.name !== "Protect Control Plane" || repository === controlRepository
-    )
-    .map((ruleset) => {
+  return rulesets.map((ruleset) => {
       // Business statuses are written by fongap-bot (App 5609149). The control
       // repository's self-CI emits the same check from GitHub Actions (App 15368).
       if (repository !== controlRepository || ruleset.name !== "Protect Main Branch") {
