@@ -107,7 +107,6 @@ jobs:
 
       - name: Verify private source and output target publication policy
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ github.repository_owner }}/external-vault
         shell: bash
         run: |
@@ -264,7 +263,6 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.canary_target.outputs.token }}
           CONTROL_DISPATCH_TOKEN: ${{ steps.canary_dispatch.outputs.token }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_OWNER: ${{ github.repository_owner }}
         shell: bash
         run: |
