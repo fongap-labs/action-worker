@@ -1,14 +1,22 @@
-import { trustedControlRunId } from "./ci-evidence.ts";
 import {
-  decodeGithubContent,
+  } from "./dependency-repair.ts";
+import { githubEnvironment,
+  evaluatePrTrust,
+  isJsonRecord,
+  listPullReviews } from "./pr-trust.ts";
+import { readRepositoryPolicyText,
   parseDependencyRepairManifest,
+  repositoriesForCapability,
+  reserveIntakeCommitStatus } from "./intake-status-token.ts";
+import { AWAITING_APPROVAL_DESCRIPTION,
   resolveDependencyRepairFacts,
   selectDependencyRepair,
-} from "./dependency-repair.ts";
-import { githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api.ts";
-import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
-import { AWAITING_APPROVAL_DESCRIPTION, evaluatePrTrust, listPullReviews } from "./pr-trust.ts";
-import { readRepositoryPolicyText, repositoriesForCapability  } from "./repository-policy.ts";
+  statusAwareReader } from "./github-api.ts";
+import { requireIntakeStatusToken,
+  trustedControlRunId } from "./ci-evidence.ts";
+import {
+  decodeGithubContent,
+} from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import { hasValidStatusAttestation, originalStatusDescription } from "./status-attestation.ts";
 
