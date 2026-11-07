@@ -8,10 +8,12 @@ export type FailedStep = {
   kind: FailureKind;
   severity: "high" | "medium" | "low";
   recommendation: string;
+  job_url?: string;
 };
 
 export type WorkflowJobFact = {
   name?: string;
+  html_url?: string;
   conclusion?: string | null;
   steps?: Array<{ name?: string; conclusion?: string | null }>;
 };
@@ -74,6 +76,13 @@ export function classifyFailure(job: string, step: string): FailedStep {
   };
 }
 
+function safeJobUrl(value: string | undefined): string | undefined {
+  return typeof value === "string" &&
+    /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/[0-9]+\/job\/[0-9]+$/.test(value)
+    ? value
+    : undefined;
+}
+
 export function summarizeFailures(jobs: readonly WorkflowJobFact[]): FailedStep[] {
   const failures: FailedStep[] = [];
   for (const job of jobs) {
@@ -81,11 +90,17 @@ export function summarizeFailures(jobs: readonly WorkflowJobFact[]): FailedStep[
     if (!job.name || job.name === "validate-merge" || job.conclusion !== "failure") continue;
     const steps = (job.steps ?? []).filter((step) => step.conclusion === "failure");
     if (steps.length === 0) {
-      failures.push(classifyFailure(job.name, "Unknown failing step"));
+      failures.push({
+        ...classifyFailure(job.name, "Unknown failing step"),
+        job_url: safeJobUrl(job.html_url),
+      });
       continue;
     }
     for (const step of steps) {
-      failures.push(classifyFailure(job.name, step.name || "Unknown failing step"));
+      failures.push({
+        ...classifyFailure(job.name, step.name || "Unknown failing step"),
+        job_url: safeJobUrl(job.html_url),
+      });
     }
   }
   const weight = { high: 0, medium: 1, low: 2 };
@@ -103,7 +118,9 @@ export function markdownFailureSummary(
 ): string {
   const url = `https://github.com/${repository}/actions/runs/${runId}`;
   const rows = findings.slice(0, 20).map((item) => {
-    return `| ${safeLabel(item.job)} | ${safeLabel(item.step)} | ${item.kind} / ${item.severity} | ${safeLabel(item.recommendation)} |`;
+    const jobUrl = safeJobUrl(item.job_url);
+    const job = jobUrl ? `[${safeLabel(item.job)}](${jobUrl})` : safeLabel(item.job);
+    return `| ${job} | ${safeLabel(item.step)} | ${item.kind} / ${item.severity} | ${safeLabel(item.recommendation)} |`;
   });
   return [
     "### CI failure triage (informational; cannot override the merge gate)",
