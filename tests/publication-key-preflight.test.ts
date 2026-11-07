@@ -68,7 +68,7 @@ test("publication key validation never runs on pull-request-controlled code", as
   assert.ok(unprotected);
   assert.ok(protectedPair);
   assert.equal(unprotected.environment, undefined);
-  assert.equal(protectedPair.environment, "admin-ops");
+  assert.deepEqual(protectedPair.environment, { name: "admin-ops", deployment: false });
   assert.equal(protectedPair.needs, "unprotected-scope");
   assert.equal(
     unprotected.steps[0]?.env?.PUBLICATION_KEY_LEAKED,
@@ -103,7 +103,7 @@ test("trusted main preflight checks a single publication App writer in a protect
   };
   const publisher = workflow.jobs["publication-app"];
   assert.ok(publisher);
-  assert.equal(publisher.environment, "admin-ops");
+  assert.deepEqual(publisher.environment, { name: "admin-ops", deployment: false });
   assert.equal(publisher.needs, "protected-pair");
   assert.equal(publisher.if, "github.ref == 'refs/heads/main'");
   assert.equal(workflow.on.workflow_dispatch, undefined);
@@ -140,7 +140,7 @@ test("production keys perform a real encrypted artifact round-trip between clean
   assert.ok(opener);
   assert.equal(sealer.environment, undefined);
   assert.equal(sealer.needs, "unprotected-scope");
-  assert.equal(opener.environment, "admin-ops");
+  assert.deepEqual(opener.environment, { name: "admin-ops", deployment: false });
   assert.deepEqual(opener.needs, ["protected-pair", "smoke-seal"]);
   assert.equal(opener.if, "github.ref == 'refs/heads/main'");
   assert.equal(
@@ -173,7 +173,7 @@ test("protected App preflight validates the actual private-source publication ta
     >;
   };
   const job = flow.jobs["publication-app"];
-  assert.equal(job?.environment, "admin-ops");
+  assert.deepEqual(job?.environment, { name: "admin-ops", deployment: false });
   const step = job.steps.find(
     (item) => item.name === "Verify private source and output target publication policy"
   );
@@ -202,7 +202,7 @@ test("one-time governed canary needs an explicit main-commit marker", async () =
   };
   const job = flow.jobs["smoke-open"];
   assert.ok(job);
-  assert.equal(job.environment, "admin-ops");
+  assert.deepEqual(job.environment, { name: "admin-ops", deployment: false });
   const publisher = job.steps.find(
     (step) => step.name === "Publish canary through central PR governance"
   );

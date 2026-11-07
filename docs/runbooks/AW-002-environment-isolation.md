@@ -6,9 +6,26 @@
 | --- | --- | --- |
 | `production` | AI Gateway、MCP Hub、Internal Vault 中 Server Edge 的正式部署 | 按产品中央密钥白名单，仅注入本次产品所需凭据；不得配置人工审批，以免阻断自动部署 |
 | `ai-gateway-ops` | AI Gateway 运行时密钥盘点与更新 | 仅 main；配置必需审批人 |
+| `mcp-hub-ops` | MCP Hub 专属运维密钥与变量 | 仅运维用途，不登记 Deployment；审批规则按现有策略 |
 | `admin-ops` | Action Worker 管理员操作 | 保持现有策略 |
 
 `ai-gateway-ops` 不是部署目标，不得加入 `policies/deploy-environments.json`，也不得写入 AI Gateway 的 `.github/deploy.json`。
+
+### 管理与生产部署记录隔离
+
+所有引用 `*-ops` 的非部署 Job（包括 `admin-ops`、`ai-gateway-ops`、`mcp-hub-ops`）必须使用：
+
+```yaml
+environment:
+  name: mcp-hub-ops
+  deployment: false
+```
+
+该设置仍允许 Job 读取本环境的 Secrets 和 Variables，保留原有的等待及人工审批；不会产生新的 GitHub Deployment 记录。如果 Environment 启用了 GitHub App 自定义部署保护规则，`deployment: false` 不兼容，须先核查规则，不能直接关闭。
+
+实际代码部署继续使用 Action Worker 的 `deploy-source-script.yml` 及目标 `production` Environment；`prepare` 校验部署请求，`deploy` Job 根据中央允许清单绑定单个生产环境，保留 Deployment 审计。现有 `fongap-labs/mcp-hub` 的 `.github/deploy.json` 已声明 `production`。一个 Job 只能绑定一个 GitHub Environment，不能同时继承 `mcp-hub-ops` 与 `production` 的环境级 Secrets；生产凭据必须独立存放于 `production`。不自动复制或迁移机密值。
+
+变更只影响未来的部署对象创建，不会清除已有历史 Deployment。
 
 ## 正式部署凭据
 

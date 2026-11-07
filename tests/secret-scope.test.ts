@@ -465,7 +465,7 @@ test("task execution uses only policy-scoped Secret slots; deployment remains sc
 test("AI Gateway operations workflow is protected and never accepts secret values as inputs", async () => {
   const workflow = await readFile(".github/workflows/ai-gateway-ops.yml", "utf8");
   const handler = await readFile("scripts/ai-gateway-ops.ts", "utf8");
-  assert.match(workflow, /environment: ai-gateway-ops/);
+  assert.match(workflow, /environment:\s*\n\s*name: ai-gateway-ops\s*\n\s*deployment: false/);
   assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/);
   assert.match(workflow, /workflow_dispatch:/);
   assert.doesNotMatch(workflow, /repository_dispatch:/);

@@ -80,7 +80,7 @@ test("untrusted inventory and unexpected privilege changes fail closed", () => {
 test("automatic enrollment uses one versioned policy and the existing hard merge gate", async () => {
   const workflow = await readFile(".github/workflows/enroll-organization-repositories.yml", "utf8");
   const script = await readFile("scripts/enroll-organization-repositories.ts", "utf8");
-  assert.match(workflow, /environment: admin-ops/);
+  assert.match(workflow, /environment:\s*\n\s*name: admin-ops\s*\n\s*deployment: false/);
   assert.match(workflow, /ref: main/);
   assert.match(workflow, /permission-contents: read/);
   assert.match(workflow, /permission-pull-requests: write/);

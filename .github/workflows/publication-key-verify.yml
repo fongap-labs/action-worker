@@ -40,7 +40,9 @@ jobs:
     name: Verify protected RSA publication key pair
     needs: unprotected-scope
     if: github.ref == 'refs/heads/main'
-    environment: admin-ops
+    environment:
+      name: admin-ops
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -64,7 +66,9 @@ jobs:
     name: Verify scoped publication App write permission
     needs: protected-pair
     if: github.ref == 'refs/heads/main'
-    environment: admin-ops
+    environment:
+      name: admin-ops
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
@@ -193,7 +197,9 @@ jobs:
     name: Decrypt artifact on protected clean runner
     needs: [protected-pair, smoke-seal]
     if: github.ref == 'refs/heads/main'
-    environment: admin-ops
+    environment:
+      name: admin-ops
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     permissions:

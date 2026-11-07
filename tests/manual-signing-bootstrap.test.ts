@@ -34,7 +34,7 @@ test("manual signing recovery is a protected entry, not a manual maintenance job
   assert.deepEqual(Object.keys(workflow.jobs), ["bootstrap"]);
   const bootstrap = workflow.jobs.bootstrap;
   assert.ok(bootstrap);
-  assert.equal(bootstrap.environment, "admin-ops");
+  assert.deepEqual(bootstrap.environment, { name: "admin-ops", deployment: false });
   assert.equal(bootstrap.if, "github.ref == 'refs/heads/main'");
   assert.equal(bootstrap.needs, undefined);
   const confirm = bootstrap.steps.find((step) => step.name === "Require operator confirmation");

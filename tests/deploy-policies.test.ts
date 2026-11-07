@@ -419,7 +419,11 @@ test("every job that uses the admin token runs in the admin-ops environment", as
       const usesAdminToken = (job.steps ?? []).some((step) =>
         secretNames({ env: step.env, with: step.with }).includes("AW_ADMIN_TOKEN")
       );
-      if (usesAdminToken && job.environment !== "admin-ops") {
+      const environment = job.environment as { name?: string; deployment?: boolean } | undefined;
+      if (
+        usesAdminToken &&
+        (environment?.name !== "admin-ops" || environment?.deployment !== false)
+      ) {
         violations.push(`${name}#${jobName}`);
       }
     }
