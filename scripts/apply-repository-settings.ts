@@ -55,6 +55,21 @@ export function rulesetPayloads(value: unknown): RulesetPayload[] {
   });
 }
 
+/** The human-approval ruleset belongs only to the trusted control repository.
+ * Business repositories retain their automatic merge workflow. */
+export function rulesetsForRepository(
+  rulesets: readonly RulesetPayload[],
+  repository: string,
+  controlRepository: string
+): RulesetPayload[] {
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(controlRepository)) {
+    throw new CliError("Trusted control repository is required for ruleset scoping.", 2);
+  }
+  return rulesets.filter(
+    (ruleset) => ruleset.name !== "Protect Control Plane" || repository === controlRepository
+  );
+}
+
 function rulesetSnapshot(value: unknown): RulesetPayload {
   if (!isJsonRecord(value)) {
     throw new CliError("repository ruleset response is invalid");
@@ -205,7 +220,13 @@ async function main(): Promise<void> {
     }
   }
 
-  await applyRulesets(repository, token, response.private === true, rulesets);
+  const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
+  await applyRulesets(
+    repository,
+    token,
+    response.private === true,
+    rulesetsForRepository(rulesets, repository, controlRepository)
+  );
   console.log(`repository settings applied: ${repository}`);
 }
 
