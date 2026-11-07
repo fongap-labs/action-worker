@@ -112,7 +112,7 @@ jobs:
       name: admin-ops
       deployment: false
     needs: [prepare, analyze]
-    if: ${{ !cancelled() && needs.prepare.result == 'success' }}
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.analyze.result == 'success' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
 
