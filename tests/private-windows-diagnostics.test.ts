@@ -13,8 +13,14 @@ test("private Windows diagnostics emit only strictly bounded numerical indices",
   );
   assert.match(
     sandbox,
-    /if: always\(\) && inputs\.is_private == 'true' && inputs\.repository == 'fongap-labs\/app-source'/
+    /if: always\(\) && inputs\.is_private == 'true' && inputs\.private_windows_numeric_diagnostic == 'true'/
   );
+  assert.doesNotMatch(sandbox, /inputs\.repository == 'fongap-labs\/app-source'/);
+  assert.match(
+    dispatch,
+    /private_windows_numeric_diagnostic: \$\{\{ needs\.prepare\.outputs\.private_windows_numeric_diagnostic \}\}/
+  );
+  assert.match(dispatch, /IS_PRIVATE: \$\{\{ steps\.visibility\.outputs\.is_private \}\}/);
   assert.match(sandbox, /WC_TEST_FAIL_INDEX=\(\[1-9\]\[0-9\]\{0,2\}\)/);
   assert.match(sandbox, /windows_diagnostic=wc-tests-/);
   assert.match(sandbox, /Select-Object -First 5/);
