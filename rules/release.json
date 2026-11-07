@@ -1,10 +1,13 @@
 {
-  "include": ["**/*.jsonc", "CHANGELOG.md"],
+  "include": [
+    "**/*.jsonc",
+    "CHANGELOG.md"
+  ],
   "rules": [
     {
       "path": "**/*",
       "merge_system_rule": true,
-      "rule": "Focus on release correctness: versioning, compatibility, release notes, migration requirements, tagging, rollback, deployment impact, and whether the declared release impact matches the actual diff."
+      "rule": "Focus on release correctness: versioning, compatibility, release notes, migration requirements, tagging, rollback, deployment impact, and whether the declared release impact matches the actual diff. Release build platforms are declared in the business repository release.manifest.json builds array, not hard-coded in Action Worker. Check that target, runner_profile, script, assets and attestation are consistent with the declared product. Review Conventional Commits, release notes and migration claims against the actual change record; do not invent a DCO signature requirement unless a versioned organization policy explicitly mandates it."
     }
   ]
 }
