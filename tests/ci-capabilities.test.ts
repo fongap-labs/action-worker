@@ -118,12 +118,17 @@ test("shard declarations fail closed instead of silently running fewer jobs", ()
   );
 });
 
-
 test("private Windows numeric diagnostics are centrally allowed only for private named repositories", () => {
   const policy: unknown = JSON.parse(readFileSync("policies/ci-diagnostics.json", "utf8"));
   assert.equal(allowPrivateWindowsNumericDiagnostic(policy, "fongap-labs/app-source", true), true);
-  assert.equal(allowPrivateWindowsNumericDiagnostic(policy, "fongap-labs/app-source", false), false);
-  assert.equal(allowPrivateWindowsNumericDiagnostic(policy, "fongap-labs/internal-vault", true), false);
+  assert.equal(
+    allowPrivateWindowsNumericDiagnostic(policy, "fongap-labs/app-source", false),
+    false
+  );
+  assert.equal(
+    allowPrivateWindowsNumericDiagnostic(policy, "fongap-labs/internal-vault", true),
+    false
+  );
   assert.equal(allowPrivateWindowsNumericDiagnostic(policy, "fongap-labs/unlisted", true), false);
 });
 
@@ -134,7 +139,10 @@ test("private Windows numeric diagnostic policy rejects unknown or malformed gra
     { schema_version: 2, private_windows_numeric_diagnostics: [] },
     { schema_version: 1, private_windows_numeric_diagnostics: "all" },
     { schema_version: 1, private_windows_numeric_diagnostics: ["bad repository"] },
-    { schema_version: 1, private_windows_numeric_diagnostics: ["fongap-labs/app-source", "fongap-labs/app-source"] },
+    {
+      schema_version: 1,
+      private_windows_numeric_diagnostics: ["fongap-labs/app-source", "fongap-labs/app-source"],
+    },
     { schema_version: 1, private_windows_numeric_diagnostics: [], additional_grants: true },
   ];
   for (const value of invalid) {
