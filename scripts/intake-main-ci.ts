@@ -1,7 +1,14 @@
-import { trustedControlRunId } from "./ci-evidence.ts";
-import { getJsonString, githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api.ts";
-import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
-import { readRepositoryPolicyText, repositoriesForCapability  } from "./repository-policy.ts";
+import {
+  githubEnvironment,
+  isJsonRecord,
+  repositoriesForCapability,
+  reserveIntakeCommitStatus } from "./intake-status-token.ts";
+import { readRepositoryPolicyText,
+  statusAwareReader } from "./github-api.ts";
+import { requireIntakeStatusToken,
+  trustedControlRunId } from "./ci-evidence.ts";
+import { getJsonString,
+} from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import { hasValidStatusAttestation } from "./status-attestation.ts";
 
