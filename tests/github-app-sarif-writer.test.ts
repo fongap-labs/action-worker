@@ -9,6 +9,8 @@ type Step = {
   uses?: string;
   with?: Record<string, string>;
   env?: Record<string, string>;
+  run?: string;
+  "working-directory"?: string;
 };
 
 test("CodeQL publisher requests only target Security events write permission", async () => {
@@ -21,8 +23,12 @@ test("CodeQL publisher requests only target Security events write permission", a
     return step;
   };
   assert.doesNotMatch(source, /secrets\.AW_ADMIN_TOKEN/);
+  const checkout = find("Checkout security publisher");
+  assert.equal(checkout.with?.path, "control");
   const scope = find("Resolve SARIF target repository scope");
   assert.equal(scope.id, "sarif_scope");
+  assert.equal(scope["working-directory"], checkout.with?.path);
+  assert.equal(scope.run, "node scripts/resolve-github-api-scope.ts pr");
   assert.equal(scope.env?.TARGET_REPOSITORY, "${{ needs.prepare.outputs.repository }}");
   const mint = find("Mint target-only code scanning writer");
   assert.equal(mint.uses, "./control/.github/actions/mint-app-token");
