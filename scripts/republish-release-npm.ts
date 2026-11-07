@@ -11,19 +11,8 @@ import {
   runGithubCli,
 } from "./github-api.ts";
 import { configureNpmAuth, npmRegistry, publishNpmTarball } from "./npm-publish.ts";
-import { readRepositoryPolicyText } from "./repository-policy.ts";
 
-import { readRepositoryPolicyText,
-  readFile,
-  rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { requireToken } from "./control-token.ts";
-import {
-  getGithubJson,
-  runGithubCli,
-  validateRepositoryCapability,
-} from "./repository-policy.ts";
+import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import {
   appendLines,
   CliError,
