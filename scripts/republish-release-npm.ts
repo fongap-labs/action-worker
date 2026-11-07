@@ -12,7 +12,7 @@ import {
 } from "./github-api.ts";
 import { configureNpmAuth, npmRegistry, publishNpmTarball } from "./npm-publish.ts";
 
-import { validateRepositoryCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, validateRepositoryCapability  } from "./repository-policy.ts";
 import {
   appendLines,
   CliError,
@@ -253,7 +253,7 @@ async function main(): Promise<void> {
   const repository = process.env.NPM_REPUBLISH_REPOSITORY?.trim() ?? "";
   const tag = process.env.NPM_REPUBLISH_TAG?.trim() ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY?.trim() ?? "";
-  const rawPolicy = process.env.AW_REPOSITORY_POLICY;
+  const rawPolicy = readRepositoryPolicyText();
   if (!releaseToken || !npmToken || !rawPolicy) {
     throw new CliError("::error::Missing npm republish credentials or repository policy.", 65);
   }
