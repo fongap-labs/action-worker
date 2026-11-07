@@ -257,7 +257,7 @@ jobs:
             echo "No usable baseline; skip compatibility delta for initial push."
             exit 0
           fi
-          if ! git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(policies/runner\.json|scripts/(validate-release-build-request|runner-policy|deploy-manifest)\.ts|contracts/(release-manifest|deploy-manifest)\.json)$'; then
+          if ! git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(policies/runner\.json|scripts/(validate-release-build-request|runner-policy|deploy-manifest|downstream-compatibility)\.ts|contracts/(release-manifest|deploy-manifest)\.json)$'; then
             echo "No central contract changes; external API scan skipped."
             exit 0
           fi
