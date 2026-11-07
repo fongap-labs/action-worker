@@ -67,7 +67,6 @@ jobs:
       - name: Resolve ingress source read scope
         id: ingress_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ github.event.client_payload.source_repository || inputs.source_repository }}
         run: node scripts/resolve-github-api-scope.ts release-source
 
@@ -89,7 +88,6 @@ jobs:
         id: ingress
         env:
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           RELEASE_DISPATCH_JSON: ${{ toJSON(github.event.client_payload) }}
           RELEASE_SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           RELEASE_REQUESTED_VERSION: ${{ inputs.requested_version }}
@@ -114,7 +112,6 @@ jobs:
       - name: Resolve release source status scope
         id: api_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ steps.ingress.outputs.source_repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
@@ -142,7 +139,6 @@ jobs:
       # source now; the validation below waits for the verdict.
       - name: Request central CI for the source
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
@@ -157,7 +153,6 @@ jobs:
       - name: Resolve source audit API scope
         id: audit_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ steps.ingress.outputs.source_repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
@@ -187,7 +182,6 @@ jobs:
           AW_STATUS_API_TOKEN: ${{ steps.audit_status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_ISSUE_API_TOKEN: ${{ steps.audit_issue_app.outputs.token }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           MAIN_WRITE_AUDIT_REPOSITORY: ${{ steps.ingress.outputs.source_repository }}
           MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/audit-main-writes.ts
@@ -197,7 +191,6 @@ jobs:
         env:
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           RELEASE_BUILD_REQUEST_JSON: ${{ steps.ingress.outputs.request_json }}
         run: node scripts/validate-release-build-request.ts policies/runner.json
 
@@ -388,7 +381,6 @@ jobs:
       - name: Resolve release package source scope
         id: package_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.source_repository }}
         run: node scripts/resolve-github-api-scope.ts release-source
 
