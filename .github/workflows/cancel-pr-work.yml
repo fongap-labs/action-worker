@@ -33,13 +33,11 @@ jobs:
         id: payload
         env:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/validate-pr-payload.ts "$PAYLOAD"
 
       - name: Resolve cancellation read scope
         id: api_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ steps.payload.outputs.repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
