@@ -416,6 +416,8 @@ bootstrap_ref
 
 任务使用 `AW_CONTROL_TOKEN` 获取受管私有仓库的固定提交。bootstrap 下载完成后，`AW_CONTROL_TOKEN`、`AW_ADMIN_TOKEN`、`AIG_ACCESS_KEY_AGENT` 与 `AW_DISPATCH_TOKEN` 等中央凭据会从业务执行环境中移除。随后使用 `exec` 启动 bootstrap，从而替换掉带有全部密钥启动的 shell，使任务不会与该进程并存。
 
+定时任务和定时部署采用**每个时间槽最多发起一次派发请求**的语义，不承诺任务执行至少一次或端到端恰好一次。Intake 在发送请求前先写入带签名的 `pending` 预留状态；只有 GitHub 接受请求后才追加 `success` 回执。后续扫描将任一有效预留或成功回执视为该时段已尝试。派发结果不明确、成功回执写入失败或下游任务失败时都不会自动重发；维护者须先核对回执链接指向的 Intake 运行和下游运行，再决定是否手动恢复。扫描仍只选择回看窗口内最新命中的时段，不逐个补跑更早的遗漏时段。该语义优先避免自动重放可能产生副作用的任务，不提供持久队列或完成确认。
+
 - 当任务源仓库为私有仓库时，bootstrap 的输出会写入 Runner 的临时文件，而不是写入这个公开仓库的运行日志；日志只保留任务结果的摘要，该文件离开 Runner 时只以加密形式存在（见第 9.4 节）。
 - 任务可以在 `RUNNER_TEMP/action-worker-publication` 中暂存一个跨仓库发布请求，但业务任务不持有目标仓库的写入凭据。
 - 任务成功之后，Action Worker 会另行检查 `AW_REPOSITORY_POLICY`：源仓库需要 `release-source`，目标仓库需要 `release-target` 与 `pr`。只有在这些检查通过之后，`AW_CONTROL_TOKEN` 才会注入中央发布步骤，并通过 pull request 合并进目标仓库的 `main`（目标的 `main` 没有绕过项，并要求 PR 且 `validate-merge` 检查通过）。
