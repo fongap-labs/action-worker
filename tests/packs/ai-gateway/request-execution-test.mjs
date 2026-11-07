@@ -529,7 +529,20 @@ try {
   // Composition contract: real dispatch must use reserve-aware allocation; the
   // equal-share helper must not accidentally return to the live path during a
   // refactor. Hedge twins must continue inheriting the primary absolute deadline.
-  const dispatchSource = readFileSync(join(root, 'src/request/attempt/dispatch.ts'), 'utf8');
+  const originalDispatchPath = join(root, 'src/request/attempt/dispatch.ts');
+  const extractedLegacyPath = join(root, 'src/request/attempt/legacy-provider-dispatch.ts');
+  const dispatchSource = readFileSync(existsSync(extractedLegacyPath) ? extractedLegacyPath : originalDispatchPath, 'utf8');
+  // After extraction, the selector must delegate only through the explicit seam.
+  // Both active center clients continue using the reserve-aware budget primitive.
+  if (existsSync(extractedLegacyPath)) {
+    const selectorSource = readFileSync(originalDispatchPath, 'utf8');
+    assert.match(selectorSource, /dispatchLegacyProvider\(c, sourceBody\)/, 'direct Provider attempts stay behind the explicit legacy seam');
+    assert.doesNotMatch(selectorSource, /await fetch\(/, 'Gateway attempt selector must never make Provider fetches');
+    const inferenceSource = readFileSync(join(root, 'src/request/attempt/inference-dispatch.ts'), 'utf8');
+    const generationSource = readFileSync(join(root, 'src/request/attempt/generation-dispatch.ts'), 'utf8');
+    assert.match(inferenceSource, /attemptBudgetWindowMs\(remainingBudgetMs, c\.remainingDispatchableAttempts\)/, 'inference center must preserve reserve-aware budgets');
+    assert.match(generationSource, /attemptBudgetWindowMs\(remainingMs, c\.remainingDispatchableAttempts\)/, 'generation center must preserve reserve-aware budgets');
+  }
   assert.match(
     dispatchSource,
     /attemptBudgetWindowMs\(remainingBudgetMs,\s*remainingDispatchableAttempts\)/,
