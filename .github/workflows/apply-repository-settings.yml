@@ -9,6 +9,7 @@ on:
       - main
     paths:
       - policies/repository.json
+      - policies/repository-access.json
       - policies/rulesets.json
       - scripts/apply-repository-settings.ts
       - scripts/apply-review-models.ts
