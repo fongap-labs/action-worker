@@ -1,7 +1,13 @@
-import { hasVerifiedCiEvidence } from "./ci-evidence.ts";
+import {
+  hasVerifiedCiEvidence } from "./ci-evidence.ts";
 import { requireToken } from "./control-token.ts";
-import { githubEnvironment, isJsonRecord, runGithubCli, statusAwareReader } from "./github-api.ts";
-import { readRepositoryPolicyText, validateRepositoryCapability  } from "./repository-policy.ts";
+import { githubEnvironment,
+  isJsonRecord,
+  runGithubCli,
+  statusAwareReader } from "./github-api.ts";
+import { readRepositoryPolicyText,
+  validateRepositoryCapability,
+} from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, readJson, runText } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
 
