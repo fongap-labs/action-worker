@@ -649,6 +649,14 @@ test("Action Worker gate changes require a human code-owner review after the las
   );
   const sensitive = control.find((ruleset) => ruleset.name === "Protect Control Plane");
   assert.ok(sensitive, "control plane ruleset must exist");
+  const controlMain = control.find((ruleset) => ruleset.name === "Protect Main Branch");
+  assert.ok(controlMain);
+  const controlCheck = (
+    controlMain.rules as Array<{ type: string; parameters?: Record<string, unknown> }>
+  ).find((rule) => rule.type === "required_status_checks");
+  assert.deepEqual(controlCheck?.parameters?.required_status_checks, [
+    { context: "validate-merge", integration_id: 15368 },
+  ]);
   assert.equal(sensitive.enforcement, "active");
   assert.deepEqual(sensitive.bypass_actors, []);
   assert.deepEqual(sensitive.conditions, {
@@ -679,6 +687,14 @@ test("Action Worker gate changes require a human code-owner review after the las
     business.some((ruleset) => ruleset.name === "Protect Control Plane"),
     false
   );
+  const businessMain = business.find((ruleset) => ruleset.name === "Protect Main Branch");
+  assert.ok(businessMain);
+  const businessCheck = (
+    businessMain.rules as Array<{ type: string; parameters?: Record<string, unknown> }>
+  ).find((rule) => rule.type === "required_status_checks");
+  assert.deepEqual(businessCheck?.parameters?.required_status_checks, [
+    { context: "validate-merge", integration_id: 5609149 },
+  ]);
   assert.throws(() => rulesetsForRepository(rulesets, "fongap-labs/delta", ""));
 });
 
