@@ -65,9 +65,33 @@ export function rulesetsForRepository(
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(controlRepository)) {
     throw new CliError("Trusted control repository is required for ruleset scoping.", 2);
   }
-  return rulesets.filter(
-    (ruleset) => ruleset.name !== "Protect Control Plane" || repository === controlRepository
-  );
+  return rulesets
+    .filter(
+      (ruleset) => ruleset.name !== "Protect Control Plane" || repository === controlRepository
+    )
+    .map((ruleset) => {
+      // Business statuses are written by fongap-bot (App 5609149). The control
+      // repository's self-CI emits the same check from GitHub Actions (App 15368).
+      if (repository !== controlRepository || ruleset.name !== "Protect Main Branch") {
+        return ruleset;
+      }
+      return {
+        ...ruleset,
+        rules: ruleset.rules.map((rule) => {
+          if (!isJsonRecord(rule) || rule.type !== "required_status_checks") return rule;
+          if (!isJsonRecord(rule.parameters)) {
+            throw new CliError("Required check ruleset parameters are invalid.", 2);
+          }
+          return {
+            ...rule,
+            parameters: {
+              ...rule.parameters,
+              required_status_checks: [{ context: "validate-merge", integration_id: 15368 }],
+            },
+          };
+        }),
+      };
+    });
 }
 
 function rulesetSnapshot(value: unknown): RulesetPayload {
