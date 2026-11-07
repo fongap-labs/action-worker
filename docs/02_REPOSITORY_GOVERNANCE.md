@@ -15,7 +15,7 @@
 
 ### ✅ 正确做法 / 规范范例
 
-从唯一策略文件统一下发。
+从唯一策略文件统一下发。 权限则由 `policies/repository-access.json` 唯一管理，仓库发现只提交基础 PR 授权，不直接改写 GitHub Actions 变量。
 
 ```text
 policies/repository.json
