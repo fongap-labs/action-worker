@@ -1,5 +1,10 @@
-import { GithubReader, githubEnvironment, githubExists } from "./github-api.ts";
-import { readRepositoryPolicyText, validateRepositoryCapability  } from "./repository-policy.ts";
+import {
+  githubEnvironment,
+  githubExists } from "./github-api.ts";
+import { readRepositoryPolicyText,
+  GithubReader,
+  validateRepositoryCapability,
+} from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import {
   decodeGithubContent,
