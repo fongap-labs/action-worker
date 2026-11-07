@@ -1,8 +1,8 @@
 import {
   parseRepositoryPolicy,
+  type RepositoryCapability,
   readRepositoryPolicyText,
   repositoryCapabilities,
-  type RepositoryCapability,
   validateRepositoryCapability,
 } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
