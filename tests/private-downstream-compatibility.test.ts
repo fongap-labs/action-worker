@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { collectPrivateConsumers, privateCompatibilityFailures } from "../scripts/private-downstream-compatibility.ts";
+import {
+  collectPrivateConsumers,
+  privateCompatibilityFailures,
+} from "../scripts/private-downstream-compatibility.ts";
 import { parseRunnerPolicy } from "../scripts/runner-policy.ts";
 
-const runnerPolicy = parseRunnerPolicy(
-  JSON.parse(await readFile("policies/runner.json", "utf8"))
-);
+const runnerPolicy = parseRunnerPolicy(JSON.parse(await readFile("policies/runner.json", "utf8")));
 
 const releaseManifest = {
   schema_version: 1,
@@ -84,7 +85,11 @@ test("private inventory refuses truncated trees rather than silently claiming co
   await assert.rejects(
     collectPrivateConsumers(async (url) =>
       url.includes("/installation/repositories")
-        ? { repositories: [{ full_name: "fongap-labs/secret", default_branch: "main", private: true }] }
+        ? {
+            repositories: [
+              { full_name: "fongap-labs/secret", default_branch: "main", private: true },
+            ],
+          }
         : { truncated: true, tree: [] }
     ),
     /truncated/
