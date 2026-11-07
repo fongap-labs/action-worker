@@ -1,3 +1,4 @@
+import { readRepositoryPolicyText } from "./repository-policy.ts";
 import { centralCiWait, requireVerifiedCiEvidence } from "./ci-evidence.ts";
 import {
   type DeployAdapter,
@@ -126,7 +127,7 @@ async function main(): Promise<void> {
 
   const token = process.env.AW_CONTROL_TOKEN ?? "";
   const rawRequest = process.env.DEPLOY_REQUEST_JSON ?? "";
-  const rawRepositoryPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
+  const rawRepositoryPolicy = readRepositoryPolicyText() ?? "";
   const expectedRepository = process.env.DEPLOY_EXPECTED_REPOSITORY ?? "";
   if (!token || !rawRepositoryPolicy) {
     throw new CliError("::error::AW_CONTROL_TOKEN and AW_REPOSITORY_POLICY are required.", 77);
