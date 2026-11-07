@@ -1,10 +1,10 @@
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile, readdir, stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseDeployManifest } from "./deploy-manifest.ts";
-import { parseRunnerPolicy, resolveRunnerProfile, type RunnerPolicy } from "./runner-policy.ts";
+import { parseRunnerPolicy, type RunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { parseReleaseBuildManifest } from "./validate-release-build-request.ts";
 
@@ -44,7 +44,8 @@ export function parseBusinessChecks(value: unknown): PreflightCheck[] {
       !Array.isArray(entry.args) ||
       entry.args.length > 20 ||
       !entry.args.every(
-        (arg) => typeof arg === "string" && arg.length > 0 && arg.length <= 256 && !/[\r\n\0]/.test(arg)
+        (arg) =>
+          typeof arg === "string" && arg.length > 0 && arg.length <= 256 && !/[\r\n\0]/.test(arg)
       )
     ) {
       throw new CliError("Business preflight check is invalid or duplicated.", 65);
