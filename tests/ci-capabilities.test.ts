@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { resolveCiCapabilities, resolveLinuxShards } from "../scripts/resolve-ci-capabilities.ts";
+import {
+  allowPrivateWindowsNumericDiagnostic,
+  resolveCiCapabilities,
+  resolveLinuxShards,
+} from "../scripts/resolve-ci-capabilities.ts";
 
 function manifestWith(linuxJob: Record<string, unknown>, extraJobs: unknown[] = []): unknown {
   return {
@@ -111,4 +116,31 @@ test("shard declarations fail closed instead of silently running fewer jobs", ()
     () => resolveLinuxShards({ schema_version: "1", operations: {}, extra: true }),
     /Execution contract keys are invalid/
   );
+});
+
+
+test("private Windows numeric diagnostics are centrally allowed only for private named repositories", () => {
+  const policy: unknown = JSON.parse(readFileSync("policies/ci-diagnostics.json", "utf8"));
+  assert.equal(allowPrivateWindowsNumericDiagnostic(policy, "fongap-labs/app-source", true), true);
+  assert.equal(allowPrivateWindowsNumericDiagnostic(policy, "fongap-labs/app-source", false), false);
+  assert.equal(allowPrivateWindowsNumericDiagnostic(policy, "fongap-labs/internal-vault", true), false);
+  assert.equal(allowPrivateWindowsNumericDiagnostic(policy, "fongap-labs/unlisted", true), false);
+});
+
+test("private Windows numeric diagnostic policy rejects unknown or malformed grants", () => {
+  const invalid: unknown[] = [
+    null,
+    {},
+    { schema_version: 2, private_windows_numeric_diagnostics: [] },
+    { schema_version: 1, private_windows_numeric_diagnostics: "all" },
+    { schema_version: 1, private_windows_numeric_diagnostics: ["bad repository"] },
+    { schema_version: 1, private_windows_numeric_diagnostics: ["fongap-labs/app-source", "fongap-labs/app-source"] },
+    { schema_version: 1, private_windows_numeric_diagnostics: [], additional_grants: true },
+  ];
+  for (const value of invalid) {
+    assert.throws(
+      () => allowPrivateWindowsNumericDiagnostic(value, "fongap-labs/app-source", true),
+      /Central CI diagnostic/
+    );
+  }
 });
