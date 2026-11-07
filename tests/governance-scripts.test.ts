@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { parseAiAgentConfig } from "../scripts/ai-agent-config.ts";
 import { applyTriage } from "../scripts/apply-ai-triage.ts";
-import { rulesetPayloads, settingsPayload } from "../scripts/apply-repository-settings.ts";
+import { rulesetPayloads, rulesetsForRepository, settingsPayload } from "../scripts/apply-repository-settings.ts";
 import { changeAreaForPath } from "../scripts/detect-pr-context.ts";
 import { variableEntries } from "../scripts/export-repository-variables.ts";
 import type { GithubReader } from "../scripts/github-api.ts";
@@ -630,6 +630,45 @@ test("main branch ruleset requires fongap-bot to publish the merge gate", async 
   assert.deepEqual(status.parameters?.required_status_checks, [
     { context: "validate-merge", integration_id: 5609149 },
   ]);
+});
+
+test("Action Worker gate changes require a human code-owner review after the last push", async () => {
+  const value = JSON.parse(await readFile("policies/rulesets.json", "utf8")) as unknown;
+  const rulesets = rulesetPayloads(value);
+  const control = rulesetsForRepository(
+    rulesets,
+    "fongap-labs/action-worker",
+    "fongap-labs/action-worker"
+  );
+  const sensitive = control.find((ruleset) => ruleset.name === "Protect Control Plane");
+  assert.ok(sensitive, "control plane ruleset must exist");
+  assert.equal(sensitive.enforcement, "active");
+  assert.deepEqual(sensitive.bypass_actors, []);
+  assert.deepEqual(sensitive.conditions, {
+    ref_name: { exclude: [], include: ["refs/heads/main"] },
+  });
+  const requiredReview = (sensitive.rules as Array<{type: string;parameters?: Record<string, unknown>}>)
+    .find((rule) => rule.type === "pull_request")?.parameters;
+  assert.ok(requiredReview, "the control plane must require pull requests");
+  assert.equal(requiredReview.required_approving_review_count, 1);
+  assert.equal(requiredReview.require_code_owner_review, true);
+  assert.equal(requiredReview.dismiss_stale_reviews_on_push, true);
+  assert.equal(requiredReview.require_last_push_approval, true);
+  assert.deepEqual(requiredReview.allowed_merge_methods, ["squash"]);
+  const owners = await readFile(".github/CODEOWNERS", "utf8");
+  for (const path of ["/.github/workflows/", "/scripts/", "/policies/", "/contracts/"]) {
+    assert.ok(owners.includes(path), `human code ownership missing for ${path}`);
+  }
+  assert.match(owners, /@fongap/);
+  assert.match(owners, /@fongxen/);
+
+  const business = rulesetsForRepository(
+    rulesets,
+    "fongap-labs/delta",
+    "fongap-labs/action-worker"
+  );
+  assert.equal(business.some((ruleset) => ruleset.name === "Protect Control Plane"), false);
+  assert.throws(() => rulesetsForRepository(rulesets, "fongap-labs/delta", ""));
 });
 
 test("release contracts bind source, artifact provenance, target, assets, and license", () => {
