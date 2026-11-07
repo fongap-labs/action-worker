@@ -15,13 +15,15 @@
 
 ### ✅ 正确做法 / 规范范例
 
-从唯一策略文件统一下发。 权限则由 `policies/repository-access.json` 唯一管理，仓库发现只提交基础 PR 授权，不直接改写 GitHub Actions 变量。
+从唯一策略文件统一下发。
 
 ```text
 policies/repository.json
   → 禁用合并提交与变基合并
   → 启用压缩合并与合并后删除分支
 ```
+
+权限由 `policies/repository-access.json` 唯一管理。仓库发现只提交基础 PR 授权，不能直接改写 GitHub Actions 变量。
 
 ## 2. 应用权限
 
