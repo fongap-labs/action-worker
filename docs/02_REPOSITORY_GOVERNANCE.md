@@ -114,13 +114,13 @@ Agent 修改门禁 → 自动审核通过 → 自动合并
 
 ### ✅ 正确做法 / 规范范例
 
-任何 Action Worker 控制平面的变更，都要求 `@fongap` 或 `@fongxen` 所属的真实 GitHub 账号通过 Code Owner Review。批准后若继续推送，必须重新获得人工审核；机器人不能自我批准。业务仓库仍使用自动门禁。
+Action Worker 是单人维护仓库，不要求第二人审核 PR。控制仓库合并时，除原有 `validate-merge` 外，GitHub 还强制要求 `Control Owner Approval`。该状态仅由受保护 `main` 上的手动工作流发布：`fongap` 指定 PR 编号及最新完整 SHA，在 `control-plane-approval` 环境亲自点击批准后，工作流验证 GitHub 的真实批准记录、身份及当前 PR SHA，才能给该提交发布成功状态。修改 PR 后必须对新 SHA 重新确认。业务仓库仍由中央 CI 自动治理。
 
 ```text
-控制仓库 PR → CI / validate-merge 通过 → 代码负责人批准最新提交 → 允许合并
+控制仓库 PR → CI 通过 → 本人在 Actions 确认 PR + SHA → 环境批准 → 合并
 ```
 
-这是对控制平面采取的保守保护，强于只审核门禁文件。因为 Agent 也可能通过工作流、脚本绕过门禁。
+GitHub 仓库的 Settings → Environments → `control-plane-approval` 必须配置 Required reviewers 为 `fongap`，且不启用 Prevent self-review，也不允许管理员跳过保护规则。若尚未配置，工作流会因缺少真实批准记录而失败，不能当作通过。该环境无需配置或下发任何密钥。
 
 策略、测试、文档必须同时更新。
 
