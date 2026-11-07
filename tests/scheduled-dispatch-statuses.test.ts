@@ -126,7 +126,7 @@ test("unbounded or malformed status history fails closed", async () => {
   );
   assert.equal(requested.length, 10);
   assert.ok(requested.at(-1)?.endsWith("page=10"));
-  for (const invalid of [{ statuses: [] }, [{ context }], Array(101).fill({})]) {
+  for (const invalid of [{ statuses: [] }, [null], Array(101).fill({})]) {
     await assert.rejects(
       hasScheduledDispatchReceipt(repository, sha, context, "unused", async () => invalid),
       /status history is invalid/
