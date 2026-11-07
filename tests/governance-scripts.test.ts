@@ -639,7 +639,7 @@ test("main branch ruleset requires fongap-bot to publish the merge gate", async 
   ]);
 });
 
-test("Action Worker gate changes require a human code-owner review after the last push", async () => {
+test("Action Worker accepts solo-maintainer approval only through the trusted manual workflow", async () => {
   const value = JSON.parse(await readFile("policies/rulesets.json", "utf8")) as unknown;
   const rulesets = rulesetPayloads(value);
   const control = rulesetsForRepository(
@@ -648,35 +648,44 @@ test("Action Worker gate changes require a human code-owner review after the las
     "fongap-labs/action-worker"
   );
   const sensitive = control.find((ruleset) => ruleset.name === "Protect Control Plane");
-  assert.ok(sensitive, "control plane ruleset must exist");
-  const controlMain = control.find((ruleset) => ruleset.name === "Protect Main Branch");
-  assert.ok(controlMain);
-  const controlCheck = (
-    controlMain.rules as Array<{ type: string; parameters?: Record<string, unknown> }>
-  ).find((rule) => rule.type === "required_status_checks");
-  assert.deepEqual(controlCheck?.parameters?.required_status_checks, [
-    { context: "validate-merge", integration_id: 15368 },
-  ]);
+  assert.ok(sensitive, "control owner approval gate must exist");
   assert.equal(sensitive.enforcement, "active");
   assert.deepEqual(sensitive.bypass_actors, []);
-  assert.deepEqual(sensitive.conditions, {
-    ref_name: { exclude: [], include: ["refs/heads/main"] },
-  });
-  const requiredReview = (
+  const requirement = (
     sensitive.rules as Array<{ type: string; parameters?: Record<string, unknown> }>
-  ).find((rule) => rule.type === "pull_request")?.parameters;
-  assert.ok(requiredReview, "the control plane must require pull requests");
-  assert.equal(requiredReview.required_approving_review_count, 1);
-  assert.equal(requiredReview.require_code_owner_review, true);
-  assert.equal(requiredReview.dismiss_stale_reviews_on_push, true);
-  assert.equal(requiredReview.require_last_push_approval, true);
-  assert.deepEqual(requiredReview.allowed_merge_methods, ["squash"]);
-  const owners = await readFile(".github/CODEOWNERS", "utf8");
-  for (const path of ["/.github/workflows/", "/scripts/", "/policies/", "/contracts/"]) {
-    assert.ok(owners.includes(path), `human code ownership missing for ${path}`);
-  }
-  assert.match(owners, /@fongap/);
-  assert.match(owners, /@fongxen/);
+  ).find((rule) => rule.type === "required_status_checks");
+  assert.ok(requirement, "owner approval must be enforced by GitHub");
+  assert.equal(requirement.parameters?.strict_required_status_checks_policy, true);
+  assert.deepEqual(requirement.parameters?.required_status_checks, [
+    { context: "Control Owner Approval", integration_id: 15368 },
+  ]);
+  assert.equal(
+    (sensitive.rules as Array<{ type: string }>).some((rule) => rule.type === "pull_request"),
+    false,
+    "single owner must not be required to get another user's PR review"
+  );
+
+  const main = control.find((ruleset) => ruleset.name === "Protect Main Branch");
+  assert.ok(main);
+  const mainStatus = (
+    main.rules as Array<{ type: string; parameters?: Record<string, unknown> }>
+  ).find((rule) => rule.type === "required_status_checks");
+  assert.deepEqual(mainStatus?.parameters?.required_status_checks, [
+    { context: "validate-merge", integration_id: 15368 },
+  ]);
+
+  const workflow = await readFile(".github/workflows/approve-control-plane.yml", "utf8");
+  assert.match(workflow, /environment: control-plane-approval/);
+  assert.match(workflow, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(workflow, /github\.actor == 'fongap'/);
+  assert.match(workflow, /github\.triggering_actor == 'fongap'/);
+  assert.match(workflow, /actions\/runs\/\$GITHUB_RUN_ID\/approvals/);
+  assert.match(workflow, /\.user\.login == "fongap"/);
+  assert.match(workflow, /\.user\.type == "User"/);
+  assert.match(workflow, /\.head\.sha == \$sha/);
+  assert.match(workflow, /\[\[ "\$REVIEWED_SHA" =~ \^\[0-9a-f\]\{40\}\$ \]\]/);
+  assert.match(workflow, /-f context="Control Owner Approval"/);
+  assert.doesNotMatch(workflow, /actions\/checkout@|secrets\./);
 
   const business = rulesetsForRepository(
     rulesets,
@@ -689,10 +698,10 @@ test("Action Worker gate changes require a human code-owner review after the las
   );
   const businessMain = business.find((ruleset) => ruleset.name === "Protect Main Branch");
   assert.ok(businessMain);
-  const businessCheck = (
+  const businessStatus = (
     businessMain.rules as Array<{ type: string; parameters?: Record<string, unknown> }>
   ).find((rule) => rule.type === "required_status_checks");
-  assert.deepEqual(businessCheck?.parameters?.required_status_checks, [
+  assert.deepEqual(businessStatus?.parameters?.required_status_checks, [
     { context: "validate-merge", integration_id: 5609149 },
   ]);
   assert.throws(() => rulesetsForRepository(rulesets, "fongap-labs/delta", ""));
