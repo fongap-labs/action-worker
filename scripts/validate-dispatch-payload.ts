@@ -1,7 +1,10 @@
-import { createHash } from "node:crypto";
+import {
+  createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { isJsonRecord } from "./github-api.ts";
-import { readRepositoryPolicyText, validateRepositoryCapability  } from "./repository-policy.ts";
+import { readRepositoryPolicyText,
+  validateRepositoryCapability,
+} from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 const requiredKeys = [
