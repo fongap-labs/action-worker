@@ -18,7 +18,7 @@ import {
   isJsonRecord,
 } from "./github-api.ts";
 import { buildTag } from "./publish-release.ts";
-import { hasRepositoryCapability, repositoriesForCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, hasRepositoryCapability, repositoriesForCapability  } from "./repository-policy.ts";
 import {
   appendLines,
   CliError,
@@ -199,7 +199,7 @@ async function readBranchHead(
 }
 
 async function main(): Promise<void> {
-  const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
+  const policyRaw = readRepositoryPolicyText() ?? "";
   const token = process.env.AW_CONTROL_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
   const upstream = process.env.FOLLOW_UPSTREAM_REPOSITORY ?? "";
