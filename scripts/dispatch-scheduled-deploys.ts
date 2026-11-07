@@ -17,6 +17,7 @@ import {
 } from "./github-api.ts";
 import { type ContentReader, discoverProducts } from "./product-discovery.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
+import { scheduledDispatchCandidateShas } from "./scheduled-dispatch-candidates.ts";
 import {
   appendLines,
   CliError,
@@ -182,15 +183,6 @@ export async function resolveScheduledDeploys(
   );
 }
 
-function commitShas(value: unknown, repository: string): string[] {
-  return getJsonArray(value).map((item) => {
-    const sha = isJsonRecord(item) && typeof item.sha === "string" ? item.sha : "";
-    if (!shaPattern.test(sha)) {
-      throw new CliError(`GitHub commit list is invalid: ${repository}.`, 65);
-    }
-    return sha;
-  });
-}
 
 /**
  * A slot is recorded on the default-branch head of the slot time or a later one, so look at every
@@ -200,13 +192,12 @@ export async function wasScheduledDeployDispatched(
   deploy: ScheduledDeploy,
   get: (path: string) => Promise<unknown>
 ): Promise<boolean> {
-  const slotTime = `${deploy.slot.slice(0, 16)}:00Z`;
-  const base = `repos/${deploy.repository}/commits?sha=${deploy.head_sha}`;
-  const heads = new Set([
+  const heads = await scheduledDispatchCandidateShas(
+    deploy.repository,
     deploy.head_sha,
-    ...commitShas(await get(`${base}&since=${slotTime}&per_page=100`), deploy.repository),
-    ...commitShas(await get(`${base}&until=${slotTime}&per_page=1`), deploy.repository),
-  ]);
+    deploy.slot,
+    get
+  );
   const context = scheduleContext(deploy.product, deploy.environment);
   const description = scheduleDescription(deploy.slot);
   for (const sha of heads) {
