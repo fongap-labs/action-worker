@@ -1204,10 +1204,7 @@ test("central main write audit is independent of business repository Actions", a
     intake.indexOf("  main-writes:"),
     intake.indexOf("  task-sources:")
   );
-  requireText(workflow, [
-    "AW_CONTROL_TOKEN",
-    "node scripts/audit-main-writes.ts",
-  ]);
+  requireText(workflow, ["AW_CONTROL_TOKEN", "node scripts/audit-main-writes.ts"]);
   assert.match(intake, /cron: "\*\/5 \* \* \* \*"/);
   const script = await text("scripts/audit-main-writes.ts");
   requireText(script, [
