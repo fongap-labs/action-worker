@@ -46,7 +46,6 @@ jobs:
       - name: Resolve task source read scope
         id: source_read_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ github.event.client_payload.repository || inputs.repository }}
         run: node scripts/resolve-github-api-scope.ts task
 
@@ -67,7 +66,6 @@ jobs:
         id: source
         env:
           GH_TOKEN: ${{ steps.app_read.outputs.token }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           PAYLOAD_REPOSITORY: ${{ github.event.client_payload.repository || inputs.repository }}
           PAYLOAD_MODE: ${{ github.event.client_payload.mode || 'manual' }}
           PAYLOAD_PROJECT: ${{ github.event.client_payload.project || inputs.project }}
@@ -127,7 +125,6 @@ jobs:
       - name: Resolve task source API scope
         id: api_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ steps.source.outputs.repository }}
         run: node scripts/resolve-github-api-scope.ts managed
 
@@ -153,7 +150,6 @@ jobs:
 
       - name: Request central CI for the source
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
@@ -169,7 +165,6 @@ jobs:
       - name: Resolve source audit scope
         id: audit_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ steps.source.outputs.repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
@@ -200,7 +195,6 @@ jobs:
           AW_STATUS_API_TOKEN: ${{ steps.audit_status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_ISSUE_API_TOKEN: ${{ steps.audit_issue_app.outputs.token }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           MAIN_WRITE_AUDIT_REPOSITORY: ${{ steps.source.outputs.repository }}
           MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/audit-main-writes.ts
