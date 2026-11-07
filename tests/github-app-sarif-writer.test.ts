@@ -15,7 +15,12 @@ type Step = {
 
 test("CodeQL publisher requests only target Security events write permission", async () => {
   const source = await readFile(".github/workflows/security-scan-dispatch.yml", "utf8");
-  const workflow = parse(source) as { jobs: Record<string, { steps: Step[] }> };
+  const workflow = parse(source) as { jobs: Record<string, { if?: string; steps: Step[] }> };
+  assert.equal(
+    workflow.jobs.publish?.if,
+    "${{ !cancelled() && needs.prepare.result == 'success' && needs.analyze.result == 'success' }}",
+    "SARIF must not publish partial results after a failed CodeQL matrix"
+  );
   const steps = workflow.jobs.publish?.steps ?? [];
   const find = (name: string) => {
     const step = steps.find((candidate) => candidate.name === name);
