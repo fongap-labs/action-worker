@@ -82,6 +82,9 @@ test("failed CI jobs link to exact trusted GitHub jobs without allowing arbitrar
     },
   ]);
   const summary = markdownFailureSummary(findings, "fongap-labs/action-worker", "123");
-  assert.match(summary, /\[Static analysis\]\(https:\/\/github\.com\/fongap-labs\/action-worker\/actions\/runs\/123\/job\/456\)/);
+  assert.match(
+    summary,
+    /\[Static analysis\]\(https:\/\/github\.com\/fongap-labs\/action-worker\/actions\/runs\/123\/job\/456\)/
+  );
   assert.doesNotMatch(summary, /evil\.example\.org/);
 });
