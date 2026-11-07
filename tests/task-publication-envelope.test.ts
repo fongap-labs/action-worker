@@ -139,7 +139,7 @@ test("task execution has no GitHub App writer and publication runs on a fresh pr
   const publish = workflow.jobs.publish;
   assert.ok(execute);
   assert.ok(publish);
-  assert.equal(publish.environment, "admin-ops");
+  assert.deepEqual(publish.environment, { name: "admin-ops", deployment: false });
   const keyGuard = execute.steps.find(
     (step) => step.name === "Reject publisher private key in task execution"
   );
