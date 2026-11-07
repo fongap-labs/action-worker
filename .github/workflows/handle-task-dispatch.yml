@@ -62,14 +62,11 @@ jobs:
 
       - name: Validate request payload
         id: payload
-        env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/validate-dispatch-payload.ts
 
       - name: Resolve task source read scope
         id: task_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ steps.payload.outputs.repository }}
         run: node scripts/resolve-github-api-scope.ts task
 
@@ -572,7 +569,6 @@ jobs:
       - name: Validate staged publication
         id: publication
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
         run: node scripts/validate-task-publication.ts
 
@@ -794,7 +790,6 @@ jobs:
           RUNNER_TEMP: ${{ github.workspace }}/private-publication
           SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
           TASK_SOURCE_PRIVATE: "true"
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/validate-task-publication.ts
       - name: Seal approved private publication before leaving task Runner
         id: private_seal_publication
@@ -1119,7 +1114,6 @@ jobs:
       - name: Revalidate staged publication
         id: publication
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
           TASK_SOURCE_PRIVATE: ${{ needs.validate.outputs.is_private }}
         run: node scripts/validate-task-publication.ts
@@ -1127,7 +1121,6 @@ jobs:
       - name: Resolve publication target App scope
         id: target_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ steps.publication.outputs.target_repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
