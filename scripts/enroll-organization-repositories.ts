@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
-import { isMain } from "./runtime-command.ts";
 import { parseRepositoryPolicy } from "./repository-policy.ts";
+import { isMain } from "./runtime-command.ts";
 
 export type InstalledRepo = {
   full_name: string;
@@ -35,7 +35,9 @@ function asPolicy(value: unknown): AccessPolicy {
     policy.organization !== "fongap-labs" ||
     !Number.isFinite(Date.parse(policy.auto_enroll_created_after)) ||
     !Array.isArray(policy.excluded_repositories) ||
-    !policy.excluded_repositories.every((name) => typeof name === "string" && repoPattern.test(name)) ||
+    !policy.excluded_repositories.every(
+      (name) => typeof name === "string" && repoPattern.test(name)
+    ) ||
     typeof policy.grants !== "object" ||
     policy.grants === null ||
     Array.isArray(policy.grants)
@@ -49,10 +51,7 @@ function asPolicy(value: unknown): AccessPolicy {
   return policy;
 }
 
-export function planOnboarding(
-  value: unknown,
-  installed: readonly InstalledRepo[]
-): AccessPolicy {
+export function planOnboarding(value: unknown, installed: readonly InstalledRepo[]): AccessPolicy {
   const policy = asPolicy(value);
   const grants: Record<string, string[]> = { ...policy.grants };
   const excluded = new Set(policy.excluded_repositories);
@@ -85,7 +84,10 @@ export function planOnboarding(
       grants[repo.full_name] = ["pr"];
     }
   }
-  return { ...policy, grants: Object.fromEntries(Object.entries(grants).sort(([a], [b]) => a.localeCompare(b))) };
+  return {
+    ...policy,
+    grants: Object.fromEntries(Object.entries(grants).sort(([a], [b]) => a.localeCompare(b))),
+  };
 }
 
 export function safeOnboardingOnly(
@@ -108,9 +110,10 @@ export function safeOnboardingOnly(
     if (JSON.stringify(after.grants[repo]) !== JSON.stringify(grants)) return false;
   }
   if (Object.keys(after.grants).length <= Object.keys(before.grants).length) return false;
-  return Object.entries(after.grants).every(([repo, grants]) =>
-    Object.hasOwn(before.grants, repo) ||
-    (JSON.stringify(grants) === JSON.stringify(["pr"]) && Object.hasOwn(allowed.grants, repo))
+  return Object.entries(after.grants).every(
+    ([repo, grants]) =>
+      Object.hasOwn(before.grants, repo) ||
+      (JSON.stringify(grants) === JSON.stringify(["pr"]) && Object.hasOwn(allowed.grants, repo))
   );
 }
 
@@ -186,7 +189,10 @@ async function mergeExisting(
   ) {
     throw new Error("Untrusted auto-enrollment PR metadata.");
   }
-  const files = (await github(readToken, `repos/${controlRepo}/pulls/${number}/files?per_page=100`)) as Array<{
+  const files = (await github(
+    readToken,
+    `repos/${controlRepo}/pulls/${number}/files?per_page=100`
+  )) as Array<{
     filename: string;
     status: string;
   }>;
@@ -200,7 +206,15 @@ async function mergeExisting(
   const checks = (await github(
     readToken,
     `repos/${controlRepo}/commits/${currentSha}/check-runs?check_name=validate-merge&per_page=100`
-  )) as { check_runs?: Array<{name: string;status: string;conclusion?: string;app?: {id?: number};head_sha?: string}> };
+  )) as {
+    check_runs?: Array<{
+      name: string;
+      status: string;
+      conclusion?: string;
+      app?: { id?: number };
+      head_sha?: string;
+    }>;
+  };
   if (!Array.isArray(checks.check_runs)) throw new Error("Invalid CI gate response.");
   if (
     !checks.check_runs.some(
@@ -219,7 +233,7 @@ async function mergeExisting(
   const result = (await github(writeToken, `repos/${controlRepo}/pulls/${number}/merge`, "PUT", {
     sha: currentSha,
     merge_method: "squash",
-  })) as {merged?: boolean};
+  })) as { merged?: boolean };
   if (result.merged !== true) throw new Error("GitHub did not confirm the enrollment merge.");
   console.log(`Merged verified repository enrollment PR #${number}.`);
 }
@@ -231,13 +245,16 @@ async function main(): Promise<void> {
   if (
     process.env.GITHUB_REPOSITORY !== controlRepo ||
     process.env.GITHUB_REF !== "refs/heads/main" ||
-    !inventoryToken || !writeToken || !readToken
+    !inventoryToken ||
+    !writeToken ||
+    !readToken
   ) {
     throw new Error("Only trusted Action Worker main may reconcile the organization.");
   }
   const base = asPolicy(JSON.parse(readFileSync(policyPath, "utf8")) as unknown);
   const inventory = await installationRepos(inventoryToken);
-  const pulls = (await github(readToken,
+  const pulls = (await github(
+    readToken,
     `repos/${controlRepo}/pulls?state=open&head=fongap-labs:${encodeURIComponent(branchName)}&per_page=100`
   )) as GithubResponse[];
   if (!Array.isArray(pulls)) throw new Error("Invalid open PR response.");
@@ -250,12 +267,14 @@ async function main(): Promise<void> {
   const next = planOnboarding(base, inventory);
   const additions = Object.keys(next.grants).filter((name) => !Object.hasOwn(base.grants, name));
   if (additions.length === 0) {
-    console.log(`Inventory reconciled: ${inventory.length} accessible repositories; no new grants.`);
+    console.log(
+      `Inventory reconciled: ${inventory.length} accessible repositories; no new grants.`
+    );
     return;
   }
 
   const mainHead = (await github(readToken, `repos/${controlRepo}/git/ref/heads/main`)) as {
-    object?: {sha?: string};
+    object?: { sha?: string };
   };
   if (!/^[0-9a-f]{40}$/.test(mainHead.object?.sha ?? "")) {
     throw new Error("Cannot resolve trusted control main SHA.");
@@ -286,7 +305,7 @@ async function main(): Promise<void> {
       "No task, release, deploy, secrets or bypass permissions are granted.",
       "This change is restricted to the canonical policy and must pass the existing validate-merge before merge.",
     ].join("\n"),
-  })) as {number?: number};
+  })) as { number?: number };
   if (!Number.isInteger(pr.number)) throw new Error("GitHub did not confirm the enrollment PR.");
   console.log(`Opened auto-enrollment PR #${pr.number} for ${additions.length} new repositories.`);
 }
