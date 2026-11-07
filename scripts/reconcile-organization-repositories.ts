@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
 import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { parseRepositoryPolicy, type RepositoryCapability } from "./repository-policy.ts";
 
 type OnboardingPolicy = {
@@ -36,7 +36,9 @@ function parseOnboardingPolicy(value: unknown): OnboardingPolicy {
     typeof policy.auto_enroll_created_after !== "string" ||
     !Number.isFinite(Date.parse(policy.auto_enroll_created_after)) ||
     !Array.isArray(policy.excluded_repositories) ||
-    !policy.excluded_repositories.every((x) => typeof x === "string" && repositoryPattern.test(x)) ||
+    !policy.excluded_repositories.every(
+      (x) => typeof x === "string" && repositoryPattern.test(x)
+    ) ||
     new Set(policy.excluded_repositories).size !== policy.excluded_repositories.length
   ) {
     throw new Error("Invalid onboarding policy.");
@@ -73,7 +75,8 @@ export function reconcileRepositoryPolicy(
     ) {
       throw new Error("Installation returned an invalid or cross-organization repository.");
     }
-    if (seen.has(repo.full_name)) throw new Error("Duplicate repository in installation inventory.");
+    if (seen.has(repo.full_name))
+      throw new Error("Duplicate repository in installation inventory.");
     seen.add(repo.full_name);
     if (repo.archived || repo.disabled || excluded.has(repo.full_name)) continue;
     if (repo.default_branch !== "main") continue;
@@ -92,9 +95,7 @@ export function reconcileRepositoryPolicy(
       result[repo.full_name] = ["pr"];
     }
   }
-  return Object.fromEntries(
-    Object.entries(result).sort(([a], [b]) => a.localeCompare(b))
-  );
+  return Object.fromEntries(Object.entries(result).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 function githubApi(token: string, endpoint: string, method = "GET", body?: unknown): unknown {
@@ -108,7 +109,7 @@ function githubApi(token: string, endpoint: string, method = "GET", body?: unkno
     maxBuffer: 8 * 1024 * 1024,
     stdio: ["pipe", "pipe", "pipe"],
   });
-  return stdout.trim() ? JSON.parse(stdout) as unknown : {};
+  return stdout.trim() ? (JSON.parse(stdout) as unknown) : {};
 }
 
 function installedInventory(token: string): InstalledRepository[] {
@@ -117,7 +118,7 @@ function installedInventory(token: string): InstalledRepository[] {
     const response = githubApi(token, `installation/repositories?per_page=100&page=${page}`);
     const repos = (response as { repositories?: unknown }).repositories;
     if (!Array.isArray(repos)) throw new Error("Invalid installation inventory response.");
-    result.push(...repos as InstalledRepository[]);
+    result.push(...(repos as InstalledRepository[]));
     if (repos.length < 100) return result;
   }
   throw new Error("Installation inventory exceeds the supported pagination limit.");
@@ -130,9 +131,13 @@ function main(): void {
   const adminToken = process.env.AW_ADMIN_TOKEN ?? "";
   const currentRaw = process.env.AW_REPOSITORY_POLICY ?? "";
   if (!repositoryPattern.test(control) || !appToken || !adminToken || !currentRaw) {
-    throw new Error("Control repository and inventory, admin and current-policy credentials are required.");
+    throw new Error(
+      "Control repository and inventory, admin and current-policy credentials are required."
+    );
   }
-  const source = JSON.parse(readFileSync("policies/organization-onboarding.json", "utf8")) as unknown;
+  const source = JSON.parse(
+    readFileSync("policies/organization-onboarding.json", "utf8")
+  ) as unknown;
   const sourcePolicy = parseOnboardingPolicy(source);
   assert.equal(owner.toLowerCase(), sourcePolicy.organization.toLowerCase());
   const next = reconcileRepositoryPolicy(source, installedInventory(appToken));
@@ -144,21 +149,30 @@ function main(): void {
       const expected = [...(sourcePolicy.grants[repo] ?? [])].sort();
       const actual = [...capabilities].sort();
       if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-        throw new Error("Elevated repository grants differ from the versioned policy; reconcile by PR.");
+        throw new Error(
+          "Elevated repository grants differ from the versioned policy; reconcile by PR."
+        );
       }
     }
   }
-  if (JSON.stringify(Object.entries(current).sort()) === JSON.stringify(Object.entries(next).sort())) {
-    console.log(`Repository inventory already current: ${Object.keys(next).length} managed repositories.`);
+  if (
+    JSON.stringify(Object.entries(current).sort()) === JSON.stringify(Object.entries(next).sort())
+  ) {
+    console.log(
+      `Repository inventory already current: ${Object.keys(next).length} managed repositories.`
+    );
     return;
   }
-  if (Object.keys(next).length === 0) throw new Error("Empty inventory cannot replace repository policy.");
+  if (Object.keys(next).length === 0)
+    throw new Error("Empty inventory cannot replace repository policy.");
   const value = JSON.stringify(next);
   githubApi(adminToken, `repos/${control}/actions/variables/AW_REPOSITORY_POLICY`, "PATCH", {
     name: "AW_REPOSITORY_POLICY",
     value,
   });
-  console.log(`Repository inventory reconciled: ${Object.keys(next).length} managed repositories; no secret values logged.`);
+  console.log(
+    `Repository inventory reconciled: ${Object.keys(next).length} managed repositories; no secret values logged.`
+  );
   // Each dispatcher re-reads the updated repository variable at job start.
   for (const event_type of ["run-intake", "managed-repositories-changed"]) {
     githubApi(adminToken, `repos/${control}/dispatches`, "POST", { event_type });
@@ -166,8 +180,12 @@ function main(): void {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  try { main(); } catch (error) {
-    console.error(`::error::Repository onboarding failed: ${error instanceof Error ? error.message : String(error)}`);
+  try {
+    main();
+  } catch (error) {
+    console.error(
+      `::error::Repository onboarding failed: ${error instanceof Error ? error.message : String(error)}`
+    );
     process.exitCode = 1;
   }
 }
