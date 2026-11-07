@@ -10,7 +10,7 @@ import {
   isJsonRecord,
   runGithubCli,
 } from "./github-api.ts";
-import { repositoriesForCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, repositoriesForCapability  } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runText } from "./runtime-command.ts";
 
 type Decision = {
@@ -135,7 +135,7 @@ async function cloneMirror(repository: string, token: string, destination: strin
 
 async function main(): Promise<void> {
   const token = requireToken("branch");
-  const rawPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
+  const rawPolicy = readRepositoryPolicyText() ?? "";
   const dryRun = process.env.BRANCH_PRUNE_DRY_RUN === "true";
   if (!token || !rawPolicy) {
     throw new CliError("AW_BRANCH_API_TOKEN and AW_REPOSITORY_POLICY are required.", 77);
