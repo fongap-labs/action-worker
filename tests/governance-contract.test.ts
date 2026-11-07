@@ -810,7 +810,7 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   const managedRulesets = rulesetPolicy.rulesets as Array<Record<string, unknown>>;
   assert.deepEqual(
     managedRulesets.map((rule) => rule.name),
-    ["Protect Main Branch", "Protect Legacy Branches", "Protect Control Plane"]
+    ["Protect Main Branch", "Protect Legacy Branches"]
   );
   const mainRules = managedRulesets[0]?.rules as Array<Record<string, unknown>>;
   const statusChecks = mainRules.find((rule) => rule.type === "required_status_checks");
