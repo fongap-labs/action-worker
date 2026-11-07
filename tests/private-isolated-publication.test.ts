@@ -33,7 +33,7 @@ test("private publication uses a single existing protected publisher, never a se
   const publisher = workflow.jobs.publish;
   assert.ok(run && trusted && publisher);
   assert.deepEqual(publisher.needs, ["validate", "execute", "finalize_private_isolated"]);
-  assert.equal(publisher.environment, "admin-ops");
+  assert.deepEqual(publisher.environment, { name: "admin-ops", deployment: false });
   assert.match(publisher.if ?? "", /needs\.finalize_private_isolated\.result == 'success'/);
   assert.match(publisher.if ?? "", /needs\.execute\.result == 'success'/);
   assert.match(publisher.if ?? "", /publication_staged == 'true'/);
