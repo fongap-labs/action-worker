@@ -1,4 +1,3 @@
-import { readRepositoryPolicyText } from "./repository-policy.ts";
 import { centralCiWait, requireVerifiedCiEvidence } from "./ci-evidence.ts";
 import {
   type DeployAdapter,
@@ -17,6 +16,7 @@ import {
   parseJson,
   readJson,
 } from "./runtime-command.ts";
+import { readRepositoryPolicyText } from "./repository-policy.ts";
 
 export type DeployTrigger = "manual" | "push" | "schedule";
 
