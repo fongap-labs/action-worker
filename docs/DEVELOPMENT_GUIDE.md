@@ -99,6 +99,8 @@ npm run preflight:business -- ../dsh-plugin full
 `quick` 运行契约及快速声明检查，`full` 还执行完整声明检查。只能调用 npm/pnpm/node/python/python3/cargo，不通过 shell 拼接命令；命令在本机以当前用户权限执行，勿对不可信代码运行。`action-worker` 需先执行 `npm ci`。此工具无法代替 GitHub App 权限、远程 Runner、真实签名与中央 `validate-merge`。
 
 中央 CI 的 `Public downstream compatibility` 在 Runner 政策、发布/部署合同解析器变化时，读取 `fongap-labs` 的**公开仓库**默认分支清单并进行新旧 Runner 兼容性对比。该步骤不借用高权限 GitHub App Token；私有仓库不会被误报为已扫描。发现新回归即阻止中央 PR 合并。
+
+私有仓库由受保护 `main` 上现有的 `enroll-organization-repositories.yml`（组织仓库接入）在定时检查和相关代码推送时使用**只读** GitHub App 安装令牌自动盘点。仅验证已安装、未归档私有仓库的发布/部署清单、Runner Profile 和受信任域，并在公开 Actions 日志只公布汇总数量与匿名故障指纹。出于凭据隔离，该扫描不在不可信 PR 上使用私有令牌；其结果是合并后的独立审计，不能冒充 PR 阶段对私有仓库的预合并兼容保证。
 ## 5. 持续集成
 
 能够从仓库外部运行的测试，保存在 Action Worker 的测试包中（[TEST_PACKS.md](TEST_PACKS.md)）；其余测试保留在业务仓库中。所有测试默认都在 Action Worker 的沙箱中运行。

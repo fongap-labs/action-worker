@@ -7,6 +7,10 @@ on:
     paths:
       - policies/repository-access.json
       - scripts/enroll-organization-repositories.ts
+      - scripts/private-downstream-compatibility.ts
+      - policies/runner.json
+      - scripts/validate-release-build-request.ts
+      - scripts/deploy-manifest.ts
       - .github/workflows/enroll-organization-repositories.yml
   workflow_run:
     workflows: ["自动 · CI 验证"]
@@ -44,6 +48,9 @@ jobs:
         with:
           node-version: 24
 
+      - name: Install deterministic contract dependencies
+        run: npm ci
+
       - name: Mint App inventory read token
         id: inventory
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
@@ -63,6 +70,12 @@ jobs:
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
           permission-pull-requests: write
+
+      - name: Audit installed private release/deploy contracts (read only)
+        if: github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+        env:
+          GH_TOKEN: ${{ steps.inventory.outputs.token }}
+        run: node scripts/private-downstream-compatibility.ts
 
       - name: Reconcile App installation into protected policy
         env:
