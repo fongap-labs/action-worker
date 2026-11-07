@@ -142,7 +142,7 @@ tag: dsh-ui-delta-v0.1.0-beta.2
 
 - `runner_profile` 必须引用中央 `policies/runner.json` 中已启用的 **sandbox** 类型；业务仓库不得直接指定 Runner 标签、凭据或管理权限。
 - 每项 `assets` 是完整的预期文件清单，中央打包阶段拒绝缺失、重复和额外文件；并非声明某平台就保证该平台能够成功构建。
-- 当 `attest_asset` 非空时，独立可信 Job 对此构建产生的**全部上传文件**生成来源证明；原字段继续兼容既有清单，空值维持旧的跳过语义。
+- 当 `attest_asset` 非空时，独立可信 Job 对此构建产生的**全部上传文件**生成来源证明；打包阶段逐一执行 `gh attestation verify`，验证主体文件摘要、中央 Workflow 身份和控制仓库源提交 SHA。正式版要求每个构建声明证明对象；旧 beta 继续允许空值跳过，避免破坏旧版试用流程。没有正确 Attestation 的正式版不发布。
 - 多平台只按产品需求添加；不要求 AI Gateway、MCP Hub 这样的云服务产品生成桌面安装包。
 - 每项 `builds[]` 可选择提供 `acceptance_script`（相对产品根目录的 `.mjs` 或 `.ps1`）。Action Worker 在该构建项对应的 Runner 上、上传产物前执行，用相同参数 `--target/--version/--output-dir`（PowerShell 则为 `-Target/-Version/-OutputDir`）；非零退出直接阻断该构建与发布。
 - 对旧清单，不填 `acceptance_script` 仍按旧方式发行；新平台应将烟雾测试、安装包完整性及关键运行路径检查包含在该脚本中。Runner 标签、任务权限、构建并行数仍由中央控制。

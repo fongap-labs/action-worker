@@ -451,6 +451,18 @@ jobs:
           path: source
           persist-credentials: false
 
+      - name: Verify build provenance and signer before packaging
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_MANIFEST_PATH: ${{ needs.prepare.outputs.manifest_path }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -Eeuo pipefail
+          node scripts/verify-release-attestations.ts \
+            "$GITHUB_WORKSPACE/source/$RELEASE_MANIFEST_PATH" \
+            "$RUNNER_TEMP/release-package" \
+            "$RELEASE_VERSION"
+
       - name: Generate release CycloneDX SBOM
         if: ${{ needs.prepare.outputs.sbom_asset != '' }}
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
