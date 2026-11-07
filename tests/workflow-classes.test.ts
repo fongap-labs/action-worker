@@ -142,8 +142,8 @@ test("only entry, diagnostic and protected operations workflows show a Run workf
         ["bootstrap"],
         `${file} may only bootstrap`
       );
-      const job = workflow.jobs?.bootstrap as Job & { environment?: string; if?: string };
-      assert.equal(job.environment, "admin-ops", `${file} requires admin-ops`);
+      const job = workflow.jobs?.bootstrap as Job & { environment?: { name: string; deployment: boolean }; if?: string };
+      assert.deepEqual(job.environment, { name: "admin-ops", deployment: false }, `${file} requires admin-ops`);
       assert.equal(job.if, "github.ref == 'refs/heads/main'", `${file} requires main`);
       continue;
     }
@@ -155,7 +155,7 @@ test("only entry, diagnostic and protected operations workflows show a Run workf
         `${file} has one controlled operations job`
       );
       const job = workflow.jobs?.manage as Job & { environment?: string; if?: string };
-      assert.equal(job.environment, "ai-gateway-ops", `${file} requires ai-gateway-ops`);
+      assert.deepEqual(job.environment, { name: "ai-gateway-ops", deployment: false }, `${file} requires ai-gateway-ops`);
       assert.equal(job.if, "github.ref == 'refs/heads/main'", `${file} requires main`);
       continue;
     }
