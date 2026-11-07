@@ -1,4 +1,4 @@
-import { readRepositoryPolicyText, repositoriesForCapability  } from "./repository-policy.ts";
+import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { resolveGithubApiScope } from "./resolve-github-api-scope.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
