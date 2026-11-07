@@ -12,7 +12,10 @@ import { getGithubJson, githubEnvironment, githubExists, isJsonRecord } from "./
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import { scheduledDispatchCandidateShas } from "./scheduled-dispatch-candidates.ts";
-import { hasScheduledDispatchReceipt } from "./scheduled-dispatch-statuses.ts";
+import {
+  dispatchWithReservation,
+  hasScheduledDispatchReceipt,
+} from "./scheduled-dispatch-statuses.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
 
 export type TaskSourceManifest = {
@@ -249,6 +252,10 @@ function scheduleDescription(slot: string): string {
   return `Task dispatched for ${slot}`;
 }
 
+function scheduleReservationDescription(slot: string): string {
+  return `Task dispatch reserved for ${slot}`;
+}
+
 /**
  * The dispatch of a slot is recorded on the default-branch head of that moment, which is the head
  * of the slot time or a later one. Look at every one of those heads, so a new commit on the default
@@ -267,27 +274,43 @@ export async function wasDispatched(
   const context = scheduleContext(task.project);
   const description = scheduleDescription(task.slot);
   for (const sha of heads) {
-    if (await hasScheduledDispatchReceipt(task.repository, sha, context, description, get)) {
+    if (
+      await hasScheduledDispatchReceipt(
+        task.repository,
+        sha,
+        context,
+        [
+          { state: "pending", description: scheduleReservationDescription(task.slot) },
+          { state: "success", description },
+        ],
+        get
+      )
+    ) {
       return true;
     }
   }
   return false;
 }
 
-async function markDispatched(task: ScheduledTask, token: string): Promise<void> {
+async function writeScheduledStatus(
+  task: ScheduledTask,
+  token: string,
+  state: "pending" | "success",
+  description: string
+): Promise<void> {
   const targetUrl =
     process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
       ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
       : "";
   const payload = JSON.stringify({
-    state: "success",
+    state,
     context: scheduleContext(task.project),
     description: signedStatusDescription({
       repository: task.repository,
       sha: task.head_sha,
-      state: "success",
+      state,
       context: scheduleContext(task.project),
-      description: scheduleDescription(task.slot),
+      description,
       targetUrl,
     }),
     target_url: targetUrl || undefined,
@@ -309,6 +332,14 @@ async function markDispatched(task: ScheduledTask, token: string): Promise<void>
       maxBuffer: 1024 * 1024,
     }
   );
+}
+
+async function reserveDispatch(task: ScheduledTask, token: string): Promise<void> {
+  await writeScheduledStatus(task, token, "pending", scheduleReservationDescription(task.slot));
+}
+
+async function markDispatched(task: ScheduledTask, token: string): Promise<void> {
+  await writeScheduledStatus(task, token, "success", scheduleDescription(task.slot));
 }
 
 async function dispatchTask(
@@ -390,8 +421,11 @@ async function main(): Promise<void> {
       deduplicated += 1;
       continue;
     }
-    await dispatchTask(controlRepository, ingressToken, task);
-    await markDispatched(task, statusToken);
+    await dispatchWithReservation(
+      () => reserveDispatch(task, statusToken),
+      () => dispatchTask(controlRepository, ingressToken, task),
+      () => markDispatched(task, statusToken)
+    );
     dispatched += 1;
   }
   console.log(

@@ -5,6 +5,22 @@ import { hasValidStatusAttestation, originalStatusDescription } from "./status-a
 const pageSize = 100;
 const maxPages = 10;
 
+export type ScheduledDispatchReceipt = {
+  state: "pending" | "success";
+  description: string;
+};
+
+/** Persist a reservation before dispatch so an ambiguous API result cannot trigger a replay. */
+export async function dispatchWithReservation(
+  reserve: () => Promise<void>,
+  dispatch: () => Promise<void>,
+  confirm: () => Promise<void>
+): Promise<void> {
+  await reserve();
+  await dispatch();
+  await confirm();
+}
+
 /**
  * Look for an exact, signed dispatch receipt in commit status history.
  * GitHub's combined /status endpoint exposes only the latest status for a
@@ -14,7 +30,7 @@ export async function hasScheduledDispatchReceipt(
   repository: string,
   sha: string,
   context: string,
-  description: string,
+  receipts: readonly ScheduledDispatchReceipt[],
   get: (path: string) => Promise<unknown>
 ): Promise<boolean> {
   for (let page = 1; page <= maxPages; page += 1) {
@@ -32,8 +48,10 @@ export async function hasScheduledDispatchReceipt(
       (item) =>
         isJsonRecord(item) &&
         item.context === context &&
-        item.state === "success" &&
-        originalStatusDescription(item) === description &&
+        receipts.some(
+          (receipt) =>
+            item.state === receipt.state && originalStatusDescription(item) === receipt.description
+        ) &&
         hasValidStatusAttestation(item, { repository, sha, context })
     );
     if (isRecorded) return true;

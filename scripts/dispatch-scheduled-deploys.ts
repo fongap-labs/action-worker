@@ -27,7 +27,10 @@ import {
   runCommand,
 } from "./runtime-command.ts";
 import { scheduledDispatchCandidateShas } from "./scheduled-dispatch-candidates.ts";
-import { hasScheduledDispatchReceipt } from "./scheduled-dispatch-statuses.ts";
+import {
+  dispatchWithReservation,
+  hasScheduledDispatchReceipt,
+} from "./scheduled-dispatch-statuses.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
 
 export type ScheduledDeployTarget = {
@@ -74,6 +77,10 @@ export function scheduleContext(product: string, environment: string): string {
 
 export function scheduleDescription(slot: string): string {
   return `Deploy dispatched for ${slot}`;
+}
+
+function scheduleReservationDescription(slot: string): string {
+  return `Deploy dispatch reserved for ${slot}`;
 }
 
 /**
@@ -197,7 +204,18 @@ export async function wasScheduledDeployDispatched(
   const context = scheduleContext(deploy.product, deploy.environment);
   const description = scheduleDescription(deploy.slot);
   for (const sha of heads) {
-    if (await hasScheduledDispatchReceipt(deploy.repository, sha, context, description, get)) {
+    if (
+      await hasScheduledDispatchReceipt(
+        deploy.repository,
+        sha,
+        context,
+        [
+          { state: "pending", description: scheduleReservationDescription(deploy.slot) },
+          { state: "success", description },
+        ],
+        get
+      )
+    ) {
       return true;
     }
   }
@@ -266,20 +284,25 @@ export function beijingText(value: Date): string {
   return `${shifted.toISOString().slice(0, 16).replace("T", " ")} Beijing time`;
 }
 
-async function markDispatched(deploy: ScheduledDeploy, token: string): Promise<void> {
+async function writeScheduledStatus(
+  deploy: ScheduledDeploy,
+  token: string,
+  state: "pending" | "success",
+  description: string
+): Promise<void> {
   const targetUrl =
     process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
       ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
       : "";
   const payload = JSON.stringify({
-    state: "success",
+    state,
     context: scheduleContext(deploy.product, deploy.environment),
     description: signedStatusDescription({
       repository: deploy.repository,
       sha: deploy.head_sha,
-      state: "success",
+      state,
       context: scheduleContext(deploy.product, deploy.environment),
-      description: scheduleDescription(deploy.slot),
+      description,
       targetUrl,
     }),
     target_url: targetUrl || undefined,
@@ -301,6 +324,14 @@ async function markDispatched(deploy: ScheduledDeploy, token: string): Promise<v
       maxBuffer: 1024 * 1024,
     }
   );
+}
+
+async function reserveDispatch(deploy: ScheduledDeploy, token: string): Promise<void> {
+  await writeScheduledStatus(deploy, token, "pending", scheduleReservationDescription(deploy.slot));
+}
+
+async function markDispatched(deploy: ScheduledDeploy, token: string): Promise<void> {
+  await writeScheduledStatus(deploy, token, "success", scheduleDescription(deploy.slot));
 }
 
 async function dispatchDeploy(
@@ -394,12 +425,16 @@ async function main(): Promise<void> {
       });
       continue;
     }
-    await dispatchDeploy(
-      controlRepository,
-      ingressToken,
-      scheduledDeployRequestBody(deploy, eventType)
+    await dispatchWithReservation(
+      () => reserveDispatch(deploy, statusToken),
+      () =>
+        dispatchDeploy(
+          controlRepository,
+          ingressToken,
+          scheduledDeployRequestBody(deploy, eventType)
+        ),
+      () => markDispatched(deploy, statusToken)
     );
-    await markDispatched(deploy, statusToken);
     dispatched += 1;
     results.push({ ...label, result: "dispatched" });
   }

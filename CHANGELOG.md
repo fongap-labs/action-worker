@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 定时任务与部署先写入签名预留回执再派发，防止派发结果不明时自动重复请求；明确失败需人工核对后恢复。
+
 - 修复: AI Gateway 尝试预算测试跟随旧 Provider 执行模块迁移，同时验证两中心预算。
 
 - 修复: AI Gateway fallback 容量测试读取实际 Gateway 所有权模块，兼容源文件未迁移和兼容导出两种布局，保留 Tier 1 maxInFlight 断言。

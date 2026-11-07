@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { wasScheduledDeployDispatched } from "../scripts/dispatch-scheduled-deploys.ts";
 import { type ScheduledTask, wasDispatched } from "../scripts/dispatch-scheduled-tasks.ts";
-import { hasScheduledDispatchReceipt } from "../scripts/scheduled-dispatch-statuses.ts";
+import {
+  dispatchWithReservation,
+  hasScheduledDispatchReceipt,
+} from "../scripts/scheduled-dispatch-statuses.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const repository = "fongap-labs/example";
@@ -18,6 +21,14 @@ function signed(context: string, slot: string, label: "Task" | "Deploy") {
   );
 }
 
+function reserved(context: string, slot: string, label: "Task" | "Deploy") {
+  return attestFixtureStatuses(
+    { context, state: "pending", description: `${label} dispatch reserved for ${slot}` },
+    repository,
+    sha
+  );
+}
+
 test("task dedupe finds a past signed slot under the same commit and context", async () => {
   const task: ScheduledTask = {
     repository,
@@ -26,7 +37,7 @@ test("task dedupe finds a past signed slot under the same commit and context", a
     slot: oldSlot,
   };
   const context = "Task Schedule/MarketBrief";
-  const statuses = [signed(context, recentSlot, "Task"), signed(context, oldSlot, "Task")];
+  const statuses = [signed(context, recentSlot, "Task"), reserved(context, oldSlot, "Task")];
   const requested: string[] = [];
   const get = async (path: string): Promise<unknown> => {
     requested.push(path);
@@ -50,7 +61,7 @@ test("deploy dedupe finds a historical signed slot on the same head", async () =
     slot_time: new Date("2026-10-13T12:00:00Z"),
     schedule: ["0 12 * * *"],
   };
-  const statuses = [signed(context, recentSlot, "Deploy"), signed(context, oldSlot, "Deploy")];
+  const statuses = [signed(context, recentSlot, "Deploy"), reserved(context, oldSlot, "Deploy")];
   const get = async (path: string): Promise<unknown> => {
     if (path.includes("&since=") || path.includes("&until=")) return [];
     if (path.includes("/statuses?per_page=100&page=1")) return statuses;
@@ -69,7 +80,7 @@ test("signed schedule receipts on a second status-history page are found", async
     repository,
     sha,
     context,
-    `Task dispatched for ${oldSlot}`,
+    [{ state: "success", description: `Task dispatched for ${oldSlot}` }],
     async (path) => {
       requested.push(path);
       return path.endsWith("page=1") ? newerStatuses : [signed(context, oldSlot, "Task")];
@@ -79,14 +90,80 @@ test("signed schedule receipts on a second status-history page are found", async
   assert.ok(requested[1]?.endsWith("page=2"));
 });
 
+test("a signed pending reservation suppresses a duplicate scheduled dispatch", async () => {
+  const context = "Task Schedule/MarketBrief";
+  const reservation = attestFixtureStatuses(
+    [{ context, state: "pending", description: `Task dispatch reserved for ${oldSlot}` }],
+    repository,
+    sha
+  );
+  const found = await hasScheduledDispatchReceipt(
+    repository,
+    sha,
+    context,
+    [
+      { state: "pending", description: `Task dispatch reserved for ${oldSlot}` },
+      { state: "success", description: `Task dispatched for ${oldSlot}` },
+    ],
+    async () => reservation
+  );
+  assert.equal(found, true);
+});
+
+test("scheduled dispatch reserves before sending and acknowledges only after acceptance", async () => {
+  const calls: string[] = [];
+  await dispatchWithReservation(
+    async () => void calls.push("reserve"),
+    async () => void calls.push("dispatch"),
+    async () => void calls.push("accepted")
+  );
+  assert.deepEqual(calls, ["reserve", "dispatch", "accepted"]);
+
+  calls.length = 0;
+  await assert.rejects(
+    dispatchWithReservation(
+      async () => void calls.push("reserve"),
+      async () => {
+        calls.push("dispatch");
+        throw new Error("ambiguous dispatch failure");
+      },
+      async () => void calls.push("accepted")
+    ),
+    /ambiguous dispatch failure/
+  );
+  assert.deepEqual(calls, ["reserve", "dispatch"]);
+
+  calls.length = 0;
+  await assert.rejects(
+    dispatchWithReservation(
+      async () => {
+        calls.push("reserve");
+        throw new Error("reservation was not persisted");
+      },
+      async () => void calls.push("dispatch"),
+      async () => void calls.push("accepted")
+    ),
+    /reservation was not persisted/
+  );
+  assert.deepEqual(calls, ["reserve"]);
+});
+
 test("a forged status does not suppress dispatch", async () => {
   const context = "Task Schedule/MarketBrief";
   const result = await hasScheduledDispatchReceipt(
     repository,
     sha,
     context,
-    `Task dispatched for ${oldSlot}`,
+    [
+      { state: "pending", description: `Task dispatch reserved for ${oldSlot}` },
+      { state: "success", description: `Task dispatched for ${oldSlot}` },
+    ],
     async () => [
+      {
+        context,
+        state: "pending",
+        description: `Task dispatch reserved for ${oldSlot}`,
+      },
       {
         context,
         state: "success",
@@ -108,7 +185,7 @@ test("unbounded or malformed status history fails closed", async () => {
       repository,
       sha,
       context,
-      `Task dispatched for ${oldSlot}`,
+      [{ state: "success", description: `Task dispatched for ${oldSlot}` }],
       async (path) => {
         requested.push(path);
         return newerStatuses;
@@ -120,7 +197,13 @@ test("unbounded or malformed status history fails closed", async () => {
   assert.ok(requested.at(-1)?.endsWith("page=10"));
   for (const invalid of [{ statuses: [] }, [null], Array(101).fill({})]) {
     await assert.rejects(
-      hasScheduledDispatchReceipt(repository, sha, context, "unused", async () => invalid),
+      hasScheduledDispatchReceipt(
+        repository,
+        sha,
+        context,
+        [{ state: "success", description: "unused" }],
+        async () => invalid
+      ),
       /status history is invalid/
     );
   }
