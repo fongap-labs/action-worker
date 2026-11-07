@@ -11,7 +11,7 @@ import {
   PRODUCTS_DIRECTORY,
   ROOT_MANIFEST_DIRECTORY,
 } from "./product-discovery.ts";
-import { validateRepositoryCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, validateRepositoryCapability  } from "./repository-policy.ts";
 import { parseRunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
 import {
   appendLines,
@@ -471,7 +471,7 @@ async function main(): Promise<void> {
   const [repository = "", sourceSha = "", runnerPolicyPath = "policies/runner.json"] =
     process.argv.slice(2);
   const token = process.env.AW_CONTROL_TOKEN ?? "";
-  const rawRepositoryPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
+  const rawRepositoryPolicy = readRepositoryPolicyText() ?? "";
   if (!token || !rawRepositoryPolicy) {
     throw new CliError("AW_CONTROL_TOKEN and AW_REPOSITORY_POLICY are required.", 77);
   }
