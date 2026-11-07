@@ -1,5 +1,8 @@
-import { isJsonRecord } from "./github-api.ts";
-import { readRepositoryPolicyText, validateRepositoryCapability  } from "./repository-policy.ts";
+import {
+  isJsonRecord } from "./github-api.ts";
+import { readRepositoryPolicyText,
+  validateRepositoryCapability,
+} from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, readJson } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
