@@ -26,6 +26,7 @@ const chineseDisplayNames: Record<string, string> = {
   "release-npm.yml": "手动 ·  npm 发包",
   "deploy-source-script.yml": "手动 · 部署服务",
   "ai-gateway-ops.yml": "手动 · 管理网关密钥",
+  "approve-control-plane.yml": "手动 · 确认控制门禁",
   "verify-github-app.yml": "手动 · 验证 GitHub App",
   "runner-isolation-canary.yml": "手动 · 验证 Runner 隔离",
   "status-signing-recovery.yml": "手动 · 恢复签名密钥",
