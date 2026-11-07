@@ -1,5 +1,5 @@
 import { isJsonRecord } from "./github-api.ts";
-import { validateRepositoryCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, validateRepositoryCapability  } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -45,7 +45,7 @@ async function main(): Promise<void> {
   );
   validatePayload(value);
   const payload = value as Record<string, unknown>;
-  const repositoryPolicy = process.env.AW_REPOSITORY_POLICY;
+  const repositoryPolicy = readRepositoryPolicyText();
   if (!repositoryPolicy) {
     throw new CliError("::error::Missing Repository Variable: AW_REPOSITORY_POLICY.", 65);
   }
