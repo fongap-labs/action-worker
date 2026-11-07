@@ -27,7 +27,8 @@ export function preflightSteps(mode: PreflightMode): PreflightStep[] {
 }
 
 function runStep(step: PreflightStep): void {
-  const command = process.platform === "win32" && step.command === "python3" ? "python" : step.command;
+  const command =
+    process.platform === "win32" && step.command === "python3" ? "python" : step.command;
   console.log(`[preflight] ${command} ${step.args.join(" ")}`);
   const result = spawnSync(command, step.args, {
     stdio: "inherit",
