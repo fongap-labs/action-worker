@@ -6,7 +6,11 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { parseAiAgentConfig } from "../scripts/ai-agent-config.ts";
 import { applyTriage } from "../scripts/apply-ai-triage.ts";
-import { rulesetPayloads, rulesetsForRepository, settingsPayload } from "../scripts/apply-repository-settings.ts";
+import {
+  rulesetPayloads,
+  rulesetsForRepository,
+  settingsPayload,
+} from "../scripts/apply-repository-settings.ts";
 import { changeAreaForPath } from "../scripts/detect-pr-context.ts";
 import { variableEntries } from "../scripts/export-repository-variables.ts";
 import type { GithubReader } from "../scripts/github-api.ts";
@@ -622,7 +626,10 @@ test("main branch ruleset requires fongap-bot to publish the merge gate", async 
   assert.deepEqual(main.bypass_actors, []);
   const rules = main.rules as Array<{ type: string; parameters?: Record<string, unknown> }>;
   for (const type of ["deletion", "non_fast_forward", "required_linear_history", "pull_request"]) {
-    assert.ok(rules.some((rule) => rule.type === type), `missing GitHub hard gate: ${type}`);
+    assert.ok(
+      rules.some((rule) => rule.type === type),
+      `missing GitHub hard gate: ${type}`
+    );
   }
   const status = rules.find((rule) => rule.type === "required_status_checks");
   assert.ok(status, "GitHub must enforce the merge status before a main update");
@@ -647,8 +654,9 @@ test("Action Worker gate changes require a human code-owner review after the las
   assert.deepEqual(sensitive.conditions, {
     ref_name: { exclude: [], include: ["refs/heads/main"] },
   });
-  const requiredReview = (sensitive.rules as Array<{type: string;parameters?: Record<string, unknown>}>)
-    .find((rule) => rule.type === "pull_request")?.parameters;
+  const requiredReview = (
+    sensitive.rules as Array<{ type: string; parameters?: Record<string, unknown> }>
+  ).find((rule) => rule.type === "pull_request")?.parameters;
   assert.ok(requiredReview, "the control plane must require pull requests");
   assert.equal(requiredReview.required_approving_review_count, 1);
   assert.equal(requiredReview.require_code_owner_review, true);
@@ -667,7 +675,10 @@ test("Action Worker gate changes require a human code-owner review after the las
     "fongap-labs/delta",
     "fongap-labs/action-worker"
   );
-  assert.equal(business.some((ruleset) => ruleset.name === "Protect Control Plane"), false);
+  assert.equal(
+    business.some((ruleset) => ruleset.name === "Protect Control Plane"),
+    false
+  );
   assert.throws(() => rulesetsForRepository(rulesets, "fongap-labs/delta", ""));
 });
 
