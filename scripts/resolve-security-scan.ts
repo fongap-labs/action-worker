@@ -1,8 +1,5 @@
-import {
-  GithubReader } from "./github-api.ts";
-import { readRepositoryPolicyText,
-  validateRepositoryCapability,
-} from "./repository-policy.ts";
+import { GithubReader } from "./github-api.ts";
+import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { parseRunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
 import {
   appendLines,
