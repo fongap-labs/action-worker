@@ -1,4 +1,4 @@
-import { repositoriesForCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, repositoriesForCapability  } from "./repository-policy.ts";
 import { resolveGithubApiScope } from "./resolve-github-api-scope.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
@@ -20,7 +20,7 @@ export function scopedReleaseRepositories(policy: unknown, controlRepository: st
 
 async function main(): Promise<void> {
   const policy = parseJson(
-    process.env.AW_REPOSITORY_POLICY ?? "",
+    readRepositoryPolicyText() ?? "",
     "AW_REPOSITORY_POLICY must be valid JSON.",
     65
   );
