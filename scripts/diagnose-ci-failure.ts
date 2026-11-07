@@ -1,5 +1,5 @@
 import { appendFileSync } from "node:fs";
-import { isMain, handleError, CliError } from "./runtime-command.ts";
+import { CliError, handleError, isMain } from "./runtime-command.ts";
 
 export type FailureKind = "security" | "authorization" | "code" | "infrastructure" | "unknown";
 export type FailedStep = {
@@ -18,7 +18,7 @@ export type WorkflowJobFact = {
 
 export function classifyFailure(job: string, step: string): FailedStep {
   const label = `${job} ${step}`.toLowerCase();
-  if (/secret|security scan|attestation|provenance|main write guard|signature/.test(label)) {
+  if (/secret|security (?:scan|checks|gate)|attestation|provenance|main write guard|signature/.test(label)) {
     return {
       job,
       step,
