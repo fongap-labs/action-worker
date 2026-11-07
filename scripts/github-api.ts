@@ -257,7 +257,7 @@ export function statusAwareReader(
   const controlReader = new GithubReader(apiUrl, controlToken);
   const statusReader = new GithubReader(apiUrl, statusToken);
   const statusPath =
-    /^repos\/[^/]+\/[^/]+\/(?:statuses\/[^/?]+|commits\/[^/?]+\/statuses?)(?:\?|$)/;
+    /^repos\/[^/]+\/[^/]+\/(?:statuses\/[^/?]+|commits\/[^/?]+\/status(?:es)?)(?:\?|$)/;
   const readControlPath = controlReader.get.bind(controlReader);
   controlReader.get = (path) =>
     statusPath.test(path) ? statusReader.get(path) : readControlPath(path);
