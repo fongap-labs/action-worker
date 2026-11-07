@@ -1,24 +1,17 @@
-import {
-  } from "./product-discovery.ts";
-import { readRepositoryPolicyText,
-  centralCiWait,
-  discoverProducts,
-  getJsonString,
-  hasRepositoryCapability,
-  isJsonRecord } from "./github-api.ts";
+import { centralCiWait, requireVerifiedCiEvidence } from "./ci-evidence.ts";
+import { isPinPublished, type JsonReader, readFileAt } from "./follow-github.ts";
+import { isPinValueOf, parseFollowManifest, pinValueAt } from "./follow-pins.ts";
+import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import {
   type ContentReader,
+  discoverProducts,
   isProductName,
   isRepositoryRelativePath,
-  parseFollowManifest,
-  pinValueAt } from "./follow-pins.ts";
-import { GithubReader,
-  readFileAt } from "./follow-github.ts";
-import { isPinValueOf,
-  requireVerifiedCiEvidence } from "./ci-evidence.ts";
-import { isPinPublished,
   selectProduct,
-  type JsonReader,
+} from "./product-discovery.ts";
+import {
+  hasRepositoryCapability,
+  readRepositoryPolicyText,
   validateRepositoryCapability,
 } from "./repository-policy.ts";
 import { parseRunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
