@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "organization": "fongap-labs",
+  "auto_enroll_created_after": "2026-11-07T00:00:00Z",
+  "excluded_repositories": [
+    "fongap-labs/delta-legacy"
+  ],
+  "grants": {
+    "fongap-labs/action-worker": [
+      "pr",
+      "task"
+    ],
+    "fongap-labs/ai-gateway": [
+      "pr",
+      "task",
+      "deploy"
+    ],
+    "fongap-labs/delta": [
+      "pr",
+      "task",
+      "release-source",
+      "release-target"
+    ],
+    "fongap-labs/delta-suite": [
+      "pr",
+      "task"
+    ],
+    "fongap-labs/app-source": [
+      "pr",
+      "task",
+      "release-source"
+    ],
+    "fongap-labs/internal-vault": [
+      "pr",
+      "task",
+      "release-source",
+      "deploy"
+    ],
+    "fongap-labs/external-vault": [
+      "pr",
+      "task",
+      "release-source",
+      "release-target"
+    ],
+    "fongap-labs/dsh-plugin": [
+      "pr",
+      "release-source",
+      "release-target"
+    ],
+    "fongap-labs/mcp-hub": [
+      "pr",
+      "task",
+      "deploy"
+    ]
+  }
+}
