@@ -73,8 +73,6 @@ jobs:
 
       - name: Resolve managed repositories
         id: repositories
-        env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/repository-policy.ts list pr
 
       - name: Mint metrics multi-repository read token
