@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { parseReleaseBuildManifest } from "../scripts/validate-release-build-request.ts";
 import { parseRunnerPolicy, resolveRunnerProfile } from "../scripts/runner-policy.ts";
+import { parseReleaseBuildManifest } from "../scripts/validate-release-build-request.ts";
 
 const manifest = {
   schema_version: 1,
@@ -191,3 +191,4 @@ test("business-owned release matrix resolves across enabled central platform pro
     assert.equal(resolved.profile.enabled, true);
   }
 });
+
