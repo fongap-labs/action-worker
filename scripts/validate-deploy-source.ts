@@ -8,6 +8,7 @@ import {
 import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
 import { discoverProducts, isProductName, selectProduct } from "./product-discovery.ts";
+import { readRepositoryPolicyText } from "./repository-policy.ts";
 import {
   appendLines,
   CliError,
@@ -16,7 +17,6 @@ import {
   parseJson,
   readJson,
 } from "./runtime-command.ts";
-import { readRepositoryPolicyText } from "./repository-policy.ts";
 
 export type DeployTrigger = "manual" | "push" | "schedule";
 
