@@ -1,6 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { parseExecutionManifest } from "./execution-contract.ts";
-import { getGithubJson, getJsonString, githubExists, isGithubMissing, isJsonRecord } from "./github-api.ts";
+import {
+  getGithubJson,
+  getJsonString,
+  githubExists,
+  isGithubMissing,
+  isJsonRecord,
+} from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -22,8 +28,8 @@ export function allowPrivateWindowsNumericDiagnostic(
   if (
     !isJsonRecord(policyValue) ||
     policyValue.schema_version !== 1 ||
-    Object.keys(policyValue).some((key) =>
-      key !== "schema_version" && key !== "private_windows_numeric_diagnostics"
+    Object.keys(policyValue).some(
+      (key) => key !== "schema_version" && key !== "private_windows_numeric_diagnostics"
     ) ||
     !Array.isArray(policyValue.private_windows_numeric_diagnostics)
   ) {
@@ -91,7 +97,11 @@ export async function resolveCiCapabilities(
   controlRef: string,
   token: string,
   isPrivate = false
-): Promise<{ has_windows: boolean; linux_shards: string[]; private_windows_numeric_diagnostic: boolean }> {
+): Promise<{
+  has_windows: boolean;
+  linux_shards: string[];
+  private_windows_numeric_diagnostic: boolean;
+}> {
   if (!repositoryPattern.test(repository)) {
     throw new CliError(`Invalid repository: ${repository}.`, 64);
   }
@@ -128,7 +138,12 @@ async function main(): Promise<void> {
   if (visibility !== "true" && visibility !== "false") {
     throw new CliError("Resolved target visibility must be true or false.", 64);
   }
-  const capabilities = await resolveCiCapabilities(repository, controlRef, token, visibility === "true");
+  const capabilities = await resolveCiCapabilities(
+    repository,
+    controlRef,
+    token,
+    visibility === "true"
+  );
   await appendLines(process.env.GITHUB_OUTPUT, [
     `has_windows=${capabilities.has_windows}`,
     `linux_shards=${JSON.stringify(capabilities.linux_shards)}`,
