@@ -227,7 +227,7 @@ test("manual source deploy resolves default HEAD without spending the control PA
   );
   assert.ok(step, "manual deploy resolver must exist");
   assert.equal(step.env?.AW_DEPLOY_SOURCE_READ_TOKEN, "${{ steps.app_read.outputs.token }}");
-  assert.equal(step.env?.AW_REPOSITORY_POLICY, "${{ vars.AW_REPOSITORY_POLICY }}");
+  assert.equal(step.env?.AW_REPOSITORY_POLICY, undefined);
   assert.match(step.run ?? "", /repository-policy\.ts validate/);
   assert.match(step.run ?? "", /git ls-remote --exit-code/);
   assert.match(step.run ?? "", /GIT_CONFIG_KEY_0=http\.https:\/\/github\.com\/\.extraheader/);
