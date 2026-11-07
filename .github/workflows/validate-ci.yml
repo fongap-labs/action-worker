@@ -154,8 +154,8 @@ jobs:
         shell: bash
         env:
           # Pinned release and checksum (bump both together; Dependabot cannot update them).
-          ACTIONLINT_VERSION: "1.7.12"
-          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+          ACTIONLINT_VERSION: "1.17.0"
+          ACTIONLINT_SHA256: 620abd485a12b6ab1125b844a876414e1d5bd2af8a3125b27f82b01d0d9d6e5a
         run: |
           set -Eeuo pipefail
           archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
