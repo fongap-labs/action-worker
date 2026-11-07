@@ -1,22 +1,24 @@
 import {
-  GithubHttpError,
-  type GithubReader,
-  getJsonString,
-  isRetryableStatus,
-  runGithubCli,
-  statusAwareReader,
-} from "./github-api.ts";
+  } from "./github-api.ts";
 import {
   MainWriteVerificationPendingError,
-  validateMainWriteProvenance,
-} from "./main-write-guard.ts";
+  } from "./main-write-guard.ts";
 import {
   assertNoOpenMainWriteIncidents,
+  } from "./main-write-incidents.ts";
+import { readRepositoryPolicyText,
+  getJsonString,
+  GithubHttpError,
   IncidentAccessError,
   incidentTitle,
+  isRetryableStatus,
+  repositoriesForCapability,
+  runGithubCli,
   shouldCreateIncident,
-} from "./main-write-incidents.ts";
-import { readRepositoryPolicyText, repositoriesForCapability  } from "./repository-policy.ts";
+  statusAwareReader,
+  type GithubReader,
+  validateMainWriteProvenance,
+} from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
 import { postGithubCommitStatus } from "./status-write-retry.ts";
