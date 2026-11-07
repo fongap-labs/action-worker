@@ -29,6 +29,8 @@ type BuildEntry = {
   runner_profile: string;
   target: string;
   script: string;
+  /** Optional product-provided smoke/acceptance check, executed on the build platform. */
+  acceptance_script?: string;
   setup_rust?: boolean;
   assets: string[];
   attest_asset: string;
@@ -146,7 +148,7 @@ export function parseReleaseBuildManifest(value: unknown): ReleaseBuildManifest 
       !exactKeys(
         build,
         ["assets", "attest_asset", "id", "runner_profile", "script", "target"],
-        ["setup_rust"]
+        ["setup_rust", "acceptance_script"]
       ) ||
       typeof build.id !== "string" ||
       !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(build.id) ||
@@ -157,6 +159,10 @@ export function parseReleaseBuildManifest(value: unknown): ReleaseBuildManifest 
       typeof build.script !== "string" ||
       !isRelativePath(build.script) ||
       !(build.script.endsWith(".ps1") || build.script.endsWith(".mjs")) ||
+      (build.acceptance_script !== undefined &&
+        (typeof build.acceptance_script !== "string" ||
+          !isRelativePath(build.acceptance_script) ||
+          !/\.(ps1|mjs)$/.test(build.acceptance_script))) ||
       (build.setup_rust !== undefined && typeof build.setup_rust !== "boolean") ||
       !Array.isArray(build.assets) ||
       build.assets.length < 1 ||
@@ -391,6 +397,7 @@ async function main(): Promise<void> {
       setup_rust: build.setup_rust !== false,
       script: build.script,
       attest_asset: build.attest_asset,
+      acceptance_script: build.acceptance_script ?? "",
     };
   });
 
