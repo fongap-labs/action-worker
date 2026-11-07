@@ -16,7 +16,7 @@ import {
   statusAwareReader,
 } from "./github-api.ts";
 import { type ContentReader, discoverProducts } from "./product-discovery.ts";
-import { repositoriesForCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, repositoriesForCapability  } from "./repository-policy.ts";
 import {
   appendLines,
   CliError,
@@ -344,7 +344,7 @@ async function dispatchDeploy(
 }
 
 async function main(): Promise<void> {
-  const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
+  const policyRaw = readRepositoryPolicyText() ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const statusToken = requireStatusToken();
   const ingressToken = process.env.AW_DISPATCH_API_TOKEN ?? "";
