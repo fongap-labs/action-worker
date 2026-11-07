@@ -49,7 +49,6 @@ export function readRepositoryPolicyText(): string {
   return JSON.stringify(grants);
 }
 
-
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const capabilitySet = new Set<string>(repositoryCapabilities);
 
