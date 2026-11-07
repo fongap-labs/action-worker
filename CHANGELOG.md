@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- 新增: 从 fongap-bot GitHub App 自动发现组织仓库，新建合格仓库只授予 PR 治理，通过原有 validate-merge 自动合并接入 PR。
+- 调整: 由 policies/repository-access.json 作为仓库权限唯一来源，取消 AW_REPOSITORY_POLICY 变量对运行时权限的控制，保留现有九仓库授权不变。
+
 - 调整: 单人维护的 Action Worker 仅在维护者明确同意后才修改门禁，不额外新增人工审批工作流或第二套 Ruleset。
 
 - 修复: 公开受管仓库的 main 强制门禁绑定 fongap-bot 作为 validate-merge 唯一可信发布来源，保留 GitHub 原生分支保护与中央来源审计。
