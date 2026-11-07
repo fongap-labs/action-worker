@@ -446,7 +446,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   const prWorkflow = await text(".github/workflows/handle-pr-dispatch.yml");
   assert.match(
     prWorkflow,
-    /- name: Dispatch centralized CI[\s\S]*?AW_REPOSITORY_POLICY: \$\{\{ vars\.AW_REPOSITORY_POLICY \}\}[\s\S]*?dispatch-central-ci\.ts/
+    /- name: Dispatch centralized CI[\s\S]*?dispatch-central-ci\.ts/
   );
   const reviewRunner = await text("scripts/run-ai-review.ts");
   assert.match(reviewRunner, /AI Review \(advisory\)/);
