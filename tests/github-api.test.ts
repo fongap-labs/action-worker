@@ -191,6 +191,7 @@ test("status-aware reader uses the dedicated status App token for full owner/rep
     for (const path of [
       "repos/fongap-labs/internal-vault/commits/abc123/status",
       "repos/fongap-labs/internal-vault/commits/abc123/status?per_page=100",
+      "repos/fongap-labs/internal-vault/commits/abc123/statuses?per_page=100&page=2",
       "repos/fongap-labs/internal-vault/statuses/abc123",
     ]) {
       await reader.get(path);
@@ -200,6 +201,7 @@ test("status-aware reader uses the dedicated status App token for full owner/rep
     assert.deepEqual(
       calls.map((call) => call.auth),
       [
+        "Bearer status-read",
         "Bearer status-read",
         "Bearer status-read",
         "Bearer status-read",
