@@ -3,7 +3,10 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { parseReleaseBuildManifest, type ReleaseBuildManifest } from "./validate-release-build-request.ts";
+import {
+  parseReleaseBuildManifest,
+  type ReleaseBuildManifest,
+} from "./validate-release-build-request.ts";
 import { CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -54,11 +57,7 @@ export function verifyArguments(
   ];
 }
 
-export function hasVerifiedAsset(
-  result: unknown,
-  name: string,
-  digest: string
-): boolean {
+export function hasVerifiedAsset(result: unknown, name: string, digest: string): boolean {
   if (!Array.isArray(result)) return false;
   return result.some((item: unknown) => {
     if (typeof item !== "object" || item === null || !("verificationResult" in item)) {
