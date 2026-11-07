@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { profilesFromManifest, type Consumer, type JsonGetter } from "./downstream-compatibility.ts";
-import { parseRunnerPolicy, resolveRunnerProfile, type RunnerPolicy } from "./runner-policy.ts";
+import {
+  type Consumer,
+  type JsonGetter,
+  profilesFromManifest,
+} from "./downstream-compatibility.ts";
+import { parseRunnerPolicy, type RunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 
 const manifestPattern =
@@ -71,7 +75,10 @@ export async function collectPrivateConsumers(getJson: JsonGetter): Promise<Priv
           throw new CliError("Private manifest contents are invalid.", 65);
         }
         const raw = contents.content.replace(/\s+/g, "");
-        if (raw.length > 131072 || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(raw)) {
+        if (
+          raw.length > 131072 ||
+          !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(raw)
+        ) {
           throw new CliError("Private manifest encoding is invalid or oversized.", 65);
         }
         const bytes = Buffer.from(raw, "base64");
@@ -95,9 +102,7 @@ export function privateCompatibilityFailures(
   for (const consumer of scan.consumers) {
     try {
       const runner = resolveRunnerProfile(runnerPolicy, consumer.runner_profile);
-      const expected = consumer.path.includes("release.manifest.json")
-        ? "sandbox"
-        : "privileged";
+      const expected = consumer.path.includes("release.manifest.json") ? "sandbox" : "privileged";
       if (runner.profile.trust_domain !== expected) {
         throw new CliError("Runner has the wrong trust domain.", 65);
       }
@@ -140,7 +145,9 @@ async function main(): Promise<void> {
     `Private compatibility checked: ${scan.repositories} repositories, ${scan.consumers.length} declarations; no paths disclosed.`
   );
   if (failures.length > 0) {
-    console.error(`Private compatibility failures (anonymous fingerprints): ${failures.join(", ")}`);
+    console.error(
+      `Private compatibility failures (anonymous fingerprints): ${failures.join(", ")}`
+    );
     throw new CliError("One or more private manifest Runner contracts are invalid.", 65);
   }
 }
