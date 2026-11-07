@@ -1,6 +1,13 @@
-import { bumpForChanges, loadReleaseSpan, nextVersion } from "./compute-release-version.ts";
-import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
-import { readRepositoryPolicyText, validateRepositoryCapability  } from "./repository-policy.ts";
+import {
+  bumpForChanges,
+  getJsonString,
+  isJsonRecord } from "./github-api.ts";
+import { readRepositoryPolicyText,
+  loadReleaseSpan,
+  nextVersion } from "./compute-release-version.ts";
+import { GithubReader,
+  validateRepositoryCapability,
+} from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import {
   normalizeReleaseVersion,
