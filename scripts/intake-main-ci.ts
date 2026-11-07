@@ -1,7 +1,7 @@
 import { trustedControlRunId } from "./ci-evidence.ts";
 import { getJsonString, githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
-import { repositoriesForCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, repositoriesForCapability  } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import { hasValidStatusAttestation } from "./status-attestation.ts";
 
@@ -230,7 +230,7 @@ async function dispatchCentralCi(
 }
 
 async function main(): Promise<void> {
-  const policyRaw = process.env.AW_REPOSITORY_POLICY ?? "";
+  const policyRaw = readRepositoryPolicyText() ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const statusToken = requireIntakeStatusToken(process.env.AW_STATUS_API_TOKEN);
   const ingressToken = process.env.AW_DISPATCH_API_TOKEN ?? "";
