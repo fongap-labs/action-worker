@@ -1,26 +1,28 @@
 import {
-  controlRepositoryOf,
-  hasVerifiedCiEvidence,
-  hasVerifiedControlStatus,
-  mainWriteGuardWorkflowPaths,
-  prGateWorkflowPaths,
-  trustedControlRunId,
-  type VerificationTrace,
-  verificationRecorder,
-} from "./ci-evidence.ts";
+  } from "./ci-evidence.ts";
 import { requireStatusToken } from "./control-token.ts";
 import {
   type GithubReader,
+  } from "./github-api.ts";
+import { assertNoOpenMainWriteIncidents } from "./main-write-incidents.ts";
+import { readRepositoryPolicyText,
+  controlRepositoryOf,
   getJsonArray,
   getJsonNumber,
   getJsonString,
+  hasVerifiedCiEvidence,
+  hasVerifiedControlStatus,
   isJsonRecord,
-  type JsonRecord,
+  mainWriteGuardWorkflowPaths,
+  prGateWorkflowPaths,
   runGithubCli,
   statusAwareReader,
-} from "./github-api.ts";
-import { assertNoOpenMainWriteIncidents } from "./main-write-incidents.ts";
-import { readRepositoryPolicyText, validateRepositoryCapability  } from "./repository-policy.ts";
+  trustedControlRunId,
+  type JsonRecord,
+  type VerificationTrace,
+  validateRepositoryCapability,
+  verificationRecorder,
+} from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
 
