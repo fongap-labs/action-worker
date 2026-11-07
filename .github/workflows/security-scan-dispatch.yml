@@ -137,9 +137,10 @@ jobs:
 
       - name: Resolve SARIF target repository scope
         id: sarif_scope
+        working-directory: control
         env:
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
-        run: node control/scripts/resolve-github-api-scope.ts pr
+        run: node scripts/resolve-github-api-scope.ts pr
 
       - name: Mint target-only code scanning writer
         id: sarif_app
