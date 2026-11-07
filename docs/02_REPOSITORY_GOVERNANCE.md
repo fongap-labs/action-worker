@@ -49,6 +49,18 @@ AW_ADMIN_TOKEN → 应用 policies/repository.json
 node scripts/apply-repository-settings.ts <owner/name> true
 ```
 
+## 3. 自动发现与最小权限
+
+### ❌ 错误做法 / 反面教材
+
+依赖人工修改 `AW_REPOSITORY_POLICY`，或者新建仓库默认获得部署、发布能力。
+
+### ✅ 正确做法 / 规范范例
+
+组织 GitHub App 的仓库清单用于发现；`policies/organization-onboarding.json` 是特权授权的版本化权威；自动同步器只向新建仓库授予基础 PR/CI 治理，并将实际可访问范围投影到 `AW_REPOSITORY_POLICY` 供旧工作流兼容读取。
+
+历史仓库、例外仓库和不具备主分支/CI 条件的仓库不能被默默放行。来源不可信的 SHA 不得进入正式发布、部署；没有应用安装权限时必须报告限制。
+
 ## 3. 合并门禁
 
 仅中央检查有权批准合并。
