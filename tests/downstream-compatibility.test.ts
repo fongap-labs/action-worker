@@ -4,8 +4,8 @@ import { test } from "node:test";
 import {
   collectPublicConsumers,
   compatibilityRegressions,
-  profilesFromManifest,
   type JsonGetter,
+  profilesFromManifest,
 } from "../scripts/downstream-compatibility.ts";
 import { parseRunnerPolicy } from "../scripts/runner-policy.ts";
 
@@ -22,18 +22,24 @@ const manifest = {
   node_version_file: "",
   python_version_file: "",
   sbom_asset: "",
-  builds: [{
-    id: "linux",
-    runner_profile: "linux-standard",
-    target: "portable",
-    script: "build.mjs",
-    assets: ["example.zip"],
-    attest_asset: "example.zip",
-  }],
+  builds: [
+    {
+      id: "linux",
+      runner_profile: "linux-standard",
+      target: "portable",
+      script: "build.mjs",
+      assets: ["example.zip"],
+      attest_asset: "example.zip",
+    },
+  ],
 };
 
 test("central runner policy modifications cannot silently break published consumers", () => {
-  const consumers = profilesFromManifest("fongap-labs/example", "projects/desktop/release.manifest.json", manifest);
+  const consumers = profilesFromManifest(
+    "fongap-labs/example",
+    "projects/desktop/release.manifest.json",
+    manifest
+  );
   assert.deepEqual(compatibilityRegressions(consumers, baseline, baseline), []);
   const candidate = parseRunnerPolicy({
     schema_version: 1,
@@ -45,19 +51,25 @@ test("central runner policy modifications cannot silently break published consum
       },
     },
   });
-  assert.match(compatibilityRegressions(consumers, baseline, candidate)[0] ?? "", /became unavailable/);
+  assert.match(
+    compatibilityRegressions(consumers, baseline, candidate)[0] ?? "",
+    /became unavailable/
+  );
 });
 
 test("public repo discovery inspects root and projects manifests read-only", async () => {
   const requests: string[] = [];
   const getJson: JsonGetter = async (url) => {
     requests.push(url);
-    if (url.includes("/orgs/")) return [{ full_name: "fongap-labs/example", default_branch: "main" }];
-    if (url.includes("/git/trees/")) return {
+    if (url.includes("/orgs/"))
+      return [{ full_name: "fongap-labs/example", default_branch: "main" }];
+    if (url.includes("/git/trees/"))
+      return {
       truncated: false,
       tree: [{ path: "projects/desktop/release.manifest.json", type: "blob" }],
     };
-    if (url.includes("/contents/")) return {
+    if (url.includes("/contents/"))
+      return {
       encoding: "base64",
       content: Buffer.from(JSON.stringify(manifest)).toString("base64"),
     };
