@@ -16,7 +16,7 @@ import {
   incidentTitle,
   shouldCreateIncident,
 } from "./main-write-incidents.ts";
-import { repositoriesForCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
 import { postGithubCommitStatus } from "./status-write-retry.ts";
@@ -130,7 +130,7 @@ async function main(): Promise<void> {
   const statusToken = requireAuditCredential("AW_STATUS_API_TOKEN", "Commit statuses: Write");
   const issueToken = requireAuditCredential("AW_ISSUE_API_TOKEN", "Issues: Write");
   const controlToken = requireAuditCredential("AW_CONTROL_TOKEN", "managed repository reads");
-  const rawPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
+  const rawPolicy = readRepositoryPolicyText() ?? "";
   const runUrl = process.env.MAIN_WRITE_AUDIT_RUN_URL ?? "";
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   if (!controlToken) {

@@ -1,7 +1,7 @@
 import { hasVerifiedCiEvidence, latestCiStatus, trustedControlRunId } from "./ci-evidence.ts";
 import { requireStatusToken } from "./control-token.ts";
 import { getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
-import { validateRepositoryCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { hasValidStatusAttestation } from "./status-attestation.ts";
 
@@ -68,7 +68,7 @@ async function skipStaleFollowUp(request: FollowUpRequest): Promise<void> {
 
 async function main(): Promise<void> {
   const rawRequest = process.env.CI_FOLLOW_UP_REQUEST_JSON ?? "";
-  const rawPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
+  const rawPolicy = readRepositoryPolicyText() ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const statusToken = requireStatusToken();
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";

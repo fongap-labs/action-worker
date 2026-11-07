@@ -25,6 +25,41 @@ function requireText(content: string, values: readonly string[]): void {
   }
 }
 
+test("repository permissions come only from the versioned access policy", async () => {
+  const authority = await json("policies/repository-access.json");
+  assert.equal(authority.schema_version, 1);
+  assert.equal(authority.organization, "fongap-labs");
+  assert.deepEqual(authority.excluded_repositories, ["fongap-labs/delta-legacy"]);
+  const grants = authority.grants as Record<string, string[]>;
+  const required: Record<string, string[]> = {
+    "fongap-labs/action-worker": ["pr", "task"],
+    "fongap-labs/ai-gateway": ["pr", "task", "deploy"],
+    "fongap-labs/delta": ["pr", "task", "release-source", "release-target"],
+    "fongap-labs/delta-suite": ["pr", "task"],
+    "fongap-labs/app-source": ["pr", "task", "release-source"],
+    "fongap-labs/internal-vault": ["pr", "task", "release-source", "deploy"],
+    "fongap-labs/external-vault": ["pr", "task", "release-source", "release-target"],
+    "fongap-labs/dsh-plugin": ["pr", "release-source", "release-target"],
+    "fongap-labs/mcp-hub": ["pr", "task", "deploy"],
+  };
+  for (const [repository, capabilities] of Object.entries(required)) {
+    assert.deepEqual(grants[repository], capabilities);
+  }
+  for (const [repository, capabilities] of Object.entries(grants)) {
+    assert.match(repository, /^fongap-labs\/[A-Za-z0-9_.-]+$/);
+    if (!Object.hasOwn(required, repository)) assert.deepEqual(capabilities, ["pr"]);
+  }
+  const loader = await text("scripts/repository-policy.ts");
+  assert.match(loader, /readFileSync\(canonicalPolicyFile, "utf8"\)/);
+  const workflowPaths = (await readdir(".github/workflows")).filter((path) =>
+    path.endsWith(".yml")
+  );
+  for (const path of workflowPaths) {
+    const workflow = await text(`.github/workflows/${path}`);
+    assert.doesNotMatch(workflow, /vars\.AW_REPOSITORY_POLICY/, path);
+  }
+});
+
 test("governance files and TypeScript control entries exist", async () => {
   const required = [
     "AGENTS.md",
@@ -359,7 +394,6 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   requireText(workflow, [
     "repository_dispatch:",
     "types: [run-pr-governance]",
-    "AW_REPOSITORY_POLICY",
     "AW_CONTROL_TOKEN",
     "AW_AI_AGENT_CONFIG",
     "persist-credentials: false",
@@ -422,16 +456,13 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   );
   assert.match(workflow, /STATE: \$\{\{ steps\.gate\.outputs\.passed == 'true'/);
   const ciDispatcher = await text("scripts/dispatch-central-ci.ts");
-  requireText(ciDispatcher, ["AW_REPOSITORY_POLICY", "validateRepositoryCapability", '"pr"']);
+  requireText(ciDispatcher, ["readRepositoryPolicyText", "validateRepositoryCapability", '"pr"']);
   assert.doesNotMatch(ciDispatcher, /central_repositories|Central CI dispatch skipped/);
   const ciEvidenceWaiter = await text("scripts/wait-ci-evidence.ts");
   requireText(ciEvidenceWaiter, ["waitForCentralStatus", "CI Evidence"]);
   assert.doesNotMatch(ciEvidenceWaiter, /central_repositories|actions\/workflows\/\$\{workflow\}/);
   const prWorkflow = await text(".github/workflows/handle-pr-dispatch.yml");
-  assert.match(
-    prWorkflow,
-    /- name: Dispatch centralized CI[\s\S]*?AW_REPOSITORY_POLICY: \$\{\{ vars\.AW_REPOSITORY_POLICY \}\}[\s\S]*?dispatch-central-ci\.ts/
-  );
+  assert.match(prWorkflow, /- name: Dispatch centralized CI[\s\S]*?dispatch-central-ci\.ts/);
   const reviewRunner = await text("scripts/run-ai-review.ts");
   assert.match(reviewRunner, /AI Review \(advisory\)/);
   assert.doesNotMatch(reviewRunner, /merge is blocked|blocking findings|blockSeverity/);
@@ -444,7 +475,6 @@ test("AI review runs as its own advisory workflow after the gate", async () => {
     "types: [run-pr-review]",
     "group: pr-review-${{ github.event.client_payload.repository }}-${{ github.event.client_payload.pr_number }}",
     "cancel-in-progress: true",
-    "AW_REPOSITORY_POLICY",
     "AW_CONTROL_TOKEN",
     "AI_GATEWAY_URL",
     "AIG_ACCESS_KEY_AGENT",
@@ -560,7 +590,6 @@ test("task dispatch keeps the publication credential in the central control step
     "compgen -e",
     "action-worker-base-env.names",
     "action-worker-repository-vars.json",
-    "AW_REPOSITORY_POLICY",
     "node-version: 24",
     "Checkout private task source",
     "Checkout public task source",
@@ -643,7 +672,6 @@ test("task source ingress is source-owned and repository-agnostic", async () => 
     "workflow_dispatch:",
     "repository:",
     "project:",
-    "AW_REPOSITORY_POLICY",
     'repository-policy.ts validate "$repository" task',
     "AW_CONTROL_REPOSITORY",
     "Task Source",
@@ -678,7 +706,6 @@ test("task source ingress is source-owned and repository-agnostic", async () => 
 
   const intakeWorkflow = await text(".github/workflows/intake.yml");
   requireText(intakeWorkflow, [
-    "AW_REPOSITORY_POLICY",
     "AW_CONTROL_TOKEN",
     "intake-task-sources.ts",
     "dispatch-scheduled-tasks.ts",
@@ -762,17 +789,17 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   ]);
   assert.doesNotMatch(release, /AW_RELEASE_(?:SOURCE|TARGET)_ALLOWLIST/);
   const releaseValidator = await text("scripts/validate-release-request.ts");
-  requireText(releaseValidator, ["AW_REPOSITORY_POLICY", "release-source", "release-target"]);
+  requireText(releaseValidator, ["readRepositoryPolicyText", "release-source", "release-target"]);
   assert.doesNotMatch(
     releaseValidator,
     /AW_(?:PR|EXECUTION|RELEASE_SOURCE|RELEASE_TARGET)_REPOSITORY_ALLOWLIST/
   );
   const prValidator = await text("scripts/validate-pr-payload.ts");
-  requireText(prValidator, ["AW_REPOSITORY_POLICY"]);
+  requireText(prValidator, ["readRepositoryPolicyText"]);
   assert.doesNotMatch(prValidator, /AW_[A-Z_]*ALLOWLIST/);
 
   const ciDispatcher = await text("scripts/dispatch-central-ci.ts");
-  requireText(ciDispatcher, ["AW_REPOSITORY_POLICY", "validateRepositoryCapability", '"pr"']);
+  requireText(ciDispatcher, ["readRepositoryPolicyText", "validateRepositoryCapability", '"pr"']);
   assert.doesNotMatch(ciDispatcher, /central_repositories|Central CI dispatch skipped/);
   const publisher = await text("scripts/publish-release.ts");
   requireText(publisher, [
@@ -849,7 +876,6 @@ test("closed PR cancellation validates policy and state before owning live concu
   requireText(workflow, [
     "types: [cancel-pr-work]",
     "Validate Cancellation Target",
-    "AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}",
     'node scripts/validate-pr-payload.ts "$PAYLOAD"',
     "steps.app_read.outputs.token",
     "permission-pull-requests: read",
@@ -937,7 +963,6 @@ test("security scanning is source-owned, centrally executed, and private-safe", 
     "if: github.event.schedule == '17 3 * * 1'",
     "contents: write",
     "intake-security-scans.ts",
-    "AW_REPOSITORY_POLICY",
     "AW_CONTROL_TOKEN",
   ]);
 
@@ -967,7 +992,6 @@ test("central CI deploy dispatch is source-owned and adapter-routed", async () =
   const dispatcher = await text("scripts/dispatch-central-deploy.ts");
   requireText(dispatcher, [
     "resolveDeployManifest",
-    "AW_REPOSITORY_POLICY",
     "policies/runner.json",
     "manifest.automatic",
     "manifest.ignore_docs_only",
@@ -1003,7 +1027,6 @@ test("central CI deploy dispatch is source-owned and adapter-routed", async () =
     "Verify completed CI evidence and source revision",
     "if: ${{ !cancelled() && steps.verified.outputs.current == 'true' && steps.attest.outcome == 'success' }}",
     "contents: write",
-    "AW_REPOSITORY_POLICY",
     'repository-policy.ts validate "$REPOSITORY" pr',
     'resolve-ci-capabilities.ts "$REPOSITORY" "$CONTROL_REF"',
     "Resolve PR CI control",
@@ -1037,7 +1060,6 @@ test("source-script deploy execution is manifest-driven and repository-agnostic"
     "source_repository:",
     "source_sha:",
     "validate-deploy-source.ts source-script true policies/runner.json",
-    "AW_REPOSITORY_POLICY",
     "runner_labels_json",
     "fromJSON(needs.prepare.outputs.runner_labels_json)",
     "environment: ${{ needs.prepare.outputs.environment }}",
@@ -1197,11 +1219,7 @@ test("central main write audit is independent of business repository Actions", a
     intake.indexOf("  main-writes:"),
     intake.indexOf("  task-sources:")
   );
-  requireText(workflow, [
-    "AW_CONTROL_TOKEN",
-    "AW_REPOSITORY_POLICY",
-    "node scripts/audit-main-writes.ts",
-  ]);
+  requireText(workflow, ["AW_CONTROL_TOKEN", "node scripts/audit-main-writes.ts"]);
   assert.match(intake, /cron: "\*\/5 \* \* \* \*"/);
   const script = await text("scripts/audit-main-writes.ts");
   requireText(script, [
@@ -1231,7 +1249,6 @@ test("dependency repair keeps compute and publication authority separated", asyn
     "publish-dependency-repair.ts",
     "persist-credentials: false",
     "needs.compute.outputs.changed == 'true'",
-    "AW_REPOSITORY_POLICY",
     "AW_CONTROL_TOKEN",
   ]);
   assert.doesNotMatch(workflow, /fongap-labs\/delta|pyproject\.toml|uv\.lock/);

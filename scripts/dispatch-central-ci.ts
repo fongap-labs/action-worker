@@ -1,7 +1,7 @@
 import { hasVerifiedCiEvidence } from "./ci-evidence.ts";
 import { requireToken } from "./control-token.ts";
 import { githubEnvironment, isJsonRecord, runGithubCli, statusAwareReader } from "./github-api.ts";
-import { validateRepositoryCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, readJson, runText } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
 
@@ -39,7 +39,7 @@ async function main(): Promise<void> {
   }
 
   const repositoryPolicy = parseJson(
-    process.env.AW_REPOSITORY_POLICY ?? "",
+    readRepositoryPolicyText() ?? "",
     "::error::AW_REPOSITORY_POLICY must be valid JSON.",
     65
   );

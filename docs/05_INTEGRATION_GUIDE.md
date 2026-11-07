@@ -23,6 +23,12 @@
 
 项目仍拥有项目架构、执行清单及不能外置的专属测试；共用测试归 `TEST_PACKS.md` 管理。
 
+组织仓库权限的唯一权威是 `policies/repository-access.json`。已安装的 `fongap-bot` 定期查询 GitHub App 安装清单，为创建时间符合策略、默认分支为 `main`、非归档且非 Fork 的新仓库自动创建只含 `pr` 的接入 PR。该 PR 只能修改权威权限文件，并且必须通过现有 `validate-merge` 才能自动合并；任务、正式发布、部署权限仍需维护者明确授权。
+
+要让未来新增仓库真正免手动授权，**唯一一次 GitHub 管理操作**是将 `fongap-bot` 的组织级 GitHub App 安装范围由 `Only select repositories` 调整为 `All repositories`。这不会绕过 Action Worker 的能力授权：安装可见性仅用于发现，新的能力默认仍只有 `pr`。如继续使用选定仓库模式，自动接入仅覆盖该 App 已被授权访问的仓库。
+
+自动登记并不代表自动通过 CI：项目仍应提供真实构建/测试执行清单，缺失时保持门禁失败，不能用空测试代替。
+
 ## 2. 执行请求
 
 请求只提交身份与目标。

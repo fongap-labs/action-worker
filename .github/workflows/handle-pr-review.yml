@@ -46,13 +46,11 @@ jobs:
         id: payload
         env:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/validate-pr-payload.ts "$PAYLOAD"
 
       - name: Resolve PR review API scope
         id: api_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ steps.payload.outputs.repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
@@ -72,7 +70,6 @@ jobs:
       - name: Validate control credential
         env:
           GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
         run: node scripts/validate-control-access.ts "$REPOSITORY" "$PR_NUMBER"
@@ -121,7 +118,6 @@ jobs:
       - name: Resolve CI evidence API scope
         id: evidence_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
@@ -284,7 +280,6 @@ jobs:
         id: review_scope
         if: ${{ always() && !cancelled() && needs.prepare.outputs.repository != '' }}
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 

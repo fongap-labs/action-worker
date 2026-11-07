@@ -46,7 +46,6 @@ jobs:
       - name: Resolve dependency repair status scope
         id: status_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ github.event.client_payload.repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
@@ -85,7 +84,6 @@ jobs:
         id: resolve
         env:
           AW_CONTROL_TOKEN: ${{ steps.prepare_read_app.outputs.token }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           DEPENDENCY_REPAIR_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
         run: node scripts/resolve-dependency-repair.ts policies/runner.json
 
@@ -218,7 +216,6 @@ jobs:
       - name: Resolve dependency repair publish scope
         id: publish_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
         run: node control/scripts/resolve-github-api-scope.ts pr
 
@@ -302,7 +299,6 @@ jobs:
       - name: Resolve final dependency repair status scope
         id: status_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository || github.event.client_payload.repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 

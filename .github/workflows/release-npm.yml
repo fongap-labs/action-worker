@@ -42,7 +42,6 @@ jobs:
       - name: Resolve npm Release API scope
         id: api_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ github.event.client_payload.repository || inputs.repository }}
         run: node scripts/resolve-github-api-scope.ts release-target
 
@@ -60,7 +59,6 @@ jobs:
         env:
           AW_RELEASE_API_TOKEN: ${{ steps.release_app.outputs.token }}
           AW_NPM_TOKEN: ${{ secrets.AW_NPM_TOKEN }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
           NPM_REPUBLISH_REPOSITORY: ${{ github.event.client_payload.repository || inputs.repository }}
           NPM_REPUBLISH_TAG: ${{ github.event.client_payload.tag || inputs.tag }}

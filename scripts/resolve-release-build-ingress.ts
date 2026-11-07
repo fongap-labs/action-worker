@@ -1,6 +1,6 @@
 import { bumpForChanges, loadReleaseSpan, nextVersion } from "./compute-release-version.ts";
 import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
-import { validateRepositoryCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import {
   normalizeReleaseVersion,
@@ -98,7 +98,7 @@ async function main(): Promise<void> {
   } else if (eventName === "workflow_dispatch") {
     const token = process.env.AW_CONTROL_TOKEN ?? "";
     const policy = parseJson(
-      process.env.AW_REPOSITORY_POLICY ?? "",
+      readRepositoryPolicyText() ?? "",
       "AW_REPOSITORY_POLICY must be valid JSON.",
       65
     );

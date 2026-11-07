@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { getGithubJson, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
+import { readRepositoryPolicyText } from "./repository-policy.ts";
 import { resolveGithubApiScope } from "./resolve-github-api-scope.ts";
 import {
   appendLines,
@@ -34,7 +35,7 @@ export function releaseTargetFromArtifact(
 
 async function main(): Promise<void> {
   const policy = parseJson(
-    process.env.AW_REPOSITORY_POLICY ?? "",
+    readRepositoryPolicyText() ?? "",
     "AW_REPOSITORY_POLICY must be valid JSON.",
     65
   );

@@ -45,7 +45,6 @@ jobs:
       - name: Resolve release source repositories
         id: release_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node scripts/repository-policy.ts list release-source
 

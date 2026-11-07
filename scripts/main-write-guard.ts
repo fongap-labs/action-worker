@@ -20,7 +20,7 @@ import {
   statusAwareReader,
 } from "./github-api.ts";
 import { assertNoOpenMainWriteIncidents } from "./main-write-incidents.ts";
-import { validateRepositoryCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
 
@@ -449,7 +449,7 @@ async function main(): Promise<void> {
   }
 
   if (process.env.MAIN_WRITE_REQUIRE_POLICY !== "false") {
-    const rawPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
+    const rawPolicy = readRepositoryPolicyText() ?? "";
     if (!rawPolicy) {
       throw new CliError("::error::AW_REPOSITORY_POLICY is required.", 65);
     }

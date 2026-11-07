@@ -1,6 +1,7 @@
 import {
   parseRepositoryPolicy,
   type RepositoryCapability,
+  readRepositoryPolicyText,
   repositoryCapabilities,
   validateRepositoryCapability,
 } from "./repository-policy.ts";
@@ -54,7 +55,7 @@ async function main(): Promise<void> {
   if (capability !== "managed" && !repositoryCapabilities.includes(capability)) {
     throw new CliError("Usage: resolve-github-api-scope.ts <managed|CAPABILITY>", 64);
   }
-  const rawPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
+  const rawPolicy = readRepositoryPolicyText() ?? "";
   if (!rawPolicy) {
     throw new CliError("::error::AW_REPOSITORY_POLICY is required.", 65);
   }

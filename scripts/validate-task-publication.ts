@@ -2,7 +2,11 @@ import { constants as fsConstants } from "node:fs";
 import { lstat, open, readdir } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { isJsonRecord } from "./github-api.ts";
-import { parseRepositoryPolicy, validateRepositoryCapability } from "./repository-policy.ts";
+import {
+  parseRepositoryPolicy,
+  readRepositoryPolicyText,
+  validateRepositoryCapability,
+} from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 type Publication = {
@@ -130,7 +134,7 @@ async function main(): Promise<void> {
     await handle.close();
   }
 
-  const rawPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
+  const rawPolicy = readRepositoryPolicyText() ?? "";
   if (!rawPolicy) {
     throw new CliError("::error::AW_REPOSITORY_POLICY is required for task publication.", 65);
   }

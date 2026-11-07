@@ -9,7 +9,11 @@ import {
   isRepositoryRelativePath,
   selectProduct,
 } from "./product-discovery.ts";
-import { hasRepositoryCapability, validateRepositoryCapability } from "./repository-policy.ts";
+import {
+  hasRepositoryCapability,
+  readRepositoryPolicyText,
+  validateRepositoryCapability,
+} from "./repository-policy.ts";
 import { parseRunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
 import {
   appendLines,
@@ -325,7 +329,7 @@ async function main(): Promise<void> {
     )
   );
   const repositoryPolicy = parseJson(
-    process.env.AW_REPOSITORY_POLICY ?? "",
+    readRepositoryPolicyText() ?? "",
     "::error::AW_REPOSITORY_POLICY must be valid JSON.",
     65
   );

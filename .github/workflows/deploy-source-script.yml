@@ -84,7 +84,6 @@ jobs:
       - name: Resolve deploy source API scope
         id: api_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ github.event.client_payload.source_repository || inputs.source_repository }}
         run: node scripts/resolve-github-api-scope.ts deploy
 
@@ -125,7 +124,6 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         env:
           AW_DEPLOY_SOURCE_READ_TOKEN: ${{ steps.app_read.outputs.token }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           SOURCE_REPOSITORY: ${{ inputs.source_repository }}
           SOURCE_SHA: ${{ inputs.source_sha }}
           SOURCE_PRODUCT: ${{ inputs.product }}
@@ -206,7 +204,6 @@ jobs:
       # untrusted write.
       - name: Request central CI for the source
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           AW_CONTROL_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.ci_status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
@@ -218,7 +215,6 @@ jobs:
       - name: Resolve source audit API scope
         id: audit_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
@@ -248,7 +244,6 @@ jobs:
           AW_STATUS_API_TOKEN: ${{ steps.audit_status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_ISSUE_API_TOKEN: ${{ steps.audit_issue_app.outputs.token }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           MAIN_WRITE_AUDIT_REPOSITORY: ${{ steps.manual_request.outputs.source_repository || github.event.client_payload.source_repository }}
           MAIN_WRITE_AUDIT_RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/audit-main-writes.ts
@@ -259,7 +254,6 @@ jobs:
           AW_CONTROL_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           DEPLOY_REQUEST_JSON: ${{ steps.dispatch_request.outputs.request_json || steps.manual_request.outputs.request_json }}
         run: node scripts/validate-deploy-source.ts source-script true policies/runner.json policies/deploy-environments.json
 

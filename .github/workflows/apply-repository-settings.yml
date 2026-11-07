@@ -9,6 +9,7 @@ on:
       - main
     paths:
       - policies/repository.json
+      - policies/repository-access.json
       - policies/rulesets.json
       - scripts/apply-repository-settings.ts
       - scripts/apply-review-models.ts
@@ -114,8 +115,6 @@ jobs:
 
       - name: Resolve repository policy
         id: policy
-        env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/repository-policy.ts list pr
 
   apply-managed:

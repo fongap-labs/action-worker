@@ -38,7 +38,6 @@ jobs:
       - name: Resolve security scan read scope
         id: api_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ github.event.client_payload.repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
@@ -57,7 +56,6 @@ jobs:
         id: resolve
         env:
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           SECURITY_SCAN_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
         run: node scripts/resolve-security-scan.ts policies/runner.json
 
@@ -138,7 +136,6 @@ jobs:
       - name: Resolve SARIF target repository scope
         id: sarif_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
         run: node control/scripts/resolve-github-api-scope.ts pr
 

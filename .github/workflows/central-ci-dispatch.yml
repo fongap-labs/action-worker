@@ -52,13 +52,11 @@ jobs:
         if: github.event.action == 'run-central-ci'
         env:
           PAYLOAD: ${{ toJSON(github.event.client_payload) }}
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
         run: node scripts/validate-pr-payload.ts "$PAYLOAD"
 
       - name: Resolve central CI API scope
         id: api_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ github.event.client_payload.repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
@@ -127,7 +125,6 @@ jobs:
 
       - name: Validate central CI target
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           REPOSITORY: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
         run: node scripts/repository-policy.ts validate "$REPOSITORY" pr
 
@@ -319,7 +316,6 @@ jobs:
         id: security_scope
         if: needs.prepare.outputs.is_private == 'true'
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
@@ -422,7 +418,6 @@ jobs:
       - name: Resolve status publication scope
         id: status_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
@@ -536,7 +531,6 @@ jobs:
       - name: Resolve failed CI status scope
         id: status_scope
         env:
-          AW_REPOSITORY_POLICY: ${{ vars.AW_REPOSITORY_POLICY }}
           TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
         run: node scripts/resolve-github-api-scope.ts pr
 
