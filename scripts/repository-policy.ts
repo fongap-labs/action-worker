@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
@@ -10,6 +11,32 @@ export const repositoryCapabilities = [
 ] as const;
 
 export type RepositoryCapability = (typeof repositoryCapabilities)[number];
+const canonicalPolicyFile = "policies/repository-access.json";
+
+/** The versioned policy is authoritative: GitHub Actions variables cannot grant privileges. */
+export function readRepositoryPolicyText(): string {
+  const raw = readFileSync(canonicalPolicyFile, "utf8");
+  let data: unknown;
+  try {
+    data = JSON.parse(raw) as unknown;
+  } catch {
+    throw new CliError("::error::Repository access policy is invalid JSON.", 65);
+  }
+  if (
+    !isJsonRecord(data) ||
+    data.schema_version !== 1 ||
+    data.organization !== "fongap-labs" ||
+    !isJsonRecord(data.grants)
+  ) {
+    throw new CliError("::error::Repository access policy schema is invalid.", 65);
+  }
+  const grants = parseRepositoryPolicy(data.grants);
+  if (Object.keys(grants).some((name) => !name.startsWith("fongap-labs/"))) {
+    throw new CliError("::error::Repository access policy contains an outside organization.", 65);
+  }
+  return JSON.stringify(grants);
+}
+
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const capabilitySet = new Set<string>(repositoryCapabilities);
@@ -97,11 +124,7 @@ function suggestRepositories(value: unknown, typed: string): string[] {
 
 async function main(): Promise<void> {
   const [command, first = "", second = ""] = process.argv.slice(2);
-  const rawPolicy = process.env.AW_REPOSITORY_POLICY;
-  if (!rawPolicy) {
-    throw new CliError("::error::Missing Repository Variable: AW_REPOSITORY_POLICY.", 65);
-  }
-  const policy = parseJson(rawPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65);
+  const policy = JSON.parse(readRepositoryPolicyText()) as Record<string, RepositoryCapability[]>;
 
   if (command === "list" && capabilitySet.has(first)) {
     const repositories = repositoriesForCapability(policy, first as RepositoryCapability);
