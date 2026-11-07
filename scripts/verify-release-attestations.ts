@@ -3,11 +3,11 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 import {
   parseReleaseBuildManifest,
   type ReleaseBuildManifest,
 } from "./validate-release-build-request.ts";
-import { CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
