@@ -1,8 +1,16 @@
-import { constants as fsConstants } from "node:fs";
-import { lstat, open, readdir } from "node:fs/promises";
-import { join, relative, sep } from "node:path";
+import {
+  constants as fsConstants } from "node:fs";
+import { lstat,
+  open,
+  parseRepositoryPolicy,
+  readdir } from "node:fs/promises";
+import { join,
+  relative,
+  sep } from "node:path";
 import { isJsonRecord } from "./github-api.ts";
-import { readRepositoryPolicyText, parseRepositoryPolicy, validateRepositoryCapability  } from "./repository-policy.ts";
+import { readRepositoryPolicyText,
+  validateRepositoryCapability,
+} from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 type Publication = {
