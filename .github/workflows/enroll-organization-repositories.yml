@@ -27,7 +27,9 @@ jobs:
   onboard:
     name: Discover and safely enroll repositories
     if: github.repository == 'fongap-labs/action-worker'
-    environment: admin-ops
+    environment:
+      name: admin-ops
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
