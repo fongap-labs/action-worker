@@ -56,6 +56,7 @@ const classes = {
   // finished runs.
   maintenance: [
     "apply-repository-settings.yml",
+    "enroll-organization-repositories.yml",
     "publication-key-verify.yml",
     "main-write-guard.yml",
     "prune-stale-state.yml",
