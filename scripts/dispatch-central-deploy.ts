@@ -15,7 +15,7 @@ import {
   isJsonRecord,
 } from "./github-api.ts";
 import { type ContentReader, discoverProducts } from "./product-discovery.ts";
-import { hasRepositoryCapability } from "./repository-policy.ts";
+import { readRepositoryPolicyText, hasRepositoryCapability  } from "./repository-policy.ts";
 import {
   appendLines,
   CliError,
@@ -242,7 +242,7 @@ async function main(): Promise<void> {
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const dispatchToken = requireToken("dispatch");
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
-  const rawRepositoryPolicy = process.env.AW_REPOSITORY_POLICY ?? "";
+  const rawRepositoryPolicy = readRepositoryPolicyText() ?? "";
   if (
     !controlToken ||
     !dispatchToken ||
