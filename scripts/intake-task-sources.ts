@@ -1,13 +1,16 @@
-import { requireStatusToken } from "./control-token.ts";
-import { parseTaskSourceManifest } from "./dispatch-scheduled-tasks.ts";
 import {
-  getJsonString,
+  } from "./github-api.ts";
+import { readRepositoryPolicyText,
   githubEnvironment,
   githubExists,
   isJsonRecord,
+  repositoriesForCapability,
+  requireStatusToken } from "./control-token.ts";
+import { parseTaskSourceManifest } from "./dispatch-scheduled-tasks.ts";
+import {
+  getJsonString,
   statusAwareReader,
-} from "./github-api.ts";
-import { readRepositoryPolicyText, repositoriesForCapability  } from "./repository-policy.ts";
+} from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import { hasValidStatusAttestation } from "./status-attestation.ts";
 
