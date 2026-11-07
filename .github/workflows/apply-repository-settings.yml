@@ -33,7 +33,9 @@ concurrency:
 jobs:
   apply-control-plane:
     name: Apply control-plane settings
-    environment: admin-ops
+    environment:
+      name: admin-ops
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -63,7 +65,9 @@ jobs:
 
   bootstrap-signing:
     name: Bootstrap CI evidence signing keys
-    environment: admin-ops
+    environment:
+      name: admin-ops
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -120,7 +124,9 @@ jobs:
   apply-managed:
     needs: resolve-managed
     name: Apply managed settings · ${{ matrix.repository }}
-    environment: admin-ops
+    environment:
+      name: admin-ops
+      deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     strategy:
