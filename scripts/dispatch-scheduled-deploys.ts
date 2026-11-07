@@ -183,7 +183,6 @@ export async function resolveScheduledDeploys(
   );
 }
 
-
 /**
  * A slot is recorded on the default-branch head of the slot time or a later one, so look at every
  * one of those heads. A new commit does not make an already dispatched slot run again.
