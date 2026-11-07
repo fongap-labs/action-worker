@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- 修复: 单人维护的 Action Worker 使用由本人在受保护环境中明确批准指定 PR SHA 的门禁，不再强制第二人审核；业务仓库继续使用自动门禁。
+- 调整: 单人维护的 Action Worker 仅在维护者明确同意后才修改门禁，不额外新增人工审批工作流或第二套 Ruleset。
 
 - 修复: 公开受管仓库的 main 强制门禁绑定 fongap-bot 作为 validate-merge 唯一可信发布来源，保留 GitHub 原生分支保护与中央来源审计。
 
