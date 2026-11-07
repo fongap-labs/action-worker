@@ -6,7 +6,11 @@ import { join } from "node:path";
 import { test } from "node:test";
 import { parseAiAgentConfig } from "../scripts/ai-agent-config.ts";
 import { applyTriage } from "../scripts/apply-ai-triage.ts";
-import { rulesetPayloads, settingsPayload } from "../scripts/apply-repository-settings.ts";
+import {
+  rulesetPayloads,
+  rulesetsForRepository,
+  settingsPayload,
+} from "../scripts/apply-repository-settings.ts";
 import { changeAreaForPath } from "../scripts/detect-pr-context.ts";
 import { variableEntries } from "../scripts/export-repository-variables.ts";
 import type { GithubReader } from "../scripts/github-api.ts";
@@ -612,6 +616,68 @@ test("repository ruleset policy is exact and rejects duplicate managed names", (
       rulesets: [rulesets[0], rulesets[0]],
     })
   );
+});
+
+test("main branch ruleset requires fongap-bot to publish the merge gate", async () => {
+  const value = JSON.parse(await readFile("policies/rulesets.json", "utf8")) as unknown;
+  const main = rulesetPayloads(value).find((ruleset) => ruleset.name === "Protect Main Branch");
+  assert.ok(main, "main branch must have a centrally managed ruleset");
+  assert.equal(main.enforcement, "active");
+  assert.deepEqual(main.bypass_actors, []);
+  const rules = main.rules as Array<{ type: string; parameters?: Record<string, unknown> }>;
+  for (const type of ["deletion", "non_fast_forward", "required_linear_history", "pull_request"]) {
+    assert.ok(
+      rules.some((rule) => rule.type === type),
+      `missing GitHub hard gate: ${type}`
+    );
+  }
+  const status = rules.find((rule) => rule.type === "required_status_checks");
+  assert.ok(status, "GitHub must enforce the merge status before a main update");
+  assert.equal(status.parameters?.strict_required_status_checks_policy, true);
+  assert.deepEqual(status.parameters?.required_status_checks, [
+    { context: "validate-merge", integration_id: 5609149 },
+  ]);
+});
+
+test("control repository keeps its original merge gate without a second approval channel", async () => {
+  const value = JSON.parse(await readFile("policies/rulesets.json", "utf8")) as unknown;
+  const rulesets = rulesetPayloads(value);
+  assert.deepEqual(
+    rulesets.map((ruleset) => ruleset.name),
+    ["Protect Main Branch", "Protect Legacy Branches"]
+  );
+  const control = rulesetsForRepository(
+    rulesets,
+    "fongap-labs/action-worker",
+    "fongap-labs/action-worker"
+  );
+  const controlMain = control.find((ruleset) => ruleset.name === "Protect Main Branch");
+  assert.ok(controlMain);
+  const controlCheck = (
+    controlMain.rules as Array<{ type: string; parameters?: Record<string, unknown> }>
+  ).find((rule) => rule.type === "required_status_checks");
+  assert.deepEqual(controlCheck?.parameters?.required_status_checks, [
+    { context: "validate-merge", integration_id: 15368 },
+  ]);
+  const controlPullRequest = (
+    controlMain.rules as Array<{ type: string; parameters?: Record<string, unknown> }>
+  ).find((rule) => rule.type === "pull_request");
+  assert.equal(controlPullRequest?.parameters?.required_approving_review_count, 0);
+
+  const business = rulesetsForRepository(
+    rulesets,
+    "fongap-labs/delta",
+    "fongap-labs/action-worker"
+  );
+  const businessMain = business.find((ruleset) => ruleset.name === "Protect Main Branch");
+  assert.ok(businessMain);
+  const businessStatus = (
+    businessMain.rules as Array<{ type: string; parameters?: Record<string, unknown> }>
+  ).find((rule) => rule.type === "required_status_checks");
+  assert.deepEqual(businessStatus?.parameters?.required_status_checks, [
+    { context: "validate-merge", integration_id: 5609149 },
+  ]);
+  assert.throws(() => rulesetsForRepository(rulesets, "fongap-labs/delta", ""));
 });
 
 test("release contracts bind source, artifact provenance, target, assets, and license", () => {

@@ -816,7 +816,9 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   const statusChecks = mainRules.find((rule) => rule.type === "required_status_checks");
   const statusParameters = statusChecks?.parameters as Record<string, unknown>;
   assert.equal(statusParameters.strict_required_status_checks_policy, true);
-  assert.deepEqual(statusParameters.required_status_checks, [{ context: "validate-merge" }]);
+  assert.deepEqual(statusParameters.required_status_checks, [
+    { context: "validate-merge", integration_id: 5609149 },
+  ]);
   // The ruleset requires one merge gate name. Every workflow that posts the merge gate must post
   // that same name, or the required check never reports and the merge stays blocked.
   for (const workflow of [".github/workflows/handle-pr-dispatch.yml"]) {

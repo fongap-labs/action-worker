@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- 调整: 单人维护的 Action Worker 仅在维护者明确同意后才修改门禁，不额外新增人工审批工作流或第二套 Ruleset。
+
+- 修复: 公开受管仓库的 main 强制门禁绑定 fongap-bot 作为 validate-merge 唯一可信发布来源，保留 GitHub 原生分支保护与中央来源审计。
+
 - 新增: 为受管桌面应用发布增加 macOS 15 ARM64 沙箱构建 Runner，保持独立平台构建与发布门禁。
 
 - 修复: AI Gateway 生产部署的健康密钥不再别名至 AGENT 访问密钥；运维 Secret 写入改用 Cloudflare Secrets API，禁止占位 Worker 覆盖代码。
