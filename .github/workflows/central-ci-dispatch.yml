@@ -33,6 +33,7 @@ jobs:
       is_private: ${{ steps.visibility.outputs.is_private }}
       has_windows: ${{ steps.capabilities.outputs.has_windows }}
       linux_shards: ${{ steps.capabilities.outputs.linux_shards }}
+      private_windows_numeric_diagnostic: ${{ steps.capabilities.outputs.private_windows_numeric_diagnostic }}
       should_run: ${{ steps.ref_facts.outputs.should_run || 'true' }}
 
     steps:
@@ -172,6 +173,7 @@ jobs:
           AW_CONTROL_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           REPOSITORY: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
           CONTROL_REF: ${{ steps.ci_control.outputs.control_ref || steps.ref_facts.outputs.control_ref || 'main' }}
+          IS_PRIVATE: ${{ steps.visibility.outputs.is_private }}
         run: node scripts/resolve-ci-capabilities.ts "$REPOSITORY" "$CONTROL_REF"
 
       - name: Resolve PR facts
@@ -376,6 +378,7 @@ jobs:
     uses: ./.github/workflows/central-ci-sandbox.yml
     with:
       platform: windows
+      private_windows_numeric_diagnostic: ${{ needs.prepare.outputs.private_windows_numeric_diagnostic }}
       repository: ${{ needs.prepare.outputs.repository }}
       pr_number: ${{ needs.prepare.outputs.pr_number }}
       base_sha: ${{ needs.prepare.outputs.base_sha }}
