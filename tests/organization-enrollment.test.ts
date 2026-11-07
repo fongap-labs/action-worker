@@ -18,10 +18,7 @@ const policy = {
   },
 };
 
-function repo(
-  name: string,
-  overrides: Partial<InstalledRepo> = {}
-): InstalledRepo {
+function repo(name: string, overrides: Partial<InstalledRepo> = {}): InstalledRepo {
   return {
     full_name: `fongap-labs/${name}`,
     owner: { login: "fongap-labs" },
@@ -62,12 +59,8 @@ test("legacy, archived, disabled, fork, and non-main repositories are not automa
 
 test("untrusted inventory and unexpected privilege changes fail closed", () => {
   assert.throws(() => planOnboarding(policy, [repo("repeat"), repo("repeat")]));
-  assert.throws(() =>
-    planOnboarding(policy, [{ ...repo("wrong"), full_name: "outside/wrong" }])
-  );
-  assert.throws(() =>
-    planOnboarding({ ...policy, grants: { "outside/repo": ["pr"] } }, [])
-  );
+  assert.throws(() => planOnboarding(policy, [{ ...repo("wrong"), full_name: "outside/wrong" }]));
+  assert.throws(() => planOnboarding({ ...policy, grants: { "outside/repo": ["pr"] } }, []));
 
   const inventory = [repo("new-service")];
   const candidate = planOnboarding(policy, inventory);
