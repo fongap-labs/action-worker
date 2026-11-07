@@ -1,18 +1,25 @@
-import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import {
+  } from "./github-api.ts";
+import { configureNpmAuth,
+  createHash } from "node:crypto";
+import { mkdtemp,
+  getJsonArray,
+  getJsonString,
+  isJsonRecord,
+  npmRegistry,
+  publishNpmTarball } from "./npm-publish.ts";
+
+import { readRepositoryPolicyText,
+  readFile,
+  rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { requireToken } from "./control-token.ts";
 import {
   getGithubJson,
-  getJsonArray,
-  getJsonString,
-  isJsonRecord,
   runGithubCli,
-} from "./github-api.ts";
-import { configureNpmAuth, npmRegistry, publishNpmTarball } from "./npm-publish.ts";
-
-import { readRepositoryPolicyText, validateRepositoryCapability  } from "./repository-policy.ts";
+  validateRepositoryCapability,
+} from "./repository-policy.ts";
 import {
   appendLines,
   CliError,
