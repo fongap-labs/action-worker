@@ -7,6 +7,7 @@
 
 import assert from 'node:assert/strict';
 import worker from '#target/src/index.ts';
+import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { __resetAdaptive429StateForTests } from '#target/src/reliability/adaptive-429.ts';
 import { __resetAllStateForTests, getNodeState } from '#target/src/reliability/node-state.ts';
 import { __resetTier1StateForTests, getTier1Account, getTier1Model, getTier1ModelPerf, recordTier1Ttft, tier1AccountInFlight } from '#target/src/reliability/tier1-state.ts';
@@ -77,6 +78,29 @@ function makeEnv({ tier1, tier2, tier3, secrets = {}, extraEnv = {} } = {}) {
     ...(Object.keys(t3s).length ? { AIG_TIER3_CREDENTIALS_01: JSON.stringify(t3s) } : {}),
     ...extraEnv,
   };
+}
+
+// Center-bound cases must exercise the real authenticated internal endpoint,
+// not the Gateway's transitional direct Provider transport. Existing legacy
+// cases remain in this suite until their expected behavior is migrated.
+const INFERENCE_AUTH_KEY = 'central-inference-integration-fixture-auth-key-32';
+function withInferenceCenter(gatewayEnv, onCenterRequest = () => {}) {
+  const centerEnv = { AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY };
+  for (const [key, value] of Object.entries(gatewayEnv)) {
+    if (/^AIG_TIER[123]_(?:NODES|CREDENTIALS)_\d{2}$/.test(key)) centerEnv[key] = value;
+  }
+  for (const key of Object.keys(gatewayEnv)) {
+    if (/^AIG_TIER[123]_CREDENTIALS_\d{2}$/.test(key)) delete gatewayEnv[key];
+  }
+  gatewayEnv.AIG_INFERENCE_ACTIVE = 'true';
+  gatewayEnv.AIG_INFERENCE_AUTH_KEY = INFERENCE_AUTH_KEY;
+  gatewayEnv.AIG_INFERENCE_SERVICE = {
+    fetch(request) {
+      onCenterRequest(request);
+      return handleInferenceCenterRequest(request, centerEnv);
+    },
+  };
+  return gatewayEnv;
 }
 
 const openaiNode = (id, extra = {}) => ({
@@ -312,14 +336,23 @@ await test('protocol/surfaces in Node JSON are hard schema errors and never reac
 
 await test('OpenAI Chat native success rewrites model identity and hides topology by default', async () => {
   routeHandlers['native.example.com'] = () => jsonResponse(okChat('native-ok'));
-  const env = makeEnv({ tier1: [openaiNode('native')], secrets: { native: 'provider-key' } });
+  let centerCalls = 0;
+  const env = withInferenceCenter(makeEnv({ tier1: [openaiNode('native')], secrets: { native: 'provider-key' } }), (request) => {
+    centerCalls++;
+    assert.equal(new URL(request.url).pathname, '/internal/execute');
+    assert.equal(request.headers.get('x-aig-inference-auth'), INFERENCE_AUTH_KEY);
+    assert.equal(request.headers.get('authorization'), null);
+  });
+  assert.equal(env.AIG_TIER1_CREDENTIALS_01, undefined, 'Gateway must not hold Provider credentials');
   const res = await worker.fetch(chatRequest(), env, {});
   assert.equal(res.status, 200);
+  assert.equal(centerCalls, 1, 'native attempt must run inside the private Inference Center');
   const body = await res.json();
   assert.equal(body.model, 'general-air');
   assert.equal(body.choices[0].message.content, 'native-ok');
   assert.equal(upstreamCalls[0].path, '/v1/chat/completions');
   assert.equal(upstreamCalls[0].authorization, 'Bearer provider-key');
+  assert.equal(upstreamCalls[0].headers.get('x-aig-inference-auth'), null);
   assert.equal(upstreamCalls[0].body.model, 'up-model');
   assert.equal(res.headers.get('x-gateway-node'), null);
   assert.equal(res.headers.get('x-gateway-tier'), null);
@@ -330,12 +363,18 @@ await test('same-tier failover rotates from a transient failure to a healthy pee
   routeHandlers['same-b.example.com'] = () => jsonResponse(okChat('peer-ok'));
   recordTier1Ttft('same-a', 'general-air', 50);
   recordTier1Ttft('same-b', 'general-air', 2_000);
-  const env = makeEnv({
-    tier1: [openaiNode('same-a'), openaiNode('same-b')],
-    secrets: { 'same-a': 'a', 'same-b': 'b' },
-  });
+  let centerCalls = 0;
+  const env = withInferenceCenter(
+    makeEnv({
+      tier1: [openaiNode('same-a'), openaiNode('same-b')],
+      secrets: { 'same-a': 'a', 'same-b': 'b' },
+    }),
+    () => { centerCalls++; },
+  );
+  assert.equal(env.AIG_TIER1_CREDENTIALS_01, undefined);
   const res = await worker.fetch(chatRequest(), env, {});
   assert.equal(res.status, 200);
+  assert.equal(centerCalls, 2, 'Gateway must retry via the center, never bypass its Service Binding');
   assert.deepEqual(
     upstreamCalls.map((c) => c.host),
     ['same-a.example.com', 'same-b.example.com'],
