@@ -43,8 +43,26 @@ function envFor(provider = 'openai-image', upstreamModel = 'gpt-image-1', extra 
   // Exercise the real versioned, private Generation Center execution contract.
   // Only the center can reach the mocked physical Provider; tests do not rely
   // on Gateway's legacy direct-provider path.
+  // The Gateway owns client access policy; the Generation Center receives
+  // only its own node/credential shards and private authentication contract.
+  // In particular, hidden UI model declarations are not needed for physical
+  // image execution because each center invocation validates a node mapping.
+  const centerEnv = {
+    AIG_GENERATION_AUTH_KEY: env.AIG_GENERATION_AUTH_KEY,
+    AIG_TIER1_NODES_01: env.AIG_TIER1_NODES_01,
+    AIG_TIER1_CREDENTIALS_01: env.AIG_TIER1_CREDENTIALS_01,
+  };
   env.AIG_GENERATION_SERVICE = {
-    fetch: (request) => handleGenerationCenterRequest(request, env),
+    fetch: async (request) => {
+      const result = await handleGenerationCenterRequest(request, centerEnv);
+      if (result.headers.get('x-aig-result') !== 'dispatched') {
+        // Only a fixed, public center error code; never print credentials,
+        // provider response bodies or the private execution request.
+        const error = await result.clone().json().catch(() => null);
+        console.error('generation fixture center rejection', result.status, error?.error?.code ?? 'unknown');
+      }
+      return result;
+    },
   };
   return env;
 }
