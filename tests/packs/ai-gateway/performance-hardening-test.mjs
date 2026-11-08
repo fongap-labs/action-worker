@@ -11,6 +11,7 @@ import { withMockFetch } from '#kit/fetch.mjs';
 import { createMockD1 } from '#kit/mock-d1-database.mjs';
 import { __resetAccessKeysCacheForTests } from '#target/src/config/access-keys.ts';
 import worker from '#target/src/index.ts';
+import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { __resetUsageBufferForTests, flushUsageBuffer, persistTokenUsage } from '#target/src/observability/token-usage-store.ts';
 import { MAX_BUFFERED_REPLY_BYTES, readBodyTextBounded, safeReadErrorBody } from '#target/src/protocol/http.ts';
 import { __resetAllStateForTests } from '#target/src/reliability/node-state.ts';
@@ -23,6 +24,19 @@ import { ensureFirstSseEvent } from '#target/src/stream/guard.ts';
 import { trackStreamResponse } from '#target/src/stream/track.ts';
 
 const ACCESS_KEY = 'perf-access-key';
+const INFERENCE_AUTH_KEY = 'performance-private-center-auth-key-32';
+const centerCallsByEnv = new WeakMap();
+
+function assertCenterDispatches(env, physicalCalls) {
+  const paths = centerCallsByEnv.get(env);
+  assert.ok(paths, 'Gateway environment must provide private inference center');
+  assert.ok(
+    paths.every((path) => path === '/internal/execute' || path === '/internal/conversion/preflight'),
+    'only known private inference center calls are permitted',
+  );
+  assert.equal(paths.filter((path) => path === '/internal/execute').length, physicalCalls,
+    'every physical Provider attempt must execute through the private center');
+}
 const enc = new TextEncoder();
 
 function bytesResponse(chunks, headers = { 'content-type': 'application/json' }) {
@@ -49,14 +63,33 @@ function resetGatewayState() {
 const node = (id) => ({ id, provider: 'openai', base_url: `https://${id}.example.com/v1`, models: { 'code-max': 'up-model' } });
 
 function makeEnv(ids, extra = {}) {
-  return {
-    AIG_ACCESS_KEY_AIR: ACCESS_KEY,
-    AIG_ACCESS_MODELS_AIR: '*',
-    TIER1_SCHEDULER_SEED: 'performance-hardening-test',
+  const centerEnv = {
     AIG_TIER1_NODES_01: JSON.stringify(ids.map(node)),
     AIG_TIER1_CREDENTIALS_01: JSON.stringify(Object.fromEntries(ids.map((id) => [id, `key-${id}`]))),
     ...extra,
+    AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY,
   };
+  const centerPaths = [];
+  const gatewayEnv = {
+    AIG_ACCESS_KEY_AIR: ACCESS_KEY,
+    AIG_ACCESS_MODELS_AIR: '*',
+    TIER1_SCHEDULER_SEED: 'performance-hardening-test',
+    ...centerEnv,
+    AIG_INFERENCE_ACTIVE: 'true',
+    AIG_INFERENCE_SERVICE: {
+      fetch(request) {
+        assert.equal(request.headers.get('x-aig-inference-auth'), INFERENCE_AUTH_KEY);
+        assert.equal(request.headers.get('authorization'), null);
+        assert.equal(request.headers.get('x-api-key'), null);
+        centerPaths.push(new URL(request.url).pathname);
+        return handleInferenceCenterRequest(request, centerEnv);
+      },
+    },
+  };
+  delete gatewayEnv.AIG_TIER1_CREDENTIALS_01;
+  assert.equal(gatewayEnv.AIG_TIER1_CREDENTIALS_01, undefined);
+  centerCallsByEnv.set(gatewayEnv, centerPaths);
+  return gatewayEnv;
 }
 
 // Real clients send Content-Length; without it the body budget charges the worst case
@@ -105,6 +138,7 @@ test('a buffered reply over the limit ends the request instead of regenerating i
   assert.equal(response.status, 502);
   assert.equal(calls.length, 1, 'the oversized reply is not retried on the second node');
   assert.match(await response.text(), /stream:true/);
+  assertCenterDispatches(env, calls.length);
 });
 
 test('a reply under the limit is still delivered', async () => {
@@ -116,6 +150,7 @@ test('a reply under the limit is still delivered', async () => {
   );
   assert.equal(response.status, 200);
   assert.equal((await response.json()).choices[0].message.content, 'hello');
+  assertCenterDispatches(env, 1);
 });
 
 // ---- session affinity: stale-while-revalidate ----------------------------------
@@ -302,13 +337,16 @@ test('an upstream outage does not send every concurrent request through the whol
   assert.ok(snapshotRetryBudget().denied > 0, 'some retries were refused');
   assert.ok(calls < 12 * ids.length, `the pool was not hammered by every request (calls=${calls})`);
   assert.deepEqual({ active: snapshotRetryBudget().active, retrying: snapshotRetryBudget().retrying }, { active: 0, retrying: 0 }, 'slots are released');
+  assertCenterDispatches(env, calls);
 });
 
 test('rotating past a rate-limited key is ordinary pool behaviour and is never budgeted', async () => {
   resetGatewayState();
   const env = makeEnv(['rot-a', 'rot-b']);
+  let physicalCalls = 0;
   const responses = await withMockFetch(
     async (input) => {
+      physicalCalls++;
       const host = new URL(typeof input === 'string' ? input : input.url).hostname;
       if (host.startsWith('rot-a')) return new Response('{"error":{"message":"rate limit"}}', { status: 429, headers: { 'content-type': 'application/json' } });
       return new Response(JSON.stringify(completion('ok')), { status: 200, headers: { 'content-type': 'application/json' } });
@@ -317,6 +355,7 @@ test('rotating past a rate-limited key is ordinary pool behaviour and is never b
   );
   assert.deepEqual(responses.map((response) => response.status), Array(12).fill(200));
   assert.equal(snapshotRetryBudget().denied, 0);
+  assertCenterDispatches(env, physicalCalls);
 });
 
 // ---- access-key digests --------------------------------------------------------------
