@@ -10,6 +10,7 @@
 
 import { convertRequest } from './conversion-matrix-adapters.mjs';
 import worker from '#target/src/index.ts';
+import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { buildResponsesError } from '#target/src/protocol/responses/index.ts';
 import { __resetAdaptive429StateForTests } from '#target/src/reliability/adaptive-429.ts';
 import { KIND } from '#target/src/reliability/classify.ts';
@@ -611,8 +612,10 @@ try {
 
 
   const ACCESS_KEY = 'test-access-key';
+  const INFERENCE_AUTH_KEY = 'central-protocol-matrix-auth-key-32';
   let passed = 0;
   const calls = [];
+  const centerPaths = [];
   let handlers = {};
   async function test(name, fn) {
     try {
@@ -620,8 +623,14 @@ try {
       __resetTier1StateForTests();
       __resetTier1AffinityForTests();
       calls.length = 0;
+      centerPaths.length = 0;
       handlers = {};
       await fn();
+      assert.equal(
+        centerPaths.filter((path) => path === '/internal/execute').length,
+        calls.length,
+        'every physical protocol-matrix Provider attempt must run behind private Inference Center execution',
+      );
       passed += 1;
       console.log(`ok - ${name}`);
     } catch (error) {
@@ -648,7 +657,7 @@ try {
   const openaiNode = (id) => ({ id, provider: 'openai', base_url: `https://${id}.example.com/v1`, models: { max: 'up-model' } });
   const messagesNode = (id) => ({ id, provider: 'anthropic', base_url: `https://${id}.example.com`, models: { max: 'up-model' } });
   function env(nodes, extra = {}) {
-    return {
+    const executionEnv = {
       AIG_ACCESS_KEY_AIR: ACCESS_KEY,
       AIG_ACCESS_MODELS_AIR: 'max',
       AIG_TIER1_NODES_01: JSON.stringify(nodes),
@@ -656,7 +665,24 @@ try {
       TIER1_SCHEDULER_SEED: 'protocol-matrix',
       AIG_MODELS_CONFIG: JSON.stringify({ max: { policy: 'default' } }),
       ...extra,
+      AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY,
     };
+    const gatewayEnv = {
+      ...executionEnv,
+      AIG_INFERENCE_ACTIVE: 'true',
+      AIG_INFERENCE_SERVICE: {
+        fetch(request) {
+          assert.equal(request.headers.get('x-aig-inference-auth'), INFERENCE_AUTH_KEY);
+          assert.equal(request.headers.get('authorization'), null);
+          assert.equal(request.headers.get('x-api-key'), null);
+          centerPaths.push(new URL(request.url).pathname);
+          return handleInferenceCenterRequest(request, executionEnv);
+        },
+      },
+    };
+    delete gatewayEnv.AIG_TIER1_CREDENTIALS_01;
+    assert.equal(gatewayEnv.AIG_TIER1_CREDENTIALS_01, undefined, 'Gateway must not own Provider secrets');
+    return gatewayEnv;
   }
 
   const auth = { authorization: `Bearer ${ACCESS_KEY}`, 'content-type': 'application/json' };
