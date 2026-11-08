@@ -2,8 +2,9 @@
 // Claude Code / Anthropic Messages contract tests.
 //
 // Black-box: run the REAL worker pipeline (auth -> scheduler -> retry ->
-// circuit -> transport -> stream) through worker.fetch() against a mocked
-// global fetch upstream, exactly as a Claude Code client drives /v1/messages.
+// circuit -> private Inference Center -> stream) through worker.fetch().
+// The isolated center owns the mocked physical Provider fetch, as a Claude Code
+// client drives /v1/messages without Gateway-side Provider credentials.
 // These tests pin the customer-facing protocol contract (text, stream,
 // thinking, tool_use, tool_result, error shapes), not internal structure.
 //
@@ -13,11 +14,14 @@
 // below therefore speaks the Anthropic wire format.
 import assert from 'node:assert/strict';
 import worker from '#target/src/index.ts';
+import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { __resetAllStateForTests, getNodeState } from '#target/src/reliability/node-state.ts';
 import { __resetTier1StateForTests, recordTier1Ttft } from '#target/src/reliability/tier1-state.ts';
 import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affinity.ts';
 
 const ACCESS_KEY = 'test-access-key';
+const INFERENCE_AUTH_KEY = 'claude-contract-private-center-auth-key-32';
+const centerPaths = [];
 
 let passed = 0;
 async function test(name, fn) {
@@ -25,7 +29,17 @@ async function test(name, fn) {
     __resetAllStateForTests();
     __resetTier1StateForTests();
     __resetTier1AffinityForTests();
+    centerPaths.length = 0;
     await fn();
+    assert.ok(
+      centerPaths.every((path) => path === '/internal/conversion/preflight' || path === '/internal/execute'),
+      'only known private center RPC paths are permitted',
+    );
+    assert.equal(
+      centerPaths.filter((path) => path === '/internal/execute').length,
+      upstreamCalls.length,
+      'every Claude Provider call must be executed by the private inference center',
+    );
     passed++;
     console.log(`ok - ${name}`);
   } catch (e) {
@@ -56,15 +70,32 @@ function resetMock() {
 }
 
 function makeEnv({ tier1, tier2, secrets, extraEnv } = {}) {
-  return {
-    AIG_ACCESS_KEY_AIR: ACCESS_KEY,
-    AIG_ACCESS_MODELS_AIR: '*',
-    TIER1_SCHEDULER_SEED: 'claude-contract-test',
+  const centerEnv = {
     ...(tier1 ? { AIG_TIER1_NODES_01: JSON.stringify(tier1) } : {}),
     ...(tier2 ? { AIG_TIER2_NODES_01: JSON.stringify(tier2) } : {}),
     ...(secrets ? { AIG_TIER1_CREDENTIALS_01: JSON.stringify(secrets) } : {}),
     ...extraEnv,
+    AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY,
   };
+  const gatewayEnv = {
+    AIG_ACCESS_KEY_AIR: ACCESS_KEY,
+    AIG_ACCESS_MODELS_AIR: '*',
+    TIER1_SCHEDULER_SEED: 'claude-contract-test',
+    ...centerEnv,
+    AIG_INFERENCE_ACTIVE: 'true',
+    AIG_INFERENCE_SERVICE: {
+      fetch(request) {
+        assert.equal(request.headers.get('x-aig-inference-auth'), INFERENCE_AUTH_KEY);
+        assert.equal(request.headers.get('authorization'), null);
+        assert.equal(request.headers.get('x-api-key'), null);
+        centerPaths.push(new URL(request.url).pathname);
+        return handleInferenceCenterRequest(request, centerEnv);
+      },
+    },
+  };
+  delete gatewayEnv.AIG_TIER1_CREDENTIALS_01;
+  assert.equal(gatewayEnv.AIG_TIER1_CREDENTIALS_01, undefined, 'Gateway must never hold Provider credentials');
+  return gatewayEnv;
 }
 
 // Anthropic-protocol node serving /v1/messages natively.
