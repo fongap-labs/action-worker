@@ -12,7 +12,7 @@ import { targetRoot as root } from '#kit/target.mjs';
 import { buildDeploymentSummary, buildRuntimeFromEnv, buildWranglerConfig, collectSecretsFromEnv, collectVarsFromEnv, loadRuntimeConfig, normalizeNodeConfigJsonText, normalizeRuntimeConfig, preflight, validateGatewayRuntime, withStaleNodeSecretsRemoved } from '#target/scripts/github-deployment-config.mjs';
 import { MANAGED_SECRET_PATTERN, MANAGED_VAR_PATTERN, MAX_SHARD_NUMBER, assertNodesArray, assertSecretsObject, buildPlan } from '#target/scripts/node-config-shards.mjs';
 import { getModelsConfigDiagnostics } from '#target/src/config/models.ts';
-import { SECRET_SHARD_PATTERN, TIER_SHARD_PATTERN, collectShards, loadGatewayConfig } from '#target/src/config/nodes.ts';
+import { SECRET_SHARD_PATTERN, TIER_SHARD_PATTERN, collectShards, loadExecutionConfig, loadGatewayConfig } from '#target/src/config/nodes.ts';
 import { getPoliciesConfigDiagnostics, loadPoliciesConfig } from '#target/src/config/policies.ts';
 import { isWildcardNode, loadModelRegistry, modelRegistryEntry, servesModel } from '#target/src/config/registry.ts';
 import { renderModels } from '#target/src/dashboard/model-status-view.ts';
@@ -410,7 +410,8 @@ try {
   });
 
   test('same-tier credential may live in a different shard suffix', () => {
-    const cfg = loadGatewayConfig({
+    // Physical secret-shard ownership and strict validation live in Inference.
+    const cfg = loadExecutionConfig({
       ...access,
       AIG_TIER1_NODES_01: JSON.stringify([configNode('same-tier')]),
       AIG_TIER1_CREDENTIALS_07: JSON.stringify({ 'same-tier': 'secret' }),
@@ -420,7 +421,7 @@ try {
   });
 
   test('cross-tier credential binding is rejected', () => {
-    const cfg = loadGatewayConfig({
+    const cfg = loadExecutionConfig({
       ...access,
       AIG_TIER2_NODES_01: JSON.stringify([configNode('tier2-cross')]),
       AIG_TIER1_CREDENTIALS_01: JSON.stringify({ 'tier2-cross': 'secret' }),

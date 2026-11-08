@@ -6,10 +6,13 @@
 // through request-local and transient failures.
 
 import { assert, beforeEach, test } from '#kit/harness.mjs';
+import { targetRoot } from '#kit/target.mjs';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { withMockFetch } from '#kit/fetch.mjs';
 import { __resetAccessKeysCacheForTests } from '#target/src/config/access-keys.ts';
 import { __resetBodyBudgetForTests } from '#target/src/ratelimit/body-budget.ts';
-import { loadGatewayConfig } from '#target/src/config/nodes.ts';
+import { loadExecutionConfig, loadGatewayConfig } from '#target/src/config/nodes.ts';
 import worker from '#target/src/index.ts';
 import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { __resetAdaptive429StateForTests } from '#target/src/reliability/adaptive-429.ts';
@@ -30,6 +33,7 @@ import { pickTier1Candidate } from '#target/src/scheduler/tier1-scheduler.ts';
 
 const ACCESS_KEY = 'tier1-capacity-key';
 const PRIVATE_CENTER_KEY = 'tier1-capacity-private-center-auth-key-32';
+const isCenterOnlyCutover = !existsSync(join(targetRoot, 'src/request/attempt/legacy-provider-dispatch.ts'));
 let privateCenterExecutes = 0;
 const AUTH_COOLDOWN_MS = 3_600_000;
 const REQ = { protocol: 'openai', surface: 'chat_completions', model: 'm1', bodyChars: 10 };
@@ -265,7 +269,7 @@ const runtimeOf = (env) => ({
 });
 
 test('a policy typo degrades the gateway instead of failing every request', async () => {
-  const env = tier1OnlyEnv(['solo'], { AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempt: 5 } }) });
+  const env = privateTier1Env(['solo'], { AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempt: 5 } }) });
   const config = loadGatewayConfig(env);
   assert.equal(config.status, 'degraded');
   assert.equal(config.ready, true);
@@ -273,7 +277,10 @@ test('a policy typo degrades the gateway instead of failing every request', asyn
   assert.ok(config.diagnostics.some((d) => d.includes('max_attempt')));
   const upstream = scriptedUpstream([]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
-  assert.equal(res.status, 200);
+  // The pre-cutover private executor rejects all degraded configs; after
+  // retirement, sanitized healthy nodes are allowed to serve.
+  assert.equal(res.status, isCenterOnlyCutover ? 200 : 503);
+  assertPrivateAttemptParity(upstream);
 });
 
 test('a configuration error still blocks a deploy, even when reduced capacity is allowed', () => {
@@ -282,17 +289,17 @@ test('a configuration error still blocks a deploy, even when reduced capacity is
 });
 
 test('a node with a conflicting credential is excluded and the rest keep serving', async () => {
-  const env = tier1OnlyEnv(['good', 'bad'], { AIG_TIER3_CREDENTIALS_01: JSON.stringify({ bad: 'other-secret' }) });
-  const config = loadGatewayConfig(env);
-  assert.equal(config.status, 'degraded');
-  assert.deepEqual(
-    config.nodes.map((n) => n.id),
-    ['good'],
-  );
+  const extra = { AIG_TIER3_CREDENTIALS_01: JSON.stringify({ bad: 'other-secret' }) };
+  const physical = loadExecutionConfig(tier1OnlyEnv(['good', 'bad'], extra));
+  assert.equal(physical.status, 'degraded');
+  assert.deepEqual(physical.nodes.map((n) => n.id), ['good'], 'private center excludes the conflicting credential');
+  const env = privateTier1Env(['good', 'bad'], extra);
+  assert.deepEqual(loadGatewayConfig(env).nodes.map((n) => n.id), ['good', 'bad'], 'public Gateway reads metadata only');
   const upstream = scriptedUpstream([]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
-  assert.equal(res.status, 200);
-  assert.deepEqual(upstream.hosts, ['good']);
+  assert.equal(res.status, isCenterOnlyCutover ? 200 : 503);
+  assert.deepEqual(upstream.hosts, isCenterOnlyCutover ? ['good'] : []);
+  assertPrivateAttemptParity(upstream);
 });
 
 test('an ambiguous duplicate node id excludes every copy of it', () => {
@@ -315,9 +322,10 @@ test('an unparseable node shard is reported as lost capacity', () => {
 
 test('with no usable node the configuration is still invalid', () => {
   const env = tier1OnlyEnv(['bad'], { AIG_TIER3_CREDENTIALS_01: JSON.stringify({ bad: 'other-secret' }) });
-  const config = loadGatewayConfig(env);
+  const config = loadExecutionConfig(env);
   assert.equal(config.status, 'invalid');
   assert.equal(config.ready, false);
+  assert.equal(loadGatewayConfig({ ...env, AIG_INFERENCE_ACTIVE: 'true' }).ready, true, 'public center-owned metadata cannot depend on Provider secrets');
 });
 
 // ---- Diagnostics never quote credential text --------------------------------
@@ -325,9 +333,12 @@ test('with no usable node the configuration is still invalid', () => {
 test('a malformed credential shard is reported without quoting any of its text', async () => {
   const secret = 'sk-live-SECRETVALUE123456';
   const env = tier1OnlyEnv(['good'], { AIG_TIER1_CREDENTIALS_02: `{"other": ${secret}}` });
-  const config = loadGatewayConfig(env);
+  const config = loadExecutionConfig(env);
   assert.ok(config.diagnostics.some((d) => d.includes('AIG_TIER1_CREDENTIALS_02')));
   assert.ok(!config.diagnostics.join('\n').includes('sk-live'), 'no credential fragment in diagnostics');
+  const publicConfig = loadGatewayConfig({ ...env, AIG_INFERENCE_ACTIVE: 'true' });
+  assert.equal(publicConfig.hasConfigErrors, false, 'Gateway must not parse malformed physical secrets');
+  assert.equal(publicConfig.nodes[0].credential, '', 'public Gateway never retains physical Provider secrets');
   const health = await worker.fetch(
     new Request('https://gateway.example.com/health', { headers: { authorization: `Bearer ${ACCESS_KEY}` } }),
     env,
