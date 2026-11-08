@@ -375,40 +375,46 @@ const chatWithSession = (env, sessionId) =>
 
 test('with a single Tier 1 key a session neither reads nor writes affinity', async () => {
   const kv = countingKv();
-  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
-  const res = await withMockFetch(scriptedUpstream([]).handler, () => chatWithSession(env, 'session-single-key'));
+  const env = privateTier1Env(['solo'], { TIER1_AFFINITY: kv });
+  const upstream = scriptedUpstream([]);
+  const res = await withMockFetch(upstream.handler, () => chatWithSession(env, 'session-single-key'));
   assert.equal(res.status, 200);
   assert.equal(kv.gets, 0);
   assert.equal(kv.puts, 0);
+  assertPrivateAttemptParity(upstream);
 });
 
 test('a stalled affinity read does not hold the request and writes nothing', async () => {
   const kv = countingKv({ hang: true });
-  const env = tier1OnlyEnv(['k1', 'k2'], { TIER1_AFFINITY: kv });
+  const env = privateTier1Env(['k1', 'k2'], { TIER1_AFFINITY: kv });
+  const upstream = scriptedUpstream([]);
   const started = Date.now();
-  const res = await withMockFetch(scriptedUpstream([]).handler, () =>
+  const res = await withMockFetch(upstream.handler, () =>
     Promise.race([chatWithSession(env, 'session-stalled-kv'), new Promise((resolve) => setTimeout(() => resolve({ status: 'stalled' }), 1_000))]),
   );
   assert.equal(res.status, 200);
   assert.ok(Date.now() - started < 1_000);
   assert.equal(kv.gets, 1);
   assert.equal(kv.puts, 0, 'an unknown binding is not overwritten');
+  assertPrivateAttemptParity(upstream);
 });
 
 test('a failed affinity read neither biases nor rewrites the binding', async () => {
   const kv = countingKv({ fail: true });
-  const env = tier1OnlyEnv(['k1', 'k2'], { TIER1_AFFINITY: kv });
+  const env = privateTier1Env(['k1', 'k2'], { TIER1_AFFINITY: kv });
+  const upstream = scriptedUpstream([]);
   for (let i = 0; i < 3; i++) {
-    const res = await withMockFetch(scriptedUpstream([]).handler, () => chatWithSession(env, 'session-read-limit'));
+    const res = await withMockFetch(upstream.handler, () => chatWithSession(env, 'session-read-limit'));
     assert.equal(res.status, 200);
   }
   assert.equal(kv.gets, 3, 'a failed read is not cached as "no binding"');
   assert.equal(kv.puts, 0, 'Workers Free allows 1,000 KV writes a day; a failed read must not cost one');
+  assertPrivateAttemptParity(upstream);
 });
 
 test('a Claude Code conversation is a session through its own session header', async () => {
   const kv = countingKv();
-  const env = tier1OnlyEnv(['k1', 'k2'], { TIER1_AFFINITY: kv });
+  const env = privateTier1Env(['k1', 'k2'], { TIER1_AFFINITY: kv });
   const claudeCode = new Request('https://gateway.example.com/v1/chat/completions', {
     method: 'POST',
     headers: {
@@ -419,11 +425,13 @@ test('a Claude Code conversation is a session through its own session header', a
     body: JSON.stringify({ model: 'Code-Pro', messages: [{ role: 'user', content: 'hi' }] }),
   });
   assert.equal(resolveTier1SessionId(claudeCode), 'baf7ad9f-3c14-4c5c-8b95-5bfa79d44f7c');
-  const res = await withMockFetch(scriptedUpstream([]).handler, () => worker.fetch(claudeCode, env, { waitUntil() {} }));
+  const upstream = scriptedUpstream([]);
+  const res = await withMockFetch(upstream.handler, () => worker.fetch(claudeCode, env, { waitUntil() {} }));
   assert.equal(res.status, 200);
   await new Promise((resolve) => setTimeout(resolve, 10)); // the binding is written after the response
   assert.equal(kv.gets, 1, 'the conversation looks up its Tier 1 binding');
   assert.equal(kv.puts, 1, 'and binds the key that served it');
+  assertPrivateAttemptParity(upstream);
 });
 
 test('an explicit x-session-id wins over the Claude Code session header', () => {
@@ -467,7 +475,7 @@ function recordingDataset() {
 
 test('every upstream call writes one analytics event that names the key, outcome and role', async () => {
   const events = recordingDataset();
-  const env = tier1OnlyEnv(['solo'], { GATEWAY_EVENTS: events });
+  const env = privateTier1Env(['solo'], { GATEWAY_EVENTS: events });
   const upstream = scriptedUpstream([() => errorResponse(500, 'overloaded')]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
   assert.equal(res.status, 200);
@@ -478,18 +486,21 @@ test('every upstream call writes one analytics event that names the key, outcome
   assert.equal(failed.doubles[0], 500);
   assert.deepEqual(retried.blobs.slice(0, 6), ['solo', 'mock', 'tier-1', 'Code-Pro', 'ok', 'retry']);
   assert.equal(retried.doubles[0], 200);
+  assertPrivateAttemptParity(upstream);
 });
 
 test('a broken analytics binding never fails a request', async () => {
-  const env = tier1OnlyEnv(['solo'], {
+  const env = privateTier1Env(['solo'], {
     GATEWAY_EVENTS: {
       writeDataPoint() {
         throw new Error('dataset unavailable');
       },
     },
   });
-  const res = await withMockFetch(scriptedUpstream([]).handler, () => chat(env));
+  const upstream = scriptedUpstream([]);
+  const res = await withMockFetch(upstream.handler, () => chat(env));
   assert.equal(res.status, 200);
+  assertPrivateAttemptParity(upstream);
 });
 
 test('the deploy binds the analytics dataset only when one is configured', () => {
