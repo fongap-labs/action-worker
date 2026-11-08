@@ -13,6 +13,7 @@
 import assert from 'node:assert/strict';
 import worker from '#target/src/index.ts';
 import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
+import { loadExecutionConfig } from '#target/src/config/nodes.ts';
 import { __resetTokenKeyCacheForTests, decryptSecret, encryptSecret, hasTokenKey } from '#target/src/oauth/crypto.ts';
 import { __resetOAuthProvidersCacheForTests, loadOAuthProviders } from '#target/src/oauth/provider-configs.ts';
 import { __resetSubscriptionCacheForTests } from '#target/src/oauth/resolve.ts';
@@ -335,10 +336,13 @@ await test('auth:"oauth" node with a static credential is rejected (dual credent
     {},
   );
   const body = await res.json();
+  const physical = loadExecutionConfig(env);
+  assert.equal(physical.ready, false, 'center must not execute an OAuth node with a second static credential');
   assert.ok(
-    body.diagnostics.some((d) => String(d).includes('must not have a static credential')),
-    JSON.stringify(body.diagnostics),
+    physical.diagnostics.some((d) => String(d).includes('must not have a static credential')),
+    JSON.stringify(physical.diagnostics),
   );
+  assert.ok(!JSON.stringify(body).includes('static-key'), 'public health must not leak a physical credential');
 });
 
 // ---- Provider config parsing ----------------------------------------------
