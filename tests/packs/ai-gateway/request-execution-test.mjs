@@ -527,17 +527,29 @@ try {
   }
   assert.equal(remaining, 5_000, 'the last candidate must retain its escape window');
 
-  // Composition contract after the old Provider transport is retired:
-  // every attempt selects a Center, while each Center client still uses
-  // reserve-aware windows. Deleting the legacy file cannot delete this
-  // deadline and Hedge invariant.
+  // The central pack runs against both the pre-cutover main and the
+  // cutover branch. Preserve hard budget and dispatch invariants in BOTH:
+  // the pre-cutover branch must confine direct execution to the single seam;
+  // the cutover branch must route exclusively through private execution.
   const selectorSource = readFileSync(join(root, 'src/request/attempt/dispatch.ts'), 'utf8');
   const extractedLegacyPath = join(root, 'src/request/attempt/legacy-provider-dispatch.ts');
-  assert.equal(existsSync(extractedLegacyPath), false, 'Gateway legacy direct-Provider source must be absent');
-  assert.doesNotMatch(selectorSource, /dispatchLegacyProvider|await fetch\(/, 'Gateway dispatch must not directly call Provider');
-  assert.match(selectorSource, /return dispatchInferenceAttempt\(c, sourceBody\);/, 'inference always delegates to the private center');
+  const isLegacyPresent = existsSync(extractedLegacyPath);
+  assert.doesNotMatch(selectorSource, /await fetch\(/, 'Gateway selector must never fetch Provider directly');
   const inferenceSource = readFileSync(join(root, 'src/request/attempt/inference-dispatch.ts'), 'utf8');
   const generationSource = readFileSync(join(root, 'src/request/attempt/generation-dispatch.ts'), 'utf8');
+  if (isLegacyPresent) {
+    assert.match(selectorSource, /dispatchLegacyProvider\(c, sourceBody\)/, 'pre-cutover direct calls must stay in the single seam');
+    const legacySource = readFileSync(extractedLegacyPath, 'utf8');
+    assert.match(
+      legacySource,
+      /attemptBudgetWindowMs\(remainingBudgetMs,\s*remainingDispatchableAttempts\)/,
+      'pre-cutover physical Provider dispatch must preserve reserve-aware budgets',
+    );
+    assert.doesNotMatch(legacySource, /attemptBudgetSliceMs\(/, 'legacy dispatch must not regress to equal-share request slicing');
+  } else {
+    assert.doesNotMatch(selectorSource, /dispatchLegacyProvider/, 'post-cutover may never call a direct Provider');
+    assert.match(selectorSource, /return dispatchInferenceAttempt\(c, sourceBody\);/, 'post-cutover inference must use the private Center');
+  }
   assert.match(
     inferenceSource,
     /attemptBudgetWindowMs\(remainingBudgetMs, c\.remainingDispatchableAttempts\)/,
@@ -549,7 +561,7 @@ try {
     'generation dispatch must allocate reserve-aware attempt windows',
   );
   for (const centerSource of [inferenceSource, generationSource]) {
-    assert.doesNotMatch(centerSource, /attemptBudgetSliceMs\(/, 'no center transport may regress to equal-share request slicing');
+    assert.doesNotMatch(centerSource, /attemptBudgetSliceMs\(/, 'no Center transport may regress to equal-share request slicing');
   }
 
   const hedgeSource = readFileSync(join(root, 'src/request/attempt/hedge.ts'), 'utf8');
