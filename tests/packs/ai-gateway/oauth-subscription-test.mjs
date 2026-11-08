@@ -12,6 +12,7 @@
 
 import assert from 'node:assert/strict';
 import worker from '#target/src/index.ts';
+import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { __resetTokenKeyCacheForTests, decryptSecret, encryptSecret, hasTokenKey } from '#target/src/oauth/crypto.ts';
 import { __resetOAuthProvidersCacheForTests, loadOAuthProviders } from '#target/src/oauth/provider-configs.ts';
 import { __resetSubscriptionCacheForTests } from '#target/src/oauth/resolve.ts';
@@ -202,6 +203,33 @@ function makeEnv({ tier1, tier2, db, extraEnv } = {}) {
     ...(tier2 ? { AIG_TIER2_NODES_01: JSON.stringify(tier2) } : {}),
     ...extraEnv,
   };
+}
+
+// The public Gateway receives only node metadata and a private center ticket.
+// The private test environment owns the token-decryption key, D1 token rows,
+// Provider OAuth configuration and actual outbound Provider calls.
+const INFERENCE_AUTH_KEY = 'central-oauth-inference-test-auth-key-32';
+function withPrivateInferenceCenter(gatewayEnv, onRequest = () => {}) {
+  const centerEnv = {
+    AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY,
+    AIG_TIER2_NODES_01: gatewayEnv.AIG_TIER2_NODES_01,
+    AIG_TOKEN_ENCRYPTION_KEY: gatewayEnv.AIG_TOKEN_ENCRYPTION_KEY,
+    AIG_OAUTH_PROVIDERS: gatewayEnv.AIG_OAUTH_PROVIDERS,
+    TOKEN_STATS_DB: gatewayEnv.TOKEN_STATS_DB,
+  };
+  delete gatewayEnv.AIG_TOKEN_ENCRYPTION_KEY;
+  gatewayEnv.AIG_INFERENCE_ACTIVE = 'true';
+  gatewayEnv.AIG_INFERENCE_AUTH_KEY = INFERENCE_AUTH_KEY;
+  gatewayEnv.AIG_INFERENCE_SERVICE = {
+    fetch(request) {
+      assert.equal(request.headers.get('x-aig-inference-auth'), INFERENCE_AUTH_KEY);
+      assert.equal(request.headers.get('authorization'), null);
+      assert.equal(request.headers.get('x-api-key'), null);
+      onRequest(request);
+      return handleInferenceCenterRequest(request, centerEnv);
+    },
+  };
+  return centerEnv;
 }
 
 const tier2OauthNode = (id, provider = 'mock', extra = {}) => ({
@@ -738,6 +766,9 @@ await test('Tier 2 oauth node dispatches with the resolved Bearer token', async 
     expiresAt: Date.now() + 3600_000,
   });
 
+  const centerPaths = [];
+  withPrivateInferenceCenter(env, (request) => centerPaths.push(new URL(request.url).pathname));
+  assert.equal(env.AIG_TOKEN_ENCRYPTION_KEY, undefined, 'Gateway must not own the subscription decryption key');
   let seenAuth = null;
   let seenBeta = null;
   withMockFetch(async (input, init) => {
@@ -758,6 +789,7 @@ await test('Tier 2 oauth node dispatches with the resolved Bearer token', async 
 
   const res = await worker.fetch(chatRequest(), env, {});
   assert.equal(res.status, 200);
+  assert.deepEqual(centerPaths, ['/internal/execute'], 'OAuth resolution and outbound attempt run inside the private center');
   assert.equal(seenAuth, 'Bearer resolved-token');
   assert.equal(seenBeta, 'mock-beta', 'upstream_headers from AIG_OAUTH_PROVIDERS applied');
 });
@@ -765,13 +797,16 @@ await test('Tier 2 oauth node dispatches with the resolved Bearer token', async 
 await test('Tier 2 oauth node without a token rotates without contacting the upstream', async () => {
   const db = new MockOAuthD1();
   const env = makeEnv({ tier2: [tier2OauthNode('sub1')], db });
+  const centerPaths = [];
+  withPrivateInferenceCenter(env, (request) => centerPaths.push(new URL(request.url).pathname));
   let upstreamContacted = false;
   withMockFetch(async () => {
     upstreamContacted = true;
     throw new Error('upstream must not be contacted');
   });
   const res = await worker.fetch(chatRequest(), env, {});
-  assert.equal(res.status, 502, 'all attempts rotate and the request ends exhausted');
+  assert.equal(res.status, 502, 'missing OAuth token must fail closed without Provider dispatch');
+  assert.deepEqual(centerPaths, ['/internal/execute'], 'one private center resolution must fail before physical dispatch');
   assert.equal(upstreamContacted, false);
 });
 
@@ -796,6 +831,8 @@ await test('Tier 2 anthropic oauth node sends Bearer, not x-api-key', async () =
     expiresAt: Date.now() + 3600_000,
   });
 
+  const centerPaths = [];
+  withPrivateInferenceCenter(env, (request) => centerPaths.push(new URL(request.url).pathname));
   let authHeader = null;
   let apiKeyHeader = null;
   let _betaHeader = null;
@@ -828,6 +865,7 @@ await test('Tier 2 anthropic oauth node sends Bearer, not x-api-key', async () =
   });
   const res = await worker.fetch(messagesRequest, env, {});
   assert.equal(res.status, 200);
+  assert.deepEqual(centerPaths, ['/internal/execute'], 'Anthropic OAuth must resolve inside the private center');
   assert.equal(authHeader, 'Bearer anthropic-oauth-token');
   assert.equal(apiKeyHeader, null, 'oauth anthropic nodes must not send x-api-key');
 });
@@ -864,6 +902,8 @@ await test('refresh flow rotates the access token through the provider endpoint'
     expiresAt: Date.now() - 1000,
   });
 
+  const centerPaths = [];
+  const centerEnv = withPrivateInferenceCenter(env, (request) => centerPaths.push(new URL(request.url).pathname));
   let refreshSeen = false;
   withMockFetch(async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
@@ -896,8 +936,9 @@ await test('refresh flow rotates the access token through the provider endpoint'
 
   const res = await worker.fetch(chatRequest(), env, {});
   assert.equal(res.status, 200);
+  assert.deepEqual(centerPaths, ['/internal/execute'], 'token refresh and execution stay behind a single private center request');
   assert.equal(refreshSeen, true, 'refresh was exercised');
-  const reloaded = await loadSubscriptionToken(env, 'sub1');
+  const reloaded = await loadSubscriptionToken(centerEnv, 'sub1');
   assert.equal(reloaded.accessToken, 'fresh-token');
   assert.equal(reloaded.refreshToken, 'refresh-2');
 });
