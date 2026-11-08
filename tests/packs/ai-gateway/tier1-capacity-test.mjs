@@ -550,7 +550,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 test('a key rejected with 401 is skipped by a new isolate without another upstream call', async () => {
   const kv = memoryKv();
-  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const env = privateTier1Env(['solo'], { TIER1_AFFINITY: kv });
   const first = scriptedUpstream([() => errorResponse(401, 'invalid api key')]);
   await withMockFetch(first.handler, () => chat(env));
   await settle();
@@ -565,7 +565,7 @@ test('a key rejected with 401 is skipped by a new isolate without another upstre
 
 test('a key whose daily quota ran out is skipped by a new isolate while another key serves', async () => {
   const kv = memoryKv();
-  const env = tier1OnlyEnv(['k1', 'k2'], { TIER1_AFFINITY: kv });
+  const env = privateTier1Env(['k1', 'k2'], { TIER1_AFFINITY: kv });
   const first = scriptedUpstream([() => errorResponse(429, 'daily quota exceeded'), () => errorResponse(429, 'daily quota exceeded')]);
   await withMockFetch(first.handler, () => chat(env));
   await settle();
@@ -580,7 +580,7 @@ test('a key whose daily quota ran out is skipped by a new isolate while another 
 
 test('a quota cooldown exactly at the sharing threshold is shared while the clock moves', async () => {
   const kv = memoryKv();
-  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const env = privateTier1Env(['solo'], { TIER1_AFFINITY: kv });
   const realNow = Date.now;
   let clock = realNow();
   Date.now = () => ++clock; // every reading of the clock is a millisecond later
@@ -596,7 +596,7 @@ test('a quota cooldown exactly at the sharing threshold is shared while the cloc
 
 test('a short rate-limit window is not shared', async () => {
   const kv = memoryKv();
-  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const env = privateTier1Env(['solo'], { TIER1_AFFINITY: kv });
   const first = scriptedUpstream([() => errorResponse(429, 'rate limit', { 'retry-after': '20' })]);
   await withMockFetch(first.handler, () => chat(env));
   await settle();
@@ -606,7 +606,7 @@ test('a short rate-limit window is not shared', async () => {
 test('a shared cooldown that has expired is ignored', async () => {
   const kv = memoryKv();
   kv.store.set('tier1-cooldowns:v1', JSON.stringify([{ node: 'solo', until: Date.now() - 1_000, reason: 'auth' }]));
-  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const env = privateTier1Env(['solo'], { TIER1_AFFINITY: kv });
   const res = await withMockFetch(scriptedUpstream([]).handler, () => chat(env));
   assert.equal(res.status, 200);
 });
@@ -614,7 +614,7 @@ test('a shared cooldown that has expired is ignored', async () => {
 test('a stalled shared-cooldown read does not hold the request', async () => {
   const kv = memoryKv();
   kv.get = () => new Promise(() => {});
-  const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
+  const env = privateTier1Env(['solo'], { TIER1_AFFINITY: kv });
   const res = await withMockFetch(scriptedUpstream([]).handler, () =>
     Promise.race([chat(env), new Promise((resolve) => setTimeout(() => resolve({ status: 'stalled' }), 1_000))]),
   );
@@ -660,7 +660,7 @@ const messages = (env, extra = {}) =>
   );
 
 test('a field no upstream can carry is a 400 that names it, so the client can resend without it', async () => {
-  const env = tier1OnlyEnv(['solo']);
+  const env = privateTier1Env(['solo']);
   // Claude Code's auto permission mode asks Anthropic to classify tool calls server side.
   const safeguards = [{ type: 'dangerous_tool_use', classifier_context: { v: 1, permission_mode: 'auto' } }];
   const upstream = scriptedUpstream([]);
@@ -692,7 +692,7 @@ function largeChat(sizeBytes) {
 }
 
 test('large bodies beyond the in-flight memory budget are refused with a retryable 503', async () => {
-  const env = tier1OnlyEnv(['solo']);
+  const env = privateTier1Env(['solo']);
   let release;
   const gate = new Promise((resolve) => {
     release = resolve;
@@ -723,7 +723,7 @@ test('large bodies beyond the in-flight memory budget are refused with a retryab
 });
 
 test('a single maximum-size body is admitted when nothing else is in flight', async () => {
-  const env = tier1OnlyEnv(['solo']);
+  const env = privateTier1Env(['solo']);
   const res = await withMockFetch(scriptedUpstream([]).handler, () => worker.fetch(largeChat(19 * 1024 * 1024), env, { waitUntil() {} }));
   assert.equal(res.status, 200);
 });
