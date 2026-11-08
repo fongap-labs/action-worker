@@ -13,6 +13,7 @@
 import assert from 'node:assert/strict';
 import worker from '#target/src/index.ts';
 import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
+import { loadExecutionConfig, loadGatewayConfig } from '#target/src/config/nodes.ts';
 import { __resetTokenKeyCacheForTests, decryptSecret, encryptSecret, hasTokenKey } from '#target/src/oauth/crypto.ts';
 import { __resetOAuthProvidersCacheForTests, loadOAuthProviders } from '#target/src/oauth/provider-configs.ts';
 import { __resetSubscriptionCacheForTests } from '#target/src/oauth/resolve.ts';
@@ -327,6 +328,16 @@ await test('auth:"oauth" node with a static credential is rejected (dual credent
     tier2: [tier2OauthNode('sub1')],
     extraEnv: { AIG_TIER2_CREDENTIALS_01: JSON.stringify({ sub1: 'static-key' }) },
   });
+  const center = loadExecutionConfig(env);
+  assert.equal(center.hasConfigErrors, true, 'the private center must reject dual credential sources');
+  assert.equal(center.ready, false);
+  assert.ok(
+    center.diagnostics.some((d) => String(d).includes('must not have a static credential')),
+    JSON.stringify(center.diagnostics),
+  );
+  const gateway = loadGatewayConfig(env);
+  assert.equal(gateway.ready, true, 'the public Gateway must not parse Provider secret shards');
+  assert.ok(gateway.nodes.every((node) => node.credential === ''));
   const res = await worker.fetch(
     new Request('https://gateway.example.com/health', {
       headers: { authorization: `Bearer ${ACCESS_KEY}` },
@@ -335,10 +346,8 @@ await test('auth:"oauth" node with a static credential is rejected (dual credent
     {},
   );
   const body = await res.json();
-  assert.ok(
-    body.diagnostics.some((d) => String(d).includes('must not have a static credential')),
-    JSON.stringify(body.diagnostics),
-  );
+  assert.equal(body.status, 'ready', 'public Gateway diagnostics do not expose credential material');
+  assert.ok(!JSON.stringify(body).includes('static-key'));
 });
 
 // ---- Provider config parsing ----------------------------------------------
