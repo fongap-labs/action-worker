@@ -8,6 +8,7 @@
 
 import { loadGatewayConfig } from '#target/src/config/nodes.ts';
 import worker from '#target/src/index.ts';
+import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import {
   ADAPTIVE_429_COOLDOWN_STEPS_MS,
   ADAPTIVE_429_QUOTA_START_STAGE,
@@ -39,6 +40,8 @@ import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affini
 import assert from 'node:assert/strict';
 
 const KEY = 'rate-limit-strategy-key';
+const CENTER_AUTH_KEY = 'rate-limit-center-contract-auth-key-32';
+const centerPaths = [];
 const env = {};
 let passed = 0;
 
@@ -48,7 +51,16 @@ async function test(name, fn) {
     __resetTier1StateForTests();
     __resetTier1AffinityForTests();
     __resetAdaptive429StateForTests();
+    const upstreamBefore = calls.length;
+    const centerBefore = centerPaths.length;
     await fn();
+    const newPaths = centerPaths.slice(centerBefore);
+    assert.ok(newPaths.every((path) => path === '/internal/execute' || path === '/internal/conversion/preflight'));
+    assert.equal(
+      newPaths.filter((path) => path === '/internal/execute').length,
+      calls.length - upstreamBefore,
+      'every physical 429/413 Provider attempt must pass through the private center',
+    );
     passed++;
     console.log(`ok - ${name}`);
   } catch (error) {
@@ -77,14 +89,33 @@ const ok = (model) =>
 const fail = (status, message, headers = {}) => new Response(JSON.stringify({ error: { message } }), { status, headers: { 'content-type': 'application/json', ...headers } });
 
 const node = (id, provider, models) => ({ id, provider, base_url: `https://${id}.example.com/v1`, models });
-const envFor = (nodes, extra = {}) => ({
-  AIG_ACCESS_KEY_AIR: KEY,
-  AIG_ACCESS_MODELS_AIR: '*',
-  AIG_PROTOCOL_FALLBACKS: 'disable',
-  AIG_TIER1_NODES_01: JSON.stringify(nodes),
-  AIG_TIER1_CREDENTIALS_01: JSON.stringify(Object.fromEntries(nodes.map((n) => [n.id, 'k']))),
-  ...extra,
-});
+const envFor = (nodes, extra = {}) => {
+  const centerEnv = {
+    AIG_TIER1_NODES_01: JSON.stringify(nodes),
+    AIG_TIER1_CREDENTIALS_01: JSON.stringify(Object.fromEntries(nodes.map((n) => [n.id, 'k']))),
+    AIG_PROTOCOL_FALLBACKS: 'disable',
+    ...extra,
+    AIG_INFERENCE_AUTH_KEY: CENTER_AUTH_KEY,
+  };
+  const gatewayEnv = {
+    AIG_ACCESS_KEY_AIR: KEY,
+    AIG_ACCESS_MODELS_AIR: '*',
+    ...centerEnv,
+    AIG_INFERENCE_ACTIVE: 'true',
+    AIG_INFERENCE_SERVICE: {
+      fetch(request) {
+        assert.equal(request.headers.get('x-aig-inference-auth'), CENTER_AUTH_KEY);
+        assert.equal(request.headers.get('authorization'), null);
+        assert.equal(request.headers.get('x-api-key'), null);
+        centerPaths.push(new URL(request.url).pathname);
+        return handleInferenceCenterRequest(request, centerEnv);
+      },
+    },
+  };
+  delete gatewayEnv.AIG_TIER1_CREDENTIALS_01;
+  assert.equal(gatewayEnv.AIG_TIER1_CREDENTIALS_01, undefined);
+  return gatewayEnv;
+};
 const chat = (model, pad = 5) =>
   new Request('https://gateway.example.com/v1/chat/completions', {
     method: 'POST',
