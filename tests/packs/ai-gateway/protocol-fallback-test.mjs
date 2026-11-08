@@ -510,6 +510,11 @@ try {
   const ACCESS_KEY = 'responses-diagnostics-key';
   let routeHandlers = {};
   const centerPaths = [];
+  function physicalCenterPaths() {
+    assert.ok(centerPaths.every((path) => path === '/internal/execute' || path === '/internal/conversion/preflight'),
+      'only authenticated execution or conversion preflight may reach the private inference center');
+    return centerPaths.filter((path) => path === '/internal/execute');
+  }
   function reset() {
     centerPaths.length = 0;
     __resetAllStateForTests();
@@ -580,7 +585,7 @@ try {
   assert.equal(cooling.headers.get('x-gateway-hedges'), '0');
   assert.equal(cooling.headers.get('x-gateway-failure-kinds'), null);
   assert.ok(Number(cooling.headers.get('retry-after')) > 0);
-  assert.deepEqual(centerPaths, ['/internal/execute'],
+  assert.deepEqual(physicalCenterPaths(), ['/internal/execute'],
     'Responses 429 cooling must not dispatch a second private center request');
 
   reset();
@@ -598,7 +603,7 @@ try {
   assert.equal(dead.headers.get('x-gateway-failure-kinds'), 'server:2');
   assert.equal(dead.headers.get('x-gateway-node'), null);
   assert.equal(dead.headers.get('x-gateway-provider'), null);
-  assert.deepEqual(centerPaths, ['/internal/execute', '/internal/execute'],
+  assert.deepEqual(physicalCenterPaths(), ['/internal/execute', '/internal/execute'],
     'Responses upstream 503 and last-resort retry must execute only in private center');
 
   reset();
@@ -614,7 +619,7 @@ try {
   assert.equal(badReq.headers.get('x-gateway-failure-kinds'), 'client:1');
   assert.equal(badReqBody.error.message, 'All attempted nodes failed for model "code-max".');
   assert.ok(!JSON.stringify(badReqBody).includes('bad input'), 'raw upstream 4xx message must be hidden by default');
-  assert.deepEqual(centerPaths, ['/internal/execute'],
+  assert.deepEqual(physicalCenterPaths(), ['/internal/execute'],
     'Responses 400 must enter the private center exactly once');
 
   reset();
@@ -624,7 +629,7 @@ try {
   const badReqExposedBody = await badReqExposed.json();
   assert.equal(badReqExposedBody.error.message, 'All attempted nodes failed for model "code-max".');
   assert.equal(badReqExposed.headers.get('x-gateway-failure-kinds'), 'client:1');
-  assert.deepEqual(centerPaths, ['/internal/execute'],
+  assert.deepEqual(physicalCenterPaths(), ['/internal/execute'],
     'Responses exposed-upstream setting must not bypass center execution');
 
   reset();
@@ -636,7 +641,7 @@ try {
   assert.equal(unknown.headers.get('x-gateway-error-code'), null);
   assert.equal(unknown.headers.get('x-gateway-attempts'), null);
   assert.equal(unknown.headers.get('x-gateway-dispatches'), null);
-  assert.deepEqual(centerPaths, [],
+  assert.deepEqual(physicalCenterPaths(), [],
     'unknown Responses models must fail routing without any private center request');
 
   console.log('responses error diagnostics tests passed.');
