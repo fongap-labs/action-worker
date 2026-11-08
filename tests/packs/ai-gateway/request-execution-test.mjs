@@ -16,6 +16,7 @@ import { loadModelsConfig } from '#target/src/config/models.ts';
 import { getPoliciesConfigDiagnostics, getPolicy, loadPoliciesConfig } from '#target/src/config/policies.ts';
 import { MIN_ATTEMPT_FIRST_EVENT_MS, MIN_ATTEMPT_HEADERS_MS, MIN_FAILOVER_RESERVE_MS, attemptBudgetSliceMs, attemptBudgetWindowMs, attemptFirstEventTimeoutMs, attemptHeadersTimeoutMs, getLimits, parseRetryAfterMs } from '#target/src/config/timeouts.ts';
 import worker from '#target/src/index.ts';
+import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { gatewayStats } from '#target/src/observability/gateway-stats.ts';
 import { __resetAdaptive429StateForTests } from '#target/src/reliability/adaptive-429.ts';
 import { KIND, classifyClientAbort, classifyFirstEventFailure, classifyHedgeRaceLoss, classifyHedgeUnknown, classifyNetworkError, classifyNonJsonBody, classifyPostHeadersFailure, classifyPreDispatchInvalidBaseUrl, classifyStreamInterrupted, classifyUpstreamStatus } from '#target/src/reliability/classify.ts';
@@ -687,9 +688,12 @@ try {
 
   const ACCESS_KEY = 'request-execution-ownership-test-key';
   let calls = [];
+  let centerExecuteCount = 0;
+  const INFERENCE_AUTH_KEY = 'request-ownership-private-center-auth-key-32';
 
   function reset() {
     calls = [];
+    centerExecuteCount = 0;
     __resetAllStateForTests();
     __resetTier1StateForTests();
     __resetTier1AffinityForTests();
@@ -717,12 +721,32 @@ try {
       TIER1_SCHEDULER_SEED: 'request-execution-ownership',
       ...extra,
     };
+    const centerEnv = {
+      AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY,
+      ...(env.AIG_MODELS_CONFIG ? { AIG_MODELS_CONFIG: env.AIG_MODELS_CONFIG } : {}),
+    };
     for (const tier of [1, 2, 3]) {
       const tierNodes = nodes.filter((node) => node.__tier === tier);
       if (!tierNodes.length) continue;
-      env[`AIG_TIER${tier}_NODES_01`] = JSON.stringify(tierNodes.map(({ __tier, ...node }) => node));
-      env[`AIG_TIER${tier}_CREDENTIALS_01`] = JSON.stringify(Object.fromEntries(tierNodes.map((node) => [node.id, `secret-${node.id}`])));
+      const nodeShard = `AIG_TIER${tier}_NODES_01`;
+      env[nodeShard] = JSON.stringify(tierNodes.map(({ __tier, ...node }) => node));
+      centerEnv[nodeShard] = env[nodeShard];
+      centerEnv[`AIG_TIER${tier}_CREDENTIALS_01`] = JSON.stringify(Object.fromEntries(tierNodes.map((node) => [node.id, `secret-${node.id}`])));
     }
+    env.AIG_INFERENCE_ACTIVE = 'true';
+    env.AIG_INFERENCE_AUTH_KEY = INFERENCE_AUTH_KEY;
+    env.AIG_INFERENCE_SERVICE = {
+      fetch(request) {
+        const pathname = new URL(request.url).pathname;
+        assert.ok(['/internal/execute', '/internal/conversion/preflight'].includes(pathname), 'only authenticated private inference calls are allowed');
+        assert.equal(request.headers.get('x-aig-inference-auth'), INFERENCE_AUTH_KEY);
+        assert.equal(request.headers.get('authorization'), null, 'client credentials cannot enter the center');
+        assert.equal(request.headers.get('x-api-key'), null, 'client credentials cannot enter the center');
+        if (pathname === '/internal/execute') centerExecuteCount++;
+        return handleInferenceCenterRequest(request, centerEnv);
+      },
+    };
+    assert.equal(Object.keys(env).some((key) => /^AIG_TIER[123]_CREDENTIALS_/.test(key)), false, 'Gateway must not hold Provider secrets');
     return env;
   }
 
@@ -824,6 +848,7 @@ try {
     calls.map((c) => c.host),
     ['family-max.example.com', 'family-pro.example.com'],
   );
+  assert.equal(centerExecuteCount, calls.length, 'every physical Provider attempt must pass through the private center');
 
   reset();
   const badTier2 = configNode('tier2-stall', 2, { Solo: 'solo-upstream' }, 1);
@@ -846,6 +871,7 @@ try {
     calls.map((c) => c.host),
     ['tier2-stall.example.com', 'tier2-good.example.com'],
   );
+  assert.equal(centerExecuteCount, calls.length, 'each fallback attempt must be center-owned');
 
   reset();
   const synthNode = configNode('synth-json', 1, { SoloStream: 'solo-stream-upstream' });
@@ -883,6 +909,7 @@ try {
   assert.equal(gatewayStats.activeRequests, cancelActiveBefore);
   assert.equal(gatewayStats.cancellations, cancelCountBefore + 1);
   assert.equal(gatewayStats.successes, cancelSuccessBefore);
+  assert.equal(centerExecuteCount, calls.length, 'stream completion and cancellation never bypass the center');
 
   console.log('request execution ownership tests passed.');
   console.log('ok - file:request-execution-ownership');
