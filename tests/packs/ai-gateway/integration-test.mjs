@@ -271,24 +271,31 @@ function hangUntilAbort() {
 
 await test('missing gateway key returns 401 without upstream traffic', async () => {
   routeHandlers['auth.example.com'] = () => jsonResponse(okChat());
-  const env = makeEnv({ tier1: [openaiNode('auth')], secrets: { auth: 'k' } });
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({ tier1: [openaiNode('auth')], secrets: { auth: 'k' } }),
+    (request) => centerPaths.push(new URL(request.url).pathname));
   const res = await worker.fetch(chatRequest({}, null), env, {});
   assert.equal(res.status, 401);
   assert.equal(upstreamCalls.length, 0);
+  assert.deepEqual(centerPaths, [], 'missing client key must not reach inference center');
 });
 
 await test('wrong gateway key returns 401', async () => {
-  const env = makeEnv({ tier1: [openaiNode('auth')], secrets: { auth: 'k' } });
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({ tier1: [openaiNode('auth')], secrets: { auth: 'k' } }),
+    (request) => centerPaths.push(new URL(request.url).pathname));
   const res = await worker.fetch(chatRequest({}, 'wrong-key'), env, {});
   assert.equal(res.status, 401);
+  assert.deepEqual(centerPaths, [], 'invalid client key must not reach inference center');
 });
 
 await test('removed limits field is a hard schema error and never reaches upstream', async () => {
   routeHandlers['old.example.com'] = () => jsonResponse(okChat());
-  const env = makeEnv({
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('old', { limits: { concurrency: 1, rpm: 60 } })],
     secrets: { old: 'k' },
-  });
+  }), (request) => centerPaths.push(new URL(request.url).pathname));
   const health = await worker.fetch(
     new Request('https://gateway.example.com/health', {
       headers: { authorization: `Bearer ${ACCESS_KEY}` },
@@ -303,6 +310,7 @@ await test('removed limits field is a hard schema error and never reaches upstre
   const res = await worker.fetch(chatRequest(), env, {});
   assert.equal(res.status, 404);
   assert.equal(upstreamCalls.length, 0);
+  assert.deepEqual(centerPaths, [], 'invalid node schema must not be sent to the private center');
 });
 
 await test('protocol/surfaces in Node JSON are hard schema errors and never reach upstream', async () => {
@@ -315,7 +323,9 @@ await test('protocol/surfaces in Node JSON are hard schema errors and never reac
     base_url: 'https://retired-wire-fields.example.com/v1',
     models: { 'general-air': 'up-model' },
   };
-  const env = makeEnv({ tier1: [invalid], secrets: { 'retired-wire-fields': 'k' } });
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({ tier1: [invalid], secrets: { 'retired-wire-fields': 'k' } }),
+    (request) => centerPaths.push(new URL(request.url).pathname));
   const health = await worker.fetch(
     new Request('https://gateway.example.com/health', {
       headers: { authorization: `Bearer ${ACCESS_KEY}` },
@@ -330,6 +340,7 @@ await test('protocol/surfaces in Node JSON are hard schema errors and never reac
   const res = await worker.fetch(chatRequest(), env, {});
   assert.equal(res.status, 404);
   assert.equal(upstreamCalls.length, 0);
+  assert.deepEqual(centerPaths, [], 'retired protocol and surfaces fields cannot enter the private center');
 });
 
 // ---- Native routing / failover --------------------------------------------
@@ -842,10 +853,16 @@ await test('Responses route falls back to a chat-only node through the matrix', 
 
 await test('Responses route stays untranslated when fallbacks are disabled', async () => {
   routeHandlers['chatonly.example.com'] = () => jsonResponse(okChat());
-  const env = makeEnv({ tier1: [openaiNode('chatonly')], secrets: { chatonly: 'k' }, extraEnv: { AIG_PROTOCOL_FALLBACKS: 'disable' } });
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({
+    tier1: [openaiNode('chatonly')],
+    secrets: { chatonly: 'k' },
+    extraEnv: { AIG_PROTOCOL_FALLBACKS: 'disable' },
+  }), (request) => centerPaths.push(new URL(request.url).pathname));
   const res = await worker.fetch(responsesRequest(), env, {});
   assert.equal(res.status, 404);
   assert.equal(upstreamCalls.length, 0);
+  assert.deepEqual(centerPaths, [], 'disabling fallback must reject before any private conversion or execution');
 });
 
 // ---- Hedge / wall-clock budget --------------------------------------------
@@ -948,7 +965,10 @@ await test('D1 write failure is observational and never breaks a successful AI r
 
 await test('/health is 200 for ready strict config and exposes no credentials', async () => {
   const secret = 'never-expose-this-provider-secret';
-  const env = makeEnv({ tier1: [openaiNode('health')], secrets: { health: secret } });
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({ tier1: [openaiNode('health')], secrets: { health: secret } }),
+    (request) => centerPaths.push(new URL(request.url).pathname));
+  assert.equal(env.AIG_TIER1_CREDENTIALS_01, undefined);
   const res = await worker.fetch(
     new Request('https://gateway.example.com/health', {
       headers: { authorization: `Bearer ${ACCESS_KEY}` },
@@ -960,13 +980,15 @@ await test('/health is 200 for ready strict config and exposes no credentials', 
   const text = await res.text();
   assert.ok(!text.includes(secret));
   assert.equal(JSON.parse(text).status, 'ready');
+  assert.deepEqual(centerPaths, [], 'health must not dispatch to the private inference center');
 });
 
 await test('/v1/models derives public models from actual strict node mappings', async () => {
-  const env = makeEnv({
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('models-oa', { models: { 'general-air': 'oa-up' } }), anthropicNode('models-an', { models: { 'general-air': 'an-up' } })],
     secrets: { 'models-oa': 'a', 'models-an': 'b' },
-  });
+  }), (request) => centerPaths.push(new URL(request.url).pathname));
   const res = await worker.fetch(
     new Request('https://gateway.example.com/v1/models', {
       headers: { authorization: `Bearer ${ACCESS_KEY}` },
@@ -979,15 +1001,17 @@ await test('/v1/models derives public models from actual strict node mappings', 
   const model = body.data.find((m) => m.id === 'general-air');
   assert.ok(model);
   assert.deepEqual(model.api_backends.sort(), ['anthropic', 'mock']);
+  assert.deepEqual(centerPaths, [], 'public model listing must not dispatch to inference center');
 });
 
 await test('/health.build reports deployment commit and /version stays removed', async () => {
   const build = 'a1b2c3d4e5f6';
-  const env = makeEnv({
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('identity')],
     secrets: { identity: 'k' },
     extraEnv: { AIG_BUILD_SHA: build },
-  });
+  }), (request) => centerPaths.push(new URL(request.url).pathname));
   const health = await worker.fetch(
     new Request('https://gateway.example.com/health', {
       headers: { authorization: `Bearer ${ACCESS_KEY}` },
@@ -1009,6 +1033,7 @@ await test('/health.build reports deployment commit and /version stays removed',
   );
   assert.equal(version.status, 404);
   assert.equal(upstreamCalls.length, 0);
+  assert.deepEqual(centerPaths, [], 'build and removed version endpoints must not dispatch to the private center');
 });
 
 await test('explicit cache miss fills the edge entry and a later hit avoids another upstream dispatch', async () => {
