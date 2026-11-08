@@ -159,7 +159,14 @@ jobs:
         run: |
           set -Eeuo pipefail
           archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
-          curl -fsSL -o "$RUNNER_TEMP/$archive" "https://github.com/kjanat/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          # Both locations address the same SHA-pinned official GitHub release.
+          # Failure of both sources or checksum mismatch still blocks the gate.
+          if ! curl --fail --location --silent --show-error --retry 3 --retry-all-errors --connect-timeout 15 --max-time 180 --proto '=https' --proto-redir '=https' \
+            -o "$RUNNER_TEMP/$archive" "https://github.com/kjanat/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"; then
+            curl --fail --location --silent --show-error --retry 3 --retry-all-errors --connect-timeout 15 --max-time 180 --proto '=https' --proto-redir '=https' \
+              --header 'Accept: application/octet-stream' --header 'X-GitHub-Api-Version: 2022-11-28' \
+              -o "$RUNNER_TEMP/$archive" "https://api.github.com/repos/kjanat/actionlint/releases/assets/561506357"
+          fi
           echo "${ACTIONLINT_SHA256}  $RUNNER_TEMP/${archive}" | sha256sum --check --strict
           tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
           echo "executable=$RUNNER_TEMP/actionlint" >> "$GITHUB_OUTPUT"
