@@ -51,14 +51,14 @@ async function test(name, fn) {
     __resetTier1StateForTests();
     __resetTier1AffinityForTests();
     __resetAdaptive429StateForTests();
-    const upstreamBefore = calls.length;
+    const upstreamBefore = physicalDispatchCount;
     const centerBefore = centerPaths.length;
     await fn();
     const newPaths = centerPaths.slice(centerBefore);
     assert.ok(newPaths.every((path) => path === '/internal/execute' || path === '/internal/conversion/preflight'));
     assert.equal(
       newPaths.filter((path) => path === '/internal/execute').length,
-      calls.length - upstreamBefore,
+      physicalDispatchCount - upstreamBefore,
       'every physical 429/413 Provider attempt must pass through the private center',
     );
     passed++;
@@ -72,10 +72,12 @@ async function test(name, fn) {
 
 // ---- mock upstream -----------------------------------------------------------
 const calls = [];
+let physicalDispatchCount = 0;
 let handlers = {};
 globalThis.fetch = async (input, init) => {
   const url = new URL(typeof input === 'string' ? input : input.url);
   const body = init?.body ? JSON.parse(String(init.body)) : {};
+  physicalDispatchCount++;
   calls.push({ host: url.hostname, model: body.model });
   const handler = handlers[url.hostname];
   if (!handler) throw new Error(`no mock upstream for ${url.hostname}`);
