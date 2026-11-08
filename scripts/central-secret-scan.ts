@@ -121,7 +121,7 @@ async function download(directory: string): Promise<string> {
   // Only the pinned GitHub Release and the GitHub REST asset endpoint are
   // accepted. Both may redirect, but never to HTTP. Each candidate is subject
   // to the same fixed archive SHA-256 check below; failures never skip scanning.
-  let downloadedSuccessfully = false;
+  let hasDownloadedArchive = false;
   let lastFailure = "download did not return HTTP 200";
   for (const source of gitleaksDownloadSources()) {
     const downloaded = spawnSync(
@@ -157,7 +157,7 @@ async function download(directory: string): Promise<string> {
     );
     const httpStatus = (downloaded.stdout ?? "").trim();
     if (!downloaded.error && downloaded.status === 0 && httpStatus === "200") {
-      downloadedSuccessfully = true;
+      hasDownloadedArchive = true;
       break;
     }
     lastFailure = downloadFailureReason(
@@ -167,7 +167,7 @@ async function download(directory: string): Promise<string> {
       httpStatus
     );
   }
-  if (!downloadedSuccessfully) throw new CannotRun(lastFailure);
+  if (!hasDownloadedArchive) throw new CannotRun(lastFailure);
   const bytes = await readFile(path);
   if (createHash("sha256").update(bytes).digest("hex") !== GITLEAKS_LINUX_X64_SHA256) {
     throw new CannotRun("checksum of the gitleaks archive does not match the pinned value");
