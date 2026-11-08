@@ -11,7 +11,6 @@
 import { convertRequest } from './conversion-matrix-adapters.mjs';
 import worker from '#target/src/index.ts';
 import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
-import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { buildResponsesError } from '#target/src/protocol/responses/index.ts';
 import { __resetAdaptive429StateForTests } from '#target/src/reliability/adaptive-429.ts';
 import { KIND } from '#target/src/reliability/classify.ts';
@@ -510,7 +509,9 @@ try {
 
   const ACCESS_KEY = 'responses-diagnostics-key';
   let routeHandlers = {};
+  const centerPaths = [];
   function reset() {
+    centerPaths.length = 0;
     __resetAllStateForTests();
     __resetTier1StateForTests();
     __resetTier1AffinityForTests();
@@ -534,14 +535,14 @@ try {
   });
 
   function envFor(id, extra = {}) {
-    return {
+    return withPrivateInferenceCenter({
       AIG_ACCESS_KEY_AIR: ACCESS_KEY,
       AIG_ACCESS_MODELS_AIR: '*',
       TIER1_SCHEDULER_SEED: 'responses-diagnostics-test',
       AIG_TIER1_NODES_01: JSON.stringify([node(id)]),
       AIG_TIER1_CREDENTIALS_01: JSON.stringify({ [id]: 'k' }),
       ...extra,
-    };
+    }, (request) => centerPaths.push(new URL(request.url).pathname));
   }
 
   function request(model = 'code-max') {
@@ -579,6 +580,8 @@ try {
   assert.equal(cooling.headers.get('x-gateway-hedges'), '0');
   assert.equal(cooling.headers.get('x-gateway-failure-kinds'), null);
   assert.ok(Number(cooling.headers.get('retry-after')) > 0);
+  assert.deepEqual(centerPaths, ['/internal/execute'],
+    'Responses 429 cooling must not dispatch a second private center request');
 
   reset();
   routeHandlers['dead.example.com'] = () => json({}, 503);
@@ -595,6 +598,8 @@ try {
   assert.equal(dead.headers.get('x-gateway-failure-kinds'), 'server:2');
   assert.equal(dead.headers.get('x-gateway-node'), null);
   assert.equal(dead.headers.get('x-gateway-provider'), null);
+  assert.deepEqual(centerPaths, ['/internal/execute', '/internal/execute'],
+    'Responses upstream 503 and last-resort retry must execute only in private center');
 
   reset();
   routeHandlers['badreq.example.com'] = () => json({ error: { message: 'bad input' } }, 400);
@@ -609,6 +614,8 @@ try {
   assert.equal(badReq.headers.get('x-gateway-failure-kinds'), 'client:1');
   assert.equal(badReqBody.error.message, 'All attempted nodes failed for model "code-max".');
   assert.ok(!JSON.stringify(badReqBody).includes('bad input'), 'raw upstream 4xx message must be hidden by default');
+  assert.deepEqual(centerPaths, ['/internal/execute'],
+    'Responses 400 must enter the private center exactly once');
 
   reset();
   routeHandlers['badreq-exposed.example.com'] = () => json({ error: { message: 'provider-specific bad input' } }, 400);
@@ -617,6 +624,8 @@ try {
   const badReqExposedBody = await badReqExposed.json();
   assert.equal(badReqExposedBody.error.message, 'All attempted nodes failed for model "code-max".');
   assert.equal(badReqExposed.headers.get('x-gateway-failure-kinds'), 'client:1');
+  assert.deepEqual(centerPaths, ['/internal/execute'],
+    'Responses exposed-upstream setting must not bypass center execution');
 
   reset();
   const unknown = await worker.fetch(request('not-a-model'), envFor('unused'), {});
@@ -627,6 +636,8 @@ try {
   assert.equal(unknown.headers.get('x-gateway-error-code'), null);
   assert.equal(unknown.headers.get('x-gateway-attempts'), null);
   assert.equal(unknown.headers.get('x-gateway-dispatches'), null);
+  assert.deepEqual(centerPaths, [],
+    'unknown Responses models must fail routing without any private center request');
 
   console.log('responses error diagnostics tests passed.');
   console.log('ok - file:responses-error-diagnostics');
