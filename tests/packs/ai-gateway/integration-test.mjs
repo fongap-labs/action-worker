@@ -596,12 +596,21 @@ await test('stream lifecycle/role-only output is not a commit; empty node can st
   routeHandlers['role-b.example.com'] = () => sseResponse([chatChunk({ content: 'real output' }), chatChunk({}, 'stop'), '[DONE]']);
   recordTier1Ttft('role-a', 'general-air', 50);
   recordTier1Ttft('role-b', 'general-air', 2_000);
-  const env = makeEnv({
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('role-a'), openaiNode('role-b')],
     secrets: { 'role-a': 'a', 'role-b': 'b' },
+  }), (request) => {
+    centerPaths.push(new URL(request.url).pathname);
   });
+  assert.equal(env.AIG_TIER1_CREDENTIALS_01, undefined, 'Gateway must not retain stream Provider credentials');
   const res = await worker.fetch(chatRequest({ stream: true }), env, {});
   assert.equal(res.status, 200);
+  assert.deepEqual(
+    centerPaths,
+    ['/internal/execute', '/internal/execute'],
+    'Pre-commit stream fallback must use the private center for both physical attempts',
+  );
   const text = await res.text();
   assert.match(text, /real output/);
   assert.deepEqual(
@@ -629,10 +638,14 @@ await test('after meaningful stream output commits, transparent replay is forbid
   routeHandlers['commit-b.example.com'] = () => sseResponse([chatChunk({ content: 'must-not-replay' }), chatChunk({}, 'stop'), '[DONE]']);
   recordTier1Ttft('commit-a', 'general-air', 50);
   recordTier1Ttft('commit-b', 'general-air', 2_000);
-  const env = makeEnv({
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('commit-a'), openaiNode('commit-b')],
     secrets: { 'commit-a': 'a', 'commit-b': 'b' },
+  }), (request) => {
+    centerPaths.push(new URL(request.url).pathname);
   });
+  assert.equal(env.AIG_TIER1_CREDENTIALS_01, undefined);
   const res = await worker.fetch(chatRequest({ stream: true }), env, {});
   assert.equal(res.status, 200);
   const reader = res.body.getReader();
@@ -647,6 +660,7 @@ await test('after meaningful stream output commits, transparent replay is forbid
     upstreamCalls.some((c) => c.host === 'commit-b.example.com'),
     false,
   );
+  assert.deepEqual(centerPaths, ['/internal/execute'], 'Committed stream must never replay via the private center');
 });
 
 await test('Tier 1 streaming slot stays claimed until stream completion and releases once', async () => {
@@ -661,7 +675,10 @@ await test('Tier 1 streaming slot stays claimed until stream completion and rele
       }),
       { status: 200, headers: { 'content-type': 'text/event-stream' } },
     );
-  const env = makeEnv({ tier1: [openaiNode('life')], secrets: { life: 'k' } });
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({ tier1: [openaiNode('life')], secrets: { life: 'k' } }), (request) => {
+    centerPaths.push(new URL(request.url).pathname);
+  });
   const pending = worker.fetch(chatRequest({ stream: true }), env, {});
   for (let i = 0; i < 100 && !controller; i++) await new Promise((r) => setTimeout(r, 5));
   controller.enqueue(encoder.encode(`data: ${JSON.stringify(chatChunk({ content: 'first' }))}\n\n`));
@@ -676,6 +693,7 @@ await test('Tier 1 streaming slot stays claimed until stream completion and rele
     /* drain */
   }
   assert.equal(tier1AccountInFlight('life'), 0);
+  assert.deepEqual(centerPaths, ['/internal/execute'], 'Streaming lifecycle must remain one private physical attempt');
 });
 
 // ---- Protocol boundaries ---------------------------------------------------
