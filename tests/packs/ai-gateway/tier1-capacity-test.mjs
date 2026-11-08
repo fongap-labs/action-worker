@@ -561,6 +561,7 @@ test('a key rejected with 401 is skipped by a new isolate without another upstre
   assert.equal(res.status, 429);
   assert.ok(Number(res.headers.get('retry-after')) > 3_000);
   assert.deepEqual(second.hosts, []);
+  assert.equal(privateCenterExecutes, first.hosts.length, 'shared 401 cooldown has no extra private executions');
 });
 
 test('a key whose daily quota ran out is skipped by a new isolate while another key serves', async () => {
@@ -576,6 +577,7 @@ test('a key whose daily quota ran out is skipped by a new isolate while another 
   assert.equal(quotaKeys.size, 2);
   assert.equal(res.status, 429, 'both keys are known to be out of quota');
   assert.deepEqual(second.hosts, []);
+  assert.equal(privateCenterExecutes, first.hosts.length, 'shared quota cooldown must not re-dispatch');
 });
 
 test('a quota cooldown exactly at the sharing threshold is shared while the clock moves', async () => {
@@ -585,7 +587,9 @@ test('a quota cooldown exactly at the sharing threshold is shared while the cloc
   let clock = realNow();
   Date.now = () => ++clock; // every reading of the clock is a millisecond later
   try {
-    await withMockFetch(scriptedUpstream([() => errorResponse(429, 'daily quota exceeded')]).handler, () => chat(env));
+    const upstream = scriptedUpstream([() => errorResponse(429, 'daily quota exceeded')]);
+    await withMockFetch(upstream.handler, () => chat(env));
+    assertPrivateAttemptParity(upstream);
   } finally {
     Date.now = realNow;
   }
@@ -601,24 +605,29 @@ test('a short rate-limit window is not shared', async () => {
   await withMockFetch(first.handler, () => chat(env));
   await settle();
   assert.equal(kv.puts, 0);
+  assertPrivateAttemptParity(first);
 });
 
 test('a shared cooldown that has expired is ignored', async () => {
   const kv = memoryKv();
   kv.store.set('tier1-cooldowns:v1', JSON.stringify([{ node: 'solo', until: Date.now() - 1_000, reason: 'auth' }]));
   const env = privateTier1Env(['solo'], { TIER1_AFFINITY: kv });
-  const res = await withMockFetch(scriptedUpstream([]).handler, () => chat(env));
+  const upstream = scriptedUpstream([]);
+  const res = await withMockFetch(upstream.handler, () => chat(env));
   assert.equal(res.status, 200);
+  assertPrivateAttemptParity(upstream);
 });
 
 test('a stalled shared-cooldown read does not hold the request', async () => {
   const kv = memoryKv();
   kv.get = () => new Promise(() => {});
   const env = privateTier1Env(['solo'], { TIER1_AFFINITY: kv });
-  const res = await withMockFetch(scriptedUpstream([]).handler, () =>
+  const upstream = scriptedUpstream([]);
+  const res = await withMockFetch(upstream.handler, () =>
     Promise.race([chat(env), new Promise((resolve) => setTimeout(() => resolve({ status: 'stalled' }), 1_000))]),
   );
   assert.equal(res.status, 200);
+  assertPrivateAttemptParity(upstream);
 });
 
 test('a burst of failures on one key writes the shared cooldowns once', async () => {
@@ -677,6 +686,7 @@ test('a field no upstream can carry is a 400 that names it, so the client can re
   const resent = await withMockFetch(upstream.handler, () => messages(env));
   assert.equal(resent.status, 200);
   assert.deepEqual(upstream.hosts, ['solo']);
+  assertPrivateAttemptParity(upstream);
 });
 
 // ---- Large request bodies cannot exhaust an isolate's memory ------------------
@@ -697,7 +707,9 @@ test('large bodies beyond the in-flight memory budget are refused with a retryab
   const gate = new Promise((resolve) => {
     release = resolve;
   });
+  let providerCalls = 0;
   const handler = async () => {
+    providerCalls++;
     await gate;
     return okChat();
   };
@@ -720,10 +732,14 @@ test('large bodies beyond the in-flight memory budget are refused with a retryab
     const later = await worker.fetch(largeChat(17 * 1024 * 1024), env, { waitUntil() {} });
     assert.equal(later.status, 200, 'the budget is returned when a request ends');
   });
+  assert.equal(privateCenterExecutes, providerCalls, 'no large request bypasses or duplicates private execution');
+  assert.equal(providerCalls, 3, 'refused second large request must not reach the Provider');
 });
 
 test('a single maximum-size body is admitted when nothing else is in flight', async () => {
   const env = privateTier1Env(['solo']);
-  const res = await withMockFetch(scriptedUpstream([]).handler, () => worker.fetch(largeChat(19 * 1024 * 1024), env, { waitUntil() {} }));
+  const upstream = scriptedUpstream([]);
+  const res = await withMockFetch(upstream.handler, () => worker.fetch(largeChat(19 * 1024 * 1024), env, { waitUntil() {} }));
   assert.equal(res.status, 200);
+  assertPrivateAttemptParity(upstream);
 });
