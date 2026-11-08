@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import { getFallbackChain, getProtocolFallbacksDiagnostics, loadProtocolFallbacks } from '#target/src/config/protocol-fallbacks.ts';
 import { convertRequest, convertResponse, convertStream, DEFAULT_MAX_TOKENS, ConversionError, convertOpenAIUsageToAnthropic } from './conversion-matrix-adapters.mjs';
 import worker from '#target/src/index.ts';
+import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { __resetAllStateForTests } from '#target/src/reliability/node-state.ts';
 import { __resetTier1StateForTests } from '#target/src/reliability/tier1-state.ts';
 import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affinity.ts';
@@ -22,12 +23,14 @@ const ACCESS_KEY = 'test-access-key';
 
 let passed = 0;
 let failed = 0;
+let verifyPrivateCenterDispatches = null;
 async function run(name, fn) {
   try {
     __resetAllStateForTests();
     __resetTier1StateForTests();
     __resetTier1AffinityForTests();
     await fn();
+    if (verifyPrivateCenterDispatches) verifyPrivateCenterDispatches();
     passed++;
     console.log(`ok - ${name}`);
   } catch (e) {
@@ -1173,6 +1176,10 @@ await run('config: Responses surfaces are accepted conversion targets (matrix)',
 
 const upstreamCalls = [];
 let routeHandlers = {};
+let privateCenterExecuteCount = 0;
+const INFERENCE_AUTH_KEY = 'conversion-private-center-auth-key-32';
+verifyPrivateCenterDispatches = () =>
+  assert.equal(privateCenterExecuteCount, upstreamCalls.length, 'every actual Provider request must pass through private /internal/execute');
 
 function installMockFetch() {
   globalThis.fetch = async (input, init) => {
@@ -1192,10 +1199,11 @@ function installMockFetch() {
 function resetMock() {
   upstreamCalls.length = 0;
   routeHandlers = {};
+  privateCenterExecuteCount = 0;
 }
 
 function makeEnv({ tier1, tier2, secrets, extraEnv } = {}) {
-  return {
+  const env = {
     AIG_ACCESS_KEY_AIR: ACCESS_KEY,
     AIG_ACCESS_MODELS_AIR: 'claude-x',
     TIER1_SCHEDULER_SEED: 'conversion-test',
@@ -1204,6 +1212,28 @@ function makeEnv({ tier1, tier2, secrets, extraEnv } = {}) {
     ...(secrets ? { AIG_TIER1_CREDENTIALS_01: JSON.stringify(secrets) } : {}),
     ...extraEnv,
   };
+  const centerEnv = { ...env, AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY };
+  for (const key of Object.keys(centerEnv)) {
+    if (key.startsWith('AIG_ACCESS_KEY_')) delete centerEnv[key];
+  }
+  for (const key of Object.keys(env)) {
+    if (/^AIG_TIER[123]_CREDENTIALS_/.test(key)) delete env[key];
+  }
+  env.AIG_INFERENCE_ACTIVE = 'true';
+  env.AIG_INFERENCE_AUTH_KEY = INFERENCE_AUTH_KEY;
+  env.AIG_INFERENCE_SERVICE = {
+    fetch(request) {
+      const path = new URL(request.url).pathname;
+      assert.ok(['/internal/execute', '/internal/conversion/preflight'].includes(path), 'only private inference endpoints are permitted');
+      assert.equal(request.headers.get('x-aig-inference-auth'), INFERENCE_AUTH_KEY, 'private center authentication required');
+      assert.equal(request.headers.get('authorization'), null, 'client authorization must not reach the center');
+      assert.equal(request.headers.get('x-api-key'), null, 'client API key must not reach the center');
+      if (path === '/internal/execute') privateCenterExecuteCount++;
+      return handleInferenceCenterRequest(request, centerEnv);
+    },
+  };
+  assert.equal(Object.keys(env).some((key) => /^AIG_TIER[123]_CREDENTIALS_/.test(key)), false, 'Gateway must hold no Provider static secrets');
+  return env;
 }
 
 const anthropicNode = (id, extra = {}) => ({
