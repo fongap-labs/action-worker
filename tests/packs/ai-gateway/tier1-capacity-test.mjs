@@ -11,6 +11,7 @@ import { __resetAccessKeysCacheForTests } from '#target/src/config/access-keys.t
 import { __resetBodyBudgetForTests } from '#target/src/ratelimit/body-budget.ts';
 import { loadGatewayConfig } from '#target/src/config/nodes.ts';
 import worker from '#target/src/index.ts';
+import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { __resetAdaptive429StateForTests } from '#target/src/reliability/adaptive-429.ts';
 import { classifyUpstreamStatus } from '#target/src/reliability/classify.ts';
 import {
@@ -28,10 +29,13 @@ import { buildWranglerConfig, loadRuntimeConfig, preflight, validateGatewayRunti
 import { pickTier1Candidate } from '#target/src/scheduler/tier1-scheduler.ts';
 
 const ACCESS_KEY = 'tier1-capacity-key';
+const PRIVATE_CENTER_KEY = 'tier1-capacity-private-center-auth-key-32';
+let privateCenterExecutes = 0;
 const AUTH_COOLDOWN_MS = 3_600_000;
 const REQ = { protocol: 'openai', surface: 'chat_completions', model: 'm1', bodyChars: 10 };
 
 beforeEach(() => {
+  privateCenterExecutes = 0;
   __resetAccessKeysCacheForTests();
   __resetBodyBudgetForTests();
   __resetSharedTier1CooldownsForTests();
@@ -54,6 +58,39 @@ function tier1OnlyEnv(nodeIds, extra = {}) {
     AIG_LOG_LEVEL: 'none',
     ...extra,
   };
+}
+
+// Only the migrated real Gateway request contracts use this environment.
+// Legacy credential-conflict and deployment-config unit tests keep their own
+// explicit inputs until the corresponding runtime configuration contract retires.
+function privateTier1Env(nodeIds, extra = {}) {
+  const gatewayEnv = tier1OnlyEnv(nodeIds, extra);
+  const centerEnv = { ...gatewayEnv, AIG_INFERENCE_AUTH_KEY: PRIVATE_CENTER_KEY };
+  for (const key of Object.keys(centerEnv)) {
+    if (key.startsWith('AIG_ACCESS_KEY_')) delete centerEnv[key];
+  }
+  for (const key of Object.keys(gatewayEnv)) {
+    if (/^AIG_TIER[123]_CREDENTIALS_/.test(key)) delete gatewayEnv[key];
+  }
+  gatewayEnv.AIG_INFERENCE_ACTIVE = 'true';
+  gatewayEnv.AIG_INFERENCE_AUTH_KEY = PRIVATE_CENTER_KEY;
+  gatewayEnv.AIG_INFERENCE_SERVICE = {
+    fetch(request) {
+      const path = new URL(request.url).pathname;
+      assert.ok(['/internal/execute', '/internal/conversion/preflight'].includes(path), 'private inference path allowlist');
+      assert.equal(request.headers.get('x-aig-inference-auth'), PRIVATE_CENTER_KEY);
+      assert.equal(request.headers.get('authorization'), null, 'client bearer must not cross the private boundary');
+      assert.equal(request.headers.get('x-api-key'), null, 'client x-api-key must not cross the private boundary');
+      if (path === '/internal/execute') privateCenterExecutes++;
+      return handleInferenceCenterRequest(request, centerEnv);
+    },
+  };
+  assert.equal(Object.keys(gatewayEnv).some((key) => /^AIG_TIER[123]_CREDENTIALS_/.test(key)), false);
+  return gatewayEnv;
+}
+
+function assertPrivateAttemptParity(upstream) {
+  assert.equal(privateCenterExecutes, upstream.hosts.length, 'every physical Provider fetch must have one private center execute');
 }
 
 const okChat = () =>
@@ -141,7 +178,7 @@ test('a Tier 1 success clears the 403 ladder of that model', () => {
 });
 
 test('Tier 1-only single key: one refused request does not block the next one', async () => {
-  const env = tier1OnlyEnv(['solo']);
+  const env = privateTier1Env(['solo']);
   const upstream = scriptedUpstream([() => errorResponse(403, 'input flagged by moderation')]);
   await withMockFetch(upstream.handler, async () => {
     const refused = await chat(env);
@@ -150,6 +187,7 @@ test('Tier 1-only single key: one refused request does not block the next one', 
     assert.equal(next.status, 200);
   });
   assert.deepEqual(upstream.hosts, ['solo', 'solo']);
+  assertPrivateAttemptParity(upstream);
 });
 
 // ---- Half-open recovery on a shared key -------------------------------------
@@ -175,19 +213,21 @@ test('a tripped model gets its recovery probe while another model of the same ke
 // ---- Last-resort retry of a transient Tier 1 failure ------------------------
 
 test('Tier 1-only single key: one transient 5xx is retried on the same key', async () => {
-  const env = tier1OnlyEnv(['solo']);
+  const env = privateTier1Env(['solo']);
   const upstream = scriptedUpstream([() => errorResponse(500, 'overloaded')]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
   assert.equal(res.status, 200);
   assert.deepEqual(upstream.hosts, ['solo', 'solo']);
+  assertPrivateAttemptParity(upstream);
 });
 
 test('the same-key retry happens at most once per request', async () => {
-  const env = tier1OnlyEnv(['solo']);
+  const env = privateTier1Env(['solo']);
   const upstream = scriptedUpstream([() => errorResponse(500, 'overloaded'), () => errorResponse(502, 'bad gateway'), () => errorResponse(503, 'down')]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
   assert.equal(res.status, 502);
   assert.deepEqual(upstream.hosts, ['solo', 'solo']);
+  assertPrivateAttemptParity(upstream);
 });
 
 test('a rate limit, refusal or invalid request is never retried on the same key', async () => {
@@ -199,19 +239,22 @@ test('a rate limit, refusal or invalid request is never retried on the same key'
     __resetTier1StateForTests();
     __resetAdaptive429StateForTests();
     const upstream = scriptedUpstream([failure]);
-    const res = await withMockFetch(upstream.handler, () => chat(tier1OnlyEnv(['solo'])));
+    const before = privateCenterExecutes;
+    const res = await withMockFetch(upstream.handler, () => chat(privateTier1Env(['solo'])));
     assert.notEqual(res.status, 200);
     assert.deepEqual(upstream.hosts, ['solo']);
+    assert.equal(privateCenterExecutes - before, upstream.hosts.length, 'each rejected request is center-owned');
   }
 });
 
 test('with every key failing transiently, the unused attempt budget retries one key once', async () => {
-  const env = tier1OnlyEnv(['k1', 'k2']);
+  const env = privateTier1Env(['k1', 'k2']);
   const upstream = scriptedUpstream([() => errorResponse(500, 'overloaded'), () => errorResponse(500, 'overloaded')]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
   assert.equal(res.status, 200);
   assert.equal(upstream.hosts.length, 3);
   assert.equal(upstream.hosts[2], upstream.hosts[1], 'the most recent transient failure is retried');
+  assertPrivateAttemptParity(upstream);
 });
 
 // ---- A configuration error takes out only what it breaks ---------------------
