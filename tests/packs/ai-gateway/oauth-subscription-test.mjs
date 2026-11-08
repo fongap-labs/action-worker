@@ -216,8 +216,16 @@ function withPrivateInferenceCenter(gatewayEnv, onRequest = () => {}) {
     AIG_TOKEN_ENCRYPTION_KEY: gatewayEnv.AIG_TOKEN_ENCRYPTION_KEY,
     AIG_OAUTH_PROVIDERS: gatewayEnv.AIG_OAUTH_PROVIDERS,
     TOKEN_STATS_DB: gatewayEnv.TOKEN_STATS_DB,
+    // Execution owns all physical Provider shards, including plain API keys.
+    ...Object.fromEntries(
+      Object.entries(gatewayEnv).filter(([name]) => /^AIG_TIER[123]_(?:NODES|CREDENTIALS)_\d{2}$/.test(name)),
+    ),
   };
   delete gatewayEnv.AIG_TOKEN_ENCRYPTION_KEY;
+  for (const name of Object.keys(gatewayEnv)) {
+    if (/^AIG_TIER[123]_CREDENTIALS_\d{2}$/.test(name)) delete gatewayEnv[name];
+  }
+  assert.equal(Object.keys(gatewayEnv).some((name) => /^AIG_TIER[123]_CREDENTIALS_\d{2}$/.test(name)), false);
   gatewayEnv.AIG_INFERENCE_ACTIVE = 'true';
   gatewayEnv.AIG_INFERENCE_AUTH_KEY = INFERENCE_AUTH_KEY;
   gatewayEnv.AIG_INFERENCE_SERVICE = {
@@ -881,6 +889,7 @@ await test('expired token with no refresh token fails closed and rotates', async
     expiresAt: Date.now() - 1000,
   });
   let upstreamContacted = false;
+  withPrivateInferenceCenter(env);
   withMockFetch(async () => {
     upstreamContacted = true;
     throw new Error('upstream must not be contacted');
@@ -1105,6 +1114,7 @@ await test('anthropic override with client_secret includes it in the refresh gra
     expiresAt: Date.now() - 1000,
   });
   let refreshBody = null;
+  withPrivateInferenceCenter(env);
   withMockFetch(async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
     if (url.hostname === 'auth.mock.example.com' && url.pathname === '/token') {
@@ -1171,6 +1181,7 @@ await test('google streaming dispatch converts Code Assist SSE to OpenAI chat ch
   let seenAuth = null;
   let seenUa = null;
   let seenBody = null;
+  withPrivateInferenceCenter(env);
   withMockFetch(async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
     seenUrl = url.pathname + url.search;
@@ -1234,6 +1245,7 @@ await test('google non-streaming dispatch converts Code Assist object to chat co
   });
   let seenUrl = null;
   let seenBody = null;
+  withPrivateInferenceCenter(env);
   withMockFetch(async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
     seenUrl = url.origin + url.pathname;
@@ -1268,6 +1280,7 @@ await test('google subscription 429 with gRPC retryDelay extends the cooldown', 
     refreshToken: null,
     expiresAt: Date.now() + 3600_000,
   });
+  withPrivateInferenceCenter(env);
   withMockFetch(async () => {
     return new Response(
       JSON.stringify({
@@ -1426,6 +1439,9 @@ await test('account_id from token exchange is persisted and sent as chatgpt-acco
   const stored = await loadSubscriptionToken(env, 'codex-sub');
   assert.equal(stored.accountId, 'acct-12345', 'account_id persisted in plaintext');
 
+  // OAuth onboarding remains at the public control-plane route; physical
+  // token dispatch switches to the separate private execution environment.
+  withPrivateInferenceCenter(env);
   const res = await worker.fetch(chatRequest(), env, {});
   assert.equal(res.status, 200);
 });
@@ -1445,6 +1461,7 @@ await test('non-openai oauth nodes never send chatgpt-account-id', async () => {
     expiresAt: Date.now() + 3600_000,
   });
   let sawAccountHeader = false;
+  withPrivateInferenceCenter(env);
   withMockFetch(async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
     if (url.hostname === 'an-sub.example.com') {
@@ -1485,6 +1502,7 @@ await test('oauth node with an unknown provider fails closed (no subscription ad
     expiresAt: Date.now() + 3600_000,
   });
   let upstreamContacted = false;
+  withPrivateInferenceCenter(env);
   withMockFetch(async () => {
     upstreamContacted = true;
     throw new Error('upstream must not be contacted');
@@ -1513,6 +1531,7 @@ await test('codex oauth dispatch sends Originator and normalizes empty instructi
   });
   let seenOriginator = null;
   let seenBody = null;
+  withPrivateInferenceCenter(env);
   withMockFetch(async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
     if (url.hostname === 'codex-up.example.com') {
@@ -1560,6 +1579,7 @@ await test('codex oauth responses with client instructions are preserved', async
     expiresAt: Date.now() + 3600_000,
   });
   let seenBody = null;
+  withPrivateInferenceCenter(env);
   withMockFetch(async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
     if (url.hostname === 'codex-up.example.com') {
@@ -1596,6 +1616,7 @@ await test('plain API-key responses nodes are not codex-normalized', async () =>
   });
   let seenBody = null;
   let seenOriginator = null;
+  withPrivateInferenceCenter(env);
   withMockFetch(async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
     if (url.hostname === 'plain-up.example.com') {
@@ -1676,6 +1697,7 @@ await test('claude oauth dispatch without client beta gets required oauth beta f
   let seenBeta = null;
   let seenXApp = null;
   let seenUa = null;
+  withPrivateInferenceCenter(env);
   withMockFetch(async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
     if (url.hostname === 'claude-up.example.com') {
@@ -1717,6 +1739,7 @@ await test('claude oauth dispatch merges client betas without duplicates', async
     expiresAt: Date.now() + 3600_000,
   });
   let seenBeta = null;
+  withPrivateInferenceCenter(env);
   withMockFetch(async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
     if (url.hostname === 'claude-up.example.com') {
@@ -1747,6 +1770,7 @@ await test('plain API-key anthropic nodes get no forced oauth betas', async () =
   });
   let seenBeta = null;
   let seenXApp = null;
+  withPrivateInferenceCenter(env);
   withMockFetch(async (input, init) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
     if (url.hostname === 'claude-key.example.com') {
@@ -1778,6 +1802,7 @@ await test('codex subscription 429 with window-reset header extends the cooldown
     expiresAt: Date.now() + 3600_000,
   });
   const resetEpoch = Math.floor((Date.now() + 2 * 3600_000) / 1000); // 2h out
+  withPrivateInferenceCenter(env);
   withMockFetch(async (input) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
     if (url.hostname === 'codex-quota.example.com') {
@@ -1807,6 +1832,7 @@ await test('codex subscription 429 without reset markers keeps the default rate-
     refreshToken: null,
     expiresAt: Date.now() + 3600_000,
   });
+  withPrivateInferenceCenter(env);
   withMockFetch(async (input) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
     if (url.hostname === 'codex-plain.example.com') {
@@ -1828,6 +1854,7 @@ await test('plain API-key nodes never consume subscription quota hints', async (
     extraEnv: { AIG_TIER1_CREDENTIALS_01: JSON.stringify({ 'key-node': 'sk-plain' }) },
   });
   const resetEpoch = Math.floor((Date.now() + 5 * 3600_000) / 1000); // 5h out
+  withPrivateInferenceCenter(env);
   withMockFetch(async (input) => {
     const url = new URL(typeof input === 'string' ? input : input.url);
     if (url.hostname === 'key-node.example.com') {
