@@ -418,7 +418,7 @@ try {
     const center = loadExecutionConfig(env);
     assert.equal(center.status, 'ready');
     assert.equal(center.nodes[0].credential, 'secret', 'only private execution owns the secret');
-    const gateway = loadGatewayConfig(env);
+    const gateway = loadGatewayConfig({ ...env, AIG_INFERENCE_ACTIVE: 'true' });
     assert.equal(gateway.status, 'ready');
     assert.equal(gateway.nodes[0].credential, '', 'public Gateway must never parse a secret');
   });
@@ -432,7 +432,7 @@ try {
     const center = loadExecutionConfig(env);
     assert.equal(center.ready, false, 'credential mismatch must fail closed in the center');
     assert.ok(center.diagnostics.some((d) => d.includes('tier2-cross') && d.includes('TIER2') && d.includes('TIER1')));
-    const gateway = loadGatewayConfig(env);
+    const gateway = loadGatewayConfig({ ...env, AIG_INFERENCE_ACTIVE: 'true' });
     assert.equal(gateway.ready, true, 'Gateway routes metadata without inspecting any secret');
     assert.equal(gateway.nodes[0].credential, '');
   });
