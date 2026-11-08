@@ -6,6 +6,9 @@
 // through request-local and transient failures.
 
 import { assert, beforeEach, test } from '#kit/harness.mjs';
+import { targetRoot } from '#kit/target.mjs';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { withMockFetch } from '#kit/fetch.mjs';
 import { __resetAccessKeysCacheForTests } from '#target/src/config/access-keys.ts';
 import { __resetBodyBudgetForTests } from '#target/src/ratelimit/body-budget.ts';
@@ -30,6 +33,7 @@ import { pickTier1Candidate } from '#target/src/scheduler/tier1-scheduler.ts';
 
 const ACCESS_KEY = 'tier1-capacity-key';
 const PRIVATE_CENTER_KEY = 'tier1-capacity-private-center-auth-key-32';
+const isCenterOnlyCutover = !existsSync(join(targetRoot, 'src/request/attempt/legacy-provider-dispatch.ts'));
 let privateCenterExecutes = 0;
 const AUTH_COOLDOWN_MS = 3_600_000;
 const REQ = { protocol: 'openai', surface: 'chat_completions', model: 'm1', bodyChars: 10 };
@@ -273,7 +277,9 @@ test('a policy typo degrades the gateway instead of failing every request', asyn
   assert.ok(config.diagnostics.some((d) => d.includes('max_attempt')));
   const upstream = scriptedUpstream([]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
-  assert.equal(res.status, 200);
+  // The pre-cutover private executor rejects all degraded configs; after
+  // retirement, sanitized healthy nodes are allowed to serve.
+  assert.equal(res.status, isCenterOnlyCutover ? 200 : 503);
   assertPrivateAttemptParity(upstream);
 });
 
@@ -291,8 +297,8 @@ test('a node with a conflicting credential is excluded and the rest keep serving
   assert.deepEqual(loadGatewayConfig(env).nodes.map((n) => n.id), ['good', 'bad'], 'public Gateway reads metadata only');
   const upstream = scriptedUpstream([]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
-  assert.equal(res.status, 200);
-  assert.deepEqual(upstream.hosts, ['good']);
+  assert.equal(res.status, isCenterOnlyCutover ? 200 : 503);
+  assert.deepEqual(upstream.hosts, isCenterOnlyCutover ? ['good'] : []);
   assertPrivateAttemptParity(upstream);
 });
 
@@ -319,7 +325,7 @@ test('with no usable node the configuration is still invalid', () => {
   const config = loadExecutionConfig(env);
   assert.equal(config.status, 'invalid');
   assert.equal(config.ready, false);
-  assert.equal(loadGatewayConfig(env).ready, true, 'public metadata cannot depend on Provider secret validation');
+  assert.equal(loadGatewayConfig({ ...env, AIG_INFERENCE_ACTIVE: 'true' }).ready, true, 'public center-owned metadata cannot depend on Provider secrets');
 });
 
 // ---- Diagnostics never quote credential text --------------------------------
@@ -330,7 +336,7 @@ test('a malformed credential shard is reported without quoting any of its text',
   const config = loadExecutionConfig(env);
   assert.ok(config.diagnostics.some((d) => d.includes('AIG_TIER1_CREDENTIALS_02')));
   assert.ok(!config.diagnostics.join('\n').includes('sk-live'), 'no credential fragment in diagnostics');
-  const publicConfig = loadGatewayConfig(env);
+  const publicConfig = loadGatewayConfig({ ...env, AIG_INFERENCE_ACTIVE: 'true' });
   assert.equal(publicConfig.hasConfigErrors, false, 'Gateway must not parse malformed physical secrets');
   assert.equal(publicConfig.nodes[0].credential, '', 'public Gateway never retains physical Provider secrets');
   const health = await worker.fetch(
