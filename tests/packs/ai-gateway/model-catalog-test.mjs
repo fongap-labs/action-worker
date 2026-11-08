@@ -15,6 +15,7 @@ import { getModelsConfigDiagnostics, loadModelsConfig } from '#target/src/config
 import { getPolicy, loadPoliciesConfig } from '#target/src/config/policies.ts';
 import { collectKnownModels, isWildcardNode, loadModelRegistry, modelRegistryEntry, servesModel } from '#target/src/config/registry.ts';
 import worker from '#target/src/index.ts';
+import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { flushUsageBuffer, queryRecentModelEvidence } from '#target/src/observability/token-usage-store.ts';
 import { providerWire } from '#target/src/providers/registry.ts';
 import { __resetAllStateForTests } from '#target/src/reliability/node-state.ts';
@@ -966,15 +967,43 @@ try {
     base_url: `https://${id}.example.com/v1`,
     models,
   });
-  const envFor = (nodes, extra = {}) => ({
-    AIG_ACCESS_KEY_ULTRA: ACCESS_KEY,
-    AIG_ACCESS_MODELS_ULTRA: '*',
-    AIG_PROTOCOL_FALLBACKS: 'disable',
-    TIER1_SCHEDULER_SEED: 'model-catalog-policy',
-    AIG_TIER1_NODES_01: JSON.stringify(nodes),
-    AIG_TIER1_CREDENTIALS_01: JSON.stringify(Object.fromEntries(nodes.map((n) => [n.id, `secret-${n.id}`]))),
-    ...extra,
-  });
+  let privateCenterExecutes = 0;
+  let privateCenterPreflights = 0;
+  const INFERENCE_AUTH_KEY = 'model-catalog-center-auth-ticket-32';
+  const envFor = (nodes, extra = {}) => {
+    const gatewayEnv = {
+      AIG_ACCESS_KEY_ULTRA: ACCESS_KEY,
+      AIG_ACCESS_MODELS_ULTRA: '*',
+      AIG_PROTOCOL_FALLBACKS: 'disable',
+      TIER1_SCHEDULER_SEED: 'model-catalog-policy',
+      AIG_TIER1_NODES_01: JSON.stringify(nodes),
+      ...extra,
+    };
+    const centerEnv = {
+      ...gatewayEnv,
+      AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY,
+      AIG_TIER1_CREDENTIALS_01: JSON.stringify(Object.fromEntries(nodes.map((n) => [n.id, `secret-${n.id}`]))),
+    };
+    for (const key of Object.keys(centerEnv)) {
+      if (key.startsWith('AIG_ACCESS_KEY_')) delete centerEnv[key];
+    }
+    gatewayEnv.AIG_INFERENCE_ACTIVE = 'true';
+    gatewayEnv.AIG_INFERENCE_AUTH_KEY = INFERENCE_AUTH_KEY;
+    gatewayEnv.AIG_INFERENCE_SERVICE = {
+      fetch(request) {
+        const path = new URL(request.url).pathname;
+        assert.ok(['/internal/execute', '/internal/conversion/preflight'].includes(path), 'only authenticated private center endpoints are allowed');
+        assert.equal(request.headers.get('x-aig-inference-auth'), INFERENCE_AUTH_KEY);
+        assert.equal(request.headers.get('authorization'), null, 'external authorization must not reach the center');
+        assert.equal(request.headers.get('x-api-key'), null, 'external client key must not reach the center');
+        if (path === '/internal/execute') privateCenterExecutes++;
+        else privateCenterPreflights++;
+        return handleInferenceCenterRequest(request, centerEnv);
+      },
+    };
+    assert.ok(!Object.keys(gatewayEnv).some((key) => /^AIG_TIER[123]_CREDENTIALS_/.test(key)), 'Gateway may not retain Provider secrets');
+    return gatewayEnv;
+  };
 
   test('scenario: a brand-new model routes and reports via configuration alone', async () => {
     const upstreamCalls = [];
@@ -1016,6 +1045,7 @@ try {
       assert.equal(chat.status, 200, 'the new model must be callable with zero source changes');
       assert.match(await chat.text(), /fresh model served/);
       assert.deepEqual(upstreamCalls, ['brand-new-node.example.com']);
+      assert.equal(privateCenterExecutes, upstreamCalls.length, 'new models must use private center execution');
 
       const list = await worker.fetch(
         new Request('https://gateway.example.com/v1/models', {
@@ -1030,6 +1060,8 @@ try {
       assert.ok(entry, 'the new model appears in /v1/models driven by its catalog facts');
       assert.equal(entry.supports_tools, true);
       assert.deepEqual(entry.reasoning_efforts, ['medium']);
+      assert.equal(privateCenterExecutes, 1, 'read-only /v1/models must not dispatch inference');
+      assert.equal(privateCenterPreflights, 0, 'read-only /v1/models requires no conversion preflight');
     } finally {
       finish();
     }
