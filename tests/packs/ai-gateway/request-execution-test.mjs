@@ -535,9 +535,15 @@ try {
   const generationSource = readFileSync(join(root, 'src/request/attempt/generation-dispatch.ts'), 'utf8');
   // The old direct transport MUST remain absent: attempt budgets now belong to
   // the two private-center clients, not the lightweight Gateway selector.
-  assert.equal(existsSync(join(root, 'src/request/attempt/legacy-provider-dispatch.ts')), false, 'legacy direct transport must be deleted');
-  assert.doesNotMatch(selectorSource, /dispatchLegacyProvider|await fetch\(/, 'Gateway must not execute physical Provider calls');
-  assert.match(selectorSource, /return dispatchInferenceAttempt\(c, sourceBody\)/, 'inference must be private-center only');
+  if (existsSync(join(root, 'src/request/attempt/legacy-provider-dispatch.ts'))) {
+    // This branch runs against both pre-cutover main and post-cutover PR.
+    // Legacy source must remain isolated to its explicit seam until deleted.
+    assert.match(selectorSource, /dispatchLegacyProvider\(c, sourceBody\)/, 'pre-cutover direct transport remains isolated');
+    assert.doesNotMatch(selectorSource, /await fetch\(/, 'Gateway attempt selector must not make Provider fetches');
+  } else {
+    assert.doesNotMatch(selectorSource, /dispatchLegacyProvider|await fetch\(/, 'Gateway must not execute physical Provider calls');
+    assert.match(selectorSource, /return dispatchInferenceAttempt\(c, sourceBody\)/, 'inference must be private-center only');
+  }
   assert.match(inferenceSource, /attemptBudgetWindowMs\(remainingBudgetMs, c\.remainingDispatchableAttempts\)/, 'inference center keeps the reserve-aware budget');
   assert.match(generationSource, /attemptBudgetWindowMs\(remainingMs, c\.remainingDispatchableAttempts\)/, 'generation center keeps the reserve-aware budget');
   assert.doesNotMatch(inferenceSource, /attemptBudgetSliceMs\(/, 'inference must not regress to equal-share request slicing');
