@@ -335,14 +335,15 @@ await test('auth:"oauth" node with a static credential is rejected (dual credent
     center.diagnostics.some((d) => String(d).includes('must not have a static credential')),
     JSON.stringify(center.diagnostics),
   );
-  const gateway = loadGatewayConfig(env);
+  const gatewayEnv = { ...env, AIG_INFERENCE_ACTIVE: 'true' };
+  const gateway = loadGatewayConfig(gatewayEnv);
   assert.equal(gateway.ready, true, 'the public Gateway must not parse Provider secret shards');
   assert.ok(gateway.nodes.every((node) => node.credential === ''));
   const res = await worker.fetch(
     new Request('https://gateway.example.com/health', {
       headers: { authorization: `Bearer ${ACCESS_KEY}` },
     }),
-    env,
+    gatewayEnv,
     {},
   );
   const body = await res.json();
