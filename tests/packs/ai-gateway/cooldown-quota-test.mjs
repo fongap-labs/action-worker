@@ -15,6 +15,7 @@
 
 import { loadPoliciesConfig } from '#target/src/config/policies.ts';
 import worker from '#target/src/index.ts';
+import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { ADAPTIVE_429_COOLDOWN_STEPS_MS, __resetAdaptive429StateForTests, clearAdaptive429State, nextAdaptive429CooldownMs, snapshotAdaptive429State } from '#target/src/reliability/adaptive-429.ts';
 import { KIND, classifyUpstreamStatus } from '#target/src/reliability/classify.ts';
 import { COOLDOWN_JITTER_FACTOR, jitterCooldownMs } from '#target/src/reliability/cooldown-jitter.ts';
@@ -183,6 +184,8 @@ try {
     __resetTier1AffinityForTests();
     const accessKey = 'quota-413-integration-key';
     const calls = [];
+    let centerExecuteCount = 0;
+    const centerAuthKey = 'quota-413-private-center-auth-ticket-32';
     const originalFetch = globalThis.fetch;
     globalThis.fetch = async (input, init) => {
       const url = new URL(typeof input === 'string' ? input : input.url);
@@ -223,7 +226,6 @@ try {
             models: { 'Quota-Test': 'qwen/qwen3.8-27b' },
           },
         ]),
-        AIG_TIER1_CREDENTIALS_01: JSON.stringify({ 'groq-quota': 'groq-key' }),
         AIG_TIER2_NODES_01: JSON.stringify([
           {
             id: 'fallback-node',
@@ -233,9 +235,29 @@ try {
             models: { 'Quota-Test': 'fallback-model' },
           },
         ]),
-        AIG_TIER2_CREDENTIALS_01: JSON.stringify({ 'fallback-node': 'fallback-key' }),
         AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempts: 2 } }),
       };
+      const centerEnv = {
+        AIG_INFERENCE_AUTH_KEY: centerAuthKey,
+        AIG_TIER1_NODES_01: integrationEnv.AIG_TIER1_NODES_01,
+        AIG_TIER2_NODES_01: integrationEnv.AIG_TIER2_NODES_01,
+        AIG_TIER1_CREDENTIALS_01: JSON.stringify({ 'groq-quota': 'groq-key' }),
+        AIG_TIER2_CREDENTIALS_01: JSON.stringify({ 'fallback-node': 'fallback-key' }),
+      };
+      integrationEnv.AIG_INFERENCE_ACTIVE = 'true';
+      integrationEnv.AIG_INFERENCE_AUTH_KEY = centerAuthKey;
+      integrationEnv.AIG_INFERENCE_SERVICE = {
+        fetch(request) {
+          const path = new URL(request.url).pathname;
+          assert.ok(['/internal/execute', '/internal/conversion/preflight'].includes(path), 'only private inference endpoints may be called');
+          assert.equal(request.headers.get('x-aig-inference-auth'), centerAuthKey);
+          assert.equal(request.headers.get('authorization'), null, 'client authorization must not reach the center');
+          assert.equal(request.headers.get('x-api-key'), null, 'client API key must not reach the center');
+          if (path === '/internal/execute') centerExecuteCount++;
+          return handleInferenceCenterRequest(request, centerEnv);
+        },
+      };
+      assert.ok(!Object.keys(integrationEnv).some((key) => /^AIG_TIER[123]_CREDENTIALS_/.test(key)), 'Gateway must not own static Provider credentials');
       const response = await worker.fetch(
         new Request('https://gateway.example.com/v1/chat/completions', {
           method: 'POST',
@@ -249,6 +271,7 @@ try {
       assert.equal(response.status, 200);
       assert.equal(body?.choices?.[0]?.message?.content, 'fallback ok');
       assert.deepEqual(calls, ['groq-quota.example.com', 'fallback.example.com']);
+      assert.equal(centerExecuteCount, calls.length, 'all 413 fallback Provider attempts must execute through the private center');
     } finally {
       globalThis.fetch = originalFetch;
     }
