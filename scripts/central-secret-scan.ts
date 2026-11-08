@@ -21,6 +21,23 @@ import { CliError, handleError, isMain } from "./runtime-command.ts";
 export const GITLEAKS_VERSION = "8.30.1";
 export const GITLEAKS_LINUX_X64_SHA256 =
   "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb";
+// Same pinned upstream release asset, available through the official GitHub API
+// when the ordinary github.com release download endpoint is unavailable.
+export const GITLEAKS_LINUX_X64_ASSET_ID = 378332058;
+
+export function gitleaksDownloadSources(): ReadonlyArray<{ url: string; headers: string[] }> {
+  const archive = `gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz`;
+  return [
+    {
+      url: `https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}`,
+      headers: [],
+    },
+    {
+      url: `https://api.github.com/repos/gitleaks/gitleaks/releases/assets/${GITLEAKS_LINUX_X64_ASSET_ID}`,
+      headers: ["Accept: application/octet-stream", "X-GitHub-Api-Version: 2022-11-28"],
+    },
+  ];
+}
 
 const shaPattern = /^[0-9a-f]{40}$/;
 
@@ -100,44 +117,57 @@ async function download(directory: string): Promise<string> {
     throw new CannotRun("unsupported platform");
   }
   const archive = `gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz`;
-  const url = `https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}`;
   const path = join(directory, archive);
-  // GitHub release assets redirect to release-assets.githubusercontent.com. curl follows that
-  // redirect explicitly and retries transient network/5xx failures; no unverified binary is run.
-  const downloaded = spawnSync(
-    "curl",
-    [
-      "--fail",
-      "--location",
-      "--silent",
-      "--show-error",
-      "--retry",
-      "3",
-      "--retry-all-errors",
-      "--retry-delay",
-      "1",
-      "--connect-timeout",
-      "15",
-      "--max-time",
-      "180",
-      "--max-filesize",
-      "20000000",
-      "--proto",
-      "=https",
-      "--output",
-      path,
-      "--write-out",
-      "%{http_code}",
-      url,
-    ],
-    { encoding: "utf8", timeout: 190_000, maxBuffer: 1024 * 1024 }
-  );
-  const httpStatus = (downloaded.stdout ?? "").trim();
-  if (downloaded.error || downloaded.status !== 0 || httpStatus !== "200") {
-    throw new CannotRun(
-      downloadFailureReason(downloaded.status, downloaded.signal, downloaded.error, httpStatus)
+  // Only the pinned GitHub Release and the GitHub REST asset endpoint are
+  // accepted. Both may redirect, but never to HTTP. Each candidate is subject
+  // to the same fixed archive SHA-256 check below; failures never skip scanning.
+  let downloadedSuccessfully = false;
+  let lastFailure = "download did not return HTTP 200";
+  for (const source of gitleaksDownloadSources()) {
+    const downloaded = spawnSync(
+      "curl",
+      [
+        "--fail",
+        "--location",
+        "--silent",
+        "--show-error",
+        "--retry",
+        "3",
+        "--retry-all-errors",
+        "--retry-delay",
+        "1",
+        "--connect-timeout",
+        "15",
+        "--max-time",
+        "180",
+        "--max-filesize",
+        "20000000",
+        "--proto",
+        "=https",
+        "--proto-redir",
+        "=https",
+        ...source.headers.flatMap((header) => ["--header", header]),
+        "--output",
+        path,
+        "--write-out",
+        "%{http_code}",
+        source.url,
+      ],
+      { encoding: "utf8", timeout: 190_000, maxBuffer: 1024 * 1024 }
+    );
+    const httpStatus = (downloaded.stdout ?? "").trim();
+    if (!downloaded.error && downloaded.status === 0 && httpStatus === "200") {
+      downloadedSuccessfully = true;
+      break;
+    }
+    lastFailure = downloadFailureReason(
+      downloaded.status,
+      downloaded.signal,
+      downloaded.error,
+      httpStatus
     );
   }
+  if (!downloadedSuccessfully) throw new CannotRun(lastFailure);
   const bytes = await readFile(path);
   if (createHash("sha256").update(bytes).digest("hex") !== GITLEAKS_LINUX_X64_SHA256) {
     throw new CannotRun("checksum of the gitleaks archive does not match the pinned value");
