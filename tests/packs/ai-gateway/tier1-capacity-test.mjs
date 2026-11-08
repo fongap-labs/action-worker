@@ -318,8 +318,30 @@ test('a node with a conflicting credential is excluded and the rest keep serving
   assert.equal(res.status, isRejectedNodeSkipSupported ? 200 : 503);
   assert.deepEqual(upstream.hosts, isRejectedNodeSkipSupported ? ['good'] : []);
   assertPrivateAttemptParity(upstream);
-  assert.equal(privateCenterExecutes, isRejectedNodeSkipSupported ? 2 : 1, 'only the invalid and then healthy node may be attempted');
-  assert.equal(privateCenterSkips, isRejectedNodeSkipSupported ? 1 : 0, 'invalid physical credential must produce a distinct unbilled skip');
+  if (isRejectedNodeSkipSupported) {
+    // P2C may pick the healthy node immediately (one RPC), or first probe the
+    // center-excluded node (one skipped RPC, then one successful physical RPC).
+    // Both paths require exactly ONE real Provider fetch on the good key.
+    assert.ok(privateCenterSkips === 0 || privateCenterSkips === 1, 'at most one excluded node may be skipped');
+    assert.equal(privateCenterPhysicalAttempts, 1, 'one real Provider attempt only');
+    assert.equal(privateCenterExecutes, privateCenterSkips + 1, 'no unknown or repeated private attempts');
+  } else {
+    assert.equal(privateCenterExecutes, 1, 'pre-cutover center fails closed on a non-executable node');
+    assert.equal(privateCenterSkips, 0);
+  }
+});
+
+test('an excluded only node never reaches the Provider', async () => {
+  const extra = { AIG_TIER3_CREDENTIALS_01: JSON.stringify({ bad: 'other-secret' }) };
+  const env = privateTier1Env(['bad'], extra);
+  const upstream = scriptedUpstream([]);
+  const res = await withMockFetch(upstream.handler, () => chat(env));
+  assert.notEqual(res.status, 200, 'a center-excluded node cannot fabricate a success');
+  assert.deepEqual(upstream.hosts, [], 'no Provider physical request for an excluded credential');
+  assertPrivateAttemptParity(upstream);
+  assert.equal(privateCenterPhysicalAttempts, 0);
+  assert.equal(privateCenterExecutes, 1, 'a single ineligible candidate is considered at most once');
+  assert.equal(privateCenterSkips, isRejectedNodeSkipSupported ? 1 : 0, 'center-only cutover signals an unbilled skip');
 });
 
 test('an ambiguous duplicate node id excludes every copy of it', () => {
