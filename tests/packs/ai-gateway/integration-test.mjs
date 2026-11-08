@@ -725,12 +725,16 @@ await test('Anthropic streaming preserves native lifecycle and model identity', 
 
 await test('Anthropic client may fall back to OpenAI Chat through the bounded conversion path', async () => {
   routeHandlers['cross.example.com'] = () => jsonResponse(okChat('converted'));
-  let centerCalls = 0;
-  const env = withInferenceCenter(makeEnv({ tier1: [openaiNode('cross')], secrets: { cross: 'ok' } }), () => {
-    centerCalls++;
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({ tier1: [openaiNode('cross')], secrets: { cross: 'ok' } }), (request) => {
+    centerPaths.push(new URL(request.url).pathname);
   });
   const res = await worker.fetch(messagesRequest(), env, {});
-  assert.equal(centerCalls, 1, 'Messages to Chat conversion must execute through private inference center');
+  assert.deepEqual(
+    centerPaths,
+    ['/internal/conversion/preflight', '/internal/execute'],
+    'Messages to Chat must perform one private conversion preflight followed by one physical center execution',
+  );
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.type, 'message');
@@ -756,12 +760,16 @@ await test('OpenAI Responses uses the native OpenAI provider profile', async () 
 
 await test('Responses route falls back to a chat-only node through the matrix', async () => {
   routeHandlers['chatonly.example.com'] = () => jsonResponse(okChat('translated'));
-  let centerCalls = 0;
-  const env = withInferenceCenter(makeEnv({ tier1: [openaiNode('chatonly')], secrets: { chatonly: 'k' } }), () => {
-    centerCalls++;
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({ tier1: [openaiNode('chatonly')], secrets: { chatonly: 'k' } }), (request) => {
+    centerPaths.push(new URL(request.url).pathname);
   });
   const res = await worker.fetch(responsesRequest(), env, {});
-  assert.equal(centerCalls, 1, 'Responses to Chat conversion must execute through private inference center');
+  assert.deepEqual(
+    centerPaths,
+    ['/internal/conversion/preflight', '/internal/execute'],
+    'Responses to Chat must perform one private conversion preflight followed by one physical center execution',
+  );
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.object, 'response');
