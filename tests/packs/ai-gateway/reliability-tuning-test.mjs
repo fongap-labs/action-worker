@@ -8,6 +8,7 @@
 // ladder, and the Messages -> Chat fallback with optional server tools.
 
 import worker from '#target/src/index.ts';
+import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import {
   HEDGE_BUFFERED_MIN_MS,
   SIZE_ALLOWANCE_MAX_MS,
@@ -37,8 +38,47 @@ import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affini
 import assert from 'node:assert/strict';
 
 const KEY = 'reliability-tuning-key';
+const CENTER_AUTH_KEY = 'reliability-tuning-private-center-auth-32';
 const env = {};
 let passed = 0;
+let physicalProviderCalls = 0;
+let privateCenterExecutes = 0;
+let hadCenterBoundGateway = false;
+
+function bindPrivateInferenceCenter(gatewayEnv) {
+  const centerEnv = { ...gatewayEnv, AIG_INFERENCE_AUTH_KEY: CENTER_AUTH_KEY };
+  for (const name of Object.keys(centerEnv)) {
+    if (name.startsWith('AIG_ACCESS_KEY_')) delete centerEnv[name];
+  }
+  for (const name of Object.keys(gatewayEnv)) {
+    if (/^AIG_TIER[123]_CREDENTIALS_/.test(name)) delete gatewayEnv[name];
+  }
+  assert.equal(
+    Object.keys(gatewayEnv).some((name) => /^AIG_TIER[123]_CREDENTIALS_/.test(name)),
+    false,
+    'Gateway cannot hold static Provider credentials',
+  );
+  const providerFetch = globalThis.fetch;
+  globalThis.fetch = (...args) => {
+    physicalProviderCalls++;
+    return providerFetch(...args);
+  };
+  hadCenterBoundGateway = true;
+  gatewayEnv.AIG_INFERENCE_ACTIVE = 'true';
+  gatewayEnv.AIG_INFERENCE_AUTH_KEY = CENTER_AUTH_KEY;
+  gatewayEnv.AIG_INFERENCE_SERVICE = {
+    fetch(request) {
+      const endpoint = new URL(request.url).pathname;
+      assert.ok(['/internal/execute', '/internal/conversion/preflight'].includes(endpoint), 'private RPC allowlist');
+      assert.equal(request.headers.get('x-aig-inference-auth'), CENTER_AUTH_KEY);
+      assert.equal(request.headers.get('authorization'), null, 'client Authorization cannot enter private center');
+      assert.equal(request.headers.get('x-api-key'), null, 'client API key cannot enter private center');
+      if (endpoint === '/internal/execute') privateCenterExecutes++;
+      return handleInferenceCenterRequest(request, centerEnv);
+    },
+  };
+  return gatewayEnv;
+}
 
 async function test(name, fn) {
   try {
@@ -46,7 +86,13 @@ async function test(name, fn) {
     __resetTier1StateForTests();
     __resetTier1AffinityForTests();
     __resetAdaptive429StateForTests();
+    physicalProviderCalls = 0;
+    privateCenterExecutes = 0;
+    hadCenterBoundGateway = false;
     await fn();
+    if (hadCenterBoundGateway) {
+      assert.equal(privateCenterExecutes, physicalProviderCalls, 'every physical Provider attempt must use private /internal/execute');
+    }
     passed++;
     console.log(`ok - ${name}`);
   } catch (error) {
@@ -133,14 +179,14 @@ function chatRequest(model = 'general-air') {
 }
 
 function gatewayEnv(nodes, secrets, extra = {}) {
-  return {
+  return bindPrivateInferenceCenter({
     AIG_ACCESS_KEY_AIR: KEY,
     AIG_ACCESS_MODELS_AIR: '*',
     AIG_PROTOCOL_FALLBACKS: 'disable',
     AIG_TIER1_NODES_01: JSON.stringify(nodes),
     AIG_TIER1_CREDENTIALS_01: JSON.stringify(secrets),
     ...extra,
-  };
+  });
 }
 
 const okCompletion = {
@@ -276,13 +322,13 @@ await test('Tier 3 keeps the ordinary ten minute Retry-After ceiling for a long 
       status: 429,
       headers: { 'content-type': 'application/json', 'retry-after': '18000' },
     });
-  const e = {
+  const e = bindPrivateInferenceCenter({
     AIG_ACCESS_KEY_AIR: KEY,
     AIG_ACCESS_MODELS_AIR: '*',
     AIG_PROTOCOL_FALLBACKS: 'disable',
     AIG_TIER3_NODES_01: JSON.stringify([{ id: 'paid', provider: 'paid-provider', base_url: 'https://paid.example.com/v1', models: { 'general-air': 'up' } }]),
     AIG_TIER3_CREDENTIALS_01: JSON.stringify({ paid: 'k' }),
-  };
+  });
   const res = await worker.fetch(chatRequest(), e, {});
   assert.equal(res.status, 429);
   const remaining = getNodeState('paid').cooldownUntil - Date.now();
@@ -378,12 +424,12 @@ async function messagesViaChatFallback(extraBody) {
     });
   };
   const nodes = [{ id: 'chat-only', provider: 'generic', base_url: 'https://chat-only.example.com/v1', models: { 'code-max': 'up' } }];
-  const e = {
+  const e = bindPrivateInferenceCenter({
     AIG_ACCESS_KEY_AIR: KEY,
     AIG_ACCESS_MODELS_AIR: '*',
     AIG_TIER1_NODES_01: JSON.stringify(nodes),
     AIG_TIER1_CREDENTIALS_01: JSON.stringify({ 'chat-only': 'k' }),
-  };
+  });
   const res = await worker.fetch(
     new Request('https://gateway.example.com/v1/messages?beta=true', {
       method: 'POST',
