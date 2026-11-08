@@ -11,6 +11,7 @@
 import { convertRequest } from './conversion-matrix-adapters.mjs';
 import worker from '#target/src/index.ts';
 import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
+import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { buildResponsesError } from '#target/src/protocol/responses/index.ts';
 import { __resetAdaptive429StateForTests } from '#target/src/reliability/adaptive-429.ts';
 import { KIND } from '#target/src/reliability/classify.ts';
@@ -20,6 +21,28 @@ import { terminalStatus } from '#target/src/request/errors.ts';
 import { failedDomainNodeIds, modelFailureDomainKey, rememberFailedDomains } from '#target/src/request/model-fallback.ts';
 import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affinity.ts';
 import assert from 'node:assert/strict';
+
+const INFERENCE_AUTH_KEY = 'central-family-routing-internal-test-auth-32';
+// A private execution environment owns Provider credentials; the public Gateway
+// only receives the center binding, routing metadata and internal authentication.
+function withPrivateInferenceCenter(gatewayEnv, onCenterRequest = () => {}) {
+  const centerEnv = { ...gatewayEnv, AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY };
+  for (const key of Object.keys(gatewayEnv)) {
+    if (/^AIG_TIER[123]_CREDENTIALS_\d{2}$/.test(key)) delete gatewayEnv[key];
+  }
+  gatewayEnv.AIG_INFERENCE_ACTIVE = 'true';
+  gatewayEnv.AIG_INFERENCE_AUTH_KEY = INFERENCE_AUTH_KEY;
+  gatewayEnv.AIG_INFERENCE_SERVICE = {
+    fetch(request) {
+      assert.equal(request.headers.get('x-aig-inference-auth'), INFERENCE_AUTH_KEY);
+      assert.equal(request.headers.get('authorization'), null);
+      assert.equal(request.headers.get('x-api-key'), null);
+      onCenterRequest(request);
+      return handleInferenceCenterRequest(request, centerEnv);
+    },
+  };
+  return gatewayEnv;
+}
 
 // ==========================================================================
 // family-rate-limit-retry-test.mjs
@@ -74,7 +97,8 @@ try {
     },
   ];
 
-  const env = {
+  const centerPaths = [];
+  const env = withPrivateInferenceCenter({
     AIG_ACCESS_KEY_ULTRA: ACCESS_KEY,
     AIG_ACCESS_MODELS_ULTRA: '*',
     AIG_PROTOCOL_FALLBACKS: 'disable',
@@ -84,7 +108,7 @@ try {
       'code-max-rl': 'k-max',
       'code-pro-rl': 'k-pro',
     }),
-  };
+  }, (request) => centerPaths.push(new URL(request.url).pathname));
 
   const request = new Request('https://gateway.example.com/v1/chat/completions', {
     method: 'POST',
@@ -106,8 +130,12 @@ try {
     calls.map((c) => c.model),
     ['up-code-ultra', 'up-code-max', 'up-code-pro'],
   );
+  assert.equal(env.AIG_TIER1_CREDENTIALS_01, undefined);
+  assert.deepEqual(centerPaths, Array(3).fill('/internal/execute'),
+    'each family 429 must be a private physical center attempt');
 
   calls.length = 0;
+  centerPaths.length = 0;
   __resetAllStateForTests();
   __resetTier1StateForTests();
   __resetTier1AffinityForTests();
@@ -136,7 +164,7 @@ try {
     },
   ];
 
-  const auditEnv = {
+  const auditEnv = withPrivateInferenceCenter({
     AIG_ACCESS_KEY_AGENT: ACCESS_KEY,
     AIG_ACCESS_MODELS_AGENT: '*',
     AIG_PROTOCOL_FALLBACKS: 'disable',
@@ -146,7 +174,7 @@ try {
       'audit-max-rl': 'k-audit-max',
       'audit-pro-rl': 'k-audit-pro',
     }),
-  };
+  }, (request) => centerPaths.push(new URL(request.url).pathname));
 
   const auditRequest = new Request('https://gateway.example.com/v1/chat/completions', {
     method: 'POST',
@@ -161,6 +189,8 @@ try {
     ['up-audit-ultra', 'up-audit-max', 'up-audit-pro'],
     'prefixed logical aliases must fail over across configured sibling tiers',
   );
+  assert.deepEqual(centerPaths, Array(3).fill('/internal/execute'),
+    'Audit family fallback must stay entirely within private inference center');
 
   console.log('family rate-limit retry test passed.');
   console.log('ok - file:family-rate-limit-retry');
@@ -187,8 +217,10 @@ try {
 
   const ACCESS_KEY = 'family-domain-test-key';
   let calls = [];
+  const centerPaths = [];
   function reset() {
     calls = [];
+    centerPaths.length = 0;
     __resetAllStateForTests();
     __resetTier1StateForTests();
     __resetTier1AffinityForTests();
@@ -241,14 +273,14 @@ try {
       priority,
       models,
     }));
-    return {
+    return withPrivateInferenceCenter({
       AIG_ACCESS_KEY_ULTRA: ACCESS_KEY,
       AIG_ACCESS_MODELS_ULTRA: '*',
       TIER1_SCHEDULER_SEED: 'family-domain-test',
       AIG_PROTOCOL_FALLBACKS: 'disable',
       AIG_TIER1_NODES_01: JSON.stringify(configs),
       AIG_TIER1_CREDENTIALS_01: JSON.stringify(Object.fromEntries(nodes.map((n) => [n.id, n.credential]))),
-    };
+    }, (request) => centerPaths.push(new URL(request.url).pathname));
   }
 
   function request() {
@@ -279,6 +311,8 @@ try {
   assert.equal(collapsed.headers.get('x-gateway-attempts'), '2');
   assert.equal(collapsed.headers.get('x-gateway-dispatches'), '2');
   assert.equal(collapsed.headers.get('x-gateway-failure-kinds'), 'server:2');
+  assert.deepEqual(centerPaths, Array(2).fill('/internal/execute'),
+    'shared physical failure domain can only retry through the private center');
 
   reset();
   const distinctModels = node('multi-model-account', {
@@ -296,6 +330,8 @@ try {
   assert.equal(distinct.headers.get('x-gateway-attempts'), '4');
   assert.equal(distinct.headers.get('x-gateway-dispatches'), '4');
   assert.equal(distinct.headers.get('x-gateway-failure-kinds'), 'server:4');
+  assert.deepEqual(centerPaths, Array(4).fill('/internal/execute'),
+    'distinct physical model domains must use the private center for all attempts');
 
   reset();
   const accountA = node('account-a', { 'Code-Max': 'real-shared', 'Code-Pro': 'real-shared', 'Code-Ultra': 'real-shared' });
@@ -307,6 +343,8 @@ try {
   assert.deepEqual(new Set(calls.map((c) => c.host)), new Set(['account-a.example.com', 'account-b.example.com']));
   assert.equal(calls[2].host, calls[1].host);
   assert.equal(twoAccounts.headers.get('x-gateway-attempts'), '3');
+  assert.deepEqual(centerPaths, Array(3).fill('/internal/execute'),
+    'separate Provider accounts and last-resort retry cannot bypass private center');
 
   console.log('model-family failure-domain tests passed.');
   console.log('ok - file:model-family-failure-domain');
