@@ -7,7 +7,7 @@
 
 import { assert, beforeEach, test } from '#kit/harness.mjs';
 import { targetRoot } from '#kit/target.mjs';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { withMockFetch } from '#kit/fetch.mjs';
 import { __resetAccessKeysCacheForTests } from '#target/src/config/access-keys.ts';
@@ -34,12 +34,19 @@ import { pickTier1Candidate } from '#target/src/scheduler/tier1-scheduler.ts';
 const ACCESS_KEY = 'tier1-capacity-key';
 const PRIVATE_CENTER_KEY = 'tier1-capacity-private-center-auth-key-32';
 const isCenterOnlyCutover = !existsSync(join(targetRoot, 'src/request/attempt/legacy-provider-dispatch.ts'));
+const isRejectedNodeSkipSupported = readFileSync(join(targetRoot, 'apps/inference/execution.ts'), 'utf8').includes(
+  "preDispatchProblem(404, 'center_route_unavailable')",
+);
 let privateCenterExecutes = 0;
+let privateCenterPhysicalAttempts = 0;
+let privateCenterSkips = 0;
 const AUTH_COOLDOWN_MS = 3_600_000;
 const REQ = { protocol: 'openai', surface: 'chat_completions', model: 'm1', bodyChars: 10 };
 
 beforeEach(() => {
   privateCenterExecutes = 0;
+  privateCenterPhysicalAttempts = 0;
+  privateCenterSkips = 0;
   __resetAccessKeysCacheForTests();
   __resetBodyBudgetForTests();
   __resetSharedTier1CooldownsForTests();
@@ -86,7 +93,14 @@ function privateTier1Env(nodeIds, extra = {}) {
       assert.equal(request.headers.get('authorization'), null, 'client bearer must not cross the private boundary');
       assert.equal(request.headers.get('x-api-key'), null, 'client x-api-key must not cross the private boundary');
       if (path === '/internal/execute') privateCenterExecutes++;
-      return handleInferenceCenterRequest(request, centerEnv);
+      return handleInferenceCenterRequest(request, centerEnv).then((response) => {
+        if (path === '/internal/execute') {
+          const disposition = response.headers.get('x-aig-result');
+          if (disposition === 'attempted' || disposition === 'dispatched') privateCenterPhysicalAttempts++;
+          if (disposition === 'skipped') privateCenterSkips++;
+        }
+        return response;
+      });
     },
   };
   assert.equal(Object.keys(gatewayEnv).some((key) => /^AIG_TIER[123]_CREDENTIALS_/.test(key)), false);
@@ -94,7 +108,11 @@ function privateTier1Env(nodeIds, extra = {}) {
 }
 
 function assertPrivateAttemptParity(upstream) {
-  assert.equal(privateCenterExecutes, upstream.hosts.length, 'every physical Provider fetch must have one private center execute');
+  // A center may reject an invalid credential/mapping BEFORE physical fetch.
+  // Count physical dispatches from the authenticated result signal rather
+  // than equating every private RPC with a billable Provider request.
+  assert.equal(privateCenterPhysicalAttempts, upstream.hosts.length, 'every actual Provider fetch must have one private dispatched/attempted result');
+  assert.ok(privateCenterExecutes >= privateCenterPhysicalAttempts, 'internal execute requests may include explicitly rejected pre-dispatch nodes');
 }
 
 const okChat = () =>
@@ -297,9 +315,11 @@ test('a node with a conflicting credential is excluded and the rest keep serving
   assert.deepEqual(loadGatewayConfig(env).nodes.map((n) => n.id), ['good', 'bad'], 'public Gateway reads metadata only');
   const upstream = scriptedUpstream([]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
-  assert.equal(res.status, isCenterOnlyCutover ? 200 : 503);
-  assert.deepEqual(upstream.hosts, isCenterOnlyCutover ? ['good'] : []);
+  assert.equal(res.status, isRejectedNodeSkipSupported ? 200 : 503);
+  assert.deepEqual(upstream.hosts, isRejectedNodeSkipSupported ? ['good'] : []);
   assertPrivateAttemptParity(upstream);
+  assert.equal(privateCenterExecutes, isRejectedNodeSkipSupported ? 2 : 1, 'only the invalid and then healthy node may be attempted');
+  assert.equal(privateCenterSkips, isRejectedNodeSkipSupported ? 1 : 0, 'invalid physical credential must produce a distinct unbilled skip');
 });
 
 test('an ambiguous duplicate node id excludes every copy of it', () => {
