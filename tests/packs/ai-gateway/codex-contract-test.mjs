@@ -2,8 +2,9 @@
 // Codex / OpenAI Responses contract tests.
 //
 // Black-box: run the REAL worker pipeline (auth -> scheduler -> retry ->
-// circuit -> transport -> stream) through worker.fetch() against a mocked
-// global fetch upstream, exactly as a Codex-style client would drive
+// circuit -> private inference center -> stream) through worker.fetch().
+// Only the isolated center makes mocked physical Provider requests, as a
+// Codex-style client drives
 // /v1/responses. These tests pin the customer-facing protocol contract, not
 // internal function structure.
 //
@@ -14,11 +15,16 @@
 // Completions conversion exists anywhere in this path.
 import assert from 'node:assert/strict';
 import worker from '#target/src/index.ts';
+import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { __resetAllStateForTests, getNodeState } from '#target/src/reliability/node-state.ts';
 import { __resetTier1StateForTests } from '#target/src/reliability/tier1-state.ts';
 import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affinity.ts';
 
 const ACCESS_KEY = 'test-access-key';
+const INFERENCE_AUTH_KEY = 'codex-responses-private-center-auth-key-32';
+const centerPaths = [];
+let centerDispatches = 0;
+let providerDispatches = 0;
 
 let passed = 0;
 async function test(name, fn) {
@@ -26,7 +32,19 @@ async function test(name, fn) {
     __resetAllStateForTests();
     __resetTier1StateForTests();
     __resetTier1AffinityForTests();
+    centerPaths.length = 0;
+    centerDispatches = 0;
+    providerDispatches = 0;
     await fn();
+    assert.ok(
+      centerPaths.every((path) => path === '/internal/conversion/preflight' || path === '/internal/execute'),
+      'only known inference center RPC paths are allowed',
+    );
+    assert.equal(
+      centerDispatches,
+      providerDispatches,
+      'every Codex Responses Provider call must be dispatched by the private inference center',
+    );
     passed++;
     console.log(`ok - ${name}`);
   } catch (e) {
@@ -43,6 +61,7 @@ let routeHandlers = {};
 
 function installMockFetch() {
   globalThis.fetch = async (input, init) => {
+    providerDispatches++;
     const url = new URL(typeof input === 'string' ? input : input.url);
     const handler = routeHandlers[url.hostname];
     if (!handler) throw new Error(`no mock upstream for ${url.hostname}`);
@@ -62,16 +81,35 @@ function resetMock() {
 }
 
 function makeEnv({ tier1, tier2, tier3, secrets, extraEnv } = {}) {
-  return {
-    AIG_ACCESS_KEY_AIR: ACCESS_KEY,
-    AIG_ACCESS_MODELS_AIR: '*',
-    TIER1_SCHEDULER_SEED: 'codex-contract-test',
+  const centerEnv = {
     ...(tier1 ? { AIG_TIER1_NODES_01: JSON.stringify(tier1) } : {}),
     ...(tier2 ? { AIG_TIER2_NODES_01: JSON.stringify(tier2) } : {}),
     ...(tier3 ? { AIG_TIER3_NODES_01: JSON.stringify(tier3) } : {}),
     ...(secrets ? { AIG_TIER1_CREDENTIALS_01: JSON.stringify(secrets) } : {}),
     ...extraEnv,
+    AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY,
   };
+  const gatewayEnv = {
+    AIG_ACCESS_KEY_AIR: ACCESS_KEY,
+    AIG_ACCESS_MODELS_AIR: '*',
+    TIER1_SCHEDULER_SEED: 'codex-contract-test',
+    ...centerEnv,
+    AIG_INFERENCE_ACTIVE: 'true',
+    AIG_INFERENCE_SERVICE: {
+      fetch(request) {
+        assert.equal(request.headers.get('x-aig-inference-auth'), INFERENCE_AUTH_KEY);
+        assert.equal(request.headers.get('authorization'), null);
+        assert.equal(request.headers.get('x-api-key'), null);
+        const path = new URL(request.url).pathname;
+        centerPaths.push(path);
+        if (path === '/internal/execute') centerDispatches++;
+        return handleInferenceCenterRequest(request, centerEnv);
+      },
+    },
+  };
+  delete gatewayEnv.AIG_TIER1_CREDENTIALS_01;
+  assert.equal(gatewayEnv.AIG_TIER1_CREDENTIALS_01, undefined, 'Gateway must not own Provider secrets');
+  return gatewayEnv;
 }
 
 // OpenAI-protocol node serving /v1/responses natively.
