@@ -333,7 +333,12 @@ test('a node with a conflicting credential is excluded and the rest keep serving
 
 test('an excluded only node never reaches the Provider', async () => {
   const extra = { AIG_TIER3_CREDENTIALS_01: JSON.stringify({ bad: 'other-secret' }) };
-  const env = privateTier1Env(['bad'], extra);
+  // Keep one healthy node in the PRIVATE center's configuration, otherwise
+  // the entire center fails closed before reaching the node-specific skip
+  // contract. Public Gateway metadata sees only its excluded stale candidate.
+  const env = privateTier1Env(['good', 'bad'], extra);
+  const visibleNodes = JSON.parse(env.AIG_TIER1_NODES_01).filter((node) => node.id === 'bad');
+  env.AIG_TIER1_NODES_01 = JSON.stringify(visibleNodes);
   const upstream = scriptedUpstream([]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
   assert.notEqual(res.status, 200, 'a center-excluded node cannot fabricate a success');
