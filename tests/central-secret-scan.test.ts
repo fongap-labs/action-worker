@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import {
   downloadFailureReason,
-  gitleaksDownloadSources,
   GITLEAKS_LINUX_X64_ASSET_ID,
+  gitleaksDownloadSources,
   scannerFailureReason,
   summarizeFindings,
 } from "../scripts/central-secret-scan.ts";
@@ -178,10 +178,16 @@ test("release downloads classify HTTP and transport failures without exposing st
   const [direct, api] = sources;
   assert.ok(direct);
   assert.ok(api);
-  assert.equal(direct.url, "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz");
+  assert.equal(
+    direct.url,
+    "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz"
+  );
   assert.equal(GITLEAKS_LINUX_X64_ASSET_ID, 378332058);
   assert.equal(api.url, "https://api.github.com/repos/gitleaks/gitleaks/releases/assets/378332058");
-  assert.deepEqual(api.headers, ["Accept: application/octet-stream", "X-GitHub-Api-Version: 2022-11-28"]);
+  assert.deepEqual(api.headers, [
+    "Accept: application/octet-stream",
+    "X-GitHub-Api-Version: 2022-11-28",
+  ]);
   assert.match(source, /if \(!hasDownloadedArchive\) throw new CannotRun\(lastFailure\)/);
   assert.doesNotMatch(source, /fetch\(url/);
   assert.equal(downloadFailureReason(22, null, undefined, "403"), "download returned HTTP 403");
