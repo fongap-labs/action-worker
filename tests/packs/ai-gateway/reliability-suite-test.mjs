@@ -13,6 +13,7 @@ import { targetPath, targetRoot as root } from '#kit/target.mjs';
 import { loadPoliciesConfig } from '#target/src/config/policies.ts';
 import { convertStream } from './conversion-matrix-adapters.mjs';
 import worker from '#target/src/index.ts';
+import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import {
   __resetUsageBufferForTests,
   flushUsageBuffer,
@@ -545,6 +546,30 @@ try {
       models: { [model]: upstreamModel },
     };
   }
+  const INFERENCE_AUTH_KEY = 'reliability-convergence-private-auth-key-32';
+  function centerBoundConvergenceEnv(sourceEnv, centerPaths) {
+    const centerEnv = { ...sourceEnv, AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY };
+    for (const key of Object.keys(centerEnv)) {
+      if (key.startsWith('AIG_ACCESS_KEY_')) delete centerEnv[key];
+    }
+    const gatewayEnv = {
+      ...sourceEnv,
+      AIG_INFERENCE_ACTIVE: 'true',
+      AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY,
+      AIG_INFERENCE_SERVICE: {
+        fetch(request) {
+          assert.equal(request.headers.get('x-aig-inference-auth'), INFERENCE_AUTH_KEY);
+          assert.equal(request.headers.get('authorization'), null);
+          assert.equal(request.headers.get('x-api-key'), null);
+          centerPaths.push(new URL(request.url).pathname);
+          return handleInferenceCenterRequest(request, centerEnv);
+        },
+      },
+    };
+    delete gatewayEnv.AIG_TIER1_CREDENTIALS_01;
+    assert.equal(gatewayEnv.AIG_TIER1_CREDENTIALS_01, undefined, 'Gateway cannot hold Provider credentials');
+    return gatewayEnv;
+  }
 
   {
     reset();
@@ -569,13 +594,16 @@ try {
       AIG_TIER1_NODES_01: JSON.stringify([node('air-01', 'Air', 'up-air'), node('pro-01', 'Pro', 'up-pro'), node('max-01', 'Max', 'up-max')]),
       AIG_TIER1_CREDENTIALS_01: JSON.stringify({ 'air-01': 'a', 'pro-01': 'p', 'max-01': 'm' }),
     };
-    const response = await worker.fetch(request('Air', key), env, {});
+    const centerPaths = [];
+    const response = await worker.fetch(request('Air', key), centerBoundConvergenceEnv(env, centerPaths), {});
     assert.notEqual(response.status, 200);
     // Only the authorized Air key is dispatched (twice: its one last-resort retry).
     assert.deepEqual(
       calls.map((c) => c.model),
       ['up-air', 'up-air'],
     );
+    assert.deepEqual(centerPaths, ['/internal/execute', '/internal/execute'],
+      'authorized Air-only attempts must use the private inference center');
   }
 
   {
@@ -599,11 +627,14 @@ try {
       AIG_TIER1_NODES_01: JSON.stringify([node('max-01', 'Max', 'up-max'), node('pro-01', 'Pro', 'up-pro')]),
       AIG_TIER1_CREDENTIALS_01: JSON.stringify({ 'max-01': 'm', 'pro-01': 'p' }),
     };
-    const response = await worker.fetch(request('Max', key), env, {});
+    const centerPaths = [];
+    const response = await worker.fetch(request('Max', key), centerBoundConvergenceEnv(env, centerPaths), {});
     assert.equal(response.status, 200);
     const body = await response.json();
     assert.equal(body.model, 'Max');
     assert.deepEqual(calls, ['up-max', 'up-pro']);
+    assert.deepEqual(centerPaths, ['/internal/execute', '/internal/execute'],
+      'Max-to-Pro fallback must have two physical private center attempts');
   }
 
   {
