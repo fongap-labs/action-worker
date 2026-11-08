@@ -8,6 +8,7 @@
 
 import assert from 'node:assert/strict';
 import worker from '#target/src/index.ts';
+import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { gatewayStats } from '#target/src/observability/gateway-stats.ts';
 import { __resetAdaptive429StateForTests } from '#target/src/reliability/adaptive-429.ts';
 import { __resetAllStateForTests, getNodeState } from '#target/src/reliability/node-state.ts';
@@ -15,6 +16,8 @@ import { __resetTier1StateForTests, getTier1Model, recordTier1Ttft, tier1Account
 import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affinity.ts';
 
 const ACCESS_KEY = 'test-stress-key';
+const INFERENCE_AUTH_KEY = 'stress-private-center-integration-key-32';
+const centerPaths = [];
 let passed = 0;
 
 async function test(name, fn) {
@@ -25,6 +28,15 @@ async function test(name, fn) {
     __resetAdaptive429StateForTests();
     resetMock();
     await fn();
+    assert.ok(
+      centerPaths.every((path) => path === '/internal/execute' || path === '/internal/conversion/preflight'),
+      'only documented private inference center paths are permitted',
+    );
+    assert.equal(
+      centerPaths.filter((path) => path === '/internal/execute').length,
+      upstreamCalls.length,
+      'all stress-case physical upstream calls must pass through private center execution',
+    );
     passed++;
     console.log(`ok - ${name}`);
   } catch (error) {
@@ -48,6 +60,7 @@ globalThis.fetch = async (input, init) => {
 
 function resetMock() {
   upstreamCalls.length = 0;
+  centerPaths.length = 0;
   routeHandlers = {};
 }
 
@@ -56,10 +69,7 @@ function makeEnv({ tier1, tier2, tier3, secrets = {}, extraEnv = {} } = {}) {
   const t1s = subset(tier1);
   const t2s = subset(tier2);
   const t3s = subset(tier3);
-  return {
-    AIG_ACCESS_KEY_AIR: ACCESS_KEY,
-    AIG_ACCESS_MODELS_AIR: '*',
-    TIER1_SCHEDULER_SEED: 'stress-test',
+  const centerEnv = {
     ...(tier1 ? { AIG_TIER1_NODES_01: JSON.stringify(tier1) } : {}),
     ...(tier2 ? { AIG_TIER2_NODES_01: JSON.stringify(tier2) } : {}),
     ...(tier3 ? { AIG_TIER3_NODES_01: JSON.stringify(tier3) } : {}),
@@ -67,7 +77,31 @@ function makeEnv({ tier1, tier2, tier3, secrets = {}, extraEnv = {} } = {}) {
     ...(Object.keys(t2s).length ? { AIG_TIER2_CREDENTIALS_01: JSON.stringify(t2s) } : {}),
     ...(Object.keys(t3s).length ? { AIG_TIER3_CREDENTIALS_01: JSON.stringify(t3s) } : {}),
     ...extraEnv,
+    AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY,
   };
+  const gatewayEnv = {
+    AIG_ACCESS_KEY_AIR: ACCESS_KEY,
+    AIG_ACCESS_MODELS_AIR: '*',
+    TIER1_SCHEDULER_SEED: 'stress-test',
+    ...centerEnv,
+    AIG_INFERENCE_ACTIVE: 'true',
+    AIG_INFERENCE_SERVICE: {
+      fetch(request) {
+        assert.equal(request.headers.get('x-aig-inference-auth'), INFERENCE_AUTH_KEY);
+        assert.equal(request.headers.get('authorization'), null);
+        assert.equal(request.headers.get('x-api-key'), null);
+        centerPaths.push(new URL(request.url).pathname);
+        return handleInferenceCenterRequest(request, centerEnv);
+      },
+    },
+  };
+  delete gatewayEnv.AIG_TIER1_CREDENTIALS_01;
+  delete gatewayEnv.AIG_TIER2_CREDENTIALS_01;
+  delete gatewayEnv.AIG_TIER3_CREDENTIALS_01;
+  assert.equal(gatewayEnv.AIG_TIER1_CREDENTIALS_01, undefined);
+  assert.equal(gatewayEnv.AIG_TIER2_CREDENTIALS_01, undefined);
+  assert.equal(gatewayEnv.AIG_TIER3_CREDENTIALS_01, undefined);
+  return gatewayEnv;
 }
 
 const node = (id, extra = {}) => ({
