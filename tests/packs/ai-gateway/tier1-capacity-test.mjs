@@ -9,7 +9,7 @@ import { assert, beforeEach, test } from '#kit/harness.mjs';
 import { withMockFetch } from '#kit/fetch.mjs';
 import { __resetAccessKeysCacheForTests } from '#target/src/config/access-keys.ts';
 import { __resetBodyBudgetForTests } from '#target/src/ratelimit/body-budget.ts';
-import { loadGatewayConfig } from '#target/src/config/nodes.ts';
+import { loadExecutionConfig, loadGatewayConfig } from '#target/src/config/nodes.ts';
 import worker from '#target/src/index.ts';
 import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { __resetAdaptive429StateForTests } from '#target/src/reliability/adaptive-429.ts';
@@ -66,6 +66,10 @@ function tier1OnlyEnv(nodeIds, extra = {}) {
 function privateTier1Env(nodeIds, extra = {}) {
   const gatewayEnv = tier1OnlyEnv(nodeIds, extra);
   const centerEnv = { ...gatewayEnv, AIG_INFERENCE_AUTH_KEY: PRIVATE_CENTER_KEY };
+  // The central Provider worker does not own Gateway's scheduling policies.
+  // A malformed optional Gateway policy degrades routing but must not make
+  // otherwise valid private credentials unusable.
+  delete centerEnv.AIG_POLICIES_CONFIG;
   for (const key of Object.keys(centerEnv)) {
     if (key.startsWith('AIG_ACCESS_KEY_')) delete centerEnv[key];
   }
@@ -265,7 +269,7 @@ const runtimeOf = (env) => ({
 });
 
 test('a policy typo degrades the gateway instead of failing every request', async () => {
-  const env = tier1OnlyEnv(['solo'], { AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempt: 5 } }) });
+  const env = privateTier1Env(['solo'], { AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempt: 5 } }) });
   const config = loadGatewayConfig(env);
   assert.equal(config.status, 'degraded');
   assert.equal(config.ready, true);
@@ -274,6 +278,7 @@ test('a policy typo degrades the gateway instead of failing every request', asyn
   const upstream = scriptedUpstream([]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
   assert.equal(res.status, 200);
+  assertPrivateAttemptParity(upstream);
 });
 
 test('a configuration error still blocks a deploy, even when reduced capacity is allowed', () => {
@@ -281,18 +286,23 @@ test('a configuration error still blocks a deploy, even when reduced capacity is
   assert.throws(() => validateGatewayRuntime(runtimeOf(env), { allowDegraded: true }), /max_attempt/);
 });
 
-test('a node with a conflicting credential is excluded and the rest keep serving', async () => {
-  const env = tier1OnlyEnv(['good', 'bad'], { AIG_TIER3_CREDENTIALS_01: JSON.stringify({ bad: 'other-secret' }) });
-  const config = loadGatewayConfig(env);
-  assert.equal(config.status, 'degraded');
-  assert.deepEqual(
-    config.nodes.map((n) => n.id),
-    ['good'],
-  );
+test('a conflicting secret is excluded at execution; valid nodes still serve with clean center config', async () => {
+  const corruptEnv = tier1OnlyEnv(['good', 'bad'], { AIG_TIER3_CREDENTIALS_01: JSON.stringify({ bad: 'other-secret' }) });
+  const center = loadExecutionConfig(corruptEnv);
+  assert.equal(center.status, 'degraded', 'the private center detects the cross-tier secret conflict');
+  assert.equal(center.hasConfigErrors, true, 'invalid secrets must fail closed at the private execution boundary');
+  assert.deepEqual(center.nodes.map((n) => n.id), ['good'], 'ambiguous credential cannot execute');
+  const gateway = loadGatewayConfig(corruptEnv);
+  assert.equal(gateway.ready, true);
+  assert.ok(gateway.nodes.every((n) => n.credential === ''), 'public Gateway never reads either credential');
+  // A corrupt center configuration must not be made "ready" by ignoring the
+  // conflict. A corrected center must still serve its unaffected valid node.
+  const env = privateTier1Env(['good']);
   const upstream = scriptedUpstream([]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
   assert.equal(res.status, 200);
   assert.deepEqual(upstream.hosts, ['good']);
+  assertPrivateAttemptParity(upstream);
 });
 
 test('an ambiguous duplicate node id excludes every copy of it', () => {
@@ -313,21 +323,29 @@ test('an unparseable node shard is reported as lost capacity', () => {
   assert.equal(config.ready, true);
 });
 
-test('with no usable node the configuration is still invalid', () => {
+test('with no usable execution node the private center remains invalid', () => {
   const env = tier1OnlyEnv(['bad'], { AIG_TIER3_CREDENTIALS_01: JSON.stringify({ bad: 'other-secret' }) });
-  const config = loadGatewayConfig(env);
-  assert.equal(config.status, 'invalid');
-  assert.equal(config.ready, false);
+  const center = loadExecutionConfig(env);
+  assert.equal(center.status, 'invalid');
+  assert.equal(center.ready, false);
+  assert.equal(center.hasConfigErrors, true);
+  const gateway = loadGatewayConfig(env);
+  assert.equal(gateway.ready, true, 'Gateway can validate public routing metadata only');
+  assert.equal(gateway.nodes[0].credential, '');
 });
 
 // ---- Diagnostics never quote credential text --------------------------------
 
-test('a malformed credential shard is reported without quoting any of its text', async () => {
+test('a malformed credential shard is rejected privately without quoting any of its text', async () => {
   const secret = 'sk-live-SECRETVALUE123456';
   const env = tier1OnlyEnv(['good'], { AIG_TIER1_CREDENTIALS_02: `{"other": ${secret}}` });
-  const config = loadGatewayConfig(env);
-  assert.ok(config.diagnostics.some((d) => d.includes('AIG_TIER1_CREDENTIALS_02')));
-  assert.ok(!config.diagnostics.join('\n').includes('sk-live'), 'no credential fragment in diagnostics');
+  const center = loadExecutionConfig(env);
+  assert.ok(center.hasConfigErrors, 'malformed private credentials fail closed');
+  assert.ok(center.diagnostics.some((d) => d.includes('AIG_TIER1_CREDENTIALS_02')));
+  assert.ok(!center.diagnostics.join('\n').includes('sk-live'), 'no secret fragment in private diagnostics');
+  const gateway = loadGatewayConfig(env);
+  assert.equal(gateway.status, 'ready', 'public Gateway does not parse secrets');
+  assert.ok(gateway.nodes.every((n) => n.credential === ''));
   const health = await worker.fetch(
     new Request('https://gateway.example.com/health', { headers: { authorization: `Bearer ${ACCESS_KEY}` } }),
     env,
