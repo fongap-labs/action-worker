@@ -213,7 +213,6 @@ const INFERENCE_AUTH_KEY = 'central-oauth-inference-test-auth-key-32';
 function withPrivateInferenceCenter(gatewayEnv, onRequest = () => {}) {
   const centerEnv = {
     AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY,
-    AIG_TIER2_NODES_01: gatewayEnv.AIG_TIER2_NODES_01,
     AIG_TOKEN_ENCRYPTION_KEY: gatewayEnv.AIG_TOKEN_ENCRYPTION_KEY,
     AIG_OAUTH_PROVIDERS: gatewayEnv.AIG_OAUTH_PROVIDERS,
     TOKEN_STATS_DB: gatewayEnv.TOKEN_STATS_DB,
