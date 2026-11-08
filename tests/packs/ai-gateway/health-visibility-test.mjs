@@ -9,9 +9,12 @@ import worker from '#target/src/index.ts';
 
 const node = (id, models) => ({ id, provider: 'mock', base_url: `https://${id}.example.com/v1`, models });
 
+let privateCenterCalls = 0;
+
 function makeEnv() {
   __resetAccessKeysCacheForTests();
-  return {
+  privateCenterCalls = 0;
+  const env = {
     AIG_ACCESS_KEY_AIR: 'air-key',
     AIG_ACCESS_MODELS_AIR: 'model-a',
     AIG_ACCESS_KEY_PRO: 'pro-key',
@@ -19,8 +22,18 @@ function makeEnv() {
     // Visibility per key is the subject here, so every key may read /health.
     AIG_DIAGNOSTICS_GROUPS: '*',
     AIG_TIER1_NODES_01: JSON.stringify([node('node-a', { 'model-a': 'up-a' }), node('node-b', { 'model-b': 'up-b' })]),
-    AIG_TIER1_CREDENTIALS_01: JSON.stringify({ 'node-a': 'k', 'node-b': 'k' }),
+    // /health must work from public node metadata with NO Provider secrets.
+    AIG_INFERENCE_ACTIVE: 'true',
+    AIG_INFERENCE_AUTH_KEY: 'health-visibility-private-center-auth-key-32',
+    AIG_INFERENCE_SERVICE: {
+      fetch() {
+        privateCenterCalls++;
+        throw new Error('/health must not enter a private inference execution center');
+      },
+    },
   };
+  assert.equal(Object.keys(env).some((key) => /^AIG_TIER[123]_CREDENTIALS_/.test(key)), false);
+  return env;
 }
 
 async function health(key) {
@@ -30,6 +43,7 @@ async function health(key) {
     {},
   );
   assert.equal(res.status, 200);
+  assert.equal(privateCenterCalls, 0, '/health must never trigger a Provider execution or conversion preflight');
   return res.json();
 }
 
@@ -50,4 +64,5 @@ test('a key allowed every model sees every node', async () => {
 test('/health still requires a valid key', async () => {
   const res = await worker.fetch(new Request('https://gateway.example.com/health'), makeEnv(), {});
   assert.equal(res.status, 401);
+  assert.equal(privateCenterCalls, 0, 'unauthorized /health must not contact the center');
 });
