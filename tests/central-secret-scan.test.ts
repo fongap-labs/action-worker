@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { test } from "node:test";
 import {
   downloadFailureReason,
+  GITLEAKS_LINUX_X64_ASSET_ID,
+  gitleaksDownloadSources,
   scannerFailureReason,
   summarizeFindings,
 } from "../scripts/central-secret-scan.ts";
@@ -170,6 +172,23 @@ test("release downloads classify HTTP and transport failures without exposing st
   assert.match(source, /spawnSync\(\s*"curl"/);
   assert.match(source, /--retry-all-errors/);
   assert.match(source, /--proto",\s*"=https"/);
+  assert.match(source, /--proto-redir",\s*"=https"/);
+  const sources = gitleaksDownloadSources();
+  assert.equal(sources.length, 2);
+  const [direct, api] = sources;
+  assert.ok(direct);
+  assert.ok(api);
+  assert.equal(
+    direct.url,
+    "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz"
+  );
+  assert.equal(GITLEAKS_LINUX_X64_ASSET_ID, 378332058);
+  assert.equal(api.url, "https://api.github.com/repos/gitleaks/gitleaks/releases/assets/378332058");
+  assert.deepEqual(api.headers, [
+    "Accept: application/octet-stream",
+    "X-GitHub-Api-Version: 2022-11-28",
+  ]);
+  assert.match(source, /if \(!hasDownloadedArchive\) throw new CannotRun\(lastFailure\)/);
   assert.doesNotMatch(source, /fetch\(url/);
   assert.equal(downloadFailureReason(22, null, undefined, "403"), "download returned HTTP 403");
   assert.equal(
@@ -180,6 +199,22 @@ test("release downloads classify HTTP and transport failures without exposing st
     downloadFailureReason(null, null, Object.assign(new Error("missing"), { code: "ENOENT" }), ""),
     "curl executable not found"
   );
+});
+
+test("actionlint falls back to its verified official GitHub asset without weakening lint", async () => {
+  const workflow = await readFile(".github/workflows/validate-ci.yml", "utf8");
+  assert.ok(workflow.includes('ACTIONLINT_VERSION: "1.17.0"'));
+  assert.ok(
+    workflow.includes(
+      "ACTIONLINT_SHA256: 620abd485a12b6ab1125b844a876414e1d5bd2af8a3125b27f82b01d0d9d6e5a"
+    )
+  );
+  assert.ok(
+    workflow.includes("https://api.github.com/repos/kjanat/actionlint/releases/assets/561506357")
+  );
+  assert.ok(workflow.includes("--proto-redir '=https'"));
+  assert.ok(workflow.includes("sha256sum --check --strict"));
+  assert.ok(workflow.includes("- name: Lint GitHub Actions"));
 });
 
 test("a pinned historical test pack cannot downgrade the current central security scanner", async () => {
