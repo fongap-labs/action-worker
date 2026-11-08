@@ -10,6 +10,7 @@
 
 import { targetRoot as root } from '#kit/target.mjs';
 import worker from '#target/src/index.ts';
+import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { __resetAllStateForTests, getNodeState } from '#target/src/reliability/node-state.ts';
 import { __resetTier1StateForTests } from '#target/src/reliability/tier1-state.ts';
 import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affinity.ts';
@@ -623,13 +624,14 @@ try {
     routeHandlers = {};
   }
 
+  const centerKey = 'architecture-contract-private-inference-auth-key-32';
   function makeEnv({ tier1, tier2, tier3, secrets, extraEnv } = {}) {
     const tierSecrets = (nodes = []) =>
       Object.fromEntries(nodes.map((node) => [node.id, secrets?.[node.id]]).filter(([, credential]) => credential !== undefined));
     const tier1Secrets = tierSecrets(tier1);
     const tier2Secrets = tierSecrets(tier2);
     const tier3Secrets = tierSecrets(tier3);
-    return {
+    const gatewayEnv = {
       AIG_ACCESS_KEY_AIR: ACCESS_KEY,
       AIG_ACCESS_MODELS_AIR: '*',
       AIG_DIAGNOSTICS_GROUPS: 'AIR',
@@ -642,6 +644,29 @@ try {
       ...(Object.keys(tier3Secrets).length ? { AIG_TIER3_CREDENTIALS_01: JSON.stringify(tier3Secrets) } : {}),
       ...extraEnv,
     };
+    // The public Gateway owns authorization and scheduling only; its private
+    // executor is the ONLY environment holding physical Provider secrets.
+    const centerEnv = { ...gatewayEnv, AIG_INFERENCE_AUTH_KEY: centerKey };
+    for (const key of Object.keys(centerEnv)) {
+      if (key.startsWith('AIG_ACCESS_KEY_')) delete centerEnv[key];
+    }
+    for (const key of Object.keys(gatewayEnv)) {
+      if (/^AIG_TIER[123]_CREDENTIALS_/.test(key)) delete gatewayEnv[key];
+    }
+    gatewayEnv.AIG_INFERENCE_ACTIVE = 'true';
+    gatewayEnv.AIG_INFERENCE_AUTH_KEY = centerKey;
+    gatewayEnv.AIG_INFERENCE_SERVICE = {
+      fetch(request) {
+        const route = new URL(request.url).pathname;
+        assert.ok(['/internal/execute', '/internal/conversion/preflight'].includes(route), 'allowlisted center endpoints only');
+        assert.equal(request.headers.get('x-aig-inference-auth'), centerKey, 'private center authenticates the request');
+        assert.equal(request.headers.get('authorization'), null, 'client Authorization never enters the center');
+        assert.equal(request.headers.get('x-api-key'), null, 'client key never enters the center');
+        return handleInferenceCenterRequest(request, centerEnv);
+      },
+    };
+    assert.equal(Object.keys(gatewayEnv).some((key) => /^AIG_TIER[123]_CREDENTIALS_/.test(key)), false);
+    return gatewayEnv;
   }
 
   const openaiChatNode = (id, extra = {}) => ({
