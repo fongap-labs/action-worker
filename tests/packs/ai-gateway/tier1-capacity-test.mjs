@@ -292,7 +292,7 @@ test('a conflicting secret is excluded at execution; valid nodes still serve wit
   assert.equal(center.status, 'degraded', 'the private center detects the cross-tier secret conflict');
   assert.equal(center.hasConfigErrors, true, 'invalid secrets must fail closed at the private execution boundary');
   assert.deepEqual(center.nodes.map((n) => n.id), ['good'], 'ambiguous credential cannot execute');
-  const gateway = loadGatewayConfig(corruptEnv);
+  const gateway = loadGatewayConfig({ ...corruptEnv, AIG_INFERENCE_ACTIVE: 'true' });
   assert.equal(gateway.ready, true);
   assert.ok(gateway.nodes.every((n) => n.credential === ''), 'public Gateway never reads either credential');
   // A corrupt center configuration must not be made "ready" by ignoring the
@@ -329,7 +329,7 @@ test('with no usable execution node the private center remains invalid', () => {
   assert.equal(center.status, 'invalid');
   assert.equal(center.ready, false);
   assert.equal(center.hasConfigErrors, true);
-  const gateway = loadGatewayConfig(env);
+  const gateway = loadGatewayConfig({ ...env, AIG_INFERENCE_ACTIVE: 'true' });
   assert.equal(gateway.ready, true, 'Gateway can validate public routing metadata only');
   assert.equal(gateway.nodes[0].credential, '');
 });
@@ -343,12 +343,13 @@ test('a malformed credential shard is rejected privately without quoting any of 
   assert.ok(center.hasConfigErrors, 'malformed private credentials fail closed');
   assert.ok(center.diagnostics.some((d) => d.includes('AIG_TIER1_CREDENTIALS_02')));
   assert.ok(!center.diagnostics.join('\n').includes('sk-live'), 'no secret fragment in private diagnostics');
-  const gateway = loadGatewayConfig(env);
+  const gatewayEnv = { ...env, AIG_INFERENCE_ACTIVE: 'true' };
+  const gateway = loadGatewayConfig(gatewayEnv);
   assert.equal(gateway.status, 'ready', 'public Gateway does not parse secrets');
   assert.ok(gateway.nodes.every((n) => n.credential === ''));
   const health = await worker.fetch(
     new Request('https://gateway.example.com/health', { headers: { authorization: `Bearer ${ACCESS_KEY}` } }),
-    env,
+    gatewayEnv,
     {},
   );
   assert.ok(!(await health.text()).includes('sk-live'), 'no credential fragment on /health');
