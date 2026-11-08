@@ -392,7 +392,9 @@ await test('live in-flight load is soft: the sole healthy Tier 1 node accepts a 
     if (calls === 1) await gate;
     return jsonResponse(okChat());
   };
-  const env = makeEnv({ tier1: [openaiNode('soft')], secrets: { soft: 'k' } });
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({ tier1: [openaiNode('soft')], secrets: { soft: 'k' } }),
+    (request) => centerPaths.push(new URL(request.url).pathname));
   const first = worker.fetch(chatRequest(), env, {});
   for (let i = 0; i < 100 && upstreamCalls.length < 1; i++) await new Promise((r) => setTimeout(r, 5));
   assert.equal(upstreamCalls.length, 1);
@@ -405,6 +407,8 @@ await test('live in-flight load is soft: the sole healthy Tier 1 node accepts a 
   assert.equal(firstRes.status, 200);
   await firstRes.text();
   assert.equal(tier1AccountInFlight('soft'), 0);
+  assert.deepEqual(centerPaths, ['/internal/execute', '/internal/execute'],
+    'both concurrent requests must use the private inference service');
 });
 
 await test('legacy QUOTA_RATE_LIMITER binding is not provider admission policy', async () => {
@@ -416,15 +420,18 @@ await test('legacy QUOTA_RATE_LIMITER binding is not provider admission policy',
     },
   };
   routeHandlers['quota.example.com'] = () => jsonResponse(okChat());
-  const env = makeEnv({
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('quota')],
     secrets: { quota: 'k' },
     extraEnv: { QUOTA_RATE_LIMITER: binding },
-  });
+  }), (request) => centerPaths.push(new URL(request.url).pathname));
   const res = await worker.fetch(chatRequest(), env, {});
   assert.equal(res.status, 200);
   assert.equal(limiterCalls, 0);
   assert.equal(upstreamCalls.length, 1);
+  assert.deepEqual(centerPaths, ['/internal/execute'],
+    'unused legacy limiter must not alter private center admission');
 });
 
 await test('Tier 1 -> Tier 2 -> Tier 3 fallback preserves strict tier order', async () => {
@@ -465,7 +472,8 @@ await test('busy Tier 2 remains last-resort capacity when it is the only healthy
     return jsonResponse(okChat());
   };
   routeHandlers['busy-t1.example.com'] = () => jsonResponse({}, 503);
-  const env = makeEnv({
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('busy-t1', { models: { 'general-air': 'up-a' } })],
     tier2: [openaiNode('busy-t2', { models: { 'general-air': 'up-a', parked: 'up-p' } })],
     secrets: { 'busy-t1': '1', 'busy-t2': '2' },
@@ -473,7 +481,7 @@ await test('busy Tier 2 remains last-resort capacity when it is the only healthy
       AIG_MODELS_CONFIG: JSON.stringify({ 'general-air': { policy: 'fast' }, parked: { policy: 'fast' } }),
       AIG_POLICIES_CONFIG: JSON.stringify({ fast: { max_attempts: 2 } }),
     },
-  });
+  }), (request) => centerPaths.push(new URL(request.url).pathname));
   const parked = worker.fetch(chatRequest({ model: 'parked' }), env, {});
   for (let i = 0; i < 100 && t2Calls < 1; i++) await new Promise((r) => setTimeout(r, 5));
   assert.equal(t2Calls, 1);
@@ -484,6 +492,8 @@ await test('busy Tier 2 remains last-resort capacity when it is the only healthy
   const parkedRes = await parked;
   assert.equal(parkedRes.status, 200);
   await parkedRes.text();
+  assert.deepEqual(centerPaths, ['/internal/execute', '/internal/execute', '/internal/execute'],
+    'parked Tier 2 request and ordered fallback both require private physical execution');
 });
 
 // ---- Failure scoping -------------------------------------------------------
@@ -898,7 +908,10 @@ await test('failover wall-clock budget stops before dispatching a fresh node', a
 // ---- Operational boundaries ----------------------------------------------
 await test('upstream header allowlist drops client cookies/forwarding headers', async () => {
   routeHandlers['headers.example.com'] = () => jsonResponse(okChat());
-  const env = makeEnv({ tier1: [openaiNode('headers')], secrets: { headers: 'provider-secret' } });
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({ tier1: [openaiNode('headers')], secrets: { headers: 'provider-secret' } }),
+    (request) => centerPaths.push(new URL(request.url).pathname));
+  assert.equal(env.AIG_TIER1_CREDENTIALS_01, undefined, 'Gateway must not own upstream header credentials');
   const res = await worker.fetch(
     chatRequest({}, ACCESS_KEY, {
       headers: { cookie: 'session=secret', 'x-forwarded-for': '1.2.3.4' },
@@ -910,6 +923,8 @@ await test('upstream header allowlist drops client cookies/forwarding headers', 
   assert.equal(upstreamCalls[0].headers.get('cookie'), null);
   assert.equal(upstreamCalls[0].headers.get('x-forwarded-for'), null);
   assert.equal(upstreamCalls[0].headers.get('authorization'), 'Bearer provider-secret');
+  assert.equal(upstreamCalls[0].headers.get('x-aig-inference-auth'), null);
+  assert.deepEqual(centerPaths, ['/internal/execute']);
 });
 
 await test('D1 write failure is observational and never breaks a successful AI response', async () => {
@@ -919,13 +934,16 @@ await test('D1 write failure is observational and never breaks a successful AI r
       throw new Error('D1 unavailable');
     },
   };
-  const env = makeEnv({
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('d1')],
     secrets: { d1: 'k' },
     extraEnv: { TOKEN_STATS_DB: failingD1 },
-  });
+  }), (request) => centerPaths.push(new URL(request.url).pathname));
   const res = await worker.fetch(chatRequest(), env, { waitUntil() {} });
   assert.equal(res.status, 200);
+  assert.deepEqual(centerPaths, ['/internal/execute'],
+    'D1 observation failure cannot bypass the private center');
 });
 
 await test('/health is 200 for ready strict config and exposes no credentials', async () => {
@@ -1009,11 +1027,12 @@ await test('explicit cache miss fills the edge entry and a later hit avoids anot
   };
   try {
     routeHandlers['cache.example.com'] = () => jsonResponse(okChat('cache-hit'));
-    const env = makeEnv({
+    const centerPaths = [];
+    const env = withInferenceCenter(makeEnv({
       tier1: [openaiNode('cache')],
       secrets: { cache: 'provider-key' },
       extraEnv: { AIG_TOKEN_ENCRYPTION_KEY: 'k'.repeat(32), AIG_EDGE_CACHE_TTL_SEC: '60' },
-    });
+    }), (request) => centerPaths.push(new URL(request.url).pathname));
     const request = () => chatRequest({}, ACCESS_KEY, { headers: { 'x-gateway-cache': 'true' } });
     const pending = [];
     const first = await worker.fetch(request(), env, { waitUntil: (task) => pending.push(task) });
@@ -1028,6 +1047,8 @@ await test('explicit cache miss fills the edge entry and a later hit avoids anot
     assert.equal(second.headers.get('cache-control'), 'private, no-store');
     assert.equal((await second.json()).choices[0].message.content, 'cache-hit');
     assert.equal(upstreamCalls.length, 1, 'a cache HIT does not dispatch to the provider');
+    assert.deepEqual(centerPaths, ['/internal/execute'],
+      'cache HIT must not call the private inference center a second time');
   } finally {
     globalThis.caches = previousCaches;
   }
