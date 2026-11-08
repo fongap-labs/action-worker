@@ -534,22 +534,22 @@ try {
   const selectorSource = readFileSync(join(root, 'src/request/attempt/dispatch.ts'), 'utf8');
   const extractedLegacyPath = join(root, 'src/request/attempt/legacy-provider-dispatch.ts');
   assert.equal(existsSync(extractedLegacyPath), false, 'Gateway legacy direct-Provider source must be absent');
-  assert.doesNotMatch(selectorSource, /dispatchLegacyProvider|await fetch\\(/, 'Gateway dispatch must not directly call Provider');
-  assert.match(selectorSource, /return dispatchInferenceAttempt\\(c, sourceBody\\);/, 'inference always delegates to the private center');
+  assert.doesNotMatch(selectorSource, /dispatchLegacyProvider|await fetch\(/, 'Gateway dispatch must not directly call Provider');
+  assert.match(selectorSource, /return dispatchInferenceAttempt\(c, sourceBody\);/, 'inference always delegates to the private center');
   const inferenceSource = readFileSync(join(root, 'src/request/attempt/inference-dispatch.ts'), 'utf8');
   const generationSource = readFileSync(join(root, 'src/request/attempt/generation-dispatch.ts'), 'utf8');
   assert.match(
     inferenceSource,
-    /attemptBudgetWindowMs\\(remainingBudgetMs, c\\.remainingDispatchableAttempts\\)/,
+    /attemptBudgetWindowMs\(remainingBudgetMs, c\.remainingDispatchableAttempts\)/,
     'inference dispatch must allocate reserve-aware attempt windows',
   );
   assert.match(
     generationSource,
-    /attemptBudgetWindowMs\\(remainingMs, c\\.remainingDispatchableAttempts\\)/,
+    /attemptBudgetWindowMs\(remainingMs, c\.remainingDispatchableAttempts\)/,
     'generation dispatch must allocate reserve-aware attempt windows',
   );
   for (const centerSource of [inferenceSource, generationSource]) {
-    assert.doesNotMatch(centerSource, /attemptBudgetSliceMs\\(/, 'no center transport may regress to equal-share request slicing');
+    assert.doesNotMatch(centerSource, /attemptBudgetSliceMs\(/, 'no center transport may regress to equal-share request slicing');
   }
 
   const hedgeSource = readFileSync(join(root, 'src/request/attempt/hedge.ts'), 'utf8');
