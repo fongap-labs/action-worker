@@ -431,14 +431,22 @@ await test('Tier 1 -> Tier 2 -> Tier 3 fallback preserves strict tier order', as
   routeHandlers['t1.example.com'] = () => jsonResponse({}, 503);
   routeHandlers['t2.example.com'] = () => jsonResponse({}, 503);
   routeHandlers['t3.example.com'] = () => jsonResponse(okChat('tier3-ok'));
-  const env = makeEnv({
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('t1')],
     tier2: [openaiNode('t2')],
     tier3: [openaiNode('t3')],
     secrets: { t1: '1', t2: '2', t3: '3' },
+  }), (request) => {
+    centerPaths.push(new URL(request.url).pathname);
   });
+  assert.equal(env.AIG_TIER1_CREDENTIALS_01, undefined);
+  assert.equal(env.AIG_TIER2_CREDENTIALS_01, undefined);
+  assert.equal(env.AIG_TIER3_CREDENTIALS_01, undefined);
   const res = await worker.fetch(chatRequest(), env, {});
   assert.equal(res.status, 200);
+  assert.deepEqual(centerPaths, ['/internal/execute', '/internal/execute', '/internal/execute'],
+    'each ordered Tier fallback must execute through the private center');
   assert.deepEqual(
     upstreamCalls.map((c) => c.host),
     ['t1.example.com', 't2.example.com', 't3.example.com'],
@@ -486,13 +494,19 @@ await test('429 cools one key and rotates to another same-tier key before lower 
   routeHandlers['rl-t2.example.com'] = () => jsonResponse(okChat('wrong-tier'));
   recordTier1Ttft('rl-a', 'general-air', 50);
   recordTier1Ttft('rl-b', 'general-air', 2_000);
-  const env = makeEnv({
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('rl-a'), openaiNode('rl-b')],
     tier2: [openaiNode('rl-t2')],
     secrets: { 'rl-a': 'a', 'rl-b': 'b', 'rl-t2': '2' },
+  }), (request) => {
+    centerPaths.push(new URL(request.url).pathname);
   });
+  assert.equal(env.AIG_TIER1_CREDENTIALS_01, undefined);
   const res = await worker.fetch(chatRequest(), env, {});
   assert.equal(res.status, 200);
+  assert.deepEqual(centerPaths, ['/internal/execute', '/internal/execute'],
+    '429 should rotate via the private center without dispatching to Tier 2');
   assert.deepEqual(
     upstreamCalls.map((c) => c.host),
     ['rl-a.example.com', 'rl-b.example.com'],
@@ -503,7 +517,10 @@ await test('429 cools one key and rotates to another same-tier key before lower 
 
 await test('all eligible keys cooling returns 429 with a real Retry-After', async () => {
   routeHandlers['cool.example.com'] = () => jsonResponse({}, 429, { 'retry-after': '30' });
-  const env = makeEnv({ tier1: [openaiNode('cool')], secrets: { cool: 'k' } });
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({ tier1: [openaiNode('cool')], secrets: { cool: 'k' } }), (request) => {
+    centerPaths.push(new URL(request.url).pathname);
+  });
   const first = await worker.fetch(chatRequest(), env, {});
   assert.equal(first.status, 429);
   const calls = upstreamCalls.length;
@@ -511,6 +528,8 @@ await test('all eligible keys cooling returns 429 with a real Retry-After', asyn
   assert.equal(second.status, 429);
   assert.ok(Number(second.headers.get('retry-after')) > 0);
   assert.equal(upstreamCalls.length, calls, 'cooling key is not redispatched immediately');
+  assert.deepEqual(centerPaths, ['/internal/execute'],
+    'a cooling key must not trigger another private physical attempt');
 });
 
 await test('model_missing 404 cools only that mapping; sibling model on same node remains healthy', async () => {
@@ -811,7 +830,8 @@ await test('hedge races a slow Tier 1 primary with a same-surface twin', async (
   routeHandlers['hedge-fast.example.com'] = () => jsonResponse(okChat('hedge-winner'));
   recordTier1Ttft('hedge-slow', 'general-air', 50);
   recordTier1Ttft('hedge-fast', 'general-air', 2_000);
-  const env = makeEnv({
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('hedge-slow'), openaiNode('hedge-fast')],
     secrets: { 'hedge-slow': 's', 'hedge-fast': 'f' },
     extraEnv: {
@@ -820,8 +840,12 @@ await test('hedge races a slow Tier 1 primary with a same-surface twin', async (
       AIG_MODELS_CONFIG: JSON.stringify({ 'general-air': { policy: 'hp' } }),
       AIG_POLICIES_CONFIG: JSON.stringify({ hp: { max_attempts: 2, hedge: { enabled: true, delay_ms: 100, tiers: ['tier1'] } } }),
     },
+  }), (request) => {
+    centerPaths.push(new URL(request.url).pathname);
   });
   const res = await worker.fetch(chatRequest(), env, {});
+  assert.deepEqual(centerPaths, ['/internal/execute', '/internal/execute'],
+    'hedge primary and peer must both use the private center');
   assert.equal(res.status, 200);
   assert.equal((await res.json()).choices[0].message.content, 'hedge-winner');
   assert.deepEqual(
