@@ -10,6 +10,20 @@ import { preflight } from '#target/src/request/preflight.ts';
 import { buildWranglerConfig, DEFAULT_OPTIMAL_VARS } from '#target/scripts/github-deployment-config.mjs';
 import { makeEnv, AIR_KEY } from './hardening-fixtures.mjs';
 
+// Admission and deadline checks must work without Gateway-held Provider keys.
+function guardedCenterEnv(extra = {}) {
+  const env = makeEnv({ ...extra, AIG_INFERENCE_ACTIVE: 'true' });
+  delete env.AIG_TIER1_CREDENTIALS_01;
+  let centerCalls = 0;
+  env.AIG_INFERENCE_SERVICE = {
+    fetch: async () => {
+      centerCalls++;
+      return new Response('unexpected inference dispatch', { status: 503 });
+    },
+  };
+  return { env, getCenterCalls: () => centerCalls };
+}
+
 const ctx = { waitUntil() {} };
 const state = () => ({ logicalAttempts: 3, dispatches: 3, hedges: 0, attempts: [], failureKinds: { headers_timeout: 3 } });
 const request = (deadline, route = '/v1/chat/completions') => new Request(`https://gateway.example.com${route}`, {
@@ -24,9 +38,11 @@ const request = (deadline, route = '/v1/chat/completions') => new Request(`https
 
 test('expired deadlines stop before dispatch on every protocol surface', async () => {
   let calls = 0;
+  const guard = guardedCenterEnv();
+  assert.equal(guard.env.AIG_TIER1_CREDENTIALS_01, undefined);
   await withMockFetch(async () => { calls++; throw new Error('unexpected dispatch'); }, async () => {
     for (const route of ['/v1/chat/completions', '/v1/messages', '/v1/responses']) {
-      const response = await worker.fetch(request(Date.now() - 1, route), makeEnv(), ctx);
+      const response = await worker.fetch(request(Date.now() - 1, route), guard.env, ctx);
       assert.equal(response.status, 408);
       assert.equal(response.headers.get('x-gateway-error-code'), 'gateway_client_deadline_exceeded');
       assert.equal(response.headers.get('x-gateway-retryable'), 'false');
@@ -34,34 +50,41 @@ test('expired deadlines stop before dispatch on every protocol surface', async (
     }
   });
   assert.equal(calls, 0);
+  assert.equal(guard.getCenterCalls(), 0, 'expired deadlines must stop before the private center');
 });
 
 test('invalid deadline values are rejected without interpreting relative durations', async () => {
+  const guard = guardedCenterEnv();
   for (const value of ['', 'NaN', '1e12', '-1', '9007199254740992']) {
-    const result = await preflight(request(value), makeEnv(), ctx);
+    const result = await preflight(request(value), guard.env, ctx);
     assert.equal(result.ok, false);
     assert.equal(result.response.status, 400);
   }
+  assert.equal(guard.getCenterCalls(), 0, 'invalid deadline must never invoke inference center');
 });
 
 test('a client deadline shortens the request budget and cannot extend server policy', async () => {
+  const guard = guardedCenterEnv();
   const soon = Date.now() + 5_000;
-  const limited = await preflight(request(soon), makeEnv(), ctx);
+  const limited = await preflight(request(soon), guard.env, ctx);
   assert.equal(limited.ok, true);
   assert.equal(limited.failoverBudgetMs, soon - limited.requestStartMs);
-  const baseline = await preflight(request(), makeEnv(), ctx);
-  const later = await preflight(request(Date.now() + 86_400_000), makeEnv(), ctx);
+  const baseline = await preflight(request(), guard.env, ctx);
+  const later = await preflight(request(Date.now() + 86_400_000), guard.env, ctx);
   assert.equal(baseline.ok, true);
   assert.equal(later.ok, true);
   assert.equal(later.failoverBudgetMs, baseline.failoverBudgetMs);
+  assert.equal(guard.getCenterCalls(), 0);
 });
 
 test('reusing an expired step deadline never gives a client retry a new budget', async () => {
+  const guard = guardedCenterEnv();
   const deadline = Date.now() - 1;
   for (let i = 0; i < 2; i++) {
-    const result = await preflight(request(deadline), makeEnv(), ctx);
+    const result = await preflight(request(deadline), guard.env, ctx);
     assert.equal(result.response.status, 408);
   }
+  assert.equal(guard.getCenterCalls(), 0);
 });
 
 test('terminal errors expose consistent retry and attempt headers while preserving protocol bodies', async () => {
