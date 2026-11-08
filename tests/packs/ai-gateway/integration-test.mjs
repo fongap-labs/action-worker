@@ -538,10 +538,12 @@ await test('model_missing 404 cools only that mapping; sibling model on same nod
     if (body.model === 'up-code') return jsonResponse({ error: { message: 'model not found' } }, 404);
     return jsonResponse(okChat('sibling-ok', body.model));
   };
-  const env = makeEnv({
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('map', { models: { 'code-pro': 'up-code', 'general-air': 'up-air' } })],
     secrets: { map: 'k' },
-  });
+  }), (request) => centerPaths.push(new URL(request.url).pathname));
+  assert.equal(env.AIG_TIER1_CREDENTIALS_01, undefined);
   const first = await worker.fetch(chatRequest({ model: 'code-pro' }), env, {});
   assert.ok(first.status >= 400);
   assert.equal(getTier1Account('map').accountDisabled, false);
@@ -549,6 +551,9 @@ await test('model_missing 404 cools only that mapping; sibling model on same nod
   const sibling = await worker.fetch(chatRequest(), env, {});
   assert.equal(sibling.status, 200);
   assert.equal((await sibling.json()).choices[0].message.content, 'sibling-ok');
+  assert.deepEqual(centerPaths, ['/internal/execute', '/internal/execute'],
+    '404 model miss and sibling success must both use private center execution');
+  assert.deepEqual(upstreamCalls.map((c) => c.host), ['map.example.com', 'map.example.com']);
 });
 
 await test('client-class 400 rotates to another provider-key slot', async () => {
@@ -556,10 +561,12 @@ await test('client-class 400 rotates to another provider-key slot', async () => 
   routeHandlers['bad-b.example.com'] = () => jsonResponse(okChat('healthy'));
   recordTier1Ttft('bad-a', 'general-air', 50);
   recordTier1Ttft('bad-b', 'general-air', 2_000);
-  const env = makeEnv({
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('bad-a'), openaiNode('bad-b')],
     secrets: { 'bad-a': 'a', 'bad-b': 'b' },
-  });
+  }), (request) => centerPaths.push(new URL(request.url).pathname));
+  assert.equal(env.AIG_TIER1_CREDENTIALS_01, undefined);
   const res = await worker.fetch(chatRequest(), env, {});
   assert.equal(res.status, 200);
   assert.equal((await res.json()).choices[0].message.content, 'healthy');
@@ -567,6 +574,8 @@ await test('client-class 400 rotates to another provider-key slot', async () => 
     upstreamCalls.map((c) => c.host),
     ['bad-a.example.com', 'bad-b.example.com'],
   );
+  assert.deepEqual(centerPaths, ['/internal/execute', '/internal/execute'],
+    'client-class 400 rotation must remain inside private center');
 });
 
 await test('HTTP 200 with non-JSON garbage rotates and penalizes the bad node', async () => {
@@ -578,10 +587,11 @@ await test('HTTP 200 with non-JSON garbage rotates and penalizes the bad node', 
   routeHandlers['html-b.example.com'] = () => jsonResponse(okChat('healthy'));
   recordTier1Ttft('html-a', 'general-air', 50);
   recordTier1Ttft('html-b', 'general-air', 2_000);
-  const env = makeEnv({
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('html-a'), openaiNode('html-b')],
     secrets: { 'html-a': 'a', 'html-b': 'b' },
-  });
+  }), (request) => centerPaths.push(new URL(request.url).pathname));
   const res = await worker.fetch(chatRequest(), env, {});
   assert.equal(res.status, 200);
   assert.deepEqual(
@@ -589,6 +599,8 @@ await test('HTTP 200 with non-JSON garbage rotates and penalizes the bad node', 
     ['html-a.example.com', 'html-b.example.com'],
   );
   assert.equal(getNodeState('html-a').totalFailures, 1);
+  assert.deepEqual(centerPaths, ['/internal/execute', '/internal/execute'],
+    'malformed upstream 200 must rotate via private center');
 });
 
 await test('HTTP 200 JSON error envelope also rotates to healthy capacity', async () => {
@@ -596,16 +608,19 @@ await test('HTTP 200 JSON error envelope also rotates to healthy capacity', asyn
   routeHandlers['jsonerr-b.example.com'] = () => jsonResponse(okChat('healthy'));
   recordTier1Ttft('jsonerr-a', 'general-air', 50);
   recordTier1Ttft('jsonerr-b', 'general-air', 2_000);
-  const env = makeEnv({
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('jsonerr-a'), openaiNode('jsonerr-b')],
     secrets: { 'jsonerr-a': 'a', 'jsonerr-b': 'b' },
-  });
+  }), (request) => centerPaths.push(new URL(request.url).pathname));
   const res = await worker.fetch(chatRequest(), env, {});
   assert.equal(res.status, 200);
   assert.deepEqual(
     upstreamCalls.map((c) => c.host),
     ['jsonerr-a.example.com', 'jsonerr-b.example.com'],
   );
+  assert.deepEqual(centerPaths, ['/internal/execute', '/internal/execute'],
+    'JSON error embedded in HTTP 200 must not bypass private center');
 });
 
 // ---- Streaming commit boundary -------------------------------------------
@@ -864,17 +879,20 @@ await test('failover wall-clock budget stops before dispatching a fresh node', a
   routeHandlers['budget-b.example.com'] = () => jsonResponse(okChat());
   recordTier1Ttft('budget-a', 'budget-test', 50);
   recordTier1Ttft('budget-b', 'budget-test', 2_000);
-  const env = makeEnv({
+  const centerPaths = [];
+  const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('budget-a', { models: { 'budget-test': 'up-model' } }), openaiNode('budget-b', { models: { 'budget-test': 'up-model' } })],
     secrets: { 'budget-a': 'a', 'budget-b': 'b' },
     extraEnv: { AIG_FAILOVER_BUDGET_MS: '1200' },
-  });
+  }), (request) => centerPaths.push(new URL(request.url).pathname));
   const res = await worker.fetch(chatRequest({ model: 'budget-test' }), env, {});
   assert.equal(res.status, 504);
   assert.deepEqual(
     upstreamCalls.map((c) => c.host),
     ['budget-a.example.com'],
   );
+  assert.deepEqual(centerPaths, ['/internal/execute'],
+    'an expired wall-clock budget must not dispatch a second private center request');
 });
 
 // ---- Operational boundaries ----------------------------------------------
