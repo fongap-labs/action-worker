@@ -205,9 +205,13 @@ test("actionlint falls back to its verified official GitHub asset without weaken
   const workflow = await readFile(".github/workflows/validate-ci.yml", "utf8");
   assert.ok(workflow.includes('ACTIONLINT_VERSION: "1.17.0"'));
   assert.ok(
-    workflow.includes("ACTIONLINT_SHA256: 620abd485a12b6ab1125b844a876414e1d5bd2af8a3125b27f82b01d0d9d6e5a")
+    workflow.includes(
+      "ACTIONLINT_SHA256: 620abd485a12b6ab1125b844a876414e1d5bd2af8a3125b27f82b01d0d9d6e5a"
+    )
   );
-  assert.ok(workflow.includes("https://api.github.com/repos/kjanat/actionlint/releases/assets/561506357"));
+  assert.ok(
+    workflow.includes("https://api.github.com/repos/kjanat/actionlint/releases/assets/561506357")
+  );
   assert.ok(workflow.includes("--proto-redir '=https'"));
   assert.ok(workflow.includes("sha256sum --check --strict"));
   assert.ok(workflow.includes("- name: Lint GitHub Actions"));
