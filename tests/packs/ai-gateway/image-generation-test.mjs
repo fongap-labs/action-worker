@@ -7,6 +7,7 @@
 
 import assert from 'node:assert/strict';
 import worker from '#target/src/index.ts';
+import { handleGenerationCenterRequest } from '#target/src/generation/generation-center-entry.ts';
 import { __resetAllStateForTests } from '#target/src/reliability/node-state.ts';
 import { __resetTier1StateForTests } from '#target/src/reliability/tier1-state.ts';
 import { getProviderAdapter, providerWire } from '#target/src/providers/registry.ts';
@@ -27,7 +28,8 @@ function envFor(provider = 'openai-image', upstreamModel = 'gpt-image-1', extra 
   const node = { id: 'image-1', provider, base_url: provider === 'google-image' ? 'https://generativelanguage.googleapis.com'
     : provider === 'cloudflare-image' ? 'https://api.cloudflare.com/client/v4/accounts/example/ai/run'
     : 'https://api.openai.com', models: { 'Image-Creator': upstreamModel } };
-  return {
+  const env = {
+    AIG_GENERATION_AUTH_KEY: 'ai-gateway-central-generation-test-auth-32chars',
     AIG_ACCESS_KEY_AGENT: 'backend-agent-test-key',
     AIG_ACCESS_MODELS_AGENT: 'Image-Creator',
     AIG_ACCESS_KEY_AIR: 'frontend-air-test-key',
@@ -38,6 +40,13 @@ function envFor(provider = 'openai-image', upstreamModel = 'gpt-image-1', extra 
     AIG_REQUEST_ADMISSION: 'false',
     ...extra,
   };
+  // Exercise the real versioned, private Generation Center execution contract.
+  // Only the center can reach the mocked physical Provider; tests do not rely
+  // on Gateway's legacy direct-provider path.
+  env.AIG_GENERATION_SERVICE = {
+    fetch: (request) => handleGenerationCenterRequest(request, env),
+  };
+  return env;
 }
 
 function request(path, body, key = 'backend-agent-test-key') {
