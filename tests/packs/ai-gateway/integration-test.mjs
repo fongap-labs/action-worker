@@ -682,8 +682,12 @@ await test('Tier 1 streaming slot stays claimed until stream completion and rele
 
 await test('Anthropic Messages native non-stream request stays native', async () => {
   routeHandlers['anthropic.example.com'] = () => jsonResponse(okMessage('native-anthropic'));
-  const env = makeEnv({ tier1: [anthropicNode('anthropic')], secrets: { anthropic: 'ak' } });
+  let centerCalls = 0;
+  const env = withInferenceCenter(makeEnv({ tier1: [anthropicNode('anthropic')], secrets: { anthropic: 'ak' } }), () => {
+    centerCalls++;
+  });
   const res = await worker.fetch(messagesRequest(), env, {});
+  assert.equal(centerCalls, 1, 'native Anthropic Messages must invoke the private inference center');
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.type, 'message');
@@ -692,6 +696,7 @@ await test('Anthropic Messages native non-stream request stays native', async ()
   assert.equal(upstreamCalls[0].path, '/v1/messages');
   assert.equal(upstreamCalls[0].headers.get('x-api-key'), 'ak');
   assert.equal(upstreamCalls[0].headers.get('authorization'), null);
+  assert.equal(upstreamCalls[0].headers.get('x-aig-inference-auth'), null);
 });
 
 await test('Anthropic streaming preserves native lifecycle and model identity', async () => {
@@ -704,8 +709,12 @@ await test('Anthropic streaming preserves native lifecycle and model identity', 
       `event: message_delta\ndata: ${JSON.stringify({ type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { input_tokens: 1, output_tokens: 2 } })}\n\n`,
       `event: message_stop\ndata: ${JSON.stringify({ type: 'message_stop' })}\n\n`,
     ]);
-  const env = makeEnv({ tier1: [anthropicNode('anstream')], secrets: { anstream: 'ak' } });
+  let centerCalls = 0;
+  const env = withInferenceCenter(makeEnv({ tier1: [anthropicNode('anstream')], secrets: { anstream: 'ak' } }), () => {
+    centerCalls++;
+  });
   const res = await worker.fetch(messagesRequest({ stream: true }), env, {});
+  assert.equal(centerCalls, 1, 'native Anthropic SSE must invoke the private inference center');
   assert.equal(res.status, 200);
   const text = await res.text();
   assert.match(text, /hello stream/);
@@ -716,8 +725,12 @@ await test('Anthropic streaming preserves native lifecycle and model identity', 
 
 await test('Anthropic client may fall back to OpenAI Chat through the bounded conversion path', async () => {
   routeHandlers['cross.example.com'] = () => jsonResponse(okChat('converted'));
-  const env = makeEnv({ tier1: [openaiNode('cross')], secrets: { cross: 'ok' } });
+  let centerCalls = 0;
+  const env = withInferenceCenter(makeEnv({ tier1: [openaiNode('cross')], secrets: { cross: 'ok' } }), () => {
+    centerCalls++;
+  });
   const res = await worker.fetch(messagesRequest(), env, {});
+  assert.equal(centerCalls, 1, 'Messages to Chat conversion must execute through private inference center');
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.type, 'message');
@@ -728,8 +741,12 @@ await test('Anthropic client may fall back to OpenAI Chat through the bounded co
 
 await test('OpenAI Responses uses the native OpenAI provider profile', async () => {
   routeHandlers['responses.example.com'] = () => jsonResponse(okResponses('responses-ok'));
-  const env = makeEnv({ tier1: [responsesNode('responses')], secrets: { responses: 'rk' } });
+  let centerCalls = 0;
+  const env = withInferenceCenter(makeEnv({ tier1: [responsesNode('responses')], secrets: { responses: 'rk' } }), () => {
+    centerCalls++;
+  });
   const res = await worker.fetch(responsesRequest(), env, {});
+  assert.equal(centerCalls, 1, 'native Responses must invoke the private inference center');
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.model, 'general-air');
@@ -739,8 +756,12 @@ await test('OpenAI Responses uses the native OpenAI provider profile', async () 
 
 await test('Responses route falls back to a chat-only node through the matrix', async () => {
   routeHandlers['chatonly.example.com'] = () => jsonResponse(okChat('translated'));
-  const env = makeEnv({ tier1: [openaiNode('chatonly')], secrets: { chatonly: 'k' } });
+  let centerCalls = 0;
+  const env = withInferenceCenter(makeEnv({ tier1: [openaiNode('chatonly')], secrets: { chatonly: 'k' } }), () => {
+    centerCalls++;
+  });
   const res = await worker.fetch(responsesRequest(), env, {});
+  assert.equal(centerCalls, 1, 'Responses to Chat conversion must execute through private inference center');
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.object, 'response');
