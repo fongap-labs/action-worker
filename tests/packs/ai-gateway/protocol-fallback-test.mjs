@@ -410,7 +410,8 @@ try {
   console.error = (...args) => logs.push(args.map((arg) => String(arg)).join(' '));
 
   try {
-    const env = {
+    const centerPaths = [];
+    const env = withPrivateInferenceCenter({
       AIG_ACCESS_KEY_AIR: ACCESS_KEY,
       AIG_ACCESS_MODELS_AIR: '*',
       AIG_PROTOCOL_FALLBACKS: JSON.stringify({
@@ -425,7 +426,7 @@ try {
         },
       ]),
       AIG_TIER1_CREDENTIALS_01: JSON.stringify({ 'openai-only': 'upstream-key' }),
-    };
+    }, (request) => centerPaths.push(new URL(request.url).pathname));
 
     const request = new Request('https://gateway.example.com/v1/messages?beta=true', {
       method: 'POST',
@@ -452,6 +453,8 @@ try {
     const response = await worker.fetch(request, env, {});
     assert.equal(response.status, 502, 'pre-dispatch conversion incompatibility must be reported as 502, not cooldown 429');
     assert.equal(upstreamCalls, 0, 'conversion failure must not dispatch upstream');
+    assert.deepEqual(centerPaths, ['/internal/conversion/preflight'], 'private preflight must reject before any physical execute');
+    assert.equal(env.AIG_TIER1_CREDENTIALS_01, undefined, 'public Gateway cannot own private Provider keys');
 
     const body = await response.json();
     assert.equal(body.type, 'error');
@@ -466,7 +469,7 @@ try {
     assert.equal(record.route, 'anthropic_messages');
     assert.equal(record.fallback_protocol, 'openai');
     assert.equal(record.fallback_surface, 'chat_completions');
-    assert.match(record.reason, /conversion_not_supported: user content\.thinking/);
+    assert.match(record.reason, /conversion_not_supported/, 'private preflight must not echo request content in rejection reason');
     assert.equal(record.request_id, response.headers.get('request-id'));
 
     const joinedLogs = logs.join('\n');
