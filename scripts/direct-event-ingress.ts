@@ -37,8 +37,15 @@ type GithubEvent = {
     owner?: { login?: unknown };
   };
   ref?: unknown;
+  before?: unknown;
+  after?: unknown;
   deleted?: unknown;
   action?: unknown;
+  number?: unknown;
+  pull_request?: {
+    number?: unknown;
+    base?: { repo?: { full_name?: unknown } };
+  };
 };
 
 const maxBodyBytes = 8 * 1024 * 1024;
@@ -137,15 +144,30 @@ async function boundedBody(request: Request): Promise<Uint8Array> {
 }
 
 function isRelevantEvent(eventName: string, body: GithubEvent): boolean {
+  // GitHub's HMAC covers the JSON body but NOT X-GitHub-Event. An authentic
+  // unrelated event must not be reclassified by changing its unsigned header.
   if (eventName === "push") {
     return (
       typeof body.repository?.default_branch === "string" &&
       body.ref === "refs/heads/" + body.repository.default_branch &&
+      typeof body.before === "string" &&
+      /^[0-9a-f]{40}$/i.test(body.before) &&
+      typeof body.after === "string" &&
+      /^[0-9a-f]{40}$/i.test(body.after) &&
       body.deleted !== true
     );
   }
   if (eventName === "pull_request") {
-    return ["opened", "reopened", "synchronize", "ready_for_review"].includes(String(body.action));
+    return (
+      ["opened", "reopened", "synchronize", "ready_for_review"].includes(String(body.action)) &&
+      typeof body.number === "number" &&
+      Number.isSafeInteger(body.number) &&
+      body.number > 0 &&
+      body.pull_request?.number === body.number &&
+      typeof body.pull_request.base?.repo?.full_name === "string" &&
+      body.pull_request.base.repo.full_name.toLowerCase() ===
+        body.repository?.full_name?.toString().toLowerCase()
+    );
   }
   return false;
 }
