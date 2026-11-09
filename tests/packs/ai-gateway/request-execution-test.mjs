@@ -33,6 +33,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readAttemptOwner } from './source-ownership.mjs';
 
 // ==========================================================================
 // request-reliability-test.mjs
@@ -530,9 +531,9 @@ try {
   // Composition contract: real dispatch must use reserve-aware allocation; the
   // equal-share helper must not accidentally return to the live path during a
   // refactor. Hedge twins must continue inheriting the primary absolute deadline.
-  const selectorSource = readFileSync(join(root, 'src/request/attempt/dispatch.ts'), 'utf8');
-  const inferenceSource = readFileSync(join(root, 'src/request/attempt/inference-dispatch.ts'), 'utf8');
-  const generationSource = readFileSync(join(root, 'src/request/attempt/generation-dispatch.ts'), 'utf8');
+  const selectorSource = readAttemptOwner('dispatch');
+  const inferenceSource = readAttemptOwner('inference-dispatch');
+  const generationSource = readAttemptOwner('generation-dispatch');
   // The old direct transport MUST remain absent: attempt budgets now belong to
   // the two private-center clients, not the lightweight Gateway selector.
   if (existsSync(join(root, 'src/request/attempt/legacy-provider-dispatch.ts'))) {
@@ -549,7 +550,7 @@ try {
   assert.doesNotMatch(inferenceSource, /attemptBudgetSliceMs\(/, 'inference must not regress to equal-share request slicing');
   assert.doesNotMatch(generationSource, /attemptBudgetSliceMs\(/, 'generation must not regress to equal-share request slicing');
 
-  const hedgeSource = readFileSync(join(root, 'src/request/attempt/hedge.ts'), 'utf8');
+  const hedgeSource = readAttemptOwner('hedge');
   assert.match(hedgeSource, /attemptDeadlineMs:\s*primaryArgs\.attemptDeadlineMs/, 'hedge twin must share the primary logical-attempt deadline');
 
   console.log('attempt budget contract tests passed.');
@@ -603,7 +604,7 @@ try {
   }
 
   // --- Composition contract: hedge twin must inherit the primary policy cap. ---
-  const hedgeSource = source('src/request/attempt/hedge.ts');
+  const hedgeSource = readAttemptOwner('hedge');
   const hedgeCallStart = hedgeSource.indexOf('pickTier1Candidate(tierNodes');
   assert.ok(hedgeCallStart >= 0, 'Tier 1 hedge picker call must exist');
   const hedgeCall = hedgeSource.slice(hedgeCallStart, hedgeCallStart + 1_200);

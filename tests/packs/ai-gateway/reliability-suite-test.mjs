@@ -35,6 +35,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readAttemptOwner } from './source-ownership.mjs';
 
 // Writes are buffered per isolate. Flush right away so each assertion reads this write.
 async function persistNow(...args) {
@@ -42,22 +43,8 @@ async function persistNow(...args) {
   await flushUsageBuffer();
 }
 
-// The Gateway owns attempt accounting after the module migration. The legacy
-// entry must be a pure compatibility export, not a second accounting source.
-// Older pinned source commits still use the pre-migration owner path.
-function attemptObservabilitySource() {
-  const legacy = join(root, 'src', 'request', 'attempt', 'observability.ts');
-  const owned = join(root, 'apps', 'gateway', 'attempt', 'observability.ts');
-  if (!existsSync(owned)) return readFileSync(legacy, 'utf8');
-  const shim = readFileSync(legacy, 'utf8');
-  assert.match(
-    shim,
-    /^export \* from '\.\.\/\.\.\/\.\.\/apps\/gateway\/attempt\/observability\.ts';$/m,
-    'Migrated attempt observability must leave a pure compatibility export'
-  );
-  assert.doesNotMatch(shim, /^export (?:async )?(?:function|const|class) /m);
-  return readFileSync(owned, 'utf8');
-}
+// Validate real physical-attempt ownership, not a copied compatibility body.
+const attemptObservabilitySource = () => readAttemptOwner('observability');
 
 
 // ==========================================================================
@@ -669,7 +656,7 @@ try {
 
   {
     const tier1StateSource = readFileSync(targetPath('src/reliability/tier1-state.ts'), 'utf8');
-    const outcomeSource = readFileSync(targetPath('src/request/attempt/outcome.ts'), 'utf8');
+    const outcomeSource = readAttemptOwner('outcome');
     for (const retired of ['TIER1_429_BASE_MS', 'TIER1_429_SECOND_MS', 'TIER1_429_MAX_MS', 'rateLimitCooldownMs']) {
       assert.equal(tier1StateSource.includes(retired), false);
     }

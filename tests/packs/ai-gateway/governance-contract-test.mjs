@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 import fs, { existsSync, readFileSync } from 'node:fs';
 import path, { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readAttemptOwner } from './source-ownership.mjs';
 
 // ==========================================================================
 // docs-contract-test.mjs
@@ -475,9 +476,12 @@ try {
   assert.doesNotMatch(nodeState, /const JITTER_FACTOR|function maybeJitter/, 'generic node state must not regain private cooldown jitter arithmetic');
   assert.doesNotMatch(tier1State, /const JITTER_FACTOR|function jitter\(/, 'Tier 1 state must not regain private cooldown jitter arithmetic');
 
-  const successDispatcher = fs.readFileSync(path.join(srcRoot, 'request', 'attempt', 'success.ts'), 'utf8');
-  const successStream = fs.readFileSync(path.join(srcRoot, 'request', 'attempt', 'success-stream.ts'), 'utf8');
-  const successObject = fs.readFileSync(path.join(srcRoot, 'request', 'attempt', 'success-object.ts'), 'utf8');
+  const successDispatcher = readAttemptOwner('success');
+  const successStream = readAttemptOwner('success-stream');
+  const successObject = readAttemptOwner('success-object');
+  assert.match(successDispatcher, /^export async function handleSuccess\(/m, 'success dispatcher must implement the single finalizer');
+  assert.match(successStream, /^export async function handleStreamingSuccess\(/m, 'Gateway stream owner must implement the first-event finalizer');
+  assert.match(successObject, /^export async function handleObjectSuccess\(/m, 'Gateway object owner must implement object assembly');
   assert.match(successDispatcher, /handleStreamingSuccess/);
   assert.match(successDispatcher, /handleObjectSuccess/);
   assert.match(successDispatcher, /clientWantsStream && s\.upstreamWasStreaming/, 'success dispatcher preserves the original streaming predicate');
