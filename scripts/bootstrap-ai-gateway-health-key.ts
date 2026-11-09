@@ -55,35 +55,28 @@ export function assertHealthKeyIsUninitialized(
   }
 }
 
-async function bootstrap(): Promise<void> {
+function assertTrustedMain(): void {
   if (
     process.env.GITHUB_ACTIONS !== "true" ||
     process.env.GITHUB_REPOSITORY !== controlRepository ||
-    process.env.GITHUB_REF !== "refs/heads/main" ||
-    !process.env.GH_TOKEN
+    process.env.GITHUB_REF !== "refs/heads/main"
   ) {
-    throw new Error("Health-key bootstrap requires the approved main-branch GitHub App job.");
+    throw new Error("Health-key bootstrap requires the approved main-branch workflow.");
   }
-  const origin = process.env.AIG_PUBLIC_URL;
-  let url: URL;
-  try {
-    url = new URL(origin ?? "");
-  } catch {
-    throw new Error("AIG_PUBLIC_URL is missing or invalid.");
-  }
-  if (
-    url.protocol !== "https:" ||
-    url.username ||
-    url.password ||
-    url.pathname !== "/" ||
-    url.search ||
-    url.hash
-  ) {
-    throw new Error("AIG_PUBLIC_URL must be an HTTPS origin.");
-  }
+}
 
-  // Verify all three inventories before generating a value or writing anything.
-  const remoteNames = await listWorkerSecretNames(process.env);
+/** Read-only preflight in the dedicated Cloudflare operations trust domain. */
+async function preflightWorker(): Promise<void> {
+  const names = await listWorkerSecretNames(process.env);
+  assertHealthKeyIsUninitialized(names, [[], []]);
+  console.log("Worker health-key name is absent; bootstrap may proceed.");
+}
+
+/** Write once using the existing admin-ops credential; no App permission escalation. */
+async function bootstrapGithubEnvironments(): Promise<void> {
+  if (!process.env.GH_TOKEN) {
+    throw new Error("Protected admin-ops secret management token is required.");
+  }
   const githubNames: string[][] = [];
   for (const environment of environments) {
     const response = await runText(
@@ -96,30 +89,47 @@ async function bootstrap(): Promise<void> {
     );
     githubNames.push(environmentSecretNames(JSON.parse(response)));
   }
-  assertHealthKeyIsUninitialized(remoteNames, githubNames);
+  assertHealthKeyIsUninitialized([], githubNames);
 
   const value = randomBytes(32).toString("hex");
-  // GitHub CLI encrypts each value with the Environment public key.
-  // It is passed only through stdin, never command arguments, logs or artifacts.
   for (const environment of environments) {
+    // gh encrypts the secret with the Environment public key; stdin only.
     await runText(
       "gh",
       ["secret", "set", healthSecret, "--repo", controlRepository, "--env", environment],
       { input: value, timeoutMs: 30000, maxBuffer: 1024 * 1024 }
     );
   }
-  // The existing protected operations path deploys the same value to the Worker
-  // and checks the real HTTPS health probe. No placeholder code deployment occurs.
+  console.log("Deployment health Secret initialized in both GitHub Environments.");
+}
+
+/** Read the persisted Environment Secret in a fresh, protected job. */
+async function publishWorker(): Promise<void> {
+  const value = process.env.AIG_DEPLOY_HEALTH_KEY;
+  if (!value || !/^[0-9a-f]{64}$/.test(value)) {
+    throw new Error("Newly initialized health credential is not available in ai-gateway-ops.");
+  }
+  const names = await listWorkerSecretNames(process.env);
+  assertHealthKeyIsUninitialized(names, [[], []]);
   await putWorkerSecret(healthSecret, { ...process.env, AIG_OPS_SECRET_VALUE: value });
-  console.log("Deployment health Secret initialized in three scopes; remote health check passed.");
+  console.log("Cloudflare health Secret initialized; remote health check passed.");
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
-  bootstrap().catch((error: unknown) => {
-    console.error(
-      "::error::Health-key bootstrap stopped. A partial write may require controlled reconciliation: " +
-        (error instanceof Error ? error.message : "unknown error.")
-    );
-    process.exitCode = 1;
-  });
+  const operation = process.argv[2] ?? "";
+  Promise.resolve()
+    .then(() => {
+      assertTrustedMain();
+      if (operation === "worker-preflight") return preflightWorker();
+      if (operation === "github-bootstrap") return bootstrapGithubEnvironments();
+      if (operation === "worker-publish") return publishWorker();
+      throw new Error("Unsupported deployment health bootstrap operation.");
+    })
+    .catch((error: unknown) => {
+      console.error(
+        "::error::Health-key bootstrap stopped. A partial write may require controlled reconciliation: " +
+          (error instanceof Error ? error.message : "unknown error.")
+      );
+      process.exitCode = 1;
+    });
 }
