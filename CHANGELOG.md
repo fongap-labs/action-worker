@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 安全: 私有仓库生产部署的源码检出改用中央核准仓库范围的短期 GitHub App Contents Read Token，不再依赖长期 `AW_CHECKOUT_TOKEN`；不跨 Job 传递 Token，也不改动业务部署 Secrets。
+
 - 安全: FongapCDN 已由中央策略强制走受保护部署，撤销中央通用 Task Secret 授权，增加跨执行模式的凭据准入一致性测试，其他项目任务授权不变。
 
 - 安全: 自动推送与定时部署在派发前校验受中央策略选中的实际凭据 ops Environment 是否需要人工审核，避免只检查逻辑 production 而使无人值守发布卡在审批队列；不可读取及未经授权均拒绝派发。
