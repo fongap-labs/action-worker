@@ -341,14 +341,14 @@ export async function auditStorageMetadata(
       "repos/" + repository + "/environments",
       "environments"
     );
-    result.environment_count += environments.length;
+    result.environment_count = (result.environment_count ?? 0) + environments.length;
     const environmentsByName = environmentNames(environments);
     for (const name of environmentsByName) {
       const url = "repos/" + repository + "/environments/" + encodeURIComponent(name);
       const environmentSecrets = namesOf(await listAll(reader, url + "/secrets", "secrets"));
       const environmentVariables = namesOf(await listAll(reader, url + "/variables", "variables"));
-      result.environment_secrets += environmentSecrets.size;
-      result.environment_variables += environmentVariables.size;
+      result.environment_secrets = (result.environment_secrets ?? 0) + environmentSecrets.size;
+      result.environment_variables = (result.environment_variables ?? 0) + environmentVariables.size;
       result.environment_shadowed_secret_bindings =
         (result.environment_shadowed_secret_bindings ?? 0) +
         countShadowed(environmentSecrets, new Set([...repoSecrets, ...inheritedSecrets]));
@@ -433,7 +433,7 @@ async function main(): Promise<void> {
         });
       } catch (environmentError) {
         if (
-          failureScope !== "environment" ||
+          String(failureScope) !== "environment" ||
           !(environmentError instanceof GithubHttpError) ||
           environmentError.status !== 403 ||
           environmentError.kind !== "permission"
