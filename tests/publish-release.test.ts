@@ -9,6 +9,7 @@ import {
   buildTag,
   mirrorSourceIsCurrent,
   sha256File,
+  shouldRollbackDraftRelease,
   validateArchive,
 } from "../scripts/publish-release.ts";
 
@@ -43,6 +44,15 @@ test("release titles are the product name followed by the version", () => {
   assert.equal(buildReleaseTitle("Delta", "0.1.0"), "Delta v0.1.0");
   assert.equal(buildReleaseTitle(undefined, "0.1.0"), "v0.1.0");
   assert.equal(buildReleaseTitle("", "0.1.0"), "v0.1.0");
+});
+
+test("an ambiguous final publish never auto-deletes a possibly published Release", () => {
+  assert.equal(shouldRollbackDraftRelease(true, "123", false), true);
+  assert.equal(shouldRollbackDraftRelease(false, "123", false), false);
+  assert.equal(shouldRollbackDraftRelease(true, "", false), false);
+  // A final publish request may have succeeded while its response was lost.
+  assert.equal(shouldRollbackDraftRelease(true, "123", true), false);
+  assert.equal(shouldRollbackDraftRelease(false, "123", true), false);
 });
 
 test("release assets use SHA256 digests", async () => {

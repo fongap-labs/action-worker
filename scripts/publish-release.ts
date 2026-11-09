@@ -276,14 +276,33 @@ async function readTwoPhaseStagingPolicy(): Promise<TwoPhaseReleasePolicy> {
 }
 
 // Only an unpublished draft is ever rolled back: no tag exists until the Release is published.
+/**
+ * A publication PATCH may have succeeded even if its response was lost.
+ * Never delete a Release once that request was attempted; a published tag
+ * must be reconciled explicitly rather than misclassified as a failed draft.
+ */
+export function shouldRollbackDraftRelease(
+  isDraftCreated: boolean,
+  releaseId: string,
+  isPublishAttempted: boolean
+): boolean {
+  return isDraftCreated && releaseId.length > 0 && !isPublishAttempted;
+}
+
 async function rollbackRelease(
   repository: string,
   tag: string,
   releaseId: string,
   isReleaseCreated: boolean,
+  isPublishAttempted: boolean,
   token: string
 ): Promise<void> {
-  if (isReleaseCreated && releaseId) {
+  if (isReleaseCreated && isPublishAttempted) {
+    console.log(
+      "::warning::Release publish outcome is ambiguous. Retaining the Release for authorized reconciliation; no automatic deletion."
+    );
+  }
+  if (shouldRollbackDraftRelease(isReleaseCreated, releaseId, isPublishAttempted)) {
     console.log(`::warning::Release publication failed; rolling back draft Release: ${tag}.`);
     try {
       await runGithubCli(
@@ -488,6 +507,7 @@ async function main(): Promise<void> {
   await mkdir(artifactDir);
 
   let isReleaseCreated = false;
+  let isPublishAttempted = false;
   let releaseId = "";
   let targetRepository = "";
   let tag = "";
@@ -722,7 +742,9 @@ async function main(): Promise<void> {
       }
     }
 
-    // Publishing the verified draft is the only step that creates the tag, at releaseSha.
+    // From here on, an absent HTTP response cannot prove the publish failed.
+    // Preserve the published-or-draft Release until its state is reconciled.
+    isPublishAttempted = true;
     await runGithubCli(
       [
         "api",
@@ -761,7 +783,14 @@ async function main(): Promise<void> {
       `- URL: ${releaseUrl}`,
     ]);
   } catch (error) {
-    await rollbackRelease(targetRepository, tag, releaseId, isReleaseCreated, releaseWriteToken);
+    await rollbackRelease(
+      targetRepository,
+      tag,
+      releaseId,
+      isReleaseCreated,
+      isPublishAttempted,
+      releaseWriteToken
+    );
     throw error;
   } finally {
     await rm(workDir, { recursive: true, force: true });
