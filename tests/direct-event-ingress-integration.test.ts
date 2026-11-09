@@ -106,6 +106,7 @@ function githubApi(options: { failDispatches?: number } = {}): {
     const path = String(input);
     calls.push(path);
     assert.equal(init?.method, "POST");
+    assert.equal(init?.redirect, "error");
     assert.ok(init?.signal instanceof AbortSignal);
     if (path.endsWith("/access_tokens")) {
       assert.deepEqual(JSON.parse(String(init?.body)), {
