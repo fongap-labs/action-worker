@@ -262,7 +262,7 @@ Cloudflare Worker Secrets：保留 MCP Hub 业务运行时密钥
 
 ### 组织级配置作用域自动审计
 
-Action Worker 的 `.github/workflows/audit-config-scope.yml` 在中央策略变更合并后与日常漂移检查时自动运行，绑定**本仓库的 `admin-ops` Environment**，复用现有受保护 `AW_ADMIN_TOKEN` 只读调用 GitHub 元数据 API。`scripts/config-storage-audit.ts` 自动审计 `policies/config-audit-targets.json` 与 `policies/repository-access.json` 的受管仓库并集，检查组织/仓库/Environment 级 Secret、Variable 的名称、继承及遮蔽情况。只输出聚合计数和未验证声明。GitHub Variables 列表 API 响应可能包含值，审计器仅提取名称并丢弃值，绝不写日志或工件；Secret 列表 API 不返回 Secret 值。不修改其他仓库的设置，也不通过 Job Output 跨环境传递 Secret。组织级元数据读取因 GitHub 403 权限拒绝时，自动收缩为 Action Worker 控制仓库范围，返回 `coverage=control-only` 且组织继承及相关遮蔽统计为 `null`（未知，绝不视作零）；仓库级/Environment 数据仍须完整、授权可读，否则失败关闭。分页不完整、其他权限和速率限制错误也不得猜测配置不存在。不要求业务仓库重复配置，也不自动扩大令牌权限。
+Action Worker 的 `.github/workflows/audit-config-scope.yml` 在中央策略变更合并后与日常漂移检查时自动运行，绑定**本仓库的 `admin-ops` Environment**，复用现有受保护 `AW_ADMIN_TOKEN` 只读调用 GitHub 元数据 API。`scripts/config-storage-audit.ts` 自动审计 `policies/config-audit-targets.json` 与 `policies/repository-access.json` 的受管仓库并集，检查组织/仓库/Environment 级 Secret、Variable 的名称、继承及遮蔽情况。只输出聚合计数和未验证声明。GitHub Variables 列表 API 响应可能包含值，审计器仅提取名称并丢弃值，绝不写日志或工件；Secret 列表 API 不返回 Secret 值。不修改其他仓库的设置，也不通过 Job Output 跨环境传递 Secret。组织级元数据读取因 GitHub 403 权限拒绝时，自动收缩为 Action Worker 控制仓库范围，返回 `coverage=control-only` 且组织继承及相关遮蔽统计为 `null`（未知，绝不视作零）；仓库基本元数据与 Environment Variables 必须完整、授权可读；若仅 Environment Secret 名称接口被 403 拒绝，则跳过该类接口，保持 Variables 元数据审计并将 `environment_secrets=null`、`environment_secret_scope_verified=false`，绝不推断 Secret 不存在。其他接口或分页异常继续失败关闭。分页不完整、其他权限和速率限制错误也不得猜测配置不存在。不要求业务仓库重复配置，也不自动扩大令牌权限。
 
 ## 6. 定时部署
 
