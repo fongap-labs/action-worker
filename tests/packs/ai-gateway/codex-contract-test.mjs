@@ -80,11 +80,10 @@ function resetMock() {
   routeHandlers = {};
 }
 
-function makeEnv({ tier1, tier2, tier3, secrets, extraEnv } = {}) {
+function makeEnv({ tier1, tier2, secrets, extraEnv } = {}) {
   const centerEnv = {
     ...(tier1 ? { AIG_TIER1_NODES_01: JSON.stringify(tier1) } : {}),
     ...(tier2 ? { AIG_TIER2_NODES_01: JSON.stringify(tier2) } : {}),
-    ...(tier3 ? { AIG_TIER3_NODES_01: JSON.stringify(tier3) } : {}),
     ...(secrets ? { AIG_TIER1_CREDENTIALS_01: JSON.stringify(secrets) } : {}),
     ...extraEnv,
     AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY,

@@ -60,11 +60,10 @@ function resetMock() {
   routeHandlers = {};
 }
 
-function makeEnv({ tier1, tier2, tier3, secrets = {}, extraEnv = {} } = {}) {
+function makeEnv({ tier1, tier2, secrets = {}, extraEnv = {} } = {}) {
   const secretSubset = (nodes = []) => Object.fromEntries(nodes.map((n) => [n.id, secrets[n.id]]).filter(([, value]) => value !== undefined));
   const t1s = secretSubset(tier1);
   const t2s = secretSubset(tier2);
-  const t3s = secretSubset(tier3);
   return {
     AIG_ACCESS_KEY_AIR: ACCESS_KEY,
     AIG_ACCESS_MODELS_AIR: '*',
@@ -72,10 +71,8 @@ function makeEnv({ tier1, tier2, tier3, secrets = {}, extraEnv = {} } = {}) {
     TIER1_SCHEDULER_SEED: 'integration-test',
     ...(tier1 ? { AIG_TIER1_NODES_01: JSON.stringify(tier1) } : {}),
     ...(tier2 ? { AIG_TIER2_NODES_01: JSON.stringify(tier2) } : {}),
-    ...(tier3 ? { AIG_TIER3_NODES_01: JSON.stringify(tier3) } : {}),
     ...(Object.keys(t1s).length ? { AIG_TIER1_CREDENTIALS_01: JSON.stringify(t1s) } : {}),
     ...(Object.keys(t2s).length ? { AIG_TIER2_CREDENTIALS_01: JSON.stringify(t2s) } : {}),
-    ...(Object.keys(t3s).length ? { AIG_TIER3_CREDENTIALS_01: JSON.stringify(t3s) } : {}),
     ...extraEnv,
   };
 }
@@ -87,7 +84,7 @@ const INFERENCE_AUTH_KEY = 'central-inference-integration-fixture-auth-key-32';
 function withInferenceCenter(gatewayEnv, onCenterRequest = () => {}) {
   const centerEnv = { AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY };
   for (const [key, value] of Object.entries(gatewayEnv)) {
-    if (/^AIG_TIER[123]_(?:NODES|CREDENTIALS)_\d{2}$/.test(key)) centerEnv[key] = value;
+    if (/^AIG_TIER[12]_(?:NODES|CREDENTIALS)_\d{2}$/.test(key)) centerEnv[key] = value;
   }
   for (const key of Object.keys(gatewayEnv)) {
     if (/^AIG_TIER[123]_CREDENTIALS_\d{2}$/.test(key)) delete gatewayEnv[key];
@@ -445,30 +442,24 @@ await test('legacy QUOTA_RATE_LIMITER binding is not provider admission policy',
     'unused legacy limiter must not alter private center admission');
 });
 
-await test('Tier 1 -> Tier 2 -> Tier 3 fallback preserves strict tier order', async () => {
+await test('Tier 1 -> Tier 2 fallback preserves strict tier order through the private center', async () => {
   routeHandlers['t1.example.com'] = () => jsonResponse({}, 503);
-  routeHandlers['t2.example.com'] = () => jsonResponse({}, 503);
-  routeHandlers['t3.example.com'] = () => jsonResponse(okChat('tier3-ok'));
+  routeHandlers['t2.example.com'] = () => jsonResponse(okChat('tier2-ok'));
   const centerPaths = [];
   const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('t1')],
     tier2: [openaiNode('t2')],
-    tier3: [openaiNode('t3')],
-    secrets: { t1: '1', t2: '2', t3: '3' },
+    secrets: { t1: '1', t2: '2' },
   }), (request) => {
     centerPaths.push(new URL(request.url).pathname);
   });
   assert.equal(env.AIG_TIER1_CREDENTIALS_01, undefined);
   assert.equal(env.AIG_TIER2_CREDENTIALS_01, undefined);
-  assert.equal(env.AIG_TIER3_CREDENTIALS_01, undefined);
   const res = await worker.fetch(chatRequest(), env, {});
   assert.equal(res.status, 200);
-  assert.deepEqual(centerPaths, ['/internal/execute', '/internal/execute', '/internal/execute'],
+  assert.deepEqual(centerPaths, ['/internal/execute', '/internal/execute'],
     'each ordered Tier fallback must execute through the private center');
-  assert.deepEqual(
-    upstreamCalls.map((c) => c.host),
-    ['t1.example.com', 't2.example.com', 't3.example.com'],
-  );
+  assert.deepEqual(upstreamCalls.map((c) => c.host), ['t1.example.com', 't2.example.com']);
 });
 
 await test('busy Tier 2 remains last-resort capacity when it is the only healthy fallback', async () => {

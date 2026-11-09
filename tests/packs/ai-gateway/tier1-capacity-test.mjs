@@ -306,47 +306,32 @@ test('a configuration error still blocks a deploy, even when reduced capacity is
   assert.throws(() => validateGatewayRuntime(runtimeOf(env), { allowDegraded: true }), /max_attempt/);
 });
 
-test('a node with a conflicting credential is excluded and the rest keep serving', async () => {
-  const extra = { AIG_TIER3_CREDENTIALS_01: JSON.stringify({ bad: 'other-secret' }) };
+test('unmigrated Tier 3 credential bindings reject the full pool', async () => {
+  const extra = { AIG_TIER3_CREDENTIALS_01: JSON.stringify({ bad: 'old-token' }) };
   const physical = loadExecutionConfig(tier1OnlyEnv(['good', 'bad'], extra));
-  assert.equal(physical.status, 'degraded');
-  assert.deepEqual(physical.nodes.map((n) => n.id), ['good'], 'private center excludes the conflicting credential');
+  assert.equal(physical.status, 'invalid');
+  assert.equal(physical.nodesUsable, 0);
   const env = privateTier1Env(['good', 'bad'], extra);
-  assert.deepEqual(loadGatewayConfig(env).nodes.map((n) => n.id), ['good', 'bad'], 'public Gateway reads metadata only');
+  const publicConfig = loadGatewayConfig(env);
+  assert.equal(publicConfig.status, 'invalid', 'Gateway must not ignore unmigrated paid capacity');
+  assert.equal(publicConfig.nodesUsable, 0);
+  assert.ok(publicConfig.diagnostics.some((line) => line.includes('AIG_TIER3_CREDENTIALS_01')));
   const upstream = scriptedUpstream([]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
-  assert.equal(res.status, isRejectedNodeSkipSupported ? 200 : 503);
-  assert.deepEqual(upstream.hosts, isRejectedNodeSkipSupported ? ['good'] : []);
-  assertPrivateAttemptParity(upstream);
-  if (isRejectedNodeSkipSupported) {
-    // P2C may pick the healthy node immediately (one RPC), or first probe the
-    // center-excluded node (one skipped RPC, then one successful physical RPC).
-    // Both paths require exactly ONE real Provider fetch on the good key.
-    assert.ok(privateCenterSkips === 0 || privateCenterSkips === 1, 'at most one excluded node may be skipped');
-    assert.equal(privateCenterPhysicalAttempts, 1, 'one real Provider attempt only');
-    assert.equal(privateCenterExecutes, privateCenterSkips + 1, 'no unknown or repeated private attempts');
-  } else {
-    assert.equal(privateCenterExecutes, 1, 'pre-cutover center fails closed on a non-executable node');
-    assert.equal(privateCenterSkips, 0);
-  }
+  assert.notEqual(res.status, 200, 'a legacy Tier 3 variable must not permit upstream execution');
+  assert.deepEqual(upstream.hosts, [], 'no Provider may be called from an invalid configuration');
+  assert.equal(privateCenterPhysicalAttempts, 0);
 });
 
-test('an excluded only node never reaches the Provider', async () => {
-  const extra = { AIG_TIER3_CREDENTIALS_01: JSON.stringify({ bad: 'other-secret' }) };
-  // Keep one healthy node in the PRIVATE center's configuration, otherwise
-  // the entire center fails closed before reaching the node-specific skip
-  // contract. Public Gateway metadata sees only its excluded stale candidate.
-  const env = privateTier1Env(['good', 'bad'], extra);
-  const visibleNodes = JSON.parse(env.AIG_TIER1_NODES_01).filter((node) => node.id === 'bad');
-  env.AIG_TIER1_NODES_01 = JSON.stringify(visibleNodes);
+test('a lone legacy Tier 3 credential cannot become a private-center fallback', async () => {
+  const env = privateTier1Env(['bad'], { AIG_TIER3_CREDENTIALS_01: JSON.stringify({ bad: 'old-token' }) });
+  assert.equal(loadExecutionConfig(env).status, 'invalid');
+  assert.equal(loadGatewayConfig(env).status, 'invalid');
   const upstream = scriptedUpstream([]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
-  assert.notEqual(res.status, 200, 'a center-excluded node cannot fabricate a success');
-  assert.deepEqual(upstream.hosts, [], 'no Provider physical request for an excluded credential');
-  assertPrivateAttemptParity(upstream);
+  assert.notEqual(res.status, 200);
+  assert.deepEqual(upstream.hosts, []);
   assert.equal(privateCenterPhysicalAttempts, 0);
-  assert.equal(privateCenterExecutes, 1, 'a single ineligible candidate is considered at most once');
-  assert.equal(privateCenterSkips, isRejectedNodeSkipSupported ? 1 : 0, 'center-only cutover signals an unbilled skip');
 });
 
 test('an ambiguous duplicate node id excludes every copy of it', () => {
@@ -372,7 +357,7 @@ test('with no usable node the configuration is still invalid', () => {
   const config = loadExecutionConfig(env);
   assert.equal(config.status, 'invalid');
   assert.equal(config.ready, false);
-  assert.equal(loadGatewayConfig({ ...env, AIG_INFERENCE_ACTIVE: 'true' }).ready, true, 'public center-owned metadata cannot depend on Provider secrets');
+  assert.equal(loadGatewayConfig({ ...env, AIG_INFERENCE_ACTIVE: 'true' }).ready, false, 'unmigrated legacy Tier 3 bindings invalidate public metadata too');
 });
 
 // ---- Diagnostics never quote credential text --------------------------------

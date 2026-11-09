@@ -64,18 +64,15 @@ function resetMock() {
   routeHandlers = {};
 }
 
-function makeEnv({ tier1, tier2, tier3, secrets = {}, extraEnv = {} } = {}) {
+function makeEnv({ tier1, tier2, secrets = {}, extraEnv = {} } = {}) {
   const subset = (nodes = []) => Object.fromEntries(nodes.map((n) => [n.id, secrets[n.id]]).filter(([, value]) => value !== undefined));
   const t1s = subset(tier1);
   const t2s = subset(tier2);
-  const t3s = subset(tier3);
   const centerEnv = {
     ...(tier1 ? { AIG_TIER1_NODES_01: JSON.stringify(tier1) } : {}),
     ...(tier2 ? { AIG_TIER2_NODES_01: JSON.stringify(tier2) } : {}),
-    ...(tier3 ? { AIG_TIER3_NODES_01: JSON.stringify(tier3) } : {}),
     ...(Object.keys(t1s).length ? { AIG_TIER1_CREDENTIALS_01: JSON.stringify(t1s) } : {}),
     ...(Object.keys(t2s).length ? { AIG_TIER2_CREDENTIALS_01: JSON.stringify(t2s) } : {}),
-    ...(Object.keys(t3s).length ? { AIG_TIER3_CREDENTIALS_01: JSON.stringify(t3s) } : {}),
     ...extraEnv,
     AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY,
   };
@@ -97,10 +94,8 @@ function makeEnv({ tier1, tier2, tier3, secrets = {}, extraEnv = {} } = {}) {
   };
   delete gatewayEnv.AIG_TIER1_CREDENTIALS_01;
   delete gatewayEnv.AIG_TIER2_CREDENTIALS_01;
-  delete gatewayEnv.AIG_TIER3_CREDENTIALS_01;
   assert.equal(gatewayEnv.AIG_TIER1_CREDENTIALS_01, undefined);
   assert.equal(gatewayEnv.AIG_TIER2_CREDENTIALS_01, undefined);
-  assert.equal(gatewayEnv.AIG_TIER3_CREDENTIALS_01, undefined);
   return gatewayEnv;
 }
 

@@ -355,10 +355,10 @@ try {
     assert.equal(findModelStatus(bList, 'air'), 'available', 'cold-start with persistent D1 evidence must remain available');
   });
 
-  // --- 18. Three-tier aggregation: a model served only by tier 3 still works --
+  // --- 18. Two-tier aggregation: a model served only by Token Tier 2 still works --
 
-  test('model served by tier 3 (legacy state) is read correctly', () => {
-    // Pure-tier-3 node: no Tier 1 state at all.
+  test('model served only by Token Tier 2 is read correctly', () => {
+    // Pure Token Tier 2 node: no Tier 1 state at all.
     const nodes = [
       {
         id: 't3',
@@ -366,7 +366,7 @@ try {
         protocol: 'openai',
         surfaces: ['chat_completions'],
         base_url: 'https://t3.example.com/v1',
-        tier: 'tier-3',
+        tier: 'tier-2',
         models: { air: 'up-air' },
       },
     ];
