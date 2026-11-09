@@ -21,11 +21,18 @@ test("a task may import only a validated Account ID for its approved source and 
     /invalid/
   );
   assert.throws(
-    () => approvedTaskOpsAccountId(sourceRepository, project, id, "ffffffffffffffffffffffffffffffff"),
+    () =>
+      approvedTaskOpsAccountId(sourceRepository, project, id, "ffffffffffffffffffffffffffffffff"),
     /conflicting Variable/
   );
-  assert.throws(() => approvedTaskOpsAccountId("fongap-labs/ai-gateway", project, id, ""), /not authorized/);
-  assert.throws(() => approvedTaskOpsAccountId(sourceRepository, "AdFilter", id, ""), /not authorized/);
+  assert.throws(
+    () => approvedTaskOpsAccountId("fongap-labs/ai-gateway", project, id, ""),
+    /not authorized/
+  );
+  assert.throws(
+    () => approvedTaskOpsAccountId(sourceRepository, "AdFilter", id, ""),
+    /not authorized/
+  );
 });
 
 test("the one-way ops handoff keeps Account ID out of logs and cannot overwrite conflicts", async () => {
@@ -52,7 +59,10 @@ test("the one-way ops handoff keeps Account ID out of logs and cannot overwrite 
     assert.doesNotMatch(exported.stdout + exported.stderr, new RegExp(id));
     const imported = run("import", { AW_TASK_ACCOUNT_ID_FROM_OPS: id });
     assert.equal(imported.status, 0, imported.stderr);
-    assert.equal(await readFile(env.GITHUB_ENV, "utf8"), "CLOUDFLARE_ACCOUNT_ID_PRIMARY=" + id + "\n");
+    assert.equal(
+      await readFile(env.GITHUB_ENV, "utf8"),
+      "CLOUDFLARE_ACCOUNT_ID_PRIMARY=" + id + "\n"
+    );
     assert.doesNotMatch(imported.stdout + imported.stderr, new RegExp(id));
     const conflict = run("import", {
       AW_TASK_ACCOUNT_ID_FROM_OPS: id,
