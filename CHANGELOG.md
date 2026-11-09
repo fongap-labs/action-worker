@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 引入独立 GitHub App Webhook 入口、HMAC 验签与 D1 持久去重重试，仅唤醒中央 Intake，尚未启用生产接入。
+
 - 维护: 修正发布指南中的健康检查密钥说明，明确 `AIG_DEPLOY_HEALTH_KEY` 是独立凭据，不能复用 `AIG_ACCESS_KEY_AGENT`。
 
 - 修复: 定时任务与部署先写入签名预留回执再派发，防止派发结果不明时自动重复请求；明确失败需人工核对后恢复。
