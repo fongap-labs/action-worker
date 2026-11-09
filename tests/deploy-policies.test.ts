@@ -372,7 +372,10 @@ test("the deploy job names no central write credential and checks out with the r
   assert.deepEqual(secretNames(privateCheckout), ["AW_CHECKOUT_TOKEN"]);
   assert.deepEqual(secretNames(publicCheckout), []);
   // The environment is requested by the prepare job, which has validated it against the policy.
-  assert.match(String(deploy.environment), /needs\.prepare\.outputs\.environment/);
+  assert.deepEqual(deploy.environment, {
+    name: "${{ needs.prepare.outputs.credential_environment }}",
+    deployment: "${{ needs.prepare.outputs.create_deployment == 'true' }}",
+  });
 });
 
 test("the deploy workflow selects only the authorized dynamic Secret slots", async () => {
@@ -626,11 +629,13 @@ test("the shipped policies key every deploying product by its product key", asyn
   };
   assert.deepEqual(Object.keys(environments).sort(), [
     "fongap-labs/ai-gateway",
+    "fongap-labs/internal-vault/FongapCDN",
     "fongap-labs/internal-vault/server-edge",
     "fongap-labs/mcp-hub",
   ]);
   assert.deepEqual(Object.keys(secrets.deployments).sort(), [
     "fongap-labs/ai-gateway",
+    "fongap-labs/internal-vault/FongapCDN",
     "fongap-labs/internal-vault/server-edge",
     "fongap-labs/mcp-hub",
   ]);
