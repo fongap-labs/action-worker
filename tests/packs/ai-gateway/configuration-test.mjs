@@ -530,7 +530,7 @@ try {
     check(r.status === 0, `valid config should pass, got status=${r.status} stderr=${r.stderr}`);
     check(r.stdout.includes('Configuration valid'), 'prints valid header');
     check(r.stdout.includes('Tier 1: 3'), 'reports tier-1 node count');
-    check(r.stdout.includes('All configured nodes have credentials'), 'reports credentials ok');
+    check(r.stdout.includes('All configured nodes have static credentials'), 'reports credentials ok');
   }
   {
     const dir = tmp('dup');
@@ -823,7 +823,7 @@ try {
   );
   assert.throws(
     () => normalizeRuntimeConfig({ vars: fixture().vars, secrets: { AIG_ACCESS_KEY_AIR: 'x' } }),
-    /TIER\[123\]_CREDENTIALS|TIER[123]_CREDENTIALS/,
+    /TIER\[12\]_CREDENTIALS|TIER[12]_CREDENTIALS/,
   );
   assert.throws(
     () =>

@@ -313,9 +313,17 @@ test('unmigrated Tier 3 credential bindings reject the full pool', async () => {
   assert.equal(physical.nodesUsable, 0);
   const env = privateTier1Env(['good', 'bad'], extra);
   const publicConfig = loadGatewayConfig(env);
-  assert.equal(publicConfig.status, 'invalid', 'Gateway must not ignore unmigrated paid capacity');
-  assert.equal(publicConfig.nodesUsable, 0);
-  assert.ok(publicConfig.diagnostics.some((line) => line.includes('AIG_TIER3_CREDENTIALS_01')));
+  // The public Gateway deliberately receives no Provider credential bindings.
+  // It cannot diagnose a Secret stored exclusively in the private center;
+  // the private center must reject it before any physical Provider call.
+  assert.equal(publicConfig.status, 'ready', 'metadata-only Gateway must not read private Provider Secrets');
+  assert.equal(publicConfig.nodesUsable, 2);
+  assert.equal(Object.keys(env).some((key) => /^AIG_TIER[123]_CREDENTIALS_/.test(key)), false);
+  assert.equal(
+    loadGatewayConfig(tier1OnlyEnv(['good', 'bad'], extra)).status,
+    'invalid',
+    'an old Tier 3 binding placed in the public environment must fail closed',
+  );
   const upstream = scriptedUpstream([]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
   assert.notEqual(res.status, 200, 'a legacy Tier 3 variable must not permit upstream execution');
@@ -325,8 +333,13 @@ test('unmigrated Tier 3 credential bindings reject the full pool', async () => {
 
 test('a lone legacy Tier 3 credential cannot become a private-center fallback', async () => {
   const env = privateTier1Env(['bad'], { AIG_TIER3_CREDENTIALS_01: JSON.stringify({ bad: 'old-token' }) });
-  assert.equal(loadExecutionConfig(env).status, 'invalid');
-  assert.equal(loadGatewayConfig(env).status, 'invalid');
+  assert.equal(loadExecutionConfig(tier1OnlyEnv(['bad'], { AIG_TIER3_CREDENTIALS_01: JSON.stringify({ bad: 'old-token' }) })).status, 'invalid');
+  assert.equal(loadGatewayConfig(env).status, 'ready', 'public metadata cannot inspect private legacy Secret values');
+  assert.equal(
+    loadGatewayConfig(tier1OnlyEnv(['bad'], { AIG_TIER3_CREDENTIALS_01: JSON.stringify({ bad: 'old-token' }) })).status,
+    'invalid',
+    'legacy Tier 3 credentials must fail closed if erroneously bound to the Gateway',
+  );
   const upstream = scriptedUpstream([]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
   assert.notEqual(res.status, 200);
