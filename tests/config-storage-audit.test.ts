@@ -64,6 +64,8 @@ test("metadata inventory detects inherited, repository and environment shadowing
   const { reader, calls } = fixture();
   const summary = await auditStorageMetadata(reader, [repository]);
   assert.equal(summary.repositories_verified, 1);
+  assert.equal(summary.coverage, "complete");
+  assert.equal(summary.organization_scope_verified, true);
   assert.equal(summary.organization_secrets, 1);
   assert.equal(summary.organization_variables, 1);
   assert.equal(summary.repository_secrets, 2);
@@ -170,4 +172,41 @@ test("metadata error diagnostics expose only the access layer, never individual 
     "repository"
   );
   assert.equal(storageAuditFailureScope("repos/fongap-labs/internal-vault"), "repository");
+});
+
+test("organization permission gap falls back to explicit control-repository-only coverage", async () => {
+  const { reader } = fixture();
+  const calls: string[] = [];
+  const controlReader = {
+    async get(path: string): Promise<unknown> {
+      calls.push(path);
+      if (path.startsWith("orgs/")) throw new Error("Unexpected organization metadata read");
+      return await reader.get(path.replace("fongap-labs/action-worker", repository));
+    },
+  };
+  const summary = await auditStorageMetadata(
+    controlReader,
+    ["fongap-labs/action-worker"],
+    { skipOrganization: true }
+  );
+  assert.equal(summary.coverage, "control-only");
+  assert.equal(summary.organization_scope_verified, false);
+  assert.equal(summary.repositories_verified, 1);
+  assert.equal(summary.environment_count, 1);
+  assert.equal(summary.repository_variables, 1);
+  assert.equal(summary.environment_variables, 2);
+  assert.equal(summary.organization_secrets, null);
+  assert.equal(summary.organization_variables, null);
+  assert.equal(summary.inherited_secret_bindings, null);
+  assert.equal(summary.inherited_variable_bindings, null);
+  assert.equal(summary.environment_shadowed_variable_bindings, null);
+  assert.equal(summary.protected_variable_bindings, null);
+  assert.equal(summary.secret_values_read, false);
+  assert.equal(summary.automatic_writes, false);
+  assert.ok(calls.every((path) => !path.startsWith("orgs/")));
+  assert.doesNotMatch(JSON.stringify(summary), /ORG_KEY|ONLY_REPO|sensitive-policy|never-log/);
+  await assert.rejects(
+    auditStorageMetadata(controlReader, [repository], { skipOrganization: true }),
+    /targets/
+  );
 });
