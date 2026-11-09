@@ -1,4 +1,5 @@
 import {
+  assertReleaseChange,
   entriesFromLines,
   entriesOfSection,
   promoteEntries,
@@ -233,6 +234,93 @@ async function findReleasePullRequest(
   );
   const found = pulls.find(isJsonRecord);
   return found ?? null;
+}
+
+/**
+ * A same-repository stage-one squash merge can make the original trusted source
+ * SHA stale. Only a direct one-commit, CHANGELOG-only successor is eligible for
+ * resumability. API omissions, unrelated commits and extra files fail closed.
+ */
+export function isExactChangelogResumeDiff(
+  comparison: unknown,
+  sourceSha: string,
+  mergeSha: string,
+  changelogFile: string
+): boolean {
+  if (
+    !isJsonRecord(comparison) ||
+    !Array.isArray(comparison.commits) ||
+    !Array.isArray(comparison.files) ||
+    typeof comparison.ahead_by !== "number" ||
+    typeof comparison.behind_by !== "number"
+  ) {
+    return false;
+  }
+  const baseCommit = getJsonRecord(comparison, "base_commit");
+  const commits = comparison.commits;
+  const files = comparison.files;
+  return (
+    getJsonString(comparison, "status") === "ahead" &&
+    getJsonNumber(comparison, "ahead_by") === 1 &&
+    getJsonNumber(comparison, "behind_by") === 0 &&
+    getJsonString(baseCommit, "sha") === sourceSha &&
+    commits.length === 1 &&
+    getJsonString(commits[0], "sha") === mergeSha &&
+    files.length === 1 &&
+    getJsonString(files[0], "filename") === changelogFile &&
+    getJsonString(files[0], "status") === "modified"
+  );
+}
+
+/**
+ * Read-only proof required before relaxing freshness for a previously merged
+ * staging Release. This MUST run before publishChangelogRelease may write any
+ * new branch/PR. Both the trusted original source and current HEAD are pinned.
+ */
+export async function assertExactMergedChangelogResume(
+  options: Pick<
+    ChangelogReleaseOptions,
+    "repository" | "defaultBranch" | "tag" | "version" | "releaseUrl" | "policy" | "token"
+  > & { sourceSha: string; mergeSha: string }
+): Promise<void> {
+  const { repository, defaultBranch, tag, sourceSha, mergeSha, token, policy } = options;
+  const pull = await findReleasePullRequest(repository, releaseBranchOf(tag), token);
+  assertReleasePullRequestIdentity(pull, { repository, defaultBranch, tag });
+  if (
+    !isJsonRecord(pull) ||
+    pull.merged !== true ||
+    pull.state !== "closed" ||
+    pull.merge_commit_sha !== mergeSha
+  ) {
+    throw new CliError(
+      "::error::Stale source has no matching merged staging Release PR at the current default HEAD.",
+      65
+    );
+  }
+  const diff = await getGithubJson(`repos/${repository}/compare/${sourceSha}...${mergeSha}`, token);
+  if (!isExactChangelogResumeDiff(diff, sourceSha, mergeSha, policy.changelog_file)) {
+    throw new CliError(
+      "::error::Stale source was not advanced exclusively by the approved staging changelog squash merge.",
+      65
+    );
+  }
+  const original = await readFileAt(repository, policy.changelog_file, sourceSha, token);
+  const merged = await readFileAt(repository, policy.changelog_file, mergeSha, token);
+  if (!original || !merged) {
+    throw new CliError("::error::Pinned staging changelog history is not readable.", 65);
+  }
+  const promoted = assertReleaseChange({
+    baseChangelog: original.content,
+    headChangelog: merged.content,
+    categories: policy.changelog_categories,
+  });
+  if (promoted.version !== options.version || promoted.releaseUrl !== options.releaseUrl) {
+    throw new CliError(
+      "::error::Merged staging changelog promotion does not match the requested Release.",
+      65
+    );
+  }
+  assertMergedReleaseSection(merged.content, options);
 }
 
 // Writes a single changelog version section on a release branch, then opens a pull request.

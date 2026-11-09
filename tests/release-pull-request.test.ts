@@ -15,6 +15,7 @@ import {
   assertMergedReleaseSection,
   assertReleasePullRequestIdentity,
   assertReleaseStageDeadline,
+  isExactChangelogResumeDiff,
   releasePullRequestTitle,
   releaseStageTiming,
 } from "../scripts/changelog-release-pr.ts";
@@ -74,6 +75,43 @@ test("stage-one deadline is shared by merge and post-merge guard checks", () => 
       /Two-phase release deadline expired/
     );
   }
+});
+
+test("stale staging source may resume only an exact CHANGELOG-only squash successor", () => {
+  const originalSha = "a".repeat(40);
+  const mergedSha = "b".repeat(40);
+  const exact = {
+    status: "ahead",
+    ahead_by: 1,
+    behind_by: 0,
+    base_commit: { sha: originalSha },
+    commits: [{ sha: mergedSha }],
+    files: [{ filename: "CHANGELOG.md", status: "modified" }],
+  };
+  assert.equal(isExactChangelogResumeDiff(exact, originalSha, mergedSha, "CHANGELOG.md"), true);
+  for (const changed of [
+    { status: "diverged" },
+    { ahead_by: 2 },
+    { ahead_by: undefined },
+    { behind_by: 1 },
+    { behind_by: undefined },
+    { base_commit: { sha: "c".repeat(40) } },
+    { commits: [{ sha: "c".repeat(40) }] },
+    { commits: [...exact.commits, { sha: "c".repeat(40) }] },
+    { files: [] },
+    { files: [{ filename: "scripts/unsafe.ts", status: "modified" }] },
+    { files: [{ filename: "CHANGELOG.md", status: "added" }] },
+    {
+      files: [...exact.files, { filename: "scripts/unsafe.ts", status: "modified" }],
+    },
+    { files: undefined },
+  ]) {
+    assert.equal(
+      isExactChangelogResumeDiff({ ...exact, ...changed }, originalSha, mergedSha, "CHANGELOG.md"),
+      false
+    );
+  }
+  assert.equal(isExactChangelogResumeDiff(null, originalSha, mergedSha, "CHANGELOG.md"), false);
 });
 
 test("a resumable release PR must match its tag, source and protected base", () => {
