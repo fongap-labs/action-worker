@@ -33,7 +33,7 @@ jobs:
       - name: Inspect existing Worker Secret names
         env:
           CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_OPS }}
-          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_OPS }}
+          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
         run: node scripts/bootstrap-ai-gateway-health-key.ts worker-preflight
 
   github-bootstrap:
@@ -83,6 +83,6 @@ jobs:
         env:
           AIG_DEPLOY_HEALTH_KEY: ${{ secrets.AIG_DEPLOY_HEALTH_KEY }}
           CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_OPS }}
-          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_OPS }}
+          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
           AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
         run: node scripts/bootstrap-ai-gateway-health-key.ts worker-publish
