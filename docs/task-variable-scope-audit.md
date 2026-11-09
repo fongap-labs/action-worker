@@ -38,6 +38,10 @@ node scripts/audit-task-variable-scope.ts \
 
 工具固定返回 `status: UNVERIFIED`、`actual_variable_values_checked: false`、`runtime_injection_proven: false`。不在 GitHub Actions 中运行；在 Actions 环境会直接拒绝。
 
+## 已确认的源码注入链缺陷
+
+在 `resolve-task-secret-plan.ts resolve` 中，先前未传入已经由 `export-repository-variables.ts` 写入 GitHub 作业环境的 Variables，导致计划构建时一律按空环境检查必需 Variable。即使配置存在，`CLOUDFLARE_ACCOUNT_ID_PRIMARY` 也会在真正执行前被拒绝。修复后计划解析读取现有作业环境；这是代码修复，**不能反推管理员配置实际存在或值非空**。必须以修复合并后针对固定来源提交的真实受控执行日志重新判定 #1550，不得把原先的失败当作配置缺失证明。
+
 ## 后续验收
 
 对于 `CLOUDFLARE_ACCOUNT_ID_PRIMARY`：若名称仅在某 Environment 出现，应先独立审核当前任务是否应有该环境绑定，而不是直接将 Environment 加到高权限作业；若不存在或组织未授权，先走最小权限审批。若名称可见，也不表示 Variable 值已被注入。**必须在批准的试点运行中保持原必需槽位 fail-closed 校验，并取得真实成功证据**，随后分别关闭 #1550 和 #1478 的核查。禁止把 Variable 迁回 Secret、在日志打印值或用伪造环境变量让生产任务变绿。

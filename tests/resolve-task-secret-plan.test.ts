@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -132,4 +133,69 @@ test("scoped task bindings fail closed for forged or overlapping slot plans", ()
       ),
     /invalid binding/
   );
+});
+
+test("resolve CLI reads exported Actions Variables while keeping Secret values out of its plan", async () => {
+  const root = await mkdtemp(join(tmpdir(), "aw-task-variable-resolve-"));
+  try {
+    const source = join(root, "source");
+    const directory = join(source, "projects", "FongapCDN");
+    await mkdir(directory, { recursive: true });
+    await writeFile(
+      join(directory, ".secrets.required"),
+      "CLOUDFLARE_ACCOUNT_ID\nCLOUDFLARE_API_TOKEN\n"
+    );
+    await writeFile(join(directory, ".secrets.allowed"), "");
+    const output = join(root, "github-output");
+    const baseEnv = {
+      RUNNER_TEMP: root,
+      AW_SOURCE_DIR: source,
+      TASK_SOURCE_REPOSITORY: "fongap-labs/internal-vault",
+      PROJECT: "FongapCDN",
+      GITHUB_OUTPUT: output,
+    };
+    const run = (overrides: Record<string, string> = {}) =>
+      spawnSync(process.execPath, ["scripts/resolve-task-secret-plan.ts", "resolve"], {
+        cwd: process.cwd(),
+        env: { ...baseEnv, ...overrides },
+        encoding: "utf8",
+      });
+
+    const missing = run();
+    assert.equal(missing.status, 77);
+    assert.match(missing.stderr, /Required task Variable is unavailable/);
+
+    const provided = run({ CLOUDFLARE_ACCOUNT_ID_PRIMARY: "synthetic-test-account" });
+    assert.equal(provided.status, 0, provided.stderr);
+    const planText = await readFile(join(root, "action-worker-task-secret-plan.json"), "utf8");
+    const plan = JSON.parse(planText) as {
+      slots: Array<{ logical_name: string; stored_name: string; kind?: string; required: boolean }>;
+    };
+    assert.deepEqual(
+      plan.slots.map(({ logical_name, stored_name, kind, required }) => ({
+        logical_name,
+        stored_name,
+        kind: kind ?? "secret",
+        required,
+      })),
+      [
+        {
+          logical_name: "CLOUDFLARE_ACCOUNT_ID",
+          stored_name: "CLOUDFLARE_ACCOUNT_ID_PRIMARY",
+          kind: "variable",
+          required: true,
+        },
+        {
+          logical_name: "CLOUDFLARE_API_TOKEN",
+          stored_name: "CLOUDFLARE_API_TOKEN_PRIMARY",
+          kind: "secret",
+          required: true,
+        },
+      ]
+    );
+    assert.doesNotMatch(planText, /synthetic-test-account/);
+    assert.doesNotMatch(provided.stdout, /synthetic-test-account/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });
