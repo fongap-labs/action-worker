@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, open, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
   deploySecretDirectory,
@@ -68,9 +68,16 @@ export async function stageDeploySecretSlots(
       if (!value) continue;
       const path = join(directory, entry.name);
       // Exclusive creation prevents replacing files that predate this attempt.
-      await writeFile(path, value, { encoding: "utf8", flag: "wx", mode: 0o600 });
+      const handle = await open(path, "wx", 0o600);
+      // Ownership starts when open succeeds, before the first byte is written.
+      // writeFile may partially write and throw; such a file must be removed.
       createdPaths.push(path);
-      await chmod(path, 0o600);
+      try {
+        await handle.writeFile(value, { encoding: "utf8" });
+        await handle.chmod(0o600);
+      } finally {
+        await handle.close();
+      }
       staged.push(entry.name);
     }
     return staged;
