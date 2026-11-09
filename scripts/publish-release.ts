@@ -6,7 +6,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareReleaseNotes, type ReleasePolicy } from "./changelog-release-notes.ts";
-import { publishChangelogRelease } from "./changelog-release-pr.ts";
+import {
+  assertExactMergedChangelogResume,
+  publishChangelogRelease,
+} from "./changelog-release-pr.ts";
 import { controlRepositoryOf, hasVerifiedCiEvidence } from "./ci-evidence.ts";
 import { requireStatusToken } from "./control-token.ts";
 import {
@@ -539,7 +542,6 @@ async function main(): Promise<void> {
     }
 
     const manifest = asManifest(await readJson(manifestPath));
-    await assertSourceCurrent(sourceRepository, sourceSha, defaultSha, manifest, controlToken);
     const actualFiles = await listRootFiles(artifactDir, [
       "release-manifest.json",
       "release-provenance.json",
@@ -604,6 +606,39 @@ async function main(): Promise<void> {
       },
       await readTwoPhaseStagingPolicy()
     );
+    if (
+      phase.kind === "staging" &&
+      sourceRepository === targetRepository &&
+      (defaultSha !== targetSha || defaultBranch !== targetBranch)
+    ) {
+      throw new CliError(
+        "::error::Staging source/target default branch moved during release validation.",
+        65
+      );
+    }
+    if (
+      phase.kind === "staging" &&
+      sourceRepository === targetRepository &&
+      sourceSha !== defaultSha &&
+      manifest.changelog_entries === undefined
+    ) {
+      // A previous, protected stage-one squash merge is the ONLY permitted
+      // reason for a same-repository unscoped Release source to go stale.
+      // This proof is read-only and precedes all staging PR/Release writes.
+      await assertExactMergedChangelogResume({
+        repository: targetRepository,
+        defaultBranch: targetBranch,
+        sourceSha,
+        mergeSha: targetSha,
+        tag,
+        version: manifest.version,
+        releaseUrl: `https://github.com/${targetRepository}/releases/tag/${tag}`,
+        policy: await readReleasePolicy(),
+        token: phase.prToken,
+      });
+    } else {
+      await assertSourceCurrent(sourceRepository, sourceSha, defaultSha, manifest, controlToken);
+    }
     if (targetRepository !== sourceRepository || targetSha !== sourceSha) {
       await assertTrustedMainWrite(sourceReader, targetRepository, targetSha, true);
     }
