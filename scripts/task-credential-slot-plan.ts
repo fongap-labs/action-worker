@@ -10,7 +10,7 @@ export type TaskCredentialSlot = {
   logical_name: string;
   stored_name: string;
   required: boolean;
-  kind: "secret" | "variable";
+  kind?: "variable";
 };
 
 const namePattern = /^[A-Z][A-Z0-9_]*$/;
@@ -86,7 +86,7 @@ export async function buildTaskCredentialSlotPlan(
       logical_name: name,
       stored_name: stored,
       required: requiredSet.has(name),
-      kind,
+      ...(kind === "variable" ? { kind } : {}),
     };
   });
 }
