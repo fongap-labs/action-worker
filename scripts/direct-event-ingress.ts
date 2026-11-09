@@ -443,10 +443,12 @@ export type IngressBacklog = {
 export function ingressCronTelemetry(
   completed: number,
   backlog: IngressBacklog | null,
-  now = Date.now()
+  now = Date.now(),
+  failed = 0
 ): {
   component: "direct-event-ingress";
   completed_count: number;
+  failed_count: number;
   pending_count: number;
   oldest_pending_age_minutes: number | null;
 } {
@@ -455,6 +457,8 @@ export function ingressCronTelemetry(
   if (
     !Number.isSafeInteger(completed) ||
     completed < 0 ||
+    !Number.isSafeInteger(failed) ||
+    failed < 0 ||
     !Number.isSafeInteger(pending) ||
     pending < 0 ||
     !Number.isSafeInteger(now) ||
@@ -467,6 +471,7 @@ export function ingressCronTelemetry(
   return {
     component: "direct-event-ingress",
     completed_count: completed,
+    failed_count: failed,
     pending_count: pending,
     oldest_pending_age_minutes:
       oldest === null ? null : Math.floor(Math.max(0, now - oldest) / 60_000),
@@ -476,7 +481,8 @@ export function ingressCronTelemetry(
 /** Cron reconciliation is mandatory: a failed or ambiguous dispatch is never silently discarded. */
 export async function retryPendingDeliveries(
   env: IngressEnvironment,
-  apiFetch: typeof fetch = fetch
+  apiFetch: typeof fetch = fetch,
+  onFailure?: () => void
 ): Promise<number> {
   configuration(env);
   const signingKey = await importAppSigningKey(env);
@@ -489,6 +495,7 @@ export async function retryPendingDeliveries(
       if (await attemptPending(env, delivery, apiFetch, signingKey)) completed += 1;
     } catch {
       // Keep the durable record and retry after the lease. Never expose credentials or payloads.
+      onFailure?.();
     }
   }
   return completed;
@@ -500,11 +507,14 @@ export async function reconcileIngressCron(
   apiFetch: typeof fetch = fetch,
   log: (message: string) => void = console.info
 ): Promise<number> {
-  const completed = await retryPendingDeliveries(env, apiFetch);
+  let failed = 0;
+  const completed = await retryPendingDeliveries(env, apiFetch, () => {
+    failed += 1;
+  });
   const backlog = await env.AW_INGRESS_DB.prepare(
     webhookDeliverySql.backlog
   ).first<IngressBacklog>();
-  log(JSON.stringify(ingressCronTelemetry(completed, backlog)));
+  log(JSON.stringify(ingressCronTelemetry(completed, backlog, Date.now(), failed)));
   return completed;
 }
 
