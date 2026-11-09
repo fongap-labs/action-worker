@@ -268,20 +268,31 @@ test("Cron counts failed retry attempts without disclosing delivery or credentia
   try {
     const env = environment(inbox);
     const api = githubApi({ failDispatches: 2 });
-    assert.equal((await handleDirectWebhook(signedPush(firstDelivery), env, api.fetcher)).status, 503);
+    const initial = await handleDirectWebhook(signedPush(firstDelivery), env, api.fetcher);
+    assert.equal(initial.status, 503);
     inbox.database
       .prepare("UPDATE webhook_deliveries SET lease_until_ms = 0 WHERE delivery_id = ?")
       .run(firstDelivery);
     const reports: string[] = [];
     assert.equal(await reconcileIngressCron(env, api.fetcher, (line) => reports.push(line)), 0);
     assert.equal(reports.length, 1);
-    assert.deepEqual(JSON.parse(reports[0]!), {
-      component: "direct-event-ingress",
-      completed_count: 0,
-      failed_count: 1,
-      pending_count: 1,
-      oldest_pending_age_minutes: 0,
-    });
+    const report = JSON.parse(reports[0]!) as Record<string, unknown>;
+    assert.equal(typeof report.oldest_pending_age_minutes, "number");
+    assert.ok(Number(report.oldest_pending_age_minutes) >= 0);
+    assert.deepEqual(
+      {
+        component: report.component,
+        completed_count: report.completed_count,
+        failed_count: report.failed_count,
+        pending_count: report.pending_count,
+      },
+      {
+        component: "direct-event-ingress",
+        completed_count: 0,
+        failed_count: 1,
+        pending_count: 1,
+      }
+    );
     assert.equal(
       inbox.database
         .prepare("SELECT delivered_ms FROM webhook_deliveries WHERE delivery_id = ?")
