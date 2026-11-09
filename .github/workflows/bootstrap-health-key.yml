@@ -11,11 +11,11 @@ concurrency:
   group: ai-gateway-ops-secret-management
   cancel-in-progress: false
 jobs:
-  bootstrap:
+  worker-preflight:
     if: github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
-    name: Bootstrap one missing health credential with fongap-bot
+    name: Require missing Cloudflare Worker health key
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 8
     environment:
       name: ai-gateway-ops
       deployment: false
@@ -30,33 +30,59 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-      - name: Mint fongap-bot installation token for Environment Secrets
-        id: app
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
-        with:
-          client-id: ${{ vars.AW_APP_CLIENT_ID }}
-          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-secrets: write
-      - name: Initialize missing Secret in both GitHub Environments and Worker
-        shell: bash
+      - name: Inspect existing Worker Secret names
         env:
-          GH_TOKEN: ${{ steps.app.outputs.token }}
+          CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_OPS }}
+          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_OPS }}
+        run: node scripts/bootstrap-ai-gateway-health-key.ts worker-preflight
+
+  github-bootstrap:
+    needs: worker-preflight
+    name: Initialize two Environment Secrets using protected admin-ops
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    environment:
+      name: admin-ops
+      deployment: false
+    permissions:
+      contents: read
+    steps:
+      - name: Check out trusted control main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Generate once and encrypt for both GitHub Environments
+        env:
+          GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+        run: node scripts/bootstrap-ai-gateway-health-key.ts github-bootstrap
+
+  worker-publish:
+    needs: github-bootstrap
+    name: Publish the saved Environment key to Cloudflare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    environment:
+      name: ai-gateway-ops
+      deployment: false
+    permissions:
+      contents: read
+    steps:
+      - name: Check out trusted control main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Publish exactly the saved health Secret with the existing operations contract
+        env:
+          AIG_DEPLOY_HEALTH_KEY: ${{ secrets.AIG_DEPLOY_HEALTH_KEY }}
           CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_OPS }}
           CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_OPS }}
           AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
-        run: |
-          set -Eeuo pipefail
-          node scripts/bootstrap-ai-gateway-health-key.ts
-      - name: Redacted operations summary
-        if: always()
-        shell: bash
-        run: |
-          {
-            echo '## AI Gateway first-time deployment health credential'
-            echo '- GitHub: production, ai-gateway-ops'
-            echo '- Cloudflare Worker: ai-gateway'
-            echo '- Secret values are never logged'
-            echo '- Result: ${{ job.status }}'
-          } >> "$GITHUB_STEP_SUMMARY"
+        run: node scripts/bootstrap-ai-gateway-health-key.ts worker-publish
