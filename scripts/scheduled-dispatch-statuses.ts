@@ -3,12 +3,40 @@ import { CliError } from "./runtime-command.ts";
 import { hasValidStatusAttestation, originalStatusDescription } from "./status-attestation.ts";
 
 const pageSize = 100;
-const maxPages = 10;
+// Still bounded: never infer an unexamined recent page contains no receipt.
+const maxPages = 50;
+const clockSkewMarginMs = 5 * 60 * 1000;
 
 export type ScheduledDispatchReceipt = {
   state: "pending" | "success";
   description: string;
 };
+
+/**
+ * GitHub documents reverse-chronological status history. Once every record in
+ * a complete page has a trustworthy, descending timestamp and the oldest is
+ * older than the due slot (minus clock-skew margin), later pages cannot have
+ * a valid receipt for that slot. Missing/unsorted timestamps never certify it.
+ */
+function historyPredatesSlot(statuses: unknown[], slot: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z$/.test(slot)) return false;
+  const cutoff = Date.parse(slot) - clockSkewMarginMs;
+  if (!Number.isFinite(cutoff)) return false;
+  let preceding = Number.POSITIVE_INFINITY;
+  for (const item of statuses) {
+    if (
+      !isJsonRecord(item) ||
+      typeof item.created_at !== "string" ||
+      !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(item.created_at)
+    ) {
+      return false;
+    }
+    const created = Date.parse(item.created_at);
+    if (!Number.isFinite(created) || created > preceding) return false;
+    preceding = created;
+  }
+  return statuses.length > 0 && preceding < cutoff;
+}
 
 /** Persist a reservation before dispatch so an ambiguous API result cannot trigger a replay. */
 export async function dispatchWithReservation(
@@ -31,7 +59,8 @@ export async function hasScheduledDispatchReceipt(
   sha: string,
   context: string,
   receipts: readonly ScheduledDispatchReceipt[],
-  get: (path: string) => Promise<unknown>
+  get: (path: string) => Promise<unknown>,
+  slot?: string
 ): Promise<boolean> {
   for (let page = 1; page <= maxPages; page += 1) {
     const path = `repos/${repository}/commits/${sha}/statuses?per_page=${pageSize}&page=${page}`;
@@ -56,6 +85,7 @@ export async function hasScheduledDispatchReceipt(
     );
     if (isRecorded) return true;
     if (statuses.length < pageSize) return false;
+    if (slot && historyPredatesSlot(statuses, slot)) return false;
   }
 
   throw new CliError(
