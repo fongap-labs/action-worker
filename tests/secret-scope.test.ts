@@ -388,10 +388,13 @@ test("the central policies give each Cloudflare account its own qualified secret
     "fongap-labs/internal-vault/FongapCDN",
     "production"
   );
-  assert.deepEqual([...cdnDeploy], [
-    ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_PRIMARY"],
-    ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_PRIMARY"],
-  ]);
+  assert.deepEqual(
+    [...cdnDeploy],
+    [
+      ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_PRIMARY"],
+      ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_PRIMARY"],
+    ]
+  );
   // MarketChina uses a dedicated R2 S3 access key; an API token is not interchangeable.
   assert.deepEqual(
     [
