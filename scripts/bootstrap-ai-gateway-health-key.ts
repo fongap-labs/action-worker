@@ -71,7 +71,14 @@ async function bootstrap(): Promise<void> {
   } catch {
     throw new Error("AIG_PUBLIC_URL is missing or invalid.");
   }
-  if (url.protocol !== "https:" || url.username || url.password || url.pathname !== "/" || url.search || url.hash) {
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    url.pathname !== "/" ||
+    url.search ||
+    url.hash
+  ) {
     throw new Error("AIG_PUBLIC_URL must be an HTTPS origin.");
   }
 
@@ -81,7 +88,10 @@ async function bootstrap(): Promise<void> {
   for (const environment of environments) {
     const response = await runText(
       "gh",
-      ["api", "repos/" + controlRepository + "/environments/" + environment + "/secrets?per_page=100"],
+      [
+        "api",
+        "repos/" + controlRepository + "/environments/" + environment + "/secrets?per_page=100",
+      ],
       { timeoutMs: 30000, maxBuffer: 1024 * 1024 }
     );
     githubNames.push(environmentSecretNames(JSON.parse(response)));
@@ -100,10 +110,7 @@ async function bootstrap(): Promise<void> {
   }
   // The existing protected operations path deploys the same value to the Worker
   // and checks the real HTTPS health probe. No placeholder code deployment occurs.
-  await putWorkerSecret(
-    healthSecret,
-    { ...process.env, AIG_OPS_SECRET_VALUE: value }
-  );
+  await putWorkerSecret(healthSecret, { ...process.env, AIG_OPS_SECRET_VALUE: value });
   console.log("Deployment health Secret initialized in three scopes; remote health check passed.");
 }
 
