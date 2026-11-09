@@ -1,4 +1,4 @@
-import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   deploySecretDirectory,
@@ -61,15 +61,25 @@ export async function stageDeploySecretSlots(
   await mkdir(directory, { recursive: true, mode: 0o700 });
   await chmod(directory, 0o700);
   const staged: string[] = [];
-  for (const [index, entry] of secretEntries.entries()) {
-    const value = values[index];
-    if (!value) continue;
-    const path = join(directory, entry.name);
-    await writeFile(path, value, { encoding: "utf8", flag: "wx", mode: 0o600 });
-    await chmod(path, 0o600);
-    staged.push(entry.name);
+  const createdPaths: string[] = [];
+  try {
+    for (const [index, entry] of secretEntries.entries()) {
+      const value = values[index];
+      if (!value) continue;
+      const path = join(directory, entry.name);
+      // Exclusive creation prevents replacing files that predate this attempt.
+      await writeFile(path, value, { encoding: "utf8", flag: "wx", mode: 0o600 });
+      createdPaths.push(path);
+      await chmod(path, 0o600);
+      staged.push(entry.name);
+    }
+    return staged;
+  } catch (error) {
+    // Never delete a pre-existing path: only undo files created by this attempt.
+    // If cleanup itself fails, the workflow's unconditional cleanup is a backup.
+    await Promise.allSettled(createdPaths.map((path) => rm(path, { force: true })));
+    throw error;
   }
-  return staged;
 }
 
 async function main(): Promise<void> {
