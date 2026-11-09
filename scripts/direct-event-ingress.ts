@@ -55,7 +55,7 @@ function configuration(env: IngressEnvironment): { owner: string; repository: st
     !/^[1-9]\d*$/.test(env.AW_GITHUB_APP_INSTALLATION_ID ?? '') ||
     !Number.isSafeInteger(installationId) ||
     !env.AW_GITHUB_WEBHOOK_SECRET ||
-    !env.AW_GITHUB_APP_PRIVATE_KEY?.includes('BEGIN PRIVATE KEY') ||
+    (!env.AW_GITHUB_APP_PRIVATE_KEY?.startsWith('-----BEGIN ') || !env.AW_GITHUB_APP_PRIVATE_KEY?.includes('-----END ')) ||
     !env.AW_INGRESS_DB
   ) {
     throw new Error('Direct ingress configuration is incomplete.');
@@ -83,7 +83,9 @@ export async function verifyGithubSignature(
     false,
     ['sign']
   );
-  const digest = new Uint8Array(await crypto.subtle.sign('HMAC', key, body));
+  const safeBody = new Uint8Array(new ArrayBuffer(body.byteLength));
+  safeBody.set(body);
+  const digest = new Uint8Array(await crypto.subtle.sign('HMAC', key, safeBody));
   const supplied = bytesFromHex(signature.slice(7));
   let difference = 0;
   for (let i = 0; i < digest.length; i += 1) difference |= digest[i]! ^ supplied[i]!;
@@ -142,7 +144,7 @@ async function appJwt(env: IngressEnvironment): Promise<string> {
       JSON.stringify({ iat: now - 60, exp: now + 480, iss: env.AW_GITHUB_APP_ID })
     )
   );
-  const der = env.AW_GITHUB_APP_PRIVATE_KEY.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
+  const der = env.AW_GITHUB_APP_PRIVATE_KEY.split(/\r?\n/).filter((line) => /^[A-Za-z0-9+/=]+$/.test(line)).join('');
   const raw = Uint8Array.from(atob(der), (character) => character.charCodeAt(0));
   const key = await crypto.subtle.importKey(
     'pkcs8',
