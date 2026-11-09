@@ -135,7 +135,10 @@ test("signed webhook to native SQL inbox to scoped GitHub dispatch survives dupl
   try {
     const env = environment(inbox);
     const api = githubApi();
-    assert.equal((await handleDirectWebhook(signedPush(firstDelivery), env, api.fetcher)).status, 202);
+    assert.equal(
+      (await handleDirectWebhook(signedPush(firstDelivery), env, api.fetcher)).status,
+      202
+    );
     const accepted = inbox.database
       .prepare("SELECT delivery_id, delivered_ms, lease_until_ms FROM webhook_deliveries")
       .get();
@@ -153,7 +156,10 @@ test("signed webhook to native SQL inbox to scoped GitHub dispatch survives dupl
       (await handleDirectWebhook(signedPush(firstDelivery), env, api.fetcher)).status,
       202
     );
-    assert.equal(inbox.database.prepare("SELECT COUNT(*) AS count FROM webhook_deliveries").get()?.count, 1);
+    assert.equal(
+      inbox.database.prepare("SELECT COUNT(*) AS count FROM webhook_deliveries").get()?.count,
+      1
+    );
     assert.equal(api.calls.length, 2);
 
     assert.equal(
@@ -162,8 +168,13 @@ test("signed webhook to native SQL inbox to scoped GitHub dispatch survives dupl
       409
     );
     assert.equal(
-      (await handleDirectWebhook(signedPush(secondDelivery, "d".repeat(40), "incorrect-key"), env, api.fetcher))
-        .status,
+      (
+        await handleDirectWebhook(
+          signedPush(secondDelivery, "d".repeat(40), "incorrect-key"),
+          env,
+          api.fetcher
+        )
+      ).status,
       401
     );
     assert.equal(api.calls.length, 2);
@@ -220,7 +231,10 @@ test("concurrent authentic requests contend on the same native SQLite atomic lea
       [202, 202]
     );
     assert.equal(api.calls.filter((path) => path.endsWith("/dispatches")).length, 1);
-    assert.equal(inbox.database.prepare("SELECT COUNT(*) AS count FROM webhook_deliveries").get()?.count, 1);
+    assert.equal(
+      inbox.database.prepare("SELECT COUNT(*) AS count FROM webhook_deliveries").get()?.count,
+      1
+    );
   } finally {
     inbox.close();
   }
