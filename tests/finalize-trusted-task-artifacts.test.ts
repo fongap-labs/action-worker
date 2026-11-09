@@ -84,7 +84,11 @@ test("trusted runner reseals private task state in the historical AWSEAL1 format
     );
     assert.ok(result.stateUploadPath);
     const sealed = await readFile(join(result.stateUploadPath, sealedStateFile));
-    assert.doesNotMatch(sealed.toString("utf8"), /cursor|fongap-labs|24/);
+    // The ciphertext is binary: a short plaintext value like "24" can occur by chance.
+    // Check the authenticated envelope and complete sensitive identifiers instead.
+    assert.equal(sealed.subarray(0, 7).toString("ascii"), "AWSEAL1");
+    assert.equal(sealed.includes(Buffer.from("cursor.txt")), false);
+    assert.equal(sealed.includes(Buffer.from(repository)), false);
     const previous = join(root, "previous");
     await openStateFile(
       originalKey,
