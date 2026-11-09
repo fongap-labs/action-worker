@@ -172,7 +172,10 @@ test("accepts a verified default-branch push and dispatches only an empty intake
     repositories: ["action-worker"],
     permissions: { contents: "write" },
   });
-  assert.equal(api.calls[1]?.path, "https://api.github.com/repos/fongap-labs/action-worker/dispatches");
+  assert.equal(
+    api.calls[1]?.path,
+    "https://api.github.com/repos/fongap-labs/action-worker/dispatches"
+  );
   assert.deepEqual(api.calls[1]?.body, { event_type: "run-intake", client_payload: {} });
 });
 
@@ -193,11 +196,47 @@ test("authentication, installation, owner and event filters fail closed", async 
   const api = mockGithubApi();
   const wrongSignature = signedRequest(makePayload(), "push", deliveryId, "wrong-secret");
   assert.equal((await handleDirectWebhook(wrongSignature, env, api.fetcher)).status, 401);
-  assert.equal((await handleDirectWebhook(signedRequest(makePayload({ installation: { id: 404 } })), env, api.fetcher)).status, 403);
-  assert.equal((await handleDirectWebhook(signedRequest(makePayload({ repository: { full_name: "other/repo", owner: { login: "other" } } })), env, api.fetcher)).status, 403);
-  assert.equal((await handleDirectWebhook(signedRequest(makePayload({ ref: "refs/heads/topic" })), env, api.fetcher)).status, 200);
-  assert.equal((await handleDirectWebhook(signedRequest(makePayload(), "issues"), env, api.fetcher)).status, 200);
-  assert.equal((await handleDirectWebhook(signedRequest(makePayload(), "push", "bad-id"), env, api.fetcher)).status, 400);
+  assert.equal(
+    (
+      await handleDirectWebhook(
+        signedRequest(makePayload({ installation: { id: 404 } })),
+        env,
+        api.fetcher
+      )
+    ).status,
+    403
+  );
+  assert.equal(
+    (
+      await handleDirectWebhook(
+        signedRequest(
+          makePayload({ repository: { full_name: "other/repo", owner: { login: "other" } } })
+        ),
+        env,
+        api.fetcher
+      )
+    ).status,
+    403
+  );
+  assert.equal(
+    (
+      await handleDirectWebhook(
+        signedRequest(makePayload({ ref: "refs/heads/topic" })),
+        env,
+        api.fetcher
+      )
+    ).status,
+    200
+  );
+  assert.equal(
+    (await handleDirectWebhook(signedRequest(makePayload(), "issues"), env, api.fetcher)).status,
+    200
+  );
+  assert.equal(
+    (await handleDirectWebhook(signedRequest(makePayload(), "push", "bad-id"), env, api.fetcher))
+      .status,
+    400
+  );
   assert.equal(db.rows.size, 0);
   assert.equal(api.calls.length, 0);
 });
@@ -206,9 +245,21 @@ test("pull-request changes wake Intake but unrelated actions do not", async () =
   const db = new FakeDatabase();
   const env = makeEnvironment(db);
   const api = mockGithubApi();
-  const opened = await handleDirectWebhook(signedRequest(makePayload({ action: "opened" }), "pull_request"), env, api.fetcher);
+  const opened = await handleDirectWebhook(
+    signedRequest(makePayload({ action: "opened" }), "pull_request"),
+    env,
+    api.fetcher
+  );
   assert.equal(opened.status, 202);
-  const closed = await handleDirectWebhook(signedRequest(makePayload({ action: "closed" }), "pull_request", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"), env, api.fetcher);
+  const closed = await handleDirectWebhook(
+    signedRequest(
+      makePayload({ action: "closed" }),
+      "pull_request",
+      "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    ),
+    env,
+    api.fetcher
+  );
   assert.equal(closed.status, 200);
   assert.equal(db.rows.size, 1);
 });
