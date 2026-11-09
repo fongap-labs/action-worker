@@ -1062,7 +1062,7 @@ test("source-script deploy execution is manifest-driven and repository-agnostic"
     "validate-deploy-source.ts source-script true policies/runner.json",
     "runner_labels_json",
     "fromJSON(needs.prepare.outputs.runner_labels_json)",
-    "environment: ${{ needs.prepare.outputs.environment }}",
+    "name: ${{ needs.prepare.outputs.credential_environment }}",
     "DEPLOY_SOURCE_REPOSITORY",
     "DEPLOY_SOURCE_SHA",
     "DEPLOY_ENVIRONMENT",
