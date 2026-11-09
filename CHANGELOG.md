@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 受保护 ops 作业成功完成生产发布后，改为以工作流限定的 GitHub Deployments 写权限直接记录成功状态，避免纯审计 Job 被 production Environment 人工审核规则阻塞；实际部署、固定源码、密钥隔离与门禁不变。
+
 - 治理: 私有任务隔离证据验收按真实单人维护模式复核，移除不存在的第二名人工审核依赖；保留八项技术门禁、真实历史状态恢复、互斥与受保护发布验证要求。
 
 - 安全: 中央部署 prepare 以现有只读 GITHUB_TOKEN 校验凭据 Environment 已存在且元数据完整；缺失或无权限时拒绝进入动态 Environment Job，防止自动创建未经保护的环境。保留人工审批及原有 Secret 隔离。
