@@ -139,7 +139,9 @@ test("PR governance and advisory review pass their exact PR number to CI evidenc
       >;
     };
     const waits = workflow.jobs[job]!.steps.filter(
-      (step) => step.name === "Collect CI evidence" || step.run?.startsWith("node scripts/wait-ci-evidence.ts")
+      (step) =>
+        step.name === "Collect CI evidence" ||
+        step.run?.startsWith("node scripts/wait-ci-evidence.ts")
     );
     assert.equal(waits.length, 1, file);
     assert.equal(waits[0]!.run, expectedCommand, file);
