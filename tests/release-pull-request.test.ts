@@ -235,7 +235,8 @@ test("a legacy unscoped release still requires a unique nonempty version section
   };
   assert.equal(assertMergedReleaseSection(content, options), "### 修复\n\n- 修正超时。");
   assert.throws(
-    () => assertMergedReleaseSection(content, { ...options, releaseUrl: "https://example.org/other" }),
+    () =>
+      assertMergedReleaseSection(content, { ...options, releaseUrl: "https://example.org/other" }),
     /does not uniquely match/
   );
 });
