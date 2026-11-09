@@ -107,7 +107,11 @@ test("forged Variable bindings fail closed even in an offline report", () => {
     environments: {},
   });
   assert.throws(
-    () => auditTaskVariableScope({ ...plan, slots: [{ ...plan.slots[0]!, stored_name: "bad name" }] }, inventory),
+    () =>
+      auditTaskVariableScope(
+        { ...plan, slots: [{ ...plan.slots[0]!, stored_name: "bad name" }] },
+        inventory
+      ),
     /Invalid approved task Variable slot binding/
   );
 });
