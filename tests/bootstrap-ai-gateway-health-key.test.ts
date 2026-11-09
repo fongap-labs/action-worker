@@ -46,7 +46,7 @@ test("bootstrap cannot overwrite Cloudflare or either GitHub Environment key", (
   assert.throws(() => assertHealthKeyIsUninitialized([], [[]]), /incomplete/);
 });
 
-test("one-shot main-only bootstrap separates Cloudflare and admin secrets scopes", () => {
+test("one-shot main-only bootstrap reuses production deploy credentials and protected admin scope", () => {
   const workflow = parse(
     readFileSync(".github/workflows/bootstrap-health-key.yml", "utf8")
   ) as Record<string, unknown>;
@@ -59,14 +59,26 @@ test("one-shot main-only bootstrap separates Cloudflare and admin secrets scopes
   const github = jobs["github-bootstrap"];
   const publish = jobs["worker-publish"];
   assert.ok(preflight && github && publish);
-  assert.equal((preflight.environment as { name: string }).name, "ai-gateway-ops");
+  assert.equal((preflight.environment as { name: string }).name, "production");
   assert.equal((github.environment as { name: string }).name, "admin-ops");
-  assert.equal((publish.environment as { name: string }).name, "ai-gateway-ops");
+  assert.equal((publish.environment as { name: string }).name, "production");
   assert.equal(jobs["github-bootstrap"]?.needs, "worker-preflight");
   assert.equal(jobs["worker-publish"]?.needs, "github-bootstrap");
 
   const steps = jobs["github-bootstrap"]?.steps as { env?: Record<string, string> }[];
   assert.ok(steps.some((step) => step.env?.GH_TOKEN === "${{ secrets.AW_ADMIN_TOKEN }}"));
+  for (const job of [preflight, publish]) {
+    const jobSteps = job.steps as { env?: Record<string, string> }[];
+    const deployEnv = jobSteps.find((step) => step.env?.CLOUDFLARE_API_TOKEN_OPS);
+    assert.equal(
+      deployEnv?.env?.CLOUDFLARE_API_TOKEN_OPS,
+      "${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}"
+    );
+    assert.equal(
+      deployEnv?.env?.CLOUDFLARE_ACCOUNT_ID_OPS,
+      "${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}"
+    );
+  }
   const script = readFileSync("scripts/bootstrap-ai-gateway-health-key.ts", "utf8");
   assert.match(script, /randomBytes\(32\)\.toString\("hex"\)/);
   assert.match(script, /input: value/);
