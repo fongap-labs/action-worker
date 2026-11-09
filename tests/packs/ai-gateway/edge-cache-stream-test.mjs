@@ -16,7 +16,7 @@ import {
 } from '#target/src/request/edge-cache.ts';
 
 const body = { temperature: 0, messages: [{ role: 'user', content: 'hi' }] };
-const ENV = { AIG_TOKEN_ENCRYPTION_KEY: 'k'.repeat(32) };
+const ENV = { AIG_EDGE_CACHE_HMAC_KEY: 'k'.repeat(32) };
 
 function req(headers = {}) {
   return new Request('https://gateway.example.com/v1/chat/completions', { method: 'POST', headers });
@@ -54,8 +54,19 @@ test('entries are scoped to the credential the caller presented', async () => {
   assert.ok(!a.includes('secret-a'));
   assert.notEqual(await urlFor({ scope: a }), await urlFor({ scope: b }));
   // The fingerprint is keyed: another deployment secret gives another fingerprint.
-  assert.notEqual(a, await callerCacheScope(req({ authorization: 'Bearer secret-a' }), { AIG_TOKEN_ENCRYPTION_KEY: 'z'.repeat(32) }));
+  assert.notEqual(a, await callerCacheScope(req({ authorization: 'Bearer secret-a' }), { AIG_EDGE_CACHE_HMAC_KEY: 'z'.repeat(32) }));
   assert.equal(await callerCacheScope(req(), ENV), '');
+});
+
+test('old membership encryption variables and weak keys cannot enable edge cache', async () => {
+  const request = req({ authorization: 'Bearer secret-a', 'x-gateway-cache': 'true' });
+  assert.equal(await callerCacheScope(request, {}), null);
+  assert.equal(await callerCacheScope(request, { AIG_TOKEN_ENCRYPTION_KEY: 'old-member-secret'.repeat(4) }), null);
+  assert.equal(await callerCacheScope(request, { AIG_EDGE_CACHE_HMAC_KEY: 'weak-secret' }), null);
+  assert.equal(
+    await resolveEdgeCachePlan('openai_chat', 'Code-Max', body, request, { AIG_EDGE_CACHE_HMAC_KEY: 'short', AIG_EDGE_CACHE_TTL_SEC: '60' }, 'AIR', false),
+    null,
+  );
 });
 
 test('temperature zero does not opt in; the explicit header is required', () => {
