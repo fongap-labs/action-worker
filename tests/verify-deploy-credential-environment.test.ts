@@ -24,7 +24,11 @@ test("missing and unreadable credential Environments fail closed", async () => {
   for (const status of [403, 404, 500]) {
     await assert.rejects(
       assertExistingCredentialEnvironment(
-        { async get() { throw new GithubHttpError(status); } },
+        {
+          async get() {
+            throw new GithubHttpError(status);
+          },
+        },
         repository,
         "internal-vault-ops"
       ),
@@ -43,7 +47,11 @@ test("metadata mismatch and invalid environment identifiers are rejected", async
   ]) {
     await assert.rejects(
       assertExistingCredentialEnvironment(
-        { async get() { return value; } },
+        {
+          async get() {
+            return value;
+          },
+        },
         repository,
         "internal-vault-ops"
       ),
@@ -53,7 +61,11 @@ test("metadata mismatch and invalid environment identifiers are rejected", async
   for (const environment of ["", "../production", "production/secrets", "UPPERCASE"]) {
     await assert.rejects(
       assertExistingCredentialEnvironment(
-        { async get() { throw new Error("must not fetch"); } },
+        {
+          async get() {
+            throw new Error("must not fetch");
+          },
+        },
         repository,
         environment
       ),
@@ -62,7 +74,11 @@ test("metadata mismatch and invalid environment identifiers are rejected", async
   }
   await assert.rejects(
     assertExistingCredentialEnvironment(
-      { async get() { throw new Error("must not fetch"); } },
+      {
+          async get() {
+            throw new Error("must not fetch");
+          },
+        },
       "fongap-labs/internal-vault",
       "production"
     ),
@@ -73,7 +89,11 @@ test("metadata mismatch and invalid environment identifiers are rejected", async
 test("a known default production Environment remains supported", async () => {
   await assert.doesNotReject(
     assertExistingCredentialEnvironment(
-      { async get() { return { name: "production", protection_rules: [] }; } },
+      {
+          async get() {
+            return { name: "production", protection_rules: [] };
+          },
+        },
       repository,
       "production"
     )
