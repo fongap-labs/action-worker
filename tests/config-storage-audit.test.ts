@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { auditStorageMetadata, managedAuditTargets } from "../scripts/config-storage-audit.ts";
+import {
+  auditStorageMetadata,
+  managedAuditTargets,
+  storageAuditFailureScope,
+} from "../scripts/config-storage-audit.ts";
 
 const repository = "fongap-labs/private-source";
 
@@ -149,4 +153,21 @@ test("configuration audit automatically includes governed repositories without l
   for (const [discovery, governed] of invalid) {
     assert.throws(() => managedAuditTargets(discovery, governed), /targets/);
   }
+});
+
+test("metadata error diagnostics expose only the access layer, never individual names", () => {
+  assert.equal(storageAuditFailureScope("orgs/fongap-labs/actions/secrets"), "organization");
+  assert.equal(
+    storageAuditFailureScope("orgs/fongap-labs/actions/variables/AW_PRIVATE_KEY/repositories"),
+    "organization"
+  );
+  assert.equal(
+    storageAuditFailureScope("repos/fongap-labs/action-worker/environments/admin-ops/secrets"),
+    "environment"
+  );
+  assert.equal(
+    storageAuditFailureScope("repos/fongap-labs/action-worker/actions/variables"),
+    "repository"
+  );
+  assert.equal(storageAuditFailureScope("repos/fongap-labs/internal-vault"), "repository");
 });

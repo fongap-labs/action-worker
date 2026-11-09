@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { minimumConfigImpact } from "./config-security-classification.ts";
-import { GithubReader, isJsonRecord } from "./github-api.ts";
+import { GithubHttpError, GithubReader, isJsonRecord } from "./github-api.ts";
 import { readRepositoryPolicyText } from "./repository-policy.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 
@@ -59,6 +59,15 @@ export function managedAuditTargets(
     throw new CliError("Configuration audit repository targets are invalid.", 65);
   }
   return names.sort();
+}
+
+/** Classifies API permission failures without exposing repository or Secret names. */
+export function storageAuditFailureScope(
+  path: string
+): "organization" | "environment" | "repository" {
+  if (path.startsWith("orgs/fongap-labs/")) return "organization";
+  if (path.includes("/environments")) return "environment";
+  return "repository";
 }
 
 function nonSensitiveName(value: unknown): string {
@@ -346,13 +355,25 @@ async function main(): Promise<void> {
   }
   const authorized = JSON.parse(readRepositoryPolicyText()) as Record<string, unknown>;
   const auditTargets = managedAuditTargets(repositories as string[], Object.keys(authorized));
-  const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token, {
+  const api = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token, {
     attemptLimit: 2,
   });
+  let failureScope: "organization" | "environment" | "repository" = "organization";
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      failureScope = storageAuditFailureScope(path);
+      return await api.get(path);
+    },
+  };
   try {
     // Only aggregate counts leave this function. Never expose private names or Variable values.
     console.log(JSON.stringify(await auditStorageMetadata(reader, auditTargets), null, 2));
-  } catch {
+  } catch (error) {
+    const failure =
+      error instanceof GithubHttpError ? `http_${error.status}_${error.kind}` : "unclassified";
+    console.error(
+      `::error::Organization configuration scope audit blocked in ${failureScope} metadata (${failure}); no inventory or values published.`
+    );
     throw new CliError("Read-only storage audit incomplete; no report published.", 77);
   }
 }
