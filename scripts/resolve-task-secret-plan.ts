@@ -38,7 +38,8 @@ export async function resolveTaskSecretPlan(
   sourceRoot: string,
   policyPath: string,
   repository: string,
-  project: string
+  project: string,
+  baseEnvironment: NodeJS.ProcessEnv = {}
 ): Promise<ScopedTaskSecretPlan> {
   if (
     !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) ||
@@ -55,7 +56,7 @@ export async function resolveTaskSecretPlan(
     project,
     required,
     allowed,
-    process.env
+    baseEnvironment
   );
   return { schema_version: 1, repository, project, slots };
 }
@@ -129,7 +130,8 @@ async function main(): Promise<void> {
       process.env.AW_SOURCE_DIR ?? "",
       "policies/task-secrets.json",
       repository,
-      project
+      project,
+      process.env
     );
     if (JSON.stringify(expected) !== JSON.stringify(plan)) {
       throw new CliError("Task Secret slot bindings changed after policy authorization.", 77);
