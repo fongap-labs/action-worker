@@ -16,7 +16,7 @@ import {
 } from '#target/src/request/edge-cache.ts';
 
 const body = { temperature: 0, messages: [{ role: 'user', content: 'hi' }] };
-const ENV = { AIG_TOKEN_ENCRYPTION_KEY: 'k'.repeat(32) };
+const ENV = { AIG_EDGE_CACHE_HMAC_KEY: 'k'.repeat(32) };
 
 function req(headers = {}) {
   return new Request('https://gateway.example.com/v1/chat/completions', { method: 'POST', headers });
@@ -54,7 +54,7 @@ test('entries are scoped to the credential the caller presented', async () => {
   assert.ok(!a.includes('secret-a'));
   assert.notEqual(await urlFor({ scope: a }), await urlFor({ scope: b }));
   // The fingerprint is keyed: another deployment secret gives another fingerprint.
-  assert.notEqual(a, await callerCacheScope(req({ authorization: 'Bearer secret-a' }), { AIG_TOKEN_ENCRYPTION_KEY: 'z'.repeat(32) }));
+  assert.notEqual(a, await callerCacheScope(req({ authorization: 'Bearer secret-a' }), { AIG_EDGE_CACHE_HMAC_KEY: 'z'.repeat(32) }));
   assert.equal(await callerCacheScope(req(), ENV), '');
 });
 
