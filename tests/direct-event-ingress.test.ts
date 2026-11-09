@@ -68,9 +68,7 @@ class FakeDatabase implements IngressDatabase {
           const row = sql.endsWith("WHERE delivery_id = ?")
             ? database.rows.get(String(values[0]))
             : [...database.rows.values()].find((item) => item.body_digest === String(values[0]));
-          return row
-            ? ({ delivery_id: row.delivery_id, body_digest: row.body_digest } as T)
-            : null;
+          return row ? ({ delivery_id: row.delivery_id, body_digest: row.body_digest } as T) : null;
         }
         if (!sql.includes("RETURNING delivery_id")) throw new Error("Unexpected SQL first");
         const row = database.rows.get(String(values[1]));
