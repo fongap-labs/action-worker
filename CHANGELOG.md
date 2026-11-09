@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 为 GitHub App 直连入口提供默认无路由、无预览 URL、无 Cron、无明文密钥的离线非生产 Wrangler 配置生成与合同测试。
+
 - 修复: 直连 Webhook 在存储投递前拒绝 GitHub 默认 PKCS#1 私钥，明确 PKCS#8 离线转换及脱敏验收要求。
 
 - 修复 [security]: 直连 GitHub Webhook 对未签名的事件类型请求头增加消息结构和 PR 目标身份交叉验证，防止不同事件被换头冒充有效唤醒。
