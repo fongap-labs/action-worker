@@ -33,7 +33,7 @@ export function auditDeploySecretScope(
   inventory: NamesOnlyInventory,
   activeEnvironment: string
 ): DeployScopeAudit {
-  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(activeEnvironment) || plan.length > 40) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(activeEnvironment) || plan.filter((entry) => entry.kind === "secret").length > 40) {
     throw new CliError("Invalid deploy Secret audit context.", 65);
   }
   const seen = new Set<string>();
@@ -103,9 +103,9 @@ export async function verifyPinnedDeploySource(
   ) {
     throw new CliError("Pinned deploy source identity is invalid.", 64);
   }
-  const directory = product ? "projects/" + product : ".github";
+  const directory = product ? `projects/${product}` : ".github";
   const paths = ["deploy.secrets.required", "deploy.secrets.allowed"].map(
-    (file) => directory + "/" + file
+    (file) => `${directory}/${file}`
   );
   const head = await runText("git", ["-C", sourceRoot, "rev-parse", "HEAD"], {
     timeoutMs: 5000,
@@ -127,7 +127,12 @@ export async function verifyPinnedDeploySource(
       if (error instanceof Error && "code" in error && error.code === "ENOENT") continue;
       throw error;
     }
-    if (!details.isFile() || details.isSymbolicLink() || details.nlink !== 1 || details.size > 16384) {
+    if (
+      !details.isFile() ||
+      details.isSymbolicLink() ||
+      details.nlink !== 1 ||
+      details.size > 16384
+    ) {
       throw new CliError("Deploy Secret declaration must be a bounded regular file.", 77);
     }
   }
@@ -139,8 +144,14 @@ async function main(): Promise<void> {
     throw new CliError("Deploy Secret scope audit is restricted to an offline terminal.", 77);
   }
   const args = process.argv.slice(2);
-  const [sourceRoot = "", repository = "", environment = "", productArg = "", sha = "", inventoryPath = ""] =
-    args;
+  const [
+    sourceRoot = "",
+    repository = "",
+    environment = "",
+    productArg = "",
+    sha = "",
+    inventoryPath = "",
+  ] = args;
   if (
     args.length !== 6 ||
     !sourceRoot ||
@@ -157,7 +168,12 @@ async function main(): Promise<void> {
   const product = productArg === "-" ? "" : productArg;
   const { requiredPath, allowedPath } = await verifyPinnedDeploySource(sourceRoot, product, sha);
   const policyPath = "policies/deploy-secrets.json";
-  const sources = await readDeploySecretVariableSources(policyPath, repository, environment, product);
+  const sources = await readDeploySecretVariableSources(
+    policyPath,
+    repository,
+    environment,
+    product
+  );
   // Supply placeholders ONLY to the offline policy resolver to inspect binding names.
   // No actual values are fetched, and the production runtime admission is untouched.
   const offlineVariableNames: NodeJS.ProcessEnv = Object.fromEntries(
