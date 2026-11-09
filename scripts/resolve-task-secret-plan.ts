@@ -54,7 +54,8 @@ export async function resolveTaskSecretPlan(
     repository,
     project,
     required,
-    allowed
+    allowed,
+    process.env
   );
   return { schema_version: 1, repository, project, slots };
 }
@@ -77,13 +78,17 @@ export function validateTaskSecretSlots(
       !/^[A-Z][A-Z0-9_]*$/.test(slot.logical_name) ||
       !/^[A-Z][A-Z0-9_]*$/.test(slot.stored_name) ||
       typeof slot.required !== "boolean" ||
+      (slot.kind !== "secret" && slot.kind !== "variable") ||
       seen.has(slot.logical_name)
     ) {
       throw new CliError("Task Secret slot plan has an invalid binding.", 65);
     }
     seen.add(slot.logical_name);
-    if (slot.required && !environment[slot.slot]) {
+    if (slot.kind === "secret" && slot.required && !environment[slot.slot]) {
       throw new CliError("A required task Secret slot has no value.", 77);
+    }
+    if (slot.kind === "variable" && slot.required && !environment[slot.stored_name]) {
+      throw new CliError("A required task Variable is unavailable.", 77);
     }
   }
   return plan.slots.length;
@@ -109,7 +114,7 @@ async function main(): Promise<void> {
     await chmod(path, 0o600);
     const values = Array.from({ length: maxTaskCredentialSlots }, (_, index) => {
       const name = plan.slots[index]?.stored_name ?? "";
-      return `secret_${String(index).padStart(2, "0")}=${name}`;
+      return `secret_${String(index).padStart(2, "0")}=${plan.slots[index]?.kind === "secret" ? name : ""}`;
     });
     await appendLines(process.env.GITHUB_OUTPUT, values);
     console.log(
