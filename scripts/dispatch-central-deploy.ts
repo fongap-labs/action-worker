@@ -1,6 +1,7 @@
 import { requireToken } from "./control-token.ts";
 import {
   type DeployAdapter,
+  parseDeployEnvironmentPolicy,
   parseDeployPlan,
   type ResolvedDeployManifest,
   resolveDeployManifest,
@@ -25,6 +26,7 @@ import {
   readJson,
   runText,
 } from "./runtime-command.ts";
+import { selectDeployCredentialEnvironment } from "./select-deploy-credential-environment.ts";
 
 type DeployAdapterPolicy = {
   event_type: string;
@@ -182,6 +184,32 @@ export async function assertNoRequiredReviewers(
   }
 }
 
+/**
+ * Automatic dispatch must check the credential-owning ops Job too, not only the
+ * logical target Environment already checked during manifest discovery.
+ * A required-reviewer gate cannot be completed by an unattended dispatcher.
+ */
+export async function assertAutomaticCredentialEnvironment(
+  reader: ContentReader,
+  controlRepository: string,
+  sourceRepository: string,
+  product: string,
+  environment: string,
+  routes: unknown,
+  grants: unknown
+): Promise<void> {
+  const selected = selectDeployCredentialEnvironment(
+    routes,
+    parseDeployEnvironmentPolicy(grants),
+    sourceRepository,
+    product,
+    environment
+  );
+  if (selected.credential_environment !== environment) {
+    await assertNoRequiredReviewers(reader, controlRepository, selected.credential_environment);
+  }
+}
+
 export type AutomaticDeployTarget = {
   product: string;
   environment: string;
@@ -298,6 +326,8 @@ async function main(): Promise<void> {
     : [];
   const policy = parseDeployPolicy(await readJson(policyPath));
   const runnerPolicy = await readJson(runnerPolicyPath);
+  const credentialRoutes = await readJson("policies/deploy-credential-environments.json");
+  const environmentGrants = await readJson("policies/deploy-environments.json");
 
   for (const [index, target] of targets.entries()) {
     const manifest: ResolvedDeployManifest = await resolveDeployManifest(
@@ -355,6 +385,16 @@ async function main(): Promise<void> {
       deploySha = defaultSha;
     }
 
+    // Run only when the actual credential Environment can finish unattended.
+    await assertAutomaticCredentialEnvironment(
+      reader,
+      controlRepository,
+      repository,
+      target.product,
+      target.environment,
+      credentialRoutes,
+      environmentGrants
+    );
     const eventType = deployEventType(policy, manifest.adapter);
     const requestId = [
       "deploy",

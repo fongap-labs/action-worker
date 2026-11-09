@@ -89,6 +89,31 @@ export function taskConcurrencyGroup(repository: string, project: string): strin
     .slice(0, 32);
 }
 
+/** Fail closed before minting source credentials or running any legacy task code. */
+export function assertTaskExecutionAllowed(
+  policy: unknown,
+  repository: string,
+  project: string
+): void {
+  const productKeyPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+  if (
+    !isJsonRecord(policy) ||
+    policy.schema_version !== 1 ||
+    Object.keys(policy).sort().join(",") !== "deploy_only,schema_version" ||
+    !Array.isArray(policy.deploy_only) ||
+    policy.deploy_only.some((key) => typeof key !== "string" || !productKeyPattern.test(key)) ||
+    new Set(policy.deploy_only).size !== policy.deploy_only.length
+  ) {
+    throw new CliError("::error::Task execution modes policy is invalid.", 65);
+  }
+  if (policy.deploy_only.includes(`${repository}/${project}`)) {
+    throw new CliError(
+      "::error::This product uses the protected deployment pipeline; generic Task Dispatch is disabled.",
+      77
+    );
+  }
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   let value: unknown;
@@ -118,6 +143,14 @@ async function main(): Promise<void> {
     parseJson(repositoryPolicy, "::error::AW_REPOSITORY_POLICY must be valid JSON.", 65),
     "task"
   );
+  // The control plane blocks the legacy task executor even for an older, otherwise
+  // trusted source SHA. Source-only removal of task.json cannot guard direct dispatch.
+  const modes = parseJson(
+    await readFile("policies/task-execution-modes.json", "utf8"),
+    "::error::Task execution modes policy must be valid JSON.",
+    65
+  );
+  assertTaskExecutionAllowed(modes, String(payload.repository), String(payload.project));
   await appendLines(process.env.GITHUB_OUTPUT, [
     `schema_version=${String(payload.schema_version)}`,
     `task_group=${taskConcurrencyGroup(String(payload.repository), String(payload.project))}`,

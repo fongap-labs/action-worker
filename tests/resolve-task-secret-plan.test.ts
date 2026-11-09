@@ -139,7 +139,7 @@ test("resolve CLI reads exported Actions Variables while keeping Secret values o
   const root = await mkdtemp(join(tmpdir(), "aw-task-variable-resolve-"));
   try {
     const source = join(root, "source");
-    const directory = join(source, "projects", "FongapCDN");
+    const directory = join(source, "projects", "FongapBlog");
     await mkdir(directory, { recursive: true });
     await writeFile(
       join(directory, ".secrets.required"),
@@ -151,7 +151,7 @@ test("resolve CLI reads exported Actions Variables while keeping Secret values o
       RUNNER_TEMP: root,
       AW_SOURCE_DIR: source,
       TASK_SOURCE_REPOSITORY: "fongap-labs/internal-vault",
-      PROJECT: "FongapCDN",
+      PROJECT: "FongapBlog",
       GITHUB_OUTPUT: output,
     };
     const run = (overrides: Record<string, string> = {}) =>

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  assertAutomaticCredentialEnvironment,
   assertNoRequiredReviewers,
   automaticDeployTargets,
   deployDecision,
@@ -168,6 +169,76 @@ test("an automatic environment with required reviewers is refused, and an unread
     assertNoRequiredReviewers(environmentReader({}), controlRepository, "production"),
     /no protection rules/
   );
+});
+
+test("protected credential owners are checked before unattended deployment dispatch", async () => {
+  const routes = {
+    schema_version: 1,
+    routes: { "fongap-labs/internal-vault/FongapCDN": { production: "internal-vault-ops" } },
+  };
+  const grants = {
+    schema_version: 1,
+    repositories: { "fongap-labs/internal-vault/FongapCDN": ["production"] },
+  };
+  const seen: string[] = [];
+  const reader = (protection_rules: unknown[]) => ({
+    async get(path: string): Promise<unknown> {
+      seen.push(path);
+      assert.equal(path, `repos/${controlRepository}/environments/internal-vault-ops`);
+      return { protection_rules };
+    },
+  });
+  await assertAutomaticCredentialEnvironment(
+    reader([]),
+    controlRepository,
+    "fongap-labs/internal-vault",
+    "FongapCDN",
+    "production",
+    routes,
+    grants
+  );
+  assert.equal(seen.length, 1);
+  await assert.rejects(
+    assertAutomaticCredentialEnvironment(
+      reader([{ type: "required_reviewers" }]),
+      controlRepository,
+      "fongap-labs/internal-vault",
+      "FongapCDN",
+      "production",
+      routes,
+      grants
+    ),
+    /Environment internal-vault-ops requires reviewers/
+  );
+  await assert.rejects(
+    assertAutomaticCredentialEnvironment(
+      reader([]),
+      controlRepository,
+      "fongap-labs/internal-vault",
+      "OtherProject",
+      "production",
+      routes,
+      grants
+    ),
+    /not authorized/
+  );
+  // A default route owns its credentials in the already-checked logical target.
+  const defaultGrants = {
+    schema_version: 1,
+    repositories: { "fongap-labs/other": ["production"] },
+  };
+  const defaultRoutes = { schema_version: 1, routes: {} };
+  const calls = seen.length;
+  await assertAutomaticCredentialEnvironment(
+    reader([]),
+    controlRepository,
+    "fongap-labs/other",
+    "",
+    "production",
+    defaultRoutes,
+    defaultGrants
+  );
+  assert.equal(seen.length, calls);
 });
 
 // A repository reader for the contents API: directories list their entries, files serve base64

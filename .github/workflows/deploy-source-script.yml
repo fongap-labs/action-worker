@@ -54,6 +54,8 @@ jobs:
       product: ${{ steps.source.outputs.product }}
       product_directory: ${{ steps.source.outputs.product_directory }}
       trigger: ${{ steps.source.outputs.trigger }}
+      credential_environment: ${{ steps.credentials.outputs.credential_environment }}
+      create_deployment: ${{ steps.credentials.outputs.create_deployment }}
 
     steps:
       - name: Checkout control plane
@@ -257,6 +259,23 @@ jobs:
           DEPLOY_REQUEST_JSON: ${{ steps.dispatch_request.outputs.request_json || steps.manual_request.outputs.request_json }}
         run: node scripts/validate-deploy-source.ts source-script true policies/runner.json policies/deploy-environments.json
 
+      - name: Resolve approved credential Environment for deployment
+        id: credentials
+        env:
+          DEPLOY_SOURCE_REPOSITORY: ${{ steps.source.outputs.source_repository }}
+          DEPLOY_PRODUCT: ${{ steps.source.outputs.product }}
+          DEPLOY_ENVIRONMENT: ${{ steps.source.outputs.environment }}
+        run: node scripts/select-deploy-credential-environment.ts
+
+      # Refuse implicit GitHub Environment creation from a dynamic job name.
+      # Read-only metadata check; reviewers of existing Environments still apply.
+      - name: Verify credential Environment exists before deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_CREDENTIAL_ENVIRONMENT: ${{ steps.credentials.outputs.credential_environment }}
+          AW_CONTROL_REPOSITORY: ${{ github.repository }}
+        run: node scripts/verify-deploy-credential-environment.ts
+
   gateway_account_id:
     # Only public allowlisted data is exported; no ops Secret crosses the trust boundary.
     needs: prepare
@@ -302,7 +321,9 @@ jobs:
     if: ${{ !cancelled() && needs.prepare.result == 'success' && ((needs.prepare.outputs.source_repository == 'fongap-labs/ai-gateway' && needs.prepare.outputs.environment == 'production' && needs.prepare.outputs.product == '' && needs.gateway_account_id.result == 'success') || (needs.prepare.outputs.source_repository != 'fongap-labs/ai-gateway' && needs.gateway_account_id.result == 'skipped')) }}
     # Exactly one GitHub Environment per deployment job. The prepare gate checks
     # the source manifest against the central authorization policy.
-    environment: ${{ needs.prepare.outputs.environment }}
+    environment:
+      name: ${{ needs.prepare.outputs.credential_environment }}
+      deployment: ${{ needs.prepare.outputs.create_deployment == 'true' }}
     # The group uses the resolved values, so a request that left the product or environment empty
     # still queues behind the same deploy of that product and environment.
     concurrency:
@@ -454,3 +475,19 @@ jobs:
           rm -rf \
             "${RUNNER_TEMP}/action-worker-deploy-secrets" \
             "${RUNNER_TEMP}/action-worker-deploy-secret-plan.json"
+
+  record_production_deployment:
+    # The credential-owning ops job performs the authorized production publish.
+    # Keep a separate actual GitHub production Deployment record after it succeeds.
+    name: Record approved production deploy after protected ops publish
+    needs: [prepare, deploy]
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.deploy.result == 'success' && needs.prepare.outputs.credential_environment != needs.prepare.outputs.environment }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment:
+      name: ${{ needs.prepare.outputs.environment }}
+    permissions:
+      contents: read
+    steps:
+      - name: Record approved production deployment completion
+        run: echo "Central source deployment completed using approved repository-specific ops credentials."

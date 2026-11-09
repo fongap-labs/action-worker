@@ -164,7 +164,7 @@ jobs:
   task_ops_vars:
     name: Resolve approved task Variables from protected ops
     needs: validate
-    if: needs.validate.result == 'success' && needs.validate.outputs.isolation_mode != 'true' && needs.validate.outputs.private_isolation_mode != 'true' && github.event.client_payload.repository == 'fongap-labs/internal-vault' && contains(fromJSON('["EngineSuite","FongapBlog","FongapCDN","MarketChina","MarketGlobal"]'), github.event.client_payload.project) && vars.CLOUDFLARE_ACCOUNT_ID_PRIMARY == ''
+    if: needs.validate.result == 'success' && needs.validate.outputs.isolation_mode != 'true' && needs.validate.outputs.private_isolation_mode != 'true' && github.event.client_payload.repository == 'fongap-labs/internal-vault' && contains(fromJSON('["EngineSuite","FongapBlog","MarketChina","MarketGlobal"]'), github.event.client_payload.project) && vars.CLOUDFLARE_ACCOUNT_ID_PRIMARY == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     environment:
