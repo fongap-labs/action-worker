@@ -23,3 +23,6 @@ __pycache__/
 # Locally-generated task publication encryption keys; never commit either key file.
 **/publication-private.pkcs8.pem
 **/publication-public.spki.base64
+
+# Locally generated, non-production ingress Worker config; never commit deployment IDs.
+.direct-ingress-staging.wrangler.json
