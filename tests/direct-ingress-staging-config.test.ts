@@ -66,10 +66,10 @@ test("central static CI verifies the inert ingress Worker through a pinned Wrang
     new URL("../.github/workflows/validate-ci.yml", import.meta.url),
     "utf8"
   );
-  assert.match(workflow, /Dry-run direct ingress Worker bundle/);
-  assert.match(workflow, /npm run ingress:staging-config/);
-  assert.match(workflow, /wrangler@4\\.158\\.0 deploy --dry-run/);
-  assert.match(workflow, /--config \\.direct-ingress-staging\\.wrangler\\.json/);
-  assert.match(workflow, /--outdir/);
-  assert.doesNotMatch(workflow, /wrangler@4\\.158\\.0 deploy --config/);
+  assert.ok(workflow.includes("Dry-run direct ingress Worker bundle"));
+  assert.ok(workflow.includes("npm run ingress:staging-config"));
+  assert.ok(workflow.includes("wrangler@4.158.0 deploy --dry-run"));
+  assert.ok(workflow.includes("--config .direct-ingress-staging.wrangler.json"));
+  assert.ok(workflow.includes("--outdir"));
+  assert.equal(workflow.includes("wrangler@4.158.0 deploy --config"), false);
 });
