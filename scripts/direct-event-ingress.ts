@@ -48,12 +48,16 @@ const leaseMs = 60_000;
 
 /** Shared production SQL statements used by D1 and the SQLite contract suite. */
 export const webhookDeliverySql = {
-  reserve: "INSERT OR IGNORE INTO webhook_deliveries (delivery_id, body_digest, installation_id, event_name, source_repository, created_ms, lease_until_ms) VALUES (?, ?, ?, ?, ?, ?, 0)",
+  reserve:
+    "INSERT OR IGNORE INTO webhook_deliveries (delivery_id, body_digest, installation_id, event_name, source_repository, created_ms, lease_until_ms) VALUES (?, ?, ?, ?, ?, ?, 0)",
   findId: "SELECT delivery_id, body_digest FROM webhook_deliveries WHERE delivery_id = ?",
   findDigest: "SELECT delivery_id, body_digest FROM webhook_deliveries WHERE body_digest = ?",
-  claim: "UPDATE webhook_deliveries SET lease_until_ms = ? WHERE delivery_id = ? AND delivered_ms IS NULL AND lease_until_ms <= ? RETURNING delivery_id",
-  complete: "UPDATE webhook_deliveries SET delivered_ms = ?, lease_until_ms = 0 WHERE delivery_id = ?",
-  pending: "SELECT delivery_id, installation_id FROM webhook_deliveries WHERE delivered_ms IS NULL AND lease_until_ms <= ? ORDER BY lease_until_ms ASC, created_ms ASC LIMIT 25",
+  claim:
+    "UPDATE webhook_deliveries SET lease_until_ms = ? WHERE delivery_id = ? AND delivered_ms IS NULL AND lease_until_ms <= ? RETURNING delivery_id",
+  complete:
+    "UPDATE webhook_deliveries SET delivered_ms = ?, lease_until_ms = 0 WHERE delivery_id = ?",
+  pending:
+    "SELECT delivery_id, installation_id FROM webhook_deliveries WHERE delivered_ms IS NULL AND lease_until_ms <= ? ORDER BY lease_until_ms ASC, created_ms ASC LIMIT 25",
 } as const;
 
 function configuration(env: IngressEnvironment): {
@@ -245,14 +249,10 @@ async function reserveDelivery(
   digest: string
 ): Promise<PendingDelivery> {
   // UNIQUE body_digest prevents a signed body from being replayed under a forged delivery ID.
-  await env.AW_INGRESS_DB.prepare(
-    webhookDeliverySql.reserve
-  )
+  await env.AW_INGRESS_DB.prepare(webhookDeliverySql.reserve)
     .bind(deliveryId, digest, installationId, eventName, repository, Date.now())
     .run();
-  const byId = await env.AW_INGRESS_DB.prepare(
-    webhookDeliverySql.findId
-  )
+  const byId = await env.AW_INGRESS_DB.prepare(webhookDeliverySql.findId)
     .bind(deliveryId)
     .first<{ delivery_id: string; body_digest: string }>();
   if (byId && byId.body_digest !== digest) {
@@ -260,9 +260,7 @@ async function reserveDelivery(
   }
   const row =
     byId ??
-    (await env.AW_INGRESS_DB.prepare(
-      webhookDeliverySql.findDigest
-    )
+    (await env.AW_INGRESS_DB.prepare(webhookDeliverySql.findDigest)
       .bind(digest)
       .first<{ delivery_id: string; body_digest: string }>());
   if (!row || row.body_digest !== digest) {
@@ -276,16 +274,12 @@ async function attemptPending(
   delivery: PendingDelivery,
   apiFetch: typeof fetch
 ): Promise<boolean> {
-  const claimed = await env.AW_INGRESS_DB.prepare(
-    webhookDeliverySql.claim
-  )
+  const claimed = await env.AW_INGRESS_DB.prepare(webhookDeliverySql.claim)
     .bind(Date.now() + leaseMs, delivery.delivery_id, Date.now())
     .first<{ delivery_id: string }>();
   if (!claimed) return false;
   await dispatchIntake(env, delivery.installation_id, apiFetch);
-  await env.AW_INGRESS_DB.prepare(
-    webhookDeliverySql.complete
-  )
+  await env.AW_INGRESS_DB.prepare(webhookDeliverySql.complete)
     .bind(Date.now(), delivery.delivery_id)
     .run();
   return true;
@@ -376,9 +370,7 @@ export async function retryPendingDeliveries(
   apiFetch: typeof fetch = fetch
 ): Promise<number> {
   configuration(env);
-  const pending = await env.AW_INGRESS_DB.prepare(
-    webhookDeliverySql.pending
-  )
+  const pending = await env.AW_INGRESS_DB.prepare(webhookDeliverySql.pending)
     .bind(Date.now())
     .all<PendingDelivery>();
   let completed = 0;
