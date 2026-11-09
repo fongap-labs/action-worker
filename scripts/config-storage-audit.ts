@@ -338,24 +338,27 @@ export async function auditStorageMetadata(
     if (!options.skipEnvironments) {
       const environments = await listAll(
         reader,
-      "repos/" + repository + "/environments",
-      "environments"
-    );
-    result.environment_count = (result.environment_count ?? 0) + environments.length;
-    const environmentsByName = environmentNames(environments);
-    for (const name of environmentsByName) {
-      const url = "repos/" + repository + "/environments/" + encodeURIComponent(name);
-      const environmentSecrets = namesOf(await listAll(reader, url + "/secrets", "secrets"));
-      const environmentVariables = namesOf(await listAll(reader, url + "/variables", "variables"));
-      result.environment_secrets = (result.environment_secrets ?? 0) + environmentSecrets.size;
-      result.environment_variables = (result.environment_variables ?? 0) + environmentVariables.size;
-      result.environment_shadowed_secret_bindings =
-        (result.environment_shadowed_secret_bindings ?? 0) +
-        countShadowed(environmentSecrets, new Set([...repoSecrets, ...inheritedSecrets]));
-      result.environment_shadowed_variable_bindings =
-        (result.environment_shadowed_variable_bindings ?? 0) +
-        countShadowed(environmentVariables, new Set([...repoVariables, ...inheritedVariables]));
-      addImpacted(result, environmentVariables);
+        "repos/" + repository + "/environments",
+        "environments"
+      );
+      result.environment_count = (result.environment_count ?? 0) + environments.length;
+      const environmentsByName = environmentNames(environments);
+      for (const name of environmentsByName) {
+        const url = "repos/" + repository + "/environments/" + encodeURIComponent(name);
+        const environmentSecrets = namesOf(await listAll(reader, url + "/secrets", "secrets"));
+        const environmentVariables = namesOf(
+          await listAll(reader, url + "/variables", "variables")
+        );
+        result.environment_secrets = (result.environment_secrets ?? 0) + environmentSecrets.size;
+        result.environment_variables =
+          (result.environment_variables ?? 0) + environmentVariables.size;
+        result.environment_shadowed_secret_bindings =
+          (result.environment_shadowed_secret_bindings ?? 0) +
+          countShadowed(environmentSecrets, new Set([...repoSecrets, ...inheritedSecrets]));
+        result.environment_shadowed_variable_bindings =
+          (result.environment_shadowed_variable_bindings ?? 0) +
+          countShadowed(environmentVariables, new Set([...repoVariables, ...inheritedVariables]));
+        addImpacted(result, environmentVariables);
       }
     }
     result.repositories_verified++;
