@@ -67,6 +67,8 @@ export const webhookDeliverySql = {
     "UPDATE webhook_deliveries SET delivered_ms = ?, lease_until_ms = 0 WHERE delivery_id = ?",
   pending:
     "SELECT delivery_id, installation_id FROM webhook_deliveries WHERE delivered_ms IS NULL AND lease_until_ms <= ? ORDER BY lease_until_ms ASC, created_ms ASC LIMIT 25",
+  backlog:
+    "SELECT COUNT(*) AS pending_count, MIN(created_ms) AS oldest_created_ms FROM webhook_deliveries WHERE delivered_ms IS NULL",
 } as const;
 
 /**
@@ -429,6 +431,48 @@ export async function handleDirectWebhook(
   }
 }
 
+export type IngressBacklog = {
+  pending_count: number;
+  oldest_created_ms: number | null;
+};
+
+/**
+ * Only aggregate operational numbers are logged. Neither delivery identity,
+ * source repository, signed body nor GitHub credentials are observable here.
+ */
+export function ingressCronTelemetry(
+  completed: number,
+  backlog: IngressBacklog | null,
+  now = Date.now()
+): {
+  component: "direct-event-ingress";
+  completed_count: number;
+  pending_count: number;
+  oldest_pending_age_minutes: number | null;
+} {
+  const pending = backlog?.pending_count;
+  const oldest = backlog?.oldest_created_ms;
+  if (
+    !Number.isSafeInteger(completed) ||
+    completed < 0 ||
+    !Number.isSafeInteger(pending) ||
+    pending! < 0 ||
+    !Number.isSafeInteger(now) ||
+    (oldest !== null && (!Number.isSafeInteger(oldest) || oldest! < 0)) ||
+    (pending === 0 && oldest !== null) ||
+    (pending! > 0 && oldest === null)
+  ) {
+    throw new Error("Direct ingress backlog snapshot is invalid.");
+  }
+  return {
+    component: "direct-event-ingress",
+    completed_count: completed,
+    pending_count: pending!,
+    oldest_pending_age_minutes:
+      oldest === null ? null : Math.floor(Math.max(0, now - oldest!) / 60_000),
+  };
+}
+
 /** Cron reconciliation is mandatory: a failed or ambiguous dispatch is never silently discarded. */
 export async function retryPendingDeliveries(
   env: IngressEnvironment,
@@ -450,11 +494,24 @@ export async function retryPendingDeliveries(
   return completed;
 }
 
+/** Emit one bounded, redacted backlog snapshot after every Cron reconciliation. */
+export async function reconcileIngressCron(
+  env: IngressEnvironment,
+  apiFetch: typeof fetch = fetch,
+  log: (message: string) => void = console.info
+): Promise<number> {
+  const completed = await retryPendingDeliveries(env, apiFetch);
+  const backlog = await env.AW_INGRESS_DB.prepare(webhookDeliverySql.backlog)
+    .first<IngressBacklog>();
+  log(JSON.stringify(ingressCronTelemetry(completed, backlog)));
+  return completed;
+}
+
 export default {
   fetch(request: Request, env: IngressEnvironment): Promise<Response> {
     return handleDirectWebhook(request, env);
   },
   async scheduled(_event: unknown, env: IngressEnvironment): Promise<void> {
-    await retryPendingDeliveries(env);
+    await reconcileIngressCron(env);
   },
 };
