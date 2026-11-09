@@ -26,6 +26,19 @@ export async function stageDeploySecretSlots(
   if (plan.schema_version !== 1 || !Array.isArray(plan.secrets)) {
     throw new CliError("Deploy Secret plan is invalid.", 65);
   }
+  const seenNames = new Set<string>();
+  for (const entry of plan.secrets) {
+    if (
+      !/^[A-Z][A-Z0-9_]*$/.test(entry.name) ||
+      !/^[A-Z][A-Z0-9_]*$/.test(entry.source) ||
+      (entry.kind !== "secret" && entry.kind !== "variable") ||
+      typeof entry.required !== "boolean" ||
+      seenNames.has(entry.name)
+    ) {
+      throw new CliError("Deploy Secret plan has an invalid or duplicated binding.", 65);
+    }
+    seenNames.add(entry.name);
+  }
   const secretEntries = plan.secrets.filter((entry) => entry.kind === "secret");
   if (secretEntries.length > deploySecretSlots) {
     throw new CliError("Deploy Secret plan exceeds the fixed slot limit.", 65);
@@ -37,18 +50,20 @@ export async function stageDeploySecretSlots(
     if (value) addMask(value);
     values.push(value);
   }
+  // Fail the entire batch before creating the directory or writing ANY value.
+  // GitHub's best-effort job cleanup is not a substitute for an atomic preflight.
+  for (const [index, entry] of secretEntries.entries()) {
+    if (entry.required && !values[index]) {
+      throw new CliError(`Required deploy Secret is unavailable: ${entry.name}.`, 77);
+    }
+  }
   const directory = join(runnerTemp, deploySecretDirectory);
   await mkdir(directory, { recursive: true, mode: 0o700 });
   await chmod(directory, 0o700);
   const staged: string[] = [];
   for (const [index, entry] of secretEntries.entries()) {
     const value = values[index];
-    if (!value) {
-      if (entry.required) {
-        throw new CliError(`Required deploy Secret is unavailable: ${entry.name}.`, 77);
-      }
-      continue;
-    }
+    if (!value) continue;
     const path = join(directory, entry.name);
     await writeFile(path, value, { encoding: "utf8", flag: "wx", mode: 0o600 });
     await chmod(path, 0o600);
