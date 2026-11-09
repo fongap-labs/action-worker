@@ -74,8 +74,9 @@ export function assertReleasePullRequestIdentity(
   const baseRepo = base && isJsonRecord(base.repo) ? base.repo : null;
   if (
     !isJsonRecord(pull) ||
+    typeof pull.number !== "number" ||
     !Number.isSafeInteger(pull.number) ||
-    Number(pull.number) < 1 ||
+    pull.number < 1 ||
     pull.title !== releasePullRequestTitle(options.tag) ||
     head?.ref !== releaseBranchOf(options.tag) ||
     headRepo?.full_name !== options.repository ||
