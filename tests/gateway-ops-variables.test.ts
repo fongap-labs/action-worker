@@ -51,7 +51,10 @@ test("missing account or invalid optional ops metadata always fails closed", () 
     { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_USAGE_D1_ID: "bad" },
     { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_ANALYTICS_DATASET: "invalid-value" },
   ]) {
-    assert.throws(() => validateGatewayOpsVariables(invalid), /invalid|missing|unavailable|HTTPS origin/);
+    assert.throws(
+      () => validateGatewayOpsVariables(invalid),
+      /invalid|missing|unavailable|HTTPS origin/
+    );
   }
 });
 
