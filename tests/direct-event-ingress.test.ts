@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHmac, generateKeyPairSync } from "node:crypto";
 import { test } from "node:test";
 import {
+  githubApiRequestTimeoutMs,
   handleDirectWebhook,
   type IngressDatabase,
   type IngressEnvironment,
@@ -209,6 +210,40 @@ test("accepts a verified default-branch push and dispatches only an empty intake
     "https://api.github.com/repos/fongap-labs/action-worker/dispatches"
   );
   assert.deepEqual(api.calls[1]?.body, { event_type: "run-intake", client_payload: {} });
+});
+
+test("both GitHub API calls have abort deadlines below the durable lease budget", async () => {
+  const db = new FakeDatabase();
+  const env = makeEnvironment(db);
+  const api = mockGithubApi();
+  const signals: AbortSignal[] = [];
+  const boundedFetch: typeof fetch = async (url, init) => {
+    assert.ok(init?.signal instanceof AbortSignal);
+    assert.equal(init.signal.aborted, false);
+    signals.push(init.signal);
+    return api.fetcher(url, init);
+  };
+  const response = await handleDirectWebhook(signedRequest(makePayload()), env, boundedFetch);
+  assert.equal(response.status, 202);
+  assert.equal(signals.length, 2);
+  assert.equal(githubApiRequestTimeoutMs * signals.length < 60_000, true);
+  assert.equal(api.calls.filter((call) => call.path.endsWith("/dispatches")).length, 1);
+});
+
+test("malformed PKCS#8 DER is rejected before recording an inbox delivery", async () => {
+  const db = new FakeDatabase();
+  const label = ["PRIVATE", "KEY"].join(" ");
+  const env = {
+    ...makeEnvironment(db),
+    AW_GITHUB_APP_PRIVATE_KEY: `-----BEGIN ${label}-----\nAQIDBA==\n-----END ${label}-----`,
+  };
+  const api = mockGithubApi();
+  const response = await handleDirectWebhook(signedRequest(makePayload()), env, api.fetcher);
+  assert.equal(response.status, 503);
+  assert.equal((await response.text()).includes("AQID"), false);
+  assert.equal(db.rows.size, 0);
+  assert.equal(api.calls.length, 0);
+  await assert.rejects(retryPendingDeliveries(env, api.fetcher));
 });
 
 test("delivery ID replay never dispatches twice once acknowledged", async () => {
