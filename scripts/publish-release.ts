@@ -6,6 +6,12 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareReleaseNotes, type ReleasePolicy } from "./changelog-release-notes.ts";
+import { publishChangelogRelease } from "./changelog-release-pr.ts";
+import {
+  parseTwoPhaseReleasePolicy,
+  selectReleasePhase,
+  type TwoPhaseReleasePolicy,
+} from "./release-two-phase-mode.ts";
 import { controlRepositoryOf, hasVerifiedCiEvidence } from "./ci-evidence.ts";
 import { requireStatusToken } from "./control-token.ts";
 import {
@@ -254,6 +260,13 @@ async function readReleasePolicy(): Promise<ReleasePolicy> {
       (item): item is string => typeof item === "string"
     ),
   };
+}
+
+async function readTwoPhaseStagingPolicy(): Promise<TwoPhaseReleasePolicy> {
+  const value = await readJson(
+    join(dirname(fileURLToPath(import.meta.url)), "..", "policies", "release-two-phase-staging.json")
+  );
+  return parseTwoPhaseReleasePolicy(value);
 }
 
 // Only an unpublished draft is ever rolled back: no tag exists until the Release is published.
@@ -553,21 +566,51 @@ async function main(): Promise<void> {
       throw new CliError(`::error::Release already exists in ${targetRepository}: ${tag}.`, 65);
     }
 
-    // Publishing is read-only against the target repository. A release never opens or
-    // merges a changelog PR, nor writes commits to the default branch.
+    // The actual production workflow intentionally has no two-phase opt-in
+    // variable or PR write token. Only a separately approved staging target
+    // can activate the changelog PR -> signed gate -> Main Write Guard path.
+    const phase = selectReleasePhase(
+      {
+        mode: process.env.AW_RELEASE_TWO_PHASE_MODE,
+        targetRepository,
+        prToken: process.env.AW_RELEASE_PR_WRITE_API_TOKEN,
+      },
+      await readTwoPhaseStagingPolicy()
+    );
     if (targetRepository !== sourceRepository || targetSha !== sourceSha) {
       await assertTrustedMainWrite(sourceReader, targetRepository, targetSha, true);
     }
-    const releaseSha = targetSha;
+    let releaseSha = targetSha;
+    let stagedNotes: string | undefined;
+    const releaseUrl = `https://github.com/${targetRepository}/releases/tag/${tag}`;
+    if (phase.kind === "staging") {
+      const staged = await publishChangelogRelease({
+        repository: targetRepository,
+        defaultBranch: targetBranch,
+        baseSha: targetSha,
+        tag,
+        version: manifest.version,
+        date: new Date().toISOString().slice(0, 10),
+        releaseUrl,
+        policy: await readReleasePolicy(),
+        token: phase.prToken,
+        statusToken,
+        entries: manifest.changelog_entries,
+        timeoutMinutes: phase.timeoutMinutes,
+      });
+      releaseSha = staged.mergeSha;
+      stagedNotes = staged.notes;
+    }
     const releaseNotes =
       manifest.release_notes ||
+      stagedNotes ||
       (await prepareReleaseNotes({
         repository: targetRepository,
         baseSha: targetSha,
         releaseKey: manifest.release_key,
         version: manifest.version,
         date: new Date().toISOString().slice(0, 10),
-        releaseUrl: `https://github.com/${targetRepository}/releases/tag/${tag}`,
+        releaseUrl,
         policy: await readReleasePolicy(),
         token: controlToken,
         entries: manifest.changelog_entries,
