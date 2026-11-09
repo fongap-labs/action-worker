@@ -1,8 +1,17 @@
 {
   "schema_version": 1,
   "repositories": {
-    "fongap-labs/ai-gateway": ["production"],
-    "fongap-labs/internal-vault/server-edge": ["production"],
-    "fongap-labs/mcp-hub": ["production"]
+    "fongap-labs/ai-gateway": [
+      "production"
+    ],
+    "fongap-labs/internal-vault/server-edge": [
+      "production"
+    ],
+    "fongap-labs/mcp-hub": [
+      "production"
+    ],
+    "fongap-labs/internal-vault/FongapCDN": [
+      "production"
+    ]
   }
 }
