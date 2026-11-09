@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 安全: 自动推送与定时部署在派发前校验受中央策略选中的实际凭据 ops Environment 是否需要人工审核，避免只检查逻辑 production 而使无人值守发布卡在审批队列；不可读取及未经授权均拒绝派发。
+
 - 安全: FongapCDN 转入受保护部署后，由中央任务准入策略拒绝旧固定源码 SHA 的普通任务执行，防止旧 run-task 入口绕过源仓库删除的 task.json；其余普通任务保持不变。
 
 - 优化: 将独立的产品生产部署凭据作用域纳入 Action Worker 中央控制策略，FongapCDN 正式发布在受保护 internal-vault-ops 中使用既有 PRIMARY Cloudflare 凭据，经过源码准入与 CI 后执行，不跨 Job 传递 Secret，并由独立 production Job 补记部署审计；其他产品保持原有 production 路径。
