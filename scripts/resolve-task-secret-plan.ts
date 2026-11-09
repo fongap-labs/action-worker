@@ -115,7 +115,8 @@ async function main(): Promise<void> {
     await chmod(path, 0o600);
     const values = Array.from({ length: maxTaskCredentialSlots }, (_, index) => {
       const name = plan.slots[index]?.stored_name ?? "";
-      return `secret_${String(index).padStart(2, "0")}=${plan.slots[index]?.kind !== "variable" ? name : ""}`;
+      const secretName = plan.slots[index]?.kind !== "variable" ? name : "";
+      return `secret_${String(index).padStart(2, "0")}=${secretName}`;
     });
     await appendLines(process.env.GITHUB_OUTPUT, values);
     console.log(
