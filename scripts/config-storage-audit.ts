@@ -19,23 +19,25 @@ type RepositoryInfo = { id: number; private: boolean };
 export type StorageAuditSummary = {
   schema_version: 1;
   mode: "read-only-storage-metadata";
+  coverage: "complete" | "control-only";
+  organization_scope_verified: boolean;
   repositories_verified: number;
   repository_secrets: number;
   repository_variables: number;
   environment_count: number;
   environment_secrets: number;
   environment_variables: number;
-  organization_secrets: number;
-  organization_variables: number;
-  inherited_secret_bindings: number;
-  inherited_variable_bindings: number;
-  repository_shadowed_secret_bindings: number;
-  repository_shadowed_variable_bindings: number;
-  environment_shadowed_secret_bindings: number;
-  environment_shadowed_variable_bindings: number;
-  protected_variable_bindings: number;
-  authorization_variable_bindings: number;
-  root_trust_variable_bindings: number;
+  organization_secrets: number | null;
+  organization_variables: number | null;
+  inherited_secret_bindings: number | null;
+  inherited_variable_bindings: number | null;
+  repository_shadowed_secret_bindings: number | null;
+  repository_shadowed_variable_bindings: number | null;
+  environment_shadowed_secret_bindings: number | null;
+  environment_shadowed_variable_bindings: number | null;
+  protected_variable_bindings: number | null;
+  authorization_variable_bindings: number | null;
+  root_trust_variable_bindings: number | null;
   secret_values_read: false;
   secret_values_verified: false;
   consumer_credentials_verified: false;
@@ -230,9 +232,11 @@ function countImpacted(names: ReadonlySet<string>): {
 
 function addImpacted(result: StorageAuditSummary, names: ReadonlySet<string>): void {
   const counts = countImpacted(names);
-  result.protected_variable_bindings += counts.protected;
-  result.authorization_variable_bindings += counts.authorization;
-  result.root_trust_variable_bindings += counts.rootTrust;
+  result.protected_variable_bindings = (result.protected_variable_bindings ?? 0) + counts.protected;
+  result.authorization_variable_bindings =
+    (result.authorization_variable_bindings ?? 0) + counts.authorization;
+  result.root_trust_variable_bindings =
+    (result.root_trust_variable_bindings ?? 0) + counts.rootTrust;
 }
 
 function repositoryInfo(value: unknown): RepositoryInfo {
@@ -249,18 +253,23 @@ function repositoryInfo(value: unknown): RepositoryInfo {
 
 export async function auditStorageMetadata(
   reader: Reader,
-  repositories: readonly string[]
+  repositories: readonly string[],
+  options: { skipOrganization?: boolean } = {}
 ): Promise<StorageAuditSummary> {
   if (
     repositories.length === 0 ||
     new Set(repositories).size !== repositories.length ||
-    repositories.some((name) => !repositoryPattern.test(name))
+    repositories.some((name) => !repositoryPattern.test(name)) ||
+    (options.skipOrganization === true &&
+      (repositories.length !== 1 || repositories[0] !== "fongap-labs/action-worker"))
   ) {
     throw new CliError("Configuration inventory targets are invalid.", 65);
   }
   const result: StorageAuditSummary = {
     schema_version: 1,
     mode: "read-only-storage-metadata",
+    coverage: options.skipOrganization ? "control-only" : "complete",
+    organization_scope_verified: !options.skipOrganization,
     repositories_verified: 0,
     repository_secrets: 0,
     repository_variables: 0,
@@ -284,8 +293,10 @@ export async function auditStorageMetadata(
     environment_protection_verified: false,
     automatic_writes: false,
   };
-  const orgSecrets = await organizationEntries(reader, "secrets");
-  const orgVariables = await organizationEntries(reader, "variables");
+  const orgSecrets = options.skipOrganization ? [] : await organizationEntries(reader, "secrets");
+  const orgVariables = options.skipOrganization
+    ? []
+    : await organizationEntries(reader, "variables");
   result.organization_secrets = orgSecrets.length;
   result.organization_variables = orgVariables.length;
 
@@ -304,13 +315,16 @@ export async function auditStorageMetadata(
     const inheritedVariables = inherited(orgVariables, metadata);
     result.repository_secrets += repoSecrets.size;
     result.repository_variables += repoVariables.size;
-    result.inherited_secret_bindings += inheritedSecrets.size;
-    result.inherited_variable_bindings += inheritedVariables.size;
-    result.repository_shadowed_secret_bindings += countShadowed(repoSecrets, inheritedSecrets);
-    result.repository_shadowed_variable_bindings += countShadowed(
-      repoVariables,
-      inheritedVariables
-    );
+    result.inherited_secret_bindings =
+      (result.inherited_secret_bindings ?? 0) + inheritedSecrets.size;
+    result.inherited_variable_bindings =
+      (result.inherited_variable_bindings ?? 0) + inheritedVariables.size;
+    result.repository_shadowed_secret_bindings =
+      (result.repository_shadowed_secret_bindings ?? 0) +
+      countShadowed(repoSecrets, inheritedSecrets);
+    result.repository_shadowed_variable_bindings =
+      (result.repository_shadowed_variable_bindings ?? 0) +
+      countShadowed(repoVariables, inheritedVariables);
     addImpacted(result, repoVariables);
     addImpacted(result, inheritedVariables);
 
@@ -327,17 +341,30 @@ export async function auditStorageMetadata(
       const environmentVariables = namesOf(await listAll(reader, url + "/variables", "variables"));
       result.environment_secrets += environmentSecrets.size;
       result.environment_variables += environmentVariables.size;
-      result.environment_shadowed_secret_bindings += countShadowed(
-        environmentSecrets,
-        new Set([...repoSecrets, ...inheritedSecrets])
-      );
-      result.environment_shadowed_variable_bindings += countShadowed(
-        environmentVariables,
-        new Set([...repoVariables, ...inheritedVariables])
-      );
+      result.environment_shadowed_secret_bindings =
+        (result.environment_shadowed_secret_bindings ?? 0) +
+        countShadowed(environmentSecrets, new Set([...repoSecrets, ...inheritedSecrets]));
+      result.environment_shadowed_variable_bindings =
+        (result.environment_shadowed_variable_bindings ?? 0) +
+        countShadowed(environmentVariables, new Set([...repoVariables, ...inheritedVariables]));
       addImpacted(result, environmentVariables);
     }
     result.repositories_verified++;
+  }
+  if (options.skipOrganization) {
+    // Without organization access, all inheritance-dependent counters are unknown,
+    // not zero. Repository and Environment name counts remain locally verifiable.
+    result.organization_secrets = null;
+    result.organization_variables = null;
+    result.inherited_secret_bindings = null;
+    result.inherited_variable_bindings = null;
+    result.repository_shadowed_secret_bindings = null;
+    result.repository_shadowed_variable_bindings = null;
+    result.environment_shadowed_secret_bindings = null;
+    result.environment_shadowed_variable_bindings = null;
+    result.protected_variable_bindings = null;
+    result.authorization_variable_bindings = null;
+    result.root_trust_variable_bindings = null;
   }
   return result;
 }
@@ -366,8 +393,28 @@ async function main(): Promise<void> {
     },
   };
   try {
-    // Only aggregate counts leave this function. Never expose private names or Variable values.
-    console.log(JSON.stringify(await auditStorageMetadata(reader, auditTargets), null, 2));
+    // Complete scope is preferred. A denied organization metadata permission does
+    // not prevent useful read-only evidence about the central ops repository.
+    let summary: StorageAuditSummary;
+    try {
+      summary = await auditStorageMetadata(reader, auditTargets);
+    } catch (error) {
+      if (
+        failureScope !== "organization" ||
+        !(error instanceof GithubHttpError) ||
+        error.status !== 403 ||
+        error.kind !== "permission"
+      ) {
+        throw error;
+      }
+      console.warn(
+        "::warning::Organization metadata access denied; auditing only the Action Worker control repository. Inherited scope remains unverified."
+      );
+      summary = await auditStorageMetadata(reader, ["fongap-labs/action-worker"], {
+        skipOrganization: true,
+      });
+    }
+    console.log(JSON.stringify(summary, null, 2));
   } catch (error) {
     const failure =
       error instanceof GithubHttpError ? `http_${error.status}_${error.kind}` : "unclassified";

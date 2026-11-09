@@ -54,7 +54,7 @@ jobs:
           {
             echo '## Organization configuration scope audit'
             echo
-            echo '- Coverage: centrally listed organization repositories'
+            echo '- Coverage: complete organization or explicit control-only fallback (see JSON summary)'
             echo '- Inputs: GitHub names and scope metadata only'
             echo '- Secret values: not available; Variable values: discarded without output or persistence'
             echo '- Actions: no configuration changes or automatic credential migration'
