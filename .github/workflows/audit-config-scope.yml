@@ -1,7 +1,7 @@
 name: 自动 · 组织配置作用域审计
 
 # Run whenever central scope policy changes and periodically detect out-of-band drift.
-# Metadata only: never read, export or rewrite a Secret or Variable value.
+# Secrets list APIs expose names only. GitHub Variable list APIs may include values; discard them without logging.
 on:
   push:
     branches: [main]
@@ -56,6 +56,6 @@ jobs:
             echo
             echo '- Coverage: centrally listed organization repositories'
             echo '- Inputs: GitHub names and scope metadata only'
-            echo '- Values: not read or verified'
+            echo '- Secret values: not available; Variable values: discarded without output or persistence'
             echo '- Actions: no configuration changes or automatic credential migration'
           } >> "$GITHUB_STEP_SUMMARY"
