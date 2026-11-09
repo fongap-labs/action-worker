@@ -24,6 +24,7 @@ import { assertTrustedMainWrite } from "./main-write-guard.ts";
 import {
   parseTwoPhaseReleasePolicy,
   selectReleasePhase,
+  selectVerifiedReleaseNotes,
   type TwoPhaseReleasePolicy,
 } from "./release-two-phase-mode.ts";
 import {
@@ -607,9 +608,10 @@ async function main(): Promise<void> {
       releaseSha = staged.mergeSha;
       stagedNotes = staged.notes;
     }
+    // The signed manifest cannot replace notes from the governed staging merge.
+    const verifiedNotes = selectVerifiedReleaseNotes(phase, manifest.release_notes, stagedNotes);
     const releaseNotes =
-      manifest.release_notes ||
-      stagedNotes ||
+      verifiedNotes ||
       (await prepareReleaseNotes({
         repository: targetRepository,
         baseSha: targetSha,
