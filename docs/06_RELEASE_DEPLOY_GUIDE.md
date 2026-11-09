@@ -62,27 +62,39 @@
 
 ## 4. 发布流程详解
 
+### 当前生产默认：只读变更日志发布
+
+```text
+不可变源码 → 中央构建/打包 → release-manifest + provenance
+→ Release Governance、来源提交和中央 CI/Main Write Guard 校验
+→ 只读目标仓库 CHANGELOG.md，生成版本说明（不创建或合并变更日志 PR）
+→ 草稿 Release（未创建正式 tag）→ 上传资产 → SHA256/checksum 校验
+→ 发布草稿为正式 Release；此时 tag 指向已验证的目标提交
 ```
-不可变源码
-→ Action Worker 中央构建/打包
-→ release-manifest + provenance
-→ Release Governance
-→ 版本小节 PR（chore(release): <tag>）→ 门禁 → 合并
-→ 草稿 Release（草稿不产生 tag）→ 上传资产 → 校验（SHA256 与 checksum）
-→ 正式发布 Release，此时在合并提交上创建 tag
-→ 完成 / 回滚（失败时只删除草稿，不留下 tag）
+
+**当前 `handle-release-dispatch.yml` 没有开启两阶段发布**，既不向发布作业注入 `AW_RELEASE_TWO_PHASE_MODE=staging`，也不提供阶段一的目标 PR 写入凭据。默认 `publish-release.ts` 直接读取目标 CHANGELOG；manifest 的非空 `release_notes` 可以优先用作说明，否则由只读 CHANGELOG 生成。没有可发布的变更日志条目时保持原有拒绝语义，提交跨度列表不是 Release 说明的后备来源。
+
+发布的最后一步是 GitHub `PATCH draft=false`：调用**发出之前**发生失败时，才可对确认为本次新建、尚未发布的草稿进行最佳努力清理；如果正式发布请求已发出但响应丢失、超时或失败，**不得自动删除可能已发布的 Release 或 tag**，应由授权维护者核对 Release 状态、tag SHA 与受管目标提交后决定恢复。成功完成资产校验不等于已发布成功。
+
+### 受控非生产试点：两阶段发布（目前禁用）
+
+```text
+明确获批的 staging 目标仓库 + 审核过的目标 PR 写入和状态读取凭据
+→ 固定不可变来源/产物 SHA 与中央 CI/Main Write Guard 验证
+→ CHANGELOG 版本小节 PR（chore(release): <tag>）
+→ 签名 validate-merge 与受保护 PR 合并
+→ 合并 SHA Main Write Guard + 实际合并版本小节/manifest 条目一致性
+→ 以该 merge SHA 创建草稿 Release → 上传和校验资产
+→ 受控正式发布 → tag 指向该 merge SHA
 ```
 
-tag 只在 Release 校验通过并正式发布时才出现；任何更早的失败都不会留下正式 tag。
+该源码路径已接线，但 `policies/release-two-phase-staging.json` 的 `approved_staging_repositories` **默认为空**；除非治理 PR 明确批准目标，且受保护 staging 运行环境同时提供独立的目标 `pull-requests:write` 与状态读取凭据，否则一律 fail-closed。生产工作流的权限和行为不因源码存在而变化。
 
-- 版本小节仅根据目标仓库的 `CHANGELOG.md` 生成；发布 PR 仅改此文件，中央从基线重新计算并校验。
-- 版本说明：产品清单的 `release_notes` 非空时使用它；为空时使用本次版本小节。提交跨度清单不再作为版本说明来源。
-- 没有未发布条目的仓库无法发布，会以 `No CHANGELOG entries to release` 失败。
-- 发布 PR 等待门禁的时间计入发布时限（默认 30 分钟）。门禁失败时 PR 保持开放，重跑会复用它，不会新开。
+阶段一复用历史 PR 时必须核验 tag/来源仓库/受保护目标、实际合并后的版本号和 manifest 条目及 Main Write Guard；合并后版本小节是 staging Release 说明的权威来源，manifest 若显式提供不同的 `release_notes` 则拒绝。阶段一 PR 合并和 Main Write Guard 共享单次截止时间；staging 源码预算为 12 分钟，**不代表**现有 20 分钟生产作业已有足够时间完成全链路。未获批准的真实非生产 E2E、重试、取消及发布失败回滚验收不得标记成功。详情见 [受控试点手册](release-two-phase-staging.md) 和 [#1495](https://github.com/fongap-labs/action-worker/issues/1495)。
 
-- 业务仓库保留构建/打包脚本，在 `.github/release.manifest.json`（单产品）或 `projects/<产品>/release.manifest.json`（多产品）声明构建目标、产物、`runner_profile`
-- Manifest **不含版本**；版本来自发布请求，留空时由三类提交计算
-- 项目构建脚本必填 `-Version` 参数，将版本写入构建产物并校验
+- 业务仓库保留构建/打包脚本，在 `.github/release.manifest.json`（单产品）或 `projects/<产品>/release.manifest.json`（多产品）声明构建目标、产物、`runner_profile`。
+- Manifest **不含版本**；版本来自发布请求，留空时由三类提交计算。具体产品仍须符合它自己的显式版本策略。
+- 项目构建脚本必填 `-Version` 参数，将版本写入构建产物并校验。
 
 ### 4.1 多产品发布
 
