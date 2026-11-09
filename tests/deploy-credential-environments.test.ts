@@ -136,7 +136,7 @@ test("central deployment uses ops only for authorized credential read and record
     DEPLOY_CREDENTIAL_ENVIRONMENT: "${{ steps.credentials.outputs.credential_environment }}",
     AW_CONTROL_REPOSITORY: "${{ github.repository }}",
   });
-  assert.doesNotMatch(JSON.stringify(prepare.steps?.[verifyAt!]), /secrets\\.|AW_APP_PRIVATE_KEY/);
+  assert.doesNotMatch(JSON.stringify(prepare.steps?.[verifyAt!]), /secrets\.|AW_APP_PRIVATE_KEY/);
   assert.deepEqual(deploy.environment, {
     name: "${{ needs.prepare.outputs.credential_environment }}",
     deployment: "${{ needs.prepare.outputs.create_deployment == 'true' }}",
