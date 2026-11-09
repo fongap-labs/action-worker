@@ -258,10 +258,10 @@ jobs:
         run: node scripts/validate-deploy-source.ts source-script true policies/runner.json policies/deploy-environments.json
 
   gateway_account_id:
-    # Only the authorized AI Gateway production route can read its own ops account ID.
+    # Only public allowlisted data is exported; no ops Secret crosses the trust boundary.
     needs: prepare
     if: needs.prepare.result == 'success' && needs.prepare.outputs.source_repository == 'fongap-labs/ai-gateway' && needs.prepare.outputs.environment == 'production' && needs.prepare.outputs.product == ''
-    name: Resolve AI Gateway account ID from protected ops
+    name: Resolve AI Gateway deployment Variables from protected ops
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     environment:
@@ -271,19 +271,28 @@ jobs:
       contents: read
     outputs:
       account_id: ${{ steps.account_id.outputs.account_id }}
+      public_url: ${{ steps.account_id.outputs.public_url }}
+      affinity_kv_id: ${{ steps.account_id.outputs.affinity_kv_id }}
+      usage_d1_id: ${{ steps.account_id.outputs.usage_d1_id }}
+      analytics_dataset: ${{ steps.account_id.outputs.analytics_dataset }}
     steps:
-      - name: Validate existing non-sensitive ops Account ID
+      - name: Check out trusted control implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Validate allowlisted non-sensitive ops Variables
         id: account_id
-        shell: bash
         env:
-          ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
-        run: |
-          set -Eeuo pipefail
-          [[ "$ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]] || {
-            echo "::error::The approved ai-gateway-ops account ID is missing or invalid." >&2
-            exit 77
-          }
-          echo "account_id=$ACCOUNT_ID" >> "$GITHUB_OUTPUT"
+          CLOUDFLARE_ACCOUNT_ID_SECONDARY: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
+          AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
+          AIG_AFFINITY_KV_ID: ${{ vars.AIG_AFFINITY_KV_ID }}
+          AIG_USAGE_D1_ID: ${{ vars.AIG_USAGE_D1_ID }}
+          AIG_ANALYTICS_DATASET: ${{ vars.AIG_ANALYTICS_DATASET }}
+        run: node scripts/gateway-ops-variables.ts
 
   deploy:
     name: Execute source-script deploy
@@ -356,6 +365,10 @@ jobs:
         env:
           REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}
           AW_GATEWAY_ACCOUNT_ID_FROM_OPS: ${{ needs.gateway_account_id.outputs.account_id }}
+          AW_GATEWAY_PUBLIC_URL_FROM_OPS: ${{ needs.gateway_account_id.outputs.public_url }}
+          AW_GATEWAY_AFFINITY_KV_ID_FROM_OPS: ${{ needs.gateway_account_id.outputs.affinity_kv_id }}
+          AW_GATEWAY_USAGE_D1_ID_FROM_OPS: ${{ needs.gateway_account_id.outputs.usage_d1_id }}
+          AW_GATEWAY_ANALYTICS_DATASET_FROM_OPS: ${{ needs.gateway_account_id.outputs.analytics_dataset }}
         run: node control/scripts/export-repository-variables.ts
 
       - name: Resolve deploy Secret plan
