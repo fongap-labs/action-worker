@@ -12,6 +12,7 @@ import {
   releaseSectionBody,
 } from "../scripts/changelog-release.ts";
 import {
+  assertMergedReleaseSection,
   assertReleasePullRequestIdentity,
   assertReleaseStageDeadline,
   releasePullRequestTitle,
@@ -190,6 +191,55 @@ function scopedOf(changelog: string): string {
     entries: entriesFromLines(mirrorEntries, categories),
   });
 }
+
+test("resumed release must match the current manifest entries and version", () => {
+  const options = {
+    version: "0.2.0",
+    releaseUrl,
+    policy: { changelog_file: "CHANGELOG.md", changelog_categories: categories },
+    entries: mirrorEntries,
+  };
+  const merged = scopedOf(base);
+  assert.equal(
+    assertMergedReleaseSection(merged, options),
+    "### 新增\n\n- 同步 CRAN 上游文件 example_0.2.0.tar.gz（版本 0.2.0），SHA-256 已校验。"
+  );
+  assert.throws(
+    () => assertMergedReleaseSection(merged.replace("SHA-256 已校验", "SHA-256 尚未校验"), options),
+    /differs from this request's manifest entries/
+  );
+  assert.throws(
+    () => assertMergedReleaseSection(merged.replace("## [0.2.0]", "## [0.3.0]"), options),
+    /does not uniquely match/
+  );
+  assert.throws(
+    () =>
+      assertMergedReleaseSection(
+        merged + "\n## [0.2.0](" + releaseUrl + ") - 2026-10-24\n",
+        options
+      ),
+    /does not uniquely match/
+  );
+  assert.throws(
+    () => assertMergedReleaseSection(merged, { ...options, entries: ["新增: 另一份有效请求。"] }),
+    /differs from this request's manifest entries/
+  );
+});
+
+test("a legacy unscoped release still requires a unique nonempty version section", () => {
+  const content = releaseOf(base);
+  const options = {
+    version: "0.2.0",
+    releaseUrl,
+    policy: { changelog_file: "CHANGELOG.md", changelog_categories: categories },
+  };
+  assert.equal(assertMergedReleaseSection(content, options), "### 修复\n\n- 修正超时。");
+  assert.throws(
+    () =>
+      assertMergedReleaseSection(content, { ...options, releaseUrl: "https://example.org/other" }),
+    /does not uniquely match/
+  );
+});
 
 test("scoped releases preserve unrelated Unreleased entries", () => {
   const head = scopedOf(base);
