@@ -262,7 +262,7 @@ Cloudflare Worker Secrets：保留 MCP Hub 业务运行时密钥
 
 ### 组织级配置作用域自动审计
 
-Action Worker 的 `.github/workflows/audit-config-scope.yml` 在中央策略变更合并后与日常漂移检查时自动运行，绑定**本仓库的 `admin-ops` Environment**，复用现有受保护 `AW_ADMIN_TOKEN` 只读调用 GitHub 元数据 API。`scripts/config-storage-audit.ts` 自动审计 `policies/config-audit-targets.json` 与 `policies/repository-access.json` 的受管仓库并集，检查组织/仓库/Environment 级 Secret、Variable 的名称、继承及遮蔽情况。只输出聚合计数和未验证声明，不读取或输出凭据值，不修改其他仓库的设置，也不通过 Job Output 跨环境传递 Secret。权限不足或分页不完整时必须失败而非猜测配置不存在；异常应按现有受保护治理流程处理，不要求业务仓库重复配置。
+Action Worker 的 `.github/workflows/audit-config-scope.yml` 在中央策略变更合并后与日常漂移检查时自动运行，绑定**本仓库的 `admin-ops` Environment**，复用现有受保护 `AW_ADMIN_TOKEN` 只读调用 GitHub 元数据 API。`scripts/config-storage-audit.ts` 自动审计 `policies/config-audit-targets.json` 与 `policies/repository-access.json` 的受管仓库并集，检查组织/仓库/Environment 级 Secret、Variable 的名称、继承及遮蔽情况。只输出聚合计数和未验证声明。GitHub Variables 列表 API 响应可能包含值，审计器仅提取名称并丢弃值，绝不写日志或工件；Secret 列表 API 不返回 Secret 值。不修改其他仓库的设置，也不通过 Job Output 跨环境传递 Secret。权限不足或分页不完整时必须失败而非猜测配置不存在；异常应按现有受保护治理流程处理，不要求业务仓库重复配置。
 
 ## 6. 定时部署
 
