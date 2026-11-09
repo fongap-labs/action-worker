@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { GithubHttpError } from "../scripts/github-api.ts";
 import {
   auditStorageMetadata,
   managedAuditTargets,
   storageAuditFailureScope,
 } from "../scripts/config-storage-audit.ts";
+import { GithubHttpError } from "../scripts/github-api.ts";
 
 const repository = "fongap-labs/private-source";
 
