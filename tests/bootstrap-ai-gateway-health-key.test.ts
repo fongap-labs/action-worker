@@ -76,7 +76,7 @@ test("one-shot main-only bootstrap retains the central operations and admin trus
     );
     assert.equal(
       deployEnv?.env?.CLOUDFLARE_ACCOUNT_ID_OPS,
-      "${{ vars.CLOUDFLARE_ACCOUNT_ID_OPS }}"
+      "${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}"
     );
   }
   const opsWorkflow = parse(readFileSync(".github/workflows/ai-gateway-ops.yml", "utf8")) as Record<

@@ -32,6 +32,33 @@ export function variableEntries(value: unknown): Array<[string, string]> {
   return entries;
 }
 
+/**
+ * The AI Gateway production account ID is a non-sensitive Variable owned by
+ * this control repository's protected ai-gateway-ops Environment. Only this
+ * deployment key may receive it. Never import other ops variables or Secrets.
+ */
+export function mergeApprovedGatewayAccountId(
+  variables: Record<string, string>,
+  sourceRepository: string | undefined,
+  deployEnvironment: string | undefined,
+  accountId: string | undefined
+): Record<string, string> {
+  if (sourceRepository !== "fongap-labs/ai-gateway" || deployEnvironment !== "production") {
+    if (accountId) {
+      throw new CliError("Ops Account ID handoff is not authorized for this deployment.", 77);
+    }
+    return variables;
+  }
+  if (!accountId || !/^[0-9a-f]{32}$/.test(accountId)) {
+    throw new CliError("Approved AI Gateway ops Account ID is unavailable.", 77);
+  }
+  const existing = variables.CLOUDFLARE_ACCOUNT_ID_SECONDARY;
+  if (existing !== undefined && existing !== accountId) {
+    throw new CliError("AI Gateway Account ID has conflicting Variable sources.", 77);
+  }
+  return { ...variables, CLOUDFLARE_ACCOUNT_ID_SECONDARY: accountId };
+}
+
 async function main(): Promise<void> {
   const runnerTemp = process.env.RUNNER_TEMP ?? "";
   const githubEnv = process.env.GITHUB_ENV ?? "";
@@ -45,8 +72,13 @@ async function main(): Promise<void> {
     process.env.REPOSITORY_VARS_JSON || "{}",
     "::error::Repository Variables payload must be valid JSON."
   );
-  const entries = variableEntries(value);
-  const sorted = Object.fromEntries(entries);
+  const sorted = mergeApprovedGatewayAccountId(
+    Object.fromEntries(variableEntries(value)),
+    process.env.DEPLOY_SOURCE_REPOSITORY,
+    process.env.DEPLOY_ENVIRONMENT,
+    process.env.AW_GATEWAY_ACCOUNT_ID_FROM_OPS
+  );
+  const entries = variableEntries(sorted);
   const aiAgentConfig = parseAiAgentConfig(sorted.AW_AI_AGENT_CONFIG ?? "");
   const agentEntries = aiAgentRuntimeEntries(aiAgentConfig);
   const repositoryNames = new Set(entries.map(([name]) => name));

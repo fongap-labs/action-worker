@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { parse } from "yaml";
+import { mergeApprovedGatewayAccountId } from "../scripts/export-repository-variables.ts";
 import {
   readDeploySecretCeiling,
   readDeploySecretVariableSources,
@@ -250,4 +251,77 @@ test("workflow resolves one source per fixed slot without embedding product Secr
   for (const name of ["AIG_ACCESS_KEY_AGENT", "SERVER_EDGE_SECRET_BUNDLE", "MCP_RUNTIME_KEY"]) {
     assert.equal(source.includes("secrets." + name), false, name);
   }
+});
+
+test("AI Gateway production imports only its non-sensitive account ID from protected ops", () => {
+  const accountId = "0123456789abcdef0123456789abcdef";
+  assert.deepEqual(
+    mergeApprovedGatewayAccountId(
+      { AIG_PUBLIC_URL: "https://gateway.example" },
+      "fongap-labs/ai-gateway",
+      "production",
+      accountId
+    ),
+    {
+      AIG_PUBLIC_URL: "https://gateway.example",
+      CLOUDFLARE_ACCOUNT_ID_SECONDARY: accountId,
+    }
+  );
+  assert.throws(
+    () => mergeApprovedGatewayAccountId({}, "fongap-labs/ai-gateway", "production", undefined),
+    /unavailable/
+  );
+  assert.throws(
+    () => mergeApprovedGatewayAccountId({}, "fongap-labs/ai-gateway", "production", "invalid"),
+    /unavailable/
+  );
+  assert.throws(
+    () =>
+      mergeApprovedGatewayAccountId(
+        { CLOUDFLARE_ACCOUNT_ID_SECONDARY: "ffffffffffffffffffffffffffffffff" },
+        "fongap-labs/ai-gateway",
+        "production",
+        accountId
+      ),
+    /conflicting Variable/
+  );
+  assert.deepEqual(
+    mergeApprovedGatewayAccountId(
+      { PUBLIC_URL: "https://example.test" },
+      "fongap-labs/mcp-hub",
+      "production",
+      undefined
+    ),
+    { PUBLIC_URL: "https://example.test" }
+  );
+  assert.throws(
+    () => mergeApprovedGatewayAccountId({}, "fongap-labs/mcp-hub", "production", accountId),
+    /not authorized/
+  );
+  assert.throws(
+    () => mergeApprovedGatewayAccountId({}, "fongap-labs/ai-gateway", "staging", accountId),
+    /not authorized/
+  );
+});
+
+test("AI Gateway account ID is read only in the protected ops job, never from production vars", async () => {
+  const source = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
+  const workflow = parse(source) as { jobs: Record<string, Record<string, unknown>> };
+  const accountJob = workflow.jobs.gateway_account_id;
+  const deploy = workflow.jobs.deploy;
+  assert.ok(accountJob && deploy);
+  assert.deepEqual(accountJob.environment, { name: "ai-gateway-ops", deployment: false });
+  const accountSteps = accountJob.steps as Array<{ env?: Record<string, string> }>;
+  assert.equal(accountSteps[0]?.env?.ACCOUNT_ID, "${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}");
+  const depends = deploy.needs as string[];
+  assert.deepEqual(depends, ["prepare", "gateway_account_id"]);
+  assert.match(String(deploy.if), /needs\.gateway_account_id\.result == 'success'/);
+  assert.match(String(deploy.if), /needs\.gateway_account_id\.result == 'skipped'/);
+  const exportStep = (deploy.steps as Array<{ name: string; env?: Record<string, string> }>).find(
+    (step) => step.name === "Export repository variables"
+  );
+  assert.equal(
+    exportStep?.env?.AW_GATEWAY_ACCOUNT_ID_FROM_OPS,
+    "${{ needs.gateway_account_id.outputs.account_id }}"
+  );
 });
