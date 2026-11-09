@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 组织级 Secret/Variable 元数据读取被 GitHub 拒绝时，自动降级审计 Action Worker 控制仓库的已有 ops Environments，输出明确的部分覆盖标识，将无法核验的组织继承及遮蔽计数置为 unknown 而不是误报为零；不新增高权限 Token。
+
 - 修复: 组织级配置元数据审计失败时仅报告组织/仓库/Environment 访问层级和脱敏 HTTP 错误类别，不泄漏私有仓库、Secret 名称、变量值或原始响应，缩短权限问题定位路径。
 
 - 新增: Action Worker 在受保护的 admin-ops 内自动执行组织级配置元数据作用域审计，复用既有管理员身份，仅提取仓库/组织/Environment 的 Secret 与 Variable 名称，丢弃 Variables API 响应中的值、不记录也不迁移凭据；审计目标自动包含新接入的授权仓库，不再依赖第二份名单人工同步。
