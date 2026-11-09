@@ -5,6 +5,7 @@ import {
   managedAuditTargets,
   storageAuditFailureScope,
 } from "../scripts/config-storage-audit.ts";
+import { GithubHttpError } from "../scripts/github-api.ts";
 
 const repository = "fongap-labs/private-source";
 
@@ -258,4 +259,89 @@ test("organization and Environment permission gaps preserve only verified contro
     }),
     /targets/
   );
+});
+
+test("control-only inventory keeps ops Variable evidence when Secret-name metadata is denied", async () => {
+  const { reader } = fixture({
+    ["repos/" + repository + "/environments"]: {
+      total_count: 2,
+      environments: [{ name: "production" }, { name: "admin-ops" }],
+    },
+    ["repos/" + repository + "/environments/admin-ops/variables"]: {
+      total_count: 1,
+      variables: [{ name: "AW_ADMIN_MODE", value: "do-not-log-variable" }],
+    },
+  });
+  const calls: string[] = [];
+  const scoped = {
+    async get(path: string): Promise<unknown> {
+      calls.push(path);
+      if (path.includes("/environments/production/secrets?")) {
+        throw new GithubHttpError(403, undefined, { kind: "permission" });
+      }
+      return await reader.get(path.replace("fongap-labs/action-worker", repository));
+    },
+  };
+  const summary = await auditStorageMetadata(scoped, ["fongap-labs/action-worker"], {
+    skipOrganization: true,
+    allowEnvironmentSecretPermissionGap: true,
+  });
+  assert.equal(summary.coverage, "control-only");
+  assert.equal(summary.environment_scope_verified, true);
+  assert.equal(summary.environment_secret_scope_verified, false);
+  assert.equal(summary.environment_count, 2);
+  assert.equal(summary.environment_variables, 3);
+  assert.equal(summary.environment_secrets, null);
+  assert.equal(summary.environment_shadowed_secret_bindings, null);
+  assert.equal(summary.organization_scope_verified, false);
+  assert.ok(calls.some((x) => x.includes("admin-ops/variables?")));
+  assert.ok(!calls.some((x) => x.includes("admin-ops/secrets?")));
+  assert.ok(!calls.some((x) => x.startsWith("orgs/")));
+  assert.doesNotMatch(JSON.stringify(summary), /ORG_KEY|ONLY_REPO|never-log-variable/);
+  assert.equal(summary.secret_values_read, false);
+  assert.equal(summary.automatic_writes, false);
+
+  await assert.rejects(
+    auditStorageMetadata(scoped, ["fongap-labs/action-worker"], {
+      skipOrganization: true,
+    }),
+    /403/
+  );
+  await assert.rejects(
+    auditStorageMetadata(scoped, ["fongap-labs/action-worker"], {
+      allowEnvironmentSecretPermissionGap: true,
+    }),
+    /targets/
+  );
+  await assert.rejects(
+    auditStorageMetadata(scoped, ["fongap-labs/action-worker"], {
+      skipOrganization: true,
+      skipEnvironments: true,
+      allowEnvironmentSecretPermissionGap: true,
+    }),
+    /targets/
+  );
+});
+
+test("ops Variable audit never ignores Environment Variable, rate or malformed metadata errors", async () => {
+  const { reader } = fixture();
+  for (const errorPath of ["variables", "secrets"]) {
+    const scoped = {
+      async get(path: string): Promise<unknown> {
+        if (path.includes("/environments/production/" + errorPath + "?")) {
+          throw new GithubHttpError(errorPath === "secrets" ? 429 : 403, undefined, {
+            kind: "permission",
+          });
+        }
+        return await reader.get(path.replace("fongap-labs/action-worker", repository));
+      },
+    };
+    await assert.rejects(
+      auditStorageMetadata(scoped, ["fongap-labs/action-worker"], {
+        skipOrganization: true,
+        allowEnvironmentSecretPermissionGap: true,
+      }),
+      /403|429/
+    );
+  }
 });
