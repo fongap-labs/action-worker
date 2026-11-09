@@ -58,6 +58,17 @@ test('entries are scoped to the credential the caller presented', async () => {
   assert.equal(await callerCacheScope(req(), ENV), '');
 });
 
+test('old membership encryption variables and weak keys cannot enable edge cache', async () => {
+  const request = req({ authorization: 'Bearer secret-a', 'x-gateway-cache': 'true' });
+  assert.equal(await callerCacheScope(request, {}), null);
+  assert.equal(await callerCacheScope(request, { AIG_TOKEN_ENCRYPTION_KEY: 'old-member-secret'.repeat(4) }), null);
+  assert.equal(await callerCacheScope(request, { AIG_EDGE_CACHE_HMAC_KEY: 'weak-secret' }), null);
+  assert.equal(
+    await resolveEdgeCachePlan('openai_chat', 'Code-Max', body, request, { AIG_EDGE_CACHE_HMAC_KEY: 'short', AIG_EDGE_CACHE_TTL_SEC: '60' }, 'AIR', false),
+    null,
+  );
+});
+
 test('temperature zero does not opt in; the explicit header is required', () => {
   assert.equal(edgeCacheEligible('openai_chat', req()), false);
   assert.equal(edgeCacheEligible('openai_chat', req()), false);
