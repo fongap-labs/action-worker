@@ -7,7 +7,7 @@ export type TwoPhaseReleasePolicy = {
 
 export type ReleasePhaseSelection =
   | { kind: "read-only" }
-  | { kind: "staging"; prToken: string; timeoutMinutes: number };
+  | { kind: "staging"; prToken: string; statusToken: string; timeoutMinutes: number };
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 export const stagingReleaseTimeoutMinutes = 12;
@@ -40,6 +40,7 @@ export function selectReleasePhase(
     mode: string | undefined;
     targetRepository: string;
     prToken: string | undefined;
+    statusToken: string | undefined;
   },
   policy: TwoPhaseReleasePolicy
 ): ReleasePhaseSelection {
@@ -55,15 +56,16 @@ export function selectReleasePhase(
       77
     );
   }
-  if (!input.prToken) {
+  if (!input.prToken || !input.statusToken) {
     throw new CliError(
-      "::error::A dedicated target-scoped PR write token is required for staged two-phase Release.",
+      "::error::Dedicated target-scoped PR write and status read tokens are required for staged two-phase Release.",
       77
     );
   }
   return {
     kind: "staging",
     prToken: input.prToken,
+    statusToken: input.statusToken,
     timeoutMinutes: stagingReleaseTimeoutMinutes,
   };
 }
