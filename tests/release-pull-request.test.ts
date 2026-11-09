@@ -11,7 +11,10 @@ import {
   promoteUnreleased,
   releaseSectionBody,
 } from "../scripts/changelog-release.ts";
-import { releasePullRequestTitle } from "../scripts/changelog-release-pr.ts";
+import {
+  assertReleasePullRequestIdentity,
+  releasePullRequestTitle,
+} from "../scripts/changelog-release-pr.ts";
 import { runText } from "../scripts/runtime-command.ts";
 import { validateChange } from "../scripts/validate-change-record.ts";
 
@@ -29,6 +32,38 @@ function releaseOf(changelog: string): string {
     categories,
   });
 }
+
+test("a resumable release PR must match its tag, source and protected base", () => {
+  const options = {
+    repository: "fongap-labs/example",
+    defaultBranch: "main",
+    tag: "example-v0.2.0",
+  };
+  const valid = {
+    number: 27,
+    title: "chore(release): example-v0.2.0",
+    draft: false,
+    merged: true,
+    head: { ref: "aw/changelog/example-v0.2.0", repo: { full_name: "fongap-labs/example" } },
+    base: { ref: "main", repo: { full_name: "fongap-labs/example" } },
+  };
+  assert.doesNotThrow(() => assertReleasePullRequestIdentity(valid, options));
+  for (const mutation of [
+    { title: "chore(release): other-v0.2.0" },
+    { number: 0 },
+    { draft: true },
+    { head: { ...valid.head, ref: "unrelated" } },
+    { head: { ...valid.head, repo: { full_name: "attacker/example" } } },
+    { base: { ...valid.base, ref: "unprotected" } },
+    { base: { ...valid.base, repo: { full_name: "attacker/example" } } },
+  ]) {
+    assert.throws(
+      () => assertReleasePullRequestIdentity({ ...valid, ...mutation }, options),
+      /Existing release PR identity does not match/
+    );
+  }
+  assert.throws(() => assertReleasePullRequestIdentity(null, options));
+});
 
 test("release changes must promote exactly the existing entries", () => {
   const head = releaseOf(base);
