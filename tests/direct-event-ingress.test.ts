@@ -338,19 +338,28 @@ test("an unsigned event header cannot reclassify a signed push, issue or PR body
     issue: { number: 42 },
   };
   assert.equal(
-    (await handleDirectWebhook(signedRequest(makePayload({ action: "opened" }), "pull_request"), env, api.fetcher)).status,
+    (
+      await handleDirectWebhook(
+        signedRequest(makePayload({ action: "opened" }), "pull_request"),
+        env,
+        api.fetcher
+      )
+    ).status,
     200
   );
   assert.equal(
-    (await handleDirectWebhook(signedRequest(openedIssue, "pull_request"), env, api.fetcher)).status,
+    (await handleDirectWebhook(signedRequest(openedIssue, "pull_request"), env, api.fetcher))
+      .status,
     200
   );
   assert.equal(
-    (await handleDirectWebhook(signedRequest(makePullRequestPayload(), "push"), env, api.fetcher)).status,
+    (await handleDirectWebhook(signedRequest(makePullRequestPayload(), "push"), env, api.fetcher))
+      .status,
     200
   );
   assert.equal(
-    (await handleDirectWebhook(signedRequest(makePayload({ after: undefined })), env, api.fetcher)).status,
+    (await handleDirectWebhook(signedRequest(makePayload({ after: undefined })), env, api.fetcher))
+      .status,
     200
   );
   assert.equal(db.rows.size, 0);
@@ -366,11 +375,13 @@ test("PR events require matching signed number and target repository identities"
     pull_request: { number: 42, base: { repo: { full_name: "fongap-labs/other" } } },
   });
   assert.equal(
-    (await handleDirectWebhook(signedRequest(mismatchedNumber, "pull_request"), env, api.fetcher)).status,
+    (await handleDirectWebhook(signedRequest(mismatchedNumber, "pull_request"), env, api.fetcher))
+      .status,
     200
   );
   assert.equal(
-    (await handleDirectWebhook(signedRequest(mismatchedBase, "pull_request"), env, api.fetcher)).status,
+    (await handleDirectWebhook(signedRequest(mismatchedBase, "pull_request"), env, api.fetcher))
+      .status,
     200
   );
   assert.equal(db.rows.size, 0);
