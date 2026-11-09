@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 直连 Webhook 在存储投递前拒绝 GitHub 默认 PKCS#1 私钥，明确 PKCS#8 离线转换及脱敏验收要求。
+
 - 修复 [security]: 直连 GitHub Webhook 对未签名的事件类型请求头增加消息结构和 PR 目标身份交叉验证，防止不同事件被换头冒充有效唤醒。
 
 - 修复: 中央 AI Gateway 物理尝试用量与 TTFT 合同跟随 Gateway-owned 源码拆分，旧路径必须只保留兼容导出，维持真实行为断言。
