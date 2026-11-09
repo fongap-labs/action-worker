@@ -574,6 +574,7 @@ async function main(): Promise<void> {
         mode: process.env.AW_RELEASE_TWO_PHASE_MODE,
         targetRepository,
         prToken: process.env.AW_RELEASE_PR_WRITE_API_TOKEN,
+        statusToken: process.env.AW_RELEASE_PR_STATUS_API_TOKEN,
       },
       await readTwoPhaseStagingPolicy()
     );
@@ -594,7 +595,7 @@ async function main(): Promise<void> {
         releaseUrl: releaseTagUrl,
         policy: await readReleasePolicy(),
         token: phase.prToken,
-        statusToken,
+        statusToken: phase.statusToken,
         entries: manifest.changelog_entries,
         timeoutMinutes: phase.timeoutMinutes,
       });
