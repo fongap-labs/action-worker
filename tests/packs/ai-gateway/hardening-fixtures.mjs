@@ -4,8 +4,6 @@
 // Shared fixtures for the gateway hardening suites (not itself a test: no -test.mjs suffix).
 
 import { __resetAccessKeysCacheForTests } from '#target/src/config/access-keys.ts';
-import { __resetTokenKeyCacheForTests } from '#target/src/oauth/crypto.ts';
-import { __resetOAuthProvidersCacheForTests } from '#target/src/oauth/provider-configs.ts';
 
 export const AIR_KEY = 'air-test-key';
 export const AGENT_KEY = 'agent-test-key';
@@ -17,8 +15,6 @@ export const TOKEN_KEY_B64 = btoa(keyB64);
 
 export function resetCaches() {
   __resetAccessKeysCacheForTests();
-  __resetTokenKeyCacheForTests();
-  __resetOAuthProvidersCacheForTests();
 }
 
 export const oauthNode = (id, provider = 'mock') => ({
@@ -66,20 +62,11 @@ export function makeEnv(extra = {}) {
     AIG_ACCESS_MODELS_AGENT: '*',
     AIG_ACCESS_KEY_MAX: MAX_KEY,
     AIG_ACCESS_MODELS_MAX: '*',
-    AIG_OAUTH_ADMIN_GROUPS: 'AIR',
-    AIG_OAUTH_PROVIDERS: JSON.stringify({
-      mock: {
-        authorize_url: 'https://auth.mock.example.com/authorize',
-        token_url: 'https://auth.mock.example.com/token',
-        client_id: 'mock-client',
-        scope: 'openid',
-      },
-    }),
-    AIG_TOKEN_ENCRYPTION_KEY: TOKEN_KEY_B64,
     AIG_PUBLIC_URL: 'https://gateway.example.com',
     AIG_TIER1_NODES_01: JSON.stringify([staticNode('static1')]),
     AIG_TIER1_CREDENTIALS_01: JSON.stringify({ static1: 'upstream-key' }),
-    AIG_TIER2_NODES_01: JSON.stringify([oauthNode('sub1')]),
+    AIG_TIER2_NODES_01: JSON.stringify([staticNode('token1')]),
+    AIG_TIER2_CREDENTIALS_01: JSON.stringify({ token1: 'paid-fixture-key' }),
     ...extra,
   };
 }
