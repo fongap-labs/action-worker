@@ -88,7 +88,7 @@ export function auditTaskSecretScope(plan: ScopedTaskSecretPlan, inventory: Inve
   const repository = new Set(inventory.repository);
   const organization = new Set(inventory.organization_accessible);
   const environments = new Set(Object.values(inventory.environments).flat());
-  const required = plan.slots.filter((slot) => slot.required);
+  const required = plan.slots.filter((slot) => slot.required && slot.kind !== "variable");
   let repoCount = 0;
   let orgCount = 0;
   let environmentOnly = 0;
