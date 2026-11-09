@@ -28,9 +28,9 @@ test("environment inventory requires complete, unique names, never secret values
 });
 
 test("bootstrap cannot overwrite Cloudflare or either GitHub Environment key", () => {
-  assert.doesNotThrow(() => assertHealthKeyIsUninitialized(
-    ["SOME_OTHER_KEY"], [["CLOUDFLARE_API_TOKEN"], []]
-  ));
+  assert.doesNotThrow(() =>
+    assertHealthKeyIsUninitialized(["SOME_OTHER_KEY"], [["CLOUDFLARE_API_TOKEN"], []])
+  );
   assert.throws(
     () => assertHealthKeyIsUninitialized(["AIG_DEPLOY_HEALTH_KEY"], [[], []]),
     /refusing to rotate/
@@ -47,9 +47,9 @@ test("bootstrap cannot overwrite Cloudflare or either GitHub Environment key", (
 });
 
 test("one-shot main-only bot bootstrap uses protected Environment and Secrets write", () => {
-  const workflow = parse(readFileSync(
-    ".github/workflows/bootstrap-health-key.yml", "utf8"
-  )) as Record<string, unknown>;
+  const workflow = parse(
+    readFileSync(".github/workflows/bootstrap-health-key.yml", "utf8")
+  ) as Record<string, unknown>;
   const trigger = workflow.on as { push: { branches: string[]; paths: string[] } };
   assert.deepEqual(trigger.push.branches, ["main"]);
   assert.deepEqual(trigger.push.paths, ["policies/ai-gateway-health-bootstrap.request"]);
