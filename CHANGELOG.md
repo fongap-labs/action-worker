@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 为 AI Gateway 部署健康密钥提供经审查的 fongap-bot 一次性初始化链，使用受保护运维 Environment 与短期 App Secrets 写权限，在三处名称清单全部确认不存在时才生成并写入同一个随机密钥；失败时拒绝自动轮换。
+
 - 修复: 独立 PR AI Review 工作流向 CI Evidence 等待器传入必需的 PR 编号，避免参数错误导致证据收集在启动时失败；同时增加主 PR 治理与审查工作流的入参合同测试。
 
 - 新增: 部署 Secret 的固定源码与当前 Environment 名称作用域离线只读审计，拒绝读取凭据值与未受审的生产配置变更。
