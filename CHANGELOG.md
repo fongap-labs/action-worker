@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: AI Gateway 的 Cloudflare Secondary Account ID 从 Action Worker 现有 ai-gateway-ops Environment 按最小作用域读取，经只读非敏感输出交给受保护生产部署；不跨境传递密钥，不影响其他产品，缺失与冲突时拒绝部署。
+
 - 修复: 还原 AI Gateway 健康密钥初始化的 Cloudflare 运维作业至 Action Worker 已有 ai-gateway-ops Environment，撤销将运维凭据错误绑定到 production 的变更；保留受保护 admin-ops 管理域与不覆盖已有密钥的限制。
 
 - 修复: 一次性健康密钥引导复用受保护 production 部署链已批准的 Cloudflare Secondary 凭据映射，避免依赖尚未配置的独立运维账户；保留管理员域生成、双 Environment Secret 保存、Worker 写入前存在性核验及实际健康检查。
