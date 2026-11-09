@@ -214,9 +214,9 @@ test("production releases remain read-only until an approved two-phase staging o
   const workflowSource = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
   const source = await readFile("scripts/publish-release.ts", "utf8");
   const notes = await readFile("scripts/changelog-release-notes.ts", "utf8");
-  const policy = JSON.parse(
-    await readFile("policies/release-two-phase-staging.json", "utf8")
-  ) as { approved_staging_repositories: unknown };
+  const policy = JSON.parse(await readFile("policies/release-two-phase-staging.json", "utf8")) as {
+    approved_staging_repositories: unknown;
+  };
   assert.deepEqual(Object.keys(releaseWorkflow.jobs).sort(), ["npm", "release"]);
   assert.deepEqual(policy.approved_staging_repositories, []);
   assert.doesNotMatch(
