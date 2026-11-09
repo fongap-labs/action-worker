@@ -140,12 +140,13 @@ test("configuration audit automatically includes governed repositories without l
   assert.deepEqual(managedAuditTargets([], ["fongap-labs/action-worker"]), [
     "fongap-labs/action-worker",
   ]);
-  for (const [discovery, governed] of [
+  const invalid: Array<[string[], string[]]> = [
     [[], []],
     [["fongap-labs/action-worker", "fongap-labs/action-worker"], []],
     [[], ["another-org/other"]],
     [["fongap-labs/a"], ["fongap-labs/a", "fongap-labs/a"]],
-  ]) {
+  ];
+  for (const [discovery, governed] of invalid) {
     assert.throws(() => managedAuditTargets(discovery, governed), /targets/);
   }
 });
