@@ -536,9 +536,24 @@ try {
   assert.match(providerRegistry, /genericOpenAIProviderAdapter/, 'unknown providers resolve to the generic OpenAI-compatible adapter');
   const routingStrategy = fs.readFileSync(path.join(srcRoot, 'scheduler', 'routing-strategy.ts'), 'utf8');
   assert.match(routingStrategy, /export function routingStrategyFor/, 'tier -> routing strategy resolution has one registry owner');
-  const tierLoopSource = fs.readFileSync(path.join(srcRoot, 'request', 'tier-loop.ts'), 'utf8');
-  assert.match(tierLoopSource, /routingStrategyFor\(/, 'the tier loop resolves selection through the routing-strategy contract');
-  assert.doesNotMatch(tierLoopSource, /pickTier1Candidate|pickCandidate/, 'the tier loop must not regain direct picker branching by tier');
+  const legacyTierPolicy = fs.readFileSync(path.join(srcRoot, 'request', 'tier-loop.ts'), 'utf8');
+  const gatewayTierPolicyPath = path.join(root, 'apps', 'gateway', 'scheduling', 'tier-policy.ts');
+  const gatewayOwnsTierPolicy = fs.existsSync(gatewayTierPolicyPath);
+  const tierLoopSource = gatewayOwnsTierPolicy ? fs.readFileSync(gatewayTierPolicyPath, 'utf8') : legacyTierPolicy;
+  if (gatewayOwnsTierPolicy) {
+    assert.match(
+      legacyTierPolicy,
+      /export \* from '\.\.\/\.\.\/apps\/gateway\/scheduling\/tier-policy\.ts'/,
+      'pre-migration Tier policy import is a compatibility export of the real Gateway owner',
+    );
+    assert.doesNotMatch(
+      legacyTierPolicy,
+      /export (?:async )?function (?:computeTierCaps|pickForTier)\(/,
+      'src/request must not contain a second Tier policy implementation',
+    );
+  }
+  assert.match(tierLoopSource, /routingStrategyFor\(/, 'the Tier policy resolves selection through the routing-strategy contract');
+  assert.doesNotMatch(tierLoopSource, /pickTier1Candidate|pickCandidate/, 'the Tier policy must not regain direct picker branching by tier');
   const subscriptionIndex = fs.readFileSync(path.join(srcRoot, 'subscription', 'index.ts'), 'utf8');
   assert.doesNotMatch(
     subscriptionIndex,
