@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { chmod, writeFile } from "node:fs/promises";
 import { aiAgentRuntimeEntries, parseAiAgentConfig } from "./ai-agent-config.ts";
-import { isJsonRecord } from "./github-api.ts";
 import { validateGatewayOpsVariables } from "./gateway-ops-variables.ts";
+import { isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 function valueText(value: unknown): string {
