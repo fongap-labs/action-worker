@@ -10,7 +10,7 @@ on:
         required: true
         type: string
       requested_version:
-        description: 发布版本号。正式版填 X.Y.Z（如 v1.2.3），beta 版填 X.Y.Z-beta.N（如 v1.2.3-beta.1，作为预发布发布）。留空则按上次正式版后的 Conventional Commits 自动计算正式版
+        description: 发布版本号。正式版填 X.Y.Z（如 v1.2.3），beta 版填 X.Y.Z-beta.N（如 v1.2.3-beta.1，作为预发布发布）。dsh-plugin 必须手动填写；其他仓库留空可按提交历史推算
         required: false
         type: string
       product:

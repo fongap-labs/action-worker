@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { GithubHttpError } from "../scripts/github-api.ts";
-import { resolveManualReleaseBuild } from "../scripts/resolve-release-build-ingress.ts";
+import {
+  enforceDshPluginManualVersion,
+  resolveManualReleaseBuild,
+} from "../scripts/resolve-release-build-ingress.ts";
 import { normalizeReleaseVersion } from "../scripts/validate-release-build-request.ts";
 
 const sha = "a".repeat(40);
@@ -300,5 +303,32 @@ test("manual release ingress passes the product only when one is entered", async
       "../web"
     ),
     /Product name is invalid/
+  );
+});
+
+test("dsh-plugin refuses automatic release versions and non-manual dispatches", async () => {
+  const repo = "fongap-labs/dsh-plugin";
+  const calls: string[] = [];
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      calls.push(path);
+      throw new Error("must reject before GitHub reads");
+    },
+  };
+  const allowed = { [repo]: ["release-source", "release-target"] };
+  await assert.rejects(
+    resolveManualReleaseBuild(repo, "", allowed, reader, "123", "1", "dsh-theme-delta"),
+    /requested_version is required/
+  );
+  assert.deepEqual(calls, [], "no source or release tag should be read for an absent version");
+  assert.throws(
+    () => enforceDshPluginManualVersion(repo, "1.2.3", "repository_dispatch"),
+    /require manual workflow_dispatch/
+  );
+  assert.doesNotThrow(() =>
+    enforceDshPluginManualVersion(repo, "1.2.3-beta.2", "workflow_dispatch")
+  );
+  assert.doesNotThrow(() =>
+    enforceDshPluginManualVersion("fongap-labs/example", "", "repository_dispatch")
   );
 });
