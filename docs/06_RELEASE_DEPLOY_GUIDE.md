@@ -260,7 +260,7 @@ Cloudflare Worker Secrets：保留 MCP Hub 业务运行时密钥
 
 ---
 
-### 受保护任务 Ops Variables 消费
+### 受保护任务运维变量消费
 
 中央任务分发优先直接使用 Action Worker Repository/已授权 Organization 的任务 Variables。对 `fongap-labs/internal-vault` 中中央任务密钥策略已授权 `CLOUDFLARE_ACCOUNT_ID_PRIMARY` 的项目，当该 Variable 在任务执行 Job 的普通作用域不可见时，先由 `internal-vault-ops` 的只读受保护 Job 精确读取一个 32 位十六进制账户 ID，校验请求来源、项目及 `main`，仅用 GitHub Job Output 交付这一非敏感值；执行 Job 再核对无来源冲突后写入当前任务进程的 `GITHUB_ENV`。仓库级已可见时跳过运维 Job，减少人工审批。运维 Job 不 checkout 业务仓库、不运行业务代码，不读取/输出任何 Secret。可选/必需 Secret 仍通过原任务 32 槽位白名单从执行 Job 可见的受保护来源注入；不得以本机制跨 Job 传 Secret，也不得绑定整个通用任务执行 Job 到 `internal-vault-ops`。私有隔离试点保持原 NO-GO/准入规则，不借此放宽。
 
