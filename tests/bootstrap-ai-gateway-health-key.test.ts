@@ -48,12 +48,13 @@ test("bootstrap cannot overwrite Cloudflare or either GitHub Environment key", (
 
 test("one-shot main-only bot bootstrap uses protected Environment and Secrets write", () => {
   const workflow = parse(readFileSync(
-    ".github/workflows/bootstrap-ai-gateway-health.yml", "utf8"
+    ".github/workflows/bootstrap-health-key.yml", "utf8"
   )) as Record<string, unknown>;
   const trigger = workflow.on as { push: { branches: string[]; paths: string[] } };
   assert.deepEqual(trigger.push.branches, ["main"]);
   assert.deepEqual(trigger.push.paths, ["policies/ai-gateway-health-bootstrap.request"]);
   const job = (workflow.jobs as Record<string, Record<string, unknown>>).bootstrap;
+  assert.ok(job);
   const environment = job.environment as { name: string };
   assert.equal(environment.name, "ai-gateway-ops");
   const steps = job.steps as { name: string; with?: Record<string, unknown> }[];
