@@ -16,7 +16,6 @@ import {
   isJsonRecord,
 } from "./github-api.ts";
 import { type ContentReader, discoverProducts } from "./product-discovery.ts";
-import { selectDeployCredentialEnvironment } from "./select-deploy-credential-environment.ts";
 import { hasRepositoryCapability, readRepositoryPolicyText } from "./repository-policy.ts";
 import {
   appendLines,
@@ -27,6 +26,7 @@ import {
   readJson,
   runText,
 } from "./runtime-command.ts";
+import { selectDeployCredentialEnvironment } from "./select-deploy-credential-environment.ts";
 
 type DeployAdapterPolicy = {
   event_type: string;
