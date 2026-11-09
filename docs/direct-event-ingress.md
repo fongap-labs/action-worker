@@ -13,7 +13,18 @@ GitHub App `push`（仅默认分支）或 `pull_request`（opened/reopened/synch
 - `AW_INGRESS_DB`：专用 D1 数据库，按 `docs/direct-event-ingress.sql` 创建表和索引。不得使用内存去重替代数据库。
 - `AW_GITHUB_WEBHOOK_SECRET`：独立的 GitHub App Webhook Secret（敏感）。
 - `AW_GITHUB_APP_ID`、`AW_GITHUB_APP_INSTALLATION_ID`：该 App 与控制仓库所属组织的固定数字身份；必须校验安装覆盖控制仓库。
-- `AW_GITHUB_APP_PRIVATE_KEY`：GitHub App PKCS#8 PEM 私钥（敏感，单独可信环境存储）。
+- `AW_GITHUB_APP_PRIVATE_KEY`：**PKCS#8、未加密 PEM** 的 GitHub App 私钥（敏感，单独可信环境存储）。GitHub 官方下载的是 **PKCS#1** RSA 私钥；直接使用下载文件会在 WebCrypto 签名时失败。入口在任何 D1 写入和 GitHub API 请求前拒绝未转换的密钥格式。
+
+只在授权的离线可信终端进行格式转换，勿在 CI、日志、Issue、PR 或终端输出中暴露密钥：
+
+```bash
+openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt \
+  -in /secure/github-app-original.pem \
+  -out /secure/github-app-pkcs8.pem
+chmod 600 /secure/github-app-pkcs8.pem
+```
+
+对照 GitHub App 设置的公钥指纹独立核验密钥匹配，再使用受控 Secret 管理渠道保存转换后的 PKCS#8 PEM。不要把原始或转换后的 PEM 添加到仓库、配置文件或工作流输入；按授权密钥处理流程处置转换中间文件。源码的格式校验不等于已证明密钥与 App 身份匹配，后者仍需非生产真实 GitHub API 验收。
 - `AW_CONTROL_REPOSITORY`：明确固定的 `owner/repository`，不得由请求动态选择。
 
 严禁把任意 Webhook 输入放进 `client_payload`，或将此 Worker 的 GitHub App 令牌向被测业务代码开放。此入口只具有请求 Intake 对账的能力，不触发特权执行，也不向外部源仓库写状态。
