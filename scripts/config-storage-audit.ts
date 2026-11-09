@@ -19,14 +19,15 @@ type RepositoryInfo = { id: number; private: boolean };
 export type StorageAuditSummary = {
   schema_version: 1;
   mode: "read-only-storage-metadata";
-  coverage: "complete" | "control-only";
+  coverage: "complete" | "control-only" | "control-repository-only";
+  environment_scope_verified: boolean;
   organization_scope_verified: boolean;
   repositories_verified: number;
   repository_secrets: number;
   repository_variables: number;
-  environment_count: number;
-  environment_secrets: number;
-  environment_variables: number;
+  environment_count: number | null;
+  environment_secrets: number | null;
+  environment_variables: number | null;
   organization_secrets: number | null;
   organization_variables: number | null;
   inherited_secret_bindings: number | null;
@@ -254,22 +255,28 @@ function repositoryInfo(value: unknown): RepositoryInfo {
 export async function auditStorageMetadata(
   reader: Reader,
   repositories: readonly string[],
-  options: { skipOrganization?: boolean } = {}
+  options: { skipOrganization?: boolean; skipEnvironments?: boolean } = {}
 ): Promise<StorageAuditSummary> {
   if (
     repositories.length === 0 ||
     new Set(repositories).size !== repositories.length ||
     repositories.some((name) => !repositoryPattern.test(name)) ||
-    (options.skipOrganization === true &&
-      (repositories.length !== 1 || repositories[0] !== "fongap-labs/action-worker"))
+    ((options.skipOrganization === true || options.skipEnvironments === true) &&
+      (repositories.length !== 1 || repositories[0] !== "fongap-labs/action-worker")) ||
+    (options.skipEnvironments === true && options.skipOrganization !== true)
   ) {
     throw new CliError("Configuration inventory targets are invalid.", 65);
   }
   const result: StorageAuditSummary = {
     schema_version: 1,
     mode: "read-only-storage-metadata",
-    coverage: options.skipOrganization ? "control-only" : "complete",
+    coverage: options.skipEnvironments
+      ? "control-repository-only"
+      : options.skipOrganization
+        ? "control-only"
+        : "complete",
     organization_scope_verified: !options.skipOrganization,
+    environment_scope_verified: !options.skipEnvironments,
     repositories_verified: 0,
     repository_secrets: 0,
     repository_variables: 0,
@@ -328,28 +335,41 @@ export async function auditStorageMetadata(
     addImpacted(result, repoVariables);
     addImpacted(result, inheritedVariables);
 
-    const environments = await listAll(
-      reader,
-      "repos/" + repository + "/environments",
-      "environments"
-    );
-    result.environment_count += environments.length;
-    const environmentsByName = environmentNames(environments);
-    for (const name of environmentsByName) {
-      const url = "repos/" + repository + "/environments/" + encodeURIComponent(name);
-      const environmentSecrets = namesOf(await listAll(reader, url + "/secrets", "secrets"));
-      const environmentVariables = namesOf(await listAll(reader, url + "/variables", "variables"));
-      result.environment_secrets += environmentSecrets.size;
-      result.environment_variables += environmentVariables.size;
-      result.environment_shadowed_secret_bindings =
-        (result.environment_shadowed_secret_bindings ?? 0) +
-        countShadowed(environmentSecrets, new Set([...repoSecrets, ...inheritedSecrets]));
-      result.environment_shadowed_variable_bindings =
-        (result.environment_shadowed_variable_bindings ?? 0) +
-        countShadowed(environmentVariables, new Set([...repoVariables, ...inheritedVariables]));
-      addImpacted(result, environmentVariables);
+    if (!options.skipEnvironments) {
+      const environments = await listAll(
+        reader,
+        "repos/" + repository + "/environments",
+        "environments"
+      );
+      result.environment_count = (result.environment_count ?? 0) + environments.length;
+      const environmentsByName = environmentNames(environments);
+      for (const name of environmentsByName) {
+        const url = "repos/" + repository + "/environments/" + encodeURIComponent(name);
+        const environmentSecrets = namesOf(await listAll(reader, url + "/secrets", "secrets"));
+        const environmentVariables = namesOf(
+          await listAll(reader, url + "/variables", "variables")
+        );
+        result.environment_secrets = (result.environment_secrets ?? 0) + environmentSecrets.size;
+        result.environment_variables =
+          (result.environment_variables ?? 0) + environmentVariables.size;
+        result.environment_shadowed_secret_bindings =
+          (result.environment_shadowed_secret_bindings ?? 0) +
+          countShadowed(environmentSecrets, new Set([...repoSecrets, ...inheritedSecrets]));
+        result.environment_shadowed_variable_bindings =
+          (result.environment_shadowed_variable_bindings ?? 0) +
+          countShadowed(environmentVariables, new Set([...repoVariables, ...inheritedVariables]));
+        addImpacted(result, environmentVariables);
+      }
     }
     result.repositories_verified++;
+  }
+  if (options.skipEnvironments) {
+    // Environment names and counts cannot be inferred from repository metadata.
+    result.environment_count = null;
+    result.environment_secrets = null;
+    result.environment_variables = null;
+    result.environment_shadowed_secret_bindings = null;
+    result.environment_shadowed_variable_bindings = null;
   }
   if (options.skipOrganization) {
     // Without organization access, all inheritance-dependent counters are unknown,
@@ -410,9 +430,27 @@ async function main(): Promise<void> {
       console.warn(
         "::warning::Organization metadata access denied; auditing only the Action Worker control repository. Inherited scope remains unverified."
       );
-      summary = await auditStorageMetadata(reader, ["fongap-labs/action-worker"], {
-        skipOrganization: true,
-      });
+      try {
+        summary = await auditStorageMetadata(reader, ["fongap-labs/action-worker"], {
+          skipOrganization: true,
+        });
+      } catch (environmentError) {
+        if (
+          String(failureScope) !== "environment" ||
+          !(environmentError instanceof GithubHttpError) ||
+          environmentError.status !== 403 ||
+          environmentError.kind !== "permission"
+        ) {
+          throw environmentError;
+        }
+        console.warn(
+          "::warning::Environment metadata access denied; publishing verified Action Worker repository-only counts. Environment and inherited scope remain unknown."
+        );
+        summary = await auditStorageMetadata(reader, ["fongap-labs/action-worker"], {
+          skipOrganization: true,
+          skipEnvironments: true,
+        });
+      }
     }
     console.log(JSON.stringify(summary, null, 2));
   } catch (error) {

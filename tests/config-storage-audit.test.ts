@@ -208,3 +208,54 @@ test("organization permission gap falls back to explicit control-repository-only
     /targets/
   );
 });
+
+test("organization and Environment permission gaps preserve only verified control repository metadata", async () => {
+  const { reader } = fixture();
+  const calls: string[] = [];
+  const controlReader = {
+    async get(path: string): Promise<unknown> {
+      calls.push(path);
+      assert.equal(path.startsWith("orgs/"), false, "organization metadata must not be requested");
+      assert.equal(
+        path.includes("/environments"),
+        false,
+        "Environment metadata must not be requested"
+      );
+      return await reader.get(path.replace("fongap-labs/action-worker", repository));
+    },
+  };
+  const summary = await auditStorageMetadata(controlReader, ["fongap-labs/action-worker"], {
+    skipOrganization: true,
+    skipEnvironments: true,
+  });
+  assert.equal(summary.coverage, "control-repository-only");
+  assert.equal(summary.organization_scope_verified, false);
+  assert.equal(summary.environment_scope_verified, false);
+  assert.equal(summary.repositories_verified, 1);
+  assert.equal(summary.repository_secrets, 2);
+  assert.equal(summary.repository_variables, 1);
+  assert.equal(summary.environment_count, null);
+  assert.equal(summary.environment_secrets, null);
+  assert.equal(summary.environment_variables, null);
+  assert.equal(summary.organization_secrets, null);
+  assert.equal(summary.organization_variables, null);
+  assert.equal(summary.environment_shadowed_variable_bindings, null);
+  assert.equal(summary.protected_variable_bindings, null);
+  assert.equal(summary.secret_values_read, false);
+  assert.equal(summary.automatic_writes, false);
+  assert.deepEqual(calls.length, 3);
+  assert.doesNotMatch(JSON.stringify(summary), /ORG_KEY|ONLY_REPO|sensitive-policy|never-log/);
+  await assert.rejects(
+    auditStorageMetadata(controlReader, [repository], {
+      skipOrganization: true,
+      skipEnvironments: true,
+    }),
+    /targets/
+  );
+  await assert.rejects(
+    auditStorageMetadata(controlReader, ["fongap-labs/action-worker"], {
+      skipEnvironments: true,
+    }),
+    /targets/
+  );
+});
