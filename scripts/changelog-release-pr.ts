@@ -1,7 +1,9 @@
 import {
   entriesFromLines,
+  entriesOfSection,
   promoteEntries,
   promoteUnreleased,
+  releaseHeadingOf,
   releaseSectionBody,
 } from "./changelog-release.ts";
 import {
@@ -89,6 +91,45 @@ export function assertReleasePullRequestIdentity(
       65
     );
   }
+}
+
+/**
+ * A resumed PR is not proven to belong to the current manifest by its title
+ * alone. Verify the merged changelog version and scoped entries before a tag
+ * may point at the merge commit.
+ */
+export function assertMergedReleaseSection(
+  changelog: string,
+  options: Pick<ChangelogReleaseOptions, "version" | "releaseUrl" | "policy" | "entries">
+): string {
+  const headings = changelog
+    .split("\n")
+    .map(releaseHeadingOf)
+    .filter((heading) => heading?.releaseUrl === options.releaseUrl);
+  if (headings.length !== 1 || headings[0]?.version !== options.version) {
+    throw new CliError(
+      "::error::Merged Release section does not uniquely match the requested version and tag.",
+      65
+    );
+  }
+  const notes = releaseSectionBody(changelog, options.releaseUrl);
+  const actual = entriesOfSection(notes, options.policy.changelog_categories);
+  if (actual.length === 0) {
+    throw new CliError("::error::Merged Release section contains no verified entries.", 65);
+  }
+  if (options.entries !== undefined) {
+    const declared = entriesFromLines(options.entries, options.policy.changelog_categories);
+    const expected = options.policy.changelog_categories.flatMap((category) =>
+      declared.filter((entry) => entry.category === category)
+    );
+    if (JSON.stringify(actual) !== JSON.stringify(expected)) {
+      throw new CliError(
+        "::error::Merged Release section differs from this request's manifest entries.",
+        65
+      );
+    }
+  }
+  return notes;
 }
 
 function sleep(delayMs: number): Promise<void> {
@@ -449,7 +490,7 @@ export async function publishChangelogRelease(
       assertReleaseStageDeadline(deadline);
       return {
         mergeSha,
-        notes: releaseSectionBody(changelog.content, options.releaseUrl),
+        notes: assertMergedReleaseSection(changelog.content, options),
       };
     } catch (error) {
       if (!(error instanceof StaleReleaseBranch) || rebuilds >= MAX_RELEASE_REBUILDS) {
