@@ -49,6 +49,24 @@ test("real SQLite UPDATE RETURNING gives one atomic lease and prevents repeat di
   }
 });
 
+test("real SQLite backlog aggregates only unfinished deliveries and oldest creation time", () => {
+  const database = openInbox();
+  try {
+    const inspect = database.prepare(webhookDeliverySql.backlog);
+    assert.deepEqual({ ...inspect.get() }, { pending_count: 0, oldest_created_ms: null });
+    const insert = database.prepare(webhookDeliverySql.reserve);
+    insert.run("delivery-a", "digest-a", 101, "push", "owner/source", 100);
+    insert.run("delivery-b", "digest-b", 101, "push", "owner/source", 200);
+    assert.deepEqual({ ...inspect.get() }, { pending_count: 2, oldest_created_ms: 100 });
+    database.prepare(webhookDeliverySql.complete).run(300, "delivery-a");
+    assert.deepEqual({ ...inspect.get() }, { pending_count: 1, oldest_created_ms: 200 });
+    database.prepare(webhookDeliverySql.complete).run(400, "delivery-b");
+    assert.deepEqual({ ...inspect.get() }, { pending_count: 0, oldest_created_ms: null });
+  } finally {
+    database.close();
+  }
+});
+
 test("real SQLite orders a bounded retry batch by availability before age", () => {
   const database = openInbox();
   try {

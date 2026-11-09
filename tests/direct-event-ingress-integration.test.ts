@@ -8,6 +8,8 @@ import {
   type IngressDatabase,
   type IngressEnvironment,
   type IngressStatement,
+  ingressCronTelemetry,
+  reconcileIngressCron,
   retryPendingDeliveries,
 } from "../scripts/direct-event-ingress.ts";
 
@@ -215,6 +217,75 @@ test("transient GitHub failure keeps real SQL lease; Cron resumes without duplic
     assert.equal(api.calls.length, 4);
   } finally {
     inbox.close();
+  }
+});
+
+test("Cron emits only aggregate backlog telemetry and retains pending retries", async () => {
+  const inbox = new NativeSqliteInbox();
+  try {
+    const env = environment(inbox);
+    const api = githubApi({ failDispatches: 1 });
+    const first = await handleDirectWebhook(signedPush(firstDelivery), env, api.fetcher);
+    assert.equal(first.status, 503);
+    const reports: string[] = [];
+    assert.equal(await reconcileIngressCron(env, api.fetcher, (line) => reports.push(line)), 0);
+    assert.equal(reports.length, 1);
+    const waiting = JSON.parse(reports[0]!) as Record<string, unknown>;
+    assert.equal(waiting.component, "direct-event-ingress");
+    assert.equal(waiting.pending_count, 1);
+    assert.equal(waiting.completed_count, 0);
+    assert.equal(typeof waiting.oldest_pending_age_minutes, "number");
+
+    inbox.database
+      .prepare("UPDATE webhook_deliveries SET lease_until_ms = 0 WHERE delivery_id = ?")
+      .run(firstDelivery);
+    assert.equal(await reconcileIngressCron(env, api.fetcher, (line) => reports.push(line)), 1);
+    const recovered = JSON.parse(reports[1]!) as Record<string, unknown>;
+    assert.deepEqual(recovered, {
+      component: "direct-event-ingress",
+      completed_count: 1,
+      pending_count: 0,
+      oldest_pending_age_minutes: null,
+    });
+    const serialized = reports.join("\n");
+    for (const forbidden of [
+      webhookSecret,
+      appSigningKey,
+      "synthetic-installation-token",
+      firstDelivery,
+      "fongap-labs/workflow-fixture",
+    ]) {
+      assert.equal(serialized.includes(forbidden), false);
+    }
+  } finally {
+    inbox.close();
+  }
+});
+
+test("invalid backlog summaries fail closed without logging untrusted database data", () => {
+  assert.deepEqual(ingressCronTelemetry(0, { pending_count: 0, oldest_created_ms: null }, 1_000), {
+    component: "direct-event-ingress",
+    completed_count: 0,
+    pending_count: 0,
+    oldest_pending_age_minutes: null,
+  });
+  assert.deepEqual(
+    ingressCronTelemetry(2, { pending_count: 1, oldest_created_ms: 60_000 }, 180_000),
+    {
+      component: "direct-event-ingress",
+      completed_count: 2,
+      pending_count: 1,
+      oldest_pending_age_minutes: 2,
+    }
+  );
+  for (const invalid of [
+    null,
+    { pending_count: -1, oldest_created_ms: 1 },
+    { pending_count: 0, oldest_created_ms: 1 },
+    { pending_count: 1, oldest_created_ms: null },
+    { pending_count: Number.NaN, oldest_created_ms: null },
+  ]) {
+    assert.throws(() => ingressCronTelemetry(0, invalid), /backlog snapshot/);
   }
 });
 
