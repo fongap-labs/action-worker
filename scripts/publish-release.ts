@@ -7,11 +7,6 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { prepareReleaseNotes, type ReleasePolicy } from "./changelog-release-notes.ts";
 import { publishChangelogRelease } from "./changelog-release-pr.ts";
-import {
-  parseTwoPhaseReleasePolicy,
-  selectReleasePhase,
-  type TwoPhaseReleasePolicy,
-} from "./release-two-phase-mode.ts";
 import { controlRepositoryOf, hasVerifiedCiEvidence } from "./ci-evidence.ts";
 import { requireStatusToken } from "./control-token.ts";
 import {
@@ -26,6 +21,11 @@ import {
   statusAwareReader,
 } from "./github-api.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
+import {
+  parseTwoPhaseReleasePolicy,
+  selectReleasePhase,
+  type TwoPhaseReleasePolicy,
+} from "./release-two-phase-mode.ts";
 import {
   appendLines,
   CliError,
@@ -264,7 +264,12 @@ async function readReleasePolicy(): Promise<ReleasePolicy> {
 
 async function readTwoPhaseStagingPolicy(): Promise<TwoPhaseReleasePolicy> {
   const value = await readJson(
-    join(dirname(fileURLToPath(import.meta.url)), "..", "policies", "release-two-phase-staging.json")
+    join(
+      dirname(fileURLToPath(import.meta.url)),
+      "..",
+      "policies",
+      "release-two-phase-staging.json"
+    )
   );
   return parseTwoPhaseReleasePolicy(value);
 }
