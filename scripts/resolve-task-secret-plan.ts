@@ -109,7 +109,10 @@ async function main(): Promise<void> {
       source,
       "policies/task-secrets.json",
       repository,
-      project
+      project,
+      // Export repository variables runs before this step; use the actual job
+      // environment so required Variable availability is not always rejected.
+      process.env
     );
     await writeFile(path, JSON.stringify(plan), { flag: "wx", mode: 0o600 });
     await chmod(path, 0o600);
