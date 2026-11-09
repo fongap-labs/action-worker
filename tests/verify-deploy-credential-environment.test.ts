@@ -75,10 +75,10 @@ test("metadata mismatch and invalid environment identifiers are rejected", async
   await assert.rejects(
     assertExistingCredentialEnvironment(
       {
-          async get() {
-            throw new Error("must not fetch");
-          },
+        async get() {
+          throw new Error("must not fetch");
         },
+      },
       "fongap-labs/internal-vault",
       "production"
     ),
@@ -90,10 +90,10 @@ test("a known default production Environment remains supported", async () => {
   await assert.doesNotReject(
     assertExistingCredentialEnvironment(
       {
-          async get() {
-            return { name: "production", protection_rules: [] };
-          },
+        async get() {
+          return { name: "production", protection_rules: [] };
         },
+      },
       repository,
       "production"
     )
