@@ -30,6 +30,15 @@ test("the live release workflow has no two-phase opt-in or PR write scope", () =
   assert.equal(workflow.includes("permission-pull-requests: write"), false);
 });
 
+test("release driver actually wires staging PR merge SHA into target_commitish", () => {
+  const source = readFileSync(new URL("../scripts/publish-release.ts", import.meta.url), "utf8");
+  assert.match(source, /selectReleasePhase\(/);
+  assert.match(source, /phase\.kind === "staging"/);
+  assert.match(source, /await publishChangelogRelease\(/);
+  assert.match(source, /releaseSha = staged\.mergeSha/);
+  assert.match(source, /target_commitish=\$\{releaseSha\}/);
+});
+
 test("default release path remains read-only even with a staging policy", () => {
   const policy = parseTwoPhaseReleasePolicy({
     schema_version: 1,
