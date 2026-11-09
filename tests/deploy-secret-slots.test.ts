@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -90,6 +90,35 @@ test("forged Secret plan paths fail closed before any file is staged", async () 
       );
     }
     await assert.rejects(stat(join(root, "action-worker-deploy-secrets")), { code: "ENOENT" });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("partial write failure removes only files created by the staging attempt", async () => {
+  const root = await mkdtemp(join(tmpdir(), "deploy-slots-"));
+  const directory = join(root, "action-worker-deploy-secrets");
+  try {
+    await mkdir(directory);
+    const preexisting = join(directory, "TOKEN_B");
+    await writeFile(preexisting, "pre-existing-file", { mode: 0o600 });
+    const plan = {
+      schema_version: 1 as const,
+      secrets: [
+        { name: "TOKEN_A", source: "SOURCE_A", required: true, kind: "secret" as const },
+        { name: "TOKEN_B", source: "SOURCE_B", required: true, kind: "secret" as const },
+      ],
+    };
+    await assert.rejects(
+      stageDeploySecretSlots(
+        { AW_DEPLOY_SECRET_00: "sensitive-first-value", AW_DEPLOY_SECRET_01: "value-b" },
+        plan,
+        root
+      ),
+      { code: "EEXIST" }
+    );
+    await assert.rejects(stat(join(directory, "TOKEN_A")), { code: "ENOENT" });
+    assert.equal(await readFile(preexisting, "utf8"), "pre-existing-file");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
