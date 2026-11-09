@@ -1,6 +1,6 @@
 # 任务密钥作用域只读诊断
 
-此工具只用于排查已批准的任务 Secret 名称是否放在正确的 GitHub 配置作用域，**不读取 Secret 明文、不改变 Secrets、不修改工作流**。任务仍由原有必需值检查拒绝缺失的注入。
+此工具只用于排查已批准的任务 Secret 名称是否放在正确的 GitHub 配置作用域，**不读取 Secret 明文、不改变 Secrets、不修改工作流**。任务仍由原有必需值检查拒绝缺失的注入。Cloudflare Account ID 属于普通配置，应存为 GitHub Actions Repository Variable；中央任务策略通过 `variable_sources` 明确将该变量映射到任务代码读取的 `CLOUDFLARE_ACCOUNT_ID`，不应把它配置成 Secret。
 
 ## 已核查问题
 
