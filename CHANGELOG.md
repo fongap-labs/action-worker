@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 维护: 为直连 Webhook 投递表增加原生 SQLite 合同测试，校验去重约束、原子租约与公平排序。
+
 - 修复: 直连 Webhook 过期投递按租约先后公平重试，阻止旧安装 ID 在配置变更后签发令牌。
 
 - 修复 [security]: 将 GitHub Webhook 防重放绑定到已签名请求体摘要，拒绝换用 Delivery ID 重新派发。
