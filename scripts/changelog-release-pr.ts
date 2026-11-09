@@ -250,7 +250,9 @@ export function isExactChangelogResumeDiff(
   if (
     !isJsonRecord(comparison) ||
     !Array.isArray(comparison.commits) ||
-    !Array.isArray(comparison.files)
+    !Array.isArray(comparison.files) ||
+    typeof comparison.ahead_by !== "number" ||
+    typeof comparison.behind_by !== "number"
   ) {
     return false;
   }
