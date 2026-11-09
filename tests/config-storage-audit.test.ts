@@ -216,7 +216,11 @@ test("organization and Environment permission gaps preserve only verified contro
     async get(path: string): Promise<unknown> {
       calls.push(path);
       assert.equal(path.startsWith("orgs/"), false, "organization metadata must not be requested");
-      assert.equal(path.includes("/environments"), false, "Environment metadata must not be requested");
+      assert.equal(
+        path.includes("/environments"),
+        false,
+        "Environment metadata must not be requested"
+      );
       return await reader.get(path.replace("fongap-labs/action-worker", repository));
     },
   };
