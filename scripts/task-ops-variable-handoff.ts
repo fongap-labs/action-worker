@@ -1,7 +1,13 @@
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 const owner = "fongap-labs/internal-vault";
-const approvedProjects = new Set(["EngineSuite", "FongapBlog", "FongapCDN", "MarketChina", "MarketGlobal"]);
+const approvedProjects = new Set([
+  "EngineSuite",
+  "FongapBlog",
+  "FongapCDN",
+  "MarketChina",
+  "MarketGlobal",
+]);
 const variableName = "CLOUDFLARE_ACCOUNT_ID_PRIMARY";
 
 /** This path moves one non-sensitive identifier, never task Secrets or arbitrary ops Variables. */
