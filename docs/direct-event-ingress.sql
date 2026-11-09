@@ -2,6 +2,7 @@
 -- Apply only to an independently approved D1 database before enabling any public webhook route.
 CREATE TABLE IF NOT EXISTS webhook_deliveries (
   delivery_id TEXT PRIMARY KEY NOT NULL,
+  body_digest TEXT NOT NULL UNIQUE,
   installation_id INTEGER NOT NULL,
   event_name TEXT NOT NULL,
   source_repository TEXT NOT NULL,

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复 [security]: 将 GitHub Webhook 防重放绑定到已签名请求体摘要，拒绝换用 Delivery ID 重新派发。
+
 - 新增: 引入独立 GitHub App Webhook 入口、HMAC 验签与 D1 持久去重重试，仅唤醒中央 Intake，尚未启用生产接入。
 
 - 维护: 修正发布指南中的健康检查密钥说明，明确 `AIG_DEPLOY_HEALTH_KEY` 是独立凭据，不能复用 `AIG_ACCESS_KEY_AGENT`。

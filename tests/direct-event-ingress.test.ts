@@ -17,6 +17,7 @@ const deliveryId = "12345678-1234-4123-8123-123456789abc";
 
 type Row = {
   delivery_id: string;
+  body_digest: string;
   installation_id: number;
   created_ms: number;
   lease_until_ms: number;
@@ -36,11 +37,16 @@ class FakeDatabase implements IngressDatabase {
       async run(): Promise<unknown> {
         if (sql.startsWith("INSERT OR IGNORE")) {
           const id = String(values[0]);
-          if (!database.rows.has(id)) {
+          const digest = String(values[1]);
+          if (
+            !database.rows.has(id) &&
+            ![...database.rows.values()].some((row) => row.body_digest === digest)
+          ) {
             database.rows.set(id, {
               delivery_id: id,
-              installation_id: Number(values[1]),
-              created_ms: Number(values[4]),
+              body_digest: digest,
+              installation_id: Number(values[2]),
+              created_ms: Number(values[5]),
               lease_until_ms: 0,
               delivered_ms: null,
             });
@@ -58,6 +64,12 @@ class FakeDatabase implements IngressDatabase {
         throw new Error("Unexpected SQL run");
       },
       async first<T>(): Promise<T | null> {
+        if (sql.startsWith("SELECT delivery_id, body_digest")) {
+          const row = sql.endsWith("WHERE delivery_id = ?")
+            ? database.rows.get(String(values[0]))
+            : [...database.rows.values()].find((item) => item.body_digest === String(values[0]));
+          return row ? ({ delivery_id: row.delivery_id, body_digest: row.body_digest } as T) : null;
+        }
         if (!sql.includes("RETURNING delivery_id")) throw new Error("Unexpected SQL first");
         const row = database.rows.get(String(values[1]));
         if (!row || row.delivered_ms !== null || row.lease_until_ms > Number(values[2]))
@@ -188,6 +200,38 @@ test("delivery ID replay never dispatches twice once acknowledged", async () => 
   assert.equal(duplicate.status, 202);
   assert.equal(api.calls.length, 2);
   assert.equal(db.rows.size, 1);
+});
+
+test("unsigned delivery header changes cannot replay an already accepted signed body", async () => {
+  const db = new FakeDatabase();
+  const env = makeEnvironment(db);
+  const api = mockGithubApi();
+  await handleDirectWebhook(signedRequest(makePayload()), env, api.fetcher);
+  const replacementId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const replay = await handleDirectWebhook(
+    signedRequest(makePayload(), "push", replacementId),
+    env,
+    api.fetcher
+  );
+  assert.equal(replay.status, 202);
+  assert.equal(db.rows.size, 1);
+  assert.equal(db.rows.has(replacementId), false);
+  assert.equal(api.calls.filter((call) => call.path.endsWith("/dispatches")).length, 1);
+});
+
+test("the same delivery ID cannot be reused with a different signed body", async () => {
+  const db = new FakeDatabase();
+  const env = makeEnvironment(db);
+  const api = mockGithubApi();
+  await handleDirectWebhook(signedRequest(makePayload()), env, api.fetcher);
+  const conflicting = await handleDirectWebhook(
+    signedRequest(makePayload({ before: "a" })),
+    env,
+    api.fetcher
+  );
+  assert.equal(conflicting.status, 409);
+  assert.equal(db.rows.size, 1);
+  assert.equal(api.calls.filter((call) => call.path.endsWith("/dispatches")).length, 1);
 });
 
 test("authentication, installation, owner and event filters fail closed", async () => {

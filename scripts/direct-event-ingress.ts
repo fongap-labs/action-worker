@@ -212,18 +212,49 @@ export async function dispatchIntake(
   if (response.status !== 204) throw new Error("Central Intake dispatch was not acknowledged.");
 }
 
+class DeliveryIdentityConflict extends Error {}
+
+/** GitHub signs the body, not delivery/event headers; dedupe on body bytes as well as ID. */
+async function signedBodyDigest(body: Uint8Array): Promise<string> {
+  const safe = new Uint8Array(new ArrayBuffer(body.byteLength));
+  safe.set(body);
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", safe));
+  return Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 async function reserveDelivery(
   env: IngressEnvironment,
   deliveryId: string,
   installationId: number,
   eventName: string,
-  repository: string
-): Promise<void> {
+  repository: string,
+  digest: string
+): Promise<PendingDelivery> {
+  // UNIQUE body_digest prevents a signed body from being replayed under a forged delivery ID.
   await env.AW_INGRESS_DB.prepare(
-    "INSERT OR IGNORE INTO webhook_deliveries (delivery_id, installation_id, event_name, source_repository, created_ms, lease_until_ms) VALUES (?, ?, ?, ?, ?, 0)"
+    "INSERT OR IGNORE INTO webhook_deliveries (delivery_id, body_digest, installation_id, event_name, source_repository, created_ms, lease_until_ms) VALUES (?, ?, ?, ?, ?, ?, 0)"
   )
-    .bind(deliveryId, installationId, eventName, repository, Date.now())
+    .bind(deliveryId, digest, installationId, eventName, repository, Date.now())
     .run();
+  const byId = await env.AW_INGRESS_DB.prepare(
+    "SELECT delivery_id, body_digest FROM webhook_deliveries WHERE delivery_id = ?"
+  )
+    .bind(deliveryId)
+    .first<{ delivery_id: string; body_digest: string }>();
+  if (byId && byId.body_digest !== digest) {
+    throw new DeliveryIdentityConflict("GitHub delivery ID was reused with different signed body.");
+  }
+  const row =
+    byId ??
+    (await env.AW_INGRESS_DB.prepare(
+      "SELECT delivery_id, body_digest FROM webhook_deliveries WHERE body_digest = ?"
+    )
+      .bind(digest)
+      .first<{ delivery_id: string; body_digest: string }>());
+  if (!row || row.body_digest !== digest) {
+    throw new Error("Direct ingress durable delivery reservation was not readable.");
+  }
+  return { delivery_id: row.delivery_id, installation_id: installationId };
 }
 
 async function attemptPending(
@@ -304,16 +335,22 @@ export async function handleDirectWebhook(
     return new Response("Ignored", { status: 200 });
   }
   try {
-    await reserveDelivery(env, deliveryId, control.installationId, eventName, repository);
-    const dispatched = await attemptPending(
+    const delivery = await reserveDelivery(
       env,
-      { delivery_id: deliveryId, installation_id: control.installationId },
-      apiFetch
+      deliveryId,
+      control.installationId,
+      eventName,
+      repository,
+      await signedBodyDigest(body)
     );
+    const dispatched = await attemptPending(env, delivery, apiFetch);
     return new Response(dispatched ? "Reconciliation requested" : "Already received", {
       status: 202,
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof DeliveryIdentityConflict) {
+      return new Response("Conflicting delivery identity", { status: 409 });
+    }
     // The durable pending record remains for scheduled replay after a transient API failure.
     return new Response("Reconciliation queued for retry", { status: 503 });
   }
