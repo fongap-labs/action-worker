@@ -42,6 +42,23 @@ async function persistNow(...args) {
   await flushUsageBuffer();
 }
 
+// The Gateway owns attempt accounting after the module migration. The legacy
+// entry must be a pure compatibility export, not a second accounting source.
+// Older pinned source commits still use the pre-migration owner path.
+function attemptObservabilitySource() {
+  const legacy = join(root, 'src', 'request', 'attempt', 'observability.ts');
+  const owned = join(root, 'apps', 'gateway', 'attempt', 'observability.ts');
+  if (!existsSync(owned)) return readFileSync(legacy, 'utf8');
+  const shim = readFileSync(legacy, 'utf8');
+  assert.match(
+    shim,
+    /^export \* from '\.\.\/\.\.\/\.\.\/apps\/gateway\/attempt\/observability\.ts';$/m,
+    'Migrated attempt observability must leave a pure compatibility export'
+  );
+  assert.doesNotMatch(shim, /^export (?:async )?(?:function|const|class) /m);
+  return readFileSync(owned, 'utf8');
+}
+
 
 // ==========================================================================
 // reliability-core-contract-test.mjs
@@ -440,7 +457,7 @@ try {
   });
 
   await test('per-model token attribution uses the logical request model', () => {
-    const src = readFileSync(join(root, 'src', 'request', 'attempt', 'observability.ts'), 'utf8');
+    const src = attemptObservabilitySource();
     const successStart = src.indexOf('export function recordTokens');
     const undeliveredStart = src.indexOf('export function recordUndeliveredUpstreamAttempt', successStart);
     const persistStart = src.indexOf('function scheduleD1TokenPersist', undeliveredStart);
@@ -452,7 +469,7 @@ try {
   });
 
   await test('delivered responses backfill missing TTFT before D1 persistence', () => {
-    const src = readFileSync(join(root, 'src', 'request', 'attempt', 'observability.ts'), 'utf8');
+    const src = attemptObservabilitySource();
     const helperStart = src.indexOf('function ensureDeliveredTtft');
     const observeStart = src.indexOf('export function observeUpstreamAttemptUsage', helperStart);
     const successStart = src.indexOf('export function recordTokens');
