@@ -184,11 +184,9 @@ test("organization permission gap falls back to explicit control-repository-only
       return await reader.get(path.replace("fongap-labs/action-worker", repository));
     },
   };
-  const summary = await auditStorageMetadata(
-    controlReader,
-    ["fongap-labs/action-worker"],
-    { skipOrganization: true }
-  );
+  const summary = await auditStorageMetadata(controlReader, ["fongap-labs/action-worker"], {
+    skipOrganization: true,
+  });
   assert.equal(summary.coverage, "control-only");
   assert.equal(summary.organization_scope_verified, false);
   assert.equal(summary.repositories_verified, 1);
