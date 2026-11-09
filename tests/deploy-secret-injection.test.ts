@@ -4,7 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { parse } from "yaml";
-import { mergeApprovedGatewayAccountId } from "../scripts/export-repository-variables.ts";
+import {
+  mergeApprovedGatewayAccountId,
+  mergeApprovedGatewayOpsVariables,
+} from "../scripts/export-repository-variables.ts";
 import {
   readDeploySecretCeiling,
   readDeploySecretVariableSources,
@@ -300,6 +303,72 @@ test("AI Gateway production imports only its non-sensitive account ID from prote
   );
   assert.throws(
     () => mergeApprovedGatewayAccountId({}, "fongap-labs/ai-gateway", "staging", accountId),
+    /not authorized/
+  );
+});
+
+test("Gateway ops metadata is scoped, optional, and conflict-checked", () => {
+  const account = "0123456789abcdef0123456789abcdef";
+  const kv = "11111111111111111111111111111111";
+  const d1 = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+  const approved = {
+    CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
+    AIG_PUBLIC_URL: "https://gateway.example/",
+    AIG_AFFINITY_KV_ID: kv,
+    AIG_USAGE_D1_ID: d1,
+    AIG_ANALYTICS_DATASET: "GATEWAY_EVENTS",
+    CLOUDFLARE_API_TOKEN_OPS: "not-an-exported-secret",
+  };
+  assert.deepEqual(
+    mergeApprovedGatewayOpsVariables(
+      { AIG_PUBLIC_URL: "https://gateway.example", PUBLIC_VALUE: "unchanged" },
+      "fongap-labs/ai-gateway",
+      "production",
+      approved
+    ),
+    {
+      CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
+      AIG_PUBLIC_URL: "https://gateway.example",
+      AIG_AFFINITY_KV_ID: kv,
+      AIG_USAGE_D1_ID: d1,
+      AIG_ANALYTICS_DATASET: "GATEWAY_EVENTS",
+      PUBLIC_VALUE: "unchanged",
+    }
+  );
+  assert.deepEqual(
+    mergeApprovedGatewayOpsVariables(
+      { AIG_PUBLIC_URL: "https://fallback.example" },
+      "fongap-labs/ai-gateway",
+      "production",
+      { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account }
+    ),
+    {
+      CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
+      AIG_PUBLIC_URL: "https://fallback.example",
+    }
+  );
+  assert.throws(
+    () =>
+      mergeApprovedGatewayOpsVariables(
+        { AIG_PUBLIC_URL: "https://another.example" },
+        "fongap-labs/ai-gateway",
+        "production",
+        approved
+      ),
+    /conflicting Variable/
+  );
+  assert.throws(
+    () =>
+      mergeApprovedGatewayOpsVariables(
+        { AIG_USAGE_D1_ID: "ffffffff-ffff-ffff-ffff-ffffffffffff" },
+        "fongap-labs/ai-gateway",
+        "production",
+        approved
+      ),
+    /conflicting Variable/
+  );
+  assert.throws(
+    () => mergeApprovedGatewayOpsVariables({}, "fongap-labs/mcp-hub", "production", approved),
     /not authorized/
   );
 });
