@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { auditStorageMetadata } from "../scripts/config-storage-audit.ts";
+import { auditStorageMetadata, managedAuditTargets } from "../scripts/config-storage-audit.ts";
 
 const repository = "fongap-labs/private-source";
 
@@ -127,4 +127,26 @@ test("metadata inventory rejects invalid targets", async () => {
   const { reader } = fixture();
   await assert.rejects(auditStorageMetadata(reader, [repository, repository]), /targets/);
   await assert.rejects(auditStorageMetadata(reader, ["other-org/private"]), /targets/);
+});
+
+test("configuration audit automatically includes governed repositories without losing discovery coverage", () => {
+  assert.deepEqual(
+    managedAuditTargets(
+      ["fongap-labs/ai-gateway", "fongap-labs/action-worker"],
+      ["fongap-labs/action-worker", "fongap-labs/newly-enrolled"]
+    ),
+    ["fongap-labs/action-worker", "fongap-labs/ai-gateway", "fongap-labs/newly-enrolled"]
+  );
+  assert.deepEqual(managedAuditTargets([], ["fongap-labs/action-worker"]), [
+    "fongap-labs/action-worker",
+  ]);
+  const invalid: Array<[string[], string[]]> = [
+    [[], []],
+    [["fongap-labs/action-worker", "fongap-labs/action-worker"], []],
+    [[], ["another-org/other"]],
+    [["fongap-labs/a"], ["fongap-labs/a", "fongap-labs/a"]],
+  ];
+  for (const [discovery, governed] of invalid) {
+    assert.throws(() => managedAuditTargets(discovery, governed), /targets/);
+  }
 });

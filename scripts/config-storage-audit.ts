@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { minimumConfigImpact } from "./config-security-classification.ts";
 import { GithubReader, isJsonRecord } from "./github-api.ts";
+import { readRepositoryPolicyText } from "./repository-policy.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 
 // GitHub Secrets APIs return metadata, never the Secret value.
@@ -41,6 +42,24 @@ export type StorageAuditSummary = {
   environment_protection_verified: false;
   automatic_writes: false;
 };
+
+/** Include newly enrolled governed repositories automatically without granting permissions. */
+export function managedAuditTargets(
+  discovery: readonly string[],
+  authorized: readonly string[]
+): string[] {
+  const names = [...new Set([...discovery, ...authorized])];
+  if (
+    names.length === 0 ||
+    names.length > 100 ||
+    names.some((name) => !repositoryPattern.test(name)) ||
+    new Set(discovery).size !== discovery.length ||
+    new Set(authorized).size !== authorized.length
+  ) {
+    throw new CliError("Configuration audit repository targets are invalid.", 65);
+  }
+  return names.sort();
+}
 
 function nonSensitiveName(value: unknown): string {
   if (!isJsonRecord(value) || typeof value.name !== "string" || !namePattern.test(value.name)) {
@@ -325,14 +344,14 @@ async function main(): Promise<void> {
   if (repositories.some((value) => typeof value !== "string")) {
     throw new CliError("Read-only configuration audit targets are invalid.", 65);
   }
+  const authorized = JSON.parse(readRepositoryPolicyText()) as Record<string, unknown>;
+  const auditTargets = managedAuditTargets(repositories as string[], Object.keys(authorized));
   const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token, {
     attemptLimit: 2,
   });
   try {
     // Only aggregate counts leave this function. Never expose private names or Variable values.
-    console.log(
-      JSON.stringify(await auditStorageMetadata(reader, repositories as string[]), null, 2)
-    );
+    console.log(JSON.stringify(await auditStorageMetadata(reader, auditTargets), null, 2));
   } catch {
     throw new CliError("Read-only storage audit incomplete; no report published.", 77);
   }
