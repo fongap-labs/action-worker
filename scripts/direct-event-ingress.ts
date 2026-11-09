@@ -46,27 +46,33 @@ const deliveryPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-
 const repositoryPattern = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
 const leaseMs = 60_000;
 
-function configuration(env: IngressEnvironment): { owner: string; repository: string; installationId: number } {
+function configuration(env: IngressEnvironment): {
+  owner: string;
+  repository: string;
+  installationId: number;
+} {
   const repository = env.AW_CONTROL_REPOSITORY;
   const installationId = Number(env.AW_GITHUB_APP_INSTALLATION_ID);
   if (
-    !repositoryPattern.test(repository ?? '') ||
-    !/^[1-9]\d*$/.test(env.AW_GITHUB_APP_ID ?? '') ||
-    !/^[1-9]\d*$/.test(env.AW_GITHUB_APP_INSTALLATION_ID ?? '') ||
+    !repositoryPattern.test(repository ?? "") ||
+    !/^[1-9]\d*$/.test(env.AW_GITHUB_APP_ID ?? "") ||
+    !/^[1-9]\d*$/.test(env.AW_GITHUB_APP_INSTALLATION_ID ?? "") ||
     !Number.isSafeInteger(installationId) ||
     !env.AW_GITHUB_WEBHOOK_SECRET ||
-    (!env.AW_GITHUB_APP_PRIVATE_KEY?.startsWith('-----BEGIN ') || !env.AW_GITHUB_APP_PRIVATE_KEY?.includes('-----END ')) ||
+    !env.AW_GITHUB_APP_PRIVATE_KEY?.startsWith("-----BEGIN ") ||
+    !env.AW_GITHUB_APP_PRIVATE_KEY?.includes("-----END ") ||
     !env.AW_INGRESS_DB
   ) {
-    throw new Error('Direct ingress configuration is incomplete.');
+    throw new Error("Direct ingress configuration is incomplete.");
   }
-  const [owner = ''] = repository.split('/');
+  const [owner = ""] = repository.split("/");
   return { owner, repository, installationId };
 }
 
 function bytesFromHex(hex: string): Uint8Array {
   const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < bytes.length; i += 1) bytes[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  for (let i = 0; i < bytes.length; i += 1)
+    bytes[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   return bytes;
 }
 
@@ -77,15 +83,15 @@ export async function verifyGithubSignature(
 ): Promise<boolean> {
   if (!secret || !signature || !/^sha256=[0-9a-f]{64}$/.test(signature)) return false;
   const key = await crypto.subtle.importKey(
-    'raw',
+    "raw",
     new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
+    { name: "HMAC", hash: "SHA-256" },
     false,
-    ['sign']
+    ["sign"]
   );
   const safeBody = new Uint8Array(new ArrayBuffer(body.byteLength));
   safeBody.set(body);
-  const digest = new Uint8Array(await crypto.subtle.sign('HMAC', key, safeBody));
+  const digest = new Uint8Array(await crypto.subtle.sign("HMAC", key, safeBody));
   const supplied = bytesFromHex(signature.slice(7));
   let difference = 0;
   for (let i = 0; i < digest.length; i += 1) difference |= digest[i]! ^ supplied[i]!;
@@ -103,7 +109,7 @@ async function boundedBody(request: Request): Promise<Uint8Array> {
     length += value.byteLength;
     if (length > maxBodyBytes) {
       await reader.cancel();
-      throw new Error('Webhook payload exceeds the size limit.');
+      throw new Error("Webhook payload exceeds the size limit.");
     }
     parts.push(value);
   }
@@ -117,45 +123,51 @@ async function boundedBody(request: Request): Promise<Uint8Array> {
 }
 
 function isRelevantEvent(eventName: string, body: GithubEvent): boolean {
-  if (eventName === 'push') {
+  if (eventName === "push") {
     return (
-      typeof body.repository?.default_branch === 'string' &&
-      body.ref === 'refs/heads/' + body.repository.default_branch &&
+      typeof body.repository?.default_branch === "string" &&
+      body.ref === "refs/heads/" + body.repository.default_branch &&
       body.deleted !== true
     );
   }
-  if (eventName === 'pull_request') {
-    return ['opened', 'reopened', 'synchronize', 'ready_for_review'].includes(String(body.action));
+  if (eventName === "pull_request") {
+    return ["opened", "reopened", "synchronize", "ready_for_review"].includes(String(body.action));
   }
   return false;
 }
 
 function encodeUrlBase64(value: Uint8Array): string {
-  let binary = '';
+  let binary = "";
   for (const byte of value) binary += String.fromCharCode(byte);
-  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+  return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 }
 
 async function appJwt(env: IngressEnvironment): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
-  const header = encodeUrlBase64(new TextEncoder().encode(JSON.stringify({ alg: 'RS256', typ: 'JWT' })));
+  const header = encodeUrlBase64(
+    new TextEncoder().encode(JSON.stringify({ alg: "RS256", typ: "JWT" }))
+  );
   const payload = encodeUrlBase64(
     new TextEncoder().encode(
       JSON.stringify({ iat: now - 60, exp: now + 480, iss: env.AW_GITHUB_APP_ID })
     )
   );
-  const der = env.AW_GITHUB_APP_PRIVATE_KEY.split(/\r?\n/).filter((line) => /^[A-Za-z0-9+/=]+$/.test(line)).join('');
+  const der = env.AW_GITHUB_APP_PRIVATE_KEY.split(/\r?\n/)
+    .filter((line) => /^[A-Za-z0-9+/=]+$/.test(line))
+    .join("");
   const raw = Uint8Array.from(atob(der), (character) => character.charCodeAt(0));
   const key = await crypto.subtle.importKey(
-    'pkcs8',
+    "pkcs8",
     raw,
-    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
-    ['sign']
+    ["sign"]
   );
-  const input = header + '.' + payload;
-  const signature = new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(input)));
-  return input + '.' + encodeUrlBase64(signature);
+  const input = header + "." + payload;
+  const signature = new Uint8Array(
+    await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(input))
+  );
+  return input + "." + encodeUrlBase64(signature);
 }
 
 /** Installation token is limited to the control repository and dispatch permission. */
@@ -165,43 +177,43 @@ export async function dispatchIntake(
   apiFetch: typeof fetch = fetch
 ): Promise<void> {
   const { repository } = configuration(env);
-  const repositoryName = repository.split('/')[1]!;
+  const repositoryName = repository.split("/")[1]!;
   const tokenResponse = await apiFetch(
-    'https://api.github.com/app/installations/' + installationId + '/access_tokens',
+    "https://api.github.com/app/installations/" + installationId + "/access_tokens",
     {
-      method: 'POST',
+      method: "POST",
       headers: {
-        Authorization: 'Bearer ' + (await appJwt(env)),
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'Content-Type': 'application/json',
+        Authorization: "Bearer " + (await appJwt(env)),
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "Content-Type": "application/json",
       },
-      body: JSON.stringify({ repositories: [repositoryName], permissions: { contents: 'write' } }),
+      body: JSON.stringify({ repositories: [repositoryName], permissions: { contents: "write" } }),
     }
   );
-  if (!tokenResponse.ok) throw new Error('GitHub App installation token request failed.');
+  if (!tokenResponse.ok) throw new Error("GitHub App installation token request failed.");
   const tokenBody: unknown = await tokenResponse.json();
   const token =
-    typeof tokenBody === 'object' && tokenBody !== null && 'token' in tokenBody
+    typeof tokenBody === "object" && tokenBody !== null && "token" in tokenBody
       ? (tokenBody as { token?: unknown }).token
       : undefined;
-  if (typeof token !== 'string' || !token) throw new Error('GitHub App installation token is missing.');
-  const response = await apiFetch('https://api.github.com/repos/' + repository + '/dispatches', {
-    method: 'POST',
+  if (typeof token !== "string" || !token) throw new Error("GitHub App installation token is missing.");
+  const response = await apiFetch("https://api.github.com/repos/" + repository + "/dispatches", {
+    method: "POST",
     headers: {
-      Authorization: 'Bearer ' + token,
-      Accept: 'application/vnd.github+json',
-      'X-GitHub-Api-Version': '2022-11-28',
-      'Content-Type': 'application/json',
+      Authorization: "Bearer " + token,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      "Content-Type": "application/json",
     },
-    body: JSON.stringify({ event_type: 'run-intake', client_payload: {} }),
+    body: JSON.stringify({ event_type: "run-intake", client_payload: {} }),
   });
-  if (response.status !== 204) throw new Error('Central Intake dispatch was not acknowledged.');
+  if (response.status !== 204) throw new Error("Central Intake dispatch was not acknowledged.");
 }
 
 async function reserveDelivery(env: IngressEnvironment, deliveryId: string, installationId: number, eventName: string, repository: string): Promise<void> {
   await env.AW_INGRESS_DB.prepare(
-    'INSERT OR IGNORE INTO webhook_deliveries (delivery_id, installation_id, event_name, source_repository, created_ms, lease_until_ms) VALUES (?, ?, ?, ?, ?, 0)'
+    "INSERT OR IGNORE INTO webhook_deliveries (delivery_id, installation_id, event_name, source_repository, created_ms, lease_until_ms) VALUES (?, ?, ?, ?, ?, 0)"
   ).bind(deliveryId, installationId, eventName, repository, Date.now()).run();
 }
 
@@ -211,12 +223,12 @@ async function attemptPending(
   apiFetch: typeof fetch
 ): Promise<boolean> {
   const claimed = await env.AW_INGRESS_DB.prepare(
-    'UPDATE webhook_deliveries SET lease_until_ms = ? WHERE delivery_id = ? AND delivered_ms IS NULL AND lease_until_ms <= ? RETURNING delivery_id'
+    "UPDATE webhook_deliveries SET lease_until_ms = ? WHERE delivery_id = ? AND delivered_ms IS NULL AND lease_until_ms <= ? RETURNING delivery_id"
   ).bind(Date.now() + leaseMs, delivery.delivery_id, Date.now()).first<{ delivery_id: string }>();
   if (!claimed) return false;
   await dispatchIntake(env, delivery.installation_id, apiFetch);
   await env.AW_INGRESS_DB.prepare(
-    'UPDATE webhook_deliveries SET delivered_ms = ?, lease_until_ms = 0 WHERE delivery_id = ?'
+    "UPDATE webhook_deliveries SET delivered_ms = ?, lease_until_ms = 0 WHERE delivery_id = ?"
   ).bind(Date.now(), delivery.delivery_id).run();
   return true;
 }
@@ -227,54 +239,54 @@ export async function handleDirectWebhook(
   env: IngressEnvironment,
   apiFetch: typeof fetch = fetch
 ): Promise<Response> {
-  if (request.method !== 'POST') return new Response('Method not allowed', { status: 405 });
+  if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
   let control: ReturnType<typeof configuration>;
   try {
     control = configuration(env);
   } catch {
-    return new Response('Ingress is not configured', { status: 503 });
+    return new Response("Ingress is not configured", { status: 503 });
   }
   let body: Uint8Array;
   try {
     body = await boundedBody(request);
   } catch {
-    return new Response('Invalid payload size', { status: 413 });
+    return new Response("Invalid payload size", { status: 413 });
   }
-  if (!(await verifyGithubSignature(body, request.headers.get('x-hub-signature-256'), env.AW_GITHUB_WEBHOOK_SECRET))) {
-    return new Response('Unauthorized', { status: 401 });
+  if (!(await verifyGithubSignature(body, request.headers.get("x-hub-signature-256"), env.AW_GITHUB_WEBHOOK_SECRET))) {
+    return new Response("Unauthorized", { status: 401 });
   }
-  const deliveryId = request.headers.get('x-github-delivery') ?? '';
-  const eventName = request.headers.get('x-github-event') ?? '';
-  if (!deliveryPattern.test(deliveryId)) return new Response('Invalid delivery identity', { status: 400 });
+  const deliveryId = request.headers.get("x-github-delivery") ?? "";
+  const eventName = request.headers.get("x-github-event") ?? "";
+  if (!deliveryPattern.test(deliveryId)) return new Response("Invalid delivery identity", { status: 400 });
   let payload: GithubEvent;
   try {
     payload = JSON.parse(new TextDecoder().decode(body)) as GithubEvent;
-    if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error();
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) throw new Error();
   } catch {
-    return new Response('Invalid event payload', { status: 400 });
+    return new Response("Invalid event payload", { status: 400 });
   }
   const repository = payload.repository?.full_name;
   const owner = payload.repository?.owner?.login;
   if (
     payload.installation?.id !== control.installationId ||
-    typeof repository !== 'string' ||
+    typeof repository !== "string" ||
     !repositoryPattern.test(repository) ||
-    typeof owner !== 'string' ||
+    typeof owner !== "string" ||
     owner.toLowerCase() !== control.owner.toLowerCase() ||
-    !repository.toLowerCase().startsWith(control.owner.toLowerCase() + '/')
+    !repository.toLowerCase().startsWith(control.owner.toLowerCase() + "/")
   ) {
-    return new Response('Event source is not authorized', { status: 403 });
+    return new Response("Event source is not authorized", { status: 403 });
   }
   if (repository.toLowerCase() === control.repository.toLowerCase() || !isRelevantEvent(eventName, payload)) {
-    return new Response('Ignored', { status: 200 });
+    return new Response("Ignored", { status: 200 });
   }
   try {
     await reserveDelivery(env, deliveryId, control.installationId, eventName, repository);
     const dispatched = await attemptPending(env, { delivery_id: deliveryId, installation_id: control.installationId }, apiFetch);
-    return new Response(dispatched ? 'Reconciliation requested' : 'Already received', { status: 202 });
+    return new Response(dispatched ? "Reconciliation requested" : "Already received", { status: 202 });
   } catch {
     // The durable pending record remains for scheduled replay after a transient API failure.
-    return new Response('Reconciliation queued for retry', { status: 503 });
+    return new Response("Reconciliation queued for retry", { status: 503 });
   }
 }
 
@@ -285,7 +297,7 @@ export async function retryPendingDeliveries(
 ): Promise<number> {
   configuration(env);
   const pending = await env.AW_INGRESS_DB.prepare(
-    'SELECT delivery_id, installation_id FROM webhook_deliveries WHERE delivered_ms IS NULL AND lease_until_ms <= ? ORDER BY created_ms LIMIT 25'
+    "SELECT delivery_id, installation_id FROM webhook_deliveries WHERE delivered_ms IS NULL AND lease_until_ms <= ? ORDER BY created_ms LIMIT 25"
   ).bind(Date.now()).all<PendingDelivery>();
   let completed = 0;
   for (const delivery of pending.results) {
