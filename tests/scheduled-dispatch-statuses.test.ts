@@ -90,6 +90,93 @@ test("signed schedule receipts on a second status-history page are found", async
   assert.ok(requested[1]?.endsWith("page=2"));
 });
 
+test("a dense commit stops safely at the due slot rather than scanning old status history", async () => {
+  const context = "Task Schedule/MarketBrief";
+  const fresh = Array.from({ length: 100 }, () => ({
+    context: "unrelated",
+    state: "success",
+    created_at: "2026-10-13T18:00:00Z",
+  }));
+  const historical = Array.from({ length: 100 }, () => ({
+    context: "unrelated",
+    state: "success",
+    created_at: "2026-10-13T11:50:00Z",
+  }));
+  const requested: string[] = [];
+  const result = await hasScheduledDispatchReceipt(
+    repository,
+    sha,
+    context,
+    [{ state: "pending", description: `Task dispatch reserved for ${oldSlot}` }],
+    async (path) => {
+      requested.push(path);
+      return path.endsWith("page=11") ? historical : fresh;
+    },
+    oldSlot
+  );
+  assert.equal(result, false);
+  assert.equal(requested.length, 11);
+  assert.ok(requested.at(-1)?.endsWith("page=11"));
+});
+
+test("an exact signed receipt wins before checking the older-than-slot boundary", async () => {
+  const context = "Task Schedule/MarketBrief";
+  const fresh = Array.from({ length: 100 }, () => ({
+    context: "unrelated",
+    state: "success",
+    created_at: "2026-10-13T18:00:00Z",
+  }));
+  const historical = Array.from({ length: 99 }, () => ({
+    context: "unrelated",
+    state: "success",
+    created_at: "2026-10-13T11:50:00Z",
+  }));
+  const receipt = {
+    ...reserved(context, oldSlot, "Task"),
+    created_at: "2026-10-13T12:10:00Z",
+  };
+  const paths: string[] = [];
+  const result = await hasScheduledDispatchReceipt(
+    repository,
+    sha,
+    context,
+    [{ state: "pending", description: `Task dispatch reserved for ${oldSlot}` }],
+    async (path) => {
+      paths.push(path);
+      return path.endsWith("page=11") ? [receipt, ...historical] : fresh;
+    },
+    oldSlot
+  );
+  assert.equal(result, true);
+  assert.equal(paths.length, 11);
+});
+
+test("a malformed status order never certifies the slot boundary", async () => {
+  const context = "Task Schedule/MarketBrief";
+  const unordered = [
+    ...Array.from({ length: 99 }, () => ({
+      context: "unrelated",
+      state: "success",
+      created_at: "2026-10-13T11:50:00Z",
+    })),
+    { context: "unrelated", state: "success", created_at: "2026-10-13T18:00:00Z" },
+  ];
+  const seen: string[] = [];
+  const result = await hasScheduledDispatchReceipt(
+    repository,
+    sha,
+    context,
+    [{ state: "success", description: `Task dispatched for ${oldSlot}` }],
+    async (path) => {
+      seen.push(path);
+      return path.endsWith("page=1") ? unordered : [signed(context, oldSlot, "Task")];
+    },
+    oldSlot
+  );
+  assert.equal(result, true);
+  assert.equal(seen.length, 2);
+});
+
 test("a signed pending reservation suppresses a duplicate scheduled dispatch", async () => {
   const context = "Task Schedule/MarketBrief";
   const reservation = attestFixtureStatuses(
@@ -191,10 +278,10 @@ test("unbounded or malformed status history fails closed", async () => {
         return newerStatuses;
       }
     ),
-    /status history exceeds 1000 records.*refusing an unsafe replay/
+    /status history exceeds 5000 records.*refusing an unsafe replay/
   );
-  assert.equal(requested.length, 10);
-  assert.ok(requested.at(-1)?.endsWith("page=10"));
+  assert.equal(requested.length, 50);
+  assert.ok(requested.at(-1)?.endsWith("page=50"));
   for (const invalid of [{ statuses: [] }, [null], Array(101).fill({})]) {
     await assert.rejects(
       hasScheduledDispatchReceipt(
