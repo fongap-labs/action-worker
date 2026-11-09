@@ -14,8 +14,8 @@ import {
 import {
   assertMergedReleaseSection,
   assertReleasePullRequestIdentity,
-  isExactChangelogResumeDiff,
   assertReleaseStageDeadline,
+  isExactChangelogResumeDiff,
   releasePullRequestTitle,
   releaseStageTiming,
 } from "../scripts/changelog-release-pr.ts";
@@ -100,10 +100,7 @@ test("stale staging source may resume only an exact CHANGELOG-only squash succes
     { files: [{ filename: "scripts/unsafe.ts", status: "modified" }] },
     { files: [{ filename: "CHANGELOG.md", status: "added" }] },
     {
-      files: [
-        ...exact.files,
-        { filename: "scripts/unsafe.ts", status: "modified" },
-      ],
+      files: [...exact.files, { filename: "scripts/unsafe.ts", status: "modified" }],
     },
     { files: undefined },
   ]) {
