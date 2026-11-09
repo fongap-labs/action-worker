@@ -55,6 +55,8 @@ jobs:
       product_directory: ${{ steps.source.outputs.product_directory }}
       trigger: ${{ steps.source.outputs.trigger }}
       credential_environment: ${{ steps.credentials.outputs.credential_environment }}
+      checkout_owner: ${{ steps.api_scope.outputs.owner }}
+      checkout_repository_name: ${{ steps.api_scope.outputs.repository_name }}
       create_deployment: ${{ steps.credentials.outputs.create_deployment }}
 
     steps:
@@ -348,13 +350,27 @@ jobs:
             exit 77
           }
 
+      # Mint short-lived contents-read credentials for the exact source repository.
+      # The scope is checked against central repository policy in prepare; no static
+      # checkout PAT or installation token is passed between Jobs.
+      - name: Mint private deploy checkout token
+        id: checkout_read_app
+        if: needs.prepare.outputs.is_private == 'true'
+        uses: ./control/.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ needs.prepare.outputs.checkout_owner }}
+          repositories: ${{ needs.prepare.outputs.checkout_repository_name }}
+          permission-contents: read
+
       - name: Checkout private deploy source
         if: needs.prepare.outputs.is_private == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ needs.prepare.outputs.source_repository }}
           ref: ${{ needs.prepare.outputs.source_sha }}
-          token: ${{ secrets.AW_CHECKOUT_TOKEN }}
+          token: ${{ steps.checkout_read_app.outputs.token }}
           path: target
           persist-credentials: false
 
