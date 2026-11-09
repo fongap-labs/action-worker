@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- 修复: 一次性健康密钥引导复用受保护 production 部署链已批准的 Cloudflare Secondary 凭据映射，避免依赖尚未配置的独立运维账户；保留管理员域生成、双 Environment Secret 保存、Worker 写入前存在性核验及实际健康检查。
+
+- 修复: 首次 fongap-bot 请求因 GitHub App 尚未获 Secrets 写权限而被拒绝后，改以现有受保护 admin-ops 凭据写入两个 GitHub Environment，再由 ai-gateway-ops 从最新 Environment Secret 快照部署同一随机健康密钥到 Cloudflare；保留三处独立名称预检、非覆盖及真实健康检查。
+
 - 修复: 独立 PR AI Review 工作流向 CI Evidence 等待器传入必需的 PR 编号，避免参数错误导致证据收集在启动时失败；同时增加主 PR 治理与审查工作流的入参合同测试。
 
 - 新增: 部署 Secret 的固定源码与当前 Environment 名称作用域离线只读审计，拒绝读取凭据值与未受审的生产配置变更。

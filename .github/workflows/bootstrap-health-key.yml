@@ -1,0 +1,88 @@
+name: 自动 · 初始化 AI Gateway 部署健康密钥
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - policies/ai-gateway-health-bootstrap.request
+
+permissions: {}
+concurrency:
+  group: ai-gateway-ops-secret-management
+  cancel-in-progress: false
+jobs:
+  worker-preflight:
+    if: github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
+    name: Inspect Worker secrets with approved production deploy credentials
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    environment:
+      name: production
+      deployment: false
+    permissions:
+      contents: read
+    steps:
+      - name: Check out trusted control main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Inspect existing Worker Secret names
+        env:
+          CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}
+          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
+        run: node scripts/bootstrap-ai-gateway-health-key.ts worker-preflight
+
+  github-bootstrap:
+    needs: worker-preflight
+    name: Initialize two Environment Secrets using protected admin-ops
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    environment:
+      name: admin-ops
+      deployment: false
+    permissions:
+      contents: read
+    steps:
+      - name: Check out trusted control main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Generate once and encrypt for both GitHub Environments
+        env:
+          GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+        run: node scripts/bootstrap-ai-gateway-health-key.ts github-bootstrap
+
+  worker-publish:
+    needs: github-bootstrap
+    name: Deploy the saved Environment key to Cloudflare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    environment:
+      name: production
+      deployment: false
+    permissions:
+      contents: read
+    steps:
+      - name: Check out trusted control main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Deploy exactly the saved health Secret through the protected production credentials
+        env:
+          AIG_DEPLOY_HEALTH_KEY: ${{ secrets.AIG_DEPLOY_HEALTH_KEY }}
+          CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}
+          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
+          AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
+        run: node scripts/bootstrap-ai-gateway-health-key.ts worker-publish
