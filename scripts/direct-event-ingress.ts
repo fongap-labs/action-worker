@@ -253,6 +253,7 @@ export async function dispatchIntake(
     "https://api.github.com/app/installations/" + installationId + "/access_tokens",
     {
       method: "POST",
+      redirect: "error",
       signal: AbortSignal.timeout(githubApiRequestTimeoutMs),
       headers: {
         Authorization: "Bearer " + (await appJwt(env, key)),
@@ -273,6 +274,7 @@ export async function dispatchIntake(
     throw new Error("GitHub App installation token is missing.");
   const response = await apiFetch("https://api.github.com/repos/" + repository + "/dispatches", {
     method: "POST",
+    redirect: "error",
     signal: AbortSignal.timeout(githubApiRequestTimeoutMs),
     headers: {
       Authorization: "Bearer " + token,
