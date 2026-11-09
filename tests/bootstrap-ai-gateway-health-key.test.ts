@@ -79,9 +79,10 @@ test("one-shot main-only bootstrap retains the central operations and admin trus
       "${{ vars.CLOUDFLARE_ACCOUNT_ID_OPS }}"
     );
   }
-  const opsWorkflow = parse(
-    readFileSync(".github/workflows/ai-gateway-ops.yml", "utf8")
-  ) as Record<string, unknown>;
+  const opsWorkflow = parse(readFileSync(".github/workflows/ai-gateway-ops.yml", "utf8")) as Record<
+    string,
+    unknown
+  >;
   const opsJob = (opsWorkflow.jobs as Record<string, Record<string, unknown>>).manage;
   assert.ok(opsJob);
   assert.equal((opsJob.environment as { name: string }).name, "ai-gateway-ops");
