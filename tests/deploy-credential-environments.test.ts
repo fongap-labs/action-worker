@@ -142,9 +142,21 @@ test("central deployment uses ops only for authorized credential read and record
     deployment: "${{ needs.prepare.outputs.create_deployment == 'true' }}",
   });
   assert.deepEqual(record.needs, ["prepare", "deploy"]);
-  assert.deepEqual(record.environment, { name: "${{ needs.prepare.outputs.environment }}" });
+  // The protected ops deployment already occurred; production audit is not
+  // another Environment approval gate.
+  assert.equal(record.environment, undefined);
+  assert.match(record.if ?? "", /github\.ref == 'refs\/heads\/main'/);
   assert.match(record.if ?? "", /needs\.deploy\.result == 'success'/);
   assert.match(record.if ?? "", /credential_environment != needs\.prepare\.outputs\.environment/);
-  assert.doesNotMatch(JSON.stringify(record), /secrets\.|AW_DEPLOY_SECRET_|AW_ADMIN_TOKEN/);
-  assert.deepEqual(record.permissions, { contents: "read" });
+  assert.deepEqual(record.permissions, { contents: "read", deployments: "write" });
+  const audit = record.steps?.[0];
+  assert.equal(audit?.env?.GH_TOKEN, "${{ github.token }}");
+  assert.equal(audit?.env?.TARGET_ENVIRONMENT, "${{ needs.prepare.outputs.environment }}");
+  assert.match(audit?.run ?? "", /\[\[ "\$SOURCE_SHA" =~ \^\[0-9a-f\]\{40\}\$ \]\]/);
+  assert.match(audit?.run ?? "", /auto_merge:false,required_contexts:\[\]/);
+  assert.match(audit?.run ?? "", /payload:\{source_repository:/);
+  assert.match(audit?.run ?? "", /gh api --method POST .*\/deployments"/);
+  assert.match(audit?.run ?? "", /gh api --method POST .*\/statuses"/);
+  assert.match(audit?.run ?? "", /state:"success"/);
+  assert.doesNotMatch(JSON.stringify(record), /secrets\.|AW_DEPLOY_SECRET_|AW_ADMIN_TOKEN|CLOUDFLARE_API_TOKEN/);
 });
