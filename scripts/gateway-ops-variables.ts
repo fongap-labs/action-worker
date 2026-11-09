@@ -88,9 +88,11 @@ async function main(): Promise<void> {
   const validated = validateGatewayOpsVariables(process.env);
   await appendLines(
     process.env.GITHUB_OUTPUT,
-    names.filter((name) => validated[name] !== undefined).map((name) => {
-      return outputs[name] + "=" + validated[name];
-    })
+    names
+      .filter((name) => validated[name] !== undefined)
+      .map((name) => {
+        return outputs[name] + "=" + validated[name];
+      })
   );
   console.log("Protected AI Gateway ops Variable metadata validated; no secret values accessed.");
 }
