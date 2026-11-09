@@ -36,6 +36,10 @@ test("release driver actually wires staging PR merge SHA into target_commitish",
   assert.match(source, /selectReleasePhase\(/);
   assert.match(source, /phase\.kind === "staging"/);
   assert.match(source, /await publishChangelogRelease\(/);
+  assert.match(source, /await assertExactMergedChangelogResume\(/);
+  assert.match(source, /sourceRepository === targetRepository/);
+  assert.match(source, /defaultSha !== targetSha \|\| defaultBranch !== targetBranch/);
+  assert.match(source, /await assertSourceCurrent\(/);
   assert.match(source, /releaseSha = staged\.mergeSha/);
   assert.match(source, /target_commitish=\$\{releaseSha\}/);
 });
