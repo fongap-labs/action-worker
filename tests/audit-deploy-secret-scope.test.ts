@@ -4,11 +4,11 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { parseNamesOnlyInventory } from "../scripts/audit-task-secret-scope.ts";
 import {
   auditDeploySecretScope,
   verifyPinnedDeploySource,
 } from "../scripts/audit-deploy-secret-scope.ts";
+import { parseNamesOnlyInventory } from "../scripts/audit-task-secret-scope.ts";
 import type { DeploySecretPlanEntry } from "../scripts/resolve-secret-scope.ts";
 import { runText } from "../scripts/runtime-command.ts";
 
@@ -152,16 +152,24 @@ test("offline CLI reads live policy and pinned source without runtime Secret or 
     await git("commit", "-qm", "pin synthetic deploy source");
     const sha = await git("rev-parse", "HEAD");
     const inventoryPath = join(root, "inventory.json");
-    await writeFile(inventoryPath, JSON.stringify({
-      schema_version: 1,
-      coverage: "complete",
-      repository: [],
-      organization_accessible: [],
-      environments: { production: ["AIG_DEPLOY_HEALTH_KEY", "CLOUDFLARE_API_TOKEN_SECONDARY"] },
-    }));
+    await writeFile(
+      inventoryPath,
+      JSON.stringify({
+        schema_version: 1,
+        coverage: "complete",
+        repository: [],
+        organization_accessible: [],
+        environments: { production: ["AIG_DEPLOY_HEALTH_KEY", "CLOUDFLARE_API_TOKEN_SECONDARY"] },
+      })
+    );
     const args = [
       "scripts/audit-deploy-secret-scope.ts",
-      root, "fongap-labs/ai-gateway", "production", "-", sha, inventoryPath,
+      root,
+      "fongap-labs/ai-gateway",
+      "production",
+      "-",
+      sha,
+      inventoryPath,
     ];
     const run = (extra: Record<string, string> = {}) =>
       spawnSync(process.execPath, args, {
