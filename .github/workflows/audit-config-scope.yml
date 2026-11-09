@@ -1,0 +1,61 @@
+name: 自动 · 组织配置作用域审计
+
+# Run whenever central scope policy changes and periodically detect out-of-band drift.
+# Metadata only: never read, export or rewrite a Secret or Variable value.
+on:
+  push:
+    branches: [main]
+    paths:
+      - policies/config-audit-targets.json
+      - policies/repository-access.json
+      - policies/task-secrets.json
+      - policies/deploy-secrets.json
+      - scripts/config-storage-audit.ts
+      - scripts/config-security-classification.ts
+      - .github/workflows/audit-config-scope.yml
+  schedule:
+    - cron: '27 5 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: organization-config-scope-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Audit all managed repository/organization/Environment scopes
+    if: github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: admin-ops
+      deployment: false
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted control-plane policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Read configuration metadata using existing protected admin identity
+        env:
+          AW_CONFIG_AUDIT_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+        run: node scripts/config-storage-audit.ts
+      - name: Record no-mutation audit result
+        if: success()
+        shell: bash
+        run: |
+          {
+            echo '## Organization configuration scope audit'
+            echo
+            echo '- Coverage: centrally listed organization repositories'
+            echo '- Inputs: GitHub names and scope metadata only'
+            echo '- Values: not read or verified'
+            echo '- Actions: no configuration changes or automatic credential migration'
+          } >> "$GITHUB_STEP_SUMMARY"
