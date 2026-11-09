@@ -1,6 +1,7 @@
-# One-time reviewed continuation; the first fongap-bot token request failed before writes.
-# This request triggers the existing protected admin-ops / ai-gateway-ops path.
+# Approved one-shot reattempt after Cloudflare operations scope was observed unconfigured.
+# Reuse the existing protected production deployment credential mappings.
+# Retain fail-closed preflight and do not rotate any existing key.
 schema_version: 1
 repository: fongap-labs/action-worker
 purpose: initialize-unset-ai-gateway-deploy-health-key
-attempt: protected-admin-ops
+attempt: protected-production-deploy
