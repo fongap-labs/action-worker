@@ -158,5 +158,8 @@ test("central deployment uses ops only for authorized credential read and record
   assert.match(audit?.run ?? "", /gh api --method POST .*\/deployments"/);
   assert.match(audit?.run ?? "", /gh api --method POST .*\/statuses"/);
   assert.match(audit?.run ?? "", /state:"success"/);
-  assert.doesNotMatch(JSON.stringify(record), /secrets\.|AW_DEPLOY_SECRET_|AW_ADMIN_TOKEN|CLOUDFLARE_API_TOKEN/);
+  assert.doesNotMatch(
+    JSON.stringify(record),
+    /secrets\.|AW_DEPLOY_SECRET_|AW_ADMIN_TOKEN|CLOUDFLARE_API_TOKEN/
+  );
 });
