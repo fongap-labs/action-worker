@@ -501,8 +501,9 @@ export async function reconcileIngressCron(
   log: (message: string) => void = console.info
 ): Promise<number> {
   const completed = await retryPendingDeliveries(env, apiFetch);
-  const backlog = await env.AW_INGRESS_DB.prepare(webhookDeliverySql.backlog)
-    .first<IngressBacklog>();
+  const backlog = await env.AW_INGRESS_DB.prepare(
+    webhookDeliverySql.backlog
+  ).first<IngressBacklog>();
   log(JSON.stringify(ingressCronTelemetry(completed, backlog)));
   return completed;
 }
