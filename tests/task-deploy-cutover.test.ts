@@ -41,6 +41,24 @@ test("the cutover deny entry has an independent centrally approved deployment", 
   }
 });
 
+test("deploy-only cutover revokes generic task credential grants without affecting other projects", () => {
+  const taskSecrets = JSON.parse(readFileSync("policies/task-secrets.json", "utf8"));
+  const deploySecrets = JSON.parse(readFileSync("policies/deploy-secrets.json", "utf8"));
+  for (const key of policy.deploy_only as string[]) {
+    const parts = key.split("/");
+    const project = parts.pop()!;
+    const source = parts.join("/");
+    assert.equal(
+      taskSecrets.tasks[source]?.[project],
+      undefined,
+      `Deploy-only project must not retain task credential grants: ${key}`
+    );
+    assert.ok(deploySecrets.deployments[key], `Deploy-only project needs deploy bindings: ${key}`);
+  }
+  assert.ok(taskSecrets.tasks["fongap-labs/internal-vault"]?.EngineSuite);
+  assert.ok(taskSecrets.tasks["fongap-labs/internal-vault"]?.MarketBrief);
+});
+
 test("invalid or duplicate task mode policies fail closed", () => {
   for (const value of [
     null,
