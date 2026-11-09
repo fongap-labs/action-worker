@@ -5,10 +5,8 @@ import { parse } from "yaml";
 import { selectDeployCredentialEnvironment } from "../scripts/select-deploy-credential-environment.ts";
 
 const routes = JSON.parse(readFileSync("policies/deploy-credential-environments.json", "utf8"));
-const grants = JSON.parse(readFileSync("policies/deploy-environments.json", "utf8")).repositories as Record<
-  string,
-  string[]
->;
+const grants = JSON.parse(readFileSync("policies/deploy-environments.json", "utf8"))
+  .repositories as Record<string, string[]>;
 
 test("only approved source product switches credential ownership to existing ops", () => {
   assert.deepEqual(
@@ -26,10 +24,13 @@ test("only approved source product switches credential ownership to existing ops
     ["fongap-labs/ai-gateway", ""],
     ["fongap-labs/mcp-hub", ""],
   ] as const) {
-    assert.deepEqual(selectDeployCredentialEnvironment(routes, grants, repo, product, "production"), {
-      credential_environment: "production",
-      create_deployment: true,
-    });
+    assert.deepEqual(
+      selectDeployCredentialEnvironment(routes, grants, repo, product, "production"),
+      {
+        credential_environment: "production",
+        create_deployment: true,
+      }
+    );
   }
   for (const [repo, product, environment] of [
     ["fongap-labs/internal-vault", "FongapCDN", "admin-ops"],
@@ -50,9 +51,18 @@ test("credential routes fail closed for unauthorized policy edits and cross-owne
     {},
     { schema_version: 2, routes: {} },
     { schema_version: 1, routes: { "fongap-labs/other": { production: "internal-vault-ops" } } },
-    { schema_version: 1, routes: { "fongap-labs/internal-vault/FongapCDN": { staging: "internal-vault-ops" } } },
-    { schema_version: 1, routes: { "fongap-labs/internal-vault/FongapCDN": { production: "production" } } },
-    { schema_version: 1, routes: { "fongap-labs/internal-vault/FongapCDN": { production: "../ops" } } },
+    {
+      schema_version: 1,
+      routes: { "fongap-labs/internal-vault/FongapCDN": { staging: "internal-vault-ops" } },
+    },
+    {
+      schema_version: 1,
+      routes: { "fongap-labs/internal-vault/FongapCDN": { production: "production" } },
+    },
+    {
+      schema_version: 1,
+      routes: { "fongap-labs/internal-vault/FongapCDN": { production: "../ops" } },
+    },
     {
       schema_version: 1,
       routes: {
