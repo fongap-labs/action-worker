@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { GithubHttpError } from "../scripts/github-api.ts";
 import {
   auditStorageMetadata,
   managedAuditTargets,
@@ -205,6 +206,44 @@ test("organization permission gap falls back to explicit control-repository-only
   assert.doesNotMatch(JSON.stringify(summary), /ORG_KEY|ONLY_REPO|sensitive-policy|never-log/);
   await assert.rejects(
     auditStorageMetadata(controlReader, [repository], { skipOrganization: true }),
+    /targets/
+  );
+});
+
+test("control-only scope audit preserves Variable evidence when Secret metadata access is denied", async () => {
+  const { reader } = fixture();
+  const controlReader = {
+    async get(path: string): Promise<unknown> {
+      if (path.includes("/environments/") && path.includes("/secrets?")) {
+        throw new GithubHttpError(403, undefined, { kind: "permission" });
+      }
+      return await reader.get(path.replace("fongap-labs/action-worker", repository));
+    },
+  };
+  const summary = await auditStorageMetadata(controlReader, ["fongap-labs/action-worker"], {
+    skipOrganization: true,
+    allowEnvironmentSecretPermissionGap: true,
+  });
+  assert.equal(summary.coverage, "control-only");
+  assert.equal(summary.environment_count, 1);
+  assert.equal(summary.environment_variables, 2);
+  assert.equal(summary.environment_secrets, null);
+  assert.equal(summary.environment_secret_scope_verified, false);
+  assert.equal(summary.environment_shadowed_secret_bindings, null);
+  assert.equal(summary.organization_scope_verified, false);
+  assert.equal(summary.secret_values_read, false);
+  assert.equal(summary.automatic_writes, false);
+  assert.doesNotMatch(JSON.stringify(summary), /ORG_KEY|ONLY_REPO|sensitive-policy|never-log/);
+  await assert.rejects(
+    auditStorageMetadata(controlReader, ["fongap-labs/action-worker"], {
+      skipOrganization: true,
+    }),
+    /403/
+  );
+  await assert.rejects(
+    auditStorageMetadata(controlReader, ["fongap-labs/action-worker"], {
+      allowEnvironmentSecretPermissionGap: true,
+    }),
     /targets/
   );
 });
