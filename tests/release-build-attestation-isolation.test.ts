@@ -98,10 +98,7 @@ test("SBOM release packaging retries transient tool downloads but never bypasses
     ["sbom_attempt_1", "sbom_attempt_2", "sbom_attempt_3"]
   );
   for (const attempt of attempts) {
-    assert.equal(
-      attempt.uses,
-      "anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c"
-    );
+    assert.equal(attempt.uses, "anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c");
     assert.equal(attempt.with?.["syft-version"], "v1.54.0");
     assert.equal(attempt.with?.format, "cyclonedx-json");
     assert.equal(attempt.with?.path, "source");
