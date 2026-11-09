@@ -267,6 +267,15 @@ jobs:
           DEPLOY_ENVIRONMENT: ${{ steps.source.outputs.environment }}
         run: node scripts/select-deploy-credential-environment.ts
 
+      # Refuse implicit GitHub Environment creation from a dynamic job name.
+      # Read-only metadata check; reviewers of existing Environments still apply.
+      - name: Verify credential Environment exists before deploy
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_CREDENTIAL_ENVIRONMENT: ${{ steps.credentials.outputs.credential_environment }}
+          AW_CONTROL_REPOSITORY: ${{ github.repository }}
+        run: node scripts/verify-deploy-credential-environment.ts
+
   gateway_account_id:
     # Only public allowlisted data is exported; no ops Secret crosses the trust boundary.
     needs: prepare
