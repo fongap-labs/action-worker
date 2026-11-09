@@ -1,0 +1,7 @@
+{
+  "schema_version": 1,
+  "enabled": true,
+  "authorized_actors": [{ "login": "fongap", "id": 26006683 }],
+  "repository_owner": "fongap-labs",
+  "operation": "task"
+}
