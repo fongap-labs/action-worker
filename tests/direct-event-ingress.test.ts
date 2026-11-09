@@ -164,6 +164,7 @@ function mockGithubApi(options: { failDispatch?: boolean } = {}): {
   const calls: Array<{ path: string; body: unknown }> = [];
   const fetcher: typeof fetch = async (url, init) => {
     const path = String(url);
+    assert.equal(init?.redirect, "error", "authenticated GitHub requests must not follow redirects");
     calls.push({ path, body: JSON.parse(String(init?.body)) as unknown });
     if (path.endsWith("/access_tokens")) {
       return Response.json({ token: "test-scoped-app-token" }, { status: 201 });
