@@ -282,11 +282,11 @@ async function readTwoPhaseStagingPolicy(): Promise<TwoPhaseReleasePolicy> {
  * must be reconciled explicitly rather than misclassified as a failed draft.
  */
 export function shouldRollbackDraftRelease(
-  draftCreated: boolean,
+  isDraftCreated: boolean,
   releaseId: string,
-  publishAttempted: boolean
+  isPublishAttempted: boolean
 ): boolean {
-  return draftCreated && releaseId.length > 0 && !publishAttempted;
+  return isDraftCreated && releaseId.length > 0 && !isPublishAttempted;
 }
 
 async function rollbackRelease(
@@ -294,15 +294,15 @@ async function rollbackRelease(
   tag: string,
   releaseId: string,
   isReleaseCreated: boolean,
-  publishAttempted: boolean,
+  isPublishAttempted: boolean,
   token: string
 ): Promise<void> {
-  if (isReleaseCreated && publishAttempted) {
+  if (isReleaseCreated && isPublishAttempted) {
     console.log(
       "::warning::Release publish outcome is ambiguous. Retaining the Release for authorized reconciliation; no automatic deletion."
     );
   }
-  if (shouldRollbackDraftRelease(isReleaseCreated, releaseId, publishAttempted)) {
+  if (shouldRollbackDraftRelease(isReleaseCreated, releaseId, isPublishAttempted)) {
     console.log(`::warning::Release publication failed; rolling back draft Release: ${tag}.`);
     try {
       await runGithubCli(
@@ -507,7 +507,7 @@ async function main(): Promise<void> {
   await mkdir(artifactDir);
 
   let isReleaseCreated = false;
-  let publishAttempted = false;
+  let isPublishAttempted = false;
   let releaseId = "";
   let targetRepository = "";
   let tag = "";
@@ -744,7 +744,7 @@ async function main(): Promise<void> {
 
     // From here on, an absent HTTP response cannot prove the publish failed.
     // Preserve the published-or-draft Release until its state is reconciled.
-    publishAttempted = true;
+    isPublishAttempted = true;
     await runGithubCli(
       [
         "api",
@@ -788,7 +788,7 @@ async function main(): Promise<void> {
       tag,
       releaseId,
       isReleaseCreated,
-      publishAttempted,
+      isPublishAttempted,
       releaseWriteToken
     );
     throw error;
