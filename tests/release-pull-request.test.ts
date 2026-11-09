@@ -15,6 +15,7 @@ import {
   assertReleasePullRequestIdentity,
   assertReleaseStageDeadline,
   releasePullRequestTitle,
+  releaseStageTiming,
 } from "../scripts/changelog-release-pr.ts";
 import { runText } from "../scripts/runtime-command.ts";
 import { validateChange } from "../scripts/validate-change-record.ts";
@@ -33,6 +34,27 @@ function releaseOf(changelog: string): string {
     categories,
   });
 }
+
+test("invalid stage-one poll and timeout fail before any PR mutation", () => {
+  assert.deepEqual(releaseStageTiming({}, 1_000), {
+    pollMs: 20_000,
+    deadline: 1_801_000,
+  });
+  assert.deepEqual(releaseStageTiming({ pollSeconds: 5, timeoutMinutes: 2 }, 1_000), {
+    pollMs: 5_000,
+    deadline: 121_000,
+  });
+  for (const invalid of [
+    { pollSeconds: 0 },
+    { pollSeconds: 121 },
+    { pollSeconds: 1.5 },
+    { timeoutMinutes: 0 },
+    { timeoutMinutes: 31 },
+    { timeoutMinutes: Number.NaN },
+  ]) {
+    assert.throws(() => releaseStageTiming(invalid), /Release poll and timeout settings are invalid/);
+  }
+});
 
 test("stage-one deadline is shared by merge and post-merge guard checks", () => {
   assert.doesNotThrow(() => assertReleaseStageDeadline(2_000, 1_999));
