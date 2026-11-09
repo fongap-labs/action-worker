@@ -123,6 +123,20 @@ test("central deployment uses ops only for authorized credential read and record
     "DEPLOY_PRODUCT",
     "DEPLOY_SOURCE_REPOSITORY",
   ]);
+  const verifyAt = prepare.steps?.findIndex(
+    (step) => step.name === "Verify credential Environment exists before deploy"
+  );
+  assert.ok(verifyAt !== undefined && verifyAt > credentialsAt);
+  assert.equal(
+    prepare.steps?.[verifyAt!]?.run,
+    "node scripts/verify-deploy-credential-environment.ts"
+  );
+  assert.deepEqual(prepare.steps?.[verifyAt!]?.env, {
+    GH_TOKEN: "${{ github.token }}",
+    DEPLOY_CREDENTIAL_ENVIRONMENT: "${{ steps.credentials.outputs.credential_environment }}",
+    AW_CONTROL_REPOSITORY: "${{ github.repository }}",
+  });
+  assert.doesNotMatch(JSON.stringify(prepare.steps?.[verifyAt!]), /secrets\\.|AW_APP_PRIVATE_KEY/);
   assert.deepEqual(deploy.environment, {
     name: "${{ needs.prepare.outputs.credential_environment }}",
     deployment: "${{ needs.prepare.outputs.create_deployment == 'true' }}",
