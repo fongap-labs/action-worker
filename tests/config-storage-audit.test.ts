@@ -209,7 +209,6 @@ test("organization permission gap falls back to explicit control-repository-only
   );
 });
 
-
 test("organization and Environment permission gaps preserve only verified control repository metadata", async () => {
   const { reader } = fixture();
   const calls: string[] = [];
