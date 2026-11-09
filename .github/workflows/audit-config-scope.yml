@@ -14,7 +14,7 @@ on:
       - scripts/config-security-classification.ts
       - .github/workflows/audit-config-scope.yml
   schedule:
-    - cron: '27 5 * * *'
+    - cron: "27 5 * * *"
 
 permissions:
   contents: read
