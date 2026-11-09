@@ -51,7 +51,7 @@ D1 将每个 GitHub `X-GitHub-Delivery`（规范 UUID）及**已签名原始请�
 
 D1 故障时不得绕过入库而直接发送，令牌签发失败或 GitHub 非 `204` 必须保留待重试。Cron 每轮重试后使用同一 D1 库的只读聚合 SQL 输出一行脱敏 JSON：`completed_count`（本轮成功派发数量）、`failed_count`（本轮已尝试但分发失败的数量）、`pending_count`（仍未完成的记录总数）、`oldest_pending_age_minutes`（最老待处理年龄，空队列为 null）；不记录 delivery ID、来源仓库、请求体、App JWT、安装令牌、Webhook Secret 或私钥。**积压指标不代表下游业务执行成功或 GitHub 恰好一次送达**；可据此建立外部阈值告警，真实告警、失败率、Cron 调度及持久保留周期仍待受控部署验收。应监控待处理数量、最老待处理年龄和分发失败率；对持续失败应告警，受限日志不得记录密钥、原文 Webhook 或业务私有数据。数据库历史应设置经批准的保留周期；不能直接删除未完成投递。
 
-## 中央 CI 源码编译验证
+## 中央源码编译验证
 
 `validate-ci.yml` 的 `Static analysis` 以虚构的非敏感数据库 UUID 与 App 数字 ID 生成默认禁用 Route/Cron 的暂存配置，再调用**固定版本 Wrangler 4.158.0 的 `deploy --dry-run`** 编译实际 `scripts/direct-event-ingress.ts`。CI 不携带 Cloudflare Account ID、API Token、GitHub App 密钥或真实 D1 标识；编译结果留在 Runner 临时目录，不上传、不部署。此校验仅证明 Worker 的源代码和配置可由 Wrangler 解析与打包，**不能证明 Cloudflare D1 的真实语义、Webhook 送达、Cron 恢复或 GitHub App 连接已上线**。
 
