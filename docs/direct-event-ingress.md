@@ -32,4 +32,4 @@ D1 故障时不得绕过入库而直接发送，令牌签发失败或 GitHub 非
 4. 注入 GitHub API 失败与 D1 故障，验证持久待处理、Cron 恢复、租约竞争及下游状态对账；测试桥接中断时仍可自主唤醒。
 5. 保持既有桥接/定时兜底，在独立审查实际运行证据后决定是否切流。不得在当前代码 PR 中开启生产 Webhook Route 或迁移 Secrets。
 
-当前 `npm run check` 的单测只覆盖源码层 HMAC/源约束/交付去重/恢复合同。它们不能替代受控部署与真实 Webhook E2E。
+`npm run check` 除模拟 GitHub/D1 接口的合同测试外，还使用 Node 内置 SQLite 执行 `docs/direct-event-ingress.sql` 与生产同一组 SQL 语句，验证唯一约束、原子租约、完成回执和有界公平排序。这仅证明本地 SQLite 语义，**不等于 Cloudflare D1 部署或真实 Webhook E2E 已通过**。
