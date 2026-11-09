@@ -176,7 +176,11 @@ export async function dispatchIntake(
   installationId: number,
   apiFetch: typeof fetch = fetch
 ): Promise<void> {
-  const { repository } = configuration(env);
+  const { repository, installationId: configuredInstallationId } = configuration(env);
+  // The inbox must not outlive or override the currently approved App installation.
+  if (installationId !== configuredInstallationId) {
+    throw new Error("Direct ingress installation changed; refusing stale delivery.");
+  }
   const repositoryName = repository.split("/")[1]!;
   const tokenResponse = await apiFetch(
     "https://api.github.com/app/installations/" + installationId + "/access_tokens",
@@ -363,7 +367,7 @@ export async function retryPendingDeliveries(
 ): Promise<number> {
   configuration(env);
   const pending = await env.AW_INGRESS_DB.prepare(
-    "SELECT delivery_id, installation_id FROM webhook_deliveries WHERE delivered_ms IS NULL AND lease_until_ms <= ? ORDER BY created_ms LIMIT 25"
+    "SELECT delivery_id, installation_id FROM webhook_deliveries WHERE delivered_ms IS NULL AND lease_until_ms <= ? ORDER BY lease_until_ms ASC, created_ms ASC LIMIT 25"
   )
     .bind(Date.now())
     .all<PendingDelivery>();
