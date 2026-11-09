@@ -161,10 +161,50 @@ jobs:
           echo "::error::Legacy private task Runner is disabled; no privileged fallback."
           exit 77
 
+  task_ops_vars:
+    name: Resolve approved task Variables from protected ops
+    needs: validate
+    if: needs.validate.result == 'success' && needs.validate.outputs.isolation_mode != 'true' && needs.validate.outputs.private_isolation_mode != 'true' && github.event.client_payload.repository == 'fongap-labs/internal-vault' && contains(fromJSON('["EngineSuite","FongapBlog","FongapCDN","MarketChina","MarketGlobal"]'), github.event.client_payload.project) && vars.CLOUDFLARE_ACCOUNT_ID_PRIMARY == ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment:
+      name: internal-vault-ops
+      deployment: false
+    permissions:
+      contents: read
+    outputs:
+      account_id: ${{ steps.account.outputs.account_id }}
+    steps:
+      - name: Mask private source identity before injecting ops metadata
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          jq -r '.client_payload | .repository, .project' "$GITHUB_EVENT_PATH" |
+            while IFS= read -r value; do
+              if [[ "$value" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)?$ ]]; then
+                echo "::add-mask::$value"
+              fi
+            done
+      - name: Checkout trusted control main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Validate and export one approved non-sensitive Account ID
+        id: account
+        env:
+          TASK_SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+          PROJECT: ${{ github.event.client_payload.project }}
+          CLOUDFLARE_ACCOUNT_ID_PRIMARY: ${{ vars.CLOUDFLARE_ACCOUNT_ID_PRIMARY }}
+        run: node scripts/task-ops-variable-handoff.ts export
+
   execute:
     name: Execute task
-    if: needs.validate.outputs.isolation_mode != 'true' && needs.validate.outputs.private_isolation_mode != 'true'
-    needs: validate
+    if: "!cancelled() && needs.validate.result == 'success' && (needs.task_ops_vars.result == 'success' || needs.task_ops_vars.result == 'skipped') && needs.validate.outputs.isolation_mode != 'true' && needs.validate.outputs.private_isolation_mode != 'true'"
+    needs: [validate, task_ops_vars]
     outputs:
       publication_staged: ${{ steps.publication.outputs.staged }}
     runs-on: ubuntu-24.04
@@ -257,6 +297,13 @@ jobs:
         env:
           REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}
         run: node scripts/export-repository-variables.ts
+
+      - name: Import one approved non-sensitive task ops Variable
+        env:
+          TASK_SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+          PROJECT: ${{ github.event.client_payload.project }}
+          AW_TASK_ACCOUNT_ID_FROM_OPS: ${{ needs.task_ops_vars.outputs.account_id }}
+        run: node scripts/task-ops-variable-handoff.ts import
 
       - name: Resolve agent skills
         id: skills
