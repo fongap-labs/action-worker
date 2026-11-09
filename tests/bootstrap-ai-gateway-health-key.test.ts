@@ -55,9 +55,13 @@ test("one-shot main-only bootstrap separates Cloudflare and admin secrets scopes
   assert.deepEqual(trigger.push.paths, ["policies/ai-gateway-health-bootstrap.request"]);
   const jobs = workflow.jobs as Record<string, Record<string, unknown>>;
   assert.deepEqual(Object.keys(jobs), ["worker-preflight", "github-bootstrap", "worker-publish"]);
-  assert.equal((jobs["worker-preflight"]?.environment as { name: string }).name, "ai-gateway-ops");
-  assert.equal((jobs["github-bootstrap"]?.environment as { name: string }).name, "admin-ops");
-  assert.equal((jobs["worker-publish"]?.environment as { name: string }).name, "ai-gateway-ops");
+  const preflight = jobs["worker-preflight"];
+  const github = jobs["github-bootstrap"];
+  const publish = jobs["worker-publish"];
+  assert.ok(preflight && github && publish);
+  assert.equal((preflight.environment as { name: string }).name, "ai-gateway-ops");
+  assert.equal((github.environment as { name: string }).name, "admin-ops");
+  assert.equal((publish.environment as { name: string }).name, "ai-gateway-ops");
   assert.equal(jobs["github-bootstrap"]?.needs, "worker-preflight");
   assert.equal(jobs["worker-publish"]?.needs, "github-bootstrap");
 
