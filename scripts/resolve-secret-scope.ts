@@ -157,6 +157,48 @@ export async function readSecretAliases(
   return aliases;
 }
 
+/** Repository Variables may supply an approved task alias source. */
+export async function readTaskSecretVariableSources(
+  policyPath: string,
+  repository: string,
+  project: string
+): Promise<ReadonlySet<string>> {
+  const policy: unknown = JSON.parse(await readFile(policyPath, "utf8"));
+  if (!isJsonRecord(policy) || policy.schema_version !== 1 || !isJsonRecord(policy.tasks)) {
+    throw new CliError("Task secret policy is invalid.", 65);
+  }
+  const repositoryEntry = Object.hasOwn(policy.tasks, repository)
+    ? policy.tasks[repository]
+    : undefined;
+  const entry =
+    isJsonRecord(repositoryEntry) && Object.hasOwn(repositoryEntry, project)
+      ? repositoryEntry[project]
+      : undefined;
+  if (!isJsonRecord(entry) || entry.variable_sources === undefined) return new Set();
+  if (!Array.isArray(entry.variable_sources)) {
+    throw new CliError(`Task secret variable_sources is invalid: ${repository} ${project}.`, 65);
+  }
+  const aliases = await readSecretAliases(policyPath, "task", repository, project);
+  const aliasSources = new Set(aliases.values());
+  const sources = new Set<string>();
+  for (const item of entry.variable_sources) {
+    if (
+      typeof item !== "string" ||
+      !envNamePattern.test(item) ||
+      isReserved(item) ||
+      !aliasSources.has(item) ||
+      sources.has(item)
+    ) {
+      throw new CliError(
+        `Task secret variable source is invalid: ${String(item)} in ${repository} ${project}.`,
+        65
+      );
+    }
+    sources.add(item);
+  }
+  return sources;
+}
+
 // Deploys use the same ceiling idea as tasks: `policies/deploy-secrets.json` lists, per deploy key and
 // environment, every secret the target may declare. A name the target adds beyond it is reported
 // (warn) or refused (enforce). A product is keyed as "owner/name/product" and has no fallback to the
