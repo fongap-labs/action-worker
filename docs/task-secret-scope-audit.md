@@ -24,7 +24,7 @@
 }
 ```
 
-其中 `repository` 为 Action Worker 仓库级 Secret 名称；`organization_accessible` 必须仅记录**已确认授权 Action Worker 使用**的组织级名称；`environments` 为实际环境名称与其中的 Secret 名称。名单不全时保持 `coverage: partial`，不能声称某项确实不存在。只有三类名称作用域均核实完整时才可以标记 `complete`。
+其中 `repository` 为 Action Worker 仓库级 Secret 名称；`organization_accessible` 仅用于确实有组织级 Secret 的账户（免费组织账户没有这类配置时留空）；`environments` 为实际环境名称与其中的 Secret 名称。名单不全时保持 `coverage: partial`，不能声称某项确实不存在。只有适用的名称作用域均核实完整时才可以标记 `complete`。
 
 将来源仓库对应**固定提交**检出至本地目录，并在 Action Worker 仓库根目录运行：
 
@@ -40,4 +40,4 @@ node scripts/audit-task-secret-scope.ts /path/to/pinned-source fongap-labs/inter
 
 ## 下一步
 
-由授权维护者在 GitHub 管理界面核对两个必需存储名称的存在性及其实际作用域，必要时修正配置并单独审批。禁止直接搬运任何生产 Secret 值到日志、任务输入或公开 PR。此项诊断与私有任务隔离生产切换准入互相独立；私有隔离仍保持禁止切换。
+由授权维护者在 GitHub Actions 仓库设置中核对必需 Secret 名称和作用域；免费组织账户无需查找组织级 Secret。Cloudflare Account ID 应核对 Repository Variables，不得加入 Secret 名称清单。禁止直接搬运任何生产 Secret 值到日志、任务输入或公开 PR。此项诊断与私有任务隔离生产切换准入互相独立；私有隔离仍保持禁止切换。
