@@ -81,7 +81,7 @@ class FakeDatabase implements IngressDatabase {
         if (!sql.startsWith("SELECT delivery_id")) throw new Error("Unexpected SQL all");
         const results = [...database.rows.values()]
           .filter((row) => row.delivered_ms === null && row.lease_until_ms <= Number(values[0]))
-          .sort((a, b) => a.created_ms - b.created_ms)
+          .sort((a, b) => a.lease_until_ms - b.lease_until_ms || a.created_ms - b.created_ms)
           .slice(0, 25)
           .map((row) => ({ delivery_id: row.delivery_id, installation_id: row.installation_id }));
         return { results: results as T[] };
@@ -325,6 +325,46 @@ test("ambiguous GitHub dispatch failures remain durable and are retried by cron"
   assert.equal(successfulApi.calls.length, 2);
   assert.equal(pending.delivered_ms !== null, true);
   assert.equal(await retryPendingDeliveries(env, successfulApi.fetcher), 0);
+});
+
+test("cron prioritizes never-tried deliveries over an older failing batch", async () => {
+  const db = new FakeDatabase();
+  const now = Date.now();
+  for (let index = 0; index < 30; index += 1) {
+    const id = `delivery-${index}`;
+    db.rows.set(id, {
+      delivery_id: id,
+      body_digest: `digest-${index}`,
+      installation_id: 101,
+      created_ms: index + 1,
+      lease_until_ms: index < 25 ? now - 1_000 : 0,
+      delivered_ms: null,
+    });
+  }
+  const api = mockGithubApi({ failDispatch: true });
+  assert.equal(await retryPendingDeliveries(makeEnvironment(db), api.fetcher), 0);
+  assert.equal(api.calls.filter((call) => call.path.endsWith("/dispatches")).length, 25);
+  // All five newer records must have been attempted despite 25 older poison deliveries.
+  for (let index = 25; index < 30; index += 1) {
+    assert.equal((db.rows.get(`delivery-${index}`)?.lease_until_ms ?? 0) > now, true);
+  }
+  assert.equal(db.rows.get("delivery-20")?.lease_until_ms, now - 1_000);
+});
+
+test("cron cannot mint credentials for an installation other than the configured App", async () => {
+  const db = new FakeDatabase();
+  db.rows.set(deliveryId, {
+    delivery_id: deliveryId,
+    body_digest: "stale-installation-record",
+    installation_id: 999,
+    created_ms: 1,
+    lease_until_ms: 0,
+    delivered_ms: null,
+  });
+  const api = mockGithubApi();
+  assert.equal(await retryPendingDeliveries(makeEnvironment(db), api.fetcher), 0);
+  assert.equal(api.calls.length, 0);
+  assert.equal(db.rows.get(deliveryId)?.delivered_ms, null);
 });
 
 test("concurrent requests cannot both claim the same delivery lease", async () => {
