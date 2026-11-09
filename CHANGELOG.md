@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 组织级配置元数据审计失败时仅报告组织/仓库/Environment 访问层级和脱敏 HTTP 错误类别，不泄漏私有仓库、Secret 名称、变量值或原始响应，缩短权限问题定位路径。
+
 - 新增: Action Worker 在受保护的 admin-ops 内自动执行组织级配置元数据作用域审计，复用既有管理员身份，仅提取仓库/组织/Environment 的 Secret 与 Variable 名称，丢弃 Variables API 响应中的值、不记录也不迁移凭据；审计目标自动包含新接入的授权仓库，不再依赖第二份名单人工同步。
 
 - 修复: 由 Action Worker 已有 ai-gateway-ops Environment 统一提供 AI Gateway 的 Cloudflare 账户 ID、公开 HTTPS 地址、KV/D1 标识及 Analytics 数据集等非敏感 Variables，安全传给受保护的生产部署；可选值未配置时保留现有来源，冲突和越权均拒绝，Secret 绝不跨 Job 输出。
