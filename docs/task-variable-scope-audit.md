@@ -1,4 +1,4 @@
-# 任务 Variable 作用域离线只读诊断
+# 任务变量作用域离线只读诊断
 
 此工具补充 [Secret 作用域审计](task-secret-scope-audit.md)，专门检查 `#1550` 中的 GitHub Actions Variable 名称可达性；它**不读取变量值、不调用 GitHub 管理 API、不修改 Variable、Secret、Environment 或任何工作流**。
 
