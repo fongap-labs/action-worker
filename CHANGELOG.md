@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 还原 AI Gateway 健康密钥初始化的 Cloudflare 运维作业至 Action Worker 已有 ai-gateway-ops Environment，撤销将运维凭据错误绑定到 production 的变更；保留受保护 admin-ops 管理域与不覆盖已有密钥的限制。
+
 - 修复: 一次性健康密钥引导复用受保护 production 部署链已批准的 Cloudflare Secondary 凭据映射，避免依赖尚未配置的独立运维账户；保留管理员域生成、双 Environment Secret 保存、Worker 写入前存在性核验及实际健康检查。
 
 - 修复: 首次 fongap-bot 请求因 GitHub App 尚未获 Secrets 写权限而被拒绝后，改以现有受保护 admin-ops 凭据写入两个 GitHub Environment，再由 ai-gateway-ops 从最新 Environment Secret 快照部署同一随机健康密钥到 Cloudflare；保留三处独立名称预检、非覆盖及真实健康检查。
