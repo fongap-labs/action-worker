@@ -46,7 +46,7 @@ test("bootstrap cannot overwrite Cloudflare or either GitHub Environment key", (
   assert.throws(() => assertHealthKeyIsUninitialized([], [[]]), /incomplete/);
 });
 
-test("one-shot main-only bootstrap reuses production deploy credentials and protected admin scope", () => {
+test("one-shot main-only bootstrap retains the central operations and admin trust domains", () => {
   const workflow = parse(
     readFileSync(".github/workflows/bootstrap-health-key.yml", "utf8")
   ) as Record<string, unknown>;
@@ -59,9 +59,9 @@ test("one-shot main-only bootstrap reuses production deploy credentials and prot
   const github = jobs["github-bootstrap"];
   const publish = jobs["worker-publish"];
   assert.ok(preflight && github && publish);
-  assert.equal((preflight.environment as { name: string }).name, "production");
+  assert.equal((preflight.environment as { name: string }).name, "ai-gateway-ops");
   assert.equal((github.environment as { name: string }).name, "admin-ops");
-  assert.equal((publish.environment as { name: string }).name, "production");
+  assert.equal((publish.environment as { name: string }).name, "ai-gateway-ops");
   assert.equal(jobs["github-bootstrap"]?.needs, "worker-preflight");
   assert.equal(jobs["worker-publish"]?.needs, "github-bootstrap");
 
@@ -72,13 +72,21 @@ test("one-shot main-only bootstrap reuses production deploy credentials and prot
     const deployEnv = jobSteps.find((step) => step.env?.CLOUDFLARE_API_TOKEN_OPS);
     assert.equal(
       deployEnv?.env?.CLOUDFLARE_API_TOKEN_OPS,
-      "${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}"
+      "${{ secrets.CLOUDFLARE_API_TOKEN_OPS }}"
     );
     assert.equal(
       deployEnv?.env?.CLOUDFLARE_ACCOUNT_ID_OPS,
-      "${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}"
+      "${{ vars.CLOUDFLARE_ACCOUNT_ID_OPS }}"
     );
   }
+  const opsWorkflow = parse(readFileSync(".github/workflows/ai-gateway-ops.yml", "utf8")) as Record<
+    string,
+    unknown
+  >;
+  const opsJob = (opsWorkflow.jobs as Record<string, Record<string, unknown>>).manage;
+  assert.ok(opsJob);
+  assert.equal((opsJob.environment as { name: string }).name, "ai-gateway-ops");
+  assert.doesNotMatch(JSON.stringify([preflight, publish]), /CLOUDFLARE_API_TOKEN_SECONDARY/);
   const script = readFileSync("scripts/bootstrap-ai-gateway-health-key.ts", "utf8");
   assert.match(script, /randomBytes\(32\)\.toString\("hex"\)/);
   assert.match(script, /input: value/);

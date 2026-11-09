@@ -13,11 +13,11 @@ concurrency:
 jobs:
   worker-preflight:
     if: github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
-    name: Inspect Worker secrets with approved production deploy credentials
+    name: Inspect Worker secret names in protected ai-gateway-ops
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     environment:
-      name: production
+      name: ai-gateway-ops
       deployment: false
     permissions:
       contents: read
@@ -32,8 +32,8 @@ jobs:
           node-version: 24
       - name: Inspect existing Worker Secret names
         env:
-          CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}
-          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
+          CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_OPS }}
+          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_OPS }}
         run: node scripts/bootstrap-ai-gateway-health-key.ts worker-preflight
 
   github-bootstrap:
@@ -62,11 +62,11 @@ jobs:
 
   worker-publish:
     needs: github-bootstrap
-    name: Deploy the saved Environment key to Cloudflare
+    name: Publish saved Environment key through protected ai-gateway-ops
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     environment:
-      name: production
+      name: ai-gateway-ops
       deployment: false
     permissions:
       contents: read
@@ -79,10 +79,10 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-      - name: Deploy exactly the saved health Secret through the protected production credentials
+      - name: Publish the saved health Secret through the approved operations workflow
         env:
           AIG_DEPLOY_HEALTH_KEY: ${{ secrets.AIG_DEPLOY_HEALTH_KEY }}
-          CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}
-          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
+          CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_OPS }}
+          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_OPS }}
           AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
         run: node scripts/bootstrap-ai-gateway-health-key.ts worker-publish
