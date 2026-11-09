@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import { chmod, writeFile } from "node:fs/promises";
 import { aiAgentRuntimeEntries, parseAiAgentConfig } from "./ai-agent-config.ts";
 import { isJsonRecord } from "./github-api.ts";
+import { validateGatewayOpsVariables } from "./gateway-ops-variables.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
 function valueText(value: unknown): string {
@@ -37,26 +38,46 @@ export function variableEntries(value: unknown): Array<[string, string]> {
  * this control repository's protected ai-gateway-ops Environment. Only this
  * deployment key may receive it. Never import other ops variables or Secrets.
  */
+export function mergeApprovedGatewayOpsVariables(
+  variables: Record<string, string>,
+  sourceRepository: string | undefined,
+  deployEnvironment: string | undefined,
+  fromOps: Readonly<Record<string, string | undefined>>
+): Record<string, string> {
+  if (sourceRepository !== "fongap-labs/ai-gateway" || deployEnvironment !== "production") {
+    if (Object.values(fromOps).some((value) => Boolean(value))) {
+      throw new CliError("Ops Variable handoff is not authorized for this deployment.", 77);
+    }
+    return variables;
+  }
+  const approved = validateGatewayOpsVariables(fromOps);
+  const merged = { ...variables };
+  for (const [name, value] of Object.entries(approved)) {
+    const existing = merged[name];
+    if (existing !== undefined) {
+      const matches =
+        name === "AIG_PUBLIC_URL"
+          ? existing === value || existing === value + "/"
+          : existing === value;
+      if (!matches) {
+        throw new CliError("AI Gateway has conflicting Variable sources: " + name + ".", 77);
+      }
+    }
+    merged[name] = value;
+  }
+  return merged;
+}
+
+/** Compatibility for callers that have not moved optional metadata to protected ops. */
 export function mergeApprovedGatewayAccountId(
   variables: Record<string, string>,
   sourceRepository: string | undefined,
   deployEnvironment: string | undefined,
   accountId: string | undefined
 ): Record<string, string> {
-  if (sourceRepository !== "fongap-labs/ai-gateway" || deployEnvironment !== "production") {
-    if (accountId) {
-      throw new CliError("Ops Account ID handoff is not authorized for this deployment.", 77);
-    }
-    return variables;
-  }
-  if (!accountId || !/^[0-9a-f]{32}$/.test(accountId)) {
-    throw new CliError("Approved AI Gateway ops Account ID is unavailable.", 77);
-  }
-  const existing = variables.CLOUDFLARE_ACCOUNT_ID_SECONDARY;
-  if (existing !== undefined && existing !== accountId) {
-    throw new CliError("AI Gateway Account ID has conflicting Variable sources.", 77);
-  }
-  return { ...variables, CLOUDFLARE_ACCOUNT_ID_SECONDARY: accountId };
+  return mergeApprovedGatewayOpsVariables(variables, sourceRepository, deployEnvironment, {
+    CLOUDFLARE_ACCOUNT_ID_SECONDARY: accountId,
+  });
 }
 
 async function main(): Promise<void> {
@@ -72,11 +93,17 @@ async function main(): Promise<void> {
     process.env.REPOSITORY_VARS_JSON || "{}",
     "::error::Repository Variables payload must be valid JSON."
   );
-  const sorted = mergeApprovedGatewayAccountId(
+  const sorted = mergeApprovedGatewayOpsVariables(
     Object.fromEntries(variableEntries(value)),
     process.env.DEPLOY_SOURCE_REPOSITORY,
     process.env.DEPLOY_ENVIRONMENT,
-    process.env.AW_GATEWAY_ACCOUNT_ID_FROM_OPS
+    {
+      CLOUDFLARE_ACCOUNT_ID_SECONDARY: process.env.AW_GATEWAY_ACCOUNT_ID_FROM_OPS,
+      AIG_PUBLIC_URL: process.env.AW_GATEWAY_PUBLIC_URL_FROM_OPS,
+      AIG_AFFINITY_KV_ID: process.env.AW_GATEWAY_AFFINITY_KV_ID_FROM_OPS,
+      AIG_USAGE_D1_ID: process.env.AW_GATEWAY_USAGE_D1_ID_FROM_OPS,
+      AIG_ANALYTICS_DATASET: process.env.AW_GATEWAY_ANALYTICS_DATASET_FROM_OPS,
+    }
   );
   const entries = variableEntries(sorted);
   const aiAgentConfig = parseAiAgentConfig(sorted.AW_AI_AGENT_CONFIG ?? "");
