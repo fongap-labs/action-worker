@@ -13,7 +13,7 @@ GitHub App `push`（仅默认分支）或 `pull_request`（opened/reopened/synch
 - `AW_INGRESS_DB`：专用 D1 数据库，按 `docs/direct-event-ingress.sql` 创建表和索引。不得使用内存去重替代数据库。
 - `AW_GITHUB_WEBHOOK_SECRET`：独立的 GitHub App Webhook Secret（敏感）。
 - `AW_GITHUB_APP_ID`、`AW_GITHUB_APP_INSTALLATION_ID`：该 App 与控制仓库所属组织的固定数字身份；必须校验安装覆盖控制仓库。
-- `AW_GITHUB_APP_PRIVATE_KEY`：**PKCS#8、未加密 PEM** 的 GitHub App 私钥（敏感，单独可信环境存储）。GitHub 官方下载的是 **PKCS#1** RSA 私钥；直接使用下载文件会在 WebCrypto 签名时失败。入口在任何 D1 写入和 GitHub API 请求前拒绝未转换的密钥格式。
+- `AW_GITHUB_APP_PRIVATE_KEY`：**PKCS#8、未加密 PEM** 的 GitHub App 私钥（敏感，单独可信环境存储）。GitHub 官方下载的是 **PKCS#1** RSA 私钥；直接使用下载文件会在 WebCrypto 签名时失败。入口在任何 D1 写入和 GitHub API 请求前拒绝未转换的密钥格式。 PEM 头尾与 Base64 字符合法也未必代表 DER 可用；入口对经 HMAC 验证且受支持的事件先执行 WebCrypto `pkcs8` 导入验证，导入失败时不登记投递、不签发 App 令牌、不泄漏密钥材料。
 
 只在授权的离线可信终端进行格式转换，勿在 CI、日志、Issue、PR 或终端输出中暴露密钥：
 
@@ -47,7 +47,7 @@ npx wrangler deploy --dry-run --config .direct-ingress-staging.wrangler.json
 
 ## 失败与重放
 
-D1 将每个 GitHub `X-GitHub-Delivery`（规范 UUID）及**已签名原始请求体的 SHA-256 摘要**原子登记。GitHub 的 HMAC 不覆盖该请求头，因此相同签名请求体即使被篡改为新的 Delivery ID，也只能复用已有记录；原 Delivery ID 配上不同请求体则拒绝。每次分发前取得 60 秒原子租约；成功收到 GitHub `204` 后记录完成。租约内重复送达不得重复调用；GitHub API 失败、进程终止或「已派发但未记完成」会保留记录，**必须启用独立 scheduled Cron** 对过期租约进行扫描重试。Cron 每次最多处理 25 条，按最早可重试租约、再按创建时间排序，使从未尝试的投递优先于早期反复失败的投递，避免重试队列头部阻塞；过期租约仍按原语义重试。历史待处理记录仅允许其原固定 GitHub App 安装身份再次派发：若运维已迁移或撤销安装，旧记录拒绝跨安装签发令牌，并需受控人工清理/重新对账。后者可能重复触发 *Intake 唤醒*，但由既有对账/签名状态实现幂等，不能理解为业务任务恰好执行一次。
+D1 将每个 GitHub `X-GitHub-Delivery`（规范 UUID）及**已签名原始请求体的 SHA-256 摘要**原子登记。GitHub 的 HMAC 不覆盖该请求头，因此相同签名请求体即使被篡改为新的 Delivery ID，也只能复用已有记录；原 Delivery ID 配上不同请求体则拒绝。每次分发前取得 60 秒原子租约；访问 GitHub App 安装令牌端点及发出 `run-intake` 的两次出站 API 调用各设 15 秒中止期限（包括令牌响应体读取），避免正常网络阻塞跨越租约界限；成功收到 GitHub `204` 后记录完成。超时或响应丢失仍视为**可能已被接收**，保留持久待处理记录并按既有 Cron 恢复，不能假设恰好一次。租约内重复送达不得重复调用；GitHub API 失败、进程终止或「已派发但未记完成」会保留记录，**必须启用独立 scheduled Cron** 对过期租约进行扫描重试。Cron 每次最多处理 25 条，按最早可重试租约、再按创建时间排序，使从未尝试的投递优先于早期反复失败的投递，避免重试队列头部阻塞；过期租约仍按原语义重试。历史待处理记录仅允许其原固定 GitHub App 安装身份再次派发：若运维已迁移或撤销安装，旧记录拒绝跨安装签发令牌，并需受控人工清理/重新对账。后者可能重复触发 *Intake 唤醒*，但由既有对账/签名状态实现幂等，不能理解为业务任务恰好执行一次。
 
 D1 故障时不得绕过入库而直接发送，令牌签发失败或 GitHub 非 `204` 必须保留待重试。应监控待处理数量、最老待处理年龄和分发失败率；对持续失败应告警，受限日志不得记录密钥、原文 Webhook 或业务私有数据。数据库历史应设置经批准的保留周期；不能直接删除未完成投递。
 

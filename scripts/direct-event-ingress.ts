@@ -52,6 +52,8 @@ const maxBodyBytes = 8 * 1024 * 1024;
 const deliveryPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const repositoryPattern = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
 const leaseMs = 60_000;
+/** Each of the two GitHub API round-trips must finish well inside one durable lease. */
+export const githubApiRequestTimeoutMs = 15_000;
 
 /** Shared production SQL statements used by D1 and the SQLite contract suite. */
 export const webhookDeliverySql = {
@@ -198,7 +200,25 @@ function encodeUrlBase64(value: Uint8Array): string {
   return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 }
 
-async function appJwt(env: IngressEnvironment): Promise<string> {
+/**
+ * A correctly labeled PEM can still contain invalid DER. Import before touching
+ * the D1 inbox so malformed signing credentials do not create poison deliveries.
+ */
+async function importAppSigningKey(env: IngressEnvironment): Promise<CryptoKey> {
+  const der = env.AW_GITHUB_APP_PRIVATE_KEY.split(/\r?\n/)
+    .filter((line) => /^[A-Za-z0-9+/=]+$/.test(line))
+    .join("");
+  const raw = Uint8Array.from(atob(der), (character) => character.charCodeAt(0));
+  return crypto.subtle.importKey(
+    "pkcs8",
+    raw,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+}
+
+async function appJwt(env: IngressEnvironment, key: CryptoKey): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   const header = encodeUrlBase64(
     new TextEncoder().encode(JSON.stringify({ alg: "RS256", typ: "JWT" }))
@@ -207,17 +227,6 @@ async function appJwt(env: IngressEnvironment): Promise<string> {
     new TextEncoder().encode(
       JSON.stringify({ iat: now - 60, exp: now + 480, iss: env.AW_GITHUB_APP_ID })
     )
-  );
-  const der = env.AW_GITHUB_APP_PRIVATE_KEY.split(/\r?\n/)
-    .filter((line) => /^[A-Za-z0-9+/=]+$/.test(line))
-    .join("");
-  const raw = Uint8Array.from(atob(der), (character) => character.charCodeAt(0));
-  const key = await crypto.subtle.importKey(
-    "pkcs8",
-    raw,
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"]
   );
   const input = header + "." + payload;
   const signature = new Uint8Array(
@@ -230,7 +239,8 @@ async function appJwt(env: IngressEnvironment): Promise<string> {
 export async function dispatchIntake(
   env: IngressEnvironment,
   installationId: number,
-  apiFetch: typeof fetch = fetch
+  apiFetch: typeof fetch = fetch,
+  signingKey?: CryptoKey
 ): Promise<void> {
   const { repository, installationId: configuredInstallationId } = configuration(env);
   // The inbox must not outlive or override the currently approved App installation.
@@ -238,12 +248,14 @@ export async function dispatchIntake(
     throw new Error("Direct ingress installation changed; refusing stale delivery.");
   }
   const repositoryName = repository.split("/")[1]!;
+  const key = signingKey ?? (await importAppSigningKey(env));
   const tokenResponse = await apiFetch(
     "https://api.github.com/app/installations/" + installationId + "/access_tokens",
     {
       method: "POST",
+      signal: AbortSignal.timeout(githubApiRequestTimeoutMs),
       headers: {
-        Authorization: "Bearer " + (await appJwt(env)),
+        Authorization: "Bearer " + (await appJwt(env, key)),
         Accept: "application/vnd.github+json",
         "X-GitHub-Api-Version": "2022-11-28",
         "Content-Type": "application/json",
@@ -261,6 +273,7 @@ export async function dispatchIntake(
     throw new Error("GitHub App installation token is missing.");
   const response = await apiFetch("https://api.github.com/repos/" + repository + "/dispatches", {
     method: "POST",
+    signal: AbortSignal.timeout(githubApiRequestTimeoutMs),
     headers: {
       Authorization: "Bearer " + token,
       Accept: "application/vnd.github+json",
@@ -314,13 +327,14 @@ async function reserveDelivery(
 async function attemptPending(
   env: IngressEnvironment,
   delivery: PendingDelivery,
-  apiFetch: typeof fetch
+  apiFetch: typeof fetch,
+  signingKey: CryptoKey
 ): Promise<boolean> {
   const claimed = await env.AW_INGRESS_DB.prepare(webhookDeliverySql.claim)
     .bind(Date.now() + leaseMs, delivery.delivery_id, Date.now())
     .first<{ delivery_id: string }>();
   if (!claimed) return false;
-  await dispatchIntake(env, delivery.installation_id, apiFetch);
+  await dispatchIntake(env, delivery.installation_id, apiFetch, signingKey);
   await env.AW_INGRESS_DB.prepare(webhookDeliverySql.complete)
     .bind(Date.now(), delivery.delivery_id)
     .run();
@@ -384,6 +398,13 @@ export async function handleDirectWebhook(
   ) {
     return new Response("Ignored", { status: 200 });
   }
+  let signingKey: CryptoKey;
+  try {
+    signingKey = await importAppSigningKey(env);
+  } catch {
+    // Neither store a poison delivery nor disclose malformed signing material.
+    return new Response("Ingress signing configuration is invalid", { status: 503 });
+  }
   try {
     const delivery = await reserveDelivery(
       env,
@@ -393,7 +414,7 @@ export async function handleDirectWebhook(
       repository,
       await signedBodyDigest(body)
     );
-    const dispatched = await attemptPending(env, delivery, apiFetch);
+    const dispatched = await attemptPending(env, delivery, apiFetch, signingKey);
     return new Response(dispatched ? "Reconciliation requested" : "Already received", {
       status: 202,
     });
@@ -412,13 +433,14 @@ export async function retryPendingDeliveries(
   apiFetch: typeof fetch = fetch
 ): Promise<number> {
   configuration(env);
+  const signingKey = await importAppSigningKey(env);
   const pending = await env.AW_INGRESS_DB.prepare(webhookDeliverySql.pending)
     .bind(Date.now())
     .all<PendingDelivery>();
   let completed = 0;
   for (const delivery of pending.results) {
     try {
-      if (await attemptPending(env, delivery, apiFetch)) completed += 1;
+      if (await attemptPending(env, delivery, apiFetch, signingKey)) completed += 1;
     } catch {
       // Keep the durable record and retry after the lease. Never expose credentials or payloads.
     }
