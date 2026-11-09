@@ -36,9 +36,9 @@ test("actual central deployments remain tracked under production", async () => {
     name: "${{ needs.prepare.outputs.credential_environment }}",
     deployment: "${{ needs.prepare.outputs.create_deployment == 'true' }}",
   });
-  assert.deepEqual(workflow.jobs?.record_production_deployment?.environment, {
-    name: "${{ needs.prepare.outputs.environment }}",
-  });
+  // The protected ops job is the authorization boundary. An audit-only
+  // production Environment job would require a second human approval after publish.
+  assert.equal(workflow.jobs?.record_production_deployment?.environment, undefined);
 
   const policy = JSON.parse(await readFile("policies/deploy-environments.json", "utf8")) as {
     repositories: Record<string, string[]>;
