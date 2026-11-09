@@ -233,8 +233,10 @@ function countImpacted(names: ReadonlySet<string>): {
 function addImpacted(result: StorageAuditSummary, names: ReadonlySet<string>): void {
   const counts = countImpacted(names);
   result.protected_variable_bindings = (result.protected_variable_bindings ?? 0) + counts.protected;
-  result.authorization_variable_bindings = (result.authorization_variable_bindings ?? 0) + counts.authorization;
-  result.root_trust_variable_bindings = (result.root_trust_variable_bindings ?? 0) + counts.rootTrust;
+  result.authorization_variable_bindings =
+    (result.authorization_variable_bindings ?? 0) + counts.authorization;
+  result.root_trust_variable_bindings =
+    (result.root_trust_variable_bindings ?? 0) + counts.rootTrust;
 }
 
 function repositoryInfo(value: unknown): RepositoryInfo {
@@ -292,7 +294,9 @@ export async function auditStorageMetadata(
     automatic_writes: false,
   };
   const orgSecrets = options.skipOrganization ? [] : await organizationEntries(reader, "secrets");
-  const orgVariables = options.skipOrganization ? [] : await organizationEntries(reader, "variables");
+  const orgVariables = options.skipOrganization
+    ? []
+    : await organizationEntries(reader, "variables");
   result.organization_secrets = orgSecrets.length;
   result.organization_variables = orgVariables.length;
 
@@ -311,13 +315,16 @@ export async function auditStorageMetadata(
     const inheritedVariables = inherited(orgVariables, metadata);
     result.repository_secrets += repoSecrets.size;
     result.repository_variables += repoVariables.size;
-    result.inherited_secret_bindings = (result.inherited_secret_bindings ?? 0) + inheritedSecrets.size;
-    result.inherited_variable_bindings = (result.inherited_variable_bindings ?? 0) + inheritedVariables.size;
-    result.repository_shadowed_secret_bindings = (result.repository_shadowed_secret_bindings ?? 0) + countShadowed(repoSecrets, inheritedSecrets);
-    result.repository_shadowed_variable_bindings = (result.repository_shadowed_variable_bindings ?? 0) + countShadowed(
-      repoVariables,
-      inheritedVariables
-    );
+    result.inherited_secret_bindings =
+      (result.inherited_secret_bindings ?? 0) + inheritedSecrets.size;
+    result.inherited_variable_bindings =
+      (result.inherited_variable_bindings ?? 0) + inheritedVariables.size;
+    result.repository_shadowed_secret_bindings =
+      (result.repository_shadowed_secret_bindings ?? 0) +
+      countShadowed(repoSecrets, inheritedSecrets);
+    result.repository_shadowed_variable_bindings =
+      (result.repository_shadowed_variable_bindings ?? 0) +
+      countShadowed(repoVariables, inheritedVariables);
     addImpacted(result, repoVariables);
     addImpacted(result, inheritedVariables);
 
@@ -334,14 +341,12 @@ export async function auditStorageMetadata(
       const environmentVariables = namesOf(await listAll(reader, url + "/variables", "variables"));
       result.environment_secrets += environmentSecrets.size;
       result.environment_variables += environmentVariables.size;
-      result.environment_shadowed_secret_bindings = (result.environment_shadowed_secret_bindings ?? 0) + countShadowed(
-        environmentSecrets,
-        new Set([...repoSecrets, ...inheritedSecrets])
-      );
-      result.environment_shadowed_variable_bindings = (result.environment_shadowed_variable_bindings ?? 0) + countShadowed(
-        environmentVariables,
-        new Set([...repoVariables, ...inheritedVariables])
-      );
+      result.environment_shadowed_secret_bindings =
+        (result.environment_shadowed_secret_bindings ?? 0) +
+        countShadowed(environmentSecrets, new Set([...repoSecrets, ...inheritedSecrets]));
+      result.environment_shadowed_variable_bindings =
+        (result.environment_shadowed_variable_bindings ?? 0) +
+        countShadowed(environmentVariables, new Set([...repoVariables, ...inheritedVariables]));
       addImpacted(result, environmentVariables);
     }
     result.repositories_verified++;
