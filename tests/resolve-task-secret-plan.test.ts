@@ -143,7 +143,7 @@ test("resolve CLI reads exported Actions Variables while keeping Secret values o
     await mkdir(directory, { recursive: true });
     await writeFile(
       join(directory, ".secrets.required"),
-      "CLOUDFLARE_ACCOUNT_ID\\nCLOUDFLARE_API_TOKEN\\n"
+      "CLOUDFLARE_ACCOUNT_ID\nCLOUDFLARE_API_TOKEN\n"
     );
     await writeFile(join(directory, ".secrets.allowed"), "");
     const output = join(root, "github-output");
