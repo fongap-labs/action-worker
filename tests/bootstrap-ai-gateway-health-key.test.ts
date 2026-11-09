@@ -70,8 +70,14 @@ test("one-shot main-only bootstrap reuses production deploy credentials and prot
   for (const job of [preflight, publish]) {
     const jobSteps = job.steps as { env?: Record<string, string> }[];
     const deployEnv = jobSteps.find((step) => step.env?.CLOUDFLARE_API_TOKEN_OPS);
-    assert.equal(deployEnv?.env?.CLOUDFLARE_API_TOKEN_OPS, "${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}");
-    assert.equal(deployEnv?.env?.CLOUDFLARE_ACCOUNT_ID_OPS, "${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}");
+    assert.equal(
+      deployEnv?.env?.CLOUDFLARE_API_TOKEN_OPS,
+      "${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}"
+    );
+    assert.equal(
+      deployEnv?.env?.CLOUDFLARE_ACCOUNT_ID_OPS,
+      "${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}"
+    );
   }
   const script = readFileSync("scripts/bootstrap-ai-gateway-health-key.ts", "utf8");
   assert.match(script, /randomBytes\(32\)\.toString\("hex"\)/);
