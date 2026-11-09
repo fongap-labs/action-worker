@@ -57,11 +57,10 @@ async function main(): Promise<void> {
     appId: process.env.AW_GITHUB_APP_ID ?? "",
     installationId: process.env.AW_GITHUB_APP_INSTALLATION_ID ?? "",
   });
-  await writeFile(
-    directIngressStagingConfigPath,
-    JSON.stringify(config, null, 2) + "\n",
-    { flag: "wx", mode: 0o600 }
-  );
+  await writeFile(directIngressStagingConfigPath, JSON.stringify(config, null, 2) + "\n", {
+    flag: "wx",
+    mode: 0o600,
+  });
   console.log("Inert staging Wrangler config written. Public routes and Cron are disabled.");
 }
 
