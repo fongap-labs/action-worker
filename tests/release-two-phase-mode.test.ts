@@ -45,11 +45,17 @@ test("default release path remains read-only even with a staging policy", () => 
     approved_staging_repositories: [],
   });
   assert.deepEqual(
-    selectReleasePhase({ mode: undefined, targetRepository: target, prToken: undefined, statusToken: undefined }, policy),
+    selectReleasePhase(
+      { mode: undefined, targetRepository: target, prToken: undefined, statusToken: undefined },
+      policy
+    ),
     { kind: "read-only" }
   );
   assert.deepEqual(
-    selectReleasePhase({ mode: "read-only", targetRepository: target, prToken: undefined, statusToken: undefined }, policy),
+    selectReleasePhase(
+      { mode: "read-only", targetRepository: target, prToken: undefined, statusToken: undefined },
+      policy
+    ),
     { kind: "read-only" }
   );
 });
@@ -59,7 +65,12 @@ test("staging two-phase mode fails closed until policy and PR scope are both app
     schema_version: 1,
     approved_staging_repositories: [],
   });
-  const input = { mode: "staging", targetRepository: target, prToken: "fake-scoped-token", statusToken: "fake-read-token" };
+  const input = {
+    mode: "staging",
+    targetRepository: target,
+    prToken: "fake-scoped-token",
+    statusToken: "fake-read-token",
+  };
   assert.throws(() => selectReleasePhase(input, emptyPolicy), /reviewed staging allowlist/);
   const policy = parseTwoPhaseReleasePolicy({
     schema_version: 1,
@@ -90,7 +101,12 @@ test("unrecognized modes and malformed policy entries never enable writes", () =
   assert.throws(
     () =>
       selectReleasePhase(
-        { mode: "production", targetRepository: target, prToken: "fake-scoped-token", statusToken: "fake-read-token" },
+        {
+          mode: "production",
+          targetRepository: target,
+          prToken: "fake-scoped-token",
+          statusToken: "fake-read-token",
+        },
         policy
       ),
     /Unknown two-phase Release mode/
