@@ -95,15 +95,14 @@ export function assertTaskExecutionAllowed(
   repository: string,
   project: string
 ): void {
-  const productKeyPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+  const productKeyPattern =
+    /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
   if (
     !isJsonRecord(policy) ||
     policy.schema_version !== 1 ||
     Object.keys(policy).sort().join(",") !== "deploy_only,schema_version" ||
     !Array.isArray(policy.deploy_only) ||
-    policy.deploy_only.some(
-      (key) => typeof key !== "string" || !productKeyPattern.test(key)
-    ) ||
+    policy.deploy_only.some((key) => typeof key !== "string" || !productKeyPattern.test(key)) ||
     new Set(policy.deploy_only).size !== policy.deploy_only.length
   ) {
     throw new CliError("::error::Task execution modes policy is invalid.", 65);
