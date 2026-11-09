@@ -213,7 +213,8 @@ export async function wasScheduledDeployDispatched(
           { state: "pending", description: scheduleReservationDescription(deploy.slot) },
           { state: "success", description },
         ],
-        get
+        get,
+        deploy.slot
       )
     ) {
       return true;
