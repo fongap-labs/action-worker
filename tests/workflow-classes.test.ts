@@ -33,6 +33,8 @@ const classes = {
   ],
   // Read-only diagnostics are operator-started and never trigger deployments or governance.
   diagnostic: ["runner-isolation-canary.yml", "verify-github-app.yml"],
+  // Private GitHub identity-bound manual Agent request; no repository_dispatch or public MCP route.
+  privateAgent: ["agent-task-ingress.yml"],
   // Approved manual-only operations that mutate production Worker Secrets.
   operation: ["ai-gateway-ops.yml"],
   // Protected, manual-only recovery; no repository_dispatch bypass of explicit confirmation.
@@ -74,6 +76,7 @@ type WorkflowClass = keyof typeof classes;
 const allowedTriggers: Record<WorkflowClass, readonly string[]> = {
   entry: ["repository_dispatch", "workflow_dispatch"],
   diagnostic: ["workflow_dispatch"],
+  privateAgent: ["workflow_dispatch"],
   operation: ["workflow_dispatch"],
   recovery: ["workflow_dispatch"],
   intake: ["push", "repository_dispatch", "schedule"],
@@ -127,10 +130,28 @@ test("each workflow is started only by the events its class allows", async () =>
   }
 });
 
-test("only entry, diagnostic and protected operations workflows show a Run workflow button", async () => {
+test("only approved entry, diagnostics and private operations expose manual dispatch", async () => {
   for (const { file, workflow } of await workflows()) {
     const kind = classOf(file);
     const triggers = workflow.on ?? {};
+    if (kind === "privateAgent") {
+      assert.deepEqual(Object.keys(triggers), ["workflow_dispatch"], `${file} is manual-only`);
+      assert.deepEqual(
+        Object.keys(workflow.jobs ?? {}),
+        ["admit", "dispatch"],
+        `${file} separates authorization from privileged dispatch`
+      );
+      const privileged = workflow.jobs?.dispatch as Job & {
+        environment?: { name: string; deployment: boolean };
+      };
+      assert.deepEqual(privileged.environment, { name: "admin-ops", deployment: false });
+      const identity = (await readFile(`${workflowDirectory}/${file}`, "utf8")).toString();
+      assert.match(identity, /scripts\/agent-task-ingress\.ts admit/);
+      assert.match(identity, /scripts\/agent-task-ingress\.ts dispatch/);
+      assert.match(identity, /permission-contents: read/);
+      assert.match(identity, /permission-contents: write/);
+      continue;
+    }
     if (kind === "diagnostic") {
       assert.deepEqual(Object.keys(triggers), ["workflow_dispatch"], `${file} is manual-only`);
       continue;

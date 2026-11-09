@@ -1,0 +1,94 @@
+name: 手动 · 私有 Agent 任务入口
+
+# This is NOT exposed by the shared mcp-hub service.
+# Only a trusted authenticated GitHub user can request pre-defined projects.
+# The GitHub App credential is minted only after admission and never returned to callers.
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: 受管仓库（例如 fongap-labs/ai-gateway）
+        type: string
+        required: true
+      project:
+        description: 仓库中已存在的受信任任务项目名称
+        type: string
+        required: true
+
+permissions: {}
+
+concurrency:
+  group: private-agent-ingress-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  admit:
+    name: Authorize Agent request
+    if: github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      repository: ${{ steps.validate.outputs.repository }}
+      repository_name: ${{ steps.validate.outputs.repository_name }}
+      project: ${{ steps.validate.outputs.project }}
+      request_id: ${{ steps.validate.outputs.request_id }}
+    steps:
+      - name: Checkout trusted control main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Validate authenticated sender and repository task capability
+        id: validate
+        run: node scripts/agent-task-ingress.ts admit
+
+  dispatch:
+    name: Send verified task using fongap-bot
+    needs: admit
+    if: needs.admit.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    environment:
+      name: admin-ops
+      deployment: false
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted control main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Mint target read-only App token
+        id: target_read
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ needs.admit.outputs.repository_name }}
+          permission-contents: read
+      - name: Mint isolated control dispatch token
+        id: dispatch_write
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+      - name: Revalidate sender and dispatch fixed task contract
+        env:
+          AW_AGENT_SOURCE_READ_TOKEN: ${{ steps.target_read.outputs.token }}
+          AW_AGENT_DISPATCH_WRITE_TOKEN: ${{ steps.dispatch_write.outputs.token }}
+        run: node scripts/agent-task-ingress.ts dispatch
