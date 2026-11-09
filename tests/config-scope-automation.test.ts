@@ -28,8 +28,8 @@ test("organization configuration scope audit is automatic and bound to protected
     env?: Record<string, string>;
     run?: string;
   }>;
-  const metadata = steps.find((step) =>
-    step.name === "Read configuration metadata using existing protected admin identity"
+  const metadata = steps.find(
+    (step) => step.name === "Read configuration metadata using existing protected admin identity"
   );
   assert.equal(metadata?.env?.AW_CONFIG_AUDIT_READ_TOKEN, "${{ secrets.AW_ADMIN_TOKEN }}");
   assert.equal(metadata?.run, "node scripts/config-storage-audit.ts");
