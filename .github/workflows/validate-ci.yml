@@ -149,6 +149,23 @@ jobs:
       - name: Lint with Biome
         run: npm run lint
 
+      # Compile the optional Worker with its real Cloudflare bundler, without
+      # requiring an account, granting credentials, or activating a route/Cron.
+      - name: Dry-run direct ingress Worker bundle
+        env:
+          AW_INGRESS_DATABASE_NAME: aw-ingress-ci
+          AW_INGRESS_DATABASE_ID: 12345678-1234-4123-8123-123456789abc
+          AW_GITHUB_APP_ID: "42"
+          AW_GITHUB_APP_INSTALLATION_ID: "101"
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm run ingress:staging-config
+          npx --yes wrangler@4.158.0 deploy --dry-run \
+            --config .direct-ingress-staging.wrangler.json \
+            --outdir "$RUNNER_TEMP/aw-ingress-bundle"
+          test -n "$(find "$RUNNER_TEMP/aw-ingress-bundle" -type f -name '*.js' -print -quit)"
+
       - name: Install actionlint
         id: actionlint
         shell: bash
