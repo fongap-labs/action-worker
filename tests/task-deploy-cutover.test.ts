@@ -1,13 +1,25 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { assertTaskExecutionAllowed } from "../scripts/validate-dispatch-payload.ts";
+import {
+  assertTaskExecutionAllowed,
+  validateDispatch,
+} from "../scripts/validate-dispatch-payload.ts";
 
 const policy = JSON.parse(readFileSync("policies/task-execution-modes.json", "utf8"));
 
 test("a retired source task cannot be reactivated using an old pinned commit", () => {
   for (const sha of ["a".repeat(40), "f".repeat(40)]) {
-    assert.match(sha, /^[a-f0-9]{40}$/);
+    assert.deepEqual(
+      validateDispatch({
+        schema_version: "1",
+        request_id: "legacy-task-replay",
+        repository: "fongap-labs/internal-vault",
+        project: "FongapCDN",
+        bootstrap_ref: sha,
+      }),
+      { agent_domain: "coding", operation: "task" }
+    );
     assert.throws(
       () => assertTaskExecutionAllowed(policy, "fongap-labs/internal-vault", "FongapCDN"),
       /generic Task Dispatch is disabled/
