@@ -59,6 +59,38 @@ export function releasePullRequestTitle(tag: string): string {
   return `chore(release): ${tag}`;
 }
 
+/**
+ * A prior release branch/PR is only a resumable operation if it still belongs
+ * to this target, base and release tag. A signed main guard proves provenance
+ * of a merge, but not that the merge belongs to the requested release.
+ */
+export function assertReleasePullRequestIdentity(
+  pull: unknown,
+  options: Pick<ChangelogReleaseOptions, "repository" | "defaultBranch" | "tag">
+): void {
+  const head = isJsonRecord(pull) && isJsonRecord(pull.head) ? pull.head : null;
+  const base = isJsonRecord(pull) && isJsonRecord(pull.base) ? pull.base : null;
+  const headRepo = head && isJsonRecord(head.repo) ? head.repo : null;
+  const baseRepo = base && isJsonRecord(base.repo) ? base.repo : null;
+  if (
+    !isJsonRecord(pull) ||
+    typeof pull.number !== "number" ||
+    !Number.isSafeInteger(pull.number) ||
+    pull.number < 1 ||
+    pull.title !== releasePullRequestTitle(options.tag) ||
+    head?.ref !== releaseBranchOf(options.tag) ||
+    headRepo?.full_name !== options.repository ||
+    base?.ref !== options.defaultBranch ||
+    baseRepo?.full_name !== options.repository ||
+    pull.draft === true
+  ) {
+    throw new CliError(
+      "::error::Existing release PR identity does not match the approved repository, branch and tag. Inspect it before retrying.",
+      65
+    );
+  }
+}
+
 function sleep(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
@@ -263,6 +295,7 @@ async function waitForMerge(
   let failureReads = 0;
   while (Date.now() < deadline) {
     const pull = await getGithubJson(`repos/${repository}/pulls/${number}`, token);
+    assertReleasePullRequestIdentity(pull, options);
     if (pull && isJsonRecord(pull) && pull.merged === true) {
       return getJsonString(pull, "merge_commit_sha");
     }
@@ -360,6 +393,7 @@ export async function publishChangelogRelease(
   const deadline = Date.now() + (options.timeoutMinutes ?? 30) * 60_000;
 
   const pull = await findReleasePullRequest(repository, branch, token);
+  if (pull) assertReleasePullRequestIdentity(pull, options);
   let number = pull ? getJsonNumber(pull, "number") : await openReleasePullRequest(options, branch);
   for (let rebuilds = 0; ; rebuilds += 1) {
     try {
