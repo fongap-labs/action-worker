@@ -390,6 +390,7 @@ jobs:
           AW_ISSUE_API_TOKEN: ${{ steps.issue_app.outputs.token }}
           AW_CONTROL_TOKEN: ${{ steps.final_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.final_status_app.outputs.token }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
