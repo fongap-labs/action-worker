@@ -27,7 +27,7 @@ chmod 600 /secure/github-app-pkcs8.pem
 对照 GitHub App 设置的公钥指纹独立核验密钥匹配，再使用受控 Secret 管理渠道保存转换后的 PKCS#8 PEM。不要把原始或转换后的 PEM 添加到仓库、配置文件或工作流输入；按授权密钥处理流程处置转换中间文件。源码的格式校验不等于已证明密钥与 App 身份匹配，后者仍需非生产真实 GitHub API 验收。
 - `AW_CONTROL_REPOSITORY`：明确固定的 `owner/repository`，不得由请求动态选择。
 
-严禁把任意 Webhook 输入放进 `client_payload`，或将此 Worker 的 GitHub App 令牌向被测业务代码开放。此入口只具有请求 Intake 对账的能力，不触发特权执行，也不向外部源仓库写状态。
+严禁把任意 Webhook 输入放进 `client_payload`，或将此 Worker 的 GitHub App 令牌向被测业务代码开放。此入口只具有请求 Intake 对账的能力，不触发特权执行，也不向外部源仓库写状态。两次携带 App JWT/安装令牌的 GitHub API 请求都必须设置 `redirect: "error"`：任何重定向都视为出站失败并保留已登记的 D1 重试记录，避免携带认证信息的请求跳转至非预期端点。
 
 ## 非生产离线配置生成（未部署）
 
