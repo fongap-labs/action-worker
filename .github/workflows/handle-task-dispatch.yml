@@ -203,7 +203,7 @@ jobs:
 
   execute:
     name: Execute task
-    if: !cancelled() && needs.validate.result == 'success' && (needs.task_ops_vars.result == 'success' || needs.task_ops_vars.result == 'skipped') && needs.validate.outputs.isolation_mode != 'true' && needs.validate.outputs.private_isolation_mode != 'true'
+    if: "!cancelled() && needs.validate.result == 'success' && (needs.task_ops_vars.result == 'success' || needs.task_ops_vars.result == 'skipped') && needs.validate.outputs.isolation_mode != 'true' && needs.validate.outputs.private_isolation_mode != 'true'"
     needs: [validate, task_ops_vars]
     outputs:
       publication_staged: ${{ steps.publication.outputs.staged }}
