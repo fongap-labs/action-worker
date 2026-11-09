@@ -257,9 +257,40 @@ jobs:
           DEPLOY_REQUEST_JSON: ${{ steps.dispatch_request.outputs.request_json || steps.manual_request.outputs.request_json }}
         run: node scripts/validate-deploy-source.ts source-script true policies/runner.json policies/deploy-environments.json
 
+  gateway_account_id:
+    # Only the authorized AI Gateway production route can read its own ops account ID.
+    needs: prepare
+    if: needs.prepare.result == 'success' && needs.prepare.outputs.source_repository == 'fongap-labs/ai-gateway' && needs.prepare.outputs.environment == 'production' && needs.prepare.outputs.product == ''
+    name: Resolve AI Gateway account ID from protected ops
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment:
+      name: ai-gateway-ops
+      deployment: false
+    permissions:
+      contents: read
+    outputs:
+      account_id: ${{ steps.account_id.outputs.account_id }}
+    steps:
+      - name: Validate existing non-sensitive ops Account ID
+        id: account_id
+        shell: bash
+        env:
+          ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]] || {
+            echo "::error::The approved ai-gateway-ops account ID is missing or invalid." >&2
+            exit 77
+          }
+          echo "account_id=$ACCOUNT_ID" >> "$GITHUB_OUTPUT"
+
   deploy:
     name: Execute source-script deploy
-    needs: prepare
+    needs: [prepare, gateway_account_id]
+    # A skipped ops job is normal for non-Gateway deployments. Gateway production
+    # requires an approved, successful ops read; failure cannot bypass this gate.
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && ((needs.prepare.outputs.source_repository == 'fongap-labs/ai-gateway' && needs.prepare.outputs.environment == 'production' && needs.prepare.outputs.product == '' && needs.gateway_account_id.result == 'success') || (needs.prepare.outputs.source_repository != 'fongap-labs/ai-gateway' && needs.gateway_account_id.result == 'skipped')) }}
     # Exactly one GitHub Environment per deployment job. The prepare gate checks
     # the source manifest against the central authorization policy.
     environment: ${{ needs.prepare.outputs.environment }}
@@ -324,6 +355,7 @@ jobs:
       - name: Export repository variables
         env:
           REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}
+          AW_GATEWAY_ACCOUNT_ID_FROM_OPS: ${{ needs.gateway_account_id.outputs.account_id }}
         run: node control/scripts/export-repository-variables.ts
 
       - name: Resolve deploy Secret plan
