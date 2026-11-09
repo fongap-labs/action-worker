@@ -460,6 +460,34 @@ test("concurrent requests cannot both claim the same delivery lease", async () =
   assert.equal(api.calls.filter((call) => call.path.endsWith("/dispatches")).length, 1);
 });
 
+test("native GitHub App PKCS#1 PEM is rejected before inbox writes or token requests", async () => {
+  const db = new FakeDatabase();
+  const env = {
+    ...makeEnvironment(db),
+    AW_GITHUB_APP_PRIVATE_KEY: privateKey.export({ format: "pem", type: "pkcs1" }).toString(),
+  };
+  const api = mockGithubApi();
+  const response = await handleDirectWebhook(signedRequest(makePayload()), env, api.fetcher);
+  assert.equal(response.status, 503);
+  assert.equal(db.rows.size, 0);
+  assert.equal(api.calls.length, 0);
+  assert.equal(await retryPendingDeliveries(env, api.fetcher).then(() => false, () => true), true);
+});
+
+test("PEM with a malformed end marker fails closed without exposing key material", async () => {
+  const db = new FakeDatabase();
+  const env = {
+    ...makeEnvironment(db),
+    AW_GITHUB_APP_PRIVATE_KEY: testPrivateKey.replace("-----END ", "-----INVALID "),
+  };
+  const api = mockGithubApi();
+  const response = await handleDirectWebhook(signedRequest(makePayload()), env, api.fetcher);
+  assert.equal(response.status, 503);
+  assert.equal((await response.text()).includes("PRIVATE"), false);
+  assert.equal(db.rows.size, 0);
+  assert.equal(api.calls.length, 0);
+});
+
 test("missing configuration never mints credentials or writes to the inbox", async () => {
   const db = new FakeDatabase();
   const env = { ...makeEnvironment(db), AW_GITHUB_APP_PRIVATE_KEY: "" };
