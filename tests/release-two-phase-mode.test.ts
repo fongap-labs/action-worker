@@ -4,6 +4,7 @@ import { test } from "node:test";
 import {
   parseTwoPhaseReleasePolicy,
   selectReleasePhase,
+  selectVerifiedReleaseNotes,
   stagingReleaseTimeoutMinutes,
 } from "../scripts/release-two-phase-mode.ts";
 
@@ -91,6 +92,32 @@ test("staging two-phase mode fails closed until policy and PR scope are both app
     timeoutMinutes: stagingReleaseTimeoutMinutes,
   });
   assert.ok(stagingReleaseTimeoutMinutes < 20);
+});
+
+test("staging Release notes are exactly the verified merged changelog section", () => {
+  const readOnly = { kind: "read-only" } as const;
+  const staging = {
+    kind: "staging",
+    prToken: "fake-write-token",
+    statusToken: "fake-status-token",
+    timeoutMinutes: 12,
+  } as const;
+  const merged = "### 修复\n\n- 本次受管发布的变更。";
+  assert.equal(selectVerifiedReleaseNotes(readOnly, "发布者指定摘要", undefined), "发布者指定摘要");
+  assert.equal(selectVerifiedReleaseNotes(staging, undefined, merged), merged);
+  assert.equal(selectVerifiedReleaseNotes(staging, merged, merged), merged);
+  assert.throws(
+    () => selectVerifiedReleaseNotes(staging, "### 修复\n\n- 另一份发布说明。", merged),
+    /Manifest Release notes differ/
+  );
+  assert.throws(
+    () => selectVerifiedReleaseNotes(staging, undefined, " "),
+    /no verified merged changelog notes/
+  );
+  assert.throws(
+    () => selectVerifiedReleaseNotes(staging, undefined, undefined),
+    /no verified merged changelog notes/
+  );
 });
 
 test("unrecognized modes and malformed policy entries never enable writes", () => {
