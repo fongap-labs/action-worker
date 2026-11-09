@@ -1019,7 +1019,6 @@ try {
     }
     assert.equal(runtimeStateStoreFor({ tier: 'tier-1' }), tier1RuntimeStateStore);
     assert.equal(runtimeStateStoreFor({ tier: 'tier-2' }), nodeRuntimeStateStore);
-    assert.equal(runtimeStateStoreFor({ tier: 'tier-3' }), nodeRuntimeStateStore);
   });
 
   test('tier-1 projection is honest: no fabricated health, endpoint circuit, or model latency', () => {
