@@ -1047,7 +1047,7 @@ await test('explicit cache miss fills the edge entry and a later hit avoids anot
     const env = withInferenceCenter(makeEnv({
       tier1: [openaiNode('cache')],
       secrets: { cache: 'provider-key' },
-      extraEnv: { AIG_EDGE_CACHE_TTL_SEC: '60' },
+      extraEnv: { AIG_EDGE_CACHE_TTL_SEC: '60', AIG_EDGE_CACHE_HMAC_KEY: 'e'.repeat(32) },
     }), (request) => centerPaths.push(new URL(request.url).pathname));
     const request = () => chatRequest({}, ACCESS_KEY, { headers: { 'x-gateway-cache': 'true' } });
     const pending = [];
