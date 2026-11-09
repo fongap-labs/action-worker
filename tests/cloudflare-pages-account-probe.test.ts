@@ -3,14 +3,14 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { parse } from "yaml";
 
-const file = ".github/workflows/audit-fongapcdn-pages-account.yml";
+const file = ".github/workflows/audit-pages-account.yml";
 const workflow = parse(readFileSync(file, "utf8"));
 
 test("Cloudflare Pages account probe is one-shot on main and never writes Cloudflare", () => {
   assert.deepEqual(workflow.permissions, {});
   assert.deepEqual(workflow.on.push.branches, ["main"]);
   assert.deepEqual(workflow.on.push.paths, [file]);
-  assert.ok(workflow.on.workflow_dispatch !== undefined);
+  assert.equal("workflow_dispatch" in workflow.on, false);
   const job = workflow.jobs.identify;
   assert.match(job.if, /github\.repository == 'fongap-labs\/action-worker'/);
   assert.match(job.if, /refs\/heads\/main/);
