@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 直连 Webhook 的 GitHub App JWT 与安装令牌出站请求禁止 HTTP 重定向，避免认证请求跳转至未授权端点。
+
 - 测试: 增加真实 SQLite/D1 语句驱动的直连 Webhook 集成回归，覆盖 HMAC 验签、重放去重、原子租约及 Cron 失败恢复。
 
 - 修复: npm 发布分发在使用本地 GitHub App Action 前安全检出源码，避免缺失 action.yml。
