@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: Action Worker 控制仓库配置审计遇到 GitHub Environment Secret 元数据 403 时继续只读检查该 Environment 的非敏感 Variables，将不可读的 Secret 数量与相关继承统计明确标记未知，不重复尝试拒绝的 Secret 接口；Variable 元数据不可读时仍失败关闭。
+
 - 修复: 组织级 Secret/Variable 元数据读取被 GitHub 拒绝时，自动降级审计 Action Worker 控制仓库的已有 ops Environments，输出明确的部分覆盖标识，将无法核验的组织继承及遮蔽计数置为 unknown 而不是误报为零；不新增高权限 Token。
 
 - 修复: 组织级配置元数据审计失败时仅报告组织/仓库/Environment 访问层级和脱敏 HTTP 错误类别，不泄漏私有仓库、Secret 名称、变量值或原始响应，缩短权限问题定位路径。
