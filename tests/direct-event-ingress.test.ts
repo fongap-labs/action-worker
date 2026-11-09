@@ -471,7 +471,10 @@ test("native GitHub App PKCS#1 PEM is rejected before inbox writes or token requ
   assert.equal(response.status, 503);
   assert.equal(db.rows.size, 0);
   assert.equal(api.calls.length, 0);
-  assert.equal(await retryPendingDeliveries(env, api.fetcher).then(() => false, () => true), true);
+  await assert.rejects(
+    retryPendingDeliveries(env, api.fetcher),
+    /configuration is incomplete/
+  );
 });
 
 test("PEM with a malformed end marker fails closed without exposing key material", async () => {
