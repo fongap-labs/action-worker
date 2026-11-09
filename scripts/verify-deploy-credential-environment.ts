@@ -14,17 +14,12 @@ export async function assertExistingCredentialEnvironment(
   repository: string,
   environment: string
 ): Promise<void> {
-  if (
-    repository !== "fongap-labs/action-worker" ||
-    !environmentPattern.test(environment)
-  ) {
+  if (repository !== "fongap-labs/action-worker" || !environmentPattern.test(environment)) {
     throw new CliError("Credential Environment preflight arguments are invalid.", 77);
   }
   let value: unknown;
   try {
-    value = await reader.get(
-      `repos/${repository}/environments/${encodeURIComponent(environment)}`
-    );
+    value = await reader.get(`repos/${repository}/environments/${encodeURIComponent(environment)}`);
   } catch (error) {
     throw new CliError(
       error instanceof GithubHttpError && error.status === 404
