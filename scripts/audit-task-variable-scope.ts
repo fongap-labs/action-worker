@@ -1,8 +1,5 @@
 import { readFile } from "node:fs/promises";
-import {
-  parseNamesOnlyInventory,
-  verifyPinnedTaskSource,
-} from "./audit-task-secret-scope.ts";
+import { parseNamesOnlyInventory, verifyPinnedTaskSource } from "./audit-task-secret-scope.ts";
 import type { ScopedTaskSecretPlan } from "./resolve-task-secret-plan.ts";
 import { resolveTaskSecretPlan } from "./resolve-task-secret-plan.ts";
 import { CliError, isMain } from "./runtime-command.ts";
@@ -29,11 +26,7 @@ export function auditTaskVariableScope(
   plan: ScopedTaskSecretPlan,
   inventory: VariableInventory
 ): VariableAudit {
-  if (
-    plan.schema_version !== 1 ||
-    !Array.isArray(plan.slots) ||
-    plan.slots.length > 32
-  ) {
+  if (plan.schema_version !== 1 || !Array.isArray(plan.slots) || plan.slots.length > 32) {
     throw new CliError("Invalid approved task variable slot plan.", 65);
   }
   const repositoryNames = new Set(inventory.repository);
@@ -84,7 +77,14 @@ async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const [sourceRoot = "", repository = "", project = "", expectedSha = "", inventoryPath = ""] =
     args;
-  if (args.length !== 5 || !sourceRoot || !repository || !project || !expectedSha || !inventoryPath) {
+  if (
+    args.length !== 5 ||
+    !sourceRoot ||
+    !repository ||
+    !project ||
+    !expectedSha ||
+    !inventoryPath
+  ) {
     throw new CliError(
       "Usage: audit-task-variable-scope.ts <pinned-source-root> <repository> <project> <full-source-sha> <variable-names-only.json>",
       64
