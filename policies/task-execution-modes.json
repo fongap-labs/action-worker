@@ -1,0 +1,6 @@
+{
+  "schema_version": 1,
+  "deploy_only": [
+    "fongap-labs/internal-vault/FongapCDN"
+  ]
+}
