@@ -450,26 +450,26 @@ export function ingressCronTelemetry(
   pending_count: number;
   oldest_pending_age_minutes: number | null;
 } {
-  const pending = backlog?.pending_count;
-  const oldest = backlog?.oldest_created_ms;
+  if (!backlog) throw new Error("Direct ingress backlog snapshot is missing.");
+  const { pending_count: pending, oldest_created_ms: oldest } = backlog;
   if (
     !Number.isSafeInteger(completed) ||
     completed < 0 ||
     !Number.isSafeInteger(pending) ||
-    pending! < 0 ||
+    pending < 0 ||
     !Number.isSafeInteger(now) ||
-    (oldest !== null && (!Number.isSafeInteger(oldest) || oldest! < 0)) ||
+    (oldest !== null && (!Number.isSafeInteger(oldest) || oldest < 0)) ||
     (pending === 0 && oldest !== null) ||
-    (pending! > 0 && oldest === null)
+    (pending > 0 && oldest === null)
   ) {
     throw new Error("Direct ingress backlog snapshot is invalid.");
   }
   return {
     component: "direct-event-ingress",
     completed_count: completed,
-    pending_count: pending!,
+    pending_count: pending,
     oldest_pending_age_minutes:
-      oldest === null ? null : Math.floor(Math.max(0, now - oldest!) / 60_000),
+      oldest === null ? null : Math.floor(Math.max(0, now - oldest) / 60_000),
   };
 }
 
