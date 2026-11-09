@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 控制仓库受保护配置审计在 Environment Secret 名称接口被明确拒绝时，继续读取有权限访问的 ops Variables 元数据；不可读取的 Secret 范围标为未知，并与组织/环境整体不可读取的自动降级链衔接，避免配置误判与重复人工盘点。
+
 - 修复: 组织配置作用域自动审计在 Organization 和 Environment 元数据均被 GitHub 403 拒绝时，继续只读核验 Action Worker 仓库级元数据，明确将无法访问的环境/继承统计标为 null 而非零；不要求运维重复配置凭据，也不改变任何作用域或密钥值。
 
 - 修复: 组织级 Secret/Variable 元数据读取被 GitHub 拒绝时，自动降级审计 Action Worker 控制仓库的已有 ops Environments，输出明确的部分覆盖标识，将无法核验的组织继承及遮蔽计数置为 unknown 而不是误报为零；不新增高权限 Token。
