@@ -4,7 +4,7 @@
 
 ## 执行链
 
-GitHub App `push`（仅默认分支）或 `pull_request`（opened/reopened/synchronize/ready_for_review）Webhook → 原始请求体 HMAC-SHA256 验签 → 固定安装与组织核对 → D1 持久交付 ID 与原子租约 → GitHub App 仅对控制仓库签发 `contents:write` 安装令牌 → 空载荷 `run-intake` → **现有**中央 Intake 独立读取最新 GitHub 事实并对账。Webhook 中的 SHA、PR 编号、结论、命令、Secrets 均不进入分发载荷。
+GitHub App `push`（仅默认分支）或 `pull_request`（opened/reopened/synchronize/ready_for_review）Webhook → 原始请求体 HMAC-SHA256 验签，并核对不在签名范围内的 `X-GitHub-Event` 与签名请求体结构一致（push 必须具备有效 before/after SHA；PR 必须具备一致的编号及目标仓库身份） → 固定安装与组织核对 → D1 持久交付 ID 与原子租约 → GitHub App 仅对控制仓库签发 `contents:write` 安装令牌 → 空载荷 `run-intake` → **现有**中央 Intake 独立读取最新 GitHub 事实并对账。Webhook 中的 SHA、PR 编号、结论、命令、Secrets 均不进入分发载荷。
 
 入口属于独立的 Cloudflare Worker（`scripts/direct-event-ingress.ts`）；现有主分支 `intake.yml`、5 分钟轮询、业务桥接均保持不变。不能因本代码存在就删除桥接、关闭调度器或扩大权限。
 

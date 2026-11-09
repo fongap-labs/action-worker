@@ -112,7 +112,27 @@ function makePayload(fields: Record<string, unknown> = {}): Record<string, unkno
       owner: { login: "fongap-labs" },
     },
     ref: "refs/heads/main",
+    before: "a".repeat(40),
+    after: "b".repeat(40),
     deleted: false,
+    ...fields,
+  };
+}
+
+function makePullRequestPayload(fields: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    installation: { id: 101 },
+    repository: {
+      full_name: "fongap-labs/example",
+      default_branch: "main",
+      owner: { login: "fongap-labs" },
+    },
+    action: "opened",
+    number: 42,
+    pull_request: {
+      number: 42,
+      base: { repo: { full_name: "fongap-labs/example" } },
+    },
     ...fields,
   };
 }
@@ -225,7 +245,7 @@ test("the same delivery ID cannot be reused with a different signed body", async
   const api = mockGithubApi();
   await handleDirectWebhook(signedRequest(makePayload()), env, api.fetcher);
   const conflicting = await handleDirectWebhook(
-    signedRequest(makePayload({ before: "a" })),
+    signedRequest(makePayload({ before: "c".repeat(40) })),
     env,
     api.fetcher
   );
@@ -290,14 +310,14 @@ test("pull-request changes wake Intake but unrelated actions do not", async () =
   const env = makeEnvironment(db);
   const api = mockGithubApi();
   const opened = await handleDirectWebhook(
-    signedRequest(makePayload({ action: "opened" }), "pull_request"),
+    signedRequest(makePullRequestPayload(), "pull_request"),
     env,
     api.fetcher
   );
   assert.equal(opened.status, 202);
   const closed = await handleDirectWebhook(
     signedRequest(
-      makePayload({ action: "closed" }),
+      makePullRequestPayload({ action: "closed" }),
       "pull_request",
       "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
     ),
@@ -306,6 +326,66 @@ test("pull-request changes wake Intake but unrelated actions do not", async () =
   );
   assert.equal(closed.status, 200);
   assert.equal(db.rows.size, 1);
+});
+
+test("an unsigned event header cannot reclassify a signed push, issue or PR body", async () => {
+  const db = new FakeDatabase();
+  const env = makeEnvironment(db);
+  const api = mockGithubApi();
+  const openedIssue = {
+    ...makePayload({ action: "opened" }),
+    number: 42,
+    issue: { number: 42 },
+  };
+  assert.equal(
+    (
+      await handleDirectWebhook(
+        signedRequest(makePayload({ action: "opened" }), "pull_request"),
+        env,
+        api.fetcher
+      )
+    ).status,
+    200
+  );
+  assert.equal(
+    (await handleDirectWebhook(signedRequest(openedIssue, "pull_request"), env, api.fetcher))
+      .status,
+    200
+  );
+  assert.equal(
+    (await handleDirectWebhook(signedRequest(makePullRequestPayload(), "push"), env, api.fetcher))
+      .status,
+    200
+  );
+  assert.equal(
+    (await handleDirectWebhook(signedRequest(makePayload({ after: undefined })), env, api.fetcher))
+      .status,
+    200
+  );
+  assert.equal(db.rows.size, 0);
+  assert.equal(api.calls.length, 0);
+});
+
+test("PR events require matching signed number and target repository identities", async () => {
+  const db = new FakeDatabase();
+  const env = makeEnvironment(db);
+  const api = mockGithubApi();
+  const mismatchedNumber = makePullRequestPayload({ number: 43 });
+  const mismatchedBase = makePullRequestPayload({
+    pull_request: { number: 42, base: { repo: { full_name: "fongap-labs/other" } } },
+  });
+  assert.equal(
+    (await handleDirectWebhook(signedRequest(mismatchedNumber, "pull_request"), env, api.fetcher))
+      .status,
+    200
+  );
+  assert.equal(
+    (await handleDirectWebhook(signedRequest(mismatchedBase, "pull_request"), env, api.fetcher))
+      .status,
+    200
+  );
+  assert.equal(db.rows.size, 0);
+  assert.equal(api.calls.length, 0);
 });
 
 test("ambiguous GitHub dispatch failures remain durable and are retried by cron", async () => {
