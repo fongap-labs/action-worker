@@ -9,7 +9,7 @@ import { parse } from "yaml";
 import { approvedTaskOpsAccountId } from "../scripts/task-ops-variable-handoff.ts";
 
 const sourceRepository = "fongap-labs/internal-vault";
-const project = "FongapCDN";
+const project = "EngineSuite";
 const id = "0123456789abcdef0123456789abcdef";
 
 test("a task may import only a validated Account ID for its approved source and project", () => {
@@ -27,6 +27,10 @@ test("a task may import only a validated Account ID for its approved source and 
   );
   assert.throws(
     () => approvedTaskOpsAccountId("fongap-labs/ai-gateway", project, id, ""),
+    /not authorized/
+  );
+  assert.throws(
+    () => approvedTaskOpsAccountId(sourceRepository, "FongapCDN", id, ""),
     /not authorized/
   );
   assert.throws(
