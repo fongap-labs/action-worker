@@ -285,7 +285,15 @@ test("AI Gateway production imports only its non-sensitive account ID from prote
       ),
     /conflicting Variable/
   );
-  assert.deepEqual(mergeApprovedGatewayAccountId({ PUBLIC_URL: "https://example.test" }, "fongap-labs/mcp-hub", "production", undefined), { PUBLIC_URL: "https://example.test" });
+  assert.deepEqual(
+    mergeApprovedGatewayAccountId(
+      { PUBLIC_URL: "https://example.test" },
+      "fongap-labs/mcp-hub",
+      "production",
+      undefined
+    ),
+    { PUBLIC_URL: "https://example.test" }
+  );
   assert.throws(
     () => mergeApprovedGatewayAccountId({}, "fongap-labs/mcp-hub", "production", accountId),
     /not authorized/
@@ -304,10 +312,7 @@ test("AI Gateway account ID is read only in the protected ops job, never from pr
   assert.ok(accountJob && deploy);
   assert.deepEqual(accountJob.environment, { name: "ai-gateway-ops", deployment: false });
   const accountSteps = accountJob.steps as Array<{ env?: Record<string, string> }>;
-  assert.equal(
-    accountSteps[0]?.env?.ACCOUNT_ID,
-    "${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}"
-  );
+  assert.equal(accountSteps[0]?.env?.ACCOUNT_ID, "${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}");
   const depends = deploy.needs as string[];
   assert.deepEqual(depends, ["prepare", "gateway_account_id"]);
   assert.match(String(deploy.if), /needs\.gateway_account_id\.result == 'success'/);
