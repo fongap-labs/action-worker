@@ -39,10 +39,10 @@ class NativeSqliteInbox implements IngressDatabase {
         return adapter;
       },
       async first<T>(): Promise<T | null> {
-        return (query.get(...bound) ?? null) as T | null;
+        return (query.get(...bound) ?? null) as unknown as T | null;
       },
       async all<T>(): Promise<{ results: T[] }> {
-        return { results: query.all(...bound) as T[] };
+        return { results: query.all(...bound) as unknown as T[] };
       },
       async run(): Promise<unknown> {
         return query.run(...bound);
@@ -108,14 +108,14 @@ function githubApi(options: { failDispatches?: number } = {}): {
     assert.equal(init?.method, "POST");
     assert.ok(init?.signal instanceof AbortSignal);
     if (path.endsWith("/access_tokens")) {
-      assert.deepEqual(JSON.parse(String(init.body)), {
+      assert.deepEqual(JSON.parse(String(init?.body)), {
         repositories: ["action-worker"],
         permissions: { contents: "write" },
       });
       return Response.json({ token: "synthetic-installation-token" }, { status: 201 });
     }
     if (path.endsWith("/dispatches")) {
-      assert.deepEqual(JSON.parse(String(init.body)), {
+      assert.deepEqual(JSON.parse(String(init?.body)), {
         event_type: "run-intake",
         client_payload: {},
       });
