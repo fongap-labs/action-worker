@@ -44,7 +44,7 @@ try {
     'scripts/README.md',
     'docs/architecture/overview.md',
     'docs/architecture/protocol-model.md',
-    'docs/architecture/subscription-model.md',
+    'docs/architecture/two-tier-cutover.md',
     'docs/architecture/routing-model.md',
     'docs/architecture/reliability-model.md',
     'docs/architecture/repository-layout.md',
@@ -369,7 +369,6 @@ try {
       'observability',
       'ratelimit',
       'config',
-      'oauth',
     ]),
     scheduler: new Set(['request', 'transport', 'protocol', 'conversion', 'stream', 'dashboard', 'runtime', 'observability', 'ratelimit']),
     reliability: new Set([
@@ -523,8 +522,8 @@ try {
 
   // Provider knowledge has one registry owner. The retired provider switch
   // (provider-profile.ts) and the retired quirks module (provider-quirks.ts)
-  // must not return; provider-specific wire, OAuth defaults, subscription
-  // semantics and quirks are declared by adapters in src/providers/.
+  // must not return; native wire and stream-usage quirks belong to src/providers/.
+  // The retired membership OAuth execution must remain absent.
   assert.equal(
     fs.existsSync(path.join(srcRoot, 'config', 'provider-profile.ts')),
     false,
@@ -558,12 +557,8 @@ try {
   }
   assert.match(tierLoopSource, /routingStrategyFor\(/, 'the Tier policy resolves selection through the routing-strategy contract');
   assert.doesNotMatch(tierLoopSource, /pickTier1Candidate|pickCandidate/, 'the Tier policy must not regain direct picker branching by tier');
-  const subscriptionIndex = fs.readFileSync(path.join(srcRoot, 'subscription', 'index.ts'), 'utf8');
-  assert.doesNotMatch(
-    subscriptionIndex,
-    /getSubscriptionAdapter|const ADAPTERS/,
-    'subscription index must not regain a second provider adapter registry',
-  );
+  assert.equal(fs.existsSync(path.join(srcRoot, 'subscription', 'index.ts')), false,
+    'retired subscriber registry must not return');
   for (const core of ['scheduler', 'reliability', 'transport']) {
     for (const file of walk(path.join(srcRoot, core))) {
       assert.doesNotMatch(
@@ -644,12 +639,11 @@ try {
   }
 
   const centerKey = 'architecture-contract-private-inference-auth-key-32';
-  function makeEnv({ tier1, tier2, tier3, secrets, extraEnv } = {}) {
+  function makeEnv({ tier1, tier2, secrets, extraEnv } = {}) {
     const tierSecrets = (nodes = []) =>
       Object.fromEntries(nodes.map((node) => [node.id, secrets?.[node.id]]).filter(([, credential]) => credential !== undefined));
     const tier1Secrets = tierSecrets(tier1);
     const tier2Secrets = tierSecrets(tier2);
-    const tier3Secrets = tierSecrets(tier3);
     const gatewayEnv = {
       AIG_ACCESS_KEY_AIR: ACCESS_KEY,
       AIG_ACCESS_MODELS_AIR: '*',
@@ -657,10 +651,8 @@ try {
       TIER1_SCHEDULER_SEED: 'arch-contract-test',
       ...(tier1 ? { AIG_TIER1_NODES_01: JSON.stringify(tier1) } : {}),
       ...(tier2 ? { AIG_TIER2_NODES_01: JSON.stringify(tier2) } : {}),
-      ...(tier3 ? { AIG_TIER3_NODES_01: JSON.stringify(tier3) } : {}),
       ...(Object.keys(tier1Secrets).length ? { AIG_TIER1_CREDENTIALS_01: JSON.stringify(tier1Secrets) } : {}),
       ...(Object.keys(tier2Secrets).length ? { AIG_TIER2_CREDENTIALS_01: JSON.stringify(tier2Secrets) } : {}),
-      ...(Object.keys(tier3Secrets).length ? { AIG_TIER3_CREDENTIALS_01: JSON.stringify(tier3Secrets) } : {}),
       ...extraEnv,
     };
     // The public Gateway owns authorization and scheduling only; its private
@@ -670,7 +662,7 @@ try {
       if (key.startsWith('AIG_ACCESS_KEY_')) delete centerEnv[key];
     }
     for (const key of Object.keys(gatewayEnv)) {
-      if (/^AIG_TIER[123]_CREDENTIALS_/.test(key)) delete gatewayEnv[key];
+      if (/^AIG_TIER[12]_CREDENTIALS_/.test(key)) delete gatewayEnv[key];
     }
     gatewayEnv.AIG_INFERENCE_ACTIVE = 'true';
     gatewayEnv.AIG_INFERENCE_AUTH_KEY = centerKey;
@@ -684,7 +676,7 @@ try {
         return handleInferenceCenterRequest(request, centerEnv);
       },
     };
-    assert.equal(Object.keys(gatewayEnv).some((key) => /^AIG_TIER[123]_CREDENTIALS_/.test(key)), false);
+    assert.equal(Object.keys(gatewayEnv).some((key) => /^AIG_TIER[12]_CREDENTIALS_/.test(key)), false);
     return gatewayEnv;
   }
 
@@ -1038,9 +1030,8 @@ try {
       models: { 'Code-Max': 'up' },
     });
     const tiers = {
-      1: [],
+      1: [runtimeNode('t1-a', 'tier-1')],
       2: [runtimeNode('t2-a', 'tier-2')],
-      3: [runtimeNode('t3-a', 'tier-3'), runtimeNode('t3-b', 'tier-3'), runtimeNode('t3-c', 'tier-3')],
     };
     const req = { model: 'Code-Max', protocol: 'openai', surface: 'chat_completions' };
 
@@ -1057,7 +1048,7 @@ try {
       },
       new Set(['Code-Max']),
     );
-    assert.deepEqual(caps, { 1: 0, 2: 5, 3: 1 }, 'node count must not pull surplus away from the first dispatchable tier');
+    assert.deepEqual(caps, { 1: 5, 2: 1 }, 'node count must not pull surplus away from the first dispatchable tier');
 
     const explicit = computeTierCaps(
       tiers,
@@ -1072,7 +1063,7 @@ try {
       },
       new Set(['Code-Max']),
     );
-    assert.deepEqual(explicit, { 1: 0, 2: 3, 3: 3 }, 'explicit tier cap stays fixed and the remaining tier receives the remainder');
+    assert.deepEqual(explicit, { 1: 3, 2: 3 }, 'explicit Token cap stays fixed; free tier receives the remainder');
 
     const disabled = computeTierCaps(
       tiers,
@@ -1087,7 +1078,7 @@ try {
       },
       new Set(['Code-Max']),
     );
-    assert.deepEqual(disabled, { 1: 0, 2: 0, 3: 6 }, 'explicit zero disables Tier 2');
+    assert.deepEqual(disabled, { 1: 6, 2: 0 }, 'explicit zero disables Tier 2 with no implicit third tier');
     reset();
   });
 
@@ -1118,8 +1109,8 @@ try {
 
   assert.match(product, /household, an individual operator, or a small trusted team/i);
   assert.match(product, /### \u514d\u8d39\u5bb9\u91cf[\s\S]{0,250}Tier 1/i);
-  assert.match(product, /### \u8ba2\u9605\u5bb9\u91cf[\s\S]{0,250}Tier 2/i);
-  assert.match(product, /### \u4ed8\u8d39\u5bb9\u91cf[\s\S]{0,250}Tier 3/i);
+  assert.match(product, /### API Token \u5bb9\u91cf[\s\S]{0,250}Tier 2/i);
+  assert.doesNotMatch(product, /### \u8ba2\u9605\u5bb9\u91cf/, 'membership entitlement may not be an active tier');
   assert.match(product, /maintains one current contract/i, 'repository must keep one current contract');
   assert.match(
     product,
@@ -1135,13 +1126,13 @@ try {
   assert.match(development, /remove the superseded path in the same change/i);
   assert.match(
     development,
-    /Tier 1 is free-token capacity.*Tier 2 is reserved for membership\/subscription entitlements.*Tier 3 is reserved for paid API capacity/is,
+    /Tier 1 is free API-token capacity.*Tier 2 is static API Token reserve.*no membership subscription or Tier 3 execution path remains/is,
   );
   assert.match(development, /Project release numbering is not an engineering automation concern/i);
 
-  assert.match(overview, /Tier 1.*Free or effectively free token capacity/is);
-  assert.match(overview, /Tier 2.*Membership\/subscription entitlement capacity/is);
-  assert.match(overview, /Tier 3.*Paid API capacity/is);
+  assert.match(overview, /Tier 1[\s\S]{0,100}\u514d\u8d39 API Key/i);
+  assert.match(overview, /Tier 2[\s\S]{0,100}API Token/i);
+  assert.match(overview, /Tier 1 \u2192 Tier 2/, 'only two-tier fallback remains');
 
   console.log('product policy contract tests passed.');
   console.log('ok - file:product-policy-contract');
