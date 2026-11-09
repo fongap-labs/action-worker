@@ -29,9 +29,7 @@ test("a retired source task cannot be reactivated using an old pinned commit", (
   assert.doesNotThrow(() =>
     assertTaskExecutionAllowed(policy, "fongap-labs/internal-vault", "MarketBrief")
   );
-  assert.doesNotThrow(() =>
-    assertTaskExecutionAllowed(policy, "fongap-labs/other", "FongapCDN")
-  );
+  assert.doesNotThrow(() => assertTaskExecutionAllowed(policy, "fongap-labs/other", "FongapCDN"));
 });
 
 test("the cutover deny entry has an independent centrally approved deployment", () => {
@@ -53,9 +51,6 @@ test("invalid or duplicate task mode policies fail closed", () => {
     { schema_version: 1, deploy_only: ["org/repo/demo", "org/repo/demo"] },
     { schema_version: 1, deploy_only: [], permissive: true },
   ]) {
-    assert.throws(
-      () => assertTaskExecutionAllowed(value, "org/repo", "demo"),
-      /policy is invalid/
-    );
+    assert.throws(() => assertTaskExecutionAllowed(value, "org/repo", "demo"), /policy is invalid/);
   }
 });
