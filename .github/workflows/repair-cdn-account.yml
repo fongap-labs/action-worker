@@ -1,0 +1,91 @@
+name: 自动 · CDN 账号修复
+
+# One-shot: only the trusted main-branch introduction of this workflow starts it.
+# A successful repair dispatches one source-pinned deployment; no personal review.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/repair-cdn-account.yml
+
+permissions: {}
+
+concurrency:
+  group: repair-fongapcdn-primary-account
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: Reconcile verified FongapCDN ops account and retry once
+    if: github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    environment:
+      name: admin-ops
+      deployment: false
+    steps:
+      - name: Correct only the verified primary Account ID Variable
+        id: account
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          EXPECTED_OLD_ACCOUNT: b9b59740f04e9b80e439ebeea6bc79d1
+          VERIFIED_PAGES_ACCOUNT: 7fbb64830cdcae5b80e5729f13b4aeb2
+        run: |
+          set -Eeuo pipefail
+          [[ -n "$GH_TOKEN" ]] || { echo "::error::AW_ADMIN_TOKEN unavailable"; exit 77; }
+          path="repos/fongap-labs/action-worker/environments/internal-vault-ops/variables/CLOUDFLARE_ACCOUNT_ID_PRIMARY"
+          current="$(gh api "$path" --jq '.value')"
+          if [[ "$current" == "$VERIFIED_PAGES_ACCOUNT" ]]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "The verified FongapCDN account is already configured."
+            exit 0
+          fi
+          [[ "$current" == "$EXPECTED_OLD_ACCOUNT" ]] || {
+            echo "::error::Existing Account ID is neither the verified owner nor the known previous value; refusing mutation."
+            exit 77
+          }
+          # Evidence: https://github.com/fongap-labs/action-worker/actions/runs/42697716184
+          # GET /pages/projects/fongapcdn returned 200 for the verified account and
+          # Cloudflare 10000 for the stale account with the same existing token.
+          gh api --method PATCH "$path" \
+            -f name=CLOUDFLARE_ACCOUNT_ID_PRIMARY \
+            -f value="$VERIFIED_PAGES_ACCOUNT" >/dev/null
+          observed="$(gh api "$path" --jq '.value')"
+          [[ "$observed" == "$VERIFIED_PAGES_ACCOUNT" ]] || {
+            echo "::error::Variable read-back does not match the verified Pages owner."
+            exit 77
+          }
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+          echo "Verified internal-vault-ops Account ID Variable updated; no Secret changed."
+
+      - name: Dispatch exact verified FongapCDN source once
+        if: steps.account.outputs.changed == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          APPROVED_SOURCE_SHA: 6c4dca8c571628766d7c92f47107a4d71f030bda
+        run: |
+          set -Eeuo pipefail
+          latest="$(gh api repos/fongap-labs/internal-vault/commits/main --jq .sha)"
+          [[ "$latest" == "$APPROVED_SOURCE_SHA" ]] || {
+            echo "::error::Private source main moved; refusing stale recovery dispatch."
+            exit 75
+          }
+          payload="$(jq -cn \
+            --arg request_id "account-repair-$GITHUB_RUN_ID" \
+            --arg source_sha "$APPROVED_SOURCE_SHA" \
+            '{
+              event_type: "run-source-script-deploy",
+              client_payload: {
+                schema_version: "1",
+                request_id: $request_id,
+                source_repository: "fongap-labs/internal-vault",
+                source_sha: $source_sha,
+                product: "FongapCDN",
+                environment: "production",
+                trigger: "push"
+              }
+            }')"
+          gh api --method POST repos/fongap-labs/action-worker/dispatches --input - <<< "$payload"
+          echo "Dispatched one protected source-pinned FongapCDN production attempt."

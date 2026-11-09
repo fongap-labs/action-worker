@@ -60,6 +60,7 @@ const classes = {
     "apply-repository-settings.yml",
     "audit-config-scope.yml",
     "audit-pages-account.yml",
+    "repair-cdn-account.yml",
     "bootstrap-health-key.yml",
     "enroll-organization-repositories.yml",
     "publication-key-verify.yml",
