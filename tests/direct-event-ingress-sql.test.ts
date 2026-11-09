@@ -68,7 +68,10 @@ test("real SQLite orders a bounded retry batch by availability before age", () =
       pending.slice(0, 5).map((row) => row.delivery_id),
       ["delivery-25", "delivery-26", "delivery-27", "delivery-28", "delivery-29"]
     );
-    assert.equal(pending.some((row) => row.delivery_id === "delivery-20"), false);
+    assert.equal(
+      pending.some((row) => row.delivery_id === "delivery-20"),
+      false
+    );
   } finally {
     database.close();
   }
