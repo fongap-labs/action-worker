@@ -35,6 +35,7 @@ const chineseDisplayNames: Record<string, string> = {
   "cancel-pr-work.yml": "自动 · PR 清理",
   "apply-repository-settings.yml": "自动 · 仓库设置",
   "audit-config-scope.yml": "自动 · 组织配置作用域审计",
+  "audit-pages-account.yml": "诊断 · FongapCDN Pages 账号",
   "bootstrap-health-key.yml": "自动 · 初始化 AI Gateway 部署健康密钥",
   "enroll-organization-repositories.yml": "自动 · 组织仓库接入",
   "publication-key-verify.yml": "自动 · 发布密钥预检",
