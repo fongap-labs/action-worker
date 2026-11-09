@@ -582,7 +582,7 @@ async function main(): Promise<void> {
     }
     let releaseSha = targetSha;
     let stagedNotes: string | undefined;
-    const releaseUrl = `https://github.com/${targetRepository}/releases/tag/${tag}`;
+    const releaseTagUrl = `https://github.com/${targetRepository}/releases/tag/${tag}`;
     if (phase.kind === "staging") {
       const staged = await publishChangelogRelease({
         repository: targetRepository,
@@ -591,7 +591,7 @@ async function main(): Promise<void> {
         tag,
         version: manifest.version,
         date: new Date().toISOString().slice(0, 10),
-        releaseUrl,
+        releaseUrl: releaseTagUrl,
         policy: await readReleasePolicy(),
         token: phase.prToken,
         statusToken,
@@ -610,7 +610,7 @@ async function main(): Promise<void> {
         releaseKey: manifest.release_key,
         version: manifest.version,
         date: new Date().toISOString().slice(0, 10),
-        releaseUrl,
+        releaseUrl: releaseTagUrl,
         policy: await readReleasePolicy(),
         token: controlToken,
         entries: manifest.changelog_entries,
