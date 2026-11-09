@@ -973,31 +973,28 @@ try {
     const tiers = {
       1: [node('t1-a', 'tier-1'), node('t1-b', 'tier-1')],
       2: [node('t2-a', 'tier-2')],
-      3: [node('t3-a', 'tier-3')],
     };
     const policy = { maxAttempts: 6, tierAttempts: null, hedge: null, firstEventTimeoutMs: null, maxInFlight: null };
-    assert.deepEqual(computeTierCaps(tiers, REQ, new Set(), policy, KNOWN), { 1: 4, 2: 1, 3: 1 });
+    assert.deepEqual(computeTierCaps(tiers, REQ, new Set(), policy, KNOWN), { 1: 5, 2: 1 });
   });
 
   await test('explicit tier cap is never inflated by surplus allocation', () => {
     const tiers = {
       1: [node('e1', 'tier-1')],
       2: [node('e2', 'tier-2')],
-      3: [node('e3', 'tier-3')],
     };
     const policy = { maxAttempts: 6, tierAttempts: { tier1: 2 }, hedge: null, firstEventTimeoutMs: null, maxInFlight: null };
     const caps = computeTierCaps(tiers, REQ, new Set(), policy, KNOWN);
-    assert.deepEqual(caps, { 1: 2, 2: 3, 3: 1 });
+    assert.deepEqual(caps, { 1: 2, 2: 4 });
   });
 
   await test('explicit zero disables a tier without redistributing against precedence', () => {
     const tiers = {
       1: [node('z1', 'tier-1')],
       2: [node('z2', 'tier-2')],
-      3: [node('z3', 'tier-3')],
     };
     const policy = { maxAttempts: 4, tierAttempts: { tier2: 0 }, hedge: null, firstEventTimeoutMs: null, maxInFlight: null };
-    assert.deepEqual(computeTierCaps(tiers, REQ, new Set(), policy, KNOWN), { 1: 3, 2: 0, 3: 1 });
+    assert.deepEqual(computeTierCaps(tiers, REQ, new Set(), policy, KNOWN), { 1: 4, 2: 0 });
   });
 
   await test('built-in policy surface remains intentionally small', () => {
@@ -1163,10 +1160,9 @@ try {
 
   // ---- Case 4: tier order preserved ----
 
-  await test('Case 4: Tier 1 -> Tier 2 -> Tier 3 order is preserved in pickForTier', () => {
+  await test('Case 4: Tier 1 -> Tier 2 order is preserved in pickForTier', () => {
     const t1 = [tier1Node('t1-a')];
     const t2 = [tier2Node('t2-a')];
-    const t3 = [tier2Node('t3-a')];
 
     const pick1 = pickForTier(1, t1, REQ, new Set());
     assert.ok(pick1?.node, 'Tier 1 picks');
@@ -1176,9 +1172,6 @@ try {
     assert.ok(pick2?.node, 'Tier 2 picks');
     assert.equal(pick2.node.id, 't2-a');
 
-    const pick3 = pickForTier(3, t3, REQ, new Set());
-    assert.ok(pick3?.node, 'Tier 3 picks');
-    assert.equal(pick3.node.id, 't3-a');
   });
 
   await test('Case 4b: Tier 1 exhausted, Tier 2 available -> Tier 2 picks', () => {
