@@ -79,7 +79,10 @@ export async function buildTaskCredentialSlotPlan(
     }
     const kind = variableSources.has(stored) ? "variable" : "secret";
     if (kind === "variable" && requiredSet.has(name) && !baseEnvironment[stored]) {
-      throw new CliError(`Required task Variable is unavailable: ${name} (stored as ${stored}).`, 77);
+      throw new CliError(
+        `Required task Variable is unavailable: ${name} (stored as ${stored}).`,
+        77
+      );
     }
     if (kind === "secret" && Object.hasOwn(baseEnvironment, stored)) {
       throw new CliError(
