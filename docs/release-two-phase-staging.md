@@ -1,4 +1,4 @@
-# Two-phase Release：受控非生产接线（默认禁用）
+# 两阶段发布：受控非生产接线（默认禁用）
 
 此模块服务于 [AW-008](proposals/AW-008-changelog-release-automation.md) 和 #1495 的阶段一验收。**它不是生产发布路径已切换的声明**。当前 `handle-release-dispatch.yml` 没有设置两阶段 opt-in，也未授予 `pull-requests:write`；生产仍采用只读目标 CHANGELOG、直接生成 GitHub Draft Release 的原行为。
 
