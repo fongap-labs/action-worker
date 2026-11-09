@@ -33,7 +33,10 @@ export function auditDeploySecretScope(
   inventory: NamesOnlyInventory,
   activeEnvironment: string
 ): DeployScopeAudit {
-  if (!/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(activeEnvironment) || plan.filter((entry) => entry.kind === "secret").length > 40) {
+  if (
+    !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(activeEnvironment) ||
+    plan.filter((entry) => entry.kind === "secret").length > 40
+  ) {
     throw new CliError("Invalid deploy Secret audit context.", 65);
   }
   const seen = new Set<string>();
