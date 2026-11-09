@@ -38,7 +38,8 @@ export async function resolveTaskSecretPlan(
   sourceRoot: string,
   policyPath: string,
   repository: string,
-  project: string
+  project: string,
+  baseEnvironment: NodeJS.ProcessEnv = {}
 ): Promise<ScopedTaskSecretPlan> {
   if (
     !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository) ||
@@ -54,7 +55,8 @@ export async function resolveTaskSecretPlan(
     repository,
     project,
     required,
-    allowed
+    allowed,
+    baseEnvironment
   );
   return { schema_version: 1, repository, project, slots };
 }
@@ -77,13 +79,17 @@ export function validateTaskSecretSlots(
       !/^[A-Z][A-Z0-9_]*$/.test(slot.logical_name) ||
       !/^[A-Z][A-Z0-9_]*$/.test(slot.stored_name) ||
       typeof slot.required !== "boolean" ||
+      (slot.kind !== undefined && slot.kind !== "variable") ||
       seen.has(slot.logical_name)
     ) {
       throw new CliError("Task Secret slot plan has an invalid binding.", 65);
     }
     seen.add(slot.logical_name);
-    if (slot.required && !environment[slot.slot]) {
+    if (!slot.kind && slot.required && !environment[slot.slot]) {
       throw new CliError("A required task Secret slot has no value.", 77);
+    }
+    if (slot.kind === "variable" && slot.required && !environment[slot.stored_name]) {
+      throw new CliError("A required task Variable is unavailable.", 77);
     }
   }
   return plan.slots.length;
@@ -109,7 +115,8 @@ async function main(): Promise<void> {
     await chmod(path, 0o600);
     const values = Array.from({ length: maxTaskCredentialSlots }, (_, index) => {
       const name = plan.slots[index]?.stored_name ?? "";
-      return `secret_${String(index).padStart(2, "0")}=${name}`;
+      const secretName = plan.slots[index]?.kind !== "variable" ? name : "";
+      return `secret_${String(index).padStart(2, "0")}=${secretName}`;
     });
     await appendLines(process.env.GITHUB_OUTPUT, values);
     console.log(
@@ -124,7 +131,8 @@ async function main(): Promise<void> {
       process.env.AW_SOURCE_DIR ?? "",
       "policies/task-secrets.json",
       repository,
-      project
+      project,
+      process.env
     );
     if (JSON.stringify(expected) !== JSON.stringify(plan)) {
       throw new CliError("Task Secret slot bindings changed after policy authorization.", 77);

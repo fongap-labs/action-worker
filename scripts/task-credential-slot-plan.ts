@@ -1,4 +1,8 @@
-import { readSecretAliases, readTaskSecretCeiling } from "./resolve-secret-scope.ts";
+import {
+  readSecretAliases,
+  readTaskSecretCeiling,
+  readTaskSecretVariableSources,
+} from "./resolve-secret-scope.ts";
 import { CliError } from "./runtime-command.ts";
 
 // GitHub Actions must reference each Secret explicitly in the future isolated task Job.
@@ -10,6 +14,7 @@ export type TaskCredentialSlot = {
   logical_name: string;
   stored_name: string;
   required: boolean;
+  kind?: "variable";
 };
 
 const namePattern = /^[A-Z][A-Z0-9_]*$/;
@@ -37,7 +42,8 @@ export async function buildTaskCredentialSlotPlan(
   repository: string,
   project: string,
   required: readonly string[],
-  allowed: readonly string[]
+  allowed: readonly string[],
+  baseEnvironment: NodeJS.ProcessEnv = {}
 ): Promise<TaskCredentialSlot[]> {
   const requiredNames = validatedNames(required, "required");
   const optionalNames = validatedNames(allowed, "allowed");
@@ -52,6 +58,7 @@ export async function buildTaskCredentialSlotPlan(
     throw new CliError("Task credential declaration exceeds the central policy ceiling.", 65);
   }
   const aliases = await readSecretAliases(policyPath, "task", repository, project);
+  const variableSources = await readTaskSecretVariableSources(policyPath, repository, project);
   const usedSources = new Set<string>();
   const ordered = declared.sort((a, b) => a.localeCompare(b));
   return ordered.map((name, index) => {
@@ -70,12 +77,26 @@ export async function buildTaskCredentialSlotPlan(
     if (name === "CLOUDFLARE_ACCESS_KEY" && /^CLOUDFLARE_API_TOKEN(?:_|$)/.test(stored)) {
       throw new CliError("Task R2 Access Key source requires credential-type verification.", 77);
     }
+    const kind = variableSources.has(stored) ? "variable" : "secret";
+    if (kind === "variable" && requiredSet.has(name) && !baseEnvironment[stored]) {
+      throw new CliError(
+        `Required task Variable is unavailable: ${name} (stored as ${stored}).`,
+        77
+      );
+    }
+    if (kind === "secret" && Object.hasOwn(baseEnvironment, stored)) {
+      throw new CliError(
+        `Task Secret source collides with a pre-existing non-secret environment variable: ${stored}.`,
+        65
+      );
+    }
     usedSources.add(stored);
     return {
       slot: `AW_TASK_SECRET_SLOT_${String(index + 1).padStart(2, "0")}`,
       logical_name: name,
       stored_name: stored,
       required: requiredSet.has(name),
+      ...(kind === "variable" ? { kind } : {}),
     };
   });
 }

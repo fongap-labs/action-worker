@@ -425,22 +425,34 @@ jobs:
           # Variables). Only the approved logical names may reach bootstrap.sh.
           jq -e '.schema_version == 1 and (.slots | type == "array")' \
             "${RUNNER_TEMP}/action-worker-task-secret-plan.json" >/dev/null
-          while IFS=$'\t' read -r slot logical required; do
+          while IFS=$'\t' read -r slot logical stored required kind; do
               [ -n "$slot" ] || continue
-              if grep -Fxq -- "$logical" "${RUNNER_TEMP}/action-worker-base-env.names"; then
-                  echo "::error::Task Secret conflicts with an existing environment variable." >&2
+              if grep -Fxq -- "$logical" "${RUNNER_TEMP}/action-worker-base-env.names" && \
+                  { [ "$kind" = "secret" ] || [ "$stored" != "$logical" ]; }; then
+                  echo "::error::Task credential conflicts with an existing environment variable." >&2
                   exit 65
               fi
-              value="${!slot-}"
+              if [ "$kind" = "secret" ]; then
+                  value="${!slot-}"
+              else
+                  value="${!stored-}"
+              fi
               if [ "$required" = "true" ] && [ -z "$value" ]; then
-                  echo "::error::Required task Secret slot is missing." >&2
+                  if [ "$kind" = "variable" ]; then
+                      echo "::error::Required task Variable is unavailable." >&2
+                  else
+                      echo "::error::Required task Secret slot is missing." >&2
+                  fi
                   exit 77
               fi
-              if [ -n "$value" ]; then
+              if [ -n "$value" ] && [ "$stored" != "$logical" ]; then
                   export "$logical=$value"
               fi
+              if [ "$kind" = "variable" ] && [ "$stored" != "$logical" ]; then
+                  unset "$stored"
+              fi
               unset "$slot" value
-          done < <(jq -r '.slots[] | [.slot, .logical_name, .required] | @tsv' \
+          done < <(jq -r '.slots[] | [.slot, .logical_name, .stored_name, .required, (.kind // "secret")] | @tsv' \
               "${RUNNER_TEMP}/action-worker-task-secret-plan.json")
 
           # Clear every fixed slot before task code can execute, including unused slots.
