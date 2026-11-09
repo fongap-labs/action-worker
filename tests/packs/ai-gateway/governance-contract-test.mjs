@@ -258,7 +258,7 @@ try {
   const { RUNTIME_VAR_NAMES, RUNTIME_TUNABLES } = await import('#target/src/config/runtime-vars.ts');
   assert.equal(deployManifest.adapter, 'source-script');
   assert.equal(deployManifest.entrypoint, 'scripts/deploy.sh');
-  assert.equal(deployManifest.automatic, true);
+  assert.equal(deployManifest.automatic, false, 'production auto-deploy must stay frozen until the cutover is explicitly approved');
   // Runtime keys must stay in Cloudflare Worker Secrets, not in a normal
   // production code deployment or any artifact shared between jobs.
   const declaredDeploySecrets = read('.github/deploy.secrets.allowed')
