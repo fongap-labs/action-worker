@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { parse } from "yaml";
 import {
   assertCurrentPullHead,
   calculateBackoff,
@@ -106,5 +108,41 @@ test("CI evidence polling clips jitter at the remaining time budget", () => {
   for (let i = 0; i < 25; i++) {
     const delay = calculateBackoff(25, 15_000, 60_000, 7_000);
     assert.ok(delay >= 0 && delay <= 7_000);
+  }
+});
+
+test("PR governance and advisory review pass their exact PR number to CI evidence polling", () => {
+  const expectedCommand =
+    'node scripts/wait-ci-evidence.ts "$REPOSITORY" "$HEAD_SHA" "$GITHUB_WORKSPACE/policies/execution.json" "$PR_NUMBER"';
+  for (const { file, job, numberExpression } of [
+    {
+      file: "../.github/workflows/handle-pr-dispatch.yml",
+      job: "govern",
+      numberExpression: "${{ steps.payload.outputs.pr_number }}",
+    },
+    {
+      file: "../.github/workflows/handle-pr-review.yml",
+      job: "review",
+      numberExpression: "${{ needs.prepare.outputs.pr_number }}",
+    },
+  ]) {
+    const workflow = parse(readFileSync(new URL(file, import.meta.url), "utf8")) as {
+      jobs: Record<
+        string,
+        {
+          steps: Array<{
+            name?: string;
+            run?: string;
+            env?: Record<string, string>;
+          }>;
+        }
+      >;
+    };
+    const waits = workflow.jobs[job]!.steps.filter(
+      (step) => step.name === "Collect CI evidence" || step.run?.startsWith("node scripts/wait-ci-evidence.ts")
+    );
+    assert.equal(waits.length, 1, file);
+    assert.equal(waits[0]!.run, expectedCommand, file);
+    assert.equal(waits[0]!.env?.PR_NUMBER, numberExpression, file);
   }
 });
