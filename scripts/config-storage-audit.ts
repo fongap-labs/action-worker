@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { minimumConfigImpact } from "./config-security-classification.ts";
-import { readRepositoryPolicyText } from "./repository-policy.ts";
 import { GithubReader, isJsonRecord } from "./github-api.ts";
+import { readRepositoryPolicyText } from "./repository-policy.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 
 // GitHub Secrets APIs return metadata, never the Secret value.
@@ -351,9 +351,7 @@ async function main(): Promise<void> {
   });
   try {
     // Only aggregate counts leave this function. Never expose private names or Variable values.
-    console.log(
-      JSON.stringify(await auditStorageMetadata(reader, auditTargets), null, 2)
-    );
+    console.log(JSON.stringify(await auditStorageMetadata(reader, auditTargets), null, 2));
   } catch {
     throw new CliError("Read-only storage audit incomplete; no report published.", 77);
   }
