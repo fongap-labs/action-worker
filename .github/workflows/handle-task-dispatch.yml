@@ -425,22 +425,912 @@ jobs:
           # Variables). Only the approved logical names may reach bootstrap.sh.
           jq -e '.schema_version == 1 and (.slots | type == "array")' \
             "${RUNNER_TEMP}/action-worker-task-secret-plan.json" >/dev/null
-          while IFS=$'\t' read -r slot logical required; do
-              [ -n "$slot" ] || continue
-              if grep -Fxq -- "$logical" "${RUNNER_TEMP}/action-worker-base-env.names"; then
-                  echo "::error::Task Secret conflicts with an existing environment variable." >&2
-                  exit 65
-              fi
-              value="${!slot-}"
-              if [ "$required" = "true" ] && [ -z "$value" ]; then
-                  echo "::error::Required task Secret slot is missing." >&2
+          while IFS=
+
+          # Clear every fixed slot before task code can execute, including unused slots.
+          for slot_index in $(seq -w 1 32); do
+              unset "AW_TASK_SECRET_SLOT_${slot_index}"
+          done
+          for env_name in $(compgen -e); do
+              if [[ "$env_name" == AW_TASK_SECRET_SLOT_* ]]; then
+                  echo "::error::A task Secret staging slot survived cleanup." >&2
                   exit 77
               fi
-              if [ -n "$value" ]; then
+          done
+
+          for central_name in AW_CONTROL_TOKEN AW_ADMIN_TOKEN AW_DISPATCH_TOKEN AW_CHECKOUT_TOKEN AW_APP_PRIVATE_KEY AW_STATUS_TOKEN AW_STATUS_API_TOKEN AW_ISSUE_API_TOKEN AW_DISPATCH_API_TOKEN AW_STATUS_KEYRING AW_ARTIFACT_KEY AW_PUBLICATION_PRIVATE_KEY; do
+              if [ -n "${!central_name+x}" ]; then
+                  echo "::error::Central credential survived task isolation: ${central_name}." >&2
+                  exit 1
+              fi
+          done
+
+          chmod 700 "$TMP_SCRIPT"
+
+          echo "Executing bootstrap.sh ..."
+
+          # exec replaces this shell, so the task does not run beside a process that was started
+          # with every secret in its environment.
+          if [ "$TASK_SOURCE_PRIVATE" = "false" ]; then
+              exec bash "$TMP_SCRIPT" "$PROJECT" "$BOOTSTRAP_REF" "$REQUEST_ID"
+          fi
+          # Run logs of this public repository are world-readable; keep private task output off them.
+          # Artifacts of a public repository are downloadable by any signed-in GitHub user, so this
+          # log leaves the runner only sealed with AW_ARTIFACT_KEY (Seal failed private task log).
+          exec bash "$TMP_SCRIPT" "$PROJECT" "$BOOTSTRAP_REF" "$REQUEST_ID"               >"${RUNNER_TEMP}/action-worker-task.log" 2>&1
+
+      - name: Seal failed private task log
+        id: task_log
+        if: always() && steps.task.outcome == 'failure' && env.TASK_SOURCE_PRIVATE != 'false'
+        env:
+          AW_ARTIFACT_KEY: ${{ secrets.AW_ARTIFACT_KEY }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          log="${RUNNER_TEMP}/action-worker-task.log"
+          [ -f "$log" ] || exit 0
+          node scripts/task-state.ts seal-log "$log" "$TASK_SOURCE_REPOSITORY" "$PROJECT" "${RUNNER_TEMP}/action-worker-task-log"
+
+      - name: Upload sealed task log
+        if: always() && steps.task_log.outputs.path != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: task-log-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ steps.task_log.outputs.path }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Report task result
+        if: always() && steps.task.outcome != 'skipped'
+        env:
+          TASK_OUTCOME: ${{ steps.task.outcome }}
+          # Only whether the secret is set and whether the sealed log was produced, never a value.
+          ARTIFACT_KEY_STATE: ${{ needs.validate.outputs.is_private == 'true' && secrets.AW_ARTIFACT_KEY != '' && 'configured' || 'not configured' }}
+          TASK_LOG_STATE: ${{ steps.task_log.outputs.path != '' && 'uploaded' || 'not uploaded' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          rm -f             "${RUNNER_TEMP}/action-worker-base-env.names"             "${RUNNER_TEMP}/action-worker-repository-vars.json"             "${RUNNER_TEMP}/action-worker-task.log"
+
+          log_visibility=private
+          [ "$TASK_SOURCE_PRIVATE" = "false" ] && log_visibility=public
+          {
+            IFS= read -r log_project
+            IFS= read -r log_ref
+            IFS= read -r log_request_id
+          } < <(node scripts/task-state.ts log-view "$log_visibility" "$PROJECT" "$BOOTSTRAP_REF" "$REQUEST_ID")
+
+          echo "::group::Task Result"
+          echo "Request ID    : ${log_request_id}"
+          echo "Project       : ${log_project}"
+          echo "Bootstrap Ref : ${log_ref}"
+          echo "Outcome       : ${TASK_OUTCOME}"
+          echo "End Time      : $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          echo "::endgroup::"
+
+          if [ "$TASK_SOURCE_PRIVATE" != "false" ]; then
+            echo "Task output is suppressed because the task source repository is private."
+          fi
+          if [ "$TASK_OUTCOME" != "success" ]; then
+            echo "::error::bootstrap.sh execution failed." >&2
+            {
+              echo "## Task result"
+              echo ""
+              echo "- Outcome: ${TASK_OUTCOME}"
+              if [ "$TASK_SOURCE_PRIVATE" != "false" ]; then
+                echo "- AW_ARTIFACT_KEY: ${ARTIFACT_KEY_STATE}"
+                echo "- Private task log: ${TASK_LOG_STATE}"
+              fi
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Write task state manifest
+        if: steps.task.outcome == 'success'
+        shell: bash
+        run: node scripts/task-state.ts write "${RUNNER_TEMP}/action-worker-task-state/current" "$TASK_SOURCE_REPOSITORY" "$PROJECT" "$BOOTSTRAP_REF"
+
+      - name: Seal task state
+        id: state_upload
+        if: steps.task.outcome == 'success'
+        env:
+          AW_ARTIFACT_KEY: ${{ needs.validate.outputs.is_private == 'true' && secrets.AW_ARTIFACT_KEY || '' }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          visibility=private
+          [ "$TASK_SOURCE_PRIVATE" = "false" ] && visibility=public
+          node scripts/task-state.ts seal-state "${RUNNER_TEMP}/action-worker-task-state" "$TASK_SOURCE_REPOSITORY" "$PROJECT" "$visibility"
+
+      - name: Upload task state
+        if: steps.task.outcome == 'success' && steps.state_upload.outputs.path != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.task_state.outputs.artifact_name }}
+          path: ${{ steps.state_upload.outputs.path }}
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Validate staged publication
+        id: publication
+        env:
+          SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+        run: node scripts/validate-task-publication.ts
+
+      - name: Seal staged publication for isolated publisher
+        if: steps.publication.outputs.staged == 'true'
+        env:
+          AW_PUBLICATION_PUBLIC_KEY: ${{ vars.AW_PUBLICATION_PUBLIC_KEY }}
+        run: |
+          node scripts/task-publication-envelope.ts seal \
+            "$RUNNER_TEMP/action-worker-publication" \
+            "$RUNNER_TEMP/task-publication/sealed.json"
+
+      - name: Upload encrypted task publication
+        if: steps.publication.outputs.staged == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: task-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/task-publication/sealed.json
+          if-no-files-found: error
+          retention-days: 1
+
+  prepare_private_isolated:
+    name: Restore historical state on a fresh trusted Runner
+    needs: validate
+    if: needs.validate.outputs.private_isolation_mode == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Mask private identifiers
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          jq -r '.client_payload | [.repository, .project, .bootstrap_ref, .request_id] | .[] | select(type == "string")' "$GITHUB_EVENT_PATH" |
+            while IFS= read -r value; do
+              echo "::add-mask::$value"
+            done
+      - name: Checkout pinned trusted state preparer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Validate trusted inbound key against approved fingerprints
+        env:
+          AW_TASK_TRANSFER_INBOUND_PUBLIC_KEY: ${{ vars[needs.validate.outputs.private_inbound_public_var] }}
+          AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT: ${{ needs.validate.outputs.private_inbound_fingerprint }}
+          AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: ${{ needs.validate.outputs.private_outbound_fingerprint }}
+        run: node scripts/validate-task-transfer-key-role.ts trusted-prepare
+      - name: Restore and encrypt private state without executing task code
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AW_ARTIFACT_KEY: ${{ secrets.AW_ARTIFACT_KEY }}
+          AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: ${{ vars[needs.validate.outputs.private_inbound_public_var] }}
+          TASK_SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+          PROJECT: ${{ github.event.client_payload.project }}
+          BOOTSTRAP_REF: ${{ github.event.client_payload.bootstrap_ref }}
+          REQUEST_ID: ${{ github.event.client_payload.request_id }}
+          TASK_SOURCE_PRIVATE: "true"
+        run: node scripts/prepare-trusted-task-state.ts "$RUNNER_TEMP/private-state-input.seal"
+      - name: Upload encrypted run-bound private state
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: private-input-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/private-state-input.seal
+          if-no-files-found: error
+          retention-days: 1
+
+  run_private_isolated:
+    name: Run private task in restricted container without central credentials
+    needs: [validate, prepare_private_isolated]
+    if: needs.validate.outputs.private_isolation_mode == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    permissions:
+      contents: read
+      actions: read
+    concurrency:
+      group: action-worker-${{ needs.validate.outputs.task_group }}
+      cancel-in-progress: false
+    outputs:
+      task_outcome: ${{ steps.private_bootstrap.outcome }}
+      publication_staged: ${{ steps.private_publication.outputs.staged == 'true' && steps.private_seal_publication.outcome == 'success' && steps.private_upload_publication.outcome == 'success' }}
+      publication_failed: ${{ steps.private_publication.outcome == 'failure' || steps.private_seal_publication.outcome == 'failure' || steps.private_upload_publication.outcome == 'failure' }}
+    env:
+      AW_SOURCE_DIR: ${{ github.workspace }}/task-source
+      AW_TASK_STATE_DIR: ${{ github.workspace }}/private-state
+      AW_TASK_PRIVATE_LOG_FILE: ${{ github.workspace }}/private-task.log
+      AW_TASK_PUBLICATION_ROOT: ${{ github.workspace }}/private-publication
+      AW_TASK_TRANSFER_ROLE: task
+    steps:
+      - name: Mask private identifiers before source checkout
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          jq -r '.client_payload | [.repository, .project, .bootstrap_ref, .request_id] | .[] | select(type == "string")' "$GITHUB_EVENT_PATH" |
+            while IFS= read -r value; do
+              echo "::add-mask::$value"
+            done
+          mapfile -t private_identity < <(jq -r '.client_payload | .repository, .project, .bootstrap_ref, .request_id' "$GITHUB_EVENT_PATH")
+          if [ "${#private_identity[@]}" -ne 4 ]; then
+            echo "::error::Private task identity could not be exported." >&2
+            exit 64
+          fi
+          {
+            printf 'TASK_SOURCE_REPOSITORY=%s\n' "${private_identity[0]}"
+            printf 'PROJECT=%s\n' "${private_identity[1]}"
+            printf 'BOOTSTRAP_REF=%s\n' "${private_identity[2]}"
+            printf 'REQUEST_ID=%s\n' "${private_identity[3]}"
+          } >> "$GITHUB_ENV"
+      - name: Checkout pinned central transfer code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Verify approved private pilot image before downloading
+        env:
+          AW_TASK_CONTAINER_IMAGE: ${{ vars.AW_TASK_CONTAINER_IMAGE }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$AW_TASK_CONTAINER_IMAGE" =~ ^ghcr\.io/fongap-labs/[a-z0-9][a-z0-9._/-]*@sha256:[a-f0-9]{64}$ ]]
+          docker pull "$AW_TASK_CONTAINER_IMAGE" >/dev/null
+      - name: Checkout approved private source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.client_payload.repository }}
+          ref: ${{ github.event.client_payload.bootstrap_ref }}
+          token: ${{ secrets.AW_CHECKOUT_TOKEN }}
+          path: task-source
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify source commit without printing identifiers
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git -C "$AW_SOURCE_DIR" rev-parse HEAD)" = "$BOOTSTRAP_REF"
+          test -s "$AW_SOURCE_DIR/bootstrap.sh"
+      - name: Download encrypted private input
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: private-input-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/private-input
+      - name: Verify task-only transfer key roles
+        env:
+          AW_TASK_TRANSFER_INBOUND_PRIVATE_KEY: ${{ secrets[needs.validate.outputs.private_inbound_private_secret] }}
+          AW_TASK_TRANSFER_OUTBOUND_PUBLIC_KEY: ${{ vars[needs.validate.outputs.private_outbound_public_var] }}
+          AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT: ${{ needs.validate.outputs.private_inbound_fingerprint }}
+          AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: ${{ needs.validate.outputs.private_outbound_fingerprint }}
+        run: node scripts/validate-task-transfer-key-role.ts task
+      - name: Decrypt bounded historical state on nonprivileged host
+        env:
+          AW_TASK_TRANSFER_RECIPIENT_PRIVATE_KEY: ${{ secrets[needs.validate.outputs.private_inbound_private_secret] }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$AW_TASK_STATE_DIR"
+          chmod 700 "$AW_TASK_STATE_DIR"
+          node scripts/task-transfer-job.ts open-state state-to-task \
+            "$RUNNER_TEMP/private-input/private-state-input.seal" \
+            "$AW_TASK_STATE_DIR/previous"
+          mkdir -m 700 "$AW_TASK_STATE_DIR/current"
+      - name: Prepare private publication staging outside source and state
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -m 700 "$AW_TASK_PUBLICATION_ROOT"
+      - name: Run isolated private bootstrap without host credentials
+        id: private_bootstrap
+        continue-on-error: true
+        env:
+          AW_TASK_CONTAINER_IMAGE: ${{ vars.AW_TASK_CONTAINER_IMAGE }}
+        run: node scripts/private-task-container.ts
+      - name: Stamp and encrypt private task state
+        if: steps.private_bootstrap.outcome == 'success'
+        env:
+          AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: ${{ vars[needs.validate.outputs.private_outbound_public_var] }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node scripts/stamp-private-task-output.ts "$AW_TASK_STATE_DIR/current"
+          mkdir -p "$RUNNER_TEMP/private-output"
+          chmod 700 "$RUNNER_TEMP/private-output"
+          node scripts/task-transfer-job.ts seal-state state-from-task \
+            "$AW_TASK_STATE_DIR/current" "$RUNNER_TEMP/private-output/state.seal"
+      - name: Encrypt private task log before leaving Runner
+        if: always() && steps.private_bootstrap.outcome != 'skipped'
+        env:
+          AW_TASK_TRANSFER_RECIPIENT_PUBLIC_KEY: ${{ vars[needs.validate.outputs.private_outbound_public_var] }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test -f "$AW_TASK_PRIVATE_LOG_FILE"
+          node scripts/task-transfer-job.ts seal-log log-from-task \
+            "$AW_TASK_PRIVATE_LOG_FILE" "$RUNNER_TEMP/private-output/log.seal"
+          rm -f "$AW_TASK_PRIVATE_LOG_FILE"
+      - name: Upload encrypted private output only
+        if: always() && steps.private_bootstrap.outcome != 'skipped'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: private-output-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/private-output
+          if-no-files-found: error
+          retention-days: 1
+      - name: Validate optional private publication without revealing its target
+        id: private_publication
+        if: steps.private_bootstrap.outcome == 'success'
+        continue-on-error: true
+        env:
+          RUNNER_TEMP: ${{ github.workspace }}/private-publication
+          SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+          TASK_SOURCE_PRIVATE: "true"
+        run: node scripts/validate-task-publication.ts
+      - name: Seal approved private publication before leaving task Runner
+        id: private_seal_publication
+        if: steps.private_publication.outputs.staged == 'true'
+        continue-on-error: true
+        env:
+          AW_PUBLICATION_PUBLIC_KEY: ${{ vars.AW_PUBLICATION_PUBLIC_KEY }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -m 700 "$RUNNER_TEMP/task-publication"
+          node scripts/task-publication-envelope.ts seal \
+            "$AW_TASK_PUBLICATION_ROOT/action-worker-publication" \
+            "$RUNNER_TEMP/task-publication/sealed.json"
+      - name: Upload only encrypted approved private publication
+        id: private_upload_publication
+        if: steps.private_seal_publication.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: task-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/task-publication/sealed.json
+          if-no-files-found: error
+          retention-days: 1
+
+  finalize_private_isolated:
+    name: Convert private results on clean trusted Runner
+    needs: [validate, prepare_private_isolated, run_private_isolated]
+    outputs:
+      publication_staged: ${{ steps.private_publication_confirm.outputs.staged }}
+    if: always() && needs.validate.outputs.private_isolation_mode == 'true' && needs.prepare_private_isolated.result == 'success' && needs.run_private_isolated.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
+    env:
+      TASK_SOURCE_PRIVATE: "true"
+      TASK_OUTCOME: ${{ needs.run_private_isolated.outputs.task_outcome }}
+    steps:
+      - name: Mask private identifiers
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          jq -r '.client_payload | [.repository, .project, .bootstrap_ref, .request_id] | .[] | select(type == "string")' "$GITHUB_EVENT_PATH" |
+            while IFS= read -r value; do
+              echo "::add-mask::$value"
+            done
+          mapfile -t private_identity < <(jq -r '.client_payload | .repository, .project, .bootstrap_ref, .request_id' "$GITHUB_EVENT_PATH")
+          if [ "${#private_identity[@]}" -ne 4 ]; then
+            echo "::error::Private task identity could not be exported." >&2
+            exit 64
+          fi
+          {
+            printf 'TASK_SOURCE_REPOSITORY=%s\n' "${private_identity[0]}"
+            printf 'PROJECT=%s\n' "${private_identity[1]}"
+            printf 'BOOTSTRAP_REF=%s\n' "${private_identity[2]}"
+            printf 'REQUEST_ID=%s\n' "${private_identity[3]}"
+          } >> "$GITHUB_ENV"
+      - name: Checkout pinned central finalizer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Download encrypted run-bound private results
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: private-output-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/private-result
+      - name: Verify trusted finalization-only key role
+        env:
+          AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY: ${{ secrets[needs.validate.outputs.private_outbound_private_secret] }}
+          AW_TASK_TRANSFER_EXPECTED_INBOUND_FINGERPRINT: ${{ needs.validate.outputs.private_inbound_fingerprint }}
+          AW_TASK_TRANSFER_EXPECTED_OUTBOUND_FINGERPRINT: ${{ needs.validate.outputs.private_outbound_fingerprint }}
+        run: node scripts/validate-task-transfer-key-role.ts trusted-finalize
+      - name: Validate and seal historical private state and log
+        env:
+          AW_ARTIFACT_KEY: ${{ secrets.AW_ARTIFACT_KEY }}
+          AW_TASK_TRANSFER_OUTBOUND_PRIVATE_KEY: ${{ secrets[needs.validate.outputs.private_outbound_private_secret] }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          state_file=""
+          if [ "$TASK_OUTCOME" = "success" ]; then
+            state_file="$RUNNER_TEMP/private-result/state.seal"
+            test -f "$state_file"
+          fi
+          test -f "$RUNNER_TEMP/private-result/log.seal"
+          node scripts/finalize-trusted-task-artifacts.ts \
+            "$state_file" \
+            "$RUNNER_TEMP/private-result/log.seal" \
+            "$RUNNER_TEMP/verified-private-artifacts"
+      - name: Derive existing historical state artifact name
+        id: artifact
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          name="$(node scripts/task-state.ts name "$TASK_SOURCE_REPOSITORY" "$PROJECT")"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - name: Upload encrypted historical private state
+        if: env.TASK_OUTCOME == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: ${{ steps.artifact.outputs.name }}
+          path: ${{ runner.temp }}/verified-private-artifacts/state
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload encrypted private diagnostic log
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: task-log-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/verified-private-artifacts/log
+          if-no-files-found: error
+          retention-days: 7
+      - name: Download encrypted private publication if approved
+        if: env.TASK_OUTCOME == 'success' && needs.run_private_isolated.outputs.publication_staged == 'true'
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: task-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/private-publication
+      - name: Verify encrypted publication artifact without decrypting
+        id: private_publication_confirm
+        if: env.TASK_OUTCOME == 'success' && needs.run_private_isolated.outputs.publication_staged == 'true'
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          payload="$RUNNER_TEMP/private-publication/sealed.json"
+          test -f "$payload"
+          test ! -L "$payload"
+          test "$(find "$RUNNER_TEMP/private-publication" -type f | wc -l)" -eq 1
+          bytes="$(stat -c '%s' "$payload")"
+          test "$bytes" -gt 0 && test "$bytes" -le 157286400
+          echo "staged=true" >> "$GITHUB_OUTPUT"
+      - name: Reject failed private publication after preserving diagnostics
+        if: needs.run_private_isolated.outputs.publication_failed == 'true'
+        run: |
+          echo "::error::Private task publication failed; encrypted diagnostics were preserved."
+          exit 66
+      - name: Fail run when isolated private bootstrap failed
+        if: env.TASK_OUTCOME != 'success'
+        run: |
+          echo "::error::Isolated private task failed; diagnostic log was sealed."
+          exit 66
+
+  prepare_isolated:
+    name: Prepare explicit public pilot state
+    needs: validate
+    if: needs.validate.outputs.isolation_mode == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout pinned trusted implementation
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Refuse all historical state and produce bounded new-task input
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TASK_SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+          PROJECT: ${{ github.event.client_payload.project }}
+          BOOTSTRAP_REF: ${{ github.event.client_payload.bootstrap_ref }}
+        run: node scripts/isolated-public-task.ts prepare "$RUNNER_TEMP/isolated-input.packed"
+      - name: Upload run-bound task input
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: isolated-input-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/isolated-input.packed
+          if-no-files-found: error
+          retention-days: 1
+
+  run_isolated:
+    name: Run approved public task without governance credentials
+    needs: [validate, prepare_isolated]
+    if: needs.validate.outputs.isolation_mode == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    concurrency:
+      group: action-worker-${{ needs.validate.outputs.task_group }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      actions: read
+    env:
+      TASK_SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+      PROJECT: ${{ github.event.client_payload.project }}
+      BOOTSTRAP_REF: ${{ github.event.client_payload.bootstrap_ref }}
+      REQUEST_ID: ${{ github.event.client_payload.request_id }}
+      AW_TASK_STATE_DIR: ${{ github.workspace }}/isolated-task-state
+      AW_TASK_TRANSFER_ROLE: task
+    steps:
+      - name: Checkout pinned central code without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Checkout approved public source at verified commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.event.client_payload.repository }}
+          ref: ${{ github.event.client_payload.bootstrap_ref }}
+          token: ${{ github.token }}
+          path: task-source
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Download run-bound state input
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: isolated-input-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/isolated-input
+      - name: Restore bounded public state
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$AW_TASK_STATE_DIR"
+          node scripts/isolated-public-task.ts open-input \
+            "$RUNNER_TEMP/isolated-input/isolated-input.packed" \
+            "$AW_TASK_STATE_DIR/previous"
+          mkdir -p "$AW_TASK_STATE_DIR/current"
+      - name: Run verified public task without business or governance Secrets
+        id: bootstrap
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          test "$(git -C task-source rev-parse HEAD)" = "$BOOTSTRAP_REF"
+          test -s task-source/bootstrap.sh
+          bash -n task-source/bootstrap.sh
+          bash task-source/bootstrap.sh "$PROJECT" "$BOOTSTRAP_REF" "$REQUEST_ID"
+  finalize_isolated:
+    name: Confirm stateless outcome on fresh runner
+    needs: [validate, prepare_isolated, run_isolated]
+    if: always() && needs.validate.outputs.isolation_mode == 'true' && needs.prepare_isolated.result == 'success' && (needs.run_isolated.result == 'success' || needs.run_isolated.result == 'failure')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Confirm untrusted job outcome without loading task files
+        env:
+          TASK_RUN_RESULT: ${{ needs.run_isolated.result }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [ "$TASK_RUN_RESULT" != "success" ]; then
+            echo "::error::Isolated task failed; no output accepted or published."
+            exit 66
+          fi
+          echo "Stateless task completed; no task Artifact or historical state persisted."
+
+  publish:
+    name: Governed task publication
+    needs: [validate, execute, finalize_private_isolated]
+    if: always() && needs.validate.result == 'success' && ((needs.execute.result == 'success' && needs.execute.outputs.publication_staged == 'true') || (needs.finalize_private_isolated.result == 'success' && needs.finalize_private_isolated.outputs.publication_staged == 'true'))
+    environment:
+      name: admin-ops
+      deployment: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Mask task identifiers in public logs
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          jq -r '.client_payload | [.repository, .project, .bootstrap_ref, .request_id] | .[] | select(type == "string")' "$GITHUB_EVENT_PATH" |
+            while IFS= read -r value; do
+              if [[ "$value" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)?$ ]]; then
+                echo "::add-mask::$value"
+              fi
+            done
+
+      - name: Checkout trusted publisher
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Verify protected publication key pair
+        env:
+          AW_PUBLICATION_PUBLIC_KEY: ${{ vars.AW_PUBLICATION_PUBLIC_KEY }}
+          AW_PUBLICATION_PRIVATE_KEY: ${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}
+        run: node scripts/task-publication-envelope.ts check-keys
+
+      - name: Download encrypted task publication
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: task-publication-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/task-publication
+
+      - name: Open encrypted publication on clean runner
+        env:
+          AW_PUBLICATION_PRIVATE_KEY: ${{ secrets.AW_PUBLICATION_PRIVATE_KEY }}
+          TASK_SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+          PROJECT: ${{ github.event.client_payload.project }}
+          BOOTSTRAP_REF: ${{ github.event.client_payload.bootstrap_ref }}
+          REQUEST_ID: ${{ github.event.client_payload.request_id }}
+        run: |
+          node scripts/task-publication-envelope.ts open \
+            "$RUNNER_TEMP/task-publication/sealed.json" \
+            "$RUNNER_TEMP/action-worker-publication"
+
+      - name: Revalidate staged publication
+        id: publication
+        env:
+          SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+          TASK_SOURCE_PRIVATE: ${{ needs.validate.outputs.is_private }}
+        run: node scripts/validate-task-publication.ts
+
+      - name: Resolve publication target App scope
+        id: target_scope
+        env:
+          TARGET_REPOSITORY: ${{ steps.publication.outputs.target_repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint target publication App token
+        id: target_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.target_scope.outputs.owner }}
+          repositories: ${{ steps.target_scope.outputs.repository_name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Mint control publication intake token
+        id: control_dispatch_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Publish staged artifact
+        env:
+          GH_TOKEN: ${{ steps.target_app.outputs.token }}
+          AW_DISPATCH_API_TOKEN: ${{ steps.control_dispatch_app.outputs.token }}
+          TASK_SOURCE_PRIVATE: ${{ needs.validate.outputs.is_private }}
+          TARGET_REPOSITORY: ${{ steps.publication.outputs.target_repository }}
+          DEST_DIR: ${{ steps.publication.outputs.dest_dir }}
+          DELETE_STALE: ${{ steps.publication.outputs.delete_stale }}
+          COMMIT_MESSAGE: ${{ steps.publication.outputs.commit_message }}
+          PAYLOAD_DIR: ${{ steps.publication.outputs.payload_dir }}
+          SOURCE_REPOSITORY: ${{ github.event.client_payload.repository }}
+          PROJECT: ${{ github.event.client_payload.project }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          PUBLISH_ROOT="${RUNNER_TEMP}/action-worker-publication"
+          WORK_DIR="$(mktemp -d)"
+          branch="task-publication/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          pr_number=""
+          # A publication pull request is never closed here. Closing it cancels its central CI
+          # (cancel-pr-work) and removes the verdict a maintainer needs, so a gate failure keeps the
+          # pull request open for inspection.
+          # shellcheck disable=SC2317  # invoked from the EXIT trap
+          cleanup_publication() {
+              rm -rf "$WORK_DIR" "$PUBLISH_ROOT"
+          }
+          trap cleanup_publication EXIT
+
+          gh auth setup-git
+
+          rm -rf "$WORK_DIR/target"
+          gh repo clone "$TARGET_REPOSITORY" "$WORK_DIR/target" -- --depth 1
+          git -C "$WORK_DIR/target" switch -c "$branch"
+
+          # Never follow a symlink from an output path into the runner or Git metadata.
+          path_cursor="$WORK_DIR/target"
+          IFS='/' read -r -a destination_parts <<< "$DEST_DIR"
+          for part in "${destination_parts[@]}"; do
+              path_cursor="$path_cursor/$part"
+              if [ -L "$path_cursor" ]; then
+                  echo "::error::Publication destination traverses a target repository symlink." >&2
+                  exit 66
+              fi
+          done
+
+          target_dir="$WORK_DIR/target/$DEST_DIR"
+          # Existing symlinks below the destination can redirect the subsequent copy
+          # outside the approved directory even when every parent of DEST_DIR is safe.
+          if [ -d "$target_dir" ] && find "$target_dir" -type l -print -quit | grep -q .; then
+              echo "::error::Publication destination contains an unsafe existing symlink." >&2
+              exit 66
+          fi
+          if [ "$DELETE_STALE" = "true" ]; then
+              rm -rf "$target_dir"
+          fi
+          mkdir -p "$target_dir"
+          cp -a "$PAYLOAD_DIR"/. "$target_dir"/
+
+          # Enforce the target repository's own contracts before committing: prune the
+          # oldest output periods per .github/output-retention.json and sanitize the
+          # published manifest.json per .github/manifest-allowlist.json.
+          prepare_output="$(node scripts/prepare-publication-target.ts "$WORK_DIR/target" "$DEST_DIR")"
+          echo "$prepare_output"
+          project_dir="$(echo "$prepare_output" | sed -n 's/^PROJECT_DIR=//p')"
+
+          git -C "$WORK_DIR/target" config user.name "fongap"
+          git -C "$WORK_DIR/target" config user.email "26006683+fongap@users.noreply.github.com"
+          if [ -n "$project_dir" ]; then
+              git -C "$WORK_DIR/target" add -A -- "$DEST_DIR" "$project_dir"
+          else
+              git -C "$WORK_DIR/target" add -- "$DEST_DIR"
+          fi
+
+          if git -C "$WORK_DIR/target" diff --cached --quiet; then
+              echo "No publication changes."
+              exit 0
+          fi
+
+          if [ "$TASK_SOURCE_PRIVATE" != "false" ]; then
+              COMMIT_MESSAGE="chore: publish task outputs"
+          fi
+          git -C "$WORK_DIR/target" commit -m "$COMMIT_MESSAGE"
+          git -C "$WORK_DIR/target" push --force origin "HEAD:refs/heads/$branch"
+
+          pr_number="$(gh pr list --repo "$TARGET_REPOSITORY" --head "$branch" --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$pr_number" ]; then
+              pr_title="chore: ${COMMIT_MESSAGE#chore: }"
+              if [ "$TASK_SOURCE_PRIVATE" = "false" ]; then
+                  pr_body="Automated task publication from ${SOURCE_REPOSITORY} project ${PROJECT}. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              else
+                  pr_body="Automated task publication from an approved private source. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              fi
+              pr_number="$(basename "$(gh pr create --repo "$TARGET_REPOSITORY" --base main --head "$branch" --title "$pr_title" --body "$pr_body")")"
+          fi
+          echo "Publication pull request: ${pr_number}"
+
+          # Start the governance of the publication pull request now instead of on the next heartbeat.
+          if ! GH_TOKEN="$AW_DISPATCH_API_TOKEN" gh api --method POST "repos/${GITHUB_REPOSITORY}/dispatches" -f event_type=run-intake >/dev/null; then
+              echo "::error::Central governance dispatch failed for publication PR #${pr_number}; leaving PR open for inspection." >&2
+              exit 75
+          fi
+
+          deadline=$((SECONDS + 1800))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+              state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json state --jq .state)"
+              if [ "$state" = "MERGED" ]; then
+                  echo "Published task artifact to $TARGET_REPOSITORY/$DEST_DIR via pull request #${pr_number}."
+                  exit 0
+              fi
+              if [ "$state" = "CLOSED" ]; then
+                  echo "::error::Publication pull request #${pr_number} was closed without merging." >&2
+                  exit 1
+              fi
+
+              merge_state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json mergeStateStatus --jq .mergeStateStatus)"
+              if [ "$merge_state" = "DIRTY" ]; then
+                  echo "::error::Publication pull request #${pr_number} conflicts with $TARGET_REPOSITORY/main; a concurrent change touched $DEST_DIR." >&2
+                  exit 1
+              fi
+              if [ "$merge_state" = "BEHIND" ]; then
+                  gh pr update-branch "$pr_number" --repo "$TARGET_REPOSITORY" >/dev/null 2>&1 || true
+                  sleep 10
+                  continue
+              fi
+
+              check_state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json statusCheckRollup --jq '[.statusCheckRollup[] | select((.name // .context) == "validate-merge")] | if length == 0 then "missing" elif any(.conclusion? == "FAILURE" or .state? == "FAILURE") then "failure" elif any(.conclusion? == "SUCCESS" or .state? == "SUCCESS") then "success" else "pending" end')"
+              case "$check_state" in
+                  success)
+                      head_oid="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json headRefOid --jq .headRefOid)"
+                      gh pr merge "$pr_number" --repo "$TARGET_REPOSITORY" --squash --match-head-commit "$head_oid" && continue
+                      sleep 10
+                      ;;
+                  failure)
+                      # An untrusted App-authored head awaits a separate maintainer review. This is
+                      # not a terminal policy rejection: keep waiting within the 30-minute deadline.
+                      # Never self-approve or bypass the signed central merge gate.
+                      head_oid="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json headRefOid --jq .headRefOid)"
+                      gate_note="$(gh api "repos/$TARGET_REPOSITORY/commits/$head_oid/status" --jq '[.statuses[] | select(.context == "validate-merge")] | first | .description // ""')"
+                      if [[ "$gate_note" == "Awaiting maintainer approval of the current head commit"* ]]; then
+                          if [ "${approval_wake_sent:-false}" != "true" ]; then
+                              review_count="$(gh api "repos/$TARGET_REPOSITORY/pulls/$pr_number/reviews?per_page=100" --jq "[.[] | select(.state == \"APPROVED\" and .commit_id == \"$head_oid\")] | length")"
+                              if [ "$review_count" -gt 0 ]; then
+                                  if ! GH_TOKEN="$AW_DISPATCH_API_TOKEN" gh api --method POST "repos/${GITHUB_REPOSITORY}/dispatches" -f event_type=run-intake >/dev/null; then
+                                      echo "::error::Central governance dispatch failed after maintainer review." >&2
+                                      exit 75
+                                  fi
+                                  approval_wake_sent=true
+                              fi
+                          fi
+                          failure_reads=0
+                          sleep 20
+                          continue
+                      fi
+                      # A later gate run may replace a failure; fail closed only on repeated
+                      # non-approval rejection, never on a pending explicit maintainer review.
+                      failure_reads=$(( ${failure_reads:-0} + 1 ))
+                      if [ "$failure_reads" -ge 3 ]; then
+                          echo "::error::Publication pull request #${pr_number} failed the validate-merge check." >&2
+                          exit 1
+                      fi
+                      sleep 20
+                      ;;
+                  *)
+                      failure_reads=0
+                      sleep 20
+                      ;;
+              esac
+          done
+
+          echo "::error::Publication pull request #${pr_number} did not merge within 30 minutes." >&2
+          exit 1
+\t' read -r slot logical stored required kind; do
+              [ -n "$slot" ] || continue
+              if grep -Fxq -- "$logical" "${RUNNER_TEMP}/action-worker-base-env.names" && \
+                  { [ "$kind" = "secret" ] || [ "$stored" != "$logical" ]; }; then
+                  echo "::error::Task credential conflicts with an existing environment variable." >&2
+                  exit 65
+              fi
+              if [ "$kind" = "secret" ]; then
+                  value="${!slot-}"
+              else
+                  value="${!stored-}"
+              fi
+              if [ "$required" = "true" ] && [ -z "$value" ]; then
+                  if [ "$kind" = "variable" ]; then
+                      echo "::error::Required task Variable is unavailable." >&2
+                  else
+                      echo "::error::Required task Secret slot is missing." >&2
+                  fi
+                  exit 77
+              fi
+              if [ -n "$value" ] && [ "$stored" != "$logical" ]; then
                   export "$logical=$value"
               fi
+              if [ "$kind" = "variable" ] && [ "$stored" != "$logical" ]; then
+                  unset "$stored"
+              fi
               unset "$slot" value
-          done < <(jq -r '.slots[] | [.slot, .logical_name, .required] | @tsv' \
+          done < <(jq -r '.slots[] | [.slot, .logical_name, .stored_name, .required, (.kind // "secret")] | @tsv' \
               "${RUNNER_TEMP}/action-worker-task-secret-plan.json")
 
           # Clear every fixed slot before task code can execute, including unused slots.
