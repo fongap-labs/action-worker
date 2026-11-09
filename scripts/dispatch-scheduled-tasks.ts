@@ -283,7 +283,8 @@ export async function wasDispatched(
           { state: "pending", description: scheduleReservationDescription(task.slot) },
           { state: "success", description },
         ],
-        get
+        get,
+        task.slot
       )
     ) {
       return true;
