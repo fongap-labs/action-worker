@@ -4,7 +4,6 @@ const owner = "fongap-labs/internal-vault";
 const approvedProjects = new Set([
   "EngineSuite",
   "FongapBlog",
-  "FongapCDN",
   "MarketChina",
   "MarketGlobal",
 ]);
