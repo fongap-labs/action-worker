@@ -13,6 +13,31 @@ type GithubGet = {
 };
 
 /**
+ * DSH plugins never derive release versions from commits, tags or source manifests.
+ * Only a human workflow_dispatch supplying requested_version may initiate a release.
+ * Other managed repositories retain the existing manual auto-suggest behavior.
+ */
+export function enforceDshPluginManualVersion(
+  repository: string,
+  enteredVersion: string,
+  eventName: string
+): void {
+  if (repository !== "fongap-labs/dsh-plugin") return;
+  if (eventName !== "workflow_dispatch") {
+    throw new CliError(
+      "dsh-plugin releases require manual workflow_dispatch; automated release dispatch is disabled.",
+      65
+    );
+  }
+  if (enteredVersion.trim() === "") {
+    throw new CliError(
+      "dsh-plugin requested_version is required for manual releases; no automatic version calculation.",
+      65
+    );
+  }
+}
+
+/**
  * Resolves one manual release launch. An empty requested version proposes the next stable SemVer
  * from the Conventional Commits of the release span, which runs from the last published release of
  * the release key to the current default-branch head. The version stays an input of the release
@@ -28,6 +53,7 @@ export async function resolveManualReleaseBuild(
   runAttempt: string,
   product = ""
 ): Promise<ReturnType<typeof parseReleaseBuildRequest>> {
+  enforceDshPluginManualVersion(repository, requestedVersionRaw, "workflow_dispatch");
   validateRepositoryCapability(repository, policy, "release-source");
   const repo = await reader.get(`repos/${repository}`);
   if (!isJsonRecord(repo)) {
@@ -95,6 +121,7 @@ async function main(): Promise<void> {
         64
       )
     );
+    enforceDshPluginManualVersion(request.source_repository, request.requested_version, eventName);
   } else if (eventName === "workflow_dispatch") {
     const token = process.env.AW_CONTROL_TOKEN ?? "";
     const policy = parseJson(
