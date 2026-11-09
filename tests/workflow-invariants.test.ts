@@ -209,14 +209,26 @@ test("governed Release dispatches npm only after publication and never publishes
   assert.ok(JSON.stringify(npm).includes("republish-release-npm.ts"));
 });
 
-test("publishing releases is read-only against source branches and never opens PRs", async () => {
+test("production releases remain read-only until an approved two-phase staging opt-in", async () => {
   const releaseWorkflow = await workflow("handle-release-dispatch.yml");
+  const workflowSource = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
   const source = await readFile("scripts/publish-release.ts", "utf8");
   const notes = await readFile("scripts/changelog-release-notes.ts", "utf8");
+  const policy = JSON.parse(
+    await readFile("policies/release-two-phase-staging.json", "utf8")
+  ) as { approved_staging_repositories: unknown };
   assert.deepEqual(Object.keys(releaseWorkflow.jobs).sort(), ["npm", "release"]);
-  assert.doesNotMatch(source, /publishChangelogRelease|openReleasePullRequest|pulls\/[^\n]+merge/);
+  assert.deepEqual(policy.approved_staging_repositories, []);
+  assert.doesNotMatch(
+    workflowSource,
+    /AW_RELEASE_TWO_PHASE_MODE|AW_RELEASE_PR_WRITE_API_TOKEN|AW_RELEASE_PR_STATUS_API_TOKEN|permission-pull-requests:\s*write/
+  );
+  assert.match(source, /selectReleasePhase\(/);
+  assert.match(source, /phase\.kind === "staging"/);
+  assert.match(source, /await publishChangelogRelease\(/);
+  assert.match(source, /releaseSha = staged\.mergeSha/);
+  assert.match(source, /let releaseSha = targetSha/);
   assert.match(source, /prepareReleaseNotes/);
-  assert.match(source, /const releaseSha = targetSha/);
   assert.doesNotMatch(notes, /repos\/\$\{repository\}\/pulls|--method.*(?:POST|PATCH|PUT)/);
 });
 
