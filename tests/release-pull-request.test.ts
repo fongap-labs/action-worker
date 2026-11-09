@@ -58,12 +58,13 @@ test("invalid stage-one poll and timeout fail before any PR mutation", () => {
 
 test("stage-one deadline is shared by merge and post-merge guard checks", () => {
   assert.doesNotThrow(() => assertReleaseStageDeadline(2_000, 1_999));
-  for (const [deadline, now] of [
+  const cases: Array<[number, number]> = [
     [2_000, 2_000],
     [2_000, 2_001],
     [Number.NaN, 1_000],
     [2_000, Number.POSITIVE_INFINITY],
-  ]) {
+  ];
+  for (const [deadline, now] of cases) {
     assert.throws(
       () => assertReleaseStageDeadline(deadline, now),
       /Two-phase release deadline expired/
