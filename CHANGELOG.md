@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: GitHub Release 正式发布请求一旦发起，不再因响应丢失而自动删除可能已发布的 Release；保留现场由受控运维核对。
+
 - 修复: 两阶段非生产 Release 以受管合并后的 CHANGELOG 作为发布说明权威来源，manifest 自带说明不一致时拒绝发布。
 
 - 修复: 两阶段发布在复用已合并变更日志 PR 时，要求版本和已合并条目与当前 Release manifest 一致，拒绝旧请求的错误发布依据。
