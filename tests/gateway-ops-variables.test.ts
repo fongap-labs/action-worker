@@ -38,9 +38,15 @@ test("missing account or invalid optional ops metadata always fails closed", () 
     {},
     { CLOUDFLARE_ACCOUNT_ID_SECONDARY: "invalid" },
     { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_PUBLIC_URL: "http://gateway.example" },
-    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_PUBLIC_URL: "https://user:pass@gateway.example" },
+    {
+      CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
+      AIG_PUBLIC_URL: "https://user:pass@gateway.example",
+    },
     { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_PUBLIC_URL: "https://gateway.example/path" },
-    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_PUBLIC_URL: "https://gateway.example\nbad=value" },
+    {
+      CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
+      AIG_PUBLIC_URL: "https://gateway.example\nbad=value",
+    },
     { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_AFFINITY_KV_ID: "bad" },
     { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_USAGE_D1_ID: "bad" },
     { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_ANALYTICS_DATASET: "invalid-value" },
@@ -67,13 +73,28 @@ test("deployment workflow requires protected ops and uses only approved identifi
     "AIG_USAGE_D1_ID",
     "CLOUDFLARE_ACCOUNT_ID_SECONDARY",
   ]);
-  assert.equal((ops.outputs as Record<string, unknown>).public_url, "${{ steps.account_id.outputs.public_url }}");
+  assert.equal(
+    (ops.outputs as Record<string, unknown>).public_url,
+    "${{ steps.account_id.outputs.public_url }}"
+  );
   const exportStep = (deploy.steps as Array<{ name: string; env?: Record<string, string> }>).find(
     (step) => step.name === "Export repository variables"
   );
-  assert.equal(exportStep?.env?.AW_GATEWAY_PUBLIC_URL_FROM_OPS, "${{ needs.gateway_account_id.outputs.public_url }}");
-  assert.equal(exportStep?.env?.AW_GATEWAY_USAGE_D1_ID_FROM_OPS, "${{ needs.gateway_account_id.outputs.usage_d1_id }}");
-  assert.equal(exportStep?.env?.AW_GATEWAY_AFFINITY_KV_ID_FROM_OPS, "${{ needs.gateway_account_id.outputs.affinity_kv_id }}");
-  assert.equal(exportStep?.env?.AW_GATEWAY_ANALYTICS_DATASET_FROM_OPS, "${{ needs.gateway_account_id.outputs.analytics_dataset }}");
+  assert.equal(
+    exportStep?.env?.AW_GATEWAY_PUBLIC_URL_FROM_OPS,
+    "${{ needs.gateway_account_id.outputs.public_url }}"
+  );
+  assert.equal(
+    exportStep?.env?.AW_GATEWAY_USAGE_D1_ID_FROM_OPS,
+    "${{ needs.gateway_account_id.outputs.usage_d1_id }}"
+  );
+  assert.equal(
+    exportStep?.env?.AW_GATEWAY_AFFINITY_KV_ID_FROM_OPS,
+    "${{ needs.gateway_account_id.outputs.affinity_kv_id }}"
+  );
+  assert.equal(
+    exportStep?.env?.AW_GATEWAY_ANALYTICS_DATASET_FROM_OPS,
+    "${{ needs.gateway_account_id.outputs.analytics_dataset }}"
+  );
   assert.doesNotMatch(JSON.stringify(ops.outputs), /API_TOKEN|HEALTH_KEY|SECRET/);
 });
