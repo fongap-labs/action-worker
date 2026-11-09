@@ -62,7 +62,9 @@ export function managedAuditTargets(
 }
 
 /** Classifies API permission failures without exposing repository or Secret names. */
-export function storageAuditFailureScope(path: string): "organization" | "environment" | "repository" {
+export function storageAuditFailureScope(
+  path: string
+): "organization" | "environment" | "repository" {
   if (path.startsWith("orgs/fongap-labs/")) return "organization";
   if (path.includes("/environments")) return "environment";
   return "repository";
@@ -367,7 +369,8 @@ async function main(): Promise<void> {
     // Only aggregate counts leave this function. Never expose private names or Variable values.
     console.log(JSON.stringify(await auditStorageMetadata(reader, auditTargets), null, 2));
   } catch (error) {
-    const failure = error instanceof GithubHttpError ? `http_${error.status}_${error.kind}` : "unclassified";
+    const failure =
+      error instanceof GithubHttpError ? `http_${error.status}_${error.kind}` : "unclassified";
     console.error(
       `::error::Organization configuration scope audit blocked in ${failureScope} metadata (${failure}); no inventory or values published.`
     );
