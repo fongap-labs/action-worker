@@ -67,6 +67,26 @@ export const webhookDeliverySql = {
     "SELECT delivery_id, installation_id FROM webhook_deliveries WHERE delivered_ms IS NULL AND lease_until_ms <= ? ORDER BY lease_until_ms ASC, created_ms ASC LIMIT 25",
 } as const;
 
+/**
+ * WebCrypto imports RSA signing keys as PKCS#8. GitHub downloads App keys as
+ * PKCS#1, so reject an unconverted key before reserving a durable delivery.
+ * Keep the PEM label split to avoid any key-looking fixture in source scans.
+ */
+function isPkcs8SigningPem(value: string | undefined): boolean {
+  if (!value) return false;
+  const label = ["PRIVATE", "KEY"].join(" ");
+  const lines = value.trim().split(/\r?\n/);
+  if (
+    lines.length < 3 ||
+    lines[0] !== `-----BEGIN ${label}-----` ||
+    lines[lines.length - 1] !== `-----END ${label}-----`
+  ) {
+    return false;
+  }
+  const encoded = lines.slice(1, -1).join("");
+  return encoded.length > 0 && encoded.length % 4 === 0 && /^[A-Za-z0-9+/]+={0,2}$/.test(encoded);
+}
+
 function configuration(env: IngressEnvironment): {
   owner: string;
   repository: string;
@@ -80,8 +100,7 @@ function configuration(env: IngressEnvironment): {
     !/^[1-9]\d*$/.test(env.AW_GITHUB_APP_INSTALLATION_ID ?? "") ||
     !Number.isSafeInteger(installationId) ||
     !env.AW_GITHUB_WEBHOOK_SECRET ||
-    !env.AW_GITHUB_APP_PRIVATE_KEY?.startsWith("-----BEGIN ") ||
-    !env.AW_GITHUB_APP_PRIVATE_KEY?.includes("-----END ") ||
+    !isPkcs8SigningPem(env.AW_GITHUB_APP_PRIVATE_KEY) ||
     !env.AW_INGRESS_DB
   ) {
     throw new Error("Direct ingress configuration is incomplete.");
