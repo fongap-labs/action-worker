@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 直连 Webhook Cron 每轮重试后输出脱敏积压指标（待处理数、最老待处理分钟数、本轮完成数），并以生产同款 SQLite SQL 验证无敏感信息泄漏。
+
 - 修复: 直连 Webhook 的 GitHub App JWT 与安装令牌出站请求禁止 HTTP 重定向，避免认证请求跳转至未授权端点。
 
 - 测试: 增加真实 SQLite/D1 语句驱动的直连 Webhook 集成回归，覆盖 HMAC 验签、重放去重、原子租约及 Cron 失败恢复。
