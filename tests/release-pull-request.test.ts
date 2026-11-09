@@ -13,6 +13,7 @@ import {
 } from "../scripts/changelog-release.ts";
 import {
   assertReleasePullRequestIdentity,
+  assertReleaseStageDeadline,
   releasePullRequestTitle,
 } from "../scripts/changelog-release-pr.ts";
 import { runText } from "../scripts/runtime-command.ts";
@@ -32,6 +33,21 @@ function releaseOf(changelog: string): string {
     categories,
   });
 }
+
+test("stage-one deadline is shared by merge and post-merge guard checks", () => {
+  assert.doesNotThrow(() => assertReleaseStageDeadline(2_000, 1_999));
+  for (const [deadline, now] of [
+    [2_000, 2_000],
+    [2_000, 2_001],
+    [Number.NaN, 1_000],
+    [2_000, Number.POSITIVE_INFINITY],
+  ]) {
+    assert.throws(
+      () => assertReleaseStageDeadline(deadline, now),
+      /Two-phase release deadline expired/
+    );
+  }
+});
 
 test("a resumable release PR must match its tag, source and protected base", () => {
   const options = {
