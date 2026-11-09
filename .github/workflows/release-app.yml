@@ -464,16 +464,66 @@ jobs:
             "$RUNNER_TEMP/release-package" \
             "$RELEASE_VERSION"
 
+      # A transient GitHub Release CDN 504 must not force another manual release.
+      # All attempts use the same pinned action, Syft version, and output path.
+      # Only the first two failures are recoverable; the final attempt fails closed.
       - name: Generate release CycloneDX SBOM
+        id: sbom_attempt_1
         if: ${{ needs.prepare.outputs.sbom_asset != '' }}
+        continue-on-error: true
         uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           path: source
           format: cyclonedx-json
+          syft-version: v1.54.0
           output-file: ${{ runner.temp }}/release-package/${{ needs.prepare.outputs.sbom_asset }}
           artifact-name: release-build-sbom
           upload-artifact: false
           upload-release-assets: false
+
+      - name: Backoff before SBOM retry 2
+        if: ${{ needs.prepare.outputs.sbom_asset != '' && steps.sbom_attempt_1.outcome == 'failure' }}
+        run: sleep 10
+
+      - name: Retry release CycloneDX SBOM
+        id: sbom_attempt_2
+        if: ${{ needs.prepare.outputs.sbom_asset != '' && steps.sbom_attempt_1.outcome == 'failure' }}
+        continue-on-error: true
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: source
+          format: cyclonedx-json
+          syft-version: v1.54.0
+          output-file: ${{ runner.temp }}/release-package/${{ needs.prepare.outputs.sbom_asset }}
+          artifact-name: release-build-sbom
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Backoff before SBOM retry 3
+        if: ${{ needs.prepare.outputs.sbom_asset != '' && steps.sbom_attempt_1.outcome == 'failure' && steps.sbom_attempt_2.outcome == 'failure' }}
+        run: sleep 25
+
+      - name: Final release CycloneDX SBOM attempt
+        id: sbom_attempt_3
+        if: ${{ needs.prepare.outputs.sbom_asset != '' && steps.sbom_attempt_1.outcome == 'failure' && steps.sbom_attempt_2.outcome == 'failure' }}
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: source
+          format: cyclonedx-json
+          syft-version: v1.54.0
+          output-file: ${{ runner.temp }}/release-package/${{ needs.prepare.outputs.sbom_asset }}
+          artifact-name: release-build-sbom
+          upload-artifact: false
+          upload-release-assets: false
+
+      - name: Verify generated CycloneDX SBOM
+        if: ${{ needs.prepare.outputs.sbom_asset != '' }}
+        env:
+          SBOM_PATH: ${{ runner.temp }}/release-package/${{ needs.prepare.outputs.sbom_asset }}
+        run: |
+          set -Eeuo pipefail
+          test -s "$SBOM_PATH"
+          jq -e '.bomFormat == "CycloneDX" and (.specVersion | type == "string")' "$SBOM_PATH" > /dev/null
 
       - name: Build manifest and provenance
         env:
