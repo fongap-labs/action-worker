@@ -165,8 +165,9 @@ function isRelevantEvent(eventName: string, body: GithubEvent): boolean {
       body.number > 0 &&
       body.pull_request?.number === body.number &&
       typeof body.pull_request.base?.repo?.full_name === "string" &&
+      typeof body.repository?.full_name === "string" &&
       body.pull_request.base.repo.full_name.toLowerCase() ===
-        body.repository?.full_name?.toString().toLowerCase()
+        body.repository.full_name.toLowerCase()
     );
   }
   return false;
