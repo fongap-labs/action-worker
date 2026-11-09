@@ -95,6 +95,37 @@ function sleep(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
+/** Invalid timing configuration must fail before any release PR or branch mutation. */
+export function releaseStageTiming(
+  options: Pick<ChangelogReleaseOptions, "pollSeconds" | "timeoutMinutes">,
+  now = Date.now()
+): { pollMs: number; deadline: number } {
+  const pollSeconds = options.pollSeconds ?? 20;
+  const timeoutMinutes = options.timeoutMinutes ?? 30;
+  if (
+    !Number.isInteger(pollSeconds) ||
+    pollSeconds < 1 ||
+    pollSeconds > 120 ||
+    !Number.isInteger(timeoutMinutes) ||
+    timeoutMinutes < 1 ||
+    timeoutMinutes > 30 ||
+    !Number.isFinite(now)
+  ) {
+    throw new CliError("::error::Release poll and timeout settings are invalid.", 64);
+  }
+  return { pollMs: pollSeconds * 1000, deadline: now + timeoutMinutes * 60_000 };
+}
+
+/** A release may not proceed to any publish-changing step after its approved window. */
+export function assertReleaseStageDeadline(deadline: number, now = Date.now()): void {
+  if (!Number.isFinite(deadline) || !Number.isFinite(now) || now >= deadline) {
+    throw new CliError(
+      "::error::Two-phase release deadline expired. The existing PR is retained for controlled resumption; no tag or Release may be created by this attempt.",
+      75
+    );
+  }
+}
+
 function encode(text: string): string {
   return Buffer.from(text, "utf8").toString("base64");
 }
@@ -297,6 +328,7 @@ async function waitForMerge(
     const pull = await getGithubJson(`repos/${repository}/pulls/${number}`, token);
     assertReleasePullRequestIdentity(pull, options);
     if (pull && isJsonRecord(pull) && pull.merged === true) {
+      assertReleaseStageDeadline(deadline);
       return getJsonString(pull, "merge_commit_sha");
     }
     if (getJsonString(pull, "state") === "closed") {
@@ -324,6 +356,7 @@ async function waitForMerge(
       failureReads = 0;
     }
     if (gate === "success") {
+      assertReleaseStageDeadline(deadline);
       if (getJsonString(pull, "mergeable_state") === "behind") {
         await runGithubCli(
           ["api", "--method", "PUT", `repos/${repository}/pulls/${number}/update-branch`],
@@ -357,21 +390,24 @@ function getJsonRecord(value: unknown, key: string): unknown {
   return isJsonRecord(value) ? value[key] : undefined;
 }
 
-// The tag is created only after the merge commit carries Main Write Guard proof. That proof comes
-// from the target repository's own intake, which runs after the merge, so this waits for it.
-// assertTrustedMainWrite itself polls for about a minute, so this allows about half an hour.
+// The tag is created only after the merge commit carries Main Write Guard proof.
+// The expensive attestation poll must share the SAME release deadline as the PR merge.
 const MAIN_WRITE_GUARD_ATTEMPTS = 30;
 
-async function waitForMainWriteGuard(options: ChangelogReleaseOptions, mergeSha: string) {
+async function waitForMainWriteGuard(
+  options: ChangelogReleaseOptions,
+  mergeSha: string,
+  deadline: number
+) {
   const reader = statusAwareReader(
     process.env.GITHUB_API_URL ?? "https://api.github.com",
     options.token,
     options.statusToken
   );
   for (let attempt = 1; attempt <= MAIN_WRITE_GUARD_ATTEMPTS; attempt += 1) {
+    assertReleaseStageDeadline(deadline);
     try {
       await assertTrustedMainWrite(reader, options.repository, mergeSha, true);
-      return;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (
@@ -380,7 +416,10 @@ async function waitForMainWriteGuard(options: ChangelogReleaseOptions, mergeSha:
       ) {
         throw error;
       }
+      continue;
     }
+    assertReleaseStageDeadline(deadline);
+    return;
   }
 }
 
@@ -389,8 +428,7 @@ export async function publishChangelogRelease(
 ): Promise<ChangelogRelease> {
   const { repository, tag, policy, token } = options;
   const branch = releaseBranchOf(tag);
-  const pollMs = (options.pollSeconds ?? 20) * 1000;
-  const deadline = Date.now() + (options.timeoutMinutes ?? 30) * 60_000;
+  const { pollMs, deadline } = releaseStageTiming(options);
 
   const pull = await findReleasePullRequest(repository, branch, token);
   if (pull) assertReleasePullRequestIdentity(pull, options);
@@ -398,7 +436,8 @@ export async function publishChangelogRelease(
   for (let rebuilds = 0; ; rebuilds += 1) {
     try {
       const mergeSha = await waitForMerge(options, number, pollMs, deadline);
-      await waitForMainWriteGuard(options, mergeSha);
+      await waitForMainWriteGuard(options, mergeSha, deadline);
+      assertReleaseStageDeadline(deadline);
 
       const changelog = await readFileAt(repository, policy.changelog_file, mergeSha, token);
       if (!changelog) {
@@ -407,6 +446,7 @@ export async function publishChangelogRelease(
           65
         );
       }
+      assertReleaseStageDeadline(deadline);
       return {
         mergeSha,
         notes: releaseSectionBody(changelog.content, options.releaseUrl),
