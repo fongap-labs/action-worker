@@ -247,9 +247,16 @@ export function isExactChangelogResumeDiff(
   mergeSha: string,
   changelogFile: string
 ): boolean {
+  if (
+    !isJsonRecord(comparison) ||
+    !Array.isArray(comparison.commits) ||
+    !Array.isArray(comparison.files)
+  ) {
+    return false;
+  }
   const baseCommit = getJsonRecord(comparison, "base_commit");
-  const commits = getJsonArray(comparison, "commits");
-  const files = getJsonArray(comparison, "files");
+  const commits = comparison.commits;
+  const files = comparison.files;
   return (
     getJsonString(comparison, "status") === "ahead" &&
     getJsonNumber(comparison, "ahead_by") === 1 &&
@@ -288,10 +295,7 @@ export async function assertExactMergedChangelogResume(
       65
     );
   }
-  const diff = await getGithubJson(
-    `repos/${repository}/compare/${sourceSha}...${mergeSha}`,
-    token
-  );
+  const diff = await getGithubJson(`repos/${repository}/compare/${sourceSha}...${mergeSha}`, token);
   if (!isExactChangelogResumeDiff(diff, sourceSha, mergeSha, policy.changelog_file)) {
     throw new CliError(
       "::error::Stale source was not advanced exclusively by the approved staging changelog squash merge.",
