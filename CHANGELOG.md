@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 安全: 中央部署 prepare 以现有只读 GITHUB_TOKEN 校验凭据 Environment 已存在且元数据完整；缺失或无权限时拒绝进入动态 Environment Job，防止自动创建未经保护的环境。保留人工审批及原有 Secret 隔离。
+
 - 安全: FongapCDN 已由中央策略强制走受保护部署，撤销中央通用 Task Secret 授权，增加跨执行模式的凭据准入一致性测试，其他项目任务授权不变。
 
 - 安全: 自动推送与定时部署在派发前校验受中央策略选中的实际凭据 ops Environment 是否需要人工审核，避免只检查逻辑 production 而使无人值守发布卡在审批队列；不可读取及未经授权均拒绝派发。
