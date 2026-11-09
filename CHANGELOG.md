@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 优化: 将独立的产品生产部署凭据作用域纳入 Action Worker 中央控制策略，FongapCDN 正式发布在受保护 internal-vault-ops 中使用既有 PRIMARY Cloudflare 凭据，经过源码准入与 CI 后执行，不跨 Job 传递 Secret，并由独立 production Job 补记部署审计；其他产品保持原有 production 路径。
+
 - 修复: 通用任务分发对内部仓库批准的 Cloudflare 账号非敏感 Variable 增加受保护 internal-vault-ops 精确作用域读取及任务 Job 安全传递，仓库级可见时直接复用、仅在不可见时启用运维作业；严格绑定中央项目白名单、不跨 Job 传 Secret、不放宽私有隔离或准入门禁。
 
 - 修复: 控制仓库受保护配置审计在 Environment Secret 名称接口被明确拒绝时，继续读取有权限访问的 ops Variables 元数据；不可读取的 Secret 范围标为未知，并与组织/环境整体不可读取的自动降级链衔接，避免配置误判与重复人工盘点。
