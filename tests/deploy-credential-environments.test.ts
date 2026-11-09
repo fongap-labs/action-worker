@@ -123,6 +123,35 @@ test("central deployment uses ops only for authorized credential read and record
     "DEPLOY_PRODUCT",
     "DEPLOY_SOURCE_REPOSITORY",
   ]);
+  assert.equal(prepare.outputs?.checkout_owner, "${{ steps.api_scope.outputs.owner }}");
+  assert.equal(
+    prepare.outputs?.checkout_repository_name,
+    "${{ steps.api_scope.outputs.repository_name }}"
+  );
+  const steps = deploy.steps as Array<{
+    name?: string;
+    id?: string;
+    uses?: string;
+    if?: string;
+    with?: Record<string, string>;
+  }>;
+  const mint = steps.find((step) => step.id === "checkout_read_app");
+  const privateCheckout = steps.find((step) => step.name === "Checkout private deploy source");
+  assert.ok(mint && privateCheckout);
+  assert.equal(mint.uses, "./control/.github/actions/mint-app-token");
+  assert.equal(mint.if, "needs.prepare.outputs.is_private == 'true'");
+  assert.deepEqual(mint.with, {
+    "client-id": "${{ vars.AW_APP_CLIENT_ID }}",
+    "private-key": "${{ secrets.AW_APP_PRIVATE_KEY }}",
+    owner: "${{ needs.prepare.outputs.checkout_owner }}",
+    repositories: "${{ needs.prepare.outputs.checkout_repository_name }}",
+    "permission-contents": "read",
+  });
+  assert.ok(steps.indexOf(mint) < steps.indexOf(privateCheckout));
+  assert.equal(privateCheckout.with?.token, "${{ steps.checkout_read_app.outputs.token }}");
+  assert.equal(privateCheckout.with?.["persist-credentials"], false);
+  assert.equal(privateCheckout.with?.ref, "${{ needs.prepare.outputs.source_sha }}");
+  assert.doesNotMatch(JSON.stringify(deploy), /AW_CHECKOUT_TOKEN/);
   assert.deepEqual(deploy.environment, {
     name: "${{ needs.prepare.outputs.credential_environment }}",
     deployment: "${{ needs.prepare.outputs.create_deployment == 'true' }}",
