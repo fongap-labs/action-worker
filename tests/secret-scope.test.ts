@@ -360,7 +360,7 @@ test("the central policies give each Cloudflare account its own qualified secret
     "inference-center-ops"
   );
   assert.deepEqual([...retired], []);
-  for (const project of ["FongapBlog", "FongapCDN"]) {
+  for (const project of ["FongapBlog"]) {
     const task = await readSecretAliases(
       "policies/task-secrets.json",
       "task",
@@ -375,6 +375,23 @@ test("the central policies give each Cloudflare account its own qualified secret
       ]
     );
   }
+  const retiredCdnTask = await readSecretAliases(
+    "policies/task-secrets.json",
+    "task",
+    "fongap-labs/internal-vault",
+    "FongapCDN"
+  );
+  assert.deepEqual([...retiredCdnTask], []);
+  const cdnDeploy = await readSecretAliases(
+    "policies/deploy-secrets.json",
+    "deploy",
+    "fongap-labs/internal-vault/FongapCDN",
+    "production"
+  );
+  assert.deepEqual([...cdnDeploy], [
+    ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_PRIMARY"],
+    ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_PRIMARY"],
+  ]);
   // MarketChina uses a dedicated R2 S3 access key; an API token is not interchangeable.
   assert.deepEqual(
     [
