@@ -95,8 +95,7 @@ export function assertTaskExecutionAllowed(
   repository: string,
   project: string
 ): void {
-  const productKeyPattern =
-    /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+  const productKeyPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
   if (
     !isJsonRecord(policy) ||
     policy.schema_version !== 1 ||
