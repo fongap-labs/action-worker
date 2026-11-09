@@ -16,7 +16,7 @@
 
 ## 两阶段受控代码路径
 
-在所有既有 request/CI Evidence、Main Write Guard、产物 SHA-256、目标 App 作用域及 Release tag 冲突验证完成后，staging 模式会调用 `publishChangelogRelease`，在目标仓库创建或恢复 `aw/changelog/<tag>` PR。该 PR 只有通过**签名且来源可信的** `validate-merge` 与合并提交 Main Write Guard 后才能返回 `mergeSha`。随后使用此 `mergeSha`，而非阶段一之前的 target SHA，作为 Draft Release 的 `target_commitish`；若 manifest 没有提供显式 release_notes，采用合并后版本小节。
+在所有既有 request/CI Evidence、Main Write Guard、产物 SHA-256、目标 App 作用域及 Release tag 冲突验证完成后，staging 模式会调用 `publishChangelogRelease`，在目标仓库创建或恢复 `aw/changelog/<tag>` PR。该 PR 只有通过**签名且来源可信的** `validate-merge` 与合并提交 Main Write Guard 后才能返回 `mergeSha`。随后使用此 `mergeSha`，而非阶段一之前的 target SHA，作为 Draft Release 的 `target_commitish`；最终发布说明以**已合并且验签的 CHANGELOG 版本小节**为准；若 manifest 显式提供 release_notes，内容必须与该小节一致，否则 fail-closed，绝不通过 manifest 摘要覆盖受管 PR 的实际内容。
 
 阶段一重试必须继续核验 PR 身份和同一截止时间。 合并后还必须在目标合并提交上查证目标 Release URL 对应的版本小节恰好出现一次、版本匹配；对 manifest 声明了专属条目的请求，版本小节中各类别的完整条目必须与本次 manifest 完全一致，防止同一 tag 的旧 PR 在不同请求之间被错误复用。staging 限制阶段一总预算为 12 分钟；当前生产 Workflow 只有 20 分钟作业上限，且包含产物下载、验证、Release 上传等步骤，**尚不能以现有生产作业的时限证明真实 E2E**。未来试点需单独审查独立 Job 超时、取消与恢复策略，不能因为 staging 代码存在就自动放行。
 
