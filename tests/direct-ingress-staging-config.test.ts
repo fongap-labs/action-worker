@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   buildDirectIngressStagingConfig,
@@ -58,4 +59,17 @@ test("staging generator rejects missing or malformed IDs before writing configur
       /Approved staging D1 and GitHub App identifiers are required/
     );
   }
+});
+
+test("central static CI verifies the inert ingress Worker through a pinned Wrangler dry-run", () => {
+  const workflow = readFileSync(
+    new URL("../.github/workflows/validate-ci.yml", import.meta.url),
+    "utf8"
+  );
+  assert.match(workflow, /Dry-run direct ingress Worker bundle/);
+  assert.match(workflow, /npm run ingress:staging-config/);
+  assert.match(workflow, /wrangler@4\\.158\\.0 deploy --dry-run/);
+  assert.match(workflow, /--config \\.direct-ingress-staging\\.wrangler\\.json/);
+  assert.match(workflow, /--outdir/);
+  assert.doesNotMatch(workflow, /wrangler@4\\.158\\.0 deploy --config/);
 });
