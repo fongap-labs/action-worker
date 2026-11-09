@@ -52,7 +52,10 @@ test("invalid stage-one poll and timeout fail before any PR mutation", () => {
     { timeoutMinutes: 31 },
     { timeoutMinutes: Number.NaN },
   ]) {
-    assert.throws(() => releaseStageTiming(invalid), /Release poll and timeout settings are invalid/);
+    assert.throws(
+      () => releaseStageTiming(invalid),
+      /Release poll and timeout settings are invalid/
+    );
   }
 });
 
