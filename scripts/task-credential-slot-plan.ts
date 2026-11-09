@@ -1,4 +1,8 @@
-import { readSecretAliases, readTaskSecretCeiling, readTaskSecretVariableSources } from "./resolve-secret-scope.ts";
+import {
+  readSecretAliases,
+  readTaskSecretCeiling,
+  readTaskSecretVariableSources,
+} from "./resolve-secret-scope.ts";
 import { CliError } from "./runtime-command.ts";
 
 // GitHub Actions must reference each Secret explicitly in the future isolated task Job.
@@ -78,7 +82,10 @@ export async function buildTaskCredentialSlotPlan(
       throw new CliError(`Required task Variable is unavailable: ${name} (stored as ${stored}).`, 77);
     }
     if (kind === "secret" && Object.hasOwn(baseEnvironment, stored)) {
-      throw new CliError(`Task Secret source collides with a pre-existing non-secret environment variable: ${stored}.`, 65);
+      throw new CliError(
+        `Task Secret source collides with a pre-existing non-secret environment variable: ${stored}.`,
+        65
+      );
     }
     usedSources.add(stored);
     return {
