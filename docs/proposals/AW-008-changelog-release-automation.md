@@ -8,6 +8,7 @@
 - **阶段一模块已实现、运行入口尚未接线**：`scripts/changelog-release-pr.ts` 提供变更日志 PR 创建、签名 `validate-merge` 检查、合并及 Main Write Guard 验收，并要求恢复的 PR 身份与 tag/仓库/目标分支一致。实际 `handle-release-dispatch.yml` 仍调用 `scripts/publish-release.ts` 的只读 CHANGELOG 直接 Release 路径，不调用阶段一；发布 Token 目前也未被授予阶段一所需的最小 PR 写权限。必须先完成独立权限审查和非生产真实 E2E，不能将模块存在表述为两阶段发布已经落地。
 
 - 阶段一模块的超时预算覆盖**PR 等待合并和合并后的 Main Write Guard**：不得在 PR 合并后重新开始计时。轮询参数和总截止时间在任何 PR 写入前校验，过期后拒绝继续发布；已有 PR 留给受控重试。当前 `handle-release-dispatch.yml` 的作业上限为 20 分钟，若未来接线，必须配置短于作业上限的阶段一总预算或单独受控作业，不能继续使用 30 分钟默认值直接塞入 20 分钟作业。
+- 阶段一已增加源码层的 **非生产 opt-in 接线**：`scripts/publish-release.ts` 仅当显式 staging mode、受审目标白名单、独立目标 PR 写凭据和独立状态读取凭据全部满足时才可调用 `publishChangelogRelease` 并使用合并 SHA 创建 Release。当前 `policies/release-two-phase-staging.json` 为空，现有生产工作流不提供 mode 或 PR 写权限，因此**没有启用这条新路径，也没有真实 E2E 通过证据**。操作要求见 `docs/release-two-phase-staging.md`。
 - 已实施并核实：业务仓库中既有的英文 `[Unreleased]` 条目已全部改写为中文。2026-10-23 核对 7 个仓库在 `main` 上的 `[Unreleased]`，均无英文条目。见下文"既有英文条目"。
 - 未验证：阶段一尚未对真实目标仓库端到端运行。它依赖目标仓库的 PR 门禁、Main Write Guard 与中央 CI 对合并提交给出证明，这些只能在真实发布中验证。
 - 已实施：条目文件（`changelog.d/`）替换 `CHANGELOG.md merge=union`，包括校验（`scripts/validate-change-record.ts`）、汇总函数（`scripts/changelog-release.ts` 的 `promoteUnreleased` 接受条目文件）、`.gitattributes` 的改动、文档与测试。
