@@ -25,7 +25,7 @@ test("only approved source product switches credential ownership to existing ops
     ["fongap-labs/internal-vault", "server-edge"],
     ["fongap-labs/ai-gateway", ""],
     ["fongap-labs/mcp-hub", ""],
-  ]) {
+  ] as const) {
     assert.deepEqual(selectDeployCredentialEnvironment(routes, grants, repo, product, "production"), {
       credential_environment: "production",
       create_deployment: true,
@@ -36,7 +36,7 @@ test("only approved source product switches credential ownership to existing ops
     ["fongap-labs/internal-vault", "Unapproved", "production"],
     ["fongap-labs/external-vault", "FongapCDN", "production"],
     ["fongap-labs/internal-vault", "../FongapCDN", "production"],
-  ]) {
+  ] as const) {
     assert.throws(
       () => selectDeployCredentialEnvironment(routes, grants, repo, product, environment),
       /not authorized/
