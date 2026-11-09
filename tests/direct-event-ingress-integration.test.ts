@@ -244,6 +244,7 @@ test("Cron emits only aggregate backlog telemetry and retains pending retries", 
     assert.deepEqual(recovered, {
       component: "direct-event-ingress",
       completed_count: 1,
+      failed_count: 0,
       pending_count: 0,
       oldest_pending_age_minutes: null,
     });
@@ -262,10 +263,50 @@ test("Cron emits only aggregate backlog telemetry and retains pending retries", 
   }
 });
 
+test("Cron counts failed retry attempts without disclosing delivery or credential data", async () => {
+  const inbox = new NativeSqliteInbox();
+  try {
+    const env = environment(inbox);
+    const api = githubApi({ failDispatches: 2 });
+    assert.equal((await handleDirectWebhook(signedPush(firstDelivery), env, api.fetcher)).status, 503);
+    inbox.database
+      .prepare("UPDATE webhook_deliveries SET lease_until_ms = 0 WHERE delivery_id = ?")
+      .run(firstDelivery);
+    const reports: string[] = [];
+    assert.equal(await reconcileIngressCron(env, api.fetcher, (line) => reports.push(line)), 0);
+    assert.equal(reports.length, 1);
+    assert.deepEqual(JSON.parse(reports[0]!), {
+      component: "direct-event-ingress",
+      completed_count: 0,
+      failed_count: 1,
+      pending_count: 1,
+      oldest_pending_age_minutes: 0,
+    });
+    assert.equal(
+      inbox.database
+        .prepare("SELECT delivered_ms FROM webhook_deliveries WHERE delivery_id = ?")
+        .get(firstDelivery)?.delivered_ms,
+      null
+    );
+    for (const forbidden of [
+      webhookSecret,
+      appSigningKey,
+      "synthetic-installation-token",
+      firstDelivery,
+      "fongap-labs/workflow-fixture",
+    ]) {
+      assert.equal(reports[0]!.includes(forbidden), false);
+    }
+  } finally {
+    inbox.close();
+  }
+});
+
 test("invalid backlog summaries fail closed without logging untrusted database data", () => {
   assert.deepEqual(ingressCronTelemetry(0, { pending_count: 0, oldest_created_ms: null }, 1_000), {
     component: "direct-event-ingress",
     completed_count: 0,
+    failed_count: 0,
     pending_count: 0,
     oldest_pending_age_minutes: null,
   });
@@ -274,9 +315,14 @@ test("invalid backlog summaries fail closed without logging untrusted database d
     {
       component: "direct-event-ingress",
       completed_count: 2,
+      failed_count: 0,
       pending_count: 1,
       oldest_pending_age_minutes: 2,
     }
+  );
+  assert.throws(
+    () => ingressCronTelemetry(0, { pending_count: 0, oldest_created_ms: null }, 1_000, -1),
+    /backlog snapshot/
   );
   for (const invalid of [
     null,
