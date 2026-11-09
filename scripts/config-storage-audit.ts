@@ -21,6 +21,7 @@ export type StorageAuditSummary = {
   mode: "read-only-storage-metadata";
   coverage: "complete" | "control-only" | "control-repository-only";
   environment_scope_verified: boolean;
+  environment_secret_scope_verified: boolean;
   organization_scope_verified: boolean;
   repositories_verified: number;
   repository_secrets: number;
@@ -255,7 +256,11 @@ function repositoryInfo(value: unknown): RepositoryInfo {
 export async function auditStorageMetadata(
   reader: Reader,
   repositories: readonly string[],
-  options: { skipOrganization?: boolean; skipEnvironments?: boolean } = {}
+  options: {
+    skipOrganization?: boolean;
+    skipEnvironments?: boolean;
+    allowEnvironmentSecretPermissionGap?: boolean;
+  } = {}
 ): Promise<StorageAuditSummary> {
   if (
     repositories.length === 0 ||
@@ -263,7 +268,9 @@ export async function auditStorageMetadata(
     repositories.some((name) => !repositoryPattern.test(name)) ||
     ((options.skipOrganization === true || options.skipEnvironments === true) &&
       (repositories.length !== 1 || repositories[0] !== "fongap-labs/action-worker")) ||
-    (options.skipEnvironments === true && options.skipOrganization !== true)
+    (options.skipEnvironments === true && options.skipOrganization !== true) ||
+    (options.allowEnvironmentSecretPermissionGap === true &&
+      (options.skipOrganization !== true || options.skipEnvironments === true))
   ) {
     throw new CliError("Configuration inventory targets are invalid.", 65);
   }
@@ -277,6 +284,7 @@ export async function auditStorageMetadata(
         : "complete",
     organization_scope_verified: !options.skipOrganization,
     environment_scope_verified: !options.skipEnvironments,
+    environment_secret_scope_verified: !options.skipEnvironments,
     repositories_verified: 0,
     repository_secrets: 0,
     repository_variables: 0,
@@ -345,7 +353,24 @@ export async function auditStorageMetadata(
       const environmentsByName = environmentNames(environments);
       for (const name of environmentsByName) {
         const url = "repos/" + repository + "/environments/" + encodeURIComponent(name);
-        const environmentSecrets = namesOf(await listAll(reader, url + "/secrets", "secrets"));
+        let environmentSecrets = new Set<string>();
+        if (result.environment_secret_scope_verified) {
+          try {
+            environmentSecrets = namesOf(await listAll(reader, url + "/secrets", "secrets"));
+          } catch (error) {
+            if (
+              !options.allowEnvironmentSecretPermissionGap ||
+              !(error instanceof GithubHttpError) ||
+              error.status !== 403 ||
+              error.kind !== "permission"
+            ) {
+              throw error;
+            }
+            // Secret names are unknown, not absent. Avoid denied endpoints,
+            // but continue independently authorized Variables metadata reads.
+            result.environment_secret_scope_verified = false;
+          }
+        }
         const environmentVariables = namesOf(
           await listAll(reader, url + "/variables", "variables")
         );
@@ -362,6 +387,10 @@ export async function auditStorageMetadata(
       }
     }
     result.repositories_verified++;
+  }
+  if (!result.environment_secret_scope_verified) {
+    result.environment_secrets = null;
+    result.environment_shadowed_secret_bindings = null;
   }
   if (options.skipEnvironments) {
     // Environment names and counts cannot be inferred from repository metadata.
@@ -433,6 +462,7 @@ async function main(): Promise<void> {
       try {
         summary = await auditStorageMetadata(reader, ["fongap-labs/action-worker"], {
           skipOrganization: true,
+          allowEnvironmentSecretPermissionGap: true,
         });
       } catch (environmentError) {
         if (
