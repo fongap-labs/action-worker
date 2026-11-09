@@ -12,6 +12,29 @@ export type ReleasePhaseSelection =
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 export const stagingReleaseTimeoutMinutes = 12;
 
+/**
+ * A signed manifest cannot silently override the vetted changelog merged in
+ * stage one. In staging, an explicit manifest description must agree with that
+ * authenticated release section; production read-only behavior is unchanged.
+ */
+export function selectVerifiedReleaseNotes(
+  phase: ReleasePhaseSelection,
+  manifestNotes: string | undefined,
+  mergedNotes: string | undefined
+): string | undefined {
+  if (phase.kind === "read-only") return manifestNotes;
+  if (!mergedNotes?.trim()) {
+    throw new CliError("::error::The staged Release has no verified merged changelog notes.", 65);
+  }
+  if (manifestNotes !== undefined && manifestNotes.trim() !== mergedNotes.trim()) {
+    throw new CliError(
+      "::error::Manifest Release notes differ from the verified merged changelog section.",
+      65
+    );
+  }
+  return mergedNotes;
+}
+
 /** Any future staging target must be explicitly reviewed and added to source-controlled policy. */
 export function parseTwoPhaseReleasePolicy(value: unknown): TwoPhaseReleasePolicy {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
