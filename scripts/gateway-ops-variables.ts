@@ -23,7 +23,7 @@ export function validateGatewayOpsVariables(
   const result: Record<string, string> = {};
   const account = input.CLOUDFLARE_ACCOUNT_ID_SECONDARY ?? "";
   if (!/^[0-9a-f]{32}$/.test(account)) {
-    throw new CliError("Approved ai-gateway-ops Account ID is missing or invalid.", 77);
+    throw new CliError("Approved ai-gateway-ops Account ID is unavailable or invalid.", 77);
   }
   result.CLOUDFLARE_ACCOUNT_ID_SECONDARY = account;
 
