@@ -477,17 +477,43 @@ jobs:
             "${RUNNER_TEMP}/action-worker-deploy-secret-plan.json"
 
   record_production_deployment:
-    # The credential-owning ops job performs the authorized production publish.
-    # Keep a separate actual GitHub production Deployment record after it succeeds.
+    # This is an audit AFTER the protected ops Job has published successfully.
+    # Do not bind production Environment here: its reviewer gate would block a
+    # read-only audit after the actual Cloudflare deployment already completed.
     name: Record approved production deploy after protected ops publish
     needs: [prepare, deploy]
-    if: ${{ !cancelled() && needs.prepare.result == 'success' && needs.deploy.result == 'success' && needs.prepare.outputs.credential_environment != needs.prepare.outputs.environment }}
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && needs.prepare.result == 'success' && needs.deploy.result == 'success' && needs.prepare.outputs.credential_environment != needs.prepare.outputs.environment }}
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    environment:
-      name: ${{ needs.prepare.outputs.environment }}
     permissions:
       contents: read
+      deployments: write
     steps:
-      - name: Record approved production deployment completion
-        run: echo "Central source deployment completed using approved repository-specific ops credentials."
+      - name: Record success-only production Deployment using scoped GitHub token
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_REPOSITORY: ${{ needs.prepare.outputs.source_repository }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          SOURCE_PRODUCT: ${{ needs.prepare.outputs.product }}
+          TARGET_ENVIRONMENT: ${{ needs.prepare.outputs.environment }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$GITHUB_REF" == refs/heads/main && "$TARGET_ENVIRONMENT" == production ]] || exit 77
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 77
+          # The publication has already passed source gates and completed in
+          # the protected ops Job. This records evidence; it deploys nothing.
+          body="$(jq -nc \
+            --arg ref "$GITHUB_SHA" \
+            --arg source "$SOURCE_REPOSITORY" \
+            --arg sha "$SOURCE_SHA" \
+            --arg product "$SOURCE_PRODUCT" \
+            --arg run "$GITHUB_RUN_ID" \
+            '{ref:$ref,environment:"production",auto_merge:false,required_contexts:[],production_environment:true,description:"Successful protected source-script publish",payload:{source_repository:$source,source_sha:$sha,product:$product,run_id:$run}}')"
+          deployment="$(gh api --method POST "repos/$GITHUB_REPOSITORY/deployments" --input - <<< "$body")"
+          id="$(jq -re '.id | select(type == "number" and . > 0)' <<< "$deployment")"
+          status="$(jq -nc \
+            --arg log_url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" \
+            '{state:"success",log_url:$log_url,description:"Protected source deployment succeeded",auto_inactive:false}')"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/deployments/$id/statuses" --input - <<< "$status" >/dev/null
+          echo "Recorded successful production Deployment $id after protected publish."
