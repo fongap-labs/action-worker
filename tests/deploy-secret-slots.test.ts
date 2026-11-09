@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -119,6 +119,36 @@ test("partial write failure removes only files created by the staging attempt", 
     );
     await assert.rejects(stat(join(directory, "TOKEN_A")), { code: "ENOENT" });
     assert.equal(await readFile(preexisting, "utf8"), "pre-existing-file");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("staging cannot replace a pre-existing symlink or leave earlier Secret files", async () => {
+  const root = await mkdtemp(join(tmpdir(), "deploy-slots-"));
+  const directory = join(root, "action-worker-deploy-secrets");
+  try {
+    await mkdir(directory);
+    const target = join(root, "unrelated-file");
+    await writeFile(target, "original-value", { mode: 0o600 });
+    await symlink(target, join(directory, "TOKEN_B"));
+    const plan = {
+      schema_version: 1 as const,
+      secrets: [
+        { name: "TOKEN_A", source: "SOURCE_A", required: true, kind: "secret" as const },
+        { name: "TOKEN_B", source: "SOURCE_B", required: true, kind: "secret" as const },
+      ],
+    };
+    await assert.rejects(
+      stageDeploySecretSlots(
+        { AW_DEPLOY_SECRET_00: "private-first", AW_DEPLOY_SECRET_01: "private-second" },
+        plan,
+        root
+      ),
+      { code: "EEXIST" }
+    );
+    await assert.rejects(stat(join(directory, "TOKEN_A")), { code: "ENOENT" });
+    assert.equal(await readFile(target, "utf8"), "original-value");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
