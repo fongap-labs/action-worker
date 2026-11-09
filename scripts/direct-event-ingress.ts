@@ -197,7 +197,8 @@ export async function dispatchIntake(
     typeof tokenBody === "object" && tokenBody !== null && "token" in tokenBody
       ? (tokenBody as { token?: unknown }).token
       : undefined;
-  if (typeof token !== "string" || !token) throw new Error("GitHub App installation token is missing.");
+  if (typeof token !== "string" || !token)
+    throw new Error("GitHub App installation token is missing.");
   const response = await apiFetch("https://api.github.com/repos/" + repository + "/dispatches", {
     method: "POST",
     headers: {
@@ -211,10 +212,18 @@ export async function dispatchIntake(
   if (response.status !== 204) throw new Error("Central Intake dispatch was not acknowledged.");
 }
 
-async function reserveDelivery(env: IngressEnvironment, deliveryId: string, installationId: number, eventName: string, repository: string): Promise<void> {
+async function reserveDelivery(
+  env: IngressEnvironment,
+  deliveryId: string,
+  installationId: number,
+  eventName: string,
+  repository: string
+): Promise<void> {
   await env.AW_INGRESS_DB.prepare(
     "INSERT OR IGNORE INTO webhook_deliveries (delivery_id, installation_id, event_name, source_repository, created_ms, lease_until_ms) VALUES (?, ?, ?, ?, ?, 0)"
-  ).bind(deliveryId, installationId, eventName, repository, Date.now()).run();
+  )
+    .bind(deliveryId, installationId, eventName, repository, Date.now())
+    .run();
 }
 
 async function attemptPending(
@@ -224,12 +233,16 @@ async function attemptPending(
 ): Promise<boolean> {
   const claimed = await env.AW_INGRESS_DB.prepare(
     "UPDATE webhook_deliveries SET lease_until_ms = ? WHERE delivery_id = ? AND delivered_ms IS NULL AND lease_until_ms <= ? RETURNING delivery_id"
-  ).bind(Date.now() + leaseMs, delivery.delivery_id, Date.now()).first<{ delivery_id: string }>();
+  )
+    .bind(Date.now() + leaseMs, delivery.delivery_id, Date.now())
+    .first<{ delivery_id: string }>();
   if (!claimed) return false;
   await dispatchIntake(env, delivery.installation_id, apiFetch);
   await env.AW_INGRESS_DB.prepare(
     "UPDATE webhook_deliveries SET delivered_ms = ?, lease_until_ms = 0 WHERE delivery_id = ?"
-  ).bind(Date.now(), delivery.delivery_id).run();
+  )
+    .bind(Date.now(), delivery.delivery_id)
+    .run();
   return true;
 }
 
@@ -252,12 +265,19 @@ export async function handleDirectWebhook(
   } catch {
     return new Response("Invalid payload size", { status: 413 });
   }
-  if (!(await verifyGithubSignature(body, request.headers.get("x-hub-signature-256"), env.AW_GITHUB_WEBHOOK_SECRET))) {
+  if (
+    !(await verifyGithubSignature(
+      body,
+      request.headers.get("x-hub-signature-256"),
+      env.AW_GITHUB_WEBHOOK_SECRET
+    ))
+  ) {
     return new Response("Unauthorized", { status: 401 });
   }
   const deliveryId = request.headers.get("x-github-delivery") ?? "";
   const eventName = request.headers.get("x-github-event") ?? "";
-  if (!deliveryPattern.test(deliveryId)) return new Response("Invalid delivery identity", { status: 400 });
+  if (!deliveryPattern.test(deliveryId))
+    return new Response("Invalid delivery identity", { status: 400 });
   let payload: GithubEvent;
   try {
     payload = JSON.parse(new TextDecoder().decode(body)) as GithubEvent;
@@ -277,13 +297,22 @@ export async function handleDirectWebhook(
   ) {
     return new Response("Event source is not authorized", { status: 403 });
   }
-  if (repository.toLowerCase() === control.repository.toLowerCase() || !isRelevantEvent(eventName, payload)) {
+  if (
+    repository.toLowerCase() === control.repository.toLowerCase() ||
+    !isRelevantEvent(eventName, payload)
+  ) {
     return new Response("Ignored", { status: 200 });
   }
   try {
     await reserveDelivery(env, deliveryId, control.installationId, eventName, repository);
-    const dispatched = await attemptPending(env, { delivery_id: deliveryId, installation_id: control.installationId }, apiFetch);
-    return new Response(dispatched ? "Reconciliation requested" : "Already received", { status: 202 });
+    const dispatched = await attemptPending(
+      env,
+      { delivery_id: deliveryId, installation_id: control.installationId },
+      apiFetch
+    );
+    return new Response(dispatched ? "Reconciliation requested" : "Already received", {
+      status: 202,
+    });
   } catch {
     // The durable pending record remains for scheduled replay after a transient API failure.
     return new Response("Reconciliation queued for retry", { status: 503 });
@@ -298,7 +327,9 @@ export async function retryPendingDeliveries(
   configuration(env);
   const pending = await env.AW_INGRESS_DB.prepare(
     "SELECT delivery_id, installation_id FROM webhook_deliveries WHERE delivered_ms IS NULL AND lease_until_ms <= ? ORDER BY created_ms LIMIT 25"
-  ).bind(Date.now()).all<PendingDelivery>();
+  )
+    .bind(Date.now())
+    .all<PendingDelivery>();
   let completed = 0;
   for (const delivery of pending.results) {
     try {
