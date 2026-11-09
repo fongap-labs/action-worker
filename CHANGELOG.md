@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- 新增: 为 AI Gateway 部署健康密钥提供经审查的 fongap-bot 一次性初始化链，使用受保护运维 Environment 与短期 App Secrets 写权限，在三处名称清单全部确认不存在时才生成并写入同一个随机密钥；失败时拒绝自动轮换。
+- 修复: 首次 fongap-bot 请求因 GitHub App 尚未获 Secrets 写权限而被拒绝后，改以现有受保护 admin-ops 凭据写入两个 GitHub Environment，再由 ai-gateway-ops 从最新 Environment Secret 快照部署同一随机健康密钥到 Cloudflare；保留三处独立名称预检、非覆盖及真实健康检查。
 
 - 修复: 独立 PR AI Review 工作流向 CI Evidence 等待器传入必需的 PR 编号，避免参数错误导致证据收集在启动时失败；同时增加主 PR 治理与审查工作流的入参合同测试。
 
