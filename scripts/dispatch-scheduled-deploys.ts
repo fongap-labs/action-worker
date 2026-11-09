@@ -4,6 +4,7 @@ import { requireStatusToken } from "./control-token.ts";
 import { latestCronSlot, minuteFloor, parseCronSchedule, slotKey } from "./cron-schedule.ts";
 import { parseDeployPlan } from "./deploy-manifest.ts";
 import {
+  assertAutomaticCredentialEnvironment,
   assertNoRequiredReviewers,
   deployEventType,
   parseDeployPolicy,
@@ -390,6 +391,8 @@ async function main(): Promise<void> {
     parseDeployPolicy(await readJson("policies/deploy.json")),
     "source-script"
   );
+  const credentialRoutes = await readJson("policies/deploy-credential-environments.json");
+  const environmentGrants = await readJson("policies/deploy-environments.json");
 
   const deploys = await resolveScheduledDeploys(
     policy,
@@ -426,6 +429,16 @@ async function main(): Promise<void> {
       });
       continue;
     }
+    // A scheduled deployment must not enter a reviewer-blocked ops credential Job.
+    await assertAutomaticCredentialEnvironment(
+      reader,
+      controlRepository,
+      deploy.repository,
+      deploy.product,
+      deploy.environment,
+      credentialRoutes,
+      environmentGrants
+    );
     await dispatchWithReservation(
       () => reserveDispatch(deploy, statusToken),
       () =>
