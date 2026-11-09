@@ -49,7 +49,7 @@ jobs:
         if: inputs.operation == 'inventory'
         env:
           CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_OPS }}
-          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_OPS }}
+          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -59,7 +59,7 @@ jobs:
         if: inputs.operation == 'put'
         env:
           CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_OPS }}
-          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_OPS }}
+          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
           AIG_OPS_SECRET_VALUE: ${{ secrets.AIG_OPS_SECRET_VALUE }}
           AIG_DEPLOY_HEALTH_KEY: ${{ secrets.AIG_DEPLOY_HEALTH_KEY }}
           AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
