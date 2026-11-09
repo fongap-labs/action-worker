@@ -139,6 +139,6 @@ test("release script refuses missing App writer and enforces artifact target mat
   assert.match(source, /no PAT fallback/);
   assert.match(
     source,
-    /rollbackRelease\(targetRepository, tag, releaseId, isReleaseCreated, releaseWriteToken\)/
+    /rollbackRelease\(\s*targetRepository,\s*tag,\s*releaseId,\s*isReleaseCreated,\s*isPublishAttempted,\s*releaseWriteToken\s*\)/
   );
 });
