@@ -5,6 +5,7 @@
   "suffix": "-test.mjs",
   "tiers": {
     "gate": [
+      "two-tier-contract-test.mjs",
       "scheduler-stability-test.mjs",
       "integration-test.mjs",
       "stress-test.mjs",
