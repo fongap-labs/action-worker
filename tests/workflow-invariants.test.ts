@@ -199,6 +199,13 @@ test("governed Release dispatches npm only after publication and never publishes
     "needs.release.result == 'success' && needs.release.outputs.npm_asset == 'true'"
   );
   assert.equal(release.jobs.npm?.permissions?.contents, "read");
+  const npmSteps = release.jobs.npm?.steps ?? [];
+  assert.equal(npmSteps[0]?.uses, "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1");
+  assert.equal(
+    npmSteps[0]?.with?.["persist-credentials"],
+    false,
+    "local actions require checkout without persisting credentials"
+  );
   const dispatch = release.jobs.npm?.steps?.find((step) => step.id === "dispatch_app");
   assert.equal(dispatch?.uses, "./.github/actions/mint-app-token");
   assert.equal(dispatch?.with?.["permission-contents"], "write");
