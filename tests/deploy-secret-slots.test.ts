@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -45,6 +45,51 @@ test("only declared Secret slots are staged and the source gets only approved va
     assert.equal(scoped.AW_CONTROL_TOKEN, undefined);
     assert.equal(scoped.GH_TOKEN, undefined);
     assert.equal(scoped.OTHER, undefined);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("all required Secrets must exist before any sensitive value is staged", async () => {
+  const root = await mkdtemp(join(tmpdir(), "deploy-slots-"));
+  try {
+    const plan = {
+      schema_version: 1 as const,
+      secrets: [
+        { name: "TOKEN_A", source: "TOKEN_SOURCE_A", required: true, kind: "secret" as const },
+        { name: "TOKEN_B", source: "TOKEN_SOURCE_B", required: true, kind: "secret" as const },
+      ],
+    };
+    await assert.rejects(
+      stageDeploySecretSlots({ AW_DEPLOY_SECRET_00: "sensitive-first-value" }, plan, root),
+      /Required deploy Secret is unavailable/
+    );
+    await assert.rejects(stat(join(root, "action-worker-deploy-secrets")), { code: "ENOENT" });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("forged Secret plan paths fail closed before any file is staged", async () => {
+  const root = await mkdtemp(join(tmpdir(), "deploy-slots-"));
+  try {
+    for (const entries of [
+      [{ name: "../escape", source: "SOURCE", required: true, kind: "secret" as const }],
+      [
+        { name: "TOKEN_A", source: "SOURCE", required: true, kind: "secret" as const },
+        { name: "TOKEN_A", source: "OTHER", required: false, kind: "secret" as const },
+      ],
+    ]) {
+      await assert.rejects(
+        stageDeploySecretSlots(
+          { AW_DEPLOY_SECRET_00: "sensitive-first-value" },
+          { schema_version: 1, secrets: entries },
+          root
+        ),
+        /invalid or duplicated binding/
+      );
+    }
+    await assert.rejects(stat(join(root, "action-worker-deploy-secrets")), { code: "ENOENT" });
   } finally {
     await rm(root, { recursive: true, force: true });
   }
