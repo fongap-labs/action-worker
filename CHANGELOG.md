@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 直连 Webhook 过期投递按租约先后公平重试，阻止旧安装 ID 在配置变更后签发令牌。
+
 - 修复 [security]: 将 GitHub Webhook 防重放绑定到已签名请求体摘要，拒绝换用 Delivery ID 重新派发。
 
 - 新增: 引入独立 GitHub App Webhook 入口、HMAC 验签与 D1 持久去重重试，仅唤醒中央 Intake，尚未启用生产接入。
