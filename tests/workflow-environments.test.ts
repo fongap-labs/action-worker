@@ -32,7 +32,13 @@ test("actual central deployments remain tracked under production", async () => {
   const workflow = parse(
     await readFile(".github/workflows/deploy-source-script.yml", "utf8")
   ) as Workflow;
-  assert.equal(workflow.jobs?.deploy?.environment, "${{ needs.prepare.outputs.environment }}");
+  assert.deepEqual(workflow.jobs?.deploy?.environment, {
+    name: "${{ needs.prepare.outputs.credential_environment }}",
+    deployment: "${{ needs.prepare.outputs.create_deployment == 'true' }}",
+  });
+  assert.deepEqual(workflow.jobs?.record_production_deployment?.environment, {
+    name: "${{ needs.prepare.outputs.environment }}",
+  });
 
   const policy = JSON.parse(await readFile("policies/deploy-environments.json", "utf8")) as {
     repositories: Record<string, string[]>;
