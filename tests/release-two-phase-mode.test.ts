@@ -19,6 +19,17 @@ test("source-controlled two-phase staging policy begins with zero approved targe
   });
 });
 
+test("the live release workflow has no two-phase opt-in or PR write scope", () => {
+  const workflow = readFileSync(
+    new URL("../.github/workflows/handle-release-dispatch.yml", import.meta.url),
+    "utf8"
+  );
+  assert.equal(workflow.includes("AW_RELEASE_TWO_PHASE_MODE"), false);
+  assert.equal(workflow.includes("AW_RELEASE_PR_WRITE_API_TOKEN"), false);
+  assert.equal(workflow.includes("AW_RELEASE_PR_STATUS_API_TOKEN"), false);
+  assert.equal(workflow.includes("permission-pull-requests: write"), false);
+});
+
 test("default release path remains read-only even with a staging policy", () => {
   const policy = parseTwoPhaseReleasePolicy({
     schema_version: 1,
