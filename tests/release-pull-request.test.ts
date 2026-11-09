@@ -92,7 +92,9 @@ test("stale staging source may resume only an exact CHANGELOG-only squash succes
   for (const changed of [
     { status: "diverged" },
     { ahead_by: 2 },
+    { ahead_by: undefined },
     { behind_by: 1 },
+    { behind_by: undefined },
     { base_commit: { sha: "c".repeat(40) } },
     { commits: [{ sha: "c".repeat(40) }] },
     { commits: [...exact.commits, { sha: "c".repeat(40) }] },
