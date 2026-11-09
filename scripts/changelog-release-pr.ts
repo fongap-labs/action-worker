@@ -95,6 +95,27 @@ function sleep(delayMs: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
+/** Invalid timing configuration must fail before any release PR or branch mutation. */
+export function releaseStageTiming(
+  options: Pick<ChangelogReleaseOptions, "pollSeconds" | "timeoutMinutes">,
+  now = Date.now()
+): { pollMs: number; deadline: number } {
+  const pollSeconds = options.pollSeconds ?? 20;
+  const timeoutMinutes = options.timeoutMinutes ?? 30;
+  if (
+    !Number.isInteger(pollSeconds) ||
+    pollSeconds < 1 ||
+    pollSeconds > 120 ||
+    !Number.isInteger(timeoutMinutes) ||
+    timeoutMinutes < 1 ||
+    timeoutMinutes > 30 ||
+    !Number.isFinite(now)
+  ) {
+    throw new CliError("::error::Release poll and timeout settings are invalid.", 64);
+  }
+  return { pollMs: pollSeconds * 1000, deadline: now + timeoutMinutes * 60_000 };
+}
+
 /** A release may not proceed to any publish-changing step after its approved window. */
 export function assertReleaseStageDeadline(deadline: number, now = Date.now()): void {
   if (!Number.isFinite(deadline) || !Number.isFinite(now) || now >= deadline) {
@@ -407,8 +428,7 @@ export async function publishChangelogRelease(
 ): Promise<ChangelogRelease> {
   const { repository, tag, policy, token } = options;
   const branch = releaseBranchOf(tag);
-  const pollMs = (options.pollSeconds ?? 20) * 1000;
-  const deadline = Date.now() + (options.timeoutMinutes ?? 30) * 60_000;
+  const { pollMs, deadline } = releaseStageTiming(options);
 
   const pull = await findReleasePullRequest(repository, branch, token);
   if (pull) assertReleasePullRequestIdentity(pull, options);
