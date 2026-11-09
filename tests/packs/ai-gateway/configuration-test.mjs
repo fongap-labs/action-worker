@@ -249,7 +249,8 @@ try {
     for (const bad of ['2', -1, 9, 1.5]) {
       assert.ok(policyDiags({ p: { tier_attempts: { tier1: bad } } }).some((d) => d.includes('tier_attempts.tier1')));
     }
-    assert.deepEqual(policyDiags({ p: { max_attempts: 5, tier_attempts: { tier1: 3, tier2: 1, tier3: 1 } } }), []);
+    assert.deepEqual(policyDiags({ p: { max_attempts: 5, tier_attempts: { tier1: 3, tier2: 2 } } }), []);
+    assert.ok(policyDiags({ p: { max_attempts: 5, tier_attempts: { tier3: 1 } } }).length > 0);
   });
 
   test('budget_split and other retired policy fields are rejected as unknown', () => {
@@ -431,42 +432,41 @@ try {
   });
 
   test('explicit tier_attempts remains a hard cap', () => {
-    const tiers = { 1: [], 2: [budgetNode('t2', 'tier-2')], 3: [] };
+    const tiers = { 1: [], 2: [budgetNode('t2', 'tier-2')] };
     const policy = { maxAttempts: 6, tierAttempts: { tier2: 3 }, hedge: null, firstEventTimeoutMs: null, maxInFlight: null };
     const caps = computeTierCaps(tiers, req, new Set(), policy, new Set());
     assert.equal(caps[2], 3);
   });
 
-  test('unset lower tier receives remaining budget after explicit higher-tier cap', () => {
-    const tiers = { 1: [], 2: [budgetNode('t2', 'tier-2')], 3: [budgetNode('t3', 'tier-3')] };
-    const policy = { maxAttempts: 6, tierAttempts: { tier2: 3 }, hedge: null, firstEventTimeoutMs: null, maxInFlight: null };
+  test('Tier 2 receives remaining request budget after an explicit Tier 1 cap', () => {
+    const tiers = { 1: [budgetNode('t1', 'tier-1')], 2: [budgetNode('t2', 'tier-2')] };
+    const policy = { maxAttempts: 6, tierAttempts: { tier1: 3 }, hedge: null, firstEventTimeoutMs: null, maxInFlight: null };
     const caps = computeTierCaps(tiers, req, new Set(), policy, new Set());
+    assert.equal(caps[1], 3);
     assert.equal(caps[2], 3);
-    assert.equal(caps[3], 3);
   });
 
   test('surplus goes to the first adjustable dispatchable tier', () => {
     const tiers = {
       1: [budgetNode('t1a', 'tier-1'), budgetNode('t1b', 'tier-1')],
       2: [budgetNode('t2', 'tier-2')],
-      3: [budgetNode('t3', 'tier-3')],
     };
     const policy = { maxAttempts: 5, tierAttempts: null, hedge: null, firstEventTimeoutMs: null, maxInFlight: null };
-    assert.deepEqual(computeTierCaps(tiers, req, new Set(), policy, new Set()), { 1: 3, 2: 1, 3: 1 });
+    assert.deepEqual(computeTierCaps(tiers, req, new Set(), policy, new Set()), { 1: 4, 2: 1 });
   });
 
   test('explicit zero disables a tier', () => {
-    const tiers = { 1: [budgetNode('t1', 'tier-1')], 2: [budgetNode('t2', 'tier-2')], 3: [budgetNode('t3', 'tier-3')] };
+    const tiers = { 1: [budgetNode('t1', 'tier-1')], 2: [budgetNode('t2', 'tier-2')] };
     const policy = { maxAttempts: 4, tierAttempts: { tier2: 0 }, hedge: null, firstEventTimeoutMs: null, maxInFlight: null };
     const caps = computeTierCaps(tiers, req, new Set(), policy, new Set());
     assert.equal(caps[2], 0);
-    assert.equal(caps[1], 3);
-    assert.equal(caps[3], 1);
+    assert.equal(caps[1], 4);
+    assert.equal(caps[2], 0);
   });
 
   test('tier_attempts total above max_attempts is rejected', () => {
     const diags = getPoliciesConfigDiagnostics({
-      AIG_POLICIES_CONFIG: JSON.stringify({ over: { max_attempts: 6, tier_attempts: { tier2: 4, tier3: 4 } } }),
+      AIG_POLICIES_CONFIG: JSON.stringify({ over: { max_attempts: 6, tier_attempts: { tier1: 4, tier2: 4 } } }),
     });
     assert.ok(diags.some((d) => d.includes('tier_attempts total exceeds max_attempts')));
   });
@@ -703,30 +703,27 @@ try {
     assert.throws(() => buildPlan({ tiers: { 1: [node('a')] }, secretsMap: { a: 'x', ghost: 'y' } }), /no matching node/);
   });
 
-  test('tier-2 oauth subscription nodes plan without base_url or credential', () => {
-    const oauth = () => {
-      const n = node('sub', { auth: 'oauth', models: { 'general-ultra': 'up' } });
-      delete n.base_url;
-      return n;
-    };
-    assert.doesNotThrow(() => assertNodesArray([oauth()], 'tier-2', 2));
-    const plan = buildPlan({ tiers: { 2: [oauth()] }, secretsMap: {} });
-    assert.ok(plan.vars.AIG_TIER2_NODES_01.includes('"auth":"oauth"'));
-    assert.equal(Object.keys(plan.secrets).length, 0);
-  });
-
-  test('oauth nodes keep exactly one credential source (token store only)', () => {
+  test('old membership OAuth nodes are forbidden in the new Token tier', () => {
+    const subscriber = node('sub', { auth: 'oauth' });
+    assert.throws(() => assertNodesArray([subscriber], 'tier-2', 2), /obsolete subscription auth/);
     assert.throws(
-      () => buildPlan({ tiers: { 2: [node('sub', { auth: 'oauth' })] }, secretsMap: { sub: 'x' } }),
-      /must not have a static credential/,
+      () => buildPlan({ tiers: { 2: [subscriber] }, secretsMap: {} }),
+      /obsolete subscription auth/,
+    );
+    assert.throws(
+      () => buildPlan({ tiers: { 2: [subscriber] }, secretsMap: { sub: 'fake-credential' } }),
+      /obsolete subscription auth/,
     );
   });
 
-  test('auth:"oauth" is a Tier 2 marker only and must be the string "oauth"', () => {
-    assert.throws(() => assertNodesArray([node('a', { auth: 'oauth' })], 'tier-1', 1), /only allowed on tier-2/);
-    assert.throws(() => buildPlan({ tiers: { 3: [node('a', { auth: 'oauth' })] }, secretsMap: {} }), /only allowed on tier-2/);
-    assert.throws(() => assertNodesArray([node('a', { auth: 'bearer' })], 'tier-2', 2), /auth must be the string "oauth"/);
-    assert.throws(() => assertNodesArray([node('a', { auth: 'oauth' })]), /only allowed on tier-2/);
+  test('all old subscriber auth markers and Tier 3 planning are rejected', () => {
+    for (const marker of ['oauth', 'bearer']) {
+      assert.throws(() => assertNodesArray([node('a', { auth: marker })], 'tier-2', 2), /obsolete subscription auth/);
+    }
+    assert.throws(
+      () => buildPlan({ tiers: { 3: [node('old-paid')] }, secretsMap: { 'old-paid': 'fake-credential' } }),
+      /Old Tier 3 node configuration is not supported/,
+    );
   });
 
   test('secret object is strict', () => {
@@ -749,7 +746,8 @@ try {
       existingVarNames: ['AIG_TIER1_NODES_01', 'AIG_TIER1_NODES_02', 'AIG_TIER3_NODES_01'],
       existingSecretNames: ['AIG_TIER1_CREDENTIALS_01', 'AIG_TIER1_CREDENTIALS_02', 'UNMANAGED_GATEWAY_KEY'],
     });
-    assert.deepEqual(plan.deleteVars, ['AIG_TIER1_NODES_02', 'AIG_TIER3_NODES_01']);
+    assert.deepEqual(plan.deleteVars, ['AIG_TIER1_NODES_02']);
+    assert.ok(!plan.deleteVars.includes('AIG_TIER3_NODES_01'), 'old Tier 3 requires explicit migration, not auto-delete');
     assert.deepEqual(plan.deleteSecrets, ['AIG_TIER1_CREDENTIALS_02']);
   });
 
