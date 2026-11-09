@@ -316,7 +316,7 @@ await test('a sibling is not woken early out of a long-allowance cooldown, only 
   assert.ok(getTier1Account('quota-sibling').accountCooldownUntil > now + 3_000_000);
 });
 
-await test('Tier 3 keeps the ordinary ten minute Retry-After ceiling for a long allowance', async () => {
+await test('Token Tier 2 keeps the ordinary ten minute Retry-After ceiling for a long allowance', async () => {
   globalThis.fetch = async () =>
     new Response(JSON.stringify({ error: { message: 'You have reached the usage limit for this 5 hour window' } }), {
       status: 429,
@@ -326,13 +326,13 @@ await test('Tier 3 keeps the ordinary ten minute Retry-After ceiling for a long 
     AIG_ACCESS_KEY_AIR: KEY,
     AIG_ACCESS_MODELS_AIR: '*',
     AIG_PROTOCOL_FALLBACKS: 'disable',
-    AIG_TIER3_NODES_01: JSON.stringify([{ id: 'paid', provider: 'paid-provider', base_url: 'https://paid.example.com/v1', models: { 'general-air': 'up' } }]),
-    AIG_TIER3_CREDENTIALS_01: JSON.stringify({ paid: 'k' }),
+    AIG_TIER2_NODES_01: JSON.stringify([{ id: 'paid', provider: 'paid-provider', base_url: 'https://paid.example.com/v1', models: { 'general-air': 'up' } }]),
+    AIG_TIER2_CREDENTIALS_01: JSON.stringify({ paid: 'k' }),
   });
   const res = await worker.fetch(chatRequest(), e, {});
   assert.equal(res.status, 429);
   const remaining = getNodeState('paid').cooldownUntil - Date.now();
-  assert.ok(remaining > 590_000 && remaining <= 600_000, `Tier 3 cooldown stays at the 10 minute ceiling, got ${remaining}`);
+  assert.ok(remaining > 590_000 && remaining <= 600_000, `Tier 2 cooldown stays at the 10 minute ceiling, got ${remaining}`);
 });
 
 // ---- timers: buffered replies and large prompts ------------------------------------------------
