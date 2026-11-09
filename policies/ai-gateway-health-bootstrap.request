@@ -1,0 +1,5 @@
+# One-time, main-only, reviewed request for fongap-bot.
+# This file must not carry a Secret value or be changed for a retry.
+schema_version: 1
+repository: fongap-labs/action-worker
+purpose: initialize-unset-ai-gateway-deploy-health-key
