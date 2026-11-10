@@ -886,7 +886,7 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   assert.ok(
     governance.indexOf("- name: Automatically merge CI-green PR") <
       governance.indexOf("- name: Dispatch AI review"),
-    "Optional AI review must never delay automatic merging",
+    "Optional AI review must never delay automatic merging"
   );
   const settings = await text(".github/workflows/apply-repository-settings.yml");
   // The daily run corrects settings changed by hand, so drift never needs a manual run.
