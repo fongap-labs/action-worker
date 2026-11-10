@@ -107,13 +107,13 @@ jobs:
           RELEASE_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
         run: node scripts/publish-release.ts
 
-  # Only a successfully published stable Release may trigger npm distribution.
+  # Only successfully published stable products from fongap-labs/dsh-plugin trigger npm distribution.
   # GitHub Release publication is the boundary. npm distribution is a separate, replayable,
   # provenance-verified workflow; npm failure must never roll back an already published Release.
   npm:
     name: Dispatch verified npm release
     needs: release
-    if: needs.release.result == 'success' && needs.release.outputs.npm_asset == 'true' && needs.release.outputs.is_prerelease == 'false'
+    if: needs.release.result == 'success' && needs.release.outputs.npm_asset == 'true' && needs.release.outputs.is_prerelease == 'false' && needs.release.outputs.target_repository == 'fongap-labs/dsh-plugin' && github.event.client_payload.source_repository == 'fongap-labs/dsh-plugin'
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     permissions:
