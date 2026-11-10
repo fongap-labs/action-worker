@@ -997,9 +997,20 @@ try {
     assert.deepEqual(computeTierCaps(tiers, REQ, new Set(), policy, KNOWN), { 1: 4, 2: 0 });
   });
 
-  await test('built-in policy surface remains intentionally small', () => {
+  await test('built-in chat and coding maximize bounded Tier 1 retries without speculative hedges', () => {
     const policies = loadPoliciesConfig({});
-    assert.deepEqual(Object.keys(policies).sort(), ['default', 'fast', 'long-reasoning']);
+    assert.deepEqual(Object.keys(policies).sort(), ['chat', 'coding', 'default', 'fast', 'long-reasoning']);
+    const tiers = {
+      1: [node('free1', 'tier-1'), node('free2', 'tier-1')],
+      2: [node('reserve1', 'tier-2')],
+    };
+    for (const policyName of ['chat', 'coding']) {
+      const policy = policies[policyName];
+      assert.equal(policy.maxAttempts, 8, `${policyName} must not underuse available Tier 1 capacity`);
+      assert.equal(policy.tierAttempts, null, 'No artificial per-tier cap on the free pool');
+      assert.deepEqual(policy.hedge, { enabled: false }, 'No duplicate free-tier requests');
+      assert.deepEqual(computeTierCaps(tiers, REQ, new Set(), policy, KNOWN), { 1: 7, 2: 1 });
+    }
   });
 
   console.log(`\n[scheduler-convergence] ${passed}/${passed + failed} passed`);
