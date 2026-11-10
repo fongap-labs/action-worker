@@ -1,3 +1,4 @@
+import { githubApiAudit } from "./github-api-request-audit.ts";
 import { CliError, runCommand, runText } from "./runtime-command.ts";
 
 export type JsonRecord = Record<string, unknown>;
@@ -78,6 +79,7 @@ type ReaderOptions = {
   attemptLimit?: number;
   retryDelayMs?: number;
   timeoutMs?: number;
+  audit?: typeof githubApiAudit;
 };
 
 export type GithubFailureKind =
@@ -184,6 +186,7 @@ type ImmutableCacheEntry = { etag: string; value: unknown };
 const maxImmutableEntries = 64;
 
 export class GithubReader {
+  private readonly audit: typeof githubApiAudit;
   private readonly immutableCache = new Map<string, ImmutableCacheEntry>();
   private readonly inFlight = new Map<string, Promise<unknown>>();
   readonly attemptLimit: number;
@@ -194,6 +197,7 @@ export class GithubReader {
 
   constructor(apiUrl: string, token: string, options: ReaderOptions = {}) {
     this.apiUrl = apiUrl.replace(/\/+$/, "");
+    this.audit = options.audit ?? githubApiAudit;
     this.token = token;
     this.attemptLimit = options.attemptLimit ?? 4;
     this.retryDelayMs = options.retryDelayMs ?? 1000;
@@ -211,7 +215,10 @@ export class GithubReader {
       return await this.fetchJson(path, false);
     }
     const pending = this.inFlight.get(path);
-    if (pending) return await pending;
+    if (pending) {
+      this.audit.coalescedRequest();
+      return await pending;
+    }
     const request = this.fetchJson(path, true);
     this.inFlight.set(path, request);
     try {
@@ -236,10 +243,18 @@ export class GithubReader {
         }
         const cached = immutable ? this.immutableCache.get(path) : undefined;
         if (cached) headers["If-None-Match"] = cached.etag;
-        const response = await fetch(`${this.apiUrl}/${path.replace(/^\/+/, "")}`, {
-          headers,
-          signal: controller.signal,
-        });
+        this.audit.fetchStart(Boolean(cached));
+        let response: Response;
+        try {
+          response = await fetch(`${this.apiUrl}/${path.replace(/^\/+/, "")}`, {
+            headers,
+            signal: controller.signal,
+          });
+        } catch (error) {
+          this.audit.fetchTransportError();
+          throw error;
+        }
+        this.audit.fetchResponse(response.status, response.headers);
         if (response.status === 304 && cached) {
           return cached.value;
         }
@@ -254,6 +269,9 @@ export class GithubReader {
             // Headers alone can still identify primary/secondary rate limits.
           }
           const kind = classifyGithubFailure(response.status, response.headers, githubMessage);
+          if (kind === "primary-rate-limit" || kind === "secondary-rate-limit") {
+            this.audit.rateLimited(kind);
+          }
           const resetAtMs = rateLimitReset(response.headers);
           const retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
           const safePath = `/${(path.startsWith("/") ? path.slice(1) : path).split("?")[0]}`;
@@ -294,6 +312,7 @@ export class GithubReader {
           error.kind === "secondary-rate-limit" ||
           (retryReset !== undefined && retryReset <= 30_000);
         if (!canRetry || attempt + 1 >= this.attemptLimit) throw error;
+        this.audit.retry();
         const retryDelay =
           retryReset !== undefined
             ? retryReset + 250

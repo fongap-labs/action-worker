@@ -373,6 +373,7 @@ test("the Intake deploy-schedules job matches the task-schedules job", async () 
   assert.equal(run?.run, "node scripts/dispatch-scheduled-deploys.ts");
   assert.deepEqual(run?.env, {
     AW_CONTROL_TOKEN: "${{ steps.control_read_app.outputs.token }}",
+    AW_GITHUB_API_METRICS: "1",
     AW_STATUS_API_TOKEN: "${{ steps.status_app.outputs.token }}",
     AW_STATUS_KEYRING: "${{ secrets.AW_STATUS_KEYRING }}",
     AW_DISPATCH_API_TOKEN: "${{ steps.dispatch_app.outputs.token }}",
