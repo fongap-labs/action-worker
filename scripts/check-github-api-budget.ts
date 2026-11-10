@@ -54,9 +54,7 @@ async function main(): Promise<void> {
   if (!token) {
     throw new CliError("AW_CONTROL_TOKEN is required for the API quota preflight.", 77);
   }
-  const reserve = parseGithubApiReserve(
-    process.env.AW_API_QUOTA_RESERVE ?? String(defaultReserve)
-  );
+  const reserve = parseGithubApiReserve(process.env.AW_API_QUOTA_RESERVE ?? String(defaultReserve));
   // GitHub's rate_limit endpoint does not consume the primary REST core quota.
   const decision = evaluateGithubCoreBudget(await getGithubJson("rate_limit", token), reserve);
   await appendLines(process.env.GITHUB_OUTPUT, [`run=${decision.run}`]);
