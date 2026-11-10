@@ -11,6 +11,19 @@ type RulesetPayload = {
   rules: unknown[];
 };
 
+/** GitHub Free organizations may reject native auto-merge on private repositories.
+ * The separately attested Action Worker squash-merge path still provides
+ * CI-green automatic merging without relaxing any existing status gates. */
+export function settingMatchesPlatform(
+  key: string,
+  expected: unknown,
+  actual: unknown,
+  privateRepository: boolean
+): boolean {
+  if (isDeepStrictEqual(actual, expected)) return true;
+  return privateRepository && key === "allow_auto_merge" && expected === true && actual === false;
+}
+
 export function settingsPayload(value: unknown): Record<string, unknown> {
   if (!isJsonRecord(value)) {
     throw new CliError("repository policy must be a JSON object", 2);
@@ -233,10 +246,13 @@ async function main(): Promise<void> {
     throw new CliError("repository settings response is invalid");
   }
   for (const [key, expected] of Object.entries(payload)) {
-    if (!isDeepStrictEqual(response[key], expected)) {
+    if (!settingMatchesPlatform(key, expected, response[key], response.private === true)) {
       throw new CliError(
         `repository setting mismatch: ${key} expected=${JSON.stringify(expected)} actual=${JSON.stringify(response[key])}`
       );
+    }
+    if (response.private === true && key === "allow_auto_merge" && response[key] === false) {
+      console.warn(`::notice::${repository} cannot enable native auto-merge on this GitHub plan; signed CI-green Action Worker merging remains active.`);
     }
   }
 
