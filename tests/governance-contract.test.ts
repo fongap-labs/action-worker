@@ -858,6 +858,20 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   assert.equal(repository.allow_merge_commit, false);
   assert.equal(repository.allow_squash_merge, true);
   assert.equal(repository.allow_auto_merge, true);
+  const selfCI = await text(".github/workflows/validate-ci.yml");
+  requireText(selfCI, [
+    "automatic-squash-merge:",
+    "needs: [validate-merge]",
+    "needs.validate-merge.result == 'success'",
+    "github.event.pull_request.draft == false",
+    "github.event.pull_request.head.repo.full_name == github.repository",
+    "ref: main",
+    "permission-contents: write",
+    "permission-pull-requests: write",
+    "--match-head-commit",
+    "--squash",
+    "base.sha == $base",
+  ]);
   assert.equal(repository.delete_branch_on_merge, true);
   const prRule = mainRules.find((rule) => rule.type === "pull_request");
   const prRuleParameters = prRule?.parameters as Record<string, unknown>;
