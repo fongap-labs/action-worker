@@ -101,7 +101,8 @@ export async function requestWithTransientRetry(
     throw new CliError("ERROR: Invalid AI endpoint retry count.", 65);
   }
   const fetcher = options.fetcher ?? fetch;
-  const wait = options.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  const wait =
+    options.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), options.timeoutMs);
@@ -120,7 +121,11 @@ export async function requestWithTransientRetry(
       if (!retryableProbeStatus(response.status) || attempt === maxAttempts) return response;
     }
     const delayMs = probeRetryDelayMs(response?.headers.get("retry-after") ?? null, attempt);
-    options.onRetry?.(response === undefined ? "network" : `HTTP ${response.status}`, attempt, delayMs);
+    options.onRetry?.(
+      response === undefined ? "network" : `HTTP ${response.status}`,
+      attempt,
+      delayMs
+    );
     await response?.body?.cancel().catch(() => undefined);
     await wait(delayMs);
   }
@@ -141,12 +146,18 @@ async function main(): Promise<void> {
   const config = parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? "");
   const required = requiredPrAiModels(config, process.env.AI_ENDPOINT_REQUIRED_MODEL ?? "");
   const retryNotice = (reason: string, attempt: number, waitMs: number): void => {
-    console.error(`::warning::AI endpoint probe transient ${reason}; retry ${attempt}/2 after ${waitMs}ms.`);
+    console.error(
+      `::warning::AI endpoint probe transient ${reason}; retry ${attempt}/2 after ${waitMs}ms.`
+    );
   };
-  const response = await requestWithTransientRetry(resolveModelsEndpoint(gatewayUrl), {
-    method: "GET",
-    headers: { Authorization: `Bearer ${token}` },
-  }, { timeoutMs: 15_000, onRetry: retryNotice });
+  const response = await requestWithTransientRetry(
+    resolveModelsEndpoint(gatewayUrl),
+    {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+    },
+    { timeoutMs: 15_000, onRetry: retryNotice }
+  );
 
   if (!response.ok) {
     throw new CliError(
@@ -175,19 +186,23 @@ async function main(): Promise<void> {
   // /v1/models can advertise an alias whose upstream is unusable. Confirm one real inference
   // without sending any private repository content; report only HTTP status, never provider text.
   const probeModel = (process.env.AI_ENDPOINT_REQUIRED_MODEL ?? "").trim() || required[0] || "";
-  const completion = await requestWithTransientRetry(resolveCompletionsEndpoint(gatewayUrl), {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
+  const completion = await requestWithTransientRetry(
+    resolveCompletionsEndpoint(gatewayUrl),
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: probeModel,
+        messages: [{ role: "user", content: "Reply with OK." }],
+        max_tokens: 96,
+        stream: false,
+      }),
     },
-    body: JSON.stringify({
-      model: probeModel,
-      messages: [{ role: "user", content: "Reply with OK." }],
-      max_tokens: 96,
-      stream: false,
-    }),
-  }, { timeoutMs: 60_000, onRetry: retryNotice });
+    { timeoutMs: 60_000, onRetry: retryNotice }
+  );
   if (!completion.ok) {
     throw new CliError(
       `ERROR: AI endpoint inference probe for ${probeModel} returned HTTP ${completion.status}.`,
