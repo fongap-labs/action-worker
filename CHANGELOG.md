@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 优化: Main Write Audit 复用同次读取且已验证的默认分支和 main 提交快照，来源核验不再重复查询仓库资料与同一 SHA；每仓库预计减少 2 次 REST GET。仅复用确定性事实，不缓存 PR、CI、状态或未解决事件；保留主分支 HEAD 锁定、精确 SHA 匹配与失败关闭。
+
 - 新增: Action Worker 的七项总控扫描和三项配额预检增加 GitHub API 请求审计，在各 Job Summary 中记录 HTTP/gh api 实际请求、ETag 304、条件 GET、并发去重、重试、主次级限流与 core 最低剩余额度；不新增 API 查询、不上传私有内容或凭据，合并门禁保持不变。
 
 - 修复: Suite 历史 SDK 迁移因私有访问未满足而撤回；恢复严格来源合同，不放宽沙箱凭据隔离。
