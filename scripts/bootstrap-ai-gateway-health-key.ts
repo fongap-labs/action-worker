@@ -5,7 +5,7 @@ import { runText } from "./runtime-command.ts";
 
 const controlRepository = "fongap-labs/action-worker";
 const healthSecret = "AIG_DEPLOY_HEALTH_KEY";
-const environments = ["production", "ai-gateway-ops"] as const;
+const environments = ["ai-gateway-ops"] as const;
 
 /** A partial secret name list must never authorize creating a new credential. */
 export function environmentSecretNames(value: unknown): string[] {
@@ -100,7 +100,7 @@ async function bootstrapGithubEnvironments(): Promise<void> {
       { input: value, timeoutMs: 30000, maxBuffer: 1024 * 1024 }
     );
   }
-  console.log("Deployment health Secret initialized in both GitHub Environments.");
+  console.log("Deployment health Secret initialized in protected ai-gateway-ops.");
 }
 
 /** Read the persisted Environment Secret in a fresh, protected job. */
