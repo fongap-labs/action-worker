@@ -11,6 +11,7 @@ import {
   ingressCronTelemetry,
   reconcileIngressCron,
   retryPendingDeliveries,
+  webhookDeliverySql,
 } from "../scripts/direct-event-ingress.ts";
 
 const webhookSecret = "test-only-native-sqlite-integration-secret";
@@ -246,6 +247,7 @@ test("Cron emits only aggregate backlog telemetry and retains pending retries", 
       completed_count: 1,
       failed_count: 0,
       pending_count: 0,
+      quarantined_count: 0,
       oldest_pending_age_minutes: null,
     });
     const serialized = reports.join("\n");
@@ -314,33 +316,53 @@ test("Cron counts failed retry attempts without disclosing delivery or credentia
 });
 
 test("invalid backlog summaries fail closed without logging untrusted database data", () => {
-  assert.deepEqual(ingressCronTelemetry(0, { pending_count: 0, oldest_created_ms: null }, 1_000), {
-    component: "direct-event-ingress",
-    completed_count: 0,
-    failed_count: 0,
-    pending_count: 0,
-    oldest_pending_age_minutes: null,
-  });
   assert.deepEqual(
-    ingressCronTelemetry(2, { pending_count: 1, oldest_created_ms: 60_000 }, 180_000),
+    ingressCronTelemetry(
+      0,
+      { pending_count: 0, oldest_created_ms: null, quarantined_count: 0 },
+      1_000
+    ),
+    {
+      component: "direct-event-ingress",
+      completed_count: 0,
+      failed_count: 0,
+      pending_count: 0,
+      quarantined_count: 0,
+      oldest_pending_age_minutes: null,
+    }
+  );
+  assert.deepEqual(
+    ingressCronTelemetry(
+      2,
+      { pending_count: 1, oldest_created_ms: 60_000, quarantined_count: 0 },
+      180_000
+    ),
     {
       component: "direct-event-ingress",
       completed_count: 2,
       failed_count: 0,
       pending_count: 1,
+      quarantined_count: 0,
       oldest_pending_age_minutes: 2,
     }
   );
   assert.throws(
-    () => ingressCronTelemetry(0, { pending_count: 0, oldest_created_ms: null }, 1_000, -1),
+    () =>
+      ingressCronTelemetry(
+        0,
+        { pending_count: 0, oldest_created_ms: null, quarantined_count: 0 },
+        1_000,
+        -1
+      ),
     /backlog snapshot/
   );
   for (const invalid of [
     null,
-    { pending_count: -1, oldest_created_ms: 1 },
-    { pending_count: 0, oldest_created_ms: 1 },
-    { pending_count: 1, oldest_created_ms: null },
-    { pending_count: Number.NaN, oldest_created_ms: null },
+    { pending_count: -1, oldest_created_ms: 1, quarantined_count: 0 },
+    { pending_count: 0, oldest_created_ms: 1, quarantined_count: 0 },
+    { pending_count: 1, oldest_created_ms: null, quarantined_count: 0 },
+    { pending_count: Number.NaN, oldest_created_ms: null, quarantined_count: 0 },
+    { pending_count: 0, oldest_created_ms: null, quarantined_count: -1 },
   ]) {
     assert.throws(() => ingressCronTelemetry(0, invalid), /backlog snapshot/);
   }
@@ -364,6 +386,52 @@ test("concurrent authentic requests contend on the same native SQLite atomic lea
       inbox.database.prepare("SELECT COUNT(*) AS count FROM webhook_deliveries").get()?.count,
       1
     );
+  } finally {
+    inbox.close();
+  }
+});
+
+test("exhausted dispatch never retries indefinitely or falsely acknowledges a redelivery", async () => {
+  const inbox = new NativeSqliteInbox();
+  try {
+    const env = environment(inbox);
+    const api = githubApi({ failDispatches: 20 });
+    assert.equal(
+      (await handleDirectWebhook(signedPush(firstDelivery), env, api.fetcher)).status,
+      503
+    );
+    for (let attempt = 1; attempt < 5; attempt += 1) {
+      inbox.database
+        .prepare("UPDATE webhook_deliveries SET lease_until_ms = 0 WHERE delivery_id = ?")
+        .run(firstDelivery);
+      assert.equal(await retryPendingDeliveries(env, api.fetcher), 0);
+    }
+    assert.equal(api.calls.length, 10);
+    const snapshot = inbox.database.prepare(webhookDeliverySql.backlog).get();
+    assert.deepEqual(
+      { ...snapshot },
+      {
+        pending_count: 0,
+        oldest_created_ms: null,
+        quarantined_count: 1,
+      }
+    );
+    inbox.database
+      .prepare("UPDATE webhook_deliveries SET lease_until_ms = 0 WHERE delivery_id = ?")
+      .run(firstDelivery);
+    assert.equal(await retryPendingDeliveries(env, api.fetcher), 0);
+    assert.equal(
+      (await handleDirectWebhook(signedPush(firstDelivery), env, api.fetcher)).status,
+      503
+    );
+    assert.equal(api.calls.length, 10);
+    const reports: string[] = [];
+    await reconcileIngressCron(env, api.fetcher, (line) => reports.push(line));
+    const report = JSON.parse(reports[0]!) as Record<string, unknown>;
+    assert.equal(report.quarantined_count, 1);
+    assert.equal(report.pending_count, 0);
+    assert.equal(report.oldest_pending_age_minutes, null);
+    assert.equal(reports[0]!.includes(firstDelivery), false);
   } finally {
     inbox.close();
   }

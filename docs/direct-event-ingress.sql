@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
   source_repository TEXT NOT NULL,
   created_ms INTEGER NOT NULL,
   lease_until_ms INTEGER NOT NULL DEFAULT 0,
+  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
   delivered_ms INTEGER
 );
 CREATE INDEX IF NOT EXISTS webhook_deliveries_pending
-  ON webhook_deliveries (delivered_ms, lease_until_ms, created_ms);
+  ON webhook_deliveries (delivered_ms, attempt_count, lease_until_ms, created_ms);
