@@ -211,7 +211,9 @@ async function main(): Promise<void> {
     product,
     environment
   );
-  console.log(JSON.stringify(auditDeploySecretScope(plan, inventory, credential_environment), null, 2));
+  console.log(
+    JSON.stringify(auditDeploySecretScope(plan, inventory, credential_environment), null, 2)
+  );
 }
 
 if (isMain(import.meta.url)) {
