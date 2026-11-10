@@ -17,7 +17,8 @@ function serverRetryDelayMs(error: unknown, now = Date.now()): number | undefine
   const message = error.message;
   const retryAfter = message.match(/retry-after\s*[:=]\s*([^\r\n;]+)/i);
   if (retryAfter) {
-    const value = retryAfter[1].trim();
+    const value = retryAfter[1]?.trim();
+    if (!value) return undefined;
     const seconds = Number(value);
     if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds * 1000);
     const timestamp = Date.parse(value);
