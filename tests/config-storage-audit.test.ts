@@ -374,7 +374,10 @@ test("scheduled protected ops Account ID drift classifier never guesses unknown 
   assert.equal(taskOpsAccountScope(none, null, present).drift_detected, null);
   assert.equal(taskOpsAccountScope(none, none, null).source, "unverified");
   assert.equal(taskOpsAccountScope(null, null, null).source, "unverified");
-  assert.doesNotMatch(JSON.stringify(taskOpsAccountScope(present, none, present)), /CLOUDFLARE|internal-vault|token|secret/i);
+  assert.doesNotMatch(
+    JSON.stringify(taskOpsAccountScope(present, none, present)),
+    /CLOUDFLARE|internal-vault|token|secret/i
+  );
 });
 
 test("real metadata scanner classifies only the protected Internal Vault ops Environment", async () => {
@@ -401,15 +404,23 @@ test("real metadata scanner classifies only the protected Internal Vault ops Env
   const onlyOps = await auditStorageMetadata(readControl, ["fongap-labs/action-worker"]);
   assert.equal(onlyOps.task_ops_account_id_scope.source, "protected-ops");
   assert.equal(onlyOps.task_ops_account_id_scope.drift_detected, false);
-  const unknownOrganization = await auditStorageMetadata(readControl, ["fongap-labs/action-worker"], {
-    skipOrganization: true,
-  });
+  const unknownOrganization = await auditStorageMetadata(
+    readControl,
+    ["fongap-labs/action-worker"],
+    {
+      skipOrganization: true,
+    }
+  );
   assert.equal(unknownOrganization.task_ops_account_id_scope.source, "unverified");
   assert.equal(unknownOrganization.task_ops_account_id_scope.drift_detected, null);
-  const unknownEnvironment = await auditStorageMetadata(readControl, ["fongap-labs/action-worker"], {
-    skipOrganization: true,
-    skipEnvironments: true,
-  });
+  const unknownEnvironment = await auditStorageMetadata(
+    readControl,
+    ["fongap-labs/action-worker"],
+    {
+      skipOrganization: true,
+      skipEnvironments: true,
+    }
+  );
   assert.equal(unknownEnvironment.task_ops_account_id_scope.source, "unverified");
   assert.equal(unknownEnvironment.task_ops_account_id_scope.drift_detected, null);
   assert.doesNotMatch(JSON.stringify(onlyOps), /not-to-be-output|CLOUDFLARE|internal-vault/);
@@ -420,10 +431,7 @@ test("real metadata scanner flags root scope shadowing of the protected ops sour
   const { reader } = fixture({
     ["repos/" + repository + "/actions/variables"]: {
       total_count: 2,
-      variables: [
-        { name: "PUBLIC_NAME" },
-        { name: account, value: "never-print-account-value" },
-      ],
+      variables: [{ name: "PUBLIC_NAME" }, { name: account, value: "never-print-account-value" }],
     },
     ["repos/" + repository + "/environments"]: {
       total_count: 2,
