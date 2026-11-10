@@ -196,7 +196,11 @@ test("main write audit uses one pinned HEAD snapshot without duplicate repositor
   });
   assert.deepEqual(verified, { main_sha: mainSha, pr_number: 44 });
   assert.equal(observedSha, mainSha);
-  assert.equal(requests.length, 5, "one repository, one main HEAD, associated PR, CI and incident checks");
+  assert.equal(
+    requests.length,
+    5,
+    "one repository, one main HEAD, associated PR, CI and incident checks"
+  );
   assert.equal(requests.filter((path) => path.endsWith("/pulls/44")).length, 0);
   assert.equal(requests.filter((path) => path === `repos/${repository}`).length, 1);
   assert.equal(requests.filter((path) => path === `repos/${repository}/commits/main`).length, 1);
