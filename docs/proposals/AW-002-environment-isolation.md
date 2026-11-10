@@ -17,8 +17,8 @@ AI Gateway 的部署环境与运维环境职责分离：
 
 | 环境 | 允许内容 | 不允许内容 |
 | --- | --- | --- |
-| `production` | Cloudflare 发布凭据、账号 ID、部署健康检查凭据 | Provider 密钥、用户访问密钥、Tier 凭据、OAuth 加密密钥、中心认证密钥 |
-| `ai-gateway-ops` | 受审批的 Cloudflare Worker Secret 盘点与单项更新 | 正常代码发布、自动任务调度、把密钥值写入 workflow_dispatch 输入或日志 |
+| `production` | Cloudflare 发布 Token、部署健康检查凭据 | AI Gateway Variables、Provider 密钥、用户访问密钥、Tier 凭据、旧 OAuth 密钥、中心认证密钥 |
+| `ai-gateway-ops` | 全部非敏感 AI Gateway 部署 Variables；受审批的 Cloudflare Worker Secret 盘点与单项更新 | 正常代码发布、自动任务调度、把密钥值写入 workflow_dispatch 输入或日志 |
 
 AI Gateway `production` 的中央密钥上限为三个声明名称：
 
@@ -48,12 +48,13 @@ Environment 的实际保护规则无法通过仓库文件自动创建，必须�
 ## 维护者手动步骤
 
 1. 在 Action Worker 中创建并保护 `ai-gateway-ops`：仅 main、至少一名必需审批人。
-2. 在 `production` 与 `ai-gateway-ops` Environment 中配置独立且一致的 `AIG_DEPLOY_HEALTH_KEY`；另配置 `CLOUDFLARE_API_TOKEN_OPS`、`CLOUDFLARE_ACCOUNT_ID_OPS`、`AIG_PUBLIC_URL`；`AIG_OPS_SECRET_VALUE` 仅在单项更新前临时设置。
-3. 运行 `ai-gateway-ops.yml` 的 `inventory`，核对 Cloudflare Worker 已有运行时密钥名称。
-4. 如缺失，逐个使用 `put` 补齐并通过健康检查；成功后删除临时 `AIG_OPS_SECRET_VALUE`。
-5. 盘点通过后，从 Action Worker 的 `production` Environment 与仓库级 Secrets 中删除已迁入 Cloudflare 的 AIG 运行时密钥副本，只保留部署合同要求的凭据。
-6. 手动触发一次 AI Gateway 部署，确认中央策略、Cloudflare 密钥盘点、精确 SHA 健康检查全部通过。
-7. 确认 `AW_CHECKOUT_TOKEN` 仅有目标仓库 `Contents: read` 权限。
+2. 在 `production` 与 `ai-gateway-ops` Environment 中配置独立且一致的 `AIG_DEPLOY_HEALTH_KEY`；另配置 `CLOUDFLARE_API_TOKEN_OPS`，并把 `CLOUDFLARE_ACCOUNT_ID_SECONDARY` 与全部非敏感 `AIG_*` Variables 迁入 `ai-gateway-ops`；`AIG_OPS_SECRET_VALUE` 仅在单项更新前临时设置。
+3. 校验 ops 变量快照后，删除 Repository、Organization 与 `production` 中的 AI Gateway Variable 副本；门禁不允许仓库级回退或同值覆盖。
+4. 运行 `ai-gateway-ops.yml` 的 `inventory`，核对 Cloudflare Worker 已有运行时密钥名称。
+5. 如缺失，逐个使用 `put` 补齐并通过健康检查；成功后删除临时 `AIG_OPS_SECRET_VALUE`。
+6. 盘点通过后，从 Action Worker 的 `production` Environment 与仓库级 Secrets 中删除已迁入 Cloudflare 的 AIG 运行时密钥副本，只保留部署合同要求的凭据。
+7. 经独立生产批准手动触发一次 AI Gateway 部署，确认中央策略、Cloudflare 密钥盘点、精确 SHA 健康检查全部通过。
+8. 确认 `AW_CHECKOUT_TOKEN` 仅有目标仓库 `Contents: read` 权限。
 
 ## 验收标准
 

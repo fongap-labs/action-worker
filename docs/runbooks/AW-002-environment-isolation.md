@@ -5,7 +5,7 @@
 | 环境 | 用途 | 保护要求 |
 | --- | --- | --- |
 | `production` | AI Gateway、MCP Hub、Internal Vault 中 Server Edge 的正式部署 | 按产品中央密钥白名单，仅注入本次产品所需凭据；不得配置人工审批，以免阻断自动部署 |
-| `ai-gateway-ops` | AI Gateway 运行时密钥盘点与更新 | 仅 main；配置必需审批人 |
+| `ai-gateway-ops` | AI Gateway 非敏感部署变量、运行时密钥盘点与更新 | 仅 main；配置必需审批人 |
 | `mcp-hub-ops` | MCP Hub 专属运维密钥与变量 | 仅运维用途，不登记 Deployment；审批规则按现有策略 |
 | `admin-ops` | Action Worker 管理员操作 | 保持现有策略 |
 
@@ -40,7 +40,7 @@ Action Worker 中央策略对 `fongap-labs/ai-gateway` 的 `production` 只允�
 | 声明名称 | Action Worker 环境中实际存储名称 | 用途 |
 | --- | --- | --- |
 | `CLOUDFLARE_API_TOKEN` | `CLOUDFLARE_API_TOKEN_SECONDARY` | Worker 代码发布、D1 迁移与绑定 |
-| `CLOUDFLARE_ACCOUNT_ID` | `CLOUDFLARE_ACCOUNT_ID_SECONDARY` | Cloudflare 账号标识 |
+| `CLOUDFLARE_ACCOUNT_ID` | `ai-gateway-ops` Variable `CLOUDFLARE_ACCOUNT_ID_SECONDARY` | Cloudflare 账号标识 |
 
 `AIG_DEPLOY_HEALTH_KEY` 是独立随机凭据，直接存储在 Action Worker 的 `production` Environment，并以同名 Cloudflare Worker Secret 保存在运行时。它只允许访问部署健康检查所需的 `/health`、`/v1/models` 与 `/v1/messages/count_tokens`，不属于任何用户访问组，也不能调用模型生成接口。
 
@@ -58,10 +58,16 @@ Provider 凭据、其他访问分组密钥、OAuth 加密密钥、推理/生成�
 
 Environment Variables：
 
-| 名称 | 内容 |
+| 名称或模式 | 内容 |
 | --- | --- |
-| `CLOUDFLARE_ACCOUNT_ID_OPS` | AI Gateway 所在 Cloudflare 账号 ID（32 位十六进制） |
-| `AIG_PUBLIC_URL` | AI Gateway 正式 HTTPS 地址 |
+| `CLOUDFLARE_ACCOUNT_ID_SECONDARY` | AI Gateway 所在 Cloudflare 账号 ID（32 位小写十六进制） |
+| `AIG_PUBLIC_URL`、`AIG_AFFINITY_KV_ID`、`AIG_USAGE_D1_ID`、`AIG_ANALYTICS_DATASET` | 正式地址及 KV、D1、Analytics 资源标识 |
+| `AIG_INFERENCE_TARGET`、`AIG_GENERATION_TARGET` | 私有执行中心的目标 Worker 名称；发布器据此生成 Service Binding |
+| `AIG_TIER1_NODES_XX`、`AIG_TIER2_NODES_XX` | 两位分片后缀的节点配置 |
+| `AIG_MODELS_CONFIG`、`AIG_POLICIES_CONFIG`、`AIG_ACCESS_MODELS_<GROUP>` | 模型目录、策略和访问组映射；具体模型名仅存在于配置值中 |
+| 其余当前源码使用的非敏感 `AIG_*` | 超时、限流、日志、协议回退、用量和功能开关等运行参数 |
+
+以上 AI Gateway Variables 不得同时存在于 Repository、Organization 或 `production` Environment。部署门禁拒绝任何可见重复来源，不采用相同值覆盖或仓库级回退。`AIG_BUILD_SHA`、`AIG_INFERENCE_ACTIVE`、`AIG_GENERATION_ACTIVE`、`AIG_INFERENCE_SERVICE`、`AIG_GENERATION_SERVICE` 由发布过程生成，不得手工配置；旧 Tier 3、OAuth 和会员订阅变量不得迁入。
 
 Environment Secrets：
 
@@ -86,8 +92,9 @@ openssl rand -hex 32
 
 ## 首次核验与清理
 
-1. 创建并保护 `ai-gateway-ops`，配置上表变量与 Secrets。
-2. 运行 Cloudflare 密钥盘点：
+1. 创建并保护 `ai-gateway-ops`，先完整配置上表 Variables 与所需 Secrets；模型和节点值从现有受控配置原样迁移，不在代码中另建固定模型清单。
+2. 运行中央校验并确认变量快照通过后，从 Repository、Organization 和 `production` Environment 删除同名 AI Gateway Variables。删除前不得触发生产部署；未清理的可见重复来源会被部署门禁拒绝。
+3. 运行 Cloudflare 密钥盘点：
 
 ```bash
 gh workflow run ai-gateway-ops.yml \
@@ -95,21 +102,19 @@ gh workflow run ai-gateway-ops.yml \
   -f operation=inventory
 ```
 
-3. 核对输出仅包含密钥名称。必须存在：
+4. 核对输出仅包含密钥名称。必须存在：
    - `AIG_DEPLOY_HEALTH_KEY`
    - 至少一个 `AIG_ACCESS_KEY_<GROUP>`
-   - 至少一个 `AIG_TIER[123]_CREDENTIALS_XX`
-   - 启用 OAuth 节点时的 `AIG_TOKEN_ENCRYPTION_KEY`
+   - 至少一个当前启用 Tier 的 `AIG_TIER[12]_CREDENTIALS_XX`
    - 启用推理/生成中心绑定时对应的 `AIG_INFERENCE_AUTH_KEY` / `AIG_GENERATION_AUTH_KEY`
-4. 如缺少密钥，先按下一节逐个补齐；未通过盘点前不得删除 GitHub 中的旧密钥副本。
-5. 盘点通过后，在 Action Worker 的 `production` Environment 与仓库级 Secrets 中删除已迁入 Cloudflare 的运行时密钥：
-   - `AIG_TOKEN_ENCRYPTION_KEY`
+5. 如缺少密钥，先按下一节逐个补齐；未通过盘点前不得删除 GitHub 中的旧密钥副本。
+6. 盘点通过后，在 Action Worker 的 `production` Environment 与仓库级 Secrets 中删除已迁入 Cloudflare 的运行时密钥：
    - `AIG_INFERENCE_AUTH_KEY`
    - `AIG_GENERATION_AUTH_KEY`
    - `AIG_ACCESS_KEY_AIR`、`AIG_ACCESS_KEY_PRO`、`AIG_ACCESS_KEY_MAX`、`AIG_ACCESS_KEY_ULTRA`、`AIG_ACCESS_KEY_AGENT`
-   - `AIG_TIER1_CREDENTIALS_01..10`、`AIG_TIER2_CREDENTIALS_01..10`、`AIG_TIER3_CREDENTIALS_01..10`
-6. 保留独立的 `AIG_DEPLOY_HEALTH_KEY`，并确认 Action Worker `production` 与 Cloudflare Worker 中的值完全一致；所有 `AIG_ACCESS_KEY_<GROUP>` 均只保留在 Cloudflare Worker Secrets。
-7. 确认 `production` 只保留部署所需 Cloudflare 凭据与健康检查凭据后，手动触发一次 AI Gateway 部署，确认中央策略、远端密钥盘点和精确 SHA 健康检查全部通过。
+   - `AIG_TIER1_CREDENTIALS_XX`、`AIG_TIER2_CREDENTIALS_XX`
+7. 保留独立的 `AIG_DEPLOY_HEALTH_KEY`，并确认 Action Worker `production` 与 Cloudflare Worker 中的值完全一致；所有 `AIG_ACCESS_KEY_<GROUP>` 均只保留在 Cloudflare Worker Secrets。
+8. 确认 `production` 只保留部署所需 Cloudflare 凭据与健康检查凭据后，经独立生产批准手动触发一次 AI Gateway 部署，确认中央策略、远端密钥盘点和精确 SHA 健康检查全部通过。
 
 ## 单项运行时密钥更新
 
@@ -135,6 +140,7 @@ gh workflow run ai-gateway-ops.yml \
 AI Gateway 的普通代码部署：
 
 - 只从 `production` 读取 Cloudflare 发布凭据与健康检查凭据。
+- 所有 AI Gateway 非敏感部署 Variables 只从受保护的 `ai-gateway-ops` 快照读取；其他作用域出现同名配置即停止。
 - 通过 Wrangler 读取 Cloudflare Worker Secret 名称与类型，不读取值。
 - 不生成 `gateway-secrets.json`，不传 `--secrets-file`，不重新上传或删除运行时密钥。
 - 发现必需密钥缺失时，在发布代码前失败即关闭。

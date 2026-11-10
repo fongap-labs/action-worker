@@ -276,8 +276,8 @@ jobs:
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
         run: node scripts/verify-deploy-credential-environment.ts
 
-  gateway_account_id:
-    # Only public allowlisted data is exported; no ops Secret crosses the trust boundary.
+  gateway_variables:
+    # Only validated non-sensitive Variables are exported; no ops Secret crosses the trust boundary.
     needs: prepare
     if: needs.prepare.result == 'success' && needs.prepare.outputs.source_repository == 'fongap-labs/ai-gateway' && needs.prepare.outputs.environment == 'production' && needs.prepare.outputs.product == ''
     name: Resolve AI Gateway deployment Variables from protected ops
@@ -289,11 +289,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      account_id: ${{ steps.account_id.outputs.account_id }}
-      public_url: ${{ steps.account_id.outputs.public_url }}
-      affinity_kv_id: ${{ steps.account_id.outputs.affinity_kv_id }}
-      usage_d1_id: ${{ steps.account_id.outputs.usage_d1_id }}
-      analytics_dataset: ${{ steps.account_id.outputs.analytics_dataset }}
+      variables_b64: ${{ steps.variables.outputs.variables_b64 }}
     steps:
       - name: Check out trusted control implementation
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -303,22 +299,18 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-      - name: Validate allowlisted non-sensitive ops Variables
-        id: account_id
+      - name: Validate non-sensitive AI Gateway ops Variables
+        id: variables
         env:
-          CLOUDFLARE_ACCOUNT_ID_SECONDARY: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
-          AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
-          AIG_AFFINITY_KV_ID: ${{ vars.AIG_AFFINITY_KV_ID }}
-          AIG_USAGE_D1_ID: ${{ vars.AIG_USAGE_D1_ID }}
-          AIG_ANALYTICS_DATASET: ${{ vars.AIG_ANALYTICS_DATASET }}
+          AIG_OPS_VARIABLES_JSON: ${{ toJSON(vars) }}
         run: node scripts/gateway-ops-variables.ts
 
   deploy:
     name: Execute source-script deploy
-    needs: [prepare, gateway_account_id]
+    needs: [prepare, gateway_variables]
     # A skipped ops job is normal for non-Gateway deployments. Gateway production
     # requires an approved, successful ops read; failure cannot bypass this gate.
-    if: ${{ !cancelled() && needs.prepare.result == 'success' && ((needs.prepare.outputs.source_repository == 'fongap-labs/ai-gateway' && needs.prepare.outputs.environment == 'production' && needs.prepare.outputs.product == '' && needs.gateway_account_id.result == 'success') || (needs.prepare.outputs.source_repository != 'fongap-labs/ai-gateway' && needs.gateway_account_id.result == 'skipped')) }}
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && ((needs.prepare.outputs.source_repository == 'fongap-labs/ai-gateway' && needs.prepare.outputs.environment == 'production' && needs.prepare.outputs.product == '' && needs.gateway_variables.result == 'success') || (needs.prepare.outputs.source_repository != 'fongap-labs/ai-gateway' && needs.gateway_variables.result == 'skipped')) }}
     # Exactly one GitHub Environment per deployment job. The prepare gate checks
     # the source manifest against the central authorization policy.
     environment:
@@ -382,14 +374,10 @@ jobs:
         with:
           node-version: 24
 
-      - name: Export repository variables
+      - name: Export scoped deployment variables
         env:
           REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}
-          AW_GATEWAY_ACCOUNT_ID_FROM_OPS: ${{ needs.gateway_account_id.outputs.account_id }}
-          AW_GATEWAY_PUBLIC_URL_FROM_OPS: ${{ needs.gateway_account_id.outputs.public_url }}
-          AW_GATEWAY_AFFINITY_KV_ID_FROM_OPS: ${{ needs.gateway_account_id.outputs.affinity_kv_id }}
-          AW_GATEWAY_USAGE_D1_ID_FROM_OPS: ${{ needs.gateway_account_id.outputs.usage_d1_id }}
-          AW_GATEWAY_ANALYTICS_DATASET_FROM_OPS: ${{ needs.gateway_account_id.outputs.analytics_dataset }}
+          AW_GATEWAY_VARIABLES_B64_FROM_OPS: ${{ needs.gateway_variables.outputs.variables_b64 }}
         run: node control/scripts/export-repository-variables.ts
 
       - name: Resolve deploy Secret plan

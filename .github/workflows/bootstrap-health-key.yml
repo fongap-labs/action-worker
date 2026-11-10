@@ -36,8 +36,7 @@ jobs:
       - name: Validate approved Gateway ops metadata
         id: metadata
         env:
-          CLOUDFLARE_ACCOUNT_ID_SECONDARY: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
-          AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
+          AIG_OPS_VARIABLES_JSON: ${{ toJSON(vars) }}
         run: node scripts/gateway-ops-variables.ts
       # Validate the public origin before admin-ops creates any Secret.
       - name: Require configured public health origin

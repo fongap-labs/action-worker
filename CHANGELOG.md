@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: AI Gateway 非敏感部署变量统一由受保护的 ai-gateway-ops 提供，拒绝仓库级回退。
+
 - 修复: AI Gateway 文档治理合同按明确拒绝 `budget_split` 和跨 Tier 加权分配的语义校验中英文声明，不再因现有中文文档缺少固定英文句式使中央 CI 失败；未知预算模式继续拒绝。
 
 - 修复: 离线部署密钥作用域审计按中央凭据路由核对实际 `ops` Environment，而非逻辑 `production` 名称；新增错误 Environment 中同名 Secret 不可达的回归测试。

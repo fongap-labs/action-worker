@@ -1,7 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { chmod, writeFile } from "node:fs/promises";
 import { aiAgentRuntimeEntries, parseAiAgentConfig } from "./ai-agent-config.ts";
-import { validateGatewayOpsVariables } from "./gateway-ops-variables.ts";
+import {
+  decodeGatewayOpsVariables,
+  isGatewayOwnedVariableName,
+  validateGatewayOpsVariables,
+} from "./gateway-ops-variables.ts";
 import { isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
@@ -34,9 +38,9 @@ export function variableEntries(value: unknown): Array<[string, string]> {
 }
 
 /**
- * The AI Gateway production account ID is a non-sensitive Variable owned by
- * this control repository's protected ai-gateway-ops Environment. Only this
- * deployment key may receive it. Never import other ops variables or Secrets.
+ * AI Gateway production Variables are owned only by this control repository's
+ * protected ai-gateway-ops Environment. The deployment scope may still contain
+ * unrelated products' Variables, but any duplicate AI Gateway source fails.
  */
 export function mergeApprovedGatewayOpsVariables(
   variables: Record<string, string>,
@@ -51,33 +55,16 @@ export function mergeApprovedGatewayOpsVariables(
     return variables;
   }
   const approved = validateGatewayOpsVariables(fromOps);
-  const merged = { ...variables };
-  for (const [name, value] of Object.entries(approved)) {
-    const existing = merged[name];
-    if (existing !== undefined) {
-      const matches =
-        name === "AIG_PUBLIC_URL"
-          ? existing === value || existing === value + "/"
-          : existing === value;
-      if (!matches) {
-        throw new CliError("AI Gateway has conflicting Variable sources: " + name + ".", 77);
-      }
-    }
-    merged[name] = value;
+  const misplaced = Object.keys(variables).filter(isGatewayOwnedVariableName).sort();
+  if (misplaced.length > 0) {
+    throw new CliError(
+      "AI Gateway Variables must exist only in protected ai-gateway-ops; remove other-scope bindings: " +
+        misplaced.join(", ") +
+        ".",
+      77
+    );
   }
-  return merged;
-}
-
-/** Compatibility for callers that have not moved optional metadata to protected ops. */
-export function mergeApprovedGatewayAccountId(
-  variables: Record<string, string>,
-  sourceRepository: string | undefined,
-  deployEnvironment: string | undefined,
-  accountId: string | undefined
-): Record<string, string> {
-  return mergeApprovedGatewayOpsVariables(variables, sourceRepository, deployEnvironment, {
-    CLOUDFLARE_ACCOUNT_ID_SECONDARY: accountId,
-  });
+  return { ...variables, ...approved };
 }
 
 async function main(): Promise<void> {
@@ -97,13 +84,9 @@ async function main(): Promise<void> {
     Object.fromEntries(variableEntries(value)),
     process.env.DEPLOY_SOURCE_REPOSITORY,
     process.env.DEPLOY_ENVIRONMENT,
-    {
-      CLOUDFLARE_ACCOUNT_ID_SECONDARY: process.env.AW_GATEWAY_ACCOUNT_ID_FROM_OPS,
-      AIG_PUBLIC_URL: process.env.AW_GATEWAY_PUBLIC_URL_FROM_OPS,
-      AIG_AFFINITY_KV_ID: process.env.AW_GATEWAY_AFFINITY_KV_ID_FROM_OPS,
-      AIG_USAGE_D1_ID: process.env.AW_GATEWAY_USAGE_D1_ID_FROM_OPS,
-      AIG_ANALYTICS_DATASET: process.env.AW_GATEWAY_ANALYTICS_DATASET_FROM_OPS,
-    }
+    process.env.AW_GATEWAY_VARIABLES_B64_FROM_OPS
+      ? decodeGatewayOpsVariables(process.env.AW_GATEWAY_VARIABLES_B64_FROM_OPS)
+      : {}
   );
   const entries = variableEntries(sorted);
   const aiAgentConfig = parseAiAgentConfig(sorted.AW_AI_AGENT_CONFIG ?? "");

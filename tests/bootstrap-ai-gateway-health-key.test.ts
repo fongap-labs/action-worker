@@ -81,11 +81,7 @@ test("one-shot bootstrap reuses existing deploy Secrets with ops-only non-secret
   const exportStep = metadataSteps.find(
     (step) => step.name === "Validate approved Gateway ops metadata"
   );
-  assert.equal(
-    exportStep?.env?.CLOUDFLARE_ACCOUNT_ID_SECONDARY,
-    "${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}"
-  );
-  assert.equal(exportStep?.env?.AIG_PUBLIC_URL, "${{ vars.AIG_PUBLIC_URL }}");
+  assert.deepEqual(exportStep?.env, { AIG_OPS_VARIABLES_JSON: "${{ toJSON(vars) }}" });
   assert.equal(exportStep?.run, "node scripts/gateway-ops-variables.ts");
   assert.ok(
     metadataSteps.some(
