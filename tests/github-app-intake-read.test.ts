@@ -30,10 +30,7 @@ test("all seven intake jobs use policy-scoped App reads without personal control
     const mint = steps.find((step) => step.name === "Mint scoped intake read token");
     assert.equal(mint?.id, "control_read_app", job);
     assert.equal(mint?.uses, "./.github/actions/mint-app-token");
-    assert.equal(
-      mint?.with?.repositories,
-      `\${{ steps.${scope}.outputs.read_repositories_csv }}`
-    );
+    assert.equal(mint?.with?.repositories, `\${{ steps.${scope}.outputs.read_repositories_csv }}`);
     assert.deepEqual(
       Object.entries(mint?.with ?? {})
         .filter(([key]) => key.startsWith("permission-"))
@@ -56,7 +53,6 @@ test("all seven intake jobs use policy-scoped App reads without personal control
   }
 });
 
-
 test("intake read scope adds the control repository once while preserving policy order", () => {
   assert.equal(
     intakeReadRepositoryNames("fongap-labs/action-worker", [
@@ -71,10 +67,7 @@ test("intake read scope adds the control repository once while preserving policy
     intakeReadRepositoryNames("fongap-labs/action-worker", ["ai-gateway", "dsh-plugin"]),
     "action-worker,ai-gateway,dsh-plugin"
   );
-  assert.equal(
-    intakeReadRepositoryNames("fongap-labs/action-worker", []),
-    "action-worker"
-  );
+  assert.equal(intakeReadRepositoryNames("fongap-labs/action-worker", []), "action-worker");
   assert.throws(() => intakeReadRepositoryNames("other-org", ["ai-gateway"]), /control repository/);
   assert.throws(
     () => intakeReadRepositoryNames("fongap-labs/action-worker", ["another-org/repo"]),
