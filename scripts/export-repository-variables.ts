@@ -38,15 +38,17 @@ export function variableEntries(value: unknown): Array<[string, string]> {
 }
 
 /**
- * AI Gateway production Variables are owned only by this control repository's
- * protected ai-gateway-ops Environment. The deployment scope may still contain
- * unrelated products' Variables, but any duplicate AI Gateway source fails.
+ * AI Gateway production Variables are validated in the protected ops job.
+ * The deploy job also binds the ai-gateway-ops Environment, which means
+ * toJSON(vars) legitimately contains the same inherited values. Only an
+ * approved, matching snapshot may be exported; unapproved names/values fail.
  */
 export function mergeApprovedGatewayOpsVariables(
   variables: Record<string, string>,
   sourceRepository: string | undefined,
   deployEnvironment: string | undefined,
-  fromOps: Readonly<Record<string, string | undefined>>
+  fromOps: Readonly<Record<string, string | undefined>>,
+  credentialEnvironment?: string
 ): Record<string, string> {
   if (sourceRepository !== "fongap-labs/ai-gateway" || deployEnvironment !== "production") {
     if (Object.values(fromOps).some((value) => Boolean(value))) {
@@ -54,16 +56,34 @@ export function mergeApprovedGatewayOpsVariables(
     }
     return variables;
   }
-  const approved = validateGatewayOpsVariables(fromOps);
-  const misplaced = Object.keys(variables).filter(isGatewayOwnedVariableName).sort();
-  if (misplaced.length > 0) {
+  if (credentialEnvironment !== "ai-gateway-ops") {
     throw new CliError(
-      "AI Gateway Variables must exist only in protected ai-gateway-ops; remove other-scope bindings: " +
-        misplaced.join(", ") +
+      "AI Gateway production requires the protected ai-gateway-ops credential Environment.",
+      77
+    );
+  }
+  const approved = validateGatewayOpsVariables(fromOps);
+  const inherited = Object.fromEntries(
+    Object.entries(variables).filter(([name]) => isGatewayOwnedVariableName(name))
+  );
+  // Normalize inherited values (notably an HTTPS origin with a trailing slash)
+  // and reject retired OAuth bindings, misplaced Secrets, and invalid values.
+  const validatedInherited = validateGatewayOpsVariables({
+    CLOUDFLARE_ACCOUNT_ID_SECONDARY: approved.CLOUDFLARE_ACCOUNT_ID_SECONDARY,
+    ...inherited,
+  });
+  const conflicts = Object.keys(inherited)
+    .filter((name) => validatedInherited[name] !== approved[name])
+    .sort();
+  if (conflicts.length > 0) {
+    throw new CliError(
+      "AI Gateway deploy Variables conflict with the approved protected ops snapshot: " +
+        conflicts.join(", ") +
         ".",
       77
     );
   }
+  // The protected handoff is authoritative; never let inherited values override it.
   return { ...variables, ...approved };
 }
 
@@ -86,7 +106,8 @@ async function main(): Promise<void> {
     process.env.DEPLOY_ENVIRONMENT,
     process.env.AW_GATEWAY_VARIABLES_B64_FROM_OPS
       ? decodeGatewayOpsVariables(process.env.AW_GATEWAY_VARIABLES_B64_FROM_OPS)
-      : {}
+      : {},
+    process.env.DEPLOY_CREDENTIAL_ENVIRONMENT
   );
   const entries = variableEntries(sorted);
   const aiAgentConfig = parseAiAgentConfig(sorted.AW_AI_AGENT_CONFIG ?? "");
