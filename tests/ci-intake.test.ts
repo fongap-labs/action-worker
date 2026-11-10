@@ -115,6 +115,27 @@ test("central CI intake dispatches only default heads without evidence", async (
   });
 });
 
+test("default head lookup rejects an empty or malformed default-branch commit list", async () => {
+  const repository = "fongap-labs/example";
+  for (const payload of [[], [{}], [{ sha: "not-a-commit-sha" }]]) {
+    await assert.rejects(
+      scanMainCi(
+        { [repository]: ["pr"] },
+        {
+          async get(path: string): Promise<unknown> {
+            assert.equal(path, `repos/${repository}/commits?per_page=1`);
+            return payload;
+          },
+        },
+        async () => {
+          throw new Error("invalid default HEAD must never dispatch");
+        }
+      ),
+      /default-branch commit list response is invalid|default head SHA is invalid/
+    );
+  }
+});
+
 test("central CI intake reserves status before dispatch", async () => {
   const repository = "fongap-labs/example";
   const controlRepository = "fongap-labs/action-worker";
@@ -252,8 +273,7 @@ test("central CI intake excludes the control repository without hardcoded names"
     {
       async get(path: string): Promise<unknown> {
         assert.doesNotMatch(path, /fongap-labs\/control/);
-        if (path === `repos/${businessRepository}`) return { default_branch: "main" };
-        if (path === `repos/${businessRepository}/commits/main`) return { sha: shaA };
+        if (path === `repos/${businessRepository}/commits?per_page=1`) return [{ sha: shaA }];
         return { statuses: [] };
       },
     },
