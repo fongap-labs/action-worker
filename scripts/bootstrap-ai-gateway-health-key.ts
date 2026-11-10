@@ -100,9 +100,7 @@ async function bootstrapGithubEnvironments(): Promise<void> {
       { input: value, timeoutMs: 30000, maxBuffer: 1024 * 1024 }
     );
   }
-  console.log(
-    "Deployment health Secret initialized in the protected ai-gateway-ops Environment."
-  );
+  console.log("Deployment health Secret initialized in the protected ai-gateway-ops Environment.");
 }
 
 /** Read the persisted Environment Secret in a fresh, protected job. */
