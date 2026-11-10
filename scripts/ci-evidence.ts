@@ -1,4 +1,10 @@
-import { getJsonArray, getJsonNumber, getJsonString, isJsonRecord, type JsonRecord } from "./github-api.ts";
+import {
+  getJsonArray,
+  getJsonNumber,
+  getJsonString,
+  isJsonRecord,
+  type JsonRecord,
+} from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 import { hasValidStatusAttestation, statusRunAttempt } from "./status-attestation.ts";
 
