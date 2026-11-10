@@ -139,11 +139,13 @@ test('browser clients can send deadlines and session ids and read retry diagnost
   assert.match(headers['Access-Control-Expose-Headers'], /X-Gateway-Retryable/);
 });
 
-test('deployment defaults bound free-tier amplification and preserve explicit overrides', () => {
-  assert.equal(DEFAULT_OPTIMAL_VARS.AIG_STREAM_MAX_ATTEMPTS, '3');
-  assert.equal(DEFAULT_OPTIMAL_VARS.AIG_NONSTREAM_MAX_ATTEMPTS, '3');
+test('deployment defaults prioritize bounded Tier 1 capacity and preserve explicit overrides', () => {
+  assert.equal(DEFAULT_OPTIMAL_VARS.AIG_STREAM_MAX_ATTEMPTS, '8');
+  assert.equal(DEFAULT_OPTIMAL_VARS.AIG_NONSTREAM_MAX_ATTEMPTS, '8');
+  assert.equal(DEFAULT_OPTIMAL_VARS.AIG_REQUEST_HEDGE_MAX, '0');
   assert.equal(DEFAULT_OPTIMAL_VARS.AIG_ISOLATE_MAX_IN_FLIGHT, '8');
   const config = buildWranglerConfig({ AIG_STREAM_MAX_ATTEMPTS: '5', AIG_ISOLATE_MAX_IN_FLIGHT: '16' });
   assert.equal(config.vars.AIG_STREAM_MAX_ATTEMPTS, '5');
+  assert.equal(config.vars.AIG_NONSTREAM_MAX_ATTEMPTS, '8');
   assert.equal(config.vars.AIG_ISOLATE_MAX_IN_FLIGHT, '16');
 });
