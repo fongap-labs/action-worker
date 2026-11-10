@@ -117,6 +117,55 @@ function dependabotPull(
   };
 }
 
+function managedAppPull(
+  options: { headRepository?: string; baseRepository?: string; type?: string; login?: string } = {}
+) {
+  return {
+    author_association: "CONTRIBUTOR",
+    user: { login: options.login ?? "fongap-bot[bot]", type: options.type ?? "Bot" },
+    head: {
+      sha: headSha,
+      repo: { full_name: options.headRepository ?? "fongap-labs/external-vault" },
+    },
+    base: {
+      repo: { full_name: options.baseRepository ?? "fongap-labs/external-vault", private: false },
+    },
+  };
+}
+
+test("the official same-repository fongap-bot app passes deterministic CI without review", () => {
+  assert.deepEqual(evaluatePrTrust(managedAppPull(), [], headSha), {
+    trusted: true,
+    basis: "managed-app",
+    association: "CONTRIBUTOR",
+  });
+  assert.equal(
+    evaluatePrTrust(
+      managedAppPull({
+        baseRepository: "fongap-labs/internal-vault",
+        headRepository: "fongap-labs/internal-vault",
+      }),
+      [],
+      headSha
+    ).trusted,
+    true
+  );
+});
+
+test("foreign bots, user impersonators and App forks remain untrusted", () => {
+  for (const pr of [
+    managedAppPull({ login: "other-bot[bot]" }),
+    managedAppPull({ type: "User" }),
+    managedAppPull({ headRepository: "someone/external-vault" }),
+    managedAppPull({
+      baseRepository: "someone/external-vault",
+      headRepository: "someone/external-vault",
+    }),
+  ]) {
+    assert.equal(evaluatePrTrust(pr, [], headSha).trusted, false);
+  }
+});
+
 test("a Dependabot pull request from the same public repository needs no approval", () => {
   assert.deepEqual(evaluatePrTrust(dependabotPull(), [], headSha), {
     trusted: true,
