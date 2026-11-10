@@ -230,4 +230,4 @@ flowchart LR
 
 ## 许可证
 
-[Apache-2.0](LICENSE)
+[MIT](LICENSE)
