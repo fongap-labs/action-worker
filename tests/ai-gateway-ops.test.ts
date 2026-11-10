@@ -321,3 +321,26 @@ test("protected ops workflow requires explicit Worker choice for private center 
   assert.match(workflow, /AIG_OPS_WORKER_NAME: \$\{\{ inputs.worker \}\}/);
   assert.doesNotMatch(workflow, /secret delete/);
 });
+
+test("private center manual release pins reviewed main source and never transfers provider Secrets", () => {
+  const workflow = readFileSync(
+    new URL("../.github/workflows/ai-gateway-ops.yml", import.meta.url),
+    "utf8"
+  );
+  assert.match(workflow, /- deploy-center/);
+  assert.match(workflow, /if: inputs.operation == 'deploy-center'/);
+  assert.match(workflow, /node scripts\/private-center-config\.mjs prepare/);
+  assert.match(workflow, /node scripts\/cloudflare-wrangler\.mjs deploy --config/);
+  assert.match(
+    workflow,
+    /git ls-remote https:\/\/github\.com\/fongap-labs\/ai-gateway\.git refs\/heads\/main/
+  );
+  assert.match(workflow, /ai-inference-center\|ai-generation-center/);
+  const source = workflow.match(/ref: ([a-f0-9]{40})\n\s+path: ag-center/);
+  const pinned = workflow.match(/PINNED_CENTER_SHA: ([a-f0-9]{40})/);
+  const deployed = workflow.match(/DEPLOY_SOURCE_SHA: ([a-f0-9]{40})/);
+  assert.ok(source && pinned && deployed);
+  assert.equal(source[1], pinned[1]);
+  assert.equal(source[1], deployed[1]);
+  assert.doesNotMatch(workflow, /--secrets-file|secret bulk|secret delete/);
+});
