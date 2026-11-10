@@ -373,9 +373,30 @@ jobs:
       # Automatically squash-merge an exact, non-draft PR head only after the
       # deterministic, signed CI/Policy/Security merge gate has passed. AI
       # review remains optional and cannot block the merge.
+      - name: Check Draft before requesting merge credentials
+        id: merge_readiness
+        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.cancellation.outputs.cancelled != 'true' }}
+        env:
+          GH_TOKEN: ${{ steps.final_read_app.outputs.token }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          pull="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")"
+          if jq -e --argjson number "$PR_NUMBER" '
+            .number == $number and .state == "open" and .merged == false and .draft == true
+          ' <<< "$pull" >/dev/null; then
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Draft PR: automatic merge intentionally skipped."
+          else
+            # Non-draft requests still go through the immutable SHA and signed-gate checks.
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Mint automatic merge token
         id: merge_app
-        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.cancellation.outputs.cancelled != 'true' }}
+        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.cancellation.outputs.cancelled != 'true' && steps.merge_readiness.outputs.eligible == 'true' }}
         uses: ./.github/actions/mint-app-token
         with:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
@@ -386,7 +407,7 @@ jobs:
           permission-pull-requests: write
 
       - name: Automatically merge CI-green PR
-        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.cancellation.outputs.cancelled != 'true' }}
+        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.cancellation.outputs.cancelled != 'true' && steps.merge_readiness.outputs.eligible == 'true' }}
         env:
           AW_MERGE_READ_TOKEN: ${{ steps.final_read_app.outputs.token }}
           AW_MERGE_WRITE_TOKEN: ${{ steps.merge_app.outputs.token }}

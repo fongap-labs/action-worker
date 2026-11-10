@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { assertReadyForAutomaticMerge, mustRefreshBehindBranch } from "../scripts/auto-merge-pr.ts";
+import { assertReadyForAutomaticMerge, isOpenDraftPull, mustRefreshBehindBranch } from "../scripts/auto-merge-pr.ts";
 import { signedStatusDescription } from "../scripts/status-attestation.ts";
 
 const repository = "fongap-labs/ai-gateway";
@@ -101,6 +101,16 @@ test("only a same-repository behind branch may be refreshed after signed CI succ
     ),
     false
   );
+});
+
+test("Draft PR is a deliberate no-op, not merge admission", () => {
+  const draft = { ...pull(), draft: true };
+  assert.equal(isOpenDraftPull(draft, number), true);
+  assert.throws(() => verify(draft, statuses()), /non-draft/);
+  assert.equal(isOpenDraftPull({ ...draft, number: number + 1 }, number), false);
+  assert.equal(isOpenDraftPull({ ...draft, merged: true }, number), false);
+  assert.equal(isOpenDraftPull({ ...draft, state: "closed" }, number), false);
+  assert.equal(isOpenDraftPull(pull(), number), false);
 });
 
 test("draft and changed or closed PRs never auto-merge", () => {
