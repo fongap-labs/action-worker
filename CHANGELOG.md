@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: AI Gateway 文档治理合同按明确拒绝 `budget_split` 和跨 Tier 加权分配的语义校验中英文声明，不再因现有中文文档缺少固定英文句式使中央 CI 失败；未知预算模式继续拒绝。
+
 - 修复: 离线部署密钥作用域审计按中央凭据路由核对实际 `ops` Environment，而非逻辑 `production` 名称；新增错误 Environment 中同名 Secret 不可达的回归测试。
 
 - 修复: 真实受保护初始化 #42739655070 证明 `ai-gateway-ops` 缺少 Cloudflare ops Token；恢复原有 `production` 部署 Token 绑定，同时新增单独只读 `ai-gateway-ops` Job 输出经校验的 Account ID 和公网 Origin。健康密钥仅向实际凭据作业 Environment 初始化，并使用现有受保护 Cloudflare 部署身份发布和检查健康；无跨 Job Secret 传递、不向 ops 复制凭据。
