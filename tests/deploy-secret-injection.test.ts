@@ -253,7 +253,7 @@ test("workflow resolves one source per fixed slot without embedding product Secr
   }
 });
 
-test("AI Gateway production imports its complete non-sensitive snapshot only from protected ops", () => {
+test("AI Gateway production accepts identical inherited ops values and rejects mismatches", () => {
   const account = "0123456789abcdef0123456789abcdef";
   const kv = "11111111111111111111111111111111";
   const d1 = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
@@ -266,39 +266,76 @@ test("AI Gateway production imports its complete non-sensitive snapshot only fro
     AIG_MODELS_CONFIG: JSON.stringify({ catalog: ["configured-at-runtime"] }),
     AIG_ACCESS_MODELS_AGENT: "configured-at-runtime",
   };
+  const normalized = { ...approved, AIG_PUBLIC_URL: "https://gateway.example" };
+  const inherited = { ...approved, PUBLIC_VALUE: "unchanged" };
+
+  assert.deepEqual(
+    mergeApprovedGatewayOpsVariables(
+      inherited,
+      "fongap-labs/ai-gateway",
+      "production",
+      approved,
+      "ai-gateway-ops"
+    ),
+    { ...normalized, PUBLIC_VALUE: "unchanged" }
+  );
   assert.deepEqual(
     mergeApprovedGatewayOpsVariables(
       { PUBLIC_VALUE: "unchanged" },
       "fongap-labs/ai-gateway",
       "production",
-      approved
+      approved,
+      "ai-gateway-ops"
     ),
-    {
-      CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
-      AIG_PUBLIC_URL: "https://gateway.example",
-      AIG_AFFINITY_KV_ID: kv,
-      AIG_USAGE_D1_ID: d1,
-      AIG_ANALYTICS_DATASET: "GATEWAY_EVENTS",
-      AIG_MODELS_CONFIG: JSON.stringify({ catalog: ["configured-at-runtime"] }),
-      AIG_ACCESS_MODELS_AGENT: "configured-at-runtime",
-      PUBLIC_VALUE: "unchanged",
-    }
+    { ...normalized, PUBLIC_VALUE: "unchanged" }
   );
-  const misplacedSources: Array<Record<string, string>> = [
-    { AIG_PUBLIC_URL: "https://gateway.example" },
-    { AIG_MODELS_CONFIG: approved.AIG_MODELS_CONFIG },
-    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account },
-  ];
-  for (const misplaced of misplacedSources) {
+
+  for (const conflict of [
+    { AIG_MODELS_CONFIG: "different" },
+    { AIG_UNKNOWN_CONFIG: "unapproved" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: "11111111111111111111111111111111" },
+  ]) {
     assert.throws(
       () =>
         mergeApprovedGatewayOpsVariables(
-          misplaced,
+          { ...inherited, ...conflict },
           "fongap-labs/ai-gateway",
           "production",
-          approved
+          approved,
+          "ai-gateway-ops"
         ),
-      /must exist only in protected ai-gateway-ops/
+      /conflict with the approved/
+    );
+  }
+
+  for (const forbidden of [
+    { AIG_OAUTH_ADMIN_GROUPS: "MAX,ULTRA" },
+    { AIG_ACCESS_KEY_AGENT: "must-be-a-secret" },
+  ]) {
+    assert.throws(
+      () =>
+        mergeApprovedGatewayOpsVariables(
+          { ...inherited, ...forbidden },
+          "fongap-labs/ai-gateway",
+          "production",
+          approved,
+          "ai-gateway-ops"
+        ),
+      /retired|stored as a Secret/
+    );
+  }
+
+  for (const credentialEnvironment of ["production", "", undefined]) {
+    assert.throws(
+      () =>
+        mergeApprovedGatewayOpsVariables(
+          {},
+          "fongap-labs/ai-gateway",
+          "production",
+          approved,
+          credentialEnvironment
+        ),
+      /protected ai-gateway-ops credential Environment/
     );
   }
   assert.deepEqual(
@@ -342,5 +379,9 @@ test("AI Gateway Variables are read only in the protected ops job", async () => 
   assert.equal(
     exportStep?.env?.AW_GATEWAY_VARIABLES_B64_FROM_OPS,
     "${{ needs.gateway_variables.outputs.variables_b64 }}"
+  );
+  assert.equal(
+    exportStep?.env?.DEPLOY_CREDENTIAL_ENVIRONMENT,
+    "${{ needs.prepare.outputs.credential_environment }}"
   );
 });
