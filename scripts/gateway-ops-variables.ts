@@ -133,6 +133,16 @@ export function validateGatewayOpsVariables(
   return result;
 }
 
+/** Bootstrap needs two explicit metadata values; inherited vars must not become ops inventory. */
+export function validateGatewayBootstrapMetadata(
+  input: Readonly<Record<string, unknown>>
+): Record<string, string> {
+  return validateGatewayOpsVariables({
+    CLOUDFLARE_ACCOUNT_ID_SECONDARY: input.CLOUDFLARE_ACCOUNT_ID_SECONDARY,
+    AIG_PUBLIC_URL: input.AIG_PUBLIC_URL ?? "",
+  });
+}
+
 export function encodeGatewayOpsVariables(input: Readonly<Record<string, unknown>>): string {
   const validated = validateGatewayOpsVariables(input);
   return Buffer.from(JSON.stringify(validated), "utf8").toString("base64url");
@@ -166,15 +176,28 @@ async function main(): Promise<void> {
   ) {
     throw new CliError("Gateway ops Variable export requires approved main-branch Actions.", 77);
   }
-  const payload = parseJson(
-    process.env.AIG_OPS_VARIABLES_JSON || "{}",
-    "Approved ai-gateway-ops Variables payload must be valid JSON.",
-    77
-  );
-  if (!isJsonRecord(payload)) {
-    throw new CliError("Approved ai-gateway-ops Variables payload must be a JSON object.", 77);
+  const bootstrapMetadataOnly = process.env.AIG_BOOTSTRAP_METADATA_ONLY === "true";
+  let validated: Record<string, string>;
+  if (bootstrapMetadataOnly) {
+    // The workflow passes exact names, not toJSON(vars), which includes inherited bindings.
+    if (process.env.AIG_OPS_VARIABLES_JSON) {
+      throw new CliError(
+        "Bootstrap metadata must not include the inherited Variables snapshot.",
+        77
+      );
+    }
+    validated = validateGatewayBootstrapMetadata(process.env);
+  } else {
+    const payload = parseJson(
+      process.env.AIG_OPS_VARIABLES_JSON || "{}",
+      "Approved ai-gateway-ops Variables payload must be valid JSON.",
+      77
+    );
+    if (!isJsonRecord(payload)) {
+      throw new CliError("Approved ai-gateway-ops Variables payload must be a JSON object.", 77);
+    }
+    validated = validateGatewayOpsVariables(payload);
   }
-  const validated = validateGatewayOpsVariables(payload);
   await appendLines(process.env.GITHUB_OUTPUT, [
     `variables_b64=${Buffer.from(JSON.stringify(validated), "utf8").toString("base64url")}`,
     `account_id=${validated.CLOUDFLARE_ACCOUNT_ID_SECONDARY}`,

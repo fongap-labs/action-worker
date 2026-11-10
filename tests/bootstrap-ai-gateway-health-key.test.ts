@@ -81,7 +81,11 @@ test("one-shot bootstrap uses existing SECONDARY Secret in protected ai-gateway-
   const exportStep = metadataSteps.find(
     (step) => step.name === "Validate approved Gateway ops metadata"
   );
-  assert.deepEqual(exportStep?.env, { AIG_OPS_VARIABLES_JSON: "${{ toJSON(vars) }}" });
+  assert.deepEqual(exportStep?.env, {
+    AIG_BOOTSTRAP_METADATA_ONLY: "true",
+    CLOUDFLARE_ACCOUNT_ID_SECONDARY: "${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}",
+    AIG_PUBLIC_URL: "${{ vars.AIG_PUBLIC_URL }}",
+  });
   assert.equal(exportStep?.run, "node scripts/gateway-ops-variables.ts");
   assert.ok(
     metadataSteps.some(
