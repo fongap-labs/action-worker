@@ -129,7 +129,7 @@ test("one-shot bootstrap uses existing SECONDARY Secret in protected ai-gateway-
       "${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}"
     );
   }
-  assert.equal(operationsSteps.filter((step) => step.env?.CLOUDFLARE_API_TOKEN_OPS).length, 2);
+  assert.equal(operationsSteps.filter((step) => step.env?.CLOUDFLARE_API_TOKEN_OPS).length, 3);
   const script = readFileSync("scripts/bootstrap-ai-gateway-health-key.ts", "utf8");
   assert.match(script, /const environments = \["ai-gateway-ops"\]/);
   assert.match(script, /randomBytes\(32\)\.toString\("hex"\)/);

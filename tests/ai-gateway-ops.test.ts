@@ -2,9 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
+  deleteWorkerSecret,
   listWorkerSecretNames,
   putWorkerSecret,
   runOperations,
+  validateSecretDeletion,
   validateSecretMutation,
 } from "../scripts/ai-gateway-ops.ts";
 
@@ -60,7 +62,7 @@ test("operation inputs and dedicated Cloudflare credentials fail closed", async 
   const never = mockFetch(() => {
     throw new Error("unexpected network request");
   });
-  await assert.rejects(runOperations("delete", "", mockEnv, never), /Unsupported/);
+  await assert.rejects(runOperations("delete", "", mockEnv, never), /Only retired Gateway Secrets/);
   await assert.rejects(
     runOperations("inventory", "AIG_ACCESS_KEY_AIR", mockEnv, never),
     /must not include/
@@ -92,6 +94,103 @@ test("operation inputs and dedicated Cloudflare credentials fail closed", async 
   );
 });
 
+test("retired Gateway Secret deletion requires exact confirmation and never deletes active auth", () => {
+  assert.throws(() => validateSecretDeletion("AIG_TOKEN_ENCRYPTION_KEY", mockEnv), /confirmation/);
+  const authorized = {
+    ...mockEnv,
+    AIG_OPS_DELETE_CONFIRM: "DELETE ai-gateway AIG_TOKEN_ENCRYPTION_KEY",
+  };
+  assert.doesNotThrow(() => validateSecretDeletion("AIG_TOKEN_ENCRYPTION_KEY", authorized));
+  for (const name of [
+    "AIG_DEPLOY_HEALTH_KEY",
+    "AIG_INFERENCE_AUTH_KEY",
+    "AIG_PERCEPTION_AUTH_KEY",
+    "AIG_ACCESS_KEY_AIR",
+  ]) {
+    assert.throws(
+      () =>
+        validateSecretDeletion(name, {
+          ...authorized,
+          AIG_OPS_DELETE_CONFIRM: `DELETE ai-gateway ${name}`,
+        }),
+      /Only retired Gateway Secrets/
+    );
+  }
+  assert.throws(
+    () =>
+      validateSecretDeletion("AIG_TOKEN_ENCRYPTION_KEY", {
+        ...authorized,
+        AIG_OPS_WORKER_NAME: "ai-inference-center",
+      }),
+    /Only retired Gateway Secrets/
+  );
+  assert.throws(
+    () =>
+      validateSecretDeletion("AIG_TIER1_CREDENTIALS_01", {
+        ...mockEnv,
+        AIG_OPS_DELETE_CONFIRM: "DELETE ai-gateway AIG_TIER1_CREDENTIALS_01",
+      }),
+    /migration must be independently approved/
+  );
+  assert.doesNotThrow(() =>
+    validateSecretDeletion("AIG_TIER1_CREDENTIALS_01", {
+      ...mockEnv,
+      AIG_OPS_DELETE_CONFIRM: "DELETE ai-gateway AIG_TIER1_CREDENTIALS_01",
+      AIG_OPS_PROVIDERS_MIGRATED: "true",
+    })
+  );
+});
+
+test("approved retirement uses GET, health, DELETE, GET, health and never copies Secret values", async () => {
+  const name = "AIG_TOKEN_ENCRYPTION_KEY";
+  const env = { ...mockEnv, AIG_OPS_DELETE_CONFIRM: `DELETE ai-gateway ${name}` };
+  const requests: string[] = [];
+  let deleted = false;
+  const fetcher = mockFetch((input, init) => {
+    const url = String(input);
+    const method = init?.method || "GET";
+    requests.push(method + " " + url);
+    if (url === endpoint && method === "GET")
+      return ok(deleted ? names : [...names, { name, type: "secret_text" }]);
+    if (url === endpoint + "/" + name && method === "DELETE") {
+      assert.equal(new Headers(init?.headers).get("authorization"), "Bearer ops-token");
+      assert.equal(init?.body, undefined);
+      deleted = true;
+      return ok(null);
+    }
+    if (url === "https://gateway.example.test/health" && method === "GET")
+      return Response.json({ ready: true, nodes_total: 2, nodes_usable: 2 });
+    throw new Error("Unexpected request");
+  });
+  await deleteWorkerSecret(name, env, fetcher);
+  assert.deepEqual(requests, [
+    "GET " + endpoint,
+    "GET https://gateway.example.test/health",
+    "DELETE " + endpoint + "/" + name,
+    "GET " + endpoint,
+    "GET https://gateway.example.test/health",
+  ]);
+  assert.equal(deleted, true);
+});
+
+test("failed Gateway health blocks retired Secret deletion before mutation", async () => {
+  const name = "AIG_TOKEN_ENCRYPTION_KEY";
+  const requests: string[] = [];
+  const fetcher = mockFetch((input, init) => {
+    requests.push((init?.method || "GET") + " " + String(input));
+    if (String(input) === endpoint) return ok([...names, { name, type: "secret_text" }]);
+    return Response.json({ ready: false, nodes_total: 3, nodes_usable: 0 });
+  });
+  await assert.rejects(
+    deleteWorkerSecret(
+      name,
+      { ...mockEnv, AIG_OPS_DELETE_CONFIRM: `DELETE ai-gateway ${name}` },
+      fetcher
+    ),
+    /health must pass/
+  );
+  assert.ok(requests.every((request) => !request.startsWith("DELETE ")));
+});
 test("dedicated deployment health credential cannot be weak or reused as an application key", () => {
   assert.throws(
     () =>
@@ -372,7 +471,10 @@ test("protected ops workflow requires explicit Worker choice for private center 
     /options:\n\s+- ai-gateway\n\s+- ai-inference-center\n\s+- ai-perception-center\n\s+- ai-generation-center/
   );
   assert.match(workflow, /AIG_OPS_WORKER_NAME: \$\{\{ inputs.worker \}\}/);
-  assert.doesNotMatch(workflow, /secret delete/);
+  assert.match(workflow, /if: inputs.operation == 'delete'/);
+  assert.match(workflow, /node scripts\/ai-gateway-ops\.ts delete/);
+  assert.match(workflow, /AIG_OPS_DELETE_CONFIRM/);
+  assert.doesNotMatch(workflow, /wrangler secret delete/);
 });
 
 test("code deployment uses the source-owned entrypoint, never the Secret operations workflow", () => {
