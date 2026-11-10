@@ -16,8 +16,8 @@ import {
   isJsonRecord,
   statusAwareReader,
 } from "./github-api.ts";
-import { type ContentReader, discoverProducts } from "./product-discovery.ts";
 import { trustedIntakeTarget } from "./intake-event-scope.ts";
+import { type ContentReader, discoverProducts } from "./product-discovery.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import {
   appendLines,
