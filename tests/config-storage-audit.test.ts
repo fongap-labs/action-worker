@@ -358,6 +358,16 @@ test("scheduled protected ops Account ID drift classifier never guesses unknown 
     variable_values_read: false,
   });
   assert.equal(taskOpsAccountScope(present, none, none).source, "job-context");
+  // Duplicate repository+organization names are still distinct metadata
+  // sources even if GitHub's job-level precedence shadows one of them.
+  assert.equal(taskOpsAccountScope(present, present, none).source, "duplicate-sources");
+  assert.equal(taskOpsAccountScope(none, present, none).source, "job-context");
+  assert.equal(taskOpsAccountScope(present, present, null).drift_detected, true);
+  assert.equal(taskOpsAccountScope(null, present, present).drift_detected, true);
+  // A visible job Variable does not prove unique ownership when org scope is
+  // unreadable and the protected ops scope appears empty.
+  assert.equal(taskOpsAccountScope(present, null, none).source, "unverified");
+  assert.equal(taskOpsAccountScope(present, null, none).drift_detected, null);
   assert.deepEqual(taskOpsAccountScope(present, none, present), {
     source: "duplicate-sources",
     drift_detected: true,
@@ -455,4 +465,51 @@ test("real metadata scanner flags root scope shadowing of the protected ops sour
   assert.equal(summary.task_ops_account_id_scope.source, "duplicate-sources");
   assert.equal(summary.task_ops_account_id_scope.drift_detected, true);
   assert.doesNotMatch(JSON.stringify(summary), /CLOUDFLARE|never-print|do-not-print/);
+});
+
+test("org-selected Account ID duplicates repository source only when inherited by Action Worker", async () => {
+  const account = "CLOUDFLARE_ACCOUNT_ID_PRIMARY";
+  const orgPath = "orgs/fongap-labs/actions/variables";
+  const selectedPath = orgPath + "/" + account + "/repositories";
+  const repoPath = "repos/" + repository + "/actions/variables";
+  const variables = {
+    [orgPath]: {
+      total_count: 1,
+      variables: [{ name: account, visibility: "selected", value: "not-printed" }],
+    },
+    [selectedPath]: {
+      total_count: 1,
+      repositories: [{ id: 101 }],
+    },
+    [repoPath]: {
+      total_count: 1,
+      variables: [{ name: account, value: "not-printed-either" }],
+    },
+  };
+  const { reader } = fixture(variables);
+  const target = {
+    async get(path: string): Promise<unknown> {
+      return await reader.get(path.replace("fongap-labs/action-worker", repository));
+    },
+  };
+  const summary = await auditStorageMetadata(target, ["fongap-labs/action-worker"]);
+  assert.deepEqual(summary.task_ops_account_id_scope, {
+    source: "duplicate-sources",
+    drift_detected: true,
+    runtime_injection_proven: false,
+    variable_values_read: false,
+  });
+  assert.doesNotMatch(JSON.stringify(summary), /CLOUDFLARE|not-printed|internal-vault/);
+  const inaccessible = fixture({
+    ...variables,
+    [selectedPath]: { total_count: 1, repositories: [{ id: 202 }] },
+  });
+  const notInherited = {
+    async get(path: string): Promise<unknown> {
+      return await inaccessible.reader.get(path.replace("fongap-labs/action-worker", repository));
+    },
+  };
+  const withoutOverlap = await auditStorageMetadata(notInherited, ["fongap-labs/action-worker"]);
+  assert.equal(withoutOverlap.task_ops_account_id_scope.source, "job-context");
+  assert.equal(withoutOverlap.task_ops_account_id_scope.drift_detected, false);
 });
