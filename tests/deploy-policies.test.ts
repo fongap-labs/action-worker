@@ -212,7 +212,7 @@ test("a target that declares more than the central list is reported, and refused
   }
 });
 
-test("the shipped deploy secret policy only holds valid, non-reserved names", async () => {
+test("the shipped deploy secret policy scopes Gateway authentication to one ops Environment", async () => {
   const policy = JSON.parse(await readFile("policies/deploy-secrets.json", "utf8"));
   assert.equal(policy.schema_version, 1);
   const aiGateway = await readDeploySecretCeiling(
@@ -227,13 +227,14 @@ test("the shipped deploy secret policy only holds valid, non-reserved names", as
   );
   assert.deepEqual([...aiGateway].sort(), [
     "AIG_DEPLOY_HEALTH_KEY",
+    "AIG_GENERATION_AUTH_KEY",
+    "AIG_INFERENCE_AUTH_KEY",
+    "AIG_PERCEPTION_AUTH_KEY",
     "CLOUDFLARE_ACCOUNT_ID",
     "CLOUDFLARE_API_TOKEN",
   ]);
   for (const runtimeSecret of [
     "AIG_TOKEN_ENCRYPTION_KEY",
-    "AIG_INFERENCE_AUTH_KEY",
-    "AIG_GENERATION_AUTH_KEY",
     "AIG_ACCESS_KEY_AIR",
     "AIG_ACCESS_KEY_PRO",
     "AIG_ACCESS_KEY_MAX",
