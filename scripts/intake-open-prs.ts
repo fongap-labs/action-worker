@@ -291,6 +291,42 @@ export async function scanOpenPullRequests(
         continue;
       }
       if (governanceAction === "processed") {
+        // Successful checks on an open PR do not imply it was merged. A
+        // previously rejected automatic merge can leave the branch behind
+        // main. Re-dispatch only that exact green, non-draft, same-repository
+        // head so the immutable-head merge worker updates it and reruns CI.
+        const isGreen = ["PR Governance", "CI Evidence", "validate-merge"].every(
+          (context) => statuses.get(context)?.state === "success"
+        );
+        if (isGreen && pull.pull.draft === false) {
+          const detail = await reader.get(`repos/${repository}/pulls/${pull.number}`);
+          const head = isJsonRecord(detail) && isJsonRecord(detail.head) ? detail.head : {};
+          const base = isJsonRecord(detail) && isJsonRecord(detail.base) ? detail.base : {};
+          const headRepo = isJsonRecord(head.repo) ? head.repo : {};
+          const baseRepo = isJsonRecord(base.repo) ? base.repo : {};
+          if (
+            isJsonRecord(detail) &&
+            detail.state === "open" &&
+            detail.draft === false &&
+            detail.mergeable_state === "behind" &&
+            head.sha === pull.headSha &&
+            base.ref === "main" &&
+            headRepo.full_name === repository &&
+            baseRepo.full_name === repository
+          ) {
+            if (reserve) {
+              await reserve(
+                repository,
+                pull.headSha,
+                "PR Governance",
+                "Retry signed CI-green PR branch refresh via central governance"
+              );
+            }
+            await dispatch(repository, pull.number, pull.headSha);
+            result.dispatched += 1;
+            continue;
+          }
+        }
         result.already_processed += 1;
         continue;
       }
