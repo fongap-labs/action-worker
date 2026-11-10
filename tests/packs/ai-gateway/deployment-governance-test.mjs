@@ -77,8 +77,23 @@ try {
   const deploy = readFileSync(targetPath('scripts/deploy.sh'), 'utf8');
 
   assert.match(deploy, /AIG_IS_DEPLOY_ENABLED/);
-  assert.match(deploy, /== "false"/);
-  assert.match(deploy, /exit 0/);
+  // Run the real source-owned entrypoint. Disabled production work must never
+  // succeed: only an actual deployment may produce a successful audit.
+  for (const [enabled, code, message] of [
+    ['false', 77, /deployment is disabled/],
+    ['invalid', 64, /must be true or false/],
+  ]) {
+    const result = spawnSync('bash', [targetPath('scripts/deploy.sh')], {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 5000,
+      env: { ...process.env, AIG_IS_DEPLOY_ENABLED: enabled, DEPLOY_SOURCE_SHA: '' },
+    });
+    assert.equal(result.error, undefined);
+    assert.equal(result.status, code, 'Disabled or invalid production switch must fail closed');
+    assert.match(result.stderr, message);
+    assert.doesNotMatch(result.stdout, /Deployment complete|deployment completed/i);
+  }
   assert.match(deploy, /cloudflare-wrangler\.mjs deploy/);
   assert.doesNotMatch(deploy, /AW_DISPATCH_TOKEN|AW_CONTROL_TOKEN|AW_ADMIN_TOKEN/);
   assert.doesNotMatch(deploy, /wrangler@\d+\.\d+\.\d+/);
