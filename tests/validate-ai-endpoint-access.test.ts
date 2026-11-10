@@ -5,10 +5,10 @@ import {
   completionHasText,
   probeRetryDelayMs,
   requestWithTransientRetry,
-  retryableProbeStatus,
   requiredPrAiModels,
   resolveCompletionsEndpoint,
   resolveModelsEndpoint,
+  retryableProbeStatus,
   visibleModelIds,
 } from "../scripts/validate-ai-endpoint-access.ts";
 
@@ -122,8 +122,12 @@ test("AI endpoint probe honors Retry-After and recovers after bounded 429 and 50
       timeoutMs: 100,
       maxAttempts: 3,
       fetcher: async () => responses[calls++]!,
-      wait: async (ms) => { delays.push(ms); },
-      onRetry: (reason) => { notices.push(reason); },
+      wait: async (ms) => {
+        delays.push(ms);
+      },
+      onRetry: (reason) => {
+        notices.push(reason);
+      },
     }
   );
   assert.equal(response.status, 200);
@@ -136,28 +140,38 @@ test("AI endpoint probe honors Retry-After and recovers after bounded 429 and 50
 
 test("AI endpoint probe does not retry invalid credentials", async () => {
   let calls = 0;
-  const response = await requestWithTransientRetry("https://api.example.test/v1/models", {}, {
-    timeoutMs: 100,
-    fetcher: async () => {
-      calls += 1;
-      return new Response("", { status: 401 });
-    },
-    wait: async () => { throw new Error("should not wait on HTTP 401"); },
-  });
+  const response = await requestWithTransientRetry(
+    "https://api.example.test/v1/models",
+    {},
+    {
+      timeoutMs: 100,
+      fetcher: async () => {
+        calls += 1;
+        return new Response("", { status: 401 });
+      },
+      wait: async () => {
+        throw new Error("should not wait on HTTP 401");
+      },
+    }
+  );
   assert.equal(response.status, 401);
   assert.equal(calls, 1);
 });
 
 test("AI endpoint probe exhausts 429 without claiming a successful review", async () => {
   let calls = 0;
-  const response = await requestWithTransientRetry("https://api.example.test/v1/models", {}, {
-    timeoutMs: 100,
-    fetcher: async () => {
-      calls += 1;
-      return new Response("", { status: 429, headers: { "retry-after": "0" } });
-    },
-    wait: async () => undefined,
-  });
+  const response = await requestWithTransientRetry(
+    "https://api.example.test/v1/models",
+    {},
+    {
+      timeoutMs: 100,
+      fetcher: async () => {
+        calls += 1;
+        return new Response("", { status: 429, headers: { "retry-after": "0" } });
+      },
+      wait: async () => undefined,
+    }
+  );
   assert.equal(response.status, 429);
   assert.equal(calls, 3);
 });
@@ -166,14 +180,20 @@ test("AI endpoint probe limits connection error retries and preserves no provide
   let calls = 0;
   const delays: number[] = [];
   await assert.rejects(
-    requestWithTransientRetry("https://api.example.test/v1/models", {}, {
-      timeoutMs: 100,
-      fetcher: async () => {
-        calls += 1;
-        throw new Error("Bearer secret-should-never-appear");
-      },
-      wait: async (ms) => { delays.push(ms); },
-    }),
+    requestWithTransientRetry(
+      "https://api.example.test/v1/models",
+      {},
+      {
+        timeoutMs: 100,
+        fetcher: async () => {
+          calls += 1;
+          throw new Error("Bearer secret-should-never-appear");
+        },
+        wait: async (ms) => {
+          delays.push(ms);
+        },
+      }
+    ),
     (error: unknown) =>
       error instanceof Error &&
       /failed to connect after bounded retries/.test(error.message) &&
