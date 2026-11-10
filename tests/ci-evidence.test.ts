@@ -484,7 +484,7 @@ test("release validation supplies the status signing keyring for evidence verifi
   assert.match(block[1]!, /AW_STATUS_KEYRING: \$\{\{ secrets\.AW_STATUS_KEYRING \}\}/);
   assert.match(block[1]!, /run: node scripts\/validate-release-build-request\.ts/);
 });
- 
+
 test("one main-write verification pass reads a completed PR dispatcher run only once", async () => {
   const status = attestFixtureStatuses(
     {
@@ -507,14 +507,21 @@ test("one main-write verification pass reads a completed PR dispatcher run only 
         controlRepository,
         workflowPaths:
           context === "CI Evidence"
-            ? [".github/workflows/central-ci-dispatch.yml", ".github/workflows/handle-pr-dispatch.yml"]
+            ? [
+                ".github/workflows/central-ci-dispatch.yml",
+                ".github/workflows/handle-pr-dispatch.yml",
+              ]
             : [".github/workflows/handle-pr-dispatch.yml"],
       }),
       true,
       context
     );
   }
-  assert.equal(source.requested.length, 1, "one authenticated completed run validates three statuses");
+  assert.equal(
+    source.requested.length,
+    1,
+    "one authenticated completed run validates three statuses"
+  );
   const independent = completedPrRunReader(source, controlRepository);
   await independent.get(`repos/${controlRepository}/actions/runs/42`);
   assert.equal(source.requested.length, 2, "the next verification pass must fetch again");
@@ -529,7 +536,10 @@ test("running, failed, untrusted, or unrelated runs cannot enter completed PR ru
     controlRun({ path: ".github/workflows/validate-ci.yml" }),
     controlRun({ head_branch: "feature" }),
   ]) {
-    const source = runReader([unsafe, controlRun({ path: ".github/workflows/handle-pr-dispatch.yml" })]);
+    const source = runReader([
+      unsafe,
+      controlRun({ path: ".github/workflows/handle-pr-dispatch.yml" }),
+    ]);
     const scoped = completedPrRunReader(source, controlRepository);
     assert.deepEqual(await scoped.get(runPath), unsafe);
     assert.equal(
@@ -539,7 +549,11 @@ test("running, failed, untrusted, or unrelated runs cannot enter completed PR ru
     );
     assert.equal(source.requested.length, 2);
     await scoped.get(runPath);
-    assert.equal(source.requested.length, 2, "only the newly verified successful run may be reused");
+    assert.equal(
+      source.requested.length,
+      2,
+      "only the newly verified successful run may be reused"
+    );
   }
   const source = runReader([controlRun()]);
   const scoped = completedPrRunReader(source, controlRepository);
@@ -547,7 +561,8 @@ test("running, failed, untrusted, or unrelated runs cannot enter completed PR ru
     `repos/${controlRepository}/actions/runs/42?per_page=1`,
     `repos/${controlRepository}/actions/runs/42/attempts/1`,
     `repos/fongap-labs/other/actions/runs/42`,
-  ]) await scoped.get(path);
+  ])
+    await scoped.get(path);
   assert.equal(source.requested.length, 3, "non-exact paths never reuse a run");
 });
 
