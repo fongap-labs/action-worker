@@ -196,7 +196,7 @@ test("governed Release dispatches npm only after publication and never publishes
   assert.equal(release.jobs.npm?.needs, "release");
   assert.equal(
     release.jobs.npm?.if,
-    "needs.release.result == 'success' && needs.release.outputs.npm_asset == 'true'"
+    "needs.release.result == 'success' && needs.release.outputs.npm_asset == 'true' && needs.release.outputs.is_prerelease == 'false'"
   );
   assert.equal(release.jobs.npm?.permissions?.contents, "read");
   const npmSteps = release.jobs.npm?.steps ?? [];
@@ -211,6 +211,8 @@ test("governed Release dispatches npm only after publication and never publishes
   assert.equal(dispatch?.with?.["permission-contents"], "write");
   assert.match(JSON.stringify(release.jobs.npm), /run-npm-republish/);
   assert.match(source, /npm_asset=/);
+  assert.match(source, /is_prerelease=\$\{isPrerelease/);
+  assert.match(JSON.stringify(release.jobs.release), /steps\.release\.outputs\.is_prerelease/);
   assert.doesNotMatch(source, /publishNpmTarball|AW_NPM_TOKEN/);
   assert.match(JSON.stringify(npm), /run-npm-republish/);
   assert.ok(JSON.stringify(npm).includes("republish-release-npm.ts"));

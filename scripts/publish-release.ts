@@ -800,6 +800,7 @@ async function main(): Promise<void> {
       `target_repository=${targetRepository}`,
       `release_key=${manifest.release_key}`,
       `version=${manifest.version}`,
+      `is_prerelease=${isPrerelease ? "true" : "false"}`,
       `npm_asset=${manifest.assets.some((asset) => asset.name.endsWith(".tgz")) ? "true" : "false"}`,
     ]);
     await appendLines(process.env.GITHUB_STEP_SUMMARY, [
