@@ -148,4 +148,3 @@ test("failed CI jobs link to exact trusted GitHub jobs without allowing arbitrar
   );
   assert.doesNotMatch(summary, /evil\.example\.org/);
 });
-

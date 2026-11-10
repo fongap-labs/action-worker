@@ -49,22 +49,27 @@ const failureRules: readonly FailureRule[] = [
     kind: "credential_missing",
     severity: "high",
     recoverability: "do_not_retry",
-    recommendation: "Verify the existing credential name and Environment scope without reading its value.",
-    pattern: /missing required .{0,100}(?:token|secret|credential|api key|private key)|(?:secret|token|credential) (?:was )?(?:not found|not available|is unavailable)/i,
+    recommendation:
+      "Verify the existing credential name and Environment scope without reading its value.",
+    pattern:
+      /missing required .{0,100}(?:token|secret|credential|api key|private key)|(?:secret|token|credential) (?:was )?(?:not found|not available|is unavailable)/i,
   },
   {
     kind: "permission",
     severity: "high",
     recoverability: "do_not_retry",
-    recommendation: "Check the installed app scope and requested permission; keep the existing gate enabled.",
-    pattern: /\bHTTP\s*(?:401|403)\b|permission denied|resource not accessible|insufficient scope|unauthorized|access denied/i,
+    recommendation:
+      "Check the installed app scope and requested permission; keep the existing gate enabled.",
+    pattern:
+      /\bHTTP\s*(?:401|403)\b|permission denied|resource not accessible|insufficient scope|unauthorized|access denied/i,
   },
   {
     kind: "security_gate",
     severity: "high",
     recoverability: "do_not_retry",
     recommendation: "Review the security evidence and trusted source; never bypass the gate.",
-    pattern: /secret scanning|security (?:scan|checks|gate)|attestation|provenance|signature verification|main write guard/i,
+    pattern:
+      /secret scanning|security (?:scan|checks|gate)|attestation|provenance|signature verification|main write guard/i,
   },
   {
     kind: "api_rate_limit",
@@ -77,50 +82,63 @@ const failureRules: readonly FailureRule[] = [
     kind: "transient_network",
     severity: "low",
     recoverability: "safe_retry",
-    recommendation: "Retry the idempotent operation with bounded backoff; stop when its budget is exhausted.",
-    pattern: /ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|UND_ERR_CONNECT_TIMEOUT|fetch failed|socket hang up|connection reset|temporary failure in name resolution|network is unreachable/i,
+    recommendation:
+      "Retry the idempotent operation with bounded backoff; stop when its budget is exhausted.",
+    pattern:
+      /ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|UND_ERR_CONNECT_TIMEOUT|fetch failed|socket hang up|connection reset|temporary failure in name resolution|network is unreachable/i,
   },
   {
     kind: "upstream_service",
     severity: "low",
     recoverability: "safe_retry",
-    recommendation: "Retry once the upstream service recovers, respecting Retry-After and the task budget.",
-    pattern: /\bHTTP\s*5(?:00|02|03|04)\b|internal server error|bad gateway|service unavailable|gateway timeout|upstream (?:service )?(?:error|unavailable)/i,
+    recommendation:
+      "Retry once the upstream service recovers, respecting Retry-After and the task budget.",
+    pattern:
+      /\bHTTP\s*5(?:00|02|03|04)\b|internal server error|bad gateway|service unavailable|gateway timeout|upstream (?:service )?(?:error|unavailable)/i,
   },
   {
     kind: "runner",
     severity: "low",
     recoverability: "safe_retry",
-    recommendation: "Confirm the runner was lost or unavailable, then retry the idempotent job once within budget.",
-    pattern: /runner (?:was )?(?:lost|unavailable|shutdown)|failed to provision (?:a )?runner|runner has received a shutdown signal|no hosted parallelism/i,
+    recommendation:
+      "Confirm the runner was lost or unavailable, then retry the idempotent job once within budget.",
+    pattern:
+      /runner (?:was )?(?:lost|unavailable|shutdown)|failed to provision (?:a )?runner|runner has received a shutdown signal|no hosted parallelism/i,
   },
   {
     kind: "dependency",
     severity: "medium",
     recoverability: "do_not_retry",
-    recommendation: "Inspect the dependency and lockfile error; retry only if the log proves a transient fetch failure.",
-    pattern: /npm ERR!|ERESOLVE|unable to resolve dependency|lockfile (?:is )?(?:out of date|incompatible)|package .* not found|could not resolve dependency/i,
+    recommendation:
+      "Inspect the dependency and lockfile error; retry only if the log proves a transient fetch failure.",
+    pattern:
+      /npm ERR!|ERESOLVE|unable to resolve dependency|lockfile (?:is )?(?:out of date|incompatible)|package .* not found|could not resolve dependency/i,
   },
   {
     kind: "configuration",
     severity: "medium",
     recoverability: "do_not_retry",
-    recommendation: "Correct the named configuration at its owning scope; do not retry unchanged input.",
-    pattern: /invalid (?:configuration|config|environment variable)|missing required configuration|must be configured|malformed (?:configuration|input)|\b(?:is|was) invalid\b|is unavailable or invalid/i,
+    recommendation:
+      "Correct the named configuration at its owning scope; do not retry unchanged input.",
+    pattern:
+      /invalid (?:configuration|config|environment variable)|missing required configuration|must be configured|malformed (?:configuration|input)|\b(?:is|was) invalid\b|is unavailable or invalid/i,
   },
   {
     kind: "stale_task",
     severity: "medium",
     recoverability: "do_not_retry",
-    recommendation: "Skip this stale task and evaluate the current source SHA before dispatching work.",
-    pattern: /task (?:has )?(?:expired|is stale)|stale (?:task|head|sha)|superseded (?:head|commit|task)|no longer current|outdated head sha/i,
+    recommendation:
+      "Skip this stale task and evaluate the current source SHA before dispatching work.",
+    pattern:
+      /task (?:has )?(?:expired|is stale)|stale (?:task|head|sha)|superseded (?:head|commit|task)|no longer current|outdated head sha/i,
   },
   {
     kind: "source_test",
     severity: "medium",
     recoverability: "do_not_retry",
     recommendation: "Fix the source or test failure and rerun the unchanged merge gate.",
-    pattern: /AssertionError|\bnot ok \d|test(?:s)? failed|typecheck failed|typescript error|lint failed|biome check failed|contract assertion/i,
+    pattern:
+      /AssertionError|\bnot ok \d|test(?:s)? failed|typecheck failed|typescript error|lint failed|biome check failed|contract assertion/i,
   },
 ];
 
@@ -154,7 +172,11 @@ function fallbackRule(label: string): FailureRule | undefined {
   else if (/npm|install dependencies|dependency/.test(label)) kind = "dependency";
   else if (/config|environment|variable/.test(label)) kind = "configuration";
   else if (/expired|stale|superseded/.test(label)) kind = "stale_task";
-  else if (/lint|biome|typescript|type.check|unit tests|contract tests|naming|actionlint|static analysis/.test(label))
+  else if (
+    /lint|biome|typescript|type.check|unit tests|contract tests|naming|actionlint|static analysis/.test(
+      label
+    )
+  )
     kind = "source_test";
   return failureRules.find((rule) => rule.kind === kind);
 }
@@ -173,7 +195,8 @@ export function classifyFailure(job: string, step: string, errorText = ""): Fail
       severity: "medium",
       recoverability: "unknown",
       evidence: "job_log",
-      recommendation: "The log did not match a known cause; inspect it before changing code or retrying.",
+      recommendation:
+        "The log did not match a known cause; inspect it before changing code or retrying.",
     };
   }
 
@@ -201,7 +224,11 @@ function safeJobUrl(value: string | undefined): string | undefined {
 
 function usefulFailureLines(log: string): string {
   const lines = log.split(/\r?\n/);
-  const annotated = lines.filter((line) => /##\[error\]|\b(?:Error|Exception|Failed|failure):|\bHTTP\s*(?:401|403|408|429|5\d\d)\b|ECONNRESET|ETIMEDOUT|EAI_AGAIN|npm ERR!|AssertionError/i.test(line));
+  const annotated = lines.filter((line) =>
+    /##\[error\]|\b(?:Error|Exception|Failed|failure):|\bHTTP\s*(?:401|403|408|429|5\d\d)\b|ECONNRESET|ETIMEDOUT|EAI_AGAIN|npm ERR!|AssertionError/i.test(
+      line
+    )
+  );
   return (annotated.length ? annotated.slice(-80) : lines.slice(-80)).join("\n");
 }
 
@@ -237,7 +264,7 @@ function safeLabel(value: string): string {
   return value
     .replace(/[\r\n|]/g, " ")
     .replace(/\s+/g, " ")
-    .replace(/[\\`*_{}\[\]()<>#+.!]/g, "\\$&")
+    .replace(/[\\`*_{}\x5b\x5d()<>#+.!]/g, "\\$&")
     .slice(0, 140);
 }
 
@@ -354,7 +381,9 @@ async function main(): Promise<void> {
 
   const logsByJobId = new Map<number, string>();
   const failedJobs = jobs
-    .filter((job) => job.id && job.name && job.name !== "validate-merge" && job.conclusion === "failure")
+    .filter(
+      (job) => job.id && job.name && job.name !== "validate-merge" && job.conclusion === "failure"
+    )
     .slice(0, 20);
   for (const job of failedJobs) {
     const log = await readJobLog(repository, job.id!, token);
@@ -372,4 +401,3 @@ async function main(): Promise<void> {
 if (isMain(import.meta.url)) {
   main().catch(handleError);
 }
-

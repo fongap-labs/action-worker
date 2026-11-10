@@ -87,4 +87,3 @@ exponential backoff with jitter, and any valid server-provided `Retry-After` or 
 server delay exceeds the remaining job budget, stop without retrying early. Never retry unchanged
 permission, credential, configuration, source/test, dependency, security, stale-task, or unknown
 failures. A successful non-idempotent operation must not be dispatched again.
-

@@ -196,4 +196,3 @@ test("commit status POST does not fall back when the scoped token is missing", a
     /missing dedicated status token/
   );
 });
-
