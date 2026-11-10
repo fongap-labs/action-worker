@@ -107,7 +107,8 @@ export async function auditRepositoryMain(
     reader,
     repository,
     mainSha,
-    isCentralStatusRequired
+    isCentralStatusRequired,
+    { repositoryValue, mainCommit }
   );
   await assertNoOpenMainWriteIncidents(reader, repository);
   return { main_sha: mainSha, pr_number: provenance.pr_number };
