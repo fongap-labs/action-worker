@@ -549,3 +549,58 @@ test("central PR intake leaves a pull request that awaits approval alone until i
   assert.equal(result.awaiting_approval, 1);
   assert.equal(result.dispatched, 1);
 });
+
+test("central intake retries a signed CI-green PR only when its same-repository branch is behind", async () => {
+  const repository = "fongap-labs/external-vault";
+  const statuses = ["PR Governance", "CI Evidence", "validate-merge"].map((context) => ({
+    context,
+    state: "success",
+    target_url: "https://github.com/fongap-labs/action-worker/actions/runs/123",
+  }));
+
+  async function scan(mergeState: string, headRepository = repository) {
+    const dispatched: number[] = [];
+    const result = await scanOpenPullRequests(
+      { [repository]: ["pr"] },
+      {
+        async get(path: string): Promise<unknown> {
+          if (path.includes("/pulls?")) return [{ number: 173, draft: false, head: { sha: shaA } }];
+          if (path.endsWith(`/commits/${shaA}/status`)) {
+            return attestFixtureResponseForPath(path, { statuses });
+          }
+          if (path.endsWith("/pulls/173")) {
+            return {
+              number: 173,
+              state: "open",
+              draft: false,
+              mergeable_state: mergeState,
+              head: { sha: shaA, repo: { full_name: headRepository } },
+              base: { ref: "main", repo: { full_name: repository } },
+            };
+          }
+          throw new Error(`unexpected API path: ${path}`);
+        },
+      },
+      async (_repo, pr) => {
+        dispatched.push(pr);
+      },
+      "fongap-labs/action-worker"
+    );
+    return { result, dispatched };
+  }
+
+  const behind = await scan("behind");
+  assert.deepEqual(behind.dispatched, [173]);
+  assert.equal(behind.result.dispatched, 1);
+  assert.equal(behind.result.already_processed, 0);
+
+  for (const [mergeState, headRepository] of [
+    ["clean", repository],
+    ["dirty", repository],
+    ["behind", "someone/fork"],
+  ]) {
+    const attempt = await scan(mergeState!, headRepository!);
+    assert.deepEqual(attempt.dispatched, []);
+    assert.equal(attempt.result.already_processed, 1);
+  }
+});
