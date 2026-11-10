@@ -78,8 +78,13 @@ export function mustRefreshBehindBranch(pull: unknown, repository: string): bool
 
 /** Draft PRs are intentionally ineligible; this is a successful no-op, not a failed gate. */
 export function isOpenDraftPull(pull: unknown, prNumber: number): boolean {
-  return isJsonRecord(pull) && pull.state === "open" &&
-    pull.merged === false && pull.draft === true && pull.number === prNumber;
+  return (
+    isJsonRecord(pull) &&
+    pull.state === "open" &&
+    pull.merged === false &&
+    pull.draft === true &&
+    pull.number === prNumber
+  );
 }
 
 async function main(): Promise<void> {

@@ -229,15 +229,16 @@ jobs:
               merge_base_sha="$(jq -r '.parents[0].sha // empty' <<< "$merge_commit")"
               merge_head_sha="$(jq -r '.parents[1].sha // empty' <<< "$merge_commit")"
             fi
-            if [[ "$merge_base_sha" == "$current_base_sha" && "$merge_head_sha" == "$EXPECTED_HEAD_SHA" ]]; then
-              break
+            if [[ "$merge_base_sha" != "$current_base_sha" || "$merge_head_sha" != "$EXPECTED_HEAD_SHA" ]]; then
+              if [[ "$attempt" -eq 6 ]]; then
+                echo "::error::GitHub PR merge snapshot remains stale after six attempts; expected base=$current_base_sha head=$EXPECTED_HEAD_SHA; actual base=$merge_base_sha head=$merge_head_sha" >&2
+                exit 75
+              fi
+              echo "::notice::GitHub PR merge snapshot is updating (attempt $attempt/6); retrying with current base/head."
+              sleep 3
+              continue
             fi
-            if [[ "$attempt" -eq 6 ]]; then
-              echo "::error::GitHub PR merge snapshot remains stale after six attempts; expected base=$current_base_sha head=$EXPECTED_HEAD_SHA; actual base=$merge_base_sha head=$merge_head_sha" >&2
-              exit 75
-            fi
-            echo "::notice::GitHub PR merge snapshot is updating (attempt $attempt/6); retrying with current base/head."
-            sleep 3
+            break
           done
           echo "base_sha=$merge_base_sha" >> "$GITHUB_OUTPUT"
           echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"

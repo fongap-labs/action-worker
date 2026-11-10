@@ -210,7 +210,9 @@ test("synthetic PR merge ref lag is retried but a changed PR head still fails cl
   assert.match(pinStep, /PR target branch changed during CI snapshot retry/);
   assert.match(pinStep, /merge snapshot remains stale after six attempts/);
   assert.match(pinStep, /exit 75/);
-  assert.ok(pinStep.indexOf('echo "merge_sha=$merge_sha"') > pinStep.indexOf('merge snapshot remains stale'));
+  assert.ok(
+    pinStep.indexOf('echo "merge_sha=$merge_sha"') > pinStep.indexOf("merge snapshot remains stale")
+  );
 });
 
 test("PR diff base and pinned merge base remain separate", () => {

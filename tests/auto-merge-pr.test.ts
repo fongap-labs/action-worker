@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { assertReadyForAutomaticMerge, isOpenDraftPull, mustRefreshBehindBranch } from "../scripts/auto-merge-pr.ts";
+import {
+  assertReadyForAutomaticMerge,
+  isOpenDraftPull,
+  mustRefreshBehindBranch,
+} from "../scripts/auto-merge-pr.ts";
 import { signedStatusDescription } from "../scripts/status-attestation.ts";
 
 const repository = "fongap-labs/ai-gateway";
