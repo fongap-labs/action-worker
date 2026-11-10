@@ -85,6 +85,7 @@ jobs:
       - name: Reconcile open pull requests
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_GITHUB_API_METRICS: "1"
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
@@ -154,6 +155,7 @@ jobs:
       - name: Reconcile main CI
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_GITHUB_API_METRICS: "1"
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
@@ -223,6 +225,7 @@ jobs:
       - name: Audit managed main branches
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_GITHUB_API_METRICS: "1"
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_ISSUE_API_TOKEN: ${{ steps.issue_app.outputs.token }}
@@ -296,6 +299,7 @@ jobs:
         id: api_budget
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_GITHUB_API_METRICS: "1"
           AW_API_QUOTA_RESERVE: "300"
         run: node scripts/check-github-api-budget.ts
 
@@ -303,6 +307,7 @@ jobs:
         if: steps.api_budget.outputs.run == 'true'
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_GITHUB_API_METRICS: "1"
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
@@ -377,6 +382,7 @@ jobs:
         id: api_budget
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_GITHUB_API_METRICS: "1"
           AW_API_QUOTA_RESERVE: "300"
         run: node scripts/check-github-api-budget.ts
 
@@ -384,6 +390,7 @@ jobs:
         if: steps.api_budget.outputs.run == 'true'
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_GITHUB_API_METRICS: "1"
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
@@ -459,6 +466,7 @@ jobs:
         id: api_budget
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_GITHUB_API_METRICS: "1"
           AW_API_QUOTA_RESERVE: "300"
         run: node scripts/check-github-api-budget.ts
 
@@ -466,6 +474,7 @@ jobs:
         if: steps.api_budget.outputs.run == 'true'
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_GITHUB_API_METRICS: "1"
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
@@ -529,6 +538,7 @@ jobs:
       - name: Reconcile default-branch security scans
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_GITHUB_API_METRICS: "1"
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
         run: node scripts/intake-security-scans.ts

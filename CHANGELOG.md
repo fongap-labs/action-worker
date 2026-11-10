@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: Action Worker 的七项总控扫描和三项配额预检增加 GitHub API 请求审计，在各 Job Summary 中记录 HTTP/gh api 实际请求、ETag 304、条件 GET、并发去重、重试、主次级限流与 core 最低剩余额度；不新增 API 查询、不上传私有内容或凭据，合并门禁保持不变。
+
 - 修复: Suite 兼容性合同允许已核实的只读历史 Worker SDK 来源，继续验证不可变 SHA、公开子包路径及 ABI，不放宽合并门禁。
 
 - 修复: 受管仓库 run-intake 事件在五项相关调度 Job 内复用经中央策略验证的仓库目标，避免无关仓库全量重复读取；缺少或未知目标仍全量巡检，定时巡检与 Main Write Audit 保持全覆盖。Main Write Audit 对每仓库只读取一次默认分支及最新提交 SHA，并使用同一 SHA 完成来源核验及状态发布，不新增跨 Job Artifact 或私有内容缓存。

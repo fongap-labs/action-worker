@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { appendFile, readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+import { githubApiAudit } from "./github-api-request-audit.ts";
 
 export class CliError extends Error {
   readonly exitCode: number;
@@ -25,6 +26,8 @@ export async function runCommand(
   args: readonly string[],
   options: CommandOptions = {}
 ): Promise<Buffer> {
+  const isGithubApi = command === "gh" && args[0] === "api";
+  if (isGithubApi) githubApiAudit.cliStart();
   return await new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
@@ -42,6 +45,7 @@ export async function runCommand(
         return;
       }
       isSettled = true;
+      if (isGithubApi) githubApiAudit.cliFinish(error);
       if (timer) {
         clearTimeout(timer);
       }
