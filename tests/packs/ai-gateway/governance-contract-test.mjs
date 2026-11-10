@@ -264,8 +264,9 @@ try {
   assert.equal(deployManifest.adapter, 'source-script');
   assert.equal(deployManifest.entrypoint, 'scripts/deploy.sh');
   assert.equal(deployManifest.automatic, false, 'production auto-deploy must stay frozen until the cutover is explicitly approved');
-  // Runtime keys must stay in Cloudflare Worker Secrets, not in a normal
-  // production code deployment or any artifact shared between jobs.
+  // Only health and three private-center authentication keys may be imported
+  // from the single protected ai-gateway-ops environment for runtime Secret
+  // synchronization; provider credentials and application keys stay in Cloudflare.
   const declaredDeploySecrets = read('.github/deploy.secrets.allowed')
     .split(/\r?\n/)
     .map((line) => line.replace(/#.*/, '').trim())
@@ -276,7 +277,14 @@ try {
     .map((line) => line.trim())
     .filter(Boolean)
     .sort();
-  assert.deepEqual(declaredDeploySecrets, ['AIG_DEPLOY_HEALTH_KEY', 'CLOUDFLARE_ACCOUNT_ID', 'CLOUDFLARE_API_TOKEN']);
+  assert.deepEqual(declaredDeploySecrets, [
+    'AIG_DEPLOY_HEALTH_KEY',
+    'AIG_GENERATION_AUTH_KEY',
+    'AIG_INFERENCE_AUTH_KEY',
+    'AIG_PERCEPTION_AUTH_KEY',
+    'CLOUDFLARE_ACCOUNT_ID',
+    'CLOUDFLARE_API_TOKEN',
+  ]);
   assert.deepEqual(requiredDeploySecrets, declaredDeploySecrets);
   assert.match(deployScript, /persistent-deployment\.mjs preflight/);
   assert.match(deployScript, /persistent-deployment\.mjs prepare/);
