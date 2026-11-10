@@ -1,4 +1,4 @@
-import { GithubReader, githubEnvironment, githubExists } from "./github-api.ts";
+import { GithubReader, getGithubJsonIfExists, githubEnvironment } from "./github-api.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import { decodeGithubContent, parseSecurityScanManifest } from "./security-scan.ts";
@@ -34,7 +34,6 @@ function stringField(value: unknown, field: string): string {
 export async function scanDefaultBranchSecurity(
   policyValue: unknown,
   reader: GithubGet,
-  manifestExists: (path: string) => Promise<boolean>,
   dispatch: Dispatch,
   controlRepository: string
 ): Promise<SecurityScanIntakeResult> {
@@ -62,14 +61,15 @@ export async function scanDefaultBranchSecurity(
     const commit = await reader.get(`repos/${repository}/commits/${defaultBranch}`);
     const sourceSha = stringField(commit, "sha");
     const path = `repos/${repository}/contents/.github/security-scan.json?ref=${sourceSha}`;
-    if (!(await manifestExists(path))) {
+    const manifestValue = await getGithubJsonIfExists(path, reader.get.bind(reader));
+    if (manifestValue === undefined) {
       result.skipped += 1;
       continue;
     }
     result.manifests += 1;
     const manifest = parseSecurityScanManifest(
       parseJson(
-        decodeGithubContent(await reader.get(path)),
+        decodeGithubContent(manifestValue),
         "Security scan manifest must be valid JSON.",
         65
       )
@@ -108,7 +108,6 @@ async function main(): Promise<void> {
   const result = await scanDefaultBranchSecurity(
     policy,
     reader,
-    async (path) => await githubExists(path, controlToken),
     async (repository, sourceSha) => {
       const body = {
         event_type: "run-security-scan",

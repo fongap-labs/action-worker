@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { GithubHttpError } from "../scripts/github-api.ts";
 import { scanTaskSources } from "../scripts/intake-task-sources.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
@@ -19,9 +20,6 @@ function sourceWithStatus(state = "") {
   return {
     repository,
     source: {
-      async exists(path: string): Promise<boolean> {
-        return path === manifestPath;
-      },
       async get(path: string): Promise<unknown> {
         if (path === `repos/${repository}`) {
           return { default_branch: "main" };
@@ -81,6 +79,34 @@ test("task intake skips pending and processed heads", async () => {
   }
 });
 
+test("task intake treats a missing manifest as absent without a second request", async () => {
+  const repository = "fongap-labs/tasks";
+  const manifestPath = `repos/${repository}/contents/.github/task-source.json?ref=${headSha}`;
+  let manifestReads = 0;
+  const result = await scanTaskSources(
+    { [repository]: ["task"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path === `repos/${repository}`) return { default_branch: "main" };
+        if (path === `repos/${repository}/commits/main`) {
+          return { sha: headSha, parents: [{ sha: beforeSha }] };
+        }
+        if (path === manifestPath) {
+          manifestReads += 1;
+          throw new GithubHttpError(404);
+        }
+        throw new Error(`unexpected path: ${path}`);
+      },
+    },
+    async () => {
+      throw new Error("missing manifest must not dispatch");
+    }
+  );
+  assert.equal(manifestReads, 1);
+  assert.equal(result.dispatched, 0);
+  assert.equal(result.push_enabled, 0);
+});
+
 test("task intake ignores manifests without push intent", async () => {
   const repository = "fongap-labs/tasks";
   const manifestPath = `repos/${repository}/contents/.github/task-source.json?ref=${headSha}`;
@@ -88,9 +114,6 @@ test("task intake ignores manifests without push intent", async () => {
   const result = await scanTaskSources(
     { [repository]: ["task"] },
     {
-      async exists(path: string): Promise<boolean> {
-        return path === manifestPath;
-      },
       async get(path: string): Promise<unknown> {
         if (path === `repos/${repository}`) return { default_branch: "main" };
         if (path === `repos/${repository}/commits/main`) {
