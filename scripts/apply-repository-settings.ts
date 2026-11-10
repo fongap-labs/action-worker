@@ -18,10 +18,10 @@ export function settingMatchesPlatform(
   key: string,
   expected: unknown,
   actual: unknown,
-  privateRepository: boolean
+  isPrivateRepository: boolean
 ): boolean {
   if (isDeepStrictEqual(actual, expected)) return true;
-  return privateRepository && key === "allow_auto_merge" && expected === true && actual === false;
+  return isPrivateRepository && key === "allow_auto_merge" && expected === true && actual === false;
 }
 
 export function settingsPayload(value: unknown): Record<string, unknown> {
@@ -252,7 +252,9 @@ async function main(): Promise<void> {
       );
     }
     if (response.private === true && key === "allow_auto_merge" && response[key] === false) {
-      console.warn(`::notice::${repository} cannot enable native auto-merge on this GitHub plan; signed CI-green Action Worker merging remains active.`);
+      console.warn(
+        `::notice::${repository} cannot enable native auto-merge on this GitHub plan; signed CI-green Action Worker merging remains active.`
+      );
     }
   }
 
