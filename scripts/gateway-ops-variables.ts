@@ -17,7 +17,8 @@ const derivedNames = new Set([
   "AIG_GENERATION_SERVICE",
 ]);
 
-const forbiddenSecretNamePattern = /(?:^|_)(?:SECRET|SECRETS|TOKEN|TOKENS|KEY|KEYS|CREDENTIAL|CREDENTIALS)(?:_|$)/;
+const forbiddenSecretNamePattern =
+  /(?:^|_)(?:SECRET|SECRETS|TOKEN|TOKENS|KEY|KEYS|CREDENTIAL|CREDENTIALS)(?:_|$)/;
 
 const forbiddenSecretNames = [
   /^CLOUDFLARE_API_TOKEN(?:_|$)/,
