@@ -113,6 +113,7 @@ test("one-shot bootstrap uses existing SECONDARY Secret in protected ai-gateway-
   );
   const operations = parse(readFileSync(".github/workflows/ai-gateway-ops.yml", "utf8")) as Record<string, unknown>;
   const manage = (operations.jobs as Record<string, Record<string, unknown>>).manage;
+  assert.ok(manage, "AI Gateway operations workflow must include a manage job");
   assert.equal((manage.environment as { name: string }).name, "ai-gateway-ops");
   const operationsSteps = manage.steps as { env?: Record<string, string> }[];
   for (const step of operationsSteps.filter((step) => step.env?.CLOUDFLARE_API_TOKEN_OPS)) {
