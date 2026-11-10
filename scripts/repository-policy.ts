@@ -122,6 +122,28 @@ export function validateRepositoryCapability(
   }
 }
 
+/**
+ * Read-only intake token needs the control repository plus the policy's scoped names.
+ * Preserve the original union and order, without asking GitHub App for duplicate repos.
+ */
+export function intakeReadRepositoryNames(
+  controlRepository: string,
+  policyRepositoryNames: readonly string[]
+): string {
+  if (!repositoryPattern.test(controlRepository)) {
+    throw new CliError("::error::Intake control repository must be owner/repository.", 65);
+  }
+  const controlName = controlRepository.split("/")[1]!;
+  if (
+    policyRepositoryNames.some(
+      (name) => !/^[A-Za-z0-9_.-]+$/.test(name) || name === "." || name === ".."
+    )
+  ) {
+    throw new CliError("::error::Intake scope contains invalid repository names.", 65);
+  }
+  return [...new Set([controlName, ...policyRepositoryNames])].join(",");
+}
+
 /** Policy entries whose name part equals what was typed, so a bare name can be corrected. */
 function suggestRepositories(value: unknown, typed: string): string[] {
   if (!isJsonRecord(value)) {
@@ -159,6 +181,7 @@ async function main(): Promise<void> {
     await appendLines(process.env.GITHUB_OUTPUT, [
       `repositories=${JSON.stringify(repositories)}`,
       `repositories_csv=${repositoryNames.join(",")}`,
+      `read_repositories_csv=${intakeReadRepositoryNames(process.env.GITHUB_REPOSITORY ?? "", repositoryNames)}`,
     ]);
     console.log(`Repository policy resolved: ${first} -> ${repositories.length} repositories.`);
     return;
