@@ -75,7 +75,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: fongap-labs/ai-gateway
-          ref: b976bbfa2184738e09f7f4c7c885f5836efcbd5a
+          ref: c3f83f618e27efd96d9e6fc316b2709e1138ff64
           path: ag-inspector
           persist-credentials: false
 
@@ -85,7 +85,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}
           SECRET_NAME: ${{ inputs.secret_name }}
-          PINNED_INSPECTOR_SHA: b976bbfa2184738e09f7f4c7c885f5836efcbd5a
+          PINNED_INSPECTOR_SHA: c3f83f618e27efd96d9e6fc316b2709e1138ff64
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -128,7 +128,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: fongap-labs/ai-gateway
-          ref: b976bbfa2184738e09f7f4c7c885f5836efcbd5a
+          ref: c3f83f618e27efd96d9e6fc316b2709e1138ff64
           path: ag-center
           persist-credentials: false
 
@@ -140,8 +140,8 @@ jobs:
           AIG_OPS_VARIABLES_JSON: ${{ toJSON(vars) }}
           WORKER: ${{ inputs.worker }}
           SECRET_NAME: ${{ inputs.secret_name }}
-          PINNED_CENTER_SHA: b976bbfa2184738e09f7f4c7c885f5836efcbd5a
-          DEPLOY_SOURCE_SHA: b976bbfa2184738e09f7f4c7c885f5836efcbd5a
+          PINNED_CENTER_SHA: c3f83f618e27efd96d9e6fc316b2709e1138ff64
+          DEPLOY_SOURCE_SHA: c3f83f618e27efd96d9e6fc316b2709e1138ff64
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -162,7 +162,7 @@ jobs:
             exit 77
           }
           cd ag-center
-          npm ci
+          npm ci --no-audit --no-fund
           npm run validate:deploy
           config="$RUNNER_TEMP/private-center-release.json"
           manifest="$RUNNER_TEMP/private-center-release-manifest.json"
