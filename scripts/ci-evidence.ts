@@ -1,4 +1,4 @@
-import { getJsonArray, getJsonString, isJsonRecord, type JsonRecord } from "./github-api.ts";
+import { getJsonArray, getJsonNumber, getJsonString, isJsonRecord, type JsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 import { hasValidStatusAttestation, statusRunAttempt } from "./status-attestation.ts";
 
@@ -72,6 +72,7 @@ export function completedPrRunReader(reader: JsonReader, controlRepository: stri
       if (
         isJsonRecord(run) &&
         getJsonString(run.repository, "full_name") === controlRepository &&
+        getJsonNumber(run, "id") === Number(path.slice(prefix.length)) &&
         getJsonString(run, "path") === ".github/workflows/handle-pr-dispatch.yml" &&
         getJsonString(run, "head_branch") === "main" &&
         getJsonString(run, "status") === "completed" &&
@@ -247,6 +248,7 @@ export async function hasVerifiedControlStatus(
     if (
       !isJsonRecord(run) ||
       getJsonString(run.repository, "full_name") !== controlRepository ||
+      getJsonNumber(run, "id") !== runId ||
       !workflowPaths.includes(getJsonString(run, "path")) ||
       getJsonString(run, "head_branch") !== "main"
     ) {
@@ -329,6 +331,7 @@ export async function hasVerifiedCiFailureStatus(
   return (
     isJsonRecord(run) &&
     getJsonString(run.repository, "full_name") === controlRepository &&
+    getJsonNumber(run, "id") === runId &&
     getJsonString(run, "path") === ".github/workflows/central-ci-dispatch.yml" &&
     getJsonString(run, "head_branch") === "main" &&
     getJsonString(run, "event") === "repository_dispatch" &&

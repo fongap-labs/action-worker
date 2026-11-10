@@ -123,6 +123,7 @@ function evidenceStatus(overrides: Record<string, unknown> = {}) {
 
 function controlRun(overrides: Record<string, unknown> = {}) {
   return {
+    id: 42,
     repository: { full_name: controlRepository },
     path: centralRunPath,
     head_branch: "main",
@@ -168,6 +169,8 @@ test("verified CI evidence needs a successful control run of a publishing workfl
 
 test("forged CI evidence pointing at a wrong or unsuccessful run is rejected", async () => {
   const rejected = [
+    controlRun({ id: 43 }),
+    controlRun({ id: null }),
     controlRun({ path: ".github/workflows/validate-ci.yml" }),
     controlRun({ conclusion: "failure" }),
     controlRun({ conclusion: "cancelled" }),
@@ -201,6 +204,8 @@ test("only a signed failure from a completed central dispatch run counts toward 
     true
   );
   for (const run of [
+    controlRun({ id: 43, conclusion: "failure", event: "repository_dispatch" }),
+    controlRun({ id: null, conclusion: "failure", event: "repository_dispatch" }),
     controlRun({ conclusion: "success", event: "repository_dispatch" }),
     controlRun({ conclusion: "failure", event: "push" }),
     controlRun({ conclusion: "failure", path: ".github/workflows/validate-ci.yml" }),
@@ -596,4 +601,32 @@ test("completed PR run reuse cannot bypass per-context workflow or signed timest
     "cached run cannot satisfy a status outside its real execution window"
   );
   assert.equal(source.requested.length, 1);
+});
+
+
+test("completed PR run cache rejects mismatched response ID and retries independently", async () => {
+  const runPath = `repos/${controlRepository}/actions/runs/42`;
+  const source = runReader([
+    controlRun({ id: 99, path: ".github/workflows/handle-pr-dispatch.yml" }),
+    controlRun({ id: 42, path: ".github/workflows/handle-pr-dispatch.yml" }),
+  ]);
+  const scoped = completedPrRunReader(source, controlRepository);
+  const wrong = await scoped.get(runPath);
+  assert.equal((wrong as { id: number }).id, 99);
+  assert.equal((await scoped.get(runPath) as { id: number }).id, 42);
+  assert.equal((await scoped.get(runPath) as { id: number }).id, 42);
+  assert.equal(source.requested.length, 2, "only the matching verified run may be reused");
+});
+
+test("verified successful control run identity must match the signed status URL", async () => {
+  const reader = runReader([controlRun({ id: 43 })]);
+  const failures: string[] = [];
+  const result = await hasVerifiedCiEvidence(reader, evidenceStatus(), {
+    ...noDelay,
+    ...verified,
+    trace: (step) => failures.push(step),
+  });
+  assert.equal(result, false);
+  assert.equal(failures.at(-1), "run-mismatch");
+  assert.equal(reader.requested.length, 1);
 });
