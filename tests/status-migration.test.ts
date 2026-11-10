@@ -111,6 +111,7 @@ test("legacy aw1 and new aw2 signatures verify without a GitHub API token", () =
 
 test("a migrated status still requires the original successful publishing run and time window", async () => {
   const run = {
+    id: 41648017125,
     repository: { full_name: "fongap-labs/action-worker" },
     path: ".github/workflows/handle-pr-dispatch.yml",
     head_branch: "main",

@@ -243,6 +243,7 @@ const ciSuccess = attestFixtureStatuses(
 ) as Record<string, unknown>;
 
 const run = {
+  id: 123,
   repository: { full_name: controlRepository },
   path: ".github/workflows/central-ci-dispatch.yml",
   head_branch: "main",

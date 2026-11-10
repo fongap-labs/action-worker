@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 对通过签名状态 URL 读取的 Action Worker 运行证据增加响应体 run.id 精确匹配校验，覆盖已完成运行的进程内复用、CI 成功和失败证据。运行对象 ID 缺失或与 URL 不符时拒绝用于门禁或缓存，保留独立工作流、分支、签名、状态及时间窗口验证，不减少必要的 Actions REST 请求、不更改自动合并策略。
+
 - 优化: Main Write Audit 对完整且唯一的 GitHub commit→merged PR 关联记录复用已校验的 PR 事实，避免每个受管仓库重复 GET 同一 PR 详情；若关联记录缺失有效 head SHA，仍独立查询 PR 详情并验证编号、merged_at、精确合并 SHA 与 main 基分支。多重关联和伪造合并继续拒绝，实时 CI/PR Status、Actions、未解决事件门禁不受影响。预计九仓库可减少九次 REST 请求，实际降耗以合并后运行记录为准。
 
 - 修复: 受保护四 Worker 只读盘点锁定到已验证的脱敏诊断版本，细分认证、权限与接口错误。

@@ -35,6 +35,7 @@ test("deploy evidence must be verified against a successful Action Worker CI run
     ],
   };
   const run = {
+    id: 123,
     repository: { full_name: "fongap-labs/action-worker" },
     path: ".github/workflows/central-ci-dispatch.yml",
     head_branch: "main",

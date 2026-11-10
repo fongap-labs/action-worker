@@ -35,9 +35,10 @@ function signedFailures(
   }) as Record<string, unknown>;
 }
 
-function trustedFailureRun(createdAt: string): Record<string, unknown> {
+function trustedFailureRun(createdAt: string, id: number): Record<string, unknown> {
   const time = Date.parse(createdAt);
   return {
+    id,
     repository: { full_name: controlRepository },
     path: ".github/workflows/central-ci-dispatch.yml",
     head_branch: "main",
@@ -58,7 +59,11 @@ function ciFailureReader(repository: string, sha: string, status: unknown) {
         return attestFixtureResponseForPath(path, status);
       }
       const runMatch = /^repos\/fongap-labs\/action-worker\/actions\/runs\/(\d+)$/.exec(path);
-      if (runMatch) return trustedFailureRun(new Date(Date.now() - 30 * 60_000).toISOString());
+      if (runMatch)
+        return trustedFailureRun(
+          new Date(Date.now() - 30 * 60_000).toISOString(),
+          Number(runMatch[1])
+        );
       throw new Error(`unexpected API path: ${path}`);
     },
   };

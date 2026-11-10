@@ -928,6 +928,7 @@ test("main write guard accepts central merge authority and preserves local self-
     [
       "repos/fongap-labs/action-worker/actions/runs/1",
       {
+        id: 1,
         repository: { full_name: "fongap-labs/action-worker" },
         path: ".github/workflows/handle-pr-dispatch.yml",
         head_branch: "main",
@@ -940,6 +941,7 @@ test("main write guard accepts central merge authority and preserves local self-
     [
       "repos/fongap-labs/action-worker/actions/runs/2",
       {
+        id: 2,
         repository: { full_name: "fongap-labs/action-worker" },
         path: ".github/workflows/central-ci-dispatch.yml",
         head_branch: "main",
@@ -952,6 +954,7 @@ test("main write guard accepts central merge authority and preserves local self-
     [
       "repos/fongap-labs/action-worker/actions/runs/3",
       {
+        id: 3,
         repository: { full_name: "fongap-labs/action-worker" },
         path: ".github/workflows/main-write-guard.yml",
         head_branch: "main",
@@ -1101,6 +1104,7 @@ test("a newer in-progress main write attestation does not shadow an older verifi
     [
       "repos/fongap-labs/action-worker/actions/runs/9",
       {
+        id: 9,
         repository: { full_name: controlRepository },
         path: ".github/workflows/deploy-source-script.yml",
         head_branch: "main",
@@ -1113,6 +1117,7 @@ test("a newer in-progress main write attestation does not shadow an older verifi
     [
       "repos/fongap-labs/action-worker/actions/runs/3",
       {
+        id: 3,
         repository: { full_name: controlRepository },
         path: ".github/workflows/central-ci-dispatch.yml",
         head_branch: "main",
@@ -1179,6 +1184,7 @@ test("a main write attestation outside its control run window names the rejected
     get: async (path: string) => {
       assert.equal(path, "repos/fongap-labs/action-worker/actions/runs/3");
       return {
+        id: 3,
         repository: { full_name: controlRepository },
         path: ".github/workflows/intake.yml",
         head_branch: "main",
@@ -1270,6 +1276,7 @@ test("a deploy's own attestation does not hide the Intake attestation of the sam
     [
       "repos/fongap-labs/action-worker/actions/runs/3",
       {
+        id: 3,
         repository: { full_name: "fongap-labs/action-worker" },
         path: ".github/workflows/intake.yml",
         head_branch: "main",
