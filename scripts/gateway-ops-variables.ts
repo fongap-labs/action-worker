@@ -17,6 +17,8 @@ const derivedNames = new Set([
   "AIG_GENERATION_SERVICE",
 ]);
 
+const forbiddenSecretNamePattern = /(?:^|_)(?:SECRET|SECRETS|TOKEN|TOKENS|KEY|KEYS|CREDENTIAL|CREDENTIALS)(?:_|$)/;
+
 const forbiddenSecretNames = [
   /^CLOUDFLARE_API_TOKEN(?:_|$)/,
   /^AIG_ACCESS_KEY(?:_|$)/,
@@ -47,7 +49,10 @@ export function validateGatewayOpsVariables(
   const result: Record<string, string> = {};
 
   for (const name of Object.keys(input).sort()) {
-    if (forbiddenSecretNames.some((pattern) => pattern.test(name))) {
+    if (
+      forbiddenSecretNames.some((pattern) => pattern.test(name)) ||
+      (name.startsWith("AIG_") && forbiddenSecretNamePattern.test(name))
+    ) {
       fail(name, "must be stored as a Secret, not a Variable");
     }
     if (!isGatewayOwnedVariableName(name)) continue;
