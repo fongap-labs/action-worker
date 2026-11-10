@@ -111,13 +111,19 @@ test("one-shot bootstrap uses existing SECONDARY Secret in protected ai-gateway-
     publishSteps.find((step) => step.env?.AIG_DEPLOY_HEALTH_KEY)?.env?.AIG_PUBLIC_URL,
     "${{ needs.gateway_metadata.outputs.public_url }}"
   );
-  const operations = parse(readFileSync(".github/workflows/ai-gateway-ops.yml", "utf8")) as Record<string, unknown>;
+  const operations = parse(readFileSync(".github/workflows/ai-gateway-ops.yml", "utf8")) as Record<
+    string,
+    unknown
+  >;
   const manage = (operations.jobs as Record<string, Record<string, unknown>>).manage;
   assert.ok(manage, "AI Gateway operations workflow must include a manage job");
   assert.equal((manage.environment as { name: string }).name, "ai-gateway-ops");
   const operationsSteps = manage.steps as { env?: Record<string, string> }[];
   for (const step of operationsSteps.filter((step) => step.env?.CLOUDFLARE_API_TOKEN_OPS)) {
-    assert.equal(step.env?.CLOUDFLARE_API_TOKEN_OPS, "${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}");
+    assert.equal(
+      step.env?.CLOUDFLARE_API_TOKEN_OPS,
+      "${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}"
+    );
   }
   assert.equal(operationsSteps.filter((step) => step.env?.CLOUDFLARE_API_TOKEN_OPS).length, 2);
   const script = readFileSync("scripts/bootstrap-ai-gateway-health-key.ts", "utf8");
