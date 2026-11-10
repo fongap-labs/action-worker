@@ -52,6 +52,8 @@ const maxBodyBytes = 8 * 1024 * 1024;
 const deliveryPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const repositoryPattern = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
 const leaseMs = 60_000;
+/** Each delivery has one immediate attempt and at most four scheduled retries. */
+export const maxIngressAttempts = 5;
 /** Each of the two GitHub API round-trips must finish well inside one durable lease. */
 export const githubApiRequestTimeoutMs = 15_000;
 
@@ -62,13 +64,14 @@ export const webhookDeliverySql = {
   findId: "SELECT delivery_id, body_digest FROM webhook_deliveries WHERE delivery_id = ?",
   findDigest: "SELECT delivery_id, body_digest FROM webhook_deliveries WHERE body_digest = ?",
   claim:
-    "UPDATE webhook_deliveries SET lease_until_ms = ? WHERE delivery_id = ? AND delivered_ms IS NULL AND lease_until_ms <= ? RETURNING delivery_id",
+    "UPDATE webhook_deliveries SET lease_until_ms = ? + (60000 * (1 << attempt_count)), attempt_count = attempt_count + 1 WHERE delivery_id = ? AND delivered_ms IS NULL AND attempt_count < 5 AND lease_until_ms <= ? RETURNING delivery_id, attempt_count",
+  status: "SELECT delivered_ms, attempt_count FROM webhook_deliveries WHERE delivery_id = ?",
   complete:
     "UPDATE webhook_deliveries SET delivered_ms = ?, lease_until_ms = 0 WHERE delivery_id = ?",
   pending:
-    "SELECT delivery_id, installation_id FROM webhook_deliveries WHERE delivered_ms IS NULL AND lease_until_ms <= ? ORDER BY lease_until_ms ASC, created_ms ASC LIMIT 25",
+    "SELECT delivery_id, installation_id FROM webhook_deliveries WHERE delivered_ms IS NULL AND attempt_count < 5 AND lease_until_ms <= ? ORDER BY lease_until_ms ASC, created_ms ASC LIMIT 25",
   backlog:
-    "SELECT COUNT(*) AS pending_count, MIN(created_ms) AS oldest_created_ms FROM webhook_deliveries WHERE delivered_ms IS NULL",
+    "SELECT COUNT(CASE WHEN attempt_count < 5 THEN 1 END) AS pending_count, MIN(CASE WHEN attempt_count < 5 THEN created_ms END) AS oldest_created_ms, COUNT(CASE WHEN attempt_count >= 5 THEN 1 END) AS quarantined_count FROM webhook_deliveries WHERE delivered_ms IS NULL",
 } as const;
 
 /**
@@ -419,6 +422,16 @@ export async function handleDirectWebhook(
       await signedBodyDigest(body)
     );
     const dispatched = await attemptPending(env, delivery, apiFetch, signingKey);
+    if (!dispatched) {
+      const state = await env.AW_INGRESS_DB.prepare(webhookDeliverySql.status)
+        .bind(delivery.delivery_id)
+        .first<{ delivered_ms: number | null; attempt_count: number }>();
+      if (!state) throw new Error("Durable delivery status is unavailable.");
+      if (state.delivered_ms === null && state.attempt_count >= maxIngressAttempts) {
+        // Do not acknowledge a permanently failed delivery as completed on redelivery.
+        return new Response("Delivery requires controlled reconciliation", { status: 503 });
+      }
+    }
     return new Response(dispatched ? "Reconciliation requested" : "Already received", {
       status: 202,
     });
@@ -434,6 +447,7 @@ export async function handleDirectWebhook(
 export type IngressBacklog = {
   pending_count: number;
   oldest_created_ms: number | null;
+  quarantined_count: number;
 };
 
 /**
@@ -450,10 +464,11 @@ export function ingressCronTelemetry(
   completed_count: number;
   failed_count: number;
   pending_count: number;
+  quarantined_count: number;
   oldest_pending_age_minutes: number | null;
 } {
   if (!backlog) throw new Error("Direct ingress backlog snapshot is missing.");
-  const { pending_count: pending, oldest_created_ms: oldest } = backlog;
+  const { pending_count: pending, oldest_created_ms: oldest, quarantined_count: quarantined } = backlog;
   if (
     !Number.isSafeInteger(completed) ||
     completed < 0 ||
@@ -461,6 +476,8 @@ export function ingressCronTelemetry(
     failed < 0 ||
     !Number.isSafeInteger(pending) ||
     pending < 0 ||
+    !Number.isSafeInteger(quarantined) ||
+    quarantined < 0 ||
     !Number.isSafeInteger(now) ||
     (oldest !== null && (!Number.isSafeInteger(oldest) || oldest < 0)) ||
     (pending === 0 && oldest !== null) ||
@@ -473,6 +490,7 @@ export function ingressCronTelemetry(
     completed_count: completed,
     failed_count: failed,
     pending_count: pending,
+    quarantined_count: quarantined,
     oldest_pending_age_minutes:
       oldest === null ? null : Math.floor(Math.max(0, now - oldest) / 60_000),
   };
