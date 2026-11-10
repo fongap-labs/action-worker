@@ -51,7 +51,6 @@ type GithubEvent = {
 const maxBodyBytes = 8 * 1024 * 1024;
 const deliveryPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const repositoryPattern = /^[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+$/;
-const leaseMs = 60_000;
 /** Each delivery has one immediate attempt and at most four scheduled retries. */
 export const maxIngressAttempts = 5;
 /** Each of the two GitHub API round-trips must finish well inside one durable lease. */
@@ -338,7 +337,7 @@ async function attemptPending(
   signingKey: CryptoKey
 ): Promise<boolean> {
   const claimed = await env.AW_INGRESS_DB.prepare(webhookDeliverySql.claim)
-    .bind(Date.now() + leaseMs, delivery.delivery_id, Date.now())
+    .bind(Date.now(), delivery.delivery_id, Date.now())
     .first<{ delivery_id: string }>();
   if (!claimed) return false;
   await dispatchIntake(env, delivery.installation_id, apiFetch, signingKey);
