@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 总控调度对任务来源、定时任务和定时部署三项可延期全量扫描增加 GitHub App 核心 API 配额预检，剩余不超过 300 次时记录脱敏告警和摘要并延后本轮；无法读取配额时维持失败关闭。PR 治理、主分支 CI 和写入审计不跳过，强制 validate-merge 门禁不变。
+
 - 修复: Action Worker 总控调度从每 5 分钟全量扫描改为每 15 分钟兜底巡检，并在控制仓库 main push 时跳过无关的 PR、任务来源和任务/部署定时扫描，减少共享 GitHub App 安装配额消耗；run-intake 事件驱动、Main CI、Main write audit 及强制 CI 合并门禁保持有效。
 
 - 修复: 已通过三项签名 CI 的 PR 若因分支落后 main 无法自动合并，由受限 GitHub App 按精确 SHA 更新分支并重新运行 CI；中央 Intake 可重新派发已全绿但未合并的 behind PR，仍拒绝草稿、冲突和外部 Fork。
