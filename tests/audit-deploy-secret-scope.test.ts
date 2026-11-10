@@ -183,6 +183,7 @@ test("offline CLI reads live policy and pinned source without runtime Secret or 
       status: string;
       required_secret_count: number;
       active_environment_name_matches: number;
+      other_environment_only_names: number;
       actual_secret_values_checked: boolean;
       runtime_injection_proven: boolean;
     };
