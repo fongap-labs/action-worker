@@ -70,21 +70,23 @@ export function taskOpsAccountScope(
   inheritedOrganizationNames: ReadonlySet<string> | null,
   protectedEnvironmentNames: ReadonlySet<string> | null
 ): TaskOpsAccountScope {
-  const repositoryPresent = repositoryNames?.has(taskAccountName) === true;
-  const jobPresent =
-    inheritedOrganizationNames === null
-      ? repositoryPresent
-        ? true
-        : null
-      : repositoryPresent || inheritedOrganizationNames.has(taskAccountName);
-  const opsPresent =
-    protectedEnvironmentNames === null ? null : protectedEnvironmentNames.has(taskAccountName);
+  // Treat Repository and inherited Organization as independent sources:
+  // GitHub would shadow one with the other before the protected ops handoff.
+  const sources = [repositoryNames, inheritedOrganizationNames, protectedEnvironmentNames];
+  const knownPresent = sources.filter((names) => names?.has(taskAccountName) === true).length;
+  const allKnown = sources.every((names) => names !== null);
   let source: TaskOpsAccountScope["source"] = "unverified";
-  if (jobPresent === true && opsPresent === true) source = "duplicate-sources";
-  else if (jobPresent !== null && opsPresent !== null) {
-    if (jobPresent) source = "job-context";
-    else if (opsPresent) source = "protected-ops";
-    else source = "missing";
+  // A duplicate is proven by two observed scopes even if another is unreadable.
+  // A single source or apparent absence needs all three scopes to be known.
+  if (knownPresent >= 2) source = "duplicate-sources";
+  else if (allKnown) {
+    if (repositoryNames?.has(taskAccountName) || inheritedOrganizationNames?.has(taskAccountName)) {
+      source = "job-context";
+    } else if (protectedEnvironmentNames?.has(taskAccountName)) {
+      source = "protected-ops";
+    } else {
+      source = "missing";
+    }
   }
   return {
     source,
