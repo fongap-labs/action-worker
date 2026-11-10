@@ -142,19 +142,13 @@ async function ciState(
 }
 
 async function defaultHead(reader: GithubGet, repository: string): Promise<string> {
-  const repo = await reader.get(`repos/${repository}`);
-  if (!isJsonRecord(repo)) {
-    throw new CliError(`GitHub repository response is invalid: ${repository}.`, 65);
+  // GitHub defaults the List commits endpoint to the repository's default branch.
+  // Request only its first commit so the default HEAD is resolved in one read.
+  const commits = await reader.get(`repos/${repository}/commits?per_page=1`);
+  if (!Array.isArray(commits) || !isJsonRecord(commits[0])) {
+    throw new CliError(`GitHub default-branch commit list response is invalid: ${repository}.`, 65);
   }
-  const branch = getJsonString(repo, "default_branch");
-  if (!branch) {
-    throw new CliError(`Repository default branch is unavailable: ${repository}.`, 65);
-  }
-  const commit = await reader.get(`repos/${repository}/commits/${branch}`);
-  if (!isJsonRecord(commit)) {
-    throw new CliError(`GitHub commit response is invalid: ${repository}.`, 65);
-  }
-  const sha = getJsonString(commit, "sha");
+  const sha = getJsonString(commits[0], "sha");
   if (!shaPattern.test(sha)) {
     throw new CliError(`Repository default head SHA is invalid: ${repository}.`, 65);
   }
