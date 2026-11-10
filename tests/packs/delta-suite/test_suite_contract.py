@@ -238,13 +238,7 @@ class TestFoundationCompatibilityPin:
         # Suite depends on the public Worker SDK, not the full delta distribution (ADR-0082).
         assert "delta" not in config["project"]["dependencies"]
         sdk_source = config["tool"]["uv"]["sources"]["delta-worker-sdk"]
-        # The immutable SDK revision predates the Delta repository reset. The
-        # original source and its read-only history are both trusted until a
-        # standalone Worker SDK release replaces the Git dependency.
-        assert sdk_source["git"] in {
-            "https://github.com/fongap-labs/delta.git",
-            "https://github.com/fongap-labs/delta-legacy.git",
-        }
+        assert sdk_source["git"] == "https://github.com/fongap-labs/delta.git"
         assert sdk_source["rev"] == ref
         assert sdk_source["subdirectory"] == "packages/delta_worker_sdk"
 
