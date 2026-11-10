@@ -64,7 +64,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: fongap-labs/ai-gateway
-          ref: e8ee0910a4225b29d25f37d31e5457e9418f4d6f
+          ref: b976bbfa2184738e09f7f4c7c885f5836efcbd5a
           path: ag-inspector
           persist-credentials: false
 
@@ -74,7 +74,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}
           SECRET_NAME: ${{ inputs.secret_name }}
-          PINNED_INSPECTOR_SHA: e8ee0910a4225b29d25f37d31e5457e9418f4d6f
+          PINNED_INSPECTOR_SHA: b976bbfa2184738e09f7f4c7c885f5836efcbd5a
         shell: bash
         run: |
           set -Eeuo pipefail
