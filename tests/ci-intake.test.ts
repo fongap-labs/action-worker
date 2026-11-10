@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { maxCiFailureAttempts } from "../scripts/ci-failure-fingerprint.ts";
+import { GithubHttpError } from "../scripts/github-api.ts";
 import { scanMainCi } from "../scripts/intake-main-ci.ts";
 import { attestFixtureResponseForPath } from "./attested-status-fixtures.ts";
 
@@ -112,28 +113,131 @@ test("central CI intake dispatches only default heads without evidence", async (
     dispatched: 1,
     in_flight: 1,
     already_processed: 1,
+    failed_repositories: [],
   });
 });
 
 test("default head lookup rejects an empty or malformed default-branch commit list", async () => {
   const repository = "fongap-labs/example";
   for (const payload of [[], [{}], [{ sha: "not-a-commit-sha" }]]) {
-    await assert.rejects(
-      scanMainCi(
-        { [repository]: ["pr"] },
-        {
-          async get(path: string): Promise<unknown> {
-            assert.equal(path, `repos/${repository}/commits?per_page=1`);
-            return payload;
-          },
+    const result = await scanMainCi(
+      { [repository]: ["pr"] },
+      {
+        async get(path: string): Promise<unknown> {
+          assert.equal(path, `repos/${repository}/commits?per_page=1`);
+          return payload;
         },
-        async () => {
-          throw new Error("invalid default HEAD must never dispatch");
-        }
-      ),
-      /default-branch commit list response is invalid|default head SHA is invalid/
+      },
+      async () => {
+        throw new Error("invalid default HEAD must never dispatch");
+      }
     );
+    assert.deepEqual(result.failed_repositories, [repository]);
   }
+});
+
+test("one repository API failure does not prevent later repositories from being reconciled", async () => {
+  const failedRepository = "fongap-labs/one";
+  const healthyRepository = "fongap-labs/two";
+  const dispatched: string[] = [];
+  const result = await scanMainCi(
+    { [healthyRepository]: ["pr"], [failedRepository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path === `repos/${failedRepository}/commits?per_page=1`) {
+          throw new GithubHttpError(503);
+        }
+        if (path === `repos/${healthyRepository}/commits?per_page=1`) {
+          return [{ sha: shaB }];
+        }
+        if (path === `repos/${healthyRepository}/commits/${shaB}/status`) {
+          return { statuses: [] };
+        }
+        throw new Error(`unexpected API path: ${path}`);
+      },
+    },
+    async (repository) => {
+      dispatched.push(repository);
+    }
+  );
+
+  assert.deepEqual(dispatched, [healthyRepository]);
+  assert.deepEqual(result, {
+    repositories: 2,
+    dispatched: 1,
+    in_flight: 0,
+    already_processed: 0,
+    failed_repositories: [failedRepository],
+  });
+});
+
+test("a failed dispatch is isolated and later repositories still dispatch", async () => {
+  const firstRepository = "fongap-labs/one";
+  const secondRepository = "fongap-labs/two";
+  const events: string[] = [];
+  const result = await scanMainCi(
+    { [firstRepository]: ["pr"], [secondRepository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path === `repos/${firstRepository}/commits?per_page=1`) return [{ sha: shaA }];
+        if (path === `repos/${firstRepository}/commits/${shaA}/status`) return { statuses: [] };
+        if (path === `repos/${secondRepository}/commits?per_page=1`) return [{ sha: shaB }];
+        if (path === `repos/${secondRepository}/commits/${shaB}/status`) return { statuses: [] };
+        throw new Error(`unexpected API path: ${path}`);
+      },
+    },
+    async (repository) => {
+      events.push(`dispatch:${repository}`);
+      if (repository === firstRepository) throw new Error("simulated dispatch failure");
+    },
+    "",
+    async (repository) => {
+      events.push(`reserve:${repository}`);
+    }
+  );
+
+  assert.deepEqual(events, [
+    `reserve:${firstRepository}`,
+    `dispatch:${firstRepository}`,
+    `reserve:${secondRepository}`,
+    `dispatch:${secondRepository}`,
+  ]);
+  assert.deepEqual(result.failed_repositories, [firstRepository]);
+  assert.equal(result.dispatched, 1);
+});
+
+test("a failed status reservation never dispatches that repository and does not block later ones", async () => {
+  const firstRepository = "fongap-labs/one";
+  const secondRepository = "fongap-labs/two";
+  const events: string[] = [];
+  const result = await scanMainCi(
+    { [firstRepository]: ["pr"], [secondRepository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path === `repos/${firstRepository}/commits?per_page=1`) return [{ sha: shaA }];
+        if (path === `repos/${firstRepository}/commits/${shaA}/status`) return { statuses: [] };
+        if (path === `repos/${secondRepository}/commits?per_page=1`) return [{ sha: shaB }];
+        if (path === `repos/${secondRepository}/commits/${shaB}/status`) return { statuses: [] };
+        throw new Error(`unexpected API path: ${path}`);
+      },
+    },
+    async (repository) => {
+      events.push(`dispatch:${repository}`);
+    },
+    "",
+    async (repository) => {
+      events.push(`reserve:${repository}`);
+      if (repository === firstRepository) throw new Error("simulated reservation failure");
+    }
+  );
+
+  assert.deepEqual(events, [
+    `reserve:${firstRepository}`,
+    `reserve:${secondRepository}`,
+    `dispatch:${secondRepository}`,
+  ]);
+  assert.deepEqual(result.failed_repositories, [firstRepository]);
+  assert.equal(result.dispatched, 1);
 });
 
 test("central CI intake reserves status before dispatch", async () => {
@@ -311,7 +415,13 @@ test("central CI intake can be limited to the repository of a task source reques
   );
 
   assert.deepEqual(dispatched, [{ repository: "fongap-labs/one", sha: shaA }]);
-  assert.deepEqual(result, { repositories: 1, dispatched: 1, in_flight: 0, already_processed: 0 });
+  assert.deepEqual(result, {
+    repositories: 1,
+    dispatched: 1,
+    in_flight: 0,
+    already_processed: 0,
+    failed_repositories: [],
+  });
 });
 
 test("main CI retries a signed old failure only after trusted control revision changes", async () => {

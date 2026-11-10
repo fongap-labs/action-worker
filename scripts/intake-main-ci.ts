@@ -1,7 +1,13 @@
 import { trustedControlRunId } from "./ci-evidence.ts";
 import { decideCiFailureRetry, hasUnresolvedCiEvidenceFailure } from "./ci-failure-budget.ts";
 import { parseCiFailureMarker } from "./ci-failure-fingerprint.ts";
-import { getJsonString, githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api.ts";
+import {
+  GithubHttpError,
+  getJsonString,
+  githubEnvironment,
+  isJsonRecord,
+  statusAwareReader,
+} from "./github-api.ts";
 import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
@@ -20,6 +26,7 @@ export type CiIntakeResult = {
   dispatched: number;
   in_flight: number;
   already_processed: number;
+  failed_repositories: string[];
 };
 
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -173,32 +180,46 @@ export async function scanMainCi(
     dispatched: 0,
     in_flight: 0,
     already_processed: 0,
+    failed_repositories: [],
   };
 
   for (const repository of repositories) {
-    const headSha = await defaultHead(reader, repository);
-    const status = await reader.get(`repos/${repository}/commits/${headSha}/status`);
-    const state = await ciState(
-      status,
-      reader,
-      excludedRepository,
-      repository,
-      headSha,
-      currentControlHeadSha
-    );
-    if (state === "in-flight") {
-      result.in_flight += 1;
-      continue;
+    try {
+      const headSha = await defaultHead(reader, repository);
+      const status = await reader.get(`repos/${repository}/commits/${headSha}/status`);
+      const state = await ciState(
+        status,
+        reader,
+        excludedRepository,
+        repository,
+        headSha,
+        currentControlHeadSha
+      );
+      if (state === "in-flight") {
+        result.in_flight += 1;
+        continue;
+      }
+      if (state === "processed") {
+        result.already_processed += 1;
+        continue;
+      }
+      if (reserve) {
+        await reserve(repository, headSha);
+      }
+      await dispatch(repository, headSha);
+      result.dispatched += 1;
+    } catch (error) {
+      result.failed_repositories.push(repository);
+      const detail =
+        error instanceof GithubHttpError
+          ? `GitHub HTTP ${error.status} (${error.kind})`
+          : error instanceof CliError
+            ? `CLI exit ${error.exitCode}`
+            : error instanceof Error
+              ? error.name
+              : "unknown error";
+      console.error(`::error::Main CI reconciliation failed for ${repository}: ${detail}.`);
     }
-    if (state === "processed") {
-      result.already_processed += 1;
-      continue;
-    }
-    if (reserve) {
-      await reserve(repository, headSha);
-    }
-    await dispatch(repository, headSha);
-    result.dispatched += 1;
   }
 
   return result;
@@ -294,6 +315,12 @@ async function main(): Promise<void> {
   );
 
   console.log(JSON.stringify(result));
+  if (result.failed_repositories.length > 0) {
+    throw new CliError(
+      `Main CI intake partially failed for ${result.failed_repositories.length} repositories: ${result.failed_repositories.join(", ")}.`,
+      1
+    );
+  }
 }
 
 if (isMain(import.meta.url)) {
