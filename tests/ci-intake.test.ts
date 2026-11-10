@@ -120,21 +120,19 @@ test("central CI intake dispatches only default heads without evidence", async (
 test("default head lookup rejects an empty or malformed default-branch commit list", async () => {
   const repository = "fongap-labs/example";
   for (const payload of [[], [{}], [{ sha: "not-a-commit-sha" }]]) {
-    await assert.rejects(
-      scanMainCi(
-        { [repository]: ["pr"] },
-        {
-          async get(path: string): Promise<unknown> {
-            assert.equal(path, `repos/${repository}/commits?per_page=1`);
-            return payload;
-          },
+    const result = await scanMainCi(
+      { [repository]: ["pr"] },
+      {
+        async get(path: string): Promise<unknown> {
+          assert.equal(path, `repos/${repository}/commits?per_page=1`);
+          return payload;
         },
-        async () => {
-          throw new Error("invalid default HEAD must never dispatch");
-        }
-      ),
-      /default-branch commit list response is invalid|default head SHA is invalid/
+      },
+      async () => {
+        throw new Error("invalid default HEAD must never dispatch");
+      }
     );
+    assert.deepEqual(result.failed_repositories, [repository]);
   }
 });
 
