@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { after, test } from "node:test";
 import { assertReadyForAutomaticMerge } from "../scripts/auto-merge-pr.ts";
 import { signedStatusDescription } from "../scripts/status-attestation.ts";
 
@@ -109,7 +109,7 @@ test("merge readiness rejects malformed repository, SHA and governance run URL",
   assert.throws(() => assertReadyForAutomaticMerge(r, s, repository, number, headSha, baseSha, "https://example.com/forged"));
 });
 
-test.after(() => {
+after(() => {
   if (previousKeyring === undefined) delete process.env.AW_STATUS_KEYRING;
   else process.env.AW_STATUS_KEYRING = previousKeyring;
 });
