@@ -267,12 +267,22 @@ test("private center secret management has strict per-Worker allowlists", () => 
   ] as const) {
     assert.throws(() => validateSecretMutation(name, env), /allowlist/);
   }
-  assert.throws(() => validateSecretMutation("AIG_ACCESS_KEY_AIR", {
-    ...mockEnv, AIG_OPS_WORKER_NAME: "some-other-worker"
-  }), /outside the protected/);
-  assert.throws(() => validateSecretMutation("AIG_INFERENCE_AUTH_KEY", {
-    ...inference, AIG_OPS_SECRET_VALUE: healthKey
-  }), /must not reuse the deployment health/);
+  assert.throws(
+    () =>
+      validateSecretMutation("AIG_ACCESS_KEY_AIR", {
+        ...mockEnv,
+        AIG_OPS_WORKER_NAME: "some-other-worker",
+      }),
+    /outside the protected/
+  );
+  assert.throws(
+    () =>
+      validateSecretMutation("AIG_INFERENCE_AUTH_KEY", {
+        ...inference,
+        AIG_OPS_SECRET_VALUE: healthKey,
+      }),
+    /must not reuse the deployment health/
+  );
 });
 
 test("private center Secret update stays inside selected Worker and never invokes public health", async () => {
@@ -288,7 +298,7 @@ test("private center Secret update stays inside selected Worker and never invoke
       assert.deepEqual(JSON.parse(String(init.body)), {
         name: "AIG_TIER2_CREDENTIALS_01",
         text: "upstream-secret",
-        type: "secret_text"
+        type: "secret_text",
       });
       return ok({ name: "AIG_TIER2_CREDENTIALS_01", type: "secret_text" });
     }
@@ -300,8 +310,14 @@ test("private center Secret update stays inside selected Worker and never invoke
 });
 
 test("protected ops workflow requires explicit Worker choice for private center inventory and put", () => {
-  const workflow = readFileSync(new URL("../.github/workflows/ai-gateway-ops.yml", import.meta.url), "utf8");
-  assert.match(workflow, /options:\n\s+- ai-gateway\n\s+- ai-inference-center\n\s+- ai-generation-center/);
+  const workflow = readFileSync(
+    new URL("../.github/workflows/ai-gateway-ops.yml", import.meta.url),
+    "utf8"
+  );
+  assert.match(
+    workflow,
+    /options:\n\s+- ai-gateway\n\s+- ai-inference-center\n\s+- ai-generation-center/
+  );
   assert.match(workflow, /AIG_OPS_WORKER_NAME: \$\{\{ inputs.worker \}\}/);
   assert.doesNotMatch(workflow, /secret delete/);
 });
