@@ -52,11 +52,11 @@ jobs:
   worker-preflight:
     if: github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
     needs: gateway_metadata
-    name: Inspect Worker secret names with existing protected deploy credential
+    name: Inspect Worker secret names with protected Gateway operations credential
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     environment:
-      name: production
+      name: ai-gateway-ops
       deployment: false
     permissions:
       contents: read
@@ -77,7 +77,7 @@ jobs:
 
   github-bootstrap:
     needs: worker-preflight
-    name: Initialize protected production deploy Secret using admin-ops
+    name: Initialize Gateway operations health Secret using admin-ops
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     environment:
@@ -101,11 +101,11 @@ jobs:
 
   worker-publish:
     needs: [github-bootstrap, gateway_metadata]
-    name: Publish saved health key using existing protected deployment credentials
+    name: Publish saved health key through protected Gateway operations
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     environment:
-      name: production
+      name: ai-gateway-ops
       deployment: false
     permissions:
       contents: read

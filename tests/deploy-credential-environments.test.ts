@@ -19,9 +19,12 @@ test("only approved source product switches credential ownership to existing ops
     ),
     { credential_environment: "internal-vault-ops", create_deployment: false }
   );
+  assert.deepEqual(
+    selectDeployCredentialEnvironment(routes, grants, "fongap-labs/ai-gateway", "", "production"),
+    { credential_environment: "ai-gateway-ops", create_deployment: false }
+  );
   for (const [repo, product] of [
     ["fongap-labs/internal-vault", "server-edge"],
-    ["fongap-labs/ai-gateway", ""],
     ["fongap-labs/mcp-hub", ""],
   ] as const) {
     assert.deepEqual(

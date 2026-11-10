@@ -1,8 +1,7 @@
-# Approved one-shot reattempt after Cloudflare operations scope was observed unconfigured.
-# Real preflight found the ops token absent; use the existing production deployment Secret.
-# The separate ai-gateway-ops job exports only validated non-sensitive metadata.
-# Retain fail-closed preflight and do not rotate any existing key.
+# Controlled one-shot reattempt: CLOUDFLARE_API_TOKEN_SECONDARY is stored in ai-gateway-ops.
+# Read the existing protected ops Secret without copying it to production.
+# Retain fail-closed preflight and do not rotate any existing health key.
 schema_version: 1
 repository: fongap-labs/action-worker
 purpose: initialize-unset-ai-gateway-deploy-health-key
-attempt: protected-existing-production-token
+attempt: protected-ai-gateway-ops-secondary-token

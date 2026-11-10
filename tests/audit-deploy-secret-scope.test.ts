@@ -159,7 +159,9 @@ test("offline CLI reads live policy and pinned source without runtime Secret or 
         coverage: "complete",
         repository: [],
         organization_accessible: [],
-        environments: { production: ["AIG_DEPLOY_HEALTH_KEY", "CLOUDFLARE_API_TOKEN_SECONDARY"] },
+        environments: {
+          "ai-gateway-ops": ["AIG_DEPLOY_HEALTH_KEY", "CLOUDFLARE_API_TOKEN_SECONDARY"],
+        },
       })
     );
     const args = [
@@ -192,7 +194,7 @@ test("offline CLI reads live policy and pinned source without runtime Secret or 
     assert.equal(report.active_environment_name_matches, 2);
     assert.equal(report.other_environment_only_names, 0);
     // A logical production deploy must use its credential-owning ops Environment;
-    // a stale copy in a different Environment is not reachable by the privileged job.
+    // a copy in production is not reachable by the approved ai-gateway-ops job.
     await writeFile(
       inventoryPath,
       JSON.stringify({
@@ -201,7 +203,7 @@ test("offline CLI reads live policy and pinned source without runtime Secret or 
         repository: [],
         organization_accessible: [],
         environments: {
-          "ai-gateway-ops": ["AIG_DEPLOY_HEALTH_KEY", "CLOUDFLARE_API_TOKEN_SECONDARY"],
+          production: ["AIG_DEPLOY_HEALTH_KEY", "CLOUDFLARE_API_TOKEN_SECONDARY"],
         },
       })
     );

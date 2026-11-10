@@ -43,7 +43,7 @@ test("bootstrap cannot overwrite Cloudflare or the credential-owning ops Environ
   assert.throws(() => assertHealthKeyIsUninitialized([], [[], []]), /incomplete/);
 });
 
-test("one-shot bootstrap reuses existing deploy Secrets with ops-only non-secret metadata", () => {
+test("one-shot bootstrap uses existing SECONDARY Secret in protected ai-gateway-ops", () => {
   const workflow = parse(
     readFileSync(".github/workflows/bootstrap-health-key.yml", "utf8")
   ) as Record<string, unknown>;
@@ -63,9 +63,9 @@ test("one-shot bootstrap reuses existing deploy Secrets with ops-only non-secret
   const publish = jobs["worker-publish"];
   assert.ok(metadata && preflight && github && publish);
   assert.equal((metadata.environment as { name: string }).name, "ai-gateway-ops");
-  assert.equal((preflight.environment as { name: string }).name, "production");
+  assert.equal((preflight.environment as { name: string }).name, "ai-gateway-ops");
   assert.equal((github.environment as { name: string }).name, "admin-ops");
-  assert.equal((publish.environment as { name: string }).name, "production");
+  assert.equal((publish.environment as { name: string }).name, "ai-gateway-ops");
   assert.equal(preflight.needs, "gateway_metadata");
   assert.equal(github.needs, "worker-preflight");
   assert.deepEqual(publish.needs, ["github-bootstrap", "gateway_metadata"]);
@@ -111,8 +111,23 @@ test("one-shot bootstrap reuses existing deploy Secrets with ops-only non-secret
     publishSteps.find((step) => step.env?.AIG_DEPLOY_HEALTH_KEY)?.env?.AIG_PUBLIC_URL,
     "${{ needs.gateway_metadata.outputs.public_url }}"
   );
+  const operations = parse(readFileSync(".github/workflows/ai-gateway-ops.yml", "utf8")) as Record<
+    string,
+    unknown
+  >;
+  const manage = (operations.jobs as Record<string, Record<string, unknown>>).manage;
+  assert.ok(manage, "AI Gateway operations workflow must include a manage job");
+  assert.equal((manage.environment as { name: string }).name, "ai-gateway-ops");
+  const operationsSteps = manage.steps as { env?: Record<string, string> }[];
+  for (const step of operationsSteps.filter((step) => step.env?.CLOUDFLARE_API_TOKEN_OPS)) {
+    assert.equal(
+      step.env?.CLOUDFLARE_API_TOKEN_OPS,
+      "${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}"
+    );
+  }
+  assert.equal(operationsSteps.filter((step) => step.env?.CLOUDFLARE_API_TOKEN_OPS).length, 2);
   const script = readFileSync("scripts/bootstrap-ai-gateway-health-key.ts", "utf8");
-  assert.match(script, /const environments = \["production"\]/);
+  assert.match(script, /const environments = \["ai-gateway-ops"\]/);
   assert.match(script, /randomBytes\(32\)\.toString\("hex"\)/);
   assert.match(script, /input: value/);
   assert.match(script, /assertHealthKeyIsUninitialized\(\[\], githubNames\)/);
