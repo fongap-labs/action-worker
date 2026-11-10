@@ -498,7 +498,9 @@ test("AI Gateway operations workflow is protected and never accepts secret value
   // Secret mutation and private-center code deployment are separate guarded
   // operations. A Secret put must never upload or replace Worker code.
   const putStart = workflow.indexOf("      - name: Update one Worker Secret");
-  const centerStart = workflow.indexOf("      - name: Check out approved AI Gateway private centers");
+  const centerStart = workflow.indexOf(
+    "      - name: Check out approved AI Gateway private centers"
+  );
   assert.ok(putStart >= 0 && centerStart > putStart);
   const putStep = workflow.slice(putStart, centerStart);
   assert.match(putStep, /if: inputs.operation == 'put'/);
