@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { parse } from "yaml";
+import { intakeReadRepositoryNames } from "../scripts/repository-policy.ts";
 
 type Step = {
   name?: string;
@@ -29,10 +30,7 @@ test("all seven intake jobs use policy-scoped App reads without personal control
     const mint = steps.find((step) => step.name === "Mint scoped intake read token");
     assert.equal(mint?.id, "control_read_app", job);
     assert.equal(mint?.uses, "./.github/actions/mint-app-token");
-    assert.equal(
-      mint?.with?.repositories,
-      `\${{ format('{0},{1}', github.event.repository.name, steps.${scope}.outputs.repositories_csv) }}`
-    );
+    assert.equal(mint?.with?.repositories, `\${{ steps.${scope}.outputs.read_repositories_csv }}`);
     assert.deepEqual(
       Object.entries(mint?.with ?? {})
         .filter(([key]) => key.startsWith("permission-"))
@@ -53,4 +51,33 @@ test("all seven intake jobs use policy-scoped App reads without personal control
       job
     );
   }
+});
+
+test("intake read scope adds the control repository once while preserving policy order", () => {
+  assert.equal(
+    intakeReadRepositoryNames("fongap-labs/action-worker", [
+      "action-worker",
+      "ai-gateway",
+      "action-worker",
+      "dsh-plugin",
+    ]),
+    "action-worker,ai-gateway,dsh-plugin"
+  );
+  assert.equal(
+    intakeReadRepositoryNames("fongap-labs/action-worker", ["ai-gateway", "dsh-plugin"]),
+    "action-worker,ai-gateway,dsh-plugin"
+  );
+  assert.equal(intakeReadRepositoryNames("fongap-labs/action-worker", []), "action-worker");
+  assert.throws(() => intakeReadRepositoryNames("other-org", ["ai-gateway"]), /control repository/);
+  assert.throws(
+    () => intakeReadRepositoryNames("fongap-labs/action-worker", ["another-org/repo"]),
+    /invalid repository names/
+  );
+});
+
+test("intake App read scopes never use the old duplicate-prone string concatenation", async () => {
+  const source = await readFile(".github/workflows/intake.yml", "utf8");
+  assert.doesNotMatch(source, /format\('\{0\},\{1\}', github\.event\.repository\.name/);
+  const script = await readFile("scripts/repository-policy.ts", "utf8");
+  assert.match(script, /read_repositories_csv=/);
 });

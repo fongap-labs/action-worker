@@ -75,7 +75,7 @@ jobs:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: ${{ format('{0},{1}', github.event.repository.name, steps.pr_scope.outputs.repositories_csv) }}
+          repositories: ${{ steps.pr_scope.outputs.read_repositories_csv }}
           permission-contents: read
           permission-actions: read
           permission-pull-requests: read
@@ -145,7 +145,7 @@ jobs:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: ${{ format('{0},{1}', github.event.repository.name, steps.pr_scope.outputs.repositories_csv) }}
+          repositories: ${{ steps.pr_scope.outputs.read_repositories_csv }}
           permission-contents: read
           permission-actions: read
           permission-pull-requests: read
@@ -215,7 +215,7 @@ jobs:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: ${{ format('{0},{1}', github.event.repository.name, steps.pr_scope.outputs.repositories_csv) }}
+          repositories: ${{ steps.pr_scope.outputs.read_repositories_csv }}
           permission-contents: read
           permission-actions: read
           permission-pull-requests: read
@@ -286,7 +286,7 @@ jobs:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: ${{ format('{0},{1}', github.event.repository.name, steps.task_scope.outputs.repositories_csv) }}
+          repositories: ${{ steps.task_scope.outputs.read_repositories_csv }}
           permission-contents: read
           permission-actions: read
           permission-pull-requests: read
@@ -369,7 +369,7 @@ jobs:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: ${{ format('{0},{1}', github.event.repository.name, steps.task_scope.outputs.repositories_csv) }}
+          repositories: ${{ steps.task_scope.outputs.read_repositories_csv }}
           permission-contents: read
           permission-actions: read
           permission-pull-requests: read
@@ -453,7 +453,7 @@ jobs:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: ${{ format('{0},{1}', github.event.repository.name, steps.deploy_scope.outputs.repositories_csv) }}
+          repositories: ${{ steps.deploy_scope.outputs.read_repositories_csv }}
           permission-contents: read
           permission-actions: read
           permission-pull-requests: read
@@ -528,7 +528,7 @@ jobs:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: ${{ format('{0},{1}', github.event.repository.name, steps.pr_scope.outputs.repositories_csv) }}
+          repositories: ${{ steps.pr_scope.outputs.read_repositories_csv }}
           permission-contents: read
           permission-actions: read
           permission-pull-requests: read
