@@ -1,16 +1,39 @@
 const transientWriteFailure =
   /(?:HTTP\s+)(?:408|429|500|502|503|504)\b|server error|bad gateway|service unavailable|gateway timeout|ECONNRESET|ETIMEDOUT|EAI_AGAIN/i;
+const maximumRetryDelayMs = 60_000;
+
+type RetryDelayError = Error & { retryAfterMs?: number };
 
 export function isRetryableStatusWriteError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return transientWriteFailure.test(message);
 }
 
+function serverRetryDelayMs(error: unknown, now = Date.now()): number | undefined {
+  if (!(error instanceof Error)) return undefined;
+  const attached = (error as RetryDelayError).retryAfterMs;
+  if (typeof attached === "number" && Number.isFinite(attached) && attached >= 0) return attached;
+
+  const message = error.message;
+  const retryAfter = message.match(/retry-after\s*[:=]\s*([^\r\n;]+)/i);
+  if (retryAfter) {
+    const value = retryAfter[1].trim();
+    const seconds = Number(value);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds * 1000);
+    const timestamp = Date.parse(value);
+    if (Number.isFinite(timestamp)) return Math.max(0, timestamp - now);
+  }
+  const reset = message.match(/x-ratelimit-reset\s*[:=]\s*(\d+)/i);
+  if (reset) return Math.max(0, Number(reset[1]) * 1000 - now);
+  return undefined;
+}
+
 export async function retryTransientStatusWrite<T>(
   operation: () => Promise<T>,
   wait: (milliseconds: number) => Promise<void> = (milliseconds) =>
     new Promise((resolve) => setTimeout(resolve, milliseconds)),
-  attempts = 3
+  attempts = 3,
+  random: () => number = Math.random
 ): Promise<T> {
   if (!Number.isInteger(attempts) || attempts < 1 || attempts > 5) {
     throw new Error("Status write retry attempts must be between 1 and 5.");
@@ -20,10 +43,29 @@ export async function retryTransientStatusWrite<T>(
       return await operation();
     } catch (error) {
       if (!isRetryableStatusWriteError(error) || attempt + 1 >= attempts) throw error;
-      await wait(250 * 2 ** attempt);
+      const serverDelay = serverRetryDelayMs(error);
+      // Do not retry early or sleep past this job's budget if GitHub requests a longer delay.
+      if (serverDelay !== undefined && serverDelay > maximumRetryDelayMs) throw error;
+      const baseDelay = 250 * 2 ** attempt;
+      const jitter = Math.max(0, Math.min(1, random()));
+      const localDelay = Math.floor(baseDelay * (0.5 + jitter));
+      await wait(Math.max(localDelay, serverDelay ?? 0));
     }
   }
   throw new Error("Status write retry loop ended unexpectedly.");
+}
+
+export function responseRetryDelayMs(headers: Headers, now = Date.now()): number | undefined {
+  const retryAfter = headers.get("retry-after");
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds) && seconds >= 0) return Math.ceil(seconds * 1000);
+    const timestamp = Date.parse(retryAfter);
+    if (Number.isFinite(timestamp)) return Math.max(0, timestamp - now);
+  }
+  const reset = headers.get("x-ratelimit-reset");
+  if (reset && /^\d+$/.test(reset)) return Math.max(0, Number(reset) * 1000 - now);
+  return undefined;
 }
 
 /**
@@ -31,8 +73,8 @@ export async function retryTransientStatusWrite<T>(
  * the response body to be JSON: an empty/truncated success body must not turn
  * a confirmed HTTP 201 into a false permission failure.
  *
- * A status write still fails closed on any other status or exhausted retry
- * budget. Only the dedicated repository-scoped status token is used.
+ * Only known transient responses are retried, with bounded exponential backoff,
+ * jitter and server delay guidance. Permission and exhausted-budget failures stop.
  */
 export async function postGithubCommitStatus(request: {
   repository: string;
@@ -81,9 +123,11 @@ export async function postGithubCommitStatus(request: {
           ? "; verify GitHub App installation and Commit statuses: Write"
           : "";
       const trace = requestId ? `; request ID ${requestId}` : "";
-      throw new Error(
+      const error = new Error(
         `GitHub commit status POST for ${request.repository} failed: HTTP ${response.status}${permissionHint}${trace}.`
-      );
+      ) as RetryDelayError;
+      error.retryAfterMs = responseRetryDelayMs(response.headers);
+      throw error;
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         throw new Error("GitHub commit status POST timed out (ETIMEDOUT).");
@@ -94,3 +138,4 @@ export async function postGithubCommitStatus(request: {
     }
   });
 }
+
