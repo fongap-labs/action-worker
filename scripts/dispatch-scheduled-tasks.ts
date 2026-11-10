@@ -8,7 +8,13 @@ import {
   parseCronSchedule,
   slotKey,
 } from "./cron-schedule.ts";
-import { getGithubJson, githubEnvironment, githubExists, isJsonRecord } from "./github-api.ts";
+import {
+  getGithubJson,
+  getGithubJsonIfExists,
+  githubEnvironment,
+  githubExists,
+  isJsonRecord,
+} from "./github-api.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import { scheduledDispatchCandidateShas } from "./scheduled-dispatch-candidates.ts";
@@ -209,12 +215,16 @@ export async function resolveScheduledTasks(
   for (const repository of repositories) {
     const headSha = await defaultHead(repository, token);
     const manifestPath = `repos/${repository}/contents/.github/task-source.json?ref=${headSha}`;
-    if (!(await githubExists(manifestPath, token))) {
+    const manifestValue = await getGithubJsonIfExists(
+      manifestPath,
+      async (path) => await getGithubJson(path, token)
+    );
+    if (manifestValue === undefined) {
       continue;
     }
     const manifest = parseTaskSourceManifest(
       parseJson(
-        decodeGithubContent(await getGithubJson(manifestPath, token)),
+        decodeGithubContent(manifestValue),
         `Task source manifest must be valid JSON: ${repository}.`,
         65
       )

@@ -4,6 +4,7 @@ import {
   classifyGithubFailure,
   GithubHttpError,
   GithubReader,
+  getGithubJsonIfExists,
   isGithubMissing,
   isRetryableStatus,
   parseRetryAfter,
@@ -29,6 +30,104 @@ test("existence checks distinguish missing resources from API failures", () => {
   assert.equal(isGithubMissing(new CliError("gh: Not Found (HTTP 404)")), true);
   assert.equal(isGithubMissing(new CliError("GitHub API returned HTTP 500.")), false);
   assert.equal(isGithubMissing(new Error("HTTP 404")), false);
+});
+
+test("optional manifest reads use exactly one request and treat only 404 as absent", async () => {
+  let calls = 0;
+  const manifest = "repos/example/project/contents/.github/task-source.json?ref=abc";
+  assert.equal(
+    await getGithubJsonIfExists(manifest, async () => {
+      calls += 1;
+      throw new GithubHttpError(404);
+    }),
+    undefined
+  );
+  assert.equal(calls, 1);
+  assert.equal(
+    await getGithubJsonIfExists(manifest, async () => {
+      calls += 1;
+      throw new CliError("gh: Not Found (HTTP 404)");
+    }),
+    undefined
+  );
+  assert.equal(calls, 2);
+  await assert.rejects(
+    () =>
+      getGithubJsonIfExists(manifest, async () => {
+        calls += 1;
+        throw new GithubHttpError(403, undefined, { kind: "primary-rate-limit" });
+      }),
+    /primary API rate limit/
+  );
+  assert.equal(calls, 3);
+});
+
+test("immutable SHA reads combine concurrent GETs and revalidate with ETag", async () => {
+  const originalFetch = globalThis.fetch;
+  const path = `repos/example/project/contents/.github/task-source.json?ref=${"a".repeat(40)}`;
+  const headers: string[] = [];
+  globalThis.fetch = async (_url, init) => {
+    headers.push(new Headers(init?.headers).get("if-none-match") ?? "");
+    if (headers.length === 1) {
+      return Response.json({ content: "manifest" }, { headers: { etag: '"sha1"' } });
+    }
+    return new Response(null, { status: 304 });
+  };
+  try {
+    const reader = new GithubReader("https://api.github.test", "token");
+    const [first, second] = await Promise.all([reader.get(path), reader.get(path)]);
+    assert.deepEqual(first, { content: "manifest" });
+    assert.deepEqual(second, first);
+    assert.equal(headers.length, 1, "concurrent identical SHA reads must share one request");
+    assert.deepEqual(await reader.get(path), first);
+    assert.deepEqual(headers, ["", '"sha1"']);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("dynamic commit statuses never use cached ETags or in-flight coalescing", async () => {
+  const originalFetch = globalThis.fetch;
+  const path = `repos/example/project/commits/${"a".repeat(40)}/status`;
+  const headers: string[] = [];
+  globalThis.fetch = async (_url, init) => {
+    headers.push(new Headers(init?.headers).get("if-none-match") ?? "");
+    return Response.json(
+      { statuses: [{ state: String(headers.length) }] },
+      { headers: { etag: '"status"' } }
+    );
+  };
+  try {
+    const reader = new GithubReader("https://api.github.test", "token");
+    const [first, second] = await Promise.all([reader.get(path), reader.get(path)]);
+    assert.equal(headers.length, 2);
+    assert.deepEqual(headers, ["", ""]);
+    assert.notDeepEqual(first, second);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("cached immutable responses are never served after a GitHub API failure", async () => {
+  const originalFetch = globalThis.fetch;
+  const path = `repos/example/project/commits/${"a".repeat(40)}`;
+  let attempts = 0;
+  globalThis.fetch = async () => {
+    attempts += 1;
+    if (attempts === 1) return Response.json({ sha: "a" }, { headers: { etag: '"sha"' } });
+    return Response.json(
+      { message: "API rate limit exceeded" },
+      { status: 403, headers: { "x-ratelimit-remaining": "0" } }
+    );
+  };
+  try {
+    const reader = new GithubReader("https://api.github.test", "token");
+    assert.deepEqual(await reader.get(path), { sha: "a" });
+    await assert.rejects(() => reader.get(path), /primary API rate limit exhausted/);
+    assert.equal(attempts, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("GitHub readers fail fast for permanent HTTP errors", async () => {

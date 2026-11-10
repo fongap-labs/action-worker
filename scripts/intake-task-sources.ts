@@ -1,9 +1,9 @@
 import { requireStatusToken } from "./control-token.ts";
 import { parseTaskSourceManifest } from "./dispatch-scheduled-tasks.ts";
 import {
+  getGithubJsonIfExists,
   getJsonString,
   githubEnvironment,
-  githubExists,
   isJsonRecord,
   statusAwareReader,
 } from "./github-api.ts";
@@ -13,7 +13,6 @@ import { hasValidStatusAttestation } from "./status-attestation.ts";
 
 type GithubSource = {
   get(path: string): Promise<unknown>;
-  exists(path: string): Promise<boolean>;
 };
 
 type Dispatch = (repository: string, beforeSha: string, headSha: string) => Promise<void>;
@@ -122,13 +121,14 @@ export async function scanTaskSources(
   for (const repository of repositories) {
     const facts = await defaultHead(source, repository);
     const manifestPath = `repos/${repository}/contents/.github/task-source.json?ref=${facts.head_sha}`;
-    if (!(await source.exists(manifestPath))) {
+    const manifestValue = await getGithubJsonIfExists(manifestPath, source.get);
+    if (manifestValue === undefined) {
       continue;
     }
 
     const manifest = parseTaskSourceManifest(
       parseJson(
-        decodeGithubContent(await source.get(manifestPath)),
+        decodeGithubContent(manifestValue),
         `Task source manifest must be valid JSON: ${repository}.`,
         65
       )
@@ -207,7 +207,6 @@ async function main(): Promise<void> {
     parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
     {
       get: async (path) => await reader.get(path),
-      exists: async (path) => await githubExists(path, controlToken),
     },
     async (repository, beforeSha, headSha) => {
       await dispatchTaskSource(controlRepository, ingressToken, repository, beforeSha, headSha);

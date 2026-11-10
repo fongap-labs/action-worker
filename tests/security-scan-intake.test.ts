@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { GithubHttpError } from "../scripts/github-api.ts";
 import { scanDefaultBranchSecurity } from "../scripts/intake-security-scans.ts";
 
 const sha = "a".repeat(40);
@@ -41,6 +42,9 @@ test("security scan intake dispatches only repositories with enabled trusted man
             default_branch: true,
           });
         }
+        if (path.includes("/no-manifest/contents/")) {
+          throw new GithubHttpError(404);
+        }
         if (path.includes("/disabled/contents/")) {
           return encoded({
             schema_version: "1",
@@ -55,7 +59,6 @@ test("security scan intake dispatches only repositories with enabled trusted man
         throw new Error(`unexpected path: ${path}`);
       },
     },
-    async (path) => !path.includes("no-manifest"),
     async (repository) => {
       dispatched.push(repository);
     },
@@ -67,6 +70,11 @@ test("security scan intake dispatches only repositories with enabled trusted man
   assert.equal(result.manifests, 2);
   assert.equal(result.dispatched, 1);
   assert.equal(result.skipped, 3);
+  assert.equal(
+    paths.filter((path) => path.includes("/contents/")).length,
+    3,
+    "one content lookup per public repository, including the missing manifest"
+  );
   assert.equal(
     paths.some((path) => path.includes("fongap-labs/control")),
     false

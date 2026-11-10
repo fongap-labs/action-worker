@@ -51,7 +51,23 @@ export async function githubExists(path: string, token: string): Promise<boolean
 }
 
 export function isGithubMissing(error: unknown): boolean {
-  return error instanceof CliError && /(?:HTTP|status)\s+404\b/i.test(error.message);
+  return (
+    (error instanceof CliError && /(?:HTTP|status)\s+404\b/i.test(error.message)) ||
+    (error instanceof GithubHttpError && error.status === 404)
+  );
+}
+
+/** A manifest is absent only on a real HTTP 404; all other failures propagate. */
+export async function getGithubJsonIfExists(
+  path: string,
+  get: (path: string) => Promise<unknown>
+): Promise<unknown | undefined> {
+  try {
+    return await get(path);
+  } catch (error) {
+    if (isGithubMissing(error)) return undefined;
+    throw error;
+  }
 }
 
 function sleep(delayMs: number): Promise<void> {
@@ -152,7 +168,24 @@ export function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 429 || status >= 500;
 }
 
+/**
+ * Only immutable, exact-SHA commit and content reads are eligible.
+ * Dynamic PR/CI/status reads must always be fresh. Caches never cross credentials.
+ */
+function immutableGithubPath(path: string): boolean {
+  const normalized = path.replace(/^\/+/, "");
+  return (
+    /^repos\/[^/?]+\/[^/?]+\/commits\/[a-f0-9]{40}$/.test(normalized) ||
+    /^repos\/[^/?]+\/[^/?]+\/contents\/[^?]+\?ref=[a-f0-9]{40}$/.test(normalized)
+  );
+}
+
+type ImmutableCacheEntry = { etag: string; value: unknown };
+const maxImmutableEntries = 64;
+
 export class GithubReader {
+  private readonly immutableCache = new Map<string, ImmutableCacheEntry>();
+  private readonly inFlight = new Map<string, Promise<unknown>>();
   readonly attemptLimit: number;
   readonly apiUrl: string;
   readonly retryDelayMs: number;
@@ -174,6 +207,21 @@ export class GithubReader {
   }
 
   async get(path: string): Promise<unknown> {
+    if (!immutableGithubPath(path)) {
+      return await this.fetchJson(path, false);
+    }
+    const pending = this.inFlight.get(path);
+    if (pending) return await pending;
+    const request = this.fetchJson(path, true);
+    this.inFlight.set(path, request);
+    try {
+      return await request;
+    } finally {
+      this.inFlight.delete(path);
+    }
+  }
+
+  private async fetchJson(path: string, immutable: boolean): Promise<unknown> {
     let lastError: unknown;
     for (let attempt = 0; attempt < this.attemptLimit; attempt += 1) {
       const controller = new AbortController();
@@ -186,10 +234,15 @@ export class GithubReader {
         if (this.token) {
           headers.Authorization = `Bearer ${this.token}`;
         }
+        const cached = immutable ? this.immutableCache.get(path) : undefined;
+        if (cached) headers["If-None-Match"] = cached.etag;
         const response = await fetch(`${this.apiUrl}/${path.replace(/^\/+/, "")}`, {
           headers,
           signal: controller.signal,
         });
+        if (response.status === 304 && cached) {
+          return cached.value;
+        }
         if (!response.ok) {
           // Distinguish exhausted quotas from missing permissions without exposing credentials.
           const body = (await response.text().catch(() => "")).slice(0, 4096);
@@ -211,7 +264,21 @@ export class GithubReader {
             requestId: response.headers.get("x-github-request-id") ?? undefined,
           });
         }
-        return (await response.json()) as unknown;
+        const value: unknown = await response.json();
+        if (immutable) {
+          const etag = response.headers.get("etag");
+          if (etag && etag.length <= 256) {
+            this.immutableCache.delete(path);
+            this.immutableCache.set(path, { etag, value });
+            if (this.immutableCache.size > maxImmutableEntries) {
+              const oldest = this.immutableCache.keys().next().value;
+              if (oldest !== undefined) this.immutableCache.delete(oldest);
+            }
+          } else {
+            this.immutableCache.delete(path);
+          }
+        }
+        return value;
       } catch (error) {
         lastError = error;
         const retryReset =
