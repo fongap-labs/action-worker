@@ -325,10 +325,19 @@ export async function validateMainWriteProvenance(
     );
   }
 
-  const prNumber = getJsonNumber(candidates[0], "number");
-  const pr = fallbackPr ?? (await reader.get(`repos/${repository}/pulls/${prNumber}`));
+  const associatedPr = candidates[0];
+  const prNumber = getJsonNumber(associatedPr, "number");
+  // GitHub's commit-associated merged PR already contains the exact merge SHA,
+  // base branch, and PR head. Re-fetch only if the head is missing/invalid.
+  // The commit-message fallback still requires a separate, exact PR GET.
+  const pr =
+    fallbackPr ??
+    (shaPattern.test(headSha(associatedPr))
+      ? associatedPr
+      : await reader.get(`repos/${repository}/pulls/${prNumber}`));
   const prHeadSha = headSha(pr);
   if (
+    getJsonNumber(pr, "number") !== prNumber ||
     getJsonString(pr, "merged_at") === "" ||
     getJsonString(pr, "merge_commit_sha") !== mainSha ||
     baseRef(pr) !== "main" ||

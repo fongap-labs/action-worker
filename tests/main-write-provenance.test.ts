@@ -93,11 +93,43 @@ test("direct writes without a verifiable PR reference remain rejected", async ()
   assert.ok(!requests.some((path) => path.endsWith("/pulls/44")));
 });
 
-test("existing verified commit associations still work without a fallback", async () => {
+test("complete exact commit association avoids redundant PR detail GET", async () => {
   const { reader, requests } = fixture("fix: normal merge", [goodPr]);
   const result = await validateMainWriteProvenance(reader, repository, mainSha, false);
   assert.equal(result.pr_number, 44);
+  assert.equal(result.pr_head_sha, headSha);
+  assert.equal(requests.filter((path) => path.endsWith("/pulls/44")).length, 0);
+  assert.equal(
+    requests.filter((path) => path.endsWith("/check-runs?filter=latest&per_page=100")).length,
+    1,
+    "the independent local validate-merge check is never omitted"
+  );
+});
+
+test("incomplete commit-associated PR requires an independently verified detail GET", async () => {
+  const association = { ...goodPr, head: { sha: "" } };
+  const { reader, requests } = fixture("fix: normal merge", [association]);
+  const result = await validateMainWriteProvenance(reader, repository, mainSha, false);
+  assert.equal(result.pr_head_sha, headSha);
   assert.equal(requests.filter((path) => path.endsWith("/pulls/44")).length, 1);
+});
+
+test("inconsistent PR detail number after an incomplete association fails closed", async () => {
+  const association = { ...goodPr, head: { sha: "not-a-sha" } };
+  const { reader, requests } = fixture("fix: normal merge", [association], {
+    ...goodPr,
+    number: 55,
+  });
+  await assert.rejects(
+    validateMainWriteProvenance(reader, repository, mainSha, false),
+    /Merged pull request facts do not match/
+  );
+  assert.equal(requests.filter((path) => path.endsWith("/pulls/44")).length, 1);
+  assert.equal(
+    requests.filter((path) => path.includes("/check-runs")).length,
+    0,
+    "mismatched PR facts must never reach the CI evidence phase"
+  );
 });
 
 test("ambiguous associations are rejected even if the commit subject includes a PR number", async () => {
@@ -164,7 +196,12 @@ test("main write audit uses one pinned HEAD snapshot without duplicate repositor
   });
   assert.deepEqual(verified, { main_sha: mainSha, pr_number: 44 });
   assert.equal(observedSha, mainSha);
-  assert.equal(requests.length, 6, "one repository, one main HEAD, and four independent checks");
+  assert.equal(
+    requests.length,
+    5,
+    "one repository, one main HEAD, associated PR, CI and incident checks"
+  );
+  assert.equal(requests.filter((path) => path.endsWith("/pulls/44")).length, 0);
   assert.equal(requests.filter((path) => path === `repos/${repository}`).length, 1);
   assert.equal(requests.filter((path) => path === `repos/${repository}/commits/main`).length, 1);
   assert.equal(requests.includes(`repos/${repository}/commits/${mainSha}`), false);
