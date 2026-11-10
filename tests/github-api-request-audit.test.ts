@@ -167,6 +167,7 @@ test("fixed endpoint categories cover GitHub REST route families without leaking
     ["repos/fongap-labs/private-project", "repository"],
     ["repos/fongap-labs/private-project/branches/main", "branches"],
     ["repos/fongap-labs/private-project/commits/main", "commits"],
+    ["repos/fongap-labs/private-project/commits?per_page=1", "commits"],
     ["repos/fongap-labs/private-project/commits/" + sha + "/pulls?per_page=100", "pull_requests"],
     ["repos/fongap-labs/private-project/pulls/123", "pull_requests"],
     ["repos/fongap-labs/private-project/commits/" + sha + "/check-runs?filter=latest", "checks"],
