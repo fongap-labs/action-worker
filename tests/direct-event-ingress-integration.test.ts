@@ -5,13 +5,13 @@ import { DatabaseSync } from "node:sqlite";
 import { test } from "node:test";
 import {
   handleDirectWebhook,
-  webhookDeliverySql,
   type IngressDatabase,
   type IngressEnvironment,
   type IngressStatement,
   ingressCronTelemetry,
   reconcileIngressCron,
   retryPendingDeliveries,
+  webhookDeliverySql,
 } from "../scripts/direct-event-ingress.ts";
 
 const webhookSecret = "test-only-native-sqlite-integration-secret";
@@ -316,16 +316,27 @@ test("Cron counts failed retry attempts without disclosing delivery or credentia
 });
 
 test("invalid backlog summaries fail closed without logging untrusted database data", () => {
-  assert.deepEqual(ingressCronTelemetry(0, { pending_count: 0, oldest_created_ms: null, quarantined_count: 0 }, 1_000), {
-    component: "direct-event-ingress",
-    completed_count: 0,
-    failed_count: 0,
-    pending_count: 0,
-    quarantined_count: 0,
-    oldest_pending_age_minutes: null,
-  });
   assert.deepEqual(
-    ingressCronTelemetry(2, { pending_count: 1, oldest_created_ms: 60_000, quarantined_count: 0 }, 180_000),
+    ingressCronTelemetry(
+      0,
+      { pending_count: 0, oldest_created_ms: null, quarantined_count: 0 },
+      1_000
+    ),
+    {
+      component: "direct-event-ingress",
+      completed_count: 0,
+      failed_count: 0,
+      pending_count: 0,
+      quarantined_count: 0,
+      oldest_pending_age_minutes: null,
+    }
+  );
+  assert.deepEqual(
+    ingressCronTelemetry(
+      2,
+      { pending_count: 1, oldest_created_ms: 60_000, quarantined_count: 0 },
+      180_000
+    ),
     {
       component: "direct-event-ingress",
       completed_count: 2,
@@ -336,7 +347,13 @@ test("invalid backlog summaries fail closed without logging untrusted database d
     }
   );
   assert.throws(
-    () => ingressCronTelemetry(0, { pending_count: 0, oldest_created_ms: null, quarantined_count: 0 }, 1_000, -1),
+    () =>
+      ingressCronTelemetry(
+        0,
+        { pending_count: 0, oldest_created_ms: null, quarantined_count: 0 },
+        1_000,
+        -1
+      ),
     /backlog snapshot/
   );
   for (const invalid of [
@@ -379,7 +396,10 @@ test("exhausted dispatch never retries indefinitely or falsely acknowledges a re
   try {
     const env = environment(inbox);
     const api = githubApi({ failDispatches: 20 });
-    assert.equal((await handleDirectWebhook(signedPush(firstDelivery), env, api.fetcher)).status, 503);
+    assert.equal(
+      (await handleDirectWebhook(signedPush(firstDelivery), env, api.fetcher)).status,
+      503
+    );
     for (let attempt = 1; attempt < 5; attempt += 1) {
       inbox.database
         .prepare("UPDATE webhook_deliveries SET lease_until_ms = 0 WHERE delivery_id = ?")
@@ -388,16 +408,22 @@ test("exhausted dispatch never retries indefinitely or falsely acknowledges a re
     }
     assert.equal(api.calls.length, 10);
     const snapshot = inbox.database.prepare(webhookDeliverySql.backlog).get();
-    assert.deepEqual({ ...snapshot }, {
-      pending_count: 0,
-      oldest_created_ms: null,
-      quarantined_count: 1,
-    });
+    assert.deepEqual(
+      { ...snapshot },
+      {
+        pending_count: 0,
+        oldest_created_ms: null,
+        quarantined_count: 1,
+      }
+    );
     inbox.database
       .prepare("UPDATE webhook_deliveries SET lease_until_ms = 0 WHERE delivery_id = ?")
       .run(firstDelivery);
     assert.equal(await retryPendingDeliveries(env, api.fetcher), 0);
-    assert.equal((await handleDirectWebhook(signedPush(firstDelivery), env, api.fetcher)).status, 503);
+    assert.equal(
+      (await handleDirectWebhook(signedPush(firstDelivery), env, api.fetcher)).status,
+      503
+    );
     assert.equal(api.calls.length, 10);
     const reports: string[] = [];
     await reconcileIngressCron(env, api.fetcher, (line) => reports.push(line));
