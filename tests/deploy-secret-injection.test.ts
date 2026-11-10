@@ -390,3 +390,27 @@ test("AI Gateway Variables are read only in the protected ops job", async () => 
     "${{ needs.prepare.outputs.credential_environment }}"
   );
 });
+
+
+test("source-script retries pin current main policy once for all protected jobs", async () => {
+  const source = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
+  const workflow = parse(source) as {
+    jobs: Record<string, { outputs?: Record<string, string>; steps?: Array<{ name?: string; id?: string; with?: Record<string, string>; run?: string }> }>;
+  };
+  const prepare = workflow.jobs.prepare;
+  const variableJob = workflow.jobs.gateway_variables;
+  const deploy = workflow.jobs.deploy;
+  assert.ok(prepare && variableJob && deploy);
+  const first = prepare.steps?.find((step) => step.name === "Checkout control plane");
+  assert.equal(first?.with?.ref, "main");
+  const revision = prepare.steps?.find((step) => step.id === "control_revision");
+  assert.match(revision?.run ?? "", /git rev-parse HEAD/);
+  assert.equal(prepare.outputs?.control_sha, "${{ steps.control_revision.outputs.sha }}");
+  const variablesCheckout = variableJob.steps?.find(
+    (step) => step.name === "Check out trusted control implementation"
+  );
+  const deployCheckout = deploy.steps?.find((step) => step.name === "Checkout control plane");
+  for (const step of [variablesCheckout, deployCheckout]) {
+    assert.equal(step?.with?.ref, "${{ needs.prepare.outputs.control_sha }}");
+  }
+});
