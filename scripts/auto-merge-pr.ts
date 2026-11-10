@@ -114,7 +114,9 @@ async function main(): Promise<void> {
       ],
       writeToken
     );
-    console.log(`Refreshed behind PR branch for ${repository}#${number}; awaiting fresh CI before merge.`);
+    console.log(
+      `Refreshed behind PR branch for ${repository}#${number}; awaiting fresh CI before merge.`
+    );
     return;
   }
   // GitHub still applies protected branch rules. Matching the exact PR head
