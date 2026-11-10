@@ -391,11 +391,21 @@ test("AI Gateway Variables are read only in the protected ops job", async () => 
   );
 });
 
-
 test("source-script retries pin current main policy once for all protected jobs", async () => {
   const source = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
   const workflow = parse(source) as {
-    jobs: Record<string, { outputs?: Record<string, string>; steps?: Array<{ name?: string; id?: string; with?: Record<string, string>; run?: string }> }>;
+    jobs: Record<
+      string,
+      {
+        outputs?: Record<string, string>;
+        steps?: Array<{
+          name?: string;
+          id?: string;
+          with?: Record<string, string>;
+          run?: string;
+        }>;
+      }
+    >;
   };
   const prepare = workflow.jobs.prepare;
   const variableJob = workflow.jobs.gateway_variables;
