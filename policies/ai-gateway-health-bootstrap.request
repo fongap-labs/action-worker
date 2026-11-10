@@ -1,7 +1,7 @@
-# Controlled one-shot reattempt: CLOUDFLARE_API_TOKEN_SECONDARY is stored in ai-gateway-ops.
-# Read the existing protected ops Secret without copying it to production.
-# Retain fail-closed preflight and do not rotate any existing health key.
+# Controlled bootstrap retry after isolating inherited GitHub vars from environment metadata.
+# Requires ai-gateway-ops CLOUDFLARE_API_TOKEN_SECONDARY and CLOUDFLARE_ACCOUNT_ID_SECONDARY.
+# Never overwrite an existing GitHub or Cloudflare AIG_DEPLOY_HEALTH_KEY.
 schema_version: 1
 repository: fongap-labs/action-worker
 purpose: initialize-unset-ai-gateway-deploy-health-key
-attempt: protected-ai-gateway-ops-secondary-token
+attempt: bootstrap-explicit-metadata-20261110
