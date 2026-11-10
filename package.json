@@ -2,7 +2,7 @@
   "name": "@fongap-labs/action-worker",
   "version": "0.0.0",
   "private": true,
-  "license": "Apache-2.0",
+  "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=24"
