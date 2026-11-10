@@ -8,16 +8,20 @@ function failedReview(status: number, retryAfterMs: number, errorClass = "rate_l
     session_id: "test-session",
     retry_report: {
       schema_version: "ocr.llm-retry-report/v1",
-      requests: [{
-        outcome: "failed",
-        attempts: [{
-          attempt: 3,
-          outcome: "error",
-          status_code: status,
-          retry_after_ms: retryAfterMs,
-          error_class: errorClass,
-        }],
-      }],
+      requests: [
+        {
+          outcome: "failed",
+          attempts: [
+            {
+              attempt: 3,
+              outcome: "error",
+              status_code: status,
+              retry_after_ms: retryAfterMs,
+              error_class: errorClass,
+            },
+          ],
+        },
+      ],
     },
   };
 }
