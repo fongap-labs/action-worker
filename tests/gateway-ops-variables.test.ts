@@ -51,7 +51,8 @@ test("bootstrap metadata ignores inherited retired settings without weakening de
   });
   assert.throws(() => validateGatewayOpsVariables(inherited), /retired/);
   assert.throws(
-    () => validateGatewayBootstrapMetadata({ ...inherited, CLOUDFLARE_ACCOUNT_ID_SECONDARY: "bad" }),
+    () =>
+      validateGatewayBootstrapMetadata({ ...inherited, CLOUDFLARE_ACCOUNT_ID_SECONDARY: "bad" }),
     /invalid/
   );
 });
