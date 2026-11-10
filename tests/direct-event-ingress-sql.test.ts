@@ -42,7 +42,9 @@ test("real SQLite UPDATE RETURNING gives one atomic lease and prevents repeat di
     assert.equal(first?.attempt_count, 1);
     assert.equal(second, undefined);
     assert.equal(
-      database.prepare("SELECT lease_until_ms FROM webhook_deliveries WHERE delivery_id = ?").get("delivery-a")?.lease_until_ms,
+      database
+        .prepare("SELECT lease_until_ms FROM webhook_deliveries WHERE delivery_id = ?")
+        .get("delivery-a")?.lease_until_ms,
       now + 60_000
     );
     assert.equal(database.prepare(webhookDeliverySql.pending).all(now).length, 0);
@@ -58,15 +60,27 @@ test("real SQLite backlog aggregates only unfinished deliveries and oldest creat
   const database = openInbox();
   try {
     const inspect = database.prepare(webhookDeliverySql.backlog);
-    assert.deepEqual({ ...inspect.get() }, { pending_count: 0, oldest_created_ms: null, quarantined_count: 0 });
+    assert.deepEqual(
+      { ...inspect.get() },
+      { pending_count: 0, oldest_created_ms: null, quarantined_count: 0 }
+    );
     const insert = database.prepare(webhookDeliverySql.reserve);
     insert.run("delivery-a", "digest-a", 101, "push", "owner/source", 100);
     insert.run("delivery-b", "digest-b", 101, "push", "owner/source", 200);
-    assert.deepEqual({ ...inspect.get() }, { pending_count: 2, oldest_created_ms: 100, quarantined_count: 0 });
+    assert.deepEqual(
+      { ...inspect.get() },
+      { pending_count: 2, oldest_created_ms: 100, quarantined_count: 0 }
+    );
     database.prepare(webhookDeliverySql.complete).run(300, "delivery-a");
-    assert.deepEqual({ ...inspect.get() }, { pending_count: 1, oldest_created_ms: 200, quarantined_count: 0 });
+    assert.deepEqual(
+      { ...inspect.get() },
+      { pending_count: 1, oldest_created_ms: 200, quarantined_count: 0 }
+    );
     database.prepare(webhookDeliverySql.complete).run(400, "delivery-b");
-    assert.deepEqual({ ...inspect.get() }, { pending_count: 0, oldest_created_ms: null, quarantined_count: 0 });
+    assert.deepEqual(
+      { ...inspect.get() },
+      { pending_count: 0, oldest_created_ms: null, quarantined_count: 0 }
+    );
   } finally {
     database.close();
   }
@@ -113,17 +127,22 @@ test("real SQL applies bounded exponential backoff and quarantines exhausted del
       const reserved = claim.get(at, "delivery-poison", at);
       assert.equal(reserved?.attempt_count, attempt + 1);
       assert.equal(
-        database.prepare("SELECT lease_until_ms FROM webhook_deliveries WHERE delivery_id = ?").get("delivery-poison")?.lease_until_ms,
+        database
+          .prepare("SELECT lease_until_ms FROM webhook_deliveries WHERE delivery_id = ?")
+          .get("delivery-poison")?.lease_until_ms,
         at + 60_000 * 2 ** attempt
       );
     }
     assert.equal(claim.get(base + 11_000_000, "delivery-poison", base + 11_000_000), undefined);
     assert.equal(database.prepare(webhookDeliverySql.pending).all(base + 11_000_000).length, 0);
-    assert.deepEqual({ ...database.prepare(webhookDeliverySql.backlog).get() }, {
-      pending_count: 0,
-      oldest_created_ms: null,
-      quarantined_count: 1,
-    });
+    assert.deepEqual(
+      { ...database.prepare(webhookDeliverySql.backlog).get() },
+      {
+        pending_count: 0,
+        oldest_created_ms: null,
+        quarantined_count: 1,
+      }
+    );
   } finally {
     database.close();
   }
