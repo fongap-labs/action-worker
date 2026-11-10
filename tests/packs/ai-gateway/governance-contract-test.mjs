@@ -184,7 +184,7 @@ try {
   // not a single English sentence that changes across translations.
   assert.match(
     config,
-    /`budget_split`[^\\n。]{0,120}(?:加权分配|weighted allocation)[^\\n。]{0,120}(?:未知字段拒绝|not part of the current policy schema)/i
+    /`budget_split`[^\n。]{0,120}(?:加权分配|weighted allocation)[^\n。]{0,120}(?:未知字段拒绝|not part of the current policy schema)/i
   );
   assert.doesNotMatch(config, /protocol` is required|surfaces` is required|budget_split"\s*:/i);
   assert.match(config, /public `次请求` counts successfully delivered requests/i);
