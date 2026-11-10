@@ -113,6 +113,7 @@ test("deployment workflow hands one validated ops snapshot to AI Gateway product
   assert.deepEqual(exportStep?.env, {
     REPOSITORY_VARS_JSON: "${{ toJSON(vars) }}",
     AW_GATEWAY_VARIABLES_B64_FROM_OPS: "${{ needs.gateway_variables.outputs.variables_b64 }}",
+    DEPLOY_CREDENTIAL_ENVIRONMENT: "${{ needs.prepare.outputs.credential_environment }}",
   });
   assert.doesNotMatch(JSON.stringify(ops.outputs), /API_TOKEN|HEALTH_KEY|SECRET/);
 });
