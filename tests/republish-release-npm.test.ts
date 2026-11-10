@@ -12,7 +12,7 @@ import {
 
 const repository = "fongap-labs/dsh-plugin";
 const controlRepository = "fongap-labs/action-worker";
-const tag = "dsh-ui-delta-v0.1.0-beta.2";
+const tag = "dsh-ui-delta-v0.1.0";
 const policy = { [repository]: ["release-source", "release-target"] };
 
 function release(
@@ -26,7 +26,7 @@ function release(
   return {
     draft: false,
     tag_name: tag,
-    prerelease: true,
+    prerelease: false,
     target_commitish: "1bab6b6114c9ed0dc923f584bfa8ea402972087f",
     html_url: `https://github.com/fongap-labs/dsh-plugin/releases/tag/${tag}`,
     body,
@@ -49,35 +49,47 @@ test("npm republish accepts only a release-target repository", () => {
   assert.throws(() =>
     validateNpmRepublishRequest("fongap-labs/unlisted", tag, controlRepository, policy)
   );
+  for (const prereleaseTag of ["dsh-ui-delta-v0.1.0-beta.2", "dsh-ui-delta-v0.1.0-rc.1"]) {
+    assert.throws(
+      () => validateNpmRepublishRequest(repository, prereleaseTag, controlRepository, policy),
+      /stable X\.Y\.Z/
+    );
+  }
 });
 
 test("npm republish requires a published, provenance-verified release and paired checksum", () => {
   assert.deepEqual(validateNpmRelease(repository, tag, controlRepository, release(), policy), {
     tarballName: "fongap-labs-dsh-ui-delta.tgz",
     checksumName: "fongap-labs-dsh-ui-delta.tgz.sha256",
-    version: "0.1.0-beta.2",
+    version: "0.1.0",
     digest: "a".repeat(64),
   });
   assert.throws(() =>
     validateNpmRelease(repository, tag, controlRepository, release("manual release"), policy)
+  );
+  assert.throws(() =>
+    validateNpmRelease(repository, tag, controlRepository, { ...release(), prerelease: true }, policy)
+  );
+  assert.throws(() =>
+    validateNpmRelease(repository, tag, controlRepository, { ...release(), draft: true }, policy)
   );
 });
 
 test("npm package metadata must be public, scoped, and match the release tag", () => {
   assert.deepEqual(
     validateNpmPackageManifest(
-      { name: "@fongap-labs/dsh-ui-delta", version: "0.1.0-beta.2", private: false },
-      "0.1.0-beta.2"
+      { name: "@fongap-labs/dsh-ui-delta", version: "0.1.0", private: false },
+      "0.1.0"
     ),
-    { name: "@fongap-labs/dsh-ui-delta", version: "0.1.0-beta.2" }
+    { name: "@fongap-labs/dsh-ui-delta", version: "0.1.0" }
   );
   assert.throws(() =>
-    validateNpmPackageManifest({ name: "@other/package", version: "0.1.0-beta.2" }, "0.1.0-beta.2")
+    validateNpmPackageManifest({ name: "@other/package", version: "0.1.0" }, "0.1.0")
   );
   assert.throws(() =>
     validateNpmPackageManifest(
-      { name: "@fongap-labs/dsh-ui-delta", version: "0.1.0" },
-      "0.1.0-beta.2"
+      { name: "@fongap-labs/dsh-ui-delta", version: "0.1.1" },
+      "0.1.0"
     )
   );
 });
