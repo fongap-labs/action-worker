@@ -472,7 +472,10 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     workflow,
     /Validate CI evidence\n\s+if: steps\.trust\.outputs\.trusted == 'true' && steps\.base_plan\.outputs\.ci_required == 'true'/
   );
-  assert.match(workflow, /STATE: \$\{\{ steps\.gate\.outputs\.passed == 'true'/);
+  assert.match(
+    workflow,
+    /STATE: \$\{\{ steps\.cancellation\.outputs\.cancelled != 'true' && steps\.gate\.outputs\.passed == 'true'/
+  );
   const ciDispatcher = await text("scripts/dispatch-central-ci.ts");
   requireText(ciDispatcher, ["readRepositoryPolicyText", "validateRepositoryCapability", '"pr"']);
   assert.doesNotMatch(ciDispatcher, /central_repositories|Central CI dispatch skipped/);
