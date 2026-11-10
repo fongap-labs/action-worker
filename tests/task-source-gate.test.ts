@@ -12,8 +12,9 @@ const staleSha = "c".repeat(40);
 const controlRuns = "https://github.com/fongap-labs/action-worker/actions/runs/";
 const fast = { statusAttempts: 1, runAttempts: 1, retryDelayMs: 0 };
 
-function run(path = ".github/workflows/central-ci-dispatch.yml", conclusion = "success") {
+function run(path = ".github/workflows/central-ci-dispatch.yml", conclusion = "success", id = 3) {
   return {
+    id,
     repository: { full_name: "fongap-labs/action-worker" },
     path,
     head_branch: "main",
@@ -84,13 +85,13 @@ function world() {
     [`repos/${repository}/statuses/${headSha}?per_page=100`, [gateStatus("Main Write Guard", 4)]],
     [
       "repos/fongap-labs/action-worker/actions/runs/1",
-      run(".github/workflows/handle-pr-dispatch.yml"),
+      run(".github/workflows/handle-pr-dispatch.yml", "success", 1),
     ],
-    ["repos/fongap-labs/action-worker/actions/runs/2", run()],
+    ["repos/fongap-labs/action-worker/actions/runs/2", run(undefined, undefined, 2)],
     ["repos/fongap-labs/action-worker/actions/runs/3", run()],
     [
       "repos/fongap-labs/action-worker/actions/runs/4",
-      run(".github/workflows/main-write-guard.yml"),
+      run(".github/workflows/main-write-guard.yml", "success", 4),
     ],
   ]);
   const requested: string[] = [];
