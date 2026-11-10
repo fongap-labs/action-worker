@@ -1,21 +1,3 @@
-# CODEOWNERS for Action Worker
-# Code owners are requested for review automatically; whether their approval is required
-# is decided by the repository ruleset in policies/rulesets.json.
-
-# Global owners
-* @fongap @fongxen
-
-# Workflow files require extra scrutiny
-/.github/workflows/ @fongap @fongxen
-
-# Scripts and policies require domain expertise
-/scripts/ @fongap @fongxen
-/policies/ @fongap @fongxen
-/contracts/ @fongap @fongxen
-
-# Governance documentation
-/docs/ @fongap @fongxen
-/CLAUDE.md @fongap @fongxen
-
-# Agent skills
-/skills/ @fongap @fongxen
+# CODEOWNERS intentionally contains no active ownership patterns.
+# Pull requests are merged by central signed CI gates with no requested reviewer or code-owner approval.
+# Keep this file as an explicit record; do not restore automatic review assignments.
