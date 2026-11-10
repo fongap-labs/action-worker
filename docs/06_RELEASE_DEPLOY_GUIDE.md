@@ -219,7 +219,7 @@ Schema 2 示例：
 - 实际 Secret 名称以非敏感的 Job Step Outputs 形式传入固定槽位；只有对应的 `secrets[steps.secret_plan.outputs.secret_XX]` 被解析，最多 40 项，空槽位不传值。
 - 复用现有的独立 GitHub Environment Secrets，无需建立 JSON 密钥包，也不需要重新录入密钥。
 - `variable_sources` 声明可由非敏感 Variable 提供的部署别名，例如 `CLOUDFLARE_ACCOUNT_ID_SECONDARY`；变量由经授权的既有来源提供，不把变量伪装成 Secret。
-- 对 AI Gateway，优先复用 Action Worker **已有**的 `ai-gateway-ops` Environment：`CLOUDFLARE_ACCOUNT_ID_SECONDARY` 必需，`AIG_PUBLIC_URL`、`AIG_AFFINITY_KV_ID`、`AIG_USAGE_D1_ID`、`AIG_ANALYTICS_DATASET` 可选。经主分支与部署源/环境双重限制的运维 Job 只输出校验过的公共标识、HTTPS Origin 与数据集名称，生产部署接收后验证重复来源一致性；可选项未在 ops 配置时沿用既有作用域，不要求运维重复配置。`CLOUDFLARE_API_TOKEN_OPS`、`CLOUDFLARE_API_TOKEN_SECONDARY`、`AIG_DEPLOY_HEALTH_KEY` 等 Secret **绝不通过 Job Output 或普通 Variable 转交**；各自仍受原运行环境、中央部署授权与源仓库白名单约束。
+- 对 AI Gateway，所有非敏感部署 Variables 仅由 Action Worker **已有且受保护**的 `ai-gateway-ops` Environment 提供，包括 `CLOUDFLARE_ACCOUNT_ID_SECONDARY`、资源标识、Service Binding 目标、节点/模型映射、策略及运行参数。模型标识只作为配置值传递，中央代码不固化具体模型名。受主分支与部署源/环境双重限制的运维 Job 会校验并编码完整快照；生产部署若仍从 Repository、Organization 或 `production` 看到任何 `AIG_*` 或同名 Account ID，必须失败关闭，不允许相同值覆盖、兼容回退或静默丢弃。`CLOUDFLARE_API_TOKEN_OPS`、`CLOUDFLARE_API_TOKEN_SECONDARY`、`AIG_DEPLOY_HEALTH_KEY`、访问密钥、Tier 凭据及中心认证密钥等 Secret **绝不通过 Job Output 或普通 Variable 转交**；各自仍受原运行环境、中央部署授权与源仓库白名单约束。
 - 密钥值仅在可信暂存步骤中短暂存在。逐项注册日志遮蔽，文件目录权限为 `0700`、文件权限为 `0600`，源脚本启动前删除。
 - 部署子进程只继承必要系统与部署元数据、已导出的普通 Repository Variables，以及本次授权的 Secret；不继承 Action Worker 控制面密钥、Runner Token、整个 `secrets` 上下文、`NODE_OPTIONS`。
 - 缺少必需密钥、源清单越权、来源冲突或超过 40 项时失败关闭；可选密钥必须同时在中央 `allowed` 与源仓库 `deploy.secrets.allowed` 中声明。
