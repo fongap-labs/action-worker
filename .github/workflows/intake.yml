@@ -288,7 +288,17 @@ jobs:
           permission-statuses: read
           permission-issues: read
 
+      # This is an advisory reserve for deferrable scans, not a security or merge gate.
+      # A failed quota query fails this job; only a valid low-budget verdict may defer work.
+      - name: Check optional scan API budget
+        id: api_budget
+        env:
+          AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_API_QUOTA_RESERVE: "300"
+        run: node scripts/check-github-api-budget.ts
+
       - name: Reconcile task sources
+        if: steps.api_budget.outputs.run == 'true'
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
@@ -358,7 +368,17 @@ jobs:
           permission-statuses: read
           permission-issues: read
 
+      # This is an advisory reserve for deferrable scans, not a security or merge gate.
+      # A failed quota query fails this job; only a valid low-budget verdict may defer work.
+      - name: Check optional scan API budget
+        id: api_budget
+        env:
+          AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_API_QUOTA_RESERVE: "300"
+        run: node scripts/check-github-api-budget.ts
+
       - name: Dispatch due scheduled tasks
+        if: steps.api_budget.outputs.run == 'true'
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
@@ -429,7 +449,17 @@ jobs:
           permission-statuses: read
           permission-issues: read
 
+      # This is an advisory reserve for deferrable scans, not a security or merge gate.
+      # A failed quota query fails this job; only a valid low-budget verdict may defer work.
+      - name: Check optional scan API budget
+        id: api_budget
+        env:
+          AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
+          AW_API_QUOTA_RESERVE: "300"
+        run: node scripts/check-github-api-budget.ts
+
       - name: Dispatch due scheduled deploys
+        if: steps.api_budget.outputs.run == 'true'
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
