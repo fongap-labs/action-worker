@@ -243,7 +243,7 @@ export class GithubReader {
         }
         const cached = immutable ? this.immutableCache.get(path) : undefined;
         if (cached) headers["If-None-Match"] = cached.etag;
-        this.audit.fetchStart(Boolean(cached));
+        this.audit.fetchStart(Boolean(cached), path);
         let response: Response;
         try {
           response = await fetch(`${this.apiUrl}/${path.replace(/^\/+/, "")}`, {

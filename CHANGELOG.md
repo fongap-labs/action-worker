@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: GitHub API 审计按固定低基数端点类型细分实际 HTTP 和 gh api 请求，覆盖仓库、分支、提交、PR、检查、状态、Actions、Issue、内容与配额；按 Job 的运行日志和 Summary 输出分类总数，用于验证 Main Write Audit 与 Main CI 的真实请求构成。重试计算为实际请求，并发合并不计为新增请求；不记录仓库名、SHA、URL、令牌或响应内容，不修改 CI 与自动合并准入。
+
 - 新增: ai-gateway-ops 可手动执行已固定提交的四 Worker 只读资源盘点，不上传私有清单。
 
 - 修复: 中央 PR Governance 对所有受管仓库默认禁用独立 AI Review 及其自动派发，不再在 CI 全绿、自动合并后另行产生审查失败红叉和模型配额消耗。PR Governance、CI Evidence、validate-merge、变更记录、命名和安全校验继续作为确定性合并门禁；单独按需触发的 AI Review 仍可使用，但不参与合并判定。外部不可信 PR 的代码执行准入策略保持不变。
