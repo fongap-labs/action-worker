@@ -495,7 +495,7 @@ test("AI Gateway operations workflow is protected and never accepts secret value
   assert.match(workflow, /node scripts\/ai-gateway-ops\.ts put/);
   assert.match(workflow, /node scripts\/ai-gateway-ops\.ts inventory/);
   assert.match(workflow, /persist-credentials: false/);
-  assert.doesNotMatch(workflow, /wrangler|ops-placeholder|deploy\\s+--config|rollback/);
+  assert.doesNotMatch(workflow, /wrangler|ops-placeholder|deploy\s+--config|rollback/);
   assert.doesNotMatch(workflow, /echo[^\n]*\$AIG_OPS_SECRET_VALUE/);
   assert.doesNotMatch(workflow, /secret_value:\s*\n\s*required:/i);
   assert.match(handler, /PUT/);
