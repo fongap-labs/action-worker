@@ -80,13 +80,15 @@ export function ciFailureMarker(
 ): string {
   const effectiveFindings = findings.length
     ? findings
-    : [{
-        job: "unknown",
-        step: "unknown",
-        kind: "unknown",
-        recoverability: "unknown" as const,
-        evidence: "unavailable" as const,
-      }];
+    : [
+        {
+          job: "unknown",
+          step: "unknown",
+          kind: "unknown",
+          recoverability: "unknown" as const,
+          evidence: "unavailable" as const,
+        },
+      ];
   const retryAfterSeconds = serverRetryAfterSeconds(errorText) ?? 0;
   const retryable =
     retryAfterSeconds <= maxCiServerRetryAfterSeconds &&
@@ -115,9 +117,7 @@ export function parseCiFailureMarker(description: string): CiFailureMarker | nul
     return { retryable: true, retryAfterSeconds, fingerprint: retryable[2]! };
   }
   const permanent = /^N:([0-9a-f]{62})$/.exec(description);
-  return permanent
-    ? { retryable: false, retryAfterSeconds: 0, fingerprint: permanent[1]! }
-    : null;
+  return permanent ? { retryable: false, retryAfterSeconds: 0, fingerprint: permanent[1]! } : null;
 }
 
 /** Applies a bounded exponential delay plus stable per-fingerprint jitter and server guidance. */

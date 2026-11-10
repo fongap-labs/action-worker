@@ -1,8 +1,8 @@
 import {
   hasVerifiedCiFailureStatus,
+  type JsonReader,
   latestCiStatus,
   trustedControlRunId,
-  type JsonReader,
 } from "./ci-evidence.ts";
 import {
   ciFailureRetryDelayMs,
@@ -91,11 +91,7 @@ export async function decideCiFailureRetry(
   if (failureCount < 1) return "stop";
   const failedAt = Date.parse(getJsonString(latest, "created_at"));
   if (!Number.isFinite(failedAt)) return "stop";
-  const delayMs = ciFailureRetryDelayMs(
-    failureCount,
-    marker.fingerprint,
-    marker.retryAfterSeconds
-  );
+  const delayMs = ciFailureRetryDelayMs(failureCount, marker.fingerprint, marker.retryAfterSeconds);
   return nowMs < failedAt + delayMs ? "wait" : "retry";
 }
 

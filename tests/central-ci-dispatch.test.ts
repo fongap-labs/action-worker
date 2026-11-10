@@ -16,7 +16,10 @@ test("Central CI never cancels an active test for the same head SHA", () => {
 });
 
 test("central CI classifies failed logs before publishing a signed retry marker", () => {
-  const finalize = workflow.slice(workflow.indexOf("  finalize:"), workflow.indexOf("  prepare-failure:"));
+  const finalize = workflow.slice(
+    workflow.indexOf("  finalize:"),
+    workflow.indexOf("  prepare-failure:")
+  );
   assert.match(finalize, /Classify failed CI evidence/);
   assert.match(finalize, /CI_FAILURE_TARGET_REPOSITORY/);
   assert.match(finalize, /CI_FAILURE_SOURCE_SHA/);
@@ -65,7 +68,7 @@ test("an unsharded project keeps the exact target argument through the trusted C
     sandbox,
     /if \[ "\$CENTRAL_CI_SHARD" != "all" \]; then\n\s+script_args\+=\("\$CENTRAL_CI_SHARD"\)/
   );
-  assert.match(sandbox, /source "\$script" "\$\@"/);
+  assert.match(sandbox, /source "\$script" "\$@"/);
   assert.match(sandbox, /bash "\$wrapper" "\$script" "\$\{script_args\[@\]\}" >"\$log" 2>&1/);
   assert.match(sandbox, /trap record_failure ERR/);
   assert.match(sandbox, /trap record_failure EXIT/);

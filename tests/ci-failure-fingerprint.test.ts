@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  type CiFailureIdentity,
   ciFailureFingerprint,
   ciFailureMarker,
   ciFailureRetryDelayMs,
   parseCiFailureMarker,
   serverRetryAfterSeconds,
-  type CiFailureIdentity,
 } from "../scripts/ci-failure-fingerprint.ts";
 
 const identity: CiFailureIdentity = {
@@ -115,16 +115,9 @@ test("only log-backed transient failures authorize a retry marker", () => {
 test("Retry-After and rate-limit reset are parsed as delays, outside the fingerprint", () => {
   const now = Date.parse("2026-11-10T00:00:00Z");
   assert.equal(serverRetryAfterSeconds("Retry-After: 120", now), 120);
-  assert.equal(
-    serverRetryAfterSeconds("Retry-After: 120\nRetry-After: 900", now),
-    900
-  );
+  assert.equal(serverRetryAfterSeconds("Retry-After: 120\nRetry-After: 900", now), 900);
   assert.equal(serverRetryAfterSeconds("X-RateLimit-Reset: 1794270000", now), 1_200);
-  assert.equal(
-    serverRetryAfterSeconds("Retry-After: Tue, 10 Nov 2026 00:02:00 GMT", now),
-    120
-  );
-  assert.ok(ciFailureRetryDelayMs(2, "ff" + "0".repeat(60), 900) >= 900_000);
-  assert.ok(ciFailureRetryDelayMs(2, "00" + "0".repeat(60), 0) >= 600_000);
+  assert.equal(serverRetryAfterSeconds("Retry-After: Tue, 10 Nov 2026 00:02:00 GMT", now), 120);
+  assert.ok(ciFailureRetryDelayMs(2, `ff${"0".repeat(60)}`, 900) >= 900_000);
+  assert.ok(ciFailureRetryDelayMs(2, `00${"0".repeat(60)}`, 0) >= 600_000);
 });
-
