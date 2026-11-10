@@ -36,6 +36,7 @@ type NpmReleaseAsset = {
 };
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const npmReleaseRepository = "fongap-labs/dsh-plugin";
 const tagPattern =
   /^[a-z0-9]+(?:-[a-z0-9]+)*-v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const packageNamePattern = /^@fongap-labs\/[a-z0-9][a-z0-9._-]*$/;
@@ -55,6 +56,12 @@ export function validateNpmRepublishRequest(
     !repositoryPattern.test(controlRepository)
   ) {
     throw new CliError("::error::npm republish request is invalid.", 64);
+  }
+  if (repository !== npmReleaseRepository) {
+    throw new CliError(
+      "::error::npm publication is limited to fongap-labs/dsh-plugin products.",
+      66
+    );
   }
   if (!stableVersionPattern.test(tag.slice(tag.lastIndexOf("-v") + 2))) {
     throw new CliError("::error::npm republish requires a stable X.Y.Z release tag.", 66);
@@ -105,6 +112,9 @@ export function validateNpmRelease(
       "::error::Release provenance is incomplete or does not match Action Worker.",
       66
     );
+  }
+  if (sourceMatch[1] !== npmReleaseRepository) {
+    throw new CliError("::error::npm publication requires a dsh-plugin source Release.", 66);
   }
   validateRepositoryCapability(sourceMatch[1] ?? "", policy, "release-source");
 

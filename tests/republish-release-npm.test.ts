@@ -49,6 +49,14 @@ test("npm republish accepts only a release-target repository", () => {
   assert.throws(() =>
     validateNpmRepublishRequest("fongap-labs/unlisted", tag, controlRepository, policy)
   );
+  assert.throws(
+    () =>
+      validateNpmRepublishRequest("fongap-labs/action-worker", tag, controlRepository, {
+        ...policy,
+        "fongap-labs/action-worker": ["release-target"],
+      }),
+    /limited to fongap-labs\/dsh-plugin/
+  );
   for (const prereleaseTag of ["dsh-ui-delta-v0.1.0-beta.2", "dsh-ui-delta-v0.1.0-rc.1"]) {
     assert.throws(
       () => validateNpmRepublishRequest(repository, prereleaseTag, controlRepository, policy),
@@ -66,6 +74,15 @@ test("npm republish requires a published, provenance-verified release and paired
   });
   assert.throws(() =>
     validateNpmRelease(repository, tag, controlRepository, release("manual release"), policy)
+  );
+  const foreignSourceBody = release().body.replace(
+    "Source: https://github.com/fongap-labs/dsh-plugin/commit/",
+    "Source: https://github.com/fongap-labs/action-worker/commit/"
+  );
+  assert.throws(
+    () =>
+      validateNpmRelease(repository, tag, controlRepository, release(foreignSourceBody), policy),
+    /dsh-plugin source Release/
   );
   assert.throws(() =>
     validateNpmRelease(

@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       repository:
-        description: 已通过 Action Worker 成功发布正式版 Release 的目标仓库（owner/name）
+        description: 仅支持 fongap-labs/dsh-plugin 的正式版产品 Release
         required: true
         type: string
       tag:
@@ -24,6 +24,7 @@ concurrency:
 jobs:
   publish:
     name: Verify and publish npm package
+    if: ${{ (github.event.client_payload.repository || inputs.repository) == 'fongap-labs/dsh-plugin' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
