@@ -71,12 +71,14 @@ export function taskOpsAccountScope(
   protectedEnvironmentNames: ReadonlySet<string> | null
 ): TaskOpsAccountScope {
   const repositoryPresent = repositoryNames?.has(taskAccountName) === true;
-  const jobPresent = inheritedOrganizationNames === null
-    ? (repositoryPresent ? true : null)
-    : repositoryPresent || inheritedOrganizationNames.has(taskAccountName);
-  const opsPresent = protectedEnvironmentNames === null
-    ? null
-    : protectedEnvironmentNames.has(taskAccountName);
+  const jobPresent =
+    inheritedOrganizationNames === null
+      ? repositoryPresent
+        ? true
+        : null
+      : repositoryPresent || inheritedOrganizationNames.has(taskAccountName);
+  const opsPresent =
+    protectedEnvironmentNames === null ? null : protectedEnvironmentNames.has(taskAccountName);
   let source: TaskOpsAccountScope["source"] = "unverified";
   if (jobPresent === true && opsPresent === true) source = "duplicate-sources";
   else if (jobPresent !== null && opsPresent !== null) {
@@ -86,7 +88,8 @@ export function taskOpsAccountScope(
   }
   return {
     source,
-    drift_detected: source === "unverified" ? null : source === "duplicate-sources" || source === "missing",
+    drift_detected:
+      source === "unverified" ? null : source === "duplicate-sources" || source === "missing",
     runtime_injection_proven: false,
     variable_values_read: false,
   };
