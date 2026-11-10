@@ -56,12 +56,29 @@ jobs:
       trigger: ${{ steps.source.outputs.trigger }}
       credential_environment: ${{ steps.credentials.outputs.credential_environment }}
       create_deployment: ${{ steps.credentials.outputs.create_deployment }}
+      control_sha: ${{ steps.control_revision.outputs.sha }}
 
     steps:
       - name: Checkout control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: main
           persist-credentials: false
+
+      # GitHub reruns keep the original workflow SHA. Do not reuse the old
+      # policy from that SHA when deploying a newly approved source revision.
+      # All downstream jobs pin the SAME trusted current-main control commit.
+      - name: Pin current trusted deployment control
+        id: control_revision
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          sha="$(git rev-parse HEAD)"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::Cannot pin trusted Action Worker control revision." >&2
+            exit 65
+          }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -294,6 +311,7 @@ jobs:
       - name: Check out trusted control implementation
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.prepare.outputs.control_sha }}
           persist-credentials: false
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -336,6 +354,7 @@ jobs:
       - name: Checkout control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          ref: ${{ needs.prepare.outputs.control_sha }}
           path: control
           persist-credentials: false
 
