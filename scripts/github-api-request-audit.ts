@@ -120,9 +120,19 @@ export class GithubApiRequestAudit {
       "| 条件 GET / 并发去重免发请求 | " + c.conditional + " / " + c.coalesced + " |",
       "| 重试 / 传输异常 | " + c.retries + " / " + c.transport + " |",
       "| HTTP 403 / 429 / 5xx / 其他 | " +
-        c.forbidden + " / " + c.too_many + " / " + c.server_errors + " / " + c.other_http + " |",
+        c.forbidden +
+        " / " +
+        c.too_many +
+        " / " +
+        c.server_errors +
+        " / " +
+        c.other_http +
+        " |",
       "| 限流：主要 / 次级（含可识别 gh api 错误） | " +
-        c.primary_limit + " / " + c.secondary_limit + " |",
+        c.primary_limit +
+        " / " +
+        c.secondary_limit +
+        " |",
       "| gh api 失败 | " + c.cli_failed + " |",
       "| 响应头 core 最低剩余额度 | " + remaining + " |",
       "",
@@ -144,12 +154,18 @@ if (process.env.AW_GITHUB_API_METRICS === "1") {
     const script = (process.argv[1] ?? "").split(/[\\/]/).at(-1) ?? "unknown";
     const stats = githubApiAudit.snapshot();
     console.log(
-      "GitHub API requests: fetch=" + stats.fetch +
-        " cli=" + stats.cli +
-        " 304=" + stats.not_modified +
-        " coalesced=" + stats.coalesced +
-        " retries=" + stats.retries +
-        " limits=" + (stats.primary_limit + stats.secondary_limit)
+      "GitHub API requests: fetch=" +
+        stats.fetch +
+        " cli=" +
+        stats.cli +
+        " 304=" +
+        stats.not_modified +
+        " coalesced=" +
+        stats.coalesced +
+        " retries=" +
+        stats.retries +
+        " limits=" +
+        (stats.primary_limit + stats.secondary_limit)
     );
     const path = process.env.GITHUB_STEP_SUMMARY;
     if (path) {
