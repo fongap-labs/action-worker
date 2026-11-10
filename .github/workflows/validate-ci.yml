@@ -339,3 +339,57 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: node scripts/diagnose-ci-failure.ts
+
+  # Control-repository PRs are validated by this workflow rather than the
+  # cross-repository PR Governance dispatcher. Do not leave them requiring
+  # manual merges when every CI gate has passed.
+  automatic-squash-merge:
+    name: Automatic squash merge after CI
+    needs: [validate-merge]
+    if: ${{ github.event_name == 'pull_request' && needs.validate-merge.result == 'success' && github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout trusted main controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Mint narrowly scoped merge token
+        id: merge_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Merge the exact validated PR head
+        env:
+          GH_TOKEN: ${{ steps.merge_app.outputs.token }}
+          REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] && [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
+          details="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")"
+          jq -e --arg head "$HEAD_SHA" --arg base "$BASE_SHA" '
+            .state == "open" and .merged == false and .draft == false and
+            .head.sha == $head and .base.sha == $base and
+            .base.ref == "main" and .head.repo.full_name == .base.repo.full_name
+          ' <<< "$details" >/dev/null || {
+            echo "::error::PR base, head, or draft state changed since successful CI." >&2
+            exit 75
+          }
+          gh pr merge "$PR_NUMBER" --repo "$REPOSITORY" --squash --match-head-commit "$HEAD_SHA"
+          gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.merged' | grep -qx true
