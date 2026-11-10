@@ -26,12 +26,34 @@ export function shouldResume(value: unknown): boolean {
         return false;
       }
       const status = typeof last.status_code === "number" ? last.status_code : 0;
+      const retryAfterMs = typeof last.retry_after_ms === "number" ? last.retry_after_ms : 0;
       return (
         ["timeout", "network", "overloaded"].includes(String(last.error_class)) ||
-        (status >= 500 && status <= 599)
+        (status >= 500 && status <= 599) ||
+        (status === 429 && retryAfterMs > 0 && retryAfterMs <= 120_000)
       );
     })
   );
+}
+
+/** Apply a bounded server Retry-After to the next OCR session resume.
+ * Rejecting long-lived 429s remains shouldResume()'s responsibility.
+ */
+export function resumeDelayMs(value: unknown, fallbackMs: number): number {
+  let delayMs = Math.min(Math.max(fallbackMs, 1000), 120_000);
+  if (!isJsonRecord(value) || !isJsonRecord(value.retry_report)) return delayMs;
+  const requests = Array.isArray(value.retry_report.requests) ? value.retry_report.requests : [];
+  for (const request of requests.filter(isJsonRecord)) {
+    if (request.outcome !== "failed") continue;
+    const attempts = Array.isArray(request.attempts) ? request.attempts.filter(isJsonRecord) : [];
+    const last = attempts.at(-1);
+    if (last?.status_code !== 429) continue;
+    const retryAfterMs = last.retry_after_ms;
+    if (typeof retryAfterMs === "number" && Number.isFinite(retryAfterMs) && retryAfterMs > 0) {
+      delayMs = Math.max(delayMs, Math.min(retryAfterMs, 120_000));
+    }
+  }
+  return delayMs;
 }
 
 async function main(): Promise<void> {

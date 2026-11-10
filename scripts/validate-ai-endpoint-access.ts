@@ -59,6 +59,79 @@ export function visibleModelIds(value: unknown): string[] {
   return [...new Set(ids)].sort();
 }
 
+/**
+ * Short, bounded retries are only for transient endpoint failures. Credential
+ * errors (401/403), invalid models (400/404), and malformed responses fail
+ * immediately. Never print provider response bodies or authentication headers.
+ */
+export function retryableProbeStatus(status: number): boolean {
+  return status === 408 || status === 429 || (status >= 500 && status <= 599);
+}
+
+export function probeRetryDelayMs(retryAfter: string | null, attempt: number): number {
+  const fallback = Math.min(1000 * 2 ** (attempt - 1), 30_000);
+  if (retryAfter === null) return fallback;
+  const text = retryAfter.trim();
+  if (/^\d+(?:\.\d+)?$/.test(text)) {
+    const seconds = Number(text);
+    if (Number.isFinite(seconds)) return Math.min(Math.max(seconds * 1000, 1000), 30_000);
+  }
+  const retryDate = Date.parse(text);
+  if (Number.isFinite(retryDate)) {
+    return Math.min(Math.max(retryDate - Date.now(), 1000), 30_000);
+  }
+  return fallback;
+}
+
+type ProbeRequestOptions = {
+  timeoutMs: number;
+  maxAttempts?: number;
+  fetcher?: typeof fetch;
+  wait?: (durationMs: number) => Promise<void>;
+  onRetry?: (reason: string, attempt: number, waitMs: number) => void;
+};
+
+export async function requestWithTransientRetry(
+  url: string,
+  init: RequestInit,
+  options: ProbeRequestOptions
+): Promise<Response> {
+  const maxAttempts = options.maxAttempts ?? 3;
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3) {
+    throw new CliError("ERROR: Invalid AI endpoint retry count.", 65);
+  }
+  const fetcher = options.fetcher ?? fetch;
+  const wait =
+    options.wait ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), options.timeoutMs);
+    let response: Response | undefined;
+    try {
+      response = await fetcher(url, { ...init, signal: controller.signal });
+    } catch {
+      if (attempt === maxAttempts) {
+        throw new CliError("ERROR: AI endpoint probe failed to connect after bounded retries.", 65);
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (response !== undefined) {
+      if (!retryableProbeStatus(response.status) || attempt === maxAttempts) return response;
+    }
+    const delayMs = probeRetryDelayMs(response?.headers.get("retry-after") ?? null, attempt);
+    options.onRetry?.(
+      response === undefined ? "network" : `HTTP ${response.status}`,
+      attempt,
+      delayMs
+    );
+    await response?.body?.cancel().catch(() => undefined);
+    await wait(delayMs);
+  }
+  throw new CliError("ERROR: AI endpoint probe exhausted bounded retries.", 65);
+}
+
 async function main(): Promise<void> {
   if (process.argv.length !== 2) {
     throw new CliError("Usage: validate-ai-endpoint-access.ts", 64);
@@ -72,23 +145,19 @@ async function main(): Promise<void> {
 
   const config = parseAiAgentConfig(process.env.AW_AI_AGENT_CONFIG ?? "");
   const required = requiredPrAiModels(config, process.env.AI_ENDPOINT_REQUIRED_MODEL ?? "");
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
-  let response: Response;
-  try {
-    response = await fetch(resolveModelsEndpoint(gatewayUrl), {
+  const retryNotice = (reason: string, attempt: number, waitMs: number): void => {
+    console.error(
+      `::warning::AI endpoint probe transient ${reason}; retry ${attempt}/2 after ${waitMs}ms.`
+    );
+  };
+  const response = await requestWithTransientRetry(
+    resolveModelsEndpoint(gatewayUrl),
+    {
       method: "GET",
       headers: { Authorization: `Bearer ${token}` },
-      signal: controller.signal,
-    });
-  } catch {
-    throw new CliError(
-      "ERROR: AI endpoint model access check failed before a response was received.",
-      65
-    );
-  } finally {
-    clearTimeout(timeout);
-  }
+    },
+    { timeoutMs: 15_000, onRetry: retryNotice }
+  );
 
   if (!response.ok) {
     throw new CliError(
@@ -117,11 +186,9 @@ async function main(): Promise<void> {
   // /v1/models can advertise an alias whose upstream is unusable. Confirm one real inference
   // without sending any private repository content; report only HTTP status, never provider text.
   const probeModel = (process.env.AI_ENDPOINT_REQUIRED_MODEL ?? "").trim() || required[0] || "";
-  const probeController = new AbortController();
-  const probeTimeout = setTimeout(() => probeController.abort(), 60_000);
-  let completion: Response;
-  try {
-    completion = await fetch(resolveCompletionsEndpoint(gatewayUrl), {
+  const completion = await requestWithTransientRetry(
+    resolveCompletionsEndpoint(gatewayUrl),
+    {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -133,13 +200,9 @@ async function main(): Promise<void> {
         max_tokens: 96,
         stream: false,
       }),
-      signal: probeController.signal,
-    });
-  } catch {
-    throw new CliError("ERROR: AI endpoint inference probe timed out or failed to connect.", 65);
-  } finally {
-    clearTimeout(probeTimeout);
-  }
+    },
+    { timeoutMs: 60_000, onRetry: retryNotice }
+  );
   if (!completion.ok) {
     throw new CliError(
       `ERROR: AI endpoint inference probe for ${probeModel} returned HTTP ${completion.status}.`,

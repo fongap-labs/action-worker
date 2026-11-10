@@ -11,7 +11,7 @@ import {
   readJson,
   runCommand,
 } from "./runtime-command.ts";
-import { shouldResume } from "./should-resume-ocr.ts";
+import { resumeDelayMs, shouldResume } from "./should-resume-ocr.ts";
 import { validateReview } from "./validate-review-result.ts";
 
 type ReviewOptions = {
@@ -188,10 +188,11 @@ export async function executeReview(options: ReviewOptions): Promise<void> {
     const sessionId =
       isJsonRecord(result) && typeof result.session_id === "string" ? result.session_id : "";
     const backoffSeconds = Math.min(options.resumeBackoffSeconds * 2 ** (attempt - 1), 120);
+    const delayMs = resumeDelayMs(result, backoffSeconds * 1000);
     console.log(
-      `::notice::Transient OCR failure detected; resume ${attempt}/${options.resumeAttempts} after ${backoffSeconds}s: ${sessionId}`
+      `::notice::Transient OCR failure detected; resume ${attempt}/${options.resumeAttempts} after ${Math.ceil(delayMs / 1000)}s.`
     );
-    await new Promise((resolve) => setTimeout(resolve, backoffSeconds * 1000));
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
     try {
       await runReview(options, comparison.base, comparison.head, sessionId);
       reviewError = undefined;

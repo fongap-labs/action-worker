@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: Audit-Code 端点探测对短期限流作有界退避，OCR 仅在明确短期限流时恢复会话。
+
 - 修复: AI Gateway 部署及一次性健康密钥初始化统一从 `ai-gateway-ops` Environment 读取现有 `CLOUDFLARE_API_TOKEN_SECONDARY`，逻辑发布目标仍为 `production`；运维工作流、中央凭据路由、只读审计与回归测试同步。此更正替代先前错误的 `CLOUDFLARE_API_TOKEN_OPS` 或 `production` 凭据绑定，保留原有失败关闭、独立管理员权限和健康验证，不复制或旋转 Cloudflare Token。
 
 - 修复: AI Gateway 部署变量校验拒绝未知的 Secret、Token、Key 和凭据命名，避免敏感变量进入普通部署注入。
