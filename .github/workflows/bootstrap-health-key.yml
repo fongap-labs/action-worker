@@ -38,7 +38,7 @@ jobs:
 
   github-bootstrap:
     needs: worker-preflight
-    name: Initialize two Environment Secrets using protected admin-ops
+    name: Initialize protected ai-gateway-ops Secret using admin-ops
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     environment:
