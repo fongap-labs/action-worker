@@ -11,6 +11,7 @@ on:
           - inventory
           - runtime-inventory
           - put
+          - delete
         default: inventory
       worker:
         description: 运行时 Worker（私有中心必须先完成无公网部署）
@@ -23,9 +24,18 @@ on:
           - ai-generation-center
         default: ai-gateway
       secret_name:
-        description: put 操作的目标密钥名称（按 Worker 严格授权）
+        description: put/delete 操作的目标密钥名称（按 Worker 严格授权）
         required: false
         type: string
+      delete_confirmation:
+        description: 删除确认，精确填写 DELETE ai-gateway <secret_name>
+        required: false
+        type: string
+      provider_migration_approved:
+        description: 确认 Provider 凭据已迁入私有中心并验收（仅删除网关 Provider 分片时勾选）
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -121,6 +131,21 @@ jobs:
           set -Eeuo pipefail
           node scripts/ai-gateway-ops.ts put "$SECRET_NAME"
 
+      - name: Delete one approved retired Gateway Secret
+        if: inputs.operation == 'delete'
+        env:
+          CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}
+          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
+          AIG_DEPLOY_HEALTH_KEY: ${{ secrets.AIG_DEPLOY_HEALTH_KEY }}
+          AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
+          AIG_OPS_WORKER_NAME: ${{ inputs.worker }}
+          AIG_OPS_DELETE_CONFIRM: ${{ inputs.delete_confirmation }}
+          AIG_OPS_PROVIDERS_MIGRATED: ${{ inputs.provider_migration_approved }}
+          SECRET_NAME: ${{ inputs.secret_name }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node scripts/ai-gateway-ops.ts delete "$SECRET_NAME"
       - name: Operations summary
         if: always()
         shell: bash
