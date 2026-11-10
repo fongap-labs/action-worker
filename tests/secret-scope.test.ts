@@ -336,7 +336,7 @@ test("the central policies give each Cloudflare account its own qualified secret
   assert.deepEqual(
     [...deploy],
     [
-      ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_SECONDARY"],
+      ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_OPS"],
       ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_SECONDARY"],
     ]
   );
