@@ -72,7 +72,7 @@ export function probeRetryDelayMs(retryAfter: string | null, attempt: number): n
   const fallback = Math.min(1000 * 2 ** (attempt - 1), 30_000);
   if (retryAfter === null) return fallback;
   const text = retryAfter.trim();
-  if (/^\\d+(?:\\.\\d+)?$/.test(text)) {
+  if (/^\d+(?:\.\d+)?$/.test(text)) {
     const seconds = Number(text);
     if (Number.isFinite(seconds)) return Math.min(Math.max(seconds * 1000, 1000), 30_000);
   }
