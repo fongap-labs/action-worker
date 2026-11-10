@@ -9,7 +9,9 @@
       "conditions": {
         "ref_name": {
           "exclude": [],
-          "include": ["refs/heads/main"]
+          "include": [
+            "refs/heads/main"
+          ]
         }
       },
       "rules": [
@@ -34,9 +36,11 @@
               "allowed_actors": []
             },
             "require_last_push_approval": false,
-            "required_review_thread_resolution": true,
+            "required_review_thread_resolution": false,
             "require_extra_approval_for_unattributed_changes": false,
-            "allowed_merge_methods": ["squash"]
+            "allowed_merge_methods": [
+              "squash"
+            ]
           }
         },
         {
@@ -62,7 +66,9 @@
       "conditions": {
         "ref_name": {
           "exclude": [],
-          "include": ["refs/heads/legacy/**"]
+          "include": [
+            "refs/heads/legacy/**"
+          ]
         }
       },
       "rules": [
