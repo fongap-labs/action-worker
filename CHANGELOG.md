@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 优化: Main Write Audit 对完整且唯一的 GitHub commit→merged PR 关联记录复用已校验的 PR 事实，避免每个受管仓库重复 GET 同一 PR 详情；若关联记录缺失有效 head SHA，仍独立查询 PR 详情并验证编号、merged_at、精确合并 SHA 与 main 基分支。多重关联和伪造合并继续拒绝，实时 CI/PR Status、Actions、未解决事件门禁不受影响。预计九仓库可减少九次 REST 请求，实际降耗以合并后运行记录为准。
+
 - 修复: 受保护四 Worker 只读盘点锁定到已验证的脱敏诊断版本，细分认证、权限与接口错误。
 
 - 新增: GitHub API 审计按固定低基数端点类型细分实际 HTTP 和 gh api 请求，覆盖仓库、分支、提交、PR、检查、状态、Actions、Issue、内容与配额；按 Job 的运行日志和 Summary 输出分类总数，用于验证 Main Write Audit 与 Main CI 的真实请求构成。重试计算为实际请求，并发合并不计为新增请求；不记录仓库名、SHA、URL、令牌或响应内容，不修改 CI 与自动合并准入。
