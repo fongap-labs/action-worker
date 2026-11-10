@@ -6,6 +6,7 @@ import {
   selectDependencyRepair,
 } from "./dependency-repair.ts";
 import { githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api.ts";
+import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
 import { AWAITING_APPROVAL_DESCRIPTION, evaluatePrTrust, listPullReviews } from "./pr-trust.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
@@ -259,10 +260,12 @@ export async function scanOpenPullRequests(
   dispatch: Dispatch,
   controlRepository: string,
   dispatchRepair?: Dispatch,
-  reserve?: Reserve
+  reserve?: Reserve,
+  onlyRepository = ""
 ): Promise<IntakeResult> {
   const repositories = repositoriesForCapability(policyValue, "pr").filter(
-    (repository) => repository !== controlRepository
+    (repository) =>
+      repository !== controlRepository && (!onlyRepository || repository === onlyRepository)
   );
   const result: IntakeResult = {
     repositories: repositories.length,
@@ -446,9 +449,11 @@ async function main(): Promise<void> {
     );
   }
 
+  const policy = parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65);
+  const target = trustedIntakeTarget(policy, process.env.AW_INTAKE_TARGET_REPOSITORY ?? "");
   const reader = statusAwareReader(apiUrl, controlToken, statusToken);
   const result = await scanOpenPullRequests(
-    parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
+    policy,
     reader,
     async (repository, prNumber, headSha) => {
       await dispatchEvent(
@@ -480,7 +485,8 @@ async function main(): Promise<void> {
         context,
         description
       );
-    }
+    },
+    target
   );
 
   console.log(JSON.stringify(result));

@@ -604,3 +604,28 @@ test("central intake retries a signed CI-green PR only when its same-repository 
     assert.equal(attempt.result.already_processed, 1);
   }
 });
+
+test("repository-dispatch intake reads only the authorized wake-up target", async () => {
+  const alpha = "fongap-labs/alpha";
+  const beta = "fongap-labs/beta";
+  const fetched: string[] = [];
+  const result = await scanOpenPullRequests(
+    { [alpha]: ["pr"], [beta]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        fetched.push(path);
+        if (path === `repos/${alpha}/pulls?state=open&per_page=100&page=1`) return [];
+        throw new Error(`Unrelated repository was scanned: ${path}`);
+      },
+    },
+    async () => {
+      throw new Error("No PR should dispatch");
+    },
+    "fongap-labs/action-worker",
+    undefined,
+    undefined,
+    alpha
+  );
+  assert.deepEqual(fetched, [`repos/${alpha}/pulls?state=open&per_page=100&page=1`]);
+  assert.equal(result.repositories, 1);
+});

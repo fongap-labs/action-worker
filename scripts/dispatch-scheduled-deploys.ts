@@ -16,6 +16,7 @@ import {
   isJsonRecord,
   statusAwareReader,
 } from "./github-api.ts";
+import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { type ContentReader, discoverProducts } from "./product-discovery.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import {
@@ -159,10 +160,12 @@ export async function resolveScheduledDeploys(
   now: Date,
   lookbackMinutes: number,
   controlRepository: string,
-  reader: ContentReader
+  reader: ContentReader,
+  onlyRepository = ""
 ): Promise<ScheduledDeploy[]> {
   const repositories = repositoriesForCapability(policyValue, "deploy").filter(
-    (repository) => repository !== controlRepository
+    (repository) =>
+      repository !== controlRepository && (!onlyRepository || repository === onlyRepository)
   );
   const deploys: ScheduledDeploy[] = [];
   for (const repository of repositories) {
@@ -387,6 +390,7 @@ async function main(): Promise<void> {
     statusToken
   );
   const policy = parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65);
+  const target = trustedIntakeTarget(policy, process.env.AW_INTAKE_TARGET_REPOSITORY ?? "");
   const eventType = deployEventType(
     parseDeployPolicy(await readJson("policies/deploy.json")),
     "source-script"
@@ -399,7 +403,8 @@ async function main(): Promise<void> {
     now,
     lookbackMinutes,
     controlRepository,
-    reader
+    reader,
+    target
   );
   const results: DeployResult[] = [];
   let dispatched = 0;

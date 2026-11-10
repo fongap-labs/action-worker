@@ -89,6 +89,7 @@ jobs:
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
+          AW_INTAKE_TARGET_REPOSITORY: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.repository || '' }}
         run: node scripts/intake-open-prs.ts
 
   main-ci:
@@ -157,6 +158,7 @@ jobs:
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
+          AW_INTAKE_TARGET_REPOSITORY: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.repository || '' }}
         run: node scripts/intake-main-ci.ts
 
   main-writes:
@@ -304,6 +306,7 @@ jobs:
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
+          AW_INTAKE_TARGET_REPOSITORY: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.repository || '' }}
         run: node scripts/intake-task-sources.ts
 
   task-schedules:
@@ -385,6 +388,7 @@ jobs:
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
+          AW_INTAKE_TARGET_REPOSITORY: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.repository || '' }}
           TASK_SOURCE_LOOKBACK_MINUTES: "720"
         run: node scripts/dispatch-scheduled-tasks.ts
 
@@ -466,6 +470,7 @@ jobs:
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           AW_DISPATCH_API_TOKEN: ${{ steps.dispatch_app.outputs.token }}
           AW_CONTROL_REPOSITORY: ${{ github.repository }}
+          AW_INTAKE_TARGET_REPOSITORY: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.repository || '' }}
           DEPLOY_SCHEDULE_LOOKBACK_MINUTES: "720"
         run: node scripts/dispatch-scheduled-deploys.ts
 

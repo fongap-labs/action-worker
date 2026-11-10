@@ -377,6 +377,8 @@ test("the Intake deploy-schedules job matches the task-schedules job", async () 
     AW_STATUS_KEYRING: "${{ secrets.AW_STATUS_KEYRING }}",
     AW_DISPATCH_API_TOKEN: "${{ steps.dispatch_app.outputs.token }}",
     AW_CONTROL_REPOSITORY: "${{ github.repository }}",
+    AW_INTAKE_TARGET_REPOSITORY:
+      "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.repository || '' }}",
     DEPLOY_SCHEDULE_LOOKBACK_MINUTES: "720",
   });
   const text = await readFile(".github/workflows/intake.yml", "utf8");

@@ -7,6 +7,7 @@ import {
   isJsonRecord,
   statusAwareReader,
 } from "./github-api.ts";
+import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import { hasValidStatusAttestation } from "./status-attestation.ts";
@@ -105,10 +106,12 @@ export async function scanTaskSources(
   policyValue: unknown,
   source: GithubSource,
   dispatch: Dispatch,
-  excludedRepository = ""
+  excludedRepository = "",
+  onlyRepository = ""
 ): Promise<TaskIntakeResult> {
   const repositories = repositoriesForCapability(policyValue, "task").filter(
-    (repository) => repository !== excludedRepository
+    (repository) =>
+      repository !== excludedRepository && (!onlyRepository || repository === onlyRepository)
   );
   const result: TaskIntakeResult = {
     repositories: repositories.length,
@@ -202,16 +205,19 @@ async function main(): Promise<void> {
     );
   }
 
+  const policy = parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65);
+  const target = trustedIntakeTarget(policy, process.env.AW_INTAKE_TARGET_REPOSITORY ?? "");
   const reader = statusAwareReader(apiUrl, controlToken, statusToken);
   const result = await scanTaskSources(
-    parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
+    policy,
     {
       get: async (path) => await reader.get(path),
     },
     async (repository, beforeSha, headSha) => {
       await dispatchTaskSource(controlRepository, ingressToken, repository, beforeSha, headSha);
     },
-    controlRepository
+    controlRepository,
+    target
   );
   console.log(JSON.stringify(result));
 }

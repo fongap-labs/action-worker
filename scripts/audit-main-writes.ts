@@ -86,7 +86,8 @@ async function publishGuardStatus(
 export async function auditRepositoryMain(
   reader: GithubReader,
   repository: string,
-  isCentralStatusRequired = true
+  isCentralStatusRequired = true,
+  onMainSha?: (sha: string) => void
 ): Promise<{ main_sha: string; pr_number: number }> {
   const repositoryValue = await reader.get(`repos/${repository}`);
   const defaultBranch = getJsonString(repositoryValue, "default_branch");
@@ -101,6 +102,7 @@ export async function auditRepositoryMain(
   if (!shaPattern.test(mainSha)) {
     throw new CliError(`::error::Managed repository main SHA is invalid: ${repository}.`, 65);
   }
+  onMainSha?.(mainSha);
   const provenance = await validateMainWriteProvenance(
     reader,
     repository,
@@ -175,24 +177,13 @@ async function main(): Promise<void> {
     let mainSha = "";
     let hasVerifiedProvenance = false;
     try {
-      const repositoryValue = await reader.get(`repos/${repository}`);
-      const defaultBranch = getJsonString(repositoryValue, "default_branch");
-      if (defaultBranch !== "main") {
-        throw new CliError(
-          `::error::Managed repository default branch must be main: ${repository}.`,
-          65
-        );
-      }
-      const mainCommit = await reader.get(`repos/${repository}/commits/main`);
-      mainSha = getJsonString(mainCommit, "sha");
-      if (!shaPattern.test(mainSha)) {
-        throw new CliError(`::error::Managed repository main SHA is invalid: ${repository}.`, 65);
-      }
-
       const provenance = await auditRepositoryMain(
         reader,
         repository,
-        repository !== controlRepository
+        repository !== controlRepository,
+        (sha) => {
+          mainSha = sha;
+        }
       );
       hasVerifiedProvenance = true;
       await publishGuardStatus(
