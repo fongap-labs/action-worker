@@ -96,6 +96,9 @@ test("shipped product ceilings remain isolated and require independent AI Gatewa
   const ai = await readDeploySecretCeiling(policyPath, "fongap-labs/ai-gateway", "production");
   assert.deepEqual([...ai].sort(), [
     "AIG_DEPLOY_HEALTH_KEY",
+    "AIG_GENERATION_AUTH_KEY",
+    "AIG_INFERENCE_AUTH_KEY",
+    "AIG_PERCEPTION_AUTH_KEY",
     "CLOUDFLARE_ACCOUNT_ID",
     "CLOUDFLARE_API_TOKEN",
   ]);
