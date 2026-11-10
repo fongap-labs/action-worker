@@ -12,5 +12,8 @@ test("public or unrelated mismatches remain hard errors", () => {
   assert.equal(settingMatchesPlatform("allow_auto_merge", false, true, true), false);
   assert.equal(settingMatchesPlatform("allow_squash_merge", true, false, true), false);
   assert.equal(settingMatchesPlatform("delete_branch_on_merge", true, false, true), false);
-  assert.equal(settingMatchesPlatform("required_status_checks", "validate-merge", "none", true), false);
+  assert.equal(
+    settingMatchesPlatform("required_status_checks", "validate-merge", "none", true),
+    false
+  );
 });
