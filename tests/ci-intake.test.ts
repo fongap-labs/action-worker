@@ -208,6 +208,40 @@ test("a failed dispatch is isolated and later repositories still dispatch", asyn
   assert.equal(result.dispatched, 1);
 });
 
+test("a failed status reservation never dispatches that repository and does not block later ones", async () => {
+  const firstRepository = "fongap-labs/one";
+  const secondRepository = "fongap-labs/two";
+  const events: string[] = [];
+  const result = await scanMainCi(
+    { [firstRepository]: ["pr"], [secondRepository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path === `repos/${firstRepository}/commits?per_page=1`) return [{ sha: shaA }];
+        if (path === `repos/${firstRepository}/commits/${shaA}/status`) return { statuses: [] };
+        if (path === `repos/${secondRepository}/commits?per_page=1`) return [{ sha: shaB }];
+        if (path === `repos/${secondRepository}/commits/${shaB}/status`) return { statuses: [] };
+        throw new Error(`unexpected API path: ${path}`);
+      },
+    },
+    async (repository) => {
+      events.push(`dispatch:${repository}`);
+    },
+    "",
+    async (repository) => {
+      events.push(`reserve:${repository}`);
+      if (repository === firstRepository) throw new Error("simulated reservation failure");
+    }
+  );
+
+  assert.deepEqual(events, [
+    `reserve:${firstRepository}`,
+    `reserve:${secondRepository}`,
+    `dispatch:${secondRepository}`,
+  ]);
+  assert.deepEqual(result.failed_repositories, [firstRepository]);
+  assert.equal(result.dispatched, 1);
+});
+
 test("central CI intake reserves status before dispatch", async () => {
   const repository = "fongap-labs/example";
   const controlRepository = "fongap-labs/action-worker";
