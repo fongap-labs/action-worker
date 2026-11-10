@@ -5,7 +5,7 @@ import { runText } from "./runtime-command.ts";
 
 const controlRepository = "fongap-labs/action-worker";
 const healthSecret = "AIG_DEPLOY_HEALTH_KEY";
-const environments = ["production"] as const;
+const environments = ["ai-gateway-ops"] as const;
 
 /** A partial secret name list must never authorize creating a new credential. */
 export function environmentSecretNames(value: unknown): string[] {
@@ -101,7 +101,7 @@ async function bootstrapGithubEnvironments(): Promise<void> {
     );
   }
   console.log(
-    "Deployment health Secret initialized in the existing protected deployment Environment."
+    "Deployment health Secret initialized in the protected ai-gateway-ops Environment."
   );
 }
 
@@ -110,7 +110,7 @@ async function publishWorker(): Promise<void> {
   const value = process.env.AIG_DEPLOY_HEALTH_KEY;
   if (!value || !/^[0-9a-f]{64}$/.test(value)) {
     throw new Error(
-      "Newly initialized health credential is not available in the deployment Environment."
+      "Newly initialized health credential is not available in the ai-gateway-ops Environment."
     );
   }
   const names = await listWorkerSecretNames(process.env);
