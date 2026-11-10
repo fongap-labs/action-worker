@@ -1,4 +1,4 @@
-name: 手动 · 管理三 Worker 密钥
+name: 手动 · 管理网关密钥
 
 on:
   workflow_dispatch:
