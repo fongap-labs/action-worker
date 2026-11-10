@@ -467,7 +467,11 @@ export function ingressCronTelemetry(
   oldest_pending_age_minutes: number | null;
 } {
   if (!backlog) throw new Error("Direct ingress backlog snapshot is missing.");
-  const { pending_count: pending, oldest_created_ms: oldest, quarantined_count: quarantined } = backlog;
+  const {
+    pending_count: pending,
+    oldest_created_ms: oldest,
+    quarantined_count: quarantined,
+  } = backlog;
   if (
     !Number.isSafeInteger(completed) ||
     completed < 0 ||
