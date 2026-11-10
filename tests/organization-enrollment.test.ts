@@ -61,6 +61,17 @@ test("untrusted inventory and unexpected privilege changes fail closed", () => {
   assert.throws(() => planOnboarding(policy, [repo("repeat"), repo("repeat")]));
   assert.throws(() => planOnboarding(policy, [{ ...repo("wrong"), full_name: "outside/wrong" }]));
   assert.throws(() => planOnboarding({ ...policy, grants: { "outside/repo": ["pr"] } }, []));
+  assert.throws(
+    () =>
+      planOnboarding(
+        {
+          ...policy,
+          grants: { ...policy.grants, "fongap-labs/delta-legacy": ["pr"] },
+        },
+        []
+      ),
+    /Excluded repository must not retain a governance grant/
+  );
 
   const inventory = [repo("new-service")];
   const candidate = planOnboarding(policy, inventory);

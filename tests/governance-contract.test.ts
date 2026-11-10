@@ -31,6 +31,13 @@ test("repository permissions come only from the versioned access policy", async 
   assert.equal(authority.organization, "fongap-labs");
   assert.deepEqual(authority.excluded_repositories, ["fongap-labs/delta-legacy"]);
   const grants = authority.grants as Record<string, string[]>;
+  for (const excluded of authority.excluded_repositories as string[]) {
+    assert.equal(
+      Object.hasOwn(grants, excluded),
+      false,
+      `An explicitly excluded repository must not retain any Action Worker grant: ${excluded}`
+    );
+  }
   const required: Record<string, string[]> = {
     "fongap-labs/action-worker": ["pr", "task"],
     "fongap-labs/ai-gateway": ["pr", "task", "deploy"],

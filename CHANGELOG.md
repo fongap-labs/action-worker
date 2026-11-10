@@ -2,11 +2,13 @@
 
 ## [Unreleased]
 
+- 修复: 完全撤销 delta-legacy 的 Action Worker 管理授权；保留排除名单，并让仓库接入器拒绝排除项与授权同时存在的矛盾配置。
+
 - 修复: Action Worker 控制仓库自身的 PR 在六项 CI 汇总门禁全部通过后自动使用受限 GitHub App 按精确 HEAD squash 合并；草稿、Fork、SHA 或基线变化一律阻断，不再要求人工合并或独立审查。
 
 - 修复: 私有仓库 GitHub Free 计划不支持原生 Auto-merge 时，仅对该能力限制容忍设置读回差异，保留其余仓库设置与中央签名合并门禁；同仓库官方 fongap-bot PR 可不经独立审查进入 CI，其他 Bot 与 Fork 仍需可信准入。
 
-- 新增: fongap-labs 全部 10 个仓库统一启用自动合并；仅在中央签名 CI Evidence、PR Governance 与 validate-merge 全绿且精确 PR HEAD 未变化时自动 squash 合并，草稿和失败检查保持阻断，独立审查不再作为合并条件。
+- 新增: fongap-labs 9 个受管仓库统一启用自动合并（归档用途的 delta-legacy 排除在外）；仅在中央签名 CI Evidence、PR Governance 与 validate-merge 全绿且精确 PR HEAD 未变化时自动 squash 合并，草稿和失败检查保持阻断，独立审查不再作为合并条件。
 
 - 修复: Audit-Code 端点探测对短期限流作有界退避，OCR 仅在明确短期限流时恢复会话。
 

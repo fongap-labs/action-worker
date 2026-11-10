@@ -45,6 +45,11 @@ function asPolicy(value: unknown): AccessPolicy {
     throw new Error("Repository access policy is invalid.");
   }
   parseRepositoryPolicy(policy.grants);
+  for (const excluded of policy.excluded_repositories) {
+    if (Object.hasOwn(policy.grants, excluded)) {
+      throw new Error(`Excluded repository must not retain a governance grant: ${excluded}`);
+    }
+  }
   if (Object.keys(policy.grants).some((name) => !name.startsWith("fongap-labs/"))) {
     throw new Error("Cross-organization grant is forbidden.");
   }
