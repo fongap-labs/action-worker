@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   isRetryableStatusWriteError,
   postGithubCommitStatus,
+  responseRetryDelayMs,
   retryTransientStatusWrite,
 } from "../scripts/status-write-retry.ts";
 
@@ -17,7 +18,9 @@ test("status writes retry transient GitHub failures and stop when recovered", as
     },
     async (milliseconds) => {
       waits.push(milliseconds);
-    }
+    },
+    3,
+    () => 0.5
   );
   assert.equal(result, "written");
   assert.equal(calls, 3);
@@ -54,12 +57,82 @@ test("status writes stop after the bounded retry budget", async () => {
       },
       async (milliseconds) => {
         waits.push(milliseconds);
-      }
+      },
+      3,
+      () => 0.5
     ),
     /HTTP 503/
   );
   assert.equal(calls, 3);
   assert.deepEqual(waits, [250, 500]);
+});
+
+test("status write backoff applies bounded jitter", async () => {
+  const waits: number[] = [];
+  await assert.rejects(
+    retryTransientStatusWrite(
+      async () => {
+        throw new Error("HTTP 503");
+      },
+      async (milliseconds) => {
+        waits.push(milliseconds);
+      },
+      2,
+      () => 0
+    ),
+    /HTTP 503/
+  );
+  assert.deepEqual(waits, [125]);
+});
+
+test("status writes honor server retry delays and stop when they exceed the job budget", async () => {
+  let calls = 0;
+  const waits: number[] = [];
+  const result = await retryTransientStatusWrite(
+    async () => {
+      calls += 1;
+      if (calls === 1) {
+        throw Object.assign(new Error("HTTP 429"), { retryAfterMs: 5_000 });
+      }
+      return "recovered";
+    },
+    async (milliseconds) => {
+      waits.push(milliseconds);
+    },
+    3,
+    () => 0
+  );
+  assert.equal(result, "recovered");
+  assert.deepEqual(waits, [5_000]);
+
+  calls = 0;
+  waits.length = 0;
+  await assert.rejects(
+    retryTransientStatusWrite(
+      async () => {
+        calls += 1;
+        throw Object.assign(new Error("HTTP 429"), { retryAfterMs: 60_001 });
+      },
+      async (milliseconds) => {
+        waits.push(milliseconds);
+      },
+      3,
+      () => 0
+    ),
+    /HTTP 429/
+  );
+  assert.equal(calls, 1);
+  assert.deepEqual(waits, []);
+});
+
+test("status writes parse Retry-After and rate-limit reset headers", () => {
+  assert.equal(responseRetryDelayMs(new Headers({ "Retry-After": "2.5" }), 1_000), 2_500);
+  assert.equal(
+    responseRetryDelayMs(new Headers({ "Retry-After": new Date(6_000).toUTCString() }), 1_000),
+    5_000
+  );
+  assert.equal(responseRetryDelayMs(new Headers({ "X-RateLimit-Reset": "6" }), 1_000), 5_000);
+  assert.equal(responseRetryDelayMs(new Headers(), 1_000), undefined);
 });
 
 const sampleStatus = {
