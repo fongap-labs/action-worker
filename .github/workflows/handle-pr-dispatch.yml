@@ -167,7 +167,8 @@ jobs:
         id: base_plan
         env:
           CONTEXT_JSON: ${{ steps.context.outputs.json }}
-        run: node scripts/resolve-pr-plan.ts "$CONTEXT_JSON" inherit inherit inherit auto auto "$GITHUB_WORKSPACE/policies"
+        # Deterministic gates alone authorize auto-merge; advisory AI review is opt-in.
+        run: node scripts/resolve-pr-plan.ts "$CONTEXT_JSON" inherit off inherit auto auto "$GITHUB_WORKSPACE/policies"
 
       - name: Validate naming rules
         if: steps.base_plan.outputs.naming_required == 'true'
@@ -372,7 +373,7 @@ jobs:
 
       # Automatically squash-merge an exact, non-draft PR head only after the
       # deterministic, signed CI/Policy/Security merge gate has passed. AI
-      # review remains optional and cannot block the merge.
+      # review is opt-in and cannot block the merge.
       - name: Check Draft before requesting merge credentials
         id: merge_readiness
         if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.cancellation.outputs.cancelled != 'true' }}
@@ -444,34 +445,10 @@ jobs:
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           GOVERNANCE_STATUS: ${{ steps.gate.outputs.passed == 'true' && 'success' || steps.trust.outputs.trusted == 'false' && 'awaiting-approval' || 'failure' }}
-          AI_REVIEW_STATE: ${{ steps.gate.outputs.passed == 'true' && steps.base_plan.outputs.review_required == 'true' && 'queued' || '' }}
+          AI_REVIEW_STATE: ""
           DEPLOY_GAP_HINT: ${{ steps.deploy_gap.outputs.hint }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/publish-pr-review.ts "$REPOSITORY" "$PR_NUMBER" "$GOVERNANCE_STATUS" "$RUN_URL" /tmp/pr-plan.json /tmp/ocr-result.json "$AI_REVIEW_STATE" "$DEPLOY_GAP_HINT"
-
-      # AI Review runs as its own workflow after the gate so its queue never waits behind CI.
-      - name: Dispatch AI review
-        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.base_plan.outputs.review_required == 'true' }}
-        id: review_dispatch_app
-        uses: ./.github/actions/mint-app-token
-        with:
-          client-id: ${{ vars.AW_APP_CLIENT_ID }}
-          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-
-      - name: Dispatch AI review
-        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.base_plan.outputs.review_required == 'true' }}
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ steps.review_dispatch_app.outputs.token }}
-          AW_DISPATCH_API_TOKEN: ${{ steps.review_dispatch_app.outputs.token }}
-          REPOSITORY: ${{ steps.payload.outputs.repository }}
-          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
-          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
-          REQUEST_ID: review-${{ github.run_id }}-${{ github.run_attempt }}
-        run: node scripts/dispatch-pr-review.ts "$REPOSITORY" "$PR_NUMBER" "$REQUEST_ID" "$HEAD_SHA"
 
   # Control domain. The governance run can end before it marks its head: the pull request may be
   # merged or closed first ("Target PR is not open"), or the run may be cancelled or time out. The

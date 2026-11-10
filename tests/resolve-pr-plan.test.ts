@@ -221,3 +221,52 @@ test("explicit overrides keep advisory review routing semantics", async () => {
   assert.equal(plan.review_task_timeout, 5);
   assert.equal(plan.triage_required, true);
 });
+
+test("automatic PR governance disables advisory AI review while retaining deterministic CI", async () => {
+  const context = validateContext({
+    project_types: ["node"],
+    change_areas: ["source", "security"],
+    declared_impacts: ["security", "compatibility"],
+    risk: "high",
+  });
+  const policies = await loadPolicies();
+  const plan = resolvePlan(context, policies, { ...defaults, reviewMode: "off" });
+  assert.equal(plan.ci_required, true);
+  assert.equal(plan.naming_required, true);
+  assert.ok(plan.checks.includes("secret-scan"));
+  assert.equal(plan.review_required, false);
+  assert.equal(plan.review_agent, "none");
+  assert.equal(plan.review_model, "");
+  assert.equal(plan.review_rule, "");
+  assert.equal(plan.review_task_timeout, 0);
+  assert.equal(plan.triage_required, false);
+
+  const optIn = resolvePlan(context, policies, { ...defaults, reviewMode: "on" });
+  assert.equal(optIn.ci_required, true);
+  assert.equal(optIn.review_required, true, "explicit advisory review remains available");
+});
+
+test("PR governance does not launch AI review after CI-green merge", async () => {
+  const governance = await readFile(
+    join(process.cwd(), ".github/workflows/handle-pr-dispatch.yml"),
+    "utf8"
+  );
+  const advisory = await readFile(
+    join(process.cwd(), ".github/workflows/handle-pr-review.yml"),
+    "utf8"
+  );
+  assert.ok(
+    governance.includes(
+      'node scripts/resolve-pr-plan.ts "$CONTEXT_JSON" inherit off inherit auto auto'
+    )
+  );
+  assert.equal(governance.includes("dispatch-pr-review.ts"), false);
+  assert.equal(governance.includes("run-pr-review"), false);
+  assert.ok(governance.includes('AI_REVIEW_STATE: ""'));
+  assert.ok(governance.includes("run: node scripts/auto-merge-pr.ts"));
+  assert.ok(governance.includes("PR_STATUS_CONTEXT: validate-merge"));
+  assert.ok(governance.includes("run: node scripts/validate-security.ts"));
+  assert.ok(governance.includes("run: node scripts/validate-change-record.ts"));
+  assert.ok(governance.includes("run: node scripts/validate-ci-evidence.ts"));
+  assert.ok(advisory.includes("types: [run-pr-review]"));
+});
