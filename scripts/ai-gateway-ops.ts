@@ -1,8 +1,24 @@
 import { fileURLToPath } from "node:url";
 
-const workerName = "ai-gateway";
-const secretNamePattern =
-  /^(?:AIG_DEPLOY_HEALTH_KEY|AIG_TOKEN_ENCRYPTION_KEY|AIG_(?:INFERENCE|GENERATION)_AUTH_KEY|AIG_ACCESS_KEY_(?:AIR|PRO|MAX|ULTRA|AGENT)|AIG_TIER[123]_CREDENTIALS_(?:0[1-9]|10))$/;
+const workerNames = ["ai-gateway", "ai-inference-center", "ai-generation-center"] as const;
+type WorkerName = (typeof workerNames)[number];
+const gatewaySecretName = /^(?:AIG_DEPLOY_HEALTH_KEY|AIG_(?:INFERENCE|GENERATION)_AUTH_KEY|AIG_ACCESS_KEY_(?:AIR|PRO|MAX|ULTRA|AGENT)|AIG_EDGE_CACHE_HMAC_KEY)$/;
+const providerShardName = /^AIG_TIER[12]_CREDENTIALS_(?:0[1-9]|10)$/;
+
+function selectedWorker(env: OperationsEnvironment): WorkerName {
+  const worker = env.AIG_OPS_WORKER_NAME || "ai-gateway";
+  if (!workerNames.includes(worker as WorkerName)) {
+    throw new Error("Requested Worker is outside the protected AI Gateway operations allowlist.");
+  }
+  return worker as WorkerName;
+}
+
+function allowedSecretForWorker(worker: WorkerName, name: string): boolean {
+  if (worker === "ai-gateway") return gatewaySecretName.test(name);
+  const auth = worker === "ai-inference-center"
+    ? "AIG_INFERENCE_AUTH_KEY" : "AIG_GENERATION_AUTH_KEY";
+  return name === auth || providerShardName.test(name);
+}
 const healthKeyPattern = /^[A-Za-z0-9_-]{32,}$/;
 const maxSecretBytes = 4500;
 
@@ -30,8 +46,9 @@ function validateCommon(env: OperationsEnvironment): { accountId: string; token:
 }
 
 export function validateSecretMutation(name: string, env: OperationsEnvironment): string {
-  if (!secretNamePattern.test(name))
-    throw new Error("Requested secret is outside the AI Gateway runtime allowlist.");
+  const worker = selectedWorker(env);
+  if (!allowedSecretForWorker(worker, name))
+    throw new Error("Requested secret is outside the selected Worker's allowlist.");
   const secretValue = assertString(env.AIG_OPS_SECRET_VALUE, "AIG_OPS_SECRET_VALUE");
   if (Buffer.byteLength(secretValue, "utf8") > maxSecretBytes) {
     throw new Error("Secret exceeds the Worker secret size limit; split credential shards first.");
@@ -48,11 +65,14 @@ export function validateSecretMutation(name: string, env: OperationsEnvironment)
   if (name.startsWith("AIG_ACCESS_KEY_") && secretValue === env.AIG_DEPLOY_HEALTH_KEY) {
     throw new Error("Application access key must not reuse the deployment health credential.");
   }
+  if (name !== "AIG_DEPLOY_HEALTH_KEY" && secretValue === env.AIG_DEPLOY_HEALTH_KEY) {
+    throw new Error("Runtime authentication must not reuse the deployment health credential.");
+  }
   return secretValue;
 }
 
-function cloudflareUrl(accountId: string): string {
-  return `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/${workerName}/secrets`;
+function cloudflareUrl(accountId: string, worker: WorkerName): string {
+  return `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/${worker}/secrets`;
 }
 
 async function requestCloudflare(
@@ -99,8 +119,9 @@ export async function listWorkerSecretNames(
   env: OperationsEnvironment,
   fetcher: FetchFunction = fetch
 ): Promise<string[]> {
+  const worker = selectedWorker(env);
   const { accountId, token } = validateCommon(env);
-  const data = await requestCloudflare(fetcher, cloudflareUrl(accountId), token, "GET");
+  const data = await requestCloudflare(fetcher, cloudflareUrl(accountId, worker), token, "GET");
   if (!Array.isArray(data.result)) throw new Error("Cloudflare secret inventory is not an array.");
   const entries = data.result as unknown[];
   const names: string[] = [];
@@ -176,20 +197,21 @@ export async function putWorkerSecret(
   env: OperationsEnvironment,
   fetcher: FetchFunction = fetch
 ): Promise<void> {
+  const worker = selectedWorker(env);
   const { accountId, token } = validateCommon(env);
   const secretValue = validateSecretMutation(name, env);
-  const url = healthUrl(env);
-  const healthKey =
-    name === "AIG_DEPLOY_HEALTH_KEY"
-      ? secretValue
-      : assertString(env.AIG_DEPLOY_HEALTH_KEY, "AIG_DEPLOY_HEALTH_KEY");
-  if (!healthKeyPattern.test(healthKey)) {
+  // Private centers do not have public /health endpoints. Their runtime
+  // readiness is checked later through the protected Gateway binding.
+  const url = worker === "ai-gateway" ? healthUrl(env) : "";
+  const healthKey = worker !== "ai-gateway" ? "" : name === "AIG_DEPLOY_HEALTH_KEY"
+    ? secretValue : assertString(env.AIG_DEPLOY_HEALTH_KEY, "AIG_DEPLOY_HEALTH_KEY");
+  if (worker === "ai-gateway" && !healthKeyPattern.test(healthKey)) {
     throw new Error("AIG_DEPLOY_HEALTH_KEY must be an independent URL-safe credential.");
   }
 
   // Confirm the existing Worker can be queried before making any mutation.
   await listWorkerSecretNames(env, fetcher);
-  const api = cloudflareUrl(accountId);
+  const api = cloudflareUrl(accountId, worker);
   const updated = await requestCloudflare(fetcher, api, token, "PUT", {
     name,
     text: secretValue,
@@ -206,7 +228,7 @@ export async function putWorkerSecret(
       "Updated secret is not present in Cloudflare inventory; state may have changed."
     );
   }
-  if (!(await checkRuntimeHealth(url, healthKey, fetcher))) {
+  if (worker === "ai-gateway" && !(await checkRuntimeHealth(url, healthKey, fetcher))) {
     throw new Error(
       "Post-update runtime health failed. The secret may have changed; restore its previous value via a separately approved operation."
     );
@@ -242,8 +264,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         for (const secretName of names) console.log(secretName);
         console.log("Inventory completed.");
       } else {
-        console.log(
-          "AI Gateway runtime secret updated; name and health checks passed. No secret values were logged."
+        const worker = selectedWorker(env);
+        console.log(worker === "ai-gateway"
+          ? "Gateway runtime Secret updated; inventory and public health verified. No Secret values logged."
+          : "Private center Secret updated; inventory verified. Runtime readiness must be checked before Gateway cutover."
         );
       }
     })
