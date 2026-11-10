@@ -2,7 +2,7 @@ name: 自动 · 总控调度
 
 # Finds the work that the managed repositories need and dispatches it. Every job is idempotent: it
 # acts only on what has no verdict yet, so running often is safe and cheap. GitHub starts the
-# schedule of this repository only every few hours, so the push of main and the run-intake event
+# schedule of this repository is a best-effort fallback, so push and run-intake events
 # (sent by the repository bridges and by Action Worker itself) are the heartbeat, and the schedule
 # is the fallback. Nobody starts this workflow by hand.
 on:
@@ -11,7 +11,7 @@ on:
   repository_dispatch:
     types: [run-intake]
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "*/15 * * * *"
     - cron: "17 3 * * 1"
 
 permissions: {}
@@ -22,6 +22,8 @@ concurrency:
 
 jobs:
   pull-requests:
+    # Control-repository pushes do not change business PR heads.
+    if: github.event_name != 'push'
     name: Pull requests
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -226,6 +228,8 @@ jobs:
         run: node scripts/audit-main-writes.ts
 
   task-sources:
+    # Task-source changes arrive through repository_dispatch or periodic reconciliation.
+    if: github.event_name != 'push'
     name: Changed task projects
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -293,6 +297,7 @@ jobs:
         run: node scripts/intake-task-sources.ts
 
   task-schedules:
+    if: github.event_name != 'push'
     name: Scheduled task projects
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -364,6 +369,7 @@ jobs:
         run: node scripts/dispatch-scheduled-tasks.ts
 
   deploy-schedules:
+    if: github.event_name != 'push'
     name: Scheduled deploys
     runs-on: ubuntu-24.04
     timeout-minutes: 10

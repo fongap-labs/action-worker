@@ -215,7 +215,7 @@ test("Intake reconciles every kind of work on the heartbeat, never by hand", asy
     "push:",
     "branches: [main]",
     "types: [run-intake]",
-    'cron: "*/5 * * * *"',
+    'cron: "*/15 * * * *"',
     "group: intake",
     "intake-open-prs.ts",
     "intake-main-ci.ts",
@@ -227,6 +227,15 @@ test("Intake reconciles every kind of work on the heartbeat, never by hand", asy
     "intake-security-scans.ts",
   ]);
   assert.doesNotMatch(workflow, /workflow_dispatch/);
+  // A control main push must not trigger unrelated repository-wide scans.
+  // Main CI and Main write audit still run on push, while repository_dispatch remains immediate.
+  for (const job of ["pull-requests", "task-sources", "task-schedules", "deploy-schedules"]) {
+    assert.match(
+      workflow,
+      new RegExp(`^  ${job}:\\n    (?:#[^\\n]*\\n    )?if: github\\.event_name != 'push'`, "m"),
+      `${job} must skip control-repository push fanout`
+    );
+  }
   // The weekly rescan dispatches without deduplication, so it never runs on the heartbeat.
   const securityScans = workflow.slice(workflow.indexOf("  security-scans:"));
   assert.match(securityScans, /if: github\.event\.schedule == '17 3 \* \* 1'/);
@@ -1271,7 +1280,7 @@ test("central main write audit is independent of business repository Actions", a
     intake.indexOf("  task-sources:")
   );
   requireText(workflow, ["AW_CONTROL_TOKEN", "node scripts/audit-main-writes.ts"]);
-  assert.match(intake, /cron: "\*\/5 \* \* \* \*"/);
+  assert.match(intake, /cron: "\*\/15 \* \* \* \*"/);
   const script = await text("scripts/audit-main-writes.ts");
   requireText(script, [
     'repositoriesForCapability(policy, "pr")',
