@@ -159,7 +159,7 @@ test("offline CLI reads live policy and pinned source without runtime Secret or 
         coverage: "complete",
         repository: [],
         organization_accessible: [],
-        environments: { production: ["AIG_DEPLOY_HEALTH_KEY", "CLOUDFLARE_API_TOKEN_SECONDARY"] },
+        environments: { "ai-gateway-ops": ["AIG_DEPLOY_HEALTH_KEY", "CLOUDFLARE_API_TOKEN_OPS"] },
       })
     );
     const args = [
@@ -183,12 +183,34 @@ test("offline CLI reads live policy and pinned source without runtime Secret or 
       status: string;
       required_secret_count: number;
       active_environment_name_matches: number;
+      other_environment_only_names: number;
       actual_secret_values_checked: boolean;
       runtime_injection_proven: boolean;
     };
     assert.equal(report.status, "UNVERIFIED");
     assert.equal(report.required_secret_count, 2);
     assert.equal(report.active_environment_name_matches, 2);
+    assert.equal(report.other_environment_only_names, 0);
+    // A logical production deploy must use its credential-owning ops Environment;
+    // a stale copy in production is not reachable by the privileged job.
+    await writeFile(
+      inventoryPath,
+      JSON.stringify({
+        schema_version: 1,
+        coverage: "complete",
+        repository: [],
+        organization_accessible: [],
+        environments: { production: ["AIG_DEPLOY_HEALTH_KEY", "CLOUDFLARE_API_TOKEN_OPS"] },
+      })
+    );
+    const wrongScope = run();
+    assert.equal(wrongScope.status, 0, wrongScope.stderr);
+    const wrongReport = JSON.parse(wrongScope.stdout) as {
+      active_environment_name_matches: number;
+      other_environment_only_names: number;
+    };
+    assert.equal(wrongReport.active_environment_name_matches, 0);
+    assert.equal(wrongReport.other_environment_only_names, 2);
     assert.equal(report.actual_secret_values_checked, false);
     assert.equal(report.runtime_injection_proven, false);
     assert.doesNotMatch(ok.stdout, /AIG_DEPLOY_HEALTH_KEY|CLOUDFLARE|OFFLINE_NAMES_ONLY/);
