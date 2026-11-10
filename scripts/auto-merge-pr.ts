@@ -76,6 +76,17 @@ export function mustRefreshBehindBranch(pull: unknown, repository: string): bool
   );
 }
 
+/** Draft PRs are intentionally ineligible; this is a successful no-op, not a failed gate. */
+export function isOpenDraftPull(pull: unknown, prNumber: number): boolean {
+  return (
+    isJsonRecord(pull) &&
+    pull.state === "open" &&
+    pull.merged === false &&
+    pull.draft === true &&
+    pull.number === prNumber
+  );
+}
+
 async function main(): Promise<void> {
   const [repository = "", number = "", headSha = "", baseSha = "", governanceRunUrl = ""] =
     process.argv.slice(2);
@@ -89,6 +100,12 @@ async function main(): Promise<void> {
   }
   const pullPath = `repos/${repository}/pulls/${number}`;
   const pull = await getGithubJson(pullPath, readToken);
+  // The PR may have become Draft after the workflow eligibility check.
+  // Respect that transition before fetching proof or attempting any write.
+  if (isOpenDraftPull(pull, Number(number))) {
+    console.log(`Skipped automatic merge for Draft PR: ${repository}#${number}.`);
+    return;
+  }
   const statuses = await getGithubJson(`repos/${repository}/commits/${headSha}/status`, readToken);
   assertReadyForAutomaticMerge(
     pull,

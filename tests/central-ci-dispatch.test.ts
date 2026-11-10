@@ -199,6 +199,22 @@ test("main CI transfers intake's short lease to the active Central CI run before
   assert.doesNotMatch(prepareSection, /AW_STATUS_API_TOKEN \|\|/);
 });
 
+test("synthetic PR merge ref lag is retried but a changed PR head still fails closed", () => {
+  const pinStep = workflow.slice(
+    workflow.indexOf("- name: Pin PR merge snapshot"),
+    workflow.indexOf("- name: Validate requested revision")
+  );
+  assert.match(pinStep, /for attempt in 1 2 3 4 5 6/);
+  assert.match(pinStep, /sleep 3/);
+  assert.match(pinStep, /PR target branch or head changed while preparing the CI snapshot/);
+  assert.match(pinStep, /PR target branch changed during CI snapshot retry/);
+  assert.match(pinStep, /merge snapshot remains stale after six attempts/);
+  assert.match(pinStep, /exit 75/);
+  assert.ok(
+    pinStep.indexOf('echo "merge_sha=$merge_sha"') > pinStep.indexOf("merge snapshot remains stale")
+  );
+});
+
 test("PR diff base and pinned merge base remain separate", () => {
   const pinnedBase =
     "base_sha: ${{ steps.merge_ref.outputs.base_sha || steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}";

@@ -196,31 +196,50 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          pull="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")"
-          base_ref="$(jq -r '.base.ref // empty' <<< "$pull")"
-          current_head_sha="$(jq -r '.head.sha // empty' <<< "$pull")"
-          if [[ -z "$base_ref" || "$current_head_sha" != "$EXPECTED_HEAD_SHA" ]]; then
-            echo "::error::PR target branch or head changed while preparing the CI snapshot." >&2
-            exit 75
-          fi
-          encoded_base_ref="$(jq -nr --arg ref "$base_ref" '$ref | @uri')"
-          current_base_sha="$(gh api "repos/$REPOSITORY/branches/$encoded_base_ref" --jq '.commit.sha')"
-          [[ "$current_base_sha" =~ ^[0-9a-f]{40}$ ]] || {
-            echo "::error::Cannot resolve the live PR target branch SHA." >&2
-            exit 75
-          }
-          merge_sha="$(gh api "repos/$REPOSITORY/git/ref/pull/$PR_NUMBER/merge" --jq '.object.sha')"
-          [[ "$merge_sha" =~ ^[0-9a-f]{40}$ ]] || {
-            echo "::error::GitHub did not provide a valid immutable PR merge SHA; retry after the merge ref is prepared." >&2
-            exit 75
-          }
-          merge_commit="$(gh api "repos/$REPOSITORY/git/commits/$merge_sha")"
-          merge_base_sha="$(jq -r '.parents[0].sha // empty' <<< "$merge_commit")"
-          merge_head_sha="$(jq -r '.parents[1].sha // empty' <<< "$merge_commit")"
-          if [[ "$merge_base_sha" != "$current_base_sha" || "$merge_head_sha" != "$EXPECTED_HEAD_SHA" ]]; then
-            echo "::error::GitHub PR merge snapshot does not match the current base/head; retry after the merge ref is refreshed. expected base=$current_base_sha head=$EXPECTED_HEAD_SHA; actual base=$merge_base_sha head=$merge_head_sha" >&2
-            exit 75
-          fi
+          # GitHub's synthetic refs/pull/N/merge can lag behind a fresh PR push.
+          # Retry a bounded number of times; never accept a different head/base.
+          initial_base_ref=""
+          merge_sha=""
+          merge_base_sha=""
+          merge_head_sha=""
+          for attempt in 1 2 3 4 5 6; do
+            pull="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")"
+            base_ref="$(jq -r '.base.ref // empty' <<< "$pull")"
+            current_head_sha="$(jq -r '.head.sha // empty' <<< "$pull")"
+            if [[ -z "$base_ref" || "$current_head_sha" != "$EXPECTED_HEAD_SHA" ]]; then
+              echo "::error::PR target branch or head changed while preparing the CI snapshot." >&2
+              exit 75
+            fi
+            if [[ -n "$initial_base_ref" && "$base_ref" != "$initial_base_ref" ]]; then
+              echo "::error::PR target branch changed during CI snapshot retry." >&2
+              exit 75
+            fi
+            initial_base_ref="$base_ref"
+            encoded_base_ref="$(jq -nr --arg ref "$base_ref" '$ref | @uri')"
+            current_base_sha="$(gh api "repos/$REPOSITORY/branches/$encoded_base_ref" --jq '.commit.sha')"
+            [[ "$current_base_sha" =~ ^[0-9a-f]{40}$ ]] || {
+              echo "::error::Cannot resolve the live PR target branch SHA." >&2
+              exit 75
+            }
+            merge_sha="$(gh api "repos/$REPOSITORY/git/ref/pull/$PR_NUMBER/merge" --jq '.object.sha' 2>/dev/null || true)"
+            merge_base_sha=""
+            merge_head_sha=""
+            if [[ "$merge_sha" =~ ^[0-9a-f]{40}$ ]]; then
+              merge_commit="$(gh api "repos/$REPOSITORY/git/commits/$merge_sha" 2>/dev/null || true)"
+              merge_base_sha="$(jq -r '.parents[0].sha // empty' <<< "$merge_commit")"
+              merge_head_sha="$(jq -r '.parents[1].sha // empty' <<< "$merge_commit")"
+            fi
+            if [[ "$merge_base_sha" != "$current_base_sha" || "$merge_head_sha" != "$EXPECTED_HEAD_SHA" ]]; then
+              if [[ "$attempt" -eq 6 ]]; then
+                echo "::error::GitHub PR merge snapshot remains stale after six attempts; expected base=$current_base_sha head=$EXPECTED_HEAD_SHA; actual base=$merge_base_sha head=$merge_head_sha" >&2
+                exit 75
+              fi
+              echo "::notice::GitHub PR merge snapshot is updating (attempt $attempt/6); retrying with current base/head."
+              sleep 3
+              continue
+            fi
+            break
+          done
           echo "base_sha=$merge_base_sha" >> "$GITHUB_OUTPUT"
           echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
           echo "Pinned PR merge snapshot: $merge_sha (base: $merge_base_sha, head: $merge_head_sha)"
