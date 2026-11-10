@@ -11,7 +11,14 @@ const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
  */
 export function trustedIntakeTarget(policyValue: unknown, requested: string): string {
   if (!requested) return "";
-  if (!repositoryPattern.test(requested)) {
+  const [owner = "", name = ""] = requested.split("/");
+  if (
+    !repositoryPattern.test(requested) ||
+    owner === "." ||
+    owner === ".." ||
+    name === "." ||
+    name === ".."
+  ) {
     throw new CliError("Intake wake-up repository must be owner/repository.", 64);
   }
   const policy = parseRepositoryPolicy(policyValue);
