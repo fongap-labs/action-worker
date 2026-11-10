@@ -39,6 +39,8 @@ const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const tagPattern =
   /^[a-z0-9]+(?:-[a-z0-9]+)*-v[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/;
 const packageNamePattern = /^@fongap-labs\/[a-z0-9][a-z0-9._-]*$/;
+const stableVersionPattern =
+  /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
 const packageVersionPattern =
   /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
@@ -55,6 +57,9 @@ export function validateNpmRepublishRequest(
   ) {
     throw new CliError("::error::npm republish request is invalid.", 64);
   }
+  if (!stableVersionPattern.test(tag.slice(tag.lastIndexOf("-v") + 2))) {
+    throw new CliError("::error::npm republish requires a stable X.Y.Z release tag.", 66);
+  }
   validateRepositoryCapability(repository, policy, "release-target");
 }
 
@@ -69,7 +74,7 @@ export function validateNpmRelease(
     !isJsonRecord(release) ||
     release.draft !== false ||
     release.tag_name !== tag ||
-    typeof release.prerelease !== "boolean" ||
+    release.prerelease !== false ||
     !/^[0-9a-f]{40}$/.test(getJsonString(release, "target_commitish")) ||
     getJsonString(release, "html_url") !== `https://github.com/${repository}/releases/tag/${tag}`
   ) {
@@ -77,8 +82,8 @@ export function validateNpmRelease(
   }
 
   const version = tag.slice(tag.lastIndexOf("-v") + 2);
-  if (release.prerelease !== version.includes("-")) {
-    throw new CliError("::error::Release prerelease status does not match its version tag.", 66);
+  if (!stableVersionPattern.test(version)) {
+    throw new CliError("::error::npm republish requires a stable X.Y.Z Release.", 66);
   }
 
   const body = getJsonString(release, "body");
