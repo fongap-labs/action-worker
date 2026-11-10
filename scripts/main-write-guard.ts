@@ -1,4 +1,5 @@
 import {
+  completedPrRunReader,
   controlRepositoryOf,
   hasVerifiedCiEvidence,
   hasVerifiedControlStatus,
@@ -182,10 +183,11 @@ async function requireCentralPrEvidence(
 ): Promise<void> {
   const status = await reader.get(`repos/${repository}/commits/${prHeadSha}/status`);
   const controlRepository = getControlRepository();
+  const runReader = completedPrRunReader(reader, controlRepository);
   const label = `${repository}@${prHeadSha.slice(0, 12)}`;
   const governance = verificationRecorder(`PR Governance ${label}`);
   if (
-    !(await hasVerifiedControlStatus(reader, status, "PR Governance", {
+    !(await hasVerifiedControlStatus(runReader, status, "PR Governance", {
       controlRepository,
       targetRepository: repository,
       targetSha: prHeadSha,
@@ -197,7 +199,7 @@ async function requireCentralPrEvidence(
   }
   const evidence = verificationRecorder(`CI Evidence ${label}`);
   if (
-    !(await hasVerifiedCiEvidence(reader, status, {
+    !(await hasVerifiedCiEvidence(runReader, status, {
       controlRepository,
       targetRepository: repository,
       targetSha: prHeadSha,
@@ -208,7 +210,7 @@ async function requireCentralPrEvidence(
   }
   const mergeGate = verificationRecorder(`validate-merge ${label}`);
   if (
-    !(await hasVerifiedControlStatus(reader, status, "validate-merge", {
+    !(await hasVerifiedControlStatus(runReader, status, "validate-merge", {
       controlRepository,
       targetRepository: repository,
       targetSha: prHeadSha,
