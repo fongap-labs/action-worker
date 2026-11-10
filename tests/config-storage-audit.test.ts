@@ -4,6 +4,7 @@ import {
   auditStorageMetadata,
   managedAuditTargets,
   storageAuditFailureScope,
+  taskOpsAccountScope,
 } from "../scripts/config-storage-audit.ts";
 import { GithubHttpError } from "../scripts/github-api.ts";
 
@@ -344,4 +345,114 @@ test("ops Variable audit never ignores Environment Variable, rate or malformed m
       /403|429/
     );
   }
+});
+
+test("scheduled protected ops Account ID drift classifier never guesses unknown metadata", () => {
+  const account = "CLOUDFLARE_ACCOUNT_ID_PRIMARY";
+  const none = new Set<string>();
+  const present = new Set([account]);
+  assert.deepEqual(taskOpsAccountScope(none, none, present), {
+    source: "protected-ops",
+    drift_detected: false,
+    runtime_injection_proven: false,
+    variable_values_read: false,
+  });
+  assert.equal(taskOpsAccountScope(present, none, none).source, "job-context");
+  assert.deepEqual(taskOpsAccountScope(present, none, present), {
+    source: "duplicate-sources",
+    drift_detected: true,
+    runtime_injection_proven: false,
+    variable_values_read: false,
+  });
+  assert.deepEqual(taskOpsAccountScope(none, none, none), {
+    source: "missing",
+    drift_detected: true,
+    runtime_injection_proven: false,
+    variable_values_read: false,
+  });
+  assert.equal(taskOpsAccountScope(none, null, present).source, "unverified");
+  assert.equal(taskOpsAccountScope(none, null, present).drift_detected, null);
+  assert.equal(taskOpsAccountScope(none, none, null).source, "unverified");
+  assert.equal(taskOpsAccountScope(null, null, null).source, "unverified");
+  assert.doesNotMatch(
+    JSON.stringify(taskOpsAccountScope(present, none, present)),
+    /CLOUDFLARE|internal-vault|token|secret/i
+  );
+});
+
+test("real metadata scanner classifies only the protected Internal Vault ops Environment", async () => {
+  const account = "CLOUDFLARE_ACCOUNT_ID_PRIMARY";
+  const { reader } = fixture({
+    ["repos/" + repository + "/environments"]: {
+      total_count: 2,
+      environments: [{ name: "production" }, { name: "internal-vault-ops" }],
+    },
+    ["repos/" + repository + "/environments/internal-vault-ops/secrets"]: {
+      total_count: 0,
+      secrets: [],
+    },
+    ["repos/" + repository + "/environments/internal-vault-ops/variables"]: {
+      total_count: 1,
+      variables: [{ name: account, value: "not-to-be-output" }],
+    },
+  });
+  const readControl = {
+    async get(path: string): Promise<unknown> {
+      return await reader.get(path.replace("fongap-labs/action-worker", repository));
+    },
+  };
+  const onlyOps = await auditStorageMetadata(readControl, ["fongap-labs/action-worker"]);
+  assert.equal(onlyOps.task_ops_account_id_scope.source, "protected-ops");
+  assert.equal(onlyOps.task_ops_account_id_scope.drift_detected, false);
+  const unknownOrganization = await auditStorageMetadata(
+    readControl,
+    ["fongap-labs/action-worker"],
+    {
+      skipOrganization: true,
+    }
+  );
+  assert.equal(unknownOrganization.task_ops_account_id_scope.source, "unverified");
+  assert.equal(unknownOrganization.task_ops_account_id_scope.drift_detected, null);
+  const unknownEnvironment = await auditStorageMetadata(
+    readControl,
+    ["fongap-labs/action-worker"],
+    {
+      skipOrganization: true,
+      skipEnvironments: true,
+    }
+  );
+  assert.equal(unknownEnvironment.task_ops_account_id_scope.source, "unverified");
+  assert.equal(unknownEnvironment.task_ops_account_id_scope.drift_detected, null);
+  assert.doesNotMatch(JSON.stringify(onlyOps), /not-to-be-output|CLOUDFLARE|internal-vault/);
+});
+
+test("real metadata scanner flags root scope shadowing of the protected ops source", async () => {
+  const account = "CLOUDFLARE_ACCOUNT_ID_PRIMARY";
+  const { reader } = fixture({
+    ["repos/" + repository + "/actions/variables"]: {
+      total_count: 2,
+      variables: [{ name: "PUBLIC_NAME" }, { name: account, value: "never-print-account-value" }],
+    },
+    ["repos/" + repository + "/environments"]: {
+      total_count: 2,
+      environments: [{ name: "production" }, { name: "internal-vault-ops" }],
+    },
+    ["repos/" + repository + "/environments/internal-vault-ops/secrets"]: {
+      total_count: 0,
+      secrets: [],
+    },
+    ["repos/" + repository + "/environments/internal-vault-ops/variables"]: {
+      total_count: 1,
+      variables: [{ name: account, value: "do-not-print" }],
+    },
+  });
+  const control = {
+    async get(path: string): Promise<unknown> {
+      return await reader.get(path.replace("fongap-labs/action-worker", repository));
+    },
+  };
+  const summary = await auditStorageMetadata(control, ["fongap-labs/action-worker"]);
+  assert.equal(summary.task_ops_account_id_scope.source, "duplicate-sources");
+  assert.equal(summary.task_ops_account_id_scope.drift_detected, true);
+  assert.doesNotMatch(JSON.stringify(summary), /CLOUDFLARE|never-print|do-not-print/);
 });
