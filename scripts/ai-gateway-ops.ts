@@ -10,6 +10,9 @@ type WorkerName = (typeof workerNames)[number];
 const gatewaySecretName =
   /^(?:AIG_DEPLOY_HEALTH_KEY|AIG_(?:INFERENCE|PERCEPTION|GENERATION)_AUTH_KEY|AIG_ACCESS_KEY_(?:AIR|PRO|MAX|ULTRA|AGENT)|AIG_EDGE_CACHE_HMAC_KEY)$/;
 const providerShardName = /^AIG_TIER[12]_CREDENTIALS_(?:0[1-9]|10)$/;
+// Destructive operations are intentionally narrower than reads and writes.
+const retiredGatewaySecretName =
+  /^(?:AIG_TOKEN_ENCRYPTION_KEY|AIG_IS_SUBSCRIPTION_ENABLED|AIG_OAUTH_[A-Z0-9_]+|AIG_TIER3_[A-Z0-9_]+|AIG_TIER[12]_CREDENTIALS_(?:0[1-9]|10))$/;
 
 function selectedWorker(env: OperationsEnvironment): WorkerName {
   const worker = env.AIG_OPS_WORKER_NAME || "ai-gateway";
@@ -27,6 +30,18 @@ function allowedSecretForWorker(worker: WorkerName, name: string): boolean {
     "ai-generation-center": "AIG_GENERATION_AUTH_KEY",
   }[worker];
   return name === auth || providerShardName.test(name);
+}
+export function validateSecretDeletion(name: string, env: OperationsEnvironment): void {
+  const worker = selectedWorker(env);
+  if (worker !== "ai-gateway" || !retiredGatewaySecretName.test(name)) {
+    throw new Error("Only retired Gateway Secrets may be deleted by this operation.");
+  }
+  if (env.AIG_OPS_DELETE_CONFIRM !== `DELETE ai-gateway ${name}`) {
+    throw new Error("Explicit deletion confirmation must match the selected Worker and Secret name.");
+  }
+  if (providerShardName.test(name) && env.AIG_OPS_PROVIDERS_MIGRATED !== "true") {
+    throw new Error("Provider credential migration must be independently approved before Gateway shard deletion.");
+  }
 }
 const healthKeyPattern = /^[A-Za-z0-9_-]{32,}$/;
 const maxSecretBytes = 4500;
@@ -90,7 +105,7 @@ async function requestCloudflare(
   fetcher: FetchFunction,
   url: string,
   token: string,
-  method: "GET" | "PUT",
+  method: "GET" | "PUT" | "DELETE",
   body?: { name: string; text: string; type: "secret_text" }
 ): Promise<Record<string, unknown>> {
   let response: Response;
@@ -250,6 +265,41 @@ export async function putWorkerSecret(
   }
 }
 
+/** Remove only an explicitly approved retired Gateway Secret; never touch center Secrets. */
+export async function deleteWorkerSecret(
+  name: string,
+  env: OperationsEnvironment,
+  fetcher: FetchFunction = fetch
+): Promise<void> {
+  validateSecretDeletion(name, env);
+  const { accountId, token } = validateCommon(env);
+  const healthKey = assertString(env.AIG_DEPLOY_HEALTH_KEY, "AIG_DEPLOY_HEALTH_KEY");
+  if (!healthKeyPattern.test(healthKey)) {
+    throw new Error("AIG_DEPLOY_HEALTH_KEY must be an independent URL-safe credential.");
+  }
+  const url = healthUrl(env);
+  const before = await listWorkerSecretNames(env, fetcher);
+  if (!before.includes(name)) {
+    throw new Error("Secret is already absent; no Cloudflare deletion was performed.");
+  }
+  if (!(await checkRuntimeHealth(url, healthKey, fetcher))) {
+    throw new Error("Gateway runtime health must pass before deleting a retired Secret.");
+  }
+  await requestCloudflare(
+    fetcher,
+    `${cloudflareUrl(accountId, "ai-gateway")}/${encodeURIComponent(name)}`,
+    token,
+    "DELETE"
+  );
+  const after = await listWorkerSecretNames(env, fetcher);
+  if (after.includes(name)) {
+    throw new Error("Deleted Secret is still present; Cloudflare state must be inspected.");
+  }
+  if (!(await checkRuntimeHealth(url, healthKey, fetcher))) {
+    throw new Error("Post-deletion Gateway health failed; Cloudflare state changed and requires recovery review.");
+  }
+}
+
 export async function runOperations(
   operation: string,
   secretName: string,
@@ -262,6 +312,10 @@ export async function runOperations(
   }
   if (operation === "put") {
     await putWorkerSecret(secretName, env, fetcher);
+    return [];
+  }
+  if (operation === "delete") {
+    await deleteWorkerSecret(secretName, env, fetcher);
     return [];
   }
   throw new Error("Unsupported AI Gateway operations action.");
@@ -281,9 +335,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
       } else {
         const worker = selectedWorker(env);
         console.log(
-          worker === "ai-gateway"
-            ? "Gateway runtime Secret updated; inventory and public health verified. No Secret values logged."
-            : "Private center Secret updated; inventory verified. Runtime readiness must be checked before Gateway cutover."
+          operation === "delete"
+            ? "Approved retired Gateway Secret deleted; inventory and public health verified."
+            : worker === "ai-gateway"
+              ? "Gateway runtime Secret updated; inventory and public health verified. No Secret values logged."
+              : "Private center Secret updated; inventory verified. Runtime readiness must be checked before Gateway cutover."
         );
       }
     })
