@@ -53,6 +53,12 @@ skills (execution procedure)
 README
 ```
 
+## Explicitly excluded archive repository
+
+**`fongap-labs/delta-legacy` 不再列入后续修复范围。** 它是归档用途仓库，已经退出 Action Worker 治理。所有 Agent、自动任务与后续任务链均不得将其纳入开发、捉虫、修复、审查、中央 CI、PR 治理、发布、部署或自动接入，不得对该仓库创建、更新、合并 PR 或写入提交。只有维护者明确重新授权后，才可通过变更中央排除策略调整这一限制。
+
+执行前以 `policies/repository-access.json` 为机器权威：`excluded_repositories` 必须保留 `fongap-labs/delta-legacy`，`grants` 不得包含该仓库。发现目录枚举、组织巡检或历史任务提及该仓库，应直接跳过写操作，不得因为“全组织”“所有仓库”这类概括性任务自动重新纳管。
+
 ## Shared governance rule
 
 If a rule applies to two or more managed repositories, prefer defining it once in Action Worker. Business repositories retain only product-specific architecture, contracts, dependencies, release compatibility and other project-local boundaries.
