@@ -603,7 +603,6 @@ test("completed PR run reuse cannot bypass per-context workflow or signed timest
   assert.equal(source.requested.length, 1);
 });
 
-
 test("completed PR run cache rejects mismatched response ID and retries independently", async () => {
   const runPath = `repos/${controlRepository}/actions/runs/42`;
   const source = runReader([
@@ -613,8 +612,8 @@ test("completed PR run cache rejects mismatched response ID and retries independ
   const scoped = completedPrRunReader(source, controlRepository);
   const wrong = await scoped.get(runPath);
   assert.equal((wrong as { id: number }).id, 99);
-  assert.equal((await scoped.get(runPath) as { id: number }).id, 42);
-  assert.equal((await scoped.get(runPath) as { id: number }).id, 42);
+  assert.equal(((await scoped.get(runPath)) as { id: number }).id, 42);
+  assert.equal(((await scoped.get(runPath)) as { id: number }).id, 42);
   assert.equal(source.requested.length, 2, "only the matching verified run may be reused");
 });
 
