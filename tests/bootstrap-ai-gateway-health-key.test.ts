@@ -88,6 +88,6 @@ test("one-shot main-only bootstrap retains the central operations and admin trus
   assert.match(script, /randomBytes\(32\)\.toString\("hex"\)/);
   assert.match(script, /input: value/);
   assert.match(script, /assertHealthKeyIsUninitialized\(\[\], githubNames\)/);
-  assert.match(script, /assertHealthKeyIsUninitialized\(names, \[\[\], \[\]\]\)/);
+  assert.match(script, /assertHealthKeyIsUninitialized\(names, \[\[\]\]\)/);
   assert.match(script, /putWorkerSecret\(/);
 });
