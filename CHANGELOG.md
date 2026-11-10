@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 私有仓库 GitHub Free 计划不支持原生 Auto-merge 时，仅对该能力限制容忍设置读回差异，保留其余仓库设置与中央签名合并门禁；同仓库官方 fongap-bot PR 可不经独立审查进入 CI，其他 Bot 与 Fork 仍需可信准入。
+
 - 新增: fongap-labs 全部 10 个仓库统一启用自动合并；仅在中央签名 CI Evidence、PR Governance 与 validate-merge 全绿且精确 PR HEAD 未变化时自动 squash 合并，草稿和失败检查保持阻断，独立审查不再作为合并条件。
 
 - 修复: Audit-Code 端点探测对短期限流作有界退避，OCR 仅在明确短期限流时恢复会话。
