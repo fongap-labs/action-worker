@@ -196,9 +196,13 @@ test("governed Release dispatches npm only after publication and never publishes
   assert.equal(release.jobs.npm?.needs, "release");
   assert.equal(
     release.jobs.npm?.if,
-    "needs.release.result == 'success' && needs.release.outputs.npm_asset == 'true' && needs.release.outputs.is_prerelease == 'false'"
+    "needs.release.result == 'success' && needs.release.outputs.npm_asset == 'true' && needs.release.outputs.is_prerelease == 'false' && needs.release.outputs.target_repository == 'fongap-labs/dsh-plugin' && github.event.client_payload.source_repository == 'fongap-labs/dsh-plugin'"
   );
   assert.equal(release.jobs.npm?.permissions?.contents, "read");
+  assert.equal(
+    npm.jobs.publish?.if,
+    "${{ (github.event.client_payload.repository || inputs.repository) == 'fongap-labs/dsh-plugin' }}"
+  );
   const npmSteps = release.jobs.npm?.steps ?? [];
   assert.equal(npmSteps[0]?.uses, "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1");
   assert.equal(
