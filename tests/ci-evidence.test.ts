@@ -3,9 +3,9 @@ import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   centralCiWait,
-  hasVerifiedCiFailureStatus,
   hasTrustedSuccessfulCiEvidence,
   hasVerifiedCiEvidence,
+  hasVerifiedCiFailureStatus,
   hasVerifiedControlStatus,
   latestCiStatus,
   mainWriteGuardWorkflowPaths,
