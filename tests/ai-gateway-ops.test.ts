@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   listWorkerSecretNames,
@@ -215,4 +216,36 @@ test("health failure after a secret update is reported without falsely claiming 
     putWorkerSecret("AIG_ACCESS_KEY_AIR", mockEnv, fetcher),
     /previous value via a separately approved operation/
   );
+});
+
+test("protected four-Worker inventory runs only pinned audited source on manual dispatch", () => {
+  const workflow = readFileSync(
+    new URL("../.github/workflows/ai-gateway-ops.yml", import.meta.url),
+    "utf8"
+  );
+  assert.match(workflow, /^on:\n {2}workflow_dispatch:/m);
+  assert.doesNotMatch(workflow, /^\s+push:/m);
+  assert.match(workflow, /name: ai-gateway-ops/);
+  assert.match(workflow, /- runtime-inventory/);
+  assert.match(workflow, /if: inputs.operation == 'runtime-inventory'/);
+  assert.match(workflow, /repository: fongap-labs\/ai-gateway/);
+  assert.match(workflow, /path: ag-inspector/);
+  assert.match(workflow, /persist-credentials: false/);
+  const source = workflow.match(/ref: ([a-f0-9]{40})\n\s+path: ag-inspector/);
+  const checked = workflow.match(/PINNED_INSPECTOR_SHA: ([a-f0-9]{40})/);
+  assert.ok(source && checked);
+  assert.equal(
+    source[1],
+    checked[1],
+    "checkout and runtime verification use exactly one immutable SHA"
+  );
+  assert.match(workflow, /git -C ag-inspector rev-parse HEAD/);
+  assert.match(workflow, /node ag-inspector\/scripts\/check-cloudflare-live-inventory\.mjs/);
+  assert.match(workflow, /node ag-inspector\/scripts\/check-production-cutover-evidence\.mjs/);
+  assert.match(workflow, /node ag-inspector\/scripts\/cloudflare-live-inventory\.mjs/);
+  assert.match(
+    workflow,
+    /CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_API_TOKEN_SECONDARY \}\}/
+  );
+  assert.doesNotMatch(workflow, /node ag-inspector\/scripts\/cloudflare-live-inventory\.mjs --out/);
 });
