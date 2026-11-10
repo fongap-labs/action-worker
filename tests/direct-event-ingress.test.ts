@@ -96,11 +96,11 @@ class FakeDatabase implements IngressDatabase {
         if (!sql.startsWith("SELECT delivery_id")) throw new Error("Unexpected SQL all");
         const results = [...database.rows.values()]
           .filter(
-              (row) =>
-                row.delivered_ms === null &&
-                row.attempt_count < 5 &&
-                row.lease_until_ms <= Number(values[0])
-            )
+            (row) =>
+              row.delivered_ms === null &&
+              row.attempt_count < 5 &&
+              row.lease_until_ms <= Number(values[0])
+          )
           .sort((a, b) => a.lease_until_ms - b.lease_until_ms || a.created_ms - b.created_ms)
           .slice(0, 25)
           .map((row) => ({ delivery_id: row.delivery_id, installation_id: row.installation_id }));
