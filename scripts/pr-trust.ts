@@ -15,6 +15,7 @@ const DECISIVE_REVIEW_STATES = new Set(["APPROVED", "CHANGES_REQUESTED", "DISMIS
 
 // Dependabot is a GitHub App, so no account can register this login.
 const DEPENDENCY_BOT_LOGIN = "dependabot[bot]";
+const MANAGED_APP_LOGIN = "fongap-bot[bot]";
 
 // Written as the PR Governance description while a pull request waits for approval; central
 // intake reads it back and stops re-dispatching until an approval of the head commit exists.
@@ -23,7 +24,7 @@ export const AWAITING_APPROVAL_DESCRIPTION =
 
 export type PrTrustDecision = {
   trusted: boolean;
-  basis: "author" | "approval" | "dependency-bot" | "none";
+  basis: "author" | "approval" | "dependency-bot" | "managed-app" | "none";
   association: string;
 };
 
@@ -47,6 +48,22 @@ function isPublicDependencyBotPull(pull: Record<string, unknown>): boolean {
     getJsonString(pull.user, "type") === "Bot" &&
     base.private === false &&
     baseName !== "" &&
+    getJsonString(repositoryOf(pull.head), "full_name") === baseName
+  );
+}
+
+// fongap-bot is the named, organization-owned GitHub App identity. A same-repository
+// PR authored by that exact Bot account already used a privileged App write path.
+// This is not an endorsement of other bots or any fork: no independent reviewer
+// is required before deterministic CI for our own App-authored code.
+function isManagedAppPull(pull: Record<string, unknown>): boolean {
+  const author = pull.user;
+  const baseName = getJsonString(repositoryOf(pull.base), "full_name");
+  return (
+    login(author) === MANAGED_APP_LOGIN &&
+    isJsonRecord(author) &&
+    getJsonString(author, "type") === "Bot" &&
+    /^fongap-labs\/[A-Za-z0-9_.-]+$/.test(baseName) &&
     getJsonString(repositoryOf(pull.head), "full_name") === baseName
   );
 }
@@ -76,6 +93,9 @@ export function evaluatePrTrust(
   }
   if (isPublicDependencyBotPull(pull)) {
     return { trusted: true, basis: "dependency-bot", association };
+  }
+  if (isManagedAppPull(pull)) {
+    return { trusted: true, basis: "managed-app", association };
   }
 
   // Reviews arrive in submission order; each reviewer's latest decisive review on the head wins.
