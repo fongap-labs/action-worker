@@ -46,7 +46,7 @@ node scripts/audit-task-variable-scope.ts \
 
 Action Worker 现有 `audit-config-scope.yml` 已按主分支策略变更和每日调度运行。本轮在既有只读 `config-storage-audit.ts` 中检测四个批准 Task 项目共用的 Account ID 来源：比较 Action Worker Repository / 已授权 Organization Variables 与 `internal-vault-ops` Environment Variables 的**名称元数据**，不读取或保存 Variable 值。
 
-报告只输出 `task_ops_account_id_scope` 的来源类别与 `drift_detected`。`protected-ops` / `job-context` 表示目前只有一个可辨认来源；`duplicate-sources` 表示两个来源均存在，可能产生遮蔽与配置漂移；`missing` 表示完整可读的作用域中均未找到；组织或 Environment 权限不可读时为 `unverified`，漂移结果为 `null`，**不得解释成配置不存在**。明确识别到重复或缺失时，现有审计作业生成不含名称、值或账户标识的警告，不自动迁移或扩权。
+报告只输出 `task_ops_account_id_scope` 的来源类别与 `drift_detected`。`protected-ops` / `job-context` 表示目前只有一个可辨认来源；`duplicate-sources` 表示 Repository、已授权 Organization、受保护 ops 三种来源中至少两个同名来源同时存在（包括 Repository 遮蔽 Organization），可能产生遮蔽与配置漂移；`missing` 表示完整可读的作用域中均未找到；组织或 Environment 权限不可读且无法证明重复时为 `unverified`，漂移结果为 `null`，**不得解释成配置不存在或只有一个来源**。即使部分作用域不可读，只要另外两个已经确认同名，仍报告 `duplicate-sources`；绝不推断变量值是否相同。明确识别到重复或缺失时，现有审计作业生成不含名称、值或账户标识的警告，不自动迁移或扩权。
 
 名称可见不代表变量值有效、工作流可注入或任务成功；四个 Task 项目的真实 Runner 验收和最小权限调整仍按 #1550 未完成事项单独处理。
 
