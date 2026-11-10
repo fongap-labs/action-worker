@@ -19,6 +19,7 @@ on:
         options:
           - ai-gateway
           - ai-inference-center
+          - ai-perception-center
           - ai-generation-center
         default: ai-gateway
       secret_name:
