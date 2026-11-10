@@ -181,7 +181,10 @@ async function main(): Promise<void> {
   if (bootstrapMetadataOnly) {
     // The workflow passes exact names, not toJSON(vars), which includes inherited bindings.
     if (process.env.AIG_OPS_VARIABLES_JSON) {
-      throw new CliError("Bootstrap metadata must not include the inherited Variables snapshot.", 77);
+      throw new CliError(
+        "Bootstrap metadata must not include the inherited Variables snapshot.",
+        77
+      );
     }
     validated = validateGatewayBootstrapMetadata(process.env);
   } else {
