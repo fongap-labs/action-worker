@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { shouldResume } from "../scripts/should-resume-ocr.ts";
+import { resumeDelayMs, shouldResume } from "../scripts/should-resume-ocr.ts";
 
 function failedReview(status: number, retryAfterMs: number, errorClass = "rate_limited") {
   return {
@@ -46,4 +46,12 @@ test("OCR keeps transient network/overload resumes and requires valid session ev
   invalid.session_id = "";
   assert.equal(shouldResume(invalid), false);
   assert.equal(shouldResume({ ...failedReview(429, 1000), retry_report: {} }), false);
+});
+
+test("OCR session resume waits at least the short provider Retry-After", () => {
+  assert.equal(resumeDelayMs(failedReview(429, 30_000), 15_000), 30_000);
+  assert.equal(resumeDelayMs(failedReview(429, 5000), 15_000), 15_000);
+  assert.equal(resumeDelayMs(failedReview(429, 120_000), 15_000), 120_000);
+  assert.equal(resumeDelayMs(failedReview(503, 30_000), 15_000), 15_000);
+  assert.equal(resumeDelayMs(undefined, 15_000), 15_000);
 });
