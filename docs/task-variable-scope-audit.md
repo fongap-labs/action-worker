@@ -42,6 +42,14 @@ node scripts/audit-task-variable-scope.ts \
 
 在 `resolve-task-secret-plan.ts resolve` 中，先前未传入已经由 `export-repository-variables.ts` 写入 GitHub 作业环境的 Variables，导致计划构建时一律按空环境检查必需 Variable。即使配置存在，`CLOUDFLARE_ACCOUNT_ID_PRIMARY` 也会在真正执行前被拒绝。修复后计划解析读取现有作业环境；这是代码修复，**不能反推管理员配置实际存在或值非空**。必须以修复合并后针对固定来源提交的真实受控执行日志重新判定 #1550，不得把原先的失败当作配置缺失证明。
 
+## 中央无人值守漂移识别
+
+Action Worker 现有 `audit-config-scope.yml` 已按主分支策略变更和每日调度运行。本轮在既有只读 `config-storage-audit.ts` 中检测四个批准 Task 项目共用的 Account ID 来源：比较 Action Worker Repository / 已授权 Organization Variables 与 `internal-vault-ops` Environment Variables 的**名称元数据**，不读取或保存 Variable 值。
+
+报告只输出 `task_ops_account_id_scope` 的来源类别与 `drift_detected`。`protected-ops` / `job-context` 表示目前只有一个可辨认来源；`duplicate-sources` 表示两个来源均存在，可能产生遮蔽与配置漂移；`missing` 表示完整可读的作用域中均未找到；组织或 Environment 权限不可读时为 `unverified`，漂移结果为 `null`，**不得解释成配置不存在**。明确识别到重复或缺失时，现有审计作业生成不含名称、值或账户标识的警告，不自动迁移或扩权。
+
+名称可见不代表变量值有效、工作流可注入或任务成功；四个 Task 项目的真实 Runner 验收和最小权限调整仍按 #1550 未完成事项单独处理。
+
 ## 后续验收
 
 对于 `CLOUDFLARE_ACCOUNT_ID_PRIMARY`：若名称仅在某 Environment 出现，应先独立审核当前任务是否应有该环境绑定，而不是直接将 Environment 加到高权限作业；若不存在或组织未授权，先走最小权限审批。若名称可见，也不表示 Variable 值已被注入。**必须在批准的试点运行中保持原必需槽位 fail-closed 校验，并取得真实成功证据**，随后分别关闭 #1550 和 #1478 的核查。禁止把 Variable 迁回 Secret、在日志打印值或用伪造环境变量让生产任务变绿。

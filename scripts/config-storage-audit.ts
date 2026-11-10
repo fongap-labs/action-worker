@@ -45,7 +45,52 @@ export type StorageAuditSummary = {
   consumer_credentials_verified: false;
   environment_protection_verified: false;
   automatic_writes: false;
+  task_ops_account_id_scope: TaskOpsAccountScope;
 };
+
+export type TaskOpsAccountScope = {
+  source: "job-context" | "protected-ops" | "duplicate-sources" | "missing" | "unverified";
+  drift_detected: boolean | null;
+  runtime_injection_proven: false;
+  variable_values_read: false;
+};
+
+const taskAccountName = "CLOUDFLARE_ACCOUNT_ID_PRIMARY";
+const controlRepository = "fongap-labs/action-worker";
+const protectedTaskOpsEnvironment = "internal-vault-ops";
+
+/**
+ * Read-only provenance check for the four approved Internal Vault Task consumers.
+ * GitHub Environment values are NOT inherited by the unprotected execute Job:
+ * they are available only through the separate protected ops handoff.
+ * Unknown Organization/Environment permissions must not become "missing".
+ */
+export function taskOpsAccountScope(
+  repositoryNames: ReadonlySet<string> | null,
+  inheritedOrganizationNames: ReadonlySet<string> | null,
+  protectedEnvironmentNames: ReadonlySet<string> | null
+): TaskOpsAccountScope {
+  const repositoryPresent = repositoryNames?.has(taskAccountName) === true;
+  const jobPresent = inheritedOrganizationNames === null
+    ? (repositoryPresent ? true : null)
+    : repositoryPresent || inheritedOrganizationNames.has(taskAccountName);
+  const opsPresent = protectedEnvironmentNames === null
+    ? null
+    : protectedEnvironmentNames.has(taskAccountName);
+  let source: TaskOpsAccountScope["source"] = "unverified";
+  if (jobPresent === true && opsPresent === true) source = "duplicate-sources";
+  else if (jobPresent !== null && opsPresent !== null) {
+    if (jobPresent) source = "job-context";
+    else if (opsPresent) source = "protected-ops";
+    else source = "missing";
+  }
+  return {
+    source,
+    drift_detected: source === "unverified" ? null : source === "duplicate-sources" || source === "missing",
+    runtime_injection_proven: false,
+    variable_values_read: false,
+  };
+}
 
 /** Include newly enrolled governed repositories automatically without granting permissions. */
 export function managedAuditTargets(
@@ -307,7 +352,11 @@ export async function auditStorageMetadata(
     consumer_credentials_verified: false,
     environment_protection_verified: false,
     automatic_writes: false,
+    task_ops_account_id_scope: taskOpsAccountScope(null, null, null),
   };
+  let controlRepoVariables: Set<string> | null = null;
+  let controlOrgVariables: Set<string> | null = null;
+  let controlOpsVariables: Set<string> | null = null;
   const orgSecrets = options.skipOrganization ? [] : await organizationEntries(reader, "secrets");
   const orgVariables = options.skipOrganization
     ? []
@@ -342,6 +391,11 @@ export async function auditStorageMetadata(
       countShadowed(repoVariables, inheritedVariables);
     addImpacted(result, repoVariables);
     addImpacted(result, inheritedVariables);
+    if (repository === controlRepository) {
+      controlRepoVariables = repoVariables;
+      controlOrgVariables = options.skipOrganization ? null : inheritedVariables;
+      if (!options.skipEnvironments) controlOpsVariables = new Set();
+    }
 
     if (!options.skipEnvironments) {
       const environments = await listAll(
@@ -374,6 +428,9 @@ export async function auditStorageMetadata(
         const environmentVariables = namesOf(
           await listAll(reader, url + "/variables", "variables")
         );
+        if (repository === controlRepository && name === protectedTaskOpsEnvironment) {
+          controlOpsVariables = environmentVariables;
+        }
         result.environment_secrets = (result.environment_secrets ?? 0) + environmentSecrets.size;
         result.environment_variables =
           (result.environment_variables ?? 0) + environmentVariables.size;
@@ -388,6 +445,11 @@ export async function auditStorageMetadata(
     }
     result.repositories_verified++;
   }
+  result.task_ops_account_id_scope = taskOpsAccountScope(
+    controlRepoVariables,
+    controlOrgVariables,
+    controlOpsVariables
+  );
   if (!result.environment_secret_scope_verified) {
     result.environment_secrets = null;
     result.environment_shadowed_secret_bindings = null;
@@ -483,6 +545,11 @@ async function main(): Promise<void> {
       }
     }
     console.log(JSON.stringify(summary, null, 2));
+    if (summary.task_ops_account_id_scope.drift_detected === true) {
+      console.warn(
+        "::warning::Task Account ID metadata source drift detected; verify protected ops and job-level scopes without exposing values."
+      );
+    }
   } catch (error) {
     const failure =
       error instanceof GithubHttpError ? `http_${error.status}_${error.kind}` : "unclassified";
