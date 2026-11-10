@@ -39,6 +39,16 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID_SECONDARY: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
           AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
         run: node scripts/gateway-ops-variables.ts
+      # Validate the public origin before admin-ops creates any Secret.
+      - name: Require configured public health origin
+        env:
+          AIG_PUBLIC_URL: ${{ steps.metadata.outputs.public_url }}
+        shell: bash
+        run: |
+          if [[ -z "$AIG_PUBLIC_URL" ]]; then
+            echo "::error::Approved Gateway public health origin is unavailable." >&2
+            exit 77
+          fi
 
   worker-preflight:
     if: github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
