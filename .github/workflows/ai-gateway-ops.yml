@@ -12,8 +12,17 @@ on:
           - runtime-inventory
           - put
         default: inventory
+      worker:
+        description: 运行时 Worker（私有中心必须先完成无公网部署）
+        required: true
+        type: choice
+        options:
+          - ai-gateway
+          - ai-inference-center
+          - ai-generation-center
+        default: ai-gateway
       secret_name:
-        description: put 操作的目标密钥名称（只接受 AI Gateway 运行时密钥）
+        description: put 操作的目标密钥名称（按 Worker 严格授权）
         required: false
         type: string
 
@@ -51,6 +60,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}
           CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
+          AIG_OPS_WORKER_NAME: ${{ inputs.worker }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -104,6 +114,7 @@ jobs:
           AIG_DEPLOY_HEALTH_KEY: ${{ secrets.AIG_DEPLOY_HEALTH_KEY }}
           AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
           SECRET_NAME: ${{ inputs.secret_name }}
+          AIG_OPS_WORKER_NAME: ${{ inputs.worker }}
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -114,12 +125,14 @@ jobs:
         shell: bash
         env:
           OPERATION: ${{ inputs.operation }}
+          TARGET_WORKER: ${{ inputs.worker }}
         run: |
           {
             echo "## AI Gateway secret operations"
             echo
             echo "- Operation: $OPERATION"
-            echo "- Scope: AI Gateway runtime (runtime-inventory reads four Worker metadata sets)"
+            echo "- Worker: $TARGET_WORKER"
+            echo "- Scope: selected runtime Worker (runtime-inventory is read-only for four Workers)"
             echo "- Secret values: never written to workflow output"
             echo "- Result: ${{ job.status }}"
           } >> "$GITHUB_STEP_SUMMARY"
