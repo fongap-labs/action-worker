@@ -58,7 +58,10 @@ export function validateNpmRepublishRequest(
     throw new CliError("::error::npm republish request is invalid.", 64);
   }
   if (repository !== npmReleaseRepository) {
-    throw new CliError("::error::npm publication is limited to fongap-labs/dsh-plugin products.", 66);
+    throw new CliError(
+      "::error::npm publication is limited to fongap-labs/dsh-plugin products.",
+      66
+    );
   }
   if (!stableVersionPattern.test(tag.slice(tag.lastIndexOf("-v") + 2))) {
     throw new CliError("::error::npm republish requires a stable X.Y.Z release tag.", 66);
