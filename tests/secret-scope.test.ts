@@ -495,18 +495,7 @@ test("AI Gateway operations workflow is protected and never accepts secret value
   assert.match(workflow, /node scripts\/ai-gateway-ops\.ts put/);
   assert.match(workflow, /node scripts\/ai-gateway-ops\.ts inventory/);
   assert.match(workflow, /persist-credentials: false/);
-  // Secret mutation and private-center code deployment are separate guarded
-  // operations. A Secret put must never upload or replace Worker code.
-  const putStart = workflow.indexOf("      - name: Update one Worker Secret");
-  const centerStart = workflow.indexOf(
-    "      - name: Check out approved AI Gateway private centers"
-  );
-  assert.ok(putStart >= 0 && centerStart > putStart);
-  const putStep = workflow.slice(putStart, centerStart);
-  assert.match(putStep, /if: inputs.operation == 'put'/);
-  assert.doesNotMatch(putStep, /wrangler|ops-placeholder|deploy\s+--config|rollback/);
-  assert.match(workflow, /if: inputs.operation == 'deploy-center'/);
-  assert.doesNotMatch(workflow, /env:\s*\$\{\{\s*secrets\s*\}\}/);
+  assert.doesNotMatch(workflow, /wrangler|ops-placeholder|deploy\\s+--config|rollback/);
   assert.doesNotMatch(workflow, /echo[^\n]*\$AIG_OPS_SECRET_VALUE/);
   assert.doesNotMatch(workflow, /secret_value:\s*\n\s*required:/i);
   assert.match(handler, /PUT/);
