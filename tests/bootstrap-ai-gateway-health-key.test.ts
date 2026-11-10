@@ -43,7 +43,7 @@ test("bootstrap cannot overwrite Cloudflare or the credential-owning ops Environ
   assert.throws(() => assertHealthKeyIsUninitialized([], [[], []]), /incomplete/);
 });
 
-test("one-shot main-only bootstrap retains the central operations and admin trust domains", () => {
+test("one-shot bootstrap reuses existing deploy Secrets with ops-only non-secret metadata", () => {
   const workflow = parse(
     readFileSync(".github/workflows/bootstrap-health-key.yml", "utf8")
   ) as Record<string, unknown>;
@@ -51,40 +51,55 @@ test("one-shot main-only bootstrap retains the central operations and admin trus
   assert.deepEqual(trigger.push.branches, ["main"]);
   assert.deepEqual(trigger.push.paths, ["policies/ai-gateway-health-bootstrap.request"]);
   const jobs = workflow.jobs as Record<string, Record<string, unknown>>;
-  assert.deepEqual(Object.keys(jobs), ["worker-preflight", "github-bootstrap", "worker-publish"]);
+  assert.deepEqual(Object.keys(jobs), [
+    "gateway_metadata",
+    "worker-preflight",
+    "github-bootstrap",
+    "worker-publish",
+  ]);
+  const metadata = jobs.gateway_metadata;
   const preflight = jobs["worker-preflight"];
   const github = jobs["github-bootstrap"];
   const publish = jobs["worker-publish"];
-  assert.ok(preflight && github && publish);
-  assert.equal((preflight.environment as { name: string }).name, "ai-gateway-ops");
+  assert.ok(metadata && preflight && github && publish);
+  assert.equal((metadata.environment as { name: string }).name, "ai-gateway-ops");
+  assert.equal((preflight.environment as { name: string }).name, "production");
   assert.equal((github.environment as { name: string }).name, "admin-ops");
-  assert.equal((publish.environment as { name: string }).name, "ai-gateway-ops");
-  assert.equal(jobs["github-bootstrap"]?.needs, "worker-preflight");
-  assert.equal(jobs["worker-publish"]?.needs, "github-bootstrap");
+  assert.equal((publish.environment as { name: string }).name, "production");
+  assert.equal(preflight.needs, "gateway_metadata");
+  assert.equal(github.needs, "worker-preflight");
+  assert.deepEqual(publish.needs, ["github-bootstrap", "gateway_metadata"]);
+  assert.deepEqual(metadata.outputs, {
+    account_id: "${{ steps.metadata.outputs.account_id }}",
+    public_url: "${{ steps.metadata.outputs.public_url }}",
+  });
+  const metadataSteps = metadata.steps as { name?: string; env?: Record<string, string>; run?: string }[];
+  const exportStep = metadataSteps.find((step) => step.name === "Validate approved Gateway ops metadata");
+  assert.equal(exportStep?.env?.CLOUDFLARE_ACCOUNT_ID_SECONDARY,
+    "${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}");
+  assert.equal(exportStep?.env?.AIG_PUBLIC_URL, "${{ vars.AIG_PUBLIC_URL }}");
+  assert.equal(exportStep?.run, "node scripts/gateway-ops-variables.ts");
+  assert.ok(metadataSteps.some((step) =>
+    step.name === "Require configured public health origin" &&
+    step.env?.AIG_PUBLIC_URL === "${{ steps.metadata.outputs.public_url }}"
+  ));
+  assert.doesNotMatch(JSON.stringify(metadata), /secrets\./);
 
-  const steps = jobs["github-bootstrap"]?.steps as { env?: Record<string, string> }[];
-  assert.ok(steps.some((step) => step.env?.GH_TOKEN === "${{ secrets.AW_ADMIN_TOKEN }}"));
+  const bootstrapSteps = github.steps as { env?: Record<string, string> }[];
+  assert.ok(bootstrapSteps.some((step) => step.env?.GH_TOKEN === "${{ secrets.AW_ADMIN_TOKEN }}"));
   for (const job of [preflight, publish]) {
-    const jobSteps = job.steps as { env?: Record<string, string> }[];
-    const deployEnv = jobSteps.find((step) => step.env?.CLOUDFLARE_API_TOKEN_OPS);
-    assert.equal(
-      deployEnv?.env?.CLOUDFLARE_API_TOKEN_OPS,
-      "${{ secrets.CLOUDFLARE_API_TOKEN_OPS }}"
-    );
-    assert.equal(
-      deployEnv?.env?.CLOUDFLARE_ACCOUNT_ID_OPS,
-      "${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}"
-    );
+    const steps = job.steps as { env?: Record<string, string> }[];
+    const deployEnv = steps.find((step) => step.env?.CLOUDFLARE_API_TOKEN_OPS);
+    assert.equal(deployEnv?.env?.CLOUDFLARE_API_TOKEN_OPS,
+      "${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}");
+    assert.equal(deployEnv?.env?.CLOUDFLARE_ACCOUNT_ID_OPS,
+      "${{ needs.gateway_metadata.outputs.account_id }}");
   }
-  const opsWorkflow = parse(readFileSync(".github/workflows/ai-gateway-ops.yml", "utf8")) as Record<
-    string,
-    unknown
-  >;
-  const opsJob = (opsWorkflow.jobs as Record<string, Record<string, unknown>>).manage;
-  assert.ok(opsJob);
-  assert.equal((opsJob.environment as { name: string }).name, "ai-gateway-ops");
-  assert.doesNotMatch(JSON.stringify([preflight, publish]), /CLOUDFLARE_API_TOKEN_SECONDARY/);
+  const publishSteps = publish.steps as { env?: Record<string, string> }[];
+  assert.equal(publishSteps.find((step) => step.env?.AIG_DEPLOY_HEALTH_KEY)?.env?.AIG_PUBLIC_URL,
+    "${{ needs.gateway_metadata.outputs.public_url }}");
   const script = readFileSync("scripts/bootstrap-ai-gateway-health-key.ts", "utf8");
+  assert.match(script, /const environments = \["production"\]/);
   assert.match(script, /randomBytes\(32\)\.toString\("hex"\)/);
   assert.match(script, /input: value/);
   assert.match(script, /assertHealthKeyIsUninitialized\(\[\], githubNames\)/);
