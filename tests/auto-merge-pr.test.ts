@@ -19,10 +19,22 @@ process.env.AW_STATUS_KEYRING = JSON.stringify({
 });
 
 function pull() {
-  return { state: "open", number, merged: false, draft: false, head: { sha: headSha }, base: { sha: baseSha, ref: "main" } };
+  return {
+    state: "open",
+    number,
+    merged: false,
+    draft: false,
+    head: { sha: headSha },
+    base: { sha: baseSha, ref: "main" },
+  };
 }
 
-function status(context: string, state: "success" | "pending" | "failure" = "success", targetUrl = runUrl, createdAt = "2026-11-10T07:00:00Z") {
+function status(
+  context: string,
+  state: "success" | "pending" | "failure" = "success",
+  targetUrl = runUrl,
+  createdAt = "2026-11-10T07:00:00Z"
+) {
   return {
     context,
     state,
@@ -50,7 +62,15 @@ function statuses() {
 }
 
 function verify(candidatePull: unknown, candidateStatuses: unknown) {
-  return assertReadyForAutomaticMerge(candidatePull, candidateStatuses, repository, number, headSha, baseSha, runUrl);
+  return assertReadyForAutomaticMerge(
+    candidatePull,
+    candidateStatuses,
+    repository,
+    number,
+    headSha,
+    baseSha,
+    runUrl
+  );
 }
 
 test("signed current-head CI success authorizes zero-review automatic squash merge", () => {
@@ -66,7 +86,8 @@ test("draft and changed or closed PRs never auto-merge", () => {
     { ...pull(), head: { sha: "c".repeat(40) } },
     { ...pull(), base: { sha: "c".repeat(40), ref: "main" } },
     { ...pull(), base: { sha: baseSha, ref: "legacy/v0.1.5" } },
-  ]) assert.throws(() => verify(altered, statuses()));
+  ])
+    assert.throws(() => verify(altered, statuses()));
 });
 
 test("every signed deterministic gate is mandatory, not the AI review", () => {
@@ -86,7 +107,11 @@ test("every signed deterministic gate is mandatory, not the AI review", () => {
 
 test("stale, unsigned, or foreign governance proof blocks merging", () => {
   const mismatched = statuses();
-  mismatched.statuses[0] = status("PR Governance", "success", "https://github.com/fongap-labs/action-worker/actions/runs/777");
+  mismatched.statuses[0] = status(
+    "PR Governance",
+    "success",
+    "https://github.com/fongap-labs/action-worker/actions/runs/777"
+  );
   assert.throws(() => verify(pull(), mismatched), /another governance run/);
 
   const newerUnsigned = statuses();
@@ -104,9 +129,23 @@ test("stale, unsigned, or foreign governance proof blocks merging", () => {
 test("merge readiness rejects malformed repository, SHA and governance run URL", () => {
   const r = pull();
   const s = statuses();
-  assert.throws(() => assertReadyForAutomaticMerge(r, s, "../outside", number, headSha, baseSha, runUrl));
-  assert.throws(() => assertReadyForAutomaticMerge(r, s, repository, number, "main", baseSha, runUrl));
-  assert.throws(() => assertReadyForAutomaticMerge(r, s, repository, number, headSha, baseSha, "https://example.com/forged"));
+  assert.throws(() =>
+    assertReadyForAutomaticMerge(r, s, "../outside", number, headSha, baseSha, runUrl)
+  );
+  assert.throws(() =>
+    assertReadyForAutomaticMerge(r, s, repository, number, "main", baseSha, runUrl)
+  );
+  assert.throws(() =>
+    assertReadyForAutomaticMerge(
+      r,
+      s,
+      repository,
+      number,
+      headSha,
+      baseSha,
+      "https://example.com/forged"
+    )
+  );
 });
 
 after(() => {
