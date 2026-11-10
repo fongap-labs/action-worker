@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { GithubReader } from "../scripts/github-api.ts";
 import { auditRepositoryMain } from "../scripts/audit-main-writes.ts";
+import type { GithubReader } from "../scripts/github-api.ts";
 import {
   MainWriteVerificationPendingError,
   mainWriteEvidenceError,
