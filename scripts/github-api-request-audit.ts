@@ -1,5 +1,66 @@
 import { appendFileSync } from "node:fs";
 
+/** Fixed, low-cardinality classifications; never persist or print request paths. */
+export const githubApiEndpointCategories = [
+  "repository",
+  "branches",
+  "commits",
+  "pull_requests",
+  "checks",
+  "statuses",
+  "actions_runs",
+  "issues",
+  "contents",
+  "rate_limit",
+  "other",
+] as const;
+
+export type GithubApiEndpointCategory = (typeof githubApiEndpointCategories)[number];
+
+export function classifyGithubApiEndpoint(requestPath: string): GithubApiEndpointCategory {
+  const normalized = requestPath
+    .replace(/^https:\/\/api\.github\.com\//i, "")
+    .replace(/^\/+/, "")
+    .split(/[?#]/, 1)[0];
+  if (normalized === "rate_limit") return "rate_limit";
+  const parts = normalized?.split("/") ?? [];
+  if (parts[0] !== "repos" || !parts[1] || !parts[2]) return "other";
+  const section = parts[3] ?? "";
+  if (section === "") return "repository";
+  if (section === "branches") return "branches";
+  if (section === "statuses") return "statuses";
+  if (section === "checks" || section === "check-runs" || section === "check-suites") {
+    return "checks";
+  }
+  if (section === "commits") {
+    if (parts[5] === "status" || parts[5] === "statuses") return "statuses";
+    if (parts[5] === "check-runs" || parts[5] === "check-suites") return "checks";
+    if (parts[5] === "pulls") return "pull_requests";
+    return "commits";
+  }
+  if (section === "pulls") return "pull_requests";
+  if (section === "issues") return "issues";
+  if (section === "contents") return "contents";
+  if (section === "actions") return "actions_runs";
+  return "other";
+}
+
+function emptyEndpointCounts(): Record<GithubApiEndpointCategory, number> {
+  return {
+    repository: 0,
+    branches: 0,
+    commits: 0,
+    pull_requests: 0,
+    checks: 0,
+    statuses: 0,
+    actions_runs: 0,
+    issues: 0,
+    contents: 0,
+    rate_limit: 0,
+    other: 0,
+  };
+}
+
 export type GithubApiAuditSnapshot = {
   fetch: number;
   cli: number;
@@ -17,11 +78,13 @@ export type GithubApiAuditSnapshot = {
   primary_limit: number;
   secondary_limit: number;
   core_min: number | null;
+  endpoint_counts: Record<GithubApiEndpointCategory, number>;
 };
 
 /** Per-process aggregation only; never stores API URLs, tokens or response bodies. */
 export class GithubApiRequestAudit {
-  private readonly counts: GithubApiAuditSnapshot = {
+  private readonly endpointCounts = emptyEndpointCounts();
+  private readonly counts: Omit<GithubApiAuditSnapshot, "endpoint_counts"> = {
     fetch: 0,
     cli: 0,
     cli_failed: 0,
@@ -40,7 +103,8 @@ export class GithubApiRequestAudit {
     core_min: null,
   };
 
-  fetchStart(conditional: boolean): void {
+  fetchStart(conditional: boolean, requestPath = ""): void {
+    this.endpointCounts[classifyGithubApiEndpoint(requestPath)] += 1;
     this.counts.fetch += 1;
     if (conditional) this.counts.conditional += 1;
   }
@@ -81,7 +145,8 @@ export class GithubApiRequestAudit {
     else this.counts.secondary_limit += 1;
   }
 
-  cliStart(): void {
+  cliStart(requestPath = ""): void {
+    this.endpointCounts[classifyGithubApiEndpoint(requestPath)] += 1;
     this.counts.cli += 1;
   }
 
@@ -101,7 +166,7 @@ export class GithubApiRequestAudit {
   }
 
   snapshot(): GithubApiAuditSnapshot {
-    return { ...this.counts };
+    return { ...this.counts, endpoint_counts: { ...this.endpointCounts } };
   }
 
   summary(job: string, script: string): string {
@@ -109,6 +174,9 @@ export class GithubApiRequestAudit {
     const safe = (value: string): string =>
       /^[A-Za-z0-9_.-]{1,96}$/.test(value) ? value : "unknown";
     const remaining = c.core_min === null ? "未提供" : String(c.core_min);
+    const endpointRows = githubApiEndpointCategories.map(
+      (category) => `| ${category} | ${c.endpoint_counts[category]} |`
+    );
     return [
       "### GitHub API 调用审计 · " + safe(job) + " / " + safe(script),
       "",
@@ -135,6 +203,12 @@ export class GithubApiRequestAudit {
         " |",
       "| gh api 失败 | " + c.cli_failed + " |",
       "| 响应头 core 最低剩余额度 | " + remaining + " |",
+      "",
+      "#### GitHub API 端点分类",
+      "| 固定类别 | 请求次数 |",
+      "|---|---:|",
+      ...endpointRows,
+      "| 分类总计 | " + (c.fetch + c.cli) + " |",
       "",
       "统计范围仅限本进程 GithubReader 与统一 runCommand 的 gh api。" +
         "不包括其他 Job、未经封装的 CLI、Actions 平台内部请求；" +
@@ -166,6 +240,12 @@ if (process.env.AW_GITHUB_API_METRICS === "1") {
         stats.retries +
         " limits=" +
         (stats.primary_limit + stats.secondary_limit)
+    );
+    console.log(
+      "GitHub API endpoint categories: " +
+        githubApiEndpointCategories
+          .map((category) => category + "=" + stats.endpoint_counts[category])
+          .join(" ")
     );
     const path = process.env.GITHUB_STEP_SUMMARY;
     if (path) {

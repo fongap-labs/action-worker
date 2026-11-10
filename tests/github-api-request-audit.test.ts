@@ -3,7 +3,11 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { parse } from "yaml";
 import { GithubReader } from "../scripts/github-api.ts";
-import { GithubApiRequestAudit } from "../scripts/github-api-request-audit.ts";
+import {
+  classifyGithubApiEndpoint,
+  GithubApiRequestAudit,
+  githubApiEndpointCategories,
+} from "../scripts/github-api-request-audit.ts";
 
 test("audited immutable reads count singleflight, conditional ETag, and actual 304", async () => {
   const previous = globalThis.fetch;
@@ -155,4 +159,88 @@ test("all intake scan and preflight steps publish opt-in per-process GitHub API 
   }
   const raw = await readFile(".github/workflows/intake.yml", "utf8");
   assert.doesNotMatch(raw, /GitHub API.*upload-artifact|api-audit.*upload-artifact/);
+});
+
+test("fixed endpoint categories cover GitHub REST route families without leaking identities", () => {
+  const sha = "a".repeat(40);
+  for (const [path, expected] of [
+    ["repos/fongap-labs/private-project", "repository"],
+    ["repos/fongap-labs/private-project/branches/main", "branches"],
+    ["repos/fongap-labs/private-project/commits/main", "commits"],
+    ["repos/fongap-labs/private-project/commits/" + sha + "/pulls?per_page=100", "pull_requests"],
+    ["repos/fongap-labs/private-project/pulls/123", "pull_requests"],
+    ["repos/fongap-labs/private-project/commits/" + sha + "/check-runs?filter=latest", "checks"],
+    ["repos/fongap-labs/private-project/commits/" + sha + "/status", "statuses"],
+    ["repos/fongap-labs/private-project/statuses/" + sha, "statuses"],
+    ["repos/fongap-labs/private-project/actions/runs/321", "actions_runs"],
+    ["https://api.github.com/repos/fongap-labs/private-project/issues?state=open", "issues"],
+    ["repos/fongap-labs/private-project/contents/.github/secret?ref=" + sha, "contents"],
+    ["/rate_limit", "rate_limit"],
+    ["graphql", "other"],
+    ["https://elsewhere.test/repos/fongap-labs/private-project", "other"],
+  ] as const) {
+    assert.equal(classifyGithubApiEndpoint(path), expected, path);
+  }
+  assert.equal(new Set(githubApiEndpointCategories).size, githubApiEndpointCategories.length);
+});
+
+test("endpoint counts classify actual HTTP and CLI attempts, but not cache coalescing", () => {
+  const audit = new GithubApiRequestAudit();
+  audit.fetchStart(false, "repos/secret-org/private-repo");
+  audit.fetchStart(true, "repos/secret-org/private-repo/commits/a/status");
+  audit.fetchStart(false, "repos/secret-org/private-repo/actions/runs/421");
+  audit.coalescedRequest();
+  audit.cliStart("repos/secret-org/private-repo/issues/32");
+  audit.cliFinish();
+  audit.cliStart("unknown-endpoint?token=SHOULD_NOT_APPEAR");
+  const snapshot = audit.snapshot();
+  assert.equal(snapshot.fetch + snapshot.cli, 5);
+  assert.deepEqual(
+    {
+      repository: snapshot.endpoint_counts.repository,
+      statuses: snapshot.endpoint_counts.statuses,
+      actions_runs: snapshot.endpoint_counts.actions_runs,
+      issues: snapshot.endpoint_counts.issues,
+      other: snapshot.endpoint_counts.other,
+    },
+    { repository: 1, statuses: 1, actions_runs: 1, issues: 1, other: 1 }
+  );
+  assert.equal(snapshot.coalesced, 1);
+  assert.equal(
+    githubApiEndpointCategories.reduce(
+      (sum, category) => sum + snapshot.endpoint_counts[category],
+      0
+    ),
+    snapshot.fetch + snapshot.cli
+  );
+  const table = audit.summary("main-writes", "audit-main-writes.ts");
+  assert.match(table, /GitHub API 端点分类/);
+  assert.match(table, /分类总计 \| 5/);
+  assert.doesNotMatch(table, /secret-org|private-repo|SHOULD_NOT_APPEAR|421/);
+  snapshot.endpoint_counts.repository = 500;
+  assert.equal(audit.snapshot().endpoint_counts.repository, 1, "snapshots must be independent");
+});
+
+test("reader HTTP retries contribute to the same fixed endpoint family", async () => {
+  const previous = globalThis.fetch;
+  const audit = new GithubApiRequestAudit();
+  let attempts = 0;
+  globalThis.fetch = async () => {
+    attempts += 1;
+    return attempts === 1
+      ? new Response("temporary", { status: 503 })
+      : Response.json({ ok: true });
+  };
+  try {
+    const reader = new GithubReader("https://api.github.test", "token", {
+      audit,
+      attemptLimit: 2,
+      retryDelayMs: 0,
+    });
+    await reader.get("repos/example/project/actions/runs/123");
+    assert.equal(audit.snapshot().endpoint_counts.actions_runs, 2);
+    assert.equal(audit.snapshot().retries, 1);
+  } finally {
+    globalThis.fetch = previous;
+  }
 });

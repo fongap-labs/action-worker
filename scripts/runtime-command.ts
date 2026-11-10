@@ -27,7 +27,15 @@ export async function runCommand(
   options: CommandOptions = {}
 ): Promise<Buffer> {
   const isGithubApi = command === "gh" && args[0] === "api";
-  if (isGithubApi) githubApiAudit.cliStart();
+  if (isGithubApi) {
+    const endpoint =
+      args
+        .slice(1)
+        .find((argument) =>
+          /^(?:\/?(?:repos\/|rate_limit(?:[?]|$))|https:\/\/api\.github\.com\/)/.test(argument)
+        ) ?? "";
+    githubApiAudit.cliStart(endpoint);
+  }
   return await new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: options.cwd,
