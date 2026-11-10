@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 中央 PR Governance 对所有受管仓库默认禁用独立 AI Review 及其自动派发，不再在 CI 全绿、自动合并后另行产生审查失败红叉和模型配额消耗。PR Governance、CI Evidence、validate-merge、变更记录、命名和安全校验继续作为确定性合并门禁；单独按需触发的 AI Review 仍可使用，但不参与合并判定。外部不可信 PR 的代码执行准入策略保持不变。
+
 - 优化: 同一次 Main Write Audit 的单个 PR 证据验证内，仅对已完成且成功的可信 PR 分发运行复用一次 REST 读取；PR Governance、CI Evidence、validate-merge 仍逐项重新验证签名、工作流和时间窗口。运行中、失败、异常或跨仓库数据不缓存，动态提交状态及 PR 仍实时读取，减少重复 Actions 运行详情请求。
 
 - 优化: Main Write Audit 复用同次读取且已验证的默认分支和 main 提交快照，来源核验不再重复查询仓库资料与同一 SHA；每仓库预计减少 2 次 REST GET。仅复用确定性事实，不缓存 PR、CI、状态或未解决事件；保留主分支 HEAD 锁定、精确 SHA 匹配与失败关闭。

@@ -422,7 +422,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     "wait-ci-evidence.ts",
     "validate-ci-evidence.ts",
     "validate-security.ts",
-    "dispatch-pr-review.ts",
+    'AI_REVIEW_STATE: ""',
     "Resolve governance ownership",
     "check-status-owner.ts",
     "Publish explicit no-CI evidence",
@@ -448,7 +448,6 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     "- name: Mark deterministic gate passed",
     "- name: Update final gate",
     "- name: Publish PR review",
-    "- name: Dispatch AI review",
   ];
   const positions = order.map((value) => workflow.indexOf(value));
   assert.ok(positions.every((value) => value >= 0));
@@ -461,16 +460,22 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     workflow,
     /Wait for AI queue|Run AI Triage|Run AI review|wait-review-turn|run-ai-triage|run-ai-review|apply-ai-triage|install-ocr|validate-ai-endpoint-access|AIG_ACCESS_KEY_AGENT|AI_GATEWAY_URL/
   );
-  const dispatchStep = workflow.slice(workflow.indexOf("      - name: Dispatch AI review"));
-  assert.match(dispatchStep, /continue-on-error: true/);
-  assert.match(dispatchStep, /steps\.gate\.outputs\.passed == 'true'/);
-  assert.match(dispatchStep, /steps\.ownership\.outputs\.current == 'true'/);
-  assert.match(dispatchStep, /steps\.base_plan\.outputs\.review_required == 'true'/);
+  // AI review remains an explicit, on-demand workflow, not an automatic post-CI action.
+  assert.equal(workflow.includes("dispatch-pr-review.ts"), false);
+  assert.equal(workflow.includes("- name: Dispatch AI review"), false);
+  assert.ok(
+    workflow.includes(
+      'node scripts/resolve-pr-plan.ts "$CONTEXT_JSON" inherit off inherit auto auto'
+    )
+  );
   assert.match(
     workflow,
     /Validate CI evidence\n\s+if: steps\.trust\.outputs\.trusted == 'true' && steps\.base_plan\.outputs\.ci_required == 'true'/
   );
-  assert.match(workflow, /STATE: \$\{\{ steps\.gate\.outputs\.passed == 'true'/);
+  assert.match(
+    workflow,
+    /STATE: \$\{\{ steps\.cancellation\.outputs\.cancelled != 'true' && steps\.gate\.outputs\.passed == 'true'/
+  );
   const ciDispatcher = await text("scripts/dispatch-central-ci.ts");
   requireText(ciDispatcher, ["readRepositoryPolicyText", "validateRepositoryCapability", '"pr"']);
   assert.doesNotMatch(ciDispatcher, /central_repositories|Central CI dispatch skipped/);
@@ -914,10 +919,11 @@ test("release, source, deploy, merge, and repository settings contracts remain i
     "--squash",
   ]);
   assert.ok(
-    governance.indexOf("- name: Automatically merge CI-green PR") <
-      governance.indexOf("- name: Dispatch AI review"),
-    "Optional AI review must never delay automatic merging"
+    governance.indexOf("- name: Automatically merge CI-green PR") >
+      governance.indexOf("- name: Validate CI evidence"),
+    "Automatic merge must follow deterministic CI"
   );
+  assert.equal(governance.includes("dispatch-pr-review.ts"), false);
   const settings = await text(".github/workflows/apply-repository-settings.yml");
   // The daily run corrects settings changed by hand, so drift never needs a manual run.
   requireText(settings, [
