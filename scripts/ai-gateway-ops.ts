@@ -1,9 +1,14 @@
 import { fileURLToPath } from "node:url";
 
-const workerNames = ["ai-gateway", "ai-inference-center", "ai-generation-center"] as const;
+const workerNames = [
+  "ai-gateway",
+  "ai-inference-center",
+  "ai-perception-center",
+  "ai-generation-center",
+] as const;
 type WorkerName = (typeof workerNames)[number];
 const gatewaySecretName =
-  /^(?:AIG_DEPLOY_HEALTH_KEY|AIG_(?:INFERENCE|GENERATION)_AUTH_KEY|AIG_ACCESS_KEY_(?:AIR|PRO|MAX|ULTRA|AGENT)|AIG_EDGE_CACHE_HMAC_KEY)$/;
+  /^(?:AIG_DEPLOY_HEALTH_KEY|AIG_(?:INFERENCE|PERCEPTION|GENERATION)_AUTH_KEY|AIG_ACCESS_KEY_(?:AIR|PRO|MAX|ULTRA|AGENT)|AIG_EDGE_CACHE_HMAC_KEY)$/;
 const providerShardName = /^AIG_TIER[12]_CREDENTIALS_(?:0[1-9]|10)$/;
 
 function selectedWorker(env: OperationsEnvironment): WorkerName {
@@ -16,8 +21,11 @@ function selectedWorker(env: OperationsEnvironment): WorkerName {
 
 function allowedSecretForWorker(worker: WorkerName, name: string): boolean {
   if (worker === "ai-gateway") return gatewaySecretName.test(name);
-  const auth =
-    worker === "ai-inference-center" ? "AIG_INFERENCE_AUTH_KEY" : "AIG_GENERATION_AUTH_KEY";
+  const auth = {
+    "ai-inference-center": "AIG_INFERENCE_AUTH_KEY",
+    "ai-perception-center": "AIG_PERCEPTION_AUTH_KEY",
+    "ai-generation-center": "AIG_GENERATION_AUTH_KEY",
+  }[worker];
   return name === auth || providerShardName.test(name);
 }
 const healthKeyPattern = /^[A-Za-z0-9_-]{32,}$/;
@@ -58,7 +66,9 @@ export function validateSecretMutation(name: string, env: OperationsEnvironment)
     throw new Error("AIG_DEPLOY_HEALTH_KEY must have at least 32 URL-safe characters.");
   }
   if (
-    (name === "AIG_INFERENCE_AUTH_KEY" || name === "AIG_GENERATION_AUTH_KEY") &&
+    (name === "AIG_INFERENCE_AUTH_KEY" ||
+      name === "AIG_PERCEPTION_AUTH_KEY" ||
+      name === "AIG_GENERATION_AUTH_KEY") &&
     secretValue.length < 32
   ) {
     throw new Error("Center authentication secret must contain at least 32 characters.");

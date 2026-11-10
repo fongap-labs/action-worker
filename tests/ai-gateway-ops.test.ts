@@ -10,6 +10,7 @@ import {
 
 const accountId = "0123456789abcdef0123456789abcdef";
 const healthKey = "health-key-0123456789abcdef0123456789abcdef";
+const perceptionAuthKey = "perception-auth-key-0123456789abcdef";
 const mockEnv = {
   CLOUDFLARE_ACCOUNT_ID_OPS: accountId,
   CLOUDFLARE_API_TOKEN_OPS: "ops-token",
@@ -117,6 +118,15 @@ test("dedicated deployment health credential cannot be weak or reused as an appl
     /must not reuse/
   );
   assert.throws(() => validateSecretMutation("AIG_INFERENCE_AUTH_KEY", mockEnv), /32 characters/);
+  assert.throws(
+    () =>
+      validateSecretMutation("AIG_PERCEPTION_AUTH_KEY", {
+        ...mockEnv,
+        AIG_OPS_WORKER_NAME: "ai-perception-center",
+        AIG_OPS_SECRET_VALUE: "short",
+      }),
+    /32 characters/
+  );
   assert.throws(
     () =>
       validateSecretMutation("AIG_TIER1_CREDENTIALS_01", {
@@ -253,14 +263,29 @@ test("protected four-Worker inventory runs only pinned audited source on manual 
 
 test("private center secret management has strict per-Worker allowlists", () => {
   const inference = { ...mockEnv, AIG_OPS_WORKER_NAME: "ai-inference-center" };
+  const perception = { ...mockEnv, AIG_OPS_WORKER_NAME: "ai-perception-center" };
   const generation = { ...mockEnv, AIG_OPS_WORKER_NAME: "ai-generation-center" };
   assert.equal(validateSecretMutation("AIG_TIER1_CREDENTIALS_01", inference), "upstream-secret");
+  assert.equal(validateSecretMutation("AIG_TIER1_CREDENTIALS_01", perception), "upstream-secret");
+  assert.equal(
+    validateSecretMutation("AIG_PERCEPTION_AUTH_KEY", {
+      ...perception,
+      AIG_OPS_SECRET_VALUE: perceptionAuthKey,
+    }),
+    perceptionAuthKey
+  );
   assert.equal(validateSecretMutation("AIG_TIER2_CREDENTIALS_10", generation), "upstream-secret");
   for (const [name, env] of [
     ["AIG_GENERATION_AUTH_KEY", inference],
+    ["AIG_PERCEPTION_AUTH_KEY", inference],
     ["AIG_INFERENCE_AUTH_KEY", generation],
+    ["AIG_PERCEPTION_AUTH_KEY", generation],
+    ["AIG_INFERENCE_AUTH_KEY", perception],
+    ["AIG_GENERATION_AUTH_KEY", perception],
     ["AIG_ACCESS_KEY_AGENT", inference],
+    ["AIG_ACCESS_KEY_AGENT", perception],
     ["AIG_DEPLOY_HEALTH_KEY", generation],
+    ["AIG_DEPLOY_HEALTH_KEY", perception],
     ["AIG_TIER1_CREDENTIALS_01", mockEnv],
     ["AIG_TOKEN_ENCRYPTION_KEY", mockEnv],
     ["AIG_TIER3_CREDENTIALS_01", inference],
@@ -283,6 +308,34 @@ test("private center secret management has strict per-Worker allowlists", () => 
       }),
     /must not reuse the deployment health/
   );
+});
+
+test("Perception center Secret update stays private and never probes the Gateway", async () => {
+  const worker = "ai-perception-center";
+  const env = { ...mockEnv, AIG_OPS_WORKER_NAME: worker, AIG_PUBLIC_URL: "" };
+  const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/${worker}/secrets`;
+  const requests: string[] = [];
+  const fetcher = mockFetch((input, init) => {
+    const target = String(input);
+    requests.push(target);
+    assert.equal(target, url, "Never contact public /health or another Worker");
+    if (init?.method === "PUT") {
+      assert.deepEqual(JSON.parse(String(init.body)), {
+        name: "AIG_PERCEPTION_AUTH_KEY",
+        text: perceptionAuthKey,
+        type: "secret_text",
+      });
+      return ok({ name: "AIG_PERCEPTION_AUTH_KEY", type: "secret_text" });
+    }
+    return ok([{ name: "AIG_PERCEPTION_AUTH_KEY", type: "secret_text" }]);
+  });
+  await putWorkerSecret(
+    "AIG_PERCEPTION_AUTH_KEY",
+    { ...env, AIG_OPS_SECRET_VALUE: perceptionAuthKey },
+    fetcher
+  );
+  assert.deepEqual(requests, [url, url, url]);
+  assert.deepEqual(await listWorkerSecretNames(env, fetcher), ["AIG_PERCEPTION_AUTH_KEY"]);
 });
 
 test("private center Secret update stays inside selected Worker and never invokes public health", async () => {
@@ -316,7 +369,7 @@ test("protected ops workflow requires explicit Worker choice for private center 
   );
   assert.match(
     workflow,
-    /options:\n\s+- ai-gateway\n\s+- ai-inference-center\n\s+- ai-generation-center/
+    /options:\n\s+- ai-gateway\n\s+- ai-inference-center\n\s+- ai-perception-center\n\s+- ai-generation-center/
   );
   assert.match(workflow, /AIG_OPS_WORKER_NAME: \$\{\{ inputs.worker \}\}/);
   assert.doesNotMatch(workflow, /secret delete/);

@@ -543,7 +543,8 @@ try {
     assert.doesNotMatch(selectorSource, /await fetch\(/, 'Gateway attempt selector must not make Provider fetches');
   } else {
     assert.doesNotMatch(selectorSource, /dispatchLegacyProvider|await fetch\(/, 'Gateway must not execute physical Provider calls');
-    assert.match(selectorSource, /return dispatchInferenceAttempt\(c, sourceBody\)/, 'inference must be private-center only');
+    assert.match(selectorSource, /return dispatchInferenceAttempt\(c, sourceBody, 'inference'\)/, 'text inference must use the private Inference Center');
+    assert.match(selectorSource, /return dispatchInferenceAttempt\(c, sourceBody, 'perception'\)/, 'image input must use the private Perception Center');
   }
   assert.match(inferenceSource, /attemptBudgetWindowMs\(remainingBudgetMs, c\.remainingDispatchableAttempts\)/, 'inference center keeps the reserve-aware budget');
   assert.match(generationSource, /attemptBudgetWindowMs\(remainingMs, c\.remainingDispatchableAttempts\)/, 'generation center keeps the reserve-aware budget');

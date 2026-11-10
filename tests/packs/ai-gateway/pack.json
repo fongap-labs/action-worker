@@ -8,6 +8,7 @@
       "two-tier-contract-test.mjs",
       "scheduler-stability-test.mjs",
       "integration-test.mjs",
+      "perception-center-test.mjs",
       "stress-test.mjs",
       "codex-contract-test.mjs",
       "claude-contract-test.mjs"

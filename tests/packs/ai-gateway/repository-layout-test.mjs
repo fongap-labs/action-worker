@@ -102,6 +102,7 @@ for (const required of [
   'stress-test.mjs',
   'codex-contract-test.mjs',
   'claude-contract-test.mjs',
+  'perception-center-test.mjs',
 ]) {
   assert.ok(gate.includes(required), `pack.json gate tier must include ${required}`);
   assert.ok(fs.existsSync(path.join(packDir, required)), `${required} must exist in the pack`);
