@@ -26,6 +26,10 @@ policies/repository.json
 
 权限由 `policies/repository-access.json` 唯一管理。仓库发现只提交基础 PR 授权，不能直接改写 GitHub Actions 变量。
 
+### 已排除的归档仓库
+
+**`fongap-labs/delta-legacy` 不再列入后续修复范围。** 该仓库只用于历史归档，已退出 Action Worker 的任务分发、中央 CI、PR 治理、自动修复和发布部署治理。自动仓库发现及 Agent 任务链必须跳过，不得因组织级全量扫描、历史 PR 或监控告警将其重新接入。中央策略通过 `excluded_repositories` 显式排除，且不赋予任何 `grants`。变更该范围必须取得维护者明确重新授权。
+
 ## 2. 应用权限
 
 共享设置仅由中央授权写入。
