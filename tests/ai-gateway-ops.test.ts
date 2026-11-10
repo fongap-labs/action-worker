@@ -121,6 +121,7 @@ test("dedicated deployment health credential cannot be weak or reused as an appl
     () =>
       validateSecretMutation("AIG_TIER1_CREDENTIALS_01", {
         ...mockEnv,
+        AIG_OPS_WORKER_NAME: "ai-inference-center",
         AIG_OPS_SECRET_VALUE: "x".repeat(4501),
       }),
     /size limit/
@@ -248,4 +249,59 @@ test("protected four-Worker inventory runs only pinned audited source on manual 
     /CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_API_TOKEN_SECONDARY \}\}/
   );
   assert.doesNotMatch(workflow, /node ag-inspector\/scripts\/cloudflare-live-inventory\.mjs --out/);
+});
+
+test("private center secret management has strict per-Worker allowlists", () => {
+  const inference = { ...mockEnv, AIG_OPS_WORKER_NAME: "ai-inference-center" };
+  const generation = { ...mockEnv, AIG_OPS_WORKER_NAME: "ai-generation-center" };
+  assert.equal(validateSecretMutation("AIG_TIER1_CREDENTIALS_01", inference), "upstream-secret");
+  assert.equal(validateSecretMutation("AIG_TIER2_CREDENTIALS_10", generation), "upstream-secret");
+  for (const [name, env] of [
+    ["AIG_GENERATION_AUTH_KEY", inference],
+    ["AIG_INFERENCE_AUTH_KEY", generation],
+    ["AIG_ACCESS_KEY_AGENT", inference],
+    ["AIG_DEPLOY_HEALTH_KEY", generation],
+    ["AIG_TIER1_CREDENTIALS_01", mockEnv],
+    ["AIG_TOKEN_ENCRYPTION_KEY", mockEnv],
+    ["AIG_TIER3_CREDENTIALS_01", inference],
+  ] as const) {
+    assert.throws(() => validateSecretMutation(name, env), /allowlist/);
+  }
+  assert.throws(() => validateSecretMutation("AIG_ACCESS_KEY_AIR", {
+    ...mockEnv, AIG_OPS_WORKER_NAME: "some-other-worker"
+  }), /outside the protected/);
+  assert.throws(() => validateSecretMutation("AIG_INFERENCE_AUTH_KEY", {
+    ...inference, AIG_OPS_SECRET_VALUE: healthKey
+  }), /must not reuse the deployment health/);
+});
+
+test("private center Secret update stays inside selected Worker and never invokes public health", async () => {
+  const worker = "ai-inference-center";
+  const env = { ...mockEnv, AIG_OPS_WORKER_NAME: worker, AIG_PUBLIC_URL: "" };
+  const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/${worker}/secrets`;
+  const requests: string[] = [];
+  const fetcher = mockFetch((input, init) => {
+    const target = String(input);
+    requests.push(target);
+    assert.equal(target, url, "Never contact public /health or another Worker");
+    if (init?.method === "PUT") {
+      assert.deepEqual(JSON.parse(String(init.body)), {
+        name: "AIG_TIER2_CREDENTIALS_01",
+        text: "upstream-secret",
+        type: "secret_text"
+      });
+      return ok({ name: "AIG_TIER2_CREDENTIALS_01", type: "secret_text" });
+    }
+    return ok([{ name: "AIG_TIER2_CREDENTIALS_01", type: "secret_text" }]);
+  });
+  await putWorkerSecret("AIG_TIER2_CREDENTIALS_01", env, fetcher);
+  assert.deepEqual(requests, [url, url, url]);
+  assert.deepEqual(await listWorkerSecretNames(env, fetcher), ["AIG_TIER2_CREDENTIALS_01"]);
+});
+
+test("protected ops workflow requires explicit Worker choice for private center inventory and put", () => {
+  const workflow = readFileSync(new URL("../.github/workflows/ai-gateway-ops.yml", import.meta.url), "utf8");
+  assert.match(workflow, /options:\n\s+- ai-gateway\n\s+- ai-inference-center\n\s+- ai-generation-center/);
+  assert.match(workflow, /AIG_OPS_WORKER_NAME: \$\{\{ inputs.worker \}\}/);
+  assert.doesNotMatch(workflow, /secret delete/);
 });
