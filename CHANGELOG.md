@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: Action Worker 总控调度从每 5 分钟全量扫描改为每 15 分钟兜底巡检，并在控制仓库 main push 时跳过无关的 PR、任务来源和任务/部署定时扫描，减少共享 GitHub App 安装配额消耗；run-intake 事件驱动、Main CI、Main write audit 及强制 CI 合并门禁保持有效。
+
 - 修复: 已通过三项签名 CI 的 PR 若因分支落后 main 无法自动合并，由受限 GitHub App 按精确 SHA 更新分支并重新运行 CI；中央 Intake 可重新派发已全绿但未合并的 behind PR，仍拒绝草稿、冲突和外部 Fork。
 
 - 修复: 完全撤销 delta-legacy 的 Action Worker 管理授权；保留排除名单，并让仓库接入器拒绝排除项与授权同时存在的矛盾配置。
