@@ -2,7 +2,8 @@ import { fileURLToPath } from "node:url";
 
 const workerNames = ["ai-gateway", "ai-inference-center", "ai-generation-center"] as const;
 type WorkerName = (typeof workerNames)[number];
-const gatewaySecretName = /^(?:AIG_DEPLOY_HEALTH_KEY|AIG_(?:INFERENCE|GENERATION)_AUTH_KEY|AIG_ACCESS_KEY_(?:AIR|PRO|MAX|ULTRA|AGENT)|AIG_EDGE_CACHE_HMAC_KEY)$/;
+const gatewaySecretName =
+  /^(?:AIG_DEPLOY_HEALTH_KEY|AIG_(?:INFERENCE|GENERATION)_AUTH_KEY|AIG_ACCESS_KEY_(?:AIR|PRO|MAX|ULTRA|AGENT)|AIG_EDGE_CACHE_HMAC_KEY)$/;
 const providerShardName = /^AIG_TIER[12]_CREDENTIALS_(?:0[1-9]|10)$/;
 
 function selectedWorker(env: OperationsEnvironment): WorkerName {
@@ -15,8 +16,8 @@ function selectedWorker(env: OperationsEnvironment): WorkerName {
 
 function allowedSecretForWorker(worker: WorkerName, name: string): boolean {
   if (worker === "ai-gateway") return gatewaySecretName.test(name);
-  const auth = worker === "ai-inference-center"
-    ? "AIG_INFERENCE_AUTH_KEY" : "AIG_GENERATION_AUTH_KEY";
+  const auth =
+    worker === "ai-inference-center" ? "AIG_INFERENCE_AUTH_KEY" : "AIG_GENERATION_AUTH_KEY";
   return name === auth || providerShardName.test(name);
 }
 const healthKeyPattern = /^[A-Za-z0-9_-]{32,}$/;
@@ -203,8 +204,12 @@ export async function putWorkerSecret(
   // Private centers do not have public /health endpoints. Their runtime
   // readiness is checked later through the protected Gateway binding.
   const url = worker === "ai-gateway" ? healthUrl(env) : "";
-  const healthKey = worker !== "ai-gateway" ? "" : name === "AIG_DEPLOY_HEALTH_KEY"
-    ? secretValue : assertString(env.AIG_DEPLOY_HEALTH_KEY, "AIG_DEPLOY_HEALTH_KEY");
+  const healthKey =
+    worker !== "ai-gateway"
+      ? ""
+      : name === "AIG_DEPLOY_HEALTH_KEY"
+        ? secretValue
+        : assertString(env.AIG_DEPLOY_HEALTH_KEY, "AIG_DEPLOY_HEALTH_KEY");
   if (worker === "ai-gateway" && !healthKeyPattern.test(healthKey)) {
     throw new Error("AIG_DEPLOY_HEALTH_KEY must be an independent URL-safe credential.");
   }
@@ -265,9 +270,10 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
         console.log("Inventory completed.");
       } else {
         const worker = selectedWorker(env);
-        console.log(worker === "ai-gateway"
-          ? "Gateway runtime Secret updated; inventory and public health verified. No Secret values logged."
-          : "Private center Secret updated; inventory verified. Runtime readiness must be checked before Gateway cutover."
+        console.log(
+          worker === "ai-gateway"
+            ? "Gateway runtime Secret updated; inventory and public health verified. No Secret values logged."
+            : "Private center Secret updated; inventory verified. Runtime readiness must be checked before Gateway cutover."
         );
       }
     })
