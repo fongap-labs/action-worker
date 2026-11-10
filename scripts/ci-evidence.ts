@@ -47,6 +47,44 @@ export const centralCiWait = { statusAttempts: 120, retryDelayMs: 10_000 } as co
 
 export type JsonReader = { get(path: string): Promise<unknown> };
 
+/**
+ * Reuse a verified publisher-run fact only while checking one immutable PR head.
+ * Only completed-success PR dispatcher runs are eligible, and the caller still
+ * independently checks each signed status, workflow path, and timestamp window.
+ * Running, failed, malformed, and unrelated responses are always fetched fresh.
+ * Never share this reader between repositories, heads, or audit invocations.
+ */
+export function completedPrRunReader(reader: JsonReader, controlRepository: string): JsonReader {
+  const prefix = `repos/${controlRepository}/actions/runs/`;
+  const completed = new Map<string, unknown>();
+  return {
+    async get(path: string): Promise<unknown> {
+      if (
+        !repositoryPattern.test(controlRepository) ||
+        !path.startsWith(prefix) ||
+        !/^[1-9][0-9]*$/.test(path.slice(prefix.length))
+      ) {
+        return await reader.get(path);
+      }
+      const cached = completed.get(path);
+      if (cached !== undefined) return cached;
+      const run = await reader.get(path);
+      if (
+        isJsonRecord(run) &&
+        getJsonString(run.repository, "full_name") === controlRepository &&
+        getJsonString(run, "path") === ".github/workflows/handle-pr-dispatch.yml" &&
+        getJsonString(run, "head_branch") === "main" &&
+        getJsonString(run, "status") === "completed" &&
+        getJsonString(run, "conclusion") === "success"
+      ) {
+        if (completed.size >= 4) completed.delete(completed.keys().next().value as string);
+        completed.set(path, run);
+      }
+      return run;
+    },
+  };
+}
+
 /** Receives the step that decided a verification. It reports only; it never changes the verdict. */
 export type VerificationTrace = (step: string, detail: Record<string, unknown>) => void;
 

@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   centralCiWait,
+  completedPrRunReader,
   hasTrustedSuccessfulCiEvidence,
   hasVerifiedCiEvidence,
   hasVerifiedCiFailureStatus,
@@ -482,4 +483,117 @@ test("release validation supplies the status signing keyring for evidence verifi
   assert.ok(block, "release validation job exists");
   assert.match(block[1]!, /AW_STATUS_KEYRING: \$\{\{ secrets\.AW_STATUS_KEYRING \}\}/);
   assert.match(block[1]!, /run: node scripts\/validate-release-build-request\.ts/);
+});
+
+test("one main-write verification pass reads a completed PR dispatcher run only once", async () => {
+  const status = attestFixtureStatuses(
+    {
+      statuses: ["PR Governance", "CI Evidence", "validate-merge"].map((context) => ({
+        context,
+        state: "success",
+        target_url: evidenceRunUrl,
+        created_at: "2026-10-02T13:11:43Z",
+      })),
+    },
+    targetRepository,
+    targetSha
+  );
+  const source = runReader([controlRun({ path: ".github/workflows/handle-pr-dispatch.yml" })]);
+  const scoped = completedPrRunReader(source, controlRepository);
+  for (const context of ["PR Governance", "CI Evidence", "validate-merge"]) {
+    assert.equal(
+      await hasVerifiedControlStatus(scoped, status, context, {
+        ...noDelay,
+        controlRepository,
+        workflowPaths:
+          context === "CI Evidence"
+            ? [
+                ".github/workflows/central-ci-dispatch.yml",
+                ".github/workflows/handle-pr-dispatch.yml",
+              ]
+            : [".github/workflows/handle-pr-dispatch.yml"],
+      }),
+      true,
+      context
+    );
+  }
+  assert.equal(
+    source.requested.length,
+    1,
+    "one authenticated completed run validates three statuses"
+  );
+  const independent = completedPrRunReader(source, controlRepository);
+  await independent.get(`repos/${controlRepository}/actions/runs/42`);
+  assert.equal(source.requested.length, 2, "the next verification pass must fetch again");
+});
+
+test("running, failed, untrusted, or unrelated runs cannot enter completed PR run reuse", async () => {
+  const runPath = `repos/${controlRepository}/actions/runs/42`;
+  for (const unsafe of [
+    controlRun({ status: "in_progress", conclusion: null }),
+    controlRun({ conclusion: "failure" }),
+    controlRun({ repository: { full_name: "fongap-labs/other" } }),
+    controlRun({ path: ".github/workflows/validate-ci.yml" }),
+    controlRun({ head_branch: "feature" }),
+  ]) {
+    const source = runReader([
+      unsafe,
+      controlRun({ path: ".github/workflows/handle-pr-dispatch.yml" }),
+    ]);
+    const scoped = completedPrRunReader(source, controlRepository);
+    assert.deepEqual(await scoped.get(runPath), unsafe);
+    assert.equal(
+      (await scoped.get(runPath)) !== undefined,
+      true,
+      "the second response can independently establish a completed success"
+    );
+    assert.equal(source.requested.length, 2);
+    await scoped.get(runPath);
+    assert.equal(
+      source.requested.length,
+      2,
+      "only the newly verified successful run may be reused"
+    );
+  }
+  const source = runReader([controlRun()]);
+  const scoped = completedPrRunReader(source, controlRepository);
+  for (const path of [
+    `repos/${controlRepository}/actions/runs/42?per_page=1`,
+    `repos/${controlRepository}/actions/runs/42/attempts/1`,
+    `repos/fongap-labs/other/actions/runs/42`,
+  ])
+    await scoped.get(path);
+  assert.equal(source.requested.length, 3, "non-exact paths never reuse a run");
+});
+
+test("completed PR run reuse cannot bypass per-context workflow or signed timestamp checks", async () => {
+  const source = runReader([controlRun({ path: ".github/workflows/handle-pr-dispatch.yml" })]);
+  const scoped = completedPrRunReader(source, controlRepository);
+  assert.equal(
+    await hasVerifiedControlStatus(scoped, evidenceStatus(), "CI Evidence", {
+      ...noDelay,
+      controlRepository,
+    }),
+    true
+  );
+  assert.equal(
+    await hasVerifiedControlStatus(scoped, evidenceStatus(), "CI Evidence", {
+      ...noDelay,
+      controlRepository,
+      workflowPaths: [".github/workflows/central-ci-dispatch.yml"],
+    }),
+    false,
+    "cached run must still be validated against the required publisher workflow"
+  );
+  assert.equal(
+    await hasVerifiedControlStatus(
+      scoped,
+      evidenceStatus({ created_at: "2026-12-01T00:00:00Z" }),
+      "CI Evidence",
+      { ...noDelay, controlRepository }
+    ),
+    false,
+    "cached run cannot satisfy a status outside its real execution window"
+  );
+  assert.equal(source.requested.length, 1);
 });
