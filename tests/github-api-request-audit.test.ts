@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { parse } from "yaml";
-import { GithubApiRequestAudit } from "../scripts/github-api-request-audit.ts";
 import { GithubReader } from "../scripts/github-api.ts";
+import { GithubApiRequestAudit } from "../scripts/github-api-request-audit.ts";
 
 test("audited immutable reads count singleflight, conditional ETag, and actual 304", async () => {
   const previous = globalThis.fetch;
@@ -132,10 +132,7 @@ test("CLI metrics recognize rate limits without exposing error strings or creden
 
 test("all intake scan and preflight steps publish opt-in per-process GitHub API audit", async () => {
   const workflow = parse(await readFile(".github/workflows/intake.yml", "utf8")) as {
-    jobs: Record<
-      string,
-      { steps: Array<{ run?: string; env?: Record<string, string> }> }
-    >;
+    jobs: Record<string, { steps: Array<{ run?: string; env?: Record<string, string> }> }>;
   };
   const scripts: Record<string, string> = {
     "pull-requests": "intake-open-prs.ts",
