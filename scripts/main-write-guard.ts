@@ -258,17 +258,25 @@ function mergedPrNumberHint(commit: unknown): number | null {
   return Number.isSafeInteger(number) ? number : null;
 }
 
+/** Immutable audit snapshot captured from one main-branch read; no CI/status evidence. */
+export type MainWriteAuditSnapshot = Readonly<{
+  repositoryValue: unknown;
+  mainCommit: unknown;
+}>;
+
 export async function validateMainWriteProvenance(
   reader: GithubReader,
   repository: string,
   mainSha: string,
-  isCentralStatusRequired: boolean
+  isCentralStatusRequired: boolean,
+  auditSnapshot?: MainWriteAuditSnapshot
 ): Promise<MainWriteProvenance> {
   if (!repositoryPattern.test(repository) || !shaPattern.test(mainSha)) {
     throw new CliError("::error::Main write provenance input is invalid.", 64);
   }
 
-  const repositoryValue = await reader.get(`repos/${repository}`);
+  const repositoryValue =
+    auditSnapshot?.repositoryValue ?? (await reader.get(`repos/${repository}`));
   const defaultBranch = getJsonString(repositoryValue, "default_branch");
   if (defaultBranch !== "main") {
     throw new CliError(
@@ -277,7 +285,8 @@ export async function validateMainWriteProvenance(
     );
   }
 
-  const commit = await reader.get(`repos/${repository}/commits/${mainSha}`);
+  const commit =
+    auditSnapshot?.mainCommit ?? (await reader.get(`repos/${repository}/commits/${mainSha}`));
   if (getJsonString(commit, "sha") !== mainSha) {
     throw new CliError("::error::Main write commit could not be resolved exactly.", 65);
   }
