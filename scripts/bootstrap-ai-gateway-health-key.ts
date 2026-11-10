@@ -5,7 +5,7 @@ import { runText } from "./runtime-command.ts";
 
 const controlRepository = "fongap-labs/action-worker";
 const healthSecret = "AIG_DEPLOY_HEALTH_KEY";
-const environments = ["ai-gateway-ops"] as const;
+const environments = ["production"] as const;
 
 /** A partial secret name list must never authorize creating a new credential. */
 export function environmentSecretNames(value: unknown): string[] {
@@ -65,7 +65,7 @@ function assertTrustedMain(): void {
   }
 }
 
-/** Read-only preflight in the dedicated Cloudflare operations trust domain. */
+/** Read-only preflight using the existing protected deployment credential domain. */
 async function preflightWorker(): Promise<void> {
   const names = await listWorkerSecretNames(process.env);
   assertHealthKeyIsUninitialized(names, [[]]);
@@ -100,14 +100,14 @@ async function bootstrapGithubEnvironments(): Promise<void> {
       { input: value, timeoutMs: 30000, maxBuffer: 1024 * 1024 }
     );
   }
-  console.log("Deployment health Secret initialized in protected ai-gateway-ops.");
+  console.log("Deployment health Secret initialized in the existing protected deployment Environment.");
 }
 
 /** Read the persisted Environment Secret in a fresh, protected job. */
 async function publishWorker(): Promise<void> {
   const value = process.env.AIG_DEPLOY_HEALTH_KEY;
   if (!value || !/^[0-9a-f]{64}$/.test(value)) {
-    throw new Error("Newly initialized health credential is not available in ai-gateway-ops.");
+    throw new Error("Newly initialized health credential is not available in the deployment Environment.");
   }
   const names = await listWorkerSecretNames(process.env);
   assertHealthKeyIsUninitialized(names, [[]]);
