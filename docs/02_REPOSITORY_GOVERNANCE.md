@@ -20,7 +20,8 @@
 ```text
 policies/repository.json
   → 禁用合并提交与变基合并
-  → 启用压缩合并与合并后删除分支
+  → 启用自动压缩合并与合并后删除分支
+  → 无须人工或独立 AI 审查批准；草稿 PR 不自动合并
 ```
 
 权限由 `policies/repository-access.json` 唯一管理。仓库发现只提交基础 PR 授权，不能直接改写 GitHub Actions 变量。
@@ -70,12 +71,12 @@ node scripts/apply-repository-settings.ts <owner/name> true
 ```text
 安全校验 + 中央持续集成证据 + 合并请求策略
                   ↓
-            validate-merge
+    当前 HEAD 的 PR Governance / CI Evidence / validate-merge 签名状态全部成功
                   ↓
-                合并
+         Action Worker 自动 squash 合并（精确 HEAD SHA）
 ```
 
-被取消或过期的运行不得冒充成功证据。
+被取消或过期的运行不得冒充成功证据。独立 AI Review 仅可作非阻断性建议，不是合并条件；不得要求第二名审核者、代码所有者 Review 或待处理 Review 线程结束后才合并。未获写入权限的外部 PR 仍须先通过对其代码执行权限的信任准入，这不是对可信维护者的第二人审核。
 
 公开业务仓库的 `main` 要求 `validate-merge` 来自 `fongap-bot`（App ID `5609149`）。Action Worker 自身的 `validate-merge` 是 GitHub Actions 自检（App ID `15368`），由同一份策略在应用时识别，不能错误锁定为业务仓库的机器人。GitHub 负责合并前拦截，中央审计不能替代平台硬门禁。
 
