@@ -68,7 +68,7 @@ function assertTrustedMain(): void {
 /** Read-only preflight in the dedicated Cloudflare operations trust domain. */
 async function preflightWorker(): Promise<void> {
   const names = await listWorkerSecretNames(process.env);
-  assertHealthKeyIsUninitialized(names, [[], []]);
+  assertHealthKeyIsUninitialized(names, [[]]);
   console.log("Worker health-key name is absent; bootstrap may proceed.");
 }
 
@@ -110,7 +110,7 @@ async function publishWorker(): Promise<void> {
     throw new Error("Newly initialized health credential is not available in ai-gateway-ops.");
   }
   const names = await listWorkerSecretNames(process.env);
-  assertHealthKeyIsUninitialized(names, [[], []]);
+  assertHealthKeyIsUninitialized(names, [[]]);
   await putWorkerSecret(healthSecret, { ...process.env, AIG_OPS_SECRET_VALUE: value });
   console.log("Cloudflare health Secret initialized; remote health check passed.");
 }
