@@ -180,7 +180,12 @@ try {
   assert.match(config, /`protocol`, `surfaces`, `limits`[^\n]*rejected/i, 'protocol/surfaces/limits must not return to per-node config');
   assert.match(config, /provider:\s*"anthropic"[\s\S]{0,100}messages/i);
   assert.match(config, /provider:\s*"openai"[\s\S]{0,120}responses/i);
-  assert.match(config, /`budget_split`, weighted allocation, and alternate tier-budget modes are not part of the current policy schema/i);
+  // The source documentation is Chinese; enforce the rejected-budget semantics,
+  // not a single English sentence that changes across translations.
+  assert.match(
+    config,
+    /`budget_split`[^\\n。]{0,120}(?:加权分配|weighted allocation)[^\\n。]{0,120}(?:未知字段拒绝|not part of the current policy schema)/i
+  );
   assert.doesNotMatch(config, /protocol` is required|surfaces` is required|budget_split"\s*:/i);
   assert.match(config, /public `次请求` counts successfully delivered requests/i);
   ok('configuration docs match provider-owned wire and dashboard accounting contracts');
