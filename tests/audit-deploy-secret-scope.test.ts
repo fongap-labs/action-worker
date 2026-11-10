@@ -159,7 +159,9 @@ test("offline CLI reads live policy and pinned source without runtime Secret or 
         coverage: "complete",
         repository: [],
         organization_accessible: [],
-        environments: { "ai-gateway-ops": ["AIG_DEPLOY_HEALTH_KEY", "CLOUDFLARE_API_TOKEN_SECONDARY"] },
+        environments: {
+          "ai-gateway-ops": ["AIG_DEPLOY_HEALTH_KEY", "CLOUDFLARE_API_TOKEN_SECONDARY"],
+        },
       })
     );
     const args = [
