@@ -109,7 +109,7 @@ test("shipped product ceilings remain isolated and require independent AI Gatewa
     "production"
   );
   assert.equal(aliases.has("AIG_DEPLOY_HEALTH_KEY"), false);
-  assert.equal(aliases.get("CLOUDFLARE_API_TOKEN"), "CLOUDFLARE_API_TOKEN_OPS");
+  assert.equal(aliases.get("CLOUDFLARE_API_TOKEN"), "CLOUDFLARE_API_TOKEN_SECONDARY");
   assert.deepEqual(
     [
       ...(await readDeploySecretVariableSources(

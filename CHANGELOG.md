@@ -4,7 +4,7 @@
 
 - 修复: 离线部署密钥作用域审计按中央凭据路由核对实际 `ops` Environment，而非逻辑 `production` 名称；新增错误 Environment 中同名 Secret 不可达的回归测试。
 
-- 修复: AI Gateway 正式部署的凭据 Job 绑定现有 `ai-gateway-ops`，与 Cloudflare 运维、Account ID Variable 作用域一致；健康密钥仅初始化到这一受保护 Environment，不再向 `production` 复制，部署 Secret 改为专属 ops Token，缺失时失败关闭。重新触发既有受保护初始化工作流，不跳过健康检查或原有门禁。
+- 修复: 真实受保护初始化 #42739655070 证明 `ai-gateway-ops` 缺少 Cloudflare ops Token；恢复原有 `production` 部署 Token 绑定，同时新增单独只读 `ai-gateway-ops` Job 输出经校验的 Account ID 和公网 Origin。健康密钥仅向实际凭据作业 Environment 初始化，并使用现有受保护 Cloudflare 部署身份发布和检查健康；无跨 Job Secret 传递、不向 ops 复制凭据。
 
 - 修复: Task Account ID 名称审计识别 Repository 与已授权 Organization 的重复定义；部分元数据不可读时仅在已证实两个同名来源后报告重复，其余保持未验证，不读取值、不改配置。
 

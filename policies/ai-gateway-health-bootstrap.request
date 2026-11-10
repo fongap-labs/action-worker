@@ -1,7 +1,8 @@
 # Approved one-shot reattempt after Cloudflare operations scope was observed unconfigured.
-# Use the credential-owning ai-gateway-ops Environment, without copying Secrets to production.
+# Real preflight found the ops token absent; use the existing production deployment Secret.
+# The separate ai-gateway-ops job exports only validated non-sensitive metadata.
 # Retain fail-closed preflight and do not rotate any existing key.
 schema_version: 1
 repository: fongap-labs/action-worker
 purpose: initialize-unset-ai-gateway-deploy-health-key
-attempt: protected-ai-gateway-ops
+attempt: protected-existing-production-token

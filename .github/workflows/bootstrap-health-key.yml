@@ -11,13 +11,53 @@ concurrency:
   group: ai-gateway-ops-secret-management
   cancel-in-progress: false
 jobs:
+  gateway_metadata:
+    if: github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
+    name: Read approved non-sensitive AI Gateway metadata from ops
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment:
+      name: ai-gateway-ops
+      deployment: false
+    permissions:
+      contents: read
+    outputs:
+      account_id: ${{ steps.metadata.outputs.account_id }}
+      public_url: ${{ steps.metadata.outputs.public_url }}
+    steps:
+      - name: Check out trusted control main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Validate approved Gateway ops metadata
+        id: metadata
+        env:
+          CLOUDFLARE_ACCOUNT_ID_SECONDARY: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
+          AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
+        run: node scripts/gateway-ops-variables.ts
+      # Validate the public origin before admin-ops creates any Secret.
+      - name: Require configured public health origin
+        env:
+          AIG_PUBLIC_URL: ${{ steps.metadata.outputs.public_url }}
+        shell: bash
+        run: |
+          if [[ -z "$AIG_PUBLIC_URL" ]]; then
+            echo "::error::Approved Gateway public health origin is unavailable." >&2
+            exit 77
+          fi
+
   worker-preflight:
     if: github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
-    name: Inspect Worker secret names in protected ai-gateway-ops
+    needs: gateway_metadata
+    name: Inspect Worker secret names with existing protected deploy credential
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     environment:
-      name: ai-gateway-ops
+      name: production
       deployment: false
     permissions:
       contents: read
@@ -32,13 +72,13 @@ jobs:
           node-version: 24
       - name: Inspect existing Worker Secret names
         env:
-          CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_OPS }}
-          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
+          CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}
+          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ needs.gateway_metadata.outputs.account_id }}
         run: node scripts/bootstrap-ai-gateway-health-key.ts worker-preflight
 
   github-bootstrap:
     needs: worker-preflight
-    name: Initialize protected ai-gateway-ops Secret using admin-ops
+    name: Initialize protected production deploy Secret using admin-ops
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     environment:
@@ -55,18 +95,18 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-      - name: Generate once and encrypt for both GitHub Environments
+      - name: Generate once and encrypt into approved deployment Environment
         env:
           GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
         run: node scripts/bootstrap-ai-gateway-health-key.ts github-bootstrap
 
   worker-publish:
-    needs: github-bootstrap
-    name: Publish saved Environment key through protected ai-gateway-ops
+    needs: [github-bootstrap, gateway_metadata]
+    name: Publish saved health key using existing protected deployment credentials
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     environment:
-      name: ai-gateway-ops
+      name: production
       deployment: false
     permissions:
       contents: read
@@ -82,7 +122,7 @@ jobs:
       - name: Publish the saved health Secret through the approved operations workflow
         env:
           AIG_DEPLOY_HEALTH_KEY: ${{ secrets.AIG_DEPLOY_HEALTH_KEY }}
-          CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_OPS }}
-          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
-          AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
+          CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}
+          CLOUDFLARE_ACCOUNT_ID_OPS: ${{ needs.gateway_metadata.outputs.account_id }}
+          AIG_PUBLIC_URL: ${{ needs.gateway_metadata.outputs.public_url }}
         run: node scripts/bootstrap-ai-gateway-health-key.ts worker-publish
