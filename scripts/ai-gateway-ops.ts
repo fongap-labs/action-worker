@@ -37,10 +37,14 @@ export function validateSecretDeletion(name: string, env: OperationsEnvironment)
     throw new Error("Only retired Gateway Secrets may be deleted by this operation.");
   }
   if (env.AIG_OPS_DELETE_CONFIRM !== `DELETE ai-gateway ${name}`) {
-    throw new Error("Explicit deletion confirmation must match the selected Worker and Secret name.");
+    throw new Error(
+      "Explicit deletion confirmation must match the selected Worker and Secret name."
+    );
   }
   if (providerShardName.test(name) && env.AIG_OPS_PROVIDERS_MIGRATED !== "true") {
-    throw new Error("Provider credential migration must be independently approved before Gateway shard deletion.");
+    throw new Error(
+      "Provider credential migration must be independently approved before Gateway shard deletion."
+    );
   }
 }
 const healthKeyPattern = /^[A-Za-z0-9_-]{32,}$/;
@@ -296,7 +300,9 @@ export async function deleteWorkerSecret(
     throw new Error("Deleted Secret is still present; Cloudflare state must be inspected.");
   }
   if (!(await checkRuntimeHealth(url, healthKey, fetcher))) {
-    throw new Error("Post-deletion Gateway health failed; Cloudflare state changed and requires recovery review.");
+    throw new Error(
+      "Post-deletion Gateway health failed; Cloudflare state changed and requires recovery review."
+    );
   }
 }
 
