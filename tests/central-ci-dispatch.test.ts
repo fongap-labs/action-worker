@@ -4,6 +4,7 @@ import { test } from "node:test";
 
 const workflow = readFileSync(".github/workflows/central-ci-dispatch.yml", "utf8");
 const sandbox = readFileSync(".github/workflows/central-ci-sandbox.yml", "utf8");
+const dispatcher = readFileSync("scripts/dispatch-central-ci.ts", "utf8");
 
 test("Central CI never cancels an active test for the same head SHA", () => {
   assert.match(
@@ -12,6 +13,18 @@ test("Central CI never cancels an active test for the same head SHA", () => {
   );
   assert.match(workflow, /cancel-in-progress: false/);
   assert.doesNotMatch(workflow, /cancel-in-progress: true/);
+});
+
+test("central CI classifies failed logs before publishing a signed retry marker", () => {
+  const finalize = workflow.slice(workflow.indexOf("  finalize:"), workflow.indexOf("  prepare-failure:"));
+  assert.match(finalize, /Classify failed CI evidence/);
+  assert.match(finalize, /CI_FAILURE_TARGET_REPOSITORY/);
+  assert.match(finalize, /CI_FAILURE_SOURCE_SHA/);
+  assert.match(finalize, /CI_FAILURE_REPAIR_OPERATION/);
+  assert.match(finalize, /run: node scripts\/diagnose-ci-failure\.ts/);
+  assert.match(finalize, /continue-on-error: true/);
+  assert.match(finalize, /Publish target status[\s\S]*?if: always\(\)/);
+  assert.match(finalize, /actions: read/);
 });
 
 test("main CI reuses successful evidence before heavy jobs", () => {
@@ -92,6 +105,19 @@ test("central CI re-checks PR trust before resolving what to execute", () => {
     workflow,
     /- name: Enforce PR trust\n\s+if: github\.event\.action == 'run-central-ci'[\s\S]*?node scripts\/pr-trust\.ts "\$REPOSITORY" "\$PR_NUMBER" "\$EXPECTED_HEAD_SHA"[\s\S]*?- name: Resolve PR CI control/
   );
+});
+
+test("same-SHA CI events reuse active reservations and the bounded failure budget", () => {
+  assert.match(dispatcher, /hasActiveCiEvidenceReservation\(/);
+  assert.match(dispatcher, /hasUnresolvedCiEvidenceFailure\(/);
+  assert.match(dispatcher, /decideCiFailureRetry\(/);
+  assert.match(dispatcher, /failure is not eligible for another run/);
+});
+
+test("a stale branch request is rejected before source checkout", () => {
+  assert.match(workflow, /REQUESTED_HEAD_SHA" = "\$default_sha"/);
+  assert.match(workflow, /Central CI request is stale; default branch has moved/);
+  assert.match(workflow, /exit 75/);
 });
 
 test("CI follow-ups are dispatched independently when Windows is skipped", () => {

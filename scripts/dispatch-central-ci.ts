@@ -1,9 +1,14 @@
-import { hasVerifiedCiEvidence } from "./ci-evidence.ts";
+import { hasVerifiedCiEvidence, latestCiStatus } from "./ci-evidence.ts";
+import {
+  decideCiFailureRetry,
+  hasActiveCiEvidenceReservation,
+  hasUnresolvedCiEvidenceFailure,
+} from "./ci-failure-budget.ts";
 import { requireToken } from "./control-token.ts";
 import { githubEnvironment, isJsonRecord, runGithubCli, statusAwareReader } from "./github-api.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, readJson, runText } from "./runtime-command.ts";
-import { signedStatusDescription } from "./status-attestation.ts";
+import { hasValidStatusAttestation, signedStatusDescription } from "./status-attestation.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -76,6 +81,47 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (
+    await hasActiveCiEvidenceReservation(
+      currentStatus,
+      reader,
+      controlRepository,
+      repository,
+      headSha
+    )
+  ) {
+    console.log(`Central CI already active or reserved: ${repository}@${headSha}`);
+    return;
+  }
+
+  if (
+    await hasUnresolvedCiEvidenceFailure(
+      currentStatus,
+      reader,
+      controlRepository,
+      repository,
+      headSha,
+      process.env.GITHUB_SHA ?? ""
+    )
+  ) {
+    console.log(
+      `Central CI has an unresolved failure for this control revision: ${repository}@${headSha}`
+    );
+    return;
+  }
+
+  const retryDecision = await decideCiFailureRetry(
+    currentStatus,
+    reader,
+    controlRepository,
+    repository,
+    headSha
+  );
+  if (retryDecision !== "retry" && currentStatusHasFailure(currentStatus, repository, headSha)) {
+    console.log(`Central CI failure is not eligible for another run: ${repository}@${headSha}`);
+    return;
+  }
+
   const statusArgs = [
     "api",
     "--method",
@@ -120,6 +166,14 @@ async function main(): Promise<void> {
     }
   );
   console.log(`Central CI dispatched: ${repository}#${prNumber}`);
+}
+
+function currentStatusHasFailure(value: unknown, repository: string, sha: string): boolean {
+  const latest = latestCiStatus(value, "CI Evidence");
+  return (
+    (latest?.state === "failure" || latest?.state === "error") &&
+    hasValidStatusAttestation(latest, { repository, sha, context: "CI Evidence" })
+  );
 }
 
 if (isMain(import.meta.url)) {

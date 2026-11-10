@@ -21,12 +21,19 @@ async function main(): Promise<void> {
   }
   const state = rawState as "pending" | "success" | "failure" | "error";
   const apiToken = requireToken("status");
+  const failureFingerprint = process.env.AW_CI_FAILURE_FINGERPRINT ?? "";
+  const statusDescription =
+    state === "failure" &&
+    context === "CI Evidence" &&
+    /^[RN](?:\d{1,5})?:[0-9a-f]{62}$/.test(failureFingerprint)
+      ? failureFingerprint
+      : description;
   const signedDescription = signedStatusDescription({
     repository,
     sha,
     state,
     context,
-    description,
+    description: statusDescription,
     targetUrl,
   });
   await runGithubCli(

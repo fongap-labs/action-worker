@@ -1,6 +1,7 @@
 import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { ciFailureMarker } from "./ci-failure-fingerprint.ts";
 import { CliError, handleError, isMain, runCommand } from "./runtime-command.ts";
 
 export type FailureKind =
@@ -392,7 +393,31 @@ async function main(): Promise<void> {
 
   const findings = summarizeFailures(jobs, logsByJobId);
   appendFileSync(summaryPath, markdownFailureSummary(findings, repository, runId), "utf8");
-  // No retry or dispatch is performed here; evidence and recovery classification remain informational.
+  const targetRepository = process.env.CI_FAILURE_TARGET_REPOSITORY ?? "";
+  if (targetRepository) {
+    const sourceSha = process.env.CI_FAILURE_SOURCE_SHA ?? "";
+    const workflow = process.env.CI_FAILURE_WORKFLOW_PATH ?? "";
+    const repairOperation = process.env.CI_FAILURE_REPAIR_OPERATION ?? "";
+    const environmentPath = process.env.GITHUB_ENV ?? "";
+    if (
+      !/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(targetRepository) ||
+      !/^[0-9a-f]{40}$/.test(sourceSha) ||
+      !workflow.startsWith(".github/workflows/") ||
+      !/^[a-z0-9_-]{1,40}$/.test(repairOperation) ||
+      !environmentPath
+    ) {
+      throw new CliError("Central CI failure fingerprint metadata is invalid.", 65);
+    }
+    const usefulLogText = [...logsByJobId.values()].join("\n");
+    const marker = ciFailureMarker(
+      findings,
+      { targetRepository, workflow, sourceSha, repairOperation },
+      usefulLogText
+    );
+    appendFileSync(environmentPath, `AW_CI_FAILURE_FINGERPRINT=${marker}\n`, "utf8");
+  }
+  // Only the central CI publisher consumes this signed marker. Classification still cannot bypass
+  // the CI gate; it can authorize only a bounded retry of the same target SHA.
   console.log(
     `CI triage completed: ${findings.length} failed step(s); merge gate remains unchanged.`
   );

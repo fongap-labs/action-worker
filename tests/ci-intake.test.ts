@@ -1,11 +1,68 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { maxCiFailureAttempts } from "../scripts/ci-failure-fingerprint.ts";
 import { scanMainCi } from "../scripts/intake-main-ci.ts";
 import { attestFixtureResponseForPath } from "./attested-status-fixtures.ts";
 
 const shaA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const shaB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const shaC = "cccccccccccccccccccccccccccccccccccccccc";
+const controlRepository = "fongap-labs/action-worker";
+const failureFingerprint = "f".repeat(62);
+
+function transientFailureMarker(retryAfterSeconds = 0): string {
+  return `R${retryAfterSeconds}:${failureFingerprint}`;
+}
+
+function signedFailures(
+  repository: string,
+  sha: string,
+  runIds: number[],
+  createdAt: string,
+  retryAfterSeconds = 0
+): Record<string, unknown> {
+  return attestFixtureResponseForPath(`repos/${repository}/commits/${sha}/status`, {
+    statuses: runIds.map((runId, index) => {
+      const at = new Date(Date.parse(createdAt) - index * 60_000).toISOString();
+      return {
+        context: "CI Evidence",
+        state: "failure",
+        description: transientFailureMarker(retryAfterSeconds),
+        target_url: `https://github.com/${controlRepository}/actions/runs/${runId}`,
+        created_at: at,
+      };
+    }),
+  }) as Record<string, unknown>;
+}
+
+function trustedFailureRun(createdAt: string): Record<string, unknown> {
+  const time = Date.parse(createdAt);
+  return {
+    repository: { full_name: controlRepository },
+    path: ".github/workflows/central-ci-dispatch.yml",
+    head_branch: "main",
+    event: "repository_dispatch",
+    status: "completed",
+    conclusion: "failure",
+    run_started_at: new Date(time - 2 * 24 * 60 * 60_000).toISOString(),
+    updated_at: new Date(Date.now() + 60_000).toISOString(),
+  };
+}
+
+function ciFailureReader(repository: string, sha: string, status: unknown) {
+  return {
+    async get(path: string): Promise<unknown> {
+      if (path === `repos/${repository}`) return { default_branch: "main" };
+      if (path === `repos/${repository}/commits/main`) return { sha };
+      if (path === `repos/${repository}/commits/${sha}/status`) {
+        return attestFixtureResponseForPath(path, status);
+      }
+      const runMatch = /^repos\/fongap-labs\/action-worker\/actions\/runs\/(\d+)$/.exec(path);
+      if (runMatch) return trustedFailureRun(new Date(Date.now() - 30 * 60_000).toISOString());
+      throw new Error(`unexpected API path: ${path}`);
+    },
+  };
+}
 
 test("central CI intake dispatches only default heads without evidence", async () => {
   const responses = new Map<string, unknown>([
@@ -358,4 +415,145 @@ test("main CI will not retry a signed failure from an untrusted or unfinished ru
     assert.equal(result.already_processed, 1);
     assert.equal(dispatches, 0);
   }
+});
+
+test("central CI automatically retries a transient fingerprint only within its three-run budget", async () => {
+  const repository = "fongap-labs/example";
+  for (const attempts of [1, 2, maxCiFailureAttempts]) {
+    let dispatches = 0;
+    const status = signedFailures(
+      repository,
+      shaA,
+      Array.from({ length: attempts }, (_, index) => 700 + index),
+      new Date(Date.now() - 60 * 60_000).toISOString()
+    );
+    const result = await scanMainCi(
+      { [repository]: ["pr"] },
+      ciFailureReader(repository, shaA, status),
+      async () => {
+        dispatches += 1;
+      },
+      controlRepository
+    );
+    if (attempts < maxCiFailureAttempts) {
+      assert.equal(dispatches, 1, `expected retry after ${attempts} verified failures`);
+      assert.equal(result.dispatched, 1);
+    } else {
+      assert.equal(dispatches, 0, "the same fingerprint must open the circuit at the limit");
+      assert.equal(result.already_processed, 1);
+    }
+  }
+});
+
+test("central CI waits for server Retry-After before retrying the same fingerprint", async () => {
+  const repository = "fongap-labs/example";
+  const createdAt = new Date(Date.now() - 60_000).toISOString();
+  const status = signedFailures(repository, shaA, [801], createdAt, 900);
+  let dispatches = 0;
+  const result = await scanMainCi(
+    { [repository]: ["pr"] },
+    ciFailureReader(repository, shaA, status),
+    async () => {
+      dispatches += 1;
+    },
+    controlRepository
+  );
+  assert.equal(dispatches, 0);
+  assert.equal(result.in_flight, 1);
+});
+
+test("permanent failures stop, while a new source SHA gets a fresh evaluation", async () => {
+  const repository = "fongap-labs/example";
+  const permanent = attestFixtureResponseForPath(`repos/${repository}/commits/${shaA}/status`, {
+    statuses: [
+      {
+        context: "CI Evidence",
+        state: "failure",
+        description: `N:${failureFingerprint}`,
+        target_url: `https://github.com/${controlRepository}/actions/runs/901`,
+        created_at: new Date().toISOString(),
+      },
+    ],
+  });
+  let permanentDispatches = 0;
+  const stopped = await scanMainCi(
+    { [repository]: ["pr"] },
+    ciFailureReader(repository, shaA, permanent),
+    async () => {
+      permanentDispatches += 1;
+    },
+    controlRepository
+  );
+  assert.equal(permanentDispatches, 0);
+  assert.equal(stopped.already_processed, 1);
+
+  let newShaDispatches = 0;
+  const fresh = await scanMainCi(
+    { [repository]: ["pr"] },
+    ciFailureReader(repository, shaB, { statuses: [] }),
+    async (target, sha) => {
+      assert.equal(target, repository);
+      assert.equal(sha, shaB);
+      newShaDispatches += 1;
+    },
+    controlRepository
+  );
+  assert.equal(newShaDispatches, 1);
+  assert.equal(fresh.dispatched, 1);
+});
+
+test("intake reservation prevents a second same-SHA dispatch while the first run starts", async () => {
+  const repository = "fongap-labs/example";
+  let reserved = false;
+  let dispatches = 0;
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      if (path === `repos/${repository}`) return { default_branch: "main" };
+      if (path === `repos/${repository}/commits/main`) return { sha: shaC };
+      if (path === `repos/${repository}/commits/${shaC}/status`) {
+        const value = reserved
+          ? {
+              statuses: [
+                {
+                  context: "CI Evidence",
+                  state: "pending",
+                  description: "Central CI queued",
+                  target_url: `https://github.com/${controlRepository}/actions/runs/902`,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                },
+              ],
+            }
+          : { statuses: [] };
+        return attestFixtureResponseForPath(path, value);
+      }
+      if (path === `repos/${controlRepository}/actions/runs/902`) {
+        return { status: "completed", conclusion: "failure" };
+      }
+      throw new Error(`unexpected API path: ${path}`);
+    },
+  };
+  const policy = { [repository]: ["pr"] };
+  const first = await scanMainCi(
+    policy,
+    reader,
+    async () => {
+      dispatches += 1;
+    },
+    controlRepository,
+    async () => {
+      reserved = true;
+    }
+  );
+  const concurrent = await scanMainCi(
+    policy,
+    reader,
+    async () => {
+      dispatches += 1;
+    },
+    controlRepository
+  );
+  assert.equal(first.dispatched, 1);
+  assert.equal(concurrent.in_flight, 1);
+  assert.equal(dispatches, 1);
 });
