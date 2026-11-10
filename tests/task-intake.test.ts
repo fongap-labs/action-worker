@@ -137,3 +137,30 @@ test("task intake ignores manifests without push intent", async () => {
   assert.equal(result.push_enabled, 0);
   assert.equal(result.dispatched, 0);
 });
+
+test("event-scoped task intake skips unrelated repositories without API calls", async () => {
+  const alpha = "fongap-labs/alpha";
+  const beta = "fongap-labs/beta";
+  const result = await scanTaskSources(
+    { [alpha]: ["task"], [beta]: ["task"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path === `repos/${alpha}`) return { default_branch: "main" };
+        if (path === `repos/${alpha}/commits/main`) {
+          return { sha: headSha, parents: [{ sha: beforeSha }] };
+        }
+        if (path === `repos/${alpha}/contents/.github/task-source.json?ref=${headSha}`) {
+          throw new GithubHttpError(404);
+        }
+        throw new Error(`Unexpected unrelated API call: ${path}`);
+      },
+    },
+    async () => {
+      throw new Error("No task should dispatch");
+    },
+    "",
+    alpha
+  );
+  assert.equal(result.repositories, 1);
+  assert.equal(result.dispatched, 0);
+});

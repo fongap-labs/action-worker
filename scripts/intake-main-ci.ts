@@ -2,6 +2,7 @@ import { trustedControlRunId } from "./ci-evidence.ts";
 import { decideCiFailureRetry, hasUnresolvedCiEvidenceFailure } from "./ci-failure-budget.ts";
 import { parseCiFailureMarker } from "./ci-failure-fingerprint.ts";
 import { getJsonString, githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api.ts";
+import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
@@ -281,9 +282,11 @@ async function main(): Promise<void> {
     );
   }
 
+  const policy = parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65);
+  const target = trustedIntakeTarget(policy, process.env.AW_INTAKE_TARGET_REPOSITORY ?? "");
   const reader = statusAwareReader(apiUrl, controlToken, statusToken);
   const result = await scanMainCi(
-    parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
+    policy,
     reader,
     async (repository, headSha) => {
       await dispatchCentralCi(controlRepository, ingressToken, repository, headSha);
@@ -292,7 +295,7 @@ async function main(): Promise<void> {
     async (repository, headSha) => {
       await reserveCiStatus(controlRepository, statusToken, repository, headSha);
     },
-    onlyRepository,
+    onlyRepository || target,
     process.env.GITHUB_SHA ?? ""
   );
 

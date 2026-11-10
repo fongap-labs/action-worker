@@ -15,6 +15,7 @@ import {
   githubExists,
   isJsonRecord,
 } from "./github-api.ts";
+import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import { scheduledDispatchCandidateShas } from "./scheduled-dispatch-candidates.ts";
@@ -198,7 +199,8 @@ export async function resolveScheduledTasks(
   now: Date,
   lookbackMinutes: number,
   controlRepository: string,
-  token: string
+  token: string,
+  onlyRepository = ""
 ): Promise<ScheduledTask[]> {
   if (!repositoryPattern.test(controlRepository)) {
     throw new CliError("Control repository is invalid.", 64);
@@ -209,7 +211,8 @@ export async function resolveScheduledTasks(
 
   const tasks: ScheduledTask[] = [];
   const repositories = repositoriesForCapability(policyValue, "task").filter(
-    (repository) => repository !== controlRepository
+    (repository) =>
+      repository !== controlRepository && (!onlyRepository || repository === onlyRepository)
   );
 
   for (const repository of repositories) {
@@ -410,12 +413,15 @@ async function main(): Promise<void> {
     throw new CliError("Task scheduler time or lookback is invalid.", 64);
   }
 
+  const policy = parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65);
+  const target = trustedIntakeTarget(policy, process.env.AW_INTAKE_TARGET_REPOSITORY ?? "");
   const tasks = await resolveScheduledTasks(
-    parseJson(policyRaw, "AW_REPOSITORY_POLICY must be valid JSON.", 65),
+    policy,
     now,
     lookbackMinutes,
     controlRepository,
-    controlToken
+    controlToken,
+    target
   );
 
   let dispatched = 0;
