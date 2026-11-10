@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- 优化: Main CI 使用 GitHub List commits 接口的默认分支语义，一次 GET 获取每个仓库默认分支最新提交 SHA，替代仓库元数据与分支提交的两次 GET；仍逐仓库验证精确 SHA 和签名 CI Status，不固定分支名、不降低证据校验。按当前 8 个受管仓库测算，Main CI 读取从 24 次降至 16 次，减少 8 次（约 33%），合并后以真实运行审计数据验收。
+
+
 - 修复: 对通过签名状态 URL 读取的 Action Worker 运行证据增加响应体 run.id 精确匹配校验，覆盖已完成运行的进程内复用、CI 成功和失败证据。运行对象 ID 缺失或与 URL 不符时拒绝用于门禁或缓存，保留独立工作流、分支、签名、状态及时间窗口验证，不减少必要的 Actions REST 请求、不更改自动合并策略。
 
 - 优化: Main Write Audit 对完整且唯一的 GitHub commit→merged PR 关联记录复用已校验的 PR 事实，避免每个受管仓库重复 GET 同一 PR 详情；若关联记录缺失有效 head SHA，仍独立查询 PR 详情并验证编号、merged_at、精确合并 SHA 与 main 基分支。多重关联和伪造合并继续拒绝，实时 CI/PR Status、Actions、未解决事件门禁不受影响。预计九仓库可减少九次 REST 请求，实际降耗以合并后运行记录为准。
