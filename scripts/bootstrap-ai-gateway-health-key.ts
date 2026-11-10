@@ -100,14 +100,18 @@ async function bootstrapGithubEnvironments(): Promise<void> {
       { input: value, timeoutMs: 30000, maxBuffer: 1024 * 1024 }
     );
   }
-  console.log("Deployment health Secret initialized in the existing protected deployment Environment.");
+  console.log(
+    "Deployment health Secret initialized in the existing protected deployment Environment."
+  );
 }
 
 /** Read the persisted Environment Secret in a fresh, protected job. */
 async function publishWorker(): Promise<void> {
   const value = process.env.AIG_DEPLOY_HEALTH_KEY;
   if (!value || !/^[0-9a-f]{64}$/.test(value)) {
-    throw new Error("Newly initialized health credential is not available in the deployment Environment.");
+    throw new Error(
+      "Newly initialized health credential is not available in the deployment Environment."
+    );
   }
   const names = await listWorkerSecretNames(process.env);
   assertHealthKeyIsUninitialized(names, [[]]);
