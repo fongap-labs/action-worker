@@ -27,23 +27,20 @@ test("environment inventory requires complete, unique names, never secret values
   }
 });
 
-test("bootstrap cannot overwrite Cloudflare or either GitHub Environment key", () => {
+test("bootstrap cannot overwrite Cloudflare or the credential-owning ops Environment", () => {
   assert.doesNotThrow(() =>
-    assertHealthKeyIsUninitialized(["SOME_OTHER_KEY"], [["CLOUDFLARE_API_TOKEN"], []])
+    assertHealthKeyIsUninitialized(["SOME_OTHER_KEY"], [["CLOUDFLARE_API_TOKEN"]])
   );
   assert.throws(
-    () => assertHealthKeyIsUninitialized(["AIG_DEPLOY_HEALTH_KEY"], [[], []]),
+    () => assertHealthKeyIsUninitialized(["AIG_DEPLOY_HEALTH_KEY"], [[]]),
     /refusing to rotate/
   );
   assert.throws(
-    () => assertHealthKeyIsUninitialized([], [["AIG_DEPLOY_HEALTH_KEY"], []]),
+    () => assertHealthKeyIsUninitialized([], [["AIG_DEPLOY_HEALTH_KEY"]]),
     /refusing to rotate/
   );
-  assert.throws(
-    () => assertHealthKeyIsUninitialized([], [[], ["AIG_DEPLOY_HEALTH_KEY"]]),
-    /refusing to rotate/
-  );
-  assert.throws(() => assertHealthKeyIsUninitialized([], [[]]), /incomplete/);
+  assert.throws(() => assertHealthKeyIsUninitialized([], []), /incomplete/);
+  assert.throws(() => assertHealthKeyIsUninitialized([], [[], []]), /incomplete/);
 });
 
 test("one-shot main-only bootstrap retains the central operations and admin trust domains", () => {
