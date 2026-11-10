@@ -4,13 +4,14 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: 操作类型（inventory 密钥名；runtime-inventory 四 Worker 只读盘点；put 更新单个密钥）
+        description: 操作类型（inventory 密钥盘点；runtime-inventory 四 Worker 盘点；put 更新密钥；deploy-center 发布私有中心）
         required: true
         type: choice
         options:
           - inventory
           - runtime-inventory
           - put
+          - deploy-center
         default: inventory
       worker:
         description: 运行时 Worker（私有中心必须先完成无公网部署）
@@ -119,6 +120,57 @@ jobs:
         run: |
           set -Eeuo pipefail
           node scripts/ai-gateway-ops.ts put "$SECRET_NAME"
+
+      # Privileged manual bootstrap. Source is an immutable CI-verified main SHA,
+      # not an untrusted workflow input. Updates to the pin require a reviewed PR.
+      - name: Check out approved AI Gateway private centers
+        if: inputs.operation == 'deploy-center'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fongap-labs/ai-gateway
+          ref: b976bbfa2184738e09f7f4c7c885f5836efcbd5a
+          path: ag-center
+          persist-credentials: false
+
+      - name: Deploy one approved private center
+        if: inputs.operation == 'deploy-center'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
+          AIG_OPS_VARIABLES_JSON: ${{ toJSON(vars) }}
+          WORKER: ${{ inputs.worker }}
+          SECRET_NAME: ${{ inputs.secret_name }}
+          PINNED_CENTER_SHA: b976bbfa2184738e09f7f4c7c885f5836efcbd5a
+          DEPLOY_SOURCE_SHA: b976bbfa2184738e09f7f4c7c885f5836efcbd5a
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ -z "$SECRET_NAME" ]] || {
+            echo "::error::deploy-center must not include secret_name." >&2
+            exit 64
+          }
+          case "$WORKER" in
+            ai-inference-center|ai-generation-center) ;;
+            *) echo "::error::Only the two approved private centers may be deployed." >&2; exit 64 ;;
+          esac
+          [[ "$(git -C ag-center rev-parse HEAD)" == "$PINNED_CENTER_SHA" ]] || exit 77
+          # Do not execute an immutable feature-branch SHA: the source must be
+          # the currently reviewed and published main revision.
+          main_sha="$(git ls-remote https://github.com/fongap-labs/ai-gateway.git refs/heads/main | cut -f1)"
+          [[ "$main_sha" == "$PINNED_CENTER_SHA" ]] || {
+            echo "::error::Private center source pin does not match approved AI Gateway main." >&2
+            exit 77
+          }
+          cd ag-center
+          npm ci
+          npm run validate:deploy
+          config="$RUNNER_TEMP/private-center-release.json"
+          manifest="$RUNNER_TEMP/private-center-release-manifest.json"
+          trap 'rm -f "$config" "$manifest"' EXIT
+          node scripts/private-center-config.mjs prepare \
+            --worker "$WORKER" --output "$config" --manifest "$manifest"
+          node scripts/cloudflare-wrangler.mjs deploy --config "$config"
+          echo "Private center code deployed; its Secret inventory and internal auth must be verified before Gateway cutover."
 
       - name: Operations summary
         if: always()
