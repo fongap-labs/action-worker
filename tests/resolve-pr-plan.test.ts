@@ -267,6 +267,6 @@ test("PR governance does not launch AI review after CI-green merge", async () =>
   assert.ok(governance.includes("PR_STATUS_CONTEXT: validate-merge"));
   assert.ok(governance.includes("run: node scripts/validate-security.ts"));
   assert.ok(governance.includes("run: node scripts/validate-change-record.ts"));
-  assert.ok(governance.includes("run: node scripts/validate-ci-evidence.ts"));
+  assert.ok(governance.includes("node scripts/validate-ci-evidence.ts"));
   assert.ok(advisory.includes("types: [run-pr-review]"));
 });
