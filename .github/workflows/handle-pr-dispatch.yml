@@ -370,6 +370,34 @@ jobs:
           PR_STATUS_CONTEXT: validate-merge
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
 
+      # Automatically squash-merge an exact, non-draft PR head only after the
+      # deterministic, signed CI/Policy/Security merge gate has passed. AI
+      # review remains optional and cannot block the merge.
+      - name: Mint automatic merge token
+        id: merge_app
+        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.cancellation.outputs.cancelled != 'true' }}
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Automatically merge CI-green PR
+        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.cancellation.outputs.cancelled != 'true' }}
+        env:
+          AW_MERGE_READ_TOKEN: ${{ steps.final_read_app.outputs.token }}
+          AW_MERGE_WRITE_TOKEN: ${{ steps.merge_app.outputs.token }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
+          BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/auto-merge-pr.ts "$REPOSITORY" "$PR_NUMBER" "$HEAD_SHA" "$BASE_SHA" "$RUN_URL"
+
       - name: Publish PR review
         if: ${{ always() && !cancelled() && steps.ownership.outputs.current == 'true' }}
         id: issue_app
