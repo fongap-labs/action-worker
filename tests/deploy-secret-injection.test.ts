@@ -290,11 +290,12 @@ test("AI Gateway production accepts identical inherited ops values and rejects m
     { ...normalized, PUBLIC_VALUE: "unchanged" }
   );
 
-  for (const conflict of [
+  const conflicts: Array<Record<string, string>> = [
     { AIG_MODELS_CONFIG: "different" },
     { AIG_UNKNOWN_CONFIG: "unapproved" },
     { CLOUDFLARE_ACCOUNT_ID_SECONDARY: "11111111111111111111111111111111" },
-  ]) {
+  ];
+  for (const conflict of conflicts) {
     assert.throws(
       () =>
         mergeApprovedGatewayOpsVariables(
@@ -308,10 +309,11 @@ test("AI Gateway production accepts identical inherited ops values and rejects m
     );
   }
 
-  for (const forbidden of [
+  const forbiddenVariables: Array<Record<string, string>> = [
     { AIG_OAUTH_ADMIN_GROUPS: "MAX,ULTRA" },
     { AIG_ACCESS_KEY_AGENT: "must-be-a-secret" },
-  ]) {
+  ];
+  for (const forbidden of forbiddenVariables) {
     assert.throws(
       () =>
         mergeApprovedGatewayOpsVariables(
