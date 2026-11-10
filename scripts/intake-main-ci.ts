@@ -1,9 +1,11 @@
 import { trustedControlRunId } from "./ci-evidence.ts";
+import { decideCiFailureRetry, hasUnresolvedCiEvidenceFailure } from "./ci-failure-budget.ts";
+import { parseCiFailureMarker } from "./ci-failure-fingerprint.ts";
 import { getJsonString, githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
-import { hasValidStatusAttestation } from "./status-attestation.ts";
+import { hasValidStatusAttestation, originalStatusDescription } from "./status-attestation.ts";
 
 type GithubGet = {
   get(path: string): Promise<unknown>;
@@ -26,6 +28,7 @@ type StatusFact = {
   state: string;
   target_url: string;
   updated_at: string;
+  description: string;
 };
 
 function latestStatus(
@@ -49,6 +52,7 @@ function latestStatus(
     state: getJsonString(latest, "state"),
     target_url: getJsonString(latest, "target_url"),
     updated_at: getJsonString(latest, "updated_at"),
+    description: originalStatusDescription(latest),
   };
 }
 
@@ -72,9 +76,24 @@ async function ciState(
   const fact = latestStatus(value, "CI Evidence", repository, sha);
   if (!fact) return "dispatch";
   if (fact.state === "success") return "processed";
-  // A signed failure from a previous trusted control revision can be rechecked after
-  // the CI implementation changes. Never rerun the same failed control revision in a loop.
+  // Failures with a stable, signed fingerprint can be retried only when log evidence classified
+  // them as transient, the server delay elapsed, and fewer than three central runs failed.
   if (fact.state === "failure" || fact.state === "error") {
+    const marker = parseCiFailureMarker(fact.description);
+    if (fact.state === "failure" && marker) {
+      if (!controlRepository) return "processed";
+      const decision = await decideCiFailureRetry(
+        value,
+        reader,
+        controlRepository,
+        repository,
+        sha
+      );
+      return decision === "retry" ? "dispatch" : decision === "wait" ? "in-flight" : "processed";
+    }
+
+    // Compatibility for pre-fingerprint statuses: only a new, verified control revision may
+    // trigger one re-evaluation. Never repeat a legacy failure on the same control revision.
     if (!shaPattern.test(currentControlHeadSha) || !controlRepository) return "processed";
     const runId = trustedControlRunId(fact.target_url, controlRepository);
     if (!runId) return "processed";
@@ -103,6 +122,18 @@ async function ciState(
     const runStatus = isJsonRecord(run) && typeof run.status === "string" ? run.status : "";
     if (["queued", "in_progress", "pending", "waiting", "requested"].includes(runStatus)) {
       return "in-flight";
+    }
+    if (
+      await hasUnresolvedCiEvidenceFailure(
+        value,
+        reader,
+        controlRepository,
+        repository,
+        sha,
+        currentControlHeadSha
+      )
+    ) {
+      return "processed";
     }
   }
 

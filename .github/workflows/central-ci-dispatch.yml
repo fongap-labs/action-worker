@@ -434,7 +434,22 @@ jobs:
           repositories: ${{ steps.status_scope.outputs.repository_name }}
           permission-statuses: write
 
+      - name: Classify failed CI evidence
+        if: >-
+          always() &&
+          (needs.linux.result == 'failure' || needs.security.result == 'failure' ||
+          needs.windows.result == 'failure')
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CI_FAILURE_TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          CI_FAILURE_SOURCE_SHA: ${{ needs.prepare.outputs.head_sha }}
+          CI_FAILURE_WORKFLOW_PATH: .github/workflows/central-ci-dispatch.yml
+          CI_FAILURE_REPAIR_OPERATION: central_ci_retry
+        run: node scripts/diagnose-ci-failure.ts
+
       - name: Publish target status
+        if: always()
         env:
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
@@ -473,7 +488,6 @@ jobs:
 
           node scripts/write-commit-status.ts "$REPOSITORY" "$HEAD_SHA" "$state" \
             "CI Evidence" "$description" "$RUN_URL"
-
           if [[ "$state" != "success" ]]; then
             echo "::error::Central CI failed for $REPOSITORY@$HEAD_SHA: linux=$LINUX_RESULT security=$SECURITY_RESULT windows=$WINDOWS_RESULT"
             exit 1

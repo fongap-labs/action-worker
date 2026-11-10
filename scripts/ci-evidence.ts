@@ -1,6 +1,6 @@
 import { getJsonArray, getJsonString, isJsonRecord, type JsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
-import { hasValidStatusAttestation } from "./status-attestation.ts";
+import { hasValidStatusAttestation, statusRunAttempt } from "./status-attestation.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
@@ -254,6 +254,51 @@ export async function hasVerifiedCiEvidence(
   options: VerifiedCiEvidenceOptions = {}
 ): Promise<boolean> {
   return hasVerifiedControlStatus(reader, response, "CI Evidence", options);
+}
+
+/** A retry budget counts only signed failures from completed central dispatcher runs. */
+export async function hasVerifiedCiFailureStatus(
+  reader: JsonReader,
+  status: unknown,
+  options: VerifiedCiEvidenceOptions = {}
+): Promise<boolean> {
+  const controlRepository = options.controlRepository ?? defaultControlRepository;
+  const targetRepository = options.targetRepository ?? "";
+  const targetSha = options.targetSha ?? "";
+  const context = "CI Evidence";
+  if (
+    !isJsonRecord(status) ||
+    getJsonString(status, "state") !== "failure" ||
+    getJsonString(status, "context") !== context ||
+    !targetRepository ||
+    !targetSha ||
+    !hasValidStatusAttestation(status, { repository: targetRepository, sha: targetSha, context })
+  ) {
+    return false;
+  }
+
+  const runId = trustedControlRunId(getJsonString(status, "target_url"), controlRepository);
+  const createdAt = Date.parse(getJsonString(status, "created_at"));
+  if (runId === null || !Number.isFinite(createdAt)) return false;
+
+  let run: unknown;
+  try {
+    run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
+  } catch (error) {
+    if (isNotFound(error)) return false;
+    throw error;
+  }
+  return (
+    isJsonRecord(run) &&
+    getJsonString(run.repository, "full_name") === controlRepository &&
+    getJsonString(run, "path") === ".github/workflows/central-ci-dispatch.yml" &&
+    getJsonString(run, "head_branch") === "main" &&
+    getJsonString(run, "event") === "repository_dispatch" &&
+    getJsonString(run, "status") === "completed" &&
+    getJsonString(run, "conclusion") === "failure" &&
+    runInsideWindow(run, createdAt) &&
+    statusRunAttempt(status) !== null
+  );
 }
 
 /** Wait for a verified successful CI Evidence on a commit; fail closed when it never appears. */

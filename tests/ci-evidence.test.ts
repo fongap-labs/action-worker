@@ -5,6 +5,7 @@ import {
   centralCiWait,
   hasTrustedSuccessfulCiEvidence,
   hasVerifiedCiEvidence,
+  hasVerifiedCiFailureStatus,
   hasVerifiedControlStatus,
   latestCiStatus,
   mainWriteGuardWorkflowPaths,
@@ -180,6 +181,36 @@ test("forged CI evidence pointing at a wrong or unsuccessful run is rejected", a
       await hasVerifiedCiEvidence(runReader([run]), evidenceStatus(), { ...noDelay, ...verified }),
       false,
       JSON.stringify(run)
+    );
+  }
+});
+
+test("only a signed failure from a completed central dispatch run counts toward retry limits", async () => {
+  const failure = evidenceStatus({
+    state: "failure",
+    description: `R0:${"f".repeat(62)}`,
+    created_at: "2026-10-02T13:11:43Z",
+  });
+  const trustedFailure = controlRun({ conclusion: "failure", event: "repository_dispatch" });
+  assert.equal(
+    await hasVerifiedCiFailureStatus(runReader([trustedFailure]), failure.statuses[0], {
+      ...noDelay,
+      ...verified,
+    }),
+    true
+  );
+  for (const run of [
+    controlRun({ conclusion: "success", event: "repository_dispatch" }),
+    controlRun({ conclusion: "failure", event: "push" }),
+    controlRun({ conclusion: "failure", path: ".github/workflows/validate-ci.yml" }),
+    controlRun({ conclusion: "failure", head_branch: "attacker" }),
+  ]) {
+    assert.equal(
+      await hasVerifiedCiFailureStatus(runReader([run]), failure.statuses[0], {
+        ...noDelay,
+        ...verified,
+      }),
+      false
     );
   }
 });
