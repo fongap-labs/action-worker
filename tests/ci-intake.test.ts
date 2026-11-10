@@ -60,7 +60,10 @@ function ciFailureReader(repository: string, sha: string, status: unknown) {
       }
       const runMatch = /^repos\/fongap-labs\/action-worker\/actions\/runs\/(\d+)$/.exec(path);
       if (runMatch)
-        return trustedFailureRun(new Date(Date.now() - 30 * 60_000).toISOString(), Number(runMatch[1]));
+        return trustedFailureRun(
+          new Date(Date.now() - 30 * 60_000).toISOString(),
+          Number(runMatch[1])
+        );
       throw new Error(`unexpected API path: ${path}`);
     },
   };
