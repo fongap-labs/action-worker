@@ -26,9 +26,11 @@ export function shouldResume(value: unknown): boolean {
         return false;
       }
       const status = typeof last.status_code === "number" ? last.status_code : 0;
+      const retryAfterMs = typeof last.retry_after_ms === "number" ? last.retry_after_ms : 0;
       return (
         ["timeout", "network", "overloaded"].includes(String(last.error_class)) ||
-        (status >= 500 && status <= 599)
+        (status >= 500 && status <= 599) ||
+        (status === 429 && retryAfterMs > 0 && retryAfterMs <= 120_000)
       );
     })
   );
