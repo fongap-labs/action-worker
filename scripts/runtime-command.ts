@@ -29,9 +29,11 @@ export async function runCommand(
   const isGithubApi = command === "gh" && args[0] === "api";
   if (isGithubApi) {
     const endpoint =
-      args.slice(1).find((argument) =>
-        /^(?:\/?(?:repos\/|rate_limit(?:[?]|$))|https:\/\/api\.github\.com\/)/.test(argument)
-      ) ?? "";
+      args
+        .slice(1)
+        .find((argument) =>
+          /^(?:\/?(?:repos\/|rate_limit(?:[?]|$))|https:\/\/api\.github\.com\/)/.test(argument)
+        ) ?? "";
     githubApiAudit.cliStart(endpoint);
   }
   return await new Promise((resolve, reject) => {
