@@ -53,8 +53,7 @@ function trustedFailureRun(createdAt: string, id: number): Record<string, unknow
 function ciFailureReader(repository: string, sha: string, status: unknown) {
   return {
     async get(path: string): Promise<unknown> {
-      if (path === `repos/${repository}`) return { default_branch: "main" };
-      if (path === `repos/${repository}/commits/main`) return { sha };
+      if (path === `repos/${repository}/commits?per_page=1`) return [{ sha }];
       if (path === `repos/${repository}/commits/${sha}/status`) {
         return attestFixtureResponseForPath(path, status);
       }
@@ -71,19 +70,16 @@ function ciFailureReader(repository: string, sha: string, status: unknown) {
 
 test("central CI intake dispatches only default heads without evidence", async () => {
   const responses = new Map<string, unknown>([
-    ["repos/fongap-labs/one", { default_branch: "main" }],
-    ["repos/fongap-labs/one/commits/main", { sha: shaA }],
+    ["repos/fongap-labs/one/commits?per_page=1", [{ sha: shaA }]],
     [`repos/fongap-labs/one/commits/${shaA}/status`, { statuses: [] }],
-    ["repos/fongap-labs/two", { default_branch: "main" }],
-    ["repos/fongap-labs/two/commits/main", { sha: shaB }],
+    ["repos/fongap-labs/two/commits?per_page=1", [{ sha: shaB }]],
     [
       `repos/fongap-labs/two/commits/${shaB}/status`,
       {
         statuses: [{ context: "CI Evidence", state: "pending" }],
       },
     ],
-    ["repos/fongap-labs/three", { default_branch: "trunk" }],
-    ["repos/fongap-labs/three/commits/trunk", { sha: shaC }],
+    ["repos/fongap-labs/three/commits?per_page=1", [{ sha: shaC }]],
     [
       `repos/fongap-labs/three/commits/${shaC}/status`,
       {
@@ -119,6 +115,27 @@ test("central CI intake dispatches only default heads without evidence", async (
   });
 });
 
+test("default head lookup rejects an empty or malformed default-branch commit list", async () => {
+  const repository = "fongap-labs/example";
+  for (const payload of [[], [{}], [{ sha: "not-a-commit-sha" }]]) {
+    await assert.rejects(
+      scanMainCi(
+        { [repository]: ["pr"] },
+        {
+          async get(path: string): Promise<unknown> {
+            assert.equal(path, `repos/${repository}/commits?per_page=1`);
+            return payload;
+          },
+        },
+        async () => {
+          throw new Error("invalid default HEAD must never dispatch");
+        }
+      ),
+      /default-branch commit list response is invalid|default head SHA is invalid/
+    );
+  }
+});
+
 test("central CI intake reserves status before dispatch", async () => {
   const repository = "fongap-labs/example";
   const controlRepository = "fongap-labs/action-worker";
@@ -128,8 +145,7 @@ test("central CI intake reserves status before dispatch", async () => {
     { [repository]: ["pr"] },
     {
       async get(path: string): Promise<unknown> {
-        if (path === `repos/${repository}`) return { default_branch: "main" };
-        if (path === `repos/${repository}/commits/main`) return { sha: shaA };
+        if (path === `repos/${repository}/commits?per_page=1`) return [{ sha: shaA }];
         if (path === `repos/${repository}/commits/${shaA}/status`) return { statuses: [] };
         throw new Error(`unexpected API path: ${path}`);
       },
@@ -157,8 +173,7 @@ test("central CI intake honors a recent reservation after the intake run complet
     { [repository]: ["pr"] },
     {
       async get(path: string): Promise<unknown> {
-        if (path === `repos/${repository}`) return { default_branch: "main" };
-        if (path === `repos/${repository}/commits/main`) return { sha: shaA };
+        if (path === `repos/${repository}/commits?per_page=1`) return [{ sha: shaA }];
         if (path === `repos/${repository}/commits/${shaA}/status`) {
           return attestFixtureResponseForPath(path, {
             statuses: [
@@ -197,8 +212,7 @@ test("central CI intake retries an expired pending reservation", async () => {
     { [repository]: ["pr"] },
     {
       async get(path: string): Promise<unknown> {
-        if (path === `repos/${repository}`) return { default_branch: "main" };
-        if (path === `repos/${repository}/commits/main`) return { sha: shaA };
+        if (path === `repos/${repository}/commits?per_page=1`) return [{ sha: shaA }];
         if (path === `repos/${repository}/commits/${shaA}/status`) {
           return attestFixtureResponseForPath(path, {
             statuses: [
@@ -234,8 +248,7 @@ test("central CI intake rechecks legacy unsigned compatibility evidence", async 
     { [repository]: ["pr"] },
     {
       async get(path: string): Promise<unknown> {
-        if (path === `repos/${repository}`) return { default_branch: "main" };
-        if (path === `repos/${repository}/commits/main`) return { sha: shaA };
+        if (path === `repos/${repository}/commits?per_page=1`) return [{ sha: shaA }];
         return { statuses: [{ context: "ci-evidence", state: "failure" }] };
       },
     },
@@ -260,8 +273,7 @@ test("central CI intake excludes the control repository without hardcoded names"
     {
       async get(path: string): Promise<unknown> {
         assert.doesNotMatch(path, /fongap-labs\/control/);
-        if (path === `repos/${businessRepository}`) return { default_branch: "main" };
-        if (path === `repos/${businessRepository}/commits/main`) return { sha: shaA };
+        if (path === `repos/${businessRepository}/commits?per_page=1`) return [{ sha: shaA }];
         return { statuses: [] };
       },
     },
@@ -277,8 +289,7 @@ test("central CI intake excludes the control repository without hardcoded names"
 
 test("central CI intake can be limited to the repository of a task source request", async () => {
   const responses = new Map<string, unknown>([
-    ["repos/fongap-labs/one", { default_branch: "main" }],
-    ["repos/fongap-labs/one/commits/main", { sha: shaA }],
+    ["repos/fongap-labs/one/commits?per_page=1", [{ sha: shaA }]],
     [`repos/fongap-labs/one/commits/${shaA}/status`, { statuses: [] }],
   ]);
 
@@ -312,8 +323,7 @@ test("main CI retries a signed old failure only after trusted control revision c
   const seen: string[] = [];
   const reader = {
     async get(path: string): Promise<unknown> {
-      if (path === `repos/${repository}`) return { default_branch: "main" };
-      if (path === `repos/${repository}/commits/main`) return { sha: shaA };
+      if (path === `repos/${repository}/commits?per_page=1`) return [{ sha: shaA }];
       if (path === `repos/${repository}/commits/${shaA}/status`) {
         return attestFixtureResponseForPath(path, {
           statuses: [
@@ -392,8 +402,7 @@ test("main CI will not retry a signed failure from an untrusted or unfinished ru
       { [repository]: ["pr"] },
       {
         async get(path: string): Promise<unknown> {
-          if (path === `repos/${repository}`) return { default_branch: "main" };
-          if (path === `repos/${repository}/commits/main`) return { sha: shaB };
+          if (path === `repos/${repository}/commits?per_page=1`) return [{ sha: shaB }];
           if (path === `repos/${repository}/commits/${shaB}/status`) {
             return attestFixtureResponseForPath(path, {
               statuses: [
@@ -513,8 +522,7 @@ test("intake reservation prevents a second same-SHA dispatch while the first run
   let dispatches = 0;
   const reader = {
     async get(path: string): Promise<unknown> {
-      if (path === `repos/${repository}`) return { default_branch: "main" };
-      if (path === `repos/${repository}/commits/main`) return { sha: shaC };
+      if (path === `repos/${repository}/commits?per_page=1`) return [{ sha: shaC }];
       if (path === `repos/${repository}/commits/${shaC}/status`) {
         const value = reserved
           ? {
