@@ -47,7 +47,18 @@ test("quota reserve must be a bounded positive integer", () => {
 test("only optional intake jobs defer; important CI and governance continue", async () => {
   const source = await readFile(".github/workflows/intake.yml", "utf8");
   const workflow = parse(source) as {
-    jobs: Record<string, { steps: Array<{ name?: string; id?: string; run?: string; if?: string; env?: Record<string, string> }> }>;
+    jobs: Record<
+      string,
+      {
+        steps: Array<{
+          name?: string;
+          id?: string;
+          run?: string;
+          if?: string;
+          env?: Record<string, string>;
+        }>;
+      }
+    >;
   };
   for (const job of ["task-sources", "task-schedules", "deploy-schedules"]) {
     const steps = workflow.jobs[job]?.steps ?? [];
@@ -62,6 +73,10 @@ test("only optional intake jobs defer; important CI and governance continue", as
   }
   for (const job of ["pull-requests", "main-ci", "main-writes"]) {
     const steps = workflow.jobs[job]?.steps ?? [];
-    assert.equal(steps.some((step) => step.id === "api_budget"), false, job);
+    assert.equal(
+      steps.some((step) => step.id === "api_budget"),
+      false,
+      job
+    );
   }
 });
