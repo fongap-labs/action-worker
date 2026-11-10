@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { maxCiFailureAttempts } from "../scripts/ci-failure-fingerprint.ts";
-import { scanMainCi } from "../scripts/intake-main-ci.ts";
 import { GithubHttpError } from "../scripts/github-api.ts";
+import { scanMainCi } from "../scripts/intake-main-ci.ts";
 import { attestFixtureResponseForPath } from "./attested-status-fixtures.ts";
 
 const shaA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
