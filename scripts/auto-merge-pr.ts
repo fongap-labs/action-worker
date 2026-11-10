@@ -64,6 +64,18 @@ export function assertReadyForAutomaticMerge(
   }
 }
 
+export function mustRefreshBehindBranch(pull: unknown, repository: string): boolean {
+  if (!isJsonRecord(pull) || pull.mergeable_state !== "behind") return false;
+  const head = isJsonRecord(pull.head) ? pull.head : {};
+  const base = isJsonRecord(pull.base) ? pull.base : {};
+  const headRepo = isJsonRecord(head.repo) ? head.repo : {};
+  const baseRepo = isJsonRecord(base.repo) ? base.repo : {};
+  return (
+    getJsonString(headRepo, "full_name") === repository &&
+    getJsonString(baseRepo, "full_name") === repository
+  );
+}
+
 async function main(): Promise<void> {
   const [repository = "", number = "", headSha = "", baseSha = "", governanceRunUrl = ""] =
     process.argv.slice(2);
@@ -87,6 +99,26 @@ async function main(): Promise<void> {
     baseSha,
     governanceRunUrl
   );
+  // A protected main may require this PR branch to include the current base.
+  // GitHub's update-branch endpoint atomically checks the old head SHA; this
+  // creates a new PR head and triggers fresh CI, rather than merging stale code.
+  if (mustRefreshBehindBranch(pull, repository)) {
+    await runGithubCli(
+      [
+        "api",
+        "--method",
+        "PUT",
+        `repos/${repository}/pulls/${number}/update-branch`,
+        "-f",
+        `expected_head_sha=${headSha}`,
+      ],
+      writeToken
+    );
+    console.log(
+      `Refreshed behind PR branch for ${repository}#${number}; awaiting fresh CI before merge.`
+    );
+    return;
+  }
   // GitHub still applies protected branch rules. Matching the exact PR head
   // prevents a newer revision from being merged by this older governance run.
   await runGithubCli(

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { assertReadyForAutomaticMerge } from "../scripts/auto-merge-pr.ts";
+import { assertReadyForAutomaticMerge, mustRefreshBehindBranch } from "../scripts/auto-merge-pr.ts";
 import { signedStatusDescription } from "../scripts/status-attestation.ts";
 
 const repository = "fongap-labs/ai-gateway";
@@ -75,6 +75,32 @@ function verify(candidatePull: unknown, candidateStatuses: unknown) {
 
 test("signed current-head CI success authorizes zero-review automatic squash merge", () => {
   assert.doesNotThrow(() => verify(pull(), statuses()));
+});
+
+test("only a same-repository behind branch may be refreshed after signed CI succeeds", () => {
+  const behind = {
+    ...pull(),
+    mergeable_state: "behind",
+    head: { sha: headSha, repo: { full_name: repository } },
+    base: { sha: baseSha, ref: "main", repo: { full_name: repository } },
+  };
+  assert.doesNotThrow(() => verify(behind, statuses()));
+  assert.equal(mustRefreshBehindBranch(behind, repository), true);
+  assert.equal(mustRefreshBehindBranch({ ...behind, mergeable_state: "clean" }, repository), false);
+  assert.equal(
+    mustRefreshBehindBranch(
+      { ...behind, head: { sha: headSha, repo: { full_name: "someone/fork" } } },
+      repository
+    ),
+    false
+  );
+  assert.equal(
+    mustRefreshBehindBranch(
+      { ...behind, base: { sha: baseSha, ref: "main", repo: { full_name: "someone/fork" } } },
+      repository
+    ),
+    false
+  );
 });
 
 test("draft and changed or closed PRs never auto-merge", () => {

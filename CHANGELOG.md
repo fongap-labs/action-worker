@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 已通过三项签名 CI 的 PR 若因分支落后 main 无法自动合并，由受限 GitHub App 按精确 SHA 更新分支并重新运行 CI；中央 Intake 可重新派发已全绿但未合并的 behind PR，仍拒绝草稿、冲突和外部 Fork。
+
 - 修复: 完全撤销 delta-legacy 的 Action Worker 管理授权；保留排除名单，并让仓库接入器拒绝排除项与授权同时存在的矛盾配置。
 
 - 修复: Action Worker 控制仓库自身的 PR 在六项 CI 汇总门禁全部通过后自动使用受限 GitHub App 按精确 HEAD squash 合并；草稿、Fork、SHA 或基线变化一律阻断，不再要求人工合并或独立审查。
