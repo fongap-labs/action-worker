@@ -73,16 +73,27 @@ test("one-shot bootstrap reuses existing deploy Secrets with ops-only non-secret
     account_id: "${{ steps.metadata.outputs.account_id }}",
     public_url: "${{ steps.metadata.outputs.public_url }}",
   });
-  const metadataSteps = metadata.steps as { name?: string; env?: Record<string, string>; run?: string }[];
-  const exportStep = metadataSteps.find((step) => step.name === "Validate approved Gateway ops metadata");
-  assert.equal(exportStep?.env?.CLOUDFLARE_ACCOUNT_ID_SECONDARY,
-    "${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}");
+  const metadataSteps = metadata.steps as {
+    name?: string;
+    env?: Record<string, string>;
+    run?: string;
+  }[];
+  const exportStep = metadataSteps.find(
+    (step) => step.name === "Validate approved Gateway ops metadata"
+  );
+  assert.equal(
+    exportStep?.env?.CLOUDFLARE_ACCOUNT_ID_SECONDARY,
+    "${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}"
+  );
   assert.equal(exportStep?.env?.AIG_PUBLIC_URL, "${{ vars.AIG_PUBLIC_URL }}");
   assert.equal(exportStep?.run, "node scripts/gateway-ops-variables.ts");
-  assert.ok(metadataSteps.some((step) =>
-    step.name === "Require configured public health origin" &&
-    step.env?.AIG_PUBLIC_URL === "${{ steps.metadata.outputs.public_url }}"
-  ));
+  assert.ok(
+    metadataSteps.some(
+      (step) =>
+        step.name === "Require configured public health origin" &&
+        step.env?.AIG_PUBLIC_URL === "${{ steps.metadata.outputs.public_url }}"
+    )
+  );
   assert.doesNotMatch(JSON.stringify(metadata), /secrets\./);
 
   const bootstrapSteps = github.steps as { env?: Record<string, string> }[];
@@ -90,14 +101,20 @@ test("one-shot bootstrap reuses existing deploy Secrets with ops-only non-secret
   for (const job of [preflight, publish]) {
     const steps = job.steps as { env?: Record<string, string> }[];
     const deployEnv = steps.find((step) => step.env?.CLOUDFLARE_API_TOKEN_OPS);
-    assert.equal(deployEnv?.env?.CLOUDFLARE_API_TOKEN_OPS,
-      "${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}");
-    assert.equal(deployEnv?.env?.CLOUDFLARE_ACCOUNT_ID_OPS,
-      "${{ needs.gateway_metadata.outputs.account_id }}");
+    assert.equal(
+      deployEnv?.env?.CLOUDFLARE_API_TOKEN_OPS,
+      "${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}"
+    );
+    assert.equal(
+      deployEnv?.env?.CLOUDFLARE_ACCOUNT_ID_OPS,
+      "${{ needs.gateway_metadata.outputs.account_id }}"
+    );
   }
   const publishSteps = publish.steps as { env?: Record<string, string> }[];
-  assert.equal(publishSteps.find((step) => step.env?.AIG_DEPLOY_HEALTH_KEY)?.env?.AIG_PUBLIC_URL,
-    "${{ needs.gateway_metadata.outputs.public_url }}");
+  assert.equal(
+    publishSteps.find((step) => step.env?.AIG_DEPLOY_HEALTH_KEY)?.env?.AIG_PUBLIC_URL,
+    "${{ needs.gateway_metadata.outputs.public_url }}"
+  );
   const script = readFileSync("scripts/bootstrap-ai-gateway-health-key.ts", "utf8");
   assert.match(script, /const environments = \["production"\]/);
   assert.match(script, /randomBytes\(32\)\.toString\("hex"\)/);
