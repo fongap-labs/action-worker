@@ -6,6 +6,7 @@ import {
   decodeGatewayOpsVariables,
   encodeGatewayOpsVariables,
   isGatewayOwnedVariableName,
+  validateGatewayBootstrapMetadata,
   validateGatewayOpsVariables,
 } from "../scripts/gateway-ops-variables.ts";
 
@@ -34,6 +35,25 @@ test("complete non-sensitive Gateway ops Variables are validated without hardcod
   assert.equal(isGatewayOwnedVariableName("AIG_MODELS_CONFIG"), true);
   assert.equal(isGatewayOwnedVariableName("CLOUDFLARE_ACCOUNT_ID_SECONDARY"), true);
   assert.equal(isGatewayOwnedVariableName("SOME_UNRELATED_CONTROL_VARIABLE"), false);
+});
+
+test("bootstrap metadata ignores inherited retired settings without weakening deployment checks", () => {
+  const inherited = {
+    CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
+    AIG_PUBLIC_URL: "https://gateway.example/",
+    AIG_OAUTH_ADMIN_GROUPS: "MAX,ULTRA",
+    AIG_TIER3_NODES_01: "[]",
+    SOME_UNRELATED_VARIABLE: "other",
+  };
+  assert.deepEqual(validateGatewayBootstrapMetadata(inherited), {
+    CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
+    AIG_PUBLIC_URL: "https://gateway.example",
+  });
+  assert.throws(() => validateGatewayOpsVariables(inherited), /retired/);
+  assert.throws(
+    () => validateGatewayBootstrapMetadata({ ...inherited, CLOUDFLARE_ACCOUNT_ID_SECONDARY: "bad" }),
+    /invalid/
+  );
 });
 
 test("missing identity, malformed metadata, Secrets, retired and derived Variables fail closed", () => {
