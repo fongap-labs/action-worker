@@ -68,7 +68,13 @@ test("npm republish requires a published, provenance-verified release and paired
     validateNpmRelease(repository, tag, controlRepository, release("manual release"), policy)
   );
   assert.throws(() =>
-    validateNpmRelease(repository, tag, controlRepository, { ...release(), prerelease: true }, policy)
+    validateNpmRelease(
+      repository,
+      tag,
+      controlRepository,
+      { ...release(), prerelease: true },
+      policy
+    )
   );
   assert.throws(() =>
     validateNpmRelease(repository, tag, controlRepository, { ...release(), draft: true }, policy)
@@ -87,10 +93,7 @@ test("npm package metadata must be public, scoped, and match the release tag", (
     validateNpmPackageManifest({ name: "@other/package", version: "0.1.0" }, "0.1.0")
   );
   assert.throws(() =>
-    validateNpmPackageManifest(
-      { name: "@fongap-labs/dsh-ui-delta", version: "0.1.1" },
-      "0.1.0"
-    )
+    validateNpmPackageManifest({ name: "@fongap-labs/dsh-ui-delta", version: "0.1.1" }, "0.1.0")
   );
 });
 
