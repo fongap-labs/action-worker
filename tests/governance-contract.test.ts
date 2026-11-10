@@ -30,6 +30,12 @@ test("repository permissions come only from the versioned access policy", async 
   assert.equal(authority.schema_version, 1);
   assert.equal(authority.organization, "fongap-labs");
   assert.deepEqual(authority.excluded_repositories, ["fongap-labs/delta-legacy"]);
+  for (const guidePath of ["AGENTS.md", "CLAUDE.md", "docs/02_REPOSITORY_GOVERNANCE.md"]) {
+    const guide = await text(guidePath);
+    assert.match(guide, /fongap-labs\/delta-legacy/, guidePath);
+  }
+  assert.match(await text("CLAUDE.md"), /delta-legacy.*不再列入后续修复范围/);
+  assert.match(await text("AGENTS.md"), /Do not create or merge PRs/);
   const grants = authority.grants as Record<string, string[]>;
   for (const excluded of authority.excluded_repositories as string[]) {
     assert.equal(
