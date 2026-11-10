@@ -5,6 +5,7 @@
   "excluded_repositories": ["fongap-labs/delta-legacy"],
   "grants": {
     "fongap-labs/action-worker": ["pr", "task"],
+    "fongap-labs/delta-legacy": ["pr"],
     "fongap-labs/ai-gateway": ["pr", "task", "deploy"],
     "fongap-labs/delta": ["pr", "task", "release-source", "release-target"],
     "fongap-labs/delta-suite": ["pr", "task"],

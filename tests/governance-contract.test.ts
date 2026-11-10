@@ -857,7 +857,37 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   }
   assert.equal(repository.allow_merge_commit, false);
   assert.equal(repository.allow_squash_merge, true);
+  assert.equal(repository.allow_auto_merge, true);
   assert.equal(repository.delete_branch_on_merge, true);
+  const prRule = mainRules.find((rule) => rule.type === "pull_request");
+  const prRuleParameters = prRule?.parameters as Record<string, unknown>;
+  assert.equal(prRuleParameters.required_approving_review_count, 0);
+  assert.equal(prRuleParameters.require_code_owner_review, false);
+  assert.equal(prRuleParameters.required_review_thread_resolution, false);
+  const governance = await text(".github/workflows/handle-pr-dispatch.yml");
+  requireText(governance, [
+    "Mint automatic merge token",
+    "Automatically merge CI-green PR",
+    "node scripts/auto-merge-pr.ts",
+    "permission-contents: write",
+    "permission-pull-requests: write",
+    "steps.ownership.outputs.current == 'true'",
+    "steps.gate.outputs.passed == 'true'",
+  ]);
+  const autoMergeSource = await text("scripts/auto-merge-pr.ts");
+  requireText(autoMergeSource, [
+    "latestAttestedStatus",
+    "CI Evidence",
+    "PR Governance",
+    "validate-merge",
+    "--match-head-commit",
+    "--squash",
+  ]);
+  assert.ok(
+    governance.indexOf("- name: Automatically merge CI-green PR") <
+      governance.indexOf("- name: Dispatch AI review"),
+    "Optional AI review must never delay automatic merging"
+  );
   const settings = await text(".github/workflows/apply-repository-settings.yml");
   // The daily run corrects settings changed by hand, so drift never needs a manual run.
   requireText(settings, [
