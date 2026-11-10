@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 受保护四 Worker 只读盘点锁定到已验证的脱敏诊断版本，细分认证、权限与接口错误。
+
 - 新增: GitHub API 审计按固定低基数端点类型细分实际 HTTP 和 gh api 请求，覆盖仓库、分支、提交、PR、检查、状态、Actions、Issue、内容与配额；按 Job 的运行日志和 Summary 输出分类总数，用于验证 Main Write Audit 与 Main CI 的真实请求构成。重试计算为实际请求，并发合并不计为新增请求；不记录仓库名、SHA、URL、令牌或响应内容，不修改 CI 与自动合并准入。
 
 - 新增: ai-gateway-ops 可手动执行已固定提交的四 Worker 只读资源盘点，不上传私有清单。
