@@ -224,7 +224,7 @@ Schema 2 示例：
 - 部署子进程只继承必要系统与部署元数据、已导出的普通 Repository Variables，以及本次授权的 Secret；不继承 Action Worker 控制面密钥、Runner Token、整个 `secrets` 上下文、`NODE_OPTIONS`。
 - 缺少必需密钥、源清单越权、来源冲突或超过 40 项时失败关闭；可选密钥必须同时在中央 `allowed` 与源仓库 `deploy.secrets.allowed` 中声明。
 - MCP Hub 的 `production` 仅授权 `CLOUDFLARE_API_TOKEN_SECONDARY`；运行时 `MCP_*` 密钥继续保存在 Cloudflare Worker Secrets。
-- AI Gateway 正常部署仅授权 Cloudflare 部署凭据和独立的 `AIG_DEPLOY_HEALTH_KEY` 健康检查凭据；该密钥需在 Action Worker 的 `ai-gateway-ops` Environment 与 Cloudflare Worker 中同名配置，不得复用 `AIG_ACCESS_KEY_AGENT` 或其他用户访问组密钥。Provider/Tier/OAuth 密钥不随部署传入。Server Edge 维持 `server-edge-cloud-edge` 环境现有的四项授权配置。
+- AI Gateway 正常部署仅授权 Cloudflare 部署凭据和独立的 `AIG_DEPLOY_HEALTH_KEY` 健康检查凭据；该密钥需在 Action Worker 当前受保护 `production` 部署凭据 Environment 与 Cloudflare Worker 中同名配置，不得复用 `AIG_ACCESS_KEY_AGENT` 或其他用户访问组密钥。Provider/Tier/OAuth 密钥不随部署传入。Server Edge 维持 `server-edge-cloud-edge` 环境现有的四项授权配置。
 - 本次变更不修改任何已存 GitHub 或 Cloudflare Secret 的值，且不自动部署。
 
 并发两层：
