@@ -22,6 +22,7 @@ type Row = {
   installation_id: number;
   created_ms: number;
   lease_until_ms: number;
+  attempt_count: number;
   delivered_ms: number | null;
 };
 
@@ -49,6 +50,7 @@ class FakeDatabase implements IngressDatabase {
               installation_id: Number(values[2]),
               created_ms: Number(values[5]),
               lease_until_ms: 0,
+              attempt_count: 0,
               delivered_ms: null,
             });
           }
@@ -71,17 +73,29 @@ class FakeDatabase implements IngressDatabase {
             : [...database.rows.values()].find((item) => item.body_digest === String(values[0]));
           return row ? ({ delivery_id: row.delivery_id, body_digest: row.body_digest } as T) : null;
         }
+        if (sql.startsWith("SELECT delivered_ms, attempt_count")) {
+          const row = database.rows.get(String(values[0]));
+          return row
+            ? ({ delivered_ms: row.delivered_ms, attempt_count: row.attempt_count } as T)
+            : null;
+        }
         if (!sql.includes("RETURNING delivery_id")) throw new Error("Unexpected SQL first");
         const row = database.rows.get(String(values[1]));
-        if (!row || row.delivered_ms !== null || row.lease_until_ms > Number(values[2]))
+        if (
+          !row ||
+          row.delivered_ms !== null ||
+          row.attempt_count >= 5 ||
+          row.lease_until_ms > Number(values[2])
+        )
           return null;
-        row.lease_until_ms = Number(values[0]);
-        return { delivery_id: row.delivery_id } as T;
+        row.lease_until_ms = Number(values[0]) + 60_000 * 2 ** row.attempt_count;
+        row.attempt_count += 1;
+        return { delivery_id: row.delivery_id, attempt_count: row.attempt_count } as T;
       },
       async all<T>(): Promise<{ results: T[] }> {
         if (!sql.startsWith("SELECT delivery_id")) throw new Error("Unexpected SQL all");
         const results = [...database.rows.values()]
-          .filter((row) => row.delivered_ms === null && row.lease_until_ms <= Number(values[0]))
+          .filter((row) => row.delivered_ms === null && row.attempt_count < 5 && row.lease_until_ms <= Number(values[0]))
           .sort((a, b) => a.lease_until_ms - b.lease_until_ms || a.created_ms - b.created_ms)
           .slice(0, 25)
           .map((row) => ({ delivery_id: row.delivery_id, installation_id: row.installation_id }));
@@ -458,6 +472,7 @@ test("cron prioritizes never-tried deliveries over an older failing batch", asyn
       installation_id: 101,
       created_ms: index + 1,
       lease_until_ms: index < 25 ? now - 1_000 : 0,
+      attempt_count: 0,
       delivered_ms: null,
     });
   }
@@ -479,6 +494,7 @@ test("cron cannot mint credentials for an installation other than the configured
     installation_id: 999,
     created_ms: 1,
     lease_until_ms: 0,
+    attempt_count: 0,
     delivered_ms: null,
   });
   const api = mockGithubApi();
