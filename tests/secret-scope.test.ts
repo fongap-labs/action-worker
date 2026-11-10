@@ -300,19 +300,20 @@ test("a policy cannot alias to a reserved, declared or repeated name", async () 
   }
 });
 
-test("AI Gateway production exposes deploy credentials only; runtime secrets stay in Cloudflare", async () => {
+test("AI Gateway production shares only approved center authentication with the single ops Environment", async () => {
   const policyPath = "policies/deploy-secrets.json";
   const gateway = await readDeploySecretCeiling(policyPath, "fongap-labs/ai-gateway", "production");
   const hub = await readDeploySecretCeiling(policyPath, "fongap-labs/mcp-hub", "production");
   assert.deepEqual([...gateway].sort(), [
     "AIG_DEPLOY_HEALTH_KEY",
+    "AIG_GENERATION_AUTH_KEY",
+    "AIG_INFERENCE_AUTH_KEY",
+    "AIG_PERCEPTION_AUTH_KEY",
     "CLOUDFLARE_ACCOUNT_ID",
     "CLOUDFLARE_API_TOKEN",
   ]);
   for (const name of [
     "AIG_TOKEN_ENCRYPTION_KEY",
-    "AIG_INFERENCE_AUTH_KEY",
-    "AIG_GENERATION_AUTH_KEY",
     "AIG_ACCESS_KEY_AIR",
     "AIG_ACCESS_KEY_PRO",
     "AIG_ACCESS_KEY_MAX",
