@@ -36,6 +36,26 @@ export function shouldResume(value: unknown): boolean {
   );
 }
 
+/** Apply a bounded server Retry-After to the next OCR session resume.
+ * Rejecting long-lived 429s remains shouldResume()'s responsibility.
+ */
+export function resumeDelayMs(value: unknown, fallbackMs: number): number {
+  let delayMs = Math.min(Math.max(fallbackMs, 1000), 120_000);
+  if (!isJsonRecord(value) || !isJsonRecord(value.retry_report)) return delayMs;
+  const requests = Array.isArray(value.retry_report.requests) ? value.retry_report.requests : [];
+  for (const request of requests.filter(isJsonRecord)) {
+    if (request.outcome !== "failed") continue;
+    const attempts = Array.isArray(request.attempts) ? request.attempts.filter(isJsonRecord) : [];
+    const last = attempts.at(-1);
+    if (last?.status_code !== 429) continue;
+    const retryAfterMs = last.retry_after_ms;
+    if (typeof retryAfterMs === "number" && Number.isFinite(retryAfterMs) && retryAfterMs > 0) {
+      delayMs = Math.max(delayMs, Math.min(retryAfterMs, 120_000));
+    }
+  }
+  return delayMs;
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length !== 1) {
