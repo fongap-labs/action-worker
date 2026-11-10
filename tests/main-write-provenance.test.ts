@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { GithubReader } from "../scripts/github-api.ts";
+import { auditRepositoryMain } from "../scripts/audit-main-writes.ts";
 import {
   MainWriteVerificationPendingError,
   mainWriteEvidenceError,
@@ -126,4 +127,68 @@ test("ongoing control runs remain untrusted without creating permanent incident 
     assert.equal(failure instanceof MainWriteVerificationPendingError, false, reason);
     assert.match(failure.message, new RegExp(reason));
   }
+});
+
+test("main write audit uses one pinned HEAD snapshot without duplicate repository and commit reads", async () => {
+  const requests: string[] = [];
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      requests.push(path);
+      if (path === `repos/${repository}`) return { default_branch: "main" };
+      if (path === `repos/${repository}/commits/main`) {
+        return { sha: mainSha, commit: { message: "fix: safe merge (#44)" } };
+      }
+      if (path === `repos/${repository}/commits/${mainSha}/pulls?per_page=100`) {
+        return [goodPr];
+      }
+      if (path === `repos/${repository}/pulls/44`) return goodPr;
+      if (path === `repos/${repository}/commits/${headSha}/check-runs?filter=latest&per_page=100`) {
+        return {
+          check_runs: [
+            {
+              name: "validate-merge",
+              status: "completed",
+              conclusion: "success",
+              app: { slug: "github-actions" },
+            },
+          ],
+        };
+      }
+      if (path === `repos/${repository}/issues?state=open&per_page=100&page=1`) return [];
+      throw new Error(`Unnecessary or unexpected API request: ${path}`);
+    },
+  } as GithubReader;
+  let observedSha = "";
+  const verified = await auditRepositoryMain(reader, repository, false, (sha) => {
+    observedSha = sha;
+  });
+  assert.deepEqual(verified, { main_sha: mainSha, pr_number: 44 });
+  assert.equal(observedSha, mainSha);
+  assert.equal(requests.length, 6, "one repository, one main HEAD, and four independent checks");
+  assert.equal(requests.filter((path) => path === `repos/${repository}`).length, 1);
+  assert.equal(requests.filter((path) => path === `repos/${repository}/commits/main`).length, 1);
+  assert.equal(requests.includes(`repos/${repository}/commits/${mainSha}`), false);
+});
+
+test("a mismatched or untrusted audit snapshot fails closed before PR evidence", async () => {
+  const { reader, requests } = fixture("fix: safe merge (#44)", [goodPr]);
+  for (const snapshot of [
+    { repositoryValue: { default_branch: "develop" }, mainCommit: { sha: mainSha } },
+    { repositoryValue: { default_branch: "main" }, mainCommit: { sha: headSha } },
+    { repositoryValue: { default_branch: "main" }, mainCommit: {} },
+  ]) {
+    await assert.rejects(
+      validateMainWriteProvenance(reader, repository, mainSha, false, snapshot),
+      /default branch must be main|could not be resolved exactly/
+    );
+  }
+  assert.deepEqual(requests, [], "invalid pinned snapshots must not consult GitHub for PR data");
+});
+
+test("direct provenance validation still fetches independently when no snapshot is supplied", async () => {
+  const { reader, requests } = fixture("fix: normal merge", [goodPr]);
+  const result = await validateMainWriteProvenance(reader, repository, mainSha, false);
+  assert.equal(result.pr_number, 44);
+  assert.ok(requests.includes(`repos/${repository}`));
+  assert.ok(requests.includes(`repos/${repository}/commits/${mainSha}`));
 });
