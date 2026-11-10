@@ -7,6 +7,7 @@ import {
   resolveDeploySecretPlan,
 } from "./resolve-secret-scope.ts";
 import { CliError, isMain, runText } from "./runtime-command.ts";
+import { selectDeployCredentialEnvironment } from "./select-deploy-credential-environment.ts";
 
 type NamesOnlyInventory = ReturnType<typeof parseNamesOnlyInventory>;
 
@@ -194,7 +195,23 @@ async function main(): Promise<void> {
   const inventory = parseNamesOnlyInventory(
     JSON.parse(await readFile(inventoryPath, "utf8")) as unknown
   );
-  console.log(JSON.stringify(auditDeploySecretScope(plan, inventory, environment), null, 2));
+  const credentialRoutes: unknown = JSON.parse(
+    await readFile("policies/deploy-credential-environments.json", "utf8")
+  );
+  const grantedEnvironments = JSON.parse(
+    await readFile("policies/deploy-environments.json", "utf8")
+  ) as { schema_version?: number; repositories?: Record<string, string[]> };
+  if (grantedEnvironments.schema_version !== 1 || !grantedEnvironments.repositories) {
+    throw new CliError("Deploy Environment authorization policy is invalid.", 65);
+  }
+  const { credential_environment } = selectDeployCredentialEnvironment(
+    credentialRoutes,
+    grantedEnvironments.repositories,
+    repository,
+    product,
+    environment
+  );
+  console.log(JSON.stringify(auditDeploySecretScope(plan, inventory, credential_environment), null, 2));
 }
 
 if (isMain(import.meta.url)) {
