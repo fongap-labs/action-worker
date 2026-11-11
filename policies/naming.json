@@ -12,7 +12,16 @@
   "source_identifiers": {
     "lifecycle_banned_terms": ["new", "final", "latest", "temp", "tmp"],
     "vague_banned_terms": ["impl", "helper", "helpers", "common", "misc", "shared"],
-    "boolean_hints": ["enabled", "disabled", "required", "available", "active", "visible", "writable", "replace"],
+    "boolean_hints": [
+      "enabled",
+      "disabled",
+      "required",
+      "available",
+      "active",
+      "visible",
+      "writable",
+      "replace"
+    ],
     "boolean_prefixes_python_rust": ["is_", "has_", "can_", "should_"],
     "boolean_prefixes_typescript": ["is", "has", "can", "should"]
   },

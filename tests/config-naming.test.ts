@@ -44,7 +44,7 @@ test("rejects PAT terminology and non-canonical Boolean names", () => {
     ["AW_DISPATCH_PAT=value", "AIG_DEPLOY_ENABLED=true"].join("\n")
   );
 
-  assert.ok(errors.some((error) => error.includes("instead of PAT")));
+  assert.ok(errors.some((error) => error.includes("forbidden credential term")));
   assert.ok(errors.some((error) => error.includes("Boolean configuration")));
 });
 

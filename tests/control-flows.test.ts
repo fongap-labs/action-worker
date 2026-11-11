@@ -25,7 +25,7 @@ async function initRepo(): Promise<string> {
 test("change record requires concise Chinese entries in CHANGELOG.md", async (context) => {
   const root = await initRepo();
   context.after(() => rm(root, { recursive: true, force: true }));
-  const initial = "# Changelog\n\n## [Unreleased]\n";
+  const initial = "# 更新日志\n\n## [Unreleased]\n";
   await writeFile(join(root, "README.md"), "# Fixture\n", "utf8");
   await writeFile(join(root, "CHANGELOG.md"), initial, "utf8");
   await git(root, ["add", "."]);
@@ -33,7 +33,12 @@ test("change record requires concise Chinese entries in CHANGELOG.md", async (co
   const base = await git(root, ["rev-parse", "HEAD"]);
 
   await writeFile(join(root, "README.md"), "# Fixture\n\nMore docs.\n", "utf8");
-  await git(root, ["add", "README.md"]);
+  await writeFile(
+    join(root, "CHANGELOG.md"),
+    initial + "\n- 维护: 更新安装说明。\n",
+    "utf8"
+  );
+  await git(root, ["add", "README.md", "CHANGELOG.md"]);
   await git(root, ["commit", "-qm", "docs"]);
   const docsHead = await git(root, ["rev-parse", "HEAD"]);
   assert.equal(

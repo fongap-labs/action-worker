@@ -58,10 +58,10 @@ export function assertReadyForAutomaticMerge(
     }
     if (context === "PR Governance" || context === "validate-merge") {
       const title = getJsonString(pull, "title");
-      const expected = "title-sha256=" + prTitleFingerprint(title) + " ";
+      const expected = `title-sha256=${prTitleFingerprint(title)} `;
       if (!title || !originalStatusDescription(status).startsWith(expected)) {
         throw new CliError(
-          "Automatic merge refused: " + context + " was not validated for the current PR title.",
+          `Automatic merge refused: ${context} was not validated for the current PR title.`,
           75
         );
       }
