@@ -2,13 +2,17 @@
 // Copyright (c) 2026 Fongap Labs
 import assert from 'node:assert/strict';
 import { targetPath } from '#kit/target.mjs';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { verifyRemote } from '#target/scripts/github-deployment-config.mjs';
 import {
-  deploymentBuildFromMessage,
-  legacyReadinessBuild,
+  confirmRestoredIdentity,
+  guardedRollbackTarget,
   parseActiveDeployment,
+  recordPublishedDeployment,
 } from '#target/scripts/deployment-recovery.mjs';
 import { resolveBuildSha } from '#target/src/observability/diagnostic-endpoints.ts';
 
@@ -92,10 +96,6 @@ test('online verification polls public readiness until the new build is ready', 
     assert.equal(readinessCalls, 1, 'build verification uses one public readiness probe');
     assertPublicReadinessRequests(requests);
 
-    requests = [];
-    await verifyRemote('https://gateway.example');
-    assert.equal(requests.length, 1, 'rollback probes public readiness without asserting a target SHA');
-    assertPublicReadinessRequests(requests);
   } finally {
     globalThis.fetch = original;
   }
@@ -108,75 +108,86 @@ test('deployment validation remains project-owned while orchestration is central
   assert.match(pkg.scripts['check:deploy'], /cloudflare-wrangler\.mjs deploy --dry-run/);
 });
 
-test('legacy Gateway bootstrap accepts only tagged active builds on 401 or 404', () => {
-  const build = 'a'.repeat(40);
-  const active = parseActiveDeployment({
+test('recovery records an untagged Gateway via Cloudflare when the public route would return 401', () => {
+  const accountId = 'a'.repeat(32);
+  const previous = {
+    deployment_id: '11111111-1111-4111-8111-111111111111',
+    version_id: '22222222-2222-4222-8222-222222222222',
+  };
+  const inventory = {
     success: true,
     result: {
-      deployments: [
-        {
-          id: '11111111-1111-4111-8111-111111111111',
-          versions: [
-            {
-              version_id: '22222222-2222-4222-8222-222222222222',
-              percentage: 100,
-            },
-          ],
-          annotations: {
-            'workers/message': `action-worker:deploy:${build}`,
-          },
-        },
-      ],
+      deployments: [{
+        id: previous.deployment_id,
+        versions: [{ version_id: previous.version_id, percentage: 100 }],
+      }],
     },
-  });
+  };
+  const mockFetch = `
+    globalThis.fetch = async (url, options) => {
+      const host = new URL(url).hostname;
+      console.log('Requested ' + host);
+      if (host !== 'api.cloudflare.com') return new Response(null, { status: 401 });
+      const expected = 'https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/ai-gateway/deployments?per_page=1&page=1';
+      if (url !== expected || options.method !== 'GET') throw new Error('Unexpected Cloudflare request');
+      return Response.json(${JSON.stringify(inventory)});
+    };
+  `;
+  const directory = mkdtempSync(join(tmpdir(), 'gateway-recovery-'));
+  const ledger = join(directory, 'ledger.json');
+  try {
+    const result = spawnSync(process.execPath, [
+      '--import',
+      `data:text/javascript,${encodeURIComponent(mockFetch)}`,
+      targetPath('scripts/deployment-recovery.mjs'),
+      'snapshot',
+      ledger,
+    ], {
+      encoding: 'utf8',
+      timeout: 5000,
+      env: {
+        ...process.env,
+        CLOUDFLARE_ACCOUNT_ID: accountId,
+        CLOUDFLARE_API_TOKEN: 'test-token',
+        AIG_PUBLIC_URL: 'https://gateway.example',
+      },
+    });
+    assert.ifError(result.error);
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(result.stdout.match(/^Requested .+$/gm), ['Requested api.cloudflare.com']);
 
-  assert.equal(deploymentBuildFromMessage(active.message), build);
-  assert.equal(legacyReadinessBuild({ status: 401 }, active), build);
-  assert.equal(legacyReadinessBuild({ status: 404 }, active), build);
-  assert.equal(legacyReadinessBuild({ status: 503 }, active), null);
-  assert.equal(legacyReadinessBuild({}, active), null);
-  assert.equal(
-    legacyReadinessBuild(
-      { status: 401 },
-      { ...active, message: `action-worker:rollback:${build}` },
-    ),
-    null,
-  );
-  assert.equal(
-    legacyReadinessBuild(
-      { status: 401 },
-      { ...active, message: `action-worker:deploy:${build}extra` },
-    ),
-    null,
-  );
+    const baseline = JSON.parse(readFileSync(ledger, 'utf8'));
+    assert.deepEqual(baseline.previous, previous);
+    const build = 'b'.repeat(40);
+    const deployed = {
+      deployment_id: '33333333-3333-4333-8333-333333333333',
+      version_id: '44444444-4444-4444-8444-444444444444',
+      message: `action-worker:deploy:${build}`,
+    };
+    assert.throws(() => recordPublishedDeployment(baseline, { ...deployed, message: null }, build), /not verified/);
+    const published = recordPublishedDeployment(baseline, deployed, build);
+    assert.equal(guardedRollbackTarget(published, deployed), previous.version_id);
+    const drifted = { ...deployed, deployment_id: '55555555-5555-4555-8555-555555555555' };
+    assert.throws(() => guardedRollbackTarget(published, drifted), /drifted/);
+    assert.throws(() => confirmRestoredIdentity(published, drifted), /has not restored/);
+    assert.doesNotThrow(() => confirmRestoredIdentity(published, { ...drifted, version_id: previous.version_id }));
+
+    inventory.result.deployments[0].versions[0].percentage = 50;
+    assert.throws(() => parseActiveDeployment(inventory), /exactly one verified 100% Worker version/);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 });
 
-test('remote readiness keeps HTTP 401 available to the legacy rollout guard', async () => {
+test('public readiness still rejects a 401 after publishing', async () => {
   const original = globalThis.fetch;
-  const requests = [];
-  globalThis.fetch = async (url, init) => {
-    requests.push({
-      url: String(url),
-      hasAuthorization: new Headers(init?.headers).has('authorization'),
-    });
-    return Response.json({ ready: false }, { status: 401 });
-  };
-
+  globalThis.fetch = async () => new Response(null, { status: 401 });
   try {
     await assert.rejects(
-      verifyRemote('https://gateway.example', 'a'.repeat(40), {
-        graceMs: 1,
-        intervalMs: 1,
-      }),
-      (error) => {
-        assert.equal(error.status, 401);
-        assert.match(error.message, /HTTP 401/);
-        return true;
-      },
+      verifyRemote('https://gateway.example', 'a'.repeat(40), { graceMs: 1, intervalMs: 1 }),
+      /HTTP 401/,
     );
-    assertPublicReadinessRequests(requests);
   } finally {
     globalThis.fetch = original;
   }
 });
-
