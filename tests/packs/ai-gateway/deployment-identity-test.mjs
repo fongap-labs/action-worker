@@ -5,6 +5,11 @@ import { targetPath } from '#kit/target.mjs';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { verifyRemote } from '#target/scripts/github-deployment-config.mjs';
+import {
+  deploymentBuildFromMessage,
+  legacyReadinessBuild,
+  parseActiveDeployment,
+} from '#target/scripts/deployment-recovery.mjs';
 import { resolveBuildSha } from '#target/src/observability/diagnostic-endpoints.ts';
 
 const assertPublicReadinessRequests = (requests) => {
@@ -102,3 +107,76 @@ test('deployment validation remains project-owned while orchestration is central
   assert.match(pkg.scripts['validate:deploy'], /npm run check:links/);
   assert.match(pkg.scripts['check:deploy'], /cloudflare-wrangler\.mjs deploy --dry-run/);
 });
+
+test('legacy Gateway bootstrap accepts only tagged active builds on 401 or 404', () => {
+  const build = 'a'.repeat(40);
+  const active = parseActiveDeployment({
+    success: true,
+    result: {
+      deployments: [
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          versions: [
+            {
+              version_id: '22222222-2222-4222-8222-222222222222',
+              percentage: 100,
+            },
+          ],
+          annotations: {
+            'workers/message': `action-worker:deploy:${build}`,
+          },
+        },
+      ],
+    },
+  });
+
+  assert.equal(deploymentBuildFromMessage(active.message), build);
+  assert.equal(legacyReadinessBuild({ status: 401 }, active), build);
+  assert.equal(legacyReadinessBuild({ status: 404 }, active), build);
+  assert.equal(legacyReadinessBuild({ status: 503 }, active), null);
+  assert.equal(legacyReadinessBuild({}, active), null);
+  assert.equal(
+    legacyReadinessBuild(
+      { status: 401 },
+      { ...active, message: `action-worker:rollback:${build}` },
+    ),
+    null,
+  );
+  assert.equal(
+    legacyReadinessBuild(
+      { status: 401 },
+      { ...active, message: `action-worker:deploy:${build}extra` },
+    ),
+    null,
+  );
+});
+
+test('remote readiness keeps HTTP 401 available to the legacy rollout guard', async () => {
+  const original = globalThis.fetch;
+  const requests = [];
+  globalThis.fetch = async (url, init) => {
+    requests.push({
+      url: String(url),
+      hasAuthorization: new Headers(init?.headers).has('authorization'),
+    });
+    return Response.json({ ready: false }, { status: 401 });
+  };
+
+  try {
+    await assert.rejects(
+      verifyRemote('https://gateway.example', 'a'.repeat(40), {
+        graceMs: 1,
+        intervalMs: 1,
+      }),
+      (error) => {
+        assert.equal(error.status, 401);
+        assert.match(error.message, /HTTP 401/);
+        return true;
+      },
+    );
+    assertPublicReadinessRequests(requests);
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
