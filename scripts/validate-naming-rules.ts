@@ -107,7 +107,7 @@ function isDocument(name: string): boolean {
 
 export function hasLifecycleFilenameViolation(
   path: string,
-  bannedTerms: readonly string[]
+  bannedTerms: readonly string[] = ["new", "final", "latest", "temp", "tmp"]
 ): boolean {
   if (path.startsWith("projects/")) return false;
   const name = basename(path);
