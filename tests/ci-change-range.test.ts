@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { resolveCiChangeRange, type CiRangeInputs } from "../scripts/ci-change-range.ts";
+import { type CiRangeInputs, resolveCiChangeRange } from "../scripts/ci-change-range.ts";
 
 const base = "a".repeat(40);
 const head = "b".repeat(40);
