@@ -230,8 +230,9 @@ test("the shipped deploy secret policy scopes Gateway credentials to approved va
     "AIG_INFERENCE_AUTH_KEY",
     "AIG_PERCEPTION_AUTH_KEY",
     ...[1, 2].flatMap((tier) =>
-      Array.from({ length: 10 }, (_, index) =>
-        `AIG_TIER${tier}_CREDENTIALS_${String(index + 1).padStart(2, "0")}`
+      Array.from(
+        { length: 10 },
+        (_, index) => `AIG_TIER${tier}_CREDENTIALS_${String(index + 1).padStart(2, "0")}`
       )
     ),
     "CLOUDFLARE_ACCOUNT_ID",
