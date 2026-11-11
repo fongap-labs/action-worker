@@ -15,7 +15,10 @@ export type CiRange = { base: string; head: string };
 type GitRead = (args: string[]) => string;
 
 function readGit(args: string[]): string {
-  return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  return execFileSync("git", args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
 }
 
 function rootCommit(sha: string, git: GitRead): string {
