@@ -31,7 +31,7 @@ export function decodeGithubContent(
   if (!isJsonRecord(value) || value.encoding !== "base64" || typeof value.content !== "string") {
     throw new CliError(errorMessage, 65);
   }
-  return Buffer.from(value.content.replace(/\\s+/g, ""), "base64").toString("utf8");
+  return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
 }
 
 export function githubEnvironment(token: string): NodeJS.ProcessEnv {
