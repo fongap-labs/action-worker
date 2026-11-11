@@ -98,6 +98,12 @@ test("shipped product ceilings remain isolated and use Cloudflare deployment cre
     "AIG_GENERATION_AUTH_KEY",
     "AIG_INFERENCE_AUTH_KEY",
     "AIG_PERCEPTION_AUTH_KEY",
+    ...[1, 2].flatMap((tier) =>
+      Array.from(
+        { length: 10 },
+        (_, index) => `AIG_TIER${tier}_CREDENTIALS_${String(index + 1).padStart(2, "0")}`
+      )
+    ),
     "CLOUDFLARE_ACCOUNT_ID",
     "CLOUDFLARE_API_TOKEN",
   ]);
