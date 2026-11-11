@@ -9,6 +9,7 @@ import {
   slotKey,
 } from "./cron-schedule.ts";
 import {
+  decodeGithubContent as decodeGithubContentResponse,
   getGithubJson,
   getGithubJsonIfExists,
   githubEnvironment,
@@ -64,10 +65,7 @@ function exactKeys(
 }
 
 function decodeGithubContent(value: unknown): string {
-  if (!isJsonRecord(value) || value.encoding !== "base64" || typeof value.content !== "string") {
-    throw new CliError("GitHub task source manifest response is invalid.", 65);
-  }
-  return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
+  return decodeGithubContentResponse(value, "GitHub task source manifest response is invalid.");
 }
 
 // Task schedules keep their own wording in errors; the parser itself is shared with deploy schedules.
