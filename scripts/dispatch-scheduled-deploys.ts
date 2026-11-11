@@ -32,8 +32,8 @@ import { scheduledDispatchCandidateShas } from "./scheduled-dispatch-candidates.
 import {
   dispatchWithReservation,
   hasScheduledDispatchReceipt,
+  writeScheduledDispatchStatus,
 } from "./scheduled-dispatch-statuses.ts";
-import { signedStatusDescription } from "./status-attestation.ts";
 
 export type ScheduledDeployTarget = {
   repository: string;
@@ -289,54 +289,30 @@ export function beijingText(value: Date): string {
   return `${shifted.toISOString().slice(0, 16).replace("T", " ")} Beijing time`;
 }
 
-async function writeScheduledStatus(
-  deploy: ScheduledDeploy,
-  token: string,
-  state: "pending" | "success",
-  description: string
-): Promise<void> {
-  const targetUrl =
-    process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
-      ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
-      : "";
-  const payload = JSON.stringify({
-    state,
-    context: scheduleContext(deploy.product, deploy.environment),
-    description: signedStatusDescription({
-      repository: deploy.repository,
-      sha: deploy.head_sha,
-      state,
-      context: scheduleContext(deploy.product, deploy.environment),
-      description,
-      targetUrl,
-    }),
-    target_url: targetUrl || undefined,
-  });
-  await runCommand(
-    "gh",
-    [
-      "api",
-      "--method",
-      "POST",
-      `repos/${deploy.repository}/statuses/${deploy.head_sha}`,
-      "--input",
-      "-",
-    ],
+async function reserveDispatch(deploy: ScheduledDeploy, token: string): Promise<void> {
+  await writeScheduledDispatchStatus(
     {
-      env: githubEnvironment(token),
-      input: payload,
-      timeoutMs: 30_000,
-      maxBuffer: 1024 * 1024,
-    }
+      repository: deploy.repository,
+      head_sha: deploy.head_sha,
+      context: scheduleContext(deploy.product, deploy.environment),
+    },
+    token,
+    "pending",
+    scheduleReservationDescription(deploy.slot)
   );
 }
 
-async function reserveDispatch(deploy: ScheduledDeploy, token: string): Promise<void> {
-  await writeScheduledStatus(deploy, token, "pending", scheduleReservationDescription(deploy.slot));
-}
-
 async function markDispatched(deploy: ScheduledDeploy, token: string): Promise<void> {
-  await writeScheduledStatus(deploy, token, "success", scheduleDescription(deploy.slot));
+  await writeScheduledDispatchStatus(
+    {
+      repository: deploy.repository,
+      head_sha: deploy.head_sha,
+      context: scheduleContext(deploy.product, deploy.environment),
+    },
+    token,
+    "success",
+    scheduleDescription(deploy.slot)
+  );
 }
 
 async function dispatchDeploy(
