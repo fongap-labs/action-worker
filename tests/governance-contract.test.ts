@@ -427,7 +427,7 @@ test("review policy maps to explicitly named review rule files", async () => {
   const files = (await readdir("rules")).filter((name) => name.endsWith(".json")).sort();
 
   for (const name of declared) {
-    assert.match(name, /^[a-z]+-review\\.json$/);
+    assert.match(name, /^[a-z]+-review\.json$/);
   }
   assert.deepEqual(files, declared);
 });
