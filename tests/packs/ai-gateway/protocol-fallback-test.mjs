@@ -172,6 +172,11 @@ try {
     AIG_ACCESS_KEY_AGENT: ACCESS_KEY,
     AIG_ACCESS_MODELS_AGENT: '*',
     AIG_PROTOCOL_FALLBACKS: 'disable',
+    AIG_MODELS_CONFIG: JSON.stringify({
+      'Audit-Ultra': { fallback: ['Audit-Max', 'Audit-Pro'] },
+      'Audit-Max': { fallback: [] },
+      'Audit-Pro': { fallback: [] },
+    }),
     AIG_TIER1_NODES_01: JSON.stringify(auditNodes),
     AIG_TIER1_CREDENTIALS_01: JSON.stringify({
       'audit-ultra-rl': 'k-audit-ultra',
