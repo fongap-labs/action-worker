@@ -145,7 +145,7 @@ test("offline CLI reads live policy and pinned source without runtime Secret or 
     await git("config", "user.name", "Scope Audit");
     await writeFile(
       join(root, ".github", "deploy.secrets.required"),
-      "AIG_DEPLOY_HEALTH_KEY\nCLOUDFLARE_ACCOUNT_ID\nCLOUDFLARE_API_TOKEN\n"
+      "CLOUDFLARE_API_TOKEN\nCLOUDFLARE_ACCOUNT_ID\nAIG_INFERENCE_AUTH_KEY\nAIG_PERCEPTION_AUTH_KEY\nAIG_GENERATION_AUTH_KEY\n"
     );
     await writeFile(join(root, ".github", "deploy.secrets.allowed"), "");
     await git("add", ".");
@@ -160,7 +160,12 @@ test("offline CLI reads live policy and pinned source without runtime Secret or 
         repository: [],
         organization_accessible: [],
         environments: {
-          "ai-gateway-ops": ["AIG_DEPLOY_HEALTH_KEY", "CLOUDFLARE_API_TOKEN_SECONDARY"],
+          "ai-gateway-ops": [
+            "AIG_GENERATION_AUTH_KEY",
+            "AIG_INFERENCE_AUTH_KEY",
+            "AIG_PERCEPTION_AUTH_KEY",
+            "CLOUDFLARE_API_TOKEN_SECONDARY",
+          ],
         },
       })
     );
@@ -190,8 +195,8 @@ test("offline CLI reads live policy and pinned source without runtime Secret or 
       runtime_injection_proven: boolean;
     };
     assert.equal(report.status, "UNVERIFIED");
-    assert.equal(report.required_secret_count, 2);
-    assert.equal(report.active_environment_name_matches, 2);
+    assert.equal(report.required_secret_count, 4);
+    assert.equal(report.active_environment_name_matches, 4);
     assert.equal(report.other_environment_only_names, 0);
     // A logical production deploy must use its credential-owning ops Environment;
     // a copy in production is not reachable by the approved ai-gateway-ops job.
@@ -203,7 +208,12 @@ test("offline CLI reads live policy and pinned source without runtime Secret or 
         repository: [],
         organization_accessible: [],
         environments: {
-          production: ["AIG_DEPLOY_HEALTH_KEY", "CLOUDFLARE_API_TOKEN_SECONDARY"],
+          production: [
+            "AIG_GENERATION_AUTH_KEY",
+            "AIG_INFERENCE_AUTH_KEY",
+            "AIG_PERCEPTION_AUTH_KEY",
+            "CLOUDFLARE_API_TOKEN_SECONDARY",
+          ],
         },
       })
     );
@@ -214,7 +224,7 @@ test("offline CLI reads live policy and pinned source without runtime Secret or 
       other_environment_only_names: number;
     };
     assert.equal(wrongReport.active_environment_name_matches, 0);
-    assert.equal(wrongReport.other_environment_only_names, 2);
+    assert.equal(wrongReport.other_environment_only_names, 4);
     assert.equal(report.actual_secret_values_checked, false);
     assert.equal(report.runtime_injection_proven, false);
     assert.doesNotMatch(ok.stdout, /AIG_DEPLOY_HEALTH_KEY|CLOUDFLARE|OFFLINE_NAMES_ONLY/);
