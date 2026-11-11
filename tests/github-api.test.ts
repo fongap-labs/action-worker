@@ -329,7 +329,10 @@ test("GitHub contents decoder preserves UTF-8 and caller-specific diagnostics", 
   const encoded = Buffer.from("shared decoder", "utf8").toString("base64");
   assert.equal(decodeGithubContent({ encoding: "base64", content: encoded }), "shared decoder");
   assert.equal(
-    decodeGithubContent({ encoding: "base64", content: `${encoded.slice(0, 4)}\n${encoded.slice(4)}` }),
+    decodeGithubContent({
+      encoding: "base64",
+      content: `${encoded.slice(0, 4)}\n${encoded.slice(4)}`,
+    }),
     "shared decoder"
   );
   assert.throws(
