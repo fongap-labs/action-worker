@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { access, readdir, readFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { test } from "node:test";
 
 async function text(path: string): Promise<string> {
@@ -24,6 +25,18 @@ function requireText(content: string, values: readonly string[]): void {
     assert.ok(content.includes(value), `missing contract text: ${value}`);
   }
 }
+
+test("optional Commitlint config matches the governed commit types", async () => {
+  const require = createRequire(import.meta.url);
+  const config = require("../commitlint.config.cjs") as {
+    rules: Record<string, unknown>;
+  };
+  const releasePolicy = await json("policies/release.json");
+
+  assert.deepEqual(config.rules["type-enum"], [2, "always", releasePolicy.change_types]);
+  assert.deepEqual(config.rules["header-max-length"], [0]);
+  assert.equal(await exists("commitlint.config.js"), false);
+});
 
 test("repository permissions come only from the versioned access policy", async () => {
   const authority = await json("policies/repository-access.json");
