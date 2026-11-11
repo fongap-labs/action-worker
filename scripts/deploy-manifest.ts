@@ -5,7 +5,7 @@ import {
   productPolicyKey,
 } from "./deploy-policy-key.ts";
 import { GithubReader, isJsonRecord } from "./github-api.ts";
-import { assertExactKeys, isSafeRelativePath as safeRelativePath } from "./lib/manifest-validation.ts";
+import { assertExactKeys, isSafeRelativePath as safeRelativePath } from "./lib/manifest-input-validation.ts";
 import {
   isProductName,
   isRepositoryRelativePath,
