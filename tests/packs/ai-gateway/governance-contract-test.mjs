@@ -967,7 +967,7 @@ try {
     const env = makeEnv({
       tier1: [anthropicNode('an1', { models: { 'Code-Max': 'up-max', 'Code-Pro': 'up-pro' } })],
       secrets: { an1: 'k' },
-      extraEnv: { AIG_MODELS_CONFIG: JSON.stringify({ 'Code-Max': { policy: 'default' }, 'Code-Pro': { policy: 'default' } }) },
+      extraEnv: { AIG_MODELS_CONFIG: JSON.stringify({ 'Code-Max': { policy: 'default', fallback: ['Code-Pro'] }, 'Code-Pro': { policy: 'default', fallback: [] } }) },
     });
     const res1 = await worker.fetch(messagesRequest({ model: 'Code-Max' }), env, {});
     assert.equal(res1.status, 200);
