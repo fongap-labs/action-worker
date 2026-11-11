@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { requireStatusToken } from "./control-token.ts";
@@ -12,6 +10,7 @@ import {
   isJsonRecord,
   statusAwareReader,
 } from "./github-api.ts";
+import { sha256File } from "./lib/stream-file-hash.ts";
 import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 import { latestAttestedStatus } from "./status-attestation.ts";
 
@@ -198,16 +197,6 @@ async function repositoryJson(
   } catch {
     throw new CliError(`Repository JSON is invalid: ${repository}/${path}.`, 65);
   }
-}
-
-async function sha256File(path: string): Promise<string> {
-  return await new Promise((resolve, reject) => {
-    const hash = createHash("sha256");
-    const input = createReadStream(path);
-    input.on("error", reject);
-    input.on("data", (chunk) => hash.update(chunk));
-    input.on("end", () => resolve(hash.digest("hex")));
-  });
 }
 
 async function downloadFile(url: string, path: string): Promise<void> {
