@@ -302,7 +302,7 @@ test("task and deploy scheduled receipts preserve signed status payloads", () =>
   for (const [context, kind] of [
     ["Task Schedule/MarketBrief", "Task"],
     ["Deploy Schedule/alpha/nightly", "Deploy"],
-  ]) {
+  ] as const) {
     for (const [state, description] of [
       ["pending", `${kind} dispatch reserved for ${oldSlot}`],
       ["success", `${kind} dispatched for ${oldSlot}`],
