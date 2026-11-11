@@ -1,3 +1,4 @@
+import { assertExactKeys, isSafeRelativePath as safeRelativePath } from "./lib/manifest-validation.ts";
 import { parseCronSchedule } from "./cron-schedule.ts";
 import {
   assertUniqueEnvironments,
@@ -82,7 +83,6 @@ export type DeployPlan = {
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
 const namePattern = /^[a-z][a-z0-9-]{0,63}$/;
-const pathPattern = /^[A-Za-z0-9._/-]+$/;
 const rootDeployManifestPath = ".github/deploy.json";
 
 export function isDeployEnvironmentName(value: string): boolean {
@@ -90,20 +90,7 @@ export function isDeployEnvironmentName(value: string): boolean {
 }
 
 function exactKeys(value: Record<string, unknown>, expected: readonly string[]): void {
-  const actual = Object.keys(value).sort();
-  const wanted = [...expected].sort();
-  if (actual.length !== wanted.length || actual.some((item, index) => item !== wanted[index])) {
-    throw new CliError("Deploy manifest keys are invalid.", 65);
-  }
-}
-
-function safeRelativePath(value: string): boolean {
-  return (
-    Boolean(value) &&
-    pathPattern.test(value) &&
-    !value.startsWith("/") &&
-    !value.split("/").includes("..")
-  );
+  assertExactKeys(value, expected, "Deploy manifest");
 }
 
 // A trigger path is a repository-relative path, or a directory with a trailing /**. A bare "**" is
