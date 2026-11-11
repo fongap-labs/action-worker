@@ -43,13 +43,13 @@ async function allRuleEntries(path: string): Promise<RuleEntry[]> {
   return Array.isArray(value.rules) ? (value.rules as RuleEntry[]) : [];
 }
 
-const minimalityReviewRuleFiles = ["rules/code.json", "rules/architecture.json"];
+const minimalityReviewRuleFiles = ["rules/code-review.json", "rules/architecture-review.json"];
 const allReviewRuleFiles = [
-  "rules/code.json",
-  "rules/architecture.json",
-  "rules/security.json",
-  "rules/release.json",
-  "rules/workflow.json",
+  "rules/code-review.json",
+  "rules/architecture-review.json",
+  "rules/security-review.json",
+  "rules/release-review.json",
+  "rules/workflow-review.json",
 ];
 
 test("code-minimality skill carries the reuse ladder, minimal change set, deletion, and root-cause rules", async () => {
@@ -96,8 +96,8 @@ test("code-minimality is registered in the skills table and the agent execution 
   const readme = await text("skills/README.md");
   requireText(readme, [
     "[code-minimality](code-minimality/SKILL.md)",
-    "rules/code.json",
-    "rules/architecture.json",
+    "rules/code-review.json",
+    "rules/architecture-review.json",
     "DietrichGebert/ponytail",
     "MIT License",
     "extra model call",
@@ -130,7 +130,7 @@ test("code and architecture reviews detect duplicate implementation, over-abstra
     assert.equal(entries.length, 1, `${path} must carry exactly one rule entry`);
     const rule = typeof entries[0]?.rule === "string" ? (entries[0].rule as string) : "";
     // minimality guidance is merged into the same single entry as the review focus
-    if (path === "rules/code.json") {
+    if (path === "rules/code-review.json") {
       assert.ok(
         rule.includes("Focus on correctness"),
         `${path} must keep the code review focus in the merged entry`
@@ -175,7 +175,7 @@ test("code and architecture reviews detect duplicate implementation, over-abstra
 });
 
 test("architecture review applies the deletion test, the one-adapter rule, and shallow-module detection", async () => {
-  const rule = (await minimalityRuleTexts("rules/architecture.json"))[0] ?? "";
+  const rule = (await minimalityRuleTexts("rules/architecture-review.json"))[0] ?? "";
   assert.ok(
     rule.includes("Review for breaking changes"),
     "architecture rule must keep the architecture review focus"
@@ -222,11 +222,11 @@ test("code-minimality leaves deterministic gates and the single AI review call i
     "security",
     "workflow",
   ]);
-  assert.equal(agents.code?.rule, "code.json");
-  assert.equal(agents.architecture?.rule, "architecture.json");
-  assert.equal(agents.security?.rule, "security.json");
-  assert.equal(agents.workflow?.rule, "workflow.json");
-  assert.equal(agents.release?.rule, "release.json");
+  assert.equal(agents.code?.rule, "code-review.json");
+  assert.equal(agents.architecture?.rule, "architecture-review.json");
+  assert.equal(agents.security?.rule, "security-review.json");
+  assert.equal(agents.workflow?.rule, "workflow-review.json");
+  assert.equal(agents.release?.rule, "release-review.json");
   const runtime = review.runtime as Record<string, unknown>;
   assert.equal(runtime.concurrency, 1);
   assert.equal(runtime.resume_attempts, 3);
@@ -240,7 +240,7 @@ test("code-minimality leaves deterministic gates and the single AI review call i
   assert.equal((workflow.match(/node scripts\/run-ai-review\.ts/g) ?? []).length, 1);
   assert.doesNotMatch(workflow, /ponytail/i);
 
-  for (const path of ["rules/security.json", "rules/release.json", "rules/workflow.json"]) {
+  for (const path of ["rules/security-review.json", "rules/release-review.json", "rules/workflow-review.json"]) {
     assert.deepEqual(
       await minimalityRuleTexts(path),
       [],
