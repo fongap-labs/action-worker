@@ -1,3 +1,4 @@
+import { assertExactKeys as exactKeys, isSafeRelativePath as safeRelativePath } from "./lib/manifest-validation.ts";
 import { getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
@@ -49,30 +50,6 @@ const idPattern = /^[a-z][a-z0-9-]{0,63}$/;
 const runnerPattern = /^[a-z][a-z0-9-]{0,63}$/;
 const versionPattern = /^[0-9]+\.[0-9]+\.[0-9]+$/;
 const branchPrefixPattern = /^[A-Za-z0-9._/-]{1,128}$/;
-
-function exactKeys(
-  value: Record<string, unknown>,
-  expected: readonly string[],
-  label: string
-): void {
-  const actual = Object.keys(value).sort();
-  const wanted = [...expected].sort();
-  if (actual.length !== wanted.length || actual.some((item, index) => item !== wanted[index])) {
-    throw new CliError(`${label} keys are invalid.`, 65);
-  }
-}
-
-function safeRelativePath(value: unknown): value is string {
-  return (
-    typeof value === "string" &&
-    value.length > 0 &&
-    value.length <= 512 &&
-    !value.startsWith("/") &&
-    !/^[A-Za-z]:[\\/]/.test(value) &&
-    !value.split(/[\\/]+/).includes("..") &&
-    /^[A-Za-z0-9._/-]+$/.test(value)
-  );
-}
 
 function stringList(value: unknown, label: string): string[] {
   if (
