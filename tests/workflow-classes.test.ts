@@ -59,7 +59,6 @@ const classes = {
   maintenance: [
     "apply-repository-settings.yml",
     "audit-config-scope.yml",
-    "bootstrap-health-key.yml",
     "enroll-organization-repositories.yml",
     "publication-key-verify.yml",
     "main-write-guard.yml",

@@ -122,7 +122,6 @@ jobs:
           CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}
           CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
           AIG_OPS_SECRET_VALUE: ${{ secrets.AIG_OPS_SECRET_VALUE }}
-          AIG_DEPLOY_HEALTH_KEY: ${{ secrets.AIG_DEPLOY_HEALTH_KEY }}
           AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
           SECRET_NAME: ${{ inputs.secret_name }}
           AIG_OPS_WORKER_NAME: ${{ inputs.worker }}
@@ -136,7 +135,6 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN_OPS: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}
           CLOUDFLARE_ACCOUNT_ID_OPS: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
-          AIG_DEPLOY_HEALTH_KEY: ${{ secrets.AIG_DEPLOY_HEALTH_KEY }}
           AIG_PUBLIC_URL: ${{ vars.AIG_PUBLIC_URL }}
           AIG_OPS_WORKER_NAME: ${{ inputs.worker }}
           AIG_OPS_DELETE_CONFIRM: ${{ inputs.delete_confirmation }}
