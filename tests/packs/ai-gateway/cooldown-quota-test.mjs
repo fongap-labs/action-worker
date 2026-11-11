@@ -1265,7 +1265,14 @@ try {
       'Research-Reasoning-Ultra': ['Research-Reasoning-Max', 'Research-Reasoning-Pro'],
       'Research-Reasoning-Max': [],
       'Research-Reasoning-Pro': [],
-    }).map(([name, fallback]) => [name, { fallback }]))),
+    }).map(([name, fallback]) => [
+      name,
+      {
+        fallback,
+        ...(name === 'Audit-Ultra' || name === 'Research-Reasoning-Ultra' ? { fallback_mode: 'recheck' } : {}),
+        ...(name === 'Air' || name === 'Editor-Air' ? { fallback_mode: 'one_way' } : {}),
+      },
+    ]))),
   });
 
   assert.deepEqual(
