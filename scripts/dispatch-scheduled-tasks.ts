@@ -291,7 +291,11 @@ export async function wasDispatched(
 
 async function reserveDispatch(task: ScheduledTask, token: string): Promise<void> {
   await writeScheduledDispatchStatus(
-    { repository: task.repository, head_sha: task.head_sha, context: scheduleContext(task.project) },
+    {
+      repository: task.repository,
+      head_sha: task.head_sha,
+      context: scheduleContext(task.project),
+    },
     token,
     "pending",
     scheduleReservationDescription(task.slot)
@@ -300,7 +304,11 @@ async function reserveDispatch(task: ScheduledTask, token: string): Promise<void
 
 async function markDispatched(task: ScheduledTask, token: string): Promise<void> {
   await writeScheduledDispatchStatus(
-    { repository: task.repository, head_sha: task.head_sha, context: scheduleContext(task.project) },
+    {
+      repository: task.repository,
+      head_sha: task.head_sha,
+      context: scheduleContext(task.project),
+    },
     token,
     "success",
     scheduleDescription(task.slot)
