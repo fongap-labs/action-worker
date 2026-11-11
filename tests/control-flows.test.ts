@@ -25,7 +25,7 @@ async function initRepo(): Promise<string> {
 test("change record requires concise Chinese entries in CHANGELOG.md", async (context) => {
   const root = await initRepo();
   context.after(() => rm(root, { recursive: true, force: true }));
-  const initial = "# Changelog\n\n## [Unreleased]\n";
+  const initial = "# 更新日志\n\n## [Unreleased]\n";
   await writeFile(join(root, "README.md"), "# Fixture\n", "utf8");
   await writeFile(join(root, "CHANGELOG.md"), initial, "utf8");
   await git(root, ["add", "."]);
@@ -33,7 +33,8 @@ test("change record requires concise Chinese entries in CHANGELOG.md", async (co
   const base = await git(root, ["rev-parse", "HEAD"]);
 
   await writeFile(join(root, "README.md"), "# Fixture\n\nMore docs.\n", "utf8");
-  await git(root, ["add", "README.md"]);
+  await writeFile(join(root, "CHANGELOG.md"), initial + "\n- 维护: 更新安装说明。\n", "utf8");
+  await git(root, ["add", "README.md", "CHANGELOG.md"]);
   await git(root, ["commit", "-qm", "docs"]);
   const docsHead = await git(root, ["rev-parse", "HEAD"]);
   assert.equal(
@@ -67,7 +68,7 @@ test("change record requires concise Chinese entries in CHANGELOG.md", async (co
     "- 新增: add example capability.",
     "- 修复: 修复示例能力。",
     "- 安全: 收紧示例能力。",
-    "- 新增: " + "优化配置和执行流程".repeat(11) + "。",
+    "- 新增: " + "优化配置和执行流程".repeat(16) + "。",
   ]) {
     const head = await commitEntry(initial + "\n" + entry + "\n", "bad entry");
     await assert.rejects(
@@ -106,7 +107,7 @@ test("change record requires concise Chinese entries in CHANGELOG.md", async (co
 
 test("CHANGELOG preface may change without rewriting published versions", () => {
   const released = "\n## [0.1.0]\n\n### 修复\n\n- 旧版修复。\n";
-  const before = "# Changelog\n\nLegacy fragment notes.\n\n## [Unreleased]\n" + released;
+  const before = "# 更新日志\n\nLegacy fragment notes.\n\n## [Unreleased]\n" + released;
   const after = "# 更新日志\n\n## [Unreleased]\n\n- 修复: 修复新版问题。\n" + released;
   assert.deepEqual(addedUnreleasedEntries(before, after), ["- 修复: 修复新版问题。"]);
   assert.throws(
@@ -120,7 +121,7 @@ test("retiring fragments allows removing obsolete preface but preserves released
   context.after(() => rm(root, { recursive: true, force: true }));
   const released = "\n## [0.1.0]\n\n### 修复\n\n- 旧版修复。\n";
   const previous =
-    "# Changelog\n\nLegacy fragments live in changelog.d.\n\n## [Unreleased]\n" + released;
+    "# 更新日志\n\nLegacy fragments live in changelog.d.\n\n## [Unreleased]\n" + released;
   await writeFile(join(root, "CHANGELOG.md"), previous, "utf8");
   await mkdir(join(root, "changelog.d"));
   await writeFile(join(root, "changelog.d", "fix.md"), "- 修复: 修复新版问题。\n");
@@ -164,7 +165,7 @@ test("context detection classifies workflow and declared impacts", async (contex
   await writeFile(join(root, ".github", "workflows", "release.yml"), "name: Release\n", "utf8");
   await writeFile(
     join(root, "CHANGELOG.md"),
-    "# Changelog\n\n- Breaking API migration affecting deployment compatibility.\n",
+    "# 更新日志\n\n- Breaking API migration affecting deployment compatibility.\n",
     "utf8"
   );
   await git(root, ["add", "."]);

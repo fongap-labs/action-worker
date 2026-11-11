@@ -38,6 +38,31 @@ test("optional Commitlint config matches the governed commit types", async () =>
   assert.equal(await exists("commitlint.config.js"), false);
 });
 
+test("mechanically enforceable naming rules are versioned in naming.json", async () => {
+  const naming = await json("policies/naming.json");
+  assert.equal(naming.schema_version, 1);
+  const files = naming.file_names as Record<string, unknown>;
+  assert.equal(files.max_kebab_segments, 3);
+  assert.equal(files.min_new_semantic_segments, 3);
+  assert.ok(Array.isArray(files.lifecycle_banned_terms));
+  const external = naming.external_configuration as Record<string, unknown>;
+  assert.ok((external.system_prefixes as string[]).includes("AW_"));
+  assert.deepEqual(external.boolean_required_prefixes, ["IS", "HAS", "CAN", "SHOULD"]);
+  assert.ok((external.forbidden_credential_terms as string[]).includes("PAT"));
+});
+
+test("PR governance status binds its signed verdict to the current title", async () => {
+  const workflow = await text(".github/workflows/handle-pr-dispatch.yml");
+  const fingerprint = await text("scripts/pr-title-fingerprint.ts");
+  const merger = await text("scripts/auto-merge-pr.ts");
+  const intake = await text("scripts/intake-open-prs.ts");
+  assert.match(workflow, /Fingerprint checked PR title/);
+  assert.match(workflow, /title-sha256=\$TITLE_FINGERPRINT/);
+  assert.match(fingerprint, /createHash\("sha256"\)/);
+  assert.match(merger, /current PR title/);
+  assert.match(intake, /fingerprintPrefix !== expectedPrefix/);
+});
+
 test("repository permissions come only from the versioned access policy", async () => {
   const authority = await json("policies/repository-access.json");
   assert.equal(authority.schema_version, 1);
@@ -114,6 +139,7 @@ test("governance files and TypeScript control entries exist", async () => {
     "contracts/task-dispatch.json",
     "contracts/task-source.json",
     "policies/deploy.json",
+    "policies/naming.json",
     "policies/execution.json",
     "policies/runner.json",
     "policies/rulesets.json",
@@ -387,8 +413,17 @@ test("runtime and machine policies preserve trust boundaries", async () => {
 
   const release = await json("policies/release.json");
   assert.equal(release.schema_version, 2);
+  assert.deepEqual(release.change_types, ["feat", "fix", "chore"]);
   assert.deepEqual(release.change_attributes, ["breaking", "security", "migration"]);
-  assert.deepEqual(release.changelog_required_types, ["feat", "fix"]);
+  assert.deepEqual(release.changelog_required_types, ["feat", "fix", "chore"]);
+  assert.equal(release.changelog_summary_max_characters, 140);
+  assert.equal(release.changelog_heading, "# 更新日志");
+  assert.equal(release.unreleased_heading, "## [Unreleased]");
+  assert.deepEqual(release.changelog_category_types, {
+    feat: ["新增"],
+    fix: ["修复"],
+    chore: ["维护"],
+  });
   assert.equal(
     Object.keys(release).some((key) => key.endsWith("_repositories")),
     false

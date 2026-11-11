@@ -8,6 +8,7 @@ import {
 import { githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
+import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
 import { AWAITING_APPROVAL_DESCRIPTION, evaluatePrTrust, listPullReviews } from "./pr-trust.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
@@ -125,7 +126,8 @@ async function openPullRequests(reader: GithubGet, repository: string): Promise<
 async function needsDispatch(
   statuses: Map<string, StatusFact>,
   reader: GithubGet,
-  controlRepository: string
+  controlRepository: string,
+  currentTitle: string
 ): Promise<"dispatch" | "in-flight" | "processed" | "awaiting-approval"> {
   const governance = statuses.get("PR Governance");
   const evidence = statuses.get("CI Evidence");
@@ -169,8 +171,24 @@ async function needsDispatch(
 
   // An untrusted head never reaches CI, so CI Evidence stays absent. Without this check the PR
   // would be dispatched again on every intake run until someone approved it.
-  if (governance?.state === "failure" && governance.description === AWAITING_APPROVAL_DESCRIPTION) {
+  if (
+    governance?.state === "failure" &&
+    governance.description.endsWith(AWAITING_APPROVAL_DESCRIPTION)
+  ) {
     return "awaiting-approval";
+  }
+
+  // A PR title can change without changing its head SHA. Successful and title-bound failure
+  // verdicts carry the exact title fingerprint; stale verdicts must be recomputed.
+  if (governance && currentTitle) {
+    const fingerprintPrefix = /^title-sha256=[0-9a-f]{64} /.exec(governance.description)?.[0];
+    const expectedPrefix = "title-sha256=" + prTitleFingerprint(currentTitle) + " ";
+    if (
+      (fingerprintPrefix && fingerprintPrefix !== expectedPrefix) ||
+      (governance.state === "success" && !fingerprintPrefix)
+    ) {
+      return "dispatch";
+    }
   }
 
   // A complete set of statuses is the verdict for this head. The control revision (main) is not
@@ -288,7 +306,12 @@ export async function scanOpenPullRequests(
         repository,
         pull.headSha
       );
-      const governanceAction = await needsDispatch(statuses, reader, controlRepository);
+      const governanceAction = await needsDispatch(
+        statuses,
+        reader,
+        controlRepository,
+        typeof pull.pull.title === "string" ? pull.pull.title : ""
+      );
       if (governanceAction === "in-flight") {
         result.in_flight += 1;
         continue;

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ast
+import json
 import re
 import subprocess
 import sys
@@ -69,28 +70,40 @@ def add(errors: list[str], path: Path, message: str) -> None:
     errors.append(f"{path.as_posix()}: {message}")
 
 
-def check_file_name(errors: list[str], path: Path) -> None:
+def kebab_pattern(max_segments: int) -> str:
+    return r"[a-z0-9]+(?:-[a-z0-9]+){0," + str(max(0, max_segments - 1)) + r"}"
+
+
+MAX_FILENAME_SEGMENTS = 3
+
+
+def check_file_name(errors: list[str], path: Path, max_segments: int) -> None:
     suffix = path.suffix.lower()
     stem = path.stem
 
     if path.parts[:2] == (".github", "workflows") and suffix in {".yml", ".yaml"}:
-        if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+){0,2}", stem):
-            add(errors, path, "workflow must be kebab-case with at most three segments")
+        if not re.fullmatch(kebab_pattern(max_segments), stem):
+            add(errors, path, f"workflow must be kebab-case with at most {max_segments} segments")
 
     if suffix in {".sh", ".ps1"}:
-        if not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+){0,2}", stem):
-            add(errors, path, "shell file must be kebab-case with at most three segments")
+        if not re.fullmatch(kebab_pattern(max_segments), stem):
+            add(errors, path, f"shell file must be kebab-case with at most {max_segments} segments")
+
+    if suffix in {".ts", ".tsx"} and path.parts[0] in {"scripts", "tests"}:
+        source_stem = stem.removesuffix(".test").removesuffix(".spec")
+        if not re.fullmatch(kebab_pattern(max_segments), source_stem):
+            add(errors, path, f"TypeScript filename must be kebab-case with at most {max_segments} segments")
 
     if suffix in {".py", ".rs"}:
         if stem in {"__init__", "main", "lib", "build"}:
             return
         if path.name.startswith("test_") and suffix == ".py":
-            if len(parts(stem[5:])) > 3:
-                add(errors, path, "pytest filename payload must have at most three segments")
+            if len(parts(stem[5:])) > max_segments:
+                add(errors, path, f"pytest filename payload must have at most {max_segments} segments")
             return
         tokens = parts(stem)
-        if len(tokens) > 3:
-            add(errors, path, "module filename must have at most three segments")
+        if len(tokens) > max_segments:
+            add(errors, path, f"module filename must have at most {max_segments} segments")
         bad = VAGUE_BANNED.intersection(tokens)
         if stem in LIFECYCLE_BANNED:
             bad.add(stem)
@@ -279,17 +292,46 @@ def check_typescript(errors: list[str], root: Path, path: Path) -> None:
             add(errors, path, f"boolean TypeScript state '{name}' must start with is/has/can/should")
 
 
+def load_naming_policy() -> dict:
+    policy_path = Path(__file__).resolve().parent.parent / "policies" / "naming.json"
+    if not policy_path.is_file():
+        return {}
+    value = json.loads(policy_path.read_text(encoding="utf-8"))
+    if not isinstance(value, dict) or value.get("schema_version") != 1:
+        raise ValueError("policies/naming.json has an unsupported schema")
+    return value
+
+
 def main() -> int:
     if len(sys.argv) != 3:
         print("usage: validate-source-naming.py <base-sha> <head-sha>", file=sys.stderr)
         return 64
 
     root = Path.cwd()
+    try:
+        policy = load_naming_policy()
+    except (OSError, json.JSONDecodeError, ValueError) as error:
+        print(f"unable to load naming policy: {error}", file=sys.stderr)
+        return 65
+    file_policy = policy.get("file_names", {})
+    identifier_policy = policy.get("source_identifiers", {})
+    global MAX_FILENAME_SEGMENTS, VAGUE_BANNED, LIFECYCLE_BANNED
+    global BOOL_HINTS, BOOL_PREFIXES_PY, BOOL_PREFIXES_TS
+    if isinstance(file_policy, dict):
+        MAX_FILENAME_SEGMENTS = int(file_policy.get("max_source_module_segments", MAX_FILENAME_SEGMENTS))
+        LIFECYCLE_BANNED = set(file_policy.get("lifecycle_banned_terms", LIFECYCLE_BANNED))
+        VAGUE_BANNED = set(file_policy.get("source_banned_terms", VAGUE_BANNED))
+    if isinstance(identifier_policy, dict):
+        VAGUE_BANNED = set(identifier_policy.get("vague_banned_terms", VAGUE_BANNED))
+        LIFECYCLE_BANNED = set(identifier_policy.get("lifecycle_banned_terms", LIFECYCLE_BANNED))
+        BOOL_HINTS = tuple(identifier_policy.get("boolean_hints", BOOL_HINTS))
+        BOOL_PREFIXES_PY = tuple(identifier_policy.get("boolean_prefixes_python_rust", BOOL_PREFIXES_PY))
+        BOOL_PREFIXES_TS = tuple(identifier_policy.get("boolean_prefixes_typescript", BOOL_PREFIXES_TS))
     errors: list[str] = []
     files = changed_paths(root, sys.argv[1], sys.argv[2])
 
     for path in files:
-        check_file_name(errors, path)
+        check_file_name(errors, path, MAX_FILENAME_SEGMENTS)
         suffix = path.suffix.lower()
         if suffix == ".py":
             check_python(errors, root, path)

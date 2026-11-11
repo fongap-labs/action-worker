@@ -98,6 +98,12 @@ jobs:
           INITIAL_TITLE: ${{ steps.facts.outputs.title }}
         run: node scripts/resolve-pr-facts.ts resolve
 
+      - name: Fingerprint checked PR title
+        id: title
+        env:
+          PR_TITLE: ${{ steps.resolved.outputs.title }}
+        run: node scripts/pr-title-fingerprint.ts "$PR_TITLE"
+
       - name: Check deploy configuration gaps
         id: deploy_gap
         if: ${{ always() }}
@@ -355,7 +361,15 @@ jobs:
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           STATE: ${{ steps.cancellation.outputs.cancelled != 'true' && steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
           DESCRIPTION: ${{ steps.cancellation.outputs.cancelled == 'true' && 'Action Worker PR governance was cancelled' || steps.gate.outputs.passed == 'true' && 'Action Worker PR governance passed' || steps.trust.outputs.trusted == 'false' && 'Awaiting maintainer approval of the current head commit' || 'Action Worker PR governance failed' }}
-        run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
+          TITLE_FINGERPRINT: ${{ steps.title.outputs.fingerprint }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "$TITLE_FINGERPRINT" =~ ^[a-f0-9]{64}$ ]] &&
+             [[ "$DESCRIPTION" != "Awaiting maintainer approval of the current head commit" ]]; then
+            DESCRIPTION="title-sha256=$TITLE_FINGERPRINT $DESCRIPTION"
+          fi
+          node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
 
       - name: Update central merge gate
         if: ${{ always() && steps.ownership.outputs.current == 'true' }}
@@ -368,8 +382,16 @@ jobs:
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           STATE: ${{ steps.cancellation.outputs.cancelled != 'true' && steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
           DESCRIPTION: ${{ steps.cancellation.outputs.cancelled == 'true' && 'Action Worker merge gate was cancelled' || steps.gate.outputs.passed == 'true' && 'Action Worker merge gate passed' || steps.trust.outputs.trusted == 'false' && 'Awaiting maintainer approval of the current head commit' || 'Action Worker merge gate failed' }}
+          TITLE_FINGERPRINT: ${{ steps.title.outputs.fingerprint }}
           PR_STATUS_CONTEXT: validate-merge
-        run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          if [[ "$TITLE_FINGERPRINT" =~ ^[a-f0-9]{64}$ ]] &&
+             [[ "$DESCRIPTION" != "Awaiting maintainer approval of the current head commit" ]]; then
+            DESCRIPTION="title-sha256=$TITLE_FINGERPRINT $DESCRIPTION"
+          fi
+          node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
 
       # Automatically squash-merge an exact, non-draft PR head only after the
       # deterministic, signed CI/Policy/Security merge gate has passed. AI

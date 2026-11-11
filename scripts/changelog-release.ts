@@ -17,6 +17,24 @@ const ENTRY_LINE = /^- ([^\s[\]:]+)(?: \[([^\]]+)\])?: (.+)$/;
 // replacement character. Such text is not English and not Chinese; the gate must refuse it.
 const MOJIBAKE = /�|â€|â–|Â[ -¿]/;
 
+export function assertFixedChangelogHeadings(
+  content: string,
+  title: string,
+  unreleasedHeading: string
+): void {
+  const lines = content.split(/\r?\n/);
+  if (
+    lines[0] !== title ||
+    lines.filter((line) => line.startsWith("# ")).length !== 1 ||
+    lines.filter((line) => line === unreleasedHeading).length !== 1
+  ) {
+    throw new CliError(
+      `::error::CHANGELOG fixed headings must remain '${title}' and '${unreleasedHeading}'.`,
+      65
+    );
+  }
+}
+
 export function parseEntry(line: string): ChangelogEntry | null {
   const match = ENTRY_LINE.exec(line);
   if (!match) return null;
@@ -30,15 +48,23 @@ export function parseEntry(line: string): ChangelogEntry | null {
   };
 }
 
-export function assertChineseSummary(summary: string): void {
+export const DEFAULT_CHANGELOG_SUMMARY_MAX_CHARACTERS = 140;
+
+export function assertChineseSummary(
+  summary: string,
+  maxCharacters = DEFAULT_CHANGELOG_SUMMARY_MAX_CHARACTERS
+): void {
   if (MOJIBAKE.test(summary)) {
     throw new CliError(
       `::error::CHANGELOG entry summary contains broken text: ${summary}. Re-type the characters instead of pasting converted text.`,
       65
     );
   }
-  if ([...summary.trim()].length > 80) {
-    throw new CliError("::error::CHANGELOG summary must not exceed 80 characters.", 65);
+  if ([...summary.trim()].length > maxCharacters) {
+    throw new CliError(
+      `::error::CHANGELOG summary must not exceed ${maxCharacters} characters.`,
+      65
+    );
   }
   if (!containsHan(summary)) {
     throw new CliError(

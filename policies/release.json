@@ -3,7 +3,7 @@
   "changelog_file": "CHANGELOG.md",
   "change_types": ["feat", "fix", "chore"],
   "change_attributes": ["breaking", "security", "migration"],
-  "changelog_required_types": ["feat", "fix"],
+  "changelog_required_types": ["feat", "fix", "chore"],
   "changelog_categories": ["新增", "修复", "维护"],
   "changelog_category_types": {
     "feat": ["新增"],
@@ -19,5 +19,8 @@
     "performance": ["performance"],
     "compatibility": ["compatible", "compatibility"],
     "release": ["release"]
-  }
+  },
+  "changelog_summary_max_characters": 140,
+  "changelog_heading": "# 更新日志",
+  "unreleased_heading": "## [Unreleased]"
 }

@@ -1,5 +1,9 @@
 # Agent Guide
 
+## PR and changelog gates
+
+The versioned policies and CI validators are authoritative. PR titles use exactly `feat`, `fix`, or `chore`, followed by an English ASCII summary. Each type requires a matching Chinese entry in `CHANGELOG.md` under `## [Unreleased]`; dedicated `chore(release)` PRs must instead pass the release promotion gate. The summary limit is 140 Unicode code points. Do not rename the changelog's fixed top-level or `## [Unreleased]` headings. Naming gates read mechanically enforceable rules from `policies/naming.json`.
+
 This file is the agent entry point for Action Worker. Action Worker is also the authoritative repository for Fongap Labs shared governance.
 
 ## Required reading

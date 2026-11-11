@@ -1,12 +1,55 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { scanOpenPullRequests } from "../scripts/intake-open-prs.ts";
+import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
 import { AWAITING_APPROVAL_DESCRIPTION } from "../scripts/pr-trust.ts";
 import { attestFixtureResponseForPath } from "./attested-status-fixtures.ts";
 
 const shaA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const shaB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const shaC = "cccccccccccccccccccccccccccccccccccccccc";
+
+test("central PR intake redispatches when the PR title no longer matches its successful verdict", async () => {
+  const repository = "fongap-labs/example";
+  const controlRepository = "fongap-labs/action-worker";
+  const priorTitle = "feat(example): add a feature";
+  const currentTitle = "fix(example): repair a bug";
+  const dispatched: number[] = [];
+  const response = {
+    statuses: ["PR Governance", "CI Evidence", "validate-merge"].map((context) => ({
+      context,
+      state: "success",
+      target_url: "https://github.com/" + controlRepository + "/actions/runs/55",
+      description:
+        context === "CI Evidence"
+          ? "CI evidence passed"
+          : "title-sha256=" + prTitleFingerprint(priorTitle) + " governance passed",
+    })),
+  };
+
+  const result = await scanOpenPullRequests(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        if (path.includes("/pulls?")) {
+          return [{ number: 42, title: currentTitle, head: { sha: shaA } }];
+        }
+        if (path.endsWith("/commits/" + shaA + "/status")) {
+          return attestFixtureResponseForPath(path, response);
+        }
+        throw new Error("unexpected API path: " + path);
+      },
+    },
+    async (_repository, pr) => {
+      dispatched.push(pr);
+    },
+    controlRepository
+  );
+
+  assert.deepEqual(dispatched, [42]);
+  assert.equal(result.dispatched, 1);
+  assert.equal(result.already_processed, 0);
+});
 
 test("central PR intake scans every managed repository independent of visibility", async () => {
   const responses = new Map<string, unknown>([
