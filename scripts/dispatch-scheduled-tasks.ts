@@ -17,14 +17,15 @@ import {
   isJsonRecord,
 } from "./github-api.ts";
 import { trustedIntakeTarget } from "./intake-event-scope.ts";
+import { assertExactKeys as exactKeys } from "./lib/manifest-input-validation.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import { scheduledDispatchCandidateShas } from "./scheduled-dispatch-candidates.ts";
 import {
   dispatchWithReservation,
   hasScheduledDispatchReceipt,
+  writeScheduledDispatchStatus,
 } from "./scheduled-dispatch-statuses.ts";
-import { signedStatusDescription } from "./status-attestation.ts";
 
 export type TaskSourceManifest = {
   schema_version: "1";
@@ -51,18 +52,6 @@ const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
 const projectPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const scheduleContextPrefix = "Task Schedule/";
-
-function exactKeys(
-  value: Record<string, unknown>,
-  expected: readonly string[],
-  label: string
-): void {
-  const actual = Object.keys(value).sort();
-  const wanted = [...expected].sort();
-  if (actual.length !== wanted.length || actual.some((item, index) => item !== wanted[index])) {
-    throw new CliError(`${label} keys are invalid.`, 65);
-  }
-}
 
 // Task schedules keep their own wording in errors; the parser itself is shared with deploy schedules.
 export function cronMatches(date: Date, cron: string): boolean {
@@ -300,54 +289,22 @@ export async function wasDispatched(
   return false;
 }
 
-async function writeScheduledStatus(
-  task: ScheduledTask,
-  token: string,
-  state: "pending" | "success",
-  description: string
-): Promise<void> {
-  const targetUrl =
-    process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
-      ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
-      : "";
-  const payload = JSON.stringify({
-    state,
-    context: scheduleContext(task.project),
-    description: signedStatusDescription({
-      repository: task.repository,
-      sha: task.head_sha,
-      state,
-      context: scheduleContext(task.project),
-      description,
-      targetUrl,
-    }),
-    target_url: targetUrl || undefined,
-  });
-  await runCommand(
-    "gh",
-    [
-      "api",
-      "--method",
-      "POST",
-      `repos/${task.repository}/statuses/${task.head_sha}`,
-      "--input",
-      "-",
-    ],
-    {
-      env: githubEnvironment(token),
-      input: payload,
-      timeoutMs: 30_000,
-      maxBuffer: 1024 * 1024,
-    }
+async function reserveDispatch(task: ScheduledTask, token: string): Promise<void> {
+  await writeScheduledDispatchStatus(
+    { repository: task.repository, head_sha: task.head_sha, context: scheduleContext(task.project) },
+    token,
+    "pending",
+    scheduleReservationDescription(task.slot)
   );
 }
 
-async function reserveDispatch(task: ScheduledTask, token: string): Promise<void> {
-  await writeScheduledStatus(task, token, "pending", scheduleReservationDescription(task.slot));
-}
-
 async function markDispatched(task: ScheduledTask, token: string): Promise<void> {
-  await writeScheduledStatus(task, token, "success", scheduleDescription(task.slot));
+  await writeScheduledDispatchStatus(
+    { repository: task.repository, head_sha: task.head_sha, context: scheduleContext(task.project) },
+    token,
+    "success",
+    scheduleDescription(task.slot)
+  );
 }
 
 async function dispatchTask(
