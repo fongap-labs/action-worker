@@ -941,22 +941,30 @@ try {
     assert.equal(def.policy.visibility, 'public');
   });
 
-  test('policy tier inference stays unchanged (Air fast / tiered long-reasoning)', () => {
+  test('policy selection depends on configuration, not model naming', () => {
     const builtins = loadPoliciesConfig({});
-    const models = loadModelsConfig({ AIG_MODELS_CONFIG: JSON.stringify({ 'Code-Air': {}, 'Code-Pro': {} }) });
+    const models = loadModelsConfig({ AIG_MODELS_CONFIG: JSON.stringify({
+      'Code-Air': { policy: 'fast' },
+      'Code-Pro': { policy: 'deep' },
+      'Code-Max': {},
+    }) });
     assert.equal(getPolicy('Code-Air', models, builtins), builtins.fast);
-    assert.equal(getPolicy('Code-Pro', models, builtins), builtins['long-reasoning']);
-    assert.equal(getPolicy('Anything', models, builtins), builtins.default);
+    assert.equal(getPolicy('Code-Pro', models, builtins), builtins.deep);
+    assert.equal(getPolicy('Code-Max', models, builtins), builtins.normal);
+    assert.equal(getPolicy('Anything', models, builtins), builtins.normal);
   });
 
-  test('new model families stay data-driven through the known-model catalog', () => {
+  test('new model families use explicit fallback regardless of naming', () => {
     const known = new Set(['Draft-Ultra', 'Draft-Max', 'Draft-Pro']);
-    const rounds = buildModelFallbackRounds('Draft-Ultra', known);
-    assert.deepEqual(
-      rounds[0],
-      ['Draft-Ultra', 'Draft-Max', 'Draft-Pro'],
-      'an arbitrary future family needs no source change, only catalog/config entries',
-    );
+    const models = loadModelsConfig({ AIG_MODELS_CONFIG: JSON.stringify({
+      'Draft-Ultra': { fallback: ['Draft-Max', 'Draft-Pro'] },
+      'Draft-Max': {},
+      'Draft-Pro': {},
+    }) });
+    const rounds = buildModelFallbackRounds('Draft-Ultra', known, models);
+    assert.deepEqual(rounds[0], ['Draft-Ultra', 'Draft-Max', 'Draft-Pro']);
+    assert.deepEqual(rounds[1], ['Draft-Max', 'Draft-Pro']);
+    assert.deepEqual(buildModelFallbackRounds('Draft-Ultra', known), [['Draft-Ultra']]);
   });
 
   // ---- Scenario: adding a model is configuration-only, end to end ----
