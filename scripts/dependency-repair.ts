@@ -2,7 +2,7 @@ import { getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import {
   assertExactKeys as exactKeys,
   isSafeRelativePath as safeRelativePath,
-} from "./lib/manifest-validation.ts";
+} from "./lib/manifest-input-validation.ts";
 import { CliError } from "./runtime-command.ts";
 
 export type DependencyRepairAdapter = "uv-lock";
