@@ -42,7 +42,7 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
           GITHUB_SHA: ${{ github.sha }}
-        run: bash scripts/ci-change-range.sh
+        run: node scripts/ci-change-range.ts
 
       - name: Validate naming rules
         env:
@@ -75,7 +75,7 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
           GITHUB_SHA: ${{ github.sha }}
-        run: bash scripts/ci-change-range.sh
+        run: node scripts/ci-change-range.ts
 
       - name: Validate security gate
         env:
