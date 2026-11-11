@@ -365,7 +365,12 @@ await test('a buffered reply waits for the generation, a streamed one keeps the 
     return new Response(JSON.stringify(okCompletion), { status: 200, headers: { 'content-type': 'application/json' } });
   };
   const nodes = [{ id: 'solo', provider: 'solo-provider', base_url: 'https://solo.example.com/v1', models: { 'general-chat': 'up' } }];
-  const e = gatewayEnv(nodes, { solo: 'k' }, { AIG_UPSTREAM_HEADER_TIMEOUT_MS: '5000' });
+  const e = gatewayEnv(nodes, { solo: 'k' }, {
+    AIG_UPSTREAM_HEADER_TIMEOUT_MS: '5000',
+    // Hedging is now opt-in; keep this test focused on adaptive delay.
+    AIG_MODELS_CONFIG: JSON.stringify({ 'general-chat': { policy: 'hedged' } }),
+    AIG_POLICIES_CONFIG: JSON.stringify({ hedged: { max_attempts: 5, hedge: { enabled: true, delay_ms: 3000, tiers: ['tier1'] } } }),
+  });
   const request = (stream, filler = '') =>
     new Request('https://gateway.example.com/v1/chat/completions', {
       method: 'POST',
