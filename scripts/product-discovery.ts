@@ -1,4 +1,4 @@
-import { GithubHttpError, isJsonRecord } from "./github-api.ts";
+import { decodeGithubContent, GithubHttpError, isJsonRecord } from "./github-api.ts";
 import { CliError, parseJson } from "./runtime-command.ts";
 
 // A repository either keeps its manifests in .github/ (layout "root", one product with the empty
@@ -99,12 +99,7 @@ function contentsPath(repository: string, path: string, sha: string): string {
   return `repos/${repository}/contents/${encoded}?ref=${sha}`;
 }
 
-export function decodeGithubContent(value: unknown): string {
-  if (!isJsonRecord(value) || value.encoding !== "base64" || typeof value.content !== "string") {
-    throw new CliError("GitHub contents response is invalid.", 65);
-  }
-  return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
-}
+export { decodeGithubContent };
 
 function parseContentEntry(value: unknown): ContentEntry {
   if (
