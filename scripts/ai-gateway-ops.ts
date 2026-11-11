@@ -180,10 +180,7 @@ function healthUrl(env: OperationsEnvironment): string {
   return `${url.origin}/health/ready`;
 }
 
-async function checkRuntimeHealth(
-  url: string,
-  fetcher: FetchFunction
-): Promise<boolean> {
+async function checkRuntimeHealth(url: string, fetcher: FetchFunction): Promise<boolean> {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const response = await fetcher(url, {
@@ -194,11 +191,7 @@ async function checkRuntimeHealth(
         const health: unknown = await response.json();
         if (health && typeof health === "object") {
           const result = health as Record<string, unknown>;
-          if (
-            result.ready === true &&
-            result.degraded !== true
-          )
-            return true;
+          if (result.ready === true && result.degraded !== true) return true;
         }
       }
     } catch {

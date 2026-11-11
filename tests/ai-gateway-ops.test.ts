@@ -28,9 +28,7 @@ function mockFetch(
   return async (input, init) => onRequest(input, init);
 }
 
-const names = [
-  { name: "AIG_ACCESS_KEY_AIR", type: "secret_text" },
-];
+const names = [{ name: "AIG_ACCESS_KEY_AIR", type: "secret_text" }];
 const ok = (result: unknown) => Response.json({ success: true, result });
 const endpoint = `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/ai-gateway/secrets`;
 
@@ -46,10 +44,7 @@ test("inventory only returns Cloudflare secret names, never returned values", as
     ]);
   });
   const result = await runOperations("inventory", "", mockEnv, fetcher);
-  assert.deepEqual(result, [
-    "AIG_ACCESS_KEY_AIR",
-    "AIG_TIER1_CREDENTIALS_01",
-  ]);
+  assert.deepEqual(result, ["AIG_ACCESS_KEY_AIR", "AIG_TIER1_CREDENTIALS_01"]);
   assert.deepEqual(received, [endpoint]);
   assert.equal(JSON.stringify(result).includes("private-secret"), false);
 });
@@ -94,11 +89,7 @@ test("retired Gateway Secret deletion requires exact confirmation and never dele
     AIG_OPS_DELETE_CONFIRM: "DELETE ai-gateway AIG_TOKEN_ENCRYPTION_KEY",
   };
   assert.doesNotThrow(() => validateSecretDeletion("AIG_TOKEN_ENCRYPTION_KEY", authorized));
-  for (const name of [
-    "AIG_INFERENCE_AUTH_KEY",
-    "AIG_PERCEPTION_AUTH_KEY",
-    "AIG_ACCESS_KEY_AIR",
-  ]) {
+  for (const name of ["AIG_INFERENCE_AUTH_KEY", "AIG_PERCEPTION_AUTH_KEY", "AIG_ACCESS_KEY_AIR"]) {
     assert.throws(
       () =>
         validateSecretDeletion(name, {
@@ -171,7 +162,7 @@ test("failed Gateway health blocks retired Secret deletion before mutation", asy
   const fetcher = mockFetch((input, init) => {
     requests.push((init?.method || "GET") + " " + String(input));
     if (String(input) === endpoint) return ok([...names, { name, type: "secret_text" }]);
-    return Response.json({ ready: false, nodes_total: 3, nodes_usable: 0 });
+    return Response.json({ ready: false, degraded: true });
   });
   await assert.rejects(
     deleteWorkerSecret(
@@ -184,21 +175,30 @@ test("failed Gateway health blocks retired Secret deletion before mutation", asy
   assert.ok(requests.every((request) => !request.startsWith("DELETE ")));
 });
 test("center authentication keys stay strong and provider shards obey size limits", () => {
-  assert.throws(() => validateSecretMutation("AIG_INFERENCE_AUTH_KEY", { ...mockEnv, AIG_OPS_SECRET_VALUE: "short" }), /32 characters/);
   assert.throws(
-    () => validateSecretMutation("AIG_PERCEPTION_AUTH_KEY", {
-      ...mockEnv,
-      AIG_OPS_WORKER_NAME: "ai-perception-center",
-      AIG_OPS_SECRET_VALUE: "short",
-    }),
+    () =>
+      validateSecretMutation("AIG_INFERENCE_AUTH_KEY", {
+        ...mockEnv,
+        AIG_OPS_SECRET_VALUE: "short",
+      }),
     /32 characters/
   );
   assert.throws(
-    () => validateSecretMutation("AIG_TIER1_CREDENTIALS_01", {
-      ...mockEnv,
-      AIG_OPS_WORKER_NAME: "ai-inference-center",
-      AIG_OPS_SECRET_VALUE: "x".repeat(4501),
-    }),
+    () =>
+      validateSecretMutation("AIG_PERCEPTION_AUTH_KEY", {
+        ...mockEnv,
+        AIG_OPS_WORKER_NAME: "ai-perception-center",
+        AIG_OPS_SECRET_VALUE: "short",
+      }),
+    /32 characters/
+  );
+  assert.throws(
+    () =>
+      validateSecretMutation("AIG_TIER1_CREDENTIALS_01", {
+        ...mockEnv,
+        AIG_OPS_WORKER_NAME: "ai-inference-center",
+        AIG_OPS_SECRET_VALUE: "x".repeat(4501),
+      }),
     /size limit/
   );
 });
@@ -268,7 +268,7 @@ test("health failure after a secret update is reported without falsely claiming 
     if (String(input) === endpoint && init?.method === "PUT")
       return ok({ name: "AIG_ACCESS_KEY_AIR", type: "secret_text" });
     if (String(input) === endpoint) return ok(names);
-    return Response.json({ ready: false, nodes_total: 3, nodes_usable: 0 });
+    return Response.json({ ready: false, degraded: true });
   });
   await assert.rejects(
     putWorkerSecret("AIG_ACCESS_KEY_AIR", mockEnv, fetcher),

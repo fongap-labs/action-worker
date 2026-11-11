@@ -300,12 +300,11 @@ test("a policy cannot alias to a reserved, declared or repeated name", async () 
   }
 });
 
-test("AI Gateway production shares only approved center authentication with the single ops Environment", async () => {
+test("AI Gateway production deploy ceiling contains Cloudflare and center auth only", async () => {
   const policyPath = "policies/deploy-secrets.json";
   const gateway = await readDeploySecretCeiling(policyPath, "fongap-labs/ai-gateway", "production");
   const hub = await readDeploySecretCeiling(policyPath, "fongap-labs/mcp-hub", "production");
   assert.deepEqual([...gateway].sort(), [
-    "AIG_DEPLOY_HEALTH_KEY",
     "AIG_GENERATION_AUTH_KEY",
     "AIG_INFERENCE_AUTH_KEY",
     "AIG_PERCEPTION_AUTH_KEY",
@@ -347,11 +346,11 @@ test("the central policies give each Cloudflare account its own qualified secret
     "production"
   );
   assert.equal(gateway.has("AIG_ACCESS_KEY_AGENT"), false);
-  assert.equal(gateway.has("AIG_DEPLOY_HEALTH_KEY"), true);
+  assert.equal(gateway.has("AIG_DEPLOY_HEALTH_KEY"), false);
   assert.equal(
     deploy.has("AIG_DEPLOY_HEALTH_KEY"),
     false,
-    "Production health secret cannot alias the AGENT access key"
+    "The removed health credential is absent from deployment aliases"
   );
   // The retired inference product has no deployment credential aliases.
   const retired = await readSecretAliases(
@@ -428,43 +427,6 @@ test("the central policies give each Cloudflare account its own qualified secret
   );
 });
 
-test("AI Gateway health credential is required directly and never falls back to an access-group key", async () => {
-  const files = await scopeFiles("AIG_DEPLOY_HEALTH_KEY\n", "");
-  const ceiling = {
-    names: new Set(["AIG_DEPLOY_HEALTH_KEY"]),
-    mode: "enforce" as const,
-    aliases: new Map<string, string>(),
-  };
-  await assert.rejects(
-    resolveSecretScope(
-      files.baseline,
-      files.required,
-      files.allowed,
-      [],
-      {
-        PATH: "/bin",
-        AIG_ACCESS_KEY_AGENT: "legacy-agent-key",
-      },
-      ceiling
-    ),
-    /Required task secret is unavailable: AIG_DEPLOY_HEALTH_KEY/
-  );
-  const valid = await resolveSecretScope(
-    files.baseline,
-    files.required,
-    files.allowed,
-    [],
-    {
-      PATH: "/bin",
-      AIG_ACCESS_KEY_AGENT: "legacy-agent-key",
-      AIG_DEPLOY_HEALTH_KEY: "independent-32-character-health-secret",
-    },
-    ceiling
-  );
-  assert.deepEqual(valid.allowed, ["AIG_DEPLOY_HEALTH_KEY"]);
-  assert.deepEqual(valid.unset, ["AIG_ACCESS_KEY_AGENT"]);
-});
-
 test("task execution uses only policy-scoped Secret slots; deployment remains scoped", async () => {
   const taskWorkflow = await readFile(".github/workflows/handle-task-dispatch.yml", "utf8");
   assert.match(taskWorkflow, /resolve-task-secret-plan\.ts resolve/);
@@ -492,7 +454,7 @@ test("AI Gateway operations workflow is protected and never accepts secret value
   assert.doesNotMatch(workflow, /repository_dispatch:/);
   assert.match(workflow, /CLOUDFLARE_API_TOKEN_OPS/);
   assert.match(workflow, /AIG_OPS_SECRET_VALUE/);
-  assert.match(workflow, /AIG_DEPLOY_HEALTH_KEY/);
+  assert.doesNotMatch(workflow, /AIG_DEPLOY_HEALTH_KEY/);
   assert.match(workflow, /node scripts\/ai-gateway-ops\.ts put/);
   assert.match(workflow, /node scripts\/ai-gateway-ops\.ts inventory/);
   assert.match(workflow, /persist-credentials: false/);
