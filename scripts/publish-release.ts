@@ -1,6 +1,4 @@
 import { spawn } from "node:child_process";
-import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
 import { access, mkdir, mkdtemp, open, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -23,6 +21,7 @@ import {
   runGithubCli,
   statusAwareReader,
 } from "./github-api.ts";
+import { sha256File } from "./lib/stream-file-hash.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
 import {
   parseTwoPhaseReleasePolicy,
@@ -40,6 +39,8 @@ import {
   runText,
 } from "./runtime-command.ts";
 import { validateReleaseProvenance } from "./validate-release-request.ts";
+
+export { sha256File };
 
 type ReleaseRequest = {
   source_repository: string;
@@ -145,16 +146,6 @@ async function requireCommand(command: string, versionArgs: readonly string[]): 
     }
     throw error;
   }
-}
-
-export async function sha256File(path: string): Promise<string> {
-  return await new Promise((resolve, reject) => {
-    const hash = createHash("sha256");
-    const input = createReadStream(path);
-    input.on("error", reject);
-    input.on("data", (chunk) => hash.update(chunk));
-    input.on("end", () => resolve(hash.digest("hex")));
-  });
 }
 
 async function listNested(root: string, current = root): Promise<string[]> {
