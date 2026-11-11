@@ -5,7 +5,12 @@ import { parseDeployManifest } from "../scripts/deploy-manifest.ts";
 import { assertExactKeys, isSafeRelativePath } from "../scripts/lib/manifest-input-validation.ts";
 
 test("shared manifest path validator accepts existing repository-relative forms", () => {
-  for (const path of [".", "scripts/deploy.sh", "projects/alpha/file-name_1.txt", "a".repeat(512)]) {
+  for (const path of [
+    ".",
+    "scripts/deploy.sh",
+    "projects/alpha/file-name_1.txt",
+    "a".repeat(512),
+  ]) {
     assert.equal(isSafeRelativePath(path), true, path);
   }
 });
