@@ -21,7 +21,7 @@ npx --yes --package=@commitlint/cli@19 commitlint --from origin/main --to HEAD
 
 ## 变更记录
 
-`feat`、`fix` 必须在 `CHANGELOG.md` 的 `[Unreleased]` 下新增中文条目，`chore` 可省略。类别仅允许“新增、修复、维护”，摘要不超过 80 字符；禁止 `changelog.d/`。
+`feat`、`fix`、`chore` 都必须在 `CHANGELOG.md` 的 `[Unreleased]` 下新增匹配类别的中文条目（专用 `chore(release)` 只执行已记录条目的发布迁移）。类别固定为“新增、修复、维护”，摘要不超过 140 个 Unicode 码点；`# 更新日志` 与 `## [Unreleased]` 是固定标题，门禁禁止改名；禁止 `changelog.d/`。
 
 ## 合并请求
 

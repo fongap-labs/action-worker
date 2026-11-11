@@ -5,12 +5,14 @@ import {
   isOpenDraftPull,
   mustRefreshBehindBranch,
 } from "../scripts/auto-merge-pr.ts";
+import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
 import { signedStatusDescription } from "../scripts/status-attestation.ts";
 
 const repository = "fongap-labs/ai-gateway";
 const number = 343;
 const headSha = "a".repeat(40);
 const baseSha = "b".repeat(40);
+const prTitle = "feat(example): add a feature";
 const runUrl = "https://github.com/fongap-labs/action-worker/actions/runs/42769598813";
 const ciUrl = "https://github.com/fongap-labs/action-worker/actions/runs/42769690716";
 
@@ -28,6 +30,7 @@ function pull() {
     number,
     merged: false,
     draft: false,
+    title: prTitle,
     head: { sha: headSha },
     base: { sha: baseSha, ref: "main" },
   };
@@ -49,7 +52,10 @@ function status(
       sha: headSha,
       state,
       context,
-      description: "Central CI gate verdict",
+      description:
+        context === "CI Evidence"
+          ? "Central CI gate verdict"
+          : "title-sha256=" + prTitleFingerprint(prTitle) + " Central CI gate verdict",
       targetUrl,
     }),
   };
@@ -115,6 +121,13 @@ test("Draft PR is a deliberate no-op, not merge admission", () => {
   assert.equal(isOpenDraftPull({ ...draft, merged: true }, number), false);
   assert.equal(isOpenDraftPull({ ...draft, state: "closed" }, number), false);
   assert.equal(isOpenDraftPull(pull(), number), false);
+});
+
+test("automatic merge refuses a PR title changed after its signed governance verdict", () => {
+  assert.throws(
+    () => verify({ ...pull(), title: "fix(example): repair a bug" }, statuses()),
+    /current PR title/
+  );
 });
 
 test("draft and changed or closed PRs never auto-merge", () => {

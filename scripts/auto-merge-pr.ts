@@ -1,6 +1,7 @@
 import { getGithubJson, getJsonString, isJsonRecord, runGithubCli } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
-import { latestAttestedStatus } from "./status-attestation.ts";
+import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
+import { latestAttestedStatus, originalStatusDescription } from "./status-attestation.ts";
 
 const SHA = /^[0-9a-f]{40}$/;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -54,6 +55,16 @@ export function assertReadyForAutomaticMerge(
         `Automatic merge refused: ${context} lacks a current-head signed success.`,
         75
       );
+    }
+    if (context === "PR Governance" || context === "validate-merge") {
+      const title = getJsonString(pull, "title");
+      const expected = "title-sha256=" + prTitleFingerprint(title) + " ";
+      if (!title || !originalStatusDescription(status).startsWith(expected)) {
+        throw new CliError(
+          "Automatic merge refused: " + context + " was not validated for the current PR title.",
+          75
+        );
+      }
     }
     if (context !== "CI Evidence" && getJsonString(status, "target_url") !== governanceRunUrl) {
       throw new CliError(

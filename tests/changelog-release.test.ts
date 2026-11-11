@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   assertChineseSummary,
+  assertFixedChangelogHeadings,
   parseEntry,
   promoteUnreleased,
 } from "../scripts/changelog-release.ts";
@@ -43,15 +44,31 @@ test("pending entries are promoted directly from CHANGELOG.md", () => {
   );
 });
 
-test("a summary must be Chinese text and must not carry mojibake", () => {
+test("a summary must be Chinese text, preserve encoding, and fit the 140-character limit", () => {
   assert.doesNotThrow(() => assertChineseSummary("修复 Settings ▸ Privacy 的显示。"));
   assert.throws(() => assertChineseSummary("repair the router."), CliError);
   assert.throws(() => assertChineseSummary("修复 Settings â–?Privacy"), CliError);
   assert.throws(() => assertChineseSummary("修复 range �"), CliError);
   assert.throws(() => assertChineseSummary("修复 wrong dash â€“ here"), CliError);
-  assert.throws(() => assertChineseSummary("优化配置和执行流程".repeat(11)), CliError);
+  assert.doesNotThrow(() => assertChineseSummary("优".repeat(140)));
+  assert.throws(() => assertChineseSummary("优".repeat(141)), CliError);
 });
 
+test("fixed CHANGELOG headings cannot be renamed or duplicated", () => {
+  const title = "# 更新日志";
+  const unreleased = "## [Unreleased]";
+  assert.doesNotThrow(() =>
+    assertFixedChangelogHeadings(title + "\n\n" + unreleased + "\n", title, unreleased)
+  );
+  assert.throws(
+    () => assertFixedChangelogHeadings("# Release notes\n\n" + unreleased + "\n", title, unreleased),
+    /fixed headings/
+  );
+  assert.throws(
+    () => assertFixedChangelogHeadings(title + "\n\n" + unreleased + "\n\n" + unreleased, title, unreleased),
+    /fixed headings/
+  );
+});
 test("promoting Unreleased moves every entry into a linked version section in category order", () => {
   const before = [
     "# Changelog",

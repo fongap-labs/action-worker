@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   assertChineseSummary,
+  assertFixedChangelogHeadings,
   assertReleaseChange,
   assertScopedReleaseChange,
   parseEntry,
@@ -33,6 +34,35 @@ function policyList(policy: Record<string, unknown>, key: string, owner = "relea
     throw new CliError(`::error::Invalid ${owner} policy field: ${key}.`, 65);
   }
   return value;
+}
+
+function policyInteger(policy: Record<string, unknown>, key: string): number {
+  const value = policy[key];
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) {
+    throw new CliError(`::error::Invalid release policy field: ${key}.`, 65);
+  }
+  return value;
+}
+
+function assertPolicyChangelogHeadings(
+  content: string,
+  policy: Record<string, unknown>
+): void {
+  const title = policy.changelog_heading;
+  const unreleased = policy.unreleased_heading;
+  if (typeof title !== "string" || typeof unreleased !== "string") {
+    throw new CliError("::error::Invalid fixed CHANGELOG heading policy.", 65);
+  }
+  assertFixedChangelogHeadings(content, title, unreleased);
+}
+
+function assertEnglishPrSummary(summary: string): void {
+  if (!/^[\x20-\x7E]+$/.test(summary) || !/[A-Za-z]/.test(summary)) {
+    throw new CliError(
+      "::error::PR title summary must use English ASCII text without emoji or other scripts.",
+      65
+    );
+  }
 }
 
 type AttributionPolicy = {
@@ -242,6 +272,8 @@ async function assertReleasePullRequest(
   }
   const baseChangelog = await runText("git", ["show", `${base}:${changelogFile}`], { cwd: root });
   const headChangelog = await readFile(join(root, changelogFile), "utf8");
+  assertPolicyChangelogHeadings(baseChangelog, policy);
+  assertPolicyChangelogHeadings(headChangelog, policy);
   const categories = policyList(policy, "changelog_categories");
   if (unreleasedSection(baseChangelog) === unreleasedSection(headChangelog)) {
     assertScopedReleaseChange({ baseChangelog, headChangelog, categories });
@@ -274,6 +306,7 @@ export async function validateChange(
   const isBreaking = match[3] === "!";
   const summary = match[4] ?? "";
   assertEnglishText("PR title summary", summary);
+  assertEnglishPrSummary(summary);
   const changeTypes = policyList(value, "change_types");
   const allowedAttrs = policyList(value, "change_attributes");
   const requiredTypes = policyList(value, "changelog_required_types");
@@ -356,6 +389,8 @@ export async function validateChange(
   if (changedPaths.includes(changelogFile)) {
     const baseChangelog = await runText("git", ["show", `${base}:${changelogFile}`], { cwd: root });
     const headChangelog = await readFile(join(root, changelogFile), "utf8");
+    assertPolicyChangelogHeadings(baseChangelog, value);
+    assertPolicyChangelogHeadings(headChangelog, value);
     if (isMigration) {
       if (
         !headChangelog.startsWith("# 更新日志\n") ||
@@ -375,6 +410,7 @@ export async function validateChange(
     }
   }
   const categories = policyList(value, "changelog_categories");
+  const summaryMaxCharacters = policyInteger(value, "changelog_summary_max_characters");
   const allowedCategories = changelogCategoriesForType(value, changeType);
   let hasMatching = false;
   for (const line of entries) {
@@ -385,7 +421,7 @@ export async function validateChange(
         65
       );
     }
-    assertChineseSummary(entry.summary);
+    assertChineseSummary(entry.summary, summaryMaxCharacters);
     if (!categories.includes(entry.category)) {
       throw new CliError(`::error::Unknown CHANGELOG category: ${entry.category}.`, 65);
     }
@@ -432,7 +468,10 @@ async function main(): Promise<void> {
   const output = JSON.stringify(record);
   if (process.env.GITHUB_OUTPUT) {
     await writeFile("/tmp/change-record.json", `${output}\n`, "utf8");
-    await appendLines(process.env.GITHUB_OUTPUT, [`json=${output}`]);
+    await appendLines(process.env.GITHUB_OUTPUT, [
+      `json=${output}`,
+      `title_fingerprint=${prTitleFingerprint(title)}`,
+    ]);
   }
   console.log(output);
 }

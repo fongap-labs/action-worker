@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { basename, extname } from "node:path";
 import { CliError, handleError, isMain, runText } from "./runtime-command.ts";
@@ -43,25 +44,72 @@ const platformNames = new Set([
 
 const tokenPattern = /\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g;
 const workflowExternalPattern = /\$\{\{\s*(?:vars|secrets)\.([A-Z][A-Z0-9_]*)/g;
-const selfIdentifyingPrefixes = [
-  "AW_",
-  "GMC_",
-  "MCP_",
-  "AIG_",
-  "AI_GATEWAY_",
-  "APP_SOURCE_",
-  "DELTA_",
-  "SERVER_EDGE_",
-  "CLOUDFLARE_",
-  "GITHUB_",
-  "AWS_",
-  "GCP_",
-  "ALGOLIA_",
-  "TAILSCALE_",
-];
+type ExternalPolicy = {
+  system_prefixes: string[];
+  platform_prefixes: string[];
+  forbidden_credential_terms: string[];
+  boolean_required_prefixes: string[];
+  boolean_action_terms: string[];
+  boolean_suffixes: string[];
+  mode_suffixes: string[];
+};
+
+const fallbackExternalPolicy: ExternalPolicy = {
+  system_prefixes: [
+    "AW_", "GMC_", "MCP_", "AIG_", "AI_GATEWAY_", "APP_SOURCE_", "DELTA_",
+    "SERVER_EDGE_", "CLOUDFLARE_", "GITHUB_", "AWS_", "GCP_", "ALGOLIA_", "TAILSCALE_",
+  ],
+  platform_prefixes: ["RUNNER_", "ACTIONS_"],
+  forbidden_credential_terms: ["PAT"],
+  boolean_required_prefixes: ["IS", "HAS", "CAN", "SHOULD"],
+  boolean_action_terms: ["ALLOW", "ENABLE", "DISABLE", "EXPOSE", "INCLUDE"],
+  boolean_suffixes: ["_ENABLED"],
+  mode_suffixes: ["_MODE"],
+};
+
+function loadExternalPolicy(): ExternalPolicy {
+  try {
+    const raw = JSON.parse(
+      readFileSync(new URL("../policies/naming.json", import.meta.url), "utf8")
+    ) as Record<string, unknown>;
+    const config = raw.external_configuration;
+    if (raw.schema_version !== 1 || typeof config !== "object" || config === null) {
+      throw new CliError("Invalid external-configuration naming policy.", 65);
+    }
+    const value = config as Record<string, unknown>;
+    const array = (key: keyof ExternalPolicy): string[] => {
+      const candidate = value[key];
+      if (!Array.isArray(candidate) || !candidate.every((item) => typeof item === "string")) {
+        throw new CliError(`Invalid naming policy field: external_configuration.${key}.`, 65);
+      }
+      return candidate;
+    };
+    return {
+      system_prefixes: array("system_prefixes"),
+      platform_prefixes: array("platform_prefixes"),
+      forbidden_credential_terms: array("forbidden_credential_terms"),
+      boolean_required_prefixes: array("boolean_required_prefixes"),
+      boolean_action_terms: array("boolean_action_terms"),
+      boolean_suffixes: array("boolean_suffixes"),
+      mode_suffixes: array("mode_suffixes"),
+    };
+  } catch (error) {
+    if (error instanceof CliError) throw error;
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return fallbackExternalPolicy;
+    }
+    throw new CliError(`Unable to read policies/naming.json: ${String(error)}`, 65);
+  }
+}
+
+const externalPolicy = loadExternalPolicy();
+const selfIdentifyingPrefixes = externalPolicy.system_prefixes;
 
 function isPlatformName(name: string): boolean {
-  return platformNames.has(name) || name.startsWith("RUNNER_") || name.startsWith("ACTIONS_");
+  return (
+    platformNames.has(name) ||
+    externalPolicy.platform_prefixes.some((prefix) => name.startsWith(prefix))
+  );
 }
 
 const ownerScopes = new Set(["projects", "apps", "services", "tools", "crates", "skills"]);
@@ -140,14 +188,23 @@ export function validateConfigText(path: string, text: string): string[] {
         `${path}: external configuration '${name}' must identify its owning system without repository context`
       );
     }
-    if (name.endsWith("_PAT") || name.includes("_PAT_")) {
-      errors.push(`${path}: credential '${name}' must use TOKEN or KEY instead of PAT`);
+    if (
+      externalPolicy.forbidden_credential_terms.some((term) => name.split("_").includes(term))
+    ) {
+      errors.push(`${path}: credential '${name}' must use TOKEN or KEY instead of a forbidden credential term`);
     }
-    const usesBooleanPrefix = /(?:^|_)(?:IS|HAS|CAN|SHOULD)_/.test(name);
-    const isModeValue = name.endsWith("_MODE");
+    const booleanPrefixPattern = new RegExp(
+      `(?:^|_)(?:${externalPolicy.boolean_required_prefixes.join("|")})_`
+    );
+    const booleanActionPattern = new RegExp(
+      `(?:^|_)(?:${externalPolicy.boolean_action_terms.join("|")})_`
+    );
+    const usesBooleanPrefix = booleanPrefixPattern.test(name);
+    const isModeValue = externalPolicy.mode_suffixes.some((suffix) => name.endsWith(suffix));
     const looksBoolean =
       !isModeValue &&
-      (/(?:^|_)(?:ALLOW|ENABLE|DISABLE|EXPOSE|INCLUDE)_/.test(name) || name.endsWith("_ENABLED"));
+      (booleanActionPattern.test(name) ||
+        externalPolicy.boolean_suffixes.some((suffix) => name.endsWith(suffix)));
     if (looksBoolean && !usesBooleanPrefix) {
       errors.push(
         `${path}: Boolean configuration '${name}' must include an IS_, HAS_, CAN_, or SHOULD_ semantic segment`
