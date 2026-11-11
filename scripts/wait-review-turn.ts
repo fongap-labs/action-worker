@@ -5,11 +5,8 @@ import {
   getJsonString,
   isJsonRecord,
 } from "./github-api.ts";
+import { sleep } from "./lib/promise-delay-runtime.ts";
 import { CliError, handleError, isMain, readJson } from "./runtime-command.ts";
-
-function sleep(delayMs: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, delayMs));
-}
 
 function calculateBackoff(
   attempt: number,

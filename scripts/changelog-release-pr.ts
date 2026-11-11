@@ -19,6 +19,7 @@ import {
   runGithubCli,
   statusAwareReader,
 } from "./github-api.ts";
+import { sleep } from "./lib/promise-delay-runtime.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
 import { CliError } from "./runtime-command.ts";
 import { hasValidStatusAttestation } from "./status-attestation.ts";
@@ -131,10 +132,6 @@ export function assertMergedReleaseSection(
     }
   }
   return notes;
-}
-
-function sleep(delayMs: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 /** Invalid timing configuration must fail before any release PR or branch mutation. */

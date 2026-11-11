@@ -1,4 +1,5 @@
 import { githubApiAudit } from "./github-api-request-audit.ts";
+import { sleep } from "./lib/promise-delay-runtime.ts";
 import { CliError, runCommand, runText } from "./runtime-command.ts";
 
 export type JsonRecord = Record<string, unknown>;
@@ -80,10 +81,6 @@ export async function getGithubJsonIfExists(
     if (isGithubMissing(error)) return undefined;
     throw error;
   }
-}
-
-function sleep(delayMs: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 type ReaderOptions = {
