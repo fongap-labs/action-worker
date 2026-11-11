@@ -4,8 +4,8 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { requireStatusToken } from "./control-token.ts";
 import {
-  type GithubReader,
   decodeGithubContent,
+  type GithubReader,
   getJsonArray,
   getJsonString,
   githubExists,
