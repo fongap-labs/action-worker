@@ -55,17 +55,19 @@ test("deploy entrypoints and dependency repair paths use the same safety boundar
   assert.throws(() =>
     parseDependencyRepairManifest({
       schema_version: "1",
-      repairs: [{
-        id: "uv-lock",
-        adapter: "uv-lock",
-        runner_profile: "linux-standard",
-        trusted_actor: "dependabot[bot]",
-        trigger_paths: ["pyproject.toml"],
-        output_paths: [tooLong],
-        tool_version: "0.12.3",
-        head_prefix: "dependabot/",
-        working_directory: ".",
-      }],
+      repairs: [
+        {
+          id: "uv-lock",
+          adapter: "uv-lock",
+          runner_profile: "linux-standard",
+          trusted_actor: "dependabot[bot]",
+          trigger_paths: ["pyproject.toml"],
+          output_paths: [tooLong],
+          tool_version: "0.12.3",
+          head_prefix: "dependabot/",
+          working_directory: ".",
+        },
+      ],
     })
   );
 });
