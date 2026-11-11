@@ -76,25 +76,25 @@ test("image admission recognizes only the supported Chat, Responses, and Message
   assert.equal(hasImageInput({ input: [{ type: "input_video", video_url: "https://example.test/video.mp4" }] }), false);
 });
 
-function centerEnv(authName, authKey) {
+function centerEnv(authName, authKey, providerNode = node) {
   return {
     [authName]: authKey,
     AIG_MODELS_CONFIG: modelCatalog,
     AIG_POLICIES_CONFIG: policies,
-    AIG_TIER1_NODES_01: JSON.stringify([node]),
-    AIG_TIER1_CREDENTIALS_01: JSON.stringify({ [NODE_ID]: "provider-test-secret" }),
+    AIG_TIER1_NODES_01: JSON.stringify([providerNode]),
+    AIG_TIER1_CREDENTIALS_01: JSON.stringify({ [providerNode.id]: "provider-test-secret" }),
   };
 }
 
-function gatewayEnv() {
-  const perception = centerEnv("AIG_PERCEPTION_AUTH_KEY", PERCEPTION_KEY);
-  const inference = centerEnv("AIG_INFERENCE_AUTH_KEY", INFERENCE_KEY);
+function gatewayEnv(providerNode = node) {
+  const perception = centerEnv("AIG_PERCEPTION_AUTH_KEY", PERCEPTION_KEY, providerNode);
+  const inference = centerEnv("AIG_INFERENCE_AUTH_KEY", INFERENCE_KEY, providerNode);
   const env = {
     AIG_ACCESS_KEY_AIR: ACCESS_KEY,
     AIG_ACCESS_MODELS_AIR: "*",
     AIG_MODELS_CONFIG: modelCatalog,
     AIG_POLICIES_CONFIG: policies,
-    AIG_TIER1_NODES_01: JSON.stringify([node]),
+    AIG_TIER1_NODES_01: JSON.stringify([providerNode]),
     AIG_PERCEPTION_AUTH_KEY: PERCEPTION_KEY,
     AIG_INFERENCE_AUTH_KEY: INFERENCE_KEY,
     AIG_PERCEPTION_SERVICE: {
@@ -171,9 +171,18 @@ test("an image request with no vision catalog declaration is rejected before eit
   assert.equal(providerCalls.length, 0);
 });
 
+test("a Google Gemini vision model can receive image input through private Perception", async () => {
+  const googleNode = { ...node, provider: "google" };
+  const env = gatewayEnv(googleNode);
+  const response = await worker.fetch(request(imageChatBody()), env, ctx);
+  assert.equal(response.status, 200);
+  assert.equal(providerCalls.length, 1);
+  assert.equal(providerCalls[0].url.pathname, "/v1/chat/completions");
+});
+
 test("an image request skips providers without an explicit image-input contract", async () => {
   const env = gatewayEnv();
-  env.AIG_TIER1_NODES_01 = JSON.stringify([{ ...node, provider: "google" }]);
+  env.AIG_TIER1_NODES_01 = JSON.stringify([{ ...node, provider: "unknown-custom-provider" }]);
   const response = await worker.fetch(request(imageChatBody()), env, ctx);
   assert.notEqual(response.status, 200);
   assert.equal(providerCalls.length, 0);
@@ -241,6 +250,23 @@ test("private Perception config contains only explicitly vision-enabled models o
   assert.deepEqual(JSON.parse(built.config.vars.AIG_MODELS_CONFIG), {
     [MODEL]: { capabilities: { vision: true }, modalities: { input: ["text", "image"], output: ["text"] } },
   });
+  const googleInputs = {
+    ...inputs,
+    AIG_TIER1_NODES_01: JSON.stringify([{
+      id: NODE_ID,
+      provider: "google",
+      base_url: "https://provider.example/v1",
+      models: { [MODEL]: "upstream-vision-model", "text-model": "upstream-text-model" },
+    }]),
+  };
+  const googleBuilt = buildPrivateCenterConfig("ai-perception-center", googleInputs);
+  assert.equal(googleBuilt.nodeCount, 1);
+  assert.deepEqual(JSON.parse(googleBuilt.config.vars.AIG_TIER1_NODES_01), [{
+    id: NODE_ID,
+    provider: "google",
+    base_url: "https://provider.example/v1",
+    models: { [MODEL]: "upstream-vision-model" },
+  }]);
   assert.equal(built.config.routes, undefined);
   assert.equal(built.config.services, undefined);
   assert.deepEqual(
