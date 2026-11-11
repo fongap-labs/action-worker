@@ -7,6 +7,15 @@ import { test } from 'node:test';
 import { verifyRemote } from '#target/scripts/github-deployment-config.mjs';
 import { resolveBuildSha } from '#target/src/observability/diagnostic-endpoints.ts';
 
+const assertPublicReadinessRequests = (requests) => {
+  assert.ok(requests.length > 0);
+  assert.ok(
+    requests.every(
+      ({ url, hasAuthorization }) => url.endsWith('/health/ready') && !hasAuthorization,
+    ),
+  );
+};
+
 test('runtime build identity uses the gateway-scoped source SHA only', () => {
   const sourceSha = 'a'.repeat(40);
   const controlSha = 'b'.repeat(40);
@@ -18,49 +27,70 @@ test('online verification rejects a Worker build that never matches', async () =
   const original = globalThis.fetch;
   const expected = 'a'.repeat(40);
   const shortGrace = { graceMs: 100, intervalMs: 10 };
-  globalThis.fetch = async (url) => {
-    if (url.endsWith('/health')) return Response.json({ ready: true, build: 'b'.repeat(40) });
+  const requests = [];
+  globalThis.fetch = async (url, init) => {
+    requests.push({
+      url: String(url),
+      hasAuthorization: new Headers(init?.headers).has('authorization'),
+    });
+    if (url.endsWith('/health/ready')) return Response.json({ ready: true, build: 'b'.repeat(40), degraded: false });
     return Response.json({});
   };
   try {
-    await assert.rejects(verifyRemote('https://gateway.example', 'test-placeholder', expected, shortGrace), /does not match/);
+    await assert.rejects(verifyRemote('https://gateway.example', expected, shortGrace), /does not match/);
+    assertPublicReadinessRequests(requests);
   } finally {
     globalThis.fetch = original;
   }
 });
 
-test('online verification keeps polling until the new build reports health', async () => {
+test('online verification polls public readiness until the new build is ready', async () => {
   const original = globalThis.fetch;
   const expected = 'a'.repeat(40);
-  // A count, not a wall-clock window, decides when the new build appears, so the test does not depend on machine load.
   const propagation = { graceMs: 60_000, intervalMs: 1 };
-  let healthCalls = 0;
-  let calls = [];
-  globalThis.fetch = async (url) => {
-    calls.push(url);
-    if (url.endsWith('/health')) {
-      healthCalls += 1;
-      return Response.json({ ready: true, build: healthCalls <= 2 ? 'b'.repeat(40) : expected });
+  let readinessCalls = 0;
+  let requests = [];
+  globalThis.fetch = async (url, init) => {
+    requests.push({
+      url: String(url),
+      hasAuthorization: new Headers(init?.headers).has('authorization'),
+    });
+    if (url.endsWith('/health/ready')) {
+      readinessCalls += 1;
+      return Response.json({
+        ready: true,
+        build: readinessCalls <= 2 ? 'b'.repeat(40) : expected,
+        degraded: false,
+      });
     }
     return Response.json({});
   };
   try {
-    await verifyRemote('https://gateway.example', 'test-placeholder', expected, propagation);
-    assert.equal(healthCalls, 3, 'two stale health responses are retried before the new build is accepted');
+    await verifyRemote('https://gateway.example', expected, propagation);
+    assert.equal(readinessCalls, 3, 'two stale readiness responses are retried before accepting the new build');
+    assertPublicReadinessRequests(requests);
 
-    calls = [];
-    healthCalls = 0;
-    globalThis.fetch = async (url) => {
-      calls.push(url);
-      if (url.endsWith('/health')) return Response.json({ ready: true, build: expected });
+    requests = [];
+    readinessCalls = 0;
+    globalThis.fetch = async (url, init) => {
+      requests.push({
+        url: String(url),
+        hasAuthorization: new Headers(init?.headers).has('authorization'),
+      });
+      if (url.endsWith('/health/ready')) {
+        readinessCalls += 1;
+        return Response.json({ ready: true, build: expected, degraded: false });
+      }
       return Response.json({});
     };
-    await verifyRemote('https://gateway.example', 'test-placeholder', expected, propagation);
-    assert.equal(calls.length, 3, 'build verification reuses the health probe');
+    await verifyRemote('https://gateway.example', expected, propagation);
+    assert.equal(readinessCalls, 1, 'build verification uses one public readiness probe');
+    assertPublicReadinessRequests(requests);
 
-    calls = [];
-    await verifyRemote('https://gateway.example', 'test-placeholder');
-    assert.equal(calls.length, 3, 'rollback probes health without asserting a target SHA');
+    requests = [];
+    await verifyRemote('https://gateway.example');
+    assert.equal(requests.length, 1, 'rollback probes public readiness without asserting a target SHA');
+    assertPublicReadinessRequests(requests);
   } finally {
     globalThis.fetch = original;
   }
