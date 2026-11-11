@@ -29,9 +29,8 @@ function runRange(event: string, base: string, head: string): string {
   }
 }
 
-test("shared CI range resolver preserves pull request and push ranges", {
-  skip: process.platform === "win32",
-}, () => {
+test("shared CI range resolver preserves pull request and push ranges", () => {
+  if (process.platform === "win32") return;
   const base = "a".repeat(40);
   const head = "b".repeat(40);
   const expected = `base=${base}\nhead=${head}\n`;
