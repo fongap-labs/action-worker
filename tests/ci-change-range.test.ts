@@ -1,39 +1,53 @@
 import assert from "node:assert/strict";
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { test } from "node:test";
+import { resolveCiChangeRange, type CiRangeInputs } from "../scripts/ci-change-range.ts";
 
-function runRange(event: string, base: string, head: string): string {
-  const directory = mkdtempSync(join(tmpdir(), "aw-ci-range-"));
-  const output = join(directory, "output");
-  try {
-    const run = spawnSync("bash", ["scripts/ci-change-range.sh"], {
-      encoding: "utf8",
-      cwd: process.cwd(),
-      env: {
-        ...process.env,
-        GITHUB_EVENT_NAME: event,
-        PR_BASE_SHA: base,
-        PR_HEAD_SHA: head,
-        PUSH_BEFORE_SHA: base,
-        GITHUB_SHA: head,
-        GITHUB_OUTPUT: output,
-      },
-    });
-    assert.equal(run.status, 0, run.stderr);
-    return readFileSync(output, "utf8");
-  } finally {
-    rmSync(directory, { recursive: true, force: true });
-  }
-}
+const base = "a".repeat(40);
+const head = "b".repeat(40);
+const root = "c".repeat(40);
+const input: CiRangeInputs = {
+  event: "pull_request",
+  prBase: base,
+  prHead: head,
+  pushBefore: base,
+  sha: head,
+};
 
-test("shared CI range resolver preserves pull request and push ranges", () => {
-  if (process.platform === "win32") return;
-  const base = "a".repeat(40);
-  const head = "b".repeat(40);
-  const expected = `base=${base}\nhead=${head}\n`;
-  assert.equal(runRange("pull_request", base, head), expected);
-  assert.equal(runRange("push", base, head), expected);
+test("CI range resolver preserves pull request and regular push heads", () => {
+  const noGit = (): never => {
+    throw new Error("Git should not be required for a normal PR or push");
+  };
+  assert.deepEqual(resolveCiChangeRange(input, noGit), { base, head });
+  assert.deepEqual(resolveCiChangeRange({ ...input, event: "push" }, noGit), { base, head });
+});
+
+test("CI range resolver recovers the root on a zero-before initial push", () => {
+  const calls: string[][] = [];
+  const range = resolveCiChangeRange(
+    { ...input, event: "push", pushBefore: "0".repeat(40) },
+    (args) => {
+      calls.push(args);
+      return root;
+    }
+  );
+  assert.deepEqual(range, { base: root, head });
+  assert.deepEqual(calls, [["rev-list", "--max-parents=0", head]]);
+});
+
+test("CI range resolver prefers parent and falls back to root for other events", () => {
+  assert.deepEqual(resolveCiChangeRange({ ...input, event: "other" }, () => base), {
+    base,
+    head,
+  });
+  const calls: string[][] = [];
+  const result = resolveCiChangeRange({ ...input, event: "other" }, (args) => {
+    calls.push(args);
+    if (args[0] === "rev-parse") throw new Error("first commit has no parent");
+    return root;
+  });
+  assert.deepEqual(result, { base: root, head });
+  assert.deepEqual(calls, [
+    ["rev-parse", `${head}^`],
+    ["rev-list", "--max-parents=0", head],
+  ]);
 });
