@@ -1,8 +1,8 @@
 import { writeFile } from "node:fs/promises";
 import { hasVerifiedCiEvidence, type JsonReader, trustedCiStatus } from "./ci-evidence.ts";
 import { requireStatusToken } from "./control-token.ts";
-import { sleep } from "./lib/promise-delay-runtime.ts";
 import { getJsonNumber, getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
+import { sleep } from "./lib/promise-delay-runtime.ts";
 import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 
 function policyNumber(value: Record<string, unknown>, key: string, fallback: number): number {
