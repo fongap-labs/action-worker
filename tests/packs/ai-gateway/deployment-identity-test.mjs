@@ -179,4 +179,4 @@ test('remote readiness keeps HTTP 401 available to the legacy rollout guard', as
     globalThis.fetch = original;
   }
 });
-\n
+
