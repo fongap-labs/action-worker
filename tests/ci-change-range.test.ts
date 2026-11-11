@@ -35,10 +35,13 @@ test("CI range resolver recovers the root on a zero-before initial push", () => 
 });
 
 test("CI range resolver prefers parent and falls back to root for other events", () => {
-  assert.deepEqual(resolveCiChangeRange({ ...input, event: "other" }, () => base), {
-    base,
-    head,
-  });
+  assert.deepEqual(
+    resolveCiChangeRange({ ...input, event: "other" }, () => base),
+    {
+      base,
+      head,
+    }
+  );
   const calls: string[][] = [];
   const result = resolveCiChangeRange({ ...input, event: "other" }, (args) => {
     calls.push(args);
