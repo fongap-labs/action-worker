@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   classifyGithubFailure,
+  decodeGithubContent,
   GithubHttpError,
   GithubReader,
   getGithubJsonIfExists,
@@ -321,5 +322,25 @@ test("status-aware reader fails closed when either dedicated token is missing", 
   assert.throws(
     () => statusAwareReader("https://api.github.test", "", "status-read"),
     /no token fallback/
+  );
+});
+
+test("GitHub contents decoder preserves UTF-8 and caller-specific diagnostics", () => {
+  const encoded = Buffer.from("shared decoder", "utf8").toString("base64");
+  assert.equal(decodeGithubContent({ encoding: "base64", content: encoded }), "shared decoder");
+  assert.equal(
+    decodeGithubContent({
+      encoding: "base64",
+      content: `${encoded.slice(0, 4)}\n${encoded.slice(4)}`,
+    }),
+    "shared decoder"
+  );
+  assert.throws(
+    () => decodeGithubContent({ encoding: "utf8", content: encoded }),
+    /GitHub contents response is invalid/
+  );
+  assert.throws(
+    () => decodeGithubContent({ encoding: "base64", content: 123 }, "Custom contents error."),
+    /Custom contents error/
   );
 });

@@ -4,6 +4,7 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { requireStatusToken } from "./control-token.ts";
 import {
+  decodeGithubContent,
   type GithubReader,
   getJsonArray,
   getJsonString,
@@ -181,13 +182,6 @@ export function checksumForAsset(text: string, asset: string): string {
     }
   }
   throw new CliError(`No valid upstream SHA256 was found for ${asset}.`, 66);
-}
-
-function decodeGithubContent(value: unknown): string {
-  if (!isJsonRecord(value) || value.encoding !== "base64" || typeof value.content !== "string") {
-    throw new CliError("GitHub contents response is invalid.", 65);
-  }
-  return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
 }
 
 async function repositoryJson(

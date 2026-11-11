@@ -9,6 +9,7 @@ import {
   slotKey,
 } from "./cron-schedule.ts";
 import {
+  decodeGithubContent,
   getGithubJson,
   getGithubJsonIfExists,
   githubEnvironment,
@@ -61,13 +62,6 @@ function exactKeys(
   if (actual.length !== wanted.length || actual.some((item, index) => item !== wanted[index])) {
     throw new CliError(`${label} keys are invalid.`, 65);
   }
-}
-
-function decodeGithubContent(value: unknown): string {
-  if (!isJsonRecord(value) || value.encoding !== "base64" || typeof value.content !== "string") {
-    throw new CliError("GitHub task source manifest response is invalid.", 65);
-  }
-  return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
 }
 
 // Task schedules keep their own wording in errors; the parser itself is shared with deploy schedules.
@@ -227,7 +221,7 @@ export async function resolveScheduledTasks(
     }
     const manifest = parseTaskSourceManifest(
       parseJson(
-        decodeGithubContent(manifestValue),
+        decodeGithubContent(manifestValue, "GitHub task source manifest response is invalid."),
         `Task source manifest must be valid JSON: ${repository}.`,
         65
       )

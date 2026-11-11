@@ -4,7 +4,7 @@ import {
   isDeployPolicyKey,
   productPolicyKey,
 } from "./deploy-policy-key.ts";
-import { GithubReader, isJsonRecord } from "./github-api.ts";
+import { decodeGithubContent, GithubReader, isJsonRecord } from "./github-api.ts";
 import {
   assertExactKeys,
   isSafeRelativePath as safeRelativePath,
@@ -107,10 +107,7 @@ function triggerPathValid(value: unknown): value is string {
 }
 
 export function decodeDeployManifestContent(value: unknown): string {
-  if (!isJsonRecord(value) || value.encoding !== "base64" || typeof value.content !== "string") {
-    throw new CliError("GitHub deploy manifest response is invalid.", 65);
-  }
-  return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
+  return decodeGithubContent(value, "GitHub deploy manifest response is invalid.");
 }
 
 function parseSchemaOne(value: Record<string, unknown>): DeployManifestV1 {
