@@ -5,7 +5,9 @@ import { type ScheduledTask, wasDispatched } from "../scripts/dispatch-scheduled
 import {
   dispatchWithReservation,
   hasScheduledDispatchReceipt,
+  scheduledDispatchStatusPayload,
 } from "../scripts/scheduled-dispatch-statuses.ts";
+import { hasValidStatusAttestation, originalStatusDescription } from "../scripts/status-attestation.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const repository = "fongap-labs/example";
@@ -293,5 +295,25 @@ test("unbounded or malformed status history fails closed", async () => {
       ),
       /status history is invalid/
     );
+  }
+});
+
+test("task and deploy scheduled receipts preserve signed status payloads", () => {
+  for (const [context, kind] of [
+    ["Task Schedule/MarketBrief", "Task"],
+    ["Deploy Schedule/alpha/nightly", "Deploy"],
+  ]) {
+    for (const [state, description] of [
+      ["pending", `${kind} dispatch reserved for ${oldSlot}`],
+      ["success", `${kind} dispatched for ${oldSlot}`],
+    ] as const) {
+      const payload = JSON.parse(
+        scheduledDispatchStatusPayload({ repository, head_sha: sha, context }, state, description)
+      ) as Record<string, unknown>;
+      assert.equal(payload.state, state);
+      assert.equal(payload.context, context);
+      assert.equal(originalStatusDescription(payload), description);
+      assert.equal(hasValidStatusAttestation(payload, { repository, sha, context }), true);
+    }
   }
 });
