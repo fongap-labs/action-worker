@@ -8,7 +8,7 @@ const workerNames = [
 ] as const;
 type WorkerName = (typeof workerNames)[number];
 const gatewaySecretName =
-  /^(?:AIG_DEPLOY_HEALTH_KEY|AIG_(?:INFERENCE|PERCEPTION|GENERATION)_AUTH_KEY|AIG_ACCESS_KEY_(?:AIR|PRO|MAX|ULTRA|AGENT)|AIG_EDGE_CACHE_HMAC_KEY)$/;
+  /^(?:AIG_(?:INFERENCE|PERCEPTION|GENERATION)_AUTH_KEY|AIG_ACCESS_KEY_(?:AIR|PRO|MAX|ULTRA|AGENT)|AIG_EDGE_CACHE_HMAC_KEY)$/;
 const providerShardName = /^AIG_TIER[12]_CREDENTIALS_(?:0[1-9]|10)$/;
 // Destructive operations are intentionally narrower than reads and writes.
 const retiredGatewaySecretName =
@@ -47,7 +47,6 @@ export function validateSecretDeletion(name: string, env: OperationsEnvironment)
     );
   }
 }
-const healthKeyPattern = /^[A-Za-z0-9_-]{32,}$/;
 const maxSecretBytes = 4500;
 
 type OperationsEnvironment = Record<string, string | undefined>;
@@ -81,9 +80,6 @@ export function validateSecretMutation(name: string, env: OperationsEnvironment)
   if (Buffer.byteLength(secretValue, "utf8") > maxSecretBytes) {
     throw new Error("Secret exceeds the Worker secret size limit; split credential shards first.");
   }
-  if (name === "AIG_DEPLOY_HEALTH_KEY" && !healthKeyPattern.test(secretValue)) {
-    throw new Error("AIG_DEPLOY_HEALTH_KEY must have at least 32 URL-safe characters.");
-  }
   if (
     (name === "AIG_INFERENCE_AUTH_KEY" ||
       name === "AIG_PERCEPTION_AUTH_KEY" ||
@@ -91,12 +87,6 @@ export function validateSecretMutation(name: string, env: OperationsEnvironment)
     secretValue.length < 32
   ) {
     throw new Error("Center authentication secret must contain at least 32 characters.");
-  }
-  if (name.startsWith("AIG_ACCESS_KEY_") && secretValue === env.AIG_DEPLOY_HEALTH_KEY) {
-    throw new Error("Application access key must not reuse the deployment health credential.");
-  }
-  if (name !== "AIG_DEPLOY_HEALTH_KEY" && secretValue === env.AIG_DEPLOY_HEALTH_KEY) {
-    throw new Error("Runtime authentication must not reuse the deployment health credential.");
   }
   return secretValue;
 }
@@ -187,19 +177,17 @@ function healthUrl(env: OperationsEnvironment): string {
   ) {
     throw new Error("AIG_PUBLIC_URL must be an HTTPS origin without credentials or path.");
   }
-  return `${url.origin}/health`;
+  return `${url.origin}/health/ready`;
 }
 
 async function checkRuntimeHealth(
   url: string,
-  key: string,
   fetcher: FetchFunction
 ): Promise<boolean> {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const response = await fetcher(url, {
         method: "GET",
-        headers: { Authorization: `Bearer ${key}` },
         signal: AbortSignal.timeout(15000),
       });
       if (response.ok) {
@@ -208,9 +196,7 @@ async function checkRuntimeHealth(
           const result = health as Record<string, unknown>;
           if (
             result.ready === true &&
-            typeof result.nodes_total === "number" &&
-            result.nodes_total > 0 &&
-            result.nodes_usable === result.nodes_total
+            result.degraded !== true
           )
             return true;
         }
@@ -230,18 +216,9 @@ export async function putWorkerSecret(
   const worker = selectedWorker(env);
   const { accountId, token } = validateCommon(env);
   const secretValue = validateSecretMutation(name, env);
-  // Private centers do not have public /health endpoints. Their runtime
+  // Private centers do not have a public readiness endpoint. Their runtime
   // readiness is checked later through the protected Gateway binding.
   const url = worker === "ai-gateway" ? healthUrl(env) : "";
-  const healthKey =
-    worker !== "ai-gateway"
-      ? ""
-      : name === "AIG_DEPLOY_HEALTH_KEY"
-        ? secretValue
-        : assertString(env.AIG_DEPLOY_HEALTH_KEY, "AIG_DEPLOY_HEALTH_KEY");
-  if (worker === "ai-gateway" && !healthKeyPattern.test(healthKey)) {
-    throw new Error("AIG_DEPLOY_HEALTH_KEY must be an independent URL-safe credential.");
-  }
 
   // Confirm the existing Worker can be queried before making any mutation.
   await listWorkerSecretNames(env, fetcher);
@@ -262,7 +239,7 @@ export async function putWorkerSecret(
       "Updated secret is not present in Cloudflare inventory; state may have changed."
     );
   }
-  if (worker === "ai-gateway" && !(await checkRuntimeHealth(url, healthKey, fetcher))) {
+  if (worker === "ai-gateway" && !(await checkRuntimeHealth(url, fetcher))) {
     throw new Error(
       "Post-update runtime health failed. The secret may have changed; restore its previous value via a separately approved operation."
     );
@@ -277,16 +254,12 @@ export async function deleteWorkerSecret(
 ): Promise<void> {
   validateSecretDeletion(name, env);
   const { accountId, token } = validateCommon(env);
-  const healthKey = assertString(env.AIG_DEPLOY_HEALTH_KEY, "AIG_DEPLOY_HEALTH_KEY");
-  if (!healthKeyPattern.test(healthKey)) {
-    throw new Error("AIG_DEPLOY_HEALTH_KEY must be an independent URL-safe credential.");
-  }
   const url = healthUrl(env);
   const before = await listWorkerSecretNames(env, fetcher);
   if (!before.includes(name)) {
     throw new Error("Secret is already absent; no Cloudflare deletion was performed.");
   }
-  if (!(await checkRuntimeHealth(url, healthKey, fetcher))) {
+  if (!(await checkRuntimeHealth(url, fetcher))) {
     throw new Error("Gateway runtime health must pass before deleting a retired Secret.");
   }
   await requestCloudflare(
@@ -299,7 +272,7 @@ export async function deleteWorkerSecret(
   if (after.includes(name)) {
     throw new Error("Deleted Secret is still present; Cloudflare state must be inspected.");
   }
-  if (!(await checkRuntimeHealth(url, healthKey, fetcher))) {
+  if (!(await checkRuntimeHealth(url, fetcher))) {
     throw new Error(
       "Post-deletion Gateway health failed; Cloudflare state changed and requires recovery review."
     );

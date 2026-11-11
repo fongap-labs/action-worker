@@ -47,6 +47,22 @@ async function health(key) {
   return res.json();
 }
 
+test('public readiness returns only build and readiness fields without an access key', async () => {
+  const res = await worker.fetch(
+    new Request('https://gateway.example.com/health/ready'),
+    makeEnv(),
+    {},
+  );
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.ready, true);
+  assert.deepEqual(Object.keys(body).sort(), ['build', 'degraded', 'ready', 'status']);
+  assert.equal('endpoints' in body, false);
+  assert.equal('nodes_total' in body, false);
+  assert.equal('diagnostics' in body, false);
+  assert.equal(privateCenterCalls, 0);
+});
+
 test('a restricted key sees only the nodes behind its allowed models', async () => {
   const body = await health('air-key');
   assert.deepEqual(

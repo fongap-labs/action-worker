@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: Gateway 密钥操作改用公开精简就绪检查，移除重复健康密钥的初始化和传递要求。
+
 - 新增: 强制校验 PR 标题、变更记录长度、固定标题与可执行命名规则。
 
 - 修复: 同步 AI Gateway 中央测试包的 Gemini 图片输入契约，验证 Google 视觉节点经私有 Perception 路由，并保留未知 Provider 拒绝规则。

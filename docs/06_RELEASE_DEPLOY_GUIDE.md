@@ -219,12 +219,12 @@ Schema 2 示例：
 - 实际 Secret 名称以非敏感的 Job Step Outputs 形式传入固定槽位；只有对应的 `secrets[steps.secret_plan.outputs.secret_XX]` 被解析，最多 40 项，空槽位不传值。
 - 复用现有的独立 GitHub Environment Secrets，无需建立 JSON 密钥包，也不需要重新录入密钥。
 - `variable_sources` 声明可由非敏感 Variable 提供的部署别名，例如 `CLOUDFLARE_ACCOUNT_ID_SECONDARY`；变量由经授权的既有来源提供，不把变量伪装成 Secret。
-- 对 AI Gateway，所有非敏感部署 Variables 仅由 Action Worker **已有且受保护**的 `ai-gateway-ops` Environment 提供，包括 `CLOUDFLARE_ACCOUNT_ID_SECONDARY`、资源标识、Service Binding 目标、节点/模型映射、策略及运行参数。模型标识只作为配置值传递，中央代码不固化具体模型名。受主分支与部署源/环境双重限制的运维 Job 会校验并编码完整快照；生产部署若仍从 Repository、Organization 或 `production` 看到任何 `AIG_*` 或同名 Account ID，必须失败关闭，不允许相同值覆盖、兼容回退或静默丢弃。`CLOUDFLARE_API_TOKEN_OPS`、`CLOUDFLARE_API_TOKEN_SECONDARY`、`AIG_DEPLOY_HEALTH_KEY`、访问密钥、Tier 凭据及中心认证密钥等 Secret **绝不通过 Job Output 或普通 Variable 转交**；各自仍受原运行环境、中央部署授权与源仓库白名单约束。
+- 对 AI Gateway，所有非敏感部署 Variables 仅由 Action Worker **已有且受保护**的 `ai-gateway-ops` Environment 提供，包括 `CLOUDFLARE_ACCOUNT_ID_SECONDARY`、资源标识、Service Binding 目标、节点/模型映射、策略及运行参数。模型标识只作为配置值传递，中央代码不固化具体模型名。受主分支与部署源/环境双重限制的运维 Job 会校验并编码完整快照；生产部署若仍从 Repository、Organization 或 `production` 看到任何 `AIG_*` 或同名 Account ID，必须失败关闭，不允许相同值覆盖、兼容回退或静默丢弃。`CLOUDFLARE_API_TOKEN_OPS`、`CLOUDFLARE_API_TOKEN_SECONDARY`、访问密钥、Tier 凭据及中心认证密钥等 Secret **绝不通过 Job Output 或普通 Variable 转交**；各自仍受原运行环境、中央部署授权与源仓库白名单约束。
 - 密钥值仅在可信暂存步骤中短暂存在。逐项注册日志遮蔽，文件目录权限为 `0700`、文件权限为 `0600`，源脚本启动前删除。
 - 部署子进程只继承必要系统与部署元数据、已导出的普通 Repository Variables，以及本次授权的 Secret；不继承 Action Worker 控制面密钥、Runner Token、整个 `secrets` 上下文、`NODE_OPTIONS`。
 - 缺少必需密钥、源清单越权、来源冲突或超过 40 项时失败关闭；可选密钥必须同时在中央 `allowed` 与源仓库 `deploy.secrets.allowed` 中声明。
 - MCP Hub 的 `production` 仅授权 `CLOUDFLARE_API_TOKEN_SECONDARY`；运行时 `MCP_*` 密钥继续保存在 Cloudflare Worker Secrets。
-- AI Gateway 正常部署仅授权 Cloudflare 部署凭据和独立的 `AIG_DEPLOY_HEALTH_KEY` 健康检查凭据；该密钥需在 Action Worker 受保护 `ai-gateway-ops` 凭据 Environment 与 Cloudflare Worker 中同名配置，不得复用 `AIG_ACCESS_KEY_AGENT` 或其他用户访问组密钥。Provider/Tier/OAuth 密钥不随部署传入。Server Edge 维持 `server-edge-cloud-edge` 环境现有的四项授权配置。
+- AI Gateway 部署使用 Cloudflare 发布凭据；部署完成后通过公开的 `/health/ready` 检查网关就绪状态、是否降级和构建版本。接口不返回节点明细，完整 `/health` 仍受访问组权限控制。Provider/Tier/OAuth 密钥不随普通部署传入。Server Edge 维持 `server-edge-cloud-edge` 环境现有的四项授权配置。
 - 本次变更不修改任何已存 GitHub 或 Cloudflare Secret 的值，且不自动部署。
 
 并发两层：

@@ -11,7 +11,8 @@
       "perception-center-test.mjs",
       "stress-test.mjs",
       "codex-contract-test.mjs",
-      "claude-contract-test.mjs"
+      "claude-contract-test.mjs",
+      "health-visibility-test.mjs"
     ]
   }
 }

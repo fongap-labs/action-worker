@@ -11,12 +11,10 @@ import {
 } from "../scripts/ai-gateway-ops.ts";
 
 const accountId = "0123456789abcdef0123456789abcdef";
-const healthKey = "health-key-0123456789abcdef0123456789abcdef";
 const perceptionAuthKey = "perception-auth-key-0123456789abcdef";
 const mockEnv = {
   CLOUDFLARE_ACCOUNT_ID_OPS: accountId,
   CLOUDFLARE_API_TOKEN_OPS: "ops-token",
-  AIG_DEPLOY_HEALTH_KEY: healthKey,
   AIG_PUBLIC_URL: "https://gateway.example.test",
   AIG_OPS_SECRET_VALUE: "upstream-secret",
 };
@@ -31,7 +29,6 @@ function mockFetch(
 }
 
 const names = [
-  { name: "AIG_DEPLOY_HEALTH_KEY", type: "secret_text" },
   { name: "AIG_ACCESS_KEY_AIR", type: "secret_text" },
 ];
 const ok = (result: unknown) => Response.json({ success: true, result });
@@ -51,14 +48,13 @@ test("inventory only returns Cloudflare secret names, never returned values", as
   const result = await runOperations("inventory", "", mockEnv, fetcher);
   assert.deepEqual(result, [
     "AIG_ACCESS_KEY_AIR",
-    "AIG_DEPLOY_HEALTH_KEY",
     "AIG_TIER1_CREDENTIALS_01",
   ]);
   assert.deepEqual(received, [endpoint]);
   assert.equal(JSON.stringify(result).includes("private-secret"), false);
 });
 
-test("operation inputs and dedicated Cloudflare credentials fail closed", async () => {
+test("Cloudflare credentials and operation inputs fail closed without a separate health credential", async () => {
   const never = mockFetch(() => {
     throw new Error("unexpected network request");
   });
@@ -88,10 +84,7 @@ test("operation inputs and dedicated Cloudflare credentials fail closed", async 
     ),
     /HTTPS/
   );
-  await assert.rejects(
-    putWorkerSecret("AIG_ACCESS_KEY_AIR", { ...mockEnv, AIG_DEPLOY_HEALTH_KEY: "" }, never),
-    /AIG_DEPLOY_HEALTH_KEY/
-  );
+  assert.equal(validateSecretMutation("AIG_ACCESS_KEY_AIR", mockEnv), "upstream-secret");
 });
 
 test("retired Gateway Secret deletion requires exact confirmation and never deletes active auth", () => {
@@ -102,7 +95,6 @@ test("retired Gateway Secret deletion requires exact confirmation and never dele
   };
   assert.doesNotThrow(() => validateSecretDeletion("AIG_TOKEN_ENCRYPTION_KEY", authorized));
   for (const name of [
-    "AIG_DEPLOY_HEALTH_KEY",
     "AIG_INFERENCE_AUTH_KEY",
     "AIG_PERCEPTION_AUTH_KEY",
     "AIG_ACCESS_KEY_AIR",
@@ -158,17 +150,17 @@ test("approved retirement uses GET, health, DELETE, GET, health and never copies
       deleted = true;
       return ok(null);
     }
-    if (url === "https://gateway.example.test/health" && method === "GET")
-      return Response.json({ ready: true, nodes_total: 2, nodes_usable: 2 });
+    if (url === "https://gateway.example.test/health/ready" && method === "GET")
+      return Response.json({ ready: true, degraded: false, build: "abc123" });
     throw new Error("Unexpected request");
   });
   await deleteWorkerSecret(name, env, fetcher);
   assert.deepEqual(requests, [
     "GET " + endpoint,
-    "GET https://gateway.example.test/health",
+    "GET https://gateway.example.test/health/ready",
     "DELETE " + endpoint + "/" + name,
     "GET " + endpoint,
-    "GET https://gateway.example.test/health",
+    "GET https://gateway.example.test/health/ready",
   ]);
   assert.equal(deleted, true);
 });
@@ -191,48 +183,22 @@ test("failed Gateway health blocks retired Secret deletion before mutation", asy
   );
   assert.ok(requests.every((request) => !request.startsWith("DELETE ")));
 });
-test("dedicated deployment health credential cannot be weak or reused as an application key", () => {
+test("center authentication keys stay strong and provider shards obey size limits", () => {
+  assert.throws(() => validateSecretMutation("AIG_INFERENCE_AUTH_KEY", { ...mockEnv, AIG_OPS_SECRET_VALUE: "short" }), /32 characters/);
   assert.throws(
-    () =>
-      validateSecretMutation("AIG_DEPLOY_HEALTH_KEY", {
-        ...mockEnv,
-        AIG_OPS_SECRET_VALUE: "short",
-      }),
-    /32 URL-safe/
-  );
-  assert.throws(
-    () =>
-      validateSecretMutation("AIG_DEPLOY_HEALTH_KEY", {
-        ...mockEnv,
-        AIG_OPS_SECRET_VALUE: "abc".repeat(20) + "/",
-      }),
-    /32 URL-safe/
-  );
-  assert.throws(
-    () =>
-      validateSecretMutation("AIG_ACCESS_KEY_AGENT", {
-        ...mockEnv,
-        AIG_OPS_SECRET_VALUE: healthKey,
-      }),
-    /must not reuse/
-  );
-  assert.throws(() => validateSecretMutation("AIG_INFERENCE_AUTH_KEY", mockEnv), /32 characters/);
-  assert.throws(
-    () =>
-      validateSecretMutation("AIG_PERCEPTION_AUTH_KEY", {
-        ...mockEnv,
-        AIG_OPS_WORKER_NAME: "ai-perception-center",
-        AIG_OPS_SECRET_VALUE: "short",
-      }),
+    () => validateSecretMutation("AIG_PERCEPTION_AUTH_KEY", {
+      ...mockEnv,
+      AIG_OPS_WORKER_NAME: "ai-perception-center",
+      AIG_OPS_SECRET_VALUE: "short",
+    }),
     /32 characters/
   );
   assert.throws(
-    () =>
-      validateSecretMutation("AIG_TIER1_CREDENTIALS_01", {
-        ...mockEnv,
-        AIG_OPS_WORKER_NAME: "ai-inference-center",
-        AIG_OPS_SECRET_VALUE: "x".repeat(4501),
-      }),
+    () => validateSecretMutation("AIG_TIER1_CREDENTIALS_01", {
+      ...mockEnv,
+      AIG_OPS_WORKER_NAME: "ai-inference-center",
+      AIG_OPS_SECRET_VALUE: "x".repeat(4501),
+    }),
     /size limit/
   );
 });
@@ -254,9 +220,9 @@ test("put updates one secret via JSON API without uploading a Worker script", as
       return ok({ name: "AIG_ACCESS_KEY_AIR", type: "secret_text" });
     }
     if (url === endpoint && method === "GET") return ok(names);
-    if (url === "https://gateway.example.test/health" && method === "GET") {
-      assert.equal(new Headers(init?.headers).get("authorization"), `Bearer ${healthKey}`);
-      return Response.json({ ready: true, nodes_total: 2, nodes_usable: 2 });
+    if (url === "https://gateway.example.test/health/ready" && method === "GET") {
+      assert.equal(new Headers(init?.headers).has("authorization"), false);
+      return Response.json({ ready: true, degraded: false, build: "abc123" });
     }
     throw new Error("Unexpected request");
   });
@@ -266,25 +232,7 @@ test("put updates one secret via JSON API without uploading a Worker script", as
     ["GET", "PUT", "GET", "GET"]
   );
   assert.ok(
-    requests.every((request) => request.url === endpoint || request.url.endsWith("/health"))
-  );
-});
-
-test("rotating the health credential verifies with the newly written value", async () => {
-  const replacement = "replacement-0123456789abcdef0123456789abcdef";
-  const fetcher = mockFetch((input, init) => {
-    if (String(input) === endpoint && init?.method === "PUT") {
-      assert.equal(JSON.parse(String(init.body)).text, replacement);
-      return ok({ name: "AIG_DEPLOY_HEALTH_KEY", type: "secret_text" });
-    }
-    if (String(input) === endpoint) return ok(names);
-    assert.equal(new Headers(init?.headers).get("authorization"), `Bearer ${replacement}`);
-    return Response.json({ ready: true, nodes_total: 1, nodes_usable: 1 });
-  });
-  await putWorkerSecret(
-    "AIG_DEPLOY_HEALTH_KEY",
-    { ...mockEnv, AIG_OPS_SECRET_VALUE: replacement },
-    fetcher
+    requests.every((request) => request.url === endpoint || request.url.endsWith("/health/ready"))
   );
 });
 
@@ -306,7 +254,7 @@ test("Cloudflare API refusal and malformed responses fail closed without leaking
       error.message.includes("HTTP 403") &&
       !error.message.includes(secret)
   );
-  const invalid = mockFetch(() => ok([{ name: "AIG_DEPLOY_HEALTH_KEY", type: "plain_text" }]));
+  const invalid = mockFetch(() => ok([{ name: "AIG_ACCESS_KEY_AIR", type: "plain_text" }]));
   await assert.rejects(
     listWorkerSecretNames(mockEnv, invalid),
     /Unexpected Cloudflare secret inventory/
@@ -383,8 +331,6 @@ test("private center secret management has strict per-Worker allowlists", () => 
     ["AIG_GENERATION_AUTH_KEY", perception],
     ["AIG_ACCESS_KEY_AGENT", inference],
     ["AIG_ACCESS_KEY_AGENT", perception],
-    ["AIG_DEPLOY_HEALTH_KEY", generation],
-    ["AIG_DEPLOY_HEALTH_KEY", perception],
     ["AIG_TIER1_CREDENTIALS_01", mockEnv],
     ["AIG_TOKEN_ENCRYPTION_KEY", mockEnv],
     ["AIG_TIER3_CREDENTIALS_01", inference],
@@ -399,14 +345,6 @@ test("private center secret management has strict per-Worker allowlists", () => 
       }),
     /outside the protected/
   );
-  assert.throws(
-    () =>
-      validateSecretMutation("AIG_INFERENCE_AUTH_KEY", {
-        ...inference,
-        AIG_OPS_SECRET_VALUE: healthKey,
-      }),
-    /must not reuse the deployment health/
-  );
 });
 
 test("Perception center Secret update stays private and never probes the Gateway", async () => {
@@ -417,7 +355,7 @@ test("Perception center Secret update stays private and never probes the Gateway
   const fetcher = mockFetch((input, init) => {
     const target = String(input);
     requests.push(target);
-    assert.equal(target, url, "Never contact public /health or another Worker");
+    assert.equal(target, url, "Never contact public readiness or another Worker");
     if (init?.method === "PUT") {
       assert.deepEqual(JSON.parse(String(init.body)), {
         name: "AIG_PERCEPTION_AUTH_KEY",
@@ -445,7 +383,7 @@ test("private center Secret update stays inside selected Worker and never invoke
   const fetcher = mockFetch((input, init) => {
     const target = String(input);
     requests.push(target);
-    assert.equal(target, url, "Never contact public /health or another Worker");
+    assert.equal(target, url, "Never contact public readiness or another Worker");
     if (init?.method === "PUT") {
       assert.deepEqual(JSON.parse(String(init.body)), {
         name: "AIG_TIER2_CREDENTIALS_01",
