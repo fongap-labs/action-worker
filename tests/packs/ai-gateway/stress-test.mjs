@@ -350,7 +350,8 @@ await test('S7 failover wall-clock budget prevents dispatch after the budget is 
     tier1: [node('slow'), node('fast')],
     secrets: { slow: 's', fast: 'f' },
     extraEnv: {
-      AIG_MODELS_CONFIG: JSON.stringify({ 'general-air': { policy: 'default' } }),
+      AIG_MODELS_CONFIG: JSON.stringify({ 'general-air': { policy: 'short' } }),
+      AIG_POLICIES_CONFIG: JSON.stringify({ short: { failover_budget_ms: 1200 } }),
       AIG_FAILOVER_BUDGET_MS: '1200',
     },
   });

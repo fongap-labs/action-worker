@@ -831,8 +831,8 @@ try {
   });
   const familyEnv = envFor([codeMax, codePro], {
     AIG_FAILOVER_BUDGET_MS: '1000',
-    AIG_MODELS_CONFIG: JSON.stringify({ 'Code-Max': { policy: 'default' }, 'Code-Pro': { policy: 'default' } }),
-    AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempts: 2, hedge: { enabled: false } } }),
+    AIG_MODELS_CONFIG: JSON.stringify({ 'Code-Max': { policy: 'default', fallback: ['Code-Pro'] }, 'Code-Pro': { policy: 'default', fallback: [] } }),
+    AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempts: 2, failover_budget_ms: 1000, hedge: { enabled: false } } }),
   });
   const familyStarted = Date.now();
   const familyResponse = await withDeadline(worker.fetch(responsesRequest('Code-Max', true), familyEnv, {}), 1800, 'family failover request');
@@ -1125,29 +1125,29 @@ try {
 
   const builtins = loadPoliciesConfig({});
   assert.equal(builtins.fast.failoverBudgetMs, 60_000);
-  assert.equal(builtins.fast.maxAttempts, 4);
-  assert.equal(builtins['long-reasoning'].headersTimeoutMs, 60_000);
-  assert.equal(builtins['long-reasoning'].firstEventTimeoutMs, 60_000);
-  assert.equal(builtins['long-reasoning'].failoverBudgetMs, 180_000);
-  assert.equal(builtins['long-reasoning'].maxAttempts, 6);
+  assert.equal(builtins.fast.maxAttempts, 8);
+  assert.equal(builtins.normal.failoverBudgetMs, 120_000);
+  assert.equal(builtins.deep.failoverBudgetMs, 180_000);
+  assert.equal(builtins.deep.maxAttempts, 8);
+  assert.equal(builtins['long-reasoning'], builtins.deep);
 
-  const inferredModels = loadModelsConfig({
+  const configuredModels = loadModelsConfig({
     AIG_MODELS_CONFIG: JSON.stringify({
-      'Code-Air': {},
-      'Code-Pro': {},
-      'Code-Max': {},
-      'Code-Ultra': {},
+      'Code-Air': { policy: 'fast' },
+      'Code-Pro': { policy: 'normal' },
+      'Code-Max': { policy: 'normal' },
+      'Code-Ultra': { policy: 'deep' },
       Other: {},
     }),
   });
 
-  assert.equal(getPolicy('Code-Air', inferredModels, builtins), builtins.fast);
-  assert.equal(getPolicy('Code-Pro', inferredModels, builtins), builtins['long-reasoning']);
-  assert.equal(getPolicy('Code-Max', inferredModels, builtins), builtins['long-reasoning']);
-  assert.equal(getPolicy('Code-Ultra', inferredModels, builtins), builtins['long-reasoning']);
-  assert.equal(getPolicy('Audit-Ultra', {}, builtins), builtins['long-reasoning']);
-  assert.equal(getPolicy('Editor-Air', {}, builtins), builtins.fast);
-  assert.equal(getPolicy('Other', inferredModels, builtins), builtins.default);
+  assert.equal(getPolicy('Code-Air', configuredModels, builtins), builtins.fast);
+  assert.equal(getPolicy('Code-Pro', configuredModels, builtins), builtins.normal);
+  assert.equal(getPolicy('Code-Max', configuredModels, builtins), builtins.normal);
+  assert.equal(getPolicy('Code-Ultra', configuredModels, builtins), builtins.deep);
+  assert.equal(getPolicy('Audit-Ultra', {}, builtins), builtins.normal);
+  assert.equal(getPolicy('Editor-Air', {}, builtins), builtins.normal);
+  assert.equal(getPolicy('Other', configuredModels, builtins), builtins.normal);
 
   const customPolicies = loadPoliciesConfig({
     AIG_POLICIES_CONFIG: JSON.stringify({

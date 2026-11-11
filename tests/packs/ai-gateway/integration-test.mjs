@@ -901,7 +901,7 @@ await test('failover wall-clock budget stops before dispatching a fresh node', a
   const env = withInferenceCenter(makeEnv({
     tier1: [openaiNode('budget-a', { models: { 'budget-test': 'up-model' } }), openaiNode('budget-b', { models: { 'budget-test': 'up-model' } })],
     secrets: { 'budget-a': 'a', 'budget-b': 'b' },
-    extraEnv: { AIG_FAILOVER_BUDGET_MS: '1200' },
+    extraEnv: { AIG_FAILOVER_BUDGET_MS: '1200', AIG_MODELS_CONFIG: JSON.stringify({ 'budget-test': { policy: 'short' } }), AIG_POLICIES_CONFIG: JSON.stringify({ short: { failover_budget_ms: 1200 } }) },
   }), (request) => centerPaths.push(new URL(request.url).pathname));
   const res = await worker.fetch(chatRequest({ model: 'budget-test' }), env, {});
   assert.equal(res.status, 504);

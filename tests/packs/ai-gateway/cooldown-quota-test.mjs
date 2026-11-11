@@ -13,6 +13,7 @@
 //   - scheduler-racelost-test.mjs
 //   - model-family-fallback-test.mjs
 
+import { loadModelsConfig } from '#target/src/config/models.ts';
 import { loadPoliciesConfig } from '#target/src/config/policies.ts';
 import worker from '#target/src/index.ts';
 import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
@@ -999,7 +1000,7 @@ try {
 
   await test('built-in chat and coding maximize bounded Tier 1 retries without speculative hedges', () => {
     const policies = loadPoliciesConfig({});
-    assert.deepEqual(Object.keys(policies).sort(), ['chat', 'coding', 'default', 'fast', 'long-reasoning']);
+    assert.deepEqual(Object.keys(policies).sort(), ['chat', 'coding', 'deep', 'default', 'fast', 'long-reasoning', 'normal']);
     const tiers = {
       1: [node('free1', 'tier-1'), node('free2', 'tier-1')],
       2: [node('reserve1', 'tier-2')],
@@ -1244,17 +1245,40 @@ try {
     'Editor-Ultra',
   );
 
+  // Explicit model-level fallback is the only source of family membership.
+  const configured = loadModelsConfig({
+    AIG_MODELS_CONFIG: JSON.stringify(Object.fromEntries(Object.entries({
+      'Code-Ultra': ['Code-Max', 'Code-Pro'],
+      'Code-Max': ['Code-Pro', 'Code-Ultra'],
+      'Code-Pro': ['Code-Max', 'Code-Ultra'],
+      Ultra: ['Max', 'Pro'],
+      Max: ['Pro', 'Ultra'],
+      Pro: ['Max', 'Ultra'],
+      Air: ['Pro', 'Max', 'Ultra'],
+      'Audit-Ultra': ['Audit-Max', 'Audit-Pro'],
+      'Audit-Max': [],
+      'Audit-Pro': [],
+      'Editor-Air': ['Editor-Pro', 'Editor-Max', 'Editor-Ultra'],
+      'Editor-Pro': [],
+      'Editor-Max': [],
+      'Editor-Ultra': [],
+      'Research-Reasoning-Ultra': ['Research-Reasoning-Max', 'Research-Reasoning-Pro'],
+      'Research-Reasoning-Max': [],
+      'Research-Reasoning-Pro': [],
+    }).map(([name, fallback]) => [name, { fallback }]))),
+  });
+
   assert.deepEqual(
-    buildModelFallbackRounds('Code-Max', all),
+    buildModelFallbackRounds('Code-Max', all, configured),
     [
       ['Code-Max', 'Code-Pro', 'Code-Ultra'],
-      ['Code-Max', 'Code-Pro', 'Code-Ultra'],
+      ['Code-Pro', 'Code-Ultra'],
     ],
     'Code-Max must prefer Code-Pro, then Code-Ultra, with one bounded recheck round',
   );
 
   assert.deepEqual(
-    buildModelFallbackPlan('Code-Max', all),
+    buildModelFallbackPlan('Code-Max', all, undefined, configured),
     [
       [
         { model: 'Code-Max', attemptCap: 3 },
@@ -1262,25 +1286,24 @@ try {
         { model: 'Code-Ultra', attemptCap: 1 },
       ],
       [
-        { model: 'Code-Max', attemptCap: 1 },
         { model: 'Code-Pro', attemptCap: 1 },
         { model: 'Code-Ultra', attemptCap: 1 },
       ],
     ],
-    'default family planning keeps the established 3-2-1 preference',
+    'explicit family planning keeps the established 3-2-1 preference',
   );
 
   assert.deepEqual(
-    buildModelFallbackRounds('Code-Pro', all),
+    buildModelFallbackRounds('Code-Pro', all, configured),
     [
       ['Code-Pro', 'Code-Max', 'Code-Ultra'],
-      ['Code-Pro', 'Code-Max', 'Code-Ultra'],
+      ['Code-Max', 'Code-Ultra'],
     ],
     'Code-Pro must prefer Code-Max, then Code-Ultra',
   );
 
   assert.deepEqual(
-    buildModelFallbackPlan('Code-Pro', all)[0],
+    buildModelFallbackPlan('Code-Pro', all, undefined, configured)[0],
     [
       { model: 'Code-Pro', attemptCap: 3 },
       { model: 'Code-Max', attemptCap: 2 },
@@ -1290,25 +1313,25 @@ try {
   );
 
   assert.deepEqual(
-    buildModelFallbackRounds('Code-Ultra', all),
+    buildModelFallbackRounds('Code-Ultra', all, configured),
     [
       ['Code-Ultra', 'Code-Max', 'Code-Pro'],
-      ['Code-Ultra', 'Code-Max', 'Code-Pro'],
+      ['Code-Max', 'Code-Pro'],
     ],
     'Code-Ultra must stay inside the Code family',
   );
 
   assert.deepEqual(
-    buildModelFallbackRounds('Max', all),
+    buildModelFallbackRounds('Max', all, configured),
     [
       ['Max', 'Pro', 'Ultra'],
-      ['Max', 'Pro', 'Ultra'],
+      ['Pro', 'Ultra'],
     ],
     'Max must prefer Pro, then Ultra, with one bounded recheck round',
   );
 
   assert.deepEqual(
-    buildModelFallbackPlan('Max', all)[0],
+    buildModelFallbackPlan('Max', all, undefined, configured)[0],
     [
       { model: 'Max', attemptCap: 3 },
       { model: 'Pro', attemptCap: 2 },
@@ -1318,25 +1341,25 @@ try {
   );
 
   assert.deepEqual(
-    buildModelFallbackRounds('Pro', all),
+    buildModelFallbackRounds('Pro', all, configured),
     [
       ['Pro', 'Max', 'Ultra'],
-      ['Pro', 'Max', 'Ultra'],
+      ['Max', 'Ultra'],
     ],
     'Pro must prefer Max, then Ultra',
   );
 
   assert.deepEqual(
-    buildModelFallbackRounds('Ultra', all),
+    buildModelFallbackRounds('Ultra', all, configured),
     [
       ['Ultra', 'Max', 'Pro'],
-      ['Ultra', 'Max', 'Pro'],
+      ['Max', 'Pro'],
     ],
     'Ultra may fall back to Max/Pro but never to Air',
   );
 
   assert.deepEqual(
-    buildModelFallbackRounds('Air', all),
+    buildModelFallbackRounds('Air', all, configured),
     [
       ['Air', 'Pro', 'Max', 'Ultra'],
       ['Pro', 'Max', 'Ultra'],
@@ -1345,7 +1368,7 @@ try {
   );
 
   assert.deepEqual(
-    buildModelFallbackPlan('Air', all),
+    buildModelFallbackPlan('Air', all, undefined, configured),
     [
       [
         { model: 'Air', attemptCap: 3 },
@@ -1365,13 +1388,13 @@ try {
   // max_attempts is a hard request ceiling. Family planning must never widen the
   // candidate set beyond the number of logical attempts the policy allows.
   assert.deepEqual(
-    buildModelFallbackPlan('Code-Max', all, 1),
-    [[{ model: 'Code-Max', attemptCap: 1 }], [{ model: 'Code-Max', attemptCap: 1 }]],
+    buildModelFallbackPlan('Code-Max', all, 1, configured),
+    [[{ model: 'Code-Max', attemptCap: 1 }]],
     'budget 1 exposes only the requested model',
   );
 
   assert.deepEqual(
-    buildModelFallbackPlan('Code-Max', all, 2)[0],
+    buildModelFallbackPlan('Code-Max', all, 2, configured)[0],
     [
       { model: 'Code-Max', attemptCap: 1 },
       { model: 'Code-Pro', attemptCap: 1 },
@@ -1380,7 +1403,7 @@ try {
   );
 
   assert.deepEqual(
-    buildModelFallbackPlan('Code-Max', all, 3)[0],
+    buildModelFallbackPlan('Code-Max', all, 3, configured)[0],
     [
       { model: 'Code-Max', attemptCap: 1 },
       { model: 'Code-Pro', attemptCap: 1 },
@@ -1390,7 +1413,7 @@ try {
   );
 
   assert.deepEqual(
-    buildModelFallbackPlan('Code-Max', all, 4)[0],
+    buildModelFallbackPlan('Code-Max', all, 4, configured)[0],
     [
       { model: 'Code-Max', attemptCap: 2 },
       { model: 'Code-Pro', attemptCap: 1 },
@@ -1400,7 +1423,7 @@ try {
   );
 
   assert.deepEqual(
-    buildModelFallbackPlan('Code-Max', all, 5)[0],
+    buildModelFallbackPlan('Code-Max', all, 5, configured)[0],
     [
       { model: 'Code-Max', attemptCap: 3 },
       { model: 'Code-Pro', attemptCap: 1 },
@@ -1410,7 +1433,7 @@ try {
   );
 
   assert.deepEqual(
-    buildModelFallbackPlan('Code-Max', all, 6)[0],
+    buildModelFallbackPlan('Code-Max', all, 6, configured)[0],
     [
       { model: 'Code-Max', attemptCap: 3 },
       { model: 'Code-Pro', attemptCap: 2 },
@@ -1420,7 +1443,7 @@ try {
   );
 
   assert.deepEqual(
-    buildModelFallbackPlan('Air', all, 4)[0],
+    buildModelFallbackPlan('Air', all, 4, configured)[0],
     [
       { model: 'Air', attemptCap: 1 },
       { model: 'Pro', attemptCap: 1 },
@@ -1431,7 +1454,7 @@ try {
   );
 
   assert.deepEqual(
-    buildModelFallbackPlan('Air', all, 6)[0],
+    buildModelFallbackPlan('Air', all, 6, configured)[0],
     [
       { model: 'Air', attemptCap: 3 },
       { model: 'Pro', attemptCap: 1 },
@@ -1441,23 +1464,23 @@ try {
     'Air budget 6 keeps the established 3-1-1-1 preference',
   );
 
-  assert.equal(hasModelFamilyFallback('Code-Max'), true);
-  assert.equal(hasModelFamilyFallback('Max'), true);
-  assert.equal(hasModelFamilyFallback('Audit-Ultra'), true);
-  assert.equal(hasModelFamilyFallback('Editor-Air'), true);
-  assert.equal(hasModelFamilyFallback('Custom-Model'), false);
+  assert.equal(hasModelFamilyFallback('Code-Max', configured), true);
+  assert.equal(hasModelFamilyFallback('Max', configured), true);
+  assert.equal(hasModelFamilyFallback('Audit-Ultra', configured), true);
+  assert.equal(hasModelFamilyFallback('Editor-Air', configured), true);
+  assert.equal(hasModelFamilyFallback('Custom-Model', configured), false);
 
   assert.deepEqual(
-    buildModelFallbackRounds('Audit-Ultra', all),
+    buildModelFallbackRounds('Audit-Ultra', all, configured),
     [
       ['Audit-Ultra', 'Audit-Max', 'Audit-Pro'],
-      ['Audit-Ultra', 'Audit-Max', 'Audit-Pro'],
+      ['Audit-Max', 'Audit-Pro'],
     ],
     'prefixed Ultra aliases must fall back inside the same logical family',
   );
 
   assert.deepEqual(
-    buildModelFallbackPlan('Audit-Ultra', all, 6)[0],
+    buildModelFallbackPlan('Audit-Ultra', all, 6, configured)[0],
     [
       { model: 'Audit-Ultra', attemptCap: 3 },
       { model: 'Audit-Max', attemptCap: 2 },
@@ -1467,7 +1490,7 @@ try {
   );
 
   assert.deepEqual(
-    buildModelFallbackRounds('Editor-Air', all),
+    buildModelFallbackRounds('Editor-Air', all, configured),
     [
       ['Editor-Air', 'Editor-Pro', 'Editor-Max', 'Editor-Ultra'],
       ['Editor-Pro', 'Editor-Max', 'Editor-Ultra'],
@@ -1476,33 +1499,33 @@ try {
   );
 
   assert.deepEqual(
-    buildModelFallbackRounds('Audit-Ultra', catalog('Audit-Ultra', 'Audit-Pro', 'Max')),
+    buildModelFallbackRounds('Audit-Ultra', catalog('Audit-Ultra', 'Audit-Pro', 'Max'), configured),
     [
       ['Audit-Ultra', 'Audit-Pro'],
-      ['Audit-Ultra', 'Audit-Pro'],
+      ['Audit-Pro'],
     ],
     'prefixed families must not borrow bare or differently prefixed aliases',
   );
 
   assert.deepEqual(
-    modelFallbackCandidates('Code-Max', all),
+    modelFallbackCandidates('Code-Max', all, configured),
     ['Code-Max', 'Code-Pro', 'Code-Ultra'],
     'candidate list must never cross Code/non-Code families',
   );
 
-  assert.deepEqual(modelFallbackCandidates('Max', all), ['Max', 'Pro', 'Ultra'], 'general family candidate list must never include Air');
+  assert.deepEqual(modelFallbackCandidates('Max', all, configured), ['Max', 'Pro', 'Ultra'], 'general family candidate list must never include Air');
 
   assert.deepEqual(
-    buildModelFallbackRounds('Max', catalog('Max', 'Ultra')),
+    buildModelFallbackRounds('Max', catalog('Max', 'Ultra'), configured),
     [
       ['Max', 'Ultra'],
-      ['Max', 'Ultra'],
+      ['Ultra'],
     ],
     'missing peers must be skipped without inventing aliases',
   );
 
   assert.deepEqual(
-    buildModelFallbackPlan('Max', catalog('Max', 'Ultra'))[0],
+    buildModelFallbackPlan('Max', catalog('Max', 'Ultra'), undefined, configured)[0],
     [
       { model: 'Max', attemptCap: 3 },
       { model: 'Ultra', attemptCap: 1 },
@@ -1511,37 +1534,37 @@ try {
   );
 
   assert.deepEqual(
-    buildModelFallbackRounds('CODE-MAX', catalog('CODE-MAX', 'Code-Pro', 'Code-Ultra')),
+    buildModelFallbackRounds('CODE-MAX', catalog('CODE-MAX', 'Code-Pro', 'Code-Ultra'), configured),
     [
       ['CODE-MAX', 'Code-Pro', 'Code-Ultra'],
-      ['CODE-MAX', 'Code-Pro', 'Code-Ultra'],
+      ['Code-Pro', 'Code-Ultra'],
     ],
     'matching must be case-insensitive while preserving catalog spelling',
   );
 
   assert.deepEqual(
-    buildModelFallbackRounds('Custom-Model', catalog('Custom-Model', 'Max', 'Pro')),
+    buildModelFallbackRounds('Custom-Model', catalog('Custom-Model', 'Max', 'Pro'), configured),
     [['Custom-Model']],
     'unknown model families must keep legacy one-pass behavior',
   );
 
   assert.deepEqual(
-    buildModelFallbackPlan('General-Air', catalog('General-Air'), 5),
+    buildModelFallbackPlan('General-Air', catalog('General-Air'), 5, configured),
     [[{ model: 'General-Air', attemptCap: null }]],
     'an isolated prefixed tier alias must keep the legacy policy-owned attempt budget',
   );
 
   assert.deepEqual(
-    buildModelFallbackPlan('Custom-Model', catalog('Custom-Model', 'Max', 'Pro'), 1),
+    buildModelFallbackPlan('Custom-Model', catalog('Custom-Model', 'Max', 'Pro'), 1, configured),
     [[{ model: 'Custom-Model', attemptCap: null }]],
     'unknown model families keep their original policy-owned attempt budget',
   );
 
   assert.deepEqual(
-    buildModelFallbackRounds('Research-Reasoning-Ultra', catalog('Research-Reasoning-Ultra', 'Research-Reasoning-Max', 'Research-Reasoning-Pro')),
+    buildModelFallbackRounds('Research-Reasoning-Ultra', catalog('Research-Reasoning-Ultra', 'Research-Reasoning-Max', 'Research-Reasoning-Pro'), configured),
     [
       ['Research-Reasoning-Ultra', 'Research-Reasoning-Max', 'Research-Reasoning-Pro'],
-      ['Research-Reasoning-Ultra', 'Research-Reasoning-Max', 'Research-Reasoning-Pro'],
+      ['Research-Reasoning-Max', 'Research-Reasoning-Pro'],
     ],
     'arbitrary multi-segment family prefixes must inherit tier fallback without code changes',
   );

@@ -101,6 +101,11 @@ try {
     AIG_ACCESS_KEY_ULTRA: ACCESS_KEY,
     AIG_ACCESS_MODELS_ULTRA: '*',
     AIG_PROTOCOL_FALLBACKS: 'disable',
+    AIG_MODELS_CONFIG: JSON.stringify({
+      'Code-Ultra': { fallback: ['Code-Max', 'Code-Pro'] },
+      'Code-Max': { fallback: [] },
+      'Code-Pro': { fallback: [] },
+    }),
     AIG_TIER1_NODES_01: JSON.stringify(nodes),
     AIG_TIER1_CREDENTIALS_01: JSON.stringify({
       'code-ultra-rl': 'k-ultra',
@@ -277,6 +282,11 @@ try {
       AIG_ACCESS_MODELS_ULTRA: '*',
       TIER1_SCHEDULER_SEED: 'family-domain-test',
       AIG_PROTOCOL_FALLBACKS: 'disable',
+      AIG_MODELS_CONFIG: JSON.stringify({
+        'Code-Max': { fallback: ['Code-Pro', 'Code-Ultra'] },
+        'Code-Pro': { fallback: [] },
+        'Code-Ultra': { fallback: [] },
+      }),
       AIG_TIER1_NODES_01: JSON.stringify(configs),
       AIG_TIER1_CREDENTIALS_01: JSON.stringify(Object.fromEntries(nodes.map((n) => [n.id, n.credential]))),
     }, (request) => centerPaths.push(new URL(request.url).pathname));
