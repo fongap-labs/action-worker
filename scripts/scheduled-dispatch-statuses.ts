@@ -1,6 +1,10 @@
-import { isJsonRecord } from "./github-api.ts";
-import { CliError } from "./runtime-command.ts";
-import { hasValidStatusAttestation, originalStatusDescription } from "./status-attestation.ts";
+import { githubEnvironment, isJsonRecord } from "./github-api.ts";
+import { CliError, runCommand } from "./runtime-command.ts";
+import {
+  hasValidStatusAttestation,
+  originalStatusDescription,
+  signedStatusDescription,
+} from "./status-attestation.ts";
 
 const pageSize = 100;
 // Still bounded: never infer an unexamined recent page contains no receipt.
@@ -11,6 +15,65 @@ export type ScheduledDispatchReceipt = {
   state: "pending" | "success";
   description: string;
 };
+
+export type ScheduledStatusTarget = {
+  repository: string;
+  head_sha: string;
+  context: string;
+};
+
+/**
+ * Keep status signatures, GitHub API payloads and action-run URLs identical
+ * for scheduled task and deployment receipts.
+ */
+export function scheduledDispatchStatusPayload(
+  target: ScheduledStatusTarget,
+  state: ScheduledDispatchReceipt["state"],
+  description: string
+): string {
+  const targetUrl =
+    process.env.GITHUB_SERVER_URL && process.env.GITHUB_REPOSITORY && process.env.GITHUB_RUN_ID
+      ? `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}`
+      : "";
+  return JSON.stringify({
+    state,
+    context: target.context,
+    description: signedStatusDescription({
+      repository: target.repository,
+      sha: target.head_sha,
+      state,
+      context: target.context,
+      description,
+      targetUrl,
+    }),
+    target_url: targetUrl || undefined,
+  });
+}
+
+export async function writeScheduledDispatchStatus(
+  target: ScheduledStatusTarget,
+  token: string,
+  state: ScheduledDispatchReceipt["state"],
+  description: string
+): Promise<void> {
+  await runCommand(
+    "gh",
+    [
+      "api",
+      "--method",
+      "POST",
+      `repos/${target.repository}/statuses/${target.head_sha}`,
+      "--input",
+      "-",
+    ],
+    {
+      env: githubEnvironment(token),
+      input: scheduledDispatchStatusPayload(target, state, description),
+      timeoutMs: 30_000,
+      maxBuffer: 1024 * 1024,
+    }
+  );
+}
 
 /**
  * GitHub documents reverse-chronological status history. Once every record in
