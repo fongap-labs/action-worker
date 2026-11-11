@@ -7,7 +7,10 @@ import {
   hasScheduledDispatchReceipt,
   scheduledDispatchStatusPayload,
 } from "../scripts/scheduled-dispatch-statuses.ts";
-import { hasValidStatusAttestation, originalStatusDescription } from "../scripts/status-attestation.ts";
+import {
+  hasValidStatusAttestation,
+  originalStatusDescription,
+} from "../scripts/status-attestation.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const repository = "fongap-labs/example";
