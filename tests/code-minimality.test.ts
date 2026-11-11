@@ -240,7 +240,11 @@ test("code-minimality leaves deterministic gates and the single AI review call i
   assert.equal((workflow.match(/node scripts\/run-ai-review\.ts/g) ?? []).length, 1);
   assert.doesNotMatch(workflow, /ponytail/i);
 
-  for (const path of ["rules/security-review.json", "rules/release-review.json", "rules/workflow-review.json"]) {
+  for (const path of [
+    "rules/security-review.json",
+    "rules/release-review.json",
+    "rules/workflow-review.json",
+  ]) {
     assert.deepEqual(
       await minimalityRuleTexts(path),
       [],
