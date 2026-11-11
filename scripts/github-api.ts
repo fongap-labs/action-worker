@@ -23,6 +23,17 @@ export function getJsonArray(value: unknown, key?: string, exitCode = 65): unkno
   return selected;
 }
 
+/** Decode GitHub's contents API response while preserving each caller's diagnostic. */
+export function decodeGithubContent(
+  value: unknown,
+  errorMessage = "GitHub contents response is invalid."
+): string {
+  if (!isJsonRecord(value) || value.encoding !== "base64" || typeof value.content !== "string") {
+    throw new CliError(errorMessage, 65);
+  }
+  return Buffer.from(value.content.replace(/\\s+/g, ""), "base64").toString("utf8");
+}
+
 export function githubEnvironment(token: string): NodeJS.ProcessEnv {
   return { ...process.env, GH_TOKEN: token };
 }
