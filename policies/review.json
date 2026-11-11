@@ -4,27 +4,27 @@
   "agents": {
     "security": {
       "effort": "high",
-      "rule": "security.json",
+      "rule": "security-review.json",
       "task_timeout_minutes": 10
     },
     "architecture": {
       "effort": "high",
-      "rule": "architecture.json",
+      "rule": "architecture-review.json",
       "task_timeout_minutes": 10
     },
     "workflow": {
       "effort": "low",
-      "rule": "workflow.json",
+      "rule": "workflow-review.json",
       "task_timeout_minutes": 10
     },
     "release": {
       "effort": "low",
-      "rule": "release.json",
+      "rule": "release-review.json",
       "task_timeout_minutes": 10
     },
     "code": {
       "effort": "medium",
-      "rule": "code.json",
+      "rule": "code-review.json",
       "task_timeout_minutes": 5
     }
   },

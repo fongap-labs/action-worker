@@ -394,7 +394,7 @@ test("runtime and machine policies preserve trust boundaries", async () => {
     false
   );
 
-  const releaseReviewRule = await json("rules/release.json");
+  const releaseReviewRule = await json("rules/release-review.json");
   assert.deepEqual(releaseReviewRule.include, ["**/*.jsonc", "CHANGELOG.md"]);
 
   const review = await json("policies/review.json");
@@ -416,6 +416,20 @@ test("runtime and machine policies preserve trust boundaries", async () => {
   const engine = review.engine as Record<string, unknown>;
   assert.equal(engine.repository, "fongap-labs/external-vault");
   assert.equal(engine.version, "1.12.9");
+});
+
+test("review policy maps to explicitly named review rule files", async () => {
+  const review = await json("policies/review.json");
+  const agents = review.agents as Record<string, Record<string, unknown>>;
+  const declared = Object.values(agents)
+    .map((agent) => String(agent.rule ?? ""))
+    .sort();
+  const files = (await readdir("rules")).filter((name) => name.endsWith(".json")).sort();
+
+  for (const name of declared) {
+    assert.match(name, /^[a-z]+-review\\.json$/);
+  }
+  assert.deepEqual(files, declared);
 });
 
 test("PR workflow uses TypeScript controls and preserves ordering", async () => {
