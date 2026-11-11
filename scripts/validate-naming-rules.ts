@@ -105,7 +105,7 @@ function isDocument(name: string): boolean {
   return /^[A-Z0-9]+(?:_[A-Z0-9]+)*\.md$/.test(name);
 }
 
-function hasLifecycleFilenameViolation(
+export function hasLifecycleFilenameViolation(
   path: string,
   bannedTerms: readonly string[]
 ): boolean {

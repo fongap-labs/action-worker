@@ -468,10 +468,7 @@ async function main(): Promise<void> {
   const output = JSON.stringify(record);
   if (process.env.GITHUB_OUTPUT) {
     await writeFile("/tmp/change-record.json", `${output}\n`, "utf8");
-    await appendLines(process.env.GITHUB_OUTPUT, [
-      `json=${output}`,
-      `title_fingerprint=${prTitleFingerprint(title)}`,
-    ]);
+    await appendLines(process.env.GITHUB_OUTPUT, [`json=${output}`]);
   }
   console.log(output);
 }
