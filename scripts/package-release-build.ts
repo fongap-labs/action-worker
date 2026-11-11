@@ -1,23 +1,12 @@
-import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
 import { readdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { sha256File } from "./lib/stream-file-hash.ts";
 import { CliError, handleError, isMain, readJson } from "./runtime-command.ts";
 import {
   parseReleaseBuildManifest,
   RELEASE_VERSION_PATTERN,
   type ReleaseBuildManifest,
 } from "./validate-release-build-request.ts";
-
-async function sha256File(path: string): Promise<string> {
-  return await new Promise((resolve, reject) => {
-    const hash = createHash("sha256");
-    const input = createReadStream(path);
-    input.on("error", reject);
-    input.on("data", (chunk) => hash.update(chunk));
-    input.on("end", () => resolve(hash.digest("hex")));
-  });
-}
 
 /**
  * The packaged manifest carries the display name only. The publisher appends the version to form
