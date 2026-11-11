@@ -264,9 +264,7 @@ try {
   assert.equal(deployManifest.adapter, 'source-script');
   assert.equal(deployManifest.entrypoint, 'scripts/deploy.sh');
   assert.equal(deployManifest.automatic, false, 'production auto-deploy must stay frozen until the cutover is explicitly approved');
-  // Only health and three private-center authentication keys may be imported
-  // from the single protected ai-gateway-ops environment for runtime Secret
-  // synchronization; provider credentials and application keys stay in Cloudflare.
+  // The protected environment supplies only the authorized deployment and private-center Secrets.
   const declaredDeploySecrets = read('.github/deploy.secrets.allowed')
     .split(/\r?\n/)
     .map((line) => line.replace(/#.*/, '').trim())
@@ -277,14 +275,20 @@ try {
     .map((line) => line.trim())
     .filter(Boolean)
     .sort();
-  assert.deepEqual(declaredDeploySecrets, [
+  const mandatory = [
     'AIG_GENERATION_AUTH_KEY',
     'AIG_INFERENCE_AUTH_KEY',
     'AIG_PERCEPTION_AUTH_KEY',
     'CLOUDFLARE_ACCOUNT_ID',
     'CLOUDFLARE_API_TOKEN',
-  ]);
-  assert.deepEqual(requiredDeploySecrets, declaredDeploySecrets);
+  ];
+  const providerShards = [1, 2].flatMap((tier) =>
+    Array.from({ length: 10 }, (_, index) => `AIG_TIER${tier}_CREDENTIALS_${String(index + 1).padStart(2, '0')}`),
+  );
+  assert.deepEqual(declaredDeploySecrets, [...mandatory, ...providerShards].sort());
+  assert.deepEqual(requiredDeploySecrets, mandatory);
+  assert.ok(deployScript.indexOf('sync_runtime_secrets preflight') < deployScript.indexOf('deployment-recovery.mjs snapshot'));
+  assert.ok(deployScript.indexOf('sync_runtime_secrets reconcile') < deployScript.indexOf('persistent-deployment.mjs verify-secrets'));
   assert.match(deployScript, /persistent-deployment\.mjs preflight/);
   assert.match(deployScript, /persistent-deployment\.mjs prepare/);
   assert.match(deployScript, /cloudflare-wrangler\.mjs secret list/);
