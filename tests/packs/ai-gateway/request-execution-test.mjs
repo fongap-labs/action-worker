@@ -856,7 +856,7 @@ try {
   const errorBodyEnv = envFor([badTier2, goodTier2], {
     AIG_FAILOVER_BUDGET_MS: '1000',
     AIG_MODELS_CONFIG: JSON.stringify({ Solo: { policy: 'default' } }),
-    AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempts: 2, hedge: { enabled: false } } }),
+    AIG_POLICIES_CONFIG: JSON.stringify({ default: { max_attempts: 2, failover_budget_ms: 1000, hedge: { enabled: false } } }),
   });
   const errorStarted = Date.now();
   const errorResponse = await withDeadline(worker.fetch(responsesRequest('Solo', false), errorBodyEnv, {}), 1800, 'non-ok diagnostic body failover');
