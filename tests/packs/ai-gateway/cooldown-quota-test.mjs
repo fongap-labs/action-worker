@@ -1272,9 +1272,9 @@ try {
     buildModelFallbackRounds('Code-Max', all, configured),
     [
       ['Code-Max', 'Code-Pro', 'Code-Ultra'],
-      ['Code-Pro', 'Code-Ultra'],
+      ['Code-Max', 'Code-Pro', 'Code-Ultra'],
     ],
-    'Code-Max must prefer Code-Pro, then Code-Ultra, with one bounded recheck round',
+    'v0.1.5 Code-Max revisits itself in the bounded second round',
   );
 
   assert.deepEqual(
@@ -1286,6 +1286,7 @@ try {
         { model: 'Code-Ultra', attemptCap: 1 },
       ],
       [
+        { model: 'Code-Max', attemptCap: 1 },
         { model: 'Code-Pro', attemptCap: 1 },
         { model: 'Code-Ultra', attemptCap: 1 },
       ],
@@ -1297,7 +1298,7 @@ try {
     buildModelFallbackRounds('Code-Pro', all, configured),
     [
       ['Code-Pro', 'Code-Max', 'Code-Ultra'],
-      ['Code-Max', 'Code-Ultra'],
+      ['Code-Pro', 'Code-Max', 'Code-Ultra'],
     ],
     'Code-Pro must prefer Code-Max, then Code-Ultra',
   );
@@ -1316,7 +1317,7 @@ try {
     buildModelFallbackRounds('Code-Ultra', all, configured),
     [
       ['Code-Ultra', 'Code-Max', 'Code-Pro'],
-      ['Code-Max', 'Code-Pro'],
+      ['Code-Ultra', 'Code-Max', 'Code-Pro'],
     ],
     'Code-Ultra must stay inside the Code family',
   );
@@ -1325,7 +1326,7 @@ try {
     buildModelFallbackRounds('Max', all, configured),
     [
       ['Max', 'Pro', 'Ultra'],
-      ['Pro', 'Ultra'],
+      ['Max', 'Pro', 'Ultra'],
     ],
     'Max must prefer Pro, then Ultra, with one bounded recheck round',
   );
@@ -1344,7 +1345,7 @@ try {
     buildModelFallbackRounds('Pro', all, configured),
     [
       ['Pro', 'Max', 'Ultra'],
-      ['Max', 'Ultra'],
+      ['Pro', 'Max', 'Ultra'],
     ],
     'Pro must prefer Max, then Ultra',
   );
@@ -1353,7 +1354,7 @@ try {
     buildModelFallbackRounds('Ultra', all, configured),
     [
       ['Ultra', 'Max', 'Pro'],
-      ['Max', 'Pro'],
+      ['Ultra', 'Max', 'Pro'],
     ],
     'Ultra may fall back to Max/Pro but never to Air',
   );
@@ -1474,7 +1475,7 @@ try {
     buildModelFallbackRounds('Audit-Ultra', all, configured),
     [
       ['Audit-Ultra', 'Audit-Max', 'Audit-Pro'],
-      ['Audit-Max', 'Audit-Pro'],
+      ['Audit-Ultra', 'Audit-Max', 'Audit-Pro'],
     ],
     'prefixed Ultra aliases must fall back inside the same logical family',
   );
@@ -1502,7 +1503,7 @@ try {
     buildModelFallbackRounds('Audit-Ultra', catalog('Audit-Ultra', 'Audit-Pro', 'Max'), configured),
     [
       ['Audit-Ultra', 'Audit-Pro'],
-      ['Audit-Pro'],
+      ['Audit-Ultra', 'Audit-Pro'],
     ],
     'prefixed families must not borrow bare or differently prefixed aliases',
   );
@@ -1519,7 +1520,7 @@ try {
     buildModelFallbackRounds('Max', catalog('Max', 'Ultra'), configured),
     [
       ['Max', 'Ultra'],
-      ['Ultra'],
+      ['Max', 'Ultra'],
     ],
     'missing peers must be skipped without inventing aliases',
   );
@@ -1537,7 +1538,7 @@ try {
     buildModelFallbackRounds('CODE-MAX', catalog('CODE-MAX', 'Code-Pro', 'Code-Ultra'), configured),
     [
       ['CODE-MAX', 'Code-Pro', 'Code-Ultra'],
-      ['Code-Pro', 'Code-Ultra'],
+      ['CODE-MAX', 'Code-Pro', 'Code-Ultra'],
     ],
     'matching must be case-insensitive while preserving catalog spelling',
   );
@@ -1564,7 +1565,7 @@ try {
     buildModelFallbackRounds('Research-Reasoning-Ultra', catalog('Research-Reasoning-Ultra', 'Research-Reasoning-Max', 'Research-Reasoning-Pro'), configured),
     [
       ['Research-Reasoning-Ultra', 'Research-Reasoning-Max', 'Research-Reasoning-Pro'],
-      ['Research-Reasoning-Max', 'Research-Reasoning-Pro'],
+      ['Research-Reasoning-Ultra', 'Research-Reasoning-Max', 'Research-Reasoning-Pro'],
     ],
     'arbitrary multi-segment family prefixes must inherit tier fallback without code changes',
   );
