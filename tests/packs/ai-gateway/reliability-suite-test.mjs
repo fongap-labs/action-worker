@@ -627,6 +627,7 @@ try {
     const env = {
       AIG_ACCESS_KEY_MAX: key,
       AIG_ACCESS_MODELS_MAX: 'Max,Pro,Ultra',
+      AIG_MODELS_CONFIG: JSON.stringify({ Max: { fallback: ['Pro'] }, Pro: { fallback: [] } }),
       AIG_PROTOCOL_FALLBACKS: 'disable',
       AIG_TIER1_NODES_01: JSON.stringify([node('max-01', 'Max', 'up-max'), node('pro-01', 'Pro', 'up-pro')]),
       AIG_TIER1_CREDENTIALS_01: JSON.stringify({ 'max-01': 'm', 'pro-01': 'p' }),
