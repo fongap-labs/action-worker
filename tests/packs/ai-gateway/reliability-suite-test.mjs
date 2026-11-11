@@ -403,14 +403,16 @@ try {
     assert.deepEqual(getKeyRpmSnapshot('test-key', Date.now()), { cap: 50, used: 1 });
   });
 
-  await test('local diagnostic/model routes are exempt from key RPM', () => {
+  await test('local diagnostic/model routes are exempt from key RPM and public readiness exits early', () => {
     const modern = join(root, 'apps', 'gateway', 'preflight.ts');
     const src = readFileSync(existsSync(modern) ? modern : join(root, 'src', 'request', 'preflight.ts'), 'utf8');
-    const block = src.slice(src.indexOf("if (route !== 'health'"), src.indexOf('const diag ='));
-    assert.ok(block.includes("route !== 'health'"));
-    assert.ok(block.includes("route !== 'metrics'"));
-    assert.ok(block.includes("route !== 'models'"));
-    assert.ok(block.includes("route !== 'anthropic_count_tokens'"));
+    const readiness = src.indexOf("if (route === 'readiness')");
+    const keyRpm = src.indexOf("if (route !== 'health'");
+    assert.ok(readiness >= 0 && readiness < keyRpm, 'public readiness must return before key RPM accounting');
+    assert.ok(src.includes("route !== 'health'"));
+    assert.ok(src.includes("route !== 'metrics'"));
+    assert.ok(src.includes("route !== 'models'"));
+    assert.ok(src.includes("route !== 'anthropic_count_tokens'"));
   });
 
   await test('top-level errors remain route-aware', async () => {

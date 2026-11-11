@@ -278,7 +278,6 @@ try {
     .filter(Boolean)
     .sort();
   assert.deepEqual(declaredDeploySecrets, [
-    'AIG_DEPLOY_HEALTH_KEY',
     'AIG_GENERATION_AUTH_KEY',
     'AIG_INFERENCE_AUTH_KEY',
     'AIG_PERCEPTION_AUTH_KEY',
@@ -1196,7 +1195,7 @@ try {
   // biome-ignore lint/suspicious/noTemplateCurlyInString: verifies the literal ${origin} text appears in the deployment script source
   assert.equal(deploy.includes('`${origin}/version`'), false, 'deployment verifier must not use /version');
   // biome-ignore lint/suspicious/noTemplateCurlyInString: verifies the literal ${origin} text appears in the deployment script source
-  assert.ok(deploy.includes('`${origin}/health`'), 'deployment verifier must use /health');
+  assert.ok(deploy.includes('`${origin}/health/ready`'), 'deployment verifier must use public /health/ready');
   assert.match(deploy, /healthBody\?\.build !== expectedBuild/, 'deployment verification must compare commit SHA');
   assert.equal(existsSync(join(root, 'scripts/install.sh')), false, 'scripts/install.sh must stay retired');
   assert.equal(existsSync(join(root, 'scripts/install.ps1')), false, 'scripts/install.ps1 must stay retired');

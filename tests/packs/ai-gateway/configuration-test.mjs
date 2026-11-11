@@ -864,7 +864,6 @@ try {
       AIG_USAGE_D1_ID: 'd1-id',
       AIG_AFFINITY_KV_ID: 'kv-id',
       AIG_PUBLIC_URL: 'https://gw.example.com',
-      AIG_DEPLOY_HEALTH_KEY: 'deployment-health-key-0123456789abcdef0123456789abcdef',
       AIG_BUILD_SHA: 'a'.repeat(40),
       AIG_RATE_LIMIT_COOLDOWN_MS: '15000',
       AIG_FIRST_EVENT_TIMEOUT_MS: '15000',
@@ -911,7 +910,7 @@ try {
     assert.ok(!('AIG_TIER1_CREDENTIALS_01' in vars));
     assert.ok('AIG_ACCESS_MODELS_AIR' in vars);
     assert.ok('AIG_ACCESS_KEY_AIR' in secrets);
-    assert.ok('AIG_DEPLOY_HEALTH_KEY' in secrets);
+    assert.ok(!('AIG_DEPLOY_HEALTH_KEY' in secrets));
     assert.ok(!('AIG_ACCESS_KEY_AIR' in vars));
   }
 
@@ -924,17 +923,11 @@ try {
   }
 
   {
-    const result = preflight(envFixture());
+    const env = envFixture();
+    assert.ok(!('AIG_DEPLOY_HEALTH_KEY' in env));
+    const result = preflight(env);
     assert.equal(result.ok, true);
     assert.deepEqual(result.errors, []);
-  }
-
-  {
-    const env = envFixture();
-    delete env.AIG_DEPLOY_HEALTH_KEY;
-    const result = preflight(env);
-    assert.equal(result.ok, false);
-    assert.ok(result.errors.some((error) => error.includes('AIG_DEPLOY_HEALTH_KEY')));
   }
 
   {
