@@ -44,10 +44,7 @@ function policyInteger(policy: Record<string, unknown>, key: string): number {
   return value;
 }
 
-function assertPolicyChangelogHeadings(
-  content: string,
-  policy: Record<string, unknown>
-): void {
+function assertPolicyChangelogHeadings(content: string, policy: Record<string, unknown>): void {
   const title = policy.changelog_heading;
   const unreleased = policy.unreleased_heading;
   if (typeof title !== "string" || typeof unreleased !== "string") {

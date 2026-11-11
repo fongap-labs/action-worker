@@ -56,8 +56,20 @@ type ExternalPolicy = {
 
 const fallbackExternalPolicy: ExternalPolicy = {
   system_prefixes: [
-    "AW_", "GMC_", "MCP_", "AIG_", "AI_GATEWAY_", "APP_SOURCE_", "DELTA_",
-    "SERVER_EDGE_", "CLOUDFLARE_", "GITHUB_", "AWS_", "GCP_", "ALGOLIA_", "TAILSCALE_",
+    "AW_",
+    "GMC_",
+    "MCP_",
+    "AIG_",
+    "AI_GATEWAY_",
+    "APP_SOURCE_",
+    "DELTA_",
+    "SERVER_EDGE_",
+    "CLOUDFLARE_",
+    "GITHUB_",
+    "AWS_",
+    "GCP_",
+    "ALGOLIA_",
+    "TAILSCALE_",
   ],
   platform_prefixes: ["RUNNER_", "ACTIONS_"],
   forbidden_credential_terms: ["PAT"],
@@ -188,10 +200,10 @@ export function validateConfigText(path: string, text: string): string[] {
         `${path}: external configuration '${name}' must identify its owning system without repository context`
       );
     }
-    if (
-      externalPolicy.forbidden_credential_terms.some((term) => name.split("_").includes(term))
-    ) {
-      errors.push(`${path}: credential '${name}' must use TOKEN or KEY instead of a forbidden credential term`);
+    if (externalPolicy.forbidden_credential_terms.some((term) => name.split("_").includes(term))) {
+      errors.push(
+        `${path}: credential '${name}' must use TOKEN or KEY instead of a forbidden credential term`
+      );
     }
     const booleanPrefixPattern = new RegExp(
       `(?:^|_)(?:${externalPolicy.boolean_required_prefixes.join("|")})_`

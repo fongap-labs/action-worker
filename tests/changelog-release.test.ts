@@ -61,11 +61,17 @@ test("fixed CHANGELOG headings cannot be renamed or duplicated", () => {
     assertFixedChangelogHeadings(title + "\n\n" + unreleased + "\n", title, unreleased)
   );
   assert.throws(
-    () => assertFixedChangelogHeadings("# Release notes\n\n" + unreleased + "\n", title, unreleased),
+    () =>
+      assertFixedChangelogHeadings("# Release notes\n\n" + unreleased + "\n", title, unreleased),
     /fixed headings/
   );
   assert.throws(
-    () => assertFixedChangelogHeadings(title + "\n\n" + unreleased + "\n\n" + unreleased, title, unreleased),
+    () =>
+      assertFixedChangelogHeadings(
+        title + "\n\n" + unreleased + "\n\n" + unreleased,
+        title,
+        unreleased
+      ),
     /fixed headings/
   );
 });

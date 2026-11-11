@@ -4,70 +4,17 @@
   "file_names": {
     "max_kebab_segments": 3,
     "max_source_module_segments": 3,
-    "lifecycle_banned_terms": [
-      "new",
-      "final",
-      "latest",
-      "temp",
-      "tmp"
-    ],
-    "generic_warning_terms": [
-      "util",
-      "utils",
-      "helper",
-      "helpers",
-      "common",
-      "misc",
-      "shared"
-    ],
-    "source_banned_terms": [
-      "impl",
-      "helper",
-      "helpers",
-      "common",
-      "misc",
-      "shared"
-    ],
+    "lifecycle_banned_terms": ["new","final","latest","temp","tmp"],
+    "generic_warning_terms": ["util","utils","helper","helpers","common","misc","shared"],
+    "source_banned_terms": ["impl","helper","helpers","common","misc","shared"],
     "min_new_semantic_segments": 3
   },
   "source_identifiers": {
-    "lifecycle_banned_terms": [
-      "new",
-      "final",
-      "latest",
-      "temp",
-      "tmp"
-    ],
-    "vague_banned_terms": [
-      "impl",
-      "helper",
-      "helpers",
-      "common",
-      "misc",
-      "shared"
-    ],
-    "boolean_hints": [
-      "enabled",
-      "disabled",
-      "required",
-      "available",
-      "active",
-      "visible",
-      "writable",
-      "replace"
-    ],
-    "boolean_prefixes_python_rust": [
-      "is_",
-      "has_",
-      "can_",
-      "should_"
-    ],
-    "boolean_prefixes_typescript": [
-      "is",
-      "has",
-      "can",
-      "should"
-    ]
+    "lifecycle_banned_terms": ["new","final","latest","temp","tmp"],
+    "vague_banned_terms": ["impl","helper","helpers","common","misc","shared"],
+    "boolean_hints": ["enabled","disabled","required","available","active","visible","writable","replace"],
+    "boolean_prefixes_python_rust": ["is_","has_","can_","should_"],
+    "boolean_prefixes_typescript": ["is","has","can","should"]
   },
   "external_configuration": {
     "system_prefixes": [
@@ -86,31 +33,11 @@
       "ALGOLIA_",
       "TAILSCALE_"
     ],
-    "platform_prefixes": [
-      "RUNNER_",
-      "ACTIONS_"
-    ],
-    "forbidden_credential_terms": [
-      "PAT"
-    ],
-    "boolean_required_prefixes": [
-      "IS",
-      "HAS",
-      "CAN",
-      "SHOULD"
-    ],
-    "boolean_action_terms": [
-      "ALLOW",
-      "ENABLE",
-      "DISABLE",
-      "EXPOSE",
-      "INCLUDE"
-    ],
-    "boolean_suffixes": [
-      "_ENABLED"
-    ],
-    "mode_suffixes": [
-      "_MODE"
-    ]
+    "platform_prefixes": ["RUNNER_","ACTIONS_"],
+    "forbidden_credential_terms": ["PAT"],
+    "boolean_required_prefixes": ["IS","HAS","CAN","SHOULD"],
+    "boolean_action_terms": ["ALLOW","ENABLE","DISABLE","EXPOSE","INCLUDE"],
+    "boolean_suffixes": ["_ENABLED"],
+    "mode_suffixes": ["_MODE"]
   }
 }

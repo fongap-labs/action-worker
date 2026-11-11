@@ -1,6 +1,6 @@
 import { getGithubJson, getJsonString, isJsonRecord, runGithubCli } from "./github-api.ts";
-import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
+import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { latestAttestedStatus, originalStatusDescription } from "./status-attestation.ts";
 
 const SHA = /^[0-9a-f]{40}$/;

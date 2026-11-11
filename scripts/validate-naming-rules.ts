@@ -128,8 +128,7 @@ function newFileSegments(path: string): string[] | null {
   const controlled =
     path.startsWith(".github/workflows/") ||
     ["sh", "ps1", "py", "rs"].includes(extension) ||
-    (extension === "ts" &&
-      (path.startsWith("scripts/") || path.startsWith("tests/")));
+    (extension === "ts" && (path.startsWith("scripts/") || path.startsWith("tests/")));
   if (!controlled) return null;
   let stem = parse(basename(path)).name;
   if (extension === "ts") stem = stem.replace(/\.(?:test|spec)$/, "");
@@ -175,8 +174,7 @@ export async function validateNames(
     const isWorkflow = path.startsWith(".github/workflows/");
     const isShell = ["sh", "ps1"].includes(extension);
     const isTypeScriptSource =
-      extension === "ts" &&
-      (path.startsWith("scripts/") || path.startsWith("tests/"));
+      extension === "ts" && (path.startsWith("scripts/") || path.startsWith("tests/"));
     const typescriptStem = isTypeScriptSource ? stem.replace(/\.(?:test|spec)$/, "") : stem;
     if (
       ((isWorkflow || isShell) && !isKebab(stem, maxSegments)) ||
