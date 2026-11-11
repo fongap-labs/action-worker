@@ -1569,7 +1569,11 @@ try {
     'arbitrary multi-segment family prefixes must inherit tier fallback without code changes',
   );
 
-  assert.equal(hasModelFamilyFallback('Research-Reasoning-Max'), true, 'new prefixed families are recognized from the final capability tier alone');
+  assert.equal(
+    hasModelFamilyFallback('Research-Reasoning-Max', configured),
+    true,
+    'declared fallback entries define prefixed model families',
+  );
 
   console.log('model-family fallback tests passed.');
   console.log('ok - file:model-family-fallback');
