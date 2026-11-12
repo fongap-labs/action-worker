@@ -273,7 +273,7 @@ test("workflow resolves one source per fixed slot without embedding product Secr
 test("AI Gateway deploy uses only approved repository Variables, never shadowed ops text", () => {
   const account = "0123456789abcdef0123456789abcdef";
   const approved = {
-    CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account,
+    CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
     AIG_PUBLIC_URL: "https://gateway.example/",
     AIG_AFFINITY_KV_ID: "11111111111111111111111111111111",
     AIG_USAGE_D1_ID: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
@@ -283,7 +283,6 @@ test("AI Gateway deploy uses only approved repository Variables, never shadowed 
   };
   const expected = {
     ...approved,
-    CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
     AIG_PUBLIC_URL: "https://gateway.example",
   };
   const inherited = {

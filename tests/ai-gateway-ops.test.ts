@@ -303,7 +303,7 @@ test("protected four-Worker inventory runs only pinned audited source on manual 
   assert.match(workflow, /node ag-inspector\/scripts\/cloudflare-live-inventory\.mjs/);
   assert.match(
     workflow,
-    /CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_API_TOKEN_REPOSITORY \}\}/
+    /CLOUDFLARE_API_TOKEN: \$\{\{ secrets\.CLOUDFLARE_API_TOKEN_SECONDARY \}\}/
   );
   assert.doesNotMatch(workflow, /node ag-inspector\/scripts\/cloudflare-live-inventory\.mjs --out/);
 });
