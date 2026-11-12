@@ -380,7 +380,7 @@ test("the deploy job names no central write credential and checks out with the r
   // The environment is requested by the prepare job, which has validated it against the policy.
   assert.deepEqual(deploy.environment, {
     name: "${{ needs.prepare.outputs.credential_environment }}",
-    deployment: "${{ needs.prepare.outputs.create_deployment == 'true' }}",
+    deployment: "${{ needs.prepare.outputs.create_deployment == 'true' && needs.prepare.outputs.environment == 'production' }}",
   });
 });
 
