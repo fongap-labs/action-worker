@@ -797,7 +797,9 @@ test("task source ingress is source-owned and repository-agnostic", async () => 
     intakeWorkflow.indexOf("  task-sources:"),
     intakeWorkflow.indexOf("  task-schedules:")
   );
-  const reconcileStep = taskSourceJob.slice(taskSourceJob.indexOf("- name: Reconcile task sources"));
+  const reconcileStep = taskSourceJob.slice(
+    taskSourceJob.indexOf("- name: Reconcile task sources")
+  );
   // The status verifier rejects signed Task Source receipts without the signing keyring.
   // Check this specific job, not another intake job that already declares the secret.
   assert.ok(reconcileStep.includes("AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}"));
