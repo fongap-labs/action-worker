@@ -24,7 +24,7 @@ test("only repository Variables are accepted without any ops Environment fallbac
   assert.equal(validated.CLOUDFLARE_ACCOUNT_ID_SECONDARY, account);
   assert.equal(validated.AIG_PUBLIC_URL, "https://gateway.example");
   assert.deepEqual(requests, [
-    "https://api.github.com/repos/fongap-labs/action-worker/actions/variables?per_page=100&page=1",
+    "https://api.github.com/repos/fongap-labs/action-worker/actions/variables?per_page=30&page=1",
   ]);
 });
 
