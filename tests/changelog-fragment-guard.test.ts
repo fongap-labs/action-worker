@@ -13,7 +13,10 @@ test("legacy fragment guard preserves exact repository path and token", async ()
     calls += 1;
     assert.equal(requested, path);
     assert.equal(credential, token);
-    return [{ type: "file", name: "README.txt" }, { type: "dir", name: "archive.md" }];
+    return [
+      { type: "file", name: "README.txt" },
+      { type: "dir", name: "archive.md" },
+    ];
   });
   assert.equal(calls, 1);
 });
