@@ -196,8 +196,8 @@ test("Gateway deploy workflow uses a non-environment repository snapshot and no 
   assert.equal(job.environment, undefined);
   const reader = job.steps.find((step) => step.name === "Validate non-sensitive AI Gateway repository Variables");
   assert.ok(reader);
-  assert.equal(reader.env?.AW_APP_CLIENT_ID, "\${{ vars.AW_APP_CLIENT_ID }}");
-  assert.equal(reader.env?.AW_APP_PRIVATE_KEY, "\${{ secrets.AW_APP_PRIVATE_KEY }}");
+  assert.equal(reader.env?.AW_APP_CLIENT_ID, "${{ vars.AW_APP_CLIENT_ID }}");
+  assert.equal(reader.env?.AW_APP_PRIVATE_KEY, "${{ secrets.AW_APP_PRIVATE_KEY }}");
   assert.equal(reader.env?.GITHUB_TOKEN, undefined);
   assert.equal(job.steps.some((step) => step.name?.includes("Mint repository-only Variables")), false);
   assert.equal(JSON.stringify(job).includes("permission-variables"), false);
