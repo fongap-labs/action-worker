@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { baseEnvNames, buildPackEnv } from "./pack-env.mjs";
+import { baseEnvNames, buildPackEnv, buildPythonPackEnv } from "./pack-env.mjs";
 
 test("buildPackEnv drops CI tokens and local secrets from the host environment", () => {
   process.env.AW_ADMIN_TOKEN = "canary-admin";
@@ -80,5 +80,20 @@ test("baseEnvNames excludes every credential-shaped family", () => {
   const names = baseEnvNames();
   for (const name of names) {
     assert.equal(!/^(AW|AIG)_/.test(name), true, `base set must not contain ${name}`);
+  }
+});
+
+test("Python pack import path never inherits host PYTHONPATH", () => {
+  const previous = process.env.PYTHONPATH;
+  process.env.PYTHONPATH = "/host/private/python/modules";
+  try {
+    const env = buildPythonPackEnv({}, "/target/checkout", "/trusted/test-kit");
+    assert.equal(env.CENTRAL_TEST_TARGET_ROOT, "/target/checkout");
+    assert.equal(env.PYTHONPATH.includes("/target/checkout"), true);
+    assert.equal(env.PYTHONPATH.includes("/trusted/test-kit"), true);
+    assert.equal(env.PYTHONPATH.includes("/host/private/python/modules"), false);
+  } finally {
+    if (previous === undefined) delete process.env.PYTHONPATH;
+    else process.env.PYTHONPATH = previous;
   }
 });
