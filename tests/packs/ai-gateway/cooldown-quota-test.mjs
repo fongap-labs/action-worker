@@ -451,16 +451,23 @@ try {
     releaseTier1Slot('idem', makeTier1ReleaseToken('idem'));
   });
 
-  test('near_limit demotes the node score before a 429 ever arrives', () => {
+  test('near_limit does not penalize a usable free key or bypass hard exhaustion', () => {
     __resetTier1StateForTests();
     const a = node('fresh');
     const b = node('tail');
     recordTier1QuotaReport('tail', { remainingRequests: 1, limitRequests: 100 }, 1000);
     assert.equal(tier1QuotaState('tail', 1001), 'near_limit');
-    assert.ok(
-      calculateTier1Score(b, 'Code-Max', [a, b], 1, 1001) > calculateTier1Score(a, 'Code-Max', [a, b], 1, 1001),
-      'the near-limit node scores worse than an equally unknown healthy node',
+    assert.equal(
+      calculateTier1Score(b, 'Code-Max', [a, b], 1, 1001),
+      calculateTier1Score(a, 'Code-Max', [a, b], 1, 1001),
+      'a key with one usable free request must not be demoted to conserve it',
     );
+    assert.equal(isTier1Eligible(b, req, 1001), true);
+    assert.equal(claimTier1Slot(b, 1002, 'Code-Max', null), true);
+    const token = makeTier1ReleaseToken('tail');
+    settleTier1Quota('tail', token);
+    releaseTier1Slot('tail', token);
+    assert.equal(claimTier1Slot(b, 1003, 'Code-Max', null), false, 'a consumed last free request remains a hard gate');
   });
 
   test('exhausted_until gates eligibility and surfaces the window wait, then auto-clears', () => {

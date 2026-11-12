@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: AI Gateway 免费模型配额回归合同按新规则验收：near_limit 仍有可用额度时不人为降权，最后一次请求被确认消耗后仍执行硬准入限制；保留原有自适应限流和回退测试。
+
 - 修复: 恢复网关从 ai-gateway-ops 读取模型与节点配置，仅从 Action Worker 仓库读取 Cloudflare 账号信息。
 
 - 修复: 网关部署增加 Cloudflare 仓库密钥一致性校验，拒绝旧环境同名密钥误覆盖。
