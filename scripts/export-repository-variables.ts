@@ -47,6 +47,7 @@ const mcpHubPublicVariableNames = [
   "MCP_ACTIVE_ID",
   "MCP_ACCESS_ISSUER",
   "MCP_ACCESS_AUD",
+  "MCP_AUTH_MODE",
   "MCP_OAUTH_TTL",
   "GMC_WRITE_MODE",
   "GMC_CONTENT_MODE",
