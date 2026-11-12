@@ -354,7 +354,7 @@ test("AI Gateway deployment reads repository Variables outside the ops Environme
   assert.ok(variableJob && deploy);
   assert.equal(variableJob.environment, undefined);
   const variableSteps = variableJob.steps as Array<{ env?: Record<string, string> }>;
-  assert.equal(variableSteps.at(-1)?.env?.GITHUB_TOKEN, "${{ github.token }}");
+  assert.equal(variableSteps.at(-1)?.env?.GITHUB_TOKEN, "${{ steps.repository_variables_app.outputs.token }}");
   assert.deepEqual(variableJob.outputs, {
     variables_b64: "${{ steps.variables.outputs.variables_b64 }}",
   });
