@@ -157,7 +157,7 @@ test("missing Variables App permission fails closed at token mint without exposi
   };
   await assert.rejects(
     readGatewayVariablesWithApp("Iv1.test-app-id", testAppKey, request),
-    /lacks repository Variables: read/
+    /lacks repository Actions Variables: read/
   );
   assert.equal(called.length, 2);
 });
@@ -174,7 +174,7 @@ test("inventory rejection and unexpected token permissions both revoke the token
           permissions:
             scenario === "excess-scope"
               ? { actions_variables: "read", contents: "write" }
-              : { variables: "read" },
+              : { actions_variables: "read" },
         });
       }
       if (endpoint.endsWith("/installation/token")) {
