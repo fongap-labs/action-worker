@@ -31,13 +31,13 @@ const forbiddenSecretNames = [
   /^AIG_TOKEN_ENCRYPTION_KEY$/,
 ];
 
-/** Non-sensitive Gateway Variables belong to the Action Worker repository, not an ops Environment. */
+/** Identifies runtime AIG Variables and the centrally owned Cloudflare account ID. */
 export function isGatewayOwnedVariableName(name: string): boolean {
   return name === accountName || gatewayVariableName.test(name);
 }
 
 function fail(name: string, reason: string): never {
-  throw new CliError(`Approved Action Worker repository Variable ${name} ${reason}.`, 77);
+  throw new CliError(`AI Gateway deployment Variable ${name} ${reason}.`, 77);
 }
 
 /**
@@ -126,7 +126,7 @@ export function validateGatewayOpsVariables(
   const serializedBytes = Buffer.byteLength(JSON.stringify(result), "utf8");
   if (serializedBytes > maximumSnapshotBytes) {
     throw new CliError(
-      `Approved Action Worker repository Variable snapshot exceeds ${maximumSnapshotBytes} UTF-8 bytes.`,
+      `AI Gateway deployment Variable snapshot exceeds ${maximumSnapshotBytes} UTF-8 bytes.`,
       77
     );
   }

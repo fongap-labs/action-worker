@@ -11,23 +11,20 @@ import {
 
 const account = "0123456789abcdef0123456789abcdef";
 
-test("only repository Variables are accepted without any ops Environment fallback", async () => {
+test("only Cloudflare account metadata is accepted from Action Worker repository", async () => {
   const requests: string[] = [];
   const request: typeof fetch = async (url, init) => {
     requests.push(String(url));
     assert.equal(new Headers(init?.headers).get("authorization"), "Bearer test-read-token");
     return Response.json({
-      total_count: 2,
-      variables: [
-        { name: "CLOUDFLARE_ACCOUNT_ID_SECONDARY", value: account },
-        { name: "AIG_PUBLIC_URL", value: "https://gateway.example/" },
-      ],
+      total_count: 1,
+      variables: [{ name: "CLOUDFLARE_ACCOUNT_ID_SECONDARY", value: account }],
     });
   };
   const snapshot = await readGatewayRepositoryVariables("test-read-token", request);
   const validated = validateGatewayOpsVariables(snapshot);
   assert.equal(validated.CLOUDFLARE_ACCOUNT_ID_SECONDARY, account);
-  assert.equal(validated.AIG_PUBLIC_URL, "https://gateway.example");
+  assert.equal(validated.AIG_PUBLIC_URL, undefined);
   assert.deepEqual(requests, [
     "https://api.github.com/repos/fongap-labs/action-worker/actions/variables?per_page=30&page=1",
   ]);
@@ -48,6 +45,18 @@ test("Cloudflare token-shaped repository Variables are never exported", async ()
       /Cloudflare API Token must be a GitHub repository Secret/
     );
   }
+});
+
+test("repository AIG runtime Variables are rejected before deployment", async () => {
+  await assert.rejects(
+    () => readGatewayRepositoryVariables("read-token", async () => Response.json({
+      variables: [
+        { name: "CLOUDFLARE_ACCOUNT_ID_SECONDARY", value: account },
+        { name: "AIG_MODELS_CONFIG", value: "{}" },
+      ],
+    })),
+    /must be stored in ai-gateway-ops/
+  );
 });
 
 test("repository Variable inventory is bounded, denied requests fail closed", async () => {
@@ -220,7 +229,7 @@ test("failed revocation prevents exporting deployment variables", async () => {
       return Response.json({ token: scopedToken, permissions: { actions_variables: "read" } });
     if (endpoint.includes("/actions/variables?"))
       return Response.json({
-        variables: [{ name: "AIG_PUBLIC_URL", value: "https://gateway.example" }],
+        variables: [{ name: "CLOUDFLARE_ACCOUNT_ID_SECONDARY", value: account }],
       });
     return new Response(null, { status: 403 });
   };

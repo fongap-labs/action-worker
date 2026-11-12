@@ -3,7 +3,6 @@ import { chmod, writeFile } from "node:fs/promises";
 import { aiAgentRuntimeEntries, parseAiAgentConfig } from "./ai-agent-config.ts";
 import {
   decodeGatewayOpsVariables,
-  isGatewayOwnedVariableName,
   validateGatewayOpsVariables,
 } from "./gateway-ops-variables.ts";
 import { isJsonRecord } from "./github-api.ts";
@@ -64,10 +63,9 @@ export function scopedMcpHubVariables(environment: NodeJS.ProcessEnv): Record<st
 }
 
 /**
- * AI Gateway deployment Variables are validated by a job without a GitHub
- * Environment, using the Action Worker repository Variables API directly.
- * Deploy runs may still bind ai-gateway-ops for Provider Secrets, but inherited
- * Environment Variables must never override or supplement this snapshot.
+ * AI Gateway runtime Variables are supplied by the protected ai-gateway-ops
+ * Environment. The Action Worker repository supplies only Cloudflare account
+ * metadata. Repository-owned AIG Variables are rejected before handoff.
  */
 export function mergeApprovedGatewayOpsVariables(
   variables: Record<string, string>,
@@ -91,15 +89,28 @@ export function mergeApprovedGatewayOpsVariables(
       77
     );
   }
-  const approved = validateGatewayOpsVariables(fromRepository);
-  // Inherited env-scoped AIG and Cloudflare account metadata are discarded,
-  // not compared or used as a fallback. This prevents scope shadowing.
-  const ordinaryVariables = Object.fromEntries(
-    Object.entries(variables).filter(
-      ([name]) => !isGatewayOwnedVariableName(name) && !/^(?:AW_)?CLOUDFLARE_/.test(name)
-    )
+  if (Object.keys(fromRepository).some((name) => name.startsWith("AIG_"))) {
+    throw new CliError(
+      "AI Gateway runtime Variables belong to ai-gateway-ops, not Action Worker repository.",
+      77
+    );
+  }
+  const opsVariables = Object.fromEntries(
+    Object.entries(variables).filter(([name]) => name.startsWith("AIG_"))
   );
-  return { ...ordinaryVariables, ...approved };
+  const approved = validateGatewayOpsVariables({
+    ...opsVariables,
+    CLOUDFLARE_ACCOUNT_ID_SECONDARY: fromRepository.CLOUDFLARE_ACCOUNT_ID_SECONDARY,
+  });
+  if (!approved.AIG_MODELS_CONFIG?.trim()) {
+    throw new CliError(
+      "Protected ai-gateway-ops Variable AIG_MODELS_CONFIG is unavailable or empty.",
+      77
+    );
+  }
+  // Do not pass unrelated Action Worker repository or organization Variables
+  // to the source-owned deploy entrypoint.
+  return approved;
 }
 
 async function main(): Promise<void> {
