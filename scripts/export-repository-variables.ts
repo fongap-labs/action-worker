@@ -37,6 +37,31 @@ export function variableEntries(value: unknown): Array<[string, string]> {
   return entries;
 }
 
+// MCP Hub has a strict, public-variable-only export path. Never inject the
+// full GitHub vars context into this deploy, since operators may accidentally
+// define a credential under Variables instead of Secrets.
+const mcpHubPublicVariableNames = [
+  "CLOUDFLARE_ACCOUNT_ID_SECONDARY",
+  "MCP_D1_ID",
+  "MCP_PUBLIC_URL",
+  "MCP_ACTIVE_ID",
+  "MCP_ACCESS_ISSUER",
+  "MCP_ACCESS_AUD",
+  "MCP_OAUTH_TTL",
+  "GMC_WRITE_MODE",
+  "GMC_CONTENT_MODE",
+  "MCP_CRYPTO_SECRET_SYNC",
+];
+
+export function scopedMcpHubVariables(environment: NodeJS.ProcessEnv): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const name of mcpHubPublicVariableNames) {
+    const value = environment[`AW_MCP_HUB_VAR_${name}`];
+    if (value !== undefined) result[name] = value;
+  }
+  return result;
+}
+
 /**
  * AI Gateway production Variables are validated in the protected ops job.
  * The deploy job also binds the ai-gateway-ops Environment, which means
@@ -96,10 +121,13 @@ async function main(): Promise<void> {
   if (!githubEnv) {
     throw new CliError("::error::GITHUB_ENV is not set.");
   }
-  const value = parseJson(
-    process.env.REPOSITORY_VARS_JSON || "{}",
-    "::error::Repository Variables payload must be valid JSON."
-  );
+  const value =
+    process.env.DEPLOY_SOURCE_REPOSITORY === "fongap-labs/mcp-hub"
+      ? scopedMcpHubVariables(process.env)
+      : parseJson(
+          process.env.REPOSITORY_VARS_JSON || "{}",
+          "::error::Repository Variables payload must be valid JSON."
+        );
   const sorted = mergeApprovedGatewayOpsVariables(
     Object.fromEntries(variableEntries(value)),
     process.env.DEPLOY_SOURCE_REPOSITORY,
