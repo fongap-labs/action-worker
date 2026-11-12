@@ -11,7 +11,10 @@ test("controller PR governance reuses shared validators and blocks merge on fail
   assert.ok(start >= 0 && end > start, "controller change-governance job must exist");
   const job = workflow.slice(start, end);
 
-  assert.match(workflow, /types: \[opened, reopened, synchronize, edited, ready_for_review, converted_to_draft\]/);
+  assert.match(
+    workflow,
+    /types: \[opened, reopened, synchronize, edited, ready_for_review, converted_to_draft\]/
+  );
   assert.match(job, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \|\| github\.sha \}\}/);
   assert.match(job, /Validate PR change record\n\s+if: github\.event_name == 'pull_request'/);
   assert.match(job, /node scripts\/validate-change-record\.ts/);
@@ -32,6 +35,9 @@ test("shared PR validator rejects non-English and invalid controller titles", as
     ["missing conventional prefix", /PR title must use type/],
   ];
   for (const [title, reason] of cases) {
-    await assert.rejects(validateChange(title, "HEAD", "HEAD", root, join(root, "policies")), reason);
+    await assert.rejects(
+      validateChange(title, "HEAD", "HEAD", root, join(root, "policies")),
+      reason
+    );
   }
 });
