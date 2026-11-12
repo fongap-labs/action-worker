@@ -327,7 +327,7 @@ jobs:
         id: variables
         env:
           GITHUB_TOKEN: ${{ steps.repository_variables_app.outputs.token }}
-        run: node scripts/read-gateway-repository-variables.ts
+        run: node scripts/gateway-repository-vars.ts
 
   deploy:
     name: Execute source-script deploy
