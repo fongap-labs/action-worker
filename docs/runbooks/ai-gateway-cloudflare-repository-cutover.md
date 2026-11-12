@@ -1,4 +1,4 @@
-# AI Gateway：Cloudflare 凭据迁移到 Action Worker 仓库
+# 网关凭据迁移至中央部署仓库
 
 此文档只描述 **fongap-labs/ai-gateway** 在 Action Worker 控制仓库的部署来源。只允许经中央 CI 认可的生产发布修改四个 Cloudflare Worker。
 
