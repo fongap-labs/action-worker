@@ -133,7 +133,7 @@ test("automatic merge refuses a PR title changed after its signed governance ver
 
 test("exact approved merged PR is an idempotent success, never an authorization bypass", () => {
   const approved={...pull(),state:"closed",merged:true,merged_at:"2026-11-12T03:55:19Z",merge_commit_sha:"c".repeat(40)};
-  const verifyMerge=(v,s=statuses())=>isApprovedCompletedMerge(v,s,repository,number,headSha,baseSha,runUrl);
+  const verifyMerge=(v: unknown,s=statuses())=>isApprovedCompletedMerge(v,s,repository,number,headSha,baseSha,runUrl);
   assert.equal(verifyMerge(approved),true);
   for(const invalid of [
     {...approved,merged:false},
