@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { test } from "node:test";
+import { parse } from "yaml";
 import { nonProductionDeployments } from "../scripts/prune-nonproduction-deployments.ts";
 
 test("deployment history pruning never selects production", () => {
@@ -31,4 +33,17 @@ test("deployment history pruning rejects incomplete or malformed inventory", () 
   ]) {
     assert.throws(() => nonProductionDeployments(invalid));
   }
+});
+
+test("deployment backlog is automatically retried hourly without repeating daily maintenance", () => {
+  const workflow = parse(readFileSync(".github/workflows/prune-stale-state.yml", "utf8")) as {
+    on: { schedule: Array<{ cron: string }> };
+    jobs: Record<string, { if?: string }>;
+  };
+  assert.deepEqual(workflow.on.schedule, [{ cron: "31 5 * * *" }, { cron: "47 0-4,6-23 * * *" }]);
+  assert.equal(workflow.jobs.deployments?.if, "${{ github.event_name == 'schedule' }}");
+  const dailyOnly =
+    "${{ github.event_name != 'schedule' || github.event.schedule == '31 5 * * *' }}";
+  assert.equal(workflow.jobs.branches?.if, dailyOnly);
+  assert.equal(workflow.jobs.runs?.if, dailyOnly);
 });
