@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- 维护: AI Gateway 的 Cloudflare 管理凭据与三个私有中心认证统一改用 Action Worker 仓库 Secrets 的独立来源，非敏感部署配置由仓库 Variables API 独立校验读取；拒绝 ops Environment 同名值污染，令牌不得存 Variables，保留受保护的 Provider 凭据分片门禁。
 - 修复: 部署历史定期清理仅响应每小时第 17、47 分钟的 Cron，排除每日 05:31 运维触发的额外清理，严格保持半小时节奏及每批 API 限额。
 
 - 新增: MCP Hub 使用 Action Worker 中央部署服务时，可以从 GitHub Actions Secrets 按产品白名单同步 TOTP 和可选 Worker 运行时密钥；沿用来源准入、最小授权与临时密钥清理，禁止未声明密钥和跨仓库读取。
