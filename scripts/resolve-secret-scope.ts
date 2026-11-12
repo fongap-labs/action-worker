@@ -351,11 +351,7 @@ export async function resolveDeploySecretPlan(
   const plan: DeploySecretPlanEntry[] = [];
   for (const name of [...declared].sort()) {
     const source = aliases.get(name) ?? name;
-    if (
-      !envNamePattern.test(source) ||
-      isReserved(source) ||
-      seenSources.has(source)
-    ) {
+    if (!envNamePattern.test(source) || isReserved(source) || seenSources.has(source)) {
       throw new CliError(`Deploy secret source is invalid or duplicated: ${source}.`, 65);
     }
     seenSources.add(source);
