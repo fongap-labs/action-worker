@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- 维护: AI Gateway 的 Cloudflare 管理凭据与三个私有中心认证统一改用 Action Worker 仓库 Secrets 的独立来源，非敏感部署配置由仓库 Variables API 独立校验读取；拒绝 ops Environment 同名值污染，令牌不得存 Variables，保留受保护的 Provider 凭据分片门禁。
+- 维护: AI Gateway Cloudflare 凭据改由 Action Worker 仓库 Secrets 管理，普通配置取自仓库 Variables；保留 Provider 凭据门禁，拒绝旧环境覆盖。
 
 - 修复: MCP Hub 部署仅导出白名单普通变量，避免 API Token 误入 Actions 日志；Token/TOTP 仍必须从 Secrets 注入。
 
