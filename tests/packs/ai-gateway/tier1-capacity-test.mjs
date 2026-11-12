@@ -10,6 +10,7 @@ import { targetRoot } from '#kit/target.mjs';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { withMockFetch } from '#kit/fetch.mjs';
+import { legacySpentKeyRetry } from './spent-key-retry-contract.mjs';
 import { __resetAccessKeysCacheForTests } from '#target/src/config/access-keys.ts';
 import { __resetBodyBudgetForTests } from '#target/src/ratelimit/body-budget.ts';
 import { loadExecutionConfig, loadGatewayConfig } from '#target/src/config/nodes.ts';
@@ -236,23 +237,23 @@ test('a tripped model gets its recovery probe while another model of the same ke
   releaseTier1Slot('k1', busy.releaseToken);
 });
 
-// ---- Last-resort retry of a transient Tier 1 failure ------------------------
+// ---- Exhausted Tier 1 Key: legacy and strict no-replay contracts -----------
 
-test('Tier 1-only single key: one transient 5xx is retried on the same key', async () => {
+test('Tier 1-only single key: transient 5xx is not replayed on spent Key in strict mode', async () => {
   const env = privateTier1Env(['solo']);
   const upstream = scriptedUpstream([() => errorResponse(500, 'overloaded')]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
-  assert.equal(res.status, 200);
-  assert.deepEqual(upstream.hosts, ['solo', 'solo']);
+  assert.equal(res.status, legacySpentKeyRetry ? 200 : 502);
+  assert.deepEqual(upstream.hosts, legacySpentKeyRetry ? ['solo', 'solo'] : ['solo']);
   assertPrivateAttemptParity(upstream);
 });
 
-test('the same-key retry happens at most once per request', async () => {
+test('failed Key is not replayed (or at most once under legacy) per request', async () => {
   const env = privateTier1Env(['solo']);
   const upstream = scriptedUpstream([() => errorResponse(500, 'overloaded'), () => errorResponse(502, 'bad gateway'), () => errorResponse(503, 'down')]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
   assert.equal(res.status, 502);
-  assert.deepEqual(upstream.hosts, ['solo', 'solo']);
+  assert.deepEqual(upstream.hosts, legacySpentKeyRetry ? ['solo', 'solo'] : ['solo']);
   assertPrivateAttemptParity(upstream);
 });
 
@@ -273,13 +274,14 @@ test('a rate limit, refusal or invalid request is never retried on the same key'
   }
 });
 
-test('with every key failing transiently, the unused attempt budget retries one key once', async () => {
+test('all transiently failing Keys are exhausted without unnecessary replay', async () => {
   const env = privateTier1Env(['k1', 'k2']);
   const upstream = scriptedUpstream([() => errorResponse(500, 'overloaded'), () => errorResponse(500, 'overloaded')]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
-  assert.equal(res.status, 200);
-  assert.equal(upstream.hosts.length, 3);
-  assert.equal(upstream.hosts[2], upstream.hosts[1], 'the most recent transient failure is retried');
+  assert.equal(res.status, legacySpentKeyRetry ? 200 : 502);
+  assert.equal(upstream.hosts.length, legacySpentKeyRetry ? 3 : 2);
+  assert.equal(new Set(upstream.hosts).size, 2, 'both distinct Tier 1 Keys must be attempted before exhaustion');
+  if (legacySpentKeyRetry) assert.equal(upstream.hosts[2], upstream.hosts[1], 'legacy retries only the last failed Key');
   assertPrivateAttemptParity(upstream);
 });
 
@@ -538,14 +540,16 @@ test('every upstream call writes one analytics event that names the key, outcome
   const env = privateTier1Env(['solo'], { GATEWAY_EVENTS: events });
   const upstream = scriptedUpstream([() => errorResponse(500, 'overloaded')]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
-  assert.equal(res.status, 200);
-  assert.equal(events.points.length, 2);
+  assert.equal(res.status, legacySpentKeyRetry ? 200 : 502);
+  assert.equal(events.points.length, legacySpentKeyRetry ? 2 : 1);
   const [failed, retried] = events.points;
   assert.deepEqual(failed.indexes, ['solo']);
   assert.deepEqual(failed.blobs.slice(0, 6), ['solo', 'mock', 'tier-1', 'Code-Pro', 'server', 'primary']);
   assert.equal(failed.doubles[0], 500);
-  assert.deepEqual(retried.blobs.slice(0, 6), ['solo', 'mock', 'tier-1', 'Code-Pro', 'ok', 'retry']);
-  assert.equal(retried.doubles[0], 200);
+  if (legacySpentKeyRetry) {
+    assert.deepEqual(retried.blobs.slice(0, 6), ['solo', 'mock', 'tier-1', 'Code-Pro', 'ok', 'retry']);
+    assert.equal(retried.doubles[0], 200);
+  }
   assertPrivateAttemptParity(upstream);
 });
 
