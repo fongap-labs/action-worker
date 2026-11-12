@@ -192,6 +192,29 @@ test("a single product under projects/ is selected without a name", async () => 
   assert.throws(() => selectProduct(products, "api"), /Unknown product: api/);
 });
 
+test("an existing project directory without a release declaration has an actionable error", async () => {
+  const files = {
+    ...multiProductTree,
+    "projects/Steno/package.json": '{"name":"steno"}',
+  };
+  const discovery = await discoverProducts(contentsReader(files), repository, sha);
+  assert.deepEqual(discovery.undeclared_directories, ["Steno", "docs"]);
+  assert.deepEqual(discovery.products.map((product) => product.name), ["api", "web"]);
+
+  const request = parseReleaseBuildRequest({
+    schema_version: "1",
+    request_id: "release-build-steno",
+    source_repository: repository,
+    source_sha: sha,
+    requested_version: "0.1.0-beta.1",
+    product: "Steno",
+  });
+  await assert.rejects(
+    resolveReleaseBuildProduct(contentsReader(files), request),
+    /projects\\/Steno\\/release\\.manifest\\.json/,
+  );
+});
+
 test("an illegal product directory name is rejected", async () => {
   for (const name of ["-web", "web app", "a".repeat(65)]) {
     assert.equal(isProductName(name), false, name);
