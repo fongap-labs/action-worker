@@ -126,7 +126,7 @@ export async function readGatewayVariablesWithApp(
     throw new CliError("GitHub App installation for Action Worker could not be verified.", 77);
   }
   const installation = (await installationResponse.json()) as { id?: unknown };
-  if (!Number.isSafeInteger(installation.id) || Number(installation.id) <= 0) {
+  if (typeof installation.id !== "number" || !Number.isSafeInteger(installation.id) || installation.id <= 0) {
     throw new CliError("GitHub App installation ID is invalid.", 77);
   }
   const minted = await request(apiBase + "/app/installations/" + installation.id + "/access_tokens", {
