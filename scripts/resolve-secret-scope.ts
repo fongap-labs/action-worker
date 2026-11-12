@@ -9,6 +9,30 @@ import { CliError, handleError, isMain } from "./runtime-command.ts";
 
 const envNamePattern = /^[A-Z][A-Z0-9_]*$/;
 
+// All AW_ aliases are reserved except these four exact AI Gateway production
+// Secret sources. Other repositories, products and environments remain denied.
+const gatewayRepositoryAliases = new Map([
+  ["CLOUDFLARE_API_TOKEN", "AW_CLOUDFLARE_API_TOKEN_SECONDARY"],
+  ["AIG_INFERENCE_AUTH_KEY", "AW_AIG_INFERENCE_AUTH_KEY"],
+  ["AIG_PERCEPTION_AUTH_KEY", "AW_AIG_PERCEPTION_AUTH_KEY"],
+  ["AIG_GENERATION_AUTH_KEY", "AW_AIG_GENERATION_AUTH_KEY"],
+]);
+
+function isScopedGatewayAlias(
+  kind: "deploy" | "task",
+  repository: string,
+  key: string,
+  name: string,
+  source: string
+): boolean {
+  return (
+    kind === "deploy" &&
+    repository === "fongap-labs/ai-gateway" &&
+    key === "production" &&
+    gatewayRepositoryAliases.get(name) === source
+  );
+}
+
 function isReserved(name: string): boolean {
   return (
     /^(?:AW_|GITHUB_|RUNNER_|ACTIONS_)/.test(name) || name === "NODE_OPTIONS" || name === "GH_TOKEN"
@@ -143,7 +167,7 @@ export async function readSecretAliases(
       isReserved(name) ||
       typeof from !== "string" ||
       !envNamePattern.test(from) ||
-      isReserved(from) ||
+      (isReserved(from) && !isScopedGatewayAlias(kind, repository, key, name, from)) ||
       from === name ||
       declared.has(from) ||
       sources.has(from) ||
@@ -351,7 +375,11 @@ export async function resolveDeploySecretPlan(
   const plan: DeploySecretPlanEntry[] = [];
   for (const name of [...declared].sort()) {
     const source = aliases.get(name) ?? name;
-    if (!envNamePattern.test(source) || isReserved(source) || seenSources.has(source)) {
+    if (
+      !envNamePattern.test(source) ||
+      (isReserved(source) && !isScopedGatewayAlias("deploy", repository, environmentName, name, source)) ||
+      seenSources.has(source)
+    ) {
       throw new CliError(`Deploy secret source is invalid or duplicated: ${source}.`, 65);
     }
     seenSources.add(source);
