@@ -19,14 +19,13 @@ test("only repository Variables are accepted without any ops Environment fallbac
     return Response.json({
       total_count: 2,
       variables: [
-        { name: "CLOUDFLARE_ACCOUNT_ID_REPOSITORY", value: account },
+        { name: "CLOUDFLARE_ACCOUNT_ID_SECONDARY", value: account },
         { name: "AIG_PUBLIC_URL", value: "https://gateway.example/" },
       ],
     });
   };
   const snapshot = await readGatewayRepositoryVariables("test-read-token", request);
   const validated = validateGatewayOpsVariables(snapshot);
-  assert.equal(validated.CLOUDFLARE_ACCOUNT_ID_REPOSITORY, account);
   assert.equal(validated.CLOUDFLARE_ACCOUNT_ID_SECONDARY, account);
   assert.equal(validated.AIG_PUBLIC_URL, "https://gateway.example");
   assert.deepEqual(requests, [
@@ -40,7 +39,7 @@ test("Cloudflare token-shaped repository Variables are never exported", async ()
       Response.json({
         total_count: 2,
         variables: [
-          { name: "CLOUDFLARE_ACCOUNT_ID_REPOSITORY", value: account },
+          { name: "CLOUDFLARE_ACCOUNT_ID_SECONDARY", value: account },
           { name, value: "do-not-print-this-value" },
         ],
       });
@@ -71,8 +70,8 @@ test("repository Variable inventory is bounded, denied requests fail closed", as
       readGatewayRepositoryVariables("read-token", async () =>
         Response.json({
           variables: [
-            { name: "CLOUDFLARE_ACCOUNT_ID_REPOSITORY", value: account },
-            { name: "CLOUDFLARE_ACCOUNT_ID_REPOSITORY", value: account },
+            { name: "CLOUDFLARE_ACCOUNT_ID_SECONDARY", value: account },
+            { name: "CLOUDFLARE_ACCOUNT_ID_SECONDARY", value: account },
           ],
         })
       ),
@@ -123,7 +122,7 @@ test("App Variables reader mints a signed, one-repository read-only token and re
     if (path.includes("/actions/variables?")) {
       assert.equal(authorization, `Bearer ${scopedToken}`);
       return Response.json({
-        variables: [{ name: "CLOUDFLARE_ACCOUNT_ID_REPOSITORY", value: account }],
+        variables: [{ name: "CLOUDFLARE_ACCOUNT_ID_SECONDARY", value: account }],
       });
     }
     if (path.endsWith("/installation/token")) {
@@ -139,7 +138,7 @@ test("App Variables reader mints a signed, one-repository read-only token and re
     request,
     1_790_000_000
   );
-  assert.equal(values.CLOUDFLARE_ACCOUNT_ID_REPOSITORY, account);
+  assert.equal(values.CLOUDFLARE_ACCOUNT_ID_SECONDARY, account);
   assert.deepEqual(called, [
     "https://api.github.com/repos/fongap-labs/action-worker/installation",
     "https://api.github.com/app/installations/178503233/access_tokens",

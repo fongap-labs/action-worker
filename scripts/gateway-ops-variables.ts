@@ -1,7 +1,7 @@
 import { isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
-const accountName = "CLOUDFLARE_ACCOUNT_ID_REPOSITORY";
+const accountName = "CLOUDFLARE_ACCOUNT_ID_SECONDARY";
 const maximumVariableBytes = 4_500;
 const maximumSnapshotBytes = 256 * 1024;
 const gatewayVariableName = /^AIG_[A-Z0-9_]+$/;
@@ -33,11 +33,7 @@ const forbiddenSecretNames = [
 
 /** Non-sensitive Gateway Variables belong to the Action Worker repository, not an ops Environment. */
 export function isGatewayOwnedVariableName(name: string): boolean {
-  return (
-    name === accountName ||
-    name === "CLOUDFLARE_ACCOUNT_ID_SECONDARY" ||
-    gatewayVariableName.test(name)
-  );
+  return name === accountName || gatewayVariableName.test(name);
 }
 
 function fail(name: string, reason: string): never {
@@ -86,12 +82,6 @@ export function validateGatewayOpsVariables(
   if (!/^[0-9a-f]{32}$/.test(account)) {
     fail(accountName, "is unavailable or invalid");
   }
-  // Keep the existing declared deploy contract; the authoritative Account ID
-  // itself comes only from AW_... in the repository's own Variables API.
-  if (input.CLOUDFLARE_ACCOUNT_ID_SECONDARY && input.CLOUDFLARE_ACCOUNT_ID_SECONDARY !== account) {
-    fail("CLOUDFLARE_ACCOUNT_ID_SECONDARY", "conflicts with the repository Account ID");
-  }
-  result.CLOUDFLARE_ACCOUNT_ID_SECONDARY = account;
 
   const publicUrl = result.AIG_PUBLIC_URL;
   if (publicUrl) {
@@ -148,7 +138,7 @@ export function validateGatewayBootstrapMetadata(
   input: Readonly<Record<string, unknown>>
 ): Record<string, string> {
   return validateGatewayOpsVariables({
-    CLOUDFLARE_ACCOUNT_ID_REPOSITORY: input.CLOUDFLARE_ACCOUNT_ID_REPOSITORY,
+    CLOUDFLARE_ACCOUNT_ID_SECONDARY: input.CLOUDFLARE_ACCOUNT_ID_SECONDARY,
     AIG_PUBLIC_URL: input.AIG_PUBLIC_URL ?? "",
   });
 }
@@ -223,7 +213,7 @@ async function main(): Promise<void> {
   }
   await appendLines(process.env.GITHUB_OUTPUT, [
     `variables_b64=${Buffer.from(JSON.stringify(validated), "utf8").toString("base64url")}`,
-    `account_id=${validated.CLOUDFLARE_ACCOUNT_ID_REPOSITORY}`,
+    `account_id=${validated.CLOUDFLARE_ACCOUNT_ID_SECONDARY}`,
     `public_url=${validated.AIG_PUBLIC_URL ?? ""}`,
   ]);
   console.log(`AI Gateway repository Variables validated: ${Object.keys(validated).length}.`);

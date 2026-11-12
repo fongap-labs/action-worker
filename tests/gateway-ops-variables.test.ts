@@ -16,7 +16,7 @@ const d1 = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 
 test("complete non-sensitive Gateway ops Variables are validated without hardcoded models", () => {
   const input = {
-    CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account,
+    CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
     AIG_PUBLIC_URL: "https://gateway.example/",
     AIG_AFFINITY_KV_ID: kv,
     AIG_USAGE_D1_ID: d1,
@@ -30,35 +30,33 @@ test("complete non-sensitive Gateway ops Variables are validated without hardcod
   };
   const expected = {
     ...input,
-    CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
     AIG_PUBLIC_URL: "https://gateway.example",
   };
   delete (expected as Partial<typeof input>).SOME_UNRELATED_CONTROL_VARIABLE;
   assert.deepEqual(validateGatewayOpsVariables(input), expected);
   assert.deepEqual(decodeGatewayOpsVariables(encodeGatewayOpsVariables(input)), expected);
   assert.equal(isGatewayOwnedVariableName("AIG_MODELS_CONFIG"), true);
-  assert.equal(isGatewayOwnedVariableName("CLOUDFLARE_ACCOUNT_ID_REPOSITORY"), true);
   assert.equal(isGatewayOwnedVariableName("CLOUDFLARE_ACCOUNT_ID_SECONDARY"), true);
+  assert.equal(isGatewayOwnedVariableName("CLOUDFLARE_ACCOUNT_ID_REPOSITORY"), false);
   assert.equal(isGatewayOwnedVariableName("SOME_UNRELATED_CONTROL_VARIABLE"), false);
 });
 
 test("bootstrap metadata ignores inherited retired settings without weakening deployment checks", () => {
   const inherited = {
-    CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account,
+    CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
     AIG_PUBLIC_URL: "https://gateway.example/",
     AIG_OAUTH_ADMIN_GROUPS: "MAX,ULTRA",
     AIG_TIER3_NODES_01: "[]",
     SOME_UNRELATED_VARIABLE: "other",
   };
   assert.deepEqual(validateGatewayBootstrapMetadata(inherited), {
-    CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account,
     CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
     AIG_PUBLIC_URL: "https://gateway.example",
   });
   assert.throws(() => validateGatewayOpsVariables(inherited), /retired/);
   assert.throws(
     () =>
-      validateGatewayBootstrapMetadata({ ...inherited, CLOUDFLARE_ACCOUNT_ID_REPOSITORY: "bad" }),
+      validateGatewayBootstrapMetadata({ ...inherited, CLOUDFLARE_ACCOUNT_ID_SECONDARY: "bad" }),
     /invalid/
   );
 });
@@ -66,30 +64,30 @@ test("bootstrap metadata ignores inherited retired settings without weakening de
 test("missing identity, malformed metadata, Secrets, retired and derived Variables fail closed", () => {
   for (const invalid of [
     {},
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: "invalid" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_PUBLIC_URL: "http://gateway.example" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: "invalid" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_PUBLIC_URL: "http://gateway.example" },
     {
-      CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account,
+      CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
       AIG_PUBLIC_URL: "https://user:pass@gateway.example",
     },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_PUBLIC_URL: "https://gateway.example/path" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_AFFINITY_KV_ID: "bad" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_USAGE_D1_ID: "bad" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_ANALYTICS_DATASET: "invalid-value" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_INFERENCE_TARGET: "Invalid_Service" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_TIER1_NODES_1: "[]" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_ACCESS_MODELS_: "*" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_ACCESS_KEY_AGENT: "secret" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_PROVIDER_API_KEY: "secret" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_ARCHIVE_SECRET: "secret" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_RUNTIME_ACCESS_TOKEN: "secret" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_TIER1_CREDENTIALS_01: "secret" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, CLOUDFLARE_API_TOKEN_OPS: "secret" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_TIER3_NODES_01: "[]" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_OAUTH_PROVIDERS: "[]" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_IS_SUBSCRIPTION_ENABLED: "false" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_BUILD_SHA: "configured" },
-    { CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account, AIG_INFERENCE_SERVICE: "configured" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_PUBLIC_URL: "https://gateway.example/path" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_AFFINITY_KV_ID: "bad" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_USAGE_D1_ID: "bad" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_ANALYTICS_DATASET: "invalid-value" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_INFERENCE_TARGET: "Invalid_Service" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_TIER1_NODES_1: "[]" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_ACCESS_MODELS_: "*" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_ACCESS_KEY_AGENT: "secret" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_PROVIDER_API_KEY: "secret" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_ARCHIVE_SECRET: "secret" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_RUNTIME_ACCESS_TOKEN: "secret" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_TIER1_CREDENTIALS_01: "secret" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, CLOUDFLARE_API_TOKEN_OPS: "secret" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_TIER3_NODES_01: "[]" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_OAUTH_PROVIDERS: "[]" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_IS_SUBSCRIPTION_ENABLED: "false" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_BUILD_SHA: "configured" },
+    { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account, AIG_INFERENCE_SERVICE: "configured" },
   ]) {
     assert.throws(
       () => validateGatewayOpsVariables(invalid),

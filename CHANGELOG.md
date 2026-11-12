@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 恢复 Cloudflare Account ID 与 API Token 的原有 SECONDARY 配置名称，不再要求新造的 REPOSITORY 名称；变量来源仍是 Action Worker 仓库。
+
 - 修复: GitHub App 仓库变量读取改用正确的 `actions_variables: read` 权限字段，拒绝旧错误字段并保持短期令牌撤销。
 
 - 修复: AI Gateway 部署变量读取改用单仓库 Variables 只读短期 App 令牌，读取后撤销，去除上游 Action 无效参数并安全拒绝未批准的安装权限。
