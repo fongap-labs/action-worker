@@ -371,8 +371,8 @@ test("AI Gateway takes AIG runtime Variables from protected ops and Cloudflare a
     AIG_TIER1_NODES_01: ops.AIG_TIER1_NODES_01,
     AIG_ACCESS_MODELS_AGENT: "Code-Max",
   });
-  assert.equal(result.CLOUDFLARE_API_TOKEN_SECONDARY, undefined);
-  assert.equal(result.AW_AI_AGENT_CONFIG, undefined);
+  assert.equal(Object.hasOwn(result, "CLOUDFLARE_API_TOKEN_SECONDARY"), false);
+  assert.equal(Object.hasOwn(result, "AW_AI_AGENT_CONFIG"), false);
   assert.throws(
     () => mergeApprovedGatewayOpsVariables({}, "fongap-labs/ai-gateway", "production", repository, "ai-gateway-ops"),
     /AIG_MODELS_CONFIG is unavailable or empty/
