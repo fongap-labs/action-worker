@@ -163,7 +163,9 @@ export async function readGatewayVariablesWithApp(
   try {
     if (
       issued.permissions?.actions_variables !== "read" ||
-      Object.keys(issued.permissions).some((key) => key !== "actions_variables" && key !== "metadata")
+      Object.keys(issued.permissions).some(
+        (key) => key !== "actions_variables" && key !== "metadata"
+      )
     ) {
       throw new CliError("GitHub App token has unexpected repository permissions.", 77);
     }
