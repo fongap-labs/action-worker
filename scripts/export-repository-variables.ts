@@ -63,21 +63,24 @@ export function scopedMcpHubVariables(environment: NodeJS.ProcessEnv): Record<st
 }
 
 /**
- * AI Gateway production Variables are validated in the protected ops job.
- * The deploy job also binds the ai-gateway-ops Environment, which means
- * toJSON(vars) legitimately contains the same inherited values. Only an
- * approved, matching snapshot may be exported; unapproved names/values fail.
+ * AI Gateway deployment Variables are validated by a job without a GitHub
+ * Environment, using the Action Worker repository Variables API directly.
+ * Deploy runs may still bind ai-gateway-ops for Provider Secrets, but inherited
+ * Environment Variables must never override or supplement this snapshot.
  */
 export function mergeApprovedGatewayOpsVariables(
   variables: Record<string, string>,
   sourceRepository: string | undefined,
   deployEnvironment: string | undefined,
-  fromOps: Readonly<Record<string, string | undefined>>,
+  fromRepository: Readonly<Record<string, string | undefined>>,
   credentialEnvironment?: string
 ): Record<string, string> {
   if (sourceRepository !== "fongap-labs/ai-gateway" || deployEnvironment !== "production") {
-    if (Object.values(fromOps).some((value) => Boolean(value))) {
-      throw new CliError("Ops Variable handoff is not authorized for this deployment.", 77);
+    if (Object.values(fromRepository).some((value) => Boolean(value))) {
+      throw new CliError(
+        "Gateway repository Variable handoff is not authorized for this deployment.",
+        77
+      );
     }
     return variables;
   }
@@ -87,29 +90,15 @@ export function mergeApprovedGatewayOpsVariables(
       77
     );
   }
-  const approved = validateGatewayOpsVariables(fromOps);
-  const inherited = Object.fromEntries(
-    Object.entries(variables).filter(([name]) => isGatewayOwnedVariableName(name))
+  const approved = validateGatewayOpsVariables(fromRepository);
+  // Inherited env-scoped AIG and Cloudflare account metadata are discarded,
+  // not compared or used as a fallback. This prevents scope shadowing.
+  const ordinaryVariables = Object.fromEntries(
+    Object.entries(variables).filter(
+      ([name]) => !isGatewayOwnedVariableName(name) && !/^(?:AW_)?CLOUDFLARE_/.test(name)
+    )
   );
-  // Normalize inherited values (notably an HTTPS origin with a trailing slash)
-  // and reject retired OAuth bindings, misplaced Secrets, and invalid values.
-  const validatedInherited = validateGatewayOpsVariables({
-    CLOUDFLARE_ACCOUNT_ID_SECONDARY: approved.CLOUDFLARE_ACCOUNT_ID_SECONDARY,
-    ...inherited,
-  });
-  const conflicts = Object.keys(inherited)
-    .filter((name) => validatedInherited[name] !== approved[name])
-    .sort();
-  if (conflicts.length > 0) {
-    throw new CliError(
-      "AI Gateway deploy Variables conflict with the approved protected ops snapshot: " +
-        conflicts.join(", ") +
-        ".",
-      77
-    );
-  }
-  // The protected handoff is authoritative; never let inherited values override it.
-  return { ...variables, ...approved };
+  return { ...ordinaryVariables, ...approved };
 }
 
 async function main(): Promise<void> {
@@ -132,8 +121,8 @@ async function main(): Promise<void> {
     Object.fromEntries(variableEntries(value)),
     process.env.DEPLOY_SOURCE_REPOSITORY,
     process.env.DEPLOY_ENVIRONMENT,
-    process.env.AW_GATEWAY_VARIABLES_B64_FROM_OPS
-      ? decodeGatewayOpsVariables(process.env.AW_GATEWAY_VARIABLES_B64_FROM_OPS)
+    process.env.AW_GATEWAY_VARIABLES_B64_FROM_REPOSITORY
+      ? decodeGatewayOpsVariables(process.env.AW_GATEWAY_VARIABLES_B64_FROM_REPOSITORY)
       : {},
     process.env.DEPLOY_CREDENTIAL_ENVIRONMENT
   );

@@ -1,7 +1,7 @@
 import { isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
-const accountName = "CLOUDFLARE_ACCOUNT_ID_SECONDARY";
+const accountName = "CLOUDFLARE_ACCOUNT_ID_REPOSITORY";
 const maximumVariableBytes = 4_500;
 const maximumSnapshotBytes = 256 * 1024;
 const gatewayVariableName = /^AIG_[A-Z0-9_]+$/;
@@ -22,6 +22,7 @@ const forbiddenSecretNamePattern =
 
 const forbiddenSecretNames = [
   /^CLOUDFLARE_API_TOKEN(?:_|$)/,
+  /^AW_CLOUDFLARE_API_TOKEN(?:_|$)/,
   /^AIG_ACCESS_KEY(?:_|$)/,
   /^AIG_TIER[12]_CREDENTIALS(?:_|$)/,
   /^AIG_(?:INFERENCE|GENERATION)_AUTH_KEY$/,
@@ -30,13 +31,17 @@ const forbiddenSecretNames = [
   /^AIG_TOKEN_ENCRYPTION_KEY$/,
 ];
 
-/** Names whose non-sensitive values are owned only by protected ai-gateway-ops. */
+/** Non-sensitive Gateway Variables belong to the Action Worker repository, not an ops Environment. */
 export function isGatewayOwnedVariableName(name: string): boolean {
-  return name === accountName || gatewayVariableName.test(name);
+  return (
+    name === accountName ||
+    name === "CLOUDFLARE_ACCOUNT_ID_SECONDARY" ||
+    gatewayVariableName.test(name)
+  );
 }
 
 function fail(name: string, reason: string): never {
-  throw new CliError(`Approved ai-gateway-ops Variable ${name} ${reason}.`, 77);
+  throw new CliError(`Approved Action Worker repository Variable ${name} ${reason}.`, 77);
 }
 
 /**
@@ -81,6 +86,12 @@ export function validateGatewayOpsVariables(
   if (!/^[0-9a-f]{32}$/.test(account)) {
     fail(accountName, "is unavailable or invalid");
   }
+  // Keep the existing declared deploy contract; the authoritative Account ID
+  // itself comes only from AW_... in the repository's own Variables API.
+  if (input.CLOUDFLARE_ACCOUNT_ID_SECONDARY && input.CLOUDFLARE_ACCOUNT_ID_SECONDARY !== account) {
+    fail("CLOUDFLARE_ACCOUNT_ID_SECONDARY", "conflicts with the repository Account ID");
+  }
+  result.CLOUDFLARE_ACCOUNT_ID_SECONDARY = account;
 
   const publicUrl = result.AIG_PUBLIC_URL;
   if (publicUrl) {
@@ -125,7 +136,7 @@ export function validateGatewayOpsVariables(
   const serializedBytes = Buffer.byteLength(JSON.stringify(result), "utf8");
   if (serializedBytes > maximumSnapshotBytes) {
     throw new CliError(
-      `Approved ai-gateway-ops Variable snapshot exceeds ${maximumSnapshotBytes} UTF-8 bytes.`,
+      `Approved Action Worker repository Variable snapshot exceeds ${maximumSnapshotBytes} UTF-8 bytes.`,
       77
     );
   }
@@ -137,7 +148,7 @@ export function validateGatewayBootstrapMetadata(
   input: Readonly<Record<string, unknown>>
 ): Record<string, string> {
   return validateGatewayOpsVariables({
-    CLOUDFLARE_ACCOUNT_ID_SECONDARY: input.CLOUDFLARE_ACCOUNT_ID_SECONDARY,
+    CLOUDFLARE_ACCOUNT_ID_REPOSITORY: input.CLOUDFLARE_ACCOUNT_ID_REPOSITORY,
     AIG_PUBLIC_URL: input.AIG_PUBLIC_URL ?? "",
   });
 }
@@ -150,17 +161,27 @@ export function encodeGatewayOpsVariables(input: Readonly<Record<string, unknown
 export function decodeGatewayOpsVariables(encoded: string): Record<string, string> {
   if (!encoded || encoded.length > Math.ceil((maximumSnapshotBytes * 4) / 3) + 4) {
     throw new CliError(
-      "Approved ai-gateway-ops Variable snapshot is unavailable or too large.",
+      "Approved Action Worker repository Variable snapshot is unavailable or too large.",
       77
     );
   }
   if (!/^[A-Za-z0-9_-]+$/.test(encoded)) {
-    throw new CliError("Approved ai-gateway-ops Variable snapshot encoding is invalid.", 77);
+    throw new CliError(
+      "Approved Action Worker repository Variable snapshot encoding is invalid.",
+      77
+    );
   }
   const decoded = Buffer.from(encoded, "base64url").toString("utf8");
-  const parsed = parseJson(decoded, "Approved ai-gateway-ops Variable snapshot is invalid.", 77);
+  const parsed = parseJson(
+    decoded,
+    "Approved Action Worker repository Variable snapshot is invalid.",
+    77
+  );
   if (!isJsonRecord(parsed)) {
-    throw new CliError("Approved ai-gateway-ops Variable snapshot must be a JSON object.", 77);
+    throw new CliError(
+      "Approved Action Worker repository Variable snapshot must be a JSON object.",
+      77
+    );
   }
   return validateGatewayOpsVariables(parsed);
 }
@@ -189,20 +210,23 @@ async function main(): Promise<void> {
   } else {
     const payload = parseJson(
       process.env.AIG_OPS_VARIABLES_JSON || "{}",
-      "Approved ai-gateway-ops Variables payload must be valid JSON.",
+      "Approved Action Worker repository Variables payload must be valid JSON.",
       77
     );
     if (!isJsonRecord(payload)) {
-      throw new CliError("Approved ai-gateway-ops Variables payload must be a JSON object.", 77);
+      throw new CliError(
+        "Approved Action Worker repository Variables payload must be a JSON object.",
+        77
+      );
     }
     validated = validateGatewayOpsVariables(payload);
   }
   await appendLines(process.env.GITHUB_OUTPUT, [
     `variables_b64=${Buffer.from(JSON.stringify(validated), "utf8").toString("base64url")}`,
-    `account_id=${validated.CLOUDFLARE_ACCOUNT_ID_SECONDARY}`,
+    `account_id=${validated.CLOUDFLARE_ACCOUNT_ID_REPOSITORY}`,
     `public_url=${validated.AIG_PUBLIC_URL ?? ""}`,
   ]);
-  console.log(`Protected AI Gateway ops Variables validated: ${Object.keys(validated).length}.`);
+  console.log(`AI Gateway repository Variables validated: ${Object.keys(validated).length}.`);
 }
 
 if (isMain(import.meta.url)) main().catch(handleError);

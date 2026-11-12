@@ -9,13 +9,7 @@ import {
   deployEventType,
   parseDeployPolicy,
 } from "./dispatch-central-deploy.ts";
-import {
-  getJsonArray,
-  getJsonString,
-  githubEnvironment,
-  isJsonRecord,
-  statusAwareReader,
-} from "./github-api.ts";
+import { getJsonString, githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api.ts";
 import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { type ContentReader, discoverProducts } from "./product-discovery.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";

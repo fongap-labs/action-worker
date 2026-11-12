@@ -297,14 +297,12 @@ jobs:
     # Only validated non-sensitive Variables are exported; no ops Secret crosses the trust boundary.
     needs: prepare
     if: needs.prepare.result == 'success' && needs.prepare.outputs.source_repository == 'fongap-labs/ai-gateway' && needs.prepare.outputs.environment == 'production' && needs.prepare.outputs.product == ''
-    name: Resolve AI Gateway deployment Variables from protected ops
+    name: Resolve AI Gateway deployment Variables from Action Worker repository
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    environment:
-      name: ai-gateway-ops
-      deployment: false
     permissions:
       contents: read
+      actions: read
     outputs:
       variables_b64: ${{ steps.variables.outputs.variables_b64 }}
     steps:
@@ -317,11 +315,19 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-      - name: Validate non-sensitive AI Gateway ops Variables
+      - name: Mint repository-only Variables read token
+        id: repository_variables_app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          repositories: ${{ github.event.repository.name }}
+          permission-variables: read
+      - name: Validate non-sensitive AI Gateway repository Variables
         id: variables
         env:
-          AIG_OPS_VARIABLES_JSON: ${{ toJSON(vars) }}
-        run: node scripts/gateway-ops-variables.ts
+          GITHUB_TOKEN: ${{ steps.repository_variables_app.outputs.token }}
+        run: node scripts/gateway-repository-vars.ts
 
   deploy:
     name: Execute source-script deploy
@@ -396,8 +402,8 @@ jobs:
       - name: Export scoped deployment variables
         if: needs.prepare.outputs.source_repository != 'fongap-labs/mcp-hub'
         env:
-          REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}
-          AW_GATEWAY_VARIABLES_B64_FROM_OPS: ${{ needs.gateway_variables.outputs.variables_b64 }}
+          REPOSITORY_VARS_JSON: ${{ needs.prepare.outputs.source_repository == 'fongap-labs/ai-gateway' && '{}' || toJSON(vars) }}
+          AW_GATEWAY_VARIABLES_B64_FROM_REPOSITORY: ${{ needs.gateway_variables.outputs.variables_b64 }}
           DEPLOY_CREDENTIAL_ENVIRONMENT: ${{ needs.prepare.outputs.credential_environment }}
         run: node control/scripts/export-repository-variables.ts
 
