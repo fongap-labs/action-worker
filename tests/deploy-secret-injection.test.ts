@@ -113,7 +113,7 @@ test("shipped product ceilings remain isolated and use Cloudflare deployment cre
     "fongap-labs/ai-gateway",
     "production"
   );
-  assert.equal(aliases.get("CLOUDFLARE_API_TOKEN"), "AW_CLOUDFLARE_API_TOKEN_SECONDARY");
+  assert.equal(aliases.get("CLOUDFLARE_API_TOKEN"), "CLOUDFLARE_API_TOKEN_REPOSITORY");
   assert.deepEqual(
     [
       ...(await readDeploySecretVariableSources(
@@ -273,7 +273,7 @@ test("workflow resolves one source per fixed slot without embedding product Secr
 test("AI Gateway deploy uses only approved repository Variables, never shadowed ops text", () => {
   const account = "0123456789abcdef0123456789abcdef";
   const approved = {
-    AW_CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
+    CLOUDFLARE_ACCOUNT_ID_REPOSITORY: account,
     AIG_PUBLIC_URL: "https://gateway.example/",
     AIG_AFFINITY_KV_ID: "11111111111111111111111111111111",
     AIG_USAGE_D1_ID: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
@@ -293,7 +293,7 @@ test("AI Gateway deploy uses only approved repository Variables, never shadowed 
     AIG_UNKNOWN_CONFIG: "should-not-leak",
     AIG_ACCESS_KEY_AGENT: "shadowed-secret-variable",
     CLOUDFLARE_API_TOKEN_SECONDARY: "never-export-token-variables",
-    AW_CLOUDFLARE_API_TOKEN_SECONDARY: "never-export-token-variables",
+    CLOUDFLARE_API_TOKEN_REPOSITORY: "never-export-token-variables",
     PUBLIC_VALUE: "unchanged",
   };
   assert.deepEqual(
