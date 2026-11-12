@@ -111,6 +111,8 @@ test("deployment workflow uses repository-only Gateway Variables without inherit
   );
   assert.deepEqual(ops.outputs, {
     variables_b64: "${{ steps.variables.outputs.variables_b64 }}",
+    cloudflare_nonce: "${{ steps.cloudflare_secret.outputs.nonce }}",
+    cloudflare_proof: "${{ steps.cloudflare_secret.outputs.proof }}",
   });
   const steps = ops.steps as Array<{ name: string; env?: Record<string, string>; run?: string }>;
   assert.equal(steps.at(-1)?.run, "node scripts/gateway-repository-vars.ts");

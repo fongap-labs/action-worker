@@ -16,7 +16,7 @@ export function cloudflareRepositorySecretProof(secret: string, nonce: string): 
   if (!hex256.test(nonce)) {
     throw new CliError("Cloudflare repository Secret challenge is invalid.", 77);
   }
-  return createHmac("sha256", secret).update(domain + ":" + nonce).digest("hex");
+  return createHmac("sha256", secret).update(`${domain}:${nonce}`).digest("hex");
 }
 
 export function verifyGatewayCloudflareRepositorySecret(
@@ -53,10 +53,7 @@ async function main(): Promise<void> {
     }
     const nonce = randomBytes(32).toString("hex");
     const proof = cloudflareRepositorySecretProof(secret, nonce);
-    await appendLines(process.env.GITHUB_OUTPUT, [
-      "nonce=" + nonce,
-      "proof=" + proof,
-    ]);
+    await appendLines(process.env.GITHUB_OUTPUT, [`nonce=${nonce}`, `proof=${proof}`]);
     console.log("Repository-scope Cloudflare Secret verified; no value exported.");
     return;
   }

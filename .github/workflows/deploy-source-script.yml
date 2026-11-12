@@ -323,7 +323,7 @@ jobs:
         id: cloudflare_secret
         env:
           CLOUDFLARE_API_TOKEN_SECONDARY: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}
-        run: node scripts/verify-gateway-cloudflare-repository-secret.ts prove
+        run: node scripts/gateway-secret-source.ts prove
       # A GitHub App installation must grant repository Variables: read. The
       # upstream token Action does not declare permission-variables, so mint a
       # single-purpose token, consume it, and revoke it inside one trusted step.
@@ -410,7 +410,7 @@ jobs:
           CLOUDFLARE_API_TOKEN_SECONDARY: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}
           AW_CLOUDFLARE_PROOF_NONCE: ${{ needs.gateway_variables.outputs.cloudflare_nonce }}
           AW_CLOUDFLARE_REPOSITORY_PROOF: ${{ needs.gateway_variables.outputs.cloudflare_proof }}
-        run: node control/scripts/verify-gateway-cloudflare-repository-secret.ts verify
+        run: node control/scripts/gateway-secret-source.ts verify
 
       - name: Export scoped deployment variables
         if: needs.prepare.outputs.source_repository != 'fongap-labs/mcp-hub'

@@ -5,7 +5,7 @@ import { parse } from "yaml";
 import {
   cloudflareRepositorySecretProof,
   verifyGatewayCloudflareRepositorySecret,
-} from "../scripts/verify-gateway-cloudflare-repository-secret.ts";
+} from "../scripts/gateway-secret-source.ts";
 
 const nonce = "a".repeat(64);
 
@@ -53,7 +53,7 @@ test("AI Gateway deployment checks Cloudflare Secret before staging credentials"
     prove?.env?.CLOUDFLARE_API_TOKEN_SECONDARY,
     "${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}"
   );
-  assert.equal(prove?.run, "node scripts/verify-gateway-cloudflare-repository-secret.ts prove");
+  assert.equal(prove?.run, "node scripts/gateway-secret-source.ts prove");
   assert.equal(
     repositoryJob?.outputs?.cloudflare_proof,
     "${{ steps.cloudflare_secret.outputs.proof }}"
@@ -77,6 +77,6 @@ test("AI Gateway deployment checks Cloudflare Secret before staging credentials"
   );
   assert.equal(
     verify?.run,
-    "node control/scripts/verify-gateway-cloudflare-repository-secret.ts verify"
+    "node control/scripts/gateway-secret-source.ts verify"
   );
 });

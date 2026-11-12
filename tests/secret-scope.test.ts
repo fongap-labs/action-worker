@@ -448,7 +448,15 @@ test("task execution uses only policy-scoped Secret slots; deployment remains sc
   assert.match(deployWorkflow, /secrets\[steps\.secret_plan\.outputs\.secret_00\]/);
   assert.match(deployWorkflow, /stage-deploy-secret-bundle\.ts/);
   assert.doesNotMatch(deployWorkflow, /env:\s*\$\{\{\s*secrets\s*\}\}/);
-  assert.doesNotMatch(deployWorkflow, /secrets\.CLOUDFLARE_API_TOKEN_SECONDARY/);
+  // Only the two explicitly verified Cloudflare proof steps may bind the original
+  // repository Secret by name; every actual deploy Secret still passes scoped slots.
+  const cloudflareBinding =
+    "CLOUDFLARE_API_TOKEN_SECONDARY: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}";
+  assert.equal(deployWorkflow.split(cloudflareBinding).length - 1, 2);
+  assert.doesNotMatch(
+    deployWorkflow.replaceAll(cloudflareBinding, ""),
+    /secrets\.CLOUDFLARE_API_TOKEN_SECONDARY/
+  );
 });
 
 test("AI Gateway operations workflow is protected and never accepts secret values as inputs", async () => {
