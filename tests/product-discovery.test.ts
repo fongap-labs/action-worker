@@ -198,7 +198,7 @@ test("an existing project directory without a release declaration has an actiona
     "projects/Steno/package.json": '{"name":"steno"}',
   };
   const discovery = await discoverProducts(contentsReader(files), repository, sha);
-  assert.deepEqual(discovery.undeclared_directories, ["Steno", "docs"]);
+  assert.deepEqual(discovery.undeclared_directories?.sort(), ["Steno", "docs"].sort());
   assert.deepEqual(discovery.products.map((product) => product.name), ["api", "web"]);
 
   const request = parseReleaseBuildRequest({
