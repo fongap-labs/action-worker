@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: GitHub App 仓库变量读取改用正确的 `actions_variables: read` 权限字段，拒绝旧错误字段并保持短期令牌撤销。
+
 - 修复: AI Gateway 部署变量读取改用单仓库 Variables 只读短期 App 令牌，读取后撤销，去除上游 Action 无效参数并安全拒绝未批准的安装权限。
 
 - 修复: Tier 1 容量测试定位 AI Gateway 中立执行器，兼容旧入口且保留 404 未派发验收。
