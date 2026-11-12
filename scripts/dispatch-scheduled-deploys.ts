@@ -10,7 +10,6 @@ import {
   parseDeployPolicy,
 } from "./dispatch-central-deploy.ts";
 import {
-  getJsonArray,
   getJsonString,
   githubEnvironment,
   isJsonRecord,
