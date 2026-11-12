@@ -61,7 +61,7 @@ export function validatePackManifest(packName, manifest) {
     Array.isArray(manifest) ||
     manifest.schema_version !== 1 ||
     manifest.pack !== packName ||
-    !["node", "python"].includes(manifest.runtime)
+    (manifest.runtime !== "node" && manifest.runtime !== "python")
   ) {
     throw new Error(`pack ${packName}: invalid manifest identity, schema or runtime`);
   }
@@ -119,7 +119,7 @@ export function validatePackTier(packName, manifest, tier) {
  * @param {PackManifest} manifest
  * @param {string[]} files
  * @param {"unit" | "gate" | "all"} tier
- * @param {string | undefined} filter
+ * @param {string} [filter]
  */
 export function selectNodePackSuites(packName, manifest, files, tier, filter) {
   validatePackTier(packName, manifest, tier);
@@ -157,7 +157,8 @@ function main() {
   /** @type {PackManifest} */
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   validatePackManifest(packName, manifest);
-  validatePackTier(packName, manifest, tier);
+  const selectedTier = /** @type {"unit" | "gate" | "all"} */ (tier);
+  validatePackTier(packName, manifest, selectedTier);
   const target = resolve(targetArg);
   // Allow-listed environment: base OS vars plus names the pack declares in
   // pack.json. Host secrets (CI tokens, local dev keys) are never forwarded.
@@ -170,7 +171,7 @@ function main() {
     const files = readdirSync(packDir)
       .filter((name) => name.endsWith(/** @type {string} */ (manifest.suffix)))
       .sort();
-    const selected = selectNodePackSuites(packName, manifest, files, tier, filter);
+    const selected = selectNodePackSuites(packName, manifest, files, selectedTier, filter);
     const register = pathToFileURL(join(here, "kit", "register-target.mjs")).href;
     const run = spawnSync(
       process.execPath,
