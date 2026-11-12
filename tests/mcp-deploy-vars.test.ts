@@ -5,7 +5,7 @@ import { parse } from "yaml";
 import { scopedMcpHubVariables } from "../scripts/export-repository-variables.ts";
 
 test("MCP Hub deploy receives only allowlisted nonsecret Variables", () => {
-  const variables = scopedMcpHubVariables({
+  const variables: Record<string, string> = scopedMcpHubVariables({
     AW_MCP_HUB_VAR_MCP_ACCESS_AUD: "aud-public",
     AW_MCP_HUB_VAR_CLOUDFLARE_ACCOUNT_ID_SECONDARY: "0123456789abcdef0123456789abcdef",
     AW_MCP_HUB_VAR_MCP_D1_ID: "d1-uuid",

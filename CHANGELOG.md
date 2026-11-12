@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- 修复: MCP Hub 生产部署仅导出明确白名单的普通 Variables，避免仓库误配的 Cloudflare API Token 普通变量污染 Secrets 通道及泄露到 Actions 环境日志；Token/TOTP 仍只允许经 GitHub Secrets 动态密钥槽注入，缺失时继续失败关闭。
+- 修复: MCP Hub 部署仅导出白名单普通变量，避免 API Token 误入 Actions 日志；Token/TOTP 仍必须从 Secrets 注入。
 
 - 修复: 部署历史定期清理仅响应每小时第 17、47 分钟的 Cron，排除每日 05:31 运维触发的额外清理，严格保持半小时节奏及每批 API 限额。
 
