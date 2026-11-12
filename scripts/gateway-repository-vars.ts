@@ -87,12 +87,12 @@ function appJwt(clientId: string, privateKey: string, now: number): string {
   const payload = Buffer.from(
     JSON.stringify({ iat: now - 60, exp: now + 540, iss: clientId })
   ).toString("base64url");
-  const unsigned = header + "." + payload;
+  const unsigned = `${header}.${payload}`;
   try {
     const signature = sign("RSA-SHA256", Buffer.from(unsigned), {
       key: privateKey.replaceAll("\\n", "\n"),
     }).toString("base64url");
-    return unsigned + "." + signature;
+    return `${unsigned}.${signature}`;
   } catch {
     throw new CliError("GitHub App signing key is invalid; refusing Variable access.", 77);
   }
@@ -100,7 +100,7 @@ function appJwt(clientId: string, privateKey: string, now: number): string {
 
 function authHeaders(token: string): Record<string, string> {
   return {
-    Authorization: "Bearer " + token,
+    Authorization: `Bearer ${token}`,
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
   };
@@ -118,7 +118,7 @@ export async function readGatewayVariablesWithApp(
   now = Math.floor(Date.now() / 1000)
 ): Promise<Record<string, string>> {
   const jwt = appJwt(clientId, privateKey, now);
-  const installationResponse = await request(apiBase + "/repos/" + repository + "/installation", {
+  const installationResponse = await request(`${apiBase}/repos/${repository}/installation`, {
     headers: authHeaders(jwt),
     signal: AbortSignal.timeout(15_000),
   });
@@ -129,7 +129,7 @@ export async function readGatewayVariablesWithApp(
   if (typeof installation.id !== "number" || !Number.isSafeInteger(installation.id) || installation.id <= 0) {
     throw new CliError("GitHub App installation ID is invalid.", 77);
   }
-  const minted = await request(apiBase + "/app/installations/" + installation.id + "/access_tokens", {
+  const minted = await request(`${apiBase}/app/installations/${installation.id}/access_tokens`, {
     method: "POST",
     headers: { ...authHeaders(jwt), "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -142,7 +142,7 @@ export async function readGatewayVariablesWithApp(
     throw new CliError(
       minted.status === 422 || minted.status === 403
         ? "GitHub App installation lacks repository Variables: read; approve this permission in GitHub App settings before deploying."
-        : "Unable to mint repository Variables read token (HTTP " + minted.status + ").",
+        : `Unable to mint repository Variables read token (HTTP ${minted.status}).`,
       77
     );
   }
@@ -154,6 +154,8 @@ export async function readGatewayVariablesWithApp(
     throw new CliError("GitHub App installation token response is invalid.", 77);
   }
   const token = issued.token;
+  let snapshot: Record<string, string> | undefined;
+  let readError: unknown;
   try {
     if (
       issued.permissions?.variables !== "read" ||
@@ -161,23 +163,30 @@ export async function readGatewayVariablesWithApp(
     ) {
       throw new CliError("GitHub App token has unexpected repository permissions.", 77);
     }
-    return await readGatewayRepositoryVariables(token, request);
-  } finally {
-    let revoked = false;
-    try {
-      const response = await request(apiBase + "/installation/token", {
-        method: "DELETE",
-        headers: authHeaders(token),
-        signal: AbortSignal.timeout(15_000),
-      });
-      revoked = response.status === 204;
-    } catch {
-      // A token that cannot be revoked must never authorize deployment.
-    }
-    if (!revoked) {
-      throw new CliError("GitHub App Variables read token could not be revoked; deployment refused.", 77);
-    }
+    snapshot = await readGatewayRepositoryVariables(token, request);
+  } catch (error) {
+    readError = error;
   }
+  let isRevoked = false;
+  try {
+    const response = await request(`${apiBase}/installation/token`, {
+      method: "DELETE",
+      headers: authHeaders(token),
+      signal: AbortSignal.timeout(15_000),
+    });
+    isRevoked = response.status === 204;
+  } catch {
+    // A token that cannot be revoked must never authorize deployment.
+  }
+  if (!isRevoked) {
+    throw new CliError(
+      "GitHub App Variables read token could not be revoked; deployment refused.",
+      77
+    );
+  }
+  if (readError !== undefined) throw readError;
+  if (!snapshot) throw new CliError("Repository Variable inventory is unavailable.", 77);
+  return snapshot;
 }
 
 async function main(): Promise<void> {
