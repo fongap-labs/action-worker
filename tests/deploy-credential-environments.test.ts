@@ -97,7 +97,10 @@ test("credential routes fail closed for unauthorized policy edits and cross-owne
     },
     {
       schema_version: 1,
-      routes: { "fongap-labs/mcp-hub": { production: "ai-gateway-ops" } },
+      routes: {
+        "fongap-labs/ai-gateway": { production: "ai-gateway-ops" },
+        "fongap-labs/mcp-hub": { production: "ai-gateway-ops" },
+      },
     },
   ]) {
     assert.throws(
