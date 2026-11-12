@@ -13,7 +13,7 @@ export async function readGatewayRepositoryVariables(
   let completed = false;
   for (let page = 1; page <= 10; page++) {
     const response = await request(
-      `https://api.github.com/repos/fongap-labs/action-worker/actions/variables?per_page=100&page=${page}`,
+      `https://api.github.com/repos/fongap-labs/action-worker/actions/variables?per_page=30&page=${page}`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -39,7 +39,7 @@ export async function readGatewayRepositoryVariables(
       }
       result[item.name] = item.value;
     }
-    if (data.variables.length < 100) {
+    if (data.variables.length < 30) {
       completed = true;
       break;
     }
