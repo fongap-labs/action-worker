@@ -183,11 +183,10 @@ test("signed Task Source success prevents re-dispatching an unchanged HEAD", asy
     },
   };
   let dispatched = 0;
-  const result = await scanTaskSources(
-    { [repository]: ["task"] },
-    source,
-    async () => { dispatched += 1; }
-  );
+  const dispatch = async (): Promise<void> => {
+    dispatched += 1;
+  };
+  const result = await scanTaskSources({ [repository]: ["task"] }, source, dispatch);
   assert.equal(dispatched, 0);
   assert.equal(result.already_processed, 1);
   assert.equal(result.dispatched, 0);
