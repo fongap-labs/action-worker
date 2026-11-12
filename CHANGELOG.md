@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 总控 PR 自动合并改用 GitHub REST 的原子期望 HEAD SHA 参数，拒绝验收后被追加提交的竞态合并；合并后比对实际 PR HEAD 与主分支合并 SHA，保留现有 CI 和 Main Write Guard 门禁。
+
 - 修复: 非生产 Deployment 历史清理改为每 30 分钟自动运行，单次清理上限调整为 120 条，控制 GitHub API 小时配额；原有每日分支和运行记录维护保持不变。
 
 - 修复: 非生产 Deployment 历史记录由单次最多 300 条调整为按小时自动续清，继续遵守 GitHub API 配额；分支及过期工作流仍只在每天既定维护时段清理，无需逐个修改环境设置。
