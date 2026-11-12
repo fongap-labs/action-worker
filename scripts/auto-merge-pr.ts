@@ -107,7 +107,9 @@ export function isApprovedCompletedMerge(
     pull.number !== prNumber ||
     getJsonString(pull, "merged_at") === "" ||
     !SHA.test(getJsonString(pull, "merge_commit_sha"))
-  ) return false;
+  ) {
+    return false;
+  }
   // Reuse the same immutable-head, signed-PR-title, matching-run and CI checks
   // that would have authorized the attempted merge while the PR was open.
   try {
@@ -158,7 +160,17 @@ async function main(): Promise<void> {
   const statuses = await getGithubJson(`repos/${repository}/commits/${headSha}/status`, readToken);
   // A competing GitHub auto-merge may have finished between the signed gate
   // publication and this job; the exact approved head still must be proven.
-  if (isApprovedCompletedMerge(pull, statuses, repository, Number(number), headSha, baseSha, governanceRunUrl)) {
+  if (
+    isApprovedCompletedMerge(
+      pull,
+      statuses,
+      repository,
+      Number(number),
+      headSha,
+      baseSha,
+      governanceRunUrl
+    )
+  ) {
     console.log(`Already merged exact CI-approved head: ${repository}#${number}@${headSha}.`);
     return;
   }
@@ -202,10 +214,22 @@ async function main(): Promise<void> {
     // Do not convert an ordinary merge failure into success. Only a separately
     // verified, already-completed merge of this exact approved PR head qualifies.
     const concurrent = await getGithubJson(pullPath, readToken);
-    if (!isApprovedCompletedMerge(
-      concurrent, statuses, repository, Number(number), headSha, baseSha, governanceRunUrl
-    )) throw error;
-    console.log(`Concurrent merge completed exact CI-approved head: ${repository}#${number}@${headSha}.`);
+    if (
+      !isApprovedCompletedMerge(
+        concurrent,
+        statuses,
+        repository,
+        Number(number),
+        headSha,
+        baseSha,
+        governanceRunUrl
+      )
+    ) {
+      throw error;
+    }
+    console.log(
+      `Concurrent merge completed exact CI-approved head: ${repository}#${number}@${headSha}.`
+    );
     return;
   }
   const after = await getGithubJson(pullPath, readToken);
