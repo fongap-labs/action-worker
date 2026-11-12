@@ -1,4 +1,4 @@
-# 网关凭据迁移至中央部署仓库
+# 网关云平台凭据归仓管理
 
 此文档只描述 **fongap-labs/ai-gateway** 在 Action Worker 控制仓库的部署来源。只允许经中央 CI 认可的生产发布修改四个 Cloudflare Worker。
 
@@ -8,11 +8,11 @@
 
 | GitHub 范围 | 名称 | 用途 |
 |---|---|---|
-| Repository Secrets | `AW_CLOUDFLARE_API_TOKEN_SECONDARY` | Cloudflare API 发布和只读盘点 |
-| Repository Secrets | `AW_AIG_INFERENCE_AUTH_KEY` | Gateway ↔ Inference Center 认证 |
-| Repository Secrets | `AW_AIG_PERCEPTION_AUTH_KEY` | Gateway ↔ Perception Center 认证 |
-| Repository Secrets | `AW_AIG_GENERATION_AUTH_KEY` | Gateway ↔ Generation Center 认证 |
-| Repository Variables | `AW_CLOUDFLARE_ACCOUNT_ID_SECONDARY` | Cloudflare Account ID |
+| Repository Secrets | `CLOUDFLARE_API_TOKEN_REPOSITORY` | Cloudflare API 发布和只读盘点 |
+| Repository Secrets | `AIG_INFERENCE_AUTH_KEY_REPOSITORY` | Gateway ↔ Inference Center 认证 |
+| Repository Secrets | `AIG_PERCEPTION_AUTH_KEY_REPOSITORY` | Gateway ↔ Perception Center 认证 |
+| Repository Secrets | `AIG_GENERATION_AUTH_KEY_REPOSITORY` | Gateway ↔ Generation Center 认证 |
+| Repository Variables | `CLOUDFLARE_ACCOUNT_ID_REPOSITORY` | Cloudflare Account ID |
 | Repository Variables | `AIG_PUBLIC_URL`、`AIG_MODELS_CONFIG`、`AIG_POLICIES_CONFIG`、`AIG_TIER1_NODES_01` 等 | 非敏感部署配置、路由与模型清单 |
 | Repository Variables | `AIG_AFFINITY_KV_ID`、`AIG_USAGE_D1_ID`、`AIG_ANALYTICS_DATASET`、`AIG_TRACE_HEAD_SAMPLE_RATE` 等 | Cloudflare 资源标识和观测开关 |
 
