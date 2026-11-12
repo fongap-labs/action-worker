@@ -108,7 +108,7 @@ test("deployment workflow uses repository-only Gateway Variables without inherit
   });
   const steps = ops.steps as Array<{ name: string; env?: Record<string, string>; run?: string }>;
   assert.equal(steps.at(-1)?.run, "node scripts/read-gateway-repository-variables.ts");
-  assert.deepEqual(steps.at(-1)?.env, { GITHUB_TOKEN: "${{ github.token }}" });
+  assert.deepEqual(steps.at(-1)?.env, { GITHUB_TOKEN: "${{ steps.repository_variables_app.outputs.token }}" });
   const exportStep = (deploy.steps as Array<{ name: string; env?: Record<string, string> }>).find(
     (step) => step.name === "Export scoped deployment variables"
   );
