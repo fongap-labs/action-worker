@@ -446,6 +446,8 @@ test("AI Gateway deployment reads repository Variables outside the ops Environme
   });
   assert.deepEqual(variableJob.outputs, {
     variables_b64: "${{ steps.variables.outputs.variables_b64 }}",
+    cloudflare_nonce: "${{ steps.cloudflare_secret.outputs.nonce }}",
+    cloudflare_proof: "${{ steps.cloudflare_secret.outputs.proof }}",
   });
   const depends = deploy.needs as string[];
   assert.deepEqual(depends, ["prepare", "gateway_variables"]);

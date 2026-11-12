@@ -305,6 +305,8 @@ jobs:
       actions: read
     outputs:
       variables_b64: ${{ steps.variables.outputs.variables_b64 }}
+      cloudflare_nonce: ${{ steps.cloudflare_secret.outputs.nonce }}
+      cloudflare_proof: ${{ steps.cloudflare_secret.outputs.proof }}
     steps:
       - name: Check out trusted control implementation
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -315,6 +317,13 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
+      # This job has no GitHub Environment, so the Cloudflare token resolves
+      # from repository or organization scope, never from ai-gateway-ops.
+      - name: Prove Action Worker Cloudflare Secret source
+        id: cloudflare_secret
+        env:
+          CLOUDFLARE_API_TOKEN_SECONDARY: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}
+        run: node scripts/gateway-secret-source.ts prove
       # A GitHub App installation must grant repository Variables: read. The
       # upstream token Action does not declare permission-variables, so mint a
       # single-purpose token, consume it, and revoke it inside one trusted step.
@@ -394,6 +403,14 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
+
+      - name: Reject an Environment Cloudflare Secret override
+        if: needs.prepare.outputs.source_repository == 'fongap-labs/ai-gateway' && needs.prepare.outputs.environment == 'production' && needs.prepare.outputs.product == ''
+        env:
+          CLOUDFLARE_API_TOKEN_SECONDARY: ${{ secrets.CLOUDFLARE_API_TOKEN_SECONDARY }}
+          AW_CLOUDFLARE_PROOF_NONCE: ${{ needs.gateway_variables.outputs.cloudflare_nonce }}
+          AW_CLOUDFLARE_REPOSITORY_PROOF: ${{ needs.gateway_variables.outputs.cloudflare_proof }}
+        run: node control/scripts/gateway-secret-source.ts verify
 
       - name: Export scoped deployment variables
         if: needs.prepare.outputs.source_repository != 'fongap-labs/mcp-hub'
