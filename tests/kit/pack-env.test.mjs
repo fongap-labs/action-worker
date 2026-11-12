@@ -89,9 +89,9 @@ test("Python pack import path never inherits host PYTHONPATH", () => {
   try {
     const env = buildPythonPackEnv({}, "/target/checkout", "/trusted/test-kit");
     assert.equal(env.CENTRAL_TEST_TARGET_ROOT, "/target/checkout");
-    assert.equal(env.PYTHONPATH.includes("/target/checkout"), true);
-    assert.equal(env.PYTHONPATH.includes("/trusted/test-kit"), true);
-    assert.equal(env.PYTHONPATH.includes("/host/private/python/modules"), false);
+    assert.equal(env.PYTHONPATH?.includes("/target/checkout"), true);
+    assert.equal(env.PYTHONPATH?.includes("/trusted/test-kit"), true);
+    assert.equal(env.PYTHONPATH?.includes("/host/private/python/modules"), false);
   } finally {
     if (previous === undefined) delete process.env.PYTHONPATH;
     else process.env.PYTHONPATH = previous;
