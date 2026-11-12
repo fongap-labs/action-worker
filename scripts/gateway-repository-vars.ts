@@ -138,14 +138,14 @@ export async function readGatewayVariablesWithApp(
     headers: { ...authHeaders(jwt), "Content-Type": "application/json" },
     body: JSON.stringify({
       repositories: ["action-worker"],
-      permissions: { variables: "read" },
+      permissions: { actions_variables: "read" },
     }),
     signal: AbortSignal.timeout(15_000),
   });
   if (!minted.ok) {
     throw new CliError(
       minted.status === 422 || minted.status === 403
-        ? "GitHub App installation lacks repository Variables: read; approve this permission in GitHub App settings before deploying."
+        ? "GitHub App installation lacks repository Actions Variables: read; approve this permission in GitHub App settings before deploying."
         : `Unable to mint repository Variables read token (HTTP ${minted.status}).`,
       77
     );
@@ -162,8 +162,8 @@ export async function readGatewayVariablesWithApp(
   let readError: unknown;
   try {
     if (
-      issued.permissions?.variables !== "read" ||
-      Object.keys(issued.permissions).some((key) => key !== "variables" && key !== "metadata")
+      issued.permissions?.actions_variables !== "read" ||
+      Object.keys(issued.permissions).some((key) => key !== "actions_variables" && key !== "metadata")
     ) {
       throw new CliError("GitHub App token has unexpected repository permissions.", 77);
     }
