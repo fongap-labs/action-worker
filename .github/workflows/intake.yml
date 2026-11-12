@@ -46,9 +46,11 @@ jobs:
         id: pr_scope
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
+          AW_INTAKE_TARGET_REPOSITORY: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.repository || '' }}
         run: node scripts/repository-policy.ts list pr
 
       - name: Mint PR status write token
+        if: steps.pr_scope.outputs.scan != 'false'
         id: status_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -59,6 +61,7 @@ jobs:
           permission-statuses: write
 
       - name: Mint control dispatch token
+        if: steps.pr_scope.outputs.scan != 'false'
         id: dispatch_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -69,6 +72,7 @@ jobs:
           permission-contents: write
 
       - name: Mint scoped intake read token
+        if: steps.pr_scope.outputs.scan != 'false'
         id: control_read_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -83,6 +87,7 @@ jobs:
           permission-issues: read
 
       - name: Reconcile open pull requests
+        if: steps.pr_scope.outputs.scan != 'false'
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_GITHUB_API_METRICS: "1"
@@ -116,9 +121,11 @@ jobs:
         id: pr_scope
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
+          AW_INTAKE_TARGET_REPOSITORY: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.repository || '' }}
         run: node scripts/repository-policy.ts list pr
 
       - name: Mint PR status write token
+        if: steps.pr_scope.outputs.scan != 'false'
         id: status_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -129,6 +136,7 @@ jobs:
           permission-statuses: write
 
       - name: Mint control dispatch token
+        if: steps.pr_scope.outputs.scan != 'false'
         id: dispatch_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -139,6 +147,7 @@ jobs:
           permission-contents: write
 
       - name: Mint scoped intake read token
+        if: steps.pr_scope.outputs.scan != 'false'
         id: control_read_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -153,6 +162,7 @@ jobs:
           permission-issues: read
 
       - name: Reconcile main CI
+        if: steps.pr_scope.outputs.scan != 'false'
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_GITHUB_API_METRICS: "1"
@@ -257,9 +267,11 @@ jobs:
         id: task_scope
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
+          AW_INTAKE_TARGET_REPOSITORY: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.repository || '' }}
         run: node scripts/repository-policy.ts list task
 
       - name: Mint task status read token
+        if: steps.task_scope.outputs.scan != 'false'
         id: status_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -270,6 +282,7 @@ jobs:
           permission-statuses: read
 
       - name: Mint control dispatch token
+        if: steps.task_scope.outputs.scan != 'false'
         id: dispatch_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -280,6 +293,7 @@ jobs:
           permission-contents: write
 
       - name: Mint scoped intake read token
+        if: steps.task_scope.outputs.scan != 'false'
         id: control_read_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -296,6 +310,7 @@ jobs:
       # This is an advisory reserve for deferrable scans, not a security or merge gate.
       # A failed quota query fails this job; only a valid low-budget verdict may defer work.
       - name: Check optional scan API budget
+        if: steps.task_scope.outputs.scan != 'false'
         id: api_budget
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
@@ -304,7 +319,7 @@ jobs:
         run: node scripts/check-github-api-budget.ts
 
       - name: Reconcile task sources
-        if: steps.api_budget.outputs.run == 'true'
+        if: steps.task_scope.outputs.scan != 'false' && steps.api_budget.outputs.run == 'true'
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_GITHUB_API_METRICS: "1"
@@ -339,9 +354,11 @@ jobs:
         id: task_scope
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
+          AW_INTAKE_TARGET_REPOSITORY: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.repository || '' }}
         run: node scripts/repository-policy.ts list task
 
       - name: Mint task status write token
+        if: steps.task_scope.outputs.scan != 'false'
         id: status_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -352,6 +369,7 @@ jobs:
           permission-statuses: write
 
       - name: Mint control dispatch token
+        if: steps.task_scope.outputs.scan != 'false'
         id: dispatch_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -364,6 +382,7 @@ jobs:
       # A slot up to 12 hours late runs once: only the latest due slot of each project is dispatched,
       # and dispatches are deduplicated per slot.
       - name: Mint scoped intake read token
+        if: steps.task_scope.outputs.scan != 'false'
         id: control_read_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -380,6 +399,7 @@ jobs:
       # This is an advisory reserve for deferrable scans, not a security or merge gate.
       # A failed quota query fails this job; only a valid low-budget verdict may defer work.
       - name: Check optional scan API budget
+        if: steps.task_scope.outputs.scan != 'false'
         id: api_budget
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
@@ -388,7 +408,7 @@ jobs:
         run: node scripts/check-github-api-budget.ts
 
       - name: Dispatch due scheduled tasks
-        if: steps.api_budget.outputs.run == 'true'
+        if: steps.task_scope.outputs.scan != 'false' && steps.api_budget.outputs.run == 'true'
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_GITHUB_API_METRICS: "1"
@@ -424,9 +444,11 @@ jobs:
         id: deploy_scope
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
+          AW_INTAKE_TARGET_REPOSITORY: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.repository || '' }}
         run: node scripts/repository-policy.ts list deploy
 
       - name: Mint deploy status write token
+        if: steps.deploy_scope.outputs.scan != 'false'
         id: status_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -437,6 +459,7 @@ jobs:
           permission-statuses: write
 
       - name: Mint control dispatch token
+        if: steps.deploy_scope.outputs.scan != 'false'
         id: dispatch_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -448,6 +471,7 @@ jobs:
 
       # A slot up to 12 hours late runs once: only the latest due slot of each product environment is dispatched.
       - name: Mint scoped intake read token
+        if: steps.deploy_scope.outputs.scan != 'false'
         id: control_read_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -464,6 +488,7 @@ jobs:
       # This is an advisory reserve for deferrable scans, not a security or merge gate.
       # A failed quota query fails this job; only a valid low-budget verdict may defer work.
       - name: Check optional scan API budget
+        if: steps.deploy_scope.outputs.scan != 'false'
         id: api_budget
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
@@ -472,7 +497,7 @@ jobs:
         run: node scripts/check-github-api-budget.ts
 
       - name: Dispatch due scheduled deploys
-        if: steps.api_budget.outputs.run == 'true'
+        if: steps.deploy_scope.outputs.scan != 'false' && steps.api_budget.outputs.run == 'true'
         env:
           AW_CONTROL_TOKEN: ${{ steps.control_read_app.outputs.token }}
           AW_GITHUB_API_METRICS: "1"
