@@ -35,12 +35,12 @@ test("deployment history pruning rejects incomplete or malformed inventory", () 
   }
 });
 
-test("deployment backlog is automatically retried hourly without repeating daily maintenance", () => {
+test("deployment backlog is automatically retried every thirty minutes without repeating daily maintenance", () => {
   const workflow = parse(readFileSync(".github/workflows/prune-stale-state.yml", "utf8")) as {
     on: { schedule: Array<{ cron: string }> };
     jobs: Record<string, { if?: string }>;
   };
-  assert.deepEqual(workflow.on.schedule, [{ cron: "31 5 * * *" }, { cron: "47 0-4,6-23 * * *" }]);
+  assert.deepEqual(workflow.on.schedule, [{ cron: "31 5 * * *" }, { cron: "17,47 * * * *" }]);
   assert.equal(workflow.jobs.deployments?.if, "${{ github.event_name == 'schedule' }}");
   const dailyOnly =
     "${{ github.event_name != 'schedule' || github.event.schedule == '31 5 * * *' }}";
