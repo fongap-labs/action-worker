@@ -203,10 +203,7 @@ test("unregistered project directories are not treated as a hard-coded product w
     ["api", "web"]
   );
 
-  assert.throws(
-    () => selectProduct(discovery.products, "Steno"),
-    /projects[/]Steno[/]/
-  );
+  assert.throws(() => selectProduct(discovery.products, "Steno"), /projects[/]Steno[/]/);
 });
 
 test("an illegal product directory name is rejected", async () => {
