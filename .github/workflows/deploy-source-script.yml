@@ -315,18 +315,14 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
-      - name: Mint repository-only Variables read token
-        id: repository_variables_app
-        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1
-        with:
-          client-id: ${{ vars.AW_APP_CLIENT_ID }}
-          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
-          repositories: ${{ github.event.repository.name }}
-          permission-variables: read
+      # A GitHub App installation must grant repository Variables: read. The
+      # upstream token Action does not declare permission-variables, so mint a
+      # single-purpose token, consume it, and revoke it inside one trusted step.
       - name: Validate non-sensitive AI Gateway repository Variables
         id: variables
         env:
-          GITHUB_TOKEN: ${{ steps.repository_variables_app.outputs.token }}
+          AW_APP_CLIENT_ID: ${{ vars.AW_APP_CLIENT_ID }}
+          AW_APP_PRIVATE_KEY: ${{ secrets.AW_APP_PRIVATE_KEY }}
         run: node scripts/gateway-repository-vars.ts
 
   deploy:
