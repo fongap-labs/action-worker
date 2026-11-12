@@ -18,7 +18,7 @@ test("non-production environments never create GitHub Deployment records", async
       const environment = job.environment;
       if (environment === undefined) continue;
       const name = typeof environment === "string" ? environment : environment.name;
-      assert.equal(typeof name, "string", `${filename}:${jobName} must name an Environment`);
+      assert.ok(typeof name === "string", `${filename}:${jobName} must name an Environment`);
       if (name === "production") continue;
       // Dynamic Environment names are denied unless the centralized source-deploy
       // selector controls both the name and the production-only deployment flag.
