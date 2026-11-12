@@ -91,6 +91,20 @@ export function repositoriesForCapability(
     .sort();
 }
 
+/**
+ * Ignore only known managed wake-up targets lacking the requested capability.
+ * Full cron sweeps, invalid hints and new repositories still run every scan.
+ */
+export function shouldRunIntakeCapability(
+  value: unknown,
+  capability: RepositoryCapability,
+  requested: string
+): boolean {
+  const policy = parseRepositoryPolicy(value);
+  if (!requested || !Object.hasOwn(policy, requested)) return true;
+  return policy[requested]!.includes(capability);
+}
+
 /** True when the policy grants the capability; unlike validateRepositoryCapability it never throws for a missing grant. */
 export function hasRepositoryCapability(
   repository: string,
@@ -182,6 +196,11 @@ async function main(): Promise<void> {
       `repositories=${JSON.stringify(repositories)}`,
       `repositories_csv=${repositoryNames.join(",")}`,
       `read_repositories_csv=${intakeReadRepositoryNames(process.env.GITHUB_REPOSITORY ?? "", repositoryNames)}`,
+      `scan=${shouldRunIntakeCapability(
+        policy,
+        first as RepositoryCapability,
+        process.env.AW_INTAKE_TARGET_REPOSITORY ?? ""
+      )}`,
     ]);
     console.log(`Repository policy resolved: ${first} -> ${repositories.length} repositories.`);
     return;
