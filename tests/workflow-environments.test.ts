@@ -27,7 +27,7 @@ test("non-production environments never create GitHub Deployment records", async
         assert.equal(jobName, "deploy");
         assert.deepEqual(environment, {
           name,
-          deployment: "${{ needs.prepare.outputs.create_deployment == 'true' }}",
+          deployment: "${{ needs.prepare.outputs.create_deployment == 'true' && needs.prepare.outputs.environment == 'production' }}",
         });
         continue;
       }
@@ -51,7 +51,7 @@ test("actual central deployments remain tracked under production", async () => {
   ) as Workflow;
   assert.deepEqual(workflow.jobs?.deploy?.environment, {
     name: "${{ needs.prepare.outputs.credential_environment }}",
-    deployment: "${{ needs.prepare.outputs.create_deployment == 'true' }}",
+    deployment: "${{ needs.prepare.outputs.create_deployment == 'true' && needs.prepare.outputs.environment == 'production' }}",
   });
   // The protected ops job is the authorization boundary. An audit-only
   // production Environment job would require a second human approval after publish.
