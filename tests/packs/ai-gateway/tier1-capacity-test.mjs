@@ -34,7 +34,11 @@ import { pickTier1Candidate } from '#target/src/scheduler/tier1-scheduler.ts';
 const ACCESS_KEY = 'tier1-capacity-key';
 const PRIVATE_CENTER_KEY = 'tier1-capacity-private-center-auth-key-32';
 const isCenterOnlyCutover = !existsSync(join(targetRoot, 'src/request/attempt/legacy-provider-dispatch.ts'));
-const isRejectedNodeSkipSupported = readFileSync(join(targetRoot, 'apps/inference/execution.ts'), 'utf8').includes(
+const neutralExecutorPath = join(targetRoot, 'packages/execution-core/native.ts');
+const legacyExecutorPath = join(targetRoot, 'apps/inference/execution.ts');
+const executorPath = existsSync(neutralExecutorPath) ? neutralExecutorPath : legacyExecutorPath;
+assert.ok(existsSync(executorPath), 'Private execution code must have a concrete owner');
+const isRejectedNodeSkipSupported = readFileSync(executorPath, 'utf8').includes(
   "preDispatchProblem(404, 'center_route_unavailable')",
 );
 let privateCenterExecutes = 0;
