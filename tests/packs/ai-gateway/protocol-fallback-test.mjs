@@ -9,6 +9,7 @@
 //   - protocol-matrix-test.mjs
 
 import { convertRequest } from './conversion-matrix-adapters.mjs';
+import { legacySpentKeyRetry } from './spent-key-retry-contract.mjs';
 import worker from '#target/src/index.ts';
 import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { buildResponsesError } from '#target/src/protocol/responses/index.ts';
@@ -316,17 +317,17 @@ try {
   const collapsedBody = await collapsed.json();
   assert.match(collapsedBody?.error?.message || '', /compatible-model failover plan/i);
   assert.equal(collapsed.headers.get('x-gateway-error-code'), 'gateway_attempt_budget_exhausted');
-  // Aliases of one spent domain cost nothing; only the single last-resort
-  // same-key retry of the transient failure re-dispatches it.
-  assert.deepEqual(calls, [
-    { host: 'shared-account.example.com', model: 'same-real-model' },
-    { host: 'shared-account.example.com', model: 'same-real-model' },
-  ]);
-  assert.equal(collapsed.headers.get('x-gateway-attempts'), '2');
-  assert.equal(collapsed.headers.get('x-gateway-dispatches'), '2');
-  assert.equal(collapsed.headers.get('x-gateway-failure-kinds'), 'server:2');
-  assert.deepEqual(centerPaths, Array(2).fill('/internal/execute'),
-    'shared physical failure domain can only retry through the private center');
+  // A spent physical failure domain is attempted once in strict mode.
+  // Legacy only allows its single last-resort re-dispatch.
+  const collapsedDispatches = legacySpentKeyRetry ? 2 : 1;
+  assert.deepEqual(
+    calls,
+    Array(collapsedDispatches).fill({ host: 'shared-account.example.com', model: 'same-real-model' }),
+  );
+  assert.equal(collapsed.headers.get('x-gateway-attempts'), String(collapsedDispatches));
+  assert.equal(collapsed.headers.get('x-gateway-dispatches'), String(collapsedDispatches));
+  assert.equal(collapsed.headers.get('x-gateway-failure-kinds'), `server:${collapsedDispatches}`);
+  assert.deepEqual(centerPaths, Array(collapsedDispatches).fill('/internal/execute'), 'shared domain attempts stay inside the private center');
 
   reset();
   const distinctModels = node('multi-model-account', {
@@ -338,27 +339,26 @@ try {
   assert.equal(distinct.status, 503);
   assert.deepEqual(
     calls.map((c) => c.model),
-    // Each distinct domain once, then the last-resort retry of the most recent one.
-    ['real-max', 'real-pro', 'real-ultra', 'real-ultra'],
+    legacySpentKeyRetry ? ['real-max', 'real-pro', 'real-ultra', 'real-ultra'] : ['real-max', 'real-pro', 'real-ultra'],
   );
-  assert.equal(distinct.headers.get('x-gateway-attempts'), '4');
-  assert.equal(distinct.headers.get('x-gateway-dispatches'), '4');
-  assert.equal(distinct.headers.get('x-gateway-failure-kinds'), 'server:4');
-  assert.deepEqual(centerPaths, Array(4).fill('/internal/execute'),
-    'distinct physical model domains must use the private center for all attempts');
+  const distinctCount = legacySpentKeyRetry ? 4 : 3;
+  assert.equal(distinct.headers.get('x-gateway-attempts'), String(distinctCount));
+  assert.equal(distinct.headers.get('x-gateway-dispatches'), String(distinctCount));
+  assert.equal(distinct.headers.get('x-gateway-failure-kinds'), `server:${distinctCount}`);
+  assert.deepEqual(centerPaths, Array(distinctCount).fill('/internal/execute'), 'distinct physical domains each use the private center');
 
   reset();
   const accountA = node('account-a', { 'Code-Max': 'real-shared', 'Code-Pro': 'real-shared', 'Code-Ultra': 'real-shared' });
   const accountB = node('account-b', { 'Code-Max': 'real-shared', 'Code-Pro': 'real-shared', 'Code-Ultra': 'real-shared' });
   const twoAccounts = await worker.fetch(request(), envFor([accountA, accountB]), {});
   assert.equal(twoAccounts.status, 503);
-  // Both accounts once, then the last-resort retry of the most recent one.
-  assert.equal(calls.length, 3);
+  // Both accounts must be attempted once; strict mode must not replay either.
+  const accountDispatches = legacySpentKeyRetry ? 3 : 2;
+  assert.equal(calls.length, accountDispatches);
   assert.deepEqual(new Set(calls.map((c) => c.host)), new Set(['account-a.example.com', 'account-b.example.com']));
-  assert.equal(calls[2].host, calls[1].host);
-  assert.equal(twoAccounts.headers.get('x-gateway-attempts'), '3');
-  assert.deepEqual(centerPaths, Array(3).fill('/internal/execute'),
-    'separate Provider accounts and last-resort retry cannot bypass private center');
+  if (legacySpentKeyRetry) assert.equal(calls[2].host, calls[1].host);
+  assert.equal(twoAccounts.headers.get('x-gateway-attempts'), String(accountDispatches));
+  assert.deepEqual(centerPaths, Array(accountDispatches).fill('/internal/execute'), 'each Provider account stays inside the private center');
 
   console.log('model-family failure-domain tests passed.');
   console.log('ok - file:model-family-failure-domain');
