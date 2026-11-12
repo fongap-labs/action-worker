@@ -115,7 +115,7 @@ test("deployment workflow uses repository-only Gateway Variables without inherit
     variables_b64: "${{ steps.variables.outputs.variables_b64 }}",
   });
   const steps = ops.steps as Array<{ name: string; env?: Record<string, string>; run?: string }>;
-  assert.equal(steps.at(-1)?.run, "node scripts/gateway-repo-vars.ts");
+  assert.equal(steps.at(-1)?.run, "node scripts/gateway-repository-vars.ts");
   assert.deepEqual(steps.at(-1)?.env, {
     GITHUB_TOKEN: "${{ steps.repository_variables_app.outputs.token }}",
   });
