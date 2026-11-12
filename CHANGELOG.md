@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: MCP Hub 使用 Action Worker 中央部署服务时，可以从 GitHub Actions Secrets 按产品白名单同步 TOTP 和可选 Worker 运行时密钥；沿用来源准入、最小授权与临时密钥清理，禁止未声明密钥和跨仓库读取。
+
 - 修复: 总控 PR 自动合并改用 GitHub REST 的原子期望 HEAD SHA 参数，拒绝验收后被追加提交的竞态合并；合并后比对实际 PR HEAD 与主分支合并 SHA，保留现有 CI 和 Main Write Guard 门禁。
 
 - 修复: 非生产 Deployment 历史清理改为每 30 分钟自动运行，单次清理上限调整为 120 条，控制 GitHub API 小时配额；原有每日分支和运行记录维护保持不变。
