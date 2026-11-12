@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: MCP Hub 部署仅导出白名单普通变量，避免 API Token 误入 Actions 日志；Token/TOTP 仍必须从 Secrets 注入。
+
 - 修复: 部署历史定期清理仅响应每小时第 17、47 分钟的 Cron，排除每日 05:31 运维触发的额外清理，严格保持半小时节奏及每批 API 限额。
 
 - 新增: MCP Hub 使用 Action Worker 中央部署服务时，可以从 GitHub Actions Secrets 按产品白名单同步 TOTP 和可选 Worker 运行时密钥；沿用来源准入、最小授权与临时密钥清理，禁止未声明密钥和跨仓库读取。
