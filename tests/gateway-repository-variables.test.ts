@@ -113,11 +113,11 @@ test("App Variables reader mints a signed, one-repository read-only token and re
       assert.equal(init?.method, "POST");
       assert.deepEqual(JSON.parse(String(init?.body)), {
         repositories: ["action-worker"],
-        permissions: { variables: "read" },
+        permissions: { actions_variables: "read" },
       });
       return Response.json({
         token: scopedToken,
-        permissions: { variables: "read", metadata: "read" },
+        permissions: { actions_variables: "read", metadata: "read" },
       });
     }
     if (path.includes("/actions/variables?")) {
@@ -173,7 +173,7 @@ test("inventory rejection and unexpected token permissions both revoke the token
           token: scopedToken,
           permissions:
             scenario === "excess-scope"
-              ? { variables: "read", contents: "write" }
+              ? { actions_variables: "read", contents: "write" }
               : { variables: "read" },
         });
       }
@@ -192,12 +192,33 @@ test("inventory rejection and unexpected token permissions both revoke the token
   }
 });
 
+test("legacy variables permission slug is rejected even if token issuance succeeds", async () => {
+  let isRevoked = false;
+  const request: typeof fetch = async (url) => {
+    const endpoint = String(url);
+    if (endpoint.endsWith("/installation")) return Response.json({ id: 178503233 });
+    if (endpoint.endsWith("/access_tokens")) {
+      return Response.json({ token: scopedToken, permissions: { variables: "read" } });
+    }
+    if (endpoint.endsWith("/installation/token")) {
+      isRevoked = true;
+      return new Response(null, { status: 204 });
+    }
+    throw Error("unexpected endpoint");
+  };
+  await assert.rejects(
+    readGatewayVariablesWithApp("Iv1.test-app-id", testAppKey, request),
+    /unexpected repository permissions/
+  );
+  assert.equal(isRevoked, true);
+});
+
 test("failed revocation prevents exporting deployment variables", async () => {
   const request: typeof fetch = async (url) => {
     const endpoint = String(url);
     if (endpoint.endsWith("/installation")) return Response.json({ id: 178503233 });
     if (endpoint.endsWith("/access_tokens"))
-      return Response.json({ token: scopedToken, permissions: { variables: "read" } });
+      return Response.json({ token: scopedToken, permissions: { actions_variables: "read" } });
     if (endpoint.includes("/actions/variables?"))
       return Response.json({
         variables: [{ name: "AIG_PUBLIC_URL", value: "https://gateway.example" }],
