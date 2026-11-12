@@ -17,7 +17,7 @@ import { MAX_BUFFERED_REPLY_BYTES, readBodyTextBounded, safeReadErrorBody } from
 import { __resetAllStateForTests } from '#target/src/reliability/node-state.ts';
 import { RETRY_BUDGET_MIN, RetrySlot, __resetRetryBudgetForTests, isSpeculativeRetryAfter, snapshotRetryBudget } from '#target/src/reliability/retry-budget.ts';
 import { __resetTier1StateForTests } from '#target/src/reliability/tier1-state.ts';
-import { __resetIsolateConcurrencyForTests, admitIsolateRequest, releaseIsolateRequestAfterResponse } from '#target/src/ratelimit/isolate-concurrency.ts';
+import * as isolateAdmission from '#target/src/ratelimit/isolate-concurrency.ts';
 import { authorize } from '#target/src/request/auth.ts';
 import { __resetTier1AffinityForTests, readTier1Affinity, snapshotTier1Affinity } from '#target/src/scheduler/tier1-affinity.ts';
 import { ensureFirstSseEvent } from '#target/src/stream/guard.ts';
@@ -399,10 +399,11 @@ test('usage events inside the five-minute flush window share one D1 batch', asyn
   }
 });
 
-test('isolate admission remains held until a response body completes or is cancelled', async () => {
-  __resetIsolateConcurrencyForTests();
-  const release = admitIsolateRequest(1);
-  assert.ok(release);
+// During the Gateway contract transition, both the last released hard-cap
+// implementation and the new no-count-gate implementation remain testable.
+// The new path explicitly proves high concurrency is only measured, not denied.
+test('isolate activity accounting permits concurrent handlers and preserves native stream cancellation', async () => {
+  isolateAdmission.__resetIsolateConcurrencyForTests();
   let cancelled = false;
   const source = new ReadableStream({
     start(controller) {
@@ -412,28 +413,59 @@ test('isolate admission remains held until a response body completes or is cance
       cancelled = true;
     },
   });
-  const response = releaseIsolateRequestAfterResponse(new Response(source), release);
-  assert.equal(admitIsolateRequest(1), null, 'a committed response still owns the isolate slot');
-  const reader = response.body.getReader();
-  assert.equal((await reader.read()).value.toString(), enc.encode('chunk').toString());
-  assert.equal(admitIsolateRequest(1), null, 'reading one body chunk does not release the slot');
-  await reader.cancel('client left');
-  assert.equal(cancelled, true, 'cancellation reaches the upstream reader');
-  assert.ok(admitIsolateRequest(1), 'cancellation releases the slot exactly once');
-  __resetIsolateConcurrencyForTests();
+  if (typeof isolateAdmission.trackIsolateRequest === 'function') {
+    const releases = Array.from({ length: 12 }, () => isolateAdmission.trackIsolateRequest());
+    const running = isolateAdmission.snapshotIsolateRequestActivity();
+    assert.equal(running.active, 12, 'all 12 request handlers execute even when the historical count cap is 1');
+    assert.equal(running.peak, 12);
+    for (const release of releases) release();
+    releases[0]();
+    assert.deepEqual(isolateAdmission.snapshotIsolateRequestActivity(), {
+      active: 0,
+      peak: 12,
+      started: 12,
+      completed: 12,
+    }, 'handler completion releases counters exactly once, without wrapping a response stream');
+    const reader = new Response(source).body.getReader();
+    assert.equal((await reader.read()).value.toString(), enc.encode('chunk').toString());
+    await reader.cancel('client left');
+    assert.equal(cancelled, true, 'native response cancellation still reaches the upstream stream');
+  } else {
+    const release = isolateAdmission.admitIsolateRequest(1);
+    assert.ok(release);
+    const response = isolateAdmission.releaseIsolateRequestAfterResponse(new Response(source), release);
+    assert.equal(isolateAdmission.admitIsolateRequest(1), null, 'legacy response owns the previous hard-cap slot');
+    const reader = response.body.getReader();
+    assert.equal((await reader.read()).value.toString(), enc.encode('chunk').toString());
+    assert.equal(isolateAdmission.admitIsolateRequest(1), null);
+    await reader.cancel('client left');
+    assert.equal(cancelled, true);
+    assert.ok(isolateAdmission.admitIsolateRequest(1), 'legacy cancellation releases the previous slot');
+  }
+  isolateAdmission.__resetIsolateConcurrencyForTests();
 });
 
-test('isolate admission releases after a streamed response reaches EOF', async () => {
-  __resetIsolateConcurrencyForTests();
-  const release = admitIsolateRequest(1);
-  const response = releaseIsolateRequestAfterResponse(new Response(new ReadableStream({
+test('isolate handler completion is decoupled from streamed response EOF', async () => {
+  isolateAdmission.__resetIsolateConcurrencyForTests();
+  const source = new ReadableStream({
     start(controller) {
       controller.enqueue(enc.encode('chunk'));
       controller.close();
     },
-  })), release);
-  assert.equal(admitIsolateRequest(1), null);
-  assert.equal(await response.text(), 'chunk');
-  assert.ok(admitIsolateRequest(1), 'normal EOF releases the slot');
-  __resetIsolateConcurrencyForTests();
+  });
+  if (typeof isolateAdmission.trackIsolateRequest === 'function') {
+    const release = isolateAdmission.trackIsolateRequest();
+    const response = new Response(source);
+    release();
+    assert.equal(isolateAdmission.snapshotIsolateRequestActivity().active, 0, 'SSE stream EOF must not hold the handler counter');
+    assert.equal(await response.text(), 'chunk', 'stream reaches native EOF without an isolate admission wrapper');
+    assert.equal(isolateAdmission.snapshotIsolateRequestActivity().completed, 1);
+  } else {
+    const release = isolateAdmission.admitIsolateRequest(1);
+    const response = isolateAdmission.releaseIsolateRequestAfterResponse(new Response(source), release);
+    assert.equal(isolateAdmission.admitIsolateRequest(1), null);
+    assert.equal(await response.text(), 'chunk');
+    assert.ok(isolateAdmission.admitIsolateRequest(1), 'legacy stream EOF releases the old slot');
+  }
+  isolateAdmission.__resetIsolateConcurrencyForTests();
 });
