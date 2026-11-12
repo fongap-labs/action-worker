@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readGatewayRepositoryVariables } from "../scripts/read-gateway-repository-variables.ts";
+import { readGatewayRepositoryVariables } from "../scripts/gateway-repository-vars.ts";
 import { validateGatewayOpsVariables } from "../scripts/gateway-ops-variables.ts";
 
 const account = "0123456789abcdef0123456789abcdef";
