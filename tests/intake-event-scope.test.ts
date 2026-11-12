@@ -62,9 +62,12 @@ test("capability gate is fail-open except for a known repository without the gra
 
 test("irrelevant wake-up targets skip token mint, but not main-write audit", async () => {
   const workflow = parse(await readFile(".github/workflows/intake.yml", "utf8")) as {
-    jobs: Record<string, {
-      steps: Array<{ name?: string; if?: string; env?: Record<string, string> }>;
-    }>;
+    jobs: Record<
+      string,
+      {
+        steps: Array<{ name?: string; if?: string; env?: Record<string, string> }>;
+      }
+    >;
   };
   const target =
     "${{ github.event_name == 'repository_dispatch' && github.event.client_payload.repository || '' }}";
@@ -77,10 +80,15 @@ test("irrelevant wake-up targets skip token mint, but not main-write audit", asy
   };
   for (const [job, [scope, name]] of Object.entries(scopes)) {
     const steps = workflow.jobs[job]?.steps ?? [];
-    assert.equal(steps.find((step) => step.name === name)?.env?.AW_INTAKE_TARGET_REPOSITORY, target);
+    assert.equal(
+      steps.find((step) => step.name === name)?.env?.AW_INTAKE_TARGET_REPOSITORY,
+      target
+    );
     for (const step of steps.filter((item) => item.name?.startsWith("Mint "))) {
-      assert.ok(step.if?.includes(`steps.${scope}.outputs.scan != 'false'`),
-        `${job}: ${step.name} should skip a known irrelevant target`);
+      assert.ok(
+        step.if?.includes(`steps.${scope}.outputs.scan != 'false'`),
+        `${job}: ${step.name} should skip a known irrelevant target`
+      );
     }
     const reconcile = steps.at(-1);
     assert.ok(reconcile?.if?.includes(`steps.${scope}.outputs.scan != 'false'`), job);
