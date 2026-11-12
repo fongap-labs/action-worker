@@ -66,7 +66,7 @@ export function mergeApprovedGatewayOpsVariables(
   // Inherited env-scoped AIG and Cloudflare account metadata are discarded,
   // not compared or used as a fallback. This prevents scope shadowing.
   const ordinaryVariables = Object.fromEntries(
-    Object.entries(variables).filter(([name]) => !isGatewayOwnedVariableName(name))
+    Object.entries(variables).filter(([name]) => !isGatewayOwnedVariableName(name) && !/^(?:AW_)?CLOUDFLARE_/.test(name))
   );
   return { ...ordinaryVariables, ...approved };
 }
