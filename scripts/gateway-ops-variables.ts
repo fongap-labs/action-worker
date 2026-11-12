@@ -1,7 +1,7 @@
 import { isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 
-const accountName = "AW_CLOUDFLARE_ACCOUNT_ID_SECONDARY";
+const accountName = "CLOUDFLARE_ACCOUNT_ID_REPOSITORY";
 const maximumVariableBytes = 4_500;
 const maximumSnapshotBytes = 256 * 1024;
 const gatewayVariableName = /^AIG_[A-Z0-9_]+$/;
@@ -33,7 +33,11 @@ const forbiddenSecretNames = [
 
 /** Non-sensitive Gateway Variables belong to the Action Worker repository, not an ops Environment. */
 export function isGatewayOwnedVariableName(name: string): boolean {
-  return name === accountName || name === "CLOUDFLARE_ACCOUNT_ID_SECONDARY" || gatewayVariableName.test(name);
+  return (
+    name === accountName ||
+    name === "CLOUDFLARE_ACCOUNT_ID_SECONDARY" ||
+    gatewayVariableName.test(name)
+  );
 }
 
 function fail(name: string, reason: string): never {
@@ -144,7 +148,7 @@ export function validateGatewayBootstrapMetadata(
   input: Readonly<Record<string, unknown>>
 ): Record<string, string> {
   return validateGatewayOpsVariables({
-    AW_CLOUDFLARE_ACCOUNT_ID_SECONDARY: input.AW_CLOUDFLARE_ACCOUNT_ID_SECONDARY,
+    CLOUDFLARE_ACCOUNT_ID_REPOSITORY: input.CLOUDFLARE_ACCOUNT_ID_REPOSITORY,
     AIG_PUBLIC_URL: input.AIG_PUBLIC_URL ?? "",
   });
 }
@@ -162,12 +166,22 @@ export function decodeGatewayOpsVariables(encoded: string): Record<string, strin
     );
   }
   if (!/^[A-Za-z0-9_-]+$/.test(encoded)) {
-    throw new CliError("Approved Action Worker repository Variable snapshot encoding is invalid.", 77);
+    throw new CliError(
+      "Approved Action Worker repository Variable snapshot encoding is invalid.",
+      77
+    );
   }
   const decoded = Buffer.from(encoded, "base64url").toString("utf8");
-  const parsed = parseJson(decoded, "Approved Action Worker repository Variable snapshot is invalid.", 77);
+  const parsed = parseJson(
+    decoded,
+    "Approved Action Worker repository Variable snapshot is invalid.",
+    77
+  );
   if (!isJsonRecord(parsed)) {
-    throw new CliError("Approved Action Worker repository Variable snapshot must be a JSON object.", 77);
+    throw new CliError(
+      "Approved Action Worker repository Variable snapshot must be a JSON object.",
+      77
+    );
   }
   return validateGatewayOpsVariables(parsed);
 }
@@ -200,13 +214,16 @@ async function main(): Promise<void> {
       77
     );
     if (!isJsonRecord(payload)) {
-      throw new CliError("Approved Action Worker repository Variables payload must be a JSON object.", 77);
+      throw new CliError(
+        "Approved Action Worker repository Variables payload must be a JSON object.",
+        77
+      );
     }
     validated = validateGatewayOpsVariables(payload);
   }
   await appendLines(process.env.GITHUB_OUTPUT, [
     `variables_b64=${Buffer.from(JSON.stringify(validated), "utf8").toString("base64url")}`,
-    `account_id=${validated.AW_CLOUDFLARE_ACCOUNT_ID_SECONDARY}`,
+    `account_id=${validated.CLOUDFLARE_ACCOUNT_ID_REPOSITORY}`,
     `public_url=${validated.AIG_PUBLIC_URL ?? ""}`,
   ]);
   console.log(`AI Gateway repository Variables validated: ${Object.keys(validated).length}.`);
