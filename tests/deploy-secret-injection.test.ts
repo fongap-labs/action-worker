@@ -125,7 +125,17 @@ test("shipped product ceilings remain isolated and use Cloudflare deployment cre
     ["CLOUDFLARE_ACCOUNT_ID_SECONDARY"]
   );
   const mcp = await readDeploySecretCeiling(policyPath, "fongap-labs/mcp-hub", "production");
-  assert.deepEqual([...mcp], ["CLOUDFLARE_API_TOKEN_SECONDARY"]);
+  assert.deepEqual(
+    [...mcp],
+    [
+      "CLOUDFLARE_API_TOKEN_SECONDARY",
+      "MCP_TOTP_SECRET",
+      "MCP_COOKIE_KEY",
+      "MCP_KEYRING_JSON",
+      "MCP_INGEST_JWK",
+      "MCP_RUNTIME_KEY",
+    ]
+  );
   const edge = await readDeploySecretCeiling(
     policyPath,
     "fongap-labs/internal-vault",

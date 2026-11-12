@@ -296,3 +296,16 @@ test("manual release and deploy cannot bypass unresolved main-write incidents", 
     }
   }
 });
+
+test("automatic control PR merge atomically pins the validated head SHA", async () => {
+  const config = await workflow("validate-ci.yml");
+  const merge = config.jobs["automatic-squash-merge"]?.steps?.find(
+    (step) => step.name === "Merge the exact validated PR head"
+  );
+  assert.ok(merge?.run, "the automatic merge step must be present");
+  assert.match(merge.run, /gh api --method PUT "repos\/\$REPOSITORY\/pulls\/\$PR_NUMBER\/merge"/);
+  assert.match(merge.run, /--arg sha "\$HEAD_SHA"/);
+  assert.match(merge.run, /merge_method:"squash"/);
+  assert.match(merge.run, /\.head\.sha == \$head and \.merge_commit_sha == \$merged/);
+  assert.doesNotMatch(merge.run, /gh pr merge/);
+});

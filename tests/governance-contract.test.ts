@@ -963,8 +963,10 @@ test("release, source, deploy, merge, and repository settings contracts remain i
     "ref: main",
     "permission-contents: write",
     "permission-pull-requests: write",
-    "--match-head-commit",
-    "--squash",
+    "gh api --method PUT",
+    "--arg sha",
+    'merge_method:"squash"',
+    ".merge_commit_sha == $merged",
     "base.sha == $base",
   ]);
   assert.equal(repository.delete_branch_on_merge, true);

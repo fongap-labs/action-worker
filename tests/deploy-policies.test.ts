@@ -289,20 +289,30 @@ test("the shipped deploy secret policy scopes Gateway credentials to approved va
     "fongap-labs/mcp-hub",
     "production"
   );
-  assert.deepEqual([...mcpHub], ["CLOUDFLARE_API_TOKEN_SECONDARY"]);
-  assert.equal(mcpHub.has("MCP_RUNTIME_KEY"), false);
+  assert.deepEqual(
+    [...mcpHub],
+    [
+      "CLOUDFLARE_API_TOKEN_SECONDARY",
+      "MCP_TOTP_SECRET",
+      "MCP_COOKIE_KEY",
+      "MCP_KEYRING_JSON",
+      "MCP_INGEST_JWK",
+      "MCP_RUNTIME_KEY",
+    ]
+  );
+  assert.equal(mcpHub.has("MCP_RUNTIME_KEY"), true);
   assert.equal(mcpHub.has("MCP_ADMIN_KEY"), false);
   assert.equal(internalVault.has("MCP_RUNTIME_KEY"), false);
 });
 
-test("MCP Hub production deploy passes only the Cloudflare credential", async () => {
+test("MCP Hub production deploy isolates declared GitHub runtime Secrets", async () => {
   const directory = await mkdtemp(join(tmpdir(), "mcp-deploy-scope-"));
   try {
     const baseline = join(directory, "baseline");
     const required = join(directory, "required");
     const allowed = join(directory, "allowed");
     await writeFile(baseline, "PATH\n");
-    await writeFile(required, "CLOUDFLARE_API_TOKEN_SECONDARY\n");
+    await writeFile(required, "CLOUDFLARE_API_TOKEN_SECONDARY\nMCP_TOTP_SECRET\n");
     await writeFile(allowed, "");
     const names = await readDeploySecretCeiling(
       "policies/deploy-secrets.json",
@@ -313,12 +323,13 @@ test("MCP Hub production deploy passes only the Cloudflare credential", async ()
     const environment = {
       PATH: "/bin",
       CLOUDFLARE_API_TOKEN_SECONDARY: "cloudflare",
+      MCP_TOTP_SECRET: "synthetic-secret",
       MCP_ADMIN_KEY: "admin",
       MCP_RUNTIME_KEY: "runtime",
       OTHER_SECRET: "hidden",
     };
     const scoped = await resolveSecretScope(baseline, required, allowed, [], environment, ceiling);
-    assert.deepEqual(scoped.allowed, ["CLOUDFLARE_API_TOKEN_SECONDARY"]);
+    assert.deepEqual(scoped.allowed, ["CLOUDFLARE_API_TOKEN_SECONDARY", "MCP_TOTP_SECRET"]);
     assert.deepEqual(scoped.unset, ["MCP_ADMIN_KEY", "MCP_RUNTIME_KEY", "OTHER_SECRET"]);
     await assert.rejects(
       resolveSecretScope(
@@ -331,10 +342,10 @@ test("MCP Hub production deploy passes only the Cloudflare credential", async ()
       ),
       /Required task secret is unavailable: CLOUDFLARE_API_TOKEN_SECONDARY/
     );
-    await writeFile(allowed, "MCP_RUNTIME_KEY\n");
+    await writeFile(allowed, "MCP_ADMIN_KEY\n");
     await assert.rejects(
       resolveSecretScope(baseline, required, allowed, [], environment, ceiling),
-      /outside the central deploy secret policy: MCP_RUNTIME_KEY/
+      /outside the central deploy secret policy: MCP_ADMIN_KEY/
     );
   } finally {
     await rm(directory, { recursive: true, force: true });
