@@ -10,7 +10,8 @@ import {
   type ScheduledTask,
   wasDispatched,
 } from "../scripts/dispatch-scheduled-tasks.ts";
-import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
+import { assertTaskSourceSigningReady, scanTaskSources } from "../scripts/intake-task-sources.ts";
+import { attestFixtureResponseForPath, attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const manifest = {
   schema_version: "1",
@@ -139,4 +140,55 @@ test("task source manifest defaults push intake to disabled", () => {
   const { push: _push, ...withoutPush } = manifest;
   const parsed = parseTaskSourceManifest(withoutPush);
   assert.equal(parsed.push, false);
+});
+
+test("task source intake fails closed without verification keys", () => {
+  assert.throws(() => assertTaskSourceSigningReady(""), /AW_STATUS_KEYRING is required/);
+  assert.throws(() => assertTaskSourceSigningReady("{bad"), /Invalid AW_STATUS_KEYRING JSON/);
+  assert.doesNotThrow(() => assertTaskSourceSigningReady(process.env.AW_STATUS_KEYRING ?? ""));
+});
+
+test("signed Task Source success prevents re-dispatching an unchanged HEAD", async () => {
+  const repository = "fongap-labs/task-source-fixture";
+  const sha = "b".repeat(40);
+  const previous = "a".repeat(40);
+  const manifest = Buffer.from(
+    JSON.stringify({ schema_version: "1", push: true, schedules: [] }),
+    "utf8"
+  ).toString("base64");
+  const statusPath = `repos/${repository}/commits/${sha}/status`;
+  const source = {
+    async get(path: string): Promise<unknown> {
+      if (path === `repos/${repository}`) return { default_branch: "main" };
+      if (path === `repos/${repository}/commits/main`) {
+        return { sha, parents: [{ sha: previous }] };
+      }
+      if (path === `repos/${repository}/contents/.github/task-source.json?ref=${sha}`) {
+        return { encoding: "base64", content: manifest };
+      }
+      if (path === statusPath) {
+        return attestFixtureResponseForPath(path, {
+          statuses: [
+            {
+              context: "Task Source",
+              state: "success",
+              created_at: "2026-11-11T23:23:37Z",
+              target_url: "https://github.com/fongap-labs/action-worker/actions/runs/43119422794",
+              description: "Task source success",
+            },
+          ],
+        });
+      }
+      throw new Error(`Unexpected GitHub path: ${path}`);
+    },
+  };
+  let dispatched = 0;
+  const result = await scanTaskSources(
+    { [repository]: ["task"] },
+    source,
+    async () => { dispatched += 1; }
+  );
+  assert.equal(dispatched, 0);
+  assert.equal(result.already_processed, 1);
+  assert.equal(result.dispatched, 0);
 });
