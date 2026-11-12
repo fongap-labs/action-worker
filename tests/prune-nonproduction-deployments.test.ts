@@ -41,7 +41,10 @@ test("deployment backlog is automatically retried every thirty minutes without r
     jobs: Record<string, { if?: string }>;
   };
   assert.deepEqual(workflow.on.schedule, [{ cron: "31 5 * * *" }, { cron: "17,47 * * * *" }]);
-  assert.equal(workflow.jobs.deployments?.if, "${{ github.event_name == 'schedule' }}");
+  assert.equal(
+    workflow.jobs.deployments?.if,
+    "${{ github.event_name == 'schedule' && github.event.schedule == '17,47 * * * *' }}"
+  );
   const dailyOnly =
     "${{ github.event_name != 'schedule' || github.event.schedule == '31 5 * * *' }}";
   assert.equal(workflow.jobs.branches?.if, dailyOnly);
