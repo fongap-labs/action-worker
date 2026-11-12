@@ -27,7 +27,8 @@ test("both release callers retain their own legacy error diagnostics", async () 
       ensureNoLegacyChangelogFragments(path, token, diagnostic, async () => [
         { type: "file", name: "pending.md" },
       ]),
-      (error: unknown) => error instanceof CliError && error.code === 65 && error.message === diagnostic
+      (error: unknown) =>
+        error instanceof CliError && error.exitCode === 65 && error.message === diagnostic
     );
   }
 });
