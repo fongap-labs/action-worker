@@ -23,10 +23,11 @@ test("only approved source product switches credential ownership to existing ops
     selectDeployCredentialEnvironment(routes, grants, "fongap-labs/ai-gateway", "", "production"),
     { credential_environment: "ai-gateway-ops", create_deployment: false }
   );
-  for (const [repo, product] of [
-    ["fongap-labs/internal-vault", "server-edge"],
-    ["fongap-labs/mcp-hub", ""],
-  ] as const) {
+  assert.deepEqual(
+    selectDeployCredentialEnvironment(routes, grants, "fongap-labs/mcp-hub", "", "production"),
+    { credential_environment: "mcp-hub-ops", create_deployment: false }
+  );
+  for (const [repo, product] of [["fongap-labs/internal-vault", "server-edge"]] as const) {
     assert.deepEqual(
       selectDeployCredentialEnvironment(routes, grants, repo, product, "production"),
       {
@@ -92,6 +93,13 @@ test("credential routes fail closed for unauthorized policy edits and cross-owne
       routes: {
         "fongap-labs/internal-vault/FongapCDN": { production: "shared-ops" },
         "fongap-labs/ai-gateway": { production: "shared-ops" },
+      },
+    },
+    {
+      schema_version: 1,
+      routes: {
+        "fongap-labs/ai-gateway": { production: "ai-gateway-ops" },
+        "fongap-labs/mcp-hub": { production: "ai-gateway-ops" },
       },
     },
   ]) {

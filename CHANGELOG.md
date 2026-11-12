@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: MCP Hub 将 `mcp-hub-ops` 作为生产部署凭据来源，`production` 仅保留发布审计；不复制密钥或放宽中央门禁。
+
 - 修复: MCP Hub 部署仅导出白名单普通变量，避免 API Token 误入 Actions 日志；Token/TOTP 仍必须从 Secrets 注入。
 
 - 修复: 部署历史定期清理仅响应每小时第 17、47 分钟的 Cron，排除每日 05:31 运维触发的额外清理，严格保持半小时节奏及每批 API 限额。
