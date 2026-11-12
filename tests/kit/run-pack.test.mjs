@@ -64,7 +64,9 @@ test("every checked-in target pack has a valid manifest and complete Node tier p
     const manifest = JSON.parse(readFileSync(join(path, "pack.json"), "utf8"));
     assert.doesNotThrow(() => validatePackManifest(entry.name, manifest), entry.name);
     if (manifest.runtime !== "node") continue;
-    const files = readdirSync(path).filter((name) => name.endsWith(manifest.suffix)).sort();
+    const files = readdirSync(path)
+      .filter((name) => name.endsWith(manifest.suffix))
+      .sort();
     const partition = planPack(entry.name, manifest, files);
     assert.ok(files.length > 0, entry.name);
     assert.deepEqual([...partition.unit, ...partition.gate].sort(), files);
@@ -74,7 +76,9 @@ test("every checked-in target pack has a valid manifest and complete Node tier p
 });
 
 test("manifests reject mutable identities, invalid runtime and misleading tiers", () => {
-  const valid = JSON.parse('{"schema_version":1,"pack":"example","runtime":"node","suffix":"-test.mjs"}');
+  const valid = JSON.parse(
+    '{"schema_version":1,"pack":"example","runtime":"node","suffix":"-test.mjs"}'
+  );
   assert.doesNotThrow(() => validatePackManifest("example", valid));
   for (const invalid of [
     { ...valid, schema_version: 2 },
