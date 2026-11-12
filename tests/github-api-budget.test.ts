@@ -66,10 +66,10 @@ test("only optional intake jobs defer; important CI and governance continue", as
     assert.equal(preflight?.run, "node scripts/check-github-api-budget.ts");
     assert.equal(preflight?.env?.AW_API_QUOTA_RESERVE, "300");
     assert.equal(preflight?.env?.AW_CONTROL_TOKEN, "${{ steps.control_read_app.outputs.token }}");
-    assert.ok(
-      steps.some((step) => step.if === "steps.api_budget.outputs.run == 'true'"),
-      `${job} must defer only the optional scan step`
+    const optionalScan = steps.filter((step) =>
+      step.if?.includes("steps.api_budget.outputs.run == 'true'")
     );
+    assert.equal(optionalScan.length, 1, `${job} must defer only the optional scan step`);
   }
   for (const job of ["pull-requests", "main-ci", "main-writes"]) {
     const steps = workflow.jobs[job]?.steps ?? [];
