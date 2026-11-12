@@ -48,6 +48,25 @@ test("only approved source product switches credential ownership to existing ops
   }
 });
 
+test("future non-production deploy targets never generate Deployment records", () => {
+  const extendedGrants = {
+    ...grants,
+    "fongap-labs/mcp-hub": ["production", "staging", "dev", "mcp-hub-ops"],
+  };
+  for (const environment of ["staging", "dev", "mcp-hub-ops"]) {
+    assert.deepEqual(
+      selectDeployCredentialEnvironment(
+        routes,
+        extendedGrants,
+        "fongap-labs/mcp-hub",
+        "",
+        environment
+      ),
+      { credential_environment: environment, create_deployment: false }
+    );
+  }
+});
+
 test("credential routes fail closed for unauthorized policy edits and cross-owner ops access", () => {
   for (const bad of [
     null,
