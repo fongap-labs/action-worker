@@ -268,12 +268,6 @@ export async function resolveReleaseBuildProduct(
   follows_text: string | null;
 }> {
   const discovery = await discoverProducts(reader, request.source_repository, request.source_sha);
-  if (request.product && discovery.undeclared_directories?.includes(request.product)) {
-    throw new CliError(
-      `Product directory projects/${request.product} exists but is not configured for release. Add projects/${request.product}/release.manifest.json and a build script following the release contract; creating a directory alone does not enable publishing.`,
-      65
-    );
-  }
   const product = selectProduct(discovery.products, request.product ?? "");
   const manifestText = product.files["release.manifest.json"];
   if (manifestText === undefined) {
