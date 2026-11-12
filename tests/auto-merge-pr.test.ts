@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import {
   assertReadyForAutomaticMerge,
+  isApprovedCompletedMerge,
   isOpenDraftPull,
   mustRefreshBehindBranch,
 } from "../scripts/auto-merge-pr.ts";
@@ -128,6 +129,41 @@ test("automatic merge refuses a PR title changed after its signed governance ver
     () => verify({ ...pull(), title: "fix(example): repair a bug" }, statuses()),
     /current PR title/
   );
+});
+
+test("exact approved merged PR is an idempotent success, never an authorization bypass", () => {
+  const approved = {
+    ...pull(),
+    state: "closed",
+    merged: true,
+    merged_at: "2026-11-12T03:55:19Z",
+    merge_commit_sha: "c".repeat(40),
+  };
+  const verifyMerge = (v: unknown, s = statuses()) =>
+    isApprovedCompletedMerge(v, s, repository, number, headSha, baseSha, runUrl);
+  assert.equal(verifyMerge(approved), true);
+  for (const invalid of [
+    { ...approved, merged: false },
+    { ...approved, state: "open" },
+    { ...approved, merged_at: null },
+    { ...approved, merge_commit_sha: null },
+    { ...approved, number: number + 1 },
+    { ...approved, head: { sha: "d".repeat(40) } },
+    { ...approved, base: { sha: "d".repeat(40), ref: "main" } },
+    { ...approved, title: "fix: different title" },
+  ]) {
+    assert.equal(verifyMerge(invalid), false);
+  }
+  const tampered = statuses();
+  tampered.statuses[0] = { ...tampered.statuses[0]!, description: "unsigned status" };
+  assert.equal(verifyMerge(approved, tampered), false);
+  const differentRun = statuses();
+  differentRun.statuses[0] = status(
+    "PR Governance",
+    "success",
+    "https://github.com/fongap-labs/action-worker/actions/runs/9999999"
+  );
+  assert.equal(verifyMerge(approved, differentRun), false);
 });
 
 test("draft and changed or closed PRs never auto-merge", () => {

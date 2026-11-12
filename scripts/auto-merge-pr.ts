@@ -88,6 +88,46 @@ export function mustRefreshBehindBranch(pull: unknown, repository: string): bool
 }
 
 /** Draft PRs are intentionally ineligible; this is a successful no-op, not a failed gate. */
+// A second merge attempt can race with a GitHub auto-merge already approved
+// for the same immutable head. A complete, exact signed-gate match is required
+// before treating this as an idempotent success.
+export function isApprovedCompletedMerge(
+  pull: unknown,
+  statuses: unknown,
+  repository: string,
+  prNumber: number,
+  headSha: string,
+  baseSha: string,
+  governanceRunUrl: string
+): boolean {
+  if (
+    !isJsonRecord(pull) ||
+    pull.state !== "closed" ||
+    pull.merged !== true ||
+    pull.number !== prNumber ||
+    getJsonString(pull, "merged_at") === "" ||
+    !SHA.test(getJsonString(pull, "merge_commit_sha"))
+  ) {
+    return false;
+  }
+  // Reuse the same immutable-head, signed-PR-title, matching-run and CI checks
+  // that would have authorized the attempted merge while the PR was open.
+  try {
+    assertReadyForAutomaticMerge(
+      { ...pull, state: "open", merged: false, draft: false },
+      statuses,
+      repository,
+      prNumber,
+      headSha,
+      baseSha,
+      governanceRunUrl
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function isOpenDraftPull(pull: unknown, prNumber: number): boolean {
   return (
     isJsonRecord(pull) &&
@@ -118,6 +158,22 @@ async function main(): Promise<void> {
     return;
   }
   const statuses = await getGithubJson(`repos/${repository}/commits/${headSha}/status`, readToken);
+  // A competing GitHub auto-merge may have finished between the signed gate
+  // publication and this job; the exact approved head still must be proven.
+  if (
+    isApprovedCompletedMerge(
+      pull,
+      statuses,
+      repository,
+      Number(number),
+      headSha,
+      baseSha,
+      governanceRunUrl
+    )
+  ) {
+    console.log(`Already merged exact CI-approved head: ${repository}#${number}@${headSha}.`);
+    return;
+  }
   assertReadyForAutomaticMerge(
     pull,
     statuses,
@@ -149,10 +205,33 @@ async function main(): Promise<void> {
   }
   // GitHub still applies protected branch rules. Matching the exact PR head
   // prevents a newer revision from being merged by this older governance run.
-  await runGithubCli(
-    ["pr", "merge", number, "--repo", repository, "--squash", "--match-head-commit", headSha],
-    writeToken
-  );
+  try {
+    await runGithubCli(
+      ["pr", "merge", number, "--repo", repository, "--squash", "--match-head-commit", headSha],
+      writeToken
+    );
+  } catch (error) {
+    // Do not convert an ordinary merge failure into success. Only a separately
+    // verified, already-completed merge of this exact approved PR head qualifies.
+    const concurrent = await getGithubJson(pullPath, readToken);
+    if (
+      !isApprovedCompletedMerge(
+        concurrent,
+        statuses,
+        repository,
+        Number(number),
+        headSha,
+        baseSha,
+        governanceRunUrl
+      )
+    ) {
+      throw error;
+    }
+    console.log(
+      `Concurrent merge completed exact CI-approved head: ${repository}#${number}@${headSha}.`
+    );
+    return;
+  }
   const after = await getGithubJson(pullPath, readToken);
   if (
     !isJsonRecord(after) ||
