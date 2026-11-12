@@ -59,7 +59,7 @@ export function selectDeployCredentialEnvironment(
   const actual = route?.[environment];
   return {
     credential_environment: typeof actual === "string" ? actual : environment,
-    create_deployment: actual === undefined,
+    create_deployment: actual === undefined && environment === "production",
   };
 }
 
