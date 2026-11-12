@@ -1,3 +1,5 @@
+import { delimiter } from "node:path";
+
 // Builds a minimal, safe environment for the test subprocess spawned by
 // run-pack.mjs. Only process.env entries that appear (case-insensitively, to
 // survive Windows mixed-case var names) in the base set or in the pack
@@ -84,4 +86,19 @@ export function buildPackEnv(manifest, target) {
 /** @returns {readonly string[]} Names a pack is allowed to declare. */
 export function baseEnvNames() {
   return [...BASE_VARS].sort();
+}
+
+/**
+ * The Python import path is intentionally reconstructed from trusted roots.
+ * Host PYTHONPATH is not on the allowlist and must not reach an untrusted target.
+ *
+ * @param {{ env?: string[] }} manifest
+ * @param {string} target
+ * @param {string} kitPythonRoot
+ * @returns {NodeJS.ProcessEnv}
+ */
+export function buildPythonPackEnv(manifest, target, kitPythonRoot) {
+  const env = buildPackEnv(manifest, target);
+  env.PYTHONPATH = [target, kitPythonRoot].join(delimiter);
+  return env;
 }
