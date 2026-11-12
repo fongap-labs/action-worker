@@ -47,6 +47,8 @@ export type DiscoveredProduct = {
 export type ProductDiscovery = {
   layout: ProductLayout;
   products: DiscoveredProduct[];
+  // Existing projects/ directories without any product declaration, for actionable diagnostics.
+  undeclared_directories?: string[];
 };
 
 export type ContentReader = {
@@ -242,6 +244,7 @@ export async function discoverProducts(
   }
 
   const products: DiscoveredProduct[] = [];
+  const undeclaredDirectories: string[] = [];
   for (const entry of await listDirectory(reader, repository, PRODUCTS_DIRECTORY, sha)) {
     if (entry.type !== "dir") {
       continue;
@@ -249,6 +252,7 @@ export async function discoverProducts(
     const directory = `${PRODUCTS_DIRECTORY}/${entry.name}`;
     const sizes = fileSizes(await listDirectory(reader, repository, directory, sha));
     if (!PRODUCT_MARKER_FILE_NAMES.some((fileName) => sizes.has(fileName))) {
+      undeclaredDirectories.push(entry.name);
       continue;
     }
     if (!isProductName(entry.name)) {
@@ -280,11 +284,23 @@ export async function discoverProducts(
       );
     }
     assertUniqueReleaseKeys(products);
-    return { layout: "projects", products };
+    return {
+      layout: "projects",
+      products,
+      ...(undeclaredDirectories.length > 0
+        ? { undeclared_directories: undeclaredDirectories }
+        : {}),
+    };
   }
 
   if (!hasRootManifest) {
-    return { layout: "root", products: [] };
+    return {
+      layout: "root",
+      products: [],
+      ...(undeclaredDirectories.length > 0
+        ? { undeclared_directories: undeclaredDirectories }
+        : {}),
+    };
   }
   const rootProduct = await readProduct(reader, repository, sha, {
     name: "",
