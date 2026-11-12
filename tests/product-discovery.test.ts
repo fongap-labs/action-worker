@@ -192,26 +192,20 @@ test("a single product under projects/ is selected without a name", async () => 
   assert.throws(() => selectProduct(products, "api"), /Unknown product: api/);
 });
 
-test("an existing project directory without a release declaration has an actionable error", async () => {
+test("unregistered project directories are not treated as a hard-coded product whitelist", async () => {
   const files = {
     ...multiProductTree,
     "projects/Steno/package.json": '{"name":"steno"}',
   };
   const discovery = await discoverProducts(contentsReader(files), repository, sha);
-  assert.deepEqual(discovery.undeclared_directories?.sort(), ["Steno", "docs"].sort());
-  assert.deepEqual(discovery.products.map((product) => product.name), ["api", "web"]);
+  assert.deepEqual(
+    discovery.products.map((product) => product.name),
+    ["api", "web"]
+  );
 
-  const request = parseReleaseBuildRequest({
-    schema_version: "1",
-    request_id: "release-build-steno",
-    source_repository: repository,
-    source_sha: sha,
-    requested_version: "0.1.0-beta.1",
-    product: "Steno",
-  });
-  await assert.rejects(
-    resolveReleaseBuildProduct(contentsReader(files), request),
-    /Steno.+release[.]manifest[.]json/,
+  assert.throws(
+    () => selectProduct(discovery.products, "Steno"),
+    /projects[/]Steno[/]/
   );
 });
 
