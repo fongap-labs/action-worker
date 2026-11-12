@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readGatewayRepositoryVariables } from "../scripts/gateway-repository-vars.ts";
 import { validateGatewayOpsVariables } from "../scripts/gateway-ops-variables.ts";
+import { readGatewayRepositoryVariables } from "../scripts/gateway-repository-vars.ts";
 
 const account = "0123456789abcdef0123456789abcdef";
 
@@ -13,14 +13,14 @@ test("only repository Variables are accepted without any ops Environment fallbac
     return Response.json({
       total_count: 2,
       variables: [
-        { name: "AW_CLOUDFLARE_ACCOUNT_ID_SECONDARY", value: account },
+        { name: "CLOUDFLARE_ACCOUNT_ID_REPOSITORY", value: account },
         { name: "AIG_PUBLIC_URL", value: "https://gateway.example/" },
       ],
     });
   };
   const snapshot = await readGatewayRepositoryVariables("test-read-token", request);
   const validated = validateGatewayOpsVariables(snapshot);
-  assert.equal(validated.AW_CLOUDFLARE_ACCOUNT_ID_SECONDARY, account);
+  assert.equal(validated.CLOUDFLARE_ACCOUNT_ID_REPOSITORY, account);
   assert.equal(validated.CLOUDFLARE_ACCOUNT_ID_SECONDARY, account);
   assert.equal(validated.AIG_PUBLIC_URL, "https://gateway.example");
   assert.deepEqual(requests, [
@@ -29,12 +29,15 @@ test("only repository Variables are accepted without any ops Environment fallbac
 });
 
 test("Cloudflare token-shaped repository Variables are never exported", async () => {
-  for (const name of ["CLOUDFLARE_API_TOKEN_SECONDARY", "AW_CLOUDFLARE_API_TOKEN_SECONDARY"]) {
+  for (const name of ["CLOUDFLARE_API_TOKEN_SECONDARY", "CLOUDFLARE_API_TOKEN_REPOSITORY"]) {
     const request: typeof fetch = async () =>
-      Response.json({ total_count: 2, variables: [
-        { name: "AW_CLOUDFLARE_ACCOUNT_ID_SECONDARY", value: account },
-        { name, value: "do-not-print-this-value" },
-      ] });
+      Response.json({
+        total_count: 2,
+        variables: [
+          { name: "CLOUDFLARE_ACCOUNT_ID_REPOSITORY", value: account },
+          { name, value: "do-not-print-this-value" },
+        ],
+      });
     await assert.rejects(
       () => readGatewayRepositoryVariables("test-read-token", request),
       /Cloudflare API Token must be a GitHub repository Secret/
@@ -48,20 +51,25 @@ test("repository Variable inventory is bounded, denied requests fail closed", as
     /requires a GitHub token/
   );
   await assert.rejects(
-    () => readGatewayRepositoryVariables("read-token", async () => new Response("", { status: 403 })),
+    () =>
+      readGatewayRepositoryVariables("read-token", async () => new Response("", { status: 403 })),
     /denied or unavailable/
   );
   await assert.rejects(
-    () => readGatewayRepositoryVariables("read-token", async () => Response.json({ variables: [{}] })),
+    () =>
+      readGatewayRepositoryVariables("read-token", async () => Response.json({ variables: [{}] })),
     /entry is invalid/
   );
   await assert.rejects(
-    () => readGatewayRepositoryVariables("read-token", async () => Response.json({
-      variables: [
-        { name: "AW_CLOUDFLARE_ACCOUNT_ID_SECONDARY", value: account },
-        { name: "AW_CLOUDFLARE_ACCOUNT_ID_SECONDARY", value: account },
-      ],
-    })),
+    () =>
+      readGatewayRepositoryVariables("read-token", async () =>
+        Response.json({
+          variables: [
+            { name: "CLOUDFLARE_ACCOUNT_ID_REPOSITORY", value: account },
+            { name: "CLOUDFLARE_ACCOUNT_ID_REPOSITORY", value: account },
+          ],
+        })
+      ),
     /duplicated names/
   );
 });
