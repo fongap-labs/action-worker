@@ -39,10 +39,7 @@ test("MCP Hub deploy cannot evaluate toJSON(vars) or export API Tokens as Variab
   const mcp = steps.find((s) => s.name === "Export MCP Hub allowlisted Variables");
   assert.equal(normal?.if, "needs.prepare.outputs.source_repository != 'fongap-labs/mcp-hub'");
   assert.equal(mcp?.if, "needs.prepare.outputs.source_repository == 'fongap-labs/mcp-hub'");
-  assert.equal(
-    normal?.env?.REPOSITORY_VARS_JSON,
-    "${{ toJSON(vars) }}"
-  );
+  assert.equal(normal?.env?.REPOSITORY_VARS_JSON, "${{ toJSON(vars) }}");
   assert.equal(
     mcp?.env?.AW_MCP_HUB_VAR_CLOUDFLARE_ACCOUNT_ID_SECONDARY,
     "${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}"

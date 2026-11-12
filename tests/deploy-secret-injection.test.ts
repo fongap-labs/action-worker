@@ -374,32 +374,72 @@ test("AI Gateway takes AIG runtime Variables from protected ops and Cloudflare a
   assert.equal(Object.hasOwn(result, "CLOUDFLARE_API_TOKEN_SECONDARY"), false);
   assert.equal(Object.hasOwn(result, "AW_AI_AGENT_CONFIG"), false);
   assert.throws(
-    () => mergeApprovedGatewayOpsVariables({}, "fongap-labs/ai-gateway", "production", repository, "ai-gateway-ops"),
+    () =>
+      mergeApprovedGatewayOpsVariables(
+        {},
+        "fongap-labs/ai-gateway",
+        "production",
+        repository,
+        "ai-gateway-ops"
+      ),
     /AIG_MODELS_CONFIG is unavailable or empty/
   );
   assert.throws(
-    () => mergeApprovedGatewayOpsVariables(ops, "fongap-labs/ai-gateway", "production", {}, "ai-gateway-ops"),
+    () =>
+      mergeApprovedGatewayOpsVariables(
+        ops,
+        "fongap-labs/ai-gateway",
+        "production",
+        {},
+        "ai-gateway-ops"
+      ),
     /must be a string/
   );
   assert.throws(
-    () => mergeApprovedGatewayOpsVariables(ops, "fongap-labs/ai-gateway", "production", {
-      ...repository,
-      AIG_MODELS_CONFIG: "wrong-scope",
-    }, "ai-gateway-ops"),
+    () =>
+      mergeApprovedGatewayOpsVariables(
+        ops,
+        "fongap-labs/ai-gateway",
+        "production",
+        {
+          ...repository,
+          AIG_MODELS_CONFIG: "wrong-scope",
+        },
+        "ai-gateway-ops"
+      ),
     /belong to ai-gateway-ops/
   );
   assert.throws(
-    () => mergeApprovedGatewayOpsVariables({ ...ops, AIG_ACCESS_KEY_AGENT: "secret" }, "fongap-labs/ai-gateway", "production", repository, "ai-gateway-ops"),
+    () =>
+      mergeApprovedGatewayOpsVariables(
+        { ...ops, AIG_ACCESS_KEY_AGENT: "secret" },
+        "fongap-labs/ai-gateway",
+        "production",
+        repository,
+        "ai-gateway-ops"
+      ),
     /stored as a Secret/
   );
   for (const credentialEnvironment of ["production", "", undefined]) {
     assert.throws(
-      () => mergeApprovedGatewayOpsVariables(ops, "fongap-labs/ai-gateway", "production", repository, credentialEnvironment),
+      () =>
+        mergeApprovedGatewayOpsVariables(
+          ops,
+          "fongap-labs/ai-gateway",
+          "production",
+          repository,
+          credentialEnvironment
+        ),
       /protected ai-gateway-ops credential Environment/
     );
   }
   assert.deepEqual(
-    mergeApprovedGatewayOpsVariables({ PUBLIC_URL: "https://example.test" }, "fongap-labs/mcp-hub", "production", {}),
+    mergeApprovedGatewayOpsVariables(
+      { PUBLIC_URL: "https://example.test" },
+      "fongap-labs/mcp-hub",
+      "production",
+      {}
+    ),
     { PUBLIC_URL: "https://example.test" }
   );
   assert.throws(
