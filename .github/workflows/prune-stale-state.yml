@@ -13,9 +13,9 @@ on:
       - scripts/prune-nonproduction-deployments.ts
   schedule:
     - cron: "31 5 * * *"
-    # Hourly except 05:00 UTC, when the daily sweep already runs.
-    # Keep cleanup batches below the repository GITHUB_TOKEN hourly API budget.
-    - cron: "47 0-4,6-23 * * *"
+    # Run Deployment history pruning every 30 minutes, independently of daily maintenance.
+    # The batch size is reduced to keep GITHUB_TOKEN requests within the hourly budget.
+    - cron: "17,47 * * * *"
 
 permissions:
   contents: read
@@ -92,7 +92,7 @@ jobs:
 
   deployments:
     name: Prune non-production Deployment history
-    # The hourly sweep alone avoids repeated 300-record cleanup within an API-rate window.
+    # Every half-hour schedule prunes a bounded batch; push events never prune history.
     if: ${{ github.event_name == 'schedule' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
