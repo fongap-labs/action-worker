@@ -48,7 +48,9 @@ test("only approved source product switches credential ownership to existing ops
   }
 });
 
-test("future non-production deploy targets never generate Deployment records", () => {
+// Route metadata is not the final Deployment gate: the workflow expression also
+// checks the resolved target environment before creating any Deployment record.
+test("future non-production deploy targets are restricted by the workflow gate", () => {
   const extendedGrants = {
     ...grants,
     "fongap-labs/mcp-hub": ["production", "staging", "dev", "mcp-hub-ops"],
@@ -62,7 +64,7 @@ test("future non-production deploy targets never generate Deployment records", (
         "",
         environment
       ),
-      { credential_environment: environment, create_deployment: false }
+      { credential_environment: environment, create_deployment: true }
     );
   }
 });
@@ -161,7 +163,7 @@ test("central deployment uses ops only for authorized credential read and record
   assert.doesNotMatch(JSON.stringify(prepare.steps?.[verifyAt!]), /secrets\.|AW_APP_PRIVATE_KEY/);
   assert.deepEqual(deploy.environment, {
     name: "${{ needs.prepare.outputs.credential_environment }}",
-    deployment: "${{ needs.prepare.outputs.create_deployment == 'true' }}",
+    deployment: "${{ needs.prepare.outputs.create_deployment == 'true' && needs.prepare.outputs.environment == 'production' }}",
   });
   assert.deepEqual(record.needs, ["prepare", "deploy"]);
   // The protected ops deployment already occurred; production audit is not
