@@ -49,12 +49,15 @@ test("Cloudflare token-shaped repository Variables are never exported", async ()
 
 test("repository AIG runtime Variables are rejected before deployment", async () => {
   await assert.rejects(
-    () => readGatewayRepositoryVariables("read-token", async () => Response.json({
-      variables: [
-        { name: "CLOUDFLARE_ACCOUNT_ID_SECONDARY", value: account },
-        { name: "AIG_MODELS_CONFIG", value: "{}" },
-      ],
-    })),
+    () =>
+      readGatewayRepositoryVariables("read-token", async () =>
+        Response.json({
+          variables: [
+            { name: "CLOUDFLARE_ACCOUNT_ID_SECONDARY", value: account },
+            { name: "AIG_MODELS_CONFIG", value: "{}" },
+          ],
+        })
+      ),
     /must be stored in ai-gateway-ops/
   );
 });

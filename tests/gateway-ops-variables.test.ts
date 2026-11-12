@@ -124,8 +124,7 @@ test("deployment workflow reads ops runtime Variables and repository Cloudflare 
     (step) => step.name === "Export scoped deployment variables"
   );
   assert.deepEqual(exportStep?.env, {
-    REPOSITORY_VARS_JSON:
-      "${{ toJSON(vars) }}",
+    REPOSITORY_VARS_JSON: "${{ toJSON(vars) }}",
     AW_GATEWAY_VARIABLES_B64_FROM_REPOSITORY:
       "${{ needs.gateway_variables.outputs.variables_b64 }}",
     DEPLOY_CREDENTIAL_ENVIRONMENT: "${{ needs.prepare.outputs.credential_environment }}",
