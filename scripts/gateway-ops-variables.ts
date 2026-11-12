@@ -33,7 +33,7 @@ const forbiddenSecretNames = [
 
 /** Non-sensitive Gateway Variables belong to the Action Worker repository, not an ops Environment. */
 export function isGatewayOwnedVariableName(name: string): boolean {
-  return name === accountName || gatewayVariableName.test(name);
+  return name === accountName || name === "CLOUDFLARE_ACCOUNT_ID_SECONDARY" || gatewayVariableName.test(name);
 }
 
 function fail(name: string, reason: string): never {
@@ -82,6 +82,12 @@ export function validateGatewayOpsVariables(
   if (!/^[0-9a-f]{32}$/.test(account)) {
     fail(accountName, "is unavailable or invalid");
   }
+  // Keep the existing declared deploy contract; the authoritative Account ID
+  // itself comes only from AW_... in the repository's own Variables API.
+  if (input.CLOUDFLARE_ACCOUNT_ID_SECONDARY && input.CLOUDFLARE_ACCOUNT_ID_SECONDARY !== account) {
+    fail("CLOUDFLARE_ACCOUNT_ID_SECONDARY", "conflicts with the repository Account ID");
+  }
+  result.CLOUDFLARE_ACCOUNT_ID_SECONDARY = account;
 
   const publicUrl = result.AIG_PUBLIC_URL;
   if (publicUrl) {
