@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    types: [opened, reopened, synchronize, edited, ready_for_review, converted_to_draft]
 
 permissions:
   contents: read
@@ -17,6 +18,47 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  change-governance:
+    name: Change governance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact change head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Resolve change range
+        id: range
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: node scripts/ci-change-range.ts
+
+      # Reuse the exact change-record policy applied to managed repositories.
+      - name: Validate PR change record
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_SHA: ${{ steps.range.outputs.base }}
+          HEAD_SHA: ${{ steps.range.outputs.head }}
+        run: node scripts/validate-change-record.ts "$PR_TITLE" "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/policies"
+
+      - name: Validate engineering language
+        env:
+          BASE_SHA: ${{ steps.range.outputs.base }}
+          HEAD_SHA: ${{ steps.range.outputs.head }}
+        run: node scripts/validate-engineering-language.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE"
   naming:
     name: Naming rules
     runs-on: ubuntu-24.04
@@ -249,6 +291,7 @@ jobs:
   validate-merge:
     name: validate-merge
     needs:
+      - change-governance
       - naming
       - security
       - static
@@ -264,6 +307,7 @@ jobs:
     steps:
       - name: Aggregate merge gate
         env:
+          CHANGE_GOVERNANCE_RESULT: ${{ needs.change-governance.result }}
           NAMING_RESULT: ${{ needs.naming.result }}
           SECURITY_RESULT: ${{ needs.security.result }}
           STATIC_RESULT: ${{ needs.static.result }}
@@ -274,8 +318,8 @@ jobs:
         run: |
           set -Eeuo pipefail
 
-          if [ "$NAMING_RESULT" != "success" ] || [ "$SECURITY_RESULT" != "success" ] || [ "$STATIC_RESULT" != "success" ] || [ "$CONTRACT_RESULT" != "success" ] || [ "$PRIVATE_SANDBOX_RESULT" != "success" ] || [ "$DOWNSTREAM_RESULT" != "success" ]; then
-            echo "::error::CI failed: naming=$NAMING_RESULT security=$SECURITY_RESULT static=$STATIC_RESULT contracts=$CONTRACT_RESULT private-sandbox=$PRIVATE_SANDBOX_RESULT downstream=$DOWNSTREAM_RESULT" >&2
+          if [ "$CHANGE_GOVERNANCE_RESULT" != "success" ] || [ "$NAMING_RESULT" != "success" ] || [ "$SECURITY_RESULT" != "success" ] || [ "$STATIC_RESULT" != "success" ] || [ "$CONTRACT_RESULT" != "success" ] || [ "$PRIVATE_SANDBOX_RESULT" != "success" ] || [ "$DOWNSTREAM_RESULT" != "success" ]; then
+            echo "::error::CI failed: change-governance=$CHANGE_GOVERNANCE_RESULT naming=$NAMING_RESULT security=$SECURITY_RESULT static=$STATIC_RESULT contracts=$CONTRACT_RESULT private-sandbox=$PRIVATE_SANDBOX_RESULT downstream=$DOWNSTREAM_RESULT" >&2
             exit 1
           fi
 
@@ -336,18 +380,19 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
         shell: bash
         run: |
           set -Eeuo pipefail
           [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] && [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
           details="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")"
-          jq -e --arg head "$HEAD_SHA" --arg base "$BASE_SHA" '
+          jq -e --arg head "$HEAD_SHA" --arg base "$BASE_SHA" --arg title "$PR_TITLE" '
             .state == "open" and .merged == false and .draft == false and
-            .head.sha == $head and .base.sha == $base and
+            .head.sha == $head and .base.sha == $base and .title == $title and
             .base.ref == "main" and .head.repo.full_name == .base.repo.full_name
           ' <<< "$details" >/dev/null || {
-            echo "::error::PR base, head, or draft state changed since successful CI." >&2
+            echo "::error::PR base, head, title, or draft state changed since successful CI." >&2
             exit 75
           }
           gh pr merge "$PR_NUMBER" --repo "$REPOSITORY" --squash --match-head-commit "$HEAD_SHA"
