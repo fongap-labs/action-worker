@@ -73,7 +73,7 @@ export function validatePackManifest(packName, manifest) {
     throw new Error(`pack ${packName}: env must list valid environment variable names`);
   }
   if (manifest.runtime === "node") {
-    if (typeof manifest.suffix !== "string" || !/^-[a-z0-9-]+\\.mjs$/.test(manifest.suffix)) {
+    if (typeof manifest.suffix !== "string" || !/^-[a-z0-9-]+\.mjs$/.test(manifest.suffix)) {
       throw new Error(`pack ${packName}: node suite suffix is invalid`);
     }
     if (manifest.command !== undefined) {
@@ -161,7 +161,10 @@ function main() {
   const target = resolve(targetArg);
   // Allow-listed environment: base OS vars plus names the pack declares in
   // pack.json. Host secrets (CI tokens, local dev keys) are never forwarded.
-  const env = buildPackEnv(manifest, target);
+  const env =
+    manifest.runtime === "python"
+      ? buildPythonPackEnv(manifest, target, join(here, "kit", "python"))
+      : buildPackEnv(manifest, target);
 
   if (manifest.runtime === "node") {
     const files = readdirSync(packDir)
@@ -185,7 +188,6 @@ function main() {
   }
 
   if (manifest.runtime === "python") {
-    Object.assign(env, buildPythonPackEnv(manifest, target, join(here, "kit", "python")));
     const command = manifest.command ?? ["python", "-m", "pytest"];
     const run = spawnSync(
       /** @type {string} */ (command[0]),
