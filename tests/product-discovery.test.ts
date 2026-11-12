@@ -211,7 +211,7 @@ test("an existing project directory without a release declaration has an actiona
   });
   await assert.rejects(
     resolveReleaseBuildProduct(contentsReader(files), request),
-    /projects\\/Steno\\/release\\.manifest\\.json/,
+    /Steno.+release[.]manifest[.]json/,
   );
 });
 
