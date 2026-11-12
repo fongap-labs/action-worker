@@ -518,10 +518,14 @@ try {
   assert.doesNotMatch(successObject, /ensureFirstSseEvent/, 'first-event guard must not leak into success-object.ts');
 
   const classifySource = fs.readFileSync(path.join(srcRoot, 'reliability', 'classify.ts'), 'utf8');
-  const processingContract = fs.readFileSync(path.join(srcRoot, 'types', 'upstream-processing.ts'), 'utf8');
+  const legacyProcessingPath = path.join(srcRoot, 'types', 'upstream-processing.ts');
+  const canonicalProcessingPath = path.join(root, 'packages', 'contracts', 'upstream-processing.ts');
+  const hasNeutralProcessingOwner = fs.existsSync(canonicalProcessingPath);
+  const processingContract = fs.readFileSync(hasNeutralProcessingOwner ? canonicalProcessingPath : legacyProcessingPath, 'utf8');
   assert.ok(
-    relativeSpecifiers(classifySource).includes('../types/upstream-processing.ts'),
-    'reliability classification consumes the neutral upstream-processing contract',
+    relativeSpecifiers(classifySource).includes('../types/upstream-processing.ts') ||
+      relativeSpecifiers(classifySource).includes('../../packages/contracts/upstream-processing.ts'),
+    'reliability classification must consume the single upstream-processing contract',
   );
   assert.doesNotMatch(
     classifySource,
@@ -530,6 +534,19 @@ try {
   );
   assert.match(processingContract, /export const UPSTREAM_PROCESSING_ERROR/);
   assert.match(processingContract, /export class UpstreamProcessingError/);
+  if (hasNeutralProcessingOwner) {
+    const legacySource = fs.readFileSync(legacyProcessingPath, 'utf8');
+    assert.match(
+      legacySource,
+      /export \* from '\.\.\/\.\.\/packages\/contracts\/upstream-processing\.ts'/,
+      'Legacy processing errors must only re-export the canonical shared contract',
+    );
+    assert.doesNotMatch(legacySource, /export (?:const|class) /, 'Legacy error classes and codes must not be duplicated');
+    const oldExports = await import('#target/src/types/upstream-processing.ts');
+    const newExports = await import('#target/packages/contracts/upstream-processing.ts');
+    assert.equal(oldExports.UPSTREAM_PROCESSING_ERROR, newExports.UPSTREAM_PROCESSING_ERROR);
+    assert.equal(oldExports.UpstreamProcessingError, newExports.UpstreamProcessingError);
+  }
   assert.equal(
     fs.existsSync(path.join(srcRoot, 'transport', 'processing-error.ts')),
     false,
