@@ -4,7 +4,10 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import { parse } from "yaml";
 import { validateGatewayOpsVariables } from "../scripts/gateway-ops-variables.ts";
-import { readGatewayRepositoryVariables, readGatewayVariablesWithApp } from "../scripts/gateway-repository-vars.ts";
+import {
+  readGatewayRepositoryVariables,
+  readGatewayVariablesWithApp,
+} from "../scripts/gateway-repository-vars.ts";
 
 const account = "0123456789abcdef0123456789abcdef";
 
@@ -96,7 +99,12 @@ test("App Variables reader mints a signed, one-repository read-only token and re
       assert.ok(header && body && signature);
       assert.equal(JSON.parse(Buffer.from(body, "base64url").toString()).iss, "Iv1.test-app-id");
       assert.equal(
-        verify("RSA-SHA256", Buffer.from(`${header}.${body}`), testPublicKey, Buffer.from(signature, "base64url")),
+        verify(
+          "RSA-SHA256",
+          Buffer.from(`${header}.${body}`),
+          testPublicKey,
+          Buffer.from(signature, "base64url")
+        ),
         true
       );
       return Response.json({ id: 178503233 });
@@ -107,7 +115,10 @@ test("App Variables reader mints a signed, one-repository read-only token and re
         repositories: ["action-worker"],
         permissions: { variables: "read" },
       });
-      return Response.json({ token: scopedToken, permissions: { variables: "read", metadata: "read" } });
+      return Response.json({
+        token: scopedToken,
+        permissions: { variables: "read", metadata: "read" },
+      });
     }
     if (path.includes("/actions/variables?")) {
       assert.equal(authorization, `Bearer ${scopedToken}`);
@@ -117,12 +128,17 @@ test("App Variables reader mints a signed, one-repository read-only token and re
     }
     if (path.endsWith("/installation/token")) {
       assert.equal(init?.method, "DELETE");
-      assert.equal(authorization, "Bearer " + scopedToken);
+      assert.equal(authorization, `Bearer ${scopedToken}`);
       return new Response(null, { status: 204 });
     }
     throw Error("unexpected endpoint");
   };
-  const values = await readGatewayVariablesWithApp("Iv1.test-app-id", testAppKey, request, 1_790_000_000);
+  const values = await readGatewayVariablesWithApp(
+    "Iv1.test-app-id",
+    testAppKey,
+    request,
+    1_790_000_000
+  );
   assert.equal(values.CLOUDFLARE_ACCOUNT_ID_REPOSITORY, account);
   assert.deepEqual(called, [
     "https://api.github.com/repos/fongap-labs/action-worker/installation",
@@ -155,7 +171,10 @@ test("inventory rejection and unexpected token permissions both revoke the token
       if (endpoint.endsWith("/access_tokens")) {
         return Response.json({
           token: scopedToken,
-          permissions: scenario === "excess-scope" ? { variables: "read", contents: "write" } : { variables: "read" },
+          permissions:
+            scenario === "excess-scope"
+              ? { variables: "read", contents: "write" }
+              : { variables: "read" },
         });
       }
       if (endpoint.endsWith("/installation/token")) {
@@ -177,8 +196,12 @@ test("failed revocation prevents exporting deployment variables", async () => {
   const request: typeof fetch = async (url) => {
     const endpoint = String(url);
     if (endpoint.endsWith("/installation")) return Response.json({ id: 178503233 });
-    if (endpoint.endsWith("/access_tokens")) return Response.json({ token: scopedToken, permissions: { variables: "read" } });
-    if (endpoint.includes("/actions/variables?")) return Response.json({ variables: [{ name: "AIG_PUBLIC_URL", value: "https://gateway.example" }] });
+    if (endpoint.endsWith("/access_tokens"))
+      return Response.json({ token: scopedToken, permissions: { variables: "read" } });
+    if (endpoint.includes("/actions/variables?"))
+      return Response.json({
+        variables: [{ name: "AIG_PUBLIC_URL", value: "https://gateway.example" }],
+      });
     return new Response(null, { status: 403 });
   };
   await assert.rejects(
@@ -189,16 +212,27 @@ test("failed revocation prevents exporting deployment variables", async () => {
 
 test("Gateway deploy workflow uses a non-environment repository snapshot and no unsupported App inputs", () => {
   const workflow = parse(readFileSync(".github/workflows/deploy-source-script.yml", "utf8")) as {
-    jobs: Record<string, { environment?: unknown; steps: Array<{ name?: string; uses?: string; env?: Record<string, string> }> }>;
+    jobs: Record<
+      string,
+      {
+        environment?: unknown;
+        steps: Array<{ name?: string; uses?: string; env?: Record<string, string> }>;
+      }
+    >;
   };
   const job = workflow.jobs.gateway_variables;
   assert.ok(job);
   assert.equal(job.environment, undefined);
-  const reader = job.steps.find((step) => step.name === "Validate non-sensitive AI Gateway repository Variables");
+  const reader = job.steps.find(
+    (step) => step.name === "Validate non-sensitive AI Gateway repository Variables"
+  );
   assert.ok(reader);
   assert.equal(reader.env?.AW_APP_CLIENT_ID, "${{ vars.AW_APP_CLIENT_ID }}");
   assert.equal(reader.env?.AW_APP_PRIVATE_KEY, "${{ secrets.AW_APP_PRIVATE_KEY }}");
   assert.equal(reader.env?.GITHUB_TOKEN, undefined);
-  assert.equal(job.steps.some((step) => step.name?.includes("Mint repository-only Variables")), false);
+  assert.equal(
+    job.steps.some((step) => step.name?.includes("Mint repository-only Variables")),
+    false
+  );
   assert.equal(JSON.stringify(job).includes("permission-variables"), false);
 });
