@@ -8,7 +8,7 @@ type Workflow = {
   jobs?: Record<string, { environment?: string | { name?: unknown; deployment?: unknown } }>;
 };
 
-test("operations environments never create GitHub Deployment records", async () => {
+test("non-production environments never create GitHub Deployment records", async () => {
   const directory = ".github/workflows";
   const filenames = await readdir(directory);
 
@@ -16,8 +16,26 @@ test("operations environments never create GitHub Deployment records", async () 
     const workflow = parse(await readFile(join(directory, filename), "utf8")) as Workflow;
     for (const [jobName, job] of Object.entries(workflow.jobs ?? {})) {
       const environment = job.environment;
-      const name = typeof environment === "string" ? environment : environment?.name;
-      if (typeof name !== "string" || !name.endsWith("-ops")) continue;
+      if (environment === undefined) continue;
+      const name = typeof environment === "string" ? environment : environment.name;
+      assert.ok(typeof name === "string", `${filename}:${jobName} must name an Environment`);
+      if (name === "production") continue;
+      // Dynamic Environment names are denied unless the centralized source-deploy
+      // selector controls both the name and the production-only deployment flag.
+      if (name === "${{ needs.prepare.outputs.credential_environment }}") {
+        assert.equal(filename, "deploy-source-script.yml");
+        assert.equal(jobName, "deploy");
+        assert.deepEqual(environment, {
+          name,
+          deployment:
+            "${{ needs.prepare.outputs.create_deployment == 'true' && needs.prepare.outputs.environment == 'production' }}",
+        });
+        continue;
+      }
+      assert.ok(
+        !name.includes("${{"),
+        `${filename}:${jobName} cannot use an unreviewed dynamic Environment`
+      );
       assert.ok(environment && typeof environment === "object");
       assert.equal(
         environment.deployment,
@@ -34,7 +52,8 @@ test("actual central deployments remain tracked under production", async () => {
   ) as Workflow;
   assert.deepEqual(workflow.jobs?.deploy?.environment, {
     name: "${{ needs.prepare.outputs.credential_environment }}",
-    deployment: "${{ needs.prepare.outputs.create_deployment == 'true' }}",
+    deployment:
+      "${{ needs.prepare.outputs.create_deployment == 'true' && needs.prepare.outputs.environment == 'production' }}",
   });
   // The protected ops job is the authorization boundary. An audit-only
   // production Environment job would require a second human approval after publish.

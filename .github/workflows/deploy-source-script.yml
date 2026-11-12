@@ -333,7 +333,7 @@ jobs:
     # the source manifest against the central authorization policy.
     environment:
       name: ${{ needs.prepare.outputs.credential_environment }}
-      deployment: ${{ needs.prepare.outputs.create_deployment == 'true' }}
+      deployment: ${{ needs.prepare.outputs.create_deployment == 'true' && needs.prepare.outputs.environment == 'production' }}
     # The group uses the resolved values, so a request that left the product or environment empty
     # still queues behind the same deploy of that product and environment.
     concurrency:
