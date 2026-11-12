@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 恢复网关从 ai-gateway-ops 读取模型与节点配置，仅从 Action Worker 仓库读取 Cloudflare 账号信息。
+
 - 修复: 网关部署增加 Cloudflare 仓库密钥一致性校验，拒绝旧环境同名密钥误覆盖。
 
 - 修复: 网关部署使用原名 AIG_*_AUTH_KEY 读取受保护环境密钥，并恢复 CLOUDFLARE_API_TOKEN_SECONDARY 映射，保留必填门禁。

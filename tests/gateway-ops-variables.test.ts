@@ -97,7 +97,7 @@ test("missing identity, malformed metadata, Secrets, retired and derived Variabl
   assert.throws(() => decodeGatewayOpsVariables("not+base64"), /encoding is invalid/);
 });
 
-test("deployment workflow uses repository-only Gateway Variables without inheriting ops values", () => {
+test("deployment workflow reads ops runtime Variables and repository Cloudflare metadata", () => {
   const workflow = parse(readFileSync(".github/workflows/deploy-source-script.yml", "utf8")) as {
     jobs: Record<string, Record<string, unknown>>;
   };
@@ -124,8 +124,7 @@ test("deployment workflow uses repository-only Gateway Variables without inherit
     (step) => step.name === "Export scoped deployment variables"
   );
   assert.deepEqual(exportStep?.env, {
-    REPOSITORY_VARS_JSON:
-      "${{ needs.prepare.outputs.source_repository == 'fongap-labs/ai-gateway' && '{}' || toJSON(vars) }}",
+    REPOSITORY_VARS_JSON: "${{ toJSON(vars) }}",
     AW_GATEWAY_VARIABLES_B64_FROM_REPOSITORY:
       "${{ needs.gateway_variables.outputs.variables_b64 }}",
     DEPLOY_CREDENTIAL_ENVIRONMENT: "${{ needs.prepare.outputs.credential_environment }}",

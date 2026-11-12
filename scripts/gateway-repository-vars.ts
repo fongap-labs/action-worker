@@ -2,9 +2,8 @@ import { sign } from "node:crypto";
 import { encodeGatewayOpsVariables } from "./gateway-ops-variables.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
-// Fetch the repository's own Variables, not the GitHub Actions vars context.
-// A job bound to ai-gateway-ops may inherit and shadow that context; the
-// repository REST endpoint is the only authoritative source for this cutover.
+// Fetch the repository's own Cloudflare account Variable, not the merged
+// Actions vars context. Runtime AIG Variables remain in ai-gateway-ops.
 export async function readGatewayRepositoryVariables(
   token: string,
   request: typeof fetch = fetch
@@ -63,12 +62,18 @@ export async function readGatewayRepositoryVariables(
   if (!isComplete) {
     throw new CliError("Repository Variable inventory exceeds the supported page budget.", 77);
   }
-  // This name has appeared in an unmasked Variables snapshot. Never allow
-  // even a placeholder API-token value to be exported from Variables.
+  // The repository owns Cloudflare metadata only; runtime AIG_ Variables
+  // must remain scoped to the protected ai-gateway-ops Environment.
   for (const name of Object.keys(result)) {
     if (/^(?:AW_)?CLOUDFLARE_API_TOKEN(?:_|$)/.test(name)) {
       throw new CliError(
         "Cloudflare API Token must be a GitHub repository Secret, never a Variable.",
+        77
+      );
+    }
+    if (name.startsWith("AIG_")) {
+      throw new CliError(
+        "AI Gateway runtime Variables must be stored in ai-gateway-ops, not Action Worker repository.",
         77
       );
     }
@@ -212,7 +217,7 @@ async function main(): Promise<void> {
   );
   const encoded = encodeGatewayOpsVariables(variables);
   await appendLines(process.env.GITHUB_OUTPUT, [`variables_b64=${encoded}`]);
-  console.log("Repository-scoped AI Gateway Variables validated; no values printed.");
+  console.log("Action Worker Cloudflare account Variable validated; no values printed.");
 }
 
 if (isMain(import.meta.url)) main().catch(handleError);

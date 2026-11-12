@@ -344,70 +344,90 @@ test("workflow resolves one source per fixed slot without embedding product Secr
   }
 });
 
-test("AI Gateway deploy uses only approved repository Variables, never shadowed ops text", () => {
+test("AI Gateway takes AIG runtime Variables from protected ops and Cloudflare account from repository", () => {
   const account = "0123456789abcdef0123456789abcdef";
-  const approved = {
-    CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
-    AIG_PUBLIC_URL: "https://gateway.example/",
-    AIG_AFFINITY_KV_ID: "11111111111111111111111111111111",
-    AIG_USAGE_D1_ID: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-    AIG_ANALYTICS_DATASET: "GATEWAY_EVENTS",
-    AIG_MODELS_CONFIG: JSON.stringify({ catalog: ["configured-at-runtime"] }),
-    AIG_ACCESS_MODELS_AGENT: "configured-at-runtime",
-  };
-  const expected = {
-    ...approved,
-    AIG_PUBLIC_URL: "https://gateway.example",
-  };
-  const inherited = {
-    ...approved,
+  const repository = { CLOUDFLARE_ACCOUNT_ID_SECONDARY: account };
+  const ops = {
     CLOUDFLARE_ACCOUNT_ID_SECONDARY: "ffffffffffffffffffffffffffffffff",
-    AIG_MODELS_CONFIG: "old-ops-mapping",
-    AIG_UNKNOWN_CONFIG: "should-not-leak",
-    AIG_ACCESS_KEY_AGENT: "shadowed-secret-variable",
-    CLOUDFLARE_API_TOKEN_SECONDARY: "never-export-token-variables",
-    CLOUDFLARE_API_TOKEN_REPOSITORY: "never-export-token-variables",
-    PUBLIC_VALUE: "unchanged",
+    AIG_PUBLIC_URL: "https://gateway.example/",
+    AIG_MODELS_CONFIG: JSON.stringify({ "Code-Max": { policy: "coding" } }),
+    AIG_TIER1_NODES_01: JSON.stringify([{ id: "free", provider: "openai" }]),
+    AIG_ACCESS_MODELS_AGENT: "Code-Max",
+    AW_AI_AGENT_CONFIG: "unrelated-control-variable",
+    CLOUDFLARE_API_TOKEN_SECONDARY: "must-not-leak-from-vars",
+    PUBLIC_VALUE: "unrelated",
   };
-  assert.deepEqual(
-    mergeApprovedGatewayOpsVariables(
-      inherited,
-      "fongap-labs/ai-gateway",
-      "production",
-      approved,
-      "ai-gateway-ops"
-    ),
-    { ...expected, PUBLIC_VALUE: "unchanged" }
+  const result = mergeApprovedGatewayOpsVariables(
+    ops,
+    "fongap-labs/ai-gateway",
+    "production",
+    repository,
+    "ai-gateway-ops"
   );
-  assert.deepEqual(
-    mergeApprovedGatewayOpsVariables(
-      {},
-      "fongap-labs/ai-gateway",
-      "production",
-      approved,
-      "ai-gateway-ops"
-    ),
-    expected
-  );
+  assert.deepEqual(result, {
+    CLOUDFLARE_ACCOUNT_ID_SECONDARY: account,
+    AIG_PUBLIC_URL: "https://gateway.example",
+    AIG_MODELS_CONFIG: ops.AIG_MODELS_CONFIG,
+    AIG_TIER1_NODES_01: ops.AIG_TIER1_NODES_01,
+    AIG_ACCESS_MODELS_AGENT: "Code-Max",
+  });
+  assert.equal(Object.hasOwn(result, "CLOUDFLARE_API_TOKEN_SECONDARY"), false);
+  assert.equal(Object.hasOwn(result, "AW_AI_AGENT_CONFIG"), false);
   assert.throws(
     () =>
       mergeApprovedGatewayOpsVariables(
         {},
         "fongap-labs/ai-gateway",
         "production",
+        repository,
+        "ai-gateway-ops"
+      ),
+    /AIG_MODELS_CONFIG is unavailable or empty/
+  );
+  assert.throws(
+    () =>
+      mergeApprovedGatewayOpsVariables(
+        ops,
+        "fongap-labs/ai-gateway",
+        "production",
         {},
         "ai-gateway-ops"
       ),
-    /unavailable/
+    /must be a string/
+  );
+  assert.throws(
+    () =>
+      mergeApprovedGatewayOpsVariables(
+        ops,
+        "fongap-labs/ai-gateway",
+        "production",
+        {
+          ...repository,
+          AIG_MODELS_CONFIG: "wrong-scope",
+        },
+        "ai-gateway-ops"
+      ),
+    /belong to ai-gateway-ops/
+  );
+  assert.throws(
+    () =>
+      mergeApprovedGatewayOpsVariables(
+        { ...ops, AIG_ACCESS_KEY_AGENT: "secret" },
+        "fongap-labs/ai-gateway",
+        "production",
+        repository,
+        "ai-gateway-ops"
+      ),
+    /stored as a Secret/
   );
   for (const credentialEnvironment of ["production", "", undefined]) {
     assert.throws(
       () =>
         mergeApprovedGatewayOpsVariables(
-          {},
+          ops,
           "fongap-labs/ai-gateway",
           "production",
-          approved,
+          repository,
           credentialEnvironment
         ),
       /protected ai-gateway-ops credential Environment/
@@ -423,16 +443,16 @@ test("AI Gateway deploy uses only approved repository Variables, never shadowed 
     { PUBLIC_URL: "https://example.test" }
   );
   assert.throws(
-    () => mergeApprovedGatewayOpsVariables({}, "fongap-labs/mcp-hub", "production", approved),
+    () => mergeApprovedGatewayOpsVariables({}, "fongap-labs/mcp-hub", "production", repository),
     /not authorized/
   );
   assert.throws(
-    () => mergeApprovedGatewayOpsVariables({}, "fongap-labs/ai-gateway", "staging", approved),
+    () => mergeApprovedGatewayOpsVariables({}, "fongap-labs/ai-gateway", "staging", repository),
     /not authorized/
   );
 });
 
-test("AI Gateway deployment reads repository Variables outside the ops Environment", async () => {
+test("AI Gateway deployment combines protected ops Variables with repository Cloudflare metadata", async () => {
   const source = await readFile(".github/workflows/deploy-source-script.yml", "utf8");
   const workflow = parse(source) as { jobs: Record<string, Record<string, unknown>> };
   const variableJob = workflow.jobs.gateway_variables;
@@ -456,6 +476,7 @@ test("AI Gateway deployment reads repository Variables outside the ops Environme
   const exportStep = (deploy.steps as Array<{ name: string; env?: Record<string, string> }>).find(
     (step) => step.name === "Export scoped deployment variables"
   );
+  assert.equal(exportStep?.env?.REPOSITORY_VARS_JSON, "${{ toJSON(vars) }}");
   assert.equal(
     exportStep?.env?.AW_GATEWAY_VARIABLES_B64_FROM_REPOSITORY,
     "${{ needs.gateway_variables.outputs.variables_b64 }}"
