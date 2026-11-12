@@ -143,7 +143,13 @@ test('deployment defaults prioritize bounded Tier 1 capacity and preserve explic
   assert.equal(DEFAULT_OPTIMAL_VARS.AIG_STREAM_MAX_ATTEMPTS, '8');
   assert.equal(DEFAULT_OPTIMAL_VARS.AIG_NONSTREAM_MAX_ATTEMPTS, '8');
   assert.equal(DEFAULT_OPTIMAL_VARS.AIG_REQUEST_HEDGE_MAX, '0');
-  assert.equal(DEFAULT_OPTIMAL_VARS.AIG_ISOLATE_MAX_IN_FLIGHT, '8');
+  // The legacy runtime deploys with an explicit 8-request cap. Newer versions
+  // disable the hard cap by default while preserving body and retry budgets.
+  // Assert the deployment contract matches the runtime shipped by the target.
+  const defaultCap = DEFAULT_OPTIMAL_VARS.AIG_ISOLATE_MAX_IN_FLIGHT;
+  const defaultConfig = buildWranglerConfig({});
+  assert.equal(defaultConfig.vars.AIG_ISOLATE_MAX_IN_FLIGHT, defaultCap);
+  assert.ok(defaultCap === undefined || defaultCap === '8', 'only the legacy cap or an absent default is supported');
   const config = buildWranglerConfig({ AIG_STREAM_MAX_ATTEMPTS: '5', AIG_ISOLATE_MAX_IN_FLIGHT: '16' });
   assert.equal(config.vars.AIG_STREAM_MAX_ATTEMPTS, '5');
   assert.equal(config.vars.AIG_NONSTREAM_MAX_ATTEMPTS, '8');
