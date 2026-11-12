@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync, verify } from "node:crypto";
-import { test } from "node:test";
 import { readFileSync } from "node:fs";
+import { test } from "node:test";
 import { parse } from "yaml";
 import { validateGatewayOpsVariables } from "../scripts/gateway-ops-variables.ts";
 import { readGatewayRepositoryVariables, readGatewayVariablesWithApp } from "../scripts/gateway-repository-vars.ts";
@@ -96,7 +96,7 @@ test("App Variables reader mints a signed, one-repository read-only token and re
       assert.ok(header && body && signature);
       assert.equal(JSON.parse(Buffer.from(body, "base64url").toString()).iss, "Iv1.test-app-id");
       assert.equal(
-        verify("RSA-SHA256", Buffer.from(header + "." + body), testPublicKey, Buffer.from(signature, "base64url")),
+        verify("RSA-SHA256", Buffer.from(`${header}.${body}`), testPublicKey, Buffer.from(signature, "base64url")),
         true
       );
       return Response.json({ id: 178503233 });
@@ -110,7 +110,7 @@ test("App Variables reader mints a signed, one-repository read-only token and re
       return Response.json({ token: scopedToken, permissions: { variables: "read", metadata: "read" } });
     }
     if (path.includes("/actions/variables?")) {
-      assert.equal(authorization, "Bearer " + scopedToken);
+      assert.equal(authorization, `Bearer ${scopedToken}`);
       return Response.json({
         variables: [{ name: "CLOUDFLARE_ACCOUNT_ID_REPOSITORY", value: account }],
       });
