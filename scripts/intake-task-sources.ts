@@ -1,6 +1,7 @@
 import { requireStatusToken } from "./control-token.ts";
 import { parseTaskSourceManifest } from "./dispatch-scheduled-tasks.ts";
 import {
+  decodeGithubContent,
   getGithubJsonIfExists,
   getJsonString,
   githubEnvironment,
@@ -11,6 +12,7 @@ import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import { hasValidStatusAttestation } from "./status-attestation.ts";
+import { parseStatusSigningKeys } from "./status-signing-keys.ts";
 
 type GithubSource = {
   get(path: string): Promise<unknown>;
@@ -28,13 +30,6 @@ export type TaskIntakeResult = {
 
 const shaPattern = /^[0-9a-f]{40}$/;
 const zeroSha = "0".repeat(40);
-
-function decodeGithubContent(value: unknown): string {
-  if (!isJsonRecord(value) || value.encoding !== "base64" || typeof value.content !== "string") {
-    throw new CliError("GitHub task source manifest response is invalid.", 65);
-  }
-  return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
-}
 
 function latestTaskStatus(value: unknown, repository: string, sha: string): string {
   if (!isJsonRecord(value) || !Array.isArray(value.statuses)) {
@@ -131,7 +126,7 @@ export async function scanTaskSources(
 
     const manifest = parseTaskSourceManifest(
       parseJson(
-        decodeGithubContent(manifestValue),
+        decodeGithubContent(manifestValue, "GitHub task source manifest response is invalid."),
         `Task source manifest must be valid JSON: ${repository}.`,
         65
       )
@@ -191,9 +186,17 @@ async function dispatchTaskSource(
   );
 }
 
+/** Never turn missing verification keys into repeated task dispatches. */
+export function assertTaskSourceSigningReady(raw: string): void {
+  if (!parseStatusSigningKeys(raw)) {
+    throw new CliError("AW_STATUS_KEYRING is required to verify Task Source statuses.", 77);
+  }
+}
+
 async function main(): Promise<void> {
   const policyRaw = readRepositoryPolicyText() ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
+  assertTaskSourceSigningReady(process.env.AW_STATUS_KEYRING ?? "");
   const statusToken = requireStatusToken();
   const ingressToken = process.env.AW_DISPATCH_API_TOKEN ?? "";
   const controlRepository = process.env.AW_CONTROL_REPOSITORY ?? "";
