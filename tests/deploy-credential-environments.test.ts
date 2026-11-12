@@ -163,7 +163,8 @@ test("central deployment uses ops only for authorized credential read and record
   assert.doesNotMatch(JSON.stringify(prepare.steps?.[verifyAt!]), /secrets\.|AW_APP_PRIVATE_KEY/);
   assert.deepEqual(deploy.environment, {
     name: "${{ needs.prepare.outputs.credential_environment }}",
-    deployment: "${{ needs.prepare.outputs.create_deployment == 'true' && needs.prepare.outputs.environment == 'production' }}",
+    deployment:
+      "${{ needs.prepare.outputs.create_deployment == 'true' && needs.prepare.outputs.environment == 'production' }}",
   });
   assert.deepEqual(record.needs, ["prepare", "deploy"]);
   // The protected ops deployment already occurred; production audit is not
