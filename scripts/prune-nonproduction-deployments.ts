@@ -13,7 +13,8 @@ type Deployment = { id: number; environment: string; createdAt: number };
 const repository = "fongap-labs/action-worker";
 const pageSize = 100;
 const maxScanPages = 200;
-const maxDeletionsPerRun = 300;
+// Two runs per hour: at most 240 removals / 480 status-and-delete writes per hour.
+const maxDeletionsPerRun = 120;
 const gracePeriodMs = 60 * 60 * 1000;
 
 /** Reject malformed API records rather than risking a wrong deletion. */
