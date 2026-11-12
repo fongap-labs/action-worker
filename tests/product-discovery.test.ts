@@ -192,6 +192,20 @@ test("a single product under projects/ is selected without a name", async () => 
   assert.throws(() => selectProduct(products, "api"), /Unknown product: api/);
 });
 
+test("unregistered project directories are not treated as a hard-coded product whitelist", async () => {
+  const files = {
+    ...multiProductTree,
+    "projects/Steno/package.json": '{"name":"steno"}',
+  };
+  const discovery = await discoverProducts(contentsReader(files), repository, sha);
+  assert.deepEqual(
+    discovery.products.map((product) => product.name),
+    ["api", "web"]
+  );
+
+  assert.throws(() => selectProduct(discovery.products, "Steno"), /projects[/]Steno[/]/);
+});
+
 test("an illegal product directory name is rejected", async () => {
   for (const name of ["-web", "web app", "a".repeat(65)]) {
     assert.equal(isProductName(name), false, name);

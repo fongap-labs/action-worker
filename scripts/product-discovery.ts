@@ -333,7 +333,10 @@ export function selectProduct(
   }
   const match = products.find((product) => product.name === requested);
   if (!match) {
-    throw new CliError(`Unknown product: ${requested}. Choose one of: ${names.join(", ")}.`, 64);
+    throw new CliError(
+      `Unknown product: ${requested}. Choose one of: ${names.join(", ")}. To register a new product, add release.manifest.json, deploy.json, or follows.json under projects/${requested}/.`,
+      64
+    );
   }
   return match;
 }
