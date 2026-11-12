@@ -157,14 +157,15 @@ test("offline CLI reads live policy and pinned source without runtime Secret or 
       JSON.stringify({
         schema_version: 1,
         coverage: "complete",
-        repository: [
-          "AIG_GENERATION_AUTH_KEY_REPOSITORY",
-          "AIG_INFERENCE_AUTH_KEY_REPOSITORY",
-          "AIG_PERCEPTION_AUTH_KEY_REPOSITORY",
-          "CLOUDFLARE_API_TOKEN_REPOSITORY",
-        ],
+        repository: ["CLOUDFLARE_API_TOKEN_SECONDARY"],
         organization_accessible: [],
-        environments: { "ai-gateway-ops": [] },
+        environments: {
+          "ai-gateway-ops": [
+            "AIG_GENERATION_AUTH_KEY",
+            "AIG_INFERENCE_AUTH_KEY",
+            "AIG_PERCEPTION_AUTH_KEY",
+          ],
+        },
       })
     );
     const args = [
@@ -195,8 +196,8 @@ test("offline CLI reads live policy and pinned source without runtime Secret or 
     };
     assert.equal(report.status, "UNVERIFIED");
     assert.equal(report.required_secret_count, 4);
-    assert.equal(report.repository_name_matches, 4);
-    assert.equal(report.active_environment_name_matches, 0);
+    assert.equal(report.repository_name_matches, 1);
+    assert.equal(report.active_environment_name_matches, 3);
     assert.equal(report.other_environment_only_names, 0);
     // Repository-scoped Secrets cannot be replaced by same-named credentials
     // placed in a different Environment, even for the production deployment.
@@ -209,10 +210,10 @@ test("offline CLI reads live policy and pinned source without runtime Secret or 
         organization_accessible: [],
         environments: {
           production: [
-            "AIG_GENERATION_AUTH_KEY_REPOSITORY",
-            "AIG_INFERENCE_AUTH_KEY_REPOSITORY",
-            "AIG_PERCEPTION_AUTH_KEY_REPOSITORY",
-            "CLOUDFLARE_API_TOKEN_REPOSITORY",
+            "AIG_GENERATION_AUTH_KEY",
+            "AIG_INFERENCE_AUTH_KEY",
+            "AIG_PERCEPTION_AUTH_KEY",
+            "CLOUDFLARE_API_TOKEN_SECONDARY",
           ],
         },
       })

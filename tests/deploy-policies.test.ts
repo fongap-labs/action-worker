@@ -269,7 +269,14 @@ test("the shipped deploy secret policy scopes Gateway credentials to approved va
     "fongap-labs/ai-gateway",
     "production"
   );
-  assert.equal(aiGatewayAliases.get("CLOUDFLARE_API_TOKEN"), "CLOUDFLARE_API_TOKEN_REPOSITORY");
+  assert.equal(aiGatewayAliases.get("CLOUDFLARE_API_TOKEN"), "CLOUDFLARE_API_TOKEN_SECONDARY");
+  for (const name of [
+    "AIG_INFERENCE_AUTH_KEY",
+    "AIG_PERCEPTION_AUTH_KEY",
+    "AIG_GENERATION_AUTH_KEY",
+  ]) {
+    assert.equal(aiGatewayAliases.has(name), false, `${name} must not be renamed`);
+  }
   assert.equal(aiGatewayAliases.get("CLOUDFLARE_ACCOUNT_ID"), "CLOUDFLARE_ACCOUNT_ID_SECONDARY");
   assert.equal(aiGatewayAliases.has("AIG_DEPLOY_HEALTH_KEY"), false);
   const internalVault = await readDeploySecretCeiling(

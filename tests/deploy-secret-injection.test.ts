@@ -113,7 +113,18 @@ test("shipped product ceilings remain isolated and use Cloudflare deployment cre
     "fongap-labs/ai-gateway",
     "production"
   );
-  assert.equal(aliases.get("CLOUDFLARE_API_TOKEN"), "CLOUDFLARE_API_TOKEN_REPOSITORY");
+  assert.equal(aliases.get("CLOUDFLARE_API_TOKEN"), "CLOUDFLARE_API_TOKEN_SECONDARY");
+  for (const name of [
+    "AIG_INFERENCE_AUTH_KEY",
+    "AIG_PERCEPTION_AUTH_KEY",
+    "AIG_GENERATION_AUTH_KEY",
+  ]) {
+    assert.equal(
+      aliases.has(name),
+      false,
+      `${name} must use its declared protected Environment Secret directly`
+    );
+  }
   assert.deepEqual(
     [
       ...(await readDeploySecretVariableSources(
@@ -143,6 +154,69 @@ test("shipped product ceilings remain isolated and use Cloudflare deployment cre
     "server-edge"
   );
   assert.equal(edge.size, 4);
+});
+
+test("Gateway deploy resolves original center auth keys without _REPOSITORY aliases", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "gateway-auth-sources-"));
+  try {
+    const required = join(directory, "required");
+    const allowed = join(directory, "allowed");
+    await writeFile(
+      required,
+      [
+        "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_ACCOUNT_ID",
+        "AIG_INFERENCE_AUTH_KEY",
+        "AIG_PERCEPTION_AUTH_KEY",
+        "AIG_GENERATION_AUTH_KEY",
+      ].join("\n") + "\n"
+    );
+    await writeFile(allowed, "");
+    const plan = await resolveDeploySecretPlan(
+      required,
+      allowed,
+      "policies/deploy-secrets.json",
+      "fongap-labs/ai-gateway",
+      "production",
+      "",
+      { CLOUDFLARE_ACCOUNT_ID_SECONDARY: "0123456789abcdef0123456789abcdef" }
+    );
+    for (const name of [
+      "AIG_INFERENCE_AUTH_KEY",
+      "AIG_PERCEPTION_AUTH_KEY",
+      "AIG_GENERATION_AUTH_KEY",
+    ]) {
+      assert.deepEqual(
+        plan.find((entry) => entry.name === name),
+        { name, source: name, required: true, kind: "secret" },
+        `${name} must use its existing protected Environment Secret`
+      );
+    }
+    assert.deepEqual(
+      plan.find((entry) => entry.name === "CLOUDFLARE_API_TOKEN"),
+      {
+        name: "CLOUDFLARE_API_TOKEN",
+        source: "CLOUDFLARE_API_TOKEN_SECONDARY",
+        required: true,
+        kind: "secret",
+      }
+    );
+    assert.deepEqual(
+      plan.find((entry) => entry.name === "CLOUDFLARE_ACCOUNT_ID"),
+      {
+        name: "CLOUDFLARE_ACCOUNT_ID",
+        source: "CLOUDFLARE_ACCOUNT_ID_SECONDARY",
+        required: true,
+        kind: "variable",
+      }
+    );
+    assert.equal(
+      plan.some((entry) => entry.source.endsWith("_REPOSITORY")),
+      false
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test("staged individual Secrets are private and never include unselected slots", async () => {
