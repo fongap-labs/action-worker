@@ -8,7 +8,9 @@ export async function readGatewayRepositoryVariables(
   token: string,
   request: typeof fetch = fetch
 ): Promise<Record<string, string>> {
-  if (!token) throw new CliError("Repository Variable inventory requires a GitHub token.", 77);
+  if (!token) {
+    throw new CliError("Repository Variable inventory requires a GitHub token.", 77);
+  }
   const result: Record<string, string> = {};
   let isComplete = false;
   for (let page = 1; page <= 10; page++) {
@@ -24,14 +26,27 @@ export async function readGatewayRepositoryVariables(
       }
     );
     if (!response.ok) {
-      throw new CliError(`Repository Variable inventory denied or unavailable (HTTP ${response.status}).`, 77);
+      throw new CliError(
+        `Repository Variable inventory denied or unavailable (HTTP ${response.status}).`,
+        77
+      );
     }
     const data = (await response.json()) as unknown;
-    if (!data || typeof data !== "object" || !("variables" in data) || !Array.isArray(data.variables)) {
+    if (
+      !data ||
+      typeof data !== "object" ||
+      !("variables" in data) ||
+      !Array.isArray(data.variables)
+    ) {
       throw new CliError("Repository Variable inventory response is invalid.", 77);
     }
     for (const item of data.variables) {
-      if (!item || typeof item !== "object" || typeof item.name !== "string" || typeof item.value !== "string") {
+      if (
+        !item ||
+        typeof item !== "object" ||
+        typeof item.name !== "string" ||
+        typeof item.value !== "string"
+      ) {
         throw new CliError("Repository Variable inventory entry is invalid.", 77);
       }
       if (Object.hasOwn(result, item.name)) {
@@ -44,12 +59,17 @@ export async function readGatewayRepositoryVariables(
       break;
     }
   }
-  if (!isComplete) throw new CliError("Repository Variable inventory exceeds the supported page budget.", 77);
+  if (!isComplete) {
+    throw new CliError("Repository Variable inventory exceeds the supported page budget.", 77);
+  }
   // This name has appeared in an unmasked Variables snapshot. Never allow
   // even a placeholder API-token value to be exported from Variables.
   for (const name of Object.keys(result)) {
     if (/^(?:AW_)?CLOUDFLARE_API_TOKEN(?:_|$)/.test(name)) {
-      throw new CliError("Cloudflare API Token must be a GitHub repository Secret, never a Variable.", 77);
+      throw new CliError(
+        "Cloudflare API Token must be a GitHub repository Secret, never a Variable.",
+        77
+      );
     }
   }
   return result;
