@@ -23,6 +23,7 @@ test("planPack splits gate suites from unit suites and rejects unknown gate entr
 });
 
 test("node pack tiers never discover target tests when a filter or gate is empty", () => {
+  /** @type {{ runtime: "node", tiers: { gate: string[] } }} */
   const manifest = { runtime: "node", tiers: { gate: ["b-test.mjs"] } };
   const files = ["a-test.mjs", "b-test.mjs"];
   assert.deepEqual(selectNodePackSuites("p", manifest, files, "all"), files);
@@ -41,12 +42,13 @@ test("node pack tiers never discover target tests when a filter or gate is empty
     /unique list/
   );
   assert.throws(
-    () => planPack("p", { tiers: { gate: "b-test.mjs" } }, files),
+    () => planPack("p", JSON.parse('{"tiers":{"gate":"b-test.mjs"}}'), files),
     /unique list/
   );
 });
 
 test("python packs reject unsupported unit/gate tiers instead of reporting all as a pass", () => {
+  /** @type {{ runtime: "python" }} */
   const manifest = { runtime: "python" };
   validatePackTier("example", manifest, "all");
   assert.throws(() => validatePackTier("example", manifest, "unit"), /not defined/);
@@ -72,7 +74,7 @@ test("every checked-in target pack has a valid manifest and complete Node tier p
 });
 
 test("manifests reject mutable identities, invalid runtime and misleading tiers", () => {
-  const valid = { schema_version: 1, pack: "example", runtime: "node", suffix: "-test.mjs" };
+  const valid = JSON.parse('{"schema_version":1,"pack":"example","runtime":"node","suffix":"-test.mjs"}');
   assert.doesNotThrow(() => validatePackManifest("example", valid));
   for (const invalid of [
     { ...valid, schema_version: 2 },
