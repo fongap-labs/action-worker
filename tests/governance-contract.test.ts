@@ -1209,7 +1209,7 @@ test("source-script deploy execution is manifest-driven and repository-agnostic"
     "DEPLOY_SOURCE_SHA",
     "DEPLOY_ENVIRONMENT",
     "DEPLOY_ENTRYPOINT",
-    "REPOSITORY_VARS_JSON: ${{ toJSON(vars) }}",
+    "REPOSITORY_VARS_JSON: ${{ needs.prepare.outputs.source_repository == 'fongap-labs/ai-gateway' && '{}' || toJSON(vars) }}",
     "resolve-deploy-secret-plan.ts",
     "stage-deploy-secret-bundle.ts",
     "run-scoped-deploy.ts",

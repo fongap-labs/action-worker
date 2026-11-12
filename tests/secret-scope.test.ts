@@ -342,8 +342,11 @@ test("the central policies give each Cloudflare account its own qualified secret
   assert.deepEqual(
     [...deploy],
     [
-      ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_SECONDARY"],
+      ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_API_TOKEN_REPOSITORY"],
       ["CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_ACCOUNT_ID_SECONDARY"],
+      ["AIG_INFERENCE_AUTH_KEY", "AIG_INFERENCE_AUTH_KEY_REPOSITORY"],
+      ["AIG_PERCEPTION_AUTH_KEY", "AIG_PERCEPTION_AUTH_KEY_REPOSITORY"],
+      ["AIG_GENERATION_AUTH_KEY", "AIG_GENERATION_AUTH_KEY_REPOSITORY"],
     ]
   );
   const gateway = await readDeploySecretCeiling(
