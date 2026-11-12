@@ -35,6 +35,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { legacySpentKeyRetry } from './spent-key-retry-contract.mjs';
 import { readAttemptOwner } from './source-ownership.mjs';
 
 // Writes are buffered per isolate. Flush right away so each assertion reads this write.
@@ -603,13 +604,11 @@ try {
     const centerPaths = [];
     const response = await worker.fetch(request('Air', key), centerBoundConvergenceEnv(env, centerPaths), {});
     assert.notEqual(response.status, 200);
-    // Only the authorized Air key is dispatched (twice: its one last-resort retry).
-    assert.deepEqual(
-      calls.map((c) => c.model),
-      ['up-air', 'up-air'],
-    );
-    assert.deepEqual(centerPaths, ['/internal/execute', '/internal/execute'],
-      'authorized Air-only attempts must use the private inference center');
+    // No unauthorized sibling models are dispatched. In strict mode an
+    // exhausted physical Key is never retried merely to spend attempt budget.
+    const expectedCalls = legacySpentKeyRetry ? ['up-air', 'up-air'] : ['up-air'];
+    assert.deepEqual(calls.map((c) => c.model), expectedCalls);
+    assert.deepEqual(centerPaths, Array(expectedCalls.length).fill('/internal/execute'), 'authorized Air-only attempts use the private inference center');
   }
 
   {
