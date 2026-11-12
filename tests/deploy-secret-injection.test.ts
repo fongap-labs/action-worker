@@ -379,7 +379,7 @@ test("AI Gateway takes AIG runtime Variables from protected ops and Cloudflare a
   );
   assert.throws(
     () => mergeApprovedGatewayOpsVariables(ops, "fongap-labs/ai-gateway", "production", {}, "ai-gateway-ops"),
-    /unavailable or invalid/
+    /must be a string/
   );
   assert.throws(
     () => mergeApprovedGatewayOpsVariables(ops, "fongap-labs/ai-gateway", "production", {
