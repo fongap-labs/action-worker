@@ -332,8 +332,8 @@ jobs:
   deploy:
     name: Execute source-script deploy
     needs: [prepare, gateway_variables]
-    # A skipped repository-config job is normal for other products. Gateway production
-    # requires successful repository-only Variable validation before any deploy.
+    # A skipped ops job is normal for non-Gateway deployments. Gateway production
+    # requires an approved, successful ops read; failure cannot bypass this gate.
     if: ${{ !cancelled() && needs.prepare.result == 'success' && ((needs.prepare.outputs.source_repository == 'fongap-labs/ai-gateway' && needs.prepare.outputs.environment == 'production' && needs.prepare.outputs.product == '' && needs.gateway_variables.result == 'success') || (needs.prepare.outputs.source_repository != 'fongap-labs/ai-gateway' && needs.gateway_variables.result == 'skipped')) }}
     # Exactly one GitHub Environment per deployment job. The prepare gate checks
     # the source manifest against the central authorization policy.
@@ -400,10 +400,26 @@ jobs:
           node-version: 24
 
       - name: Export scoped deployment variables
+        if: needs.prepare.outputs.source_repository != 'fongap-labs/mcp-hub'
         env:
           REPOSITORY_VARS_JSON: ${{ needs.prepare.outputs.source_repository == 'fongap-labs/ai-gateway' && '{}' || toJSON(vars) }}
           AW_GATEWAY_VARIABLES_B64_FROM_REPOSITORY: ${{ needs.gateway_variables.outputs.variables_b64 }}
           DEPLOY_CREDENTIAL_ENVIRONMENT: ${{ needs.prepare.outputs.credential_environment }}
+        run: node control/scripts/export-repository-variables.ts
+
+      - name: Export MCP Hub allowlisted Variables
+        if: needs.prepare.outputs.source_repository == 'fongap-labs/mcp-hub'
+        env:
+          AW_MCP_HUB_VAR_CLOUDFLARE_ACCOUNT_ID_SECONDARY: ${{ vars.CLOUDFLARE_ACCOUNT_ID_SECONDARY }}
+          AW_MCP_HUB_VAR_MCP_D1_ID: ${{ vars.MCP_D1_ID }}
+          AW_MCP_HUB_VAR_MCP_PUBLIC_URL: ${{ vars.MCP_PUBLIC_URL }}
+          AW_MCP_HUB_VAR_MCP_ACTIVE_ID: ${{ vars.MCP_ACTIVE_ID }}
+          AW_MCP_HUB_VAR_MCP_ACCESS_ISSUER: ${{ vars.MCP_ACCESS_ISSUER }}
+          AW_MCP_HUB_VAR_MCP_ACCESS_AUD: ${{ vars.MCP_ACCESS_AUD }}
+          AW_MCP_HUB_VAR_MCP_OAUTH_TTL: ${{ vars.MCP_OAUTH_TTL }}
+          AW_MCP_HUB_VAR_GMC_WRITE_MODE: ${{ vars.GMC_WRITE_MODE }}
+          AW_MCP_HUB_VAR_GMC_CONTENT_MODE: ${{ vars.GMC_CONTENT_MODE }}
+          AW_MCP_HUB_VAR_MCP_CRYPTO_SECRET_SYNC: ${{ vars.MCP_CRYPTO_SECRET_SYNC }}
         run: node control/scripts/export-repository-variables.ts
 
       - name: Resolve deploy Secret plan
