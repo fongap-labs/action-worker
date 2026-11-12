@@ -395,5 +395,17 @@ jobs:
             echo "::error::PR base, head, title, or draft state changed since successful CI." >&2
             exit 75
           }
-          gh pr merge "$PR_NUMBER" --repo "$REPOSITORY" --squash --match-head-commit "$HEAD_SHA"
-          gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.merged' | grep -qx true
+          # Use the REST endpoint's required expected head SHA in the merge operation itself.
+          # A PR update between validation and the merge must fail with HTTP 409.
+          request="$(jq -nc --arg sha "$HEAD_SHA" '{sha:$sha,merge_method:"squash"}')"
+          result="$(gh api --method PUT "repos/$REPOSITORY/pulls/$PR_NUMBER/merge" --input - <<< "$request")"
+          merged_sha="$(jq -re '.sha | select(type == "string" and test("^[0-9a-f]{40}$"))' <<< "$result")"
+          jq -e '.merged == true' <<< "$result" >/dev/null
+          # Reconcile the exact accepted PR head and merge SHA, never just "merged=true".
+          latest="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")"
+          jq -e --arg head "$HEAD_SHA" --arg merged "$merged_sha" '
+            .merged == true and .head.sha == $head and .merge_commit_sha == $merged
+          ' <<< "$latest" >/dev/null || {
+            echo "::error::The merged PR head or resulting main SHA diverged from the validated revision." >&2
+            exit 75
+          }
