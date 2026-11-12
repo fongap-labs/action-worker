@@ -614,15 +614,17 @@ try {
   assert.equal(deadBody.error.type, 'api_error');
   assert.equal(deadBody.error.code, null);
   assert.equal(dead.headers.get('x-gateway-error-code'), 'gateway_upstream_exhausted');
-  // The only key failed transiently, so it gets its one last-resort retry.
-  assert.equal(dead.headers.get('x-gateway-attempts'), '2');
-  assert.equal(dead.headers.get('x-gateway-dispatches'), '2');
+  // The strict no-replay Gateway attempts this physical Key only once;
+  // older immutable versions still allow their one last-resort retry.
+  const exhaustedCount = legacySpentKeyRetry ? 2 : 1;
+  assert.equal(dead.headers.get('x-gateway-attempts'), String(exhaustedCount));
+  assert.equal(dead.headers.get('x-gateway-dispatches'), String(exhaustedCount));
   assert.equal(dead.headers.get('x-gateway-hedges'), '0');
-  assert.equal(dead.headers.get('x-gateway-failure-kinds'), 'server:2');
+  assert.equal(dead.headers.get('x-gateway-failure-kinds'), `server:${exhaustedCount}`);
   assert.equal(dead.headers.get('x-gateway-node'), null);
   assert.equal(dead.headers.get('x-gateway-provider'), null);
-  assert.deepEqual(physicalCenterPaths(), ['/internal/execute', '/internal/execute'],
-    'Responses upstream 503 and last-resort retry must execute only in private center');
+  assert.deepEqual(physicalCenterPaths(), Array(exhaustedCount).fill('/internal/execute'),
+    'Responses upstream 503 physical attempts must execute only in private center');
 
   reset();
   routeHandlers['badreq.example.com'] = () => json({ error: { message: 'bad input' } }, 400);
