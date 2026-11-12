@@ -11,6 +11,7 @@ import {
   isGithubMissing,
   isJsonRecord,
 } from "./github-api.ts";
+import { ensureNoLegacyChangelogFragments } from "./lib/changelog-fragment-guard.ts";
 import { CliError } from "./runtime-command.ts";
 
 // Release preparation is read-only. Only code PRs update shared [Unreleased] entries.
@@ -53,35 +54,6 @@ async function readFileAt(
     );
   } catch (error) {
     if (isGithubMissing(error)) return null;
-    throw error;
-  }
-}
-
-async function ensureNoLegacyFragments(
-  repository: string,
-  ref: string,
-  token: string
-): Promise<void> {
-  try {
-    const entries = getJsonArray(
-      await getGithubJson(
-        `repos/${repository}/contents/changelog.d?ref=${encodeURIComponent(ref)}`,
-        token
-      )
-    );
-    if (
-      entries.some(
-        (item) =>
-          isJsonRecord(item) && item.type === "file" && getJsonString(item, "name").endsWith(".md")
-      )
-    ) {
-      throw new CliError(
-        "Legacy changelog.d entries remain; move them to CHANGELOG.md before release.",
-        65
-      );
-    }
-  } catch (error) {
-    if (isGithubMissing(error)) return;
     throw error;
   }
 }
@@ -174,7 +146,11 @@ export async function prepareReleaseNotes(options: ReleaseNotesOptions): Promise
     return releaseSectionBody(snapshot, releaseUrl);
   }
 
-  await ensureNoLegacyFragments(repository, baseSha, token);
+  await ensureNoLegacyChangelogFragments(
+    `repos/${repository}/contents/changelog.d?ref=${encodeURIComponent(baseSha)}`,
+    token,
+    "Legacy changelog.d entries remain; move them to CHANGELOG.md before release."
+  );
   const previousTag = await lastStableTag(options);
   const previous = previousTag
     ? await readFileAt(repository, policy.changelog_file, previousTag, token)
