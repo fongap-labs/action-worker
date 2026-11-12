@@ -59,12 +59,12 @@ test("AI Gateway deployment checks Cloudflare Secret before staging credentials"
     "${{ steps.cloudflare_secret.outputs.proof }}"
   );
   const deploy = workflow.jobs.deploy;
-  const verifyIndex = deploy?.steps?.findIndex(
-    (step) => step.name === "Reject an Environment Cloudflare Secret override"
-  ) ?? -1;
-  const stageIndex = deploy?.steps?.findIndex(
-    (step) => step.name === "Stage authorized deployment Secrets"
-  ) ?? -1;
+  const verifyIndex =
+    deploy?.steps?.findIndex(
+      (step) => step.name === "Reject an Environment Cloudflare Secret override"
+    ) ?? -1;
+  const stageIndex =
+    deploy?.steps?.findIndex((step) => step.name === "Stage authorized deployment Secrets") ?? -1;
   assert.ok(verifyIndex >= 0 && stageIndex > verifyIndex);
   const verify = deploy?.steps?.[verifyIndex];
   assert.equal(
@@ -75,8 +75,5 @@ test("AI Gateway deployment checks Cloudflare Secret before staging credentials"
     verify?.env?.AW_CLOUDFLARE_REPOSITORY_PROOF,
     "${{ needs.gateway_variables.outputs.cloudflare_proof }}"
   );
-  assert.equal(
-    verify?.run,
-    "node control/scripts/gateway-secret-source.ts verify"
-  );
+  assert.equal(verify?.run, "node control/scripts/gateway-secret-source.ts verify");
 });
