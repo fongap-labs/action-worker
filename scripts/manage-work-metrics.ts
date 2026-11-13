@@ -235,7 +235,9 @@ async function runMetricsCi(): Promise<void> {
     getJsonString(base, "ref") !== "main" ||
     !/^[0-9a-f]{40}$/.test(getJsonString(pull, "merge_commit_sha"))
   ) {
-    throw new CliError("::error::Metrics PR was not automatically merged from its verified CI head.");
+    throw new CliError(
+      "::error::Metrics PR was not automatically merged from its verified CI head."
+    );
   }
   await appendLines(process.env.GITHUB_OUTPUT, [`run_id=${runId}`]);
 }
