@@ -195,17 +195,21 @@ test("automatic npm publication runs before the formal tag only for stable dsh-p
   const gate = await readFile("scripts/release-npm-gate.ts", "utf8");
   const target = await readFile("scripts/resolve-release-target.ts", "utf8");
   assert.deepEqual(Object.keys(release.jobs), ["release"]);
-  const publish = release.jobs.release?.steps?.find((step) => step.name === "Publish governed release");
+  const publish = release.jobs.release?.steps?.find(
+    (step) => step.name === "Publish governed release"
+  );
   assert.equal(publish?.run, "node scripts/publish-release.ts");
   assert.equal(
     publish?.env?.AW_NPM_TOKEN,
     "${{ steps.release_target.outputs.npm_required == 'true' && secrets.AW_NPM_TOKEN || '' }}"
   );
   assert.match(target, /isStableNpmRelease\(/);
-  assert.match(target, /source === "fongap-labs\\/dsh-plugin"/);
+  assert.ok(target.includes('source === "fongap-labs/dsh-plugin"'));
   assert.match(gate, /if \(isPrerelease \|\| version.includes\("-"\)\) return null/);
   assert.match(source, /await publishNpmBeforeTag\(/);
-  assert.ok(source.indexOf("await publishNpmBeforeTag(") < source.indexOf("isPublishAttempted = true;"));
+  assert.ok(
+    source.indexOf("await publishNpmBeforeTag(") < source.indexOf("isPublishAttempted = true;")
+  );
   assert.doesNotMatch(workflowSource, /run-npm-republish|workflow_dispatch/);
   assert.match(source, /is_prerelease=\$\{isPrerelease/);
 });
