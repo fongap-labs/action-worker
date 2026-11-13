@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 
-# One release per artifact. Release publication never opens PRs, changes main, or updates followers.
+# One release per artifact. A DSH npm package must be published and registry-verified before the formal tag.
 concurrency:
   group: release-${{ github.event.client_payload.source_repository }}-${{ github.event.client_payload.source_sha }}-${{ github.event.client_payload.artifact_name }}-${{ github.event.client_payload.artifact_run_id }}
   cancel-in-progress: false
@@ -102,50 +102,9 @@ jobs:
           AW_CONTROL_TOKEN: ${{ steps.release_read_app.outputs.token }}
           AW_RELEASE_WRITE_API_TOKEN: ${{ steps.release_write_app.outputs.token }}
           AW_RELEASE_TARGET_REPOSITORY: ${{ steps.release_target.outputs.target_repository }}
+          # Only DSH plugin releases receive the npm credential. Other releases stay unchanged.
+          AW_NPM_TOKEN: ${{ steps.release_target.outputs.target_repository == 'fongap-labs/dsh-plugin' && secrets.AW_NPM_TOKEN || '' }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           RELEASE_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
         run: node scripts/publish-release.ts
-
-  # Only successfully published stable products from fongap-labs/dsh-plugin trigger npm distribution.
-  # GitHub Release publication is the boundary. npm distribution is a separate, replayable,
-  # provenance-verified workflow; npm failure must never roll back an already published Release.
-  npm:
-    name: Dispatch verified npm release
-    needs: release
-    if: needs.release.result == 'success' && needs.release.outputs.npm_asset == 'true' && needs.release.outputs.is_prerelease == 'false' && needs.release.outputs.target_repository == 'fongap-labs/dsh-plugin' && github.event.client_payload.source_repository == 'fongap-labs/dsh-plugin'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 3
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout for scoped npm dispatch App action
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Mint npm dispatch token
-        id: dispatch_app
-        uses: ./.github/actions/mint-app-token
-        with:
-          client-id: ${{ vars.AW_APP_CLIENT_ID }}
-          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
-          permission-contents: write
-
-      - name: Dispatch npm publication
-        env:
-          GH_TOKEN: ${{ steps.dispatch_app.outputs.token }}
-          RELEASE_REPOSITORY: ${{ needs.release.outputs.target_repository }}
-          RELEASE_TAG: ${{ needs.release.outputs.tag }}
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-
-          payload="$(jq -cn \
-            --arg repository "$RELEASE_REPOSITORY" \
-            --arg tag "$RELEASE_TAG" \
-            '{event_type:"run-npm-republish",client_payload:{repository:$repository,tag:$tag}}')"
-          gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input - <<< "$payload"
