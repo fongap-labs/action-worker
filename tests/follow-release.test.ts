@@ -342,6 +342,6 @@ test("release publishing does not run follower jobs or create pull requests", as
   const { parse } = await import("yaml");
   const content = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
   const workflow = parse(content) as { jobs: Record<string, unknown> };
-  assert.deepEqual(Object.keys(workflow.jobs).sort(), ["npm", "release"]);
+  assert.deepEqual(Object.keys(workflow.jobs).sort(), ["release"]);
   assert.doesNotMatch(content, /dispatch-follow-updates|commit-follow-lock|follow-lock:/);
 });

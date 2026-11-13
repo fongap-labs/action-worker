@@ -188,38 +188,30 @@ test("the security scan keeps SARIF publish credentials away from the CodeQL job
   );
 });
 
-test("governed Release dispatches npm only after publication and never publishes inline", async () => {
+test("automatic npm publication runs before the formal tag only for stable dsh-plugin releases", async () => {
+  const workflowSource = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
   const release = await workflow("handle-release-dispatch.yml");
-  const npm = await workflow("release-npm.yml");
   const source = await readFile("scripts/publish-release.ts", "utf8");
-
-  assert.equal(release.jobs.npm?.needs, "release");
-  assert.equal(
-    release.jobs.npm?.if,
-    "needs.release.result == 'success' && needs.release.outputs.npm_asset == 'true' && needs.release.outputs.is_prerelease == 'false' && needs.release.outputs.target_repository == 'fongap-labs/dsh-plugin' && github.event.client_payload.source_repository == 'fongap-labs/dsh-plugin'"
+  const gate = await readFile("scripts/release-npm-gate.ts", "utf8");
+  const target = await readFile("scripts/resolve-release-target.ts", "utf8");
+  assert.deepEqual(Object.keys(release.jobs), ["release"]);
+  const publish = release.jobs.release?.steps?.find(
+    (step) => step.name === "Publish governed release"
   );
-  assert.equal(release.jobs.npm?.permissions?.contents, "read");
+  assert.equal(publish?.run, "node scripts/publish-release.ts");
   assert.equal(
-    npm.jobs.publish?.if,
-    "${{ (github.event.client_payload.repository || inputs.repository) == 'fongap-labs/dsh-plugin' }}"
+    publish?.env?.AW_NPM_TOKEN,
+    "${{ steps.release_target.outputs.npm_required == 'true' && secrets.AW_NPM_TOKEN || '' }}"
   );
-  const npmSteps = release.jobs.npm?.steps ?? [];
-  assert.equal(npmSteps[0]?.uses, "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1");
-  assert.equal(
-    npmSteps[0]?.with?.["persist-credentials"],
-    false,
-    "local actions require checkout without persisting credentials"
+  assert.match(target, /isStableNpmRelease\(/);
+  assert.ok(target.includes('source === "fongap-labs/dsh-plugin"'));
+  assert.match(gate, /if \(isPrerelease \|\| version.includes\("-"\)\) return null/);
+  assert.match(source, /await publishNpmBeforeTag\(/);
+  assert.ok(
+    source.indexOf("await publishNpmBeforeTag(") < source.indexOf("isPublishAttempted = true;")
   );
-  const dispatch = release.jobs.npm?.steps?.find((step) => step.id === "dispatch_app");
-  assert.equal(dispatch?.uses, "./.github/actions/mint-app-token");
-  assert.equal(dispatch?.with?.["permission-contents"], "write");
-  assert.match(JSON.stringify(release.jobs.npm), /run-npm-republish/);
-  assert.match(source, /npm_asset=/);
+  assert.doesNotMatch(workflowSource, /run-npm-republish|workflow_dispatch/);
   assert.match(source, /is_prerelease=\$\{isPrerelease/);
-  assert.match(JSON.stringify(release.jobs.release), /steps\.release\.outputs\.is_prerelease/);
-  assert.doesNotMatch(source, /publishNpmTarball|AW_NPM_TOKEN/);
-  assert.match(JSON.stringify(npm), /run-npm-republish/);
-  assert.ok(JSON.stringify(npm).includes("republish-release-npm.ts"));
 });
 
 test("production releases remain read-only until an approved two-phase staging opt-in", async () => {
@@ -230,7 +222,7 @@ test("production releases remain read-only until an approved two-phase staging o
   const policy = JSON.parse(await readFile("policies/release-two-phase-staging.json", "utf8")) as {
     approved_staging_repositories: unknown;
   };
-  assert.deepEqual(Object.keys(releaseWorkflow.jobs).sort(), ["npm", "release"]);
+  assert.deepEqual(Object.keys(releaseWorkflow.jobs).sort(), ["release"]);
   assert.deepEqual(policy.approved_staging_repositories, []);
   assert.doesNotMatch(
     workflowSource,

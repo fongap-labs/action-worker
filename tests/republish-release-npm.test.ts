@@ -120,36 +120,30 @@ test("npm release checksums and integrity use the downloaded tarball bytes", () 
   assert.match(npmPackageIntegrity(Buffer.from("npm tarball")), /^sha512-/);
 });
 
-test("npm Release reads use only a target-scoped, read-only App token", async () => {
-  const source = await readFile(".github/workflows/release-npm.yml", "utf8");
+test("npm publishing runs automatically only within DSH stable release governance", async () => {
+  const source = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
   const workflow = parse(source) as {
+    on: { repository_dispatch?: { types?: string[] }; workflow_dispatch?: unknown };
     jobs: {
-      publish: {
-        steps: Array<{
-          name?: string;
-          id?: string;
-          env?: Record<string, string>;
-          with?: Record<string, string>;
-        }>;
+      release: {
+        steps: Array<{ name?: string; env?: Record<string, string>; run?: string }>;
       };
+      npm?: unknown;
     };
   };
-  const find = (name: string) => workflow.jobs.publish.steps.find((step) => step.name === name);
-  const scope = find("Resolve npm Release API scope");
-  assert.equal(scope?.id, "api_scope");
+  assert.deepEqual(workflow.on.repository_dispatch?.types, ["run-release"]);
+  assert.equal(workflow.on.workflow_dispatch, undefined);
+  assert.equal(workflow.jobs.npm, undefined);
+  const release = workflow.jobs.release.steps.find(
+    (step) => step.name === "Publish governed release"
+  );
+  assert.equal(release?.run, "node scripts/publish-release.ts");
   assert.equal(
-    scope?.env?.TARGET_REPOSITORY,
-    "${{ github.event.client_payload.repository || inputs.repository }}"
+    release?.env?.AW_NPM_TOKEN,
+    "${{ steps.release_target.outputs.npm_required == 'true' && secrets.AW_NPM_TOKEN || '' }}"
   );
-  const mint = find("Mint npm Release read token");
-  assert.equal(mint?.with?.repositories, "${{ steps.api_scope.outputs.repository_name }}");
-  assert.deepEqual(
-    Object.entries(mint?.with ?? {}).filter(([key]) => key.startsWith("permission-")),
-    [["permission-contents", "read"]]
-  );
-  assert.equal(
-    find("Publish verified npm Release asset")?.env?.AW_RELEASE_API_TOKEN,
-    "${{ steps.release_app.outputs.token }}"
-  );
-  assert.doesNotMatch(source, /secrets\.AW_CONTROL_TOKEN/);
+  assert.doesNotMatch(source, /run-npm-republish/);
+  await assert.rejects(readFile(".github/workflows/release-npm.yml", "utf8"), {
+    code: "ENOENT",
+  });
 });
