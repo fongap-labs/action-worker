@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
   getGithubJson,
@@ -161,14 +160,33 @@ export async function dispatchAndWaitForNpm(options: {
   );
 }
 
-export async function consumeNpmDispatch(
-  requestValue: unknown,
-  token: string,
-  npmToken: string
-): Promise<void> {
+
+function preparedNpmDirectory(): string {
+  const runnerTemp = process.env.RUNNER_TEMP ?? "";
+  if (!runnerTemp.startsWith("/")) {
+    throw new CliError("::error::RUNNER_TEMP is required for the governed npm package.", 64);
+  }
+  return join(runnerTemp, "governed-npm-release");
+}
+
+async function assertPreparedTarball(directory: string, request: NpmDispatchRequest): Promise<void> {
+  const tarballPath = join(directory, request.asset_name);
+  const digest = createHash("sha256").update(await readFile(tarballPath)).digest("hex");
+  const checksumText = (
+    await readFile(join(directory, `${request.asset_name}.sha256`), "utf8")
+  ).trim();
+  if (digest !== request.sha256 || checksumText !== `${request.sha256}  ${request.asset_name}`) {
+    throw new CliError(
+      "::error::Downloaded npm package checksum does not match Draft Release.",
+      66
+    );
+  }
+}
+
+export async function prepareNpmDispatch(requestValue: unknown, token: string): Promise<void> {
   const request = validateNpmDispatch(requestValue);
-  if (!token || !npmToken) {
-    throw new CliError("::error::Scoped read token and AW_NPM_TOKEN are required.", 77);
+  if (!token) {
+    throw new CliError("::error::Target-scoped Draft Release token is required.", 77);
   }
   const release = await getGithubJson(
     `repos/${sourceRepository}/releases/${request.release_id}`,
@@ -212,26 +230,37 @@ export async function consumeNpmDispatch(
       66
     );
   }
-  const directory = await mkdtemp(join(tmpdir(), "aw-automatic-npm-"));
+  const directory = preparedNpmDirectory();
+  await mkdir(directory, { recursive: true });
+  await runGithubCli(
+    ["release", "download", request.tag, "--repo", sourceRepository, "--dir", directory],
+    token
+  );
+  await assertPreparedTarball(directory, request);
+  await appendLines(process.env.GITHUB_STEP_SUMMARY, [
+    "## Governed Draft Release",
+    "",
+    `- Verified package: @fongap-labs/${request.release_key}@${request.version}`,
+    "- Draft provenance and SHA256: verified",
+  ]);
+}
+
+export async function publishPreparedNpmDispatch(
+  requestValue: unknown,
+  npmToken: string
+): Promise<void> {
+  const request = validateNpmDispatch(requestValue);
+  if (!npmToken) {
+    throw new CliError("::error::AW_NPM_TOKEN is required to publish npm.", 77);
+  }
+  if (process.env.AW_CONTROL_TOKEN || process.env.AW_RELEASE_WRITE_API_TOKEN) {
+    throw new CliError("::error::The npm publishing step must not inherit GitHub write tokens.", 77);
+  }
+  const directory = preparedNpmDirectory();
   try {
-    await runGithubCli(
-      ["release", "download", request.tag, "--repo", sourceRepository, "--dir", directory],
-      token
-    );
-    const tarballPath = join(directory, request.asset_name);
-    const data = await readFile(tarballPath);
-    const digest = createHash("sha256").update(data).digest("hex");
-    const checksumText = (
-      await readFile(join(directory, `${request.asset_name}.sha256`), "utf8")
-    ).trim();
-    if (digest !== request.sha256 || checksumText !== `${request.sha256}  ${request.asset_name}`) {
-      throw new CliError(
-        "::error::Downloaded npm package checksum does not match Draft Release.",
-        66
-      );
-    }
+    await assertPreparedTarball(directory, request);
     await publishNpmBeforeTag({
-      tarballPath,
+      tarballPath: join(directory, request.asset_name),
       workDir: directory,
       releaseKey: request.release_key,
       version: request.version,
@@ -243,13 +272,16 @@ export async function consumeNpmDispatch(
 }
 
 if (isMain(import.meta.url)) {
-  if (process.argv[2] !== "consume") {
-    handleError(new CliError("::error::Automatic npm workflow accepts only the consume mode.", 64));
+  const request = parseJson(
+    process.env.RELEASE_REQUEST_JSON ?? "",
+    "npm dispatch payload is required.",
+    64
+  );
+  if (process.argv[2] === "prepare") {
+    prepareNpmDispatch(request, process.env.AW_CONTROL_TOKEN ?? "").catch(handleError);
+  } else if (process.argv[2] === "publish") {
+    publishPreparedNpmDispatch(request, process.env.AW_NPM_TOKEN ?? "").catch(handleError);
   } else {
-    consumeNpmDispatch(
-      parseJson(process.env.RELEASE_REQUEST_JSON ?? "", "npm dispatch payload is required.", 64),
-      process.env.AW_CONTROL_TOKEN ?? "",
-      process.env.AW_NPM_TOKEN ?? ""
-    ).catch(handleError);
+    handleError(new CliError("::error::Automatic npm workflow requires prepare or publish.", 64));
   }
 }
