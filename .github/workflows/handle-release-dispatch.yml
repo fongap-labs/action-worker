@@ -16,7 +16,7 @@ jobs:
   release:
     name: Release Governance
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 35
     outputs:
       tag: ${{ steps.release.outputs.tag }}
       target_repository: ${{ steps.release.outputs.target_repository }}
@@ -86,6 +86,18 @@ jobs:
           RELEASE_ARTIFACT_DIR: ${{ runner.temp }}/governed-release-target
         run: node scripts/resolve-release-target.ts
 
+      - name: Mint automatic npm workflow dispatch token
+        id: npm_dispatch_app
+        if: steps.release_target.outputs.npm_required == 'true'
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: action-worker
+          permission-contents: write
+          permission-actions: read
+
       - name: Mint target-only release publication token
         id: release_write_app
         uses: ./.github/actions/mint-app-token
@@ -102,8 +114,8 @@ jobs:
           AW_CONTROL_TOKEN: ${{ steps.release_read_app.outputs.token }}
           AW_RELEASE_WRITE_API_TOKEN: ${{ steps.release_write_app.outputs.token }}
           AW_RELEASE_TARGET_REPOSITORY: ${{ steps.release_target.outputs.target_repository }}
-          # Only validated stable dsh-plugin releases receive npm credentials; beta has none.
-          AW_NPM_TOKEN: ${{ steps.release_target.outputs.npm_required == 'true' && secrets.AW_NPM_TOKEN || '' }}
+          # Only validated stable dsh-plugin releases can dispatch the separate npm workflow.
+          AW_NPM_DISPATCH_TOKEN: ${{ steps.npm_dispatch_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           RELEASE_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
