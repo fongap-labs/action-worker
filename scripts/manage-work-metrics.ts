@@ -134,7 +134,7 @@ async function createPull(): Promise<void> {
       "-f",
       `head=${branch}`,
       "-f",
-      "title=chore: update work metrics",
+      "title=chore(metrics): update work metrics",
       "-f",
       `body=${body}`,
     ],
