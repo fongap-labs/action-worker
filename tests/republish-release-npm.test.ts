@@ -142,10 +142,7 @@ test("npm publishing has a separate automatic, restricted workflow", async () =>
   );
   assert.equal(release?.run, "node scripts/publish-release.ts");
   assert.equal(release?.env?.AW_NPM_TOKEN, undefined);
-  assert.equal(
-    release?.env?.AW_NPM_DISPATCH_TOKEN,
-    "${{ steps.npm_dispatch_app.outputs.token }}"
-  );
+  assert.equal(release?.env?.AW_NPM_DISPATCH_TOKEN, "${{ steps.npm_dispatch_app.outputs.token }}");
   assert.match(npm.jobs.publish.if ?? "", /fongap-bot/);
   assert.match(npmSource, /scripts\/release-npm-dispatch\.ts consume/);
   assert.doesNotMatch(npmSource, /workflow_dispatch:/);
