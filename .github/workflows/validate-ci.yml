@@ -50,6 +50,7 @@ jobs:
         if: github.event_name == 'pull_request'
         env:
           PR_TITLE: ${{ github.event.pull_request.title }}
+          AW_VALIDATED_REPOSITORY: ${{ github.repository }}
           BASE_SHA: ${{ steps.range.outputs.base }}
           HEAD_SHA: ${{ steps.range.outputs.head }}
         run: node scripts/validate-change-record.ts "$PR_TITLE" "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE" "$GITHUB_WORKSPACE/policies"
