@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { getGithubJson, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import { readRepositoryPolicyText } from "./repository-policy.ts";
+import { isStableNpmRelease } from "./release-npm-gate.ts";
 import { resolveGithubApiScope } from "./resolve-github-api-scope.ts";
 import {
   appendLines,
@@ -100,6 +101,16 @@ async function main(): Promise<void> {
     `owner=${target.owner}`,
     `repository_name=${target.repository_name}`,
     `target_repository=${target.target_repository}`,
+    `npm_required=${
+      source === "fongap-labs/dsh-plugin" &&
+      target.target_repository === "fongap-labs/dsh-plugin" &&
+      isStableNpmRelease(
+        isJsonRecord(manifest) ? getJsonString(manifest, "version") : "",
+        isJsonRecord(manifest) && manifest.prerelease === true
+      )
+        ? "true"
+        : "false"
+    }`,
   ]);
   console.log("Verified release target scope from the approved artifact and repository policy.");
 }
