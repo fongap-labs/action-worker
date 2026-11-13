@@ -33,7 +33,7 @@ jobs:
         with:
           node-version: 24
 
-      - name: Mint read-only dsh-plugin token
+      - name: Mint target-scoped Draft Release token
         id: npm_read_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -41,11 +41,18 @@ jobs:
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: dsh-plugin
-          permission-contents: read
+          # GitHub drafts require push access, unlike published releases.
+          permission-contents: write
 
-      - name: Publish and verify npm package from governed Draft Release
+      # The Draft Release token is never exposed to the npm publish process.
+      - name: Validate and download Draft Release package
         env:
           AW_CONTROL_TOKEN: ${{ steps.npm_read_app.outputs.token }}
+          RELEASE_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
+        run: node scripts/release-npm-dispatch.ts prepare
+
+      - name: Publish and verify npm package
+        env:
           AW_NPM_TOKEN: ${{ secrets.AW_NPM_TOKEN }}
           RELEASE_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
-        run: node scripts/release-npm-dispatch.ts consume
+        run: node scripts/release-npm-dispatch.ts publish

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: npm 自动发布拆分 Draft 读取与发包步骤，避免只读凭证无法读取草稿，也防止 GitHub 写权限泄露给 npm 发布进程。
+
 - 修复: npm 发包恢复为独立可见的全自动工作流；仅 dsh-plugin 正式版触发，成功且 registry 校验通过后才创建 GitHub Release Tag。
 
 - 修复: 仅 DSH 插件正式版自动发布 npm，并在完整性校验成功后创建正式 Tag；Beta 仅发布 GitHub 附件，移除手动 npm 发布入口。
