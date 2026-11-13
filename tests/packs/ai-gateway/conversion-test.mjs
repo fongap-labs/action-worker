@@ -968,8 +968,8 @@ await run('conversion: stream tool_calls roundtrip (split across chunks)', async
   assert.ok(i('message_delta') < i('message_stop'));
 });
 
-await run('conversion: stream OpenAI -> Anthropic — reasoning_content becomes thinking blocks', async () => {
-  // OpenAI SSE (DeepSeek style): role -> reasoning_content "let me think" -> content "hi" -> stop -> [DONE]
+await run('conversion: stream OpenAI -> Anthropic — unsigned reasoning is not replayable', async () => {
+  // OpenAI/DeepSeek reasoning_content is not an Anthropic signed thinking block.
   const openAiChunks = [
     sseEvent('', { choices: [{ delta: { role: 'assistant' } }] }),
     sseEvent('', { choices: [{ delta: { reasoning_content: 'let me think' } }] }),
@@ -984,39 +984,28 @@ await run('conversion: stream OpenAI -> Anthropic — reasoning_content becomes 
     inputTokens: 4,
   });
   const events = await readAnthropicEvents(stream);
-  // Verify the lifecycle: thinking block opens, receives deltas, closes, then text block opens
   const names = events.map((e) => e.event);
-  const i = (n) => names.indexOf(n);
-  // message_start must appear
-  assert.ok(i('message_start') !== -1);
-  // content_block_start for thinking must appear before text
-  const cbsEvents = events.filter((e) => e.event === 'content_block_start');
-  assert.ok(cbsEvents.length >= 1, 'at least one content_block_start');
-  const thinkingStart = cbsEvents.find((e) => e.data?.content_block?.type === 'thinking');
-  assert.ok(thinkingStart, 'thinking content_block_start emitted');
-  // thinking_delta events must appear
-  const thinkingDeltas = events.filter((e) => e.event === 'content_block_delta' && e.data?.delta?.type === 'thinking_delta');
-  assert.ok(thinkingDeltas.length >= 2, 'multiple thinking_delta events');
-  assert.equal(thinkingDeltas[0].data.delta.thinking, 'let me think');
-  assert.equal(thinkingDeltas[1].data.delta.thinking, ' more');
-  // thinking block must close before text block opens
-  const cbsThinkingStop = events.find((e) => e.event === 'content_block_stop' && events.indexOf(e) > events.indexOf(thinkingStart));
-  assert.ok(cbsThinkingStop, 'thinking content_block_stop emitted');
-  // text block must appear
-  const textStart = cbsEvents.find((e) => e.data?.content_block?.type === 'text');
-  assert.ok(textStart, 'text content_block_start emitted after thinking closes');
-  // text_delta must appear
-  const textDelta = events.find((e) => e.event === 'content_block_delta' && e.data?.delta?.type === 'text_delta');
-  assert.ok(textDelta, 'text_delta emitted');
-  assert.equal(textDelta.data.delta.text, 'hi');
-  // Order: thinking_start < thinking_delta(s) < thinking_stop < text_start < text_delta < message_delta < message_stop
-  assert.ok(i('content_block_start') < i('content_block_delta'));
-  assert.ok(i('content_block_delta') < i('content_block_stop'));
-  assert.ok(i('content_block_stop') < events.findIndex((e) => e.data?.content_block?.type === 'text' && e.event === 'content_block_start'));
-  assert.ok(i('message_delta') < i('message_stop'));
+  const i = (name) => names.indexOf(name);
+  assert.ok(i('message_start') !== -1, 'message_start emitted');
+  assert.ok(
+    !events.some((e) => e.event === 'content_block_start' && ['thinking', 'redacted_thinking'].includes(e.data?.content_block?.type)),
+    'foreign reasoning must not be represented as signed or redacted Anthropic thinking',
+  );
+  assert.ok(
+    !events.some((e) => e.event === 'content_block_delta' && e.data?.delta?.type === 'thinking_delta'),
+    'foreign reasoning deltas must be suppressed',
+  );
+  const textStart = events.findIndex((e) => e.event === 'content_block_start' && e.data?.content_block?.type === 'text');
+  const textDelta = events.findIndex((e) => e.event === 'content_block_delta' && e.data?.delta?.type === 'text_delta');
+  assert.ok(textStart >= 0 && textDelta > textStart, 'text block must survive reasoning isolation');
+  assert.equal(events[textDelta].data.delta.text, 'hi');
+  assert.ok(i('content_block_stop') > textDelta, 'text block closes after content');
+  assert.ok(i('message_delta') > i('content_block_stop'), 'message_delta follows closed content');
+  assert.ok(i('message_stop') > i('message_delta'), 'message_stop follows message_delta');
+  assert.ok(!JSON.stringify(events).includes('let me think'), 'private reasoning must not leak into the Anthropic client output');
 });
 
-await run('conversion: non-stream OpenAI -> Anthropic — reasoning_content becomes thinking block', () => {
+await run('conversion: non-stream OpenAI -> Anthropic — unsigned reasoning is not replayable', () => {
   const out = convertResponse('openai_chat', 'anthropic', {
     id: 'cmpl-test',
     object: 'chat.completion',
@@ -1027,11 +1016,8 @@ await run('conversion: non-stream OpenAI -> Anthropic — reasoning_content beco
     ],
     usage: { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 },
   });
-  assert.equal(out.content.length, 2, 'two content blocks: thinking + text');
-  assert.equal(out.content[0].type, 'thinking');
-  assert.equal(out.content[0].thinking, 'private reasoning chain');
-  assert.equal(out.content[1].type, 'text');
-  assert.equal(out.content[1].text, 'final answer');
+  assert.deepEqual(out.content, [{ type: 'text', text: 'final answer' }]);
+  assert.ok(!JSON.stringify(out).includes('private reasoning chain'), 'unsigned reasoning must not leak into Anthropic response objects');
 });
 
 // ---- protocol-fallbacks config -------------------------------------------
