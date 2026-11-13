@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: AI Gateway 中央故障域测试兼容新的同请求跨模型禁用已失败 Key 策略，保留旧版本按物理模型切换的兼容测试，不更改真实路由与生产环境。
+
 - 修复: PR AI Review 的 review Job 绑定 admin-ops 环境，恢复读取既有 AI_GATEWAY_URL 和 AIG_ACCESS_KEY_AGENT，不调整凭据名称与审查门禁。
 
 - 修复: 自动指标 PR 仅修改经校验的 README 徽章时免写更新日志，其他变更仍走原门禁。
