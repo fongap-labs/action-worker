@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { getGithubJson, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
-import { readRepositoryPolicyText } from "./repository-policy.ts";
 import { isStableNpmRelease } from "./release-npm-gate.ts";
+import { readRepositoryPolicyText } from "./repository-policy.ts";
 import { resolveGithubApiScope } from "./resolve-github-api-scope.ts";
 import {
   appendLines,
