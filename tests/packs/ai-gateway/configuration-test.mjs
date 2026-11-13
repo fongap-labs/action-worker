@@ -678,9 +678,15 @@ try {
     }
   });
 
-  test('protocol and surfaces are provider-owned, not node fields', () => {
+  test('protocol remains Provider-owned; surfaces are optional physical endpoints', () => {
     assert.throws(() => assertNodesArray([node('a', { protocol: 'openai' })]), /unknown field "protocol"/);
-    assert.throws(() => assertNodesArray([node('a', { surfaces: ['chat_completions'] })]), /unknown field "surfaces"/);
+    for (const endpoints of [['chat_completions'], ['responses'], ['chat_completions', 'responses']]) {
+      assert.doesNotThrow(() => assertNodesArray([node('a', { surfaces: endpoints })]));
+    }
+    for (const invalid of [[], ['responses', 'responses'], ['chat_completions', 5], 'responses']) {
+      assert.throws(() => assertNodesArray([node('a', { surfaces: invalid })]), /surfaces/);
+    }
+    // Provider/surface pairing is checked by the canonical runtime validator.
   });
 
   test('base_url must be valid https without credentials', () => {
