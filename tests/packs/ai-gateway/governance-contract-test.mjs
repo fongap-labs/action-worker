@@ -984,9 +984,15 @@ try {
       if (body.model === 'up-max') return jsonUpstream({ error: { message: 'Model not found' } }, 404);
       return jsonUpstream(okMessage());
     };
+    // A missing model on an1 must never retry an1 under another model.
+    // A distinct Key may serve the explicit fallback without reusing an1.
+    routeHandlers['an2.example.com'] = () => jsonUpstream(okMessage());
     const env = makeEnv({
-      tier1: [anthropicNode('an1', { models: { 'Code-Max': 'up-max', 'Code-Pro': 'up-pro' } })],
-      secrets: { an1: 'k' },
+      tier1: [
+        anthropicNode('an1', { models: { 'Code-Max': 'up-max', 'Code-Pro': 'up-pro' } }),
+        anthropicNode('an2', { models: { 'Code-Pro': 'up-pro' } }),
+      ],
+      secrets: { an1: 'k', an2: 'k2' },
       extraEnv: { AIG_MODELS_CONFIG: JSON.stringify({ 'Code-Max': { policy: 'default', fallback: ['Code-Pro'] }, 'Code-Pro': { policy: 'default', fallback: [] } }) },
     });
     const res1 = await worker.fetch(messagesRequest({ model: 'Code-Max' }), env, {});
