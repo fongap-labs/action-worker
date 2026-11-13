@@ -99,6 +99,8 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.current == 'true'
     runs-on: ubuntu-24.04
+    # AI Gateway credentials are stored in the protected Action Worker admin-ops Environment.
+    environment: admin-ops
     timeout-minutes: 180
     env:
       AW_AI_AGENT_CONFIG: ${{ vars.AW_AI_AGENT_CONFIG }}
