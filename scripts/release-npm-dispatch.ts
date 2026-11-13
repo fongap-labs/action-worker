@@ -92,10 +92,18 @@ export async function dispatchAndWaitForNpm(options: {
     `client_payload[${key}]=${value}`,
   ]);
   await runGithubCli(
-    ["api", "--method", "POST", `repos/${controlRepository}/dispatches`, "-f", "event_type=run-npm-release", ...params],
+    [
+      "api",
+      "--method",
+      "POST",
+      `repos/${controlRepository}/dispatches`,
+      "-f",
+      "event_type=run-npm-release",
+      ...params,
+    ],
     options.token
   );
-  const runTitle = `自动 · npm 发包 · ${request.correlation_id}`;
+  const runTitle = `npm-release-${request.correlation_id}`;
   let matchedRunId = 0;
   for (let check = 0; check < 75; check += 1) {
     await new Promise((resolve) => setTimeout(resolve, 8_000));
@@ -106,7 +114,9 @@ export async function dispatchAndWaitForNpm(options: {
       ),
       "workflow_runs"
     );
-    const run = runs.find((value) => isJsonRecord(value) && getJsonString(value, "display_title") === runTitle);
+    const run = runs.find(
+      (value) => isJsonRecord(value) && getJsonString(value, "display_title") === runTitle
+    );
     if (!isJsonRecord(run)) continue;
     const runId = run.id;
     if (typeof runId !== "number" || !Number.isSafeInteger(runId)) {
@@ -115,11 +125,17 @@ export async function dispatchAndWaitForNpm(options: {
     matchedRunId = runId;
     if (getJsonString(run, "status") !== "completed") continue;
     if (getJsonString(run, "conclusion") !== "success") {
-      throw new CliError(`::error::Automated npm workflow failed: https://github.com/${controlRepository}/actions/runs/${runId}`, 65);
+      throw new CliError(
+        `::error::Automated npm workflow failed: https://github.com/${controlRepository}/actions/runs/${runId}`,
+        65
+      );
     }
     // A skipped job also produces a completed run; require the publishing job to succeed.
     const jobs = getJsonArray(
-      await getGithubJson(`repos/${controlRepository}/actions/runs/${runId}/jobs?per_page=100`, options.token),
+      await getGithubJson(
+        `repos/${controlRepository}/actions/runs/${runId}/jobs?per_page=100`,
+        options.token
+      ),
       "jobs"
     );
     const published = jobs.some(
@@ -145,7 +161,11 @@ export async function dispatchAndWaitForNpm(options: {
   );
 }
 
-export async function consumeNpmDispatch(requestValue: unknown, token: string, npmToken: string): Promise<void> {
+export async function consumeNpmDispatch(
+  requestValue: unknown,
+  token: string,
+  npmToken: string
+): Promise<void> {
   const request = validateNpmDispatch(requestValue);
   if (!token || !npmToken) {
     throw new CliError("::error::Scoped read token and AW_NPM_TOKEN are required.", 77);
@@ -161,7 +181,10 @@ export async function consumeNpmDispatch(requestValue: unknown, token: string, n
     getJsonString(release, "tag_name") !== request.tag ||
     !/^[0-9a-f]{40}$/.test(getJsonString(release, "target_commitish"))
   ) {
-    throw new CliError("::error::npm dispatch must reference a valid unpublished stable GitHub Draft Release.", 66);
+    throw new CliError(
+      "::error::npm dispatch must reference a valid unpublished stable GitHub Draft Release.",
+      66
+    );
   }
   const body = getJsonString(release, "body");
   if (
@@ -176,14 +199,18 @@ export async function consumeNpmDispatch(requestValue: unknown, token: string, n
     (item) => item.state === "uploaded" && getJsonString(item, "name") === request.asset_name
   );
   const checksum = assets.filter(
-    (item) => item.state === "uploaded" && getJsonString(item, "name") === `${request.asset_name}.sha256`
+    (item) =>
+      item.state === "uploaded" && getJsonString(item, "name") === `${request.asset_name}.sha256`
   );
   if (
     tarball.length !== 1 ||
     checksum.length !== 1 ||
     getJsonString(tarball[0], "digest") !== `sha256:${request.sha256}`
   ) {
-    throw new CliError("::error::Draft Release tarball or its SHA256 asset is missing or mismatched.", 66);
+    throw new CliError(
+      "::error::Draft Release tarball or its SHA256 asset is missing or mismatched.",
+      66
+    );
   }
   const directory = await mkdtemp(join(tmpdir(), "aw-automatic-npm-"));
   try {
@@ -194,9 +221,14 @@ export async function consumeNpmDispatch(requestValue: unknown, token: string, n
     const tarballPath = join(directory, request.asset_name);
     const data = await readFile(tarballPath);
     const digest = createHash("sha256").update(data).digest("hex");
-    const checksumText = (await readFile(join(directory, `${request.asset_name}.sha256`), "utf8")).trim();
+    const checksumText = (
+      await readFile(join(directory, `${request.asset_name}.sha256`), "utf8")
+    ).trim();
     if (digest !== request.sha256 || checksumText !== `${request.sha256}  ${request.asset_name}`) {
-      throw new CliError("::error::Downloaded npm package checksum does not match Draft Release.", 66);
+      throw new CliError(
+        "::error::Downloaded npm package checksum does not match Draft Release.",
+        66
+      );
     }
     await publishNpmBeforeTag({
       tarballPath,
