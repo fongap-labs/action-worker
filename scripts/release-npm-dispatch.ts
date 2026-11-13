@@ -160,7 +160,6 @@ export async function dispatchAndWaitForNpm(options: {
   );
 }
 
-
 function preparedNpmDirectory(): string {
   const runnerTemp = process.env.RUNNER_TEMP ?? "";
   if (!runnerTemp.startsWith("/")) {
@@ -169,9 +168,14 @@ function preparedNpmDirectory(): string {
   return join(runnerTemp, "governed-npm-release");
 }
 
-async function assertPreparedTarball(directory: string, request: NpmDispatchRequest): Promise<void> {
+async function assertPreparedTarball(
+  directory: string,
+  request: NpmDispatchRequest
+): Promise<void> {
   const tarballPath = join(directory, request.asset_name);
-  const digest = createHash("sha256").update(await readFile(tarballPath)).digest("hex");
+  const digest = createHash("sha256")
+    .update(await readFile(tarballPath))
+    .digest("hex");
   const checksumText = (
     await readFile(join(directory, `${request.asset_name}.sha256`), "utf8")
   ).trim();
@@ -254,7 +258,10 @@ export async function publishPreparedNpmDispatch(
     throw new CliError("::error::AW_NPM_TOKEN is required to publish npm.", 77);
   }
   if (process.env.AW_CONTROL_TOKEN || process.env.AW_RELEASE_WRITE_API_TOKEN) {
-    throw new CliError("::error::The npm publishing step must not inherit GitHub write tokens.", 77);
+    throw new CliError(
+      "::error::The npm publishing step must not inherit GitHub write tokens.",
+      77
+    );
   }
   const directory = preparedNpmDirectory();
   try {
