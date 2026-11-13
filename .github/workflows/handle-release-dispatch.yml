@@ -102,8 +102,8 @@ jobs:
           AW_CONTROL_TOKEN: ${{ steps.release_read_app.outputs.token }}
           AW_RELEASE_WRITE_API_TOKEN: ${{ steps.release_write_app.outputs.token }}
           AW_RELEASE_TARGET_REPOSITORY: ${{ steps.release_target.outputs.target_repository }}
-          # Only DSH plugin releases receive the npm credential. Other releases stay unchanged.
-          AW_NPM_TOKEN: ${{ steps.release_target.outputs.target_repository == 'fongap-labs/dsh-plugin' && secrets.AW_NPM_TOKEN || '' }}
+          # Only validated stable dsh-plugin releases receive npm credentials; beta has none.
+          AW_NPM_TOKEN: ${{ steps.release_target.outputs.npm_required == 'true' && secrets.AW_NPM_TOKEN || '' }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
           RELEASE_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
