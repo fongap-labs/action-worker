@@ -31,7 +31,10 @@ export function selectPreTagNpmAsset(
   }
   const tarballs = assets.filter((asset) => asset.name.endsWith(".tgz"));
   if (tarballs.length !== 1 || tarballs[0]?.name !== `fongap-labs-${releaseKey}.tgz`) {
-    throw new CliError("::error::DSH plugin Release must contain exactly its named npm tarball.", 66);
+    throw new CliError(
+      "::error::DSH plugin Release must contain exactly its named npm tarball.",
+      66
+    );
   }
   return tarballs[0]!;
 }
@@ -45,7 +48,10 @@ export async function publishNpmBeforeTag(options: {
 }): Promise<void> {
   const { tarballPath, workDir, releaseKey, version, token } = options;
   if (!token.trim()) {
-    throw new CliError("::error::AW_NPM_TOKEN is required before creating a DSH plugin release tag.", 77);
+    throw new CliError(
+      "::error::AW_NPM_TOKEN is required before creating a DSH plugin release tag.",
+      77
+    );
   }
   const manifest = validateNpmPackageManifest(
     parseJson(
@@ -86,15 +92,19 @@ export async function publishNpmBeforeTag(options: {
     "::error::npm registry returned invalid dist-tags.",
     65
   );
-  if (!tags || typeof tags !== "object" || Array.isArray(tags) ||
-      (tags as Record<string, unknown>)[distTag] !== version) {
+  if (
+    !tags ||
+    typeof tags !== "object" ||
+    Array.isArray(tags) ||
+    (tags as Record<string, unknown>)[distTag] !== version
+  ) {
     throw new CliError("::error::npm dist-tag was not confirmed; GitHub Release tag withheld.", 65);
   }
   await appendLines(process.env.GITHUB_STEP_SUMMARY, [
     "## npm publication gate",
     "",
     `- Package: ${manifest.name}@${version}`,
-    `- Registry integrity: verified`,
+    "- Registry integrity: verified",
     `- dist-tag: ${distTag}`,
     "- GitHub Release tag: pending publication",
   ]);
