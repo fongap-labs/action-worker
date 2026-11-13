@@ -83,11 +83,15 @@ export async function publishNpmBeforeTag(options: {
   await ensureDistTag(manifest.name, version, workDir, env);
   const distTag = version.includes("-beta.") ? "beta" : "latest";
   const tags = parseJson(
-    await runText("npm", ["view", manifest.name, "dist-tags", "--json", "--registry", npmRegistry], {
-      cwd: workDir,
-      env,
-      timeoutMs: 30_000,
-    }),
+    await runText(
+      "npm",
+      ["view", manifest.name, "dist-tags", "--json", "--registry", npmRegistry],
+      {
+        cwd: workDir,
+        env,
+        timeoutMs: 30_000,
+      }
+    ),
     "::error::npm registry returned invalid dist-tags.",
     65
   );
