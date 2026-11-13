@@ -28,7 +28,6 @@ const classes = {
   entry: [
     "deploy-source-script.yml",
     "release-app.yml",
-    "release-npm.yml",
     "task-source-dispatch.yml",
   ],
   // Read-only diagnostics are operator-started and never trigger deployments or governance.
