@@ -93,10 +93,7 @@ test("formal release tag waits for the independent automatic npm workflow", asyn
     (step) => step.name === "Publish governed release"
   );
   assert.equal(publish?.env?.AW_NPM_TOKEN, undefined);
-  assert.equal(
-    publish?.env?.AW_NPM_DISPATCH_TOKEN,
-    "${{ steps.npm_dispatch_app.outputs.token }}"
-  );
+  assert.equal(publish?.env?.AW_NPM_DISPATCH_TOKEN, "${{ steps.npm_dispatch_app.outputs.token }}");
   assert.ok(
     npmWorkflow.jobs.publish.steps.some(
       (step) => step.env?.AW_NPM_TOKEN === "${{ secrets.AW_NPM_TOKEN }}"
@@ -110,7 +107,6 @@ test("formal release tag waits for the independent automatic npm workflow", asyn
   assert.ok(checksumVerified !== -1 && npmGate > checksumVerified);
   assert.ok(verify > npmGate && releasePublish > verify);
 });
-
 
 test("npm registry read-back and dist-tag checks must both pass before tagging", async () => {
   const source = await readFile("scripts/release-npm-gate.ts", "utf8");
