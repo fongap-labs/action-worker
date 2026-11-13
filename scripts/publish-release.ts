@@ -23,8 +23,8 @@ import {
 } from "./github-api.ts";
 import { sha256File } from "./lib/stream-file-hash.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
-import { selectPreTagNpmAsset, verifyPublishedNpmBeforeTag } from "./release-npm-gate.ts";
 import { dispatchAndWaitForNpm } from "./release-npm-dispatch.ts";
+import { selectPreTagNpmAsset, verifyPublishedNpmBeforeTag } from "./release-npm-gate.ts";
 import {
   parseTwoPhaseReleasePolicy,
   selectReleasePhase,
