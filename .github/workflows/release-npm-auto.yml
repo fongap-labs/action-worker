@@ -1,6 +1,6 @@
 name: 自动 · npm 发包
 
-run-name: 自动 · npm 发包 · ${{ github.event.client_payload.correlation_id }}
+run-name: npm-release-${{ github.event.client_payload.correlation_id }}
 
 on:
   repository_dispatch:
