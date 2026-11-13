@@ -12,21 +12,29 @@ import { appendLines, CliError, parseJson, runText } from "./runtime-command.ts"
 type ReleaseAsset = { name: string; sha256: string };
 
 const npmReleaseRepository = "fongap-labs/dsh-plugin";
+const stableVersionPattern = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
 
 /**
- * A GitHub Release of a DSH plugin is only finalized after its npm tarball has
- * been published and read back from the registry. Other repositories publish
- * verified downloadable assets, not npm packages.
+ * Only stable DSH plugin releases publish npm packages before their formal tag.
+ * Beta/prerelease versions publish verified GitHub Release assets only.
+ * Other repositories publish verified downloadable assets, not npm packages.
  */
 export function selectPreTagNpmAsset(
   sourceRepository: string,
   targetRepository: string,
   releaseKey: string,
+  version: string,
+  isPrerelease: boolean,
   assets: readonly ReleaseAsset[]
 ): ReleaseAsset | null {
   if (targetRepository !== npmReleaseRepository) return null;
   if (sourceRepository !== npmReleaseRepository) {
     throw new CliError("::error::npm release source must be fongap-labs/dsh-plugin.", 66);
+  }
+  // Beta releases remain GitHub-only even if their assets contain an npm tarball.
+  if (isPrerelease || version.includes("-")) return null;
+  if (!stableVersionPattern.test(version)) {
+    throw new CliError("::error::Stable npm release requires an X.Y.Z version.", 66);
   }
   const tarballs = assets.filter((asset) => asset.name.endsWith(".tgz"));
   if (tarballs.length !== 1 || tarballs[0]?.name !== `fongap-labs-${releaseKey}.tgz`) {
@@ -46,6 +54,10 @@ export async function publishNpmBeforeTag(options: {
   token: string;
 }): Promise<void> {
   const { tarballPath, workDir, releaseKey, version, token } = options;
+  // Guard the publishing function itself against accidental direct beta invocation.
+  if (!stableVersionPattern.test(version)) {
+    throw new CliError("::error::Beta and other prerelease versions must not publish npm.", 66);
+  }
   if (!token.trim()) {
     throw new CliError(
       "::error::AW_NPM_TOKEN is required before creating a DSH plugin release tag.",
@@ -81,7 +93,7 @@ export async function publishNpmBeforeTag(options: {
     );
   }
   await ensureDistTag(manifest.name, version, workDir, env);
-  const distTag = version.includes("-beta.") ? "beta" : "latest";
+  const distTag = "latest";
   const tags = parseJson(
     await runText(
       "npm",
