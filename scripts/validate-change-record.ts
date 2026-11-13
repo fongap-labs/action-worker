@@ -8,6 +8,7 @@ import {
   parseEntry,
 } from "./changelog-release.ts";
 import { isJsonRecord } from "./github-api.ts";
+import { isGeneratedMetricsOnlyChange } from "./metrics-changelog-exemption.ts";
 import {
   appendLines,
   CliError,
@@ -317,6 +318,36 @@ export async function validateChange(
     { cwd: root }
   );
   const changedPaths = changedText.split(/\r?\n/).filter(Boolean);
+  // Generated badge-only PRs are content-verified, and only the control
+  // repository is eligible. All other chores still require CHANGELOG.
+  if (
+    title === "chore(metrics): update work metrics" &&
+    changedPaths.length === 1 &&
+    changedPaths[0] === "README.md" &&
+    process.env.AW_VALIDATED_REPOSITORY === "fongap-labs/action-worker"
+  ) {
+    const baseReadme = await runText("git", ["show", `${base}:README.md`], { cwd: root });
+    const headReadme = await readFile(join(root, "README.md"), "utf8");
+    if (
+      isGeneratedMetricsOnlyChange({
+        title,
+        repository: process.env.AW_VALIDATED_REPOSITORY,
+        changedPaths,
+        baseReadme,
+        headReadme,
+      })
+    ) {
+      return {
+        schema_version: "1",
+        type: changeType,
+        scope: "metrics",
+        attributes: [],
+        summary,
+        changelog_required: false,
+        changelog_changed: false,
+      };
+    }
+  }
   // Release PRs promote [Unreleased] into one verified version section.
   if (changeType === "chore" && scope === "release") {
     await assertReleasePullRequest(value, root, base, changedPaths);
