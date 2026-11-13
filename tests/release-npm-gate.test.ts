@@ -8,9 +8,19 @@ const plugin = "fongap-labs/dsh-plugin";
 const asset = { name: "fongap-labs-dsh-delta-code.tgz", sha256: "a".repeat(64) };
 
 test("stable DSH plugin releases require the exact npm package", () => {
-  assert.deepEqual(selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", "0.1.0", false, [asset]), asset);
+  assert.deepEqual(
+    selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", "0.1.0", false, [asset]),
+    asset
+  );
   assert.equal(
-    selectPreTagNpmAsset("fongap-labs/external-vault", "fongap-labs/external-vault", "steno", "0.1.0", false, []),
+    selectPreTagNpmAsset(
+      "fongap-labs/external-vault",
+      "fongap-labs/external-vault",
+      "steno",
+      "0.1.0",
+      false,
+      []
+    ),
     null
   );
   assert.throws(
@@ -18,7 +28,8 @@ test("stable DSH plugin releases require the exact npm package", () => {
     /exactly its named npm tarball/
   );
   assert.throws(
-    () => selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", "0.1.0", false, [asset, { ...asset }]),
+    () =>
+      selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", "0.1.0", false, [asset, { ...asset }]),
     /exactly its named npm tarball/
   );
   assert.throws(
@@ -26,7 +37,10 @@ test("stable DSH plugin releases require the exact npm package", () => {
     /exactly its named npm tarball/
   );
   assert.throws(
-    () => selectPreTagNpmAsset("fongap-labs/external-vault", plugin, "dsh-delta-code", "0.1.0", false, [asset]),
+    () =>
+      selectPreTagNpmAsset("fongap-labs/external-vault", plugin, "dsh-delta-code", "0.1.0", false, [
+        asset,
+      ]),
     /source must be/
   );
 });
