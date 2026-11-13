@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: AI Gateway 中央回归合同按跨模型不重复使用失败 Key 的新规则验证，要求后备模型切换到独立 Key，并保留旧版行为的条件验收。
+
 - 修复: PR AI Review 的 review Job 绑定 admin-ops 环境，恢复读取既有 AI_GATEWAY_URL 和 AIG_ACCESS_KEY_AGENT，不调整凭据名称与审查门禁。
 
 - 修复: 自动指标 PR 仅修改经校验的 README 徽章时免写更新日志，其他变更仍走原门禁。
