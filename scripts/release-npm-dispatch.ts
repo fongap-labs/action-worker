@@ -14,7 +14,7 @@ import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime
 
 const sourceRepository = "fongap-labs/dsh-plugin";
 const controlRepository = "fongap-labs/action-worker";
-const workflowFile = "release-npm.yml";
+const workflowFile = "release-npm-auto.yml";
 const stableVersionPattern = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
 
 type NpmDispatchRequest = {
