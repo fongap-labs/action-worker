@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- 修复: AI Gateway 的中央协议测试不再要求跨协议回退时把无签名的 OpenAI 推理内容伪装为 Anthropic thinking 块，改为验证推理隔离、正文保留和流式事件顺序。
+
+
 - 修复: AI Gateway 中央回归合同按跨模型不重复使用失败 Key 的新规则验证，要求后备模型切换到独立 Key，并保留旧版行为的条件验收。
 
 - 修复: PR AI Review 的 review Job 绑定 admin-ops 环境，恢复读取既有 AI_GATEWAY_URL 和 AIG_ACCESS_KEY_AGENT，不调整凭据名称与审查门禁。
