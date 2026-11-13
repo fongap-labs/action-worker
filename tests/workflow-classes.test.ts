@@ -25,11 +25,7 @@ const workflowDirectory = ".github/workflows";
 const classes = {
   // The only workflows a person starts: each one has a Run workflow button in the Actions tab with
   // described inputs, and automation starts the same work through repository_dispatch.
-  entry: [
-    "deploy-source-script.yml",
-    "release-app.yml",
-    "task-source-dispatch.yml",
-  ],
+  entry: ["deploy-source-script.yml", "release-app.yml", "task-source-dispatch.yml"],
   // Read-only diagnostics are operator-started and never trigger deployments or governance.
   diagnostic: ["runner-isolation-canary.yml", "verify-github-app.yml"],
   // Private GitHub identity-bound manual Agent request; no repository_dispatch or public MCP route.
