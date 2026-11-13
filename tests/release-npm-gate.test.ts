@@ -2,32 +2,61 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { parse } from "yaml";
-import { selectPreTagNpmAsset } from "../scripts/release-npm-gate.ts";
+import { publishNpmBeforeTag, selectPreTagNpmAsset } from "../scripts/release-npm-gate.ts";
 
 const plugin = "fongap-labs/dsh-plugin";
 const asset = { name: "fongap-labs-dsh-delta-code.tgz", sha256: "a".repeat(64) };
 
-test("only a DSH plugin release requires an npm package, including beta releases", () => {
-  assert.deepEqual(selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", [asset]), asset);
+test("stable DSH plugin releases require the exact npm package", () => {
+  assert.deepEqual(selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", "0.1.0", false, [asset]), asset);
   assert.equal(
-    selectPreTagNpmAsset("fongap-labs/external-vault", "fongap-labs/external-vault", "steno", []),
+    selectPreTagNpmAsset("fongap-labs/external-vault", "fongap-labs/external-vault", "steno", "0.1.0", false, []),
     null
   );
   assert.throws(
-    () => selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", []),
+    () => selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", "0.1.0", false, []),
     /exactly its named npm tarball/
   );
   assert.throws(
-    () => selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", [asset, { ...asset }]),
+    () => selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", "0.1.0", false, [asset, { ...asset }]),
     /exactly its named npm tarball/
   );
   assert.throws(
-    () => selectPreTagNpmAsset(plugin, plugin, "dsh-delta-desktop", [asset]),
+    () => selectPreTagNpmAsset(plugin, plugin, "dsh-delta-desktop", "0.1.0", false, [asset]),
     /exactly its named npm tarball/
   );
   assert.throws(
-    () => selectPreTagNpmAsset("fongap-labs/external-vault", plugin, "dsh-delta-code", [asset]),
+    () => selectPreTagNpmAsset("fongap-labs/external-vault", plugin, "dsh-delta-code", "0.1.0", false, [asset]),
     /source must be/
+  );
+});
+
+test("Beta never publishes npm, even when the prerelease flag is misconfigured", async () => {
+  assert.equal(
+    selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", "0.1.0-beta.2", true, [asset]),
+    null
+  );
+  assert.equal(
+    selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", "0.1.0-beta.2", false, [asset]),
+    null
+  );
+  assert.equal(
+    selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", "0.1.0", true, [asset]),
+    null
+  );
+  assert.equal(
+    selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", "0.1.0-beta.2", true, []),
+    null
+  );
+  await assert.rejects(
+    publishNpmBeforeTag({
+      tarballPath: "unused.tgz",
+      workDir: "/tmp",
+      releaseKey: "dsh-delta-code",
+      version: "0.1.0-beta.2",
+      token: "unused",
+    }),
+    /must not publish npm/
   );
 });
 
