@@ -81,7 +81,7 @@ test("formal release tag waits for the independent automatic npm workflow", asyn
   const releaseWorkflow = parse(
     await readFile(".github/workflows/handle-release-dispatch.yml", "utf8")
   ) as { jobs: { release: { steps: Array<{ name?: string; env?: Record<string, string> }> } } };
-  const npmWorkflow = parse(await readFile(".github/workflows/release-npm.yml", "utf8")) as {
+  const npmWorkflow = parse(await readFile(".github/workflows/release-npm-auto.yml", "utf8")) as {
     name: string;
     on: { repository_dispatch?: { types?: string[] }; workflow_dispatch?: unknown };
     jobs: { publish: { steps: Array<{ env?: Record<string, string> }> } };
