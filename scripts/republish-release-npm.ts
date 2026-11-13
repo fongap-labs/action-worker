@@ -191,7 +191,7 @@ export function npmPackageIntegrity(tarball: Uint8Array): string {
   return `sha512-${createHash("sha512").update(tarball).digest("base64")}`;
 }
 
-async function readPublishedIntegrity(
+export async function readPublishedIntegrity(
   packageName: string,
   version: string,
   workingDirectory: string,
@@ -221,7 +221,7 @@ async function readPublishedIntegrity(
   }
 }
 
-async function waitForPublishedIntegrity(
+export async function waitForPublishedIntegrity(
   packageName: string,
   version: string,
   workingDirectory: string,
@@ -235,7 +235,7 @@ async function waitForPublishedIntegrity(
   return undefined;
 }
 
-async function ensureDistTag(
+export async function ensureDistTag(
   packageName: string,
   version: string,
   workingDirectory: string,
