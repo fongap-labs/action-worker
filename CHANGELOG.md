@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: PR AI Review 的 review Job 绑定 admin-ops 环境，恢复读取既有 AI_GATEWAY_URL 和 AIG_ACCESS_KEY_AGENT，不调整凭据名称与审查门禁。
+
 - 修复: 自动指标 PR 仅修改经校验的 README 徽章时免写更新日志，其他变更仍走原门禁。
 - 修复: 指标定时任务等待并核验 CI 自动合并结果，不再重复合并同一 PR。
 
