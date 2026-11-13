@@ -130,22 +130,15 @@ jobs:
           RELEASE_GOVERNANCE: ${{ steps.metrics.outputs.release_governance }}
         run: node scripts/manage-work-metrics.ts pull
 
-      - name: Wait for CI
+      - name: Wait for CI and verified automatic merge
         if: steps.changes.outputs.changed == 'true'
         id: ci
         env:
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ steps.branch.outputs.name }}
           HEAD_SHA: ${{ steps.branch.outputs.sha }}
-        run: node scripts/manage-work-metrics.ts ci
-
-      - name: Merge update
-        if: steps.changes.outputs.changed == 'true'
-        env:
-          GH_TOKEN: ${{ steps.control_write_app.outputs.token }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
-          BRANCH: ${{ steps.branch.outputs.name }}
-        run: node scripts/manage-work-metrics.ts merge
+        run: node scripts/manage-work-metrics.ts ci
 
       - name: Cleanup failed metrics update
         if: ${{ failure() && steps.changes.outputs.changed == 'true' }}
