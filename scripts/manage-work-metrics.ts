@@ -134,7 +134,7 @@ async function createPull(): Promise<void> {
       "-f",
       `head=${branch}`,
       "-f",
-      "title=chore: update work metrics",
+      "title=chore(metrics): update work metrics",
       "-f",
       `body=${body}`,
     ],
@@ -185,6 +185,8 @@ async function runMetricsCi(): Promise<void> {
   const token = requireEnv("GH_TOKEN");
   const branch = requireEnv("BRANCH");
   const headSha = requireEnv("HEAD_SHA");
+  const prNumber = requireEnv("PR_NUMBER");
+  const repository = requireEnv("GITHUB_REPOSITORY");
   let runId = 0;
   for (let attempt = 0; attempt < 60; attempt += 1) {
     const text = await runGithubCli(
@@ -218,33 +220,26 @@ async function runMetricsCi(): Promise<void> {
     throw new CliError("::error::No pull-request CI run was found for the metrics branch.");
   }
   await runGithubCli(["run", "watch", String(runId), "--exit-status"], token);
-  await appendLines(process.env.GITHUB_OUTPUT, [`run_id=${runId}`]);
-}
-
-async function mergePull(): Promise<void> {
-  const token = requireEnv("GH_TOKEN");
-  const repository = requireEnv("GITHUB_REPOSITORY");
-  const prNumber = requireEnv("PR_NUMBER");
-  const branch = requireEnv("BRANCH");
-  const text = await runGithubCli(
-    [
-      "api",
-      "--method",
-      "PUT",
-      `repos/${repository}/pulls/${prNumber}/merge`,
-      "-f",
-      "merge_method=squash",
-    ],
-    token
-  );
-  const result = JSON.parse(text) as unknown;
-  if (!isJsonRecord(result) || result.merged !== true) {
-    throw new CliError("::error::Metrics pull request was not merged.");
+  // validate-ci owns the merge after its full deterministic gate succeeds.
+  // Never issue another merge request from metrics; reconcile the exact PR head.
+  const raw = await runGithubCli(["api", `repos/${repository}/pulls/${prNumber}`], token);
+  const pull = JSON.parse(raw) as unknown;
+  const head = isJsonRecord(pull) && isJsonRecord(pull.head) ? pull.head : null;
+  const base = isJsonRecord(pull) && isJsonRecord(pull.base) ? pull.base : null;
+  if (
+    !isJsonRecord(pull) ||
+    pull.merged !== true ||
+    !head ||
+    getJsonString(head, "sha") !== headSha ||
+    !base ||
+    getJsonString(base, "ref") !== "main" ||
+    !/^[0-9a-f]{40}$/.test(getJsonString(pull, "merge_commit_sha"))
+  ) {
+    throw new CliError(
+      "::error::Metrics PR was not automatically merged from its verified CI head."
+    );
   }
-  await runGithubCli(
-    ["api", "--method", "DELETE", `repos/${repository}/git/refs/heads/${branch}`],
-    token
-  );
+  await appendLines(process.env.GITHUB_OUTPUT, [`run_id=${runId}`]);
 }
 
 async function sweepMetricsBranches(): Promise<void> {
@@ -314,12 +309,9 @@ async function main(): Promise<void> {
     case "ci":
       await runMetricsCi();
       break;
-    case "merge":
-      await mergePull();
-      break;
     default:
       throw new CliError(
-        "Usage: manage-work-metrics.ts <increment|changes|branch|pull|cleanup|sweep|ci|merge>",
+        "Usage: manage-work-metrics.ts <increment|changes|branch|pull|cleanup|sweep|ci>",
         64
       );
   }
