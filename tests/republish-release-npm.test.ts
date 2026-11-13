@@ -122,7 +122,7 @@ test("npm release checksums and integrity use the downloaded tarball bytes", () 
 
 test("npm publishing has a separate automatic, restricted workflow", async () => {
   const source = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
-  const npmSource = await readFile(".github/workflows/release-npm.yml", "utf8");
+  const npmSource = await readFile(".github/workflows/release-npm-auto.yml", "utf8");
   const workflow = parse(source) as {
     on: { repository_dispatch?: { types?: string[] }; workflow_dispatch?: unknown };
     jobs: {
