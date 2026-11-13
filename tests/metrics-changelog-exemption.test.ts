@@ -90,9 +90,13 @@ test("metrics title and trusted repository are wired into all validation entry p
   const selfCI = await readFile(".github/workflows/validate-ci.yml", "utf8");
   const centralPR = await readFile(".github/workflows/handle-pr-dispatch.yml", "utf8");
   const advisoryReview = await readFile(".github/workflows/handle-pr-review.yml", "utf8");
-  assert.match(manager, /title=chore\\(metrics\\): update work metrics/);
-  assert.match(validator, /isGeneratedMetricsOnlyChange\\(/);
-  assert.match(selfCI, /AW_VALIDATED_REPOSITORY: \\$\\{\\{ github\\.repository \\}\\}/);
-  assert.match(centralPR, /AW_VALIDATED_REPOSITORY: \\$\\{\\{ steps\\.payload\\.outputs\\.repository \\}\\}/);
-  assert.match(advisoryReview, /AW_VALIDATED_REPOSITORY: \\$\\{\\{ needs\\.prepare\\.outputs\\.repository \\}\\}/);
+  assert.ok(manager.includes("title=chore(metrics): update work metrics"));
+  assert.ok(validator.includes("isGeneratedMetricsOnlyChange("));
+  assert.ok(selfCI.includes("AW_VALIDATED_REPOSITORY: ${{ github.repository }}"));
+  assert.ok(
+    centralPR.includes("AW_VALIDATED_REPOSITORY: ${{ steps.payload.outputs.repository }}")
+  );
+  assert.ok(
+    advisoryReview.includes("AW_VALIDATED_REPOSITORY: ${{ needs.prepare.outputs.repository }}")
+  );
 });
