@@ -126,7 +126,7 @@ test("release and deploy workflows are named by kind", async () => {
   const operations = (await workflows()).filter(({ file }) => operationPattern.test(file));
   assert.deepEqual(
     operations.map(({ file }) => file),
-    ["deploy-source-script.yml", "release-app.yml", "release-npm.yml", "release-tool.yml"]
+    ["deploy-source-script.yml", "release-app.yml", "release-tool.yml"]
   );
   for (const { file } of operations) {
     const match = operationPattern.exec(file);
