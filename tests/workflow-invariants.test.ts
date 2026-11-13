@@ -190,9 +190,11 @@ test("the security scan keeps SARIF publish credentials away from the CodeQL job
 
 test("automatic npm workflow is separate and blocks the formal tag until verified", async () => {
   const workflowSource = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
-  const npmSource = await readFile(".github/workflows/release-npm.yml", "utf8");
+  const npmSource = await readFile(".github/workflows/release-npm-auto.yml", "utf8");
   const release = await workflow("handle-release-dispatch.yml");
-  const npm = await workflow("release-npm.yml");
+  const npm = parse(npmSource) as {
+    on: { workflow_dispatch?: unknown; repository_dispatch?: { types?: string[] } };
+  };
   const source = await readFile("scripts/publish-release.ts", "utf8");
   const target = await readFile("scripts/resolve-release-target.ts", "utf8");
   assert.deepEqual(Object.keys(release.jobs), ["release"]);
