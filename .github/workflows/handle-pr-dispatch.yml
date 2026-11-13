@@ -151,6 +151,7 @@ jobs:
         id: change
         env:
           PR_TITLE: ${{ steps.resolved.outputs.title }}
+          AW_VALIDATED_REPOSITORY: ${{ steps.payload.outputs.repository }}
           BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
         run: node scripts/validate-change-record.ts "$PR_TITLE" "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policies"
