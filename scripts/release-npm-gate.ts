@@ -89,8 +89,12 @@ export async function verifyPublishedNpmBeforeTag(options: {
     "::error::npm registry dist-tags response is invalid.",
     65
   );
-  if (!tags || typeof tags !== "object" || Array.isArray(tags) ||
-      (tags as Record<string, unknown>).latest !== version) {
+  if (
+    !tags ||
+    typeof tags !== "object" ||
+    Array.isArray(tags) ||
+    (tags as Record<string, unknown>).latest !== version
+  ) {
     throw new CliError("::error::npm latest dist-tag not confirmed; formal Tag withheld.", 65);
   }
 }
