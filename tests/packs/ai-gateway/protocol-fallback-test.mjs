@@ -337,15 +337,17 @@ try {
   });
   const distinct = await worker.fetch(request(), envFor([distinctModels]), {});
   assert.equal(distinct.status, 503);
+  // New Gateway contract: a failed physical Key is not replayed under a
+  // different logical or upstream model. Legacy versions retain prior behavior.
   assert.deepEqual(
     calls.map((c) => c.model),
-    legacySpentKeyRetry ? ['real-max', 'real-pro', 'real-ultra', 'real-ultra'] : ['real-max', 'real-pro', 'real-ultra'],
+    legacySpentKeyRetry ? ['real-max', 'real-pro', 'real-ultra', 'real-ultra'] : ['real-max'],
   );
-  const distinctCount = legacySpentKeyRetry ? 4 : 3;
+  const distinctCount = legacySpentKeyRetry ? 4 : 1;
   assert.equal(distinct.headers.get('x-gateway-attempts'), String(distinctCount));
   assert.equal(distinct.headers.get('x-gateway-dispatches'), String(distinctCount));
   assert.equal(distinct.headers.get('x-gateway-failure-kinds'), `server:${distinctCount}`);
-  assert.deepEqual(centerPaths, Array(distinctCount).fill('/internal/execute'), 'distinct physical domains each use the private center');
+  assert.deepEqual(centerPaths, Array(distinctCount).fill('/internal/execute'), 'one physical Key must use one private center attempt');
 
   reset();
   const accountA = node('account-a', { 'Code-Max': 'real-shared', 'Code-Pro': 'real-shared', 'Code-Ultra': 'real-shared' });
