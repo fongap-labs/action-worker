@@ -33,7 +33,7 @@ test("standalone npm dispatch accepts only a verified stable dsh-plugin request"
 });
 
 test("npm workflow has no manual trigger and validates an unpublished draft", async () => {
-  const workflow = await readFile(".github/workflows/release-npm.yml", "utf8");
+  const workflow = await readFile(".github/workflows/release-npm-auto.yml", "utf8");
   const implementation = await readFile("scripts/release-npm-dispatch.ts", "utf8");
   assert.doesNotMatch(workflow, /workflow_dispatch:/);
   assert.match(workflow, /types: \[run-npm-release\]/);
