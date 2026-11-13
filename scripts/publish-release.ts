@@ -23,7 +23,8 @@ import {
 } from "./github-api.ts";
 import { sha256File } from "./lib/stream-file-hash.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
-import { publishNpmBeforeTag, selectPreTagNpmAsset } from "./release-npm-gate.ts";
+import { selectPreTagNpmAsset, verifyPublishedNpmBeforeTag } from "./release-npm-gate.ts";
+import { dispatchAndWaitForNpm } from "./release-npm-dispatch.ts";
 import {
   parseTwoPhaseReleasePolicy,
   selectReleasePhase,
@@ -594,9 +595,9 @@ async function main(): Promise<void> {
       isPrerelease,
       manifest.assets
     );
-    if (preTagNpmAsset && !process.env.AW_NPM_TOKEN?.trim()) {
+    if (preTagNpmAsset && !process.env.AW_NPM_DISPATCH_TOKEN?.trim()) {
       throw new CliError(
-        "::error::AW_NPM_TOKEN is required to publish the npm package before the Release tag.",
+        "::error::Scoped automatic npm workflow dispatch token is required before the Release tag.",
         77
       );
     }
@@ -784,15 +785,26 @@ async function main(): Promise<void> {
       }
     }
 
-    // The draft is not a formal tag. Publish and verify the exact npm tarball first.
-    // If registry publication fails, rollback the draft and leave no formal tag.
+    // A separate, visible npm workflow must publish and registry-verify the stable
+    // dsh-plugin package before the Draft Release can become a formal tag.
+    // If it fails or times out, the Draft is rolled back and no Tag is created.
     if (preTagNpmAsset) {
-      await publishNpmBeforeTag({
+      await dispatchAndWaitForNpm({
+        releaseId,
+        releaseKey: manifest.release_key,
+        version: manifest.version,
+        tag,
+        assetName: preTagNpmAsset.name,
+        sha256: preTagNpmAsset.sha256,
+        token: process.env.AW_NPM_DISPATCH_TOKEN ?? "",
+        runId: process.env.GITHUB_RUN_ID ?? "",
+        attempt: process.env.GITHUB_RUN_ATTEMPT ?? "",
+      });
+      await verifyPublishedNpmBeforeTag({
         tarballPath: join(verifyDir, preTagNpmAsset.name),
         workDir,
         releaseKey: manifest.release_key,
         version: manifest.version,
-        token: process.env.AW_NPM_TOKEN ?? "",
       });
     }
 
