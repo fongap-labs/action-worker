@@ -15,6 +15,7 @@ import {
   handleError,
   isMain,
   readJson,
+  runCommand,
   runText,
 } from "./runtime-command.ts";
 import { assertEnglishText } from "./validate-engineering-language.ts";
@@ -326,7 +327,7 @@ export async function validateChange(
     changedPaths[0] === "README.md" &&
     process.env.AW_VALIDATED_REPOSITORY === "fongap-labs/action-worker"
   ) {
-    const baseReadme = await runText("git", ["show", `${base}:README.md`], { cwd: root });
+    const baseReadme = (await runCommand("git", ["show", `${base}:README.md`], { cwd: root })).toString("utf8");
     const headReadme = await readFile(join(root, "README.md"), "utf8");
     if (
       isGeneratedMetricsOnlyChange({
