@@ -188,28 +188,32 @@ test("the security scan keeps SARIF publish credentials away from the CodeQL job
   );
 });
 
-test("automatic npm publication runs before the formal tag only for stable dsh-plugin releases", async () => {
+test("automatic npm workflow is separate and blocks the formal tag until verified", async () => {
   const workflowSource = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
+  const npmSource = await readFile(".github/workflows/release-npm-auto.yml", "utf8");
   const release = await workflow("handle-release-dispatch.yml");
+  const npm = parse(npmSource) as {
+    on: { workflow_dispatch?: unknown; repository_dispatch?: { types?: string[] } };
+  };
   const source = await readFile("scripts/publish-release.ts", "utf8");
-  const gate = await readFile("scripts/release-npm-gate.ts", "utf8");
   const target = await readFile("scripts/resolve-release-target.ts", "utf8");
   assert.deepEqual(Object.keys(release.jobs), ["release"]);
   const publish = release.jobs.release?.steps?.find(
     (step) => step.name === "Publish governed release"
   );
   assert.equal(publish?.run, "node scripts/publish-release.ts");
-  assert.equal(
-    publish?.env?.AW_NPM_TOKEN,
-    "${{ steps.release_target.outputs.npm_required == 'true' && secrets.AW_NPM_TOKEN || '' }}"
-  );
+  assert.equal(publish?.env?.AW_NPM_TOKEN, undefined);
+  assert.equal(publish?.env?.AW_NPM_DISPATCH_TOKEN, "${{ steps.npm_dispatch_app.outputs.token }}");
+  assert.equal(npm.on?.workflow_dispatch, undefined);
+  assert.deepEqual(npm.on?.repository_dispatch?.types, ["run-npm-release"]);
+  assert.match(npmSource, /fongap-bot\[bot\]/);
   assert.match(target, /isStableNpmRelease\(/);
   assert.ok(target.includes('source === "fongap-labs/dsh-plugin"'));
-  assert.match(gate, /if \(isPrerelease \|\| version.includes\("-"\)\) return null/);
-  assert.match(source, /await publishNpmBeforeTag\(/);
+  assert.match(source, /await dispatchAndWaitForNpm\(/);
   assert.ok(
-    source.indexOf("await publishNpmBeforeTag(") < source.indexOf("isPublishAttempted = true;")
+    source.indexOf("await dispatchAndWaitForNpm(") < source.indexOf("isPublishAttempted = true;")
   );
+  assert.match(source, /await verifyPublishedNpmBeforeTag\(/);
   assert.doesNotMatch(workflowSource, /run-npm-republish|workflow_dispatch/);
   assert.match(source, /is_prerelease=\$\{isPrerelease/);
 });

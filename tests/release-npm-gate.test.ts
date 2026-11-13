@@ -77,31 +77,35 @@ test("Beta never publishes npm, even when the prerelease flag is misconfigured",
   );
 });
 
-test("a formal release tag is gated on npm registry confirmation, not an async dispatch", async () => {
-  const workflowText = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
-  const workflow = parse(workflowText) as {
-    jobs: {
-      release: {
-        steps: Array<{ name?: string; env?: Record<string, string> }>;
-      };
-      npm?: unknown;
-    };
+test("formal release tag waits for the independent automatic npm workflow", async () => {
+  const releaseWorkflow = parse(
+    await readFile(".github/workflows/handle-release-dispatch.yml", "utf8")
+  ) as { jobs: { release: { steps: Array<{ name?: string; env?: Record<string, string> }> } } };
+  const npmWorkflow = parse(await readFile(".github/workflows/release-npm-auto.yml", "utf8")) as {
+    name: string;
+    on: { repository_dispatch?: { types?: string[] }; workflow_dispatch?: unknown };
+    jobs: { publish: { steps: Array<{ env?: Record<string, string> }> } };
   };
-  assert.equal(workflow.jobs.npm, undefined);
-  const publish = workflow.jobs.release.steps.find(
+  assert.equal(npmWorkflow.name, "自动 · npm 发包");
+  assert.deepEqual(npmWorkflow.on.repository_dispatch?.types, ["run-npm-release"]);
+  assert.equal(npmWorkflow.on.workflow_dispatch, undefined);
+  const publish = releaseWorkflow.jobs.release.steps.find(
     (step) => step.name === "Publish governed release"
   );
-  assert.equal(
-    publish?.env?.AW_NPM_TOKEN,
-    "${{ steps.release_target.outputs.npm_required == 'true' && secrets.AW_NPM_TOKEN || '' }}"
+  assert.equal(publish?.env?.AW_NPM_TOKEN, undefined);
+  assert.equal(publish?.env?.AW_NPM_DISPATCH_TOKEN, "${{ steps.npm_dispatch_app.outputs.token }}");
+  assert.ok(
+    npmWorkflow.jobs.publish.steps.some(
+      (step) => step.env?.AW_NPM_TOKEN === "${{ secrets.AW_NPM_TOKEN }}"
+    )
   );
   const source = await readFile("scripts/publish-release.ts", "utf8");
   const checksumVerified = source.indexOf("Published Release checksum verification failed");
-  const npmGate = source.indexOf("await publishNpmBeforeTag({");
+  const npmGate = source.indexOf("await dispatchAndWaitForNpm({");
+  const verify = source.indexOf("await verifyPublishedNpmBeforeTag({");
   const releasePublish = source.indexOf("isPublishAttempted = true;");
   assert.ok(checksumVerified !== -1 && npmGate > checksumVerified);
-  assert.ok(releasePublish > npmGate);
-  assert.doesNotMatch(workflowText, /run-npm-republish/);
+  assert.ok(verify > npmGate && releasePublish > verify);
 });
 
 test("npm registry read-back and dist-tag checks must both pass before tagging", async () => {

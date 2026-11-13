@@ -120,30 +120,30 @@ test("npm release checksums and integrity use the downloaded tarball bytes", () 
   assert.match(npmPackageIntegrity(Buffer.from("npm tarball")), /^sha512-/);
 });
 
-test("npm publishing runs automatically only within DSH stable release governance", async () => {
+test("npm publishing has a separate automatic, restricted workflow", async () => {
   const source = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
+  const npmSource = await readFile(".github/workflows/release-npm-auto.yml", "utf8");
   const workflow = parse(source) as {
     on: { repository_dispatch?: { types?: string[] }; workflow_dispatch?: unknown };
     jobs: {
-      release: {
-        steps: Array<{ name?: string; env?: Record<string, string>; run?: string }>;
-      };
-      npm?: unknown;
+      release: { steps: Array<{ name?: string; env?: Record<string, string>; run?: string }> };
     };
+  };
+  const npm = parse(npmSource) as {
+    on: { repository_dispatch?: { types?: string[] }; workflow_dispatch?: unknown };
+    jobs: { publish: { if?: string; steps: Array<{ run?: string }> } };
   };
   assert.deepEqual(workflow.on.repository_dispatch?.types, ["run-release"]);
   assert.equal(workflow.on.workflow_dispatch, undefined);
-  assert.equal(workflow.jobs.npm, undefined);
+  assert.deepEqual(npm.on.repository_dispatch?.types, ["run-npm-release"]);
+  assert.equal(npm.on.workflow_dispatch, undefined);
   const release = workflow.jobs.release.steps.find(
     (step) => step.name === "Publish governed release"
   );
   assert.equal(release?.run, "node scripts/publish-release.ts");
-  assert.equal(
-    release?.env?.AW_NPM_TOKEN,
-    "${{ steps.release_target.outputs.npm_required == 'true' && secrets.AW_NPM_TOKEN || '' }}"
-  );
-  assert.doesNotMatch(source, /run-npm-republish/);
-  await assert.rejects(readFile(".github/workflows/release-npm.yml", "utf8"), {
-    code: "ENOENT",
-  });
+  assert.equal(release?.env?.AW_NPM_TOKEN, undefined);
+  assert.equal(release?.env?.AW_NPM_DISPATCH_TOKEN, "${{ steps.npm_dispatch_app.outputs.token }}");
+  assert.match(npm.jobs.publish.if ?? "", /fongap-bot/);
+  assert.match(npmSource, /scripts\/release-npm-dispatch\.ts consume/);
+  assert.doesNotMatch(npmSource, /workflow_dispatch:/);
 });

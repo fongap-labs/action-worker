@@ -50,6 +50,55 @@ export function selectPreTagNpmAsset(
   return tarballs[0]!;
 }
 
+export async function verifyPublishedNpmBeforeTag(options: {
+  tarballPath: string;
+  workDir: string;
+  releaseKey: string;
+  version: string;
+}): Promise<void> {
+  const { tarballPath, workDir, releaseKey, version } = options;
+  if (!stableVersionPattern.test(version)) {
+    throw new CliError("::error::npm Release gate accepts only stable versions.", 66);
+  }
+  const manifest = validateNpmPackageManifest(
+    parseJson(
+      await runText("tar", ["-xOf", tarballPath, "package/package.json"], {
+        maxBuffer: 1024 * 1024,
+        timeoutMs: 30_000,
+      }),
+      "::error::npm package manifest is invalid.",
+      66
+    ),
+    version
+  );
+  if (manifest.name !== `@fongap-labs/${releaseKey}`) {
+    throw new CliError("::error::Registry package name differs from the governed release.", 66);
+  }
+  const expected = npmPackageIntegrity(await readFile(tarballPath));
+  const env = { ...process.env, npm_config_registry: npmRegistry };
+  const actual = await waitForPublishedIntegrity(manifest.name, version, workDir, env);
+  if (actual !== expected) {
+    throw new CliError("::error::npm registry integrity is not verified; formal Tag withheld.", 65);
+  }
+  const tags = parseJson(
+    await runText(
+      "npm",
+      ["view", manifest.name, "dist-tags", "--json", "--registry", npmRegistry],
+      { cwd: workDir, env, timeoutMs: 30_000 }
+    ),
+    "::error::npm registry dist-tags response is invalid.",
+    65
+  );
+  if (
+    !tags ||
+    typeof tags !== "object" ||
+    Array.isArray(tags) ||
+    (tags as Record<string, unknown>).latest !== version
+  ) {
+    throw new CliError("::error::npm latest dist-tag not confirmed; formal Tag withheld.", 65);
+  }
+}
+
 export async function publishNpmBeforeTag(options: {
   tarballPath: string;
   workDir: string;

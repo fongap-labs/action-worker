@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: npm 发包恢复为独立可见的全自动工作流；仅 dsh-plugin 正式版触发，成功且 registry 校验通过后才创建 GitHub Release Tag。
+
 - 修复: 仅 DSH 插件正式版自动发布 npm，并在完整性校验成功后创建正式 Tag；Beta 仅发布 GitHub 附件，移除手动 npm 发布入口。
 
 - 修复: Responses 中央诊断合同按实际物理派发次数验收，候选 Key 耗尽后不要求重复派发，保留旧版兼容验证。
