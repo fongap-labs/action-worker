@@ -590,6 +590,8 @@ async function main(): Promise<void> {
       sourceRepository,
       targetRepository,
       manifest.release_key,
+      manifest.version,
+      isPrerelease,
       manifest.assets
     );
     if (preTagNpmAsset && !process.env.AW_NPM_TOKEN?.trim()) {
