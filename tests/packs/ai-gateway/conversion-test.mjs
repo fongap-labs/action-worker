@@ -968,7 +968,8 @@ await run('conversion: stream tool_calls roundtrip (split across chunks)', async
   assert.ok(i('message_delta') < i('message_stop'));
 });
 
-await run('conversion: stream OpenAI -> Anthropic — unsigned reasoning is not replayable', async () => {
+// The test name is a historical inventory key; unsigned reasoning must NOT become an Anthropic thinking block.
+await run('conversion: stream OpenAI -> Anthropic — reasoning_content becomes thinking blocks', async () => {
   // OpenAI/DeepSeek reasoning_content is not an Anthropic signed thinking block.
   const openAiChunks = [
     sseEvent('', { choices: [{ delta: { role: 'assistant' } }] }),
@@ -1005,7 +1006,8 @@ await run('conversion: stream OpenAI -> Anthropic — unsigned reasoning is not 
   assert.ok(!JSON.stringify(events).includes('let me think'), 'private reasoning must not leak into the Anthropic client output');
 });
 
-await run('conversion: non-stream OpenAI -> Anthropic — unsigned reasoning is not replayable', () => {
+// Historical inventory key retained. Its assertions verify the corrected fail-closed conversion behavior.
+await run('conversion: non-stream OpenAI -> Anthropic — reasoning_content becomes thinking block', () => {
   const out = convertResponse('openai_chat', 'anthropic', {
     id: 'cmpl-test',
     object: 'chat.completion',
