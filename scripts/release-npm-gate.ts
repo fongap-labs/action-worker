@@ -19,6 +19,10 @@ const stableVersionPattern = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)
  * Beta/prerelease versions publish verified GitHub Release assets only.
  * Other repositories publish verified downloadable assets, not npm packages.
  */
+export function isStableNpmRelease(version: string, isPrerelease: boolean): boolean {
+  return !isPrerelease && stableVersionPattern.test(version);
+}
+
 export function selectPreTagNpmAsset(
   sourceRepository: string,
   targetRepository: string,
@@ -33,7 +37,7 @@ export function selectPreTagNpmAsset(
   }
   // Beta releases remain GitHub-only even if their assets contain an npm tarball.
   if (isPrerelease || version.includes("-")) return null;
-  if (!stableVersionPattern.test(version)) {
+  if (!isStableNpmRelease(version, isPrerelease)) {
     throw new CliError("::error::Stable npm release requires an X.Y.Z version.", 66);
   }
   const tarballs = assets.filter((asset) => asset.name.endsWith(".tgz"));
