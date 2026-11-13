@@ -24,7 +24,10 @@ test("work metrics only runs on a daily schedule, never on release completion", 
   }>;
   const wait = steps.find((step) => step.run === "node scripts/manage-work-metrics.ts ci");
   assert.equal(wait?.env?.PR_NUMBER, "${{ steps.pr.outputs.number }}");
-  assert.equal(steps.some((step) => step.run === "node scripts/manage-work-metrics.ts merge"), false);
+  assert.equal(
+    steps.some((step) => step.run === "node scripts/manage-work-metrics.ts merge"),
+    false
+  );
   const manager = await readFile("scripts/manage-work-metrics.ts", "utf8");
   assert.match(manager, /Metrics PR was not automatically merged from its verified CI head/);
   assert.doesNotMatch(manager, /async function mergePull/);
