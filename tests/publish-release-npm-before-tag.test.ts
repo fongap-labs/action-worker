@@ -1,0 +1,62 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { test } from "node:test";
+import { parse } from "yaml";
+import { selectPreTagNpmAsset } from "../scripts/publish-release-npm-before-tag.ts";
+
+const plugin = "fongap-labs/dsh-plugin";
+const asset = { name: "fongap-labs-dsh-delta-code.tgz", sha256: "a".repeat(64) };
+
+test("only a DSH plugin release requires an npm package, including beta releases", () => {
+  assert.deepEqual(selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", [asset]), asset);
+  assert.equal(selectPreTagNpmAsset("fongap-labs/external-vault", "fongap-labs/external-vault", "steno", []), null);
+  assert.throws(
+    () => selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", []),
+    /exactly its named npm tarball/
+  );
+  assert.throws(
+    () => selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", [asset, { ...asset }]),
+    /exactly its named npm tarball/
+  );
+  assert.throws(
+    () => selectPreTagNpmAsset(plugin, plugin, "dsh-delta-desktop", [asset]),
+    /exactly its named npm tarball/
+  );
+  assert.throws(
+    () => selectPreTagNpmAsset("fongap-labs/external-vault", plugin, "dsh-delta-code", [asset]),
+    /source must be/
+  );
+});
+
+test("a formal release tag is gated on npm registry confirmation, not an async dispatch", async () => {
+  const workflowText = await readFile(".github/workflows/handle-release-dispatch.yml", "utf8");
+  const workflow = parse(workflowText) as {
+    jobs: {
+      release: {
+        steps: Array<{ name?: string; env?: Record<string, string> }>;
+      };
+      npm?: unknown;
+    };
+  };
+  assert.equal(workflow.jobs.npm, undefined);
+  const publish = workflow.jobs.release.steps.find((step) => step.name === "Publish governed release");
+  assert.equal(
+    publish?.env?.AW_NPM_TOKEN,
+    "${{ steps.release_target.outputs.target_repository == 'fongap-labs/dsh-plugin' && secrets.AW_NPM_TOKEN || '' }}"
+  );
+  const source = await readFile("scripts/publish-release.ts", "utf8");
+  const checksumVerified = source.indexOf("Published Release checksum verification failed");
+  const npmGate = source.indexOf("await publishNpmBeforeTag({");
+  const releasePublish = source.indexOf("isPublishAttempted = true;");
+  assert.ok(checksumVerified !== -1 && npmGate > checksumVerified);
+  assert.ok(releasePublish > npmGate);
+  assert.doesNotMatch(workflowText, /run-npm-republish/);
+});
+
+test("npm registry read-back and dist-tag checks must both pass before tagging", async () => {
+  const source = await readFile("scripts/publish-release-npm-before-tag.ts", "utf8");
+  assert.ok(source.indexOf("await waitForPublishedIntegrity(") > 0);
+  assert.ok(source.indexOf("await ensureDistTag(") > source.indexOf("await waitForPublishedIntegrity("));
+  assert.ok(source.includes("npm dist-tag was not confirmed; GitHub Release tag withheld"));
+  assert.ok(source.includes("npm package name does not match the governed release key"));
+});
