@@ -203,17 +203,16 @@ test("automatic npm workflow is separate and blocks the formal tag until verifie
   );
   assert.equal(publish?.run, "node scripts/publish-release.ts");
   assert.equal(publish?.env?.AW_NPM_TOKEN, undefined);
-  assert.equal(
-    publish?.env?.AW_NPM_DISPATCH_TOKEN,
-    "${{ steps.npm_dispatch_app.outputs.token }}"
-  );
+  assert.equal(publish?.env?.AW_NPM_DISPATCH_TOKEN, "${{ steps.npm_dispatch_app.outputs.token }}");
   assert.equal(npm.on?.workflow_dispatch, undefined);
   assert.deepEqual(npm.on?.repository_dispatch?.types, ["run-npm-release"]);
   assert.match(npmSource, /fongap-bot\[bot\]/);
   assert.match(target, /isStableNpmRelease\(/);
   assert.ok(target.includes('source === "fongap-labs/dsh-plugin"'));
   assert.match(source, /await dispatchAndWaitForNpm\(/);
-  assert.ok(source.indexOf("await dispatchAndWaitForNpm(") < source.indexOf("isPublishAttempted = true;"));
+  assert.ok(
+    source.indexOf("await dispatchAndWaitForNpm(") < source.indexOf("isPublishAttempted = true;")
+  );
   assert.match(source, /await verifyPublishedNpmBeforeTag\(/);
   assert.doesNotMatch(workflowSource, /run-npm-republish|workflow_dispatch/);
   assert.match(source, /is_prerelease=\$\{isPrerelease/);
