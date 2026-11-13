@@ -9,7 +9,10 @@ const asset = { name: "fongap-labs-dsh-delta-code.tgz", sha256: "a".repeat(64) }
 
 test("only a DSH plugin release requires an npm package, including beta releases", () => {
   assert.deepEqual(selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", [asset]), asset);
-  assert.equal(selectPreTagNpmAsset("fongap-labs/external-vault", "fongap-labs/external-vault", "steno", []), null);
+  assert.equal(
+    selectPreTagNpmAsset("fongap-labs/external-vault", "fongap-labs/external-vault", "steno", []),
+    null
+  );
   assert.throws(
     () => selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", []),
     /exactly its named npm tarball/
@@ -39,7 +42,9 @@ test("a formal release tag is gated on npm registry confirmation, not an async d
     };
   };
   assert.equal(workflow.jobs.npm, undefined);
-  const publish = workflow.jobs.release.steps.find((step) => step.name === "Publish governed release");
+  const publish = workflow.jobs.release.steps.find(
+    (step) => step.name === "Publish governed release"
+  );
   assert.equal(
     publish?.env?.AW_NPM_TOKEN,
     "${{ steps.release_target.outputs.target_repository == 'fongap-labs/dsh-plugin' && secrets.AW_NPM_TOKEN || '' }}"
@@ -56,7 +61,9 @@ test("a formal release tag is gated on npm registry confirmation, not an async d
 test("npm registry read-back and dist-tag checks must both pass before tagging", async () => {
   const source = await readFile("scripts/publish-release-npm-before-tag.ts", "utf8");
   assert.ok(source.indexOf("await waitForPublishedIntegrity(") > 0);
-  assert.ok(source.indexOf("await ensureDistTag(") > source.indexOf("await waitForPublishedIntegrity("));
+  assert.ok(
+    source.indexOf("await ensureDistTag(") > source.indexOf("await waitForPublishedIntegrity(")
+  );
   assert.ok(source.includes("npm dist-tag was not confirmed; GitHub Release tag withheld"));
   assert.ok(source.includes("npm package name does not match the governed release key"));
 });
