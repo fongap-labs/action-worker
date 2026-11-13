@@ -46,6 +46,7 @@ const classes = {
     "handle-pr-dispatch.yml",
     "handle-pr-review.yml",
     "handle-release-dispatch.yml",
+    "release-npm.yml",
     "handle-task-dispatch.yml",
     "security-scan-dispatch.yml",
   ],
