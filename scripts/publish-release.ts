@@ -23,6 +23,7 @@ import {
 } from "./github-api.ts";
 import { sha256File } from "./lib/stream-file-hash.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
+import { publishNpmBeforeTag, selectPreTagNpmAsset } from "./publish-release-npm-before-tag.ts";
 import {
   parseTwoPhaseReleasePolicy,
   selectReleasePhase,
@@ -585,6 +586,19 @@ async function main(): Promise<void> {
       throw new CliError(`::error::Release already exists in ${targetRepository}: ${tag}.`, 65);
     }
 
+    const preTagNpmAsset = selectPreTagNpmAsset(
+      sourceRepository,
+      targetRepository,
+      manifest.release_key,
+      manifest.assets
+    );
+    if (preTagNpmAsset && !process.env.AW_NPM_TOKEN?.trim()) {
+      throw new CliError(
+        "::error::AW_NPM_TOKEN is required to publish the npm package before the Release tag.",
+        77
+      );
+    }
+
     // The actual production workflow intentionally has no two-phase opt-in
     // variable or PR write token. Only a separately approved staging target
     // can activate the changelog PR -> signed gate -> Main Write Guard path.
@@ -766,6 +780,18 @@ async function main(): Promise<void> {
           66
         );
       }
+    }
+
+    // The draft is not a formal tag. Publish and verify the exact npm tarball first.
+    // If registry publication fails, rollback the draft and leave no formal tag.
+    if (preTagNpmAsset) {
+      await publishNpmBeforeTag({
+        tarballPath: join(verifyDir, preTagNpmAsset.name),
+        workDir,
+        releaseKey: manifest.release_key,
+        version: manifest.version,
+        token: process.env.AW_NPM_TOKEN ?? "",
+      });
     }
 
     // From here on, an absent HTTP response cannot prove the publish failed.
