@@ -1,6 +1,6 @@
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { runCommand } from "./runtime-command.ts";
+import { CliError, runCommand } from "./runtime-command.ts";
 
 export const npmRegistry = "https://registry.npmjs.org/";
 
@@ -28,11 +28,10 @@ export async function configureNpmAuth(
 }
 
 export function npmPublishArgs(tarballPath: string, version: string): string[] {
-  const args = ["publish", tarballPath, "--access", "public"];
-  if (version.includes("-beta.")) {
-    args.push("--tag", "beta");
+  if (!/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(version)) {
+    throw new CliError("::error::npm publishing accepts only stable X.Y.Z versions.", 66);
   }
-  return args;
+  return ["publish", tarballPath, "--access", "public"];
 }
 
 export async function publishNpmTarball(
@@ -41,8 +40,9 @@ export async function publishNpmTarball(
   token: string,
   version: string
 ): Promise<void> {
+  const args = npmPublishArgs(tarballPath, version);
   const env = await configureNpmAuth(workingDirectory, token);
-  await runCommand("npm", npmPublishArgs(tarballPath, version), {
+  await runCommand("npm", args, {
     cwd: workingDirectory,
     env,
     timeoutMs: 300_000,

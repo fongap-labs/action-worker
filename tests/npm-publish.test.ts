@@ -23,15 +23,13 @@ test("npm auth uses a temporary .npmrc with environment token interpolation", as
   }
 });
 
-test("beta tarballs publish under the beta dist-tag", () => {
-  assert.deepEqual(npmPublishArgs("package.tgz", "0.1.0-beta.2"), [
-    "publish",
-    "package.tgz",
-    "--access",
-    "public",
-    "--tag",
-    "beta",
-  ]);
+test("beta and other prereleases are rejected before npm starts", () => {
+  for (const version of ["0.1.0-beta.2", "1.2.3-rc.1", "1.2.3+build.5", "latest"]) {
+    assert.throws(
+      () => npmPublishArgs("package.tgz", version),
+      /npm publishing accepts only stable X.Y.Z versions/
+    );
+  }
 });
 
 test("stable tarballs publish under npm's default dist-tag", () => {
