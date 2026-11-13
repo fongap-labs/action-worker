@@ -1328,12 +1328,13 @@ try {
     const anthropicNode = { provider: 'anthropic', protocol: 'anthropic', surfaces: ['messages'] };
     const genericNode = { provider: 'xyz-provider', protocol: 'openai', surfaces: ['chat_completions'] };
 
-    assert.equal(streamUsageEnabled(openaiNode, {}), true, 'auto: openai chat streams ask for usage');
+    assert.equal(streamUsageEnabled(openaiNode, {}), false, 'unset: do not inject optional usage fields into free-compatible endpoints');
+    assert.equal(streamUsageEnabled(openaiNode, { AIG_USAGE_INCLUDE_MODE: 'auto' }), true, 'explicit auto preserves profile hints');
     assert.equal(streamUsageEnabled(anthropicNode, {}), false, 'auto: anthropic never asks');
-    assert.equal(streamUsageEnabled(genericNode, {}), true, 'auto: generic openai-compatible asks');
+    assert.equal(streamUsageEnabled(genericNode, {}), false, 'unset: unknown compatible Provider remains unmodified');
     assert.equal(streamUsageEnabled(openaiNode, { AIG_USAGE_INCLUDE_MODE: 'off' }), false, 'global kill switch');
     assert.equal(streamUsageEnabled(anthropicNode, { AIG_USAGE_INCLUDE_MODE: 'on' }), true, 'global force switch');
-    assert.equal(streamUsageEnabled(openaiNode, { AIG_USAGE_EXCLUDE_PROVIDERS: 'OpenAI' }), false, 'per-provider off-list');
+    assert.equal(streamUsageEnabled(openaiNode, { AIG_USAGE_INCLUDE_MODE: 'auto', AIG_USAGE_EXCLUDE_PROVIDERS: 'OpenAI' }), false, 'per-provider off-list');
     assert.equal(
       streamUsageEnabled({ provider: 'openai', protocol: 'openai', surfaces: ['responses'] }, {}),
       false,

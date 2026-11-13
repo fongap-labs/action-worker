@@ -957,14 +957,23 @@ try {
     assert.ok(calls.every((c) => c.path === '/v1/chat/completions'));
   });
 
-  await test('protocol or surfaces in Node JSON are rejected before dispatch', async () => {
+  await test('node API surface changes routing eligibility without overriding Provider protocol', async () => {
     handlers['broken.example.com'] = () => json(chatOk());
-    for (const extra of [{ protocol: 'openai' }, { surfaces: ['chat_completions'] }]) {
+    for (const extra of [{ protocol: 'openai' }, { surfaces: ['messages'] }, { surfaces: ['responses'] }]) {
       calls.length = 0;
       const res = await worker.fetch(chatRequest(), env([{ ...chatNode('broken'), ...extra }], { AIG_PROTOCOL_FALLBACKS: 'disable' }), {});
-      assert.notEqual(res.status, 200);
+      assert.notEqual(res.status, 200, 'invalid or nonmatching physical endpoint must not be used');
       assert.equal(calls.length, 0);
     }
+    calls.length = 0;
+    const valid = await worker.fetch(
+      chatRequest(),
+      env([{ ...chatNode('broken'), surfaces: ['chat_completions'] }], { AIG_PROTOCOL_FALLBACKS: 'disable' }),
+      {},
+    );
+    assert.equal(valid.status, 200, 'explicit Chat-only endpoint is valid');
+    assert.equal(calls.length, 1, 'one physical Provider attempt');
+    assert.equal(calls[0].path, '/v1/chat/completions');
   });
 
   await test('requested model identity is preserved in native client response', async () => {

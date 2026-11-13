@@ -177,7 +177,9 @@ try {
     'configuration docs must show the small account-level node schema',
   );
   assert.match(config, /Provider wire profiles/i);
-  assert.match(config, /`protocol`, `surfaces`, `limits`[^\n]*rejected/i, 'protocol/surfaces/limits must not return to per-node config');
+  assert.match(config, /`protocol`[^\n]{0,12}`limits`/i, 'protocol and limits must remain prohibited at node level');
+  assert.match(config, /`surfaces`[^\n]*API/i, 'optional node API surfaces must be documented');
+  assert.match(config, /`models`[^\n]*\{\}/i, 'explicit model mappings and wildcard behavior must remain documented');
   assert.match(config, /provider:\s*"anthropic"[\s\S]{0,100}messages/i);
   assert.match(config, /provider:\s*"openai"[\s\S]{0,120}responses/i);
   // The source documentation is Chinese; enforce the rejected-budget semantics,

@@ -128,11 +128,21 @@ try {
     assert.deepEqual(compatible.nodes[0].surfaces, ['chat_completions']);
   });
 
-  test('protocol and surfaces are not node fields', () => {
-    for (const extra of [{ protocol: 'openai' }, { surfaces: ['chat_completions'] }]) {
-      const cfg = loadGatewayConfig(makeEnv({ tier1: [node('wire-field', extra)], secrets: { 'wire-field': 'x' } }));
-      assert.equal(cfg.nodes.length, 0);
-      assert.ok(cfg.diagnostics.some((d) => d.includes('unknown field')));
+  test('protocol is Provider-owned; physical API surfaces may be configured per node', () => {
+    const protocol = loadGatewayConfig(makeEnv({ tier1: [node('wire-field', { protocol: 'openai' })], secrets: { 'wire-field': 'x' } }));
+    assert.equal(protocol.nodes.length, 0, 'node cannot override the underlying protocol');
+    assert.ok(protocol.diagnostics.some((d) => d.includes('unknown field')));
+
+    const chatOnly = loadGatewayConfig(makeEnv({ tier1: [node('chat-only', { provider: 'openai', surfaces: ['chat_completions'] })], secrets: { 'chat-only': 'x' } }));
+    assert.deepEqual(chatOnly.nodes[0].surfaces, ['chat_completions']);
+    const responsesOnly = loadGatewayConfig(makeEnv({ tier1: [node('resp-only', { provider: 'generic-openai', surfaces: ['responses'] })], secrets: { 'resp-only': 'x' } }));
+    assert.equal(responsesOnly.nodes[0].protocol, 'openai');
+    assert.deepEqual(responsesOnly.nodes[0].surfaces, ['responses']);
+
+    for (const invalid of [[], ['messages'], ['responses', 'responses'], ['chat_completions', 5]]) {
+      const cfg = loadGatewayConfig(makeEnv({ tier1: [node('wire-invalid', { provider: 'openai', surfaces: invalid })], secrets: { 'wire-invalid': 'x' } }));
+      assert.equal(cfg.nodes.length, 0, `invalid surface ${JSON.stringify(invalid)} must fail closed`);
+      assert.ok(cfg.diagnostics.some((d) => d.includes('surfaces')));
     }
   });
 
