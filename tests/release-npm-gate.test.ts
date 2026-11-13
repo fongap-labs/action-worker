@@ -40,6 +40,9 @@ test("Beta never publishes npm, even when the prerelease flag is misconfigured",
     selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", "0.1.0-beta.2", false, [asset]),
     null
   );
+  const targetResolver = await readFile("scripts/resolve-release-target.ts", "utf8");
+  assert.match(targetResolver, /npm_required=/);
+  assert.match(targetResolver, /isStableNpmRelease\(/);
   assert.equal(
     selectPreTagNpmAsset(plugin, plugin, "dsh-delta-code", "0.1.0", true, [asset]),
     null
@@ -76,7 +79,7 @@ test("a formal release tag is gated on npm registry confirmation, not an async d
   );
   assert.equal(
     publish?.env?.AW_NPM_TOKEN,
-    "${{ steps.release_target.outputs.target_repository == 'fongap-labs/dsh-plugin' && secrets.AW_NPM_TOKEN || '' }}"
+    "${{ steps.release_target.outputs.npm_required == 'true' && secrets.AW_NPM_TOKEN || '' }}"
   );
   const source = await readFile("scripts/publish-release.ts", "utf8");
   const checksumVerified = source.indexOf("Published Release checksum verification failed");
