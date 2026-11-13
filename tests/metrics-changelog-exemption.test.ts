@@ -25,8 +25,14 @@ const valid = { title, repository, changedPaths: ["README.md"], baseReadme, head
 
 test("only a canonical action-worker README metrics update avoids CHANGELOG churn", () => {
   assert.equal(isGeneratedMetricsOnlyChange(valid), true);
-  assert.equal(isGeneratedMetricsOnlyChange({ ...valid, title: "chore: update work metrics" }), false);
-  assert.equal(isGeneratedMetricsOnlyChange({ ...valid, title: "fix(metrics): update work metrics" }), false);
+  assert.equal(
+    isGeneratedMetricsOnlyChange({ ...valid, title: "chore: update work metrics" }),
+    false
+  );
+  assert.equal(
+    isGeneratedMetricsOnlyChange({ ...valid, title: "fix(metrics): update work metrics" }),
+    false
+  );
   assert.equal(
     isGeneratedMetricsOnlyChange({ ...valid, repository: "fongap-labs/ai-gateway" }),
     false
@@ -93,9 +99,7 @@ test("metrics title and trusted repository are wired into all validation entry p
   assert.ok(manager.includes("title=chore(metrics): update work metrics"));
   assert.ok(validator.includes("isGeneratedMetricsOnlyChange("));
   assert.ok(selfCI.includes("AW_VALIDATED_REPOSITORY: ${{ github.repository }}"));
-  assert.ok(
-    centralPR.includes("AW_VALIDATED_REPOSITORY: ${{ steps.payload.outputs.repository }}")
-  );
+  assert.ok(centralPR.includes("AW_VALIDATED_REPOSITORY: ${{ steps.payload.outputs.repository }}"));
   assert.ok(
     advisoryReview.includes("AW_VALIDATED_REPOSITORY: ${{ needs.prepare.outputs.repository }}")
   );
