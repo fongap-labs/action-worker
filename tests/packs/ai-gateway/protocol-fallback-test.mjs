@@ -9,7 +9,7 @@
 //   - protocol-matrix-test.mjs
 
 import { convertRequest } from './conversion-matrix-adapters.mjs';
-import { legacySpentKeyRetry } from './spent-key-retry-contract.mjs';
+import { legacySpentKeyRetry, strictFailedKeyAcrossModels } from './spent-key-retry-contract.mjs';
 import worker from '#target/src/index.ts';
 import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
 import { buildResponsesError } from '#target/src/protocol/responses/index.ts';
@@ -339,13 +339,17 @@ try {
   assert.equal(distinct.status, 503);
   assert.deepEqual(
     calls.map((c) => c.model),
-    legacySpentKeyRetry ? ['real-max', 'real-pro', 'real-ultra', 'real-ultra'] : ['real-max', 'real-pro', 'real-ultra'],
+    legacySpentKeyRetry
+      ? ['real-max', 'real-pro', 'real-ultra', 'real-ultra']
+      : strictFailedKeyAcrossModels
+        ? ['real-max']
+        : ['real-max', 'real-pro', 'real-ultra'],
   );
-  const distinctCount = legacySpentKeyRetry ? 4 : 3;
+  const distinctCount = legacySpentKeyRetry ? 4 : strictFailedKeyAcrossModels ? 1 : 3;
   assert.equal(distinct.headers.get('x-gateway-attempts'), String(distinctCount));
   assert.equal(distinct.headers.get('x-gateway-dispatches'), String(distinctCount));
   assert.equal(distinct.headers.get('x-gateway-failure-kinds'), `server:${distinctCount}`);
-  assert.deepEqual(centerPaths, Array(distinctCount).fill('/internal/execute'), 'distinct physical domains each use the private center');
+  assert.deepEqual(centerPaths, Array(distinctCount).fill('/internal/execute'), 'model-level or strict Key-level dispatch remains inside the private center');
 
   reset();
   const accountA = node('account-a', { 'Code-Max': 'real-shared', 'Code-Pro': 'real-shared', 'Code-Ultra': 'real-shared' });
