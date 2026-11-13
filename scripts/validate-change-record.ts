@@ -327,7 +327,9 @@ export async function validateChange(
     changedPaths[0] === "README.md" &&
     process.env.AW_VALIDATED_REPOSITORY === "fongap-labs/action-worker"
   ) {
-    const baseReadme = (await runCommand("git", ["show", `${base}:README.md`], { cwd: root })).toString("utf8");
+    const baseReadme = (
+      await runCommand("git", ["show", `${base}:README.md`], { cwd: root })
+    ).toString("utf8");
     const headReadme = await readFile(join(root, "README.md"), "utf8");
     if (
       isGeneratedMetricsOnlyChange({
