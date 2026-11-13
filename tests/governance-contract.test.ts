@@ -1287,7 +1287,7 @@ test("self CI requires deterministic security checks", async () => {
 
 test("metrics workflow delegates branch and PR orchestration to TypeScript", async () => {
   const workflow = await text(".github/workflows/update-work-metrics.yml");
-  for (const stage of ["changes", "branch", "pull", "cleanup", "ci", "merge"]) {
+  for (const stage of ["changes", "branch", "pull", "cleanup", "ci"]) {
     assert.ok(workflow.includes(`node scripts/manage-work-metrics.ts ${stage}`));
   }
   assert.doesNotMatch(workflow, /shell:\s+bash|run:\s*\|/);
@@ -1296,7 +1296,7 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
   assert.equal(
     (workflow.match(/GH_TOKEN: \$\{\{ steps\.control_write_app\.outputs\.token \}\}/g) ?? [])
       .length,
-    4
+    3
   );
   assert.match(workflow, /GIT_PUSH_TOKEN: \$\{\{ steps\.control_write_app\.outputs\.token \}\}/);
   const pullStep = workflow.slice(
@@ -1304,6 +1304,8 @@ test("metrics workflow delegates branch and PR orchestration to TypeScript", asy
     workflow.indexOf("      - name: Wait for CI")
   );
   assert.match(pullStep, /GH_TOKEN: \$\{\{ steps\.control_write_app\.outputs\.token \}\}/);
+  assert.ok(!workflow.includes("node scripts/manage-work-metrics.ts merge"));
+  assert.ok(workflow.includes("PR_NUMBER: ${{ steps.pr.outputs.number }}"));
   assert.match(workflow, /Cleanup failed metrics update/);
   assert.doesNotMatch(workflow, /secrets\.AW_CONTROL_TOKEN/);
   assert.match(workflow, /permission-pull-requests: write/);
