@@ -1330,7 +1330,7 @@ try {
     assert.ok(known.has('Code-Max'));
     assert.deepEqual(authorizeModel('Code-Max', known, allowAll), { allowed: true });
     assert.equal(servesModel(n, 'Code-Max', known), true);
-    assert.equal(supportsRequest(n, requestFor('Code-Max'), known), true);
+    assert.equal(supportsRequest(n, requestFor('Code-Max'), known), false, 'known catalog entry has no physical dispatch mapping');
   });
 
   test('wildcard never expands beyond the known catalog', () => {
@@ -1373,7 +1373,7 @@ try {
     assert.deepEqual(visible, [...known].sort());
     for (const model of visible) {
       assert.equal(authorizeModel(model, known, allowAll).allowed, true);
-      assert.equal(supportsRequest(wildcard('w1'), requestFor(model), known), true);
+      assert.equal(supportsRequest(wildcard('w1'), requestFor(model), known), false, 'visible model is not dispatchable through a wildcard');
     }
   });
 

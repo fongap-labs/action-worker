@@ -955,7 +955,7 @@ try {
     assert.equal(upstreamCalls.length, 0);
   });
 
-  await test('Contract 10: Closed Catalog - wildcard node rejects unknown model', async () => {
+  await test('Contract 10: Closed Catalog - wildcard catalog nodes never dispatch without physical mapping', async () => {
     resetMock();
     const wildcardNode = {
       id: 'wc1',
@@ -969,8 +969,9 @@ try {
       secrets: { wc1: 'k' },
       extraEnv: { AIG_MODELS_CONFIG: JSON.stringify({ 'Code-Max': { policy: 'default' } }) },
     });
-    assert.equal((await worker.fetch(chatRequest({}), env, {})).status, 200);
+    assert.equal((await worker.fetch(chatRequest({}), env, {})).status, 404);
     assert.equal((await worker.fetch(chatRequest({ model: 'random-model-xxx' }), env, {})).status, 404);
+    assert.equal(upstreamCalls.length, 0, 'wildcard catalog nodes must not dispatch a logical alias');
   });
 
   await test('Contract 11: Visible == Callable (key-scoped)', () => {
