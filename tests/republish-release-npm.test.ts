@@ -140,7 +140,7 @@ test("npm publishing runs automatically only within DSH stable release governanc
   assert.equal(release?.run, "node scripts/publish-release.ts");
   assert.equal(
     release?.env?.AW_NPM_TOKEN,
-    "${{ steps.release_target.outputs.target_repository == 'fongap-labs/dsh-plugin' && secrets.AW_NPM_TOKEN || '' }}"
+    "${{ steps.release_target.outputs.npm_required == 'true' && secrets.AW_NPM_TOKEN || '' }}"
   );
   assert.doesNotMatch(source, /run-npm-republish/);
   await assert.rejects(readFile(".github/workflows/release-npm.yml", "utf8"), {
