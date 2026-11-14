@@ -13,19 +13,19 @@ test("first CHANGELOG addition is valid but an unchanged missing file is rejecte
   try {
     git("init", "-q");
     git("config", "user.name", "Test");
-    git("config", "user.email", "test@example.invalid");
+    git("config", "user.email", "fixture-identity");
     writeFileSync(join(root, "README.md"), "bootstrap\n");
     git("add", ".");
     git("commit", "-qm", "chore: bootstrap");
     const base = git("rev-parse", "HEAD");
-    const headContent = "# 更新日志\n\n## [Unreleased]\n\n- 修复: 初始化变更记录\n";
+    const headContent = "# \u66f4\u65b0\u65e5\u5fd7\n\n## [Unreleased]\n\n- \u4fee\u590d: \u521d\u59cb\u5316\u53d8\u66f4\u8bb0\u5f55\n";
     writeFileSync(join(root, "CHANGELOG.md"), headContent);
     git("add", ".");
     git("commit", "-qm", "fix: add changelog");
     const head = git("rev-parse", "HEAD");
     const baseline = await readBaseChangelog(root, base, head, "CHANGELOG.md");
     assert.deepEqual(addedUnreleasedEntries(baseline, headContent), [
-      "- 修复: 初始化变更记录",
+      "- \u4fee\u590d: \u521d\u59cb\u5316\u53d8\u66f4\u8bb0\u5f55",
     ]);
     await assert.rejects(readBaseChangelog(root, base, base, "CHANGELOG.md"), /must be an added file/);
     assert.equal(await readBaseChangelog(root, head, head, "CHANGELOG.md"), headContent);
