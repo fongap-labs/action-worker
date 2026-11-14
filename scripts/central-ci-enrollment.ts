@@ -124,8 +124,15 @@ async function writeGithub(
     signal: AbortSignal.timeout(20_000),
   });
   if (!response.ok) {
-    const action = path.includes("/contents/") ? "workflow-file" : path.includes("/git/refs") ? "branch" : "pull-request";
-    throw new CliError("Central CI " + action + " write rejected (HTTP " + response.status + ").", 77);
+    const action = path.includes("/contents/")
+      ? "workflow-file"
+      : path.includes("/git/refs")
+        ? "branch"
+        : "pull-request";
+    throw new CliError(
+      "Central CI " + action + " write rejected (HTTP " + response.status + ").",
+      77
+    );
   }
   return (await response.json()) as unknown;
 }
@@ -204,11 +211,12 @@ async function createBridgePullRequest(
   // Never overwrite a branch containing edits, and never force-push.
   let branchExists = false;
   try {
-    const existing = await reader.get(
-      "repos/" + repository + "/git/ref/heads/" + branchName
-    );
-    if (!isJsonRecord(existing) || !isJsonRecord(existing.object) ||
-      existing.object.sha !== ref.object.sha) {
+    const existing = await reader.get("repos/" + repository + "/git/ref/heads/" + branchName);
+    if (
+      !isJsonRecord(existing) ||
+      !isJsonRecord(existing.object) ||
+      existing.object.sha !== ref.object.sha
+    ) {
       throw new CliError("Central CI onboarding branch contains unverified work.", 77);
     }
     branchExists = true;
@@ -316,7 +324,9 @@ async function main(): Promise<void> {
 if (isMain(import.meta.url)) {
   main().catch((error: unknown) => {
     const reason = error instanceof CliError ? error.message : "unverified operation";
-    console.error("::error::Central CI enrollment failed: " + reason + "; repository details withheld.");
+    console.error(
+      "::error::Central CI enrollment failed: " + reason + "; repository details withheld."
+    );
     process.exitCode = 1;
   });
 }
