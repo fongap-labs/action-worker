@@ -310,9 +310,10 @@ jobs:
       merge_sha: ${{ needs.prepare.outputs.merge_sha }}
       control_ref: ${{ needs.prepare.outputs.control_ref }}
       is_private: ${{ needs.prepare.outputs.is_private }}
+      app_client_id: ${{ vars.AW_APP_CLIENT_ID }}
     secrets:
-      # Evaluated by GitHub before the sandbox starts; public targets receive no credential.
-      checkout_token: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CHECKOUT_TOKEN || '' }}
+      # The App key is consumed only by the trusted read-token mint step.
+      app_private_key: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_APP_PRIVATE_KEY || '' }}
 
   security:
     name: Central CI / Security
@@ -413,9 +414,10 @@ jobs:
       merge_sha: ${{ needs.prepare.outputs.merge_sha }}
       control_ref: ${{ needs.prepare.outputs.control_ref }}
       is_private: ${{ needs.prepare.outputs.is_private }}
+      app_client_id: ${{ vars.AW_APP_CLIENT_ID }}
     secrets:
-      # Evaluated by GitHub before the sandbox starts; public targets receive no credential.
-      checkout_token: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CHECKOUT_TOKEN || '' }}
+      # The App key is consumed only by the trusted read-token mint step.
+      app_private_key: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_APP_PRIVATE_KEY || '' }}
 
   finalize:
     name: Publish Central CI
