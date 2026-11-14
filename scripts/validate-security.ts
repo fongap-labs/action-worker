@@ -267,10 +267,12 @@ export async function collectSecurityViolations(
     if (isWorkflowPath(path)) {
       // A pre-push check may inspect commits whose files no longer exist in the worktree.
       // Resolve the workflow from the exact commit tree, never from mutable local files.
-      const content = (await runCommand("git", ["show", head + ":" + path], {
-        cwd: root,
-        maxBuffer: 4 * 1024 * 1024,
-      })).toString("utf8");
+      const content = (
+        await runCommand("git", ["show", head + ":" + path], {
+          cwd: root,
+          maxBuffer: 4 * 1024 * 1024,
+        })
+      ).toString("utf8");
       const contentHash = workflowContentHash(content);
       const isApproved = policy.approved_workflows.some(
         (approved) => approved.path === path && approved.sha256 === contentHash
