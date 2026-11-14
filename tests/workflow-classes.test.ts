@@ -65,7 +65,7 @@ const classes = {
     "validate-ci.yml",
   ],
   // Called by other workflows only.
-  reusable: ["central-ci-sandbox.yml"],
+  reusable: ["central-ci-sandbox.yml", "private-source-security.yml"],
 } as const;
 
 type WorkflowClass = keyof typeof classes;
