@@ -99,7 +99,14 @@ test('terminal errors expose consistent retry and attempt headers while preservi
     assert.equal(response.headers.get('x-gateway-failure-kinds'), 'rate_limit:3');
     assert.equal(response.headers.get('retry-after'), '30');
     const body = await response.json();
-    assert.equal(body.error.message, 'capacity unavailable');
+    // Older gateway branches preserve their previous message; the compact
+    // Gateway formats one status-first line without changing retry headers.
+    if (body.error.message.startsWith('503 | ')) {
+      assert.match(body.error.message, /^503 \\| [^\\r\\n]{1,160}$/);
+      assert.match(body.error.message, /3 attempts/);
+      assert.match(body.error.message, /retry after 30s/);
+      assert.equal(JSON.stringify(body).includes('failure_kinds'), false);
+    } else assert.equal(body.error.message, 'capacity unavailable');
     if (route === 'openai_responses') assert.equal(body.error.code, null);
     else {
       assert.equal(body.error.details.gateway_code, 'gateway_attempt_budget_exhausted');

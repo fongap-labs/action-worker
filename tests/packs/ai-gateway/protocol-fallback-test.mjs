@@ -639,7 +639,11 @@ try {
   assert.equal(badReq.headers.get('x-gateway-attempts'), '1');
   assert.equal(badReq.headers.get('x-gateway-dispatches'), '1');
   assert.equal(badReq.headers.get('x-gateway-failure-kinds'), 'client:1');
-  assert.equal(badReqBody.error.message, 'All attempted nodes failed for model "code-max".');
+  assert.ok(
+    badReqBody.error.message === 'All attempted nodes failed for model "code-max".' ||
+    /^502 \\| code-max temporarily unavailable after 1 attempts?\\.$/.test(badReqBody.error.message),
+    'Responses failure must keep a safe, bounded status-first or legacy generic message',
+  );
   assert.ok(!JSON.stringify(badReqBody).includes('bad input'), 'raw upstream 4xx message must be hidden by default');
   assert.deepEqual(physicalCenterPaths(), ['/internal/execute'],
     'Responses 400 must enter the private center exactly once');
@@ -649,7 +653,11 @@ try {
   const badReqExposed = await worker.fetch(request(), envFor('badreq-exposed', { AIG_SHOULD_EXPOSE_UPSTREAM: 'true' }), {});
   assert.equal(badReqExposed.status, 502);
   const badReqExposedBody = await badReqExposed.json();
-  assert.equal(badReqExposedBody.error.message, 'All attempted nodes failed for model "code-max".');
+  assert.ok(
+    badReqExposedBody.error.message === 'All attempted nodes failed for model "code-max".' ||
+    /^502 \\| code-max temporarily unavailable after 1 attempts?\\.$/.test(badReqExposedBody.error.message),
+    'Upstream debug opt-in must not break the concise top-level error message',
+  );
   assert.equal(badReqExposed.headers.get('x-gateway-failure-kinds'), 'client:1');
   assert.deepEqual(physicalCenterPaths(), ['/internal/execute'],
     'Responses exposed-upstream setting must not bypass center execution');
