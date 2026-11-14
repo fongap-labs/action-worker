@@ -96,13 +96,17 @@ class Scanner:
         if lower.endswith(ARCHIVE_SUFFIXES):
             if depth >= MAX_ARCHIVE_DEPTH:
                 raise PrivacyScanError("nested-archive-depth-exceeded")
-            raw = stream.read(MAX_NESTED_ARCHIVE_BYTES + 1)
-            if len(raw) > MAX_NESTED_ARCHIVE_BYTES:
-                raise PrivacyScanError("nested-archive-size-exceeded")
-            self.expanded_bytes += len(raw)
-            if self.expanded_bytes > MAX_EXPANDED_BYTES:
-                raise PrivacyScanError("expanded-size-budget-exceeded")
-            self.scan_archive(lower, io.BytesIO(raw), depth + 1)
+            if depth == 0:
+                # Root release archives are already seekable files; do not load them into memory.
+                self.scan_archive(lower, stream, depth + 1)
+            else:
+                raw = stream.read(MAX_NESTED_ARCHIVE_BYTES + 1)
+                if len(raw) > MAX_NESTED_ARCHIVE_BYTES:
+                    raise PrivacyScanError("nested-archive-size-exceeded")
+                self.expanded_bytes += len(raw)
+                if self.expanded_bytes > MAX_EXPANDED_BYTES:
+                    raise PrivacyScanError("expanded-size-budget-exceeded")
+                self.scan_archive(lower, io.BytesIO(raw), depth + 1)
         else:
             if lower.endswith(OPAQUE_SUFFIXES):
                 self.opaque_files += 1

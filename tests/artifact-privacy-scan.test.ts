@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-const script = "scripts/release-artifact-privacy-scan.py";
+const script = "scripts/artifact-privacy-scan.py";
 const policy = "policies/security.json";
 
 function run(directory: string, strictOpaque = false) {
