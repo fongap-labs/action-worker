@@ -138,6 +138,45 @@ export async function hasActiveCiEvidenceReservation(
   return Number.isFinite(updatedAt) && nowMs >= updatedAt && nowMs - updatedAt < pendingLeaseMs;
 }
 
+/** A failed CI run from an older control revision must not block validation by the current dispatcher. */
+export async function hasStaleCiEvidenceFailure(
+  response: unknown,
+  reader: JsonReader,
+  controlRepository: string,
+  targetRepository: string,
+  targetSha: string,
+  currentControlHeadSha: string
+): Promise<boolean> {
+  const latest = latestCiStatus(response, "CI Evidence");
+  if (
+    !latest ||
+    getJsonString(latest, "state") !== "failure" ||
+    !hasValidStatusAttestation(latest, {
+      repository: targetRepository,
+      sha: targetSha,
+      context: "CI Evidence",
+    }) ||
+    !/^[0-9a-f]{40}$/.test(currentControlHeadSha)
+  ) {
+    return false;
+  }
+
+  const runId = trustedControlRunId(getJsonString(latest, "target_url"), controlRepository);
+  if (!runId) return false;
+  const run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
+  return (
+    isJsonRecord(run) &&
+    getJsonString(run.repository, "full_name") === controlRepository &&
+    getJsonString(run, "path") === ".github/workflows/central-ci-dispatch.yml" &&
+    getJsonString(run, "event") === "repository_dispatch" &&
+    getJsonString(run, "head_branch") === "main" &&
+    getJsonString(run, "status") === "completed" &&
+    getJsonString(run, "conclusion") === "failure" &&
+    /^[0-9a-f]{40}$/.test(getJsonString(run, "head_sha")) &&
+    getJsonString(run, "head_sha") !== currentControlHeadSha
+  );
+}
+
 /** A failed publisher that left only pending status must not be dispatched every intake tick. */
 export async function hasUnresolvedCiEvidenceFailure(
   response: unknown,

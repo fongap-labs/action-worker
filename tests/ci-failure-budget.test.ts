@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   hasActiveCiEvidenceReservation,
+  hasStaleCiEvidenceFailure,
   hasUnresolvedCiEvidenceFailure,
 } from "../scripts/ci-failure-budget.ts";
 import { attestFixtureResponseForPath } from "./attested-status-fixtures.ts";
@@ -126,6 +127,57 @@ test("an unreported failure cannot loop on the same control revision", async () 
       repository,
       sha,
       "c".repeat(40)
+    ),
+    false
+  );
+});
+
+test("a failed central CI run from an older control revision permits fresh validation", async () => {
+  const response = attestFixtureResponseForPath(statusPath, {
+    statuses: [
+      {
+        context: "CI Evidence",
+        state: "failure",
+        description: "Central CI failed",
+        target_url: `https://github.com/${controlRepository}/actions/runs/954`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ],
+  });
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      assert.equal(path, `repos/${controlRepository}/actions/runs/954`);
+      return {
+        repository: { full_name: controlRepository },
+        path: ".github/workflows/central-ci-dispatch.yml",
+        event: "repository_dispatch",
+        head_branch: "main",
+        head_sha: controlSha,
+        status: "completed",
+        conclusion: "failure",
+      };
+    },
+  };
+  assert.equal(
+    await hasStaleCiEvidenceFailure(
+      response,
+      reader,
+      controlRepository,
+      repository,
+      sha,
+      "c".repeat(40)
+    ),
+    true
+  );
+  assert.equal(
+    await hasStaleCiEvidenceFailure(
+      response,
+      reader,
+      controlRepository,
+      repository,
+      sha,
+      controlSha
     ),
     false
   );

@@ -119,6 +119,8 @@ test("central CI re-checks PR trust before resolving what to execute", () => {
 test("same-SHA CI events reuse active reservations and the bounded failure budget", () => {
   assert.match(dispatcher, /hasActiveCiEvidenceReservation\(/);
   assert.match(dispatcher, /hasUnresolvedCiEvidenceFailure\(/);
+  assert.match(dispatcher, /hasStaleCiEvidenceFailure\(/);
+  assert.match(dispatcher, /older control revision/);
   assert.match(dispatcher, /decideCiFailureRetry\(/);
   assert.match(dispatcher, /failure is not eligible for another run/);
 });
