@@ -5,29 +5,37 @@ import { test } from "node:test";
 import { selectBridgeCandidates } from "../scripts/central-ci-enrollment.ts";
 
 const repos = [
-  { full_name: "fongap-labs/action-worker", private: false, archived: false, default_branch: "main" },
+  {
+    full_name: "fongap-labs/action-worker",
+    private: false,
+    archived: false,
+    default_branch: "main",
+  },
   { full_name: "fongap-labs/old-private", private: true, archived: false, default_branch: "main" },
   { full_name: "fongap-labs/new-public", private: false, archived: false, default_branch: "main" },
   { full_name: "fongap-labs/archived", private: true, archived: true, default_branch: "main" },
 ];
 
 test("default central CI covers every active installed repository without age or visibility filters", () => {
-  assert.deepEqual(
-    selectBridgeCandidates(repos, "fongap-labs/action-worker"),
-    [
-      { repository: "fongap-labs/new-public", default_branch: "main" },
-      { repository: "fongap-labs/old-private", default_branch: "main" },
-    ]
-  );
+  assert.deepEqual(selectBridgeCandidates(repos, "fongap-labs/action-worker"), [
+    { repository: "fongap-labs/new-public", default_branch: "main" },
+    { repository: "fongap-labs/old-private", default_branch: "main" },
+  ]);
 });
 
 test("central CI enrollment rejects duplicate, external, and unsupported repository identities", () => {
   assert.throws(() => selectBridgeCandidates([repos[1]!, repos[1]!], "fongap-labs/action-worker"));
   assert.throws(() =>
-    selectBridgeCandidates([{ ...repos[1]!, full_name: "external/repository" }], "fongap-labs/action-worker")
+    selectBridgeCandidates(
+      [{ ...repos[1]!, full_name: "external/repository" }],
+      "fongap-labs/action-worker"
+    )
   );
   assert.throws(() =>
-    selectBridgeCandidates([{ ...repos[1]!, default_branch: "master" }], "fongap-labs/action-worker")
+    selectBridgeCandidates(
+      [{ ...repos[1]!, default_branch: "master" }],
+      "fongap-labs/action-worker"
+    )
   );
 });
 

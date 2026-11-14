@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { decodeGithubContent, GithubReader, isGithubMissing, isJsonRecord } from "./github-api.ts";
-import { readInstallationInventory, type InventoryRepo } from "./security-coverage-audit.ts";
 import { appendLines, CliError, isMain } from "./runtime-command.ts";
+import { type InventoryRepo, readInstallationInventory } from "./security-coverage-audit.ts";
 
 const controlRepository = "fongap-labs/action-worker";
 const bridgePath = ".github/workflows/notify-action-worker.yml";
@@ -67,8 +67,7 @@ async function approvedBridgeTemplate(): Promise<string> {
   const digest = createHash("sha256").update(content).digest("hex");
   if (
     !policy.approved_workflows.some(
-      (entry) =>
-        isJsonRecord(entry) && entry.path === bridgePath && entry.sha256 === digest
+      (entry) => isJsonRecord(entry) && entry.path === bridgePath && entry.sha256 === digest
     )
   ) {
     throw new CliError("Central CI bridge template does not match the approved security hash.", 77);
@@ -225,8 +224,11 @@ async function main(): Promise<void> {
       "targets_json=" + JSON.stringify(missing),
     ]);
     console.log(
-      "Central CI discovery: " + inventory.length + " accessible, " +
-      missing.length + " bridge PR candidates; repository identities withheld."
+      "Central CI discovery: " +
+        inventory.length +
+        " accessible, " +
+        missing.length +
+        " bridge PR candidates; repository identities withheld."
     );
     return;
   }
@@ -253,8 +255,11 @@ async function main(): Promise<void> {
     else alreadyPending++;
   }
   console.log(
-    "Central CI bridge enrollment: " + created + " PRs created, " +
-    alreadyPending + " approved PRs pending; repository identities withheld."
+    "Central CI bridge enrollment: " +
+      created +
+      " PRs created, " +
+      alreadyPending +
+      " approved PRs pending; repository identities withheld."
   );
 }
 

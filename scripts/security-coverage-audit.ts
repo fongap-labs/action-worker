@@ -145,8 +145,7 @@ export async function readInstallationInventory(
         private: item.private,
         archived: item.archived,
         disabled: item.disabled === true,
-        default_branch:
-          typeof item.default_branch === "string" ? item.default_branch : undefined,
+        default_branch: typeof item.default_branch === "string" ? item.default_branch : undefined,
       });
     }
     if (inventory.length === total) return inventory;
