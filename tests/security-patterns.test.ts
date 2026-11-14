@@ -132,12 +132,12 @@ test("privacy patterns reject personal addresses and local home paths without ca
   const unixHome = ["", "home", "developer", "settings.json"].join("/");
   const macHome = ["", "Users", "developer", "Documents", "notes.txt"].join("/");
   const windowsHome = ["C:", "Users", "developer", "Desktop", "notes.txt"].join("\\");
-  for (const [name, value] of [
+  for (const [name, value] of ([
     ["email-address", email],
     ["unix-home-path", unixHome],
     ["unix-home-path", macHome],
     ["windows-home-path", windowsHome],
-  ]) {
+  ] as Array<[string, string]>)) {
     const findings = await scan(context, "src/change.txt", `content: ${value}\n`);
     assert.ok(findings.some((v) => v.rule === `privacy-${name}`), name);
     assert.equal(JSON.stringify(findings).includes(value), false);
