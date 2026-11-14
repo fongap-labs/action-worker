@@ -34,6 +34,41 @@ export function releaseTargetFromArtifact(
   };
 }
 
+// The artifact is uploaded before the producing workflow has necessarily finished.
+// Release dispatch can start during that small window; do not turn an in-progress
+// producer into a permanent failure. Repository identity and unsuccessful terminal
+// runs still fail closed. Tests inject a pause to cover the race without waiting.
+export async function waitForSuccessfulArtifactRun(
+  readRun: () => Promise<unknown>,
+  artifactRepository: string,
+  maxAttempts = 30,
+  pause: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+): Promise<void> {
+  if (!Number.isSafeInteger(maxAttempts) || maxAttempts < 1) {
+    throw new CliError("::error::Release artifact run poll budget is invalid.", 64);
+  }
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const run = await readRun();
+    if (!isJsonRecord(run) || getJsonString(run.repository, "full_name") !== artifactRepository) {
+      throw new CliError("::error::Release artifact run repository does not match.", 75);
+    }
+    const status = getJsonString(run, "status");
+    if (status === "completed") {
+      if (getJsonString(run, "conclusion") !== "success") {
+        throw new CliError("::error::Release artifact producer run did not succeed.", 75);
+      }
+      return;
+    }
+    if (!["queued", "requested", "waiting", "pending", "in_progress"].includes(status)) {
+      throw new CliError("::error::Release artifact producer run status is invalid.", 75);
+    }
+    if (attempt + 1 < maxAttempts) {
+      await pause(5_000);
+    }
+  }
+  throw new CliError("::error::Release artifact producer run did not complete in time.", 75);
+}
+
 async function main(): Promise<void> {
   const policy = parseJson(
     readRepositoryPolicyText() ?? "",
@@ -61,18 +96,10 @@ async function main(): Promise<void> {
     throw new CliError("::error::Release App read token is required.", 77);
   }
   const runId = request.artifact_run_id as number;
-  const run = await getGithubJson(`repos/${artifactRepository}/actions/runs/${runId}`, readToken);
-  if (
-    !isJsonRecord(run) ||
-    getJsonString(run, "status") !== "completed" ||
-    getJsonString(run, "conclusion") !== "success" ||
-    getJsonString(run.repository, "full_name") !== artifactRepository
-  ) {
-    throw new CliError(
-      "::error::Release artifact run is not successful or does not match its repository.",
-      75
-    );
-  }
+  await waitForSuccessfulArtifactRun(
+    () => getGithubJson(`repos/${artifactRepository}/actions/runs/${runId}`, readToken),
+    artifactRepository
+  );
   const artifactList = await getGithubJson(
     `repos/${artifactRepository}/actions/runs/${runId}/artifacts?per_page=100`,
     readToken
