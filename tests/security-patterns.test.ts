@@ -168,3 +168,29 @@ test("ordinary relative paths and public project links do not count as local pri
   );
   assert.deepEqual(findings, []);
 });
+
+test("privacy gate blocks local credential files without matching ordinary project configs", async (context) => {
+  const forbidden = [
+    ".ssh/config",
+    ".ssh/known_hosts",
+    ".aws/credentials",
+    ".kube/config",
+    ".docker/config.json",
+    ".npmrc",
+    ".pypirc",
+    ".netrc",
+    ".config/gh/hosts.yml",
+    "AppData/Roaming/profile.json",
+    "Library/Keychains/session.db",
+  ];
+  for (const path of forbidden) {
+    const findings = await scan(context, path, "SYNTHETIC_PLACEHOLDER_ONLY=1\n");
+    assert.ok(
+      findings.some((item) => item.rule === "sensitive-path"),
+      path
+    );
+  }
+  for (const path of [".env.example", "config/package.json", "src/config/settings.ts"]) {
+    assert.deepEqual(await scan(context, path, "synthetic placeholder\n"), []);
+  }
+});
