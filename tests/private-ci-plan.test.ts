@@ -12,7 +12,13 @@ const linux = {
 const windows = {
   id: "windows",
   runner_profile: "windows-build",
-  command: ["pwsh", "-File", "{control_root}/.github/scripts/central-ci.ps1", "-TargetRoot", "{target_root}"],
+  command: [
+    "pwsh",
+    "-File",
+    "{control_root}/.github/scripts/central-ci.ps1",
+    "-TargetRoot",
+    "{target_root}",
+  ],
   timeout_minutes: 90,
   capability_requests: ["source.read"],
 };
