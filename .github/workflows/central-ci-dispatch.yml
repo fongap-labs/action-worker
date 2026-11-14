@@ -391,6 +391,12 @@ jobs:
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
         run: node scripts/validate-security.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policies/security.json"
 
+      - name: Check dependency lockfile integrity
+        env:
+          BASE_SHA: ${{ needs.prepare.outputs.diff_base_sha }}
+          HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+        run: node scripts/dependency-integrity.ts "$GITHUB_WORKSPACE/target" "$BASE_SHA" "$HEAD_SHA"
+
   windows:
     name: Central CI / Windows
     needs: prepare
