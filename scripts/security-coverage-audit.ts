@@ -184,15 +184,11 @@ export function requiredMainCheck(value: unknown): string {
   if (!isJsonRecord(value) || !Array.isArray(value.rulesets)) {
     throw new CliError("Security coverage ruleset policy is malformed.", 65);
   }
-  const main = value.rulesets.find(
-    (x) => isJsonRecord(x) && x.name === "Protect Main Branch"
-  );
+  const main = value.rulesets.find((x) => isJsonRecord(x) && x.name === "Protect Main Branch");
   if (!isJsonRecord(main) || !Array.isArray(main.rules)) {
     throw new CliError("Main branch ruleset policy is unavailable.", 65);
   }
-  const status = main.rules.find(
-    (x) => isJsonRecord(x) && x.type === "required_status_checks"
-  );
+  const status = main.rules.find((x) => isJsonRecord(x) && x.type === "required_status_checks");
   if (!isJsonRecord(status) || !isJsonRecord(status.parameters)) {
     throw new CliError("Main status rule is unavailable.", 65);
   }
@@ -257,10 +253,7 @@ async function main(): Promise<void> {
   const expectedContext = requiredMainCheck(
     JSON.parse(await readFile("policies/rulesets.json", "utf8")) as unknown
   );
-  const bridges = new Map<
-    string,
-    "present" | "absent" | "protected-polling" | "unknown"
-  >();
+  const bridges = new Map<string, "present" | "absent" | "protected-polling" | "unknown">();
   for (const item of inventory) {
     if (
       item.archived ||
@@ -292,7 +285,9 @@ async function main(): Promise<void> {
   // paths, file contents, secret names, error bodies or authorization metadata.
   console.log(JSON.stringify(result));
   if (result.excluded_count > 0 || result.protected_polling_count > 0) {
-    console.warn("::warning::Some repositories are excluded or depend on polling; real-time coverage is incomplete.");
+    console.warn(
+      "::warning::Some repositories are excluded or depend on polling; real-time coverage is incomplete."
+    );
   }
   if (
     result.missing_policy_count > 0 ||
