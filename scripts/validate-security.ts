@@ -24,6 +24,7 @@ type SecurityPolicy = {
   path_allow_patterns: string[];
   forbidden_path_patterns: string[];
   secret_patterns: NamedPattern[];
+  privacy_patterns: NamedPattern[];
   secret_allowlist: SecretAllowance[];
   workflow_forbidden_patterns: NamedPattern[];
   approved_workflows: ApprovedWorkflow[];
@@ -111,16 +112,21 @@ export function workflowContentHash(content: string): string {
 function parsePolicy(value: unknown): SecurityPolicy {
   if (
     !isJsonRecord(value) ||
-    value.schema_version !== 2 ||
+    value.schema_version !== 3 ||
     typeof value.require_pinned_actions !== "boolean"
   ) {
     throw new CliError("::error::Invalid security policy.", 65);
   }
+  const privacyPatterns = namedPatterns(value.privacy_patterns, "privacy_patterns");
+  if (privacyPatterns.length === 0) {
+    throw new CliError("::error::Privacy gate requires non-empty privacy_patterns.", 65);
+  }
   return {
-    schema_version: 2,
+    schema_version: 3,
     path_allow_patterns: stringArray(value.path_allow_patterns, "path_allow_patterns"),
     forbidden_path_patterns: stringArray(value.forbidden_path_patterns, "forbidden_path_patterns"),
     secret_patterns: namedPatterns(value.secret_patterns, "secret_patterns"),
+    privacy_patterns: privacyPatterns,
     secret_allowlist: secretAllowlist(value.secret_allowlist),
     workflow_forbidden_patterns: namedPatterns(
       value.workflow_forbidden_patterns,
@@ -230,6 +236,10 @@ export async function collectSecurityViolations(
     name,
     regex: compile(pattern),
   }));
+  const privacyPatterns = policy.privacy_patterns.map(({ name, pattern }) => ({
+    name: `privacy-${name}`,
+    regex: compile(pattern),
+  }));
   const allowances = policy.secret_allowlist.map(({ path, pattern }) => ({
     path: compile(path),
     pattern: compile(pattern),
@@ -280,6 +290,8 @@ export async function collectSecurityViolations(
     { cwd: root, maxBuffer: 64 * 1024 * 1024 }
   );
   violations.push(...scanAddedLines(diff, secretPatterns, allowances));
+  // Personal and local-file data never inherit secret fixture allowances.
+  violations.push(...scanAddedLines(diff, privacyPatterns));
 
   const unique = new Map<string, SecurityViolation>();
   for (const violation of violations) {
@@ -304,10 +316,22 @@ async function main(): Promise<void> {
   const [base = "", head = "", root = "", policyPath = ""] = args;
   const violations = await collectSecurityViolations(root, base, head, policyPath);
   if (violations.length > 0) {
+    // This CI is public even when its target repository is private. Do not leak a
+    // changed path, source line, match value or runner-local path in annotations.
+    // Privacy findings are always pathless, including on public repositories.
+    const hidePaths = process.env.TARGET_PRIVATE !== "false";
+    const counts = new Map<string, number>();
     for (const violation of violations) {
-      const location = violation.line ? `${violation.path}:${violation.line}` : violation.path;
+      counts.set(violation.rule, (counts.get(violation.rule) ?? 0) + 1);
+      if (!hidePaths && !violation.rule.startsWith("privacy-")) {
+        console.error(
+          `::error file=${violation.path}${violation.line ? `,line=${violation.line}` : ""}::Security gate violation [${violation.rule}].`
+        );
+      }
+    }
+    for (const [rule, count] of counts) {
       console.error(
-        `::error file=${violation.path}${violation.line ? `,line=${violation.line}` : ""}::Security gate violation [${violation.rule}] at ${location}. Sensitive content is intentionally not echoed.`
+        `::error::Security gate violation [${rule}]: ${count} finding(s); details suppressed.`
       );
     }
     throw new CliError(`::error::Security gate failed with ${violations.length} violation(s).`, 1);

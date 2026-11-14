@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "path_allow_patterns": ["(^|/)\\.env\\.(?:example|sample|template|variables)$"],
   "forbidden_path_patterns": [
     "(^|/)\\.env$",
@@ -89,6 +89,24 @@
     {
       "path": ".github/workflows/notify-action-worker.yml",
       "sha256": "ed15cae6d2f8637a24b2ebc583d09e629a5862f781d56b9b405ce962d5d1bc8f"
+    }
+  ],
+  "privacy_patterns": [
+    {
+      "name": "email-address",
+      "pattern": "\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b"
+    },
+    {
+      "name": "unix-home-path",
+      "pattern": "/(?:home|Users)/[A-Za-z0-9._-]+(?:/[^\\s\"'<>]*)?"
+    },
+    {
+      "name": "windows-home-path",
+      "pattern": "[A-Za-z]:\\\\(?:Users|Documents and Settings)\\\\[^\\s\"'<>]+"
+    },
+    {
+      "name": "local-file-uri",
+      "pattern": "file:///(?:[A-Za-z]:/|home/|Users/)[^\\s\"'<>]+"
     }
   ]
 }
