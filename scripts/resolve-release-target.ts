@@ -42,8 +42,7 @@ export async function waitForSuccessfulArtifactRun(
   readRun: () => Promise<unknown>,
   artifactRepository: string,
   maxAttempts = 30,
-  pause: (ms: number) => Promise<void> = (ms) =>
-    new Promise((resolve) => setTimeout(resolve, ms))
+  pause: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 ): Promise<void> {
   if (!Number.isSafeInteger(maxAttempts) || maxAttempts < 1) {
     throw new CliError("::error::Release artifact run poll budget is invalid.", 64);
