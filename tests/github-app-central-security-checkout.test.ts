@@ -51,7 +51,7 @@ test("Central CI security scan gets a target-only App read token, not private ch
   );
 });
 
-test("Central CI untrusted test sandboxes retain isolated checkout only", async () => {
+test("Central CI private sandboxes use read-only scoped App checkout tokens", async () => {
   const source = await readFile(".github/workflows/central-ci-dispatch.yml", "utf8");
   const workflow = parse(source) as {
     jobs: {
@@ -60,7 +60,11 @@ test("Central CI untrusted test sandboxes retain isolated checkout only", async 
     };
   };
   const expected =
-    "${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CHECKOUT_TOKEN || '' }}";
-  assert.equal(workflow.jobs.linux.secrets.checkout_token, expected);
-  assert.equal(workflow.jobs.windows.secrets.checkout_token, expected);
+    "${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_APP_PRIVATE_KEY || '' }}";
+  assert.equal(workflow.jobs.linux.secrets.app_private_key, expected);
+  assert.equal(workflow.jobs.windows.secrets.app_private_key, expected);
+  const sandbox = await readFile(".github/workflows/central-ci-sandbox.yml", "utf8");
+  assert.equal((sandbox.match(/id: private_read_app/g) ?? []).length, 2);
+  assert.equal((sandbox.match(/permission-contents: read/g) ?? []).length, 2);
+  assert.doesNotMatch(sandbox, /AW_CHECKOUT_TOKEN/);
 });
