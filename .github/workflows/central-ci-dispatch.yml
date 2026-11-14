@@ -23,6 +23,8 @@ jobs:
     timeout-minutes: 5
     outputs:
       repository: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
+      owner: ${{ steps.api_scope.outputs.owner }}
+      repository_name: ${{ steps.api_scope.outputs.repository_name }}
       pr_number: ${{ steps.payload.outputs.pr_number || steps.ref_facts.outputs.pr_number }}
       base_sha: ${{ steps.merge_ref.outputs.base_sha || steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}
       diff_base_sha: ${{ steps.facts.outputs.base_sha || steps.ref_facts.outputs.base_sha }}
@@ -303,6 +305,9 @@ jobs:
       platform: linux
       shard: ${{ matrix.shard }}
       repository: ${{ needs.prepare.outputs.repository }}
+      owner: ${{ needs.prepare.outputs.owner }}
+      repository_name: ${{ needs.prepare.outputs.repository_name }}
+      app_client_id: ${{ vars.AW_APP_CLIENT_ID }}
       pr_number: ${{ needs.prepare.outputs.pr_number }}
       base_sha: ${{ needs.prepare.outputs.base_sha }}
       diff_base_sha: ${{ needs.prepare.outputs.diff_base_sha }}
@@ -311,8 +316,8 @@ jobs:
       control_ref: ${{ needs.prepare.outputs.control_ref }}
       is_private: ${{ needs.prepare.outputs.is_private }}
     secrets:
-      # Evaluated by GitHub before the sandbox starts; public targets receive no credential.
-      checkout_token: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CHECKOUT_TOKEN || '' }}
+      # The key is used only by the trusted token-mint action; change code receives no credential.
+      app_private_key: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_APP_PRIVATE_KEY || '' }}
 
   security:
     name: Central CI / Security
@@ -406,6 +411,9 @@ jobs:
       platform: windows
       private_windows_numeric_diagnostic: ${{ needs.prepare.outputs.private_windows_numeric_diagnostic }}
       repository: ${{ needs.prepare.outputs.repository }}
+      owner: ${{ needs.prepare.outputs.owner }}
+      repository_name: ${{ needs.prepare.outputs.repository_name }}
+      app_client_id: ${{ vars.AW_APP_CLIENT_ID }}
       pr_number: ${{ needs.prepare.outputs.pr_number }}
       base_sha: ${{ needs.prepare.outputs.base_sha }}
       diff_base_sha: ${{ needs.prepare.outputs.diff_base_sha }}
@@ -414,8 +422,8 @@ jobs:
       control_ref: ${{ needs.prepare.outputs.control_ref }}
       is_private: ${{ needs.prepare.outputs.is_private }}
     secrets:
-      # Evaluated by GitHub before the sandbox starts; public targets receive no credential.
-      checkout_token: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CHECKOUT_TOKEN || '' }}
+      # The key is used only by the trusted token-mint action; change code receives no credential.
+      app_private_key: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_APP_PRIVATE_KEY || '' }}
 
   finalize:
     name: Publish Central CI
