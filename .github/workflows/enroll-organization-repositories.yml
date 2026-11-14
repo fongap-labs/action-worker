@@ -7,6 +7,8 @@ on:
     paths:
       - policies/repository-access.json
       - scripts/enroll-organization-repositories.ts
+      - scripts/central-ci-enrollment.ts
+      - policies/templates/notify-action-worker.yml
       - scripts/private-downstream-compatibility.ts
       - policies/runner.json
       - scripts/validate-release-build-request.ts
@@ -83,3 +85,30 @@ jobs:
           AW_INVENTORY_TOKEN: ${{ steps.inventory.outputs.token }}
           AW_REPOSITORY_WRITE_TOKEN: ${{ steps.writer.outputs.token }}
         run: node scripts/enroll-organization-repositories.ts
+
+      # Discover missing bridges without granting cross-repository write access.
+      - name: Plan default central CI enrollment
+        id: ci_scope
+        env:
+          AW_INVENTORY_TOKEN: ${{ steps.inventory.outputs.token }}
+        run: node scripts/central-ci-enrollment.ts plan
+
+      - name: Mint bridge-only repository write token
+        if: steps.ci_scope.outputs.has_targets == 'true'
+        id: ci_writer
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.ci_scope.outputs.repositories_csv }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Open missing central CI bridge pull requests
+        if: steps.ci_scope.outputs.has_targets == 'true'
+        env:
+          AW_INVENTORY_TOKEN: ${{ steps.inventory.outputs.token }}
+          AW_CI_WRITE_TOKEN: ${{ steps.ci_writer.outputs.token }}
+          AW_CI_TARGETS_JSON: ${{ steps.ci_scope.outputs.targets_json }}
+        run: node scripts/central-ci-enrollment.ts apply

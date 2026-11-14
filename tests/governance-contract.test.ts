@@ -67,7 +67,7 @@ test("repository permissions come only from the versioned access policy", async 
   const authority = await json("policies/repository-access.json");
   assert.equal(authority.schema_version, 1);
   assert.equal(authority.organization, "fongap-labs");
-  assert.deepEqual(authority.excluded_repositories, ["fongap-labs/delta-legacy"]);
+  assert.deepEqual(authority.excluded_repositories, []);
   const grants = authority.grants as Record<string, string[]>;
   for (const excluded of authority.excluded_repositories as string[]) {
     assert.equal(
@@ -80,6 +80,7 @@ test("repository permissions come only from the versioned access policy", async 
     "fongap-labs/action-worker": ["pr", "task"],
     "fongap-labs/ai-gateway": ["pr", "task", "deploy"],
     "fongap-labs/delta": ["pr", "task", "release-source", "release-target"],
+    "fongap-labs/delta-legacy": ["pr"],
     "fongap-labs/delta-suite": ["pr", "task"],
     "fongap-labs/app-source": ["pr", "task", "release-source"],
     "fongap-labs/internal-vault": ["pr", "task", "release-source", "deploy"],
