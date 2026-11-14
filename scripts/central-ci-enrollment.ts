@@ -209,7 +209,7 @@ async function createBridgePullRequest(
 
   // Resume only a previously created empty branch at the exact current main SHA.
   // Never overwrite a branch containing edits, and never force-push.
-  let branchExists = false;
+  let hasExistingBranch = false;
   try {
     const existing = await reader.get("repos/" + repository + "/git/ref/heads/" + branchName);
     if (
@@ -219,11 +219,11 @@ async function createBridgePullRequest(
     ) {
       throw new CliError("Central CI onboarding branch contains unverified work.", 77);
     }
-    branchExists = true;
+    hasExistingBranch = true;
   } catch (error) {
     if (!isGithubMissing(error)) throw error;
   }
-  if (!branchExists) {
+  if (!hasExistingBranch) {
     await writeGithub(writeToken, "repos/" + repository + "/git/refs", "POST", {
       ref: "refs/heads/" + branchName,
       sha: ref.object.sha,
