@@ -13,6 +13,7 @@ on:
       - scripts/config-storage-audit.ts
       - scripts/config-security-classification.ts
       - scripts/audit-privacy-coverage.ts
+      - scripts/security-coverage-audit.ts
       - policies/security.json
       - .github/workflows/audit-config-scope.yml
   schedule:
@@ -63,6 +64,11 @@ jobs:
         env:
           AW_INVENTORY_TOKEN: ${{ steps.privacy_inventory.outputs.token }}
         run: node scripts/audit-privacy-coverage.ts
+
+      - name: Audit CI bridge and protected polling coverage
+        env:
+          AW_INVENTORY_TOKEN: ${{ steps.privacy_inventory.outputs.token }}
+        run: node scripts/security-coverage-audit.ts
 
       - name: Record no-mutation audit result
         if: success()
