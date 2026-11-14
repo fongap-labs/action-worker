@@ -1,0 +1,186 @@
+name: 自动 · 私有仓库原生 CI
+
+# Caller-private runners only. Public Action Worker never receives source/logs.
+on:
+  workflow_call:
+    inputs:
+      base_sha:
+        required: true
+        type: string
+      head_sha:
+        required: true
+        type: string
+      action_worker_sha:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Verify caller and trusted CI plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      linux_shards: ${{ steps.plan.outputs.linux_shards }}
+      has_windows: ${{ steps.plan.outputs.has_windows }}
+    steps:
+      - name: Verify source identity and exact SHA
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          IS_PRIVATE: ${{ github.event.repository.private }}
+          TARGET: ${{ github.repository }}
+          SOURCE: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE: ${{ inputs.base_sha }}
+          HEAD: ${{ inputs.head_sha }}
+          EVENT_BASE: ${{ github.event.pull_request.base.sha }}
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
+          AW_SHA: ${{ inputs.action_worker_sha }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$EVENT" == "pull_request" && "$IS_PRIVATE" == "true" ]] || exit 77
+          [[ "$TARGET" == "$SOURCE" ]] || exit 77
+          [[ "$BASE" =~ ^[0-9a-f]{40}$ && "$HEAD" =~ ^[0-9a-f]{40}$ ]] || exit 65
+          [[ "$AW_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 65
+          [[ "$BASE" == "$EVENT_BASE" && "$HEAD" == "$EVENT_HEAD" ]] || exit 75
+      - name: Checkout trusted private base
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.base_sha }}
+          path: control
+          persist-credentials: false
+      - name: Checkout pinned public Action Worker
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fongap-labs/action-worker
+          ref: ${{ inputs.action_worker_sha }}
+          path: aw
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Verify trusted revisions
+        shell: bash
+        env:
+          BASE: ${{ inputs.base_sha }}
+          AW_SHA: ${{ inputs.action_worker_sha }}
+        run: |
+          set -Eeuo pipefail
+          test "$(git -C control rev-parse HEAD)" = "$BASE"
+          test "$(git -C aw rev-parse HEAD)" = "$AW_SHA"
+      - name: Resolve private CI execution plan
+        id: plan
+        run: node aw/scripts/private-ci-plan.ts "$GITHUB_WORKSPACE/control"
+
+  linux:
+    name: Private Linux (${{ matrix.shard }})
+    needs: prepare
+    if: needs.prepare.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.prepare.outputs.linux_shards) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout private PR merge snapshot
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Checkout trusted private CI controls
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.base_sha }}
+          path: control
+          persist-credentials: false
+      - name: Checkout pinned public test pack
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fongap-labs/action-worker
+          ref: ${{ inputs.action_worker_sha }}
+          path: aw
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Execute trusted private Linux CI
+        shell: bash
+        env:
+          MERGE_SHA: ${{ github.sha }}
+          BASE_SHA: ${{ inputs.base_sha }}
+          CENTRAL_CI_SHARD: ${{ matrix.shard }}
+          CENTRAL_CI_AW_ROOT: ${{ github.workspace }}/aw
+          CENTRAL_CI_BASE_SHA: ${{ inputs.base_sha }}
+          CENTRAL_CI_HEAD_SHA: ${{ inputs.head_sha }}
+          CENTRAL_CI_PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -Eeuo pipefail
+          test "$(git -C target rev-parse HEAD)" = "$MERGE_SHA"
+          test "$(git -C control rev-parse HEAD)" = "$BASE_SHA"
+          args=("$GITHUB_WORKSPACE/target")
+          if [ "$CENTRAL_CI_SHARD" != "all" ]; then
+            args+=("$CENTRAL_CI_SHARD")
+          fi
+          bash "$GITHUB_WORKSPACE/control/.github/scripts/central-ci.sh" "${args[@]}"
+
+  windows:
+    name: Private Windows
+    needs: prepare
+    if: needs.prepare.result == 'success' && needs.prepare.outputs.has_windows == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout private PR merge snapshot
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Checkout trusted private CI controls
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.base_sha }}
+          path: control
+          persist-credentials: false
+      - name: Checkout pinned public test pack
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fongap-labs/action-worker
+          ref: ${{ inputs.action_worker_sha }}
+          path: aw
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Execute trusted private Windows CI
+        shell: pwsh
+        env:
+          MERGE_SHA: ${{ github.sha }}
+          BASE_SHA: ${{ inputs.base_sha }}
+          CENTRAL_CI_AW_ROOT: ${{ github.workspace }}/aw
+          CENTRAL_CI_BASE_SHA: ${{ inputs.base_sha }}
+          CENTRAL_CI_HEAD_SHA: ${{ inputs.head_sha }}
+          CENTRAL_CI_PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ((git -C target rev-parse HEAD).Trim() -ne $env:MERGE_SHA) { throw "Source SHA mismatch." }
+          if ((git -C control rev-parse HEAD).Trim() -ne $env:BASE_SHA) { throw "Control SHA mismatch." }
+          & "$env:GITHUB_WORKSPACE/control/.github/scripts/central-ci.ps1" -TargetRoot "$env:GITHUB_WORKSPACE/target"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
