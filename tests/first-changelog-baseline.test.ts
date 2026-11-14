@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { readBaseChangelog, addedUnreleasedEntries } from "../scripts/validate-change-record.ts";
+import { addedUnreleasedEntries, readBaseChangelog } from "../scripts/validate-change-record.ts";
 
 test("first CHANGELOG addition is valid but an unchanged missing file is rejected", async () => {
   const root = mkdtempSync(join(tmpdir(), "aw-changelog-init-"));
@@ -28,7 +28,7 @@ test("first CHANGELOG addition is valid but an unchanged missing file is rejecte
       "- \u4fee\u590d: \u521d\u59cb\u5316\u53d8\u66f4\u8bb0\u5f55",
     ]);
     await assert.rejects(readBaseChangelog(root, base, base, "CHANGELOG.md"), /must be an added file/);
-    assert.equal(await readBaseChangelog(root, head, head, "CHANGELOG.md"), headContent);
+    assert.equal(await readBaseChangelog(root, head, head, "CHANGELOG.md"), headContent.trimEnd());
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
