@@ -117,12 +117,16 @@ function parsePolicy(value: unknown): SecurityPolicy {
   ) {
     throw new CliError("::error::Invalid security policy.", 65);
   }
+  const privacyPatterns = namedPatterns(value.privacy_patterns, "privacy_patterns");
+  if (privacyPatterns.length === 0) {
+    throw new CliError("::error::Privacy gate requires non-empty privacy_patterns.", 65);
+  }
   return {
     schema_version: 3,
     path_allow_patterns: stringArray(value.path_allow_patterns, "path_allow_patterns"),
     forbidden_path_patterns: stringArray(value.forbidden_path_patterns, "forbidden_path_patterns"),
     secret_patterns: namedPatterns(value.secret_patterns, "secret_patterns"),
-    privacy_patterns: namedPatterns(value.privacy_patterns, "privacy_patterns"),
+    privacy_patterns: privacyPatterns,
     secret_allowlist: secretAllowlist(value.secret_allowlist),
     workflow_forbidden_patterns: namedPatterns(
       value.workflow_forbidden_patterns,
