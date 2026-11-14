@@ -1,6 +1,4 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
 import { isJsonRecord } from "./github-api.ts";
 import { CliError, handleError, isMain, readJson, runText } from "./runtime-command.ts";
 
