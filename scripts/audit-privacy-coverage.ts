@@ -21,13 +21,6 @@ export type PrivacyCoverageSummary = {
   automatic_writes: false;
 };
 
-type InventoryRepo = {
-  full_name: string;
-  owner: { login: string };
-  private: boolean;
-  archived: boolean;
-};
-
 type AccessPolicy = {
   schema_version: number;
   organization: string;
