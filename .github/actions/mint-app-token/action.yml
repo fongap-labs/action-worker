@@ -32,6 +32,9 @@ inputs:
   permission-statuses:
     description: Optional commit statuses API permission (read or write).
     required: false
+  permission-workflows:
+    description: Optional workflow-file API permission for trusted CI bridge onboarding.
+    required: false
   permission-security-events:
     description: Optional CodeQL Security events API permission (read or write).
     required: false
@@ -58,4 +61,5 @@ runs:
         permission-issues: ${{ inputs.permission-issues }}
         permission-pull-requests: ${{ inputs.permission-pull-requests }}
         permission-statuses: ${{ inputs.permission-statuses }}
+        permission-workflows: ${{ inputs.permission-workflows }}
         permission-security-events: ${{ inputs.permission-security-events }}

@@ -104,6 +104,7 @@ jobs:
           repositories: ${{ steps.ci_scope.outputs.repositories_csv }}
           permission-contents: write
           permission-pull-requests: write
+          permission-workflows: write
 
       - name: Open missing central CI bridge pull requests
         if: steps.ci_scope.outputs.has_targets == 'true'

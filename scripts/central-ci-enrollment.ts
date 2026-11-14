@@ -37,11 +37,41 @@ export function selectBridgeCandidates(
   return targets.sort((a, b) => a.repository.localeCompare(b.repository));
 }
 
+async function hasPendingBridgePullRequest(
+  reader: Pick<GithubReader, "get">,
+  repository: string
+): Promise<boolean> {
+  const pulls = await reader.get(
+    "repos/" + repository + "/pulls?state=open&base=main&per_page=100"
+  );
+  if (!Array.isArray(pulls) || pulls.length >= 100) {
+    throw new CliError("Central CI pending PR inventory is incomplete.", 77);
+  }
+  for (const pr of pulls) {
+    if (!isJsonRecord(pr) || !Number.isSafeInteger(pr.number)) {
+      throw new CliError("Central CI pending PR identity is invalid.", 65);
+    }
+    const files = await reader.get(
+      "repos/" + repository + "/pulls/" + pr.number + "/files?per_page=100"
+    );
+    if (!Array.isArray(files) || files.length >= 100) {
+      throw new CliError("Central CI pending PR file list is incomplete.", 77);
+    }
+    if (files.some((file) => isJsonRecord(file) && file.filename === bridgePath)) {
+      // An existing business PR is not a verified bridge. Avoid duplicate PRs;
+      // the coverage audit stays red until the trusted main actually has the file.
+      return true;
+    }
+  }
+  return false;
+}
+
 async function missingBridges(
   reader: Pick<GithubReader, "get">,
   candidates: readonly BridgeTarget[]
-): Promise<BridgeTarget[]> {
+): Promise<{ targets: BridgeTarget[]; pending: number }> {
   const targets: BridgeTarget[] = [];
+  let pending = 0;
   for (const candidate of candidates) {
     try {
       const response = await reader.get(
@@ -51,11 +81,12 @@ async function missingBridges(
         throw new CliError("Central CI bridge metadata is invalid.", 65);
       }
     } catch (error) {
-      if (isGithubMissing(error)) targets.push(candidate);
-      else throw error;
+      if (!isGithubMissing(error)) throw error;
+      if (await hasPendingBridgePullRequest(reader, candidate.repository)) pending++;
+      else targets.push(candidate);
     }
   }
-  return targets;
+  return { targets, pending };
 }
 
 async function approvedBridgeTemplate(): Promise<string> {
@@ -92,7 +123,10 @@ async function writeGithub(
     body: JSON.stringify(payload),
     signal: AbortSignal.timeout(20_000),
   });
-  if (!response.ok) throw new CliError("Central CI onboarding GitHub write failed.", 77);
+  if (!response.ok) {
+    const action = path.includes("/contents/") ? "workflow-file" : path.includes("/git/refs") ? "branch" : "pull-request";
+    throw new CliError("Central CI " + action + " write rejected (HTTP " + response.status + ").", 77);
+  }
   return (await response.json()) as unknown;
 }
 
@@ -166,17 +200,27 @@ async function createBridgePullRequest(
     throw new CliError("Central CI target default branch cannot be verified.", 77);
   }
 
-  // An existing untracked branch is a conflict, never a reason to force-push.
+  // Resume only a previously created empty branch at the exact current main SHA.
+  // Never overwrite a branch containing edits, and never force-push.
+  let branchExists = false;
   try {
-    await reader.get("repos/" + repository + "/git/ref/heads/" + branchName);
-    throw new CliError("Central CI onboarding branch exists without a trusted PR.", 77);
+    const existing = await reader.get(
+      "repos/" + repository + "/git/ref/heads/" + branchName
+    );
+    if (!isJsonRecord(existing) || !isJsonRecord(existing.object) ||
+      existing.object.sha !== ref.object.sha) {
+      throw new CliError("Central CI onboarding branch contains unverified work.", 77);
+    }
+    branchExists = true;
   } catch (error) {
     if (!isGithubMissing(error)) throw error;
   }
-  await writeGithub(writeToken, "repos/" + repository + "/git/refs", "POST", {
-    ref: "refs/heads/" + branchName,
-    sha: ref.object.sha,
-  });
+  if (!branchExists) {
+    await writeGithub(writeToken, "repos/" + repository + "/git/refs", "POST", {
+      ref: "refs/heads/" + branchName,
+      sha: ref.object.sha,
+    });
+  }
   await writeGithub(writeToken, "repos/" + repository + "/contents/" + bridgePath, "PUT", {
     message: "chore: add approved central CI notification bridge",
     branch: branchName,
@@ -212,12 +256,16 @@ async function main(): Promise<void> {
   const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
   const inventory = await readInstallationInventory(reader);
   const candidates = selectBridgeCandidates(inventory, controlRepository);
-  const missing = await missingBridges(reader, candidates);
+  const { targets: missing, pending } = await missingBridges(reader, candidates);
   if (missing.length > 500) {
     throw new CliError("Central CI write token scope exceeds the safe batch limit.", 77);
   }
   if (mode === "plan") {
     await approvedBridgeTemplate();
+    for (const item of missing) {
+      // Mask dynamic repository names before the token action displays scoped inputs.
+      console.log("::add-mask::" + item.repository.split("/")[1]);
+    }
     await appendLines(process.env.GITHUB_OUTPUT, [
       "has_targets=" + String(missing.length > 0),
       "repositories_csv=" + missing.map((item) => item.repository.split("/")[1]).join(","),
@@ -228,7 +276,9 @@ async function main(): Promise<void> {
         inventory.length +
         " accessible, " +
         missing.length +
-        " bridge PR candidates; repository identities withheld."
+        " bridge PR candidates, " +
+        pending +
+        " existing bridge PRs pending; identities withheld."
     );
     return;
   }
@@ -264,8 +314,9 @@ async function main(): Promise<void> {
 }
 
 if (isMain(import.meta.url)) {
-  main().catch(() => {
-    console.error("::error::Central CI enrollment failed; repository details withheld.");
+  main().catch((error: unknown) => {
+    const reason = error instanceof CliError ? error.message : "unverified operation";
+    console.error("::error::Central CI enrollment failed: " + reason + "; repository details withheld.");
     process.exitCode = 1;
   });
 }

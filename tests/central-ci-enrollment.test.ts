@@ -55,9 +55,11 @@ test("central CI bridge template matches the protected security hash and the wri
   assert.match(workflow, /repositories: \$\{\{ steps\.ci_scope\.outputs\.repositories_csv \}\}/);
   assert.match(workflow, /permission-contents: write/);
   assert.match(workflow, /permission-pull-requests: write/);
+  assert.match(workflow, /permission-workflows: write/);
   assert.doesNotMatch(workflow, /continue-on-error: true/);
   const script = await readFile("scripts/central-ci-enrollment.ts", "utf8");
   assert.match(script, /changed\[0\]\.filename !== bridgePath/);
   assert.match(script, /decodeGithubContent\(file\) !== template/);
-  assert.match(script, /Central CI onboarding branch exists without a trusted PR/);
+  assert.match(script, /Central CI onboarding branch contains unverified work/);
+  assert.match(script, /hasPendingBridgePullRequest/);
 });
