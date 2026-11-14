@@ -2,7 +2,7 @@ name: 自动 · CI 沙箱
 
 # Runs a target repository's trusted CI script against the change under test. Change code executes
 # in these jobs, so they reference no central credential: public targets are checked out with the
-# run's read-only token, and the caller passes checkout_token only for private targets.
+# run's read-only token, and the caller supplies App credentials only to the trusted, single-repository token mint step.
 
 on:
   workflow_call:
@@ -41,6 +41,10 @@ on:
       is_private:
         required: true
         type: string
+      app_client_id:
+        description: GitHub App client ID for the trusted checkout step
+        required: false
+        type: string
       private_windows_numeric_diagnostic:
         description: Trusted central policy grant for bounded private Windows numeric diagnostics
         required: false
@@ -51,8 +55,8 @@ on:
         description: Numeric failure index and count for centrally authorized private Windows suites only
         value: ${{ jobs.windows.outputs.windows_diagnostic }}
     secrets:
-      checkout_token:
-        description: Read token for private targets only
+      app_private_key:
+        description: GitHub App private key used only by the trusted mint step
         required: false
 
 permissions:
@@ -80,14 +84,45 @@ jobs:
       # from the control ref never runs against code that the default branch has already moved past.
       # When the default branch changed under the PR and the merge conflicts, GitHub has no merge
       # ref and the checkout fails as the merge gate.
+      - name: Resolve private checkout repository scope
+        id: private_scope
+        if: inputs.is_private == 'true'
+        shell: bash
+        env:
+          TARGET_REPOSITORY: ${{ inputs.repository }}
+          CONTROL_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -Eeuo pipefail
+          node -e '
+            const fs = require("node:fs");
+            const parts = String(process.env.TARGET_REPOSITORY ?? "").split("/");
+            const owner = String(process.env.CONTROL_OWNER ?? "");
+            if (parts.length !== 2 || parts[0].toLowerCase() !== owner.toLowerCase() || !/^[A-Za-z0-9_.-]+$/.test(parts[1])) {
+              process.stderr.write("::error::Invalid private checkout scope.\n");
+              process.exit(77);
+            }
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, "repository_name=" + parts[1] + "\n");
+          '
+
+      - name: Mint private CI checkout read token
+        id: private_read_app
+        if: inputs.is_private == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ inputs.app_client_id }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.private_scope.outputs.repository_name }}
+          permission-contents: read
+
       - name: Require private checkout token
         if: inputs.is_private == 'true'
         shell: bash
         env:
-          CHECKOUT_TOKEN: ${{ secrets.checkout_token }}
+          CHECKOUT_TOKEN: ${{ steps.private_read_app.outputs.token }}
         run: |
           if [ -z "${CHECKOUT_TOKEN:-}" ]; then
-            echo "::error::Missing required secret AW_CHECKOUT_TOKEN. Configure it in action-worker → Settings → Secrets and variables → Actions. Grant Contents: Read access to the private target repositories." >&2
+            echo "::error::Missing scoped GitHub App read token for target repository; check App installation Contents: Read. No PAT fallback." >&2
             exit 77
           fi
 
@@ -97,7 +132,7 @@ jobs:
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.pr_number != '0' && inputs.merge_sha || inputs.head_sha }}
-          token: ${{ secrets.checkout_token }}
+          token: ${{ steps.private_read_app.outputs.token }}
           path: target
           fetch-depth: 0
           persist-credentials: false
@@ -119,7 +154,7 @@ jobs:
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.control_ref }}
-          token: ${{ secrets.checkout_token }}
+          token: ${{ steps.private_read_app.outputs.token }}
           path: ci-control
           fetch-depth: 1
           persist-credentials: false
@@ -261,15 +296,51 @@ jobs:
       windows_diagnostic: ${{ steps.private_diag.outputs.windows_diagnostic }}
 
     steps:
+      - name: Setup Node for scoped private checkout
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+
       # A pull request is tested as it would merge into the default branch; see the Linux job.
+      - name: Resolve private checkout repository scope
+        id: private_scope
+        if: inputs.is_private == 'true'
+        shell: bash
+        env:
+          TARGET_REPOSITORY: ${{ inputs.repository }}
+          CONTROL_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -Eeuo pipefail
+          node -e '
+            const fs = require("node:fs");
+            const parts = String(process.env.TARGET_REPOSITORY ?? "").split("/");
+            const owner = String(process.env.CONTROL_OWNER ?? "");
+            if (parts.length !== 2 || parts[0].toLowerCase() !== owner.toLowerCase() || !/^[A-Za-z0-9_.-]+$/.test(parts[1])) {
+              process.stderr.write("::error::Invalid private checkout scope.\n");
+              process.exit(77);
+            }
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, "repository_name=" + parts[1] + "\n");
+          '
+
+      - name: Mint private CI checkout read token
+        id: private_read_app
+        if: inputs.is_private == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ inputs.app_client_id }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.private_scope.outputs.repository_name }}
+          permission-contents: read
+
       - name: Require private checkout token
         if: inputs.is_private == 'true'
         shell: pwsh
         env:
-          CHECKOUT_TOKEN: ${{ secrets.checkout_token }}
+          CHECKOUT_TOKEN: ${{ steps.private_read_app.outputs.token }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:CHECKOUT_TOKEN)) {
-            Write-Error "Missing required secret AW_CHECKOUT_TOKEN. Configure it in action-worker → Settings → Secrets and variables → Actions. Grant Contents: Read access to the private target repositories."
+            Write-Error "Missing scoped GitHub App read token for target repository; check App installation Contents: Read. No PAT fallback."
             exit 77
           }
 
@@ -279,7 +350,7 @@ jobs:
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.pr_number != '0' && inputs.merge_sha || inputs.head_sha }}
-          token: ${{ secrets.checkout_token }}
+          token: ${{ steps.private_read_app.outputs.token }}
           path: target
           fetch-depth: 0
           persist-credentials: false
@@ -301,7 +372,7 @@ jobs:
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.control_ref }}
-          token: ${{ secrets.checkout_token }}
+          token: ${{ steps.private_read_app.outputs.token }}
           path: ci-control
           fetch-depth: 1
           persist-credentials: false
