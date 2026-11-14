@@ -301,7 +301,10 @@ export async function readBaseChangelog(
     { cwd: root }
   );
   if (added.trim() !== changelogFile) {
-    throw new CliError("::error::CHANGELOG.md must be an added file or exist on the base branch.", 65);
+    throw new CliError(
+      "::error::CHANGELOG.md must be an added file or exist on the base branch.",
+      65
+    );
   }
   return "# \u66f4\u65b0\u65e5\u5fd7\n\n## [Unreleased]\n";
 }
