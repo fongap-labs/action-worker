@@ -108,10 +108,7 @@ test("release packaging blocks sensitive assets before generating the governed a
   const manifest = packageSteps.indexOf("- name: Build manifest and provenance");
   const upload = packageSteps.indexOf("- name: Upload governed release artifact");
   assert.ok(scan > 0 && scan < manifest && manifest < upload);
-  assert.match(
-    packageSteps.slice(scan, manifest),
-    /python3 scripts\/artifact-privacy-scan\.py/
-  );
+  assert.match(packageSteps.slice(scan, manifest), /python3 scripts\/artifact-privacy-scan\.py/);
   assert.match(packageSteps.slice(scan, manifest), /policies\/security\.json/);
   assert.doesNotMatch(
     packageSteps.slice(scan, manifest),
