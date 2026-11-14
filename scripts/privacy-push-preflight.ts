@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CliError, handleError, isMain, runText } from "./runtime-command.ts";
+import { CliError, isMain, runText } from "./runtime-command.ts";
 import { collectSecurityViolations } from "./validate-security.ts";
 
 // A local, no-network pre-push safety check. The GitHub merge gate remains authoritative.
