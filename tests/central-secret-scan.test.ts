@@ -125,7 +125,7 @@ test("the pinned release and the workflow wiring are in place", async () => {
   assert.match(workflow, /node aw-security\/scripts\/central-secret-scan\.ts/);
   assert.match(
     workflow,
-    /AW_GITLEAKS_MODE: \$\{\{ vars\.AW_CENTRAL_GITLEAKS_MODE \|\| 'enforce' \}\}/
+    /AW_GITLEAKS_MODE: enforce/
   );
 });
 
