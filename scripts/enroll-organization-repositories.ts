@@ -81,13 +81,9 @@ export function planOnboarding(value: unknown, installed: readonly InstalledRepo
     ) {
       continue;
     }
-    if (
-      typeof repo.created_at === "string" &&
-      Number.isFinite(Date.parse(repo.created_at)) &&
-      Date.parse(repo.created_at) >= Date.parse(policy.auto_enroll_created_after)
-    ) {
-      grants[repo.full_name] = ["pr"];
-    }
+    // Default onboarding applies to existing and newly installed active main-branch repositories.
+    // The legacy creation-date field is retained for policy compatibility, not as a gate.
+    grants[repo.full_name] = ["pr"];
   }
   return {
     ...policy,

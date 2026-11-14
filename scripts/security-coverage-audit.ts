@@ -289,11 +289,7 @@ async function main(): Promise<void> {
       "::warning::Some repositories are excluded or depend on polling; real-time coverage is incomplete."
     );
   }
-  if (
-    result.missing_policy_count > 0 ||
-    result.missing_bridge_count > 0 ||
-    result.unverified_count > 0
-  ) {
+  if (!result.complete) {
     throw new CliError("Security coverage audit found uncovered or unverified repositories.", 1);
   }
 }
