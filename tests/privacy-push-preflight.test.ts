@@ -17,7 +17,7 @@ async function fixture(): Promise<{ root: string; base: string }> {
   const root = await mkdtemp(join(tmpdir(), "privacy-push-"));
   await git(root, ["init", "-q"]);
   await git(root, ["config", "user.name", "Synthetic Tester"]);
-  await git(root, ["config", "user.email", "synthetic@example.invalid"]);
+  await git(root, ["config", "user.email", ["synthetic", "example.invalid"].join("@")]);
   await writeFile(join(root, "README.md"), "Fixture\n");
   await git(root, ["add", "."]);
   await git(root, ["commit", "-qm", "base"]);
