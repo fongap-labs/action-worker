@@ -258,6 +258,43 @@ export function addedUnreleasedEntries(baseContent: string, headContent: string)
   return additions;
 }
 
+// New repositories may add CHANGELOG.md only once, in a normal PR.
+// Verify an actual A status; never mask a broken Git ref or a release mutation.
+export async function readBaseChangelog(
+  root: string,
+  base: string,
+  head: string,
+  file: string,
+  policy: Record<string, unknown>,
+  firstAdditionAllowed: boolean
+): Promise<string> {
+  const previous = await runText(
+    "git",
+    ["ls-tree", "-r", "--name-only", base, "--", file],
+    { cwd: root }
+  );
+  if (previous.trim() === file) {
+    return runText("git", ["show", `${base}:${file}`], { cwd: root });
+  }
+  if (previous.trim() !== "" || !firstAdditionAllowed) {
+    throw new CliError("::error::The base CHANGELOG is missing or invalid.", 65);
+  }
+  const change = await runText(
+    "git",
+    ["diff", "--name-status", base, head, "--", file],
+    { cwd: root }
+  );
+  if (change.trim() !== `A\t${file}`) {
+    throw new CliError("::error::First CHANGELOG must be added as a new file.", 65);
+  }
+  const title = policy.changelog_heading;
+  const unreleased = policy.unreleased_heading;
+  if (typeof title !== "string" || typeof unreleased !== "string") {
+    throw new CliError("::error::Invalid first CHANGELOG heading policy.", 65);
+  }
+  return `${title}\n\n${unreleased}\n`;
+}
+
 // Release PRs may change only CHANGELOG.md. The expected content is rebuilt from the base.
 async function assertReleasePullRequest(
   policy: Record<string, unknown>,
@@ -269,7 +306,14 @@ async function assertReleasePullRequest(
   if (changedPaths.some((path) => path !== changelogFile)) {
     throw new CliError("::error::A release PR may modify only CHANGELOG.md.", 65);
   }
-  const baseChangelog = await runText("git", ["show", `${base}:${changelogFile}`], { cwd: root });
+  const baseChangelog = await readBaseChangelog(
+    root,
+    base,
+    base,
+    changelogFile,
+    policy,
+    false
+  );
   const headChangelog = await readFile(join(root, changelogFile), "utf8");
   assertPolicyChangelogHeadings(baseChangelog, policy);
   assertPolicyChangelogHeadings(headChangelog, policy);
@@ -418,7 +462,14 @@ export async function validateChange(
   }
   let entries: string[] = [];
   if (changedPaths.includes(changelogFile)) {
-    const baseChangelog = await runText("git", ["show", `${base}:${changelogFile}`], { cwd: root });
+    const baseChangelog = await readBaseChangelog(
+      root,
+      base,
+      head,
+      changelogFile,
+      value,
+      true
+    );
     const headChangelog = await readFile(join(root, changelogFile), "utf8");
     assertPolicyChangelogHeadings(baseChangelog, value);
     assertPolicyChangelogHeadings(headChangelog, value);
