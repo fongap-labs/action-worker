@@ -6,10 +6,7 @@ import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts
 
 export type PrivateCiPlan = { linux_shards: string[]; has_windows: boolean };
 
-export function inspectPrivateCiPlan(
-  value: unknown,
-  hasWindowsScript: boolean
-): PrivateCiPlan {
+export function inspectPrivateCiPlan(value: unknown, hasWindowsScript: boolean): PrivateCiPlan {
   const manifest = value === undefined ? undefined : parseExecutionManifest(value);
   const shards = manifest === undefined ? ["all"] : resolveLinuxShards(value);
   if (manifest) {
@@ -45,10 +42,7 @@ export async function planFromTrustedControl(root: string): Promise<PrivateCiPla
       throw new CliError("Trusted CI execution manifest is invalid.", 65);
     }
   }
-  return inspectPrivateCiPlan(
-    manifest,
-    await exists(join(root, ".github/scripts/central-ci.ps1"))
-  );
+  return inspectPrivateCiPlan(manifest, await exists(join(root, ".github/scripts/central-ci.ps1")));
 }
 
 async function main(): Promise<void> {
@@ -59,7 +53,10 @@ async function main(): Promise<void> {
     "has_windows=" + plan.has_windows,
   ]);
   console.log(
-    "Private CI plan accepted: " + plan.linux_shards.length + " Linux shard(s), Windows=" + plan.has_windows
+    "Private CI plan accepted: " +
+      plan.linux_shards.length +
+      " Linux shard(s), Windows=" +
+      plan.has_windows
   );
 }
 
