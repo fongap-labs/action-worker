@@ -96,3 +96,22 @@ test("product-scoped changelog entries survive packaging without consuming share
     /invalid/
   );
 });
+
+test("release packaging blocks sensitive assets before generating the governed artifact", async () => {
+  const source = await import("node:fs/promises").then((fs) =>
+    fs.readFile(".github/workflows/release-app.yml", "utf8")
+  );
+  const start = source.indexOf("\n  package:\n");
+  assert.notEqual(start, -1);
+  const packageSteps = source.slice(start);
+  const scan = packageSteps.indexOf("- name: Enforce release artifact privacy gate");
+  const manifest = packageSteps.indexOf("- name: Build manifest and provenance");
+  const upload = packageSteps.indexOf("- name: Upload governed release artifact");
+  assert.ok(scan > 0 && scan < manifest && manifest < upload);
+  assert.match(packageSteps.slice(scan, manifest), /python3 scripts\/artifact-privacy-scan\.py/);
+  assert.match(packageSteps.slice(scan, manifest), /policies\/security\.json/);
+  assert.doesNotMatch(
+    packageSteps.slice(scan, manifest),
+    /continue-on-error|AW_RELEASE_WRITE|AW_ADMIN_TOKEN/
+  );
+});

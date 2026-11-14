@@ -525,6 +525,16 @@ jobs:
           test -s "$SBOM_PATH"
           jq -e '.bomFormat == "CycloneDX" and (.specVersion | type == "string")' "$SBOM_PATH" > /dev/null
 
+      # Scan all assembled assets before signing the release manifest or uploading artifacts.
+      # The scanner reads bytes offline; this job holds no publishing credentials.
+      - name: Enforce release artifact privacy gate
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/artifact-privacy-scan.py \
+            "$RUNNER_TEMP/release-package" \
+            "$GITHUB_WORKSPACE/policies/security.json"
+
       - name: Build manifest and provenance
         env:
           SOURCE_REPOSITORY: ${{ needs.prepare.outputs.source_repository }}
