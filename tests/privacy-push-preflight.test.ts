@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm, writeFile, mkdir, unlink } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
@@ -34,11 +34,17 @@ async function commitFile(root: string, file: string, text: string): Promise<str
 test("pre-push parser accepts Git ref updates but rejects invalid or oversized input", () => {
   const base = "a".repeat(40);
   const head = "b".repeat(40);
-  const updates = parsePushRefUpdates("refs/heads/topic " + head + " refs/heads/topic " + base + "\n");
+  const updates = parsePushRefUpdates(
+    "refs/heads/topic " + head + " refs/heads/topic " + base + "\n"
+  );
   assert.equal(updates.length, 1);
   assert.equal(updates[0]?.localSha, head);
   assert.throws(() => parsePushRefUpdates("refs/heads/topic bad refs/heads/topic " + base));
-  assert.throws(() => parsePushRefUpdates("refs/heads/topic " + head + " refs/heads/topic " + base + "\n".repeat(66000)));
+  assert.throws(() =>
+    parsePushRefUpdates(
+      "refs/heads/topic " + head + " refs/heads/topic " + base + "\n".repeat(66000)
+    )
+  );
 });
 
 test("pre-push scans every added commit even when the final tree removed a secret", async (context) => {
@@ -51,7 +57,12 @@ test("pre-push scans every added commit even when the final tree removed a secre
   await git(root, ["commit", "-qm", "remove secret"]);
   const head = await git(root, ["rev-parse", "HEAD"]);
   const summary = await checkPushRefUpdates(root, policy, "origin", [
-    { localRef: "refs/heads/topic", localSha: head, remoteRef: "refs/heads/topic", remoteSha: base },
+    {
+      localRef: "refs/heads/topic",
+      localSha: head,
+      remoteRef: "refs/heads/topic",
+      remoteSha: base,
+    },
   ]);
   assert.equal(summary.checked_commits, 2);
   assert.ok(summary.violations.some((item) => item.rule === "github-token"));
@@ -63,7 +74,10 @@ test("pre-push checks historical workflows from the commit instead of the final 
   context.after(() => rm(root, { recursive: true, force: true }));
   await mkdir(join(root, ".github", "workflows"), { recursive: true });
   const path = join(root, ".github", "workflows", "ci.yml");
-  await writeFile(path, "name: fixture\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@main\n");
+  await writeFile(
+    path,
+    "name: fixture\non: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@main\n"
+  );
   await git(root, ["add", "."]);
   await git(root, ["commit", "-qm", "add unsafe workflow"]);
   await unlink(path);
@@ -71,7 +85,12 @@ test("pre-push checks historical workflows from the commit instead of the final 
   await git(root, ["commit", "-qm", "remove unsafe workflow"]);
   const head = await git(root, ["rev-parse", "HEAD"]);
   const summary = await checkPushRefUpdates(root, policy, "origin", [
-    { localRef: "refs/heads/topic", localSha: head, remoteRef: "refs/heads/topic", remoteSha: base },
+    {
+      localRef: "refs/heads/topic",
+      localSha: head,
+      remoteRef: "refs/heads/topic",
+      remoteSha: base,
+    },
   ]);
   assert.ok(summary.violations.some((item) => item.rule === "unpinned-action"));
 });
@@ -80,18 +99,30 @@ test("pre-push skips deletions and rejects unavailable history without claiming 
   const { root, base } = await fixture();
   context.after(() => rm(root, { recursive: true, force: true }));
   const deletion = await checkPushRefUpdates(root, policy, "origin", [
-    { localRef: "refs/heads/topic", localSha: zero, remoteRef: "refs/heads/topic", remoteSha: base },
+    {
+      localRef: "refs/heads/topic",
+      localSha: zero,
+      remoteRef: "refs/heads/topic",
+      remoteSha: base,
+    },
   ]);
   assert.deepEqual(deletion, { checked_commits: 0, violations: [] });
   await assert.rejects(() =>
     checkPushRefUpdates(root, policy, "origin", [
-      { localRef: "refs/heads/topic", localSha: base, remoteRef: "refs/heads/topic", remoteSha: "f".repeat(40) },
+      {
+        localRef: "refs/heads/topic",
+        localSha: base,
+        remoteRef: "refs/heads/topic",
+        remoteSha: "f".repeat(40),
+      },
     ])
   );
 });
 
 test("pre-push hook invokes the central script and never contains an allow-failure switch", async () => {
-  const hook = await import("node:fs/promises").then((fs) => fs.readFile(".githooks/pre-push", "utf8"));
+  const hook = await import("node:fs/promises").then((fs) =>
+    fs.readFile(".githooks/pre-push", "utf8")
+  );
   assert.match(hook, /node scripts\/privacy-push-preflight\.ts/);
   assert.doesNotMatch(hook, /exit 0|--no-verify|continue-on-error|warn/);
 });
