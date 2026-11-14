@@ -29,11 +29,15 @@ test("every Linux shard and Windows use trusted base controls and exact PR merge
   const workflow = parse(
     await readFile(".github/workflows/private-source-ci.yml", "utf8")
   ) as Workflow;
+  const linux = workflow.jobs.linux;
+  const windows = workflow.jobs.windows;
+  assert.ok(linux);
+  assert.ok(windows);
   assert.equal(
-    workflow.jobs.linux.strategy?.matrix?.shard,
+    linux.strategy?.matrix?.shard,
     "${{ fromJSON(needs.prepare.outputs.linux_shards) }}"
   );
-  assert.match(workflow.jobs.windows.if ?? "", /has_windows == 'true'/);
+  assert.match(windows.if ?? "", /has_windows == 'true'/);
   for (const id of ["linux", "windows"]) {
     const job = workflow.jobs[id];
     assert.ok(job, id);
