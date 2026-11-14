@@ -330,7 +330,9 @@ async function main(): Promise<void> {
       }
     }
     for (const [rule, count] of counts) {
-      console.error(`::error::Security gate violation [${rule}]: ${count} finding(s); details suppressed.`);
+      console.error(
+        `::error::Security gate violation [${rule}]: ${count} finding(s); details suppressed.`
+      );
     }
     throw new CliError(`::error::Security gate failed with ${violations.length} violation(s).`, 1);
   }
