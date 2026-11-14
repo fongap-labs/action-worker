@@ -162,12 +162,21 @@ try {
     assert.equal(rejected.action, 'rotate');
     assert.equal(rejected.cooldownMs, 0);
     assert.equal(rejected.counted, false);
-    for (const status of [413, 415, 422]) {
+    for (const status of [413, 415]) {
       const c = classifyUpstreamStatus(status, new Headers(), ENV, now);
       assert.equal(c.action, 'stop');
       assert.equal(c.cooldownMs, 0);
       assert.equal(c.counted, false);
     }
+    const opaque422 = classifyUpstreamStatus(422, new Headers(), ENV, now, '{"error":{"message":"Unprocessable entity"}}');
+    assert.equal(opaque422.action, 'rotate');
+    assert.equal(opaque422.uncertain422, true);
+    assert.equal(opaque422.cooldownMs, 0);
+    assert.equal(opaque422.counted, false);
+    const invalid422 = classifyUpstreamStatus(422, new Headers(), ENV, now, '{"error":{"code":"invalid_json"}}');
+    assert.equal(invalid422.action, 'stop');
+    assert.equal(invalid422.cooldownMs, 0);
+    assert.equal(invalid422.counted, false);
     const id = 'ce1';
     acquireSlot(id, now);
     tick(1);

@@ -366,9 +366,15 @@ try {
     assert.equal(rejected.action, 'rotate');
     assert.equal(rejected.cooldownMs, 0);
     assert.equal(rejected.counted, false);
-    for (const status of [413, 415, 422]) {
+    for (const status of [413, 415]) {
       assert.equal(classifyUpstreamStatus(status, new Headers(), {}).action, 'stop');
     }
+    const opaque422 = classifyUpstreamStatus(422, new Headers(), {}, Date.now(), '{"error":{"message":"Unprocessable entity"}}');
+    assert.equal(opaque422.action, 'rotate', 'opaque 422 may retry a distinct physical route within budget');
+    assert.equal(opaque422.uncertain422, true);
+    assert.equal(opaque422.counted, false);
+    const invalid422 = classifyUpstreamStatus(422, new Headers(), {}, Date.now(), '{"error":{"code":"invalid_json"}}');
+    assert.equal(invalid422.action, 'stop', 'explicit malformed request is terminal');
   });
 
   await test('409 stops while 408 rotates', () => {
