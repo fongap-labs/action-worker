@@ -16,6 +16,7 @@ type Job = {
   permissions?: Record<string, unknown>;
   steps?: Step[];
   secrets?: unknown;
+  with?: Record<string, unknown>;
   uses?: string;
   if?: string;
   concurrency?: Record<string, unknown>;
@@ -120,21 +121,33 @@ test("PR dispatch supersedes obsolete governance revisions", async () => {
   );
 });
 
-test("the CI sandbox references no secret except its read-only checkout token", async () => {
+test("the CI sandbox references only the App key used to mint a scoped read token", async () => {
   const sandbox = await workflow("central-ci-sandbox.yml");
-  assert.deepEqual([...new Set(secretNames(sandbox))], ["checkout_token"]);
+  assert.deepEqual([...new Set(secretNames(sandbox))], ["app_private_key"]);
   assert.equal(usesWholeSecretsContext(sandbox), false);
+  const privateTokenStep = sandbox.jobs.linux?.steps?.find(
+    (step) => step.name === "Mint scoped private target read token"
+  );
+  assert.equal(
+    privateTokenStep?.uses,
+    "actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1"
+  );
+  assert.equal(privateTokenStep?.with?.["permission-contents"], "read");
+  assert.equal(privateTokenStep?.with?.repositories, "${{ inputs.repository_name }}");
 });
 
-test("the CI dispatch hands the sandbox only the read-only checkout token", async () => {
+test("the CI dispatch hands the sandbox the App key only for private targets", async () => {
   const dispatch = await workflow("central-ci-dispatch.yml");
   const callers = Object.entries(dispatch.jobs).filter(
     ([, job]) => job.uses === "./.github/workflows/central-ci-sandbox.yml"
   );
   assert.ok(callers.length >= 2, "linux and windows both call the sandbox");
   for (const [name, job] of callers) {
-    assert.deepEqual(Object.keys(job.secrets as object), ["checkout_token"], name);
-    assert.deepEqual(secretNames(job.secrets), ["AW_CHECKOUT_TOKEN"], name);
+    assert.deepEqual(Object.keys(job.secrets as object), ["app_private_key"], name);
+    assert.deepEqual(secretNames(job.secrets), ["AW_APP_PRIVATE_KEY"], name);
+    assert.equal(job.with?.owner, "${{ needs.prepare.outputs.owner }}", name);
+    assert.equal(job.with?.repository_name, "${{ needs.prepare.outputs.repository_name }}", name);
+    assert.equal(job.with?.app_client_id, "${{ vars.AW_APP_CLIENT_ID }}", name);
   }
   const checkout = dispatch.jobs.security?.steps?.find((step) => step.with?.path === "target");
   assert.deepEqual(secretNames(checkout), []);

@@ -60,7 +60,7 @@ test("Central CI untrusted test sandboxes retain isolated checkout only", async 
     };
   };
   const expected =
-    "${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CHECKOUT_TOKEN || '' }}";
-  assert.equal(workflow.jobs.linux.secrets.checkout_token, expected);
-  assert.equal(workflow.jobs.windows.secrets.checkout_token, expected);
+    "${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_APP_PRIVATE_KEY || '' }}";
+  assert.equal(workflow.jobs.linux.secrets.app_private_key, expected);
+  assert.equal(workflow.jobs.windows.secrets.app_private_key, expected);
 });

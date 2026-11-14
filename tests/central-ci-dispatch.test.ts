@@ -81,14 +81,20 @@ test("finalization waits for every Linux shard", () => {
 });
 
 test("jobs that execute change code reference no central credential", () => {
-  // The only secret the sandbox can see is the optional checkout token its caller passes.
-  assert.deepEqual([...new Set(sandbox.match(/secrets\.[A-Za-z_]+/g))], ["secrets.checkout_token"]);
-  assert.match(sandbox, /token: \$\{\{ secrets\.checkout_token \}\}/);
+  // The only sandbox secret is consumed by the trusted token-mint action; target code never receives it.
+  assert.deepEqual(
+    [...new Set(sandbox.match(/secrets\.[A-Za-z_]+/g))],
+    ["secrets.app_private_key"]
+  );
+  assert.match(sandbox, /private-key: \$\{\{ secrets\.app_private_key \}\}/);
+  assert.match(sandbox, /token: \$\{\{ steps\.private_read\.outputs\.token \}\}/);
   assert.match(sandbox, /token: \$\{\{ github\.token \}\}/);
-  assert.doesNotMatch(sandbox, /secrets\.checkout_token \|\| github\.token/);
+  assert.doesNotMatch(sandbox, /secrets\.app_private_key \|\| github\.token/);
+  assert.match(sandbox, /repositories: \$\{\{ inputs\.repository_name \}\}/);
+  assert.match(sandbox, /permission-contents: read/);
   assert.match(sandbox, /workflow_call:/);
   const privateOnlyToken =
-    "checkout_token: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_CHECKOUT_TOKEN || '' }}";
+    "app_private_key: ${{ needs.prepare.outputs.is_private == 'true' && secrets.AW_APP_PRIVATE_KEY || '' }}";
   for (const job of ["linux", "windows"]) {
     const start = workflow.indexOf(`\n  ${job}:\n`);
     assert.notEqual(start, -1, `missing ${job} job`);

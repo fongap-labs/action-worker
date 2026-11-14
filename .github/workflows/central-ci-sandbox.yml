@@ -1,8 +1,8 @@
 name: 自动 · CI 沙箱
 
 # Runs a target repository's trusted CI script against the change under test. Change code executes
-# in these jobs, so they reference no central credential: public targets are checked out with the
-# run's read-only token, and the caller passes checkout_token only for private targets.
+# in these jobs. Public targets use the run's read-only token; private targets receive a short-lived,
+# contents-read-only GitHub App token minted immediately before checkout.
 
 on:
   workflow_call:
@@ -17,6 +17,15 @@ on:
         type: string
         default: all
       repository:
+        required: true
+        type: string
+      owner:
+        required: true
+        type: string
+      repository_name:
+        required: true
+        type: string
+      app_client_id:
         required: true
         type: string
       pr_number:
@@ -51,8 +60,8 @@ on:
         description: Numeric failure index and count for centrally authorized private Windows suites only
         value: ${{ jobs.windows.outputs.windows_diagnostic }}
     secrets:
-      checkout_token:
-        description: Read token for private targets only
+      app_private_key:
+        description: App key used only to mint a short-lived contents-read token for the private target
         required: false
 
 permissions:
@@ -80,14 +89,25 @@ jobs:
       # from the control ref never runs against code that the default branch has already moved past.
       # When the default branch changed under the PR and the merge conflicts, GitHub has no merge
       # ref and the checkout fails as the merge gate.
-      - name: Require private checkout token
+      - name: Mint scoped private target read token
+        id: private_read
+        if: inputs.is_private == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ inputs.app_client_id }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: ${{ inputs.owner }}
+          repositories: ${{ inputs.repository_name }}
+          permission-contents: read
+
+      - name: Require scoped private target read token
         if: inputs.is_private == 'true'
         shell: bash
         env:
-          CHECKOUT_TOKEN: ${{ secrets.checkout_token }}
+          CHECKOUT_TOKEN: ${{ steps.private_read.outputs.token }}
         run: |
           if [ -z "${CHECKOUT_TOKEN:-}" ]; then
-            echo "::error::Missing required secret AW_CHECKOUT_TOKEN. Configure it in action-worker → Settings → Secrets and variables → Actions. Grant Contents: Read access to the private target repositories." >&2
+            echo "::error::Unable to mint a Contents: Read App token for the private target. Verify the App installation includes the repository." >&2
             exit 77
           fi
 
@@ -97,7 +117,7 @@ jobs:
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.pr_number != '0' && inputs.merge_sha || inputs.head_sha }}
-          token: ${{ secrets.checkout_token }}
+          token: ${{ steps.private_read.outputs.token }}
           path: target
           fetch-depth: 0
           persist-credentials: false
@@ -119,7 +139,7 @@ jobs:
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.control_ref }}
-          token: ${{ secrets.checkout_token }}
+          token: ${{ steps.private_read.outputs.token }}
           path: ci-control
           fetch-depth: 1
           persist-credentials: false
@@ -262,14 +282,25 @@ jobs:
 
     steps:
       # A pull request is tested as it would merge into the default branch; see the Linux job.
-      - name: Require private checkout token
+      - name: Mint scoped private target read token
+        id: private_read
+        if: inputs.is_private == 'true'
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ inputs.app_client_id }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: ${{ inputs.owner }}
+          repositories: ${{ inputs.repository_name }}
+          permission-contents: read
+
+      - name: Require scoped private target read token
         if: inputs.is_private == 'true'
         shell: pwsh
         env:
-          CHECKOUT_TOKEN: ${{ secrets.checkout_token }}
+          CHECKOUT_TOKEN: ${{ steps.private_read.outputs.token }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:CHECKOUT_TOKEN)) {
-            Write-Error "Missing required secret AW_CHECKOUT_TOKEN. Configure it in action-worker → Settings → Secrets and variables → Actions. Grant Contents: Read access to the private target repositories."
+            Write-Error "Unable to mint a Contents: Read App token for the private target. Verify the App installation includes the repository."
             exit 77
           }
 
@@ -279,7 +310,7 @@ jobs:
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.pr_number != '0' && inputs.merge_sha || inputs.head_sha }}
-          token: ${{ secrets.checkout_token }}
+          token: ${{ steps.private_read.outputs.token }}
           path: target
           fetch-depth: 0
           persist-credentials: false
@@ -301,7 +332,7 @@ jobs:
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.control_ref }}
-          token: ${{ secrets.checkout_token }}
+          token: ${{ steps.private_read.outputs.token }}
           path: ci-control
           fetch-depth: 1
           persist-credentials: false
