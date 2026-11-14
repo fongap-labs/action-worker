@@ -39,3 +39,10 @@ test("the dependency integrity gate makes no network requests or npm install", a
   const source = await import("node:fs/promises").then((fs) => fs.readFile("scripts/dependency-integrity.ts", "utf8"));
   assert.doesNotMatch(source, /spawnSync\s*\(|\bfetch\s*\(|npm\s+(?:ci|install|audit)/);
 });
+
+test("central CI fails closed on dependency integrity findings", async () => {
+  const workflow = await import("node:fs/promises").then((fs) => fs.readFile(".github/workflows/central-ci-dispatch.yml", "utf8"));
+  assert.match(workflow, /- name: Check dependency lockfile integrity/);
+  assert.match(workflow, /node scripts\/dependency-integrity\.ts/);
+  assert.doesNotMatch(workflow, /continue-on-error:\s*true\s*\n\s*env:\s*\n\s*BASE_SHA/);
+});
