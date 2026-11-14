@@ -18,7 +18,8 @@ test("first CHANGELOG addition is valid but an unchanged missing file is rejecte
     git("add", ".");
     git("commit", "-qm", "chore: bootstrap");
     const base = git("rev-parse", "HEAD");
-    const headContent = "# \u66f4\u65b0\u65e5\u5fd7\n\n## [Unreleased]\n\n- \u4fee\u590d: \u521d\u59cb\u5316\u53d8\u66f4\u8bb0\u5f55\n";
+    const headContent =
+      "# \u66f4\u65b0\u65e5\u5fd7\n\n## [Unreleased]\n\n- \u4fee\u590d: \u521d\u59cb\u5316\u53d8\u66f4\u8bb0\u5f55\n";
     writeFileSync(join(root, "CHANGELOG.md"), headContent);
     git("add", ".");
     git("commit", "-qm", "fix: add changelog");
@@ -27,7 +28,10 @@ test("first CHANGELOG addition is valid but an unchanged missing file is rejecte
     assert.deepEqual(addedUnreleasedEntries(baseline, headContent), [
       "- \u4fee\u590d: \u521d\u59cb\u5316\u53d8\u66f4\u8bb0\u5f55",
     ]);
-    await assert.rejects(readBaseChangelog(root, base, base, "CHANGELOG.md"), /must be an added file/);
+    await assert.rejects(
+      readBaseChangelog(root, base, base, "CHANGELOG.md"),
+      /must be an added file/
+    );
     assert.equal(await readBaseChangelog(root, head, head, "CHANGELOG.md"), headContent.trimEnd());
   } finally {
     rmSync(root, { recursive: true, force: true });
