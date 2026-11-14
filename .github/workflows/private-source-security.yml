@@ -1,4 +1,4 @@
-name: Private source security sandbox
+name: 自动 · 私有源码安全沙箱
 
 # This reusable workflow executes in the CALLER's private Actions context.
 # No central App or deployment credential is passed into the untrusted source job.
