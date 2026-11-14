@@ -281,6 +281,31 @@ async function assertReleasePullRequest(
   }
 }
 
+// A repository may introduce its first CHANGELOG in a normal PR. Require the
+// file to be genuinely added in base..head; do not ignore other git failures.
+export async function readBaseChangelog(
+  root: string,
+  base: string,
+  head: string,
+  changelogFile: string
+): Promise<string> {
+  const existing = await runText("git", ["ls-tree", "--name-only", base, "--", changelogFile], {
+    cwd: root,
+  });
+  if (existing.trim() === changelogFile) {
+    return runText("git", ["show", `${base}:${changelogFile}`], { cwd: root });
+  }
+  const added = await runText(
+    "git",
+    ["diff", "--name-only", "--diff-filter=A", base, head, "--", changelogFile],
+    { cwd: root }
+  );
+  if (added.trim() !== changelogFile) {
+    throw new CliError("::error::CHANGELOG.md must be an added file or exist on the base branch.", 65);
+  }
+  return "# 更新日志\\n\\n## [Unreleased]\\n";
+}
+
 export async function validateChange(
   title: string,
   base: string,
@@ -418,7 +443,7 @@ export async function validateChange(
   }
   let entries: string[] = [];
   if (changedPaths.includes(changelogFile)) {
-    const baseChangelog = await runText("git", ["show", `${base}:${changelogFile}`], { cwd: root });
+    const baseChangelog = await readBaseChangelog(root, base, head, changelogFile);
     const headChangelog = await readFile(join(root, changelogFile), "utf8");
     assertPolicyChangelogHeadings(baseChangelog, value);
     assertPolicyChangelogHeadings(headChangelog, value);
