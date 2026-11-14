@@ -185,7 +185,10 @@ test("privacy gate blocks local credential files without matching ordinary proje
   ];
   for (const path of forbidden) {
     const findings = await scan(context, path, "SYNTHETIC_PLACEHOLDER_ONLY=1\n");
-    assert.ok(findings.some((item) => item.rule === "sensitive-path"), path);
+    assert.ok(
+      findings.some((item) => item.rule === "sensitive-path"),
+      path
+    );
   }
   for (const path of [".env.example", "config/package.json", "src/config/settings.ts"]) {
     assert.deepEqual(await scan(context, path, "synthetic placeholder\n"), []);
