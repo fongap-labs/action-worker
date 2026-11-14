@@ -1,0 +1,5 @@
+#!/bin/sh
+# Install alongside existing commit-msg hook: git config core.hooksPath .githooks
+# This is a local early warning; GitHub merge/push policies remain authoritative.
+set -eu
+exec node scripts/privacy-push-preflight.ts "$@"
