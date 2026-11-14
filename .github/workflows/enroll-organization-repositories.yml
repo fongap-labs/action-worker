@@ -112,4 +112,3 @@ jobs:
           AW_CI_WRITE_TOKEN: ${{ steps.ci_writer.outputs.token }}
           AW_CI_TARGETS_JSON: ${{ steps.ci_scope.outputs.targets_json }}
         run: node scripts/central-ci-enrollment.ts apply
-
