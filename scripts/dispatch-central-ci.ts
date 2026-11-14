@@ -3,6 +3,7 @@ import {
   decideCiFailureRetry,
   hasActiveCiEvidenceReservation,
   hasUnresolvedCiEvidenceFailure,
+  hasStaleCiEvidenceFailure,
 } from "./ci-failure-budget.ts";
 import { requireToken } from "./control-token.ts";
 import { githubEnvironment, isJsonRecord, runGithubCli, statusAwareReader } from "./github-api.ts";
@@ -110,16 +111,30 @@ async function main(): Promise<void> {
     return;
   }
 
-  const retryDecision = await decideCiFailureRetry(
+  const staleControlFailure = await hasStaleCiEvidenceFailure(
     currentStatus,
     reader,
     controlRepository,
     repository,
-    headSha
+    headSha,
+    process.env.GITHUB_SHA ?? ""
   );
-  if (retryDecision !== "retry" && currentStatusHasFailure(currentStatus, repository, headSha)) {
-    console.log(`Central CI failure is not eligible for another run: ${repository}@${headSha}`);
-    return;
+  if (staleControlFailure) {
+    console.log(
+      `Previous CI failure used an older control revision; validating with current control: ${repository}@${headSha}`
+    );
+  } else {
+    const retryDecision = await decideCiFailureRetry(
+      currentStatus,
+      reader,
+      controlRepository,
+      repository,
+      headSha
+    );
+    if (retryDecision !== "retry" && currentStatusHasFailure(currentStatus, repository, headSha)) {
+      console.log(`Central CI failure is not eligible for another run: ${repository}@${headSha}`);
+      return;
+    }
   }
 
   const statusArgs = [
