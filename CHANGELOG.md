@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 私有仓库中央 CI 沙箱不再依赖覆盖不全的长期 AW_CHECKOUT_TOKEN；在可信工作流中按目标仓库即时签发仅 Contents: Read 的短期 GitHub App token，完成检出后不持久化凭据。
+
 - 修复: 中央CI执行协议或调度器变更前，使用受限只读GitHub App核对全部授权活跃仓库的CI清单，发现旧版未执行任务声明则阻断合并；私有仓库仅输出脱敏计数，保留原CI唯一门禁。
 
 - 新增: 私有仓库原生 CI 复用工作流，按受保护 base 的测试清单在私有 Actions 中执行 Linux/Windows，不向公开控制面传递源码或凭据。
