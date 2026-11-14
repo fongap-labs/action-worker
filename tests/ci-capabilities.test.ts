@@ -88,6 +88,48 @@ test("only the linux job of the ci operation defines shards", () => {
   assert.deepEqual(resolveLinuxShards(manifestWith({}, [windows])), ["all"]);
 });
 
+test("CI rejects declared jobs that Central CI will never schedule", () => {
+  const unsupported = {
+    id: "security-regression",
+    runner_profile: "linux-standard",
+    command: ["bash", "{control_root}/.github/scripts/security-regression.sh", "{target_root}"],
+    timeout_minutes: 30,
+    capability_requests: ["source.read"],
+  };
+  assert.throws(
+    () => resolveLinuxShards(manifestWith({}, [unsupported])),
+    /CI job "security-regression" is declared but not scheduled/
+  );
+  const windows = {
+    id: "windows",
+    runner_profile: "windows-build",
+    command: ["pwsh", "-File", "{control_root}/.github/scripts/central-ci.ps1"],
+    timeout_minutes: 60,
+    capability_requests: ["source.read"],
+  };
+  assert.deepEqual(resolveLinuxShards(manifestWith({}, [windows])), ["all"]);
+});
+
+test("CI manifest cannot silently omit the Linux runner", () => {
+  const manifest = {
+    schema_version: "1",
+    operations: {
+      ci: {
+        jobs: [
+          {
+            id: "windows",
+            runner_profile: "windows-build",
+            command: ["pwsh", "-File", "{control_root}/.github/scripts/central-ci.ps1"],
+            timeout_minutes: 60,
+            capability_requests: ["source.read"],
+          },
+        ],
+      },
+    },
+  };
+  assert.throws(() => resolveLinuxShards(manifest), /must declare a Linux job/);
+});
+
 test("shard declarations fail closed instead of silently running fewer jobs", () => {
   assert.throws(
     () => resolveLinuxShards(manifestWith({ matrix: { shard: ["a"], target: ["x64"] } })),
