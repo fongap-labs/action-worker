@@ -82,7 +82,10 @@ test("finalization waits for every Linux shard", () => {
 
 test("jobs that execute change code reference no central credential", () => {
   // The only sandbox secret is consumed by the trusted token-mint action; target code never receives it.
-  assert.deepEqual([...new Set(sandbox.match(/secrets\.[A-Za-z_]+/g))], ["secrets.app_private_key"]);
+  assert.deepEqual(
+    [...new Set(sandbox.match(/secrets\.[A-Za-z_]+/g))],
+    ["secrets.app_private_key"]
+  );
   assert.match(sandbox, /private-key: \$\{\{ secrets\.app_private_key \}\}/);
   assert.match(sandbox, /token: \$\{\{ steps\.private_read\.outputs\.token \}\}/);
   assert.match(sandbox, /token: \$\{\{ github\.token \}\}/);
