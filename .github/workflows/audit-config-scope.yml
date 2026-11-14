@@ -12,6 +12,8 @@ on:
       - policies/deploy-secrets.json
       - scripts/config-storage-audit.ts
       - scripts/config-security-classification.ts
+      - scripts/audit-privacy-coverage.ts
+      - policies/security.json
       - .github/workflows/audit-config-scope.yml
   schedule:
     - cron: "27 5 * * *"
@@ -47,6 +49,21 @@ jobs:
         env:
           AW_CONFIG_AUDIT_READ_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
         run: node scripts/config-storage-audit.ts
+      # Only metadata from the accessible GitHub App installation is inspected.
+      - name: Mint organization inventory read token
+        id: privacy_inventory
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          permission-contents: read
+
+      - name: Audit privacy governance coverage
+        env:
+          AW_INVENTORY_TOKEN: ${{ steps.privacy_inventory.outputs.token }}
+        run: node scripts/audit-privacy-coverage.ts
+
       - name: Record no-mutation audit result
         if: success()
         shell: bash
