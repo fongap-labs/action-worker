@@ -266,24 +266,20 @@ export async function readBaseChangelog(
   head: string,
   file: string,
   policy: Record<string, unknown>,
-  firstAdditionAllowed: boolean
+  isFirstAdditionAllowed: boolean
 ): Promise<string> {
-  const previous = await runText(
-    "git",
-    ["ls-tree", "-r", "--name-only", base, "--", file],
-    { cwd: root }
-  );
+  const previous = await runText("git", ["ls-tree", "-r", "--name-only", base, "--", file], {
+    cwd: root,
+  });
   if (previous.trim() === file) {
     return runText("git", ["show", `${base}:${file}`], { cwd: root });
   }
-  if (previous.trim() !== "" || !firstAdditionAllowed) {
+  if (previous.trim() !== "" || !isFirstAdditionAllowed) {
     throw new CliError("::error::The base CHANGELOG is missing or invalid.", 65);
   }
-  const change = await runText(
-    "git",
-    ["diff", "--name-status", base, head, "--", file],
-    { cwd: root }
-  );
+  const change = await runText("git", ["diff", "--name-status", base, head, "--", file], {
+    cwd: root,
+  });
   if (change.trim() !== `A\t${file}`) {
     throw new CliError("::error::First CHANGELOG must be added as a new file.", 65);
   }
@@ -306,14 +302,7 @@ async function assertReleasePullRequest(
   if (changedPaths.some((path) => path !== changelogFile)) {
     throw new CliError("::error::A release PR may modify only CHANGELOG.md.", 65);
   }
-  const baseChangelog = await readBaseChangelog(
-    root,
-    base,
-    base,
-    changelogFile,
-    policy,
-    false
-  );
+  const baseChangelog = await readBaseChangelog(root, base, base, changelogFile, policy, false);
   const headChangelog = await readFile(join(root, changelogFile), "utf8");
   assertPolicyChangelogHeadings(baseChangelog, policy);
   assertPolicyChangelogHeadings(headChangelog, policy);
@@ -462,14 +451,7 @@ export async function validateChange(
   }
   let entries: string[] = [];
   if (changedPaths.includes(changelogFile)) {
-    const baseChangelog = await readBaseChangelog(
-      root,
-      base,
-      head,
-      changelogFile,
-      value,
-      true
-    );
+    const baseChangelog = await readBaseChangelog(root, base, head, changelogFile, value, true);
     const headChangelog = await readFile(join(root, changelogFile), "utf8");
     assertPolicyChangelogHeadings(baseChangelog, value);
     assertPolicyChangelogHeadings(headChangelog, value);
