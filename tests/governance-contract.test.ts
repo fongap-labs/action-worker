@@ -406,7 +406,8 @@ test("runtime and machine policies preserve trust boundaries", async () => {
   assert.equal(ciPolicy.timeout_minutes, 120);
 
   const security = await json("policies/security.json");
-  assert.equal(security.schema_version, 2);
+  assert.equal(security.schema_version, 3);
+  assert.ok(Array.isArray(security.privacy_patterns) && security.privacy_patterns.length > 0);
   assert.equal(security.require_pinned_actions, true);
   assert.ok(Array.isArray(security.secret_patterns));
   assert.ok(Array.isArray(security.workflow_forbidden_patterns));
