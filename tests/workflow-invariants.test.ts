@@ -16,6 +16,7 @@ type Job = {
   permissions?: Record<string, unknown>;
   steps?: Step[];
   secrets?: unknown;
+  with?: Record<string, unknown>;
   uses?: string;
   if?: string;
   concurrency?: Record<string, unknown>;
@@ -124,8 +125,8 @@ test("the CI sandbox references only the App key used to mint a scoped read toke
   const sandbox = await workflow("central-ci-sandbox.yml");
   assert.deepEqual([...new Set(secretNames(sandbox))], ["app_private_key"]);
   assert.equal(usesWholeSecretsContext(sandbox), false);
-  assert.ok(sandbox.includes("actions/create-github-app-token@"));
-  assert.ok(sandbox.includes("permission-contents: read"));
+  assert.ok(JSON.stringify(sandbox).includes("actions/create-github-app-token@"));
+  assert.ok(JSON.stringify(sandbox).includes("permission-contents: read"));
 });
 
 test("the CI dispatch hands the sandbox the App key only for private targets", async () => {
