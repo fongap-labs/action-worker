@@ -35,6 +35,7 @@ const chineseDisplayNames: Record<string, string> = {
   "cancel-pr-work.yml": "自动 · PR 清理",
   "apply-repository-settings.yml": "自动 · 仓库设置",
   "audit-config-scope.yml": "自动 · 组织配置作用域审计",
+  "audit-security-coverage.yml": "自动 · 隐私安全覆盖审计",
   "enroll-organization-repositories.yml": "自动 · 组织仓库接入",
   "publication-key-verify.yml": "自动 · 发布密钥预检",
   "prune-stale-state.yml": "自动 · 状态清理",
