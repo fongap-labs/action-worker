@@ -303,7 +303,7 @@ export async function readBaseChangelog(
   if (added.trim() !== changelogFile) {
     throw new CliError("::error::CHANGELOG.md must be an added file or exist on the base branch.", 65);
   }
-  return "# 更新日志\\n\\n## [Unreleased]\\n";
+  return "# 更新日志\n\n## [Unreleased]\n";
 }
 
 export async function validateChange(
