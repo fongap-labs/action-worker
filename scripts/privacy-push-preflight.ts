@@ -102,10 +102,12 @@ export async function checkPushRefUpdates(
   }
   return {
     checked_commits: seen.size,
-    violations: [...counts].sort(([a], [b]) => a.localeCompare(b)).map(([rule, count]) => ({
-      rule,
-      count,
-    })),
+    violations: [...counts]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([rule, count]) => ({
+        rule,
+        count,
+      })),
   };
 }
 
