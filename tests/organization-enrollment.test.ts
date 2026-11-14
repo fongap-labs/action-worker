@@ -44,7 +44,7 @@ test("new App-visible repositories get only PR, never task, release, or deploy",
   assert.equal(safeOnboardingOnly(policy, next, [repo("new-service"), repo("another")]), true);
 });
 
-test("legacy, archived, disabled, fork, and non-main repositories are not automatically granted", () => {
+test("all active main repositories are enrolled regardless of age; explicit exclusions remain respected", () => {
   const result = planOnboarding(policy, [
     repo("delta-legacy"),
     repo("old", { created_at: "2026-11-06T00:00:00Z" }),
@@ -54,7 +54,12 @@ test("legacy, archived, disabled, fork, and non-main repositories are not automa
     repo("master", { default_branch: "master" }),
     repo("missing-created", { created_at: "" }),
   ]);
-  assert.deepEqual(result.grants, policy.grants);
+  assert.deepEqual(result.grants["fongap-labs/old"], ["pr"]);
+  assert.deepEqual(result.grants["fongap-labs/missing-created"], ["pr"]);
+  assert.equal(result.grants["fongap-labs/delta-legacy"], undefined);
+  for (const name of ["archive", "disabled", "fork", "master"]) {
+    assert.equal(result.grants["fongap-labs/" + name], undefined);
+  }
 });
 
 test("untrusted inventory and unexpected privilege changes fail closed", () => {

@@ -7,6 +7,7 @@ export type InventoryRepo = {
   private: boolean;
   archived: boolean;
   disabled?: boolean;
+  default_branch?: string;
 };
 
 type AccessPolicy = {
@@ -144,6 +145,8 @@ export async function readInstallationInventory(
         private: item.private,
         archived: item.archived,
         disabled: item.disabled === true,
+        default_branch:
+          typeof item.default_branch === "string" ? item.default_branch : undefined,
       });
     }
     if (inventory.length === total) return inventory;
@@ -289,11 +292,7 @@ async function main(): Promise<void> {
       "::warning::Some repositories are excluded or depend on polling; real-time coverage is incomplete."
     );
   }
-  if (
-    result.missing_policy_count > 0 ||
-    result.missing_bridge_count > 0 ||
-    result.unverified_count > 0
-  ) {
+  if (!result.complete) {
     throw new CliError("Security coverage audit found uncovered or unverified repositories.", 1);
   }
 }
