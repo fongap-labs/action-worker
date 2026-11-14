@@ -124,13 +124,13 @@ try {
   const response = await worker.fetch(request, env, {});
   const body = await response.json();
   assert.equal(response.status, 503, 'all-transient compatible family exhaustion must remain retryable');
-  assert.match(body?.error?.message || '', /Transient failures exhausted the compatible-model failover plan/i);
-  assert.doesNotMatch(body?.error?.message || '', /Compatible model capacity is temporarily unavailable/i);
-  assert.doesNotMatch(body?.error?.message || '', /All attempted nodes failed/i);
+  assert.match(body?.error?.message || '', /^503 \| Code-Ultra temporarily unavailable after 3 attempts; retry after \d+s\.$/);
+  assert.doesNotMatch(body?.error?.message || '', /All attempted nodes failed|compatible-model failover plan/i);
   assert.equal(response.headers.get('x-should-retry'), null);
   const retryAfter = Number(response.headers.get('retry-after'));
   assert.ok(Number.isFinite(retryAfter) && retryAfter >= 25 && retryAfter <= 30);
-  assert.equal(body?.error?.details?.failure_kinds?.rate_limit, 3);
+  assert.equal(response.headers.get('x-gateway-failure-kinds'), 'rate_limit:3');
+  assert.equal(body?.error?.details?.failure_kinds, undefined, 'internal failover telemetry must not leak into brief client errors');
   assert.deepEqual(
     calls.map((c) => c.model),
     ['up-code-ultra', 'up-code-max', 'up-code-pro'],
@@ -315,7 +315,7 @@ try {
   const collapsed = await worker.fetch(request(), envFor([oneDomain]), {});
   assert.equal(collapsed.status, 503);
   const collapsedBody = await collapsed.json();
-  assert.match(collapsedBody?.error?.message || '', /compatible-model failover plan/i);
+  assert.match(collapsedBody?.error?.message || '', /^503 \| Code-Max temporarily unavailable after [12] attempts?; retry after \d+s\.$/);
   assert.equal(collapsed.headers.get('x-gateway-error-code'), 'gateway_attempt_budget_exhausted');
   // A spent physical failure domain is attempted once in strict mode.
   // Legacy only allows its single last-resort re-dispatch.
@@ -475,9 +475,10 @@ try {
 
     const body = await response.json();
     assert.equal(body.type, 'error');
-    assert.equal(body.error.message, 'Configured protocol fallback cannot represent this request.');
-    assert.equal(body.error.details.failure_kind, 'conversion_not_supported');
-    assert.equal(body.error.details.dispatches, 0);
+    assert.equal(body.error.message, '502 | Configured protocol fallback cannot represent this request.');
+    assert.equal(body.error.details.gateway_code, 'gateway_conversion_not_supported');
+    assert.equal(response.headers.get('x-gateway-failure-kinds'), 'conversion_not_supported:1');
+    assert.equal(response.headers.get('x-gateway-dispatches'), '0');
 
     const recordLine = logs.find((line) => line.includes('fallback_conversion_skipped'));
     assert.ok(recordLine, 'conversion rejection must emit a searchable diagnostic');
