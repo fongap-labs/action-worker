@@ -21,13 +21,17 @@ test("private source security runs in caller context with read-only permissions"
   assert.ok(workflow.on.workflow_call);
   assert.equal(workflow.permissions.contents, "read");
   const steps = workflow.jobs.security.steps;
-  const verify = steps.find((step) => step.name === "Verify caller and immutable pull request identity");
+  const verify = steps.find(
+    (step) => step.name === "Verify caller and immutable pull request identity"
+  );
   assert.ok(verify);
   assert.match(verify.run ?? "", /REQUESTED_HEAD.*EVENT_HEAD/);
   assert.match(verify.run ?? "", /REQUESTED_BASE.*EVENT_BASE/);
   assert.match(verify.run ?? "", /SOURCE_REPOSITORY/);
   assert.match(verify.run ?? "", /IS_PRIVATE/);
-  const sourceCheckout = steps.find((step) => step.name === "Checkout private caller source at pinned head");
+  const sourceCheckout = steps.find(
+    (step) => step.name === "Checkout private caller source at pinned head"
+  );
   assert.ok(sourceCheckout);
   assert.equal(sourceCheckout.with?.ref, "${{ inputs.head_sha }}");
   assert.equal(sourceCheckout.with?.["persist-credentials"], false);
