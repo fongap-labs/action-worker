@@ -115,7 +115,10 @@ export async function checkChangedNpmLocks(
 async function main(): Promise<void> {
   const [root = "", base = "", head = ""] = process.argv.slice(2);
   if (!root || !base || !head) {
-    throw new CliError("Usage: dependency-lock-integrity.ts <target-root> <base-sha> <head-sha>", 64);
+    throw new CliError(
+      "Usage: dependency-lock-integrity.ts <target-root> <base-sha> <head-sha>",
+      64
+    );
   }
   const findings = await checkChangedNpmLocks(root, base, head);
   for (const code of findings) {
