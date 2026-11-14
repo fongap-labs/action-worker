@@ -123,10 +123,7 @@ test("the pinned release and the workflow wiring are in place", async () => {
   assert.match(text, /createHash\("sha256"\)/);
   const workflow = await readFile(".github/workflows/central-ci-sandbox.yml", "utf8");
   assert.match(workflow, /node aw-security\/scripts\/central-secret-scan\.ts/);
-  assert.match(
-    workflow,
-    /AW_GITLEAKS_MODE: \$\{\{ vars\.AW_CENTRAL_GITLEAKS_MODE \|\| 'enforce' \}\}/
-  );
+  assert.match(workflow, /AW_GITLEAKS_MODE: enforce/);
 });
 
 test("findings are summarised by rule and annotated only for public targets", () => {
