@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { GithubReader, isGithubMissing, isJsonRecord } from "./github-api.ts";
-import { CliError, handleError, isMain } from "./runtime-command.ts";
+import { CliError, isMain } from "./runtime-command.ts";
 
 export type InventoryRepo = {
   full_name: string;
@@ -96,7 +96,9 @@ export function summarizeCoverage(
 
 type InventoryResponse = { total_count?: unknown; repositories?: unknown };
 
-export async function readInstallationInventory(reader: Pick<GithubReader, "get">): Promise<InventoryRepo[]> {
+export async function readInstallationInventory(
+  reader: Pick<GithubReader, "get">
+): Promise<InventoryRepo[]> {
   const inventory: InventoryRepo[] = [];
   let total = -1;
   for (let page = 1; page <= 100; page++) {
@@ -143,7 +145,10 @@ async function main(): Promise<void> {
   const currentRepository = process.env.GITHUB_REPOSITORY ?? "";
   const ref = process.env.GITHUB_REF ?? "";
   if (!token || !currentRepository || ref !== "refs/heads/main") {
-    throw new CliError("Security coverage audit requires the trusted main and an App read token.", 77);
+    throw new CliError(
+      "Security coverage audit requires the trusted main and an App read token.",
+      77
+    );
   }
   const raw = JSON.parse(await readFile("policies/repository-access.json", "utf8")) as unknown;
   if (
@@ -175,7 +180,9 @@ async function main(): Promise<void> {
       continue;
     }
     try {
-      await reader.get(`repos/${item.full_name}/contents/.github/workflows/notify-action-worker.yml`);
+      await reader.get(
+        `repos/${item.full_name}/contents/.github/workflows/notify-action-worker.yml`
+      );
       bridges.set(item.full_name, "present");
     } catch (error) {
       bridges.set(item.full_name, isGithubMissing(error) ? "absent" : "unknown");
