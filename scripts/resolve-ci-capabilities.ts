@@ -48,7 +48,18 @@ export function allowPrivateWindowsNumericDiagnostic(
 
 export function resolveLinuxShards(manifestValue: unknown): string[] {
   const manifest = parseExecutionManifest(manifestValue);
-  const job = manifest.operations.ci?.jobs.find((item) => item.id === "linux");
+  const jobs = manifest.operations.ci?.jobs ?? [];
+  // The current central dispatcher executes Linux and Windows sandboxes only.
+  // Declaring another CI job must never be accepted as evidence that it ran.
+  for (const job of jobs) {
+    if (job.id !== "linux" && job.id !== "windows") {
+      throw new CliError(`CI job "${job.id}" is declared but not scheduled by Central CI.`, 65);
+    }
+  }
+  if (jobs.length > 0 && !jobs.some((item) => item.id === "linux")) {
+    throw new CliError("CI manifest must declare a Linux job.", 65);
+  }
+  const job = jobs.find((item) => item.id === "linux");
   const matrix = job?.matrix;
   if (!matrix) {
     return [unshardedLinuxCi];
