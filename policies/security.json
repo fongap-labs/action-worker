@@ -6,7 +6,14 @@
     "(^|/)\\.env\\.(?:local|production|prod|staging|stage|development|dev)$",
     "(^|/)(?:id_rsa|id_ed25519)$",
     "\\.(?:pem|p12|pfx|key)$",
-    "(^|/)(?:credentials?|secrets?)\\.json$"
+    "(^|/)(?:credentials?|secrets?)\\.json$",
+    "(^|/)\\.ssh/(?:config|known_hosts|authorized_keys)$",
+    "(^|/)\\.aws/(?:credentials|config)$",
+    "(^|/)\\.kube/config$",
+    "(^|/)\\.docker/config\\.json$",
+    "(^|/)\\.(?:npmrc|pypirc|netrc|git-credentials)$",
+    "(^|/)\\.config/(?:gh/hosts\\.yml|gcloud/(?:credentials\\.db|application_default_credentials\\.json))$",
+    "(^|/)(?:AppData/Roaming|Library/Keychains)(?:/|$)"
   ],
   "secret_patterns": [
     {
