@@ -126,20 +126,22 @@ test("a secret allowance without a reason is rejected as an invalid policy", asy
   await assert.rejects(() => scan(context, "src/a.txt", "plain\n", broken));
 });
 
-
 test("privacy patterns reject personal addresses and local home paths without capturing values", async (context) => {
   const email = ["developer", "example.invalid"].join("@");
   const unixHome = ["", "home", "developer", "settings.json"].join("/");
   const macHome = ["", "Users", "developer", "Documents", "notes.txt"].join("/");
   const windowsHome = ["C:", "Users", "developer", "Desktop", "notes.txt"].join("\\");
-  for (const [name, value] of ([
+  for (const [name, value] of [
     ["email-address", email],
     ["unix-home-path", unixHome],
     ["unix-home-path", macHome],
     ["windows-home-path", windowsHome],
-  ] as Array<[string, string]>)) {
+  ] as Array<[string, string]>) {
     const findings = await scan(context, "src/change.txt", `content: ${value}\n`);
-    assert.ok(findings.some((v) => v.rule === `privacy-${name}`), name);
+    assert.ok(
+      findings.some((v) => v.rule === `privacy-${name}`),
+      name
+    );
     assert.equal(JSON.stringify(findings).includes(value), false);
   }
 });
@@ -156,8 +158,13 @@ test("privacy policies are mandatory and cannot be disabled by an empty ruleset"
 
 test("ordinary relative paths and public project links do not count as local private data", async (context) => {
   const findings = await scan(
-    context, "src/config.txt",
-    ["src/core/runtime.ts", "https://github.com/fongap-labs/action-worker", "tests/fixtures/data.json"].join("\n") + "\n"
+    context,
+    "src/config.txt",
+    [
+      "src/core/runtime.ts",
+      "https://github.com/fongap-labs/action-worker",
+      "tests/fixtures/data.json",
+    ].join("\n") + "\n"
   );
   assert.deepEqual(findings, []);
 });
