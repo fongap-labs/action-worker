@@ -59,7 +59,9 @@ test("security coverage refuses missing protected CI bridge and unknown reads", 
 });
 
 test("security coverage rejects duplicate inventory identities", () => {
-  assert.throws(() => summarizeCoverage([repos[0]!, repos[0]!], policy, new Map(), "test-org/control"));
+  assert.throws(() =>
+    summarizeCoverage([repos[0]!, repos[0]!], policy, new Map(), "test-org/control")
+  );
 });
 
 test("controller is self-checked and protected polling is not overstated as full coverage", () => {
@@ -72,11 +74,7 @@ test("controller is self-checked and protected polling is not overstated as full
     },
   };
   const result = summarizeCoverage(
-    [
-      { full_name: "test-org/control", private: false, archived: false },
-      repos[0]!,
-      repos[1]!,
-    ],
+    [{ full_name: "test-org/control", private: false, archived: false }, repos[0]!, repos[1]!],
     policyAll,
     new Map([
       ["test-org/public", "protected-polling"],
@@ -106,13 +104,15 @@ test("a polling fallback accepts only an active strict main ruleset with no bypa
     enforcement: "active",
     bypass_actors: [],
     conditions: { ref_name: { include: ["refs/heads/main"], exclude: [] } },
-    rules: [{
-      type: "required_status_checks",
-      parameters: {
-        strict_required_status_checks_policy: true,
-        required_status_checks: [{ context: "validate-merge" }],
+    rules: [
+      {
+        type: "required_status_checks",
+        parameters: {
+          strict_required_status_checks_policy: true,
+          required_status_checks: [{ context: "validate-merge" }],
+        },
       },
-    }],
+    ],
   };
   assert.equal(hasProtectedMainGate(rule, "validate-merge"), true);
   assert.equal(hasProtectedMainGate({ ...rule, bypass_actors: [{}] }, "validate-merge"), false);
@@ -121,9 +121,20 @@ test("a polling fallback accepts only an active strict main ruleset with no bypa
     get: async (path: string): Promise<unknown> =>
       path.includes("/rulesets/123") ? rule : [{ id: 123 }],
   };
-  assert.equal(await readProtectedPolling(reader, "test-org/public", "validate-merge"), "protected-polling");
   assert.equal(
-    await readProtectedPolling({ get: async () => { throw new Error("unavailable"); } }, "test-org/public", "validate-merge"),
+    await readProtectedPolling(reader, "test-org/public", "validate-merge"),
+    "protected-polling"
+  );
+  assert.equal(
+    await readProtectedPolling(
+      {
+        get: async () => {
+          throw new Error("unavailable");
+        },
+      },
+      "test-org/public",
+      "validate-merge"
+    ),
     "unknown"
   );
 });
