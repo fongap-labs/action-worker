@@ -3,10 +3,10 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { addedUnreleasedEntries, readBaseChangelog } from "../scripts/validate-change-record.ts";
 import { runText } from "../scripts/runtime-command.ts";
+import { addedUnreleasedEntries, readBaseChangelog } from "../scripts/validate-change-record.ts";
 
-const policy = { changelog_heading: "# 更新日志", unreleased_heading: "## [Unreleased]" };
+const policy = { changelog_heading: "# \u66f4\u65b0\u65e5\u5fd7", unreleased_heading: "## [Unreleased]" };
 
 test("first added changelog preserves policy checks and forbids release baselines", async (context) => {
   const root = await mkdtemp(join(tmpdir(), "changelog-first-"));
@@ -22,13 +22,13 @@ test("first added changelog preserves policy checks and forbids release baseline
   await runText("git", ["add", "."], { cwd: root });
   await runText("git", ["commit", "-qm", "base"], { cwd: root });
   const base = await runText("git", ["rev-parse", "HEAD"], { cwd: root });
-  const headContent = "# 更新日志\n\n## [Unreleased]\n\n- 修复: 首次建立规范变更记录\n";
+  const headContent = "# \u66f4\u65b0\u65e5\u5fd7\n\n## [Unreleased]\n\n- \u4fee\u590d: \u9996\u6b21\u5efa\u7acb\u89c4\u8303\u53d8\u66f4\u8bb0\u5f55\n";
   await writeFile(join(root, "CHANGELOG.md"), headContent);
   await runText("git", ["add", "."], { cwd: root });
   await runText("git", ["commit", "-qm", "add changelog"], { cwd: root });
   const head = await runText("git", ["rev-parse", "HEAD"], { cwd: root });
   const baseline = await readBaseChangelog(root, base, head, "CHANGELOG.md", policy, true);
-  assert.deepEqual(addedUnreleasedEntries(baseline, headContent), ["- 修复: 首次建立规范变更记录"]);
+  assert.deepEqual(addedUnreleasedEntries(baseline, headContent), ["- \u4fee\u590d: \u9996\u6b21\u5efa\u7acb\u89c4\u8303\u53d8\u66f4\u8bb0\u5f55"]);
   await assert.rejects(readBaseChangelog(root, base, head, "CHANGELOG.md", policy, false));
   await assert.rejects(readBaseChangelog(root, base, base, "CHANGELOG.md", policy, true));
   await assert.rejects(readBaseChangelog(root, base, head, "CHANGELOG.md", {}, true));
