@@ -353,6 +353,30 @@ jobs:
           fi
           node "$script" --target "$RELEASE_TARGET" --version "$RELEASE_VERSION" --output-dir "$RELEASE_OUTPUT_DIR"
 
+      # The first artifact upload must not happen before the privacy check.
+      # Trusted scanner and policy are checked out AFTER untrusted product scripts complete.
+      # This runner has only source read access; no release/attestation publishing token.
+      - name: Checkout trusted release privacy scanner
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          path: aw-release-privacy
+          persist-credentials: false
+
+      - name: Setup release privacy scanner Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Enforce build asset privacy before first upload
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          python "$GITHUB_WORKSPACE/aw-release-privacy/scripts/artifact-privacy-scan.py" \
+            "$RUNNER_TEMP/release-build" \
+            "$GITHUB_WORKSPACE/aw-release-privacy/policies/security.json"
+
       - name: Upload build assets
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
