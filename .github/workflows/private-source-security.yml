@@ -1,0 +1,94 @@
+name: Private source security sandbox
+
+# This reusable workflow executes in the CALLER's private Actions context.
+# No central App or deployment credential is passed into the untrusted source job.
+on:
+  workflow_call:
+    inputs:
+      base_sha:
+        required: true
+        type: string
+      head_sha:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  security:
+    name: Private source security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Verify caller and immutable pull request identity
+        env:
+          IS_PRIVATE: ${{ github.event.repository.private }}
+          EVENT: ${{ github.event_name }}
+          TARGET_REPOSITORY: ${{ github.repository }}
+          SOURCE_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+          REQUESTED_HEAD: ${{ inputs.head_sha }}
+          REQUESTED_BASE: ${{ inputs.base_sha }}
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
+          EVENT_BASE: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          [[ "$IS_PRIVATE" == "true" && "$EVENT" == "pull_request" ]] || exit 77
+          [[ "$TARGET_REPOSITORY" == "$SOURCE_REPOSITORY" ]] || exit 77
+          [[ "$REQUESTED_HEAD" =~ ^[0-9a-f]{40}$ ]] || exit 65
+          [[ "$REQUESTED_BASE" =~ ^[0-9a-f]{40}$ ]] || exit 65
+          [[ "$REQUESTED_HEAD" == "$EVENT_HEAD" ]] || exit 75
+          [[ "$REQUESTED_BASE" == "$EVENT_BASE" ]] || exit 75
+
+      - name: Checkout private caller source at pinned head
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+          path: source
+
+      - name: Checkout central security rules
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fongap-labs/action-worker
+          ref: main
+          fetch-depth: 1
+          persist-credentials: false
+          path: control
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Check pinned source revision
+        env:
+          EXPECTED_HEAD: ${{ inputs.head_sha }}
+        run: |
+          set -Eeuo pipefail
+          test "$(git -C source rev-parse HEAD)" = "$EXPECTED_HEAD"
+
+      - name: Enforce central privacy and workflow policy
+        env:
+          BASE_SHA: ${{ inputs.base_sha }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          TARGET_PRIVATE: "true"
+        run: |
+          set -Eeuo pipefail
+          node control/scripts/validate-security.ts \
+            "$BASE_SHA" "$HEAD_SHA" \
+            "$GITHUB_WORKSPACE/source" "$GITHUB_WORKSPACE/control/policies/security.json"
+
+      - name: Enforce pinned Gitleaks scanner
+        env:
+          BASE_SHA: ${{ inputs.base_sha }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+          TARGET_PRIVATE: "true"
+          AW_GITLEAKS_MODE: enforce
+        run: |
+          set -Eeuo pipefail
+          node control/scripts/central-secret-scan.ts \
+            "$GITHUB_WORKSPACE/source" "$BASE_SHA" "$HEAD_SHA"
