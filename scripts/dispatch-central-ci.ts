@@ -2,8 +2,8 @@ import { hasVerifiedCiEvidence, latestCiStatus } from "./ci-evidence.ts";
 import {
   decideCiFailureRetry,
   hasActiveCiEvidenceReservation,
-  hasUnresolvedCiEvidenceFailure,
   hasStaleCiEvidenceFailure,
+  hasUnresolvedCiEvidenceFailure,
 } from "./ci-failure-budget.ts";
 import { requireToken } from "./control-token.ts";
 import { githubEnvironment, isJsonRecord, runGithubCli, statusAwareReader } from "./github-api.ts";
