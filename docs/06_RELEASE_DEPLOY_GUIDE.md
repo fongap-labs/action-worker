@@ -6,13 +6,13 @@
 
 受管业务仓库的部署仍只由一套 Action Worker 控制面处理；控制面使用可信的 `main` 版本，不因 Beta 需求而启动第二套调度器。
 
-部署清单 schema 2 的环境可选填 `source_branch`（`main` 或 `dev`），不填时默认为 `main`。`beta` 环境必须显式声明 `source_branch: "dev"`，其他环境不得声明 `dev`。schema 1 与既有生产部署的行为保持不变。
+部署清单 schema 2 的环境可选填 `source_branch`（`main` 或 `dev`），不填时默认为 `main`。以 `-beta` 结尾的独立测试环境必须显式声明 `source_branch: "dev"`，其他环境不得声明 `dev`；不能使用单一 `beta` 环境名，因为各产品部署凭据环境在中央策略中要求唯一。schema 1 与既有生产部署的行为保持不变。
 
 ```json
 {
   "environments": {
     "production": { "triggers": { "push": true } },
-    "beta": {
+    "ai-gateway-beta": {
       "source_branch": "dev",
       "triggers": { "push": true }
     }
