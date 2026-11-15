@@ -232,8 +232,8 @@ function parseSchemaTwo(value: Record<string, unknown>): DeployManifestV2 {
       (environment.source_branch !== undefined &&
         environment.source_branch !== "main" &&
         environment.source_branch !== "dev") ||
-      (name === "beta" && environment.source_branch !== "dev") ||
-      (environment.source_branch === "dev" && name !== "beta")
+      (name.endsWith("-beta") && environment.source_branch !== "dev") ||
+      (environment.source_branch === "dev" && !name.endsWith("-beta"))
     ) {
       throw new CliError(`Deploy source branch is invalid for environment ${name}.`, 65);
     }
