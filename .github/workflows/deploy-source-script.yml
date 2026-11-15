@@ -152,6 +152,11 @@ jobs:
           set -Eeuo pipefail
           # Names the offending input and the allowed repositories instead of exiting silently.
           node scripts/repository-policy.ts validate "$SOURCE_REPOSITORY" deploy
+          # Beta must never fall back to the default main HEAD.
+          if [[ "$SOURCE_ENVIRONMENT" == *-beta && -z "$SOURCE_SHA" ]]; then
+            echo "::error::Beta requires an explicit immutable 40-character dev HEAD SHA." >&2
+            exit 64
+          fi
           if [ -z "$SOURCE_SHA" ]; then
             # Git transport avoids consuming the shared personal PAT REST quota. The existing
             # short-lived repository-scoped App read credential supports private source repositories too.
@@ -222,6 +227,9 @@ jobs:
       # scripts/dispatch-central-deploy.ts). The validation stays the authority and reports an
       # untrusted write.
       - name: Request central CI for the source
+        # Production continues its main CI and write audit; Beta uses its
+        # independent signed dev merged-PR source gate below.
+        if: ${{ !endsWith(github.event.client_payload.environment || inputs.environment || '', '-beta') }}
         env:
           AW_CONTROL_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.ci_status_app.outputs.token }}
@@ -258,6 +266,7 @@ jobs:
           permission-issues: write
 
       - name: Attest the source main write
+        if: ${{ !endsWith(github.event.client_payload.environment || inputs.environment || '', '-beta') }}
         env:
           AW_CONTROL_TOKEN: ${{ steps.app_read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.audit_status_app.outputs.token }}
