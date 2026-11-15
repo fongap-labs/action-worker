@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: Beta 手动部署强制明确提供 dev HEAD SHA，不再触发无关的 main CI 请求、main 写入审计和专用 App token 获取；生产部署流程保持不变。
+
 - 修复: AI Gateway 中央 CI 测试包严格兼容正式单环境旧清单与独立 dev Beta 新清单，保留生产停用开关的真实脚本断言和无自动部署限制。
 
 - 修复: 私有 Server Edge 发布合同同时严格接受旧 production-only 清单与新增 dev-bound 手动 Beta 声明，仍拒绝任何额外环境、自动触发或生产目标重命名。
