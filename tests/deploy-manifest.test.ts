@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   parseDeployManifest,
+  parseDeployEnvironmentPolicy,
   parseDeployPlan,
   resolveDeployManifest,
   toDeployPlan,
@@ -291,6 +292,30 @@ test("schema 2 rejects malformed manifests", () => {
   for (const value of invalid) {
     assert.throws(() => parseDeployManifest(value), Error, JSON.stringify(value));
   }
+});
+
+test("multiple products can use separate beta environment names without a shared owner", () => {
+  const valid = parseDeployEnvironmentPolicy({
+    schema_version: 1,
+    repositories: {
+      "fongap-labs/ai-gateway": ["production", "ai-gateway-beta"],
+      "fongap-labs/mcp-hub": ["production", "mcp-hub-beta"],
+      "fongap-labs/internal-vault/FongapCDN": ["production", "fongapcdn-beta"],
+      "fongap-labs/internal-vault/server-edge": ["production", "server-edge-beta"],
+    },
+  });
+  assert.deepEqual(valid["fongap-labs/mcp-hub"], ["production", "mcp-hub-beta"]);
+  assert.throws(
+    () =>
+      parseDeployEnvironmentPolicy({
+        schema_version: 1,
+        repositories: {
+          "fongap-labs/ai-gateway": ["production", "shared-beta"],
+          "fongap-labs/mcp-hub": ["production", "shared-beta"],
+        },
+      }),
+    /belongs to one key/
+  );
 });
 
 test("a product's manifest is read from its own directory and names its environment", async () => {
