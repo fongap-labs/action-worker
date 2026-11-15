@@ -199,7 +199,7 @@ test("schema 1 keeps its meaning: automatic is a push on the whole repository, a
   assert.equal(automatic.schema_version, "1");
   assert.equal(automatic.root, "");
   assert.deepEqual(automatic.environments, [
-    { environment: "production", push_paths: ["**"], schedule: [], declares_triggers: false },
+    { environment: "production", source_branch: "main", push_paths: ["**"], schedule: [], declares_triggers: false },
   ]);
 
   const manual = toDeployPlan(parseDeployManifest({ ...schemaOne, automatic: false }));
@@ -212,17 +212,19 @@ test("schema 2 converts each environment's triggers into path patterns", () => {
   assert.deepEqual(plan.environments, [
     {
       environment: "production",
+      source_branch: "main",
       push_paths: ["projects/alpha/**"],
       schedule: [],
       declares_triggers: true,
     },
     {
       environment: "staging",
+      source_branch: "main",
       push_paths: ["projects/alpha/**", "shared/lib/**"],
       schedule: ["0 3 * * *"],
       declares_triggers: true,
     },
-    { environment: "manual", push_paths: null, schedule: [], declares_triggers: false },
+    { environment: "manual", source_branch: "main", push_paths: null, schedule: [], declares_triggers: false },
   ]);
 
   const rootPlan = toDeployPlan(
@@ -233,6 +235,22 @@ test("schema 2 converts each environment's triggers into path patterns", () => {
     })
   );
   assert.deepEqual(rootPlan.environments[0]?.push_paths, ["**"]);
+});
+
+
+test("schema 2 requires explicit dev binding for beta and leaves old targets on main", () => {
+  const plan = toDeployPlan(
+    parseDeployManifest({
+      ...schemaTwo,
+      environments: {
+        production: { triggers: { push: true } },
+        beta: { source_branch: "dev", triggers: { push: true } },
+      },
+    })
+  );
+  assert.equal(plan.environments[0]?.source_branch, "main");
+  assert.equal(plan.environments[1]?.source_branch, "dev");
+  assert.equal(plan.environments[1]?.environment, "beta");
 });
 
 test("schema 2 rejects malformed manifests", () => {
@@ -252,6 +270,10 @@ test("schema 2 rejects malformed manifests", () => {
     withEnvironments({ production: { triggers: { push: { paths: ["../x/**"] } } } }),
     withEnvironments({ production: { triggers: { schedule: ["not a cron"] } } }),
     withEnvironments({ production: { triggers: { push: true }, automatic: true } }),
+    withEnvironments({ beta: { triggers: { push: true } } }),
+    withEnvironments({ beta: { source_branch: "main", triggers: { push: true } } }),
+    withEnvironments({ production: { source_branch: "dev", triggers: { push: true } } }),
+    withEnvironments({ staging: { source_branch: "feature", triggers: { push: true } } }),
   ];
   for (const value of invalid) {
     assert.throws(() => parseDeployManifest(value), Error, JSON.stringify(value));
