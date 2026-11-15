@@ -106,13 +106,15 @@ export async function assertTrustedDevSource(
     if (!signed || !originalStatusDescription(signed).startsWith(expectedTitleHash)) {
       throw new CliError(`Beta source ${context} was not verified for the current PR title.`, 77);
     }
-    if (!(await hasVerifiedControlStatus(reader, status, context, {
-      controlRepository,
-      targetRepository: repository,
-      targetSha: headSha,
-      workflowPaths: prGateWorkflowPaths,
-      runAttempts: 1,
-    }))) {
+    if (
+      !(await hasVerifiedControlStatus(reader, status, context, {
+        controlRepository,
+        targetRepository: repository,
+        targetSha: headSha,
+        workflowPaths: prGateWorkflowPaths,
+        runAttempts: 1,
+      }))
+    ) {
       throw new CliError(`Beta source has no verified ${context} on merged PR head.`, 77);
     }
   }
