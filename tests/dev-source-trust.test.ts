@@ -122,6 +122,10 @@ test("dev Beta gate rejects stale SHA, direct pushes, wrong PR base or wrong tit
     assertTrustedDevSource(readerFor({ pr: { ...validPr, title: "other PR title" } }), repo, sha)
   );
   await assert.rejects(
-    assertTrustedDevSource(readerFor({ associated: [{ ...validPr, base: { ref: "main" } }] }), repo, sha)
+    assertTrustedDevSource(
+      readerFor({ associated: [{ ...validPr, base: { ref: "main" } }] }),
+      repo,
+      sha
+    )
   );
 });
