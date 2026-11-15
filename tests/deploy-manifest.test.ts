@@ -255,13 +255,13 @@ test("schema 2 requires explicit dev binding for beta and leaves old targets on 
       ...schemaTwo,
       environments: {
         production: { triggers: { push: true } },
-        beta: { source_branch: "dev", triggers: { push: true } },
+        "alpha-beta": { source_branch: "dev", triggers: { push: true } },
       },
     })
   );
   assert.equal(plan.environments[0]?.source_branch, "main");
   assert.equal(plan.environments[1]?.source_branch, "dev");
-  assert.equal(plan.environments[1]?.environment, "beta");
+  assert.equal(plan.environments[1]?.environment, "alpha-beta");
 });
 
 test("schema 2 rejects malformed manifests", () => {
@@ -281,9 +281,11 @@ test("schema 2 rejects malformed manifests", () => {
     withEnvironments({ production: { triggers: { push: { paths: ["../x/**"] } } } }),
     withEnvironments({ production: { triggers: { schedule: ["not a cron"] } } }),
     withEnvironments({ production: { triggers: { push: true }, automatic: true } }),
-    withEnvironments({ beta: { triggers: { push: true } } }),
-    withEnvironments({ beta: { source_branch: "main", triggers: { push: true } } }),
+    withEnvironments({ "alpha-beta": { triggers: { push: true } } }),
+    withEnvironments({ "alpha-beta": { source_branch: "main", triggers: { push: true } } }),
     withEnvironments({ production: { source_branch: "dev", triggers: { push: true } } }),
+    withEnvironments({ beta: { source_branch: "dev", triggers: { push: true } } }),
+    withEnvironments({ "alpha-preview": { source_branch: "dev", triggers: { push: true } } }),
     withEnvironments({ staging: { source_branch: "feature", triggers: { push: true } } }),
   ];
   for (const value of invalid) {
