@@ -50,6 +50,31 @@ const mcpHubPublicVariableNames = [
   "MCP_CRYPTO_SECRET_SYNC",
 ];
 
+// An explicitly named, environment-scoped public-variable bundle is required for Beta.
+// Never inherit the entire control repository Variables object or MCP production
+// variable slots, which can contain production URLs, D1 IDs and service bindings.
+export function scopedBetaPublicVariables(raw: string): Record<string, string> {
+  if (!raw || raw.length > 16_384) {
+    throw new CliError("Beta public Variables bundle is missing or exceeds 16 KiB.", 77);
+  }
+  const value = parseJson(raw, "Beta public Variables bundle must be valid JSON.", 65);
+  if (!isJsonRecord(value) || Object.keys(value).length > 100) {
+    throw new CliError("Beta public Variables bundle must be a bounded JSON object.", 65);
+  }
+  const entries = variableEntries(value);
+  for (const [name] of entries) {
+    if (
+      isReserved(name) ||
+      name.startsWith("AW_") ||
+      /(?:^|_)(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIALS|KEYRING|JWK)(?:$|_)/.test(name) ||
+      typeof value[name] !== "string"
+    ) {
+      throw new CliError(`Beta public Variable is not an approved public string: ${name}.`, 77);
+    }
+  }
+  return Object.fromEntries(entries);
+}
+
 export function scopedMcpHubVariables(environment: NodeJS.ProcessEnv): Record<string, string> {
   const result: Record<string, string> = {};
   for (const name of mcpHubPublicVariableNames) {
@@ -119,8 +144,10 @@ async function main(): Promise<void> {
   if (!githubEnv) {
     throw new CliError("::error::GITHUB_ENV is not set.");
   }
-  const value =
-    process.env.DEPLOY_SOURCE_REPOSITORY === "fongap-labs/mcp-hub"
+  const isBeta = (process.env.DEPLOY_ENVIRONMENT ?? "").endsWith("-beta");
+  const value = isBeta
+    ? scopedBetaPublicVariables(process.env.AW_BETA_PUBLIC_VARIABLES_JSON ?? "")
+    : process.env.DEPLOY_SOURCE_REPOSITORY === "fongap-labs/mcp-hub"
       ? scopedMcpHubVariables(process.env)
       : parseJson(
           process.env.REPOSITORY_VARS_JSON || "{}",

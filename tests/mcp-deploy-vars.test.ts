@@ -50,5 +50,9 @@ test("MCP Hub deploy cannot evaluate toJSON(vars) or export API Tokens as Variab
   assert.equal(mcp?.env?.AW_MCP_HUB_VAR_CLOUDFLARE_API_TOKEN_SECONDARY, undefined);
   assert.equal(mcp?.env?.AW_MCP_HUB_VAR_MCP_TOTP_SECRET, undefined);
   assert.equal(mcp?.run, "node control/scripts/export-repository-variables.ts");
-  assert.equal(Object.keys(mcp?.env ?? {}).length, 11);
+  assert.equal(
+    mcp?.env?.AW_BETA_PUBLIC_VARIABLES_JSON,
+    "${{ vars.AW_BETA_PUBLIC_VARIABLES_JSON }}"
+  );
+  assert.equal(Object.keys(mcp?.env ?? {}).length, 12);
 });

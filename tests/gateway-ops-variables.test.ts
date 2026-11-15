@@ -128,6 +128,7 @@ test("deployment workflow reads ops runtime Variables and repository Cloudflare 
     AW_GATEWAY_VARIABLES_B64_FROM_REPOSITORY:
       "${{ needs.gateway_variables.outputs.variables_b64 }}",
     DEPLOY_CREDENTIAL_ENVIRONMENT: "${{ needs.prepare.outputs.credential_environment }}",
+    AW_BETA_PUBLIC_VARIABLES_JSON: "${{ vars.AW_BETA_PUBLIC_VARIABLES_JSON }}",
   });
   assert.doesNotMatch(JSON.stringify(ops.outputs), /API_TOKEN|HEALTH_KEY|SECRET/);
 });

@@ -26,6 +26,8 @@
 
 此阶段仍**不代表真实 Beta 服务已接入**：必须先为每个产品建立独立 Worker/Pages/数据库/队列/配置、GitHub Beta Environment 和最小权限密钥，并补齐业务部署脚本，否则保持拒绝部署。
 
+**测试版凭据隔离：** 对 `-beta` 环境只能使用同名 GitHub Environment 的凭据，不允许借用生产 `*-ops` 环境。测试部署需要在该 Environment 内显式配置 `AW_BETA_PUBLIC_VARIABLES_JSON`（JSON 对象，包含 Beta 专用的公开变量值，如 Beta 域名和数据库 ID）。缺少配置时拒绝部署；测试版不会自动继承中央仓库的正式公开变量、MCP Hub 的生产变量槽位或 AI Gateway 的生产 Ops 变量。API Token、身份认证密钥等必须使用 GitHub Secrets，并按 `deploy-secrets.json` 授权，不得写入该公开变量 JSON。
+
 **当前状态：仅完成环境与源分支绑定的第一阶段。** main 自动部署不会错误选中 dev/Beta 目标。dev 的独立 CI、PR 合并证明、自动派发、凭据与实际服务名称隔离尚未启用；调用 Beta 部署会被明确拒绝，不能绕过正式来源门禁。后续接入每个产品时，业务部署脚本须把 Beta 定向到独立的服务名（通常为 `-beta` 后缀）和隔离状态资源，才可开放部署。
 
 ---
