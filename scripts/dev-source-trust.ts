@@ -2,8 +2,8 @@ import {
   controlRepositoryOf,
   hasVerifiedCiEvidence,
   hasVerifiedControlStatus,
-  prGateWorkflowPaths,
   type JsonReader,
+  prGateWorkflowPaths,
 } from "./ci-evidence.ts";
 import { getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
@@ -56,8 +56,10 @@ export async function assertTrustedDevSource(
     throw new CliError("Beta source repository must keep main as its default branch.", 77);
   }
   const branch = await reader.get(`repos/${repository}/git/ref/heads/dev`);
-  if (getJsonString(branch, "ref") !== "refs/heads/dev" ||
-    getJsonString(isJsonRecord(branch) ? branch.object : undefined, "sha") !== sha) {
+  if (
+    getJsonString(branch, "ref") !== "refs/heads/dev" ||
+    getJsonString(isJsonRecord(branch) ? branch.object : undefined, "sha") !== sha
+  ) {
     throw new CliError("Beta source must equal the current dev HEAD.", 75);
   }
   const commit = await reader.get(`repos/${repository}/commits/${sha}`);
@@ -85,9 +87,11 @@ export async function assertTrustedDevSource(
   const prNumber = getJsonNumber(pr, "number");
   const fullPr = await reader.get(`repos/${repository}/pulls/${prNumber}`);
   const headSha = getJsonString(isJsonRecord(fullPr) ? fullPr.head : undefined, "sha");
-  if (!isExactDevMerge(fullPr, sha) ||
+  if (
+    !isExactDevMerge(fullPr, sha) ||
     getJsonNumber(fullPr, "number") !== prNumber ||
-    !shaPattern.test(headSha)) {
+    !shaPattern.test(headSha)
+  ) {
     throw new CliError("Beta source PR merge facts could not be confirmed.", 77);
   }
   const status = await reader.get(`repos/${repository}/commits/${headSha}/status`);
@@ -112,12 +116,14 @@ export async function assertTrustedDevSource(
       throw new CliError(`Beta source has no verified ${context} on merged PR head.`, 77);
     }
   }
-  if (!(await hasVerifiedCiEvidence(reader, status, {
-    controlRepository,
-    targetRepository: repository,
-    targetSha: headSha,
-    runAttempts: 1,
-  }))) {
+  if (
+    !(await hasVerifiedCiEvidence(reader, status, {
+      controlRepository,
+      targetRepository: repository,
+      targetSha: headSha,
+      runAttempts: 1,
+    }))
+  ) {
     throw new CliError("Beta source has no verified central CI on merged PR head.", 77);
   }
   return { dev_sha: sha, pr_number: prNumber, pr_head_sha: headSha };
