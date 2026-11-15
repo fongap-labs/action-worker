@@ -265,7 +265,16 @@ try {
   const { RUNTIME_VAR_NAMES, RUNTIME_TUNABLES } = await import('#target/src/config/runtime-vars.ts');
   assert.equal(deployManifest.adapter, 'source-script');
   assert.equal(deployManifest.entrypoint, 'scripts/deploy.sh');
-  assert.equal(deployManifest.automatic, false, 'production auto-deploy must stay frozen until the cutover is explicitly approved');
+  if (deployManifest.schema_version === '1') {
+    assert.equal(deployManifest.automatic, false, 'production auto-deploy must stay disabled');
+  } else {
+    assert.equal(deployManifest.schema_version, '2');
+    assert.deepEqual(
+      deployManifest.environments,
+      { production: {}, 'ai-gateway-beta': { source_branch: 'dev' } },
+      'Production and Beta must have no automatic triggers; Beta must use dev only',
+    );
+  }
   // The protected environment supplies only the authorized deployment and private-center Secrets.
   const declaredDeploySecrets = read('.github/deploy.secrets.allowed')
     .split(/\r?\n/)

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: AI Gateway 中央 CI 测试包严格兼容正式单环境旧清单与独立 dev Beta 新清单，保留生产停用开关的真实脚本断言和无自动部署限制。
+
 - 修复: 私有 Server Edge 发布合同同时严格接受旧 production-only 清单与新增 dev-bound 手动 Beta 声明，仍拒绝任何额外环境、自动触发或生产目标重命名。
 
 - 修复: Beta 部署固定使用独立的 GitHub Environment 凭据，不允许路由到正式 Ops；测试版仅接收显式 Beta 公开变量包，拒绝继承生产变量和密钥字段。
