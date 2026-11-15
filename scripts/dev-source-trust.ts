@@ -6,7 +6,9 @@ import {
   type JsonReader,
 } from "./ci-evidence.ts";
 import { getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
+import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
 import { CliError } from "./runtime-command.ts";
+import { latestAttestedStatus, originalStatusDescription } from "./status-attestation.ts";
 
 const shaPattern = /^[0-9a-f]{40}$/;
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -89,8 +91,17 @@ export async function assertTrustedDevSource(
     throw new CliError("Beta source PR merge facts could not be confirmed.", 77);
   }
   const status = await reader.get(`repos/${repository}/commits/${headSha}/status`);
+  const title = getJsonString(fullPr, "title");
+  if (!title) {
+    throw new CliError("Beta source PR title is unavailable.", 77);
+  }
+  const expectedTitleHash = `title-sha256=${prTitleFingerprint(title)} `;
   const controlRepository = controlRepositoryOf();
   for (const context of ["PR Governance", "validate-merge"] as const) {
+    const signed = latestAttestedStatus(status, { repository, sha: headSha, context });
+    if (!signed || !originalStatusDescription(signed).startsWith(expectedTitleHash)) {
+      throw new CliError(`Beta source ${context} was not verified for the current PR title.`, 77);
+    }
     if (!(await hasVerifiedControlStatus(reader, status, context, {
       controlRepository,
       targetRepository: repository,
