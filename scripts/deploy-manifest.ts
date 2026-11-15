@@ -55,7 +55,10 @@ export type DeployManifestV2 = {
   entrypoint: string;
   runner_profile: string;
   ignore_docs_only: boolean;
-  environments: Record<string, { source_branch?: DeploySourceBranch; triggers?: DeployTriggerDeclaration }>;
+  environments: Record<
+    string,
+    { source_branch?: DeploySourceBranch; triggers?: DeployTriggerDeclaration }
+  >;
 };
 
 export type DeployManifest = DeployManifestV1 | DeployManifestV2;
