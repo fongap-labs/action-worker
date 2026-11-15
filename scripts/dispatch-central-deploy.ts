@@ -1,7 +1,6 @@
 import { requireToken } from "./control-token.ts";
 import {
   type DeployAdapter,
-  type DeploySourceBranch,
   parseDeployEnvironmentPolicy,
   parseDeployPlan,
   type ResolvedDeployManifest,
@@ -221,8 +220,7 @@ export async function automaticDeployTargets(
   reader: ContentReader,
   repository: string,
   sha: string,
-  controlRepository: string,
-  sourceBranch: DeploySourceBranch = "main"
+  controlRepository: string
 ): Promise<AutomaticDeployTarget[]> {
   const discovery = await discoverProducts(reader, repository, sha);
   const targets: AutomaticDeployTarget[] = [];
@@ -233,8 +231,6 @@ export async function automaticDeployTargets(
     }
     const plan = parseDeployPlan(text, repository);
     for (const environment of plan.environments) {
-      // Never dispatch a dev/Beta target from the default main CI path.
-      if (environment.source_branch !== sourceBranch) continue;
       if (environment.declares_triggers) {
         await assertNoRequiredReviewers(reader, controlRepository, environment.environment);
       }

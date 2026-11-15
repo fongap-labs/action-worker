@@ -32,7 +32,7 @@ try {
   const ci = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8').replace(/\r\n/g, '\n');
 
   assert.equal(existsSync(join(root, '.github/workflows/deploy.yml')), false);
-  const legacyDeployManifest = {
+  assert.deepEqual(deployManifest, {
     schema_version: '1',
     adapter: 'source-script',
     automatic: false,
@@ -40,24 +40,7 @@ try {
     runner_profile: 'production-deploy',
     environment: 'production',
     entrypoint: 'scripts/deploy.sh',
-  };
-  const betaDeployManifest = {
-    schema_version: '2',
-    adapter: 'source-script',
-    root: '',
-    entrypoint: 'scripts/deploy.sh',
-    runner_profile: 'production-deploy',
-    ignore_docs_only: true,
-    environments: {
-      production: {},
-      'ai-gateway-beta': { source_branch: 'dev' },
-    },
-  };
-  assert.deepEqual(
-    deployManifest,
-    deployManifest.schema_version === '1' ? legacyDeployManifest : betaDeployManifest,
-    'Production must remain manual and Beta may only use dev without automatic triggers',
-  );
+  });
   assert.match(deployScript, /DEPLOY_SOURCE_SHA/);
   assert.match(deployScript, /AIG_IS_DEPLOY_ENABLED/);
   assert.match(deployScript, /cloudflare-wrangler\.mjs deploy/);
@@ -104,13 +87,7 @@ try {
       cwd: root,
       encoding: 'utf8',
       timeout: 5000,
-      env: {
-        ...process.env,
-        AIG_IS_DEPLOY_ENABLED: enabled,
-        DEPLOY_SOURCE_SHA: '',
-        DEPLOY_ENVIRONMENT: 'production',
-        DEPLOY_SOURCE_REPOSITORY: 'fongap-labs/ai-gateway',
-      },
+      env: { ...process.env, AIG_IS_DEPLOY_ENABLED: enabled, DEPLOY_SOURCE_SHA: '' },
     });
     assert.equal(result.error, undefined);
     assert.equal(result.status, code, 'Disabled or invalid production switch must fail closed');
