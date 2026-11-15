@@ -99,6 +99,7 @@ const alphaManifest = {
   environments: {
     production: { triggers: { push: true } },
     nightly: { triggers: { schedule: ["0 12 * * *"] } },
+    beta: { source_branch: "dev", triggers: { schedule: ["0 12 * * *"] } },
     manual: {},
   },
 };
@@ -131,6 +132,10 @@ test("scheduled targets are the product environments with a schedule, and a revi
   assert.deepEqual(await scheduledDeployTargets(reader, repository, head, controlRepository), [
     { repository, product: "alpha", environment: "nightly", schedule: ["0 12 * * *"] },
   ]);
+  assert.deepEqual(
+    await scheduledDeployTargets(reader, repository, head, controlRepository, "dev"),
+    [{ repository, product: "alpha", environment: "beta", schedule: ["0 12 * * *"] }]
+  );
 
   const gated = repositoryReader(
     productRoutes(alphaManifest, {
