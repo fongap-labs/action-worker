@@ -22,6 +22,10 @@
 
 此段仅展示 schema 2 的 `environments` 字段，完整清单还须包含 `schema_version`、`adapter`、`root`、`entrypoint`、`runner_profile` 和 `ignore_docs_only`。
 
+**Dev 来源校验的第二阶段：** 业务 `dev` 分支的当前提交必须能唯一关联到一条以 `dev` 为目标并已合并的 PR，PR 原始 head 必须拥有中央已签名、完成成功的 PR Governance、CI Evidence 和 validate-merge，且治理签名对应当前 PR 标题。Beta 部署仅接受手动指定的固定 SHA；直接推送、旧提交、错误 PR base、未通过中央 CI、自动推送及定时 Beta 部署均拒绝。此机制不使用正式 `Main Write Guard` 作为 dev 的授权证明。
+
+此阶段仍**不代表真实 Beta 服务已接入**：必须先为每个产品建立独立 Worker/Pages/数据库/队列/配置、GitHub Beta Environment 和最小权限密钥，并补齐业务部署脚本，否则保持拒绝部署。
+
 **当前状态：仅完成环境与源分支绑定的第一阶段。** main 自动部署不会错误选中 dev/Beta 目标。dev 的独立 CI、PR 合并证明、自动派发、凭据与实际服务名称隔离尚未启用；调用 Beta 部署会被明确拒绝，不能绕过正式来源门禁。后续接入每个产品时，业务部署脚本须把 Beta 定向到独立的服务名（通常为 `-beta` 后缀）和隔离状态资源，才可开放部署。
 
 ---
