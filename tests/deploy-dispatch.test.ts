@@ -317,7 +317,6 @@ test("the automatic targets are the products and environments with a push trigge
   );
 });
 
-
 test("main automatic deploy cannot target a beta environment bound to dev", async () => {
   const reader = repositoryReader({
     directories: {
