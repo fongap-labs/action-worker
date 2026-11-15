@@ -1,11 +1,11 @@
 import { centralCiWait, requireVerifiedCiEvidence } from "./ci-evidence.ts";
-import { assertTrustedDevSource } from "./dev-source-trust.ts";
 import {
   type DeployAdapter,
   isDeployEnvironmentName,
   type ResolvedDeployManifest,
   resolveDeployManifest,
 } from "./deploy-manifest.ts";
+import { assertTrustedDevSource } from "./dev-source-trust.ts";
 import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
 import { discoverProducts, isProductName, selectProduct } from "./product-discovery.ts";
