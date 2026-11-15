@@ -110,8 +110,17 @@ test("beta manual source selection requires exact SHA and never runs the main CI
     return match;
   };
   const condition = "${{ !endsWith(github.event.client_payload.environment || inputs.environment || '', '-beta') }}";
-  assert.equal(step("Request central CI for the source").if, condition);
-  assert.equal(step("Attest the source main write").if, condition);
+  for (const name of [
+    "Mint deploy source CI status token",
+    "Mint central CI dispatch token",
+    "Request central CI for the source",
+    "Resolve source audit API scope",
+    "Mint source audit status token",
+    "Mint source audit issue token",
+    "Attest the source main write",
+  ]) {
+    assert.equal(step(name).if, condition, `${name} must only run for production`);
+  }
   assert.match(step("Resolve manual deploy request").run ?? "", /Beta requires an explicit immutable/);
   assert.equal(step("Validate deploy source").if, undefined);
   assert.equal(step("Reject Beta credential routing into production").if, undefined);
