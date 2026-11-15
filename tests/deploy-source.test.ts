@@ -109,7 +109,8 @@ test("beta manual source selection requires exact SHA and never runs the main CI
     assert.ok(match, `Missing deployment step: ${name}`);
     return match;
   };
-  const condition = "${{ !endsWith(github.event.client_payload.environment || inputs.environment || '', '-beta') }}";
+  const condition =
+    "${{ !endsWith(github.event.client_payload.environment || inputs.environment || '', '-beta') }}";
   for (const name of [
     "Mint deploy source CI status token",
     "Mint central CI dispatch token",
@@ -121,7 +122,10 @@ test("beta manual source selection requires exact SHA and never runs the main CI
   ]) {
     assert.equal(step(name).if, condition, `${name} must only run for production`);
   }
-  assert.match(step("Resolve manual deploy request").run ?? "", /Beta requires an explicit immutable/);
+  assert.match(
+    step("Resolve manual deploy request").run ?? "",
+    /Beta requires an explicit immutable/
+  );
   assert.equal(step("Validate deploy source").if, undefined);
   assert.equal(step("Reject Beta credential routing into production").if, undefined);
 });
