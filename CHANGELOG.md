@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 私有 Server Edge 发布合同同时严格接受旧 production-only 清单与新增 dev-bound 手动 Beta 声明，仍拒绝任何额外环境、自动触发或生产目标重命名。
+
 - 修复: Beta 部署固定使用独立的 GitHub Environment 凭据，不允许路由到正式 Ops；测试版仅接收显式 Beta 公开变量包，拒绝继承生产变量和密钥字段。
 
 - 新增: Beta 手动部署前独立验证 dev 分支当前 HEAD、精确 PR 合并来源、已签名的中央治理/CI/合并检查及 PR 标题，拒绝直接推送与过期提交。
