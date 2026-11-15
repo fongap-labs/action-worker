@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
+import { parse } from "yaml";
 import { requireVerifiedCiEvidence } from "../scripts/ci-evidence.ts";
 import { assertExpectedRepository, parseDeployRequest } from "../scripts/validate-deploy-source.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
@@ -95,4 +97,22 @@ test("a deploy request may name a product, an environment and a trigger, and not
   ]) {
     assert.throws(() => parseDeployRequest({ ...request, ...extra }), JSON.stringify(extra));
   }
+});
+
+test("beta manual source selection requires exact SHA and never runs the main CI/audit chain", async () => {
+  const workflow = parse(await readFile(".github/workflows/deploy-source-script.yml", "utf8")) as {
+    jobs: { prepare: { steps: Array<{ name?: string; if?: string; run?: string }> } };
+  };
+  const steps = workflow.jobs.prepare.steps;
+  const step = (name: string) => {
+    const match = steps.find((item) => item.name === name);
+    assert.ok(match, `Missing deployment step: ${name}`);
+    return match;
+  };
+  const condition = "${{ !endsWith(github.event.client_payload.environment || inputs.environment || '', '-beta') }}";
+  assert.equal(step("Request central CI for the source").if, condition);
+  assert.equal(step("Attest the source main write").if, condition);
+  assert.match(step("Resolve manual deploy request").run ?? "", /Beta requires an explicit immutable/);
+  assert.equal(step("Validate deploy source").if, undefined);
+  assert.equal(step("Reject Beta credential routing into production").if, undefined);
 });
