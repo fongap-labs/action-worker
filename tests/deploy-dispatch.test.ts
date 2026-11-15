@@ -282,7 +282,7 @@ const alphaManifest = {
   ignore_docs_only: true,
   environments: {
     production: { triggers: { push: true } },
-    beta: { source_branch: "dev", triggers: { push: true } },
+    "alpha-beta": { source_branch: "dev", triggers: { push: true } },
     staging: { triggers: { push: { paths: ["projects/alpha/**", "shared/lib/**"] } } },
     manual: {},
   },
@@ -290,7 +290,7 @@ const alphaManifest = {
 
 const productEnvironments = {
   production: { protection_rules: [] },
-  beta: { protection_rules: [] },
+  "alpha-beta": { protection_rules: [] },
   staging: { protection_rules: [] },
   manual: { protection_rules: [] },
 };
@@ -335,7 +335,7 @@ test("main automatic deploy cannot target a beta environment bound to dev", asyn
   );
   assert.deepEqual(
     await automaticDeployTargets(reader, "fongap-labs/example", sha, controlRepository, "dev"),
-    [{ product: "alpha", environment: "beta" }]
+    [{ product: "alpha", environment: "alpha-beta" }]
   );
 });
 
