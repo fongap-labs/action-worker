@@ -79,7 +79,7 @@
             "additionalProperties": false,
             "properties": {
               "source_branch": {
-                "description": "The trusted source branch allowed to deploy this environment. Omitted means main. Beta must explicitly name dev.",
+                "description": "The trusted source branch allowed to deploy this environment. Omitted means main. Product-specific environments ending in -beta must explicitly name dev.",
                 "enum": ["main", "dev"]
               },
               "triggers": {
