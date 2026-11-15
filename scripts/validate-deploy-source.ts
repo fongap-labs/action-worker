@@ -191,6 +191,14 @@ async function main(): Promise<void> {
     );
   }
   assertDeployTrigger(trigger, manifest);
+  // The existing source gate attests main writes only. A dev target must wait for an
+  // independent, verified dev-branch provenance gate; never reuse main authority.
+  if (manifest.source_branch !== "main") {
+    throw new CliError(
+      "::error::Beta deployment requires the dev branch provenance gate; deployment is not enabled yet.",
+      77
+    );
+  }
 
   // A manual deploy requests central CI for the commit just before this step, so wait for it.
   await requireVerifiedCiEvidence(reader, request.source_repository, resolvedSha, centralCiWait);

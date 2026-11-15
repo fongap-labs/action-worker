@@ -2,6 +2,28 @@
 
 本文档面向维护者，记录手动操作步骤、常见失败排查、多产品布局、定时部署、跟随型产品等运维细节。接入指南见 `05_INTEGRATION_GUIDE.md`。
 
+## 正式版与测试版部署通道（分阶段接入）
+
+受管业务仓库的部署仍只由一套 Action Worker 控制面处理；控制面使用可信的 `main` 版本，不因 Beta 需求而启动第二套调度器。
+
+部署清单 schema 2 的环境可选填 `source_branch`（`main` 或 `dev`），不填时默认为 `main`。以 `-beta` 结尾的独立测试环境必须显式声明 `source_branch: "dev"`，其他环境不得声明 `dev`；不能使用单一 `beta` 环境名，因为各产品部署凭据环境在中央策略中要求唯一。schema 1 与既有生产部署的行为保持不变。
+
+```json
+{
+  "environments": {
+    "production": { "triggers": { "push": true } },
+    "ai-gateway-beta": {
+      "source_branch": "dev",
+      "triggers": { "push": true }
+    }
+  }
+}
+```
+
+此段仅展示 schema 2 的 `environments` 字段，完整清单还须包含 `schema_version`、`adapter`、`root`、`entrypoint`、`runner_profile` 和 `ignore_docs_only`。
+
+**当前状态：仅完成环境与源分支绑定的第一阶段。** main 自动部署不会错误选中 dev/Beta 目标。dev 的独立 CI、PR 合并证明、自动派发、凭据与实际服务名称隔离尚未启用；调用 Beta 部署会被明确拒绝，不能绕过正式来源门禁。后续接入每个产品时，业务部署脚本须把 Beta 定向到独立的服务名（通常为 `-beta` 后缀）和隔离状态资源，才可开放部署。
+
 ---
 
 ## 1. 发布 / 部署工作流速查
