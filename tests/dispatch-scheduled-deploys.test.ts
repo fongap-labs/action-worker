@@ -99,7 +99,6 @@ const alphaManifest = {
   environments: {
     production: { triggers: { push: true } },
     nightly: { triggers: { schedule: ["0 12 * * *"] } },
-    "alpha-beta": { source_branch: "dev", triggers: { schedule: ["0 12 * * *"] } },
     manual: {},
   },
 };
@@ -127,20 +126,11 @@ const open = { protection_rules: [] };
 
 test("scheduled targets are the product environments with a schedule, and a reviewer-gated one is refused", async () => {
   const reader = repositoryReader(
-    productRoutes(alphaManifest, {
-      production: open,
-      nightly: open,
-      "alpha-beta": open,
-      manual: open,
-    })
+    productRoutes(alphaManifest, { production: open, nightly: open, manual: open })
   );
   assert.deepEqual(await scheduledDeployTargets(reader, repository, head, controlRepository), [
     { repository, product: "alpha", environment: "nightly", schedule: ["0 12 * * *"] },
   ]);
-  assert.deepEqual(
-    await scheduledDeployTargets(reader, repository, head, controlRepository, "dev"),
-    [{ repository, product: "alpha", environment: "alpha-beta", schedule: ["0 12 * * *"] }]
-  );
 
   const gated = repositoryReader(
     productRoutes(alphaManifest, {
@@ -157,12 +147,7 @@ test("scheduled targets are the product environments with a schedule, and a revi
 
 test("a due product environment is dispatched once for its latest slot, and an undue one is not", async () => {
   const reader = repositoryReader(
-    productRoutes(alphaManifest, {
-      production: open,
-      nightly: open,
-      "alpha-beta": open,
-      manual: open,
-    })
+    productRoutes(alphaManifest, { production: open, nightly: open, manual: open })
   );
   const due = await resolveScheduledDeploys(
     policy,

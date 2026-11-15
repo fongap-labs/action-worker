@@ -100,7 +100,6 @@ def test_bootstrap_does_not_fetch_repository() -> None:
 
 def test_deploy_is_source_owned_and_centrally_executed() -> None:
     manifest = json.loads(DEPLOY_MANIFEST.read_text(encoding="utf-8"))
-    declared = manifest.pop("environments", None)
     assert manifest == {
         "schema_version": "2",
         "adapter": "source-script",
@@ -108,13 +107,8 @@ def test_deploy_is_source_owned_and_centrally_executed() -> None:
         "entrypoint": "environments/server-edge/deploy.sh",
         "runner_profile": "production-deploy",
         "ignore_docs_only": True,
+        "environments": {"production": {}},
     }
-    # Production stays manual and unchanged; the only optional Beta is a
-    # dev-sourced manual target with no automatic triggers.
-    assert declared in (
-        {"production": {}},
-        {"production": {}, "server-edge-beta": {"source_branch": "dev"}},
-    )
     # A repository keeps one layout: the root manifest must not sit beside the product.
     assert not (ROOT / ".github" / "deploy.json").exists()
     assert not LOCAL_DEPLOY_WORKFLOW.exists()

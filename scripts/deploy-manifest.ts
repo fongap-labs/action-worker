@@ -27,7 +27,6 @@ import {
 } from "./runtime-command.ts";
 
 export type DeployAdapter = "source-script";
-export type DeploySourceBranch = "main" | "dev";
 
 // schema 1: one environment for the whole repository. `automatic: true` is a push trigger on every
 // path; `automatic: false` declares no trigger, so only a person can start the deploy.
@@ -55,10 +54,7 @@ export type DeployManifestV2 = {
   entrypoint: string;
   runner_profile: string;
   ignore_docs_only: boolean;
-  environments: Record<
-    string,
-    { source_branch?: DeploySourceBranch; triggers?: DeployTriggerDeclaration }
-  >;
+  environments: Record<string, { triggers?: DeployTriggerDeclaration }>;
 };
 
 export type DeployManifest = DeployManifestV1 | DeployManifestV2;
@@ -68,7 +64,6 @@ export const wholeRepositoryPath = "**";
 
 export type DeployEnvironmentPlan = {
   environment: string;
-  source_branch: DeploySourceBranch;
   // Path patterns of a push that starts an automatic deploy; null when only a person can start it.
   push_paths: readonly string[] | null;
   schedule: readonly string[];
@@ -225,17 +220,8 @@ function parseSchemaTwo(value: Record<string, unknown>): DeployManifestV2 {
       throw new CliError("Deploy manifest environment is invalid.", 65);
     }
     const keys = Object.keys(environment);
-    if (keys.some((key) => key !== "triggers" && key !== "source_branch")) {
+    if (keys.some((key) => key !== "triggers")) {
       throw new CliError(`Deploy manifest environment has unknown keys: ${name}.`, 65);
-    }
-    if (
-      (environment.source_branch !== undefined &&
-        environment.source_branch !== "main" &&
-        environment.source_branch !== "dev") ||
-      (name.endsWith("-beta") && environment.source_branch !== "dev") ||
-      (environment.source_branch === "dev" && !name.endsWith("-beta"))
-    ) {
-      throw new CliError(`Deploy source branch is invalid for environment ${name}.`, 65);
     }
     if (environment.triggers !== undefined) {
       parseTriggers(environment.triggers, name);
@@ -265,7 +251,6 @@ export function toDeployPlan(manifest: DeployManifest): DeployPlan {
       environments: [
         {
           environment: manifest.environment,
-          source_branch: "main",
           push_paths: manifest.automatic ? [wholeRepositoryPath] : null,
           schedule: [],
           declares_triggers: false,
@@ -291,7 +276,6 @@ export function toDeployPlan(manifest: DeployManifest): DeployPlan {
       }
       return {
         environment,
-        source_branch: declared.source_branch ?? "main",
         push_paths: pushPaths,
         schedule: [...(declared.triggers?.schedule ?? [])],
         declares_triggers: declared.triggers !== undefined,
@@ -364,7 +348,6 @@ export type ResolvedDeployManifest = {
   product: string;
   product_directory: string;
   environment: string;
-  source_branch: DeploySourceBranch;
   adapter: DeployAdapter;
   automatic: boolean;
   push_paths: readonly string[] | null;
@@ -456,7 +439,6 @@ export async function resolveDeployManifest(
     product,
     product_directory: productDirectory,
     environment: environment.environment,
-    source_branch: environment.source_branch,
     adapter: plan.adapter,
     automatic: environment.push_paths !== null,
     push_paths: environment.push_paths,

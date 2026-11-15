@@ -5,7 +5,6 @@ import {
   type ResolvedDeployManifest,
   resolveDeployManifest,
 } from "./deploy-manifest.ts";
-import { assertTrustedDevSource } from "./dev-source-trust.ts";
 import { GithubReader, getJsonString, isJsonRecord } from "./github-api.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
 import { discoverProducts, isProductName, selectProduct } from "./product-discovery.ts";
@@ -160,6 +159,13 @@ async function main(): Promise<void> {
   if (resolvedSha !== request.source_sha) {
     throw new CliError("::error::Deploy source commit could not be resolved exactly.", 65);
   }
+  if (requireDefaultHeadRaw === "true" && resolvedSha !== defaultSha) {
+    throw new CliError(
+      `::error::Deploy source is stale; default HEAD moved: expected=${defaultSha} actual=${resolvedSha}.`,
+      75
+    );
+  }
+
   const trigger = request.trigger ?? "manual";
   const discovery = await discoverProducts(reader, request.source_repository, resolvedSha);
   const product = selectProduct(discovery.products, request.product ?? "");
@@ -185,32 +191,16 @@ async function main(): Promise<void> {
     );
   }
   assertDeployTrigger(trigger, manifest);
-  let sourceVerification: string;
-  if (manifest.source_branch === "dev") {
-    // Only explicit manual, immutable-SHA Beta deployments until the centrally
-    // authenticated dev CI intake and automatic dispatcher are independently ready.
-    if (trigger !== "manual") {
-      throw new CliError("Beta automatic deployment requires a separate trusted dev intake.", 77);
-    }
-    const proof = await assertTrustedDevSource(reader, request.source_repository, resolvedSha);
-    sourceVerification = `Dev PR Governance and CI: #${proof.pr_number}`;
-  } else {
-    if (requireDefaultHeadRaw === "true" && resolvedSha !== defaultSha) {
-      throw new CliError(
-        `::error::Deploy source is stale; default HEAD moved: expected=${defaultSha} actual=${resolvedSha}.`,
-        75
-      );
-    }
-    // A manual production deploy requests central CI for the main HEAD first.
-    await requireVerifiedCiEvidence(reader, request.source_repository, resolvedSha, centralCiWait);
-    const mainWrite = await assertTrustedMainWrite(
-      reader,
-      request.source_repository,
-      resolvedSha,
-      true
-    );
-    sourceVerification = `Main Write Guard: PR #${mainWrite.pr_number}`;
-  }
+
+  // A manual deploy requests central CI for the commit just before this step, so wait for it.
+  await requireVerifiedCiEvidence(reader, request.source_repository, resolvedSha, centralCiWait);
+
+  const mainWrite = await assertTrustedMainWrite(
+    reader,
+    request.source_repository,
+    resolvedSha,
+    true
+  );
 
   await appendLines(process.env.GITHUB_OUTPUT, [
     `source_repository=${request.source_repository}`,
@@ -238,7 +228,8 @@ async function main(): Promise<void> {
     `- Trigger: ${trigger}`,
     `- Runner profile: ${manifest.runner_profile}`,
     `- Require default HEAD: ${requireDefaultHeadRaw}`,
-    `- Source verification: ${sourceVerification}`,
+    "- CI Evidence: verified Action Worker success",
+    `- Main Write Guard: success via PR #${mainWrite.pr_number}`,
   ]);
 }
 

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { hasVerifiedCiEvidence, type JsonReader, latestCiStatus } from "./ci-evidence.ts";
 import { requireStatusToken } from "./control-token.ts";
 import { latestCronSlot, minuteFloor, parseCronSchedule, slotKey } from "./cron-schedule.ts";
-import { type DeploySourceBranch, parseDeployPlan } from "./deploy-manifest.ts";
+import { parseDeployPlan } from "./deploy-manifest.ts";
 import {
   assertAutomaticCredentialEnvironment,
   assertNoRequiredReviewers,
@@ -107,8 +107,7 @@ export async function scheduledDeployTargets(
   reader: ContentReader,
   repository: string,
   sha: string,
-  controlRepository: string,
-  sourceBranch: DeploySourceBranch = "main"
+  controlRepository: string
 ): Promise<ScheduledDeployTarget[]> {
   const discovery = await discoverProducts(reader, repository, sha);
   const targets: ScheduledDeployTarget[] = [];
@@ -119,8 +118,6 @@ export async function scheduledDeployTargets(
     }
     const plan = parseDeployPlan(text, repository);
     for (const environment of plan.environments) {
-      // The scheduled scanner reads default-main HEAD, never dispatch its dev/Beta targets.
-      if (environment.source_branch !== sourceBranch) continue;
       if (environment.declares_triggers) {
         await assertNoRequiredReviewers(reader, controlRepository, environment.environment);
       }

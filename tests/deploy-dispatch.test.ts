@@ -282,7 +282,6 @@ const alphaManifest = {
   ignore_docs_only: true,
   environments: {
     production: { triggers: { push: true } },
-    "alpha-beta": { source_branch: "dev", triggers: { push: true } },
     staging: { triggers: { push: { paths: ["projects/alpha/**", "shared/lib/**"] } } },
     manual: {},
   },
@@ -290,7 +289,6 @@ const alphaManifest = {
 
 const productEnvironments = {
   production: { protection_rules: [] },
-  "alpha-beta": { protection_rules: [] },
   staging: { protection_rules: [] },
   manual: { protection_rules: [] },
 };
@@ -314,28 +312,6 @@ test("the automatic targets are the products and environments with a push trigge
       { product: "alpha", environment: "production" },
       { product: "alpha", environment: "staging" },
     ]
-  );
-});
-
-test("main automatic deploy cannot target a beta environment bound to dev", async () => {
-  const reader = repositoryReader({
-    directories: {
-      projects: [{ name: "alpha", type: "dir", size: 0 }],
-      "projects/alpha": [{ name: "deploy.json", type: "file", size: 400 }],
-    },
-    files: { "projects/alpha/deploy.json": alphaManifest },
-    environments: productEnvironments,
-  });
-  assert.deepEqual(
-    await automaticDeployTargets(reader, "fongap-labs/example", sha, controlRepository, "main"),
-    [
-      { product: "alpha", environment: "production" },
-      { product: "alpha", environment: "staging" },
-    ]
-  );
-  assert.deepEqual(
-    await automaticDeployTargets(reader, "fongap-labs/example", sha, controlRepository, "dev"),
-    [{ product: "alpha", environment: "alpha-beta" }]
   );
 });
 
