@@ -1,5 +1,6 @@
 import { latestCiStatus, trustedControlRunId } from "./ci-evidence.ts";
 import { type GithubReader, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
+import { validateMainWriteProvenance } from "./main-write-guard.ts";
 import { hasValidStatusAttestation, signedStatusDescription } from "./status-attestation.ts";
 import { postGithubCommitStatus } from "./status-write-retry.ts";
 
@@ -104,4 +105,67 @@ export async function reconcileMisattributedMainStatuses(
     repaired.push(context);
   }
   return repaired;
+}
+
+export function previousMainCommitSha(history: unknown, currentSha: string): string | null {
+  if (!Array.isArray(history) || history.length < 2) return null;
+  const [current, previous] = history;
+  if (!isJsonRecord(current) || !isJsonRecord(previous)) return null;
+  const sha = getJsonString(previous, "sha");
+  const parents = getJsonArray(current, "parents");
+  if (
+    getJsonString(current, "sha") !== currentSha ||
+    !/^[0-9a-f]{40}$/.test(sha) ||
+    parents.length !== 1 ||
+    getJsonString(parents[0], "sha") !== sha
+  ) {
+    return null;
+  }
+  return sha;
+}
+
+export async function reconcilePreviousMainStatuses(
+  reader: GithubReader,
+  repository: string,
+  currentSha: string,
+  centralCiRequired: boolean,
+  controlRepository: string,
+  statusToken: string,
+  runUrl: string,
+  publish: StatusPublisher = postGithubCommitStatus
+): Promise<string[]> {
+  // Bounded to the immediate parent of the verified main commit.
+  const history = await reader.get(`repos/${repository}/commits?sha=${currentSha}&per_page=2`);
+  const previousSha = previousMainCommitSha(history, currentSha);
+  if (!previousSha) return [];
+
+  const combined = await reader.get(`repos/${repository}/commits/${previousSha}/status`);
+  const hasAttestedFailure = contexts.some((context) => {
+    const status = latestCiStatus(combined, context);
+    return (
+      getJsonString(status, "state") === "failure" &&
+      hasValidStatusAttestation(status, { repository, sha: previousSha, context })
+    );
+  });
+  if (!hasAttestedFailure) return [];
+
+  // A historical main SHA is not trusted by ancestry alone. Recheck the original
+  // merged PR and its exact CI evidence before modifying any status.
+  const provenance = await validateMainWriteProvenance(
+    reader,
+    repository,
+    previousSha,
+    centralCiRequired
+  );
+  return reconcileMisattributedMainStatuses(
+    reader,
+    repository,
+    previousSha,
+    provenance.pr_head_sha,
+    provenance.pr_number,
+    controlRepository,
+    statusToken,
+    runUrl,
+    publish
+  );
 }
