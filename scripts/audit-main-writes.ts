@@ -7,9 +7,11 @@ import {
   statusAwareReader,
 } from "./github-api.ts";
 import {
+  hasVerifiedMainWriteGuard,
   MainWriteVerificationPendingError,
   validateMainWriteProvenance,
 } from "./main-write-guard.ts";
+import { latestCiStatus } from "./ci-evidence.ts";
 import {
   assertNoOpenMainWriteIncidents,
   IncidentAccessError,
@@ -81,6 +83,17 @@ async function publishGuardStatus(
     description: signedDescription,
     targetUrl: runUrl,
   });
+}
+
+export async function hasReusableSuccessfulMainGuard(
+  reader: GithubReader,
+  repository: string,
+  sha: string
+): Promise<boolean> {
+  const response = await reader.get(`repos/${repository}/commits/${sha}/status`);
+  const newest = latestCiStatus(response, "Main Write Guard");
+  if (!newest || getJsonString(newest, "state") !== "success") return false;
+  return await hasVerifiedMainWriteGuard(reader, { statuses: [newest] }, repository, sha);
 }
 
 export async function auditRepositoryMain(
@@ -187,14 +200,16 @@ async function main(): Promise<void> {
         }
       );
       hasVerifiedProvenance = true;
-      await publishGuardStatus(
-        repository,
-        mainSha,
-        statusToken,
-        "success",
-        `Trusted main write via PR #${provenance.pr_number}`,
-        runUrl
-      );
+      if (!(await hasReusableSuccessfulMainGuard(reader, repository, mainSha))) {
+        await publishGuardStatus(
+          repository,
+          mainSha,
+          statusToken,
+          "success",
+          `Trusted main write via PR #${provenance.pr_number}`,
+          runUrl
+        );
+      }
       results.push({
         repository,
         main_sha: mainSha,
@@ -303,7 +318,7 @@ async function main(): Promise<void> {
   );
   if (statusPublicationErrors.length > 0) {
     throw new CliError(
-      `::error::Main Write Audit could not publish ${statusPublicationErrors.length} repository guard status(es): ${statusPublicationErrors.join("; ")}. Check the GitHub API response and the dedicated AW_STATUS_API_TOKEN Commit statuses: Write permission.`,
+      `::error::Main Write Audit could not publish ${statusPublicationErrors.length} repository guard status(es): ${statusPublicationErrors.join("; ")} . Inspect the GitHub API validation details; check Commit statuses: Write permission for HTTP 401/403.`,
       77
     );
   }
