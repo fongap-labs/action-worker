@@ -173,9 +173,15 @@ export async function hasScheduledDispatchForSlot(
     target.slot,
     get
   )) {
-    if (
-      await hasScheduledDispatchReceipt(target.repository, sha, target.context, receipts, get, target.slot)
-    ) return true;
+    const found = await hasScheduledDispatchReceipt(
+      target.repository,
+      sha,
+      target.context,
+      receipts,
+      get,
+      target.slot
+    );
+    if (found) return true;
   }
   return false;
 }
