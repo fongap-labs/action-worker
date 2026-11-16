@@ -6,6 +6,7 @@ import {
   isJsonRecord,
   runGithubCli,
 } from "./github-api.ts";
+import { isGovernedPullDirection } from "./resolve-pr-facts.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { hasValidStatusAttestation, signedStatusDescription } from "./status-attestation.ts";
 
@@ -65,6 +66,12 @@ async function main(): Promise<void> {
   }
 
   const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, controlToken);
+  if (!isGovernedPullDirection(pull)) {
+    console.log(
+      `Skipping unfinished PR governance: ${repository}#${prNumber} does not target main from a feature branch.`
+    );
+    return;
+  }
   const head = isJsonRecord(pull) && isJsonRecord(pull.head) ? getJsonString(pull.head, "sha") : "";
   if (!/^[0-9a-f]{40}$/.test(head)) {
     throw new CliError(`::error::Pull request ${repository}#${prNumber} has no head commit.`, 65);

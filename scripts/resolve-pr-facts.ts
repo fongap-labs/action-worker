@@ -7,6 +7,16 @@ type PullFacts = {
   title: string;
 };
 
+// Only pull requests targeting main can create PR governance attestations. A reverse
+// sync PR with main as its head would otherwise write failure statuses onto main.
+export function isGovernedPullDirection(pull: unknown): boolean {
+  if (!isJsonRecord(pull)) return false;
+  const base = isJsonRecord(pull.base) ? pull.base : {};
+  const head = isJsonRecord(pull.head) ? pull.head : {};
+  const headRef = getJsonString(head, "ref");
+  return getJsonString(base, "ref") === "main" && headRef !== "" && headRef !== "main";
+}
+
 // Governance only works on open pull requests. The advisory AI review may also run for a pull
 // request that was merged while it waited, so its caller opts in.
 export function pullAllowsFacts(pull: unknown, isMergedAllowed: boolean): boolean {
@@ -42,6 +52,12 @@ export async function fetchPullFacts(
   const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, token);
   if (!isJsonRecord(pull) || !pullAllowsFacts(pull, isMergedAllowed)) {
     throw new CliError("::error::Target PR is not open.", 65);
+  }
+  if (!isGovernedPullDirection(pull)) {
+    throw new CliError(
+      "::error::PR governance requires base=main and head!=main; reverse PRs must not write statuses to main.",
+      65
+    );
   }
   const base = isJsonRecord(pull.base) ? pull.base : {};
   const head = isJsonRecord(pull.head) ? pull.head : {};

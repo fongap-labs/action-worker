@@ -1,8 +1,24 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { resolvePullDiffBaseSha } from "../scripts/resolve-pr-facts.ts";
+import { isGovernedPullDirection, resolvePullDiffBaseSha } from "../scripts/resolve-pr-facts.ts";
 
 const repository = "fongap-labs/app-source";
+
+test("PR governance only attests feature branches targeting main", () => {
+  const valid = { base: { ref: "main" }, head: { ref: "fix/issue" } };
+  assert.equal(isGovernedPullDirection(valid), true);
+  assert.equal(isGovernedPullDirection({ base: { ref: "main" }, head: { ref: "main" } }), false);
+  assert.equal(
+    isGovernedPullDirection({ base: { ref: "fix/issue" }, head: { ref: "main" } }),
+    false
+  );
+  assert.equal(
+    isGovernedPullDirection({ base: { ref: "release" }, head: { ref: "fix/issue" } }),
+    false
+  );
+  assert.equal(isGovernedPullDirection({ base: { ref: "main" }, head: {} }), false);
+  assert.equal(isGovernedPullDirection(null), false);
+});
 
 test("PR scope keeps the reviewed base when main moves before CI dispatch", () => {
   const pullBase = {
