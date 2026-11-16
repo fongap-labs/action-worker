@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   auditRepositoryMain,
+  hasReusableFailedMainGuard,
   hasReusableSuccessfulMainGuard,
 } from "../scripts/audit-main-writes.ts";
 import type { GithubReader } from "../scripts/github-api.ts";
@@ -296,6 +297,53 @@ test("main write audit reuses only a signed guard from a successful control run"
     status.state = "success";
     status.description = "Unattested success";
     assert.equal(await hasReusableSuccessfulMainGuard(reader, repository, mainSha), false);
+  } finally {
+    if (previousKeyring === undefined) delete process.env.AW_STATUS_KEYRING;
+    else process.env.AW_STATUS_KEYRING = previousKeyring;
+  }
+});
+
+test("signed repeated main guard failure is reused without bypassing validation", async () => {
+  const previousKeyring = process.env.AW_STATUS_KEYRING;
+  process.env.AW_STATUS_KEYRING = JSON.stringify({
+    schema_version: 1,
+    active: "k1",
+    keys: { k1: "A".repeat(43) },
+    legacy_tokens: [],
+  });
+  try {
+    const targetUrl = "https://github.com/fongap-labs/action-worker/actions/runs/123";
+    const status = {
+      state: "failure",
+      context: "Main Write Guard",
+      description: signedStatusDescription({
+        repository,
+        sha: mainSha,
+        state: "failure",
+        context: "Main Write Guard",
+        description: "Untrusted main write",
+        targetUrl,
+      }),
+      target_url: targetUrl,
+    };
+    const reader = {
+      async get(path: string): Promise<unknown> {
+        assert.equal(path, `repos/${repository}/commits/${mainSha}/status`);
+        return { statuses: [status] };
+      },
+    } as GithubReader;
+    assert.equal(await hasReusableFailedMainGuard(reader, repository, mainSha), true);
+    status.state = "success";
+    assert.equal(await hasReusableFailedMainGuard(reader, repository, mainSha), false);
+    status.state = "failure";
+    status.description = "Untrusted main write";
+    assert.equal(await hasReusableFailedMainGuard(reader, repository, mainSha), false);
+    const failedReader = {
+      async get(): Promise<never> {
+        throw new Error("temporary status read failure");
+      },
+    } as GithubReader;
+    assert.equal(await hasReusableFailedMainGuard(failedReader, repository, mainSha), false);
   } finally {
     if (previousKeyring === undefined) delete process.env.AW_STATUS_KEYRING;
     else process.env.AW_STATUS_KEYRING = previousKeyring;
