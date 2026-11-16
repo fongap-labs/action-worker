@@ -74,8 +74,6 @@ export function assertChineseSummary(
   }
 }
 
-// Parses the entry lines of the [Unreleased] section.
-// Blank lines are skipped; any other line must be an entry in a permitted category.
 export function parseEntries(
   text: string,
   categories: readonly string[],
@@ -117,7 +115,6 @@ export function betaEntriesOf(
       current.push(line);
     }
   }
-  // The newest section sits first in the file, so reverse to read the betas in release order.
   const entries: ChangelogEntry[] = [];
   for (const section of sections.reverse()) {
     let category = "";
@@ -153,11 +150,9 @@ export type ReleaseSectionOptions = {
 export type PromoteOptions = ReleaseSectionOptions;
 
 export type ScopedPromoteOptions = ReleaseSectionOptions & {
-  // The release's own entries. A release that owns its entries takes nothing else.
   entries: readonly ChangelogEntry[];
 };
 
-// One version section: its heading, then the category groups in the order of release.json.
 function renderRelease(
   entries: readonly ChangelogEntry[],
   options: ReleaseSectionOptions
@@ -283,7 +278,6 @@ export function entriesOfSection(body: string, categories: readonly string[]): C
   return entries;
 }
 
-// The heading a release adds: `## [version](release-url) - date`.
 const RELEASE_HEADING = /^## \[([^\]]+)\]\((https:\/\/[^)\s]+)\) - (\d{4}-\d{2}-\d{2})$/;
 
 export type ReleaseHeading = { version: string; releaseUrl: string; date: string };

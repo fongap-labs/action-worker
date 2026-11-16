@@ -21,8 +21,6 @@ test("an entry names one category, optional attributes and a Chinese summary", (
     attributes: ["breaking", "migration"],
     summary: "替换认证配置格式。",
   });
-  // The shape is checked here; an unknown category such as the previous `fix` type is refused by
-  // validate-change-record, which compares the category with release.json.
   assert.equal(parseEntry("- fix: repair the router.")?.category, "fix");
   assert.equal(categories.includes("fix"), false);
   assert.equal(parseEntry("- 修复 没有冒号"), null);

@@ -5,16 +5,15 @@ import {
   releaseSectionBody,
 } from "./changelog-release.ts";
 import {
+  decodeGithubContent,
   getGithubJson,
   getJsonArray,
   getJsonString,
   isGithubMissing,
-  isJsonRecord,
 } from "./github-api.ts";
 import { ensureNoLegacyChangelogFragments } from "./lib/changelog-fragment-guard.ts";
 import { CliError } from "./runtime-command.ts";
 
-// Release preparation is read-only. Only code PRs update shared [Unreleased] entries.
 export type ReleasePolicy = {
   changelog_file: string;
   changelog_categories: string[];
@@ -32,13 +31,6 @@ export type ReleaseNotesOptions = {
   entries?: readonly string[];
 };
 
-function decode(value: unknown): string {
-  if (!isJsonRecord(value) || value.encoding !== "base64") {
-    throw new CliError("GitHub returned a non-base64 changelog.", 65);
-  }
-  return Buffer.from(getJsonString(value, "content").replace(/\n/g, ""), "base64").toString("utf8");
-}
-
 async function readFileAt(
   repository: string,
   path: string,
@@ -46,11 +38,9 @@ async function readFileAt(
   token: string
 ): Promise<string | null> {
   try {
-    return decode(
-      await getGithubJson(
-        `repos/${repository}/contents/${path}?ref=${encodeURIComponent(ref)}`,
-        token
-      )
+    return decodeGithubContent(
+      await getGithubJson(`repos/${repository}/contents/${path}?ref=${encodeURIComponent(ref)}`, token),
+      "GitHub returned a non-base64 changelog."
     );
   } catch (error) {
     if (isGithubMissing(error)) return null;
