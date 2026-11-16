@@ -20,7 +20,7 @@ import {
 } from "./main-write-incidents.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
-import { signedStatusDescription } from "./status-attestation.ts";
+import { hasValidStatusAttestation, signedStatusDescription } from "./status-attestation.ts";
 import { postGithubCommitStatus } from "./status-write-retry.ts";
 
 export type AuditResult = {
@@ -94,6 +94,23 @@ export async function hasReusableSuccessfulMainGuard(
   const newest = latestCiStatus(response, "Main Write Guard");
   if (!newest || getJsonString(newest, "state") !== "success") return false;
   return await hasVerifiedMainWriteGuard(reader, { statuses: [newest] }, repository, sha);
+}
+
+export async function hasReusableFailedMainGuard(
+  reader: GithubReader,
+  repository: string,
+  sha: string
+): Promise<boolean> {
+  try {
+    const response = await reader.get(`repos/${repository}/commits/${sha}/status`);
+    const newest = latestCiStatus(response, "Main Write Guard");
+    return (
+      getJsonString(newest, "state") === "failure" &&
+      hasValidStatusAttestation(newest, { repository, sha, context: "Main Write Guard" })
+    );
+  } catch {
+    return false;
+  }
 }
 
 export async function auditRepositoryMain(
@@ -268,18 +285,23 @@ async function main(): Promise<void> {
           : "failure";
       if (shaPattern.test(mainSha)) {
         try {
-          await publishGuardStatus(
-            repository,
-            mainSha,
-            statusToken,
-            statusState,
-            transientReadFailure
-              ? "GitHub API temporarily unavailable"
-              : error instanceof MainWriteVerificationPendingError
-                ? "Central PR evidence is still running"
-                : "Untrusted main write",
-            runUrl
-          );
+          if (
+            statusState !== "failure" ||
+            !(await hasReusableFailedMainGuard(reader, repository, mainSha))
+          ) {
+            await publishGuardStatus(
+              repository,
+              mainSha,
+              statusToken,
+              statusState,
+              transientReadFailure
+                ? "GitHub API temporarily unavailable"
+                : error instanceof MainWriteVerificationPendingError
+                  ? "Central PR evidence is still running"
+                  : "Untrusted main write",
+              runUrl
+            );
+          }
         } catch (statusError) {
           const cause = statusError instanceof Error ? statusError.message : String(statusError);
           statusPublicationErrors.push(`${repository}: ${cause}`);
