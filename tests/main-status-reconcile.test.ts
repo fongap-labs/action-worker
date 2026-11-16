@@ -95,9 +95,27 @@ test("never recovers an original PR head, unsigned failure, or unrelated reverse
   const publish = async () => {
     published += 1;
   };
-  const args = [repository, mainSha, mergedHeadSha, 498, controlRepository, "test-token", repairRunUrl] as const;
+  const args = [
+    repository,
+    mainSha,
+    mergedHeadSha,
+    498,
+    controlRepository,
+    "test-token",
+    repairRunUrl,
+  ] as const;
   assert.deepEqual(
-    await reconcileMisattributedMainStatuses(reader, repository, mainSha, mainSha, 498, controlRepository, "test-token", repairRunUrl, publish),
+    await reconcileMisattributedMainStatuses(
+      reader,
+      repository,
+      mainSha,
+      mainSha,
+      498,
+      controlRepository,
+      "test-token",
+      repairRunUrl,
+      publish
+    ),
     []
   );
   assert.deepEqual(await reconcileMisattributedMainStatuses(reader, ...args, publish), []);
@@ -105,12 +123,14 @@ test("never recovers an original PR head, unsigned failure, or unrelated reverse
     async get(path: string): Promise<unknown> {
       assert.equal(path, `repos/${repository}/commits/${mainSha}/status`);
       return {
-        statuses: [{
-          context: "PR Governance",
-          state: "failure",
-          description: "unsigned",
-          target_url: badRunUrl,
-        }],
+        statuses: [
+          {
+            context: "PR Governance",
+            state: "failure",
+            description: "unsigned",
+            target_url: badRunUrl,
+          },
+        ],
       };
     },
   };
