@@ -1,11 +1,4 @@
 #!/usr/bin/env node
-// Stream-completion tests for trackStreamResponse stream-end telemetry: the three disjoint
-// interruption reasons (missing_completion_marker / idle_timeout / reader_error)
-// plus the completed and neutral outcomes, and the passive onUsage scan (the
-// usage capture point for chat-passthrough streams). These run against the
-// module directly because AIG_STREAM_IDLE_TIMEOUT_MS is clamped to >= 10s at the
-// env layer, which makes idle-timeout scenarios impractical through the
-// black-box worker suite.
 import assert from 'node:assert/strict';
 import {
   __resetTier1StateForTests,
@@ -35,7 +28,6 @@ const MARKER = /data:\s*\[DONE\]\s*(?:\r?\n|$)/;
 const sseChunk = (content) => `data: ${JSON.stringify({ choices: [{ delta: { content } }] })}\n\n`;
 const usageEvent = (usage) => `data: ${JSON.stringify({ id: 'chatcmpl-u', choices: [], usage })}\n\n`;
 
-// Recorder collecting every callback invocation for assertions.
 function recorder() {
   const calls = { success: 0, failure: 0, neutral: 0, start: 0, ends: [], usage: [] };
   return {
@@ -59,7 +51,6 @@ function recorder() {
         calls.ends.push({ outcome, ...d });
       },
     },
-    // opts + passive usage scan wired to the recorder.
     withUsage() {
       return { ...this.opts, onUsage: (u) => calls.usage.push(u) };
     },
@@ -259,7 +250,6 @@ await test('text → stalled stream is interrupted with idle_timeout', async () 
       if (!released) {
         c.enqueue(encoder.encode(sseChunk('only chunk')));
         released = true;
-        // Park forever; the idle race must win.
         await new Promise(() => {});
       }
     }),
@@ -354,15 +344,12 @@ await test('callbacks fire exactly once even when the client keeps pulling', asy
     r.opts,
   );
   const reader = res.body.getReader();
-  // Extra pulls after close must not re-finalize.
   await reader.read();
   await reader.read();
   await reader.read();
   assert.equal(r.calls.ends.length, 1);
   assert.equal(r.calls.success, 1);
 });
-
-// ---- Passive usage scan (onUsage) -------------------------------------------
 
 await test('usage event + [DONE] completes and fires onUsage exactly once with the raw object', async () => {
   const r = recorder();
@@ -492,8 +479,6 @@ await test('usage-free numeric strings and malformed data lines never crash the 
     r.withUsage(),
   );
   await drain(res);
-  // '5' is a numeric string → normalizeTokenUsage rejects it → nothing usable
-  // was reported → the single fire carries null, not the junk object.
   assert.deepEqual(r.calls.usage, [null]);
 });
 

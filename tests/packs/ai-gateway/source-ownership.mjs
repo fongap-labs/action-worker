@@ -1,10 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Resolve the true attempt implementation while keeping central regression
-// tests compatible with older pinned AI Gateway commits. Migrated source is
-// only allowed when the old entry is a pure compatibility export: a second
-// implementation (or a missing owner) is a hard contract failure.
 
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
@@ -35,8 +28,6 @@ export function readAttemptOwner(name) {
     return legacy;
   }
 
-  // Comments are allowed for license and migration context, but executable
-  // statements, imports, other exports or duplicated implementations are not.
   const executableLines = legacy
     .split('\n')
     .map((line) => line.trim())

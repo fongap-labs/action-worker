@@ -1,7 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Edge cache key: canonical, type-preserving, and scoped to the caller's key group.
 
 import { assert, test } from '#kit/harness.mjs';
 import { buildEdgeCacheKeyRequest } from '#target/src/request/edge-cache.ts';
@@ -12,8 +8,6 @@ async function key(body, group = 'AIR', route = 'openai_chat', model = 'Code-Max
 
 test('object key order does not change the key', async () => {
   const a = await key({ temperature: 0, messages: [{ role: 'user', content: 'hi' }] });
-  // stream is only compared when it is false or absent: whether a streamed request shares the entry
-  // of a non-streamed one is the gateway's decision and is asserted by the stricter follow-up test.
   const b = await key({ messages: [{ content: 'hi', role: 'user' }], temperature: 0, stream: false });
   assert.equal(a, b);
 });

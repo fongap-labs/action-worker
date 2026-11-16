@@ -1,7 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// AIG-006: AIG_PUBLIC_DASHBOARD=false removes the public dashboard and status badge.
 
 import { assert, beforeEach, test } from '#kit/harness.mjs';
 import worker from '#target/src/index.ts';

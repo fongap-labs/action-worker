@@ -1,8 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// AIG-005: AIG_DIAGNOSTICS_GROUPS names the key groups that read /health and /metrics;
-// unset, only MAX and ULTRA keys do.
 
 import { assert, beforeEach, test } from '#kit/harness.mjs';
 import worker from '#target/src/index.ts';
@@ -53,7 +48,6 @@ test('the model list stays open to every key', async () => {
   assert.equal((await get('/v1/models', AIR_KEY, env)).status, 200);
 });
 
-// The post-deploy check reads /health, so a deploy needs at least one key that may.
 const deployEnv = (extra) => ({
   CLOUDFLARE_ACCOUNT_ID: 'account',
   CLOUDFLARE_API_TOKEN: 'token',

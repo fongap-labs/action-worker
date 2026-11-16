@@ -1,12 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Merged suite. Each section below was a standalone suite and keeps its own scope:
-//   - gateway-configuration-test.mjs
-//   - config-matrix-test.mjs
-//   - config-cli-test.mjs
-//   - node-config-shards-test.mjs
-//   - github-deployment-config-test.mjs
 
 import { targetRoot as root } from '#kit/target.mjs';
 import { buildDeploymentSummary, buildRuntimeFromEnv, buildWranglerConfig, collectSecretsFromEnv, collectVarsFromEnv, loadRuntimeConfig, normalizeNodeConfigJsonText, normalizeRuntimeConfig, preflight, validateGatewayRuntime, withStaleNodeSecretsRemoved } from '#target/scripts/github-deployment-config.mjs';
@@ -28,16 +19,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// ==========================================================================
-// gateway-configuration-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-
-
-
-
-
 
   let passed = 0;
   function test(name, fn) {
@@ -71,7 +53,6 @@ try {
   const policyDiags = (policies) => getPoliciesConfigDiagnostics(makeEnv({ extraEnv: { AIG_POLICIES_CONFIG: JSON.stringify(policies) } }));
   const modelDiags = (models) => getModelsConfigDiagnostics(makeEnv({ extraEnv: { AIG_MODELS_CONFIG: JSON.stringify(models) } }));
 
-  // Shards.
   test('collectShards accepts 01..10 and reports out-of-range/malformed names', () => {
     const diags = [];
     const secrets = collectShards(
@@ -92,7 +73,6 @@ try {
     assert.equal(tiers[0].index, 3);
   });
 
-  // Current node schema: account data only; provider owns wire structure.
   test('account-level node config is ready and gets provider wire profile', () => {
     const cfg = loadGatewayConfig(makeEnv({ tier1: [node('good')], secrets: { good: 'x' } }));
     assert.equal(cfg.status, 'ready');
@@ -173,7 +153,6 @@ try {
     }
   });
 
-  // Registry / wildcard behavior.
   test('registry carries declared capabilities and conservative defaults', () => {
     const env = makeEnv({
       tier1: [node('r', { models: {} })],
@@ -200,7 +179,6 @@ try {
 
   test('AIG_MODELS_CONFIG rejects malformed or unknown capability fields', () => {
     const malformed = loadGatewayConfig(makeEnv({ tier1: [node('m1')], secrets: { m1: 'x' }, extraEnv: { AIG_MODELS_CONFIG: '{bad' } }));
-    // Rejected, so a deploy is refused; the usable node keeps serving meanwhile.
     assert.equal(malformed.hasConfigErrors, true);
     assert.equal(malformed.status, 'degraded');
     const diags = modelDiags({ m: { capabilities: { visionz: true, reasoning: 'yes' } } });
@@ -251,7 +229,6 @@ try {
     );
   });
 
-  // Strict policy schema.
   test('max_attempts and tier_attempts accept only bounded integer numbers', () => {
     for (const bad of ['5', -1, 0, 9, 1.5, null]) {
       assert.ok(policyDiags({ p: { max_attempts: bad } }).some((d) => d.includes('max_attempts')));
@@ -325,20 +302,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// config-matrix-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-
-
-
-
-
-
-
-
-
 
   let passed = 0;
   function test(name, fn) {
@@ -421,7 +385,6 @@ try {
   });
 
   test('same-tier credential may live in a different shard suffix', () => {
-    // Physical secret-shard ownership and strict validation live in Inference.
     const cfg = loadExecutionConfig({
       ...access,
       AIG_TIER1_NODES_01: JSON.stringify([configNode('same-tier')]),
@@ -495,17 +458,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// config-cli-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-
-
-
-
-
-
 
   const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -620,13 +573,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// node-config-shards-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-
-
 
   const node = (id, extra = {}) => ({
     id,
@@ -686,7 +633,6 @@ try {
     for (const invalid of [[], ['responses', 'responses'], ['chat_completions', 5], 'responses']) {
       assert.throws(() => assertNodesArray([node('a', { surfaces: invalid })]), /surfaces/);
     }
-    // Provider/surface pairing is checked by the canonical runtime validator.
   });
 
   test('base_url must be valid https without credentials', () => {
@@ -795,14 +741,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// github-deployment-config-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-
-
-
 
   const currentNode = (id = 'node-a') => ({
     id,

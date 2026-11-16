@@ -1,10 +1,4 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: MIT
-// Stress / fault-injection coverage for the current scheduler contract.
-// There is no default configured node concurrency or node RPM admission. These
-// tests hammer soft in-flight ranking, optional explicit admission, cooldown/
-// recovery, tier fallback, cancellation, and the request-wide wall-clock budget
-// through the real worker pipeline.
 
 import assert from 'node:assert/strict';
 import worker from '#target/src/index.ts';
@@ -108,7 +102,6 @@ const node = (id, extra = {}) => ({
 });
 
 function chatRequest(body = {}, init = {}) {
-  // Declare the exact body length, as a JSON client does (see integration-test.mjs).
   const payload = JSON.stringify({ model: 'general-air', messages: [], ...body });
   return new Request('https://gateway.example.com/v1/chat/completions', {
     method: 'POST',
@@ -277,8 +270,6 @@ await test('S5 recovery: sustained failure admits one real half-open request at 
     return jsonResponse(okCompletion);
   };
   const env = makeEnv({ tier1: [node('recover')], secrets: { recover: 'k' } });
-  // Each failing request also spends its one last-resort retry on the sole key,
-  // so the circuit opens within the first two requests.
   for (let i = 0; i < 3 && getTier1Model('recover', 'general-air').failureState !== 'cooldown'; i++) {
     const res = await worker.fetch(chatRequest(), env, {});
     assert.equal(res.status, 502);

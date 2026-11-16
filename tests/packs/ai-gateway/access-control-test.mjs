@@ -1,9 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Merged suite. Each section below was a standalone suite and keeps its own scope:
-//   - access-keys-test.mjs
-//   - key-rpm-test.mjs
 
 import { __resetAccessKeysCacheForTests, collectKnownModels, keyAllowsModel, loadAccessKeysConfig } from '#target/src/config/access-keys.ts';
 import { __resetKeyRpmForTests, admitKeyRequest, getKeyRpmSnapshot } from '#target/src/ratelimit/key-rpm.ts';
@@ -11,15 +5,7 @@ import { authorize } from '#target/src/request/auth.ts';
 import { filterVisibleModels } from '#target/src/request/model-authz.ts';
 import assert from 'node:assert/strict';
 
-// ==========================================================================
-// access-keys-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-
-
-
-
 
   let passed = 0;
   async function test(name, fn) {
@@ -195,28 +181,8 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// key-rpm-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
   // @ts-check
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // PR 6 / P2-A — Per-key gateway RPM limiter (in-isolate, sliding window).
-  //
-  // These tests pin the contract the handler relies on:
-  //   1. cap=0 disables the limiter (every request is admitted)
-  //   2. within the window, the first N requests are admitted and
-  //      request N+1 is denied
-  //   3. once the oldest stamp falls out of the window, that slot frees
-  //      up and the next request is admitted
-  //   4. deny returns a positive retryAfterSec based on the oldest stamp
-  //   5. each key has an independent counter
-  //   6. the bounded key map does not leak under 10000 unique keys
-
-
-
 
   const now = 1_700_000_000_000;
   const WINDOW = 60_000;
@@ -253,11 +219,9 @@ try {
 
   await test('once the oldest stamp falls out of the window, the slot frees up', () => {
     __resetKeyRpmForTests();
-    // 5 requests at the cap.
     for (let i = 0; i < 5; i += 1) {
       admitKeyRequest('k2', 5, now + i);
     }
-    // At now+WINDOW, the first request is exactly 60s old — outside the window.
     const later = now + WINDOW + 1;
     const r = admitKeyRequest('k2', 5, later);
     assert.equal(r.ok, true, 'after the window slides, the next request must be admitted');
@@ -265,8 +229,6 @@ try {
 
   await test('denied request retry-after reflects the oldest stamp', () => {
     __resetKeyRpmForTests();
-    // First request at t=0; the 6th is at t=30000 — retry-after should
-    // be ceil((0 + 60000 - 30000) / 1000) = 30 seconds.
     for (let i = 0; i < 5; i += 1) {
       admitKeyRequest('k3', 5, now + i);
     }
@@ -279,12 +241,10 @@ try {
     for (let i = 0; i < 5; i += 1) {
       admitKeyRequest('kA', 5, now + i);
     }
-    // kA is at cap. kB has its own counter.
     for (let i = 0; i < 5; i += 1) {
       const r = admitKeyRequest('kB', 5, now + i);
       assert.equal(r.ok, true, 'kB should be unaffected by kA');
     }
-    // kA is still denied.
     const r = admitKeyRequest('kA', 5, now + 6);
     assert.equal(r.ok, false, 'kA is still at cap');
   });
@@ -311,8 +271,6 @@ try {
     for (let i = 0; i < 10_000; i += 1) {
       admitKeyRequest(`k${i}`, 1, now);
     }
-    // The cap is 5000; anything past that is evicted. The limiter still
-    // works for newly-arriving keys (it never throws OOM, never blocks).
     const r = admitKeyRequest('k-fresh-after-overflow', 1, now);
     assert.equal(r.ok, true, 'the limiter must keep admitting fresh keys after overflow');
   });

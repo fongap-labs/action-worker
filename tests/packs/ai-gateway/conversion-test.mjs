@@ -1,15 +1,4 @@
 #!/usr/bin/env node
-// Anthropic <-> OpenAI protocol conversion tests.
-//
-//   1. Direct unit tests of src/conversion/* (request/response/stream).
-//   2. Direct unit tests of src/config/protocol-fallbacks (config + chain).
-//   3. Black-box handler tests of cross-protocol fallback over worker.fetch
-//      against a mocked global fetch upstream (Anthropic native success,
-//      Anthropic exhausted -> OpenAI conversion success, native available
-//      never calls OpenAI, conversion disabled, OpenAI 429/5xx rotation,
-//      client abort 499, first-event timeout rotation).
-//
-// Uses only node:test + node:assert. Exits 0 on success, 1 on failure.
 import assert from 'node:assert/strict';
 import { getFallbackChain, getProtocolFallbacksDiagnostics, loadProtocolFallbacks } from '#target/src/config/protocol-fallbacks.ts';
 import { convertRequest, convertResponse, convertStream, DEFAULT_MAX_TOKENS, ConversionError, convertOpenAIUsageToAnthropic } from './conversion-matrix-adapters.mjs';
@@ -55,7 +44,6 @@ await run('conversion: text roundtrip', () => {
   assert.equal(out.messages[0].role, 'system');
   assert.equal(out.messages[0].content, 'you are helpful');
   assert.equal(out.messages[1].role, 'user');
-  // user content is converted to [{type:'text', text:'hi'}]
   const userContent = out.messages[1].content;
   assert.ok(Array.isArray(userContent));
   assert.equal(userContent[0].type, 'text');
@@ -87,7 +75,6 @@ await run('conversion: tool_use roundtrip (assistant + tool_result)', () => {
       },
     ],
   });
-  // assistant -> tool_calls present
   const asst = out.messages[0];
   assert.equal(asst.role, 'assistant');
   assert.equal(asst.content, 'let me look that up');
@@ -97,7 +84,6 @@ await run('conversion: tool_use roundtrip (assistant + tool_result)', () => {
   assert.equal(asst.tool_calls[0].type, 'function');
   assert.equal(asst.tool_calls[0].function.name, 'lookup');
   assert.equal(asst.tool_calls[0].function.arguments, JSON.stringify({ city: 'sf' }));
-  // user tool_result -> single tool message at top level (not nested in user)
   const toolMsg = out.messages[1];
   assert.equal(toolMsg.role, 'tool', 'single tool_result becomes a top-level tool message');
   assert.equal(toolMsg.tool_call_id, 'call_1');
@@ -135,18 +121,14 @@ await run('conversion: response conversion (text + tool_use, finish=tool_calls)'
 });
 
 await run('conversion: usage conversion', () => {
-  // For observability: null/undefined upstream usage returns null (signals missing)
   assert.equal(convertOpenAIUsageToAnthropic(null), null);
   assert.equal(convertOpenAIUsageToAnthropic(undefined), null);
-  // Empty object with no usable fields returns null
   assert.equal(convertOpenAIUsageToAnthropic({}), null);
   assert.equal(convertOpenAIUsageToAnthropic({ prompt_tokens: 0, completion_tokens: 0 }), null);
-  // Valid usage returns converted values
   assert.deepEqual(convertOpenAIUsageToAnthropic({ prompt_tokens: 5, completion_tokens: 10, total_tokens: 15 }), {
     input_tokens: 5,
     output_tokens: 10,
   });
-  // total_tokens is ignored in conversion (client-facing), but observability uses it
   assert.deepEqual(convertOpenAIUsageToAnthropic({ prompt_tokens: 2, completion_tokens: 3 }), { input_tokens: 2, output_tokens: 3 });
 });
 
@@ -178,18 +160,12 @@ await run('conversion: unsupported tool_choice throws ConversionError', () => {
   assert.ok(caught instanceof ConversionError, 'expected ConversionError');
 });
 
-// =====================================================================
-//   OpenAI Chat Completions REQUEST -> Anthropic Messages REQUEST
-//   (new independent request converter)
-// =====================================================================
-
 await run('conversion: OpenAI Chat -> Anthropic request — text roundtrip', () => {
   const out = convertRequest('openai_chat', 'anthropic', {
     model: 'gpt-4o',
     messages: [{ role: 'user', content: 'hi' }],
   });
   assert.equal(out.model, 'gpt-4o');
-  // max_tokens not provided -> single default policy applied
   assert.equal(out.max_tokens, DEFAULT_MAX_TOKENS);
   assert.equal(out.messages.length, 1);
   assert.equal(out.messages[0].role, 'user');
@@ -206,16 +182,12 @@ await run('conversion: OpenAI Chat -> Anthropic request — system (string) + de
       { role: 'user', content: 'hi' },
     ],
   });
-  // Both sources merge into the Anthropic top-level system field as an
-  // array of text blocks (deterministic order: body.system first, then
-  // any system/developer messages).
   assert.ok(Array.isArray(out.system));
   assert.equal(out.system.length, 2);
   assert.equal(out.system[0].type, 'text');
   assert.equal(out.system[0].text, 'you are helpful');
   assert.equal(out.system[1].type, 'text');
   assert.equal(out.system[1].text, 'be concise');
-  // User message is preserved as-is
   assert.equal(out.messages[0].role, 'user');
   assert.equal(out.messages[0].content, 'hi');
 });
@@ -274,7 +246,6 @@ await run('conversion: OpenAI Chat -> Anthropic request — assistant tool_calls
   const asst = out.messages[1];
   assert.equal(asst.role, 'assistant');
   assert.ok(Array.isArray(asst.content));
-  // text + tool_use
   const text = asst.content.find((b) => b.type === 'text');
   const toolUse = asst.content.find((b) => b.type === 'tool_use');
   assert.ok(text, 'has text block');
@@ -297,7 +268,6 @@ await run('conversion: OpenAI Chat -> Anthropic request — role=tool -> tool_re
       { role: 'tool', tool_call_id: 'call_1', content: 'sunny' },
     ],
   });
-  // tool messages are merged into a user message with tool_result blocks
   const toolMsg = out.messages[1];
   assert.equal(toolMsg.role, 'user');
   assert.ok(Array.isArray(toolMsg.content));
@@ -321,7 +291,6 @@ await run('conversion: OpenAI Chat -> Anthropic request — multiple consecutive
       { role: 'tool', tool_call_id: 'c2', content: 'r2' },
     ],
   });
-  // Only one user message contains both tool_results (merged)
   const toolMsg = out.messages[1];
   assert.equal(toolMsg.role, 'user');
   assert.equal(toolMsg.content.length, 2);
@@ -437,14 +406,8 @@ await run('conversion: OpenAI Chat -> Anthropic request — unknown role is reje
 });
 
 await run('conversion: OpenAI Chat -> Anthropic request — DEFAULT_MAX_TOKENS is the single source of truth', () => {
-  // Pin the value so any drift is caught in CI (semantic contract).
   assert.equal(DEFAULT_MAX_TOKENS, 1024);
 });
-
-// =====================================================================
-//   Anthropic Messages RESPONSE -> OpenAI Chat Completions RESPONSE
-//   (new independent response converter)
-// =====================================================================
 
 await run('conversion: Anthropic response -> OpenAI Chat — text only (end_turn)', () => {
   const out = convertResponse('anthropic', 'openai_chat', {
@@ -571,11 +534,6 @@ await run('conversion: Anthropic response -> OpenAI Chat — thinking-only respo
   assert.equal(out.choices[0].message.content, '');
 });
 
-// =====================================================================
-//   Anthropic Messages STREAM (SSE) -> OpenAI Chat Completions STREAM
-//   (real-time SSE conversion; First Event Guard preserved)
-// =====================================================================
-
 function sseAnthropicEvent(name, data) {
   return `event: ${name}\ndata: ${JSON.stringify(data)}\n\n`;
 }
@@ -613,7 +571,6 @@ async function readOpenAIChatChunks(body) {
   return out;
 }
 
-// Read an arbitrary SSE body to a single string (for event-name assertions).
 async function _readSseStream(body) {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -656,18 +613,13 @@ await run('conversion: stream Anthropic -> OpenAI Chat — text + end_turn, real
     model: 'claude-x',
   });
   const out = await readOpenAIChatChunks(stream);
-  // Expect: role header -> content "hi" -> finish + [DONE]
   const chunks = out.filter((x) => x.chunk).map((x) => x.chunk);
   const dones = out.filter((x) => x.done);
-  // First chunk must be a role header (not real output for the first-event guard)
   const firstDelta = chunks[0]?.choices?.[0]?.delta;
   assert.ok(firstDelta && firstDelta.role === 'assistant', 'first chunk must carry delta.role=assistant');
-  // No real content in the first chunk (role-only does not commit the boundary)
   assert.equal(firstDelta.content, undefined);
-  // Second chunk must be the text delta
   const textChunk = chunks.find((c) => c.choices?.[0]?.delta?.content === 'hi');
   assert.ok(textChunk, 'text delta emitted');
-  // Last chunk carries finish_reason
   const last = chunks.findLast((c) => c.choices?.[0]?.finish_reason);
   assert.equal(last.choices[0].finish_reason, 'stop');
   assert.equal(dones.length, 1, 'exactly one [DONE] sentinel');
@@ -713,28 +665,17 @@ await run('conversion: stream Anthropic -> OpenAI Chat — tool_use + tool_calls
   });
   const out = await readOpenAIChatChunks(stream);
   const chunks = out.filter((x) => x.chunk).map((x) => x.chunk);
-  // First tool delta must carry id + name + empty arguments
   const startChunk = chunks.find((c) => c.choices?.[0]?.delta?.tool_calls?.[0]?.id === 'call_99');
   assert.ok(startChunk, 'tool_call start chunk with id=call_99');
   assert.equal(startChunk.choices[0].delta.tool_calls[0].function.name, 'lookup');
   assert.equal(startChunk.choices[0].delta.tool_calls[0].function.arguments, '');
-  // Subsequent deltas carry partial arguments
   const argChunks = chunks.filter((c) => c.choices?.[0]?.delta?.tool_calls?.[0]?.function?.arguments);
   assert.ok(argChunks.length >= 2, 'multiple argument deltas');
-  // Final chunk: finish_reason=tool_calls
   const last = chunks.findLast((c) => c.choices?.[0]?.finish_reason);
   assert.equal(last.choices[0].finish_reason, 'tool_calls');
 });
 
 await run('conversion: stream Anthropic -> OpenAI Chat — message_start only is NOT a commit', async () => {
-  // The First Event Guard requires the first parseable data to be real
-  // output. A role-only delta header does NOT count as real output, so the
-  // guard must still be allowed to rotate if no further events arrive.
-  // Here we feed only message_start + content_block_start (no deltas), then
-  // end the stream. The converter must NOT emit a finish chunk in that
-  // case, because no output was produced — the guard rotates, and the
-  // gateway treats the stream as a node failure. To check that boundary
-  // is preserved: nothing is emitted past the role header.
   const anthropicChunks = [
     sseAnthropicEvent('message_start', {
       type: 'message_start',
@@ -750,7 +691,6 @@ await run('conversion: stream Anthropic -> OpenAI Chat — message_start only is
       },
     }),
     sseAnthropicEvent('content_block_start', { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }),
-    // No deltas; upstream ends.
   ];
   const stream = convertStream('anthropic', 'openai_chat', makeSseResponse(anthropicChunks), {
     messageId: 'chatcmpl-test-3',
@@ -829,8 +769,6 @@ await run('conversion: stream Anthropic -> OpenAI Chat — usage chunk emitted a
   assert.equal(usage.total_tokens, 12);
 });
 
-// ---- Stream converter ----------------------------------------------------
-
 function makeSseResponse(events) {
   const encoder = new TextEncoder();
   let i = 0;
@@ -849,7 +787,6 @@ function sseEvent(name, data) {
   return `event: ${name}\ndata: ${JSON.stringify(data)}\n\n`;
 }
 
-// Read the full Anthropic-style stream and return a parsed list of {event, data}.
 async function readAnthropicEvents(body) {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -888,7 +825,6 @@ async function readAnthropicEvents(body) {
 }
 
 await run('conversion: stream text roundtrip', async () => {
-  // OpenAI SSE: role -> content "hi" -> stop -> [DONE]
   const openAiChunks = [
     sseEvent('', { choices: [{ delta: { role: 'assistant' } }] }),
     sseEvent('', { choices: [{ delta: { content: 'hi' } }] }),
@@ -902,7 +838,6 @@ await run('conversion: stream text roundtrip', async () => {
   });
   const events = await readAnthropicEvents(stream);
   const names = events.map((e) => e.event);
-  // The expected sequence includes the listed lifecycle events.
   const idx = (n) => names.indexOf(n);
   assert.ok(idx('message_start') !== -1, 'message_start emitted');
   assert.ok(idx('content_block_start') !== -1, 'content_block_start emitted');
@@ -910,16 +845,13 @@ await run('conversion: stream text roundtrip', async () => {
   assert.ok(idx('content_block_stop') !== -1, 'content_block_stop emitted');
   assert.ok(idx('message_delta') !== -1, 'message_delta emitted');
   assert.ok(idx('message_stop') !== -1, 'message_stop emitted');
-  // Order: message_start < content_block_start < content_block_delta < content_block_stop < message_delta < message_stop
   assert.ok(idx('message_start') < idx('content_block_start'));
   assert.ok(idx('content_block_start') < idx('content_block_delta'));
   assert.ok(idx('content_block_delta') < idx('content_block_stop'));
   assert.ok(idx('content_block_stop') < idx('message_delta'));
   assert.ok(idx('message_delta') < idx('message_stop'));
-  // message_start carries the configured inputTokens
   const ms = events.find((e) => e.event === 'message_start');
   assert.equal(ms.data.message.usage.input_tokens, 4);
-  // text_delta contains "hi"
   const td = events.find((e) => e.event === 'content_block_delta');
   assert.equal(td.data.delta.type, 'text_delta');
   assert.equal(td.data.delta.text, 'hi');
@@ -944,13 +876,11 @@ await run('conversion: stream tool_calls roundtrip (split across chunks)', async
   assert.equal(cbs.data.content_block.type, 'tool_use');
   assert.equal(cbs.data.content_block.id, 'call_99');
   assert.equal(cbs.data.content_block.name, 'lookup');
-  // one or more input_json_delta events; at least one
   const deltas = events.filter((e) => e.event === 'content_block_delta');
   assert.ok(deltas.length >= 1, 'at least one content_block_delta');
   const firstDelta = deltas[0];
   assert.equal(firstDelta.data.delta.type, 'input_json_delta');
   assert.ok(typeof firstDelta.data.delta.partial_json === 'string', 'partial_json is a string');
-  // The first partial_json must contain the start of the arguments object.
   assert.match(firstDelta.data.delta.partial_json, /^\{?"?ci/);
   // content_block_stop, message_delta, message_stop are all emitted after the tool deltas
   const stop = events.find((e) => e.event === 'content_block_stop');

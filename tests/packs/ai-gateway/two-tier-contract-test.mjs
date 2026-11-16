@@ -1,7 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-// Two-tier replacement contract: free Tier 1 -> static API Token Tier 2.
-// This is additive to the existing full test pack, not a waiver.
 
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

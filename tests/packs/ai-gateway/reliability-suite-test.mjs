@@ -1,12 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Merged suite. Each section below was a standalone suite and keeps its own scope:
-//   - reliability-core-contract-test.mjs
-//   - reliability-regression-test.mjs
-//   - reliability-convergence-test.mjs
-//   - reliability-fault-injection-test.mjs
-//   - reliability-performance-test.mjs
 
 import { createMockD1 } from '#kit/mock-d1-database.mjs';
 import { targetPath, targetRoot as root } from '#kit/target.mjs';
@@ -38,54 +29,16 @@ import { fileURLToPath } from 'node:url';
 import { legacySpentKeyRetry } from './spent-key-retry-contract.mjs';
 import { readAttemptOwner } from './source-ownership.mjs';
 
-// Writes are buffered per isolate. Flush right away so each assertion reads this write.
 async function persistNow(...args) {
   await persistTokenUsage(...args);
   await flushUsageBuffer();
 }
 
-// Validate real physical-attempt ownership, not a copied compatibility body.
 const attemptObservabilitySource = () => readAttemptOwner('observability');
 
-
-// ==========================================================================
-// reliability-core-contract-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Reliability Core contract test.
-  //
-  // The failure-kind vocabulary (KIND) is the single source of truth for every
-  // string that appears on the request hot path as LoopState.failureKinds,
-  // AttemptOutcome.kind, or terminalStatus dispatch. Drift between the
-  // classifier (src/reliability/classify.ts) and its consumers
-  // (src/request/attempt/*.ts, src/request/errors.ts) is the most common
-  // silent bug: an upstream code adds a new failure mode, types it as a raw
-  // string literal in the consumer, and the terminal-status mapping never
-  // learns about it.
-  //
-  // This contract pins the closed set of failure-kind strings across the
-  // source tree:
-  //   * Every `kind:` property assignment in src/ that produces a string
-  //     literal must use one of the canonical KIND.* values (or a derived
-  //     variable). No open string literals are allowed.
-  //   * KIND is the only place that defines the kind vocabulary.
-  //   * AttemptOutcome.kind is typed as FailureKind (not string) at the
-  //     source level.
-  //   * Every classify* function lives in src/reliability/classify.ts.
-  //
-  // If a new failure kind is added, this test must be updated in the same
-  // commit. The same applies to the request-reliability-test.mjs "every
-  // failure-kind consumer-facing value" test that pins the KIND union.
-
-
-
-
 
   const __dirname = dirname(fileURLToPath(import.meta.url));
-
 
   let failures = 0;
   function check(name, ok, detail) {
@@ -97,7 +50,6 @@ try {
     }
   }
 
-  // 1) KIND is the only place that defines the failure-kind vocabulary.
   const classifySource = readFileSync(join(root, 'src', 'reliability', 'classify.ts'), 'utf8');
   const kindBlockMatch = classifySource.match(/export const KIND = \{([\s\S]*?)\} as const;/);
   const kindValues = kindBlockMatch ? [...kindBlockMatch[1].matchAll(/^\s*([A-Z][A-Z0-9_]*):\s*'([^']+)'/gm)].map((m) => m[2]) : [];
@@ -148,7 +100,6 @@ try {
         while (m) {
           allKindLiterals.add(m[1]);
           if (!full.endsWith('reliability/classify.ts') && !full.endsWith('reliability\\classify.ts')) {
-            // Allow classify.ts (where the constants live).
             violationFiles.push({ file: full, literal: m[1] });
           }
           m = kindLiteralRe.exec(text);
@@ -156,7 +107,6 @@ try {
       }
     }
   }
-  // Lazy import for readdirSync/statSync.
   const { readdirSync, statSync } = await import('node:fs');
   function walkSync(dir) {
     for (const name of readdirSync(dir)) {
@@ -185,7 +135,6 @@ try {
     `violations=${JSON.stringify(violationFiles.slice(0, 5))} unknownLiterals=${JSON.stringify(unknownLiterals)} allLiterals=${JSON.stringify([...allKindLiterals])}`,
   );
 
-  // 3) AttemptOutcome.kind is typed as FailureKind (not string).
   const requestTypesSource = readFileSync(join(root, 'src', 'types', 'request.ts'), 'utf8');
   const outcomeBlock = requestTypesSource.match(/export type AttemptOutcome = \{([\s\S]*?)\};/);
   const kindFieldLine = outcomeBlock ? outcomeBlock[1].match(/kind\?:\s*([^;,]+)/) : null;
@@ -196,8 +145,6 @@ try {
     `kindType=${JSON.stringify(kindType)} (expected "FailureKind")`,
   );
 
-  // 4) FailureKind is imported in src/types/request.ts (proves the type
-  // comes from src/reliability/classify.ts, the single source of truth).
   const importsFailureKind =
     /import\s+type\s+\{[^}]*\bFailureKind\b[^}]*\}\s+from\s+['"][^'"]*reliability\/classify/.test(requestTypesSource) ||
     /import\s+type\s+\{[^}]*\bFailureKind\b[^}]*\}\s+from\s+['"][^'"]*reliability\\classify/.test(requestTypesSource);
@@ -511,20 +458,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// reliability-convergence-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Cross-module reliability convergence invariants.
-
-
-
-
-
-
-
-
 
   function reset() {
     __resetAllStateForTests();
@@ -610,8 +544,6 @@ try {
     const centerPaths = [];
     const response = await worker.fetch(request('Air', key), centerBoundConvergenceEnv(env, centerPaths), {});
     assert.notEqual(response.status, 200);
-    // No unauthorized sibling models are dispatched. In strict mode an
-    // exhausted physical Key is never retried merely to spend attempt budget.
     const expectedCalls = legacySpentKeyRetry ? ['up-air', 'up-air'] : ['up-air'];
     assert.deepEqual(calls.map((c) => c.model), expectedCalls);
     assert.deepEqual(centerPaths, Array(expectedCalls.length).fill('/internal/execute'), 'authorized Air-only attempts use the private inference center');
@@ -682,32 +614,8 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// reliability-fault-injection-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
   // @ts-check
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // PR 7 reliability fault-injection tests.
-  //
-  // These tests exercise the five failure paths the hardening plan calls out:
-  //   1. stream-interrupted failure must NOT pollute TTFT aggregates
-  //   2. hedge-loser path must NOT trigger a false-positive failure
-  //   3. half-open probe + counted failure must NOT make consecutiveFailures
-  //      regress (probe failure is counted, not the prior steady-state value)
-  //   4. KV read exception must fall through to "no affinity" (not crash,
-  //      not falsely seed affinity)
-  //   5. D1 write failure must NOT double-count (one attempt charges once,
-  //      even when the persistence call rejects)
-  //
-  // These are pure-Node fault-injection tests — no real D1, no real KV.
-
-
-
-
-
 
   const now = 1_700_000_000_000;
 
@@ -730,23 +638,14 @@ try {
     }
   }
 
-  // === 1. stream-interrupted must NOT pollute TTFT ========================
-
   header('1. stream-interrupted -> TTFT untouched');
 
   await test('recordTtft followed by stream-interrupted keeps the TTFT measurement', () => {
     const id = 'stream-ttft-1';
     resetNodeState(id);
-    // Real first event at +250ms — this is the only "real" measurement.
     recordTtft(id, 250, 'general-air');
     const s1 = getNodeState(id);
     assert.equal(s1.avgTtftMs, 250, 'real TTFT must be recorded');
-    // Now the stream is interrupted at +5000ms. The handler must NOT
-    // overwrite avgTtftMs with a bogus value derived from the
-    // interruption time (would falsely look like a 5s TTFT). The handler
-    // also must NOT call recordTtft at all for the interruption case;
-    // this test enforces that contract by asserting avgTtftMs is
-    // unchanged after the simulated stream-interrupted outcome.
     recordNeutralEnd(id);
     recordSuccess(id, 5000, 'general-air', now + 5000);
     const s2 = getNodeState(id);
@@ -758,16 +657,12 @@ try {
     resetNodeState(id);
     acquireSlot(id, now);
     recordTtft(id, 100, 'general-air');
-    // Tier 2/3 invalidates the TTFT after a first-event failure. Simulate
-    // the same path here and assert that a SUCCESSFUL TTFT stays put.
     markProbeFailure(id, 'general-air', now + 1000);
     const s = getNodeState(id);
     const mp = s.modelPerf.get('general-air');
     assert.ok(mp && mp.lastProbeFailureAt > 0, 'lastProbeFailureAt is set');
     assert.equal(s.avgTtftMs, 100, 'TTFT stays at the real first-event value');
   });
-
-  // === 2. hedge-loser must NOT trigger a false-positive failure ==========
 
   header('2. hedge loser -> neutral, never a counted failure');
 
@@ -785,8 +680,6 @@ try {
   await test('hedge-loser back-to-back never opens the circuit', () => {
     const id = 'hedge-loser-2';
     resetNodeState(id);
-    // 100 hedge losers in a row — the circuit must stay closed because
-    // neutral ends are explicitly NOT counted failures.
     for (let i = 0; i < 100; i += 1) {
       acquireSlot(id, now + i);
       recordNeutralEnd(id, now + i);
@@ -796,14 +689,11 @@ try {
     assert.equal(s.consecutiveFailures, 0, 'no consecutive failures accumulated');
   });
 
-  // === 3. half-open probe + counted failure: consecutiveFailures monotonic ===
-
   header('3. half-open probe -> counted failure does not regress consecutiveFailures');
 
   await test('open circuit, real request fails, consecutiveFailures monotonic', () => {
     const id = 'half-open-monotonic';
     resetNodeState(id);
-    // 3 real failures to open the circuit.
     acquireSlot(id, now);
     recordFailure(id, { counted: true, cooldownMs: 30_000, reason: '5xx' }, now);
     acquireSlot(id, now + 1);
@@ -813,19 +703,12 @@ try {
     let s = getNodeState(id);
     assert.equal(s.circuitState, 'open', 'circuit is open after 3 counted failures');
     const openCooldown = s.cooldownUntil;
-    // Simulate the half-open window elapsing: probes use the same
-    // recordFailure path. A fourth counted failure must take the
-    // consecutiveFailures to 4 (monotonic increment) and re-open the
-    // circuit; it must NOT reset back to 1 (which would mask
-    // long-running reliability issues).
     recordFailure(id, { counted: true, cooldownMs: 30_000, reason: '5xx' }, now + 30_001);
     s = getNodeState(id);
     assert.equal(s.circuitState, 'open', 'circuit re-opens after a probe failure');
     assert.ok(s.consecutiveFailures >= 4, 'consecutiveFailures is monotonically increasing');
     assert.ok(s.cooldownUntil >= openCooldown, 'cooldownUntil is updated on re-open');
   });
-
-  // === 4. KV read exception: readTier1Affinity returns null, no crash ===
 
   header('4. KV read exception -> no affinity, no crash');
 
@@ -851,9 +734,6 @@ try {
         },
       },
     };
-    // A successful call must not throw; the gateway path is the
-    // writeTier1Affinity(...) call inside attempt.ts which is followed
-    // by no await on the result (it is fire-and-forget for performance).
     let threw = false;
     try {
       await writeTier1Affinity(env, undefined, 'session-write-throws', 'account-x');
@@ -875,8 +755,6 @@ try {
     const out = await readTier1Affinity(env, 'session-malformed');
     assert.equal(out, null, 'a KV record without the expected shape must not be trusted');
   });
-
-  // === 5. D1 write failure: no double-charge, no uncaught rejection =====
 
   header('5. D1 write failure -> no double-charge, rejection surfaces to caller');
 
@@ -902,7 +780,6 @@ try {
     };
     let caught = null;
     try {
-      // The event may or may not trigger a flush itself; either way the failure reaches the caller.
       await persistNow(env, { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 }, now, 'model-d1-fail', 100);
       await flushUsageBuffer();
     } catch (error) {
@@ -911,17 +788,11 @@ try {
     __resetUsageBufferForTests();
     assert.ok(caught, 'a failed flush must reject so the caller can log it');
     assert.match(String(caught?.message || caught), /d1-explode/);
-    // One event flushes as one batch of at most the three statements it needs
-    // (hourly, totals and per-model). A retry loop would show up as extra batches.
     assert.equal(batchCount, 1, `one D1 batch per flush; saw ${batchCount}`);
     assert.ok(statementCount <= 3, `at most three statements per event; saw ${statementCount}`);
   });
 
   await test('a successful persistTokenUsage that is followed by a D1 reject in the next attempt does not double-count in memory', () => {
-    // The in-memory aggregator (recordTokenUsage) is called once per
-    // successful attempt; persistence is best-effort and runs in
-    // waitUntil. A failure in the D1 layer must never feed back into
-    // the in-memory count.
     let memoryCalls = 0;
     const fakeInMemoryAgg = () => {
       memoryCalls += 1;
@@ -937,22 +808,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// reliability-performance-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Unit tests for Provider Dashboard observability semantics:
-  // - Usage Coverage (usage_reports / (usage_reports + usage_missing))
-  // - TTFT P50/P95 from successful requests only
-  // - Failure does NOT produce TTFT samples
-  // - Provider-agnostic: no provider-specific logic
-
-
-
-
 
   const WEEK_MS = 7 * 24 * 3600_000;
 
@@ -970,8 +826,6 @@ try {
       console.error(`    ${e.message}`);
     }
   }
-
-  // ─── ttftBucketIndex ────────────────────────────────────────────────────────
 
   console.log('\n── ttftBucketIndex ──');
 
@@ -1051,8 +905,6 @@ try {
     assert.equal(ttftBucketIndex(30000), 6);
   });
 
-  // ─── TTFT bucket boundaries constant ────────────────────────────────────────
-
   console.log('\n── TTFT_BUCKET_BOUNDARIES_MS ──');
 
   await test('has 6 boundaries', () => {
@@ -1067,8 +919,6 @@ try {
       );
     }
   });
-
-  // ─── persistTokenUsage with TTFT ────────────────────────────────────────────
 
   console.log('\n── persistTokenUsage with TTFT ──');
 
@@ -1133,8 +983,6 @@ try {
     assert.equal(d1._modelRows.size, 0, 'no model rows written');
   });
 
-  // ─── queryModelUsageCoverage ──────────────────────────────────────────────
-
   console.log('\n── queryModelUsageCoverage ──');
 
   await test('returns per-model usage coverage', async () => {
@@ -1142,11 +990,9 @@ try {
     const env = { TOKEN_STATS_DB: d1 };
     const now = Date.now();
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
-    // model-a: 10 delivered with usage, 0 missing -> 100% coverage
     for (let i = 0; i < 10; i++) {
       await persistNow(env, usage, now - i * 1000, 'model-a');
     }
-    // model-b: 1 delivered with usage, 9 delivered without usage -> 10% coverage
     await persistNow(env, usage, now, 'model-b');
     for (let i = 0; i < 9; i++) {
       await persistNow(env, null, now - (i + 1) * 1000, 'model-b');
@@ -1181,8 +1027,6 @@ try {
     assert.equal(result.rows.length, 0);
   });
 
-  // ─── queryAllModelsTtftPercentiles ─────────────────────────────────────────
-
   console.log('\n── queryAllModelsTtftPercentiles ──');
 
   await test('insufficient samples returns both p50/p95 insufficient', async () => {
@@ -1190,7 +1034,6 @@ try {
     const env = { TOKEN_STATS_DB: d1 };
     const now = Date.now();
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
-    // Only 3 samples (< P50 threshold of 5)
     for (let i = 0; i < 3; i++) {
       await persistNow(env, usage, now - i * 1000, 'model-a', 1000 + i * 500);
     }
@@ -1208,7 +1051,6 @@ try {
     const env = { TOKEN_STATS_DB: d1 };
     const now = Date.now();
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
-    // 20 samples (≥ P95 threshold of 20): all in bucket 3 (1-2s)
     for (let i = 0; i < 20; i++) {
       await persistNow(env, usage, now - i * 1000, 'model-a', 1200);
     }
@@ -1217,7 +1059,6 @@ try {
     assert.equal(result.p50Insufficient, false);
     assert.equal(result.p95Insufficient, false);
     assert.equal(result.sampleCount, 20);
-    // P50 and P95 both in bucket 3 -> upper bound is 2000ms
     assert.equal(result.p50, 2000);
     assert.equal(result.p95, 2000);
   });
@@ -1227,7 +1068,6 @@ try {
     const env = { TOKEN_STATS_DB: d1 };
     const now = Date.now();
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
-    // 20 samples: 12 in bucket 2 (500ms-1s), 8 in bucket 4 (2-5s)
     for (let i = 0; i < 12; i++) {
       await persistNow(env, usage, now - i * 1000, 'model-a', 700);
     }
@@ -1239,9 +1079,7 @@ try {
     assert.equal(result.p50Insufficient, false);
     assert.equal(result.p95Insufficient, false);
     assert.equal(result.sampleCount, 20);
-    // P50 (10th sample) is in bucket 2 -> upper bound 1000ms
     assert.equal(result.p50, 1000);
-    // P95 (19th sample) is in bucket 4 -> upper bound 5000ms
     assert.equal(result.p95, 5000);
   });
 
@@ -1258,8 +1096,6 @@ try {
     assert.equal(result.ttft.size, 0, 'models without rows simply have no entry');
   });
 
-  // ─── Provider-agnostic verification ─────────────────────────────────────────
-
   console.log('\n── Provider-agnostic verification ──');
 
   await test('provider name does not affect usage coverage', async () => {
@@ -1267,7 +1103,6 @@ try {
     const env = { TOKEN_STATS_DB: d1 };
     const now = Date.now();
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
-    // provider-a: 10 delivered with usage
     for (let i = 0; i < 10; i++) {
       await persistNow(env, usage, now - i * 1000, 'model-a');
     }
@@ -1282,7 +1117,6 @@ try {
     const env = { TOKEN_STATS_DB: d1 };
     const now = Date.now();
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
-    // provider-new: 5 delivered with usage, 5 delivered without usage
     for (let i = 0; i < 5; i++) {
       await persistNow(env, usage, now - i * 1000, 'model-new');
     }
@@ -1295,8 +1129,6 @@ try {
     assert.ok(m, 'model-new found');
     assert.equal(m.usageCoverage, 0.5);
   });
-
-  // ─── Core verification cases from task ──────────────────────────────────────
 
   console.log('\n── Core verification cases ──');
 
@@ -1321,9 +1153,7 @@ try {
     const env = { TOKEN_STATS_DB: d1 };
     const now = Date.now();
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
-    // 1 delivered with usage
     await persistNow(env, usage, now, 'provider-b', 500);
-    // 9 delivered without usage (missing usage data)
     for (let i = 0; i < 9; i++) {
       await persistNow(env, null, now - (i + 1) * 1000, 'provider-b');
     }
@@ -1331,7 +1161,6 @@ try {
     const ttft = (await queryAllModelsTtftPercentiles(env, WEEK_MS, now)).ttft.get('provider-b');
     const b = cov.rows.find((r) => r.model === 'provider-b');
     assert.equal(b.usageCoverage, 0.1, 'Usage Coverage 10%');
-    // Only 1 TTFT sample (< P50 threshold) -> both insufficient
     assert.equal(ttft.p50Insufficient, true, 'p50 insufficient');
     assert.equal(ttft.p95Insufficient, true, 'p95 insufficient');
     assert.equal(ttft.sampleCount, 1, 'only 1 TTFT sample');
@@ -1343,11 +1172,9 @@ try {
     const env = { TOKEN_STATS_DB: d1 };
     const now = Date.now();
     const usage = { prompt_tokens: 10, completion_tokens: 20, total_tokens: 30 };
-    // 5 fast failures (delivered without usage) - should NOT produce TTFT samples
     for (let i = 0; i < 5; i++) {
       await persistNow(env, null, now - i * 1000, 'model-fast-fail');
     }
-    // 5 slow successes (delivered with usage, 4s TTFT each)
     for (let i = 0; i < 5; i++) {
       await persistNow(env, usage, now - (5 + i) * 1000, 'model-fast-fail', 4000);
     }
@@ -1358,8 +1185,6 @@ try {
     assert.equal(ttft.sampleCount, 5, 'only 5 TTFT samples (failures excluded)');
     assert.equal(ttft.p50, 5000, 'P50 TTFT in 2-5s bucket');
   });
-
-  // ─── Summary ────────────────────────────────────────────────────────────────
 
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) throw new Error('suite stopped after recorded failures');

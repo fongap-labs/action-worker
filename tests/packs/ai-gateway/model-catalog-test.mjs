@@ -1,12 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Merged suite. Each section below was a standalone suite and keeps its own scope:
-//   - model-status-test.mjs
-//   - model-status-window-contract-test.mjs
-//   - model-catalog-policy-test.mjs
-//   - model-discovery-live-test.mjs
-//   - closed-catalog-test.mjs
 
 import { createMockD1 } from '#kit/mock-d1-database.mjs';
 import { targetRoot as root } from '#kit/target.mjs';
@@ -28,28 +19,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-// ==========================================================================
-// model-status-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  //
-  // Public Model Status unit tests (src/runtime/model-status.ts). The core bug
-  // fix is verified here: a freshly-isolated Worker that has no Tier 1
-  // passive-TTFT sample must NOT mark every model `暂无记录` when D1 has recent
-  // successful evidence for them. The five public states are: 服务可用
-  // (available), 服务波动 (fluctuating), 无新记录 (no_recent), 暂无记录
-  // (no_record), 服务故障 (down). A model with no runtime sample, no recent
-  // evidence, and no historical evidence is `no_record`; a model with all
-  // candidates currently down and no recent evidence is `down`. D1 failure
-  // must fail open: never fabricate `available`, never mark every model `down`.
-
-
-
-
-
-
-
 
   const HOUR = 3_600_000;
 
@@ -102,17 +72,12 @@ try {
     return entry.status;
   }
 
-  // --- 1. Cold-start: no Tier 1 sample + D1 has recent traffic => available ----
-
   test('cold-start: no Tier 1 sample but D1 has recent traffic -> available', () => {
     const nodes = [node('a', { air: 'up-air' })];
-    // No recordTier1Ttft() — fresh isolate, account has no sample.
     const evidence = new Set(['air']);
     const list = getPublicModelStatus(nodes, ENV, evidence, now());
     assert.equal(findModelStatus(list, 'air'), 'available');
   });
-
-  // --- 2. New model: no runtime sample + no D1 evidence => no_record ----------
 
   test('new model: no runtime sample and no D1 evidence -> no_record', () => {
     const nodes = [node('a', { air: 'up-air' })];
@@ -120,19 +85,14 @@ try {
     assert.equal(findModelStatus(list, 'air'), 'no_record');
   });
 
-  // --- 3. All candidates down + no recent D1 => down ---------------------------
-
   test('all candidates down and no D1 evidence -> down', () => {
     const nodes = [node('a', { air: 'up-air' })];
-    // Force the Tier 1 model into cooldown so runtime returns 'unavailable'.
     const t1Model = getTier1Model('a', 'air');
     t1Model.cooldownUntil = now() + 60_000;
     t1Model.failureState = 'cooldown';
     const list = getPublicModelStatus(nodes, ENV, new Set(), now());
     assert.equal(findModelStatus(list, 'air'), 'down');
   });
-
-  // --- 4. All candidates down + recent D1 => fluctuating -----------------------
 
   test('all candidates cooling with recent D1 success -> fluctuating', () => {
     const nodes = [node('a', { air: 'up-air' })];
@@ -143,8 +103,6 @@ try {
     assert.equal(findModelStatus(list, 'air'), 'fluctuating');
   });
 
-  // --- 5. Tier 1 sample present + healthy => available -------------------------
-
   test('healthy Tier 1 path with sample -> available (with or without D1)', () => {
     const nodes = [node('a', { air: 'up-air' })];
     recordTier1Ttft('a', 'air', 100, now() - 1000);
@@ -152,20 +110,15 @@ try {
     assert.equal(findModelStatus(getPublicModelStatus(nodes, ENV, new Set(['air']), now()), 'air'), 'available');
   });
 
-  // --- 6. Mixed nodes: one available + one cooling + no D1 => available ---------
-
   test('one available + one cooling + no D1 -> available (still has a path)', () => {
     const nodes = [node('a', { air: 'up-air' }), node('b', { air: 'up-air' })];
     recordTier1Ttft('a', 'air', 100, now() - 1000);
-    // b is in cooldown.
     const t1ModelB = getTier1Model('b', 'air');
     t1ModelB.cooldownUntil = now() + 60_000;
     t1ModelB.failureState = 'cooldown';
     const list = getPublicModelStatus(nodes, ENV, new Set(), now());
     assert.equal(findModelStatus(list, 'air'), 'available');
   });
-
-  // --- 7. Mixed nodes: one available + one cooling + D1 => available -----------
 
   test('one available + one cooling + D1 -> available', () => {
     const nodes = [node('a', { air: 'up-air' }), node('b', { air: 'up-air' })];
@@ -177,40 +130,27 @@ try {
     assert.equal(findModelStatus(list, 'air'), 'available');
   });
 
-  // --- 8. Node-mapped models are public by default ----------------------------
-
   test('node-mapped model IS public (no AIG_MODELS_CONFIG required)', () => {
-    // Two node-mapped models. No AIG_MODELS_CONFIG: both should be public.
     const nodes = [node('a', { 'public-air': 'up-air', 'public-max': 'up-max' })];
     const list = getPublicModelStatus(nodes, ENV, new Set(), now());
     const ids = list.models.map((m) => m.id);
     assert.ok(ids.includes('public-air'), 'a node-mapped model is public by default');
     assert.ok(ids.includes('public-max'), 'a node-mapped model is public by default');
-    // A model in AIG_MODELS_CONFIG but with no node mapping is not in the public set.
     const airInResult = list.models.find((m) => m.id === 'air');
     assert.equal(airInResult, undefined, 'AIG_MODELS_CONFIG alone does not surface a model');
   });
 
-  // --- 9. Wildcard node: serves any model another node declared ---------------
-
   test('wildcard node serves any model another node declared', () => {
-    // Two nodes: one wildcard (empty models), one explicit. The wildcard node
-    // serves 'air' (because another node maps it), even though its own models
-    // map is empty.
     const nodes = [
       node('a', {}), // wildcard
       node('b', { 'public-air': 'up-air' }), // explicit
     ];
     const list = getPublicModelStatus(nodes, ENV, new Set(['public-air']), now());
-    // Node mappings are the primary source; 'public-air' is in node b's map.
     const ids = list.models.map((m) => m.id);
     assert.ok(ids.includes('public-air'), 'public-air is in the public set via node b');
   });
 
-  // --- 10. Sort order: result is sorted by id ----------------------------------
-
   test('output is sorted by logical model name', () => {
-    // Source is node mappings (primary). Build a single node with three models.
     const nodes = [node('a', { zeta: 'up-zeta', alpha: 'up-alpha', mid: 'up-mid' })];
     const list = getPublicModelStatus(nodes, ENV, new Set(), now());
     assert.deepEqual(
@@ -219,8 +159,6 @@ try {
     );
     assert.equal(list.observed_at, new Date(now()).toISOString(), 'envelope carries observed_at');
   });
-
-  // --- 11. Public-safety: no node ids / providers / tiers in output ------------
 
   test('output never carries node ids, providers, or tiers', () => {
     const nodes = [node('n1', { air: 'up-air' })];
@@ -234,44 +172,28 @@ try {
     assert.ok(!/half_open/.test(serialized), 'must not leak failure state');
   });
 
-  // --- 12. Edge: empty node list ----------------------------------------------
-
   test('empty node list -> empty public status (no node mappings = no public models)', () => {
     const list = getPublicModelStatus([], ENV, new Set(), now());
-    // Node mappings are primary; with no nodes there is nothing to show. The
-    // AIG_MODELS_CONFIG declaration alone does not surface a model.
     assert.deepEqual(list.models, []);
   });
-
-  // --- 13. Edge: null/undefined env handling -----------------------------------
 
   test('null env (e.g. test isolation) falls back to node mappings', () => {
     const nodes = [node('a', { air: 'up-air' })];
     const result = getPublicModelStatus(nodes, null, new Set(), now());
-    // Without a registry the backward-compat fallback picks up node-mapping
-    // model names so the dashboard is not silently empty.
     assert.ok(Array.isArray(result.models));
     assert.equal(result.models.length, 1, 'fallback picks up node-mapping model');
     assert.equal(result.models[0].id, 'air');
   });
 
-  // --- 14. Edge: half-open state -> no_record without evidence ---------------
-
   test('Tier 1 half-open state -> no_record without evidence, available with recent', () => {
     const nodes = [node('a', { air: 'up-air' })];
-    // Tier 1 half-open is the only state that returns 'unobserved' from runtime.
-    // Mark it explicitly: cooldownUntil has elapsed, halfOpenSuccesses not yet 2.
     const t1Model = getTier1Model('a', 'air');
     t1Model.failureState = 'half_open';
     t1Model.cooldownUntil = 0;
     t1Model.halfOpenSuccesses = 0;
-    // No D1 evidence -> no_record (configured but never proven)
     assert.equal(findModelStatus(getPublicModelStatus(nodes, ENV, new Set(), now()), 'air'), 'no_record');
-    // Recent D1 evidence -> available (proven recently)
     assert.equal(findModelStatus(getPublicModelStatus(nodes, ENV, new Set(['air']), now()), 'air'), 'available');
   });
-
-  // --- 15. queryRecentModelEvidence: miss / hit / fail-open --------------------
 
   await testAsync('queryRecentModelEvidence: no binding -> empty Set', async () => {
     const out = await queryRecentModelEvidence({ AIG_ACCESS_KEY_AIR: 'k' }, MODEL_STATUS_RECENT_WINDOW_MS, now());
@@ -282,7 +204,6 @@ try {
   await testAsync('queryRecentModelEvidence: persists -> returns model Set', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    // Persist one recent success.
     const h0 = Math.floor((now() - 30 * 60_000) / HOUR) * HOUR;
     const { persistTokenUsage } = await import('#target/src/observability/token-usage-store.ts');
     await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'air');
@@ -320,10 +241,6 @@ try {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
     const h0 = Math.floor((now() - 30 * 60_000) / HOUR) * HOUR;
-    // Persist with null usage -> requests=1, reports=0, missing=1. The
-    // evidence query is `requests > 0` (per-model traffic), so this DOES
-    // still count as evidence. The 'reports > 0' filter would be too strict
-    // (an interrupted stream with partial data is still recent activity).
     const { persistTokenUsage } = await import('#target/src/observability/token-usage-store.ts');
     await persistTokenUsage(env, null, h0, 'broken-only');
     await flushUsageBuffer();
@@ -331,34 +248,24 @@ try {
     assert.ok(out.has('broken-only'), 'a row with requests > 0 (even if missing-usage) still counts as recent activity');
   });
 
-  // --- 16. Window constants: 24h recent + 7d historical ------------------------
-
   test('MODEL_STATUS_RECENT_WINDOW_MS is 24h; HISTORICAL is 7d', () => {
     assert.equal(MODEL_STATUS_RECENT_WINDOW_MS, 24 * 3600_000);
     assert.equal(MODEL_STATUS_HISTORICAL_WINDOW_MS, 7 * 24 * 3600_000);
   });
 
-  // --- 17. Multi-isolate cold-start: rebuild does not flip available -> unobserved
-
   test('isolate rebuild does not flip a previously-available model back to unobserved', () => {
-    // Isolate A served the model and recorded a sample.
     const nodes = [node('a', { air: 'up-air' })];
     recordTier1Ttft('a', 'air', 100, now() - 1000);
-    // D1 also has the recent success.
     const evidence = new Set(['air']);
     const aList = getPublicModelStatus(nodes, ENV, evidence, now());
     assert.equal(findModelStatus(aList, 'air'), 'available');
-    // Wipe isolate-local Tier 1 state (simulate a fresh isolate). D1 still has evidence.
     __resetTier1StateForTests();
     __resetAllStateForTests();
     const bList = getPublicModelStatus(nodes, ENV, evidence, now());
     assert.equal(findModelStatus(bList, 'air'), 'available', 'cold-start with persistent D1 evidence must remain available');
   });
 
-  // --- 18. Two-tier aggregation: a model served only by Token Tier 2 still works --
-
   test('model served only by Token Tier 2 is read correctly', () => {
-    // Pure Token Tier 2 node: no Tier 1 state at all.
     const nodes = [
       {
         id: 't3',
@@ -370,17 +277,12 @@ try {
         models: { air: 'up-air' },
       },
     ];
-    // No Tier 1 state -> runtime is 'unobserved' for this node
     const list = getPublicModelStatus(nodes, ENV, new Set(['air']), now());
-    // D1 has evidence -> available (case D)
     assert.equal(findModelStatus(list, 'air'), 'available');
   });
 
-  // --- 19. output has exactly the five documented states ----------------------
-
   test('output only ever returns the five documented status values', () => {
     const nodes = [node('a', { air: 'up-air' }), node('b', { max: 'up-max' })];
-    // Various scenarios across recent + historical evidence combinations.
     const seen = new Set();
     for (const recent of [new Set(), new Set(['air']), new Set(['air', 'max']), new Set(['max'])]) {
       for (const history of [new Set(), new Set(['air']), new Set(['max'])]) {
@@ -396,20 +298,13 @@ try {
     }
   });
 
-  // --- 19b. Historical evidence: no recent but has history -> no_recent --------
-
   test('historical evidence without recent -> no_recent', () => {
     const nodes = [node('a', { air: 'up-air' })];
-    // No recent evidence, no runtime sample (unobserved), but historical
-    // evidence exists -> no_recent (was served before, just not recently).
     const list = getPublicModelStatus(nodes, ENV, new Set(), now(), new Set(['air']));
     assert.equal(findModelStatus(list, 'air'), 'no_recent');
   });
 
   test('all candidates down + no recent + historical -> still down', () => {
-    // allDown short-circuits before historical evidence: a model whose every
-    // candidate is explicitly down with no recent success is `down`, regardless
-    // of older historical evidence.
     const nodes = [node('a', { air: 'up-air' })];
     const t1Model = getTier1Model('a', 'air');
     t1Model.cooldownUntil = now() + 60_000;
@@ -420,12 +315,9 @@ try {
 
   test('canonical historical evidence matches official-cased model', () => {
     const nodes = [node('a', { 'Code-Max': 'up-cm' })];
-    // Historical evidence is canonical (code-max), model is official-cased.
     const list = getPublicModelStatus(nodes, ENV, new Set(), now(), new Set(['code-max']));
     assert.equal(findModelStatus(list, 'Code-Max'), 'no_recent');
   });
-
-  // --- 20. Dashboard wiring: queryRecentModelEvidence rides the existing 45s cache
 
   await testAsync('dashboard path issues queryRecentModelEvidence at most once per 45s cache window', async () => {
     const d1 = createMockD1();
@@ -436,12 +328,9 @@ try {
     const { persistTokenUsage } = await import('#target/src/observability/token-usage-store.ts');
     await persistTokenUsage(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'air');
     await flushUsageBuffer();
-    // Issue two concurrent page loads — the model-status query must be
-    // coalesced by the existing dashboard cache, not re-issued.
     const readsBefore = d1._reads.length;
     const req = () => new Request('https://gateway.example.com/', { headers: { accept: 'text/html' } });
     const [h1, h2] = await Promise.all([(await dashboardResponse(req(), env)).text(), (await dashboardResponse(req(), env)).text()]);
-    // Each render mints its own CSP nonce, so strip it before comparing.
     const stripNonce = (html) => html.replace(/nonce="[^"]*"/g, 'nonce=""');
     assert.equal(stripNonce(h1), stripNonce(h2), 'cached');
     // Two concurrent pages should add at most ONE new read of the model table
@@ -1178,7 +1067,6 @@ try {
   assert.ok(genericCalls.some((c) => new URL(c.url).pathname === '/v1/models'));
   assert.ok(!JSON.stringify(currentNode).includes(GENERIC_SECRET), 'sanitized result must never include credential material');
 
-  // Native OpenAI owns both Chat Completions and Responses in the shared profile.
   const openaiFetch = async (input, init = {}) => {
     const url = new URL(String(input));
     assert.equal(init.headers.authorization, `Bearer ${OPENAI_SECRET}`);
@@ -1222,7 +1110,6 @@ try {
   assert.match(md, /\+ model-b/);
   assert.match(md, /- model-old/);
 
-  // A scan failure must never be presented as every previous model disappearing.
   const failedCurrent = {
     schema_version: 1,
     generated_at: '2026-09-12T01:00:00.000Z',
@@ -1241,9 +1128,6 @@ try {
   assert.deepEqual(failedDiff.changes[0].removed, []);
   assert.deepEqual(failedDiff.changes[0].unchanged, ['model-a', 'model-old']);
 
-  // Anthropic config contains no protocol/surfaces fields. Discovery still uses
-  // native x-api-key auth and probes /v1/messages because the provider profile
-  // is the single wire contract.
   let anthropicMessagesProbe = false;
   const anthropicFetch = async (input, init = {}) => {
     const url = new URL(String(input));
@@ -1274,16 +1158,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// closed-catalog-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Closed Model Catalog regression contracts.
-
-
-
-
 
   let passed = 0;
   function test(name, fn) {
@@ -1397,17 +1272,13 @@ try {
 
   test('client model spelling is case-insensitive and context-length tags resolve to the catalog entry', () => {
     const known = new Set(['Code-Ultra', 'Code-Max', 'Code-Pro']);
-    // Claude Code appends the official 1M-context tag to the model string.
     assert.equal(resolveClientModel('Code-Ultra[1m]', known), 'Code-Ultra');
     assert.equal(resolveClientModel('code-max', known), 'Code-Max');
     assert.equal(resolveClientModel('CODE-PRO', known), 'Code-Pro');
-    // Unknown models survive unchanged, so fail-closed paths stay 404/403.
     assert.equal(resolveClientModel('unknown-model', known), 'unknown-model');
     assert.equal(resolveClientModel('unknown-model[1m]', known), 'unknown-model');
     assert.deepEqual(resolveClientModel('unknown-model[1m]', new Set()), 'unknown-model');
 
-    // Authorization forgives the same casing differences, on allowlists
-    // configured in the operator's spelling and on allow-all keys.
     const key = allowlist('code-max');
     assert.equal(authorizeModel('Code-Max', known, key).allowed, true);
     assert.equal(authorizeModel('code-ultra', known, allowAll).allowed, true);

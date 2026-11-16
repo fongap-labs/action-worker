@@ -1,15 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Merged suite. Each section below was a standalone suite and keeps its own scope:
-//   - request-reliability-test.mjs
-//   - attempt-budget-contract-test.mjs
-//   - composed-capacity-contract-test.mjs
-//   - request-execution-ownership-test.mjs
-//   - upstream-processing-classification-test.mjs
-//   - runtime-state-contract-test.mjs
-//   - policy-default-reliability-test.mjs
-//   - policy-max-in-flight-test.mjs
 
 import { targetRoot as root } from '#kit/target.mjs';
 import { loadModelsConfig } from '#target/src/config/models.ts';
@@ -35,17 +23,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readAttemptOwner } from './source-ownership.mjs';
 
-// ==========================================================================
-// request-reliability-test.mjs
-// ==========================================================================
 try {
-  // Request-reliability tests for node runtime state: live load accounting, cooldowns, circuit
-  // breaker transitions, half-open single probe.
-
-
-
-
-
 
   const ENV = {};
   let now = 1_000_000;
@@ -77,7 +55,6 @@ try {
   });
 
   await test('consecutive failures open circuit; interleaved success keeps it closed', async () => {
-    // 503 success 503 success 503 -> CLOSED
     for (let i = 0; i < 2; i++) {
       acquireSlot('c1', now);
       tick(1);
@@ -91,7 +68,6 @@ try {
     recordFailure('c1', { counted: true, cooldownMs: 100 }, now);
     assert.equal(getNodeState('c1').circuitState, 'closed');
 
-    // N consecutive failures -> OPEN
     for (let i = 0; i < CIRCUIT_FAILURE_THRESHOLD; i++) {
       acquireSlot('c1', now);
       tick(1);
@@ -206,11 +182,6 @@ try {
     assert.ok(Math.abs(getNodeState(id).avgLatencyMs - 26) < 1); // EWMA alpha .3
   });
 
-  // ---- Half-open probe leak / resolution ------------------------------------
-  // A probe that ends in a non-counted outcome (429 / 401 / 404 / neutral /
-  // client abort) must release BOTH activeRequests AND probeInFlight, and the node
-  // must become schedulable again. Regression for the stuck half-open bug.
-
   function openCircuitForProbe(id) {
     for (let i = 0; i < CIRCUIT_FAILURE_THRESHOLD; i++) {
       acquireSlot(id, now);
@@ -287,16 +258,12 @@ try {
     assert.equal(peekAvailability(id, now + 1), 'probe', 'node must be probe-ready again after the open period');
   });
 
-  // ---- Per-attempt header-wait budget split -----------------------------------
-
   await test('one absolute attempt slice is shared by headers and first event', async () => {
     assert.equal(attemptBudgetSliceMs(240_000, 1), 240_000);
     assert.equal(attemptBudgetSliceMs(240_000, 2), 120_000);
     assert.equal(attemptBudgetSliceMs(240_000, 5), 48_000);
     assert.equal(attemptBudgetSliceMs(0, 5), 1, 'a timer never receives a zero delay');
     assert.equal(attemptBudgetSliceMs(60_000, 0), 60_000, 'degenerate attempt counts are clamped');
-    // Headers and first-event are serial phases. After headers consume 18s of a
-    // 48s attempt slice, the first-event guard can use only the 30s remainder.
     const attemptDeadline = 48_000;
     const afterHeaders = attemptDeadline - 18_000;
     assert.equal(attemptFirstEventTimeoutMs(120_000, afterHeaders, 1), 30_000);
@@ -309,21 +276,15 @@ try {
   });
 
   await test('the budget is split evenly across remaining attempts', async () => {
-    // Production-shaped case: 240s budget, 60s headers, 5 attempts -> 48s each;
-    // a timing-out first node can no longer starve the rest.
     assert.equal(attemptHeadersTimeoutMs(60_000, 240_000, 5), 48_000);
     assert.equal(attemptHeadersTimeoutMs(120_000, 180_000, 2), 90_000, 'the old 120s+60s starvation pair becomes 90s+90s');
-    // After an attempt is charged the share grows for the rest.
     assert.equal(attemptHeadersTimeoutMs(60_000, 192_000, 4), 48_000);
   });
 
   await test('the per-attempt floor protects viable slow upstreams, the budget caps extremes', async () => {
-    // share (10s) below the floor -> floor wins, but never beyond the budget.
     assert.equal(attemptHeadersTimeoutMs(120_000, 50_000, 5), MIN_ATTEMPT_HEADERS_MS);
-    // Remaining budget below the floor -> budget wins (no overshoot).
     assert.equal(attemptHeadersTimeoutMs(120_000, 8_000, 5), 8_000);
     assert.equal(attemptHeadersTimeoutMs(60_000, 0, 3), 1, 'degenerate remaining never schedules a 0ms timer');
-    // A tight headers timeout dominates everything.
     assert.equal(attemptHeadersTimeoutMs(8_000, 240_000, 5), 8_000);
   });
 
@@ -341,21 +302,17 @@ try {
   });
 
   await test('timeout failures are classified as headers_timeout / first_event_timeout', async () => {
-    // fetch never got HTTP status -> headers_timeout, counted for the circuit.
     const headers = classifyNetworkError(true);
     assert.equal(headers.kind, 'headers_timeout');
     assert.equal(headers.action, 'rotate');
     assert.equal(headers.counted, true);
-    // plain network error keeps its own kind, also counted.
     const network = classifyNetworkError(false);
     assert.equal(network.kind, 'network');
     assert.equal(network.counted, true);
-    // HTTP 200 received, but no valid SSE event -> first_event_timeout, counted.
     const firstEvent = classifyFirstEventFailure();
     assert.equal(firstEvent.kind, 'first_event_timeout');
     assert.equal(firstEvent.action, 'rotate');
     assert.equal(firstEvent.counted, true);
-    // client abort stays a neutral, uncounted end of its own kind.
     const abort = classifyClientAbort();
     assert.equal(abort.kind, 'client_abort');
     assert.equal(abort.action, 'neutral');
@@ -364,17 +321,12 @@ try {
 
   await test('hedge defaults: 3000ms delay, 1 hedge per request, overridable', async () => {
     const defaults = getLimits(ENV);
-    // Speed-first tightening: AIG_HEDGE_DELAY_MS default dropped 6000 -> 3000.
-    // Hedge is also disabled by default through the built-in 'default' policy
-    // (hedge.enabled=false); the raw env-var default is still 3000.
     assert.equal(defaults.hedgeDelayMs, 3_000, 'AIG_HEDGE_DELAY_MS default is 3000');
     assert.equal(defaults.maxHedgesPerRequest, 1, 'AIG_REQUEST_HEDGE_MAX default is 1');
     const overridden = getLimits({ AIG_HEDGE_DELAY_MS: '8000', AIG_REQUEST_HEDGE_MAX: '2' });
     assert.equal(overridden.hedgeDelayMs, 8_000);
     assert.equal(overridden.maxHedgesPerRequest, 2);
-    // 0 disables hedging entirely but stays inside the clamped range.
     assert.equal(getLimits({ AIG_REQUEST_HEDGE_MAX: '0' }).maxHedgesPerRequest, 0);
-    // Out-of-range values are clamped, not trusted.
     assert.equal(getLimits({ AIG_REQUEST_HEDGE_MAX: '99' }).maxHedgesPerRequest, 3);
     assert.equal(getLimits({ AIG_HEDGE_DELAY_MS: '-5' }).hedgeDelayMs, 0);
   });
@@ -396,12 +348,6 @@ try {
     recordNeutralEnd('live-count-b');
   });
 
-  // Reliability Core. The pre-dispatch, stream-interrupted,
-  // hedge-race-loss, hedge-unknown, and non-json-body classifiers are
-  // single-source-of-truth helpers. Their `counted`/`action`/cooldown must
-  // match the budget-charging / rotation / circuit-breaker expectations of
-  // the sites that call them (dispatch.ts, observability.ts, hedge.ts,
-  // success.ts).
   await test('classifyPreDispatchInvalidBaseUrl: rotate, NOT counted, no cooldown (misconfig is operator-side)', async () => {
     const c = classifyPreDispatchInvalidBaseUrl();
     assert.equal(c.kind, KIND.INVALID_BASE_URL);
@@ -443,10 +389,6 @@ try {
   });
 
   await test('every failure-kind consumer-facing value appears in KIND', async () => {
-    // Pin the contract: the kind vocabulary is closed. The list below is the
-    // exhaustive set of values that may appear on LoopState.failureKinds /
-    // AttemptOutcome.kind / terminalStatus dispatch. New kinds require
-    // editing KIND in src/reliability/classify.ts AND this test.
     const expected = [
       KIND.RATE_LIMIT,
       KIND.RATE_LIMIT_GLOBAL,
@@ -465,9 +407,7 @@ try {
       KIND.CANCELLED_AFTER_PEER_COMMIT,
       KIND.UNKNOWN,
     ];
-    // Sanity: no duplicates.
     assert.equal(new Set(expected).size, expected.length, 'KIND values must be unique');
-    // Each must round-trip through the union.
     for (const k of expected) assert.equal(typeof k, 'string');
   });
 
@@ -479,57 +419,26 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// attempt-budget-contract-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Contract for reserve-aware request budgeting. The gateway should give the
-  // preferred candidate a realistic first-output window while preserving a
-  // bounded escape path for later failover candidates.
-
-
-
-
-
-
 
   const __dirname = dirname(fileURLToPath(import.meta.url));
 
-
-  // Keep the equal-share primitive stable for callers/tests that explicitly need
-  // it; the live dispatch path uses the reserve-aware allocator below.
   assert.equal(attemptBudgetSliceMs(60_000, 5), 12_000);
   assert.equal(attemptBudgetSliceMs(240_000, 5), 48_000);
 
-  // Default production-shaped request: 60s budget / 5 possible attempts.
-  // Old live behavior allowed only 12s. The new allocator reserves 5s for each
-  // later candidate and gives the preferred candidate the remaining 40s.
   assert.equal(MIN_FAILOVER_RESERVE_MS, 5_000);
   assert.equal(attemptBudgetWindowMs(60_000, 5), 40_000);
 
-  // long-reasoning shape: 60s request budget / 3 attempts -> 50s for the
-  // preferred candidate, retaining 5s escape windows for two alternates.
   assert.equal(attemptBudgetWindowMs(60_000, 3), 50_000);
 
-  // Once only one candidate remains it may use the whole remaining request
-  // budget; unused time from earlier fast failures naturally carries forward.
   assert.equal(attemptBudgetWindowMs(37_000, 1), 37_000);
 
-  // Tight budgets degrade to an equal split instead of starving the tail.
   assert.equal(attemptBudgetWindowMs(10_000, 5), 2_000);
   assert.equal(attemptBudgetWindowMs(15_000, 3), 5_000);
   assert.equal(attemptBudgetWindowMs(0, 5), 1);
 
-  // Under the default 40s primary window, a healthy upstream returning headers
-  // in 5s still receives the full configured 30s first-event wait. This is the
-  // behavior the old 12s absolute slice prevented.
   assert.equal(attemptFirstEventTimeoutMs(30_000, 35_000, 1), 30_000);
 
-  // If every candidate consumes its entire worst-case window, the reserve is
-  // still usable in sequence rather than being consumed by the first attempt.
   let remaining = 60_000;
   for (let attempts = 5; attempts > 1; attempts--) {
     const window = attemptBudgetWindowMs(remaining, attempts);
@@ -537,17 +446,10 @@ try {
   }
   assert.equal(remaining, 5_000, 'the last candidate must retain its escape window');
 
-  // Composition contract: real dispatch must use reserve-aware allocation; the
-  // equal-share helper must not accidentally return to the live path during a
-  // refactor. Hedge twins must continue inheriting the primary absolute deadline.
   const selectorSource = readAttemptOwner('dispatch');
   const inferenceSource = readAttemptOwner('inference-dispatch');
   const generationSource = readAttemptOwner('generation-dispatch');
-  // The old direct transport MUST remain absent: attempt budgets now belong to
-  // the two private-center clients, not the lightweight Gateway selector.
   if (existsSync(join(root, 'src/request/attempt/legacy-provider-dispatch.ts'))) {
-    // This branch runs against both pre-cutover main and post-cutover PR.
-    // Legacy source must remain isolated to its explicit seam until deleted.
     assert.match(selectorSource, /dispatchLegacyProvider\(c, sourceBody\)/, 'pre-cutover direct transport remains isolated');
     assert.doesNotMatch(selectorSource, /await fetch\(/, 'Gateway attempt selector must not make Provider fetches');
   } else {
@@ -571,29 +473,9 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// composed-capacity-contract-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Cross-layer regression contract for explicit Tier 1 admission ceilings.
-  // Unit tests for policy parsing and picker admission are not sufficient: every
-  // orchestration path that selects/counts Tier 1 capacity must propagate the
-  // same maxInFlight value. This suite locks the two composition points most
-  // likely to regress: hedge twins and cross-protocol fallback tier-cap planning.
-
-
-
-
-
-
-
-
 
   const __dirname = dirname(fileURLToPath(import.meta.url));
-
 
   function source(path) {
     return readFileSync(join(root, path), 'utf8');
@@ -613,7 +495,6 @@ try {
     };
   }
 
-  // --- Composition contract: hedge twin must inherit the primary policy cap. ---
   const hedgeSource = readAttemptOwner('hedge');
   const hedgeCallStart = hedgeSource.indexOf('pickTier1Candidate(tierNodes');
   assert.ok(hedgeCallStart >= 0, 'Tier 1 hedge picker call must exist');
@@ -624,8 +505,6 @@ try {
     'Tier 1 hedge twin must propagate policy.maxInFlight to pickTier1Candidate',
   );
 
-  // Prove why the propagated value matters: a saturated account is rejected when
-  // the explicit cap is present, but would be admitted again if the caller drops it.
   __resetTier1StateForTests();
   const hedgeNode = node('hedge-cap', 'openai', 'chat_completions');
   const hedgeReq = { model: 'general-air', protocol: 'openai', surface: 'chat_completions' };
@@ -641,9 +520,6 @@ try {
   assert.equal(releaseTier1Slot(hedgeNode.id, uncappedPick?.releaseToken), true);
   assert.equal(releaseTier1Slot(hedgeNode.id, occupiedToken), true);
 
-  // --- Composition contract: protocol fallback capacity planning must use cap. ---
-  // Follow the actual owner when Gateway has moved fallback orchestration;
-  // the old src/request/fallback.ts can be a compatibility re-export only.
   const fallbackOwnerPath = 'apps/gateway/fallback.ts';
   const fallbackSource = existsSync(join(root, fallbackOwnerPath)) ? source(fallbackOwnerPath) : source('src/request/fallback.ts');
   assert.ok(fallbackSource.includes('export async function runFallbackChain('), 'fallback must have a real owner');
@@ -674,22 +550,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// request-execution-ownership-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Cross-layer request-execution ownership contracts.
-
-
-
-
-
-
-
-
 
   const ACCESS_KEY = 'request-execution-ownership-test-key';
   let calls = [];
@@ -705,8 +566,6 @@ try {
     __resetAdaptive429StateForTests();
   }
 
-  // These fixtures exercise /v1/responses, so the account declares provider
-  // "openai" and receives its Responses capability from the provider registry.
   function configNode(id, tier, models, priority = 10) {
     return {
       id,
@@ -924,20 +783,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// upstream-processing-classification-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Post-header processing failures must describe WHAT failed in the producer
-  // layer and let reliability/classify.ts decide HOW the node is treated.
-
-
-
-
-
 
   const cases = [
     [UPSTREAM_PROCESSING_ERROR.DEADLINE, KIND.FIRST_EVENT_TIMEOUT],
@@ -960,8 +806,6 @@ try {
     'plain JSON.parse failures are structural upstream-body failures',
   );
 
-  // Integration guard: the OpenAI stream assembler must emit a typed malformed
-  // error instead of a generic Error whose message callers would need to parse.
   const malformed = new Response(
     new ReadableStream({
       start(controller) {
@@ -986,27 +830,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// runtime-state-contract-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Unified runtime-state interface contracts:
-  //   - both backends (Tier 1 adaptive runtime, Tier 2/3 node state) satisfy
-  //     the same RuntimeStateStore read contract
-  //   - projections are honest: a field a backend does not track is null,
-  //     never a fabricated value
-  //   - unknown quota surfaces as 'unknown' (reactive path governs); reported
-  //     quota surfaces as near_limit / exhausted
-  //   - upper layers resolve state through runtimeStateStoreFor(node), never
-  //     by importing backend internals per tier
-
-
-
-
-
 
   let passed = 0;
   function test(name, fn) {
@@ -1090,7 +914,6 @@ try {
     const exhausted = tier1RuntimeStateStore.account('a3', 1003).quota;
     assert.equal(exhausted.state, 'exhausted');
     assert.equal(exhausted.source, 'subscription-window');
-    // After the window rolls, the account returns to unknown quota.
     assert.equal(tier1RuntimeStateStore.account('a3', 90_001).quota.state, 'unknown');
   });
 
@@ -1123,14 +946,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// policy-default-reliability-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-
-
-
 
   const builtins = loadPoliciesConfig({});
   assert.equal(builtins.fast.failoverBudgetMs, 60_000);
@@ -1190,17 +1006,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// policy-max-in-flight-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Regression contract for policy-level Tier 1 admission ceilings.
-  // The gateway must not invent a per-account concurrency ceiling by default;
-  // operators may opt into one explicitly when they know the upstream contract.
-
-
-
 
   function policies(config) {
     const env = config === undefined ? {} : { AIG_POLICIES_CONFIG: JSON.stringify(config) };

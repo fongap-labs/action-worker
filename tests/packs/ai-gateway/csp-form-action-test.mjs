@@ -1,8 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// AIG-001 replacement: no retired OAuth HTML form may be served.
-// Dashboard and ordinary HTML keep strict CSP and header precedence.
 
 import { assert, beforeEach, test } from '#kit/harness.mjs';
 import worker from '#target/src/index.ts';

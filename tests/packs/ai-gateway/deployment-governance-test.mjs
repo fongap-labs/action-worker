@@ -1,12 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Merged suite. Each section below was a standalone suite and keeps its own scope:
-//   - deployment-workflow-contract-test.mjs
-//   - deploy-kill-switch-test.mjs
-//   - ci-migration-immutability-contract-test.mjs
-//   - migrations-check-test.mjs
-//   - secret-scan-typescript-fixture-test.mjs
 
 import { targetPath, targetRoot as root } from '#kit/target.mjs';
 import assert from 'node:assert/strict';
@@ -16,16 +7,7 @@ import os from 'node:os';
 import path, { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-// ==========================================================================
-// deployment-workflow-contract-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-
-
-
-
-
 
   const deployManifest = JSON.parse(readFileSync(join(root, '.github/deploy.json'), 'utf8'));
   const deployScript = readFileSync(join(root, 'scripts/deploy.sh'), 'utf8').replace(/\r\n/g, '\n');
@@ -65,20 +47,11 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// deploy-kill-switch-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-
-
-
 
   const deploy = readFileSync(targetPath('scripts/deploy.sh'), 'utf8');
 
   assert.match(deploy, /AIG_IS_DEPLOY_ENABLED/);
-  // Run the real source-owned entrypoint. Disabled production work must never
-  // succeed: only an actual deployment may produce a successful audit.
   for (const [enabled, code, message] of [
     ['false', 77, /deployment is disabled/],
     ['invalid', 64, /must be true or false/],
@@ -106,16 +79,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// ci-migration-immutability-contract-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-
-
-
-
-
 
   const workflow = fs.readFileSync(path.join(root, '.github', 'workflows', 'ci.yml'), 'utf8');
   const central = fs.readFileSync(path.join(root, '.github', 'scripts', 'central-ci.sh'), 'utf8');
@@ -135,31 +99,14 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// migrations-check-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
   // @ts-check
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Unit tests for the migrations governance check.
-  // Runs in-memory fixtures against the same regex / parse logic the
-  // production check uses, so violations are caught even when the
-  // on-disk migrations/ tree is the (clean) shipped state.
-
-
-
-
 
   const here = path.dirname(fileURLToPath(import.meta.url));
 
   const checkPath = path.join(root, 'scripts', 'migrations-check.mjs');
 
-  // Re-import the same constants the check uses by parsing the source.
-  // This keeps the test in lockstep with whatever the production regex is.
   const _source = await import(pathToFileURL(checkPath).href).catch(() => null);
-  // The check is a script, not a module — re-derive the same regex.
 
   const FILENAME_RE = /^(\d{3,})_([a-z0-9_]+)\.sql$/;
   const parseName = (f) => {
@@ -245,23 +192,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// secret-scan-typescript-fixture-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Runtime fixture test for the secret scanner. The fixtures are generated in a
-  // temporary directory so secret-looking strings never live in the repository.
-
-
-
-
-
-
-
-
 
   const scanner = path.join(root, 'scripts', 'secret-scan.mjs');
   const fixtureRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ai-gateway-secret-scan-'));

@@ -1,17 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Merged suite. Each section below was a standalone suite and keeps its own scope:
-//   - adaptive-429-test.mjs
-//   - cooldown-jitter-test.mjs
-//   - provider-quota-413-test.mjs
-//   - quota-lease-test.mjs
-//   - tier1-affinity-bounding-test.mjs
-//   - tier1-heat-protection-test.mjs
-//   - tier1-upstream-model-cooldown-test.mjs
-//   - scheduler-convergence-test.mjs
-//   - scheduler-racelost-test.mjs
-//   - model-family-fallback-test.mjs
 
 import { loadModelsConfig } from '#target/src/config/models.ts';
 import { loadPoliciesConfig } from '#target/src/config/policies.ts';
@@ -33,14 +19,7 @@ import { pickTier1Candidate } from '#target/src/scheduler/tier1-scheduler.ts';
 import { calculateTier1Score } from '#target/src/scheduler/tier1-scoring.ts';
 import assert from 'node:assert/strict';
 
-// ==========================================================================
-// adaptive-429-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-
-
-
 
   const base = 1_800_000_000_000;
 
@@ -58,13 +37,9 @@ try {
   assert.equal(nextAdaptive429CooldownMs('nvidia', 'key-01', 0, base), 15_000);
   assert.equal(snapshotAdaptive429State('nvidia', 'key-01', base).stage, 1);
 
-  // Extra 429s from requests already in flight during the same cooldown must not
-  // escalate the stage. A burst of parallel 429s must never jump to the top step.
   assert.equal(nextAdaptive429CooldownMs('nvidia', 'key-01', 0, base + 1_000), 14_000);
   assert.equal(snapshotAdaptive429State('nvidia', 'key-01', base + 1_000).stage, 1);
 
-  // Only a 429 after the previous cooldown expired (the recovery request) moves
-  // to the next stage.
   assert.equal(nextAdaptive429CooldownMs('nvidia', 'key-01', 0, base + 15_001), 30_000);
   assert.equal(snapshotAdaptive429State('nvidia', 'key-01', base + 15_001).stage, 2);
 
@@ -75,22 +50,16 @@ try {
     assert.equal(nextAdaptive429CooldownMs('nvidia', 'key-01', 0, now), expected);
   }
 
-  // Binding is explicitly Provider + key-slot. Neither a sibling key nor the
-  // same key id under another Provider inherits the cooldown stage.
   assert.equal(nextAdaptive429CooldownMs('nvidia', 'key-02', 0, base), 15_000);
   assert.equal(nextAdaptive429CooldownMs('sensenova', 'key-01', 0, base), 15_000);
   assert.equal(snapshotAdaptive429State('nvidia', 'key-01', now).stage, 8);
   assert.equal(snapshotAdaptive429State('nvidia', 'key-02', base).stage, 1);
   assert.equal(snapshotAdaptive429State('sensenova', 'key-01', base).stage, 1);
 
-  // Retry-After is a minimum hint; it may extend the current cooldown but can
-  // never shorten the adaptive stage.
   reset();
   assert.equal(nextAdaptive429CooldownMs('provider-a', 'key-a', 45_000, base), 45_000);
   assert.equal(nextAdaptive429CooldownMs('provider-a', 'key-a', 5_000, base + 1_000), 44_000);
 
-  // A real recovery success clears the Provider+key history. The next 429 starts
-  // from the short first stage again.
   clearAdaptive429State('provider-a', 'key-a');
   assert.equal(snapshotAdaptive429State('provider-a', 'key-a', base).stage, 0);
   assert.equal(nextAdaptive429CooldownMs('provider-a', 'key-a', 0, base + 60_000), 15_000);
@@ -103,15 +72,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// cooldown-jitter-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-
-
-
 
   assert.equal(COOLDOWN_JITTER_FACTOR, 0.1);
   assert.equal(jitterCooldownMs(0, 0), 0);
@@ -130,9 +91,6 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// provider-quota-413-test.mjs
-// ==========================================================================
 try {
   let passed = 0;
   let failed = 0;
@@ -287,31 +245,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// quota-lease-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Quota lease lifecycle contracts:
-  //   acquire -> reserve -> execute -> settle -> release
-  //
-  //   - unknown quota is a no-op pass-through (no fabricated hard limits; the
-  //     reactive adaptive-429 + cooldown behavior is untouched)
-  //   - provider-reported remaining drives a reservation counter so concurrent
-  //     admission cannot all pass against the tail of a window
-  //   - settle consumes the request reservation and reports actual token usage;
-  //     duplicate settle/release are idempotent
-  //   - release before settle (abort / pre-execution failure / hedge loss)
-  //     restores the reservation
-  //   - quota windows classify near_limit (score demotion) and exhausted_until
-  //     (eligibility gate + blocking wait) before the next 429
-
-
-
-
-
 
   let passed = 0;
   function test(name, fn) {
@@ -414,21 +348,16 @@ try {
   test('settle consumes the request reservation and reports actual usage', () => {
     __resetTier1StateForTests();
     recordTier1QuotaReport('settle', { remainingRequests: 2, remainingTokens: 10_000, limitRequests: 10, limitTokens: 100_000 }, 1000);
-    // Claim + settle consumes one slot; token usage is subtracted.
     assert.equal(claimTier1Slot(node('settle'), 1001, 'Code-Max', null), true);
     const tokenA = makeTier1ReleaseToken('settle');
     settleTier1Quota('settle', tokenA, 3_500);
     releaseTier1Slot('settle', tokenA);
-    // Claim + settle consumes the second slot.
     assert.equal(claimTier1Slot(node('settle'), 1002, 'Code-Max', null), true);
     const tokenB = makeTier1ReleaseToken('settle');
     settleTier1Quota('settle', tokenB, 1_000);
     releaseTier1Slot('settle', tokenB);
-    // Both reservations were settled (consumed), so admission now waits.
     assert.equal(claimTier1Slot(node('settle'), 1003, 'Code-Max', null), false, 'settled leases do not give reservations back');
-    // A fresher provider report reconciles the window: 2 reported, 0 outstanding.
     recordTier1QuotaReport('settle', { remainingRequests: 2, limitRequests: 10 }, 1004);
-    // Claim + release WITHOUT settle restores, so the tail is reusable.
     assert.equal(claimTier1Slot(node('settle'), 1005, 'Code-Max', null), true);
     releaseTier1Slot('settle', makeTier1ReleaseToken('settle'));
     assert.equal(claimTier1Slot(node('settle'), 1006, 'Code-Max', null), true, 'an aborted claim gives its reservation back');
@@ -512,25 +441,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// tier1-affinity-bounding-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Tier1 Session Affinity bounding stress tests (PR 2 — P1-A).
-  //
-  // Verifies:
-  //   * local cache size <= configured max under 10000+ unique session IDs
-  //   * escapeCounters size <= configured max under 10000+ unique session IDs
-  //   * expiry works correctly
-  //   * affinity still works (read/write/escape)
-  //   * KV fallback still works
-  //   * cache full does not block request processing
-
-
-
 
   let passed = 0;
   function test(name, fn) {
@@ -558,7 +469,6 @@ try {
     }
   }
 
-  // Mock KV that never expires (to test the isolate-local bounding, not KV TTL)
   function mockKv() {
     const store = new Map();
     return {
@@ -571,8 +481,6 @@ try {
     };
   }
 
-  // --- 1. Cache bounded under 10000+ unique session IDs ---
-
   await testAsync('stress: local cache size stays bounded under 10000 unique sessions', async () => {
     const env = { TIER1_AFFINITY: mockKv() };
     for (let i = 0; i < 10000; i++) {
@@ -582,8 +490,6 @@ try {
     const snap = snapshotTier1Affinity(env);
     assert.ok(snap.cache_size <= snap.cache_max_entries, `cache_size ${snap.cache_size} must not exceed max ${snap.cache_max_entries}`);
   });
-
-  // --- 2. escapeCounters bounded under 10000+ unique session IDs ---
 
   test('stress: escapeCounters size stays bounded under 10000 unique sessions', () => {
     for (let i = 0; i < 10000; i++) {
@@ -597,8 +503,6 @@ try {
     );
   });
 
-  // --- 3. Both bounded simultaneously ---
-
   await testAsync('stress: both maps bounded simultaneously under 10000 unique sessions', async () => {
     const env = { TIER1_AFFINITY: mockKv() };
     for (let i = 0; i < 10000; i++) {
@@ -611,19 +515,14 @@ try {
     assert.ok(snap.escape_counters_size <= snap.escape_max_entries, `escape bounded: ${snap.escape_counters_size}/${snap.escape_max_entries}`);
   });
 
-  // --- 4. Affinity still works after bounding ---
-
   await testAsync('affinity: write then read returns the stored account', async () => {
     const env = { TIER1_AFFINITY: mockKv() };
     const sid = 'test-session-affinity';
     writeTier1Affinity(env, { waitUntil: () => {} }, sid, 'account-1');
-    // Wait for the async write to complete
     await new Promise((r) => setTimeout(r, 50));
     const result = await readTier1Affinity(env, sid);
     assert.equal(result, 'account-1');
   });
-
-  // --- 5. KV fallback still works (no KV binding -> null, no crash) ---
 
   await testAsync('affinity: no KV binding -> readTier1Affinity returns null without crash', async () => {
     const env = {};
@@ -631,20 +530,14 @@ try {
     assert.equal(result, null);
   });
 
-  // --- 6. Cache full does not block request processing ---
-
   await testAsync('stress: cache full does not block reads (no throw, returns null for miss)', async () => {
     const env = { TIER1_AFFINITY: mockKv() };
-    // Fill cache to max
     for (let i = 0; i < 600; i++) {
       await readTier1Affinity(env, `session-overflow-${i}-`.padEnd(8, 'x'));
     }
-    // New session should still work
     const result = await readTier1Affinity(env, 'session-after-overflow-xx');
     assert.equal(result, null); // KV miss
   });
-
-  // --- 7. Escape counter logic still works ---
 
   test('escape: shouldEvaluateAffinity returns false for first N-1 requests, true on Nth', () => {
     const sid = 'escape-test-session';
@@ -654,31 +547,21 @@ try {
     assert.equal(shouldEvaluateAffinity(sid), true, '10th request should trigger escape');
   });
 
-  // --- 8. Raw session ID is never stored as a Map key ---
-
   test('privacy: raw session ID does not appear as escape counter key (hashed)', () => {
     const sid = 'sensitive-session-id-12345';
     shouldEvaluateAffinity(sid);
     shouldEvaluateAffinity(sid);
-    // The internal Map should not have the raw session ID as a key
-    // (we can verify indirectly: snapshot doesn't leak raw IDs)
     const snap = snapshotTier1Affinity({});
     const serialized = JSON.stringify(snap);
     assert.ok(!serialized.includes('sensitive-session-id-12345'), 'raw session ID must not appear in affinity snapshot');
   });
 
-  // --- 9. Expiry works ---
-
   test('stress: expired cache entries are cleaned up', async () => {
-    // Use a very short TTL by directly testing the bounding behavior
     const env = { TIER1_AFFINITY: mockKv() };
     await readTier1Affinity(env, 'session-expiry-1');
     await readTier1Affinity(env, 'session-expiry-2');
     const snap1 = snapshotTier1Affinity(env);
     assert.ok(snap1.cache_size > 0, 'cache has entries after reads');
-    // Wait for TTL to expire (5s cache TTL)
-    // We won't wait 5s in a unit test; instead verify the bounding mechanism
-    // works by filling well past max and checking size stays bounded
     for (let i = 0; i < 1000; i++) {
       await readTier1Affinity(env, `session-fill-${i}-`.padEnd(8, 'x'));
     }
@@ -699,16 +582,8 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// tier1-heat-protection-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
   // @ts-check
-
-
-
-
 
   const now = 1_800_000_000_000;
   const req = { model: 'Code-Max', protocol: 'openai', surface: 'chat_completions' };
@@ -828,17 +703,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// tier1-upstream-model-cooldown-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-
-
-
-
-
 
   const node = {
     id: 'nvidia-upstream-404',
@@ -873,9 +738,6 @@ try {
   assert.equal(tier1Class.action, 'cooldown');
   assert.equal(tier1Class.cooldownMs, 5_000);
 
-  // Direct state-machine contract: a 404 cools only this account + resolved
-  // upstream model. Sibling logical models stay eligible, and remapping the same
-  // logical alias to a new upstream model immediately escapes the stale 404.
   __resetTier1StateForTests();
   const now = 1_700_000_000_000;
   applyTier1Outcome(node.id, node.models['Code-Max'], tier1Class, now);
@@ -892,8 +754,6 @@ try {
   assert.equal(isTier1Eligible(remappedNode, req('Code-Max'), now), true, 'new upstream mapping must not inherit the old upstream model cooldown');
   assert.equal(isTier1Eligible(node, req('Code-Max'), now + 5_001), true, 'the original upstream model becomes eligible after the short cooldown');
 
-  // Request-path regression: recordOutcome must resolve Code-Max through the
-  // selected node before it records model_missing state.
   __resetTier1StateForTests();
   const state = {
     attempted: new Set(),
@@ -937,15 +797,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// scheduler-convergence-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-
-
-
-
 
   let passed = 0;
   let failed = 0;
@@ -1030,25 +882,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// scheduler-racelost-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // P0-01 regression tests: raceLost same-tier re-evaluation.
-  //
-  // Verifies that when a candidate's slot is lost to a concurrent request
-  // (raceLost), the scheduler retries within the SAME tier instead of
-  // breaking to the next tier. Also verifies bounded termination.
-
-
-
-
-
-
-
 
   let passed = 0,
     failed = 0;
@@ -1096,15 +930,10 @@ try {
 
   const REQ = { model: 'm1', protocol: 'openai', surface: 'chat_completions' };
 
-  // ---- Case 1: raceLost -> same-tier retry with another node ----
-
   await test('Case 1: full node skipped -> picks next available node in same tier', () => {
     const nodes = [tier2Node('a'), tier2Node('b')];
-    // Fill all slots on 'a' so it's at concurrency limit
     acquireSlot('a', 1000);
     acquireSlot('a', 1000);
-    // 'a' has activeRequests=2 >= concurrency=2, so it's skipped
-    // 'b' has activeRequests=0, so it's picked
     const pick = pickCandidate(nodes, REQ, new Set(), 1000, null, null, null);
     assert.ok(pick?.node, 'should pick node b');
     assert.equal(pick.node.id, 'b');
@@ -1134,8 +963,6 @@ try {
     assert.equal(pick.node.id, 'b');
   });
 
-  // ---- Case 2: bounded termination ----
-
   await test('Case 2: all nodes race-lost -> returns null (not infinite loop)', () => {
     const nodes = [tier2Node('a'), tier2Node('b')];
     const raceLostIds = new Set(['a', 'b']);
@@ -1150,11 +977,8 @@ try {
     assert.equal(pick, null, 'single node excluded -> null');
   });
 
-  // ---- Case 3: no candidates -> moves to next tier ----
-
   await test('Case 3: no eligible candidates in tier -> null (tier loop moves on)', () => {
     const nodes = [tier2Node('a')];
-    // Mark 'a' as attempted so it's excluded
     const attempted = new Set(['a']);
     const pick = pickCandidate(nodes, REQ, attempted, 1000, null, null, null);
     assert.equal(pick, null, 'attempted node -> null');
@@ -1177,8 +1001,6 @@ try {
     assert.equal(pick, null, 'protocol mismatch -> null');
   });
 
-  // ---- Case 4: tier order preserved ----
-
   await test('Case 4: Tier 1 -> Tier 2 order is preserved in pickForTier', () => {
     const t1 = [tier1Node('t1-a')];
     const t2 = [tier2Node('t2-a')];
@@ -1200,8 +1022,6 @@ try {
     assert.equal(pick2.node.id, 't2-a');
   });
 
-  // ---- Case 5: raceLost does not charge logical attempts ----
-
   await test('Case 5: raceLost exclusion allows retry without budget charge', () => {
     const nodes = [tier2Node('rl-a'), tier2Node('rl-b')];
     const raceLostIds = new Set(['rl-a']);
@@ -1211,7 +1031,6 @@ try {
     assert.ok(!pick.raceLost, 'second pick should not be raceLost');
   });
 
-  // ---- Summary ----
   console.log(`\n[scheduler-racelost-test] ${passed}/${passed + failed} passed`);
   if (failed > 0) throw new Error('suite stopped after recorded failures');
   console.log('ok - file:scheduler-racelost');
@@ -1221,15 +1040,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// model-family-fallback-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-
-
-
 
   function catalog(...models) {
     return new Set(models);
@@ -1252,7 +1063,6 @@ try {
     'Editor-Ultra',
   );
 
-  // Explicit model-level fallback is the only source of family membership.
   const configured = loadModelsConfig({
     AIG_MODELS_CONFIG: JSON.stringify(Object.fromEntries(Object.entries({
       'Code-Ultra': ['Code-Max', 'Code-Pro'],
@@ -1400,8 +1210,6 @@ try {
     'Air keeps its one-way 3-1-1-1 preference at budget 6',
   );
 
-  // max_attempts is a hard request ceiling. Family planning must never widen the
-  // candidate set beyond the number of logical attempts the policy allows.
   assert.deepEqual(
     buildModelFallbackPlan('Code-Max', all, 1, configured),
     [[{ model: 'Code-Max', attemptCap: 1 }]],

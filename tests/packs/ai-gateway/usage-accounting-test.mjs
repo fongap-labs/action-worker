@@ -1,13 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Merged suite. Each section below was a standalone suite and keeps its own scope:
-//   - token-usage-test.mjs
-//   - token-usage-store-test.mjs
-//   - upstream-attempt-usage-test.mjs
-//   - daily-token-overlay-test.mjs
-//   - ttft-query-contract-test.mjs
-//   - model-stats-canonicalization-test.mjs
 
 import { createMockD1 } from '#kit/mock-d1-database.mjs';
 import { convertStream } from './conversion-matrix-adapters.mjs';
@@ -22,32 +12,12 @@ import { observeUpstreamAttemptUsage, recordTokens, recordUndeliveredUpstreamAtt
 import { trackStreamResponse } from '#target/src/stream/track.ts';
 import assert from 'node:assert/strict';
 
-// Writes are buffered per isolate. Flush explicitly so each test sees exactly
-// the write set it made without relying on dashboard reads to cause D1 writes.
 async function persistNow(...args) {
   await persistTokenUsage(...args);
   await flushUsageBuffer();
 }
 
-// ==========================================================================
-// token-usage-test.mjs
-// ==========================================================================
 try {
-  // Unit tests for isolate-local token usage observability: the
-  // reported-vs-missing normalization gate, dimension sanitization, aggregation
-  // + coverage, the rolling 24h/7d time windows (sum + prune), the
-  // transform-level onUsage contract (once per stream; client abort reports
-  // nothing), and the public dashboard token panel (4 aggregate cards,
-  // compaction formatting, zero-data state, no internal-dimension leak). Run
-  // directly; resetTokenStats keeps every test hermetic.
-
-
-
-
-
-
-
-
 
   let passed = 0;
   async function test(name, fn) {
@@ -724,7 +694,6 @@ try {
     const h0 = Math.floor(Date.now() / HOUR) * HOUR;
     await persistNow(env, { prompt_tokens: 100, completion_tokens: 0 }, h0, 'code-max');
     const [html1, html2] = await Promise.all([pageText(anonRequest(), env), pageText(anonRequest(), env)]);
-    // Each render mints its own CSP nonce, so strip it before comparing.
     assert.equal(html1.replace(/nonce="[^"]*"/g, 'nonce=""'), html2.replace(/nonce="[^"]*"/g, 'nonce=""'));
     assert.equal(d1._reads.length, 8);
     await pageText(anonRequest(), env);
@@ -870,23 +839,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// token-usage-store-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Unit tests for the Cloudflare D1 token-usage store
-  // (src/observability/token-usage-store.ts): UTC hour normalization, per-response
-  // payload derivation, atomic UPSERT persistence (insert / same-hour upsert /
-  // different hours / reports / missing / requests / totals), the aggregate
-  // dashboard query (cumulative / 24h / 7d / coverage), and the fail-open
-  // contract (no binding, write rejection, read rejection — none may ever throw
-  // or fabricate tokens). Run directly.
-
-
-
 
   let passed = 0;
   async function test(name, fn) {
@@ -905,15 +858,11 @@ try {
   const DAY = 86400_000;
   const H0 = Math.floor(Date.now() / HOUR) * HOUR;
 
-  // ---- normalizeHour -----------------------------------------------------------
-
   await test('normalizeHour produces a UTC-aligned YYYY-MM-DDTHH:00:00Z key', async () => {
     assert.equal(normalizeHour(new Date('2026-08-28T08:59:59Z')), '2026-08-28T08:00:00Z');
     assert.equal(normalizeHour(H0), `${new Date(H0).toISOString().slice(0, 13)}:00:00Z`);
     assert.equal(normalizeHour(new Date('2026-01-01T23:30:00Z')), '2026-01-01T23:00:00Z');
   });
-
-  // ---- tokenUsagePayload (reported-vs-missing gate) ----------------------------
 
   await test('reported usage yields a report payload with its token totals', async () => {
     assert.deepEqual(tokenUsagePayload({ prompt_tokens: 2, completion_tokens: 3 }), {
@@ -968,8 +917,6 @@ try {
       );
     }
   });
-
-  // ---- persistTokenUsage: atomic hour-bucket UPSERT ---------------------------
 
   await test('first insert creates the hour bucket and records both accounting views', async () => {
     const d1 = createMockD1();
@@ -1067,8 +1014,6 @@ try {
     });
   });
 
-  // ---- tokenStatsD1: binding detection ----------------------------------------
-
   await test('tokenStatsD1 returns null when the binding is missing or not a D1', async () => {
     assert.equal(tokenStatsD1({}), null);
     assert.equal(tokenStatsD1({ TOKEN_STATS_DB: {} }), null);
@@ -1077,8 +1022,6 @@ try {
     assert.equal(tokenStatsD1({ TOKEN_STATS_DB: d1 }), d1);
   });
 
-  // ---- queryTokenSummary: cumulative / 24h / 7d / coverage --------------------
-
   await test('no binding -> queryTokenSummary returns null (dashboard degrades)', async () => {
     assert.equal(await queryTokenSummary({}), null);
   });
@@ -1086,8 +1029,6 @@ try {
   await test('cumulative, 24h and 7d windows sum the right buckets', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    // A at H0 (5) is current; B at H0-25h (10) inside 7d but outside 24h; C at
-    // H0-9d (20) outside 7d. Query "now" just after A.
     await persistNow(env, { prompt_tokens: 5, completion_tokens: 0 }, H0);
     await persistNow(env, { prompt_tokens: 10, completion_tokens: 0 }, H0 - 25 * HOUR);
     await persistNow(env, { prompt_tokens: 20, completion_tokens: 0 }, H0 - 9 * DAY);
@@ -1095,10 +1036,8 @@ try {
     assert.equal(s.available, true);
     assert.equal(s.cumulative.total, 35);
     assert.equal(s.cumulative.requests, 3);
-    // 24h window only contains A (B is >24h old).
     assert.equal(s.h24.total, 5);
     assert.equal(s.h24.requests, 1);
-    // 7d window contains A + B (C is >7d old).
     assert.equal(s.d7.total, 15);
     assert.equal(s.d7.requests, 2);
   });
@@ -1207,8 +1146,6 @@ try {
   await test('today follows the UTC+8 day boundary (Beijing 00:00 = 16:00Z)', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    // H0 is the current hour; H0 - 24h is 24 hours before.
-    // In UTC+8, they fall on different calendar days because they are exactly 24h apart.
     await persistNow(env, { prompt_tokens: 5, completion_tokens: 0 }, H0);
     await persistNow(env, { prompt_tokens: 7, completion_tokens: 0 }, H0 - 24 * HOUR);
     const s = await queryTokenSummary(env, H0 + HOUR / 2);
@@ -1217,9 +1154,6 @@ try {
     assert.equal(s.cumulative.total, 12, 'cumulative still counts both days');
   });
 
-  // ---- queryTokenDailySeries: daily rollup for the activity heatmap -----------
-
-  // Helper: convert UTC ms to UTC+8 date string (YYYY-MM-DD)
   function _toUtc8Day(ms) {
     return new Date(ms + 8 * 3600_000).toISOString().slice(0, 10);
   }
@@ -1227,8 +1161,6 @@ try {
   await test('daily series groups hourly buckets by UTC+8 day', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    // Use fixed timestamps to ensure deterministic UTC+8 day boundaries.
-    // 2026-08-29 00:00 UTC+8 = 2026-08-28T16:00:00Z
     const d0_00 = Date.UTC(2026, 7, 28, 16, 0, 0); // 2026-08-28T16:00:00Z = 2026-08-29 UTC+8
     const d0_01 = Date.UTC(2026, 7, 28, 17, 0, 0); // 2026-08-28T17:00:00Z = 2026-08-29 UTC+8 (same day)
     const d1_00 = Date.UTC(2026, 7, 27, 16, 0, 0); // 2026-08-27T16:00:00Z = 2026-08-28 UTC+8 (previous day)
@@ -1241,7 +1173,6 @@ try {
     assert.equal(series.get(day).total, 10, 'two same UTC+8-day buckets roll up');
     assert.equal(series.get(day).requests, 2);
     assert.equal(series.get(prevDay).total, 10);
-    // Days before the requested start are excluded.
     const strict = await queryTokenDailySeries(env, day, d0_01 + HOUR);
     assert.equal(strict.size, 1);
     assert.ok(strict.has(day));
@@ -1255,8 +1186,6 @@ try {
     assert.ok(result.error, 'error message present');
   });
 
-  // ---- Fail-open contract -----------------------------------------------------
-
   await test('persistTokenUsage with no binding resolves without touching D1', async () => {
     let called = false;
     const _env = {
@@ -1266,7 +1195,6 @@ try {
         },
       },
     };
-    // A non-D1-looking prepare is rejected by tokenStatsD1, so persistence skips.
     const res = await persistNow({}, { prompt_tokens: 1 });
     assert.equal(res, undefined);
     assert.equal(called, false);
@@ -1302,8 +1230,6 @@ try {
     assert.ok(s.error, 'error message present');
   });
 
-  // ---- queryTokenModelUsage: per-model 7-day rollup for the homepage panel ----
-
   await test('queryTokenModelUsage fails open on missing binding', async () => {
     const r = await queryTokenModelUsage({}, 7, H0);
     assert.ok(r && r.available === false, 'returns error object on missing binding');
@@ -1313,7 +1239,6 @@ try {
   await test('queryTokenModelUsage aggregates per model and orders by total desc', async () => {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    // two writes for ultra (same hour), one for code-max, one for air (missing only)
     await persistNow(env, { prompt_tokens: 10, completion_tokens: 20 }, H0, 'ultra');
     await persistNow(env, { prompt_tokens: 5, completion_tokens: 5 }, H0, 'ultra');
     await persistNow(env, { prompt_tokens: 100, completion_tokens: 0 }, H0, 'code-max');
@@ -1321,7 +1246,6 @@ try {
     const r = await queryTokenModelUsage(env, 7, H0 + HOUR);
     assert.equal(r.available, true);
     assert.equal(r.rows.length, 3, 'three distinct models');
-    // code-max (100) > ultra (40) > air (0) — sorted desc
     assert.equal(r.rows[0].model, 'code-max');
     assert.equal(r.rows[0].total, 100);
     assert.equal(r.rows[0].requests, 1);
@@ -1352,8 +1276,6 @@ try {
   });
 
   await test('a failed batch writes no table and the increments are retried by the next flush', async () => {
-    // Real D1 batch() is atomic, so a per-model failure fails the whole batch.
-    // The flush restores the increments to the buffer instead of dropping them.
     const d1 = createMockD1();
     const origBatch = d1.batch;
     d1.batch = async () => {
@@ -1402,9 +1324,6 @@ try {
       Date.now = originalNow;
     }
     assert.equal(d1._modelRows.size, 1, 'only the retained model row remains');
-    // Global hourly is now pruned by the unified cleanup (7-day retention).
-    // This test only calls cleanupModelStats (legacy per-model cleanup), so
-    // global rows remain. The unified cleanupUsageRetention would prune them.
     assert.equal(d1._rows.size, 2, 'global hourly unchanged by legacy cleanup');
   });
 
@@ -1424,19 +1343,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// upstream-attempt-usage-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-
-
-
-
-
-
-
 
   function fakeD1() {
     const writes = [];
@@ -1491,7 +1398,6 @@ try {
     assert.equal(d1.writes.length, 2, 'success path must not double D1 write count');
     const global = d1.writes.find((w) => w.sql.includes('token_usage_hourly'));
     assert.ok(global);
-    // Legacy prefix: hour + 8 delivered fields. Upstream 8 fields are appended.
     assert.deepEqual(global.params.slice(1, 9), [11, 7, 0, 0, 18, 1, 1, 0]);
     assert.deepEqual(global.params.slice(9, 17), [11, 7, 0, 0, 18, 1, 1, 0]);
   });
@@ -1685,20 +1591,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// daily-token-overlay-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Regression contract for the dashboard daily token series. Recent complete
-  // UTC+8 calendar days must be rebuilt from retained hourly rows so a stale
-  // daily cron snapshot cannot make yesterday's usage drop after midnight.
-
-
-
-
 
   let passed = 0;
   async function test(name, fn) {
@@ -1719,12 +1612,8 @@ try {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
 
-    // 2026-09-11 09:30 UTC+8. The hourly truth window is therefore
-    // 2026-09-05 .. 2026-09-11 inclusive. 2026-09-04 must stay on daily.
     const now = Date.UTC(2026, 8, 11, 1, 30, 0);
 
-    // Simulate the 09-10 daily snapshot having been materialized at 11:00,
-    // before the rest of that day's traffic arrived.
     d1._dailyRows.set('2026-09-10', {
       input: 30,
       output: 0,
@@ -1733,8 +1622,6 @@ try {
       reports: 1,
       missing: 0,
     });
-    // Older stable history must not be overwritten by a potentially partial
-    // seventh-previous calendar day from rolling hourly retention.
     d1._dailyRows.set('2026-09-04', {
       input: 500,
       output: 0,
@@ -1744,14 +1631,10 @@ try {
       missing: 0,
     });
 
-    // 09-10 UTC+8: 01:00, 12:00, 22:00 => full-day total 120.
     await persistNow(env, { prompt_tokens: 30, completion_tokens: 0 }, Date.UTC(2026, 8, 9, 17, 0, 0));
     await persistNow(env, { prompt_tokens: 40, completion_tokens: 0 }, Date.UTC(2026, 8, 10, 4, 0, 0));
     await persistNow(env, { prompt_tokens: 50, completion_tokens: 0 }, Date.UTC(2026, 8, 10, 14, 0, 0));
 
-    // A 09-04 hourly row is deliberately present in the mock. It must not
-    // replace the stable daily row because 09-04 is outside the seven FULL
-    // calendar-day overlay window at this `now`.
     await persistNow(env, { prompt_tokens: 50, completion_tokens: 0 }, Date.UTC(2026, 8, 4, 4, 0, 0));
 
     const series = await queryTokenDailySeries(env, '2026-09-04', now);
@@ -1803,34 +1686,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// ttft-query-contract-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // TTFT Query Contract.
-  //
-  // Design facts pinned here: the dashboard's TTFT coverage must not depend on
-  // the Usage Top-N slice, and must not issue one D1 query per model (N+1). A
-  // single grouped query (GROUP BY model) returns histogram aggregates for all
-  // models in the window; percentiles are computed in memory with bucket-upper-
-  // bound precision. A previous regression only gave TTFT to the Usage Top 4
-  // models via per-model queries.
-  //
-  //   C01  Every public model gets a TTFT result container (missing rows ->
-  //        insufficient/noSamples), never a missing key.
-  //   C02  Query count is fixed: 1 grouped TTFT query regardless of model count.
-  //   C03  Model keys are canonical (trim + lowercase): Code-Max / code-max /
-  //        CODE-MAX aggregate into one stats dimension.
-  //   C04  Below the minimum sample threshold: p50 = null, p95 = null,
-  //        insufficient = true.
-  //   C05  Percentiles are bucket UPPER BOUNDS (no fabricated precision).
-
-
-
-
 
   const HOUR = 3_600_000;
   const WEEK_MS = 7 * 24 * 3600_000;
@@ -1848,7 +1704,6 @@ try {
     }
   }
 
-  // ---- C01: container for every public model ------------------------------------
   {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
@@ -1882,7 +1737,6 @@ try {
     );
   }
 
-  // ---- C02: fixed query count ----------------------------------------------------
   {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
@@ -1904,7 +1758,6 @@ try {
     check('C02b query count does not scale with model count (4 models -> 1)', d1b._reads.length - beforeB === 1);
   }
 
-  // ---- C03: canonical model key --------------------------------------------------
   {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
@@ -1918,9 +1771,7 @@ try {
     );
   }
 
-  // ---- C04: insufficient samples (separate P50/P95 thresholds) ------------------
   {
-    // Below P50 threshold (4 samples): p50=null, p95=null, both insufficient.
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
     for (let i = 0; i < P50_MIN - 1; i++) {
@@ -1934,7 +1785,6 @@ try {
       `entry=${JSON.stringify(e)}`,
     );
 
-    // At P50 threshold (5), below P95 threshold (20): p50 present, p95 null.
     const d1b = createMockD1();
     const envB = { TOKEN_STATS_DB: d1b };
     for (let i = 0; i < P50_MIN; i++) {
@@ -1948,7 +1798,6 @@ try {
       `entry=${JSON.stringify(eB)}`,
     );
 
-    // At both thresholds (20): p50 present, p95 present.
     const d1c = createMockD1();
     const envC = { TOKEN_STATS_DB: d1c };
     for (let i = 0; i < P95_MIN; i++) {
@@ -1963,13 +1812,9 @@ try {
     );
   }
 
-  // ---- C05: bucket upper bound precision ------------------------------------------
   {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    // All P95_MIN (20) samples inside bucket 1 (100..500ms): p50 and p95 must be
-    // the bucket upper bound TTFT_BUCKET_BOUNDARIES_MS[1] = 500 (needs P95_MIN
-    // for p95 to be present).
     for (let i = 0; i < P95_MIN; i++) {
       await persistNow(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'bucketed', 100 + i * 20);
     }
@@ -1981,9 +1826,6 @@ try {
       `p50=${e?.p50} p95=${e?.p95} boundaries=${JSON.stringify(TTFT_BUCKET_BOUNDARIES_MS)}`,
     );
 
-    // Mixed buckets: 12 samples in bucket 0 (<100ms), 8 in bucket 4 (2000..5000ms).
-    // p50 (ceil(20*0.5)=10th sample) lands in bucket 0 -> upper bound 100ms;
-    // p95 (ceil(20*0.95)=19th sample) lands in bucket 4 -> upper bound 5000ms.
     const d1b = createMockD1();
     const envB = { TOKEN_STATS_DB: d1b };
     for (let i = 0; i < 12; i++) {
@@ -2001,11 +1843,9 @@ try {
     );
   }
 
-  // ---- C06: last-bucket (≥10s) displays as ≥10s, not --s ------------------------
   {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };
-    // P95_MIN samples all ≥10s (bucket 6, upper bound = Infinity).
     for (let i = 0; i < P95_MIN; i++) {
       await persistNow(env, { prompt_tokens: 10, completion_tokens: 5 }, h0, 'slow-model', 12000);
     }
@@ -2016,7 +1856,6 @@ try {
     check('C06 last-bucket renders as ≥10s (not --s)', fmt.p50 === '≥10s' && fmt.p95 === '≥10s', `p50=${fmt.p50} p95=${fmt.p95}`);
   }
 
-  // ---- Fail-open -------------------------------------------------------------------
   {
     const res = await queryAllModelsTtftPercentiles({}, WEEK_MS, now());
     check('fail-open: missing binding -> available:false, no throw', res.available === false && typeof res.error === 'string');
@@ -2034,38 +1873,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// model-stats-canonicalization-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Observability Canonicalization Contract — historical case variants.
-  //
-  // The writer (persistTokenUsage) canonicalizes every new model key
-  // (trim + lowercase), so tests that only go through the writer can never
-  // observe the historical-data problem: real D1 still contains rows written
-  // before canonicalization (Code-Max / CODE-MAX / padded strings). This
-  // contract seeds RAW case-variant rows directly into the simulated table
-  // (bypassing the writer) and pins the reader-side merge semantics:
-  //
-  //   C01  Token Usage: variants merge into ONE canonical row (summed
-  //        total / requests), never split dimensions.
-  //   C02  TTFT: variant histograms merge BEFORE percentile computation —
-  //        no Map overwrite, sampleCount is the true sum, p50/p95 come from
-  //        the merged buckets.
-  //   C03  Recent Evidence: only the canonical key is returned.
-  //   C04  Usage Coverage: requests / reports / missing merge; coverage is
-  //        computed from the merged numbers.
-  //   C05  Writer/reader double insurance: writer canonical output is
-  //        unaffected (persist + read still yields the canonical key).
-  //
-  // The 24h evidence window and the TTFT precision contracts live in their
-  // own suites (model-status-window-contract-test / ttft-query-contract-test).
-
-
-
 
   const HOUR = 3_600_000;
   const WEEK_MS = 7 * 24 * 3600_000;
@@ -2081,11 +1889,8 @@ try {
     }
   }
 
-  // ---- C01: Token Usage merges historical case variants -------------------------
   {
     const d1 = createMockD1();
-    // Historical rows exactly as they might exist in D1 today: pre-canonical
-    // writes with mixed case (and one padded with spaces — TRIM handles it).
     d1.seedModelRow(h0, 'Code-Max', { total: 100, requests: 2 });
     d1.seedModelRow(h0 - HOUR, 'code-max', { total: 50, requests: 1 });
     d1.seedModelRow(h0 - 2 * HOUR, 'CODE-MAX', { total: 25, requests: 1 });
@@ -2104,14 +1909,8 @@ try {
     );
   }
 
-  // ---- C02: TTFT histograms merge before percentiles (no Map overwrite) ---------
   {
     const d1 = createMockD1();
-    // Three case variants plus a second-hour row of one variant. With the
-    // legacy GROUP BY model + JS map.set() the `code-max` entry would be
-    // overwritten by whichever raw variant came last; correct behavior merges
-    // all four rows: count = 3+3+5+9 = 20 (≥ P95_MIN for both percentiles),
-    // buckets b0=3, b1=3, b2=5, b4=9.
     d1.seedModelRow(h0, 'Code-Max', { successful_ttft_count: 3, ttft_b0: 3 });
     d1.seedModelRow(h0, 'code-max', { successful_ttft_count: 3, ttft_b1: 3 });
     d1.seedModelRow(h0 - HOUR, 'CODE-MAX', { successful_ttft_count: 5, ttft_b2: 5 });
@@ -2124,8 +1923,6 @@ try {
       res.available === true && res.ttft.size === 1 && entry && entry.sampleCount === 20,
       `keys=${JSON.stringify([...res.ttft.keys()])} entry=${JSON.stringify(entry)}`,
     );
-    // p50: ceil(20*0.5)=10th sample -> cumulative b0=3, b1=6, b2=11 -> bucket 2 (1000ms).
-    // p95: ceil(20*0.95)=19th sample -> cumulative b3=11, b4=20 -> bucket 4 (5000ms).
     check(
       'C02 percentiles are computed from the MERGED histogram (not the last variant)',
       entry && entry.p50Insufficient === false && entry.p95Insufficient === false && entry.p50 === 1000 && entry.p95 === 5000,
@@ -2133,7 +1930,6 @@ try {
     );
   }
 
-  // ---- C03: Recent Evidence returns only the canonical key ----------------------
   {
     const d1 = createMockD1();
     d1.seedModelRow(h0, 'Code-Max', { requests: 2 });
@@ -2148,7 +1944,6 @@ try {
     );
   }
 
-  // ---- C04: Usage Coverage merges requests / reports / missing ------------------
   {
     const d1 = createMockD1();
     d1.seedModelRow(h0, 'Code-Max', { requests: 3, reports: 2, missing: 1 });
@@ -2169,7 +1964,6 @@ try {
     );
   }
 
-  // ---- C05: writer canonical output keeps working (double insurance) ------------
   {
     const d1 = createMockD1();
     const env = { TOKEN_STATS_DB: d1 };

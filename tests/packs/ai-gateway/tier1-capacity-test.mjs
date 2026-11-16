@@ -1,9 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Tier 1 capacity retention: a Tier 1 key or model is taken out of the pool only
-// on evidence that it cannot serve, and a Tier 1-only deployment keeps serving
-// through request-local and transient failures.
 
 import { assert, beforeEach, test } from '#kit/harness.mjs';
 import { targetRoot } from '#kit/target.mjs';
@@ -76,9 +70,6 @@ function tier1OnlyEnv(nodeIds, extra = {}) {
   };
 }
 
-// Only the migrated real Gateway request contracts use this environment.
-// Legacy credential-conflict and deployment-config unit tests keep their own
-// explicit inputs until the corresponding runtime configuration contract retires.
 function privateTier1Env(nodeIds, extra = {}) {
   const gatewayEnv = tier1OnlyEnv(nodeIds, extra);
   const centerEnv = { ...gatewayEnv, AIG_INFERENCE_AUTH_KEY: PRIVATE_CENTER_KEY };
@@ -113,9 +104,6 @@ function privateTier1Env(nodeIds, extra = {}) {
 }
 
 function assertPrivateAttemptParity(upstream) {
-  // A center may reject an invalid credential/mapping BEFORE physical fetch.
-  // Count physical dispatches from the authenticated result signal rather
-  // than equating every private RPC with a billable Provider request.
   assert.equal(privateCenterPhysicalAttempts, upstream.hosts.length, 'every actual Provider fetch must have one private dispatched/attempted result');
   assert.ok(privateCenterExecutes >= privateCenterPhysicalAttempts, 'internal execute requests may include explicitly rejected pre-dispatch nodes');
 }
@@ -146,7 +134,6 @@ const chat = (env, body = {}) =>
     { waitUntil() {} },
   );
 
-// Answers upstream calls from a script of responses and records the host of each call.
 function scriptedUpstream(script) {
   const hosts = [];
   const handler = async (input) => {
@@ -156,8 +143,6 @@ function scriptedUpstream(script) {
   };
   return { hosts, handler };
 }
-
-// ---- 401 versus 403 ---------------------------------------------------------
 
 test('a 401 says the credential was rejected; a 403 says this request was refused', () => {
   assert.equal(classifyUpstreamStatus(401, new Headers(), {}).forbidden, undefined);
@@ -217,8 +202,6 @@ test('Tier 1-only single key: one refused request does not block the next one', 
   assertPrivateAttemptParity(upstream);
 });
 
-// ---- Half-open recovery on a shared key -------------------------------------
-
 function tripModel(accountId, modelId, now) {
   for (let i = 0; i < 3; i++) applyTier1Outcome(accountId, modelId, classifyTier1Failure({ kind: 'server' }), now + i);
 }
@@ -236,8 +219,6 @@ test('a tripped model gets its recovery probe while another model of the same ke
   releaseTier1Slot('k1', probe.releaseToken);
   releaseTier1Slot('k1', busy.releaseToken);
 });
-
-// ---- Exhausted Tier 1 Key: legacy and strict no-replay contracts -----------
 
 test('Tier 1-only single key: transient 5xx is not replayed on spent Key in strict mode', async () => {
   const env = privateTier1Env(['solo']);
@@ -285,8 +266,6 @@ test('all transiently failing Keys are exhausted without unnecessary replay', as
   assertPrivateAttemptParity(upstream);
 });
 
-// ---- A configuration error takes out only what it breaks ---------------------
-
 const runtimeOf = (env) => ({
   vars: Object.fromEntries(Object.entries(env).filter(([k]) => !k.includes('CREDENTIALS') && !k.startsWith('AIG_ACCESS_KEY_'))),
   secrets: Object.fromEntries(Object.entries(env).filter(([k]) => k.includes('CREDENTIALS') || k.startsWith('AIG_ACCESS_KEY_'))),
@@ -301,8 +280,6 @@ test('a policy typo degrades the gateway instead of failing every request', asyn
   assert.ok(config.diagnostics.some((d) => d.includes('max_attempt')));
   const upstream = scriptedUpstream([]);
   const res = await withMockFetch(upstream.handler, () => chat(env));
-  // The pre-cutover private executor rejects all degraded configs; after
-  // retirement, sanitized healthy nodes are allowed to serve.
   assert.equal(res.status, isCenterOnlyCutover ? 200 : 503);
   assertPrivateAttemptParity(upstream);
 });
@@ -319,9 +296,6 @@ test('unmigrated Tier 3 credential bindings reject the full pool', async () => {
   assert.equal(physical.nodesUsable, 0);
   const env = privateTier1Env(['good', 'bad'], extra);
   const publicConfig = loadGatewayConfig(env);
-  // The public Gateway deliberately receives no Provider credential bindings.
-  // It cannot diagnose a Secret stored exclusively in the private center;
-  // the private center must reject it before any physical Provider call.
   assert.equal(publicConfig.status, 'ready', 'metadata-only Gateway must not read private Provider Secrets');
   assert.equal(publicConfig.nodesUsable, 2);
   assert.equal(Object.keys(env).some((key) => /^AIG_TIER[123]_CREDENTIALS_/.test(key)), false);
@@ -379,8 +353,6 @@ test('with no usable node the configuration is still invalid', () => {
   assert.equal(loadGatewayConfig({ ...env, AIG_INFERENCE_ACTIVE: 'true' }).ready, false, 'unmigrated legacy Tier 3 bindings invalidate public metadata too');
 });
 
-// ---- Diagnostics never quote credential text --------------------------------
-
 test('a malformed credential shard is reported without quoting any of its text', async () => {
   const secret = 'sk-live-SECRETVALUE123456';
   const env = tier1OnlyEnv(['good'], { AIG_TIER1_CREDENTIALS_02: `{"other": ${secret}}` });
@@ -405,10 +377,6 @@ test('a malformed secrets document fails the deploy without quoting it', () => {
   );
 });
 
-// ---- The affinity lookup never stalls a request -----------------------------
-
-// Counts reads and writes of session-affinity keys only; the same namespace also
-// holds the shared Tier 1 cooldowns.
 function countingKv({ hang = false, fail = false } = {}) {
   const kv = { gets: 0, puts: 0 };
   const isAffinity = (key) => String(key).startsWith('affinity:');
@@ -501,8 +469,6 @@ test('an explicit x-session-id wins over the Claude Code session header', () => 
   assert.equal(resolveTier1SessionId(both), 'explicit-session');
 });
 
-// ---- Load spreads across Tier 1 keys -----------------------------------------
-
 test('a fast Tier 1 key that is already busy yields to an idle slower key', () => {
   const fast = tier1Node('fast');
   const slow = tier1Node('slow');
@@ -527,8 +493,6 @@ test('an idle fast key still wins over an idle slow key', () => {
   assert.equal(pick.node.id, 'fast');
   releaseTier1Slot('fast', pick.releaseToken);
 });
-
-// ---- One analytics event per upstream call ------------------------------------
 
 function recordingDataset() {
   const points = [];
@@ -587,8 +551,6 @@ test('an invalid analytics dataset name fails the deploy preflight', () => {
   assert.ok(result.errors.some((e) => e.includes('AIG_ANALYTICS_DATASET')), JSON.stringify(result.errors));
 });
 
-// ---- Long cooldowns are shared across isolates --------------------------------
-
 function memoryKv() {
   const store = new Map();
   const kv = { store, puts: 0, gets: 0 };
@@ -603,7 +565,6 @@ function memoryKv() {
   return kv;
 }
 
-// A fresh isolate: no in-memory Tier 1 state, only what KV remembers.
 function freshIsolate() {
   __resetTier1StateForTests();
   __resetAdaptive429StateForTests();
@@ -719,8 +680,6 @@ test('an isolate rereads the shared cooldowns at most once every 5 minutes', asy
   assert.equal(kv.gets, 2);
 });
 
-// ---- Claude Code auto mode through protocol fallback --------------------------
-
 const messages = (env, extra = {}) =>
   worker.fetch(
     new Request('https://gateway.example.com/v1/messages?beta=true', {
@@ -734,7 +693,6 @@ const messages = (env, extra = {}) =>
 
 test('a field no upstream can carry is a 400 that names it, so the client can resend without it', async () => {
   const env = privateTier1Env(['solo']);
-  // Claude Code's auto permission mode asks Anthropic to classify tool calls server side.
   const safeguards = [{ type: 'dangerous_tool_use', classifier_context: { v: 1, permission_mode: 'auto' } }];
   const upstream = scriptedUpstream([]);
   const refused = await withMockFetch(upstream.handler, () => messages(env, { safeguards }));
@@ -752,8 +710,6 @@ test('a field no upstream can carry is a 400 that names it, so the client can re
   assert.deepEqual(upstream.hosts, ['solo']);
   assertPrivateAttemptParity(upstream);
 });
-
-// ---- Large request bodies cannot exhaust an isolate's memory ------------------
 
 function largeChat(sizeBytes) {
   const filler = 'x'.repeat(sizeBytes);
@@ -786,7 +742,6 @@ test('large bodies beyond the in-flight memory budget are refused with a retryab
     assert.equal(refused.status, 503);
     assert.equal(refused.headers.get('retry-after'), '1');
     assert.equal(refused.headers.get('x-should-retry'), null);
-    // A small body with a declared Content-Length is charged its real size, not the worst case.
     const small = await Promise.race([worker.fetch(largeChat(64), env, { waitUntil() {} }), new Promise((resolve) => setTimeout(() => resolve({ status: 'queued' }), 20))]);
     assert.equal(small.status, 'queued', 'a small request is admitted and waits on the upstream like the first');
     release();
