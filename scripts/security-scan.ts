@@ -63,12 +63,7 @@ function exactKeys(
   }
 }
 
-export function decodeGithubContent(value: unknown): string {
-  if (!isJsonRecord(value) || value.encoding !== "base64" || typeof value.content !== "string") {
-    throw new CliError("GitHub contents response is invalid.", 65);
-  }
-  return Buffer.from(value.content.replace(/\s+/g, ""), "base64").toString("utf8");
-}
+export { decodeGithubContent } from "./github-api.ts";
 
 export function parseSecurityScanManifest(value: unknown): SecurityScanManifest {
   if (!isJsonRecord(value)) {

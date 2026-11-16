@@ -87,7 +87,6 @@ export function mustRefreshBehindBranch(pull: unknown, repository: string): bool
   );
 }
 
-/** Draft PRs are intentionally ineligible; this is a successful no-op, not a failed gate. */
 // A second merge attempt can race with a GitHub auto-merge already approved
 // for the same immutable head. A complete, exact signed-gate match is required
 // before treating this as an idempotent success.
