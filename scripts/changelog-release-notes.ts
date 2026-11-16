@@ -39,7 +39,10 @@ async function readFileAt(
 ): Promise<string | null> {
   try {
     return decodeGithubContent(
-      await getGithubJson(`repos/${repository}/contents/${path}?ref=${encodeURIComponent(ref)}`, token),
+      await getGithubJson(
+        `repos/${repository}/contents/${path}?ref=${encodeURIComponent(ref)}`,
+        token
+      ),
       "GitHub returned a non-base64 changelog."
     );
   } catch (error) {
