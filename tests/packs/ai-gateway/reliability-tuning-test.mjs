@@ -1,11 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Reliability tuning contract: size-aware timeouts and hedging (large prompts and
-// buffered replies are not killed as if they were short chat turns), 429
-// classification precedence (a per-minute unit or a short wait beats a generic
-// "quota" word; an N-hour window is a long-lived allowance), the long-allowance
-// ladder, and the Messages -> Chat fallback with optional server tools.
 
 import worker from '#target/src/index.ts';
 import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
@@ -102,7 +94,6 @@ async function test(name, fn) {
   }
 }
 
-// ---- size-aware timing ---------------------------------------------------------------
 await test('request size grants a bounded allowance and short prompts get none', () => {
   assert.equal(requestSizeAllowanceMs(0), 0);
   assert.equal(requestSizeAllowanceMs(undefined), 0);
@@ -122,7 +113,6 @@ await test('the built-in hedge delay adapts to size, observed TTFT and buffered 
   assert.equal(getLimits({}).isHedgeDelayExplicit, false);
 });
 
-// ---- 429 classification -----------------------------------------------------------------
 await test('an explicit minute unit or a short wait beats a generic quota word', () => {
   const gemini =
     'You exceeded your current quota, please check your plan and billing details. quota_id: GenerateRequestsPerMinutePerProjectPerModel-FreeTier';
@@ -169,7 +159,6 @@ await test('the long-allowance ladder is tunable and malformed input keeps the b
   assert.equal(adaptive429StepsFromEnv('nope', ADAPTIVE_429_QUOTA_STEPS_MS), ADAPTIVE_429_QUOTA_STEPS_MS);
 });
 
-// ---- ladder through the real pipeline ------------------------------------------------------
 function chatRequest(model = 'general-air') {
   return new Request('https://gateway.example.com/v1/chat/completions', {
     method: 'POST',
@@ -215,7 +204,6 @@ await test('a 5-hour allowance cools the whole key for 5 minutes, then 10 minute
     { id: 'healthy', provider: 'plan-provider', base_url: 'https://healthy.example.com/v1', models: { 'general-air': 'up' } },
   ];
   const e = gatewayEnv(nodes, { quota: 'k1', healthy: 'k2' }, { TIER1_SCHEDULER_SEED: 'tuning-ladder' });
-  // Drive requests until the quota key has taken its 429 (the pick is random).
   for (let i = 0; i < 20 && getTier1Account('quota').accountCooldownUntil === 0; i++) {
     const res = await worker.fetch(chatRequest(), e, {});
     assert.equal(res.status, 200, 'a healthy sibling key always serves the request');
@@ -226,7 +214,6 @@ await test('a 5-hour allowance cools the whole key for 5 minutes, then 10 minute
   assert.ok(remaining > 295_000 && remaining <= 300_000, `first stage is 5 minutes, got ${remaining}`);
   assert.equal(first.accountCooldownIsQuota, true);
 
-  // Let the cooldown lapse (clock moved past it), then fail the recovery probe.
   const realNow = Date.now;
   Date.now = () => realNow() + 301_000;
   try {
@@ -257,7 +244,6 @@ await test('a per-minute 429 never graduates to the long-allowance ladder, howev
   Date.now = () => realNow() + offsetMs;
   try {
     for (let i = 0; i < 8; i++) {
-      // Move past every possible cooldown, so each request is the key's recovery probe.
       offsetMs += 6 * 3_600_000;
       const before = probes;
       await worker.fetch(chatRequest(), e, {});
@@ -335,7 +321,6 @@ await test('Token Tier 2 keeps the ordinary ten minute Retry-After ceiling for a
   assert.ok(remaining > 590_000 && remaining <= 600_000, `Tier 2 cooldown stays at the 10 minute ceiling, got ${remaining}`);
 });
 
-// ---- timers: buffered replies and large prompts ------------------------------------------------
 function captureTimers() {
   const original = globalThis.setTimeout;
   const delays = [];
@@ -367,7 +352,6 @@ await test('a buffered reply waits for the generation, a streamed one keeps the 
   const nodes = [{ id: 'solo', provider: 'solo-provider', base_url: 'https://solo.example.com/v1', models: { 'general-chat': 'up' } }];
   const e = gatewayEnv(nodes, { solo: 'k' }, {
     AIG_UPSTREAM_HEADER_TIMEOUT_MS: '5000',
-    // Hedging is now opt-in; keep this test focused on adaptive delay.
     AIG_MODELS_CONFIG: JSON.stringify({ 'general-chat': { policy: 'hedged' } }),
     AIG_POLICIES_CONFIG: JSON.stringify({ hedged: { max_attempts: 5, hedge: { enabled: true, tiers: ['tier1'] } } }),
   });
@@ -414,7 +398,6 @@ await test('a buffered reply waits for the generation, a streamed one keeps the 
   assert.ok(!big.delays.includes(3_000), 'the big prompt is not hedged at the short-chat delay');
 });
 
-// ---- Messages -> Chat fallback with optional server tools ----------------------------------------
 const FN_TOOL = { name: 'Read', description: 'read a file', input_schema: { type: 'object', properties: { path: { type: 'string' } } } };
 
 async function messagesViaChatFallback(extraBody) {

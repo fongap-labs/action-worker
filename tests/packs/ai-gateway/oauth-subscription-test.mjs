@@ -1,9 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Retired OAuth membership execution regression. These tests deliberately do
-// not import removed subscription modules. Their former positive behavior is
-// forbidden; no request may start OAuth, refresh a token or access OAuth D1.
 
 import { assert, beforeEach, test } from '#kit/harness.mjs';
 import { existsSync, readFileSync } from 'node:fs';

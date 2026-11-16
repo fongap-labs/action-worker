@@ -1,7 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// /health lists only the nodes behind models the caller's key may use; counts stay gateway-wide.
 
 import { assert, test } from '#kit/harness.mjs';
 import { __resetAccessKeysCacheForTests } from '#target/src/config/access-keys.ts';
@@ -19,10 +15,8 @@ function makeEnv() {
     AIG_ACCESS_MODELS_AIR: 'model-a',
     AIG_ACCESS_KEY_PRO: 'pro-key',
     AIG_ACCESS_MODELS_PRO: '*',
-    // Visibility per key is the subject here, so every key may read /health.
     AIG_DIAGNOSTICS_GROUPS: '*',
     AIG_TIER1_NODES_01: JSON.stringify([node('node-a', { 'model-a': 'up-a' }), node('node-b', { 'model-b': 'up-b' })]),
-    // /health must work from public node metadata with NO Provider secrets.
     AIG_INFERENCE_ACTIVE: 'true',
     AIG_INFERENCE_AUTH_KEY: 'health-visibility-private-center-auth-key-32',
     AIG_INFERENCE_SERVICE: {

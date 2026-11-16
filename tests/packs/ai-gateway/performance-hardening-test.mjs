@@ -1,10 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Regression tests for the hot-path performance and stability fixes: bounded body reads that report
-// truncation, the oversized buffered reply stop, stale-while-revalidate session affinity, the
-// pull-driven first-event guard, the streaming model-name rewrite, the isolate retry budget, the
-// cached access-key digests and the rate-limited usage flush window.
 
 import { assert, test } from '#kit/harness.mjs';
 import { withMockFetch } from '#kit/fetch.mjs';
@@ -92,8 +85,6 @@ function makeEnv(ids, extra = {}) {
   return gatewayEnv;
 }
 
-// Real clients send Content-Length; without it the body budget charges the worst case
-// and concurrent requests would be serialized, which is not what these tests are about.
 function chatRequest(body = { model: 'code-max', messages: [{ role: 'user', content: 'hi' }] }) {
   const text = JSON.stringify(body);
   return new Request('https://gateway.example.com/v1/chat/completions', {
@@ -111,8 +102,6 @@ const completion = (content) => ({
   usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
 });
 
-// ---- bounded body reads --------------------------------------------------------
-
 test('readBodyTextBounded reports truncation only when bytes were left behind', async () => {
   const exact = await readBodyTextBounded(bytesResponse([enc.encode('abcd'), enc.encode('efgh')]), 8);
   assert.deepEqual(exact, { text: 'abcdefgh', isTruncated: false });
@@ -120,8 +109,6 @@ test('readBodyTextBounded reports truncation only when bytes were left behind', 
   assert.deepEqual(over, { text: 'abcdefgh', isTruncated: true });
   assert.equal(await safeReadErrorBody(bytesResponse([enc.encode('abcdefghij')]), 4), 'abcd');
 });
-
-// ---- oversized buffered reply ---------------------------------------------------
 
 test('a buffered reply over the limit ends the request instead of regenerating it on another node', async () => {
   resetGatewayState();
@@ -152,8 +139,6 @@ test('a reply under the limit is still delivered', async () => {
   assert.equal((await response.json()).choices[0].message.content, 'hello');
   assertCenterDispatches(env, 1);
 });
-
-// ---- session affinity: stale-while-revalidate ----------------------------------
 
 test('a known affinity binding is served at once when stale, and refreshed once in the background', async () => {
   __resetTier1AffinityForTests();
@@ -202,8 +187,6 @@ test('an unknown binding still waits for KV, but only up to the read timeout', a
   assert.equal(snapshotTier1Affinity(env).timeouts, 1);
 });
 
-// ---- first-event guard back pressure ---------------------------------------------
-
 test('the first-event guard reads the upstream only as fast as the client drains it', async () => {
   let pulled = 0;
   const total = 500;
@@ -226,8 +209,6 @@ test('the first-event guard reads the upstream only as fast as the client drains
   assert.ok(pulled < 20, `an idle client must not make the guard drain the upstream (pulled ${pulled} of ${total})`);
   await reader.cancel();
 });
-
-// ---- streaming model-name rewrite ---------------------------------------------------
 
 function sseChunks(lines, size) {
   const bytes = enc.encode(lines.join(''));
@@ -283,8 +264,6 @@ test('a chunk whose upstream model name changes mid-stream is still rewritten', 
   assert.deepEqual(models, ['Code-Max', 'Code-Max', 'Code-Max']);
 });
 
-// ---- retry budget -----------------------------------------------------------------
-
 test('retry slots: a small deployment is never shed, a crowd is limited to a share of its requests', () => {
   __resetRetryBudgetForTests();
   const few = Array.from({ length: RETRY_BUDGET_MIN }, () => new RetrySlot());
@@ -322,7 +301,6 @@ test('an upstream outage does not send every concurrent request through the whol
     async () => {
       calls++;
       await gate;
-      // Failing upstreams take time to fail, so retries of different requests overlap.
       await new Promise((resolve) => setTimeout(resolve, 25));
       return new Response('{"error":{"message":"upstream down"}}', { status: 500, headers: { 'content-type': 'application/json' } });
     },
@@ -358,8 +336,6 @@ test('rotating past a rate-limited key is ordinary pool behaviour and is never b
   assertCenterDispatches(env, physicalCalls);
 });
 
-// ---- access-key digests --------------------------------------------------------------
-
 test('cached key digests keep authorizing the right group and rejecting the wrong key', async () => {
   resetGatewayState();
   const env = {
@@ -375,8 +351,6 @@ test('cached key digests keep authorizing the right group and rejecting the wron
     assert.equal((await authorize(request('nope'), env)).authorized, false);
   }
 });
-
-// ---- usage flush window -----------------------------------------------------------------
 
 test('usage events inside the five-minute flush window share one D1 batch', async () => {
   __resetUsageBufferForTests();
@@ -399,9 +373,6 @@ test('usage events inside the five-minute flush window share one D1 batch', asyn
   }
 });
 
-// During the Gateway contract transition, both the last released hard-cap
-// implementation and the new no-count-gate implementation remain testable.
-// The new path explicitly proves high concurrency is only measured, not denied.
 test('isolate activity accounting permits concurrent handlers and preserves native stream cancellation', async () => {
   isolateAdmission.__resetIsolateConcurrencyForTests();
   let cancelled = false;

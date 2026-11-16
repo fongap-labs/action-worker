@@ -1,10 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Merged suite. Each section below was a standalone suite and keeps its own scope:
-//   - provider-discovery-test.mjs
-//   - provider-discovery-ssrf-guard-test.mjs
-//   - provider-adapter-registry-test.mjs
 
 import { targetRoot as root } from '#kit/target.mjs';
 import { EVIDENCE_LEVELS, SUPPORT_FALSE, SUPPORT_NULL, SUPPORT_TRUE, aggregateCatalogCapabilities, checkRuntimeAgainstCatalog, diffCatalogs, formatActionSummary, formatChangesMarkdown, formatJsonReport, hasProtocolDowngrade, isEvidence, isProtocol, isSupportTriState, isSurfaceFor, loadCatalogFile, normalizeCapabilityEntry, normalizeCatalog, normalizeRuntimeView, summarizeBySeverity, validateCapabilityEntry, validateCatalog } from '#target/scripts/provider-discovery/index.js';
@@ -18,34 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// ==========================================================================
-// provider-discovery-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  //
-  // Provider Discovery test suite (v1.1).
-  //
-  // Pure unit tests — no network, no Worker runtime. This file is part of
-  // `npm run test:required` and must never reach out to third-party APIs.
-  //
-  // Coverage:
-  //   - Provider Capability schema (tri-state, surfaces, evidence)
-  //   - Normalization (stable sort, secret-stripping, base URL canonicalization)
-  //   - Diff semantics (added/removed/changed; severity mapping)
-  //   - Runtime consistency (mismatch, base URL drift, no auto-mutation)
-  //   - Report formatters (markdown, summary, JSON)
-  //   - Security invariants (no secrets in any output path)
-  //   - Boundary invariants (no coupling to runtime hot path)
-
-
-
-
-
-
-
-
-
 
   const here = path.dirname(fileURLToPath(import.meta.url));
 
@@ -64,8 +30,6 @@ try {
       process.exitCode = 1;
     }
   }
-
-  // ----------------- Provider Capability schema -----------------------------
 
   test('OpenAI-only provider serializes correctly', () => {
     const e = validateCapabilityEntry('openai', {
@@ -188,8 +152,6 @@ try {
     assert.ok(warnings.some((w) => /cleared/i.test(w)));
   });
 
-  // ----------------- Protocol Discovery invariants --------------------------
-
   test('A successful /models observation does NOT imply Responses support', () => {
     const discoveryRoot = path.join(root, 'scripts', 'provider-discovery');
     const files = fs.readdirSync(discoveryRoot).filter((f) => f.endsWith('.js'));
@@ -232,8 +194,6 @@ try {
       assert.ok(!cliText.includes(forbidden), `provider-discovery.mjs imports runtime-coupled path "${forbidden}"`);
     }
   });
-
-  // ----------------- Base URL invariants ------------------------------------
 
   test('OpenAI and Anthropic can keep distinct base URLs', () => {
     const { catalog, warnings } = normalizeCatalog({
@@ -340,8 +300,6 @@ try {
     });
     assert.equal(entry.base_url, null);
   });
-
-  // ----------------- Diff semantics -----------------------------------------
 
   test('protocol_support_changed is reported when support flips', () => {
     const before = normalizeCatalog({
@@ -634,8 +592,6 @@ try {
     assert.equal(sev.P3, 1);
   });
 
-  // ----------------- Runtime Validation --------------------------------------
-
   test('Runtime Node with unsupported capability yields a warning', () => {
     const catalog = normalizeCatalog({
       schema_version: '1.1',
@@ -718,8 +674,6 @@ try {
     const warnings = checkRuntimeAgainstCatalog(runtime, catalog);
     assert.ok(!warnings.some((w) => w.kind === 'runtime_surface_mismatch'));
   });
-
-  // ----------------- Security -----------------------------------------------
 
   test('Secrets do not appear in changes.md output', () => {
     const secretMarker = `sk-${'a'.repeat(24)}`;
@@ -811,8 +765,6 @@ try {
     );
   });
 
-  // ----------------- Schema predicate checks --------------------------------
-
   test('isSurfaceFor and isProtocol reject unknown values', () => {
     assert.equal(isProtocol('gemini'), false);
     assert.equal(isProtocol('openai'), true);
@@ -836,8 +788,6 @@ try {
     const r3 = validateCatalog({ schema_version: '1.1', providers: { ex: { gemini: { supported: true } } } });
     assert.equal(r3.ok, false);
   });
-
-  // ----------------- aggregateCatalogCapabilities ---------------------------
 
   test('aggregateCatalogCapabilities counts supported only (no inferred), supports both protocols', () => {
     const catalog = normalizeCatalog({
@@ -869,8 +819,6 @@ try {
     assert.equal(agg.anthropic_count_tokens_supported, 1);
   });
 
-  // ----------------- samples load correctly ---------------------------------
-
   test('sample catalog loads + validates', () => {
     const samplePath = path.join(samplesDir, 'catalog.example.json');
     if (!fs.existsSync(samplePath)) {
@@ -892,8 +840,6 @@ try {
       assert.ok(['openai', 'anthropic'].includes(n.protocol));
     }
   });
-
-  // ----------------- CLI smoke test -----------------------------------------
 
   test('CLI check-snapshot exits 0 for sample catalog', () => {
     const samplePath = path.join(samplesDir, 'catalog.example.json');
@@ -934,8 +880,6 @@ try {
     assert.ok(/runtime_surface_mismatch/.test(result.stdout));
   });
 
-  // ----------------- Done ----------------------------------------------------
-
   console.log(`\nprovider-discovery tests: ${passed} passed.`);
   if (process.exitCode) {
     console.error('Some tests FAILED.');
@@ -949,17 +893,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// provider-discovery-ssrf-guard-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // SSRF Guard tests for Provider Discovery security hardening.
-
-
-
 
   let passed = 0;
   function test(name, fn) {
@@ -984,8 +918,6 @@ try {
       process.exitCode = 1;
     }
   }
-
-  // --- isDangerousHost ---
 
   test('localhost is dangerous', () => {
     assert.ok(isDangerousHost('localhost'));
@@ -1037,8 +969,6 @@ try {
     assert.ok(!isDangerousHost('2001:db8::1'));
   });
 
-  // --- isSafeDiscoveryUrl ---
-
   test('safe HTTPS URL passes', () => {
     const r = isSafeDiscoveryUrl('https://api.example.com/v1');
     assert.ok(r.safe);
@@ -1082,8 +1012,6 @@ try {
     assert.ok(r.reason.includes('invalid URL'));
   });
 
-  // --- DNS-backed target validation ---
-
   await testAsync('DNS resolution to a public address passes', async () => {
     const lookup = async () => [{ address: '93.184.216.34', family: 4 }];
     const r = await isSafeDiscoveryTarget('https://api.example.com/v1', false, lookup);
@@ -1123,8 +1051,6 @@ try {
     assert.equal(called, false);
   });
 
-  // --- redirectTargetIsSafe ---
-
   test('redirect revalidation blocks dangerous targets', () => {
     assert.ok(!redirectTargetIsSafe('https://169.254.169.254'));
     assert.ok(!redirectTargetIsSafe('https://localhost'));
@@ -1132,16 +1058,12 @@ try {
     assert.ok(redirectTargetIsSafe('https://api.example.com/new'));
   });
 
-  // --- enforceMaxModelCount ---
-
   test('model count limit enforced', () => {
     const models = Array.from({ length: 1001 }, (_, i) => ({ id: `m${i}` }));
     assert.throws(() => enforceMaxModelCount(models, 1000), /max 1000/);
     const ok = enforceMaxModelCount(models.slice(0, 1000), 1000);
     assert.equal(ok.length, 1000);
   });
-
-  // --- readBoundedResponseText ---
 
   function makeMockResponse(bodyText) {
     const encoder = new TextEncoder();
@@ -1177,8 +1099,6 @@ try {
     await assert.rejects(readBoundedResponseText(res, 100), /exceeds 100/);
   });
 
-  // --- DISCOVERY_LIMITS constants ---
-
   test('DISCOVERY_LIMITS has expected defaults', () => {
     assert.equal(DISCOVERY_LIMITS.connectTimeoutMs, 10_000);
     assert.equal(DISCOVERY_LIMITS.responseTimeoutMs, 30_000);
@@ -1200,25 +1120,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// provider-adapter-registry-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Provider adapter registry contracts:
-  //   - registered providers resolve to their adapter (wire, quirks,
-  //     native provider wire and stream-usage semantics)
-  //   - unknown providers resolve to the generic OpenAI-compatible adapter
-  //   - adding a plain OpenAI-compatible provider is configuration-only
-  //     (no registry entry, no source change) and never regresses routing
-  //   - retired subscriber adapters and OAuth node configuration fail closed
-
-
-
-
-
 
   let passed = 0;
   function test(name, fn) {
@@ -1278,7 +1180,6 @@ try {
     assert.equal(cfg.nodes[0].provider, 'xyz-provider');
     assert.equal(cfg.nodes[0].protocol, 'openai');
     assert.deepEqual(cfg.nodes[0].surfaces, ['chat_completions']);
-    // An unknown provider only gets its declared generic wire capabilities.
     assert.equal(getProviderAdapter('xyz-provider').subscription, undefined);
   });
 

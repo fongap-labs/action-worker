@@ -1,12 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Merged suite. Each section below was a standalone suite and keeps its own scope:
-//   - family-rate-limit-retry-test.mjs
-//   - model-family-failure-domain-test.mjs
-//   - fallback-conversion-observability-test.mjs
-//   - responses-error-diagnostics-test.mjs
-//   - protocol-matrix-test.mjs
 
 import { convertRequest } from './conversion-matrix-adapters.mjs';
 import { legacySpentKeyRetry } from './spent-key-retry-contract.mjs';
@@ -23,8 +14,6 @@ import { __resetTier1AffinityForTests } from '#target/src/scheduler/tier1-affini
 import assert from 'node:assert/strict';
 
 const INFERENCE_AUTH_KEY = 'central-family-routing-internal-test-auth-32';
-// A private execution environment owns Provider credentials; the public Gateway
-// only receives the center binding, routing metadata and internal authentication.
 function withPrivateInferenceCenter(gatewayEnv, onCenterRequest = () => {}) {
   const centerEnv = { ...gatewayEnv, AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY };
   for (const key of Object.keys(gatewayEnv)) {
@@ -44,18 +33,7 @@ function withPrivateInferenceCenter(gatewayEnv, onCenterRequest = () => {}) {
   return gatewayEnv;
 }
 
-// ==========================================================================
-// family-rate-limit-retry-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-
-
-
-
-
-
 
   const ACCESS_KEY = 'family-rate-limit-test-key';
   const calls = [];
@@ -215,20 +193,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// model-family-failure-domain-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-
-
-
-
-
-
-
-
 
   const ACCESS_KEY = 'family-domain-test-key';
   let calls = [];
@@ -242,8 +207,6 @@ try {
     __resetAdaptive429StateForTests();
   }
 
-  // Direct helper consumers still use RuntimeNode, which includes resolved wire
-  // fields. When projected back into config JSON below, those fields are omitted.
   function node(id, models) {
     return {
       id,
@@ -324,8 +287,6 @@ try {
     assert.ok((collapsedBody?.error?.message || '').startsWith('503 | Code-Max temporarily unavailable after'));
   else assert.match(collapsedBody?.error?.message || '', /compatible-model failover plan/i);
   assert.equal(collapsed.headers.get('x-gateway-error-code'), 'gateway_attempt_budget_exhausted');
-  // A spent physical failure domain is attempted once in strict mode.
-  // Legacy only allows its single last-resort re-dispatch.
   const collapsedDispatches = legacySpentKeyRetry ? 2 : 1;
   assert.deepEqual(
     calls,
@@ -344,8 +305,6 @@ try {
   });
   const distinct = await worker.fetch(request(), envFor([distinctModels]), {});
   assert.equal(distinct.status, 503);
-  // New Gateway contract: a failed physical Key is not replayed under a
-  // different logical or upstream model. Legacy versions retain prior behavior.
   assert.deepEqual(
     calls.map((c) => c.model),
     legacySpentKeyRetry ? ['real-max', 'real-pro', 'real-ultra', 'real-ultra'] : ['real-max'],
@@ -361,7 +320,6 @@ try {
   const accountB = node('account-b', { 'Code-Max': 'real-shared', 'Code-Pro': 'real-shared', 'Code-Ultra': 'real-shared' });
   const twoAccounts = await worker.fetch(request(), envFor([accountA, accountB]), {});
   assert.equal(twoAccounts.status, 503);
-  // Both accounts must be attempted once; strict mode must not replay either.
   const accountDispatches = legacySpentKeyRetry ? 3 : 2;
   assert.equal(calls.length, accountDispatches);
   assert.deepEqual(new Set(calls.map((c) => c.host)), new Set(['account-a.example.com', 'account-b.example.com']));
@@ -377,19 +335,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// fallback-conversion-observability-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-
-
-
-
-
-
-
 
   const ACCESS_KEY = 'test-access-key';
   const PRIVATE_TEXT = 'PRIVATE_PROMPT_DO_NOT_LOG';
@@ -522,26 +468,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// responses-error-diagnostics-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Responses/Codex terminal-error diagnostics contract. The OpenAI-compatible
-  // body remains unchanged (`error.code === null`); Gateway-owned routing
-  // classification and aggregate counters travel only in non-sensitive headers.
-
-
-
-
-
-
-
-
-
-
 
   const ACCESS_KEY = 'responses-diagnostics-key';
   let routeHandlers = {};
@@ -632,8 +559,6 @@ try {
   assert.equal(deadBody.error.type, 'api_error');
   assert.equal(deadBody.error.code, null);
   assert.equal(dead.headers.get('x-gateway-error-code'), 'gateway_upstream_exhausted');
-  // The strict no-replay Gateway attempts this physical Key only once;
-  // older immutable versions still allow their one last-resort retry.
   const exhaustedCount = legacySpentKeyRetry ? 2 : 1;
   assert.equal(dead.headers.get('x-gateway-attempts'), String(exhaustedCount));
   assert.equal(dead.headers.get('x-gateway-dispatches'), String(exhaustedCount));
@@ -698,18 +623,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// protocol-matrix-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Current protocol-routing matrix: Provider profiles own native surfaces,
-  // Chat/Messages conversion is explicit/bounded, Responses remains Native Only.
-
-
-
-
-
 
   const ACCESS_KEY = 'test-access-key';
   const INFERENCE_AUTH_KEY = 'central-protocol-matrix-auth-key-32';

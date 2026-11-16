@@ -1,17 +1,4 @@
 #!/usr/bin/env node
-// Claude Code / Anthropic Messages contract tests.
-//
-// Black-box: run the REAL worker pipeline (auth -> scheduler -> retry ->
-// circuit -> private Inference Center -> stream) through worker.fetch().
-// The isolated center owns the mocked physical Provider fetch, as a Claude Code
-// client drives /v1/messages without Gateway-side Provider credentials.
-// These tests pin the customer-facing protocol contract (text, stream,
-// thinking, tool_use, tool_result, error shapes), not internal structure.
-//
-// The Anthropic path is NATIVE end to end: the gateway forwards the request
-// body verbatim (model substituted) to the upstream /v1/messages endpoint and
-// relays the upstream's native Anthropic SSE lifecycle. Every mock upstream
-// below therefore speaks the Anthropic wire format.
 import assert from 'node:assert/strict';
 import worker from '#target/src/index.ts';
 import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
@@ -98,7 +85,6 @@ function makeEnv({ tier1, tier2, secrets, extraEnv } = {}) {
   return gatewayEnv;
 }
 
-// Anthropic-protocol node serving /v1/messages natively.
 const node = (id, extra = {}) => ({
   id,
   provider: 'anthropic',
@@ -123,7 +109,6 @@ function jsonUpstream(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json', ...headers } });
 }
 
-// Native Anthropic SSE helpers: named events, `data:` JSON payloads.
 function sseBody(lines) {
   const encoder = new TextEncoder();
   let i = 0;
@@ -169,7 +154,6 @@ const messageDelta = (stopReason = 'end_turn', usage = { input_tokens: 1, output
   event('message_delta', { type: 'message_delta', delta: { stop_reason: stopReason, stop_sequence: null }, usage });
 const messageStop = () => event('message_stop', { type: 'message_stop' });
 
-// A complete native text lifecycle.
 const textLifecycle = (text) => [
   messageStart(),
   blockStart(0, { type: 'text', text: '' }),
@@ -179,7 +163,6 @@ const textLifecycle = (text) => [
   messageStop(),
 ];
 
-// A complete native non-stream message.
 const okMessage = (over = {}) => ({
   id: 'msg_up1',
   type: 'message',
@@ -194,8 +177,6 @@ const okMessage = (over = {}) => ({
 
 installMockFetch();
 
-// ---- text / streaming -------------------------------------------------------
-
 await test('claude non-stream text is a message with content block', async () => {
   resetMock();
   routeHandlers['ct.example.com'] = () => jsonUpstream(okMessage());
@@ -209,9 +190,6 @@ await test('claude non-stream text is a message with content block', async () =>
   assert.equal(body.content[0].text, 'hello');
   assert.equal(body.usage.input_tokens, 1);
   assert.equal(body.stop_reason, 'end_turn');
-  // NATIVE chain: the request reached /v1/messages with the body forwarded
-  // verbatim (model substituted only), and the credential went out as
-  // x-api-key — never "Authorization: Bearer".
   const call = upstreamCalls[0];
   assert.equal(new URL(call.url).pathname, '/v1/messages');
   assert.equal(call.body.model, 'up-model');
@@ -267,9 +245,6 @@ await test('claude streaming forwards anthropic-version and anthropic-beta heade
 
 await test('claude a complete native lifecycle never opens a half stream', async () => {
   resetMock();
-  // message_start -> thinking -> text -> message_delta -> message_stop: every
-  // block closes, the lifecycle terminates with message_stop, and no error
-  // event is injected by the gateway.
   routeHandlers['cdt.example.com'] = () =>
     sseResponse([
       messageStart(),
@@ -327,13 +302,10 @@ await test('claude thinking blocks pass through natively', async () => {
   const text = await res.text();
   assert.match(text, /"type":"thinking_delta"/);
   assert.match(text, /"type":"text_delta"/);
-  // thinking streams incrementally; each delta preserves its own fragment
   assert.match(text, /"thinking":"think-"/);
   assert.match(text, /"thinking":"ing"/);
   assert.match(text, /"text":"done"/);
 });
-
-// ---- tools ------------------------------------------------------------------
 
 await test('claude tool_use passes through as a native tool_use content block', async () => {
   resetMock();
@@ -401,8 +373,6 @@ await test('claude tool_use + tool_result history is forwarded verbatim (native 
   const res = await worker.fetch(messagesRequest(body), env, {});
   assert.equal(res.status, 200);
   const sent = upstreamCalls[0].body;
-  // Native: the messages array reaches the upstream EXACTLY as the client
-  // sent it — content blocks stay content blocks, no OpenAI chat conversion.
   assert.deepEqual(sent.messages, body.messages);
   assert.equal(sent.model, 'up-model');
   assert.deepEqual(sent.tools, undefined);
@@ -425,8 +395,6 @@ await test('claude system and tools pass through natively', async () => {
   assert.equal(sent.system, 'You are terse.');
   assert.deepEqual(sent.tools, body.tools);
 });
-
-// ---- error shapes -----------------------------------------------------------
 
 await test('claude upstream 400 rotates to another provider-key slot', async () => {
   resetMock();
@@ -527,9 +495,6 @@ await test('claude stream interruption accounts a node failure and delivers part
   assert.equal(getNodeState('ceint').totalFailures, 1);
 });
 
-// A message_start-only stream carries NO real model output: a node that
-// announces itself and then dies has committed nothing, so the request must
-// fail over to a healthy node. (First Event Guard, Anthropic semantics.)
 await test('claude: message_start-only first event then EOF must fail over to a healthy node', async () => {
   resetMock();
   const encoder = new TextEncoder();
@@ -537,7 +502,6 @@ await test('claude: message_start-only first event then EOF must fail over to a 
     new Response(
       new ReadableStream({
         pull(controller) {
-          // lifecycle events only, then clean EOF (no real output, no message_stop).
           controller.enqueue(encoder.encode(messageStart()));
           controller.close();
         },
@@ -566,8 +530,6 @@ await test('claude: message_start-only first event then EOF must fail over to a 
   );
 });
 
-// Once real output (a text delta) has been committed, transparent failover is
-// forbidden — the client already saw node A's model output.
 await test('claude: text delta first event then EOF must NOT fail over to another node', async () => {
   resetMock();
   const encoder = new TextEncoder();
@@ -575,7 +537,6 @@ await test('claude: text delta first event then EOF must NOT fail over to anothe
     new Response(
       new ReadableStream({
         pull(controller) {
-          // real text output, then clean EOF (committed — no failover allowed).
           controller.enqueue(encoder.encode(textDelta(0, 'committed output')));
           controller.close();
         },
@@ -597,12 +558,9 @@ await test('claude: text delta first event then EOF must NOT fail over to anothe
   assert.ok(!upstreamCalls.some((c) => c.host === 'tob.example.com'), 'B must never be contacted once A committed');
 });
 
-// A successful Anthropic stream MUST reach message_stop; the completionMarker
-// guard means a stream that ends without it is accounted as a node failure.
 await test('claude: a stream ending without message_stop is a node failure, not success', async () => {
   resetMock();
   const encoder = new TextEncoder();
-  // Real text output, then clean EOF — committed, but no message_stop marker.
   routeHandlers['nms.example.com'] = () =>
     new Response(
       new ReadableStream({
@@ -625,9 +583,6 @@ await test('claude: a stream ending without message_stop is a node failure, not 
   assert.equal(getNodeState('nms').totalFailures, 1, 'a missing message_stop must count as a failure, not success');
 });
 
-// Client asked for JSON but the native upstream streamed anyway: the gateway
-// assembles the final message object. Nothing reached the client during
-// assembly, so a failure still rotates.
 await test('claude non-stream client + streaming upstream assembles the message object', async () => {
   resetMock();
   routeHandlers['casm.example.com'] = () => sseResponse(textLifecycle('assembled'));
@@ -642,8 +597,6 @@ await test('claude non-stream client + streaming upstream assembles the message 
   assert.deepEqual(body.usage, { input_tokens: 1, output_tokens: 1 });
 });
 
-// Client asked for a stream but the native upstream answered with a full JSON
-// message: the gateway synthesizes a well-formed Anthropic SSE lifecycle.
 await test('claude stream client + JSON upstream synthesizes the SSE lifecycle', async () => {
   resetMock();
   routeHandlers['csyn.example.com'] = () => jsonUpstream(okMessage());
@@ -663,12 +616,6 @@ await test('claude stream client + JSON upstream synthesizes the SSE lifecycle',
   assert.match(text, /"text":"hello"/);
 });
 
-// =====================================================================
-//   Claude Code -> Anthropic Messages -> OpenAI Chat fallback
-//   (real fallback contract: native Anthropic fails, OpenAI serves)
-// =====================================================================
-
-// An OpenAI-protocol node serving /v1/chat/completions.
 const openaiNode = (id, extra = {}) => ({
   id,
   provider: 'mock',
@@ -684,7 +631,6 @@ const okOpenAICompletion = () => ({
   usage: { prompt_tokens: 1, completion_tokens: 1 },
 });
 
-// Open the Anthropic native circuit so the request must cross to OpenAI.
 const alwaysFailingAnthropic = () => jsonUpstream({ error: { message: 'overloaded' } }, 529);
 
 const fallbackEnv = ({ tier1, secrets }) =>
@@ -699,7 +645,6 @@ const fallbackEnv = ({ tier1, secrets }) =>
 
 await test('claude fallback Case A: metadata is safely dropped on OpenAI fallback', async () => {
   resetMock();
-  // Anthropic native node always overloads -> the request must fall back to OpenAI.
   routeHandlers['ca.example.com'] = () => alwaysFailingAnthropic();
   routeHandlers['coa.example.com'] = () => jsonUpstream(okOpenAICompletion());
   const env = fallbackEnv({
@@ -720,7 +665,6 @@ await test('claude fallback Case A: metadata is safely dropped on OpenAI fallbac
   const body = await res.json();
   assert.equal(body.type, 'message');
   assert.equal(body.content[0].text, 'hello');
-  // The OpenAI upstream must have been called with the converted body.
   const openAiCall = upstreamCalls.find((c) => c.host === 'coa.example.com');
   assert.ok(openAiCall, 'OpenAI fallback node served the request');
   assert.equal(openAiCall.body.model, 'up-model');
@@ -756,14 +700,11 @@ await test('claude fallback Case B: cache_control is safely dropped on OpenAI fa
   assert.equal(res.status, 200, 'cache_control must not block the OpenAI fallback');
   const body = await res.json();
   assert.equal(body.content[0].text, 'hello');
-  // The OpenAI upstream body must carry the text but not any cache_control hint.
   const openAiCall = upstreamCalls.find((c) => c.host === 'cob.example.com');
   assert.ok(openAiCall, 'OpenAI fallback node served the request');
-  // Anthropic system blocks collapse into the OpenAI messages[0] system message.
   assert.equal(openAiCall.body.messages[0].role, 'system');
   assert.equal(openAiCall.body.messages[0].content, 'You are Claude Code');
   assert.equal(openAiCall.body.messages[1].role, 'user');
-  // The user text block is converted to an OpenAI content part carrying the text.
   const userText = openAiCall.body.messages[1].content[0];
   assert.equal(userText.text, 'hello');
   assert.equal(JSON.stringify(openAiCall.body).includes('cache_control'), false, 'no cache_control leaks to the OpenAI upstream body');
@@ -826,8 +767,6 @@ await test('claude fallback Case C: metadata + cache_control + tools completes a
   assert.ok(toolUse, 'the OpenAI tool_calls response is converted back to Anthropic tool_use');
   assert.equal(toolUse.name, 'get_weather');
   assert.deepEqual(toolUse.input, { city: 'SF' });
-  // The OpenAI upstream body is fully converted: metadata + cache_control gone,
-  // tools + tool_choice mapped to the OpenAI function-calling shape.
   const openAiCall = upstreamCalls.find((c) => c.host === 'coc.example.com');
   assert.ok(openAiCall, 'OpenAI fallback node served the request');
   assert.equal(openAiCall.body.metadata, undefined, 'metadata dropped');
@@ -839,10 +778,6 @@ await test('claude fallback Case C: metadata + cache_control + tools completes a
 
 await test('claude fallback Case D: unconvertible semantic feature is skipped, not a client 400', async () => {
   resetMock();
-  // Native Anthropic fails; the OpenAI fallback cannot express a `thinking`
-  // block, so the conversion throws ConversionError -> the OpenAI target is
-  // skipped -> the chain is exhausted -> the standard gateway exhausted
-  // handler answers with a gateway failure (429/502/503), NEVER a client 400.
   routeHandlers['cd.example.com'] = () => alwaysFailingAnthropic();
   let openAiCalls = 0;
   routeHandlers['cod.example.com'] = () => {

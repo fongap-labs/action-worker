@@ -1,8 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Edge cache: streamed and non-streamed answers never share an entry, entries are scoped to the
-// credential that was presented, caching requires explicit caller opt-in, and unsafe responses are not stored.
 
 import { assert, test } from '#kit/harness.mjs';
 import {
@@ -53,7 +48,6 @@ test('entries are scoped to the credential the caller presented', async () => {
   assert.equal(a, await callerCacheScope(req({ 'x-api-key': 'secret-a' }), ENV));
   assert.ok(!a.includes('secret-a'));
   assert.notEqual(await urlFor({ scope: a }), await urlFor({ scope: b }));
-  // The fingerprint is keyed: another deployment secret gives another fingerprint.
   assert.notEqual(a, await callerCacheScope(req({ authorization: 'Bearer secret-a' }), { AIG_EDGE_CACHE_HMAC_KEY: 'z'.repeat(32) }));
   assert.equal(await callerCacheScope(req(), ENV), '');
 });

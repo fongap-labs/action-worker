@@ -1,9 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Regression tests for the hardening fixes: failed-authorization throttle, streamed edge-cache
-// hit accounting, fail-closed edge-cache scope, worst-case body budget, buffered usage writes,
-// and the single-decode request body reader.
 
 import { assert, test } from '#kit/harness.mjs';
 import { createMockD1 } from '#kit/mock-d1-database.mjs';
@@ -25,8 +19,6 @@ const ENV = { AIG_TOKEN_ENCRYPTION_KEY: 'k'.repeat(32) };
 function req(headers = {}) {
   return new Request('https://gateway.example.com/v1/chat/completions', { method: 'POST', headers });
 }
-
-// ---- failed-authorization throttle (FIX-1) ----
 
 test('admitAuthAttempt refuses once the cap of recorded failures is reached, with retry-after from the oldest failure', () => {
   __resetKeyRpmForTests();
@@ -94,9 +86,6 @@ test('the gateway key RPM cap defaults to off and the attempt throttle to 60; a 
   assert.equal(getLimits({ AIG_ACCESS_KEY_RPM: '600' }).gatewayKeyRpm, 600);
 });
 
-// ---- streamed edge-cache hit accounting (FIX-2) ----
-
-// Serves `cached()` as the edge-cache entry for the duration of `run`.
 function cachedHitTest(name, cached, run) {
   test(name, async () => {
     const previous = globalThis.caches;
@@ -159,8 +148,6 @@ cachedHitTest(
   },
 );
 
-// ---- fail-closed edge-cache scope (FIX-7) ----
-
 test('without AIG_TOKEN_ENCRYPTION_KEY the edge cache is disabled even when the caller opts in', async () => {
   assert.equal(await callerCacheScope(req({ authorization: 'Bearer secret-a' }), {}), null);
   const plan = await resolveEdgeCachePlan(
@@ -174,8 +161,6 @@ test('without AIG_TOKEN_ENCRYPTION_KEY the edge cache is disabled even when the 
   );
   assert.equal(plan, null, 'no plan means no cache lookup or store');
 });
-
-// ---- worst-case body budget (FIX-3) ----
 
 test('requests without a usable Content-Length are charged the worst case and released back', () => {
   __resetBodyBudgetForTests();
@@ -207,8 +192,6 @@ test('a declared Content-Length is charged as declared and is unaffected by the 
   __resetBodyBudgetForTests();
 });
 
-// ---- buffered usage writes (FIX-4) ----
-
 test('100 recorded events flush in at most three D1 batches and merge into one row per hour and model', async () => {
   __resetUsageBufferForTests();
   const d1 = createMockD1();
@@ -230,8 +213,6 @@ test('100 recorded events flush in at most three D1 batches and merge into one r
   assert.equal(model.total, 200);
   __resetUsageBufferForTests();
 });
-
-// ---- single-decode request body reader (FIX-6) ----
 
 test('a multi-byte body split across chunks decodes the same as one decode', async () => {
   const text = '中文 🎉 emoji 测试 '.repeat(4000);

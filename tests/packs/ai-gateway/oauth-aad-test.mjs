@@ -1,9 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// AIG-008 replacement: no reversible membership OAuth token store may remain;
-// the public Gateway has metadata only, and private centers exclusively own
-// static Token credentials.
 
 import { assert, beforeEach, test } from '#kit/harness.mjs';
 import { existsSync } from 'node:fs';

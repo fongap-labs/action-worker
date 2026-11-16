@@ -1,10 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Test-side adapters onto the IR matrix (src/conversion/matrix/). The
-// pairwise Chat <-> Messages converters were absorbed into the matrix, so the
-// conversion suites drive every cross-protocol path through these helpers
-// rather than through per-pair modules that no longer exist.
 
 import { ANTHROPIC_DEFAULT_MAX_TOKENS } from '#target/src/conversion/matrix/anthropic.ts';
 import {

@@ -1,7 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Shared fixtures for the gateway hardening suites (not itself a test: no -test.mjs suffix).
 
 import { __resetAccessKeysCacheForTests } from '#target/src/config/access-keys.ts';
 
@@ -32,7 +28,6 @@ export const staticNode = (id) => ({
   models: { 'Code-Max': 'up-model' },
 });
 
-// A D1 stand-in that records every statement and answers writes with an empty result.
 export class RecordingD1 {
   constructor() {
     this.statements = [];

@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
 
 import { assert, test } from '#kit/harness.mjs';
 import { withMockFetch } from '#kit/fetch.mjs';
@@ -10,7 +8,6 @@ import { preflight } from '#target/src/request/preflight.ts';
 import { buildWranglerConfig, DEFAULT_OPTIMAL_VARS } from '#target/scripts/github-deployment-config.mjs';
 import { makeEnv, AIR_KEY } from './hardening-fixtures.mjs';
 
-// Admission and deadline checks must work without Gateway-held Provider keys.
 function guardedCenterEnv(extra = {}) {
   const env = makeEnv({ ...extra, AIG_INFERENCE_ACTIVE: 'true' });
   delete env.AIG_TIER1_CREDENTIALS_01;
@@ -99,8 +96,6 @@ test('terminal errors expose consistent retry and attempt headers while preservi
     assert.equal(response.headers.get('x-gateway-failure-kinds'), 'rate_limit:3');
     assert.equal(response.headers.get('retry-after'), '30');
     const body = await response.json();
-    // Older gateway branches preserve their previous message; the compact
-    // Gateway formats one status-first line without changing retry headers.
     if (body.error.message.startsWith('503 | ')) {
       assert.ok(!body.error.message.includes('\n'));
       assert.ok(!body.error.message.includes('\r'));
@@ -152,9 +147,6 @@ test('deployment defaults prioritize bounded Tier 1 capacity and preserve explic
   assert.equal(DEFAULT_OPTIMAL_VARS.AIG_STREAM_MAX_ATTEMPTS, '8');
   assert.equal(DEFAULT_OPTIMAL_VARS.AIG_NONSTREAM_MAX_ATTEMPTS, '8');
   assert.equal(DEFAULT_OPTIMAL_VARS.AIG_REQUEST_HEDGE_MAX, '0');
-  // The legacy runtime deploys with an explicit 8-request cap. Newer versions
-  // disable the hard cap by default while preserving body and retry budgets.
-  // Assert the deployment contract matches the runtime shipped by the target.
   const defaultCap = DEFAULT_OPTIMAL_VARS.AIG_ISOLATE_MAX_IN_FLIGHT;
   const defaultConfig = buildWranglerConfig({});
   assert.equal(defaultConfig.vars.AIG_ISOLATE_MAX_IN_FLIGHT, defaultCap);

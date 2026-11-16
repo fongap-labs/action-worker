@@ -1,18 +1,4 @@
 #!/usr/bin/env node
-// Codex / OpenAI Responses contract tests.
-//
-// Black-box: run the REAL worker pipeline (auth -> scheduler -> retry ->
-// circuit -> private inference center -> stream) through worker.fetch().
-// Only the isolated center makes mocked physical Provider requests, as a
-// Codex-style client drives
-// /v1/responses. These tests pin the customer-facing protocol contract, not
-// internal function structure.
-//
-// The Responses path is NATIVE end to end: the gateway forwards the request
-// body verbatim (model substituted) to the upstream /v1/responses endpoint
-// and relays the upstream's native Responses SSE event sequence. Every mock
-// upstream below therefore speaks the Responses wire format — no Chat
-// Completions conversion exists anywhere in this path.
 import assert from 'node:assert/strict';
 import worker from '#target/src/index.ts';
 import { handleInferenceCenterRequest } from '#target/src/inference/inference-center-entry.ts';
@@ -53,8 +39,6 @@ async function test(name, fn) {
     process.exitCode = 1;
   }
 }
-
-// ---- Mock upstream plumbing ------------------------------------------------
 
 const upstreamCalls = [];
 let routeHandlers = {};
@@ -111,7 +95,6 @@ function makeEnv({ tier1, tier2, secrets, extraEnv } = {}) {
   return gatewayEnv;
 }
 
-// OpenAI-protocol node serving /v1/responses natively.
 const node = (id, extra = {}) => ({
   id,
   provider: 'openai',
@@ -147,7 +130,6 @@ function sseBody(lines) {
         controller.close();
         return;
       }
-      // Upstream bodies are byte streams: every SSE line is UTF-8 encoded.
       controller.enqueue(encoder.encode(lines[i++]));
     },
   });
@@ -156,8 +138,6 @@ function sseResponse(lines, headers = {}) {
   return new Response(sseBody(lines), { status: 200, headers: { 'content-type': 'text/event-stream', ...headers } });
 }
 const event = (name, data) => `event: ${name}\ndata: ${JSON.stringify(data)}\n\n`;
-
-// ---- Native Responses wire shapes -------------------------------------------
 
 let seq = 0;
 const nextSeq = () => seq++;
@@ -241,7 +221,6 @@ const functionCallItem = (id, callId, name, argsJson) => ({
   arguments: argsJson,
 });
 
-// A complete native text-only stream lifecycle.
 const textLifecycle = (text) => {
   seq = 0;
   const item = messageItem('msg_1', text);
@@ -263,7 +242,6 @@ const textLifecycle = (text) => {
   ];
 };
 
-// A complete native non-stream response object.
 const okResponse = (over = {}) => ({
   id: 'resp_up1',
   object: 'response',
@@ -277,14 +255,11 @@ const okResponse = (over = {}) => ({
 
 installMockFetch();
 
-// Parse the `response` payload of a `response.completed` SSE event.
 function parseCompletedResponse(text) {
   const after = text.split('event: response.completed\n')[1];
   const line = after.split('\n').find((l) => l.startsWith('data: '));
   return JSON.parse(line.slice(6)).response;
 }
-
-// ---- Non-stream Responses ---------------------------------------------------
 
 await test('responses non-stream passes the native object through (model hidden)', async () => {
   resetMock();
@@ -303,8 +278,6 @@ await test('responses non-stream passes the native object through (model hidden)
   assert.equal(body.output[0].type, 'message');
   assert.equal(body.output[0].content[0].text, 'hello');
   assert.equal(body.usage.input_tokens, 1);
-  // NATIVE chain: the request reached /v1/responses with the body forwarded
-  // verbatim (model substituted only) — never converted to chat completions.
   const call = upstreamCalls[0];
   assert.equal(new URL(call.url).pathname, '/v1/responses');
   assert.equal(call.body.model, 'up-model');
@@ -441,8 +414,6 @@ await test('responses multiple parallel tool calls keep native call ids', async 
   assert.deepEqual(JSON.parse(completed.output[1].arguments), { b: 2 });
 });
 
-// ---- failover / error semantics ---------------------------------------------
-
 await test('responses non-stream upstream 429 rotates to a healthy node', async () => {
   resetMock();
   routeHandlers['r429a.example.com'] = () => jsonUpstream({ error: { message: 'rate' } }, 429, { 'retry-after': '60' });
@@ -500,10 +471,6 @@ await test('responses first-event failover: empty upstream rotates before any ev
   assert.match(text, /response\.completed/);
 });
 
-// Lifecycle-only events (response.created) are NOT real output: a node that
-// announces itself and then dies can still be failed over. But once a
-// response.*.delta has committed the boundary, no transparent failover may
-// happen — the client already saw partial model output.
 await test('responses mid-stream failure never fails over after first event', async () => {
   resetMock();
   const encoder = new TextEncoder();
@@ -596,12 +563,10 @@ await test('terminal errors stay retryable only when purely transient; 429 stays
   resetMock();
   routeHandlers['hdr.example.com'] = () => jsonUpstream({}, 503);
   const env = makeEnv({ tier1: [node('hdr')], secrets: { hdr: 'k' } });
-  // all-nodes-failed on upstream 5xx only -> transient 502: the client may retry
   const res502 = await worker.fetch(responsesRequest({ model: 'code-max', input: 'hi' }), env, {});
   assert.equal(res502.status, 502);
   assert.notEqual(res502.headers.get('x-should-retry'), 'false');
 
-  // a non-transient terminal failure (the upstream rejects the model) stays final
   resetMock();
   routeHandlers['hdr3.example.com'] = () => jsonUpstream({ error: { message: 'model not found' } }, 404);
   const env3 = makeEnv({ tier1: [node('hdr3')], secrets: { hdr3: 'k' } });
@@ -609,7 +574,6 @@ await test('terminal errors stay retryable only when purely transient; 429 stays
   assert.equal(res404.status, 502);
   assert.equal(res404.headers.get('x-should-retry'), 'false');
 
-  // upstream 429 -> retryable: no x-should-retry:false header
   resetMock();
   routeHandlers['hdr2.example.com'] = () => jsonUpstream({}, 429, { 'retry-after': '60' });
   const env2 = makeEnv({ tier1: [node('hdr2')], secrets: { hdr2: 'k' } });
@@ -617,8 +581,6 @@ await test('terminal errors stay retryable only when purely transient; 429 stays
   assert.equal(res429.status, 429);
   assert.notEqual(res429.headers.get('x-should-retry'), 'false');
 });
-
-// ---- native passthrough semantics -------------------------------------------
 
 await test('responses tools and host-managed features pass through natively', async () => {
   resetMock();
@@ -678,7 +640,6 @@ await test('responses input function_call + function_call_output history is forw
   const res = await worker.fetch(responsesRequest({ model: 'code-max', input }), env, {});
   assert.equal(res.status, 200);
   const sent = upstreamCalls[0].body;
-  // Native: the input item array reaches the upstream EXACTLY as sent.
   assert.deepEqual(sent.input, input);
 });
 

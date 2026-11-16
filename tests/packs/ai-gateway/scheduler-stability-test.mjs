@@ -1,11 +1,4 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: MIT
-// Tier 1 scheduler stability contracts for the current architecture.
-//
-// Deliberately NOT covered here: retired node limits, configured concurrency,
-// node RPM buckets, RPM rollback, or the old 30/45/60 rate-limit ladder.
-// Provider/key adaptive 429 timing is owned by adaptive-429.ts and its dedicated
-// tests. Tier 1 scheduling treats live in-flight work as a soft signal only.
 
 import assert from 'node:assert/strict';
 import { __resetAdaptive429StateForTests, nextAdaptive429CooldownMs, snapshotAdaptive429State } from '#target/src/reliability/adaptive-429.ts';
@@ -78,8 +71,6 @@ function node(id, { models = { m1: 'up-x' }, provider = 'mock' } = {}) {
 
 const REQ = { model: 'm1', protocol: 'openai', surface: 'chat_completions' };
 
-// ---- Eligibility and soft load --------------------------------------------
-
 await test('eligibility excludes non-Tier-1 nodes', () => {
   assert.equal(isTier1Eligible(node('a'), REQ), true);
   assert.equal(isTier1Eligible({ ...node('b'), tier: 'tier-2' }, REQ), false);
@@ -127,8 +118,6 @@ await test('active cooldown and exhausted explicit quota are hard eligibility ga
   assert.equal(isTier1Eligible(a, REQ, 10_001), false);
   assert.equal(isTier1Eligible(a, REQ, 20_001), true);
 });
-
-// ---- P2C / score / TTFT ----------------------------------------------------
 
 await test('P2C single candidate selects directly', () => {
   const a = node('a');
@@ -210,8 +199,6 @@ await test('seeded P2C disperses traffic across a healthy pool', () => {
   assert.ok(Object.values(counts).filter((v) => v > 0).length >= 6, JSON.stringify(counts));
 });
 
-// ---- Meaningful-output boundary -------------------------------------------
-
 await test('OpenAI Chat commits only on meaningful content/reasoning/tool output', () => {
   assert.equal(isOpenAIChatRealOutput({ choices: [{ delta: { role: 'assistant' } }] }), false);
   assert.equal(isOpenAIChatRealOutput({ choices: [{ delta: { content: '   ' } }] }), false);
@@ -240,8 +227,6 @@ await test('Anthropic lifecycle events do not commit; text/thinking/tool input d
   assert.equal(isAnthropicMessageMeaningful({ content: [{ type: 'text', text: '' }] }), false);
   assert.equal(isAnthropicMessageMeaningful({ content: [{ type: 'tool_use', name: 'lookup' }] }), true);
 });
-
-// ---- Affinity --------------------------------------------------------------
 
 await test('affinity is a soft score bias', () => {
   assert.equal(tier1AffinityFactor('a', 'a'), 0.85);
@@ -280,8 +265,6 @@ await test('clearly degraded affinity can escape to the P2C winner', () => {
   assert.equal(pick?.updateAffinity, true);
   releaseTier1Slot('peer', pick?.releaseToken);
 });
-
-// ---- Failure / recovery ----------------------------------------------------
 
 await test('auth failure cools the whole credential without permanent disable', () => {
   const a = node('a', { models: { m1: 'up-a', m2: 'up-b' } });

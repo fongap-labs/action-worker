@@ -1,14 +1,6 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Merged suite. Each section below was a standalone suite and keeps its own scope:
-//   - conversion-result-test.mjs
-//   - conversion-boundary-test.mjs
-//   - google-subscription-wire-test.mjs
 
 import { convertRequest, convertResult, convertStream } from './conversion-matrix-adapters.mjs';
 
-// Call-shaped aliases for the matrix adapters, kept for the table-driven cases below.
 const chat = (body) => convertRequest('openai_chat', 'anthropic', body);
 const anthropic = (body) => convertRequest('anthropic', 'openai_chat', body);
 const chatStream = (source) => convertStream('anthropic', 'openai_chat', source);
@@ -22,16 +14,7 @@ import { join } from 'node:path';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-// ==========================================================================
-// conversion-result-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-
-
-
-
 
   const schema = {
     type: 'object',
@@ -40,8 +23,6 @@ try {
     additionalProperties: false,
   };
 
-  // Plain text can cross the existing Chat <-> Messages bridge without a
-  // material semantic downgrade.
   {
     const result = convertResult('anthropic', 'openai_chat', {
       model: 'Code-Max',
@@ -54,7 +35,6 @@ try {
     assert.equal(result.body.messages[0].content, 'hello');
   }
 
-  // Portable function-tool mapping is visible but is not classified as loss.
   {
     const result = convertResult('anthropic', 'openai_chat', {
       model: 'Code-Max',
@@ -77,8 +57,6 @@ try {
     assert.ok(result.diagnostics.some((d) => d.feature === 'tool_calls' && d.action === 'mapped'));
   }
 
-  // Claude Code controls/history that generic Chat cannot represent are
-  // classified explicitly. Diagnostic values must remain fixed categories.
   {
     const privatePrompt = 'PRIVATE_PROMPT_MUST_NOT_APPEAR_IN_DIAGNOSTICS';
     const privateToolName = 'PRIVATE_TOOL_NAME_MUST_NOT_APPEAR_IN_DIAGNOSTICS';
@@ -123,8 +101,6 @@ try {
     assert.equal(diagnosticJson.includes('private reasoning'), false);
   }
 
-  // Anthropic structured output keeps the v1.3.1 prompt path for an unknown
-  // OpenAI-compatible target.
   {
     const result = convertResult('anthropic', 'openai_chat', {
       model: 'Code-Max',
@@ -144,8 +120,6 @@ try {
     assert.equal(Object.hasOwn(result.body, 'response_format'), false);
   }
 
-  // OpenAI -> Anthropic keeps the existing 1024 default observable as semantic
-  // degradation rather than silently hiding the default policy.
   {
     const result = convertResult('openai_chat', 'anthropic', {
       model: 'gpt-compatible',
@@ -156,8 +130,6 @@ try {
     assert.ok(result.diagnostics.some((d) => d.feature === 'max_tokens' && d.action === 'defaulted'));
   }
 
-  // OpenAI response_format is now accepted by the result wrapper. Unknown
-  // Anthropic-compatible targets use prompt emulation, preserving portability.
   {
     const result = convertResult('openai_chat', 'anthropic', {
       model: 'gpt-compatible',
@@ -176,7 +148,6 @@ try {
     assert.equal(Object.hasOwn(result.body, 'output_config'), false);
   }
 
-  // strict:false must not be silently strengthened by a native Anthropic schema.
   {
     const result = convertResult('openai_chat', 'anthropic', 
       {
@@ -207,8 +178,6 @@ try {
     (error) => error instanceof ConversionError && /response_format\.json_schema\.schema must be an object/.test(error.message),
   );
 
-  // Schema data is allowed in the converted outbound request but never in the
-  // diagnostics channel that fallback.ts logs.
   {
     const privateSchema = {
       type: 'object',
@@ -233,18 +202,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// conversion-boundary-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-
-
-
-
-
-
 
   const message = { role: 'user', content: 'hello' };
   for (const [name, convert, base] of [
@@ -260,11 +218,6 @@ try {
       });
     }
   }
-  // `metadata` is an Anthropic attribution field with no OpenAI-equivalent
-  // semantic. The OpenAI client converter (Chat) rejects it because
-  // it is not part of their request schema. The Anthropic -> OpenAI Messages
-  // converter must ACCEPT it and safely drop it, because a legal Anthropic
-  // request carrying metadata must still be able to fall back to OpenAI.
   test('Chat rejects unsupported metadata instead of dropping semantics', () => {
     assert.throws(() => convertRequest('openai_chat', 'anthropic', { model: 'm', messages: [message], metadata: { user_id: 'x' } }), /conversion_not_supported/);
   });
@@ -403,13 +356,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// google-static-token-wire-test.mjs (replaces retired Code Assist subscription)
-// ==========================================================================
 try {
-  // The proprietary Google Code Assist OAuth translator was intentionally
-  // removed. Ordinary Google API Token capacity must retain its declared
-  // OpenAI-compatible protocol and cannot claim subscriber wire semantics.
   const adapter = getProviderAdapter('google');
   assert.deepEqual(adapter.wire, { protocol: 'openai', surfaces: ['chat_completions'] });
   assert.equal(adapter.subscription, undefined, 'Code Assist subscription adapter must not return');

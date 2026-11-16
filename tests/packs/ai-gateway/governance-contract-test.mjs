@@ -1,12 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Merged suite. Each section below was a standalone suite and keeps its own scope:
-//   - docs-contract-test.mjs
-//   - module-boundary-contract-test.mjs
-//   - architecture-contract-test.mjs
-//   - product-policy-contract-test.mjs
-//   - release-identity-contract-test.mjs
 
 import { targetRoot as root } from '#kit/target.mjs';
 import worker from '#target/src/index.ts';
@@ -20,16 +11,7 @@ import path, { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readAttemptOwner } from './source-ownership.mjs';
 
-// ==========================================================================
-// docs-contract-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-
-
-
-
-
 
   const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
   let passed = 0;
@@ -182,8 +164,6 @@ try {
   assert.match(config, /`models`[^\n]*\{\}/i, 'explicit model mappings and wildcard behavior must remain documented');
   assert.match(config, /provider:\s*"anthropic"[\s\S]{0,100}messages/i);
   assert.match(config, /provider:\s*"openai"[\s\S]{0,120}responses/i);
-  // The source documentation is Chinese; enforce the rejected-budget semantics,
-  // not a single English sentence that changes across translations.
   assert.match(
     config,
     /`budget_split`[^\n。]{0,120}(?:加权分配|weighted allocation)[^\n。]{0,120}(?:未知字段拒绝|not part of the current policy schema)/i
@@ -987,8 +967,6 @@ try {
       if (body.model === 'up-max') return jsonUpstream({ error: { message: 'Model not found' } }, 404);
       return jsonUpstream(okMessage());
     };
-    // A missing model on an1 must never retry an1 under another model.
-    // A distinct Key may serve the explicit fallback without reusing an1.
     routeHandlers['an2.example.com'] = () => jsonUpstream(okMessage());
     const env = makeEnv({
       tier1: [
@@ -1133,16 +1111,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// product-policy-contract-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-
-
-
-
-
 
   const read = (path) => readFileSync(join(root, path), 'utf8');
   const product = read('docs/governance/product-policy.md');
@@ -1184,16 +1153,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// release-identity-contract-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-
-
-
-
-
 
   const read = (path) => readFileSync(join(root, path), 'utf8');
 

@@ -1,11 +1,4 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Regression contract for the Claude Code -> Anthropic Messages -> OpenAI Chat
-// fallback. The representative envelope covers the request-control and history
-// shapes currently emitted by Claude Code that can be safely degraded onto a
-// generic Chat-only upstream.
 
 import assert from 'node:assert/strict';
 import { convertRequest, ConversionError } from './conversion-matrix-adapters.mjs';

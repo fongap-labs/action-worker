@@ -1,10 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Tier 1 429 cooldown strategy: whom a 429 is blamed on (model first, account on
-// evidence), how long the ladder waits (provider hints, quota-shaped text, tunable
-// steps), what a 413 means (this request, not this key), and how siblings and
-// missing models recover.
 
 import { loadGatewayConfig } from '#target/src/config/nodes.ts';
 import worker from '#target/src/index.ts';
@@ -70,7 +63,6 @@ async function test(name, fn) {
   }
 }
 
-// ---- mock upstream -----------------------------------------------------------
 const calls = [];
 let physicalDispatchCount = 0;
 let handlers = {};
@@ -127,7 +119,6 @@ const chat = (model, pad = 5) =>
 const runtimeNodes = (nodes) => loadGatewayConfig(envFor(nodes)).nodes.filter((n) => n.tier === 'tier-1');
 const req = (model, bodyChars) => ({ model, protocol: 'openai', surface: 'chat_completions', ...(bodyChars ? { bodyChars } : {}) });
 
-// ---- ladder --------------------------------------------------------------------
 await test('default ladder tops out at 30 minutes and is tunable through AIG_RATE_LIMIT_STEPS_MS', () => {
   assert.deepEqual([...ADAPTIVE_429_COOLDOWN_STEPS_MS], [15_000, 30_000, 60_000, 120_000, 300_000, 600_000, 1_200_000, 1_800_000]);
   assert.deepEqual([...adaptive429StepsFromEnv('60000, 300000,900000')], [60_000, 300_000, 900_000]);
@@ -167,7 +158,6 @@ await test('quota-shaped text starts the ladder at 5 minutes; the other 429s kee
   assert.equal(nextAdaptive429CooldownMs('short', 'k', 0, base, '', [60_000, 120_000], ADAPTIVE_429_QUOTA_START_STAGE), 120_000, 'a short custom ladder clamps the start stage');
 });
 
-// ---- classification --------------------------------------------------------------
 await test('the wait a provider states in the error text becomes a hint', () => {
   assert.equal(retryHintFromBody('Rate limit reached ... Please try again in 7.66s.'), 7_660);
   assert.equal(retryHintFromBody('Please try again in 12m3.5s'), 600_000, 'clamped like Retry-After');
@@ -217,7 +207,6 @@ await test('"no endpoints found" names a missing model, not a wrong base URL', (
   assert.equal(classifyUpstreamStatus(404, new Headers(), env, Date.now(), 'Not Found').kind, KIND.ENDPOINT_NOT_FOUND);
 });
 
-// ---- scope -----------------------------------------------------------------------
 await test('a 429 is blamed on its model until a second model on the same key is limited', () => {
   const now = 10_000_000;
   assert.equal(decideTier1RateLimitScope('key-1', 'ModelA', now), 'model');
@@ -273,7 +262,6 @@ await test('two limited models on one key widen the cooldown to the whole key', 
   assert.ok(getTier1Account('wide').accountCooldownUntil > Date.now(), 'the second distinct model tipped it to the whole key');
 });
 
-// ---- 413 -------------------------------------------------------------------------
 await test('a key that refuses a large request keeps serving small ones and is skipped for large ones', async () => {
   calls.length = 0;
   handlers = {
@@ -313,7 +301,6 @@ await test('the "too large" memory keeps the smallest refused size and lapses af
   recordTier1Oversize('lapse', 'Air', Number.NaN, now);
 });
 
-// ---- sibling recovery ---------------------------------------------------------
 await test('a recovered key wakes cooling siblings of the same provider only', () => {
   const nodes = [node('sn-1', 'sensenova', { Air: 'a' }), node('sn-2', 'sensenova', { Air: 'a' }), node('sn-3', 'sensenova', { Air: 'a' }), node('other', 'nvidia', { Air: 'a' })];
   const rts = runtimeNodes(nodes);
@@ -342,7 +329,6 @@ await test('sibling wake also covers a limited model', () => {
   assert.equal(recordTier1Success('m-1', 'Air', now + 6_000), undefined);
 });
 
-// ---- model_missing ladder --------------------------------------------------------
 await test('a model id the upstream keeps refusing is retried less and less often, and forgiven on success', () => {
   const missing = classifyTier1Failure({ kind: 'model_missing', cooldownMs: 5_000 });
   const account = getTier1Account('mm');

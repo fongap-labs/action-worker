@@ -1,9 +1,4 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Repository layout governance for ai-gateway. This suite lives in the central
-// test pack (action-worker), so a pull request to ai-gateway cannot weaken it.
 
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -52,7 +47,6 @@ assert.equal(
   'standalone benchmark/ must remain absent unless a governed benchmark system with stable baselines and thresholds is introduced',
 );
 
-// Test suites are owned by the central pack; the product repository carries none.
 const localSuites = fs.existsSync(path.join(root, 'tests'))
   ? walk(path.join(root, 'tests')).map((file) => path.relative(root, file).replaceAll(path.sep, '/'))
   : [];
@@ -91,7 +85,6 @@ for (const name of ['validate:merge', 'validate:deploy']) {
   }
 }
 
-// Pack integrity: gate suites exist and none is listed twice.
 const pack = JSON.parse(fs.readFileSync(path.join(packDir, 'pack.json'), 'utf8'));
 const gate = pack.tiers?.gate ?? [];
 assert.equal(new Set(gate).size, gate.length, 'pack.json gate tier must not list a suite twice');

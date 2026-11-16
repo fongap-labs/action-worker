@@ -1,9 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// AIG-003 replacement: retired subscription switches and OAuth nodes must
-// reject the entire configuration. The public Gateway must never resume a
-// hidden membership proxy or dispatch to the private execution center.
 
 import { assert, beforeEach, test } from '#kit/harness.mjs';
 import worker from '#target/src/index.ts';

@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
 
 import { assert, test } from '#kit/harness.mjs';
 import { targetPath } from '#kit/target.mjs';

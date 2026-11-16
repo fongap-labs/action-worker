@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Black-box Perception routing, center isolation, and protected release tests.
 import { afterEach, assert, beforeEach, test } from "#kit/harness.mjs";
 import { readFileSync } from "node:fs";
 import { targetPath } from "#kit/target.mjs";

@@ -1,8 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// AIG-007 replacement: a retired member OAuth request must neither schedule
-// background work nor touch legacy D1 flow-state tables.
 
 import { assert, beforeEach, test } from '#kit/harness.mjs';
 import worker from '#target/src/index.ts';

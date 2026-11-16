@@ -1,9 +1,4 @@
 #!/usr/bin/env node
-// SPDX-License-Identifier: MIT
-// Black-box integration coverage for the current gateway architecture.
-// Runs the real worker pipeline against mocked upstreams. Retired node limits
-// stay rejected, while protocol/surface capabilities are derived from the Provider
-// profile rather than repeated in account-level Node JSON.
 
 import assert from 'node:assert/strict';
 import worker from '#target/src/index.ts';
@@ -32,8 +27,6 @@ async function test(name, fn) {
     process.exitCode = 1;
   }
 }
-
-// ---- Mock upstream ---------------------------------------------------------
 
 const upstreamCalls = [];
 let routeHandlers = {};
@@ -77,9 +70,6 @@ function makeEnv({ tier1, tier2, secrets = {}, extraEnv = {} } = {}) {
   };
 }
 
-// Center-bound cases must exercise the real authenticated internal endpoint,
-// not the Gateway's transitional direct Provider transport. Existing legacy
-// cases remain in this suite until their expected behavior is migrated.
 const INFERENCE_AUTH_KEY = 'central-inference-integration-fixture-auth-key-32';
 function withInferenceCenter(gatewayEnv, onCenterRequest = () => {}) {
   const centerEnv = { AIG_INFERENCE_AUTH_KEY: INFERENCE_AUTH_KEY };
@@ -125,8 +115,6 @@ const responsesNode = (id, extra = {}) => ({
 });
 
 function chatRequest(body = {}, key = ACCESS_KEY, init = {}) {
-  // Like a JSON client, declare the exact body length: a body without Content-Length is charged
-  // the worst case by the in-flight body budget.
   const payload = JSON.stringify({ model: 'general-air', messages: [], ...body });
   return new Request('https://gateway.example.com/v1/chat/completions', {
     method: 'POST',
@@ -264,8 +252,6 @@ function hangUntilAbort() {
     });
 }
 
-// ---- Strict configuration / auth ------------------------------------------
-
 await test('missing gateway key returns 401 without upstream traffic', async () => {
   routeHandlers['auth.example.com'] = () => jsonResponse(okChat());
   const centerPaths = [];
@@ -339,8 +325,6 @@ await test('protocol/surfaces in Node JSON are hard schema errors and never reac
   assert.equal(upstreamCalls.length, 0);
   assert.deepEqual(centerPaths, [], 'retired protocol and surfaces fields cannot enter the private center');
 });
-
-// ---- Native routing / failover --------------------------------------------
 
 await test('OpenAI Chat native success rewrites model identity and hides topology by default', async () => {
   routeHandlers['native.example.com'] = () => jsonResponse(okChat('native-ok'));
@@ -498,8 +482,6 @@ await test('busy Tier 2 remains last-resort capacity when it is the only healthy
     'parked Tier 2 request and ordered fallback both require private physical execution');
 });
 
-// ---- Failure scoping -------------------------------------------------------
-
 await test('429 cools one key and rotates to another same-tier key before lower tiers', async () => {
   routeHandlers['rl-a.example.com'] = () => jsonResponse({}, 429, { 'retry-after': '30' });
   routeHandlers['rl-b.example.com'] = () => jsonResponse(okChat('same-tier'));
@@ -523,7 +505,6 @@ await test('429 cools one key and rotates to another same-tier key before lower 
     upstreamCalls.map((c) => c.host),
     ['rl-a.example.com', 'rl-b.example.com'],
   );
-  // The 429 is blamed on the model that received it: the key stays open for other models.
   assert.ok((getTier1ModelPerf('rl-a', 'general-air')?.cooldownUntil ?? 0) > Date.now());
 });
 
@@ -635,8 +616,6 @@ await test('HTTP 200 JSON error envelope also rotates to healthy capacity', asyn
     'JSON error embedded in HTTP 200 must not bypass private center');
 });
 
-// ---- Streaming commit boundary -------------------------------------------
-
 await test('stream lifecycle/role-only output is not a commit; empty node can still fail over', async () => {
   routeHandlers['role-a.example.com'] = () => sseResponse([chatChunk({ role: 'assistant' })]);
   routeHandlers['role-b.example.com'] = () => sseResponse([chatChunk({ content: 'real output' }), chatChunk({}, 'stop'), '[DONE]']);
@@ -741,8 +720,6 @@ await test('Tier 1 streaming slot stays claimed until stream completion and rele
   assert.equal(tier1AccountInFlight('life'), 0);
   assert.deepEqual(centerPaths, ['/internal/execute'], 'Streaming lifecycle must remain one private physical attempt');
 });
-
-// ---- Protocol boundaries ---------------------------------------------------
 
 await test('Anthropic Messages native non-stream request stays native', async () => {
   routeHandlers['anthropic.example.com'] = () => jsonResponse(okMessage('native-anthropic'));
@@ -856,8 +833,6 @@ await test('Responses route stays untranslated when fallbacks are disabled', asy
   assert.deepEqual(centerPaths, [], 'disabling fallback must reject before any private conversion or execution');
 });
 
-// ---- Hedge / wall-clock budget --------------------------------------------
-
 await test('hedge races a slow Tier 1 primary with a same-surface twin', async () => {
   routeHandlers['hedge-slow.example.com'] = hangUntilAbort();
   routeHandlers['hedge-fast.example.com'] = () => jsonResponse(okChat('hedge-winner'));
@@ -913,7 +888,6 @@ await test('failover wall-clock budget stops before dispatching a fresh node', a
     'an expired wall-clock budget must not dispatch a second private center request');
 });
 
-// ---- Operational boundaries ----------------------------------------------
 await test('upstream header allowlist drops client cookies/forwarding headers', async () => {
   routeHandlers['headers.example.com'] = () => jsonResponse(okChat());
   const centerPaths = [];

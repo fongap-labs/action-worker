@@ -1,13 +1,3 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2026 Fongap Labs
-//
-// Merged suite. Each section below was a standalone suite and keeps its own scope:
-//   - calendar-heatmap-test.mjs
-//   - calendar-heatmap-view-test.mjs
-//   - calendar-heatmap-contract-test.mjs
-//   - dashboard-model-filter-test.mjs
-//   - dashboard-consumption-semantics-test.mjs
-//   - readme-status-test.mjs
 
 import { targetRoot as root } from '#kit/target.mjs';
 import { collectVarsFromEnv } from '#target/scripts/github-deployment-config.mjs';
@@ -25,31 +15,10 @@ import fs, { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// ==========================================================================
-// calendar-heatmap-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
   // @ts-check
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Calendar heatmap utility tests (PR: refactor heatmap into a shared
-  // rolling-52-weeks / calendar-year abstraction). The spec lives in
-  // docs/architecture/calendar-heatmap.md; the assertions here pin the
-  // observable contract — date keys, weekIndex / weekdayIndex, inRange /
-  // isFuture semantics, the two modes' time-range rules, and the month
-  // label anchoring.
-
-
-
 
   function dateAtIso(iso) {
-    // TRUE UTC+8 midnight for the business date `iso` (= 16:00Z on the
-    // previous day). Deliberately NOT `${iso}T00:00:00Z`: that instant is
-    // 08:00 UTC+8 on the same business day, so boundary tests would pass by
-    // coincidence ("the day is still the same") without ever exercising the
-    // timezone conversion. Starting from the real UTC+8 midnight makes the
-    // builder's day-boundary math part of every assertion below.
     return Date.parse(`${iso}T00:00:00+08:00`);
   }
 
@@ -64,14 +33,11 @@ try {
     }
   }
 
-  // === Mode A: rolling-52-weeks =============================================
-
   await test('rolling-52-weeks: 52 columns, 7 days each, current week is the last column', () => {
     const today = dateAtIso('2026-09-04');
     const heatmap = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today });
     assert.equal(heatmap.weeks.length, 52, '52 week columns');
     for (const week of heatmap.weeks) assert.equal(week.length, 7, '7 days per week');
-    // Last column is the current week (Mon = 2026-08-31).
     const last = heatmap.weeks[51];
     assert.equal(last[0].date, '2026-08-31', 'column 51 week-start is Monday 2026-08-31');
     assert.equal(last[0].weekdayIndex, 0, 'Monday is weekday 0');
@@ -95,21 +61,15 @@ try {
   await test('rolling-52-weeks: weekday index is Monday-first even when JavaScript Date.getDay is Sunday-first', () => {
     const today = dateAtIso('2026-09-04');
     const heatmap = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today });
-    // 2026-09-04 is a Friday -> weekdayIndex 4 (Mon=0..Sun=6)
     assert.equal(heatmap.weeks[51][4].weekdayIndex, 4, 'Friday has weekdayIndex 4');
-    // 2026-09-05 is a Saturday -> weekdayIndex 5
     assert.equal(heatmap.weeks[51][5].weekdayIndex, 5);
-    // 2026-09-06 is a Sunday -> weekdayIndex 6
     assert.equal(heatmap.weeks[51][6].weekdayIndex, 6);
-    // 2026-08-31 is a Monday -> weekdayIndex 0
     assert.equal(heatmap.weeks[51][0].weekdayIndex, 0);
   });
 
   await test('rolling-52-weeks: month labels anchor to where each month 1st lives', () => {
     const today = dateAtIso('2026-09-04');
     const heatmap = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today });
-    // The label for 2026-09-01 (Tuesday) must point at the column that
-    // contains 2026-09-01, NOT at the column whose Monday is in August.
     const sep1 = heatmap.monthLabels.find((l) => l.year === 2026 && l.month === 8);
     assert.ok(sep1, 'September label exists');
     const col = sep1.weekIndex;
@@ -127,7 +87,6 @@ try {
       data,
       valueKey: 'total',
     });
-    // Find the cell whose date is 2026-08-15.
     let found = null;
     for (const week of heatmap.weeks)
       for (const cell of week) {
@@ -143,7 +102,6 @@ try {
   await test('rolling-52-weeks: in-range past cells with no data are 0 (real number, not null)', () => {
     const today = dateAtIso('2026-09-04');
     const heatmap = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today, data: null });
-    // Pick a date well in the past — its value should be 0, not null.
     let past = null;
     for (const week of heatmap.weeks)
       for (const cell of week) {
@@ -157,8 +115,6 @@ try {
     assert.equal(past.isFuture, false);
     assert.equal(past.value, 0, 'in-range past cell with no data has value=0');
   });
-
-  // === Mode B: calendar-year ===============================================
 
   await test('calendar-year 2026: rangeStart=2026-01-01, rangeEnd=2026-12-31', () => {
     const today = dateAtIso('2026-09-04');
@@ -185,8 +141,6 @@ try {
   await test('calendar-year 2026: layout padding before Jan 1 is out of range', () => {
     const today = dateAtIso('2026-09-04');
     const heatmap = buildCalendarHeatmap({ mode: 'calendar-year', today, year: 2026 });
-    // 2025-12-29, 2025-12-30, 2025-12-31 must be present as layout
-    // placeholders for the first column but inRange must be false.
     for (const iso of ['2025-12-29', '2025-12-30', '2025-12-31']) {
       let cell = null;
       for (const week of heatmap.weeks)
@@ -205,8 +159,6 @@ try {
   await test('calendar-year 2026: layout padding after Dec 31 is out of range', () => {
     const today = dateAtIso('2026-09-04');
     const heatmap = buildCalendarHeatmap({ mode: 'calendar-year', today, year: 2026 });
-    // 2027-01-01..2027-01-03 may or may not be in the grid depending on
-    // 2026-12-31's weekday. If present, they must be inRange=false.
     for (const week of heatmap.weeks)
       for (const cell of week) {
         if (cell.date >= '2027-01-01') {
@@ -222,7 +174,6 @@ try {
     for (let m = 0; m < 12; m += 1) {
       const label = heatmap.monthLabels.find((l) => l.month === m);
       assert.ok(label, `month ${m + 1} label exists`);
-      // The column must contain the 1st day of that month.
       const iso = `${label.year}-${String(m + 1).padStart(2, '0')}-01`;
       const datesInCol = heatmap.weeks[label.weekIndex].map((c) => c.date);
       assert.ok(datesInCol.includes(iso), `month ${m + 1} label column contains ${iso}`);
@@ -247,7 +198,6 @@ try {
   });
 
   await test('calendar-year historical year: no future days', () => {
-    // 2025 is fully in the past relative to today=2026-09-04.
     const today = dateAtIso('2026-09-04');
     const heatmap = buildCalendarHeatmap({ mode: 'calendar-year', today, year: 2025 });
     for (const week of heatmap.weeks)
@@ -261,18 +211,12 @@ try {
   await test('calendar-year: 2026 has EXACTLY 53 columns and 365 in-range days', () => {
     const today = dateAtIso('2026-09-04');
     const heatmap = buildCalendarHeatmap({ mode: 'calendar-year', today, year: 2026 });
-    // 2026-01-01 is Thursday (Mon-first dow 3), 2026 is not a leap year:
-    // the year spans exactly 53 Monday-first calendar week columns. For a
-    // given year the count is deterministic — "53 or 54" is not a contract.
     assert.equal(heatmap.weeks.length, 53, `got ${heatmap.weeks.length} weeks`);
     const inRange = heatmap.weeks.flat().filter((c) => c.inRange).length;
     assert.equal(inRange, 365, '365 in-range days (53*7=371 cells, 6 padding)');
   });
 
   await test('calendar-year: a leap year starting on Sunday spans EXACTLY 54 columns (2012)', () => {
-    // 2012-01-01 is a Sunday (Mon-first dow 6) and 2012 is a leap year, so
-    // Dec 31 lands in a week whose Monday is exactly 53 weeks after the
-    // first column's Monday: 54 real columns, 366 in-range days.
     const today = dateAtIso('2012-06-15');
     const heatmap = buildCalendarHeatmap({ mode: 'calendar-year', today, year: 2012 });
     assert.equal(heatmap.weeks.length, 54, `got ${heatmap.weeks.length} weeks`);
@@ -287,7 +231,6 @@ try {
   });
 
   await test('calendar-year: non-leap years have EXACTLY 53 columns (2019)', () => {
-    // 2019-01-01 is a Tuesday — the non-trivial layout case.
     const today = dateAtIso('2019-06-15');
     const heatmap = buildCalendarHeatmap({ mode: 'calendar-year', today, year: 2019 });
     assert.equal(heatmap.weeks.length, 53, `got ${heatmap.weeks.length} weeks`);
@@ -310,8 +253,6 @@ try {
     const inRange = heatmap.weeks.flat().filter((c) => c.inRange).length;
     assert.equal(inRange, 366, 'leap year has 366 in-range days');
   });
-
-  // === Month-boundary anchoring ==============================================
 
   await test('rolling-52-weeks: 8月31日 (Mon) and 9月1日 (Tue) share the last column; 9月 anchors there', () => {
     const today = dateAtIso('2026-09-04');
@@ -356,13 +297,7 @@ try {
     assert.ok(dec.weekIndex < jan.weekIndex, 'each label anchors at its own month start');
   });
 
-  // === UTC+8 day-boundary =====================================================
-
   await test('UTC+8 midnight boundary: 15:59:59Z vs 16:00:00Z split the business day', () => {
-    // 2026-09-03T15:59:59Z = 2026-09-03 23:59:59 UTC+8; 2026-09-03T16:00:00Z
-    // = 2026-09-04 00:00:00 UTC+8. The business date advances by one day,
-    // the weekday follows the business date (Thu -> Fri), the month does
-    // not shift.
     const before = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: Date.parse('2026-09-03T15:59:59Z') });
     const after = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: Date.parse('2026-09-03T16:00:00Z') });
     assert.equal(before.weeks[51][3].date, '2026-09-03', 'business today is Thursday 2026-09-03 before the boundary');
@@ -392,7 +327,6 @@ try {
     const today = new Date('2026-09-04T08:00:00Z');
     const heatmap = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today });
     assert.equal(heatmap.weeks.length, 52);
-    // 2026-09-04 (UTC+8) is the same calendar day.
     const last = heatmap.weeks[51][4];
     assert.equal(last.date, '2026-09-04');
   });
@@ -415,33 +349,10 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// calendar-heatmap-view-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
   // @ts-check
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Calendar heatmap renderer tests. Pins the HTML contract the dashboard
-  // depends on:
-  //   * 364 cells (52 * 7) for `rolling-52-weeks`
-  //   * 53/54 cells (NOT 52) for `calendar-year` 2026
-  //   * data-level="0" for out-of-range / future / zero cells
-  //   * data-level="1".."4" for active cells, quantized to max
-  //   * month labels carry the M月 text and a grid-column index
-  //   * data-tooltip, data-date, data-future, data-inrange attributes
-  //     are present so the existing PAGE_SCRIPT tooltip layer keeps
-  //     working and so a future "data-future" / "data-inrange" CSS rule
-  //     can be added without breaking layout.
-
-
-
-
 
   function dateAtIso(iso) {
-    // TRUE UTC+8 midnight (= 16:00Z the previous day), NOT `${iso}T00:00:00Z`
-    // (which is 08:00 UTC+8) — see calendar-heatmap-test.mjs for the rationale.
     return Date.parse(`${iso}T00:00:00+08:00`);
   }
 
@@ -466,13 +377,10 @@ try {
     const { cells, labels, ariaLabel } = renderHeatmap(heatmap, { data, valueKey: 'total' });
     assert.equal(cells.length, 364, '52 * 7 cells');
     assert.ok(labels.length >= 11 && labels.length <= 13, `12 month labels (got ${labels.length})`);
-    // 100 is the max -> level 4. 25 is ~25% of max -> level 1 (ceil).
-    // 1 is ~1% of max -> level 1 (max(1, ...)).
     const html = cells.join('');
     assert.ok(html.includes('data-level="4"'), 'max-day is level 4');
     assert.ok(html.includes('data-level="1"'), 'low days are level 1');
     assert.ok(html.includes('data-level="0"'), 'zero days are level 0');
-    // data-future and data-inrange are now part of the contract.
     assert.ok(html.includes('data-future="1"'), 'future cells carry data-future="1"');
     assert.ok(html.includes('data-future="0"'), 'past cells carry data-future="0"');
     assert.ok(html.includes('data-inrange="1"'), 'in-range cells carry data-inrange="1"');
@@ -484,8 +392,6 @@ try {
     const today = dateAtIso('2026-09-04');
     const heatmap = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today });
     const { cells } = renderHeatmap(heatmap);
-    // The last column's Sat (2026-09-05) and Sun (2026-09-06) are
-    // future cells; their tooltip must NOT contain "Token" or "次请求".
     const satCell = cells.find((c) => c.includes('data-date="2026-09-05"'));
     assert.ok(satCell, 'Saturday cell exists');
     assert.match(satCell, /data-level="0"/, 'future Saturday is level 0');
@@ -502,9 +408,6 @@ try {
     const { cells } = renderHeatmap(heatmap, { data });
     const cell = cells.find((c) => c.includes('data-date="2026-08-15"'));
     assert.ok(cell, 'cell exists for 2026-08-15');
-    // The tooltip should contain the month/day + token count + request count.
-    // We use loose matching because the formatter outputs CJK characters
-    // and the console encoding may mangle them, but the structure is stable.
     assert.match(cell, /data-tooltip="[^"]*Token[^"]*次请求"/);
     assert.match(cell, /data-tooltip="[^"]*1\.2万[^"]*"/);
     assert.match(cell, /data-tooltip="[^"]*7 次请求"/);
@@ -597,13 +500,9 @@ try {
     const data = new Map();
     data.set('2026-08-15', { total: 100, requests: 1 });
     const heatmap = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today, data });
-    // Render with a name that contains & < > in the data so we can assert escaping.
-    // We can't easily inject HTML through the date key, but we can verify
-    // that the level-4 cell is properly emitted with all expected attributes.
     const { cells } = renderHeatmap(heatmap, { data });
     const cell = cells.find((c) => c.includes('data-date="2026-08-15"'));
     assert.ok(/^<i [^>]+><\/i>$/.test(cell), 'cell is a single self-closed <i> tag');
-    // Confirm all attribute values are quoted.
     assert.ok(/data-level="[0-4]"/.test(cell));
     assert.ok(/data-tooltip="[^"]*"/.test(cell));
     assert.ok(/aria-label="[^"]*"/.test(cell));
@@ -615,50 +514,10 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// calendar-heatmap-contract-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-  //
-  // Calendar Heatmap Contract — the spec table from the release-hardening
-  // round, pinned as executable contracts. The two modes' semantics live in
-  // docs/architecture/calendar-heatmap.md; the builder/renderer suites pin
-  // behavior in depth, this file pins the CONTRACT so any regression fails
-  // with the spec clause in the failure message:
-  //
-  //   C01  rolling-52-weeks always has exactly 52 columns
-  //   C02  Monday-first weekday indexing (Mon=0 .. Sun=6)
-  //   C03  business data key is YYYY-MM-DD, matched by key (never position)
-  //   C04  future is NOT zero (future -> value null; past no-data -> value 0)
-  //   C05  month label anchors at the weekIndex containing the month's 1st day
-  //   C06  right-edge month label is never dropped (9月 at the last column)
-  //   C07  calendar-year range is Jan 1 .. Dec 31
-  //   C08  calendar-year column count is dynamic AND exact (53; 54 for a
-  //        leap year starting on Sunday)
-  //   C09  calendar-year year-padding is inRange=false / value null
-  //   C10  current-year future dates are inRange=true / isFuture / null
-  //   C11  historical years contain no future days
-  //   C12  leap day exists in range (2028-02-29) with correct day counts
-  //   C13  UTC+8 midnight boundary (15:59:59Z vs 16:00:00Z) — date advances,
-  //        weekday and month do not shift
-  //   C14  renderer and builder share the same week column (data-week /
-  //        data-weekday / explicit grid placement match the builder grid)
-  //   C15  `.months` shares the heatmap's week-column tracks via the
-  //        `--week-count` CSS grid — never flex/space-between
-
-
-
-
-
-
 
   const __dirname = dirname(fileURLToPath(import.meta.url));
 
-
-  // TRUE UTC+8 midnight (= 16:00Z the previous day) — see
-  // calendar-heatmap-test.mjs for why `${iso}T00:00:00Z` would be wrong.
   const dateAtIso = (iso) => Date.parse(`${iso}T00:00:00+08:00`);
 
   let failures = 0;
@@ -673,7 +532,6 @@ try {
   const flat = (h) => h.weeks.flat();
   const findCell = (h, iso) => flat(h).find((c) => c.date === iso) || null;
 
-  // ---- C01: rolling-52-weeks always 52 columns ---------------------------------
   {
     const todays = ['2026-01-01', '2026-09-04', '2026-12-31', '2025-02-28', '2028-02-29', '2020-02-29'];
     const counts = todays.map((iso) => buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: dateAtIso(iso) }).weeks.length);
@@ -684,7 +542,6 @@ try {
     );
   }
 
-  // ---- C02: Monday-first ---------------------------------------------------------
   {
     const h = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: dateAtIso('2026-09-04') });
     const last = h.weeks[51];
@@ -693,7 +550,6 @@ try {
     check('C02 Monday-first: column starts Monday (2026-08-31), weekdayIndex 0..6', okDates && okIdx, `first=${last[0].date} last=${last[6].date}`);
   }
 
-  // ---- C03: business key = YYYY-MM-DD --------------------------------------------
   {
     const data = new Map([['2026-08-15', { total: 123, requests: 4 }]]);
     const h = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: dateAtIso('2026-09-04'), data });
@@ -706,7 +562,6 @@ try {
     );
   }
 
-  // ---- C04: future != zero --------------------------------------------------------
   {
     const h = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: dateAtIso('2026-09-04') });
     const future = findCell(h, '2026-09-05');
@@ -718,7 +573,6 @@ try {
     );
   }
 
-  // ---- C05: month label = monthStart weekIndex ------------------------------------
   {
     const h = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: dateAtIso('2026-09-04') });
     const sep = h.monthLabels.find((l) => l.year === 2026 && l.month === 8);
@@ -726,7 +580,6 @@ try {
     check('C05 month label anchors at the weekIndex containing the month 1st day', Boolean(ok), `sep=${JSON.stringify(sep)}`);
   }
 
-  // ---- C06: right-edge month is never dropped --------------------------------------
   {
     const h = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: dateAtIso('2026-09-04') });
     const { labels } = renderHeatmap(h);
@@ -738,12 +591,9 @@ try {
     );
   }
 
-  // ---- C07 + C08: calendar-year range and exact column counts ----------------------
   {
     const h = buildCalendarHeatmap({ mode: 'calendar-year', today: dateAtIso('2026-09-04'), year: 2026 });
     const rangeOk = h.rangeStart === '2026-01-01' && h.rangeEnd === '2026-12-31';
-    // Non-leap years: exactly 53 columns. Leap years starting on Sunday
-    // (2012, 2040): exactly 54. Every other leap year: 53.
     const cases = [
       [2012, 54],
       [2015, 53],
@@ -766,7 +616,6 @@ try {
     );
   }
 
-  // ---- C09 + C10 + C11: padding / current-year future / historical year ------------
   {
     const h2026 = buildCalendarHeatmap({ mode: 'calendar-year', today: dateAtIso('2026-09-04'), year: 2026 });
     const padStart = [findCell(h2026, '2025-12-29'), findCell(h2026, '2025-12-30'), findCell(h2026, '2025-12-31')];
@@ -787,7 +636,6 @@ try {
     check('C11 historical year (2025) contains no future days', c11);
   }
 
-  // ---- C12: leap day -----------------------------------------------------------------
   {
     const h = buildCalendarHeatmap({ mode: 'calendar-year', today: dateAtIso('2028-02-29'), year: 2028 });
     const leap = findCell(h, '2028-02-29');
@@ -799,7 +647,6 @@ try {
     );
   }
 
-  // ---- C13: UTC+8 midnight boundary ---------------------------------------------------
   {
     const before = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: Date.parse('2026-09-03T15:59:59Z') });
     const after = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: Date.parse('2026-09-03T16:00:00Z') });
@@ -816,7 +663,6 @@ try {
     );
   }
 
-  // ---- C14: renderer and builder share the same week column ----------------------------
   {
     const h = buildCalendarHeatmap({ mode: 'rolling-52-weeks', today: dateAtIso('2026-09-04') });
     const { cells, labels } = renderHeatmap(h);
@@ -1215,16 +1061,7 @@ try {
   process.exitCode = 1;
 }
 
-// ==========================================================================
-// readme-status-test.mjs
-// ==========================================================================
 try {
-  // SPDX-License-Identifier: MIT
-  // Copyright (c) 2026 Fongap Labs
-
-
-
-
 
   const svg = renderReadmeStatusSvg({
     today: 35_240_000,
