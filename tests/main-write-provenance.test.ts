@@ -342,7 +342,7 @@ test("signed repeated main guard failure is reused without bypassing validation"
       async get(): Promise<unknown> {
         throw new Error("temporary status read failure");
       },
-    } as GithubReader;
+    } as unknown as GithubReader;
     assert.equal(await hasReusableFailedMainGuard(failedReader, repository, mainSha), false);
   } finally {
     if (previousKeyring === undefined) delete process.env.AW_STATUS_KEYRING;
