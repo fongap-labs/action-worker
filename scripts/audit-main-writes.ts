@@ -18,6 +18,7 @@ import {
   incidentTitle,
   shouldCreateIncident,
 } from "./main-write-incidents.ts";
+import { reconcileMisattributedMainStatuses } from "./reconcile-main-pr-statuses.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { hasValidStatusAttestation, signedStatusDescription } from "./status-attestation.ts";
@@ -118,7 +119,7 @@ export async function auditRepositoryMain(
   repository: string,
   isCentralStatusRequired = true,
   onMainSha?: (sha: string) => void
-): Promise<{ main_sha: string; pr_number: number }> {
+): Promise<{ main_sha: string; pr_number: number; pr_head_sha: string }> {
   const repositoryValue = await reader.get(`repos/${repository}`);
   const defaultBranch = getJsonString(repositoryValue, "default_branch");
   if (defaultBranch !== "main") {
@@ -141,7 +142,11 @@ export async function auditRepositoryMain(
     { repositoryValue, mainCommit }
   );
   await assertNoOpenMainWriteIncidents(reader, repository);
-  return { main_sha: mainSha, pr_number: provenance.pr_number };
+  return {
+    main_sha: mainSha,
+    pr_number: provenance.pr_number,
+    pr_head_sha: provenance.pr_head_sha,
+  };
 }
 
 export function requireAuditCredential(
@@ -226,6 +231,19 @@ async function main(): Promise<void> {
           `Trusted main write via PR #${provenance.pr_number}`,
           runUrl
         );
+      }
+      const restored = await reconcileMisattributedMainStatuses(
+        reader,
+        repository,
+        mainSha,
+        provenance.pr_head_sha,
+        provenance.pr_number,
+        controlRepository,
+        statusToken,
+        runUrl
+      );
+      if (restored.length > 0) {
+        console.log(`Reconciled invalid reverse PR statuses on ${repository}@${mainSha}: ${restored.join(", ")}`);
       }
       results.push({
         repository,
