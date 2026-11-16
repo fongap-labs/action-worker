@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 维护: AI Gateway 中央测试不再依赖源码中固定英文注释，继续检查 Token 存储公共导出与消费者模块边界。
+
 - 维护: 撤销 2026-11-15 的 dev/Beta 部署实验逻辑，恢复 main 的正式发布与中央 CI；保留原历史变更记录及无关修复。
 
 - 修复: Beta 手动部署强制明确提供 dev HEAD SHA，不再触发无关的 main CI 请求、main 写入审计和专用 App token 获取；生产部署流程保持不变。
