@@ -1,5 +1,5 @@
 import { latestCiStatus, trustedControlRunId } from "./ci-evidence.ts";
-import { getJsonArray, getJsonString, isJsonRecord, type GithubReader } from "./github-api.ts";
+import { type GithubReader, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import { hasValidStatusAttestation, signedStatusDescription } from "./status-attestation.ts";
 import { postGithubCommitStatus } from "./status-write-retry.ts";
 
