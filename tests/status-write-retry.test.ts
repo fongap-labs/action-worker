@@ -196,3 +196,27 @@ test("commit status POST does not fall back when the scoped token is missing", a
     /missing dedicated status token/
   );
 });
+
+test("status POST surfaces GitHub HTTP 422 validation details without retrying", async () => {
+  const previousFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => {
+    calls += 1;
+    return new Response(
+      JSON.stringify({
+        message: "Validation Failed",
+        errors: [{ resource: "Status", field: "context", code: "custom" }],
+      }),
+      { status: 422, headers: { "x-github-request-id": "TEST-422" } }
+    );
+  };
+  try {
+    await assert.rejects(
+      postGithubCommitStatus(sampleStatus),
+      /HTTP 422; GitHub: Validation Failed; Status.context: custom; request ID TEST-422/
+    );
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = previousFetch;
+  }
+});

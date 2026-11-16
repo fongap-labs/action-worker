@@ -77,6 +77,39 @@ export function responseRetryDelayMs(headers: Headers, now = Date.now()): number
  * Only known transient responses are retried, with bounded exponential backoff,
  * jitter and server delay guidance. Permission and exhausted-budget failures stop.
  */
+async function githubStatusErrorDetails(response: Response): Promise<string> {
+  const body = await response.text().catch(() => "");
+  if (!body) return "";
+  let value: unknown;
+  try {
+    value = JSON.parse(body.slice(0, 8192));
+  } catch {
+    return "";
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "";
+  const record = value as Record<string, unknown>;
+  const clean = (input: unknown, limit: number): string =>
+    typeof input === "string" ? input.replace(/[\r\n\t]+/g, " ").slice(0, limit) : "";
+  const message = clean(record.message, 240);
+  const errors = Array.isArray(record.errors)
+    ? record.errors
+        .slice(0, 3)
+        .map((item: unknown) => {
+          if (!item || typeof item !== "object" || Array.isArray(item)) return "";
+          const error = item as Record<string, unknown>;
+          const path = [clean(error.resource, 60), clean(error.field, 60)]
+            .filter(Boolean)
+            .join(".");
+          const code = clean(error.code, 60);
+          const detail = clean(error.message, 160);
+          return [path, code, detail].filter(Boolean).join(": ");
+        })
+        .filter(Boolean)
+    : [];
+  const details = [message, ...errors].filter(Boolean).join("; ");
+  return details ? `; GitHub: ${details}` : "";
+}
+
 export async function postGithubCommitStatus(request: {
   repository: string;
   sha: string;
@@ -119,13 +152,14 @@ export async function postGithubCommitStatus(request: {
       });
       if (response.status === 201) return;
       const requestId = response.headers.get("x-github-request-id");
+      const details = await githubStatusErrorDetails(response);
       const permissionHint =
         response.status === 401 || response.status === 403
           ? "; verify GitHub App installation and Commit statuses: Write"
           : "";
       const trace = requestId ? `; request ID ${requestId}` : "";
       const error = new Error(
-        `GitHub commit status POST for ${request.repository} failed: HTTP ${response.status}${permissionHint}${trace}.`
+        `GitHub commit status POST for ${request.repository} failed: HTTP ${response.status}${permissionHint}${details}${trace}.`
       ) as RetryDelayError;
       error.retryAfterMs = responseRetryDelayMs(response.headers);
       throw error;

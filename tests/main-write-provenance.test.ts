@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { auditRepositoryMain } from "../scripts/audit-main-writes.ts";
+import {
+  auditRepositoryMain,
+  hasReusableSuccessfulMainGuard,
+} from "../scripts/audit-main-writes.ts";
 import type { GithubReader } from "../scripts/github-api.ts";
 import {
   MainWriteVerificationPendingError,
   mainWriteEvidenceError,
   validateMainWriteProvenance,
 } from "../scripts/main-write-guard.ts";
+import { signedStatusDescription } from "../scripts/status-attestation.ts";
 
 const repository = "fongap-labs/dsh-plugin";
 const mainSha = "a".repeat(40);
@@ -228,4 +232,72 @@ test("direct provenance validation still fetches independently when no snapshot 
   assert.equal(result.pr_number, 44);
   assert.ok(requests.includes(`repos/${repository}`));
   assert.ok(requests.includes(`repos/${repository}/commits/${mainSha}`));
+});
+
+test("main write audit reuses only a signed guard from a successful control run", async () => {
+  const previousKeyring = process.env.AW_STATUS_KEYRING;
+  process.env.AW_STATUS_KEYRING = JSON.stringify({
+    schema_version: 1,
+    active: "k1",
+    keys: { k1: "A".repeat(43) },
+    legacy_tokens: [],
+  });
+  try {
+    const runId = 43849134815;
+    const targetUrl = `https://github.com/fongap-labs/action-worker/actions/runs/${runId}`;
+    const status = {
+      state: "success",
+      context: "Main Write Guard",
+      description: signedStatusDescription({
+        repository,
+        sha: mainSha,
+        state: "success",
+        context: "Main Write Guard",
+        description: "Trusted main write via PR #44",
+        targetUrl,
+      }),
+      target_url: targetUrl,
+      created_at: "2026-11-16T10:28:49Z",
+    };
+    const run = {
+      id: runId,
+      repository: { full_name: "fongap-labs/action-worker" },
+      path: ".github/workflows/intake.yml",
+      head_branch: "main",
+      status: "completed",
+      conclusion: "success",
+      run_started_at: "2026-11-16T10:28:19Z",
+      updated_at: "2026-11-16T10:29:04Z",
+    };
+    const requests: string[] = [];
+    const reader = {
+      async get(path: string): Promise<unknown> {
+        requests.push(path);
+        if (path === `repos/${repository}/commits/${mainSha}/status`) {
+          return { statuses: [status] };
+        }
+        if (path === `repos/fongap-labs/action-worker/actions/runs/${runId}`) {
+          return run;
+        }
+        throw new Error(`Unexpected API path: ${path}`);
+      },
+    } as GithubReader;
+
+    assert.equal(await hasReusableSuccessfulMainGuard(reader, repository, mainSha), true);
+    assert.equal(requests.length, 2);
+
+    run.conclusion = "failure";
+    assert.equal(await hasReusableSuccessfulMainGuard(reader, repository, mainSha), false);
+
+    run.conclusion = "success";
+    status.state = "failure";
+    assert.equal(await hasReusableSuccessfulMainGuard(reader, repository, mainSha), false);
+
+    status.state = "success";
+    status.description = "Unattested success";
+    assert.equal(await hasReusableSuccessfulMainGuard(reader, repository, mainSha), false);
+  } finally {
+    if (previousKeyring === undefined) delete process.env.AW_STATUS_KEYRING;
+    else process.env.AW_STATUS_KEYRING = previousKeyring;
+  }
 });
