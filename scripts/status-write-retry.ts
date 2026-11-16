@@ -89,7 +89,7 @@ async function githubStatusErrorDetails(response: Response): Promise<string> {
   if (!value || typeof value !== "object" || Array.isArray(value)) return "";
   const record = value as Record<string, unknown>;
   const clean = (input: unknown, limit: number): string =>
-    typeof input === "string" ? input.replace(/[\\r\\n\\t]+/g, " ").slice(0, limit) : "";
+    typeof input === "string" ? input.replace(/[\r\n\t]+/g, " ").slice(0, limit) : "";
   const message = clean(record.message, 240);
   const errors = Array.isArray(record.errors)
     ? record.errors
