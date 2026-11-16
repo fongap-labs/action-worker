@@ -128,7 +128,7 @@ export async function reconcilePreviousMainStatuses(
   reader: GithubReader,
   repository: string,
   currentSha: string,
-  centralCiRequired: boolean,
+  isCentralCiRequired: boolean,
   controlRepository: string,
   statusToken: string,
   runUrl: string,
@@ -155,7 +155,7 @@ export async function reconcilePreviousMainStatuses(
     reader,
     repository,
     previousSha,
-    centralCiRequired
+    isCentralCiRequired
   );
   return reconcileMisattributedMainStatuses(
     reader,
