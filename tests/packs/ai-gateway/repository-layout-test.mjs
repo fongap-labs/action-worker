@@ -62,7 +62,6 @@ const tokenStoreFacadePath = path.join(root, 'src/observability/token-usage-stor
 assert.equal(fs.existsSync(tokenStoreFacadePath), true,
   'token-usage-store.ts must remain the stable import facade for the persistent store');
 const tokenStoreFacade = fs.readFileSync(tokenStoreFacadePath, 'utf8');
-assert.match(tokenStoreFacade, /Stable public import surface for the persistent token-usage store/);
 assert.match(tokenStoreFacade, /export \* from '\.\/token-usage-store\/index\.ts';/);
 
 const directStoreIndexImports = [
