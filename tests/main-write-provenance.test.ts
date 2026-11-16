@@ -4,13 +4,13 @@ import {
   auditRepositoryMain,
   hasReusableSuccessfulMainGuard,
 } from "../scripts/audit-main-writes.ts";
-import { signedStatusDescription } from "../scripts/status-attestation.ts";
 import type { GithubReader } from "../scripts/github-api.ts";
 import {
   MainWriteVerificationPendingError,
   mainWriteEvidenceError,
   validateMainWriteProvenance,
 } from "../scripts/main-write-guard.ts";
+import { signedStatusDescription } from "../scripts/status-attestation.ts";
 
 const repository = "fongap-labs/dsh-plugin";
 const mainSha = "a".repeat(40);
