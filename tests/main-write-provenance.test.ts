@@ -199,7 +199,7 @@ test("main write audit uses one pinned HEAD snapshot without duplicate repositor
   const verified = await auditRepositoryMain(reader, repository, false, (sha) => {
     observedSha = sha;
   });
-  assert.deepEqual(verified, { main_sha: mainSha, pr_number: 44 });
+  assert.deepEqual(verified, { main_sha: mainSha, pr_number: 44, pr_head_sha: prHeadSha });
   assert.equal(observedSha, mainSha);
   assert.equal(
     requests.length,
