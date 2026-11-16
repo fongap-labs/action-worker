@@ -339,7 +339,7 @@ test("signed repeated main guard failure is reused without bypassing validation"
     status.description = "Untrusted main write";
     assert.equal(await hasReusableFailedMainGuard(reader, repository, mainSha), false);
     const failedReader = {
-      async get(): Promise<never> {
+      async get(): Promise<unknown> {
         throw new Error("temporary status read failure");
       },
     } as GithubReader;
