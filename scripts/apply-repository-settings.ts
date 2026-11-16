@@ -68,8 +68,6 @@ export function rulesetPayloads(value: unknown): RulesetPayload[] {
   });
 }
 
-/** The human-approval ruleset belongs only to the trusted control repository.
- * Business repositories retain their automatic merge workflow. */
 export function rulesetsForRepository(
   rulesets: readonly RulesetPayload[],
   repository: string,

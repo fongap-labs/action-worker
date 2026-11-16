@@ -81,7 +81,6 @@ test("finalization waits for every Linux shard", () => {
 });
 
 test("jobs that execute change code reference no central credential", () => {
-  // The only sandbox secret is consumed by the trusted token-mint action; target code never receives it.
   assert.deepEqual(
     [...new Set(sandbox.match(/secrets\.[A-Za-z_]+/g))],
     ["secrets.app_private_key"]
@@ -162,7 +161,6 @@ test("a pull request CI that fails in prepare still publishes a CI Evidence verd
 test("a pull request is tested at a pinned merge SHA, not at a mutable merge ref", () => {
   const checkoutTemplate =
     "ref: ${{ inputs.pr_number != '0' && inputs.merge_sha || inputs.head_sha }}";
-  // Four target checkouts: private and public variants on both Linux and Windows.
   assert.equal(sandbox.split(checkoutTemplate).length, 5);
   assert.doesNotMatch(sandbox, /format\('refs\/pull\/\{0\}\/merge'/);
   assert.doesNotMatch(sandbox, /ref: \$\{\{ inputs\.head_sha \}\}/);
@@ -178,7 +176,6 @@ test("a pull request is tested at a pinned merge SHA, not at a mutable merge ref
     /run: node aw\/scripts\/verify-ci-checkout\.ts[^\n]*\$\{\{ inputs\./
   );
 
-  // The secret scan and status verdicts still use the original PR head.
   const security = workflow.slice(
     workflow.indexOf("  security:\n"),
     workflow.indexOf("\n  windows:\n")

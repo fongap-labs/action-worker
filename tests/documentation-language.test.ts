@@ -7,12 +7,9 @@ import { containsHan } from "../scripts/validate-engineering-language.ts";
 
 const run = promisify(execFile);
 
-// Machine-read documents: agent entry points and reusable agent skills. They are English.
 const machineRead = [/^CLAUDE\.md$/, /^AGENTS\.md$/, /^skills\//];
-// Test packs hold product fixtures of the managed repositories, not Action Worker documentation.
 const productFixtures = /^tests\/packs\//;
 const changelog = /^CHANGELOG\.md$/;
-// Chinese localization files are retired: the Chinese document is the only human-facing version.
 const localization = /\.zh-CN\.md$/;
 
 async function trackedMarkdown(): Promise<string[]> {
@@ -39,7 +36,6 @@ test("machine-read Action Worker documents are written in English", async () => 
 test("human-facing Action Worker documents are written in Chinese", async () => {
   const missing: string[] = [];
   for (const path of await trackedMarkdown()) {
-    // The CHANGELOG is a release record: its language is checked per entry by validate-change-record.
     if (isMachineRead(path) || changelog.test(path)) continue;
     const text = await readFile(path, "utf8");
     if (!containsHan(text)) missing.push(path);

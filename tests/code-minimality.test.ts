@@ -108,9 +108,6 @@ test("code-minimality is registered in the skills table and the agent execution 
 });
 
 test("each review rule file carries a single merged **/* entry so OpenCodeReview applies it", async () => {
-  // OpenCodeReview v1.12.9 applies only the first matching rule per path pattern;
-  // a second entry with the same pattern is silently dropped. Each review rule file
-  // must therefore keep exactly one "**/*" entry with the guidance merged into it.
   for (const path of allReviewRuleFiles) {
     const entries = await allRuleEntries(path);
     assert.ok(entries.length > 0, `${path} must define at least one rule`);
@@ -129,7 +126,6 @@ test("code and architecture reviews detect duplicate implementation, over-abstra
     const entries = await allRuleEntries(path);
     assert.equal(entries.length, 1, `${path} must carry exactly one rule entry`);
     const rule = typeof entries[0]?.rule === "string" ? (entries[0].rule as string) : "";
-    // minimality guidance is merged into the same single entry as the review focus
     if (path === "rules/code-review.json") {
       assert.ok(
         rule.includes("Focus on correctness"),

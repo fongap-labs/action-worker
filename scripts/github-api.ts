@@ -24,7 +24,6 @@ export function getJsonArray(value: unknown, key?: string, exitCode = 65): unkno
   return selected;
 }
 
-/** Decode GitHub's contents API response while preserving each caller's diagnostic. */
 export function decodeGithubContent(
   value: unknown,
   errorMessage = "GitHub contents response is invalid."
