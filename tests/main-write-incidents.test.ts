@@ -120,7 +120,7 @@ test("current fongap-bot incidents remain blocking and are not recreated", async
   assert.equal(await shouldCreateIncident(reader, "org/private-repo", sha), false);
   await assert.rejects(
     assertNoOpenMainWriteIncidents(reader, "org/private-repo"),
-    /Unresolved main write incident\\(s\\).*#482/
+    /Unresolved main write incident\(s\).*#482/
   );
   const untrusted = await findIncidents(
     {
