@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  isGovernedPullDirection,
-  resolvePullDiffBaseSha,
-} from "../scripts/resolve-pr-facts.ts";
+import { isGovernedPullDirection, resolvePullDiffBaseSha } from "../scripts/resolve-pr-facts.ts";
 
 const repository = "fongap-labs/app-source";
 
