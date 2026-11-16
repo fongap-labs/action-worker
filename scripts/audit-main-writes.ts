@@ -1,3 +1,4 @@
+import { latestCiStatus } from "./ci-evidence.ts";
 import {
   GithubHttpError,
   type GithubReader,
@@ -11,7 +12,6 @@ import {
   MainWriteVerificationPendingError,
   validateMainWriteProvenance,
 } from "./main-write-guard.ts";
-import { latestCiStatus } from "./ci-evidence.ts";
 import {
   assertNoOpenMainWriteIncidents,
   IncidentAccessError,
