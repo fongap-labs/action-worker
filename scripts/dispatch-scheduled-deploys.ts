@@ -22,10 +22,9 @@ import {
   readJson,
   runCommand,
 } from "./runtime-command.ts";
-import { scheduledDispatchCandidateShas } from "./scheduled-dispatch-candidates.ts";
 import {
   dispatchWithReservation,
-  hasScheduledDispatchReceipt,
+  hasScheduledDispatchForSlot,
   writeScheduledDispatchStatus,
 } from "./scheduled-dispatch-statuses.ts";
 
@@ -193,34 +192,20 @@ export async function wasScheduledDeployDispatched(
   deploy: ScheduledDeploy,
   get: (path: string) => Promise<unknown>
 ): Promise<boolean> {
-  const heads = await scheduledDispatchCandidateShas(
-    deploy.repository,
-    deploy.head_sha,
-    deploy.slot,
+  return hasScheduledDispatchForSlot(
+    {
+      repository: deploy.repository,
+      head_sha: deploy.head_sha,
+      context: scheduleContext(deploy.product, deploy.environment),
+      slot: deploy.slot,
+    },
+    [
+      { state: "pending", description: scheduleReservationDescription(deploy.slot) },
+      { state: "success", description: scheduleDescription(deploy.slot) },
+    ],
     get
   );
-  const context = scheduleContext(deploy.product, deploy.environment);
-  const description = scheduleDescription(deploy.slot);
-  for (const sha of heads) {
-    if (
-      await hasScheduledDispatchReceipt(
-        deploy.repository,
-        sha,
-        context,
-        [
-          { state: "pending", description: scheduleReservationDescription(deploy.slot) },
-          { state: "success", description },
-        ],
-        get,
-        deploy.slot
-      )
-    ) {
-      return true;
-    }
-  }
-  return false;
 }
-
 /**
  * The scheduled deploy waits for no one: it dispatches only when the default branch already has a
  * verified successful CI Evidence. A red or pending head is skipped for this run.

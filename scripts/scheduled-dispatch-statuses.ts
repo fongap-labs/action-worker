@@ -1,5 +1,6 @@
 import { githubEnvironment, isJsonRecord } from "./github-api.ts";
 import { CliError, runCommand } from "./runtime-command.ts";
+import { scheduledDispatchCandidateShas } from "./scheduled-dispatch-candidates.ts";
 import {
   hasValidStatusAttestation,
   originalStatusDescription,
@@ -155,4 +156,36 @@ export async function hasScheduledDispatchReceipt(
     `Scheduled dispatch status history exceeds ${maxPages * pageSize} records on ${repository}@${sha}; refusing an unsafe replay.`,
     75
   );
+}
+
+/**
+ * Check every eligible default-branch head before allowing another scheduled dispatch.
+ * Only an exact signed reservation or success receipt suppresses a replay.
+ */
+export async function hasScheduledDispatchForSlot(
+  target: ScheduledStatusTarget & { slot: string },
+  receipts: readonly ScheduledDispatchReceipt[],
+  get: (path: string) => Promise<unknown>
+): Promise<boolean> {
+  const heads = await scheduledDispatchCandidateShas(
+    target.repository,
+    target.head_sha,
+    target.slot,
+    get
+  );
+  for (const sha of heads) {
+    if (
+      await hasScheduledDispatchReceipt(
+        target.repository,
+        sha,
+        target.context,
+        receipts,
+        get,
+        target.slot
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
 }

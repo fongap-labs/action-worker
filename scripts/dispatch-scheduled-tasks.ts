@@ -20,10 +20,9 @@ import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { assertExactKeys as exactKeys } from "./lib/manifest-input-validation.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
-import { scheduledDispatchCandidateShas } from "./scheduled-dispatch-candidates.ts";
 import {
   dispatchWithReservation,
-  hasScheduledDispatchReceipt,
+  hasScheduledDispatchForSlot,
   writeScheduledDispatchStatus,
 } from "./scheduled-dispatch-statuses.ts";
 
@@ -261,34 +260,20 @@ export async function wasDispatched(
   task: ScheduledTask,
   get: (path: string) => Promise<unknown>
 ): Promise<boolean> {
-  const heads = await scheduledDispatchCandidateShas(
-    task.repository,
-    task.head_sha,
-    task.slot,
+  return hasScheduledDispatchForSlot(
+    {
+      repository: task.repository,
+      head_sha: task.head_sha,
+      context: scheduleContext(task.project),
+      slot: task.slot,
+    },
+    [
+      { state: "pending", description: scheduleReservationDescription(task.slot) },
+      { state: "success", description: scheduleDescription(task.slot) },
+    ],
     get
   );
-  const context = scheduleContext(task.project);
-  const description = scheduleDescription(task.slot);
-  for (const sha of heads) {
-    if (
-      await hasScheduledDispatchReceipt(
-        task.repository,
-        sha,
-        context,
-        [
-          { state: "pending", description: scheduleReservationDescription(task.slot) },
-          { state: "success", description },
-        ],
-        get,
-        task.slot
-      )
-    ) {
-      return true;
-    }
-  }
-  return false;
 }
-
 async function reserveDispatch(task: ScheduledTask, token: string): Promise<void> {
   await writeScheduledDispatchStatus(
     {
