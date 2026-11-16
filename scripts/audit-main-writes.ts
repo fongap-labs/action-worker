@@ -7,6 +7,7 @@ import {
   runGithubCli,
   statusAwareReader,
 } from "./github-api.ts";
+import { reconcileMisattributedMainStatuses } from "./main-status-reconcile.ts";
 import {
   hasVerifiedMainWriteGuard,
   MainWriteVerificationPendingError,
@@ -18,7 +19,6 @@ import {
   incidentTitle,
   shouldCreateIncident,
 } from "./main-write-incidents.ts";
-import { reconcileMisattributedMainStatuses } from "./main-status-reconcile.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { hasValidStatusAttestation, signedStatusDescription } from "./status-attestation.ts";
@@ -243,7 +243,9 @@ async function main(): Promise<void> {
         runUrl
       );
       if (restored.length > 0) {
-        console.log(`Reconciled invalid reverse PR statuses on ${repository}@${mainSha}: ${restored.join(", ")}`);
+        console.log(
+          `Reconciled invalid reverse PR statuses on ${repository}@${mainSha}: ${restored.join(", ")}`
+        );
       }
       results.push({
         repository,
