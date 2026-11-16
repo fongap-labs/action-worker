@@ -7,7 +7,10 @@ import {
   runGithubCli,
   statusAwareReader,
 } from "./github-api.ts";
-import { reconcileMisattributedMainStatuses } from "./main-status-reconcile.ts";
+import {
+  reconcileMisattributedMainStatuses,
+  reconcilePreviousMainStatuses,
+} from "./main-status-reconcile.ts";
 import {
   hasVerifiedMainWriteGuard,
   MainWriteVerificationPendingError,
@@ -245,6 +248,24 @@ async function main(): Promise<void> {
       if (restored.length > 0) {
         console.log(
           `Reconciled invalid reverse PR statuses on ${repository}@${mainSha}: ${restored.join(", ")}`
+        );
+      }
+      try {
+        const previous = await reconcilePreviousMainStatuses(
+          reader,
+          repository,
+          mainSha,
+          repository !== controlRepository,
+          controlRepository,
+          statusToken,
+          runUrl
+        );
+        if (previous.length > 0) {
+          console.log(`Reconciled previous main status for ${repository}: ${previous.join(", ")}`);
+        }
+      } catch (error) {
+        console.warn(
+          `::warning::Historical main status reconciliation could not complete for ${repository}: ${error instanceof Error ? error.message : String(error)}`
         );
       }
       results.push({
