@@ -7,7 +7,7 @@ type Issue = Record<string, unknown>;
 const prefix = "main write incident:";
 const trustedAssociations = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 // GitHub App issue authors have author_association=NONE even inside managed repositories.
-const trustedAutomationLogin = "fongap-action-worker[bot]";
+const trustedAutomationLogins = new Set(["fongap-action-worker[bot]", "fongap-bot[bot]"]);
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
 
@@ -30,7 +30,7 @@ function isIncident(value: unknown): value is Issue {
   const association = getJsonString(value, "author_association").toUpperCase();
   if (trustedAssociations.has(association)) return true;
   return (
-    getJsonString(value.user, "login") === trustedAutomationLogin &&
+    trustedAutomationLogins.has(getJsonString(value.user, "login")) &&
     getJsonString(value.user, "type") === "Bot"
   );
 }
