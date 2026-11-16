@@ -167,25 +167,15 @@ export async function hasScheduledDispatchForSlot(
   receipts: readonly ScheduledDispatchReceipt[],
   get: (path: string) => Promise<unknown>
 ): Promise<boolean> {
-  const heads = await scheduledDispatchCandidateShas(
+  for (const sha of await scheduledDispatchCandidateShas(
     target.repository,
     target.head_sha,
     target.slot,
     get
-  );
-  for (const sha of heads) {
+  )) {
     if (
-      await hasScheduledDispatchReceipt(
-        target.repository,
-        sha,
-        target.context,
-        receipts,
-        get,
-        target.slot
-      )
-    ) {
-      return true;
-    }
+      await hasScheduledDispatchReceipt(target.repository, sha, target.context, receipts, get, target.slot)
+    ) return true;
   }
   return false;
 }
