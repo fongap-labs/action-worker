@@ -67,7 +67,9 @@ async function main(): Promise<void> {
 
   const pull = await getGithubJson(`repos/${repository}/pulls/${prNumber}`, controlToken);
   if (!isGovernedPullDirection(pull)) {
-    console.log(`Skipping unfinished PR governance: ${repository}#${prNumber} does not target main from a feature branch.`);
+    console.log(
+      `Skipping unfinished PR governance: ${repository}#${prNumber} does not target main from a feature branch.`
+    );
     return;
   }
   const head = isJsonRecord(pull) && isJsonRecord(pull.head) ? getJsonString(pull.head, "sha") : "";
