@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { reconcileMisattributedMainStatuses } from "../scripts/main-status-reconcile.ts";
+import {
+  previousMainCommitSha,
+  reconcileMisattributedMainStatuses,
+} from "../scripts/main-status-reconcile.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const repository = "fongap-labs/ai-gateway";
@@ -177,4 +180,24 @@ test("unrelated failed workflow or still-open reverse PR cannot repair merged ma
     );
     assert.equal(writes, 0);
   }
+});
+
+test("previous main reconciliation only scans the exact single-parent predecessor", () => {
+  const currentSha = "c".repeat(40);
+  const previousSha = "d".repeat(40);
+  const valid = [
+    { sha: currentSha, parents: [{ sha: previousSha }] },
+    { sha: previousSha, parents: [{ sha: "e".repeat(40) }] },
+  ];
+  assert.equal(previousMainCommitSha(valid, currentSha), previousSha);
+  assert.equal(previousMainCommitSha(valid, previousSha), null);
+  assert.equal(previousMainCommitSha([valid[0]], currentSha), null);
+  assert.equal(
+    previousMainCommitSha([{ sha: currentSha, parents: [{ sha: "f".repeat(40) }] }, valid[1]], currentSha),
+    null
+  );
+  assert.equal(
+    previousMainCommitSha([{ sha: currentSha, parents: [{ sha: previousSha }, { sha: "f".repeat(40) }] }, valid[1]], currentSha),
+    null
+  );
 });
