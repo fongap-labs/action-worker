@@ -318,7 +318,7 @@ async function main(): Promise<void> {
   );
   if (statusPublicationErrors.length > 0) {
     throw new CliError(
-      `::error::Main Write Audit could not publish ${statusPublicationErrors.length} repository guard status(es): ${statusPublicationErrors.join("; ")} . Inspect the GitHub API validation details; check Commit statuses: Write permission for HTTP 401/403.`,
+      `::error::Main Write Audit could not publish ${statusPublicationErrors.length} repository guard status(es): ${statusPublicationErrors.join("; ")}. Inspect the GitHub API validation details; check Commit statuses: Write permission for HTTP 401/403.`,
       77
     );
   }
