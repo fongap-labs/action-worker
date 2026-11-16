@@ -104,6 +104,36 @@ test("official Action Worker bot incidents remain blocking even without member a
   );
 });
 
+test("current fongap-bot incidents remain blocking and are not recreated", async () => {
+  const botIncident = {
+    ...incident,
+    number: 482,
+    title: incidentTitle(sha),
+    author_association: "NONE",
+    user: { login: "fongap-bot[bot]", type: "Bot" },
+  };
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      return path.includes("/comments?") ? [] : [botIncident];
+    },
+  };
+  assert.equal(await shouldCreateIncident(reader, "org/private-repo", sha), false);
+  await assert.rejects(
+    assertNoOpenMainWriteIncidents(reader, "org/private-repo"),
+    /Unresolved main write incident\(s\).*#482/
+  );
+  const untrusted = await findIncidents(
+    {
+      async get(): Promise<unknown> {
+        return [{ ...botIncident, user: { login: "fongap-bot[bot]", type: "User" } }];
+      },
+    },
+    "org/private-repo",
+    "open"
+  );
+  assert.deepEqual(untrusted, []);
+});
+
 test("a user pretending to be the Action Worker bot cannot create a trusted incident", async () => {
   const issues = await findIncidents(
     {
