@@ -1,12 +1,10 @@
 import { getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
-// Only feat, fix, chore are valid. Breaking changes use ! or a BREAKING CHANGE footer.
 const COMMIT_SUBJECT = /^(feat|fix|chore)(?:\([A-Za-z0-9._/ -]{1,64}\))?(!)?:\s+(.+)$/;
 
 const BREAKING_FOOTER = /BREAKING[- ]CHANGE:/;
 
-// The squash title carries the PR reference; release notes describe the change, not the pull.
 const PR_REFERENCE = /\s*\(#\d+\)\s*$/;
 
 /** Merge subjects skip the classification; the governance gate owns PR title enforcement. */
@@ -45,7 +43,6 @@ export function classifyCommit(message: string): CommitChange | null {
   };
 }
 
-// The smallest bump the span reaches; null means nothing release-worthy changed.
 export type ReleaseBump = "major" | "minor" | "patch" | null;
 
 const BUMP_WEIGHT: Record<Exclude<ReleaseBump, null>, number> = {
@@ -205,7 +202,6 @@ export type SpanReader = {
 };
 
 export type LoadReleaseSpanOptions = {
-  // The version tags live where the release is published.
   target_repository: string;
   source_repository: string;
   source_sha: string;

@@ -8,6 +8,7 @@ import {
   releaseSectionBody,
 } from "./changelog-release.ts";
 import {
+  decodeGithubContent,
   getGithubJson,
   getJsonArray,
   getJsonNumber,
@@ -170,10 +171,6 @@ function encode(text: string): string {
   return Buffer.from(text, "utf8").toString("base64");
 }
 
-function decode(json: unknown): string {
-  return Buffer.from(getJsonString(json, "content").replace(/\n/g, ""), "base64").toString("utf8");
-}
-
 async function readFileAt(
   repository: string,
   path: string,
@@ -182,7 +179,7 @@ async function readFileAt(
 ): Promise<{ content: string; sha: string } | null> {
   try {
     const json = await getGithubJson(`repos/${repository}/contents/${path}?ref=${ref}`, token);
-    return { content: decode(json), sha: getJsonString(json, "sha") };
+    return { content: decodeGithubContent(json), sha: getJsonString(json, "sha") };
   } catch (error) {
     if (isGithubMissing(error)) {
       return null;
@@ -294,7 +291,6 @@ export async function assertExactMergedChangelogResume(
   assertMergedReleaseSection(merged.content, options);
 }
 
-// Writes a single changelog version section on a release branch, then opens a pull request.
 async function openReleasePullRequest(
   options: ChangelogReleaseOptions,
   branch: string
@@ -416,7 +412,6 @@ async function validateMergeState(
 // branch is stale, not failed: it is rebuilt from the current head instead of waiting out the deadline.
 class StaleReleaseBranch extends Error {}
 
-// How many times a stale release section is rebuilt before the release fails.
 const MAX_RELEASE_REBUILDS = 3;
 
 // Waits for the pull request to pass its gate and merges it. A failed gate is re-read a few times
