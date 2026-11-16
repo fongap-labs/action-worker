@@ -6,13 +6,12 @@ import { type InventoryRepo, readInstallationInventory } from "./security-covera
 
 const controlRepository = "fongap-labs/action-worker";
 const bridgePath = ".github/workflows/notify-action-worker.yml";
-const templatePath = "policies/templates/notify-action-worker.yml";
+const templatePath = "templates/bridge/notify-action-worker.yml";
 const branchName = "automation/central-ci-onboarding";
 const repositoryPattern = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
 
 export type BridgeTarget = { repository: string; default_branch: string };
 
-/** All authorized active repositories, regardless of age, are default CI candidates. */
 export function selectBridgeCandidates(
   inventory: readonly InventoryRepo[],
   control: string

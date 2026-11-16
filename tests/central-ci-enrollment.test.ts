@@ -40,7 +40,7 @@ test("central CI enrollment rejects duplicate, external, and unsupported reposit
 });
 
 test("central CI bridge template matches the protected security hash and the writer stays scoped", async () => {
-  const bridge = await readFile("policies/templates/notify-action-worker.yml", "utf8");
+  const bridge = await readFile("templates/bridge/notify-action-worker.yml", "utf8");
   const policy = JSON.parse(await readFile("policies/security.json", "utf8")) as {
     approved_workflows: Array<{ path: string; sha256: string }>;
   };

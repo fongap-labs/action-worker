@@ -30,8 +30,6 @@ test("the dispatcher template names no runner, checks out nothing and runs no pu
 
 test("the bridge tells Action Worker about every change it cannot see by itself", async () => {
   const template = await readFile(templateFile, "utf8");
-  // A pull request change starts governance; closing it stops the central work for it; a push to
-  // main wakes Intake, which requests central CI, attests the write and starts changed tasks.
   assert.match(
     template,
     /pull_request_target:\n\s+types: \[opened, synchronize, reopened, closed\]/
@@ -40,10 +38,8 @@ test("the bridge tells Action Worker about every change it cannot see by itself"
   for (const event of ["run-pr-governance", "cancel-pr-work", "run-intake"]) {
     assert.match(template, new RegExp(`event_type[":]+\\s*"?${event}"`), event);
   }
-  // Only the pull request job writes, and only the PR Governance status of the head commit.
   assert.match(template, /^permissions: \{\}$/m);
   assert.equal([...template.matchAll(/statuses: write/g)].length, 1);
-  // The push payload names nothing, so a private repository's name never reaches a public run.
   assert.match(template, /dispatch_with_diagnostics '\{"event_type":"run-intake"\}'/);
 });
 
@@ -53,7 +49,6 @@ test("the dispatcher runner comes from central policy and never leaves the contr
   };
   const hosted = parseRunnerPolicy(base);
   assert.equal(dispatcherRunsOn(hosted, "control-standard"), '"ubuntu-24.04"');
-  // Disabled self-hosted profile falls back to an equivalent control profile.
   assert.equal(dispatcherRunsOn(hosted, "control-self-hosted"), '"ubuntu-24.04"');
 
   const selfHosted = parseRunnerPolicy({
