@@ -193,11 +193,17 @@ test("previous main reconciliation only scans the exact single-parent predecesso
   assert.equal(previousMainCommitSha(valid, previousSha), null);
   assert.equal(previousMainCommitSha([valid[0]], currentSha), null);
   assert.equal(
-    previousMainCommitSha([{ sha: currentSha, parents: [{ sha: "f".repeat(40) }] }, valid[1]], currentSha),
+    previousMainCommitSha(
+      [{ sha: currentSha, parents: [{ sha: "f".repeat(40) }] }, valid[1]],
+      currentSha
+    ),
     null
   );
   assert.equal(
-    previousMainCommitSha([{ sha: currentSha, parents: [{ sha: previousSha }, { sha: "f".repeat(40) }] }, valid[1]], currentSha),
+    previousMainCommitSha(
+      [{ sha: currentSha, parents: [{ sha: previousSha }, { sha: "f".repeat(40) }] }, valid[1]],
+      currentSha
+    ),
     null
   );
 });
