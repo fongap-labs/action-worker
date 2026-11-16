@@ -36,7 +36,21 @@ export async function reconcileMisattributedMainStatuses(
     await reader.get(
       `repos/${repository}/pulls?state=all&head=${encodeURIComponent(`${owner}:main`)}&per_page=100`
     )
-  ).filter(isJsonRecord);
+  )
+    .filter(isJsonRecord)
+    .filter((pull) => {
+      const head = isJsonRecord(pull.head) ? pull.head : {};
+      const base = isJsonRecord(pull.base) ? pull.base : {};
+      return (
+        getJsonString(pull, "state") === "closed" &&
+        !getJsonString(pull, "merged_at") &&
+        getJsonString(head, "ref") === "main" &&
+        getJsonString(head, "sha") === mainSha &&
+        getJsonString(base, "ref") !== "main" &&
+        getJsonString(base, "ref") !== ""
+      );
+    });
+  if (pulls.length === 0) return [];
 
   const repaired: string[] = [];
   const verifiedRuns = new Map<number, boolean>();
@@ -49,17 +63,9 @@ export async function reconcileMisattributedMainStatuses(
       const run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
       const runStartedAt = Date.parse(getJsonString(run, "created_at"));
       const matchedReversePull = pulls.some((pull) => {
-        const head = isJsonRecord(pull.head) ? pull.head : {};
-        const base = isJsonRecord(pull.base) ? pull.base : {};
         const created = Date.parse(getJsonString(pull, "created_at"));
         const closed = Date.parse(getJsonString(pull, "closed_at"));
         return (
-          getJsonString(pull, "state") === "closed" &&
-          !getJsonString(pull, "merged_at") &&
-          getJsonString(head, "ref") === "main" &&
-          getJsonString(head, "sha") === mainSha &&
-          getJsonString(base, "ref") !== "main" &&
-          getJsonString(base, "ref") !== "" &&
           Number.isFinite(created) &&
           Number.isFinite(closed) &&
           Number.isFinite(runStartedAt) &&
