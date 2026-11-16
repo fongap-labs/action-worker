@@ -18,7 +18,7 @@ import {
   incidentTitle,
   shouldCreateIncident,
 } from "./main-write-incidents.ts";
-import { reconcileMisattributedMainStatuses } from "./reconcile-main-pr-statuses.ts";
+import { reconcileMisattributedMainStatuses } from "./main-status-reconcile.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { hasValidStatusAttestation, signedStatusDescription } from "./status-attestation.ts";
