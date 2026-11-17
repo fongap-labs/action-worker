@@ -72,9 +72,10 @@ export function verifyPrivateRefEvidence(
   if (!isJsonRecord(runResponse) || !Array.isArray(runResponse.workflow_runs)) fail();
   const runs = getJsonArray(runResponse, "workflow_runs");
   if (
+    typeof runResponse.total_count !== "number" ||
     !Number.isSafeInteger(runResponse.total_count) ||
-    (runResponse.total_count as number) < 0 ||
-    (runResponse.total_count as number) > runs.length
+    runResponse.total_count < 0 ||
+    runResponse.total_count > runs.length
   ) {
     fail();
   }
@@ -94,7 +95,11 @@ export function verifyPrivateRefEvidence(
   if (!Number.isSafeInteger(attempt) || attempt < 1) fail();
   if (!isJsonRecord(jobsResponse) || !Array.isArray(jobsResponse.jobs)) fail();
   const jobs = getJsonArray(jobsResponse, "jobs");
-  if (!Number.isSafeInteger(jobsResponse.total_count) || jobsResponse.total_count !== jobs.length) {
+  if (
+    typeof jobsResponse.total_count !== "number" ||
+    !Number.isSafeInteger(jobsResponse.total_count) ||
+    jobsResponse.total_count !== jobs.length
+  ) {
     fail();
   }
   const expected = new Set([
