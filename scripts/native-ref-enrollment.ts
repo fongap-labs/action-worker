@@ -14,6 +14,7 @@ export function resolveNativePrivateRef(
 ): boolean {
   if (
     !repositoryPattern.test(repository) ||
+    repository.includes("..") ||
     (privateFlag !== "true" && privateFlag !== "false") ||
     !/^(?:0|[1-9][0-9]*)$/.test(prNumber)
   ) {
@@ -26,11 +27,13 @@ export function resolveNativePrivateRef(
   for (const entry of policy.callers) {
     if (
       !isJsonRecord(entry) ||
-      !repositoryPattern.test(entry.repository as string) ||
+      typeof entry.repository !== "string" ||
+      !repositoryPattern.test(entry.repository) ||
+      entry.repository.includes("..") ||
       entry.path !== path ||
       typeof entry.sha256 !== "string" ||
       !/^[0-9a-f]{64}$/.test(entry.sha256) ||
-      names.has(entry.repository as string)
+      names.has(entry.repository)
     ) {
       throw new CliError("Invalid or duplicated private ref CI caller policy.", 65);
     }
