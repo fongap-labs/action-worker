@@ -19,10 +19,12 @@ test("source-owned CI runs only in the private caller with no central secret", a
   const source = await readFile(".github/workflows/private-source-ci.yml", "utf8");
   const workflow = parse(source) as Workflow;
   assert.deepEqual(workflow.permissions, { contents: "read" });
-  assert.doesNotMatch(source, /secrets\.|secrets:|pull_request_target|workflow_dispatch/);
+  assert.doesNotMatch(source, /secrets\.|secrets:|workflow_dispatch/);
   assert.match(source, /IS_PRIVATE.*github\.event\.repository\.private/);
   assert.match(source, /SOURCE.*github\.event\.pull_request\.head\.repo\.full_name/);
   assert.match(source, /EVENT_BASE|EVENT_HEAD/);
+  assert.ok(source.includes('"$EVENT" == "pull_request_target"'));
+  assert.doesNotMatch(source, /github\.sha/);
 });
 
 test("every Linux shard and Windows use trusted base controls and exact PR merge SHA", async () => {
@@ -45,7 +47,7 @@ test("every Linux shard and Windows use trusted base controls and exact PR merge
     const merge = steps.find((x) => x.name === "Checkout private PR merge snapshot");
     const controls = steps.find((x) => x.name === "Checkout trusted private CI controls");
     const pack = steps.find((x) => x.name === "Checkout pinned public test pack");
-    assert.equal(merge?.with?.ref, "${{ github.sha }}");
+    assert.equal(merge?.with?.ref, "${{ needs.prepare.outputs.merge_sha }}");
     assert.equal(controls?.with?.ref, "${{ inputs.base_sha }}");
     assert.equal(pack?.with?.ref, "${{ inputs.action_worker_sha }}");
     for (const step of [merge, controls, pack]) {
@@ -66,4 +68,20 @@ test("private CI plan is not a forged public control-plane verdict", async () =>
   assert.match(plan, /resolveLinuxShards/);
   assert.match(plan, /declaresWindows !== hasWindowsScript/);
   assert.doesNotMatch(source, /CI Evidence|write-commit-status|continue-on-error/);
+});
+
+test("private caller pins PR merge parents and executes mandatory private security", async () => {
+  const source = await readFile(".github/workflows/private-source-ci.yml", "utf8");
+  const workflow = parse(source) as Workflow;
+  const prep = workflow.jobs.prepare;
+  const security = workflow.jobs.security;
+  assert.ok(prep?.steps.some((step) => step.name === "Pin and verify PR merge parents"));
+  assert.match(source, /refs\/pull\/\$\{\{ github\.event\.pull_request\.number \}\}\/merge/);
+  assert.match(source, /actual_base.*BASE_SHA/);
+  assert.match(source, /actual_head.*HEAD_SHA/);
+  assert.ok(security);
+  assert.ok(security.steps.some((step) => step.name === "Validate source security and dependency locks"));
+  assert.match(JSON.stringify(security.steps), /validate-security\.ts/);
+  assert.match(JSON.stringify(security.steps), /dependency-lock-integrity\.ts/);
+  assert.doesNotMatch(source, /persist-credentials: true|secrets\./);
 });
