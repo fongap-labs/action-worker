@@ -21,7 +21,7 @@ function fixture() {
   const run = {
     id: 99,
     run_attempt: 1,
-    name: `private-ci-${identity.prNumber}-${identity.baseSha}-${identity.headSha}`
+    name: `private-ci-${identity.prNumber}-${identity.baseSha}-${identity.headSha}`,
     workflow_id: 418196779,
     display_title: `private-ci-${identity.prNumber}-${identity.baseSha}-${identity.headSha}`,
     path: ".github/workflows/private-source-ci.yml",
