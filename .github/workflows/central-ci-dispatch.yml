@@ -38,6 +38,7 @@ jobs:
       private_windows_numeric_diagnostic: ${{ steps.capabilities.outputs.private_windows_numeric_diagnostic }}
       should_run: ${{ steps.ref_facts.outputs.should_run || 'true' }}
       native_private_pilot: ${{ steps.native_pilot.outputs.enabled || 'false' }}
+      native_private_ref: ${{ steps.native_ref.outputs.enabled || 'false' }}
 
     steps:
       - name: Checkout control plane
@@ -188,6 +189,15 @@ jobs:
           EVENT_ACTION: ${{ github.event.action }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number || steps.ref_facts.outputs.pr_number || '0' }}
         run: node scripts/native-ci-enrollment.ts "$REPOSITORY" "$IS_PRIVATE" "$EVENT_ACTION" "$PR_NUMBER"
+
+      - name: Resolve source-owned private main
+        id: native_ref
+        env:
+          REPOSITORY: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
+          IS_PRIVATE: ${{ steps.visibility.outputs.is_private }}
+          EVENT_ACTION: ${{ github.event.action }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number || steps.ref_facts.outputs.pr_number || '0' }}
+        run: node scripts/native-ref-enrollment.ts "$REPOSITORY" "$IS_PRIVATE" "$EVENT_ACTION" "$PR_NUMBER"
 
       - name: Resolve PR facts
         id: facts
@@ -362,10 +372,64 @@ jobs:
             sleep 30
           done
 
+  native-private-ref:
+    name: Verify native private main CI evidence
+    needs: prepare
+    if: needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.native_private_ref == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions: {}
+
+    steps:
+      - name: Checkout trusted controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Mint source-only private main read token
+        id: source_read_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ needs.prepare.outputs.owner }}
+          repositories: ${{ needs.prepare.outputs.repository_name }}
+          permission-actions: read
+          permission-contents: read
+
+      - name: Verify source-owned immutable main CI evidence
+        env:
+          AW_NATIVE_PRIVATE_CI_READ_TOKEN: ${{ steps.source_read_app.outputs.token }}
+          REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+          LINUX_SHARDS: ${{ needs.prepare.outputs.linux_shards }}
+          HAS_WINDOWS: ${{ needs.prepare.outputs.has_windows }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          for attempt in {1..40}; do
+            if node scripts/private-ref-gate.ts "$REPOSITORY" "$BASE_SHA" "$HEAD_SHA" "$LINUX_SHARDS" "$HAS_WINDOWS"; then
+              echo "Native private main CI evidence verified for the immutable push."
+              exit 0
+            fi
+            if [ "$attempt" -eq 40 ]; then
+              echo "::error::Private main CI evidence not verified after bounded retry." >&2
+              exit 65
+            fi
+            sleep 60
+          done
+
   linux:
     name: Central CI / Linux (${{ matrix.shard }})
     needs: prepare
-    if: needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.native_private_pilot != 'true'
+    if: needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.native_private_pilot != 'true' && needs.prepare.outputs.native_private_ref != 'true'
     strategy:
       fail-fast: true
       matrix:
@@ -392,7 +456,7 @@ jobs:
   security:
     name: Central CI / Security
     needs: prepare
-    if: needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.native_private_pilot != 'true'
+    if: needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.native_private_pilot != 'true' && needs.prepare.outputs.native_private_ref != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
@@ -475,7 +539,7 @@ jobs:
   windows:
     name: Central CI / Windows
     needs: prepare
-    if: needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.has_windows == 'true' && needs.prepare.outputs.native_private_pilot != 'true'
+    if: needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.has_windows == 'true' && needs.prepare.outputs.native_private_pilot != 'true' && needs.prepare.outputs.native_private_ref != 'true'
     uses: ./.github/workflows/central-ci-sandbox.yml
     with:
       platform: windows
@@ -503,6 +567,7 @@ jobs:
       - security
       - windows
       - native-private-pilot
+      - native-private-ref
     if: always() && needs.prepare.result == 'success' && needs.prepare.outputs.should_run != 'false'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -566,6 +631,8 @@ jobs:
           WINDOWS_DIAGNOSTIC: ${{ needs.windows.outputs.windows_diagnostic || '' }}
           NATIVE_PRIVATE_PILOT: ${{ needs.prepare.outputs.native_private_pilot }}
           NATIVE_PRIVATE_RESULT: ${{ needs['native-private-pilot'].result }}
+          NATIVE_PRIVATE_REF: ${{ needs.prepare.outputs.native_private_ref }}
+          NATIVE_PRIVATE_REF_RESULT: ${{ needs['native-private-ref'].result }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         shell: bash
         run: |
@@ -573,7 +640,7 @@ jobs:
           # A cancelled run carries no verdict: a newer dispatch of the same head cancelled it, or
           # the pull request closed. Writing failure here would replace the pending status of the
           # newer run, and PR Governance would fail on a run that was superseded.
-          if [[ "$NATIVE_PRIVATE_PILOT" != "true" ]] && [[ "$LINUX_RESULT" == "cancelled" || "$SECURITY_RESULT" == "cancelled" || "$WINDOWS_RESULT" == "cancelled" ]]; then
+          if [[ "$NATIVE_PRIVATE_PILOT" != "true" && "$NATIVE_PRIVATE_REF" != "true" ]] && [[ "$LINUX_RESULT" == "cancelled" || "$SECURITY_RESULT" == "cancelled" || "$WINDOWS_RESULT" == "cancelled" ]]; then
             echo "Central CI was cancelled for $REPOSITORY@$HEAD_SHA; CI Evidence is left to the run that replaces it."
             exit 0
           fi
@@ -582,7 +649,16 @@ jobs:
           description="Central CI failed"
           # Enrolled private PRs have one authority: the audited source-owned run.
           # The public control plane may not execute the source or fall back to its old jobs.
-          if [[ "$NATIVE_PRIVATE_PILOT" == "true" ]]; then
+          if [[ "$NATIVE_PRIVATE_REF" == "true" ]]; then
+            if [[ "$NATIVE_PRIVATE_PILOT" == "true" || "$LINUX_RESULT" != "skipped" || "$SECURITY_RESULT" != "skipped" || "$WINDOWS_RESULT" != "skipped" ]]; then
+              description="Private main CI isolation contract violated"
+            elif [[ "$NATIVE_PRIVATE_REF_RESULT" == "success" ]]; then
+              state=success
+              description="Native private main CI evidence verified"
+            else
+              description="Native private main CI evidence failed"
+            fi
+          elif [[ "$NATIVE_PRIVATE_PILOT" == "true" ]]; then
             if [[ "$LINUX_RESULT" != "skipped" || "$SECURITY_RESULT" != "skipped" || "$WINDOWS_RESULT" != "skipped" ]]; then
               description="Private CI isolation contract violated"
             elif [[ "$NATIVE_PRIVATE_RESULT" == "success" ]]; then

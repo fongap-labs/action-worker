@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 已登记私有 main/ref 的中央 CI 仅通过源仓原生 CI 只读核验签发 CI Evidence，公共 Linux/Windows/Security 作业严格跳过；失败、缺失、取消或混用旧作业时禁止成功，其他仓库及发布路径不变。
+
 - 新增: 私有 main 原生 CI 只读核验器与精确 Caller SHA256 白名单，拒绝错误主分支、陈旧 SHA、提交双亲不符、缺失/跳过必需 Job 或非受保护调用器；暂不替换中央 main/ref 门禁。
 
 - 新增: 引入受保护私有 main 的原生 CI 可复用工作流，严格核对推送事件、单亲提交 SHA 和私有仓身份；Linux、Windows、安全检查仅在源仓 Runner 执行，失败或跳过必需检查即阻断，不改变中央 main/发布门禁。
