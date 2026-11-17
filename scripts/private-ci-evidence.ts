@@ -39,22 +39,8 @@ function assertIdentity(identity: PrivateCiIdentity): void {
   }
 }
 
-function matchingPull(value: unknown, identity: PrivateCiIdentity, repoId: number): boolean {
-  if (!isJsonRecord(value) || getJsonNumber(value, "number") !== identity.prNumber) return false;
-  const { head, base } = value;
-  if (!isJsonRecord(head) || !isJsonRecord(base)) return false;
-  const source = head.repo;
-  const target = base.repo;
-  return (
-    getJsonString(head, "sha") === identity.headSha &&
-    getJsonString(head, "ref") === identity.headBranch &&
-    getJsonString(base, "sha") === identity.baseSha &&
-    getJsonString(base, "ref") === "main" &&
-    isJsonRecord(source) &&
-    isJsonRecord(target) &&
-    getJsonNumber(source, "id") === repoId &&
-    getJsonNumber(target, "id") === repoId
-  );
+function expectedRunTitle(identity: PrivateCiIdentity): string {
+  return `private-ci-${identity.prNumber}-${identity.baseSha}-${identity.headSha}`;
 }
 
 function matchingRun(value: unknown, identity: PrivateCiIdentity): boolean {
@@ -65,13 +51,15 @@ function matchingRun(value: unknown, identity: PrivateCiIdentity): boolean {
     isJsonRecord(repo) &&
     getJsonString(repo, "full_name") === identity.repository &&
     repoId > 0 &&
+    getJsonString(value, "name") === "Private source CI" &&
+    getJsonNumber(value, "workflow_id") > 0 &&
     getJsonString(value, "path") === workflowPath &&
     getJsonString(value, "event") === "pull_request_target" &&
     getJsonString(value, "head_sha") === identity.headSha &&
     getJsonString(value, "head_branch") === identity.headBranch &&
     getJsonNumber(value, "id") > 0 &&
     Number.isSafeInteger(getJsonNumber(value, "id")) &&
-    getJsonArray(value, "pull_requests").some((pr) => matchingPull(pr, identity, repoId))
+    getJsonString(value, "display_title") === expectedRunTitle(identity)
   );
 }
 

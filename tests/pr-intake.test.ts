@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { scanOpenPullRequests } from "../scripts/intake-open-prs.ts";
 import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
-import { AWAITING_APPROVAL_DESCRIPTION } from "../scripts/pr-trust.ts";
+
 import { attestFixtureResponseForPath } from "./attested-status-fixtures.ts";
 
 const shaA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -140,7 +140,7 @@ test("central PR intake scans every managed repository independent of visibility
     repair_blocked: 0,
     in_flight: 1,
     already_processed: 1,
-    awaiting_approval: 0,
+    blocked_unauthorized: 0,
   });
 });
 
@@ -540,12 +540,12 @@ test("central PR intake routes matching source-owned dependency repair before go
   assert.equal(result.repair_blocked, 0);
 });
 
-test("central PR intake leaves a pull request that awaits approval alone until it is approved", async () => {
+test("central PR intake leaves unauthorized heads blocked without reading PR reviews", async () => {
   const repository = "fongap-labs/private-one";
-  const awaiting = {
+  const rejected = {
     context: "PR Governance",
     state: "failure",
-    description: AWAITING_APPROVAL_DESCRIPTION,
+    description: "Action Worker PR governance failed",
     target_url: "https://github.com/fongap-labs/action-worker/actions/runs/31",
   };
   const pull = (number: number, sha: string) => ({
@@ -557,20 +557,8 @@ test("central PR intake leaves a pull request that awaits approval alone until i
   });
   const responses = new Map<string, unknown>([
     [`repos/${repository}/pulls?state=open&per_page=100&page=1`, [pull(41, shaA), pull(42, shaB)]],
-    [`repos/${repository}/commits/${shaA}/status`, { statuses: [awaiting] }],
-    [`repos/${repository}/commits/${shaB}/status`, { statuses: [awaiting] }],
-    [`repos/${repository}/pulls/41/reviews?per_page=100&page=1`, []],
-    [
-      `repos/${repository}/pulls/42/reviews?per_page=100&page=1`,
-      [
-        {
-          user: { login: "maintainer" },
-          state: "APPROVED",
-          author_association: "MEMBER",
-          commit_id: shaB,
-        },
-      ],
-    ],
+    [`repos/${repository}/commits/${shaA}/status`, { statuses: [rejected] }],
+    [`repos/${repository}/commits/${shaB}/status`, { statuses: [rejected] }],
   ]);
 
   const dispatched: number[] = [];
@@ -588,9 +576,9 @@ test("central PR intake leaves a pull request that awaits approval alone until i
     "fongap-labs/action-worker"
   );
 
-  assert.deepEqual(dispatched, [42]);
-  assert.equal(result.awaiting_approval, 1);
-  assert.equal(result.dispatched, 1);
+  assert.deepEqual(dispatched, []);
+  assert.equal(result.blocked_unauthorized, 2);
+  assert.equal(result.dispatched, 0);
 });
 
 test("central intake retries a signed CI-green PR only when its same-repository branch is behind", async () => {

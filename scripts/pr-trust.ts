@@ -1,4 +1,4 @@
-import { getGithubJson, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
+import { getGithubJson, getJsonString, isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -11,20 +11,13 @@ export const TRUSTED_ASSOCIATIONS: ReadonlySet<string> = new Set([
   "COLLABORATOR",
 ]);
 
-const DECISIVE_REVIEW_STATES = new Set(["APPROVED", "CHANGES_REQUESTED", "DISMISSED"]);
-
 // Dependabot is a GitHub App, so no account can register this login.
 const DEPENDENCY_BOT_LOGIN = "dependabot[bot]";
 const MANAGED_APP_LOGIN = "fongap-bot[bot]";
 
-// Written as the PR Governance description while a pull request waits for approval; central
-// intake reads it back and stops re-dispatching until an approval of the head commit exists.
-export const AWAITING_APPROVAL_DESCRIPTION =
-  "Awaiting maintainer approval of the current head commit";
-
 export type PrTrustDecision = {
   trusted: boolean;
-  basis: "author" | "approval" | "dependency-bot" | "managed-app" | "none";
+  basis: "author" | "dependency-bot" | "managed-app" | "none";
   association: string;
 };
 
@@ -68,12 +61,11 @@ function isManagedAppPull(pull: Record<string, unknown>): boolean {
   );
 }
 
-// A pull request may run change code centrally when its author is trusted, or when a trusted
-// reviewer other than the author approved the exact head commit. Approval never carries over to
-// a later push because it is bound to the reviewed commit.
+// Only repository writers and scoped organization bots can run code through central CI.
+// External PR reviews are never interpreted as a second-person execution authorization.
 export function evaluatePrTrust(
   pull: unknown,
-  reviews: readonly unknown[],
+  _reviews: readonly unknown[],
   expectedHeadSha: string
 ): PrTrustDecision {
   if (!shaPattern.test(expectedHeadSha)) {
@@ -98,44 +90,7 @@ export function evaluatePrTrust(
     return { trusted: true, basis: "managed-app", association };
   }
 
-  // Reviews arrive in submission order; each reviewer's latest decisive review on the head wins.
-  const author = login(pull.user);
-  const latestByReviewer = new Map<string, string>();
-  for (const review of reviews) {
-    if (!isJsonRecord(review)) continue;
-    const reviewer = login(review.user);
-    const state = getJsonString(review, "state");
-    if (
-      !reviewer ||
-      reviewer === author ||
-      getJsonString(review, "commit_id") !== expectedHeadSha ||
-      !TRUSTED_ASSOCIATIONS.has(getJsonString(review, "author_association").toUpperCase()) ||
-      !DECISIVE_REVIEW_STATES.has(state)
-    ) {
-      continue;
-    }
-    latestByReviewer.set(reviewer, state);
-  }
-  const approved = [...latestByReviewer.values()].includes("APPROVED");
-  return { trusted: approved, basis: approved ? "approval" : "none", association };
-}
-
-export async function listPullReviews(
-  reader: { get(path: string): Promise<unknown> },
-  repository: string,
-  prNumber: number | string
-): Promise<unknown[]> {
-  const reviews: unknown[] = [];
-  for (let page = 1; page <= 20; page += 1) {
-    const rows = getJsonArray(
-      await reader.get(`repos/${repository}/pulls/${prNumber}/reviews?per_page=100&page=${page}`)
-    );
-    reviews.push(...rows);
-    if (rows.length < 100) {
-      return reviews;
-    }
-  }
-  throw new CliError("PR review list exceeds the supported pagination limit.", 65);
+  return { trusted: false, basis: "none", association };
 }
 
 async function main(): Promise<void> {
@@ -147,32 +102,20 @@ async function main(): Promise<void> {
 
   const reader = { get: (path: string) => getGithubJson(path, token) };
   const pull = await reader.get(`repos/${repository}/pulls/${prNumber}`);
-  const decision = evaluatePrTrust(
-    pull,
-    await listPullReviews(reader, repository, prNumber),
-    expectedHeadSha
-  );
+  const decision = evaluatePrTrust(pull, [], expectedHeadSha);
+  // Fail before publishing a trusted output: no review or secondary approval can grant
+  // permission to execute untrusted code in the central control runner.
+  if (!decision.trusted) {
+    throw new CliError(
+      `::error::${repository}#${prNumber} is from an author without central CI authorization (${decision.association || "NONE"}). Only repository writers and the managed organization bot can run code.`,
+      77
+    );
+  }
   await appendLines(process.env.GITHUB_OUTPUT, [
     `trusted=${decision.trusted}`,
     `basis=${decision.basis}`,
   ]);
   console.log(JSON.stringify(decision));
-  // PR Governance reports an untrusted head as awaiting approval and stops there. Every other
-  // caller, including the Central CI that executes change code, keeps failing closed.
-  if (!decision.trusted && process.env.PR_TRUST_UNTRUSTED === "report") {
-    console.log(
-      `::notice::${repository}#${prNumber} is from an author without write access (${decision.association || "NONE"}). ` +
-        "Central CI starts after a maintainer approves the current head commit."
-    );
-    return;
-  }
-  if (!decision.trusted) {
-    throw new CliError(
-      `::error::${repository}#${prNumber} is from an author without write access (${decision.association || "NONE"}). ` +
-        "Central CI runs its code only after a maintainer approves the current head commit; approve it, then re-run this workflow.",
-      77
-    );
-  }
 }
 
 if (isMain(import.meta.url)) {

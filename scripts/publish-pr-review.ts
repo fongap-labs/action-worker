@@ -153,12 +153,7 @@ export function buildReview(
   isReviewFinished = false,
   gateDiagnostics: readonly string[] = []
 ): string {
-  const gate =
-    status === "success"
-      ? "PASS"
-      : status === "awaiting-approval"
-        ? "WAITING FOR APPROVAL"
-        : "FAIL";
+  const gate = status === "success" ? "PASS" : "FAIL";
   const lines = [marker, "## PR Governance", "", `- Gate: **${gate}**`];
   if (requiresMergeBlockedLabel(status)) {
     lines.push(
@@ -170,13 +165,6 @@ export function buildReview(
     lines.push(
       "",
       "Use linked CI/Action Worker job annotations and logs to locate exact file and line references; AI Review cannot override the gate."
-    );
-  }
-  if (status === "awaiting-approval") {
-    lines.push(
-      "- Why: the author has no write access, so Central CI runs this code only after a maintainer approves the current head commit.",
-      "- Next step: a maintainer opens **Files changed → Review changes → Approve**. Nothing else is needed: Action Worker continues automatically after the approval on its next Intake run, usually within an hour; any push to main of a managed repository starts that run at once.",
-      "- A new push needs a new approval."
     );
   }
   lines.push("- AI Review role: advisory only; findings do not determine the gate.");
@@ -306,12 +294,7 @@ async function main(): Promise<void> {
     );
     return;
   }
-  const status =
-    gate.status === "success"
-      ? "success"
-      : rawStatus === "awaiting-approval"
-        ? "awaiting-approval"
-        : "failure";
+  const status = gate.status === "success" ? "success" : "failure";
   if (rawStatus === "success" && status !== "success") {
     console.warn(
       `::warning::PR review cannot claim success without current-head central gates: ${repository}#${prNumber}.`

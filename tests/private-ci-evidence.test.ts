@@ -20,6 +20,9 @@ function fixture() {
   const run = {
     id: 99,
     run_attempt: 1,
+    name: "Private source CI",
+    workflow_id: 418196779,
+    display_title: `private-ci-${identity.prNumber}-${identity.baseSha}-${identity.headSha}`,
     path: ".github/workflows/private-source-ci.yml",
     event: "pull_request_target",
     status: "completed",
@@ -27,13 +30,7 @@ function fixture() {
     head_sha: identity.headSha,
     head_branch: identity.headBranch,
     repository: { full_name: identity.repository, id: 42 },
-    pull_requests: [
-      {
-        number: 12,
-        head: { sha: identity.headSha, ref: identity.headBranch, repo: { id: 42 } },
-        base: { sha: identity.baseSha, ref: "main", repo: { id: 42 } },
-      },
-    ],
+    pull_requests: [],
   };
   const names = [
     "Verify caller and trusted CI plan",
@@ -75,16 +72,22 @@ test("private CI refuses stale, forged, skipped and incomplete evidence", () => 
       v.runs.workflow_runs[0]!.path = ".github/workflows/untrusted.yml";
     },
     (v) => {
-      v.runs.workflow_runs[0]!.pull_requests[0]!.base.ref = "dev";
+      v.runs.workflow_runs[0]!.display_title = `private-ci-13-${identity.baseSha}-${identity.headSha}`;
     },
     (v) => {
       v.runs.workflow_runs[0]!.run_attempt = 0;
     },
     (v) => {
-      v.runs.workflow_runs[0]!.pull_requests[0]!.base.sha = "c".repeat(40);
+      v.runs.workflow_runs[0]!.workflow_id = 0;
     },
     (v) => {
-      v.runs.workflow_runs[0]!.pull_requests[0]!.head.repo.id = 99;
+      v.runs.workflow_runs[0]!.name = "Untrusted workflow";
+    },
+    (v) => {
+      v.runs.workflow_runs[0]!.display_title = `private-ci-${identity.prNumber}-${"c".repeat(40)}-${identity.headSha}`;
+    },
+    (v) => {
+      v.runs.workflow_runs[0]!.repository.full_name = "other/repository";
     },
     (v) => {
       v.runs.workflow_runs[0]!.conclusion = "failure";
