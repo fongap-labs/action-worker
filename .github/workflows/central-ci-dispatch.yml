@@ -37,6 +37,7 @@ jobs:
       linux_shards: ${{ steps.capabilities.outputs.linux_shards }}
       private_windows_numeric_diagnostic: ${{ steps.capabilities.outputs.private_windows_numeric_diagnostic }}
       should_run: ${{ steps.ref_facts.outputs.should_run || 'true' }}
+      native_private_pilot: ${{ steps.native_pilot.outputs.enabled || 'false' }}
 
     steps:
       - name: Checkout control plane
@@ -178,6 +179,16 @@ jobs:
           IS_PRIVATE: ${{ steps.visibility.outputs.is_private }}
         run: node scripts/resolve-ci-capabilities.ts "$REPOSITORY" "$CONTROL_REF"
 
+      # A versioned allowlist, not environment variables, controls opt-in.
+      - name: Resolve native private CI pilot
+        id: native_pilot
+        env:
+          REPOSITORY: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
+          IS_PRIVATE: ${{ steps.visibility.outputs.is_private }}
+          EVENT_ACTION: ${{ github.event.action }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number || steps.ref_facts.outputs.pr_number || '0' }}
+        run: node scripts/native-ci-enrollment.ts "$REPOSITORY" "$IS_PRIVATE" "$EVENT_ACTION" "$PR_NUMBER"
+
       - name: Resolve PR facts
         id: facts
         if: github.event.action == 'run-central-ci'
@@ -291,6 +302,65 @@ jobs:
           }
           node scripts/write-commit-status.ts "$REPOSITORY" "$HEAD_SHA" pending \
             "CI Evidence" "Central CI running; awaiting test verdict" "$RUN_URL"
+
+  native-private-pilot:
+    name: Verify native private CI evidence (pilot)
+    needs: prepare
+    if: needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.native_private_pilot == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions: {}
+
+    steps:
+      - name: Checkout trusted controller
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Mint source-only read token
+        id: source_read_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ needs.prepare.outputs.owner }}
+          repositories: ${{ needs.prepare.outputs.repository_name }}
+          permission-actions: read
+          permission-contents: read
+          permission-pull-requests: read
+
+      # Observational pilot: it never checks out or executes the private repository,
+      # and cannot publish CI Evidence. The existing gate remains authoritative.
+      - name: Verify immutable source CI evidence
+        env:
+          AW_NATIVE_PRIVATE_CI_READ_TOKEN: ${{ steps.source_read_app.outputs.token }}
+          REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
+          BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
+          HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
+          MERGE_SHA: ${{ needs.prepare.outputs.merge_sha }}
+          LINUX_SHARDS: ${{ needs.prepare.outputs.linux_shards }}
+          HAS_WINDOWS: ${{ needs.prepare.outputs.has_windows }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          for attempt in {1..16}; do
+            if node scripts/private-ci-gate.ts "$REPOSITORY" "$PR_NUMBER" "$BASE_SHA" "$HEAD_SHA" "$MERGE_SHA" "$LINUX_SHARDS" "$HAS_WINDOWS"; then
+              echo "Native private CI evidence verified for this immutable PR snapshot."
+              exit 0
+            fi
+            if [ "$attempt" -eq 16 ]; then
+              echo "::error::Native private CI evidence was not verified after bounded retry." >&2
+              exit 65
+            fi
+            sleep 30
+          done
 
   linux:
     name: Central CI / Linux (${{ matrix.shard }})
