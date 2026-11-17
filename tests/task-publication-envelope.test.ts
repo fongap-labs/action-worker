@@ -365,14 +365,17 @@ test("private task concurrency uses a stable opaque project key", () => {
   assert.notEqual(group, taskConcurrencyGroup("fongap-labs/different-source", "project-1"));
 });
 
-test("publisher waits for current-head review without bypassing central governance", async () => {
+test("task publication preserves licenses, records changes, and uses CI-only governance", async () => {
   const source = await readFile(".github/workflows/handle-task-dispatch.yml", "utf8");
   const publisher = source.split("  publish:")[1] ?? "";
-  assert.match(publisher, /Awaiting maintainer approval of the current head commit/);
-  assert.match(publisher, /review_count=/);
-  assert.match(publisher, /approval_wake_sent=true/);
-  assert.match(publisher, /Central governance dispatch failed after maintainer review/);
-  assert.match(publisher, /failure_reads=0/);
+  assert.match(publisher, /license_snapshot=/);
+  assert.ok(publisher.includes("-iname '*.license'"));
+  assert.ok(publisher.includes('cp -an "$license_snapshot"/. "$target_dir"/'));
+  assert.ok(publisher.includes('git -C "$WORK_DIR/target" add -- CHANGELOG.md'));
+  assert.ok(publisher.includes("changelog_entry="));
+  assert.ok(publisher.includes("process.env.GITHUB_RUN_ID"));
+  assert.doesNotMatch(publisher, /Awaiting maintainer approval of the current head commit/);
+  assert.doesNotMatch(publisher, /review_count=/);
   assert.match(publisher, /failed the validate-merge check/);
   assert.doesNotMatch(publisher, /--admin|--bypass/);
 });
