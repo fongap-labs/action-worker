@@ -86,7 +86,9 @@ test("private caller pins PR merge parents and executes mandatory private securi
   assert.match(JSON.stringify(security.steps), /validate-security\.ts/);
   assert.match(JSON.stringify(security.steps), /dependency-lock-integrity\.ts/);
   assert.doesNotMatch(source, /persist-credentials: true|secrets\./);
-  const pinned = security.steps.find((step) => step.name === "Checkout pinned public security tools");
+  const pinned = security.steps.find(
+    (step) => step.name === "Checkout pinned public security tools"
+  );
   const policy = security.steps.find(
     (step) => step.name === "Checkout protected current security policy"
   );
@@ -95,14 +97,15 @@ test("private caller pins PR merge parents and executes mandatory private securi
   assert.equal(policy?.with?.repository, "fongap-labs/action-worker");
   assert.equal(policy?.with?.ref, "main");
   assert.equal(policy?.with?.["persist-credentials"], false);
-  const verification = security.steps.find((step) => step.name === "Verify immutable security inputs");
+  const verification = security.steps.find(
+    (step) => step.name === "Verify immutable security inputs"
+  );
   const gate = security.steps.find(
     (step) => step.name === "Validate source security and dependency locks"
   );
   assert.match(JSON.stringify(verification), /Trusted security policy commit:/);
   assert.ok(JSON.stringify(gate).includes("GITHUB_WORKSPACE/policy/policies/security.json"));
   assert.ok(!JSON.stringify(gate).includes("GITHUB_WORKSPACE/aw/policies/security.json"));
-
 });
 
 test("pinned private caller is read-only and matches audited workflow hash", async () => {
