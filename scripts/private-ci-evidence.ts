@@ -1,4 +1,12 @@
-import { getJsonArray, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import {
+  decodeGithubContent,
+  getJsonArray,
+  getJsonNumber,
+  getJsonString,
+  isJsonRecord,
+} from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -143,6 +151,26 @@ export async function fetchAndVerifyPrivateCiEvidence(
 ): Promise<VerifiedPrivateCi> {
   assertIdentity(identity);
   const repo = identity.repository;
+  // A run title is trusted only when its caller is the audited workflow on the exact PR base.
+  const [caller, policyText] = await Promise.all([
+    reader.get(`repos/${repo}/contents/${workflowPath}?ref=${identity.baseSha}`),
+    readFile("policies/security.json", "utf8"),
+  ]);
+  const policy: unknown = JSON.parse(policyText);
+  if (!isJsonRecord(caller) || !isJsonRecord(policy)) fail();
+  if (getJsonString(caller, "path") !== workflowPath || getJsonString(caller, "type") !== "file") {
+    fail();
+  }
+  const matches = getJsonArray(policy, "approved_workflows").filter(
+    (item) => isJsonRecord(item) && getJsonString(item, "path") === workflowPath
+  );
+  if (matches.length !== 1) fail();
+  const trustedHash = getJsonString(matches[0], "sha256");
+  if (!/^[0-9a-f]{64}$/.test(trustedHash)) fail();
+  const content = decodeGithubContent(caller);
+  const actualHash = createHash("sha256").update(content.replace(/\r\n/g, "\n")).digest("hex");
+  if (actualHash !== trustedHash) fail();
+
   const runs = await reader.get(
     `repos/${repo}/actions/workflows/private-source-ci.yml/runs?event=pull_request_target&head_sha=${identity.headSha}&per_page=100`
   );

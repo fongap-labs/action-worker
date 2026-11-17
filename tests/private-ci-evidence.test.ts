@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
   fetchAndVerifyPrivateCiEvidence,
@@ -148,19 +149,48 @@ test("private CI rejects stale failures even if an older run passed", () => {
   assert.throws(() => verifyPrivateCiEvidence(identity, data.runs, data.jobs));
 });
 
-test("private CI reads only repository-scoped source workflow runs and jobs", async () => {
-  const fixtureData = fixture();
-  const requests: string[] = [];
-  const reader = {
-    get: async (path: string): Promise<unknown> => {
-      requests.push(path);
-      return requests.length === 1 ? fixtureData.runs : fixtureData.jobs;
-    },
+test("private CI accepts only the exact audited caller from a protected base SHA", async () => {
+  const { runs, jobs } = fixture();
+  const callerContent = await readFile("templates/bridge/private-source-ci.yml", "utf8");
+  const callerPath = `repos/${identity.repository}/contents/.github/workflows/private-source-ci.yml?ref=${identity.baseSha}`;
+  const runPath = `repos/${identity.repository}/actions/workflows/private-source-ci.yml/runs?event=pull_request_target&head_sha=${identity.headSha}&per_page=100`;
+  const jobPath = `repos/${identity.repository}/actions/runs/99/jobs?per_page=100&filter=latest`;
+  const caller = {
+    path: ".github/workflows/private-source-ci.yml",
+    type: "file",
+    encoding: "base64",
+    content: Buffer.from(callerContent).toString("base64"),
   };
-  const actual = await fetchAndVerifyPrivateCiEvidence(reader, identity);
-  assert.deepEqual(actual, { runId: 99, runAttempt: 1 });
-  assert.deepEqual(requests, [
-    `repos/${identity.repository}/actions/workflows/private-source-ci.yml/runs?event=pull_request_target&head_sha=${identity.headSha}&per_page=100`,
-    `repos/${identity.repository}/actions/runs/99/jobs?per_page=100&filter=latest`,
+  const responses = new Map<string, unknown>([
+    [callerPath, caller],
+    [runPath, runs],
+    [jobPath, jobs],
   ]);
+  const reader = {
+    get: async (path: string): Promise<unknown> => responses.get(path),
+  };
+  assert.deepEqual(await fetchAndVerifyPrivateCiEvidence(reader, identity), {
+    runId: 99,
+    runAttempt: 1,
+  });
+
+  for (const invalid of [
+    { ...caller, content: Buffer.from(`${callerContent}# altered`).toString("base64") },
+    { ...caller, path: ".github/workflows/unknown.yml" },
+    { ...caller, type: "dir" },
+    { ...caller, encoding: "utf8" },
+  ]) {
+    await assert.rejects(
+      fetchAndVerifyPrivateCiEvidence(
+        {
+          get: async (path: string): Promise<unknown> =>
+            path === callerPath ? invalid : responses.get(path),
+        },
+        identity
+      )
+    );
+  }
+  await assert.rejects(
+    fetchAndVerifyPrivateCiEvidence(reader, { ...identity, baseSha: "c".repeat(40) })
+  );
 });
