@@ -1503,13 +1503,13 @@ test("a cancelled PR Governance run still resolves the status it owns", async ()
 });
 
 test("only PR Governance reports an untrusted head instead of failing", async () => {
-  const { AWAITING_APPROVAL_DESCRIPTION } = await import("../scripts/pr-trust.ts");
   const governance = await text(".github/workflows/handle-pr-dispatch.yml");
   assert.match(
     governance,
     /- name: Enforce PR trust\n\s+id: trust\n\s+env:\n\s+PR_TRUST_UNTRUSTED: report\n/
   );
-  assert.equal(governance.split(`'${AWAITING_APPROVAL_DESCRIPTION}'`).length - 1, 2);
+  assert.equal(governance.split("'Author lacks CI authorization'").length - 1, 2);
+  assert.doesNotMatch(governance, /Awaiting maintainer approval|awaiting-approval/);
   for (const step of ["Dispatch centralized CI", "Collect CI evidence", "Validate CI evidence"]) {
     assert.ok(
       governance.includes(`- name: ${step}\n        if: steps.trust.outputs.trusted == 'true' && `),
