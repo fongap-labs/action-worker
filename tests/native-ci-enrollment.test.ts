@@ -8,10 +8,22 @@ const policy = {
 };
 
 test("native evidence pilot is explicitly enrolled for private PRs only", () => {
-  assert.equal(resolveNativeCiPilot(policy, "fongap-labs/delta-legacy", "true", "run-central-ci", "491"), true);
-  assert.equal(resolveNativeCiPilot(policy, "fongap-labs/delta-legacy", "false", "run-central-ci", "491"), false);
-  assert.equal(resolveNativeCiPilot(policy, "fongap-labs/delta-legacy", "true", "run-central-ci-ref", "0"), false);
-  assert.equal(resolveNativeCiPilot(policy, "fongap-labs/delta", "true", "run-central-ci", "491"), false);
+  assert.equal(
+    resolveNativeCiPilot(policy, "fongap-labs/delta-legacy", "true", "run-central-ci", "491"),
+    true
+  );
+  assert.equal(
+    resolveNativeCiPilot(policy, "fongap-labs/delta-legacy", "false", "run-central-ci", "491"),
+    false
+  );
+  assert.equal(
+    resolveNativeCiPilot(policy, "fongap-labs/delta-legacy", "true", "run-central-ci-ref", "0"),
+    false
+  );
+  assert.equal(
+    resolveNativeCiPilot(policy, "fongap-labs/delta", "true", "run-central-ci", "491"),
+    false
+  );
 });
 
 test("native evidence pilot refuses malformed or duplicate enrollment policies", () => {
@@ -21,8 +33,12 @@ test("native evidence pilot refuses malformed or duplicate enrollment policies",
     { ...policy, repositories: ["fongap-labs/delta-legacy", "fongap-labs/delta-legacy"] },
     { ...policy, repositories: ["untrusted"] },
   ]) {
-    assert.throws(() => resolveNativeCiPilot(invalid, "fongap-labs/delta-legacy", "true", "run-central-ci", "491"));
+    assert.throws(() =>
+      resolveNativeCiPilot(invalid, "fongap-labs/delta-legacy", "true", "run-central-ci", "491")
+    );
   }
   assert.throws(() => resolveNativeCiPilot(policy, "invalid", "true", "run-central-ci", "491"));
-  assert.throws(() => resolveNativeCiPilot(policy, "fongap-labs/delta-legacy", "1", "run-central-ci", "491"));
+  assert.throws(() =>
+    resolveNativeCiPilot(policy, "fongap-labs/delta-legacy", "1", "run-central-ci", "491")
+  );
 });
