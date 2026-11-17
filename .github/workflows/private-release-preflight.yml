@@ -1,0 +1,89 @@
+name: Private source release preflight
+
+# Reusable workflow executes in the CALLER's private repository Actions context.
+# No release build, secrets, artifacts, publication, or public-control dispatch occurs.
+on:
+  workflow_call:
+    inputs:
+      source_sha:
+        required: true
+        type: string
+      action_worker_sha:
+        required: true
+        type: string
+      product:
+        required: true
+        type: string
+      requested_version:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Verify immutable private release input
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Require private manual main release at exact SHA
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          IS_PRIVATE: ${{ github.event.repository.private }}
+          REF: ${{ github.ref }}
+          EVENT_SHA: ${{ github.sha }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          ACTION_WORKER_SHA: ${{ inputs.action_worker_sha }}
+          VERSION: ${{ inputs.requested_version }}
+          PRODUCT: ${{ inputs.product }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$EVENT" == "workflow_dispatch" && "$IS_PRIVATE" == "true" ]] || exit 77
+          [[ "$REF" == "refs/heads/main" ]] || exit 77
+          [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 65
+          [[ "$ACTION_WORKER_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 65
+          [[ "$SOURCE_SHA" == "$EVENT_SHA" ]] || exit 75
+          [[ "$VERSION" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-beta\.[1-9][0-9]*)?$ ]] || exit 65
+          [[ "$PRODUCT" =~ ^[a-z0-9]+(-[a-z0-9]+)*$ ]] || exit 65
+
+      - name: Checkout exact private main source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.source_sha }}
+          path: source
+          persist-credentials: false
+
+      - name: Checkout immutable public Action Worker control
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fongap-labs/action-worker
+          ref: ${{ inputs.action_worker_sha }}
+          path: aw
+          persist-credentials: false
+
+      - name: Check immutable revisions and source-owned release manifest
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          ACTION_WORKER_SHA: ${{ inputs.action_worker_sha }}
+          PRODUCT: ${{ inputs.product }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$(git -C source rev-parse HEAD)" == "$SOURCE_SHA" ]] || exit 75
+          [[ "$(git -C aw rev-parse HEAD)" == "$ACTION_WORKER_SHA" ]] || exit 75
+          root="projects/$PRODUCT"
+          manifest="source/$root/release.manifest.json"
+          [[ -f "$manifest" ]] || exit 65
+          jq -e --arg root "$root" '
+            .schema_version == 1 and .root == $root and
+            (.builds | type == "array" and length > 0) and
+            (all(.builds[]; (.script | type == "string") and (.assets | type == "array" and length > 0)))
+          ' "$manifest" >/dev/null || exit 65
+          while IFS= read -r script; do
+            [[ "$script" =~ ^[a-zA-Z0-9._/-]+$ ]] || exit 65
+            [[ "$script" != /* && "$script" != *..* ]] || exit 65
+            [[ -f "source/$root/$script" ]] || exit 65
+          done < <(jq -r '.builds[].script' "$manifest")
+          # This is a validation-only milestone. Do not build, upload, attest or publish here.
