@@ -13,7 +13,9 @@ test("the approved dispatcher hash in the security policy matches the template",
     approved_workflows: Array<{ path: string; sha256: string }>;
   };
   assert.deepEqual(
-    policy.approved_workflows.find((item) => item.path === ".github/workflows/notify-action-worker.yml"),
+    policy.approved_workflows.find(
+      (item) => item.path === ".github/workflows/notify-action-worker.yml"
+    ),
     { path: ".github/workflows/notify-action-worker.yml", sha256: workflowContentHash(template) }
   );
 });
