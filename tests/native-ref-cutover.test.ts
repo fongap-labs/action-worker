@@ -27,8 +27,10 @@ test("only enrolled private ref CI runs the source metadata verifier", () => {
   assert.deepEqual(native.permissions, {});
   assert.ok(native.steps?.some((step) => step.run?.includes("scripts/private-ref-gate.ts")));
   assert.ok(!native.steps?.some((step) => step.name?.includes("Checkout private target source")));
-  assert.ok(text.includes('node scripts/native-ref-enrollment.ts'));
-  assert.ok(text.includes("native_private_ref: ${{ steps.native_ref.outputs.enabled || 'false' }}"));
+  assert.ok(text.includes("node scripts/native-ref-enrollment.ts"));
+  assert.ok(
+    text.includes("native_private_ref: ${{ steps.native_ref.outputs.enabled || 'false' }}")
+  );
   assert.match(text, /permission-actions: read/);
   assert.match(text, /permission-contents: read/);
 });
@@ -39,14 +41,8 @@ test("private ref success is the only way to attest an enrolled main commit", ()
   assert.ok(finalize.needs?.includes("native-private-ref"));
   const publish = finalize.steps?.find((step) => step.name === "Publish target status");
   assert.ok(publish?.run);
-  assert.equal(
-    publish.env?.NATIVE_PRIVATE_REF_RESULT,
-    "${{ needs['native-private-ref'].result }}"
-  );
-  assert.equal(
-    publish.env?.NATIVE_PRIVATE_REF,
-    "${{ needs.prepare.outputs.native_private_ref }}"
-  );
+  assert.equal(publish.env?.NATIVE_PRIVATE_REF_RESULT, "${{ needs['native-private-ref'].result }}");
+  assert.equal(publish.env?.NATIVE_PRIVATE_REF, "${{ needs.prepare.outputs.native_private_ref }}");
   assert.match(publish.run, /if \[\[ "\$NATIVE_PRIVATE_REF" == "true" \]\]; then/);
   assert.match(publish.run, /"\$NATIVE_PRIVATE_REF_RESULT" == "success"/);
   assert.match(publish.run, /"\$LINUX_RESULT" != "skipped"/);
