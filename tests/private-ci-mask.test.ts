@@ -47,10 +47,10 @@ test("sensitive public control-plane jobs mask private identity before any check
           assert.match(code, /\.repository, \.base_sha, \.merge_sha/);
           assert.ok(code.includes('test("^[0-9a-f]{40}$")'));
           assert.ok(code.includes("then null"));
-          assert.match(code, /public_repository=/);
-          assert.match(code, /api\\.github\\.com\\/repos\\/\\$target_repository/);
-          assert.match(code, /\\$is_private\" == \"false\"/);
-          assert.match(code, /\\$identity\" == \"\\$public_repository\"/);
+          assert.ok(code.includes("public_repository="));
+          assert.ok(code.includes("https://api.github.com/repos/$target_repository"));
+          assert.ok(code.includes('$is_private" == "false"'));
+          assert.ok(code.includes('$identity" == "$public_repository"'));
           assert.doesNotMatch(code, /\[\.repository, \.head_sha, \.base_sha, \.merge_sha\]/);
         } else {
           assert.match(code, /\.repository, \.head_sha, \.base_sha, \.merge_sha/);
