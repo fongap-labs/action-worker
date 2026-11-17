@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { decodeGithubContent, getJsonArray, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
+import {
+  decodeGithubContent,
+  getJsonArray,
+  getJsonNumber,
+  getJsonString,
+  isJsonRecord,
+} from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
 
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -162,9 +168,7 @@ export async function fetchAndVerifyPrivateCiEvidence(
   const trustedHash = getJsonString(matches[0], "sha256");
   if (!/^[0-9a-f]{64}$/.test(trustedHash)) fail();
   const content = decodeGithubContent(caller);
-  const actualHash = createHash("sha256")
-    .update(content.replace(/\r\n/g, "\n"))
-    .digest("hex");
+  const actualHash = createHash("sha256").update(content.replace(/\r\n/g, "\n")).digest("hex");
   if (actualHash !== trustedHash) fail();
 
   const runs = await reader.get(
