@@ -126,20 +126,35 @@ test("private ref identity requires immutable SHA and trusted current main", asy
     content: Buffer.from(text).toString("base64"),
   };
   const urls = new Map<string, unknown>([
-    [`repos/${identity.repository}`, {
-      full_name: identity.repository,
-      private: true,
-      default_branch: "main",
-    }],
-    [`repos/${identity.repository}/git/ref/heads/main`, {
-      object: { sha: identity.headSha },
-    }],
-    [`repos/${identity.repository}/git/commits/${identity.headSha}`, {
-      sha: identity.headSha,
-      parents: [{ sha: identity.beforeSha }],
-    }],
-    [`repos/${identity.repository}/contents/.github/workflows/private-ref-ci.yml?ref=${identity.headSha}`, caller],
-    [`repos/${identity.repository}/actions/workflows/private-ref-ci.yml/runs?event=push&head_sha=${identity.headSha}&per_page=100`, runs],
+    [
+      `repos/${identity.repository}`,
+      {
+        full_name: identity.repository,
+        private: true,
+        default_branch: "main",
+      },
+    ],
+    [
+      `repos/${identity.repository}/git/ref/heads/main`,
+      {
+        object: { sha: identity.headSha },
+      },
+    ],
+    [
+      `repos/${identity.repository}/git/commits/${identity.headSha}`,
+      {
+        sha: identity.headSha,
+        parents: [{ sha: identity.beforeSha }],
+      },
+    ],
+    [
+      `repos/${identity.repository}/contents/.github/workflows/private-ref-ci.yml?ref=${identity.headSha}`,
+      caller,
+    ],
+    [
+      `repos/${identity.repository}/actions/workflows/private-ref-ci.yml/runs?event=push&head_sha=${identity.headSha}&per_page=100`,
+      runs,
+    ],
     [`repos/${identity.repository}/actions/runs/101/jobs?per_page=100&filter=latest`, jobs],
   ]);
   const reader = { get: async (url: string): Promise<unknown> => urls.get(url) };
@@ -162,7 +177,7 @@ test("private ref identity requires immutable SHA and trusted current main", asy
   urls.set(commitKey, { sha: identity.headSha, parents: [{ sha: identity.beforeSha }] });
   urls.set(
     `repos/${identity.repository}/contents/.github/workflows/private-ref-ci.yml?ref=${identity.headSha}`,
-    { ...caller, content: Buffer.from(text + "# modified").toString("base64") }
+    { ...caller, content: Buffer.from(`${text}# modified`).toString("base64") }
   );
   await assert.rejects(fetchAndVerifyPrivateRef(reader, identity));
 });
