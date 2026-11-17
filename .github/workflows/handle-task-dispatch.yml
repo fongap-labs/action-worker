@@ -1308,7 +1308,261 @@ jobs:
                   exit 65
               fi
               changelog_next="$(mktemp)"
-              if ! awk -v entry="- 维护: 同步自动任务输出（运行 ${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}），保留许可声明。" '
+              # Translate the approved changelog entry at runtime; workflow code stays ASCII.
+              changelog_category=
+                  /^## \[Unreleased\]$/ && !inserted { print; print ""; print entry; inserted=1; next }
+                  { print }
+                  END { if (!inserted) exit 65 }
+              ' "$changelog" > "$changelog_next"; then
+                  rm -f "$changelog_next"
+                  echo "::error::Publication target lacks the expected Unreleased changelog heading." >&2
+                  exit 65
+              fi
+              cat "$changelog_next" > "$changelog"
+              rm -f "$changelog_next"
+              git -C "$WORK_DIR/target" add -- CHANGELOG.md
+          fi
+          git -C "$WORK_DIR/target" commit -m "$COMMIT_MESSAGE"
+          git -C "$WORK_DIR/target" push --force origin "HEAD:refs/heads/$branch"
+
+          pr_number="$(gh pr list --repo "$TARGET_REPOSITORY" --head "$branch" --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$pr_number" ]; then
+              pr_title="chore: ${COMMIT_MESSAGE#chore: }"
+              if [ "$TASK_SOURCE_PRIVATE" = "false" ]; then
+                  pr_body="Automated task publication from ${SOURCE_REPOSITORY} project ${PROJECT}. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              else
+                  pr_body="Automated task publication from an approved private source. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              fi
+              pr_number="$(basename "$(gh pr create --repo "$TARGET_REPOSITORY" --base main --head "$branch" --title "$pr_title" --body "$pr_body")")"
+          fi
+          echo "Publication pull request: ${pr_number}"
+
+          # Start the governance of the publication pull request now instead of on the next heartbeat.
+          if ! GH_TOKEN="$AW_DISPATCH_API_TOKEN" gh api --method POST "repos/${GITHUB_REPOSITORY}/dispatches" -f event_type=run-intake >/dev/null; then
+              echo "::error::Central governance dispatch failed for publication PR #${pr_number}; leaving PR open for inspection." >&2
+              exit 75
+          fi
+
+          deadline=$((SECONDS + 1800))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+              state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json state --jq .state)"
+              if [ "$state" = "MERGED" ]; then
+                  echo "Published task artifact to $TARGET_REPOSITORY/$DEST_DIR via pull request #${pr_number}."
+                  exit 0
+              fi
+              if [ "$state" = "CLOSED" ]; then
+                  echo "::error::Publication pull request #${pr_number} was closed without merging." >&2
+                  exit 1
+              fi
+
+              merge_state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json mergeStateStatus --jq .mergeStateStatus)"
+              if [ "$merge_state" = "DIRTY" ]; then
+                  echo "::error::Publication pull request #${pr_number} conflicts with $TARGET_REPOSITORY/main; a concurrent change touched $DEST_DIR." >&2
+                  exit 1
+              fi
+              if [ "$merge_state" = "BEHIND" ]; then
+                  gh pr update-branch "$pr_number" --repo "$TARGET_REPOSITORY" >/dev/null 2>&1 || true
+                  sleep 10
+                  continue
+              fi
+
+              check_state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json statusCheckRollup --jq '[.statusCheckRollup[] | select((.name // .context) == "validate-merge")] | if length == 0 then "missing" elif any(.conclusion? == "FAILURE" or .state? == "FAILURE") then "failure" elif any(.conclusion? == "SUCCESS" or .state? == "SUCCESS") then "success" else "pending" end')"
+              case "$check_state" in
+                  success)
+                      head_oid="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json headRefOid --jq .headRefOid)"
+                      gh pr merge "$pr_number" --repo "$TARGET_REPOSITORY" --squash --match-head-commit "$head_oid" && continue
+                      sleep 10
+                      ;;
+                  failure)
+                      # A failed signed CI verdict is never replaced with a human-review requirement.
+                      # Keep the PR open for diagnosis, but never bypass or self-approve the gate.
+                      failure_reads=$(( ${failure_reads:-0} + 1 ))
+                      if [ "$failure_reads" -ge 3 ]; then
+                          echo "::error::Publication pull request #${pr_number} failed the validate-merge check." >&2
+                          exit 1
+                      fi
+                      sleep 20
+                      ;;
+                  *)
+                      failure_reads=0
+                      sleep 20
+                      ;;
+              esac
+          done
+
+          echo "::error::Publication pull request #${pr_number} did not merge within 30 minutes." >&2
+          exit 1
+\u7ef4\u62a4'
+              changelog_summary=
+                  /^## \[Unreleased\]$/ && !inserted { print; print ""; print entry; inserted=1; next }
+                  { print }
+                  END { if (!inserted) exit 65 }
+              ' "$changelog" > "$changelog_next"; then
+                  rm -f "$changelog_next"
+                  echo "::error::Publication target lacks the expected Unreleased changelog heading." >&2
+                  exit 65
+              fi
+              cat "$changelog_next" > "$changelog"
+              rm -f "$changelog_next"
+              git -C "$WORK_DIR/target" add -- CHANGELOG.md
+          fi
+          git -C "$WORK_DIR/target" commit -m "$COMMIT_MESSAGE"
+          git -C "$WORK_DIR/target" push --force origin "HEAD:refs/heads/$branch"
+
+          pr_number="$(gh pr list --repo "$TARGET_REPOSITORY" --head "$branch" --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$pr_number" ]; then
+              pr_title="chore: ${COMMIT_MESSAGE#chore: }"
+              if [ "$TASK_SOURCE_PRIVATE" = "false" ]; then
+                  pr_body="Automated task publication from ${SOURCE_REPOSITORY} project ${PROJECT}. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              else
+                  pr_body="Automated task publication from an approved private source. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              fi
+              pr_number="$(basename "$(gh pr create --repo "$TARGET_REPOSITORY" --base main --head "$branch" --title "$pr_title" --body "$pr_body")")"
+          fi
+          echo "Publication pull request: ${pr_number}"
+
+          # Start the governance of the publication pull request now instead of on the next heartbeat.
+          if ! GH_TOKEN="$AW_DISPATCH_API_TOKEN" gh api --method POST "repos/${GITHUB_REPOSITORY}/dispatches" -f event_type=run-intake >/dev/null; then
+              echo "::error::Central governance dispatch failed for publication PR #${pr_number}; leaving PR open for inspection." >&2
+              exit 75
+          fi
+
+          deadline=$((SECONDS + 1800))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+              state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json state --jq .state)"
+              if [ "$state" = "MERGED" ]; then
+                  echo "Published task artifact to $TARGET_REPOSITORY/$DEST_DIR via pull request #${pr_number}."
+                  exit 0
+              fi
+              if [ "$state" = "CLOSED" ]; then
+                  echo "::error::Publication pull request #${pr_number} was closed without merging." >&2
+                  exit 1
+              fi
+
+              merge_state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json mergeStateStatus --jq .mergeStateStatus)"
+              if [ "$merge_state" = "DIRTY" ]; then
+                  echo "::error::Publication pull request #${pr_number} conflicts with $TARGET_REPOSITORY/main; a concurrent change touched $DEST_DIR." >&2
+                  exit 1
+              fi
+              if [ "$merge_state" = "BEHIND" ]; then
+                  gh pr update-branch "$pr_number" --repo "$TARGET_REPOSITORY" >/dev/null 2>&1 || true
+                  sleep 10
+                  continue
+              fi
+
+              check_state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json statusCheckRollup --jq '[.statusCheckRollup[] | select((.name // .context) == "validate-merge")] | if length == 0 then "missing" elif any(.conclusion? == "FAILURE" or .state? == "FAILURE") then "failure" elif any(.conclusion? == "SUCCESS" or .state? == "SUCCESS") then "success" else "pending" end')"
+              case "$check_state" in
+                  success)
+                      head_oid="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json headRefOid --jq .headRefOid)"
+                      gh pr merge "$pr_number" --repo "$TARGET_REPOSITORY" --squash --match-head-commit "$head_oid" && continue
+                      sleep 10
+                      ;;
+                  failure)
+                      # A failed signed CI verdict is never replaced with a human-review requirement.
+                      # Keep the PR open for diagnosis, but never bypass or self-approve the gate.
+                      failure_reads=$(( ${failure_reads:-0} + 1 ))
+                      if [ "$failure_reads" -ge 3 ]; then
+                          echo "::error::Publication pull request #${pr_number} failed the validate-merge check." >&2
+                          exit 1
+                      fi
+                      sleep 20
+                      ;;
+                  *)
+                      failure_reads=0
+                      sleep 20
+                      ;;
+              esac
+          done
+
+          echo "::error::Publication pull request #${pr_number} did not merge within 30 minutes." >&2
+          exit 1
+\u540c\u6b65\u81ea\u52a8\u4efb\u52a1\u8f93\u51fa\uff08\u8fd0\u884c\u0020'
+              changelog_tail=
+                  /^## \[Unreleased\]$/ && !inserted { print; print ""; print entry; inserted=1; next }
+                  { print }
+                  END { if (!inserted) exit 65 }
+              ' "$changelog" > "$changelog_next"; then
+                  rm -f "$changelog_next"
+                  echo "::error::Publication target lacks the expected Unreleased changelog heading." >&2
+                  exit 65
+              fi
+              cat "$changelog_next" > "$changelog"
+              rm -f "$changelog_next"
+              git -C "$WORK_DIR/target" add -- CHANGELOG.md
+          fi
+          git -C "$WORK_DIR/target" commit -m "$COMMIT_MESSAGE"
+          git -C "$WORK_DIR/target" push --force origin "HEAD:refs/heads/$branch"
+
+          pr_number="$(gh pr list --repo "$TARGET_REPOSITORY" --head "$branch" --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$pr_number" ]; then
+              pr_title="chore: ${COMMIT_MESSAGE#chore: }"
+              if [ "$TASK_SOURCE_PRIVATE" = "false" ]; then
+                  pr_body="Automated task publication from ${SOURCE_REPOSITORY} project ${PROJECT}. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              else
+                  pr_body="Automated task publication from an approved private source. Run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+              fi
+              pr_number="$(basename "$(gh pr create --repo "$TARGET_REPOSITORY" --base main --head "$branch" --title "$pr_title" --body "$pr_body")")"
+          fi
+          echo "Publication pull request: ${pr_number}"
+
+          # Start the governance of the publication pull request now instead of on the next heartbeat.
+          if ! GH_TOKEN="$AW_DISPATCH_API_TOKEN" gh api --method POST "repos/${GITHUB_REPOSITORY}/dispatches" -f event_type=run-intake >/dev/null; then
+              echo "::error::Central governance dispatch failed for publication PR #${pr_number}; leaving PR open for inspection." >&2
+              exit 75
+          fi
+
+          deadline=$((SECONDS + 1800))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+              state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json state --jq .state)"
+              if [ "$state" = "MERGED" ]; then
+                  echo "Published task artifact to $TARGET_REPOSITORY/$DEST_DIR via pull request #${pr_number}."
+                  exit 0
+              fi
+              if [ "$state" = "CLOSED" ]; then
+                  echo "::error::Publication pull request #${pr_number} was closed without merging." >&2
+                  exit 1
+              fi
+
+              merge_state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json mergeStateStatus --jq .mergeStateStatus)"
+              if [ "$merge_state" = "DIRTY" ]; then
+                  echo "::error::Publication pull request #${pr_number} conflicts with $TARGET_REPOSITORY/main; a concurrent change touched $DEST_DIR." >&2
+                  exit 1
+              fi
+              if [ "$merge_state" = "BEHIND" ]; then
+                  gh pr update-branch "$pr_number" --repo "$TARGET_REPOSITORY" >/dev/null 2>&1 || true
+                  sleep 10
+                  continue
+              fi
+
+              check_state="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json statusCheckRollup --jq '[.statusCheckRollup[] | select((.name // .context) == "validate-merge")] | if length == 0 then "missing" elif any(.conclusion? == "FAILURE" or .state? == "FAILURE") then "failure" elif any(.conclusion? == "SUCCESS" or .state? == "SUCCESS") then "success" else "pending" end')"
+              case "$check_state" in
+                  success)
+                      head_oid="$(gh pr view "$pr_number" --repo "$TARGET_REPOSITORY" --json headRefOid --jq .headRefOid)"
+                      gh pr merge "$pr_number" --repo "$TARGET_REPOSITORY" --squash --match-head-commit "$head_oid" && continue
+                      sleep 10
+                      ;;
+                  failure)
+                      # A failed signed CI verdict is never replaced with a human-review requirement.
+                      # Keep the PR open for diagnosis, but never bypass or self-approve the gate.
+                      failure_reads=$(( ${failure_reads:-0} + 1 ))
+                      if [ "$failure_reads" -ge 3 ]; then
+                          echo "::error::Publication pull request #${pr_number} failed the validate-merge check." >&2
+                          exit 1
+                      fi
+                      sleep 20
+                      ;;
+                  *)
+                      failure_reads=0
+                      sleep 20
+                      ;;
+              esac
+          done
+
+          echo "::error::Publication pull request #${pr_number} did not merge within 30 minutes." >&2
+          exit 1
+\uff09\uff0c\u4fdd\u7559\u8bb8\u53ef\u58f0\u660e\u3002'
+              changelog_entry="- ${changelog_category}: ${changelog_summary}${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}${changelog_tail}"
+              if ! awk -v entry="$changelog_entry" '
                   /^## \[Unreleased\]$/ && !inserted { print; print ""; print entry; inserted=1; next }
                   { print }
                   END { if (!inserted) exit 65 }
