@@ -173,12 +173,19 @@ jobs:
           path: target
           fetch-depth: 0
           persist-credentials: false
-      - name: Checkout pinned public security policy
+      - name: Checkout pinned public security tools
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: fongap-labs/action-worker
           ref: ${{ inputs.action_worker_sha }}
           path: aw
+          persist-credentials: false
+      - name: Checkout protected current security policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fongap-labs/action-worker
+          ref: main
+          path: policy
           persist-credentials: false
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -193,6 +200,10 @@ jobs:
           set -Eeuo pipefail
           test "$(git -C target rev-parse HEAD)" = "$MERGE_SHA"
           test "$(git -C aw rev-parse HEAD)" = "$AW_SHA"
+          policy_sha="$(git -C policy rev-parse HEAD)"
+          [[ "$policy_sha" =~ ^[0-9a-f]{40}$ ]] || exit 65
+          test -f policy/policies/security.json
+          echo "Trusted security policy commit: $policy_sha"
       - name: Validate source security and dependency locks
         shell: bash
         env:
@@ -201,7 +212,7 @@ jobs:
           HEAD_SHA: ${{ inputs.head_sha }}
         run: |
           set -Eeuo pipefail
-          node aw/scripts/validate-security.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/aw/policies/security.json"
+          node aw/scripts/validate-security.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policy/policies/security.json"
           node aw/scripts/dependency-lock-integrity.ts "$GITHUB_WORKSPACE/target" "$BASE_SHA" "$HEAD_SHA"
 
   windows:
