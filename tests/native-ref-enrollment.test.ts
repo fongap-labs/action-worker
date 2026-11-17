@@ -37,12 +37,24 @@ test("invalid, duplicate or untrusted private main enrollment fails closed", () 
     { ...policy, callers: [{ ...policy.callers[0], sha256: "abc" }] },
   ]) {
     assert.throws(() =>
-      resolveNativePrivateRef(malformed, "fongap-labs/delta-legacy", "true", "run-central-ci-ref", "0")
+      resolveNativePrivateRef(
+        malformed,
+        "fongap-labs/delta-legacy",
+        "true",
+        "run-central-ci-ref",
+        "0"
+      )
     );
   }
   assert.throws(() => resolveNativePrivateRef(policy, "../bad", "true", "run-central-ci-ref", "0"));
   assert.throws(() =>
-    resolveNativePrivateRef(policy, "fongap-labs/delta-legacy", "notbool", "run-central-ci-ref", "0")
+    resolveNativePrivateRef(
+      policy,
+      "fongap-labs/delta-legacy",
+      "notbool",
+      "run-central-ci-ref",
+      "0"
+    )
   );
   assert.throws(() =>
     resolveNativePrivateRef(policy, "fongap-labs/delta-legacy", "true", "run-central-ci-ref", "-1")
