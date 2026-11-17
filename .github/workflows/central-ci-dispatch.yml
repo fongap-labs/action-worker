@@ -365,7 +365,7 @@ jobs:
   linux:
     name: Central CI / Linux (${{ matrix.shard }})
     needs: prepare
-    if: needs.prepare.outputs.should_run != 'false'
+    if: needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.native_private_pilot != 'true'
     strategy:
       fail-fast: true
       matrix:
@@ -392,7 +392,7 @@ jobs:
   security:
     name: Central CI / Security
     needs: prepare
-    if: needs.prepare.outputs.should_run != 'false'
+    if: needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.native_private_pilot != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
 
@@ -475,7 +475,7 @@ jobs:
   windows:
     name: Central CI / Windows
     needs: prepare
-    if: needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.has_windows == 'true'
+    if: needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.has_windows == 'true' && needs.prepare.outputs.native_private_pilot != 'true'
     uses: ./.github/workflows/central-ci-sandbox.yml
     with:
       platform: windows
@@ -502,6 +502,7 @@ jobs:
       - linux
       - security
       - windows
+      - native-private-pilot
     if: always() && needs.prepare.result == 'success' && needs.prepare.outputs.should_run != 'false'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -563,6 +564,8 @@ jobs:
           SECURITY_RESULT: ${{ needs.security.result }}
           WINDOWS_RESULT: ${{ needs.windows.result }}
           WINDOWS_DIAGNOSTIC: ${{ needs.windows.outputs.windows_diagnostic || '' }}
+          NATIVE_PRIVATE_PILOT: ${{ needs.prepare.outputs.native_private_pilot }}
+          NATIVE_PRIVATE_RESULT: ${{ needs['native-private-pilot'].result }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         shell: bash
         run: |
@@ -570,24 +573,38 @@ jobs:
           # A cancelled run carries no verdict: a newer dispatch of the same head cancelled it, or
           # the pull request closed. Writing failure here would replace the pending status of the
           # newer run, and PR Governance would fail on a run that was superseded.
-          if [[ "$LINUX_RESULT" == "cancelled" || "$SECURITY_RESULT" == "cancelled" || "$WINDOWS_RESULT" == "cancelled" ]]; then
+          if [[ "$NATIVE_PRIVATE_PILOT" != "true" ]] && [[ "$LINUX_RESULT" == "cancelled" || "$SECURITY_RESULT" == "cancelled" || "$WINDOWS_RESULT" == "cancelled" ]]; then
             echo "Central CI was cancelled for $REPOSITORY@$HEAD_SHA; CI Evidence is left to the run that replaces it."
             exit 0
           fi
 
           state=failure
           description="Central CI failed"
-          # The reusable Windows sandbox exports only an indexed failure
-          # count, never private paths, log output, test names or source code.
-          # The signed status is posted to the private target repository.
-          if [[ "$WINDOWS_RESULT" == "failure" && "$WINDOWS_DIAGNOSTIC" =~ ^wc-tests-([0-9]{1,3}(\.[0-9]{1,3}){0,4})-([1-9][0-9]{0,2})$ ]]; then
-            numbers="${BASH_REMATCH[1]}"
-            count="${BASH_REMATCH[3]}"
-            description="Windows regression failed cases ${numbers//./,} ($count failures)"
-          fi
-          if [[ "$LINUX_RESULT" == "success" ]] && [[ "$SECURITY_RESULT" == "success" ]] && [[ "$WINDOWS_RESULT" == "success" || "$WINDOWS_RESULT" == "skipped" ]]; then
-            state=success
-            description="Central CI passed"
+          # Enrolled private PRs have one authority: the audited source-owned run.
+          # The public control plane may not execute the source or fall back to its old jobs.
+          if [[ "$NATIVE_PRIVATE_PILOT" == "true" ]]; then
+            if [[ "$LINUX_RESULT" != "skipped" || "$SECURITY_RESULT" != "skipped" || "$WINDOWS_RESULT" != "skipped" ]]; then
+              description="Private CI isolation contract violated"
+            elif [[ "$NATIVE_PRIVATE_RESULT" == "success" ]]; then
+              state=success
+              description="Native private CI evidence verified"
+            else
+              description="Native private CI evidence failed"
+            fi
+          else
+            # The reusable Windows sandbox exports only an indexed failure
+            # count, never private paths, log output, test names or source code.
+            # The signed status is posted to the private target repository.
+            if [[ "$WINDOWS_RESULT" == "failure" && "$WINDOWS_DIAGNOSTIC" =~ ^wc-tests-([0-9]{1,3}(\.[0-9]{1,3}){0,4})-([1-9][0-9]{0,2})$ ]]; then
+              numbers="${BASH_REMATCH[1]}"
+              count="${BASH_REMATCH[3]}"
+              description="Windows regression failed cases ${numbers//./,} ($count failures)"
+            fi
+            if [[ "$LINUX_RESULT" == "success" ]] && [[ "$SECURITY_RESULT" == "success" ]] && [[ "$WINDOWS_RESULT" == "success" || "$WINDOWS_RESULT" == "skipped" ]]; then
+              state=success
+              description="Central CI passed"
+            fi
+
           fi
 
           node scripts/write-commit-status.ts "$REPOSITORY" "$HEAD_SHA" "$state" \
