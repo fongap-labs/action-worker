@@ -23,7 +23,7 @@ test("enrolled private PRs run only the audited source-owned evidence verifier",
   assert.equal(jobs.security?.if, oldPath);
   assert.equal(
     jobs.windows?.if,
-    "needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.has_windows == 'true' && needs.prepare.outputs.native_private_pilot != 'true' && needs.prepare.outputs.native_private_ref != 'true'
+    "needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.has_windows == 'true' && needs.prepare.outputs.native_private_pilot != 'true' && needs.prepare.outputs.native_private_ref != 'true'"
   );
   assert.deepEqual(jobs["native-private-pilot"]?.permissions, {});
   const steps = jobs["native-private-pilot"]?.steps ?? [];
