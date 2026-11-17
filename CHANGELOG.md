@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 升级私有仓库调用模板的固定 Action Worker 版本，启用私有执行工具固定 SHA 与受保护安全策略版本分离；同步更新精确 SHA256 白名单，不放宽 pull_request_target 保护。
+
 - 修复: 私有 CI 执行工具继续固定不可变 SHA，安全策略另从受保护的 Action Worker 主分支只读检出并记录精确提交，解决新调用模板被旧哈希列表误拒绝的问题；验证失败仍阻断。
 
 - 新增: 新增私有仓库原生 CI 只读结果核验器，严格绑定目标仓库、PR、base/head SHA 与完整 Linux/Windows/Security Job，拒绝取消、重放、跳过、伪造或不完整结果；暂不切换中央执行路径。
