@@ -72,7 +72,8 @@ test("private CI refuses stale, forged, skipped and incomplete evidence", () => 
       v.runs.workflow_runs[0]!.path = ".github/workflows/untrusted.yml";
     },
     (v) => {
-      v.runs.workflow_runs[0]!.display_title = `private-ci-13-${identity.baseSha}-${identity.headSha}`;
+      v.runs.workflow_runs[0]!.display_title =
+        `private-ci-13-${identity.baseSha}-${identity.headSha}`;
     },
     (v) => {
       v.runs.workflow_runs[0]!.run_attempt = 0;
@@ -84,7 +85,8 @@ test("private CI refuses stale, forged, skipped and incomplete evidence", () => 
       v.runs.workflow_runs[0]!.name = "Untrusted workflow";
     },
     (v) => {
-      v.runs.workflow_runs[0]!.display_title = `private-ci-${identity.prNumber}-${"c".repeat(40)}-${identity.headSha}`;
+      v.runs.workflow_runs[0]!.display_title =
+        `private-ci-${identity.prNumber}-${"c".repeat(40)}-${identity.headSha}`;
     },
     (v) => {
       v.runs.workflow_runs[0]!.repository.full_name = "other/repository";
