@@ -45,10 +45,17 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          # Never put unmasked client_payload values into a workflow expression or step env.
+          # Mask arbitrary payload identities. Valid commit SHAs are Git object IDs,
+          # validated against the PR before use, and must survive job outputs.
+          # Masking head_sha causes GitHub Actions to silently drop that output.
           jq -r '
             (.client_payload // {}) |
-            [.repository, .head_sha, .base_sha, .merge_sha] |
+            [
+              .repository, .base_sha, .merge_sha,
+              (if (.head_sha | type) != "string" then .head_sha
+               elif (.head_sha | test("^[0-9a-f]{40}$")) then null
+               else .head_sha end)
+            ] |
             .[]? | select(type == "string" and length > 0)
           ' "$GITHUB_EVENT_PATH" | while IFS= read -r identity; do
             printf '::add-mask::%s\n' "$identity"
