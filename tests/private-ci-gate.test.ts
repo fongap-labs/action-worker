@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { parseNativePrivateCiArgs } from "../scripts/verify-native-private-ci.ts";
+import { parseNativePrivateCiArgs } from "../scripts/private-ci-gate.ts";
 
 const valid = [
   "fongap-labs/delta-legacy",

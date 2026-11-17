@@ -11,11 +11,19 @@ const repoPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 export function parseNativePrivateCiArgs(args: readonly string[]): NativePrivateCiRequest {
   if (args.length !== 7) {
     throw new CliError(
-      "Usage: verify-native-private-ci.ts <owner/repository> <pr> <base-sha> <head-sha> <merge-sha> <linux-shards-json> <has-windows>",
+      "Usage: private-ci-gate.ts <owner/repository> <pr> <base-sha> <head-sha> <merge-sha> <linux-shards-json> <has-windows>",
       64
     );
   }
-  const [repository = "", pr = "", baseSha = "", headSha = "", mergeSha = "", rawShards = "", windows = ""] = args;
+  const [
+    repository = "",
+    pr = "",
+    baseSha = "",
+    headSha = "",
+    mergeSha = "",
+    rawShards = "",
+    windows = "",
+  ] = args;
   if (
     !repoPattern.test(repository) ||
     !/^[1-9][0-9]*$/.test(pr) ||
