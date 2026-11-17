@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 发布阶段生成的 CycloneDX SBOM 清理 GitHub Runner 临时工作目录，避免构建环境路径触发隐私检查；完整产物隐私扫描和密钥门禁保持不变。
+
 - 新增: 私有源仓可复用的手动发布预检工作流（只读、SHA 锁定、版本与构建清单验证）；不在公共 Runner 执行源码，也不构建或发布，作为私有 Release/Deploy 迁移的第一阶段。
 
 - 修复: 中央 CI 下游作业由已校验的 owner 与 repository_name 重建目标仓库标识，避免掩码导致 repository 输出为空并误检出控制仓库。
