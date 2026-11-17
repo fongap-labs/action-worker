@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 私有 CI 源仓结果采信前验证仓库私有属性、准确 PR/base/head SHA 与不可变合并提交双亲，只有全部身份绑定后才调用已加固的源仓工作流证据核验；不直接切换中央执行路径。
+
 - 修复: 私有 CI 原生运行证据同时验证 GitHub 的 name、display_title 均严格等于受信任 PR、base/head SHA 身份，解决新版动态 run-name 真实成功却被误拒绝；增加伪造运行名称的失败用例。
 
 - 修复: 升级私有仓库调用模板的固定 Action Worker 版本，启用私有执行工具固定 SHA 与受保护安全策略版本分离；同步更新精确 SHA256 白名单，不放宽 pull_request_target 保护。
