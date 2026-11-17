@@ -1,4 +1,4 @@
-import { getGithubJson, getJsonArray, getJsonString, isJsonRecord } from "./github-api.ts";
+import { getGithubJson, getJsonString, isJsonRecord } from "./github-api.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -14,7 +14,6 @@ export const TRUSTED_ASSOCIATIONS: ReadonlySet<string> = new Set([
 // Dependabot is a GitHub App, so no account can register this login.
 const DEPENDENCY_BOT_LOGIN = "dependabot[bot]";
 const MANAGED_APP_LOGIN = "fongap-bot[bot]";
-export const UNAUTHORIZED_CI_DESCRIPTION = "Author lacks CI authorization";
 
 export type PrTrustDecision = {
   trusted: boolean;
@@ -104,27 +103,19 @@ async function main(): Promise<void> {
   const reader = { get: (path: string) => getGithubJson(path, token) };
   const pull = await reader.get(`repos/${repository}/pulls/${prNumber}`);
   const decision = evaluatePrTrust(pull, [], expectedHeadSha);
+  // Fail before publishing a trusted output: no review or secondary approval can grant
+  // permission to execute untrusted code in the central control runner.
+  if (!decision.trusted) {
+    throw new CliError(
+      `::error::${repository}#${prNumber} is from an author without central CI authorization (${decision.association || "NONE"}). Only repository writers and the managed organization bot can run code.`,
+      77
+    );
+  }
   await appendLines(process.env.GITHUB_OUTPUT, [
     `trusted=${decision.trusted}`,
     `basis=${decision.basis}`,
   ]);
   console.log(JSON.stringify(decision));
-  // PR Governance records an explicit rejection; no review-based waiting or implicit grant.
-  // Central CI also refuses code from an unauthorized author.
-  if (!decision.trusted && process.env.PR_TRUST_UNTRUSTED === "report") {
-    console.log(
-      `::notice::${repository}#${prNumber} is from an author without write access (${decision.association || "NONE"}). ` +
-        "Central CI remains blocked; only an authorized repository writer or the trusted organization bot may submit code."
-    );
-    return;
-  }
-  if (!decision.trusted) {
-    throw new CliError(
-      `::error::${repository}#${prNumber} is from an author without write access (${decision.association || "NONE"}). ` +
-        "Central CI cannot run code from an unauthorized author; PR reviews do not override this policy.",
-      77
-    );
-  }
 }
 
 if (isMain(import.meta.url)) {
