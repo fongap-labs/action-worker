@@ -80,7 +80,9 @@ test("private caller pins PR merge parents and executes mandatory private securi
   assert.match(source, /actual_base.*BASE_SHA/);
   assert.match(source, /actual_head.*HEAD_SHA/);
   assert.ok(security);
-  assert.ok(security.steps.some((step) => step.name === "Validate source security and dependency locks"));
+  assert.ok(
+    security.steps.some((step) => step.name === "Validate source security and dependency locks")
+  );
   assert.match(JSON.stringify(security.steps), /validate-security\.ts/);
   assert.match(JSON.stringify(security.steps), /dependency-lock-integrity\.ts/);
   assert.doesNotMatch(source, /persist-credentials: true|secrets\./);
