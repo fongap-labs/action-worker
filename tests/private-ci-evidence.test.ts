@@ -87,7 +87,7 @@ test("private CI refuses stale, forged, skipped and incomplete evidence", () => 
 
 test("private CI permits a skipped Windows job only when undeclared", () => {
   const data = fixture();
-  data.jobs.jobs[4].conclusion = "skipped";
+  data.jobs.jobs[4]!.conclusion = "skipped";
   assert.deepEqual(
     verifyPrivateCiEvidence({ ...identity, hasWindows: false }, data.runs, data.jobs),
     { runId: 99, runAttempt: 1 }
@@ -97,7 +97,7 @@ test("private CI permits a skipped Windows job only when undeclared", () => {
 
 test("private CI rejects stale failures even if an older run passed", () => {
   const data = fixture();
-  const stale = structuredClone(data.runs.workflow_runs[0]);
+  const stale = structuredClone(data.runs.workflow_runs[0]!);
   stale.id = 100;
   stale.conclusion = "failure";
   data.runs.workflow_runs.push(stale);
