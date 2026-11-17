@@ -25,6 +25,7 @@ jobs:
     outputs:
       linux_shards: ${{ steps.plan.outputs.linux_shards }}
       has_windows: ${{ steps.plan.outputs.has_windows }}
+      merge_sha: ${{ steps.merge.outputs.merge_sha }}
     steps:
       - name: Verify source identity and exact SHA
         shell: bash
@@ -37,14 +38,16 @@ jobs:
           HEAD: ${{ inputs.head_sha }}
           EVENT_BASE: ${{ github.event.pull_request.base.sha }}
           EVENT_HEAD: ${{ github.event.pull_request.head.sha }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           AW_SHA: ${{ inputs.action_worker_sha }}
         run: |
           set -Eeuo pipefail
-          [[ "$EVENT" == "pull_request" && "$IS_PRIVATE" == "true" ]] || exit 77
+          [[ "$EVENT" == "pull_request_target" && "$IS_PRIVATE" == "true" ]] || exit 77
           [[ "$TARGET" == "$SOURCE" ]] || exit 77
           [[ "$BASE" =~ ^[0-9a-f]{40}$ && "$HEAD" =~ ^[0-9a-f]{40}$ ]] || exit 65
           [[ "$AW_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 65
           [[ "$BASE" == "$EVENT_BASE" && "$HEAD" == "$EVENT_HEAD" ]] || exit 75
+          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || exit 65
       - name: Checkout trusted private base
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -71,6 +74,28 @@ jobs:
           set -Eeuo pipefail
           test "$(git -C control rev-parse HEAD)" = "$BASE"
           test "$(git -C aw rev-parse HEAD)" = "$AW_SHA"
+      - name: Checkout GitHub PR merge snapshot for exact parent verification
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          path: merge
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Pin and verify PR merge parents
+        id: merge
+        shell: bash
+        env:
+          BASE_SHA: ${{ inputs.base_sha }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+        run: |
+          set -Eeuo pipefail
+          merge_sha="$(git -C merge rev-parse HEAD)"
+          read -r actual_base actual_head extra <<< "$(git -C merge show -s --format=%P HEAD)"
+          [[ -z "${extra:-}" && "$actual_base" == "$BASE_SHA" && "$actual_head" == "$HEAD_SHA" ]] || {
+            echo "::error::Private CI merge snapshot does not match the immutable PR base/head." >&2
+            exit 75
+          }
+          echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
       - name: Resolve private CI execution plan
         id: plan
         run: node aw/scripts/private-ci-plan.ts "$GITHUB_WORKSPACE/control"
@@ -89,7 +114,7 @@ jobs:
       - name: Checkout private PR merge snapshot
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.prepare.outputs.merge_sha }}
           path: target
           fetch-depth: 0
           persist-credentials: false
@@ -117,7 +142,7 @@ jobs:
       - name: Execute trusted private Linux CI
         shell: bash
         env:
-          MERGE_SHA: ${{ github.sha }}
+          MERGE_SHA: ${{ needs.prepare.outputs.merge_sha }}
           BASE_SHA: ${{ inputs.base_sha }}
           CENTRAL_CI_SHARD: ${{ matrix.shard }}
           CENTRAL_CI_AW_ROOT: ${{ github.workspace }}/aw
@@ -134,6 +159,51 @@ jobs:
           fi
           bash "$GITHUB_WORKSPACE/control/.github/scripts/central-ci.sh" "${args[@]}"
 
+  security:
+    name: Private security and dependency integrity
+    needs: prepare
+    if: needs.prepare.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout pinned private PR merge snapshot
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.merge_sha }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Checkout pinned public security policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fongap-labs/action-worker
+          ref: ${{ inputs.action_worker_sha }}
+          path: aw
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Verify immutable security inputs
+        shell: bash
+        env:
+          MERGE_SHA: ${{ needs.prepare.outputs.merge_sha }}
+          AW_SHA: ${{ inputs.action_worker_sha }}
+        run: |
+          set -Eeuo pipefail
+          test "$(git -C target rev-parse HEAD)" = "$MERGE_SHA"
+          test "$(git -C aw rev-parse HEAD)" = "$AW_SHA"
+      - name: Validate source security and dependency locks
+        shell: bash
+        env:
+          TARGET_PRIVATE: "true"
+          BASE_SHA: ${{ inputs.base_sha }}
+          HEAD_SHA: ${{ inputs.head_sha }}
+        run: |
+          set -Eeuo pipefail
+          node aw/scripts/validate-security.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/aw/policies/security.json"
+          node aw/scripts/dependency-lock-integrity.ts "$GITHUB_WORKSPACE/target" "$BASE_SHA" "$HEAD_SHA"
+
   windows:
     name: Private Windows
     needs: prepare
@@ -144,7 +214,7 @@ jobs:
       - name: Checkout private PR merge snapshot
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.prepare.outputs.merge_sha }}
           path: target
           fetch-depth: 0
           persist-credentials: false
@@ -172,7 +242,7 @@ jobs:
       - name: Execute trusted private Windows CI
         shell: pwsh
         env:
-          MERGE_SHA: ${{ github.sha }}
+          MERGE_SHA: ${{ needs.prepare.outputs.merge_sha }}
           BASE_SHA: ${{ inputs.base_sha }}
           CENTRAL_CI_AW_ROOT: ${{ github.workspace }}/aw
           CENTRAL_CI_BASE_SHA: ${{ inputs.base_sha }}
