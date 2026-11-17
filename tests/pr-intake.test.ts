@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { scanOpenPullRequests } from "../scripts/intake-open-prs.ts";
 import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
-import { UNAUTHORIZED_CI_DESCRIPTION } from "../scripts/pr-trust.ts";
+
 import { attestFixtureResponseForPath } from "./attested-status-fixtures.ts";
 
 const shaA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -545,7 +545,7 @@ test("central PR intake leaves unauthorized heads blocked without reading PR rev
   const rejected = {
     context: "PR Governance",
     state: "failure",
-    description: `title-sha256=${"f".repeat(64)} ${UNAUTHORIZED_CI_DESCRIPTION}`,
+    description: "Action Worker PR governance failed",
     target_url: "https://github.com/fongap-labs/action-worker/actions/runs/31",
   };
   const pull = (number: number, sha: string) => ({
