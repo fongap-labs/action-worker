@@ -58,4 +58,18 @@ test("private ref enrollment refuses malformed or duplicate policy", () => {
   assert.throws(() =>
     resolveNativeRefEnrollment(policy, "invalid/repo/path", "true", "run-central-ci-ref", "0")
   );
+  for (const malformed of ["../bad", "owner/..", "./bad", "owner/."]) {
+    assert.throws(() =>
+      resolveNativeRefEnrollment(policy, malformed, "true", "run-central-ci-ref", "0")
+    );
+  }
+  assert.throws(() =>
+    resolveNativeRefEnrollment(
+      { ...policy, callers: [{ ...policy.callers[0], repository: "owner/.." }] },
+      "fongap-labs/delta-legacy",
+      "true",
+      "run-central-ci-ref",
+      "0"
+    )
+  );
 });
