@@ -191,8 +191,9 @@ jobs:
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
         run: node scripts/validate-security.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policies/security.json"
 
-      # Untrusted authors are rejected before any central code execution. Neither a
-      # second-person PR review nor an approval comment can bypass this boundary.
+      # Change code from an author without write access runs centrally only after a maintainer
+      # approves the current head commit. Until then the run reports "awaiting approval" and stops
+      # before CI; central intake picks the pull request up again once the approval exists.
       - name: Enforce PR trust
         id: trust
         env:
@@ -360,12 +361,13 @@ jobs:
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           STATE: ${{ steps.cancellation.outputs.cancelled != 'true' && steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
-          DESCRIPTION: ${{ steps.cancellation.outputs.cancelled == 'true' && 'Action Worker PR governance was cancelled' || steps.gate.outputs.passed == 'true' && 'Action Worker PR governance passed' || steps.trust.outputs.trusted == 'false' && 'Author lacks CI authorization' || 'Action Worker PR governance failed' }}
+          DESCRIPTION: ${{ steps.cancellation.outputs.cancelled == 'true' && 'Action Worker PR governance was cancelled' || steps.gate.outputs.passed == 'true' && 'Action Worker PR governance passed' || steps.trust.outputs.trusted == 'false' && 'Awaiting maintainer approval of the current head commit' || 'Action Worker PR governance failed' }}
           TITLE_FINGERPRINT: ${{ steps.title.outputs.fingerprint }}
         shell: bash
         run: |
           set -Eeuo pipefail
-          if [[ "$TITLE_FINGERPRINT" =~ ^[a-f0-9]{64}$ ]]; then
+          if [[ "$TITLE_FINGERPRINT" =~ ^[a-f0-9]{64}$ ]] &&
+             [[ "$DESCRIPTION" != "Awaiting maintainer approval of the current head commit" ]]; then
             DESCRIPTION="title-sha256=$TITLE_FINGERPRINT $DESCRIPTION"
           fi
           node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
@@ -380,13 +382,14 @@ jobs:
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
           STATE: ${{ steps.cancellation.outputs.cancelled != 'true' && steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
-          DESCRIPTION: ${{ steps.cancellation.outputs.cancelled == 'true' && 'Action Worker merge gate was cancelled' || steps.gate.outputs.passed == 'true' && 'Action Worker merge gate passed' || steps.trust.outputs.trusted == 'false' && 'Author lacks CI authorization' || 'Action Worker merge gate failed' }}
+          DESCRIPTION: ${{ steps.cancellation.outputs.cancelled == 'true' && 'Action Worker merge gate was cancelled' || steps.gate.outputs.passed == 'true' && 'Action Worker merge gate passed' || steps.trust.outputs.trusted == 'false' && 'Awaiting maintainer approval of the current head commit' || 'Action Worker merge gate failed' }}
           TITLE_FINGERPRINT: ${{ steps.title.outputs.fingerprint }}
           PR_STATUS_CONTEXT: validate-merge
         shell: bash
         run: |
           set -Eeuo pipefail
-          if [[ "$TITLE_FINGERPRINT" =~ ^[a-f0-9]{64}$ ]]; then
+          if [[ "$TITLE_FINGERPRINT" =~ ^[a-f0-9]{64}$ ]] &&
+             [[ "$DESCRIPTION" != "Awaiting maintainer approval of the current head commit" ]]; then
             DESCRIPTION="title-sha256=$TITLE_FINGERPRINT $DESCRIPTION"
           fi
           node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
@@ -464,7 +467,7 @@ jobs:
           HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
           REPOSITORY: ${{ steps.payload.outputs.repository }}
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
-          GOVERNANCE_STATUS: ${{ steps.gate.outputs.passed == 'true' && 'success' || 'failure' }}
+          GOVERNANCE_STATUS: ${{ steps.gate.outputs.passed == 'true' && 'success' || steps.trust.outputs.trusted == 'false' && 'awaiting-approval' || 'failure' }}
           AI_REVIEW_STATE: ""
           DEPLOY_GAP_HINT: ${{ steps.deploy_gap.outputs.hint }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
