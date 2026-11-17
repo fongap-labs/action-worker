@@ -93,6 +93,7 @@ export function verifyPrivateCiEvidence(
   if (!isJsonRecord(runsResponse)) fail();
   const runs = getJsonArray(runsResponse, "workflow_runs");
   if (
+    typeof runsResponse.total_count !== "number" ||
     !Number.isSafeInteger(runsResponse.total_count) ||
     runsResponse.total_count < 0 ||
     runsResponse.total_count > runs.length
@@ -116,6 +117,7 @@ export function verifyPrivateCiEvidence(
   if (!isJsonRecord(jobsResponse)) fail();
   const jobs = getJsonArray(jobsResponse, "jobs");
   if (
+    typeof jobsResponse.total_count !== "number" ||
     !Number.isSafeInteger(jobsResponse.total_count) ||
     jobsResponse.total_count < 0 ||
     jobsResponse.total_count !== jobs.length
