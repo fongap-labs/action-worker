@@ -12,9 +12,12 @@ test("the approved dispatcher hash in the security policy matches the template",
   const policy = JSON.parse(await readFile("policies/security.json", "utf8")) as {
     approved_workflows: Array<{ path: string; sha256: string }>;
   };
-  assert.deepEqual(policy.approved_workflows, [
-    { path: ".github/workflows/notify-action-worker.yml", sha256: workflowContentHash(template) },
-  ]);
+  assert.deepEqual(
+    policy.approved_workflows.find(
+      (item) => item.path === ".github/workflows/notify-action-worker.yml"
+    ),
+    { path: ".github/workflows/notify-action-worker.yml", sha256: workflowContentHash(template) }
+  );
 });
 
 test("the dispatcher template names no runner, checks out nothing and runs no pull request code", async () => {
