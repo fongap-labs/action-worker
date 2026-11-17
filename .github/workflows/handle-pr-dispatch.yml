@@ -36,7 +36,7 @@ jobs:
             [.repository, .head_sha, .base_sha, .merge_sha] |
             .[]? | select(type == "string" and length > 0)
           ' "$GITHUB_EVENT_PATH" | while IFS= read -r identity; do
-            printf '::add-mask::%s\\n' "$identity"
+            printf '::add-mask::%s\n' "$identity"
           done
 
       - name: Checkout control plane
@@ -512,7 +512,7 @@ jobs:
             [.repository, .head_sha, .base_sha, .merge_sha] |
             .[]? | select(type == "string" and length > 0)
           ' "$GITHUB_EVENT_PATH" | while IFS= read -r identity; do
-            printf '::add-mask::%s\\n' "$identity"
+            printf '::add-mask::%s\n' "$identity"
           done
 
       - name: Checkout control plane
