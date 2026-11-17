@@ -96,10 +96,12 @@ test("private CI refuses stale, forged, skipped and incomplete evidence", () => 
       v.jobs.jobs[1]!.run_id = 100;
     },
     (v) => {
-      v.jobs.jobs.pop(); v.jobs.total_count = 4;
+      v.jobs.jobs.pop();
+      v.jobs.total_count = 4;
     },
     (v) => {
-      v.jobs.jobs.push(v.jobs.jobs[0]!); v.jobs.total_count = 6;
+      v.jobs.jobs.push(v.jobs.jobs[0]!);
+      v.jobs.total_count = 6;
     },
     (v) => {
       v.jobs.total_count = 100;
