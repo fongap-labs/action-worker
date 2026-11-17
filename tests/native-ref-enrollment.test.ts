@@ -15,7 +15,13 @@ const policy = {
 
 test("protected private main enrollment is opt-in and never PR, public or manual", () => {
   assert.equal(
-    resolveNativeRefEnrollment(policy, "fongap-labs/delta-legacy", "true", "run-central-ci-ref", "0"),
+    resolveNativeRefEnrollment(
+      policy,
+      "fongap-labs/delta-legacy",
+      "true",
+      "run-central-ci-ref",
+      "0"
+    ),
     true
   );
   for (const [repo, visibility, action, number] of [
@@ -40,7 +46,13 @@ test("private ref enrollment refuses malformed or duplicate policy", () => {
   ];
   for (const input of invalid) {
     assert.throws(() =>
-      resolveNativeRefEnrollment(input, "fongap-labs/delta-legacy", "true", "run-central-ci-ref", "0")
+      resolveNativeRefEnrollment(
+        input,
+        "fongap-labs/delta-legacy",
+        "true",
+        "run-central-ci-ref",
+        "0"
+      )
     );
   }
   assert.throws(() =>
