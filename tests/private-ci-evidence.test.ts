@@ -21,7 +21,7 @@ function fixture() {
   const run = {
     id: 99,
     run_attempt: 1,
-    name: "Private source CI",
+    name: `private-ci-${identity.prNumber}-${identity.baseSha}-${identity.headSha}`,
     workflow_id: 418196779,
     display_title: `private-ci-${identity.prNumber}-${identity.baseSha}-${identity.headSha}`,
     path: ".github/workflows/private-source-ci.yml",
@@ -84,6 +84,13 @@ test("private CI refuses stale, forged, skipped and incomplete evidence", () => 
     },
     (v) => {
       v.runs.workflow_runs[0]!.name = "Untrusted workflow";
+    },
+    (v) => {
+      v.runs.workflow_runs[0]!.name = "Private source CI";
+    },
+    (v) => {
+      v.runs.workflow_runs[0]!.name =
+        `private-ci-${identity.prNumber}-${identity.baseSha}-${"c".repeat(40)}`;
     },
     (v) => {
       v.runs.workflow_runs[0]!.display_title =

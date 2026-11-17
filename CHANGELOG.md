@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 私有 CI 原生运行证据同时验证 GitHub 的 name、display_title 均严格等于受信任 PR、base/head SHA 身份，解决新版动态 run-name 真实成功却被误拒绝；增加伪造运行名称的失败用例。
+
 - 修复: 升级私有仓库调用模板的固定 Action Worker 版本，启用私有执行工具固定 SHA 与受保护安全策略版本分离；同步更新精确 SHA256 白名单，不放宽 pull_request_target 保护。
 
 - 修复: 私有原生 CI 只读核验在接受运行证明前，读取源仓固定 base 提交的调用工作流并校验与中央已批准 SHA256 完全一致；未纳管、篡改或旧模板默认拒绝。
