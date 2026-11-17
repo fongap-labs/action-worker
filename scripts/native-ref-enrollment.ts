@@ -14,7 +14,7 @@ export function resolveNativeRefEnrollment(
 ): boolean {
   if (
     !repositoryPattern.test(repository) ||
-    repository.includes("..") ||
+    repository.split("/").some((segment) => segment === "." || segment.includes("..")) ||
     (privateFlag !== "true" && privateFlag !== "false") ||
     !/^(?:0|[1-9][0-9]*)$/.test(prNumber)
   ) {
@@ -35,7 +35,7 @@ export function resolveNativeRefEnrollment(
       !isJsonRecord(item) ||
       typeof item.repository !== "string" ||
       !repositoryPattern.test(item.repository) ||
-      item.repository.includes("..") ||
+      item.repository.split("/").some((segment) => segment === "." || segment.includes("..")) ||
       item.path !== workflowPath ||
       typeof item.sha256 !== "string" ||
       !/^[0-9a-f]{64}$/.test(item.sha256) ||
