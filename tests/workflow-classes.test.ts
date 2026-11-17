@@ -66,6 +66,7 @@ const classes = {
   // Called by other workflows only.
   reusable: [
     "central-ci-sandbox.yml",
+    "private-release-preflight.yml",
     "private-ref-ci.yml",
     "private-source-ci.yml",
     "private-source-security.yml",

@@ -32,7 +32,7 @@ test("private release preflight is read-only and runs only in the source caller"
 
 test("private release preflight rejects moved SHA, unsafe source and bad version", () => {
   const workflow = parse(readFileSync(file, "utf8")) as Workflow;
-  const steps = workflow.jobs.preflight.steps;
+  const steps = workflow.jobs.preflight?.steps ?? [];
   const guard = steps[0];
   assert.equal(guard?.name, "Require private manual main release at exact SHA");
   const run = guard?.run ?? "";
@@ -51,7 +51,7 @@ test("private release preflight rejects moved SHA, unsafe source and bad version
 
 test("private source and public control are pinned, credentials are not retained", () => {
   const workflow = parse(readFileSync(file, "utf8")) as Workflow;
-  const steps = workflow.jobs.preflight.steps;
+  const steps = workflow.jobs.preflight?.steps ?? [];
   const source = steps.find((x) => x.name === "Checkout exact private main source");
   const control = steps.find(
     (x) => x.name === "Checkout immutable public Action Worker control"

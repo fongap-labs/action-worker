@@ -1,4 +1,4 @@
-name: Private source release preflight
+name: 自动 · 私有发布预检
 
 # Reusable workflow executes in the CALLER's private repository Actions context.
 # No release build, secrets, artifacts, publication, or public-control dispatch occurs.
