@@ -26,6 +26,20 @@ jobs:
       npm_asset: ${{ steps.release.outputs.npm_asset }}
 
     steps:
+      - name: Mask release/deploy source identities before checkout or token use
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          # Only inspect the local event file; never interpolate untrusted payload values.
+          jq -r '
+            (.client_payload // .inputs // {}) |
+            [.repository, .source_repository, .target_repository, .artifact_repository,
+             .head_sha, .base_sha, .merge_sha, .source_sha] |
+            .[]? | select(type == "string" and length > 0 and length <= 256 and (test("[\r\n]") | not))
+          ' "$GITHUB_EVENT_PATH" | while IFS= read -r identity; do
+            printf '::add-mask::%s\n' "$identity"
+          done
+
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

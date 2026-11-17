@@ -50,6 +50,20 @@ jobs:
       release_notes: ${{ steps.request.outputs.release_notes }}
 
     steps:
+      - name: Mask release/deploy source identities before checkout or token use
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          # Only inspect the local event file; never interpolate untrusted payload values.
+          jq -r '
+            (.client_payload // .inputs // {}) |
+            [.repository, .source_repository, .target_repository, .artifact_repository,
+             .head_sha, .base_sha, .merge_sha, .source_sha] |
+            .[]? | select(type == "string" and length > 0 and length <= 256 and (test("[\r\n]") | not))
+          ' "$GITHUB_EVENT_PATH" | while IFS= read -r identity; do
+            printf '::add-mask::%s\n' "$identity"
+          done
+
       - name: Checkout control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -208,6 +222,20 @@ jobs:
       contents: read
 
     steps:
+      - name: Mask release/deploy source identities before checkout or token use
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $eventData = Get-Content -Raw -Path $env:GITHUB_EVENT_PATH | ConvertFrom-Json
+          $client = $eventData.client_payload
+          if ($null -eq $client) { $client = $eventData.inputs }
+          if ($null -eq $client) { exit 0 }
+          foreach ($identity in @($client.repository, $client.source_repository, $client.target_repository, $client.artifact_repository, $client.head_sha, $client.base_sha, $client.merge_sha, $client.source_sha)) {
+            if ($identity -is [string] -and $identity.Length -gt 0 -and $identity.Length -le 256 -and $identity -notmatch '[\r\n]') {
+              Write-Output "::add-mask::$identity"
+            }
+          }
+
       - name: Require dedicated private release checkout credential
         if: needs.prepare.outputs.is_private == 'true'
         env:
@@ -402,6 +430,20 @@ jobs:
       id-token: write
 
     steps:
+      - name: Mask release/deploy source identities before checkout or token use
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          # Only inspect the local event file; never interpolate untrusted payload values.
+          jq -r '
+            (.client_payload // .inputs // {}) |
+            [.repository, .source_repository, .target_repository, .artifact_repository,
+             .head_sha, .base_sha, .merge_sha, .source_sha] |
+            .[]? | select(type == "string" and length > 0 and length <= 256 and (test("[\r\n]") | not))
+          ' "$GITHUB_EVENT_PATH" | while IFS= read -r identity; do
+            printf '::add-mask::%s\n' "$identity"
+          done
+
       - name: Download build artifact for attestation
         if: ${{ matrix.attest_asset != '' }}
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -430,6 +472,20 @@ jobs:
       attestations: read
 
     steps:
+      - name: Mask release/deploy source identities before checkout or token use
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          # Only inspect the local event file; never interpolate untrusted payload values.
+          jq -r '
+            (.client_payload // .inputs // {}) |
+            [.repository, .source_repository, .target_repository, .artifact_repository,
+             .head_sha, .base_sha, .merge_sha, .source_sha] |
+            .[]? | select(type == "string" and length > 0 and length <= 256 and (test("[\r\n]") | not))
+          ' "$GITHUB_EVENT_PATH" | while IFS= read -r identity; do
+            printf '::add-mask::%s\n' "$identity"
+          done
+
       - name: Checkout control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
