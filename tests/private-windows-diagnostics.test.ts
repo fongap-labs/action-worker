@@ -42,5 +42,14 @@ test("CI Evidence stays fail-closed while including numeric-only private diagnos
     dispatch,
     /\[\[ "\$WINDOWS_RESULT" == "success" \|\| "\$WINDOWS_RESULT" == "skipped" \]\]/
   );
-  assert.doesNotMatch(dispatch, /state=success[\s\S]*?WINDOWS_DIAGNOSTIC[\s\S]*?state=success/);
+  const classicStart = dispatch.indexOf(
+    "          else\\n            # The reusable Windows sandbox exports"
+  );
+  assert.ok(classicStart >= 0, "legacy numeric diagnostics remain a separate control path");
+  const classic = dispatch.slice(
+    classicStart,
+    dispatch.indexOf('          fi\\n\\n          node scripts/write-commit-status.ts', classicStart)
+  );
+  assert.match(classic, /description="Windows regression failed cases /);
+  assert.doesNotMatch(classic, /state=success[\\s\\S]*?WINDOWS_DIAGNOSTIC[\\s\\S]*?state=success/);
 });
