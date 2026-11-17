@@ -1351,8 +1351,11 @@ test("main write provenance rejects direct pushes and fake status-only trust", a
 
 test("PR review summary rejects unauthorized PRs without independent approval", () => {
   const body = buildReview("failure", "https://example.test/run", undefined, undefined);
-  assert.match(body, /Gate: \\*\\*FAIL\\*\\*/);
+  assert.ok(body.includes("- Gate: **FAIL**"));
   assert.match(body, /DO NOT MERGE/);
-  assert.doesNotMatch(body, /WAITING FOR APPROVAL|Review changes|continues automatically after the approval/);
+  assert.doesNotMatch(
+    body,
+    /WAITING FOR APPROVAL|Review changes|continues automatically after the approval/
+  );
   assert.doesNotMatch(body, /next Intake run, usually within an hour/);
 });

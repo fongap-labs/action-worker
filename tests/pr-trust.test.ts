@@ -44,7 +44,11 @@ test("external authors cannot gain central CI execution through a second-person 
       { trusted: false, basis: "none", association }
     );
     assert.equal(
-      evaluatePrTrust(pull(association), [review("maintainer", "APPROVED", { commit: olderSha })], headSha).trusted,
+      evaluatePrTrust(
+        pull(association),
+        [review("maintainer", "APPROVED", { commit: olderSha })],
+        headSha
+      ).trusted,
       false
     );
   }
