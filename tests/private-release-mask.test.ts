@@ -4,11 +4,11 @@ import { test } from "node:test";
 import { parse } from "yaml";
 
 type Step = { name?: string; shell?: string; run?: string; env?: Record<string, unknown> };
-type Workflow = { jobs: Record<string, { steps?: Step[] }> };
+type Workflow = { jobs: Record<string, { steps?: Step[]; outputs?: Record<string, string> }> };
 
 const jobsByFile: Record<string, string[]> = {
-  ".github/workflows/release-app.yml": ["prepare", "build", "attest", "package"],
-  ".github/workflows/deploy-source-script.yml": ["prepare", "gateway_variables", "deploy", "record_production_deployment"],
+  ".github/workflows/release-app.yml": ["build", "attest", "package"],
+  ".github/workflows/deploy-source-script.yml": ["gateway_variables", "deploy", "record_production_deployment"],
   ".github/workflows/handle-release-dispatch.yml": ["release"],
 };
 
@@ -40,4 +40,21 @@ test("release and deploy jobs mask event identity before checkout or credentials
       }
     }
   }
+});
+
+test("source-owning prepare jobs never mask values required as cross-job outputs", () => {
+  for (const file of [
+    ".github/workflows/release-app.yml",
+    ".github/workflows/deploy-source-script.yml",
+  ]) {
+    const workflow = parse(readFileSync(file, "utf8")) as Workflow;
+    const prepare = workflow.jobs.prepare;
+    assert.ok(prepare);
+    assert.ok(prepare.outputs?.source_repository);
+    assert.ok(prepare.outputs?.source_sha);
+    assert.notEqual(prepare.steps?.[0]?.name, "Mask release/deploy source identities before checkout or token use");
+  }
+  const release = parse(readFileSync(".github/workflows/handle-release-dispatch.yml", "utf8")) as Workflow;
+  const code = release.jobs.release?.steps?.[0]?.run ?? "";
+  assert.doesNotMatch(code, /\\.source_repository|\\.target_repository/);
 });

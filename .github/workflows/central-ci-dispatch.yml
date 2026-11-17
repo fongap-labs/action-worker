@@ -45,12 +45,31 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          # Never put unmasked client_payload values into a workflow expression or step env.
+          # GitHub Actions drops job outputs whose values were previously masked.
+          # Verify public visibility without echoing the repository into logs.
+          # Private or unverifiable repositories remain masked (fail closed).
+          target_repository="$(jq -r '.client_payload.repository // empty' "$GITHUB_EVENT_PATH")"
+          public_repository=""
+          if [[ "$target_repository" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+            is_private="$(curl -fsS --max-time 8 --header 'Accept: application/vnd.github+json' "https://api.github.com/repos/$target_repository" 2>/dev/null | jq -r '.private // empty' || true)"
+            if [[ "$is_private" == "false" ]]; then
+              public_repository="$target_repository"
+            fi
+          fi
+          # Valid commit SHAs remain available for downstream integrity checks.
           jq -r '
             (.client_payload // {}) |
-            [.repository, .head_sha, .base_sha, .merge_sha] |
+            [
+              .repository, .base_sha, .merge_sha,
+              (if (.head_sha | type) != "string" then .head_sha
+               elif (.head_sha | test("^[0-9a-f]{40}$")) then null
+               else .head_sha end)
+            ] |
             .[]? | select(type == "string" and length > 0)
           ' "$GITHUB_EVENT_PATH" | while IFS= read -r identity; do
+            if [[ -n "$public_repository" && "$identity" == "$public_repository" ]]; then
+              continue
+            fi
             printf '::add-mask::%s\n' "$identity"
           done
 
