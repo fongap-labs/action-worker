@@ -72,6 +72,15 @@ test("private CI refuses stale, forged, skipped and incomplete evidence", () => 
       v.runs.workflow_runs[0]!.head_sha = "c".repeat(40);
     },
     (v) => {
+      v.runs.workflow_runs[0]!.path = ".github/workflows/untrusted.yml";
+    },
+    (v) => {
+      v.runs.workflow_runs[0]!.pull_requests[0]!.base.ref = "dev";
+    },
+    (v) => {
+      v.runs.workflow_runs[0]!.run_attempt = 0;
+    },
+    (v) => {
       v.runs.workflow_runs[0]!.pull_requests[0]!.base.sha = "c".repeat(40);
     },
     (v) => {
