@@ -1,0 +1,250 @@
+name: 自动 · 私有仓库 main 原生 CI
+
+# Reusable code is public, but every job runs in the private caller's Actions context.
+# No private source is checked out on an Action Worker public runner.
+on:
+  workflow_call:
+    inputs:
+      ref_sha:
+        required: true
+        type: string
+      before_sha:
+        required: true
+        type: string
+      action_worker_sha:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Verify protected private main and CI plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      linux_shards: ${{ steps.plan.outputs.linux_shards }}
+      has_windows: ${{ steps.plan.outputs.has_windows }}
+    steps:
+      - name: Reject non-private or unpinned main events
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          IS_PRIVATE: ${{ github.event.repository.private }}
+          REF: ${{ github.ref }}
+          REPOSITORY: ${{ github.repository }}
+          HEAD_SHA: ${{ inputs.ref_sha }}
+          EVENT_SHA: ${{ github.sha }}
+          EVENT_AFTER: ${{ github.event.after }}
+          BASE_SHA: ${{ inputs.before_sha }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          AW_SHA: ${{ inputs.action_worker_sha }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$EVENT" == "push" && "$IS_PRIVATE" == "true" && "$REF" == "refs/heads/main" ]] || exit 77
+          [[ "$REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || exit 65
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ && "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 65
+          [[ "$AW_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 65
+          [[ "$HEAD_SHA" == "$EVENT_SHA" && "$HEAD_SHA" == "$EVENT_AFTER" ]] || exit 75
+          [[ "$BASE_SHA" == "$EVENT_BEFORE" && "$BASE_SHA" != 0000000000000000000000000000000000000000 ]] || exit 75
+      - name: Checkout protected private main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref_sha }}
+          path: control
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Checkout pinned public Action Worker
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fongap-labs/action-worker
+          ref: ${{ inputs.action_worker_sha }}
+          path: aw
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Verify exact commit and parent
+        shell: bash
+        env:
+          HEAD_SHA: ${{ inputs.ref_sha }}
+          BASE_SHA: ${{ inputs.before_sha }}
+          AW_SHA: ${{ inputs.action_worker_sha }}
+        run: |
+          set -Eeuo pipefail
+          test "$(git -C control rev-parse HEAD)" = "$HEAD_SHA"
+          test "$(git -C aw rev-parse HEAD)" = "$AW_SHA"
+          read -r actual_base extra <<< "$(git -C control show -s --format=%P HEAD)"
+          [[ "$actual_base" == "$BASE_SHA" && -z "${extra:-}" ]] || {
+            echo "::error::Private main push is not one immutable, single-parent commit." >&2
+            exit 75
+          }
+      - name: Resolve protected private CI plan
+        id: plan
+        shell: bash
+        run: node aw/scripts/private-ci-plan.ts "$GITHUB_WORKSPACE/control"
+
+  linux:
+    name: Private main Linux (${{ matrix.shard }})
+    needs: prepare
+    if: needs.prepare.result == 'success'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.prepare.outputs.linux_shards) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact private main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref_sha }}
+          path: target
+          persist-credentials: false
+      - name: Checkout pinned public test pack
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fongap-labs/action-worker
+          ref: ${{ inputs.action_worker_sha }}
+          path: aw
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Run private main Linux CI
+        shell: bash
+        env:
+          HEAD_SHA: ${{ inputs.ref_sha }}
+          CENTRAL_CI_SHARD: ${{ matrix.shard }}
+          CENTRAL_CI_AW_ROOT: ${{ github.workspace }}/aw
+        run: |
+          set -Eeuo pipefail
+          test "$(git -C target rev-parse HEAD)" = "$HEAD_SHA"
+          args=("$GITHUB_WORKSPACE/target")
+          if [ "$CENTRAL_CI_SHARD" != "all" ]; then
+            args+=("$CENTRAL_CI_SHARD")
+          fi
+          bash "$GITHUB_WORKSPACE/target/.github/scripts/central-ci.sh" "${args[@]}"
+
+  security:
+    name: Private main security and dependencies
+    needs: prepare
+    if: needs.prepare.result == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact private main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref_sha }}
+          path: target
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Checkout pinned public security tools
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fongap-labs/action-worker
+          ref: ${{ inputs.action_worker_sha }}
+          path: aw
+          persist-credentials: false
+      - name: Checkout protected current security policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fongap-labs/action-worker
+          ref: main
+          path: policy
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Verify security input SHA
+        shell: bash
+        env:
+          HEAD_SHA: ${{ inputs.ref_sha }}
+          AW_SHA: ${{ inputs.action_worker_sha }}
+        run: |
+          set -Eeuo pipefail
+          test "$(git -C target rev-parse HEAD)" = "$HEAD_SHA"
+          test "$(git -C aw rev-parse HEAD)" = "$AW_SHA"
+          [[ "$(git -C policy rev-parse HEAD)" =~ ^[0-9a-f]{40}$ ]] || exit 65
+      - name: Validate main source security and lock integrity
+        shell: bash
+        env:
+          BASE_SHA: ${{ inputs.before_sha }}
+          HEAD_SHA: ${{ inputs.ref_sha }}
+          TARGET_PRIVATE: "true"
+        run: |
+          set -Eeuo pipefail
+          node aw/scripts/validate-security.ts "$BASE_SHA" "$HEAD_SHA" "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/policy/policies/security.json"
+          node aw/scripts/dependency-lock-integrity.ts "$GITHUB_WORKSPACE/target" "$BASE_SHA" "$HEAD_SHA"
+
+  windows:
+    name: Private main Windows
+    needs: prepare
+    if: needs.prepare.result == 'success' && needs.prepare.outputs.has_windows == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 180
+    steps:
+      - name: Checkout exact private main commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref_sha }}
+          path: target
+          persist-credentials: false
+      - name: Checkout pinned public test pack
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fongap-labs/action-worker
+          ref: ${{ inputs.action_worker_sha }}
+          path: aw
+          persist-credentials: false
+      - name: Setup Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Run private main Windows CI
+        shell: pwsh
+        env:
+          HEAD_SHA: ${{ inputs.ref_sha }}
+          CENTRAL_CI_AW_ROOT: ${{ github.workspace }}/aw
+        run: |
+          $ErrorActionPreference = "Stop"
+          if ((git -C target rev-parse HEAD).Trim() -ne $env:HEAD_SHA) { throw "Private main SHA mismatch." }
+          & "$env:GITHUB_WORKSPACE/target/.github/scripts/central-ci.ps1" -TargetRoot "$env:GITHUB_WORKSPACE/target"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  verify:
+    name: Private main CI complete
+    needs: [prepare, linux, security, windows]
+    if: always()
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - name: Require complete private source execution
+        shell: bash
+        env:
+          PREPARE: ${{ needs.prepare.result }}
+          LINUX: ${{ needs.linux.result }}
+          SECURITY: ${{ needs.security.result }}
+          WINDOWS: ${{ needs.windows.result }}
+          HAS_WINDOWS: ${{ needs.prepare.outputs.has_windows }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$PREPARE" == "success" && "$LINUX" == "success" && "$SECURITY" == "success" ]] || exit 65
+          if [[ "$HAS_WINDOWS" == "true" ]]; then
+            [[ "$WINDOWS" == "success" ]] || exit 65
+          else
+            [[ "$HAS_WINDOWS" == "false" && "$WINDOWS" == "skipped" ]] || exit 65
+          fi
