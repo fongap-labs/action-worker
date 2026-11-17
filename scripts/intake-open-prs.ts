@@ -9,7 +9,7 @@ import { githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api
 import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
-import { UNAUTHORIZED_CI_DESCRIPTION } from "./pr-trust.ts";
+import { evaluatePrTrust } from "./pr-trust.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import { hasValidStatusAttestation, originalStatusDescription } from "./status-attestation.ts";
@@ -128,7 +128,7 @@ async function needsDispatch(
   reader: GithubGet,
   controlRepository: string,
   currentTitle: string
-): Promise<"dispatch" | "in-flight" | "processed" | "rejected-author"> {
+): Promise<"dispatch" | "in-flight" | "processed"> {
   const governance = statuses.get("PR Governance");
   const evidence = statuses.get("CI Evidence");
   const mergeGate = statuses.get("validate-merge");
@@ -167,15 +167,6 @@ async function needsDispatch(
   }
   if (pendingRunIds.length > 0) {
     return "dispatch";
-  }
-
-  // A terminal unauthorized verdict blocks repeated dispatches for the same head.
-  // A PR review never lifts this decision; new source identity requires a new check.
-  if (
-    governance?.state === "failure" &&
-    governance.description.endsWith(UNAUTHORIZED_CI_DESCRIPTION)
-  ) {
-    return "rejected-author";
   }
 
   // A PR title can change without changing its head SHA. Successful and title-bound failure
@@ -356,7 +347,13 @@ export async function scanOpenPullRequests(
         result.already_processed += 1;
         continue;
       }
-      if (governanceAction === "rejected-author") {
+      // A rejected external head stays blocked: no human review can authorize CI.
+      // A fresh head or change in trusted authorship will be assessed on a new intake.
+      if (
+        governanceAction === "dispatch" &&
+        statuses.get("PR Governance")?.state === "failure" &&
+        !evaluatePrTrust(pull.pull, [], pull.headSha).trusted
+      ) {
         result.blocked_unauthorized += 1;
         continue;
       }
