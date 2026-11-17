@@ -50,7 +50,10 @@ test("private main Linux and Windows run pinned source code on caller runners", 
   const windows = workflow.jobs.windows;
   assert.ok(linux);
   assert.ok(windows);
-  assert.equal(linux.strategy?.matrix?.shard, "${{ fromJSON(needs.prepare.outputs.linux_shards) }}");
+  assert.equal(
+    linux.strategy?.matrix?.shard,
+    "${{ fromJSON(needs.prepare.outputs.linux_shards) }}"
+  );
   assert.match(windows.if ?? "", /has_windows == 'true'/);
   for (const name of ["linux", "windows"]) {
     const steps = workflow.jobs[name]?.steps ?? [];
@@ -76,7 +79,9 @@ test("private main security and complete result remain fail-closed", async () =>
   assert.equal(verify.if, "always()");
   assert.match(JSON.stringify(security.steps), /validate-security\.ts/);
   assert.match(JSON.stringify(security.steps), /dependency-lock-integrity\.ts/);
-  const policy = security.steps.find((s) => s.name === "Checkout protected current security policy");
+  const policy = security.steps.find(
+    (s) => s.name === "Checkout protected current security policy"
+  );
   assert.equal(policy?.with?.repository, "fongap-labs/action-worker");
   assert.equal(policy?.with?.ref, "main");
   assert.equal(policy?.with?.["persist-credentials"], false);
