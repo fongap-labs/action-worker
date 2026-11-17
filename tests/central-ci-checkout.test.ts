@@ -24,7 +24,10 @@ test("Central CI security scan gets a target-only App read token, not private ch
   const scope = find("Resolve private security checkout scope");
   const mint = find("Mint private security checkout read token");
   assert.equal(scope.id, "security_scope");
-  assert.equal(scope.env?.TARGET_REPOSITORY, "${{ needs.prepare.outputs.repository }}");
+  assert.equal(
+    scope.env?.TARGET_REPOSITORY,
+    "${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}"
+  );
   assert.equal(scope.if, "needs.prepare.outputs.is_private == 'true'");
   assert.equal(mint.id, "security_read_app");
   assert.equal(mint.if, scope.if);

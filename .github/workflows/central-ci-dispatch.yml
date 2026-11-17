@@ -395,7 +395,7 @@ jobs:
       - name: Verify immutable source CI evidence
         env:
           AW_NATIVE_PRIVATE_CI_READ_TOKEN: ${{ steps.source_read_app.outputs.token }}
-          REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          REPOSITORY: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
@@ -464,7 +464,7 @@ jobs:
       - name: Verify source-owned immutable main CI evidence
         env:
           AW_NATIVE_PRIVATE_CI_READ_TOKEN: ${{ steps.source_read_app.outputs.token }}
-          REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          REPOSITORY: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
           BASE_SHA: ${{ needs.prepare.outputs.base_sha }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           LINUX_SHARDS: ${{ needs.prepare.outputs.linux_shards }}
@@ -496,7 +496,7 @@ jobs:
     with:
       platform: linux
       shard: ${{ matrix.shard }}
-      repository: ${{ needs.prepare.outputs.repository }}
+      repository: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
       owner: ${{ needs.prepare.outputs.owner }}
       repository_name: ${{ needs.prepare.outputs.repository_name }}
       app_client_id: ${{ vars.AW_APP_CLIENT_ID }}
@@ -547,7 +547,7 @@ jobs:
         id: security_scope
         if: needs.prepare.outputs.is_private == 'true'
         env:
-          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          TARGET_REPOSITORY: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
         run: node scripts/resolve-github-api-scope.ts pr
 
       - name: Mint private security checkout read token
@@ -576,7 +576,7 @@ jobs:
         if: needs.prepare.outputs.is_private == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: ${{ needs.prepare.outputs.repository }}
+          repository: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
           ref: ${{ needs.prepare.outputs.head_sha }}
           token: ${{ steps.security_read_app.outputs.token }}
           path: target
@@ -587,7 +587,7 @@ jobs:
         if: needs.prepare.outputs.is_private != 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: ${{ needs.prepare.outputs.repository }}
+          repository: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
           ref: ${{ needs.prepare.outputs.head_sha }}
           token: ${{ github.token }}
           path: target
@@ -615,7 +615,7 @@ jobs:
     with:
       platform: windows
       private_windows_numeric_diagnostic: ${{ needs.prepare.outputs.private_windows_numeric_diagnostic }}
-      repository: ${{ needs.prepare.outputs.repository }}
+      repository: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
       owner: ${{ needs.prepare.outputs.owner }}
       repository_name: ${{ needs.prepare.outputs.repository_name }}
       app_client_id: ${{ vars.AW_APP_CLIENT_ID }}
@@ -675,7 +675,7 @@ jobs:
       - name: Resolve status publication scope
         id: status_scope
         env:
-          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          TARGET_REPOSITORY: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
         run: node scripts/resolve-github-api-scope.ts pr
 
       - name: Mint status write token
@@ -696,7 +696,7 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-          CI_FAILURE_TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          CI_FAILURE_TARGET_REPOSITORY: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
           CI_FAILURE_SOURCE_SHA: ${{ needs.prepare.outputs.head_sha }}
           CI_FAILURE_WORKFLOW_PATH: .github/workflows/central-ci-dispatch.yml
           CI_FAILURE_REPAIR_OPERATION: central_ci_retry
@@ -707,7 +707,7 @@ jobs:
         env:
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
-          REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          REPOSITORY: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
           HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           LINUX_RESULT: ${{ needs.linux.result }}
           SECURITY_RESULT: ${{ needs.security.result }}
@@ -789,7 +789,7 @@ jobs:
         if: success()
         env:
           GH_TOKEN: ${{ steps.followup_dispatch_app.outputs.token }}
-          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          TARGET_REPOSITORY: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
           TARGET_HEAD_SHA: ${{ needs.prepare.outputs.head_sha }}
           TARGET_PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
         shell: bash
@@ -809,7 +809,7 @@ jobs:
   prepare-failure:
     name: Report Central CI Prepare Failure
     needs: prepare
-    if: always() && needs.prepare.result == 'failure' && github.event.action == 'run-central-ci' && needs.prepare.outputs.repository != ''
+    if: always() && needs.prepare.result == 'failure' && github.event.action == 'run-central-ci' && needs.prepare.outputs.owner != '' && needs.prepare.outputs.repository_name != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
@@ -842,7 +842,7 @@ jobs:
       - name: Resolve failed CI status scope
         id: status_scope
         env:
-          TARGET_REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          TARGET_REPOSITORY: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
         run: node scripts/resolve-github-api-scope.ts pr
 
       - name: Mint failed CI status token
@@ -871,7 +871,7 @@ jobs:
           AW_CONTROL_TOKEN: ${{ steps.failed_ci_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.status_app.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
-          REPOSITORY: ${{ needs.prepare.outputs.repository }}
+          REPOSITORY: ${{ format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name) }}
           PR_NUMBER: ${{ needs.prepare.outputs.pr_number }}
           REQUESTED_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
