@@ -56,5 +56,5 @@ test("source-owning prepare jobs never mask values required as cross-job outputs
   }
   const release = parse(readFileSync(".github/workflows/handle-release-dispatch.yml", "utf8")) as Workflow;
   const code = release.jobs.release?.steps?.[0]?.run ?? "";
-  assert.doesNotMatch(code, /\\.source_repository|\\.target_repository/);
+  assert.doesNotMatch(code, /\.source_repository|\.target_repository/);
 });
