@@ -308,6 +308,20 @@ jobs:
       cloudflare_nonce: ${{ steps.cloudflare_secret.outputs.nonce }}
       cloudflare_proof: ${{ steps.cloudflare_secret.outputs.proof }}
     steps:
+      - name: Mask release/deploy source identities before checkout or token use
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          # Only inspect the local event file; never interpolate untrusted payload values.
+          jq -r '
+            (.client_payload // .inputs // {}) |
+            [.repository, .source_repository, .target_repository, .artifact_repository,
+             .head_sha, .base_sha, .merge_sha, .source_sha] |
+            .[]? | select(type == "string" and length > 0 and length <= 256 and (test("[\r\n]") | not))
+          ' "$GITHUB_EVENT_PATH" | while IFS= read -r identity; do
+            printf '::add-mask::%s\n' "$identity"
+          done
+
       - name: Check out trusted control implementation
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -362,6 +376,20 @@ jobs:
       DEPLOY_TRIGGER: ${{ needs.prepare.outputs.trigger }}
 
     steps:
+      - name: Mask release/deploy source identities before checkout or token use
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          # Only inspect the local event file; never interpolate untrusted payload values.
+          jq -r '
+            (.client_payload // .inputs // {}) |
+            [.repository, .source_repository, .target_repository, .artifact_repository,
+             .head_sha, .base_sha, .merge_sha, .source_sha] |
+            .[]? | select(type == "string" and length > 0 and length <= 256 and (test("[\r\n]") | not))
+          ' "$GITHUB_EVENT_PATH" | while IFS= read -r identity; do
+            printf '::add-mask::%s\n' "$identity"
+          done
+
       - name: Checkout control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -533,6 +561,20 @@ jobs:
       contents: read
       deployments: write
     steps:
+      - name: Mask release/deploy source identities before checkout or token use
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          # Only inspect the local event file; never interpolate untrusted payload values.
+          jq -r '
+            (.client_payload // .inputs // {}) |
+            [.repository, .source_repository, .target_repository, .artifact_repository,
+             .head_sha, .base_sha, .merge_sha, .source_sha] |
+            .[]? | select(type == "string" and length > 0 and length <= 256 and (test("[\r\n]") | not))
+          ' "$GITHUB_EVENT_PATH" | while IFS= read -r identity; do
+            printf '::add-mask::%s\n' "$identity"
+          done
+
       - name: Record success-only production Deployment using scoped GitHub token
         shell: bash
         env:
