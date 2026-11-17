@@ -369,9 +369,9 @@ test("task publication preserves licenses, records changes, and uses CI-only gov
   const source = await readFile(".github/workflows/handle-task-dispatch.yml", "utf8");
   const publisher = source.split("  publish:")[1] ?? "";
   assert.match(publisher, /license_snapshot=/);
-  assert.match(publisher, /-iname '\\*\\.license'/);
-  assert.match(publisher, /cp -an "\\$license_snapshot"/);
-  assert.match(publisher, /git -C "\\$WORK_DIR\\/target" add -- CHANGELOG\\.md/);
+  assert.ok(publisher.includes("-iname '*.license'"));
+  assert.ok(publisher.includes('cp -an "$license_snapshot"/. "$target_dir"/'));
+  assert.ok(publisher.includes('git -C "$WORK_DIR/target" add -- CHANGELOG.md'));
   assert.match(publisher, /- 维护: 同步自动任务输出/);
   assert.doesNotMatch(publisher, /Awaiting maintainer approval of the current head commit/);
   assert.doesNotMatch(publisher, /review_count=/);
