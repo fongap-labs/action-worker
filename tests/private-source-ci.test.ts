@@ -103,7 +103,7 @@ test("pinned private caller is read-only and matches audited workflow hash", asy
     entry.sha256
   );
   assert.match(caller, /pull_request_target/);
-  assert.match(caller, /permissions:\n  contents: read/);
+  assert.match(caller, /permissions:\n\s+contents: read/);
   assert.match(caller, /private-source-ci\.yml@[0-9a-f]{40}/);
   assert.doesNotMatch(caller, /secrets:|secrets\.|workflow_dispatch|pull_request:|write-all/);
 });
