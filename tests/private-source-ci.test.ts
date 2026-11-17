@@ -133,6 +133,9 @@ test("pinned private caller is read-only and matches audited workflow hash", asy
     caller,
     /github\.event\.pull_request\.title|github\.event\.inputs|workflow_dispatch/
   );
+  const approvedCodeSha = "5355b7de15c7b84096a924fc3b41999fdea7e658";
+  assert.ok(caller.includes(`private-source-ci.yml@${approvedCodeSha}`));
+  assert.ok(caller.includes(`action_worker_sha: ${approvedCodeSha}`));
   assert.match(caller, /private-source-ci\.yml@[0-9a-f]{40}/);
   assert.doesNotMatch(caller, /secrets:|secrets\.|workflow_dispatch|pull_request:|write-all/);
 });
