@@ -243,3 +243,13 @@ test("PR diff base and pinned merge base remain separate", () => {
   assert.ok(sandbox.includes("SCAN_BASE_SHA: ${{ inputs.diff_base_sha }}"));
   assert.ok(sandbox.includes("PINNED_BASE_SHA: ${{ inputs.base_sha }}"));
 });
+
+test("central CI downstream jobs reconstruct masked repository from validated API scope", () => {
+  const downstream = workflow.slice(workflow.indexOf("  native-private-pilot:"));
+  assert.doesNotMatch(downstream, /needs\.prepare\.outputs\.repository(?!_name)/);
+  const validatedRepo =
+    "format('{0}/{1}', needs.prepare.outputs.owner, needs.prepare.outputs.repository_name)";
+  assert.ok(downstream.includes(validatedRepo));
+  assert.ok(workflow.includes("owner: ${{ steps.api_scope.outputs.owner }}"));
+  assert.ok(workflow.includes("repository_name: ${{ steps.api_scope.outputs.repository_name }}"));
+});

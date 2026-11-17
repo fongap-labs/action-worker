@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 中央 CI 下游作业由已校验的 owner 与 repository_name 重建目标仓库标识，避免掩码导致 repository 输出为空并误检出控制仓库。
+
 - 修复: 中央 CI 公开仓库可见性验证保留 GitHub API 的布尔值 false，避免 jq 的 // 操作符丢弃公开状态并错误掩码仓库名。
 
 - 修复: 私有发布与部署的非来源身份输出 Job 在首步掩码事件中的提交和仓库元数据，保留 prepare 跨 Job 来源字段，防止 GitHub Actions 拒绝被掩码的 outputs；不替代私有 Runner 隔离。
