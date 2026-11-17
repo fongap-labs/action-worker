@@ -15,8 +15,8 @@ concurrency:
 jobs:
   verify-private-source:
     name: Private source verification
-    uses: fongap-labs/action-worker/.github/workflows/private-source-ci.yml@8ba1b2c6fbb8d19c177bfe9e12e16e5a1b2610b1
+    uses: fongap-labs/action-worker/.github/workflows/private-source-ci.yml@5355b7de15c7b84096a924fc3b41999fdea7e658
     with:
       base_sha: ${{ github.event.pull_request.base.sha }}
       head_sha: ${{ github.event.pull_request.head.sha }}
-      action_worker_sha: 8ba1b2c6fbb8d19c177bfe9e12e16e5a1b2610b1
+      action_worker_sha: 5355b7de15c7b84096a924fc3b41999fdea7e658
