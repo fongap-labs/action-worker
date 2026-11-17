@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- 修复: 经白名单与 SHA256 审核的私有 main/ref 正式切换为源仓原生 CI 唯一执行路径；中央仅以受限只读 GitHub App 核验当前 main、父提交、可信调用器及全部 Linux/Windows/安全 Job，核验失败、缺失、跳过或公共旧作业参与时 CI Evidence 严格失败，其他仓库与 PR 门禁保持原行为。
+- 修复: 私有 main/ref 改用源仓原生 CI；中央只读核验主分支、父提交、调用器哈希与全部 Job。核验失败或旧公共作业参与时 CI Evidence 必须失败，不回退；其他仓库与 PR 门禁不变。
 
 - 新增: 私有 main 原生 CI 只读核验器与精确 Caller SHA256 白名单，拒绝错误主分支、陈旧 SHA、提交双亲不符、缺失/跳过必需 Job 或非受保护调用器；暂不替换中央 main/ref 门禁。
 
