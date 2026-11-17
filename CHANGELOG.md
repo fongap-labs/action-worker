@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 新增私有仓库原生 CI 只读结果核验器，严格绑定目标仓库、PR、base/head SHA 与完整 Linux/Windows/Security Job，拒绝取消、重放、跳过、伪造或不完整结果；暂不切换中央执行路径。
+
 - 修复: 私有 CI 运行元数据由可信 GitHub 事件绑定 PR 号、base/head SHA，同步更新受保护调用模板 SHA256 白名单；为后续只读核验器提供不可由 PR 标题伪造的身份字段。
 
 - 修复: 中央 PR 准入删除独立 Review 授权与等待路径；仅允许仓库授权作者及可信组织 Bot 执行中央 CI，其他来源明确拒绝，保持签名与 CI 门禁。
