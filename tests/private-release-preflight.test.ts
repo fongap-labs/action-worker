@@ -53,9 +53,7 @@ test("private source and public control are pinned, credentials are not retained
   const workflow = parse(readFileSync(file, "utf8")) as Workflow;
   const steps = workflow.jobs.preflight?.steps ?? [];
   const source = steps.find((x) => x.name === "Checkout exact private main source");
-  const control = steps.find(
-    (x) => x.name === "Checkout immutable public Action Worker control"
-  );
+  const control = steps.find((x) => x.name === "Checkout immutable public Action Worker control");
   assert.equal(source?.with?.ref, "${{ inputs.source_sha }}");
   assert.equal(control?.with?.ref, "${{ inputs.action_worker_sha }}");
   assert.equal(control?.with?.repository, "fongap-labs/action-worker");
@@ -69,5 +67,8 @@ test("private source and public control are pinned, credentials are not retained
   assert.match(verifier?.run ?? "", /git -C aw rev-parse HEAD/);
   assert.match(verifier?.run ?? "", /release\.manifest\.json/);
   assert.match(verifier?.run ?? "", /jq -e/);
-  assert.doesNotMatch(JSON.stringify(steps), /release-build\.ps1|run-scoped-deploy|upload-artifact/);
+  assert.doesNotMatch(
+    JSON.stringify(steps),
+    /release-build\.ps1|run-scoped-deploy|upload-artifact/
+  );
 });
