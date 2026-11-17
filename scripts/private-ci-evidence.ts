@@ -166,6 +166,8 @@ export async function fetchAndVerifyPrivateCiEvidence(
   if (matching.length === 0) fail();
   const latest = matching[0];
   const runId = getJsonNumber(latest, "id");
-  const jobs = await reader.get(`repos/${repo}/actions/runs/${runId}/jobs?per_page=100&filter=latest`);
+  const jobs = await reader.get(
+    `repos/${repo}/actions/runs/${runId}/jobs?per_page=100&filter=latest`
+  );
   return verifyPrivateCiEvidence(identity, runs, jobs);
 }
