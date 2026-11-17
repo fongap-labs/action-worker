@@ -75,6 +75,18 @@ jobs:
     timeout-minutes: 180
 
     steps:
+      - name: Mask target repository and commit identities
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          jq -r '
+            (.client_payload // {}) |
+            [.repository, .head_sha, .base_sha, .merge_sha] |
+            .[]? | select(type == "string" and length > 0)
+          ' "$GITHUB_EVENT_PATH" | while IFS= read -r identity; do
+            printf '::add-mask::%s\n' "$identity"
+          done
+
       - name: Setup Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -281,6 +293,19 @@ jobs:
       windows_diagnostic: ${{ steps.private_diag.outputs.windows_diagnostic }}
 
     steps:
+      - name: Mask target repository and commit identities
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $eventData = Get-Content -Raw -Path $env:GITHUB_EVENT_PATH | ConvertFrom-Json
+          $client = $eventData.client_payload
+          if ($null -eq $client) { exit 0 }
+          foreach ($identity in @($client.repository, $client.head_sha, $client.base_sha, $client.merge_sha)) {
+            if ($identity -is [string] -and $identity.Length -gt 0) {
+              Write-Output "::add-mask::$identity"
+            }
+          }
+
       # A pull request is tested as it would merge into the default branch; see the Linux job.
       - name: Mint scoped private target read token
         id: private_read
