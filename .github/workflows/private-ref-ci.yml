@@ -230,6 +230,7 @@ jobs:
     needs: [prepare, linux, security, windows]
     if: always()
     runs-on: ubuntu-24.04
+    timeout-minutes: 5
     permissions: {}
     steps:
       - name: Require complete private source execution
