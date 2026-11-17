@@ -11,7 +11,8 @@ type Job = {
 };
 const source = readFileSync(".github/workflows/central-ci-dispatch.yml", "utf8");
 const jobs = (parse(source) as { jobs: Record<string, Job> }).jobs;
-const oldPath = "needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.native_private_pilot != 'true'";
+const oldPath =
+  "needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.native_private_pilot != 'true'";
 
 test("enrolled private PRs run only the audited source-owned evidence verifier", () => {
   assert.equal(
@@ -32,10 +33,19 @@ test("enrolled private PRs run only the audited source-owned evidence verifier",
 
 test("signed private CI verdict cannot fall back to public runner success", () => {
   const finalize = jobs.finalize;
-  assert.deepEqual(finalize?.needs, ["prepare", "linux", "security", "windows", "native-private-pilot"]);
+  assert.deepEqual(finalize?.needs, [
+    "prepare",
+    "linux",
+    "security",
+    "windows",
+    "native-private-pilot",
+  ]);
   const publish = finalize?.steps?.find((step) => step.name === "Publish target status");
   assert.ok(publish?.run);
-  assert.equal(publish.env?.NATIVE_PRIVATE_PILOT, "${{ needs.prepare.outputs.native_private_pilot }}");
+  assert.equal(
+    publish.env?.NATIVE_PRIVATE_PILOT,
+    "${{ needs.prepare.outputs.native_private_pilot }}"
+  );
   assert.equal(publish.env?.NATIVE_PRIVATE_RESULT, "${{ needs['native-private-pilot'].result }}");
   const run = publish.run;
   assert.match(run, /if \[\[ "\$NATIVE_PRIVATE_PILOT" == "true" \]\]; then/);
@@ -54,7 +64,10 @@ test("unlisted and main/ref targets retain the existing execution flow", () => {
     repositories: string[];
   };
   assert.deepEqual(policy.repositories, ["fongap-labs/delta-legacy"]);
-  assert.ok(source.includes('EVENT_ACTION: ${{ github.event.action }}'));
-  assert.ok(source.includes('node scripts/native-ci-enrollment.ts'));
-  assert.match(jobs.finalize?.steps?.find((step) => step.name === "Publish target status")?.run ?? "", /description="Central CI passed"/);
+  assert.ok(source.includes("EVENT_ACTION: ${{ github.event.action }}"));
+  assert.ok(source.includes("node scripts/native-ci-enrollment.ts"));
+  assert.match(
+    jobs.finalize?.steps?.find((step) => step.name === "Publish target status")?.run ?? "",
+    /description="Central CI passed"/
+  );
 });
