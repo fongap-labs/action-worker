@@ -94,6 +94,9 @@ test("protected private main only reads source-owned CI evidence", () => {
   assert.match(script, /description="Private main isolation contract violated"/);
   assert.match(script, /description="Native private main CI evidence failed"/);
   assert.match(script, /description="Native private main CI evidence verified"/);
-  assert.match(script, /if \[\[ "\$NATIVE_PRIVATE_PILOT" != "true" && "\$NATIVE_PRIVATE_REF" != "true" \]\]/);
+  assert.match(
+    script,
+    /if \[\[ "\$NATIVE_PRIVATE_PILOT" != "true" && "\$NATIVE_PRIVATE_REF" != "true" \]\]/
+  );
   assert.ok(source.includes("node scripts/native-ref-enrollment.ts"));
 });
