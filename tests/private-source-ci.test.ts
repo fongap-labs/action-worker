@@ -87,3 +87,23 @@ test("private caller pins PR merge parents and executes mandatory private securi
   assert.match(JSON.stringify(security.steps), /dependency-lock-integrity\.ts/);
   assert.doesNotMatch(source, /persist-credentials: true|secrets\./);
 });
+
+test("pinned private caller is read-only and matches audited workflow hash", async () => {
+  const { createHash } = await import("node:crypto");
+  const caller = await readFile("templates/bridge/private-source-ci.yml", "utf8");
+  const policy = JSON.parse(await readFile("policies/security.json", "utf8")) as {
+    approved_workflows: { path: string; sha256: string }[];
+  };
+  const entry = policy.approved_workflows.find(
+    (item) => item.path === ".github/workflows/private-source-ci.yml"
+  );
+  assert.ok(entry);
+  assert.equal(
+    createHash("sha256").update(caller.replace(/\r\n/g, "\n")).digest("hex"),
+    entry.sha256
+  );
+  assert.match(caller, /pull_request_target/);
+  assert.match(caller, /permissions:\n\s+contents: read/);
+  assert.match(caller, /private-source-ci\.yml@[0-9a-f]{40}/);
+  assert.doesNotMatch(caller, /secrets:|secrets\.|workflow_dispatch|pull_request:|write-all/);
+});
