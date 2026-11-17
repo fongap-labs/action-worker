@@ -1,8 +1,5 @@
 import { GithubReader } from "./github-api.ts";
-import {
-  fetchAndVerifyPrivateRef,
-  type PrivateRefIdentity,
-} from "./private-ref-evidence.ts";
+import { fetchAndVerifyPrivateRef, type PrivateRefIdentity } from "./private-ref-evidence.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
