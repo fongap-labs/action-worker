@@ -14,14 +14,17 @@ const policy = {
 };
 
 test("only explicitly enrolled private main/ref events use source-owned evidence", () => {
-  assert.equal(resolveNativePrivateRef(policy, "fongap-labs/delta-legacy", "true", "run-central-ci-ref", "0"), true);
+  assert.equal(
+    resolveNativePrivateRef(policy, "fongap-labs/delta-legacy", "true", "run-central-ci-ref", "0"),
+    true
+  );
   for (const [repo, privateFlag, event, pr] of [
     ["fongap-labs/delta-legacy", "false", "run-central-ci-ref", "0"],
     ["fongap-labs/delta-legacy", "true", "run-central-ci", "491"],
     ["fongap-labs/delta-legacy", "true", "run-central-ci-ref", "491"],
     ["fongap-labs/delta", "true", "run-central-ci-ref", "0"],
-  ]) {
-    assert.equal(resolveNativePrivateRef(policy, repo!, privateFlag!, event!, pr!), false);
+  ] as const) {
+    assert.equal(resolveNativePrivateRef(policy, repo, privateFlag, event, pr), false);
   }
 });
 
@@ -38,6 +41,10 @@ test("invalid, duplicate or untrusted private main enrollment fails closed", () 
     );
   }
   assert.throws(() => resolveNativePrivateRef(policy, "../bad", "true", "run-central-ci-ref", "0"));
-  assert.throws(() => resolveNativePrivateRef(policy, "fongap-labs/delta-legacy", "notbool", "run-central-ci-ref", "0"));
-  assert.throws(() => resolveNativePrivateRef(policy, "fongap-labs/delta-legacy", "true", "run-central-ci-ref", "-1"));
+  assert.throws(() =>
+    resolveNativePrivateRef(policy, "fongap-labs/delta-legacy", "notbool", "run-central-ci-ref", "0")
+  );
+  assert.throws(() =>
+    resolveNativePrivateRef(policy, "fongap-labs/delta-legacy", "true", "run-central-ci-ref", "-1")
+  );
 });
