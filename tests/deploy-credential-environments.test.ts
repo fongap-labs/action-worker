@@ -182,7 +182,7 @@ test("central deployment uses ops only for authorized credential read and record
   assert.match(record.if ?? "", /needs\.deploy\.result == 'success'/);
   assert.match(record.if ?? "", /credential_environment != needs\.prepare\.outputs\.environment/);
   assert.deepEqual(record.permissions, { contents: "read", deployments: "write" });
-  const audit = record.steps?.[0];
+  const audit = record.steps?.find((step) => step.name === "Record success-only production Deployment using scoped GitHub token");
   assert.equal(audit?.env?.GH_TOKEN, "${{ github.token }}");
   assert.equal(audit?.env?.TARGET_ENVIRONMENT, "${{ needs.prepare.outputs.environment }}");
   assert.match(audit?.run ?? "", /\[\[ "\$SOURCE_SHA" =~ \^\[0-9a-f\]\{40\}\$ \]\]/);

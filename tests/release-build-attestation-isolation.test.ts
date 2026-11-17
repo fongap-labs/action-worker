@@ -52,14 +52,18 @@ test("dedicated attestation job only downloads artifacts and produces provenance
   assert.equal(attest.permissions?.contents, "read");
   assert.equal(attest.permissions?.["id-token"], "write");
   assert.equal(attest.permissions?.attestations, "write");
+  const mask = attest.steps?.[0];
+  assert.equal(mask?.name, "Mask release/deploy source identities before checkout or token use");
+  assert.match(mask?.run ?? "", /GITHUB_EVENT_PATH/);
+  const provenanceSteps = attest.steps?.slice(1);
   assert.deepEqual(
-    attest.steps?.map((step) => step.name),
+    provenanceSteps?.map((step) => step.name),
     ["Download build artifact for attestation", "Attest build provenance"]
   );
-  assert.equal(attest.steps?.[0]?.with?.name, "release-build-${{ matrix.id }}");
-  assert.equal(attest.steps?.[1]?.with?.["subject-path"], "${{ runner.temp }}/release-build/*");
+  assert.equal(provenanceSteps?.[0]?.with?.name, "release-build-${{ matrix.id }}");
+  assert.equal(provenanceSteps?.[1]?.with?.["subject-path"], "${{ runner.temp }}/release-build/*");
   assert.equal(
-    attest.steps?.every(
+    provenanceSteps?.every(
       (step) =>
         !step.run &&
         !step.uses?.startsWith("actions/checkout@") &&

@@ -19,6 +19,7 @@ test("release and deploy jobs mask event identity before checkout or credentials
       const steps = workflow.jobs[job]?.steps ?? [];
       assert.ok(steps.length > 1, file + ":" + job);
       const first = steps[0];
+      assert.ok(first, file + ':' + job + ' has no first step');
       assert.equal(first.name, "Mask release/deploy source identities before checkout or token use");
       assert.equal(first.env, undefined);
       const code = first.run ?? "";
