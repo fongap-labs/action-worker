@@ -591,6 +591,15 @@ jobs:
           test -s "$SBOM_PATH"
           jq -e '.bomFormat == "CycloneDX" and (.specVersion | type == "string")' "$SBOM_PATH" > /dev/null
 
+      # Normalize only ephemeral GitHub runner home paths in Syft-generated SBOM.
+      - name: Normalize runner paths in release SBOM
+        if: ${{ needs.prepare.outputs.sbom_asset != '' }}
+        env:
+          SBOM_PATH: ${{ runner.temp }}/release-package/${{ needs.prepare.outputs.sbom_asset }}
+        run: |
+          set -Eeuo pipefail
+          python3 scripts/normalize-release-sbom.py "$SBOM_PATH"
+
       # Scan all assembled assets before signing the release manifest or uploading artifacts.
       # The scanner reads bytes offline; this job holds no publishing credentials.
       - name: Enforce release artifact privacy gate
