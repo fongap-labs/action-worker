@@ -1349,14 +1349,13 @@ test("main write provenance rejects direct pushes and fake status-only trust", a
   await assert.rejects(() => assertTrustedMainWrite(reader, "fongap/example", mainSha, false));
 });
 
-test("PR review summary tells a maintainer how to release a pull request awaiting approval", () => {
-  const body = buildReview("awaiting-approval", "https://example.test/run", undefined, undefined);
-  assert.match(body, /Gate: \*\*WAITING FOR APPROVAL\*\*/);
-  assert.match(body, /Review changes → Approve/);
-  // The approval is the only step: nothing has to be started by hand afterwards.
-  assert.match(body, /continues automatically after the approval/);
-  // GitHub sends no event with secrets on an approval, so Intake notices it; the wait is not hidden.
-  assert.match(body, /next Intake run, usually within an hour/);
-  assert.doesNotMatch(body, /Actions tab|run \*\*/);
-  assert.doesNotMatch(body, /Gate: \*\*FAIL\*\*/);
+test("PR review summary rejects unauthorized PRs without independent approval", () => {
+  const body = buildReview("failure", "https://example.test/run", undefined, undefined);
+  assert.ok(body.includes("- Gate: **FAIL**"));
+  assert.match(body, /DO NOT MERGE/);
+  assert.doesNotMatch(
+    body,
+    /WAITING FOR APPROVAL|Review changes|continues automatically after the approval/
+  );
+  assert.doesNotMatch(body, /next Intake run, usually within an hour/);
 });

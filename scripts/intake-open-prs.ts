@@ -9,7 +9,7 @@ import { githubEnvironment, isJsonRecord, statusAwareReader } from "./github-api
 import { trustedIntakeTarget } from "./intake-event-scope.ts";
 import { requireIntakeStatusToken, reserveIntakeCommitStatus } from "./intake-status-token.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
-import { AWAITING_APPROVAL_DESCRIPTION, evaluatePrTrust, listPullReviews } from "./pr-trust.ts";
+import { evaluatePrTrust } from "./pr-trust.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { CliError, handleError, isMain, parseJson, runCommand } from "./runtime-command.ts";
 import { hasValidStatusAttestation, originalStatusDescription } from "./status-attestation.ts";
@@ -34,7 +34,7 @@ export type IntakeResult = {
   repair_blocked: number;
   in_flight: number;
   already_processed: number;
-  awaiting_approval: number;
+  blocked_unauthorized: number;
 };
 
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -128,7 +128,7 @@ async function needsDispatch(
   reader: GithubGet,
   controlRepository: string,
   currentTitle: string
-): Promise<"dispatch" | "in-flight" | "processed" | "awaiting-approval"> {
+): Promise<"dispatch" | "in-flight" | "processed"> {
   const governance = statuses.get("PR Governance");
   const evidence = statuses.get("CI Evidence");
   const mergeGate = statuses.get("validate-merge");
@@ -167,15 +167,6 @@ async function needsDispatch(
   }
   if (pendingRunIds.length > 0) {
     return "dispatch";
-  }
-
-  // An untrusted head never reaches CI, so CI Evidence stays absent. Without this check the PR
-  // would be dispatched again on every intake run until someone approved it.
-  if (
-    governance?.state === "failure" &&
-    governance.description.endsWith(AWAITING_APPROVAL_DESCRIPTION)
-  ) {
-    return "awaiting-approval";
   }
 
   // A PR title can change without changing its head SHA. Successful and title-bound failure
@@ -293,7 +284,7 @@ export async function scanOpenPullRequests(
     repair_blocked: 0,
     in_flight: 0,
     already_processed: 0,
-    awaiting_approval: 0,
+    blocked_unauthorized: 0,
   };
 
   for (const repository of repositories) {
@@ -356,12 +347,15 @@ export async function scanOpenPullRequests(
         result.already_processed += 1;
         continue;
       }
-      if (governanceAction === "awaiting-approval") {
-        const reviews = await listPullReviews(reader, repository, pull.number);
-        if (!evaluatePrTrust(pull.pull, reviews, pull.headSha).trusted) {
-          result.awaiting_approval += 1;
-          continue;
-        }
+      // A rejected external head stays blocked: no human review can authorize CI.
+      // A fresh head or change in trusted authorship will be assessed on a new intake.
+      if (
+        governanceAction === "dispatch" &&
+        statuses.get("PR Governance")?.state === "failure" &&
+        !evaluatePrTrust(pull.pull, [], pull.headSha).trusted
+      ) {
+        result.blocked_unauthorized += 1;
+        continue;
       }
 
       if (
