@@ -1508,8 +1508,9 @@ test("only PR Governance reports an untrusted head instead of failing", async ()
     governance,
     /- name: Enforce PR trust\n\s+id: trust\n\s+env:\n\s+PR_TRUST_UNTRUSTED: report\n/
   );
-  assert.equal(governance.split("'Author lacks CI authorization'").length - 1, 2);
-  assert.doesNotMatch(governance, /Awaiting maintainer approval|awaiting-approval/);
+  const trustSource = await text("scripts/pr-trust.ts");
+  assert.doesNotMatch(trustSource, /listPullReviews|reviews\\?per_page|APPROVED/);
+  assert.match(trustSource, /if \\(!decision\\.trusted\\) \\{/);
   for (const step of ["Dispatch centralized CI", "Collect CI evidence", "Validate CI evidence"]) {
     assert.ok(
       governance.includes(`- name: ${step}\n        if: steps.trust.outputs.trusted == 'true' && `),
