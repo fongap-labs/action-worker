@@ -43,6 +43,7 @@ const chineseDisplayNames: Record<string, string> = {
   "ci-follow-up.yml": "自动 · CI 后续",
   "central-ci-sandbox.yml": "自动 · CI 沙箱",
   "private-source-security.yml": "自动 · 私有源码安全沙箱",
+  "private-release-preflight.yml": "自动 · 私有发布预检",
   "private-ref-ci.yml": "自动 · 私有仓库 main 原生 CI",
   "private-source-ci.yml": "自动 · 私有仓库原生 CI",
   "validate-ci.yml": "自动 · CI 验证",
