@@ -187,3 +187,74 @@ export async function fetchAndVerifyPrivateCiEvidence(
   );
   return verifyPrivateCiEvidence(identity, runs, jobs);
 }
+
+export type NativePrivateCiRequest = {
+  repository: string;
+  prNumber: number;
+  baseSha: string;
+  headSha: string;
+  mergeSha: string;
+  linuxShards: readonly string[];
+  hasWindows: boolean;
+};
+
+/** Validate immutable PR and merge parents before accepting source-owned CI results. */
+export async function fetchAndVerifyPrivateCiForPull(
+  reader: { get(path: string): Promise<unknown> },
+  request: NativePrivateCiRequest
+): Promise<VerifiedPrivateCi> {
+  if (
+    !repositoryPattern.test(request.repository) ||
+    !Number.isSafeInteger(request.prNumber) ||
+    request.prNumber < 1 ||
+    !shaPattern.test(request.baseSha) ||
+    !shaPattern.test(request.headSha) ||
+    !shaPattern.test(request.mergeSha)
+  ) {
+    fail();
+  }
+  const repo = request.repository;
+  const [repository, pull, merge] = await Promise.all([
+    reader.get(`repos/${repo}`),
+    reader.get(`repos/${repo}/pulls/${request.prNumber}`),
+    reader.get(`repos/${repo}/git/commits/${request.mergeSha}`),
+  ]);
+  if (
+    !isJsonRecord(repository) ||
+    repository.private !== true ||
+    getJsonString(repository, "full_name") !== repo ||
+    !isJsonRecord(pull) ||
+    getJsonNumber(pull, "number") !== request.prNumber ||
+    getJsonString(pull, "state") !== "open" ||
+    !isJsonRecord(pull.base) ||
+    !isJsonRecord(pull.head) ||
+    getJsonString(pull.base, "sha") !== request.baseSha ||
+    getJsonString(pull.head, "sha") !== request.headSha ||
+    !isJsonRecord(pull.base.repo) ||
+    !isJsonRecord(pull.head.repo) ||
+    getJsonString(pull.base.repo, "full_name") !== repo ||
+    getJsonString(pull.head.repo, "full_name") !== repo ||
+    !isJsonRecord(merge) ||
+    getJsonString(merge, "sha") !== request.mergeSha
+  ) {
+    fail();
+  }
+  const parents = getJsonArray(merge, "parents");
+  if (
+    parents.length !== 2 ||
+    getJsonString(parents[0], "sha") !== request.baseSha ||
+    getJsonString(parents[1], "sha") !== request.headSha
+  ) {
+    fail();
+  }
+  const identity: PrivateCiIdentity = {
+    repository: repo,
+    prNumber: request.prNumber,
+    baseSha: request.baseSha,
+    headSha: request.headSha,
+    headBranch: getJsonString(pull.head, "ref"),
+    linuxShards: request.linuxShards,
+    hasWindows: request.hasWindows,
+  };
+  return await fetchAndVerifyPrivateCiEvidence(reader, identity);
+}

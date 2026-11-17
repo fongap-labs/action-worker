@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
   fetchAndVerifyPrivateCiEvidence,
+  fetchAndVerifyPrivateCiForPull,
   type PrivateCiIdentity,
   verifyPrivateCiEvidence,
 } from "../scripts/private-ci-evidence.ts";
@@ -200,4 +201,102 @@ test("private CI accepts only the exact audited caller from a protected base SHA
   await assert.rejects(
     fetchAndVerifyPrivateCiEvidence(reader, { ...identity, baseSha: "c".repeat(40) })
   );
+});
+
+test("native CI acceptance binds private repo, PR and exact merge parents", async () => {
+  const { runs, jobs } = fixture();
+  const mergeSha = "d".repeat(40);
+  const callerContent = await readFile("templates/bridge/private-source-ci.yml", "utf8");
+  const callerPath = `repos/${identity.repository}/contents/.github/workflows/private-source-ci.yml?ref=${identity.baseSha}`;
+  const runPath = `repos/${identity.repository}/actions/workflows/private-source-ci.yml/runs?event=pull_request_target&head_sha=${identity.headSha}&per_page=100`;
+  const jobsPath = `repos/${identity.repository}/actions/runs/99/jobs?per_page=100&filter=latest`;
+  const request = {
+    repository: identity.repository,
+    prNumber: identity.prNumber,
+    baseSha: identity.baseSha,
+    headSha: identity.headSha,
+    mergeSha,
+    linuxShards: identity.linuxShards,
+    hasWindows: identity.hasWindows,
+  };
+  const values = new Map<string, unknown>([
+    [`repos/${identity.repository}`, { private: true, full_name: identity.repository }],
+    [
+      `repos/${identity.repository}/pulls/${identity.prNumber}`,
+      {
+        number: identity.prNumber,
+        state: "open",
+        base: { sha: identity.baseSha, repo: { full_name: identity.repository } },
+        head: {
+          sha: identity.headSha,
+          ref: identity.headBranch,
+          repo: { full_name: identity.repository },
+        },
+      },
+    ],
+    [
+      `repos/${identity.repository}/git/commits/${mergeSha}`,
+      { sha: mergeSha, parents: [{ sha: identity.baseSha }, { sha: identity.headSha }] },
+    ],
+    [
+      callerPath,
+      {
+        path: ".github/workflows/private-source-ci.yml",
+        type: "file",
+        encoding: "base64",
+        content: Buffer.from(callerContent).toString("base64"),
+      },
+    ],
+    [runPath, runs],
+    [jobsPath, jobs],
+  ]);
+  const reader = { get: async (path: string): Promise<unknown> => values.get(path) };
+  assert.deepEqual(await fetchAndVerifyPrivateCiForPull(reader, request), {
+    runId: 99,
+    runAttempt: 1,
+  });
+
+  const repos = values.get(`repos/${identity.repository}`) as {
+    private: boolean;
+    full_name: string;
+  };
+  const pull = values.get(`repos/${identity.repository}/pulls/${identity.prNumber}`) as {
+    state: string;
+    base: { sha: string; repo: { full_name: string } };
+    head: { sha: string; ref: string; repo: { full_name: string } };
+  };
+  const merge = values.get(`repos/${identity.repository}/git/commits/${mergeSha}`) as {
+    sha: string;
+    parents: Array<{ sha: string }>;
+  };
+  const invalids: Array<() => void> = [
+    () => {
+      repos.private = false;
+    },
+    () => {
+      pull.state = "closed";
+    },
+    () => {
+      pull.head.repo.full_name = "outside/fork";
+    },
+    () => {
+      pull.base.sha = "c".repeat(40);
+    },
+    () => {
+      merge.parents[0]!.sha = "c".repeat(40);
+    },
+    () => {
+      merge.parents.reverse();
+    },
+  ];
+  for (const mutate of invalids) {
+    const repoBefore = structuredClone(repos);
+    const pullBefore = structuredClone(pull);
+    const mergeBefore = structuredClone(merge);
+    mutate();
+    await assert.rejects(fetchAndVerifyPrivateCiForPull(reader, request));
+    Object.assign(repos, repoBefore);
+    Object.assign(pull, pullBefore);
+    Object.assign(merge, mergeBefore);
+  }
 });
