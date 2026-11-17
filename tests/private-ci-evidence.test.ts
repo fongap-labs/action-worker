@@ -65,19 +65,45 @@ test("private CI verifies an exact caller run and every declared job", () => {
 test("private CI refuses stale, forged, skipped and incomplete evidence", () => {
   type Fixture = ReturnType<typeof fixture>;
   const mutations: Array<(value: Fixture) => void> = [
-    (v) => { v.runs.workflow_runs[0]!.event = "pull_request"; },
-    (v) => { v.runs.workflow_runs[0]!.head_sha = "c".repeat(40); },
-    (v) => { v.runs.workflow_runs[0]!.pull_requests[0]!.base.sha = "c".repeat(40); },
-    (v) => { v.runs.workflow_runs[0]!.pull_requests[0]!.head.repo.id = 99; },
-    (v) => { v.runs.workflow_runs[0]!.conclusion = "failure"; },
-    (v) => { v.runs.workflow_runs[0]!.status = "in_progress"; },
-    (v) => { v.runs.total_count = 101; },
-    (v) => { v.jobs.jobs[1]!.conclusion = "skipped"; },
-    (v) => { v.jobs.jobs[1]!.conclusion = "failure"; },
-    (v) => { v.jobs.jobs[1]!.run_id = 100; },
-    (v) => { v.jobs.jobs.pop(); v.jobs.total_count = 4; },
-    (v) => { v.jobs.jobs.push(v.jobs.jobs[0]!); v.jobs.total_count = 6; },
-    (v) => { v.jobs.total_count = 100; },
+    (v) => {
+      v.runs.workflow_runs[0]!.event = "pull_request";
+    },
+    (v) => {
+      v.runs.workflow_runs[0]!.head_sha = "c".repeat(40);
+    },
+    (v) => {
+      v.runs.workflow_runs[0]!.pull_requests[0]!.base.sha = "c".repeat(40);
+    },
+    (v) => {
+      v.runs.workflow_runs[0]!.pull_requests[0]!.head.repo.id = 99;
+    },
+    (v) => {
+      v.runs.workflow_runs[0]!.conclusion = "failure";
+    },
+    (v) => {
+      v.runs.workflow_runs[0]!.status = "in_progress";
+    },
+    (v) => {
+      v.runs.total_count = 101;
+    },
+    (v) => {
+      v.jobs.jobs[1]!.conclusion = "skipped";
+    },
+    (v) => {
+      v.jobs.jobs[1]!.conclusion = "failure";
+    },
+    (v) => {
+      v.jobs.jobs[1]!.run_id = 100;
+    },
+    (v) => {
+      v.jobs.jobs.pop(); v.jobs.total_count = 4;
+    },
+    (v) => {
+      v.jobs.jobs.push(v.jobs.jobs[0]!); v.jobs.total_count = 6;
+    },
+    (v) => {
+      v.jobs.total_count = 100;
+    },
   ];
   for (const mutate of mutations) {
     const current = structuredClone(fixture());
