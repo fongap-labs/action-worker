@@ -36,69 +36,28 @@ test("an author with write access is trusted without review", () => {
   }
 });
 
-test("an outside author is untrusted until a maintainer approves the current head", () => {
+test("external authors cannot gain central CI execution through a second-person review", () => {
   for (const association of ["CONTRIBUTOR", "FIRST_TIME_CONTRIBUTOR", "FIRST_TIMER", "NONE"]) {
     assert.equal(evaluatePrTrust(pull(association), [], headSha).trusted, false);
+    assert.deepEqual(
+      evaluatePrTrust(pull(association), [review("maintainer", "APPROVED")], headSha),
+      { trusted: false, basis: "none", association }
+    );
+    assert.equal(
+      evaluatePrTrust(pull(association), [review("maintainer", "APPROVED", { commit: olderSha })], headSha).trusted,
+      false
+    );
   }
-  assert.deepEqual(
-    evaluatePrTrust(pull("CONTRIBUTOR"), [review("maintainer", "APPROVED")], headSha),
-    { trusted: true, basis: "approval", association: "CONTRIBUTOR" }
-  );
 });
 
-test("approval of an earlier commit does not carry over to a new push", () => {
-  const decision = evaluatePrTrust(
-    pull("CONTRIBUTOR"),
-    [review("maintainer", "APPROVED", { commit: olderSha })],
-    headSha
-  );
-  assert.equal(decision.trusted, false);
-});
-
-test("only a trusted reviewer other than the author can approve", () => {
-  assert.equal(
-    evaluatePrTrust(
-      pull("CONTRIBUTOR"),
-      [review("someone", "APPROVED", { association: "CONTRIBUTOR" })],
-      headSha
-    ).trusted,
-    false
-  );
-  assert.equal(
-    evaluatePrTrust(
-      pull("CONTRIBUTOR", "Contributor"),
-      [review("contributor", "APPROVED", { association: "COLLABORATOR" })],
-      headSha
-    ).trusted,
-    false
-  );
-});
-
-test("a reviewer's later decisive review replaces their approval; comments do not", () => {
-  assert.equal(
-    evaluatePrTrust(
-      pull("NONE"),
-      [review("maintainer", "APPROVED"), review("maintainer", "CHANGES_REQUESTED")],
-      headSha
-    ).trusted,
-    false
-  );
-  assert.equal(
-    evaluatePrTrust(
-      pull("NONE"),
-      [review("maintainer", "APPROVED"), review("maintainer", "DISMISSED")],
-      headSha
-    ).trusted,
-    false
-  );
-  assert.equal(
-    evaluatePrTrust(
-      pull("NONE"),
-      [review("maintainer", "APPROVED"), review("maintainer", "COMMENTED")],
-      headSha
-    ).trusted,
-    true
-  );
+test("reviews never turn an untrusted PR into a CI-capable author", () => {
+  for (const states of [
+    [review("maintainer", "APPROVED")],
+    [review("maintainer", "APPROVED"), review("maintainer", "COMMENTED")],
+    [review("maintainer", "CHANGES_REQUESTED")],
+  ]) {
+    assert.equal(evaluatePrTrust(pull("NONE"), states, headSha).trusted, false);
+  }
 });
 
 test("trust evaluation refuses a head that moved after dispatch", () => {
@@ -174,7 +133,7 @@ test("a Dependabot pull request from the same public repository needs no approva
   });
 });
 
-test("a Dependabot pull request still waits for approval in a private or foreign repository", () => {
+test("private and external Dependabot PRs remain blocked even after a review", () => {
   for (const pull of [
     dependabotPull({ private: true }),
     dependabotPull({ headRepository: "someone/example" }),
@@ -185,6 +144,6 @@ test("a Dependabot pull request still waits for approval in a private or foreign
   assert.equal(
     evaluatePrTrust(dependabotPull({ private: true }), [review("maintainer", "APPROVED")], headSha)
       .trusted,
-    true
+    false
   );
 });
