@@ -99,7 +99,7 @@
     },
     {
       "path": ".github/workflows/private-source-ci.yml",
-      "sha256": "9e9dc0ba8221533c20ca7b5c46ad2ff14fca6e0c4a6c07feacc2128c784fe439"
+      "sha256": "c74ceb2bb4fd6ea6fc1d0ed9b7b5fd777fbc7f365f277f6fc067ff6ab1f90057"
     }
   ],
   "privacy_patterns": [
