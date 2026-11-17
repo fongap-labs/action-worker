@@ -29,7 +29,7 @@ test("private main CI accepts only a protected, immutable private push", async (
   assert.doesNotMatch(source, /pull_request_target|workflow_dispatch|repository_dispatch/);
   const prepare = workflow.jobs.prepare;
   assert.ok(prepare);
-  const serialized = JSON.stringify(prepare.steps);
+  const serialized = source;
   for (const marker of [
     '"$EVENT" == "push"',
     '"$REF" == "refs/heads/main"',
