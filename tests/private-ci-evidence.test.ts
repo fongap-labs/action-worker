@@ -182,7 +182,10 @@ test("private CI accepts only the exact audited caller from a protected base SHA
   ]) {
     await assert.rejects(
       fetchAndVerifyPrivateCiEvidence(
-        { get: async (path: string): Promise<unknown> => path === callerPath ? invalid : responses.get(path) },
+        {
+          get: async (path: string): Promise<unknown> =>
+            path === callerPath ? invalid : responses.get(path),
+        },
         identity
       )
     );
