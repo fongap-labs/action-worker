@@ -175,7 +175,7 @@ test("private CI accepts only the exact audited caller from a protected base SHA
   });
 
   for (const invalid of [
-    { ...caller, content: Buffer.from(callerContent + "# altered").toString("base64") },
+    { ...caller, content: Buffer.from(`${callerContent}# altered`).toString("base64") },
     { ...caller, path: ".github/workflows/unknown.yml" },
     { ...caller, type: "dir" },
     { ...caller, encoding: "utf8" },
