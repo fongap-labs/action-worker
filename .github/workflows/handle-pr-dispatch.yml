@@ -26,6 +26,19 @@ jobs:
       AW_AI_AGENT_CONFIG: ${{ vars.AW_AI_AGENT_CONFIG }}
 
     steps:
+      - name: Mask target repository and commit identities
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          # Never put unmasked client_payload values into a workflow expression or step env.
+          jq -r '
+            (.client_payload // {}) |
+            [.repository, .head_sha, .base_sha, .merge_sha] |
+            .[]? | select(type == "string" and length > 0)
+          ' "$GITHUB_EVENT_PATH" | while IFS= read -r identity; do
+            printf '::add-mask::%s\\n' "$identity"
+          done
+
       - name: Checkout control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -489,6 +502,19 @@ jobs:
       actions: read
 
     steps:
+      - name: Mask target repository and commit identities
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          # Never put unmasked client_payload values into a workflow expression or step env.
+          jq -r '
+            (.client_payload // {}) |
+            [.repository, .head_sha, .base_sha, .merge_sha] |
+            .[]? | select(type == "string" and length > 0)
+          ' "$GITHUB_EVENT_PATH" | while IFS= read -r identity; do
+            printf '::add-mask::%s\\n' "$identity"
+          done
+
       - name: Checkout control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
