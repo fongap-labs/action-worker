@@ -49,6 +49,9 @@ test("sensitive public control-plane jobs mask private identity before any check
           assert.ok(code.includes("then null"));
           assert.ok(code.includes("public_repository="));
           assert.ok(code.includes("https://api.github.com/repos/$target_repository"));
+          // jq's // operator drops false, so it cannot verify a public repository.
+          assert.ok(code.includes('if .private == false then "false" else empty end'));
+          assert.ok(!code.includes(".private // empty"));
           assert.ok(code.includes('$is_private" == "false"'));
           assert.ok(code.includes('$identity" == "$public_repository"'));
           assert.doesNotMatch(code, /\[\.repository, \.head_sha, \.base_sha, \.merge_sha\]/);
