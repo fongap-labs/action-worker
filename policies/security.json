@@ -1,6 +1,8 @@
 {
   "schema_version": 3,
-  "path_allow_patterns": ["(^|/)\\.env\\.(?:example|sample|template|variables)$"],
+  "path_allow_patterns": [
+    "(^|/)\\.env\\.(?:example|sample|template|variables)$"
+  ],
   "forbidden_path_patterns": [
     "(^|/)\\.env$",
     "(^|/)\\.env\\.(?:local|production|prod|staging|stage|development|dev)$",
@@ -91,11 +93,21 @@
     }
   ],
   "require_pinned_actions": true,
-  "path_terms": ["secret", "token", "auth", "permission", "credential"],
+  "path_terms": [
+    "secret",
+    "token",
+    "auth",
+    "permission",
+    "credential"
+  ],
   "approved_workflows": [
     {
       "path": ".github/workflows/notify-action-worker.yml",
       "sha256": "ed15cae6d2f8637a24b2ebc583d09e629a5862f781d56b9b405ce962d5d1bc8f"
+    },
+    {
+      "path": ".github/workflows/private-source-ci.yml",
+      "sha256": "9e9dc0ba8221533c20ca7b5c46ad2ff14fca6e0c4a6c07feacc2128c784fe439"
     }
   ],
   "privacy_patterns": [
