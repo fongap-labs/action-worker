@@ -14,6 +14,7 @@ export const TRUSTED_ASSOCIATIONS: ReadonlySet<string> = new Set([
 // Dependabot is a GitHub App, so no account can register this login.
 const DEPENDENCY_BOT_LOGIN = "dependabot[bot]";
 const MANAGED_APP_LOGIN = "fongap-bot[bot]";
+export const UNAUTHORIZED_CI_DESCRIPTION = "Author lacks CI authorization";
 
 export type PrTrustDecision = {
   trusted: boolean;
