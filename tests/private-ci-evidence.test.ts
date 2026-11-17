@@ -256,20 +256,38 @@ test("native CI acceptance binds private repo, PR and exact merge parents", asyn
     runAttempt: 1,
   });
 
-  const repos = values.get(`repos/${identity.repository}`) as Record<string, unknown>;
-  const pull = values.get(
-    `repos/${identity.repository}/pulls/${identity.prNumber}`
-  ) as Record<string, any>;
-  const merge = values.get(
-    `repos/${identity.repository}/git/commits/${mergeSha}`
-  ) as Record<string, any>;
+  const repos = values.get(`repos/${identity.repository}`) as {
+    private: boolean;
+    full_name: string;
+  };
+  const pull = values.get(`repos/${identity.repository}/pulls/${identity.prNumber}`) as {
+    state: string;
+    base: { sha: string; repo: { full_name: string } };
+    head: { sha: string; ref: string; repo: { full_name: string } };
+  };
+  const merge = values.get(`repos/${identity.repository}/git/commits/${mergeSha}`) as {
+    sha: string;
+    parents: Array<{ sha: string }>;
+  };
   const invalids: Array<() => void> = [
-    () => { repos.private = false; },
-    () => { pull.state = "closed"; },
-    () => { pull.head.repo.full_name = "outside/fork"; },
-    () => { pull.base.sha = "c".repeat(40); },
-    () => { merge.parents[0].sha = "c".repeat(40); },
-    () => { merge.parents.reverse(); },
+    () => {
+      repos.private = false;
+    },
+    () => {
+      pull.state = "closed";
+    },
+    () => {
+      pull.head.repo.full_name = "outside/fork";
+    },
+    () => {
+      pull.base.sha = "c".repeat(40);
+    },
+    () => {
+      merge.parents[0]!.sha = "c".repeat(40);
+    },
+    () => {
+      merge.parents.reverse();
+    },
   ];
   for (const mutate of invalids) {
     const repoBefore = structuredClone(repos);
