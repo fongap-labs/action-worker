@@ -14,6 +14,7 @@ export function resolveNativeRefEnrollment(
 ): boolean {
   if (
     !repositoryPattern.test(repository) ||
+    repository.includes("..") ||
     (privateFlag !== "true" && privateFlag !== "false") ||
     !/^(?:0|[1-9][0-9]*)$/.test(prNumber)
   ) {
@@ -32,11 +33,13 @@ export function resolveNativeRefEnrollment(
   for (const item of policy.callers) {
     if (
       !isJsonRecord(item) ||
-      !repositoryPattern.test(item.repository as string) ||
+      typeof item.repository !== "string" ||
+      !repositoryPattern.test(item.repository) ||
+      item.repository.includes("..") ||
       item.path !== workflowPath ||
       typeof item.sha256 !== "string" ||
       !/^[0-9a-f]{64}$/.test(item.sha256) ||
-      seen.has(item.repository as string)
+      seen.has(item.repository)
     ) {
       throw new CliError("Private main CI caller allowlist is invalid.", 65);
     }
