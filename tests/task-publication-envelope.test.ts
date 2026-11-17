@@ -372,7 +372,9 @@ test("task publication preserves licenses, records changes, and uses CI-only gov
   assert.ok(publisher.includes("-iname '*.license'"));
   assert.ok(publisher.includes('cp -an "$license_snapshot"/. "$target_dir"/'));
   assert.ok(publisher.includes('git -C "$WORK_DIR/target" add -- CHANGELOG.md'));
-  assert.match(publisher, /- 维护: 同步自动任务输出/);
+  assert.ok(publisher.includes("changelog_entry="));
+  assert.ok(publisher.includes("changelog_category="));
+  assert.ok(publisher.includes("changelog_summary="));
   assert.doesNotMatch(publisher, /Awaiting maintainer approval of the current head commit/);
   assert.doesNotMatch(publisher, /review_count=/);
   assert.match(publisher, /failed the validate-merge check/);
