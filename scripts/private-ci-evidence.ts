@@ -59,7 +59,7 @@ function matchingRun(value: unknown, identity: PrivateCiIdentity): boolean {
     isJsonRecord(repo) &&
     getJsonString(repo, "full_name") === identity.repository &&
     repoId > 0 &&
-    getJsonString(value, "name") === "Private source CI" &&
+    getJsonString(value, "name") === expectedRunTitle(identity) &&
     getJsonNumber(value, "workflow_id") > 0 &&
     getJsonString(value, "path") === workflowPath &&
     getJsonString(value, "event") === "pull_request_target" &&
