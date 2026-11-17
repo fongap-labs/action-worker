@@ -4,8 +4,8 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
   fetchAndVerifyPrivateRef,
-  verifyPrivateRefEvidence,
   type PrivateRefIdentity,
+  verifyPrivateRefEvidence,
 } from "../scripts/private-ref-evidence.ts";
 
 const identity: PrivateRefIdentity = {
