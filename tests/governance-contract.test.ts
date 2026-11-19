@@ -634,8 +634,14 @@ test("a pull request merged while its AI review waited is still reviewed", async
     review,
     /- name: Fetch PR facts[\s\S]*?ALLOW_MERGED_PR: "true"[\s\S]*?resolve-pr-facts\.ts fetch/
   );
-  // Only the review opts in: governance still refuses a pull request that is not open.
-  assert.doesNotMatch(await text(".github/workflows/handle-pr-dispatch.yml"), /ALLOW_MERGED_PR/);
+  // The authorization job must never accept merged PRs as fresh governance.
+  // The separate merge executor can read an already merged PR strictly to
+  // confirm the immutable head and original signed approval.
+  const governanceWorkflow = await text(".github/workflows/handle-pr-dispatch.yml");
+  const gateJob = governanceWorkflow.split("\n  auto-merge:\n", 1)[0] ?? "";
+  const mergeJob = governanceWorkflow.split("\n  auto-merge:\n")[1] ?? "";
+  assert.doesNotMatch(gateJob, /ALLOW_MERGED_PR/);
+  assert.match(mergeJob, /ALLOW_MERGED_PR: "true"/);
   const cancel = await text(".github/workflows/cancel-pr-work.yml");
   requireText(cancel, [
     "merged: ${{ steps.closed.outputs.merged }}",

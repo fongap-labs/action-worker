@@ -5,6 +5,7 @@ import {
   isApprovedCompletedMerge,
   isOpenDraftPull,
   mustRefreshBehindBranch,
+  waitForApprovedCompletedMerge,
 } from "../scripts/auto-merge-pr.ts";
 import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
 import { signedStatusDescription } from "../scripts/status-attestation.ts";
@@ -161,6 +162,14 @@ test("exact approved merged PR is an idempotent success, never an authorization 
   const verifyMerge = (v: unknown, s = statuses()) =>
     isApprovedCompletedMerge(v, s, repository, number, headSha, baseSha, runUrl);
   assert.equal(verifyMerge(approved), true);
+  // GitHub updates base.sha to the latest main tip after an otherwise valid merge.
+  // The original base is still enforced for open PRs, not for completed ones.
+  const advancedBase = { ...approved, base: { sha: "d".repeat(40), ref: "main" } };
+  assert.equal(verifyMerge(advancedBase), true);
+  assert.throws(
+    () => verify({ ...pull(), base: advancedBase.base }, statuses()),
+    /revalidate first/
+  );
   for (const invalid of [
     { ...approved, merged: false },
     { ...approved, state: "open" },
@@ -168,7 +177,9 @@ test("exact approved merged PR is an idempotent success, never an authorization 
     { ...approved, merge_commit_sha: null },
     { ...approved, number: number + 1 },
     { ...approved, head: { sha: "d".repeat(40) } },
-    { ...approved, base: { sha: "d".repeat(40), ref: "main" } },
+    { ...approved, base: { sha: "d".repeat(40), ref: "not-main" } },
+    { ...approved, merged_at: "2026-11-09T03:55:19Z" },
+    { ...approved, merged_at: "not-a-timestamp" },
     { ...approved, title: "fix: different title" },
   ]) {
     assert.equal(verifyMerge(invalid), false);
@@ -183,6 +194,95 @@ test("exact approved merged PR is an idempotent success, never an authorization 
     "https://github.com/fongap-labs/action-worker/actions/runs/9999999"
   );
   assert.equal(verifyMerge(approved, differentRun), false);
+});
+
+test("concurrent already-approved merge is accepted after bounded stale PR snapshots", async () => {
+  const approved = {
+    ...pull(),
+    state: "closed",
+    merged: true,
+    merged_at: "2026-11-12T03:55:19Z",
+    merge_commit_sha: "c".repeat(40),
+    base: { sha: "d".repeat(40), ref: "main" },
+  };
+  const observed = [pull(), pull(), approved];
+  let readCount = 0;
+  let waitCount = 0;
+  const result = await waitForApprovedCompletedMerge(
+    async () => observed[readCount++] ?? approved,
+    statuses(),
+    { repository, prNumber: number, headSha, baseSha, governanceRunUrl: runUrl },
+    async () => {
+      waitCount += 1;
+    }
+  );
+  assert.equal(result, true);
+  assert.equal(readCount, 3);
+  assert.equal(waitCount, 2);
+});
+
+test("concurrent merge verification rejects wrong heads, missing proof and unmerged PRs", async () => {
+  const approved = {
+    ...pull(),
+    state: "closed",
+    merged: true,
+    merged_at: "2026-11-12T03:55:19Z",
+    merge_commit_sha: "c".repeat(40),
+  };
+  const identity = { repository, prNumber: number, headSha, baseSha, governanceRunUrl: runUrl };
+  const incorrect = { ...approved, head: { sha: "d".repeat(40) } };
+  let reads = 0;
+  const wrong = await waitForApprovedCompletedMerge(
+    async () => {
+      reads += 1;
+      return incorrect;
+    },
+    statuses(),
+    identity,
+    async () => {
+      throw new Error("Wrong completed PR must not be polled");
+    }
+  );
+  assert.equal(wrong, false);
+  assert.equal(reads, 1);
+
+  const unsigned = statuses();
+  unsigned.statuses[0] = { ...unsigned.statuses[0]!, description: "forged" };
+  assert.equal(
+    await waitForApprovedCompletedMerge(
+      async () => approved,
+      unsigned,
+      identity,
+      async () => {}
+    ),
+    false
+  );
+
+  let attempts = 0;
+  assert.equal(
+    await waitForApprovedCompletedMerge(
+      async () => {
+        attempts += 1;
+        return pull();
+      },
+      statuses(),
+      identity,
+      async () => {}
+    ),
+    false
+  );
+  assert.equal(attempts, 5);
+
+  await assert.rejects(
+    waitForApprovedCompletedMerge(
+      async () => pull(),
+      statuses(),
+      identity,
+      async () => {},
+      6
+    ),
+    /Invalid bounded/
+  );
 });
 
 test("draft and changed or closed PRs never auto-merge", () => {

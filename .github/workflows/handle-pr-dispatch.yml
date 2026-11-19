@@ -22,6 +22,8 @@ jobs:
     name: PR Governance
     runs-on: ubuntu-24.04
     timeout-minutes: 180
+    outputs:
+      approved: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.cancellation.outputs.cancelled != 'true' }}
     env:
       AW_AI_AGENT_CONFIG: ${{ vars.AW_AI_AGENT_CONFIG }}
 
@@ -407,58 +409,13 @@ jobs:
           fi
           node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" "$STATE" "$DESCRIPTION" "$RUN_URL"
 
-      # Automatically squash-merge an exact, non-draft PR head only after the
-      # deterministic, signed CI/Policy/Security merge gate has passed. AI
-      # review is opt-in and cannot block the merge.
-      - name: Check Draft before requesting merge credentials
-        id: merge_readiness
-        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.cancellation.outputs.cancelled != 'true' }}
-        env:
-          GH_TOKEN: ${{ steps.final_read_app.outputs.token }}
-          REPOSITORY: ${{ steps.payload.outputs.repository }}
-          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          pull="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")"
-          if jq -e --argjson number "$PR_NUMBER" '
-            .number == $number and .state == "open" and .merged == false and .draft == true
-          ' <<< "$pull" >/dev/null; then
-            echo "eligible=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::Draft PR: automatic merge intentionally skipped."
-          else
-            # Non-draft requests still go through the immutable SHA and signed-gate checks.
-            echo "eligible=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Mint automatic merge token
-        id: merge_app
-        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.cancellation.outputs.cancelled != 'true' && steps.merge_readiness.outputs.eligible == 'true' }}
-        uses: ./.github/actions/mint-app-token
-        with:
-          client-id: ${{ vars.AW_APP_CLIENT_ID }}
-          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
-          owner: ${{ steps.api_scope.outputs.owner }}
-          repositories: ${{ steps.api_scope.outputs.repository_name }}
-          permission-contents: write
-          permission-pull-requests: write
-
-      - name: Automatically merge CI-green PR
-        if: ${{ steps.gate.outputs.passed == 'true' && steps.ownership.outputs.current == 'true' && steps.cancellation.outputs.cancelled != 'true' && steps.merge_readiness.outputs.eligible == 'true' }}
-        env:
-          AW_MERGE_READ_TOKEN: ${{ steps.final_read_app.outputs.token }}
-          AW_MERGE_WRITE_TOKEN: ${{ steps.merge_app.outputs.token }}
-          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
-          REPOSITORY: ${{ steps.payload.outputs.repository }}
-          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
-          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
-          BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
-          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: node scripts/auto-merge-pr.ts "$REPOSITORY" "$PR_NUMBER" "$HEAD_SHA" "$BASE_SHA" "$RUN_URL"
+      # The security verdict is final at this point. Automatic merge execution
+      # runs in an independent non-blocking job, never inside PR Governance.
 
       - name: Publish PR review
         if: ${{ always() && !cancelled() && steps.ownership.outputs.current == 'true' }}
         id: issue_app
+        continue-on-error: true
         uses: ./.github/actions/mint-app-token
         with:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
@@ -485,6 +442,103 @@ jobs:
           DEPLOY_GAP_HINT: ${{ steps.deploy_gap.outputs.hint }}
           RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: node scripts/publish-pr-review.ts "$REPOSITORY" "$PR_NUMBER" "$GOVERNANCE_STATUS" "$RUN_URL" /tmp/pr-plan.json /tmp/ocr-result.json "$AI_REVIEW_STATE" "$DEPLOY_GAP_HINT"
+
+  # Execution domain. Only a fully completed, successful governance job may
+  # request a merge. Operational merge errors remain visible in this job but
+  # must never invalidate previously signed CI/security approval of a PR head.
+  auto-merge:
+    name: Automatic squash merge (operational)
+    needs: govern
+    if: ${{ needs.govern.result == 'success' && needs.govern.outputs.approved == 'true' }}
+    continue-on-error: true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: read
+      statuses: read
+
+    steps:
+      - name: Mask target repository and commit identities
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          jq -r '
+            (.client_payload // {}) |
+            [.repository, .head_sha, .base_sha, .merge_sha] |
+            .[]? | select(type == "string" and length > 0)
+          ' "$GITHUB_EVENT_PATH" | while IFS= read -r identity; do
+            printf '::add-mask::%s\n' "$identity"
+          done
+
+      - name: Checkout control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Validate PR request
+        id: payload
+        env:
+          PAYLOAD: ${{ toJSON(github.event.client_payload) }}
+        run: node scripts/validate-pr-payload.ts "$PAYLOAD"
+
+      - name: Resolve PR API scope
+        id: api_scope
+        env:
+          TARGET_REPOSITORY: ${{ steps.payload.outputs.repository }}
+        run: node scripts/resolve-github-api-scope.ts pr
+
+      - name: Mint PR read token
+        id: app_read
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.event.repository.name || format('{0},{1}', github.event.repository.name, steps.api_scope.outputs.repository_name) }}
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-statuses: read
+
+      - name: Fetch exact pull request identity
+        id: facts
+        env:
+          GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          ALLOW_MERGED_PR: "true"
+        run: node scripts/resolve-pr-facts.ts fetch
+
+      - name: Mint automatic merge token
+        id: merge_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Automatically merge CI-green PR
+        env:
+          AW_MERGE_READ_TOKEN: ${{ steps.app_read.outputs.token }}
+          AW_MERGE_WRITE_TOKEN: ${{ steps.merge_app.outputs.token }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.facts.outputs.head_sha }}
+          BASE_SHA: ${{ steps.facts.outputs.base_sha }}
+          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: node scripts/auto-merge-pr.ts "$REPOSITORY" "$PR_NUMBER" "$HEAD_SHA" "$BASE_SHA" "$RUN_URL"
 
   # Control domain. The governance run can end before it marks its head: the pull request may be
   # merged or closed first ("Target PR is not open"), or the run may be cancelled or time out. The

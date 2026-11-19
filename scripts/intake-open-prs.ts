@@ -35,6 +35,7 @@ export type IntakeResult = {
   in_flight: number;
   already_processed: number;
   blocked_unauthorized: number;
+  blocked_status_capacity?: number;
 };
 
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -47,6 +48,37 @@ type StatusFact = {
 };
 
 type PullFacts = { number: number; headSha: string; pull: Record<string, unknown> };
+
+export function isCommitStatusCapacityError(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    /This SHA and context has reached the maximum number of statuses/i.test(error.message)
+  );
+}
+
+// A status-exhausted head cannot receive another trusted reservation. Do not dispatch
+// it without a lease, and do not let one permanently exhausted head block other PRs.
+async function reserveOrBlock(
+  reserve: Reserve | undefined,
+  result: IntakeResult,
+  repository: string,
+  headSha: string,
+  context: "PR Governance" | "Dependency Repair",
+  description: string
+): Promise<boolean> {
+  if (!reserve) return true;
+  try {
+    await reserve(repository, headSha, context, description);
+    return true;
+  } catch (error) {
+    if (!isCommitStatusCapacityError(error)) throw error;
+    result.blocked_status_capacity = (result.blocked_status_capacity ?? 0) + 1;
+    console.warn(
+      `::warning::Status capacity exhausted for ${repository}@${headSha} ${context}; dispatch withheld. A new PR head SHA is required before governance can resume.`
+    );
+    return false;
+  }
+}
 
 export const PENDING_STATUS_LEASE_MS = 120_000;
 
@@ -331,14 +363,17 @@ export async function scanOpenPullRequests(
             headRepo.full_name === repository &&
             baseRepo.full_name === repository
           ) {
-            if (reserve) {
-              await reserve(
+            if (
+              !(await reserveOrBlock(
+                reserve,
+                result,
                 repository,
                 pull.headSha,
                 "PR Governance",
                 "Retry signed CI-green PR branch refresh via central governance"
-              );
-            }
+              ))
+            )
+              continue;
             await dispatch(repository, pull.number, pull.headSha);
             result.dispatched += 1;
             continue;
@@ -372,28 +407,34 @@ export async function scanOpenPullRequests(
           continue;
         }
         if (state === "dispatch") {
-          if (reserve) {
-            await reserve(
+          if (
+            !(await reserveOrBlock(
+              reserve,
+              result,
               repository,
               pull.headSha,
               "Dependency Repair",
               "Dependency repair queued by central intake"
-            );
-          }
+            ))
+          )
+            continue;
           await dispatchRepair(repository, pull.number, pull.headSha);
           result.repair_dispatched += 1;
           continue;
         }
       }
 
-      if (reserve) {
-        await reserve(
+      if (
+        !(await reserveOrBlock(
+          reserve,
+          result,
           repository,
           pull.headSha,
           "PR Governance",
           "Action Worker PR governance queued by central intake"
-        );
-      }
+        ))
+      )
+        continue;
       await dispatch(repository, pull.number, pull.headSha);
       result.dispatched += 1;
     }

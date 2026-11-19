@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "description": "Explicit, reviewable historical Main Write Guard re-attestation cases. Does not alter original CI conclusions or permit source release/deployment.",
+  "cases": [
+    {
+      "repository": "fongap-labs/dsh-plugin",
+      "merge_sha": "99c620065e88d70ea0d55cc673a70021ee4db1f0",
+      "pr_number": 412,
+      "approval_issue": 414,
+      "root_incident_sha": "99c620065e88d70ea0d55cc673a70021ee4db1f0"
+    },
+    {
+      "repository": "fongap-labs/dsh-plugin",
+      "merge_sha": "8c6db8af11d519f5d4ab4d66cb7ff41bd96774a2",
+      "pr_number": 416,
+      "approval_issue": 414,
+      "root_incident_sha": "99c620065e88d70ea0d55cc673a70021ee4db1f0"
+    },
+    {
+      "repository": "fongap-labs/dsh-plugin",
+      "merge_sha": "ef98b13193dc842291bfc7deb4fc5940a7a0a79c",
+      "pr_number": 415,
+      "approval_issue": 417,
+      "root_incident_sha": "ef98b13193dc842291bfc7deb4fc5940a7a0a79c"
+    },
+    {
+      "repository": "fongap-labs/dsh-plugin",
+      "merge_sha": "f3e14ff40d6c24cd93f8eb38e863906072df97ac",
+      "pr_number": 418,
+      "approval_issue": 417,
+      "root_incident_sha": "ef98b13193dc842291bfc7deb4fc5940a7a0a79c"
+    },
+    {
+      "repository": "fongap-labs/dsh-plugin",
+      "merge_sha": "211bafdfaa14b9acbdff18889dcab4ed15669250",
+      "pr_number": 422,
+      "approval_issue": 423,
+      "root_incident_sha": "211bafdfaa14b9acbdff18889dcab4ed15669250"
+    },
+    {
+      "repository": "fongap-labs/dsh-plugin",
+      "merge_sha": "95724a425c81eaefce82c8c032d6b8f62c3041eb",
+      "pr_number": 424,
+      "approval_issue": 423,
+      "root_incident_sha": "211bafdfaa14b9acbdff18889dcab4ed15669250"
+    },
+    {
+      "repository": "fongap-labs/dsh-plugin",
+      "merge_sha": "0194a2f5d8bc2ff9d04d5e6348aef06f38d07121",
+      "pr_number": 425,
+      "approval_issue": 423,
+      "root_incident_sha": "211bafdfaa14b9acbdff18889dcab4ed15669250"
+    }
+  ]
+}

@@ -1,4 +1,5 @@
 import { getGithubJson, getJsonString, isJsonRecord, runGithubCli } from "./github-api.ts";
+import { sleep } from "./lib/promise-delay-runtime.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { latestAttestedStatus, originalStatusDescription } from "./status-attestation.ts";
@@ -6,6 +7,44 @@ import { latestAttestedStatus, originalStatusDescription } from "./status-attest
 const SHA = /^[0-9a-f]{40}$/;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const REQUIRED_GATES = ["PR Governance", "CI Evidence", "validate-merge"] as const;
+
+// All paths use the same cryptographically attested current-head and title checks.
+// GitHub changes the observed base SHA after a PR merges; only the *open* path
+// requires the original base SHA, while completed merges verify the exact head
+// and completed merge identity without trusting that mutable field.
+function assertSignedMergeGates(
+  pull: Record<string, unknown>,
+  statuses: unknown,
+  repository: string,
+  headSha: string,
+  governanceRunUrl: string
+): void {
+  for (const context of REQUIRED_GATES) {
+    const status = latestAttestedStatus(statuses, { repository, sha: headSha, context });
+    if (status?.state !== "success") {
+      throw new CliError(
+        `Automatic merge refused: ${context} lacks a current-head signed success.`,
+        75
+      );
+    }
+    if (context === "PR Governance" || context === "validate-merge") {
+      const title = getJsonString(pull, "title");
+      const expected = `title-sha256=${prTitleFingerprint(title)} `;
+      if (!title || !originalStatusDescription(status).startsWith(expected)) {
+        throw new CliError(
+          `Automatic merge refused: ${context} was not validated for the current PR title.`,
+          75
+        );
+      }
+    }
+    if (context !== "CI Evidence" && getJsonString(status, "target_url") !== governanceRunUrl) {
+      throw new CliError(
+        `Automatic merge refused: ${context} belongs to another governance run.`,
+        75
+      );
+    }
+  }
+}
 
 // A completed advisory AI review is never part of merge admission. Only the
 // current-head, cryptographically attested deterministic gates can authorize it.
@@ -48,31 +87,7 @@ export function assertReadyForAutomaticMerge(
   ) {
     throw new CliError("Pull request head or base changed since central CI; revalidate first.", 75);
   }
-  for (const context of REQUIRED_GATES) {
-    const status = latestAttestedStatus(statuses, { repository, sha: headSha, context });
-    if (status?.state !== "success") {
-      throw new CliError(
-        `Automatic merge refused: ${context} lacks a current-head signed success.`,
-        75
-      );
-    }
-    if (context === "PR Governance" || context === "validate-merge") {
-      const title = getJsonString(pull, "title");
-      const expected = `title-sha256=${prTitleFingerprint(title)} `;
-      if (!title || !originalStatusDescription(status).startsWith(expected)) {
-        throw new CliError(
-          `Automatic merge refused: ${context} was not validated for the current PR title.`,
-          75
-        );
-      }
-    }
-    if (context !== "CI Evidence" && getJsonString(status, "target_url") !== governanceRunUrl) {
-      throw new CliError(
-        `Automatic merge refused: ${context} belongs to another governance run.`,
-        75
-      );
-    }
-  }
+  assertSignedMergeGates(pull, statuses, repository, headSha, governanceRunUrl);
 }
 
 export function mustRefreshBehindBranch(pull: unknown, repository: string): boolean {
@@ -100,31 +115,84 @@ export function isApprovedCompletedMerge(
   governanceRunUrl: string
 ): boolean {
   if (
+    !REPOSITORY.test(repository) ||
+    !Number.isSafeInteger(prNumber) ||
+    prNumber < 1 ||
+    !SHA.test(headSha) ||
+    !SHA.test(baseSha) ||
+    !/^https:\/\/github\.com\/fongap-labs\/action-worker\/actions\/runs\/[1-9]\d*$/.test(
+      governanceRunUrl
+    ) ||
     !isJsonRecord(pull) ||
     pull.state !== "closed" ||
     pull.merged !== true ||
     pull.number !== prNumber ||
-    getJsonString(pull, "merged_at") === "" ||
-    !SHA.test(getJsonString(pull, "merge_commit_sha"))
+    !SHA.test(getJsonString(pull, "merge_commit_sha")) ||
+    getJsonString(pull.head, "sha") !== headSha ||
+    getJsonString(pull.base, "ref") !== "main"
   ) {
     return false;
   }
-  // Reuse the same immutable-head, signed-PR-title, matching-run and CI checks
-  // that would have authorized the attempted merge while the PR was open.
+  const mergedAt = Date.parse(getJsonString(pull, "merged_at"));
+  if (!Number.isFinite(mergedAt)) return false;
+  // A completed PR exposes today's main tip as base.sha, not necessarily the
+  // original immutable base used by this run. Require the exact signed head,
+  // merge identity, and all approvals *before* the merge instead.
+  for (const context of REQUIRED_GATES) {
+    const status = latestAttestedStatus(statuses, { repository, sha: headSha, context });
+    const approvedAt = Date.parse(getJsonString(status, "created_at"));
+    if (!Number.isFinite(approvedAt) || approvedAt > mergedAt) return false;
+  }
   try {
-    assertReadyForAutomaticMerge(
-      { ...pull, state: "open", merged: false, draft: false },
-      statuses,
-      repository,
-      prNumber,
-      headSha,
-      baseSha,
-      governanceRunUrl
-    );
+    assertSignedMergeGates(pull, statuses, repository, headSha, governanceRunUrl);
     return true;
   } catch {
     return false;
   }
+}
+
+// GitHub may briefly return the pre-merge PR snapshot after an external merge
+// has completed. A single immediate read can misclassify that expected race as
+// an unauthorized merge and poison Main Write Guard for subsequent main writes.
+// Poll only after our merge command fails; never retry the merge write itself.
+// A successful read must still prove the immutable head and all signed gates.
+export async function waitForApprovedCompletedMerge(
+  readPull: () => Promise<unknown>,
+  statuses: unknown,
+  identity: {
+    repository: string;
+    prNumber: number;
+    headSha: string;
+    baseSha: string;
+    governanceRunUrl: string;
+  },
+  wait: (milliseconds: number) => Promise<void> = sleep,
+  maxChecks = 5
+): Promise<boolean> {
+  if (!Number.isSafeInteger(maxChecks) || maxChecks < 1 || maxChecks > 5) {
+    throw new CliError("Invalid bounded concurrent-merge verification attempts.", 64);
+  }
+  for (let check = 0; check < maxChecks; check += 1) {
+    if (check > 0) await wait(1_000);
+    const pull = await readPull();
+    if (
+      isApprovedCompletedMerge(
+        pull,
+        statuses,
+        identity.repository,
+        identity.prNumber,
+        identity.headSha,
+        identity.baseSha,
+        identity.governanceRunUrl
+      )
+    ) {
+      return true;
+    }
+    // A completed but different merge is not an eventually consistent open
+    // snapshot. Stop immediately rather than treating it as a timing race.
+    if (isJsonRecord(pull) && pull.state === "closed") return false;
+  }
+  return false;
 }
 
 export function isOpenDraftPull(pull: unknown, prNumber: number): boolean {
@@ -212,17 +280,14 @@ async function main(): Promise<void> {
   } catch (error) {
     // Do not convert an ordinary merge failure into success. Only a separately
     // verified, already-completed merge of this exact approved PR head qualifies.
-    const concurrent = await getGithubJson(pullPath, readToken);
     if (
-      !isApprovedCompletedMerge(
-        concurrent,
-        statuses,
+      !(await waitForApprovedCompletedMerge(() => getGithubJson(pullPath, readToken), statuses, {
         repository,
-        Number(number),
+        prNumber: Number(number),
         headSha,
         baseSha,
-        governanceRunUrl
-      )
+        governanceRunUrl,
+      }))
     ) {
       throw error;
     }
