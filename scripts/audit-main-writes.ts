@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { latestCiStatus } from "./ci-evidence.ts";
 import {
   GithubHttpError,
@@ -25,6 +26,7 @@ import {
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { hasValidStatusAttestation, signedStatusDescription } from "./status-attestation.ts";
+import { reconcileHistoricalMainGuards, type HistoricalMainReview } from "./historical-main-review.ts";
 import { postGithubCommitStatus } from "./status-write-retry.ts";
 
 export type AuditResult = {
@@ -202,6 +204,20 @@ async function main(): Promise<void> {
   }
   const repositories = requestedRepository ? [requestedRepository] : managedRepositories;
 
+  const historicalFile = parseJson(
+    readFileSync("policies/historical-main-reviews.json", "utf8"),
+    "Historical main review policy must contain valid JSON.",
+    65
+  );
+  if (
+    !isJsonRecord(historicalFile) ||
+    historicalFile.schema_version !== 1 ||
+    !Array.isArray(historicalFile.cases)
+  ) {
+    throw new CliError("::error::Historical main review policy schema is invalid.", 65);
+  }
+  const historicalCases = historicalFile.cases as HistoricalMainReview[];
+
   // Reads span pull requests, commit statuses and issues, so the reader keeps the control token.
   // Writes are scoped: statuses use the status token, incidents use the issue token.
   const reader = statusAwareReader(
@@ -233,6 +249,20 @@ async function main(): Promise<void> {
           "success",
           `Trusted main write via PR #${provenance.pr_number}`,
           runUrl
+        );
+      }
+      const historical = await reconcileHistoricalMainGuards(
+        reader,
+        repository,
+        mainSha,
+        controlRepository,
+        statusToken,
+        runUrl,
+        historicalCases
+      );
+      if (historical.length > 0) {
+        console.log(
+          `Maintainer-reviewed historical Main Write Guard reconciliation: ${repository}: ${historical.join(", ")}`
         );
       }
       const restored = await reconcileMisattributedMainStatuses(
