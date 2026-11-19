@@ -146,7 +146,10 @@ test("exact approved merged PR is an idempotent success, never an authorization 
   // The original base is still enforced for open PRs, not for completed ones.
   const advancedBase = { ...approved, base: { sha: "d".repeat(40), ref: "main" } };
   assert.equal(verifyMerge(advancedBase), true);
-  assert.throws(() => verify({ ...pull(), base: advancedBase.base }, statuses()), /revalidate first/);
+  assert.throws(
+    () => verify({ ...pull(), base: advancedBase.base }, statuses()),
+    /revalidate first/
+  );
   for (const invalid of [
     { ...approved, merged: false },
     { ...approved, state: "open" },
