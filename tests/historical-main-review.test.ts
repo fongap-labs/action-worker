@@ -127,7 +127,10 @@ function makeReader(
           merge_commit_sha: originalSha,
         };
       }
-      if (path === `repos/${repository}/commits/${headSha}/status`) {
+      if (
+        path === `repos/${repository}/commits/${headSha}/status` ||
+        path === `repos/${repository}/commits/${"d".repeat(40)}/status`
+      ) {
         return {
           statuses: [
             status(headSha, "PR Governance", governanceUrl, "success"),
