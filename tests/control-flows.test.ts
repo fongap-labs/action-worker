@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { test } from "node:test";
 import { buildComparison } from "../scripts/build-review-comparison.ts";
 import { detectContext } from "../scripts/detect-pr-context.ts";
+import { updateMetricsChangelog } from "../scripts/manage-work-metrics.ts";
 import { runText } from "../scripts/runtime-command.ts";
 import { addedUnreleasedEntries, validateChange } from "../scripts/validate-change-record.ts";
 
@@ -32,6 +33,50 @@ test("change record requires concise Chinese entries in CHANGELOG.md", async (co
   await git(root, ["commit", "-qm", "base"]);
   const base = await git(root, ["rev-parse", "HEAD"]);
 
+  await writeFile(join(root, "README.md"), "# Fixture\n\nMetrics changed.\n", "utf8");
+  await git(root, ["add", "README.md"]);
+  await git(root, ["commit", "-qm", "metrics without change record"]);
+  const metricsWithoutChangelog = await git(root, ["rev-parse", "HEAD"]);
+  const previousValidatedRepository = process.env.AW_VALIDATED_REPOSITORY;
+  process.env.AW_VALIDATED_REPOSITORY = "fongap-labs/action-worker";
+  try {
+    await assert.rejects(
+      validateChange(
+        "chore(metrics): update work metrics",
+        base,
+        metricsWithoutChangelog,
+        root,
+        policyDir
+      ),
+      /must update CHANGELOG/
+    );
+  } finally {
+    if (previousValidatedRepository === undefined) delete process.env.AW_VALIDATED_REPOSITORY;
+    else process.env.AW_VALIDATED_REPOSITORY = previousValidatedRepository;
+  }
+
+  await git(root, ["reset", "--hard", "-q", base]);
+  await writeFile(join(root, "README.md"), "# Fixture\n\nMetrics changed.\n", "utf8");
+  await writeFile(
+    join(root, "CHANGELOG.md"),
+    updateMetricsChangelog(initial, "2026-11-19T01:18:21.000Z"),
+    "utf8"
+  );
+  await git(root, ["add", "README.md", "CHANGELOG.md"]);
+  await git(root, ["commit", "-qm", "metrics with standard change record"]);
+  const metricsWithChangelog = await git(root, ["rev-parse", "HEAD"]);
+  const metricsRecord = await validateChange(
+    "chore(metrics): update work metrics",
+    base,
+    metricsWithChangelog,
+    root,
+    policyDir
+  );
+  assert.equal(metricsRecord.type, "chore");
+  assert.equal(metricsRecord.changelog_required, true);
+  assert.equal(metricsRecord.changelog_changed, true);
+
+  await git(root, ["reset", "--hard", "-q", base]);
   await writeFile(join(root, "README.md"), "# Fixture\n\nMore docs.\n", "utf8");
   await writeFile(join(root, "CHANGELOG.md"), initial + "\n- 维护: 更新安装说明。\n", "utf8");
   await git(root, ["add", "README.md", "CHANGELOG.md"]);

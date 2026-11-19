@@ -1,6 +1,6 @@
 name: 自动 · 指标更新
 
-# Metrics are periodic reporting, not part of release, CI, or PR governance.
+# Metrics are periodic reporting and use the ordinary chore CHANGELOG gate.
 # Do not make every completed release or PR launch a metrics-writing PR.
 on:
   schedule:

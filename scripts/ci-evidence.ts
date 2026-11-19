@@ -6,11 +6,19 @@ import {
   type JsonRecord,
 } from "./github-api.ts";
 import { CliError } from "./runtime-command.ts";
-import { hasValidStatusAttestation, statusRunAttempt } from "./status-attestation.ts";
+import {
+  hasValidStatusAttestation,
+  originalStatusDescription,
+  statusRunAttempt,
+} from "./status-attestation.ts";
 
 const repositoryPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 
 export const defaultControlRepository = "fongap-labs/action-worker";
+
+export function isCiNotRunVerdict(description: string): boolean {
+  return description.startsWith("CI not run:");
+}
 
 /**
  * The control repository is the repository the control plane runs in, so a workflow of the
@@ -227,6 +235,11 @@ export async function hasVerifiedControlStatus(
   }
   if (getJsonString(status, "state") !== "success") {
     trace("status-not-success", { context, state: getJsonString(status, "state") });
+    return false;
+  }
+  // A policy-approved no-CI verdict can pass merge admission, but it proves no CI run occurred.
+  if (context === "CI Evidence" && isCiNotRunVerdict(originalStatusDescription(status))) {
+    trace("ci-not-run", { context });
     return false;
   }
   const runId = trustedControlRunId(getJsonString(status, "target_url"), controlRepository);

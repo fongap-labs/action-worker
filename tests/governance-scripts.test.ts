@@ -401,6 +401,30 @@ test("engineering language rejects Chinese machine text but allows documentation
     "Logs, errors, and test descriptions must use English."
   );
   assert.equal(engineeringLineViolation("src/router.ts", 'const label = "中文界面";'), null);
+  // CHANGELOG text in an authored string is user-facing data, not a configuration key.
+  assert.equal(
+    engineeringLineViolation(
+      "scripts/manage-work-metrics.ts",
+      "const entry = `- 维护: 更新工作指标数据（${timestamp}）。`;"
+    ),
+    null
+  );
+  assert.equal(
+    engineeringLineViolation(
+      "tests/manage-work-metrics.test.ts",
+      'const existing = "# 更新日志\\n\\n- 维护: 保留已有记录。";'
+    ),
+    null
+  );
+  const chineseConfigKey = String.fromCodePoint(0x4e2d, 0x6587, 0x952e);
+  assert.equal(
+    engineeringLineViolation("src/config.ts", `const config = { "${chineseConfigKey}": "value" };`),
+    "Configuration keys must use English."
+  );
+  assert.equal(
+    engineeringLineViolation("src/config.ts", `const config = { ${chineseConfigKey}: true };`),
+    "Configuration keys must use English."
+  );
   assert.equal(engineeringLineViolation("docs/README.md", "中文说明"), null);
   assert.equal(engineeringLineViolation("src/i18n/zh-CN.json", '"title": "中文界面"'), null);
   assert.equal(
@@ -414,6 +438,10 @@ test("engineering language rejects Chinese machine text but allows documentation
   assert.equal(
     engineeringLineViolation("assets/js/app.js", 'console.error("上游失败")'),
     "Logs, errors, and test descriptions must use English."
+  );
+  assert.equal(
+    engineeringLineViolation("projects/Steno/src/main.ts", "// 修复路由"),
+    "Engineering identifiers and comments must use English."
   );
 });
 
@@ -578,7 +606,7 @@ test("lifecycle filename rule distinguishes control labels from domain concepts"
     hasLifecycleFilenameViolation("projects/SecurePigeon/crates/pigeon-store/src/temp_access.rs"),
     false
   );
-  assert.equal(hasLifecycleFilenameViolation("projects/WinCleaner/Build/New-CleanIso.ps1"), false);
+  assert.equal(hasLifecycleFilenameViolation("projects/WinCleaner/Build/new-clean-iso.ps1"), true);
 });
 
 test("repository variables are sorted and validated", () => {

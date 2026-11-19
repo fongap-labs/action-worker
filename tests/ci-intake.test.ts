@@ -117,6 +117,45 @@ test("central CI intake dispatches only default heads without evidence", async (
   });
 });
 
+test("main CI intake redispatches when signed success says CI did not run", async () => {
+  const repository = "fongap-labs/example";
+  const headSha = shaA;
+  const statusPath = `repos/${repository}/commits/${headSha}/status`;
+  const requested: string[] = [];
+  const dispatched: Array<{ repository: string; sha: string }> = [];
+  const result = await scanMainCi(
+    { [repository]: ["pr"] },
+    {
+      async get(path: string): Promise<unknown> {
+        requested.push(path);
+        if (path === `repos/${repository}/commits?per_page=1`) return [{ sha: headSha }];
+        if (path === statusPath) {
+          return attestFixtureResponseForPath(path, {
+            statuses: [
+              {
+                context: "CI Evidence",
+                state: "success",
+                description: "CI not run: the governance plan does not require CI",
+                target_url: `https://github.com/${controlRepository}/actions/runs/42`,
+                created_at: "2026-11-19T00:00:00Z",
+              },
+            ],
+          });
+        }
+        throw new Error(`unexpected API path: ${path}`);
+      },
+    },
+    async (targetRepository, sha) => {
+      dispatched.push({ repository: targetRepository, sha });
+    }
+  );
+
+  assert.deepEqual(requested, [`repos/${repository}/commits?per_page=1`, statusPath]);
+  assert.deepEqual(dispatched, [{ repository, sha: headSha }]);
+  assert.equal(result.dispatched, 1);
+  assert.equal(result.already_processed, 0);
+});
+
 test("default head lookup rejects an empty or malformed default-branch commit list", async () => {
   const repository = "fongap-labs/example";
   for (const payload of [[], [{}], [{ sha: "not-a-commit-sha" }]]) {

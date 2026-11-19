@@ -1,5 +1,6 @@
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { hasVerifiedCiEvidence } from "./ci-evidence.ts";
 import { requireStatusToken } from "./control-token.ts";
 import {
   decodeGithubContent,
@@ -12,7 +13,6 @@ import {
 } from "./github-api.ts";
 import { sha256File } from "./lib/stream-file-hash.ts";
 import { appendLines, CliError, handleError, isMain, readJson } from "./runtime-command.ts";
-import { latestAttestedStatus } from "./status-attestation.ts";
 
 type ToolMetadata = {
   schema_version: "1";
@@ -394,12 +394,12 @@ async function main(): Promise<void> {
   }
 
   const status = await reader.get(`repos/${distributionRepository}/commits/${sourceSha}/status`);
-  const ciEvidence = latestAttestedStatus(status, {
-    repository: distributionRepository,
-    sha: sourceSha,
-    context: "CI Evidence",
+  const hasCiEvidence = await hasVerifiedCiEvidence(reader, status, {
+    controlRepository: artifactRepository,
+    targetRepository: distributionRepository,
+    targetSha: sourceSha,
   });
-  if (!isJsonRecord(ciEvidence) || getJsonString(ciEvidence, "state") !== "success") {
+  if (!hasCiEvidence) {
     await appendLines(process.env.GITHUB_OUTPUT, [
       "publish=false",
       `source_repository=${distributionRepository}`,

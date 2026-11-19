@@ -109,7 +109,6 @@ export function hasLifecycleFilenameViolation(
   path: string,
   bannedTerms: readonly string[] = ["new", "final", "latest", "temp", "tmp"]
 ): boolean {
-  if (path.startsWith("projects/")) return false;
   const name = basename(path);
   const stem = parse(name).name;
   const extension = extname(name).slice(1);
@@ -123,7 +122,6 @@ export function hasLifecycleFilenameViolation(
 }
 
 function newFileSegments(path: string): string[] | null {
-  if (path.startsWith("projects/")) return null;
   const extension = extname(path).slice(1);
   const controlled =
     path.startsWith(".github/workflows/") ||
@@ -158,7 +156,6 @@ export async function validateNames(
   let warnings = 0;
   console.log(`Checking ${files.length} changed paths`);
   for (const path of files) {
-    if (path.startsWith("projects/")) continue;
     const name = basename(path);
     const stem = parse(name).name;
     const extension = extname(name).slice(1);
