@@ -29,6 +29,27 @@
       "pr_number": 418,
       "approval_issue": 417,
       "root_incident_sha": "ef98b13193dc842291bfc7deb4fc5940a7a0a79c"
+    },
+    {
+      "repository": "fongap-labs/dsh-plugin",
+      "merge_sha": "211bafdfaa14b9acbdff18889dcab4ed15669250",
+      "pr_number": 422,
+      "approval_issue": 423,
+      "root_incident_sha": "211bafdfaa14b9acbdff18889dcab4ed15669250"
+    },
+    {
+      "repository": "fongap-labs/dsh-plugin",
+      "merge_sha": "95724a425c81eaefce82c8c032d6b8f62c3041eb",
+      "pr_number": 424,
+      "approval_issue": 423,
+      "root_incident_sha": "211bafdfaa14b9acbdff18889dcab4ed15669250"
+    },
+    {
+      "repository": "fongap-labs/dsh-plugin",
+      "merge_sha": "0194a2f5d8bc2ff9d04d5e6348aef06f38d07121",
+      "pr_number": 425,
+      "approval_issue": 423,
+      "root_incident_sha": "211bafdfaa14b9acbdff18889dcab4ed15669250"
     }
   ]
 }
