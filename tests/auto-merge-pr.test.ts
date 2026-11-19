@@ -142,6 +142,11 @@ test("exact approved merged PR is an idempotent success, never an authorization 
   const verifyMerge = (v: unknown, s = statuses()) =>
     isApprovedCompletedMerge(v, s, repository, number, headSha, baseSha, runUrl);
   assert.equal(verifyMerge(approved), true);
+  // GitHub updates base.sha to the latest main tip after an otherwise valid merge.
+  // The original base is still enforced for open PRs, not for completed ones.
+  const advancedBase = { ...approved, base: { sha: "d".repeat(40), ref: "main" } };
+  assert.equal(verifyMerge(advancedBase), true);
+  assert.throws(() => verify({ ...pull(), base: advancedBase.base }, statuses()), /revalidate first/);
   for (const invalid of [
     { ...approved, merged: false },
     { ...approved, state: "open" },
@@ -149,7 +154,9 @@ test("exact approved merged PR is an idempotent success, never an authorization 
     { ...approved, merge_commit_sha: null },
     { ...approved, number: number + 1 },
     { ...approved, head: { sha: "d".repeat(40) } },
-    { ...approved, base: { sha: "d".repeat(40), ref: "main" } },
+    { ...approved, base: { sha: "d".repeat(40), ref: "not-main" } },
+    { ...approved, merged_at: "2026-11-09T03:55:19Z" },
+    { ...approved, merged_at: "not-a-timestamp" },
     { ...approved, title: "fix: different title" },
   ]) {
     assert.equal(verifyMerge(invalid), false);
