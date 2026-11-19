@@ -4,6 +4,7 @@ import {
   GithubHttpError,
   type GithubReader,
   getJsonString,
+  isJsonRecord,
   isRetryableStatus,
   runGithubCli,
   statusAwareReader,
@@ -23,10 +24,10 @@ import {
   incidentTitle,
   shouldCreateIncident,
 } from "./main-write-incidents.ts";
+import { reconcileHistoricalMainGuards, type HistoricalMainReview } from "./historical-main-review.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { hasValidStatusAttestation, signedStatusDescription } from "./status-attestation.ts";
-import { reconcileHistoricalMainGuards, type HistoricalMainReview } from "./historical-main-review.ts";
 import { postGithubCommitStatus } from "./status-write-retry.ts";
 
 export type AuditResult = {
