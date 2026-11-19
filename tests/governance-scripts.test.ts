@@ -416,12 +416,16 @@ test("engineering language rejects Chinese machine text but allows documentation
     ),
     null
   );
+  const chineseConfigKey = String.fromCodePoint(0x4e2d, 0x6587, 0x952e);
   assert.equal(
-    engineeringLineViolation("src/config.ts", 'const config = { "中文键": "value" };'),
+    engineeringLineViolation(
+      "src/config.ts",
+      `const config = { "${chineseConfigKey}": "value" };`
+    ),
     "Configuration keys must use English."
   );
   assert.equal(
-    engineeringLineViolation("src/config.ts", "const config = { 中文键: true };"),
+    engineeringLineViolation("src/config.ts", `const config = { ${chineseConfigKey}: true };`),
     "Configuration keys must use English."
   );
   assert.equal(engineeringLineViolation("docs/README.md", "中文说明"), null);
