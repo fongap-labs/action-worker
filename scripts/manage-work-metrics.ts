@@ -1,3 +1,4 @@
+import { readFile, writeFile } from "node:fs/promises";
 import {
   getJsonArray,
   getJsonNumber,
@@ -42,6 +43,33 @@ export function metricIncrementForWorkflow(
   throw new CliError(`::error::Unsupported workflow_run source: ${workflow}`, 65);
 }
 
+export function updateMetricsChangelog(content: string, timestamp: string): string {
+  if (
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(timestamp) ||
+    !Number.isFinite(Date.parse(timestamp)) ||
+    new Date(timestamp).toISOString() !== timestamp
+  ) {
+    throw new CliError("::error::Metrics changelog timestamp must use ISO 8601 UTC format.", 65);
+  }
+  const lines = content.split(/\r?\n/);
+  const start = lines.indexOf("## [Unreleased]");
+  if (start === -1) {
+    throw new CliError("::error::CHANGELOG must contain ## [Unreleased].", 65);
+  }
+  let end = lines.findIndex((line, index) => index > start && line.startsWith("## "));
+  if (end === -1) end = lines.length;
+  const entry = `- 维护: 更新工作指标数据（${timestamp}）。`;
+  if (lines.slice(start + 1, end).includes(entry)) return content;
+  let insertion = end;
+  while (insertion > start + 1 && lines[insertion - 1]?.trim() === "") insertion -= 1;
+  if (insertion === start + 1) {
+    lines.splice(start + 1, end - start - 1, "", entry, "");
+  } else {
+    lines.splice(insertion, end - insertion, entry, "");
+  }
+  return lines.join("\n");
+}
+
 async function prepareIncrement(): Promise<void> {
   const eventName = process.env.EVENT_NAME ?? "";
   if (eventName !== "workflow_run") {
@@ -84,7 +112,10 @@ async function createBranch(): Promise<void> {
   await runCommand("git", ["config", "user.name", "fongap"]);
   await runCommand("git", ["config", "user.email", "26006683+fongap@users.noreply.github.com"]);
   await runCommand("git", ["checkout", "-b", branch]);
-  await runCommand("git", ["add", "README.md"]);
+  const changelog = await readFile("CHANGELOG.md", "utf8");
+  const timestamp = new Date().toISOString();
+  await writeFile("CHANGELOG.md", updateMetricsChangelog(changelog, timestamp), "utf8");
+  await runCommand("git", ["add", "README.md", "CHANGELOG.md"]);
   await runCommand("git", ["commit", "-m", "chore: update work metrics"]);
   await runCommand("git", ["fetch", "origin", "main"]);
   await runCommand("git", ["rebase", "origin/main"]);

@@ -41,7 +41,8 @@ function status(
   context: string,
   state: "success" | "pending" | "failure" = "success",
   targetUrl = runUrl,
-  createdAt = "2026-11-10T07:00:00Z"
+  createdAt = "2026-11-10T07:00:00Z",
+  descriptionOverride?: string
 ) {
   return {
     context,
@@ -54,9 +55,10 @@ function status(
       state,
       context,
       description:
-        context === "CI Evidence"
+        descriptionOverride ??
+        (context === "CI Evidence"
           ? "Central CI gate verdict"
-          : "title-sha256=" + prTitleFingerprint(prTitle) + " Central CI gate verdict",
+          : "title-sha256=" + prTitleFingerprint(prTitle) + " Central CI gate verdict"),
       targetUrl,
     }),
   };
@@ -86,6 +88,23 @@ function verify(candidatePull: unknown, candidateStatuses: unknown) {
 
 test("signed current-head CI success authorizes zero-review automatic squash merge", () => {
   assert.doesNotThrow(() => verify(pull(), statuses()));
+});
+
+test("signed no-CI gate verdict remains admissible for automatic merge", () => {
+  const noCiStatuses = {
+    statuses: [
+      status("PR Governance"),
+      status(
+        "CI Evidence",
+        "success",
+        ciUrl,
+        "2026-11-10T07:00:00Z",
+        "CI not run: the governance plan does not require CI"
+      ),
+      status("validate-merge"),
+    ],
+  };
+  assert.doesNotThrow(() => verify(pull(), noCiStatuses));
 });
 
 test("only a same-repository behind branch may be refreshed after signed CI succeeds", () => {

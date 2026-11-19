@@ -167,6 +167,42 @@ test("verified CI evidence needs a successful control run of a publishing workfl
   );
 });
 
+test("signed no-CI success is a gate verdict, not proof that CI ran", async () => {
+  const noCi = attestFixtureStatuses(
+    {
+      statuses: [
+        {
+          context: "CI Evidence",
+          state: "success",
+          description: "CI not run: the governance plan does not require CI",
+          target_url: evidenceRunUrl,
+          created_at: "2026-10-02T13:11:43Z",
+        },
+      ],
+    },
+    targetRepository,
+    targetSha
+  );
+  assert.equal(
+    hasTrustedSuccessfulCiEvidence(
+      noCi,
+      "CI Evidence",
+      controlRepository,
+      targetRepository,
+      targetSha
+    ),
+    true
+  );
+  const reader = runReader([
+    controlRun({ path: ".github/workflows/handle-pr-dispatch.yml" }),
+  ]);
+  assert.equal(
+    await hasVerifiedCiEvidence(reader, noCi, { ...noDelay, ...verified }),
+    false
+  );
+  assert.deepEqual(reader.requested, []);
+});
+
 test("forged CI evidence pointing at a wrong or unsuccessful run is rejected", async () => {
   const rejected = [
     controlRun({ id: 43 }),

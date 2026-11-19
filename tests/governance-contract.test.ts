@@ -491,7 +491,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     "check-status-owner.ts",
     "Publish explicit no-CI evidence",
     "steps.base_plan.outputs.ci_required != 'true'",
-    "CI not required by governance plan",
+    "CI not run: the governance plan does not require CI",
     "CI Evidence",
   ]);
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
@@ -1263,6 +1263,7 @@ test("tool distribution sync runs only in the central control plane", async () =
     "tools/catalog.json",
     "release-provenance.json",
     "CI Evidence",
+    "hasVerifiedCiEvidence",
     "checksumForAsset",
     "selectStableRelease",
     "parseUrlToolMetadata",

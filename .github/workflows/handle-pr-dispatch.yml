@@ -300,7 +300,7 @@ jobs:
           set -Eeuo pipefail
 
           node scripts/write-commit-status.ts "$REPOSITORY" "$HEAD_SHA" success \
-            "CI Evidence" "CI not required by governance plan" "$RUN_URL"
+            "CI Evidence" "CI not run: the governance plan does not require CI" "$RUN_URL"
 
       - name: Validate CI evidence
         if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'

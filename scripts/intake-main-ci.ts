@@ -1,4 +1,4 @@
-import { trustedControlRunId } from "./ci-evidence.ts";
+import { isCiNotRunVerdict, trustedControlRunId } from "./ci-evidence.ts";
 import { decideCiFailureRetry, hasUnresolvedCiEvidenceFailure } from "./ci-failure-budget.ts";
 import { parseCiFailureMarker } from "./ci-failure-fingerprint.ts";
 import {
@@ -83,7 +83,10 @@ async function ciState(
 ): Promise<"dispatch" | "in-flight" | "processed"> {
   const fact = latestStatus(value, "CI Evidence", repository, sha);
   if (!fact) return "dispatch";
-  if (fact.state === "success") return "processed";
+  // Main CI is required even when a signed PR gate is allowed to skip PR CI.
+  if (fact.state === "success") {
+    return isCiNotRunVerdict(fact.description) ? "dispatch" : "processed";
+  }
   // Failures with a stable, signed fingerprint can be retried only when log evidence classified
   // them as transient, the server delay elapsed, and fewer than three central runs failed.
   if (fact.state === "failure" || fact.state === "error") {

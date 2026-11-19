@@ -415,6 +415,10 @@ test("engineering language rejects Chinese machine text but allows documentation
     engineeringLineViolation("assets/js/app.js", 'console.error("上游失败")'),
     "Logs, errors, and test descriptions must use English."
   );
+  assert.equal(
+    engineeringLineViolation("projects/Steno/src/main.ts", "// 修复路由"),
+    "Engineering identifiers and comments must use English."
+  );
 });
 
 test("engineering language exempts HTML template copy but rejects template comments", () => {
@@ -578,7 +582,7 @@ test("lifecycle filename rule distinguishes control labels from domain concepts"
     hasLifecycleFilenameViolation("projects/SecurePigeon/crates/pigeon-store/src/temp_access.rs"),
     false
   );
-  assert.equal(hasLifecycleFilenameViolation("projects/WinCleaner/Build/New-CleanIso.ps1"), false);
+  assert.equal(hasLifecycleFilenameViolation("projects/WinCleaner/Build/new-clean-iso.ps1"), true);
 });
 
 test("repository variables are sorted and validated", () => {
