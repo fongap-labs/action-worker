@@ -1,5 +1,16 @@
-import { hasVerifiedCiEvidence, hasVerifiedControlStatus, latestCiStatus, trustedControlRunId } from "./ci-evidence.ts";
-import { getJsonArray, getJsonNumber, getJsonString, isJsonRecord, type GithubReader } from "./github-api.ts";
+import {
+  hasVerifiedCiEvidence,
+  hasVerifiedControlStatus,
+  latestCiStatus,
+  trustedControlRunId,
+} from "./ci-evidence.ts";
+import {
+  type GithubReader,
+  getJsonArray,
+  getJsonNumber,
+  getJsonString,
+  isJsonRecord,
+} from "./github-api.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
 import { CliError } from "./runtime-command.ts";
 import {
@@ -41,8 +52,8 @@ async function isAncestor(
   const comparison = await reader.get(`repos/${repository}/compare/${ancestor}...${descendant}`);
   return (
     getJsonString(comparison, "status") === "ahead" &&
-    getJsonString(comparison, "merge_base_commit") !== "invalid" &&
-    getJsonString(isJsonRecord(comparison) ? comparison.merge_base_commit : null, "sha") === ancestor
+    getJsonString(isJsonRecord(comparison) ? comparison.merge_base_commit : null, "sha") ===
+      ancestor
   );
 }
 
@@ -53,7 +64,8 @@ async function verifyMaintainerResolution(
   const issue = await reader.get(`repos/${item.repository}/issues/${item.approval_issue}`);
   requireFact(
     getJsonString(issue, "state") === "closed" &&
-      getJsonString(issue, "title") === `Main write incident: ${item.root_incident_sha.slice(0, 12)}` &&
+      getJsonString(issue, "title") ===
+        `Main write incident: ${item.root_incident_sha.slice(0, 12)}` &&
       getJsonString(issue, "body").includes(item.root_incident_sha),
     "incident must be closed and match the original rejected main write"
   );
@@ -127,7 +139,10 @@ async function verifyCompletedGovernance(
   const failedJobs = jobs.filter((job) => getJsonString(job, "conclusion") === "failure");
   requireFact(failedJobs.length === 1, "only one auto-merge job may have failed");
   const failedJob = failedJobs[0];
-  requireFact(getJsonString(failedJob, "name") === "PR Governance", "governance job identity mismatch");
+  requireFact(
+    getJsonString(failedJob, "name") === "PR Governance",
+    "governance job identity mismatch"
+  );
   const steps = getJsonArray(failedJob, "steps").filter(isJsonRecord);
   const failedSteps = steps.filter((step) => getJsonString(step, "conclusion") === "failure");
   const mergeStep = failedSteps[0];
@@ -135,7 +150,10 @@ async function verifyCompletedGovernance(
     failedSteps.length === 1 &&
       getJsonString(mergeStep, "name") === "Automatically merge CI-green PR" &&
       ["Update final gate", "Update central merge gate"].every((name) =>
-        steps.some((step) => getJsonString(step, "name") === name && getJsonString(step, "conclusion") === "success")
+        steps.some(
+        (step) =>
+          getJsonString(step, "name") === name && getJsonString(step, "conclusion") === "success"
+      )
       ) &&
       asTimestamp(getJsonString(mergeStep, "completed_at")) >= mergedAt,
     "only a failed automatic merge after successful signed gates and GitHub merge may be reconciled"
@@ -156,7 +174,9 @@ export async function reconcileHistoricalMainGuards(
     repositoryPattern.test(repository) &&
       repositoryPattern.test(controlRepository) &&
       shaPattern.test(currentMainSha) &&
-      /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/[1-9]\d*$/.test(runUrl),
+      /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/[1-9]\d*$/.test(
+      runUrl
+    ),
     "invalid reconciliation identity"
   );
   const selected = cases.filter((item) => item.repository === repository);
@@ -177,18 +197,28 @@ export async function reconcileHistoricalMainGuards(
     seen.add(item.merge_sha);
     const currentStatus = await reader.get(`repos/${repository}/commits/${item.merge_sha}/status`);
     const guard = latestCiStatus(currentStatus, "Main Write Guard");
-    if (getJsonString(guard, "state") === "success" &&
-        hasValidStatusAttestation(guard, { repository, sha: item.merge_sha, context: "Main Write Guard" })) {
+    if (
+      getJsonString(guard, "state") === "success" &&
+      hasValidStatusAttestation(guard, {
+        repository,
+        sha: item.merge_sha,
+        context: "Main Write Guard",
+      })
+    ) {
       continue;
     }
     requireFact(
       getJsonString(guard, "state") === "failure" &&
-        hasValidStatusAttestation(guard, { repository, sha: item.merge_sha, context: "Main Write Guard" }),
+        hasValidStatusAttestation(guard, {
+        repository,
+        sha: item.merge_sha,
+        context: "Main Write Guard",
+      }),
       "only a signed, failed historical Main Write Guard may be reassessed"
     );
     requireFact(
-      await isAncestor(reader, repository, item.root_incident_sha, item.merge_sha) &&
-        await isAncestor(reader, repository, item.merge_sha, currentMainSha),
+      (await isAncestor(reader, repository, item.root_incident_sha, item.merge_sha)) &&
+        (await isAncestor(reader, repository, item.merge_sha, currentMainSha)),
       "incident, historical merge and current main must share the exact ancestry"
     );
     await verifyMaintainerResolution(reader, item);
@@ -198,7 +228,8 @@ export async function reconcileHistoricalMainGuards(
     requireFact(
       getJsonNumber(pull, "number") === item.pr_number &&
         getJsonString(pull, "state") === "closed" &&
-        isJsonRecord(pull) && pull.merged === true &&
+        isJsonRecord(pull) &&
+        pull.merged === true &&
         getJsonString(pull, "merge_commit_sha") === item.merge_sha &&
         getJsonString(isJsonRecord(pull) ? pull.base : null, "ref") === "main" &&
         shaPattern.test(headSha) &&
@@ -228,14 +259,27 @@ export async function reconcileHistoricalMainGuards(
       "governance gates must bind to the actual merged PR title"
     );
     requireFact(
-      await hasVerifiedCiEvidence(reader, { statuses: [gates[1]] }, {
-        controlRepository, targetRepository: repository, targetSha: headSha,
-        runAttempts: 1, retryDelayMs: 0,
-      }),
+      await hasVerifiedCiEvidence(
+        reader,
+        { statuses: [gates[1]] },
+        {
+          controlRepository,
+          targetRepository: repository,
+          targetSha: headSha,
+          runAttempts: 1,
+          retryDelayMs: 0,
+        }
+      ),
       "original CI Evidence must have a successful trusted control run"
     );
     await verifyCompletedGovernance(
-      reader, repository, headSha, gates[0], gates[2], mergeTime, controlRepository
+      reader,
+      repository,
+      headSha,
+      gates[0],
+      gates[2],
+      mergeTime,
+      controlRepository
     );
     toPublish.push({
       item,
@@ -251,8 +295,12 @@ export async function reconcileHistoricalMainGuards(
       state: "success",
       context: "Main Write Guard",
       description: signedStatusDescription({
-        repository, sha: item.merge_sha, state: "success", context: "Main Write Guard",
-        description, targetUrl: runUrl,
+        repository,
+        sha: item.merge_sha,
+        state: "success",
+        context: "Main Write Guard",
+        description,
+        targetUrl: runUrl,
       }),
       targetUrl: runUrl,
     });
