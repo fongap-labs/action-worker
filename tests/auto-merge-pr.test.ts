@@ -230,7 +230,12 @@ test("concurrent merge verification rejects wrong heads, missing proof and unmer
   const unsigned = statuses();
   unsigned.statuses[0] = { ...unsigned.statuses[0]!, description: "forged" };
   assert.equal(
-    await waitForApprovedCompletedMerge(async () => approved, unsigned, identity, async () => {}),
+    await waitForApprovedCompletedMerge(
+      async () => approved,
+      unsigned,
+      identity,
+      async () => {}
+    ),
     false
   );
 
@@ -250,7 +255,13 @@ test("concurrent merge verification rejects wrong heads, missing proof and unmer
   assert.equal(attempts, 5);
 
   await assert.rejects(
-    waitForApprovedCompletedMerge(async () => pull(), statuses(), identity, async () => {}, 6),
+    waitForApprovedCompletedMerge(
+      async () => pull(),
+      statuses(),
+      identity,
+      async () => {},
+      6
+    ),
     /Invalid bounded/
   );
 });
