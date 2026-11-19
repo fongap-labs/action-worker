@@ -73,7 +73,7 @@ async function verifyMaintainerResolution(
 }
 
 async function verifyCompletedGovernance(
-  reader: GithubReader,
+  reader: Pick<GithubReader, "get">,
   repository: string,
   headSha: string,
   status: unknown,
@@ -143,7 +143,7 @@ async function verifyCompletedGovernance(
 }
 
 export async function reconcileHistoricalMainGuards(
-  reader: GithubReader,
+  reader: Pick<GithubReader, "get">,
   repository: string,
   currentMainSha: string,
   controlRepository: string,
