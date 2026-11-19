@@ -151,9 +151,9 @@ async function verifyCompletedGovernance(
       getJsonString(mergeStep, "name") === "Automatically merge CI-green PR" &&
       ["Update final gate", "Update central merge gate"].every((name) =>
         steps.some(
-        (step) =>
-          getJsonString(step, "name") === name && getJsonString(step, "conclusion") === "success"
-      )
+          (step) =>
+            getJsonString(step, "name") === name && getJsonString(step, "conclusion") === "success"
+        )
       ) &&
       asTimestamp(getJsonString(mergeStep, "completed_at")) >= mergedAt,
     "only a failed automatic merge after successful signed gates and GitHub merge may be reconciled"
@@ -175,8 +175,8 @@ export async function reconcileHistoricalMainGuards(
       repositoryPattern.test(controlRepository) &&
       shaPattern.test(currentMainSha) &&
       /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/actions\/runs\/[1-9]\d*$/.test(
-      runUrl
-    ),
+        runUrl
+      ),
     "invalid reconciliation identity"
   );
   const selected = cases.filter((item) => item.repository === repository);
@@ -210,10 +210,10 @@ export async function reconcileHistoricalMainGuards(
     requireFact(
       getJsonString(guard, "state") === "failure" &&
         hasValidStatusAttestation(guard, {
-        repository,
-        sha: item.merge_sha,
-        context: "Main Write Guard",
-      }),
+          repository,
+          sha: item.merge_sha,
+          context: "Main Write Guard",
+        }),
       "only a signed, failed historical Main Write Guard may be reassessed"
     );
     requireFact(
