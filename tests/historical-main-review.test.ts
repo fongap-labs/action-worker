@@ -93,7 +93,12 @@ function makeReader(
       if (path === `repos/${repository}/commits/${originalSha}/status`) {
         return {
           statuses: [
-            status(originalSha, "Main Write Guard", reviewUrl, priorSuccess ? "success" : "failure"),
+            status(
+              originalSha,
+              "Main Write Guard",
+              reviewUrl,
+              priorSuccess ? "success" : "failure"
+            ),
           ],
         };
       }
