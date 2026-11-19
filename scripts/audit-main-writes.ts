@@ -10,6 +10,10 @@ import {
   statusAwareReader,
 } from "./github-api.ts";
 import {
+  type HistoricalMainReview,
+  reconcileHistoricalMainGuards,
+} from "./historical-main-review.ts";
+import {
   reconcileMisattributedMainStatuses,
   reconcilePreviousMainStatuses,
 } from "./main-status-reconcile.ts";
@@ -24,10 +28,6 @@ import {
   incidentTitle,
   shouldCreateIncident,
 } from "./main-write-incidents.ts";
-import {
-  reconcileHistoricalMainGuards,
-  type HistoricalMainReview,
-} from "./historical-main-review.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { hasValidStatusAttestation, signedStatusDescription } from "./status-attestation.ts";
