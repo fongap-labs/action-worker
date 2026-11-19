@@ -79,7 +79,7 @@ test("operational merge failure cannot be mistaken for an ignored CI failure", (
   assert.ok(govern && merge);
   const requiredGates = ["Update final gate", "Update central merge gate"];
   for (const name of requiredGates) {
-    const step = govern.steps.find((item) => item.name === name);
+    const step: WorkflowStep | undefined = govern.steps.find((item) => item.name === name);
     assert.ok(step);
     assert.notEqual(step["continue-on-error"], true, `${name} must remain fail-closed`);
   }
