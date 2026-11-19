@@ -405,7 +405,7 @@ test("engineering language rejects Chinese machine text but allows documentation
   assert.equal(
     engineeringLineViolation(
       "scripts/manage-work-metrics.ts",
-      'const entry = `- 维护: 更新工作指标数据（${timestamp}）。`;'
+      "const entry = `- 维护: 更新工作指标数据（${timestamp}）。`;"
     ),
     null
   );
@@ -418,10 +418,7 @@ test("engineering language rejects Chinese machine text but allows documentation
   );
   const chineseConfigKey = String.fromCodePoint(0x4e2d, 0x6587, 0x952e);
   assert.equal(
-    engineeringLineViolation(
-      "src/config.ts",
-      `const config = { "${chineseConfigKey}": "value" };`
-    ),
+    engineeringLineViolation("src/config.ts", `const config = { "${chineseConfigKey}": "value" };`),
     "Configuration keys must use English."
   );
   assert.equal(

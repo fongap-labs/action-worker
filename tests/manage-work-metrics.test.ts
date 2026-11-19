@@ -38,14 +38,10 @@ test("metrics updates add a normal unreleased chore entry with stable section sp
   const base = "# 更新日志\n\n## [Unreleased]\n\n## [1.0.0]\n";
   const expectedEntry = `- 维护: 更新工作指标数据（${timestamp}）。`;
   const updated = updateMetricsChangelog(base, timestamp);
-  assert.equal(
-    updated,
-    `# 更新日志\n\n## [Unreleased]\n\n${expectedEntry}\n\n## [1.0.0]\n`
-  );
+  assert.equal(updated, `# 更新日志\n\n## [Unreleased]\n\n${expectedEntry}\n\n## [1.0.0]\n`);
   assert.equal(updateMetricsChangelog(updated, timestamp), updated);
 
-  const existing =
-    "# 更新日志\n\n## [Unreleased]\n\n- 维护: 保留已有记录。\n\n\n## [1.0.0]\n";
+  const existing = "# 更新日志\n\n## [Unreleased]\n\n- 维护: 保留已有记录。\n\n\n## [1.0.0]\n";
   assert.equal(
     updateMetricsChangelog(existing, timestamp),
     `# 更新日志\n\n## [Unreleased]\n\n- 维护: 保留已有记录。\n${expectedEntry}\n\n## [1.0.0]\n`

@@ -150,10 +150,7 @@ test("main CI intake redispatches when signed success says CI did not run", asyn
     }
   );
 
-  assert.deepEqual(requested, [
-    `repos/${repository}/commits?per_page=1`,
-    statusPath,
-  ]);
+  assert.deepEqual(requested, [`repos/${repository}/commits?per_page=1`, statusPath]);
   assert.deepEqual(dispatched, [{ repository, sha: headSha }]);
   assert.equal(result.dispatched, 1);
   assert.equal(result.already_processed, 0);

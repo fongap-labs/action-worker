@@ -193,13 +193,8 @@ test("signed no-CI success is a gate verdict, not proof that CI ran", async () =
     ),
     true
   );
-  const reader = runReader([
-    controlRun({ path: ".github/workflows/handle-pr-dispatch.yml" }),
-  ]);
-  assert.equal(
-    await hasVerifiedCiEvidence(reader, noCi, { ...noDelay, ...verified }),
-    false
-  );
+  const reader = runReader([controlRun({ path: ".github/workflows/handle-pr-dispatch.yml" })]);
+  assert.equal(await hasVerifiedCiEvidence(reader, noCi, { ...noDelay, ...verified }), false);
   assert.deepEqual(reader.requested, []);
 });
 
