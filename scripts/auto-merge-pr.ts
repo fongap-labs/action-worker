@@ -1,4 +1,5 @@
 import { getGithubJson, getJsonString, isJsonRecord, runGithubCli } from "./github-api.ts";
+import { sleep } from "./lib/promise-delay-runtime.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { latestAttestedStatus, originalStatusDescription } from "./status-attestation.ts";
@@ -150,6 +151,50 @@ export function isApprovedCompletedMerge(
   }
 }
 
+// GitHub may briefly return the pre-merge PR snapshot after an external merge
+// has completed. A single immediate read can misclassify that expected race as
+// an unauthorized merge and poison Main Write Guard for subsequent main writes.
+// Poll only after our merge command fails; never retry the merge write itself.
+// A successful read must still prove the immutable head and all signed gates.
+export async function waitForApprovedCompletedMerge(
+  readPull: () => Promise<unknown>,
+  statuses: unknown,
+  identity: {
+    repository: string;
+    prNumber: number;
+    headSha: string;
+    baseSha: string;
+    governanceRunUrl: string;
+  },
+  wait: (milliseconds: number) => Promise<void> = sleep,
+  maxChecks = 5
+): Promise<boolean> {
+  if (!Number.isSafeInteger(maxChecks) || maxChecks < 1 || maxChecks > 5) {
+    throw new CliError("Invalid bounded concurrent-merge verification attempts.", 64);
+  }
+  for (let check = 0; check < maxChecks; check += 1) {
+    if (check > 0) await wait(1_000);
+    const pull = await readPull();
+    if (
+      isApprovedCompletedMerge(
+        pull,
+        statuses,
+        identity.repository,
+        identity.prNumber,
+        identity.headSha,
+        identity.baseSha,
+        identity.governanceRunUrl
+      )
+    ) {
+      return true;
+    }
+    // A completed but different merge is not an eventually consistent open
+    // snapshot. Stop immediately rather than treating it as a timing race.
+    if (isJsonRecord(pull) && pull.state === "closed") return false;
+  }
+  return false;
+}
+
 export function isOpenDraftPull(pull: unknown, prNumber: number): boolean {
   return (
     isJsonRecord(pull) &&
@@ -235,17 +280,18 @@ async function main(): Promise<void> {
   } catch (error) {
     // Do not convert an ordinary merge failure into success. Only a separately
     // verified, already-completed merge of this exact approved PR head qualifies.
-    const concurrent = await getGithubJson(pullPath, readToken);
     if (
-      !isApprovedCompletedMerge(
-        concurrent,
+      !(await waitForApprovedCompletedMerge(
+        () => getGithubJson(pullPath, readToken),
         statuses,
-        repository,
-        Number(number),
-        headSha,
-        baseSha,
-        governanceRunUrl
-      )
+        {
+          repository,
+          prNumber: Number(number),
+          headSha,
+          baseSha,
+          governanceRunUrl,
+        }
+      ))
     ) {
       throw error;
     }
