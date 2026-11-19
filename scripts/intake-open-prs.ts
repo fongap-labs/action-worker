@@ -372,7 +372,8 @@ export async function scanOpenPullRequests(
                 "PR Governance",
                 "Retry signed CI-green PR branch refresh via central governance"
               ))
-            ) continue;
+            )
+              continue;
             await dispatch(repository, pull.number, pull.headSha);
             result.dispatched += 1;
             continue;
@@ -415,7 +416,8 @@ export async function scanOpenPullRequests(
               "Dependency Repair",
               "Dependency repair queued by central intake"
             ))
-          ) continue;
+          )
+            continue;
           await dispatchRepair(repository, pull.number, pull.headSha);
           result.repair_dispatched += 1;
           continue;
@@ -431,7 +433,8 @@ export async function scanOpenPullRequests(
           "PR Governance",
           "Action Worker PR governance queued by central intake"
         ))
-      ) continue;
+      )
+        continue;
       await dispatch(repository, pull.number, pull.headSha);
       result.dispatched += 1;
     }
