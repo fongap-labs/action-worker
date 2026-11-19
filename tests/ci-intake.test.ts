@@ -145,7 +145,9 @@ test("main CI intake redispatches when signed success says CI did not run", asyn
         throw new Error(`unexpected API path: ${path}`);
       },
     },
-    async (targetRepository, sha) => dispatched.push({ repository: targetRepository, sha })
+    async (targetRepository, sha) => {
+      dispatched.push({ repository: targetRepository, sha });
+    }
   );
 
   assert.deepEqual(requested, [

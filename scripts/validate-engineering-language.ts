@@ -17,6 +17,10 @@ const HTML_COMMENT_OPEN = "<!--";
 const HTML_COMMENT_CLOSE = "-->";
 const CONFIG_KEY =
   /(?:["'][^"']*[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF][^"']*["']\s*:)|(?:^|\s)[^:#"'\s]*[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF][^:#"']*\s*:/u;
+// Quoted object keys are engineering identifiers; quoted string values (including
+// human-facing CHANGELOG fixtures) are not configuration keys.
+const QUOTED_CONFIG_KEY =
+  /["'][^"']*[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF][^"']*["']\s*:/u;
 const MACHINE_TEXT =
   /\b(?:console\.(?:log|error|warn|info|debug)|logger\w*|log\w*\s*\(|throw\s+new\s+\w*Error|new\s+\w*Error\s*\(|raise\s+\w*Error|logging\.|print\s*\(|describe\s*\(|it\s*\(|test\s*\()/i;
 
@@ -119,7 +123,7 @@ export function engineeringLineViolation(
     }
     return "Workflow engineering text must use English.";
   }
-  if (CONFIG_KEY.test(line)) {
+  if (QUOTED_CONFIG_KEY.test(line) || CONFIG_KEY.test(stripQuotedStrings(line))) {
     return "Configuration keys must use English.";
   }
   if (MACHINE_TEXT.test(line)) {
