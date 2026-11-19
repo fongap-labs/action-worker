@@ -281,17 +281,13 @@ async function main(): Promise<void> {
     // Do not convert an ordinary merge failure into success. Only a separately
     // verified, already-completed merge of this exact approved PR head qualifies.
     if (
-      !(await waitForApprovedCompletedMerge(
-        () => getGithubJson(pullPath, readToken),
-        statuses,
-        {
-          repository,
-          prNumber: Number(number),
-          headSha,
-          baseSha,
-          governanceRunUrl,
-        }
-      ))
+      !(await waitForApprovedCompletedMerge(() => getGithubJson(pullPath, readToken), statuses, {
+        repository,
+        prNumber: Number(number),
+        headSha,
+        baseSha,
+        governanceRunUrl,
+      }))
     ) {
       throw error;
     }
