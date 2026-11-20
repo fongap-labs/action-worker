@@ -10,6 +10,7 @@
       ".github/workflows/central-ci-dispatch.yml",
       ".github/workflows/handle-pr-dispatch.yml"
     ],
+    "ci_failure": [".github/workflows/central-ci-dispatch.yml"],
     "pr_governance": [".github/workflows/handle-pr-dispatch.yml"],
     "main_write_guard": [
       ".github/workflows/central-ci-dispatch.yml",
