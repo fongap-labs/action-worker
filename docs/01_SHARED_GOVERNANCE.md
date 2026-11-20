@@ -186,6 +186,24 @@ git push origin HEAD:main
 
 ## 9. 构建、测试和发布的中央归属
 
+共用工程能力必须由中央维护。
+
+### ❌ 错误做法 / 反面教材
+
+业务仓库自行复制完整的测试与发布链。
+
+```text
+业务仓库 → 本地构建 → 本地测试 → 本地发布
+```
+
+### ✅ 正确做法 / 规范范例
+
+业务仓库提供源码与编译声明，中央统一执行。
+
+```text
+产品源码与编译配置 → Action Worker → 可信构建与测试 → 中央门禁
+```
+
 共用工程能力只在 Action Worker 中实现；业务仓库仅维护产品源码、锁定依赖、
 编译器配置及确实不能外置的产品专属构建参数。业务仓库不可另建独立的 CI、
 测试执行器、通用构建器或发布/部署编排，也不得在 PR 内自行降低中央门禁。
@@ -205,7 +223,7 @@ git push origin HEAD:main
 
 中央 CI 准备阶段在所有路由（包括原生私有 CI）使用可信 Action Worker、
 GitHub 只读比较 API 与 `base/head` 不可变提交运行
-`scripts/central-engineering-gate-api.ts`；Linux 沙箱另以真实 Git 差异运行
+`scripts/engineering-gate-api.ts`；Linux 沙箱另以真实 Git 差异运行
 `scripts/central-engineering-gate.ts`，在项目源码执行前再次确认。业务 PR 修改自身测试、策略文件或
 工作流，不能改变此项判定。新增本地工程基础设施、未经批准的工作流或
 新测试文件将使 CI Evidence 失败，`validate-merge` 因而不得放行。
