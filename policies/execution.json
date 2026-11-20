@@ -9,6 +9,7 @@
     "allow_secrets": false
   },
   "ci": {
+    "required_for_all_prs": true,
     "poll_seconds": 15,
     "timeout_minutes": 120,
     "required_change_areas": [

@@ -60,6 +60,7 @@ type TriagePolicy = {
 
 type ExecutionPolicy = {
   ci: {
+    required_for_all_prs: boolean;
     required_change_areas: string[];
     required_impacts: string[];
   };
@@ -184,6 +185,7 @@ export function resolvePlan(
   );
   const tests = uniqueSorted([...projectTests, ...impactTests]);
   const isCiRequired =
+    policies.execution.ci.required_for_all_prs === true ||
     context.change_areas.some((area) =>
       policies.execution.ci.required_change_areas.includes(area)
     ) ||
