@@ -489,9 +489,9 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     'AI_REVIEW_STATE: ""',
     "Resolve governance ownership",
     "check-status-owner.ts",
-    "Publish explicit no-CI evidence",
+    "Enforce main write CI contract",
     "steps.base_plan.outputs.ci_required != 'true'",
-    "CI not run: the governance plan does not require CI",
+    "A managed PR must run verified central CI before merge",
     "CI Evidence",
   ]);
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
@@ -502,12 +502,13 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   assert.doesNotMatch(workflow, /pr-governance-.*github\.sha/);
   assert.doesNotMatch(workflow, /bash\s+target\//);
   assert.doesNotMatch(workflow, /AW_REVIEW_ENGINE_REPOSITORY/);
+  assert.doesNotMatch(workflow, /Publish explicit no-CI evidence|CI not run: the governance plan does not require CI/);
   assert.match(workflow, /AW_AI_AGENT_CONFIG:\s*\$\{\{ vars\.AW_AI_AGENT_CONFIG \}\}/);
   assert.doesNotMatch(workflow, /AW_IS_AI_REVIEW_ENABLED/);
   const order = [
+    "- name: Enforce main write CI contract",
     "- name: Validate security gate",
     "- name: Collect CI evidence",
-    "- name: Publish explicit no-CI evidence",
     "- name: Validate CI evidence",
     "- name: Mark deterministic gate passed",
     "- name: Update final gate",
