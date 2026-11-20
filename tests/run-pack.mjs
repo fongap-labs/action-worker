@@ -21,6 +21,7 @@ const here = dirname(fileURLToPath(import.meta.url));
  * @property {"node" | "python"} [runtime] "node" or "python".
  * @property {string} [suffix] File-name suffix of a node pack's suites.
  * @property {string[]} [command] Command that starts a python pack.
+ * @property {string[]} [node_flags] Allowlisted Node runtime flags for a Node test pack.
  * @property {{ gate?: string[] }} [tiers] Suites that belong to the gate tier.
  * @property {string[]} [env] Process.env names forwarded to the test subprocess.
  */
@@ -79,6 +80,20 @@ export function validatePackManifest(packName, manifest) {
     if (manifest.command !== undefined) {
       throw new Error(`pack ${packName}: node packs cannot declare a python command`);
     }
+    const flags = manifest.node_flags ?? [];
+    if (
+      !Array.isArray(flags) ||
+      flags.length !== new Set(flags).size ||
+      !flags.every(
+        (flag) => flag === "--experimental-strip-types" || flag === "--experimental-sqlite"
+      )
+    ) {
+      throw new Error(`pack ${packName}: unsupported or duplicate node runtime flag`);
+    }
+  } else if (
+    manifest.node_flags !== undefined
+  ) {
+    throw new Error(`pack ${packName}: python packs cannot declare node runtime flags`);
   } else if (
     manifest.command !== undefined &&
     (!Array.isArray(manifest.command) ||
@@ -176,6 +191,7 @@ function main() {
     const run = spawnSync(
       process.execPath,
       [
+        ...(manifest.node_flags ?? []),
         "--test",
         "--test-concurrency=4",
         "--import",
