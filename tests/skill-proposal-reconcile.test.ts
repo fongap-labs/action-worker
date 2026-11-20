@@ -7,6 +7,8 @@ import {
   verifyMergedSkillProposal, type SkillAdmissionTarget,
 } from "../scripts/skill-proposal-reconcile.ts";
 import { makeOwnerBoundSkillTransport } from "../scripts/skill-proposal-advance.ts";
+import { hasVerifiedMainWriteGuard } from "../scripts/main-write-guard.ts";
+import type { GithubReader } from "../scripts/github-api.ts";
 
 const priorKeyring = process.env.AW_STATUS_KEYRING;
 process.env.AW_STATUS_KEYRING = JSON.stringify({
@@ -175,6 +177,28 @@ test("unexpected changed code, fee evidence, revocation or source mutation block
   ]) {
     assert.throws(() => evaluate(pull, signedStatuses(), files, invalid));
   }
+});
+
+
+test("signed post-merge remediation never becomes a trusted source for Skill activation", async () => {
+  const context = "Main Write Guard";
+  const remedial = {
+    ...signed(context, merge, ciUrl),
+    description: signedStatusDescription({
+      repository: target.repository,
+      sha: merge,
+      context,
+      state: "success",
+      targetUrl: ciUrl,
+      description: "Post-merge CI remediation - display-only historical reconciliation",
+    }),
+  };
+  const reader = { get: async () => {
+    throw new Error("Remediation receipts must be excluded before resolving publisher runs");
+  }} as unknown as GithubReader;
+  assert.equal(await hasVerifiedMainWriteGuard(
+    reader, { statuses: [remedial] }, target.repository, merge
+  ), false);
 });
 
 test("owner-bound transport rejects other repositories, wrong account and unsigned endpoints", async () => {
