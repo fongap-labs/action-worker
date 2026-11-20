@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "pack": "mcp-hub",
+  "runtime": "node",
+  "suffix": "-test.mjs",
+  "node_flags": [
+    "--experimental-strip-types",
+    "--experimental-sqlite"
+  ],
+  "tiers": {
+    "gate": [
+      "runner-protocol-test.mjs",
+      "coding-stack-isolation-test.mjs"
+    ]
+  }
+}
