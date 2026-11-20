@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: ai-gateway Tier 1 共享冷却中央测试使用按节点分片 KV 键，并显式传入活跃节点以验证五分钟读取节流，不降低原有断言。
+
 - 修复: Action Worker 自动 squash 合并在 GitHub 原生自动合并抢先完成时，校验原 PR Head、标题与 main 祖先关系后幂等成功；真正的提交漂移仍以错误终止，避免已合并 PR 的重复红叉。
 
 - 新增: 中央 dsh-plugin 合同测试覆盖原生 Skill Provider 懒加载、Host 卸载与迟到注册、路由提示回收、Strategy 工具注销与失败回滚；不增加宿主外运行时或重复测试。

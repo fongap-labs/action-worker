@@ -619,7 +619,7 @@ test('a quota cooldown exactly at the sharing threshold is shared while the cloc
   }
   await settle();
   assert.equal(kv.puts, 1);
-  assert.match(kv.store.get('tier1-cooldowns:v1'), /"quota":true/);
+  assert.match(kv.store.get('tier1-cooldown:v1:solo'), /"quota":true/);
   assertPrivateAttemptParity(upstream);
 });
 
@@ -673,10 +673,10 @@ test('an isolate rereads the shared cooldowns at most once every 5 minutes', asy
   const kv = memoryKv();
   const env = tier1OnlyEnv(['solo'], { TIER1_AFFINITY: kv });
   const start = Date.now();
-  await hydrateSharedTier1Cooldowns(env, start);
-  await hydrateSharedTier1Cooldowns(env, start + 4 * 60_000);
+  await hydrateSharedTier1Cooldowns(env, start, ['solo']);
+  await hydrateSharedTier1Cooldowns(env, start + 4 * 60_000, ['solo']);
   assert.equal(kv.gets, 1);
-  await hydrateSharedTier1Cooldowns(env, start + 5 * 60_000);
+  await hydrateSharedTier1Cooldowns(env, start + 5 * 60_000, ['solo']);
   assert.equal(kv.gets, 2);
 });
 
