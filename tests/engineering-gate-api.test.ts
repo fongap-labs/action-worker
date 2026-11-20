@@ -116,9 +116,7 @@ test("privileged CI blocks deleting central workflow and manifest even without s
       ),
       /(?:required-workflow-deleted|execution-manifest-deleted)/
     );
-    assert.deepEqual(requests, [
-      "repos/fongap-labs/dsh-plugin/compare/" + base + "..." + head,
-    ]);
+    assert.deepEqual(requests, ["repos/fongap-labs/dsh-plugin/compare/" + base + "..." + head]);
   }
 });
 
