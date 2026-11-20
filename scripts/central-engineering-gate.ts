@@ -147,7 +147,7 @@ export function parseChangedFiles(output: string): ChangedFile[] {
   for (let i = 0; i < fields.length; i += 2) {
     const status = fields[i];
     const path = fields[i + 1];
-    if (!path || !["A", "M", "T", "D"].includes(status)) {
+    if (!path || (status !== "A" && status !== "M" && status !== "T" && status !== "D")) {
       throw new CliError("Git changed-file status is invalid.", 65);
     }
     changes.push({ status, path });
