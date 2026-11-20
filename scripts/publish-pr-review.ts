@@ -5,7 +5,6 @@ import {
   trustedControlRunId,
 } from "./ci-evidence.ts";
 import { requireToken } from "./control-token.ts";
-import { loadGateContract, requiredGateContexts } from "./governance-gate-contract.ts";
 import {
   getGithubJson,
   getJsonArray,
@@ -14,6 +13,7 @@ import {
   isJsonRecord,
   runGithubCli,
 } from "./github-api.ts";
+import { loadGateContract, requiredGateContexts } from "./governance-gate-contract.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { isReviewComplete } from "./validate-review-result.ts";
 
