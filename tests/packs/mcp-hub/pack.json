@@ -12,5 +12,6 @@
       "runner-protocol-test.mjs",
       "coding-stack-isolation-test.mjs"
     ]
-  }
+  },
+  "overlay": true
 }
