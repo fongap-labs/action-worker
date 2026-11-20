@@ -3,7 +3,9 @@
   "control_repository": "fongap-labs/action-worker",
   "workflow_templates": {
     ".github/workflows/ci.yml": "templates/bridge/dispatch-central-ci.yml",
-    ".github/workflows/notify-action-worker.yml": "templates/bridge/notify-action-worker.yml"
+    ".github/workflows/notify-action-worker.yml": "templates/bridge/notify-action-worker.yml",
+    ".github/workflows/private-ref-ci.yml": "templates/bridge/private-ref-ci.yml",
+    ".github/workflows/private-source-ci.yml": "templates/bridge/private-source-ci.yml"
   },
   "local_test_exceptions": [
     {
