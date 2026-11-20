@@ -163,32 +163,50 @@ function verifiedManifestSource(
  * proposal is rejected instead of silently trusted.
  */
 export function verifyMergedSkillProposal(
-  pr: unknown, statuses: unknown, files: unknown, manifest: unknown,
-  target: SkillAdmissionTarget, mergedGuard: unknown, controlRepository: string,
+  pr: unknown,
+  statuses: unknown,
+  files: unknown,
+  manifest: unknown,
+  target: SkillAdmissionTarget,
+  mergedGuard: unknown,
+  controlRepository: string
 ): SkillPromotionCandidate | null {
   if (!isJsonRecord(pr) || getJsonString(pr, "title") !== PROPOSAL_TITLE) return null;
   const head = isJsonRecord(pr.head) ? pr.head : {};
   const base = isJsonRecord(pr.base) ? pr.base : {};
   const match = PROPOSAL_BRANCH.exec(getJsonString(head, "ref"));
-  if (!match || getJsonString(base, "ref") !== "main" ||
-      getJsonString(head.repo, "full_name") !== target.repository ||
-      getJsonString(base.repo, "full_name") !== target.repository ||
-      !SHA.test(getJsonString(head, "sha")) ||
-      !SHA.test(getJsonString(pr, "merge_commit_sha")) ||
-      !SHA.test(getJsonString(base, "sha")) ||
-      !Number.isSafeInteger(pr.number) || Number(pr.number) < 1) {
+  if (
+    !match ||
+    getJsonString(base, "ref") !== "main" ||
+    getJsonString(head.repo, "full_name") !== target.repository ||
+    getJsonString(base.repo, "full_name") !== target.repository ||
+    !SHA.test(getJsonString(head, "sha")) ||
+    !SHA.test(getJsonString(pr, "merge_commit_sha")) ||
+    !SHA.test(getJsonString(base, "sha")) ||
+    !Number.isSafeInteger(pr.number) ||
+    Number(pr.number) < 1
+  ) {
     throw new CliError("Skill proposal branch, target, or merged commit is invalid.", 65);
   }
   const sha = getJsonString(head, "sha");
   const governance = latestAttestedStatus(statuses, {
-    repository: target.repository, sha, context: "PR Governance",
+    repository: target.repository,
+    sha,
+    context: "PR Governance",
   });
   const governanceUrl = getJsonString(governance, "target_url");
-  if (!trustedControlRunId(governanceUrl, controlRepository) ||
-      !isApprovedCompletedMerge(
-        pr, statuses, target.repository, Number(pr.number), sha,
-        getJsonString(base, "sha"), governanceUrl
-      )) {
+  if (
+    !trustedControlRunId(governanceUrl, controlRepository) ||
+    !isApprovedCompletedMerge(
+      pr,
+      statuses,
+      target.repository,
+      Number(pr.number),
+      sha,
+      getJsonString(base, "sha"),
+      governanceUrl
+    )
+  ) {
     throw new CliError("Skill proposal lacks signed, completed PR governance and CI.", 65);
   }
   const guard = latestAttestedStatus(mergedGuard, {
@@ -199,8 +217,7 @@ export function verifyMergedSkillProposal(
   if (guard?.state !== "success") {
     throw new CliError("Merged Skill proposal lacks signed Main Write Guard.", 75);
   }
-  if (!Array.isArray(files) || files.length !== 2 ||
-      !files.every(isJsonRecord)) {
+  if (!Array.isArray(files) || files.length !== 2 || !files.every(isJsonRecord)) {
     throw new CliError("Skill proposal must change exactly its manifest and CHANGELOG.", 65);
   }
   const identity = match[1];
@@ -210,33 +227,49 @@ export function verifyMergedSkillProposal(
   if (!skillName) throw new CliError("Skill proposal source name is missing.", 65);
   const manifestPath = target.proposal_prefix + skillName + "-" + identity + ".json";
   const expected = new Map([
-    ["CHANGELOG.md", "modified"], [manifestPath, "added"],
+    ["CHANGELOG.md", "modified"],
+    [manifestPath, "added"],
   ]);
-  if (!files.every(file =>
-    expected.get(getJsonString(file, "filename")) === getJsonString(file, "status")
-  ) || new Set(files.map(file => getJsonString(file, "filename"))).size !== 2) {
+  if (
+    !files.every(
+      (file) => expected.get(getJsonString(file, "filename")) === getJsonString(file, "status")
+    ) ||
+    new Set(files.map((file) => getJsonString(file, "filename"))).size !== 2
+  ) {
     throw new CliError("Skill proposal has unexpected code or file changes.", 65);
   }
   return {
-    targetRepository: target.repository, proposalPrNumber: Number(pr.number),
-    expectedProposalHead: sha, mergeCommit: getJsonString(pr, "merge_commit_sha"),
-    proposalPath: manifestPath, identity, source,
+    targetRepository: target.repository,
+    proposalPrNumber: Number(pr.number),
+    expectedProposalHead: sha,
+    mergeCommit: getJsonString(pr, "merge_commit_sha"),
+    proposalPath: manifestPath,
+    identity,
+    source,
   };
 }
 
 export async function inspectSkillProposals(
-  reader: GithubReader, target: SkillAdmissionTarget,
-  controlRepository: string,
+  reader: GithubReader,
+  target: SkillAdmissionTarget,
+  controlRepository: string
 ): Promise<SkillPromotionCandidate | undefined> {
-  const closed = getJsonArray(await reader.get(
-    "repos/" + target.repository + "/pulls?state=closed&sort=updated&direction=desc&per_page=" +
-    target.max_closed_prs
-  ));
+  const closed = getJsonArray(
+    await reader.get(
+      "repos/" +
+        target.repository +
+        "/pulls?state=closed&sort=updated&direction=desc&per_page=" +
+        target.max_closed_prs
+    )
+  );
   // One promotion per invocation: the next intake heartbeat handles the next.
   for (const summary of closed) {
-    if (!isJsonRecord(summary) ||
-        getJsonString(summary, "title") !== PROPOSAL_TITLE ||
-        summary.merged_at == null) continue;
+    if (
+      !isJsonRecord(summary) ||
+      getJsonString(summary, "title") !== PROPOSAL_TITLE ||
+      summary.merged_at == null
+    )
+      continue;
     const number = summary.number;
     if (!Number.isSafeInteger(number) || Number(number) < 1) continue;
     const pr = await reader.get("repos/" + target.repository + "/pulls/" + number);
@@ -245,15 +278,11 @@ export async function inspectSkillProposals(
     if (!SHA.test(head)) throw new CliError("Merged Skill proposal SHA is invalid.", 65);
     const merge = getJsonString(pr, "merge_commit_sha");
     if (!SHA.test(merge)) throw new CliError("Merged Skill proposal identity is invalid.", 65);
-    const statuses = await reader.get("repos/" + target.repository + "/commits/" + head + "/status");
-    const mergedGuard = await reader.get("repos/" + target.repository + "/commits/" + merge + "/status");
-    const files = getJsonArray(await reader.get(
-      "repos/" + target.repository + "/pulls/" + number + "/files?per_page=100"
-    ));
-    const manifestFile = files.filter(isJsonRecord).find(file =>
-      typeof file.filename === "string" &&
-      file.filename.startsWith(target.proposal_prefix) &&
-      file.filename.endsWith(".json")
+    const statuses = await reader.get(
+      "repos/" + target.repository + "/commits/" + head + "/status"
+    );
+    const mergedGuard = await reader.get(
+      "repos/" + target.repository + "/commits/" + merge + "/status"
     );
     if (!manifestFile) throw new CliError("Skill proposal manifest was not included in PR.", 65);
     const manifestPath = getJsonString(manifestFile, "filename");
