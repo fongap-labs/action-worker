@@ -52,7 +52,7 @@ const defaults: PlanOptions = {
   agentOverride: "auto",
 };
 
-test("documentation changes keep review and CI disabled", async () => {
+test("documentation changes run central CI without unnecessary AI review", async () => {
   const context = validateContext({
     project_types: ["node"],
     change_areas: ["documentation"],
@@ -62,11 +62,42 @@ test("documentation changes keep review and CI disabled", async () => {
   const plan = resolvePlan(context, await loadPolicies(), defaults);
   assert.deepEqual(plan.checks, ["naming", "secret-scan"]);
   assert.deepEqual(plan.tests, []);
-  assert.equal(plan.ci_required, false);
+  assert.equal(plan.ci_required, true);
   assert.equal(plan.review_required, false);
   assert.equal(plan.review_agent, "none");
   assert.equal(plan.review_model, "");
   assert.equal(plan.triage_required, false);
+});
+
+test("all managed PR change types require real CI evidence", async () => {
+  const policies = await loadPolicies();
+  assert.equal(policies.execution.ci.required_for_all_prs, true);
+  for (const area of ["documentation", "metadata", "source", "workflow"]) {
+    const context = validateContext({
+      project_types: ["node"],
+      change_areas: [area],
+      declared_impacts: [],
+      risk: "low",
+    });
+    assert.equal(resolvePlan(context, policies, defaults).ci_required, true, area);
+  }
+
+  // Even if a future policy mistakenly disables the mandatory flag, the workflow
+  // must fail closed instead of publishing a successful no-CI gate.
+  const invalidPolicies = {
+    ...policies,
+    execution: {
+      ...policies.execution,
+      ci: { ...policies.execution.ci, required_for_all_prs: false },
+    },
+  };
+  const docs = validateContext({
+    project_types: ["node"],
+    change_areas: ["documentation"],
+    declared_impacts: [],
+    risk: "low",
+  });
+  assert.equal(resolvePlan(docs, invalidPolicies, defaults).ci_required, false);
 });
 
 test("workflow changes route through normal triage", async () => {
@@ -268,5 +299,9 @@ test("PR governance does not launch AI review after CI-green merge", async () =>
   assert.ok(governance.includes("run: node scripts/validate-security.ts"));
   assert.ok(governance.includes("run: node scripts/validate-change-record.ts"));
   assert.ok(governance.includes("node scripts/validate-ci-evidence.ts"));
+  assert.ok(governance.includes("Enforce main write CI contract"));
+  assert.ok(governance.includes("steps.base_plan.outputs.ci_required != 'true'"));
+  assert.equal(governance.includes("CI not run: the governance plan does not require CI"), false);
+  assert.equal(governance.includes("Publish explicit no-CI evidence"), false);
   assert.ok(advisory.includes("types: [run-pr-review]"));
 });
