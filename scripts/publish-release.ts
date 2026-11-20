@@ -12,11 +12,11 @@ import { controlRepositoryOf, hasVerifiedCiEvidence } from "./ci-evidence.ts";
 import { requireStatusToken } from "./control-token.ts";
 import {
   getGithubJson,
+  getGithubJsonIfExists,
   getJsonArray,
   getJsonNumber,
   getJsonString,
   githubEnvironment,
-  githubExists,
   isJsonRecord,
   runGithubCli,
   statusAwareReader,
@@ -25,6 +25,7 @@ import { sha256File } from "./lib/stream-file-hash.ts";
 import { assertTrustedMainWrite } from "./main-write-guard.ts";
 import { dispatchAndWaitForNpm } from "./release-npm-dispatch.ts";
 import { selectPreTagNpmAsset, verifyPublishedNpmBeforeTag } from "./release-npm-gate.ts";
+import { assertMatchingPublishedRelease } from "./release-published-replay.ts";
 import {
   parseTwoPhaseReleasePolicy,
   selectReleasePhase,
@@ -580,13 +581,6 @@ async function main(): Promise<void> {
       controlToken
     );
     const targetSha = getJsonString(targetCommit, "sha");
-    if (await githubExists(`repos/${targetRepository}/git/ref/tags/${tag}`, controlToken)) {
-      throw new CliError(`::error::Tag already exists in ${targetRepository}: ${tag}.`, 65);
-    }
-    if (await githubExists(`repos/${targetRepository}/releases/tags/${tag}`, controlToken)) {
-      throw new CliError(`::error::Release already exists in ${targetRepository}: ${tag}.`, 65);
-    }
-
     const preTagNpmAsset = selectPreTagNpmAsset(
       sourceRepository,
       targetRepository,
@@ -595,6 +589,55 @@ async function main(): Promise<void> {
       isPrerelease,
       manifest.assets
     );
+    const existingTag = await getGithubJsonIfExists(
+      `repos/${targetRepository}/git/ref/tags/${tag}`,
+      (path) => getGithubJson(path, controlToken)
+    );
+    const existingRelease = await getGithubJsonIfExists(
+      `repos/${targetRepository}/releases/tags/${tag}`,
+      (path) => getGithubJson(path, controlToken)
+    );
+    if (existingTag !== undefined || existingRelease !== undefined) {
+      assertMatchingPublishedRelease(existingTag, existingRelease, {
+        repository: targetRepository,
+        tag,
+        sourceRepository,
+        sourceSha,
+        artifactRepository,
+        artifactRunId,
+        requestId,
+        isPrerelease,
+        assets: manifest.assets,
+      });
+      if (preTagNpmAsset) {
+        await verifyPublishedNpmBeforeTag({
+          tarballPath: join(artifactDir, preTagNpmAsset.name),
+          workDir,
+          releaseKey: manifest.release_key,
+          version: manifest.version,
+        });
+      }
+      const releaseUrl = getJsonString(existingRelease, "html_url");
+      await appendLines(process.env.GITHUB_OUTPUT, [
+        `tag=${tag}`,
+        `release_url=${releaseUrl}`,
+        `target_repository=${targetRepository}`,
+        `release_key=${manifest.release_key}`,
+        `version=${manifest.version}`,
+        `is_prerelease=${isPrerelease ? "true" : "false"}`,
+        `npm_asset=${manifest.assets.some((asset) => asset.name.endsWith(".tgz")) ? "true" : "false"}`,
+      ]);
+      await appendLines(process.env.GITHUB_STEP_SUMMARY, [
+        "## Release Governance",
+        "",
+        `- Verified previously published Release: ${releaseUrl}`,
+        `- Source: ${sourceRepository}@${sourceSha}`,
+        `- Artifact: ${artifactRepository}@run-${artifactRunId}`,
+        "- Existing immutable tag, provenance and all asset SHA256 digests: verified",
+        "- Release actions: none (idempotent replay)",
+      ]);
+      return;
+    }
     if (preTagNpmAsset && !process.env.AW_NPM_DISPATCH_TOKEN?.trim()) {
       throw new CliError(
         "::error::Scoped automatic npm workflow dispatch token is required before the Release tag.",

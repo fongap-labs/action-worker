@@ -882,7 +882,7 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   // name the artifact: releases of several tools from one sync run must not share it.
   assert.match(
     release,
-    /concurrency:\n\s+group: release-\$\{\{ github\.event\.client_payload\.source_repository \}\}-\$\{\{ github\.event\.client_payload\.source_sha \}\}-\$\{\{ github\.event\.client_payload\.artifact_name \}\}-\$\{\{ github\.event\.client_payload\.artifact_run_id \}\}\n\s+cancel-in-progress: false/
+    /concurrency:\n\s+group: release-\$\{\{ github\.event\.client_payload\.source_repository \}\}-\$\{\{ github\.event\.client_payload\.artifact_name \}\}\n\s+cancel-in-progress: false/
   );
   requireText(release, [
     "types: [run-release]",

@@ -102,7 +102,7 @@ test("formal release tag waits for the independent automatic npm workflow", asyn
   const source = await readFile("scripts/publish-release.ts", "utf8");
   const checksumVerified = source.indexOf("Published Release checksum verification failed");
   const npmGate = source.indexOf("await dispatchAndWaitForNpm({");
-  const verify = source.indexOf("await verifyPublishedNpmBeforeTag({");
+  const verify = source.indexOf("await verifyPublishedNpmBeforeTag({", npmGate);
   const releasePublish = source.indexOf("isPublishAttempted = true;");
   assert.ok(checksumVerified !== -1 && npmGate > checksumVerified);
   assert.ok(verify > npmGate && releasePublish > verify);
