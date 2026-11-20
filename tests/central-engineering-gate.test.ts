@@ -1,16 +1,15 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import {
+  type ChangedFile,
   inspectEngineeringOwnership,
   parseChangedFiles,
   parseOwnershipPolicy,
   runOwnershipGate,
-  type ChangedFile,
-  type OwnershipPolicy,
 } from "../scripts/central-engineering-gate.ts";
 
 const policy = parseOwnershipPolicy(
@@ -20,7 +19,10 @@ const ciPath = ".github/workflows/ci.yml";
 const notifyPath = ".github/workflows/notify-action-worker.yml";
 const ciTemplate = readFileSync("templates/bridge/dispatch-central-ci.yml", "utf8");
 const notifyTemplate = readFileSync("templates/bridge/notify-action-worker.yml", "utf8");
-const files = new Map([[ciPath, ciTemplate], [notifyPath, notifyTemplate]]);
+const files = new Map([
+  [ciPath, ciTemplate],
+  [notifyPath, notifyTemplate],
+]);
 const readFile = (path: string) => files.get(path) ?? "";
 const template = (path: string) => readFileSync(path, "utf8");
 const inspect = (repository: string, changes: ChangedFile[]) =>
@@ -29,21 +31,28 @@ const inspect = (repository: string, changes: ChangedFile[]) =>
 test("central ownership policy rejects malformed, duplicate and insufficiently justified exceptions", () => {
   assert.equal(policy.control_repository, "fongap-labs/action-worker");
   assert.throws(() => parseOwnershipPolicy({ ...policy, schema_version: 2 }));
-  assert.throws(() => parseOwnershipPolicy({
-    ...policy,
-    local_test_exceptions: [
-      ...policy.local_test_exceptions,
-      policy.local_test_exceptions[0],
-    ],
-  }), /Duplicate/);
-  assert.throws(() => parseOwnershipPolicy({
-    ...policy,
-    local_test_exceptions: [{
-      repository: "fongap-labs/delta",
-      path_prefix: "../tests/",
-      reason: "Must not allow unsafe path traversal.",
-    }],
-  }), /Invalid/);
+  assert.throws(
+    () =>
+      parseOwnershipPolicy({
+        ...policy,
+        local_test_exceptions: [...policy.local_test_exceptions, policy.local_test_exceptions[0]],
+      }),
+    /Duplicate/
+  );
+  assert.throws(
+    () =>
+      parseOwnershipPolicy({
+        ...policy,
+        local_test_exceptions: [
+          {
+            repository: "fongap-labs/delta",
+            path_prefix: "../tests/",
+            reason: "Must not allow unsafe path traversal.",
+          },
+        ],
+      }),
+    /Invalid/
+  );
 });
 
 test("new project-local tests are rejected, while unchanged historical suites can be modified", () => {
@@ -53,43 +62,71 @@ test("new project-local tests are rejected, while unchanged historical suites ca
     { status: "A", path: "tests/helpers/fixture.js" },
     { status: "M", path: "tests/existing-feature.test.mjs" },
   ]);
-  assert.deepEqual(findings.map((f) => f.code), [
-    "new-local-test", "new-local-test", "new-local-test",
-  ]);
-  assert.deepEqual(inspect("fongap-labs/mcp-hub", [
-    { status: "A", path: "src/test_helpers.py" },
-    { status: "A", path: "tests/auth.test.js" },
-  ]).map((x) => x.code), ["new-local-test", "new-local-test"]);
+  assert.deepEqual(
+    findings.map((f) => f.code),
+    ["new-local-test", "new-local-test", "new-local-test"]
+  );
+  assert.deepEqual(
+    inspect("fongap-labs/mcp-hub", [
+      { status: "A", path: "src/test_helpers.py" },
+      { status: "A", path: "tests/auth.test.js" },
+    ]).map((x) => x.code),
+    ["new-local-test", "new-local-test"]
+  );
 });
 
 test("central exceptions apply only to the specified repository and subtree", () => {
-  assert.deepEqual(inspect("fongap-labs/app-source", [
-    { status: "A", path: "projects/SecurePigeon/crates/core/tests/check.rs" },
-  ]), []);
-  assert.deepEqual(inspect("fongap-labs/delta-suite", [
-    { status: "A", path: "tests/foundation_runtime_e2e/test_engine.py" },
-  ]), []);
-  assert.deepEqual(inspect("fongap-labs/dsh-plugin", [
-    { status: "A", path: "projects/SecurePigeon/crates/core/tests/check.rs" },
-  ]).map((x) => x.code), ["new-local-test"]);
-  assert.deepEqual(inspect("fongap-labs/action-worker", [
-    { status: "A", path: "tests/new-control.test.ts" },
-  ]), []);
+  assert.deepEqual(
+    inspect("fongap-labs/app-source", [
+      { status: "A", path: "projects/SecurePigeon/crates/core/tests/check.rs" },
+    ]),
+    []
+  );
+  assert.deepEqual(
+    inspect("fongap-labs/delta-suite", [
+      { status: "A", path: "tests/foundation_runtime_e2e/test_engine.py" },
+    ]),
+    []
+  );
+  assert.deepEqual(
+    inspect("fongap-labs/dsh-plugin", [
+      { status: "A", path: "projects/SecurePigeon/crates/core/tests/check.rs" },
+    ]).map((x) => x.code),
+    ["new-local-test"]
+  );
+  assert.deepEqual(
+    inspect("fongap-labs/action-worker", [{ status: "A", path: "tests/new-control.test.ts" }]),
+    []
+  );
 });
 
 test("workflow changes must be byte-exact approved central templates", () => {
-  assert.deepEqual(inspect("fongap-labs/ai-gateway", [
-    { status: "M", path: ciPath },
-    { status: "A", path: notifyPath },
-  ]), []);
-  assert.deepEqual(inspect("fongap-labs/ai-gateway", [
-    { status: "A", path: ".github/workflows/own-ci.yml" },
-    { status: "M", path: ".github/workflows/private-source-ci.yml" },
-  ]).map((f) => f.code), ["workflow-outside-control", "workflow-outside-control"]);
-  const changedContent = (path: string) => path === ciPath ? ciTemplate + "\n# extra" : readFile(path);
-  assert.deepEqual(inspectEngineeringOwnership(policy, "fongap-labs/ai-gateway",
-    [{ status: "M", path: ciPath }], changedContent, template
-  ).map((f) => f.code), ["workflow-template-mismatch"]);
+  assert.deepEqual(
+    inspect("fongap-labs/ai-gateway", [
+      { status: "M", path: ciPath },
+      { status: "A", path: notifyPath },
+    ]),
+    []
+  );
+  assert.deepEqual(
+    inspect("fongap-labs/ai-gateway", [
+      { status: "A", path: ".github/workflows/own-ci.yml" },
+      { status: "M", path: ".github/workflows/private-source-ci.yml" },
+    ]).map((f) => f.code),
+    ["workflow-outside-control", "workflow-outside-control"]
+  );
+  const changedContent = (path: string) =>
+    path === ciPath ? ciTemplate + "\n# extra" : readFile(path);
+  assert.deepEqual(
+    inspectEngineeringOwnership(
+      policy,
+      "fongap-labs/ai-gateway",
+      [{ status: "M", path: ciPath }],
+      changedContent,
+      template
+    ).map((f) => f.code),
+    ["workflow-template-mismatch"]
+  );
 });
 
 test("adding a separate CI runner is blocked, project-specific configs remain permitted", () => {
@@ -121,7 +158,7 @@ test("real git rename into a local tests directory is not mistaken for an allowe
   try {
     git("init", "-b", "main");
     git("config", "user.name", "Governance test");
-    git("config", "user.email", "governance@example.invalid");
+    git("config", "user.email", "governance.invalid");
     mkdirSync(join(root, "docs"), { recursive: true });
     writeFileSync(join(root, "docs", "sample.mjs"), "export default 1;\n");
     git("add", ".");
