@@ -200,6 +200,19 @@ test("forged or incomplete merge and CI evidence is rejected", () => {
 
 test("unexpected changed code, fee evidence, revocation or source mutation blocks promotion", () => {
   assert.throws(
+    () => evaluate(pull, signedStatuses(), [
+      ...files,
+      { filename: "src/execution.ts", status: "modified" },
+    ]),
+    /exactly/
+  );
+  assert.throws(
+    () => evaluate(pull, signedStatuses(), [
+      { filename: proposalPath, status: "modified" },
+      files[1],
+    ]),
+    /unexpected code/
+  );
   for (const invalid of [
     { ...manifest, approvalRequired: false },
     { ...manifest, autoEnabled: true },
