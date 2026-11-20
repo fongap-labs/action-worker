@@ -243,8 +243,26 @@ export async function inspectSkillProposals(
     ))) {
       throw new CliError("Merged Skill proposal has no verified trusted Main Write Guard.", 75);
     }
+    // GitHub may delete a branch after merge; an old promotion PR remains
+    // an immutable idempotency receipt even when the branch no longer exists.
+    // A closed rejected PR also blocks retries: unexpected partial writes
+    // require a new explicit revision, never a blind second promotion.
+    const promoteBranch = "chore/skill-promote-" + candidate.identity;
+    const owner = target.repository.split("/")[0];
+    if (!owner) throw new CliError("Missing owner-bound Skill promotion target.", 65);
+    const historical = getJsonArray(await reader.get(
+      "repos/" + target.repository + "/pulls?state=all&per_page=100&base=main&head=" +
+      encodeURIComponent(owner + ":" + promoteBranch)
+    ));
+    if (historical.length >= 100) {
+      throw new CliError("Skill promotion history is not exhaustively bounded.", 75);
+    }
+    if (historical.some(pr => isJsonRecord(pr) &&
+      getJsonString(pr.head, "ref") === promoteBranch &&
+      getJsonString(isJsonRecord(pr.head) ? pr.head.repo : null, "full_name") ===
+        target.repository)) continue;
     const branchPath = "repos/" + target.repository +
-      "/git/ref/heads/chore/skill-promote-" + candidate.identity;
+      "/git/ref/heads/" + promoteBranch;
     // A partial existing branch is not retried or overwritten. Manual incident
     // repair is safer than blindly issuing the same remote writes again.
     if (await getGithubJsonIfExists(branchPath, path => reader.get(path)) !== undefined) continue;
