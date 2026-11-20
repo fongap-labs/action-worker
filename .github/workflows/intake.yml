@@ -532,7 +532,7 @@ jobs:
         id: scope
         env:
           AW_INTAKE_TARGET_REPOSITORY: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.repository || '' }}
-        run: node scripts/resolve-skill-admission-scope.ts
+        run: node scripts/skill-admission-scope.ts
 
       - name: Mint isolated proposal and CI read token
         if: steps.scope.outputs.scan == 'true'
@@ -542,7 +542,7 @@ jobs:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ steps.scope.outputs.target_owner }}
-          repositories: ${{ format('{0},{1}', github.event.repository.name, steps.scope.outputs.target_name) }}
+          repositories: ${{ steps.scope.outputs.read_repositories_csv }}
           permission-contents: read
           permission-actions: read
           permission-pull-requests: read
