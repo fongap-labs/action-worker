@@ -70,6 +70,66 @@ test('unknown skills, unsafe duplicates, missing edges and cycles fail before re
   ]), /invalid or duplicate capability/)
 })
 
+test('catalog rejects malformed, oversized and control-bearing declarations', () => {
+  const base = CODING_CAPABILITIES[0]
+  const invalidCatalogs = [
+    [],
+    Array.from({ length: 65 }, (_unused, index) => ({
+      ...base, id: `entry-${index}`,
+    })),
+  ]
+  for (const catalog of invalidCatalogs) {
+    assert.throws(() => validateCodingCapabilities(catalog), /invalid capability catalog size/)
+  }
+  for (const invalid of [
+    null,
+    { ...base, id: undefined },
+    { ...base, id: 'x'.repeat(65) },
+    { ...base, title: '' },
+    { ...base, title: 'x'.repeat(513) },
+    { ...base, intent: `unsafe${String.fromCharCode(0)}metadata` },
+    { ...base, accepts: [] },
+    { ...base, accepts: [null] },
+    { ...base, accepts: ['x'.repeat(513)] },
+    { ...base, accepts: Array.from({ length: 17 }, () => 'task') },
+    { ...base, produces: 'not-a-list' },
+    { ...base, uses: null },
+    { ...base, skills: [null] },
+    { ...base, skills: [] },
+  ]) {
+    assert.throws(() => validateCodingCapabilities([invalid]),
+      /invalid or duplicate capability|incomplete capability/,
+      'must reject unsafe or incomplete capability metadata')
+  }
+  assert.doesNotThrow(() => validateCodingCapabilities([{ ...base, uses: [] }]),
+    'a capability with no optional references remains valid')
+})
+
+test('tool snapshots exclude unexpected fields and cannot mutate the reviewed catalog', () => {
+  const base = CODING_CAPABILITIES[0]
+  const custom = {
+    ...base, injectedInternalConfig: { privileged: true },
+  }
+  const originalAccepts = [...base.accepts]
+  const view = queryCodingCapabilities({ action: 'get', id: base.id }, [custom])
+  const list = queryCodingCapabilities({ action: 'list' }, [custom])
+  for (const returned of [view.capabilities[0], list.capabilities[0]]) {
+    assert.deepEqual(Object.keys(returned).sort(), [
+      'accepts', 'id', 'intent', 'produces', 'skills', 'title', 'uses',
+    ], 'only declared public fields may appear in tool results')
+    assert.equal('injectedInternalConfig' in returned, false)
+  }
+  assert.deepEqual(list.capabilities[0].skills, [],
+    'listing must not expose procedure bodies or load selected Skills')
+  view.capabilities[0].accepts.push('output-only-change')
+  view.capabilities[0].uses.push('output-only-dependency')
+  view.capabilities[0].skills.push('output-only-skill')
+  assert.deepEqual(base.accepts, originalAccepts)
+  assert.deepEqual(queryCodingCapabilities({ action: 'get', id: base.id }, [custom])
+    .capabilities[0].accepts, originalAccepts,
+  'tool output array mutations must not modify the reviewed source catalog')
+})
+
 test('native tool is read-only and rejects malformed capability operations', async () => {
   const tool = createCodingCapabilitiesTool()
   assert.equal(tool.name, 'code_capabilities')
