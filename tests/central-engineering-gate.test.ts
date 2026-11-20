@@ -111,7 +111,7 @@ test("workflow changes must be byte-exact approved central templates", () => {
   assert.deepEqual(
     inspect("fongap-labs/ai-gateway", [
       { status: "A", path: ".github/workflows/own-ci.yml" },
-      { status: "M", path: ".github/workflows/private-source-ci.yml" },
+      { status: "M", path: ".github/workflows/custom-build.yml" },
     ]).map((f) => f.code),
     ["workflow-outside-control", "workflow-outside-control"]
   );
