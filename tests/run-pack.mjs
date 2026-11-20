@@ -86,6 +86,7 @@ export function validatePackManifest(packName, manifest) {
     }
     const flags = manifest.node_flags ?? [];
     if (
+      (manifest.node_flags !== undefined && !Array.isArray(manifest.node_flags)) ||
       !Array.isArray(flags) ||
       flags.length !== new Set(flags).size ||
       !flags.every(
