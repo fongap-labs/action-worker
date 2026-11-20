@@ -31,6 +31,7 @@ test("comparison parser rejects incomplete inventories and treats renamed tests 
     [
       { status: "A", path: "tests/old.test.ts" },
       { status: "M", path: "src/index.ts" },
+      { status: "D", path: "src/deleted.ts" },
     ]
   );
   assert.throws(
@@ -96,6 +97,29 @@ test("privileged API gate permits only exact centrally approved workflow templat
     ),
     /workflow-template-mismatch/
   );
+});
+
+test("privileged CI blocks deleting central workflow and manifest even without source checkout", async () => {
+  for (const pathname of [".github/workflows/ci.yml", ".github/execution-manifest.json"]) {
+    const requests: string[] = [];
+    await assert.rejects(
+      checkGithubEngineeringOwnership(
+        "fongap-labs/dsh-plugin",
+        base,
+        head,
+        policy,
+        async (path) => {
+          requests.push(path);
+          return compare([{ filename: pathname, status: "removed" }]);
+        },
+        (path) => readFileSync(path, "utf8")
+      ),
+      /(?:required-workflow-deleted|execution-manifest-deleted)/
+    );
+    assert.deepEqual(requests, [
+      "repos/fongap-labs/dsh-plugin/compare/" + base + "..." + head,
+    ]);
+  }
 });
 
 test("control repo is exempt; invalid input fails closed", async () => {
