@@ -118,8 +118,13 @@ export function inspectEngineeringOwnership(
     }
     // Legacy CI launchers remain available only until replaced with a central builder.
     // No business PR may silently weaken an existing launcher's checks.
-    if (status !== "A" && status !== "D" &&
-        /^(?:\.github\/scripts\/central-ci(?:-[^/]+)?|scripts\/central-ci(?:-[^/]+)?)\.(?:sh|ps1|mjs|js|ts|cjs|py)$/i.test(path)) {
+    if (
+      status !== "A" &&
+      status !== "D" &&
+      /^(?:\.github\/scripts\/central-ci(?:-[^/]+)?|scripts\/central-ci(?:-[^/]+)?)\.(?:sh|ps1|mjs|js|ts|cjs|py)$/i.test(
+        path
+      )
+    ) {
       findings.push({ code: "project-owned-ci-control-modified", path });
     }
     if (status !== "A") continue; // Historic local suites are migration debt, not a permanent exemption.
