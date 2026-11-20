@@ -14,7 +14,9 @@ const base = "a".repeat(40);
 const head = "b".repeat(40);
 const compare = (files: unknown[]) => ({
   base_commit: { sha: base },
-  head_commit: { sha: head },
+  // Exact GitHub REST compare response: there is no head_commit field.
+  commits: [{ sha: head }],
+  total_commits: 1,
   files,
 });
 const templatePath = "templates/bridge/dispatch-central-ci.yml";
@@ -43,6 +45,37 @@ test("comparison parser rejects incomplete inventories and treats renamed tests 
     /unsupported/
   );
   assert.throws(() => parseCompareFiles({}), /file inventory/);
+});
+
+test("compare revision identity accepts GitHub REST commits but rejects incomplete snapshots", async () => {
+  const files = [{ filename: "src/index.ts", status: "modified" }];
+  const get = (payload: unknown) => async () => payload;
+  await assert.doesNotReject(
+    checkGithubEngineeringOwnership(
+      "fongap-labs/ai-gateway",
+      base,
+      head,
+      policy,
+      get(compare(files)),
+      (path) => readFileSync(path, "utf8")
+    )
+  );
+  for (const invalid of [
+    { ...compare(files), base_commit: { sha: head } },
+    { ...compare(files), commits: [{ sha: base }] },
+    { ...compare(files), commits: [] },
+    { ...compare(files), total_commits: 2 },
+    { ...compare(files), head_commit: { sha: base } },
+    { ...compare(files), commits: Array(251).fill({ sha: head }), total_commits: 251 },
+  ]) {
+    await assert.rejects(
+      checkGithubEngineeringOwnership(
+        "fongap-labs/ai-gateway", base, head, policy,
+        get(invalid), (path) => readFileSync(path, "utf8")
+      ),
+      /immutable CI revision/
+    );
+  }
 });
 
 test("privileged API gate blocks new tests without checking out private source", async () => {
