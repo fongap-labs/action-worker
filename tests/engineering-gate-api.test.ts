@@ -70,8 +70,12 @@ test("compare revision identity accepts GitHub REST commits but rejects incomple
   ]) {
     await assert.rejects(
       checkGithubEngineeringOwnership(
-        "fongap-labs/ai-gateway", base, head, policy,
-        get(invalid), (path) => readFileSync(path, "utf8")
+        "fongap-labs/ai-gateway",
+        base,
+        head,
+        policy,
+        get(invalid),
+        (path) => readFileSync(path, "utf8")
       ),
       /immutable CI revision/
     );
