@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 测试: 在中央 dsh-plugin Gateway 契约包中验证 Host Off 省略语义、显式协议关闭、非法声明及未支持协议安全回退。
+
 - 新增: MCP Hub Claude Code 执行器与 Git 工作树 11 个安全及任务执行回归用例迁入中央可信测试包，先与原始业务测试双跑验证，随后在覆盖对账后清理重复文件。
 
 - 新增: dsh-plugin 的 Gateway Reasoning Effort 测试进入 Action Worker 中央可信 Node 测试包，通过隔离目标代码与运行环境的 overlay gate 校验能力元数据和显式 Off。
