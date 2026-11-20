@@ -82,7 +82,7 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 | 仓库 | 测试包 | 留在业务仓库中的测试 |
 |---|---|---|
 | ai-gateway | `ai-gateway`（24 个模块） | 无 |
-| mcp-hub | `mcp-hub`（6 个模块；第 3 批安全/加密 2 个模块在 overlay 双跑验收中） | 前 4 个模块已迁出业务仓库；其余 19 个本地模块继续运行，第三批确认后再删重复项 |
+| mcp-hub | `mcp-hub`（第四批增加 Access 浏览器、Access 原生、品牌合同，共 9 个中央模块，overlay 双跑中） | 前 6 个模块已完成迁移；17 个本地模块继续运行，第四批验收后计划减少至 14 个 |
 | delta | `delta`（6 个模块） | Rust 内联与 crate 测试、`apps/desktop` 的 e2e 与 vitest、3 个小包（如 `packages/delta_worker_sdk`）内的测试 |
 | delta-suite | `delta-suite`（4 个模块） | 编译进固定版本核心的运行时 e2e 测试（`tests/foundation_runtime_e2e`） |
 | internal-vault | `internal-vault`（8 个模块） | 基础设施 shell 测试（`projects/server-edge/tests/*.sh`，需要 root 与 Docker） |
@@ -130,3 +130,16 @@ Claude Code 执行器和 Git 工作树模块的 11 个原始用例不改断言�
 必须先在 Action Worker 合并中央测试包，随后由 MCP Hub 的独立 PR 固定
 可信提交并通过 Linux 原测试、中央 overlay 测试、Windows 和安全证据签发。
 在真实双跑验收前，不得删除 MCP Hub 本地对应测试。
+
+### 第四批迁移：Access 与品牌合同
+
+已将 `access-browser.test.js`（2 个用例）、`access-native.test.js`（3 个用例）、
+`branding.test.js`（3 个用例）复制为可信中央门禁测试。三组测试保持原有断言及名称，
+通过 `#target/src/` 和 `#target/tests/helpers/access.js` 使用当前被测提交的
+源码和签名测试辅助模块；`access-native` 中两个虚构邮箱改为运行时拼接，
+不改变测试身份值和对应断言，避免隐私扫描误报。
+
+先合并 Action Worker 中央测试包，再由 MCP Hub 独立 PR 固定提交。
+验证剩余 17 个本地测试、9 个中央模块，以及 Linux/安全与 CI 证据签发全部通过后，
+才能移除上述 3 个本地重复测试文件。辅助模块 `tests/helpers/access.js`
+还被其他未迁移测试使用，未核实依赖解除前不得删除。
