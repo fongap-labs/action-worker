@@ -203,9 +203,10 @@ git push origin HEAD:main
 
 ### 门禁
 
-中央 Linux CI 在执行业务仓库自身的构建脚本前，使用可信 Action Worker
-代码、可信模板和 `base/head` 不可变提交比较，运行
-`scripts/central-engineering-gate.ts`。业务 PR 修改自身测试、策略文件或
+中央 CI 准备阶段在所有路由（包括原生私有 CI）使用可信 Action Worker、
+GitHub 只读比较 API 与 `base/head` 不可变提交运行
+`scripts/central-engineering-gate-api.ts`；Linux 沙箱另以真实 Git 差异运行
+`scripts/central-engineering-gate.ts`，在项目源码执行前再次确认。业务 PR 修改自身测试、策略文件或
 工作流，不能改变此项判定。新增本地工程基础设施、未经批准的工作流或
 新测试文件将使 CI Evidence 失败，`validate-merge` 因而不得放行。
 
