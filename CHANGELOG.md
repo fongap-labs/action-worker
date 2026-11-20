@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: Action Worker 中央 dsh-plugin 测试包覆盖 Delta Code 语义能力目录、引用/循环拒绝、原生工具只读契约和高风险质量检查；保持测试仅在控制面集中维护。
+
 - 新增: MCP Hub 第六批授权任务接入、客户端删除及 Runner 注册 12 个回归用例集中到可信中央测试包；基线扩展至 15 个模块和 60 个用例，须先双跑再清理。
 
 - 新增: 中央 dsh-plugin Gateway Reasoning Host 发现、Credential 轮换与一次性确认写入端到端合同测试。
