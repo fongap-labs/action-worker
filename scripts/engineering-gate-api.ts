@@ -30,12 +30,12 @@ export function parseCompareFiles(response: unknown): ChangedFile[] {
       entry.status === "removed"
         ? "D"
         : entry.status === "added" || entry.status === "renamed" || entry.status === "copied"
-        ? "A"
-        : entry.status === "modified"
-          ? "M"
-          : entry.status === "changed"
-            ? "T"
-            : null;
+          ? "A"
+          : entry.status === "modified"
+            ? "M"
+            : entry.status === "changed"
+              ? "T"
+              : null;
     if (status === null) {
       throw new CliError("GitHub comparison contains an unsupported change status.", 65);
     }
