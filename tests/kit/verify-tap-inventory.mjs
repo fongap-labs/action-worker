@@ -44,7 +44,7 @@ export function verifyTapInventory(baseline, output) {
       },
     },
   };
-  const issues = verify(baseline, actual);
+  const issues = verify({ schema_version: 1, runtime: "node", suites: baseline.suites }, actual);
   if (Number(footer[1]) < cases) issues.push("fewer executed tests than trusted baseline");
   if (parsed.failed.length > 0) issues.push("one or more TAP assertions failed");
   return issues;
