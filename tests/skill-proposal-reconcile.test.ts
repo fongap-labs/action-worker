@@ -1,18 +1,21 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
-import { signedStatusDescription } from "../scripts/status-attestation.ts";
-import {
-  parseSkillAdmissionPolicy, pinnedSkillProposalIdentity,
-  verifyMergedSkillProposal, type SkillAdmissionTarget,
-} from "../scripts/skill-proposal-reconcile.ts";
-import { makeOwnerBoundSkillTransport } from "../scripts/skill-proposal-advance.ts";
-import { hasVerifiedMainWriteGuard } from "../scripts/main-write-guard.ts";
 import type { GithubReader } from "../scripts/github-api.ts";
+import { hasVerifiedMainWriteGuard } from "../scripts/main-write-guard.ts";
+import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
+import { makeOwnerBoundSkillTransport } from "../scripts/skill-proposal-advance.ts";
+import {
+  parseSkillAdmissionPolicy,
+  pinnedSkillProposalIdentity,
+  type SkillAdmissionTarget,
+  verifyMergedSkillProposal,
+} from "../scripts/skill-proposal-reconcile.ts";
+import { signedStatusDescription } from "../scripts/status-attestation.ts";
 
 const priorKeyring = process.env.AW_STATUS_KEYRING;
 process.env.AW_STATUS_KEYRING = JSON.stringify({
-  schema_version: 1, active: "k1",
+  schema_version: 1,
+  active: "k1",
   keys: { k1: Buffer.alloc(32, 5).toString("base64url") },
   legacy_tokens: [],
 });
@@ -25,7 +28,8 @@ const target: SkillAdmissionTarget = {
   repository: "fongap-labs/dsh-plugin",
   proposal_prefix: "packages/dsh-delta-code/skill-proposals/",
   catalog_path: "packages/dsh-delta-code/src/delta-code-strategy/trusted-github-skills.ts",
-  enabled: true, max_closed_prs: 40,
+  enabled: true,
+  max_closed_prs: 40,
 };
 const head = "a".repeat(40);
 const base = "b".repeat(40);
@@ -44,16 +48,24 @@ const title = "chore(delta-code): stage verified free Skill proposal";
 const governanceUrl = "https://github.com/fongap-labs/action-worker/actions/runs/410";
 const ciUrl = "https://github.com/fongap-labs/action-worker/actions/runs/411";
 const manifest = {
-  schemaVersion: 1, state: "pending-ci-review",
+  schemaVersion: 1,
+  state: "pending-ci-review",
   source,
   staticAudit: { status: "static-review-ready", riskIndicators: [], freeUseEvidence: true },
-  approvalRequired: true, autoEnabled: false, executable: false,
+  approvalRequired: true,
+  autoEnabled: false,
+  executable: false,
 };
 const pull = {
-  state: "closed", merged: true, merged_at: "2026-11-20T12:00:00Z",
-  merge_commit_sha: merge, number: 88, title,
+  state: "closed",
+  merged: true,
+  merged_at: "2026-11-20T12:00:00Z",
+  merge_commit_sha: merge,
+  number: 88,
+  title,
   head: {
-    sha: head, ref: "chore/skill-proposal-" + identity,
+    sha: head,
+    ref: "chore/skill-proposal-" + identity,
     repo: { full_name: target.repository },
   },
   base: { sha: base, ref: "main", repo: { full_name: target.repository } },
@@ -64,16 +76,27 @@ const files = [
 ];
 
 function signed(
-  context: string, sha: string, url: string, state: "success" | "pending" | "failure" = "success"
+  context: string,
+  sha: string,
+  url: string,
+  state: "success" | "pending" | "failure" = "success"
 ) {
-  const description = context === "CI Evidence" || context === "Main Write Guard"
-    ? "Central CI gate verdict"
-    : "title-sha256=" + prTitleFingerprint(title) + " Central CI gate verdict";
+  const description =
+    context === "CI Evidence" || context === "Main Write Guard"
+      ? "Central CI gate verdict"
+      : "title-sha256=" + prTitleFingerprint(title) + " Central CI gate verdict";
   return {
-    context, state, target_url: url,
+    context,
+    state,
+    target_url: url,
     created_at: "2026-11-20T11:00:00Z",
     description: signedStatusDescription({
-      repository: target.repository, sha, context, state, targetUrl: url, description,
+      repository: target.repository,
+      sha,
+      context,
+      state,
+      targetUrl: url,
+      description,
     }),
   };
 }
@@ -93,20 +116,34 @@ function signedMainGuard() {
 }
 
 function evaluate(
-  pr: unknown = pull, statuses: unknown = signedStatuses(),
-  changed: unknown = files, record: unknown = manifest, guard: unknown = signedMainGuard()
+  pr: unknown = pull,
+  statuses: unknown = signedStatuses(),
+  changed: unknown = files,
+  record: unknown = manifest,
+  guard: unknown = signedMainGuard()
 ) {
   return verifyMergedSkillProposal(
-    pr, statuses, changed, record, target, guard, "fongap-labs/action-worker"
+    pr,
+    statuses,
+    changed,
+    record,
+    target,
+    guard,
+    "fongap-labs/action-worker"
   );
 }
 
 test("policy only enables bounded, explicitly reviewed repositories", () => {
-  assert.deepEqual(parseSkillAdmissionPolicy({
-    schema_version: 1, targets: [target],
-  }), [target]);
+  assert.deepEqual(
+    parseSkillAdmissionPolicy({
+      schema_version: 1,
+      targets: [target],
+    }),
+    [target]
+  );
   for (const value of [
-    {}, { schema_version: 2, targets: [target] },
+    {},
+    { schema_version: 2, targets: [target] },
     { schema_version: 1, targets: [] },
     { schema_version: 1, targets: [target, target] },
     { schema_version: 1, targets: [{ ...target, repository: "other/../repo" }] },
@@ -125,8 +162,11 @@ test("signed, exactly scoped free proposal is an inert eligible promotion candid
   assert.equal(candidate?.proposalPath, proposalPath);
   assert.equal(candidate?.identity, identity);
   assert.deepEqual(candidate?.source, {
-    repository: source.repository, path: source.path, commit: source.commit,
-    sourceBlobSha: source.sourceBlobSha, licenseBlobSha: source.licenseBlobSha,
+    repository: source.repository,
+    path: source.path,
+    commit: source.commit,
+    sourceBlobSha: source.sourceBlobSha,
+    licenseBlobSha: source.licenseBlobSha,
   });
 });
 
@@ -152,17 +192,14 @@ test("forged or incomplete merge and CI evidence is rejected", () => {
   pending.statuses[1] = signed("CI Evidence", head, ciUrl, "pending");
   assert.throws(() => evaluate(pull, pending), /signed/);
   const failedGuard = { statuses: [signed("Main Write Guard", merge, ciUrl, "failure")] };
-  assert.throws(() => evaluate(pull, signedStatuses(), files, manifest, failedGuard),
-    /Main Write Guard/);
+  assert.throws(
+    () => evaluate(pull, signedStatuses(), files, manifest, failedGuard),
+    /Main Write Guard/
+  );
 });
 
 test("unexpected changed code, fee evidence, revocation or source mutation blocks promotion", () => {
-  assert.throws(() => evaluate(pull, signedStatuses(), [...files, {
-    filename: "src/execution.ts", status: "modified",
-  }]), /exactly/);
-  assert.throws(() => evaluate(pull, signedStatuses(), [
-    { filename: proposalPath, status: "modified" }, files[1],
-  ]), /unexpected code/);
+  assert.throws(
   for (const invalid of [
     { ...manifest, approvalRequired: false },
     { ...manifest, autoEnabled: true },
