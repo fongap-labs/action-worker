@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 中央 dsh-plugin Gateway Effort 合同测试验证官方 Settings CAS 写入、显式用户批准、凭据引用一致性及失败时不重试。
+
 - 新增: MCP Hub 第四批 Cloudflare Access 浏览器、原生身份与品牌合同共 8 个用例纳入中央可信测试包；源仓库测试继续双跑，验收后再移除重复文件。
 
 - 新增: 中央 dsh-plugin Gateway Effort 同步预览契约测试，验证指定模型的只读差异、当前选择保留与凭据隔离。
