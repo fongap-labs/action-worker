@@ -162,9 +162,10 @@ export function verifyMergedSkillProposal(
       !files.every(isJsonRecord)) {
     throw new CliError("Skill proposal must change exactly its manifest and CHANGELOG.", 65);
   }
-  const manifestPath = target.proposal_prefix +
-    getJsonString(manifest && isJsonRecord(manifest) ? manifest.source : {}, "path")
-      .split("/")[1] + "-" + match[1] + ".json";
+  const source = verifiedManifestSource(manifest, match[1]);
+  const skillName = source.path.split("/")[1];
+  if (!skillName) throw new CliError("Skill proposal source name is missing.", 65);
+  const manifestPath = target.proposal_prefix + skillName + "-" + match[1] + ".json";
   const expected = new Map([
     ["CHANGELOG.md", "modified"], [manifestPath, "added"],
   ]);
@@ -173,7 +174,6 @@ export function verifyMergedSkillProposal(
   ) || new Set(files.map(file => getJsonString(file, "filename"))).size !== 2) {
     throw new CliError("Skill proposal has unexpected code or file changes.", 65);
   }
-  const source = verifiedManifestSource(manifest, match[1]);
   return {
     targetRepository: target.repository, proposalPrNumber: Number(pr.number),
     expectedProposalHead: sha, mergeCommit: getJsonString(pr, "merge_commit_sha"),
