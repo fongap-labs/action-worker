@@ -61,9 +61,7 @@ export async function checkGithubEngineeringOwnership(
   // ordered commits array, NOT a head_commit field. The final comparison
   // commit is the exact requested head only when the list is complete.
   // Comparisons with >250 commits are truncated by GitHub: fail closed.
-  const commits = isJsonRecord(result) && Array.isArray(result.commits)
-    ? result.commits
-    : [];
+  const commits = isJsonRecord(result) && Array.isArray(result.commits) ? result.commits : [];
   const lastCommit = commits.length > 0 ? commits[commits.length - 1] : null;
   if (
     !isJsonRecord(result) ||
