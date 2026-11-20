@@ -50,6 +50,20 @@
       "pr_number": 425,
       "approval_issue": 423,
       "root_incident_sha": "211bafdfaa14b9acbdff18889dcab4ed15669250"
+    },
+    {
+      "repository": "fongap-labs/dsh-plugin",
+      "merge_sha": "a5971d61c1cd9f1f794799d48af940a7e3c99670",
+      "pr_number": 474,
+      "approval_issue": 473,
+      "root_incident_sha": "09a51ed4fb2fb96685f5aa05eb6566849f90d2bf"
+    },
+    {
+      "repository": "fongap-labs/dsh-plugin",
+      "merge_sha": "fdfa09eae309a2cd8859c8345afc5816b18495b9",
+      "pr_number": 475,
+      "approval_issue": 473,
+      "root_incident_sha": "09a51ed4fb2fb96685f5aa05eb6566849f90d2bf"
     }
   ]
 }
