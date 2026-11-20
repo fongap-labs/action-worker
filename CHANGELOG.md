@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 为 MCP Hub 39 个已迁移测试用例登记可信基线，并依据真实 Node TAP 执行结果逐项校验；测试用例缺失、执行数量下降或 TAP 结果不完整均阻断中央 CI。
+
 - 新增: 中央 dsh-plugin Gateway Effort 合同测试验证官方 Settings CAS 写入、显式用户批准、凭据引用一致性及失败时不重试。
 
 - 新增: MCP Hub 第四批 Cloudflare Access 浏览器、原生身份与品牌合同共 8 个用例纳入中央可信测试包；源仓库测试继续双跑，验收后再移除重复文件。

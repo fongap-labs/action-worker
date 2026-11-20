@@ -82,7 +82,7 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 | 仓库 | 测试包 | 留在业务仓库中的测试 |
 |---|---|---|
 | ai-gateway | `ai-gateway`（24 个模块） | 无 |
-| mcp-hub | `mcp-hub`（第四批增加 Access 浏览器、Access 原生、品牌合同，共 9 个中央模块，overlay 双跑中） | 前 6 个模块已完成迁移；17 个本地模块继续运行，第四批验收后计划减少至 14 个 |
+| mcp-hub | `mcp-hub`（9 个中央模块、39 个回归用例，可信 overlay 验收完成） | 业务仓库仍有 14 个本地测试模块、Access 辅助文件；已迁移的 9 个模块不再保留重复文件 |
 | delta | `delta`（6 个模块） | Rust 内联与 crate 测试、`apps/desktop` 的 e2e 与 vitest、3 个小包（如 `packages/delta_worker_sdk`）内的测试 |
 | delta-suite | `delta-suite`（4 个模块） | 编译进固定版本核心的运行时 e2e 测试（`tests/foundation_runtime_e2e`） |
 | internal-vault | `internal-vault`（8 个模块） | 基础设施 shell 测试（`projects/server-edge/tests/*.sh`，需要 root 与 Docker） |
@@ -143,3 +143,16 @@ Claude Code 执行器和 Git 工作树模块的 11 个原始用例不改断言�
 验证剩余 17 个本地测试、9 个中央模块，以及 Linux/安全与 CI 证据签发全部通过后，
 才能移除上述 3 个本地重复测试文件。辅助模块 `tests/helpers/access.js`
 还被其他未迁移测试使用，未核实依赖解除前不得删除。
+
+### 已迁移用例的实时基线门禁
+
+可信 `tests/inventory/mcp-hub.baseline.json` 固定了第四批迁移完成后的
+9 个模块及 39 个测试用例名称与出现次数。由于早期迁移没有在开始前自动保存
+原始 TAP 清单，该文件根据保留的迁移测试源码和真实双跑成功证据重建，
+不宣称是最初仓库的历史运行时采集文件。
+
+现在 `pack.json` 声明该可信清单。中央 overlay 执行 Node TAP 报告后，
+`tests/kit/verify-tap-inventory.mjs` 对本次实际运行的测试名称、次数、
+测试总数及失败状态逐项核对。缺失原用例、伪造绿灯式的空报告、
+测试执行数量不足或报告失败都必须让 CI 失败，不能通过删除或重命名测试降低门禁。
+基线只能在 Action Worker 中按受信评审流程修订，业务仓库 PR 不能修改它。

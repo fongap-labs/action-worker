@@ -331,6 +331,11 @@ jobs:
             fi
             exit "$code"
           fi
+          baseline_file="$(jq -r '.inventory // empty' "$manifest")"
+          if [ -n "$baseline_file" ]; then
+            node "$CENTRAL_CI_AW_ROOT/tests/kit/verify-tap-inventory.mjs" \
+              "$CENTRAL_CI_AW_ROOT/tests/inventory/$baseline_file" "$log"
+          fi
           echo "Trusted overlay pack passed."
 
   windows:
