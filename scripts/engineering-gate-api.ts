@@ -26,9 +26,10 @@ export function parseCompareFiles(response: unknown): ChangedFile[] {
     if (!isJsonRecord(entry) || typeof entry.filename !== "string") {
       throw new CliError("GitHub comparison file inventory is malformed.", 65);
     }
-    if (entry.status === "removed") continue;
     const status =
-      entry.status === "added" || entry.status === "renamed" || entry.status === "copied"
+      entry.status === "removed"
+        ? "D"
+        : entry.status === "added" || entry.status === "renamed" || entry.status === "copied"
         ? "A"
         : entry.status === "modified"
           ? "M"
@@ -69,7 +70,7 @@ export async function checkGithubEngineeringOwnership(
   const contents = new Map<string, string>();
   for (const entry of files) {
     if (!entry.path.startsWith(".github/workflows/")) continue;
-    if (!policy.workflow_templates[entry.path]) continue;
+    if (!policy.workflow_templates[entry.path] || entry.status === "D") continue;
     const data = await get(
       "repos/" +
         repository +
