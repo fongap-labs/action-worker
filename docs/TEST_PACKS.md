@@ -77,15 +77,7 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 3. 需要时间或全局状态隔离的套件，放在独立文件中（例如依赖真实计时的用例）。
 4. 门禁层级的套件在 `pack.json` 的 `tiers.gate` 下注册；其余套件从磁盘自动发现，无需注册。
 
-## 8. 各仓库状态## 8. 新增测试与迁移门禁
-
-中央 CI 在检出业务 PR 后，对可信 Action Worker 控制代码运行 `scripts/central-engineering-gate.ts`。普通业务 PR 不得新增项目根目录中的独立测试或 CI/构建/发布脚本；即使修改自身 `tests/`、`package.json` 或工作流，也不得减少中央的最低验证要求。
-
-旧的本地测试在尚未迁移时可以修复，不能借旧路径新增另一套。迁移步骤：盘点测试 → 中央建立 test pack 与清单基线 → 对目标提交运行并证明等效 → 切换执行入口 → 删除重复本地测试。不能在迁移证据缺失时删除仍必须运行的检查。
-
-例外只由 `policies/engineering-ownership.json` 维护，按仓库与路径限定并说明不可外置的技术原因。外部测试框架无法执行 Rust crate 私有项、桌面端工具链或特权基础设施测试时，仍由中央 CI 在隔离 Runner 执行对应的仓库内检查；中央 CI 最终签发唯一证据。
-
-## 9. 各仓库状态
+## 8. 各仓库状态
 
 | 仓库 | 测试包 | 留在业务仓库中的测试 |
 |---|---|---|
