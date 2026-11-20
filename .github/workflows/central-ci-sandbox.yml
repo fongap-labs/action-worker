@@ -297,6 +297,42 @@ jobs:
 
           echo "Central Linux CI passed for $TARGET_REPOSITORY (shard: $CENTRAL_CI_SHARD)."
 
+      # Opt-in is declared by a trusted Action Worker test pack, never the target PR.
+      # During migration this adds central coverage without deleting legacy tests.
+      - name: Run trusted overlay test pack
+        env:
+          CENTRAL_CI_AW_ROOT: ${{ github.workspace }}/aw
+          TARGET_REPOSITORY: ${{ inputs.repository }}
+          TARGET_PRIVATE: ${{ inputs.is_private }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          pack_name="${TARGET_REPOSITORY##*/}"
+          if [[ ! "$pack_name" =~ ^[a-z][a-z0-9-]*$ ]]; then
+            exit 0
+          fi
+          manifest="$CENTRAL_CI_AW_ROOT/tests/packs/$pack_name/pack.json"
+          if [ ! -f "$manifest" ]; then
+            exit 0
+          fi
+          if ! jq -e '.overlay == true' "$manifest" >/dev/null; then
+            exit 0
+          fi
+          log="$RUNNER_TEMP/central-test-pack.log"
+          set +e
+          node "$CENTRAL_CI_AW_ROOT/tests/run-pack.mjs" "$pack_name" "$GITHUB_WORKSPACE/target" all >"$log" 2>&1
+          code=$?
+          set -e
+          if [ "$code" -ne 0 ]; then
+            if [ "$TARGET_PRIVATE" = "false" ]; then
+              cat "$log"
+            else
+              echo "::error::Central test pack failed. Private test output is suppressed."
+            fi
+            exit "$code"
+          fi
+          echo "Trusted overlay pack passed."
+
   windows:
     name: Windows
     if: inputs.platform == 'windows'
