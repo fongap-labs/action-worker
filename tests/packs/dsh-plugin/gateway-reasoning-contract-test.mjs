@@ -5,6 +5,7 @@ import {
   decodeGatewayReasoningCatalog,
   toHarnessReasoningEfforts,
   mapGatewayReasoningChoice,
+  previewGatewayReasoningSync,
 } from '#target/packages/dsh-delta-suite/src/delta-suite-adapter/gateway-reasoning.ts'
 
 const source = readTargetText('packages', 'dsh-delta-suite', 'src', 'delta-suite-adapter', 'gateway-reasoning.ts')
@@ -176,4 +177,85 @@ test('native-adapter wire values preserve declared spellings and never reinterpr
     reasoning_effort: 'xhigh',
   })
   assert.equal(mapGatewayReasoningChoice(parsed, 'medium', 'openai'), undefined)
+})
+
+test('sync review proposes only exact-model native levels and leaves other Host fields untouched', () => {
+  const models = [
+    { id: 'Max', name: 'Max', api: 'openai-completions',
+      apiKeyEnv: 'PRIVATE_REF', reasoningEfforts: { low: 'low', off: 'none' } },
+    { id: 'General', name: 'General', reasoningEfforts: false },
+  ]
+  const before = JSON.stringify(models)
+  const preview = previewGatewayReasoningSync(gateway, models, 'Max', 'low')
+  assert.equal(preview.status, 'review')
+  assert.equal(preview.modelId, 'Max')
+  assert.deepEqual(preview.previous, { low: 'low', off: 'none' })
+  assert.deepEqual(preview.proposed, { low: 'low', medium: 'medium', high: 'high', max: 'max' })
+  assert.deepEqual(preview.added, ['medium', 'high', 'max'])
+  assert.deepEqual(preview.removed, ['off'])
+  assert.deepEqual(preview.remapped, [])
+  assert.equal(JSON.stringify(models), before, 'review never mutates Host settings')
+  assert.equal(JSON.stringify(preview).includes('PRIVATE_REF'), false, 'review never copies provider secret refs')
+  assert.ok(Object.isFrozen(preview) && Object.isFrozen(preview.added) &&
+    Object.isFrozen(preview.proposed))
+  assert.equal(models[1].reasoningEfforts, false, 'other models remain untouched')
+})
+
+test('sync review is idempotent for matching models and refuses to reparent or create models', () => {
+  const same = [{
+    id: 'Max', reasoningEfforts: { low: 'low', medium: 'medium', high: 'high', max: 'max' },
+  }]
+  const result = previewGatewayReasoningSync(gateway, same, 'Max', 'high')
+  assert.equal(result.status, 'unchanged')
+  assert.deepEqual(result.added, [])
+  assert.deepEqual(result.remapped, [])
+  assert.deepEqual(result.removed, [])
+  assert.deepEqual(previewGatewayReasoningSync(gateway, same, 'max', 'high'),
+    { status: 'blocked', modelId: 'max', reason: 'missing-host-model' })
+  assert.equal(previewGatewayReasoningSync(gateway, [], 'Max', 'default').reason, 'missing-host-model')
+  assert.equal(previewGatewayReasoningSync(gateway, null, 'Max', 'default').reason, 'missing-host-directory')
+  assert.equal(previewGatewayReasoningSync(gateway, [same[0], same[0]], 'Max', 'high').reason,
+    'duplicate-host-model')
+})
+
+test('sync review never silently switches dropped user levels to Gateway Default High', () => {
+  const models = [{ id: 'Max', reasoningEfforts: { low: 'low', high: 'high' } }]
+  const limited = { object: 'list', data: [{
+    id: 'Max', reasoningEfforts: { low: 'low' }, reasoning_efforts: ['low'],
+    reasoning_policy: highBestEffort,
+  }] }
+  assert.equal(previewGatewayReasoningSync(limited, models, 'Max', 'high').reason,
+    'unsupported-selected-effort')
+  assert.equal(previewGatewayReasoningSync(limited, models, 'Max', 'off').reason, 'native-off-unsafe')
+  const defaultReview = previewGatewayReasoningSync(limited, models, 'Max', 'default')
+  assert.equal(defaultReview.status, 'review')
+  assert.deepEqual(defaultReview.removed, ['high'])
+  assert.deepEqual(defaultReview.proposed, { low: 'low' })
+  assert.equal(previewGatewayReasoningSync({ object: 'list', data: [] }, models, 'Max', 'high').reason,
+    'unavailable-gateway-model')
+  assert.equal(previewGatewayReasoningSync(limited, models, 'Max', 'invalid').reason,
+    'invalid-selection')
+  // Re-decoding a new access-key-scoped snapshot must not retain prior privileges.
+  assert.equal(previewGatewayReasoningSync(gateway, models, 'Max', 'high').status, 'review')
+  assert.equal(previewGatewayReasoningSync(limited, models, 'Max', 'high').status, 'blocked')
+})
+
+test('sync review refuses malformed or intentionally disabled native reasoning config', () => {
+  for (const reasoningEfforts of [
+    false, null, ['low'], { custom: 'custom' }, { low: null },
+    { high: 'bad\nvalue' },
+  ]) {
+    const result = previewGatewayReasoningSync(
+      gateway, [{ id: 'Max', reasoningEfforts }], 'Max', 'default',
+    )
+    assert.equal(result.status, 'blocked')
+    assert.equal(result.reason, 'invalid-host-efforts')
+  }
+  const remap = previewGatewayReasoningSync({ object: 'list', data: [{
+    id: 'Max', reasoningEfforts: { low: 'custom-low' },
+  }] }, [{ id: 'Max', reasoningEfforts: { low: 'low' } }], 'Max', 'low')
+  assert.equal(remap.status, 'review')
+  assert.deepEqual(remap.remapped, ['low'])
+  assert.deepEqual(remap.added, [])
+  assert.deepEqual(remap.removed, [])
 })
