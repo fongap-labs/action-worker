@@ -94,6 +94,33 @@
         "MCP initialize identifies an independent gateway, not the official server": 1,
         "Admin browser script remains served after Access validation": 1
       }
+    },
+    "cloudflare-mfa": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "Cloudflare MFA mode requires an explicit setting and rejects invalid modes": 1,
+        "Access MFA mode enters Admin without another OTP while retaining session/CSRF and OAuth consent": 1
+      }
+    },
+    "scoped-service-admin": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "service admin paths resolve only registered modules, not arbitrary path segments": 1,
+        "Hub admin and GitHub admin expose separate views without weakening Access or OAuth resources": 1
+      }
+    },
+    "refresh": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "OAuth issues encrypted-at-rest-equivalent hashed refresh tokens, rotates, and detects replay by revoking family": 1,
+        "refresh cannot cross client / resource or renew past 90-day absolute cap": 1,
+        "legacy clients without refresh grant get short-lived access token only": 1,
+        "two concurrent refreshes: at most one wins, second invalidates grant as suspected replay": 1,
+        "revoked client stays revoked even if admin reapproves; previous tokens never resurrect": 1
+      }
     }
   }
 }

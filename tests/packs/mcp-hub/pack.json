@@ -14,7 +14,10 @@
       "crypto-readiness-test.mjs",
       "access-browser-test.mjs",
       "access-native-test.mjs",
-      "branding-test.mjs"
+      "branding-test.mjs",
+      "cloudflare-mfa-test.mjs",
+      "scoped-service-admin-test.mjs",
+      "refresh-test.mjs"
     ]
   },
   "overlay": true,
