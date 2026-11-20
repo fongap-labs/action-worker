@@ -1000,12 +1000,19 @@ test("release, source, deploy, merge, and repository settings contracts remain i
   const autoMergeSource = await text("scripts/auto-merge-pr.ts");
   requireText(autoMergeSource, [
     "latestAttestedStatus",
-    "CI Evidence",
-    "PR Governance",
-    "validate-merge",
+    "requiredGateContexts",
+    "loadGateContract",
     "--match-head-commit",
     "--squash",
   ]);
+  const { loadGateContract, requiredGateContexts } = await import(
+    "../scripts/governance-gate-contract.ts"
+  );
+  const declaredContexts = requiredGateContexts(loadGateContract());
+  assert.equal(declaredContexts.length, 3);
+  for (const context of declaredContexts) {
+    assert.equal(autoMergeSource.includes(`"${context}"`), false);
+  }
   assert.ok(
     governance.indexOf("- name: Automatically merge CI-green PR") >
       governance.indexOf("- name: Validate CI evidence"),
