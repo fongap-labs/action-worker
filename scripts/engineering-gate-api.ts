@@ -57,12 +57,24 @@ export async function checkGithubEngineeringOwnership(
   }
   if (repository === policy.control_repository) return;
   const result = await get("repos/" + repository + "/compare/" + base + "..." + head);
+  // GitHub's compare endpoint returns base_commit, merge_base_commit and an
+  // ordered commits array, NOT a head_commit field. The final comparison
+  // commit is the exact requested head only when the list is complete.
+  // Comparisons with >250 commits are truncated by GitHub: fail closed.
+  const commits = isJsonRecord(result) && Array.isArray(result.commits) ? result.commits : [];
+  const lastCommit = commits.length > 0 ? commits[commits.length - 1] : null;
   if (
     !isJsonRecord(result) ||
     !isJsonRecord(result.base_commit) ||
-    !isJsonRecord(result.head_commit) ||
     result.base_commit.sha !== base ||
-    result.head_commit.sha !== head
+    !Number.isSafeInteger(result.total_commits) ||
+    result.total_commits !== commits.length ||
+    commits.length === 0 ||
+    commits.length > 250 ||
+    !isJsonRecord(lastCommit) ||
+    lastCommit.sha !== head ||
+    (result.head_commit !== undefined &&
+      (!isJsonRecord(result.head_commit) || result.head_commit.sha !== head))
   ) {
     throw new CliError("GitHub comparison does not match the immutable CI revision.", 65);
   }
