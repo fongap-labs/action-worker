@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: dsh-plugin 的 Gateway Reasoning Effort 测试进入 Action Worker 中央可信 Node 测试包，通过隔离目标代码与运行环境的 overlay gate 校验能力元数据和显式 Off。
+
 - 修复: 中央工程门禁按 GitHub Compare 真实 commits 列表验证头提交和完整性，拒绝不匹配或截断的快照，恢复下游 PR CI。
 
 - 新增: MCP Hub Runner 协议和凭据隔离测试首批迁移至 Action Worker 可信测试包，中央 CI 双跑旧测试与中央新测试；Node 特性参数由中央白名单控制，迁移期不得减少既有覆盖。
