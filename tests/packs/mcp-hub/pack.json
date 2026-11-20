@@ -5,7 +5,12 @@
   "suffix": "-test.mjs",
   "node_flags": ["--experimental-strip-types", "--experimental-sqlite"],
   "tiers": {
-    "gate": ["runner-protocol-test.mjs", "coding-stack-isolation-test.mjs"]
+    "gate": [
+      "runner-protocol-test.mjs",
+      "coding-stack-isolation-test.mjs",
+      "claude-code-executor-test.mjs",
+      "git-worktree-preparer-test.mjs"
+    ]
   },
   "overlay": true
 }
