@@ -82,7 +82,7 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 | 仓库 | 测试包 | 留在业务仓库中的测试 |
 |---|---|---|
 | ai-gateway | `ai-gateway`（24 个模块） | 无 |
-| mcp-hub | `mcp-hub`（19 个中央模块、86 个已登记回归用例，其中第七批 26 个用例处于双跑验收阶段） | 当前保留 8 个本地测试模块；真实双跑与签名门禁完成后，才能删除 4 个重复测试模块 |
+| mcp-hub | `mcp-hub`（19 个中央模块、86 个用例，可信 TAP 运行时对账已通过） | 第七批已完成双跑、重复清理及签名 CI 门禁，现剩余 4 个业务本地测试模块及必要的 Access 辅助文件 |
 | delta | `delta`（6 个模块） | Rust 内联与 crate 测试、`apps/desktop` 的 e2e 与 vitest、3 个小包（如 `packages/delta_worker_sdk`）内的测试 |
 | delta-suite | `delta-suite`（4 个模块） | 编译进固定版本核心的运行时 e2e 测试（`tests/foundation_runtime_e2e`） |
 | internal-vault | `internal-vault`（8 个模块） | 基础设施 shell 测试（`projects/server-edge/tests/*.sh`，需要 root 与 Docker） |
@@ -215,3 +215,14 @@ Claude Code 执行器和 Git 工作树模块的 11 个原始用例不改断言�
 签名 CI Evidence、PR Governance、validate-merge 与安全检查全部通过后，
 方可在单独 PR 删除 4 份重复文件。其余 4 个本地模块及必要辅助文件、
 构建、发布、部署配置不能删除或放宽。
+
+### 第七批验收结论
+
+- `action-worker#1845` 合并中央四个模块（Runner 派发、运行时客户端、GitHub PR 投递及任务日志），新增 26 个回归用例，可信基线共 86 个用例。
+- `mcp-hub#112` 固定中央提交 `0bffc2484de63563c029123c2901364b14831c6f`；真实 CI 完成本地测试与中央 overlay 双跑、86 用例 TAP 对账及安全检查。
+- `mcp-hub#113` 在源测试和中央测试逐项一致后移除四份重复测试，删除后的 CI `action-worker/actions/runs/44680563021` 重新验证并通过所有门禁。
+- 当前为 19 个中央测试模块、4 个剩余本地模块；`tests/helpers/access.js` 仍保留，编译、部署、发布和安全策略未修改。
+
+剩余本地模块为 `deployment`、`integration`、`runner-daemon` 和
+`runtime-authenticated-executor`。其中部署合同测试涉及源仓库的部署路径、配置与执行脚本；
+后续迁移必须继续保持真实源码和文件路径验证，不能以删除路径检查代替。
