@@ -200,17 +200,16 @@ test("forged or incomplete merge and CI evidence is rejected", () => {
 
 test("unexpected changed code, fee evidence, revocation or source mutation blocks promotion", () => {
   assert.throws(
-    () => evaluate(pull, signedStatuses(), [
-      ...files,
-      { filename: "src/execution.ts", status: "modified" },
-    ]),
+    () =>
+      evaluate(pull, signedStatuses(), [
+        ...files,
+        { filename: "src/execution.ts", status: "modified" },
+      ]),
     /exactly/
   );
   assert.throws(
-    () => evaluate(pull, signedStatuses(), [
-      { filename: proposalPath, status: "modified" },
-      files[1],
-    ]),
+    () =>
+      evaluate(pull, signedStatuses(), [{ filename: proposalPath, status: "modified" }, files[1]]),
     /unexpected code/
   );
   for (const invalid of [
@@ -243,12 +242,15 @@ test("signed post-merge remediation never becomes a trusted source for Skill act
       description: "Post-merge CI remediation - display-only historical reconciliation",
     }),
   };
-  const reader = { get: async () => {
-    throw new Error("Remediation receipts must be excluded before resolving publisher runs");
-  }} as unknown as GithubReader;
-  assert.equal(await hasVerifiedMainWriteGuard(
-    reader, { statuses: [remedial] }, target.repository, merge
-  ), false);
+  const reader = {
+    get: async () => {
+      throw new Error("Remediation receipts must be excluded before resolving publisher runs");
+    },
+  } as unknown as GithubReader;
+  assert.equal(
+    await hasVerifiedMainWriteGuard(reader, { statuses: [remedial] }, target.repository, merge),
+    false
+  );
 });
 
 test("owner-bound transport rejects other repositories, wrong account and unsigned endpoints", async () => {
@@ -258,25 +260,59 @@ test("owner-bound transport rejects other repositories, wrong account and unsign
     }
   }
   const transport = makeOwnerBoundSkillTransport(
-    target.repository, "fongap-labs", "read-token", "write-token", ApiError
+    target.repository,
+    "fongap-labs",
+    "read-token",
+    "write-token",
+    ApiError
   );
   const signal = new AbortController().signal;
-  await assert.rejects(() => transport.request({
-    repository: "attacker/repo", account: "fongap-labs", path: "/repos/attacker/repo",
-    method: "GET", signal,
-  }), /Owner-bound/);
-  await assert.rejects(() => transport.request({
-    repository: target.repository, account: "attacker",
-    path: "/repos/" + target.repository, method: "GET", signal,
-  }), /Owner-bound/);
-  await assert.rejects(() => transport.request({
-    repository: target.repository, account: "fongap-labs",
-    path: "/repos/" + target.repository + "/../attacker",
-    method: "GET", signal,
-  }), /unsafe/);
-  await assert.rejects(() => transport.publicRead("https://attacker.example/skills", signal),
-    /immutable anonymous/);
-  assert.throws(() => makeOwnerBoundSkillTransport(
-    target.repository, "fongap-labs", "same-token", "same-token", ApiError
-  ), /independent/);
+  await assert.rejects(
+    () =>
+      transport.request({
+        repository: "attacker/repo",
+        account: "fongap-labs",
+        path: "/repos/attacker/repo",
+        method: "GET",
+        signal,
+      }),
+    /Owner-bound/
+  );
+  await assert.rejects(
+    () =>
+      transport.request({
+        repository: target.repository,
+        account: "attacker",
+        path: "/repos/" + target.repository,
+        method: "GET",
+        signal,
+      }),
+    /Owner-bound/
+  );
+  await assert.rejects(
+    () =>
+      transport.request({
+        repository: target.repository,
+        account: "fongap-labs",
+        path: "/repos/" + target.repository + "/../attacker",
+        method: "GET",
+        signal,
+      }),
+    /unsafe/
+  );
+  await assert.rejects(
+    () => transport.publicRead("https://attacker.example/skills", signal),
+    /immutable anonymous/
+  );
+  assert.throws(
+    () =>
+      makeOwnerBoundSkillTransport(
+        target.repository,
+        "fongap-labs",
+        "same-token",
+        "same-token",
+        ApiError
+      ),
+    /independent/
+  );
 });
