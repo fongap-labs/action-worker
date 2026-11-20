@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: MCP Hub Claude Code 执行器与 Git 工作树 11 个安全及任务执行回归用例迁入中央可信测试包，先与原始业务测试双跑验证，随后在覆盖对账后清理重复文件。
+
 - 新增: dsh-plugin 的 Gateway Reasoning Effort 测试进入 Action Worker 中央可信 Node 测试包，通过隔离目标代码与运行环境的 overlay gate 校验能力元数据和显式 Off。
 
 - 修复: 中央工程门禁按 GitHub Compare 真实 commits 列表验证头提交和完整性，拒绝不匹配或截断的快照，恢复下游 PR CI。
