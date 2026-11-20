@@ -18,42 +18,64 @@ const repositoryName = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
 const workflowName = /^\.github\/workflows\/[A-Za-z0-9_.-]+\.(?:yml|yaml)$/;
 const safePath = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))(?!.*\\)[^\r\n\0]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
-const testFile = /(?:^|\/)(?:tests?|__tests__)\/|(?:^|\/)test_[^/]+\.(?:py|js|mjs|ts|tsx|rs)$|(?:^|\/)[^/]+(?:[._-](?:test|spec))\.(?:[cm]?[jt]sx?|py|rs)$/i;
-const centralEntrypoint = /(?:^|\/)(?:\.github\/scripts\/central-ci|scripts\/central-ci(?:-[^/]+)?)\.(?:sh|ps1|mjs|js|ts)$/i;
+const testFile =
+  /(?:^|\/)(?:tests?|__tests__)\/|(?:^|\/)test_[^/]+\.(?:py|js|mjs|ts|tsx|rs)$|(?:^|\/)[^/]+(?:[._-](?:test|spec))\.(?:[cm]?[jt]sx?|py|rs)$/i;
+const centralEntrypoint =
+  /(?:^|\/)(?:\.github\/scripts\/central-ci|scripts\/central-ci(?:-[^/]+)?)\.(?:sh|ps1|mjs|js|ts)$/i;
 
 function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 export function parseOwnershipPolicy(value: unknown): OwnershipPolicy {
-  if (!record(value) || value.schema_version !== 1 ||
-      value.control_repository !== "fongap-labs/action-worker" ||
-      !record(value.workflow_templates) || !Array.isArray(value.local_test_exceptions) ||
-      Object.keys(value).sort().join(",") !==
-        "control_repository,local_test_exceptions,schema_version,workflow_templates") {
+  if (
+    !record(value) ||
+    value.schema_version !== 1 ||
+    value.control_repository !== "fongap-labs/action-worker" ||
+    !record(value.workflow_templates) ||
+    !Array.isArray(value.local_test_exceptions) ||
+    Object.keys(value).sort().join(",") !==
+      "control_repository,local_test_exceptions,schema_version,workflow_templates"
+  ) {
     throw new CliError("Invalid central engineering ownership policy.", 65);
   }
   const templates = value.workflow_templates;
-  if (Object.keys(templates).length === 0 ||
-      !Object.entries(templates).every(([path, target]) =>
-        workflowName.test(path) && typeof target === "string" &&
-        /^templates\/bridge\/[A-Za-z0-9_.-]+\.yml$/.test(target))) {
+  if (
+    Object.keys(templates).length === 0 ||
+    !Object.entries(templates).every(
+      ([path, target]) =>
+        workflowName.test(path) &&
+        typeof target === "string" &&
+        /^templates\/bridge\/[A-Za-z0-9_.-]+\.yml$/.test(target)
+    )
+  ) {
     throw new CliError("Invalid trusted workflow template mapping.", 65);
   }
   const seen = new Set<string>();
   const exceptions: LocalException[] = [];
   for (const entry of value.local_test_exceptions) {
-    if (!record(entry) || Object.keys(entry).sort().join(",") !== "path_prefix,reason,repository" ||
-        typeof entry.repository !== "string" || !repositoryName.test(entry.repository) ||
-        typeof entry.path_prefix !== "string" || !safePath.test(entry.path_prefix) ||
-        !entry.path_prefix.endsWith("/") || typeof entry.reason !== "string" ||
-        entry.reason.trim().length < 12 || entry.reason.length > 250) {
+    if (
+      !record(entry) ||
+      Object.keys(entry).sort().join(",") !== "path_prefix,reason,repository" ||
+      typeof entry.repository !== "string" ||
+      !repositoryName.test(entry.repository) ||
+      typeof entry.path_prefix !== "string" ||
+      !safePath.test(entry.path_prefix) ||
+      !entry.path_prefix.endsWith("/") ||
+      typeof entry.reason !== "string" ||
+      entry.reason.trim().length < 12 ||
+      entry.reason.length > 250
+    ) {
       throw new CliError("Invalid centrally approved local test exception.", 65);
     }
     const key = entry.repository + "/" + entry.path_prefix;
     if (seen.has(key)) throw new CliError("Duplicate local test exception.", 65);
     seen.add(key);
-    exceptions.push({ repository: entry.repository, path_prefix: entry.path_prefix, reason: entry.reason });
+    exceptions.push({
+      repository: entry.repository,
+      path_prefix: entry.path_prefix,
+      reason: entry.reason,
+    });
   }
   return {
     schema_version: 1,
@@ -88,9 +110,12 @@ export function inspectEngineeringOwnership(
       continue;
     }
     if (status !== "A") continue; // Historic local suites are migration debt, not a permanent exemption.
-    if (testFile.test(path) &&
-        !policy.local_test_exceptions.some((entry) =>
-          entry.repository === repository && path.startsWith(entry.path_prefix))) {
+    if (
+      testFile.test(path) &&
+      !policy.local_test_exceptions.some(
+        (entry) => entry.repository === repository && path.startsWith(entry.path_prefix)
+      )
+    ) {
       findings.push({ code: "new-local-test", path });
     }
     if (centralEntrypoint.test(path)) {
@@ -125,34 +150,54 @@ function git(cwd: string, args: string[]): string {
   });
 }
 
-export function runOwnershipGate(targetRoot: string, base: string, head: string, repository: string): void {
+export function runOwnershipGate(
+  targetRoot: string,
+  base: string,
+  head: string,
+  repository: string
+): void {
   if (!shaPattern.test(base) || !shaPattern.test(head)) {
     throw new CliError("Central engineering gate requires exact base/head commit SHAs.", 65);
   }
   const root = resolve(targetRoot);
   const controlRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-  const policy = parseOwnershipPolicy(JSON.parse(
-    readFileSync(join(controlRoot, "policies", "engineering-ownership.json"), "utf8")
-  ) as unknown);
+  const policy = parseOwnershipPolicy(
+    JSON.parse(
+      readFileSync(join(controlRoot, "policies", "engineering-ownership.json"), "utf8")
+    ) as unknown
+  );
   for (const sha of [base, head]) {
     git(root, ["cat-file", "-e", sha + "^{commit}"]);
   }
   const output = git(root, [
-    "diff", "--no-ext-diff", "--no-textconv", "--no-renames",
-    "--diff-filter=AMT", "--name-status", "-z", base, head, "--"
+    "diff",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--no-renames",
+    "--diff-filter=AMT",
+    "--name-status",
+    "-z",
+    base,
+    head,
+    "--",
   ]);
   const changes = parseChangedFiles(output);
   const findings = inspectEngineeringOwnership(
-    policy, repository, changes,
+    policy,
+    repository,
+    changes,
     (path) => git(root, ["show", head + ":" + path]),
     (path) => readFileSync(join(controlRoot, path), "utf8")
   );
   if (findings.length > 0) {
-    const detail = process.env.TARGET_PRIVATE === "true"
-      ? "Details withheld for private repository."
-      : findings.map((item) => item.code + ": " + item.path).join("; ");
-    throw new CliError("Central engineering ownership gate denied " +
-      findings.length + " change(s). " + detail, 65);
+    const detail =
+      process.env.TARGET_PRIVATE === "true"
+        ? "Details withheld for private repository."
+        : findings.map((item) => item.code + ": " + item.path).join("; ");
+    throw new CliError(
+      "Central engineering ownership gate denied " + findings.length + " change(s). " + detail,
+      65
+    );
   }
   console.log("Central engineering ownership gate passed (" + changes.length + " examined).");
 }
