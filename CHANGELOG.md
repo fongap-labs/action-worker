@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 中央 dsh-plugin Gateway Reasoning Host 发现、Credential 轮换与一次性确认写入端到端合同测试。
+
 - 新增: MCP Hub 第五批 Cloudflare 多因素认证、服务管理权限及 OAuth 刷新 9 个测试用例进入中央可信测试包，运行时基线扩展至 12 个模块和 48 个用例；原业务测试保留双跑直至通过真实中央 CI。
 
 - 新增: 为 MCP Hub 39 个已迁移测试用例登记可信基线，并依据真实 Node TAP 执行结果逐项校验；测试用例缺失、执行数量下降或 TAP 结果不完整均阻断中央 CI。
