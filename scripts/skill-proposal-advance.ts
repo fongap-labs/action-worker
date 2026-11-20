@@ -6,7 +6,7 @@ import { readRepositoryPolicyText, validateRepositoryCapability } from "./reposi
 import { CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { inspectSkillProposals, parseSkillAdmissionPolicy } from "./skill-proposal-reconcile.ts";
 import { readFileSync } from "node:fs";
-import { latestAttestedStatus } from "./status-attestation.ts";
+import { hasVerifiedMainWriteGuard } from "./main-write-guard.ts";
 
 const SHA = /^[0-9a-f]{40}$/;
 const REPO = /^[a-z0-9-]{1,39}\/[a-z0-9_.-]{1,100}$/;
@@ -133,10 +133,10 @@ async function main(): Promise<void> {
     throw new CliError("Plugin main changed since verified inspection.", 75);
   }
   const mainStatus = await reader.get("repos/" + repository + "/commits/" + expectedMain + "/status");
-  if (latestAttestedStatus(mainStatus, {
-    repository, sha: expectedMain, context: "Main Write Guard",
-  })?.state !== "success") {
-    throw new CliError("Plugin source main lacks a signed successful Main Write Guard.", 75);
+  if (!(await hasVerifiedMainWriteGuard(
+    reader, mainStatus, repository, expectedMain
+  ))) {
+    throw new CliError("Plugin source main lacks a verified trusted Main Write Guard.", 75);
   }
   const inspected = await inspectSkillProposals(reader, target, controlRepository);
   if (!inspected || inspected.proposalPrNumber !== proposedNumber ||
