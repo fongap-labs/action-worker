@@ -75,6 +75,20 @@ test("every checked-in target pack has a valid manifest and complete Node tier p
   }
 });
 
+test("opt-in test pack overlays reject non-boolean controls", () => {
+  const valid = {
+    schema_version: 1,
+    pack: "example",
+    runtime: "node",
+    suffix: "-test.mjs",
+    overlay: true,
+  };
+  assert.doesNotThrow(() => validatePackManifest("example", valid));
+  for (const overlay of [1, "true", null, {}, []]) {
+    assert.throws(() => validatePackManifest("example", { ...valid, overlay }));
+  }
+});
+
 test("Node flags are centrally allowlisted and cannot execute arbitrary CLI options", () => {
   const valid = {
     schema_version: 1,
