@@ -100,7 +100,7 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 理解为新建本地测试的许可。新业务仓库应先创建中央测试包及基线，再接入
 真实中央 CI；不得为了通过门禁而增加空测试或绕过差异检查。
 
-## 10. mcp-hub 迁移（第一阶段）
+## 10. 中央测试迁移第一阶段
 
 先将 Runner 协议与 Runtime/Runner 凭据隔离的 8 个原始用例移至可信
 `tests/packs/mcp-hub/`。中央沙箱通过可信 `pack.json` 的 `overlay: true`
