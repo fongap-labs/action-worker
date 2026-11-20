@@ -4,12 +4,14 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 
-export type ChangedFile = { status: "A" | "M" | "T" | "D"; path: string };
+export type ChangedFile = { status: "A" | "M" | "T" | "D"; path: string; sha?: string };
 type LocalException = { repository: string; path_prefix: string; reason: string };
+type PrivateWorkflowPin = { repository: string; path: string; blob_sha: string; reason: string };
 export type OwnershipPolicy = {
   schema_version: 1;
   control_repository: string;
   workflow_templates: Record<string, string>;
+  private_workflow_pins: PrivateWorkflowPin[];
   local_test_exceptions: LocalException[];
 };
 export type OwnershipFinding = { code: string; path: string };
@@ -33,9 +35,10 @@ export function parseOwnershipPolicy(value: unknown): OwnershipPolicy {
     value.schema_version !== 1 ||
     value.control_repository !== "fongap-labs/action-worker" ||
     !record(value.workflow_templates) ||
+    !Array.isArray(value.private_workflow_pins) ||
     !Array.isArray(value.local_test_exceptions) ||
     Object.keys(value).sort().join(",") !==
-      "control_repository,local_test_exceptions,schema_version,workflow_templates"
+      "control_repository,local_test_exceptions,private_workflow_pins,schema_version,workflow_templates"
   ) {
     throw new CliError("Invalid central engineering ownership policy.", 65);
   }
@@ -50,6 +53,36 @@ export function parseOwnershipPolicy(value: unknown): OwnershipPolicy {
     )
   ) {
     throw new CliError("Invalid trusted workflow template mapping.", 65);
+  }
+  const privatePins: PrivateWorkflowPin[] = [];
+  const pinnedPaths = new Set<string>();
+  for (const entry of value.private_workflow_pins) {
+    if (
+      !record(entry) ||
+      Object.keys(entry).sort().join(",") !== "blob_sha,path,reason,repository" ||
+      typeof entry.repository !== "string" ||
+      !repositoryName.test(entry.repository) ||
+      entry.repository === value.control_repository ||
+      typeof entry.path !== "string" ||
+      !workflowName.test(entry.path) ||
+      Object.hasOwn(templates, entry.path) ||
+      typeof entry.blob_sha !== "string" ||
+      !shaPattern.test(entry.blob_sha) ||
+      typeof entry.reason !== "string" ||
+      entry.reason.trim().length < 12 ||
+      entry.reason.length > 250
+    ) {
+      throw new CliError("Invalid private workflow blob pin.", 65);
+    }
+    const key = entry.repository + "/" + entry.path;
+    if (pinnedPaths.has(key)) throw new CliError("Duplicate private workflow blob pin.", 65);
+    pinnedPaths.add(key);
+    privatePins.push({
+      repository: entry.repository,
+      path: entry.path,
+      blob_sha: entry.blob_sha,
+      reason: entry.reason,
+    });
   }
   const seen = new Set<string>();
   const exceptions: LocalException[] = [];
@@ -81,6 +114,7 @@ export function parseOwnershipPolicy(value: unknown): OwnershipPolicy {
     schema_version: 1,
     control_repository: value.control_repository as string,
     workflow_templates: templates as Record<string, string>,
+    private_workflow_pins: privatePins,
     local_test_exceptions: exceptions,
   };
 }
@@ -102,11 +136,20 @@ export function inspectEngineeringOwnership(
     }
     if (workflowName.test(path)) {
       const template = policy.workflow_templates[path];
+      const privatePin = policy.private_workflow_pins.find(
+        (pin) => pin.repository === repository && pin.path === path
+      );
       if (status === "D") {
-        if (template) findings.push({ code: "required-workflow-deleted", path });
+        if (template || privatePin) findings.push({ code: "required-workflow-deleted", path });
         continue; // Removing legacy workflows not owned by the central platform is encouraged.
       }
-      if (!template) {
+      if (privatePin) {
+        // A pin can only review changes to an existing private workflow.
+        // It never authorizes the creation of another execution entry point.
+        if (status !== "M" || change.sha !== privatePin.blob_sha) {
+          findings.push({ code: "private-workflow-blob-mismatch", path });
+        }
+      } else if (!template) {
         findings.push({ code: "workflow-outside-control", path });
       } else if (readChangedFile(path) !== readTrustedTemplate(template)) {
         findings.push({ code: "workflow-template-mismatch", path });
@@ -199,7 +242,13 @@ export function runOwnershipGate(
     head,
     "--",
   ]);
-  const changes = parseChangedFiles(output);
+  const changes = parseChangedFiles(output).map((change) => {
+    const privatePin = policy.private_workflow_pins.some(
+      (pin) => pin.repository === repository && pin.path === change.path
+    );
+    if (!privatePin || change.status === "D") return change;
+    return { ...change, sha: git(root, ["rev-parse", head + ":" + change.path]).trim() };
+  });
   const findings = inspectEngineeringOwnership(
     policy,
     repository,

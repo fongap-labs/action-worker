@@ -33,5 +33,13 @@
       "path_prefix": "projects/server-edge/tests/",
       "reason": "Infrastructure shell tests require root and Docker in their project environment."
     }
+  ],
+  "private_workflow_pins": [
+    {
+      "repository": "fongap-labs/delta-legacy",
+      "path": ".github/workflows/private-release-build.yml",
+      "blob_sha": "e765747100bcc7cd1631066cf3c6a9a597565672",
+      "reason": "Source-owned private release verification pilot, reviewed as an immutable Git blob without exporting private workflow content."
+    }
   ]
 }

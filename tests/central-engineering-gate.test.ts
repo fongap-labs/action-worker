@@ -129,6 +129,89 @@ test("workflow changes must be byte-exact approved central templates", () => {
   );
 });
 
+test("private source workflow pins require an exact reviewed blob and never accept plain templates", () => {
+  const pin = policy.private_workflow_pins[0];
+  assert.ok(pin);
+  assert.equal(pin.repository, "fongap-labs/delta-legacy");
+  const accepted = [{ status: "M" as const, path: pin.path, sha: pin.blob_sha }];
+  assert.deepEqual(inspect(pin.repository, accepted), []);
+  assert.deepEqual(
+    inspect(pin.repository, [{ status: "M", path: pin.path, sha: "a".repeat(40) }]).map(
+      (x) => x.code
+    ),
+    ["private-workflow-blob-mismatch"]
+  );
+  assert.deepEqual(
+    inspect(pin.repository, [{ status: "M", path: pin.path }]).map((x) => x.code),
+    ["private-workflow-blob-mismatch"]
+  );
+  assert.deepEqual(
+    inspect(pin.repository, [{ status: "A", path: pin.path, sha: pin.blob_sha }]).map(
+      (x) => x.code
+    ),
+    ["private-workflow-blob-mismatch"]
+  );
+  assert.deepEqual(
+    inspect("fongap-labs/mcp-hub", accepted).map((x) => x.code),
+    ["workflow-outside-control"]
+  );
+  assert.deepEqual(
+    inspect(pin.repository, [{ status: "D", path: pin.path }]).map((x) => x.code),
+    ["required-workflow-deleted"]
+  );
+  assert.deepEqual(
+    inspect(pin.repository, [
+      { status: "A", path: ".github/workflows/private-release-bypass.yml" },
+    ]).map((x) => x.code),
+    ["workflow-outside-control"]
+  );
+});
+
+test("private workflow pins reject duplicate, invalid and overlapping ownership", () => {
+  const pin = policy.private_workflow_pins[0];
+  assert.ok(pin);
+  assert.throws(
+    () => parseOwnershipPolicy({ ...policy, private_workflow_pins: [pin, pin] }),
+    /Duplicate private workflow blob pin/
+  );
+  assert.throws(
+    () =>
+      parseOwnershipPolicy({
+        ...policy,
+        private_workflow_pins: [{ ...pin, blob_sha: "not-a-git-blob" }],
+      }),
+    /Invalid private workflow blob pin/
+  );
+  assert.throws(
+    () =>
+      parseOwnershipPolicy({
+        ...policy,
+        private_workflow_pins: [{ ...pin, path: ".github/workflows/ci.yml" }],
+      }),
+    /Invalid private workflow blob pin/
+  );
+  assert.throws(
+    () =>
+      parseOwnershipPolicy({
+        ...policy,
+        private_workflow_pins: [{ ...pin, path: ".github/../secret.yml" }],
+      }),
+    /Invalid private workflow blob pin/
+  );
+  assert.throws(
+    () =>
+      parseOwnershipPolicy({
+        ...policy,
+        private_workflow_pins: [{ ...pin, repository: policy.control_repository }],
+      }),
+    /Invalid private workflow blob pin/
+  );
+  assert.throws(
+    () => parseOwnershipPolicy({ ...policy, private_workflow_pins: undefined }),
+    /Invalid central engineering ownership policy/
+  );
+});
+
 test("adding a separate CI runner is blocked, project-specific configs remain permitted", () => {
   assert.deepEqual(
     inspect("fongap-labs/mcp-hub", [

@@ -136,6 +136,51 @@ test("privileged API gate permits only exact centrally approved workflow templat
   );
 });
 
+test("private workflow ownership checks commit-bound blobs without downloading private source", async () => {
+  const pin = policy.private_workflow_pins[0];
+  assert.ok(pin);
+  const calls: string[] = [];
+  const fetch = async (path: string) => {
+    calls.push(path);
+    if (path.includes("/compare/")) {
+      return compare([{ filename: pin.path, status: "modified", sha: pin.blob_sha }]);
+    }
+    throw new Error("Private source file must never be downloaded by the public control gate.");
+  };
+  await checkGithubEngineeringOwnership(pin.repository, base, head, policy, fetch, () => {
+    throw new Error("Private workflow must not become a public template.");
+  });
+  assert.deepEqual(calls, ["repos/" + pin.repository + "/compare/" + base + "..." + head]);
+  for (const sha of [undefined, "b".repeat(40)]) {
+    await assert.rejects(
+      checkGithubEngineeringOwnership(
+        pin.repository,
+        base,
+        head,
+        policy,
+        async () => compare([{ filename: pin.path, status: "modified", ...(sha ? { sha } : {}) }]),
+        () => {
+          throw new Error("Untrusted private workflow read.");
+        }
+      ),
+      /private-workflow-blob-mismatch/
+    );
+  }
+  await assert.rejects(
+    checkGithubEngineeringOwnership(
+      "fongap-labs/dsh-plugin",
+      base,
+      head,
+      policy,
+      async () => compare([{ filename: pin.path, status: "modified", sha: pin.blob_sha }]),
+      () => {
+        throw new Error("No cross-repository template read.");
+      }
+    ),
+    /workflow-outside-control/
+  );
+});
+
 test("privileged CI blocks deleting central workflow and manifest even without source checkout", async () => {
   for (const pathname of [".github/workflows/ci.yml", ".github/execution-manifest.json"]) {
     const requests: string[] = [];
