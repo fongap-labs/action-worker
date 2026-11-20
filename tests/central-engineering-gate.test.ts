@@ -130,14 +130,17 @@ test("workflow changes must be byte-exact approved central templates", () => {
 });
 
 test("adding a separate CI runner is blocked, project-specific configs remain permitted", () => {
-  assert.deepEqual(inspect("fongap-labs/mcp-hub", [
-    { status: "A", path: ".github/scripts/central-ci.sh" },
-    { status: "A", path: "scripts/central-ci-windows.mjs" },
-    { status: "A", path: "scripts/build-release.mjs" },
-    { status: "A", path: "scripts/check-gateway.mjs" },
-    { status: "A", path: "tsconfig.json" },
-    { status: "A", path: "packages/desktop/build-config.json" },
-  ]).map((f) => f.code), ["new-local-ci-runner", "new-local-ci-runner", "new-local-ci-runner", "new-local-ci-runner"]);
+  assert.deepEqual(
+    inspect("fongap-labs/mcp-hub", [
+      { status: "A", path: ".github/scripts/central-ci.sh" },
+      { status: "A", path: "scripts/central-ci-windows.mjs" },
+      { status: "A", path: "scripts/build-release.mjs" },
+      { status: "A", path: "scripts/check-gateway.mjs" },
+      { status: "A", path: "tsconfig.json" },
+      { status: "A", path: "packages/desktop/build-config.json" },
+    ]).map((f) => f.code),
+    ["new-local-ci-runner", "new-local-ci-runner", "new-local-ci-runner", "new-local-ci-runner"]
+  );
 });
 
 test("git change parser fails closed on invalid, truncated or ambiguous records", () => {
@@ -148,15 +151,19 @@ test("git change parser fails closed on invalid, truncated or ambiguous records"
   assert.deepEqual(parseChangedFiles(""), []);
   assert.throws(() => parseChangedFiles("A\0src/x"), /incomplete/);
   assert.throws(() => parseChangedFiles("X\0src/x\0"), /invalid/);
-  assert.throws(() => inspect("fongap-labs/mcp-hub", [
-    { status: "A", path: "tests/../src/bypass.test.ts" },
-  ]), /Invalid git change/);
+  assert.throws(
+    () => inspect("fongap-labs/mcp-hub", [{ status: "A", path: "tests/../src/bypass.test.ts" }]),
+    /Invalid git change/
+  );
 });
 
 test("real git rename into a local tests directory is not mistaken for an allowed modification", () => {
   const root = mkdtempSync(join(tmpdir(), "aw-engineering-gate-"));
-  const git = (...args: string[]) => execFileSync("git", ["-C", root, ...args],
-    { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  const git = (...args: string[]) =>
+    execFileSync("git", ["-C", root, ...args], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
   try {
     git("init", "-b", "main");
     git("config", "user.name", "Governance test");
@@ -170,8 +177,10 @@ test("real git rename into a local tests directory is not mistaken for an allowe
     git("mv", "docs/sample.mjs", "tests/new.test.mjs");
     git("commit", "-m", "move into local suite");
     const head = git("rev-parse", "HEAD");
-    assert.throws(() => runOwnershipGate(root, base, head, "fongap-labs/mcp-hub"),
-      /new-local-test/);
+    assert.throws(
+      () => runOwnershipGate(root, base, head, "fongap-labs/mcp-hub"),
+      /new-local-test/
+    );
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
