@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 中央 dsh-plugin Gateway 合同测试覆盖重复发现、并发限制、Host 服务重挂载和迟到异步写入保护。
+
 - 维护: MCP Hub 第七批 26 个 Runner、GitHub PR 及任务日志用例完成中央双跑、86 用例运行时基线与重复文件清理；中央 19 个模块、本地剩余 4 个模块。
 
 - 新增: Action Worker 中央 dsh-plugin 测试包覆盖 Delta Code 语义能力目录、引用/循环拒绝、原生工具只读契约和高风险质量检查；保持测试仅在控制面集中维护。
