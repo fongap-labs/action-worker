@@ -20,7 +20,10 @@ function boundedGitHubPath(path: string, repository: string): string {
     path.includes("..") ||
     path.includes("\\") ||
     path.includes("#") ||
-    [...path].some((char) => { const code = char.charCodeAt(0); return code < 32 || code === 127; }) ||
+    [...path].some((char) => {
+      const code = char.charCodeAt(0);
+      return code < 32 || code === 127;
+    }) ||
     path.length > 1024
   ) {
     throw new CliError("Cross-repository or unsafe Skill promotion GitHub path.", 77);
@@ -172,7 +175,9 @@ async function main(): Promise<void> {
     "pr"
   );
   const reader = statusAwareReader(
-    process.env.GITHUB_API_URL ?? "https://api.github.com", readToken, statusToken
+    process.env.GITHUB_API_URL ?? "https://api.github.com",
+    readToken,
+    statusToken
   );
   // The workflow must check out only a signed target main revision. Never run
   // plugin code from an external contributor's PR branch or mutable remote ref.
@@ -180,66 +185,91 @@ async function main(): Promise<void> {
   if (!isJsonRecord(main) || getJsonString(main, "sha") !== expectedMain) {
     throw new CliError("Plugin main changed since verified inspection.", 75);
   }
-  const mainStatus = await reader.get("repos/" + repository + "/commits/" + expectedMain + "/status");
-  if (!(await hasVerifiedMainWriteGuard(
-    reader, mainStatus, repository, expectedMain
-  ))) {
+  const mainStatus = await reader.get(
+    "repos/" + repository + "/commits/" + expectedMain + "/status"
+  );
+  if (!(await hasVerifiedMainWriteGuard(reader, mainStatus, repository, expectedMain))) {
     throw new CliError("Plugin source main lacks a verified trusted Main Write Guard.", 75);
   }
   const inspected = await inspectSkillProposals(reader, target, controlRepository);
-  if (!inspected || inspected.proposalPrNumber !== proposedNumber ||
-      inspected.expectedProposalHead !== requestedHead) {
+  if (
+    !inspected ||
+    inspected.proposalPrNumber !== proposedNumber ||
+    inspected.expectedProposalHead !== requestedHead
+  ) {
     throw new CliError("Selected merged proposal changed or was already promoted.", 75);
   }
 
   const root = await realpath(resolve(sourceRoot));
-  const builtPath = resolve(root, "packages/dsh-delta-code/lib/delta-code-repository/github-operations.js");
+  const builtPath = resolve(
+    root,
+    "packages/dsh-delta-code/lib/delta-code-repository/github-operations.js"
+  );
   const path = await realpath(builtPath);
   if (!path.startsWith(root + sep)) {
     throw new CliError("Trusted plugin module escaped pinned source checkout.", 77);
   }
   // This import is the central CI-checked plugin's existing promoted Skill tool,
   // not a second implementation of trust, review or catalog-writing rules.
-  const moduleValue = await import(pathToFileURL(path).href) as {
+  const moduleValue = (await import(pathToFileURL(path).href)) as {
     createGitHubToolSpecs: (
-      settings: unknown, transport: unknown, resolver: (repo?: string) => Promise<string>
+      settings: unknown,
+      transport: unknown,
+      resolver: (repo?: string) => Promise<string>
     ) => Array<{ name: string; execute(args: unknown, context: unknown): Promise<unknown> }>;
   };
-  const errorsPath = resolve(root, "packages/dsh-delta-code/lib/delta-code-adapter/contracts/github.js");
-  const errorsModule = await import(pathToFileURL(await realpath(errorsPath)).href) as {
+  const errorsPath = resolve(
+    root,
+    "packages/dsh-delta-code/lib/delta-code-adapter/contracts/github.js"
+  );
+  const errorsModule = (await import(pathToFileURL(await realpath(errorsPath)).href)) as {
     GitHubApiFailure: GithubErrorCtor;
   };
   const account = repository.split("/")[0]!;
   const transport = makeOwnerBoundSkillTransport(
-    repository, account, readToken, writeToken, errorsModule.GitHubApiFailure
+    repository,
+    account,
+    readToken,
+    writeToken,
+    errorsModule.GitHubApiFailure
   );
   const settings = {
     githubAllowWrites: true,
     githubAccounts: [{ owner: account }],
   };
-  const specs = moduleValue.createGitHubToolSpecs(settings, transport, async requested => {
+  const specs = moduleValue.createGitHubToolSpecs(settings, transport, async (requested) => {
     if (requested !== repository) throw new CliError("Unmatched owner-bound Skill target.", 77);
     return repository;
   });
-  const promote = specs.find(spec => spec.name === "code_github_skill_auto_advance");
+  const promote = specs.find((spec) => spec.name === "code_github_skill_auto_advance");
   if (!promote) throw new CliError("Trusted plugin lacks the auto-advance tool.", 75);
-  const result = await promote.execute({
-    targetRepository: repository,
-    proposalPrNumber: inspected.proposalPrNumber,
-    expectedProposalHead: inspected.expectedProposalHead,
-    ...inspected.source,
-    account,
-  }, { signal: AbortSignal.timeout(150_000), account });
+  const result = await promote.execute(
+    {
+      targetRepository: repository,
+      proposalPrNumber: inspected.proposalPrNumber,
+      expectedProposalHead: inspected.expectedProposalHead,
+      ...inspected.source,
+      account,
+    },
+    { signal: AbortSignal.timeout(150_000), account }
+  );
   if (!isJsonRecord(result) || typeof result.result !== "string") {
     throw new CliError("Skill promotion tool returned an invalid result.", 75);
   }
   const receipt: unknown = JSON.parse(result.result);
-  if (!isJsonRecord(receipt) || receipt.state !== "awaiting-catalog-ci" ||
-      !isJsonRecord(receipt.promotion) || !isJsonRecord(receipt.promotion.pr) ||
-      !Number.isSafeInteger(receipt.promotion.pr.number) || receipt.autoEnabled !== false) {
+  if (
+    !isJsonRecord(receipt) ||
+    receipt.state !== "awaiting-catalog-ci" ||
+    !isJsonRecord(receipt.promotion) ||
+    !isJsonRecord(receipt.promotion.pr) ||
+    !Number.isSafeInteger(receipt.promotion.pr.number) ||
+    receipt.autoEnabled !== false
+  ) {
     throw new CliError("Skill promotion did not confirm a separate pending CI PR.", 75);
   }
-  console.log("Created independent, CI-gated Skill catalog promotion PR #" + receipt.promotion.pr.number);
+  console.log(
+    "Created independent, CI-gated Skill catalog promotion PR #" + receipt.promotion.pr.number
+  );
 }
 
 if (isMain(import.meta.url)) {
