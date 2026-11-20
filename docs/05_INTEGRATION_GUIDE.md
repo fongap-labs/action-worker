@@ -251,5 +251,7 @@ runner_profile → 中央运行器解析
 并确认覆盖不减少，才能从业务仓库清理旧文件。规则不放宽任何现行安全门禁，
 缺失中央测试包不得以空测试替代。
 
-中央检查在可信沙箱中执行：`scripts/central-engineering-gate.ts` 比较真实
-提交范围、验证中央模板与明确例外，并在业务仓库代码运行之前拒绝违规 PR。
+中央检查首先在可信控制面运行 `scripts/central-engineering-gate-api.ts`，
+使用只读 GitHub API 对全部 CI 路由（含私有原生 CI）核验真实不可变提交范围；
+Linux 沙箱再用 `scripts/central-engineering-gate.ts` 复核 Git 差异与中央模板，
+在业务仓库代码运行之前拒绝违规 PR。
