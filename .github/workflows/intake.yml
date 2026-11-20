@@ -509,6 +509,114 @@ jobs:
           DEPLOY_SCHEDULE_LOOKBACK_MINUTES: "720"
         run: node scripts/dispatch-scheduled-deploys.ts
 
+  skill-admissions:
+    name: CI-gated Skill admission continuation
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout protected Action Worker control plane
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Resolve versioned Skill admission repository scope
+        id: scope
+        env:
+          AW_INTAKE_TARGET_REPOSITORY: ${{ github.event_name == 'repository_dispatch' && github.event.client_payload.repository || '' }}
+        run: node scripts/skill-admission-scope.ts
+
+      - name: Mint isolated proposal and CI read token
+        if: steps.scope.outputs.scan == 'true'
+        id: evidence
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.scope.outputs.target_owner }}
+          repositories: ${{ steps.scope.outputs.read_repositories_csv }}
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-statuses: read
+
+      - name: Mint independently scoped status read token
+        if: steps.scope.outputs.scan == 'true'
+        id: status
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.scope.outputs.target_owner }}
+          repositories: ${{ steps.scope.outputs.target_name }}
+          permission-statuses: read
+
+      - name: Verify signed merged proposal and exact main revision
+        if: steps.scope.outputs.scan == 'true'
+        id: inspect
+        env:
+          AW_CONTROL_TOKEN: ${{ steps.evidence.outputs.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.status.outputs.token }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
+          AW_INTAKE_TARGET_REPOSITORY: ${{ steps.scope.outputs.target_repository }}
+        run: node scripts/skill-proposal-reconcile.ts
+
+      - name: Checkout signed plugin main at immutable revision
+        if: steps.inspect.outputs.eligible == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: ${{ steps.inspect.outputs.target_repository }}
+          ref: ${{ steps.inspect.outputs.plugin_main_sha }}
+          token: ${{ steps.evidence.outputs.token }}
+          path: target-source
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Compile trusted plugin-only admission logic
+        if: steps.inspect.outputs.eligible == 'true'
+        shell: bash
+        working-directory: target-source
+        run: |
+          set -Eeuo pipefail
+          npm install --global pnpm@11.28.5 --ignore-scripts --no-audit --no-fund
+          pnpm install --frozen-lockfile --ignore-scripts
+          pnpm exec tsc -p packages/shared/tsconfig.json
+          pnpm exec tsc -p packages/dsh-delta-code/tsconfig.json
+
+      - name: Mint write token only for verified proposed promotion
+        if: steps.inspect.outputs.eligible == 'true'
+        id: writer
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.scope.outputs.target_owner }}
+          repositories: ${{ steps.scope.outputs.target_name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Recheck signed evidence and submit one separate catalog PR
+        if: steps.inspect.outputs.eligible == 'true'
+        env:
+          AW_CONTROL_TOKEN: ${{ steps.evidence.outputs.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.status.outputs.token }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
+          AW_SKILL_WRITE_TOKEN: ${{ steps.writer.outputs.token }}
+          AW_SKILL_TARGET_REPOSITORY: ${{ steps.inspect.outputs.target_repository }}
+          AW_SKILL_PROPOSAL_HEAD: ${{ steps.inspect.outputs.proposal_head }}
+          AW_SKILL_PROPOSAL_NUMBER: ${{ steps.inspect.outputs.proposal_number }}
+          AW_SKILL_PLUGIN_MAIN_SHA: ${{ steps.inspect.outputs.plugin_main_sha }}
+          AW_SKILL_SOURCE_ROOT: target-source
+        run: node scripts/skill-proposal-advance.ts
+
   security-scans:
     name: Weekly security scans
     # Every central CI pass already scans its commit; this weekly run rescans unchanged default

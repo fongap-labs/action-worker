@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "targets": [
+    {
+      "repository": "fongap-labs/dsh-plugin",
+      "proposal_prefix": "packages/dsh-delta-code/skill-proposals/",
+      "catalog_path": "packages/dsh-delta-code/src/delta-code-strategy/trusted-github-skills.ts",
+      "enabled": true,
+      "max_closed_prs": 40
+    }
+  ]
+}
