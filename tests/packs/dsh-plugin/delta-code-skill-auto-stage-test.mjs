@@ -38,7 +38,9 @@ test('automatic stage candidate extraction rejects forged and stale discovery me
     { ...candidate, requiresReview: false },
     { ...candidate, status: 'approved' },
   ]
-  assert.deepEqual(eligibleAutoSkillCandidates(envelope(forged)), [])
+  for (const invalid of forged) {
+    assert.deepEqual(eligibleAutoSkillCandidates(envelope([invalid])), [])
+  }
   assert.equal(eligibleAutoSkillCandidates(envelope([candidate, candidate])).length, 1)
   assert.throws(() => eligibleAutoSkillCandidates(null), /not an object/)
   assert.throws(() => eligibleAutoSkillCandidates({ candidates: [] }), /Incomplete/)
