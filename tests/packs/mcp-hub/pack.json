@@ -17,7 +17,10 @@
       "branding-test.mjs",
       "cloudflare-mfa-test.mjs",
       "scoped-service-admin-test.mjs",
-      "refresh-test.mjs"
+      "refresh-test.mjs",
+      "authorized-task-intake-test.mjs",
+      "client-delete-test.mjs",
+      "runner-registry-test.mjs"
     ]
   },
   "overlay": true,
