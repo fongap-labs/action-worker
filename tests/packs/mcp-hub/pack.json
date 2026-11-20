@@ -11,7 +11,10 @@
       "claude-code-executor-test.mjs",
       "git-worktree-preparer-test.mjs",
       "security-test.mjs",
-      "crypto-readiness-test.mjs"
+      "crypto-readiness-test.mjs",
+      "access-browser-test.mjs",
+      "access-native-test.mjs",
+      "branding-test.mjs"
     ]
   },
   "overlay": true
