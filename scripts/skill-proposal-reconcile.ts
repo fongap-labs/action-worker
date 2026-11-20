@@ -285,41 +285,51 @@ export async function inspectSkillProposals(
       "repos/" + target.repository + "/commits/" + merge + "/status"
     );
     const files = getJsonArray(
-      await reader.get(
-        "repos/" + target.repository + "/pulls/" + number + "/files?per_page=100"
-      )
+      await reader.get("repos/" + target.repository + "/pulls/" + number + "/files?per_page=100")
     );
-    const manifestFile = files.filter(isJsonRecord).find(file =>
-      typeof file.filename === "string" &&
-      file.filename.startsWith(target.proposal_prefix) &&
-      file.filename.endsWith(".json")
-    );
+    const manifestFile = files
+      .filter(isJsonRecord)
+      .find(
+        (file) =>
+          typeof file.filename === "string" &&
+          file.filename.startsWith(target.proposal_prefix) &&
+          file.filename.endsWith(".json")
+      );
     if (!manifestFile) throw new CliError("Skill proposal manifest was not included in PR.", 65);
     const manifestPath = getJsonString(manifestFile, "filename");
     if (!/^packages\/[a-z0-9-/]+\/[a-z0-9-]+\.json$/.test(manifestPath)) {
       throw new CliError("Unsafe Skill proposal manifest path.", 65);
     }
     const content = await reader.get(
-      "repos/" + target.repository + "/contents/" + manifestPath +
-      "?ref=" + merge
+      "repos/" + target.repository + "/contents/" + manifestPath + "?ref=" + merge
     );
-    if (!isJsonRecord(content) || content.encoding !== "base64" ||
-        typeof content.content !== "string" || Number(content.size) > 16384) {
+    if (
+      !isJsonRecord(content) ||
+      content.encoding !== "base64" ||
+      typeof content.content !== "string" ||
+      Number(content.size) > 16384
+    ) {
       throw new CliError("Incomplete bounded merged Skill proposal manifest.", 65);
     }
     let manifest: unknown;
     try {
-      manifest = JSON.parse(Buffer.from(content.content.replace(/\s/g, ""), "base64").toString("utf8"));
+      manifest = JSON.parse(
+        Buffer.from(content.content.replace(/\s/g, ""), "base64").toString("utf8")
+      );
     } catch {
       throw new CliError("Invalid immutable Skill proposal JSON.", 65);
     }
     const candidate = verifyMergedSkillProposal(
-      pr, statuses, files, manifest, target, mergedGuard, controlRepository
+      pr,
+      statuses,
+      files,
+      manifest,
+      target,
+      mergedGuard,
+      controlRepository
     );
     if (!candidate) continue;
-    if (!(await hasVerifiedMainWriteGuard(
-      reader, mergedGuard, target.repository, merge
-    ))) {
+    if (!(await hasVerifiedMainWriteGuard(reader, mergedGuard, target.repository, merge))) {
       throw new CliError("Merged Skill proposal has no verified trusted Main Write Guard.", 75);
     }
     // GitHub may delete a branch after merge; an old promotion PR remains
@@ -329,28 +339,46 @@ export async function inspectSkillProposals(
     const promoteBranch = "chore/skill-promote-" + candidate.identity;
     const owner = target.repository.split("/")[0];
     if (!owner) throw new CliError("Missing owner-bound Skill promotion target.", 65);
-    const historical = getJsonArray(await reader.get(
-      "repos/" + target.repository + "/pulls?state=all&per_page=100&base=main&head=" +
-      encodeURIComponent(owner + ":" + promoteBranch)
-    ));
+    const historical = getJsonArray(
+      await reader.get(
+        "repos/" +
+          target.repository +
+          "/pulls?state=all&per_page=100&base=main&head=" +
+          encodeURIComponent(owner + ":" + promoteBranch)
+      )
+    );
     if (historical.length >= 100) {
       throw new CliError("Skill promotion history is not exhaustively bounded.", 75);
     }
-    if (historical.some(pr => isJsonRecord(pr) &&
-      getJsonString(pr.head, "ref") === promoteBranch &&
-      getJsonString(isJsonRecord(pr.head) ? pr.head.repo : null, "full_name") ===
-        target.repository)) continue;
-    const branchPath = "repos/" + target.repository +
-      "/git/ref/heads/" + promoteBranch;
+    if (
+      historical.some(
+        (pr) =>
+          isJsonRecord(pr) &&
+          getJsonString(pr.head, "ref") === promoteBranch &&
+          getJsonString(isJsonRecord(pr.head) ? pr.head.repo : null, "full_name") ===
+            target.repository
+      )
+    )
+      continue;
+    const branchPath = "repos/" + target.repository + "/git/ref/heads/" + promoteBranch;
     // A partial existing branch is not retried or overwritten. Manual incident
     // repair is safer than blindly issuing the same remote writes again.
-    if (await getGithubJsonIfExists(branchPath, path => reader.get(path)) !== undefined) continue;
-    if (!(await hasVerifiedCiEvidence(reader, statuses, {
-      controlRepository, targetRepository: target.repository, targetSha: head,
-      workflowPaths: [".github/workflows/central-ci-dispatch.yml"],
-      runAttempts: 1, retryDelayMs: 0,
-    }))) {
-      throw new CliError("Skill proposal CI evidence does not match a completed trusted CI run.", 75);
+    if ((await getGithubJsonIfExists(branchPath, (path) => reader.get(path))) !== undefined)
+      continue;
+    if (
+      !(await hasVerifiedCiEvidence(reader, statuses, {
+        controlRepository,
+        targetRepository: target.repository,
+        targetSha: head,
+        workflowPaths: [".github/workflows/central-ci-dispatch.yml"],
+        runAttempts: 1,
+        retryDelayMs: 0,
+      }))
+    ) {
+      throw new CliError(
+        "Skill proposal CI evidence does not match a completed trusted CI run.",
+        75
+      );
     }
     return candidate;
   }
@@ -359,14 +387,24 @@ export async function inspectSkillProposals(
 
 async function main(): Promise<void> {
   const raw = readFileSync("policies/skill-admission.json", "utf8");
-  const targets = parseSkillAdmissionPolicy(parseJson(raw, "Skill admission policy is invalid.", 65));
-  const repositoryPolicy = parseJson(readRepositoryPolicyText(), "Repository policy is invalid.", 65);
+  const targets = parseSkillAdmissionPolicy(
+    parseJson(raw, "Skill admission policy is invalid.", 65)
+  );
+  const repositoryPolicy = parseJson(
+    readRepositoryPolicyText(),
+    "Repository policy is invalid.",
+    65
+  );
   const controlRepository = process.env.GITHUB_REPOSITORY ?? "";
   const targetName = process.env.AW_INTAKE_TARGET_REPOSITORY ?? "";
   const controlToken = process.env.AW_CONTROL_TOKEN ?? "";
   const statusToken = process.env.AW_STATUS_API_TOKEN ?? "";
-  if (!controlToken || !statusToken || !process.env.AW_STATUS_KEYRING ||
-      !REPOSITORY.test(controlRepository)) {
+  if (
+    !controlToken ||
+    !statusToken ||
+    !process.env.AW_STATUS_KEYRING ||
+    !REPOSITORY.test(controlRepository)
+  ) {
     throw new CliError("Missing independent scoped Skill promotion read credentials.", 77);
   }
   if (targetName && !targets.some(target => target.repository === targetName)) {
