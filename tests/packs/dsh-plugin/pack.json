@@ -6,6 +6,10 @@
   "overlay": true,
   "node_flags": ["--experimental-strip-types"],
   "tiers": {
-    "gate": ["gateway-reasoning-contract-test.mjs", "delta-code-semantic-capabilities-test.mjs"]
+    "gate": [
+      "gateway-reasoning-contract-test.mjs",
+      "delta-code-semantic-capabilities-test.mjs",
+      "delta-code-host-lifecycle-contract-test.mjs"
+    ]
   }
 }
