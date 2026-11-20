@@ -131,7 +131,7 @@ Claude Code 执行器和 Git 工作树模块的 11 个原始用例不改断言�
 可信提交并通过 Linux 原测试、中央 overlay 测试、Windows 和安全证据签发。
 在真实双跑验收前，不得删除 MCP Hub 本地对应测试。
 
-### 第四批迁移：Access 与品牌合同
+### 第四批迁移：访问身份认证与品牌合同
 
 已将 `access-browser.test.js`（2 个用例）、`access-native.test.js`（3 个用例）、
 `branding.test.js`（3 个用例）复制为可信中央门禁测试。三组测试保持原有断言及名称，
