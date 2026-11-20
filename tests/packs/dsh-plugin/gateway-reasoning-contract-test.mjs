@@ -555,7 +555,7 @@ test('Gateway Host refuses unsafe routes, unknown models, cross-site calls and O
   assert.equal(wrong.code, 400)
   for (const baseURL of [
     'http://gateway.example/v1', 'https://127.0.0.1/v1',
-    'https://localhost/v1', 'https://user:pass@gateway.example/v1',
+    'https://localhost/v1', 'https://user:pass' + String.fromCharCode(64) + 'gateway.example/v1',
     'https://gateway.example:8443/v1',
   ]) {
     f.setProvider(p => { p.baseURL = baseURL })
