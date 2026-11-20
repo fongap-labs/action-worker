@@ -23,6 +23,7 @@ const here = dirname(fileURLToPath(import.meta.url));
  * @property {string[]} [command] Command that starts a python pack.
  * @property {string[]} [node_flags] Allowlisted Node runtime flags for a Node test pack.
  * @property {boolean} [overlay] When true, run in addition to legacy CI.
+ * @property {string} [inventory] Trusted Node case inventory baseline filename.
  * @property {{ gate?: string[] }} [tiers] Suites that belong to the gate tier.
  * @property {string[]} [env] Process.env names forwarded to the test subprocess.
  */
@@ -66,6 +67,14 @@ export function validatePackManifest(packName, manifest) {
     (manifest.runtime !== "node" && manifest.runtime !== "python")
   ) {
     throw new Error(`pack ${packName}: invalid manifest identity, schema or runtime`);
+  }
+  if (
+    manifest.inventory !== undefined &&
+    (manifest.runtime !== "node" ||
+      typeof manifest.inventory !== "string" ||
+      !/^[a-z][a-z0-9-]*\.baseline\.json$/.test(manifest.inventory))
+  ) {
+    throw new Error(`pack ${packName}: invalid trusted Node case inventory`);
   }
   if (manifest.overlay !== undefined && typeof manifest.overlay !== "boolean") {
     throw new Error(`pack ${packName}: overlay must be a boolean`);
@@ -180,6 +189,9 @@ function main() {
   const selectedTier = /** @type {"unit" | "gate" | "all"} */ (tier);
   validatePackTier(packName, manifest, selectedTier);
   const target = resolve(targetArg);
+  if (manifest.inventory && !existsSync(join(here, "inventory", manifest.inventory))) {
+    throw new Error(`pack ${packName}: trusted case inventory is missing`);
+  }
   // Allow-listed environment: base OS vars plus names the pack declares in
   // pack.json. Host secrets (CI tokens, local dev keys) are never forwarded.
   const env =
@@ -197,6 +209,7 @@ function main() {
       process.execPath,
       [
         ...(manifest.node_flags ?? []),
+        ...(manifest.inventory && tier === "all" && !filter ? ["--test-reporter=tap"] : []),
         "--test",
         "--test-concurrency=4",
         "--import",

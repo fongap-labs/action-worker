@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "runtime": "node",
+  "suites": {
+    "runner-protocol": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "registration normalizes capabilities without accepting a claimed runnerId": 1,
+        "registration rejects unsupported versions and malformed capabilities or capacity": 1,
+        "heartbeat requires a strictly increasing sequence and bounded concurrency": 1,
+        "availability distinguishes saturated, expired, uninitialized and disabled runners": 1,
+        "capacity snapshots use Hub receive time and do not claim runtime task state": 1
+      }
+    },
+    "coding-stack-isolation": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "Runner startup refuses to inherit Runtime keys or CLI executable": 1,
+        "trusted Runtime refuses Hub Runner credential": 1,
+        "neither standalone entrypoint launches a process when imported": 1
+      }
+    },
+    "claude-code-executor": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "Claude CLI runs as pinned feature branch with fixed restricted tool arguments and prompt on stdin": 1,
+        "source SHA or branch drift fails before launching any coding engine": 1,
+        "executor reports generic errors, not stderr or raw secrets": 1,
+        "execution never starts when cancelled or executable path is unsafe": 1
+      }
+    },
+    "git-worktree-preparer": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "real Git worktree is created from approved origin and pinned source SHA, and reused cleanly": 1,
+        "dirty worktrees cannot be silently re-used, reset or overwritten": 1,
+        "a moved upstream main SHA is refused before any worktree is created": 1,
+        "unapproved origin, repository, malformed task reference and pre-aborted job are rejected": 1,
+        "symlinked approved base and target directories are rejected": 1,
+        "Claude executor runs in newly prepared task-specific worktree, never base checkout": 1,
+        "malformed or duplicate roots fail before Git initialization": 1
+      }
+    },
+    "security": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "AES-GCM roundtrip, wrong owner cannot decrypt": 1,
+        "Browser hybrid encrypted Token decrypts in Worker, public JWK has no private component": 1,
+        "owner routing is case-insensitive and fails closed, never falls back": 1,
+        "GitHub operations only construct paths to a fixed API and refuse traversal": 1,
+        "Github token strings are redacted from tool JSON output": 1,
+        "MCP refuses tool operations on unapproved owner, even when a client has read scope": 1,
+        "Admin requires a valid Access identity and a single-use TOTP": 1,
+        "OAuth token denied immediately after client revocation, or audience mismatch": 1
+      }
+    },
+    "crypto-readiness": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "valid original RSA private key and active AES keyring allow deploy readiness": 1,
+        "invalid or absent RSA ingestion private key fails closed instead of green health": 1,
+        "missing, malformed, wrong-size and wrong active-ID keyrings fail readiness": 1,
+        "central deploy acceptance must reject real Worker with unusable RSA key": 1
+      }
+    },
+    "access-browser": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "Access permits a signed application cookie only when the assertion header is absent": 1,
+        "Browser Access denial is explanatory; machine APIs retain JSON and both fail closed": 1
+      }
+    },
+    "access-native": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "trusted Cloudflare Worker Access context authenticates exact AUD without forwarded JWT": 1,
+        "native identity is fail-closed on wrong audience, absent email or invalid config": 1,
+        "verified native identity is stable across same-user requests but not an unverified session": 1
+      }
+    },
+    "branding": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "independent mark and administration UI cannot be confused with official GitHub MCP": 1,
+        "MCP initialize identifies an independent gateway, not the official server": 1,
+        "Admin browser script remains served after Access validation": 1
+      }
+    }
+  }
+}

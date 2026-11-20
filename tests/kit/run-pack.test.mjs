@@ -122,6 +122,23 @@ test("Node flags are centrally allowlisted and cannot execute arbitrary CLI opti
   );
 });
 
+test("trusted case inventory requires a confined Node baseline path", () => {
+  const valid = {
+    schema_version: 1,
+    pack: "example",
+    runtime: /** @type {"node"} */ ("node"),
+    suffix: "-test.mjs",
+    inventory: "example.baseline.json",
+  };
+  assert.doesNotThrow(() => validatePackManifest("example", valid));
+  for (const inventory of ["../escape.baseline.json", "example.json", null, "", 123]) {
+    assert.throws(() =>
+      validatePackManifest("example", JSON.parse(JSON.stringify({ ...valid, inventory })))
+    );
+  }
+  assert.throws(() => validatePackManifest("example", { ...valid, runtime: "python" }));
+});
+
 test("manifests reject mutable identities, invalid runtime and misleading tiers", () => {
   const valid = JSON.parse(
     '{"schema_version":1,"pack":"example","runtime":"node","suffix":"-test.mjs"}'

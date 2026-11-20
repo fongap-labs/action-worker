@@ -17,5 +17,6 @@
       "branding-test.mjs"
     ]
   },
-  "overlay": true
+  "overlay": true,
+  "inventory": "mcp-hub.baseline.json"
 }
