@@ -4,7 +4,12 @@ import { CliError } from "./runtime-command.ts";
 // These keys describe proof roles, not human-readable GitHub status names.
 export const gateRoles = ["pr_governance", "ci_evidence", "merge_validation"] as const;
 export type GateRole = (typeof gateRoles)[number];
-export const workflowTrustRoles = ["ci_evidence", "pr_governance", "main_write_guard"] as const;
+export const workflowTrustRoles = [
+  "ci_evidence",
+  "ci_failure",
+  "pr_governance",
+  "main_write_guard",
+] as const;
 export type WorkflowTrustRole = (typeof workflowTrustRoles)[number];
 
 export type GateContract = {

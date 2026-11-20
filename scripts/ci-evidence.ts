@@ -5,6 +5,7 @@ import {
   isJsonRecord,
   type JsonRecord,
 } from "./github-api.ts";
+import { loadGateContract } from "./governance-gate-contract.ts";
 import { CliError } from "./runtime-command.ts";
 import {
   hasValidStatusAttestation,
@@ -33,27 +34,13 @@ export function controlRepositoryOf(): string {
   return repositoryPattern.test(fromEnv) ? fromEnv : defaultControlRepository;
 }
 
-// Only these control workflows publish a successful "CI Evidence" status.
-export const ciEvidenceWorkflowPaths: readonly string[] = [
-  ".github/workflows/central-ci-dispatch.yml",
-  ".github/workflows/handle-pr-dispatch.yml",
-];
-
-// The control workflow that publishes the PR gate verdict on a pull request head.
-export const prGateWorkflowPaths: readonly string[] = [".github/workflows/handle-pr-dispatch.yml"];
-
-// The control workflows that attest a main write. Every workflow that runs
-// scripts/audit-main-writes.ts publishes the status, so every one of them is trusted.
-export const mainWriteGuardWorkflowPaths: readonly string[] = [
-  // Keep the previous publisher as a trust anchor for historical main-write attestations.
-  ".github/workflows/central-ci-dispatch.yml",
-  ".github/workflows/ci-follow-up.yml",
-  ".github/workflows/deploy-source-script.yml",
-  ".github/workflows/intake.yml",
-  ".github/workflows/main-write-guard.yml",
-  ".github/workflows/release-app.yml",
-  ".github/workflows/task-source-dispatch.yml",
-];
+// Workflow provenance is configured by a trusted, versioned policy, never a target PR.
+const gateContract = loadGateContract();
+const ciEvidenceContext = gateContract.status_contexts.ci_evidence;
+export const ciEvidenceWorkflowPaths = gateContract.trusted_workflows.ci_evidence;
+export const ciFailureWorkflowPaths = gateContract.trusted_workflows.ci_failure;
+export const prGateWorkflowPaths = gateContract.trusted_workflows.pr_governance;
+export const mainWriteGuardWorkflowPaths = gateContract.trusted_workflows.main_write_guard;
 
 // The status is written by the run itself, so its creation time must fall inside the run window.
 const runWindowSlackMs = 120_000;
@@ -90,7 +77,7 @@ export function completedPrRunReader(reader: JsonReader, controlRepository: stri
         isJsonRecord(run) &&
         getJsonString(run.repository, "full_name") === controlRepository &&
         getJsonNumber(run, "id") === Number(path.slice(prefix.length)) &&
-        getJsonString(run, "path") === ".github/workflows/handle-pr-dispatch.yml" &&
+        prGateWorkflowPaths.includes(getJsonString(run, "path")) &&
         getJsonString(run, "head_branch") === "main" &&
         getJsonString(run, "status") === "completed" &&
         getJsonString(run, "conclusion") === "success"
@@ -199,7 +186,7 @@ function runInsideWindow(run: JsonRecord, createdAt: number): boolean {
 }
 
 /**
- * A "CI Evidence" status is only a claim: any account that can write commit statuses can set a
+ * A declared CI evidence status is only a claim: any account that can write commit statuses can set a
  * target_url that merely starts with the control run prefix. Look the run up in the control
  * repository and require that it is a successful run of a workflow that publishes this status,
  * on the default branch, and that the status was written while that run was executing.
@@ -241,7 +228,7 @@ export async function hasVerifiedControlStatus(
     return false;
   }
   // A policy-approved no-CI verdict can pass merge admission, but it proves no CI run occurred.
-  if (context === "CI Evidence" && isCiNotRunVerdict(originalStatusDescription(status))) {
+  if (context === ciEvidenceContext && isCiNotRunVerdict(originalStatusDescription(status))) {
     trace("ci-not-run", { context });
     return false;
   }
@@ -315,7 +302,7 @@ export async function hasVerifiedCiEvidence(
   response: unknown,
   options: VerifiedCiEvidenceOptions = {}
 ): Promise<boolean> {
-  return hasVerifiedControlStatus(reader, response, "CI Evidence", options);
+  return hasVerifiedControlStatus(reader, response, ciEvidenceContext, options);
 }
 
 /** A retry budget counts only signed failures from completed central dispatcher runs. */
@@ -327,7 +314,7 @@ export async function hasVerifiedCiFailureStatus(
   const controlRepository = options.controlRepository ?? defaultControlRepository;
   const targetRepository = options.targetRepository ?? "";
   const targetSha = options.targetSha ?? "";
-  const context = "CI Evidence";
+  const context = ciEvidenceContext;
   if (
     !isJsonRecord(status) ||
     getJsonString(status, "state") !== "failure" ||
@@ -354,7 +341,7 @@ export async function hasVerifiedCiFailureStatus(
     isJsonRecord(run) &&
     getJsonString(run.repository, "full_name") === controlRepository &&
     getJsonNumber(run, "id") === runId &&
-    getJsonString(run, "path") === ".github/workflows/central-ci-dispatch.yml" &&
+    ciFailureWorkflowPaths.includes(getJsonString(run, "path")) &&
     getJsonString(run, "head_branch") === "main" &&
     getJsonString(run, "event") === "repository_dispatch" &&
     getJsonString(run, "status") === "completed" &&
@@ -378,7 +365,7 @@ export async function requireVerifiedCiEvidence(
 
   for (let attempt = 0; attempt < statusAttempts; attempt += 1) {
     const response = await reader.get(`repos/${repository}/commits/${sha}/status`);
-    const latest = latestCiStatus(response, "CI Evidence");
+    const latest = latestCiStatus(response, ciEvidenceContext);
     const state = getJsonString(latest, "state");
     const runUrl = getJsonString(latest, "target_url");
     if (state === "success") {
@@ -391,20 +378,20 @@ export async function requireVerifiedCiEvidence(
       )
         return;
       throw new CliError(
-        `::error::CI Evidence for ${commit} was not produced by a successful Action Worker CI run (${runUrl}). Open that run to see why, or merge a new commit so central CI runs again.`,
+        `::error::${ciEvidenceContext} for ${commit} was not produced by a successful Action Worker CI run (${runUrl}). Open that run to see why, or merge a new commit so central CI runs again.`,
         65
       );
     }
     if (state === "failure" || state === "error") {
       throw new CliError(
-        `::error::Source SHA failed CI Evidence: central CI failed for ${commit} (${runUrl}). Open the run to see the failing job, fix it through a pull request, and start this workflow again after the fix is merged and central CI has passed.`,
+        `::error::Source SHA failed ${ciEvidenceContext}: central CI failed for ${commit} (${runUrl}). Open the run to see the failing job, fix it through a pull request, and start this workflow again after the fix is merged and central CI has passed.`,
         65
       );
     }
     if (attempt + 1 < statusAttempts) await sleep(retryDelayMs);
   }
   throw new CliError(
-    `::error::Source SHA has no successful Action Worker CI Evidence (control=${controlRepository}, commit=${commit}). Central CI has not reported for this commit within the wait: open Actions > Central CI Dispatch to see whether its run is still queued or running, and start this workflow again after it has passed. Intake requests central CI for every managed main automatically, so nothing needs to be started by hand.`,
+    `::error::Source SHA has no successful Action Worker ${ciEvidenceContext} (control=${controlRepository}, commit=${commit}). Central CI has not reported for this commit within the wait: open Actions > Central CI Dispatch to see whether its run is still queued or running, and start this workflow again after it has passed. Intake requests central CI for every managed main automatically, so nothing needs to be started by hand.`,
     65
   );
 }
