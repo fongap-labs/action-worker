@@ -34,7 +34,7 @@ test('authenticated Gateway metadata maps to exact, opt-in native model levels',
   assert.equal(parsed[0].nativeConfirmed, false,
     'best-effort levels must not claim that each physical node supports them')
   assert.deepEqual(toHarnessReasoningEfforts(parsed[0]), {
-    low: 'low', medium: 'medium', high: 'high', max: 'max', off: 'none',
+    low: 'low', medium: 'medium', high: 'high', max: 'max',
   })
   assert.ok(Object.isFrozen(parsed) && Object.isFrozen(parsed[0].reasoningEfforts))
   assert.equal('apiKey' in parsed[0], false)
@@ -57,6 +57,55 @@ test('Gateway default differs on the wire from explicit Off for both supported r
   assert.equal(mapGatewayReasoningChoice(model, 'not-offered', 'openai'), undefined)
 })
 
+test('current llm-pi-ai native Off is not a real Gateway disable request', () => {
+  const model = decodeGatewayReasoningCatalog(gateway)[0]
+  const native = toHarnessReasoningEfforts(model)
+  assert.equal(native.off, undefined,
+    'Host llm-pi-ai currently omits reasoning on Off and would trigger Gateway default High')
+  assert.equal(model.reasoningEfforts.off, 'none',
+    'Gateway metadata must retain its distinct explicit Off intent')
+  assert.deepEqual(mapGatewayReasoningChoice(model, 'default', 'openai'), {})
+  assert.deepEqual(mapGatewayReasoningChoice(model, 'off', 'openai'), {
+    reasoning_effort: 'none',
+  })
+  assert.deepEqual(mapGatewayReasoningChoice(model, 'off', 'anthropic'), {
+    thinking: { type: 'disabled' },
+  })
+  const physicallyConfirmed = decodeGatewayReasoningCatalog({
+    object: 'list',
+    data: [{ ...gateway.data[0], reasoning_policy: {
+      ...highBestEffort, native_confirmed: true,
+    } }],
+  })[0]
+  assert.equal(physicallyConfirmed.nativeConfirmed, true)
+  assert.equal(toHarnessReasoningEfforts(physicallyConfirmed).off, undefined,
+    'physical node reasoning support never proves Host Off serialization')
+})
+
+test('unsupported response protocol or contradictory reasoning flags never publish a false Off', () => {
+  const model = decodeGatewayReasoningCatalog(gateway)[0]
+  assert.equal(mapGatewayReasoningChoice(model, 'default', 'gemini'), undefined)
+  assert.equal(mapGatewayReasoningChoice(model, 'off', 'gemini'), undefined)
+  assert.deepEqual(decodeGatewayReasoningCatalog({
+    object: 'list', data: [{ ...gateway.data[0], supports_reasoning: false }],
+  }), [])
+  assert.deepEqual(decodeGatewayReasoningCatalog({
+    object: 'list', data: [{ ...gateway.data[0], reasoningEfforts: {
+      ...gateway.data[0].reasoningEfforts, off: '\nHeader: injection',
+    } }],
+  }), [])
+  const rawOff = decodeGatewayReasoningCatalog({
+    object: 'list', data: [{ ...gateway.data[0], reasoningEfforts: {
+      ...gateway.data[0].reasoningEfforts, off: 'off',
+    } }],
+  })[0]
+  assert.equal(rawOff.reasoningEfforts.off, 'off')
+  assert.equal(toHarnessReasoningEfforts(rawOff).off, undefined)
+  assert.deepEqual(mapGatewayReasoningChoice(rawOff, 'off', 'openai'), {
+    reasoning_effort: 'off',
+  })
+})
+
 test('per-access-key catalog results are decoded independently with no probes or shared caches', () => {
   const owner = decodeGatewayReasoningCatalog(gateway)[0]
   const limited = decodeGatewayReasoningCatalog({
@@ -65,7 +114,7 @@ test('per-access-key catalog results are decoded independently with no probes or
       reasoning_policy: highBestEffort,
     }],
   })[0]
-  assert.deepEqual(toHarnessReasoningEfforts(limited), { low: 'low', off: 'none' })
+  assert.deepEqual(toHarnessReasoningEfforts(limited), { low: 'low' })
   assert.equal(mapGatewayReasoningChoice(limited, 'high', 'openai'), undefined,
     'a level from another key cannot be reused')
   assert.deepEqual(mapGatewayReasoningChoice(owner, 'high', 'openai'), {
@@ -122,7 +171,7 @@ test('native-adapter wire values preserve declared spellings and never reinterpr
     object: 'list',
     data: [{ id: 'Advanced', reasoningEfforts: { max: 'xhigh', off: 'none' } }],
   })[0]
-  assert.deepEqual(toHarnessReasoningEfforts(parsed), { max: 'xhigh', off: 'none' })
+  assert.deepEqual(toHarnessReasoningEfforts(parsed), { max: 'xhigh' })
   assert.deepEqual(mapGatewayReasoningChoice(parsed, 'max', 'openai'), {
     reasoning_effort: 'xhigh',
   })
