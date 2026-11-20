@@ -7,9 +7,10 @@ on:
 permissions:
   contents: read
 
-# One release per artifact. A DSH npm package must be published and registry-verified before the formal tag.
+# Serialize all release requests for the same product, even across different build runs.
+# A DSH npm package must be published and registry-verified before the formal tag.
 concurrency:
-  group: release-${{ github.event.client_payload.source_repository }}-${{ github.event.client_payload.source_sha }}-${{ github.event.client_payload.artifact_name }}-${{ github.event.client_payload.artifact_run_id }}
+  group: release-${{ github.event.client_payload.source_repository }}-${{ github.event.client_payload.artifact_name }}
   cancel-in-progress: false
 
 jobs:
