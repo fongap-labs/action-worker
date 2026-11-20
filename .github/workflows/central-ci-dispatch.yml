@@ -313,6 +313,17 @@ jobs:
             exit 75
           fi
 
+      # Applies to both central sandboxes and source-owned native private CI evidence.
+      # No target code is checked out or executed in this privileged preparation job.
+      - name: Enforce central engineering ownership before CI routing
+        env:
+          AW_CONTROL_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
+          REPOSITORY: ${{ steps.payload.outputs.repository || steps.ref_facts.outputs.repository }}
+          POLICY_BASE_SHA: ${{ steps.merge_ref.outputs.base_sha || steps.ref_facts.outputs.base_sha }}
+          POLICY_HEAD_SHA: ${{ steps.facts.outputs.head_sha || steps.ref_facts.outputs.head_sha }}
+          TARGET_PRIVATE: ${{ steps.visibility.outputs.is_private }}
+        run: node scripts/central-engineering-gate-api.ts "$REPOSITORY" "$POLICY_BASE_SHA" "$POLICY_HEAD_SHA"
+
       - name: Mint CI lease status token
         id: lease_status_app
         if: github.event.action == 'run-central-ci-ref' && steps.ref_facts.outputs.should_run == 'true'
