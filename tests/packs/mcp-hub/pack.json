@@ -20,7 +20,11 @@
       "refresh-test.mjs",
       "authorized-task-intake-test.mjs",
       "client-delete-test.mjs",
-      "runner-registry-test.mjs"
+      "runner-registry-test.mjs",
+      "runner-dispatch-test.mjs",
+      "runner-runtime-client-test.mjs",
+      "github-pr-delivery-test.mjs",
+      "runtime-task-journal-test.mjs"
     ]
   },
   "overlay": true,
