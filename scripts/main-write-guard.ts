@@ -4,6 +4,7 @@ import {
   hasVerifiedCiEvidence,
   hasVerifiedControlStatus,
   mainWriteGuardWorkflowPaths,
+  postMergeRemediationStatusPrefix,
   prGateWorkflowPaths,
   trustedControlRunId,
   type VerificationTrace,
@@ -23,7 +24,7 @@ import {
 import { assertNoOpenMainWriteIncidents } from "./main-write-incidents.ts";
 import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
-import { signedStatusDescription } from "./status-attestation.ts";
+import { originalStatusDescription, signedStatusDescription } from "./status-attestation.ts";
 
 export type MainWriteRequest = {
   schema_version: "1";
@@ -159,6 +160,11 @@ export async function hasVerifiedMainWriteGuard(
         Date.parse(getJsonString(left, "created_at"))
     );
   for (const status of statuses) {
+    // Post-merge repair changes the historical display status but never establishes source trust.
+    if (originalStatusDescription(status).startsWith(postMergeRemediationStatusPrefix)) {
+      trace("post-merge-remediation-not-source-proof", { repository, sha });
+      continue;
+    }
     if (
       await hasVerifiedControlStatus(reader, { statuses: [status] }, "Main Write Guard", {
         controlRepository,

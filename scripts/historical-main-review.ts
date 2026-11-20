@@ -42,7 +42,7 @@ function asTimestamp(value: string): number {
   return value ? Date.parse(value) : Number.NaN;
 }
 
-async function isAncestor(
+export async function isAncestor(
   reader: Pick<GithubReader, "get">,
   repository: string,
   ancestor: string,
@@ -57,7 +57,7 @@ async function isAncestor(
   );
 }
 
-async function verifyMaintainerResolution(
+export async function verifyMaintainerResolution(
   reader: Pick<GithubReader, "get">,
   item: HistoricalMainReview
 ): Promise<void> {
@@ -84,7 +84,7 @@ async function verifyMaintainerResolution(
   );
 }
 
-async function verifyCompletedGovernance(
+export async function verifyCompletedGovernance(
   reader: Pick<GithubReader, "get">,
   repository: string,
   headSha: string,

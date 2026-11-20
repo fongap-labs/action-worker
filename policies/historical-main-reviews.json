@@ -65,5 +65,16 @@
       "approval_issue": 473,
       "root_incident_sha": "09a51ed4fb2fb96685f5aa05eb6566849f90d2bf"
     }
+  ],
+  "post_merge_remediations": [
+    {
+      "repository": "fongap-labs/dsh-plugin",
+      "merge_sha": "09a51ed4fb2fb96685f5aa05eb6566849f90d2bf",
+      "root_incident_sha": "09a51ed4fb2fb96685f5aa05eb6566849f90d2bf",
+      "pr_number": 471,
+      "approval_issue": 473,
+      "ci_run_id": 44681327728,
+      "allowed_changed_files": ["CHANGELOG.md", "packages/dsh-delta-code/README.md"]
+    }
   ]
 }
