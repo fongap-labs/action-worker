@@ -85,7 +85,9 @@ test("opt-in test pack overlays reject non-boolean controls", () => {
   };
   assert.doesNotThrow(() => validatePackManifest("example", valid));
   for (const overlay of [1, "true", null, {}, []]) {
-    assert.throws(() => validatePackManifest("example", JSON.parse(JSON.stringify({ ...valid, overlay }))));
+    assert.throws(() =>
+      validatePackManifest("example", JSON.parse(JSON.stringify({ ...valid, overlay })))
+    );
   }
 });
 
@@ -107,13 +109,17 @@ test("Node flags are centrally allowlisted and cannot execute arbitrary CLI opti
     null,
   ]) {
     if (Array.isArray(node_flags) && node_flags.length === 0) continue;
-    assert.throws(() => validatePackManifest("example", JSON.parse(JSON.stringify({ ...valid, node_flags }))));
+    assert.throws(() =>
+      validatePackManifest("example", JSON.parse(JSON.stringify({ ...valid, node_flags })))
+    );
   }
-  assert.throws(() => validatePackManifest("example", {
-    ...valid,
-    runtime: "python",
-    node_flags: ["--experimental-sqlite"],
-  }));
+  assert.throws(() =>
+    validatePackManifest("example", {
+      ...valid,
+      runtime: "python",
+      node_flags: ["--experimental-sqlite"],
+    })
+  );
 });
 
 test("manifests reject mutable identities, invalid runtime and misleading tiers", () => {
