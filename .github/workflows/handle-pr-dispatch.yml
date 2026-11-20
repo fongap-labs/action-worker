@@ -192,6 +192,13 @@ jobs:
         # Deterministic gates alone authorize auto-merge; advisory AI review is opt-in.
         run: node scripts/resolve-pr-plan.ts "$CONTEXT_JSON" inherit off inherit auto auto "$GITHUB_WORKSPACE/policies"
 
+      - name: Enforce main write CI contract
+        if: steps.base_plan.outputs.ci_required != 'true'
+        shell: bash
+        run: |
+          echo "::error::A managed PR must run verified central CI before merge. The CI plan cannot emit a no-CI success in the Main Write Guard trust chain." >&2
+          exit 1
+
       - name: Validate naming rules
         if: steps.base_plan.outputs.naming_required == 'true'
         env:
@@ -277,32 +284,6 @@ jobs:
           PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
           CI_EVIDENCE_PATH: /tmp/ci-evidence.json
         run: node scripts/wait-ci-evidence.ts "$REPOSITORY" "$HEAD_SHA" "$GITHUB_WORKSPACE/policies/execution.json" "$PR_NUMBER"
-
-      - name: Publish explicit no-CI evidence
-        if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required != 'true'
-        id: no_ci_status_app
-        uses: ./.github/actions/mint-app-token
-        with:
-          client-id: ${{ vars.AW_APP_CLIENT_ID }}
-          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
-          owner: ${{ steps.api_scope.outputs.owner }}
-          repositories: ${{ steps.api_scope.outputs.repository_name }}
-          permission-statuses: write
-
-      - name: Publish explicit no-CI evidence
-        if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required != 'true'
-        env:
-          AW_STATUS_API_TOKEN: ${{ steps.no_ci_status_app.outputs.token }}
-          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
-          REPOSITORY: ${{ steps.payload.outputs.repository }}
-          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
-          RUN_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-
-          node scripts/write-commit-status.ts "$REPOSITORY" "$HEAD_SHA" success \
-            "CI Evidence" "CI not run: the governance plan does not require CI" "$RUN_URL"
 
       - name: Validate CI evidence
         if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'
