@@ -82,7 +82,7 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 | 仓库 | 测试包 | 留在业务仓库中的测试 |
 |---|---|---|
 | ai-gateway | `ai-gateway`（24 个模块） | 无 |
-| mcp-hub | `mcp-hub`（12 个中央模块、48 个回归用例，其中第五批 9 个用例处于双跑验收阶段） | 目前仍有 14 个本地测试模块；第五批验收后可清理 3 个重复模块，仍须保留被其他测试依赖的辅助文件 |
+| mcp-hub | `mcp-hub`（12 个中央模块、48 个回归用例，实时 TAP 基线持续执行） | 第五批已完成双跑与重复清理，仍有 11 个本地模块、保留必要的 Access 辅助文件 |
 | delta | `delta`（6 个模块） | Rust 内联与 crate 测试、`apps/desktop` 的 e2e 与 vitest、3 个小包（如 `packages/delta_worker_sdk`）内的测试 |
 | delta-suite | `delta-suite`（4 个模块） | 编译进固定版本核心的运行时 e2e 测试（`tests/foundation_runtime_e2e`） |
 | internal-vault | `internal-vault`（8 个模块） | 基础设施 shell 测试（`projects/server-edge/tests/*.sh`，需要 root 与 Docker） |
@@ -169,3 +169,13 @@ Claude Code 执行器和 Git 工作树模块的 11 个原始用例不改断言�
 只有 Linux、Security、CI Evidence、PR Governance 全部通过后，
 才可在单独的 PR 中删除 3 个重复业务测试模块。其他本地测试、
 `tests/helpers/access.js`、编译配置、部署与发布流程保持不变。
+
+### 第五批验收结论
+
+- `action-worker#1838` 已合并中央 3 个测试模块与 9 个用例，并将可信基线扩展为 48 个用例。
+- `mcp-hub#108` 固定中央提交 `bf0778b9159eac464d8516ec7753217aa25f16a5`，完成源仓库与中央测试双跑及实时 TAP 基线核验。
+- `mcp-hub#109` 完成删除后验证与中央签名门禁，删除 3 份重复测试。当前为 12 个中央测试模块、11 个本地测试模块。
+- `tests/helpers/access.js` 仍由其他本地测试依赖，不属于本次清理范围；构建、发布和部署配置未改变。
+
+下一阶段候选为客户端删除、授权任务接入和 Runner 注册/派发等仍在本地的合同测试，
+遵循先中央新增、再真实双跑、最后清理重复文件的顺序，不允许以减少测试来满足治理。
