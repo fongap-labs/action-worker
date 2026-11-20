@@ -133,9 +133,11 @@ test("adding a separate CI runner is blocked, project-specific configs remain pe
   assert.deepEqual(inspect("fongap-labs/mcp-hub", [
     { status: "A", path: ".github/scripts/central-ci.sh" },
     { status: "A", path: "scripts/central-ci-windows.mjs" },
+    { status: "A", path: "scripts/build-release.mjs" },
+    { status: "A", path: "scripts/check-gateway.mjs" },
     { status: "A", path: "tsconfig.json" },
     { status: "A", path: "packages/desktop/build-config.json" },
-  ]).map((f) => f.code), ["new-local-ci-runner", "new-local-ci-runner"]);
+  ]).map((f) => f.code), ["new-local-ci-runner", "new-local-ci-runner", "new-local-ci-runner", "new-local-ci-runner"]);
 });
 
 test("git change parser fails closed on invalid, truncated or ambiguous records", () => {
