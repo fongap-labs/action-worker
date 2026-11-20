@@ -1,12 +1,12 @@
 import { readFileSync } from "node:fs";
+import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 import { parseSkillAdmissionPolicy } from "./skill-proposal-reconcile.ts";
-import { validateRepositoryCapability, readRepositoryPolicyText } from "./repository-policy.ts";
 
 async function main(): Promise<void> {
-  const targets = parseSkillAdmissionPolicy(JSON.parse(
-    readFileSync("policies/skill-admission.json", "utf8")
-  ) as unknown).filter(target => target.enabled);
+  const targets = parseSkillAdmissionPolicy(
+    JSON.parse(readFileSync("policies/skill-admission.json", "utf8")) as unknown
+  ).filter((target) => target.enabled);
   if (targets.length !== 1) {
     throw new CliError("Skill admission requires exactly one approved active target.", 65);
   }
@@ -23,11 +23,12 @@ async function main(): Promise<void> {
     "target_repository=" + target.repository,
     "target_owner=" + target.repository.split("/")[0],
     "target_name=" + target.repository.split("/")[1],
-    "read_repositories_csv=" + [...new Set([
-      control.split("/")[1], target.repository.split("/")[1],
-    ])].join(","),
+    "read_repositories_csv=" +
+      [...new Set([control.split("/")[1], target.repository.split("/")[1]])].join(","),
   ]);
-  console.log(related ? "Skill admission intake target selected." : "Unrelated intake target; skipped.");
+  console.log(
+    related ? "Skill admission intake target selected." : "Unrelated intake target; skipped."
+  );
 }
 
 if (isMain(import.meta.url)) main().catch(handleError);
