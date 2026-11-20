@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 集中回归验证 Delta Code 已合并 Skill 候选 PR 的精确 HEAD、必需 CI 状态、Host GitHub 账户隔离和拒绝未完成检查，防止自动晋级绕过门禁。
+
 - 修复: 将 Delta Code 自动 Skill 发现的非法候选逐项测试，保留超过最大输入数量必须失败的独立断言，消除测试自身越界导致的误红叉。
 
 - 新增: 中央 dsh-plugin 测试包验证免费 GitHub Skill 自动发现、固定来源审核、单次惰性 PR 提交及付费/取消/无写入权限时的失败关闭行为。
