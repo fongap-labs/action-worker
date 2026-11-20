@@ -82,6 +82,7 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 | 仓库 | 测试包 | 留在业务仓库中的测试 |
 |---|---|---|
 | ai-gateway | `ai-gateway`（24 个模块） | 无 |
+| mcp-hub | `mcp-hub`（首批 2 个 Runner 协议与运行时隔离模块，overlay 阶段） | 历史 23 个测试文件继续在原位置运行，中央验证通过后分批删除 |
 | delta | `delta`（6 个模块） | Rust 内联与 crate 测试、`apps/desktop` 的 e2e 与 vitest、3 个小包（如 `packages/delta_worker_sdk`）内的测试 |
 | delta-suite | `delta-suite`（4 个模块） | 编译进固定版本核心的运行时 e2e 测试（`tests/foundation_runtime_e2e`） |
 | internal-vault | `internal-vault`（8 个模块） | 基础设施 shell 测试（`projects/server-edge/tests/*.sh`，需要 root 与 Docker） |
@@ -98,3 +99,15 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 不可外置路径可以新增本地测试。旧测试的修改仅作为迁移过渡期兼容，不应被
 理解为新建本地测试的许可。新业务仓库应先创建中央测试包及基线，再接入
 真实中央 CI；不得为了通过门禁而增加空测试或绕过差异检查。
+
+## 10. 中央测试迁移第一阶段
+
+先将 Runner 协议与 Runtime/Runner 凭据隔离的 8 个原始用例移至可信
+`tests/packs/mcp-hub/`。中央沙箱通过可信 `pack.json` 的 `overlay: true`
+自动运行测试包；原有 `npm run validate` 不变，迁移期间两套用例均运行。
+Node runtime flags 由中央白名单校验，拒绝业务仓库输入任意 Node 参数。
+
+退出 overlay 阶段的前置条件：真实 mcp-hub PR 通过完整中央 CI；获取
+原始运行时用例清单并与中心测试包核对；迁移剩余用例并验证无缺失；
+最后以经中央批准的可信构建入口替代业务仓库现有的构建与测试执行脚本。
+未经上述验证，不删除本地原测试、helper、锁文件或项目编译配置。

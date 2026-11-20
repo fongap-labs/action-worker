@@ -21,6 +21,8 @@ const here = dirname(fileURLToPath(import.meta.url));
  * @property {"node" | "python"} [runtime] "node" or "python".
  * @property {string} [suffix] File-name suffix of a node pack's suites.
  * @property {string[]} [command] Command that starts a python pack.
+ * @property {string[]} [node_flags] Allowlisted Node runtime flags for a Node test pack.
+ * @property {boolean} [overlay] When true, run in addition to legacy CI.
  * @property {{ gate?: string[] }} [tiers] Suites that belong to the gate tier.
  * @property {string[]} [env] Process.env names forwarded to the test subprocess.
  */
@@ -65,6 +67,9 @@ export function validatePackManifest(packName, manifest) {
   ) {
     throw new Error(`pack ${packName}: invalid manifest identity, schema or runtime`);
   }
+  if (manifest.overlay !== undefined && typeof manifest.overlay !== "boolean") {
+    throw new Error(`pack ${packName}: overlay must be a boolean`);
+  }
   if (
     manifest.env !== undefined &&
     (!Array.isArray(manifest.env) ||
@@ -79,6 +84,21 @@ export function validatePackManifest(packName, manifest) {
     if (manifest.command !== undefined) {
       throw new Error(`pack ${packName}: node packs cannot declare a python command`);
     }
+    const flags = manifest.node_flags ?? [];
+    if (
+      (manifest.node_flags !== undefined && !Array.isArray(manifest.node_flags)) ||
+      !Array.isArray(flags) ||
+      flags.length !== new Set(flags).size ||
+      !flags.every(
+        (flag) => flag === "--experimental-strip-types" || flag === "--experimental-sqlite"
+      )
+    ) {
+      throw new Error(`pack ${packName}: unsupported or duplicate node runtime flag`);
+    }
+  } else if (
+    manifest.node_flags !== undefined
+  ) {
+    throw new Error(`pack ${packName}: python packs cannot declare node runtime flags`);
   } else if (
     manifest.command !== undefined &&
     (!Array.isArray(manifest.command) ||
@@ -176,6 +196,7 @@ function main() {
     const run = spawnSync(
       process.execPath,
       [
+        ...(manifest.node_flags ?? []),
         "--test",
         "--test-concurrency=4",
         "--import",
