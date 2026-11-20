@@ -205,7 +205,10 @@ export function runOwnershipGate(
 if (isMain(import.meta.url)) {
   const [targetRoot, base, head, repository] = process.argv.slice(2);
   if (!targetRoot || !base || !head || !repository) {
-    throw new CliError("Usage: central-engineering-gate.ts <target> <base-sha> <head-sha> <repository>", 64);
+    throw new CliError(
+      "Usage: central-engineering-gate.ts <target> <base-sha> <head-sha> <repository>",
+      64
+    );
   }
   try {
     runOwnershipGate(targetRoot, base, head, repository);
