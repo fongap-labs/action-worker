@@ -3,12 +3,13 @@ import { readFileSync } from "node:fs";
 import { isApprovedCompletedMerge } from "./auto-merge-pr.ts";
 import {
   getGithubJsonIfExists, getJsonArray, getJsonString, isJsonRecord,
-  statusAwareReader,
+  statusAwareReader, type GithubReader,
 } from "./github-api.ts";
 import { hasVerifiedCiEvidence, trustedControlRunId } from "./ci-evidence.ts";
 import { validateRepositoryCapability, readRepositoryPolicyText } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { latestAttestedStatus } from "./status-attestation.ts";
+import { hasVerifiedMainWriteGuard } from "./main-write-guard.ts";
 
 const SHA = /^[0-9a-f]{40}$/;
 const REPOSITORY = /^[a-z0-9-]{1,39}\/[a-z0-9_.-]{1,100}$/;
@@ -183,12 +184,8 @@ export function verifyMergedSkillProposal(
   };
 }
 
-export interface SkillPromotionReader {
-  get(path: string): Promise<unknown>;
-}
-
 export async function inspectSkillProposals(
-  reader: SkillPromotionReader, target: SkillAdmissionTarget,
+  reader: GithubReader, target: SkillAdmissionTarget,
   controlRepository: string,
 ): Promise<SkillPromotionCandidate | undefined> {
   const closed = getJsonArray(await reader.get(
@@ -241,6 +238,11 @@ export async function inspectSkillProposals(
       pr, statuses, files, manifest, target, mergedGuard, controlRepository
     );
     if (!candidate) continue;
+    if (!(await hasVerifiedMainWriteGuard(
+      reader, mergedGuard, target.repository, merge
+    ))) {
+      throw new CliError("Merged Skill proposal has no verified trusted Main Write Guard.", 75);
+    }
     const branchPath = "repos/" + target.repository +
       "/git/ref/heads/chore/skill-promote-" + candidate.identity;
     // A partial existing branch is not retried or overwritten. Manual incident
@@ -295,10 +297,10 @@ async function main(): Promise<void> {
     const pluginGuard = await reader.get(
       "repos/" + target.repository + "/commits/" + pluginMainSha + "/status"
     );
-    if (latestAttestedStatus(pluginGuard, {
-      repository: target.repository, sha: pluginMainSha, context: "Main Write Guard",
-    })?.state !== "success") {
-      throw new CliError("Plugin source code has no signed current Main Write Guard.", 75);
+    if (!(await hasVerifiedMainWriteGuard(
+      reader, pluginGuard, target.repository, pluginMainSha
+    ))) {
+      throw new CliError("Plugin source code has no verified current Main Write Guard.", 75);
     }
     await appendLines(process.env.GITHUB_OUTPUT, [
       "eligible=true",
