@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 中央验证 Delta Code 声明式能力依赖、Host 就绪检查点、重复执行屏蔽及可选关联不触发执行，保持现有合同和安全门禁。
+
 - 修复: 为 ai-gateway Cloudflare Worker 批量 Secret 同步补充集中门禁回归，验证每 Worker 单次批量更新、完整回执、元数据缺失时失败关闭，不再重复逐条写入。
 
 - 新增: Intake 自动续接已合并的免费 Skill PR，核验签名 CI、来源 SHA 和权限后，仅创建独立目录升级 PR。
