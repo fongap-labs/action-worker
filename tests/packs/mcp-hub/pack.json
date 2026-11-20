@@ -9,7 +9,9 @@
       "runner-protocol-test.mjs",
       "coding-stack-isolation-test.mjs",
       "claude-code-executor-test.mjs",
-      "git-worktree-preparer-test.mjs"
+      "git-worktree-preparer-test.mjs",
+      "security-test.mjs",
+      "crypto-readiness-test.mjs"
     ]
   },
   "overlay": true
