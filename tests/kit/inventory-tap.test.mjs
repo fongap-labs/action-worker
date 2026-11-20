@@ -46,8 +46,12 @@ test("trusted TAP inventory rejects fewer executions or missing TAP footer", () 
 });
 
 test("trusted TAP inventory rejects failed tests and malformed reference manifests", () => {
-  const failed = output.replace("ok 2 - second contract", "not ok 2 - second contract")
+  const failed = output
+    .replace("ok 2 - second contract", "not ok 2 - second contract")
     .replace("# fail 0", "# fail 1");
   assert.notDeepEqual(verifyTapInventory(baseline, failed), []);
-  assert.match(verifyTapInventory({ schema_version: 1, runtime: "node" }, output).join(" "), /invalid/);
+  assert.match(
+    verifyTapInventory({ schema_version: 1, runtime: "node" }, output).join(" "),
+    /invalid/
+  );
 });
