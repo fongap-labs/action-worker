@@ -152,5 +152,5 @@ test("central preparation gate covers Linux and native-private CI before dispatc
   assert.ok(position > workflow.indexOf("- name: Validate requested revision"));
   assert.ok(position < workflow.indexOf("native-private-pilot:"));
   assert.ok(position < workflow.indexOf("linux:"));
-  assert.match(workflow, /node scripts\/central-engineering-gate-api\.ts/);
+  assert.match(workflow, /node scripts\/engineering-gate-api\.ts/);
 });
