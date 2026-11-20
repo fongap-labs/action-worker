@@ -143,10 +143,31 @@ test("adding a separate CI runner is blocked, project-specific configs remain pe
   );
 });
 
+test("changes to legacy CI control and deletion of mandatory workflow cannot bypass the gate", () => {
+  assert.deepEqual(
+    inspect("fongap-labs/dsh-plugin", [
+      { status: "M", path: ".github/scripts/central-ci.sh" },
+      { status: "D", path: ciPath },
+      { status: "D", path: notifyPath },
+      { status: "D", path: ".github/execution-manifest.json" },
+      { status: "D", path: ".github/workflows/legacy-local-build.yml" },
+    ]).map((f) => f.code),
+    [
+      "project-owned-ci-control-modified",
+      "required-workflow-deleted",
+      "required-workflow-deleted",
+      "execution-manifest-deleted",
+    ]
+  );
+});
+
 test("git change parser fails closed on invalid, truncated or ambiguous records", () => {
   assert.deepEqual(parseChangedFiles("A\0tests/new.test.mjs\0M\0src/index.ts\0"), [
     { status: "A", path: "tests/new.test.mjs" },
     { status: "M", path: "src/index.ts" },
+  ]);
+  assert.deepEqual(parseChangedFiles("D\0.github/workflows/ci.yml\0"), [
+    { status: "D", path: ".github/workflows/ci.yml" },
   ]);
   assert.deepEqual(parseChangedFiles(""), []);
   assert.throws(() => parseChangedFiles("A\0src/x"), /incomplete/);
