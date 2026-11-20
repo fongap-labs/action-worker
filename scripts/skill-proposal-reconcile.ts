@@ -145,6 +145,7 @@ function verifiedManifestSource(
     !Array.isArray(manifest.staticAudit.riskIndicators) ||
     manifest.staticAudit.riskIndicators.length !== 0 ||
     pinnedSkillProposalIdentity(manifest.source) !== identity
+  ) {
     throw new CliError("Skill proposal manifest has unverified free/safety evidence.", 65);
   }
   return {
