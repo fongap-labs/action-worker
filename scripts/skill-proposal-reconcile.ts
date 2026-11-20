@@ -1,15 +1,19 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { isApprovedCompletedMerge } from "./auto-merge-pr.ts";
-import {
-  getGithubJsonIfExists, getJsonArray, getJsonString, isJsonRecord,
-  statusAwareReader, type GithubReader,
-} from "./github-api.ts";
 import { hasVerifiedCiEvidence, trustedControlRunId } from "./ci-evidence.ts";
-import { validateRepositoryCapability, readRepositoryPolicyText } from "./repository-policy.ts";
+import {
+  type GithubReader,
+  getGithubJsonIfExists,
+  getJsonArray,
+  getJsonString,
+  isJsonRecord,
+  statusAwareReader,
+} from "./github-api.ts";
+import { hasVerifiedMainWriteGuard } from "./main-write-guard.ts";
+import { readRepositoryPolicyText, validateRepositoryCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { latestAttestedStatus } from "./status-attestation.ts";
-import { hasVerifiedMainWriteGuard } from "./main-write-guard.ts";
 
 const SHA = /^[0-9a-f]{40}$/;
 const REPOSITORY = /^[a-z0-9-]{1,39}\/[a-z0-9_.-]{1,100}$/;
@@ -42,25 +46,34 @@ export interface SkillPromotionCandidate {
 
 /** A versioned policy, not workflow input or an environment-granted repository. */
 export function parseSkillAdmissionPolicy(raw: unknown): SkillAdmissionTarget[] {
-  if (!isJsonRecord(raw) || raw.schema_version !== 1 ||
-      !Array.isArray(raw.targets) || raw.targets.length < 1 || raw.targets.length > 8) {
+  if (
+    !isJsonRecord(raw) ||
+    raw.schema_version !== 1 ||
+    !Array.isArray(raw.targets) ||
+    raw.targets.length < 1 ||
+    raw.targets.length > 8
+  ) {
     throw new CliError("Invalid Skill admission policy.", 65);
   }
   const seen = new Set<string>();
   const targets: SkillAdmissionTarget[] = [];
   for (const item of raw.targets) {
-    if (!isJsonRecord(item) ||
-        Object.keys(item).sort().join(",") !==
-          "catalog_path,enabled,max_closed_prs,proposal_prefix,repository" ||
-        typeof item.repository !== "string" || !REPOSITORY.test(item.repository) ||
-        typeof item.proposal_prefix !== "string" ||
-        !/^packages\/[a-z0-9/-]+\/$/.test(item.proposal_prefix) ||
-        typeof item.catalog_path !== "string" ||
-        !/^packages\/[a-z0-9/-]+\.ts$/.test(item.catalog_path) ||
-        typeof item.enabled !== "boolean" ||
-        !Number.isSafeInteger(item.max_closed_prs) ||
-        Number(item.max_closed_prs) < 1 || Number(item.max_closed_prs) > 100 ||
-        seen.has(item.repository)) {
+    if (
+      !isJsonRecord(item) ||
+      Object.keys(item).sort().join(",") !==
+        "catalog_path,enabled,max_closed_prs,proposal_prefix,repository" ||
+      typeof item.repository !== "string" ||
+      !REPOSITORY.test(item.repository) ||
+      typeof item.proposal_prefix !== "string" ||
+      !/^packages\/[a-z0-9/-]+\/$/.test(item.proposal_prefix) ||
+      typeof item.catalog_path !== "string" ||
+      !/^packages\/[a-z0-9/-]+\.ts$/.test(item.catalog_path) ||
+      typeof item.enabled !== "boolean" ||
+      !Number.isSafeInteger(item.max_closed_prs) ||
+      Number(item.max_closed_prs) < 1 ||
+      Number(item.max_closed_prs) > 100 ||
+      seen.has(item.repository)
+    ) {
       throw new CliError("Invalid or duplicate Skill admission target.", 65);
     }
     seen.add(item.repository);
@@ -70,42 +83,68 @@ export function parseSkillAdmissionPolicy(raw: unknown): SkillAdmissionTarget[] 
 }
 
 export function pinnedSkillProposalIdentity(source: unknown): string {
-  if (!isJsonRecord(source) || typeof source.repository !== "string" ||
-      !REPOSITORY.test(source.repository) ||
-      typeof source.path !== "string" ||
-      !/^skills\/[a-z0-9-]+\/SKILL\.md$/.test(source.path) ||
-      !["commit", "sourceBlobSha", "licenseBlobSha"].every(
-        key => typeof source[key] === "string" && SHA.test(source[key] as string)
-      )) {
+  if (
+    !isJsonRecord(source) ||
+    typeof source.repository !== "string" ||
+    !REPOSITORY.test(source.repository) ||
+    typeof source.path !== "string" ||
+    !/^skills\/[a-z0-9-]+\/SKILL\.md$/.test(source.path) ||
+    !["commit", "sourceBlobSha", "licenseBlobSha"].every(
+      (key) => typeof source[key] === "string" && SHA.test(source[key] as string)
+    )
+  ) {
     throw new CliError("Invalid pinned Skill source.", 65);
   }
   const parts = [
-    source.repository.toLowerCase(), source.path, source.commit,
-    source.sourceBlobSha, source.licenseBlobSha,
+    source.repository.toLowerCase(),
+    source.path,
+    source.commit,
+    source.sourceBlobSha,
+    source.licenseBlobSha,
   ] as string[];
   return createHash("sha256").update(parts.join("\0")).digest("hex").slice(0, 20);
 }
 
-function verifiedManifestSource(manifest: unknown, identity: string): SkillPromotionCandidate["source"] {
-  if (!isJsonRecord(manifest) ||
-      Object.keys(manifest).sort().join(",") !==
-        "approvalRequired,autoEnabled,executable,schemaVersion,source,state,staticAudit" ||
-      manifest.schemaVersion !== 1 || manifest.state !== "pending-ci-review" ||
-      manifest.approvalRequired !== true || manifest.autoEnabled !== false ||
-      manifest.executable !== false ||
-      !isJsonRecord(manifest.source) || !isJsonRecord(manifest.staticAudit) ||
-      Object.keys(manifest.source).sort().join(",") !==
-        "commit,license,licenseBlobSha,path,repository,sourceBlobSha" ||
-      !["MIT","Apache-2.0","BSD-2-Clause","BSD-3-Clause","ISC","MPL-2.0","GPL-2.0-only","GPL-3.0-only","LGPL-2.1-only","LGPL-3.0-only","AGPL-3.0-only","Unlicense","CC0-1.0","CC-BY-4.0"].includes(
-        getJsonString(manifest.source, "license")
-      ) ||
-      Object.keys(manifest.staticAudit).sort().join(",") !==
-        "freeUseEvidence,riskIndicators,status" ||
-      manifest.staticAudit.status !== "static-review-ready" ||
-      manifest.staticAudit.freeUseEvidence !== true ||
-      !Array.isArray(manifest.staticAudit.riskIndicators) ||
-      manifest.staticAudit.riskIndicators.length !== 0 ||
-      pinnedSkillProposalIdentity(manifest.source) !== identity) {
+function verifiedManifestSource(
+  manifest: unknown,
+  identity: string
+): SkillPromotionCandidate["source"] {
+  if (
+    !isJsonRecord(manifest) ||
+    Object.keys(manifest).sort().join(",") !==
+      "approvalRequired,autoEnabled,executable,schemaVersion,source,state,staticAudit" ||
+    manifest.schemaVersion !== 1 ||
+    manifest.state !== "pending-ci-review" ||
+    manifest.approvalRequired !== true ||
+    manifest.autoEnabled !== false ||
+    manifest.executable !== false ||
+    !isJsonRecord(manifest.source) ||
+    !isJsonRecord(manifest.staticAudit) ||
+    Object.keys(manifest.source).sort().join(",") !==
+      "commit,license,licenseBlobSha,path,repository,sourceBlobSha" ||
+    ![
+      "MIT",
+      "Apache-2.0",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "ISC",
+      "MPL-2.0",
+      "GPL-2.0-only",
+      "GPL-3.0-only",
+      "LGPL-2.1-only",
+      "LGPL-3.0-only",
+      "AGPL-3.0-only",
+      "Unlicense",
+      "CC0-1.0",
+      "CC-BY-4.0",
+    ].includes(getJsonString(manifest.source, "license")) ||
+    Object.keys(manifest.staticAudit).sort().join(",") !==
+      "freeUseEvidence,riskIndicators,status" ||
+    manifest.staticAudit.status !== "static-review-ready" ||
+    manifest.staticAudit.freeUseEvidence !== true ||
+    !Array.isArray(manifest.staticAudit.riskIndicators) ||
+    manifest.staticAudit.riskIndicators.length !== 0 ||
+    pinnedSkillProposalIdentity(manifest.source) !== identity
     throw new CliError("Skill proposal manifest has unverified free/safety evidence.", 65);
   }
   return {
