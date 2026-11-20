@@ -404,6 +404,7 @@ test("runtime and machine policies preserve trust boundaries", async () => {
   assert.equal("gate_jobs" in ciPolicy, false);
   assert.equal("central_repositories" in ciPolicy, false);
   assert.equal(ciPolicy.status_context, "CI Evidence");
+  assert.equal(ciPolicy.required_for_all_prs, true);
   assert.equal(ciPolicy.timeout_minutes, 120);
 
   const security = await json("policies/security.json");
@@ -492,7 +493,6 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
     "Enforce main write CI contract",
     "steps.base_plan.outputs.ci_required != 'true'",
     "A managed PR must run verified central CI before merge",
-    "CI Evidence",
   ]);
   assert.doesNotMatch(workflow, /scripts\/[A-Za-z0-9-]+\.sh/);
   assert.doesNotMatch(
@@ -502,7 +502,10 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   assert.doesNotMatch(workflow, /pr-governance-.*github\.sha/);
   assert.doesNotMatch(workflow, /bash\s+target\//);
   assert.doesNotMatch(workflow, /AW_REVIEW_ENGINE_REPOSITORY/);
-  assert.doesNotMatch(workflow, /Publish explicit no-CI evidence|CI not run: the governance plan does not require CI/);
+  assert.doesNotMatch(
+    workflow,
+    /Publish explicit no-CI evidence|CI not run: the governance plan does not require CI/
+  );
   assert.match(workflow, /AW_AI_AGENT_CONFIG:\s*\$\{\{ vars\.AW_AI_AGENT_CONFIG \}\}/);
   assert.doesNotMatch(workflow, /AW_IS_AI_REVIEW_ENABLED/);
   const order = [
