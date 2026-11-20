@@ -7,7 +7,7 @@ import {
   parseGateContract,
   requiredGateContexts,
   workflowTrustRoles,
-} from "../scripts/gate-contract.ts";
+} from "../scripts/governance-gate-contract.ts";
 
 function fixture(): Record<string, unknown> {
   return JSON.parse(readFileSync(new URL("../policies/gate-contract.json", import.meta.url), "utf8")) as Record<string, unknown>;
@@ -50,6 +50,7 @@ test("untrusted publisher paths and empty workflow trust sets are rejected", () 
 
   const duplicate = fixture();
   const paths = (duplicate.trusted_workflows as Record<string, string[]>).ci_evidence;
+  assert.ok(paths);
   paths.push(paths[0]!);
   assert.throws(() => parseGateContract(duplicate), /untrusted or duplicate/);
 });
