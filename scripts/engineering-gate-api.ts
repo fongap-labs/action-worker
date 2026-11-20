@@ -39,7 +39,14 @@ export function parseCompareFiles(response: unknown): ChangedFile[] {
     if (status === null) {
       throw new CliError("GitHub comparison contains an unsupported change status.", 65);
     }
-    mapped.push({ status, path: entry.filename });
+    if (entry.sha !== undefined && (typeof entry.sha !== "string" || !SHA.test(entry.sha))) {
+      throw new CliError("GitHub comparison contains an invalid file blob SHA.", 65);
+    }
+    mapped.push({
+      status,
+      path: entry.filename,
+      ...(entry.sha === undefined ? {} : { sha: entry.sha as string }),
+    });
   }
   return mapped;
 }
@@ -79,6 +86,8 @@ export async function checkGithubEngineeringOwnership(
     throw new CliError("GitHub comparison does not match the immutable CI revision.", 65);
   }
   const files = parseCompareFiles(result);
+  // Private workflow pins are checked using GitHub's commit-bound blob identity.
+  // Never fetch private workflow contents into the public control runner.
   const contents = new Map<string, string>();
   for (const entry of files) {
     if (!entry.path.startsWith(".github/workflows/")) continue;
