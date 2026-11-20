@@ -10,17 +10,24 @@ import {
 } from "../scripts/governance-gate-contract.ts";
 
 function fixture(): Record<string, unknown> {
-  return JSON.parse(readFileSync(new URL("../policies/gate-contract.json", import.meta.url), "utf8")) as Record<string, unknown>;
+  return JSON.parse(
+    readFileSync(new URL("../policies/gate-contract.json", import.meta.url), "utf8")
+  ) as Record<string, unknown>;
 }
 
 test("gate identities and trusted publishers are declared in one versioned policy", () => {
   const contract = loadGateContract();
   assert.equal(contract.schema_version, 1);
-  assert.deepEqual(requiredGateContexts(contract), gateRoles.map((role) => contract.status_contexts[role]));
+  assert.deepEqual(
+    requiredGateContexts(contract),
+    gateRoles.map((role) => contract.status_contexts[role])
+  );
   assert.equal(new Set(requiredGateContexts(contract)).size, gateRoles.length);
   for (const role of workflowTrustRoles) {
     assert.ok(contract.trusted_workflows[role].length > 0);
-    assert.ok(contract.trusted_workflows[role].every((path) => path.startsWith(".github/workflows/")));
+    assert.ok(
+      contract.trusted_workflows[role].every((path) => path.startsWith(".github/workflows/"))
+    );
   }
 });
 

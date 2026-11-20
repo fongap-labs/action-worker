@@ -22,12 +22,17 @@ function object(value: unknown, field: string): Record<string, unknown> {
 }
 
 function exactKeys(value: Record<string, unknown>, keys: readonly string[], field: string): void {
-  if (
-    Object.keys(value).length !== keys.length ||
-    keys.some((key) => !Object.hasOwn(value, key))
-  ) {
+  if (Object.keys(value).length !== keys.length || keys.some((key) => !Object.hasOwn(value, key))) {
     throw new CliError(`Invalid gate contract: ${field} has missing or unsupported keys.`, 65);
   }
+}
+
+function hasControlCharacters(value: string): boolean {
+  for (const char of value) {
+    const code = char.charCodeAt(0);
+    if (code < 32 || code === 127) return true;
+  }
+  return false;
 }
 
 function nonemptyString(value: unknown, field: string): string {
@@ -36,7 +41,7 @@ function nonemptyString(value: unknown, field: string): string {
     value.trim() !== value ||
     value.length === 0 ||
     value.length > 100 ||
-    /[\u0000-\u001f\u007f]/.test(value)
+    hasControlCharacters(value)
   ) {
     throw new CliError(`Invalid gate contract: ${field} must be a nonempty safe string.`, 65);
   }
@@ -75,14 +80,20 @@ export function parseGateContract(raw: unknown): GateContract {
       paths.some((path: string) => !/^\.github\/workflows\/[a-zA-Z0-9_.-]+\.ya?ml$/.test(path)) ||
       new Set(paths).size !== paths.length
     ) {
-      throw new CliError(`Invalid gate contract: untrusted or duplicate workflow path for ${role}.`, 65);
+      throw new CliError(
+        `Invalid gate contract: untrusted or duplicate workflow path for ${role}.`,
+        65
+      );
     }
     workflows[role] = paths;
   }
 
   const declaredAdvisory = object(root.advisory, "advisory");
   exactKeys(declaredAdvisory, ["merge_blocked_label"], "advisory");
-  const mergeBlockedLabel = nonemptyString(declaredAdvisory.merge_blocked_label, "advisory.merge_blocked_label");
+  const mergeBlockedLabel = nonemptyString(
+    declaredAdvisory.merge_blocked_label,
+    "advisory.merge_blocked_label"
+  );
   if (!/^[a-z0-9][a-z0-9-]*$/.test(mergeBlockedLabel)) {
     throw new CliError("Invalid gate contract: merge-blocked label is malformed.", 65);
   }
@@ -99,7 +110,9 @@ export function parseGateContract(raw: unknown): GateContract {
 export function loadGateContract(): GateContract {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(readFileSync(new URL("../policies/gate-contract.json", import.meta.url), "utf8"));
+    parsed = JSON.parse(
+      readFileSync(new URL("../policies/gate-contract.json", import.meta.url), "utf8")
+    );
   } catch {
     throw new CliError("Gate contract is unavailable or malformed.", 65);
   }
