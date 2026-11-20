@@ -5,5 +5,7 @@
   "suffix": "-test.mjs",
   "overlay": true,
   "node_flags": ["--experimental-strip-types"],
-  "tiers": { "gate": ["gateway-reasoning-contract-test.mjs"] }
+  "tiers": {
+    "gate": ["gateway-reasoning-contract-test.mjs", "delta-code-semantic-capabilities-test.mjs"]
+  }
 }
