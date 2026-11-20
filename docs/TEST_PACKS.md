@@ -88,3 +88,13 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 | app-source | `app-source`（1 个模块，license-service 的数据库测试） | Rust crate 测试（`crates/*/tests`）；`legacy/test_*.py` 是 CI 从不运行的遗留脚本，不属于测试包 |
 | external-vault | 无 | 无测试套件；CI 只运行 manifest 与 secret scan 检查脚本 |
 | AssHub | 无 | 空仓库 |
+
+## 9. 新增测试的中央归属门禁
+
+`policies/engineering-ownership.json` 是新增测试与工程入口的唯一中央策略。
+`scripts/engineering-gate-api.ts` 与 `scripts/central-engineering-gate.ts`
+在中央控制面及 Linux 沙箱检查提交增量：禁止
+新增项目本地测试、项目级 CI 脚本和未经中央模板确认的工作流。仅策略明确的
+不可外置路径可以新增本地测试。旧测试的修改仅作为迁移过渡期兼容，不应被
+理解为新建本地测试的许可。新业务仓库应先创建中央测试包及基线，再接入
+真实中央 CI；不得为了通过门禁而增加空测试或绕过差异检查。

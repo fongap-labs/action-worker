@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "control_repository": "fongap-labs/action-worker",
+  "workflow_templates": {
+    ".github/workflows/ci.yml": "templates/bridge/dispatch-central-ci.yml",
+    ".github/workflows/notify-action-worker.yml": "templates/bridge/notify-action-worker.yml",
+    ".github/workflows/private-ref-ci.yml": "templates/bridge/private-ref-ci.yml",
+    ".github/workflows/private-source-ci.yml": "templates/bridge/private-source-ci.yml"
+  },
+  "local_test_exceptions": [
+    {
+      "repository": "fongap-labs/delta-suite",
+      "path_prefix": "tests/foundation_runtime_e2e/",
+      "reason": "Runtime e2e is compiled into a fixed-version core and requires its build graph."
+    },
+    {
+      "repository": "fongap-labs/delta",
+      "path_prefix": "apps/desktop/",
+      "reason": "Desktop UI and Playwright component tests require the local desktop toolchain."
+    },
+    {
+      "repository": "fongap-labs/delta",
+      "path_prefix": "packages/delta_worker_sdk/",
+      "reason": "SDK package-internal checks depend on the package-local compiler context."
+    },
+    {
+      "repository": "fongap-labs/app-source",
+      "path_prefix": "projects/SecurePigeon/crates/",
+      "reason": "Rust crate-local integration and fuzz tests require the Cargo crate build graph."
+    },
+    {
+      "repository": "fongap-labs/internal-vault",
+      "path_prefix": "projects/server-edge/tests/",
+      "reason": "Infrastructure shell tests require root and Docker in their project environment."
+    }
+  ]
+}
