@@ -13,11 +13,14 @@ import {
   isJsonRecord,
   runGithubCli,
 } from "./github-api.ts";
+import { loadGateContract, requiredGateContexts } from "./governance-gate-contract.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { isReviewComplete } from "./validate-review-result.ts";
 
 const marker = "<!-- action-worker-pr-governance -->";
-const mergeBlockedLabel = "merge-blocked";
+const gateContract = loadGateContract();
+const gateContexts = requiredGateContexts(gateContract);
+const mergeBlockedLabel = gateContract.advisory.merge_blocked_label;
 
 export function requiresMergeBlockedLabel(status: string): boolean {
   return status !== "success";
@@ -43,7 +46,7 @@ export function evaluateMergeDisplayGate(
     return { current: false, status: "failure" };
   }
 
-  const allGatesPassed = ["PR Governance", "CI Evidence", "validate-merge"].every((context) =>
+  const allGatesPassed = gateContexts.every((context) =>
     hasTrustedSuccessfulCiEvidence(
       combinedStatus,
       context,
@@ -63,7 +66,7 @@ export function blockedGateDiagnostics(
   targetSha: string
 ): string[] {
   const lines: string[] = [];
-  for (const context of ["PR Governance", "CI Evidence", "validate-merge"]) {
+  for (const context of gateContexts) {
     if (
       hasTrustedSuccessfulCiEvidence(
         combinedStatus,
@@ -154,10 +157,15 @@ export function buildReview(
   gateDiagnostics: readonly string[] = []
 ): string {
   const gate = status === "success" ? "PASS" : "FAIL";
-  const lines = [marker, "## PR Governance", "", `- Gate: **${gate}**`];
+  const lines = [
+    marker,
+    `## ${gateContract.status_contexts.pr_governance}`,
+    "",
+    `- Gate: **${gate}**`,
+  ];
   if (requiresMergeBlockedLabel(status)) {
     lines.push(
-      "- **DO NOT MERGE:** The current PR head is not authorized for merging. Wait until `PR Governance`, `CI Evidence`, and `validate-merge` are all successful on the exact current commit. GitHub may still show the Merge button for private repositories without enforceable branch protection."
+      `- **DO NOT MERGE:** The current PR head is not authorized for merging. Wait until ${gateContexts.map((context) => `\`${context}\``).join(", ")} are all successful on the exact current commit. GitHub may still show the Merge button for private repositories without enforceable branch protection.`
     );
   }
   if (status === "failure" && gateDiagnostics.length > 0) {
