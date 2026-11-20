@@ -6,8 +6,8 @@ import {
   toHarnessReasoningEfforts,
   mapGatewayReasoningChoice,
   previewGatewayReasoningSync,
-} from '#target/packages/dsh-delta-suite/src/delta-suite-adapter/gateway-reasoning.ts'
-import { applyApprovedGatewayReasoningSync } from '#target/packages/dsh-delta-suite/src/delta-suite-adapter/gateway-reasoning-apply.ts'
+} from '#target/packages/dsh-delta-suite/lib/delta-suite-adapter/gateway-reasoning.js'
+import { applyApprovedGatewayReasoningSync } from '#target/packages/dsh-delta-suite/lib/delta-suite-adapter/gateway-reasoning-apply.js'
 
 const source = readTargetText('packages', 'dsh-delta-suite', 'src', 'delta-suite-adapter', 'gateway-reasoning.ts')
 
