@@ -56,6 +56,11 @@ export async function checkGithubEngineeringOwnership(
   }
   if (repository === policy.control_repository) return;
   const result = await get("repos/" + repository + "/compare/" + base + "..." + head);
+  if (!isJsonRecord(result) || !isJsonRecord(result.base_commit) ||
+      !isJsonRecord(result.head_commit) ||
+      result.base_commit.sha !== base || result.head_commit.sha !== head) {
+    throw new CliError("GitHub comparison does not match the immutable CI revision.", 65);
+  }
   const files = parseCompareFiles(result);
   const contents = new Map<string, string>();
   for (const entry of files) {
