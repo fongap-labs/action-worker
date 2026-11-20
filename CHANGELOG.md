@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 中央 dsh-plugin Gateway Effort 同步预览契约测试，验证指定模型的只读差异、当前选择保留与凭据隔离。
+
 - 新增: MCP Hub 安全与加密就绪 12 个回归用例集中到 Action Worker；保留原测试双跑、补齐仓库外导入与迁移文件定位，验证通过后再清理重复文件。
 
 - 修复: 中央 dsh-plugin Gateway 契约包增加 Host Off 省略、显式关闭、异常声明及不支持协议的回归验证。
