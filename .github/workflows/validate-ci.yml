@@ -426,6 +426,32 @@ jobs:
           [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] && [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
           [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
           details="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")"
+          # GitHub native auto-merge can win the race against this job. Treat
+          # an already-merged, exact validated head as an idempotent outcome,
+          # but never accept a different PR head or an unrelated main commit.
+          verify_existing_merge() {
+            local latest merged_sha base_status main_status
+            latest="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER")" || return 1
+            jq -e --arg head "$HEAD_SHA" --arg title "$PR_TITLE" '
+              .state == "closed" and .merged == true and .draft == false and
+              .head.sha == $head and .title == $title and
+              .base.ref == "main" and .head.repo.full_name == .base.repo.full_name and
+              (.merge_commit_sha | type == "string" and test("^[0-9a-f]{40}$"))
+            ' <<< "$latest" >/dev/null || return 1
+            merged_sha="$(jq -r '.merge_commit_sha' <<< "$latest")"
+            base_status="$(gh api "repos/$REPOSITORY/compare/$BASE_SHA...$merged_sha" --jq '.status')" || return 1
+            main_status="$(gh api "repos/$REPOSITORY/compare/$merged_sha...main" --jq '.status')" || return 1
+            [[ "$base_status" == "ahead" || "$base_status" == "identical" ]] || return 1
+            [[ "$main_status" == "ahead" || "$main_status" == "identical" ]] || return 1
+            echo "Validated PR head was already merged at $merged_sha; no duplicate merge needed."
+          }
+          if jq -e '.merged == true' <<< "$details" >/dev/null; then
+            verify_existing_merge || {
+              echo "::error::Already-merged PR does not match the validated head and main ancestry." >&2
+              exit 75
+            }
+            exit 0
+          fi
           jq -e --arg head "$HEAD_SHA" --arg base "$BASE_SHA" --arg title "$PR_TITLE" '
             .state == "open" and .merged == false and .draft == false and
             .head.sha == $head and .base.sha == $base and .title == $title and
@@ -437,7 +463,14 @@ jobs:
           # Use the REST endpoint's required expected head SHA in the merge operation itself.
           # A PR update between validation and the merge must fail with HTTP 409.
           request="$(jq -nc --arg sha "$HEAD_SHA" '{sha:$sha,merge_method:"squash"}')"
-          result="$(gh api --method PUT "repos/$REPOSITORY/pulls/$PR_NUMBER/merge" --input - <<< "$request")"
+          if ! result="$(gh api --method PUT "repos/$REPOSITORY/pulls/$PR_NUMBER/merge" --input - <<< "$request")"; then
+            # The merge may have completed between the read and PUT.
+            verify_existing_merge || {
+              echo "::error::Merge failed or the checked PR revision diverged." >&2
+              exit 75
+            }
+            exit 0
+          fi
           merged_sha="$(jq -re '.sha | select(type == "string" and test("^[0-9a-f]{40}$"))' <<< "$result")"
           jq -e '.merged == true' <<< "$result" >/dev/null
           # Reconcile the exact accepted PR head and merge SHA, never just "merged=true".

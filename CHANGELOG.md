@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: Action Worker 自动 squash 合并在 GitHub 原生自动合并抢先完成时，校验原 PR Head、标题与 main 祖先关系后幂等成功；真正的提交漂移仍以错误终止，避免已合并 PR 的重复红叉。
+
 - 新增: 中央 dsh-plugin 合同测试覆盖原生 Skill Provider 懒加载、Host 卸载与迟到注册、路由提示回收、Strategy 工具注销与失败回滚；不增加宿主外运行时或重复测试。
 
 - 修复: 对 dsh-plugin #473 已解除事件关联的 #474、#475 合并提交执行有证据的历史 Main Write Guard 复核；保留 #471 合并前未运行 CI 的原始失败记录。
