@@ -121,6 +121,36 @@
         "two concurrent refreshes: at most one wins, second invalidates grant as suspected replay": 1,
         "revoked client stays revoked even if admin reapproves; previous tokens never resurrect": 1
       }
+    },
+    "authorized-task-intake": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "GitHub-verified request is encrypted locally; Hub sees only stable references": 1,
+        "same request ID with changed content fails closed, not a second execution": 1,
+        "GitHub source update and unapproved actor/repository cannot dispatch": 1,
+        "anonymous and invalid payloads are denied; task intake is disabled by default": 1,
+        "ambiguous Hub response leaves prepared task for idempotent retry": 1,
+        "empty actor policy and missing workspace allowlist refuse task producer startup": 1
+      }
+    },
+    "client-delete": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "MCP client deletion is authenticated, confirmed, CSRF-protected, atomic and preserves audit": 1,
+        "in-flight GitHub writes block deletion; a D1 batch failure rolls back every credential deletion": 1,
+        "client deletion UI escapes displayed client names and requires an explicit confirmation": 1
+      }
+    },
+    "runner-registry": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "Runner bearer credential binds identity, registration limits and strictly increasing heartbeats": 1,
+        "Runner lease claims are capacity-bounded, idempotent and retained after release or expiry": 1,
+        "revoking a Runner invalidates its credential and releases its lease": 1
+      }
     }
   }
 }
