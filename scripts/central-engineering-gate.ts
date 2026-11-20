@@ -4,7 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 
-export type ChangedFile = { status: "A" | "M" | "T"; path: string };
+export type ChangedFile = { status: "A" | "M" | "T" | "D"; path: string };
 type LocalException = { repository: string; path_prefix: string; reason: string };
 export type OwnershipPolicy = {
   schema_version: 1;
@@ -97,17 +97,30 @@ export function inspectEngineeringOwnership(
   const findings: OwnershipFinding[] = [];
   for (const change of changes) {
     const { status, path } = change;
-    if (!safePath.test(path) || !["A", "M", "T"].includes(status)) {
+    if (!safePath.test(path) || !["A", "M", "T", "D"].includes(status)) {
       throw new CliError("Invalid git change entry.", 65);
     }
     if (workflowName.test(path)) {
       const template = policy.workflow_templates[path];
+      if (status === "D") {
+        if (template) findings.push({ code: "required-workflow-deleted", path });
+        continue; // Removing legacy workflows not owned by the central platform is encouraged.
+      }
       if (!template) {
         findings.push({ code: "workflow-outside-control", path });
       } else if (readChangedFile(path) !== readTrustedTemplate(template)) {
         findings.push({ code: "workflow-template-mismatch", path });
       }
       continue;
+    }
+    if (path === ".github/execution-manifest.json" && status === "D") {
+      findings.push({ code: "execution-manifest-deleted", path });
+    }
+    // Legacy CI launchers remain available only until replaced with a central builder.
+    // No business PR may silently weaken an existing launcher's checks.
+    if (status !== "A" && status !== "D" &&
+        /^(?:\.github\/scripts\/central-ci(?:-[^/]+)?|scripts\/central-ci(?:-[^/]+)?)\.(?:sh|ps1|mjs|js|ts|cjs|py)$/i.test(path)) {
+      findings.push({ code: "project-owned-ci-control-modified", path });
     }
     if (status !== "A") continue; // Historic local suites are migration debt, not a permanent exemption.
     if (
@@ -134,7 +147,7 @@ export function parseChangedFiles(output: string): ChangedFile[] {
   for (let i = 0; i < fields.length; i += 2) {
     const status = fields[i];
     const path = fields[i + 1];
-    if (!path || (status !== "A" && status !== "M" && status !== "T")) {
+    if (!path || !["A", "M", "T", "D"].includes(status)) {
       throw new CliError("Git changed-file status is invalid.", 65);
     }
     changes.push({ status, path });
@@ -174,7 +187,7 @@ export function runOwnershipGate(
     "--no-ext-diff",
     "--no-textconv",
     "--no-renames",
-    "--diff-filter=AMT",
+    "--diff-filter=AMTD",
     "--name-status",
     "-z",
     base,
