@@ -228,7 +228,6 @@ test("unexpected changed code, fee evidence, revocation or source mutation block
   }
 });
 
-
 test("signed post-merge remediation never becomes a trusted source for Skill activation", async () => {
   const context = "Main Write Guard";
   const remedial = {
