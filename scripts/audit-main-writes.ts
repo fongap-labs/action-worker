@@ -28,6 +28,10 @@ import {
   incidentTitle,
   shouldCreateIncident,
 } from "./main-write-incidents.ts";
+import {
+  type PostMergeMainRemediation,
+  reconcilePostMergeMainRemediations,
+} from "./post-merge-remediation.ts";
 import { readRepositoryPolicyText, repositoriesForCapability } from "./repository-policy.ts";
 import { appendLines, CliError, handleError, isMain, parseJson } from "./runtime-command.ts";
 import { hasValidStatusAttestation, signedStatusDescription } from "./status-attestation.ts";
@@ -216,11 +220,14 @@ async function main(): Promise<void> {
   if (
     !isJsonRecord(historicalFile) ||
     historicalFile.schema_version !== 1 ||
-    !Array.isArray(historicalFile.cases)
+    !Array.isArray(historicalFile.cases) ||
+    !Array.isArray(historicalFile.post_merge_remediations)
   ) {
     throw new CliError("::error::Historical main review policy schema is invalid.", 65);
   }
   const historicalCases = historicalFile.cases as HistoricalMainReview[];
+  const postMergeRemediations =
+    historicalFile.post_merge_remediations as PostMergeMainRemediation[];
 
   // Reads span pull requests, commit statuses and issues, so the reader keeps the control token.
   // Writes are scoped: statuses use the status token, incidents use the issue token.
@@ -267,6 +274,20 @@ async function main(): Promise<void> {
       if (historical.length > 0) {
         console.log(
           `Maintainer-reviewed historical Main Write Guard reconciliation: ${repository}: ${historical.join(", ")}`
+        );
+      }
+      const remediated = await reconcilePostMergeMainRemediations(
+        reader,
+        repository,
+        mainSha,
+        controlRepository,
+        statusToken,
+        runUrl,
+        postMergeRemediations
+      );
+      if (remediated.length > 0) {
+        console.log(
+          `Post-merge CI remediation (not original CI proof): ${repository}: ${remediated.join(", ")}`
         );
       }
       const restored = await reconcileMisattributedMainStatuses(

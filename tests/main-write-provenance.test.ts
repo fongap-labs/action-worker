@@ -349,3 +349,45 @@ test("signed repeated main guard failure is reused without bypassing validation"
     else process.env.AW_STATUS_KEYRING = previousKeyring;
   }
 });
+
+test("post-merge remediation fixes display status but cannot authorize release provenance", async () => {
+  const oldKeyring = process.env.AW_STATUS_KEYRING;
+  process.env.AW_STATUS_KEYRING = JSON.stringify({
+    schema_version: 1,
+    active: "k1",
+    keys: { k1: "A".repeat(43) },
+    legacy_tokens: [],
+  });
+  try {
+    const url = "https://github.com/fongap-labs/action-worker/actions/runs/987";
+    const remediated = {
+      state: "success",
+      context: "Main Write Guard",
+      description: signedStatusDescription({
+        repository,
+        sha: mainSha,
+        state: "success",
+        context: "Main Write Guard",
+        description: "Post-merge CI remediation PR #471 (incident #473)",
+        targetUrl: url,
+      }),
+      target_url: url,
+      created_at: "2026-11-16T10:28:49Z",
+    };
+    const requests: string[] = [];
+    const reader = {
+      async get(path: string): Promise<unknown> {
+        requests.push(path);
+        if (path === `repos/${repository}/commits/${mainSha}/status`) {
+          return { statuses: [remediated] };
+        }
+        throw new Error(`Remediation must not be verified as source provenance: ${path}`);
+      },
+    } as GithubReader;
+    assert.equal(await hasReusableSuccessfulMainGuard(reader, repository, mainSha), false);
+    assert.deepEqual(requests, [`repos/${repository}/commits/${mainSha}/status`]);
+  } finally {
+    if (oldKeyring === undefined) delete process.env.AW_STATUS_KEYRING;
+    else process.env.AW_STATUS_KEYRING = oldKeyring;
+  }
+});

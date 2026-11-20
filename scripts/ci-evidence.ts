@@ -20,6 +20,9 @@ export function isCiNotRunVerdict(description: string): boolean {
   return description.startsWith("CI not run:");
 }
 
+// A historical UI reconciliation is not evidence that CI ran before the original merge.
+export const postMergeRemediationStatusPrefix = "Post-merge CI remediation";
+
 /**
  * The control repository is the repository the control plane runs in, so a workflow of the
  * control plane sees it as GITHUB_REPOSITORY. A script that runs outside a workflow falls
