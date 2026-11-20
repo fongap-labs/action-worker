@@ -3,6 +3,7 @@ import {
   fetchAndVerifyPrivateCiForPull,
   type NativePrivateCiRequest,
 } from "./private-ci-evidence.ts";
+import { cacheImmutablePrivateEvidence, waitForPrivateCiEvidence } from "./private-ci-wait.ts";
 import { appendLines, CliError, handleError, isMain } from "./runtime-command.ts";
 
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -67,8 +68,27 @@ async function main(): Promise<void> {
     throw new CliError("Native private CI requires a narrowly scoped source-read token.", 77);
   }
   const request = parseNativePrivateCiArgs(process.argv.slice(2));
-  const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
-  const result = await fetchAndVerifyPrivateCiForPull(reader, request);
+  const reader = cacheImmutablePrivateEvidence(
+    new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token)
+  );
+  const verify = () => fetchAndVerifyPrivateCiForPull(reader, request);
+  const waitRaw = process.env.AW_NATIVE_PRIVATE_CI_WAIT_SECONDS;
+  let result: Awaited<ReturnType<typeof verify>>;
+  if (waitRaw === undefined) {
+    result = await verify();
+  } else {
+    if (!/^[1-9][0-9]{0,3}$/.test(waitRaw)) {
+      throw new CliError("Invalid native private CI wait interval.", 64);
+    }
+    const waitSeconds = Number(waitRaw);
+    if (waitSeconds < 120 || waitSeconds > 2700) {
+      throw new CliError("Native private CI wait interval exceeds approved limits.", 64);
+    }
+    result = await waitForPrivateCiEvidence(verify, {
+      timeoutMs: waitSeconds * 1_000,
+      pollMs: 90_000,
+    });
+  }
   await appendLines(process.env.GITHUB_OUTPUT, [
     `native_private_ci_verified=true`,
     `native_private_ci_run_id=${result.runId}`,

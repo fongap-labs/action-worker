@@ -361,7 +361,7 @@ jobs:
     needs: prepare
     if: needs.prepare.outputs.should_run != 'false' && needs.prepare.outputs.native_private_pilot == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 50
     permissions: {}
 
     steps:
@@ -413,20 +413,15 @@ jobs:
           MERGE_SHA: ${{ needs.prepare.outputs.merge_sha }}
           LINUX_SHARDS: ${{ needs.prepare.outputs.linux_shards }}
           HAS_WINDOWS: ${{ needs.prepare.outputs.has_windows }}
+          AW_NATIVE_PRIVATE_CI_WAIT_SECONDS: "2520"
         shell: bash
         run: |
           set -Eeuo pipefail
-          for attempt in {1..16}; do
-            if node scripts/private-ci-gate.ts "$REPOSITORY" "$PR_NUMBER" "$BASE_SHA" "$HEAD_SHA" "$MERGE_SHA" "$LINUX_SHARDS" "$HAS_WINDOWS"; then
-              echo "Native private CI evidence verified for this immutable PR snapshot."
-              exit 0
-            fi
-            if [ "$attempt" -eq 16 ]; then
-              echo "::error::Native private CI evidence was not verified after bounded retry." >&2
-              exit 65
-            fi
-            sleep 30
-          done
+          # A single process retains exact-SHA evidence, queries live jobs at a
+          # conservative interval, and respects GitHub primary quota reset.
+          # Incomplete, stale or rate-limited verification never returns success.
+          node scripts/private-ci-gate.ts "$REPOSITORY" "$PR_NUMBER" "$BASE_SHA" "$HEAD_SHA" "$MERGE_SHA" "$LINUX_SHARDS" "$HAS_WINDOWS"
+          echo "Native private CI evidence verified for this immutable PR snapshot."
 
   native-private-ref:
     name: Verify native private main CI evidence
