@@ -82,7 +82,7 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 | 仓库 | 测试包 | 留在业务仓库中的测试 |
 |---|---|---|
 | ai-gateway | `ai-gateway`（24 个模块） | 无 |
-| mcp-hub | `mcp-hub`（15 个中央模块、60 个用例，其中第六批 12 个用例待真实双跑验收） | 当前仍有 11 个本地模块；第六批验收并清理 3 个重复模块后预计保留 8 个 |
+| mcp-hub | `mcp-hub`（19 个中央模块、86 个已登记回归用例，其中第七批 26 个用例处于双跑验收阶段） | 当前保留 8 个本地测试模块；真实双跑与签名门禁完成后，才能删除 4 个重复测试模块 |
 | delta | `delta`（6 个模块） | Rust 内联与 crate 测试、`apps/desktop` 的 e2e 与 vitest、3 个小包（如 `packages/delta_worker_sdk`）内的测试 |
 | delta-suite | `delta-suite`（4 个模块） | 编译进固定版本核心的运行时 e2e 测试（`tests/foundation_runtime_e2e`） |
 | internal-vault | `internal-vault`（8 个模块） | 基础设施 shell 测试（`projects/server-edge/tests/*.sh`，需要 root 与 Docker） |
@@ -191,3 +191,27 @@ Claude Code 执行器和 Git 工作树模块的 11 个原始用例不改断言�
 中央包全部 15 个模块，通过 60 用例实时对账及安全、CI Evidence、PR Governance
 和 validate-merge。完成签名双跑后，才能在另一 PR 删除对应 3 份源测试。
 其他本地模块、被依赖的辅助文件和构建发布配置均不得提前删除。
+
+### 第六批验收结论
+
+- `action-worker#1842` 已合并授权任务接入、客户端删除与 Runner 注册三个中央模块，共 12 个测试用例，并扩展可信基线至 60 个用例。
+- `mcp-hub#110` 固定中央提交 `f767371b5410782f5fe9f76e4db4f1bafa881819`，真实 CI 通过原始本地测试、中央 overlay、60 用例 TAP 基线与安全检查。
+- `mcp-hub#111` 在逐项确认源测试与中央测试一致后删除三份重复本地文件；删除后的真实 CI 继续通过，并已合并。
+- 当前为 15 个中央测试模块、8 个本地测试模块；仍保留必要的 Access 辅助文件、构建、发布和部署配置。
+
+后续候选为 Runner 派发、Runner 运行时客户端、GitHub PR 投递与任务日志合同测试。必须保留先可信中央包、再业务 PR 双跑并签名、最后单独删除重复本地文件的顺序。
+
+### 第七批迁移：运行器派发、运行时客户端、提交投递及任务日志
+
+此次中央测试包新增 `runner-dispatch`（4 个用例）、`runner-runtime-client`（7 个用例）、
+`github-pr-delivery`（8 个用例）及 `runtime-task-journal`（7 个用例）。
+中央可信 TAP 基线由 60 个增加至 86 个用例，所有断言及测试名称保留。
+源文件导入切换至 `#target/`，SQL 文件定位到 `CENTRAL_TEST_TARGET_ROOT/migrations`；
+虚构的 Git 邮箱与不安全 URL 样例使用运行时字符拼接，保持真实字符串不变，
+避免误触发中央隐私扫描。
+
+必须先合并 Action Worker 的中央测试包，再由 MCP Hub 固定不可变提交，
+将原 8 个本地模块与中央 19 个模块一起运行并通过 86 用例 TAP 基线。
+签名 CI Evidence、PR Governance、validate-merge 与安全检查全部通过后，
+方可在单独 PR 删除 4 份重复文件。其余 4 个本地模块及必要辅助文件、
+构建、发布、部署配置不能删除或放宽。

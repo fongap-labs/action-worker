@@ -151,6 +151,56 @@
         "Runner lease claims are capacity-bounded, idempotent and retained after release or expiry": 1,
         "revoking a Runner invalidates its credential and releases its lease": 1
       }
+    },
+    "runner-dispatch": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "provisioned Runner receives dispatch/quota scopes, while unrelated credentials are denied": 1,
+        "Runtime to Runner dispatch, offer, accept, lease renewal, reconciliation and completion": 1,
+        "Runner rejection releases its lease and cancellation cannot replay unsafe work": 1,
+        "expired accepted lease remains held until Runtime explicitly confirms no execution": 1
+      }
+    },
+    "runner-runtime-client": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "Runtime and Runner clients have separate credentials and endpoint sets": 1,
+        "claim adapter accepts the offer before Runtime task retrieval": 1,
+        "idle or cancellation never obtains task bodies or starts an execution": 1,
+        "failed acceptance fails closed and never invokes Runtime task retrieval": 1,
+        "task lookup failure after acceptance never auto-rejects or requeues": 1,
+        "malformed offers, unsafe hub URLs and invalid credentials are rejected before execution": 1,
+        "Hub error codes omit response bodies and credentials": 1
+      }
+    },
+    "github-pr-delivery": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "real Git worktree: safe file collection includes modification, creation, deletion only": 1,
+        "completed and acknowledged task creates only isolated branch, commit, PR and is idempotent": 1,
+        "lost PR-create response is reconciled by the task marker, no second PR": 1,
+        "actor mismatch, missing permission or moved main denies every write": 1,
+        "unreconciled or unowned tasks cannot be delivered, even with a valid user token": 1,
+        "dirty delivery path restrictions deny secrets, symlinks, and unauthorized staged changes": 1,
+        "localhost delivery route is absent by default and uses separate user authorization": 1,
+        "authenticated localhost delivery endpoint creates PR without Runner execution": 1
+      }
+    },
+    "runtime-task-journal": {
+      "status": "pass",
+      "failed": [],
+      "cases": {
+        "SQLite Runtime journal encrypts task/result and survives reopen without replay": 1,
+        "lease ownership, active status and expiry are verified before revealing task": 1,
+        "restart fences claimed or started work as uncertain, never replays automatically": 1,
+        "running task remains held after crash, stale Runner cannot complete or re-run": 1,
+        "cancellation before claim is terminal; accepted cancellation requires manual review": 1,
+        "failed reconciliation remains pending, and wrong encryption key cannot read saved result": 1,
+        "lost Hub acknowledgement can be recovered only from exact server-committed state": 1
+      }
     }
   }
 }
