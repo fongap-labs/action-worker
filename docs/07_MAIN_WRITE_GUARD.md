@@ -101,13 +101,13 @@ main SHA = untrusted（不可信）
 
 ## 4.1 主写入事件生命周期
 
-当 Main Write Audit 发现不可信的 `main` SHA 时，会在该仓库创建一个标题为 `Main write incident: <sha-short>` 的 Issue。该 Issue **不是永久阻断**，而是可控的可观测实体：
+当 Main Write Audit 发现不可信的 `main` SHA 时，会在该仓库创建一个标题为 `Main write incident: <sha-short>` 的 Issue。该 Issue 持续阻断发布与可信主分支证明，直到维护者核实并显式解除：
 
-- **TTL（生存时间）**：默认 14 天。过期后自动关闭，不再阻断 Release/Deploy/Publication。
-- **提前解除**：维护者在 Issue 下评论 `/resolve` 即可立即解除阻断（需维护者身份：OWNER/MEMBER/COLLABORATOR）。
+- **不得自动过期**：未解决的主分支事件不会因时间流逝或后续成功合并自动解除。
+- **显式解除**：可信修复 PR 验收通过后，维护者须记录审查决定，再在 Issue 下评论 `/resolve`（需维护者身份：OWNER/MEMBER/COLLABORATOR）。
 - **重复事件去重**：同一 SHA 的多次审计失败只创建一个 Issue。
 
-> **注意**：较新的合法合并**不会**自动清除历史事件。事件必须显式解除或等待 TTL 过期。这是刻意设计：一次不可信的写入会产生持久的审计痕迹，强制维护者确认无残留风险后才能继续。
+> **注意**：较新的合法合并**不会**自动清除历史事件。事件必须经过维护者审查并显式解除；不得以重新运行 CI 或等待时间替代历史审计。
 
 ### 4.2 破玻璃旁路
 
