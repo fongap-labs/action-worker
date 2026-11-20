@@ -1,5 +1,6 @@
 import { requireToken } from "./control-token.ts";
 import { runGithubCli } from "./github-api.ts";
+import { loadGateContract } from "./governance-gate-contract.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
 import { retryTransientStatusWrite } from "./status-write-retry.ts";
@@ -13,7 +14,7 @@ async function main(): Promise<void> {
     );
   }
   const [repository = "", sha = "", state = "", description = "", targetUrl = ""] = args;
-  const context = process.env.PR_STATUS_CONTEXT ?? "PR Governance";
+  const context = process.env.PR_STATUS_CONTEXT ?? loadGateContract().status_contexts.pr_governance;
   if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) {
     throw new CliError(`::error::Invalid repository: ${repository}.`, 64);
   }

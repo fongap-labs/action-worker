@@ -1,4 +1,5 @@
 import { getGithubJson, getJsonString, isJsonRecord, runGithubCli } from "./github-api.ts";
+import { loadGateContract, requiredGateContexts } from "./governance-gate-contract.ts";
 import { sleep } from "./lib/promise-delay-runtime.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
@@ -6,7 +7,11 @@ import { latestAttestedStatus, originalStatusDescription } from "./status-attest
 
 const SHA = /^[0-9a-f]{40}$/;
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-const REQUIRED_GATES = ["PR Governance", "CI Evidence", "validate-merge"] as const;
+const gateContract = loadGateContract();
+const REQUIRED_GATES = requiredGateContexts(gateContract);
+const governanceContext = gateContract.status_contexts.pr_governance;
+const ciEvidenceContext = gateContract.status_contexts.ci_evidence;
+const mergeContext = gateContract.status_contexts.merge_validation;
 
 // All paths use the same cryptographically attested current-head and title checks.
 // GitHub changes the observed base SHA after a PR merges; only the *open* path
@@ -27,7 +32,7 @@ function assertSignedMergeGates(
         75
       );
     }
-    if (context === "PR Governance" || context === "validate-merge") {
+    if (context === governanceContext || context === mergeContext) {
       const title = getJsonString(pull, "title");
       const expected = `title-sha256=${prTitleFingerprint(title)} `;
       if (!title || !originalStatusDescription(status).startsWith(expected)) {
@@ -37,7 +42,7 @@ function assertSignedMergeGates(
         );
       }
     }
-    if (context !== "CI Evidence" && getJsonString(status, "target_url") !== governanceRunUrl) {
+    if (context !== ciEvidenceContext && getJsonString(status, "target_url") !== governanceRunUrl) {
       throw new CliError(
         `Automatic merge refused: ${context} belongs to another governance run.`,
         75
