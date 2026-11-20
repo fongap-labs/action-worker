@@ -284,6 +284,16 @@ export async function inspectSkillProposals(
     const mergedGuard = await reader.get(
       "repos/" + target.repository + "/commits/" + merge + "/status"
     );
+    const files = getJsonArray(
+      await reader.get(
+        "repos/" + target.repository + "/pulls/" + number + "/files?per_page=100"
+      )
+    );
+    const manifestFile = files.filter(isJsonRecord).find(file =>
+      typeof file.filename === "string" &&
+      file.filename.startsWith(target.proposal_prefix) &&
+      file.filename.endsWith(".json")
+    );
     if (!manifestFile) throw new CliError("Skill proposal manifest was not included in PR.", 65);
     const manifestPath = getJsonString(manifestFile, "filename");
     if (!/^packages\/[a-z0-9-/]+\/[a-z0-9-]+\.json$/.test(manifestPath)) {
