@@ -78,6 +78,8 @@ test('cycles, duplicate, missing and contradictory Host checkpoint reports rejec
     { action: 'plan', ids: ['publish', 'publish'] },
     { action: 'plan', ids: ['publish'], completed: ['unknown'] },
     { action: 'plan', ids: ['publish'], completed: ['diagnose'] },
+    { action: 'plan', ids: ['publish'], completed: ['implement'] },
+    { action: 'plan', ids: ['publish'], active: ['publish'] },
     { action: 'plan', ids: ['publish'], active: ['diagnose'] },
     { action: 'plan', ids: ['publish'], completed: ['implement'], active: ['implement'] },
     { action: 'plan', ids: ['publish'], completed: ['source-review', 'source-review'] },
