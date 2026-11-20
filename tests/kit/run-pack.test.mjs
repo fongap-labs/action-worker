@@ -136,9 +136,7 @@ test("trusted case inventory requires a confined Node baseline path", () => {
       validatePackManifest("example", JSON.parse(JSON.stringify({ ...valid, inventory })))
     );
   }
-  assert.throws(() =>
-    validatePackManifest("example", { ...valid, runtime: "python" })
-  );
+  assert.throws(() => validatePackManifest("example", { ...valid, runtime: "python" }));
 });
 
 test("manifests reject mutable identities, invalid runtime and misleading tiers", () => {
