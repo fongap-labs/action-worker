@@ -79,13 +79,13 @@ test("opt-in test pack overlays reject non-boolean controls", () => {
   const valid = {
     schema_version: 1,
     pack: "example",
-    runtime: "node",
+    runtime: /** @type {"node"} */ ("node"),
     suffix: "-test.mjs",
     overlay: true,
   };
   assert.doesNotThrow(() => validatePackManifest("example", valid));
   for (const overlay of [1, "true", null, {}, []]) {
-    assert.throws(() => validatePackManifest("example", { ...valid, overlay }));
+    assert.throws(() => validatePackManifest("example", JSON.parse(JSON.stringify({ ...valid, overlay }))));
   }
 });
 
@@ -93,7 +93,7 @@ test("Node flags are centrally allowlisted and cannot execute arbitrary CLI opti
   const valid = {
     schema_version: 1,
     pack: "example",
-    runtime: "node",
+    runtime: /** @type {"node"} */ ("node"),
     suffix: "-test.mjs",
     node_flags: ["--experimental-strip-types", "--experimental-sqlite"],
   };
@@ -107,7 +107,7 @@ test("Node flags are centrally allowlisted and cannot execute arbitrary CLI opti
     null,
   ]) {
     if (Array.isArray(node_flags) && node_flags.length === 0) continue;
-    assert.throws(() => validatePackManifest("example", { ...valid, node_flags }));
+    assert.throws(() => validatePackManifest("example", JSON.parse(JSON.stringify({ ...valid, node_flags }))));
   }
   assert.throws(() => validatePackManifest("example", {
     ...valid,
