@@ -15,7 +15,8 @@ test("one bounded process waits for all source-owned jobs without weakening verd
   const result = await waitForPrivateCiEvidence(
     async () => {
       checks += 1;
-      if (checks < 4) throw new CliError("Private source CI evidence is absent, stale or incomplete.", 65);
+      if (checks < 4)
+        throw new CliError("Private source CI evidence is absent, stale or incomplete.", 65);
       return { runId: 44, attempt: 1 };
     },
     {
@@ -83,13 +84,10 @@ test("primary limit beyond budget and missing reset fail closed", async () => {
     /quota beyond the allowed window/
   );
   await assert.rejects(
-    waitForPrivateCiEvidence(
-      async () => {
-        calls++;
-        throw new GithubHttpError(403, undefined, { kind: "primary-rate-limit" });
-      },
-      options
-    ),
+    waitForPrivateCiEvidence(async () => {
+      calls++;
+      throw new GithubHttpError(403, undefined, { kind: "primary-rate-limit" });
+    }, options),
     /quota reset unavailable/
   );
   assert.equal(calls, 2);
@@ -183,7 +181,9 @@ test("commit-bound source objects are cached; live PR and CI evidence never is",
 
 test("CI dispatcher uses a single bounded verifier and retains private isolation", () => {
   const workflow = readFileSync(".github/workflows/central-ci-dispatch.yml", "utf8");
-  const section = workflow.split("  native-private-pilot:\n")[1]?.split("  native-private-ref:\n")[0];
+  const section = workflow
+    .split("  native-private-pilot:\n")[1]
+    ?.split("  native-private-ref:\n")[0];
   assert.ok(section);
   assert.match(section, /timeout-minutes: 50/);
   assert.match(section, /AW_NATIVE_PRIVATE_CI_WAIT_SECONDS: "2520"/);
