@@ -1,5 +1,7 @@
 # Centrally managed test packs
 
+`dsh-plugin` is a trusted Node overlay pack: Gateway reasoning metadata and Default/Off request-intent regression tests live in Action Worker, run against the pinned target checkout via the `#target/` resolver, and never read target secrets or discover PR-authored test files. The original dsh-plugin legacy tests remain enabled during migration.
+
 Each directory in `tests/packs/` belongs to one target repository. The pack lives in trusted
 Action Worker history and runs against a separate target checkout. Target code must not change
 which tests run or inject host credentials.
