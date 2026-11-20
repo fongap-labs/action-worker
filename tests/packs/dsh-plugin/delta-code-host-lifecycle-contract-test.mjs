@@ -143,11 +143,11 @@ test('native inbox route hints and Host subscriptions are disposed without extra
   const agent = {}
   listeners.get('agent/inbox/claimed')({
     agent, message: { source: { kind: 'user' },
-      content: [{ type: 'text', text: '修复 GitHub Actions CI 红叉' }] },
+      content: [{ type: 'text', text: 'fix GitHub Actions CI failure' }] },
   })
   const prompt = promptEntry.text({ agent })
   assert.match(prompt, /Code Worker/)
-  assert.doesNotMatch(prompt, /GitHub Actions CI 红叉/,
+  assert.doesNotMatch(prompt, /GitHub Actions CI failure/,
     'never copy untrusted user text into a persistent system prompt')
   stop()
   stop()
