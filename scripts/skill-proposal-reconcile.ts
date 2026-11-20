@@ -407,14 +407,15 @@ async function main(): Promise<void> {
   ) {
     throw new CliError("Missing independent scoped Skill promotion read credentials.", 77);
   }
-  if (targetName && !targets.some(target => target.repository === targetName)) {
+  if (targetName && !targets.some((target) => target.repository === targetName)) {
     console.log("Unrelated intake target; no Skill promotion required.");
     await appendLines(process.env.GITHUB_OUTPUT, ["eligible=false"]);
     return;
   }
   const reader = statusAwareReader(
     process.env.GITHUB_API_URL ?? "https://api.github.com",
-    controlToken, statusToken
+    controlToken,
+    statusToken
   );
   for (const target of targets) {
     if (!target.enabled || (targetName && target.repository !== targetName)) continue;
@@ -432,9 +433,7 @@ async function main(): Promise<void> {
     const pluginGuard = await reader.get(
       "repos/" + target.repository + "/commits/" + pluginMainSha + "/status"
     );
-    if (!(await hasVerifiedMainWriteGuard(
-      reader, pluginGuard, target.repository, pluginMainSha
-    ))) {
+    if (!(await hasVerifiedMainWriteGuard(reader, pluginGuard, target.repository, pluginMainSha))) {
       throw new CliError("Plugin source code has no verified current Main Write Guard.", 75);
     }
     await appendLines(process.env.GITHUB_OUTPUT, [
