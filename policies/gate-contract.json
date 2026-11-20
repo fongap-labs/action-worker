@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "status_contexts": {
+    "pr_governance": "PR Governance",
+    "ci_evidence": "CI Evidence",
+    "merge_validation": "validate-merge"
+  },
+  "trusted_workflows": {
+    "ci_evidence": [
+      ".github/workflows/central-ci-dispatch.yml",
+      ".github/workflows/handle-pr-dispatch.yml"
+    ],
+    "pr_governance": [".github/workflows/handle-pr-dispatch.yml"],
+    "main_write_guard": [
+      ".github/workflows/central-ci-dispatch.yml",
+      ".github/workflows/ci-follow-up.yml",
+      ".github/workflows/deploy-source-script.yml",
+      ".github/workflows/intake.yml",
+      ".github/workflows/main-write-guard.yml",
+      ".github/workflows/release-app.yml",
+      ".github/workflows/task-source-dispatch.yml"
+    ]
+  },
+  "advisory": {
+    "merge_blocked_label": "merge-blocked"
+  }
+}
