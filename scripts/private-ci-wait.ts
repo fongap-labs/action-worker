@@ -34,12 +34,18 @@ export type PrivateCiWaitOptions = {
 
 function boundedWaitMs(error: unknown, pollMs: number, now: number): number {
   if (error instanceof GithubHttpError) {
-    if (error.kind === "permission" || (error.kind === "http" && !isRetryableStatus(error.status))) {
+    if (
+      error.kind === "permission" ||
+      (error.kind === "http" && !isRetryableStatus(error.status))
+    ) {
       throw error;
     }
     if (error.kind === "primary-rate-limit") {
       if (error.resetAtMs === undefined || error.resetAtMs <= 0) {
-        throw new CliError("Native private CI verification paused: GitHub primary quota reset unavailable.", 75);
+        throw new CliError(
+          "Native private CI verification paused: GitHub primary quota reset unavailable.",
+          75
+        );
       }
       return Math.max(pollMs, error.resetAtMs - now + 2_000);
     }
@@ -93,7 +99,9 @@ export async function waitForPrivateCiEvidence<T>(
         );
       }
       // Do not hammer the App installation with rapid fresh PR/CI queries.
-      console.log(`Native private CI evidence pending; next bounded verification in ${Math.ceil(durationMs / 1000)} seconds.`);
+      console.log(
+        `Native private CI evidence pending; next bounded verification in ${Math.ceil(durationMs / 1000)} seconds.`
+      );
       await pause(durationMs);
     }
   }
