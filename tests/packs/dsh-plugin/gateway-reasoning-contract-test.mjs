@@ -7,6 +7,7 @@ import {
   mapGatewayReasoningChoice,
   previewGatewayReasoningSync,
 } from '#target/packages/dsh-delta-suite/src/delta-suite-adapter/gateway-reasoning.ts'
+import { applyApprovedGatewayReasoningSync } from '#target/packages/dsh-delta-suite/src/delta-suite-adapter/gateway-reasoning-apply.ts'
 
 const source = readTargetText('packages', 'dsh-delta-suite', 'src', 'delta-suite-adapter', 'gateway-reasoning.ts')
 
@@ -258,4 +259,132 @@ test('sync review refuses malformed or intentionally disabled native reasoning c
   assert.deepEqual(remap.remapped, ['low'])
   assert.deepEqual(remap.added, [])
   assert.deepEqual(remap.removed, [])
+})
+
+const makeAuthorizedSync = (overrides = {}) => {
+  const model = { id: 'Max', name: 'Max', reasoningEfforts: { low: 'low' },
+    input: ['text'], tokenLimit: 2048 }
+  const profile = { apiKeyEnv: 'MY_GATEWAY_API_KEY', baseURL: 'https://gateway.example/v1',
+    models: [model, { id: 'Unrelated', reasoningEfforts: false }] }
+  const initial = { providers: { 'my-gateway': profile } }
+  const approvedPreview = previewGatewayReasoningSync(gateway, profile.models, 'Max', 'low')
+  assert.equal(approvedPreview.status, 'review')
+  let calls = []
+  let current = structuredClone(initial)
+  const remote = {
+    describe: async () => ({ ok: true, value: { writable: true, namespaces: [{
+      ns: 'llm-pi-ai', revision: 7, value: current,
+    }] } }),
+    mutate: async (ns, ops, expectedRevision) => {
+      calls.push({ ns, ops, expectedRevision })
+      const saved = structuredClone(current)
+      saved.providers['my-gateway'].models[0].reasoningEfforts = structuredClone(ops[0].value)
+      return { ok: true, value: { ns, revision: expectedRevision + 1, value: saved } }
+    },
+  }
+  const request = {
+    approved: true,
+    namespace: 'llm-pi-ai',
+    providerId: 'my-gateway',
+    credentialRef: 'MY_GATEWAY_API_KEY',
+    reviewedRevision: 7,
+    authenticatedCatalog: gateway,
+    modelId: 'Max',
+    selectedEffort: 'low',
+    approvedPreview,
+    settings: remote,
+    ...overrides,
+  }
+  return { request, initial, remote, get calls() { return calls }, setCurrent: v => { current = v } }
+}
+
+test('approved Gateway effort sync writes ONLY one model field using official Host CAS', async () => {
+  const f = makeAuthorizedSync()
+  const baseline = JSON.stringify(f.initial)
+  const result = await applyApprovedGatewayReasoningSync(f.request)
+  assert.deepEqual(result, { status: 'applied', revision: 8 })
+  assert.equal(f.calls.length, 1)
+  assert.deepEqual(f.calls[0], {
+    ns: 'llm-pi-ai', expectedRevision: 7,
+    ops: [{
+      op: 'set',
+      path: ['providers', 'my-gateway', 'models', '0', 'reasoningEfforts'],
+      value: { low: 'low', medium: 'medium', high: 'high', max: 'max' },
+    }],
+  })
+  assert.equal(JSON.stringify(f.initial), baseline)
+  assert.equal(JSON.stringify(f.calls).includes('MY_GATEWAY_API_KEY'), false,
+    'write operations must not copy credentials or provider metadata')
+  assert.equal(JSON.stringify(f.calls).includes('gateway.example'), false)
+})
+
+test('unapproved, invalid or stale Gateway sync never invokes Host mutation', async () => {
+  for (const overrides of [
+    { approved: false },
+    { namespace: '' }, { providerId: '__proto__' },
+    { credentialRef: '' }, { reviewedRevision: -1 },
+    { modelId: 'Other' },
+    { selectedEffort: 'off' },
+    { reviewedRevision: 6 },
+    { approvedPreview: { status: 'blocked', modelId: 'Max', reason: 'native-off-unsafe' } },
+    { authenticatedCatalog: { object: 'list', data: [] } },
+  ]) {
+    const f = makeAuthorizedSync(overrides)
+    const result = await applyApprovedGatewayReasoningSync(f.request)
+    assert.equal(result.status, 'blocked', JSON.stringify(overrides))
+    assert.deepEqual(f.calls, [])
+  }
+})
+
+test('Gateway settings writer requires current writable Host profile and exact credential reference', async () => {
+  for (const alter of [
+    value => { value.providers['my-gateway'].apiKeyEnv = 'ROTATED_KEY' },
+    value => { value.providers['my-gateway'].models[0].id = 'Different' },
+    value => { value.providers['my-gateway'].models.push({
+      id: 'Max', reasoningEfforts: { low: 'low' },
+    }) },
+    value => { value.providers['my-gateway'].models[0].reasoningEfforts.high = 'high' },
+  ]) {
+    const f = makeAuthorizedSync()
+    const next = structuredClone(f.initial)
+    alter(next)
+    f.setCurrent(next)
+    const result = await applyApprovedGatewayReasoningSync(f.request)
+    assert.equal(result.status, 'blocked')
+    assert.equal(f.calls.length, 0, 'stale route, key or model inventory never writes')
+  }
+  const f = makeAuthorizedSync()
+  f.request.settings.describe = async () => ({
+    ok: true, value: { writable: false, namespaces: [{
+      ns: 'llm-pi-ai', revision: 7, value: f.initial,
+    }] },
+  })
+  assert.deepEqual(await applyApprovedGatewayReasoningSync(f.request),
+    { status: 'blocked', reason: 'host-readonly' })
+  assert.deepEqual(f.calls, [])
+})
+
+test('official CAS conflict and invalid Host acknowledgement fail without retry', async () => {
+  const conflict = makeAuthorizedSync()
+  conflict.request.settings.mutate = async (ns, ops, revision) => {
+    conflict.calls.push({ ns, ops, revision })
+    return { ok: false, error: { code: 'settings/conflict', message: 'stale' } }
+  }
+  assert.deepEqual(await applyApprovedGatewayReasoningSync(conflict.request),
+    { status: 'blocked', reason: 'host-conflict' })
+  assert.equal(conflict.calls.length, 1)
+
+  const unconfirmed = makeAuthorizedSync()
+  unconfirmed.request.settings.mutate = async (ns, ops, revision) => {
+    unconfirmed.calls.push({ ns, ops, revision })
+    return { ok: true, value: { ns, revision: revision + 1, value: unconfirmed.initial } }
+  }
+  assert.deepEqual(await applyApprovedGatewayReasoningSync(unconfirmed.request),
+    { status: 'blocked', reason: 'unverified-write' })
+  assert.equal(unconfirmed.calls.length, 1)
+  const missingRemote = makeAuthorizedSync()
+  missingRemote.request.settings.describe = async () => { throw Error('offline') }
+  assert.deepEqual(await applyApprovedGatewayReasoningSync(missingRemote.request),
+    { status: 'blocked', reason: 'host-unavailable' })
+  assert.deepEqual(missingRemote.calls, [])
 })
