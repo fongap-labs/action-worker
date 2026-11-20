@@ -75,6 +75,33 @@ test("every checked-in target pack has a valid manifest and complete Node tier p
   }
 });
 
+test("Node flags are centrally allowlisted and cannot execute arbitrary CLI options", () => {
+  const valid = {
+    schema_version: 1,
+    pack: "example",
+    runtime: "node",
+    suffix: "-test.mjs",
+    node_flags: ["--experimental-strip-types", "--experimental-sqlite"],
+  };
+  assert.doesNotThrow(() => validatePackManifest("example", valid));
+  for (const node_flags of [
+    ["--require=/tmp/untrusted.cjs"],
+    ["--inspect=0.0.0.0"],
+    ["--experimental-strip-types", "--experimental-strip-types"],
+    [],
+    "unsafe",
+    null,
+  ]) {
+    if (Array.isArray(node_flags) && node_flags.length === 0) continue;
+    assert.throws(() => validatePackManifest("example", { ...valid, node_flags }));
+  }
+  assert.throws(() => validatePackManifest("example", {
+    ...valid,
+    runtime: "python",
+    node_flags: ["--experimental-sqlite"],
+  }));
+});
+
 test("manifests reject mutable identities, invalid runtime and misleading tiers", () => {
   const valid = JSON.parse(
     '{"schema_version":1,"pack":"example","runtime":"node","suffix":"-test.mjs"}'
