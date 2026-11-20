@@ -394,6 +394,8 @@ function hostGatewayFixture(options = {}) {
   const routes = new Map()
   const calls = []
   const network = []
+  let rebind
+  let currentDisposer
   let credential = 'INTERNAL_TEST_KEY_NEVER_EXPOSE'
   let revision = 4
   let value = { providers: { 'my-gateway': {
@@ -440,7 +442,9 @@ function hostGatewayFixture(options = {}) {
   const stop = installHostGatewayEffortSync({
     inject(deps, callback) {
       assert.deepEqual(deps, ['settings', 'credentials', 'llm', 'connection'])
-      return callback(services)
+      rebind = callback
+      currentDisposer = callback(services)
+      return () => { currentDisposer?.() }
     },
   }, { fetch: fetcher, ...options })
   const send = async (path, body, headers = {}) => {
@@ -463,6 +467,7 @@ function hostGatewayFixture(options = {}) {
   })
   return {
     routes, calls, network, services, stop, send, preview, apply,
+    remount() { currentDisposer?.(); currentDisposer = rebind(services) },
     setCredential: next => { credential = next },
     setRevision: next => { revision = next },
     setProvider: change => { const next = structuredClone(value); change(next.providers['my-gateway']); value = next },
@@ -588,4 +593,111 @@ test('Gateway Host detects credential replacement during discovery and never sto
   assert.equal(denied.data.reason, 'expired-preview')
   assert.equal(expiring.calls.length, 0)
   expiring.stop()
+})
+
+test('Gateway Host bounds duplicate discovery and total concurrent authenticated requests', async () => {
+  let networkRequests = 0
+  const held = []
+  let bothReady
+  const both = new Promise(resolve => { bothReady = resolve })
+  const f = hostGatewayFixture({
+    fetch: async () => {
+      networkRequests++
+      if (networkRequests <= 2) {
+        return await new Promise(resolve => {
+          held.push(resolve)
+          if (held.length === 2) bothReady()
+        })
+      }
+      return new Response(JSON.stringify(gateway), { status: 200 })
+    },
+  })
+  f.setProvider(provider => {
+    provider.models.push(
+      { id: 'Other-1', reasoningEfforts: { low: 'low' } },
+      { id: 'Other-2', reasoningEfforts: { low: 'low' } },
+    )
+  })
+  const one = f.preview()
+  const two = f.send(DELTA_GATEWAY_EFFORT_PREVIEW_PATH, {
+    namespace: 'llm-pi-ai', providerId: 'my-gateway', modelId: 'Other-1',
+    selectedEffort: 'low',
+  })
+  await both
+  const duplicate = await f.preview()
+  assert.deepEqual(duplicate, { code: 429, data: {
+    ok: false, reason: 'discovery-in-progress',
+  } })
+  const overflow = await f.send(DELTA_GATEWAY_EFFORT_PREVIEW_PATH, {
+    namespace: 'llm-pi-ai', providerId: 'my-gateway', modelId: 'Other-2',
+    selectedEffort: 'low',
+  })
+  assert.deepEqual(overflow, { code: 429, data: {
+    ok: false, reason: 'discovery-busy',
+  } })
+  assert.equal(networkRequests, 2, 'no third credential-bearing network call')
+  for (const finish of held) finish(new Response(JSON.stringify(gateway), { status: 200 }))
+  assert.equal((await one).code, 200)
+  assert.equal((await two).data.reason, 'gateway-model-unavailable')
+  assert.equal((await f.preview()).code, 200,
+    'settled requests free their capacity for another explicit user action')
+  assert.equal(networkRequests, 3)
+  f.stop()
+})
+
+test('Gateway Host remount cancels old discovery and invalidates old approval grants', async () => {
+  let fetches = 0
+  let releaseOld
+  let startedOld
+  const oldStarted = new Promise(resolve => { startedOld = resolve })
+  const f = hostGatewayFixture({
+    fetch: async () => {
+      fetches++
+      if (fetches === 1) {
+        startedOld()
+        return await new Promise(resolve => { releaseOld = resolve })
+      }
+      return new Response(JSON.stringify(gateway), { status: 200 })
+    },
+  })
+  const obsolete = f.preview()
+  await oldStarted
+  f.remount()
+  // Simulate a transport that returns even after its AbortSignal was cancelled.
+  releaseOld(new Response(JSON.stringify(gateway), { status: 200 }))
+  const old = await obsolete
+  assert.equal(old.code, 503)
+  assert.equal(old.data.reason, 'host-unavailable')
+  assert.equal(old.data.previewId, undefined)
+  const fresh = await f.preview()
+  assert.equal(fresh.code, 200)
+  assert.equal(fresh.data.status, 'review')
+  f.remount()
+  const stale = await f.apply(fresh.data.previewId)
+  assert.equal(stale.code, 409)
+  assert.equal(stale.data.reason, 'expired-preview')
+  assert.equal(f.calls.length, 0)
+  f.stop()
+  assert.equal(f.routes.size, 0)
+})
+
+test('Gateway Host teardown during delayed credential resolution never writes a model', async () => {
+  const f = hostGatewayFixture()
+  const ready = await f.preview()
+  assert.equal(ready.code, 200)
+  let releaseResolution
+  let resolutionStarted
+  const started = new Promise(resolve => { resolutionStarted = resolve })
+  f.services.credentials.resolve = async () => {
+    resolutionStarted()
+    return await new Promise(resolve => { releaseResolution = resolve })
+  }
+  const applying = f.apply(ready.data.previewId)
+  await started
+  f.stop()
+  releaseResolution({ value: 'INTERNAL_TEST_KEY_NEVER_EXPOSE' })
+  const blocked = await applying
+  assert.equal(blocked.code, 503)
+  assert.equal(blocked.data.reason, 'host-unavailable')
+  assert.equal(f.calls.length, 0)
 })
