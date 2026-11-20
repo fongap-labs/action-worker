@@ -214,6 +214,19 @@ jobs:
           fi
           node aw-security/scripts/central-secret-scan.ts "$GITHUB_WORKSPACE/target" "$SCAN_BASE_SHA" "$SCAN_HEAD_SHA" "$config"
 
+      # Trusted policy is evaluated independently of a PR-controlled test pack or CI script.
+      - name: Enforce central engineering ownership
+        env:
+          POLICY_BASE_SHA: ${{ inputs.diff_base_sha }}
+          POLICY_HEAD_SHA: ${{ inputs.head_sha }}
+          TARGET_REPOSITORY: ${{ inputs.repository }}
+          TARGET_PRIVATE: ${{ inputs.is_private }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          node aw-security/scripts/central-engineering-gate.ts \
+            "$GITHUB_WORKSPACE/target" "$POLICY_BASE_SHA" "$POLICY_HEAD_SHA" "$TARGET_REPOSITORY"
+
       - name: Run trusted Linux CI
         env:
           CENTRAL_CI_AW_ROOT: ${{ github.workspace }}/aw
