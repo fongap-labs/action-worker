@@ -82,7 +82,7 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 | 仓库 | 测试包 | 留在业务仓库中的测试 |
 |---|---|---|
 | ai-gateway | `ai-gateway`（24 个模块） | 无 |
-| mcp-hub | `mcp-hub`（4 个模块：Runner 协议、凭据隔离、执行器、工作树，overlay 阶段） | 首批 2 个模块已验证并从业务仓库删除，第二批 2 个模块在双跑验收后再删除 |
+| mcp-hub | `mcp-hub`（6 个模块；第 3 批安全/加密 2 个模块在 overlay 双跑验收中） | 前 4 个模块已迁出业务仓库；其余 19 个本地模块继续运行，第三批确认后再删重复项 |
 | delta | `delta`（6 个模块） | Rust 内联与 crate 测试、`apps/desktop` 的 e2e 与 vitest、3 个小包（如 `packages/delta_worker_sdk`）内的测试 |
 | delta-suite | `delta-suite`（4 个模块） | 编译进固定版本核心的运行时 e2e 测试（`tests/foundation_runtime_e2e`） |
 | internal-vault | `internal-vault`（8 个模块） | 基础设施 shell 测试（`projects/server-edge/tests/*.sh`，需要 root 与 Docker） |
@@ -119,3 +119,14 @@ Claude Code 执行器和 Git 工作树模块的 11 个原始用例不改断言�
 测试包，再将 MCP Hub 的 `.github/test-pack.json` 固定到合并后的中央提交。
 通过真实中央 CI 完成 Linux、Windows、安全与证据签发，核对文件和用例完整性后，
 才允许从 MCP Hub 移除重复测试文件。不可提前删除原仓库中的测试及执行配置。
+
+### 第三批迁移验收要求
+
+`security.test.js`（8 个用例）与 `crypto-readiness.test.js`（4 个用例）
+通过中央可信测试包执行。迁移保持原断言与用例名称不变；仅将源码、测试
+辅助模块导入定位到被测提交，并将数据库迁移文件读取定位到
+`CENTRAL_TEST_TARGET_ROOT/migrations`。不使用业务 PR 可控路径加载新的中央测试代码。
+
+必须先在 Action Worker 合并中央测试包，随后由 MCP Hub 的独立 PR 固定
+可信提交并通过 Linux 原测试、中央 overlay 测试、Windows 和安全证据签发。
+在真实双跑验收前，不得删除 MCP Hub 本地对应测试。
