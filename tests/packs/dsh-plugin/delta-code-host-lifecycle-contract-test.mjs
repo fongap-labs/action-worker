@@ -155,7 +155,7 @@ test('native inbox route hints and Host subscriptions are disposed without extra
   assert.equal(listeners.size, 0, 'all event subscriptions must be released')
 })
 
-test('Strategy mounts exactly two readonly tools and disposes in reverse order', async () => {
+test('Strategy mounts three readonly tools and disposes in reverse order', async () => {
   const events = []
   const strategy = deltaCodeStrategy({
     registerSkills() { events.push('skills:on'); return () => events.push('skills:off') },
@@ -170,17 +170,17 @@ test('Strategy mounts exactly two readonly tools and disposes in reverse order',
       return () => events.push(tool.name + ':off')
     },
   })
-  assert.deepEqual(mounted.map(t => t.name), ['code_workflow_route', 'code_capabilities'])
+  assert.deepEqual(mounted.map(t => t.name), ['code_workflow_route', 'code_capabilities', 'code_experience_candidate'])
   const catalog = await mounted.find(t => t.name === 'code_capabilities').execute({ action: 'list' })
   assert.ok(catalog.capabilities.length > 0)
   assert.deepEqual(catalog.skills, [])
   stop()
   stop()
   assert.deepEqual(events, [
-    'code_workflow_route:on', 'code_capabilities:on',
+    'code_workflow_route:on', 'code_capabilities:on', 'code_experience_candidate:on',
     'skills:on', 'router:on', 'prompt:on',
     'prompt:off', 'router:off', 'skills:off',
-    'code_capabilities:off', 'code_workflow_route:off',
+    'code_experience_candidate:off', 'code_capabilities:off', 'code_workflow_route:off',
   ])
 })
 
@@ -198,8 +198,8 @@ test('Strategy activation failure rolls back tools and all earlier Host effects'
     },
   }), /Host prompt registration refused/)
   assert.deepEqual(events, [
-    'code_workflow_route:on', 'code_capabilities:on',
+    'code_workflow_route:on', 'code_capabilities:on', 'code_experience_candidate:on',
     'skills:on', 'router:on', 'router:off', 'skills:off',
-    'code_capabilities:off', 'code_workflow_route:off',
+    'code_experience_candidate:off', 'code_capabilities:off', 'code_workflow_route:off',
   ])
 })
