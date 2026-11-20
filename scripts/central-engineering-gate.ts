@@ -21,7 +21,7 @@ const shaPattern = /^[0-9a-f]{40}$/;
 const testFile =
   /(?:^|\/)(?:tests?|__tests__)\/|(?:^|\/)test_[^/]+\.(?:py|js|mjs|ts|tsx|rs)$|(?:^|\/)[^/]+(?:[._-](?:test|spec))\.(?:[cm]?[jt]sx?|py|rs)$/i;
 const centralEntrypoint =
-  /(?:^|\/)(?:\.github\/scripts\/central-ci|scripts\/central-ci(?:-[^/]+)?)\.(?:sh|ps1|mjs|js|ts)$/i;
+  /^(?:\.github\/scripts\/central-ci(?:-[^/]+)?|scripts\/(?:central-ci|build|check|test|lint|release|deploy|package|publish)(?:-[^/]+)?)\.(?:sh|ps1|mjs|js|ts|cjs|py)$/i;
 
 function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
