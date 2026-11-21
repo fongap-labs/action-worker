@@ -153,6 +153,10 @@ test("repair verifier requires the exact PR head/base and all signed central gat
   assert.ok(f.calls.includes("repos/" + controlRepository + "/actions/runs/101"));
   assert.ok(f.calls.includes("repos/" + controlRepository + "/actions/runs/102"));
   assert.equal(
+    f.calls.filter((path) => path === "repos/" + repository + "/pulls/" + prNumber).length,
+    2
+  );
+  assert.equal(
     f.calls.some((path) => /merge|update|dispatch|pulls\/\d+\/reviews/.test(path)),
     false
   );
@@ -225,6 +229,42 @@ test("unsigned or missing required gate statuses fail closed", async () => {
     (status) => status.context !== contract.status_contexts.merge_validation
   );
   await assert.rejects(verify(missingMerge.reader), /lacks a current-head signed success/);
+});
+
+test("a PR changed during proof collection fails closed before the evidence digest", async () => {
+  for (const change of ["head", "base", "title", "draft", "fork"] as const) {
+    const f = fixture();
+    let pullReads = 0;
+    const reader = {
+      async get(path: string): Promise<unknown> {
+        if (path === "repos/" + repository + "/pulls/" + prNumber) {
+          pullReads += 1;
+          if (pullReads === 2) {
+            switch (change) {
+              case "head":
+                f.pull.head.sha = "c".repeat(40);
+                break;
+              case "base":
+                f.pull.base.sha = "d".repeat(40);
+                break;
+              case "title":
+                f.pull.title = "fix(delta-code): changed during verification";
+                break;
+              case "draft":
+                f.pull.draft = true;
+                break;
+              case "fork":
+                f.pull.head.repo.full_name = "another/fork";
+                break;
+            }
+          }
+        }
+        return f.reader.get(path);
+      },
+    };
+    await assert.rejects(verify(reader), Error, change);
+    assert.equal(pullReads, 2, change);
+  }
 });
 
 test("invalid identity and verification time are rejected", async () => {
