@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
@@ -9,7 +8,7 @@ import {
 } from "../scripts/private-ref-evidence.ts";
 
 const identity: PrivateRefIdentity = {
-  repository: "fongap-labs/delta-legacy",
+  repository: "fongap-labs/private-fixture",
   headSha: "b".repeat(40),
   beforeSha: "a".repeat(40),
   linuxShards: ["checks", "desktop"],
@@ -52,7 +51,7 @@ function fixture() {
   };
 }
 
-test("protected caller template has a single exact source-owned SHA256", async () => {
+test("inactive private main policy retains a guarded source-owned template", async () => {
   const [text, policyText] = await Promise.all([
     readFile("templates/bridge/private-ref-ci.yml", "utf8"),
     readFile("policies/private-ref-callers.json", "utf8"),
@@ -62,10 +61,7 @@ test("protected caller template has a single exact source-owned SHA256", async (
     callers: Array<{ repository: string; path: string; sha256: string }>;
   };
   assert.equal(policy.schema_version, 1);
-  assert.equal(policy.callers.length, 1);
-  assert.equal(policy.callers[0]?.repository, identity.repository);
-  assert.equal(policy.callers[0]?.path, ".github/workflows/private-ref-ci.yml");
-  assert.equal(createHash("sha256").update(text).digest("hex"), policy.callers[0]?.sha256);
+  assert.deepEqual(policy.callers, []);
   assert.ok(text.includes("push:"));
   assert.ok(text.includes("branches: [main]"));
   assert.match(text, /private-ref-\$\{\{ github\.sha \}\}/);
