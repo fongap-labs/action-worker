@@ -61,6 +61,7 @@ jobs:
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           permission-contents: read
+          permission-pull-requests: read
 
       - name: Mint control repository PR token
         id: writer
