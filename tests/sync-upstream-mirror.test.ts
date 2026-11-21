@@ -32,10 +32,7 @@ test("broad and matching branch push events prevent mirroring", () => {
 });
 
 test("manual, tags-only and non-push workflows cannot run on mirror pushes", () => {
-  const allowed = [
-    "on: workflow_dispatch\n",
-    "on:\n  push:\n    tags: ['v*']\n",
-  ];
+  const allowed = ["on: workflow_dispatch\n", "on:\n  push:\n    tags: ['v*']\n"];
   for (const source of allowed) {
     assert.equal(isSafeMirrorWorkflow(source, branch), true);
   }
