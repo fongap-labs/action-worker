@@ -20,9 +20,7 @@ const DELTA_BOOTSTRAP = "7556dc8dfede03053e35359f2b55dd299da1f3ee";
 const DELTA_UPSTREAM = "2e39e70496aa02986ca6a820c5d497e816b69d7e";
 
 export function engineeringOwnershipDiffBase(repository: string, base: string): string {
-  return repository === "fongap-labs/delta" && base === DELTA_BOOTSTRAP
-    ? DELTA_UPSTREAM
-    : base;
+  return repository === "fongap-labs/delta" && base === DELTA_BOOTSTRAP ? DELTA_UPSTREAM : base;
 }
 
 /** Read complete immutable Git trees, not GitHub Compare's truncated 300-file list.
@@ -49,8 +47,18 @@ export async function inventoryImmutableGitTrees(
       await runCommand(
         "git",
         [
-          "-C", root, "diff", "--no-ext-diff", "--no-textconv", "--no-renames",
-          "--diff-filter=AMTD", "--name-status", "-z", base, head, "--",
+          "-C",
+          root,
+          "diff",
+          "--no-ext-diff",
+          "--no-textconv",
+          "--no-renames",
+          "--diff-filter=AMTD",
+          "--name-status",
+          "-z",
+          base,
+          head,
+          "--",
         ],
         { timeoutMs: 120_000 }
       )
@@ -64,7 +72,10 @@ export async function inventoryImmutableGitTrees(
       ["-C", root, "ls-tree", "-r", "--name-only", "-z", head, "--", ".github/workflows/"],
       { timeoutMs: 30_000 }
     )
-  ).toString("utf8").split("\0").filter(Boolean);
+  )
+    .toString("utf8")
+    .split("\0")
+    .filter(Boolean);
   const seen = new Set(changed.map((file) => file.path));
   for (const path of activeWorkflows) {
     if (/^\.github\/workflows\/[^/]+\.ya?ml$/.test(path) && !seen.has(path)) {
@@ -89,8 +100,16 @@ export async function fetchPublicGitInventory(
     await runCommand(
       "git",
       [
-        "-C", root, "fetch", "--quiet", "--no-tags", "--filter=blob:none",
-        "--depth=1", "https://github.com/" + repository + ".git", base, head,
+        "-C",
+        root,
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        "--filter=blob:none",
+        "--depth=1",
+        "https://github.com/" + repository + ".git",
+        base,
+        head,
       ],
       {
         env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
@@ -102,7 +121,6 @@ export async function fetchPublicGitInventory(
     rmSync(root, { recursive: true, force: true });
   }
 }
-
 
 export function parseCompareFiles(response: unknown): ChangedFile[] {
   if (!isJsonRecord(response) || !Array.isArray(response.files)) {
@@ -170,27 +188,27 @@ export async function checkGithubEngineeringOwnership(
     files = await fetchPublicDiff(repository, diffBase, head);
   } else {
     const result = await get("repos/" + repository + "/compare/" + base + "..." + head);
-  // GitHub's compare endpoint returns base_commit, merge_base_commit and an
-  // ordered commits array, NOT a head_commit field. The final comparison
-  // commit is the exact requested head only when the list is complete.
-  // Comparisons with >250 commits are truncated by GitHub: fail closed.
-  const commits = isJsonRecord(result) && Array.isArray(result.commits) ? result.commits : [];
-  const lastCommit = commits.length > 0 ? commits[commits.length - 1] : null;
-  if (
-    !isJsonRecord(result) ||
-    !isJsonRecord(result.base_commit) ||
-    result.base_commit.sha !== base ||
-    !Number.isSafeInteger(result.total_commits) ||
-    result.total_commits !== commits.length ||
-    commits.length === 0 ||
-    commits.length > 250 ||
-    !isJsonRecord(lastCommit) ||
-    lastCommit.sha !== head ||
-    (result.head_commit !== undefined &&
-      (!isJsonRecord(result.head_commit) || result.head_commit.sha !== head))
-  ) {
-    throw new CliError("GitHub comparison does not match the immutable CI revision.", 65);
-  }
+    // GitHub's compare endpoint returns base_commit, merge_base_commit and an
+    // ordered commits array, NOT a head_commit field. The final comparison
+    // commit is the exact requested head only when the list is complete.
+    // Comparisons with >250 commits are truncated by GitHub: fail closed.
+    const commits = isJsonRecord(result) && Array.isArray(result.commits) ? result.commits : [];
+    const lastCommit = commits.length > 0 ? commits[commits.length - 1] : null;
+    if (
+      !isJsonRecord(result) ||
+      !isJsonRecord(result.base_commit) ||
+      result.base_commit.sha !== base ||
+      !Number.isSafeInteger(result.total_commits) ||
+      result.total_commits !== commits.length ||
+      commits.length === 0 ||
+      commits.length > 250 ||
+      !isJsonRecord(lastCommit) ||
+      lastCommit.sha !== head ||
+      (result.head_commit !== undefined &&
+        (!isJsonRecord(result.head_commit) || result.head_commit.sha !== head))
+    ) {
+      throw new CliError("GitHub comparison does not match the immutable CI revision.", 65);
+    }
     if (!isJsonRecord(result) || !Array.isArray(result.files)) {
       throw new CliError("GitHub comparison did not return a file inventory.", 65);
     }
