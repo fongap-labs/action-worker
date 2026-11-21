@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
-import { selectBridgeCandidates } from "../scripts/central-ci-enrollment.ts";
+import { missingBridges, selectBridgeCandidates } from "../scripts/central-ci-enrollment.ts";
+import { GithubHttpError } from "../scripts/github-api.ts";
 
 const repos = [
   {
@@ -67,4 +68,67 @@ test("central CI bridge template matches the protected security hash and the wri
   assert.match(script, /decodeGithubContent\(file\) !== template/);
   assert.match(script, /Central CI onboarding branch contains unverified work/);
   assert.match(script, /hasPendingBridgePullRequest/);
+});
+
+test("empty repositories defer bridge PR creation without reporting a verified bridge", async () => {
+  const repository = "fongap-labs/new-public";
+  const calls: string[] = [];
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      calls.push(path);
+      if (path.endsWith("/contents/.github/workflows/notify-action-worker.yml?ref=main")) {
+        throw new GithubHttpError(404);
+      }
+      if (path.endsWith("/pulls?state=open&base=main&per_page=100")) return [];
+      if (path.endsWith("/git/ref/heads/main")) throw new GithubHttpError(409);
+      if (path === "repos/" + repository) {
+        return { full_name: repository, default_branch: "main", size: 0, archived: false };
+      }
+      throw new Error("Unexpected test request");
+    },
+  };
+  const outcome = await missingBridges(reader, [{ repository, default_branch: "main" }]);
+  assert.deepEqual(outcome, { targets: [], pending: 0, uninitialized: 1 });
+  assert.ok(calls.includes("repos/" + repository + "/git/ref/heads/main"));
+  assert.ok(calls.includes("repos/" + repository));
+});
+
+test("missing bridges on initialized main remain enrollment candidates", async () => {
+  const repository = "fongap-labs/new-public";
+  const sha = "a".repeat(40);
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      if (path.includes("/contents/")) throw new GithubHttpError(404);
+      if (path.endsWith("/pulls?state=open&base=main&per_page=100")) return [];
+      if (path.endsWith("/git/ref/heads/main")) return { object: { sha } };
+      throw new Error("Unexpected test request");
+    },
+  };
+  assert.deepEqual(await missingBridges(reader, [{ repository, default_branch: "main" }]), {
+    targets: [{ repository, default_branch: "main" }],
+    pending: 0,
+    uninitialized: 0,
+  });
+});
+
+test("409 on nonempty or unverifiable repositories and permission failures remain blocking", async () => {
+  const repository = "fongap-labs/new-public";
+  for (const [status, size] of [
+    [409, 1],
+    [409, null],
+    [403, 0],
+  ] as const) {
+    const reader = {
+      async get(path: string): Promise<unknown> {
+        if (path.includes("/contents/")) throw new GithubHttpError(404);
+        if (path.endsWith("/pulls?state=open&base=main&per_page=100")) return [];
+        if (path.endsWith("/git/ref/heads/main")) throw new GithubHttpError(status);
+        if (path === "repos/" + repository) {
+          return { full_name: repository, default_branch: "main", size, archived: false };
+        }
+        throw new Error("Unexpected test request");
+      },
+    };
+    await assert.rejects(missingBridges(reader, [{ repository, default_branch: "main" }]));
+  }
 });
