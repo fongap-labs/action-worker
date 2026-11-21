@@ -45,9 +45,14 @@ export function isSafeMirrorWorkflow(source: string, branch = MIRROR_BRANCH): bo
     return config.tags.length > 0;
   }
   if (!Array.isArray(config.branches) || config.branches.length === 0) return false;
-  return config.branches.every(
-    (name) => typeof name === "string" && /^[A-Za-z0-9._/-]+$/.test(name) && name !== branch,
-  );
+  return config.branches.every((name) => {
+    if (typeof name !== "string" || name.startsWith("!")) return false;
+    const literalPrefix = name.split(/[*?\\[\\]{}+]/u, 1)[0] ?? "";
+    if (!literalPrefix) return false;
+    if (literalPrefix === name) return name !== branch;
+    // Release patterns with a disjoint fixed prefix cannot match the mirror branch.
+    return !branch.startsWith(literalPrefix);
+  });
 }
 
 function assertSafeWorkflowTriggers(repository: string): number {
