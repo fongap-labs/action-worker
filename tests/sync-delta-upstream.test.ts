@@ -15,7 +15,10 @@ test("mirror branch or broad push triggers block the entire sync", () => {
   assert.equal(isSafeMirrorWorkflow("on: push\n"), false);
   assert.equal(isSafeMirrorWorkflow("on: [push, pull_request]\n"), false);
   assert.equal(isSafeMirrorWorkflow("on:\n  push:\n    branches: ['upstream/*']\n"), false);
-  assert.equal(isSafeMirrorWorkflow("on:\n  push:\n    branches: [upstream/deepseek-harness]\n"), false);
+  assert.equal(
+    isSafeMirrorWorkflow("on:\n  push:\n    branches: [upstream/deepseek-harness]\n"),
+    false
+  );
   assert.equal(isSafeMirrorWorkflow("on:\n  push:\n    branches-ignore: [main]\n"), false);
 });
 
