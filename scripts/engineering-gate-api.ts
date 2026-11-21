@@ -178,9 +178,7 @@ export async function filterInheritedWorkflowDeletions(
   }
   return files.filter(
     (file) =>
-      file.status !== "D" ||
-      !policy.workflow_templates[file.path] ||
-      bootstrapPaths.has(file.path)
+      file.status !== "D" || !policy.workflow_templates[file.path] || bootstrapPaths.has(file.path)
   );
 }
 
