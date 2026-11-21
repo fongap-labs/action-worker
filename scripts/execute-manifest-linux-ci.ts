@@ -109,6 +109,9 @@ export async function executeManifestLinuxCi(
     console.log("Trusted notification bridge bootstrap verified.");
     return;
   }
+  if (process.env.TARGET_PRIVATE !== "false") {
+    throw new CliError("Manifest CI is only available for verified public targets.", 65);
+  }
   // The checkout and immutable SHA are verified by the preceding central sandbox steps.
   // Direct process execution (no shell) prevents manifest argument shell injection.
   const ran = spawnSync(process.execPath, [selected.script, ...selected.args], {
