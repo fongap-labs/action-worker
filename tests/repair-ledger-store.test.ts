@@ -1,15 +1,18 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "node:test";
-import { createRepairLedgerEntry, type RepairLedgerEntry } from "../scripts/repair-lifecycle-ledger.ts";
 import {
-  RepairLedgerConflictError,
-  RepairLedgerStore,
   createScopedRepairLedgerStore,
-  repairLedgerRefName,
+  RepairLedgerConflictError,
   type RepairLedgerDocument,
   type RepairLedgerGitApi,
+  RepairLedgerStore,
+  repairLedgerRefName,
 } from "../scripts/repair-ledger-store.ts";
+import {
+  createRepairLedgerEntry,
+  type RepairLedgerEntry,
+} from "../scripts/repair-lifecycle-ledger.ts";
 
 const fingerprint = "a".repeat(64);
 const rootEvidence = "b".repeat(64);
@@ -44,7 +47,9 @@ class MemoryGitApi implements RepairLedgerGitApi {
   async createTree(baseTreeSha: string | null, path: string, content: string): Promise<string> {
     const files = new Map(baseTreeSha ? this.trees.get(baseTreeSha) : undefined);
     files.set(path, content);
-    const sha = createHash("sha1").update(JSON.stringify([...files])).digest("hex");
+    const sha = createHash("sha1")
+      .update(JSON.stringify([...files]))
+      .digest("hex");
     this.trees.set(sha, files);
     return sha;
   }
@@ -90,7 +95,10 @@ test("public ledger survives reads and revisions in a permanent per-root-cause G
   const initial = document("fongap-labs/action-worker", 17);
   const created = await store.create(initial, false, null);
   assert.equal(created.document.entry.revision, 0);
-  assert.equal(repairLedgerRefName(initial.entry.task_id), "repair-ledger-" + initial.entry.task_id.slice(7));
+  assert.equal(
+    repairLedgerRefName(initial.entry.task_id),
+    "repair-ledger-" + initial.entry.task_id.slice(7)
+  );
   assert.equal(repairLedgerRefName(initial.entry.task_id).includes("fongap-labs"), false);
 
   const restored = await store.read(initial.repository, 17, fingerprint, false, null);
@@ -122,7 +130,13 @@ test("private ledger records encrypt repository, issue and evidence before writi
   assert.equal(raw.includes(fingerprint), false);
   assert.equal(raw.includes(initial.entry.task_id), false);
 
-  const restored = await store.read(initial.repository, initial.issue_number, fingerprint, true, key);
+  const restored = await store.read(
+    initial.repository,
+    initial.issue_number,
+    fingerprint,
+    true,
+    key
+  );
   assert.deepEqual(restored?.document, initial);
   await assert.rejects(
     store.read(initial.repository, initial.issue_number, fingerprint, true, Buffer.alloc(32, 8)),
