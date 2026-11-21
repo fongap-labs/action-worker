@@ -1,6 +1,7 @@
 import { requireToken } from "./control-token.ts";
 import { GithubReader } from "./github-api.ts";
 import { admitRepairFinding, type RepairFinding } from "./repair-finding-admission.ts";
+import { resolveRepairIssue } from "./repair-issue-binding.ts";
 import { createScopedRepairLedgerStore } from "./repair-ledger-store.ts";
 import { CliError, isMain } from "./runtime-command.ts";
 
@@ -17,7 +18,14 @@ const UTC_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
  * private source identity in a public workflow_dispatch input or public log.
  * This creates a discovered task, NOT a verified root cause or repair approval.
  */
-export function parsePublicRepairIntake(env: NodeJS.ProcessEnv, now: string): RepairFinding {
+export type PublicRepairIntakeInput = Omit<RepairFinding, "issue_number"> & {
+  readonly issue_number: number | null;
+};
+
+export function parsePublicRepairIntake(
+  env: NodeJS.ProcessEnv,
+  now: string
+): PublicRepairIntakeInput {
   if (
     env.GITHUB_REPOSITORY !== CONTROL_REPOSITORY ||
     env.GITHUB_REF !== "refs/heads/main" ||
@@ -30,12 +38,14 @@ export function parsePublicRepairIntake(env: NodeJS.ProcessEnv, now: string): Re
   const run = env.AW_REPAIR_FAILURE_RUN_ID ?? "";
   const headSha = env.AW_REPAIR_FAILURE_HEAD_SHA ?? "";
   const fingerprint = env.AW_REPAIR_ROOT_CAUSE_SHA256 ?? "";
-  const issueNumber = Number(issue);
+  // Empty or zero selects exact existing-Issue lookup; a positive number
+  // keeps the original explicit operator-controlled admission path.
+  const issueNumber = issue === "" || issue === "0" ? null : Number(issue);
   const runId = Number(run);
   if (
-    !POSITIVE_INTEGER.test(issue) ||
+    (issueNumber !== null &&
+      (!POSITIVE_INTEGER.test(issue) || !Number.isSafeInteger(issueNumber))) ||
     !POSITIVE_INTEGER.test(run) ||
-    !Number.isSafeInteger(issueNumber) ||
     !Number.isSafeInteger(runId) ||
     !SHA.test(headSha) ||
     !FINGERPRINT.test(fingerprint) ||
@@ -67,7 +77,24 @@ async function main(): Promise<void> {
     readToken,
     { attemptLimit: 2 }
   );
-  const admitted = await admitRepairFinding(store, reader, finding, null);
+  const issueNumber =
+    finding.issue_number ??
+    (await resolveRepairIssue(
+      reader,
+      finding.repository,
+      finding.failure_run_id,
+      finding.failure_head_sha
+    ));
+  if (issueNumber === null) {
+    throw new CliError("No uniquely bound open Issue was found for this failure.", 75);
+  }
+  const admitted = await admitRepairFinding(
+    store,
+    reader,
+    { ...finding, issue_number: issueNumber },
+    null,
+    finding.issue_number === null
+  );
   console.log(
     JSON.stringify({
       schema_version: "1",

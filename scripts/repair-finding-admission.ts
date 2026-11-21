@@ -1,5 +1,6 @@
 import type { JsonReader } from "./ci-evidence.ts";
 import { getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
+import { hasExactRepairIssueMarker } from "./repair-issue-binding.ts";
 import {
   RepairLedgerConflictError,
   type RepairLedgerDocument,
@@ -44,7 +45,8 @@ export async function admitRepairFinding(
   store: AdmissionStore,
   reader: JsonReader,
   finding: RepairFinding,
-  key: Buffer | null
+  key: Buffer | null,
+  shouldRequireExactIssueMarker = false
 ): Promise<RepairAdmission> {
   const repository = finding.repository.trim().toLowerCase();
   if (
@@ -95,6 +97,12 @@ export async function admitRepairFinding(
     issue.pull_request !== undefined
   ) {
     throw new CliError("Repair finding must refer to an existing open Issue.", 75);
+  }
+  if (
+    shouldRequireExactIssueMarker &&
+    !hasExactRepairIssueMarker(issue.body, finding.failure_run_id, finding.failure_head_sha)
+  ) {
+    throw new CliError("Repair Issue failure marker changed before admission.", 75);
   }
 
   const protectedKey = isPrivate ? key : null;
