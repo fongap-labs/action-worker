@@ -134,7 +134,7 @@ export const sealedLogFile = "task-log.seal";
 const sealMagic = Buffer.from("AWSEAL1", "utf8");
 const taskWorkflowPath = ".github/workflows/handle-task-dispatch.yml";
 
-export type SealKind = "task-state" | "task-log";
+export type SealKind = "task-state" | "task-log" | "repair-ledger";
 
 export function artifactKey(raw: string): Buffer {
   const key = Buffer.from(raw.trim(), "base64");

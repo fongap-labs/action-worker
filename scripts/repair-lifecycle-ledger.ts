@@ -19,7 +19,8 @@ export interface RepairLedgerEntry {
   readonly root_cause_sha256: string;
   readonly revision: number;
   readonly stage: RepairStage;
-  readonly evidence_sha256: string | null;
+  readonly root_cause_evidence_sha256: string | null;
+  readonly ci_evidence_sha256: string | null;
   readonly head_sha: string | null;
   readonly pr_number: number | null;
   readonly ci_run_id: number | null;
@@ -76,7 +77,8 @@ export function createRepairLedgerEntry(
     root_cause_sha256: rootCauseSha256,
     revision: 0,
     stage: "discovered",
-    evidence_sha256: null,
+    root_cause_evidence_sha256: null,
+    ci_evidence_sha256: null,
     head_sha: null,
     pr_number: null,
     ci_run_id: null,
@@ -109,7 +111,7 @@ export function applyRepairLedgerEvent(
       if (current.stage !== "discovered")
         throw new Error("Root cause already verified or task has advanced.");
       assertDigest(event.evidenceSha256);
-      change = { stage: "diagnosed", evidence_sha256: event.evidenceSha256 };
+      change = { stage: "diagnosed", root_cause_evidence_sha256: event.evidenceSha256 };
       break;
     case "repair-created":
       if (current.stage !== "diagnosed") throw new Error("Repair requires verified root cause.");
@@ -135,7 +137,7 @@ export function applyRepairLedgerEvent(
       }
       // Only a trusted, SHA-bound GitHub status verifier may emit ci-verified.
       assertDigest(event.evidenceSha256);
-      change = { stage: "completed", evidence_sha256: event.evidenceSha256 };
+      change = { stage: "completed", ci_evidence_sha256: event.evidenceSha256 };
       break;
     case "head-updated":
       if (current.stage !== "repairing" && current.stage !== "ci_verifying") {
