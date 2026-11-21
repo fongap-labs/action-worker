@@ -161,6 +161,12 @@ tag: dsh-ui-delta-v0.1.0-beta.2
 - 这是声明式验收而不是对所有产品强制三平台构建；未构建的原生平台绝不可标记为已验收。
 - 外部 GitHub Action 必须锁定完整的不可变 40 位 Commit SHA。破坏性合同更新需要另行版本化和兼容迁移，不允许隐式放宽门禁。
 
+### 4.4 应用在自身仓库发布
+
+应用源码和发行资产归同一个仓库时，仍由 Action Worker 集中执行 CI、构建、发布与主分支来源验证，不在项目仓库新建本地发布工作流。中央 `policies/repository-access.json` 必须显式授予该仓库 `pr`、`release-source` 和 `release-target`，仅有基础 `pr` 授权不能发布。
+
+项目单产品清单 `.github/release.manifest.json`（或多产品 `projects/<产品>/release.manifest.json`）应将 `target_repository` 指向自己的 `owner/name`，由中央发布作业在**该仓库**创建 Release、tag 与资产。发布仍要求实际源码与构建脚本、非空产物、中央 CI Evidence、可信 main 写入来源及所有产物的校验和来源证明；仓库尚为空或缺少真实执行清单时不得用占位构建、空测试或人工创建 Release 代替验证。
+
 ## 5. 部署流程详解
 
 ```
