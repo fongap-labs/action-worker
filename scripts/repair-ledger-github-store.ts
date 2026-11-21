@@ -10,7 +10,13 @@ import {
 import { requireToken } from "./control-token.ts";
 import { CliError, parseJson, runCommand } from "./runtime-command.ts";
 import { openBytes, sealBytes } from "./task-state.ts";
-import { repairTaskId, type RepairLedgerEntry, type RepairStage } from "./repair-lifecycle-ledger.ts";
+import {
+  applyRepairLedgerEvent,
+  repairTaskId,
+  type RepairEvent,
+  type RepairLedgerEntry,
+  type RepairStage,
+} from "./repair-lifecycle-ledger.ts";
 
 const RECORD_PATH = "record.dat";
 const RECORD_PREFIX = "AWREPAIR1";
@@ -303,22 +309,19 @@ export class RepairLedgerStore {
 
   async compareAndSwap(
     snapshot: RepairLedgerSnapshot,
-    nextDocument: RepairLedgerDocument,
+    event: RepairEvent,
+    now: string,
     key: Buffer | null
   ): Promise<RepairLedgerSnapshot> {
     const current = validateRepairLedgerDocument(snapshot.document);
-    const next = validateRepairLedgerDocument(
-      nextDocument,
-      current.repository,
-      current.issue_number,
-      current.entry.task_id
-    );
-    if (
-      (snapshot.is_private && key === null) ||
-      next.entry.revision !== current.entry.revision + 1 ||
-      next.entry.root_cause_sha256 !== current.entry.root_cause_sha256
-    ) {
-      throw new CliError("Repair ledger update does not advance the current trusted revision.", 65);
+    if (event.kind === "ci-verified") {
+      throw new CliError(
+        "Repair completion requires trusted current-head GitHub CI verification.",
+        77
+      );
+    }
+    if (snapshot.is_private && key === null) {
+      throw new CliError("Private repair ledger requires AW_ARTIFACT_KEY.", 77);
     }
     const refName = repairLedgerRefName(current.entry.task_id);
     const latest = await this.read(
@@ -335,6 +338,18 @@ export class RepairLedgerStore {
     ) {
       throw new RepairLedgerConflictError();
     }
+    const nextEntry = applyRepairLedgerEvent(
+      current.entry,
+      current.entry.revision,
+      event,
+      now
+    );
+    const next = validateRepairLedgerDocument(
+      { ...current, entry: nextEntry },
+      current.repository,
+      current.issue_number,
+      current.entry.task_id
+    );
     const content = encodeRecord(next, snapshot.is_private, key);
     const treeSha = await this.api.createTree(latest.tree_sha, RECORD_PATH, content);
     assertSha(treeSha, GIT_SHA, "tree");
