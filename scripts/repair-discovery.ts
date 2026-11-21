@@ -57,9 +57,7 @@ async function installedRepositories(
   let expectedCount: number | null = null;
   const names = new Set<string>();
   for (let page = 1; page <= Math.ceil(MAX_REPOSITORIES / PAGE_SIZE) + 1; page += 1) {
-    const result = await reader.get(
-      `installation/repositories?per_page=${PAGE_SIZE}&page=${page}`
-    );
+    const result = await reader.get(`installation/repositories?per_page=${PAGE_SIZE}&page=${page}`);
     const total = safeCount(result, MAX_REPOSITORIES);
     if (expectedCount !== null && total !== expectedCount) {
       throw new CliError("GitHub App installation inventory changed during discovery.", 75);
