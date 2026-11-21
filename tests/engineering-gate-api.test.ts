@@ -10,6 +10,17 @@ import {
 const policy = parseOwnershipPolicy(
   JSON.parse(readFileSync("policies/engineering-ownership.json", "utf8")) as unknown
 );
+const privateFixturePolicy = parseOwnershipPolicy({
+  ...policy,
+  private_workflow_pins: [
+    {
+      repository: "fongap-labs/private-fixture",
+      path: ".github/workflows/private-release-build.yml",
+      blob_sha: "c".repeat(40),
+      reason: "Test-only reviewed blob for private workflow boundary verification.",
+    },
+  ],
+});
 const base = "a".repeat(40);
 const head = "b".repeat(40);
 const compare = (files: unknown[]) => ({
@@ -137,7 +148,7 @@ test("privileged API gate permits only exact centrally approved workflow templat
 });
 
 test("private workflow ownership checks commit-bound blobs without downloading private source", async () => {
-  const pin = policy.private_workflow_pins[0];
+  const pin = privateFixturePolicy.private_workflow_pins[0];
   assert.ok(pin);
   const calls: string[] = [];
   const fetch = async (path: string) => {
@@ -147,7 +158,7 @@ test("private workflow ownership checks commit-bound blobs without downloading p
     }
     throw new Error("Private source file must never be downloaded by the public control gate.");
   };
-  await checkGithubEngineeringOwnership(pin.repository, base, head, policy, fetch, () => {
+  await checkGithubEngineeringOwnership(pin.repository, base, head, privateFixturePolicy, fetch, () => {
     throw new Error("Private workflow must not become a public template.");
   });
   assert.deepEqual(calls, ["repos/" + pin.repository + "/compare/" + base + "..." + head]);
@@ -157,7 +168,7 @@ test("private workflow ownership checks commit-bound blobs without downloading p
         pin.repository,
         base,
         head,
-        policy,
+        privateFixturePolicy,
         async () => compare([{ filename: pin.path, status: "modified", ...(sha ? { sha } : {}) }]),
         () => {
           throw new Error("Untrusted private workflow read.");
@@ -171,7 +182,7 @@ test("private workflow ownership checks commit-bound blobs without downloading p
       "fongap-labs/dsh-plugin",
       base,
       head,
-      policy,
+      privateFixturePolicy,
       async () => compare([{ filename: pin.path, status: "modified", sha: pin.blob_sha }]),
       () => {
         throw new Error("No cross-repository template read.");
