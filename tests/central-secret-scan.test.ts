@@ -8,6 +8,7 @@ import {
   downloadFailureReason,
   GITLEAKS_LINUX_X64_ASSET_ID,
   gitleaksDownloadSources,
+  isUnchangedUpstreamFinding,
   scannerFailureReason,
   summarizeFindings,
 } from "../scripts/central-secret-scan.ts";
@@ -138,6 +139,39 @@ test("findings are summarised by rule and annotated only for public targets", ()
   assert.deepEqual(privateSummary.annotations, []);
   assert.equal(summarizeFindings(findings, true).annotations.length, 3);
   assert.throws(() => summarizeFindings({}, true));
+});
+
+test("initial upstream import excludes only identical pinned source lines", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "secret-baseline-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const git = (args: string[]): string => {
+    const result = spawnSync("git", args, { cwd: directory, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  git(["init", "-q"]);
+  await writeFile(join(directory, "fixture.ts"), 'const sample = "from-upstream";\\nconst state = 0;\\n');
+  git(["add", "fixture.ts"]);
+  git(["-c", "user.email=test@example.invalid", "-c", "user.name=Test", "commit", "-qm", "baseline"]);
+  const upstreamSha = git(["rev-parse", "HEAD"]);
+  await writeFile(join(directory, "fixture.ts"), 'const sample = "from-upstream";\\nconst state = 1;\\n');
+  git(["add", "fixture.ts"]);
+  git(["-c", "user.email=test@example.invalid", "-c", "user.name=Test", "commit", "-qm", "delta"]);
+  const unchangedCommit = git(["rev-parse", "HEAD"]);
+  const original = { Commit: unchangedCommit, File: "fixture.ts", StartLine: 1, EndLine: 1 };
+  assert.equal(isUnchangedUpstreamFinding(original, upstreamSha, directory), true);
+  assert.equal(isUnchangedUpstreamFinding({ ...original, EndLine: 2 }, upstreamSha, directory), false);
+  assert.equal(isUnchangedUpstreamFinding({ ...original, File: "missing.ts" }, upstreamSha, directory), false);
+  assert.equal(isUnchangedUpstreamFinding({ ...original, Commit: "invalid" }, upstreamSha, directory), false);
+
+  await writeFile(join(directory, "fixture.ts"), 'const sample = "delta-modified";\\nconst state = 1;\\n');
+  git(["add", "fixture.ts"]);
+  git(["-c", "user.email=test@example.invalid", "-c", "user.name=Test", "commit", "-qm", "changed"]);
+  const modifiedCommit = git(["rev-parse", "HEAD"]);
+  assert.equal(
+    isUnchangedUpstreamFinding({ ...original, Commit: modifiedCommit }, upstreamSha, directory),
+    false
+  );
 });
 
 test("scanner failures reveal safe categories but never leak private stderr", async (context) => {
