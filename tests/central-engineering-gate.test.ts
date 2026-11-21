@@ -311,9 +311,9 @@ test("first Delta import uses the same pinned upstream tree in both ownership ga
   assert.equal(engineeringOwnershipDiffBase("fongap-labs/delta", "a".repeat(40)), "a".repeat(40));
   assert.equal(engineeringOwnershipDiffBase("fongap-labs/ai-gateway", bootstrap), bootstrap);
   const sandboxGate = readFileSync("scripts/central-engineering-gate.ts", "utf8");
-  assert.match(sandboxGate, /const comparisonBase = engineeringOwnershipDiffBase\\(repository, base\\)/);
-  assert.match(sandboxGate, /new Set\\(\\[base, comparisonBase, head\\]\\)/);
-  assert.match(sandboxGate, /"-z",\\s*comparisonBase,\\s*head/);
+  assert.ok(sandboxGate.includes("const comparisonBase = engineeringOwnershipDiffBase(repository, base)"));
+  assert.ok(sandboxGate.includes("new Set([base, comparisonBase, head])"));
+  assert.ok(sandboxGate.includes('"-z",\\n    comparisonBase,\\n    head,'));
 });
 
 test("Linux central sandbox runs trusted ownership policy before project-controlled CI", () => {
