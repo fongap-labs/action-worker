@@ -263,7 +263,7 @@ function decodeRecord(
   taskId: string,
   isPrivate: boolean,
   key: Buffer | null,
-  issueNumber: number
+  issueNumber: number | undefined
 ): RepairLedgerDocument {
   const prefix = `${RECORD_PREFIX}:`;
   if (!raw.startsWith(prefix))
@@ -313,9 +313,32 @@ export class RepairLedgerStore {
     isPrivate: boolean,
     key: Buffer | null
   ): Promise<RepairLedgerSnapshot | null> {
+    assertPositive(issueNumber, "issue number");
+    return this.readByRootInternal(repository, rootCauseSha256, isPrivate, key, issueNumber);
+  }
+
+  /**
+   * Root-cause deduplication spans multiple Issues. The recorded Issue remains
+   * immutable; this lookup must never be used to authorize a state update.
+   */
+  async readByRoot(
+    repository: string,
+    rootCauseSha256: string,
+    isPrivate: boolean,
+    key: Buffer | null
+  ): Promise<RepairLedgerSnapshot | null> {
+    return this.readByRootInternal(repository, rootCauseSha256, isPrivate, key);
+  }
+
+  private async readByRootInternal(
+    repository: string,
+    rootCauseSha256: string,
+    isPrivate: boolean,
+    key: Buffer | null,
+    issueNumber?: number
+  ): Promise<RepairLedgerSnapshot | null> {
     const normalizedRepository = repository.trim().toLowerCase();
     const taskId = repairTaskId(normalizedRepository, rootCauseSha256);
-    assertPositive(issueNumber, "issue number");
     const refName = repairLedgerRefName(taskId);
     const commitSha = await this.api.getRef(refName);
     if (commitSha === null) return null;
