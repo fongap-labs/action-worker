@@ -102,7 +102,7 @@ test("auto-enrollment creates a formatter-compliant policy and a scoped Chinese 
   assert.match(formatted, /"fongap-labs\/new-service": \["pr"\]/);
   const base = "# 更新日志\n\n## [Unreleased]\n\n- 维护: 已有内容。\n";
   const updated = addOnboardingChangelog(base, ["fongap-labs/new-service"]);
-  assert.match(updated, /- 维护: 自动将 fongap-labs\/new-service 纳入中央 PR 治理/);
+  assert.ok(updated.includes("- 维护: 自动将 fongap-labs/new-service 纳入中央 PR 治理"));
   assert.ok(updated.includes("- 维护: 已有内容。"));
   assert.throws(() => addOnboardingChangelog(updated, ["fongap-labs/new-service"]));
   assert.throws(() => addOnboardingChangelog(base, []));
