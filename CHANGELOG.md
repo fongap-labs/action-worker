@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- 新增: Delta 上游镜像分支纳入 Action Worker 中央每日同步，与 ds-harness 分别使用限定仓库的短期 App 写入令牌；仅同步 DeepSeek Harness master 完整 Git 历史到 upstream/deepseek-harness，保留快速前进保护，绝不自动合并或覆盖 Delta main。
+- 新增: 中央每日将 DeepSeek Harness 的 master 镜像至 Delta 独立上游分支，不自动更新 main。
 
 - 新增: 中央定时同步 DeepSeek Harness master 完整历史至 ds-harness 的 upstream/deepseek-harness；首次带租约替换，后续仅快进并检查上游工作流。
 
