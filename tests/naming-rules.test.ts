@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { test } from "node:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { test } from "node:test";
 
 import { commandFailureMessage } from "../scripts/validate-naming-rules.ts";
 
@@ -43,10 +43,7 @@ test("unchanged legacy paths may be edited, but newly introduced paths must foll
     });
     assert.equal(allowed.status, 0, allowed.stdout + allowed.stderr);
 
-    await writeFile(
-      join(root, "scripts/brand-new-extra-filename.ts"),
-      "export const count = 3;\n"
-    );
+    await writeFile(join(root, "scripts/brand-new-extra-filename.ts"), "export const count = 3;\n");
     git("add", ".");
     git("commit", "-qm", "introduce invalid filename");
     const next = git("rev-parse", "HEAD");
@@ -55,7 +52,10 @@ test("unchanged legacy paths may be edited, but newly introduced paths must foll
       encoding: "utf8",
     });
     assert.notEqual(rejected.status, 0);
-    assert.match(rejected.stdout + rejected.stderr, /filename must be kebab-case|TypeScript filename/);
+    assert.match(
+      rejected.stdout + rejected.stderr,
+      /filename must be kebab-case|TypeScript filename/
+    );
   } finally {
     await rm(root, { recursive: true, force: true });
   }
