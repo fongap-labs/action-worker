@@ -191,6 +191,9 @@ test("ledger refuses wrong issue and cannot complete without trusted CI verifica
     store.read(initial.repository, 22, fingerprint, false, null),
     /different issue/
   );
+  const existingRoot = await store.readByRoot(initial.repository, fingerprint, false, null);
+  assert.equal(existingRoot?.document.issue_number, 21);
+  assert.equal(existingRoot?.document.entry.task_id, initial.entry.task_id);
   await assert.rejects(
     store.compareAndSwap(
       created,
