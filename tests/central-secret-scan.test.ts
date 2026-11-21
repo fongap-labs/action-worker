@@ -150,11 +150,11 @@ test("initial upstream import excludes only identical pinned source lines", asyn
     return result.stdout.trim();
   };
   git(["init", "-q"]);
-  await writeFile(join(directory, "fixture.ts"), 'const sample = "from-upstream";\\nconst state = 0;\\n');
+  await writeFile(join(directory, "fixture.ts"), 'const sample = "from-upstream";\nconst state = 0;\n');
   git(["add", "fixture.ts"]);
   git(["-c", "user.email=test@example.invalid", "-c", "user.name=Test", "commit", "-qm", "baseline"]);
   const upstreamSha = git(["rev-parse", "HEAD"]);
-  await writeFile(join(directory, "fixture.ts"), 'const sample = "from-upstream";\\nconst state = 1;\\n');
+  await writeFile(join(directory, "fixture.ts"), 'const sample = "from-upstream";\nconst state = 1;\n');
   git(["add", "fixture.ts"]);
   git(["-c", "user.email=test@example.invalid", "-c", "user.name=Test", "commit", "-qm", "delta"]);
   const unchangedCommit = git(["rev-parse", "HEAD"]);
@@ -164,7 +164,7 @@ test("initial upstream import excludes only identical pinned source lines", asyn
   assert.equal(isUnchangedUpstreamFinding({ ...original, File: "missing.ts" }, upstreamSha, directory), false);
   assert.equal(isUnchangedUpstreamFinding({ ...original, Commit: "invalid" }, upstreamSha, directory), false);
 
-  await writeFile(join(directory, "fixture.ts"), 'const sample = "delta-modified";\\nconst state = 1;\\n');
+  await writeFile(join(directory, "fixture.ts"), 'const sample = "delta-modified";\nconst state = 1;\n');
   git(["add", "fixture.ts"]);
   git(["-c", "user.email=test@example.invalid", "-c", "user.name=Test", "commit", "-qm", "changed"]);
   const modifiedCommit = git(["rev-parse", "HEAD"]);
