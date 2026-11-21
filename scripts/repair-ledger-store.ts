@@ -9,7 +9,6 @@ import {
   isGithubMissing,
   isJsonRecord,
 } from "./github-api.ts";
-import { verifiedRepairPostMergeDigest } from "./repair-main-ci.ts";
 import {
   applyRepairLedgerEvent,
   type RepairEvent,
@@ -17,6 +16,7 @@ import {
   type RepairStage,
   repairTaskId,
 } from "./repair-lifecycle-ledger.ts";
+import { verifiedRepairPostMergeDigest } from "./repair-main-ci.ts";
 import { CliError, parseJson, runCommand } from "./runtime-command.ts";
 import { openBytes, sealBytes } from "./task-state.ts";
 
