@@ -3,9 +3,9 @@ import { test } from "node:test";
 import {
   applyRepairLedgerEvent,
   createRepairLedgerEntry,
-  repairTaskId,
   type RepairEvent,
   type RepairLedgerEntry,
+  repairTaskId,
 } from "../scripts/repair-lifecycle-ledger.ts";
 
 const fingerprint = "a".repeat(64);
@@ -54,7 +54,11 @@ test("stale and skipped transitions never mutate a repair record", () => {
   const entry = fixture();
   const event: RepairEvent = { kind: "root-cause-verified", evidenceSha256: evidence };
   assert.throws(() => applyRepairLedgerEvent(entry, 1, event, now), /Stale/);
-  reject(entry, { kind: "repair-created", headSha: firstHead, prNumber: 42 }, /verified root cause/);
+  reject(
+    entry,
+    { kind: "repair-created", headSha: firstHead, prNumber: 42 },
+    /verified root cause/
+  );
   assert.equal(entry.revision, 0);
   assert.equal(entry.stage, "discovered");
 });
@@ -63,18 +67,26 @@ test("CI is tied to the current head and exact run", () => {
   const repairing = advanceToRepair();
   reject(repairing, { kind: "ci-started", headSha: secondHead, runId: 5 }, /current repair head/);
   const checking = change(repairing, { kind: "ci-started", headSha: firstHead, runId: 5 });
-  reject(checking, {
-    kind: "ci-verified",
-    headSha: firstHead,
-    runId: 6,
-    evidenceSha256: verifiedCi,
-  }, /stale/);
-  reject(checking, {
-    kind: "ci-verified",
-    headSha: secondHead,
-    runId: 5,
-    evidenceSha256: verifiedCi,
-  }, /stale/);
+  reject(
+    checking,
+    {
+      kind: "ci-verified",
+      headSha: firstHead,
+      runId: 6,
+      evidenceSha256: verifiedCi,
+    },
+    /stale/
+  );
+  reject(
+    checking,
+    {
+      kind: "ci-verified",
+      headSha: secondHead,
+      runId: 5,
+      evidenceSha256: verifiedCi,
+    },
+    /stale/
+  );
   const done = change(checking, {
     kind: "ci-verified",
     headSha: firstHead,
@@ -93,12 +105,16 @@ test("changing the head invalidates previously started CI", () => {
   assert.equal(updated.head_sha, secondHead);
   assert.equal(updated.ci_run_id, null);
   assert.equal(updated.ci_head_sha, null);
-  reject(updated, {
-    kind: "ci-verified",
-    headSha: firstHead,
-    runId: 5,
-    evidenceSha256: verifiedCi,
-  }, /stale|different run/);
+  reject(
+    updated,
+    {
+      kind: "ci-verified",
+      headSha: firstHead,
+      runId: 5,
+      evidenceSha256: verifiedCi,
+    },
+    /stale|different run/
+  );
 });
 
 test("bounded blocks can resume without exposing private failure details", () => {
@@ -107,9 +123,12 @@ test("bounded blocks can resume without exposing private failure details", () =>
   reject(blocked, { kind: "root-cause-verified", evidenceSha256: evidence }, /Blocked/);
   const resumed = change(blocked, { kind: "unblocked" });
   assert.equal(resumed.blocked_reason, null);
-  assert.equal(change(resumed, {
-    kind: "root-cause-verified",
-    evidenceSha256: evidence,
-  }).stage, "diagnosed");
+  assert.equal(
+    change(resumed, {
+      kind: "root-cause-verified",
+      evidenceSha256: evidence,
+    }).stage,
+    "diagnosed"
+  );
   assert.equal(JSON.stringify(resumed).includes("example/project"), false);
 });
