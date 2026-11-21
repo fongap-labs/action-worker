@@ -215,8 +215,7 @@ function git(cwd: string, args: string[]): string {
 // upstream product tree. Historical upstream tests are not newly authored tests.
 // Never use this comparison for an ordinary Delta PR or any other repository.
 export function centralOwnershipComparisonBase(repository: string, base: string): string {
-  return repository === "fongap-labs/delta" &&
-    base === "7556dc8dfede03053e35359f2b55dd299da1f3ee"
+  return repository === "fongap-labs/delta" && base === "7556dc8dfede03053e35359f2b55dd299da1f3ee"
     ? "2e39e70496aa02986ca6a820c5d497e816b69d7e"
     : base;
 }
