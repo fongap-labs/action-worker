@@ -69,7 +69,7 @@ export function isUnchangedUpstreamFinding(
     !shaPattern.test(commit) ||
     !shaPattern.test(upstreamSha) ||
     !path ||
-    path.includes("\\0") ||
+    path.includes("\0") ||
     !Number.isSafeInteger(start) ||
     !Number.isSafeInteger(end) ||
     start < 1 ||
@@ -84,11 +84,11 @@ export function isUnchangedUpstreamFinding(
   if (source.error || baseline.error || source.status !== 0 || baseline.status !== 0) {
     return false;
   }
-  const lines = (source.stdout ?? "").split("\\n");
-  const upstreamLines = (baseline.stdout ?? "").split("\\n");
+  const lines = (source.stdout ?? "").split("\n");
+  const upstreamLines = (baseline.stdout ?? "").split("\n");
   if (end > lines.length || end > upstreamLines.length) return false;
-  const candidate = lines.slice(start - 1, end).join("\\n");
-  return candidate.length > 0 && candidate === upstreamLines.slice(start - 1, end).join("\\n");
+  const candidate = lines.slice(start - 1, end).join("\n");
+  return candidate.length > 0 && candidate === upstreamLines.slice(start - 1, end).join("\n");
 }
 
 // Only publish a fixed error category. Raw scanner stderr can contain private file names,
