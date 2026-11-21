@@ -22,7 +22,7 @@ export async function verifiedRepairCiDigest(
   reader: JsonReader,
   document: RepairLedgerDocument,
   controlRepository: string,
-  requireMerged = false
+  isMergedRequired = false
 ): Promise<string> {
   const { entry, repository } = document;
   if (
@@ -52,7 +52,7 @@ export async function verifiedRepairCiDigest(
     if (
       !isJsonRecord(value) ||
       value.number !== entry.pr_number ||
-      (requireMerged ? !merged : value.state !== "open" || value.merged === true) ||
+      (isMergedRequired ? !merged : value.state !== "open" || value.merged === true) ||
       getJsonString(value.head, "sha") !== headSha ||
       getJsonString(value.base, "ref") !== "main" ||
       !SHA.test(getJsonString(value.base, "sha"))
