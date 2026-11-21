@@ -264,7 +264,9 @@ export function runOwnershipGate(
       head,
       "--",
       ".github/workflows/",
-    ]).split("\0").filter(Boolean);
+    ])
+      .split("\0")
+      .filter(Boolean);
     const seen = new Set(changes.map((item) => item.path));
     for (const path of workflowNames) {
       if (/^\.github\/workflows\/[^/]+\.ya?ml$/.test(path) && !seen.has(path)) {
