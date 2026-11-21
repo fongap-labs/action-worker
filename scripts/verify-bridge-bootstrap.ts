@@ -36,10 +36,7 @@ export function assertBridgeBootstrap(
   const digest = createHash("sha256").update(template).digest("hex");
   const entries = approvalEntries.filter((entry) => entry.path === bridgePath);
   if (entries.length !== 1 || entries[0]?.sha256 !== digest || candidate !== template) {
-    throw new CliError(
-      "Trusted bootstrap bridge differs from the security-approved template.",
-      65
-    );
+    throw new CliError("Trusted bootstrap bridge differs from the security-approved template.", 65);
   }
 }
 
@@ -60,11 +57,9 @@ export async function verifyBridgeBootstrap(
   if (baseScript.trim()) {
     throw new CliError("Trusted CI script exists; bootstrap mode is forbidden.", 65);
   }
-  const changed = await runText(
-    "git",
-    ["diff", "--no-renames", "--name-only", base, head],
-    { cwd: targetRoot }
-  );
+  const changed = await runText("git", ["diff", "--no-renames", "--name-only", base, head], {
+    cwd: targetRoot,
+  });
   const added = await runText(
     "git",
     ["diff", "--no-renames", "--name-only", "--diff-filter=A", base, head],
@@ -72,11 +67,7 @@ export async function verifyBridgeBootstrap(
   );
   const changedPaths = changed.split("\n").filter(Boolean);
   const addedPaths = added.split("\n").filter(Boolean);
-  const bridgeTree = await runText(
-    "git",
-    ["ls-tree", head, "--", bridgePath],
-    { cwd: targetRoot }
-  );
+  const bridgeTree = await runText("git", ["ls-tree", head, "--", bridgePath], { cwd: targetRoot });
   if (
     !/^100644 blob [a-f0-9]{40}\t\.github\/workflows\/notify-action-worker\.yml$/.test(
       bridgeTree.trim()
@@ -84,9 +75,9 @@ export async function verifyBridgeBootstrap(
   ) {
     throw new CliError("Trusted bootstrap bridge must be a regular tracked file.", 65);
   }
-  const policy = JSON.parse(
-    await readFile(join(workerRoot, "policies/security.json"), "utf8")
-  ) as { approved_workflows?: ApprovalEntry[] };
+  const policy = JSON.parse(await readFile(join(workerRoot, "policies/security.json"), "utf8")) as {
+    approved_workflows?: ApprovalEntry[];
+  };
   if (!Array.isArray(policy.approved_workflows)) {
     throw new CliError("Trusted bootstrap security policy is unavailable.", 65);
   }
@@ -94,13 +85,7 @@ export async function verifyBridgeBootstrap(
     readFile(join(workerRoot, "templates/bridge/notify-action-worker.yml"), "utf8"),
     readFile(join(targetRoot, bridgePath), "utf8"),
   ]);
-  assertBridgeBootstrap(
-    changedPaths,
-    addedPaths,
-    template,
-    candidate,
-    policy.approved_workflows
-  );
+  assertBridgeBootstrap(changedPaths, addedPaths, template, candidate, policy.approved_workflows);
 }
 
 async function main(): Promise<void> {
