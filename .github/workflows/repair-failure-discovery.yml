@@ -6,6 +6,7 @@ on:
 
 permissions:
   contents: read
+  issues: read
 
 concurrency:
   group: repair-discovery
@@ -39,7 +40,8 @@ jobs:
           permission-actions: read
           permission-contents: read
 
-      - name: Discover actual failed Actions runs
+      - name: Discover failed runs and match public control Issues without writes
         env:
           AW_INVENTORY_TOKEN: ${{ steps.inventory.outputs.token }}
+          AW_REPAIR_ISSUE_READ_TOKEN: ${{ github.token }}
         run: node scripts/repair-failure-discovery.ts
