@@ -227,7 +227,14 @@ export function runOwnershipGate(
       readFileSync(join(controlRoot, "policies", "engineering-ownership.json"), "utf8")
     ) as unknown
   );
-  for (const sha of [base, head]) {
+  // For Delta's first public source import, inherited upstream code is not newly
+  // authored code. Ordinary PRs always keep their exact base-to-head check.
+  const comparisonBase =
+    repository === "fongap-labs/delta" &&
+    base === "7556dc8dfede03053e35359f2b55dd299da1f3ee"
+      ? "2e39e70496aa02986ca6a820c5d497e816b69d7e"
+      : base;
+  for (const sha of [base, comparisonBase, head]) {
     git(root, ["cat-file", "-e", sha + "^{commit}"]);
   }
   const output = git(root, [
@@ -238,7 +245,7 @@ export function runOwnershipGate(
     "--diff-filter=AMTD",
     "--name-status",
     "-z",
-    base,
+    comparisonBase,
     head,
     "--",
   ]);
