@@ -158,8 +158,8 @@ test("commit-bound source objects are cached; live PR and CI evidence never is",
   });
   const sha = "a".repeat(40);
   const paths = [
-    `repos/fongap-labs/delta-legacy/git/commits/${sha}`,
-    `repos/fongap-labs/delta-legacy/contents/.github/workflows/private-source-ci.yml?ref=${sha}`,
+    `repos/fongap-labs/private-fixture/git/commits/${sha}`,
+    `repos/fongap-labs/private-fixture/contents/.github/workflows/private-source-ci.yml?ref=${sha}`,
   ];
   for (const path of paths) {
     const first = await reader.get(path);
@@ -167,10 +167,10 @@ test("commit-bound source objects are cached; live PR and CI evidence never is",
     assert.deepEqual(first, repeat);
   }
   for (const path of [
-    "repos/fongap-labs/delta-legacy",
-    "repos/fongap-labs/delta-legacy/pulls/500",
-    "repos/fongap-labs/delta-legacy/actions/workflows/private-source-ci.yml/runs?per_page=100",
-    "repos/fongap-labs/delta-legacy/actions/runs/99/jobs?per_page=100",
+    "repos/fongap-labs/private-fixture",
+    "repos/fongap-labs/private-fixture/pulls/500",
+    "repos/fongap-labs/private-fixture/actions/workflows/private-source-ci.yml/runs?per_page=100",
+    "repos/fongap-labs/private-fixture/actions/runs/99/jobs?per_page=100",
   ]) {
     const first = await reader.get(path);
     const repeat = await reader.get(path);
