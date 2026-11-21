@@ -97,3 +97,58 @@ test("manifest CI refuses unsafe executables, scripts and undeclared privileges"
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("Linux fallback permits only the centrally audited Delta Windows companion", () => {
+  const root = mkdtempSync(join(tmpdir(), "manifest-dual-platform-"));
+  try {
+    mkdirSync(join(root, "scripts"));
+    writeFileSync(join(root, "scripts", "verify.mjs"), "console.log('ok')\n");
+    const linux = manifest(["node", "{target_root}/scripts/verify.mjs", "--ci"]);
+    const windows = {
+      id: "windows",
+      runner_profile: "windows-standard",
+      command: [
+        "pwsh",
+        "-NoProfile",
+        "-File",
+        "{central_root}/tests/packs/delta/windows-desktop-ci.ps1",
+        "-TargetRoot",
+        "{target_root}",
+      ],
+      timeout_minutes: 90,
+      capability_requests: ["source.read"],
+    };
+    const jobs = linux.operations.ci.jobs as Array<Record<string, unknown>>;
+    jobs.push(windows);
+    assert.deepEqual(chooseLinuxManifestCommand(linux, root), {
+      kind: "node",
+      script: join(root, "scripts", "verify.mjs"),
+      args: ["--ci"],
+      timeoutMs: 1_800_000,
+    });
+    const altered = { ...windows, capability_requests: ["source.read", "deployment.production"] };
+    jobs[1] = altered;
+    assert.throws(
+      () => chooseLinuxManifestCommand(linux, root),
+      /at most one audited Windows job/
+    );
+    jobs[1] = { ...windows, command: ["pwsh", "-File", "{target_root}/malicious.ps1"] };
+    assert.throws(
+      () => chooseLinuxManifestCommand(linux, root),
+      /at most one audited Windows job/
+    );
+    jobs[1] = { ...windows, artifacts: [{ name: "private", path: "home" }] };
+    assert.throws(
+      () => chooseLinuxManifestCommand(linux, root),
+      /at most one audited Windows job/
+    );
+    jobs[1] = windows;
+    jobs.push({ ...windows, id: "other-platform" });
+    assert.throws(
+      () => chooseLinuxManifestCommand(linux, root),
+      /at most one audited Windows job/
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
