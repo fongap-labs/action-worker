@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { chooseLinuxManifestCommand } from "../scripts/execute-manifest-linux-ci.ts";
+import { chooseLinuxManifestCommand } from "../scripts/execute-linux-ci.ts";
 
 const bootstrap = ["bash", "{control_root}/.github/scripts/central-ci.sh", "{target_root}"];
 function manifest(command: string[], matrix?: { shard: string[] }) {
@@ -41,16 +41,17 @@ test("missing legacy script permits only a bounded checked-out Node.js manifest 
         timeoutMs: 1_800_000,
       }
     );
-    assert.deepEqual(
-      chooseLinuxManifestCommand(
-        manifest(["node", "{target_root}/scripts/verify.mjs", "--ci"], {
-          shard: ["unit", "build"],
-        }),
-        root,
-        "unit"
-      ).args,
-      ["--ci", "unit"]
+    const choice = chooseLinuxManifestCommand(
+      manifest(["node", "{target_root}/scripts/verify.mjs", "--ci"], {
+        shard: ["unit", "build"],
+      }),
+      root,
+      "unit"
     );
+    assert.equal(choice.kind, "node");
+    if (choice.kind === "node") {
+      assert.deepEqual(choice.args, ["--ci", "unit"]);
+    }
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -84,7 +85,7 @@ test("manifest CI refuses unsafe executables, scripts and undeclared privileges"
       /shard was not declared/
     );
     const privileged = manifest(["node", "{target_root}/scripts/verify.mjs"]);
-    privileged.operations.ci.jobs[0].capability_requests.push("deployment.production");
+    privileged.operations.ci.jobs[0]?.capability_requests.push("deployment.production");
     assert.throws(
       () => chooseLinuxManifestCommand(privileged, root),
       /additional runner capabilities/

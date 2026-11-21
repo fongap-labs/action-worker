@@ -245,7 +245,7 @@ jobs:
             # The fixed trusted manifest may execute the project's declared Node.js
             # verification in the already isolated sandbox, without central credentials.
             # Legacy empty-repository bridge bootstrap still gets strict source checks.
-            node "$CENTRAL_CI_AW_ROOT/scripts/execute-manifest-linux-ci.ts" \
+            node "$CENTRAL_CI_AW_ROOT/scripts/execute-linux-ci.ts" \
               "$GITHUB_WORKSPACE/target" "$GITHUB_WORKSPACE/ci-control" \
               "$CENTRAL_CI_BASE_SHA" "$CENTRAL_CI_HEAD_SHA" "$CENTRAL_CI_SHARD"
             exit 0
