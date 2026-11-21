@@ -96,7 +96,16 @@ test("untrusted Issue metadata, duplicate markers, and truncated pages are rejec
   ];
   for (const page of data) {
     await assert.rejects(
-      resolveRepairIssue({ async get() { return page; } }, repository, 42, head)
+      resolveRepairIssue(
+        {
+          async get() {
+            return page;
+          },
+        },
+        repository,
+        42,
+        head
+      )
     );
   }
   await assert.rejects(
@@ -145,7 +154,10 @@ test("a later read error cannot return an earlier match or expose Issue bodies",
         {
           async get(path) {
             if (path.endsWith("page=1")) {
-              return [issue(1, marker), ...Array.from({ length: 99 }, (_, i) => issue(i + 2, null))];
+              return [
+                issue(1, marker),
+                ...Array.from({ length: 99 }, (_, i) => issue(i + 2, null)),
+              ];
             }
             throw new Error("HTTP 403 on later page");
           },
