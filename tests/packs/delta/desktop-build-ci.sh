@@ -92,6 +92,101 @@ try {
 console.log('Delta Code Cordis lifecycle smoke passed')
 NODE
 
+  # Invoke the native registered editing tool against an entirely disposable
+  # workspace, including both allowed edits and denied writes. No user files,
+  # credentials, Git subprocesses or external network are involved.
+  node --input-type=module <<'NODE'
+import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+
+const load = relative => import(pathToFileURL(resolve(relative)).href)
+const { Context } = await load('vendor/cordis/lib/index.js')
+const { SystemPrompt } = await load('packages/core/system-prompt/lib/index.js')
+const { ToolsService } = await load('packages/core/tools/lib/index.js')
+const deltaCode = await load('packages/plugin/delta-code/lib/index.js')
+
+const scratch = await mkdtemp(join(tmpdir(), 'delta-code-edit-sandbox-'))
+const workspace = join(scratch, 'workspace')
+const editable = join(workspace, 'src', 'app.txt')
+const outside = join(scratch, 'private.txt')
+const host = new Context()
+let prompt, tools, plugin
+try {
+  await mkdir(join(workspace, 'src'), { recursive: true })
+  await writeFile(editable, 'before\n')
+  await writeFile(outside, 'private-original\n')
+  prompt = host.plugin(SystemPrompt, { includeHarnessIdentity: false })
+  await prompt
+  tools = host.plugin(ToolsService, {})
+  await tools
+  plugin = host.plugin(deltaCode, {
+    enabled: true, workspaceRoot: workspace,
+    git: { enabled: false }, github: { enabled: false },
+    execution: { allowCommands: false, allowWorktreeWrites: false },
+  })
+  await plugin
+  const definition = host.tools.get('code_multi_edit')
+  assert.ok(definition, 'native Delta Code editor was not registered')
+  const edit = (edits, options = {}) => definition.execute(
+    { edits, ...options }, { signal: new AbortController().signal },
+  )
+  const current = () => readFile(editable, 'utf8')
+  const external = () => readFile(outside, 'utf8')
+
+  // A dry run must validate but never make a filesystem change.
+  const planned = await edit([{ path: 'src/app.txt', find: 'before', replace: 'after' }],
+    { dryRun: true })
+  assert.equal(planned.dryRun, true)
+  assert.equal(planned.applied, 1)
+  assert.equal(await current(), 'before\n')
+
+  // Invalid late inputs cannot leave earlier batch edits applied.
+  await assert.rejects(
+    edit([{ path: 'src/app.txt', content: 'overwritten\n' },
+      { path: '../private.txt', content: 'unsafe\n' }]),
+    /MultiEdit did not complete successfully/,
+  )
+  assert.equal(await current(), 'before\n', 'failed preflight changed a valid earlier target')
+  assert.equal(await external(), 'private-original\n', 'path traversal changed an external file')
+
+  // Even an otherwise valid inside-workspace path may resolve through an
+  // existing symlink to data outside the workspace. It must be refused.
+  await symlink(outside, join(workspace, 'link.txt'))
+  await assert.rejects(
+    edit([{ path: 'link.txt', content: 'unsafe\n' }], { preflight: true }),
+    /MultiEdit did not complete successfully/,
+  )
+  assert.equal(await external(), 'private-original\n', 'symlink escaped the workspace')
+
+  // Stale optimistic edit evidence must fail before the write.
+  await assert.rejects(
+    edit([{ path: 'src/app.txt', content: 'stale\n',
+      expectedSha256: '0'.repeat(64) }], { preflight: true }),
+    /MultiEdit did not complete successfully/,
+  )
+  assert.equal(await current(), 'before\n', 'stale digest wrote a file')
+
+  // A correct digest and ordinary replacement must still work for authorized
+  // workspace-local files, demonstrating this is not an always-failing test.
+  const sha256 = createHash('sha256').update('before\n').digest('hex')
+  const applied = await edit([{ path: 'src/app.txt', content: 'after\n',
+    expectedSha256: sha256 }], { preflight: true })
+  assert.equal(applied.applied, 1)
+  assert.equal(applied.results[0]?.ok, true)
+  assert.equal(await current(), 'after\n')
+} finally {
+  if (plugin) await plugin.dispose()
+  if (tools) await tools.dispose()
+  if (prompt) await prompt.dispose()
+  await rm(scratch, { recursive: true, force: true })
+}
+console.log('Delta Code native multi-edit workspace confinement smoke passed')
+NODE
+
   # The real Profile composition and enable/disable APIs must agree with the
   # published Delta Code bundle. Operate on a disposable fixture only; this
   # does not claim that pnpm's installation/removal flow has been exercised.
