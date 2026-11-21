@@ -253,7 +253,7 @@ NODE
   node --input-type=module <<'NODE'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, readdir, rm } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { resolve, join } from 'node:path'
 
@@ -293,8 +293,10 @@ try {
     !name.includes('/.env') && !name.includes('/.git/')),
     'packed Delta Code contains unexpected project/private files')
   const packed = JSON.parse(run('tar', ['-xOzf', tarball, 'package/package.json']))
+  const source = JSON.parse(await readFile(resolve('packages/plugin/delta-code/package.json'), 'utf8'))
+  assert.equal(source.private, true, 'Delta Code remains an unpublished optional plugin')
   assert.equal(packed.name, '@fongap-labs/delta-code')
-  assert.equal(packed.version, '0.1.0')
+  assert.equal(packed.version, source.version, 'pack must preserve the current plugin version')
   assert.equal(packed.dsh?.manifestVersion, 1)
   assert.equal(packed.dsh?.bundle?.patch, './cordis.patch.yml')
   assert.equal(packed.main, './lib/index.js')
