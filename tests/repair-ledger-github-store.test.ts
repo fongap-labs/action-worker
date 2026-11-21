@@ -5,6 +5,7 @@ import { createRepairLedgerEntry, type RepairLedgerEntry } from "../scripts/repa
 import {
   RepairLedgerConflictError,
   RepairLedgerStore,
+  createScopedRepairLedgerStore,
   repairLedgerRefName,
   type RepairLedgerDocument,
   type RepairLedgerGitApi,
@@ -200,4 +201,23 @@ test("private task state cannot be created without its existing protected artifa
   const store = new RepairLedgerStore(new MemoryGitApi());
   const initial = document();
   await assert.rejects(store.create(initial, true, null), /requires AW_ARTIFACT_KEY/);
+});
+
+test("scoped store requires its dedicated branch token and current control repository", () => {
+  assert.throws(
+    () =>
+      createScopedRepairLedgerStore("fongap-labs/action-worker", {
+        GITHUB_REPOSITORY: "fongap-labs/action-worker",
+        GH_TOKEN: "must-not-fallback",
+      } as NodeJS.ProcessEnv),
+    /AW_BRANCH_API_TOKEN/
+  );
+  assert.throws(
+    () =>
+      createScopedRepairLedgerStore("fongap-labs/other", {
+        GITHUB_REPOSITORY: "fongap-labs/action-worker",
+        AW_BRANCH_API_TOKEN: "scoped-token",
+      } as NodeJS.ProcessEnv),
+    /current control repository/
+  );
 });
