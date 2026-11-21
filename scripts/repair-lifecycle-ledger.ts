@@ -6,7 +6,12 @@ const REPOSITORY = /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/;
 const UTC_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 
 export type RepairStage = "discovered" | "diagnosed" | "repairing" | "ci_verifying" | "completed";
-export type RepairBlock = "missing_evidence" | "permissions" | "quota" | "stale_head" | "ci_failure";
+export type RepairBlock =
+  | "missing_evidence"
+  | "permissions"
+  | "quota"
+  | "stale_head"
+  | "ci_failure";
 
 /** An intentionally non-secret, bounded projection. Raw logs and private paths stay at source. */
 export interface RepairLedgerEntry {
@@ -41,22 +46,30 @@ function assertHead(value: string): void {
 }
 
 function assertPositive(value: number): void {
-  if (!Number.isSafeInteger(value) || value <= 0) throw new Error("Expected a positive integer identifier.");
+  if (!Number.isSafeInteger(value) || value <= 0)
+    throw new Error("Expected a positive integer identifier.");
 }
 
 function assertTime(value: string): void {
-  if (!UTC_TIME.test(value) || Number.isNaN(Date.parse(value))) throw new Error("Expected a UTC timestamp.");
+  if (!UTC_TIME.test(value) || Number.isNaN(Date.parse(value)))
+    throw new Error("Expected a UTC timestamp.");
 }
 
 export function repairTaskId(repository: string, rootCauseSha256: string): string {
   const normalized = repository.trim().toLowerCase();
   if (!REPOSITORY.test(normalized)) throw new Error("Invalid repository identifier.");
   assertDigest(rootCauseSha256);
-  const digest = createHash("sha256").update(normalized + "\0" + rootCauseSha256, "utf8").digest("hex");
+  const digest = createHash("sha256")
+    .update(normalized + "\0" + rootCauseSha256, "utf8")
+    .digest("hex");
   return "repair-" + digest.slice(0, 32);
 }
 
-export function createRepairLedgerEntry(repository: string, rootCauseSha256: string, now: string): RepairLedgerEntry {
+export function createRepairLedgerEntry(
+  repository: string,
+  rootCauseSha256: string,
+  now: string
+): RepairLedgerEntry {
   assertTime(now);
   return {
     task_id: repairTaskId(repository, rootCauseSha256),
@@ -78,13 +91,14 @@ export function applyRepairLedgerEvent(
   current: RepairLedgerEntry,
   expectedRevision: number,
   event: RepairEvent,
-  now: string,
+  now: string
 ): RepairLedgerEntry {
   assertTime(now);
   if (!Number.isSafeInteger(expectedRevision) || current.revision !== expectedRevision) {
     throw new Error("Stale repair ledger revision.");
   }
-  if (Date.parse(now) < Date.parse(current.updated_at)) throw new Error("Repair ledger clock moved backwards.");
+  if (Date.parse(now) < Date.parse(current.updated_at))
+    throw new Error("Repair ledger clock moved backwards.");
   if (current.stage === "completed") throw new Error("Completed repair records are immutable.");
   if (current.blocked_reason !== null && event.kind !== "unblocked") {
     throw new Error("Blocked repair requires an explicit unblock before continuing.");
@@ -92,7 +106,8 @@ export function applyRepairLedgerEvent(
   let change: Partial<RepairLedgerEntry>;
   switch (event.kind) {
     case "root-cause-verified":
-      if (current.stage !== "discovered") throw new Error("Root cause already verified or task has advanced.");
+      if (current.stage !== "discovered")
+        throw new Error("Root cause already verified or task has advanced.");
       assertDigest(event.evidenceSha256);
       change = { stage: "diagnosed", evidence_sha256: event.evidenceSha256 };
       break;
@@ -111,8 +126,10 @@ export function applyRepairLedgerEvent(
       break;
     case "ci-verified":
       if (
-        current.stage !== "ci_verifying" || event.headSha !== current.head_sha ||
-        event.headSha !== current.ci_head_sha || event.runId !== current.ci_run_id
+        current.stage !== "ci_verifying" ||
+        event.headSha !== current.head_sha ||
+        event.headSha !== current.ci_head_sha ||
+        event.runId !== current.ci_run_id
       ) {
         throw new Error("CI evidence is stale or belongs to a different run.");
       }
