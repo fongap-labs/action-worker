@@ -1,7 +1,7 @@
 import { appendFileSync } from "node:fs";
 import type { JsonReader } from "./ci-evidence.ts";
 import { GithubReader, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
-import { resolveRepairIssueLinks, type RepairIssueLink } from "./repair-issue-binding.ts";
+import { type RepairIssueLink, resolveRepairIssueLinks } from "./repair-issue-binding.ts";
 import { CliError, isMain } from "./runtime-command.ts";
 
 const REPOSITORY = /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/;
