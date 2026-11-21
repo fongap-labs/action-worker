@@ -196,6 +196,22 @@ export async function verifyRepairPullRequest(
     throw new CliError("Repair CI status evidence identifiers are invalid.", 65);
   }
 
+  // A PR may change while GitHub Actions and status evidence are being read.
+  // Do not emit a success proof for a snapshot that has moved, become draft,
+  // closed, changed its title, or switched source repositories in the meantime.
+  const freshPull = await reader.get("repos/" + identity.repository + "/pulls/" + identity.pr_number);
+  requireSameRepositoryPull(freshPull, identity.repository);
+  assertReadyForAutomaticMerge(
+    freshPull,
+    statuses,
+    identity.repository,
+    identity.pr_number,
+    identity.head_sha,
+    identity.base_sha,
+    governanceRunUrl,
+    controlRepository
+  );
+
   const proof = {
     schema_version: "1" as const,
     repository: identity.repository,
