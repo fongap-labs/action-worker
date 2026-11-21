@@ -112,7 +112,7 @@ test("main evidence requires all exact jobs and rejects unsafe results", () => {
   }
 });
 
-test("private ref identity requires immutable SHA and trusted current main", async () => {
+test("unlisted private ref callers fail closed even with complete source-owned evidence", async () => {
   const text = await readFile("templates/bridge/private-ref-ci.yml", "utf8");
   const { runs, jobs } = fixture();
   const caller = {
@@ -154,10 +154,7 @@ test("private ref identity requires immutable SHA and trusted current main", asy
     [`repos/${identity.repository}/actions/runs/101/jobs?per_page=100&filter=latest`, jobs],
   ]);
   const reader = { get: async (url: string): Promise<unknown> => urls.get(url) };
-  assert.deepEqual(await fetchAndVerifyPrivateRef(reader, identity), {
-    runId: 101,
-    runAttempt: 1,
-  });
+  await assert.rejects(fetchAndVerifyPrivateRef(reader, identity));
   const repoKey = `repos/${identity.repository}`;
   const currentRepo = urls.get(repoKey) as { private: boolean };
   currentRepo.private = false;
