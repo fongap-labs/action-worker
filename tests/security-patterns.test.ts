@@ -66,6 +66,18 @@ for (const [rule, value] of credentials) {
   });
 }
 
+test("streamed large diffs preserve distant secret and privacy line numbers", async (context) => {
+  const padding = "ordinary project data\n".repeat(6000);
+  const secret = "nvapi-" + mixed(40);
+  const email = ["maintainer", "example.invalid"].join("@");
+  const content = [padding, "credential = ", secret, "\n", padding, "contact = ", email, "\n"].join(
+    ""
+  );
+  const findings = await scan(context, "src/large-diff.txt", content);
+  assert.ok(findings.some((item) => item.rule === "nvidia-api-key" && item.line === 6001));
+  assert.ok(findings.some((item) => item.rule === "privacy-email-address" && item.line === 12002));
+});
+
 test("ordinary text that resembles the new patterns is not reported", async (context) => {
   const text = [
     "##.sk-component--cookie-message",
