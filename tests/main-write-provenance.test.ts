@@ -391,3 +391,28 @@ test("post-merge remediation fixes display status but cannot authorize release p
     else process.env.AW_STATUS_KEYRING = oldKeyring;
   }
 });
+
+test("exact Delta history target enters the strict migration verifier, not the PR fallback", async () => {
+  const repo = "fongap-labs/delta";
+  const sha = "decc6ee1388df99d2769024ac78b0f153ab8800d";
+  const reads: string[] = [];
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      reads.push(path);
+      if (path === `repos/${repo}`) return { default_branch: "main" };
+      if (path === `repos/${repo}/commits/${sha}`) return { sha };
+      if (path === `repos/${repo}/git/ref/heads/main`) {
+        return { object: { sha: "f".repeat(40) } };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    },
+  } as GithubReader;
+  await assert.rejects(
+    validateMainWriteProvenance(reader, repo, sha, true),
+    /Delta history migration denied: protected reference main/
+  );
+  assert.ok(
+    !reads.some((path) => path.endsWith("/pulls?per_page=100")),
+    "migration cannot be mistaken for an ordinary merged PR"
+  );
+});

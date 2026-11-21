@@ -12,6 +12,10 @@ import {
 } from "./ci-evidence.ts";
 import { requireStatusToken } from "./control-token.ts";
 import {
+  isDeltaHistoryMigrationTarget,
+  verifyDeltaHistoryMigration,
+} from "./delta-history-migration.ts";
+import {
   type GithubReader,
   getJsonArray,
   getJsonNumber,
@@ -40,6 +44,7 @@ export type MainWriteProvenance = {
   main_sha: string;
   pr_number: number;
   pr_head_sha: string;
+  source?: "delta-history-migration";
 };
 
 /**
@@ -299,6 +304,59 @@ export async function validateMainWriteProvenance(
     throw new CliError("::error::Main write commit could not be resolved exactly.", 65);
   }
 
+  // A single code-reviewed, SHA-pinned Delta history repair is exceptional: it
+  // preserves every original source tree but necessarily lacks a target-repository
+  // squash PR at the rewritten SHA. No other branch write receives this path.
+  if (isDeltaHistoryMigrationTarget(repository, mainSha)) {
+    // The verifier checks both seven-commit chains, the frozen backup, current
+    // branch identity and the exact Harness ancestor. There is no env bypass.
+    const policy = await verifyDeltaHistoryMigration(reader, repository, mainSha, "cutover");
+    if (!policy) {
+      throw new CliError("::error::Delta migration policy was not verified.", 65);
+    }
+    const origin = await reader.get(`repos/${repository}/pulls/${policy.source_pr}`);
+    const originHeadSha = headSha(origin);
+    if (
+      !isJsonRecord(origin) ||
+      origin.merged !== true ||
+      getJsonNumber(origin, "number") !== policy.source_pr ||
+      getJsonString(origin, "merge_commit_sha") !== policy.source_sha ||
+      baseRef(origin) !== "main" ||
+      !shaPattern.test(originHeadSha)
+    ) {
+      throw new CliError("::error::Delta migration origin must be the exact merged main PR.", 65);
+    }
+
+    const originalStatuses = await reader.get(
+      `repos/${repository}/commits/${policy.source_sha}/status`
+    );
+    if (
+      !(await hasVerifiedMainWriteGuard(reader, originalStatuses, repository, policy.source_sha)) ||
+      !(await hasVerifiedCiEvidence(reader, originalStatuses, {
+        controlRepository: controlRepositoryOf(),
+        targetRepository: repository,
+        targetSha: policy.source_sha,
+        runAttempts: 1,
+        retryDelayMs: 0,
+      }))
+    ) {
+      throw new CliError(
+        "::error::Delta migration original main lacks verified Main Write Guard or CI evidence.",
+        65
+      );
+    }
+    // The original code arrived through PR #9 and must retain the full signed,
+    // successful governance evidence; identical file trees are not enough.
+    await requireCentralPrEvidence(reader, repository, originHeadSha);
+    return {
+      repository,
+      main_sha: mainSha,
+      pr_number: policy.source_pr,
+      pr_head_sha: originHeadSha,
+      source: "delta-history-migration",
+    };
+  }
+
   const associated = getJsonArray(
     await reader.get(`repos/${repository}/commits/${mainSha}/pulls?per_page=100`)
   );
@@ -502,7 +560,9 @@ async function main(): Promise<void> {
       request,
       statusToken,
       "success",
-      `Trusted main write via PR #${provenance.pr_number}`
+      provenance.source === "delta-history-migration"
+        ? "Trusted Delta one-time history migration (original PR #9)"
+        : `Trusted main write via PR #${provenance.pr_number}`
     );
     await appendLines(process.env.GITHUB_OUTPUT, [
       `repository=${provenance.repository}`,
@@ -515,7 +575,8 @@ async function main(): Promise<void> {
       "",
       `- Repository: ${provenance.repository}`,
       `- Main SHA: ${provenance.main_sha}`,
-      `- Pull request: #${provenance.pr_number}`,
+      `- Original pull request: #${provenance.pr_number}`,
+      `- Provenance: ${provenance.source ?? "squash PR"}`,
       `- PR head SHA: ${provenance.pr_head_sha}`,
       `- merge authority: ${process.env.MAIN_WRITE_REQUIRE_CENTRAL_STATUSES !== "false" ? "Action Worker validate-merge status" : "local validate-merge check"}`,
       "- Main Write Guard: success",
