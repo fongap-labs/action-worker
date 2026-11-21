@@ -4,6 +4,7 @@ import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
+import { resolveEngineeringDiffBase } from "./validate-engineering-language.ts";
 
 // Central secret scan of the commits a pull request adds (gitleaks, pinned and checksum-verified).
 //
@@ -41,9 +42,54 @@ export function gitleaksDownloadSources(): ReadonlyArray<{ url: string; headers:
 
 const shaPattern = /^[0-9a-f]{40}$/;
 
-type Finding = { RuleID?: string; File?: string; StartLine?: number };
+type Finding = {
+  RuleID?: string;
+  File?: string;
+  StartLine?: number;
+  EndLine?: number;
+  Commit?: string;
+};
 
 export type ScanSummary = { count: number; rules: string; annotations: string[] };
+
+// The first Delta import includes an immutable, centrally pinned Harness snapshot.
+// Only suppress a historical finding when its complete source line(s) are byte-for-byte
+// identical at the same path in that upstream snapshot. All other findings, including
+// introduced-and-removed secrets in Delta's commits, remain blocking.
+export function isUnchangedUpstreamFinding(
+  finding: Finding,
+  upstreamSha: string,
+  repositoryRoot: string
+): boolean {
+  const commit = finding.Commit ?? "";
+  const path = finding.File ?? "";
+  const start = finding.StartLine ?? 0;
+  const end = finding.EndLine ?? start;
+  if (
+    !shaPattern.test(commit) ||
+    !shaPattern.test(upstreamSha) ||
+    !path ||
+    path.includes("\\0") ||
+    !Number.isSafeInteger(start) ||
+    !Number.isSafeInteger(end) ||
+    start < 1 ||
+    end < start ||
+    end - start > 100
+  ) {
+    return false;
+  }
+  const options = { cwd: repositoryRoot, encoding: "utf8" as const, maxBuffer: 16 * 1024 * 1024 };
+  const source = spawnSync("git", ["show", `${commit}:${path}`], options);
+  const baseline = spawnSync("git", ["show", `${upstreamSha}:${path}`], options);
+  if (source.error || baseline.error || source.status !== 0 || baseline.status !== 0) {
+    return false;
+  }
+  const lines = (source.stdout ?? "").split("\\n");
+  const upstreamLines = (baseline.stdout ?? "").split("\\n");
+  if (end > lines.length || end > upstreamLines.length) return false;
+  const candidate = lines.slice(start - 1, end).join("\\n");
+  return candidate.length > 0 && candidate === upstreamLines.slice(start - 1, end).join("\\n");
+}
 
 // Only publish a fixed error category. Raw scanner stderr can contain private file names,
 // Git patch content, or secret candidates and must never enter public CI logs.
@@ -236,13 +282,27 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv): Prom
       );
     }
     let summary: ScanSummary;
+    let acceptedUpstream = 0;
+    let activeFindings: Finding[];
     try {
-      summary = summarizeFindings(
-        JSON.parse(await readFile(report, "utf8")),
-        environment.TARGET_PRIVATE === "false"
-      );
+      const findings: unknown = JSON.parse(await readFile(report, "utf8"));
+      if (!Array.isArray(findings)) throw new Error("invalid scan report");
+      const comparisonBase = await resolveEngineeringDiffBase(base, target);
+      activeFindings = (findings as Finding[]).filter((finding) => {
+        const inherited =
+          comparisonBase !== base &&
+          isUnchangedUpstreamFinding(finding, comparisonBase, target);
+        if (inherited) acceptedUpstream += 1;
+        return !inherited;
+      });
+      summary = summarizeFindings(activeFindings, environment.TARGET_PRIVATE === "false");
     } catch {
-      throw new CannotRun("unreadable gitleaks report");
+      throw new CannotRun("unreadable report or unavailable pinned upstream baseline");
+    }
+    if (acceptedUpstream > 0) {
+      console.log(
+        `central secret scan: ${acceptedUpstream} unchanged finding(s) belong to the pinned upstream baseline`
+      );
     }
 
     const range = `${base.slice(0, 7)}..${head.slice(0, 7)}`;
@@ -254,6 +314,14 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv): Prom
       `::warning::central secret scan: ${summary.count} finding(s) in ${range} (rules: ${summary.rules})`
     );
     for (const line of summary.annotations) console.log(line);
+    if (environment.TARGET_PRIVATE === "false") {
+      const locations = activeFindings.slice(0, 100).map((item) => ({
+        rule: item.RuleID,
+        file: item.File,
+        line: item.StartLine,
+      }));
+      console.log(`Public target finding locations (values redacted): ${JSON.stringify(locations)}`);
+    }
     if (mode === "enforce") {
       console.error(`::error::central secret scan found ${summary.count} finding(s)`);
       return 1;
