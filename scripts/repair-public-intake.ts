@@ -92,7 +92,8 @@ async function main(): Promise<void> {
     store,
     reader,
     { ...finding, issue_number: issueNumber },
-    null
+    null,
+    finding.issue_number === null
   );
   console.log(
     JSON.stringify({
