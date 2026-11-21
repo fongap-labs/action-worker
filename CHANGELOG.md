@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 维护: 将 BrowserBuild Windows 便携启动器的锁定 Cargo 编译检查迁移至 Action Worker 中央 app-source 测试包，不再修改业务仓库 CI 启动脚本。
+
 - 维护: 取消外部上游镜像的定时跟踪、自动同步与相关专用实现，保留项目原有工作流和代码。
 
 - 修复: Delta Code Strategy 中央生命周期测试按实际声明的工具集合校验注册与逆序卸载，避免增加公开 `code_*` 工具后因旧的三工具硬编码清单误报失败，同时保留必需能力和唯一性检查。
