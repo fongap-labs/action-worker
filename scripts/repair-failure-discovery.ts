@@ -1,5 +1,7 @@
+import { appendFileSync } from "node:fs";
 import type { JsonReader } from "./ci-evidence.ts";
 import { GithubReader, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
+import { resolveRepairIssueLinks, type RepairIssueLink } from "./repair-issue-binding.ts";
 import { CliError, isMain } from "./runtime-command.ts";
 
 const REPOSITORY = /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/;
@@ -211,6 +213,54 @@ export async function discoverFailedRuns(
   return { repositories_scanned: repositories.length, failures_found: candidates.length };
 }
 
+const CONTROL_REPOSITORY = "fongap-labs/action-worker";
+
+/**
+ * A read-only plan for the public control repository. Private findings are
+ * deliberately excluded; no Issue is created and no ledger Git Ref is written.
+ */
+export async function findPublicRepairIssueLinks(
+  reader: JsonReader,
+  failures: readonly FailedRunCandidate[]
+): Promise<{ public_candidates: number; links: readonly RepairIssueLink[] }> {
+  const publicCandidates = failures.filter(
+    (failure) => failure.repository === CONTROL_REPOSITORY && !failure.is_private
+  );
+  const links = await resolveRepairIssueLinks(
+    reader,
+    CONTROL_REPOSITORY,
+    publicCandidates.map((failure) => ({
+      run_id: failure.run_id,
+      head_sha: failure.head_sha,
+    }))
+  );
+  return { public_candidates: publicCandidates.length, links };
+}
+
+export function publicRepairIssueSummary(
+  publicCandidates: number,
+  links: readonly RepairIssueLink[]
+): string {
+  const rows = links.slice(0, 20).map(
+    (link) =>
+      `| [#${link.issue_number}](https://github.com/${CONTROL_REPOSITORY}/issues/${link.issue_number}) | [#${link.run_id}](https://github.com/${CONTROL_REPOSITORY}/actions/runs/${link.run_id}) |`
+  );
+  return [
+    "### Public repair Issue associations (read-only)",
+    "",
+    `Checked public control-repository candidates: ${publicCandidates}; uniquely linked Issues: ${links.length}.`,
+    "Markers are association hints, not diagnosis or permission to repair.",
+    "",
+    "| Existing Issue | Failed Actions run |",
+    "| --- | --- |",
+    ...rows,
+    ...(links.length > rows.length
+      ? ["", `Additional associations not displayed: ${links.length - rows.length}.`]
+      : []),
+    "",
+  ].join("\n");
+}
+
 async function main(): Promise<void> {
   const control = process.env.GITHUB_REPOSITORY ?? "";
   const owner = process.env.GITHUB_REPOSITORY_OWNER ?? "";
@@ -227,8 +277,31 @@ async function main(): Promise<void> {
     attemptLimit: 2,
   });
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const summary = await discoverFailedRuns(reader, owner, since, () => undefined);
-  console.log(JSON.stringify(summary));
+  const candidates: FailedRunCandidate[] = [];
+  const summary = await discoverFailedRuns(reader, owner, since, (candidate) => {
+    if (candidate.repository === CONTROL_REPOSITORY && !candidate.is_private) {
+      candidates.push(candidate);
+    }
+  });
+  const issueToken = process.env.AW_REPAIR_ISSUE_READ_TOKEN ?? "";
+  if (!issueToken) throw new CliError("Repair Issue matching requires a scoped read token.", 77);
+  const issueReader = new GithubReader(
+    process.env.GITHUB_API_URL ?? "https://api.github.com",
+    issueToken,
+    { attemptLimit: 2 }
+  );
+  const linked = await findPublicRepairIssueLinks(issueReader, candidates);
+  const summaryPath = process.env.GITHUB_STEP_SUMMARY ?? "";
+  if (summaryPath) {
+    appendFileSync(summaryPath, publicRepairIssueSummary(linked.public_candidates, linked.links));
+  }
+  console.log(
+    JSON.stringify({
+      ...summary,
+      public_candidates: linked.public_candidates,
+      public_issue_links: linked.links.length,
+    })
+  );
 }
 
 if (isMain(import.meta.url)) {
