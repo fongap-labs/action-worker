@@ -394,7 +394,7 @@ test("post-merge remediation fixes display status but cannot authorize release p
 
 test("exact Delta history target enters the strict migration verifier, not the PR fallback", async () => {
   const repo = "fongap-labs/delta";
-  const sha = "decc6ee1388df99d2769024ac78b0f153ab8800d";
+  const sha = "8b73554a94a115c3fc8310e882036ef887f0569c";
   const reads: string[] = [];
   const reader = {
     async get(path: string): Promise<unknown> {
