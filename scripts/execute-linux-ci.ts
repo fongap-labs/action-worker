@@ -49,7 +49,10 @@ export function chooseLinuxManifestCommand(
     (windows !== undefined && !allowedWindows) ||
     jobs.some((entry) => entry.id !== "linux" && entry.id !== "windows")
   ) {
-    throw new CliError("The Linux fallback requires one Linux job and at most one audited Windows job.", 65);
+    throw new CliError(
+      "The Linux fallback requires one Linux job and at most one audited Windows job.",
+      65
+    );
   }
   if (
     job.runner_profile !== "linux-standard" ||
