@@ -49,6 +49,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: delta
           permission-contents: write
+          permission-workflows: write
 
       - name: Sync upstream to upstream/deepseek-harness only
         env:
