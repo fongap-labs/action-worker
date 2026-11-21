@@ -278,7 +278,7 @@ test("full Git inventory detects changes and also unchanged active workflows", a
   try {
     git("init", "-b", "main");
     git("config", "user.name", "Governance fixture");
-    git("config", "user.email", "governance@example.invalid");
+    git("config", "user.email", "test.invalid");
     mkdirSync(join(root, "tests"), { recursive: true });
     mkdirSync(join(root, ".github", "workflows"), { recursive: true });
     writeFileSync(join(root, "tests", "inherited.test.ts"), "test('old', () => {});\n");
@@ -306,7 +306,7 @@ test("full Git inventory detects changes and also unchanged active workflows", a
 });
 
 test("large public comparison reads complete pinned trees; private remains fail closed", async () => {
-  const template = readFileSync(templatePath, "utf8");
+  const template = readFileSync("templates/bridge/notify-action-worker.yml", "utf8");
   const calls: string[] = [];
   const mockDiff = async (repo: string, comparisonBase: string, revision: string) => {
     calls.push(repo + "@" + comparisonBase + "..." + revision);
@@ -328,26 +328,28 @@ test("large public comparison reads complete pinned trees; private remains fail 
     mockDiff,
     true
   );
-  assert.deepEqual(calls, [
-    "fongap-labs/delta@2e39e70496aa02986ca6a820c5d497e816b69d7e..." + head,
-  ]);
+  assert.deepEqual(calls, ["fongap-labs/delta@2e39e70496aa02986ca6a820c5d497e816b69d7e..." + head]);
   await assert.rejects(
     checkGithubEngineeringOwnership(
       "fongap-labs/delta",
       "7556dc8dfede03053e35359f2b55dd299da1f3ee",
       head,
       policy,
-      async () => { throw new Error("Private source must not be fetched"); },
+      async () => {
+        throw new Error("Private source must not be fetched");
+      },
       (path) => readFileSync(path, "utf8"),
       mockDiff,
       false
     ),
     /verified public target/
   );
-  const large = compare(Array.from({ length: 300 }, (_, i) => ({
-    filename: "src/file-" + i + ".ts",
-    status: "added",
-  })));
+  const large = compare(
+    Array.from({ length: 300 }, (_, i) => ({
+      filename: "src/file-" + i + ".ts",
+      status: "added",
+    }))
+  );
   await checkGithubEngineeringOwnership(
     "fongap-labs/mcp-hub",
     base,
