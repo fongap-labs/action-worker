@@ -1,5 +1,5 @@
-import { requireToken } from "./control-token.ts";
 import type { JsonReader } from "./ci-evidence.ts";
+import { requireToken } from "./control-token.ts";
 import {
   decodeGithubContent,
   GithubReader,
@@ -9,6 +9,7 @@ import {
   isGithubMissing,
   isJsonRecord,
 } from "./github-api.ts";
+import { verifiedRepairCiDigest } from "./repair-ledger-ci.ts";
 import {
   applyRepairLedgerEvent,
   type RepairEvent,
@@ -16,7 +17,6 @@ import {
   type RepairStage,
   repairTaskId,
 } from "./repair-lifecycle-ledger.ts";
-import { verifiedRepairCiDigest } from "./repair-ledger-ci.ts";
 import { CliError, parseJson, runCommand } from "./runtime-command.ts";
 import { openBytes, sealBytes } from "./task-state.ts";
 
