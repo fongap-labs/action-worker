@@ -80,7 +80,6 @@ test("repository permissions come only from the versioned access policy", async 
     "fongap-labs/action-worker": ["pr", "task"],
     "fongap-labs/ai-gateway": ["pr", "task", "deploy"],
     "fongap-labs/delta": ["pr", "task", "release-source", "release-target"],
-    "fongap-labs/delta-legacy": ["pr"],
     "fongap-labs/delta-suite": ["pr", "task"],
     "fongap-labs/app-source": ["pr", "task", "release-source"],
     "fongap-labs/internal-vault": ["pr", "task", "release-source", "deploy"],
