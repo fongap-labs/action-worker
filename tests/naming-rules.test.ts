@@ -63,7 +63,10 @@ test("unchanged legacy paths may be edited, but newly introduced paths must foll
 
 test("Delta imported naming checks use the same pinned upstream baseline at all layers", async () => {
   const source = await readFile(resolve("scripts/validate-naming-rules.ts"), "utf8");
-  assert.match(source, /const comparisonBase = await resolveEngineeringDiffBase\(base, process\.cwd\(\)\)/);
+  assert.match(
+    source,
+    /const comparisonBase = await resolveEngineeringDiffBase\(base, process\.cwd\(\)\)/
+  );
   assert.match(source, /"--diff-filter=ACMR", comparisonBase, head/);
   assert.match(source, /"--diff-filter=ACR", comparisonBase, head/);
   assert.match(source, /"validate-source-naming\.py"\), comparisonBase, head/);
