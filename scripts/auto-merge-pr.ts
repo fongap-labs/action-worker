@@ -1,4 +1,5 @@
 import { getGithubJson, getJsonString, isJsonRecord, runGithubCli } from "./github-api.ts";
+import { defaultControlRepository } from "./ci-evidence.ts";
 import { loadGateContract, requiredGateContexts } from "./governance-gate-contract.ts";
 import { sleep } from "./lib/promise-delay-runtime.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";
@@ -12,6 +13,12 @@ const REQUIRED_GATES = requiredGateContexts(gateContract);
 const governanceContext = gateContract.status_contexts.pr_governance;
 const ciEvidenceContext = gateContract.status_contexts.ci_evidence;
 const mergeContext = gateContract.status_contexts.merge_validation;
+
+function isTrustedControlRunUrl(value: string, controlRepository: string): boolean {
+  if (!REPOSITORY.test(controlRepository)) return false;
+  const prefix = "https://github.com/" + controlRepository + "/actions/runs/";
+  return value.startsWith(prefix) && /^[1-9]\d*$/.test(value.slice(prefix.length));
+}
 
 // All paths use the same cryptographically attested current-head and title checks.
 // GitHub changes the observed base SHA after a PR merges; only the *open* path
@@ -60,7 +67,8 @@ export function assertReadyForAutomaticMerge(
   prNumber: number,
   headSha: string,
   baseSha: string,
-  governanceRunUrl: string
+  governanceRunUrl: string,
+  controlRepository = defaultControlRepository
 ): void {
   if (
     !REPOSITORY.test(repository) ||
@@ -68,9 +76,7 @@ export function assertReadyForAutomaticMerge(
     prNumber < 1 ||
     !SHA.test(headSha) ||
     !SHA.test(baseSha) ||
-    !/^https:\/\/github\.com\/fongap-labs\/action-worker\/actions\/runs\/[1-9]\d*$/.test(
-      governanceRunUrl
-    )
+    !isTrustedControlRunUrl(governanceRunUrl, controlRepository)
   ) {
     throw new CliError("Invalid immutable automatic-merge identity.", 64);
   }
@@ -117,7 +123,8 @@ export function isApprovedCompletedMerge(
   prNumber: number,
   headSha: string,
   baseSha: string,
-  governanceRunUrl: string
+  governanceRunUrl: string,
+  controlRepository = defaultControlRepository
 ): boolean {
   if (
     !REPOSITORY.test(repository) ||
@@ -125,9 +132,7 @@ export function isApprovedCompletedMerge(
     prNumber < 1 ||
     !SHA.test(headSha) ||
     !SHA.test(baseSha) ||
-    !/^https:\/\/github\.com\/fongap-labs\/action-worker\/actions\/runs\/[1-9]\d*$/.test(
-      governanceRunUrl
-    ) ||
+    !isTrustedControlRunUrl(governanceRunUrl, controlRepository) ||
     !isJsonRecord(pull) ||
     pull.state !== "closed" ||
     pull.merged !== true ||
@@ -170,6 +175,7 @@ export async function waitForApprovedCompletedMerge(
     headSha: string;
     baseSha: string;
     governanceRunUrl: string;
+    controlRepository?: string;
   },
   wait: (milliseconds: number) => Promise<void> = sleep,
   maxChecks = 5
@@ -188,7 +194,8 @@ export async function waitForApprovedCompletedMerge(
         identity.prNumber,
         identity.headSha,
         identity.baseSha,
-        identity.governanceRunUrl
+        identity.governanceRunUrl,
+        identity.controlRepository
       )
     ) {
       return true;
