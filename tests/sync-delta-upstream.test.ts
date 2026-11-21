@@ -6,6 +6,11 @@ test("upstream main-only push does not run on the Delta mirror branch", () => {
   assert.equal(isSafeMirrorWorkflow("on:\n  push:\n    branches: [master]\n"), true);
 });
 
+test("release pattern targeting another branch is safe", () => {
+  const source = "on:\n  push:\n    branches: [master, 'release/dsh-[0-9]+.[0-9]+']\n";
+  assert.equal(isSafeMirrorWorkflow(source), true);
+});
+
 test("mirror branch or broad push triggers block the entire sync", () => {
   assert.equal(isSafeMirrorWorkflow("on: push\n"), false);
   assert.equal(isSafeMirrorWorkflow("on: [push, pull_request]\n"), false);
