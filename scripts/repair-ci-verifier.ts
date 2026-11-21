@@ -199,7 +199,9 @@ export async function verifyRepairPullRequest(
   // A PR may change while GitHub Actions and status evidence are being read.
   // Do not emit a success proof for a snapshot that has moved, become draft,
   // closed, changed its title, or switched source repositories in the meantime.
-  const freshPull = await reader.get("repos/" + identity.repository + "/pulls/" + identity.pr_number);
+  const freshPull = await reader.get(
+    "repos/" + identity.repository + "/pulls/" + identity.pr_number
+  );
   requireSameRepositoryPull(freshPull, identity.repository);
   assertReadyForAutomaticMerge(
     freshPull,
