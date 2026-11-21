@@ -79,6 +79,11 @@ export function resolveCentralWindowsScript(policyValue: unknown, repository: st
   return match;
 }
 
+export function declaresWindowsJob(manifestValue: unknown): boolean {
+  const jobs = parseExecutionManifest(manifestValue).operations.ci?.jobs ?? [];
+  return jobs.some((job) => job.id === "windows");
+}
+
 export function resolveLinuxShards(manifestValue: unknown): string[] {
   const manifest = parseExecutionManifest(manifestValue);
   const jobs = manifest.operations.ci?.jobs ?? [];
@@ -170,8 +175,7 @@ export async function resolveCiCapabilities(
   const centralWindowsScript = resolveCentralWindowsScript(routePolicy, repository);
   // Only an explicit Windows CI declaration on the trusted control ref can
   // enable an allowlisted central suite; untrusted PR content cannot opt in.
-  const declaresWindows = manifest !== undefined &&
-    parseExecutionManifest(manifest).operations.ci?.jobs.some((job) => job.id === "windows") === true;
+  const declaresWindows = manifest !== undefined && declaresWindowsJob(manifest);
   const hasWindows = hasTargetWindowsScript || (centralWindowsScript !== undefined && declaresWindows);
   const diagnosticPolicy = parseJson(
     await readFile("policies/ci-diagnostics.json", "utf8"),
