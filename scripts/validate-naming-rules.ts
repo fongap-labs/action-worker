@@ -150,8 +150,20 @@ export async function validateNames(
   const minNewSegments = policy.file_names.min_new_semantic_segments;
   const lifecycleTerms = policy.file_names.lifecycle_banned_terms;
   const genericTerms = new Set(policy.file_names.generic_warning_terms);
-  const changed = await runText("git", ["diff", "--name-only", "--diff-filter=ACMR", comparisonBase, head]);
-  const introduced = await runText("git", ["diff", "--name-only", "--diff-filter=ACR", comparisonBase, head]);
+  const changed = await runText("git", [
+    "diff",
+    "--name-only",
+    "--diff-filter=ACMR",
+    comparisonBase,
+    head,
+  ]);
+  const introduced = await runText("git", [
+    "diff",
+    "--name-only",
+    "--diff-filter=ACR",
+    comparisonBase,
+    head,
+  ]);
   const introducedPaths = new Set(introduced ? introduced.split(/\r?\n/).filter(Boolean) : []);
   const files = changed ? changed.split(/\r?\n/).filter(Boolean) : [];
   let failures = 0;
@@ -209,7 +221,11 @@ export async function validateNames(
   }
   const scriptDir = dirname(fileURLToPath(import.meta.url));
   try {
-    await runCommand("python3", [join(scriptDir, "validate-source-naming.py"), comparisonBase, head]);
+    await runCommand("python3", [
+      join(scriptDir, "validate-source-naming.py"),
+      comparisonBase,
+      head,
+    ]);
   } catch (error) {
     console.error(commandFailureMessage(error));
     failures += 1;
