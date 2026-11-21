@@ -318,7 +318,8 @@ test("Linux central sandbox runs trusted ownership policy before project-control
 test("Delta desktop builder compiles referenced libraries before package-local TypeScript", () => {
   const build = readFileSync("tests/packs/delta/desktop-build-ci.sh", "utf8");
   const install = build.indexOf("pnpm install --frozen-lockfile");
-  const references = build.indexOf("pnpm run build:lib");
+  const references = build.indexOf("pnpm run build:lib:host");
+  assert.equal(build.includes("pnpm run build:lib\n"), false);
   const desktop = build.indexOf("pnpm run build:desktop");
   assert.ok(install > 0);
   assert.ok(references > install);
