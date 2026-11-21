@@ -65,6 +65,39 @@ def test_current_plugin_identity_without_legacy_compatibility() -> None:
     assert "managed worktree has uncommitted changes" in worktree
 
 
+
+def test_declared_bundle_artifact_and_client_metadata() -> None:
+    root = _migrated_root()
+    manifest = json.loads((root / "package.json").read_text(encoding="utf-8"))
+    if not (target_root() / "packages/plugin/shared/tsdown.config.ts").is_file():
+        pytest.skip("Delta Code runtime bundle build not adopted in this target revision")
+
+    # Cordis loads a bundle via the manifest; TS source compilation alone is not sufficient.
+    assert manifest["private"] is True
+    assert manifest["main"] == "./lib/index.js"
+    assert manifest["types"] == "./lib/types/index.d.ts"
+    assert manifest["exports"]["."]["default"] == "./lib/index.js"
+    assert manifest["exports"]["."]["types"] == "./lib/types/index.d.ts"
+    assert manifest["exports"]["./client"] == "./lib/client.js"
+    assert manifest["dsh"]["manifestVersion"] == 1
+    assert manifest["dsh"]["bundle"]["patch"] == "./cordis.patch.yml"
+    assert manifest["dsh"]["client"]["platform"] == "web"
+    assert set(manifest["dsh"]["client"]["inject"]) == {
+        "@deepseek-ai/dsh-client-ui-plugin-manager",
+        "@deepseek-ai/dsh-client-ui-settings",
+    }
+    for filename in ("lib/index.js", "lib/client.js", "cordis.patch.yml"):
+        assert filename in manifest["files"]
+    assert "tsc -p tsconfig.json" in manifest["scripts"]["build"]
+    assert "tsdown" in manifest["scripts"]["build"]
+    assert "dsh-delta-code" not in json.dumps(manifest, sort_keys=True)
+
+    bundle_config = (root / "cordis.patch.yml").read_text(encoding="utf-8")
+    assert "- id: delta-code" in bundle_config
+    assert "name: '@fongap-labs/delta-code'" in bundle_config
+
+
+
 def test_only_current_private_directory_is_recognized() -> None:
     root = _migrated_root()
     script = """

@@ -29,7 +29,12 @@ def test_shared_package_is_private_and_lockfile_consistent() -> None:
     manifest = json.loads((root / "package.json").read_text(encoding="utf-8"))
     assert manifest["name"] == "@fongap-labs/delta-plugin-shared"
     assert manifest["private"] is True
-    assert manifest["scripts"]["build"] == "tsc -p tsconfig.json"
+    if (root / "tsdown.config.ts").is_file():
+        assert manifest["scripts"]["build"] == "tsc -p tsconfig.json && tsdown --config-loader native"
+    else:
+        # Historical Delta target commits remain inspectable until the runtime
+        # bundle stage is adopted; this branch is not a plugin compatibility shim.
+        assert manifest["scripts"]["build"] == "tsc -p tsconfig.json"
     assert manifest["exports"]["."]["default"] == "./lib/index.js"
     lock = (target_root() / "pnpm-lock.yaml").read_text(encoding="utf-8")
     _, separator, remaining = lock.partition("\n  packages/plugin/shared:")
