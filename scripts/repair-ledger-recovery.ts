@@ -88,30 +88,40 @@ export async function recoverRepairLedger(
     const pr = await reader.get(path);
     const head = isJsonRecord(pr) ? getJsonString(pr.head, "sha") : "";
     const base = isJsonRecord(pr) ? getJsonString(pr.base, "ref") : "";
+    const baseSha = isJsonRecord(pr) ? getJsonString(pr.base, "sha") : "";
     if (
       !isJsonRecord(pr) ||
       pr.number !== prNumber ||
       !GIT_SHA.test(head) ||
+      !GIT_SHA.test(baseSha) ||
       base !== metadata.default_branch ||
       (pr.state !== "open" && pr.state !== "closed")
     ) {
       throw new CliError("Repair recovery PR identity or base branch changed.", 75);
     }
-    return { head, state: pr.state, merged: pr.merged === true };
+    return { head, baseSha, state: pr.state, merged: pr.merged === true };
   };
 
   const pr = await readPull();
   if (pr.merged) return result("merged_requires_main_ci");
   if (pr.state !== "open") return result("closed_without_merge");
 
-  if (pr.head !== snapshot.document.entry.head_sha) {
+  if (
+    pr.head !== snapshot.document.entry.head_sha ||
+    pr.baseSha !== snapshot.document.entry.base_sha
+  ) {
     const fresh = await readPull();
-    if (fresh.head !== pr.head || fresh.state !== "open" || fresh.merged) {
+    if (
+      fresh.head !== pr.head ||
+      fresh.baseSha !== pr.baseSha ||
+      fresh.state !== "open" ||
+      fresh.merged
+    ) {
       throw new CliError("Repair PR changed during recovery.", 75);
     }
     const updated: RepairLedgerSnapshot = await store.compareAndSwap(
       snapshot,
-      { kind: "head-updated", headSha: pr.head },
+      { kind: "head-updated", headSha: pr.head, baseSha: pr.baseSha },
       request.now,
       metadata.private ? request.key : null
     );

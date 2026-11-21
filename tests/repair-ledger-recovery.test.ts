@@ -18,6 +18,8 @@ const rootCause = "a".repeat(64);
 const evidence = "b".repeat(64);
 const firstHead = "c".repeat(40);
 const secondHead = "d".repeat(40);
+const firstBase = "e".repeat(40);
+const secondBase = "f".repeat(40);
 const now = "2026-11-21T11:00:00Z";
 
 function progress(stage: "discovered" | "diagnosed" | "repairing" | "ci_verifying") {
@@ -33,14 +35,14 @@ function progress(stage: "discovered" | "diagnosed" | "repairing" | "ci_verifyin
   entry = applyRepairLedgerEvent(
     entry,
     entry.revision,
-    { kind: "repair-created", headSha: firstHead, prNumber: 12 },
+    { kind: "repair-created", headSha: firstHead, baseSha: firstBase, prNumber: 12 },
     now
   );
   if (stage === "repairing") return entry;
   return applyRepairLedgerEvent(
     entry,
     entry.revision,
-    { kind: "ci-started", headSha: firstHead, runId: 88 },
+    { kind: "ci-started", headSha: firstHead, baseSha: firstBase, runId: 88 },
     now
   );
 }
@@ -112,6 +114,8 @@ function reader(
     merged?: boolean;
     defaultBranch?: string;
     changedHead?: string;
+    baseSha?: string;
+    changedBase?: string;
     wrongRepo?: boolean;
     wrongBase?: boolean;
   } = {}
@@ -136,7 +140,13 @@ function reader(
             sha:
               reads > 1 && options.changedHead ? options.changedHead : (options.head ?? firstHead),
           },
-          base: { ref: options.wrongBase ? "other" : (options.defaultBranch ?? "main") },
+          base: {
+            ref: options.wrongBase ? "other" : (options.defaultBranch ?? "main"),
+            sha:
+              reads > 1 && options.changedBase
+                ? options.changedBase
+                : (options.baseSha ?? firstBase),
+          },
         };
       }
       throw new Error("Unexpected GitHub query.");
@@ -184,6 +194,7 @@ test("PR head changes invalidate old CI exactly once and are durably resumable",
   assert.equal(store.snapshot?.document.entry.head_sha, secondHead);
   assert.equal(store.snapshot?.document.entry.ci_run_id, null);
   assert.equal(store.snapshot?.document.entry.ci_head_sha, null);
+  assert.equal(store.snapshot?.document.entry.ci_base_sha, null);
   assert.equal((await recover(store, reader({ head: secondHead }))).kind, "needs_ci_run");
   assert.equal(store.writes, 1);
 });
@@ -240,4 +251,24 @@ test("wrong PR base, concurrent head changes and write conflicts fail closed", a
 test("repository default branch is read dynamically, not assumed to be main", async () => {
   const store = new FakeStore(progress("repairing"));
   assert.equal((await recover(store, reader({ defaultBranch: "stable" }))).kind, "needs_ci_run");
+});
+
+test("base SHA changes invalidate previously verified CI even with unchanged head", async () => {
+  const store = new FakeStore(progress("ci_verifying"));
+  const updated = await recover(store, reader({ baseSha: secondBase }));
+  assert.equal(updated.kind, "head_updated");
+  assert.equal(store.snapshot?.document.entry.base_sha, secondBase);
+  assert.equal(store.snapshot?.document.entry.ci_head_sha, null);
+  assert.equal(store.snapshot?.document.entry.ci_base_sha, null);
+  assert.equal((await recover(store, reader({ baseSha: secondBase }))).kind, "needs_ci_run");
+  assert.equal(store.writes, 1);
+});
+
+test("PR base changes during recovery fail closed", async () => {
+  const store = new FakeStore(progress("ci_verifying"));
+  await assert.rejects(
+    recover(store, reader({ baseSha: secondBase, changedBase: firstBase })),
+    /changed during recovery/
+  );
+  assert.equal(store.writes, 0);
 });

@@ -18,6 +18,7 @@ const fingerprint = "a".repeat(64);
 const rootEvidence = "b".repeat(64);
 const ciEvidence = "c".repeat(64);
 const head = "d".repeat(40);
+const baseSha = "e".repeat(40);
 const now = "2026-11-21T10:00:00Z";
 const key = Buffer.alloc(32, 9);
 
@@ -199,7 +200,7 @@ test("ledger refuses wrong issue and cannot complete without trusted CI verifica
   await assert.rejects(
     store.compareAndSwap(
       created,
-      { kind: "repair-created", headSha: head, prNumber: 44 },
+      { kind: "repair-created", headSha: head, baseSha, prNumber: 44 },
       now,
       null
     ),
@@ -208,7 +209,7 @@ test("ledger refuses wrong issue and cannot complete without trusted CI verifica
   await assert.rejects(
     store.compareAndSwap(
       created,
-      { kind: "ci-verified", headSha: head, runId: 45, evidenceSha256: ciEvidence },
+      { kind: "ci-verified", headSha: head, baseSha, runId: 45, evidenceSha256: ciEvidence },
       now,
       null
     ),

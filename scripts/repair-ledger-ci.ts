@@ -31,6 +31,8 @@ export async function verifiedRepairCiDigest(
     !SHA.test(entry.head_sha) ||
     !entry.ci_run_id ||
     entry.ci_head_sha !== entry.head_sha ||
+    !entry.base_sha ||
+    entry.ci_base_sha !== entry.base_sha ||
     !entry.pr_number
   ) {
     throw new CliError("Repair task lacks current-head CI evidence.", 65);
@@ -64,6 +66,9 @@ export async function verifiedRepairCiDigest(
     return { baseSha: getJsonString(value.base, "sha"), title, mergeSha };
   };
   const observed = await readPull();
+  if (!isMergedRequired && observed.baseSha !== entry.base_sha) {
+    throw new CliError("Repair PR base changed since the recorded CI snapshot.", 75);
+  }
   const response = await reader.get(["repos", repository, "commits", headSha, "status"].join("/"));
   const ciStatus = latestCiStatus(response, contract.status_contexts.ci_evidence);
   const ciRunId = trustedControlRunId(getJsonString(ciStatus, "target_url"), controlRepository);

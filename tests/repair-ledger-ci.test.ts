@@ -29,13 +29,13 @@ function repairDocument() {
   const repairing = applyRepairLedgerEvent(
     diagnosed,
     1,
-    { kind: "repair-created", headSha: head, prNumber: 17 },
+    { kind: "repair-created", headSha: head, baseSha: base, prNumber: 17 },
     now
   );
   const verifying = applyRepairLedgerEvent(
     repairing,
     2,
-    { kind: "ci-started", headSha: head, runId: 42 },
+    { kind: "ci-started", headSha: head, baseSha: base, runId: 42 },
     now
   );
   return {

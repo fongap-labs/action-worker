@@ -35,7 +35,9 @@ const STAGES: readonly RepairStage[] = [
 ];
 const BLOCKS = ["missing_evidence", "permissions", "quota", "stale_head", "ci_failure"] as const;
 const ENTRY_KEYS = [
+  "base_sha",
   "blocked_reason",
+  "ci_base_sha",
   "ci_evidence_sha256",
   "ci_head_sha",
   "ci_run_id",
@@ -167,7 +169,9 @@ export function validateRepairLedgerDocument(
   nullableSha(entry.root_cause_evidence_sha256, SHA_256, "root-cause evidence");
   nullableSha(entry.ci_evidence_sha256, SHA_256, "CI evidence");
   nullableSha(entry.head_sha, GIT_SHA, "repair head");
+  nullableSha(entry.base_sha, GIT_SHA, "repair base");
   nullableSha(entry.ci_head_sha, GIT_SHA, "CI head");
+  nullableSha(entry.ci_base_sha, GIT_SHA, "CI base");
   nullablePositive(entry.pr_number, "pull request number");
   nullablePositive(entry.ci_run_id, "CI run identifier");
   if (
@@ -183,38 +187,52 @@ export function validateRepairLedgerDocument(
   ) {
     throw new CliError("Repair ledger timestamp is invalid.", 65);
   }
-  if ((entry.ci_run_id === null) !== (entry.ci_head_sha === null)) {
+  if (
+    (entry.ci_run_id === null) !== (entry.ci_head_sha === null) ||
+    (entry.ci_run_id === null) !== (entry.ci_base_sha === null)
+  ) {
     throw new CliError("Repair ledger CI identity is incomplete.", 65);
   }
-  if (entry.ci_head_sha !== null && entry.ci_head_sha !== entry.head_sha) {
-    throw new CliError("Repair ledger CI evidence belongs to a stale head.", 65);
+  if (
+    (entry.ci_head_sha !== null && entry.ci_head_sha !== entry.head_sha) ||
+    (entry.ci_base_sha !== null && entry.ci_base_sha !== entry.base_sha)
+  ) {
+    throw new CliError("Repair ledger CI evidence belongs to a stale PR snapshot.", 65);
   }
-  if ((entry.head_sha === null) !== (entry.pr_number === null)) {
+  if (
+    (entry.head_sha === null) !== (entry.base_sha === null) ||
+    (entry.head_sha === null) !== (entry.pr_number === null)
+  ) {
     throw new CliError("Repair ledger pull request identity is incomplete.", 65);
   }
   if (
     (entry.stage === "discovered" &&
       (entry.root_cause_evidence_sha256 !== null ||
         entry.ci_evidence_sha256 !== null ||
-        entry.head_sha !== null)) ||
+        entry.head_sha !== null ||
+        entry.base_sha !== null)) ||
     (entry.stage === "diagnosed" &&
       (entry.root_cause_evidence_sha256 === null ||
         entry.ci_evidence_sha256 !== null ||
-        entry.head_sha !== null)) ||
+        entry.head_sha !== null ||
+        entry.base_sha !== null)) ||
     (entry.stage === "repairing" &&
       (entry.root_cause_evidence_sha256 === null ||
         entry.ci_evidence_sha256 !== null ||
         entry.head_sha === null ||
+        entry.base_sha === null ||
         entry.ci_run_id !== null)) ||
     (entry.stage === "ci_verifying" &&
       (entry.root_cause_evidence_sha256 === null ||
         entry.ci_evidence_sha256 !== null ||
         entry.head_sha === null ||
+        entry.base_sha === null ||
         entry.ci_run_id === null)) ||
     (entry.stage === "completed" &&
       (entry.root_cause_evidence_sha256 === null ||
         entry.ci_evidence_sha256 === null ||
         entry.head_sha === null ||
+        entry.base_sha === null ||
         entry.ci_run_id === null ||
         entry.blocked_reason !== null))
   ) {
@@ -397,13 +415,13 @@ export class RepairLedgerStore {
       snapshot.document,
       controlRepository
     );
-    const { head_sha: headSha, ci_run_id: runId } = snapshot.document.entry;
-    if (headSha === null || runId === null) {
+    const { head_sha: headSha, base_sha: baseSha, ci_run_id: runId } = snapshot.document.entry;
+    if (headSha === null || baseSha === null || runId === null) {
       throw new CliError("Repair task has no current CI identity.", 65);
     }
     return this.applyEvent(
       snapshot,
-      { kind: "ci-verified", headSha, runId, evidenceSha256: digest },
+      { kind: "ci-verified", headSha, baseSha, runId, evidenceSha256: digest },
       now,
       key
     );
