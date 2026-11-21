@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "mirrors": [
+    {
+      "source_repository": "deepseek-ai/deepseek-harness",
+      "source_branch": "master",
+      "target_repository": "fongap-labs/ds-harness",
+      "target_branch": "upstream/deepseek-harness",
+      "bootstrap_sha": "a00915e10209587d627f1f7f700ae2b395cdc870"
+    }
+  ]
+}

@@ -234,6 +234,8 @@ runner_profile → 中央运行器解析
 
 在 GitHub Free 套餐下，组织的私有仓库不支持 rulesets 或保护分支，不能因此放宽中央门禁。发布、部署及故障处理见 `06_RELEASE_DEPLOY_GUIDE.md`。
 
+上游源码镜像属于中央管理任务。权威配置位于 Action Worker 的 `policies/upstream-mirror-sources.json`；`sync-upstream-mirror.yml` 定时只更新指定 `upstream/*` 分支、拉取完整 Git 历史并检查上游 Actions 触发条件，不运行上游代码、不修改受保护的 `main`。首次仅允许用精确 MIT 初始化提交进行一次带租约切换，后续不得强制推送；发布仍由主分支 CI Evidence 和 Main Write Guard 决定。
+
 ## 10. 中央工程归属与过渡期
 
 新增测试和构建入口由中央管理。
