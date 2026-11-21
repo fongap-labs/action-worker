@@ -100,7 +100,9 @@ test("pages installation inventory and failure runs without truncating the scan"
     },
     "fongap-labs",
     since,
-    (candidate) => candidates.push(candidate)
+    (candidate) => {
+      candidates.push(candidate);
+    }
   );
   assert.equal(summary.repositories_scanned, 101);
   assert.equal(summary.failures_found, 101);
@@ -218,7 +220,8 @@ test("quota, permissions and incomplete pages fail closed rather than invent a c
 });
 
 test("invalid owner or time range is rejected without touching GitHub", async () => {
-  for (const [owner, cutoff] of [["outside/org", since], ["fongap-labs", "yesterday"]]) {
+  const cases: Array<[string, string]> = [["outside/org", since], ["fongap-labs", "yesterday"]];
+  for (const [owner, cutoff] of cases) {
     let reads = 0;
     await assert.rejects(
       discoverFailedRuns(
