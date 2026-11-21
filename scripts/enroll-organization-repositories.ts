@@ -244,8 +244,10 @@ async function mergeExisting(
   if (
     !Array.isArray(files) ||
     files.length !== 2 ||
-    files.map((file) => file.filename).sort().join(",") !==
-      [changelogPath, policyPath].sort().join(",")
+    files
+      .map((file) => file.filename)
+      .sort()
+      .join(",") !== [changelogPath, policyPath].sort().join(",")
   ) {
     throw new Error("Automatic enrollment PR may change only policy and CHANGELOG.md.");
   }
