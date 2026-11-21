@@ -9,7 +9,7 @@ import {
   isGithubMissing,
   isJsonRecord,
 } from "./github-api.ts";
-import { verifiedRepairCiDigest } from "./repair-ledger-ci.ts";
+import { verifiedRepairPostMergeDigest } from "./repair-ledger-main-ci.ts";
 import {
   applyRepairLedgerEvent,
   type RepairEvent,
@@ -369,7 +369,7 @@ export class RepairLedgerStore {
     now: string,
     key: Buffer | null
   ): Promise<RepairLedgerSnapshot> {
-    const digest = await verifiedRepairCiDigest(reader, snapshot.document, controlRepository);
+    const digest = await verifiedRepairPostMergeDigest(reader, snapshot.document, controlRepository);
     const { head_sha: headSha, ci_run_id: runId } = snapshot.document.entry;
     if (headSha === null || runId === null) {
       throw new CliError("Repair task has no current CI identity.", 65);
