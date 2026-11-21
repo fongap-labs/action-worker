@@ -1,11 +1,11 @@
 import type { JsonReader } from "./ci-evidence.ts";
 import { getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
-import { createRepairLedgerEntry, repairTaskId, type RepairStage } from "./repair-lifecycle-ledger.ts";
 import {
   RepairLedgerConflictError,
   type RepairLedgerDocument,
   type RepairLedgerStore,
 } from "./repair-ledger-store.ts";
+import { createRepairLedgerEntry, type RepairStage } from "./repair-lifecycle-ledger.ts";
 import { CliError } from "./runtime-command.ts";
 
 const HEAD_SHA = /^[0-9a-f]{40}$/;
@@ -56,7 +56,6 @@ export async function admitRepairFinding(
   ) {
     throw new CliError("Repair finding identifiers are invalid.", 65);
   }
-  const taskId = repairTaskId(repository, finding.root_cause_sha256);
   const repo = await reader.get(`repos/${repository}`);
   if (
     !isJsonRecord(repo) ||
@@ -74,9 +73,7 @@ export async function admitRepairFinding(
   // No claim of a root cause is accepted from an Issue title, model answer,
   // HTTP result, or a failed dispatch alone. Only a completed real failed
   // GitHub Actions workflow is eligible to enter the discovered stage.
-  const run = await reader.get(
-    `repos/${repository}/actions/runs/${finding.failure_run_id}`
-  );
+  const run = await reader.get(`repos/${repository}/actions/runs/${finding.failure_run_id}`);
   if (
     !isJsonRecord(run) ||
     getJsonNumber(run, "id") !== finding.failure_run_id ||
@@ -90,9 +87,7 @@ export async function admitRepairFinding(
     throw new CliError("Repair finding has no matching failed Actions run.", 75);
   }
 
-  const issue = await reader.get(
-    `repos/${repository}/issues/${finding.issue_number}`
-  );
+  const issue = await reader.get(`repos/${repository}/issues/${finding.issue_number}`);
   if (
     !isJsonRecord(issue) ||
     getJsonNumber(issue, "number") !== finding.issue_number ||
