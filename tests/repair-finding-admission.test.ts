@@ -32,6 +32,7 @@ function gh(
     runHead?: string;
     runRepo?: string;
     issueState?: string;
+    issueBody?: string;
     isPull?: boolean;
     badRepo?: boolean;
   } = {}
@@ -59,6 +60,7 @@ function gh(
         return {
           number: Number(path.split("/").at(-1)),
           state: options.issueState ?? "open",
+          body: options.issueBody ?? null,
           ...(options.isPull ? { pull_request: { url: "private" } } : {}),
         };
       }
@@ -204,4 +206,33 @@ test("malformed and mismatched candidate identifiers are rejected before API cal
     await assert.rejects(admitRepairFinding(store, gh(), invalid, null), /identifiers/);
   }
   assert.equal(store.writes, 0);
+});
+
+test("auto-resolved Issue link must still match the run at the final admission read", async () => {
+  const marker = `<!-- aw-repair-failure:v1 run=42 sha=${head} -->`;
+  const store = new FakeStore();
+  const accepted = await admitRepairFinding(
+    store,
+    gh({ issueBody: marker }),
+    finding(),
+    null,
+    true
+  );
+  assert.equal(accepted.outcome, "created");
+  assert.equal(store.writes, 1);
+
+  const invalidBodies = [
+    marker.replace("run=42", "run=43"),
+    marker.replace(head, "c".repeat(40)),
+    marker + "\n" + marker,
+    "",
+  ];
+  for (const issueBody of invalidBodies) {
+    const freshStore = new FakeStore();
+    await assert.rejects(
+      admitRepairFinding(freshStore, gh({ issueBody }), finding(), null, true),
+      /marker changed/
+    );
+    assert.equal(freshStore.writes, 0);
+  }
 });

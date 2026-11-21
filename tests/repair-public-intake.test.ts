@@ -51,9 +51,21 @@ test("admission pilot rejects other events, repos, branches and workflow callers
   }
 });
 
+test("zero or absent Issue number selects only the exact Issue matching path", () => {
+  const zero = parsePublicRepairIntake({ ...trustedEnv(), AW_REPAIR_ISSUE_NUMBER: "0" }, timestamp);
+  assert.equal(zero.issue_number, null);
+  const omitted = parsePublicRepairIntake(
+    { ...trustedEnv(), AW_REPAIR_ISSUE_NUMBER: undefined },
+    timestamp
+  );
+  assert.equal(omitted.issue_number, null);
+  assert.equal(omitted.failure_run_id, 42);
+  assert.equal(omitted.failure_head_sha, head);
+});
+
 test("admission requires bounded numeric IDs, validated SHA and UTC time", () => {
   const cases = [
-    ["AW_REPAIR_ISSUE_NUMBER", "0"],
+    ["AW_REPAIR_ISSUE_NUMBER", "00"],
     ["AW_REPAIR_ISSUE_NUMBER", "9007199254740992"],
     ["AW_REPAIR_ISSUE_NUMBER", "17; echo unsafe"],
     ["AW_REPAIR_FAILURE_RUN_ID", "-4"],
@@ -78,6 +90,7 @@ test("workflow never accepts arbitrary repositories or exposes private inputs", 
     "utf8"
   );
   assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /issue_number:[\s\S]*?required: false/);
   assert.match(workflow, /permission-contents: write/);
   assert.match(workflow, /repositories: \$\{\{ github\.event\.repository\.name \}\}/);
   assert.match(workflow, /github\.repository == 'fongap-labs\/action-worker'/);
