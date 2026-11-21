@@ -8,8 +8,8 @@ import { inferMirroredModelSiblings } from '#target/apps/gateway/policy/automati
 import { buildModelFallbackRounds, buildModelFallbackPlan } from '#target/src/request/model-fallback.ts';
 
 const catalog = new Set([
-  'Pro', 'Max', 'Ultra',
-  'Code-Pro', 'Code-Max', 'Code-Ultra',
+  'Air', 'Pro', 'Max', 'Ultra',
+  'Code-Air', 'Code-Pro', 'Code-Max', 'Code-Ultra',
   'Omni', 'Image-Creator', 'Standalone',
 ]);
 
@@ -18,6 +18,8 @@ test('inferred sibling recovery works without AIG_MODELS_CONFIG or model-specifi
   assert.deepEqual(inferMirroredModelSiblings('Ultra', catalog), ['Pro', 'Max']);
   assert.deepEqual(buildModelFallbackRounds('Code-Ultra', catalog), [['Code-Ultra', 'Code-Pro', 'Code-Max']]);
   assert.deepEqual(buildModelFallbackRounds('Ultra', catalog), [['Ultra', 'Pro', 'Max']]);
+  assert.deepEqual(buildModelFallbackRounds('Code-Air', catalog), [['Code-Air', 'Code-Pro', 'Code-Max', 'Code-Ultra']]);
+  assert.deepEqual(buildModelFallbackRounds('Air', catalog), [['Air', 'Pro', 'Max', 'Ultra']]);
   assert.deepEqual(buildModelFallbackRounds('Omni', catalog), [['Omni']]);
   assert.deepEqual(buildModelFallbackRounds('Image-Creator', catalog), [['Image-Creator']]);
   assert.deepEqual(buildModelFallbackRounds('Standalone', catalog), [['Standalone']]);
@@ -41,6 +43,25 @@ test('explicit fallback and empty opt-out override inference', () => {
     ['Code-Ultra', 'Omni'],
     ['Omni'],
   ]);
+  const explicitAir = { 'Code-Ultra': { policy: { fallback: ['Code-Air'], fallback_mode: 'one_way' } } };
+  assert.deepEqual(buildModelFallbackRounds('Code-Ultra', catalog, explicitAir), [
+    ['Code-Ultra', 'Code-Air'],
+    ['Code-Air'],
+  ], 'an explicitly declared fallback takes precedence over inferred direction rules');
+});
+
+test('Air is a source-only option in automatic family recovery', () => {
+  for (const source of ['Pro', 'Max', 'Ultra', 'Code-Pro', 'Code-Max', 'Code-Ultra']) {
+    const targets = inferMirroredModelSiblings(source, catalog);
+    assert.ok(!targets.some((name) => name.toLowerCase() === 'air' || name.toLowerCase().endsWith('-air')), source);
+  }
+  assert.deepEqual(inferMirroredModelSiblings('Air', catalog), ['Pro', 'Max', 'Ultra']);
+  assert.deepEqual(inferMirroredModelSiblings('Code-Air', catalog), ['Code-Pro', 'Code-Max', 'Code-Ultra']);
+  const airPlan = buildModelFallbackPlan('Code-Air', catalog, 8);
+  assert.equal(airPlan.length, 1);
+  assert.deepEqual(airPlan[0].map((pass) => pass.model), ['Code-Air', 'Code-Pro', 'Code-Max', 'Code-Ultra']);
+  assert.ok(airPlan[0].reduce((sum, pass) => sum + pass.attemptCap, 0) <= 8);
+  assert.ok(buildModelFallbackPlan('Code-Max', catalog, 8)[0].every((pass) => pass.model !== 'Code-Air'));
 });
 
 test('inferred plan is one-way, fairly bounded, and never expands attempt budget', () => {
