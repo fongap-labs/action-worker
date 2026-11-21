@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- 功能: 中央治理新增受信任的 Delta Windows CI 路由；仅在可信执行清单显式声明 Windows 后启用，使用 Action Worker 自有 PowerShell 测试包构建无签名便携目录、执行已打包运行时冒烟并在隔离应用数据目录中检验移动后的程序启动，不引入仓库自建工作流或发布凭据。
+- 功能: Delta Windows CI 使用中央白名单和可信清单显式启用；验证无签名便携目录、运行时启动及隔离应用数据。
 
 - 维护: Delta Code 可信 Linux CI 新增原生 code_lsp_probe 的受限 Host subprocess 实测，验证已安装/缺失语言服务、越界目录与取消调用的拒绝路径和卸载后工具清理；不替代完整 LSP 诊断。
 
