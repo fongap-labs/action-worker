@@ -13,11 +13,7 @@ const MARKER = /^<!-- aw-repair-failure:v1 run=([1-9][0-9]*) sha=([a-f0-9]{40}) 
  * Recheck the exact marker on the fresh Issue response immediately before
  * persisting the binding. A stale match must not survive a modified Issue.
  */
-export function hasExactRepairIssueMarker(
-  body: unknown,
-  runId: number,
-  headSha: string
-): boolean {
+export function hasExactRepairIssueMarker(body: unknown, runId: number, headSha: string): boolean {
   if (typeof body !== "string" || Buffer.byteLength(body, "utf8") > MAX_ISSUE_BODY_BYTES) {
     return false;
   }
