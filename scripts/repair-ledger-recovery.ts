@@ -106,9 +106,17 @@ export async function recoverRepairLedger(
   if (pr.merged) return result("merged_requires_main_ci");
   if (pr.state !== "open") return result("closed_without_merge");
 
-  if (pr.head !== snapshot.document.entry.head_sha || pr.baseSha !== snapshot.document.entry.base_sha) {
+  if (
+    pr.head !== snapshot.document.entry.head_sha ||
+    pr.baseSha !== snapshot.document.entry.base_sha
+  ) {
     const fresh = await readPull();
-    if (fresh.head !== pr.head || fresh.baseSha !== pr.baseSha || fresh.state !== "open" || fresh.merged) {
+    if (
+      fresh.head !== pr.head ||
+      fresh.baseSha !== pr.baseSha ||
+      fresh.state !== "open" ||
+      fresh.merged
+    ) {
       throw new CliError("Repair PR changed during recovery.", 75);
     }
     const updated: RepairLedgerSnapshot = await store.compareAndSwap(

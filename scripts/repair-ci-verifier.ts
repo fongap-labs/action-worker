@@ -1,16 +1,16 @@
 import { createHash } from "node:crypto";
+import { assertReadyForAutomaticMerge } from "./auto-merge-pr.ts";
 import {
   defaultControlRepository,
   hasVerifiedCiEvidence,
   hasVerifiedControlStatus,
+  type JsonReader,
   prGateWorkflowPaths,
   trustedControlRunId,
-  type JsonReader,
 } from "./ci-evidence.ts";
 import { getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
 import { loadGateContract, requiredGateContexts } from "./governance-gate-contract.ts";
 import { CliError } from "./runtime-command.ts";
-import { assertReadyForAutomaticMerge } from "./auto-merge-pr.ts";
 import { latestAttestedStatus } from "./status-attestation.ts";
 
 const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -65,7 +65,8 @@ function validateTime(value: string): void {
 
 function requireTrustedRunId(targetUrl: string, controlRepository: string, label: string): number {
   const runId = trustedControlRunId(targetUrl, controlRepository);
-  if (runId === null) throw new CliError("Repair CI " + label + " run is not a trusted control run.", 65);
+  if (runId === null)
+    throw new CliError("Repair CI " + label + " run is not a trusted control run.", 65);
   return runId;
 }
 
@@ -79,7 +80,10 @@ function requireSameRepositoryPull(pull: unknown, repository: string): void {
     getJsonString(headRepo, "full_name").toLowerCase() !== repository ||
     getJsonString(baseRepo, "full_name").toLowerCase() !== repository
   ) {
-    throw new CliError("Repair CI verification refuses fork or cross-repository pull requests.", 75);
+    throw new CliError(
+      "Repair CI verification refuses fork or cross-repository pull requests.",
+      75
+    );
   }
 }
 
@@ -96,9 +100,7 @@ export async function verifyRepairPullRequest(
     throw new CliError("Repair CI control repository is invalid.", 64);
   }
 
-  const pull = await reader.get(
-    "repos/" + identity.repository + "/pulls/" + identity.pr_number
-  );
+  const pull = await reader.get("repos/" + identity.repository + "/pulls/" + identity.pr_number);
   requireSameRepositoryPull(pull, identity.repository);
   if (
     getJsonString(isJsonRecord(pull) ? pull.head : {}, "sha") !== identity.head_sha ||
@@ -135,7 +137,10 @@ export async function verifyRepairPullRequest(
     targetSha: identity.head_sha,
   });
   if (!ciVerified) {
-    throw new CliError("Repair CI requires a completed successful central CI run for the exact PR head.", 75);
+    throw new CliError(
+      "Repair CI requires a completed successful central CI run for the exact PR head.",
+      75
+    );
   }
   const governanceVerified = await hasVerifiedControlStatus(
     reader,
@@ -149,7 +154,10 @@ export async function verifyRepairPullRequest(
     }
   );
   if (!governanceVerified) {
-    throw new CliError("Repair CI requires a trusted completed PR Governance run for the exact PR head.", 75);
+    throw new CliError(
+      "Repair CI requires a trusted completed PR Governance run for the exact PR head.",
+      75
+    );
   }
 
   const ciStatus = latestAttestedStatus(statuses, {
@@ -172,12 +180,19 @@ export async function verifyRepairPullRequest(
     getJsonString(mergeStatus, "target_url") !== governanceRunUrl ||
     getJsonString(mergeStatus, "state") !== "success"
   ) {
-    throw new CliError("Repair CI requires signed Merge Validation from the same governance run.", 75);
+    throw new CliError(
+      "Repair CI requires signed Merge Validation from the same governance run.",
+      75
+    );
   }
   const ciStatusId = getJsonNumber(ciStatus, "id");
   const governanceStatusId = getJsonNumber(governanceStatus, "id");
   const mergeStatusId = getJsonNumber(mergeStatus, "id");
-  if ([ciStatusId, governanceStatusId, mergeStatusId].some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+  if (
+    [ciStatusId, governanceStatusId, mergeStatusId].some(
+      (id) => !Number.isSafeInteger(id) || id <= 0
+    )
+  ) {
     throw new CliError("Repair CI status evidence identifiers are invalid.", 65);
   }
 
@@ -196,8 +211,6 @@ export async function verifyRepairPullRequest(
     required_gate_contexts: requiredGateContexts(contract),
     verified_at: options.verified_at,
   };
-  const evidenceSha256 = createHash("sha256")
-    .update(JSON.stringify(proof), "utf8")
-    .digest("hex");
+  const evidenceSha256 = createHash("sha256").update(JSON.stringify(proof), "utf8").digest("hex");
   return { ...proof, evidence_sha256: evidenceSha256 };
 }

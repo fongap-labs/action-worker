@@ -1,5 +1,5 @@
-import { getGithubJson, getJsonString, isJsonRecord, runGithubCli } from "./github-api.ts";
 import { defaultControlRepository } from "./ci-evidence.ts";
+import { getGithubJson, getJsonString, isJsonRecord, runGithubCli } from "./github-api.ts";
 import { loadGateContract, requiredGateContexts } from "./governance-gate-contract.ts";
 import { sleep } from "./lib/promise-delay-runtime.ts";
 import { prTitleFingerprint } from "./pr-title-fingerprint.ts";

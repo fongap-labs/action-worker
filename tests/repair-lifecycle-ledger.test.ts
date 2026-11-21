@@ -68,8 +68,16 @@ test("stale and skipped transitions never mutate a repair record", () => {
 
 test("CI is tied to the current head and exact run", () => {
   const repairing = advanceToRepair();
-  reject(repairing, { kind: "ci-started", headSha: secondHead, baseSha, runId: 5 }, /current repair head/);
-  reject(repairing, { kind: "ci-started", headSha: firstHead, baseSha: nextBaseSha, runId: 5 }, /current repair head/);
+  reject(
+    repairing,
+    { kind: "ci-started", headSha: secondHead, baseSha, runId: 5 },
+    /current repair head/
+  );
+  reject(
+    repairing,
+    { kind: "ci-started", headSha: firstHead, baseSha: nextBaseSha, runId: 5 },
+    /current repair head/
+  );
   const checking = change(repairing, { kind: "ci-started", headSha: firstHead, baseSha, runId: 5 });
   reject(
     checking,
@@ -109,7 +117,11 @@ test("CI is tied to the current head and exact run", () => {
 test("changing the head invalidates previously started CI", () => {
   const repairing = advanceToRepair();
   const checking = change(repairing, { kind: "ci-started", headSha: firstHead, baseSha, runId: 5 });
-  const updated = change(checking, { kind: "head-updated", headSha: secondHead, baseSha: nextBaseSha });
+  const updated = change(checking, {
+    kind: "head-updated",
+    headSha: secondHead,
+    baseSha: nextBaseSha,
+  });
   assert.equal(updated.stage, "repairing");
   assert.equal(updated.head_sha, secondHead);
   assert.equal(updated.base_sha, nextBaseSha);

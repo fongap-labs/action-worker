@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
 import { loadGateContract } from "../scripts/governance-gate-contract.ts";
-import { signedStatusDescription } from "../scripts/status-attestation.ts";
+import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
 import { verifyRepairPullRequest } from "../scripts/repair-ci-verifier.ts";
+import { signedStatusDescription } from "../scripts/status-attestation.ts";
 
 const repository = "fongap-labs/dsh-plugin";
 const controlRepository = "fongap-labs/action-worker";
@@ -26,12 +26,7 @@ process.env.AW_STATUS_KEYRING = JSON.stringify({
   legacy_tokens: [],
 });
 
-function makeStatus(
-  context: string,
-  targetUrl: string,
-  id: number,
-  description: string
-) {
+function makeStatus(context: string, targetUrl: string, id: number, description: string) {
   return {
     id,
     context,
@@ -108,13 +103,15 @@ function fixture() {
   return { pull, statuses, runs, reader, calls };
 }
 
-function identity(overrides: Partial<{
-  repository: string;
-  issue_number: number;
-  pr_number: number;
-  head_sha: string;
-  base_sha: string;
-}> = {}) {
+function identity(
+  overrides: Partial<{
+    repository: string;
+    issue_number: number;
+    pr_number: number;
+    head_sha: string;
+    base_sha: string;
+  }> = {}
+) {
   return {
     repository,
     issue_number: issueNumber,
@@ -155,7 +152,10 @@ test("repair verifier requires the exact PR head/base and all signed central gat
   assert.match(proof.evidence_sha256, /^[0-9a-f]{64}$/);
   assert.ok(f.calls.includes("repos/" + controlRepository + "/actions/runs/101"));
   assert.ok(f.calls.includes("repos/" + controlRepository + "/actions/runs/102"));
-  assert.equal(f.calls.some((path) => /merge|update|dispatch|pulls\/\d+\/reviews/.test(path)), false);
+  assert.equal(
+    f.calls.some((path) => /merge|update|dispatch|pulls\/\d+\/reviews/.test(path)),
+    false
+  );
 });
 
 test("verification fingerprint binds the source issue as well as PR and immutable SHAs", async () => {
@@ -198,12 +198,17 @@ test("signed success without an actual CI run is not repair evidence", async () 
 
 test("CI Evidence and PR Governance must come from their trusted completed workflows", async () => {
   const badCi = fixture();
-  const ciRun = badCi.runs.get("repos/" + controlRepository + "/actions/runs/102") as Record<string, unknown>;
+  const ciRun = badCi.runs.get("repos/" + controlRepository + "/actions/runs/102") as Record<
+    string,
+    unknown
+  >;
   ciRun.path = ".github/workflows/untrusted.yml";
   await assert.rejects(verify(badCi.reader), /completed successful central CI run/);
 
   const badGovernance = fixture();
-  const governanceRun = badGovernance.runs.get("repos/" + controlRepository + "/actions/runs/101") as Record<string, unknown>;
+  const governanceRun = badGovernance.runs.get(
+    "repos/" + controlRepository + "/actions/runs/101"
+  ) as Record<string, unknown>;
   governanceRun.path = ".github/workflows/untrusted.yml";
   await assert.rejects(verify(badGovernance.reader), /trusted completed PR Governance run/);
 });
@@ -224,7 +229,10 @@ test("unsigned or missing required gate statuses fail closed", async () => {
 
 test("invalid identity and verification time are rejected", async () => {
   const f = fixture();
-  await assert.rejects(verify(f.reader, { repository: "../outside/repository" }), /identity is invalid/);
+  await assert.rejects(
+    verify(f.reader, { repository: "../outside/repository" }),
+    /identity is invalid/
+  );
   await assert.rejects(verify(f.reader, {}, "not-a-time"), /timestamp is invalid/);
 });
 

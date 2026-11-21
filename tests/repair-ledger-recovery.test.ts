@@ -142,7 +142,10 @@ function reader(
           },
           base: {
             ref: options.wrongBase ? "other" : (options.defaultBranch ?? "main"),
-            sha: reads > 1 && options.changedBase ? options.changedBase : (options.baseSha ?? firstBase),
+            sha:
+              reads > 1 && options.changedBase
+                ? options.changedBase
+                : (options.baseSha ?? firstBase),
           },
         };
       }
@@ -263,6 +266,9 @@ test("base SHA changes invalidate previously verified CI even with unchanged hea
 
 test("PR base changes during recovery fail closed", async () => {
   const store = new FakeStore(progress("ci_verifying"));
-  await assert.rejects(recover(store, reader({ baseSha: secondBase, changedBase: firstBase })), /changed during recovery/);
+  await assert.rejects(
+    recover(store, reader({ baseSha: secondBase, changedBase: firstBase })),
+    /changed during recovery/
+  );
   assert.equal(store.writes, 0);
 });
