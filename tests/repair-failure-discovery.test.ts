@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   discoverFailedRuns,
+  type FailedRunCandidate,
   findPublicRepairIssueLinks,
   publicRepairIssueSummary,
-  type FailedRunCandidate,
 } from "../scripts/repair-failure-discovery.ts";
 
 const since = "2026-11-20T00:00:00Z";
