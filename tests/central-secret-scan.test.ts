@@ -10,6 +10,7 @@ import {
   gitleaksDownloadSources,
   scannerFailureReason,
   summarizeFindings,
+  syntheticImportScanCommit,
 } from "../scripts/central-secret-scan.ts";
 
 const script = "scripts/central-secret-scan.ts";
@@ -225,4 +226,36 @@ test("a pinned historical test pack cannot downgrade the current central securit
   assert.match(securityBlock, /path: aw-security/);
   assert.match(securityBlock, /persist-credentials: false/);
   assert.doesNotMatch(workflow, /node aw\/scripts\/central-secret-scan\.ts/);
+});
+
+test("synthetic import scan compares only the pinned parent and the imported tree", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "secret-import-scan-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const git = (...args: string[]) => {
+    const result = spawnSync("git", ["-C", directory, ...args], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  git("init", "-b", "main");
+  git("config", "user.name", "Security fixture");
+  git("config", "user.email", "security@invalid");
+  await writeFile(join(directory, "upstream.txt"), "known-upstream-content\n");
+  git("add", "-A");
+  git("commit", "-m", "upstream");
+  const upstream = git("rev-parse", "HEAD");
+  git("checkout", "--orphan", "delta-import");
+  git("rm", "-rf", ".");
+  await writeFile(join(directory, "upstream.txt"), "known-upstream-content\n");
+  await writeFile(join(directory, "delta.txt"), "new-data\n");
+  git("add", "-A");
+  git("commit", "-m", "import");
+  const head = git("rev-parse", "HEAD");
+  const synthetic = syntheticImportScanCommit(directory, upstream, head);
+  assert.equal(git("show", "-s", "--format=%P", synthetic), upstream);
+  assert.equal(git("diff", "--name-only", upstream, synthetic), "delta.txt");
+  assert.notEqual(synthetic, head);
+  assert.throws(
+    () => syntheticImportScanCommit(directory, "0".repeat(40), head),
+    /pinned import commit/
+  );
 });
