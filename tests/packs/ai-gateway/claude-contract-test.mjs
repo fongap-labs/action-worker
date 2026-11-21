@@ -511,7 +511,7 @@ await test('claude: message_start-only first event then EOF must fail over to a 
   routeHandlers['rob.example.com'] = () => sseResponse(textLifecycle('served by B'));
   recordTier1Ttft('roa', 'claude-x', 10);
   recordTier1Ttft('rob', 'claude-x', 1000);
-  const env = makeEnv({ tier1: [node('roa'), node('rob')], secrets: { roa: 'k', rob: 'k' } });
+  const env = makeEnv({ tier1: [node('roa'), node('rob')], secrets: { roa: 'key-a', rob: 'key-b' } });
   const res = await worker.fetch(
     messagesRequest({ model: 'claude-x', max_tokens: 64, stream: true, messages: [{ role: 'user', content: 'hi' }] }),
     env,

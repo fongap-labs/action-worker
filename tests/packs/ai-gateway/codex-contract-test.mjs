@@ -418,7 +418,7 @@ await test('responses non-stream upstream 429 rotates to a healthy node', async 
   resetMock();
   routeHandlers['r429a.example.com'] = () => jsonUpstream({ error: { message: 'rate' } }, 429, { 'retry-after': '60' });
   routeHandlers['r429b.example.com'] = () => jsonUpstream(okResponse());
-  const env = makeEnv({ tier1: [node('r429a'), node('r429b')], secrets: { r429a: 'k', r429b: 'k' } });
+  const env = makeEnv({ tier1: [node('r429a'), node('r429b')], secrets: { r429a: 'key-a', r429b: 'key-b' } });
   const res = await worker.fetch(responsesRequest({ model: 'code-max', input: 'hi' }), env, {});
   assert.equal(res.status, 200);
   assert.deepEqual(
@@ -460,7 +460,7 @@ await test('responses first-event failover: empty upstream rotates before any ev
   routeHandlers['fe-b.example.com'] = () => sseResponse(textLifecycle('ok'));
   const env = makeEnv({
     tier1: [node('fe-a'), node('fe-b')],
-    secrets: { 'fe-a': 'k', 'fe-b': 'k' },
+    secrets: { 'fe-a': 'key-a', 'fe-b': 'key-b' },
     extraEnv: { AIG_SHOULD_EXPOSE_UPSTREAM: 'true' },
   });
   const res = await worker.fetch(responsesRequest({ model: 'code-max', input: 'hi', stream: true }), env, {});
@@ -531,7 +531,7 @@ await test('responses created-only then EOF rotates to a healthy node', async ()
       { status: 200, headers: { 'content-type': 'text/event-stream' } },
     );
   routeHandlers['co-b.example.com'] = () => sseResponse(textLifecycle('served by B'));
-  const env = makeEnv({ tier1: [node('co-a'), node('co-b')], secrets: { 'co-a': 'k', 'co-b': 'k' } });
+  const env = makeEnv({ tier1: [node('co-a'), node('co-b')], secrets: { 'co-a': 'key-a', 'co-b': 'key-b' } });
   const res = await worker.fetch(responsesRequest({ model: 'code-max', input: 'hi', stream: true }), env, {});
   assert.equal(res.status, 200);
   const text = await res.text();
