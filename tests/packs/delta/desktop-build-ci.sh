@@ -187,6 +187,119 @@ try {
 console.log('Delta Code native multi-edit workspace confinement smoke passed')
 NODE
 
+  # Execute native Git status/diff tools through a strict Host subprocess
+  # provider against one disposable repository, not Node fallback in Delta.
+  # The provider only permits git status/diff inside the isolated workspace.
+  node --input-type=module <<'NODE'
+import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+
+const load = relative => import(pathToFileURL(resolve(relative)).href)
+const { Context } = await load('vendor/cordis/lib/index.js')
+const { SystemPrompt } = await load('packages/core/system-prompt/lib/index.js')
+const { ToolsService } = await load('packages/core/tools/lib/index.js')
+const deltaCode = await load('packages/plugin/delta-code/lib/index.js')
+
+const scratch = await mkdtemp(join(tmpdir(), 'delta-code-native-git-'))
+const workspace = join(scratch, 'workspace')
+const textFile = join(workspace, 'src', 'app.txt')
+let prompt, tools, plugin, releaseSubprocess
+const host = new Context()
+const cli = (args) => {
+  const result = spawnSync('git', args, {
+    cwd: workspace, encoding: 'utf8', timeout: 10000, maxBuffer: 256 * 1024,
+    env: { PATH: process.env.PATH ?? '', HOME: scratch,
+      GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' },
+  })
+  if (result.error) throw result.error
+  assert.equal(result.status, 0, 'fixture git failed: ' + result.stderr)
+  return result.stdout
+}
+try {
+  await mkdir(join(workspace, 'src'), { recursive: true })
+  cli(['init', '--quiet', '--initial-branch=main'])
+  cli(['config', 'user.name', 'Delta Test'])
+  cli(['config', 'user.email', 'delta-test@example.invalid'])
+  await writeFile(textFile, 'baseline\n')
+  cli(['add', '--', 'src/app.txt'])
+  cli(['commit', '--quiet', '-m', 'baseline'])
+  await writeFile(textFile, 'changed\n')
+  await writeFile(join(workspace, 'note.txt'), 'untracked\n')
+
+  const observed = []
+  releaseSubprocess = host.provide('subprocess', {
+    spawn(spec) {
+      assert.equal(spec.argv[0], 'git', 'Host may only run Git')
+      assert.ok(['status', 'diff'].includes(spec.argv[1]),
+        'unexpected Git command requested by native tool')
+      assert.equal(spec.cwd, workspace, 'Git command escaped the test workspace')
+      assert.equal(spec.stdio.stdin, 'ignore', 'Host subprocess requested stdin')
+      assert.equal(spec.signal?.aborted, false, 'cancelled subprocess executed')
+      observed.push([...spec.argv])
+      const result = spawnSync('git', spec.argv.slice(1), {
+        cwd: workspace, encoding: 'utf8', timeout: 10000, maxBuffer: 512 * 1024,
+        env: { PATH: process.env.PATH ?? '', HOME: scratch,
+          GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' },
+      })
+      if (result.error) throw result.error
+      const reader = text => ({ readFrom(offset) {
+        return { text: text.slice(offset), lossy: false }
+      } })
+      return {
+        done: Promise.resolve({ exitCode: result.status, signal: result.signal }),
+        collected: { stdout: reader(result.stdout ?? ''), stderr: reader(result.stderr ?? '') },
+      }
+    },
+  })
+  prompt = host.plugin(SystemPrompt, { includeHarnessIdentity: false })
+  await prompt
+  tools = host.plugin(ToolsService, {})
+  await tools
+  plugin = host.plugin(deltaCode, {
+    enabled: true, workspaceRoot: workspace, git: { enabled: true },
+    github: { enabled: false },
+    execution: { allowCommands: false, allowWorktreeWrites: false },
+  })
+  await plugin
+  const invoke = (name, args = {}) => {
+    const def = host.tools.get(name)
+    assert.ok(def, 'native tool not registered: ' + name)
+    return def.execute(args, { signal: new AbortController().signal })
+  }
+  const status = await invoke('code_git_status')
+  assert.equal(status.clean, false, 'working tree incorrectly marked clean')
+  assert.ok(status.unstaged.includes('M src/app.txt'), 'missing real unstaged modification')
+  assert.ok(status.untracked.includes('note.txt'), 'missing untracked file')
+  const diff = await invoke('code_git_diff', { path: 'src/app.txt' })
+  assert.equal(diff.truncated, false, 'small Git diff was truncated')
+  assert.match(diff.diff, /-baseline/)
+  assert.match(diff.diff, /\+changed/)
+  assert.ok(observed.some(x => x[1] === 'status'), 'Host did not run git status')
+  assert.ok(observed.some(x => x[1] === 'diff'), 'Host did not run git diff')
+
+  const count = observed.length
+  await assert.rejects(
+    invoke('code_git_diff', { path: '../outside.txt' }),
+    /workspace|safe|escapes/,
+    'diff path traversal must be rejected',
+  )
+  assert.equal(observed.length, count, 'invalid path reached Host subprocess')
+  assert.equal(await readFile(textFile, 'utf8'), 'changed\n',
+    'read-only Git tools modified the workspace')
+} finally {
+  if (plugin) await plugin.dispose()
+  if (tools) await tools.dispose()
+  if (prompt) await prompt.dispose()
+  if (releaseSubprocess) await releaseSubprocess()
+  await rm(scratch, { recursive: true, force: true })
+}
+console.log('Delta Code native Host Git status/diff regression passed')
+NODE
+
   # The real Profile composition and enable/disable APIs must agree with the
   # published Delta Code bundle. Operate on a disposable fixture only; this
   # does not claim that pnpm's installation/removal flow has been exercised.
