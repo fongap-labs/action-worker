@@ -22,7 +22,10 @@ export type PublicRepairIntakeInput = Omit<RepairFinding, "issue_number"> & {
   readonly issue_number: number | null;
 };
 
-export function parsePublicRepairIntake(env: NodeJS.ProcessEnv, now: string): PublicRepairIntakeInput {
+export function parsePublicRepairIntake(
+  env: NodeJS.ProcessEnv,
+  now: string
+): PublicRepairIntakeInput {
   if (
     env.GITHUB_REPOSITORY !== CONTROL_REPOSITORY ||
     env.GITHUB_REF !== "refs/heads/main" ||
