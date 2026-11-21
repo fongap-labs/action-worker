@@ -122,6 +122,7 @@ test("a sealed artifact opens only with its key, kind, repository and project", 
   for (const [key, kind, repository, project] of [
     [Buffer.alloc(32, 8), "task-log", "o/r", "p"],
     [sealKey, "task-state", "o/r", "p"],
+    [sealKey, "repair-ledger", "o/r", "p"],
     [sealKey, "task-log", "o/other", "p"],
     [sealKey, "task-log", "o/r", "q"],
   ] as const) {
