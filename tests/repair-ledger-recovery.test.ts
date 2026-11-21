@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  applyRepairLedgerEvent,
-  createRepairLedgerEntry,
-  type RepairEvent,
-  type RepairLedgerEntry,
-} from "../scripts/repair-lifecycle-ledger.ts";
 import { recoverRepairLedger } from "../scripts/repair-ledger-recovery.ts";
 import {
   RepairLedgerConflictError,
   type RepairLedgerDocument,
   type RepairLedgerSnapshot,
 } from "../scripts/repair-ledger-store.ts";
+import {
+  applyRepairLedgerEvent,
+  createRepairLedgerEntry,
+  type RepairEvent,
+  type RepairLedgerEntry,
+} from "../scripts/repair-lifecycle-ledger.ts";
 
 const repository = "example/project";
 const rootCause = "a".repeat(64);
@@ -132,7 +132,10 @@ function reader(
           number: 12,
           state: options.state ?? "open",
           merged: options.merged ?? false,
-          head: { sha: reads > 1 && options.changedHead ? options.changedHead : (options.head ?? firstHead) },
+          head: {
+            sha:
+              reads > 1 && options.changedHead ? options.changedHead : (options.head ?? firstHead),
+          },
           base: { ref: options.wrongBase ? "other" : (options.defaultBranch ?? "main") },
         };
       }
@@ -230,17 +233,11 @@ test("wrong PR base, concurrent head changes and write conflicts fail closed", a
     /changed during recovery/
   );
   store.conflict = true;
-  await assert.rejects(
-    recover(store, reader({ head: secondHead })),
-    RepairLedgerConflictError
-  );
+  await assert.rejects(recover(store, reader({ head: secondHead })), RepairLedgerConflictError);
   assert.equal(store.writes, 0);
 });
 
 test("repository default branch is read dynamically, not assumed to be main", async () => {
   const store = new FakeStore(progress("repairing"));
-  assert.equal(
-    (await recover(store, reader({ defaultBranch: "stable" }))).kind,
-    "needs_ci_run"
-  );
+  assert.equal((await recover(store, reader({ defaultBranch: "stable" }))).kind, "needs_ci_run");
 });
