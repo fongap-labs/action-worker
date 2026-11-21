@@ -45,7 +45,9 @@ const ENTRY_KEYS = [
   "stage",
   "task_id",
   "updated_at",
-].sort().join(",");
+]
+  .sort()
+  .join(",");
 
 export interface RepairLedgerDocument {
   readonly schema_version: "1";
@@ -104,7 +106,8 @@ function nullableSha(value: unknown, pattern: RegExp, label: string): void {
 
 function nullablePositive(value: unknown, label: string): void {
   if (value !== null) {
-    if (typeof value !== "number") throw new CliError(`Repair ledger ${label} is invalid.`, 65);
+    if (typeof value !== "number")
+      throw new CliError(`Repair ledger ${label} is invalid.`, 65);
     assertPositive(value, label);
   }
 }
@@ -150,7 +153,11 @@ export function validateRepairLedgerDocument(
   if (entry.task_id !== taskId || (expectedTaskId !== undefined && taskId !== expectedTaskId)) {
     throw new CliError("Repair ledger task identity does not match its root cause.", 65);
   }
-  if (!Number.isSafeInteger(entry.revision) || typeof entry.revision !== "number" || entry.revision < 0) {
+  if (
+    !Number.isSafeInteger(entry.revision) ||
+    typeof entry.revision !== "number" ||
+    entry.revision < 0
+  ) {
     throw new CliError("Repair ledger revision is invalid.", 65);
   }
   if (typeof entry.stage !== "string" || !STAGES.includes(entry.stage as RepairStage)) {
@@ -162,7 +169,10 @@ export function validateRepairLedgerDocument(
   nullableSha(entry.ci_head_sha, GIT_SHA, "CI head");
   nullablePositive(entry.pr_number, "pull request number");
   nullablePositive(entry.ci_run_id, "CI run identifier");
-  if (entry.blocked_reason !== null && !BLOCKS.includes(entry.blocked_reason as (typeof BLOCKS)[number])) {
+  if (
+    entry.blocked_reason !== null &&
+    !BLOCKS.includes(entry.blocked_reason as (typeof BLOCKS)[number])
+  ) {
     throw new CliError("Repair ledger block reason is invalid.", 65);
   }
   if (
@@ -218,10 +228,17 @@ function encodeRecord(
   key: Buffer | null
 ): string {
   const plain = Buffer.from(JSON.stringify(document), "utf8");
-  if (plain.length > MAX_RECORD_BYTES) throw new CliError("Repair ledger record exceeds its size limit.", 66);
+  if (plain.length > MAX_RECORD_BYTES)
+    throw new CliError("Repair ledger record exceeds its size limit.", 66);
   if (!isPrivate) return `${RECORD_PREFIX}:public:${plain.toString("base64")}`;
   if (key === null) throw new CliError("Private repair ledger requires AW_ARTIFACT_KEY.", 77);
-  const sealed = sealBytes(key, "repair-ledger", document.repository, document.entry.task_id, plain);
+  const sealed = sealBytes(
+    key,
+    "repair-ledger",
+    document.repository,
+    document.entry.task_id,
+    plain
+  );
   return `${RECORD_PREFIX}:sealed:${sealed.toString("base64")}`;
 }
 
@@ -248,7 +265,8 @@ function decodeRecord(
   issueNumber: number
 ): RepairLedgerDocument {
   const prefix = `${RECORD_PREFIX}:`;
-  if (!raw.startsWith(prefix)) throw new CliError("Repair ledger record has no valid envelope.", 65);
+  if (!raw.startsWith(prefix))
+    throw new CliError("Repair ledger record has no valid envelope.", 65);
   const separator = raw.indexOf(":", prefix.length);
   if (separator < 0) throw new CliError("Repair ledger record has no valid envelope.", 65);
   const visibility = raw.slice(prefix.length, separator);
@@ -257,7 +275,10 @@ function decodeRecord(
   let plain: Buffer;
   if (isPrivate) {
     if (visibility !== "sealed" || key === null) {
-      throw new CliError("Private repair ledger cannot be opened with the supplied visibility or key.", 77);
+      throw new CliError(
+        "Private repair ledger cannot be opened with the supplied visibility or key.",
+        77
+      );
     }
     plain = openBytes(key, "repair-ledger", repository, taskId, bytes);
   } else {
@@ -266,7 +287,8 @@ function decodeRecord(
     }
     plain = bytes;
   }
-  if (plain.length > MAX_RECORD_BYTES) throw new CliError("Repair ledger record exceeds its size limit.", 66);
+  if (plain.length > MAX_RECORD_BYTES)
+    throw new CliError("Repair ledger record exceeds its size limit.", 66);
   let parsed: unknown;
   try {
     parsed = JSON.parse(plain.toString("utf8")) as unknown;
@@ -314,7 +336,7 @@ export class RepairLedgerStore {
       throw new CliError("A new repair ledger must start at revision zero.", 65);
     }
     const refName = repairLedgerRefName(valid.entry.task_id);
-    if (await this.api.getRef(refName) !== null) throw new RepairLedgerConflictError();
+    if ((await this.api.getRef(refName)) !== null) throw new RepairLedgerConflictError();
     const content = encodeRecord(valid, isPrivate, key);
     const treeSha = await this.api.createTree(null, RECORD_PATH, content);
     assertSha(treeSha, GIT_SHA, "tree");
@@ -355,12 +377,7 @@ export class RepairLedgerStore {
     ) {
       throw new RepairLedgerConflictError();
     }
-    const nextEntry = applyRepairLedgerEvent(
-      current.entry,
-      current.entry.revision,
-      event,
-      now
-    );
+    const nextEntry = applyRepairLedgerEvent(current.entry, current.entry.revision, event, now);
     const next = validateRepairLedgerDocument(
       { ...current, entry: nextEntry },
       current.repository,
@@ -373,7 +390,12 @@ export class RepairLedgerStore {
     const commitSha = await this.api.createCommit(treeSha, latest.commit_sha);
     assertSha(commitSha, GIT_SHA, "commit");
     await this.api.updateRef(refName, commitSha);
-    return { document: next, commit_sha: commitSha, tree_sha: treeSha, is_private: snapshot.is_private };
+    return {
+      document: next,
+      commit_sha: commitSha,
+      tree_sha: treeSha,
+      is_private: snapshot.is_private,
+    };
   }
 }
 
@@ -442,7 +464,11 @@ export class GitHubRepairLedgerGitApi implements RepairLedgerGitApi {
     const tree: Record<string, string>[] = [{ path, mode: "100644", type: "blob", content }];
     const body: Record<string, unknown> = { tree };
     if (baseTreeSha !== null) body.base_tree = baseTreeSha;
-    const value = await this.writeApi("POST", `repos/${this.controlRepository}/git/trees`, body);
+    const value = await this.writeApi(
+      "POST",
+      `repos/${this.controlRepository}/git/trees`,
+      body
+    );
     const sha = getJsonString(value, "sha");
     assertSha(sha, GIT_SHA, "created tree");
     return sha;
@@ -454,7 +480,11 @@ export class GitHubRepairLedgerGitApi implements RepairLedgerGitApi {
       tree: treeSha,
       parents: parentSha === null ? [] : [parentSha],
     };
-    const value = await this.writeApi("POST", `repos/${this.controlRepository}/git/commits`, body);
+    const value = await this.writeApi(
+      "POST",
+      `repos/${this.controlRepository}/git/commits`,
+      body
+    );
     const sha = getJsonString(value, "sha");
     assertSha(sha, GIT_SHA, "created commit");
     return sha;
@@ -473,10 +503,14 @@ export class GitHubRepairLedgerGitApi implements RepairLedgerGitApi {
 
   async updateRef(refName: string, commitSha: string): Promise<void> {
     try {
-      await this.writeApi("PATCH", `repos/${this.controlRepository}/git/refs/heads/${refName}`, {
-        sha: commitSha,
-        force: false,
-      });
+      await this.writeApi(
+        "PATCH",
+        `repos/${this.controlRepository}/git/refs/heads/${refName}`,
+        {
+          sha: commitSha,
+          force: false,
+        }
+      );
     } catch (error) {
       conflictFromWrite(error);
     }
