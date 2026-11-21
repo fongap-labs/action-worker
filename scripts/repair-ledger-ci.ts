@@ -21,7 +21,8 @@ const contract = loadGateContract();
 export async function verifiedRepairCiDigest(
   reader: JsonReader,
   document: RepairLedgerDocument,
-  controlRepository: string
+  controlRepository: string,
+  requireMerged = false
 ): Promise<string> {
   const { entry, repository } = document;
   if (
@@ -41,20 +42,26 @@ export async function verifiedRepairCiDigest(
   const prPath = ["repos", repository, "pulls", String(entry.pr_number)].join("/");
   const readPull = async () => {
     const value = await reader.get(prPath);
+    const mergeSha = getJsonString(value, "merge_commit_sha");
+    const merged =
+      isJsonRecord(value) &&
+      value.state === "closed" &&
+      value.merged === true &&
+      getJsonString(value, "merged_at") !== "" &&
+      SHA.test(mergeSha);
     if (
       !isJsonRecord(value) ||
       value.number !== entry.pr_number ||
-      value.state !== "open" ||
-      value.merged === true ||
+      (requireMerged ? !merged : value.state !== "open" || value.merged === true) ||
       getJsonString(value.head, "sha") !== headSha ||
       getJsonString(value.base, "ref") !== "main" ||
       !SHA.test(getJsonString(value.base, "sha"))
     ) {
-      throw new CliError("Repair PR is not the current open main-targeting HEAD.", 75);
+      throw new CliError("Repair PR does not match the required state and head.", 75);
     }
     const title = getJsonString(value, "title");
     if (!title) throw new CliError("Repair PR title is not available.", 65);
-    return { baseSha: getJsonString(value.base, "sha"), title };
+    return { baseSha: getJsonString(value.base, "sha"), title, mergeSha };
   };
   const observed = await readPull();
   const response = await reader.get(["repos", repository, "commits", headSha, "status"].join("/"));
@@ -103,7 +110,11 @@ export async function verifiedRepairCiDigest(
     gateIds.push({ context, id });
   }
   const fresh = await readPull();
-  if (fresh.baseSha !== observed.baseSha || fresh.title !== observed.title) {
+  if (
+    fresh.baseSha !== observed.baseSha ||
+    fresh.title !== observed.title ||
+    fresh.mergeSha !== observed.mergeSha
+  ) {
     throw new CliError("Repair PR changed during CI verification.", 75);
   }
   const ciId = isJsonRecord(ciStatus) ? ciStatus.id : undefined;
