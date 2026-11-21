@@ -118,9 +118,19 @@ jobs:
           permission-pull-requests: read
           permission-statuses: read
           permission-issues: read
+      - name: Mint scoped Delta main reference write token
+        id: delta_write
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: delta
+          permission-contents: write
       - name: Cut over with exact SHA and ruleset restoration
         env:
           AW_ADMIN_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          AW_MIGRATION_WRITE_TOKEN: ${{ steps.delta_write.outputs.token }}
           AW_CONTROL_TOKEN: ${{ steps.read.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.read.outputs.token }}
           AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
