@@ -167,6 +167,85 @@ try {
 }
 console.log('Delta Code isolated Profile selection smoke passed')
 NODE
+
+  # Exercise the actual shared package-manager entrypoint, offline and inside
+  # an isolated profile. The link: spec uses the private local workspace package
+  # without publishing it, fetching registry packages or running scripts.
+  node --input-type=module <<'NODE'
+import assert from 'node:assert/strict'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+
+const load = relative => import(pathToFileURL(resolve(relative)).href)
+const { initProfile, loadProfileDirectory, composeEntries } =
+  await load('packages/boot/app-boot/lib/index.js')
+const { runPluginCommand } =
+  await load('packages/boot/plugin-manager/lib/types/operations.js')
+const scratch = await mkdtemp(join(tmpdir(), 'delta-pnpm-install-'))
+const dir = join(scratch, 'profile')
+const packageName = '@fongap-labs/delta-code'
+const source = resolve('packages/plugin/delta-code')
+const context = {
+  profile: 'delta-ci-install',
+  dir,
+  home: scratch,
+  cwd: resolve(),
+  installAnchor: resolve('apps/cli/package.json'),
+}
+const options = {
+  command: 'pnpm',
+  execution: 'service',
+  outputBytes: 8192,
+  lockWaitMs: 30000,
+  idleTimeoutMs: 90000,
+  lookupTimeoutMs: 10000,
+  env: { CI: 'true', npm_config_offline: 'true', npm_config_ignore_scripts: 'true' },
+}
+const manifest = async () => JSON.parse(await readFile(join(dir, 'package.json'), 'utf8'))
+const entries = () => {
+  const profile = loadProfileDirectory('dsh', dir, context.installAnchor)
+  assert.deepEqual(profile.skippedBundles, [], 'Profile skipped the installed Delta Code')
+  return composeEntries([
+    profile.layers.flatMap(layer => layer.patches),
+    profile.patches,
+  ])
+}
+const verify = (result, action) => assert.equal(result.exitCode, 0,
+  action + ' rejected: ' + (result.output ?? '').slice(-1500))
+try {
+  initProfile(dir, [])
+  assert.deepEqual((await manifest()).dsh.profile.bundles, [])
+  const added = await runPluginCommand(
+    context, ['add', 'link:' + source, '--offline', '--ignore-scripts'],
+    { ...options, expected: { name: packageName, version: '0.1.0' } },
+  )
+  verify(added, 'local pnpm add')
+  const afterAdd = await manifest()
+  assert.ok(Object.hasOwn(afterAdd.dependencies, packageName), 'pnpm did not add dependency')
+  assert.deepEqual(afterAdd.dsh.profile.bundles, [packageName],
+    'package manager did not select the installed bundle')
+  const registered = entries().filter(entry => entry.id === 'delta-code')
+  assert.equal(registered.length, 1, 'installed Delta Code bundle did not compose uniquely')
+  assert.equal(registered[0].name, packageName)
+
+  const removed = await runPluginCommand(
+    context, ['remove', packageName, '--offline', '--ignore-scripts'], options,
+  )
+  verify(removed, 'local pnpm remove')
+  const afterRemove = await manifest()
+  assert.equal(Object.hasOwn(afterRemove.dependencies ?? {}, packageName), false,
+    'pnpm remove left the Delta Code dependency')
+  assert.equal(afterRemove.dsh.profile.bundles.includes(packageName), false,
+    'pnpm remove left the bundle selected')
+  assert.equal(entries().some(entry => entry.id === 'delta-code'), false,
+    'removed bundle still contributes a Cordis entry')
+} finally {
+  await rm(scratch, { recursive: true, force: true })
+}
+console.log('Delta Code isolated pnpm link installation and removal smoke passed')
+NODE
 fi
 
 pnpm run build:desktop
