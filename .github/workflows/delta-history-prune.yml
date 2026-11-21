@@ -1,6 +1,7 @@
 name: 一次性 · Delta 历史分支清理
 
 # One-shot, exact-SHA cleanup after successful #44929104924.
+# Delta PR #11 subsequently advanced main by one governed documentation commit.
 # No workflow_dispatch, arbitrary refs, generic branch deletion or ruleset bypass.
 on:
   push:
@@ -42,7 +43,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           repository='fongap-labs/delta'
-          expected_main='8b73554a94a115c3fc8310e882036ef887f0569c'
+          expected_main='664216b4df9baf90c3c64a6c36c79425a37b2689'
           expected_harness='2e39e70496aa02986ca6a820c5d497e816b69d7e'
           expected_old_main='4870259d11d8468d6d494f9d609e70c148416cf8'
           expected_earlier_main='dee27ea15004fc905c9f4ad0e1c01cfca67c571f'
