@@ -25,7 +25,7 @@ test("unchanged legacy paths may be edited, but newly introduced paths must foll
   try {
     git("init", "-q");
     git("config", "user.name", "CI Test");
-    git("config", "user.email", "ci-test@example.invalid");
+    git("config", "user.email", "ci-test");
     await mkdir(join(root, "scripts"));
     const legacy = join(root, "scripts/legacy-release-ingress-handler.ts");
     await writeFile(legacy, "export const count = 1;\n");
