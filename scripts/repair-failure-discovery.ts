@@ -8,6 +8,8 @@ const SHA = /^[a-f0-9]{40}$/;
 const PAGE_SIZE = 100;
 const MAX_REPOSITORIES = 500;
 const MAX_FAILURES_PER_STATUS = 300;
+// Limit in-memory candidates before an entire organization scan has been certified.
+const MAX_CANDIDATES_PER_SCAN = 3_000;
 const CONCLUSIONS = ["failure", "timed_out"] as const;
 
 export interface FailedRunCandidate {
@@ -188,11 +190,25 @@ export async function discoverFailedRuns(
     throw new CliError("Repair discovery scope or UTC cutoff is invalid.", 65);
   }
   const repositories = await installedRepositories(reader, normalizedOwner);
-  let count = 0;
+  // Discovery must be fail-closed as a batch. Never admit a candidate while
+  // another repository or results page may still fail with 403, quota errors,
+  // inconsistent inventory or an incomplete page. This prevents the upcoming
+  // durable-ledger admission step from observing an uncertified partial scan.
+  const candidates: FailedRunCandidate[] = [];
   for (const repository of repositories) {
-    count += await scanFailures(reader, repository, since, onCandidate);
+    await scanFailures(reader, repository, since, (candidate) => {
+      if (candidates.length >= MAX_CANDIDATES_PER_SCAN) {
+        throw new CliError("Repair discovery candidate budget exceeded; no scan is certified.", 75);
+      }
+      candidates.push(candidate);
+    });
   }
-  return { repositories_scanned: repositories.length, failures_found: count };
+  // Callback side effects are outside discovery's transaction boundary.
+  // At this point every scanned repository and page has been validated.
+  for (const candidate of candidates) {
+    await onCandidate(candidate);
+  }
+  return { repositories_scanned: repositories.length, failures_found: candidates.length };
 }
 
 async function main(): Promise<void> {
