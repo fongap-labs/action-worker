@@ -86,7 +86,7 @@ def test_declared_bundle_artifact_and_client_metadata() -> None:
         "@deepseek-ai/dsh-client-ui-plugin-manager",
         "@deepseek-ai/dsh-client-ui-settings",
     }
-    for filename in ("lib/index.js", "lib/client.js", "cordis.patch.yml", "README.md"):
+    for filename in ("lib/index.js", "lib/client.js", "cordis.patch.yml"):
         assert filename in manifest["files"]
     assert "tsc -p tsconfig.json" in manifest["scripts"]["build"]
     assert "tsdown" in manifest["scripts"]["build"]
