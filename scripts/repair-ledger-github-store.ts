@@ -182,17 +182,30 @@ export function validateRepairLedgerDocument(
     throw new CliError("Repair ledger pull request identity is incomplete.", 65);
   }
   if (
-    (entry.stage === "discovered" && (entry.root_cause_evidence_sha256 !== null || entry.head_sha !== null)) ||
-    (entry.stage === "diagnosed" && (entry.root_cause_evidence_sha256 === null || entry.head_sha !== null)) ||
+    (entry.stage === "discovered" &&
+      (entry.root_cause_evidence_sha256 !== null ||
+        entry.ci_evidence_sha256 !== null ||
+        entry.head_sha !== null)) ||
+    (entry.stage === "diagnosed" &&
+      (entry.root_cause_evidence_sha256 === null ||
+        entry.ci_evidence_sha256 !== null ||
+        entry.head_sha !== null)) ||
     (entry.stage === "repairing" &&
-      (entry.root_cause_evidence_sha256 === null || entry.head_sha === null || entry.ci_run_id !== null)) ||
+      (entry.root_cause_evidence_sha256 === null ||
+        entry.ci_evidence_sha256 !== null ||
+        entry.head_sha === null ||
+        entry.ci_run_id !== null)) ||
     (entry.stage === "ci_verifying" &&
-      (entry.root_cause_evidence_sha256 === null || entry.head_sha === null || entry.ci_run_id === null)) ||
+      (entry.root_cause_evidence_sha256 === null ||
+        entry.ci_evidence_sha256 !== null ||
+        entry.head_sha === null ||
+        entry.ci_run_id === null)) ||
     (entry.stage === "completed" &&
       (entry.root_cause_evidence_sha256 === null ||
         entry.ci_evidence_sha256 === null ||
         entry.head_sha === null ||
-        entry.ci_run_id === null))
+        entry.ci_run_id === null ||
+        entry.blocked_reason !== null))
   ) {
     throw new CliError("Repair ledger stage does not match its recorded evidence.", 65);
   }
