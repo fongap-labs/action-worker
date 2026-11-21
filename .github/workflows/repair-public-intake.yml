@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       issue_number:
-        description: Existing open action-worker Issue number
+        description: Existing open Issue number; 0 or omitted resolves an exact failure marker
         type: number
-        required: true
+        required: false
       failure_run_id:
         description: Exact failed action-worker Actions run ID
         type: number
