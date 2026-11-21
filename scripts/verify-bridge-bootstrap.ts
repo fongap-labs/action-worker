@@ -28,12 +28,18 @@ export function assertBridgeBootstrap(
     !changedPaths.includes(changelogPath) ||
     addedPaths.filter((path) => path === bridgePath).length !== 1
   ) {
-    throw new CliError("Trusted bootstrap accepts only a new approved bridge and CHANGELOG.md.", 65);
+    throw new CliError(
+      "Trusted bootstrap accepts only a new approved bridge and CHANGELOG.md.",
+      65
+    );
   }
   const digest = createHash("sha256").update(template).digest("hex");
   const entries = approvalEntries.filter((entry) => entry.path === bridgePath);
   if (entries.length !== 1 || entries[0]?.sha256 !== digest || candidate !== template) {
-    throw new CliError("Trusted bootstrap bridge differs from the security-approved template.", 65);
+    throw new CliError(
+      "Trusted bootstrap bridge differs from the security-approved template.",
+      65
+    );
   }
 }
 
@@ -47,23 +53,35 @@ export async function verifyBridgeBootstrap(
     throw new CliError("Trusted bootstrap requires pinned commits.", 65);
   }
   const baseScript = await runText(
-    "git", ["ls-tree", "--name-only", base, "--", trustedScriptPath], { cwd: targetRoot }
+    "git",
+    ["ls-tree", "--name-only", base, "--", trustedScriptPath],
+    { cwd: targetRoot }
   );
   if (baseScript.trim()) {
     throw new CliError("Trusted CI script exists; bootstrap mode is forbidden.", 65);
   }
   const changed = await runText(
-    "git", ["diff", "--no-renames", "--name-only", base, head], { cwd: targetRoot }
+    "git",
+    ["diff", "--no-renames", "--name-only", base, head],
+    { cwd: targetRoot }
   );
   const added = await runText(
-    "git", ["diff", "--no-renames", "--name-only", "--diff-filter=A", base, head], { cwd: targetRoot }
+    "git",
+    ["diff", "--no-renames", "--name-only", "--diff-filter=A", base, head],
+    { cwd: targetRoot }
   );
   const changedPaths = changed.split("\n").filter(Boolean);
   const addedPaths = added.split("\n").filter(Boolean);
   const bridgeTree = await runText(
-    "git", ["ls-tree", head, "--", bridgePath], { cwd: targetRoot }
+    "git",
+    ["ls-tree", head, "--", bridgePath],
+    { cwd: targetRoot }
   );
-  if (!/^100644 blob [a-f0-9]{40}\t\.github\/workflows\/notify-action-worker\.yml$/.test(bridgeTree.trim())) {
+  if (
+    !/^100644 blob [a-f0-9]{40}\t\.github\/workflows\/notify-action-worker\.yml$/.test(
+      bridgeTree.trim()
+    )
+  ) {
     throw new CliError("Trusted bootstrap bridge must be a regular tracked file.", 65);
   }
   const policy = JSON.parse(
@@ -76,7 +94,13 @@ export async function verifyBridgeBootstrap(
     readFile(join(workerRoot, "templates/bridge/notify-action-worker.yml"), "utf8"),
     readFile(join(targetRoot, bridgePath), "utf8"),
   ]);
-  assertBridgeBootstrap(changedPaths, addedPaths, template, candidate, policy.approved_workflows);
+  assertBridgeBootstrap(
+    changedPaths,
+    addedPaths,
+    template,
+    candidate,
+    policy.approved_workflows
+  );
 }
 
 async function main(): Promise<void> {
