@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
 import { verifiedRepairCiDigest } from "../scripts/repair-ledger-ci.ts";
 import {
   applyRepairLedgerEvent,
   createRepairLedgerEntry,
 } from "../scripts/repair-lifecycle-ledger.ts";
-import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const repository = "fongap-labs/action-worker";
@@ -62,7 +62,9 @@ function fixture() {
         context,
         state: "success",
         target_url: governanceUrl,
-        description: ["title-sha256=", prTitleFingerprint(title), " Central CI gate verdict"].join(""),
+        description: ["title-sha256=", prTitleFingerprint(title), " Central CI gate verdict"].join(
+          ""
+        ),
         created_at: "2026-11-21T11:05:00Z",
       })),
     ],
@@ -90,16 +92,18 @@ function fixture() {
   return { raw, pr, ciRun, governanceRun };
 }
 
-function fixtureReader(options: {
-  missingGate?: boolean;
-  wrongHead?: boolean;
-  changedTitle?: boolean;
-  forgedCi?: boolean;
-  skippedCi?: boolean;
-  failedGovernance?: boolean;
-  untrustedRun?: boolean;
-  incompleteRun?: boolean;
-} = {}) {
+function fixtureReader(
+  options: {
+    missingGate?: boolean;
+    wrongHead?: boolean;
+    changedTitle?: boolean;
+    forgedCi?: boolean;
+    skippedCi?: boolean;
+    failedGovernance?: boolean;
+    untrustedRun?: boolean;
+    incompleteRun?: boolean;
+  } = {}
+) {
   const { raw, pr, ciRun, governanceRun } = fixture();
   if (options.missingGate) raw.statuses.pop();
   if (options.skippedCi) raw.statuses[0]!.description = "CI not run: policy skip";
