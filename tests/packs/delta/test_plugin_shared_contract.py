@@ -32,19 +32,19 @@ def test_shared_package_is_private_and_lockfile_consistent() -> None:
     assert manifest["scripts"]["build"] == "tsc -p tsconfig.json"
     assert manifest["exports"]["."]["default"] == "./lib/index.js"
     lock = (target_root() / "pnpm-lock.yaml").read_text(encoding="utf-8")
-    _, separator, remaining = lock.partition("\\n  packages/plugin/shared:")
+    _, separator, remaining = lock.partition("\n  packages/plugin/shared:")
     assert separator, "shared plugin package must have a frozen-lockfile importer"
-    importer = remaining.split("\\n  packages/", maxsplit=1)[0]
+    importer = remaining.split("\n  packages/", maxsplit=1)[0]
     dependencies = manifest.get("dependencies", {})
     if dependencies.get("@deepseek-ai/dsh-tools") == "workspace:*":
-        assert "\\n    dependencies:\\n" in importer
+        assert "\n    dependencies:\n" in importer
         assert (
-            "\\n      '@deepseek-ai/dsh-tools':\\n"
-            "        specifier: workspace:*\\n"
-            "        version: link:../../core/tools\\n"
+            "\n      '@deepseek-ai/dsh-tools':\n"
+            "        specifier: workspace:*\n"
+            "        version: link:../../core/tools\n"
         ) in importer
     else:
-        assert importer.startswith(" {}\\n"), "previous shared package has an empty importer"
+        assert importer.startswith(" {}\n"), "previous shared package has an empty importer"
 
 
 def test_shared_host_access_is_fail_closed_and_helpers_are_bounded() -> None:
