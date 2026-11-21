@@ -443,11 +443,10 @@ test("Delta desktop host tests remain package-local and build runner is central"
   assert.ok(
     policy.local_test_exceptions.some(
       (item) =>
-        item.repository === "fongap-labs/delta" &&
-        item.path_prefix === "apps/desktop-host/tests/"
+        item.repository === "fongap-labs/delta" && item.path_prefix === "apps/desktop-host/tests/"
     )
   );
-  const runner = readFileSync("tests/packs/delta/desktop-ci.sh", "utf8");
+  const runner = readFileSync("tests/packs/delta/desktop-build-ci.sh", "utf8");
   assert.match(runner, /node scripts\/delta-verify\.mjs/);
   assert.match(runner, /pnpm install --frozen-lockfile/);
   assert.match(runner, /pnpm run build:desktop/);
