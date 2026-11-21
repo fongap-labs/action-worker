@@ -63,7 +63,10 @@ test("enumerates both public and private installation repositories without a har
       }
     );
     assert.deepEqual(summary, { repositories_scanned: 2, failures_found: 2 });
-    assert.deepEqual(candidates.map((candidate) => candidate.is_private), [false, true]);
+    assert.deepEqual(
+      candidates.map((candidate) => candidate.is_private),
+      [false, true]
+    );
     assert.equal(paths.filter((path) => path.includes("actions/runs")).length, 4);
     assert.equal(logged, false);
   } finally {
@@ -194,7 +197,11 @@ test("quota, permissions and incomplete pages fail closed rather than invent a c
   ]) {
     await assert.rejects(
       discoverFailedRuns(
-        { async get() { return inventory; } },
+        {
+          async get() {
+            return inventory;
+          },
+        },
         "fongap-labs",
         since,
         () => undefined
@@ -220,12 +227,20 @@ test("quota, permissions and incomplete pages fail closed rather than invent a c
 });
 
 test("invalid owner or time range is rejected without touching GitHub", async () => {
-  const cases: Array<[string, string]> = [["outside/org", since], ["fongap-labs", "yesterday"]];
+  const cases: Array<[string, string]> = [
+    ["outside/org", since],
+    ["fongap-labs", "yesterday"],
+  ];
   for (const [owner, cutoff] of cases) {
     let reads = 0;
     await assert.rejects(
       discoverFailedRuns(
-        { async get() { reads += 1; throw new Error("must not read"); } },
+        {
+          async get() {
+            reads += 1;
+            throw new Error("must not read");
+          },
+        },
         owner,
         cutoff,
         () => undefined
