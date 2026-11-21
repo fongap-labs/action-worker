@@ -67,8 +67,8 @@ test("Delta imported naming checks use the same pinned upstream baseline at all 
     source,
     /const comparisonBase = await resolveEngineeringDiffBase\(base, process\.cwd\(\)\)/
   );
-  assert.match(source, /"--diff-filter=ACMR", comparisonBase, head/);
-  assert.match(source, /"--diff-filter=ACR", comparisonBase, head/);
-  assert.match(source, /"validate-source-naming\.py"\), comparisonBase, head/);
+  assert.match(source, /"--diff-filter=ACMR",\s*comparisonBase,\s*head/);
+  assert.match(source, /"--diff-filter=ACR",\s*comparisonBase,\s*head/);
+  assert.match(source, /"validate-source-naming\.py"\),\s*comparisonBase,\s*head/);
   assert.match(source, /validateConfigNames\(comparisonBase, head\)/);
 });
