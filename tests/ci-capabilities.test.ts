@@ -216,19 +216,20 @@ test("central Windows route grants only explicit trusted manifest opt-in", () =>
 });
 
 test("central Windows route policy rejects unreviewed paths and duplicate repositories", () => {
+  const route = {
+    repository: "fongap-labs/delta",
+    script: "tests/packs/delta/windows-desktop-ci.ps1",
+  };
   const invalid: unknown[] = [
     null,
     {},
     { schema_version: 2, routes: [] },
     { schema_version: 1, routes: "all" },
-    { schema_version: 1, routes: [{ repository: "bad repository", script: "tests/packs/delta/windows-desktop-ci.ps1" }] },
-    { schema_version: 1, routes: [{ repository: "fongap-labs/delta", script: "../ci.ps1" }] },
-    { schema_version: 1, routes: [{ repository: "fongap-labs/delta", script: "target/.github/scripts/ci.ps1" }] },
-    { schema_version: 1, routes: [{ repository: "fongap-labs/delta", script: "tests/packs/delta/windows-desktop-ci.ps1", extra: "bad" }] },
-    { schema_version: 1, routes: [
-      { repository: "fongap-labs/delta", script: "tests/packs/delta/windows-desktop-ci.ps1" },
-      { repository: "fongap-labs/delta", script: "tests/packs/delta/other.ps1" },
-    ] },
+    { schema_version: 1, routes: [{ ...route, repository: "bad repository" }] },
+    { schema_version: 1, routes: [{ ...route, script: "../ci.ps1" }] },
+    { schema_version: 1, routes: [{ ...route, script: "target/scripts/ci.ps1" }] },
+    { schema_version: 1, routes: [{ ...route, extra: "bad" }] },
+    { schema_version: 1, routes: [route, { ...route, script: "tests/packs/delta/other.ps1" }] },
     { schema_version: 1, routes: [], allow_unlisted: true },
   ];
   for (const value of invalid) {
