@@ -59,6 +59,22 @@ test("mirror policy pins the approved source, target, and initial commit", () =>
   assert.throws(() => parseMirrorSource(wrap([{ ...entry, target_repository: "other/repo" }])));
   assert.throws(() => parseMirrorSource(wrap([{ ...entry, bootstrap_sha: "missing" }])));
   assert.throws(() => parseMirrorSource(wrap([entry, entry])));
+  const delta = {
+    ...entry,
+    target_repository: "fongap-labs/delta",
+    bootstrap_sha: "5619b1035265b044f70485552a569bd934e937ba",
+  };
+  assert.deepEqual(
+    parseMirrorSource(wrap([entry, delta]), "fongap-labs/delta"),
+    delta
+  );
+  assert.deepEqual(
+    parseMirrorSource(wrap([entry, delta]), "fongap-labs/ds-harness"),
+    entry
+  );
+  assert.throws(() => parseMirrorSource(wrap([entry, delta])));
+  assert.throws(() => parseMirrorSource(wrap([entry, delta]), "fongap-labs/unknown"));
+  assert.throws(() => parseMirrorSource(wrap([entry, { ...delta, target_repository: entry.target_repository }]), "fongap-labs/ds-harness"));
 });
 
 test("only the initial SHA may be replaced once; later updates must be fast-forwards", () => {
