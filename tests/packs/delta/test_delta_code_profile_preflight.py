@@ -113,10 +113,11 @@ def test_profile_patch_never_executes_dynamic_yaml(tmp_path: Path) -> None:
         "        workspaceRoot: !!js 'process.exit(97)'\n",
         encoding="utf-8",
     )
-    run = _node(str(script), str(profile))
-    if run.returncode == 2 and json.loads(run.stdout).get("reason") == "unreadable-profile-patch":
+    dependency_check = _node("-e", "require.resolve('js-yaml')")
+    if dependency_check.returncode != 0:
         # Some central test stages inspect source before installing pnpm packages.
         pytest.skip("js-yaml is not yet installed in the target checkout")
+    run = _node(str(script), str(profile))
     assert run.returncode == 1, (run.stdout, run.stderr)
     report = json.loads(run.stdout)
     assert report["status"] == "legacy-only"
