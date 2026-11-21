@@ -61,6 +61,50 @@ test("unchanged legacy paths may be edited, but newly introduced paths must foll
   }
 });
 
+test("source naming checks new violations but preserves unchanged inherited identifiers", async () => {
+  const root = await mkdtemp(join(tmpdir(), "aw-source-naming-"));
+  const validator = resolve("scripts/validate-source-naming.py");
+  const git = (...args: string[]) =>
+    execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
+  try {
+    git("init", "-q");
+    git("config", "user.name", "CI Test");
+    git("config", "user.email", "ci-test");
+    await mkdir(join(root, "apps/desktop/src"), { recursive: true });
+    const legacy = join(root, "apps/desktop/src/legacy-engine.ts");
+    const original =
+      "export function launch(ready: boolean) { const moved = true; return ready && moved; }\n";
+    await writeFile(legacy, original);
+    git("add", ".");
+    git("commit", "-qm", "baseline includes inherited identifiers");
+    const base = git("rev-parse", "HEAD");
+
+    await writeFile(legacy, original + "export const isReady = true;\n");
+    git("add", ".");
+    git("commit", "-qm", "edit legacy file without adding bad names");
+    const head = git("rev-parse", "HEAD");
+    const allowed = spawnSync("python3", [validator, base, head], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    assert.equal(allowed.status, 0, allowed.stdout + allowed.stderr);
+
+    await writeFile(legacy, original + "export const isReady = true;\nconst blocked = false;\n");
+    git("add", ".");
+    git("commit", "-qm", "introduce new invalid boolean name");
+    const next = git("rev-parse", "HEAD");
+    const rejected = spawnSync("python3", [validator, head, next], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    assert.notEqual(rejected.status, 0);
+    assert.match(rejected.stderr, /boolean TypeScript variable 'blocked'/);
+    assert.doesNotMatch(rejected.stderr, /'ready'|'moved'/);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("Delta imported naming checks use the same pinned upstream baseline at all layers", async () => {
   const source = await readFile(resolve("scripts/validate-naming-rules.ts"), "utf8");
   assert.match(
