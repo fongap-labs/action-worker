@@ -69,8 +69,8 @@ def test_current_plugin_identity_without_legacy_compatibility() -> None:
 def test_declared_bundle_artifact_and_client_metadata() -> None:
     root = _migrated_root()
     manifest = json.loads((root / "package.json").read_text(encoding="utf-8"))
-    if "dsh" not in manifest:
-        pytest.skip("Delta Code distributable bundle metadata not adopted in this target revision")
+    if not (target_root() / "packages/plugin/shared/tsdown.config.ts").is_file():
+        pytest.skip("Delta Code runtime bundle build not adopted in this target revision")
 
     # Cordis loads a bundle via the manifest; TS source compilation alone is not sufficient.
     assert manifest["private"] is True
