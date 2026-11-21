@@ -44,8 +44,9 @@ try {
     throw 'Delta Windows CI requires pinned pnpm 11.28.5.'
   }
 
-  # Build from the pinned PR merge SHA using the same Node/lockfile as Linux.
-  Invoke-Checked 'node.exe' @('scripts/delta-verify.mjs', '--ci')
+  # Verify product policy without the CI-only pnpm child process path.
+  # Frozen install and all builds are executed explicitly below via pnpm.cmd.
+  Invoke-Checked 'node.exe' @('scripts/delta-verify.mjs')
   Invoke-Checked 'pnpm.cmd' @('install', '--frozen-lockfile')
   Invoke-Checked 'pnpm.cmd' @('run', 'build:lib:host')
   Invoke-Checked 'pnpm.cmd' @('--filter', '@fongap-labs/delta-plugin-shared', 'run', 'build')
