@@ -247,6 +247,72 @@ try {
 console.log('Delta Code isolated pnpm link installation and removal smoke passed')
 NODE
 
+  # Verify the actual distributable tarball, not only workspace import paths.
+  # This is a local, offline, script-free pack; it never publishes the private
+  # package or reads a user's profile.
+  node --input-type=module <<'NODE'
+import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { resolve, join } from 'node:path'
+
+const scratch = await mkdtemp(join(tmpdir(), 'delta-code-offline-pack-'))
+const run = (binary, args) => {
+  const result = spawnSync(binary, args, {
+    cwd: resolve(), encoding: 'utf8', maxBuffer: 4 * 1024 * 1024,
+    env: { ...process.env, CI: 'true', npm_config_offline: 'true',
+      npm_config_ignore_scripts: 'true' },
+  })
+  if (result.error) throw result.error
+  assert.equal(result.status, 0,
+    binary + ' ' + args[0] + ' failed: ' + (result.stderr || result.stdout).slice(-1600))
+  return result.stdout
+}
+try {
+  run('pnpm', [
+    '--filter', '@fongap-labs/delta-code', 'pack',
+    '--pack-destination', scratch, '--ignore-scripts', '--offline',
+  ])
+  const archives = (await readdir(scratch)).filter(name => name.endsWith('.tgz'))
+  assert.equal(archives.length, 1, 'expected one private Delta Code package archive')
+  const tarball = join(scratch, archives[0])
+  const entries = new Set(run('tar', ['-tzf', tarball]).trim().split('\n'))
+  for (const name of [
+    'package/package.json',
+    'package/lib/index.js',
+    'package/lib/client.js',
+    'package/lib/types/index.d.ts',
+    'package/cordis.patch.yml',
+    'package/locale/zh.json',
+    'package/locale/en.json',
+    'package/icon.svg',
+  ]) assert.ok(entries.has(name), 'packed Delta Code missing ' + name)
+  assert.ok([...entries].every(name =>
+    name.startsWith('package/') && !name.includes('/node_modules/') &&
+    !name.includes('/.env') && !name.includes('/.git/')),
+    'packed Delta Code contains unexpected project/private files')
+  const packed = JSON.parse(run('tar', ['-xOzf', tarball, 'package/package.json']))
+  const source = JSON.parse(await readFile(resolve('packages/plugin/delta-code/package.json'), 'utf8'))
+  assert.equal(source.private, true, 'Delta Code remains an unpublished optional plugin')
+  assert.equal(packed.name, '@fongap-labs/delta-code')
+  assert.equal(packed.version, source.version, 'pack must preserve the current plugin version')
+  assert.equal(packed.dsh?.manifestVersion, 1)
+  assert.equal(packed.dsh?.bundle?.patch, './cordis.patch.yml')
+  assert.equal(packed.main, './lib/index.js')
+  assert.equal(packed.exports?.['./client'], './lib/client.js')
+  assert.ok(packed.dependencies?.['@fongap-labs/delta-plugin-shared'])
+  for (const group of ['dependencies', 'peerDependencies']) {
+    for (const version of Object.values(packed[group] ?? {}))
+      assert.equal(String(version).startsWith('workspace:'), false,
+        'publishable metadata cannot depend on unresolved workspace protocol')
+  }
+} finally {
+  await rm(scratch, { recursive: true, force: true })
+}
+console.log('Delta Code offline packed artifact contract passed')
+NODE
+
   # Guard the two supported UI resources and enforce privileged capability
   # defaults through compiled runtime code. No credentials, commands or
   # network requests are executed by this test.
