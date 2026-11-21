@@ -127,6 +127,8 @@ test("completed failed run creates one discovered task, not an asserted diagnosi
   assert.equal(admitted.issue_number, 17);
   assert.equal(store.writes, 1);
   assert.equal(store.documents.get(root)?.entry.root_cause_evidence_sha256, null);
+  assert.equal(store.documents.get(root)?.entry.failure_run_id, 42);
+  assert.equal(store.documents.get(root)?.entry.failure_head_sha, head);
 });
 
 test("the same root in a different Issue reuses the original task and Issue", async () => {
@@ -136,6 +138,8 @@ test("the same root in a different Issue reuses the original task and Issue", as
   assert.equal(replay.outcome, "existing");
   assert.equal(replay.task_id, first.task_id);
   assert.equal(replay.issue_number, 17);
+  assert.equal(store.documents.get(root)?.entry.failure_run_id, 42);
+  assert.equal(store.documents.get(root)?.entry.failure_head_sha, head);
   assert.equal(store.writes, 1);
   const record = store.documents.get(root);
   assert.ok(record);
