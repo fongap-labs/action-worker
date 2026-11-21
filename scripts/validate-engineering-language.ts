@@ -1,4 +1,4 @@
-import { appendLines, CliError, handleError, isMain, runText } from "./runtime-command.ts";
+import { appendLines, CliError, handleError, isMain, runTextLines } from "./runtime-command.ts";
 
 const HAN = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/u;
 const MARKDOWN = /\.md$/i;
@@ -185,16 +185,13 @@ export async function validateEngineeringDiff(
   head: string,
   root: string
 ): Promise<{ files: number; additions: number; failures: number }> {
-  const diff = await runText("git", ["diff", "--unified=0", "--diff-filter=ACMR", base, head], {
-    cwd: root,
-  });
   let path = "";
   let templateCommentState: HtmlCommentState = NO_HTML_COMMENT;
   let files = 0;
   let additions = 0;
   let failures = 0;
   const seen = new Set<string>();
-  for (const raw of diff.split(/\r?\n/)) {
+  for await (const raw of runTextLines("git", ["diff", "--unified=0", "--diff-filter=ACMR", base, head], { cwd: root })) {
     if (raw.startsWith("diff --git ")) {
       // A header that is not recognised below must not inherit the previous file's path.
       path = "";
