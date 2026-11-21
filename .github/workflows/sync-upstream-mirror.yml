@@ -26,6 +26,14 @@ jobs:
       deployment: false
     runs-on: ubuntu-24.04
     timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target_repository: fongap-labs/ds-harness
+            repository_name: ds-harness
+          - target_repository: fongap-labs/delta
+            repository_name: delta
     steps:
       - name: Checkout trusted control plane
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -48,12 +56,12 @@ jobs:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
           private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: ds-harness
+          repositories: ${{ matrix.repository_name }}
           permission-contents: write
           permission-workflows: write
 
       - name: Sync approved upstream to isolated branch
         env:
           AW_UPSTREAM_MIRROR_TOKEN: ${{ steps.writer.outputs.token }}
-          AW_UPSTREAM_MIRROR_TARGET: fongap-labs/ds-harness
+          AW_UPSTREAM_MIRROR_TARGET: ${{ matrix.target_repository }}
         run: node scripts/sync-upstream-mirror.ts

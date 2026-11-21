@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 中央每日将 DeepSeek Harness 的 master 镜像至 Delta 独立上游分支，不自动更新 main。
+
 - 新增: 中央定时同步 DeepSeek Harness master 完整历史至 ds-harness 的 upstream/deepseek-harness；首次带租约替换，后续仅快进并检查上游工作流。
 
 - 修复: 中央 CI 自动桥接对 GitHub 确认的未初始化空仓库暂缓创建 PR，独立核对仓库元数据且不标记覆盖成功；异常与权限失败保持阻断。
