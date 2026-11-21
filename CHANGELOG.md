@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 维护: 删除已移除的 ds-harness 仓库授权及失效的上游镜像工作流、配置、同步脚本和测试；取消 Delta 上游镜像自动同步，保留正常中央治理及 DSH 插件功能。
+
 - 新增: 中央每日将 DeepSeek Harness 的 master 镜像至 Delta 独立上游分支，不自动更新 main。
 
 - 新增: 中央定时同步 DeepSeek Harness master 完整历史至 ds-harness 的 upstream/deepseek-harness；首次带租约替换，后续仅快进并检查上游工作流。
