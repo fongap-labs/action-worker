@@ -48,7 +48,7 @@ function progress(stage: "discovered" | "diagnosed" | "repairing" | "ci_verifyin
 class FakeStore {
   snapshot: RepairLedgerSnapshot | null;
   writes = 0;
-  private = false;
+  wasPrivate = false;
   key: Buffer | null = null;
   conflict = false;
 
@@ -78,7 +78,7 @@ class FakeStore {
     assert.equal(source, repository);
     assert.equal(issue, 19);
     assert.equal(fingerprint, rootCause);
-    this.private = isPrivate;
+    this.wasPrivate = isPrivate;
     this.key = key;
     return this.snapshot;
   }
@@ -217,7 +217,7 @@ test("visibility comes from GitHub metadata; private records require encryption 
   await assert.rejects(recover(store, reader({ private: true })), /AW_ARTIFACT_KEY/);
   const key = Buffer.alloc(32, 7);
   assert.equal((await recover(store, reader({ private: true }), key)).kind, "needs_root_cause");
-  assert.equal(store.private, true);
+  assert.equal(store.wasPrivate, true);
   assert.equal(store.key, key);
   await assert.rejects(recover(store, reader({ wrongRepo: true })), /metadata is invalid/);
 });
