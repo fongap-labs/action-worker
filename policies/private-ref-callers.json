@@ -1,10 +1,4 @@
 {
   "schema_version": 1,
-  "callers": [
-    {
-      "repository": "fongap-labs/delta-legacy",
-      "path": ".github/workflows/private-ref-ci.yml",
-      "sha256": "74e6f3b5d11c69d654022466bacff68342edf794b96c72bfef7051832cc26399"
-    }
-  ]
+  "callers": []
 }
