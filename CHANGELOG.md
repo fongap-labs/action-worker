@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: Delta 完整上游镜像复用现有 admin-ops 环境中的 AW_ADMIN_TOKEN，删除无法获得 Workflows 写权限的 App Token 申请；保持完整 Git 历史、工作流安全检查及非强制推送，仅更新独立上游镜像分支。
+
 - 修复: 对 Delta 完整上游镜像显式申请 Workflows 写权限；GitHub 已确认现有 App 安装缺少该授权，未经管理员批准时保持失败而不转为删减快照。
 
 - 修复: 上游镜像 Git Push 失败时保留脱敏的远端拒绝诊断，准确识别权限、工作流及服务器约束，不降低镜像完整性。
