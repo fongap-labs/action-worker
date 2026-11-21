@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 为 Delta Desktop 的 Harness Host 模型目录、会话模型切换和推理强度展示增加中央契约回归，原生 UI 模型组件保持非依赖。
+
 - 修复: Delta 上游镜像恢复原有仓库限定 GitHub App 身份以替代经实测返回 403 的 AW_ADMIN_TOKEN；保留维护工作流既有触发约束，镜像仍须等待现有 App 的 Workflows 写权限获得批准。
 
 - 修复: Delta 完整上游镜像复用现有 admin-ops 环境中的 AW_ADMIN_TOKEN，删除无法获得 Workflows 写权限的 App Token 申请；保持完整 Git 历史、工作流安全检查及非强制推送，仅更新独立上游镜像分支。
