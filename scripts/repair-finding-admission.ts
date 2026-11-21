@@ -1,11 +1,10 @@
 import type { JsonReader } from "./ci-evidence.ts";
 import { getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
-import { createRepairLedgerEntry, repairTaskId } from "./repair-lifecycle-ledger.ts";
+import { createRepairLedgerEntry, repairTaskId, type RepairStage } from "./repair-lifecycle-ledger.ts";
 import {
   RepairLedgerConflictError,
   type RepairLedgerDocument,
   type RepairLedgerStore,
-  type RepairStage,
 } from "./repair-ledger-store.ts";
 import { CliError } from "./runtime-command.ts";
 
