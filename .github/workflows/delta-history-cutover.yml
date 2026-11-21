@@ -186,6 +186,7 @@ jobs:
         run: |
           set -Eeuo pipefail
           for attempt in $(seq 1 5); do
+            echo "Delta signed provenance verification attempt $attempt of 5"
             if node scripts/delta-history-cutover.ts confirm; then
               exit 0
             fi
