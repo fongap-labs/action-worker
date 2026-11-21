@@ -1,6 +1,9 @@
 import { assert, test } from '#kit/harness.mjs';
 import { adoptInferredCredentialGroups, encodeInferredCredentialGroups } from '#target/packages/contracts/credential-groups.ts';
 import { credentialPeers, credentialSlotId } from '#target/src/reliability/shared-credential-group.ts';
+import { loadGatewayConfig } from '#target/packages/config-core/nodes.ts';
+import { invokeInferenceNode } from '#target/apps/gateway/transport/inference-client-request.ts';
+import { INFERRED_CREDENTIAL_GROUPS_HEADER } from '#target/packages/contracts/credential-groups.ts';
 import { failedDomainNodeIds, rememberFailedDomains } from '#target/apps/gateway/policy/model-fallback.ts';
 import { isCredentialWideFailure, preferUntriedCredentials } from '#target/apps/gateway/reliability/retry-budget.ts';
 
@@ -96,4 +99,48 @@ test('credential rotation clears inferred sharing and rejects forged metadata at
   assert.equal(adoptInferredCredentialGroups(gatewayNodes, encodeInferredCredentialGroups(centerNodes)), true);
   assert.notEqual(credentialSlotId(gatewayNodes[0]), credentialSlotId(gatewayNodes[1]));
   assert.equal(credentialPeers(gatewayNodes, gatewayNodes[0]).length, 0);
+});
+
+test('private inference metadata is consumed before the next dispatch and never exposed to the API client', async () => {
+  const gatewayNodes = [
+    { id: 'secret-a', provider: 'openai', base_url: 'https://openai.invalid/v1', models: { alpha: 'physical-model' } },
+    { id: 'secret-b', provider: 'openai', base_url: 'https://openai.invalid/v1', models: { alpha: 'physical-model' } },
+    { id: 'secret-c', provider: 'openai', base_url: 'https://openai.invalid/v1', models: { alpha: 'physical-model' } },
+  ];
+  const env = {
+    AIG_ACCESS_KEY_AIR: 'mock-api-client-key',
+    AIG_ACCESS_MODELS_AIR: '*',
+    AIG_TIER1_NODES_01: JSON.stringify(gatewayNodes),
+    AIG_INFERENCE_AUTH_KEY: 'mock-private-center-auth-key-that-is-long-enough',
+    AIG_INFERENCE_SERVICE: {
+      async fetch() {
+        return new Response('upstream limited', {
+          status: 429,
+          headers: {
+            [INFERRED_CREDENTIAL_GROUPS_HEADER]: JSON.stringify({
+              covered: ['secret-a', 'secret-b', 'secret-c'],
+              groups: [['secret-a', 'secret-b']],
+            }),
+            'retry-after': '15',
+          },
+        });
+      },
+    },
+  };
+  const config = loadGatewayConfig(env);
+  assert.equal(config.ready, true);
+  const response = await invokeInferenceNode(env, {
+    request: new Request('https://gateway.invalid/v1/chat/completions', { method: 'POST' }),
+    requestId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+    node: config.nodes[0],
+    logicalModel: 'alpha',
+    surface: 'chat_completions',
+    deadlineMs: Date.now() + 20_000,
+    body: '{"model":"alpha"}',
+  });
+  assert.equal(response.status, 429);
+  assert.equal(response.headers.get(INFERRED_CREDENTIAL_GROUPS_HEADER), null);
+  assert.equal(response.headers.get('retry-after'), '15');
+  assert.equal(credentialSlotId(config.nodes[0]), credentialSlotId(config.nodes[1]));
+  assert.notEqual(credentialSlotId(config.nodes[0]), credentialSlotId(config.nodes[2]));
 });
