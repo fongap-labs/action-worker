@@ -240,7 +240,14 @@ jobs:
         run: |
           set -Eeuo pipefail
           script="$GITHUB_WORKSPACE/ci-control/.github/scripts/central-ci.sh"
-          test -f "$script"
+          if [ ! -f "$script" ]; then
+            # The first CI bridge must be enrollable without a project-owned script.
+            # Only the approved bridge plus CHANGELOG is allowed: arbitrary code still fails closed.
+            node "$CENTRAL_CI_AW_ROOT/scripts/verify-bridge-bootstrap.ts" \
+              "$GITHUB_WORKSPACE/target" "$CENTRAL_CI_BASE_SHA" "$CENTRAL_CI_HEAD_SHA" "$CENTRAL_CI_AW_ROOT"
+            echo "Trusted bridge bootstrap passed after central security and ownership checks."
+            exit 0
+          fi
 
           # Only a manifest-declared shard is passed on; an unsharded project keeps its exact invocation.
           script_args=("$GITHUB_WORKSPACE/target")
