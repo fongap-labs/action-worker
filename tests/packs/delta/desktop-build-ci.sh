@@ -246,6 +246,82 @@ try {
 }
 console.log('Delta Code isolated pnpm link installation and removal smoke passed')
 NODE
+
+  # Guard the two supported UI resources and enforce privileged capability
+  # defaults through compiled runtime code. No credentials, commands or
+  # network requests are executed by this test.
+  node --input-type=module <<'NODE'
+import assert from 'node:assert/strict'
+import { readdir, readFile } from 'node:fs/promises'
+import { resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+
+const localeDir = resolve('packages/plugin/delta-code/locale')
+const locales = (await readdir(localeDir)).filter(file => file.endsWith('.json')).sort()
+assert.deepEqual(locales, ['en.json', 'zh.json'],
+  'Delta Code UI must support only English and Chinese locale resources')
+for (const name of locales) {
+  const value = JSON.parse(await readFile(resolve(localeDir, name), 'utf8'))
+  assert.equal(value?.meta?.title, 'Delta Code', 'missing Delta Code locale title: ' + name)
+  assert.ok(typeof value?.meta?.description === 'string' &&
+    value.meta.description.trim().length > 30,
+  'missing meaningful locale description: ' + name)
+}
+const load = relative => import(pathToFileURL(resolve(relative)).href)
+const { normalizeConfig, validateGitHubAccounts } =
+  await load('packages/plugin/delta-code/lib/types/runtime.js')
+const { runCommand, isSubprocessAvailable } =
+  await load('packages/plugin/shared/lib/index.js')
+
+const defaults = normalizeConfig(undefined)
+assert.equal(defaults.allowCommands, false, 'command execution must be opt-in')
+assert.equal(defaults.allowWorktreeWrites, false, 'worktree writes must be opt-in')
+assert.equal(defaults.githubAllowWrites, false, 'GitHub writes must be opt-in')
+assert.deepEqual(defaults.githubAccounts, [], 'default GitHub accounts must be empty')
+assert.equal(isSubprocessAvailable({}), false, 'unprivileged Host exposed subprocess')
+await assert.rejects(
+  runCommand({}, { command: 'node', args: ['--version'] }),
+  /host subprocess service unavailable/,
+  'missing Host subprocess must not fall back to local Node execution',
+)
+assert.deepEqual(
+  validateGitHubAccounts([{
+    owner: 'ExampleOrg',
+    tokenEnv: 'DELTA_CODE_GITHUB_EXAMPLEORG_TOKEN',
+    repositories: ['exampleorg/repository'],
+  }]),
+  [{
+    owner: 'exampleorg',
+    tokenEnv: 'DELTA_CODE_GITHUB_EXAMPLEORG_TOKEN',
+    repositories: ['exampleorg/repository'],
+  }],
+)
+assert.throws(
+  () => validateGitHubAccounts([{
+    owner: 'example', tokenEnv: 'DELTA_CODE_GITHUB_EXAMPLE_TOKEN', token: 'secret',
+  }]),
+  /token is not supported/,
+  'raw credentials must never be accepted in plugin config',
+)
+assert.throws(
+  () => validateGitHubAccounts([
+    { owner: 'example', tokenEnv: 'DELTA_CODE_GITHUB_SHARED_TOKEN' },
+    { owner: 'another', tokenEnv: 'DELTA_CODE_GITHUB_SHARED_TOKEN' },
+  ]),
+  /only one account/,
+  'credential references must not be shared across owners',
+)
+assert.throws(
+  () => validateGitHubAccounts([{
+    owner: 'example',
+    tokenEnv: 'DELTA_CODE_GITHUB_EXAMPLE_TOKEN',
+    repositories: ['other/repository'],
+  }]),
+  /must match its account owner/,
+  'GitHub credential must never route across owners',
+)
+console.log('Delta Code privacy, privilege, and English/Chinese locale smoke passed')
+NODE
 fi
 
 pnpm run build:desktop

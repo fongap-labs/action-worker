@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 维护: 在 Delta Code 可信构建中验证仅包含中英文界面资源、命令与工作树及 GitHub 写入默认关闭、缺少宿主 subprocess 不回退本机执行、凭据不接受明文且不能跨账号复用。
+
 - 维护: Delta Code 可信 Linux 构建新增临时 Profile 的真实 pnpm 离线 link 安装及移除测试，验证依赖清单与 Cordis Bundle 选择同步，禁止脚本执行且不访问公开注册表。
 
 - 维护: 为 Delta Code 新增临时隔离 Profile bundle 选择、启用、停用、重复操作幂等性与取消选择的中央构建冒烟检查；不触碰用户配置，也不冒充 pnpm 实际安装卸载验收。
