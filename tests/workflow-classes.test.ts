@@ -59,7 +59,6 @@ const classes = {
     "publication-key-verify.yml",
     "main-write-guard.yml",
     "prune-stale-state.yml",
-    "sync-upstream-mirror.yml",
     "release-tool.yml",
     "update-work-metrics.yml",
     "validate-ci.yml",

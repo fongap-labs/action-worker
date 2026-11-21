@@ -84,7 +84,6 @@ test("repository permissions come only from the versioned access policy", async 
     "fongap-labs/app-source": ["pr", "task", "release-source"],
     "fongap-labs/internal-vault": ["pr", "task", "release-source", "deploy"],
     "fongap-labs/external-vault": ["pr", "task", "release-source", "release-target"],
-    "fongap-labs/ds-harness": ["pr", "release-source", "release-target"],
     "fongap-labs/dsh-plugin": ["pr", "release-source", "release-target"],
     "fongap-labs/mcp-hub": ["pr", "task", "deploy"],
   };
