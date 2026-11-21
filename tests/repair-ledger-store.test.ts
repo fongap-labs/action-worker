@@ -127,7 +127,9 @@ test("private ledger records encrypt repository, issue and evidence before writi
   const raw = await api.rawRecord(repairLedgerRefName(initial.entry.task_id));
   assert.match(raw, /^AWREPAIR1:sealed:/);
   assert.equal(raw.includes(initial.repository), false);
-  assert.equal(raw.includes(String(initial.issue_number)), false);
+  // Random Base64 ciphertext can contain short decimal substrings by chance.
+  // Check that the complete plaintext field is absent instead.
+  assert.equal(raw.includes(`"issue_number":${initial.issue_number}`), false);
   assert.equal(raw.includes(fingerprint), false);
   assert.equal(raw.includes(initial.entry.task_id), false);
 
@@ -192,6 +194,9 @@ test("ledger refuses wrong issue and cannot complete without trusted CI verifica
     store.read(initial.repository, 22, fingerprint, false, null),
     /different issue/
   );
+  const existingRoot = await store.readByRoot(initial.repository, fingerprint, false, null);
+  assert.equal(existingRoot?.document.issue_number, 21);
+  assert.equal(existingRoot?.document.entry.task_id, initial.entry.task_id);
   await assert.rejects(
     store.compareAndSwap(
       created,

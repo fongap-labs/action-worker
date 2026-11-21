@@ -1,4 +1,4 @@
-import { access, writeFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   type AiAgentConfig,
@@ -397,6 +397,22 @@ async function loadPolicies(policyDir: string): Promise<PlanPolicies> {
   };
 }
 
+/**
+ * Use a fixed job-local context file for very large pull requests. The caller
+ * never supplies a path, so untrusted PR metadata cannot redirect this read.
+ * Inline JSON stays supported for existing CLI consumers and small fixtures.
+ */
+export async function readContextArgument(
+  argument: string,
+  loader: (path: string) => Promise<string> = (path) => readFile(path, "utf8")
+): Promise<string> {
+  if (argument === "@pr-context-file") return loader("/tmp/pr-context.json");
+  if (argument.startsWith("@")) {
+    throw new CliError("::error::Unsupported PR context input reference.", 65);
+  }
+  return argument;
+}
+
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   if (args.length !== 7) {
@@ -414,7 +430,8 @@ async function main(): Promise<void> {
     agentOverride,
     policyDir,
   ] = args as [string, string, string, string, string, string, string];
-  const context = validateContext(parseJson(contextJson, "::error::Invalid PR context format."));
+  const contextText = await readContextArgument(contextJson);
+  const context = validateContext(parseJson(contextText, "::error::Invalid PR context format."));
   const policies = await loadPolicies(policyDir);
   const plan = resolvePlan(context, policies, {
     namingMode,

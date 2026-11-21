@@ -239,3 +239,17 @@ AI Review 不得拥有 main 写入、合并、Release 或 Deploy 权限。
 - 业务仓库桥接模板：`05_INTEGRATION_GUIDE.md` §8
 - Release/Deploy 下游要求：`06_RELEASE_DEPLOY_GUIDE.md` §3
 - 共用治理宪法：`01_SHARED_GOVERNANCE.md` §3
+
+## 12. 单次主分支历史迁移——已完成
+
+2026 年 11 月 22 日，Action Workers 根据 [#1924](https://github.com/fongap-labs/action-worker/issues/1924) 中的授权执行了一次受审计的 Delta Git 历史整理。权威执行记录为 [工作流 #44929104924](https://github.com/fongap-labs/action-worker/actions/runs/44929104924)，全部 5 个作业均成功：历史及签名预检、Windows 便携 ZIP 实机构建、一次性 `main` 切换、独立恢复分支规则、最终签名来源确认。
+
+- 原 Delta `main` 与受保护备份 `legacy/main-pre-harness-migration-2026-11-22-v2` 均为 `4870259d11d8468d6d494f9d609e70c148416cf8`。
+- 迁移后的 `main` 为 `8b73554a94a115c3fc8310e882036ef887f0569c`，继承 Harness 固定基线 `2e39e70496aa02986ca6a820c5d497e816b69d7e`，比较结果为 Behind 0 / Ahead 8。
+- 两个 `main` 版本的 Git 文件树均为 `37516875b61fd6cf149feb6a4c54a1ebea6d3945`，Delta 产品文件保持完全一致。
+- Delta 原受管 PR #10 的签名治理证据和旧 `main` 的 Main Write Guard / CI Evidence 继续保留；迁移后新 `main` 的两项状态均经过中央验证且为 success。
+- GitHub 原生主分支规则集 `26704813` 已恢复 active，强制 PR、线性历史、禁止非快进改写及所需状态检查均继续有效。
+
+本次迁移的固定历史证明保存在 `policies/delta-history-migration.json`；`scripts/delta-history-migration.ts` 中仍保留仅认可指定仓库、指定提交和八组树快照的验证逻辑，以便历史来源审计复核。它不能给其他 SHA 或仓库授权，亦不能作为日常合并、发布或部署的旁路。
+
+已完成迁移的一次性工作流 `delta-history-cutover.yml`、其管理员执行器与切换测试不再需要，已提交常规中央治理 PR 移除。之后的 Delta 开发和 `main` 写入必须恢复完全正常的 PR + Action Workers 门禁流程；原历史备份不得改写。

@@ -187,10 +187,10 @@ jobs:
 
       - name: Resolve base plan
         id: base_plan
-        env:
-          CONTEXT_JSON: ${{ steps.context.outputs.json }}
+        # The preceding detection step wrote the complete context to a job-local
+        # file. Passing 20k+ file paths through env/argv exceeds Linux ARG_MAX.
         # Deterministic gates alone authorize auto-merge; advisory AI review is opt-in.
-        run: node scripts/resolve-pr-plan.ts "$CONTEXT_JSON" inherit off inherit auto auto "$GITHUB_WORKSPACE/policies"
+        run: node scripts/resolve-pr-plan.ts @pr-context-file inherit off inherit auto auto "$GITHUB_WORKSPACE/policies"
 
       - name: Enforce main write CI contract
         if: steps.base_plan.outputs.ci_required != 'true'

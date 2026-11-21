@@ -1,3 +1,4 @@
+import type { JsonReader } from "./ci-evidence.ts";
 import { requireToken } from "./control-token.ts";
 import {
   decodeGithubContent,
@@ -15,6 +16,7 @@ import {
   type RepairStage,
   repairTaskId,
 } from "./repair-lifecycle-ledger.ts";
+import { verifiedRepairPostMergeDigest } from "./repair-main-ci.ts";
 import { CliError, parseJson, runCommand } from "./runtime-command.ts";
 import { openBytes, sealBytes } from "./task-state.ts";
 
@@ -279,7 +281,7 @@ function decodeRecord(
   taskId: string,
   isPrivate: boolean,
   key: Buffer | null,
-  issueNumber: number
+  issueNumber: number | undefined
 ): RepairLedgerDocument {
   const prefix = `${RECORD_PREFIX}:`;
   if (!raw.startsWith(prefix))
@@ -329,9 +331,32 @@ export class RepairLedgerStore {
     isPrivate: boolean,
     key: Buffer | null
   ): Promise<RepairLedgerSnapshot | null> {
+    assertPositive(issueNumber, "issue number");
+    return this.readByRootInternal(repository, rootCauseSha256, isPrivate, key, issueNumber);
+  }
+
+  /**
+   * Root-cause deduplication spans multiple Issues. The recorded Issue remains
+   * immutable; this lookup must never be used to authorize a state update.
+   */
+  async readByRoot(
+    repository: string,
+    rootCauseSha256: string,
+    isPrivate: boolean,
+    key: Buffer | null
+  ): Promise<RepairLedgerSnapshot | null> {
+    return this.readByRootInternal(repository, rootCauseSha256, isPrivate, key);
+  }
+
+  private async readByRootInternal(
+    repository: string,
+    rootCauseSha256: string,
+    isPrivate: boolean,
+    key: Buffer | null,
+    issueNumber?: number
+  ): Promise<RepairLedgerSnapshot | null> {
     const normalizedRepository = repository.trim().toLowerCase();
     const taskId = repairTaskId(normalizedRepository, rootCauseSha256);
-    assertPositive(issueNumber, "issue number");
     const refName = repairLedgerRefName(taskId);
     const commitSha = await this.api.getRef(refName);
     if (commitSha === null) return null;
@@ -369,13 +394,46 @@ export class RepairLedgerStore {
     now: string,
     key: Buffer | null
   ): Promise<RepairLedgerSnapshot> {
-    const current = validateRepairLedgerDocument(snapshot.document);
     if (event.kind === "ci-verified") {
       throw new CliError(
         "Repair completion requires trusted current-head GitHub CI verification.",
         77
       );
     }
+    return this.applyEvent(snapshot, event, now, key);
+  }
+
+  async completeWithVerifiedCi(
+    snapshot: RepairLedgerSnapshot,
+    reader: JsonReader,
+    controlRepository: string,
+    now: string,
+    key: Buffer | null
+  ): Promise<RepairLedgerSnapshot> {
+    const digest = await verifiedRepairPostMergeDigest(
+      reader,
+      snapshot.document,
+      controlRepository
+    );
+    const { head_sha: headSha, base_sha: baseSha, ci_run_id: runId } = snapshot.document.entry;
+    if (headSha === null || baseSha === null || runId === null) {
+      throw new CliError("Repair task has no current CI identity.", 65);
+    }
+    return this.applyEvent(
+      snapshot,
+      { kind: "ci-verified", headSha, baseSha, runId, evidenceSha256: digest },
+      now,
+      key
+    );
+  }
+
+  private async applyEvent(
+    snapshot: RepairLedgerSnapshot,
+    event: RepairEvent,
+    now: string,
+    key: Buffer | null
+  ): Promise<RepairLedgerSnapshot> {
+    const current = validateRepairLedgerDocument(snapshot.document);
     if (snapshot.is_private && key === null) {
       throw new CliError("Private repair ledger requires AW_ARTIFACT_KEY.", 77);
     }

@@ -6,6 +6,7 @@ import { parseAiAgentConfig } from "../scripts/ai-agent-config.ts";
 import {
   type PlanOptions,
   type PlanPolicies,
+  readContextArgument,
   resolvePlan,
   validateContext,
 } from "../scripts/resolve-pr-plan.ts";
@@ -277,6 +278,34 @@ test("automatic PR governance disables advisory AI review while retaining determ
   assert.equal(optIn.review_required, true, "explicit advisory review remains available");
 });
 
+test("large PR context loads from a fixed local file without shell argv or env expansion", async () => {
+  const original = JSON.stringify({
+    project_types: ["node"],
+    change_areas: ["source"],
+    declared_impacts: ["api"],
+    risk: "high",
+    changed_files: Array.from(
+      { length: 22_000 },
+      (_, index) => `packages/item-${index}/src/file.ts`
+    ),
+  });
+  assert.ok(original.length > 131_072);
+  const loaded = await readContextArgument("@pr-context-file", async (path) => {
+    assert.equal(path, "/tmp/pr-context.json");
+    return original;
+  });
+  assert.equal(loaded, original);
+  assert.equal(validateContext(JSON.parse(loaded) as unknown).risk, "high");
+  assert.equal(
+    await readContextArgument('{"project_types":[]}', async () => ""),
+    '{"project_types":[]}'
+  );
+  await assert.rejects(
+    () => readContextArgument("@../../untrusted", async () => "unused"),
+    /Unsupported PR context input reference/
+  );
+});
+
 test("PR governance does not launch AI review after CI-green merge", async () => {
   const governance = await readFile(
     join(process.cwd(), ".github/workflows/handle-pr-dispatch.yml"),
@@ -288,7 +317,7 @@ test("PR governance does not launch AI review after CI-green merge", async () =>
   );
   assert.ok(
     governance.includes(
-      'node scripts/resolve-pr-plan.ts "$CONTEXT_JSON" inherit off inherit auto auto'
+      "node scripts/resolve-pr-plan.ts @pr-context-file inherit off inherit auto auto"
     )
   );
   assert.equal(governance.includes("dispatch-pr-review.ts"), false);

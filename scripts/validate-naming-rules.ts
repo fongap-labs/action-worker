@@ -10,6 +10,7 @@ import {
   runText,
 } from "./runtime-command.ts";
 import { validateConfigNames } from "./validate-config-naming.ts";
+import { resolveEngineeringDiffBase } from "./validate-engineering-language.ts";
 
 const nativeNames = new Set([
   "README.md",
@@ -143,13 +144,26 @@ export async function validateNames(
   base: string,
   head: string
 ): Promise<{ failures: number; warnings: number; files: number }> {
+  const comparisonBase = await resolveEngineeringDiffBase(base, process.cwd());
   const policy = await readNamingPolicy();
   const maxSegments = policy.file_names.max_kebab_segments;
   const minNewSegments = policy.file_names.min_new_semantic_segments;
   const lifecycleTerms = policy.file_names.lifecycle_banned_terms;
   const genericTerms = new Set(policy.file_names.generic_warning_terms);
-  const changed = await runText("git", ["diff", "--name-only", "--diff-filter=ACMR", base, head]);
-  const introduced = await runText("git", ["diff", "--name-only", "--diff-filter=ACR", base, head]);
+  const changed = await runText("git", [
+    "diff",
+    "--name-only",
+    "--diff-filter=ACMR",
+    comparisonBase,
+    head,
+  ]);
+  const introduced = await runText("git", [
+    "diff",
+    "--name-only",
+    "--diff-filter=ACR",
+    comparisonBase,
+    head,
+  ]);
   const introducedPaths = new Set(introduced ? introduced.split(/\r?\n/).filter(Boolean) : []);
   const files = changed ? changed.split(/\r?\n/).filter(Boolean) : [];
   let failures = 0;
@@ -207,12 +221,16 @@ export async function validateNames(
   }
   const scriptDir = dirname(fileURLToPath(import.meta.url));
   try {
-    await runCommand("python3", [join(scriptDir, "validate-source-naming.py"), base, head]);
+    await runCommand("python3", [
+      join(scriptDir, "validate-source-naming.py"),
+      comparisonBase,
+      head,
+    ]);
   } catch (error) {
     console.error(commandFailureMessage(error));
     failures += 1;
   }
-  failures += await validateConfigNames(base, head);
+  failures += await validateConfigNames(comparisonBase, head);
   return { failures, warnings, files: files.length };
 }
 

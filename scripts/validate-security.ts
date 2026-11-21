@@ -1,6 +1,18 @@
 import { createHash } from "node:crypto";
 import { isJsonRecord } from "./github-api.ts";
-import { CliError, handleError, isMain, readJson, runCommand, runText } from "./runtime-command.ts";
+import {
+  CliError,
+  handleError,
+  isMain,
+  readJson,
+  runCommand,
+  runText,
+  runTextLines,
+} from "./runtime-command.ts";
+import {
+  resolveEngineeringDiffBase,
+  type TrustedImportBaseline,
+} from "./validate-engineering-language.ts";
 
 type NamedPattern = {
   name: string;
@@ -177,15 +189,21 @@ function isAllowedMatch(path: string, text: string, allowances: CompiledAllowanc
   });
 }
 
-function scanAddedLines(
-  diff: string,
-  patterns: Array<{ name: string; regex: RegExp }>,
-  allowances: CompiledAllowance[] = []
-): SecurityViolation[] {
+async function scanAddedLines(
+  lines: AsyncIterable<string>,
+  secretPatterns: Array<{ name: string; regex: RegExp }>,
+  privacyPatterns: Array<{ name: string; regex: RegExp }>,
+  allowances: CompiledAllowance[]
+): Promise<SecurityViolation[]> {
   const violations: SecurityViolation[] = [];
   let path = "";
   let lineNumber = 0;
-  for (const line of diff.split(/\r?\n/)) {
+  // Inspect each added line once, but never apply secret fixture allowances to privacy checks.
+  const groups = [
+    { patterns: secretPatterns, allowances },
+    { patterns: privacyPatterns, allowances: [] },
+  ];
+  for await (const line of lines) {
     if (line.startsWith("+++ b/")) {
       path = line.slice(6);
       continue;
@@ -197,14 +215,16 @@ function scanAddedLines(
     }
     if (line.startsWith("+") && !line.startsWith("+++")) {
       const added = line.slice(1);
-      for (const { name, regex } of patterns) {
-        const every = new RegExp(
-          regex.source,
-          regex.flags.includes("g") ? regex.flags : `${regex.flags}g`
-        );
-        const matches = [...added.matchAll(every)];
-        if (matches.some((match) => !isAllowedMatch(path, match[0], allowances))) {
-          violations.push({ rule: name, path: path || "unknown", line: lineNumber });
+      for (const group of groups) {
+        for (const { name, regex } of group.patterns) {
+          const every = new RegExp(
+            regex.source,
+            regex.flags.includes("g") ? regex.flags : regex.flags + "g"
+          );
+          const matches = [...added.matchAll(every)];
+          if (matches.some((match) => !isAllowedMatch(path, match[0], group.allowances))) {
+            violations.push({ rule: name, path: path || "unknown", line: lineNumber });
+          }
         }
       }
       lineNumber += 1;
@@ -221,12 +241,14 @@ export async function collectSecurityViolations(
   root: string,
   base: string,
   head: string,
-  policyPath: string
+  policyPath: string,
+  trusted?: TrustedImportBaseline
 ): Promise<SecurityViolation[]> {
   if (!/^[0-9a-f]{40}$/i.test(base) || !/^[0-9a-f]{40}$/i.test(head)) {
     throw new CliError("::error::Security scan requires full base and head commit SHAs.", 64);
   }
 
+  const comparisonBase = await resolveEngineeringDiffBase(base, root, trusted);
   const policy = parsePolicy(await readJson(policyPath));
   const allowPaths = policy.path_allow_patterns.map((pattern) => compile(pattern));
   const forbiddenPaths = policy.forbidden_path_patterns.map((pattern) => compile(pattern));
@@ -249,7 +271,7 @@ export async function collectSecurityViolations(
 
   const names = await runText(
     "git",
-    ["diff", "--name-only", "--diff-filter=ACMR", base, head, "--"],
+    ["diff", "--name-only", "--diff-filter=ACMR", comparisonBase, head, "--"],
     { cwd: root }
   );
   const changed = names
@@ -289,14 +311,18 @@ export async function collectSecurityViolations(
     }
   }
 
-  const diff = await runText(
-    "git",
-    ["diff", "--unified=0", "--no-color", "--no-ext-diff", base, head, "--"],
-    { cwd: root, maxBuffer: 64 * 1024 * 1024 }
+  violations.push(
+    ...(await scanAddedLines(
+      runTextLines(
+        "git",
+        ["diff", "--unified=0", "--no-color", "--no-ext-diff", comparisonBase, head, "--"],
+        { cwd: root }
+      ),
+      secretPatterns,
+      privacyPatterns,
+      allowances
+    ))
   );
-  violations.push(...scanAddedLines(diff, secretPatterns, allowances));
-  // Personal and local-file data never inherit secret fixture allowances.
-  violations.push(...scanAddedLines(diff, privacyPatterns));
 
   const unique = new Map<string, SecurityViolation>();
   for (const violation of violations) {

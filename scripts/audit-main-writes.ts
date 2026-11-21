@@ -132,7 +132,12 @@ export async function auditRepositoryMain(
   repository: string,
   isCentralStatusRequired = true,
   onMainSha?: (sha: string) => void
-): Promise<{ main_sha: string; pr_number: number; pr_head_sha: string }> {
+): Promise<{
+  main_sha: string;
+  pr_number: number;
+  pr_head_sha: string;
+  source?: "delta-history-migration";
+}> {
   const repositoryValue = await reader.get(`repos/${repository}`);
   const defaultBranch = getJsonString(repositoryValue, "default_branch");
   if (defaultBranch !== "main") {
@@ -159,6 +164,7 @@ export async function auditRepositoryMain(
     main_sha: mainSha,
     pr_number: provenance.pr_number,
     pr_head_sha: provenance.pr_head_sha,
+    ...(provenance.source ? { source: provenance.source } : {}),
   };
 }
 
@@ -258,7 +264,9 @@ async function main(): Promise<void> {
           mainSha,
           statusToken,
           "success",
-          `Trusted main write via PR #${provenance.pr_number}`,
+          provenance.source === "delta-history-migration"
+            ? "Trusted Delta one-time history migration (original PR #9)"
+            : `Trusted main write via PR #${provenance.pr_number}`,
           runUrl
         );
       }
@@ -290,44 +298,53 @@ async function main(): Promise<void> {
           `Post-merge CI remediation (not original CI proof): ${repository}: ${remediated.join(", ")}`
         );
       }
-      const restored = await reconcileMisattributedMainStatuses(
-        reader,
-        repository,
-        mainSha,
-        provenance.pr_head_sha,
-        provenance.pr_number,
-        controlRepository,
-        statusToken,
-        runUrl
-      );
-      if (restored.length > 0) {
-        console.log(
-          `Reconciled invalid reverse PR statuses on ${repository}@${mainSha}: ${restored.join(", ")}`
-        );
-      }
-      try {
-        const previous = await reconcilePreviousMainStatuses(
+      // An audited ancestry rewrite is not an ordinary squash merge. Do not
+      // re-label original PR/parent statuses as if the rewritten SHAs were merges.
+      if (provenance.source !== "delta-history-migration") {
+        const restored = await reconcileMisattributedMainStatuses(
           reader,
           repository,
           mainSha,
-          repository !== controlRepository,
+          provenance.pr_head_sha,
+          provenance.pr_number,
           controlRepository,
           statusToken,
           runUrl
         );
-        if (previous.length > 0) {
-          console.log(`Reconciled previous main status for ${repository}: ${previous.join(", ")}`);
+        if (restored.length > 0) {
+          console.log(
+            `Reconciled invalid reverse PR statuses on ${repository}@${mainSha}: ${restored.join(", ")}`
+          );
         }
-      } catch (error) {
-        console.warn(
-          `::warning::Historical main status reconciliation could not complete for ${repository}: ${error instanceof Error ? error.message : String(error)}`
-        );
+        try {
+          const previous = await reconcilePreviousMainStatuses(
+            reader,
+            repository,
+            mainSha,
+            repository !== controlRepository,
+            controlRepository,
+            statusToken,
+            runUrl
+          );
+          if (previous.length > 0) {
+            console.log(
+              `Reconciled previous main status for ${repository}: ${previous.join(", ")}`
+            );
+          }
+        } catch (error) {
+          console.warn(
+            `::warning::Historical main status reconciliation could not complete for ${repository}: ${error instanceof Error ? error.message : String(error)}`
+          );
+        }
       }
       results.push({
         repository,
         main_sha: mainSha,
         state: "success",
-        detail: `PR #${provenance.pr_number}`,
+        detail:
+          provenance.source === "delta-history-migration"
+            ? "Verified Delta one-time ancestry migration"
+            : `PR #${provenance.pr_number}`,
       });
     } catch (error) {
       const detail =
