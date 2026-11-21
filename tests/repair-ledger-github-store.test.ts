@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { test } from "node:test";
-import {
-  applyRepairLedgerEvent,
-  createRepairLedgerEntry,
-  type RepairLedgerEntry,
-} from "../scripts/repair-lifecycle-ledger.ts";
+import { createRepairLedgerEntry, type RepairLedgerEntry } from "../scripts/repair-lifecycle-ledger.ts";
 import {
   RepairLedgerConflictError,
   RepairLedgerStore,
@@ -87,15 +83,6 @@ function document(
   return { schema_version: "1", repository, issue_number: issueNumber, entry };
 }
 
-function advance(entry: RepairLedgerEntry): RepairLedgerEntry {
-  return applyRepairLedgerEvent(
-    entry,
-    entry.revision,
-    { kind: "root-cause-verified", evidenceSha256: rootEvidence },
-    now
-  );
-}
-
 test("public ledger survives reads and revisions in a permanent per-root-cause Git ref", async () => {
   const api = new MemoryGitApi();
   const store = new RepairLedgerStore(api);
@@ -109,8 +96,12 @@ test("public ledger survives reads and revisions in a permanent per-root-cause G
   assert.deepEqual(restored?.document, initial);
   assert.equal(restored?.commit_sha, created.commit_sha);
 
-  const diagnosed = { ...initial, entry: advance(initial.entry) };
-  const updated = await store.compareAndSwap(created, diagnosed, null);
+  const updated = await store.compareAndSwap(
+    created,
+    { kind: "root-cause-verified", evidenceSha256: rootEvidence },
+    now,
+    null
+  );
   assert.equal(updated.document.entry.revision, 1);
   assert.equal(updated.document.entry.root_cause_evidence_sha256, rootEvidence);
   const resumed = await store.read(initial.repository, 17, fingerprint, false, null);
@@ -156,24 +147,27 @@ test("concurrent updates and duplicate creation fail closed without losing the w
 
   const secondReader = await store.read(initial.repository, 19, fingerprint, false, null);
   assert.ok(secondReader);
-  const winner = { ...initial, entry: advance(initial.entry) };
-  const loser = {
-    ...initial,
-    entry: applyRepairLedgerEvent(
-      initial.entry,
-      0,
+  const saved = await store.compareAndSwap(
+    first,
+    { kind: "root-cause-verified", evidenceSha256: rootEvidence },
+    now,
+    null
+  );
+  await assert.rejects(
+    store.compareAndSwap(
+      secondReader,
       { kind: "root-cause-verified", evidenceSha256: ciEvidence },
-      now
+      now,
+      null
     ),
-  };
-  const saved = await store.compareAndSwap(first, winner, null);
-  await assert.rejects(store.compareAndSwap(secondReader, loser, null), RepairLedgerConflictError);
+    RepairLedgerConflictError
+  );
   const final = await store.read(initial.repository, 19, fingerprint, false, null);
   assert.equal(final?.commit_sha, saved.commit_sha);
   assert.equal(final?.document.entry.root_cause_evidence_sha256, rootEvidence);
 });
 
-test("ledger refuses wrong issue, malformed identity, incomplete CI and skipped revisions", async () => {
+test("ledger refuses wrong issue and cannot complete without trusted CI verification", async () => {
   const api = new MemoryGitApi();
   const store = new RepairLedgerStore(api);
   const initial = document("fongap-labs/action-worker", 21);
@@ -182,28 +176,24 @@ test("ledger refuses wrong issue, malformed identity, incomplete CI and skipped 
     store.read(initial.repository, 22, fingerprint, false, null),
     /different issue/
   );
-  const diagnosed = { ...initial, entry: advance(initial.entry) };
   await assert.rejects(
-    store.compareAndSwap(created, { ...diagnosed, entry: { ...diagnosed.entry, revision: 3 } }, null),
-    /does not advance/
+    store.compareAndSwap(
+      created,
+      { kind: "repair-created", headSha: head, prNumber: 44 },
+      now,
+      null
+    ),
+    /verified root cause/
   );
   await assert.rejects(
-    store.compareAndSwap(created, { ...diagnosed, repository: "other/repository" }, null),
-    /different repository/
+    store.compareAndSwap(
+      created,
+      { kind: "ci-verified", headSha: head, runId: 45, evidenceSha256: ciEvidence },
+      now,
+      null
+    ),
+    /trusted current-head GitHub CI verification/
   );
-  const broken = {
-    ...diagnosed,
-    entry: {
-      ...diagnosed.entry,
-      stage: "completed" as const,
-      ci_evidence_sha256: ciEvidence,
-      head_sha: head,
-      pr_number: 44,
-      ci_run_id: 45,
-      ci_head_sha: "e".repeat(40),
-    },
-  };
-  await assert.rejects(store.compareAndSwap(created, broken, null), /stale head/);
 });
 
 test("private task state cannot be created without its existing protected artifact key", async () => {
