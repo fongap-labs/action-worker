@@ -7,13 +7,17 @@ if [[ -z "$TARGET_ROOT" || ! -d "$TARGET_ROOT/.git" ]]; then
   echo "central-ci: verified source root is required" >&2
   exit 64
 fi
-cd "$TARGET_ROOT"
+# The common sandbox runs Node 22 for other repositories. Bootstrap only
+# this job's pinned Node/pnpm toolchain in a throwaway, credential-free directory.
+runtime_root="$(mktemp -d "${RUNNER_TEMP:-/tmp}/delta-desktop-runtime.XXXXXX")"
+trap 'rm -rf "$runtime_root"' EXIT
+npm install --prefix "$runtime_root" --no-audit --no-fund --no-save --package-lock=false \
+  node@24.11.1 pnpm@11.28.5
+export PATH="$runtime_root/node_modules/.bin:$PATH"
+node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major !== 24 || minor < 9) process.exit(2)'
+test "$(pnpm --version)" = "11.28.5"
 
+cd "$TARGET_ROOT"
 node scripts/delta-verify.mjs
-node -e 'const v = Number(process.versions.node.split(".")[0]); if (v < 24) process.exit(2)'
-if ! command -v pnpm >/dev/null 2>&1; then
-  echo "central-ci: pnpm 11.28.5 is required on the trusted runner" >&2
-  exit 68
-fi
 pnpm install --frozen-lockfile
 pnpm run build:desktop
