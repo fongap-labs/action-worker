@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { test } from "node:test";
 import { parseOwnershipPolicy } from "../scripts/central-engineering-gate.ts";
 import {
   checkGithubEngineeringOwnership,
+  engineeringOwnershipDiffBase,
+  inventoryImmutableGitTrees,
   parseCompareFiles,
 } from "../scripts/engineering-gate-api.ts";
 
@@ -253,4 +258,122 @@ test("central preparation gate covers Linux and native-private CI before dispatc
   assert.ok(position < workflow.indexOf("native-private-pilot:"));
   assert.ok(position < workflow.indexOf("linux:"));
   assert.match(workflow, /node scripts\/engineering-gate-api\.ts/);
+});
+
+test("only the pinned Delta import uses the trusted upstream tree", () => {
+  const bootstrap = "7556dc8dfede03053e35359f2b55dd299da1f3ee";
+  const upstream = "2e39e70496aa02986ca6a820c5d497e816b69d7e";
+  assert.equal(engineeringOwnershipDiffBase("fongap-labs/delta", bootstrap), upstream);
+  assert.equal(engineeringOwnershipDiffBase("fongap-labs/delta", head), head);
+  assert.equal(engineeringOwnershipDiffBase("fongap-labs/mcp-hub", bootstrap), bootstrap);
+});
+
+test("full Git inventory detects changes and also unchanged active workflows", async () => {
+  const root = mkdtempSync(join(tmpdir(), "aw-ownership-full-git-"));
+  const git = (...args: string[]) =>
+    execFileSync("git", ["-C", root, ...args], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  try {
+    git("init", "-b", "main");
+    git("config", "user.name", "Governance fixture");
+    git("config", "user.email", "governance@example.invalid");
+    mkdirSync(join(root, "tests"), { recursive: true });
+    mkdirSync(join(root, ".github", "workflows"), { recursive: true });
+    writeFileSync(join(root, "tests", "inherited.test.ts"), "test('old', () => {});\n");
+    writeFileSync(join(root, ".github", "workflows", "own.yml"), "name: Untrusted\n");
+    git("add", "-A");
+    git("commit", "-m", "upstream");
+    const previous = git("rev-parse", "HEAD");
+
+    writeFileSync(join(root, "tests", "custom.test.ts"), "test('new', () => {});\n");
+    git("add", "-A");
+    git("commit", "-m", "custom");
+    const current = git("rev-parse", "HEAD");
+    const inventory = await inventoryImmutableGitTrees(root, previous, current);
+    assert.deepEqual(inventory, [
+      { status: "A", path: "tests/custom.test.ts" },
+      { status: "A", path: ".github/workflows/own.yml" },
+    ]);
+    await assert.rejects(
+      inventoryImmutableGitTrees(root, "0".repeat(40), current),
+      /fatal|unknown|invalid|Needed a single revision/i
+    );
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("large public comparison reads complete pinned trees; private remains fail closed", async () => {
+  const template = readFileSync(templatePath, "utf8");
+  const calls: string[] = [];
+  const mockDiff = async (repo: string, comparisonBase: string, revision: string) => {
+    calls.push(repo + "@" + comparisonBase + "..." + revision);
+    return [
+      { status: "A" as const, path: "src/delta-entry.ts" },
+      { status: "A" as const, path: ".github/workflows/notify-action-worker.yml" },
+    ];
+  };
+  await checkGithubEngineeringOwnership(
+    "fongap-labs/delta",
+    "7556dc8dfede03053e35359f2b55dd299da1f3ee",
+    head,
+    policy,
+    async (path) => {
+      assert.match(path, /\/contents\/\.github\/workflows\/notify-action-worker.yml\?ref=/);
+      return { encoding: "base64", content: Buffer.from(template).toString("base64") };
+    },
+    (path) => readFileSync(path, "utf8"),
+    mockDiff,
+    true
+  );
+  assert.deepEqual(calls, [
+    "fongap-labs/delta@2e39e70496aa02986ca6a820c5d497e816b69d7e..." + head,
+  ]);
+  await assert.rejects(
+    checkGithubEngineeringOwnership(
+      "fongap-labs/delta",
+      "7556dc8dfede03053e35359f2b55dd299da1f3ee",
+      head,
+      policy,
+      async () => { throw new Error("Private source must not be fetched"); },
+      (path) => readFileSync(path, "utf8"),
+      mockDiff,
+      false
+    ),
+    /verified public target/
+  );
+  const large = compare(Array.from({ length: 300 }, (_, i) => ({
+    filename: "src/file-" + i + ".ts",
+    status: "added",
+  })));
+  await checkGithubEngineeringOwnership(
+    "fongap-labs/mcp-hub",
+    base,
+    head,
+    policy,
+    async () => large,
+    (path) => readFileSync(path, "utf8"),
+    async (repo, comparisonBase, revision) => {
+      assert.equal(repo, "fongap-labs/mcp-hub");
+      assert.equal(comparisonBase, base);
+      assert.equal(revision, head);
+      return [{ status: "M", path: "src/existing.ts" }];
+    },
+    true
+  );
+  await assert.rejects(
+    checkGithubEngineeringOwnership(
+      "fongap-labs/mcp-hub",
+      base,
+      head,
+      policy,
+      async () => large,
+      (path) => readFileSync(path, "utf8"),
+      mockDiff,
+      false
+    ),
+    /private inventory file limit/
+  );
 });
