@@ -52,10 +52,7 @@ test("admission pilot rejects other events, repos, branches and workflow callers
 });
 
 test("zero or absent Issue number selects only the exact Issue matching path", () => {
-  const zero = parsePublicRepairIntake(
-    { ...trustedEnv(), AW_REPAIR_ISSUE_NUMBER: "0" },
-    timestamp
-  );
+  const zero = parsePublicRepairIntake({ ...trustedEnv(), AW_REPAIR_ISSUE_NUMBER: "0" }, timestamp);
   assert.equal(zero.issue_number, null);
   const omitted = parsePublicRepairIntake(
     { ...trustedEnv(), AW_REPAIR_ISSUE_NUMBER: undefined },
