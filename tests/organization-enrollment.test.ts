@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import {
+  addOnboardingChangelog,
+  formatOnboardingPolicy,
   type InstalledRepo,
   planOnboarding,
   safeOnboardingOnly,
@@ -93,6 +95,19 @@ test("untrusted inventory and unexpected privilege changes fail closed", () => {
   assert.equal(safeOnboardingOnly(policy, candidate, []), false);
 });
 
+test("auto-enrollment creates a formatter-compliant policy and a scoped Chinese changelog entry", () => {
+  const next = planOnboarding(policy, [repo("new-service")]);
+  const formatted = formatOnboardingPolicy(next);
+  assert.deepEqual(JSON.parse(formatted), next);
+  assert.match(formatted, /"fongap-labs\/new-service": \["pr"\]/);
+  const base = "# 更新日志\n\n## [Unreleased]\n\n- 维护: 已有内容。\n";
+  const updated = addOnboardingChangelog(base, ["fongap-labs/new-service"]);
+  assert.ok(updated.includes("- 维护: 自动将 fongap-labs/new-service 纳入中央 PR 治理"));
+  assert.ok(updated.includes("- 维护: 已有内容。"));
+  assert.throws(() => addOnboardingChangelog(updated, ["fongap-labs/new-service"]));
+  assert.throws(() => addOnboardingChangelog(base, []));
+});
+
 test("automatic enrollment uses one versioned policy and the existing hard merge gate", async () => {
   const workflow = await readFile(".github/workflows/enroll-organization-repositories.yml", "utf8");
   const script = await readFile("scripts/enroll-organization-repositories.ts", "utf8");
@@ -106,5 +121,8 @@ test("automatic enrollment uses one versioned policy and the existing hard merge
   assert.match(script, /check.conclusion === "success"/);
   assert.match(script, /check.app\?\.id === 15368/);
   assert.match(script, /merge_method: "squash"/);
+  assert.match(script, /files.length !== 2/);
+  assert.match(script, /actualChangelog.content !== expectedChangelog/);
+  assert.match(script, /formatOnboardingPolicy\(next\)/);
   assert.doesNotMatch(script, /AW_ADMIN_TOKEN|bypass_actors|main\.write/);
 });
