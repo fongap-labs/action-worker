@@ -28,7 +28,13 @@ test("native evidence pilot is explicitly enrolled for private PRs only", () => 
 
 test("empty private CI pilot policy leaves all targets on the standard CI path", () => {
   assert.equal(
-    resolveNativeCiPilot({ schema_version: 1, repositories: [] }, "fongap-labs/private-fixture", "true", "run-central-ci", "491"),
+    resolveNativeCiPilot(
+      { schema_version: 1, repositories: [] },
+      "fongap-labs/private-fixture",
+      "true",
+      "run-central-ci",
+      "491"
+    ),
     false
   );
 });
