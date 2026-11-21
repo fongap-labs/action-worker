@@ -33,7 +33,10 @@ test("missing legacy script permits only a bounded checked-out Node.js manifest 
     writeFileSync(join(root, "scripts", "verify.mjs"), "console.log('ok')\n");
     assert.deepEqual(chooseLinuxManifestCommand(manifest(bootstrap), root), { kind: "bootstrap" });
     assert.deepEqual(
-      chooseLinuxManifestCommand(manifest(["node", "{target_root}/scripts/verify.mjs", "--ci"]), root),
+      chooseLinuxManifestCommand(
+        manifest(["node", "{target_root}/scripts/verify.mjs", "--ci"]),
+        root
+      ),
       {
         kind: "node",
         script: join(root, "scripts", "verify.mjs"),

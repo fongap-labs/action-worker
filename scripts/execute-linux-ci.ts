@@ -6,11 +6,7 @@ import { parseExecutionManifest } from "./execution-contract.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { verifyBridgeBootstrap } from "./verify-bridge-bootstrap.ts";
 
-const bootstrapCommand = [
-  "bash",
-  "{control_root}/.github/scripts/central-ci.sh",
-  "{target_root}",
-];
+const bootstrapCommand = ["bash", "{control_root}/.github/scripts/central-ci.sh", "{target_root}"];
 
 export type LinuxManifestChoice =
   | { kind: "bootstrap" }
@@ -35,14 +31,14 @@ export function chooseLinuxManifestCommand(
   ) {
     throw new CliError("Linux fallback cannot grant additional runner capabilities.", 65);
   }
-  if (shard !== "all" && !job.matrix?.shard?.includes(shard)) {
-    throw new CliError("The requested Linux shard was not declared.", 65);
-  }
   if (JSON.stringify(job.command) === JSON.stringify(bootstrapCommand)) {
     if (shard !== "all") {
       throw new CliError("The bridge bootstrap cannot declare Linux shards.", 65);
     }
     return { kind: "bootstrap" };
+  }
+  if (shard !== "all" && !job.matrix?.shard?.includes(shard)) {
+    throw new CliError("The requested Linux shard was not declared.", 65);
   }
   if (
     job.command[0] !== "node" ||
@@ -125,10 +121,12 @@ export async function executeManifestLinuxCi(
 }
 
 if (isMain(import.meta.url)) {
-  const [target = "", control = "", base = "", head = "", shard = "all"] =
-    process.argv.slice(2);
+  const [target = "", control = "", base = "", head = "", shard = "all"] = process.argv.slice(2);
   if (!target || !control || !/^[0-9a-f]{40}$/.test(base) || !/^[0-9a-f]{40}$/.test(head)) {
-    throw new CliError("Usage: execute-manifest-linux-ci.ts <target> <control> <base> <head> [shard]", 64);
+    throw new CliError(
+      "Usage: execute-linux-ci.ts <target> <control> <base> <head> [shard]",
+      64
+    );
   }
   executeManifestLinuxCi(target, control, base, head, shard).catch(handleError);
 }
