@@ -38,6 +38,7 @@ const chineseDisplayNames: Record<string, string> = {
   "enroll-organization-repositories.yml": "自动 · 组织仓库接入",
   "publication-key-verify.yml": "自动 · 发布密钥预检",
   "prune-stale-state.yml": "自动 · 状态清理",
+  "repair-failure-discovery.yml": "自动 · 故障发现",
   "sync-upstream-mirror.yml": "自动 · 上游镜像",
   "update-work-metrics.yml": "自动 · 指标更新",
   "central-ci-dispatch.yml": "自动 · CI 分发",
