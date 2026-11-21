@@ -24,7 +24,6 @@ export function resolveNativeRefEnrollment(
     !isJsonRecord(policy) ||
     policy.schema_version !== 1 ||
     !Array.isArray(policy.callers) ||
-    policy.callers.length < 1 ||
     policy.callers.length > 20
   ) {
     throw new CliError("Invalid private main CI enrollment policy.", 65);
