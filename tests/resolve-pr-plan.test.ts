@@ -284,7 +284,10 @@ test("large PR context loads from a fixed local file without shell argv or env e
     change_areas: ["source"],
     declared_impacts: ["api"],
     risk: "high",
-    changed_files: Array.from({ length: 22_000 }, (_, index) => `packages/item-${index}/src/file.ts`),
+    changed_files: Array.from(
+      { length: 22_000 },
+      (_, index) => `packages/item-${index}/src/file.ts`
+    ),
   });
   assert.ok(original.length > 131_072);
   const loaded = await readContextArgument("@pr-context-file", async (path) => {
@@ -293,7 +296,10 @@ test("large PR context loads from a fixed local file without shell argv or env e
   });
   assert.equal(loaded, original);
   assert.equal(validateContext(JSON.parse(loaded) as unknown).risk, "high");
-  assert.equal(await readContextArgument('{"project_types":[]}', async () => ""), '{"project_types":[]}');
+  assert.equal(
+    await readContextArgument('{"project_types":[]}', async () => ""),
+    '{"project_types":[]}'
+  );
   await assert.rejects(
     () => readContextArgument("@../../untrusted", async () => "unused"),
     /Unsupported PR context input reference/
