@@ -8,6 +8,7 @@ import { parseOwnershipPolicy } from "../scripts/central-engineering-gate.ts";
 import {
   checkGithubEngineeringOwnership,
   engineeringOwnershipDiffBase,
+  filterInheritedWorkflowDeletions,
   inventoryImmutableGitTrees,
   parseCompareFiles,
 } from "../scripts/engineering-gate-api.ts";
@@ -378,4 +379,76 @@ test("large public comparison reads complete pinned trees; private remains fail 
     ),
     /private inventory file limit/
   );
+});
+
+test("pinned import ignores upstream-only workflow deletions but preserves managed ownership", async () => {
+  const bootstrap = "7556dc8dfede03053e35359f2b55dd299da1f3ee";
+  const treeSha = "a".repeat(40);
+  const calls: string[] = [];
+  const get = async (path: string): Promise<unknown> => {
+    calls.push(path);
+    if (path.endsWith("/git/commits/" + bootstrap)) {
+      return { sha: bootstrap, tree: { sha: treeSha } };
+    }
+    if (path.endsWith("/git/trees/" + treeSha + "?recursive=1")) {
+      return {
+        sha: treeSha,
+        truncated: false,
+        tree: [
+          { path: ".github", type: "tree" },
+          { path: ".github/workflows", type: "tree" },
+          { path: ".github/workflows/notify-action-worker.yml", type: "blob" },
+        ],
+      };
+    }
+    throw new Error("Unexpected bootstrap identity read");
+  };
+  const files = [
+    { status: "D" as const, path: ".github/workflows/ci.yml" },
+    { status: "D" as const, path: ".github/workflows/notify-action-worker.yml" },
+    { status: "D" as const, path: ".github/workflows/unmanaged.yml" },
+  ];
+  const result = await filterInheritedWorkflowDeletions(
+    "fongap-labs/delta",
+    bootstrap,
+    files,
+    policy,
+    get
+  );
+  assert.deepEqual(result, files.slice(1));
+  assert.equal(calls.length, 2);
+  await assert.rejects(
+    filterInheritedWorkflowDeletions("fongap-labs/delta", bootstrap, files, policy, async (path) =>
+      path.includes("/commits/")
+        ? { sha: bootstrap, tree: { sha: treeSha } }
+        : { sha: treeSha, truncated: true, tree: [] }
+    ),
+    /incomplete/
+  );
+  assert.deepEqual(
+    await filterInheritedWorkflowDeletions(
+      "fongap-labs/delta",
+      bootstrap,
+      [{ status: "A", path: "src/index.ts" }],
+      policy,
+      async () => {
+        throw new Error("No need to read bootstrap for non-workflow changes");
+      }
+    ),
+    [{ status: "A", path: "src/index.ts" }]
+  );
+});
+
+test("Delta desktop host tests remain package-local and build runner is central", () => {
+  assert.ok(
+    policy.local_test_exceptions.some(
+      (item) =>
+        item.repository === "fongap-labs/delta" &&
+        item.path_prefix === "apps/desktop-host/tests/"
+    )
+  );
+  const runner = readFileSync("tests/packs/delta/desktop-ci.sh", "utf8");
+  assert.match(runner, /node scripts\/delta-verify\.mjs/);
+  assert.match(runner, /pnpm install --frozen-lockfile/);
+  assert.match(runner, /pnpm run build:desktop/);
 });
