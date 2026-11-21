@@ -1,0 +1,81 @@
+name: 手动 · 公开修复任务入库
+
+on:
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Existing open action-worker Issue number
+        type: number
+        required: true
+      failure_run_id:
+        description: Exact failed action-worker Actions run ID
+        type: number
+        required: true
+      failure_head_sha:
+        description: Exact 40-character failed run HEAD SHA
+        type: string
+        required: true
+      root_cause_sha256:
+        description: Tentative normalized root-cause SHA-256 (does not certify diagnosis)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repair-public-ledger-intake
+  cancel-in-progress: false
+
+jobs:
+  admit:
+    name: Admit one public repair candidate without running source code
+    if: github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment:
+      name: admin-ops
+      deployment: false
+    steps:
+      - name: Checkout trusted control main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Mint read-only control repository token
+        id: admission_read
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-actions: read
+          permission-contents: read
+          permission-issues: read
+
+      - name: Mint isolated repair-ledger ref write token
+        id: ledger_write
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+
+      - name: Admit verified failed run into discovered stage only
+        env:
+          AW_REPAIR_READ_TOKEN: ${{ steps.admission_read.outputs.token }}
+          AW_BRANCH_API_TOKEN: ${{ steps.ledger_write.outputs.token }}
+          AW_REPAIR_ISSUE_NUMBER: ${{ inputs.issue_number }}
+          AW_REPAIR_FAILURE_RUN_ID: ${{ inputs.failure_run_id }}
+          AW_REPAIR_FAILURE_HEAD_SHA: ${{ inputs.failure_head_sha }}
+          AW_REPAIR_ROOT_CAUSE_SHA256: ${{ inputs.root_cause_sha256 }}
+        run: node scripts/repair-public-intake.ts
