@@ -119,7 +119,8 @@ export async function verifyRepairPullRequest(
     identity.pr_number,
     identity.head_sha,
     identity.base_sha,
-    governanceRunUrl
+    governanceRunUrl,
+    controlRepository
   );
 
   const ciVerified = await hasVerifiedCiEvidence(reader, statuses, {
