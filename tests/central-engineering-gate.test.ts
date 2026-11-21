@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { engineeringOwnershipDiffBase } from "../scripts/trusted-import-baseline.ts";
 import {
   type ChangedFile,
   inspectEngineeringOwnership,
@@ -301,6 +302,18 @@ test("real git rename into a local tests directory is not mistaken for an allowe
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("first Delta import uses the same pinned upstream tree in both ownership gates", () => {
+  const bootstrap = "7556dc8dfede03053e35359f2b55dd299da1f3ee";
+  const upstream = "2e39e70496aa02986ca6a820c5d497e816b69d7e";
+  assert.equal(engineeringOwnershipDiffBase("fongap-labs/delta", bootstrap), upstream);
+  assert.equal(engineeringOwnershipDiffBase("fongap-labs/delta", "a".repeat(40)), "a".repeat(40));
+  assert.equal(engineeringOwnershipDiffBase("fongap-labs/ai-gateway", bootstrap), bootstrap);
+  const sandboxGate = readFileSync("scripts/central-engineering-gate.ts", "utf8");
+  assert.match(sandboxGate, /const comparisonBase = engineeringOwnershipDiffBase\\(repository, base\\)/);
+  assert.match(sandboxGate, /new Set\\(\\[base, comparisonBase, head\\]\\)/);
+  assert.match(sandboxGate, /"-z",\\s*comparisonBase,\\s*head/);
 });
 
 test("Linux central sandbox runs trusted ownership policy before project-controlled CI", () => {
