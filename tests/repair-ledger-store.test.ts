@@ -126,7 +126,9 @@ test("private ledger records encrypt repository, issue and evidence before writi
   const raw = await api.rawRecord(repairLedgerRefName(initial.entry.task_id));
   assert.match(raw, /^AWREPAIR1:sealed:/);
   assert.equal(raw.includes(initial.repository), false);
-  assert.equal(raw.includes(String(initial.issue_number)), false);
+  // Random Base64 ciphertext can contain short decimal substrings by chance.
+  // Check that the complete plaintext field is absent instead.
+  assert.equal(raw.includes(`"issue_number":${initial.issue_number}`), false);
   assert.equal(raw.includes(fingerprint), false);
   assert.equal(raw.includes(initial.entry.task_id), false);
 
