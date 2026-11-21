@@ -185,22 +185,21 @@ test("originating failure identity persists across recovery and CI state transit
 });
 
 test("initial failure identity is validated and legacy callers remain supported", () => {
-  assert.deepEqual(
-    [fixture().failure_run_id, fixture().failure_head_sha],
-    [null, null]
-  );
+  assert.deepEqual([fixture().failure_run_id, fixture().failure_head_sha], [null, null]);
   assert.throws(
-    () => createRepairLedgerEntry("example/project", fingerprint, now, {
-      runId: 0,
-      headSha: firstHead,
-    }),
+    () =>
+      createRepairLedgerEntry("example/project", fingerprint, now, {
+        runId: 0,
+        headSha: firstHead,
+      }),
     /positive integer/
   );
   assert.throws(
-    () => createRepairLedgerEntry("example/project", fingerprint, now, {
-      runId: 1,
-      headSha: "untrusted",
-    }),
+    () =>
+      createRepairLedgerEntry("example/project", fingerprint, now, {
+        runId: 1,
+        headSha: "untrusted",
+      }),
     /Git commit SHA/
   );
 });
