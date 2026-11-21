@@ -1349,7 +1349,7 @@ await run('handler: OpenAI 429 then 200 -> fallback retries and succeeds', async
   routeHandlers['o2.example.com'] = () => jsonUpstream(okOpenAICompletion());
   const env = makeEnv({
     tier1: [anthropicNode('a1'), openaiNode('o1'), openaiNode('o2')],
-    secrets: { a1: 'k', o1: 'k', o2: 'k' },
+    secrets: { a1: 'key-anthropic-overloaded', o1: 'key-rate-limited', o2: 'key-healthy' },
     extraEnv: {
       AIG_PROTOCOL_FALLBACKS: JSON.stringify({ 'anthropic:messages': ['openai:chat_completions'] }),
       AIG_SHOULD_EXPOSE_UPSTREAM: 'true',
@@ -1461,7 +1461,7 @@ await run('handler: first-event timeout -> rotates to next node', async () => {
   routeHandlers['a2.example.com'] = () => goodResponse();
   const env = makeEnv({
     tier1: [anthropicNode('a1'), anthropicNode('a2')],
-    secrets: { a1: 'k', a2: 'k' },
+    secrets: { a1: 'key-first-event-failed', a2: 'key-healthy' },
     extraEnv: {
       // Enough budget for a1's first-event timeout (~2.5s) plus a2's response.
       AIG_FAILOVER_BUDGET_MS: '6000',
