@@ -1,4 +1,11 @@
-import { appendLines, CliError, handleError, isMain, runTextLines } from "./runtime-command.ts";
+import {
+  appendLines,
+  CliError,
+  handleError,
+  isMain,
+  runText,
+  runTextLines,
+} from "./runtime-command.ts";
 
 const HAN = /[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/u;
 const MARKDOWN = /\.md$/i;
@@ -180,10 +187,45 @@ export function diffHeaderPath(header: string): string | null {
   return unquoted.startsWith("b/") ? unquoted.slice(2) : null;
 }
 
+/**
+ * Strictly scoped one-time baseline for the Delta Harness import. Both hashes
+ * are centrally pinned, not read from PR-controlled lock files or branches.
+ * Only the initial bootstrap base commit opts into comparing against the
+ * immutable upstream snapshot; later PRs retain the ordinary base-to-head gate.
+ */
+export interface TrustedImportBaseline {
+  readonly bootstrapSha: string;
+  readonly upstreamSha: string;
+}
+
+const DELTA_BOOTSTRAP_IMPORT: TrustedImportBaseline = {
+  bootstrapSha: "7556dc8dfede03053e35359f2b55dd299da1f3ee",
+  upstreamSha: "2e39e70496aa02986ca6a820c5d497e816b69d7e",
+};
+
+/**
+ * Select a trusted source baseline only for Delta's initial import. Every
+ * subsequent changed line is still inspected; an unavailable pinned Git
+ * object fails closed rather than silently skipping validation.
+ */
+export async function resolveEngineeringDiffBase(
+  base: string,
+  root: string,
+  trusted: TrustedImportBaseline = DELTA_BOOTSTRAP_IMPORT
+): Promise<string> {
+  if (base !== trusted.bootstrapSha) return base;
+  const type = await runText("git", ["cat-file", "-t", trusted.upstreamSha], { cwd: root });
+  if (type !== "commit") {
+    throw new CliError("Pinned upstream baseline must be a Git commit.", 65);
+  }
+  return trusted.upstreamSha;
+}
+
 export async function validateEngineeringDiff(
   base: string,
   head: string,
-  root: string
+  root: string,
+  trusted: TrustedImportBaseline = DELTA_BOOTSTRAP_IMPORT
 ): Promise<{ files: number; additions: number; failures: number }> {
   let path = "";
   let templateCommentState: HtmlCommentState = NO_HTML_COMMENT;
@@ -191,9 +233,10 @@ export async function validateEngineeringDiff(
   let additions = 0;
   let failures = 0;
   const seen = new Set<string>();
+  const comparisonBase = await resolveEngineeringDiffBase(base, root, trusted);
   for await (const raw of runTextLines(
     "git",
-    ["diff", "--unified=0", "--diff-filter=ACMR", base, head],
+    ["diff", "--unified=0", "--diff-filter=ACMR", comparisonBase, head],
     { cwd: root }
   )) {
     if (raw.startsWith("diff --git ")) {
