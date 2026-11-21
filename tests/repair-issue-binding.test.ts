@@ -111,8 +111,9 @@ test("untrusted Issue metadata, duplicate markers, and truncated pages are rejec
   await assert.rejects(
     resolveRepairIssue(
       {
-        async get() {
-          return Array.from({ length: 100 }, (_, i) => issue(i + 1, null));
+        async get(path) {
+          const page = Number(/[?&]page=(\d+)/.exec(path)?.[1]);
+          return Array.from({ length: 100 }, (_, i) => issue((page - 1) * 100 + i + 1, null));
         },
       },
       repository,
