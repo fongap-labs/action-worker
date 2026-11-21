@@ -14,4 +14,7 @@ test "$(pnpm --version)" = "11.28.5"
 cd "$TARGET_ROOT"
 node scripts/delta-verify.mjs
 pnpm install --frozen-lockfile
+# Desktop project references consume declarations and Typert output from workspace libraries.
+# The package-local desktop build cannot generate these prerequisites in isolation.
+pnpm run build:lib
 pnpm run build:desktop
