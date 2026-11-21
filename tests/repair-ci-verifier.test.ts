@@ -152,7 +152,10 @@ test("repair verifier requires the exact PR head/base and all signed central gat
   assert.match(proof.evidence_sha256, /^[0-9a-f]{64}$/);
   assert.ok(f.calls.includes("repos/" + controlRepository + "/actions/runs/101"));
   assert.ok(f.calls.includes("repos/" + controlRepository + "/actions/runs/102"));
-  assert.equal(f.calls.filter((path) => path === "repos/" + repository + "/pulls/" + prNumber).length, 2);
+  assert.equal(
+    f.calls.filter((path) => path === "repos/" + repository + "/pulls/" + prNumber).length,
+    2
+  );
   assert.equal(
     f.calls.some((path) => /merge|update|dispatch|pulls\/\d+\/reviews/.test(path)),
     false
