@@ -22,6 +22,7 @@ pnpm run build:lib:host
 # a Client entry. Older revisions without bundle metadata remain testable.
 if node -e "const p=require('./packages/plugin/delta-code/package.json'); process.exit(p.dsh?.bundle?.patch === './cordis.patch.yml' ? 0 : 1)"; then
   pnpm --filter @fongap-labs/delta-plugin-shared run build
+  test -s packages/plugin/shared/lib/index.js
   pnpm --filter @fongap-labs/delta-code run build
   test -s packages/plugin/delta-code/lib/index.js
   test -s packages/plugin/delta-code/lib/client.js
