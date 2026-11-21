@@ -208,6 +208,12 @@ const DELTA_BOOTSTRAP_IMPORT: TrustedImportBaseline = {
  * subsequent changed line is still inspected; an unavailable pinned Git
  * object fails closed rather than silently skipping validation.
  */
+export function pinnedInitialImportUpstream(repository: string, base: string): string | null {
+  return repository === "fongap-labs/delta" && base === DELTA_BOOTSTRAP_IMPORT.bootstrapSha
+    ? DELTA_BOOTSTRAP_IMPORT.upstreamSha
+    : null;
+}
+
 export async function resolveEngineeringDiffBase(
   base: string,
   root: string,

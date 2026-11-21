@@ -4,8 +4,10 @@ import { test } from "node:test";
 import { parseOwnershipPolicy } from "../scripts/central-engineering-gate.ts";
 import {
   checkGithubEngineeringOwnership,
+  comparePinnedFileTrees,
   parseCompareFiles,
 } from "../scripts/engineering-gate-api.ts";
+import { pinnedInitialImportUpstream } from "../scripts/validate-engineering-language.ts";
 
 const policy = parseOwnershipPolicy(
   JSON.parse(readFileSync("policies/engineering-ownership.json", "utf8")) as unknown
@@ -218,6 +220,70 @@ test("privileged CI blocks deleting central workflow and manifest even without s
     );
     assert.deepEqual(requests, ["repos/fongap-labs/dsh-plugin/compare/" + base + "..." + head]);
   }
+});
+
+test("pinned Delta first-import uses complete immutable Git trees and keeps local test bans", async () => {
+  const bootstrap = "7556dc8dfede03053e35359f2b55dd299da1f3ee";
+  const upstream = pinnedInitialImportUpstream("fongap-labs/delta", bootstrap);
+  assert.ok(upstream);
+  assert.equal(pinnedInitialImportUpstream("fongap-labs/ai-gateway", bootstrap), null);
+  assert.equal(pinnedInitialImportUpstream("fongap-labs/delta", base), null);
+
+  const upstreamTreeSha = "c".repeat(40);
+  const headTreeSha = "d".repeat(40);
+  const blob = "e".repeat(40);
+  const upstreamTree = {
+    sha: upstreamTreeSha,
+    truncated: false,
+    tree: [{ path: "src/index.ts", type: "blob", mode: "100644", sha: blob }],
+  };
+  const headTree = {
+    sha: headTreeSha,
+    truncated: false,
+    tree: [
+      { path: "src/index.ts", type: "blob", mode: "100644", sha: blob },
+      { path: "docs/change.md", type: "blob", mode: "100644", sha: "f".repeat(40) },
+    ],
+  };
+  const requested: string[] = [];
+  const get = async (path: string): Promise<unknown> => {
+    requested.push(path);
+    if (path.endsWith("/git/commits/" + upstream)) {
+      return { sha: upstream, tree: { sha: upstreamTreeSha } };
+    }
+    if (path.endsWith("/git/commits/" + head)) {
+      return { sha: head, tree: { sha: headTreeSha } };
+    }
+    if (path.endsWith("/git/trees/" + upstreamTreeSha + "?recursive=1")) return upstreamTree;
+    if (path.endsWith("/git/trees/" + headTreeSha + "?recursive=1")) return headTree;
+    throw new Error("Unexpected Git API access: " + path);
+  };
+  assert.deepEqual(await comparePinnedFileTrees("fongap-labs/delta", upstream, head, get), [
+    { status: "A", path: "docs/change.md", sha: "f".repeat(40) },
+  ]);
+  assert.equal(requested.length, 4);
+  requested.length = 0;
+  await checkGithubEngineeringOwnership(
+    "fongap-labs/delta",
+    bootstrap,
+    head,
+    policy,
+    get,
+    (path) => readFileSync(path, "utf8")
+  );
+  assert.equal(requested.length, 4);
+  assert.ok(requested.every((path) => !path.includes("/compare/")));
+
+  await assert.rejects(
+    comparePinnedFileTrees("fongap-labs/delta", upstream, head, async (path) =>
+      path.includes("/commits/")
+        ? path.endsWith(upstream)
+          ? { sha: upstream, tree: { sha: upstreamTreeSha } }
+          : { sha: head, tree: { sha: headTreeSha } }
+        : { ...headTree, sha: path.includes(upstreamTreeSha) ? upstreamTreeSha : headTreeSha, truncated: true }
+    ),
+    /incomplete/
+  );
 });
 
 test("control repo is exempt; invalid input fails closed", async () => {

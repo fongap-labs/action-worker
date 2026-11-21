@@ -9,6 +9,7 @@ import {
 } from "./central-engineering-gate.ts";
 import { decodeGithubContent, getGithubJson, isJsonRecord } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
+import { pinnedInitialImportUpstream } from "./validate-engineering-language.ts";
 
 const SHA = /^[a-f0-9]{40}$/;
 const REPOSITORY = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
@@ -51,6 +52,94 @@ export function parseCompareFiles(response: unknown): ChangedFile[] {
   return mapped;
 }
 
+type GitTreeFile = { readonly sha: string; readonly mode: string; readonly type: string };
+
+async function readVerifiedFileTree(
+  repository: string,
+  commitSha: string,
+  get: (path: string) => Promise<unknown>
+): Promise<Map<string, GitTreeFile>> {
+  const prefix = "repos/" + repository + "/git/";
+  const commit = await get(prefix + "commits/" + commitSha);
+  if (
+    !isJsonRecord(commit) ||
+    commit.sha !== commitSha ||
+    !isJsonRecord(commit.tree) ||
+    typeof commit.tree.sha !== "string" ||
+    !SHA.test(commit.tree.sha)
+  ) {
+    throw new CliError("Pinned engineering comparison cannot verify commit tree identity.", 65);
+  }
+  const treeSha = commit.tree.sha;
+  const snapshot = await get(prefix + "trees/" + treeSha + "?recursive=1");
+  if (
+    !isJsonRecord(snapshot) ||
+    snapshot.sha !== treeSha ||
+    snapshot.truncated !== false ||
+    !Array.isArray(snapshot.tree) ||
+    snapshot.tree.length > 100000
+  ) {
+    throw new CliError("Pinned engineering file tree is incomplete or untrusted.", 65);
+  }
+  const files = new Map<string, GitTreeFile>();
+  const seen = new Set<string>();
+  for (const entry of snapshot.tree) {
+    if (
+      !isJsonRecord(entry) ||
+      typeof entry.path !== "string" ||
+      !entry.path ||
+      entry.path.startsWith("/") ||
+      entry.path.includes("\\") ||
+      entry.path.split("/").includes("..") ||
+      typeof entry.sha !== "string" ||
+      !SHA.test(entry.sha) ||
+      typeof entry.mode !== "string" ||
+      !["blob", "tree", "commit"].includes(String(entry.type)) ||
+      seen.has(entry.path)
+    ) {
+      throw new CliError("Pinned engineering file tree has an invalid entry.", 65);
+    }
+    seen.add(entry.path);
+    if (entry.type !== "tree") {
+      files.set(entry.path, { sha: entry.sha, mode: entry.mode, type: String(entry.type) });
+    }
+  }
+  return files;
+}
+
+export async function comparePinnedFileTrees(
+  repository: string,
+  upstream: string,
+  head: string,
+  get: (path: string) => Promise<unknown>
+): Promise<ChangedFile[]> {
+  if (!REPOSITORY.test(repository) || !SHA.test(upstream) || !SHA.test(head)) {
+    throw new CliError("Pinned engineering comparison has invalid identities.", 65);
+  }
+  const [original, next] = await Promise.all([
+    readVerifiedFileTree(repository, upstream, get),
+    readVerifiedFileTree(repository, head, get),
+  ]);
+  const results: ChangedFile[] = [];
+  const paths = new Set([...original.keys(), ...next.keys()]);
+  for (const path of [...paths].sort()) {
+    const before = original.get(path);
+    const after = next.get(path);
+    if (!after && before) {
+      results.push({ status: "D", path });
+    } else if (after && !before) {
+      results.push({ status: "A", path, sha: after.sha });
+    } else if (before && after) {
+      if (before.sha === after.sha && before.mode === after.mode && before.type === after.type) {
+        continue;
+      }
+      const status = before.mode !== after.mode || before.type !== after.type ? "T" : "M";
+      results.push({ status, path, sha: after.sha });
+    }
+  }
+  return results;
+}
+
 export async function checkGithubEngineeringOwnership(
   repository: string,
   base: string,
@@ -63,29 +152,32 @@ export async function checkGithubEngineeringOwnership(
     throw new CliError("Invalid immutable engineering gate inputs.", 65);
   }
   if (repository === policy.control_repository) return;
-  const result = await get("repos/" + repository + "/compare/" + base + "..." + head);
-  // GitHub's compare endpoint returns base_commit, merge_base_commit and an
-  // ordered commits array, NOT a head_commit field. The final comparison
-  // commit is the exact requested head only when the list is complete.
-  // Comparisons with >250 commits are truncated by GitHub: fail closed.
-  const commits = isJsonRecord(result) && Array.isArray(result.commits) ? result.commits : [];
-  const lastCommit = commits.length > 0 ? commits[commits.length - 1] : null;
-  if (
-    !isJsonRecord(result) ||
-    !isJsonRecord(result.base_commit) ||
-    result.base_commit.sha !== base ||
-    !Number.isSafeInteger(result.total_commits) ||
-    result.total_commits !== commits.length ||
-    commits.length === 0 ||
-    commits.length > 250 ||
-    !isJsonRecord(lastCommit) ||
-    lastCommit.sha !== head ||
-    (result.head_commit !== undefined &&
-      (!isJsonRecord(result.head_commit) || result.head_commit.sha !== head))
-  ) {
-    throw new CliError("GitHub comparison does not match the immutable CI revision.", 65);
+  const pinnedUpstream = pinnedInitialImportUpstream(repository, base);
+  let files: ChangedFile[];
+  if (pinnedUpstream !== null) {
+    files = await comparePinnedFileTrees(repository, pinnedUpstream, head, get);
+  } else {
+    const result = await get("repos/" + repository + "/compare/" + base + "..." + head);
+    // GitHub Compare exposes only bounded commit and file inventories.
+    const commits = isJsonRecord(result) && Array.isArray(result.commits) ? result.commits : [];
+    const lastCommit = commits.length > 0 ? commits[commits.length - 1] : null;
+    if (
+      !isJsonRecord(result) ||
+      !isJsonRecord(result.base_commit) ||
+      result.base_commit.sha !== base ||
+      !Number.isSafeInteger(result.total_commits) ||
+      result.total_commits !== commits.length ||
+      commits.length === 0 ||
+      commits.length > 250 ||
+      !isJsonRecord(lastCommit) ||
+      lastCommit.sha !== head ||
+      (result.head_commit !== undefined &&
+        (!isJsonRecord(result.head_commit) || result.head_commit.sha !== head))
+    ) {
+      throw new CliError("GitHub comparison does not match the immutable CI revision.", 65);
+    }
+    files = parseCompareFiles(result);
   }
-  const files = parseCompareFiles(result);
   // Private workflow pins are checked using GitHub's commit-bound blob identity.
   // Never fetch private workflow contents into the public control runner.
   const contents = new Map<string, string>();
