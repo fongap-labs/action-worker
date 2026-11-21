@@ -20,7 +20,7 @@ pnpm run build:lib:host
 
 # A newly declared Delta Code bundle must produce a loadable Host entry and
 # a Client entry. Older revisions without bundle metadata remain testable.
-if node -e "const p=require('./packages/plugin/delta-code/package.json'); process.exit(p.dsh?.bundle?.patch === './cordis.patch.yml' ? 0 : 1)"; then
+if [[ -f packages/plugin/shared/tsdown.config.ts ]]; then
   pnpm --filter @fongap-labs/delta-plugin-shared run build
   test -s packages/plugin/shared/lib/index.js
   pnpm --filter @fongap-labs/delta-code run build
