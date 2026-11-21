@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { test } from "node:test";
@@ -59,4 +59,16 @@ test("unchanged legacy paths may be edited, but newly introduced paths must foll
   } finally {
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("Delta imported naming checks use the same pinned upstream baseline at all layers", async () => {
+  const source = await readFile(resolve("scripts/validate-naming-rules.ts"), "utf8");
+  assert.match(
+    source,
+    /const comparisonBase = await resolveEngineeringDiffBase\(base, process\.cwd\(\)\)/
+  );
+  assert.match(source, /"--diff-filter=ACMR",\s*comparisonBase,\s*head/);
+  assert.match(source, /"--diff-filter=ACR",\s*comparisonBase,\s*head/);
+  assert.match(source, /"validate-source-naming\.py"\),\s*comparisonBase,\s*head/);
+  assert.match(source, /validateConfigNames\(comparisonBase, head\)/);
 });
