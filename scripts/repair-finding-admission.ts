@@ -46,7 +46,7 @@ export async function admitRepairFinding(
   reader: JsonReader,
   finding: RepairFinding,
   key: Buffer | null,
-  requireExactIssueMarker = false
+  shouldRequireExactIssueMarker = false
 ): Promise<RepairAdmission> {
   const repository = finding.repository.trim().toLowerCase();
   if (
@@ -99,7 +99,7 @@ export async function admitRepairFinding(
     throw new CliError("Repair finding must refer to an existing open Issue.", 75);
   }
   if (
-    requireExactIssueMarker &&
+    shouldRequireExactIssueMarker &&
     !hasExactRepairIssueMarker(issue.body, finding.failure_run_id, finding.failure_head_sha)
   ) {
     throw new CliError("Repair Issue failure marker changed before admission.", 75);
