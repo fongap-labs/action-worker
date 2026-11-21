@@ -469,6 +469,12 @@ export function createScopedRepairLedgerStore(
   controlRepository: string,
   env: NodeJS.ProcessEnv = process.env
 ): RepairLedgerStore {
+  if (
+    !env.GITHUB_REPOSITORY ||
+    env.GITHUB_REPOSITORY.toLowerCase() !== controlRepository.toLowerCase()
+  ) {
+    throw new CliError("Repair ledger writes are restricted to the current control repository.", 77);
+  }
   const token = requireToken("branch", env);
   return new RepairLedgerStore(
     new GitHubRepairLedgerGitApi(controlRepository, token, env.GITHUB_API_URL)
