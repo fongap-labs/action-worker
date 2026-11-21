@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
-import { verifiedRepairPostMergeDigest } from "../scripts/repair-main-ci.ts";
 import { RepairLedgerStore } from "../scripts/repair-ledger-store.ts";
 import {
   applyRepairLedgerEvent,
   createRepairLedgerEntry,
 } from "../scripts/repair-lifecycle-ledger.ts";
+import { verifiedRepairPostMergeDigest } from "../scripts/repair-main-ci.ts";
 import { attestFixtureStatuses } from "./attested-status-fixtures.ts";
 
 const repository = "fongap-labs/target";
