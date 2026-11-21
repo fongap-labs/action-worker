@@ -239,3 +239,11 @@ AI Review 不得拥有 main 写入、合并、Release 或 Deploy 权限。
 - 业务仓库桥接模板：`05_INTEGRATION_GUIDE.md` §8
 - Release/Deploy 下游要求：`06_RELEASE_DEPLOY_GUIDE.md` §3
 - 共用治理宪法：`01_SHARED_GOVERNANCE.md` §3
+
+## 12. Delta 单次历史迁移
+
+经仓库维护者对 [Action Workers #1924](https://github.com/fongap-labs/action-worker/issues/1924) 的明确授权，仅允许 `fongap-labs/delta` 从已备份的 `dee27ea15004fc905c9f4ad0e1c01cfca67c571f` 切换到 `decc6ee1388df99d2769024ac78b0f153ab8800d`。两者 Git 文件树必须同为 `067d3c2c52b62dd7c5d275b8f36221c9469dd24f`，且新历史须完整继承 `2e39e70496aa02986ca6a820c5d497e816b69d7e`。七组历史快照和所有冻结分支引用均按 `policies/delta-history-migration.json` 核查。
+
+执行前，旧 `main` 的 Main Write Guard 和 CI Evidence 必须仍为有效签名成功状态；原始 PR #9 的治理签名和合并事实也必须成立。独立 Windows Runner 必须实际成功构建并验证未签名便携 ZIP。只有上述证据全部成立，Action Workers 管理环境才可短暂调整 Delta `main` 的规则集，并仅对上述固定 SHA 执行一次写入；结束后恢复完整中央规则集，再要求新 SHA 通过独立来源审计。
+
+任何分支移动、文件树差异、权限缺失、Windows 构建失败、证据缺失或规则集异常均必须停止，不能降级为人工布尔确认或私有工作流状态。执行失败时优先回滚到冻结 SHA，`restore` 作业独立重申所有受管理设置。此流程不适用于其他仓库或后续 SHA，禁止重复迁移、签发伪造 CI 状态或创建第二套合并权限。

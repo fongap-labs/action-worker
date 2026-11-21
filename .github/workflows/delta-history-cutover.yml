@@ -1,0 +1,195 @@
+name: 一次性 · Delta 历史迁移
+
+# This workflow starts only when the centrally reviewed one-time migration
+# workflow itself is merged. No generic on-demand force-push workflow exists.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/delta-history-cutover.yml
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: delta-history-one-time-cutover
+  cancel-in-progress: false
+
+jobs:
+  preflight:
+    name: Verify pinned Delta source and signed history
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout central reviewed policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Mint cross-repository read token
+        id: read
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: delta,action-worker
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-statuses: read
+          permission-issues: read
+      - name: Verify source and migration candidate
+        env:
+          AW_CONTROL_TOKEN: ${{ steps.read.outputs.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.read.outputs.token }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
+        run: node scripts/delta-history-cutover.ts preflight
+
+  windows:
+    needs: preflight
+    name: Verify Delta unsigned Windows portable package
+    runs-on: windows-2025
+    timeout-minutes: 90
+    steps:
+      - name: Mint pinned Delta source read token
+        id: read
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ vars.AW_APP_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: delta
+          permission-contents: read
+      - name: Checkout exact Delta migration candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fongap-labs/delta
+          ref: decc6ee1388df99d2769024ac78b0f153ab8800d
+          token: ${{ steps.read.outputs.token }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Build and verify Delta portable ZIP
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & ./packaging/portable/release-build-package.ps1 -Target 'x86_64-pc-windows-msvc' -Version 'v0.1.0-beta.1' -OutputDir "$env:RUNNER_TEMP/delta-history-proof"
+          if ($LASTEXITCODE -ne 0) { throw 'Portable build failed' }
+          $asset = Join-Path $env:RUNNER_TEMP 'delta-history-proof/delta-windows-x64-portable.zip'
+          if (-not (Test-Path -LiteralPath $asset -PathType Leaf)) { throw 'Portable ZIP was not created' }
+          $hash = (Get-FileHash -LiteralPath $asset -Algorithm SHA256).Hash
+          if ($hash -notmatch '^[A-Fa-f0-9]{64}$') { throw 'Invalid ZIP checksum' }
+          Write-Host 'Unsigned portable ZIP build and integrity verification passed.'
+
+  cutover:
+    needs: [preflight, windows]
+    name: One-time admin-controlled Delta main cutover
+    environment:
+      name: admin-ops
+      deployment: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout trusted central code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Mint read-only evidence token
+        id: read
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: delta,action-worker
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-statuses: read
+          permission-issues: read
+      - name: Cut over with exact SHA and ruleset restoration
+        env:
+          AW_ADMIN_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          AW_CONTROL_TOKEN: ${{ steps.read.outputs.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.read.outputs.token }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
+        run: node scripts/delta-history-cutover.ts cutover
+
+  restore:
+    needs: [preflight, windows, cutover]
+    if: always() && needs.cutover.result != 'skipped'
+    name: Independently reapply protected main policy
+    environment:
+      name: admin-ops
+      deployment: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout central managed ruleset policy
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Restore all Delta repository protection settings
+        env:
+          GH_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/apply-repository-settings.ts fongap-labs/delta false
+
+  confirm:
+    needs: [cutover, restore]
+    name: Verify new Delta main provenance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout central source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Mint read-only confirmation token
+        id: read
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: delta,action-worker
+          permission-contents: read
+          permission-actions: read
+          permission-pull-requests: read
+          permission-statuses: read
+          permission-issues: read
+      - name: Validate source trust and current main
+        env:
+          AW_CONTROL_TOKEN: ${{ steps.read.outputs.token }}
+          AW_STATUS_API_TOKEN: ${{ steps.read.outputs.token }}
+          AW_STATUS_KEYRING: ${{ secrets.AW_STATUS_KEYRING }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          for attempt in $(seq 1 5); do
+            if node scripts/delta-history-cutover.ts confirm; then
+              exit 0
+            fi
+            sleep 30
+          done
+          echo '::error::Delta main provenance did not receive signed Main Write Guard.'
+          exit 65
