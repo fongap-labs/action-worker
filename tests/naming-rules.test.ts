@@ -73,13 +73,13 @@ test("source naming checks new violations but preserves unchanged inherited iden
     await mkdir(join(root, "apps/desktop/src"), { recursive: true });
     const legacy = join(root, "apps/desktop/src/legacy-engine.ts");
     const original =
-      "export function launch(ready: boolean) { const moved = true; return ready && moved; }\\n";
+      "export function launch(ready: boolean) { const moved = true; return ready && moved; }\n";
     await writeFile(legacy, original);
     git("add", ".");
     git("commit", "-qm", "baseline includes inherited identifiers");
     const base = git("rev-parse", "HEAD");
 
-    await writeFile(legacy, original + "export const isReady = true;\\n");
+    await writeFile(legacy, original + "export const isReady = true;\n");
     git("add", ".");
     git("commit", "-qm", "edit legacy file without adding bad names");
     const head = git("rev-parse", "HEAD");
@@ -89,7 +89,7 @@ test("source naming checks new violations but preserves unchanged inherited iden
     });
     assert.equal(allowed.status, 0, allowed.stdout + allowed.stderr);
 
-    await writeFile(legacy, original + "export const isReady = true;\\nconst blocked = false;\\n");
+    await writeFile(legacy, original + "export const isReady = true;\nconst blocked = false;\n");
     git("add", ".");
     git("commit", "-qm", "introduce new invalid boolean name");
     const next = git("rev-parse", "HEAD");
