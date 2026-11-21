@@ -31,7 +31,9 @@ type InstalledRepository = {
 };
 
 function safeCount(value: unknown, limit: number): number {
-  if (!isJsonRecord(value)) throw new CliError("Invalid GitHub discovery response.", 65);
+  if (!isJsonRecord(value) || typeof value.total_count !== "number") {
+    throw new CliError("Invalid GitHub discovery response.", 65);
+  }
   const count = getJsonNumber(value, "total_count");
   if (!Number.isSafeInteger(count) || count < 0 || count > limit) {
     throw new CliError("GitHub discovery exceeds its bounded scan budget.", 75);
