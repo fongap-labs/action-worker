@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: Delta 上游镜像恢复原有仓库限定 GitHub App 身份以替代经实测返回 403 的 AW_ADMIN_TOKEN；保留维护工作流既有触发约束，镜像仍须等待现有 App 的 Workflows 写权限获得批准。
+
 - 修复: Delta 完整上游镜像复用现有 admin-ops 环境中的 AW_ADMIN_TOKEN，删除无法获得 Workflows 写权限的 App Token 申请；保持完整 Git 历史、工作流安全检查及非强制推送，仅更新独立上游镜像分支。
 
 - 修复: 对 Delta 完整上游镜像显式申请 Workflows 写权限；GitHub 已确认现有 App 安装缺少该授权，未经管理员批准时保持失败而不转为删减快照。
