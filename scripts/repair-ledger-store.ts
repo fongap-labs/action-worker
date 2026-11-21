@@ -1,3 +1,4 @@
+import type { JsonReader } from "./ci-evidence.ts";
 import { requireToken } from "./control-token.ts";
 import {
   decodeGithubContent,
@@ -8,6 +9,7 @@ import {
   isGithubMissing,
   isJsonRecord,
 } from "./github-api.ts";
+import { verifiedRepairCiDigest } from "./repair-ledger-ci.ts";
 import {
   applyRepairLedgerEvent,
   type RepairEvent,
@@ -351,13 +353,42 @@ export class RepairLedgerStore {
     now: string,
     key: Buffer | null
   ): Promise<RepairLedgerSnapshot> {
-    const current = validateRepairLedgerDocument(snapshot.document);
     if (event.kind === "ci-verified") {
       throw new CliError(
         "Repair completion requires trusted current-head GitHub CI verification.",
         77
       );
     }
+    return this.applyEvent(snapshot, event, now, key);
+  }
+
+  async completeWithVerifiedCi(
+    snapshot: RepairLedgerSnapshot,
+    reader: JsonReader,
+    controlRepository: string,
+    now: string,
+    key: Buffer | null
+  ): Promise<RepairLedgerSnapshot> {
+    const digest = await verifiedRepairCiDigest(reader, snapshot.document, controlRepository);
+    const { head_sha: headSha, ci_run_id: runId } = snapshot.document.entry;
+    if (headSha === null || runId === null) {
+      throw new CliError("Repair task has no current CI identity.", 65);
+    }
+    return this.applyEvent(
+      snapshot,
+      { kind: "ci-verified", headSha, runId, evidenceSha256: digest },
+      now,
+      key
+    );
+  }
+
+  private async applyEvent(
+    snapshot: RepairLedgerSnapshot,
+    event: RepairEvent,
+    now: string,
+    key: Buffer | null
+  ): Promise<RepairLedgerSnapshot> {
+    const current = validateRepairLedgerDocument(snapshot.document);
     if (snapshot.is_private && key === null) {
       throw new CliError("Private repair ledger requires AW_ARTIFACT_KEY.", 77);
     }
