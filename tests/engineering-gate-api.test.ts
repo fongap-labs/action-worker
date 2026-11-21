@@ -158,9 +158,16 @@ test("private workflow ownership checks commit-bound blobs without downloading p
     }
     throw new Error("Private source file must never be downloaded by the public control gate.");
   };
-  await checkGithubEngineeringOwnership(pin.repository, base, head, privateFixturePolicy, fetch, () => {
-    throw new Error("Private workflow must not become a public template.");
-  });
+  await checkGithubEngineeringOwnership(
+    pin.repository,
+    base,
+    head,
+    privateFixturePolicy,
+    fetch,
+    () => {
+      throw new Error("Private workflow must not become a public template.");
+    }
+  );
   assert.deepEqual(calls, ["repos/" + pin.repository + "/compare/" + base + "..." + head]);
   for (const sha of [undefined, "b".repeat(40)]) {
     await assert.rejects(
