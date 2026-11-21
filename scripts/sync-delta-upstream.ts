@@ -11,7 +11,11 @@ const SOURCE_REF = "refs/heads/master";
 const MIRROR_REF = "refs/heads/upstream/deepseek-harness";
 const MIRROR_BRANCH = "upstream/deepseek-harness";
 
-function run(command: string, args: string[], options?: { timeout?: number; env?: NodeJS.ProcessEnv }): string {
+function run(
+  command: string,
+  args: string[],
+  options?: { timeout?: number; env?: NodeJS.ProcessEnv }
+): string {
   return execFileSync(command, args, {
     encoding: "utf8",
     maxBuffer: 8 * 1024 * 1024,
@@ -61,8 +65,17 @@ export function isSafeMirrorWorkflow(source: string, branch = MIRROR_BRANCH): bo
 
 function assertSafeWorkflowTriggers(repository: string): number {
   const files = run("git", [
-    `--git-dir=${repository}`, "ls-tree", "-r", "--name-only", SOURCE_REF, "--", ".github/workflows",
-  ]).trim().split("\n").filter((name) => /\.ya?ml$/.test(name));
+    `--git-dir=${repository}`,
+    "ls-tree",
+    "-r",
+    "--name-only",
+    SOURCE_REF,
+    "--",
+    ".github/workflows",
+  ])
+    .trim()
+    .split("\n")
+    .filter((name) => /\.ya?ml$/.test(name));
   for (const path of files) {
     const source = run("git", [`--git-dir=${repository}`, "show", `${SOURCE_REF}:${path}`]);
     if (!isSafeMirrorWorkflow(source)) {
@@ -87,27 +100,37 @@ async function main(): Promise<void> {
 
     // No force: upstream history rewrites or mirror divergence must fail visibly.
     // The app token is supplied via the GitHub CLI credential helper, not a URL.
-    const output = run("git", [
-      `--git-dir=${mirror}`,
-      "-c", "credential.helper=!gh auth git-credential",
-      "push", "--porcelain", TARGET, `${SOURCE_REF}:${MIRROR_REF}`,
-    ], {
-      timeout: 900_000,
-      env: {
-        ...process.env,
-        GH_TOKEN: token,
-        GIT_TERMINAL_PROMPT: "0",
-      },
-    });
-    console.log(JSON.stringify({
-      source: "deepseek-ai/deepseek-harness",
-      source_ref: SOURCE_REF,
-      destination: "fongap-labs/delta",
-      destination_ref: MIRROR_REF,
-      sha,
-      checked_workflows: count,
-      status: output.includes("[up to date]") ? "unchanged" : "synced",
-    }));
+    const output = run(
+      "git",
+      [
+        `--git-dir=${mirror}`,
+        "-c",
+        "credential.helper=!gh auth git-credential",
+        "push",
+        "--porcelain",
+        TARGET,
+        `${SOURCE_REF}:${MIRROR_REF}`,
+      ],
+      {
+        timeout: 900_000,
+        env: {
+          ...process.env,
+          GH_TOKEN: token,
+          GIT_TERMINAL_PROMPT: "0",
+        },
+      }
+    );
+    console.log(
+      JSON.stringify({
+        source: "deepseek-ai/deepseek-harness",
+        source_ref: SOURCE_REF,
+        destination: "fongap-labs/delta",
+        destination_ref: MIRROR_REF,
+        sha,
+        checked_workflows: count,
+        status: output.includes("[up to date]") ? "unchanged" : "synced",
+      })
+    );
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -115,7 +138,10 @@ async function main(): Promise<void> {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   main().catch((error: unknown) => {
-    console.error("Delta upstream mirror failed:", error instanceof Error ? error.message : String(error));
+    console.error(
+      "Delta upstream mirror failed:",
+      error instanceof Error ? error.message : String(error)
+    );
     process.exitCode = 1;
   });
 }
