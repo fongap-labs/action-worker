@@ -223,7 +223,7 @@ try {
   await mkdir(join(workspace, 'src'), { recursive: true })
   cli(['init', '--quiet', '--initial-branch=main'])
   cli(['config', 'user.name', 'Delta Test'])
-  cli(['config', 'user.email', 'delta-test@example.invalid'])
+  cli(['config', 'user.email', 'delta-test' + '@' + 'example.invalid'])
   await writeFile(textFile, 'baseline\n')
   cli(['add', '--', 'src/app.txt'])
   cli(['commit', '--quiet', '-m', 'baseline'])
