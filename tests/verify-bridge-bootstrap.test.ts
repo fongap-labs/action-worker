@@ -18,7 +18,7 @@ test("trusted first-time bridge onboarding permits only approved bridge and chan
   );
 });
 
-test("bootstrap cannot substitute for testing changed source, build scripts or renamed paths", () => {
+test("bootstrap rejects source files, build scripts and renamed changes", () => {
   for (const files of [
     [bridge],
     [bridge, changelog, "src/index.ts"],
