@@ -123,10 +123,7 @@ export async function executeManifestLinuxCi(
 if (isMain(import.meta.url)) {
   const [target = "", control = "", base = "", head = "", shard = "all"] = process.argv.slice(2);
   if (!target || !control || !/^[0-9a-f]{40}$/.test(base) || !/^[0-9a-f]{40}$/.test(head)) {
-    throw new CliError(
-      "Usage: execute-linux-ci.ts <target> <control> <base> <head> [shard]",
-      64
-    );
+    throw new CliError("Usage: execute-linux-ci.ts <target> <control> <base> <head> [shard]", 64);
   }
   executeManifestLinuxCi(target, control, base, head, shard).catch(handleError);
 }
