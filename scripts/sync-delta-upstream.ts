@@ -16,13 +16,30 @@ function run(
   args: string[],
   options?: { timeout?: number; env?: NodeJS.ProcessEnv }
 ): string {
-  return execFileSync(command, args, {
-    encoding: "utf8",
-    maxBuffer: 8 * 1024 * 1024,
-    timeout: options?.timeout ?? 60_000,
-    env: options?.env ?? process.env,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  try {
+    return execFileSync(command, args, {
+      encoding: "utf8",
+      maxBuffer: 8 * 1024 * 1024,
+      timeout: options?.timeout ?? 60_000,
+      env: options?.env ?? process.env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    if (command === "git" && args.includes("push")) {
+      const failure = error as { stdout?: unknown; stderr?: unknown };
+      const combined = [failure.stdout, failure.stderr]
+        .filter((part) => typeof part === "string" || Buffer.isBuffer(part))
+        .map((part) => String(part))
+        .join("\n")
+        .replace(/(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]+/gu, "[REDACTED]");
+      const lines = combined
+        .split("\n")
+        .filter((line) => /(?:remote:|rejected|permission|workflows|fatal:|error:|unpack)/iu.test(line))
+        .slice(-12);
+      console.error("Mirror Git push diagnostics:", lines.join(" | ").slice(0, 2400));
+    }
+    throw error;
+  }
 }
 
 /**
