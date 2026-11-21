@@ -532,7 +532,7 @@ test("PR workflow uses TypeScript controls and preserves ordering", async () => 
   assert.equal(workflow.includes("- name: Dispatch AI review"), false);
   assert.ok(
     workflow.includes(
-      'node scripts/resolve-pr-plan.ts "$CONTEXT_JSON" inherit off inherit auto auto'
+      "node scripts/resolve-pr-plan.ts @pr-context-file inherit off inherit auto auto"
     )
   );
   assert.match(
