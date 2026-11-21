@@ -22,19 +22,21 @@ export interface RepairLedgerEntry {
   readonly root_cause_evidence_sha256: string | null;
   readonly ci_evidence_sha256: string | null;
   readonly head_sha: string | null;
+  readonly base_sha: string | null;
   readonly pr_number: number | null;
   readonly ci_run_id: number | null;
   readonly ci_head_sha: string | null;
+  readonly ci_base_sha: string | null;
   readonly blocked_reason: RepairBlock | null;
   readonly updated_at: string;
 }
 
 export type RepairEvent =
   | { kind: "root-cause-verified"; evidenceSha256: string }
-  | { kind: "repair-created"; headSha: string; prNumber: number }
-  | { kind: "ci-started"; headSha: string; runId: number }
-  | { kind: "ci-verified"; headSha: string; runId: number; evidenceSha256: string }
-  | { kind: "head-updated"; headSha: string }
+  | { kind: "repair-created"; headSha: string; baseSha: string; prNumber: number }
+  | { kind: "ci-started"; headSha: string; baseSha: string; runId: number }
+  | { kind: "ci-verified"; headSha: string; baseSha: string; runId: number; evidenceSha256: string }
+  | { kind: "head-updated"; headSha: string; baseSha: string }
   | { kind: "blocked"; reason: RepairBlock }
   | { kind: "unblocked" };
 
@@ -80,9 +82,11 @@ export function createRepairLedgerEntry(
     root_cause_evidence_sha256: null,
     ci_evidence_sha256: null,
     head_sha: null,
+    base_sha: null,
     pr_number: null,
     ci_run_id: null,
     ci_head_sha: null,
+    ci_base_sha: null,
     blocked_reason: null,
     updated_at: now,
   };
@@ -116,21 +120,39 @@ export function applyRepairLedgerEvent(
     case "repair-created":
       if (current.stage !== "diagnosed") throw new Error("Repair requires verified root cause.");
       assertHead(event.headSha);
+      assertHead(event.baseSha);
       assertPositive(event.prNumber);
-      change = { stage: "repairing", head_sha: event.headSha, pr_number: event.prNumber };
+      change = {
+        stage: "repairing",
+        head_sha: event.headSha,
+        base_sha: event.baseSha,
+        pr_number: event.prNumber,
+      };
       break;
     case "ci-started":
-      if (current.stage !== "repairing" || event.headSha !== current.head_sha) {
+      if (
+        current.stage !== "repairing" ||
+        event.headSha !== current.head_sha ||
+        event.baseSha !== current.base_sha
+      ) {
         throw new Error("CI must test the current repair head.");
       }
       assertPositive(event.runId);
-      change = { stage: "ci_verifying", ci_run_id: event.runId, ci_head_sha: event.headSha };
+      assertHead(event.baseSha);
+      change = {
+        stage: "ci_verifying",
+        ci_run_id: event.runId,
+        ci_head_sha: event.headSha,
+        ci_base_sha: event.baseSha,
+      };
       break;
     case "ci-verified":
       if (
         current.stage !== "ci_verifying" ||
         event.headSha !== current.head_sha ||
+        event.baseSha !== current.base_sha ||
         event.headSha !== current.ci_head_sha ||
+        event.baseSha !== current.ci_base_sha ||
         event.runId !== current.ci_run_id
       ) {
         throw new Error("CI evidence is stale or belongs to a different run.");
@@ -144,8 +166,18 @@ export function applyRepairLedgerEvent(
         throw new Error("Head updates require an existing repair.");
       }
       assertHead(event.headSha);
-      if (event.headSha === current.head_sha) throw new Error("Head SHA did not change.");
-      change = { stage: "repairing", head_sha: event.headSha, ci_run_id: null, ci_head_sha: null };
+      assertHead(event.baseSha);
+      if (event.headSha === current.head_sha && event.baseSha === current.base_sha) {
+        throw new Error("Repair head and base SHAs did not change.");
+      }
+      change = {
+        stage: "repairing",
+        head_sha: event.headSha,
+        base_sha: event.baseSha,
+        ci_run_id: null,
+        ci_head_sha: null,
+        ci_base_sha: null,
+      };
       break;
     case "blocked":
       change = { blocked_reason: event.reason };
