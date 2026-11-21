@@ -167,8 +167,8 @@ test("only approved entry, diagnostics and private operations expose manual disp
         if?: string;
       };
       assert.deepEqual(job.environment, { name: "admin-ops", deployment: false });
-      assert.match(job.if ?? "", /github\\.repository == 'fongap-labs\\/action-worker'/);
-      assert.match(job.if ?? "", /github\\.ref == 'refs\\/heads\\/main'/);
+      assert.match(job.if ?? "", /github\.repository == 'fongap-labs\/action-worker'/);
+      assert.match(job.if ?? "", /github\.ref == 'refs\/heads\/main'/);
       const source = await readFile(`${workflowDirectory}/${file}`, "utf8");
       assert.match(source, /permission-contents: read/);
       assert.match(source, /permission-contents: write/);
