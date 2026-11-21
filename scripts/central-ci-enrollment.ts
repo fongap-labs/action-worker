@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { decodeGithubContent, GithubReader, isGithubMissing, isJsonRecord } from "./github-api.ts";
+import {
+  decodeGithubContent,
+  GithubHttpError,
+  GithubReader,
+  isGithubMissing,
+  isJsonRecord,
+} from "./github-api.ts";
 import { appendLines, CliError, isMain } from "./runtime-command.ts";
 import { type InventoryRepo, readInstallationInventory } from "./security-coverage-audit.ts";
 
@@ -65,12 +71,45 @@ async function hasPendingBridgePullRequest(
   return false;
 }
 
-async function missingBridges(
+/** A 409 is deferred only when an independent repository read confirms an empty Git repo. */
+async function hasInitializedMain(
+  reader: Pick<GithubReader, "get">,
+  repository: string
+): Promise<boolean> {
+  try {
+    const ref = await reader.get("repos/" + repository + "/git/ref/heads/main");
+    if (
+      !isJsonRecord(ref) ||
+      !isJsonRecord(ref.object) ||
+      typeof ref.object.sha !== "string" ||
+      !/^[a-f0-9]{40}$/.test(ref.object.sha)
+    ) {
+      throw new CliError("Central CI main reference is invalid.", 77);
+    }
+    return true;
+  } catch (error) {
+    if (!(error instanceof GithubHttpError) || error.status !== 409) throw error;
+    const metadata = await reader.get("repos/" + repository);
+    if (
+      !isJsonRecord(metadata) ||
+      metadata.full_name !== repository ||
+      metadata.default_branch !== "main" ||
+      metadata.size !== 0 ||
+      metadata.archived !== false
+    ) {
+      throw new CliError("Central CI 409 is not a verified empty repository.", 77);
+    }
+    return false;
+  }
+}
+
+export async function missingBridges(
   reader: Pick<GithubReader, "get">,
   candidates: readonly BridgeTarget[]
-): Promise<{ targets: BridgeTarget[]; pending: number }> {
+): Promise<{ targets: BridgeTarget[]; pending: number; uninitialized: number }> {
   const targets: BridgeTarget[] = [];
   let pending = 0;
+  let uninitialized = 0;
   for (const candidate of candidates) {
     try {
       const response = await reader.get(
@@ -81,11 +120,16 @@ async function missingBridges(
       }
     } catch (error) {
       if (!isGithubMissing(error)) throw error;
-      if (await hasPendingBridgePullRequest(reader, candidate.repository)) pending++;
-      else targets.push(candidate);
+      if (await hasPendingBridgePullRequest(reader, candidate.repository)) {
+        pending++;
+      } else if (await hasInitializedMain(reader, candidate.repository)) {
+        targets.push(candidate);
+      } else {
+        uninitialized++;
+      }
     }
   }
-  return { targets, pending };
+  return { targets, pending, uninitialized };
 }
 
 async function approvedBridgeTemplate(): Promise<string> {
@@ -263,7 +307,7 @@ async function main(): Promise<void> {
   const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
   const inventory = await readInstallationInventory(reader);
   const candidates = selectBridgeCandidates(inventory, controlRepository);
-  const { targets: missing, pending } = await missingBridges(reader, candidates);
+  const { targets: missing, pending, uninitialized } = await missingBridges(reader, candidates);
   if (missing.length > 500) {
     throw new CliError("Central CI write token scope exceeds the safe batch limit.", 77);
   }
@@ -285,7 +329,9 @@ async function main(): Promise<void> {
         missing.length +
         " bridge PR candidates, " +
         pending +
-        " existing bridge PRs pending; identities withheld."
+        " existing bridge PRs pending, " +
+        uninitialized +
+        " empty repositories deferred without coverage; identities withheld."
     );
     return;
   }
