@@ -1,10 +1,6 @@
 import { createHash } from "node:crypto";
 import { isJsonRecord } from "./github-api.ts";
 import {
-  resolveEngineeringDiffBase,
-  type TrustedImportBaseline,
-} from "./validate-engineering-language.ts";
-import {
   CliError,
   handleError,
   isMain,
@@ -13,6 +9,10 @@ import {
   runText,
   runTextLines,
 } from "./runtime-command.ts";
+import {
+  resolveEngineeringDiffBase,
+  type TrustedImportBaseline,
+} from "./validate-engineering-language.ts";
 
 type NamedPattern = {
   name: string;

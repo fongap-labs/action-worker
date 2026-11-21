@@ -96,7 +96,11 @@ test("pinned initial-import baseline excludes inherited fixtures but scans chang
   await git(root, ["commit", "-qm", "verified upstream snapshot"]);
   const upstreamSha = await git(root, ["rev-parse", "HEAD"]);
 
-  await writeFile(join(root, "src/sample.txt"), "upstream example: " + inherited + "\nlocal change\n", "utf8");
+  await writeFile(
+    join(root, "src/sample.txt"),
+    "upstream example: " + inherited + "\nlocal change\n",
+    "utf8"
+  );
   await git(root, ["add", "."]);
   await git(root, ["commit", "-qm", "extend without changing inherited text"]);
   const head = await git(root, ["rev-parse", "HEAD"]);
