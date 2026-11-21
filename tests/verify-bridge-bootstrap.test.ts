@@ -48,6 +48,12 @@ test("bootstrap rejects changes to the approved template or approval policy", ()
     ])
   );
   assert.throws(() =>
-    assertBridgeBootstrap([bridge, changelog], [bridge], template, template, [...policy, ...policy])
+    assertBridgeBootstrap(
+      [bridge, changelog],
+      [bridge],
+      template,
+      template,
+      [...policy, ...policy]
+    )
   );
 });
