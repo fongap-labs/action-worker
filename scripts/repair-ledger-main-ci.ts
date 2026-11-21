@@ -5,14 +5,14 @@ import {
   type JsonReader,
   latestCiStatus,
   mainWriteGuardWorkflowPaths,
+  postMergeRemediationStatusPrefix,
 } from "./ci-evidence.ts";
 import { getJsonArray, getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
 import { loadGateContract } from "./governance-gate-contract.ts";
 import { verifiedRepairCiDigest } from "./repair-ledger-ci.ts";
 import type { RepairLedgerDocument } from "./repair-ledger-store.ts";
 import { CliError } from "./runtime-command.ts";
-import { originalStatusDescription, } from "./status-attestation.ts";
-import { postMergeRemediationStatusPrefix } from "./ci-evidence.ts";
+import { originalStatusDescription } from "./status-attestation.ts";
 
 const SHA = /^[a-f0-9]{40}$/;
 const contract = loadGateContract();
