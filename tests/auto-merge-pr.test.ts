@@ -91,6 +91,30 @@ test("signed current-head CI success authorizes zero-review automatic squash mer
   assert.doesNotThrow(() => verify(pull(), statuses()));
 });
 
+test("trusted governance run URL follows the configured control repository", () => {
+  const control = "example-org/control-plane";
+  const url = "https://github.com/" + control + "/actions/runs/123";
+  const customStatuses = {
+    statuses: [
+      status("PR Governance", "success", url),
+      status("CI Evidence", "success", ciUrl),
+      status("validate-merge", "success", url),
+    ],
+  };
+  assert.doesNotThrow(() =>
+    assertReadyForAutomaticMerge(
+      pull(),
+      customStatuses,
+      repository,
+      number,
+      headSha,
+      baseSha,
+      url,
+      control
+    )
+  );
+});
+
 test("signed no-CI gate verdict remains admissible for automatic merge", () => {
   const noCiStatuses = {
     statuses: [
