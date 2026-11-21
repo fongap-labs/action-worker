@@ -122,6 +122,66 @@ export async function fetchPublicGitInventory(
   }
 }
 
+/**
+ * An imported upstream snapshot can contain workflows that were never
+ * installed in the accepted product bootstrap. Deleting those inherited
+ * workflows is not deleting a centrally managed workflow.
+ *
+ * The immutable product bootstrap tree is the authority for that distinction.
+ * A missing or incomplete identity proof must fail closed.
+ */
+export async function filterInheritedWorkflowDeletions(
+  repository: string,
+  bootstrapSha: string,
+  files: readonly ChangedFile[],
+  policy: OwnershipPolicy,
+  get: (path: string) => Promise<unknown>
+): Promise<ChangedFile[]> {
+  if (!files.some((file) => file.status === "D" && policy.workflow_templates[file.path])) {
+    return [...files];
+  }
+  const prefix = "repos/" + repository + "/git/";
+  const commit = await get(prefix + "commits/" + bootstrapSha);
+  if (
+    !isJsonRecord(commit) ||
+    commit.sha !== bootstrapSha ||
+    !isJsonRecord(commit.tree) ||
+    typeof commit.tree.sha !== "string" ||
+    !SHA.test(commit.tree.sha)
+  ) {
+    throw new CliError("Cannot verify accepted bootstrap workflow baseline.", 65);
+  }
+  const treeSha = commit.tree.sha;
+  const tree = await get(prefix + "trees/" + treeSha + "?recursive=1");
+  if (
+    !isJsonRecord(tree) ||
+    tree.sha !== treeSha ||
+    tree.truncated !== false ||
+    !Array.isArray(tree.tree) ||
+    tree.tree.length > 100000
+  ) {
+    throw new CliError("Accepted bootstrap workflow inventory is incomplete.", 65);
+  }
+  const bootstrapPaths = new Set<string>();
+  for (const entry of tree.tree) {
+    if (
+      !isJsonRecord(entry) ||
+      typeof entry.path !== "string" ||
+      !entry.path ||
+      typeof entry.type !== "string" ||
+      !["blob", "tree", "commit"].includes(entry.type) ||
+      bootstrapPaths.has(entry.path)
+    ) {
+      throw new CliError("Accepted bootstrap workflow inventory is malformed.", 65);
+    }
+    bootstrapPaths.add(entry.path);
+  }
+  return files.filter(
+    (file) =>
+      file.status !== "D" || !policy.workflow_templates[file.path] || bootstrapPaths.has(file.path)
+  );
+}
+
 export function parseCompareFiles(response: unknown): ChangedFile[] {
   if (!isJsonRecord(response) || !Array.isArray(response.files)) {
     throw new CliError("GitHub comparison did not return a file inventory.", 65);
@@ -185,7 +245,13 @@ export async function checkGithubEngineeringOwnership(
     if (!targetIsPublic) {
       throw new CliError("Large Git inventory requires a verified public target.", 65);
     }
-    files = await fetchPublicDiff(repository, diffBase, head);
+    files = await filterInheritedWorkflowDeletions(
+      repository,
+      base,
+      await fetchPublicDiff(repository, diffBase, head),
+      policy,
+      get
+    );
   } else {
     const result = await get("repos/" + repository + "/compare/" + base + "..." + head);
     // GitHub's compare endpoint returns base_commit, merge_base_commit and an
