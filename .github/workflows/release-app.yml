@@ -37,7 +37,7 @@ jobs:
     outputs:
       source_repository: ${{ steps.request.outputs.source_repository }}
       source_sha: ${{ steps.request.outputs.source_sha }}
-      is_private: ${{ steps.source_visibility.outputs.is_private }}
+      is_private: ${{ steps.ingress.outputs.is_private }}
       version: ${{ steps.request.outputs.version }}
       artifact_name: ${{ steps.request.outputs.artifact_name }}
       target_repository: ${{ steps.request.outputs.target_repository }}
@@ -93,21 +93,6 @@ jobs:
           RELEASE_REQUESTED_VERSION: ${{ inputs.requested_version }}
           RELEASE_PRODUCT: ${{ inputs.product }}
         run: node scripts/resolve-release-build-ingress.ts
-
-      - name: Resolve release source visibility
-        id: source_visibility
-        env:
-          GH_TOKEN: ${{ steps.app_read.outputs.token }}
-          SOURCE_REPOSITORY: ${{ steps.ingress.outputs.source_repository }}
-        shell: bash
-        run: |
-          set -Eeuo pipefail
-          is_private="$(gh api "repos/$SOURCE_REPOSITORY" --jq '.private')"
-          [[ "$is_private" == "true" || "$is_private" == "false" ]] || {
-            echo "::error::Unable to verify release source visibility." >&2
-            exit 77
-          }
-          echo "is_private=$is_private" >> "$GITHUB_OUTPUT"
 
       - name: Resolve release source status scope
         id: api_scope
