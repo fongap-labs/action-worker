@@ -263,13 +263,8 @@ test("pinned Delta first-import uses complete immutable Git trees and keeps loca
   ]);
   assert.equal(requested.length, 4);
   requested.length = 0;
-  await checkGithubEngineeringOwnership(
-    "fongap-labs/delta",
-    bootstrap,
-    head,
-    policy,
-    get,
-    (path) => readFileSync(path, "utf8")
+  await checkGithubEngineeringOwnership("fongap-labs/delta", bootstrap, head, policy, get, (path) =>
+    readFileSync(path, "utf8")
   );
   assert.equal(requested.length, 4);
   assert.ok(requested.every((path) => !path.includes("/compare/")));
@@ -280,7 +275,11 @@ test("pinned Delta first-import uses complete immutable Git trees and keeps loca
         ? path.endsWith(upstream)
           ? { sha: upstream, tree: { sha: upstreamTreeSha } }
           : { sha: head, tree: { sha: headTreeSha } }
-        : { ...headTree, sha: path.includes(upstreamTreeSha) ? upstreamTreeSha : headTreeSha, truncated: true }
+        : {
+            ...headTree,
+            sha: path.includes(upstreamTreeSha) ? upstreamTreeSha : headTreeSha,
+            truncated: true,
+          }
     ),
     /incomplete/
   );
