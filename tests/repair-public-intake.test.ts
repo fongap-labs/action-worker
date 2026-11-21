@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { parsePublicRepairIntake } from "../scripts/repair-public-ledger-intake.ts";
+import { parsePublicRepairIntake } from "../scripts/repair-public-intake.ts";
 
 const timestamp = "2026-11-22T00:00:00.000Z";
 const root = "a".repeat(64);
@@ -13,7 +13,7 @@ function trustedEnv(): NodeJS.ProcessEnv {
     GITHUB_REF: "refs/heads/main",
     GITHUB_EVENT_NAME: "workflow_dispatch",
     GITHUB_WORKFLOW_REF:
-      "fongap-labs/action-worker/.github/workflows/repair-public-ledger-intake.yml@refs/heads/main",
+      "fongap-labs/action-worker/.github/workflows/repair-public-intake.yml@refs/heads/main",
     AW_REPAIR_ISSUE_NUMBER: "17",
     AW_REPAIR_FAILURE_RUN_ID: "42",
     AW_REPAIR_FAILURE_HEAD_SHA: head,
@@ -39,7 +39,10 @@ test("admission pilot rejects other events, repos, branches and workflow callers
     ["GITHUB_REPOSITORY", "fongap-labs/private-repo"],
     ["GITHUB_REF", "refs/heads/feature"],
     ["GITHUB_EVENT_NAME", "repository_dispatch"],
-    ["GITHUB_WORKFLOW_REF", "fongap-labs/action-worker/.github/workflows/other.yml@refs/heads/main"],
+    [
+      "GITHUB_WORKFLOW_REF",
+      "fongap-labs/action-worker/.github/workflows/other.yml@refs/heads/main",
+    ],
   ];
   for (const [key, value] of cases) {
     const env = trustedEnv();
@@ -63,12 +66,15 @@ test("admission requires bounded numeric IDs, validated SHA and UTC time", () =>
     env[key] = value;
     assert.throws(() => parsePublicRepairIntake(env, timestamp), /bounded issue\/run\/SHA/);
   }
-  assert.throws(() => parsePublicRepairIntake(trustedEnv(), "yesterday"), /bounded issue\/run\/SHA/);
+  assert.throws(
+    () => parsePublicRepairIntake(trustedEnv(), "yesterday"),
+    /bounded issue\/run\/SHA/
+  );
 });
 
 test("workflow never accepts arbitrary repositories or exposes private inputs", () => {
   const workflow = readFileSync(
-    new URL("../.github/workflows/repair-public-ledger-intake.yml", import.meta.url),
+    new URL("../.github/workflows/repair-public-intake.yml", import.meta.url),
     "utf8"
   );
   assert.match(workflow, /workflow_dispatch:/);

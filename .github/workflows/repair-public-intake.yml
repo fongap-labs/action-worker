@@ -75,4 +75,4 @@ jobs:
           AW_REPAIR_FAILURE_RUN_ID: ${{ inputs.failure_run_id }}
           AW_REPAIR_FAILURE_HEAD_SHA: ${{ inputs.failure_head_sha }}
           AW_REPAIR_ROOT_CAUSE_SHA256: ${{ inputs.root_cause_sha256 }}
-        run: node scripts/repair-public-ledger-intake.ts
+        run: node scripts/repair-public-intake.ts

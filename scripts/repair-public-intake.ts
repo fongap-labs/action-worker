@@ -6,7 +6,7 @@ import { CliError, isMain } from "./runtime-command.ts";
 
 const CONTROL_REPOSITORY = "fongap-labs/action-worker";
 const TRUSTED_WORKFLOW_REF =
-  "fongap-labs/action-worker/.github/workflows/repair-public-ledger-intake.yml@refs/heads/main";
+  "fongap-labs/action-worker/.github/workflows/repair-public-intake.yml@refs/heads/main";
 const POSITIVE_INTEGER = /^[1-9][0-9]*$/;
 const SHA = /^[a-f0-9]{40}$/;
 const FINGERPRINT = /^[a-f0-9]{64}$/;
@@ -17,10 +17,7 @@ const UTC_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
  * private source identity in a public workflow_dispatch input or public log.
  * This creates a discovered task, NOT a verified root cause or repair approval.
  */
-export function parsePublicRepairIntake(
-  env: NodeJS.ProcessEnv,
-  now: string
-): RepairFinding {
+export function parsePublicRepairIntake(env: NodeJS.ProcessEnv, now: string): RepairFinding {
   if (
     env.GITHUB_REPOSITORY !== CONTROL_REPOSITORY ||
     env.GITHUB_REF !== "refs/heads/main" ||
@@ -72,7 +69,12 @@ async function main(): Promise<void> {
   );
   const admitted = await admitRepairFinding(store, reader, finding, null);
   console.log(
-    JSON.stringify({ schema_version: "1", outcome: admitted.outcome, task_id: admitted.task_id, stage: admitted.stage })
+    JSON.stringify({
+      schema_version: "1",
+      outcome: admitted.outcome,
+      task_id: admitted.task_id,
+      stage: admitted.stage,
+    })
   );
 }
 

@@ -6,7 +6,7 @@ admit or publish private repository identities or source data.
 ## Trusted entry point
 
 The manually dispatched
-`.github/workflows/repair-public-ledger-intake.yml` runs only on control
+`.github/workflows/repair-public-intake.yml` runs only on control
 `main` and checks its exact `GITHUB_WORKFLOW_REF`. It accepts **no source
 repository field**, Issue body as shell code, or user-provided execution command.
 
