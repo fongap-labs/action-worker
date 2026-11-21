@@ -241,10 +241,12 @@ export function publicRepairIssueSummary(
   publicCandidates: number,
   links: readonly RepairIssueLink[]
 ): string {
-  const rows = links.slice(0, 20).map(
-    (link) =>
-      `| [#${link.issue_number}](https://github.com/${CONTROL_REPOSITORY}/issues/${link.issue_number}) | [#${link.run_id}](https://github.com/${CONTROL_REPOSITORY}/actions/runs/${link.run_id}) |`
-  );
+  const rows = links
+    .slice(0, 20)
+    .map(
+      (link) =>
+        `| [#${link.issue_number}](https://github.com/${CONTROL_REPOSITORY}/issues/${link.issue_number}) | [#${link.run_id}](https://github.com/${CONTROL_REPOSITORY}/actions/runs/${link.run_id}) |`
+    );
   return [
     "### Public repair Issue associations (read-only)",
     "",
