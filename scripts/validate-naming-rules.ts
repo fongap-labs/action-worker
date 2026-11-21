@@ -149,8 +149,14 @@ export async function validateNames(
   const lifecycleTerms = policy.file_names.lifecycle_banned_terms;
   const genericTerms = new Set(policy.file_names.generic_warning_terms);
   const changed = await runText("git", ["diff", "--name-only", "--diff-filter=ACMR", base, head]);
-  const added = await runText("git", ["diff", "--name-only", "--diff-filter=A", base, head]);
-  const addedPaths = new Set(added ? added.split(/\r?\n/).filter(Boolean) : []);
+  const introduced = await runText("git", [
+    "diff",
+    "--name-only",
+    "--diff-filter=ACR",
+    base,
+    head,
+  ]);
+  const introducedPaths = new Set(introduced ? introduced.split(/\r?\n/).filter(Boolean) : []);
   const files = changed ? changed.split(/\r?\n/).filter(Boolean) : [];
   let failures = 0;
   let warnings = 0;
@@ -176,13 +182,13 @@ export async function validateNames(
     if (
       ((isWorkflow || isShell) && !isKebab(stem, maxSegments)) ||
       (isTypeScriptSource && !isKebab(typescriptStem, maxSegments))
-    ) {
+    ) && introducedPaths.has(path)) {
       console.log(
         `::error file=${path}::Engineering filenames must use policy-defined kebab-case with at most ${maxSegments} segments.`
       );
       failures += 1;
     }
-    if (hasLifecycleFilenameViolation(path, lifecycleTerms)) {
+    if (introducedPaths.has(path) && hasLifecycleFilenameViolation(path, lifecycleTerms)) {
       console.log(
         `::error file=${path}::Engineering control filenames cannot use policy-defined lifecycle labels.`
       );
@@ -194,7 +200,7 @@ export async function validateNames(
       );
       warnings += 1;
     }
-    if (addedPaths.has(path)) {
+    if (introducedPaths.has(path)) {
       const segments = newFileSegments(path);
       if (segments && segments.length < minNewSegments) {
         console.log(
