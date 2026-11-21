@@ -95,3 +95,40 @@ assert.throws(() => paths.resolveInside('/tmp/delta', '../outside'), RangeError)
     assert run.returncode == 0, (
         f"Delta plugin shared contract failed: stdout={run.stdout[-1000:]} stderr={run.stderr[-2000:]}"
     )
+
+
+def test_host_only_subprocess_never_falls_back_to_local_node() -> None:
+    root = _plugin_root()
+    helper = root / "src" / "plugin-subprocess.ts"
+    if not helper.is_file():
+        pytest.skip("Host-only subprocess helper is introduced with the Delta Code migration")
+    assert "node:child_process" not in helper.read_text(encoding="utf-8")
+    script = """
+import assert from 'node:assert/strict';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+const p = await import(pathToFileURL(join(process.argv[1], 'src', 'plugin-subprocess.ts')).href);
+await assert.rejects(p.runCommand({}, { command: 'git', args: ['status'], hostOnly: false }),
+  /host subprocess service unavailable/);
+await assert.rejects(p.runCommand({ subprocess: {} }, { command: 'git' }),
+  /host subprocess service unavailable/);
+const seen = [];
+const host = { subprocess: { spawn(spec) {
+  seen.push(spec);
+  return { done: Promise.resolve({ exitCode: 0, signal: null }),
+    collected: { stdout: { readFrom() { return { text: 'clean', lossy: false }; } } } };
+} } };
+const result = await p.runCommand(host, { command: 'git', args: ['status'], cwd: '/tmp' });
+assert.equal(result.source, 'host');
+assert.equal(result.exitCode, 0);
+assert.equal(result.stdout, 'clean');
+assert.deepEqual(seen[0].argv, ['git', 'status']);
+assert.equal(seen[0].cwd, '/tmp');
+"""
+    run = subprocess.run(
+        ["node", "--experimental-strip-types", "--input-type=module", "-e", script, str(root)],
+        cwd=target_root(), capture_output=True, text=True, timeout=45, check=False,
+    )
+    assert run.returncode == 0, (
+        f"Host-only subprocess contract failed: stdout={run.stdout[-1000:]} stderr={run.stderr[-2000:]}"
+    )
