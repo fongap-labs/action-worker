@@ -10,7 +10,7 @@ const TRUSTED_WORKFLOW_REF =
 const POSITIVE_INTEGER = /^[1-9][0-9]*$/;
 const SHA = /^[a-f0-9]{40}$/;
 const FINGERPRINT = /^[a-f0-9]{64}$/;
-const UTC_TIME = /^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{3})?Z$/;
+const UTC_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 
 /**
  * Public control-repository pilot only. Do not accept a repository name or a
