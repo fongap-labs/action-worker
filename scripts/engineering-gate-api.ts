@@ -1,17 +1,126 @@
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   type ChangedFile,
   inspectEngineeringOwnership,
   type OwnershipPolicy,
+  parseChangedFiles,
   parseOwnershipPolicy,
 } from "./central-engineering-gate.ts";
 import { decodeGithubContent, getGithubJson, isJsonRecord } from "./github-api.ts";
-import { CliError, handleError, isMain } from "./runtime-command.ts";
+import { CliError, handleError, isMain, runCommand, runText } from "./runtime-command.ts";
 
 const SHA = /^[a-f0-9]{40}$/;
 const REPOSITORY = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
+// Only Delta's initial import may compare against this centrally pinned source tree.
+// Normal pull requests continue to compare the exact target-branch base and head.
+const DELTA_BOOTSTRAP = "7556dc8dfede03053e35359f2b55dd299da1f3ee";
+const DELTA_UPSTREAM = "2e39e70496aa02986ca6a820c5d497e816b69d7e";
+
+export function engineeringOwnershipDiffBase(repository: string, base: string): string {
+  return repository === "fongap-labs/delta" && base === DELTA_BOOTSTRAP ? DELTA_UPSTREAM : base;
+}
+
+/** Read complete immutable Git trees, not GitHub Compare's truncated 300-file list.
+ * The temporary repository has no checkout, hooks, or project-controlled scripts.
+ * Only public targets may use this fallback on the central control runner.
+ */
+export async function inventoryImmutableGitTrees(
+  root: string,
+  base: string,
+  head: string
+): Promise<ChangedFile[]> {
+  for (const revision of [base, head]) {
+    const actual = await runText(
+      "git",
+      ["-C", root, "rev-parse", "--verify", revision + "^{commit}"],
+      { timeoutMs: 30_000 }
+    );
+    if (actual !== revision) {
+      throw new CliError("Local Git inventory does not match the immutable CI revision.", 65);
+    }
+  }
+  const changed = parseChangedFiles(
+    (
+      await runCommand(
+        "git",
+        [
+          "-C",
+          root,
+          "diff",
+          "--no-ext-diff",
+          "--no-textconv",
+          "--no-renames",
+          "--diff-filter=AMTD",
+          "--name-status",
+          "-z",
+          base,
+          head,
+          "--",
+        ],
+        { timeoutMs: 120_000 }
+      )
+    ).toString("utf8")
+  );
+  // Even a workflow inherited without changes can run in a freshly imported application.
+  // Inspect every active workflow against the central template policy, not only changed ones.
+  const activeWorkflows = (
+    await runCommand(
+      "git",
+      ["-C", root, "ls-tree", "-r", "--name-only", "-z", head, "--", ".github/workflows/"],
+      { timeoutMs: 30_000 }
+    )
+  )
+    .toString("utf8")
+    .split("\0")
+    .filter(Boolean);
+  const seen = new Set(changed.map((file) => file.path));
+  for (const path of activeWorkflows) {
+    if (/^\.github\/workflows\/[^/]+\.ya?ml$/.test(path) && !seen.has(path)) {
+      changed.push({ status: "A", path });
+      seen.add(path);
+    }
+  }
+  return changed;
+}
+
+export async function fetchPublicGitInventory(
+  repository: string,
+  base: string,
+  head: string
+): Promise<ChangedFile[]> {
+  if (!REPOSITORY.test(repository) || !SHA.test(base) || !SHA.test(head)) {
+    throw new CliError("Invalid public Git inventory revision.", 65);
+  }
+  const root = mkdtempSync(join(tmpdir(), "aw-engineering-git-"));
+  try {
+    await runCommand("git", ["init", "--bare", "-q", root], { timeoutMs: 30_000 });
+    await runCommand(
+      "git",
+      [
+        "-C",
+        root,
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        "--filter=blob:none",
+        "--depth=1",
+        "https://github.com/" + repository + ".git",
+        base,
+        head,
+      ],
+      {
+        env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+        timeoutMs: 180_000,
+      }
+    );
+    return await inventoryImmutableGitTrees(root, base, head);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
 
 export function parseCompareFiles(response: unknown): ChangedFile[] {
   if (!isJsonRecord(response) || !Array.isArray(response.files)) {
@@ -57,35 +166,61 @@ export async function checkGithubEngineeringOwnership(
   head: string,
   policy: OwnershipPolicy,
   get: (path: string) => Promise<unknown>,
-  readTrustedTemplate: (path: string) => string
+  readTrustedTemplate: (path: string) => string,
+  fetchPublicDiff: (
+    repository: string,
+    base: string,
+    head: string
+  ) => Promise<ChangedFile[]> = fetchPublicGitInventory,
+  targetIsPublic = process.env.TARGET_PRIVATE === "false"
 ): Promise<void> {
   if (!REPOSITORY.test(repository) || !SHA.test(base) || !SHA.test(head)) {
     throw new CliError("Invalid immutable engineering gate inputs.", 65);
   }
   if (repository === policy.control_repository) return;
-  const result = await get("repos/" + repository + "/compare/" + base + "..." + head);
-  // GitHub's compare endpoint returns base_commit, merge_base_commit and an
-  // ordered commits array, NOT a head_commit field. The final comparison
-  // commit is the exact requested head only when the list is complete.
-  // Comparisons with >250 commits are truncated by GitHub: fail closed.
-  const commits = isJsonRecord(result) && Array.isArray(result.commits) ? result.commits : [];
-  const lastCommit = commits.length > 0 ? commits[commits.length - 1] : null;
-  if (
-    !isJsonRecord(result) ||
-    !isJsonRecord(result.base_commit) ||
-    result.base_commit.sha !== base ||
-    !Number.isSafeInteger(result.total_commits) ||
-    result.total_commits !== commits.length ||
-    commits.length === 0 ||
-    commits.length > 250 ||
-    !isJsonRecord(lastCommit) ||
-    lastCommit.sha !== head ||
-    (result.head_commit !== undefined &&
-      (!isJsonRecord(result.head_commit) || result.head_commit.sha !== head))
-  ) {
-    throw new CliError("GitHub comparison does not match the immutable CI revision.", 65);
+  const diffBase = engineeringOwnershipDiffBase(repository, base);
+  let files: ChangedFile[];
+  if (diffBase !== base) {
+    // Compare cannot represent unrelated imported histories. A pinned Git tree diff can.
+    if (!targetIsPublic) {
+      throw new CliError("Large Git inventory requires a verified public target.", 65);
+    }
+    files = await fetchPublicDiff(repository, diffBase, head);
+  } else {
+    const result = await get("repos/" + repository + "/compare/" + base + "..." + head);
+    // GitHub's compare endpoint returns base_commit, merge_base_commit and an
+    // ordered commits array, NOT a head_commit field. The final comparison
+    // commit is the exact requested head only when the list is complete.
+    // Comparisons with >250 commits are truncated by GitHub: fail closed.
+    const commits = isJsonRecord(result) && Array.isArray(result.commits) ? result.commits : [];
+    const lastCommit = commits.length > 0 ? commits[commits.length - 1] : null;
+    if (
+      !isJsonRecord(result) ||
+      !isJsonRecord(result.base_commit) ||
+      result.base_commit.sha !== base ||
+      !Number.isSafeInteger(result.total_commits) ||
+      result.total_commits !== commits.length ||
+      commits.length === 0 ||
+      commits.length > 250 ||
+      !isJsonRecord(lastCommit) ||
+      lastCommit.sha !== head ||
+      (result.head_commit !== undefined &&
+        (!isJsonRecord(result.head_commit) || result.head_commit.sha !== head))
+    ) {
+      throw new CliError("GitHub comparison does not match the immutable CI revision.", 65);
+    }
+    if (!isJsonRecord(result) || !Array.isArray(result.files)) {
+      throw new CliError("GitHub comparison did not return a file inventory.", 65);
+    }
+    if (result.files.length >= 300) {
+      if (!targetIsPublic) {
+        throw new CliError("GitHub comparison exceeds the private inventory file limit.", 65);
+      }
+      files = await fetchPublicDiff(repository, base, head);
+    } else {
+      files = parseCompareFiles(result);
+    }
   }
-  const files = parseCompareFiles(result);
   // Private workflow pins are checked using GitHub's commit-bound blob identity.
   // Never fetch private workflow contents into the public control runner.
   const contents = new Map<string, string>();
