@@ -106,8 +106,7 @@ function nullableSha(value: unknown, pattern: RegExp, label: string): void {
 
 function nullablePositive(value: unknown, label: string): void {
   if (value !== null) {
-    if (typeof value !== "number")
-      throw new CliError(`Repair ledger ${label} is invalid.`, 65);
+    if (typeof value !== "number") throw new CliError(`Repair ledger ${label} is invalid.`, 65);
     assertPositive(value, label);
   }
 }
@@ -440,9 +439,7 @@ export class GitHubRepairLedgerGitApi implements RepairLedgerGitApi {
   }
 
   async getCommitTree(commitSha: string): Promise<string> {
-    const value = await this.reader.get(
-      `repos/${this.controlRepository}/git/commits/${commitSha}`
-    );
+    const value = await this.reader.get(`repos/${this.controlRepository}/git/commits/${commitSha}`);
     const tree = isJsonRecord(value) ? value.tree : null;
     const sha = getJsonString(tree, "sha");
     assertSha(sha, GIT_SHA, "tree");
@@ -464,11 +461,7 @@ export class GitHubRepairLedgerGitApi implements RepairLedgerGitApi {
     const tree: Record<string, string>[] = [{ path, mode: "100644", type: "blob", content }];
     const body: Record<string, unknown> = { tree };
     if (baseTreeSha !== null) body.base_tree = baseTreeSha;
-    const value = await this.writeApi(
-      "POST",
-      `repos/${this.controlRepository}/git/trees`,
-      body
-    );
+    const value = await this.writeApi("POST", `repos/${this.controlRepository}/git/trees`, body);
     const sha = getJsonString(value, "sha");
     assertSha(sha, GIT_SHA, "created tree");
     return sha;
@@ -480,11 +473,7 @@ export class GitHubRepairLedgerGitApi implements RepairLedgerGitApi {
       tree: treeSha,
       parents: parentSha === null ? [] : [parentSha],
     };
-    const value = await this.writeApi(
-      "POST",
-      `repos/${this.controlRepository}/git/commits`,
-      body
-    );
+    const value = await this.writeApi("POST", `repos/${this.controlRepository}/git/commits`, body);
     const sha = getJsonString(value, "sha");
     assertSha(sha, GIT_SHA, "created commit");
     return sha;
@@ -503,14 +492,10 @@ export class GitHubRepairLedgerGitApi implements RepairLedgerGitApi {
 
   async updateRef(refName: string, commitSha: string): Promise<void> {
     try {
-      await this.writeApi(
-        "PATCH",
-        `repos/${this.controlRepository}/git/refs/heads/${refName}`,
-        {
-          sha: commitSha,
-          force: false,
-        }
-      );
+      await this.writeApi("PATCH", `repos/${this.controlRepository}/git/refs/heads/${refName}`, {
+        sha: commitSha,
+        force: false,
+      });
     } catch (error) {
       conflictFromWrite(error);
     }
@@ -521,16 +506,12 @@ export class GitHubRepairLedgerGitApi implements RepairLedgerGitApi {
     path: string,
     body: Record<string, unknown>
   ): Promise<unknown> {
-    const output = await runCommand(
-      "gh",
-      ["api", "--method", method, path, "--input", "-"],
-      {
-        env: githubEnvironment(this.token),
-        input: JSON.stringify(body),
-        maxBuffer: 1024 * 1024,
-        timeoutMs: 30_000,
-      }
-    );
+    const output = await runCommand("gh", ["api", "--method", method, path, "--input", "-"], {
+      env: githubEnvironment(this.token),
+      input: JSON.stringify(body),
+      maxBuffer: 1024 * 1024,
+      timeoutMs: 30_000,
+    });
     return parseJson(output.toString("utf8"), "GitHub repair ledger write returned invalid JSON.");
   }
 }
@@ -543,7 +524,10 @@ export function createScopedRepairLedgerStore(
     !env.GITHUB_REPOSITORY ||
     env.GITHUB_REPOSITORY.toLowerCase() !== controlRepository.toLowerCase()
   ) {
-    throw new CliError("Repair ledger writes are restricted to the current control repository.", 77);
+    throw new CliError(
+      "Repair ledger writes are restricted to the current control repository.",
+      77
+    );
   }
   const token = requireToken("branch", env);
   return new RepairLedgerStore(
