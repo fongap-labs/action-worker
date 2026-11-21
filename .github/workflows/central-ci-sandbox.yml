@@ -228,6 +228,14 @@ jobs:
           node aw-security/scripts/central-engineering-gate.ts \
             "$GITHUB_WORKSPACE/target" "$POLICY_BASE_SHA" "$POLICY_HEAD_SHA" "$TARGET_REPOSITORY"
 
+      # A legacy bridge uses the existing Node 22 controller. Public manifest-only
+      # applications may require a newer runtime for real, credential-free builds.
+      - name: Setup Node 24 for reviewed manifest CI
+        if: inputs.is_private != 'true' && hashFiles('ci-control/.github/scripts/central-ci.sh') == ''
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
       - name: Run trusted Linux CI
         env:
           CENTRAL_CI_AW_ROOT: ${{ github.workspace }}/aw

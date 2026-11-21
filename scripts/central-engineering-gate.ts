@@ -20,6 +20,15 @@ const repositoryName = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
 const workflowName = /^\.github\/workflows\/[A-Za-z0-9_.-]+\.(?:yml|yaml)$/;
 const safePath = /^(?!\/)(?!.*(?:^|\/)\.\.(?:\/|$))(?!.*\\)[^\r\n\0]+$/;
 const shaPattern = /^[0-9a-f]{40}$/;
+const DELTA_INITIAL_BASE = "7556dc8dfede03053e35359f2b55dd299da1f3ee";
+const DELTA_PINNED_UPSTREAM = "2e39e70496aa02986ca6a820c5d497e816b69d7e";
+
+/** New source is audited against the centrally fixed imported tree, never the empty bootstrap. */
+export function sandboxEngineeringDiffBase(repository: string, base: string): string {
+  return repository === "fongap-labs/delta" && base === DELTA_INITIAL_BASE
+    ? DELTA_PINNED_UPSTREAM
+    : base;
+}
 const testFile =
   /(?:^|\/)(?:tests?|__tests__)\/|(?:^|\/)test_[^/]+\.(?:py|js|mjs|ts|tsx|rs)$|(?:^|\/)[^/]+(?:[._-](?:test|spec))\.(?:[cm]?[jt]sx?|py|rs)$/i;
 const centralEntrypoint =
@@ -227,7 +236,8 @@ export function runOwnershipGate(
       readFileSync(join(controlRoot, "policies", "engineering-ownership.json"), "utf8")
     ) as unknown
   );
-  for (const sha of [base, head]) {
+  const comparisonBase = sandboxEngineeringDiffBase(repository, base);
+  for (const sha of [comparisonBase, head]) {
     git(root, ["cat-file", "-e", sha + "^{commit}"]);
   }
   const output = git(root, [
@@ -238,11 +248,32 @@ export function runOwnershipGate(
     "--diff-filter=AMTD",
     "--name-status",
     "-z",
-    base,
+    comparisonBase,
     head,
     "--",
   ]);
-  const changes = parseChangedFiles(output).map((change) => {
+  const changes = parseChangedFiles(output);
+  if (comparisonBase !== base) {
+    // Unchanged inherited workflows are active in the imported application.
+    // Validate their exact templates as well as added/modified workflow files.
+    const workflowNames = git(root, [
+      "ls-tree",
+      "-r",
+      "--name-only",
+      "-z",
+      head,
+      "--",
+      ".github/workflows/",
+    ]).split("\0").filter(Boolean);
+    const seen = new Set(changes.map((item) => item.path));
+    for (const path of workflowNames) {
+      if (/^\.github\/workflows\/[^/]+\.ya?ml$/.test(path) && !seen.has(path)) {
+        changes.push({ status: "A", path });
+        seen.add(path);
+      }
+    }
+  }
+  const auditedChanges = changes.map((change) => {
     const privatePin = policy.private_workflow_pins.some(
       (pin) => pin.repository === repository && pin.path === change.path
     );
@@ -252,7 +283,7 @@ export function runOwnershipGate(
   const findings = inspectEngineeringOwnership(
     policy,
     repository,
-    changes,
+    auditedChanges,
     (path) => git(root, ["show", head + ":" + path]),
     (path) => readFileSync(join(controlRoot, path), "utf8")
   );

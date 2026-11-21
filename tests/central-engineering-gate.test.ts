@@ -10,7 +10,16 @@ import {
   parseChangedFiles,
   parseOwnershipPolicy,
   runOwnershipGate,
+  sandboxEngineeringDiffBase,
 } from "../scripts/central-engineering-gate.ts";
+
+test("sandbox audits only Delta's exact initial import against pinned upstream history", () => {
+  const bootstrap = "7556dc8dfede03053e35359f2b55dd299da1f3ee";
+  const upstream = "2e39e70496aa02986ca6a820c5d497e816b69d7e";
+  assert.equal(sandboxEngineeringDiffBase("fongap-labs/delta", bootstrap), upstream);
+  assert.equal(sandboxEngineeringDiffBase("fongap-labs/mcp-hub", bootstrap), bootstrap);
+  assert.equal(sandboxEngineeringDiffBase("fongap-labs/delta", "a".repeat(40)), "a".repeat(40));
+});
 
 const policy = parseOwnershipPolicy(
   JSON.parse(readFileSync("policies/engineering-ownership.json", "utf8")) as unknown
@@ -309,6 +318,7 @@ test("Linux central sandbox runs trusted ownership policy before project-control
   const ciStep = workflow.indexOf("- name: Run trusted Linux CI");
   assert.ok(policyStep > workflow.indexOf("- name: Checkout current central security scanner"));
   assert.ok(policyStep < ciStep);
+  assert.match(workflow, /Setup Node 24 for reviewed manifest CI/);
   assert.match(workflow, /node aw-security\/scripts\/central-engineering-gate\.ts/);
   assert.match(workflow, /POLICY_BASE_SHA: \$\{\{ inputs\.diff_base_sha \}\}/);
   assert.match(workflow, /POLICY_HEAD_SHA: \$\{\{ inputs\.head_sha \}\}/);
