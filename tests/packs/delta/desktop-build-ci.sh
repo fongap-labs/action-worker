@@ -300,6 +300,109 @@ try {
 console.log('Delta Code native Host Git status/diff regression passed')
 NODE
 
+  # Probe real executable availability only through the mounted Host
+  # subprocess service. A missing server, rejected directory or cancelled
+  # request must not trigger a local fallback from the Delta plugin.
+  node --input-type=module <<'NODE'
+import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { mkdtemp, mkdir, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
+
+const load = relative => import(pathToFileURL(resolve(relative)).href)
+const { Context } = await load('vendor/cordis/lib/index.js')
+const { SystemPrompt } = await load('packages/core/system-prompt/lib/index.js')
+const { ToolsService } = await load('packages/core/tools/lib/index.js')
+const deltaCode = await load('packages/plugin/delta-code/lib/index.js')
+
+const scratch = await mkdtemp(join(tmpdir(), 'delta-code-lsp-probe-'))
+const workspace = join(scratch, 'workspace')
+const unavailable = 'delta-test-unavailable-language-server'
+const host = new Context()
+const executed = []
+let prompt, tools, plugin, stopSubprocess
+try {
+  await mkdir(workspace, { recursive: true })
+  stopSubprocess = host.provide('subprocess', {
+    spawn(spec) {
+      assert.ok([process.execPath, unavailable].includes(spec.argv[0]),
+        'LSP probe executed an unexpected command')
+      assert.deepEqual(spec.argv.slice(1), ['--version'])
+      assert.equal(spec.cwd, workspace, 'LSP probe escaped the workspace')
+      assert.equal(spec.stdio.stdin, 'ignore')
+      assert.equal(spec.signal?.aborted, false, 'cancelled LSP probe started a process')
+      executed.push(spec.argv[0])
+      const out = spawnSync(spec.argv[0], spec.argv.slice(1), {
+        cwd: workspace, encoding: 'utf8', timeout: 5000, maxBuffer: 8192,
+        env: { PATH: process.env.PATH ?? '', HOME: scratch },
+      })
+      // Missing executable is a completed negative probe, not a local
+      // execution fallback, and never grants access to an arbitrary command.
+      if (out.error && out.error.code !== 'ENOENT') throw out.error
+      const reader = data => ({ readFrom(offset) {
+        return { text: data.slice(offset), lossy: false }
+      } })
+      return {
+        done: Promise.resolve({
+          exitCode: out.error?.code === 'ENOENT' ? 127 : out.status,
+          signal: out.signal,
+        }),
+        collected: {
+          stdout: reader(out.stdout ?? ''), stderr: reader(out.stderr ?? ''),
+        },
+      }
+    },
+  })
+  prompt = host.plugin(SystemPrompt, { includeHarnessIdentity: false })
+  await prompt
+  tools = host.plugin(ToolsService, {})
+  await tools
+  plugin = host.plugin(deltaCode, {
+    enabled: true, workspaceRoot: workspace,
+    git: { enabled: false }, github: { enabled: false },
+    execution: { allowCommands: false, allowWorktreeWrites: false },
+    lsp: { servers: [
+      { language: 'javascript', command: process.execPath },
+      { language: 'not-installed', command: unavailable },
+    ] },
+  })
+  await plugin
+  const definition = host.tools.get('code_lsp_probe')
+  assert.ok(definition, 'LSP tool was not injected after Host subprocess mounted')
+  const probe = (args, signal = new AbortController().signal) =>
+    definition.execute(args, { signal })
+  const result = await probe({})
+  assert.deepEqual(result.servers.map(server => server.language),
+    ['javascript', 'not-installed'])
+  assert.equal(result.servers[0].available, true, 'installed executable missing')
+  assert.equal(result.servers[1].available, false,
+    'missing LSP command was reported as available')
+  assert.match(result.servers[1].note, /exit code 127/)
+  assert.deepEqual(executed, [process.execPath, unavailable])
+
+  const before = executed.length
+  await assert.rejects(probe({ cwd: '../private' }), /lsp cwd escapes workspace/)
+  assert.equal(executed.length, before, 'rejected LSP workspace reached Host')
+  const cancelled = new AbortController()
+  cancelled.abort()
+  await assert.rejects(probe({}, cancelled.signal), /lsp probe cancelled/)
+  assert.equal(executed.length, before, 'cancelled LSP probe reached Host')
+  await plugin.dispose()
+  plugin = undefined
+  assert.equal(host.tools.get('code_lsp_probe'), undefined,
+    'unloaded Delta Code left the LSP probe registered')
+} finally {
+  if (plugin) await plugin.dispose()
+  if (tools) await tools.dispose()
+  if (prompt) await prompt.dispose()
+  if (stopSubprocess) stopSubprocess()
+  await rm(scratch, { recursive: true, force: true })
+}
+console.log('Delta Code native Host LSP probe regression passed')
+NODE
+
   # The real Profile composition and enable/disable APIs must agree with the
   # published Delta Code bundle. Operate on a disposable fixture only; this
   # does not claim that pnpm's installation/removal flow has been exercised.
