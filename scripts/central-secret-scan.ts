@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { mkdtemp, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { engineeringOwnershipDiffBase } from "./engineering-gate-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 
 // Central secret scan of the commits a pull request adds (gitleaks, pinned and checksum-verified).
@@ -181,6 +182,47 @@ async function download(directory: string): Promise<string> {
   return join(directory, "gitleaks");
 }
 
+/** Construct one unattached scan commit with the Delta tree and centrally pinned upstream parent.
+ * This preserves gitleaks' commit-diff semantics even when imported histories are unrelated.
+ * Never scans fewer changed lines: all content differing from the pinned source is included.
+ */
+export function syntheticImportScanCommit(target: string, upstream: string, head: string): string {
+  const git = (args: string[], input?: string): string => {
+    const ran = spawnSync("git", ["-C", target, ...args], {
+      encoding: "utf8",
+      input,
+      timeout: 30_000,
+      maxBuffer: 1024 * 1024,
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: "Central Security",
+        GIT_AUTHOR_EMAIL: "scanner@invalid",
+        GIT_COMMITTER_NAME: "Central Security",
+        GIT_COMMITTER_EMAIL: "scanner@invalid",
+      },
+    });
+    if (ran.error || ran.status !== 0) {
+      throw new CannotRun("pinned import commit could not be verified");
+    }
+    return ran.stdout.trim();
+  };
+  if (
+    git(["rev-parse", "--verify", upstream + "^{commit}"]) !== upstream ||
+    git(["rev-parse", "--verify", head + "^{commit}"]) !== head
+  ) {
+    throw new CannotRun("pinned import commit identity mismatch");
+  }
+  const tree = git(["rev-parse", head + "^{tree}"]);
+  const scanCommit = git(
+    ["commit-tree", tree, "-p", upstream],
+    "Synthetic delta import security tree comparison\n"
+  );
+  if (!shaPattern.test(scanCommit)) {
+    throw new CannotRun("synthetic import scan commit is invalid");
+  }
+  return scanCommit;
+}
+
 export async function main(argv: string[], environment: NodeJS.ProcessEnv): Promise<number> {
   const [target = "", base = "", head = "", config = ""] = argv;
   const mode = environment.AW_GITLEAKS_MODE || "enforce";
@@ -210,11 +252,14 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv): Prom
     const work = await mkdtemp(join(environment.RUNNER_TEMP || tmpdir(), "gitleaks-"));
     const bin = environment.GITLEAKS_BIN || (await download(work));
     const report = join(work, "report.json");
+    const comparisonBase = engineeringOwnershipDiffBase(environment.TARGET_REPOSITORY ?? "", base);
+    const scanHead =
+      comparisonBase === base ? head : syntheticImportScanCommit(target, comparisonBase, head);
     const args = [
       "git",
       target,
       "--log-opts",
-      `${base}..${head}`,
+      `${comparisonBase}..${scanHead}`,
       "--report-format",
       "json",
       "--report-path",
@@ -245,7 +290,7 @@ export async function main(argv: string[], environment: NodeJS.ProcessEnv): Prom
       throw new CannotRun("unreadable gitleaks report");
     }
 
-    const range = `${base.slice(0, 7)}..${head.slice(0, 7)}`;
+    const range = `${comparisonBase.slice(0, 7)}..${head.slice(0, 7)}`;
     if (summary.count === 0) {
       console.log(`central secret scan: no findings in ${range}`);
       return 0;
