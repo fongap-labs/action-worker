@@ -161,7 +161,11 @@ test("only approved entry, diagnostics and private operations expose manual disp
     }
     if (kind === "admission") {
       assert.deepEqual(Object.keys(triggers), ["workflow_dispatch"], `${file} is manual-only`);
-      assert.deepEqual(Object.keys(workflow.jobs ?? {}), ["admit"], `${file} has one admission job`);
+      assert.deepEqual(
+        Object.keys(workflow.jobs ?? {}),
+        ["admit"],
+        `${file} has one admission job`
+      );
       const job = workflow.jobs?.admit as Job & {
         environment?: { name: string; deployment: boolean };
         if?: string;
