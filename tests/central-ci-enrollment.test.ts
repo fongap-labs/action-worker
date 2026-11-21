@@ -55,6 +55,11 @@ test("central CI bridge template matches the protected security hash and the wri
   assert.match(workflow, /repositories: \$\{\{ steps\.ci_scope\.outputs\.repositories_csv \}\}/);
   assert.match(workflow, /permission-contents: write/);
   assert.match(workflow, /permission-pull-requests: write/);
+  assert.match(
+    workflow,
+    /name: Mint App inventory read token[\s\S]*?permission-contents: read\n\s*permission-pull-requests: read/,
+    "bridge discovery requires PR inventory read access but never PR write permission"
+  );
   assert.match(workflow, /permission-workflows: write/);
   assert.doesNotMatch(workflow, /continue-on-error: true/);
   const script = await readFile("scripts/central-ci-enrollment.ts", "utf8");
