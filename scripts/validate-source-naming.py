@@ -4,11 +4,11 @@
 from __future__ import annotations
 
 import ast
-from collections import Counter
 import json
 import re
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
 
 VAGUE_BANNED = {"impl", "helper", "helpers", "common", "misc", "shared"}
@@ -319,10 +319,10 @@ def source_violations(
 
 
 def added_violations(
-    root: Path, path: Path, base: str, introduced: bool
+    root: Path, path: Path, base: str, is_introduced: bool
 ) -> list[str]:
     current = source_violations(root, path)
-    if introduced or not current:
+    if is_introduced or not current:
         return current
 
     # Only new source-naming defects count. Re-evaluate the pinned base file
