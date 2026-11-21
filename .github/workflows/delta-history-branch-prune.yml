@@ -1,0 +1,125 @@
+name: 一次性 · Delta 历史分支清理
+
+# One-shot, exact-SHA cleanup after successful #44929104924.
+# No workflow_dispatch, arbitrary refs, generic branch deletion or ruleset bypass.
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/delta-history-branch-prune.yml
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: delta-history-branch-prune-once
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: Delete four approved, obsolete Delta references
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout reviewed central source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Mint repository-scoped branch cleanup token
+        id: delta
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: delta
+          permission-contents: write
+      - name: Check all pinned refs and remove only four obsolete refs
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.delta.outputs.token }}
+        run: |
+          set -Eeuo pipefail
+          repository='fongap-labs/delta'
+          expected_main='8b73554a94a115c3fc8310e882036ef887f0569c'
+          expected_harness='2e39e70496aa02986ca6a820c5d497e816b69d7e'
+          expected_old_main='4870259d11d8468d6d494f9d609e70c148416cf8'
+          expected_earlier_main='dee27ea15004fc905c9f4ad0e1c01cfca67c571f'
+          expected_legacy='d9eb5531b4b708a96c0874712b3205be29741e73'
+
+          refs_to_keep=(
+            "main:$expected_main"
+            "baseline/deepseek-harness:$expected_harness"
+            "upstream/deepseek-harness:$expected_harness"
+            "legacy/main-pre-harness-migration-2026-11-22-v2:$expected_old_main"
+            "legacy/main-pre-harness-migration-2026-11-22:$expected_earlier_main"
+            "legacy/delta-v0.0.1:$expected_legacy"
+          )
+          refs_to_delete=(
+            'baseline/delta-main-2026-11-21:584e6c77ad424b1b388014854d2ecda13c9b2433'
+            'migration/connect-harness-history-2026-11-22:37f36859e0fe04f33e27e3ef32122ab11feddb19'
+            'migration/rebase-delta-on-harness-2026-11-22:decc6ee1388df99d2769024ac78b0f153ab8800d'
+            'migration/rebase-delta-on-harness-2026-11-22-v2:8b73554a94a115c3fc8310e882036ef887f0569c'
+          )
+
+          verify_ref() {
+            local branch_name="$1"
+            local expected_sha="$2"
+            local actual_sha
+            actual_sha="$(gh api "repos/$repository/git/ref/heads/$branch_name" --jq '.object.sha')"
+            if [[ "$actual_sha" != "$expected_sha" ]]; then
+              echo "::error::Ref mismatch for $branch_name; no cleanup allowed"
+              exit 65
+            fi
+          }
+
+          # Validate the entire immutable allowlist before deleting any ref.
+          for entry in "${refs_to_keep[@]}" "${refs_to_delete[@]}"; do
+            verify_ref "${entry%%:*}" "${entry#*:}"
+          done
+
+          # Explicitly refuse to delete a branch being used by an open PR.
+          open_pr_heads="$(gh api --paginate "repos/$repository/pulls?state=open&per_page=100" --jq '.[].head.ref')"
+          for entry in "${refs_to_delete[@]}"; do
+            branch_name="${entry%%:*}"
+            if printf '%s\n' "$open_pr_heads" | grep --fixed-strings --line-regexp --quiet "$branch_name"; then
+              echo "::error::Branch $branch_name is still used by an open pull request"
+              exit 65
+            fi
+          done
+
+          expected_migration_refs="$(printf '%s\n' \
+            'refs/heads/migration/connect-harness-history-2026-11-22' \
+            'refs/heads/migration/rebase-delta-on-harness-2026-11-22' \
+            'refs/heads/migration/rebase-delta-on-harness-2026-11-22-v2' | sort)"
+          actual_migration_refs="$(gh api "repos/$repository/git/matching-refs/heads/migration" --jq '.[].ref' | sort)"
+          if [[ "$actual_migration_refs" != "$expected_migration_refs" ]]; then
+            echo "::error::Migration refs changed or an unexpected migration branch appeared"
+            exit 65
+          fi
+
+          # Branch names and SHAs are reviewed constants; no user inputs or globs.
+          for entry in "${refs_to_delete[@]}"; do
+            branch_name="${entry%%:*}"
+            expected_sha="${entry#*:}"
+            verify_ref "$branch_name" "$expected_sha"
+            gh api --method DELETE "repos/$repository/git/refs/heads/$branch_name" > /dev/null
+            echo "Deleted obsolete ref $branch_name"
+          done
+
+          # Independent read-only postconditions; keep every governance backup.
+          for entry in "${refs_to_keep[@]}"; do
+            verify_ref "${entry%%:*}" "${entry#*:}"
+          done
+          actual_migration_refs="$(gh api "repos/$repository/git/matching-refs/heads/migration" --jq '.[].ref')"
+          if [[ -n "$actual_migration_refs" ]]; then
+            echo "::error::Migration branches remain after cleanup"
+            exit 65
+          fi
+          baseline_snapshot_refs="$(gh api "repos/$repository/git/matching-refs/heads/baseline/delta-main-2026-11-21" --jq '.[].ref')"
+          if [[ -n "$baseline_snapshot_refs" ]]; then
+            echo "::error::Redundant Delta main baseline snapshot remains"
+            exit 65
+          fi
+          echo 'Four obsolete Delta branch references deleted; main and all protected-history backups retained.'
