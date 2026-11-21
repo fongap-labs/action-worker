@@ -34,7 +34,7 @@ const STAGES: readonly RepairStage[] = [
   "completed",
 ];
 const BLOCKS = ["missing_evidence", "permissions", "quota", "stale_head", "ci_failure"] as const;
-const ENTRY_KEYS = [
+const LEGACY_ENTRY_KEYS = [
   "base_sha",
   "blocked_reason",
   "ci_base_sha",
@@ -50,6 +50,9 @@ const ENTRY_KEYS = [
   "task_id",
   "updated_at",
 ]
+  .sort()
+  .join(",");
+const ENTRY_KEYS = [...LEGACY_ENTRY_KEYS.split(","), "failure_run_id", "failure_head_sha"]
   .sort()
   .join(",");
 
@@ -149,8 +152,16 @@ export function validateRepairLedgerDocument(
     throw new CliError("Repair ledger belongs to a different issue.", 65);
   }
   if (!isJsonRecord(value.entry)) throw new CliError("Repair ledger entry is invalid.", 65);
-  exactKeys(value.entry, ENTRY_KEYS, "entry");
-  const entry = value.entry;
+  const keys = Object.keys(value.entry).sort().join(",");
+  if (keys !== ENTRY_KEYS && keys !== LEGACY_ENTRY_KEYS) {
+    throw new CliError("Repair ledger entry has an unsupported schema.", 65);
+  }
+  // Legacy v1 entries did not record the originating failed Actions run.
+  // Normalize them on read without inventing a failure identity.
+  const entry =
+    keys === LEGACY_ENTRY_KEYS
+      ? { ...value.entry, failure_run_id: null, failure_head_sha: null }
+      : value.entry;
   assertSha(entry.root_cause_sha256, SHA_256, "root-cause fingerprint");
   const taskId = repairTaskId(value.repository, entry.root_cause_sha256);
   if (entry.task_id !== taskId || (expectedTaskId !== undefined && taskId !== expectedTaskId)) {
@@ -174,6 +185,11 @@ export function validateRepairLedgerDocument(
   nullableSha(entry.ci_base_sha, GIT_SHA, "CI base");
   nullablePositive(entry.pr_number, "pull request number");
   nullablePositive(entry.ci_run_id, "CI run identifier");
+  nullablePositive(entry.failure_run_id, "failure run identifier");
+  nullableSha(entry.failure_head_sha, GIT_SHA, "failure head");
+  if ((entry.failure_run_id === null) !== (entry.failure_head_sha === null)) {
+    throw new CliError("Repair ledger failure origin is incomplete.", 65);
+  }
   if (
     entry.blocked_reason !== null &&
     !BLOCKS.includes(entry.blocked_reason as (typeof BLOCKS)[number])
@@ -238,7 +254,7 @@ export function validateRepairLedgerDocument(
   ) {
     throw new CliError("Repair ledger stage does not match its recorded evidence.", 65);
   }
-  return value as unknown as RepairLedgerDocument;
+  return { ...value, entry } as unknown as RepairLedgerDocument;
 }
 
 function encodeRecord(

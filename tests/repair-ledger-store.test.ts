@@ -241,3 +241,50 @@ test("scoped store requires its dedicated branch token and current control repos
     /current control repository/
   );
 });
+
+test("existing v1 records without failure origin migrate on read without inventing evidence", async () => {
+  const api = new MemoryGitApi();
+  const store = new RepairLedgerStore(api);
+  const original = document("fongap-labs/action-worker", 24);
+  const { failure_run_id: _run, failure_head_sha: _head, ...legacyEntry } = original.entry;
+  const encoded = Buffer.from(JSON.stringify({ ...original, entry: legacyEntry }), "utf8").toString(
+    "base64"
+  );
+  const tree = await api.createTree(null, "record.dat", `AWREPAIR1:public:${encoded}`);
+  const commit = await api.createCommit(tree, null);
+  await api.createRef(repairLedgerRefName(original.entry.task_id), commit);
+
+  const legacy = await store.read(original.repository, 24, fingerprint, false, null);
+  assert.ok(legacy);
+  assert.equal(legacy.document.entry.failure_run_id, null);
+  assert.equal(legacy.document.entry.failure_head_sha, null);
+  const next = await store.compareAndSwap(
+    legacy,
+    { kind: "root-cause-verified", evidenceSha256: rootEvidence },
+    now,
+    null
+  );
+  assert.equal(next.document.entry.stage, "diagnosed");
+  const restored = await store.read(original.repository, 24, fingerprint, false, null);
+  assert.equal(restored?.document.entry.failure_run_id, null);
+  assert.equal(restored?.document.entry.failure_head_sha, null);
+});
+
+test("incomplete or forged originating failure pairs are rejected before writes", async () => {
+  const api = new MemoryGitApi();
+  const store = new RepairLedgerStore(api);
+  const original = document("fongap-labs/action-worker", 27);
+  const invalid: RepairLedgerEntry[] = [
+    { ...original.entry, failure_run_id: 42, failure_head_sha: null },
+    { ...original.entry, failure_run_id: null, failure_head_sha: head },
+    { ...original.entry, failure_run_id: -1, failure_head_sha: head },
+    { ...original.entry, failure_run_id: 42, failure_head_sha: "wrong" },
+  ];
+  for (const entry of invalid) {
+    await assert.rejects(
+      store.create({ ...original, entry }, false, null),
+      /failure (run identifier|head|origin)/
+    );
+  }
+  assert.equal(api.refs.size, 0);
+});
