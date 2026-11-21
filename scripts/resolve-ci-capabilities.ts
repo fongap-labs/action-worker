@@ -46,6 +46,47 @@ export function allowPrivateWindowsNumericDiagnostic(
   return isPrivate && names.has(repository);
 }
 
+/**
+ * Resolve a Windows script from the central, reviewed test-pack allowlist.
+ * A target repository's manifest may opt in, but cannot supply the script.
+ */
+export function resolveCentralWindowsScript(
+  policyValue: unknown,
+  repository: string
+): string | undefined {
+  if (
+    !isJsonRecord(policyValue) ||
+    policyValue.schema_version !== 1 ||
+    Object.keys(policyValue).some((key) => key !== "schema_version" && key !== "routes") ||
+    !Array.isArray(policyValue.routes)
+  ) {
+    throw new CliError("Central Windows route policy is invalid.", 65);
+  }
+  const names = new Set<string>();
+  let match: string | undefined;
+  for (const raw of policyValue.routes as unknown[]) {
+    if (
+      !isJsonRecord(raw) ||
+      Object.keys(raw).length !== 2 ||
+      typeof raw.repository !== "string" ||
+      typeof raw.script !== "string" ||
+      !repositoryPattern.test(raw.repository) ||
+      !/^tests\/packs\/[a-z0-9-]+\/[a-z0-9-]+\.ps1$/.test(raw.script) ||
+      names.has(raw.repository)
+    ) {
+      throw new CliError("Central Windows route entry is invalid.", 65);
+    }
+    names.add(raw.repository);
+    if (raw.repository === repository) match = raw.script;
+  }
+  return match;
+}
+
+export function declaresWindowsJob(manifestValue: unknown): boolean {
+  const jobs = parseExecutionManifest(manifestValue).operations.ci?.jobs ?? [];
+  return jobs.some((job) => job.id === "windows");
+}
+
 export function resolveLinuxShards(manifestValue: unknown): string[] {
   const manifest = parseExecutionManifest(manifestValue);
   const jobs = manifest.operations.ci?.jobs ?? [];
@@ -124,11 +165,22 @@ export async function resolveCiCapabilities(
   }
 
   const ref = encodeURIComponent(controlRef);
-  const hasWindows = await githubExists(
+  const hasTargetWindowsScript = await githubExists(
     `repos/${repository}/contents/.github/scripts/central-ci.ps1?ref=${ref}`,
     token
   );
   const manifest = await readTrustedManifest(repository, ref, token);
+  const routePolicy = parseJson(
+    await readFile("policies/ci-windows-routes.json", "utf8"),
+    "Central Windows route policy is not valid JSON.",
+    65
+  );
+  const centralWindowsScript = resolveCentralWindowsScript(routePolicy, repository);
+  // Only an explicit Windows CI declaration on the trusted control ref can
+  // enable an allowlisted central suite; untrusted PR content cannot opt in.
+  const declaresWindows = manifest !== undefined && declaresWindowsJob(manifest);
+  const hasWindows =
+    hasTargetWindowsScript || (centralWindowsScript !== undefined && declaresWindows);
   const diagnosticPolicy = parseJson(
     await readFile("policies/ci-diagnostics.json", "utf8"),
     "Central CI diagnostic policy is not valid JSON.",
