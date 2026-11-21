@@ -253,3 +253,100 @@ test("invalid owner or time range is rejected without touching GitHub", async ()
     assert.equal(reads, 0);
   }
 });
+
+test("a late repository permission failure does not deliver earlier candidates", async () => {
+  const delivered: FailedRunCandidate[] = [];
+  await assert.rejects(
+    discoverFailedRuns(
+      {
+        async get(path) {
+          if (path.startsWith("installation/repositories?")) {
+            return { total_count: 2, repositories: [repo("private-source", true), repo("later")] };
+          }
+          if (path.includes("/private-source/actions/runs")) {
+            if (path.includes("status=failure")) {
+              return { total_count: 1, workflow_runs: [run(101, "fongap-labs/private-source")] };
+            }
+            return { total_count: 0, workflow_runs: [] };
+          }
+          throw new Error("HTTP 403: subsequent repository denied");
+        },
+      },
+      "fongap-labs",
+      since,
+      (candidate) => {
+        delivered.push(candidate);
+      }
+    ),
+    /403/
+  );
+  assert.equal(delivered.length, 0);
+});
+
+test("successful scans dispatch only after the last repository and status page is validated", async () => {
+  const delivered: FailedRunCandidate[] = [];
+  let completedInventory = false;
+  const summary = await discoverFailedRuns(
+    {
+      async get(path) {
+        if (path.startsWith("installation/repositories?")) {
+          return { total_count: 2, repositories: [repo("first"), repo("last", true)] };
+        }
+        if (path.includes("status=timed_out")) {
+          if (path.includes("/last/actions/runs")) completedInventory = true;
+          return { total_count: 0, workflow_runs: [] };
+        }
+        const name = path.includes("/first/") ? "first" : "last";
+        return {
+          total_count: 1,
+          workflow_runs: [run(name === "first" ? 11 : 12, `fongap-labs/${name}`)],
+        };
+      },
+    },
+    "fongap-labs",
+    since,
+    (candidate) => {
+      assert.equal(completedInventory, true);
+      delivered.push(candidate);
+    }
+  );
+  assert.deepEqual(summary, { repositories_scanned: 2, failures_found: 2 });
+  assert.deepEqual(delivered.map((candidate) => candidate.run_id), [11, 12]);
+});
+
+test("an over-budget organization scan fails without partially delivering candidates", async () => {
+  let deliveries = 0;
+  const summary = discoverFailedRuns(
+    {
+      async get(path) {
+        if (path.startsWith("installation/repositories?")) {
+          return {
+            total_count: 11,
+            repositories: Array.from({ length: 11 }, (_, i) => repo(`source-${i}`)),
+          };
+        }
+        if (path.includes("status=timed_out")) {
+          return { total_count: 0, workflow_runs: [] };
+        }
+        const match = /repos\\/fongap-labs\\/source-(\\d+)\\/actions\\/runs/.exec(path);
+        const page = Number(/page=(\\d+)/.exec(path)?.[1]);
+        assert.ok(match);
+        assert.ok(Number.isInteger(page) && page >= 1 && page <= 3);
+        const index = Number(match[1]);
+        return {
+          total_count: 300,
+          workflow_runs: Array.from({ length: 100 }, (_, i) =>
+            run(index * 1000 + (page - 1) * 100 + i + 1, `fongap-labs/source-${index}`)
+          ),
+        };
+      },
+    },
+    "fongap-labs",
+    since,
+    () => {
+      deliveries += 1;
+    }
+  );
+  await assert.rejects(summary, /candidate budget exceeded/);
+  assert.equal(deliveries, 0);
+});
