@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
 import { verifiedRepairPostMergeDigest } from "../scripts/repair-ledger-main-ci.ts";
+import { RepairLedgerStore } from "../scripts/repair-ledger-store.ts";
 import {
   applyRepairLedgerEvent,
   createRepairLedgerEntry,
@@ -297,5 +298,46 @@ test("the control repository can prove main CI with its actual completed intake 
       controlRepository
     ),
     /main CI is missing/
+  );
+});
+
+test("the ledger completion entry point rejects a green but unmerged PR", async () => {
+  const store = new RepairLedgerStore({
+    async getRef() {
+      throw new Error("The verifier must fail before any ledger write.");
+    },
+    async getCommitTree() {
+      throw new Error("The verifier must fail before any ledger write.");
+    },
+    async getFile() {
+      throw new Error("The verifier must fail before any ledger write.");
+    },
+    async createTree() {
+      throw new Error("The verifier must fail before any ledger write.");
+    },
+    async createCommit() {
+      throw new Error("The verifier must fail before any ledger write.");
+    },
+    async createRef() {
+      throw new Error("The verifier must fail before any ledger write.");
+    },
+    async updateRef() {
+      throw new Error("The verifier must fail before any ledger write.");
+    },
+  });
+  await assert.rejects(
+    store.completeWithVerifiedCi(
+      {
+        document: document(),
+        commit_sha: "1".repeat(40),
+        tree_sha: "2".repeat(40),
+        is_private: false,
+      },
+      reader({ merged: false }),
+      controlRepository,
+      now,
+      null
+    ),
+    /must be merged/
   );
 });
