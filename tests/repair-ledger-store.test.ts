@@ -247,10 +247,9 @@ test("existing v1 records without failure origin migrate on read without inventi
   const store = new RepairLedgerStore(api);
   const original = document("fongap-labs/action-worker", 24);
   const { failure_run_id: _run, failure_head_sha: _head, ...legacyEntry } = original.entry;
-  const encoded = Buffer.from(
-    JSON.stringify({ ...original, entry: legacyEntry }),
-    "utf8"
-  ).toString("base64");
+  const encoded = Buffer.from(JSON.stringify({ ...original, entry: legacyEntry }), "utf8").toString(
+    "base64"
+  );
   const tree = await api.createTree(null, "record.dat", `AWREPAIR1:public:${encoded}`);
   const commit = await api.createCommit(tree, null);
   await api.createRef(repairLedgerRefName(original.entry.task_id), commit);
