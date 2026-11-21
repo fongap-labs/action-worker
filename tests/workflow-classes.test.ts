@@ -55,7 +55,6 @@ const classes = {
   maintenance: [
     "apply-repository-settings.yml",
     "audit-config-scope.yml",
-    "delta-history-prune.yml",
     "enroll-organization-repositories.yml",
     "publication-key-verify.yml",
     "main-write-guard.yml",
