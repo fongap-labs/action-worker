@@ -30,6 +30,8 @@ const classes = {
   diagnostic: ["runner-isolation-canary.yml", "verify-github-app.yml"],
   // Private GitHub identity-bound manual Agent request; no repository_dispatch or public MCP route.
   privateAgent: ["agent-task-ingress.yml"],
+  // Controlled manual, public-only repair ledger admission; no code execution.
+  admission: ["repair-public-intake.yml"],
   // Approved manual-only operations that mutate production Worker Secrets.
   operation: ["ai-gateway-ops.yml"],
   // Protected, manual-only recovery; no repository_dispatch bypass of explicit confirmation.
@@ -81,6 +83,7 @@ const allowedTriggers: Record<WorkflowClass, readonly string[]> = {
   entry: ["repository_dispatch", "workflow_dispatch"],
   diagnostic: ["workflow_dispatch"],
   privateAgent: ["workflow_dispatch"],
+  admission: ["workflow_dispatch"],
   operation: ["workflow_dispatch"],
   recovery: ["workflow_dispatch"],
   intake: ["push", "repository_dispatch", "schedule"],
@@ -154,6 +157,22 @@ test("only approved entry, diagnostics and private operations expose manual disp
       assert.match(identity, /scripts\/agent-task-ingress\.ts dispatch/);
       assert.match(identity, /permission-contents: read/);
       assert.match(identity, /permission-contents: write/);
+      continue;
+    }
+    if (kind === "admission") {
+      assert.deepEqual(Object.keys(triggers), ["workflow_dispatch"], `${file} is manual-only`);
+      assert.deepEqual(Object.keys(workflow.jobs ?? {}), ["admit"], `${file} has one admission job`);
+      const job = workflow.jobs?.admit as Job & {
+        environment?: { name: string; deployment: boolean };
+        if?: string;
+      };
+      assert.deepEqual(job.environment, { name: "admin-ops", deployment: false });
+      assert.match(job.if ?? "", /github\\.repository == 'fongap-labs\\/action-worker'/);
+      assert.match(job.if ?? "", /github\\.ref == 'refs\\/heads\\/main'/);
+      const source = await readFile(`${workflowDirectory}/${file}`, "utf8");
+      assert.match(source, /permission-contents: read/);
+      assert.match(source, /permission-contents: write/);
+      assert.doesNotMatch(source, /repository_dispatch:|pull_request_target:/);
       continue;
     }
     if (kind === "diagnostic") {
