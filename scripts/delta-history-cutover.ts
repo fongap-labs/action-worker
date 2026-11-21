@@ -1,20 +1,9 @@
 import { isDeepStrictEqual } from "node:util";
-import {
-  hasVerifiedCiEvidence,
-  controlRepositoryOf,
-} from "./ci-evidence.ts";
-import {
-  type GithubReader,
-  getJsonString,
-  isJsonRecord,
-  statusAwareReader,
-} from "./github-api.ts";
-import {
-  verifyDeltaHistoryMigration,
-  readDeltaHistoryPolicy,
-} from "./delta-history-migration.ts";
-import { assertTrustedMainWrite, validateMainWriteProvenance } from "./main-write-guard.ts";
 import { rulesetPayloads } from "./apply-repository-settings.ts";
+import { controlRepositoryOf, hasVerifiedCiEvidence } from "./ci-evidence.ts";
+import { readDeltaHistoryPolicy, verifyDeltaHistoryMigration } from "./delta-history-migration.ts";
+import { type GithubReader, getJsonString, isJsonRecord, statusAwareReader } from "./github-api.ts";
+import { assertTrustedMainWrite, validateMainWriteProvenance } from "./main-write-guard.ts";
 import { CliError, handleError, isMain, readJson, runText } from "./runtime-command.ts";
 
 const targetRepository = "fongap-labs/delta";
@@ -41,9 +30,9 @@ export async function performDeltaHistoryCutover(ops: CutoverOperations): Promis
   if ((await ops.getMainSha()) !== sourceSha) {
     throw new CliError("::error::Delta main moved before the cutover.", 65);
   }
-  let protectionAttempted = false;
+  let hasProtectionAttempted = false;
   try {
-    protectionAttempted = true;
+    hasProtectionAttempted = true;
     await ops.disableProtection();
     if ((await ops.getMainSha()) !== sourceSha) {
       throw new CliError("::error::Delta main moved while the protection changed.", 65);
@@ -54,13 +43,13 @@ export async function performDeltaHistoryCutover(ops: CutoverOperations): Promis
     }
     await ops.verifyTarget();
   } catch (error) {
-    if (protectionAttempted && (await ops.getMainSha()) === targetSha) {
+    if (hasProtectionAttempted && (await ops.getMainSha()) === targetSha) {
       // An invalid or partially verified migration must not strand an untrusted main.
       await ops.writeMain(sourceSha);
     }
     throw error;
   } finally {
-    if (protectionAttempted) {
+    if (hasProtectionAttempted) {
       // A separate always() workflow job also reapplies the full managed policy.
       await ops.restoreProtection();
     }
@@ -142,9 +131,7 @@ async function preflight(reader: GithubReader): Promise<void> {
   if (source.pr_number !== policy.source_pr) {
     throw new CliError("::error::Original main PR identity is not preserved.", 65);
   }
-  const statuses = await reader.get(
-    `repos/${targetRepository}/commits/${sourceSha}/status`
-  );
+  const statuses = await reader.get(`repos/${targetRepository}/commits/${sourceSha}/status`);
   if (
     !(await hasVerifiedCiEvidence(reader, statuses, {
       controlRepository: controlRepositoryOf(),
@@ -174,7 +161,10 @@ async function main(): Promise<void> {
   const readToken = process.env.AW_CONTROL_TOKEN ?? "";
   const statusToken = process.env.AW_STATUS_API_TOKEN ?? "";
   if (!readToken || !statusToken || !process.env.AW_STATUS_KEYRING) {
-    throw new CliError("::error::Distinct central read/status identities and keyring required.", 77);
+    throw new CliError(
+      "::error::Distinct central read/status identities and keyring required.",
+      77
+    );
   }
   const reader = statusAwareReader("https://api.github.com", readToken, statusToken);
   if (mode === "preflight") {

@@ -5,14 +5,20 @@ import { performDeltaHistoryCutover } from "../scripts/delta-history-cutover.ts"
 const oldSha = "dee27ea15004fc905c9f4ad0e1c01cfca67c571f";
 const newSha = "decc6ee1388df99d2769024ac78b0f153ab8800d";
 
-function fixture(options: { failPreflight?: boolean; failTarget?: boolean; moveDuringDisable?: boolean } = {}) {
+function fixture(
+  options: { failPreflight?: boolean; failTarget?: boolean; moveDuringDisable?: boolean } = {}
+) {
   let main = oldSha;
   let protectedMain = true;
   const calls: string[] = [];
   return {
     calls,
-    get main() { return main; },
-    get protectedMain() { return protectedMain; },
+    get main() {
+      return main;
+    },
+    get protectedMain() {
+      return protectedMain;
+    },
     operations: {
       preflight: async () => {
         calls.push("preflight");
@@ -49,7 +55,14 @@ test("trusted immutable cutover verifies source and destination, restoring prote
   assert.equal(f.main, newSha);
   assert.equal(f.protectedMain, true);
   assert.deepEqual(f.calls, [
-    "preflight", "get", "disable", "get", `write:${newSha}`, "get", "verify", "restore",
+    "preflight",
+    "get",
+    "disable",
+    "get",
+    `write:${newSha}`,
+    "get",
+    "verify",
+    "restore",
   ]);
 });
 
