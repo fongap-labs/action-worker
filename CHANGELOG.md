@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 允许 Delta 可信 Linux 清单同时声明经中央审核的 Windows 作业，严格拒绝额外权限或任意脚本。
+
 - 新增: Delta Windows CI 使用中央白名单和可信清单显式启用；验证无签名便携目录、运行时启动及隔离应用数据。
 
 - 维护: Delta Code 可信 Linux CI 新增原生 code_lsp_probe 的受限 Host subprocess 实测，验证已安装/缺失语言服务、越界目录与取消调用的拒绝路径和卸载后工具清理；不替代完整 LSP 诊断。
