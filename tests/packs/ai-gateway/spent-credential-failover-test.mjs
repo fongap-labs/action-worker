@@ -69,7 +69,7 @@ test('the private center discovers identical provider credentials without config
     { ...independent, keyGroup: undefined, credential: 'dummy-secret-two' },
   ];
   const payload = encodeInferredCredentialGroups(centerNodes);
-  assert.equal(payload, JSON.stringify([[spent.id, sameKey.id]]));
+  assert.equal(payload, JSON.stringify({ covered: [spent.id, sameKey.id, independent.id], groups: [[spent.id, sameKey.id]] }));
   assert.equal(payload.includes('dummy-secret'), false, 'private metadata must contain only node IDs');
   const gatewayNodes = centerNodes.map((node) => ({ ...node, credential: '', keyGroup: 'incorrect-legacy-label' }));
   assert.equal(adoptInferredCredentialGroups(gatewayNodes, payload), true);
@@ -90,7 +90,7 @@ test('credential rotation clears inferred sharing and rejects forged metadata at
   assert.equal(adoptInferredCredentialGroups(gatewayNodes, encodeInferredCredentialGroups(centerNodes)), true);
   const previous = credentialSlotId(gatewayNodes[0]);
   assert.equal(previous, credentialSlotId(gatewayNodes[1]));
-  assert.equal(adoptInferredCredentialGroups(gatewayNodes, '[["slot-a","missing-node"]]'), false);
+  assert.equal(adoptInferredCredentialGroups(gatewayNodes, '{"covered":["slot-a","missing-node"],"groups":[["slot-a","missing-node"]]}'), false);
   assert.equal(credentialSlotId(gatewayNodes[0]), previous, 'invalid metadata cannot corrupt current groups');
   centerNodes[1].credential = 'rotated-dummy-secret';
   assert.equal(adoptInferredCredentialGroups(gatewayNodes, encodeInferredCredentialGroups(centerNodes)), true);
