@@ -94,6 +94,8 @@ test("CI is tied to the current head and exact run", () => {
     evidenceSha256: verifiedCi,
   });
   assert.equal(done.stage, "completed");
+  assert.equal(done.root_cause_evidence_sha256, evidence);
+  assert.equal(done.ci_evidence_sha256, verifiedCi);
   reject(done, { kind: "head-updated", headSha: secondHead }, /immutable/);
 });
 
