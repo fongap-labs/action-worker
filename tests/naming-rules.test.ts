@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
 import { execFileSync, spawnSync } from "node:child_process";
+import { test } from "node:test";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -20,19 +20,20 @@ test("source naming command failures preserve their diagnostic message", () => {
 test("unchanged legacy paths may be edited, but newly introduced paths must follow naming rules", async () => {
   const root = await mkdtemp(join(tmpdir(), "aw-naming-regression-"));
   const validator = resolve("scripts/validate-naming-rules.ts");
-  const git = (...args: string[]) => execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
+  const git = (...args: string[]) =>
+    execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
   try {
     git("init", "-q");
     git("config", "user.name", "CI Test");
     git("config", "user.email", "ci-test@example.invalid");
     await mkdir(join(root, "scripts"));
     const legacy = join(root, "scripts/legacy-release-ingress-handler.ts");
-    await writeFile(legacy, "export const count = 1;\\n");
+    await writeFile(legacy, "export const count = 1;\n");
     git("add", ".");
     git("commit", "-qm", "add old filename");
     const base = git("rev-parse", "HEAD");
 
-    await writeFile(legacy, "export const count = 2;\\n");
+    await writeFile(legacy, "export const count = 2;\n");
     git("add", ".");
     git("commit", "-qm", "edit old filename");
     const head = git("rev-parse", "HEAD");
@@ -42,7 +43,10 @@ test("unchanged legacy paths may be edited, but newly introduced paths must foll
     });
     assert.equal(allowed.status, 0, allowed.stdout + allowed.stderr);
 
-    await writeFile(join(root, "scripts/brand-new-extra-filename.ts"), "export const count = 3;\\n");
+    await writeFile(
+      join(root, "scripts/brand-new-extra-filename.ts"),
+      "export const count = 3;\n"
+    );
     git("add", ".");
     git("commit", "-qm", "introduce invalid filename");
     const next = git("rev-parse", "HEAD");
