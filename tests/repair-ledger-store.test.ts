@@ -9,7 +9,7 @@ import {
   repairLedgerRefName,
   type RepairLedgerDocument,
   type RepairLedgerGitApi,
-} from "../scripts/repair-ledger-github-store.ts";
+} from "../scripts/repair-ledger-store.ts";
 
 const fingerprint = "a".repeat(64);
 const rootEvidence = "b".repeat(64);

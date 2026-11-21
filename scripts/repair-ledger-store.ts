@@ -277,7 +277,11 @@ function decodeRecord(
 }
 
 export class RepairLedgerStore {
-  constructor(private readonly api: RepairLedgerGitApi) {}
+  private readonly api: RepairLedgerGitApi;
+
+  constructor(api: RepairLedgerGitApi) {
+    this.api = api;
+  }
 
   async read(
     repository: string,
@@ -383,12 +387,16 @@ function conflictFromWrite(error: unknown): never {
 
 export class GitHubRepairLedgerGitApi implements RepairLedgerGitApi {
   private readonly reader: GithubReader;
+  private readonly controlRepository: string;
+  private readonly token: string;
 
   constructor(
-    private readonly controlRepository: string,
-    private readonly token: string,
+    controlRepository: string,
+    token: string,
     apiUrl = process.env.GITHUB_API_URL ?? "https://api.github.com"
   ) {
+    this.controlRepository = controlRepository;
+    this.token = token;
     if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(controlRepository) || !token) {
       throw new CliError("Repair ledger GitHub API scope is invalid.", 77);
     }
