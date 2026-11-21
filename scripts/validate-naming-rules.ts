@@ -180,9 +180,10 @@ export async function validateNames(
       extension === "ts" && (path.startsWith("scripts/") || path.startsWith("tests/"));
     const typescriptStem = isTypeScriptSource ? stem.replace(/\.(?:test|spec)$/, "") : stem;
     if (
-      ((isWorkflow || isShell) && !isKebab(stem, maxSegments)) ||
-      (isTypeScriptSource && !isKebab(typescriptStem, maxSegments))
-    ) && introducedPaths.has(path)) {
+      introducedPaths.has(path) &&
+      (((isWorkflow || isShell) && !isKebab(stem, maxSegments)) ||
+        (isTypeScriptSource && !isKebab(typescriptStem, maxSegments)))
+    ) {
       console.log(
         `::error file=${path}::Engineering filenames must use policy-defined kebab-case with at most ${maxSegments} segments.`
       );
