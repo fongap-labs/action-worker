@@ -8,6 +8,7 @@ on:
       - scripts/sync-delta-upstream.ts
   schedule:
     - cron: "29 3 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -40,9 +41,18 @@ jobs:
       - name: Install pinned workflow parser
         run: npm ci --ignore-scripts
 
+      - name: Mint Delta-only branch writer
+        id: writer
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: delta
+          permission-contents: write
+          permission-workflows: write
+
       - name: Sync upstream to upstream/deepseek-harness only
         env:
-          # Reuse the existing admin-ops credential: the standard App token
-          # cannot push unchanged upstream workflow files without workflows write.
-          AW_DELTA_MIRROR_TOKEN: ${{ secrets.AW_ADMIN_TOKEN }}
+          AW_DELTA_MIRROR_TOKEN: ${{ steps.writer.outputs.token }}
         run: node scripts/sync-delta-upstream.ts
