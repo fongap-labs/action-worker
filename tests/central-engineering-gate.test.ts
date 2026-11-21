@@ -314,7 +314,11 @@ test("first Delta import uses the same pinned upstream tree in both ownership ga
   assert.ok(sandboxGate.includes("const comparisonBase = engineeringOwnershipDiffBase(repository, base)"));
   assert.ok(sandboxGate.includes("new Set([base, comparisonBase, head])"));
   const gateLines = sandboxGate.split(String.fromCharCode(10));
-  assert.ok(gateLines.some((line, index) => line.trim() === "comparisonBase," && gateLines[index + 1]?.trim() === "head,"));
+  assert.ok(
+    gateLines.some(
+      (line, index) => line.trim() === "comparisonBase," && gateLines[index + 1]?.trim() === "head,"
+    )
+  );
 });
 
 test("Linux central sandbox runs trusted ownership policy before project-controlled CI", () => {
