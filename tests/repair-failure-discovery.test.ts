@@ -311,7 +311,10 @@ test("successful scans dispatch only after the last repository and status page i
     }
   );
   assert.deepEqual(summary, { repositories_scanned: 2, failures_found: 2 });
-  assert.deepEqual(delivered.map((candidate) => candidate.run_id), [11, 12]);
+  assert.deepEqual(
+    delivered.map((candidate) => candidate.run_id),
+    [11, 12]
+  );
 });
 
 test("an over-budget organization scan fails without partially delivering candidates", async () => {
