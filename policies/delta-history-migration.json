@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "repository": "fongap-labs/delta",
+  "approval_issue": 1924,
+  "source_pr": 9,
+  "source_sha": "dee27ea15004fc905c9f4ad0e1c01cfca67c571f",
+  "target_sha": "decc6ee1388df99d2769024ac78b0f153ab8800d",
+  "baseline_sha": "2e39e70496aa02986ca6a820c5d497e816b69d7e",
+  "tree_sha": "067d3c2c52b62dd7c5d275b8f36221c9469dd24f",
+  "source_backup_ref": "legacy/main-pre-harness-migration-2026-11-22",
+  "target_ref": "migration/rebase-delta-on-harness-2026-11-22",
+  "baseline_ref": "baseline/deepseek-harness",
+  "upstream_ref": "upstream/deepseek-harness",
+  "snapshots": [
+    {
+      "source_sha": "1d1140ea0d37f54c08fead75b0a23a361ee4767c",
+      "target_sha": "db8757cfbc4a9b53496b6539f8c4c7291cc0f6b3",
+      "tree_sha": "f467c18fb6eecb8829286752915f4f07d04165aa"
+    },
+    {
+      "source_sha": "bc44e33a03ca58843cc06f7c046d57bf0a8dd72a",
+      "target_sha": "295baa78e1ba6f4b988c8b1a432c7c7a50687517",
+      "tree_sha": "61b8d8fa62a9116f6b293e0539af34a5ef2d5695"
+    },
+    {
+      "source_sha": "5619b1035265b044f70485552a569bd934e937ba",
+      "target_sha": "31c1eb52bc65e4cbcaa3de9e1271767db51257e8",
+      "tree_sha": "8cc844080bd7da1741c78c66341040bdf954edbe"
+    },
+    {
+      "source_sha": "7556dc8dfede03053e35359f2b55dd299da1f3ee",
+      "target_sha": "821c17651f211e5a0807993939e49f86f0ef2196",
+      "tree_sha": "82b6377d447bdb85794e00f9a203096e4907fb5b"
+    },
+    {
+      "source_sha": "b324c4b8453fe1a24ae44bb260f01f7dfd4ecf1a",
+      "target_sha": "f15d18e6b13a6135ae9974653c69979599006666",
+      "tree_sha": "6e317603cd843899a522b62a55cec3907e052853"
+    },
+    {
+      "source_sha": "584e6c77ad424b1b388014854d2ecda13c9b2433",
+      "target_sha": "5ee474150bf742e399c964ee1d962d9b9336f236",
+      "tree_sha": "f9b9f3d6189e140da852a846d80874ae99981ed6"
+    },
+    {
+      "source_sha": "dee27ea15004fc905c9f4ad0e1c01cfca67c571f",
+      "target_sha": "decc6ee1388df99d2769024ac78b0f153ab8800d",
+      "tree_sha": "067d3c2c52b62dd7c5d275b8f36221c9469dd24f"
+    }
+  ]
+}
