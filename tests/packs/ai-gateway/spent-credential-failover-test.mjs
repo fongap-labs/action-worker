@@ -1,4 +1,6 @@
 import { assert, test } from '#kit/harness.mjs';
+import { adoptInferredCredentialGroups, encodeInferredCredentialGroups } from '#target/packages/contracts/credential-groups.ts';
+import { credentialPeers, credentialSlotId } from '#target/src/reliability/shared-credential-group.ts';
 import { failedDomainNodeIds, rememberFailedDomains } from '#target/apps/gateway/policy/model-fallback.ts';
 import { isCredentialWideFailure, preferUntriedCredentials } from '#target/apps/gateway/reliability/retry-budget.ts';
 
@@ -58,4 +60,40 @@ test('in-pass selection must prefer and permit independent credentials', () => {
   assert.ok(excluded);
   assert.equal(excluded.has(sameKey.id), true);
   assert.equal(excluded.has(independent.id), false);
+});
+
+test('the private center discovers identical provider credentials without configured keyGroup', () => {
+  const centerNodes = [
+    { ...spent, keyGroup: undefined, credential: 'dummy-secret-one' },
+    { ...sameKey, keyGroup: undefined, baseUrl: 'https://other-host.invalid/v1', credential: 'dummy-secret-one' },
+    { ...independent, keyGroup: undefined, credential: 'dummy-secret-two' },
+  ];
+  const payload = encodeInferredCredentialGroups(centerNodes);
+  assert.equal(payload, JSON.stringify([[spent.id, sameKey.id]]));
+  assert.equal(payload.includes('dummy-secret'), false, 'private metadata must contain only node IDs');
+  const gatewayNodes = centerNodes.map((node) => ({ ...node, credential: '', keyGroup: 'incorrect-legacy-label' }));
+  assert.equal(adoptInferredCredentialGroups(gatewayNodes, payload), true);
+  assert.equal(credentialSlotId(gatewayNodes[0]), credentialSlotId(gatewayNodes[1]));
+  assert.notEqual(credentialSlotId(gatewayNodes[0]), credentialSlotId(gatewayNodes[2]));
+  assert.deepEqual(credentialPeers(gatewayNodes, gatewayNodes[0]).map((node) => node.id), [sameKey.id]);
+  assert.equal(gatewayNodes[0].credentialShared, true);
+  assert.equal(gatewayNodes[2].credentialShared, false);
+});
+
+test('credential rotation clears inferred sharing and rejects forged metadata atomically', () => {
+  const centerNodes = [
+    { ...spent, credential: 'dummy-secret-one' },
+    { ...sameKey, credential: 'dummy-secret-one' },
+    { ...independent, credential: 'dummy-secret-two' },
+  ];
+  const gatewayNodes = centerNodes.map((node) => ({ ...node, credential: '' }));
+  assert.equal(adoptInferredCredentialGroups(gatewayNodes, encodeInferredCredentialGroups(centerNodes)), true);
+  const previous = credentialSlotId(gatewayNodes[0]);
+  assert.equal(previous, credentialSlotId(gatewayNodes[1]));
+  assert.equal(adoptInferredCredentialGroups(gatewayNodes, '[["slot-a","missing-node"]]'), false);
+  assert.equal(credentialSlotId(gatewayNodes[0]), previous, 'invalid metadata cannot corrupt current groups');
+  centerNodes[1].credential = 'rotated-dummy-secret';
+  assert.equal(adoptInferredCredentialGroups(gatewayNodes, encodeInferredCredentialGroups(centerNodes)), true);
+  assert.notEqual(credentialSlotId(gatewayNodes[0]), credentialSlotId(gatewayNodes[1]));
+  assert.equal(credentialPeers(gatewayNodes, gatewayNodes[0]).length, 0);
 });
