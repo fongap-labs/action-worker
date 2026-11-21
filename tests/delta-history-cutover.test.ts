@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { performDeltaHistoryCutover } from "../scripts/delta-history-cutover.ts";
 
-const oldSha = "dee27ea15004fc905c9f4ad0e1c01cfca67c571f";
-const newSha = "decc6ee1388df99d2769024ac78b0f153ab8800d";
+const oldSha = "4870259d11d8468d6d494f9d609e70c148416cf8";
+const newSha = "8b73554a94a115c3fc8310e882036ef887f0569c";
 
 function fixture(
   options: { failPreflight?: boolean; failTarget?: boolean; moveDuringDisable?: boolean } = {}

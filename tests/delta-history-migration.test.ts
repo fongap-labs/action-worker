@@ -44,7 +44,7 @@ function fixture(
   }
   responses.set(`${prefix}/compare/${manifest.baseline_sha}...${manifest.target_sha}`, {
     status: "ahead",
-    ahead_by: 7,
+    ahead_by: 8,
     behind_by: 0,
     merge_base_commit: { sha: manifest.baseline_sha },
   });
@@ -78,7 +78,7 @@ test("one-time Delta target identity is fail-closed for all other repositories a
   assert.deepEqual(reads, []);
 });
 
-test("preflight accepts exactly seven identical historical snapshots without changing main", async () => {
+test("preflight accepts exactly eight identical historical snapshots without changing main", async () => {
   const { reader } = fixture();
   assert.deepEqual(
     await verifyDeltaHistoryMigration(reader, repo, manifest.target_sha, "preflight"),
@@ -111,7 +111,7 @@ test("migration rejects any main or legacy backup ref drift", async () => {
 
 test("migration rejects modified source, candidate, and intermediate tree snapshots", async () => {
   const prefix = `repos/${repo}`;
-  for (const snapshot of [manifest.snapshots[0]!, manifest.snapshots[3]!, manifest.snapshots[6]!]) {
+  for (const snapshot of [manifest.snapshots[0]!, manifest.snapshots[3]!, manifest.snapshots[7]!]) {
     for (const sha of [snapshot.source_sha, snapshot.target_sha]) {
       const path = `${prefix}/git/commits/${sha}`;
       const { reader } = fixture("preflight", {
@@ -130,7 +130,7 @@ test("migration rejects a fake ancestor relation and hidden missing upstream com
   for (const change of [
     {
       status: "diverged",
-      ahead_by: 7,
+      ahead_by: 8,
       behind_by: 1,
       merge_base_commit: { sha: manifest.baseline_sha },
     },
@@ -140,7 +140,7 @@ test("migration rejects a fake ancestor relation and hidden missing upstream com
       behind_by: 0,
       merge_base_commit: { sha: manifest.baseline_sha },
     },
-    { status: "ahead", ahead_by: 7, behind_by: 0, merge_base_commit: { sha: "f".repeat(40) } },
+    { status: "ahead", ahead_by: 8, behind_by: 0, merge_base_commit: { sha: "f".repeat(40) } },
   ]) {
     const { reader } = fixture("preflight", { [key]: change });
     await assert.rejects(

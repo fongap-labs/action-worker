@@ -9,9 +9,9 @@ import {
 import { CliError } from "./runtime-command.ts";
 
 // This is NOT a general migration capability. Only the exact Delta repository, target SHA,
-// and seven source snapshots may be accepted. A different migration requires new reviewed code.
+// and eight source snapshots may be accepted. A different migration requires new reviewed code.
 const deltaRepository = "fongap-labs/delta";
-const deltaTargetSha = "decc6ee1388df99d2769024ac78b0f153ab8800d";
+const deltaTargetSha = "8b73554a94a115c3fc8310e882036ef887f0569c";
 const policyPath = "policies/delta-history-migration.json";
 const shaPattern = /^[a-f0-9]{40}$/;
 
@@ -67,17 +67,17 @@ export function readDeltaHistoryPolicy(): DeltaHistoryPolicy {
     record.schema_version === 1 &&
       record.repository === deltaRepository &&
       record.target_sha === deltaTargetSha &&
-      record.source_pr === 9 &&
+      record.source_pr === 10 &&
       record.approval_issue === 1924 &&
       hasSha(record.source_sha) &&
       hasSha(record.baseline_sha) &&
       hasSha(record.tree_sha) &&
-      record.source_backup_ref === "legacy/main-pre-harness-migration-2026-11-22" &&
-      record.target_ref === "migration/rebase-delta-on-harness-2026-11-22" &&
+      record.source_backup_ref === "legacy/main-pre-harness-migration-2026-11-22-v2" &&
+      record.target_ref === "migration/rebase-delta-on-harness-2026-11-22-v2" &&
       record.baseline_ref === "baseline/deepseek-harness" &&
       record.upstream_ref === "upstream/deepseek-harness" &&
       Array.isArray(record.snapshots) &&
-      record.snapshots.length === 7,
+      record.snapshots.length === 8,
     "manifest identity is not the approved Delta case"
   );
   const snapshots = record.snapshots as unknown[];
@@ -165,7 +165,7 @@ export async function verifyDeltaHistoryMigration(
   requireExact(
     getJsonString(compare, "status") === "ahead" &&
       getJsonNumber(compare, "behind_by") === 0 &&
-      getJsonNumber(compare, "ahead_by") === 7 &&
+      getJsonNumber(compare, "ahead_by") === 8 &&
       getJsonString(isJsonRecord(compare) ? compare.merge_base_commit : null, "sha") ===
         policy.baseline_sha,
     "new history does not descend linearly from the exact Harness baseline"
