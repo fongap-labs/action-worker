@@ -50,7 +50,10 @@ export function allowPrivateWindowsNumericDiagnostic(
  * Resolve a Windows script from the central, reviewed test-pack allowlist.
  * A target repository's manifest may opt in, but cannot supply the script.
  */
-export function resolveCentralWindowsScript(policyValue: unknown, repository: string): string | undefined {
+export function resolveCentralWindowsScript(
+  policyValue: unknown,
+  repository: string
+): string | undefined {
   if (
     !isJsonRecord(policyValue) ||
     policyValue.schema_version !== 1 ||
@@ -176,7 +179,8 @@ export async function resolveCiCapabilities(
   // Only an explicit Windows CI declaration on the trusted control ref can
   // enable an allowlisted central suite; untrusted PR content cannot opt in.
   const declaresWindows = manifest !== undefined && declaresWindowsJob(manifest);
-  const hasWindows = hasTargetWindowsScript || (centralWindowsScript !== undefined && declaresWindows);
+  const hasWindows =
+    hasTargetWindowsScript || (centralWindowsScript !== undefined && declaresWindows);
   const diagnosticPolicy = parseJson(
     await readFile("policies/ci-diagnostics.json", "utf8"),
     "Central CI diagnostic policy is not valid JSON.",
