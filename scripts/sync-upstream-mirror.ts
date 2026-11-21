@@ -146,7 +146,11 @@ export function isSafeMirrorWorkflow(source: string, branch: string): boolean {
   });
 }
 
-function assertSafeWorkflowTriggers(repository: string, sourceRef: string, targetBranch: string): number {
+function assertSafeWorkflowTriggers(
+  repository: string,
+  sourceRef: string,
+  targetBranch: string
+): number {
   const files = run("git", [
     `--git-dir=${repository}`,
     "ls-tree",
@@ -204,15 +208,11 @@ async function main(): Promise<void> {
   const mirror = join(directory, "upstream.git");
   try {
     // Fetch complete Git objects, never checkout or run untrusted source.
-    run("git", [
-      "clone",
-      "--bare",
-      "--single-branch",
-      "--branch",
-      source.source_branch,
-      sourceUrl,
-      mirror,
-    ], { timeout: 900_000 });
+    run(
+      "git",
+      ["clone", "--bare", "--single-branch", "--branch", source.source_branch, sourceUrl, mirror],
+      { timeout: 900_000 }
+    );
     const sha = run("git", [`--git-dir=${mirror}`, "rev-parse", sourceRef]).trim();
     if (sha !== currentSource) {
       throw new Error("Upstream branch moved during source fetch; retry later.");
@@ -227,9 +227,7 @@ async function main(): Promise<void> {
       "credential.helper=!gh auth git-credential",
       "push",
       "--porcelain",
-      ...(mode === "bootstrap"
-        ? [`--force-with-lease=${targetRef}:${source.bootstrap_sha}`]
-        : []),
+      ...(mode === "bootstrap" ? [`--force-with-lease=${targetRef}:${source.bootstrap_sha}`] : []),
       targetUrl,
       `${sourceRef}:${targetRef}`,
     ];
@@ -240,15 +238,17 @@ async function main(): Promise<void> {
     if (remoteHead(targetUrl, targetRef) !== sha) {
       throw new Error("Upstream mirror ref does not match source after push.");
     }
-    console.log(JSON.stringify({
-      source_repository: source.source_repository,
-      source_sha: sha,
-      target_repository: source.target_repository,
-      target_ref: targetRef,
-      checked_workflows: checkedWorkflows,
-      mode,
-      status: "synced",
-    }));
+    console.log(
+      JSON.stringify({
+        source_repository: source.source_repository,
+        source_sha: sha,
+        target_repository: source.target_repository,
+        target_ref: targetRef,
+        checked_workflows: checkedWorkflows,
+        mode,
+        status: "synced",
+      })
+    );
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }
