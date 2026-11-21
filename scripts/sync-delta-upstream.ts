@@ -34,7 +34,9 @@ function run(
         .replace(/(?:gh[pousr]_|github_pat_)[A-Za-z0-9_]+/gu, "[REDACTED]");
       const lines = combined
         .split("\n")
-        .filter((line) => /(?:remote:|rejected|permission|workflows|fatal:|error:|unpack)/iu.test(line))
+        .filter((line) =>
+          /(?:remote:|rejected|permission|workflows|fatal:|error:|unpack)/iu.test(line)
+        )
         .slice(-12);
       console.error("Mirror Git push diagnostics:", lines.join(" | ").slice(0, 2400));
     }
