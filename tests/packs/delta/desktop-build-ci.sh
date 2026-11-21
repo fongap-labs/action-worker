@@ -307,6 +307,46 @@ try {
       assert.equal(String(version).startsWith('workspace:'), false,
         'publishable metadata cannot depend on unresolved workspace protocol')
   }
+
+  // A standalone Delta Code tarball depends on this first-party shared module.
+  // Audit its actual archive and the package-manager-rewritten version link.
+  // This is package-closure metadata verification, not a cross-machine install.
+  run('pnpm', [
+    '--filter', '@fongap-labs/delta-plugin-shared', 'pack',
+    '--pack-destination', scratch, '--ignore-scripts', '--offline',
+  ])
+  const allArchives = (await readdir(scratch)).filter(name => name.endsWith('.tgz'))
+  assert.equal(allArchives.length, 2, 'expected only Delta Code and shared package archives')
+  const sharedArchive = allArchives.find(name => name !== archives[0])
+  assert.ok(sharedArchive, 'missing private shared-module archive')
+  const sharedTarball = join(scratch, sharedArchive)
+  const sharedEntries = new Set(run('tar', ['-tzf', sharedTarball]).trim().split('\n'))
+  for (const name of [
+    'package/package.json',
+    'package/lib/index.js',
+    'package/lib/types/index.d.ts',
+  ]) assert.ok(sharedEntries.has(name), 'packed shared module missing ' + name)
+  assert.ok([...sharedEntries].every(name =>
+    name.startsWith('package/') && !name.includes('/node_modules/') &&
+    !name.includes('/.env') && !name.includes('/.git/')),
+    'packed shared module contains unexpected project/private files')
+  const sharedManifest = JSON.parse(
+    run('tar', ['-xOzf', sharedTarball, 'package/package.json']))
+  const sharedSource = JSON.parse(
+    await readFile(resolve('packages/plugin/shared/package.json'), 'utf8'))
+  assert.equal(sharedSource.private, true, 'shared module must remain private')
+  assert.equal(sharedManifest.name, '@fongap-labs/delta-plugin-shared')
+  assert.equal(sharedManifest.version, sharedSource.version)
+  assert.equal(sharedManifest.main, './lib/index.js')
+  assert.equal(sharedManifest.exports?.['.']?.default, './lib/index.js')
+  assert.equal(sharedManifest.exports?.['.']?.types, './lib/types/index.d.ts')
+  assert.equal(packed.dependencies['@fongap-labs/delta-plugin-shared'],
+    sharedManifest.version, 'Delta Code tarball must pin the matching shared-module version')
+  for (const group of ['dependencies', 'peerDependencies']) {
+    for (const version of Object.values(sharedManifest[group] ?? {}))
+      assert.equal(String(version).startsWith('workspace:'), false,
+        'packed shared module dependency retains workspace protocol')
+  }
 } finally {
   await rm(scratch, { recursive: true, force: true })
 }
