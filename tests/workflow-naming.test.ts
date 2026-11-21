@@ -23,6 +23,7 @@ const dispatchNameExceptions: Record<string, string> = {
 // without an entry, or a name that drifts from its entry, fails the test, so the list stays exact.
 const chineseDisplayNames: Record<string, string> = {
   "agent-task-ingress.yml": "手动 · 私有 Agent 任务入口",
+  "repair-public-intake.yml": "手动 · 公开修复任务入库",
   "release-app.yml": "手动 · 发布应用",
   "release-npm-auto.yml": "自动 · npm 发包",
   "deploy-source-script.yml": "手动 · 部署服务",
