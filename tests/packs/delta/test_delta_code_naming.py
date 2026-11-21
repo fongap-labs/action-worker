@@ -1,4 +1,4 @@
-"""Trusted Delta Code naming contract with legacy data compatibility."""
+"""Trusted Delta Code naming contract with a single current plugin identity."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def _migrated_root() -> Path:
     return root
 
 
-def test_official_plugin_identity_and_legacy_isolation() -> None:
+def test_current_plugin_identity_without_legacy_compatibility() -> None:
     root = _migrated_root()
     manifest = json.loads((root / "package.json").read_text(encoding="utf-8"))
     assert manifest["name"] == "@fongap-labs/delta-code"
@@ -40,14 +40,14 @@ def test_official_plugin_identity_and_legacy_isolation() -> None:
         root / "src" / "delta-code-repository" / "worktree-storage.ts"
     ).read_text(encoding="utf-8")
     assert "WORKTREE_STORAGE_DIR = '.delta-code'" in storage
-    assert "LEGACY_WORKTREE_STORAGE_DIR = '.dsh-delta-code'" in storage
+    assert "LEGACY_WORKTREE_STORAGE_DIR" not in storage
 
-    # Historical identity only belongs to the explicit compatibility module.
+    # No old-plugin aliases, old path fallback or legacy runtime identifiers.
     for source in (root / "src").rglob("*.ts"):
         text = source.read_text(encoding="utf-8")
-        if source.name != "worktree-storage.ts":
-            assert "dsh-delta-code" not in text, str(source)
+        assert "dsh-delta-code" not in text, str(source)
         assert "DSH_DELTA_CODE" not in text, str(source)
+        assert "LEGACY_WORKTREE_STORAGE_DIR" not in text, str(source)
 
     workspace = (
         root / "src" / "delta-code-adapter" / "providers" / "dsh" / "workspace.ts"
@@ -57,13 +57,15 @@ def test_official_plugin_identity_and_legacy_isolation() -> None:
     worktree = (
         root / "src" / "delta-code-adapter" / "providers" / "dsh" / "worktree.ts"
     ).read_text(encoding="utf-8")
-    assert "LEGACY_WORKTREE_STORAGE_DIR" in worktree
+    assert "LEGACY_WORKTREE_STORAGE_DIR" not in worktree
+    assert "const storage = WORKTREE_STORAGE_DIR + '/worktrees'" in worktree
+    assert "const dir = join(canonicalRoot, WORKTREE_STORAGE_DIR, 'worktrees')" in worktree
     assert "registeredTaskWorktree" in worktree
     assert "hasCompleteGitEvidence" in worktree
     assert "managed worktree has uncommitted changes" in worktree
 
 
-def test_new_and_legacy_private_directories_remain_hidden() -> None:
+def test_only_current_private_directory_is_recognized() -> None:
     root = _migrated_root()
     script = """
 import assert from 'node:assert/strict';
@@ -73,7 +75,7 @@ const url = pathToFileURL(join(process.argv[1], 'src', 'delta-code-repository', 
 const storage = await import(url);
 assert.equal(storage.WORKTREE_STORAGE_DIR, '.delta-code');
 assert.equal(storage.isInternalWorktreePath('.delta-code/worktrees/item'), true);
-assert.equal(storage.isInternalWorktreePath('.dsh-delta-code/worktrees/item'), true);
+assert.equal(storage.isInternalWorktreePath('.dsh-delta-code/worktrees/item'), false);
 assert.equal(storage.isInternalWorktreePath('src/index.ts'), false);
 assert.equal(storage.isInternalWorktreePath('.delta-code-other/file'), false);
 """
