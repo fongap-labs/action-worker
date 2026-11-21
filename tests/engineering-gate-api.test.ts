@@ -451,3 +451,23 @@ test("Delta desktop host tests remain package-local and build runner is central"
   assert.match(runner, /pnpm install --frozen-lockfile/);
   assert.match(runner, /pnpm run build:desktop/);
 });
+
+test("Delta first import executes central product CI after safety gates with pinned tooling", () => {
+  const workflow = readFileSync(".github/workflows/central-ci-sandbox.yml", "utf8");
+  const builder = readFileSync("tests/packs/delta/desktop-build-ci.sh", "utf8");
+  assert.match(workflow, /node-version:.*fongap-labs\/delta.*24\.11\.1/);
+  assert.match(workflow, /pnpm@11\.28\.5/);
+  const scan = workflow.indexOf("- name: Scan the change for secrets");
+  const gate = workflow.indexOf("- name: Enforce central engineering ownership");
+  const build = workflow.indexOf("- name: Run trusted Linux CI");
+  assert.ok(scan >= 0 && scan < gate && gate < build);
+  const step = workflow.slice(build);
+  assert.match(step, /TARGET_REPOSITORY.*fongap-labs\/delta/);
+  assert.match(step, /7556dc8dfede03053e35359f2b55dd299da1f3ee/);
+  assert.match(step, /TARGET_PRIVATE.*false/);
+  assert.match(step, /CENTRAL_CI_SHARD.*all/);
+  assert.match(step, /tests\/packs\/delta\/desktop-build-ci\.sh/);
+  assert.match(builder, /node scripts\/delta-verify\.mjs/);
+  assert.match(builder, /pnpm install --frozen-lockfile/);
+  assert.match(builder, /pnpm run build:desktop/);
+});
