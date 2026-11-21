@@ -118,7 +118,10 @@ export async function admitRepairFinding(
     schema_version: "1",
     repository,
     issue_number: finding.issue_number,
-    entry: createRepairLedgerEntry(repository, finding.root_cause_sha256, finding.now),
+    entry: createRepairLedgerEntry(repository, finding.root_cause_sha256, finding.now, {
+      runId: finding.failure_run_id,
+      headSha: finding.failure_head_sha,
+    }),
   };
   try {
     const created = await store.create(record, isPrivate, protectedKey);
