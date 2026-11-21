@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { isJsonRecord } from "./github-api.ts";
 import {
+  resolveEngineeringDiffBase,
+  type TrustedImportBaseline,
+} from "./validate-engineering-language.ts";
+import {
   CliError,
   handleError,
   isMain,
@@ -237,12 +241,14 @@ export async function collectSecurityViolations(
   root: string,
   base: string,
   head: string,
-  policyPath: string
+  policyPath: string,
+  trusted?: TrustedImportBaseline
 ): Promise<SecurityViolation[]> {
   if (!/^[0-9a-f]{40}$/i.test(base) || !/^[0-9a-f]{40}$/i.test(head)) {
     throw new CliError("::error::Security scan requires full base and head commit SHAs.", 64);
   }
 
+  const comparisonBase = await resolveEngineeringDiffBase(base, root, trusted);
   const policy = parsePolicy(await readJson(policyPath));
   const allowPaths = policy.path_allow_patterns.map((pattern) => compile(pattern));
   const forbiddenPaths = policy.forbidden_path_patterns.map((pattern) => compile(pattern));
@@ -265,7 +271,7 @@ export async function collectSecurityViolations(
 
   const names = await runText(
     "git",
-    ["diff", "--name-only", "--diff-filter=ACMR", base, head, "--"],
+    ["diff", "--name-only", "--diff-filter=ACMR", comparisonBase, head, "--"],
     { cwd: root }
   );
   const changed = names
@@ -309,7 +315,7 @@ export async function collectSecurityViolations(
     ...(await scanAddedLines(
       runTextLines(
         "git",
-        ["diff", "--unified=0", "--no-color", "--no-ext-diff", base, head, "--"],
+        ["diff", "--unified=0", "--no-color", "--no-ext-diff", comparisonBase, head, "--"],
         { cwd: root }
       ),
       secretPatterns,

@@ -78,6 +78,56 @@ test("streamed large diffs preserve distant secret and privacy line numbers", as
   assert.ok(findings.some((item) => item.rule === "privacy-email-address" && item.line === 12002));
 });
 
+test("pinned initial-import baseline excludes inherited fixtures but scans changed secrets", async (context) => {
+  const root = await mkdtemp(join(tmpdir(), "aw-security-baseline-"));
+  context.after(() => rm(root, { recursive: true, force: true }));
+  await git(root, ["init", "-q"]);
+  await git(root, ["config", "user.name", "Test"]);
+  await git(root, ["config", "user.email", "ci-test"]);
+  await writeFile(join(root, "README.md"), "# Bootstrap\n", "utf8");
+  await git(root, ["add", "."]);
+  await git(root, ["commit", "-qm", "initial bootstrap"]);
+  const bootstrapSha = await git(root, ["rev-parse", "HEAD"]);
+
+  await mkdir(join(root, "src"), { recursive: true });
+  const inherited = ["upstream", "example.invalid"].join("@");
+  await writeFile(join(root, "src/sample.txt"), "upstream example: " + inherited + "\n", "utf8");
+  await git(root, ["add", "."]);
+  await git(root, ["commit", "-qm", "verified upstream snapshot"]);
+  const upstreamSha = await git(root, ["rev-parse", "HEAD"]);
+
+  await writeFile(join(root, "src/sample.txt"), "upstream example: " + inherited + "\nlocal change\n", "utf8");
+  await git(root, ["add", "."]);
+  await git(root, ["commit", "-qm", "extend without changing inherited text"]);
+  const head = await git(root, ["rev-parse", "HEAD"]);
+  const trusted = { bootstrapSha, upstreamSha };
+  assert.deepEqual(
+    await collectSecurityViolations(root, bootstrapSha, head, policyPath, trusted),
+    []
+  );
+
+  const introduced = ["operator", "example.invalid"].join("@");
+  await writeFile(
+    join(root, "src/sample.txt"),
+    ["upstream example: ", inherited, "\nlocal change\nnew contact: ", introduced, "\n"].join(""),
+    "utf8"
+  );
+  await git(root, ["add", "."]);
+  await git(root, ["commit", "-qm", "introduce detectable privacy marker"]);
+  const next = await git(root, ["rev-parse", "HEAD"]);
+  const violations = await collectSecurityViolations(root, bootstrapSha, next, policyPath, trusted);
+  assert.ok(violations.some((item) => item.rule === "privacy-email-address" && item.line === 3));
+  assert.ok(!violations.some((item) => item.rule === "privacy-email-address" && item.line === 1));
+
+  await assert.rejects(
+    collectSecurityViolations(root, bootstrapSha, next, policyPath, {
+      bootstrapSha,
+      upstreamSha: "0".repeat(40),
+    }),
+    /pinned|commit|Git/i
+  );
+});
+
 test("ordinary text that resembles the new patterns is not reported", async (context) => {
   const text = [
     "##.sk-component--cookie-message",
