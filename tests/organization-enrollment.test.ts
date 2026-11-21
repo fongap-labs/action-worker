@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
+import { parse } from "yaml";
 import {
   addOnboardingChangelog,
   formatOnboardingPolicy,
@@ -106,6 +107,34 @@ test("auto-enrollment creates a formatter-compliant policy and a scoped Chinese 
   assert.ok(updated.includes("- 维护: 已有内容。"));
   assert.throws(() => addOnboardingChangelog(updated, ["fongap-labs/new-service"]));
   assert.throws(() => addOnboardingChangelog(base, []));
+});
+
+test("organization enrollment only resumes from successful in-repository onboarding PR CI", async () => {
+  const content = await readFile(".github/workflows/enroll-organization-repositories.yml", "utf8");
+  const workflow = parse(content) as {
+    on: {
+      workflow_run?: { workflows?: string[]; types?: string[]; branches?: string[] };
+      push?: { branches?: string[] };
+      schedule?: Array<{ cron: string }>;
+    };
+    jobs: { onboard?: { if?: string } };
+  };
+  const script = await readFile("scripts/enroll-organization-repositories.ts", "utf8");
+  const onboardingBranch = /const branchName = "([^"]+)";/.exec(script)?.[1];
+  assert.ok(onboardingBranch, "the controlled onboarding branch must be declared");
+  assert.deepEqual(workflow.on.workflow_run?.branches, [onboardingBranch]);
+  assert.deepEqual(workflow.on.workflow_run?.types, ["completed"]);
+  assert.deepEqual(workflow.on.push?.branches, ["main"]);
+  assert.ok(workflow.on.schedule?.length, "scheduled inventory reconciliation remains enabled");
+
+  const condition = workflow.jobs.onboard?.if ?? "";
+  assert.match(condition, /github\.event_name != 'workflow_run'/);
+  assert.match(condition, /github\.event\.workflow_run\.event == 'pull_request'/);
+  assert.match(condition, /github\.event\.workflow_run\.conclusion == 'success'/);
+  assert.match(
+    condition,
+    /github\.event\.workflow_run\.head_repository\.full_name == github\.repository/
+  );
 });
 
 test("automatic enrollment uses one versioned policy and the existing hard merge gate", async () => {

@@ -17,6 +17,7 @@ on:
   workflow_run:
     workflows: ["自动 · CI 验证"]
     types: [completed]
+    branches: [automation/organization-onboarding]
   schedule:
     - cron: "11,41 * * * *"
 
@@ -32,7 +33,16 @@ concurrency:
 jobs:
   onboard:
     name: Discover and safely enroll repositories
-    if: github.repository == 'fongap-labs/action-worker'
+    if: >-
+      github.repository == 'fongap-labs/action-worker' &&
+      (
+        github.event_name != 'workflow_run' ||
+        (
+          github.event.workflow_run.event == 'pull_request' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.head_repository.full_name == github.repository
+        )
+      )
     environment:
       name: admin-ops
       deployment: false
