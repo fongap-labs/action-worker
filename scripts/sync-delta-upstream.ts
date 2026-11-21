@@ -47,7 +47,11 @@ export function isSafeMirrorWorkflow(source: string, branch = MIRROR_BRANCH): bo
   if (!Array.isArray(config.branches) || config.branches.length === 0) return false;
   return config.branches.every((name) => {
     if (typeof name !== "string" || name.startsWith("!")) return false;
-    const literalPrefix = name.split(/[*?\\[\\]{}+]/u, 1)[0] ?? "";
+    let literalPrefix = "";
+    for (const character of name) {
+      if ("*?[]{}+".includes(character)) break;
+      literalPrefix += character;
+    }
     if (!literalPrefix) return false;
     if (literalPrefix === name) return name !== branch;
     // Release patterns with a disjoint fixed prefix cannot match the mirror branch.
