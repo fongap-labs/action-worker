@@ -99,5 +99,8 @@ test("migration isolates Git ref reads, contents writes, and ruleset administrat
   assert.doesNotMatch(script, /getMainSha\(adminToken\)/);
   assert.doesNotMatch(script, /git\/refs\/heads\/main`?, adminToken/);
   assert.match(workflow, /repositories: delta\n\s+permission-contents: write/);
-  assert.match(workflow, /AW_MIGRATION_WRITE_TOKEN: \$\{\{ steps\.delta_write\.outputs\.token \}\}/);
+  assert.match(
+    workflow,
+    /AW_MIGRATION_WRITE_TOKEN: \$\{\{ steps\.delta_write\.outputs\.token \}\}/
+  );
 });

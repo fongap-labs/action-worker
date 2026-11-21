@@ -180,10 +180,16 @@ async function main(): Promise<void> {
   const adminToken = process.env.AW_ADMIN_TOKEN ?? "";
   const writeToken = process.env.AW_MIGRATION_WRITE_TOKEN ?? "";
   if (!adminToken || !writeToken) {
-    throw new CliError("::error::Separate Delta administrator and contents-write credentials are required.", 77);
+    throw new CliError(
+      "::error::Separate Delta administrator and contents-write credentials are required.",
+      77
+    );
   }
   if (writeToken === adminToken || writeToken === readToken) {
-    throw new CliError("::error::Delta migration write identity must be separated from admin and read identities.", 77);
+    throw new CliError(
+      "::error::Delta migration write identity must be separated from admin and read identities.",
+      77
+    );
   }
   // Validate all source evidence before inspecting or modifying branch protection.
   await preflight(reader);
