@@ -328,8 +328,8 @@ test("an over-budget organization scan fails without partially delivering candid
         if (path.includes("status=timed_out")) {
           return { total_count: 0, workflow_runs: [] };
         }
-        const match = /repos\\/fongap-labs\\/source-(\\d+)\\/actions\\/runs/.exec(path);
-        const page = Number(/page=(\\d+)/.exec(path)?.[1]);
+        const match = /repos\/fongap-labs\/source-(\d+)\/actions\/runs/.exec(path);
+        const page = Number(/page=(\d+)/.exec(path)?.[1]);
         assert.ok(match);
         assert.ok(Number.isInteger(page) && page >= 1 && page <= 3);
         const index = Number(match[1]);
