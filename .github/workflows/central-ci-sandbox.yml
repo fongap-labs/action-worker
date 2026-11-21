@@ -244,7 +244,7 @@ jobs:
           # a centrally owned real build instead, without trusting a PR CI script.
           if [[ "$TARGET_REPOSITORY" == "fongap-labs/delta" &&
                 "$CENTRAL_CI_BASE_SHA" == "7556dc8dfede03053e35359f2b55dd299da1f3ee" ]]; then
-            bash "$CENTRAL_CI_AW_ROOT/scripts/delta-first-import-ci.sh" "$GITHUB_WORKSPACE/target"
+            bash "$CENTRAL_CI_AW_ROOT/scripts/delta-import-ci.sh" "$GITHUB_WORKSPACE/target"
             exit 0
           fi
           script="$GITHUB_WORKSPACE/ci-control/.github/scripts/central-ci.sh"
