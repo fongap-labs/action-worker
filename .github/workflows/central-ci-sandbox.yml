@@ -461,7 +461,12 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: ${{ inputs.repository == 'fongap-labs/delta' && '24.9.0' || '22' }}
+
+      - name: Install pinned pnpm for Delta Windows suite
+        if: inputs.repository == 'fongap-labs/delta'
+        shell: pwsh
+        run: npm.cmd install --global --no-audit --no-fund --ignore-scripts pnpm@11.28.5
 
       - name: Checkout central test pack
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -494,8 +499,65 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $script = "$env:GITHUB_WORKSPACE\ci-control\.github\scripts\central-ci.ps1"
-          if (-not (Test-Path $script)) {
+          # Scripts for centrally enrolled repositories come only from the
+          # trusted Action Worker checkout. Untrusted target changes cannot
+          # select an alternate script or enable Windows CI themselves.
+          $awRoot = Join-Path $env:GITHUB_WORKSPACE 'aw'
+          $policy = Get-Content -Raw -LiteralPath (Join-Path $awRoot 'policies/ci-windows-routes.json') | ConvertFrom-Json
+          $matches = @($policy.routes | Where-Object { $_.repository -eq $env:TARGET_REPOSITORY })
+          if ($matches.Count -gt 1) { throw "Duplicate central Windows route." }
+          if ($matches.Count -eq 1) {
+            $relative = [string]$matches[0].script
+            if ($relative -cnotmatch '^tests/packs/[a-z0-9-]+/[a-z0-9-]+\.ps1
+
+          $log = Join-Path $env:RUNNER_TEMP "central-ci-windows.log"
+          try {
+            & $script -TargetRoot "$env:GITHUB_WORKSPACE\target" *> $log
+            if ($LASTEXITCODE -ne 0) {
+              throw "Central Windows CI returned exit code $LASTEXITCODE."
+            }
+          }
+          catch {
+            if ($env:TARGET_PRIVATE -eq "false" -and (Test-Path $log)) {
+              Get-Content $log
+            }
+            else {
+              Write-Error "Central Windows CI failed for $env:TARGET_REPOSITORY. Detailed output is suppressed because the target repository is private."
+            }
+            exit 1
+          }
+
+          Write-Host "Central Windows CI passed for $env:TARGET_REPOSITORY."
+
+      # Only centrally authorized private Windows suites may export numeric failure indices.
+      # The source code, test names, paths and stderr stay in runner-local log.
+      # This diagnostic cannot change or bypass any CI success verdict.
+      - name: Export private test index
+        id: private_diag
+        if: always() && inputs.is_private == 'true' && inputs.private_windows_numeric_diagnostic == 'true'
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP "central-ci-windows.log"
+          if (-not (Test-Path -LiteralPath $log -PathType Leaf)) { exit 0 }
+          $body = Get-Content -LiteralPath $log -Raw -ErrorAction SilentlyContinue
+          if ([string]::IsNullOrEmpty($body)) { exit 0 }
+          $failures = [regex]::Matches($body, '(?m)^WC_TEST_FAIL_INDEX=([1-9][0-9]{0,2})(?![0-9])')
+          if ($failures.Count -gt 0 -and $failures.Count -le 999) {
+            # Publish up to five distinct numeric indices, never private names,
+            # paths or log contents. The failure verdict remains unchanged.
+            $indices = @($failures | Select-Object -First 5 | ForEach-Object { [int]$_.Groups[1].Value })
+            $joined = $indices -join '.'
+            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value ("windows_diagnostic=wc-tests-{0}-{1}" -f $joined, $failures.Count)
+          }
+) {
+              throw "Unsafe central Windows suite path."
+            }
+            $script = Join-Path $awRoot $relative
+          }
+          else {
+            $script = "$env:GITHUB_WORKSPACE\ci-control\.github\scripts\central-ci.ps1"
+          }
+          if (-not (Test-Path -LiteralPath $script -PathType Leaf)) {
             throw "Missing trusted central CI script."
           }
 
