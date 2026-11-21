@@ -43,4 +43,4 @@ jobs:
       - name: Discover actual failed Actions runs
         env:
           AW_INVENTORY_TOKEN: ${{ steps.inventory.outputs.token }}
-        run: node scripts/repair-discovery.ts
+        run: node scripts/repair-failure-discovery.ts
