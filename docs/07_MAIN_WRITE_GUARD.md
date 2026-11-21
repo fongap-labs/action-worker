@@ -240,14 +240,16 @@ AI Review 不得拥有 main 写入、合并、Release 或 Deploy 权限。
 - Release/Deploy 下游要求：`06_RELEASE_DEPLOY_GUIDE.md` §3
 - 共用治理宪法：`01_SHARED_GOVERNANCE.md` §3
 
-## 12. 单次主分支历史迁移
+## 12. 单次主分支历史迁移——已完成
 
-经仓库维护者对 [Action Workers #1924](https://github.com/fongap-labs/action-worker/issues/1924) 的明确授权，仅允许 `fongap-labs/delta` 从已备份的 `4870259d11d8468d6d494f9d609e70c148416cf8` 切换到 `8b73554a94a115c3fc8310e882036ef887f0569c`。两者 Git 文件树必须同为 `37516875b61fd6cf149feb6a4c54a1ebea6d3945`，且新历史须完整继承 `2e39e70496aa02986ca6a820c5d497e816b69d7e`。八组历史快照和所有冻结分支引用均按 `policies/delta-history-migration.json` 核查。
+2026 年 11 月 22 日，Action Workers 根据 [#1924](https://github.com/fongap-labs/action-worker/issues/1924) 中的授权执行了一次受审计的 Delta Git 历史整理。权威执行记录为 [工作流 #44929104924](https://github.com/fongap-labs/action-worker/actions/runs/44929104924)，全部 5 个作业均成功：历史及签名预检、Windows 便携 ZIP 实机构建、一次性 `main` 切换、独立恢复分支规则、最终签名来源确认。
 
-执行前，旧 `main` 的 Main Write Guard 和 CI Evidence 必须仍为有效签名成功状态；原始 PR #9 的治理签名和合并事实也必须成立。独立 Windows Runner 必须实际成功构建并验证未签名便携 ZIP。只有上述证据全部成立，Action Workers 管理环境才可短暂调整 Delta `main` 的规则集，并仅对上述固定 SHA 执行一次写入；结束后恢复完整中央规则集，再要求新 SHA 通过独立来源审计。
+- 原 Delta `main` 与受保护备份 `legacy/main-pre-harness-migration-2026-11-22-v2` 均为 `4870259d11d8468d6d494f9d609e70c148416cf8`。
+- 迁移后的 `main` 为 `8b73554a94a115c3fc8310e882036ef887f0569c`，继承 Harness 固定基线 `2e39e70496aa02986ca6a820c5d497e816b69d7e`，比较结果为 Behind 0 / Ahead 8。
+- 两个 `main` 版本的 Git 文件树均为 `37516875b61fd6cf149feb6a4c54a1ebea6d3945`，Delta 产品文件保持完全一致。
+- Delta 原受管 PR #10 的签名治理证据和旧 `main` 的 Main Write Guard / CI Evidence 继续保留；迁移后新 `main` 的两项状态均经过中央验证且为 success。
+- GitHub 原生主分支规则集 `26704813` 已恢复 active，强制 PR、线性历史、禁止非快进改写及所需状态检查均继续有效。
 
-任何分支移动、文件树差异、权限缺失、Windows 构建失败、证据缺失或规则集异常均必须停止，不能降级为人工布尔确认或私有工作流状态。执行失败时优先回滚到冻结 SHA，`restore` 作业独立重申所有受管理设置。此流程不适用于其他仓库或后续 SHA，禁止重复迁移、签发伪造 CI 状态或创建第二套合并权限。
+本次迁移的固定历史证明保存在 `policies/delta-history-migration.json`；`scripts/delta-history-migration.ts` 中仍保留仅认可指定仓库、指定提交和八组树快照的验证逻辑，以便历史来源审计复核。它不能给其他 SHA 或仓库授权，亦不能作为日常合并、发布或部署的旁路。
 
-### 权限职责拆分
-
-单次切换分别使用 App 只读凭据查询 Git 分支、只针对 `fongap-labs/delta` 的 App `Contents:write` 凭据写入固定提交，以及仅供调整和恢复规则集的 `AW_ADMIN_TOKEN`。管理员凭据不用于读写 Git 引用；迁移写入凭据不得用于更改仓库设置。任意凭据缺失或混用均失败阻断。独立规则集恢复任务继续保留，所有权限仍经过单次 SHA、来源证明与 Windows 产物验证约束。
+已完成迁移的一次性工作流 `delta-history-cutover.yml`、其管理员执行器与切换测试不再需要，已提交常规中央治理 PR 移除。之后的 Delta 开发和 `main` 写入必须恢复完全正常的 PR + Action Workers 门禁流程；原历史备份不得改写。
