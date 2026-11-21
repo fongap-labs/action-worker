@@ -248,5 +248,7 @@ test("registered central Windows script is a real trusted PowerShell file", () =
   assert.match(source, /param\(/);
   assert.match(source, /package:desktop:win:x64:dir/);
   assert.match(source, /delta-verify\.mjs/);
+  assert.doesNotMatch(source, /delta-verify\.mjs[^\n]*--ci/);
+  assert.match(source, /pnpm\.cmd/);
   assert.match(source, /Start-Process/);
 });

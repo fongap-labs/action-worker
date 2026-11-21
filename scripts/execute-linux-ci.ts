@@ -20,8 +20,39 @@ export function chooseLinuxManifestCommand(
   const manifest = parseExecutionManifest(manifestValue);
   const jobs = manifest.operations.ci?.jobs ?? [];
   const job = jobs.find((entry) => entry.id === "linux");
-  if (!job || jobs.some((entry) => entry.id !== "linux")) {
-    throw new CliError("The Linux fallback requires exactly one declared Linux CI job.", 65);
+  const windows = jobs.find((entry) => entry.id === "windows");
+  // Delta's Windows suite is scheduled by a separate central sandbox. Do not
+  // silently grant its capabilities to the Linux manifest fallback: accept
+  // exactly the centrally reviewed Windows declaration and nothing else.
+  const allowedWindows =
+    windows !== undefined &&
+    windows.runner_profile === "windows-standard" &&
+    JSON.stringify(windows.command) ===
+      JSON.stringify([
+        "pwsh",
+        "-NoProfile",
+        "-File",
+        "{central_root}/tests/packs/delta/windows-desktop-ci.ps1",
+        "-TargetRoot",
+        "{target_root}",
+      ]) &&
+    windows.timeout_minutes === 90 &&
+    windows.capability_requests.length === 1 &&
+    windows.capability_requests[0] === "source.read" &&
+    windows.working_directory === undefined &&
+    (windows.depends_on?.length ?? 0) === 0 &&
+    windows.matrix === undefined &&
+    (windows.artifacts?.length ?? 0) === 0;
+  if (
+    !job ||
+    jobs.length !== (windows === undefined ? 1 : 2) ||
+    (windows !== undefined && !allowedWindows) ||
+    jobs.some((entry) => entry.id !== "linux" && entry.id !== "windows")
+  ) {
+    throw new CliError(
+      "The Linux fallback requires one Linux job and at most one audited Windows job.",
+      65
+    );
   }
   if (
     job.runner_profile !== "linux-standard" ||
