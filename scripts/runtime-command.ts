@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { appendFile, readFile } from "node:fs/promises";
+import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 import { githubApiAudit } from "./github-api-request-audit.ts";
 
@@ -114,6 +115,60 @@ export async function runText(
   options: CommandOptions = {}
 ): Promise<string> {
   return (await runCommand(command, args, options)).toString("utf8").trimEnd();
+}
+
+/**
+ * Stream command output line by line without buffering its entire stdout.
+ * A nonzero exit or spawn failure rejects the iterator, so validation cannot
+ * pass on an incomplete diff. Only bounded stderr diagnostics are retained.
+ */
+export async function* runTextLines(
+  command: string,
+  args: readonly string[],
+  options: Pick<CommandOptions, "cwd" | "env"> = {}
+): AsyncGenerator<string> {
+  const child = spawn(command, args, {
+    cwd: options.cwd,
+    env: options.env ?? process.env,
+    stdio: ["ignore", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  const stderr: Buffer[] = [];
+  const stderrLimit = 64 * 1024;
+  let stderrBytes = 0;
+  child.stderr.on("data", (chunk: Buffer) => {
+    if (stderrBytes >= stderrLimit) return;
+    const part = chunk.subarray(0, stderrLimit - stderrBytes);
+    stderr.push(part);
+    stderrBytes += part.length;
+  });
+  const completed = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
+    (resolve, reject) => {
+      child.once("error", reject);
+      child.once("close", (code, signal) => resolve({ code, signal }));
+    }
+  );
+  // Attach a rejection handler before reading; a spawn failure may arrive first.
+  void completed.catch(() => undefined);
+  child.stdout.setEncoding("utf8");
+  const lines = createInterface({ input: child.stdout, crlfDelay: Infinity });
+  try {
+    for await (const line of lines) {
+      yield line;
+    }
+    const result = await completed;
+    if (result.code !== 0) {
+      const diagnostic = Buffer.concat(stderr).toString("utf8").trim();
+      throw new CliError(
+        diagnostic || `${command} exited with status ${result.code ?? result.signal ?? "unknown"}.`,
+        result.code ?? 1
+      );
+    }
+  } finally {
+    lines.close();
+    if (child.exitCode === null && child.signalCode === null) child.kill();
+    await completed.catch(() => undefined);
+  }
 }
 
 export async function readJson(path: string): Promise<unknown> {
