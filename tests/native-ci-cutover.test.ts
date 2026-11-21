@@ -64,7 +64,7 @@ test("unlisted targets retain the existing execution flow", () => {
   const policy = JSON.parse(readFileSync("policies/private-ci-pilots.json", "utf8")) as {
     repositories: string[];
   };
-  assert.deepEqual(policy.repositories, ["fongap-labs/delta-legacy"]);
+  assert.deepEqual(policy.repositories, []);
   assert.ok(source.includes("EVENT_ACTION: ${{ github.event.action }}"));
   assert.ok(source.includes("node scripts/native-ci-enrollment.ts"));
   assert.match(

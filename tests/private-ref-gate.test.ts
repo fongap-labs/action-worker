@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { parsePrivateRefArgs } from "../scripts/private-ref-gate.ts";
 
 const valid = [
-  "fongap-labs/delta-legacy",
+  "fongap-labs/private-fixture",
   "a".repeat(40),
   "b".repeat(40),
   '["checks","desktop"]',
@@ -12,7 +12,7 @@ const valid = [
 
 test("private main evidence CLI requires immutable exact source identity", () => {
   assert.deepEqual(parsePrivateRefArgs(valid), {
-    repository: "fongap-labs/delta-legacy",
+    repository: "fongap-labs/private-fixture",
     beforeSha: "a".repeat(40),
     headSha: "b".repeat(40),
     linuxShards: ["checks", "desktop"],

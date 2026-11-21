@@ -15,6 +15,17 @@ import {
 const policy = parseOwnershipPolicy(
   JSON.parse(readFileSync("policies/engineering-ownership.json", "utf8")) as unknown
 );
+const pinnedPolicy = parseOwnershipPolicy({
+  ...policy,
+  private_workflow_pins: [
+    {
+      repository: "fongap-labs/private-fixture",
+      path: ".github/workflows/private-release-build.yml",
+      blob_sha: "b".repeat(40),
+      reason: "Test-only reviewed blob used to verify exact workflow pinning.",
+    },
+  ],
+});
 const ciPath = ".github/workflows/ci.yml";
 const notifyPath = ".github/workflows/notify-action-worker.yml";
 const ciTemplate = readFileSync("templates/bridge/dispatch-central-ci.yml", "utf8");
@@ -27,6 +38,8 @@ const readFile = (path: string) => files.get(path) ?? "";
 const template = (path: string) => readFileSync(path, "utf8");
 const inspect = (repository: string, changes: ChangedFile[]) =>
   inspectEngineeringOwnership(policy, repository, changes, readFile, template);
+const inspectPinned = (repository: string, changes: ChangedFile[]) =>
+  inspectEngineeringOwnership(pinnedPolicy, repository, changes, readFile, template);
 
 test("central ownership policy rejects malformed, duplicate and insufficiently justified exceptions", () => {
   assert.equal(policy.control_repository, "fongap-labs/action-worker");
@@ -130,37 +143,37 @@ test("workflow changes must be byte-exact approved central templates", () => {
 });
 
 test("private source workflow pins require an exact reviewed blob and never accept plain templates", () => {
-  const pin = policy.private_workflow_pins[0];
+  const pin = pinnedPolicy.private_workflow_pins[0];
   assert.ok(pin);
-  assert.equal(pin.repository, "fongap-labs/delta-legacy");
+  assert.deepEqual(policy.private_workflow_pins, []);
   const accepted = [{ status: "M" as const, path: pin.path, sha: pin.blob_sha }];
-  assert.deepEqual(inspect(pin.repository, accepted), []);
+  assert.deepEqual(inspectPinned(pin.repository, accepted), []);
   assert.deepEqual(
-    inspect(pin.repository, [{ status: "M", path: pin.path, sha: "a".repeat(40) }]).map(
+    inspectPinned(pin.repository, [{ status: "M", path: pin.path, sha: "a".repeat(40) }]).map(
       (x) => x.code
     ),
     ["private-workflow-blob-mismatch"]
   );
   assert.deepEqual(
-    inspect(pin.repository, [{ status: "M", path: pin.path }]).map((x) => x.code),
+    inspectPinned(pin.repository, [{ status: "M", path: pin.path }]).map((x) => x.code),
     ["private-workflow-blob-mismatch"]
   );
   assert.deepEqual(
-    inspect(pin.repository, [{ status: "A", path: pin.path, sha: pin.blob_sha }]).map(
+    inspectPinned(pin.repository, [{ status: "A", path: pin.path, sha: pin.blob_sha }]).map(
       (x) => x.code
     ),
     ["private-workflow-blob-mismatch"]
   );
   assert.deepEqual(
-    inspect("fongap-labs/mcp-hub", accepted).map((x) => x.code),
+    inspectPinned("fongap-labs/mcp-hub", accepted).map((x) => x.code),
     ["workflow-outside-control"]
   );
   assert.deepEqual(
-    inspect(pin.repository, [{ status: "D", path: pin.path }]).map((x) => x.code),
+    inspectPinned(pin.repository, [{ status: "D", path: pin.path }]).map((x) => x.code),
     ["required-workflow-deleted"]
   );
   assert.deepEqual(
-    inspect(pin.repository, [
+    inspectPinned(pin.repository, [
       { status: "A", path: ".github/workflows/private-release-bypass.yml" },
     ]).map((x) => x.code),
     ["workflow-outside-control"]
@@ -168,7 +181,7 @@ test("private source workflow pins require an exact reviewed blob and never acce
 });
 
 test("private workflow pins reject duplicate, invalid and overlapping ownership", () => {
-  const pin = policy.private_workflow_pins[0];
+  const pin = pinnedPolicy.private_workflow_pins[0];
   assert.ok(pin);
   assert.throws(
     () => parseOwnershipPolicy({ ...policy, private_workflow_pins: [pin, pin] }),

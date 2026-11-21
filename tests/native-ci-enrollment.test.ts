@@ -4,20 +4,20 @@ import { resolveNativeCiPilot } from "../scripts/native-ci-enrollment.ts";
 
 const policy = {
   schema_version: 1,
-  repositories: ["fongap-labs/delta-legacy"],
+  repositories: ["fongap-labs/private-fixture"],
 };
 
 test("native evidence pilot is explicitly enrolled for private PRs only", () => {
   assert.equal(
-    resolveNativeCiPilot(policy, "fongap-labs/delta-legacy", "true", "run-central-ci", "491"),
+    resolveNativeCiPilot(policy, "fongap-labs/private-fixture", "true", "run-central-ci", "491"),
     true
   );
   assert.equal(
-    resolveNativeCiPilot(policy, "fongap-labs/delta-legacy", "false", "run-central-ci", "491"),
+    resolveNativeCiPilot(policy, "fongap-labs/private-fixture", "false", "run-central-ci", "491"),
     false
   );
   assert.equal(
-    resolveNativeCiPilot(policy, "fongap-labs/delta-legacy", "true", "run-central-ci-ref", "0"),
+    resolveNativeCiPilot(policy, "fongap-labs/private-fixture", "true", "run-central-ci-ref", "0"),
     false
   );
   assert.equal(
@@ -26,19 +26,31 @@ test("native evidence pilot is explicitly enrolled for private PRs only", () => 
   );
 });
 
+test("empty private CI pilot policy leaves all targets on the standard CI path", () => {
+  assert.equal(
+    resolveNativeCiPilot(
+      { schema_version: 1, repositories: [] },
+      "fongap-labs/private-fixture",
+      "true",
+      "run-central-ci",
+      "491"
+    ),
+    false
+  );
+});
+
 test("native evidence pilot refuses malformed or duplicate enrollment policies", () => {
   for (const invalid of [
     { ...policy, schema_version: 2 },
-    { ...policy, repositories: [] },
-    { ...policy, repositories: ["fongap-labs/delta-legacy", "fongap-labs/delta-legacy"] },
+    { ...policy, repositories: ["fongap-labs/private-fixture", "fongap-labs/private-fixture"] },
     { ...policy, repositories: ["untrusted"] },
   ]) {
     assert.throws(() =>
-      resolveNativeCiPilot(invalid, "fongap-labs/delta-legacy", "true", "run-central-ci", "491")
+      resolveNativeCiPilot(invalid, "fongap-labs/private-fixture", "true", "run-central-ci", "491")
     );
   }
   assert.throws(() => resolveNativeCiPilot(policy, "invalid", "true", "run-central-ci", "491"));
   assert.throws(() =>
-    resolveNativeCiPilot(policy, "fongap-labs/delta-legacy", "1", "run-central-ci", "491")
+    resolveNativeCiPilot(policy, "fongap-labs/private-fixture", "1", "run-central-ci", "491")
   );
 });

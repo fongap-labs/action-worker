@@ -11,7 +11,7 @@ const policy = {
   schema_version: 1,
   organization: "fongap-labs",
   auto_enroll_created_after: "2026-11-07T00:00:00Z",
-  excluded_repositories: ["fongap-labs/delta-legacy"],
+  excluded_repositories: ["fongap-labs/retired-fixture"],
   grants: {
     "fongap-labs/action-worker": ["pr", "task"],
     "fongap-labs/ai-gateway": ["pr", "task", "deploy"],
@@ -46,7 +46,7 @@ test("new App-visible repositories get only PR, never task, release, or deploy",
 
 test("all active main repositories are enrolled regardless of age; explicit exclusions remain respected", () => {
   const result = planOnboarding(policy, [
-    repo("delta-legacy"),
+    repo("retired-fixture"),
     repo("old", { created_at: "2026-11-06T00:00:00Z" }),
     repo("archive", { archived: true }),
     repo("disabled", { disabled: true }),
@@ -56,7 +56,7 @@ test("all active main repositories are enrolled regardless of age; explicit excl
   ]);
   assert.deepEqual(result.grants["fongap-labs/old"], ["pr"]);
   assert.deepEqual(result.grants["fongap-labs/missing-created"], ["pr"]);
-  assert.equal(result.grants["fongap-labs/delta-legacy"], undefined);
+  assert.equal(result.grants["fongap-labs/retired-fixture"], undefined);
   for (const name of ["archive", "disabled", "fork", "master"]) {
     assert.equal(result.grants["fongap-labs/" + name], undefined);
   }
@@ -71,7 +71,7 @@ test("untrusted inventory and unexpected privilege changes fail closed", () => {
       planOnboarding(
         {
           ...policy,
-          grants: { ...policy.grants, "fongap-labs/delta-legacy": ["pr"] },
+          grants: { ...policy.grants, "fongap-labs/retired-fixture": ["pr"] },
         },
         []
       ),
