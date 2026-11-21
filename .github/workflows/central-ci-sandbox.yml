@@ -95,7 +95,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: ${{ inputs.repository == 'fongap-labs/delta' && '24' || '22' }}
 
       # A pull request is tested as it would merge into the default branch, so the central test pack
       # from the control ref never runs against code that the default branch has already moved past.
@@ -239,6 +239,14 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          # The first Delta product import replaces an empty bootstrap; the
+          # baseline CI script would reject any actual product source. Use
+          # a centrally owned real build instead, without trusting a PR CI script.
+          if [[ "$TARGET_REPOSITORY" == "fongap-labs/delta" &&
+                "$CENTRAL_CI_BASE_SHA" == "7556dc8dfede03053e35359f2b55dd299da1f3ee" ]]; then
+            bash "$CENTRAL_CI_AW_ROOT/scripts/delta-first-import-ci.sh" "$GITHUB_WORKSPACE/target"
+            exit 0
+          fi
           script="$GITHUB_WORKSPACE/ci-control/.github/scripts/central-ci.sh"
           if [ ! -f "$script" ]; then
             # The first CI bridge must be enrollable without a project-owned script.
