@@ -6,7 +6,7 @@ on:
   push:
     branches: [main]
     paths:
-      - .github/workflows/delta-history-branch-prune.yml
+      - .github/workflows/delta-history-prune.yml
 
 permissions:
   contents: read
