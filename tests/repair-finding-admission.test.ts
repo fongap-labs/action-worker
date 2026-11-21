@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { admitRepairFinding, type RepairFinding } from "../scripts/repair-finding-admission.ts";
-import { applyRepairLedgerEvent } from "../scripts/repair-lifecycle-ledger.ts";
 import {
   RepairLedgerConflictError,
   type RepairLedgerDocument,
   type RepairLedgerSnapshot,
 } from "../scripts/repair-ledger-store.ts";
+import { applyRepairLedgerEvent } from "../scripts/repair-lifecycle-ledger.ts";
 
 const repository = "example/project";
 const root = "a".repeat(64);
@@ -24,16 +24,18 @@ function finding(issueNumber = 17): RepairFinding {
   };
 }
 
-function gh(options: {
-  isPrivate?: boolean;
-  runConclusion?: string;
-  runStatus?: string;
-  runHead?: string;
-  runRepo?: string;
-  issueState?: string;
-  isPull?: boolean;
-  badRepo?: boolean;
-} = {}) {
+function gh(
+  options: {
+    isPrivate?: boolean;
+    runConclusion?: string;
+    runStatus?: string;
+    runHead?: string;
+    runRepo?: string;
+    issueState?: string;
+    isPull?: boolean;
+    badRepo?: boolean;
+  } = {}
+) {
   return {
     async get(path: string): Promise<unknown> {
       if (path === `repos/${repository}`) {
@@ -106,8 +108,7 @@ class FakeStore {
       this.documents.set(document.entry.root_cause_sha256, document);
       throw new RepairLedgerConflictError();
     }
-    if (this.documents.has(document.entry.root_cause_sha256))
-      throw new RepairLedgerConflictError();
+    if (this.documents.has(document.entry.root_cause_sha256)) throw new RepairLedgerConflictError();
     this.documents.set(document.entry.root_cause_sha256, document);
     return {
       document,
