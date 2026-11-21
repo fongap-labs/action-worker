@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 import {
   allowPrivateWindowsNumericDiagnostic,
+  declaresWindowsJob,
+  resolveCentralWindowsScript,
   resolveCiCapabilities,
   resolveLinuxShards,
 } from "../scripts/resolve-ci-capabilities.ts";
@@ -193,4 +195,57 @@ test("private Windows numeric diagnostic policy rejects unknown or malformed gra
       /Central CI diagnostic/
     );
   }
+});
+
+test("central Windows route grants only explicit trusted manifest opt-in", () => {
+  const policy: unknown = JSON.parse(readFileSync("policies/ci-windows-routes.json", "utf8"));
+  assert.equal(
+    resolveCentralWindowsScript(policy, "fongap-labs/delta"),
+    "tests/packs/delta/windows-desktop-ci.ps1"
+  );
+  assert.equal(resolveCentralWindowsScript(policy, "fongap-labs/action-worker"), undefined);
+  assert.equal(declaresWindowsJob(manifestWith({})), false);
+  const windows = {
+    id: "windows",
+    runner_profile: "windows-standard",
+    command: ["pwsh", "-File", "{central_root}/tests/packs/delta/windows-desktop-ci.ps1"],
+    timeout_minutes: 90,
+    capability_requests: ["source.read"],
+  };
+  assert.equal(declaresWindowsJob(manifestWith({}, [windows])), true);
+});
+
+test("central Windows route policy rejects unreviewed paths and duplicate repositories", () => {
+  const invalid: unknown[] = [
+    null,
+    {},
+    { schema_version: 2, routes: [] },
+    { schema_version: 1, routes: "all" },
+    { schema_version: 1, routes: [{ repository: "bad repository", script: "tests/packs/delta/windows-desktop-ci.ps1" }] },
+    { schema_version: 1, routes: [{ repository: "fongap-labs/delta", script: "../ci.ps1" }] },
+    { schema_version: 1, routes: [{ repository: "fongap-labs/delta", script: "target/.github/scripts/ci.ps1" }] },
+    { schema_version: 1, routes: [{ repository: "fongap-labs/delta", script: "tests/packs/delta/windows-desktop-ci.ps1", extra: "bad" }] },
+    { schema_version: 1, routes: [
+      { repository: "fongap-labs/delta", script: "tests/packs/delta/windows-desktop-ci.ps1" },
+      { repository: "fongap-labs/delta", script: "tests/packs/delta/other.ps1" },
+    ] },
+    { schema_version: 1, routes: [], allow_unlisted: true },
+  ];
+  for (const value of invalid) {
+    assert.throws(
+      () => resolveCentralWindowsScript(value, "fongap-labs/delta"),
+      /Central Windows route/
+    );
+  }
+});
+
+test("registered central Windows script is a real trusted PowerShell file", () => {
+  const policy = JSON.parse(readFileSync("policies/ci-windows-routes.json", "utf8"));
+  const script = resolveCentralWindowsScript(policy, "fongap-labs/delta");
+  assert.ok(script);
+  const source = readFileSync(script, "utf8");
+  assert.match(source, /param\(/);
+  assert.match(source, /package:desktop:win:x64:dir/);
+  assert.match(source, /delta-verify\.mjs/);
+  assert.match(source, /Start-Process/);
 });
