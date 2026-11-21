@@ -97,7 +97,7 @@ test("public ledger survives reads and revisions in a permanent per-root-cause G
   assert.equal(created.document.entry.revision, 0);
   assert.equal(
     repairLedgerRefName(initial.entry.task_id),
-    "repair-ledger-" + initial.entry.task_id.slice(7)
+    `repair-ledger-${initial.entry.task_id.slice(7)}`
   );
   assert.equal(repairLedgerRefName(initial.entry.task_id).includes("fongap-labs"), false);
 
