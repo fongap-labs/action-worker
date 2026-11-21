@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
+import { engineeringOwnershipDiffBase } from "./trusted-import-baseline.ts";
 
 export type ChangedFile = { status: "A" | "M" | "T" | "D"; path: string; sha?: string };
 type LocalException = { repository: string; path_prefix: string; reason: string };
@@ -227,7 +228,10 @@ export function runOwnershipGate(
       readFileSync(join(controlRoot, "policies", "engineering-ownership.json"), "utf8")
     ) as unknown
   );
-  for (const sha of [base, head]) {
+  const comparisonBase = engineeringOwnershipDiffBase(repository, base);
+  // Verify both the actual PR base and the centrally pinned import snapshot.
+  // Missing or inaccessible objects must fail closed, never silently fall back.
+  for (const sha of new Set([base, comparisonBase, head])) {
     git(root, ["cat-file", "-e", sha + "^{commit}"]);
   }
   const output = git(root, [
@@ -238,7 +242,7 @@ export function runOwnershipGate(
     "--diff-filter=AMTD",
     "--name-status",
     "-z",
-    base,
+    comparisonBase,
     head,
     "--",
   ]);
