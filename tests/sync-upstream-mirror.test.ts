@@ -8,7 +8,7 @@ test("upstream main-only push does not run on the isolated mirror branch", () =>
 
 test("release pattern targeting another branch is safe", () => {
   const source = "on:\n  push:\n    branches: [master, 'release/dsh-[0-9]+.[0-9]+']\n";
-  assert.equal(isSafeMirrorWorkflow(source), true);
+  assert.equal(isSafeMirrorWorkflow(source, "upstream/deepseek-harness"), true);
 });
 
 test("mirror branch or broad push triggers block the entire sync", () => {

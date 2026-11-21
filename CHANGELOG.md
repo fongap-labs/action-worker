@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- 新增: 由 Action Worker 定时将 DeepSeek Harness 官方 master 的完整 Git 历史同步到 ds-harness 独立 upstream/deepseek-harness 分支，首次仅对已核验的 MIT 初始化提交执行带租约替换，之后仅允许快进；扫描上游工作流触发、隔离短期令牌，绝不自动修改 main。
+- 新增: 中央定时同步 DeepSeek Harness master 完整历史至 ds-harness 的 upstream/deepseek-harness；首次带租约替换，后续仅快进并检查上游工作流。
 
 - 修复: 中央 CI 自动桥接对 GitHub 确认的未初始化空仓库暂缓创建 PR，独立核对仓库元数据且不标记覆盖成功；异常与权限失败保持阻断。
 
