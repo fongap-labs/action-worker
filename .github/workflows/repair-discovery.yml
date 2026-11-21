@@ -1,0 +1,46 @@
+name: 自动 · 故障发现
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 */3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repair-discovery
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    name: Discover failed CI runs without publishing private details
+    if: github.repository == 'fongap-labs/action-worker' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout trusted control main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Mint installation read token
+        id: inventory
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: {{ vars.AW_APP_CLIENT_ID }}
+          private-key: {{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: {{ github.repository_owner }}
+          permission-actions: read
+          permission-contents: read
+
+      - name: Discover actual failed Actions runs
+        env:
+          AW_INVENTORY_TOKEN: {{ steps.inventory.outputs.token }}
+        run: node scripts/repair-discovery.ts
