@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 维护: 在 Delta 可信桌面构建入口加入真实 Cordis 上下文的第一方 Delta Code 生命周期冒烟检查，验证禁用、启用、缺失 subprocess 时的受限工具集、卸载清理与再次启用。
+
 - 维护: 为 Delta Code 新版 Cordis 插件制品新增中央合同检查与 Host/Client 编译装载冒烟验证；历史未声明 bundle 的目标修订保持可测。
 
 - 维护: Delta Code 中央命名合同改为仅验收新插件和 `.delta-code` 工作树目录，不保留旧插件别名及历史路径回退。

@@ -36,6 +36,61 @@ if [[ -f packages/plugin/shared/tsdown.config.ts ]]; then
     assert.equal(typeof plugin.apply, "function")
     assert.ok(plugin.inject.includes("tools"))
   '
+
+  # Exercise real Cordis service injection and tool ownership with no network,
+  # subprocess, user profile, or privileged execution service attached.
+  node --input-type=module <<'NODE'
+import assert from 'node:assert/strict'
+import { pathToFileURL } from 'node:url'
+import { resolve } from 'node:path'
+
+const load = relative => import(pathToFileURL(resolve(relative)).href)
+const { Context } = await load('vendor/cordis/lib/index.js')
+const { SystemPrompt } = await load('packages/core/system-prompt/lib/index.js')
+const { ToolsService } = await load('packages/core/tools/lib/index.js')
+const deltaCode = await load('packages/plugin/delta-code/lib/index.js')
+
+const host = new Context()
+const prompt = host.plugin(SystemPrompt, { includeHarnessIdentity: false })
+await prompt
+const tools = host.plugin(ToolsService, {})
+await tools
+const toolName = 'code_multi_edit'
+const config = { github: { enabled: false }, git: { enabled: false }, execution: { allowCommands: false } }
+let active
+try {
+  // The plugin is optional: a disabled instance must contribute nothing.
+  const disabled = host.plugin(deltaCode, { ...config, enabled: false })
+  await disabled
+  assert.equal(host.tools.get(toolName), undefined, 'disabled plugin registered a tool')
+  await disabled.dispose()
+
+  // Native host tools service is present, but no subprocess or GitHub access
+  // is injected. Command-backed capabilities must remain absent.
+  active = host.plugin(deltaCode, { ...config, enabled: true })
+  await active
+  assert.ok(host.tools.get(toolName), 'enabled plugin failed native tool registration')
+  assert.equal(host.tools.get('code_git_worktree'), undefined,
+    'command tool mounted despite missing Host subprocess service')
+  await active.dispose()
+  active = undefined
+  assert.equal(host.tools.get(toolName), undefined,
+    'disabled plugin retained a model-invocable tool')
+
+  // Re-mounting on the same host verifies ownership and duplicate cleanup.
+  active = host.plugin(deltaCode, { ...config, enabled: true })
+  await active
+  assert.ok(host.tools.get(toolName), 're-enable failed')
+  await active.dispose()
+  active = undefined
+  assert.equal(host.tools.get(toolName), undefined, 're-enable leaked a tool')
+} finally {
+  if (active) await active.dispose()
+  await tools.dispose()
+  await prompt.dispose()
+}
+console.log('Delta Code Cordis lifecycle smoke passed')
+NODE
 fi
 
 pnpm run build:desktop
