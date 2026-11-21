@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { parseNativePrivateCiArgs } from "../scripts/private-ci-gate.ts";
 
 const valid = [
-  "fongap-labs/delta-legacy",
+  "fongap-labs/private-fixture",
   "491",
   "a".repeat(40),
   "b".repeat(40),
@@ -14,7 +14,7 @@ const valid = [
 
 test("native private CI CLI requires a complete immutable identity", () => {
   assert.deepEqual(parseNativePrivateCiArgs(valid), {
-    repository: "fongap-labs/delta-legacy",
+    repository: "fongap-labs/private-fixture",
     prNumber: 491,
     baseSha: "a".repeat(40),
     headSha: "b".repeat(40),
