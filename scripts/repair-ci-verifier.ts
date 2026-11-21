@@ -7,8 +7,8 @@ import {
   trustedControlRunId,
   type JsonReader,
 } from "./ci-evidence.ts";
-import { getJsonString, isJsonRecord } from "./github-api.ts";
-import { loadGateContract } from "./governance-gate-contract.ts";
+import { getJsonNumber, getJsonString, isJsonRecord } from "./github-api.ts";
+import { loadGateContract, requiredGateContexts } from "./governance-gate-contract.ts";
 import { CliError } from "./runtime-command.ts";
 import { assertReadyForAutomaticMerge } from "./auto-merge-pr.ts";
 import { latestAttestedStatus } from "./status-attestation.ts";
@@ -29,6 +29,10 @@ export interface VerifiedRepairCiEvidence extends RepairPullRequestIdentity {
   readonly schema_version: "1";
   readonly ci_run_id: number;
   readonly governance_run_id: number;
+  readonly ci_status_id: number;
+  readonly governance_status_id: number;
+  readonly merge_status_id: number;
+  readonly required_gate_contexts: readonly string[];
   readonly evidence_sha256: string;
   readonly verified_at: string;
 }
@@ -163,6 +167,12 @@ export async function verifyRepairPullRequest(
   ) {
     throw new CliError("Repair CI requires signed Merge Validation from the same governance run.", 75);
   }
+  const ciStatusId = getJsonNumber(ciStatus, "id");
+  const governanceStatusId = getJsonNumber(governanceStatus, "id");
+  const mergeStatusId = getJsonNumber(mergeStatus, "id");
+  if ([ciStatusId, governanceStatusId, mergeStatusId].some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+    throw new CliError("Repair CI status evidence identifiers are invalid.", 65);
+  }
 
   const proof = {
     schema_version: "1" as const,
@@ -173,6 +183,10 @@ export async function verifyRepairPullRequest(
     base_sha: identity.base_sha,
     ci_run_id: ciRunId,
     governance_run_id: governanceRunId,
+    ci_status_id: ciStatusId,
+    governance_status_id: governanceStatusId,
+    merge_status_id: mergeStatusId,
+    required_gate_contexts: requiredGateContexts(contract),
     verified_at: options.verified_at,
   };
   const evidenceSha256 = createHash("sha256")
