@@ -8,8 +8,8 @@ import { CliError, handleError, isMain, readJson, runText } from "./runtime-comm
 
 const targetRepository = "fongap-labs/delta";
 const mainRulesetId = 26704813;
-const sourceSha = "dee27ea15004fc905c9f4ad0e1c01cfca67c571f";
-const targetSha = "decc6ee1388df99d2769024ac78b0f153ab8800d";
+const sourceSha = "4870259d11d8468d6d494f9d609e70c148416cf8";
+const targetSha = "8b73554a94a115c3fc8310e882036ef887f0569c";
 
 type CutoverOperations = {
   preflight: () => Promise<void>;
@@ -169,7 +169,7 @@ async function main(): Promise<void> {
   const reader = statusAwareReader("https://api.github.com", readToken, statusToken);
   if (mode === "preflight") {
     await preflight(reader);
-    console.log("Delta migration preflight verified: exact refs, seven snapshots, signed source.");
+    console.log("Delta migration preflight verified: exact refs, eight snapshots, signed source.");
     return;
   }
   if (mode === "confirm") {

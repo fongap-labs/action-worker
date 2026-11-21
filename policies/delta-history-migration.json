@@ -2,13 +2,13 @@
   "schema_version": 1,
   "repository": "fongap-labs/delta",
   "approval_issue": 1924,
-  "source_pr": 9,
-  "source_sha": "dee27ea15004fc905c9f4ad0e1c01cfca67c571f",
-  "target_sha": "decc6ee1388df99d2769024ac78b0f153ab8800d",
+  "source_pr": 10,
+  "source_sha": "4870259d11d8468d6d494f9d609e70c148416cf8",
+  "target_sha": "8b73554a94a115c3fc8310e882036ef887f0569c",
   "baseline_sha": "2e39e70496aa02986ca6a820c5d497e816b69d7e",
-  "tree_sha": "067d3c2c52b62dd7c5d275b8f36221c9469dd24f",
-  "source_backup_ref": "legacy/main-pre-harness-migration-2026-11-22",
-  "target_ref": "migration/rebase-delta-on-harness-2026-11-22",
+  "tree_sha": "37516875b61fd6cf149feb6a4c54a1ebea6d3945",
+  "source_backup_ref": "legacy/main-pre-harness-migration-2026-11-22-v2",
+  "target_ref": "migration/rebase-delta-on-harness-2026-11-22-v2",
   "baseline_ref": "baseline/deepseek-harness",
   "upstream_ref": "upstream/deepseek-harness",
   "snapshots": [
@@ -46,6 +46,11 @@
       "source_sha": "dee27ea15004fc905c9f4ad0e1c01cfca67c571f",
       "target_sha": "decc6ee1388df99d2769024ac78b0f153ab8800d",
       "tree_sha": "067d3c2c52b62dd7c5d275b8f36221c9469dd24f"
+    },
+    {
+      "source_sha": "4870259d11d8468d6d494f9d609e70c148416cf8",
+      "target_sha": "8b73554a94a115c3fc8310e882036ef887f0569c",
+      "tree_sha": "37516875b61fd6cf149feb6a4c54a1ebea6d3945"
     }
   ]
 }

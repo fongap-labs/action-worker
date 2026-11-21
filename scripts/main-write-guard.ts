@@ -308,7 +308,7 @@ export async function validateMainWriteProvenance(
   // preserves every original source tree but necessarily lacks a target-repository
   // squash PR at the rewritten SHA. No other branch write receives this path.
   if (isDeltaHistoryMigrationTarget(repository, mainSha)) {
-    // The verifier checks both seven-commit chains, the frozen backup, current
+    // The verifier checks both eight-commit chains, the frozen backup, current
     // branch identity and the exact Harness ancestor. There is no env bypass.
     const policy = await verifyDeltaHistoryMigration(reader, repository, mainSha, "cutover");
     if (!policy) {
@@ -345,7 +345,7 @@ export async function validateMainWriteProvenance(
         65
       );
     }
-    // The original code arrived through PR #9 and must retain the full signed,
+    // The original code arrived through PR #10 and must retain the full signed,
     // successful governance evidence; identical file trees are not enough.
     await requireCentralPrEvidence(reader, repository, originHeadSha);
     return {
@@ -561,7 +561,7 @@ async function main(): Promise<void> {
       statusToken,
       "success",
       provenance.source === "delta-history-migration"
-        ? "Trusted Delta one-time history migration (original PR #9)"
+        ? "Trusted Delta one-time history migration (original PR #10)"
         : `Trusted main write via PR #${provenance.pr_number}`
     );
     await appendLines(process.env.GITHUB_OUTPUT, [
