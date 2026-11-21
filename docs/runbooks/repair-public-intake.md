@@ -1,39 +1,37 @@
-# Public repair ledger admission pilot
+# 公开修复任务入库试点
 
-This pilot is deliberately restricted to `fongap-labs/action-worker`. It does not
-admit or publish private repository identities or source data.
+本试点仅支持公开的 `fongap-labs/action-worker` 仓库，不接收私有仓库名称、源代码或日志。
 
-## Trusted entry point
+## 受控入口
 
-The manually dispatched
-`.github/workflows/repair-public-intake.yml` runs only on control
-`main` and checks its exact `GITHUB_WORKFLOW_REF`. It accepts **no source
-repository field**, Issue body as shell code, or user-provided execution command.
+由授权维护者在主分支手动触发 `.github/workflows/repair-public-intake.yml`。
+执行前核对控制仓库、主分支、事件类型和精确的工作流引用。
+写入步骤放在受控的 `admin-ops` 环境中，不通过公开 Issue、PR 文本或任意命令执行脚本。
 
-An operator provides:
+## 输入要求
 
-- An existing **open action-worker Issue number** (not a PR).
-- A **completed failed or timed-out** action-worker Actions run ID and its exact HEAD SHA.
-- A 64-hex **tentative normalized root-cause identity**. This is not a diagnosis attestation.
+操作前必须准备以下已核实的信息：
 
-The trusted script re-reads repository metadata, the failed Actions run, and
-the open Issue from GitHub using a read-only, repository-scoped App token. A
-separate contents-write token is scoped to **action-worker only** to create
-one durable opaque repair-ledger Git ref. Competing writes are handled through
-create-once/re-read behavior; an existing root identity returns its original
-Issue and task rather than duplicating work.
+- 当前仓库中真实存在且仍开放的 Issue 编号，不能是 PR。
+- 本仓库已完成、结论为失败或超时的 Actions 运行编号及其精确 HEAD SHA。
+- 由受控诊断流程生成的六十四位十六进制根因候选指纹。
 
-Only the `discovered` stage is persisted. Root cause evidence is initially
-null. No PR is generated, source code is executed, or CI status is forged.
+指纹仅用于去重，不能证明根因已复现；不得直接将 Issue 内容或未经验证的模型结论作为根因证据。
 
-## Privacy and deployment boundary
+## 权限与存储
 
-Never enter private repository names, private log excerpts, credential
-material, or private source paths in this public workflow's inputs.
-Private intake requires a separate source-owned isolation design and real
-private end-to-end tests; this pilot is not a workaround.
+工作流分别申请两个限定在 `action-worker` 的 GitHub App 令牌。
+只读令牌读取仓库、Issue 和 Actions 元数据；另一令牌只用于控制仓库的任务账本 Git 引用写入。
+不向任务代码传递写入令牌，不使用个人令牌或通用令牌回退。
 
-The workflow does not run automatically from every failed build. Scheduled
-discovery remains read-only until candidate-to-Issue binding and authenticated
-root-cause evidence are implemented. This pilot does not authorize release,
-deployment, permission changes, or merging high-risk remediation.
+写入前通过 GitHub 接口再次检查来源与失败运行。
+按仓库与指纹生成稳定的不透明任务编号，遇到同根因重复投递或并发创建时恢复原账本记录。
+初始状态只能是 `discovered`，根因核实证据为空；不会创建 PR、执行修复、修改 CI 状态或自动合并。
+
+## 安全边界
+
+公开工作流的输入、任务记录和日志都不能包含私有仓库名称、私有日志、源码路径或密钥。
+私有仓库入库必须另行设计来源仓拥有的隔离流程，经过真实端到端验收才能启用。
+
+定期故障发现仍为只读。自动发现到 Issue 的可信绑定、根因证明、修复执行和恢复调度均未完成。
+本试点不允许自动发布、部署或变更生产凭据。
