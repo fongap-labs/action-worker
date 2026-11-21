@@ -46,6 +46,7 @@ test("streaming commands fail closed on nonzero exit status", async () => {
         // An earlier output line does not make a failed command successful.
       }
     },
-    (error: unknown) => error instanceof CliError && error.exitCode === 23 && /broken diff/.test(error.message)
+    (error: unknown) =>
+      error instanceof CliError && error.exitCode === 23 && /broken diff/.test(error.message)
   );
 });
