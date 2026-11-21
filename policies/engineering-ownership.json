@@ -15,6 +15,11 @@
     },
     {
       "repository": "fongap-labs/delta",
+      "path_prefix": "apps/desktop-host/tests/",
+      "reason": "Desktop host IPC redaction tests need their package-local Vitest runtime."
+    },
+    {
+      "repository": "fongap-labs/delta",
       "path_prefix": "apps/desktop/",
       "reason": "Desktop UI and Playwright component tests require the local desktop toolchain."
     },
