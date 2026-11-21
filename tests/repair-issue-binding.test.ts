@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { resolveRepairIssue } from "../scripts/repair-issue-binding.ts";
+import { resolveRepairIssue, resolveRepairIssueLinks } from "../scripts/repair-issue-binding.ts";
 
 const repository = "fongap-labs/action-worker";
 const head = "b".repeat(40);
@@ -173,4 +173,101 @@ test("a later read error cannot return an earlier match or expose Issue bodies",
   } finally {
     console.log = original;
   }
+});
+
+test("batch Issue lookup resolves many failures with one paginated inventory", async () => {
+  const secondHead = "c".repeat(40);
+  const secondMarker = `<!-- aw-repair-failure:v1 run=43 sha=${secondHead} -->`;
+  const paths: string[] = [];
+  const links = await resolveRepairIssueLinks(
+    {
+      async get(path) {
+        paths.push(path);
+        return [
+          issue(19, marker),
+          issue(20, secondMarker),
+          issue(21, marker, true),
+          issue(22, "Issue without a trusted marker"),
+        ];
+      },
+    },
+    repository,
+    [
+      { run_id: 42, head_sha: head },
+      { run_id: 43, head_sha: secondHead },
+      { run_id: 44, head_sha: "d".repeat(40) },
+    ]
+  );
+  assert.deepEqual(links, [
+    { run_id: 42, head_sha: head, issue_number: 19 },
+    { run_id: 43, head_sha: secondHead, issue_number: 20 },
+  ]);
+  assert.deepEqual(paths, [`repos/${repository}/issues?state=open&per_page=100&page=1`]);
+});
+
+test("batch link validation never queries GitHub for zero failures or invalid inputs", async () => {
+  let reads = 0;
+  const reader = {
+    async get() {
+      reads += 1;
+      return [];
+    },
+  };
+  assert.deepEqual(await resolveRepairIssueLinks(reader, repository, []), []);
+  await assert.rejects(
+    resolveRepairIssueLinks(reader, repository, [
+      { run_id: 42, head_sha: head },
+      { run_id: 42, head_sha: head },
+    ]),
+    /invalid failure identity/
+  );
+  await assert.rejects(
+    resolveRepairIssueLinks(reader, repository, [{ run_id: 0, head_sha: head }]),
+    /invalid failure identity/
+  );
+  await assert.rejects(
+    resolveRepairIssueLinks(
+      reader,
+      repository,
+      Array.from({ length: 601 }, (_, i) => ({ run_id: i + 1, head_sha: head }))
+    ),
+    /invalid failure identity/
+  );
+  assert.equal(reads, 0);
+});
+
+test("late Issue page errors prevent a partial batch result", async () => {
+  await assert.rejects(
+    resolveRepairIssueLinks(
+      {
+        async get(path) {
+          if (path.endsWith("page=1")) {
+            return [
+              issue(19, marker),
+              ...Array.from({ length: 99 }, (_, i) => issue(i + 20, null)),
+            ];
+          }
+          throw new Error("HTTP 403: later Issue page inaccessible");
+        },
+      },
+      repository,
+      [{ run_id: 42, head_sha: head }]
+    ),
+    /403/
+  );
+});
+
+test("duplicate targets for one candidate fail the whole batch, even with other valid links", async () => {
+  await assert.rejects(
+    resolveRepairIssueLinks(
+      {
+        async get() {
+          return [issue(20, marker), issue(21, marker), issue(22, null)];
+        },
+      },
+      repository,
+      [{ run_id: 42, head_sha: head }]
+    ),
+    /Multiple Issues/
+  );
 });

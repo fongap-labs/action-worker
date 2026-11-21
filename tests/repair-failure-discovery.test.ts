@@ -3,6 +3,8 @@ import { test } from "node:test";
 import {
   discoverFailedRuns,
   type FailedRunCandidate,
+  findPublicRepairIssueLinks,
+  publicRepairIssueSummary,
 } from "../scripts/repair-failure-discovery.ts";
 
 const since = "2026-11-20T00:00:00Z";
@@ -352,4 +354,93 @@ test("an over-budget organization scan fails without partially delivering candid
   );
   await assert.rejects(summary, /candidate budget exceeded/);
   assert.equal(deliveries, 0);
+});
+
+test("scheduled linkage filters out private and unrelated failures before any Issue read", async () => {
+  const candidates: FailedRunCandidate[] = [
+    {
+      repository: "fongap-labs/private-vault",
+      is_private: true,
+      run_id: 41,
+      head_sha: head,
+      conclusion: "failure",
+      created_at: since,
+      workflow_path: ".github/workflows/ci.yml",
+    },
+    {
+      repository: "fongap-labs/action-worker",
+      is_private: false,
+      run_id: 42,
+      head_sha: head,
+      conclusion: "failure",
+      created_at: since,
+      workflow_path: ".github/workflows/ci.yml",
+    },
+    {
+      repository: "fongap-labs/action-worker",
+      is_private: true,
+      run_id: 43,
+      head_sha: head,
+      conclusion: "failure",
+      created_at: since,
+      workflow_path: ".github/workflows/ci.yml",
+    },
+  ];
+  const paths: string[] = [];
+  const linked = await findPublicRepairIssueLinks(
+    {
+      async get(path) {
+        paths.push(path);
+        return [
+          {
+            number: 17,
+            state: "open",
+            body: `<!-- aw-repair-failure:v1 run=42 sha=${head} -->`,
+          },
+          {
+            number: 19,
+            state: "open",
+            body: `<!-- aw-repair-failure:v1 run=41 sha=${head} -->`,
+          },
+        ];
+      },
+    },
+    candidates
+  );
+  assert.equal(linked.public_candidates, 1);
+  assert.deepEqual(linked.links, [{ run_id: 42, head_sha: head, issue_number: 17 }]);
+  assert.deepEqual(paths, [
+    "repos/fongap-labs/action-worker/issues?state=open&per_page=100&page=1",
+  ]);
+  const summary = publicRepairIssueSummary(linked.public_candidates, linked.links);
+  assert.match(summary, /issues\/17/);
+  assert.match(summary, /actions\/runs\/42/);
+  assert.doesNotMatch(summary, /private-vault|runs\/41|runs\/43/);
+  assert.doesNotMatch(summary, /<!--|<script>/);
+});
+
+test("no public findings skip Issue queries and public summary stays count-only", async () => {
+  let reads = 0;
+  const result = await findPublicRepairIssueLinks(
+    {
+      async get() {
+        reads += 1;
+        throw new Error("Unexpected Issue lookup");
+      },
+    },
+    [
+      {
+        repository: "fongap-labs/internal-vault",
+        is_private: true,
+        run_id: 1,
+        head_sha: head,
+        conclusion: "failure",
+        created_at: since,
+        workflow_path: ".github/workflows/ci.yml",
+      },
+    ]
+  );
+  assert.equal(reads, 0);
+  assert.deepEqual(result, { public_candidates: 0, links: [] });
+  assert.doesNotMatch(publicRepairIssueSummary(0, []), /internal-vault|runs\/1/);
 });
