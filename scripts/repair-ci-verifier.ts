@@ -100,6 +100,12 @@ export async function verifyRepairPullRequest(
     "repos/" + identity.repository + "/pulls/" + identity.pr_number
   );
   requireSameRepositoryPull(pull, identity.repository);
+  if (
+    getJsonString(isJsonRecord(pull) ? pull.head : {}, "sha") !== identity.head_sha ||
+    getJsonString(isJsonRecord(pull) ? pull.base : {}, "sha") !== identity.base_sha
+  ) {
+    throw new CliError("Pull request head or base changed since CI verification.", 75);
+  }
   const statuses = await reader.get(
     "repos/" + identity.repository + "/commits/" + identity.head_sha + "/status"
   );

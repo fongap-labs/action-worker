@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- 新增: 为修复 PR 增加只读 CI 证据验证器，复用现有签名状态与治理合同，逐一核验当前 HEAD/BASE、同仓库非 Draft PR、PR Governance、CI Evidence、Merge Validation 及对应中央工作流完成状态；无实际 CI、伪造/过期状态、Fork PR 或基线变化均拒绝。账本同步记录 PR BASE SHA，并将 CI 验收绑定到 HEAD+BASE；验证器不执行合并或写入状态。
+- 新增: 修复 PR 可信 CI 验证器，绑定 HEAD/BASE SHA 和签名门禁，阻断过期 CI 证据，并补充回归测试。
 
 - 维护: 在中央 Delta 测试包增加第一方插件共享模块合同验证，覆盖宿主能力拒绝回退及公共工具的实际行为。
 

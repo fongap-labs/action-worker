@@ -210,10 +210,9 @@ test("CI Evidence and PR Governance must come from their trusted completed workf
 
 test("unsigned or missing required gate statuses fail closed", async () => {
   const unsigned = fixture();
-  unsigned.statuses.statuses[0] = {
-    ...unsigned.statuses.statuses[0],
-    description: "unsigned green status",
-  };
+  const first = unsigned.statuses.statuses[0];
+  assert.ok(first);
+  unsigned.statuses.statuses[0] = { ...first, description: "unsigned green status" };
   await assert.rejects(verify(unsigned.reader), /trusted control run/);
 
   const missingMerge = fixture();
