@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { parseRepositoryPolicy } from "./repository-policy.ts";
 import { isMain } from "./runtime-command.ts";
@@ -24,6 +25,28 @@ const repoPattern = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const controlRepo = "fongap-labs/action-worker";
 const policyPath = "policies/repository-access.json";
 const branchName = "automation/organization-onboarding";
+const changelogPath = "CHANGELOG.md";
+
+export function formatOnboardingPolicy(policy: AccessPolicy): string {
+  return execFileSync("node_modules/.bin/biome", ["format", "--stdin-file-path", policyPath], {
+    encoding: "utf8",
+    input: `${JSON.stringify(policy, null, 2)}\n`,
+  });
+}
+
+export function addOnboardingChangelog(base: string, names: readonly string[]): string {
+  const heading = "# 更新日志\n\n## [Unreleased]\n\n";
+  if (!base.startsWith(heading) || names.length === 0) {
+    throw new Error("Invalid onboarding changelog or empty repository additions.");
+  }
+  const entries = names.map(
+    (name) => `- 维护: 自动将 ${name} 纳入中央 PR 治理，未授予任务、发布或部署权限。`
+  );
+  if (entries.some((entry) => base.includes(entry))) {
+    throw new Error("Repository onboarding entry already exists in the changelog.");
+  }
+  return `${heading}${entries.join("\n\n")}\n\n${base.slice(heading.length)}`;
+}
 
 function asPolicy(value: unknown): AccessPolicy {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -154,18 +177,29 @@ async function installationRepos(token: string): Promise<InstalledRepo[]> {
   throw new Error("GitHub App inventory exceeds the 10,000-repository scan limit.");
 }
 
-async function readFile(token: string, ref: string): Promise<{ value: AccessPolicy; sha: string }> {
-  const path = `repos/${controlRepo}/contents/${policyPath}?ref=${encodeURIComponent(ref)}`;
+async function readRepositoryText(
+  token: string,
+  ref: string,
+  filename: string
+): Promise<{ content: string; sha: string }> {
+  const path = `repos/${controlRepo}/contents/${filename}?ref=${encodeURIComponent(ref)}`;
   const result = (await github(token, path)) as {
     content?: string;
     sha?: string;
     encoding?: string;
   };
   if (result.encoding !== "base64" || !result.content || !result.sha) {
-    throw new Error("Unexpected policy file response.");
+    throw new Error("Unexpected repository file response.");
   }
-  const decoded = Buffer.from(result.content.replace(/\s/g, ""), "base64").toString("utf8");
-  return { value: asPolicy(JSON.parse(decoded) as unknown), sha: result.sha };
+  return {
+    content: Buffer.from(result.content.replace(/\s/g, ""), "base64").toString("utf8"),
+    sha: result.sha,
+  };
+}
+
+async function readFile(token: string, ref: string): Promise<{ value: AccessPolicy; sha: string }> {
+  const result = await readRepositoryText(token, ref, policyPath);
+  return { value: asPolicy(JSON.parse(result.content) as unknown), sha: result.sha };
 }
 
 async function mergeExisting(
@@ -190,6 +224,16 @@ async function mergeExisting(
   ) {
     throw new Error("Untrusted auto-enrollment PR metadata.");
   }
+  const needed = Object.keys(planOnboarding(base, inventory).grants).filter(
+    (name) => !Object.hasOwn(base.grants, name)
+  );
+  if (needed.length === 0) {
+    await github(writeToken, `repos/${controlRepo}/pulls/${number}`, "PATCH", {
+      state: "closed",
+    });
+    console.log(`Closed superseded repository enrollment PR #${number}; policy is current.`);
+    return;
+  }
   const files = (await github(
     readToken,
     `repos/${controlRepo}/pulls/${number}/files?per_page=100`
@@ -197,12 +241,28 @@ async function mergeExisting(
     filename: string;
     status: string;
   }>;
-  if (!Array.isArray(files) || files.length !== 1 || files[0]?.filename !== policyPath) {
-    throw new Error("Automatic enrollment PR changes files outside the policy.");
+  if (
+    !Array.isArray(files) ||
+    files.length !== 2 ||
+    files.map((file) => file.filename).sort().join(",") !==
+      [changelogPath, policyPath].sort().join(",")
+  ) {
+    throw new Error("Automatic enrollment PR may change only policy and CHANGELOG.md.");
   }
   const candidate = await readFile(readToken, currentSha);
   if (!safeOnboardingOnly(base, candidate.value, inventory)) {
     throw new Error("Automatic enrollment PR does not contain only permitted basic PR grants.");
+  }
+  const additions = Object.keys(candidate.value.grants).filter(
+    (name) => !Object.hasOwn(base.grants, name)
+  );
+  const expectedChangelog = addOnboardingChangelog(
+    (await readRepositoryText(readToken, "main", changelogPath)).content,
+    additions
+  );
+  const actualChangelog = await readRepositoryText(readToken, currentSha, changelogPath);
+  if (actualChangelog.content !== expectedChangelog) {
+    throw new Error("Automatic enrollment PR has unexpected changelog changes.");
   }
   const checks = (await github(
     readToken,
@@ -280,20 +340,38 @@ async function main(): Promise<void> {
   if (!/^[0-9a-f]{40}$/.test(mainHead.object?.sha ?? "")) {
     throw new Error("Cannot resolve trusted control main SHA.");
   }
+  // A closed PR may leave the bot-owned branch behind. Delete only that exact branch
+  // after confirming there are no open enrollment PRs; never force-update a branch.
+  const refs = (await github(
+    readToken,
+    `repos/${controlRepo}/git/matching-refs/heads/${branchName}`
+  )) as Array<{ ref?: string }>;
+  if (!Array.isArray(refs)) throw new Error("Invalid automation branch reference response.");
+  if (refs.some((ref) => ref.ref === `refs/heads/${branchName}`)) {
+    await github(writeToken, `repos/${controlRepo}/git/refs/heads/${branchName}`, "DELETE");
+  }
   await github(writeToken, `repos/${controlRepo}/git/refs`, "POST", {
     ref: `refs/heads/${branchName}`,
     sha: mainHead.object!.sha,
   });
-  const current = await readFile(readToken, "main");
+  const current = await readFile(readToken, mainHead.object!.sha!);
   if (JSON.stringify(current.value) !== JSON.stringify(base)) {
     throw new Error("Control policy changed since checkout; refusing stale enrollment.");
   }
-  const content = `${JSON.stringify(next, null, 2)}\n`;
+  const changelog = await readRepositoryText(readToken, mainHead.object!.sha!, changelogPath);
+  const content = formatOnboardingPolicy(next);
   await github(writeToken, `repos/${controlRepo}/contents/${policyPath}`, "PUT", {
     message: "chore(governance): automatically enroll new repositories for PR checks",
     branch: branchName,
     sha: current.sha,
     content: Buffer.from(content, "utf8").toString("base64"),
+  });
+  const updatedChangelog = addOnboardingChangelog(changelog.content, additions);
+  await github(writeToken, `repos/${controlRepo}/contents/${changelogPath}`, "PUT", {
+    message: "docs(changelog): record automatic repository enrollment",
+    branch: branchName,
+    sha: changelog.sha,
+    content: Buffer.from(updatedChangelog, "utf8").toString("base64"),
   });
   const pr = (await github(writeToken, `repos/${controlRepo}/pulls`, "POST", {
     title: "chore(governance): auto-enroll new organization repositories",
