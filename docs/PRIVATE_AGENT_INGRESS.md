@@ -28,7 +28,7 @@ gh workflow run agent-task-ingress.yml \
 4. 目标仓库必须在既有 `policies/repository-access.json` 中有 `task` 授权，并具有活跃 `main` 分支。GitHub App 使用单独的短期只读令牌获取目标 `main` SHA。
 5. 完成以上检查后，才签发仅授权 `action-worker` 仓库 Contents:write 的短期 App 令牌，通过原有 `run-task` 合同提交；验证与执行不共享写令牌。
 6. 原有任务运行器仍重复验证当前默认分支 SHA、CI Evidence、Main Write Guard、项目清单和执行权限。此入口不得降低原有安全要求。
-7. 已有的 `delta-legacy` 冻结/排除政策不变；该入口不自动授予任何仓库新能力。
+7. 已删除的仓库不再参与治理、白名单或执行授权；该入口不自动授予任何仓库新能力。
 
 ## 边界与后续
 
