@@ -82,19 +82,19 @@ export interface RepairLedgerGitApi {
 
 function assertPositive(value: number, label: string): void {
   if (!Number.isSafeInteger(value) || value <= 0) {
-    throw new CliError("Repair ledger " + label + " is invalid.", 65);
+    throw new CliError(`Repair ledger ${label} is invalid.`, 65);
   }
 }
 
 function assertSha(value: unknown, pattern: RegExp, label: string): asserts value is string {
   if (typeof value !== "string" || !pattern.test(value)) {
-    throw new CliError("Repair ledger " + label + " is invalid.", 65);
+    throw new CliError(`Repair ledger ${label} is invalid.`, 65);
   }
 }
 
 function exactKeys(value: Record<string, unknown>, expected: string, label: string): void {
   if (Object.keys(value).sort().join(",") !== expected) {
-    throw new CliError("Repair ledger " + label + " has an unsupported schema.", 65);
+    throw new CliError(`Repair ledger ${label} has an unsupported schema.`, 65);
   }
 }
 
@@ -104,7 +104,7 @@ function nullableSha(value: unknown, pattern: RegExp, label: string): void {
 
 function nullablePositive(value: unknown, label: string): void {
   if (value !== null) {
-    if (typeof value !== "number") throw new CliError("Repair ledger " + label + " is invalid.", 65);
+    if (typeof value !== "number") throw new CliError(`Repair ledger ${label} is invalid.`, 65);
     assertPositive(value, label);
   }
 }
@@ -113,7 +113,7 @@ export function repairLedgerRefName(taskId: string): string {
   if (!/^repair-[0-9a-f]{32}$/.test(taskId)) {
     throw new CliError("Repair ledger task identity is invalid.", 65);
   }
-  return "repair-ledger-" + taskId.slice("repair-".length);
+  return `repair-ledger-${taskId.slice("repair-".length)}`;
 }
 
 export function validateRepairLedgerDocument(
@@ -219,10 +219,10 @@ function encodeRecord(
 ): string {
   const plain = Buffer.from(JSON.stringify(document), "utf8");
   if (plain.length > MAX_RECORD_BYTES) throw new CliError("Repair ledger record exceeds its size limit.", 66);
-  if (!isPrivate) return RECORD_PREFIX + ":public:" + plain.toString("base64");
+  if (!isPrivate) return `${RECORD_PREFIX}:public:${plain.toString("base64")}`;
   if (key === null) throw new CliError("Private repair ledger requires AW_ARTIFACT_KEY.", 77);
   const sealed = sealBytes(key, "repair-ledger", document.repository, document.entry.task_id, plain);
-  return RECORD_PREFIX + ":sealed:" + sealed.toString("base64");
+  return `${RECORD_PREFIX}:sealed:${sealed.toString("base64")}`;
 }
 
 function decodeBase64(value: string): Buffer {
@@ -247,7 +247,7 @@ function decodeRecord(
   key: Buffer | null,
   issueNumber: number
 ): RepairLedgerDocument {
-  const prefix = RECORD_PREFIX + ":";
+  const prefix = `${RECORD_PREFIX}:`;
   if (!raw.startsWith(prefix)) throw new CliError("Repair ledger record has no valid envelope.", 65);
   const separator = raw.indexOf(":", prefix.length);
   if (separator < 0) throw new CliError("Repair ledger record has no valid envelope.", 65);
@@ -406,7 +406,7 @@ export class GitHubRepairLedgerGitApi implements RepairLedgerGitApi {
   async getRef(refName: string): Promise<string | null> {
     try {
       const value = await this.reader.get(
-        "repos/" + this.controlRepository + "/git/ref/heads/" + refName
+        `repos/${this.controlRepository}/git/ref/heads/${refName}`
       );
       const sha = getJsonString(isJsonRecord(value) ? value.object : null, "sha");
       assertSha(sha, GIT_SHA, "ref");
@@ -419,7 +419,7 @@ export class GitHubRepairLedgerGitApi implements RepairLedgerGitApi {
 
   async getCommitTree(commitSha: string): Promise<string> {
     const value = await this.reader.get(
-      "repos/" + this.controlRepository + "/git/commits/" + commitSha
+      `repos/${this.controlRepository}/git/commits/${commitSha}`
     );
     const tree = isJsonRecord(value) ? value.tree : null;
     const sha = getJsonString(tree, "sha");
@@ -429,7 +429,7 @@ export class GitHubRepairLedgerGitApi implements RepairLedgerGitApi {
 
   async getFile(path: string, commitSha: string): Promise<string> {
     const value = await this.reader.get(
-      "repos/" + this.controlRepository + "/contents/" + path + "?ref=" + commitSha
+      `repos/${this.controlRepository}/contents/${path}?ref=${commitSha}`
     );
     const size = getJsonNumber(value, "size");
     if (!isJsonRecord(value) || value.type !== "file" || size < 1 || size > MAX_RECORD_BYTES * 2) {
@@ -442,7 +442,7 @@ export class GitHubRepairLedgerGitApi implements RepairLedgerGitApi {
     const tree: Record<string, string>[] = [{ path, mode: "100644", type: "blob", content }];
     const body: Record<string, unknown> = { tree };
     if (baseTreeSha !== null) body.base_tree = baseTreeSha;
-    const value = await this.writeApi("POST", "repos/" + this.controlRepository + "/git/trees", body);
+    const value = await this.writeApi("POST", `repos/${this.controlRepository}/git/trees`, body);
     const sha = getJsonString(value, "sha");
     assertSha(sha, GIT_SHA, "created tree");
     return sha;
@@ -454,7 +454,7 @@ export class GitHubRepairLedgerGitApi implements RepairLedgerGitApi {
       tree: treeSha,
       parents: parentSha === null ? [] : [parentSha],
     };
-    const value = await this.writeApi("POST", "repos/" + this.controlRepository + "/git/commits", body);
+    const value = await this.writeApi("POST", `repos/${this.controlRepository}/git/commits`, body);
     const sha = getJsonString(value, "sha");
     assertSha(sha, GIT_SHA, "created commit");
     return sha;
@@ -462,8 +462,8 @@ export class GitHubRepairLedgerGitApi implements RepairLedgerGitApi {
 
   async createRef(refName: string, commitSha: string): Promise<void> {
     try {
-      await this.writeApi("POST", "repos/" + this.controlRepository + "/git/refs", {
-        ref: "refs/heads/" + refName,
+      await this.writeApi("POST", `repos/${this.controlRepository}/git/refs`, {
+        ref: `refs/heads/${refName}`,
         sha: commitSha,
       });
     } catch (error) {
@@ -473,7 +473,7 @@ export class GitHubRepairLedgerGitApi implements RepairLedgerGitApi {
 
   async updateRef(refName: string, commitSha: string): Promise<void> {
     try {
-      await this.writeApi("PATCH", "repos/" + this.controlRepository + "/git/refs/heads/" + refName, {
+      await this.writeApi("PATCH", `repos/${this.controlRepository}/git/refs/heads/${refName}`, {
         sha: commitSha,
         force: false,
       });
