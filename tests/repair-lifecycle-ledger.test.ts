@@ -13,6 +13,8 @@ const evidence = "b".repeat(64);
 const verifiedCi = "c".repeat(64);
 const firstHead = "d".repeat(40);
 const secondHead = "e".repeat(40);
+const baseSha = "f".repeat(40);
+const nextBaseSha = "0".repeat(40);
 const now = "2026-11-21T10:00:00Z";
 
 function fixture() {
@@ -36,6 +38,7 @@ function advanceToRepair() {
   return change(diagnosed, {
     kind: "repair-created",
     headSha: firstHead,
+    baseSha,
     prNumber: 42,
   });
 }
@@ -56,7 +59,7 @@ test("stale and skipped transitions never mutate a repair record", () => {
   assert.throws(() => applyRepairLedgerEvent(entry, 1, event, now), /Stale/);
   reject(
     entry,
-    { kind: "repair-created", headSha: firstHead, prNumber: 42 },
+    { kind: "repair-created", headSha: firstHead, baseSha, prNumber: 42 },
     /verified root cause/
   );
   assert.equal(entry.revision, 0);
@@ -65,13 +68,14 @@ test("stale and skipped transitions never mutate a repair record", () => {
 
 test("CI is tied to the current head and exact run", () => {
   const repairing = advanceToRepair();
-  reject(repairing, { kind: "ci-started", headSha: secondHead, runId: 5 }, /current repair head/);
-  const checking = change(repairing, { kind: "ci-started", headSha: firstHead, runId: 5 });
+  reject(repairing, { kind: "ci-started", headSha: secondHead, baseSha, runId: 5 }, /current repair head/);
+  const checking = change(repairing, { kind: "ci-started", headSha: firstHead, baseSha, runId: 5 });
   reject(
     checking,
     {
       kind: "ci-verified",
       headSha: firstHead,
+      baseSha,
       runId: 6,
       evidenceSha256: verifiedCi,
     },
@@ -82,6 +86,7 @@ test("CI is tied to the current head and exact run", () => {
     {
       kind: "ci-verified",
       headSha: secondHead,
+      baseSha,
       runId: 5,
       evidenceSha256: verifiedCi,
     },
@@ -90,19 +95,20 @@ test("CI is tied to the current head and exact run", () => {
   const done = change(checking, {
     kind: "ci-verified",
     headSha: firstHead,
+    baseSha,
     runId: 5,
     evidenceSha256: verifiedCi,
   });
   assert.equal(done.stage, "completed");
   assert.equal(done.root_cause_evidence_sha256, evidence);
   assert.equal(done.ci_evidence_sha256, verifiedCi);
-  reject(done, { kind: "head-updated", headSha: secondHead }, /immutable/);
+  reject(done, { kind: "head-updated", headSha: secondHead, baseSha: nextBaseSha }, /immutable/);
 });
 
 test("changing the head invalidates previously started CI", () => {
   const repairing = advanceToRepair();
-  const checking = change(repairing, { kind: "ci-started", headSha: firstHead, runId: 5 });
-  const updated = change(checking, { kind: "head-updated", headSha: secondHead });
+  const checking = change(repairing, { kind: "ci-started", headSha: firstHead, baseSha, runId: 5 });
+  const updated = change(checking, { kind: "head-updated", headSha: secondHead, baseSha: nextBaseSha });
   assert.equal(updated.stage, "repairing");
   assert.equal(updated.head_sha, secondHead);
   assert.equal(updated.ci_run_id, null);
@@ -112,6 +118,7 @@ test("changing the head invalidates previously started CI", () => {
     {
       kind: "ci-verified",
       headSha: firstHead,
+      baseSha,
       runId: 5,
       evidenceSha256: verifiedCi,
     },
