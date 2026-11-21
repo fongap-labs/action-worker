@@ -89,3 +89,18 @@ test("failed target verification rolls main back before restoration", async () =
   assert.equal(f.protectedMain, true);
   assert.deepEqual(f.calls.slice(-3), ["get", `write:${oldSha}`, "restore"]);
 });
+
+test("migration isolates Git ref reads, contents writes, and ruleset administration", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const script = await readFile("scripts/delta-history-cutover.ts", "utf8");
+  const workflow = await readFile(".github/workflows/delta-history-cutover.yml", "utf8");
+  assert.match(script, /getMainSha: async \(\) => await getMainSha\(readToken\)/);
+  assert.match(script, /git\/refs\/heads\/main`?, writeToken/);
+  assert.doesNotMatch(script, /getMainSha\(adminToken\)/);
+  assert.doesNotMatch(script, /git\/refs\/heads\/main`?, adminToken/);
+  assert.match(workflow, /repositories: delta\n\s+permission-contents: write/);
+  assert.match(
+    workflow,
+    /AW_MIGRATION_WRITE_TOKEN: \$\{\{ steps\.delta_write\.outputs\.token \}\}/
+  );
+});
