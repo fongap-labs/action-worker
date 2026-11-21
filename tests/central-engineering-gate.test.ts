@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import {
   type ChangedFile,
+  centralOwnershipComparisonBase,
   inspectEngineeringOwnership,
   parseChangedFiles,
   parseOwnershipPolicy,
@@ -312,4 +313,12 @@ test("Linux central sandbox runs trusted ownership policy before project-control
   assert.match(workflow, /node aw-security\/scripts\/central-engineering-gate\.ts/);
   assert.match(workflow, /POLICY_BASE_SHA: \$\{\{ inputs\.diff_base_sha \}\}/);
   assert.match(workflow, /POLICY_HEAD_SHA: \$\{\{ inputs\.head_sha \}\}/);
+});
+
+test("the local ownership gate pins Delta initial import, never ordinary PRs", () => {
+  const bootstrap = "7556dc8dfede03053e35359f2b55dd299da1f3ee";
+  const upstream = "2e39e70496aa02986ca6a820c5d497e816b69d7e";
+  assert.equal(centralOwnershipComparisonBase("fongap-labs/delta", bootstrap), upstream);
+  assert.equal(centralOwnershipComparisonBase("fongap-labs/delta", upstream), upstream);
+  assert.equal(centralOwnershipComparisonBase("fongap-labs/app-source", bootstrap), bootstrap);
 });
