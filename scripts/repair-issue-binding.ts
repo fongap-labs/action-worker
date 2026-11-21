@@ -10,6 +10,22 @@ const MAX_ISSUE_BODY_BYTES = 65_536;
 const MARKER = /^<!-- aw-repair-failure:v1 run=([1-9][0-9]*) sha=([a-f0-9]{40}) -->$/gm;
 
 /**
+ * Recheck the exact marker on the fresh Issue response immediately before
+ * persisting the binding. A stale match must not survive a modified Issue.
+ */
+export function hasExactRepairIssueMarker(
+  body: unknown,
+  runId: number,
+  headSha: string
+): boolean {
+  if (typeof body !== "string" || Buffer.byteLength(body, "utf8") > MAX_ISSUE_BODY_BYTES) {
+    return false;
+  }
+  const markers = [...body.matchAll(MARKER)];
+  return markers.length === 1 && Number(markers[0]?.[1]) === runId && markers[0]?.[2] === headSha;
+}
+
+/**
  * Resolve an explicitly tagged existing Issue by exact failed Actions run and
  * HEAD SHA. A marker is only an Issue association hint, never root-cause proof.
  * Search all bounded pages before delivering the result; never choose between
