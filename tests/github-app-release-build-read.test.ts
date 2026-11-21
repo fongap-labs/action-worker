@@ -32,12 +32,14 @@ test("Release Build uses GitHub App for preflight and a dedicated read-only chec
     const step = prepare.find((candidate) => candidate.name === name);
     assert.equal(step?.env?.AW_CONTROL_TOKEN, "${{ steps.app_read.outputs.token }}", name);
   }
-  const visibility = prepare.find((step) => step.name === "Resolve release source visibility");
-  assert.equal(visibility?.id, "source_visibility");
-  assert.equal(visibility?.env?.GH_TOKEN, "${{ steps.app_read.outputs.token }}");
+  assert.equal(
+    prepare.some((step) => step.name === "Resolve release source visibility"),
+    false,
+    "visibility must reuse the ingress repository metadata instead of calling GitHub again"
+  );
   assert.equal(
     workflow.jobs.prepare?.outputs?.is_private,
-    "${{ steps.source_visibility.outputs.is_private }}"
+    "${{ steps.ingress.outputs.is_private }}"
   );
 
   const buildSteps = workflow.jobs.build?.steps ?? [];

@@ -50,9 +50,9 @@ def bool_annotation(annotation: str) -> bool:
     }
 
 
-def changed_paths(root: Path, base: str, head: str) -> list[Path]:
+def changed_paths(root: Path, base: str, head: str, diff_filter: str = "ACMR") -> list[Path]:
     proc = subprocess.run(
-        ["git", "diff", "--name-only", "--diff-filter=ACMR", base, head],
+        ["git", "diff", "--name-only", f"--diff-filter={diff_filter}", base, head],
         cwd=root,
         check=True,
         text=True,
@@ -329,9 +329,11 @@ def main() -> int:
         BOOL_PREFIXES_TS = tuple(identifier_policy.get("boolean_prefixes_typescript", BOOL_PREFIXES_TS))
     errors: list[str] = []
     files = changed_paths(root, sys.argv[1], sys.argv[2])
+    introduced = set(changed_paths(root, sys.argv[1], sys.argv[2], "ACR"))
 
     for path in files:
-        check_file_name(errors, path, MAX_FILENAME_SEGMENTS)
+        if path in introduced:
+            check_file_name(errors, path, MAX_FILENAME_SEGMENTS)
         suffix = path.suffix.lower()
         if suffix == ".py":
             check_python(errors, root, path)

@@ -4,6 +4,7 @@ import { GithubHttpError } from "../scripts/github-api.ts";
 import {
   enforceDshPluginManualVersion,
   resolveManualReleaseBuild,
+  sourceRepositoryVisibility,
 } from "../scripts/resolve-release-build-ingress.ts";
 import { normalizeReleaseVersion } from "../scripts/validate-release-build-request.ts";
 
@@ -97,6 +98,46 @@ test("manual release ingress resolves the current default-branch head", async ()
     source_sha: sha,
     requested_version: "1.2.3",
   });
+});
+
+test("release visibility is strictly validated, not inferred from repository names", () => {
+  assert.equal(sourceRepositoryVisibility({ private: true }), true);
+  assert.equal(sourceRepositoryVisibility({ private: false }), false);
+  for (const response of [null, {}, { private: "false" }, { private: 0 }]) {
+    assert.throws(() => sourceRepositoryVisibility(response), /visibility is unavailable/);
+  }
+});
+
+test("manual release ingress emits visibility from its existing repository metadata read", async () => {
+  for (const isPrivate of [true, false]) {
+    const reader = rootLayoutReader(
+      manifestJson(),
+      {
+        "repos/fongap-labs/example": { default_branch: "main", private: isPrivate },
+        "repos/fongap-labs/example/commits/main": { sha },
+      },
+      sha
+    );
+    let visibility: boolean | undefined;
+    await resolveManualReleaseBuild(
+      "fongap-labs/example",
+      "1.2.3",
+      policy(),
+      reader,
+      "123",
+      "1",
+      "",
+      (value) => {
+        visibility = value;
+      }
+    );
+    assert.equal(visibility, isPrivate);
+    assert.equal(
+      reader.calls.filter((path) => path === "repos/fongap-labs/example").length,
+      1,
+      "release source visibility must not cause another repository API request"
+    );
+  }
 });
 
 test("manual release ingress rejects unmanaged repositories and unstable versions", async () => {

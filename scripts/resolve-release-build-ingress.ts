@@ -12,6 +12,13 @@ type GithubGet = {
   get(path: string): Promise<unknown>;
 };
 
+export function sourceRepositoryVisibility(value: unknown): boolean {
+  if (!isJsonRecord(value) || typeof value.private !== "boolean") {
+    throw new CliError("Release source repository visibility is unavailable.", 65);
+  }
+  return value.private;
+}
+
 /**
  * DSH plugins never derive release versions from commits, tags or source manifests.
  * Only a human workflow_dispatch supplying requested_version may initiate a release.
@@ -51,7 +58,8 @@ export async function resolveManualReleaseBuild(
   reader: GithubGet,
   runId: string,
   runAttempt: string,
-  product = ""
+  product = "",
+  onVisibility?: (isPrivate: boolean) => void
 ): Promise<ReturnType<typeof parseReleaseBuildRequest>> {
   enforceDshPluginManualVersion(repository, requestedVersionRaw, "workflow_dispatch");
   validateRepositoryCapability(repository, policy, "release-source");
@@ -59,6 +67,7 @@ export async function resolveManualReleaseBuild(
   if (!isJsonRecord(repo)) {
     throw new CliError("GitHub repository response is invalid.", 65);
   }
+  if (onVisibility) onVisibility(sourceRepositoryVisibility(repo));
   const defaultBranch = getJsonString(repo, "default_branch");
   if (!defaultBranch) {
     throw new CliError("Repository default branch is unavailable.", 65);
@@ -112,6 +121,7 @@ export async function resolveManualReleaseBuild(
 async function main(): Promise<void> {
   const eventName = process.env.GITHUB_EVENT_NAME ?? "";
   let request: ReturnType<typeof parseReleaseBuildRequest>;
+  let isPrivate: boolean | undefined;
 
   if (eventName === "repository_dispatch") {
     request = parseReleaseBuildRequest(
@@ -122,6 +132,10 @@ async function main(): Promise<void> {
       )
     );
     enforceDshPluginManualVersion(request.source_repository, request.requested_version, eventName);
+    const token = process.env.AW_CONTROL_TOKEN ?? "";
+    if (!token) throw new CliError("AW_CONTROL_TOKEN is required.", 77);
+    const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
+    isPrivate = sourceRepositoryVisibility(await reader.get(`repos/${request.source_repository}`));
   } else if (eventName === "workflow_dispatch") {
     const token = process.env.AW_CONTROL_TOKEN ?? "";
     const policy = parseJson(
@@ -139,17 +153,24 @@ async function main(): Promise<void> {
       new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token),
       process.env.GITHUB_RUN_ID ?? "",
       process.env.GITHUB_RUN_ATTEMPT ?? "1",
-      process.env.RELEASE_PRODUCT ?? ""
+      process.env.RELEASE_PRODUCT ?? "",
+      (visibility) => {
+        isPrivate = visibility;
+      }
     );
   } else {
     throw new CliError(`Unsupported release ingress event: ${eventName}.`, 64);
   }
 
+  if (isPrivate === undefined) {
+    throw new CliError("Release source repository visibility is unavailable.", 65);
+  }
   const encoded = JSON.stringify(request);
   const outputs = [
     `request_json=${encoded}`,
     `source_repository=${request.source_repository}`,
     `source_sha=${request.source_sha}`,
+    `is_private=${isPrivate}`,
   ];
   const notes = request.release_notes ?? "";
   // GitHub output values that hold newlines need the heredoc form; the notes are the only value
