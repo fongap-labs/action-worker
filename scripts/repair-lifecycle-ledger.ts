@@ -60,9 +60,9 @@ export function repairTaskId(repository: string, rootCauseSha256: string): strin
   if (!REPOSITORY.test(normalized)) throw new Error("Invalid repository identifier.");
   assertDigest(rootCauseSha256);
   const digest = createHash("sha256")
-    .update(normalized + "\0" + rootCauseSha256, "utf8")
+    .update(`${normalized}\0${rootCauseSha256}`, "utf8")
     .digest("hex");
-  return "repair-" + digest.slice(0, 32);
+  return `repair-${digest.slice(0, 32)}`;
 }
 
 export function createRepairLedgerEntry(
