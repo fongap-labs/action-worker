@@ -156,3 +156,50 @@ test("bounded blocks can resume without exposing private failure details", () =>
   );
   assert.equal(JSON.stringify(resumed).includes("example/project"), false);
 });
+
+test("originating failure identity persists across recovery and CI state transitions", () => {
+  const entry = createRepairLedgerEntry("example/project", fingerprint, now, {
+    runId: 42,
+    headSha: firstHead,
+  });
+  assert.equal(entry.failure_run_id, 42);
+  assert.equal(entry.failure_head_sha, firstHead);
+  const diagnosed = change(entry, { kind: "root-cause-verified", evidenceSha256: evidence });
+  const repairing = change(diagnosed, {
+    kind: "repair-created",
+    headSha: secondHead,
+    baseSha,
+    prNumber: 41,
+  });
+  assert.equal(repairing.failure_run_id, 42);
+  assert.equal(repairing.failure_head_sha, firstHead);
+  const checking = change(repairing, {
+    kind: "ci-started",
+    headSha: secondHead,
+    baseSha,
+    runId: 55,
+  });
+  assert.equal(checking.failure_run_id, 42);
+  assert.equal(checking.failure_head_sha, firstHead);
+  assert.equal(checking.head_sha, secondHead);
+});
+
+test("initial failure identity is validated and legacy callers remain supported", () => {
+  assert.deepEqual([fixture().failure_run_id, fixture().failure_head_sha], [null, null]);
+  assert.throws(
+    () =>
+      createRepairLedgerEntry("example/project", fingerprint, now, {
+        runId: 0,
+        headSha: firstHead,
+      }),
+    /positive integer/
+  );
+  assert.throws(
+    () =>
+      createRepairLedgerEntry("example/project", fingerprint, now, {
+        runId: 1,
+        headSha: "untrusted",
+      }),
+    /Git commit SHA/
+  );
+});

@@ -17,6 +17,9 @@ export type RepairBlock =
 export interface RepairLedgerEntry {
   readonly task_id: string;
   readonly root_cause_sha256: string;
+  /** Verified failed workflow origin; null only for legacy records. */
+  readonly failure_run_id: number | null;
+  readonly failure_head_sha: string | null;
   readonly revision: number;
   readonly stage: RepairStage;
   readonly root_cause_evidence_sha256: string | null;
@@ -71,12 +74,19 @@ export function repairTaskId(repository: string, rootCauseSha256: string): strin
 export function createRepairLedgerEntry(
   repository: string,
   rootCauseSha256: string,
-  now: string
+  now: string,
+  failure?: { readonly runId: number; readonly headSha: string }
 ): RepairLedgerEntry {
   assertTime(now);
+  if (failure !== undefined) {
+    assertPositive(failure.runId);
+    assertHead(failure.headSha);
+  }
   return {
     task_id: repairTaskId(repository, rootCauseSha256),
     root_cause_sha256: rootCauseSha256,
+    failure_run_id: failure?.runId ?? null,
+    failure_head_sha: failure?.headSha ?? null,
     revision: 0,
     stage: "discovered",
     root_cause_evidence_sha256: null,
