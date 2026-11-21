@@ -72,7 +72,8 @@ test("source naming checks new violations but preserves unchanged inherited iden
     git("config", "user.email", "ci-test");
     await mkdir(join(root, "apps/desktop/src"), { recursive: true });
     const legacy = join(root, "apps/desktop/src/legacy-engine.ts");
-    const original = "export function launch(ready: boolean) { const moved = true; return ready && moved; }\\n";
+    const original =
+      "export function launch(ready: boolean) { const moved = true; return ready && moved; }\\n";
     await writeFile(legacy, original);
     git("add", ".");
     git("commit", "-qm", "baseline includes inherited identifiers");
