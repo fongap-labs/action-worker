@@ -19,38 +19,64 @@ const branchPattern = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 const mirrorBranchPattern = /^upstream\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const commitPattern = /^[a-f0-9]{40}$/;
 
-export function parseMirrorSource(value: unknown): MirrorSource {
+export function parseMirrorSource(value: unknown, approvedTarget?: string): MirrorSource {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error("Upstream mirror policy must be an object.");
   }
   const root = value as Record<string, unknown>;
-  if (root.schema_version !== 1 || !Array.isArray(root.mirrors) || root.mirrors.length !== 1) {
-    throw new Error("Upstream mirror policy must contain one explicitly approved source.");
-  }
-  const raw: unknown = root.mirrors[0];
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    throw new Error("Upstream mirror source is invalid.");
-  }
-  const entry = raw as Record<string, unknown>;
   if (
-    Object.keys(entry).length !== 5 ||
-    typeof entry.source_repository !== "string" ||
-    !repositoryPattern.test(entry.source_repository) ||
-    typeof entry.source_branch !== "string" ||
-    !branchPattern.test(entry.source_branch) ||
-    typeof entry.target_repository !== "string" ||
-    !repositoryPattern.test(entry.target_repository) ||
-    !entry.target_repository.startsWith("fongap-labs/") ||
-    entry.target_repository === "fongap-labs/action-worker" ||
-    entry.source_repository === entry.target_repository ||
-    typeof entry.target_branch !== "string" ||
-    !mirrorBranchPattern.test(entry.target_branch) ||
-    typeof entry.bootstrap_sha !== "string" ||
-    !commitPattern.test(entry.bootstrap_sha)
+    root.schema_version !== 1 ||
+    !Array.isArray(root.mirrors) ||
+    root.mirrors.length < 1 ||
+    root.mirrors.length > 16
   ) {
-    throw new Error("Upstream mirror identities or bootstrap SHA are invalid.");
+    throw new Error("Upstream mirror policy must contain explicitly approved sources.");
   }
-  return entry as MirrorSource;
+  const sources: MirrorSource[] = [];
+  const seenTargets = new Set<string>();
+  for (const raw of root.mirrors) {
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      throw new Error("Upstream mirror source is invalid.");
+    }
+    const entry = raw as Record<string, unknown>;
+    if (
+      Object.keys(entry).length !== 5 ||
+      typeof entry.source_repository !== "string" ||
+      !repositoryPattern.test(entry.source_repository) ||
+      typeof entry.source_branch !== "string" ||
+      !branchPattern.test(entry.source_branch) ||
+      typeof entry.target_repository !== "string" ||
+      !repositoryPattern.test(entry.target_repository) ||
+      !entry.target_repository.startsWith("fongap-labs/") ||
+      entry.target_repository === "fongap-labs/action-worker" ||
+      entry.source_repository === entry.target_repository ||
+      typeof entry.target_branch !== "string" ||
+      !mirrorBranchPattern.test(entry.target_branch) ||
+      typeof entry.bootstrap_sha !== "string" ||
+      !commitPattern.test(entry.bootstrap_sha)
+    ) {
+      throw new Error("Upstream mirror identities or bootstrap SHA are invalid.");
+    }
+    if (seenTargets.has(entry.target_repository)) {
+      throw new Error("Each upstream mirror target repository must be unique.");
+    }
+    seenTargets.add(entry.target_repository);
+    sources.push(entry as MirrorSource);
+  }
+  if (approvedTarget === undefined) {
+    if (sources.length !== 1) {
+      throw new Error("A scoped target is required for multiple upstream mirrors.");
+    }
+    return sources[0]!;
+  }
+  if (!repositoryPattern.test(approvedTarget)) {
+    throw new Error("Approved upstream mirror target is invalid.");
+  }
+  const source = sources.find((entry) => entry.target_repository === approvedTarget);
+  if (!source) {
+    throw new Error("Upstream mirror target has no approved source.");
+  }
+  return source;
 }
 
 export function mirrorUpdateMode(
@@ -182,7 +208,10 @@ async function main(): Promise<void> {
   ) {
     throw new Error("Upstream mirror requires the trusted Action Worker main.");
   }
-  const source = parseMirrorSource(JSON.parse(readFileSync(policyFile, "utf8")) as unknown);
+  const source = parseMirrorSource(
+    JSON.parse(readFileSync(policyFile, "utf8")) as unknown,
+    approvedTarget
+  );
   if (source.target_repository !== approvedTarget) {
     throw new Error("Upstream mirror target exceeds the approved writer scope.");
   }
