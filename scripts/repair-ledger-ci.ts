@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 import {
   hasVerifiedCiEvidence,
   hasVerifiedControlStatus,
+  type JsonReader,
   latestCiStatus,
   prGateWorkflowPaths,
   trustedControlRunId,
-  type JsonReader,
 } from "./ci-evidence.ts";
 import { getJsonString, isJsonRecord } from "./github-api.ts";
 import { loadGateContract } from "./governance-gate-contract.ts";
