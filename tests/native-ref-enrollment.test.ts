@@ -37,7 +37,13 @@ test("protected private main enrollment is opt-in and never PR, public or manual
 
 test("empty private main caller policy disables source-owned verification", () => {
   assert.equal(
-    resolveNativeRefEnrollment({ schema_version: 1, callers: [] }, "fongap-labs/private-fixture", "true", "run-central-ci-ref", "0"),
+    resolveNativeRefEnrollment(
+      { schema_version: 1, callers: [] },
+      "fongap-labs/private-fixture",
+      "true",
+      "run-central-ci-ref",
+      "0"
+    ),
     false
   );
 });
