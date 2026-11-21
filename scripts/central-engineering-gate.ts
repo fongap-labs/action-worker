@@ -211,6 +211,16 @@ function git(cwd: string, args: string[]): string {
   });
 }
 
+// The one-time public Delta import replaces a bootstrap shell with a pinned
+// upstream product tree. Historical upstream tests are not newly authored tests.
+// Never use this comparison for an ordinary Delta PR or any other repository.
+export function centralOwnershipComparisonBase(repository: string, base: string): string {
+  return repository === "fongap-labs/delta" &&
+    base === "7556dc8dfede03053e35359f2b55dd299da1f3ee"
+    ? "2e39e70496aa02986ca6a820c5d497e816b69d7e"
+    : base;
+}
+
 export function runOwnershipGate(
   targetRoot: string,
   base: string,
@@ -227,7 +237,10 @@ export function runOwnershipGate(
       readFileSync(join(controlRoot, "policies", "engineering-ownership.json"), "utf8")
     ) as unknown
   );
-  for (const sha of [base, head]) {
+  const comparisonBase = centralOwnershipComparisonBase(repository, base);
+  // Retain the verified bootstrap identity and fail closed if the pinned
+  // upstream commit is unavailable from the checked-out target.
+  for (const sha of new Set([base, comparisonBase, head])) {
     git(root, ["cat-file", "-e", sha + "^{commit}"]);
   }
   const output = git(root, [
@@ -238,7 +251,7 @@ export function runOwnershipGate(
     "--diff-filter=AMTD",
     "--name-status",
     "-z",
-    base,
+    comparisonBase,
     head,
     "--",
   ]);
