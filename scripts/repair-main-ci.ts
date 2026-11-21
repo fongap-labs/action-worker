@@ -19,7 +19,7 @@ const contract = loadGateContract();
 
 function checkMainRunId(url: string, controlRepository: string): number | null {
   const prefix = ["https://github.com", controlRepository, "actions/runs"].join("/");
-  if (!url.startsWith(prefix + "/")) return null;
+  if (!url.startsWith(`${prefix}/`)) return null;
   const suffix = url.slice(prefix.length + 1);
   const match = /^([1-9][0-9]*)\/job\/[1-9][0-9]*$/.exec(suffix);
   if (!match) return null;
@@ -51,7 +51,9 @@ async function hasVerifiedLocalMainCi(
     }
     const runId = checkMainRunId(getJsonString(check, "details_url"), controlRepository);
     if (runId === null) continue;
-    const run = await reader.get(["repos", controlRepository, "actions/runs", String(runId)].join("/"));
+    const run = await reader.get(
+      ["repos", controlRepository, "actions/runs", String(runId)].join("/")
+    );
     if (
       !isJsonRecord(run) ||
       getJsonNumber(run, "id") !== runId ||
@@ -152,7 +154,8 @@ export async function verifiedRepairPostMergeDigest(
     mainCiProof = ["status", String(ciId)].join(":");
   } else {
     const id = await hasVerifiedLocalMainCi(reader, repository, controlRepository, mainSha);
-    if (id === null) throw new CliError("Repair main CI is missing or not verified successful.", 75);
+    if (id === null)
+      throw new CliError("Repair main CI is missing or not verified successful.", 75);
     mainCiProof = ["check", String(id)].join(":");
   }
   const guard = latestCiStatus(mainStatuses, "Main Write Guard");

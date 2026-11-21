@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { prTitleFingerprint } from "../scripts/pr-title-fingerprint.ts";
-import { verifiedRepairPostMergeDigest } from "../scripts/repair-ledger-main-ci.ts";
+import { verifiedRepairPostMergeDigest } from "../scripts/repair-main-ci.ts";
 import { RepairLedgerStore } from "../scripts/repair-ledger-store.ts";
 import {
   applyRepairLedgerEvent,
@@ -46,13 +46,7 @@ function document(source = repository) {
   };
 }
 
-function status(
-  id: number,
-  context: string,
-  url: string,
-  description: string,
-  state = "success"
-) {
+function status(id: number, context: string, url: string, description: string, state = "success") {
   return {
     id,
     context,
@@ -123,9 +117,7 @@ function reader(options: Scenario = {}) {
     202,
     "Main Write Guard",
     "https://github.com/fongap-labs/action-worker/actions/runs/45",
-    options.remediatedGuard
-      ? "Post-merge CI remediation: display updated"
-      : "Main write verified",
+    options.remediatedGuard ? "Post-merge CI remediation: display updated" : "Main write verified",
     options.failedGuard ? "failure" : "success"
   );
   const main = attestFixtureStatuses(
@@ -153,7 +145,10 @@ function reader(options: Scenario = {}) {
     [43, ".github/workflows/handle-pr-dispatch.yml"],
     [44, ".github/workflows/central-ci-dispatch.yml"],
     [45, ".github/workflows/main-write-guard.yml"],
-    [46, options.invalidLocalCi ? ".github/workflows/untrusted.yml" : ".github/workflows/intake.yml"],
+    [
+      46,
+      options.invalidLocalCi ? ".github/workflows/untrusted.yml" : ".github/workflows/intake.yml",
+    ],
   ]);
   let prReads = 0;
   let branchReads = 0;
@@ -174,16 +169,12 @@ function reader(options: Scenario = {}) {
         return {
           commit: {
             sha:
-              options.staleMain || (options.movedMain && branchReads > 1)
-                ? "7".repeat(40)
-                : merge,
+              options.staleMain || (options.movedMain && branchReads > 1) ? "7".repeat(40) : merge,
           },
         };
       }
       if (path === ["repos", source, "commits", head, "status"].join("/")) {
-        return options.differentPrRun
-          ? { statuses: [] }
-          : statusesForPr;
+        return options.differentPrRun ? { statuses: [] } : statusesForPr;
       }
       if (path === ["repos", source, "commits", merge, "status"].join("/")) {
         return main;
