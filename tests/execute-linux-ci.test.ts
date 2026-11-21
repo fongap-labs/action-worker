@@ -128,26 +128,14 @@ test("Linux fallback permits only the centrally audited Delta Windows companion"
     });
     const altered = { ...windows, capability_requests: ["source.read", "deployment.production"] };
     jobs[1] = altered;
-    assert.throws(
-      () => chooseLinuxManifestCommand(linux, root),
-      /at most one audited Windows job/
-    );
+    assert.throws(() => chooseLinuxManifestCommand(linux, root), /at most one audited Windows job/);
     jobs[1] = { ...windows, command: ["pwsh", "-File", "{target_root}/malicious.ps1"] };
-    assert.throws(
-      () => chooseLinuxManifestCommand(linux, root),
-      /at most one audited Windows job/
-    );
+    assert.throws(() => chooseLinuxManifestCommand(linux, root), /at most one audited Windows job/);
     jobs[1] = { ...windows, artifacts: [{ name: "private", path: "home" }] };
-    assert.throws(
-      () => chooseLinuxManifestCommand(linux, root),
-      /at most one audited Windows job/
-    );
+    assert.throws(() => chooseLinuxManifestCommand(linux, root), /at most one audited Windows job/);
     jobs[1] = windows;
     jobs.push({ ...windows, id: "other-platform" });
-    assert.throws(
-      () => chooseLinuxManifestCommand(linux, root),
-      /at most one audited Windows job/
-    );
+    assert.throws(() => chooseLinuxManifestCommand(linux, root), /at most one audited Windows job/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
