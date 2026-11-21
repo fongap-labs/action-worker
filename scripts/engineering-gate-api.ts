@@ -11,17 +11,11 @@ import {
 } from "./central-engineering-gate.ts";
 import { decodeGithubContent, getGithubJson, isJsonRecord } from "./github-api.ts";
 import { CliError, handleError, isMain, runCommand, runText } from "./runtime-command.ts";
+import { engineeringOwnershipDiffBase } from "./trusted-import-baseline.ts";
 
 const SHA = /^[a-f0-9]{40}$/;
 const REPOSITORY = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
-// Only Delta's initial import may compare against this centrally pinned source tree.
-// Normal pull requests continue to compare the exact target-branch base and head.
-const DELTA_BOOTSTRAP = "7556dc8dfede03053e35359f2b55dd299da1f3ee";
-const DELTA_UPSTREAM = "2e39e70496aa02986ca6a820c5d497e816b69d7e";
-
-export function engineeringOwnershipDiffBase(repository: string, base: string): string {
-  return repository === "fongap-labs/delta" && base === DELTA_BOOTSTRAP ? DELTA_UPSTREAM : base;
-}
+export { engineeringOwnershipDiffBase } from "./trusted-import-baseline.ts";
 
 /** Read complete immutable Git trees, not GitHub Compare's truncated 300-file list.
  * The temporary repository has no checkout, hooks, or project-controlled scripts.
