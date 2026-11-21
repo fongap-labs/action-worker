@@ -37,7 +37,10 @@ test("Release Build uses GitHub App for preflight and a dedicated read-only chec
     false,
     "visibility must reuse the ingress repository metadata instead of calling GitHub again"
   );
-  assert.equal(workflow.jobs.prepare?.outputs?.is_private, "${{ steps.ingress.outputs.is_private }}");
+  assert.equal(
+    workflow.jobs.prepare?.outputs?.is_private,
+    "${{ steps.ingress.outputs.is_private }}"
+  );
 
   const buildSteps = workflow.jobs.build?.steps ?? [];
   const buildPrivate = buildSteps.find((step) => step.name === "Checkout private source");
