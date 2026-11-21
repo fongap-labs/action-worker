@@ -240,7 +240,7 @@ AI Review 不得拥有 main 写入、合并、Release 或 Deploy 权限。
 - Release/Deploy 下游要求：`06_RELEASE_DEPLOY_GUIDE.md` §3
 - 共用治理宪法：`01_SHARED_GOVERNANCE.md` §3
 
-## 12. Delta 单次主分支历史迁移——已完成
+## 12. 单次主分支历史迁移——已完成
 
 2026 年 11 月 22 日，Action Workers 根据 [#1924](https://github.com/fongap-labs/action-worker/issues/1924) 中的授权执行了一次受审计的 Delta Git 历史整理。权威执行记录为 [工作流 #44929104924](https://github.com/fongap-labs/action-worker/actions/runs/44929104924)，全部 5 个作业均成功：历史及签名预检、Windows 便携 ZIP 实机构建、一次性 `main` 切换、独立恢复分支规则、最终签名来源确认。
 
