@@ -315,6 +315,16 @@ test("Linux central sandbox runs trusted ownership policy before project-control
   assert.match(workflow, /POLICY_HEAD_SHA: \$\{\{ inputs\.head_sha \}\}/);
 });
 
+test("Delta desktop builder compiles referenced libraries before package-local TypeScript", () => {
+  const build = readFileSync("tests/packs/delta/desktop-build-ci.sh", "utf8");
+  const install = build.indexOf("pnpm install --frozen-lockfile");
+  const references = build.indexOf("pnpm run build:lib");
+  const desktop = build.indexOf("pnpm run build:desktop");
+  assert.ok(install > 0);
+  assert.ok(references > install);
+  assert.ok(desktop > references);
+});
+
 test("the local ownership gate pins Delta initial import, never ordinary PRs", () => {
   const bootstrap = "7556dc8dfede03053e35359f2b55dd299da1f3ee";
   const upstream = "2e39e70496aa02986ca6a820c5d497e816b69d7e";
