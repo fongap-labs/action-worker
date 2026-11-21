@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { GithubReader } from "../scripts/github-api.ts";
 import {
   isDeltaHistoryMigrationTarget,
   readDeltaHistoryPolicy,
   verifyDeltaHistoryMigration,
 } from "../scripts/delta-history-migration.ts";
+import type { GithubReader } from "../scripts/github-api.ts";
 
 const manifest = readDeltaHistoryPolicy();
 const repo = manifest.repository;
@@ -65,12 +65,12 @@ function fixture(
 test("one-time Delta target identity is fail-closed for all other repositories and SHAs", async () => {
   assert.equal(isDeltaHistoryMigrationTarget(repo, manifest.target_sha), true);
   assert.equal(isDeltaHistoryMigrationTarget(repo, manifest.source_sha), false);
-  assert.equal(isDeltaHistoryMigrationTarget("fongap-labs/action-worker", manifest.target_sha), false);
-  const { reader, reads } = fixture();
   assert.equal(
-    await verifyDeltaHistoryMigration(reader, repo, manifest.source_sha),
-    null
+    isDeltaHistoryMigrationTarget("fongap-labs/action-worker", manifest.target_sha),
+    false
   );
+  const { reader, reads } = fixture();
+  assert.equal(await verifyDeltaHistoryMigration(reader, repo, manifest.source_sha), null);
   assert.equal(
     await verifyDeltaHistoryMigration(reader, "fongap-labs/dsh-plugin", manifest.target_sha),
     null
@@ -80,7 +80,7 @@ test("one-time Delta target identity is fail-closed for all other repositories a
 
 test("preflight accepts exactly seven identical historical snapshots without changing main", async () => {
   const { reader } = fixture();
-  assert.equal(
+  assert.deepEqual(
     await verifyDeltaHistoryMigration(reader, repo, manifest.target_sha, "preflight"),
     manifest
   );
@@ -88,7 +88,7 @@ test("preflight accepts exactly seven identical historical snapshots without cha
 
 test("cutover accepts only the exact target SHA as main after historical switch", async () => {
   const { reader } = fixture("cutover");
-  assert.equal(await verifyDeltaHistoryMigration(reader, repo, manifest.target_sha), manifest);
+  assert.deepEqual(await verifyDeltaHistoryMigration(reader, repo, manifest.target_sha), manifest);
 });
 
 test("migration rejects any main or legacy backup ref drift", async () => {
@@ -128,8 +128,18 @@ test("migration rejects modified source, candidate, and intermediate tree snapsh
 test("migration rejects a fake ancestor relation and hidden missing upstream commits", async () => {
   const key = `repos/${repo}/compare/${manifest.baseline_sha}...${manifest.target_sha}`;
   for (const change of [
-    { status: "diverged", ahead_by: 7, behind_by: 1, merge_base_commit: { sha: manifest.baseline_sha } },
-    { status: "ahead", ahead_by: 28264, behind_by: 0, merge_base_commit: { sha: manifest.baseline_sha } },
+    {
+      status: "diverged",
+      ahead_by: 7,
+      behind_by: 1,
+      merge_base_commit: { sha: manifest.baseline_sha },
+    },
+    {
+      status: "ahead",
+      ahead_by: 28264,
+      behind_by: 0,
+      merge_base_commit: { sha: manifest.baseline_sha },
+    },
     { status: "ahead", ahead_by: 7, behind_by: 0, merge_base_commit: { sha: "f".repeat(40) } },
   ]) {
     const { reader } = fixture("preflight", { [key]: change });

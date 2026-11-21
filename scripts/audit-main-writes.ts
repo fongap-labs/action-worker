@@ -132,7 +132,12 @@ export async function auditRepositoryMain(
   repository: string,
   isCentralStatusRequired = true,
   onMainSha?: (sha: string) => void
-): Promise<{ main_sha: string; pr_number: number; pr_head_sha: string; source?: "delta-history-migration" }> {
+): Promise<{
+  main_sha: string;
+  pr_number: number;
+  pr_head_sha: string;
+  source?: "delta-history-migration";
+}> {
   const repositoryValue = await reader.get(`repos/${repository}`);
   const defaultBranch = getJsonString(repositoryValue, "default_branch");
   if (defaultBranch !== "main") {
@@ -322,7 +327,9 @@ async function main(): Promise<void> {
             runUrl
           );
           if (previous.length > 0) {
-            console.log(`Reconciled previous main status for ${repository}: ${previous.join(", ")}`);
+            console.log(
+              `Reconciled previous main status for ${repository}: ${previous.join(", ")}`
+            );
           }
         } catch (error) {
           console.warn(

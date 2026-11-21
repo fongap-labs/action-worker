@@ -45,8 +45,8 @@ function deny(reason: string): never {
   throw new CliError(`::error::Delta history migration denied: ${reason}.`, 65);
 }
 
-function requireExact(value: boolean, reason: string): void {
-  if (!value) deny(reason);
+function requireExact(isValid: boolean, reason: string): void {
+  if (!isValid) deny(reason);
 }
 
 function hasSha(value: unknown): value is string {
@@ -150,8 +150,7 @@ export async function verifyDeltaHistoryMigration(
         getJsonString(isJsonRecord(source) ? source.tree : null, "sha") === snapshot.tree_sha &&
         getJsonString(isJsonRecord(target) ? target.tree : null, "sha") === snapshot.tree_sha &&
         sourceParents.length === (i === 0 ? 0 : 1) &&
-        (i === 0 ||
-          getJsonString(sourceParents[0], "sha") === previousSource) &&
+        (i === 0 || getJsonString(sourceParents[0], "sha") === previousSource) &&
         targetParents.length === 1 &&
         getJsonString(targetParents[0], "sha") === previousTarget,
       `snapshot ${i + 1} changed content or parentage`
