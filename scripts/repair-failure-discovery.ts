@@ -202,8 +202,7 @@ async function main(): Promise<void> {
   if (
     control !== "fongap-labs/action-worker" ||
     process.env.GITHUB_REF !== "refs/heads/main" ||
-    (process.env.GITHUB_EVENT_NAME !== "schedule" &&
-      process.env.GITHUB_EVENT_NAME !== "workflow_dispatch") ||
+    process.env.GITHUB_EVENT_NAME !== "schedule" ||
     !token
   ) {
     throw new CliError("Repair discovery requires trusted main and an App inventory token.", 77);
