@@ -22,7 +22,6 @@ export function resolveNativeCiPilot(
     !isJsonRecord(rawPolicy) ||
     rawPolicy.schema_version !== 1 ||
     !Array.isArray(rawPolicy.repositories) ||
-    rawPolicy.repositories.length === 0 ||
     rawPolicy.repositories.some(
       (name: unknown) => typeof name !== "string" || !repositoryPattern.test(name)
     ) ||
