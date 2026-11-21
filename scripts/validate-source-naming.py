@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import ast
+from collections import Counter
 import json
 import re
 import subprocess
@@ -111,11 +112,16 @@ def check_file_name(errors: list[str], path: Path, max_segments: int) -> None:
             add(errors, path, f"module filename contains banned term(s): {', '.join(sorted(bad))}")
 
 
-def check_python(errors: list[str], root: Path, path: Path) -> None:
+def check_python(
+    errors: list[str], root: Path, path: Path, source: str | None = None
+) -> None:
     if is_test(path):
         return
     try:
-        tree = ast.parse((root / path).read_text(encoding="utf-8"), filename=str(path))
+        tree = ast.parse(
+            source if source is not None else (root / path).read_text(encoding="utf-8"),
+            filename=str(path),
+        )
     except SyntaxError:
         return
 
@@ -224,10 +230,14 @@ def strip_rust_tests(text: str) -> str:
     return text if marker < 0 else text[:marker]
 
 
-def check_rust(errors: list[str], root: Path, path: Path) -> None:
+def check_rust(
+    errors: list[str], root: Path, path: Path, source: str | None = None
+) -> None:
     if is_test(path):
         return
-    text = strip_rust_tests((root / path).read_text(encoding="utf-8"))
+    text = strip_rust_tests(
+        source if source is not None else (root / path).read_text(encoding="utf-8")
+    )
     fn_pattern = re.compile(
         r"(?m)^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([a-z_][a-z0-9_]*)"
     )
@@ -261,10 +271,12 @@ def check_ts_parameters(errors: list[str], path: Path, block: str) -> None:
             add(errors, path, f"boolean TypeScript parameter '{match.group(1)}' must start with is/has/can/should")
 
 
-def check_typescript(errors: list[str], root: Path, path: Path) -> None:
+def check_typescript(
+    errors: list[str], root: Path, path: Path, source: str | None = None
+) -> None:
     if is_test(path) or path.name.endswith(".d.ts"):
         return
-    text = (root / path).read_text(encoding="utf-8")
+    text = source if source is not None else (root / path).read_text(encoding="utf-8")
     function_name = re.compile(
         r"(?m)^\s*(?:export\s+)?(?:async\s+)?function\s+([A-Za-z][A-Za-z0-9]*)"
     )
@@ -290,6 +302,47 @@ def check_typescript(errors: list[str], root: Path, path: Path) -> None:
     for name in bool_state.findall(text):
         if not name.startswith(BOOL_PREFIXES_TS):
             add(errors, path, f"boolean TypeScript state '{name}' must start with is/has/can/should")
+
+
+def source_violations(
+    root: Path, path: Path, source: str | None = None
+) -> list[str]:
+    violations: list[str] = []
+    suffix = path.suffix.lower()
+    if suffix == ".py":
+        check_python(violations, root, path, source)
+    elif suffix == ".rs":
+        check_rust(violations, root, path, source)
+    elif suffix in {".ts", ".tsx"}:
+        check_typescript(violations, root, path, source)
+    return violations
+
+
+def added_violations(
+    root: Path, path: Path, base: str, introduced: bool
+) -> list[str]:
+    current = source_violations(root, path)
+    if introduced or not current:
+        return current
+
+    # Only new source-naming defects count. Re-evaluate the pinned base file
+    # rather than treating inherited identifiers as violations of this PR.
+    # Missing base blobs and Git failures fail closed instead of suppressing checks.
+    result = subprocess.run(
+        ["git", "show", f"{base}:{path.as_posix()}"],
+        cwd=root,
+        check=True,
+        stdout=subprocess.PIPE,
+    )
+    previous = source_violations(root, path, result.stdout.decode("utf-8"))
+    previous_counts = Counter(previous)
+    delta: list[str] = []
+    for problem in current:
+        if previous_counts[problem] > 0:
+            previous_counts[problem] -= 1
+        else:
+            delta.append(problem)
+    return delta
 
 
 def load_naming_policy() -> dict:
@@ -334,13 +387,7 @@ def main() -> int:
     for path in files:
         if path in introduced:
             check_file_name(errors, path, MAX_FILENAME_SEGMENTS)
-        suffix = path.suffix.lower()
-        if suffix == ".py":
-            check_python(errors, root, path)
-        elif suffix == ".rs":
-            check_rust(errors, root, path)
-        elif suffix in {".ts", ".tsx"}:
-            check_typescript(errors, root, path)
+        errors.extend(added_violations(root, path, sys.argv[1], path in introduced))
 
     if errors:
         print("source naming violations:", file=sys.stderr)
