@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import {
   type ChangedFile,
   inspectEngineeringOwnership,
-  parseChangedFiles,
   type OwnershipPolicy,
+  parseChangedFiles,
   parseOwnershipPolicy,
 } from "./central-engineering-gate.ts";
 import { decodeGithubContent, getGithubJson, isJsonRecord } from "./github-api.ts";
