@@ -37,23 +37,15 @@ test("bootstrap rejects source files, build scripts and renamed changes", () => 
 
 test("bootstrap rejects changes to the approved template or approval policy", () => {
   assert.throws(() =>
-    assertBridgeBootstrap([bridge, changelog], [bridge], template, template + " ", policy)
+    assertBridgeBootstrap([bridge, changelog], [bridge], template, `${template} `, policy)
   );
-  assert.throws(() =>
-    assertBridgeBootstrap([bridge, changelog], [bridge], template, template, [])
-  );
+  assert.throws(() => assertBridgeBootstrap([bridge, changelog], [bridge], template, template, []));
   assert.throws(() =>
     assertBridgeBootstrap([bridge, changelog], [bridge], template, template, [
       { path: bridge, sha256: "0".repeat(64) },
     ])
   );
   assert.throws(() =>
-    assertBridgeBootstrap(
-      [bridge, changelog],
-      [bridge],
-      template,
-      template,
-      [...policy, ...policy]
-    )
+    assertBridgeBootstrap([bridge, changelog], [bridge], template, template, [...policy, ...policy])
   );
 });
