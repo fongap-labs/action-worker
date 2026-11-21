@@ -1,7 +1,7 @@
 import type { JsonReader } from "./ci-evidence.ts";
 import { getJsonString, isJsonRecord } from "./github-api.ts";
-import { repairTaskId } from "./repair-lifecycle-ledger.ts";
 import type { RepairLedgerSnapshot, RepairLedgerStore } from "./repair-ledger-store.ts";
+import { repairTaskId } from "./repair-lifecycle-ledger.ts";
 import { CliError } from "./runtime-command.ts";
 
 const GIT_SHA = /^[a-f0-9]{40}$/;
