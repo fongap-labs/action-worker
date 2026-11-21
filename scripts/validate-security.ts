@@ -1,6 +1,14 @@
 import { createHash } from "node:crypto";
 import { isJsonRecord } from "./github-api.ts";
-import { CliError, handleError, isMain, readJson, runCommand, runText, runTextLines } from "./runtime-command.ts";
+import {
+  CliError,
+  handleError,
+  isMain,
+  readJson,
+  runCommand,
+  runText,
+  runTextLines,
+} from "./runtime-command.ts";
 
 type NamedPattern = {
   name: string;
