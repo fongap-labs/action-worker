@@ -746,3 +746,9 @@ pnpm run build:desktop
 # Trusted short performance smoke: real Delta components, synthetic data only.
 # No historical benchmark corpus, target-controlled CI scripts or network calls.
 node "$(dirname "${BASH_SOURCE[0]}")/performance-smoke.mjs"
+
+# Exercise the restored opt-in browser provider against a synthetic local HTTP page.
+# Trusted script and Chrome binary come from the control plane, not target PR code.
+if [[ -f packages/experimental/browser-use-playwright-mcp/package.json ]]; then
+  node "$(dirname "${BASH_SOURCE[0]}")/browser-use-smoke.mjs"
+fi
