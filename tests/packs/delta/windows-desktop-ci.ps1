@@ -9,12 +9,20 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 
+# Measure each required trusted phase without printing commands or target paths.
 function Invoke-Checked {
   param([string]$Command, [string[]]$Arguments)
-  & $Command @Arguments
-  if ($LASTEXITCODE -ne 0) {
-    # Never echo a child process command line: it may contain credentials.
-    throw "Delta Windows CI child process exited with code $LASTEXITCODE."
+  $watch = [System.Diagnostics.Stopwatch]::StartNew()
+  try {
+    & $Command @Arguments
+    if ($LASTEXITCODE -ne 0) {
+      # Never echo a child process command line: it may contain credentials.
+      throw "Delta Windows CI child process exited with code $LASTEXITCODE."
+    }
+  }
+  finally {
+    $watch.Stop()
+    Write-Host ("Delta Windows CI timing stage={0} duration_ms={1}" -f $script:stage, $watch.ElapsedMilliseconds)
   }
 }
 
@@ -89,7 +97,14 @@ try {
   $appdata = Join-Path $isolated 'appdata'
   $localdata = Join-Path $isolated 'localdata'
   New-Item -ItemType Directory -Force -Path $appdata, $localdata | Out-Null
-  Copy-Item -LiteralPath $unpacked -Destination $relocated -Recurse -Force
+  $relocationWatch = [System.Diagnostics.Stopwatch]::StartNew()
+  try {
+    Copy-Item -LiteralPath $unpacked -Destination $relocated -Recurse -Force
+  }
+  finally {
+    $relocationWatch.Stop()
+    Write-Host ("Delta Windows CI timing stage=portable-relocation duration_ms={0}" -f $relocationWatch.ElapsedMilliseconds)
+  }
   $exe = Join-Path $relocated 'Delta.exe'
   if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) {
     throw 'Portable relocation lost Delta.exe.'
@@ -101,13 +116,20 @@ try {
     $env:APPDATA = $appdata
     $env:LOCALAPPDATA = $localdata
     $stage = 'relocated-executable-startup'
-    $process = Start-Process -FilePath $exe -ArgumentList '--version' -PassThru -WindowStyle Hidden
-    if (-not $process.WaitForExit(30000)) {
-      $process.Kill()
-      throw 'Relocated Delta.exe did not exit its version smoke within 30 seconds.'
+    $startupWatch = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+      $process = Start-Process -FilePath $exe -ArgumentList '--version' -PassThru -WindowStyle Hidden
+      if (-not $process.WaitForExit(30000)) {
+        $process.Kill()
+        throw 'Relocated Delta.exe did not exit its version smoke within 30 seconds.'
+      }
+      if ($process.ExitCode -ne 0) {
+        throw "Relocated Delta.exe failed its startup probe (exit $($process.ExitCode))."
+      }
     }
-    if ($process.ExitCode -ne 0) {
-      throw "Relocated Delta.exe failed its startup probe (exit $($process.ExitCode))."
+    finally {
+      $startupWatch.Stop()
+      Write-Host ("Delta Windows CI timing stage=relocated-executable-startup duration_ms={0}" -f $startupWatch.ElapsedMilliseconds)
     }
   }
   finally {
