@@ -1,14 +1,13 @@
-name: Delta · macOS 浏览器实测
+name: 自动 · macOS 验收
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: '17 5 * * 0'
+    - cron: "17 5 * * 0"
   push:
     branches: [main]
     paths:
-      - 'tests/packs/delta/browser-use-smoke.mjs'
-      - '.github/workflows/delta-macos-browser-smoke.yml'
+      - "tests/packs/delta/browser-use-smoke.mjs"
+      - ".github/workflows/delta-macos-smoke.yml"
 
 permissions:
   contents: read
