@@ -113,6 +113,54 @@ export function mustRefreshBehindBranch(pull: unknown, repository: string): bool
   );
 }
 
+/**
+ * A base advance after CI may turn a previously approved PR into "behind".
+ * This authorizes only a guarded update-branch write, never a merge of old CI.
+ * The resulting new head must go through CI and governance again.
+ */
+export function authorizeAdvancedBaseRefresh(
+  pull: unknown,
+  statuses: unknown,
+  repository: string,
+  prNumber: number,
+  headSha: string,
+  baseSha: string,
+  governanceRunUrl: string,
+  controlRepository = defaultControlRepository
+): boolean {
+  if (
+    !REPOSITORY.test(repository) ||
+    !Number.isSafeInteger(prNumber) ||
+    prNumber < 1 ||
+    !SHA.test(headSha) ||
+    !SHA.test(baseSha) ||
+    !isTrustedControlRunUrl(governanceRunUrl, controlRepository) ||
+    !isJsonRecord(pull) ||
+    pull.state !== "open" ||
+    pull.merged !== false ||
+    pull.draft !== false ||
+    pull.number !== prNumber ||
+    !mustRefreshBehindBranch(pull, repository)
+  ) {
+    return false;
+  }
+  const head = isJsonRecord(pull.head) ? pull.head : {};
+  const base = isJsonRecord(pull.base) ? pull.base : {};
+  const currentBaseSha = getJsonString(base, "sha");
+  if (
+    getJsonString(head, "sha") !== headSha ||
+    getJsonString(base, "ref") !== "main" ||
+    !SHA.test(currentBaseSha) ||
+    currentBaseSha === baseSha
+  ) {
+    return false;
+  }
+  // Signed current-head security/governance/CI proof is still required even
+  // for this non-merge branch refresh. No stale result can authorize a merge.
+  assertSignedMergeGates(pull, statuses, repository, headSha, governanceRunUrl);
+  return true;
+}
+
 // A second merge attempt can race with a GitHub auto-merge already approved
 // for the same immutable head. A complete, exact signed-gate match is required
 // before treating this as an idempotent success.
@@ -253,7 +301,7 @@ async function main(): Promise<void> {
     console.log(`Already merged exact CI-approved head: ${repository}#${number}@${headSha}.`);
     return;
   }
-  assertReadyForAutomaticMerge(
+  const advancedBaseNeedsRefresh = authorizeAdvancedBaseRefresh(
     pull,
     statuses,
     repository,
@@ -262,6 +310,20 @@ async function main(): Promise<void> {
     baseSha,
     governanceRunUrl
   );
+  // Refreshing a behind branch is not a merge, and does not reuse old-base CI.
+  // When main advanced during CI, the old base no longer matches; require signed
+  // evidence for the unchanged head before performing only the branch refresh.
+  if (!advancedBaseNeedsRefresh) {
+    assertReadyForAutomaticMerge(
+      pull,
+      statuses,
+      repository,
+      Number(number),
+      headSha,
+      baseSha,
+      governanceRunUrl
+    );
+  }
   // A protected main may require this PR branch to include the current base.
   // GitHub's update-branch endpoint atomically checks the old head SHA; this
   // creates a new PR head and triggers fresh CI, rather than merging stale code.
