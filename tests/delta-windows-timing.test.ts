@@ -38,7 +38,7 @@ test("public success prints only bounded numeric timings and never private logs"
   );
   assert.match(step, /\$env:TARGET_PRIVATE -eq "false"/);
   assert.match(step, /\$relative -eq 'tests\/packs\/delta\/windows-desktop-ci\.ps1'/);
-  assert.match(step, /duration_ms=\[0-9\]\{1,12\}/);
+  assert.match(step, /duration_ms=\(\[0-9\]\{1,12\}\)/);
   assert.match(step, /Select-Object -First 10/);
   assert.match(step, /Where-Object \{ \$_ -cmatch/);
   assert.match(step, /Write-Error "Central Windows CI failed/);
