@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- 修复: 主线在 PR CI 执行期间前进且同仓库分支变为 behind 时，自动合并先核验原 HEAD 的签名门禁证据，仅以 expected_head_sha 原子更新 PR 分支并要求新 HEAD 重新 CI；不得因为旧 BASE SHA 不一致直接结束所有自动处理，更不能使用旧 CI 合并新基线。
+- 修复: main 在 PR CI 期间前进且分支变为 behind 时，仅允许经签名门禁证明的固定 HEAD 原子更新分支，变更后必须重新 CI，不能沿用旧基线绿灯。
 
 - 修复: PR Governance 在昂贵 CI 前拦截合并冲突，可信同仓库落后分支按固定 HEAD 自动更新后重新验收；修复取消作业的并发键并保留已合并 HEAD 的有效 CI；要求已启用的 Windows 检查实际成功，不再将意外跳过视为绿灯。
 
