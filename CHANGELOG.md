@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 主线在 PR CI 执行期间前进且同仓库分支变为 behind 时，自动合并先核验原 HEAD 的签名门禁证据，仅以 expected_head_sha 原子更新 PR 分支并要求新 HEAD 重新 CI；不得因为旧 BASE SHA 不一致直接结束所有自动处理，更不能使用旧 CI 合并新基线。
+
 - 修复: PR Governance 在昂贵 CI 前拦截合并冲突，可信同仓库落后分支按固定 HEAD 自动更新后重新验收；修复取消作业的并发键并保留已合并 HEAD 的有效 CI；要求已启用的 Windows 检查实际成功，不再将意外跳过视为绿灯。
 
 - 维护: Delta 中央 Linux 与 Windows 真实构建新增本地故障诊断隔离烟测，使用合成 Profile 验证 14 天活动/归档保留期、128 KiB 轮转、敏感字段排除与写入失败降级；不读取实际用户日志或上传数据。

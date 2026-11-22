@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import {
   assertReadyForAutomaticMerge,
+  authorizeAdvancedBaseRefresh,
   isApprovedCompletedMerge,
   isOpenDraftPull,
   mustRefreshBehindBranch,
@@ -155,6 +156,57 @@ test("only a same-repository behind branch may be refreshed after signed CI succ
       repository
     ),
     false
+  );
+});
+
+test("a behind PR whose main advanced during CI may only refresh its head", () => {
+  const behind = {
+    ...pull(),
+    mergeable_state: "behind",
+    head: { sha: headSha, repo: { full_name: repository } },
+    base: { sha: "d".repeat(40), ref: "main", repo: { full_name: repository } },
+  };
+  // Old-base evidence cannot directly merge the new base.
+  assert.throws(() => verify(behind, statuses()), /revalidate first/);
+  assert.equal(
+    authorizeAdvancedBaseRefresh(behind, statuses(), repository, number, headSha, baseSha, runUrl),
+    true
+  );
+  for (const bad of [
+    { ...behind, mergeable_state: "dirty" },
+    { ...behind, mergeable_state: "clean" },
+    { ...behind, draft: true },
+    { ...behind, state: "closed" },
+    { ...behind, number: number + 1 },
+    { ...behind, head: { sha: "c".repeat(40), repo: { full_name: repository } } },
+    { ...behind, head: { sha: headSha, repo: { full_name: "someone/fork" } } },
+    { ...behind, base: { sha: "d".repeat(40), ref: "other", repo: { full_name: repository } } },
+    { ...behind, base: { sha: baseSha, ref: "main", repo: { full_name: repository } } },
+  ]) {
+    assert.equal(
+      authorizeAdvancedBaseRefresh(bad, statuses(), repository, number, headSha, baseSha, runUrl),
+      false
+    );
+  }
+  const unsigned = statuses();
+  unsigned.statuses[0] = { ...unsigned.statuses[0]!, description: "forged" };
+  assert.throws(
+    () => authorizeAdvancedBaseRefresh(behind, unsigned, repository, number, headSha, baseSha, runUrl),
+    /signed success/
+  );
+  const changedTitle = { ...behind, title: "fix(example): changed while testing" };
+  assert.throws(
+    () =>
+      authorizeAdvancedBaseRefresh(
+        changedTitle,
+        statuses(),
+        repository,
+        number,
+        headSha,
+        baseSha,
+        runUrl
+      ),
+    /current PR title/
   );
 });
 
