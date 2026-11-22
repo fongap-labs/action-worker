@@ -19,6 +19,8 @@ assert.ok(existsSync(cliPath), 'Pinned Playwright MCP CLI is missing')
 const browserExecutable = [
   '/usr/bin/google-chrome-stable', '/usr/bin/google-chrome',
   '/opt/google/chrome/chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser',
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/Applications/Chromium.app/Contents/MacOS/Chromium',
 ].find(existsSync)
 assert.ok(browserExecutable, 'Central Linux Runner requires an installed Chromium/Chrome executable')
 

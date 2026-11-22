@@ -1,0 +1,74 @@
+name: 自动 · macOS 验收
+
+on:
+  schedule:
+    - cron: "17 5 * * 0"
+  push:
+    branches: [main]
+    paths:
+      - "tests/packs/delta/browser-use-smoke.mjs"
+      - ".github/workflows/delta-macos-smoke.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: delta-macos-browser-smoke
+  cancel-in-progress: false
+
+jobs:
+  macos-browser:
+    name: Delta macOS Chromium & Host
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - name: Checkout trusted control
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Checkout public Delta main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: fongap-labs/delta
+          ref: main
+          path: delta
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Setup pinned Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+
+      - name: Install pinned pnpm
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          npm install --prefix "$RUNNER_TEMP/delta-ci-tools" --no-audit --no-fund --no-save --package-lock=false pnpm@11.28.5
+          echo "$RUNNER_TEMP/delta-ci-tools/node_modules/.bin" >> "$GITHUB_PATH"
+
+      - name: Verify public source revision and frozen dependencies
+        shell: bash
+        working-directory: delta
+        run: |
+          set -Eeuo pipefail
+          echo "Delta main revision: $(git rev-parse --short=12 HEAD)"
+          test "$(pnpm --version)" = "11.28.5"
+          pnpm install --frozen-lockfile
+
+      - name: Build Delta Host and desktop
+        shell: bash
+        working-directory: delta
+        run: |
+          set -Eeuo pipefail
+          pnpm run build:lib:host
+          pnpm run build:desktop
+
+      - name: Execute trusted macOS Chromium MCP smoke
+        shell: bash
+        working-directory: delta
+        run: |
+          set -Eeuo pipefail
+          node ../tests/packs/delta/browser-use-smoke.mjs
