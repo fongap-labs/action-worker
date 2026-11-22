@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- 修复: Delta Chromium MCP 实测按锁定的 Playwright 0.0.80 工具 schema 使用 `target` 元素引用替代旧 `element/ref`，并将 Linux/macOS 的浏览器 Unix socket 放到独立短临时目录；保留真实导航、输入、点击、隔离和退出断言。
+- 修复: Delta Chromium MCP 实测改用 `target` 输入参数与独立短路径 socket，修复 Linux/macOS 失败，保留真实交互与隔离断言。
 
 - 维护: Delta Chromium MCP 定期验收增加 Ubuntu 24.04 与 macOS 15 双 Runner 矩阵，独立验证冻结安装、Host/桌面构建、真实浏览器交互及会话隔离，不依赖旧导入基线的特殊 CI 路由。
 
