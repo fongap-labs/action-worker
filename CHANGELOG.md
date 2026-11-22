@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: Delta Chromium MCP 实测改用 `target` 输入参数与独立短路径 socket，修复 Linux/macOS 失败，保留真实交互与隔离断言。
+
 - 维护: Delta Chromium MCP 定期验收增加 Ubuntu 24.04 与 macOS 15 双 Runner 矩阵，独立验证冻结安装、Host/桌面构建、真实浏览器交互及会话隔离，不依赖旧导入基线的特殊 CI 路由。
 
 - 维护: 为 Delta 新增受信任的只读 macOS Runner 浏览器实测（每周/主分支测试变更/手动触发），验证冻结安装、Host/桌面构建、真实 Chromium MCP 操作与实例隔离；不接触签名凭据或用户数据，不替代 macOS GUI 人工验收。
