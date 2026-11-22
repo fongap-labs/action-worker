@@ -14,18 +14,24 @@ test("only public Delta may restore a pinned cache for its exact Windows depende
     windows,
     /uses: actions\/cache\/restore@0057852bfaa89a56745cba8c7296529d2fc39830/
   );
-  assert.match(windows, /if: inputs\.repository == 'fongap-labs\/delta' && inputs\.is_private == 'false'/);
+  assert.match(
+    windows,
+    /if: inputs\.repository == 'fongap-labs\/delta' && inputs\.is_private == 'false'/
+  );
   assert.match(windows, /path: \$\{\{ runner\.temp \}\}\/delta-pnpm-store/);
   assert.match(
     windows,
     /key: delta-win-x64-node24\.9\.0-pnpm11\.28\.5-\$\{\{ hashFiles\('target\/pnpm-lock\.yaml', 'target\/pnpm-workspace\.yaml'\) \}\}/
   );
-  assert.match(suite, /\$env:pnpm_config_store_dir = Join-Path \$env:RUNNER_TEMP 'delta-pnpm-store'/);
+  assert.match(
+    suite,
+    /\$env:pnpm_config_store_dir = Join-Path \$env:RUNNER_TEMP 'delta-pnpm-store'/
+  );
   assert.doesNotMatch(windows, /restore-keys:/);
   assert.doesNotMatch(windows, /uses: actions\/cache@/);
 });
 
-test("PR cache writes are forbidden; only a completed real Delta main Windows gate may save", () => {
+test("PR cache writes are forbidden; only a trusted main CI may save", () => {
   assert.match(
     windows,
     /uses: actions\/cache\/save@0057852bfaa89a56745cba8c7296529d2fc39830/
