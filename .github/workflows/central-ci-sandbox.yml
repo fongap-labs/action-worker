@@ -488,20 +488,19 @@ jobs:
         shell: pwsh
         run: node aw/scripts/prepare-test-pack.ts "${{ github.workspace }}/aw" "${{ github.workspace }}/ci-control/.github/test-pack.json"
 
-      # Cache only the pnpm package store, never node_modules, compiled output,
-      # Electron bundles, status evidence, tokens, or arbitrary target artifacts.
-      # The exact lockfile/workspace hash protects against stale dependency reuse.
-      # PR cache scope is isolated by GitHub; CI still performs frozen install.
-      - name: Cache Delta Windows pnpm store
-        if: inputs.repository == 'fongap-labs/delta'
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      # Only restore the package store. repository_dispatch runs on control main,
+      # so target PR code must NEVER write a shared main-scoped cache.
+      # No node_modules, build outputs, credentials or CI evidence is cached.
+      - name: Restore Delta Windows pnpm store
+        id: delta_pnpm_cache
+        if: inputs.repository == 'fongap-labs/delta' && inputs.is_private == 'false'
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ runner.temp }}/delta-pnpm-store
           key: delta-win-x64-node24.9.0-pnpm11.28.5-${{ hashFiles('target/pnpm-lock.yaml', 'target/pnpm-workspace.yaml') }}
 
       - name: Run trusted Windows CI
         env:
-          pnpm_config_store_dir: ${{ runner.temp }}/delta-pnpm-store
           CENTRAL_CI_AW_ROOT: ${{ github.workspace }}/aw
           CENTRAL_CI_BASE_SHA: ${{ inputs.base_sha }}
           CENTRAL_CI_HEAD_SHA: ${{ inputs.head_sha }}
@@ -568,6 +567,15 @@ jobs:
           }
 
           Write-Host "Central Windows CI passed for $env:TARGET_REPOSITORY."
+
+      # Only verified public Delta MAIN can seed the shared cache. Every PR is
+      # read-only even when its CI passes, and every install remains frozen.
+      - name: Save verified Delta main pnpm store
+        if: success() && inputs.repository == 'fongap-labs/delta' && inputs.is_private == 'false' && inputs.pr_number == '0' && steps.delta_pnpm_cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ runner.temp }}/delta-pnpm-store
+          key: delta-win-x64-node24.9.0-pnpm11.28.5-${{ hashFiles('target/pnpm-lock.yaml', 'target/pnpm-workspace.yaml') }}
 
       # Only centrally authorized private Windows suites may export numeric failure indices.
       # The source code, test names, paths and stderr stay in runner-local log.

@@ -42,6 +42,13 @@ if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT -o
   throw 'Delta Windows CI requires a native Windows x64 host.'
 }
 
+# The reviewed Delta suite alone selects its isolated pnpm 11 store.
+# Other target repositories and their CI entrypoints are unaffected.
+if ([string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
+  throw 'Missing trusted Windows Runner temporary directory.'
+}
+$env:pnpm_config_store_dir = Join-Path $env:RUNNER_TEMP 'delta-pnpm-store'
+
 Push-Location -LiteralPath $root
 $stage = 'toolchain-preflight'
 try {
