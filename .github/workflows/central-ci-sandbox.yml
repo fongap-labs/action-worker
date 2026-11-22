@@ -536,8 +536,8 @@ jobs:
             exit 1
           }
 
-          # Public Delta CI publishes only fixed stage names with bounded
-          # numerical duration metrics; private target logs stay private.
+          # Public Delta CI prints only reviewed stage names and bounded
+          # numerical durations. Private target logs stay private.
           if ($env:TARGET_PRIVATE -eq "false" -and
               $matches.Count -eq 1 -and
               $relative -eq 'tests/packs/delta/windows-desktop-ci.ps1' -and
@@ -548,29 +548,7 @@ jobs:
               'local-diagnostics-smoke', 'unsigned-directory-pack-and-host-smoke',
               'portable-relocation', 'relocated-executable-startup'
             )
-            $metricsPattern = '^Delta Windows CI timing stage=([a-z-]+) duration_ms=([0-9]{1,12})
-
-      # Only centrally authorized private Windows suites may export numeric failure indices.
-      # The source code, test names, paths and stderr stay in runner-local log.
-      # This diagnostic cannot change or bypass any CI success verdict.
-      - name: Export private test index
-        id: private_diag
-        if: always() && inputs.is_private == 'true' && inputs.private_windows_numeric_diagnostic == 'true'
-        shell: pwsh
-        run: |
-          $log = Join-Path $env:RUNNER_TEMP "central-ci-windows.log"
-          if (-not (Test-Path -LiteralPath $log -PathType Leaf)) { exit 0 }
-          $body = Get-Content -LiteralPath $log -Raw -ErrorAction SilentlyContinue
-          if ([string]::IsNullOrEmpty($body)) { exit 0 }
-          $failures = [regex]::Matches($body, '(?m)^WC_TEST_FAIL_INDEX=([1-9][0-9]{0,2})(?![0-9])')
-          if ($failures.Count -gt 0 -and $failures.Count -le 999) {
-            # Publish up to five distinct numeric indices, never private names,
-            # paths or log contents. The failure verdict remains unchanged.
-            $indices = @($failures | Select-Object -First 5 | ForEach-Object { [int]$_.Groups[1].Value })
-            $joined = $indices -join '.'
-            Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value ("windows_diagnostic=wc-tests-{0}-{1}" -f $joined, $failures.Count)
-          }
-
+            $metricsPattern = '^Delta Windows CI timing stage=([a-z-]+) duration_ms=([0-9]{1,12})$'
             Get-Content -LiteralPath $log |
               Where-Object { $_ -cmatch $metricsPattern -and $allowlistedStages -ccontains $Matches[1] } |
               Select-Object -First 10 |
