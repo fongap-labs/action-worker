@@ -1044,7 +1044,7 @@ test("closed PR cancellation validates policy and state before owning live concu
     "needs: validate",
     "pr-governance-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}",
     "pr-review-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}",
-    "central-ci-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}",
+    "central-ci-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.head_sha }}",
     "cancel-in-progress: true",
   ]);
   assert.doesNotMatch(
@@ -1170,7 +1170,7 @@ test("central CI deploy dispatch is source-owned and adapter-routed", async () =
     "Central CI / Security",
     "validate-security.ts",
     "SECURITY_RESULT",
-    '[[ "$SECURITY_RESULT" == "success" ]]',
+    "node scripts/ci-required-jobs.ts",
     "run-ci-follow-up",
     "Attest deploy source main write",
     "MAIN_WRITE_AUDIT_REPOSITORY: ${{ github.event.client_payload.repository }}",
