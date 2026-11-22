@@ -752,3 +752,6 @@ node "$(dirname "${BASH_SOURCE[0]}")/performance-smoke.mjs"
 if [[ -f packages/experimental/browser-use-playwright-mcp/package.json ]]; then
   node "$(dirname "${BASH_SOURCE[0]}")/browser-use-smoke.mjs"
 fi
+
+# Run the central-only synthetic journal regression against the real desktop source.
+node "$(dirname "${BASH_SOURCE[0]}")/local-diagnostics-smoke.mjs
