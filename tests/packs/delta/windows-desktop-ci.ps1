@@ -57,7 +57,9 @@ try {
   # update credentials. The package command itself runs its packaged Electron
   # runtime smoke on Windows, including Host startup and runtime payload checks.
   $env:DELTA_PORTABLE_OFFLINE = '1'
-  Invoke-Checked 'pnpm.cmd' @('run', 'package:desktop:win:x64:dir')
+  # Invoke the existing product entrypoint with its explicit unsigned flag.
+  # DELTA_PORTABLE_OFFLINE alone must not silently bypass release dotenv policy.
+  Invoke-Checked 'pnpm.cmd' @('--filter', '@deepseek-ai/dsh-desktop', 'run', 'package:win:x64:dir', '--', '--unsigned')
   $unpacked = Join-Path $root 'apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/win-unpacked'
   $binary = Join-Path $unpacked 'Delta.exe'
   if (-not (Test-Path -LiteralPath $binary -PathType Leaf) -or
