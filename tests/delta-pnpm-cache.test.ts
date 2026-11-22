@@ -10,17 +10,17 @@ const windows = workflow.slice(
 const suite = readFileSync("tests/packs/delta/windows-desktop-ci.ps1", "utf8");
 
 test("Delta pnpm cache uses pinned action, OS/tool versions, and immutable lock hash", () => {
-  assert.match(
-    windows,
-    /uses: actions\/cache@0057852bfaa89a56745cba8c7296529d2fc39830/
-  );
+  assert.match(windows, /uses: actions\/cache@0057852bfaa89a56745cba8c7296529d2fc39830/);
   assert.match(windows, /if: inputs\.repository == 'fongap-labs\/delta'/);
   assert.match(windows, /path: \$\{\{ runner\.temp \}\}\/delta-pnpm-store/);
   assert.match(
     windows,
     /key: delta-win-x64-node24\.9\.0-pnpm11\.28\.5-\$\{\{ hashFiles\('target\/pnpm-lock\.yaml', 'target\/pnpm-workspace\.yaml'\) \}\}/
   );
-  assert.match(windows, /pnpm_config_store_dir: \$\{\{ runner\.temp \}\}\/delta-pnpm-store/);
+  assert.match(
+    windows,
+    /pnpm_config_store_dir: \$\{\{ runner\.temp \}\}\/delta-pnpm-store/
+  );
   assert.doesNotMatch(windows, /restore-keys:/);
 });
 
