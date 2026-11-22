@@ -4,6 +4,8 @@
 
 - 维护: Delta 中央 Linux 与 Windows 真实构建新增本地故障诊断隔离烟测，使用合成 Profile 验证 14 天活动/归档保留期、128 KiB 轮转、敏感字段排除与写入失败降级；不读取实际用户日志或上传数据。
 
+- 维护: 将 Delta 输出保留、会话元数据和 Delta Code 冷导入的轻量性能采样接入受信任的 macOS/Linux Chromium 工作流，按平台输出耗时和内存统计用于建立真实性能基线；暂不设置无样本依据的延迟阈值。
+
 - 修复: Delta Chromium MCP 实测改用 `target` 输入参数与独立短路径 socket，修复 Linux/macOS 失败，保留真实交互与隔离断言。
 
 - 维护: Delta Chromium MCP 定期验收增加 Ubuntu 24.04 与 macOS 15 双 Runner 矩阵，独立验证冻结安装、Host/桌面构建、真实浏览器交互及会话隔离，不依赖旧导入基线的特殊 CI 路由。

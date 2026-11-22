@@ -115,6 +115,7 @@ if (existsSync(resolve('apps/desktop/src/local-diagnostics.ts'))) {
 }
 console.log(JSON.stringify({
   suite: 'delta-performance-smoke', version: 1, node: process.version,
+  platform: process.platform, arch: process.arch, runnerImage: process.env.ImageOS ?? null,
   scope: 'measurement-only except integrity and boundedness assertions',
   cases: samples,
 }))
