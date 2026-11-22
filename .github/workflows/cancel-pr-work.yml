@@ -80,7 +80,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 1
     concurrency:
-      group: pr-governance-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}-${{ needs.validate.outputs.head_sha }}
+      group: pr-governance-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}
       cancel-in-progress: true
     steps:
       - env:
@@ -104,13 +104,15 @@ jobs:
           PR_NUMBER: ${{ needs.validate.outputs.pr_number }}
         run: echo "Cancelled stale PR Review work for $REPOSITORY#$PR_NUMBER."
 
+  # Preserve CI needed by an already merged head's Main Write evidence.
   central-ci:
     name: Cancel Central CI
     needs: validate
+    if: needs.validate.outputs.merged != 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 1
     concurrency:
-      group: central-ci-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}
+      group: central-ci-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.head_sha }}
       cancel-in-progress: true
     steps:
       - env:

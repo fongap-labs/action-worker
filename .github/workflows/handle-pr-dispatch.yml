@@ -162,6 +162,43 @@ jobs:
           PR_STATUS_CONTEXT: validate-merge
         run: node scripts/set-pr-status.ts "$REPOSITORY" "$HEAD_SHA" pending "Action Worker merge gate in progress" "$RUN_URL"
 
+      # Fail fast on conflicts. Only same-repository behind branches may be
+      # refreshed automatically, and their changed HEAD requires fresh CI.
+      - name: Check PR mergeability before expensive CI
+        id: merge_preflight
+        env:
+          GH_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.app_read.outputs.token }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
+          BASE_SHA: ${{ steps.resolved.outputs.base_sha }}
+        run: node scripts/pr-merge-preflight.ts "$REPOSITORY" "$PR_NUMBER" "$HEAD_SHA" "$BASE_SHA"
+
+      - name: Mint PR branch refresh token
+        if: steps.merge_preflight.outputs.needs_refresh == 'true'
+        id: refresh_app
+        uses: ./.github/actions/mint-app-token
+        with:
+          client-id: ${{ vars.AW_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AW_APP_PRIVATE_KEY }}
+          owner: ${{ steps.api_scope.outputs.owner }}
+          repositories: ${{ steps.api_scope.outputs.repository_name }}
+          permission-contents: write
+
+      - name: Refresh behind branch before expensive CI
+        if: steps.merge_preflight.outputs.needs_refresh == 'true'
+        env:
+          GH_TOKEN: ${{ steps.refresh_app.outputs.token }}
+          REPOSITORY: ${{ steps.payload.outputs.repository }}
+          PR_NUMBER: ${{ steps.payload.outputs.pr_number }}
+          HEAD_SHA: ${{ steps.resolved.outputs.head_sha }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          gh api --method PUT "repos/$REPOSITORY/pulls/$PR_NUMBER/update-branch" -f "expected_head_sha=$HEAD_SHA"
+          echo "::error::PR branch refreshed before CI; new HEAD requires a fresh signed gate."
+          exit 75
+
       - name: Validate change record
         id: change
         env:
