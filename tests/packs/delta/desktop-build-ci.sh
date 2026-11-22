@@ -742,3 +742,7 @@ NODE
 fi
 
 pnpm run build:desktop
+
+# Trusted short performance smoke: real Delta components, synthetic data only.
+# No historical benchmark corpus, target-controlled CI scripts or network calls.
+node "$(dirname "${BASH_SOURCE[0]}")/performance-smoke.mjs"
