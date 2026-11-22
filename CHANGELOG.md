@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: Delta Windows 可信便携目录构建显式传递 `--unsigned`，只使用无签名离线配置路径；不创建 `.env.windows`，不读取签名或自动更新凭据，不降低 Windows 实际打包与运行门禁。
+
 - 修复: 允许 Delta 可信 Linux 清单同时声明经中央审核的 Windows 作业，严格拒绝额外权限或任意脚本。
 
 - 新增: Delta Windows CI 使用中央白名单和可信清单显式启用；验证无签名便携目录、运行时启动及隔离应用数据。
