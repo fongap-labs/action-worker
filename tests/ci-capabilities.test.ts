@@ -264,4 +264,8 @@ test("registered central Windows script is a real trusted PowerShell file", () =
   assert.doesNotMatch(source, /delta-verify\.mjs[^\n]*--ci/);
   assert.match(source, /pnpm\.cmd/);
   assert.match(source, /Start-Process/);
+  assert.match(source, /Delta Windows CI failed at stage: \$stage/);
+  assert.match(source, /unsigned-directory-pack-and-host-smoke/);
+  assert.match(source, /relocated-executable-startup/);
+  assert.doesNotMatch(source, /throw "Delta Windows CI command failed/);
 });

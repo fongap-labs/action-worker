@@ -13,7 +13,8 @@ function Invoke-Checked {
   param([string]$Command, [string[]]$Arguments)
   & $Command @Arguments
   if ($LASTEXITCODE -ne 0) {
-    throw "Delta Windows CI command failed ($LASTEXITCODE): $Command $($Arguments[0])"
+    # Never echo a child process command line: it may contain credentials.
+    throw "Delta Windows CI child process exited with code $LASTEXITCODE."
   }
 }
 
@@ -34,6 +35,7 @@ if ([System.Environment]::OSVersion.Platform -ne [System.PlatformID]::Win32NT -o
 }
 
 Push-Location -LiteralPath $root
+$stage = 'toolchain-preflight'
 try {
   $version = (& node.exe -p 'process.versions.node').Trim()
   if ($LASTEXITCODE -ne 0 -or $version -notmatch '^24\.9\.') {
@@ -44,13 +46,19 @@ try {
     throw 'Delta Windows CI requires pinned pnpm 11.28.5.'
   }
 
+  $stage = 'product-policy'
   # Verify product policy without the CI-only pnpm child process path.
   # Frozen install and all builds are executed explicitly below via pnpm.cmd.
   Invoke-Checked 'node.exe' @('scripts/delta-verify.mjs')
+  $stage = 'frozen-install'
   Invoke-Checked 'pnpm.cmd' @('install', '--frozen-lockfile')
+  $stage = 'host-build'
   Invoke-Checked 'pnpm.cmd' @('run', 'build:lib:host')
+  $stage = 'shared-plugin-build'
   Invoke-Checked 'pnpm.cmd' @('--filter', '@fongap-labs/delta-plugin-shared', 'run', 'build')
+  $stage = 'delta-code-build'
   Invoke-Checked 'pnpm.cmd' @('--filter', '@fongap-labs/delta-code', 'run', 'build')
+  $stage = 'desktop-build'
   Invoke-Checked 'pnpm.cmd' @('run', 'build:desktop')
 
   # This documented offline preset is unsigned: it does not load signing or
@@ -59,7 +67,10 @@ try {
   $env:DELTA_PORTABLE_OFFLINE = '1'
   # Invoke the existing product entrypoint with its explicit unsigned flag.
   # DELTA_PORTABLE_OFFLINE alone must not silently bypass release dotenv policy.
+  $stage = 'unsigned-directory-pack-and-host-smoke'
   Invoke-Checked 'pnpm.cmd' @('--filter', '@deepseek-ai/dsh-desktop', 'run', 'package:win:x64:dir', '--', '--unsigned')
+  Write-Host 'Delta Windows CI unsigned directory packaging and Host smoke completed.'
+  $stage = 'package-output-check'
   $unpacked = Join-Path $root 'apps/desktop/.desktop-build/targets/win-x64/unsigned-artifacts/win-unpacked'
   $binary = Join-Path $unpacked 'Delta.exe'
   if (-not (Test-Path -LiteralPath $binary -PathType Leaf) -or
@@ -70,6 +81,7 @@ try {
   # Copy the packaged directory to prove it is not bound to its build path.
   # Redirect application data for the brief --version launch; do not inspect,
   # migrate, or delete the runner account's normal profile.
+  $stage = 'portable-relocation'
   $isolated = Join-Path $env:RUNNER_TEMP 'delta-windows-portable'
   $relocated = Join-Path $isolated 'relocated'
   $appdata = Join-Path $isolated 'appdata'
@@ -86,6 +98,7 @@ try {
   try {
     $env:APPDATA = $appdata
     $env:LOCALAPPDATA = $localdata
+    $stage = 'relocated-executable-startup'
     $process = Start-Process -FilePath $exe -ArgumentList '--version' -PassThru -WindowStyle Hidden
     if (-not $process.WaitForExit(30000)) {
       $process.Kill()
@@ -101,6 +114,11 @@ try {
     Remove-Item -LiteralPath $isolated -Recurse -Force -ErrorAction SilentlyContinue
   }
   Write-Host 'Delta Windows unsigned portable build and isolated runtime smoke passed.'
+}
+catch {
+  # Fixed phase names only; logs must never disclose file paths, command arguments or credentials.
+  Write-Host "Delta Windows CI failed at stage: $stage"
+  throw
 }
 finally {
   Pop-Location
