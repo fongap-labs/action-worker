@@ -191,7 +191,16 @@ test("a behind PR whose main advanced during CI may only refresh its head", () =
   const unsigned = statuses();
   unsigned.statuses[0] = { ...unsigned.statuses[0]!, description: "forged" };
   assert.throws(
-    () => authorizeAdvancedBaseRefresh(behind, unsigned, repository, number, headSha, baseSha, runUrl),
+    () =>
+      authorizeAdvancedBaseRefresh(
+        behind,
+        unsigned,
+        repository,
+        number,
+        headSha,
+        baseSha,
+        runUrl
+      ),
     /signed success/
   );
   const changedTitle = { ...behind, title: "fix(example): changed while testing" };
