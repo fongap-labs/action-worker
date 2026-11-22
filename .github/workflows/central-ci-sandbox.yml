@@ -536,14 +536,20 @@ jobs:
             exit 1
           }
 
-          # On public Delta success, reveal only fixed phase labels and bounded
-          # numeric timings from the local log; never replay private target logs.
+          # Public Delta CI publishes only fixed stage names with bounded
+          # numerical duration metrics; private target logs stay private.
           if ($env:TARGET_PRIVATE -eq "false" -and
               $matches.Count -eq 1 -and
               $relative -eq 'tests/packs/delta/windows-desktop-ci.ps1' -and
               (Test-Path -LiteralPath $log)) {
-            Get-Content -LiteralPath $log |
-              Where-Object { $_ -cmatch '^Delta Windows CI timing stage=(product-policy|frozen-install|host-build|shared-plugin-build|delta-code-build|desktop-build|local-diagnostics-smoke|unsigned-directory-pack-and-host-smoke|portable-relocation|relocated-executable-startup) duration_ms=[0-9]{1,12}
+            $allowlistedStages = @(
+              'product-policy', 'frozen-install', 'host-build',
+              'shared-plugin-build', 'delta-code-build', 'desktop-build',
+              'local-diagnostics-smoke', 'unsigned-directory-pack-and-host-smoke',
+              'portable-relocation', 'relocated-executable-startup'
+            )
+            $metricsPattern = '^Delta Windows CI timing stage=([a-z-]+) duration_ms=([0-9]{1,12})
+
       # Only centrally authorized private Windows suites may export numeric failure indices.
       # The source code, test names, paths and stderr stay in runner-local log.
       # This diagnostic cannot change or bypass any CI success verdict.
@@ -564,7 +570,9 @@ jobs:
             $joined = $indices -join '.'
             Add-Content -LiteralPath $env:GITHUB_OUTPUT -Value ("windows_diagnostic=wc-tests-{0}-{1}" -f $joined, $failures.Count)
           }
- } |
+
+            Get-Content -LiteralPath $log |
+              Where-Object { $_ -cmatch $metricsPattern -and $allowlistedStages -ccontains $Matches[1] } |
               Select-Object -First 10 |
               ForEach-Object { Write-Host $_ }
           }
