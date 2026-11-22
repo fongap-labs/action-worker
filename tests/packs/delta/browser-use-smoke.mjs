@@ -39,7 +39,7 @@ assert.ok(bound && typeof bound !== 'string')
 const url = `http://127.0.0.1:${bound.port}/`
 
 /** MCP stdio framing is newline-delimited JSON-RPC, never shell commands. */
-async function connectClient(home) {
+async function connectClient(home, socketDirectory) {
   const args = [cliPath, '--browser', 'chromium', '--isolated', '--headless',
     '--executable-path', browserExecutable]
   const proc = spawn(process.execPath, args, {
@@ -50,6 +50,7 @@ async function connectClient(home) {
       HOME: home,
       TMPDIR: home,
       LANG: 'C.UTF-8',
+      PWTEST_SOCKETS_DIR: socketDirectory,
       ...process.env.PLAYWRIGHT_BROWSERS_PATH === undefined ? {} :
         { PLAYWRIGHT_BROWSERS_PATH: process.env.PLAYWRIGHT_BROWSERS_PATH },
     },
@@ -132,22 +133,26 @@ async function connectClient(home) {
 
 const firstHome = await mkdtemp(join(tmpdir(), 'delta-mcp-one-'))
 const secondHome = await mkdtemp(join(tmpdir(), 'delta-mcp-two-'))
+// macOS RUNNER_TEMP paths are too long for Playwright's Unix-domain sockets.
+// Keep socket directories short and private, independent of isolated HOME.
+const firstSockets = await mkdtemp('/tmp/delta-pw-')
+const secondSockets = await mkdtemp('/tmp/delta-pw-')
 let first, second
 try {
-  first = await connectClient(firstHome)
+  first = await connectClient(firstHome, firstSockets)
   const initial = await first.call('browser_navigate', { url })
   assert.match(initial, /Delta MCP synthetic smoke/)
   const snapshot = await first.call('browser_snapshot')
   const field = /textbox "Name"[^\n]*?ref=([\w-]+)/.exec(snapshot)?.[1]
   const save = /button "Save"[^\n]*?ref=([\w-]+)/.exec(snapshot)?.[1]
   assert.ok(field && save, 'Playwright MCP did not expose accessible refs')
-  await first.call('browser_type', { element: 'Name', ref: field, text: 'Delta' })
-  await first.call('browser_click', { element: 'Save', ref: save })
+  await first.call('browser_type', { target: field, text: 'Delta' })
+  await first.call('browser_click', { target: save })
   assert.match(await first.call('browser_snapshot'), /Saved: Delta/)
   await first.call('browser_evaluate',
     { function: "() => localStorage.setItem('ci-marker', 'first-session')" })
 
-  second = await connectClient(secondHome)
+  second = await connectClient(secondHome, secondSockets)
   await second.call('browser_navigate', { url })
   const secondMarker = await second.call('browser_evaluate',
     { function: "() => localStorage.getItem('ci-marker')" })
@@ -165,5 +170,7 @@ try {
   if (second) await second.close()
   await rm(firstHome, { recursive: true, force: true })
   await rm(secondHome, { recursive: true, force: true })
+  await rm(firstSockets, { recursive: true, force: true })
+  await rm(secondSockets, { recursive: true, force: true })
   website.close()
 }
