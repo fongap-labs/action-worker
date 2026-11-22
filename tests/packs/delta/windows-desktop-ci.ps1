@@ -60,6 +60,8 @@ try {
   Invoke-Checked 'pnpm.cmd' @('--filter', '@fongap-labs/delta-code', 'run', 'build')
   $stage = 'desktop-build'
   Invoke-Checked 'pnpm.cmd' @('run', 'build:desktop')
+  $stage = 'local-diagnostics-smoke'
+  Invoke-Checked 'node.exe' @((Join-Path $env:CENTRAL_CI_AW_ROOT 'tests/packs/delta/local-diagnostics-smoke.mjs'))
 
   # This documented offline preset is unsigned: it does not load signing or
   # update credentials. The package command itself runs its packaged Electron
