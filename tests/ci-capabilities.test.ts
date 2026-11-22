@@ -248,11 +248,17 @@ test("registered central Windows script is a real trusted PowerShell file", () =
   assert.match(source, /param\(/);
   // Directory mode must also pass --unsigned; otherwise packaging reads
   // apps/desktop/.env.windows (release signing/update settings) on CI.
-  const unsignedCommand = "Invoke-Checked 'pnpm.cmd' @('--filter', '@deepseek-ai/dsh-desktop', 'run', 'package:win:x64:dir', '--', '--unsigned')";
-  assert.ok(source.includes(unsignedCommand), 'Windows CI must invoke explicit unsigned directory packaging');
+  const unsignedCommand =
+    "Invoke-Checked 'pnpm.cmd' @('--filter', '@deepseek-ai/dsh-desktop', 'run', 'package:win:x64:dir', '--', '--unsigned')";
+  assert.ok(
+    source.includes(unsignedCommand),
+    "Windows CI must invoke explicit unsigned directory packaging"
+  );
   const offlineOptIn = source.indexOf("$env:DELTA_PORTABLE_OFFLINE = '1'");
-  assert.ok(offlineOptIn >= 0 && offlineOptIn < source.indexOf(unsignedCommand),
-    'offline opt-in must precede the unsigned package command');
+  assert.ok(
+    offlineOptIn >= 0 && offlineOptIn < source.indexOf(unsignedCommand),
+    "offline opt-in must precede the unsigned package command"
+  );
   assert.doesNotMatch(source, /\.env\.windows/);
   assert.match(source, /delta-verify\.mjs/);
   assert.doesNotMatch(source, /delta-verify\.mjs[^\n]*--ci/);
