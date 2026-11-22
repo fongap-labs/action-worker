@@ -767,7 +767,7 @@ jobs:
               count="${BASH_REMATCH[3]}"
               description="Windows regression failed cases ${numbers//./,} ($count failures)"
             fi
-            if node scripts/central-ci-required-jobs.ts "$LINUX_RESULT" "$SECURITY_RESULT" "$WINDOWS_RESULT" "$HAS_WINDOWS"; then
+            if node scripts/ci-required-jobs.ts "$LINUX_RESULT" "$SECURITY_RESULT" "$WINDOWS_RESULT" "$HAS_WINDOWS"; then
               state=success
               description="Central CI passed"
             fi

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { requiredCiJobsPassed } from "../scripts/central-ci-required-jobs.ts";
+import { requiredCiJobsPassed } from "../scripts/ci-required-jobs.ts";
 
 test("declared Windows must succeed; only undeclared Windows may be skipped", () => {
   assert.equal(requiredCiJobsPassed("success", "success", "success", "true"), true);
@@ -24,7 +24,10 @@ test("missing, failed or skipped mandatory Linux and Security block the final ga
 
 test("CI finalization actually invokes the strict verdict helper", () => {
   const workflow = readFileSync(".github/workflows/central-ci-dispatch.yml", "utf8");
-  const finalize = workflow.slice(workflow.indexOf("  finalize:"), workflow.indexOf("  prepare-failure:"));
+  const finalize = workflow.slice(
+    workflow.indexOf("  finalize:"),
+    workflow.indexOf("  prepare-failure:")
+  );
   assert.match(finalize, /HAS_WINDOWS: \$\{\{ needs\.prepare\.outputs\.has_windows \}\}/);
   assert.match(finalize, /if node scripts\/central-ci-required-jobs\.ts/);
 });

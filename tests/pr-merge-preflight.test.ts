@@ -33,9 +33,15 @@ test("clean or gate-blocked PR proceeds to real CI, not directly to merge", () =
 });
 
 test("pre-existing merge conflicts fail before expensive CI", () => {
-  assert.throws(() => classify(pull({ mergeable: false, mergeable_state: "dirty" })), /merge conflicts/);
+  assert.throws(
+    () => classify(pull({ mergeable: false, mergeable_state: "dirty" })),
+    /merge conflicts/
+  );
   assert.throws(() => classify(pull({ mergeable_state: "dirty" })), /merge conflicts/);
-  assert.throws(() => classify(pull({ mergeable: false, mergeable_state: "unknown" })), /merge conflicts/);
+  assert.throws(
+    () => classify(pull({ mergeable: false, mergeable_state: "unknown" })),
+    /merge conflicts/
+  );
 });
 
 test("unknown GitHub mergeability is never treated as clean", () => {
@@ -46,10 +52,16 @@ test("unknown GitHub mergeability is never treated as clean", () => {
 
 test("only same-repository behind branches are eligible for automatic refresh", () => {
   assert.equal(classify(pull({ mergeable_state: "behind" })), "refresh");
-  assert.throws(() => classify(pull({
-    mergeable_state: "behind",
-    head: { sha: headSha, repo: { full_name: "untrusted/fork" } },
-  })), /cannot be refreshed/);
+  assert.throws(
+    () =>
+      classify(
+        pull({
+          mergeable_state: "behind",
+          head: { sha: headSha, repo: { full_name: "untrusted/fork" } },
+        })
+      ),
+    /cannot be refreshed/
+  );
   assert.equal(classify(pull({ draft: true, mergeable_state: "behind" })), "ready");
 });
 
@@ -60,7 +72,8 @@ test("stale and malformed PR facts fail closed", () => {
     pull({ base: { sha: baseSha, ref: "other" } }),
     pull({ state: "closed" }),
     pull({ number: 22 }),
-  ]) assert.throws(() => classify(candidate));
+  ])
+    assert.throws(() => classify(candidate));
 });
 
 test("PR Governance checks conflicts before dispatching full CI", () => {
