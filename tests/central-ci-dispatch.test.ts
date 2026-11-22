@@ -77,7 +77,7 @@ test("an unsharded project keeps the exact target argument through the trusted C
 
 test("finalization waits for every Linux shard", () => {
   assert.match(workflow, /LINUX_RESULT: \$\{\{ needs\.linux\.result \}\}/);
-  assert.match(workflow, /\[\[ "\$LINUX_RESULT" == "success" \]\]/);
+  assert.match(workflow, /if node scripts\/ci-required-jobs\.ts "\$LINUX_RESULT"/);
 });
 
 test("jobs that execute change code reference no central credential", () => {

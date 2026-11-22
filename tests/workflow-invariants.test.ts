@@ -117,7 +117,7 @@ test("PR dispatch supersedes obsolete governance revisions", async () => {
   assert.equal(cancellation.jobs.governance?.concurrency?.["cancel-in-progress"], true);
   assert.equal(
     cancellation.jobs.governance?.concurrency?.group,
-    "pr-governance-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}-${{ needs.validate.outputs.head_sha }}"
+    "pr-governance-${{ needs.validate.outputs.repository }}-${{ needs.validate.outputs.pr_number }}"
   );
 });
 

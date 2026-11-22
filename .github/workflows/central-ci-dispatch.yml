@@ -718,6 +718,7 @@ jobs:
           LINUX_RESULT: ${{ needs.linux.result }}
           SECURITY_RESULT: ${{ needs.security.result }}
           WINDOWS_RESULT: ${{ needs.windows.result }}
+          HAS_WINDOWS: ${{ needs.prepare.outputs.has_windows }}
           WINDOWS_DIAGNOSTIC: ${{ needs.windows.outputs.windows_diagnostic || '' }}
           NATIVE_PRIVATE_PILOT: ${{ needs.prepare.outputs.native_private_pilot }}
           NATIVE_PRIVATE_RESULT: ${{ needs['native-private-pilot'].result }}
@@ -766,7 +767,7 @@ jobs:
               count="${BASH_REMATCH[3]}"
               description="Windows regression failed cases ${numbers//./,} ($count failures)"
             fi
-            if [[ "$LINUX_RESULT" == "success" ]] && [[ "$SECURITY_RESULT" == "success" ]] && [[ "$WINDOWS_RESULT" == "success" || "$WINDOWS_RESULT" == "skipped" ]]; then
+            if node scripts/ci-required-jobs.ts "$LINUX_RESULT" "$SECURITY_RESULT" "$WINDOWS_RESULT" "$HAS_WINDOWS"; then
               state=success
               description="Central CI passed"
             fi

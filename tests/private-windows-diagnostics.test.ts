@@ -40,7 +40,7 @@ test("CI Evidence stays fail-closed while including numeric-only private diagnos
   );
   assert.match(
     dispatch,
-    /\[\[ "\$WINDOWS_RESULT" == "success" \|\| "\$WINDOWS_RESULT" == "skipped" \]\]/
+    /if node scripts\/ci-required-jobs\.ts "\$LINUX_RESULT" "\$SECURITY_RESULT" "\$WINDOWS_RESULT" "\$HAS_WINDOWS"/
   );
   const classicStart = dispatch.indexOf(
     "          else\n            # The reusable Windows sandbox exports"
