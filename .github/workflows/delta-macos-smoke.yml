@@ -70,6 +70,13 @@ jobs:
           pnpm run build:lib:host
           pnpm run build:desktop
 
+      - name: Collect trusted performance baseline sample
+        shell: bash
+        working-directory: delta
+        run: |
+          set -Eeuo pipefail
+          node ../tests/packs/delta/performance-smoke.mjs
+
       - name: Execute trusted Chromium MCP smoke
         shell: bash
         working-directory: delta
