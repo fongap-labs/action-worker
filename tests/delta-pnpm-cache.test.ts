@@ -10,10 +10,7 @@ const windows = workflow.slice(
 const suite = readFileSync("tests/packs/delta/windows-desktop-ci.ps1", "utf8");
 
 test("only public Delta may restore a pinned cache for its exact Windows dependency graph", () => {
-  assert.match(
-    windows,
-    /uses: actions\/cache\/restore@0057852bfaa89a56745cba8c7296529d2fc39830/
-  );
+  assert.match(windows, /uses: actions\/cache\/restore@0057852bfaa89a56745cba8c7296529d2fc39830/);
   assert.match(
     windows,
     /if: inputs\.repository == 'fongap-labs\/delta' && inputs\.is_private == 'false'/
@@ -32,10 +29,7 @@ test("only public Delta may restore a pinned cache for its exact Windows depende
 });
 
 test("PR cache writes are forbidden; only a trusted main CI may save", () => {
-  assert.match(
-    windows,
-    /uses: actions\/cache\/save@0057852bfaa89a56745cba8c7296529d2fc39830/
-  );
+  assert.match(windows, /uses: actions\/cache\/save@0057852bfaa89a56745cba8c7296529d2fc39830/);
   assert.match(windows, /inputs\.pr_number == '0'/);
   assert.match(windows, /steps\.delta_pnpm_cache\.outputs\.cache-hit != 'true'/);
   assert.match(windows, /if: success\(\) && inputs\.repository == 'fongap-labs\/delta'/);
