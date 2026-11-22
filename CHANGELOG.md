@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 维护: Delta Chromium MCP 定期验收增加 Ubuntu 24.04 与 macOS 15 双 Runner 矩阵，独立验证冻结安装、Host/桌面构建、真实浏览器交互及会话隔离，不依赖旧导入基线的特殊 CI 路由。
+
 - 维护: 为 Delta 新增受信任的只读 macOS Runner 浏览器实测（每周/主分支测试变更/手动触发），验证冻结安装、Host/桌面构建、真实 Chromium MCP 操作与实例隔离；不接触签名凭据或用户数据，不替代 macOS GUI 人工验收。
 
 - 维护: Delta 可信 Linux CI 增加真实 Playwright MCP Chromium 浏览器冒烟，以合成 loopback 页面验证导航、输入、点击、两个 MCP 会话存储隔离及销毁，不读取用户浏览器资料；macOS GUI 与桌面插件生命周期另行验收。
