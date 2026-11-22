@@ -29,5 +29,5 @@ test("CI finalization actually invokes the strict verdict helper", () => {
     workflow.indexOf("  prepare-failure:")
   );
   assert.match(finalize, /HAS_WINDOWS: \$\{\{ needs\.prepare\.outputs\.has_windows \}\}/);
-  assert.match(finalize, /if node scripts\/central-ci-required-jobs\.ts/);
+  assert.match(finalize, /if node scripts\/ci-required-jobs\.ts/);
 });
