@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { randomBytes } from 'node:crypto'
+import { createSign, generateKeyPairSync, randomBytes } from 'node:crypto'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { request as httpsRequest } from 'node:https'
 import { createRequire } from 'node:module'
@@ -24,8 +24,63 @@ const [{ createRelayRegistry, DEFAULT_SHARE_TTL_MS, MAX_SHARE_TTL_MS, MIN_SHARE_
 
 const directories = new Set()
 const relays = new Set()
-const fixtureDirectory = new URL('.', import.meta.url)
 const ownerToken = () => randomBytes(32).toString('base64url')
+
+function der(tag, value) {
+  const length = value.length
+  const lengthBytes = length < 128
+    ? Buffer.from([length])
+    : Buffer.from([0x80 | Math.ceil(Math.log2(length + 1) / 8), ...Array.from({ length: Math.ceil(Math.log2(length + 1) / 8) }, (_, index) => (length >>> (8 * (Math.ceil(Math.log2(length + 1) / 8) - index - 1))) & 0xff)])
+  return Buffer.concat([Buffer.from([tag]), lengthBytes, value])
+}
+
+function derSequence(...values) { return der(0x30, Buffer.concat(values)) }
+
+function derOid(values) {
+  const bytes = [values[0] * 40 + values[1]]
+  for (const value of values.slice(2)) {
+    const encoded = [value & 0x7f]
+    let remaining = Math.floor(value / 128)
+    while (remaining > 0) {
+      encoded.unshift((remaining & 0x7f) | 0x80)
+      remaining = Math.floor(remaining / 128)
+    }
+    bytes.push(...encoded)
+  }
+  return der(0x06, Buffer.from(bytes))
+}
+
+function utcTime(value) {
+  const iso = value.toISOString()
+  return der(0x17, Buffer.from(`${iso.slice(2, 4)}${iso.slice(5, 7)}${iso.slice(8, 10)}${iso.slice(11, 13)}${iso.slice(14, 16)}${iso.slice(17, 19)}Z`))
+}
+
+function createLoopbackCertificate() {
+  const keys = generateKeyPairSync('rsa', { modulusLength: 2048 })
+  const algorithm = derSequence(derOid([1, 2, 840, 113549, 1, 1, 11]), der(0x05, Buffer.alloc(0)))
+  const name = derSequence(der(0x31, derSequence(derOid([2, 5, 4, 3]), der(0x0c, Buffer.from('localhost')))))
+  const now = Date.now()
+  const san = derSequence(der(0x82, Buffer.from('localhost')), der(0x87, Buffer.from([127, 0, 0, 1])))
+  const extensions = der(0xa3, derSequence(derSequence(derOid([2, 5, 29, 17]), der(0x04, san))))
+  const serial = randomBytes(16)
+  serial[0] &= 0x7f
+  const tbs = derSequence(
+    der(0xa0, der(0x02, Buffer.from([2]))),
+    der(0x02, serial),
+    algorithm,
+    name,
+    derSequence(utcTime(new Date(now - 60_000)), utcTime(new Date(now + 86_400_000))),
+    name,
+    keys.publicKey.export({ format: 'der', type: 'spki' }),
+    extensions,
+  )
+  const signature = createSign('RSA-SHA256').update(tbs).sign(keys.privateKey)
+  const certificate = derSequence(tbs, algorithm, der(0x03, Buffer.concat([Buffer.from([0]), signature])))
+  return {
+    cert: Buffer.from(`-----BEGIN CERTIFICATE-----\n${certificate.toString('base64').match(/.{1,64}/gu).join('\n')}\n-----END CERTIFICATE-----\n`),
+    key: keys.privateKey.export({ format: 'pem', type: 'pkcs8' }),
+  }
+}
 
 async function registryFixture() {
   const directory = await mkdtemp(join(tmpdir(), 'delta-liveshare-registry-'))
@@ -93,11 +148,12 @@ async function relayFixture() {
   const directory = await mkdtemp(join(tmpdir(), 'delta-liveshare-https-'))
   directories.add(directory)
   const token = ownerToken()
+  const certificate = createLoopbackCertificate()
   const relay = await startRelay({
     ownerToken: token,
     statePath: join(directory, 'state.json'),
-    key: await readFile(new URL('liveshare-test-key.pem', fixtureDirectory)),
-    cert: await readFile(new URL('liveshare-test-cert.pem', fixtureDirectory)),
+    key: certificate.key,
+    cert: certificate.cert,
     publicOrigin: 'https://localhost:8443',
     host: '127.0.0.1',
     port: 0,
