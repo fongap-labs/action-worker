@@ -22,7 +22,7 @@ Skills are selected by `scripts/resolve-agent-skills.ts` and assembled by `scrip
 
 ## Changes
 
-- Use `feat`, `fix`, or `chore` PR titles with English ASCII summaries and follow `policies/naming.json`. Record changes in Chinese under `## [Unreleased]` in `CHANGELOG.md`; the dedicated release promotion flow is a separate case.
+- Use `feat`, `fix`, or `chore` PR titles with English ASCII summaries and follow `policies/naming.json`. Follow `docs/04_CHANGELOG_CONVENTIONS.md`: commit titles use the required English format, non-empty commit bodies use Chinese, and changes are recorded as Chinese entries under `## [Unreleased]` in `CHANGELOG.md`; the dedicated release promotion flow is a separate case.
 - Attribute commits to the connected GitHub account, not to an agent, model, or vendor. Do not add tool-generated attribution, AI identities, or `Co-Authored-By` agent trailers. The enforced terms are in `policies/attribution.json`.
 - Change the corresponding machine contract, implementation, and regression tests together when governance changes. Documentation alone is not an enforcement boundary.
 - Before merge, run `npm run check` and require the repository's CI gate to pass. Do not bypass CI or require a separate human review gate for a single-maintainer repository.
