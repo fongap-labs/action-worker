@@ -1,8 +1,13 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { TextDecoder } from "node:util";
 import { deltaCleanRootSha, deltaCleanRootTreeSha } from "./delta-clean-root.ts";
 import { CliError } from "./runtime-command.ts";
 
+const bridgePath = ".github/workflows/notify-action-worker.yml";
 const allowedFiles = new Set(["LICENSE", "README.md", "AGENTS.md", "CLAUDE.md", "CHANGELOG.md"]);
 const editableDocs = new Set(["README.md", "AGENTS.md", "CLAUDE.md", "CHANGELOG.md"]);
 const requiredFiles = ["LICENSE", "README.md", "AGENTS.md", "CLAUDE.md", "CHANGELOG.md"];
@@ -39,11 +44,11 @@ export function parseDocsTree(output: string): GitEntry[] {
     });
 }
 
-export function verifyDeltaDocsTree(entries: GitEntry[], changes: string[]): void {
+export function verifyDeltaDocsTree(entries: GitEntry[], changes: string[], trustedBridgeBlobSha = ""): void {
   const paths = new Set<string>();
   for (const entry of entries) {
     if (
-      !allowedFiles.has(entry.path) ||
+      (!allowedFiles.has(entry.path) && !(entry.path === bridgePath && trustedBridgeBlobSha !== "" && entry.sha === trustedBridgeBlobSha)) ||
       paths.has(entry.path) ||
       entry.mode !== "100644" ||
       entry.type !== "blob" ||
@@ -129,7 +134,13 @@ export function verifyDeltaDocsBootstrap(
   if (items.length % 2 !== 0) throw new CliError("Delta docs Git diff is malformed.", 65);
   const changes: string[] = [];
   for (let i = 0; i < items.length; i += 2) changes.push(`${items[i]}\t${items[i + 1]}`);
-  verifyDeltaDocsTree(entries, changes);
+  const workerRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+  const template = readFileSync(join(workerRoot, "templates/bridge/notify-action-worker.yml"));
+  const trustedBridgeBlobSha = createHash("sha1")
+    .update(`blob ${template.length}\0`)
+    .update(template)
+    .digest("hex");
+  verifyDeltaDocsTree(entries, changes, trustedBridgeBlobSha);
 
   const decoder = new TextDecoder("utf-8", { fatal: true });
   for (const file of requiredFiles.filter((path) => path.endsWith(".md"))) {
