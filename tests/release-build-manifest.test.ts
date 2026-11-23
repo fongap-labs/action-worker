@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { parseRunnerPolicy, resolveRunnerProfile } from "../scripts/runner-policy.ts";
-import { parseReleaseBuildManifest } from "../scripts/validate-release-build-request.ts";
+import { parseReleaseBuildManifest, resolveReleaseBuildMatrix } from "../scripts/validate-release-build-request.ts";
 
 const manifest = {
   schema_version: 1,
@@ -242,4 +242,38 @@ test("Chromium release builds fail closed until a GitHub-hosted larger builder i
   assert.match(workflow, /brave-source-build/);
   assert.match(workflow, /node-version: "26\.13\.1"/);
   assert.match(workflow, /pnpm@11\.28\.11/);
+});
+
+test("release runner readiness is checked before long-running CI evidence wait", async () => {
+  const policy = parseRunnerPolicy(JSON.parse(await readFile("policies/runner.json", "utf8")));
+  const disabledManifest = parseReleaseBuildManifest({
+    ...manifest,
+    builds: [{ ...manifest.builds[0], runner_profile: "windows-chromium-build" }],
+  });
+  assert.throws(
+    () => resolveReleaseBuildMatrix(disabledManifest, policy),
+    /no enabled backend: windows-chromium-build/
+  );
+
+  const readyMatrix = resolveReleaseBuildMatrix(parseReleaseBuildManifest(manifest), policy);
+  assert.equal(readyMatrix.length, 1);
+  assert.equal(readyMatrix[0]?.runner_profile, "windows-build");
+  assert.deepEqual(JSON.parse(readyMatrix[0]?.runner_labels_json ?? "[]"), ["windows-latest"]);
+
+  const implementation = await readFile("scripts/validate-release-build-request.ts", "utf8");
+  const matrixPreflight = implementation.indexOf("  const matrix = resolveReleaseBuildMatrix(");
+  const evidenceWait = implementation.indexOf("  await requireVerifiedCiEvidence(");
+  assert.ok(matrixPreflight >= 0 && evidenceWait > matrixPreflight);
+});
+
+test("release preflight rejects a privileged runner without weakening trust boundaries", async () => {
+  const policy = parseRunnerPolicy(JSON.parse(await readFile("policies/runner.json", "utf8")));
+  const unsafeManifest = parseReleaseBuildManifest({
+    ...manifest,
+    builds: [{ ...manifest.builds[0], runner_profile: "production-deploy" }],
+  });
+  assert.throws(
+    () => resolveReleaseBuildMatrix(unsafeManifest, policy),
+    /sandbox trust domain/
+  );
 });
