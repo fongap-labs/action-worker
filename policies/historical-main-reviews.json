@@ -64,6 +64,27 @@
       "pr_number": 475,
       "approval_issue": 473,
       "root_incident_sha": "09a51ed4fb2fb96685f5aa05eb6566849f90d2bf"
+    },
+    {
+      "repository": "fongap-labs/plugins",
+      "merge_sha": "b283a6e69eccb42b55eecb971a800e52b40743bd",
+      "pr_number": 523,
+      "approval_issue": 526,
+      "root_incident_sha": "b283a6e69eccb42b55eecb971a800e52b40743bd"
+    },
+    {
+      "repository": "fongap-labs/plugins",
+      "merge_sha": "2e3b7ce0e28e8338a4510abcb14a54b6868719dd",
+      "pr_number": 527,
+      "approval_issue": 526,
+      "root_incident_sha": "b283a6e69eccb42b55eecb971a800e52b40743bd"
+    },
+    {
+      "repository": "fongap-labs/plugins",
+      "merge_sha": "d97c0412249c39667b73b8c47038cd7c538f9c56",
+      "pr_number": 525,
+      "approval_issue": 526,
+      "root_incident_sha": "b283a6e69eccb42b55eecb971a800e52b40743bd"
     }
   ],
   "post_merge_remediations": [

@@ -23,5 +23,14 @@
     "d7298ce806129a6c85bbfb2bf385d5f9427675c8e9a3c9644594219a00e47e15",
     "db6d8cfeae2f637a4d0013a01045bd1a14c83666654d4c38739b8363d7e98afc",
     "f670bf8d92eb033eaa7a4b330eaa58c0f35663e43bf8c0781a7f52bca0c201ee"
+  ],
+  "renamed_status_subjects": [
+    {
+      "repository": "fongap-labs/plugins",
+      "legacy_repository": "fongap-labs/dsh-plugin",
+      "sha": "d57194f2bef6ed7eb5e6da7a2851a2d55f527132",
+      "valid_before": "2026-11-23T05:00:00Z",
+      "contexts": ["PR Governance", "CI Evidence", "validate-merge"]
+    }
   ]
 }
