@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { after, test } from "node:test";
 import type { GithubReader } from "../scripts/github-api.ts";
 import { hasVerifiedMainWriteGuard } from "../scripts/main-write-guard.ts";
@@ -25,9 +26,9 @@ after(() => {
 });
 
 const target: SkillAdmissionTarget = {
-  repository: "fongap-labs/dsh-plugin",
-  proposal_prefix: "packages/dsh-delta-code/skill-proposals/",
-  catalog_path: "packages/dsh-delta-code/src/delta-code-strategy/trusted-github-skills.ts",
+  repository: "fongap-labs/plugins",
+  proposal_prefix: "packages/delta-code/skill-proposals/",
+  catalog_path: "packages/delta-code/src/delta-code-strategy/trusted-github-skills.ts",
   enabled: true,
   max_closed_prs: 40,
 };
@@ -314,4 +315,14 @@ test("owner-bound transport rejects other repositories, wrong account and unsign
       ),
     /independent/
   );
+});
+
+test("Skill promotion reads the renamed Delta Code compiled entrypoints", () => {
+  const source = readFileSync(
+    new URL("../scripts/skill-proposal-advance.ts", import.meta.url),
+    "utf8"
+  );
+  assert.ok(source.includes("packages/delta-code/lib/delta-code-repository/github-operations.js"));
+  assert.ok(source.includes("packages/delta-code/lib/delta-code-adapter/contracts/github.js"));
+  assert.ok(!source.includes("packages/dsh-delta-code/"));
 });
