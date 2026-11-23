@@ -14,9 +14,9 @@ import {
   parseChangedFiles,
   parseOwnershipPolicy,
 } from "./central-engineering-gate.ts";
+import { isDeltaCleanRootTarget, verifyDeltaCleanRootCommit } from "./delta-clean-root.ts";
 import { decodeGithubContent, getGithubJson, isJsonRecord } from "./github-api.ts";
 import { CliError, handleError, isMain, runCommand, runText } from "./runtime-command.ts";
-import { isDeltaCleanRootTarget, verifyDeltaCleanRootCommit } from "./delta-clean-root.ts";
 
 export { filterVerifiedPluginNameOnlyChanges };
 
