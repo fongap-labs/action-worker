@@ -9,9 +9,9 @@ const repository = "fongap-labs/delta";
 const sha = "a".repeat(40);
 const controllerSha = "b".repeat(40);
 const oldControllerSha = "c".repeat(40);
-const statusPath = "repos/" + repository + "/commits/" + sha + "/status";
-const runPath = "repos/" + control + "/actions/runs/1234";
-const runUrl = "https://github.com/" + control + "/actions/runs/1234";
+const statusPath = `repos/${repository}/commits/${sha}/status`;
+const runPath = `repos/${control}/actions/runs/1234`;
+const runUrl = `https://github.com/${control}/actions/runs/1234`;
 
 function signed(state: string, overrides: Record<string, unknown> = {}) {
   const now = new Date().toISOString();
@@ -70,34 +70,31 @@ function shouldRun(
 test("missing or forged status cannot suppress the mandatory main CI", async () => {
   const reader = readerFor(controlRun());
   assert.equal(await shouldRun({ statuses: [] }, reader), true);
-  assert.equal(
-    await shouldRun({
-      statuses: [
-        {
-          context: "CI Evidence",
-          state: "failure",
-          description: "Central CI failed",
-          target_url: runUrl,
-        },
-      ],
-    }, reader),
-    true
-  );
+  const forged = {
+    statuses: [
+      {
+        context: "CI Evidence",
+        state: "failure",
+        description: "Central CI failed",
+        target_url: runUrl,
+      },
+    ],
+  };
+  assert.equal(await shouldRun(forged, reader), true);
   assert.deepEqual(reader.requested, []);
 });
 
 test("valid complete CI success is reused, without treating a URL alone as proof", async () => {
   const status = signed("success");
-  const complete = readerFor(controlRun({
+  const unrelated = controlRun({
     conclusion: "success",
     path: ".github/workflows/handle-task-dispatch.yml",
-  }));
+  });
+  const complete = readerFor(unrelated);
   assert.equal(await shouldRun(status, complete), true);
   const past = new Date(Date.now() - 50_000).toISOString();
-  const verified = readerFor(controlRun({
-    conclusion: "success",
-    run_started_at: past,
-  }));
+  const validRun = controlRun({ conclusion: "success", run_started_at: past });
+  const verified = readerFor(validRun);
   assert.equal(await shouldRun(status, verified), false);
 });
 
@@ -124,10 +121,7 @@ test("a failure on an old control revision can be reverified after controller ch
   const reader = readerFor(controlRun({ head_sha: oldControllerSha }));
   assert.equal(await shouldRun(signed("failure"), reader), true);
   const expired = new Date(Date.now() - 5 * 60_000).toISOString();
-  assert.equal(
-    await shouldRun(signed("pending", { updated_at: expired }), reader),
-    true
-  );
+  assert.equal(await shouldRun(signed("pending", { updated_at: expired }), reader), true);
 });
 
 test("cancelled old leases expire and allow evidence recovery", async () => {
