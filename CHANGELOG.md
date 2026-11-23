@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 主分支 CI 交接仅在签名预约、完成的可信 intake Run 和成功的 Main CI 任务完全吻合时放行中央 CI 接收端；避免把自身交接误判为重复执行，同时维持其他请求的短期租约、故障预算和完整真实测试。
+
 - 修复: 对 Delta 2026-11-23 的全新双文件根提交进行精确 SHA、Git 树及零父提交核验，恢复中央 Main Write Guard 和初始化静态 CI 的可信识别；不放行其他直接写入、不伪造应用构建结果。
 
 - 修复: 将中央 dsh-plugin 集成测试中旧的 Delta Code、Delta Desktop、Delta Suite 包路径与插件断言统一为 delta-*，保持测试内容和权限验证逻辑不变。
