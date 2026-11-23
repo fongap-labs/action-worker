@@ -117,10 +117,7 @@
       "pr_number": 471,
       "approval_issue": 473,
       "ci_run_id": 44681327728,
-      "allowed_changed_files": [
-        "CHANGELOG.md",
-        "packages/dsh-delta-code/README.md"
-      ]
+      "allowed_changed_files": ["CHANGELOG.md", "packages/dsh-delta-code/README.md"]
     }
   ]
 }
