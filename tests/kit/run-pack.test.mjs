@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -73,6 +73,16 @@ test("every checked-in target pack has a valid manifest and complete Node tier p
     assert.equal(new Set([...partition.unit, ...partition.gate]).size, files.length);
     assert.deepEqual(selectNodePackSuites(entry.name, manifest, files, "all").sort(), files);
   }
+});
+
+test("shared plugins repository retains an exact-name trusted overlay", () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), "..", "packs");
+  const plugins = join(root, "plugins");
+  assert.equal(existsSync(join(root, "dsh-plugin")), false);
+  const manifest = JSON.parse(readFileSync(join(plugins, "pack.json"), "utf8"));
+  assert.equal(manifest.pack, "plugins");
+  assert.equal(manifest.overlay, true);
+  assert.doesNotThrow(() => validatePackManifest("plugins", manifest));
 });
 
 test("opt-in test pack overlays reject non-boolean controls", () => {
