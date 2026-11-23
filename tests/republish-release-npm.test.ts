@@ -10,14 +10,14 @@ import {
   validateNpmRepublishRequest,
 } from "../scripts/republish-release-npm.ts";
 
-const repository = "fongap-labs/dsh-plugin";
+const repository = "fongap-labs/plugins";
 const controlRepository = "fongap-labs/action-worker";
 const tag = "dsh-ui-delta-v0.1.0";
 const policy = { [repository]: ["release-source", "release-target"] };
 
 function release(
   body = [
-    "Source: https://github.com/fongap-labs/dsh-plugin/commit/11bb7f999a7cf0048d1e647b9f1d1be2fbee05d1",
+    "Source: https://github.com/fongap-labs/plugins/commit/11bb7f999a7cf0048d1e647b9f1d1be2fbee05d1",
     "Artifact run: https://github.com/fongap-labs/action-worker/actions/runs/41385432571",
     "Central CI Evidence: success",
     "Main Write Guard: success via PR #22",
@@ -28,7 +28,7 @@ function release(
     tag_name: tag,
     prerelease: false,
     target_commitish: "1bab6b6114c9ed0dc923f584bfa8ea402972087f",
-    html_url: `https://github.com/fongap-labs/dsh-plugin/releases/tag/${tag}`,
+    html_url: `https://github.com/fongap-labs/plugins/releases/tag/${tag}`,
     body,
     assets: [
       {
@@ -55,7 +55,7 @@ test("npm republish accepts only a release-target repository", () => {
         ...policy,
         "fongap-labs/action-worker": ["release-target"],
       }),
-    /limited to fongap-labs\/dsh-plugin/
+    /limited to fongap-labs\/plugins/
   );
   for (const prereleaseTag of ["dsh-ui-delta-v0.1.0-beta.2", "dsh-ui-delta-v0.1.0-rc.1"]) {
     assert.throws(
@@ -76,13 +76,13 @@ test("npm republish requires a published, provenance-verified release and paired
     validateNpmRelease(repository, tag, controlRepository, release("manual release"), policy)
   );
   const foreignSourceBody = release().body.replace(
-    "Source: https://github.com/fongap-labs/dsh-plugin/commit/",
+    "Source: https://github.com/fongap-labs/plugins/commit/",
     "Source: https://github.com/fongap-labs/action-worker/commit/"
   );
   assert.throws(
     () =>
       validateNpmRelease(repository, tag, controlRepository, release(foreignSourceBody), policy),
-    /dsh-plugin source Release/
+    /plugins source Release/
   );
   assert.throws(() =>
     validateNpmRelease(

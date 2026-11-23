@@ -5,7 +5,7 @@ import {
   createAutoSkillAdvanceSpecs,
 } from '#target/packages/delta-code/lib/delta-code-repository/github-skill-auto-advance.js'
 
-const repo = 'fongap-labs/dsh-plugin'
+const repo = 'fongap-labs/plugins'
 const head = 'a'.repeat(40)
 const pr = {
   state: 'closed', merged: true, merged_at: '2026-11-20T08:00:00Z',

@@ -829,7 +829,7 @@ async function main(): Promise<void> {
     }
 
     // A separate, visible npm workflow must publish and registry-verify the stable
-    // dsh-plugin package before the Draft Release can become a formal tag.
+    // plugins package before the Draft Release can become a formal tag.
     // If it fails or times out, the Draft is rolled back and no Tag is created.
     if (preTagNpmAsset) {
       await dispatchAndWaitForNpm({

@@ -83,7 +83,7 @@ node tests/kit/inventory.mjs verify --baseline tests/inventory/<pack>.baseline.j
 |---|---|---|
 | ai-gateway | `ai-gateway`（24 个模块） | 无 |
 | mcp-hub | `mcp-hub`（19 个中央模块、86 个用例，可信 TAP 运行时对账已通过） | 第七批已完成双跑、重复清理及签名 CI 门禁，现剩余 4 个业务本地测试模块及必要的 Access 辅助文件 |
-| delta | `delta`（6 个模块） | Rust 内联与 crate 测试、`apps/desktop` 的 e2e 与 vitest、3 个小包（如 `packages/delta_worker_sdk`）内的测试 |
+| plugins | `plugins`（共用 Cordis 插件的可信 Node overlay） | Delta / DeepSeek Harness 共同使用的插件测试；原有必要的仓库本地检查保留 |\n| delta | `delta`（6 个模块） | Rust 内联与 crate 测试、`apps/desktop` 的 e2e 与 vitest、3 个小包（如 `packages/delta_worker_sdk`）内的测试 |
 | delta-suite | `delta-suite`（4 个模块） | 编译进固定版本核心的运行时 e2e 测试（`tests/foundation_runtime_e2e`） |
 | internal-vault | `internal-vault`（8 个模块） | 基础设施 shell 测试（`projects/server-edge/tests/*.sh`，需要 root 与 Docker） |
 | app-source | `app-source`（1 个模块，license-service 的数据库测试） | Rust crate 测试（`crates/*/tests`）；`legacy/test_*.py` 是 CI 从不运行的遗留脚本，不属于测试包 |

@@ -11,7 +11,7 @@ import { appendLines, CliError, parseJson, runText } from "./runtime-command.ts"
 
 type ReleaseAsset = { name: string; sha256: string };
 
-const npmReleaseRepository = "fongap-labs/dsh-plugin";
+const npmReleaseRepository = "fongap-labs/plugins";
 const stableVersionPattern = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/;
 
 /**
@@ -33,7 +33,7 @@ export function selectPreTagNpmAsset(
 ): ReleaseAsset | null {
   if (targetRepository !== npmReleaseRepository) return null;
   if (sourceRepository !== npmReleaseRepository) {
-    throw new CliError("::error::npm release source must be fongap-labs/dsh-plugin.", 66);
+    throw new CliError("::error::npm release source must be fongap-labs/plugins.", 66);
   }
   // Beta releases remain GitHub-only even if their assets contain an npm tarball.
   if (isPrerelease || version.includes("-")) return null;

@@ -12,7 +12,7 @@ export const PLUGIN_RENAME_BASES = new Set([
   "f6f265ae211cfa99830d214c3fba3319e5a5ce1c",
   "094ad41c4948155419eb12a53be6709d88272c3d",
 ]);
-export const PLUGIN_RENAME_REPOSITORY = "fongap-labs/dsh-plugin";
+export const PLUGIN_RENAME_REPOSITORY = "fongap-labs/plugins";
 const LEGACY_PLUGIN_PREFIX = ["dsh", "delta"].join("-") + "-";
 const NEW_PLUGIN_TEST = /^tests\/delta-(?:code|desktop|suite)(?:-[a-z0-9-]+)?[.]test[.]mjs$/;
 const EXISTING_PLUGIN_CI = new Set([

@@ -130,7 +130,7 @@
 如果 Release Governance 已成功创建 GitHub Release，但 npm 发布因认证配置失败，可从 Actions → `手动 · 补发 npm 包` 重新发布既有产物。输入目标仓库与 Release 标签，例如：
 
 ```text
-repository: fongap-labs/dsh-plugin
+repository: fongap-labs/plugins
 tag: dsh-ui-delta-v0.1.0-beta.2
 ```
 

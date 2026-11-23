@@ -20,25 +20,25 @@ export function sourceRepositoryVisibility(value: unknown): boolean {
 }
 
 /**
- * DSH plugins never derive release versions from commits, tags or source manifests.
+ * The shared plugins repository never derives release versions from commits, tags or source manifests.
  * Only a human workflow_dispatch supplying requested_version may initiate a release.
  * Other managed repositories retain the existing manual auto-suggest behavior.
  */
-export function enforceDshPluginManualVersion(
+export function enforcePluginsManualVersion(
   repository: string,
   enteredVersion: string,
   eventName: string
 ): void {
-  if (repository !== "fongap-labs/dsh-plugin") return;
+  if (repository !== "fongap-labs/plugins") return;
   if (eventName !== "workflow_dispatch") {
     throw new CliError(
-      "dsh-plugin releases require manual workflow_dispatch; automated release dispatch is disabled.",
+      "plugins repository releases require manual workflow_dispatch; automated release dispatch is disabled.",
       65
     );
   }
   if (enteredVersion.trim() === "") {
     throw new CliError(
-      "dsh-plugin requested_version is required for manual releases; no automatic version calculation.",
+      "plugins requested_version is required for manual releases; no automatic version calculation.",
       65
     );
   }
@@ -61,7 +61,7 @@ export async function resolveManualReleaseBuild(
   product = "",
   onVisibility?: (isPrivate: boolean) => void
 ): Promise<ReturnType<typeof parseReleaseBuildRequest>> {
-  enforceDshPluginManualVersion(repository, requestedVersionRaw, "workflow_dispatch");
+  enforcePluginsManualVersion(repository, requestedVersionRaw, "workflow_dispatch");
   validateRepositoryCapability(repository, policy, "release-source");
   const repo = await reader.get(`repos/${repository}`);
   if (!isJsonRecord(repo)) {
@@ -131,7 +131,7 @@ async function main(): Promise<void> {
         64
       )
     );
-    enforceDshPluginManualVersion(request.source_repository, request.requested_version, eventName);
+    enforcePluginsManualVersion(request.source_repository, request.requested_version, eventName);
     const token = process.env.AW_CONTROL_TOKEN ?? "";
     if (!token) throw new CliError("AW_CONTROL_TOKEN is required.", 77);
     const reader = new GithubReader(process.env.GITHUB_API_URL ?? "https://api.github.com", token);
