@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   assertMergedSkillProposalEvidence,
   createAutoSkillAdvanceSpecs,
-} from '#target/packages/dsh-delta-code/lib/delta-code-repository/github-skill-auto-advance.js'
+} from '#target/packages/delta-code/lib/delta-code-repository/github-skill-auto-advance.js'
 
 const repo = 'fongap-labs/dsh-plugin'
 const head = 'a'.repeat(40)

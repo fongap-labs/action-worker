@@ -6,8 +6,8 @@ import {
   validateCodingCapabilities,
   queryCodingCapabilities,
   createCodingCapabilitiesTool,
-} from '#target/packages/dsh-delta-code/lib/delta-code-strategy/capability-catalog.js'
-import { decideCodingWorkflow } from '#target/packages/dsh-delta-code/lib/delta-code-strategy/workflow-route.js'
+} from '#target/packages/delta-code/lib/delta-code-strategy/capability-catalog.js'
+import { decideCodingWorkflow } from '#target/packages/delta-code/lib/delta-code-strategy/workflow-route.js'
 
 test('reviewed semantic directory is valid, bounded and registered with known Skills', () => {
   assert.doesNotThrow(() => validateCodingCapabilities())
@@ -163,10 +163,10 @@ test('high-impact workflow selects quality and diagnostics while small changes r
 })
 
 test('semantic selection stays native, optional and no less secure than legacy routing', () => {
-  const routing = readTargetText('packages', 'dsh-delta-code', 'src',
+  const routing = readTargetText('packages', 'delta-code', 'src',
     'delta-code-adapter', 'providers', 'dsh', 'auto-routing.ts')
-  const guidance = readTargetText('packages', 'dsh-delta-code', 'src', 'runtime.ts')
-  const architecture = readTargetText('packages', 'dsh-delta-code', 'ARCHITECTURE.md')
+  const guidance = readTargetText('packages', 'delta-code', 'src', 'runtime.ts')
+  const architecture = readTargetText('packages', 'delta-code', 'ARCHITECTURE.md')
   assert.match(routing, /keyword-based hint, not authority/)
   assert.match(guidance, /not just keyword route hints/)
   assert.match(architecture, /No second runtime/)

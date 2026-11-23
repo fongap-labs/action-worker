@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { runInNewContext } from 'node:vm'
 import { readTargetJson, readTargetText } from '../../kit/contract.mjs'
 
-const base = ['packages', 'dsh-delta-desktop']
+const base = ['packages', 'delta-desktop']
 const source = readTargetText(...base, 'src', 'client.js')
 
 function loadClient() {
@@ -12,9 +12,9 @@ function loadClient() {
   runInNewContext(source, {
     globalThis: { __ModuleLoader__: { load(entry) { loaded.push(entry) } } },
     console: { error(...args) { errors.push(args) } },
-  }, { timeout: 1500, filename: 'dsh-delta-desktop/src/client.js' })
+  }, { timeout: 1500, filename: 'delta-desktop/src/client.js' })
   assert.equal(loaded.length, 1)
-  assert.equal(loaded[0].id, '@fongap-labs/dsh-delta-desktop')
+  assert.equal(loaded[0].id, '@fongap-labs/delta-desktop')
   return { entry: loaded[0], errors }
 }
 
@@ -44,11 +44,11 @@ function find(node, predicate, result = []) {
 
 test('Desktop is an independent published Cordis plugin and default patch preserves native UI', () => {
   const pkg = readTargetJson(...base, 'package.json')
-  assert.equal(pkg.name, '@fongap-labs/dsh-delta-desktop')
+  assert.equal(pkg.name, '@fongap-labs/delta-desktop')
   assert.equal(pkg.version, '0.0.0')
   assert.equal(pkg.dsh.bundle.patch, './cordis.patch.yml')
   assert.equal(pkg.dsh.client.platform, 'web')
-  for (const name of ['@fongap-labs/dsh-delta-suite', '@fongap-labs/dsh-delta-code']) {
+  for (const name of ['@fongap-labs/delta-suite', '@fongap-labs/delta-code']) {
     assert.equal(pkg.dependencies?.[name], undefined)
     assert.equal(pkg.peerDependencies?.[name], undefined)
     assert.ok(!(pkg.bundleDependencies ?? []).includes(name))
@@ -58,7 +58,7 @@ test('Desktop is an independent published Cordis plugin and default patch preser
   assert.ok(pkg.files.includes('src/**/*.js'))
   assert.match(readTargetText(...base, 'src', 'index.js'), /export function apply\(/)
   const patch = readTargetText(...base, 'cordis.patch.yml')
-  assert.match(patch, /dsh-delta-desktop/)
+  assert.match(patch, /delta-desktop/)
   assert.doesNotMatch(patch, /disabled:\s*true/)
 })
 

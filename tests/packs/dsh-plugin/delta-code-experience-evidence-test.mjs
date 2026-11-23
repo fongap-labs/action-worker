@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {
   buildExperienceCandidate,
   createExperienceCandidateTool,
-} from '#target/packages/dsh-delta-code/lib/delta-code-strategy/experience-candidate.js'
+} from '#target/packages/delta-code/lib/delta-code-strategy/experience-candidate.js'
 
 const sha = 'b'.repeat(40)
 const base = {
