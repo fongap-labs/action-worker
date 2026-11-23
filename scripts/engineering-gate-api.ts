@@ -5,13 +5,19 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   type ChangedFile,
+  filterVerifiedPluginNameOnlyChanges,
   inspectEngineeringOwnership,
+  isPinnedPluginRenameCandidate,
+  PLUGIN_RENAME_BASE,
+  PLUGIN_RENAME_REPOSITORY,
   type OwnershipPolicy,
   parseChangedFiles,
   parseOwnershipPolicy,
 } from "./central-engineering-gate.ts";
 import { decodeGithubContent, getGithubJson, isJsonRecord } from "./github-api.ts";
 import { CliError, handleError, isMain, runCommand, runText } from "./runtime-command.ts";
+
+export { filterVerifiedPluginNameOnlyChanges };
 
 const SHA = /^[a-f0-9]{40}$/;
 const REPOSITORY = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
@@ -24,36 +30,6 @@ const DELTA_UPSTREAM = "2e39e70496aa02986ca6a820c5d497e816b69d7e";
 const DELTA_VERIFIED_MAIN = "2561c645d713b425eda6926767661339ed505acf";
 const DELTA_IDENTICAL_ROOT = "a199379ac6cdf3ad3bddc8c1f2874cbd1b818f25";
 
-// A single, verified package-identity migration from the exact accepted plugin baseline.
-// New tests, changed test behavior, and CI launcher changes other than this literal rename
-// still fail the normal ownership gate. The exception expires as soon as main advances.
-const PLUGIN_RENAME_BASE = "f6f265ae211cfa99830d214c3fba3319e5a5ce1c";
-const PLUGIN_RENAME_REPOSITORY = "fongap-labs/dsh-plugin";
-const LEGACY_PLUGIN_PREFIX = ["dsh", "delta"].join("-") + "-";
-const NEW_PLUGIN_TEST = /^tests\/delta-(?:code|desktop|suite)(?:-[a-z0-9-]+)?[.]test[.]mjs$/;
-const EXISTING_PLUGIN_CI = new Set([
-  ".github/scripts/central-ci.sh",
-  "scripts/central-ci-windows.mjs",
-]);
-
-export function filterVerifiedPluginNameOnlyChanges(
-  files: readonly ChangedFile[],
-  readAtRevision: (revision: "base" | "head", path: string) => Buffer
-): ChangedFile[] {
-  return files.filter((file) => {
-    const renamedTest = file.status === "A" && NEW_PLUGIN_TEST.test(file.path);
-    const existingCi = file.status === "M" && EXISTING_PLUGIN_CI.has(file.path);
-    if (!renamedTest && !existingCi) return true;
-    const oldPath = renamedTest ? "tests/dsh-" + file.path.slice("tests/".length) : file.path;
-    const previous = readAtRevision("base", oldPath);
-    const updated = readAtRevision("head", file.path);
-    const decoded = previous.toString("utf8");
-    // Invalid UTF-8 must not be normalized into an apparently valid source file.
-    if (!Buffer.from(decoded, "utf8").equals(previous)) return true;
-    return !Buffer.from(decoded.replaceAll(LEGACY_PLUGIN_PREFIX, "delta-"), "utf8").equals(updated);
-  });
-}
-
 async function inspectPinnedPluginNameOnlyChanges(
   repository: string,
   base: string,
@@ -65,11 +41,7 @@ async function inspectPinnedPluginNameOnlyChanges(
     repository !== PLUGIN_RENAME_REPOSITORY ||
     base !== PLUGIN_RENAME_BASE ||
     !isTargetPublic ||
-    !files.some(
-      (file) =>
-        (file.status === "A" && NEW_PLUGIN_TEST.test(file.path)) ||
-        (file.status === "M" && EXISTING_PLUGIN_CI.has(file.path))
-    )
+    !files.some(isPinnedPluginRenameCandidate)
   ) {
     return files;
   }
