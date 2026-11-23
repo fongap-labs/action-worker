@@ -149,7 +149,8 @@ export async function verifyCompletedGovernance(
     const jobs = getJsonArray(response, "jobs").filter(isJsonRecord);
     const governance = jobs.filter((job) => getJsonString(job, "name") === "PR Governance");
     const otherCancelled = jobs.filter(
-      (job) => getJsonString(job, "conclusion") === "cancelled" &&
+      (job) =>
+        getJsonString(job, "conclusion") === "cancelled" &&
         getJsonString(job, "name") !== "PR Governance"
     );
     requireFact(
@@ -162,7 +163,9 @@ export async function verifyCompletedGovernance(
       "cancelled governance jobs must match the exact post-merge race"
     );
     const steps = getJsonArray(governance[0], "steps").filter(isJsonRecord);
-    const cancelledSteps = steps.filter((step) => getJsonString(step, "conclusion") === "cancelled");
+    const cancelledSteps = steps.filter(
+      (step) => getJsonString(step, "conclusion") === "cancelled"
+    );
     requireFact(
       cancelledSteps.length === 1 &&
         getJsonString(cancelledSteps[0], "name") === "Publish PR review" &&
