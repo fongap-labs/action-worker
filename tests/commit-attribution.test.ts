@@ -108,7 +108,7 @@ test("accepts a Co-Authored-By trailer that names a human", async (context) => {
   const { root, base, human } = await fixture(context);
   const head = await commit(
     root,
-    "docs: clarify setup\n\nCo-Authored-By: Grace Hopper <grace@example.com>",
+    "docs: clarify setup\n\n协作完成文档整理。\n\nCo-Authored-By: Grace Hopper",
     human
   );
   await assertAttributionFree("docs: clarify setup", base, head, root, policyDir);
@@ -132,7 +132,7 @@ test("allows agent names in the PR title and in commit prose", async (context) =
   const { root, base, human } = await fixture(context);
   const head = await commit(
     root,
-    "docs: explain how Claude reads CLAUDE.md\n\nClaude Code and Codex are covered by the agent guide.",
+    "docs: explain how Claude reads CLAUDE.md\n\nClaude Code 和 Codex 的用法均在智能体指南中说明。",
     human
   );
   await assertAttributionFree(
@@ -194,7 +194,11 @@ test("skips merge commits whose subject names the merged branch", async (context
 
 test("blocks widened model names in trailers and identities, but allows them in prose", async (context) => {
   const { root, base, human } = await fixture(context);
-  const prose = await commit(root, "docs: clarify setup\n\nWritten with DeepSeek", human);
+  const prose = await commit(
+    root,
+    "docs: clarify setup\n\n使用 DeepSeek 编写的说明已经维护者复核",
+    human
+  );
   await assertAttributionFree("docs: clarify setup", base, prose, root, policyDir);
   const trailer = await commit(
     root,
@@ -219,7 +223,7 @@ test("keeps the repository's own AI feature names allowed", async (context) => {
   const { root, base, human } = await fixture(context);
   const head = await commit(
     root,
-    "feat: add AI Review and AI Gateway routing\n\nThe AI Review step reads the AI Gateway config.",
+    "feat: add AI Review and AI Gateway routing\n\nAI Review 步骤读取 AI Gateway 配置。",
     human
   );
   await assertAttributionFree(

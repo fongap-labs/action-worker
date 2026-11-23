@@ -54,7 +54,30 @@ fix(auth): reject invalid token
 chore: update dependencies
 ```
 
-## 3. 破坏性变更
+### 提交正文
+
+若提交包含正文，其中的自然语言说明必须使用中文。正文可以省略；若有正文，中央门禁要求其中包含中文说明。文件路径、标识符、命令、接口字段及固定协议标签保留原样。
+
+#### ❌ 错误做法 / 反面教材
+
+提交正文使用英文说明。
+
+```text
+chore(docs): add migration guide
+
+Add the migration guide and update the links.
+```
+
+#### ✅ 正确做法 / 规范范例
+
+提交正文使用中文说明。
+
+```text
+chore(docs): add migration guide
+
+新增迁移指南，并更新对应入口链接。
+```
+
 
 破坏性变更增加标记，不增加类型。
 
@@ -73,7 +96,7 @@ breaking: replace authentication contract
 ```text
 feat(auth)!: replace authentication contract
 
-BREAKING CHANGE: the previous contract is removed.
+BREAKING CHANGE: 旧契约已移除。
 ```
 
 `breaking`、`security`、`migration` 是属性，非变更类型。
@@ -153,4 +176,4 @@ changelog.d/fix-runner.md
          → 中央门禁 → 版本小节 → 产物校验 → 正式发布
 ```
 
-`commitlint` 仅校验格式；`policies/release.json` 及 `scripts/validate-change-record.ts` 是机器权威。不接受旧类型别名。
+`commitlint` 校验提交标题格式；`scripts/validate-change-record.ts` 同时校验非空提交正文包含中文说明。`policies/release.json` 与该脚本是变更记录的机器权威。不接受旧类型别名。
