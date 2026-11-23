@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: BrowserBuild 预留无通用托管机回退的独立 Chromium Windows 源码构建 Runner（默认关闭）；中央发布只对该 Runner 注入受管构建卷及审核许可证路径，并允许完整源码构建所需的更长时限。
+
 - 维护: BrowserBuild 中央 Windows 测试在 `cargo check` 后运行启动器 Rust 单元测试，验证独立空间参数和用户资料目录保护。
 
 - 维护: 移除已退役 Delta Desktop 插件对应的中央覆盖测试，避免 plugins 仓库删除源码后 CI 因缺失文件失败。
