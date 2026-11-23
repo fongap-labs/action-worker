@@ -5,10 +5,7 @@ import {
   hasStaleCiEvidenceFailure,
   hasUnresolvedCiEvidenceFailure,
 } from "../scripts/ci-failure-budget.ts";
-import {
-  isTrustedIntakeCiHandoff,
-  shouldRunMainRefCi,
-} from "../scripts/should-run-central-ci.ts";
+import { isTrustedIntakeCiHandoff, shouldRunMainRefCi } from "../scripts/should-run-central-ci.ts";
 import { attestFixtureResponseForPath } from "./attested-status-fixtures.ts";
 
 const repository = "fongap-labs/example";
