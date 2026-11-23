@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 维护: 为 BrowserBuild 免费 Windows 发布补充原生 PowerShell 脚本语法、固定上游运行时版本与标准免费 Runner 合同检查，避免先前重复/损坏脚本通过仅 Rust 编译的 CI。
+
 - 修复: 发布准备阶段在等待可能长达数分钟的中央 CI Evidence 之前，先校验已固定的产品发布清单和 Runner Profile；未启用的 BrowserBuild 大型 Windows Runner 立即失败并明确报告，不再白等约 11 分钟，仍禁止无资源时绕过发布门禁。
 
 - 修复: 组织私有仓库兼容性检查将已明确声明、暂未启用且无回退的 Runner Profile 视为合法预留声明，避免 BrowserBuild 在大型 GitHub Runner 尚未开通时导致主分支接入审计红叉；实际发布仍强制拒绝未启用 Runner。
