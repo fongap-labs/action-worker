@@ -17,7 +17,7 @@ import {
   runCommand,
   runText,
 } from "./runtime-command.ts";
-import { assertEnglishText } from "./validate-engineering-language.ts";
+import { assertEnglishText, containsHan } from "./validate-engineering-language.ts";
 
 type ChangeRecord = {
   schema_version: "1";
@@ -107,6 +107,12 @@ function attributionLine(text: string, prefixes: readonly string[]): string | un
   return undefined;
 }
 
+function commitMessageBody(message: string): string {
+  const firstLineBreak = message.indexOf("\n");
+  if (firstLineBreak < 0) return "";
+  return message.slice(firstLineBreak + 1).trim();
+}
+
 // A trailer such as "Co-Authored-By: Name <email>" is checked by its value, so a human co-author
 // passes and an AI agent co-author fails. The key must be one of the policy trailer keys.
 function trailerViolations(
@@ -162,6 +168,10 @@ export async function assertAttributionFree(
     ] = record.split("\x1f");
     const commit = sha.trim();
     if (!commit) continue;
+    const messageBody = commitMessageBody(body);
+    if (messageBody && !containsHan(messageBody)) {
+      problems.push(`commit ${commit.slice(0, 7)} body must contain Chinese text`);
+    }
     const identity = [authorName, authorEmail, committerName, committerEmail].join("\n");
     const identityName = termMatch(identity, identityTerms);
     if (identityName) {
