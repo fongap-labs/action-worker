@@ -2,7 +2,10 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { parseRunnerPolicy, resolveRunnerProfile } from "../scripts/runner-policy.ts";
-import { parseReleaseBuildManifest, resolveReleaseBuildMatrix } from "../scripts/validate-release-build-request.ts";
+import {
+  parseReleaseBuildManifest,
+  resolveReleaseBuildMatrix,
+} from "../scripts/validate-release-build-request.ts";
 
 const manifest = {
   schema_version: 1,
@@ -272,8 +275,5 @@ test("release preflight rejects a privileged runner without weakening trust boun
     ...manifest,
     builds: [{ ...manifest.builds[0], runner_profile: "production-deploy" }],
   });
-  assert.throws(
-    () => resolveReleaseBuildMatrix(unsafeManifest, policy),
-    /sandbox trust domain/
-  );
+  assert.throws(() => resolveReleaseBuildMatrix(unsafeManifest, policy), /sandbox trust domain/);
 });
