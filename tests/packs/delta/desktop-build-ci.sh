@@ -8,7 +8,7 @@ if [[ -z "$TARGET_ROOT" || ! -d "$TARGET_ROOT/.git" ]]; then
   exit 64
 fi
 # The sandbox provisions this pinned runtime before source checkout.
-node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major !== 24 || minor < 9) process.exit(2)'
+node -e 'if (process.versions.node !== "26.13.1") process.exit(2)'
 test "$(pnpm --version)" = "11.28.5"
 
 cd "$TARGET_ROOT"

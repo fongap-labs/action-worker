@@ -328,12 +328,16 @@ test("Delta desktop builder compiles referenced libraries before package-local T
   assert.ok(desktop > references);
 });
 
-test("the local ownership gate pins Delta initial import, never ordinary PRs", () => {
+test("the local ownership gate uses only exact centrally pinned source imports", () => {
   const bootstrap = "7556dc8dfede03053e35359f2b55dd299da1f3ee";
   const upstream = "2e39e70496aa02986ca6a820c5d497e816b69d7e";
-  assert.equal(centralOwnershipComparisonBase("fongap-labs/delta", bootstrap), upstream);
-  assert.equal(centralOwnershipComparisonBase("fongap-labs/delta", upstream), upstream);
-  assert.equal(centralOwnershipComparisonBase("fongap-labs/app-source", bootstrap), bootstrap);
+  assert.equal(centralOwnershipComparisonBase(bootstrap), upstream);
+  assert.equal(
+    centralOwnershipComparisonBase("3effeb139e9af5198bfa5d380b1d3457caea4fcb"),
+    "4b399c39a6d1479cd84ca591b4d7c88e24d38a96"
+  );
+  assert.equal(centralOwnershipComparisonBase(upstream), upstream);
+  assert.equal(centralOwnershipComparisonBase("0".repeat(40)), "0".repeat(40));
 });
 
 test("plugin rename proof candidates are limited to existing paths and the two CI controls", () => {

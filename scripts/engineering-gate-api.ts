@@ -17,15 +17,15 @@ import {
 import { isDeltaCleanRootTarget, verifyDeltaCleanRootCommit } from "./delta-clean-root.ts";
 import { decodeGithubContent, getGithubJson, isJsonRecord } from "./github-api.ts";
 import { CliError, handleError, isMain, runCommand, runText } from "./runtime-command.ts";
+import {
+  resolveSourceImportBase,
+  sourceImportBaselineForSource,
+} from "./source-import-baselines.ts";
 
 export { filterVerifiedPluginNameOnlyChanges };
 
 const SHA = /^[a-f0-9]{40}$/;
 const REPOSITORY = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
-// Only Delta's initial import may compare against this centrally pinned source tree.
-// Normal pull requests continue to compare the exact target-branch base and head.
-const DELTA_BOOTSTRAP = "7556dc8dfede03053e35359f2b55dd299da1f3ee";
-const DELTA_UPSTREAM = "2e39e70496aa02986ca6a820c5d497e816b69d7e";
 // Verified Delta main before the exact tree-preserving root-history rewrite.
 // Only the named root is eligible; all future orphan history changes fail closed.
 const DELTA_VERIFIED_MAIN = "2561c645d713b425eda6926767661339ed505acf";
@@ -84,8 +84,8 @@ async function inspectPinnedPluginNameOnlyChanges(
   }
 }
 
-export function engineeringOwnershipDiffBase(repository: string, base: string): string {
-  return repository === "fongap-labs/delta" && base === DELTA_BOOTSTRAP ? DELTA_UPSTREAM : base;
+export function engineeringOwnershipDiffBase(base: string): string {
+  return resolveSourceImportBase(base);
 }
 
 /** Read complete immutable Git trees, not GitHub Compare's truncated 300-file list.
@@ -162,6 +162,57 @@ export async function fetchPublicGitInventory(
   const root = mkdtempSync(join(tmpdir(), "aw-engineering-git-"));
   try {
     await runCommand("git", ["init", "--bare", "-q", root], { timeoutMs: 30_000 });
+    const source = sourceImportBaselineForSource(base);
+    if (source?.sourceRepository) {
+      await runCommand(
+        "git",
+        [
+          "-C",
+          root,
+          "fetch",
+          "--quiet",
+          "--no-tags",
+          "--no-recurse-submodules",
+          "--filter=blob:none",
+          "--depth=1",
+          source.sourceRepository,
+          base,
+        ],
+        {
+          env: {
+            ...process.env,
+            GIT_TERMINAL_PROMPT: "0",
+            GIT_CONFIG_NOSYSTEM: "1",
+            GIT_CONFIG_GLOBAL: process.platform === "win32" ? "NUL" : "/dev/null",
+          },
+          timeoutMs: 180_000,
+        }
+      );
+      await runCommand(
+        "git",
+        [
+          "-C",
+          root,
+          "fetch",
+          "--quiet",
+          "--no-tags",
+          "--filter=blob:none",
+          "--depth=1",
+          "https://github.com/" + repository + ".git",
+          head,
+        ],
+        {
+          env: {
+            ...process.env,
+            GIT_TERMINAL_PROMPT: "0",
+            GIT_CONFIG_NOSYSTEM: "1",
+            GIT_CONFIG_GLOBAL: process.platform === "win32" ? "NUL" : "/dev/null",
+          },
+          timeoutMs: 180_000,
+        }
+      );
+      return await inventoryImmutableGitTrees(root, base, head);
+    }
     await runCommand(
       "git",
       [
@@ -347,7 +398,7 @@ export async function checkGithubEngineeringOwnership(
     throw new CliError("Invalid immutable engineering gate inputs.", 65);
   }
   if (repository === policy.control_repository) return;
-  const diffBase = engineeringOwnershipDiffBase(repository, base);
+  const diffBase = engineeringOwnershipDiffBase(base);
   let files: ChangedFile[];
   if (base === head) {
     if (isDeltaCleanRootTarget(repository, head) && isTargetPublic) {

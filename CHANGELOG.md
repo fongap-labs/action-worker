@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 新增: 为一次性源码导入增加中央固定基线策略，并让差异门禁只对精确固定提交比较；Windows x64 中央验收改为检查 Delta 真实 `App/Data/Other` 便携目录及校验和。
+
 - 维护: 将 Delta Code 的 Modern Web Guidance 安全性、固定来源索引与按需调用回归移入统一插件中央测试包，不再新增插件仓库本地测试。
 
 - 维护: 为 BrowserBuild 免费 Windows 发布补充原生 PowerShell 脚本语法、固定上游运行时版本与标准免费 Runner 合同检查，避免先前重复/损坏脚本通过仅 Rust 编译的 CI。
