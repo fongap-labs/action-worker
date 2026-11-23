@@ -250,6 +250,12 @@ jobs:
         with:
           node-version-file: source/${{ needs.prepare.outputs.product_root && format('{0}/', needs.prepare.outputs.product_root) || '' }}${{ needs.prepare.outputs.node_version_file }}
 
+      - name: Setup Python for Brave source build
+        if: ${{ matrix.runner_profile == 'windows-chromium-build' }}
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+
       - name: Setup Node for Brave source build
         if: ${{ matrix.runner_profile == 'windows-chromium-build' }}
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
