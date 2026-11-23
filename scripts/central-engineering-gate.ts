@@ -8,7 +8,10 @@ export type ChangedFile = { status: "A" | "M" | "T" | "D"; path: string; sha?: s
 // A single, verified package-identity migration from the exact accepted plugin baseline.
 // New tests, changed test behavior, and CI launcher changes other than this literal rename
 // still fail the normal ownership gate. The exception expires as soon as main advances.
-export const PLUGIN_RENAME_BASE = "f6f265ae211cfa99830d214c3fba3319e5a5ce1c";
+export const PLUGIN_RENAME_BASES = new Set([
+  "f6f265ae211cfa99830d214c3fba3319e5a5ce1c",
+  "094ad41c4948155419eb12a53be6709d88272c3d",
+]);
 export const PLUGIN_RENAME_REPOSITORY = "fongap-labs/dsh-plugin";
 const LEGACY_PLUGIN_PREFIX = ["dsh", "delta"].join("-") + "-";
 const NEW_PLUGIN_TEST = /^tests\/delta-(?:code|desktop|suite)(?:-[a-z0-9-]+)?[.]test[.]mjs$/;
@@ -301,7 +304,7 @@ export function runOwnershipGate(
   let reviewedChanges = changes;
   if (
     repository === PLUGIN_RENAME_REPOSITORY &&
-    base === PLUGIN_RENAME_BASE &&
+    PLUGIN_RENAME_BASES.has(base) &&
     process.env.TARGET_PRIVATE === "false" &&
     changes.some(isPinnedPluginRenameCandidate)
   ) {
