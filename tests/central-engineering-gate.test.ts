@@ -8,6 +8,7 @@ import {
   type ChangedFile,
   centralOwnershipComparisonBase,
   inspectEngineeringOwnership,
+  isPinnedPluginRenameCandidate,
   parseChangedFiles,
   parseOwnershipPolicy,
   runOwnershipGate,
@@ -332,4 +333,21 @@ test("the local ownership gate pins Delta initial import, never ordinary PRs", (
   assert.equal(centralOwnershipComparisonBase("fongap-labs/delta", bootstrap), upstream);
   assert.equal(centralOwnershipComparisonBase("fongap-labs/delta", upstream), upstream);
   assert.equal(centralOwnershipComparisonBase("fongap-labs/app-source", bootstrap), bootstrap);
+});
+
+test("plugin rename proof candidates are limited to existing paths and the two CI controls", () => {
+  const allowed = [
+    { status: "A" as const, path: "tests/delta-code-routing.test.mjs" },
+    { status: "A" as const, path: "tests/delta-suite-native.test.mjs" },
+    { status: "M" as const, path: ".github/scripts/central-ci.sh" },
+    { status: "M" as const, path: "scripts/central-ci-windows.mjs" },
+  ];
+  const blocked = [
+    { status: "A" as const, path: "tests/new-feature.test.mjs" },
+    { status: "A" as const, path: "scripts/central-ci-windows.mjs" },
+    { status: "M" as const, path: "tests/delta-code-routing.test.mjs" },
+    { status: "A" as const, path: "tests/delta-other.test.mjs" },
+  ];
+  assert.ok(allowed.every(isPinnedPluginRenameCandidate));
+  assert.ok(blocked.every((item) => !isPinnedPluginRenameCandidate(item)));
 });
