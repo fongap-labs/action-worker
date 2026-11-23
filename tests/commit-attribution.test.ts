@@ -108,7 +108,7 @@ test("accepts a Co-Authored-By trailer that names a human", async (context) => {
   const { root, base, human } = await fixture(context);
   const head = await commit(
     root,
-    "docs: clarify setup\n\n协作完成文档整理。\n\nCo-Authored-By: Grace Hopper <grace@example.com>",
+    "docs: clarify setup\n\n协作完成文档整理。\n\nCo-Authored-By: Grace Hopper",
     human
   );
   await assertAttributionFree("docs: clarify setup", base, head, root, policyDir);
@@ -194,7 +194,11 @@ test("skips merge commits whose subject names the merged branch", async (context
 
 test("blocks widened model names in trailers and identities, but allows them in prose", async (context) => {
   const { root, base, human } = await fixture(context);
-  const prose = await commit(root, "docs: clarify setup\n\n使用 DeepSeek 编写的说明已经维护者复核", human);
+  const prose = await commit(
+    root,
+    "docs: clarify setup\n\n使用 DeepSeek 编写的说明已经维护者复核",
+    human
+  );
   await assertAttributionFree("docs: clarify setup", base, prose, root, policyDir);
   const trailer = await commit(
     root,
