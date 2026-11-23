@@ -78,6 +78,28 @@ jobs:
           CI_FOLLOW_UP_REQUEST_JSON: ${{ toJSON(github.event.client_payload) }}
         run: node scripts/verify-ci-follow-up.ts
 
+      # Reopen the immutable-head PR gate only after a completed-success CI
+      # run has been independently verified by verify-ci-follow-up.ts.
+      - name: Resume PR governance after verified CI
+        if: steps.verified.outputs.current == 'true' && github.event.client_payload.pr_number > 0
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ steps.dispatch_app.outputs.token }}
+          TARGET_REPOSITORY: ${{ github.event.client_payload.repository }}
+          TARGET_HEAD_SHA: ${{ github.event.client_payload.head_sha }}
+          TARGET_PR_NUMBER: ${{ github.event.client_payload.pr_number }}
+          CI_RUN_ID: ${{ github.event.client_payload.ci_run_id }}
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          payload="$(jq -cn \
+            --arg repository "$TARGET_REPOSITORY" \
+            --arg head_sha "$TARGET_HEAD_SHA" \
+            --argjson pr_number "$TARGET_PR_NUMBER" \
+            --arg request_id "ci-done-$CI_RUN_ID" \
+            '{event_type:"run-pr-governance",client_payload:{schema_version:"1",request_id:$request_id,repository:$repository,pr_number:$pr_number,head_sha:$head_sha}}')"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/dispatches" --input - <<< "$payload"
+
       - name: Dispatch central security scan
         if: steps.verified.outputs.current == 'true'
         env:

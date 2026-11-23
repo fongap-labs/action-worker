@@ -286,6 +286,7 @@ jobs:
           permission-contents: write
 
       - name: Dispatch centralized CI
+        id: ci_dispatch
         if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'
         env:
           GH_TOKEN: ${{ steps.ci_dispatch_status_app.outputs.token }}
@@ -307,8 +308,11 @@ jobs:
             "$RUN_URL" \
             "$GITHUB_WORKSPACE/policies/execution.json"
 
+      # CI now owns a signed pending lease. Release the governance runner and
+      # reopen a fresh gate after verified completion instead of polling for
+      # the full Windows CI duration. Only terminal evidence may finish a gate.
       - name: Collect CI evidence
-        if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'
+        if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true' && steps.ci_dispatch.outputs.deferred != 'true'
         env:
           # This step reads both PR metadata and commit statuses through separate scoped credentials.
           # Use the separately configured control read credential; no token fallback.
@@ -323,7 +327,7 @@ jobs:
         run: node scripts/wait-ci-evidence.ts "$REPOSITORY" "$HEAD_SHA" "$GITHUB_WORKSPACE/policies/execution.json" "$PR_NUMBER"
 
       - name: Validate CI evidence
-        if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true'
+        if: steps.trust.outputs.trusted == 'true' && steps.base_plan.outputs.ci_required == 'true' && steps.ci_dispatch.outputs.deferred != 'true'
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -331,7 +335,7 @@ jobs:
 
       - name: Mark deterministic gate passed
         id: gate
-        if: steps.trust.outputs.trusted == 'true'
+        if: steps.trust.outputs.trusted == 'true' && steps.ci_dispatch.outputs.deferred != 'true'
         shell: bash
         run: echo "passed=true" >> "$GITHUB_OUTPUT"
 
@@ -339,7 +343,7 @@ jobs:
       # and advisory publication reads rather than reusing the early governance token.
       - name: Mint final governance read token
         id: final_read_app
-        if: ${{ always() && steps.api_scope.outputs.repository_name != '' && steps.resolved.outputs.head_sha != '' }}
+        if: ${{ always() && steps.api_scope.outputs.repository_name != '' && steps.resolved.outputs.head_sha != '' && steps.ci_dispatch.outputs.deferred != 'true' }}
         uses: ./.github/actions/mint-app-token
         with:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
@@ -353,7 +357,7 @@ jobs:
 
       - name: Resolve governance ownership
         id: ownership
-        if: ${{ always() && steps.resolved.outputs.head_sha != '' }}
+        if: ${{ always() && steps.resolved.outputs.head_sha != '' && steps.ci_dispatch.outputs.deferred != 'true' }}
         env:
           GH_TOKEN: ${{ steps.final_read_app.outputs.token }}
           AW_STATUS_API_TOKEN: ${{ steps.api_scope.outputs.is_control_repository == 'true' && github.token || steps.final_read_app.outputs.token }}
