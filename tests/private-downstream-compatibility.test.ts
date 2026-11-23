@@ -148,7 +148,10 @@ test("disabled runners with a fallback still must resolve an enabled compatible 
     },
   };
   // A fallback crossing trust domains remains forbidden by the policy parser.
-  assert.throws(() => parseRunnerPolicy({ schema_version: 1, profiles }), /cannot cross trust domains/);
+  assert.throws(
+    () => parseRunnerPolicy({ schema_version: 1, profiles }),
+    /cannot cross trust domains/
+  );
 
   const policy = parseRunnerPolicy({
     schema_version: 1,
