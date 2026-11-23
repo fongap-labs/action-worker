@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- 新增: 将 Delta 的 CUA、浏览器、Forge、Worktree 和 LiveShare 回归检查加入中央测试包，避免在产品仓库新增本地测试。
+- 新增: 将 Delta 的 CUA、浏览器、Forge、Worktree 和 LiveShare 回归检查，以及 Worktree/Forge 配置、菜单文案和会话组合验收加入中央测试包，避免在产品仓库新增本地测试。
 
 - 新增: 为一次性源码导入增加中央固定基线策略，并让差异门禁只对精确固定提交比较；Windows x64 中央验收改为检查 Delta 真实 `App/Data/Other` 便携目录及校验和。
 
