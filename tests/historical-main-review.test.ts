@@ -232,22 +232,37 @@ test("a cancelled Delta governance run is accepted only when signed gates preced
       conclusion: "cancelled",
       completed_at: "2026-11-19T00:30:10Z",
       steps: [
-        { name: "Update final gate", conclusion: "success", completed_at: "2026-11-19T00:30:05Z" },
-        { name: "Update central merge gate", conclusion: "success", completed_at: "2026-11-19T00:30:06Z" },
-        { name: "Publish PR review", conclusion: "cancelled", completed_at: "2026-11-19T00:30:10Z" },
+        {
+          name: "Update final gate",
+          conclusion: "success",
+          completed_at: "2026-11-19T00:30:05Z",
+        },
+        {
+          name: "Update central merge gate",
+          conclusion: "success",
+          completed_at: "2026-11-19T00:30:06Z",
+        },
+        {
+          name: "Publish PR review",
+          conclusion: "cancelled",
+          completed_at: "2026-11-19T00:30:10Z",
+        },
       ],
     },
     { name: "Automatic squash merge (operational)", conclusion: "cancelled" },
     { name: "Resolve unfinished PR Governance", conclusion: "success" },
   ];
-  const check = (items: typeof jobs, conclusion: "cancelled" | "failure" = "cancelled") => {
+  const check = (
+    items: typeof jobs,
+    conclusion: "cancelled" | "failure" = "cancelled"
+  ) => {
     const reader = {
       async get(path: string): Promise<unknown> {
         if (path === `repos/${controlRepository}/actions/runs/31`) return run(31, conclusion);
         if (path === `repos/${controlRepository}/actions/runs/31/jobs?per_page=100`) {
           return { jobs: items };
         }
-        throw new Error("Unexpected path " + path);
+        throw new Error(`Unexpected path ${path}`);
       },
     };
     return verifyCompletedGovernance(
@@ -264,10 +279,14 @@ test("a cancelled Delta governance run is accepted only when signed gates preced
   await assert.doesNotReject(check(jobs));
   await assert.rejects(
     verifyCompletedGovernance(
-      { get: async (path: string) => {
-        if (path === `repos/${controlRepository}/actions/runs/31`) return run(31, "cancelled");
-        return { jobs };
-      } },
+      {
+        get: async (path: string) => {
+          if (path === `repos/${controlRepository}/actions/runs/31`) {
+            return run(31, "cancelled");
+          }
+          return { jobs };
+        },
+      },
       repository,
       headSha,
       governance,
@@ -289,7 +308,9 @@ test("a cancelled Delta governance run is accepted only when signed gates preced
   await assert.rejects(check(lateGate), /both signed gates/);
   const failed = clone();
   failed[0]!.steps!.push({
-    name: "Validate security gate", conclusion: "failure", completed_at: "2026-11-19T00:30:04Z"
+    name: "Validate security gate",
+    conclusion: "failure",
+    completed_at: "2026-11-19T00:30:04Z",
   });
   await assert.rejects(check(failed), /both signed gates/);
   await assert.rejects(check(jobs, "failure"), /only one auto-merge job/);
