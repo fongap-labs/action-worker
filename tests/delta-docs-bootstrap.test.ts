@@ -18,19 +18,30 @@ const entries = paths.map((path) => ({
 }));
 const additions = ["A\tAGENTS.md", "A\tCHANGELOG.md", "A\tCLAUDE.md", "M\tREADME.md"];
 
-test("Delta docs baseline binds to its executing Action Worker checkout, not Delta PR base", () => {
-  const control = "a".repeat(40);
-  const deltaBase = "b".repeat(40);
-  assert.notEqual(control, deltaBase);
-  assert.doesNotThrow(() => verifyDeltaDocsTrustAnchor(control, control, deltaCleanRootTreeSha));
+test("Delta docs control checkout is pinned to the PR base or main head", () => {
+  const base = "a".repeat(40);
+  const head = "b".repeat(40);
+  assert.doesNotThrow(() => verifyDeltaDocsTrustAnchor(base, base, head, "83", deltaCleanRootTreeSha));
+  assert.doesNotThrow(() => verifyDeltaDocsTrustAnchor(head, base, head, "0", deltaCleanRootTreeSha));
   assert.throws(
-    () => verifyDeltaDocsTrustAnchor(control, deltaBase, deltaCleanRootTreeSha),
+    () => verifyDeltaDocsTrustAnchor(base, base, head, "0", deltaCleanRootTreeSha),
     /control checkout/
   );
-  assert.throws(() => verifyDeltaDocsTrustAnchor(control, control, "c".repeat(40)), /trusted root/);
   assert.throws(
-    () => verifyDeltaDocsTrustAnchor("invalid", "invalid", deltaCleanRootTreeSha),
+    () => verifyDeltaDocsTrustAnchor(head, base, head, "83", deltaCleanRootTreeSha),
     /control checkout/
+  );
+  assert.throws(
+    () => verifyDeltaDocsTrustAnchor(base, base, head, "", deltaCleanRootTreeSha),
+    /PR identity/
+  );
+  assert.throws(
+    () => verifyDeltaDocsTrustAnchor(base, base, head, "-1", deltaCleanRootTreeSha),
+    /PR identity/
+  );
+  assert.throws(
+    () => verifyDeltaDocsTrustAnchor(head, base, head, "0", "c".repeat(40)),
+    /trusted root/
   );
 });
 
