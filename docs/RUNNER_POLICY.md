@@ -31,6 +31,19 @@ production-deploy
 
 Profile 的具体集合由机器策略管理；业务仓库不得为某一个仓库创建 Profile。
 
+### 大型浏览器源码构建
+
+中央预留 `windows-chromium-build`：独立的 Windows x64 self-hosted sandbox Runner，用于 Brave/Chromium 等超出普通托管机磁盘和运行时间预算的源码构建。默认 **`enabled: false`，且无 `windows-build` 回退**。业务仓库只声明 Profile，不包含标签、主机名或目录路径。
+
+管理员需要完成：
+
+1. 注册独立且最好为临时实例的 Windows x64 Runner，至少准备 32 GiB RAM 与 200 GiB 空闲构建卷，安装 Brave 官方 Windows 构建先决条件、Git、Node、pnpm 和 Rust。Runner 不应持有发布、部署或签名凭据。
+2. 在 Action Worker 仓库配置变量 `AW_BROWSER_BUILD_WORKSPACE_ROOT`（本地绝对构建目录，源仓库 checkout 之外）及 `AW_BROWSER_BUILD_NOTICES_PATH`（事先独立审核的第三方许可证 HTML 文件的绝对路径，不能来自未经审核的业务源码）。同一发布需要干净的 staging 目录，不复用旧证据。
+3. 在专用机器正常在线后，经受管 PR 审查将 `windows-chromium-build.enabled` 改成 `true`。禁止将其回退到通用 `windows-build`。
+4. 首次运行必须验证 Brave/Chromium 固定源码编译、运行时哈希与许可证、安装启动和必要浏览器功能与隐私检查；在验收之前不得宣称成品可发布。
+
+中央 Release 仅为该 Profile 提供 `BROWSER_BUILD_SOURCE_BUILD_ENABLED=1` 和上述路径。没有物理 Runner 或审核许可证时保持 Profile 关闭，准备阶段会明确拒绝发布，不会再在普通 GitHub Windows Runner 上尝试打包不存在的浏览器。
+
 ## 3. 后端
 
 Action Worker 至少允许两类 Runner 后端：

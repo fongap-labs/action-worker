@@ -186,7 +186,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     runs-on: ${{ fromJSON(matrix.runner_labels_json) }}
-    timeout-minutes: 90
+    timeout-minutes: 360
 
     # Source-controlled build scripts run without OIDC or attestation write privileges.
     permissions:
@@ -266,6 +266,10 @@ jobs:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
           RELEASE_OUTPUT_DIR: ${{ runner.temp }}/release-build
           RELEASE_PRODUCT_RELATIVE_ROOT: ${{ needs.prepare.outputs.product_root }}
+          # Dedicated sandbox builder only; these are operator-provisioned local paths.
+          BROWSER_BUILD_SOURCE_BUILD_ENABLED: ${{ matrix.runner_profile == 'windows-chromium-build' && '1' || '0' }}
+          BROWSER_BUILD_WORKSPACE_ROOT: ${{ matrix.runner_profile == 'windows-chromium-build' && vars.AW_BROWSER_BUILD_WORKSPACE_ROOT || '' }}
+          BROWSER_BUILD_THIRD_PARTY_NOTICES: ${{ matrix.runner_profile == 'windows-chromium-build' && vars.AW_BROWSER_BUILD_NOTICES_PATH || '' }}
         run: |
           $ErrorActionPreference = "Stop"
           # The product root is the build root from the release manifest; the empty root is the repository root.

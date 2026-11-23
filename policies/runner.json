@@ -29,6 +29,13 @@
       "labels": ["windows-latest"],
       "fallback_profiles": []
     },
+    "windows-chromium-build": {
+      "enabled": false,
+      "backend": "self-hosted",
+      "trust_domain": "sandbox",
+      "labels": ["self-hosted", "Windows", "X64", "aw-chromium-build"],
+      "fallback_profiles": []
+    },
     "trusted-deploy": {
       "enabled": false,
       "backend": "self-hosted",
