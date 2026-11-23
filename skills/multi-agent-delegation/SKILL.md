@@ -43,7 +43,7 @@ A sub-agent returns control to the coordinator when it:
 
 ## 4. Trust boundary
 
-Apply the trust boundary in `CLAUDE.md` to every delegated unit:
+Apply the trust boundary in `AGENTS.md` to every delegated unit:
 
 ```text
 if the unit reads GitHub metadata, plans, triages, reviews, evaluates CI evidence, or evaluates the gate:

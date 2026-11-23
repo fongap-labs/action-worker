@@ -61,7 +61,7 @@ Agent Skills 是可复用的执行流程，不是确定性策略的权威。文�
 
 ```text
 开发 Action Worker
-→ CLAUDE.md
+→ AGENTS.md
 → skills/agent-execution/SKILL.md
 → 任务相关的 skill
 → docs/01_SHARED_GOVERNANCE.md
@@ -72,7 +72,7 @@ Agent Skills 是可复用的执行流程，不是确定性策略的权威。文�
 → 相关 contracts / policies / rules
 
 在受管仓库中工作
-→ 仓库自身的 CLAUDE.md
+→ 仓库自身的 AGENTS.md
 → docs/01_SHARED_GOVERNANCE.md
 → 项目专属的架构与边界文档
 
