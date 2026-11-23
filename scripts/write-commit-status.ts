@@ -1,7 +1,7 @@
 import { requireToken } from "./control-token.ts";
-import { postGithubCommitStatus } from "./status-write-retry.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
+import { postGithubCommitStatus } from "./status-write-retry.ts";
 
 async function main(): Promise<void> {
   const [repository = "", sha = "", rawState = "", context = "", description = "", targetUrl = ""] =
