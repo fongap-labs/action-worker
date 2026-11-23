@@ -22,8 +22,8 @@ concurrency:
 
 jobs:
   pull-requests:
-    # Control-repository pushes do not change business PR heads.
-    if: github.event_name != 'push'
+    # Controller updates can resolve a previously failed CI gate without changing the business PR HEAD.
+    # Reconcile on main pushes as well; signed status leases keep dispatch idempotent.
     name: Pull requests
     runs-on: ubuntu-24.04
     timeout-minutes: 10
