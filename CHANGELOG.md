@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 维护: BrowserBuild 中央 Windows 测试在 `cargo check` 后运行启动器 Rust 单元测试，验证独立空间参数和用户资料目录保护。
+
 - 维护: 移除已退役 Delta Desktop 插件对应的中央覆盖测试，避免 plugins 仓库删除源码后 CI 因缺失文件失败。
 
 - 修复: 只对 Delta #87 已结案且主分支签名复核通过的三个固定历史 SHA，以当前 Action Worker 中央 CI 真正重新运行文档/受管桥接检查并生成新的可信 CI Evidence，保留所有旧失败记录与其他仓库旧提交阻断。

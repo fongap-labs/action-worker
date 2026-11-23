@@ -1,7 +1,8 @@
 """Central Windows-only native check for the BrowserBuild portable launcher.
 
 Product PRs cannot modify the centrally owned CI entrypoint. The trusted pack
-runs within the existing Windows CI job, without executing a Chromium build.
+runs within the existing Windows CI job, checking and testing the Rust
+launcher without executing a Chromium build.
 """
 
 from __future__ import annotations
@@ -55,4 +56,25 @@ def test_browserbuild_portable_launcher_cargo_check() -> None:
     )
     assert checked.returncode == 0, (
         f"BrowserBuild launcher Cargo check failed (exit {checked.returncode})"
+    )
+
+    tested = subprocess.run(
+        [
+            "cargo",
+            "test",
+            "--locked",
+            "--manifest-path",
+            str(manifest),
+            "--target",
+            target,
+        ],
+        cwd=project / "launcher",
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=240,
+    )
+    assert tested.returncode == 0, (
+        f"BrowserBuild launcher native unit tests failed (exit {tested.returncode})\n"
+        f"stdout:\n{tested.stdout[-3000:]}\nstderr:\n{tested.stderr[-3000:]}"
     )
