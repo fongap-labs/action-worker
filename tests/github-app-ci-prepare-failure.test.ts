@@ -10,19 +10,22 @@ type Step = {
   with?: Record<string, string>;
 };
 
-test("failed CI preparation verifies the current PR with scoped App read credentials", async () => {
+test("failed CI preparation verifies PR or main with scoped App read credentials", async () => {
   const source = await readFile(".github/workflows/central-ci-dispatch.yml", "utf8");
   const workflow = parse(source) as {
     jobs: Record<string, { steps?: Step[] }>;
   };
   const steps = workflow.jobs["prepare-failure"]?.steps ?? [];
   const find = (name: string) => steps.find((entry) => entry.name === name);
-  const mint = find("Mint failed CI PR read token");
+  const mint = find("Mint failed CI target read token");
   assert.equal(mint?.id, "failed_ci_read_app");
   assert.equal(mint?.with?.repositories, "${{ steps.status_scope.outputs.repository_name }}");
   assert.deepEqual(
     Object.entries(mint?.with ?? {}).filter(([key]) => key.startsWith("permission-")),
-    [["permission-pull-requests", "read"]]
+    [
+      ["permission-pull-requests", "read"],
+      ["permission-contents", "read"],
+    ]
   );
   const publish = find("Publish failed CI Evidence for the current head");
   assert.equal(publish?.env?.GH_TOKEN, "${{ steps.failed_ci_read_app.outputs.token }}");

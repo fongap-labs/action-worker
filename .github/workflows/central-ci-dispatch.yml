@@ -889,7 +889,7 @@ jobs:
   prepare-failure:
     name: Report Central CI Prepare Failure
     needs: prepare
-    if: always() && needs.prepare.result == 'failure' && github.event.action == 'run-central-ci' && needs.prepare.outputs.owner != '' && needs.prepare.outputs.repository_name != ''
+    if: always() && needs.prepare.result == 'failure' && (github.event.action == 'run-central-ci' || github.event.action == 'run-central-ci-ref') && needs.prepare.outputs.owner != '' && needs.prepare.outputs.repository_name != '' && needs.prepare.outputs.head_sha != ''
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
@@ -935,7 +935,7 @@ jobs:
           repositories: ${{ steps.status_scope.outputs.repository_name }}
           permission-statuses: write
 
-      - name: Mint failed CI PR read token
+      - name: Mint failed CI target read token
         id: failed_ci_read_app
         uses: ./.github/actions/mint-app-token
         with:
@@ -944,6 +944,7 @@ jobs:
           owner: ${{ steps.status_scope.outputs.owner }}
           repositories: ${{ steps.status_scope.outputs.repository_name }}
           permission-pull-requests: read
+          permission-contents: read
 
       - name: Publish failed CI Evidence for the current head
         id: prepare_publish
@@ -959,13 +960,22 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || exit 0
           [[ "$REQUESTED_HEAD_SHA" =~ ^[0-9a-f]{40}$ ]] || exit 0
 
-          # Only the head that is still current gets a verdict; a newer head has its own CI run.
-          current_head="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
+          # A failed PREPARE has no Linux/Windows verdict. Only the immutable
+          # source revision that remains current may receive its signed red gate.
+          if [ "$PR_NUMBER" = "0" ]; then
+            default_branch="$(gh api "repos/$REPOSITORY" --jq '.default_branch')"
+            [ -n "$default_branch" ] || exit 0
+            encoded_branch="$(jq -rn --arg branch "$default_branch" '$branch | @uri')"
+            current_head="$(gh api "repos/$REPOSITORY/commits/$encoded_branch" --jq '.sha')"
+          elif [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+            current_head="$(gh api "repos/$REPOSITORY/pulls/$PR_NUMBER" --jq '.head.sha')"
+          else
+            exit 0
+          fi
           if [ "$current_head" != "$REQUESTED_HEAD_SHA" ]; then
-            echo "PR head moved to $current_head; no verdict for the stale head."
+            echo "Central CI target changed; no verdict for the stale head."
             exit 0
           fi
 
@@ -975,7 +985,7 @@ jobs:
 
       - name: Mint prepare failure PR continuation token
         id: prepare_pr_dispatch_app
-        if: steps.prepare_publish.outputs.published == 'true'
+        if: steps.prepare_publish.outputs.published == 'true' && needs.prepare.outputs.pr_number != '0'
         uses: ./.github/actions/mint-app-token
         with:
           client-id: ${{ vars.AW_APP_CLIENT_ID }}
@@ -985,7 +995,7 @@ jobs:
           permission-contents: write
 
       - name: Resume PR governance after CI prepare failure
-        if: steps.prepare_publish.outputs.published == 'true'
+        if: steps.prepare_publish.outputs.published == 'true' && needs.prepare.outputs.pr_number != '0'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ steps.prepare_pr_dispatch_app.outputs.token }}

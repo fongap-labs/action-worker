@@ -149,10 +149,17 @@ test("a pull request CI that fails in prepare still publishes a CI Evidence verd
   const job = workflow.slice(workflow.indexOf("  prepare-failure:"), workflow.length);
   assert.match(
     job,
-    /if: always\(\) && needs\.prepare\.result == 'failure' && github\.event\.action == 'run-central-ci'/
+    /if: always\(\) && needs\.prepare\.result == 'failure' && \(github\.event\.action == 'run-central-ci' \|\| github\.event\.action == 'run-central-ci-ref'\)/
   );
   assert.match(job, /permissions: \{\}/);
   assert.match(job, /\[ "\$current_head" != "\$REQUESTED_HEAD_SHA" \]/);
+  assert.match(job, /if \[ "\$PR_NUMBER" = "0" \]; then/);
+  assert.match(job, /default_branch=.*gh api/);
+  assert.match(job, /permission-contents: read/);
+  assert.match(
+    job,
+    /steps\.prepare_publish\.outputs\.published == 'true' && needs\.prepare\.outputs\.pr_number != '0'/
+  );
   assert.match(job, /write-commit-status\.ts "\$REPOSITORY" "\$REQUESTED_HEAD_SHA" failure/);
   assert.match(job, /"CI Evidence"/);
   assert.doesNotMatch(job, /central-ci\.sh/);
