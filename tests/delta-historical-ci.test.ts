@@ -107,7 +107,12 @@ test("reviewed historical CI requires a signed main guard and maintainer inciden
     true
   );
   await assert.rejects(
-    verifyReviewedDeltaCiTarget(mockReader({ resolved: false }), repository, pinned.sha, pinned.sha),
+    verifyReviewedDeltaCiTarget(
+      mockReader({ resolved: false }),
+      repository,
+      pinned.sha,
+      pinned.sha
+    ),
     /explicit trusted maintainer/
   );
   await assert.rejects(
