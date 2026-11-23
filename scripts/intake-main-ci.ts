@@ -233,10 +233,7 @@ export async function scanMainCi(
   // One-time, SHA-pinned retest of three already reviewed Delta main writes.
   // Unlike ordinary main CI, these immutable ancestors require real new central
   // CI evidence after the verified CI-control fix. Never retry another historical SHA.
-  if (
-    repositories.includes("fongap-labs/delta") &&
-    /^[a-f0-9]{40}$/.test(currentControlHeadSha)
-  ) {
+  if (repositories.includes("fongap-labs/delta") && /^[a-f0-9]{40}$/.test(currentControlHeadSha)) {
     try {
       const currentDeltaHead = await defaultHead(reader, "fongap-labs/delta");
       for (const item of reviewedDeltaCiCases) {
