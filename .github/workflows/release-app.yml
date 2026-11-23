@@ -186,7 +186,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
     runs-on: ${{ fromJSON(matrix.runner_labels_json) }}
-    timeout-minutes: ${{ matrix.runner_profile == 'windows-chromium-build' && 720 || 90 }}
+    timeout-minutes: 360
 
     # Source-controlled build scripts run without OIDC or attestation write privileges.
     permissions:
