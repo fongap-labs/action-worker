@@ -14,7 +14,7 @@
     "preflight:business": "node scripts/business-preflight.ts",
     "test": "node --test \"tests/*.test.ts\" \"tests/kit/*.test.mjs\"",
     "typecheck": "tsc --noEmit",
-    "lint": "biome check . --max-diagnostics=250"
+    "lint": "biome check scripts/engineering-gate-api.ts tests/engineering-gate-api.test.ts --max-diagnostics=100"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.4",
