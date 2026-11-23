@@ -21,8 +21,12 @@ const additions = ["A\tAGENTS.md", "A\tCHANGELOG.md", "A\tCLAUDE.md", "M\tREADME
 test("Delta docs control checkout is pinned to the PR base or main head", () => {
   const base = "a".repeat(40);
   const head = "b".repeat(40);
-  assert.doesNotThrow(() => verifyDeltaDocsTrustAnchor(base, base, head, "83", deltaCleanRootTreeSha));
-  assert.doesNotThrow(() => verifyDeltaDocsTrustAnchor(head, base, head, "0", deltaCleanRootTreeSha));
+  assert.doesNotThrow(() =>
+    verifyDeltaDocsTrustAnchor(base, base, head, "83", deltaCleanRootTreeSha)
+  );
+  assert.doesNotThrow(() =>
+    verifyDeltaDocsTrustAnchor(head, base, head, "0", deltaCleanRootTreeSha)
+  );
   assert.throws(
     () => verifyDeltaDocsTrustAnchor(base, base, head, "0", deltaCleanRootTreeSha),
     /control checkout/
