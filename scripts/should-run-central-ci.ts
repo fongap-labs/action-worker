@@ -1,3 +1,4 @@
+import { setTimeout as sleep } from "node:timers/promises";
 import {
   hasVerifiedCiEvidence,
   type JsonReader,
@@ -64,6 +65,59 @@ export async function isTrustedIntakeCiHandoff(
     .filter(isJsonRecord)
     .filter((job) => getJsonString(job, "name") === "Main CI");
   return mainCiJobs.length === 1 && getJsonString(mainCiJobs[0], "conclusion") === "success";
+}
+
+const pendingIntakeStates = new Set(["queued", "in_progress", "pending", "waiting", "requested"]);
+
+/**
+ * The intake job dispatches CI before the enclosing workflow can finish.
+ * Wait for that signed intake to settle before applying the original fail-closed
+ * handoff verifier. Waiting does not grant CI permission or accept a failed run.
+ */
+export async function waitForSignedIntakeCompletion(
+  response: unknown,
+  reader: JsonReader,
+  controlRepository: string,
+  targetRepository: string,
+  targetSha: string,
+  controlHeadSha: string,
+  delay: (ms: number) => Promise<void> = sleep,
+  maxChecks = 18
+): Promise<boolean> {
+  const latest = latestCiStatus(response, "CI Evidence");
+  if (
+    !latest ||
+    getJsonString(latest, "state") !== "pending" ||
+    originalStatusDescription(latest) !== "Central CI queued by central intake" ||
+    !/^[0-9a-f]{40}$/.test(controlHeadSha) ||
+    !hasValidStatusAttestation(latest, {
+      repository: targetRepository,
+      sha: targetSha,
+      context: "CI Evidence",
+    })
+  ) {
+    return false;
+  }
+  const runId = trustedControlRunId(getJsonString(latest, "target_url"), controlRepository);
+  if (!runId) return false;
+
+  for (let check = 0; check < maxChecks; check += 1) {
+    const run = await reader.get(`repos/${controlRepository}/actions/runs/${runId}`);
+    if (
+      !isJsonRecord(run) ||
+      getJsonString(run.repository, "full_name") !== controlRepository ||
+      getJsonString(run, "path") !== ".github/workflows/intake.yml" ||
+      getJsonString(run, "head_branch") !== "main" ||
+      getJsonString(run, "head_sha") !== controlHeadSha
+    ) {
+      return false;
+    }
+    const status = getJsonString(run, "status");
+    if (status === "completed") return true;
+    if (!pendingIntakeStates.has(status) || check === maxChecks - 1) return false;
+    await delay(5_000);
+  }
+  return false;
 }
 
 /** Keep main-ref CI idempotent using the same attested lease and bounded retry
@@ -184,7 +238,20 @@ async function main(): Promise<void> {
     controlToken,
     statusToken
   );
-  const response = await reader.get(`repos/${repository}/commits/${sha}/status`);
+  const statusPath = `repos/${repository}/commits/${sha}/status`;
+  let response = await reader.get(statusPath);
+  if (
+    await waitForSignedIntakeCompletion(
+      response,
+      reader,
+      controlRepository,
+      repository,
+      sha,
+      process.env.GITHUB_SHA ?? ""
+    )
+  ) {
+    response = await reader.get(statusPath);
+  }
   const shouldRun = await shouldRunMainRefCi(
     response,
     reader,

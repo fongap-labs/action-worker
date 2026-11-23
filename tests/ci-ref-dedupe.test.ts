@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
-import { shouldRunMainRefCi } from "../scripts/should-run-central-ci.ts";
+import {
+  shouldRunMainRefCi,
+  waitForSignedIntakeCompletion,
+} from "../scripts/should-run-central-ci.ts";
 import { attestFixtureResponseForPath } from "./attested-status-fixtures.ts";
 
 const control = "fongap-labs/action-worker";
@@ -136,4 +139,85 @@ test("branch CI skip does not bypass any required gate or publish synthetic succ
   assert.match(workflow, /should_run=\$should_run/);
   assert.match(workflow, /needs\.prepare\.outputs\.should_run != 'false'/);
   assert.match(workflow, /name: Publish Central CI/);
+});
+
+test("central CI receiver waits for a signed matching intake without bypassing its final verdict", async () => {
+  const status = signed("pending", { description: "Central CI queued by central intake" });
+  let attempts = 0;
+  let delays = 0;
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      assert.equal(path, runPath);
+      attempts += 1;
+      return controlRun({
+        path: ".github/workflows/intake.yml",
+        status: attempts < 3 ? "in_progress" : "completed",
+        conclusion: attempts < 3 ? null : "success",
+      });
+    },
+  };
+  assert.equal(
+    await waitForSignedIntakeCompletion(
+      status,
+      reader,
+      control,
+      repository,
+      sha,
+      controllerSha,
+      async () => {
+        delays += 1;
+      },
+      4
+    ),
+    true
+  );
+  assert.equal(attempts, 3);
+  assert.equal(delays, 2);
+});
+
+test("intake receiver refuses unsigned, mismatched and incomplete handoffs", async () => {
+  const pending = signed("pending", { description: "Central CI queued by central intake" });
+  const wrongRun = readerFor(controlRun({ path: ".github/workflows/handle-task-dispatch.yml" }));
+  assert.equal(
+    await waitForSignedIntakeCompletion(
+      pending,
+      wrongRun,
+      control,
+      repository,
+      sha,
+      controllerSha,
+      async () => {},
+      2
+    ),
+    false
+  );
+  assert.equal(
+    await waitForSignedIntakeCompletion(
+      signed("pending", { description: "Central CI running; awaiting test verdict" }),
+      wrongRun,
+      control,
+      repository,
+      sha,
+      controllerSha,
+      async () => {},
+      2
+    ),
+    false
+  );
+  const unfinished = readerFor(
+    controlRun({ path: ".github/workflows/intake.yml", status: "in_progress", conclusion: null })
+  );
+  assert.equal(
+    await waitForSignedIntakeCompletion(
+      pending,
+      unfinished,
+      control,
+      repository,
+      sha,
+      controllerSha,
+      async () => {},
+      2
+    ),
+    false
+  );
 });
