@@ -98,7 +98,11 @@ export function verifyDeltaDocsTrustAnchor(
     throw new CliError("Delta docs central CI PR identity is invalid.", 65);
   }
   const expectedSha = prNumber === "0" ? head : base;
-  if (!shaPattern.test(controlSha) || controlSha !== expectedSha || rootTree !== deltaCleanRootTreeSha) {
+  if (
+    !shaPattern.test(controlSha) ||
+    controlSha !== expectedSha ||
+    rootTree !== deltaCleanRootTreeSha
+  ) {
     throw new CliError("Delta docs control checkout or trusted root does not match.", 65);
   }
 }
