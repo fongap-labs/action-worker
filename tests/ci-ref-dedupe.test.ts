@@ -221,4 +221,3 @@ test("intake receiver refuses unsigned, mismatched and incomplete handoffs", asy
     false
   );
 });
-
