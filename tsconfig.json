@@ -11,8 +11,18 @@
     "noUncheckedIndexedAccess": true,
     "strict": true,
     "target": "ES2023",
-    "types": ["node"],
+    "types": [
+      "node"
+    ],
     "verbatimModuleSyntax": true
   },
-  "include": ["scripts/**/*.ts", "tests/**/*.ts", "tests/run-pack.mjs", "tests/kit/*.mjs"]
+  "include": [
+    "scripts/**/*.ts",
+    "tests/**/*.ts",
+    "tests/run-pack.mjs",
+    "tests/kit/*.mjs"
+  ],
+  "exclude": [
+    "tests/packs/delta/product-integration"
+  ]
 }

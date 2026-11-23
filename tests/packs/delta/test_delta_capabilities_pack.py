@@ -14,9 +14,9 @@ PACK_ROOT = Path(__file__).resolve().parent
 
 PRODUCT_INTEGRATION_TESTS = {
     "product-integration/delta-worktree-profile.spec.ts": "packages/bundle/base/tests/delta-worktree.spec.ts",
-    "product-integration/delta-worktree-chat-locale.client.spec.tsx": "packages/client/ui-chat/tests/delta-worktree-locale.client.spec.tsx",
-    "product-integration/delta-worktree-command-locale.client.spec.ts": "packages/client/ui-commands/tests/delta-worktree-locale.client.spec.ts",
-    "product-integration/delta-worktree-session.integration.spec.ts": "packages/session/working-directory/tests/delta-worktree.integration.spec.ts",
+    "product-integration/worktree-chat.spec.tsx": "packages/client/ui-chat/tests/delta-worktree-locale.client.spec.tsx",
+    "product-integration/worktree-command.spec.ts": "packages/client/ui-commands/tests/delta-worktree-locale.client.spec.ts",
+    "product-integration/worktree-session.spec.ts": "packages/session/working-directory/tests/delta-worktree.integration.spec.ts",
 }
 
 
