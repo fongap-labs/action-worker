@@ -240,6 +240,6 @@ test("Chromium release builds fail closed until a GitHub-hosted larger builder i
   assert.match(workflow, /timeout-minutes: 360/);
   assert.match(workflow, /BROWSER_BUILD_SOURCE_BUILD_ENABLED:/);
   assert.match(workflow, /brave-source-build/);
-  assert.match(workflow, /node-version: '26\.13\.1'/);
+  assert.match(workflow, /node-version: "26\.13\.1"/);
   assert.match(workflow, /pnpm@11\.28\.11/);
 });
