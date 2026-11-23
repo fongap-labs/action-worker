@@ -5,6 +5,7 @@ import {
   hasStaleCiEvidenceFailure,
   hasUnresolvedCiEvidenceFailure,
 } from "../scripts/ci-failure-budget.ts";
+import { isTrustedIntakeCiHandoff, shouldRunMainRefCi } from "../scripts/should-run-central-ci.ts";
 import { attestFixtureResponseForPath } from "./attested-status-fixtures.ts";
 
 const repository = "fongap-labs/example";
@@ -229,6 +230,151 @@ test("an intake failure blocks retry only when its Main CI job failed", async ()
     await hasUnresolvedCiEvidenceFailure(
       response,
       reader("success"),
+      controlRepository,
+      repository,
+      sha,
+      controlSha
+    ),
+    false
+  );
+});
+
+test("a verified intake handoff is consumed by the actual main-ref CI without waiting out its lease", async () => {
+  const response = attestFixtureResponseForPath(statusPath, {
+    statuses: [
+      {
+        context: "CI Evidence",
+        state: "pending",
+        description: "Central CI queued by central intake",
+        target_url: `https://github.com/${controlRepository}/actions/runs/959`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ],
+  });
+  const readPaths: string[] = [];
+  const reader = {
+    async get(path: string): Promise<unknown> {
+      readPaths.push(path);
+      if (path === `repos/${controlRepository}/actions/runs/959`) {
+        return {
+          repository: { full_name: controlRepository },
+          path: ".github/workflows/intake.yml",
+          event: "push",
+          head_branch: "main",
+          head_sha: controlSha,
+          status: "completed",
+          conclusion: "success",
+        };
+      }
+      if (path === `repos/${controlRepository}/actions/runs/959/jobs?per_page=100`) {
+        return { jobs: [{ name: "Main CI", conclusion: "success" }] };
+      }
+      throw new Error(`Unexpected read path: ${path}`);
+    },
+  };
+
+  assert.equal(
+    await isTrustedIntakeCiHandoff(
+      response,
+      reader,
+      controlRepository,
+      repository,
+      sha,
+      controlSha
+    ),
+    true
+  );
+  assert.equal(
+    await shouldRunMainRefCi(response, reader, controlRepository, repository, sha, controlSha),
+    false,
+    "ordinary retries remain guarded by the signed pending lease"
+  );
+  assert.equal(
+    await shouldRunMainRefCi(
+      response,
+      reader,
+      controlRepository,
+      repository,
+      sha,
+      controlSha,
+      Date.now(),
+      true
+    ),
+    true,
+    "the centrally dispatched receiver must not skip its own CI"
+  );
+  assert.ok(readPaths.some((path) => path.endsWith("/jobs?per_page=100")));
+});
+
+test("intake handoff rejects unauthorized runs, mismatched control SHAs and failed dispatch jobs", async () => {
+  const response = attestFixtureResponseForPath(statusPath, {
+    statuses: [
+      {
+        context: "CI Evidence",
+        state: "pending",
+        description: "Central CI queued by central intake",
+        target_url: `https://github.com/${controlRepository}/actions/runs/960`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ],
+  });
+
+  for (const variant of [
+    { path: ".github/workflows/central-ci-dispatch.yml" },
+    { head_sha: "c".repeat(40) },
+    { status: "in_progress" },
+    { conclusion: "failure" },
+  ]) {
+    const reader = {
+      async get(path: string): Promise<unknown> {
+        if (path.endsWith("/actions/runs/960")) {
+          return {
+            repository: { full_name: controlRepository },
+            path: ".github/workflows/intake.yml",
+            head_branch: "main",
+            head_sha: controlSha,
+            status: "completed",
+            conclusion: "success",
+            ...variant,
+          };
+        }
+        return { jobs: [{ name: "Main CI", conclusion: "success" }] };
+      },
+    };
+    assert.equal(
+      await isTrustedIntakeCiHandoff(
+        response,
+        reader,
+        controlRepository,
+        repository,
+        sha,
+        controlSha
+      ),
+      false
+    );
+  }
+
+  const failingJobs = {
+    async get(path: string): Promise<unknown> {
+      if (path.endsWith("/actions/runs/960")) {
+        return {
+          repository: { full_name: controlRepository },
+          path: ".github/workflows/intake.yml",
+          head_branch: "main",
+          head_sha: controlSha,
+          status: "completed",
+          conclusion: "success",
+        };
+      }
+      return { jobs: [{ name: "Main CI", conclusion: "failure" }] };
+    },
+  };
+  assert.equal(
+    await isTrustedIntakeCiHandoff(
+      response,
+      failingJobs,
       controlRepository,
       repository,
       sha,
