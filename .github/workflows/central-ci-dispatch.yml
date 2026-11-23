@@ -144,10 +144,15 @@ jobs:
 
           default_branch="$(gh api "repos/$REPOSITORY" --jq '.default_branch')"
           default_sha="$(gh api "repos/$REPOSITORY/commits/$default_branch" --jq '.sha')"
-          [ "$REQUESTED_HEAD_SHA" = "$default_sha" ] || {
-            echo "::error::Central CI request is stale; default branch has moved." >&2
-            exit 75
-          }
+          if [ "$REQUESTED_HEAD_SHA" != "$default_sha" ]; then
+            # Only Delta's immutable #87 incident receipts can be re-verified
+            # on an ancestor. All other historic/stale refs fail closed.
+            approved="$(node scripts/delta-historical-ci.ts "$REPOSITORY" "$REQUESTED_HEAD_SHA" "$default_sha")"
+            if [ "$approved" != "true" ]; then
+              echo "::error::Central CI request is stale; default branch has moved." >&2
+              exit 75
+            fi
+          fi
 
           base_sha="$(gh api "repos/$REPOSITORY/commits/$REQUESTED_HEAD_SHA" --jq '.parents[0].sha // .sha')"
           should_run="$(node scripts/should-run-central-ci.ts "$REPOSITORY" "$REQUESTED_HEAD_SHA")"
