@@ -33,16 +33,13 @@ Profile 的具体集合由机器策略管理；业务仓库不得为某一个仓
 
 ### 大型浏览器源码构建
 
-中央预留 `windows-chromium-build`：独立的 Windows x64 self-hosted sandbox Runner，用于 Brave/Chromium 等超出普通托管机磁盘和运行时间预算的源码构建。默认 **`enabled: false`，且无 `windows-build` 回退**。业务仓库只声明 Profile，不包含标签、主机名或目录路径。
+中央保留 `windows-chromium-build` 作为**由 GitHub 托管的 Windows x64 大型虚拟机**：无需用户自建或运维 Windows 服务器。普通私有仓库 `windows-build` 的 SSD 只有 14 GB，不足以完整检出和编译 Brave/Chromium；因此不允许回退到该 Profile。
 
-管理员需要完成：
+中央 Profile 默认 `enabled: false`、`backend: github-hosted`，由 GitHub 组织管理员在 **Settings → Actions → Runners → New runner → New GitHub-hosted runner** 创建名为 `aw-chromium-build` 的大型 Windows x64 Runner，建议起步配置 16 vCPU、64 GB RAM、600 GB SSD；根据真实构建资源与费用再调整。Runner group 应只授予 `fongap-labs/action-worker` 访问权限。GitHub Team 或 Enterprise Cloud 组织计划、有效支付方式与 Actions 预算是启用前置条件。
 
-1. 注册独立且最好为临时实例的 Windows x64 Runner，至少准备 32 GiB RAM 与 200 GiB 空闲构建卷，安装 Brave 官方 Windows 构建先决条件、Git、Node、pnpm 和 Rust。Runner 不应持有发布、部署或签名凭据。
-2. 在 Action Worker 仓库配置变量 `AW_BROWSER_BUILD_WORKSPACE_ROOT`（本地绝对构建目录，源仓库 checkout 之外）及 `AW_BROWSER_BUILD_NOTICES_PATH`（事先独立审核的第三方许可证 HTML 文件的绝对路径，不能来自未经审核的业务源码）。同一发布需要干净的 staging 目录，不复用旧证据。
-3. 在专用机器正常在线后，经受管 PR 审查将 `windows-chromium-build.enabled` 改成 `true`。禁止将其回退到通用 `windows-build`。
-4. 首次运行必须验证 Brave/Chromium 固定源码编译、运行时哈希与许可证、安装启动和必要浏览器功能与隐私检查；在验收之前不得宣称成品可发布。
+中央发布工作流显式安装 Brave 锁定版本要求的 Node 26.13.1 和 pnpm 11.28.11，将编译工作区放在 GitHub 托管虚拟机的 `runner.temp` 中，自动按构建元数据产生来源证据，不依赖任何长期本地目录或自托管机器。仅在 GitHub Larger Runner 已注册、可被本仓库访问并完成计费审核后，通过受管 PR 将 Profile 切换为 `enabled: true`。未配置时在 Prepare 阶段快速失败，不会调度到普通 Windows 虚拟机，也不会发布占位 ZIP。
 
-中央 Release 仅为该 Profile 提供 `BROWSER_BUILD_SOURCE_BUILD_ENABLED=1` 和上述路径。没有物理 Runner 或审核许可证时保持 Profile 关闭，准备阶段会明确拒绝发布，不会再在普通 GitHub Windows Runner 上尝试打包不存在的浏览器。
+发布的第三方许可证文档必须来自所锁定的 Brave/Chromium 源码生成及实质审核，并在最终包中通过哈希校验；不得使用无关的占位通知。首次执行仍需核验真实浏览器编译、启动、Shields/Sync/扩展及隐私行为。
 
 ## 3. 后端
 
