@@ -14,7 +14,7 @@ import {
   readRepositoryPolicyText,
   validateRepositoryCapability,
 } from "./repository-policy.ts";
-import { parseRunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
+import { parseRunnerPolicy, type RunnerPolicy, resolveRunnerProfile } from "./runner-policy.ts";
 import {
   appendLines,
   CliError,
@@ -326,6 +326,31 @@ export async function verifyFollowPins(
   }
 }
 
+export function resolveReleaseBuildMatrix(
+  manifest: ReleaseBuildManifest,
+  runnerPolicy: RunnerPolicy
+) {
+  return manifest.builds.map((build) => {
+    const resolved = resolveRunnerProfile(runnerPolicy, build.runner_profile);
+    if (resolved.profile.trust_domain !== "sandbox") {
+      throw new CliError(
+        `Release build runner profile must use the sandbox trust domain: ${build.runner_profile}.`,
+        77
+      );
+    }
+    return {
+      id: build.id,
+      runner_profile: resolved.name,
+      runner_labels_json: JSON.stringify(resolved.profile.labels),
+      target: build.target,
+      setup_rust: build.setup_rust !== false,
+      script: build.script,
+      attest_asset: build.attest_asset,
+      acceptance_script: build.acceptance_script ?? "",
+    };
+  });
+}
+
 async function main(): Promise<void> {
   const request = parseReleaseBuildRequest(
     parseJson(
@@ -358,17 +383,23 @@ async function main(): Promise<void> {
     );
   }
 
-  // The release workflow requests central CI for the source before this step, so wait for it.
+  // Fail fast for invalid or disabled runner profiles before waiting for central CI.
+  // Resolving the pinned product manifest is read-only, not executing source code.
+  const { product, manifest_path, product_root, manifest, follows_text } =
+    await resolveReleaseBuildProduct(reader, request);
+  validateRepositoryCapability(manifest.target_repository, repositoryPolicy, "release-target");
+
+  const runnerPolicy = parseRunnerPolicy(await readJson(process.argv[2] ?? "policies/runner.json"));
+  const matrix = resolveReleaseBuildMatrix(manifest, runnerPolicy);
+
+  // Only requests that can actually acquire an enabled runner should incur the
+  // (potentially long) source CI evidence wait and follow-pin verification.
   await requireVerifiedCiEvidence(
     reader,
     request.source_repository,
     request.source_sha,
     centralCiWait
   );
-
-  const { product, manifest_path, product_root, manifest, follows_text } =
-    await resolveReleaseBuildProduct(reader, request);
-  validateRepositoryCapability(manifest.target_repository, repositoryPolicy, "release-target");
   if (follows_text !== null) {
     await verifyFollowPins(reader, {
       repository: request.source_repository,
@@ -377,29 +408,7 @@ async function main(): Promise<void> {
       policy: repositoryPolicy,
     });
   }
-
   const version = normalizeReleaseVersion(request.requested_version);
-
-  const runnerPolicy = parseRunnerPolicy(await readJson(process.argv[2] ?? "policies/runner.json"));
-  const matrix = manifest.builds.map((build) => {
-    const resolved = resolveRunnerProfile(runnerPolicy, build.runner_profile);
-    if (resolved.profile.trust_domain !== "sandbox") {
-      throw new CliError(
-        `Release build runner profile must use the sandbox trust domain: ${build.runner_profile}.`,
-        77
-      );
-    }
-    return {
-      id: build.id,
-      runner_profile: resolved.name,
-      runner_labels_json: JSON.stringify(resolved.profile.labels),
-      target: build.target,
-      setup_rust: build.setup_rust !== false,
-      script: build.script,
-      attest_asset: build.attest_asset,
-      acceptance_script: build.acceptance_script ?? "",
-    };
-  });
 
   await appendLines(process.env.GITHUB_OUTPUT, [
     `source_repository=${request.source_repository}`,
