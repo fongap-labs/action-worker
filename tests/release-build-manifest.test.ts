@@ -213,7 +213,7 @@ test("product acceptance script is optional and must stay within the product roo
   }
 });
 
-test("Chromium release builds fail closed until an GitHub-hosted larger builder is enabled", async () => {
+test("Chromium release builds fail closed until a GitHub-hosted larger builder is enabled", async () => {
   const policy = parseRunnerPolicy(JSON.parse(await readFile("policies/runner.json", "utf8")));
   const chromium = policy.profiles["windows-chromium-build"];
   assert.ok(chromium);
@@ -240,6 +240,6 @@ test("Chromium release builds fail closed until an GitHub-hosted larger builder 
   assert.match(workflow, /timeout-minutes: 360/);
   assert.match(workflow, /BROWSER_BUILD_SOURCE_BUILD_ENABLED:/);
   assert.match(workflow, /brave-source-build/);
-  assert.match(workflow, /node-version: '26\\.13\\.1'/);
-  assert.match(workflow, /pnpm@11\\.28\\.11/);
+  assert.match(workflow, /node-version: '26\.13\.1'/);
+  assert.match(workflow, /pnpm@11\.28\.11/);
 });
