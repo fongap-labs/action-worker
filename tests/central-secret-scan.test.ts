@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -11,7 +11,9 @@ import {
   scannerFailureReason,
   summarizeFindings,
   syntheticImportScanCommit,
+  syntheticImportScanCommitWithPinnedSource,
 } from "../scripts/central-secret-scan.ts";
+import { ensurePinnedImportSourceAvailable } from "../scripts/source-import-baselines.ts";
 
 const script = "scripts/central-secret-scan.ts";
 const sha = (character: string): string => character.repeat(40);
@@ -258,4 +260,64 @@ test("synthetic import scan compares only the pinned parent and the imported tre
     () => syntheticImportScanCommit(directory, "0".repeat(40), head),
     /pinned import commit/
   );
+});
+
+test("secret scan fetches the exact pinned source commit when an imported checkout lacks it", async (context) => {
+  const scratch = await mkdtemp(join(tmpdir(), "secret-import-source-"));
+  context.after(() => rm(scratch, { recursive: true, force: true }));
+  const sourceWork = join(scratch, "source-work");
+  const sourceBare = join(scratch, "source.git");
+  const target = join(scratch, "target");
+  await mkdir(sourceWork, { recursive: true });
+  await mkdir(target, { recursive: true });
+  const git = (directory: string, ...args: string[]) => {
+    const result = spawnSync("git", ["-C", directory, ...args], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+
+  git(sourceWork, "init", "-b", "main");
+  git(sourceWork, "config", "user.name", "Secret scan fixture");
+  git(sourceWork, "config", "user.email", "secret-scan@invalid");
+  await writeFile(join(sourceWork, "inherited.txt"), "pinned upstream content\n");
+  git(sourceWork, "add", "-A");
+  git(sourceWork, "commit", "-m", "pinned upstream");
+  const upstream = git(sourceWork, "rev-parse", "HEAD");
+  const initialized = spawnSync("git", ["init", "--bare", sourceBare], { encoding: "utf8" });
+  assert.equal(initialized.status, 0, initialized.stderr);
+  git(sourceWork, "remote", "add", "fixture", sourceBare);
+  git(sourceWork, "push", "fixture", "main");
+
+  git(target, "init", "-b", "delta-import");
+  git(target, "config", "user.name", "Secret scan fixture");
+  git(target, "config", "user.email", "secret-scan@invalid");
+  await writeFile(join(target, "inherited.txt"), "pinned upstream content\n");
+  await writeFile(join(target, "delta.txt"), "Delta-owned content\n");
+  git(target, "add", "-A");
+  git(target, "commit", "-m", "Delta import");
+  const head = git(target, "rev-parse", "HEAD");
+  const bootstrap = "a".repeat(40);
+  let ensured = false;
+
+  const scanHead = syntheticImportScanCommitWithPinnedSource(
+    target,
+    bootstrap,
+    upstream,
+    head,
+    (root, actualBootstrap) => {
+      assert.equal(root, target);
+      assert.equal(actualBootstrap, bootstrap);
+      ensured = true;
+      return ensurePinnedImportSourceAvailable(root, {
+        bootstrapSha: actualBootstrap,
+        upstreamSha: upstream,
+        sourceRepository: sourceBare,
+      });
+    }
+  );
+
+  assert.equal(ensured, true);
+  assert.equal(git(target, "rev-parse", "--verify", `${upstream}^{commit}`), upstream);
+  assert.equal(git(target, "show", "-s", "--format=%P", scanHead), upstream);
+  assert.equal(git(target, "diff", "--name-only", upstream, scanHead), "delta.txt");
 });
