@@ -136,7 +136,7 @@ export async function auditRepositoryMain(
   main_sha: string;
   pr_number: number;
   pr_head_sha: string;
-  source?: "delta-history-migration";
+  source?: "delta-history-migration" | "delta-clean-root";
 }> {
   const repositoryValue = await reader.get(`repos/${repository}`);
   const defaultBranch = getJsonString(repositoryValue, "default_branch");
@@ -264,9 +264,11 @@ async function main(): Promise<void> {
           mainSha,
           statusToken,
           "success",
-          provenance.source === "delta-history-migration"
-            ? "Trusted Delta one-time history migration (original PR #9)"
-            : `Trusted main write via PR #${provenance.pr_number}`,
+          provenance.source === "delta-clean-root"
+            ? "Verified Delta initialization baseline (no PR; two-file root)"
+            : provenance.source === "delta-history-migration"
+              ? "Trusted Delta one-time history migration (original PR #9)"
+              : `Trusted main write via PR #${provenance.pr_number}`,
           runUrl
         );
       }
@@ -300,7 +302,7 @@ async function main(): Promise<void> {
       }
       // An audited ancestry rewrite is not an ordinary squash merge. Do not
       // re-label original PR/parent statuses as if the rewritten SHAs were merges.
-      if (provenance.source !== "delta-history-migration") {
+      if (!provenance.source) {
         const restored = await reconcileMisattributedMainStatuses(
           reader,
           repository,
@@ -342,9 +344,11 @@ async function main(): Promise<void> {
         main_sha: mainSha,
         state: "success",
         detail:
-          provenance.source === "delta-history-migration"
-            ? "Verified Delta one-time ancestry migration"
-            : `PR #${provenance.pr_number}`,
+          provenance.source === "delta-clean-root"
+            ? "Verified Delta initial two-file root"
+            : provenance.source === "delta-history-migration"
+              ? "Verified Delta one-time ancestry migration"
+              : `PR #${provenance.pr_number}`,
       });
     } catch (error) {
       const detail =

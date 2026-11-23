@@ -249,6 +249,22 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+          # The reviewed Delta reinitialization contains only README and LICENSE.
+          # Verify its exact immutable Git tree instead of falsely reporting app tests.
+          # No other root or repository may use this non-app baseline check.
+          if [[ "$TARGET_REPOSITORY" == "fongap-labs/delta" &&
+                "$CENTRAL_CI_BASE_SHA" == "96d36e875dcd24a28926b9993843ddac9ed11a8f" &&
+                "$CENTRAL_CI_HEAD_SHA" == "96d36e875dcd24a28926b9993843ddac9ed11a8f" &&
+                "$CENTRAL_CI_PR_NUMBER" == "0" &&
+                "$TARGET_PRIVATE" == "false" ]]; then
+            if [[ "$CENTRAL_CI_SHARD" != "all" ]]; then
+              echo "::error::The reviewed Delta root cannot declare CI shards." >&2
+              exit 65
+            fi
+            node "$CENTRAL_CI_AW_ROOT/scripts/delta-clean-root.ts" \
+              "$TARGET_REPOSITORY" "$CENTRAL_CI_HEAD_SHA" "$GITHUB_WORKSPACE/target"
+            exit 0
+          fi
           # The immutable first-import base contains an empty-repository placeholder CI.
           # Invoke the centrally trusted real build after the existing scan and
           # engineering ownership gates. Only this exact public import may use it.
