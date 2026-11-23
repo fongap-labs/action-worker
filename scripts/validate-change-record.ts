@@ -14,7 +14,6 @@ import {
   handleError,
   isMain,
   readJson,
-  runCommand,
   runText,
 } from "./runtime-command.ts";
 import { assertEnglishText, containsHan } from "./validate-engineering-language.ts";
