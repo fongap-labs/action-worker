@@ -317,9 +317,11 @@ test("owner-bound transport rejects other repositories, wrong account and unsign
   );
 });
 
-
 test("Skill promotion reads the renamed Delta Code compiled entrypoints", () => {
-  const source = readFileSync(new URL("../scripts/skill-proposal-advance.ts", import.meta.url), "utf8");
+  const source = readFileSync(
+    new URL("../scripts/skill-proposal-advance.ts", import.meta.url),
+    "utf8"
+  );
   assert.ok(source.includes("packages/delta-code/lib/delta-code-repository/github-operations.js"));
   assert.ok(source.includes("packages/delta-code/lib/delta-code-adapter/contracts/github.js"));
   assert.ok(!source.includes("packages/dsh-delta-code/"));
