@@ -1,7 +1,7 @@
 /** Read-only and failure-neutral diagnostics for trusted Delta Windows CI.
  * Target-maintained JSON is never accepted as CI evidence or printed verbatim.
  */
-import { lstatSync, readFileSync, readdirSync } from "node:fs";
+import { lstatSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 interface Timing {
