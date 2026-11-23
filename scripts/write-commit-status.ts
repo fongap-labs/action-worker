@@ -1,7 +1,7 @@
 import { requireToken } from "./control-token.ts";
-import { runGithubCli } from "./github-api.ts";
 import { CliError, handleError, isMain } from "./runtime-command.ts";
 import { signedStatusDescription } from "./status-attestation.ts";
+import { postGithubCommitStatus } from "./status-write-retry.ts";
 
 async function main(): Promise<void> {
   const [repository = "", sha = "", rawState = "", context = "", description = "", targetUrl = ""] =
@@ -36,23 +36,15 @@ async function main(): Promise<void> {
     description: statusDescription,
     targetUrl,
   });
-  await runGithubCli(
-    [
-      "api",
-      "--method",
-      "POST",
-      `repos/${repository}/statuses/${sha}`,
-      "-f",
-      `state=${state}`,
-      "-f",
-      `context=${context}`,
-      "-f",
-      `description=${signedDescription}`,
-      "-f",
-      `target_url=${targetUrl}`,
-    ],
-    apiToken
-  );
+  await postGithubCommitStatus({
+    repository,
+    sha,
+    token: apiToken,
+    state,
+    context,
+    description: signedDescription,
+    targetUrl,
+  });
 }
 
 if (isMain(import.meta.url)) {
