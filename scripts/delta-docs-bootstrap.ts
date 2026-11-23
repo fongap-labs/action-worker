@@ -44,11 +44,20 @@ export function parseDocsTree(output: string): GitEntry[] {
     });
 }
 
-export function verifyDeltaDocsTree(entries: GitEntry[], changes: string[], trustedBridgeBlobSha = ""): void {
+export function verifyDeltaDocsTree(
+  entries: GitEntry[],
+  changes: string[],
+  trustedBridgeBlobSha = ""
+): void {
   const paths = new Set<string>();
   for (const entry of entries) {
     if (
-      (!allowedFiles.has(entry.path) && !(entry.path === bridgePath && trustedBridgeBlobSha !== "" && entry.sha === trustedBridgeBlobSha)) ||
+      (!allowedFiles.has(entry.path) &&
+        !(
+          entry.path === bridgePath &&
+          trustedBridgeBlobSha !== "" &&
+          entry.sha === trustedBridgeBlobSha
+        )) ||
       paths.has(entry.path) ||
       entry.mode !== "100644" ||
       entry.type !== "blob" ||

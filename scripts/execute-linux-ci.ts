@@ -10,10 +10,12 @@ import { verifyBridgeBootstrap } from "./verify-bridge-bootstrap.ts";
 const bootstrapCommand = ["bash", "{control_root}/.github/scripts/central-ci.sh", "{target_root}"];
 
 export function isDeltaBridgeBootstrapChange(paths: readonly string[]): boolean {
-  return paths.length === 2 &&
+  return (
+    paths.length === 2 &&
     new Set(paths).size === 2 &&
     paths.includes(".github/workflows/notify-action-worker.yml") &&
-    paths.includes("CHANGELOG.md");
+    paths.includes("CHANGELOG.md")
+  );
 }
 
 export type LinuxManifestChoice =
@@ -143,7 +145,10 @@ export async function executeManifestLinuxCi(
       }
       if (isDeltaBridgeBootstrapChange(diff.stdout.split("\n").filter(Boolean))) {
         if (shard !== "all" || process.env.TARGET_PRIVATE !== "false") {
-          throw new CliError("Trusted Delta bridge onboarding requires an unsharded public target.", 65);
+          throw new CliError(
+            "Trusted Delta bridge onboarding requires an unsharded public target.",
+            65
+          );
         }
         await verifyBridgeBootstrap(
           targetRoot, base, head, resolve(dirname(fileURLToPath(import.meta.url)), "..")
