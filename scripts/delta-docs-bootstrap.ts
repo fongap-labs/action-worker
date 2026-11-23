@@ -87,14 +87,18 @@ export function verifyDeltaDocsTree(
 
 export function verifyDeltaDocsTrustAnchor(
   controlSha: string,
-  executingSha: string,
+  base: string,
+  head: string,
+  prNumber: string,
   rootTree: string
 ): void {
-  if (
-    !shaPattern.test(controlSha) ||
-    controlSha !== executingSha ||
-    rootTree !== deltaCleanRootTreeSha
-  ) {
+  // The source-owned ci-control checkout is the PR base for pull requests and
+  // the exact main HEAD for ref checks. It is never the Action Worker commit.
+  if (!/^(0|[1-9][0-9]*)$/.test(prNumber)) {
+    throw new CliError("Delta docs central CI PR identity is invalid.", 65);
+  }
+  const expectedSha = prNumber === "0" ? head : base;
+  if (!shaPattern.test(controlSha) || controlSha !== expectedSha || rootTree !== deltaCleanRootTreeSha) {
     throw new CliError("Delta docs control checkout or trusted root does not match.", 65);
   }
 }
@@ -123,13 +127,16 @@ export function verifyDeltaDocsBootstrap(
   }
   const workerRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const controlSha = git(controlRoot, ["rev-parse", "HEAD"]).toString("utf8").trim();
-  const executingSha = git(workerRoot, ["rev-parse", "HEAD"]).toString("utf8").trim();
   const rootTree = git(targetRoot, ["rev-parse", `${deltaCleanRootSha}^{tree}`])
     .toString("utf8")
     .trim();
-  // The trusted Action Worker checkout and the Delta PR base belong to different
-  // repositories. Bind the control checkout to the executing script instead.
-  verifyDeltaDocsTrustAnchor(controlSha, executingSha, rootTree);
+  verifyDeltaDocsTrustAnchor(
+    controlSha,
+    base,
+    head,
+    process.env.CENTRAL_CI_PR_NUMBER ?? "",
+    rootTree
+  );
   for (const pair of [
     [deltaCleanRootSha, base],
     [base, head],
