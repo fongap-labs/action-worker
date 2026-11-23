@@ -31,9 +31,9 @@
     },
     "windows-chromium-build": {
       "enabled": false,
-      "backend": "self-hosted",
+      "backend": "github-hosted",
       "trust_domain": "sandbox",
-      "labels": ["self-hosted", "Windows", "X64", "aw-chromium-build"],
+      "labels": ["aw-chromium-build"],
       "fallback_profiles": []
     },
     "trusted-deploy": {
