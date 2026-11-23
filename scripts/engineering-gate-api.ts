@@ -232,13 +232,13 @@ export async function verifyPinnedIdenticalRoot(
   base: string,
   head: string,
   get: (path: string) => Promise<unknown>,
-  targetIsPublic: boolean
+  isTargetPublic: boolean
 ): Promise<void> {
   if (
     repository !== "fongap-labs/delta" ||
     head !== DELTA_IDENTICAL_ROOT ||
     base !== head ||
-    !targetIsPublic
+    !isTargetPublic
   ) {
     throw new CliError("Identical base/head has no approved verified-root baseline.", 65);
   }
@@ -280,7 +280,7 @@ export async function checkGithubEngineeringOwnership(
     base: string,
     head: string
   ) => Promise<ChangedFile[]> = fetchPublicGitInventory,
-  targetIsPublic = process.env.TARGET_PRIVATE === "false"
+  isTargetPublic = process.env.TARGET_PRIVATE === "false"
 ): Promise<void> {
   if (!REPOSITORY.test(repository) || !SHA.test(base) || !SHA.test(head)) {
     throw new CliError("Invalid immutable engineering gate inputs.", 65);
@@ -289,12 +289,12 @@ export async function checkGithubEngineeringOwnership(
   const diffBase = engineeringOwnershipDiffBase(repository, base);
   let files: ChangedFile[];
   if (base === head) {
-    await verifyPinnedIdenticalRoot(repository, base, head, get, targetIsPublic);
+    await verifyPinnedIdenticalRoot(repository, base, head, get, isTargetPublic);
     // Both immutable commit trees are identical, including all active workflows.
     files = [];
   } else if (diffBase !== base) {
     // Compare cannot represent unrelated imported histories. A pinned Git tree diff can.
-    if (!targetIsPublic) {
+    if (!isTargetPublic) {
       throw new CliError("Large Git inventory requires a verified public target.", 65);
     }
     files = await filterInheritedWorkflowDeletions(
@@ -331,7 +331,7 @@ export async function checkGithubEngineeringOwnership(
       throw new CliError("GitHub comparison did not return a file inventory.", 65);
     }
     if (result.files.length >= 300) {
-      if (!targetIsPublic) {
+      if (!isTargetPublic) {
         throw new CliError("GitHub comparison exceeds the private inventory file limit.", 65);
       }
       files = await fetchPublicDiff(repository, base, head);
