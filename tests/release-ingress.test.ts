@@ -366,9 +366,7 @@ test("plugins repository refuses automatic release versions and non-manual dispa
     () => enforcePluginsManualVersion(repo, "1.2.3", "repository_dispatch"),
     /require manual workflow_dispatch/
   );
-  assert.doesNotThrow(() =>
-    enforcePluginsManualVersion(repo, "1.2.3-beta.2", "workflow_dispatch")
-  );
+  assert.doesNotThrow(() => enforcePluginsManualVersion(repo, "1.2.3-beta.2", "workflow_dispatch"));
   assert.doesNotThrow(() =>
     enforcePluginsManualVersion("fongap-labs/example", "", "repository_dispatch")
   );

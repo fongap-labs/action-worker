@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 预备共用插件仓库由 dsh-plugin 更名为 plugins 的受控迁移，统一中央 CI 访问授权、手动版本约束、正式版 npm 发布与补发身份核验，并同步测试及发布文档；正式更名及迁移合并前维持现网发布链路。
+
 - 修复: 对 Delta 2026-11-23 的全新双文件根提交进行精确 SHA、Git 树及零父提交核验，恢复中央 Main Write Guard 和初始化静态 CI 的可信识别；不放行其他直接写入、不伪造应用构建结果。
 
 - 修复: 将中央 dsh-plugin 集成测试中旧的 Delta Code、Delta Desktop、Delta Suite 包路径与插件断言统一为 delta-*，保持测试内容和权限验证逻辑不变。
