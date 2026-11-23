@@ -346,10 +346,11 @@ test("ported governance rules are present in the machine-read skills", async () 
   }
 });
 
-test("composeAgentPrompt concatenates CLAUDE.md and skill files", async () => {
+test("composeAgentPrompt concatenates AGENTS.md and skill files", async () => {
   const tmpRoot = await mkdtemp(join(tmpdir(), "prompt-test-"));
   try {
-    await writeFile(join(tmpRoot, "CLAUDE.md"), "# Governance Entry\n\nFollow these rules.");
+    await writeFile(join(tmpRoot, "AGENTS.md"), "# Governance Entry\n\nFollow these rules.");
+    await writeFile(join(tmpRoot, "CLAUDE.md"), "Redirect only.");
     await writeSkill(
       tmpRoot,
       "skills/agent-execution/SKILL.md",
@@ -365,8 +366,9 @@ test("composeAgentPrompt concatenates CLAUDE.md and skill files", async () => {
       "skills/agent-execution/SKILL.md",
       "skills/bug-fix/SKILL.md",
     ]);
-    assert.ok(prompt.includes("--- Governance Entry (CLAUDE.md) ---"));
+    assert.ok(prompt.includes("--- Governance Entry (AGENTS.md) ---"));
     assert.ok(prompt.includes("Follow these rules."));
+    assert.ok(!prompt.includes("Redirect only."));
     assert.ok(prompt.includes("--- Skill: skills/agent-execution/SKILL.md ---"));
     assert.ok(prompt.includes("--- Skill: skills/bug-fix/SKILL.md ---"));
   } finally {
@@ -374,8 +376,8 @@ test("composeAgentPrompt concatenates CLAUDE.md and skill files", async () => {
   }
 });
 
-test("composeAgentPrompt works without CLAUDE.md", async () => {
-  const tmpRoot = await mkdtemp(join(tmpdir(), "prompt-no-claude-"));
+test("composeAgentPrompt works without AGENTS.md", async () => {
+  const tmpRoot = await mkdtemp(join(tmpdir(), "prompt-no-agents-"));
   try {
     await writeSkill(tmpRoot, "skills/test/SKILL.md", "name: test\nalways: true");
     const prompt = await composeAgentPrompt(tmpRoot, ["skills/test/SKILL.md"]);

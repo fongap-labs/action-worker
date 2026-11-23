@@ -19,9 +19,9 @@ export async function composeAgentPrompt(
 ): Promise<string> {
   const parts: string[] = [];
 
-  const claude = await readIfExists(join(controlRoot, "CLAUDE.md"));
-  if (claude) {
-    parts.push("--- Governance Entry (CLAUDE.md) ---", claude.trimEnd());
+  const agents = await readIfExists(join(controlRoot, "AGENTS.md"));
+  if (agents) {
+    parts.push("--- Governance Entry (AGENTS.md) ---", agents.trimEnd());
   }
 
   for (const skillPath of skillPaths) {

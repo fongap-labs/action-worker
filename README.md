@@ -47,7 +47,7 @@ Action Worker 是 Fongap Labs 的 GitHub 中央控制平面，负责任务分发
 
 - [文档索引](docs/README.md) · [架构](docs/ARCHITECTURE.md) · [共用治理](docs/01_SHARED_GOVERNANCE.md)
 - [主分支写入保护](docs/07_MAIN_WRITE_GUARD.md) · [安全策略](SECURITY.md) · [开发指南](docs/DEVELOPMENT_GUIDE.md)
-- [Agent 入口](CLAUDE.md) · [技能索引](skills/README.md) · [更新日志](CHANGELOG.md)
+- [Agent 入口](AGENTS.md) · [技能索引](skills/README.md) · [更新日志](CHANGELOG.md)
 
 代码变更采用 `feat`、`fix`、`chore` 分类；治理变更必须同时满足机器合同、策略与 CI 校验。单人维护不以额外人工审查代替 CI 门禁。
 

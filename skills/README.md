@@ -75,7 +75,7 @@ Step 2: Scan skills/ directory
          Based on the declaration, it decides whether to include that skill
 
 Step 3: Assemble prompt
-         The selected SKILL.md files + CLAUDE.md are concatenated into one system prompt
+         The selected SKILL.md files + AGENTS.md are concatenated into one system prompt
          The prompt is written to a file and exposed via the AGENT_SYSTEM_PROMPT_PATH env var
 
 Step 4: Agent runs
