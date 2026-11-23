@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 维护: 为 Action Worker 合同测试复用现有 npm 锁文件缓存，保留冻结安装、完整测试和合并门禁。
+
 - 修复: 缓存写入增加 Delta 当前 main SHA 远端校验，阻止普通 ref 任务写入共享依赖缓存，保留完整 Windows CI 验收。
 
 - 维护: Delta Windows CI 仅读取锁文件限定的 pnpm 11 缓存，仅受信任主分支通过完整验收后写缓存；仍执行冻结安装、打包和启动验收。
