@@ -16,6 +16,7 @@ import {
 } from "./central-engineering-gate.ts";
 import { decodeGithubContent, getGithubJson, isJsonRecord } from "./github-api.ts";
 import { CliError, handleError, isMain, runCommand, runText } from "./runtime-command.ts";
+import { isDeltaCleanRootTarget, verifyDeltaCleanRootCommit } from "./delta-clean-root.ts";
 
 export { filterVerifiedPluginNameOnlyChanges };
 
@@ -349,8 +350,16 @@ export async function checkGithubEngineeringOwnership(
   const diffBase = engineeringOwnershipDiffBase(repository, base);
   let files: ChangedFile[];
   if (base === head) {
-    await verifyPinnedIdenticalRoot(repository, base, head, get, isTargetPublic);
-    // Both immutable commit trees are identical, including all active workflows.
+    if (isDeltaCleanRootTarget(repository, head) && isTargetPublic) {
+      verifyDeltaCleanRootCommit(
+        repository,
+        head,
+        await get("repos/" + repository + "/git/commits/" + head)
+      );
+    } else {
+      await verifyPinnedIdenticalRoot(repository, base, head, get, isTargetPublic);
+    }
+    // A pinned root has no delta; ownership of its immutable tree is explicitly reviewed.
     files = [];
   } else if (diffBase !== base) {
     // Compare cannot represent unrelated imported histories. A pinned Git tree diff can.
