@@ -5,7 +5,7 @@ import {
   collectPrivateConsumers,
   privateCompatibilityFailures,
 } from "../scripts/private-downstream-compatibility.ts";
-import { parseRunnerPolicy } from "../scripts/runner-policy.ts";
+import { parseRunnerPolicy, resolveRunnerProfile } from "../scripts/runner-policy.ts";
 
 const runnerPolicy = parseRunnerPolicy(JSON.parse(await readFile("policies/runner.json", "utf8")));
 
@@ -94,4 +94,89 @@ test("private inventory refuses truncated trees rather than silently claiming co
     ),
     /truncated/
   );
+});
+
+test("reserved Chromium build profile does not break private inventory but cannot release", () => {
+  const profile = runnerPolicy.profiles["windows-chromium-build"];
+  assert.ok(profile);
+  assert.equal(profile.enabled, false);
+  assert.deepEqual(profile.fallback_profiles, []);
+
+  const scan = {
+    repositories: 1,
+    consumers: [
+      {
+        repository: "fongap-labs/private-app",
+        path: "projects/browser/release.manifest.json#windows-x64",
+        runner_profile: "windows-chromium-build",
+      },
+    ],
+  };
+  assert.deepEqual(privateCompatibilityFailures(scan, runnerPolicy), []);
+  assert.throws(
+    () => resolveRunnerProfile(runnerPolicy, "windows-chromium-build"),
+    /no enabled backend/
+  );
+});
+
+test("private inventory still rejects missing runners and reserved profiles with wrong trust", () => {
+  const scan = {
+    repositories: 1,
+    consumers: [
+      {
+        repository: "fongap-labs/private-app",
+        path: "projects/browser/release.manifest.json#windows-x64",
+        runner_profile: "unconfigured-build",
+      },
+      {
+        repository: "fongap-labs/private-app",
+        path: "projects/backend/deploy.json",
+        runner_profile: "windows-chromium-build",
+      },
+    ],
+  };
+  assert.equal(privateCompatibilityFailures(scan, runnerPolicy).length, 2);
+});
+
+test("disabled runners with a fallback still must resolve an enabled compatible backend", () => {
+  const profiles = {
+    ...runnerPolicy.profiles,
+    "windows-chromium-build": {
+      ...runnerPolicy.profiles["windows-chromium-build"],
+      enabled: false,
+      fallback_profiles: ["trusted-deploy"],
+    },
+  };
+  // A fallback crossing trust domains remains forbidden by the policy parser.
+  assert.throws(
+    () => parseRunnerPolicy({ schema_version: 1, profiles }),
+    /cannot cross trust domains/
+  );
+
+  const policy = parseRunnerPolicy({
+    schema_version: 1,
+    profiles: {
+      ...runnerPolicy.profiles,
+      "windows-chromium-build": {
+        ...runnerPolicy.profiles["windows-chromium-build"],
+        enabled: false,
+        fallback_profiles: ["windows-build"],
+      },
+      "windows-build": {
+        ...runnerPolicy.profiles["windows-build"],
+        enabled: false,
+      },
+    },
+  });
+  const scan = {
+    repositories: 1,
+    consumers: [
+      {
+        repository: "fongap-labs/private-app",
+        path: "projects/browser/release.manifest.json#windows-x64",
+        runner_profile: "windows-chromium-build",
+      },
+    ],
+  };
+  assert.equal(privateCompatibilityFailures(scan, policy).length, 1);
 });

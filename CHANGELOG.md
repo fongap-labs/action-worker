@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 组织私有仓库兼容性检查将已明确声明、暂未启用且无回退的 Runner Profile 视为合法预留声明，避免 BrowserBuild 在大型 GitHub Runner 尚未开通时导致主分支接入审计红叉；实际发布仍强制拒绝未启用 Runner。
+
 - 修复: BrowserBuild 的大规模 Windows 源码编译改走 GitHub 托管的 Larger Runner，而非自托管主机；中央流程显式准备 Node 26.13.1、pnpm 11.28.11 与隔离临时构建目录。
 
 - 修复: BrowserBuild 预留无通用托管机回退的独立 Chromium Windows 源码构建 Runner（默认关闭）；中央发布只对该 Runner 注入受管构建卷及审核许可证路径，并允许完整源码构建所需的更长时限。
