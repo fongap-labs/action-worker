@@ -12,14 +12,8 @@
       "enabled": false,
       "backend": "self-hosted",
       "trust_domain": "control",
-      "labels": [
-        "self-hosted",
-        "linux",
-        "aw-control"
-      ],
-      "fallback_profiles": [
-        "control-standard"
-      ]
+      "labels": ["self-hosted", "linux", "aw-control"],
+      "fallback_profiles": ["control-standard"]
     },
     "linux-standard": {
       "enabled": true,
