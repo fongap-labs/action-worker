@@ -36,7 +36,10 @@ test("PR cache writes are forbidden; only a trusted main CI may save", () => {
   assert.match(windows, /steps\.delta_main_cache_seed\.outputs\.eligible == 'true'/);
   assert.match(windows, /EXPECTED_HEAD_SHA: \$\{\{ inputs\.head_sha \}\}/);
   assert.match(windows, /rev-parse HEAD/);
-  assert.match(windows, /ls-remote https:\/\/github\.com\/fongap-labs\/delta\.git refs\/heads\/main/);
+  assert.match(
+    windows,
+    /ls-remote https:\/\/github\.com\/fongap-labs\/delta\.git refs\/heads\/main/
+  );
   assert.match(windows, /\$match\.Groups\[1\]\.Value -cne \$expected/);
   const restore = windows.indexOf("- name: Restore Delta Windows pnpm store");
   const run = windows.indexOf("- name: Run trusted Windows CI");
