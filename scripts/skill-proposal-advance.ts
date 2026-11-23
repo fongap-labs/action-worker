@@ -203,7 +203,7 @@ async function main(): Promise<void> {
   const root = await realpath(resolve(sourceRoot));
   const builtPath = resolve(
     root,
-    "packages/dsh-delta-code/lib/delta-code-repository/github-operations.js"
+    "packages/delta-code/lib/delta-code-repository/github-operations.js"
   );
   const path = await realpath(builtPath);
   if (!path.startsWith(root + sep)) {
@@ -220,7 +220,7 @@ async function main(): Promise<void> {
   };
   const errorsPath = resolve(
     root,
-    "packages/dsh-delta-code/lib/delta-code-adapter/contracts/github.js"
+    "packages/delta-code/lib/delta-code-adapter/contracts/github.js"
   );
   const errorsModule = (await import(pathToFileURL(await realpath(errorsPath)).href)) as {
     GitHubApiFailure: GithubErrorCtor;
