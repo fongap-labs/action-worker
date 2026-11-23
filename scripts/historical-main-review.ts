@@ -27,6 +27,8 @@ export type HistoricalMainReview = {
   root_incident_sha: string;
   pr_number: number;
   approval_issue: number;
+  /** Only the exact audited post-merge cancellation may use this immutable run receipt. */
+  cancelled_governance_run_id?: number;
 };
 
 const shaPattern = /^[0-9a-f]{40}$/;
@@ -91,7 +93,8 @@ export async function verifyCompletedGovernance(
   status: unknown,
   validationStatus: unknown,
   mergedAt: number,
-  controlRepository: string
+  controlRepository: string,
+  allowedCancelledGovernanceRunId?: number
 ): Promise<void> {
   const runUrl = getJsonString(status, "target_url");
   requireFact(
@@ -127,6 +130,54 @@ export async function verifyCompletedGovernance(
         "successful governance run must verify the original signed status"
       );
     }
+    return;
+  }
+  // A cancelled workflow cannot ordinarily attest a merged PR. The single, SHA-pinned
+  // Delta incident below is different: its signed gates and real CI succeeded before
+  // GitHub merged, and cancellation occurred only in post-gate review publication.
+  // Never accept a pre-gate cancellation, an unrelated run, or a failed step.
+  if (getJsonString(run, "conclusion") === "cancelled") {
+    requireFact(
+      allowedCancelledGovernanceRunId === runId &&
+        Number.isFinite(mergedAt) &&
+        asTimestamp(getJsonString(run, "run_started_at")) <= mergedAt,
+      "cancelled governance must match an explicitly reviewed post-merge run"
+    );
+    const response = await reader.get(
+      `repos/${controlRepository}/actions/runs/${runId}/jobs?per_page=100`
+    );
+    const jobs = getJsonArray(response, "jobs").filter(isJsonRecord);
+    const governance = jobs.filter((job) => getJsonString(job, "name") === "PR Governance");
+    const otherCancelled = jobs.filter(
+      (job) => getJsonString(job, "conclusion") === "cancelled" &&
+        getJsonString(job, "name") !== "PR Governance"
+    );
+    requireFact(
+      governance.length === 1 &&
+        getJsonString(governance[0], "conclusion") === "cancelled" &&
+        asTimestamp(getJsonString(governance[0], "completed_at")) >= mergedAt &&
+        otherCancelled.length === 1 &&
+        getJsonString(otherCancelled[0], "name") === "Automatic squash merge (operational)" &&
+        jobs.every((job) => getJsonString(job, "conclusion") !== "failure"),
+      "cancelled governance jobs must match the exact post-merge race"
+    );
+    const steps = getJsonArray(governance[0], "steps").filter(isJsonRecord);
+    const cancelledSteps = steps.filter((step) => getJsonString(step, "conclusion") === "cancelled");
+    requireFact(
+      cancelledSteps.length === 1 &&
+        getJsonString(cancelledSteps[0], "name") === "Publish PR review" &&
+        asTimestamp(getJsonString(cancelledSteps[0], "completed_at")) >= mergedAt &&
+        steps.every((step) => getJsonString(step, "conclusion") !== "failure") &&
+        ["Update final gate", "Update central merge gate"].every((name) =>
+          steps.some(
+            (step) =>
+              getJsonString(step, "name") === name &&
+              getJsonString(step, "conclusion") === "success" &&
+              asTimestamp(getJsonString(step, "completed_at")) <= mergedAt
+          )
+        ),
+      "both signed gates must precede merge and only review publication may be cancelled later"
+    );
     return;
   }
   // A failed governance workflow is never accepted merely because its status was green.
@@ -195,6 +246,17 @@ export async function reconcileHistoricalMainGuards(
       "invalid or duplicate historical review case"
     );
     seen.add(item.merge_sha);
+    if (item.cancelled_governance_run_id !== undefined) {
+      requireFact(
+        item.repository === "fongap-labs/delta" &&
+          item.merge_sha === "b6e23bae43976e28b7c3f46c6b65041900a777be" &&
+          item.root_incident_sha === item.merge_sha &&
+          item.pr_number === 83 &&
+          item.approval_issue === 87 &&
+          item.cancelled_governance_run_id === 45116834848,
+        "cancelled governance receipt is not the exact audited Delta incident"
+      );
+    }
     const currentStatus = await reader.get(`repos/${repository}/commits/${item.merge_sha}/status`);
     const guard = latestCiStatus(currentStatus, "Main Write Guard");
     if (
@@ -279,7 +341,8 @@ export async function reconcileHistoricalMainGuards(
       gates[0],
       gates[2],
       mergeTime,
-      controlRepository
+      controlRepository,
+      item.cancelled_governance_run_id
     );
     toPublish.push({
       item,
