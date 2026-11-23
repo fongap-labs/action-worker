@@ -37,6 +37,36 @@ if (
 const migrationCutoff = Date.parse(getJsonString(migration, "recorded_before"));
 const migrationFingerprints = new Set(migration.fingerprints as string[]);
 
+// Closed, SHA-pinned repository rename receipt. No unsigned or cross-SHA acceptance.
+type RenamedSubject = {
+  repository: string;
+  legacy_repository: string;
+  sha: string;
+  valid_before: string;
+  contexts: string[];
+};
+const renameReceipts: unknown = migration.renamed_status_subjects ?? [];
+if (
+  !Array.isArray(renameReceipts) ||
+  renameReceipts.length > 10 ||
+  !renameReceipts.every(
+    (item) =>
+      isJsonRecord(item) &&
+      repositoryPattern.test(getJsonString(item, "repository")) &&
+      repositoryPattern.test(getJsonString(item, "legacy_repository")) &&
+      shaPattern.test(getJsonString(item, "sha")) &&
+      Number.isFinite(Date.parse(getJsonString(item, "valid_before"))) &&
+      Array.isArray(item.contexts) &&
+      item.contexts.length > 0 &&
+      item.contexts.every((context) =>
+        ["PR Governance", "CI Evidence", "validate-merge"].includes(context)
+      )
+  )
+) {
+  throw new CliError("::error::Invalid repository rename status migration receipts.", 65);
+}
+const renamedSubjects = renameReceipts as RenamedSubject[];
+
 function hasMigrationReceipt(
   status: Record<string, unknown>,
   subject: { repository: string; sha: string; context: string }
@@ -153,25 +183,36 @@ export function hasValidStatusAttestation(
   const keys = parseStatusSigningKeys(process.env.AW_STATUS_KEYRING ?? "");
   const keyId = match[1];
   const actual = Buffer.from(match[3], "base64url");
+  const repositories = [subject.repository];
+  const createdAt = Date.parse(getJsonString(status, "created_at"));
+  if (Number.isFinite(createdAt)) {
+    for (const entry of renamedSubjects) {
+      if (
+        entry.repository.toLowerCase() === subject.repository.toLowerCase() &&
+        entry.sha === subject.sha &&
+        entry.contexts.includes(subject.context) &&
+        createdAt < Date.parse(entry.valid_before)
+      ) {
+        repositories.push(entry.legacy_repository);
+      }
+    }
+  }
+  const matches = (key: string, repository: string, version: "aw1" | "aw2"): boolean => {
+    const payload = statusMessage({ ...statusInput, repository });
+    const signedPayload =
+      version === "aw2"
+        ? JSON.stringify(["action-worker-status-v2", keyId, Number(match[2]), payload])
+        : payload;
+    const expected = createHmac("sha256", key).update(signedPayload).digest();
+    return actual.length === expected.length && timingSafeEqual(actual, expected);
+  };
   if (keyId) {
     const key = keys?.keys[keyId];
-    if (!key) return false;
-    const expected = createHmac("sha256", key)
-      .update(
-        JSON.stringify([
-          "action-worker-status-v2",
-          keyId,
-          Number(match[2]),
-          statusMessage(statusInput),
-        ])
-      )
-      .digest();
-    return actual.length === expected.length && timingSafeEqual(actual, expected);
+    return Boolean(key && repositories.some((repository) => matches(key, repository, "aw2")));
   }
-  return (keys?.legacy_tokens ?? []).some((key) => {
-    const expected = createHmac("sha256", key).update(statusMessage(statusInput)).digest();
-    return actual.length === expected.length && timingSafeEqual(actual, expected);
-  });
+  return (keys?.legacy_tokens ?? []).some((key) =>
+    repositories.some((repository) => matches(key, repository, "aw1"))
+  );
 }
 
 /** Read only after validating the attestation: the attempt is part of the signed message. */
