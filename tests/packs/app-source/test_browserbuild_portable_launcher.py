@@ -1,7 +1,8 @@
 """Central Windows-only native check for the BrowserBuild portable launcher.
 
 Product PRs cannot modify the centrally owned CI entrypoint. The trusted pack
-runs within the existing Windows CI job, without executing a Chromium build.
+runs within the existing Windows CI job, checking and testing the Rust
+launcher without executing a Chromium build.
 """
 
 from __future__ import annotations
