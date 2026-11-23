@@ -31,7 +31,7 @@ production-deploy
 
 Profile 的具体集合由机器策略管理；业务仓库不得为某一个仓库创建 Profile。
 
-### 大型 Chromium 源码构建
+### 大型浏览器源码构建
 
 中央预留 `windows-chromium-build`：独立的 Windows x64 self-hosted sandbox Runner，用于 Brave/Chromium 等超出普通托管机磁盘和运行时间预算的源码构建。默认 **`enabled: false`，且无 `windows-build` 回退**。业务仓库只声明 Profile，不包含标签、主机名或目录路径。
 
