@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: Skill 自动准入改用 `plugins/packages/delta-code` 的当前编译入口并补充回归验证，修复插件仓库更名后的失效路径。
+
 - 修复: 统一共用插件仓库 `plugins` 的中央测试包路径与 `pack.json` 身份，保留原有 8 个 Node 用例文件及 Gate 清单，并增加仓库更名回归校验，确保 CI 不因旧 `dsh-plugin` 目录而跳过插件测试。
 
 - 修复: 共用插件仓库已由 dsh-plugin 更名为 plugins，统一中央 CI 访问授权、手动版本约束、正式版 npm 发布与补发身份核验，并同步测试及发布文档；迁移门禁完全通过前不得启动生产发布。
