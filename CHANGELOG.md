@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- 修复: 对 Delta #87 唯一核验的 PR #83 合并后取消运行增加严格时间线复核，需真实 CI、签名门禁及维护者独立 `/resolve` 才可按 SHA 复签 #83/#86/#88；不放宽任何其他取消运行或原始失败证据。
+
 - 修复: Delta 纯文档中央 CI 的受控源码快照需按执行场景精确绑定：PR 使用固定 base，main-ref 使用固定 HEAD；拒绝无效 PR 身份及异常 Git 树，不再跨仓库误比对 Action Worker 提交。
 
 - 修复: 中央 main CI 接收端在签名 intake 尚未结束时提前跳过而使 `CI Evidence` 长期 pending；改为限时等待同源可信调度结束，再执行原有完成态、成功态及 Main CI 工作验证，失败仍保持红灯。

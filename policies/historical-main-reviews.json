@@ -85,6 +85,28 @@
       "pr_number": 525,
       "approval_issue": 526,
       "root_incident_sha": "b283a6e69eccb42b55eecb971a800e52b40743bd"
+    },
+    {
+      "repository": "fongap-labs/delta",
+      "merge_sha": "b6e23bae43976e28b7c3f46c6b65041900a777be",
+      "pr_number": 83,
+      "approval_issue": 87,
+      "root_incident_sha": "b6e23bae43976e28b7c3f46c6b65041900a777be",
+      "cancelled_governance_run_id": 45116834848
+    },
+    {
+      "repository": "fongap-labs/delta",
+      "merge_sha": "e56e125bff1db5aa4c776649b3461ea915ad2b45",
+      "pr_number": 86,
+      "approval_issue": 87,
+      "root_incident_sha": "b6e23bae43976e28b7c3f46c6b65041900a777be"
+    },
+    {
+      "repository": "fongap-labs/delta",
+      "merge_sha": "3effeb139e9af5198bfa5d380b1d3457caea4fcb",
+      "pr_number": 88,
+      "approval_issue": 87,
+      "root_incident_sha": "b6e23bae43976e28b7c3f46c6b65041900a777be"
     }
   ],
   "post_merge_remediations": [
