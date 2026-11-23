@@ -221,7 +221,7 @@ test("automatic npm workflow is separate and blocks the formal tag until verifie
   assert.deepEqual(npm.on?.repository_dispatch?.types, ["run-npm-release"]);
   assert.match(npmSource, /fongap-bot\[bot\]/);
   assert.match(target, /isStableNpmRelease\(/);
-  assert.ok(target.includes('source === "fongap-labs/dsh-plugin"'));
+  assert.ok(target.includes('source === "fongap-labs/plugins"'));
   assert.match(source, /await dispatchAndWaitForNpm\(/);
   assert.ok(
     source.indexOf("await dispatchAndWaitForNpm(") < source.indexOf("isPublishAttempted = true;")
