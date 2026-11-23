@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -22,6 +23,93 @@ const DELTA_UPSTREAM = "2e39e70496aa02986ca6a820c5d497e816b69d7e";
 // Only the named root is eligible; all future orphan history changes fail closed.
 const DELTA_VERIFIED_MAIN = "2561c645d713b425eda6926767661339ed505acf";
 const DELTA_IDENTICAL_ROOT = "a199379ac6cdf3ad3bddc8c1f2874cbd1b818f25";
+
+// A single, verified package-identity migration from the exact accepted plugin baseline.
+// New tests, changed test behavior, and CI launcher changes other than this literal rename
+// still fail the normal ownership gate. The exception expires as soon as main advances.
+const PLUGIN_RENAME_BASE = "f6f265ae211cfa99830d214c3fba3319e5a5ce1c";
+const PLUGIN_RENAME_REPOSITORY = "fongap-labs/dsh-plugin";
+const LEGACY_PLUGIN_PREFIX = ["dsh", "delta"].join("-") + "-";
+const NEW_PLUGIN_TEST = /^tests\/delta-(?:code|desktop|suite)(?:-[a-z0-9-]+)?[.]test[.]mjs$/;
+const EXISTING_PLUGIN_CI = new Set([
+  ".github/scripts/central-ci.sh",
+  "scripts/central-ci-windows.mjs",
+]);
+
+export function filterVerifiedPluginNameOnlyChanges(
+  files: readonly ChangedFile[],
+  readAtRevision: (revision: "base" | "head", path: string) => Buffer
+): ChangedFile[] {
+  return files.filter((file) => {
+    const renamedTest = file.status === "A" && NEW_PLUGIN_TEST.test(file.path);
+    const existingCi = file.status === "M" && EXISTING_PLUGIN_CI.has(file.path);
+    if (!renamedTest && !existingCi) return true;
+    const oldPath = renamedTest ? "tests/dsh-" + file.path.slice("tests/".length) : file.path;
+    const previous = readAtRevision("base", oldPath);
+    const updated = readAtRevision("head", file.path);
+    const decoded = previous.toString("utf8");
+    // Invalid UTF-8 must not be normalized into an apparently valid source file.
+    if (!Buffer.from(decoded, "utf8").equals(previous)) return true;
+    return !Buffer.from(decoded.replaceAll(LEGACY_PLUGIN_PREFIX, "delta-"), "utf8").equals(updated);
+  });
+}
+
+async function inspectPinnedPluginNameOnlyChanges(
+  repository: string,
+  base: string,
+  head: string,
+  files: ChangedFile[],
+  isTargetPublic: boolean
+): Promise<ChangedFile[]> {
+  if (
+    repository !== PLUGIN_RENAME_REPOSITORY ||
+    base !== PLUGIN_RENAME_BASE ||
+    !isTargetPublic ||
+    !files.some(
+      (file) =>
+        (file.status === "A" && NEW_PLUGIN_TEST.test(file.path)) ||
+        (file.status === "M" && EXISTING_PLUGIN_CI.has(file.path))
+    )
+  ) {
+    return files;
+  }
+  // Bare public Git object store: no checkout, hooks or project-controlled scripts.
+  const root = mkdtempSync(join(tmpdir(), "aw-plugin-rename-"));
+  try {
+    await runCommand("git", ["init", "--bare", "-q", root], { timeoutMs: 30_000 });
+    await runCommand(
+      "git",
+      [
+        "-C",
+        root,
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        "--depth=1",
+        "https://github.com/" + repository + ".git",
+        base,
+        head,
+      ],
+      {
+        env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+        timeoutMs: 180_000,
+      }
+    );
+    for (const sha of [base, head]) {
+      const actual = await runText("git", ["-C", root, "rev-parse", "--verify", sha + "^{commit}"]);
+      if (actual !== sha) throw new CliError("Plugin migration Git revision mismatch.", 65);
+    }
+    const readAtRevision = (revision: "base" | "head", path: string): Buffer =>
+      execFileSync("git", ["-C", root, "show", (revision === "base" ? base : head) + ":" + path], {
+        stdio: ["ignore", "pipe", "ignore"],
+        maxBuffer: 2 * 1024 * 1024,
+        timeout: 10_000,
+      });
+    return filterVerifiedPluginNameOnlyChanges(files, readAtRevision);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
 
 export function engineeringOwnershipDiffBase(repository: string, base: string): string {
   return repository === "fongap-labs/delta" && base === DELTA_BOOTSTRAP ? DELTA_UPSTREAM : base;
@@ -339,6 +427,7 @@ export async function checkGithubEngineeringOwnership(
       files = parseCompareFiles(result);
     }
   }
+  files = await inspectPinnedPluginNameOnlyChanges(repository, base, head, files, isTargetPublic);
   // Private workflow pins are checked using GitHub's commit-bound blob identity.
   // Never fetch private workflow contents into the public control runner.
   const contents = new Map<string, string>();
