@@ -9,7 +9,7 @@ import {
   inspectEngineeringOwnership,
   isPinnedPluginRenameCandidate,
   type OwnershipPolicy,
-  PLUGIN_RENAME_BASE,
+  PLUGIN_RENAME_BASES,
   PLUGIN_RENAME_REPOSITORY,
   parseChangedFiles,
   parseOwnershipPolicy,
@@ -39,7 +39,7 @@ async function inspectPinnedPluginNameOnlyChanges(
 ): Promise<ChangedFile[]> {
   if (
     repository !== PLUGIN_RENAME_REPOSITORY ||
-    base !== PLUGIN_RENAME_BASE ||
+    !PLUGIN_RENAME_BASES.has(base) ||
     !isTargetPublic ||
     !files.some(isPinnedPluginRenameCandidate)
   ) {
