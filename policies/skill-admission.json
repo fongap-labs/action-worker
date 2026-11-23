@@ -3,8 +3,8 @@
   "targets": [
     {
       "repository": "fongap-labs/plugins",
-      "proposal_prefix": "packages/dsh-delta-code/skill-proposals/",
-      "catalog_path": "packages/dsh-delta-code/src/delta-code-strategy/trusted-github-skills.ts",
+      "proposal_prefix": "packages/delta-code/skill-proposals/",
+      "catalog_path": "packages/delta-code/src/delta-code-strategy/trusted-github-skills.ts",
       "enabled": true,
       "max_closed_prs": 40
     }
