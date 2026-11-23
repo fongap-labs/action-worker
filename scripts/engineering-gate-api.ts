@@ -18,6 +18,10 @@ const REPOSITORY = /^fongap-labs\/[A-Za-z0-9_.-]+$/;
 // Normal pull requests continue to compare the exact target-branch base and head.
 const DELTA_BOOTSTRAP = "7556dc8dfede03053e35359f2b55dd299da1f3ee";
 const DELTA_UPSTREAM = "2e39e70496aa02986ca6a820c5d497e816b69d7e";
+// Verified Delta main before the exact tree-preserving root-history rewrite.
+// Only the named root is eligible; all future orphan history changes fail closed.
+const DELTA_VERIFIED_MAIN = "2561c645d713b425eda6926767661339ed505acf";
+const DELTA_IDENTICAL_ROOT = "a199379ac6cdf3ad3bddc8c1f2874cbd1b818f25";
 
 export function engineeringOwnershipDiffBase(repository: string, base: string): string {
   return repository === "fongap-labs/delta" && base === DELTA_BOOTSTRAP ? DELTA_UPSTREAM : base;
@@ -220,6 +224,50 @@ export function parseCompareFiles(response: unknown): ChangedFile[] {
   return mapped;
 }
 
+/** Compare immutable Git commit/tree identities for the one exact public reset.
+ * An arbitrary root has no trusted previous baseline and must fail closed.
+ */
+export async function verifyPinnedIdenticalRoot(
+  repository: string,
+  base: string,
+  head: string,
+  get: (path: string) => Promise<unknown>,
+  isTargetPublic: boolean
+): Promise<void> {
+  if (
+    repository !== "fongap-labs/delta" ||
+    head !== DELTA_IDENTICAL_ROOT ||
+    base !== head ||
+    !isTargetPublic
+  ) {
+    throw new CliError("Identical base/head has no approved verified-root baseline.", 65);
+  }
+  const prefix = "repos/" + repository + "/git/commits/";
+  const [root, previous] = await Promise.all([
+    get(prefix + head),
+    get(prefix + DELTA_VERIFIED_MAIN),
+  ]);
+  const treeOf = (value: unknown): string =>
+    isJsonRecord(value) && isJsonRecord(value.tree) && typeof value.tree.sha === "string"
+      ? value.tree.sha
+      : "";
+  const rootTree = treeOf(root);
+  if (
+    !isJsonRecord(root) ||
+    root.sha !== head ||
+    !Array.isArray(root.parents) ||
+    root.parents.length !== 0 ||
+    !isJsonRecord(previous) ||
+    previous.sha !== DELTA_VERIFIED_MAIN ||
+    !Array.isArray(previous.parents) ||
+    previous.parents.length === 0 ||
+    !SHA.test(rootTree) ||
+    rootTree !== treeOf(previous)
+  ) {
+    throw new CliError("Pinned root migration Git tree identity is not verified.", 65);
+  }
+}
+
 export async function checkGithubEngineeringOwnership(
   repository: string,
   base: string,
@@ -232,7 +280,7 @@ export async function checkGithubEngineeringOwnership(
     base: string,
     head: string
   ) => Promise<ChangedFile[]> = fetchPublicGitInventory,
-  targetIsPublic = process.env.TARGET_PRIVATE === "false"
+  isTargetPublic = process.env.TARGET_PRIVATE === "false"
 ): Promise<void> {
   if (!REPOSITORY.test(repository) || !SHA.test(base) || !SHA.test(head)) {
     throw new CliError("Invalid immutable engineering gate inputs.", 65);
@@ -240,9 +288,13 @@ export async function checkGithubEngineeringOwnership(
   if (repository === policy.control_repository) return;
   const diffBase = engineeringOwnershipDiffBase(repository, base);
   let files: ChangedFile[];
-  if (diffBase !== base) {
+  if (base === head) {
+    await verifyPinnedIdenticalRoot(repository, base, head, get, isTargetPublic);
+    // Both immutable commit trees are identical, including all active workflows.
+    files = [];
+  } else if (diffBase !== base) {
     // Compare cannot represent unrelated imported histories. A pinned Git tree diff can.
-    if (!targetIsPublic) {
+    if (!isTargetPublic) {
       throw new CliError("Large Git inventory requires a verified public target.", 65);
     }
     files = await filterInheritedWorkflowDeletions(
@@ -279,7 +331,7 @@ export async function checkGithubEngineeringOwnership(
       throw new CliError("GitHub comparison did not return a file inventory.", 65);
     }
     if (result.files.length >= 300) {
-      if (!targetIsPublic) {
+      if (!isTargetPublic) {
         throw new CliError("GitHub comparison exceeds the private inventory file limit.", 65);
       }
       files = await fetchPublicDiff(repository, base, head);
