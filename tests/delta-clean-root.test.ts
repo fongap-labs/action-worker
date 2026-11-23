@@ -6,8 +6,8 @@ import {
   deltaCleanRootSha,
   deltaCleanRootTreeSha,
   isDeltaCleanRootTarget,
-  verifyDeltaCleanRootCommit,
   verifyDeltaCleanRootCheckout,
+  verifyDeltaCleanRootCommit,
 } from "../scripts/delta-clean-root.ts";
 import { checkGithubEngineeringOwnership } from "../scripts/engineering-gate-api.ts";
 import type { GithubReader } from "../scripts/github-api.ts";
@@ -15,7 +15,11 @@ import { validateMainWriteProvenance } from "../scripts/main-write-guard.ts";
 
 const repository = "fongap-labs/delta";
 const root = { sha: deltaCleanRootSha, parents: [], tree: { sha: deltaCleanRootTreeSha } };
-const restRoot = { sha: deltaCleanRootSha, parents: [], commit: { tree: { sha: deltaCleanRootTreeSha } } };
+const restRoot = {
+  sha: deltaCleanRootSha,
+  parents: [],
+  commit: { tree: { sha: deltaCleanRootTreeSha } },
+};
 
 test("the clean Delta root is pinned to its exact repository, SHA, tree and zero parents", () => {
   assert.equal(isDeltaCleanRootTarget(repository, deltaCleanRootSha), true);
@@ -83,12 +87,7 @@ test("root provenance is recorded as bootstrap, not a fictitious merged PR", asy
       throw new Error("Unexpected PR or status evidence read: " + path);
     },
   } as GithubReader;
-  const provenance = await validateMainWriteProvenance(
-    reader,
-    repository,
-    deltaCleanRootSha,
-    true
-  );
+  const provenance = await validateMainWriteProvenance(reader, repository, deltaCleanRootSha, true);
   assert.deepEqual(provenance, {
     repository,
     main_sha: deltaCleanRootSha,
@@ -99,16 +98,10 @@ test("root provenance is recorded as bootstrap, not a fictitious merged PR", asy
   assert.equal(requests.length, 2);
 
   await assert.rejects(
-    validateMainWriteProvenance(
-      reader,
-      repository,
-      deltaCleanRootSha,
-      true,
-      {
-        repositoryValue: { default_branch: "main" },
-        mainCommit: { ...restRoot, parents: [{ sha: "a".repeat(40) }] },
-      }
-    ),
+    validateMainWriteProvenance(reader, repository, deltaCleanRootSha, true, {
+      repositoryValue: { default_branch: "main" },
+      mainCommit: { ...restRoot, parents: [{ sha: "a".repeat(40) }] },
+    }),
     /identity, parents or tree/
   );
 });
